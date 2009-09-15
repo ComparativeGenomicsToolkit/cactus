@@ -110,7 +110,7 @@ void endInstance_destruct(EndInstance *endInstance) {
 }
 
 const char *endInstance_getName(EndInstance *endInstance) {
-	return endInstance->name;
+	return endInstance->instance;
 }
 
 End *endInstance_getEnd(EndInstance *endInstance) {
@@ -421,27 +421,43 @@ AtomInstance *atomInstance_getReverse(AtomInstance *atomInstance) {
 }
 
 int32_t atomInstance_getStart(AtomInstance *atomInstance) {
+	return endInstance_getCoordinate(atomInstance_getLeft(atomInstance));
 }
 
 int32_t atomInstance_getLength(AtomInstance *atomInstance) {
+	return atom_getLength(atomInstance_getAtom(atomInstance));
 }
 
 Sequence *atomInstance_getSequence(AtomInstance *atomInstance) {
+	return endInstance_getSequence(atomInstance_getLeft(atomInstance));
 }
 
 EndInstance *atomInstance_getLeft(AtomInstance *atomInstance) {
+	return atomInstance->leftEndInstance;
 }
 
 EndInstance *atomInstance_getRight(AtomInstance *atomInstance) {
+	return atomInstance_getLeft(atomInstance_getReverse(atomInstance));
 }
 
 AtomInstance *atomInstance_getParent(AtomInstance *atomInstance) {
+	EndInstance *endInstance;
+	AtomInstance *atomInstance2;
+	endInstance = atomInstance_getLeft(atomInstance);
+	while((endInstance = endInstance_getParent(endInstance)) != NULL) {
+		if((atomInstance2 = endInstance_getAtomInstance(endInstance)) != NULL) {
+			return atomInstance2;
+		}
+	}
+	return NULL;
 }
 
 int32_t atomInstance_getChildNumber(AtomInstance *atomInstance) {
+	return 0;
 }
 
 AtomInstance *atomInstance_getChild(AtomInstance *atomInstance, int32_t index) {
+	return NULL;
 }
 
 ////////////////////////////////////////////////
@@ -452,37 +468,73 @@ AtomInstance *atomInstance_getChild(AtomInstance *atomInstance, int32_t index) {
 ////////////////////////////////////////////////
 ////////////////////////////////////////////////
 
+int32_t atomConstruct_constructP(const void *o1, const void *o2, void *a) {
+	return strcmp(atomInstance_getName((AtomInstance *)o1), atomInstance_getName((AtomInstance *)o2));
+}
+
 Atom *atom_construct(const char *name, int32_t length, Net *net) {
+	Atom *atom;
+	atom = malloc(sizeof(Atom));
+	atom->rAtom = malloc(sizeof(Atom));
+	atom->rAtom->rAtom = atom;
+	atom->atomContents = malloc(sizeof(struct AtomContents));
+	atom->rAtom->atomContents = atom->atomContents;
+
+	atom->atomContents->name = stringCopy(name);
+	atom->atomContents->length = length;
+	atom->atomContents->net = net;
+	atom->atomContents->atomInstances = avl_create(atomConstruct_constructP, NULL, NULL);
+
+	return atom;
+}
+
+void atom_destructP(AtomInstance *atomInstance, void *o) {
+	atomInstance_destruct(atomInstance);
 }
 
 void atom_destruct(Atom *atom) {
+	net_removeAtom(atom_getNet(atom), atom);
+	free(atom->rAtom);
+	free(atom->atomContents->name);
+	avl_destroy(atom->atomContents->atomInstances, (void (*) (void *avl_item, void *avl_param))atom_destructP);
+	free(atom->atomContents);
+	free(atom);
 }
 
 const char *atom_getName(Atom *atom) {
+	return atom->atomContents->name;
 }
 
 int32_t atom_getLength(Atom *atom) {
+	return atom->atomContents->length;
 }
 
 Net *atom_getNet(Atom *atom) {
+	return atom->atomContents->net;
 }
 
 End *atom_getLeft(Atom *atom) {
+	return atom->leftEnd;
 }
 
 End *atom_getRight(Atom *atom) {
+	return atom->rAtom->leftEnd;
 }
 
 Atom *atom_getReverse(Atom *atom) {
+	return atom->rAtom;
 }
 
 int32_t atom_getInstanceNumber(Atom *atom) {
+	return avl_count(atom->atomContents->atomInstances);
 }
 
 AtomInstance *atom_getInstance(Atom *atom, const char *name) {
+	return avl_count(atom->atomContents->atomInstances);
 }
 
 AtomInstance *atom_getFirst(Atom *atom) {
+	//return
 }
 
 Atom_InstanceIterator *atom_getInstanceIterator(Atom *atom) {
@@ -499,9 +551,11 @@ void atom_destructInstanceIterator(Atom_InstanceIterator *atom) {
  */
 
 void atom_addInstance(Atom *atom, AtomInstance *atomInstance) {
+	avl_insert(atom->atomContents->atomInstances, atomInstance);
 }
 
 void atom_removeInstance(Atom *atom, AtomInstance *atomInstance) {
+	avl_delete(atom->atomContents->atomInstances, atomInstance);
 }
 
 ////////////////////////////////////////////////
@@ -512,12 +566,17 @@ void atom_removeInstance(Atom *atom, AtomInstance *atomInstance) {
 ////////////////////////////////////////////////
 ////////////////////////////////////////////////
 
+int32_t adjacencyComponent_constructP(const void *o1, const void *o2, void *a) {
+	return strcmp(end_getName((End *)o1), end_getName((End *)o2));
+}
+
 AdjacencyComponent *adjacencyComponent_construct(Net *net, Net *nestedNet) {
 	AdjacencyComponent *adjacencyComponent;
 	adjacencyComponent = malloc(sizeof(AdjacencyComponent));
 
 	adjacencyComponent->net = net;
 	adjacencyComponent->nestedNetName = stringCopy(net_getName(nestedNet));
+	adjacencyComponent->ends = avl_create(adjacencyComponent_constructP, NULL, NULL);
 
 	net_addAdjacencyComponent(net, adjacencyComponent);
 
@@ -612,7 +671,7 @@ void chain_destruct(Chain *chain, int32_t recursive) {
 		net_removeChain(chain_getNet(chain), chain);
 	}
 	while(recursive && (chain = chain_getNextLink(chain)) != NULL) {
-		chain_destruct(nChain, recursive)l
+		chain_destruct(nChain, recursive);
 	}
 	free(chain);
 }

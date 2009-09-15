@@ -39,17 +39,23 @@ struct _end {
 	Net *net;
 };
 
+struct AtomContents {
+	/*
+	 * Holds a single copy of the internals of each atom (to avoid duplicating in reverse).
+	 */
+	char *name;
+	struct avl_table *atomInstances;
+	int32_t length;
+	Net *net;
+};
+
 struct _atom {
 	/*
 	 * Represents an atom.
 	 */
-	char *name;
-	struct List *atomInstances;
+	struct AtomContents *atomContents;
 	End *leftEnd;
-	End *rightEnd;
 	Atom *rAtom;
-	int32_t length;
-	Net *net;
 };
 
 struct _atomInstance {
