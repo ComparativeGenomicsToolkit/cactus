@@ -530,7 +530,9 @@ int32_t atom_getInstanceNumber(Atom *atom) {
 }
 
 AtomInstance *atom_getInstance(Atom *atom, const char *name) {
-	return avl_count(atom->atomContents->atomInstances);
+	static AtomInstance atomInstance;
+	//atomInstance.instance
+	//return avl_find(atom->atomContents->atomInstances, );
 }
 
 AtomInstance *atom_getFirst(Atom *atom) {
@@ -538,12 +540,18 @@ AtomInstance *atom_getFirst(Atom *atom) {
 }
 
 Atom_InstanceIterator *atom_getInstanceIterator(Atom *atom) {
+	Atom_InstanceIterator *iterator;
+	iterator = malloc(sizeof(Atom_InstanceIterator));
+	avl_t_init(iterator, atom->atomContents->atomInstances);
+	return iterator;
 }
 
 AtomInstance *atom_getNext(Atom_InstanceIterator *iterator) {
+	return avl_t_next(iterator);
 }
 
-void atom_destructInstanceIterator(Atom_InstanceIterator *atom) {
+void atom_destructInstanceIterator(Atom_InstanceIterator *atomInstanceIterator) {
+	free(atomInstanceIterator);
 }
 
 /*
@@ -557,6 +565,7 @@ void atom_addInstance(Atom *atom, AtomInstance *atomInstance) {
 void atom_removeInstance(Atom *atom, AtomInstance *atomInstance) {
 	avl_delete(atom->atomContents->atomInstances, atomInstance);
 }
+
 
 ////////////////////////////////////////////////
 ////////////////////////////////////////////////
