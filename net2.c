@@ -19,6 +19,35 @@
 ////////////////////////////////////////////////
 ////////////////////////////////////////////////
 ////////////////////////////////////////////////
+//Misc reused functions
+////////////////////////////////////////////////
+////////////////////////////////////////////////
+////////////////////////////////////////////////
+
+void *getFirst(struct avl_table *items) {
+	static struct avl_traverser iterator;
+	avl_t_init(&iterator, items);
+	return avl_t_first(&iterator, items);
+}
+
+struct avl_traverser *getIterator(struct avl_table *items) {
+	struct avl_traverser *iterator;
+	iterator = mallocLocal(sizeof(struct avl_traverser));
+	avl_t_init(iterator, items);
+	return iterator;
+}
+
+void destructIterator(struct avl_traverser *iterator) {
+	free(iterator);
+}
+
+void *getNext(struct avl_traverser *iterator) {
+	return avl_t_next(iterator);
+}
+
+////////////////////////////////////////////////
+////////////////////////////////////////////////
+////////////////////////////////////////////////
 //Basic sequence functions.
 ////////////////////////////////////////////////
 ////////////////////////////////////////////////
@@ -29,7 +58,6 @@ Sequence *sequence_construct(const char *name, int32_t length,
 	Sequence *sequence;
 #ifdef BEN_DEBUG
 	assert(length >= 0);
-	assert(netDisk != NULL);
 #endif
 	sequence = malloc(sizeof(Sequence));
 	sequence->file = stringCopy(file);
@@ -101,10 +129,24 @@ EndInstance *endInstance_constructWithCoordinates(const char *instance, End *end
 }
 
 void endInstance_destruct(EndInstance *endInstance) {
+	int32_t i;
+	EndInstance *endInstance2;
+
+	//Remove from end.
 	end_removeInstance(endInstance_getEnd(endInstance), endInstance);
+	//Break adjacencies.
 	endInstance_breakAdjacency1(endInstance);
 	endInstance_breakAdjacency2(endInstance);
+	//Deal with parental and child references to this instance.
+	if((endInstance2 = endInstance_getParent(endInstance)) != NULL) {
+		listRemove(endInstance2->children, endInstance);
+	}
+	for(i=0; i<endInstance->children->length; i++) {
+		endInstance2 = endInstance->children->list[i];
+		endInstance2->parent = NULL;
+	}
 	destructList(endInstance->children);
+	//Free name string
 	free(endInstance->instance);
 	free(endInstance);
 }
@@ -172,7 +214,9 @@ EndInstance *endInstance_getChild(EndInstance *endInstance, int32_t index) {
 }
 
 void endInstance_makeParentAndChild(EndInstance *endInstanceParent, EndInstance *endInstanceChild) {
-	listAppend(endInstanceParent->children, endInstanceChild);
+	if(!listContains(endInstanceParent->children, endInstanceChild)) { //defensive, means second calls will have no effect.
+		listAppend(endInstanceParent->children, endInstanceChild);
+	}
 	endInstanceChild->parent = endInstanceParent;
 }
 
@@ -181,7 +225,7 @@ int32_t endInstance_isInternal(EndInstance *endInstance) {
 }
 
 int32_t endInstance_isAugmented(EndInstance *endInstance) {
-
+	return end_getAtom(endInstance_getEnd(endInstance)) != NULL && endInstance_getAtomInstance(endInstance) == NULL;
 }
 
 /*
@@ -189,7 +233,7 @@ int32_t endInstance_isAugmented(EndInstance *endInstance) {
  */
 
 void endInstance_setAtomInstance(EndInstance *endInstance, AtomInstance *atomInstance) {
-	endInstance->atomInstance = atomInstance; //done reciprocally by calling function.
+	endInstance->atomInstance = atomInstance;
 }
 
 void endInstance_setOperation(EndInstance *endInstance, Operation *operation) {
@@ -231,6 +275,8 @@ End *end_construct(const char *name, Net *net) {
 	end = malloc(sizeof(End));
 	end->endInstances = avl_create(end_constructP, NULL, NULL);
 	end->attachedAtom = NULL;
+	end->adjacencyComponent = NULL;
+	end->net = net;
 	net_addEnd(net, end);
 	return end;
 }
@@ -268,10 +314,18 @@ End *end_copyConstruct(End *end, Net *newNet) {
 
 void end_destruct(End *end) {
 	EndInstance *endInstance;
+	//remove from net.
 	net_removeEnd(end_getNet(end), end);
+
+	//remove instances
 	while((endInstance = end_getFirst(end)) != NULL) {
 		endInstance_destruct(endInstance);
 	}
+	//now the actual instances.
+	avl_destroy(end->endInstances, NULL);
+
+	free(end->name);
+	free(end);
 }
 
 const char *end_getName(End *end) {
@@ -297,24 +351,19 @@ EndInstance *end_getInstance(End *end, const char *name) {
 }
 
 EndInstance *end_getFirst(End *end) {
-	static struct avl_traverser iterator;
-	avl_t_init(&iterator, end->endInstances);
-	return avl_t_first(&iterator, end->endInstances);
+	return getFirst(end->endInstances);
 }
 
 End_InstanceIterator *end_getInstanceIterator(End *end) {
-	End_InstanceIterator *iterator;
-	iterator = mallocLocal(sizeof(End_InstanceIterator));
-	avl_t_init(iterator, end->endInstances);
-	return iterator;
+	return getIterator(end->endInstances);
 }
 
 EndInstance *end_getNext(End_InstanceIterator *iterator) {
-	return avl_t_next(iterator);
+	return getNext(iterator);
 }
 
 void end_destructInstanceIterator(End_InstanceIterator *iterator) {
-	free(iterator);
+	destructIterator(iterator);
 }
 
 int32_t end_isStub(End *end) {
@@ -342,6 +391,7 @@ void end_removeInstance(End *end, EndInstance *endInstance) {
 }
 
 void end_setAdjacencyComponent(End *end, AdjacencyComponent *adjacencyComponent) {
+	//argument may be NULL
 	end->adjacencyComponent = adjacencyComponent;
 }
 
@@ -402,6 +452,7 @@ AtomInstance *atomInstance_constructWithCoordinates(const char *instance, Atom *
 
 void atomInstance_destruct(AtomInstance *atomInstance) {
 	atom_removeInstance(atomInstance_getAtom(atomInstance), atomInstance);
+	//remove from ends.
 	atomInstance_getLeft(atomInstance)->atomInstance = NULL;
 	atomInstance_getRight(atomInstance)->atomInstance = NULL;
 	free(atomInstance->rInstance);
@@ -481,22 +532,27 @@ Atom *atom_construct(const char *name, int32_t length, Net *net) {
 	atom->rAtom->atomContents = atom->atomContents;
 
 	atom->atomContents->name = stringCopy(name);
+	atom->atomContents->atomInstances = avl_create(atomConstruct_constructP, NULL, NULL);
 	atom->atomContents->length = length;
 	atom->atomContents->net = net;
-	atom->atomContents->atomInstances = avl_create(atomConstruct_constructP, NULL, NULL);
 
 	return atom;
 }
 
-void atom_destructP(AtomInstance *atomInstance, void *o) {
-	atomInstance_destruct(atomInstance);
-}
-
 void atom_destruct(Atom *atom) {
+	AtomInstance *atomInstance;
+	//remove from net.
 	net_removeAtom(atom_getNet(atom), atom);
+
+	//remove instances
+	while((atomInstance = atom_getFirst(atom)) != NULL) {
+		atomInstance_destruct(atomInstance);
+	}
+	//now the actual instances.
+	avl_destroy(atom->atomContents->atomInstances, NULL);
+
 	free(atom->rAtom);
 	free(atom->atomContents->name);
-	avl_destroy(atom->atomContents->atomInstances, (void (*) (void *avl_item, void *avl_param))atom_destructP);
 	free(atom->atomContents);
 	free(atom);
 }
@@ -531,27 +587,26 @@ int32_t atom_getInstanceNumber(Atom *atom) {
 
 AtomInstance *atom_getInstance(Atom *atom, const char *name) {
 	static AtomInstance atomInstance;
-	//atomInstance.instance
-	//return avl_find(atom->atomContents->atomInstances, );
+	static EndInstance endInstance;
+	endInstance.instance = (char *)name;
+	atomInstance.leftEndInstance = &endInstance;
+	return avl_find(atom->atomContents->atomInstances, &atomInstance);
 }
 
 AtomInstance *atom_getFirst(Atom *atom) {
-	//return
+	return getFirst(atom->atomContents->atomInstances);
 }
 
 Atom_InstanceIterator *atom_getInstanceIterator(Atom *atom) {
-	Atom_InstanceIterator *iterator;
-	iterator = malloc(sizeof(Atom_InstanceIterator));
-	avl_t_init(iterator, atom->atomContents->atomInstances);
-	return iterator;
+	return getIterator(atom->atomContents->atomInstances);
 }
 
 AtomInstance *atom_getNext(Atom_InstanceIterator *iterator) {
-	return avl_t_next(iterator);
+	return getNext(iterator);
 }
 
 void atom_destructInstanceIterator(Atom_InstanceIterator *atomInstanceIterator) {
-	free(atomInstanceIterator);
+	destructIterator(atomInstanceIterator);
 }
 
 /*
@@ -584,17 +639,47 @@ AdjacencyComponent *adjacencyComponent_construct(Net *net, Net *nestedNet) {
 	adjacencyComponent = malloc(sizeof(AdjacencyComponent));
 
 	adjacencyComponent->net = net;
+	adjacencyComponent->chain = NULL;
 	adjacencyComponent->nestedNetName = stringCopy(net_getName(nestedNet));
 	adjacencyComponent->ends = avl_create(adjacencyComponent_constructP, NULL, NULL);
+	adjacencyComponent_updateContainedEnds(adjacencyComponent);
 
 	net_addAdjacencyComponent(net, adjacencyComponent);
 
 	return adjacencyComponent;
 }
 
+void adjacencyComponent_destructP(End *end, void *o) {
+	end_setAdjacencyComponent(end, NULL);
+}
+
+void adjacencyComponent_updateContainedEnds(AdjacencyComponent *adjacencyComponent) {
+	Net *net;
+	Net_EndIterator *iterator;
+	End *end;
+	End *end2;
+	//wipe the slate clean.
+	avl_destroy(adjacencyComponent->ends, (void (*)(void *, void *))adjacencyComponent_destructP);
+	adjacencyComponent->ends = avl_create(adjacencyComponent_constructP, NULL, NULL);
+	//now calculate the ends
+	net = adjacencyComponent_getNet(adjacencyComponent);
+	iterator = net_getEndIterator(adjacencyComponent_getNestedNet(adjacencyComponent));
+	while((end = net_getNextEnd(iterator)) != NULL) {
+		if((end2 = net_getEnd(net, end_getName(end))) != NULL) {
+			avl_insert(adjacencyComponent->ends, end2);
+			end_setAdjacencyComponent(end2, adjacencyComponent);
+		}
+	}
+	net_destructEndIterator(iterator);
+}
+
 void adjacencyComponent_destruct(AdjacencyComponent *adjacencyComponent) {
-	net_removeChain(adjacencyComponent_getNet(adjacencyComponent), adjacencyComponent);
+	//Detatch from the nets.
+	net_removeAdjacencyComponent(adjacencyComponent_getNet(adjacencyComponent), adjacencyComponent);
 	net_setParentAdjacencyComponent(adjacencyComponent_getNestedNet(adjacencyComponent), NULL);
+	//Detatch the ends from their adjacency components.
+	avl_destroy(adjacencyComponent->ends, (void (*)(void *, void *))adjacencyComponent_destructP);
+	//Free the memory
 	free(adjacencyComponent->nestedNetName);
 	free(adjacencyComponent);
 }
@@ -626,18 +711,15 @@ int32_t adjacencyComponent_getEndNumber(AdjacencyComponent *adjacencyComponent) 
 }
 
 AdjacencyComponent_EndIterator *adjacencyComponent_getEndIterator(AdjacencyComponent *adjacencyComponent) {
-	AdjacencyComponent_EndIterator *iterator;
-	iterator = malloc(sizeof(AdjacencyComponent_EndIterator));
-	avl_t_init(iterator, adjacencyComponent->ends);
-	return iterator;
+	return getIterator(adjacencyComponent->ends);
 }
 
 End *adjacencyComponent_getNextEnd(AdjacencyComponent_EndIterator *endIterator) {
-	return avl_t_next(endIterator);
+	return getNext(endIterator);
 }
 
 void adjacencyComponent_destructEndIterator(AdjacencyComponent_EndIterator *endIterator) {
-	free(endIterator);
+	destructIterator(endIterator);
 }
 
 /*
@@ -645,7 +727,73 @@ void adjacencyComponent_destructEndIterator(AdjacencyComponent_EndIterator *endI
  */
 
 void adjacencyComponent_setChain(AdjacencyComponent *adjacencyComponent, Chain *chain) {
+	//argument may be NULL
 	adjacencyComponent->chain = chain;
+}
+
+////////////////////////////////////////////////
+////////////////////////////////////////////////
+////////////////////////////////////////////////
+//Basic link functions.
+////////////////////////////////////////////////
+////////////////////////////////////////////////
+////////////////////////////////////////////////
+
+Link *link_construct(End *leftEnd, End *rightEnd, AdjacencyComponent *adjacencyComponent, Chain *parentChain) {
+	Link *link;
+	link = malloc(sizeof(Link));
+
+	link->leftEnd = leftEnd;
+	link->rightEnd = rightEnd;
+	link->chain = parentChain;
+	link->adjacencyComponent = adjacencyComponent;
+
+	chain_addLink(parentChain, link); //will set the link indices.
+	return link;
+}
+
+void link_destruct(Link *link) {
+	Link *link2;
+	link_getChain(link)->linkNumber = link->linkIndex;
+	if(link->pLink == NULL) {
+		link_getChain(link)->link = NULL;
+	}
+	else {
+		link->pLink->nLink = NULL;
+	}
+	while(link != NULL) {
+		link2 = link->nLink;
+		link = link->nLink;
+		free(link2);
+	}
+}
+
+Link *link_getNextLink(Link *link) {
+	return link->nLink;
+}
+
+Link *link_getPreviousLink(Link *link) {
+	return link->pLink;
+}
+
+AdjacencyComponent *link_getAdjacencyComponent(Link *link) {
+	return link->adjacencyComponent;
+}
+
+End *link_getLeft(Link *link) {
+	return link->leftEnd;
+}
+
+End *link_getRight(Link *link) {
+	return link->rightEnd;
+}
+
+Chain *link_getChain(Link *link) {
+	return link->chain;
+}
+
+int32_t link_getIndex(Link *link) {
+	return link->linkIndex;
 }
 
 ////////////////////////////////////////////////
@@ -656,66 +804,71 @@ void adjacencyComponent_setChain(AdjacencyComponent *adjacencyComponent, Chain *
 ////////////////////////////////////////////////
 ////////////////////////////////////////////////
 
-Chain *chain_construct(End *leftEnd, End *rightEnd, AdjacencyComponent *adjacencyComponent, Net *net, Chain *pLink) {
+Chain *chain_construct(Net *net) {
 	Chain *chain;
 	chain = malloc(sizeof(Chain));
-
-	chain->nLink = NULL;
-	chain->pLink = pLink;
-	if(pLink != NULL) {
-		pLink->nLink = chain;
-	}
-	chain->adjacencyComponent = adjacencyComponent;
-	chain->leftEnd = leftEnd;
-	chain->rightEnd = rightEnd;
 	chain->net = net;
-
-	net_addChain(net, chain); //will set the chain indices.
+	chain->link = NULL;
+	chain->linkNumber = 0;
+	net_addChain(net, chain);
 	return chain;
 }
 
-void chain_destruct(Chain *chain, int32_t recursive) {
-	Chain *nChain;
-	if(chain) {
-		net_removeChain(chain_getNet(chain), chain);
-	}
-	while(recursive && (chain = chain_getNextLink(chain)) != NULL) {
-		chain_destruct(nChain, recursive);
+void chain_destruct(Chain *chain) {
+	net_removeChain(chain_getNet(chain), chain);
+	if(chain->link != NULL) {
+		link_destruct(chain->link);
 	}
 	free(chain);
 }
 
-Chain *chain_getNextLink(Chain *chain) {
-	return chain->nLink;
+Link *chain_getLink(Chain *chain, int32_t linkIndex) {
+	int32_t i;
+	Link *link;
+
+#ifdef BEN_DEBUG
+	assert(linkIndex >= 0);
+	assert(linkIndex < chain->linkNumber);
+#endif
+
+	i=0;
+	link = chain->link;
+	while(i++ < linkIndex) {
+		link = link->nLink;
+	}
+	return link;
 }
 
-Chain *chain_getPreviousLink(Chain *chain) {
-	return chain->pLink;
-}
-
-AdjacencyComponent *chain_getAdjacencyComponent(Chain *chain) {
-	return chain->adjacencyComponent;
-}
-
-End *chain_getLeft(Chain *chain) {
-	return chain->leftEnd;
-}
-
-End *chain_getRight(Chain *chain) {
-	return chain->rightEnd;
-}
-
-Net *chain_getNet(Chain *chain) {
-	return chain->net;
+int32_t chain_getLength(Chain *chain) {
+	return chain->linkNumber;
 }
 
 int32_t chain_getIndex(Chain *chain) {
 	return chain->chainIndex;
 }
 
+Net *chain_getNet(Chain *chain) {
+	return chain->net;
+}
+
 /*
  * Private functions
  */
+
+void chain_addLink(Chain *chain, Link *childLink) {
+	Link *pLink;
+	if(chain->linkNumber != 0) {
+		pLink = chain_getLink(chain, chain->linkNumber -1);
+		pLink->nLink = childLink;
+		childLink->pLink = pLink;
+	}
+	else {
+		childLink->pLink = NULL;
+		chain->link = childLink;
+	}
+	childLink->nLink = NULL;
+	childLink->linkIndex = chain->linkNumber++;
+}
 
 void chain_setIndex(Chain *chain, int32_t index) {
 	chain->chainIndex = index;
@@ -809,6 +962,8 @@ Net *net_construct(const char *name, NetDisk *netDisk) {
 
 	net->parentNetName = NULL;
 	net->netDisk = netDisk;
+	net->operationIndex = 0;
+	net->chainIndex = 0;
 
 	netDisk_addNet(net->netDisk, net);
 
@@ -823,29 +978,13 @@ NetDisk *net_getNetDisk(Net *net) {
 	return net->netDisk;
 }
 
-void net_destructEndP(End *end, void *o) {
-	end_destruct(end);
-}
-
-void net_destructAtomP(Atom *atom, void *o) {
-	atom_destruct(atom);
-}
-
-void net_destructAdjacencyComponentP(AdjacencyComponent *adjacencyComponent, void *o) {
-	adjacencyComponent_destruct(adjacencyComponent);
-}
-
-void net_destructChainP(Chain *chain, void *o) {
-	chain_destruct(chain, TRUE);
-}
-
-void net_destructOperationP(Operation *operation, void *o) {
-	operation_destruct(operation);
-}
-
 void net_destruct(Net *net, int32_t recursive) {
 	Net_AdjacencyComponentIterator *iterator;
+	End *end;
+	Atom *atom;
 	AdjacencyComponent *adjacencyComponent;
+	Chain *chain;
+	Operation *operation;
 
 	if(recursive) {
 		iterator = net_getAdjacencyComponentIterator(net);
@@ -856,12 +995,33 @@ void net_destruct(Net *net, int32_t recursive) {
 	}
 
 	netDisk_unloadNet(net->netDisk, net);
+
 	avl_destroy(net->sequences, NULL);
-	avl_destroy(net->ends, (void (*) (void *avl_item, void *avl_param))net_destructEndP);
-	avl_destroy(net->atoms, (void (*) (void *avl_item, void *avl_param))net_destructAtomP);
-	avl_destroy(net->adjacencyComponents, (void (*) (void *avl_item, void *avl_param))net_destructAdjacencyComponentP);
-	avl_destroy(net->chains, (void (*) (void *avl_item, void *avl_param))net_destructChainP);
-	avl_destroy(net->operations, (void (*) (void *avl_item, void *avl_param))net_destructOperationP);
+
+	while((end = net_getFirstEnd(net)) != NULL) {
+		end_destruct(end);
+	}
+	avl_destroy(net->ends, NULL);
+
+	while((atom = net_getFirstAtom(net)) != NULL) {
+		atom_destruct(atom);
+	}
+	avl_destroy(net->atoms, NULL);
+
+	while((adjacencyComponent = net_getFirstAdjacencyComponent(net)) != NULL) {
+		adjacencyComponent_destruct(adjacencyComponent);
+	}
+	avl_destroy(net->adjacencyComponents, NULL);
+
+	while((chain = net_getFirstChain(net)) != NULL) {
+		chain_destruct(chain);
+	}
+	avl_destroy(net->chains, NULL);
+
+	while((operation = net_getFirstOperation(net)) != NULL) {
+		operation_destruct(operation);
+	}
+	avl_destroy(net->operations, NULL);
 
 	free(net->name);
 	if(net->parentNetName != NULL) {
@@ -872,6 +1032,10 @@ void net_destruct(Net *net, int32_t recursive) {
 
 void net_addSequence(Net *net, Sequence *sequence) {
 	avl_insert(net->sequences, sequence);
+}
+
+Sequence *net_getFirstSequence(Net *net) {
+	return getFirst(net->sequences);
 }
 
 Sequence *net_getSequence(Net *net, const char *name) {
@@ -885,18 +1049,19 @@ int32_t net_getSequenceNumber(Net *net) {
 }
 
 Net_SequenceIterator *net_getSequenceIterator(Net *net) {
-	Net_SequenceIterator *iterator;
-	iterator = malloc(sizeof(Net_SequenceIterator));
-	avl_t_init(iterator, net->sequences);
-	return iterator;
+	return getIterator(net->sequences);
 }
 
 Sequence *net_getNextSequence(Net_SequenceIterator *sequenceIterator) {
-	return avl_t_next(sequenceIterator);
+	return getNext(sequenceIterator);
 }
 
 void net_destructSequenceIterator(Net_SequenceIterator *sequenceIterator) {
-	free(sequenceIterator);
+	destructIterator(sequenceIterator);
+}
+
+End *net_getFirstEnd(Net *net) {
+	return getFirst(net->ends);
 }
 
 End *net_getEnd(Net *net, const char *name) {
@@ -910,23 +1075,26 @@ int32_t net_getEndNumber(Net *net) {
 }
 
 Net_EndIterator *net_getEndIterator(Net *net) {
-	Net_EndIterator *iterator;
-	iterator = malloc(sizeof(Net_EndIterator));
-	avl_t_init(iterator, net->ends);
-	return iterator;
+	return getIterator(net->ends);
 }
 
 End *net_getNextEnd(Net_EndIterator *endIterator) {
-	return avl_t_next(endIterator);
+	return getNext(endIterator);
 }
 
 void net_destructEndIterator(Net_EndIterator *endIterator) {
-	free(endIterator);
+	destructIterator(endIterator);
+}
+
+Atom *net_getFirstAtom(Net *net) {
+	return getFirst(net->atoms);
 }
 
 Atom *net_getAtom(Net *net, const char *name) {
 	static Atom atom;
-	atom.name = (char *)name;
+	static struct AtomContents atomContents;
+	atom.atomContents = &atomContents;
+	atomContents.name = (char *)name;
 	return avl_find(net->atoms, &atom);
 }
 
@@ -935,18 +1103,19 @@ int32_t net_getAtomNumber(Net *net) {
 }
 
 Net_AtomIterator *net_getAtomIterator(Net *net) {
-	Net_SequenceIterator *iterator;
-	iterator = malloc(sizeof(Net_AtomIterator));
-	avl_t_init(iterator, net->atoms);
-	return iterator;
+	return getIterator(net->atoms);
 }
 
 Atom *net_getNextAtom(Net_AtomIterator *atomIterator) {
-	return avl_t_next(atomIterator);
+	return getNext(atomIterator);
 }
 
 void net_destructAtomIterator(Net_AtomIterator *atomIterator) {
-	free(atomIterator);
+	destructIterator(atomIterator);
+}
+
+AdjacencyComponent *net_getFirstAdjacencyComponent(Net *net) {
+	return getFirst(net->adjacencyComponents);
 }
 
 AdjacencyComponent *net_getAdjacencyComponent(Net *net, const char *netName) {
@@ -960,24 +1129,25 @@ int32_t net_getAdjacencyComponentNumber(Net *net) {
 }
 
 Net_AdjacencyComponentIterator *net_getAdjacencyComponentIterator(Net *net) {
-	Net_AdjacencyComponentIterator *iterator;
-	iterator = malloc(sizeof(Net_AdjacencyComponentIterator));
-	avl_t_init(iterator, net->adjacencyComponents);
-	return iterator;
+	return getIterator(net->adjacencyComponents);
 }
 
 AdjacencyComponent *net_getNextAdjacencyComponent(Net_AdjacencyComponentIterator *adjacencyComponentIterator) {
-	return avl_t_next(adjacencyComponentIterator);
+	return getNext(adjacencyComponentIterator);
 }
 
 void net_destructAdjacencyComponentIterator(Net_AdjacencyComponentIterator *adjacencyComponentIterator) {
-	free(adjacencyComponentIterator);
+	destructIterator(adjacencyComponentIterator);
 }
 
 AdjacencyComponent *net_getParentAdjacencyComponent(Net *net) {
 	Net *net2;
 	net2 = netDisk_getNet(net_getNetDisk(net), net->parentNetName);
 	return net_getAdjacencyComponent(net2, net_getName(net));
+}
+
+Chain *net_getFirstChain(Net *net) {
+	return getFirst(net->chains);
 }
 
 Chain *net_getChain(Net *net, int32_t index) {
@@ -991,18 +1161,19 @@ int32_t net_getChainNumber(Net *net) {
 }
 
 Net_ChainIterator *net_getChainIterator(Net *net) {
-	Net_ChainIterator *iterator;
-	iterator = malloc(sizeof(Net_ChainIterator));
-	avl_t_init(iterator, net->chains);
-	return iterator;
+	return getIterator(net->chains);
 }
 
 Chain *net_getNextChain(Net_ChainIterator *chainIterator) {
-	return avl_t_next(chainIterator);
+	return getNext(chainIterator);
 }
 
 void net_destructChainIterator(Net_ChainIterator *chainIterator) {
-	free(chainIterator);
+	destructIterator(chainIterator);
+}
+
+Operation *net_getFirstOperation(Net *net) {
+	return getFirst(net->operations);
 }
 
 Operation *net_getOperation(Net *net, int32_t index) {
@@ -1016,18 +1187,15 @@ int32_t net_getOperationNumber(Net *net) {
 }
 
 Net_OperationIterator *net_getOperationIterator(Net *net) {
-	Net_OperationIterator *iterator;
-	iterator = malloc(sizeof(Net_OperationIterator));
-	avl_t_init(iterator, net->operations);
-	return iterator;
+	return getIterator(net->operations);
 }
 
 Operation *net_getNextOperation(Net_OperationIterator *operationIterator) {
-	return avl_t_next(operationIterator);
+	return getNext(operationIterator);
 }
 
 void net_destructOperationIterator(Net_OperationIterator *operationIterator) {
-	free(operationIterator);
+	destructIterator(operationIterator);
 }
 
 char *net_makeBinaryRepresentation(Net *net) {
@@ -1114,13 +1282,19 @@ Sequence *netDisk_getSequence(NetDisk *netDisk, const char *sequenceName) {
  * Private functions.
  */
 
-void netDisk_addSequence(NetDisk *netDisk, Net *net);
+void netDisk_addSequence(NetDisk *netDisk, Sequence *sequence) {
+}
 
-void netDisk_unloadSequence(NetDisk *netDisk, const char *sequenceName);
 
-int32_t netDisk_netIsLoaded(NetDisk *netDisk, Net *net);
+void netDisk_unloadSequence(NetDisk *netDisk, Sequence *sequence) {
+}
 
-void netDisk_addNet(NetDisk *netDisk, Net *net);
+int32_t netDisk_netIsLoaded(NetDisk *netDisk, Net *net) {
+}
 
-void netDisk_unloadNet(NetDisk *netDisk, Net *net);
+void netDisk_addNet(NetDisk *netDisk, Net *net) {
+}
+
+void netDisk_unloadNet(NetDisk *netDisk, Net *net) {
+}
 

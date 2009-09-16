@@ -17,6 +17,7 @@ typedef struct _endInstance EndInstance;
 typedef struct _atomInstance AtomInstance;
 typedef struct _atom Atom;
 typedef struct _adjacencyComponent AdjacencyComponent;
+typedef struct _link Link;
 typedef struct _chain Chain;
 typedef struct _operation Operation;
 typedef struct _net Net;
@@ -397,7 +398,7 @@ int32_t atom_getInstanceNumber(Atom *atom);
 AtomInstance *atom_getInstance(Atom *atom, const char *name);
 
 /*
- * Gets the first instance in the atom, or NULL if none.
+ * Gets the first atom instance in the list.
  */
 AtomInstance *atom_getFirst(Atom *atom);
 
@@ -428,6 +429,12 @@ void atom_destructInstanceIterator(Atom_InstanceIterator *atom);
  * Constructs an adjacency component.
  */
 AdjacencyComponent *adjacencyComponent_construct(Net *net, Net *nestedNet);
+
+/*
+ * Updates the adjacency component's set of ends to contain the intersection of ends
+ * contained in both the parent net and the nested net of the adjacency component.
+ */
+void adjacencyComponent_updateContainedEnds(AdjacencyComponent *adjacencyComponent);
 
 /*
  * Destructs an adjacency component.
@@ -482,55 +489,93 @@ void adjacencyComponent_destructEndIterator(AdjacencyComponent_EndIterator *endI
 ////////////////////////////////////////////////
 ////////////////////////////////////////////////
 ////////////////////////////////////////////////
+//Basic link functions.
+////////////////////////////////////////////////
+////////////////////////////////////////////////
+////////////////////////////////////////////////
+
+/*
+ * Construct a link.
+ */
+Link *link_construct(End *leftEnd, End *rightEnd, AdjacencyComponent *adjacencyComponent, Chain *parentChain);
+
+/*
+ * Destructs the link and all subsequent nLinks.
+ */
+void link_destruct(Link *link);
+
+/*
+ * Gets the next link in the link.
+ */
+Link *link_getNextLink(Link *link);
+
+/*
+ * Gets the prior link in the link.
+ */
+Link *link_getPreviousLink(Link *link);
+
+/*
+ * Gets the nested net the link contains.
+ */
+AdjacencyComponent *link_getAdjacencyComponent(Link *link);
+
+/*
+ * Gets the left end of the link in the link.
+ */
+End *link_getLeft(Link *link);
+
+/*
+ * Gets the right end of the link in the link.
+ */
+End *link_getRight(Link *link);
+
+/*
+ * Gets the chain the link is part of.
+ */
+Chain *link_getChain(Link *link);
+
+/*
+ * Gets the index of the link in the chain..
+ */
+int32_t link_getIndex(Link *link);
+
+////////////////////////////////////////////////
+////////////////////////////////////////////////
+////////////////////////////////////////////////
 //Basic chain functions.
 ////////////////////////////////////////////////
 ////////////////////////////////////////////////
 ////////////////////////////////////////////////
 
 /*
- * Construct a chain.
+ * Constructs a chain, which in turn holds links.
  */
-Chain *chain_construct(End *leftEnd, End *rightEnd, AdjacencyComponent *adjacencyComponent, Net *net, Chain *pLink);
+Chain *chain_construct(Net *net);
 
 /*
- * Destructs the chain and any nested net it contains.
+ * Destructs the chain.
  */
-void chain_destruct(Chain *chain, int32_t recursive);
+void chain_destruct(Chain *chain);
 
 /*
- * Gets the next link in the chain.
+ * Gets a link in the chain.
  */
-Chain *chain_getNextLink(Chain *chain);
+Link *chain_getLink(Chain *chain, int32_t linkIndex);
 
 /*
- * Gets the prior link in the chain.
+ * Returns the number of links in the chain.
  */
-Chain *chain_getPreviousLink(Chain *chain);
+int32_t chain_getLength(Chain *chain);
 
 /*
- * Gets the nested net the chain contains.
- */
-AdjacencyComponent *chain_getAdjacencyComponent(Chain *chain);
-
-/*
- * Gets the left end of the link in the chain.
- */
-End *chain_getLeft(Chain *chain);
-
-/*
- * Gets the right end of the link in the chain.
- */
-End *chain_getRight(Chain *chain);
-
-/*
- * Gets the net the chain is part of.
- */
-Net *chain_getNet(Chain *chain);
-
-/*
- * Gets the index of the chain in the net's set of chains..
+ * Gets the index of the chain in the net.
  */
 int32_t chain_getIndex(Chain *chain);
+
+/*
+ * Gets the parent net of the chain.
+ */
+Net *chain_getNet(Chain *chain);
 
 ////////////////////////////////////////////////
 ////////////////////////////////////////////////
@@ -595,6 +640,11 @@ NetDisk *net_getNetDisk(Net *net);
 void net_addSequence(Net *net, Sequence *sequence);
 
 /*
+ * Gets the 'first' sequence.
+ */
+Sequence *net_getFirstSequence(Net *net);
+
+/*
  * Gets an sequence by its name.
  */
 Sequence *net_getSequence(Net *net, const char *name);
@@ -618,6 +668,41 @@ Sequence *net_getNextSequence(Net_SequenceIterator *sequenceIterator);
  * Destructs the iterator.
  */
 void net_destructSequenceIterator(Net_SequenceIterator *sequenceIterator);
+
+/*
+ * Gets the 'first' end.
+ */
+End *net_getFirstEnd(Net *net);
+
+/*
+ * Gets an end by name.
+ */
+End *net_getEnd(Net *net, const char *name);
+
+/*
+ * Returns the number of ends.
+ */
+int32_t net_getEndNumber(Net *net);
+
+/*
+ * Gets an iterator to iterate through the ends in the net, at this level.
+ */
+Net_EndIterator *net_getEndIterator(Net *net);
+
+/*
+ * Gets the next end from the iterator.
+ */
+End *net_getNextEnd(Net_EndIterator *endIterator);
+
+/*
+ * Destructs the iterator.
+ */
+void net_destructEndIterator(Net_EndIterator *endIterator);
+
+/*
+ * Gets the 'first' atom.
+ */
+Atom *net_getFirstAtom(Net *net);
 
 /*
  * Gets an atom by name.
@@ -645,29 +730,9 @@ Atom *net_getNextAtom(Net_AtomIterator *atomIterator);
 void net_destructAtomIterator(Net_AtomIterator *atomIterator);
 
 /*
- * Gets an end by name.
+ * Gets the 'first' adjacency component.
  */
-End *net_getEnd(Net *net, const char *name);
-
-/*
- * Returns the number of ends.
- */
-int32_t net_getEndNumber(Net *net);
-
-/*
- * Gets an iterator to iterate through the ends in the net, at this level.
- */
-Net_EndIterator *net_getEndIterator(Net *net);
-
-/*
- * Gets the next end from the iterator.
- */
-End *net_getNextEnd(Net_EndIterator *endIterator);
-
-/*
- * Destructs the iterator.
- */
-void net_destructEndIterator(Net_EndIterator *endIterator);
+AdjacencyComponent *net_getFirstAdjacencyComponent(Net *net);
 
 /*
  * Gets an adjacency component by the name of the nested net it contains.
@@ -700,12 +765,17 @@ void net_destructAdjacencyComponentIterator(Net_AdjacencyComponentIterator *adja
 AdjacencyComponent *net_getParentAdjacencyComponent(Net *net);
 
 /*
+ * Gets the 'first' chain.
+ */
+Chain *net_getFirstChain(Net *net);
+
+/*
  * Gets a chain by its index
  */
 Chain *net_getChain(Net *net, int32_t index);
 
 /*
- * Returns the number of complete (not links) chains.
+ * Returns the number of chains.
  */
 int32_t net_getChainNumber(Net *net);
 
@@ -723,6 +793,11 @@ Chain *net_getNextChain(Net_ChainIterator *chainIterator);
  * Destructs the iterator.
  */
 void net_destructChainIterator(Net_ChainIterator *chainIterator);
+
+/*
+ * Gets the 'first' operation.
+ */
+Operation *net_getFirstOperation(Net *net);
 
 /*
  * Gets an chain by index.

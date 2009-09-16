@@ -13,10 +13,8 @@ struct _sequence {
 };
 
 struct _endInstance {
-	/*
-	 * Represents an end instance.
-	 */
 	char *instance;
+	End *end;
 	int32_t coordinate;
 	Sequence *sequence;
 	EndInstance *adjacency;
@@ -25,13 +23,9 @@ struct _endInstance {
 	AtomInstance *atomInstance;
 	EndInstance *parent;
 	struct List *children;
-	End *end;
 };
 
 struct _end {
-	/*
-	 * Represents a cap/stub.
-	 */
 	char *name;
 	struct avl_table *endInstances;
 	Atom *attachedAtom;
@@ -39,10 +33,13 @@ struct _end {
 	Net *net;
 };
 
+struct _atomInstance {
+	EndInstance *leftEndInstance;
+	AtomInstance *rInstance;
+	Atom *atom;
+};
+
 struct AtomContents {
-	/*
-	 * Holds a single copy of the internals of each atom (to avoid duplicating in reverse).
-	 */
 	char *name;
 	struct avl_table *atomInstances;
 	int32_t length;
@@ -50,21 +47,9 @@ struct AtomContents {
 };
 
 struct _atom {
-	/*
-	 * Represents an atom.
-	 */
 	struct AtomContents *atomContents;
 	End *leftEnd;
 	Atom *rAtom;
-};
-
-struct _atomInstance {
-	/*
-	 * Represents an instance of an atom.
-	 */
-	EndInstance *leftEndInstance;
-	AtomInstance *rInstance;
-	Atom *atom;
 };
 
 struct _adjacencyComponent {
@@ -74,20 +59,23 @@ struct _adjacencyComponent {
 	struct avl_table *ends;
 };
 
-
-struct _chain {
-	/*
-	 * A doubly linked list which can hold sub chains (to form the the net structure).
-	 */
+struct _link {
 	End *leftEnd;
 	End *rightEnd;
+	Chain *chain;
 	AdjacencyComponent *adjacencyComponent;
 	//previous link in the chain.
-	Chain *pLink;
+	Link *pLink;
 	//next link in the chain.
-	Chain *nLink;
-	//Pointer to contained subproblem
+	Link *nLink;
+	//index of the link in the chain.
+	int32_t linkIndex;
+};
+
+struct _chain {
 	Net *net;
+	Link *link;
+	int32_t linkNumber;
 	int32_t chainIndex;
 };
 
@@ -106,6 +94,7 @@ struct _net {
 	struct avl_table *operations;
 	char *parentNetName;
 	NetDisk *netDisk;
+	int32_t operationIndex;
 	int32_t chainIndex;
 };
 
@@ -172,6 +161,11 @@ void atom_removeInstance(Atom *atom, AtomInstance *atomInstance);
  * Sets the chain the adjacency component is part of.
  */
 void adjacencyComponent_setChain(AdjacencyComponent *adjacencyComponent, Chain *chain);
+
+/*
+ * Add the link to the chain.
+ */
+void chain_addLink(Chain *chain, Link *childLink);
 
 /*
  * Sets the chain's index.
