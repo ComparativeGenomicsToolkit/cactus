@@ -145,20 +145,20 @@ void addEnvelopingEnds(Net *net) {
 	 * nested net.
 	 */
 	int32_t i;
-	Chain *chain;
+	Link *link;
 	AdjacencyComponent *adjacencyComponent;
 	Net *net2;
 
 	for(i=0; i<net_getChainNumber(net); i++) {
-		chain = net_getChain(net, i);
-		while(chain != NULL) {
-			adjacencyComponent = chain_getAdjacencyComponent(chain);
+		link = chain_getLink(net_getChain(net, i), 0);
+		while(link != NULL) {
+			adjacencyComponent = link_getAdjacencyComponent(link);
 			net2 = adjacencyComponent_getNestedNet(adjacencyComponent);
-			end_copyConstruct(chain_getLeft(chain), net2);
-			end_copyConstruct(chain_getRight(chain), net2);
+			end_copyConstruct(link_getLeft(link), net2);
+			end_copyConstruct(link_getRight(link), net2);
 			//Do recursive call.
 			addEnvelopingEnds(net2);
-			chain = chain_getNextLink(chain);
+			link = link_getNextLink(link);
 		}
 	}
 }
@@ -344,7 +344,6 @@ Net *constructNetFromInputs(struct CactusGraph *cactusGraph,
 	Net *parentNet;
 	Chain *chain;
 	AdjacencyComponent *adjacencyComponent;
-	Chain *pChain;
 	struct CactusVertex *cactusVertex;
 	struct CactusEdge *cactusEdge;
 	struct List *biConnectedComponent;
@@ -442,7 +441,7 @@ Net *constructNetFromInputs(struct CactusGraph *cactusGraph,
 			}
 		}
 	}
-	logDebug("Constructed chain for each cycle.\n");
+	logDebug("Constructed atoms and nets for the cycle.\n");
 
 	////////////////////////////////////////////////
 	//Link nets to parent nets.
@@ -453,9 +452,9 @@ Net *constructNetFromInputs(struct CactusGraph *cactusGraph,
 		parentNet = parentNets[i];
 		if(biConnectedComponents->length > 1) {
 #ifdef BEN_DEBUG
-			assert(chain != NULL);
+			assert(parentNet != NULL);
 #endif
-			pChain = NULL;
+			chain = chain_construct(net);
 			for(j=1; j<biConnectedComponent->length; j++) {
 				cactusEdge = biConnectedComponent->list[j-1];
 				net = nets[mergedVertexIDs[cactusEdge->to->vertexID]];
@@ -465,14 +464,14 @@ Net *constructNetFromInputs(struct CactusGraph *cactusGraph,
 #endif
 				adjacencyComponent = adjacencyComponent_construct(parentNet, net);
 				nets[cactusEdge->to->vertexID] = NULL; //defensive
-				//Make chain
-				chain = chain_construct(net_getEnd(net, cactusEdgeToEndName(cactusEdge->rEdge, pinchGraph, names)),
-						net_getEnd(net, cactusEdgeToEndName(biConnectedComponent->list[j], pinchGraph, names)),
-						adjacencyComponent, net, pChain);
-				pChain = chain;
+				//Make link chain
+				link_construct(net_getEnd(net, cactusEdgeToEndName(cactusEdge->rEdge, pinchGraph, names)),
+								net_getEnd(net, cactusEdgeToEndName(biConnectedComponent->list[j], pinchGraph, names)),
+								adjacencyComponent, chain);
 			}
 		}
 	}
+	logDebug("Constructed the chains and linked together the nets\n");
 
 	net = nets[0];
 

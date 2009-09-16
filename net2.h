@@ -242,6 +242,16 @@ End_InstanceIterator *end_getInstanceIterator(End *end);
 EndInstance *end_getNext(End_InstanceIterator *iterator);
 
 /*
+ * Gets the previous end instance from the iterator.
+ */
+EndInstance *end_getPrevious(End_InstanceIterator *iterator);
+
+/*
+ * Duplicates the iterator.
+ */
+End_InstanceIterator *end_copyInstanceIterator(End_InstanceIterator *iterator);
+
+/*
  * Destructs the iterator.
  */
 void end_destructInstanceIterator(End_InstanceIterator *end);
@@ -413,6 +423,16 @@ Atom_InstanceIterator *atom_getInstanceIterator(Atom *atom);
 AtomInstance *atom_getNext(Atom_InstanceIterator *iterator);
 
 /*
+ * Gets the previous atom instance, or NULL if none remaining.
+ */
+AtomInstance *atom_getPrevious(Atom_InstanceIterator *iterator);
+
+/*
+ * Duplicates the iterator.
+ */
+Atom_InstanceIterator *atom_copyInstanceIterator(Atom *atom);
+
+/*
  * Destructs the iterator - should always be coupled with the iterator.
  */
 void atom_destructInstanceIterator(Atom_InstanceIterator *atom);
@@ -480,6 +500,16 @@ AdjacencyComponent_EndIterator *adjacencyComponent_getEndIterator(AdjacencyCompo
  * Gets the next end from the iterator.
  */
 End *adjacencyComponent_getNextEnd(AdjacencyComponent_EndIterator *endIterator);
+
+/*
+ * Gets the previous end from the iterator.
+ */
+End *adjacencyComponent_getPreviousEnd(AdjacencyComponent_EndIterator *endIterator);
+
+/*
+ * Duplicates the iterator.
+ */
+AdjacencyComponent_EndIterator *adjacencyComponent_copyEndIterator(AdjacencyComponent_EndIterator *endIterator);
 
 /*
  * Destructs the iterator.
@@ -660,9 +690,19 @@ int32_t net_getSequenceNumber(Net *net);
 Net_SequenceIterator *net_getSequenceIterator(Net *net);
 
 /*
- * Gets the next chain from the iterator.
+ * Gets the next sequence from the iterator.
  */
 Sequence *net_getNextSequence(Net_SequenceIterator *sequenceIterator);
+
+/*
+ * Gets the previous sequence from the iterator.
+ */
+Sequence *net_getPreviousSequence(Net_SequenceIterator *sequenceIterator);
+
+/*
+ * Duplicates the iterator.
+ */
+Net_SequenceIterator *net_copySequenceIterator(Net_SequenceIterator *sequenceIterator);
 
 /*
  * Destructs the iterator.
@@ -695,6 +735,16 @@ Net_EndIterator *net_getEndIterator(Net *net);
 End *net_getNextEnd(Net_EndIterator *endIterator);
 
 /*
+ * Gets the previous end from the iterator.
+ */
+End *net_getPreviousEnd(Net_EndIterator *endIterator);
+
+/*
+ * Duplicates the iterator.
+ */
+Net_EndIterator *net_copyEndIterator(Net_EndIterator *endIterator);
+
+/*
  * Destructs the iterator.
  */
 void net_destructEndIterator(Net_EndIterator *endIterator);
@@ -725,6 +775,16 @@ Net_AtomIterator *net_getAtomIterator(Net *net);
 Atom *net_getNextAtom(Net_AtomIterator *atomIterator);
 
 /*
+ * Gets the previous atom from the iterator.
+ */
+Atom *net_getPreviousAtom(Net_AtomIterator *atomIterator);
+
+/*
+ * Duplicates the iterator
+ */
+Net_AtomIterator *net_copyAtomIterator(Net_AtomIterator *atomIterator);
+
+/*
  * Destructs the iterator.
  */
 void net_destructAtomIterator(Net_AtomIterator *atomIterator);
@@ -753,6 +813,16 @@ Net_AdjacencyComponentIterator *net_getAdjacencyComponentIterator(Net *net);
  * Gets the next adjacency component from the iterator.
  */
 AdjacencyComponent *net_getNextAdjacencyComponent(Net_AdjacencyComponentIterator *adjacencyComponentIterator);
+
+/*
+ * Gets the previous adjacency component from the iterator.
+ */
+AdjacencyComponent *net_getPreviousAdjacencyComponent(Net_AdjacencyComponentIterator *adjacencyComponentIterator);
+
+/*
+ * Duplicates the iterator.
+ */
+Net_AdjacencyComponentIterator *net_copyAdjacencyComponentIterator(Net_AdjacencyComponentIterator *adjacencyComponentIterator);
 
 /*
  * Destructs the iterator.
@@ -790,6 +860,16 @@ Net_ChainIterator *net_getChainIterator(Net *net);
 Chain *net_getNextChain(Net_ChainIterator *chainIterator);
 
 /*
+ * Gets the previous chain from the iterator.
+ */
+Chain *net_getPreviousChain(Net_ChainIterator *chainIterator);
+
+/*
+ * Duplicates the iterator.
+ */
+Net_ChainIterator *net_copyChainIterator(Net_ChainIterator *chainIterator);
+
+/*
  * Destructs the iterator.
  */
 void net_destructChainIterator(Net_ChainIterator *chainIterator);
@@ -818,6 +898,16 @@ Net_OperationIterator *net_getOperationIterator(Net *net);
  * Gets the next operation from the iterator.
  */
 Operation *net_getNextOperation(Net_OperationIterator *operationIterator);
+
+/*
+ * Gets the previous operation from the iterator.
+ */
+Operation *net_getPreviousOperation(Net_OperationIterator *operationIterator);
+
+/*
+ * Duplicates the iterator.
+ */
+Net_OperationIterator *net_copyOperationIterator(Net_OperationIterator *operationIterator);
 
 /*
  * Destructs the iterator.

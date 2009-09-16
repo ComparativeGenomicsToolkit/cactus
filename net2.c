@@ -45,6 +45,19 @@ void *getNext(struct avl_traverser *iterator) {
 	return avl_t_next(iterator);
 }
 
+struct avl_traverser *copyIterator(struct avl_traverser *iterator) {
+	struct avl_traverser *copyIterator;
+	copyIterator = mallocLocal(sizeof(struct avl_traverser));
+	avl_t_copy(copyIterator, iterator);
+	return copyIterator;
+}
+
+void *getPrevious(struct avl_traverser *iterator) {
+	return avl_t_prev(iterator);
+}
+
+
+
 ////////////////////////////////////////////////
 ////////////////////////////////////////////////
 ////////////////////////////////////////////////
@@ -362,6 +375,14 @@ EndInstance *end_getNext(End_InstanceIterator *iterator) {
 	return getNext(iterator);
 }
 
+EndInstance *end_getPrevious(End_InstanceIterator *iterator) {
+	return getPrevious(iterator);
+}
+
+End_InstanceIterator *end_copyInstanceIterator(End_InstanceIterator *iterator) {
+	return copyIterator(iterator);
+}
+
 void end_destructInstanceIterator(End_InstanceIterator *iterator) {
 	destructIterator(iterator);
 }
@@ -605,6 +626,14 @@ AtomInstance *atom_getNext(Atom_InstanceIterator *iterator) {
 	return getNext(iterator);
 }
 
+AtomInstance *atom_getPrevious(Atom_InstanceIterator *iterator);
+
+/*
+ * Duplicates the iterator.
+ */
+Atom_InstanceIterator *atom_copyInstanceIterator(Atom *atom);
+
+
 void atom_destructInstanceIterator(Atom_InstanceIterator *atomInstanceIterator) {
 	destructIterator(atomInstanceIterator);
 }
@@ -716,6 +745,14 @@ AdjacencyComponent_EndIterator *adjacencyComponent_getEndIterator(AdjacencyCompo
 
 End *adjacencyComponent_getNextEnd(AdjacencyComponent_EndIterator *endIterator) {
 	return getNext(endIterator);
+}
+
+End *adjacencyComponent_getPreviousEnd(AdjacencyComponent_EndIterator *endIterator) {
+	return getPrevious(endIterator);
+}
+
+AdjacencyComponent_EndIterator *adjacencyComponent_copyEndIterator(AdjacencyComponent_EndIterator *endIterator) {
+	return copyIterator(endIterator);
 }
 
 void adjacencyComponent_destructEndIterator(AdjacencyComponent_EndIterator *endIterator) {
@@ -882,9 +919,6 @@ void chain_setIndex(Chain *chain, int32_t index) {
 ////////////////////////////////////////////////
 ////////////////////////////////////////////////
 
-/*
- * Constructs an operation.
- */
 Operation *operation_construct(Net *net) {
 	Operation *operation;
 	operation = malloc(sizeof(Operation));
@@ -893,16 +927,10 @@ Operation *operation_construct(Net *net) {
 	return operation;
 }
 
-/*
- * Destructs the operation.
- */
 void operation_destruct(Operation *operation) {
 	free(operation);
 }
 
-/*
- * Gets the net it is part of.
- */
 Net *operation_getNet(Operation *operation) {
 	return operation->net;
 }
@@ -1056,6 +1084,14 @@ Sequence *net_getNextSequence(Net_SequenceIterator *sequenceIterator) {
 	return getNext(sequenceIterator);
 }
 
+Sequence *net_getPreviousSequence(Net_SequenceIterator *sequenceIterator) {
+	return getPrevious(sequenceIterator);
+}
+
+Net_SequenceIterator *net_copySequenceIterator(Net_SequenceIterator *sequenceIterator) {
+	return copyIterator(sequenceIterator);
+}
+
 void net_destructSequenceIterator(Net_SequenceIterator *sequenceIterator) {
 	destructIterator(sequenceIterator);
 }
@@ -1080,6 +1116,14 @@ Net_EndIterator *net_getEndIterator(Net *net) {
 
 End *net_getNextEnd(Net_EndIterator *endIterator) {
 	return getNext(endIterator);
+}
+
+End *net_getPreviousEnd(Net_EndIterator *endIterator) {
+	return getPrevious(endIterator);
+}
+
+Net_EndIterator *net_copyEndIterator(Net_EndIterator *endIterator) {
+	return copyIterator(endIterator);
 }
 
 void net_destructEndIterator(Net_EndIterator *endIterator) {
@@ -1110,6 +1154,14 @@ Atom *net_getNextAtom(Net_AtomIterator *atomIterator) {
 	return getNext(atomIterator);
 }
 
+Atom *net_getPreviousAtom(Net_AtomIterator *atomIterator) {
+	return getPrevious(atomIterator);
+}
+
+Net_AtomIterator *net_copyAtomIterator(Net_AtomIterator *atomIterator) {
+	return copyIterator(atomIterator);
+}
+
 void net_destructAtomIterator(Net_AtomIterator *atomIterator) {
 	destructIterator(atomIterator);
 }
@@ -1134,6 +1186,14 @@ Net_AdjacencyComponentIterator *net_getAdjacencyComponentIterator(Net *net) {
 
 AdjacencyComponent *net_getNextAdjacencyComponent(Net_AdjacencyComponentIterator *adjacencyComponentIterator) {
 	return getNext(adjacencyComponentIterator);
+}
+
+AdjacencyComponent *net_getPreviousAdjacencyComponent(Net_AdjacencyComponentIterator *adjacencyComponentIterator) {
+	return getPrevious(adjacencyComponentIterator);
+}
+
+Net_AdjacencyComponentIterator *net_copyAdjacencyComponentIterator(Net_AdjacencyComponentIterator *adjacencyComponentIterator) {
+	return copyIterator(adjacencyComponentIterator);
 }
 
 void net_destructAdjacencyComponentIterator(Net_AdjacencyComponentIterator *adjacencyComponentIterator) {
@@ -1168,6 +1228,14 @@ Chain *net_getNextChain(Net_ChainIterator *chainIterator) {
 	return getNext(chainIterator);
 }
 
+Chain *net_getPreviousChain(Net_ChainIterator *chainIterator) {
+	return getPrevious(chainIterator);
+}
+
+Net_ChainIterator *net_copyChainIterator(Net_ChainIterator *chainIterator) {
+	return copyIterator(chainIterator);
+}
+
 void net_destructChainIterator(Net_ChainIterator *chainIterator) {
 	destructIterator(chainIterator);
 }
@@ -1192,6 +1260,14 @@ Net_OperationIterator *net_getOperationIterator(Net *net) {
 
 Operation *net_getNextOperation(Net_OperationIterator *operationIterator) {
 	return getNext(operationIterator);
+}
+
+Operation *net_getPreviousOperation(Net_OperationIterator *operationIterator) {
+	return getPrevious(operationIterator);
+}
+
+Net_OperationIterator *net_copyOperationIterator(Net_OperationIterator *operationIterator) {
+	return copyIterator(operationIterator);
 }
 
 void net_destructOperationIterator(Net_OperationIterator *operationIterator) {
