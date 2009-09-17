@@ -3,6 +3,17 @@
 
 #include <inttypes.h>
 
+/*
+ * Includes for Tokyo Cabinet.
+ */
+#include <tcutil.h>
+#include <tcbdb.h>
+#include <stdlib.h>
+#include <stdbool.h>
+#include <stdint.h>
+
+#include "avl.h"
+
 ////////////////////////////////////////////////
 ////////////////////////////////////////////////
 ////////////////////////////////////////////////
@@ -32,6 +43,10 @@ typedef struct avl_traverser Net_AtomIterator;
 typedef struct avl_traverser Net_AdjacencyComponentIterator;
 typedef struct avl_traverser Net_ChainIterator;
 typedef struct avl_traverser Net_OperationIterator;
+typedef BDBCUR NetDisk_SequenceNameIterator;
+typedef struct avl_traverser NetDisk_SequenceIterator;
+typedef BDBCUR NetDisk_NetNameIterator;
+typedef struct avl_traverser NetDisk_NetIterator;
 
 ////////////////////////////////////////////////
 ////////////////////////////////////////////////
@@ -66,6 +81,26 @@ const char *sequence_getName(Sequence *sequence);
  */
 const char *sequence_getFile(Sequence *sequence);
 
+/*
+ * Creates a binary representation of the sequence, returned as a char string.
+ */
+char *sequence_makeBinaryRepresentation(Sequence *sequence);
+
+/*
+ * Creates an XML representation of the sequence, returned as a char string.
+ */
+char *sequence_makeXMLRepresentation(Sequence *sequence);
+
+/*
+ * Loads a sequence into memory from a binary representation of the sequence.
+ */
+Sequence *sequence_loadFromBinaryRepresentation(char *binaryString, NetDisk *netDisk);
+
+/*
+ * Loads a sequence into memory from an XML representation of the sequence.
+ */
+Sequence *sequence_loadFromXMLRepresentation(char *xmlString, NetDisk *netDisk);
+
 ////////////////////////////////////////////////
 ////////////////////////////////////////////////
 ////////////////////////////////////////////////
@@ -85,14 +120,20 @@ EndInstance *endInstance_construct(const char *instance, End *end);
 EndInstance *endInstance_constructWithCoordinates(const char *instance, End *end, int32_t coordinate, Sequence *sequence);
 
 /*
- * Destructs the end instance, but not any connecting objects.
+ * Returns the m part of an instance's n.m name.
  */
-void endInstance_destruct(EndInstance *endInstance);
+const char *endInstance_getInstanceName(EndInstance *endInstance);
 
 /*
- * Gets the name of the instance. Of the form n.m where n is the end name and m is the instance suffix.
+ * Returns the n part of an instance's n.m name.
  */
-const char *endInstance_getName(EndInstance *endInstance);
+const char *endInstance_getElementName(EndInstance *endInstance);
+
+/*
+ * Gets the complete name of an instance. This involves a new memory allocation, you are therefore responsible for
+ * cleaning up the string's memory.
+ */
+char *endInstance_getCompleteName(EndInstance *endInstance);
 
 /*
  * Gets the encompassing end.
@@ -192,11 +233,6 @@ End *end_construct(const char *name, Net *net);
 End *end_copyConstruct(End *end, Net *newNet);
 
 /*
- * Destructs the end and any contained end instances.
- */
-void end_destruct(End *end);
-
-/*
  *	Name of the end.
  */
 const char *end_getName(End *end);
@@ -222,9 +258,9 @@ AdjacencyComponent *end_getAdjacencyComponent(End *end);
 int32_t end_getInstanceNumber(End *end);
 
 /*
- * Gets an instance using it name as a key.
+ * Gets an instance using its instance name as a key. Instance name is m of full name n.m.
  */
-EndInstance *end_getInstance(End *end, const char *name);
+EndInstance *end_getInstance(End *end, const char *instanceName);
 
 /*
  * Gets the first instance in the end, or NULL if none.
@@ -290,19 +326,25 @@ AtomInstance *atomInstance_construct(const char *instance, Atom *atom);
 AtomInstance *atomInstance_constructWithCoordinates(const char *instance, Atom *atom, int32_t startCoordinate, Sequence *sequenceName);
 
 /*
- * Destruct the atom instance, does not destruct ends.
- */
-void atomInstance_destruct(AtomInstance *atomInstance);
-
-/*
  * Gets the encompassing atom.
  */
 Atom *atomInstance_getAtom(AtomInstance *atomInstance);
 
 /*
- * Gets the name of the atom instance, of the form n.m where n is the atom name and m is the instance suffix.
+ * Returns the m part of an instance's n.m name.
  */
-const char *atomInstance_getName(AtomInstance *atomInstance);
+const char *atomInstance_getInstanceName(AtomInstance *atomInstance);
+
+/*
+ * Returns the n part of an instance's n.m name.
+ */
+const char *atomInstance_getElementName(AtomInstance *atomInstance);
+
+/*
+ * Gets the complete name of an instance. This involves a new memory allocation, you are therefore responsible for
+ * cleaning up the string's memory.
+ */
+char *atomInstance_getCompleteName(AtomInstance *atomInstance);
 
 /*
  * Gets the reverse atom instance, giving a reversed view of the atom instance.
@@ -363,11 +405,6 @@ AtomInstance *atomInstance_getChild(AtomInstance *atomInstance, int32_t index);
 Atom *atom_construct(const char *name, int32_t length, Net *net);
 
 /*
- * Destructs the atom and all atom instances it contains.
- */
-void atom_destruct(Atom *atom);
-
-/*
  * Returns string name of the atom.
  */
 const char *atom_getName(Atom *atom);
@@ -403,9 +440,9 @@ Atom *atom_getReverse(Atom *atom);
 int32_t atom_getInstanceNumber(Atom *atom);
 
 /*
- * Gets the atom instance using its name as a key.
+ * Gets the atom instance using its instance name as a key. Instance name is m of full name n.m.
  */
-AtomInstance *atom_getInstance(Atom *atom, const char *name);
+AtomInstance *atom_getInstance(Atom *atom, const char *instanceName);
 
 /*
  * Gets the first atom instance in the list.
@@ -430,7 +467,7 @@ AtomInstance *atom_getPrevious(Atom_InstanceIterator *iterator);
 /*
  * Duplicates the iterator.
  */
-Atom_InstanceIterator *atom_copyInstanceIterator(Atom *atom);
+Atom_InstanceIterator *atom_copyInstanceIterator(Atom_InstanceIterator *iterator);
 
 /*
  * Destructs the iterator - should always be coupled with the iterator.
@@ -455,11 +492,6 @@ AdjacencyComponent *adjacencyComponent_construct(Net *net, Net *nestedNet);
  * contained in both the parent net and the nested net of the adjacency component.
  */
 void adjacencyComponent_updateContainedEnds(AdjacencyComponent *adjacencyComponent);
-
-/*
- * Destructs an adjacency component.
- */
-void adjacencyComponent_destruct(AdjacencyComponent *adjacencyComponent);
 
 /*
  *  Gets the net the adjacency component is part of.
@@ -530,11 +562,6 @@ void adjacencyComponent_destructEndIterator(AdjacencyComponent_EndIterator *endI
 Link *link_construct(End *leftEnd, End *rightEnd, AdjacencyComponent *adjacencyComponent, Chain *parentChain);
 
 /*
- * Destructs the link and all subsequent nLinks.
- */
-void link_destruct(Link *link);
-
-/*
  * Gets the next link in the link.
  */
 Link *link_getNextLink(Link *link);
@@ -583,11 +610,6 @@ int32_t link_getIndex(Link *link);
 Chain *chain_construct(Net *net);
 
 /*
- * Destructs the chain.
- */
-void chain_destruct(Chain *chain);
-
-/*
  * Gets a link in the chain.
  */
 Link *chain_getLink(Chain *chain, int32_t linkIndex);
@@ -619,11 +641,6 @@ Net *chain_getNet(Chain *chain);
  * Constructs an operation.
  */
 Operation *operation_construct(Net *net);
-
-/*
- * Destructs the operation.
- */
-void operation_destruct(Operation *operation);
 
 /*
  * Gets the net it is part of.
@@ -916,7 +933,7 @@ void net_destructOperationIterator(Net_OperationIterator *operationIterator);
 
 
 /*
- * Creates a binary reprepresentation of the net, returned as a char string.
+ * Creates a binary representation of the net, returned as a char string.
  */
 char *net_makeBinaryRepresentation(Net *net);
 
@@ -924,6 +941,16 @@ char *net_makeBinaryRepresentation(Net *net);
  * Creates an XML representation of the net, returned as a char string.
  */
 char *net_makeXMLRepresentation(Net *net);
+
+/*
+ * Loads a net into memory from a binary representation of the net.
+ */
+Net *net_loadFromBinaryRepresentation(char *binaryString, NetDisk *netDisk);
+
+/*
+ * Loads a net into memory from an XML representation of the net.
+ */
+Net *net_loadFromXMLRepresentation(char *xmlString, NetDisk *netDisk);
 
 ////////////////////////////////////////////////
 ////////////////////////////////////////////////
@@ -950,13 +977,180 @@ void netDisk_destruct(NetDisk *netDisk);
 int32_t netDisk_write(NetDisk *netDisk);
 
 /*
- * Gets a net the netDisk contains.
+ * Gets a sequence the netDisk contains. If the sequence is not in memory it will be loaded. If not in memory or on disk, returns NULL.
+ */
+Sequence *netDisk_getSequence(NetDisk *netDisk, const char *sequenceName);
+
+/*
+ * Returns the number of sequences on disk.
+ */
+int32_t netDisk_getSequenceNumberOnDisk(NetDisk *netDisk);
+
+/*
+ * Gets an iterator to iterate through the sequence names currently on disk.
+ */
+NetDisk_SequenceNameIterator *netDisk_getSequenceNameIterator(NetDisk *netDisk);
+
+/*
+ * Gets the next sequence name from the iterator.
+ */
+const char *netDisk_getNextSequenceName(NetDisk_SequenceNameIterator *sequenceIterator);
+
+/*
+ * Destructs the iterator.
+ */
+void netDisk_destructSequenceNameIterator(NetDisk_SequenceNameIterator *sequenceIterator);
+
+/*
+ * Gets a sequence the netDisk contains that is currently in memory. Returns NULL if not in memory.
+ */
+Sequence *netDisk_getSequenceInMemory(NetDisk *netDisk, const char *sequenceName);
+
+/*
+ * Gets the first sequence in the list of sequences in memory, or returns NULL if the list is empty.
+ */
+Sequence *netDisk_getFirstSequenceInMemory(NetDisk *netDisk);
+
+/*
+ * Returns the number of sequences currently in memory.
+ */
+int32_t netDisk_getSequenceNumberInMemory(NetDisk *netDisk);
+
+/*
+ * Gets an iterator to iterate through the sequences currently in memory.
+ */
+NetDisk_SequenceIterator *netDisk_getSequenceInMemoryIterator(NetDisk *netDisk);
+
+/*
+ * Gets the next sequence from the iterator.
+ */
+Sequence *netDisk_getNextSequence(NetDisk_SequenceIterator *sequenceIterator);
+
+/*
+ * Gets the previous sequence from the iterator.
+ */
+Sequence *netDisk_getPreviousSequence(NetDisk_SequenceIterator *sequenceIterator);
+
+/*
+ * Duplicates the iterator.
+ */
+NetDisk_SequenceIterator *netDisk_copySequenceIterator(NetDisk_SequenceIterator *sequenceIterator);
+
+/*
+ * Destructs the iterator.
+ */
+void netDisk_destructSequenceIterator(NetDisk_SequenceIterator *sequenceIterator);
+
+/*
+ * Gets a net the netDisk contains. If the net is not in memory it will be loaded. If not in memory or on disk, returns NULL.
  */
 Net *netDisk_getNet(NetDisk *netDisk, const char *netName);
 
 /*
- * Gets a sequence the netDisk contains.
+ * Returns the number of nets on disk.
  */
-Sequence *netDisk_getSequence(NetDisk *netDisk, const char *sequenceName);
+int32_t netDisk_getNetNumberOnDisk(NetDisk *netDisk);
+
+/*
+ * Gets an iterator to iterate through the net names currently on disk.
+ */
+NetDisk_NetNameIterator *netDisk_getNetNameIterator(NetDisk *netDisk);
+
+/*
+ * Gets the next net name from the iterator.
+ */
+const char *netDisk_getNextNetName(NetDisk_NetNameIterator *netIterator);
+
+/*
+ * Destructs the iterator.
+ */
+void netDisk_destructNetNameIterator(NetDisk_NetNameIterator *netIterator);
+
+/*
+ * Gets a net the netDisk contains that is currently in memory. Returns NULL if not in memory.
+ */
+Net *netDisk_getNetInMemory(NetDisk *netDisk, const char *netName);
+
+/*
+ * Gets the first net in the list of nets in memory, or returns NULL if the list is empty.
+ */
+Net *netDisk_getFirstNetInMemory(NetDisk *netDisk);
+
+/*
+ * Returns the number of nets currently in memory.
+ */
+int32_t netDisk_getNetNumberInMemory(NetDisk *netDisk);
+
+/*
+ * Gets an iterator to iterate through the nets currently in memory.
+ */
+NetDisk_NetIterator *netDisk_getNetInMemoryIterator(NetDisk *netDisk);
+
+/*
+ * Gets the next net from the iterator.
+ */
+Net *netDisk_getNextNet(NetDisk_NetIterator *netIterator);
+
+/*
+ * Gets the previous net from the iterator.
+ */
+Net *netDisk_getPreviousNet(NetDisk_NetIterator *netIterator);
+
+/*
+ * Duplicates the iterator.
+ */
+NetDisk_NetIterator *netDisk_copyNetIterator(NetDisk_NetIterator *netIterator);
+
+/*
+ * Destructs the iterator.
+ */
+void netDisk_destructNetIterator(NetDisk_NetIterator *netIterator);
+
+////////////////////////////////////////////////
+////////////////////////////////////////////////
+////////////////////////////////////////////////
+//Useful utility functions.
+////////////////////////////////////////////////
+////////////////////////////////////////////////
+////////////////////////////////////////////////
+
+/*
+ * The m part of a complete instance name n.m is returned. This involves memory allocation,
+ * you are responsible for cleaning up the memory.
+ */
+char *netMisc_getInstanceName(const char *completeName);
+
+/*
+ * The m part of a complete instance name n.m is returned.
+ * The memory for the string is owned by the function, so you needn't clean it up.
+ * However, this memory will be overwritten with each call to the function.
+ */
+const char *netMisc_getInstanceNameStatic(const char *completeName);
+
+/*
+ * The n part of a complete instance name n.m is returned. This involves memory allocation,
+ * you are responsible for cleaning up the memory.
+ */
+char *netMisc_getElementName(const char *completeName);
+
+/*
+ * The n part of a complete instance name n.m is returned.
+ * The memory for the string is owned by the function, so you needn't clean it up.
+ * However, this memory will be overwritten with each call to the function.
+ */
+const char *netMisc_getElementNameStatic(const char *completeName);
+
+/*
+ * Concatenates an element name n and instance name m to form a complete name of the form n.m .
+ * This involves memory allocation, you are responsible for cleaning up the memory.
+ */
+char *netMisc_makeCompleteName(const char *elementName, const char *instanceName);
+
+/*
+ * Concatenates an element name n and instance name m to form a complete name of the form n.m .
+ * The memory for the string is owned by the function, so you needn't clean it up.
+ * However, this memory will be overwritten with each call to the function.
+ */
+const char *netMisc_makeCompleteNameStatic(const char *elementName, const char *instanceName);
 
 #endif

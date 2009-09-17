@@ -202,7 +202,6 @@ void addAdjacenciesToEndsP(Net *net,
 	Net_EndIterator *endIterator;
 	Net_AdjacencyComponentIterator *adjacencyIterator;
 	const char *name;
-	char *nameWithoutInstance;
 
 	endIterator = net_getEndIterator(net);
 	while((end = net_getNextEnd(endIterator)) != NULL) {
@@ -210,12 +209,10 @@ void addAdjacenciesToEndsP(Net *net,
 		blackEdgeIterator = getBlackEdgeIterator(vertex);
 		edge = getNextBlackEdge(vertex, blackEdgeIterator);
 		while(edge != NULL) {
-			endInstance = end_getInstance(end, hashtable_search(names, edge->rEdge));
+			endInstance = end_getInstance(end, netMisc_getInstanceNameStatic(hashtable_search(names, edge->rEdge)));
 			edge2 = getOtherEnd(pinchGraph, net, names, edge->rEdge);
 			name = hashtable_search(names, edge2);
-			nameWithoutInstance = removeInstance(name);
-			endInstance2 = end_getInstance(net_getEnd(net, nameWithoutInstance), name);
-			free(nameWithoutInstance);
+			endInstance2 = end_getInstance(net_getEnd(net, netMisc_getElementNameStatic(name)), name);
 			//link them
 			endInstance_makeAdjacent1(endInstance, endInstance2); //this is done reciprocally.
 			edge = getNextBlackEdge(vertex, blackEdgeIterator);

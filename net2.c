@@ -3,17 +3,12 @@
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
-#include <inttypes.h>
 
-#include "hashTableC.h"
 #include "net2.h"
 #include "net2Private.h"
-#include "commonC.h"
-#include "avl.h"
 
 /*
  * Implementation of the net API
- *
  */
 
 ////////////////////////////////////////////////
@@ -55,8 +50,6 @@ struct avl_traverser *copyIterator(struct avl_traverser *iterator) {
 void *getPrevious(struct avl_traverser *iterator) {
 	return avl_t_prev(iterator);
 }
-
-
 
 ////////////////////////////////////////////////
 ////////////////////////////////////////////////
@@ -102,6 +95,22 @@ const char *sequence_getFile(Sequence *sequence) {
 	return sequence->file;
 }
 
+char *sequence_makeBinaryRepresentation(Sequence *sequence) {
+
+}
+
+char *sequence_makeXMLRepresentation(Sequence *sequence) {
+
+}
+
+Sequence *sequence_loadFromBinaryRepresentation(char *binaryString, NetDisk *netDisk) {
+
+}
+
+Sequence *sequence_loadFromXMLRepresentation(char *xmlString, NetDisk *netDisk) {
+
+}
+
 ////////////////////////////////////////////////
 ////////////////////////////////////////////////
 ////////////////////////////////////////////////
@@ -142,30 +151,24 @@ EndInstance *endInstance_constructWithCoordinates(const char *instance, End *end
 }
 
 void endInstance_destruct(EndInstance *endInstance) {
-	int32_t i;
-	EndInstance *endInstance2;
-
 	//Remove from end.
 	end_removeInstance(endInstance_getEnd(endInstance), endInstance);
-	//Break adjacencies.
-	endInstance_breakAdjacency1(endInstance);
-	endInstance_breakAdjacency2(endInstance);
-	//Deal with parental and child references to this instance.
-	if((endInstance2 = endInstance_getParent(endInstance)) != NULL) {
-		listRemove(endInstance2->children, endInstance);
-	}
-	for(i=0; i<endInstance->children->length; i++) {
-		endInstance2 = endInstance->children->list[i];
-		endInstance2->parent = NULL;
-	}
+
 	destructList(endInstance->children);
-	//Free name string
 	free(endInstance->instance);
 	free(endInstance);
 }
 
-const char *endInstance_getName(EndInstance *endInstance) {
+const char *endInstance_getInstanceName(EndInstance *endInstance) {
 	return endInstance->instance;
+}
+
+const char *endInstance_getElementName(EndInstance *endInstance) {
+	return end_getName(endInstance_getEnd(endInstance));
+}
+
+char *endInstance_getCompleteName(EndInstance *endInstance) {
+	return netMisc_makeCompleteName(endInstance_getElementName(endInstance), endInstance_getInstanceName(endInstance));
 }
 
 End *endInstance_getEnd(EndInstance *endInstance) {
@@ -280,7 +283,7 @@ void endInstance_breakAdjacency2(EndInstance *endInstance) {
 ////////////////////////////////////////////////
 
 int32_t end_constructP(const void *o1, const void *o2, void *a) {
-	return strcmp(endInstance_getName((EndInstance *)o1), endInstance_getName((EndInstance *)o2));
+	return strcmp(endInstance_getInstanceName((EndInstance *)o1), endInstance_getInstanceName((EndInstance *)o2));
 }
 
 End *end_construct(const char *name, Net *net) {
@@ -304,11 +307,11 @@ End *end_copyConstruct(End *end, Net *newNet) {
 	iterator = end_getInstanceIterator(end);
 	while((endInstance = end_getNext(iterator)) != NULL) {
 		if(endInstance_getCoordinate(endInstance) != INT32_MAX) {
-			endInstance_constructWithCoordinates(endInstance_getName(endInstance), end2,
+			endInstance_constructWithCoordinates(endInstance_getInstanceName(endInstance), end2,
 					endInstance_getCoordinate(endInstance), endInstance_getSequence(endInstance));
 		}
 		else {
-			endInstance_construct(endInstance_getName(endInstance), end2);
+			endInstance_construct(endInstance_getInstanceName(endInstance), end2);
 		}
 	}
 	end_destructInstanceIterator(iterator);
@@ -317,8 +320,8 @@ End *end_copyConstruct(End *end, Net *newNet) {
 	iterator = end_getInstanceIterator(end);
 	while((endInstance = end_getNext(iterator)) != NULL) {
 		if((endInstance2 = endInstance_getParent(endInstance)) != NULL) {
-			endInstance_linkParentAndChild(end_getInstance(end2, endInstance_getName(endInstance2)),
-										   end_getInstance(end2, endInstance_getName(endInstance)));
+			endInstance_linkParentAndChild(end_getInstance(end2, endInstance_getInstanceName(endInstance2)),
+										   end_getInstance(end2, endInstance_getInstanceName(endInstance)));
 		}
 	}
 	end_destructInstanceIterator(iterator);
@@ -473,9 +476,6 @@ AtomInstance *atomInstance_constructWithCoordinates(const char *instance, Atom *
 
 void atomInstance_destruct(AtomInstance *atomInstance) {
 	atom_removeInstance(atomInstance_getAtom(atomInstance), atomInstance);
-	//remove from ends.
-	atomInstance_getLeft(atomInstance)->atomInstance = NULL;
-	atomInstance_getRight(atomInstance)->atomInstance = NULL;
 	free(atomInstance->rInstance);
 	free(atomInstance);
 }
@@ -484,8 +484,16 @@ Atom *atomInstance_getAtom(AtomInstance *atomInstance) {
 	return atomInstance->atom;
 }
 
-const char *atomInstance_getName(AtomInstance *atomInstance) {
-	return endInstance_getName(atomInstance_getLeft(atomInstance));
+const char *atomInstance_getInstanceName(AtomInstance *atomInstance) {
+	return endInstance_getInstanceName(atomInstance_getLeft(atomInstance));
+}
+
+const char *atomInstance_getElementName(AtomInstance *atomInstance) {
+	return atom_getName(atomInstance_getAtom(atomInstance));
+}
+
+char *atomInstance_getCompleteName(AtomInstance *atomInstance) {
+	return netMisc_makeCompleteName(atomInstance_getInstanceName(atomInstance), atomInstance_getElementName(atomInstance));
 }
 
 AtomInstance *atomInstance_getReverse(AtomInstance *atomInstance) {
@@ -541,7 +549,7 @@ AtomInstance *atomInstance_getChild(AtomInstance *atomInstance, int32_t index) {
 ////////////////////////////////////////////////
 
 int32_t atomConstruct_constructP(const void *o1, const void *o2, void *a) {
-	return strcmp(atomInstance_getName((AtomInstance *)o1), atomInstance_getName((AtomInstance *)o2));
+	return strcmp(atomInstance_getInstanceName((AtomInstance *)o1), atomInstance_getInstanceName((AtomInstance *)o2));
 }
 
 Atom *atom_construct(const char *name, int32_t length, Net *net) {
@@ -626,13 +634,13 @@ AtomInstance *atom_getNext(Atom_InstanceIterator *iterator) {
 	return getNext(iterator);
 }
 
-AtomInstance *atom_getPrevious(Atom_InstanceIterator *iterator);
+AtomInstance *atom_getPrevious(Atom_InstanceIterator *iterator) {
+	return getPrevious(iterator);
+}
 
-/*
- * Duplicates the iterator.
- */
-Atom_InstanceIterator *atom_copyInstanceIterator(Atom *atom);
-
+Atom_InstanceIterator *atom_copyInstanceIterator(Atom_InstanceIterator *iterator) {
+	return copyIterator(iterator);
+}
 
 void atom_destructInstanceIterator(Atom_InstanceIterator *atomInstanceIterator) {
 	destructIterator(atomInstanceIterator);
@@ -649,7 +657,6 @@ void atom_addInstance(Atom *atom, AtomInstance *atomInstance) {
 void atom_removeInstance(Atom *atom, AtomInstance *atomInstance) {
 	avl_delete(atom->atomContents->atomInstances, atomInstance);
 }
-
 
 ////////////////////////////////////////////////
 ////////////////////////////////////////////////
@@ -703,11 +710,9 @@ void adjacencyComponent_updateContainedEnds(AdjacencyComponent *adjacencyCompone
 }
 
 void adjacencyComponent_destruct(AdjacencyComponent *adjacencyComponent) {
-	//Detatch from the nets.
+	//Detach from the parent net.
 	net_removeAdjacencyComponent(adjacencyComponent_getNet(adjacencyComponent), adjacencyComponent);
-	net_setParentAdjacencyComponent(adjacencyComponent_getNestedNet(adjacencyComponent), NULL);
-	//Detatch the ends from their adjacency components.
-	avl_destroy(adjacencyComponent->ends, (void (*)(void *, void *))adjacencyComponent_destructP);
+	avl_destroy(adjacencyComponent->ends, NULL);
 	//Free the memory
 	free(adjacencyComponent->nestedNetName);
 	free(adjacencyComponent);
@@ -928,6 +933,7 @@ Operation *operation_construct(Net *net) {
 }
 
 void operation_destruct(Operation *operation) {
+	net_removeOperation(operation_getNet(operation), operation);
 	free(operation);
 }
 
@@ -1280,6 +1286,14 @@ char *net_makeBinaryRepresentation(Net *net) {
 char *net_makeXMLRepresentation(Net *net) {
 }
 
+Net *net_loadFromBinaryRepresentation(char *binaryString, NetDisk *netDisk) {
+
+}
+
+Net *net_loadFromXMLRepresentation(char *xmlString, NetDisk *netDisk) {
+
+}
+
 /*
  * Private functions
  */
@@ -1338,39 +1352,354 @@ void net_removeOperation(Net *net, Operation *operation) {
 ////////////////////////////////////////////////
 ////////////////////////////////////////////////
 
+int32_t netDisk_constructNetsP(const void *o1, const void *o2, void *a) {
+	return strcmp(net_getName((Net *)o1), net_getName((Net *)o2));
+}
+
+int32_t netDisk_constructSequencesP(const void *o1, const void *o2, void *a) {
+	return strcmp(sequence_getName((Sequence *)o1), sequence_getName((Sequence *)o2));
+}
+
 NetDisk *netDisk_construct(const char *netDiskFile) {
+	NetDisk *netDisk;
+	int32_t ecode;
+
+	netDisk = malloc(sizeof(NetDisk));
+
+	//construct lists of in memory objects
+	netDisk->sequences = avl_create(net_constructSequencesP, NULL, NULL);
+	netDisk->nets = avl_create(net_constructSequencesP, NULL, NULL);
+
+	//make database objects
+	netDisk->sequencesDatabase = tcbdbnew();
+	netDisk->netsDatabase = tcbdbnew();
+
+	//open the sequences database
+	if(!tcbdbopen(netDisk->sequencesDatabase, netDisk->sequencesDatabaseName, BDBOWRITER | BDBOCREAT)){
+	   ecode = tcbdbecode(netDisk->sequencesDatabase);
+	   fprintf(stderr, "Opening sequences database error: %s\n", tcbdberrmsg(ecode));
+	   exit(1);
+	}
+	//open the nets database
+	if(!tcbdbopen(netDisk->netsDatabase, netDisk->netsDatabaseName, BDBOWRITER | BDBOCREAT)){
+		ecode = tcbdbecode(netDisk->netsDatabase);
+		fprintf(stderr, "Opening nets database error: %s\n", tcbdberrmsg(ecode));
+		exit(1);
+	}
+
+	return netDisk;
 }
 
-void netDisk_destruct(NetDisk *netDisk) {
+void netDisk_destruct(NetDisk *netDisk){
+	Sequence *sequence;
+	Net *net;
+	int32_t ecode;
+
+	while((net = netDisk_getFirstNetInMemory(netDisk)) != NULL) {
+		net_destruct(net, FALSE);
+	}
+	avl_destroy(netDisk->nets, NULL);
+
+	while((sequence = netDisk_getFirstSequenceInMemory(netDisk)) != NULL) {
+		sequence_destruct(sequence);
+	}
+	avl_destroy(netDisk->sequences, NULL);
+
+	//close DBs
+	if(!tcbdbclose(netDisk->sequencesDatabase)){
+		ecode = tcbdbecode(netDisk->sequencesDatabase);
+		fprintf(stderr, "Closing sequences database error: %s\n", tcbdberrmsg(ecode));
+		exit(1);
+	}
+	tcbdbdel(netDisk->sequencesDatabase);
+
+	if(!tcbdbclose(netDisk->netsDatabase)){
+		ecode = tcbdbecode(netDisk->netsDatabase);
+		fprintf(stderr, "Closing nets database error: %s\n", tcbdberrmsg(ecode));
+		exit(1);
+	}
+	tcbdbdel(netDisk->netsDatabase);
+
+	free(netDisk);
 }
 
-int32_t netDisk_write(NetDisk *netDisk) {
+int32_t netDisk_write(NetDisk *netDisk){
+	NetDisk_NetIterator *netIterator;
+	NetDisk_SequenceIterator *sequenceIterator;
+	char *cA;
+	Net *net;
+	Sequence *sequence;
+	int32_t ecode;
 
+	netIterator = netDisk_getNetInMemoryIterator(netDisk);
+	while((net = netDisk_getNextNet(netIterator)) != NULL) {
+		cA = net_makeBinaryRepresentation(net);
+		if(!tcbdbput2(netDisk->netsDatabase, net_getName(net), cA)){
+			ecode = tcbdbecode(netDisk->netsDatabase);
+			fprintf(stderr, "Adding net to database error: %s\n", tcbdberrmsg(ecode));
+			return ecode;
+		}
+		free(cA);
+	}
+	netDisk_destructNetIterator(netIterator);
+
+	sequenceIterator = netDisk_getSequenceInMemoryIterator(netDisk);
+	while((sequence = netDisk_getNextSequence(sequenceIterator)) != NULL) {
+		cA = sequence_makeBinaryRepresentation(sequence);
+		if(!tcbdbput2(netDisk->sequencesDatabase, net_getName(net), cA)){
+			ecode = tcbdbecode(netDisk->sequencesDatabase);
+			fprintf(stderr, "Adding sequence to database error: %s\n", tcbdberrmsg(ecode));
+			return ecode;
+		}
+		free(cA);
+	}
+	netDisk_destructSequenceIterator(sequenceIterator);
+	return 0;
+}
+
+Sequence *netDisk_getSequence(NetDisk *netDisk, const char *sequenceName) {
+	char *cA;
+	Sequence *sequence;
+
+	//try in memory list first.
+	if((sequence = netDisk_getSequenceInMemory(netDisk, sequenceName)) != NULL) {
+		return sequence;
+	}
+	//else try the database.
+	cA = tcbdbget2(netDisk->sequencesDatabase, sequenceName);
+	if(cA == NULL) {
+		return NULL;
+	}
+	else {
+		sequence = sequence_loadFromBinaryRepresentation(cA, netDisk);
+		free(cA);
+		return sequence;
+	}
+}
+
+int32_t netDisk_getSequenceNumberOnDisk(NetDisk *netDisk) {
+}
+
+NetDisk_SequenceNameIterator *netDisk_getSequenceNameIterator(NetDisk *netDisk) {
+	BDBCUR *iterator;
+	iterator = tcbdbcurnew(netDisk->sequencesDatabase);
+	tcbdbcurfirst(iterator);
+	return iterator;
+}
+
+const char *netDisk_getNextSequenceName(NetDisk_SequenceNameIterator *sequenceIterator) {
+	return tcbdbcurkey2(sequenceIterator);
+}
+
+void netDisk_destructSequenceNameIterator(NetDisk_SequenceNameIterator *sequenceIterator) {
+	tcbdbcurdel(sequenceIterator);
+}
+
+Sequence *netDisk_getSequenceInMemory(NetDisk *netDisk, const char *sequenceName) {
+	static Sequence sequence;
+	sequence.name = (char *)sequenceName;
+	return avl_find(netDisk->sequences, &sequence);
+}
+
+Sequence *netDisk_getFirstSequenceInMemory(NetDisk *netDisk) {
+	return getFirst(netDisk->sequences);
+}
+
+int32_t netDisk_getSequenceNumberInMemory(NetDisk *netDisk) {
+	return avl_count(netDisk->sequences);
+}
+
+NetDisk_SequenceIterator *netDisk_getSequenceInMemoryIterator(NetDisk *netDisk) {
+	return getIterator(netDisk->sequences);
+}
+
+Sequence *netDisk_getNextSequence(NetDisk_SequenceIterator *sequenceIterator) {
+	return getNext(sequenceIterator);
+}
+
+Sequence *netDisk_getPreviousSequence(NetDisk_SequenceIterator *sequenceIterator) {
+	return getPrevious(sequenceIterator);
+}
+
+NetDisk_SequenceIterator *netDisk_copySequenceIterator(NetDisk_SequenceIterator *sequenceIterator) {
+	return copyIterator(sequenceIterator);
+}
+
+void netDisk_destructSequenceIterator(NetDisk_SequenceIterator *sequenceIterator) {
+	return destructIterator(sequenceIterator);
 }
 
 Net *netDisk_getNet(NetDisk *netDisk, const char *netName) {
 }
 
-Sequence *netDisk_getSequence(NetDisk *netDisk, const char *sequenceName) {
+int32_t netDisk_getNetNumberOnDisk(NetDisk *netDisk) {
+}
+
+NetDisk_NetNameIterator *netDisk_getNetNameIterator(NetDisk *netDisk) {
+}
+
+const char *netDisk_getNextNetName(NetDisk_NetNameIterator *netIterator) {
+}
+
+void netDisk_destructNetNameIterator(NetDisk_NetNameIterator *netIterator) {
+}
+
+Net *netDisk_getNetInMemory(NetDisk *netDisk, const char *netName) {
+	static Net net;
+	net.name = (char *)netName;
+	return avl_find(netDisk->nets, &net);
+}
+
+Net *netDisk_getFirstNetInMemory(NetDisk *netDisk) {
+	return getFirst(netDisk->nets);
+}
+
+int32_t netDisk_getNetNumberInMemory(NetDisk *netDisk) {
+	return avl_count(netDisk->nets);
+}
+
+NetDisk_NetIterator *netDisk_getNetInMemoryIterator(NetDisk *netDisk) {
+	return getIterator(netDisk->nets);
+}
+
+Net *netDisk_getNextNet(NetDisk_NetIterator *netIterator) {
+	return getNext(netIterator);
+}
+
+Net *netDisk_getPreviousNet(NetDisk_NetIterator *netIterator) {
+	return getPrevious(netIterator);
+}
+
+NetDisk_NetIterator *netDisk_copyNetIterator(NetDisk_NetIterator *netIterator) {
+	return copyIterator(netIterator);
+}
+
+void netDisk_destructNetIterator(NetDisk_NetIterator *netIterator) {
+	destructIterator(netIterator);
 }
 
 /*
  * Private functions.
  */
 
-void netDisk_addSequence(NetDisk *netDisk, Sequence *sequence) {
+int32_t netDisk_deleteSequenceFromDisk(NetDisk *netDisk, const char *sequenceName) {
 }
 
+int32_t netDisk_deleteNetFromDisk(NetDisk *netDisk, const char *netName) {
+}
+
+void netDisk_addSequence(NetDisk *netDisk, Sequence *sequence) {
+#ifdef BEN_DEBUG
+	assert(netDisk_getSequence(netDisk) == NULL);
+#endif
+	avl_insert(netDisk->sequences, sequence);
+}
 
 void netDisk_unloadSequence(NetDisk *netDisk, Sequence *sequence) {
-}
-
-int32_t netDisk_netIsLoaded(NetDisk *netDisk, Net *net) {
+#ifdef BEN_DEBUG
+	assert(netDisk_getSequenceInMemroy(netDisk) != NULL);
+#endif
+	avl_delete(netDisk->sequences, sequence);
 }
 
 void netDisk_addNet(NetDisk *netDisk, Net *net) {
+#ifdef BEN_DEBUG
+	assert(netDisk_getNet(netDisk) == NULL);
+#endif
+	avl_insert(netDisk->nets, net);
 }
 
 void netDisk_unloadNet(NetDisk *netDisk, Net *net) {
+#ifdef BEN_DEBUG
+	assert(netDisk_getNetInMemory(netDisk) == NULL);
+#endif
+	avl_delete(netDisk->nets, net);
 }
 
+////////////////////////////////////////////////
+////////////////////////////////////////////////
+////////////////////////////////////////////////
+//Useful utility functions.
+////////////////////////////////////////////////
+////////////////////////////////////////////////
+////////////////////////////////////////////////
+
+char *netMisc_getInstanceName(const char *completeName) {
+	char *cA;
+	char *cA2;
+	char *cA3;
+#ifdef BEN_DEBUG
+	assert(completeName != NULL);
+#endif
+	cA = stringCopy(completeName);
+	cA2 = cA;
+#ifdef BEN_DEBUG
+	assert(strlen(cA2) > 0);
+#endif
+	while(cA2[0] != '.') {
+		cA2++;
+#ifdef BEN_DEBUG
+		assert(strlen(cA2) > 0);
+#endif
+	}
+#ifdef BEN_DEBUG
+	assert(cA2[0] == '.');
+#endif
+	cA3 = stringCopy(cA2+1);
+	free(cA);
+	return cA3;
+}
+
+static char *netMisc_getInstanceNameStatic_instanceName = NULL;
+const char *netMisc_getInstanceNameStatic(const char *completeName) {
+	if(netMisc_getInstanceNameStatic_instanceName != NULL) {
+		free(netMisc_getInstanceNameStatic_instanceName);
+	}
+	netMisc_getInstanceNameStatic_instanceName = netMisc_getInstanceName(completeName);
+	return netMisc_getInstanceNameStatic_instanceName;
+}
+
+char *netMisc_getElementName(const char *completeName) {
+	char *cA2;
+	int32_t i;
+
+	cA2 = (char *)mallocLocal(sizeof(char)*(strlen(completeName)+1));
+
+	i=0;
+	while(completeName[i] != '.' && completeName[i] != '\0') {
+		cA2[i] = completeName[i];
+		i++;
+	}
+
+#ifdef BEN_DEBUG
+	assert(i <= (int32_t)strlen(completeName));
+#endif
+
+	cA2[i] = '\0';
+	return cA2;
+}
+
+static char *netMisc_getElementNameStatic_elementName = NULL;
+const char *netMisc_getElementNameStatic(const char *completeName) {
+	if(netMisc_getElementNameStatic_elementName != NULL) {
+		free(netMisc_getElementNameStatic_elementName);
+	}
+	netMisc_getElementNameStatic_elementName = netMisc_getElementName(completeName);
+	return netMisc_getElementNameStatic_elementName;
+}
+
+char *netMisc_makeCompleteName(const char *elementName, const char *instanceName) {
+	char *cA;
+	cA = malloc(sizeof(char) * (strlen(elementName) + strlen(instanceName) + 2));
+	sprintf(cA, "%s.%s", elementName, instanceName);
+	return cA;
+}
+
+static char *netMisc_makeCompleteNameStatic_completeName = NULL;
+const char *netMisc_makeCompleteNameStatic(const char *elementName, const char *instanceName) {
+	if(netMisc_makeCompleteNameStatic_completeName != NULL) {
+		free(netMisc_makeCompleteNameStatic_completeName);
+	}
+	netMisc_makeCompleteNameStatic_completeName = netMisc_makeCompleteName(elementName, instanceName);
+	return netMisc_makeCompleteNameStatic_completeName;
+}
