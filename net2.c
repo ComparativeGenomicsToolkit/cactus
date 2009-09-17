@@ -19,36 +19,119 @@
 ////////////////////////////////////////////////
 ////////////////////////////////////////////////
 
-void *getFirst(struct avl_table *items) {
+struct avl_table *sortedSet_construct(int32_t (*compareFn)(const void *, const void *, void *)) {
+	return avl_create(compareFn, NULL, NULL);
+}
+
+void sortedSet_destruct(struct avl_table *sortedSet, void (*destructElementFn)(void *, void *)) {
+	avl_destroy(sortedSet, destructElementFn);
+}
+
+void sortedSet_insert(struct avl_table *sortedSet, void *object) {
+	avl_insert(sortedSet, object);
+}
+
+void *sortedSet_find(struct avl_table *sortedSet, void *object) {
+	return avl_find(sortedSet, object);
+}
+
+void sortedSet_delete(struct avl_table *sortedSet, void *object) {
+	avl_delete(sortedSet, object);
+}
+
+int32_t sortedSet_getLength(struct avl_table *sortedSet) {
+	return avl_count(sortedSet);
+}
+
+void *sortedSet_getFirst(struct avl_table *items) {
 	static struct avl_traverser iterator;
 	avl_t_init(&iterator, items);
 	return avl_t_first(&iterator, items);
 }
 
-struct avl_traverser *getIterator(struct avl_table *items) {
+struct avl_traverser *iterator_construct(struct avl_table *items) {
 	struct avl_traverser *iterator;
 	iterator = mallocLocal(sizeof(struct avl_traverser));
 	avl_t_init(iterator, items);
 	return iterator;
 }
 
-void destructIterator(struct avl_traverser *iterator) {
+void iterator_destruct(struct avl_traverser *iterator) {
 	free(iterator);
 }
 
-void *getNext(struct avl_traverser *iterator) {
+void *iterator_getNext(struct avl_traverser *iterator) {
 	return avl_t_next(iterator);
 }
 
-struct avl_traverser *copyIterator(struct avl_traverser *iterator) {
+struct avl_traverser *iterator_copy(struct avl_traverser *iterator) {
 	struct avl_traverser *copyIterator;
 	copyIterator = mallocLocal(sizeof(struct avl_traverser));
 	avl_t_copy(copyIterator, iterator);
 	return copyIterator;
 }
 
-void *getPrevious(struct avl_traverser *iterator) {
+void *iterator_getPrevious(struct avl_traverser *iterator) {
 	return avl_t_prev(iterator);
+}
+
+TCBDB *database_construct(const char *name) {
+	int32_t ecode;
+	TCBDB *database;
+	database = tcbdbnew();
+	if(!tcbdbopen(database, name, BDBOWRITER | BDBOCREAT)) {
+	   ecode = tcbdbecode(database);
+	   fprintf(stderr, "Opening database error: %s\n", tcbdberrmsg(ecode));
+	   exit(1);
+	}
+	return database;
+}
+
+void database_destruct(TCBDB *database) {
+	int32_t ecode;
+	if(!tcbdbclose(database)){
+		ecode = tcbdbecode(database);
+		fprintf(stderr, "Closing database error: %s\n", tcbdberrmsg(ecode));
+		exit(1);
+	}
+	tcbdbdel(database);
+}
+
+int32_t database_getNumberOfRecords(TCBDB *database) {
+	return tcbdbrnum(database);
+}
+
+char *database_getRecord(TCBDB *database, const char *key) {
+	//Return value must be freed.
+	return tcbdbget2(database, key);
+}
+
+int32_t database_writeRecord(TCBDB *database, const char *key, const char *value) {
+	int32_t ecode = 0;
+	if(!tcbdbput2(database, key, value)){
+		ecode = tcbdbecode(database);
+		fprintf(stderr, "Adding net to database error: %s\n", tcbdberrmsg(ecode));
+	}
+	return ecode;
+}
+
+int32_t database_removeRecord(TCBDB *database, const char *key) {
+
+}
+
+BDBCUR *databaseIterator_construct(TCBDB *database) {
+	BDBCUR *iterator;
+	iterator = tcbdbcurnew(database);
+	tcbdbcurfirst(iterator);
+	return iterator;
+}
+
+const char *databaseIterator_getNext(BDBCUR *iterator) {
+	return tcbdbcurkey2(iterator);
+}
+
+void databaseIterator_destruct(BDBCUR *iterator) {
+	tcbdbcurdel(iterator);
 }
 
 ////////////////////////////////////////////////
@@ -289,7 +372,7 @@ int32_t end_constructP(const void *o1, const void *o2, void *a) {
 End *end_construct(const char *name, Net *net) {
 	End *end;
 	end = malloc(sizeof(End));
-	end->endInstances = avl_create(end_constructP, NULL, NULL);
+	end->endInstances = sortedSet_construct(end_constructP);
 	end->attachedAtom = NULL;
 	end->adjacencyComponent = NULL;
 	end->net = net;
@@ -338,7 +421,7 @@ void end_destruct(End *end) {
 		endInstance_destruct(endInstance);
 	}
 	//now the actual instances.
-	avl_destroy(end->endInstances, NULL);
+	sortedSet_destruct(end->endInstances, NULL);
 
 	free(end->name);
 	free(end);
@@ -357,37 +440,37 @@ AdjacencyComponent *end_getAdjacencyComponent(End *end) {
 }
 
 int32_t end_getInstanceNumber(End *end) {
-	return avl_count(end->endInstances);
+	return sortedSet_getLength(end->endInstances);
 }
 
 EndInstance *end_getInstance(End *end, const char *name) {
 	static EndInstance endInstance;
 	endInstance.instance = (char *)name;
-	return avl_find(end->endInstances, &endInstance);
+	return sortedSet_find(end->endInstances, &endInstance);
 }
 
 EndInstance *end_getFirst(End *end) {
-	return getFirst(end->endInstances);
+	return sortedSet_getFirst(end->endInstances);
 }
 
 End_InstanceIterator *end_getInstanceIterator(End *end) {
-	return getIterator(end->endInstances);
+	return iterator_construct(end->endInstances);
 }
 
 EndInstance *end_getNext(End_InstanceIterator *iterator) {
-	return getNext(iterator);
+	return iterator_getNext(iterator);
 }
 
 EndInstance *end_getPrevious(End_InstanceIterator *iterator) {
-	return getPrevious(iterator);
+	return iterator_getPrevious(iterator);
 }
 
 End_InstanceIterator *end_copyInstanceIterator(End_InstanceIterator *iterator) {
-	return copyIterator(iterator);
+	return iterator_copy(iterator);
 }
 
 void end_destructInstanceIterator(End_InstanceIterator *iterator) {
-	destructIterator(iterator);
+	iterator_destruct(iterator);
 }
 
 int32_t end_isStub(End *end) {
@@ -407,11 +490,11 @@ int32_t end_isAtomEnd(End *end) {
  */
 
 void end_addInstance(End *end, EndInstance *endInstance) {
-	avl_insert(end->endInstances, endInstance);
+	sortedSet_insert(end->endInstances, endInstance);
 }
 
 void end_removeInstance(End *end, EndInstance *endInstance) {
-	avl_delete(end->endInstances, endInstance);
+	sortedSet_delete(end->endInstances, endInstance);
 }
 
 void end_setAdjacencyComponent(End *end, AdjacencyComponent *adjacencyComponent) {
@@ -561,7 +644,7 @@ Atom *atom_construct(const char *name, int32_t length, Net *net) {
 	atom->rAtom->atomContents = atom->atomContents;
 
 	atom->atomContents->name = stringCopy(name);
-	atom->atomContents->atomInstances = avl_create(atomConstruct_constructP, NULL, NULL);
+	atom->atomContents->atomInstances = sortedSet_construct(atomConstruct_constructP);
 	atom->atomContents->length = length;
 	atom->atomContents->net = net;
 
@@ -578,7 +661,7 @@ void atom_destruct(Atom *atom) {
 		atomInstance_destruct(atomInstance);
 	}
 	//now the actual instances.
-	avl_destroy(atom->atomContents->atomInstances, NULL);
+	sortedSet_destruct(atom->atomContents->atomInstances, NULL);
 
 	free(atom->rAtom);
 	free(atom->atomContents->name);
@@ -611,7 +694,7 @@ Atom *atom_getReverse(Atom *atom) {
 }
 
 int32_t atom_getInstanceNumber(Atom *atom) {
-	return avl_count(atom->atomContents->atomInstances);
+	return sortedSet_getLength(atom->atomContents->atomInstances);
 }
 
 AtomInstance *atom_getInstance(Atom *atom, const char *name) {
@@ -619,31 +702,31 @@ AtomInstance *atom_getInstance(Atom *atom, const char *name) {
 	static EndInstance endInstance;
 	endInstance.instance = (char *)name;
 	atomInstance.leftEndInstance = &endInstance;
-	return avl_find(atom->atomContents->atomInstances, &atomInstance);
+	return sortedSet_find(atom->atomContents->atomInstances, &atomInstance);
 }
 
 AtomInstance *atom_getFirst(Atom *atom) {
-	return getFirst(atom->atomContents->atomInstances);
+	return sortedSet_getFirst(atom->atomContents->atomInstances);
 }
 
 Atom_InstanceIterator *atom_getInstanceIterator(Atom *atom) {
-	return getIterator(atom->atomContents->atomInstances);
+	return iterator_construct(atom->atomContents->atomInstances);
 }
 
 AtomInstance *atom_getNext(Atom_InstanceIterator *iterator) {
-	return getNext(iterator);
+	return iterator_getNext(iterator);
 }
 
 AtomInstance *atom_getPrevious(Atom_InstanceIterator *iterator) {
-	return getPrevious(iterator);
+	return iterator_getPrevious(iterator);
 }
 
 Atom_InstanceIterator *atom_copyInstanceIterator(Atom_InstanceIterator *iterator) {
-	return copyIterator(iterator);
+	return iterator_copy(iterator);
 }
 
 void atom_destructInstanceIterator(Atom_InstanceIterator *atomInstanceIterator) {
-	destructIterator(atomInstanceIterator);
+	iterator_destruct(atomInstanceIterator);
 }
 
 /*
@@ -651,11 +734,11 @@ void atom_destructInstanceIterator(Atom_InstanceIterator *atomInstanceIterator) 
  */
 
 void atom_addInstance(Atom *atom, AtomInstance *atomInstance) {
-	avl_insert(atom->atomContents->atomInstances, atomInstance);
+	sortedSet_insert(atom->atomContents->atomInstances, atomInstance);
 }
 
 void atom_removeInstance(Atom *atom, AtomInstance *atomInstance) {
-	avl_delete(atom->atomContents->atomInstances, atomInstance);
+	sortedSet_delete(atom->atomContents->atomInstances, atomInstance);
 }
 
 ////////////////////////////////////////////////
@@ -677,7 +760,7 @@ AdjacencyComponent *adjacencyComponent_construct(Net *net, Net *nestedNet) {
 	adjacencyComponent->net = net;
 	adjacencyComponent->chain = NULL;
 	adjacencyComponent->nestedNetName = stringCopy(net_getName(nestedNet));
-	adjacencyComponent->ends = avl_create(adjacencyComponent_constructP, NULL, NULL);
+	adjacencyComponent->ends = sortedSet_construct(adjacencyComponent_constructP);
 	adjacencyComponent_updateContainedEnds(adjacencyComponent);
 
 	net_addAdjacencyComponent(net, adjacencyComponent);
@@ -695,14 +778,14 @@ void adjacencyComponent_updateContainedEnds(AdjacencyComponent *adjacencyCompone
 	End *end;
 	End *end2;
 	//wipe the slate clean.
-	avl_destroy(adjacencyComponent->ends, (void (*)(void *, void *))adjacencyComponent_destructP);
-	adjacencyComponent->ends = avl_create(adjacencyComponent_constructP, NULL, NULL);
+	sortedSet_destruct(adjacencyComponent->ends, (void (*)(void *, void *))adjacencyComponent_destructP);
+	adjacencyComponent->ends = sortedSet_construct(adjacencyComponent_constructP);
 	//now calculate the ends
 	net = adjacencyComponent_getNet(adjacencyComponent);
 	iterator = net_getEndIterator(adjacencyComponent_getNestedNet(adjacencyComponent));
 	while((end = net_getNextEnd(iterator)) != NULL) {
 		if((end2 = net_getEnd(net, end_getName(end))) != NULL) {
-			avl_insert(adjacencyComponent->ends, end2);
+			sortedSet_insert(adjacencyComponent->ends, end2);
 			end_setAdjacencyComponent(end2, adjacencyComponent);
 		}
 	}
@@ -712,7 +795,7 @@ void adjacencyComponent_updateContainedEnds(AdjacencyComponent *adjacencyCompone
 void adjacencyComponent_destruct(AdjacencyComponent *adjacencyComponent) {
 	//Detach from the parent net.
 	net_removeAdjacencyComponent(adjacencyComponent_getNet(adjacencyComponent), adjacencyComponent);
-	avl_destroy(adjacencyComponent->ends, NULL);
+	sortedSet_destruct(adjacencyComponent->ends, NULL);
 	//Free the memory
 	free(adjacencyComponent->nestedNetName);
 	free(adjacencyComponent);
@@ -737,31 +820,31 @@ Chain *adjacencyComponent_getChain(AdjacencyComponent *adjacencyComponent) {
 End *adjacencyComponent_getEnd(AdjacencyComponent *adjacencyComponent, const char *name) {
 	static End end;
 	end.name = (char *)name;
-	return avl_find(adjacencyComponent->ends, &end);
+	return sortedSet_find(adjacencyComponent->ends, &end);
 }
 
 int32_t adjacencyComponent_getEndNumber(AdjacencyComponent *adjacencyComponent) {
-	return avl_count(adjacencyComponent->ends);
+	return sortedSet_getLength(adjacencyComponent->ends);
 }
 
 AdjacencyComponent_EndIterator *adjacencyComponent_getEndIterator(AdjacencyComponent *adjacencyComponent) {
-	return getIterator(adjacencyComponent->ends);
+	return iterator_construct(adjacencyComponent->ends);
 }
 
 End *adjacencyComponent_getNextEnd(AdjacencyComponent_EndIterator *endIterator) {
-	return getNext(endIterator);
+	return iterator_getNext(endIterator);
 }
 
 End *adjacencyComponent_getPreviousEnd(AdjacencyComponent_EndIterator *endIterator) {
-	return getPrevious(endIterator);
+	return iterator_getPrevious(endIterator);
 }
 
 AdjacencyComponent_EndIterator *adjacencyComponent_copyEndIterator(AdjacencyComponent_EndIterator *endIterator) {
-	return copyIterator(endIterator);
+	return iterator_copy(endIterator);
 }
 
 void adjacencyComponent_destructEndIterator(AdjacencyComponent_EndIterator *endIterator) {
-	destructIterator(endIterator);
+	iterator_destruct(endIterator);
 }
 
 /*
@@ -987,12 +1070,12 @@ Net *net_construct(const char *name, NetDisk *netDisk) {
 
 	net->name = stringCopy(name);
 
-	net->sequences = avl_create(net_constructSequencesP, NULL, NULL);
-	net->ends = avl_create(net_constructEndsP, NULL, NULL);
-	net->atoms = avl_create(net_constructAtomsP, NULL, NULL);
-	net->adjacencyComponents = avl_create(net_constructAdjacencyComponentsP, NULL, NULL);
-	net->chains = avl_create(net_constructChainsP, NULL, NULL);
-	net->operations = avl_create(net_constructOperationsP, NULL, NULL);
+	net->sequences = sortedSet_construct(net_constructSequencesP);
+	net->ends = sortedSet_construct(net_constructEndsP);
+	net->atoms = sortedSet_construct(net_constructAtomsP);
+	net->adjacencyComponents = sortedSet_construct(net_constructAdjacencyComponentsP);
+	net->chains = sortedSet_construct(net_constructChainsP);
+	net->operations = sortedSet_construct(net_constructOperationsP);
 
 	net->parentNetName = NULL;
 	net->netDisk = netDisk;
@@ -1030,32 +1113,32 @@ void net_destruct(Net *net, int32_t recursive) {
 
 	netDisk_unloadNet(net->netDisk, net);
 
-	avl_destroy(net->sequences, NULL);
+	sortedSet_destruct(net->sequences, NULL);
 
 	while((end = net_getFirstEnd(net)) != NULL) {
 		end_destruct(end);
 	}
-	avl_destroy(net->ends, NULL);
+	sortedSet_destruct(net->ends, NULL);
 
 	while((atom = net_getFirstAtom(net)) != NULL) {
 		atom_destruct(atom);
 	}
-	avl_destroy(net->atoms, NULL);
+	sortedSet_destruct(net->atoms, NULL);
 
 	while((adjacencyComponent = net_getFirstAdjacencyComponent(net)) != NULL) {
 		adjacencyComponent_destruct(adjacencyComponent);
 	}
-	avl_destroy(net->adjacencyComponents, NULL);
+	sortedSet_destruct(net->adjacencyComponents, NULL);
 
 	while((chain = net_getFirstChain(net)) != NULL) {
 		chain_destruct(chain);
 	}
-	avl_destroy(net->chains, NULL);
+	sortedSet_destruct(net->chains, NULL);
 
 	while((operation = net_getFirstOperation(net)) != NULL) {
 		operation_destruct(operation);
 	}
-	avl_destroy(net->operations, NULL);
+	sortedSet_destruct(net->operations, NULL);
 
 	free(net->name);
 	if(net->parentNetName != NULL) {
@@ -1065,79 +1148,79 @@ void net_destruct(Net *net, int32_t recursive) {
 }
 
 void net_addSequence(Net *net, Sequence *sequence) {
-	avl_insert(net->sequences, sequence);
+	sortedSet_insert(net->sequences, sequence);
 }
 
 Sequence *net_getFirstSequence(Net *net) {
-	return getFirst(net->sequences);
+	return sortedSet_getFirst(net->sequences);
 }
 
 Sequence *net_getSequence(Net *net, const char *name) {
 	static Sequence sequence;
 	sequence.name = (char *)name;
-	return avl_find(net->sequences, &sequence);
+	return sortedSet_find(net->sequences, &sequence);
 }
 
 int32_t net_getSequenceNumber(Net *net) {
-	return avl_count(net->sequences);
+	return sortedSet_getLength(net->sequences);
 }
 
 Net_SequenceIterator *net_getSequenceIterator(Net *net) {
-	return getIterator(net->sequences);
+	return iterator_construct(net->sequences);
 }
 
 Sequence *net_getNextSequence(Net_SequenceIterator *sequenceIterator) {
-	return getNext(sequenceIterator);
+	return iterator_getNext(sequenceIterator);
 }
 
 Sequence *net_getPreviousSequence(Net_SequenceIterator *sequenceIterator) {
-	return getPrevious(sequenceIterator);
+	return iterator_getPrevious(sequenceIterator);
 }
 
 Net_SequenceIterator *net_copySequenceIterator(Net_SequenceIterator *sequenceIterator) {
-	return copyIterator(sequenceIterator);
+	return iterator_copy(sequenceIterator);
 }
 
 void net_destructSequenceIterator(Net_SequenceIterator *sequenceIterator) {
-	destructIterator(sequenceIterator);
+	iterator_destruct(sequenceIterator);
 }
 
 End *net_getFirstEnd(Net *net) {
-	return getFirst(net->ends);
+	return sortedSet_getFirst(net->ends);
 }
 
 End *net_getEnd(Net *net, const char *name) {
 	static End end;
 	end.name = (char *)name;
-	return avl_find(net->ends, &end);
+	return sortedSet_find(net->ends, &end);
 }
 
 int32_t net_getEndNumber(Net *net) {
-	return avl_count(net->ends);
+	return sortedSet_getLength(net->ends);
 }
 
 Net_EndIterator *net_getEndIterator(Net *net) {
-	return getIterator(net->ends);
+	return iterator_construct(net->ends);
 }
 
 End *net_getNextEnd(Net_EndIterator *endIterator) {
-	return getNext(endIterator);
+	return iterator_getNext(endIterator);
 }
 
 End *net_getPreviousEnd(Net_EndIterator *endIterator) {
-	return getPrevious(endIterator);
+	return iterator_getPrevious(endIterator);
 }
 
 Net_EndIterator *net_copyEndIterator(Net_EndIterator *endIterator) {
-	return copyIterator(endIterator);
+	return iterator_copy(endIterator);
 }
 
 void net_destructEndIterator(Net_EndIterator *endIterator) {
-	destructIterator(endIterator);
+	iterator_destruct(endIterator);
 }
 
 Atom *net_getFirstAtom(Net *net) {
-	return getFirst(net->atoms);
+	return sortedSet_getFirst(net->atoms);
 }
 
 Atom *net_getAtom(Net *net, const char *name) {
@@ -1145,65 +1228,65 @@ Atom *net_getAtom(Net *net, const char *name) {
 	static struct AtomContents atomContents;
 	atom.atomContents = &atomContents;
 	atomContents.name = (char *)name;
-	return avl_find(net->atoms, &atom);
+	return sortedSet_find(net->atoms, &atom);
 }
 
 int32_t net_getAtomNumber(Net *net) {
-	return avl_count(net->atoms);
+	return sortedSet_getLength(net->atoms);
 }
 
 Net_AtomIterator *net_getAtomIterator(Net *net) {
-	return getIterator(net->atoms);
+	return iterator_construct(net->atoms);
 }
 
 Atom *net_getNextAtom(Net_AtomIterator *atomIterator) {
-	return getNext(atomIterator);
+	return iterator_getNext(atomIterator);
 }
 
 Atom *net_getPreviousAtom(Net_AtomIterator *atomIterator) {
-	return getPrevious(atomIterator);
+	return iterator_getPrevious(atomIterator);
 }
 
 Net_AtomIterator *net_copyAtomIterator(Net_AtomIterator *atomIterator) {
-	return copyIterator(atomIterator);
+	return iterator_copy(atomIterator);
 }
 
 void net_destructAtomIterator(Net_AtomIterator *atomIterator) {
-	destructIterator(atomIterator);
+	iterator_destruct(atomIterator);
 }
 
 AdjacencyComponent *net_getFirstAdjacencyComponent(Net *net) {
-	return getFirst(net->adjacencyComponents);
+	return sortedSet_getFirst(net->adjacencyComponents);
 }
 
 AdjacencyComponent *net_getAdjacencyComponent(Net *net, const char *netName) {
 	static AdjacencyComponent adjacencyComponent;
 	adjacencyComponent.nestedNetName = (char *)netName;
-	return avl_find(net->adjacencyComponents, &adjacencyComponent);
+	return sortedSet_find(net->adjacencyComponents, &adjacencyComponent);
 }
 
 int32_t net_getAdjacencyComponentNumber(Net *net) {
-	return avl_count(net->adjacencyComponents);
+	return sortedSet_getLength(net->adjacencyComponents);
 }
 
 Net_AdjacencyComponentIterator *net_getAdjacencyComponentIterator(Net *net) {
-	return getIterator(net->adjacencyComponents);
+	return iterator_construct(net->adjacencyComponents);
 }
 
 AdjacencyComponent *net_getNextAdjacencyComponent(Net_AdjacencyComponentIterator *adjacencyComponentIterator) {
-	return getNext(adjacencyComponentIterator);
+	return iterator_getNext(adjacencyComponentIterator);
 }
 
 AdjacencyComponent *net_getPreviousAdjacencyComponent(Net_AdjacencyComponentIterator *adjacencyComponentIterator) {
-	return getPrevious(adjacencyComponentIterator);
+	return iterator_getPrevious(adjacencyComponentIterator);
 }
 
 Net_AdjacencyComponentIterator *net_copyAdjacencyComponentIterator(Net_AdjacencyComponentIterator *adjacencyComponentIterator) {
-	return copyIterator(adjacencyComponentIterator);
+	return iterator_copy(adjacencyComponentIterator);
 }
 
 void net_destructAdjacencyComponentIterator(Net_AdjacencyComponentIterator *adjacencyComponentIterator) {
-	destructIterator(adjacencyComponentIterator);
+	iterator_destruct(adjacencyComponentIterator);
 }
 
 AdjacencyComponent *net_getParentAdjacencyComponent(Net *net) {
@@ -1213,71 +1296,71 @@ AdjacencyComponent *net_getParentAdjacencyComponent(Net *net) {
 }
 
 Chain *net_getFirstChain(Net *net) {
-	return getFirst(net->chains);
+	return sortedSet_getFirst(net->chains);
 }
 
 Chain *net_getChain(Net *net, int32_t index) {
 	static Chain chain;
 	chain.chainIndex = index;
-	return avl_find(net->chains, &chain);
+	return sortedSet_find(net->chains, &chain);
 }
 
 int32_t net_getChainNumber(Net *net) {
-	return avl_count(net->chains);
+	return sortedSet_getLength(net->chains);
 }
 
 Net_ChainIterator *net_getChainIterator(Net *net) {
-	return getIterator(net->chains);
+	return iterator_construct(net->chains);
 }
 
 Chain *net_getNextChain(Net_ChainIterator *chainIterator) {
-	return getNext(chainIterator);
+	return iterator_getNext(chainIterator);
 }
 
 Chain *net_getPreviousChain(Net_ChainIterator *chainIterator) {
-	return getPrevious(chainIterator);
+	return iterator_getPrevious(chainIterator);
 }
 
 Net_ChainIterator *net_copyChainIterator(Net_ChainIterator *chainIterator) {
-	return copyIterator(chainIterator);
+	return iterator_copy(chainIterator);
 }
 
 void net_destructChainIterator(Net_ChainIterator *chainIterator) {
-	destructIterator(chainIterator);
+	iterator_destruct(chainIterator);
 }
 
 Operation *net_getFirstOperation(Net *net) {
-	return getFirst(net->operations);
+	return sortedSet_getFirst(net->operations);
 }
 
 Operation *net_getOperation(Net *net, int32_t index) {
 	static Operation operation;
 	operation.index = index;
-	return avl_find(net->operations, &operation);
+	return sortedSet_find(net->operations, &operation);
 }
 
 int32_t net_getOperationNumber(Net *net) {
-	return avl_count(net->operations);
+	return sortedSet_getLength(net->operations);
 }
 
 Net_OperationIterator *net_getOperationIterator(Net *net) {
-	return getIterator(net->operations);
+	return iterator_construct(net->operations);
 }
 
 Operation *net_getNextOperation(Net_OperationIterator *operationIterator) {
-	return getNext(operationIterator);
+	return iterator_getNext(operationIterator);
 }
 
 Operation *net_getPreviousOperation(Net_OperationIterator *operationIterator) {
-	return getPrevious(operationIterator);
+	return iterator_getPrevious(operationIterator);
 }
 
 Net_OperationIterator *net_copyOperationIterator(Net_OperationIterator *operationIterator) {
-	return copyIterator(operationIterator);
+	return iterator_copy(operationIterator);
 }
 
 void net_destructOperationIterator(Net_OperationIterator *operationIterator) {
-	destructIterator(operationIterator);
+	iterator_destruct(operationIterator);
 }
 
 char *net_makeBinaryRepresentation(Net *net) {
@@ -1299,36 +1382,36 @@ Net *net_loadFromXMLRepresentation(char *xmlString, NetDisk *netDisk) {
  */
 
 void net_addAtom(Net *net, Atom *atom) {
-	avl_insert(net->atoms, atom);
+	sortedSet_insert(net->atoms, atom);
 }
 
 void net_removeAtom(Net *net, Atom *atom) {
-	avl_delete(net->atoms, atom);
+	sortedSet_delete(net->atoms, atom);
 }
 
 void net_addEnd(Net *net, End *end) {
-	avl_insert(net->ends, end);
+	sortedSet_insert(net->ends, end);
 }
 
 void net_removeEnd(Net *net, End *end) {
-	avl_delete(net->ends, end);
+	sortedSet_delete(net->ends, end);
 }
 
 void net_addChain(Net *net, Chain *chain) {
 	chain_setIndex(chain, net->chainIndex++);
-	avl_insert(net->chains, chain);
+	sortedSet_insert(net->chains, chain);
 }
 
 void net_removeChain(Net *net, Chain *chain) {
-	avl_delete(net->chains, chain);
+	sortedSet_delete(net->chains, chain);
 }
 
 void net_addAdjacencyComponent(Net *net, AdjacencyComponent *adjacencyComponent) {
-	avl_insert(net->adjacencyComponents, adjacencyComponent);
+	sortedSet_insert(net->adjacencyComponents, adjacencyComponent);
 }
 
 void net_removeAdjacencyComponent(Net *net, AdjacencyComponent *adjacencyComponent) {
-	avl_delete(net->adjacencyComponents, adjacencyComponent);
+	sortedSet_delete(net->adjacencyComponents, adjacencyComponent);
 }
 
 void net_setParentAdjacencyComponent(Net *net, AdjacencyComponent *adjacencyComponent) {
@@ -1337,11 +1420,11 @@ void net_setParentAdjacencyComponent(Net *net, AdjacencyComponent *adjacencyComp
 
 void net_addOperation(Net *net, Operation *operation) {
 	operation_setIndex(operation, net_getOperationNumber(net));
-	avl_insert(net->operations, operation);
+	sortedSet_insert(net->operations, operation);
 }
 
 void net_removeOperation(Net *net, Operation *operation) {
-	avl_delete(net->operations, operation);
+	sortedSet_delete(net->operations, operation);
 }
 
 ////////////////////////////////////////////////
@@ -1362,30 +1445,15 @@ int32_t netDisk_constructSequencesP(const void *o1, const void *o2, void *a) {
 
 NetDisk *netDisk_construct(const char *netDiskFile) {
 	NetDisk *netDisk;
-	int32_t ecode;
-
 	netDisk = malloc(sizeof(NetDisk));
 
 	//construct lists of in memory objects
-	netDisk->sequences = avl_create(net_constructSequencesP, NULL, NULL);
-	netDisk->nets = avl_create(net_constructSequencesP, NULL, NULL);
-
-	//make database objects
-	netDisk->sequencesDatabase = tcbdbnew();
-	netDisk->netsDatabase = tcbdbnew();
+	netDisk->sequences = sortedSet_construct(net_constructSequencesP);
+	netDisk->nets = sortedSet_construct(net_constructSequencesP);
 
 	//open the sequences database
-	if(!tcbdbopen(netDisk->sequencesDatabase, netDisk->sequencesDatabaseName, BDBOWRITER | BDBOCREAT)){
-	   ecode = tcbdbecode(netDisk->sequencesDatabase);
-	   fprintf(stderr, "Opening sequences database error: %s\n", tcbdberrmsg(ecode));
-	   exit(1);
-	}
-	//open the nets database
-	if(!tcbdbopen(netDisk->netsDatabase, netDisk->netsDatabaseName, BDBOWRITER | BDBOCREAT)){
-		ecode = tcbdbecode(netDisk->netsDatabase);
-		fprintf(stderr, "Opening nets database error: %s\n", tcbdberrmsg(ecode));
-		exit(1);
-	}
+	netDisk->sequencesDatabase = database_construct(netDisk->sequencesDatabaseName);
+	netDisk->netsDatabase = database_construct(netDisk->netsDatabaseName);
 
 	return netDisk;
 }
@@ -1393,32 +1461,20 @@ NetDisk *netDisk_construct(const char *netDiskFile) {
 void netDisk_destruct(NetDisk *netDisk){
 	Sequence *sequence;
 	Net *net;
-	int32_t ecode;
 
 	while((net = netDisk_getFirstNetInMemory(netDisk)) != NULL) {
 		net_destruct(net, FALSE);
 	}
-	avl_destroy(netDisk->nets, NULL);
+	sortedSet_destruct(netDisk->nets, NULL);
 
 	while((sequence = netDisk_getFirstSequenceInMemory(netDisk)) != NULL) {
 		sequence_destruct(sequence);
 	}
-	avl_destroy(netDisk->sequences, NULL);
+	sortedSet_destruct(netDisk->sequences, NULL);
 
 	//close DBs
-	if(!tcbdbclose(netDisk->sequencesDatabase)){
-		ecode = tcbdbecode(netDisk->sequencesDatabase);
-		fprintf(stderr, "Closing sequences database error: %s\n", tcbdberrmsg(ecode));
-		exit(1);
-	}
-	tcbdbdel(netDisk->sequencesDatabase);
-
-	if(!tcbdbclose(netDisk->netsDatabase)){
-		ecode = tcbdbecode(netDisk->netsDatabase);
-		fprintf(stderr, "Closing nets database error: %s\n", tcbdberrmsg(ecode));
-		exit(1);
-	}
-	tcbdbdel(netDisk->netsDatabase);
+	database_destruct(netDisk->sequencesDatabase);
+	database_destruct(netDisk->netsDatabase);
 
 	free(netDisk);
 }
@@ -1434,9 +1490,7 @@ int32_t netDisk_write(NetDisk *netDisk){
 	netIterator = netDisk_getNetInMemoryIterator(netDisk);
 	while((net = netDisk_getNextNet(netIterator)) != NULL) {
 		cA = net_makeBinaryRepresentation(net);
-		if(!tcbdbput2(netDisk->netsDatabase, net_getName(net), cA)){
-			ecode = tcbdbecode(netDisk->netsDatabase);
-			fprintf(stderr, "Adding net to database error: %s\n", tcbdberrmsg(ecode));
+		if((ecode = database_writeRecord(netDisk->netsDatabase, net_getName(net), cA)) != 0) {
 			return ecode;
 		}
 		free(cA);
@@ -1446,9 +1500,7 @@ int32_t netDisk_write(NetDisk *netDisk){
 	sequenceIterator = netDisk_getSequenceInMemoryIterator(netDisk);
 	while((sequence = netDisk_getNextSequence(sequenceIterator)) != NULL) {
 		cA = sequence_makeBinaryRepresentation(sequence);
-		if(!tcbdbput2(netDisk->sequencesDatabase, net_getName(net), cA)){
-			ecode = tcbdbecode(netDisk->sequencesDatabase);
-			fprintf(stderr, "Adding sequence to database error: %s\n", tcbdberrmsg(ecode));
+		if((ecode = database_writeRecord(netDisk->sequencesDatabase, sequence_getName(sequence), cA)) != 0) {
 			return ecode;
 		}
 		free(cA);
@@ -1466,7 +1518,7 @@ Sequence *netDisk_getSequence(NetDisk *netDisk, const char *sequenceName) {
 		return sequence;
 	}
 	//else try the database.
-	cA = tcbdbget2(netDisk->sequencesDatabase, sequenceName);
+	cA = database_getRecord(netDisk->sequencesDatabase, sequenceName);
 	if(cA == NULL) {
 		return NULL;
 	}
@@ -1478,104 +1530,123 @@ Sequence *netDisk_getSequence(NetDisk *netDisk, const char *sequenceName) {
 }
 
 int32_t netDisk_getSequenceNumberOnDisk(NetDisk *netDisk) {
+	return database_getNumberOfRecords(netDisk->sequencesDatabase);
 }
 
 NetDisk_SequenceNameIterator *netDisk_getSequenceNameIterator(NetDisk *netDisk) {
-	BDBCUR *iterator;
-	iterator = tcbdbcurnew(netDisk->sequencesDatabase);
-	tcbdbcurfirst(iterator);
-	return iterator;
+	return databaseIterator_construct(netDisk->sequencesDatabase);
 }
 
 const char *netDisk_getNextSequenceName(NetDisk_SequenceNameIterator *sequenceIterator) {
-	return tcbdbcurkey2(sequenceIterator);
+	return databaseIterator_getNext(sequenceIterator);
 }
 
 void netDisk_destructSequenceNameIterator(NetDisk_SequenceNameIterator *sequenceIterator) {
-	tcbdbcurdel(sequenceIterator);
+	databaseIterator_destruct(sequenceIterator);
 }
 
 Sequence *netDisk_getSequenceInMemory(NetDisk *netDisk, const char *sequenceName) {
 	static Sequence sequence;
 	sequence.name = (char *)sequenceName;
-	return avl_find(netDisk->sequences, &sequence);
+	return sortedSet_find(netDisk->sequences, &sequence);
 }
 
 Sequence *netDisk_getFirstSequenceInMemory(NetDisk *netDisk) {
-	return getFirst(netDisk->sequences);
+	return sortedSet_getFirst(netDisk->sequences);
 }
 
 int32_t netDisk_getSequenceNumberInMemory(NetDisk *netDisk) {
-	return avl_count(netDisk->sequences);
+	return sortedSet_getLength(netDisk->sequences);
 }
 
 NetDisk_SequenceIterator *netDisk_getSequenceInMemoryIterator(NetDisk *netDisk) {
-	return getIterator(netDisk->sequences);
+	return iterator_construct(netDisk->sequences);
 }
 
 Sequence *netDisk_getNextSequence(NetDisk_SequenceIterator *sequenceIterator) {
-	return getNext(sequenceIterator);
+	return iterator_getNext(sequenceIterator);
 }
 
 Sequence *netDisk_getPreviousSequence(NetDisk_SequenceIterator *sequenceIterator) {
-	return getPrevious(sequenceIterator);
+	return iterator_getPrevious(sequenceIterator);
 }
 
 NetDisk_SequenceIterator *netDisk_copySequenceIterator(NetDisk_SequenceIterator *sequenceIterator) {
-	return copyIterator(sequenceIterator);
+	return iterator_copy(sequenceIterator);
 }
 
 void netDisk_destructSequenceIterator(NetDisk_SequenceIterator *sequenceIterator) {
-	return destructIterator(sequenceIterator);
+	return iterator_destruct(sequenceIterator);
 }
 
 Net *netDisk_getNet(NetDisk *netDisk, const char *netName) {
+	char *cA;
+	Net *net;
+
+	//try in memory list first.
+	if((net = netDisk_getNetInMemory(netDisk, netName)) != NULL) {
+		return net;
+	}
+	//else try the database.
+	cA = database_getRecord(netDisk->netsDatabase, netName);
+	if(cA == NULL) {
+		return NULL;
+	}
+	else {
+		net = net_loadFromBinaryRepresentation(cA, netDisk);
+		free(cA);
+		return net;
+	}
 }
 
 int32_t netDisk_getNetNumberOnDisk(NetDisk *netDisk) {
+	return database_getNumberOfRecords(netDisk->netsDatabase);
 }
 
 NetDisk_NetNameIterator *netDisk_getNetNameIterator(NetDisk *netDisk) {
+	return databaseIterator_construct(netDisk->netsDatabase);
 }
 
 const char *netDisk_getNextNetName(NetDisk_NetNameIterator *netIterator) {
+	return databaseIterator_getNext(netIterator);
 }
 
 void netDisk_destructNetNameIterator(NetDisk_NetNameIterator *netIterator) {
+	databaseIterator_destruct(netIterator);
 }
 
 Net *netDisk_getNetInMemory(NetDisk *netDisk, const char *netName) {
 	static Net net;
 	net.name = (char *)netName;
-	return avl_find(netDisk->nets, &net);
+	return sortedSet_find(netDisk->nets, &net);
 }
 
 Net *netDisk_getFirstNetInMemory(NetDisk *netDisk) {
-	return getFirst(netDisk->nets);
+	return sortedSet_getFirst(netDisk->nets);
 }
 
 int32_t netDisk_getNetNumberInMemory(NetDisk *netDisk) {
-	return avl_count(netDisk->nets);
+	return sortedSet_getLength(netDisk->nets);
 }
 
 NetDisk_NetIterator *netDisk_getNetInMemoryIterator(NetDisk *netDisk) {
-	return getIterator(netDisk->nets);
+	return iterator_construct(netDisk->nets);
 }
 
 Net *netDisk_getNextNet(NetDisk_NetIterator *netIterator) {
-	return getNext(netIterator);
+	return iterator_getNext(netIterator);
 }
 
 Net *netDisk_getPreviousNet(NetDisk_NetIterator *netIterator) {
-	return getPrevious(netIterator);
+	return iterator_getPrevious(netIterator);
 }
 
 NetDisk_NetIterator *netDisk_copyNetIterator(NetDisk_NetIterator *netIterator) {
-	return copyIterator(netIterator);
+	return iterator_copy(netIterator);
 }
 
 void netDisk_destructNetIterator(NetDisk_NetIterator *netIterator) {
-	destructIterator(netIterator);
+	iterator_destruct(netIterator);
 }
 
 /*
@@ -1583,37 +1654,39 @@ void netDisk_destructNetIterator(NetDisk_NetIterator *netIterator) {
  */
 
 int32_t netDisk_deleteSequenceFromDisk(NetDisk *netDisk, const char *sequenceName) {
+	return database_removeRecord(netDisk->sequencesDatabase, sequenceName);
 }
 
 int32_t netDisk_deleteNetFromDisk(NetDisk *netDisk, const char *netName) {
+	return database_removeRecord(netDisk->netsDatabase, netName);
 }
 
 void netDisk_addSequence(NetDisk *netDisk, Sequence *sequence) {
 #ifdef BEN_DEBUG
 	assert(netDisk_getSequence(netDisk) == NULL);
 #endif
-	avl_insert(netDisk->sequences, sequence);
+	sortedSet_insert(netDisk->sequences, sequence);
 }
 
 void netDisk_unloadSequence(NetDisk *netDisk, Sequence *sequence) {
 #ifdef BEN_DEBUG
 	assert(netDisk_getSequenceInMemroy(netDisk) != NULL);
 #endif
-	avl_delete(netDisk->sequences, sequence);
+	sortedSet_delete(netDisk->sequences, sequence);
 }
 
 void netDisk_addNet(NetDisk *netDisk, Net *net) {
 #ifdef BEN_DEBUG
 	assert(netDisk_getNet(netDisk) == NULL);
 #endif
-	avl_insert(netDisk->nets, net);
+	sortedSet_insert(netDisk->nets, net);
 }
 
 void netDisk_unloadNet(NetDisk *netDisk, Net *net) {
 #ifdef BEN_DEBUG
 	assert(netDisk_getNetInMemory(netDisk) == NULL);
 #endif
-	avl_delete(netDisk->nets, net);
+	sortedSet_delete(netDisk->nets, net);
 }
 
 ////////////////////////////////////////////////
