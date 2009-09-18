@@ -82,19 +82,9 @@ const char *sequence_getName(Sequence *sequence);
 const char *sequence_getFile(Sequence *sequence);
 
 /*
- * Creates a binary representation of the sequence, returned as a char string.
- */
-char *sequence_makeBinaryRepresentation(Sequence *sequence);
-
-/*
  * Creates an XML representation of the sequence, returned as a char string.
  */
 char *sequence_makeXMLRepresentation(Sequence *sequence);
-
-/*
- * Loads a sequence into memory from a binary representation of the sequence.
- */
-Sequence *sequence_loadFromBinaryRepresentation(char *binaryString, NetDisk *netDisk);
 
 /*
  * Loads a sequence into memory from an XML representation of the sequence.
@@ -737,6 +727,11 @@ End *net_getFirstEnd(Net *net);
 End *net_getEnd(Net *net, const char *name);
 
 /*
+ * Gets an end instance by its complete name.
+ */
+EndInstance *net_getEndInstance(Net *net, const char *completeName);
+
+/*
  * Returns the number of ends.
  */
 int32_t net_getEndNumber(Net *net);
@@ -775,6 +770,11 @@ Atom *net_getFirstAtom(Net *net);
  * Gets an atom by name.
  */
 Atom *net_getAtom(Net *net, const char *name);
+
+/*
+ * Gets an atom instance by its complete name.
+ */
+AtomInstance *net_getAtomInstance(Net *net, const char *completeName);
 
 /*
  * Returns the number of atoms.
@@ -931,21 +931,10 @@ Net_OperationIterator *net_copyOperationIterator(Net_OperationIterator *operatio
  */
 void net_destructOperationIterator(Net_OperationIterator *operationIterator);
 
-
-/*
- * Creates a binary representation of the net, returned as a char string.
- */
-char *net_makeBinaryRepresentation(Net *net);
-
 /*
  * Creates an XML representation of the net, returned as a char string.
  */
 char *net_makeXMLRepresentation(Net *net);
-
-/*
- * Loads a net into memory from a binary representation of the net.
- */
-Net *net_loadFromBinaryRepresentation(char *binaryString, NetDisk *netDisk);
 
 /*
  * Loads a net into memory from an XML representation of the net.

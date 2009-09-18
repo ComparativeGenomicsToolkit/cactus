@@ -126,6 +126,21 @@ struct _netDisk {
 ////////////////////////////////////////////////
 ////////////////////////////////////////////////
 
+/*
+ * Write a binary representation of the sequence to the write function.
+ */
+void sequence_writeBinaryRepresentation(Sequence *sequence, void (*writeFn)(const char *string, ...));
+
+/*
+ * Creates a binary representation of the sequence, returned as a char string.
+ */
+char *sequence_makeBinaryRepresentation(Sequence *sequence);
+
+/*
+ * Loads a sequence into memory from a binary representation of the sequence.
+ */
+Sequence *sequence_loadFromBinaryRepresentation(char **binaryString, NetDisk *netDisk);
+
 ////////////////////////////////////////////////
 ////////////////////////////////////////////////
 ////////////////////////////////////////////////
@@ -138,7 +153,6 @@ struct _netDisk {
  * Destructs the end instance, but not any connecting objects.
  */
 void endInstance_destruct(EndInstance *endInstance);
-
 
 /*
  * Gets the atom instance associated with the end, or NULL, if the end has no associated atom end at this level.
@@ -160,6 +174,16 @@ void endInstance_breakAdjacency1(EndInstance *endInstance);
  * Sets any adjacent ends for the alternative adjacency of the instance to NULL;
  */
 void endInstance_breakAdjacency2(EndInstance *endInstance);
+
+/*
+ * Write a binary representation of the endInstance to the write function.
+ */
+void endInstance_writeBinaryRepresentation(EndInstance *endInstance, void (*writeFn)(const char *string, ...));
+
+/*
+ * Loads a net into memory from a binary representation of the net.
+ */
+EndInstance *endInstance_loadFromBinaryRepresentation(char **binaryString, End *end);
 
 ////////////////////////////////////////////////
 ////////////////////////////////////////////////
@@ -189,6 +213,16 @@ void end_removeInstance(End *end, EndInstance *endInstance);
  */
 void end_setAdjacencyComponent(End *end, AdjacencyComponent *adjacencyComponent);
 
+/*
+ * Write a binary representation of the end to the write function.
+ */
+void end_writeBinaryRepresentation(End *end, void (*writeFn)(const char *string, ...));
+
+/*
+ * Loads a net into memory from a binary representation of the net.
+ */
+End *end_loadFromBinaryRepresentation(char **binaryString, Net *net);
+
 ////////////////////////////////////////////////
 ////////////////////////////////////////////////
 ////////////////////////////////////////////////
@@ -201,6 +235,16 @@ void end_setAdjacencyComponent(End *end, AdjacencyComponent *adjacencyComponent)
  * Destruct the atom instance, does not destruct ends.
  */
 void atomInstance_destruct(AtomInstance *atomInstance);
+
+/*
+ * Write a binary representation of the atomInstance to the write function.
+ */
+void atomInstance_writeBinaryRepresentation(AtomInstance *atomInstance, void (*writeFn)(const char *string, ...));
+
+/*
+ * Loads a net into memory from a binary representation of the net.
+ */
+AtomInstance *atomInstance_loadFromBinaryRepresentation(char **binaryString, Atom *atom);
 
 ////////////////////////////////////////////////
 ////////////////////////////////////////////////
@@ -225,6 +269,16 @@ void atom_addInstance(Atom *atom, AtomInstance *atomInstance);
  */
 void atom_removeInstance(Atom *atom, AtomInstance *atomInstance);
 
+/*
+ * Write a binary representation of the atom to the write function.
+ */
+void atom_writeBinaryRepresentation(Atom *atom, void (*writeFn)(const char *string, ...));
+
+/*
+ * Loads a net into memory from a binary representation of the net.
+ */
+Atom *atom_loadFromBinaryRepresentation(char **binaryString, Net *net);
+
 ////////////////////////////////////////////////
 ////////////////////////////////////////////////
 ////////////////////////////////////////////////
@@ -243,6 +297,16 @@ void adjacencyComponent_destruct(AdjacencyComponent *adjacencyComponent);
  */
 void adjacencyComponent_setChain(AdjacencyComponent *adjacencyComponent, Chain *chain);
 
+/*
+ * Write a binary representation of the adjacencyComponent to the write function.
+ */
+void adjacencyComponent_writeBinaryRepresentation(AdjacencyComponent *adjacencyComponent, void (*writeFn)(const char *string, ...));
+
+/*
+ * Loads a net into memory from a binary representation of the net.
+ */
+AdjacencyComponent *adjacencyComponent_loadFromBinaryRepresentation(char **binaryString, Net *net);
+
 ////////////////////////////////////////////////
 ////////////////////////////////////////////////
 ////////////////////////////////////////////////
@@ -255,6 +319,16 @@ void adjacencyComponent_setChain(AdjacencyComponent *adjacencyComponent, Chain *
  * Destructs the link and all subsequent nLinks.
  */
 void link_destruct(Link *link);
+
+/*
+ * Write a binary representation of the link to the write function.
+ */
+void link_writeBinaryRepresentation(Link *link, void (*writeFn)(const char *string, ...));
+
+/*
+ * Loads a net into memory from a binary representation of the net.
+ */
+Link *link_loadFromBinaryRepresentation(char **binaryString, Chain *chain);
 
 ////////////////////////////////////////////////
 ////////////////////////////////////////////////
@@ -279,6 +353,16 @@ void chain_addLink(Chain *chain, Link *childLink);
  */
 void chain_setIndex(Chain *chain, int32_t index);
 
+/*
+ * Write a binary representation of the chain to the write function.
+ */
+void chain_writeBinaryRepresentation(Chain *chain, void (*writeFn)(const char *string, ...));
+
+/*
+ * Loads a net into memory from a binary representation of the net.
+ */
+Chain *chain_loadFromBinaryRepresentation(char **binaryString, Net *net);
+
 ////////////////////////////////////////////////
 ////////////////////////////////////////////////
 ////////////////////////////////////////////////
@@ -296,6 +380,16 @@ void operation_destruct(Operation *operation);
  * Sets the operation's index.
  */
 void operation_setIndex(Operation *operation, int32_t index);
+
+/*
+ * Write a binary representation of the operation to the write function.
+ */
+void *operation_writeBinaryRepresentation(Operation *operation, void (*writeFn)(const char *string, ...));
+
+/*
+ * Loads a net into memory from a binary representation of the net.
+ */
+Operation *operation_loadFromBinaryRepresentation(char **binaryString, Net *net);
 
 ////////////////////////////////////////////////
 ////////////////////////////////////////////////
@@ -359,6 +453,22 @@ void net_addOperation(Net *net, Operation *operation);
  * Remove the operation from the net.
  */
 void net_removeOperation(Net *net, Operation *operation);
+
+/*
+ * Write a binary representation of the net to the write function.
+ */
+void net_writeBinaryRepresentation(Net *net, void (*writeFn)(const char *string, ...));
+
+/*
+ * Creates a binary representation of the net, returned as a char string.
+ */
+char *net_makeBinaryRepresentation(Net *net);
+
+/*
+ * Loads a net into memory from a binary representation of the net.
+ */
+Net *net_loadFromBinaryRepresentation(char **binaryString, NetDisk *netDisk);
+
 
 ////////////////////////////////////////////////
 ////////////////////////////////////////////////

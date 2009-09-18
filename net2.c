@@ -134,6 +134,68 @@ void databaseIterator_destruct(BDBCUR *iterator) {
 	tcbdbcurdel(iterator);
 }
 
+#define CODE_SEQUENCE 0
+#define CODE_ADJACENCY 3
+#define CODE_END_INSTANCE 1
+#define CODE_END_INSTANCE_WITH_COORDINATES 2
+#define CODE_END 2
+#define CODE_ATOM_INSTANCE 3
+#define CODE_ATOM 3
+#define CODE_ADJACENCY_COMPONENT 2
+#define CODE_LINK 2
+#define CODE_CHAIN 3
+#define CODE_OPERATION 3
+
+/*
+ * Writes a code for the element type.
+ */
+void binaryRepresentation_writeElementType(int32_t elementCode, void (*writeFn)(const char *, ...)) {
+
+}
+
+/*
+ * Writes a name to the binary stream
+ */
+void binaryRepresentation_writeName(const char *name, void (*writeFn)(const char *, ...)) {
+
+}
+
+/*
+ * Writes an integer to the binary stream
+ */
+void binaryRepresentation_writeInteger(int32_t i, void (*writeFn)(const char *, ...)) {
+
+}
+
+/*
+ * Returns indicating which element is next.
+ */
+int32_t binaryRepresentation_getNextElementType(char **binaryString) {
+
+}
+
+/*
+ * Parses out a name string, returning it in a newly allocated string which must be freed.
+ */
+char *binaryRepresentation_getName(char **binaryString) {
+
+}
+
+/*
+ * Parses out a name string, placing the memory in a buffer owned by the function. Thid buffer
+ * will be overidden by the next call to the function.
+ */
+const char *binaryRepresentation_getNameStatic(char **binaryString) {
+
+}
+
+/*
+ * Parses an integer from binary string.
+ */
+int32_t binaryRepresentation_getInteger(char **binaryString) {
+
+}
+
 ////////////////////////////////////////////////
 ////////////////////////////////////////////////
 ////////////////////////////////////////////////
@@ -178,21 +240,30 @@ const char *sequence_getFile(Sequence *sequence) {
 	return sequence->file;
 }
 
-char *sequence_makeBinaryRepresentation(Sequence *sequence) {
-
-}
-
 char *sequence_makeXMLRepresentation(Sequence *sequence) {
-
-}
-
-Sequence *sequence_loadFromBinaryRepresentation(char *binaryString, NetDisk *netDisk) {
 
 }
 
 Sequence *sequence_loadFromXMLRepresentation(char *xmlString, NetDisk *netDisk) {
 
 }
+
+/*
+ * Private functions
+ */
+
+void *sequence_writeBinaryRepresentation(Sequence *sequence, void (*writeFn)(const char *string, ...)) {
+
+}
+
+char *sequence_makeBinaryRepresentation(Sequence *sequence) {
+
+}
+
+Sequence *sequence_loadFromBinaryRepresentation(char **binaryString, NetDisk *netDisk) {
+
+}
+
 
 ////////////////////////////////////////////////
 ////////////////////////////////////////////////
@@ -357,6 +428,64 @@ void endInstance_breakAdjacency2(EndInstance *endInstance) {
 	}
 }
 
+void endInstance_writeAdjacency(EndInstance *endInstance, EndInstance *endInstance2, void (*writeFn)(const char *string, ...)) {
+	char *cA;
+	binaryRepresentation_writeElementType(CODE_ADJACENCY, writeFn);
+	cA = endInstance_getCompleteName(endInstance2);
+	binaryRepresentation_writeName(cA, writeFn);
+	free(cA);
+}
+
+void endInstance_writeBinaryRepresentation(EndInstance *endInstance, void (*writeFn)(const char *string, ...)) {
+	EndInstance *endInstance2;
+	if(endInstance_getCoordinate(endInstance) == INT32_MAX) {
+		binaryRepresentation_writeElementType(CODE_END_INSTANCE, writeFn);
+		binaryRepresentation_writeName(endInstance_getInstanceName(endInstance), writeFn);
+	}
+	else {
+		binaryRepresentation_writeElementType(CODE_END_INSTANCE_WITH_COORDINATES, writeFn);
+		binaryRepresentation_writeName(endInstance_getInstanceName(endInstance), writeFn);
+		binaryRepresentation_writeInteger(endInstance_getCoordinate(endInstance), writeFn);
+		binaryRepresentation_writeName(sequence_getName(endInstance_getSequence(endInstance)), writeFn);
+	}
+	if((endInstance2 = endInstance_getAdjacency(endInstance)) != NULL) {
+		endInstance_writeAdjacency(endInstance, endInstance2, writeFn);
+	}
+	if((endInstance2 = endInstance_getAdjacency2(endInstance)) != NULL) {
+		endInstance_writeAdjacency(endInstance, endInstance2, writeFn);
+	}
+}
+
+void endInstance_parseAdjacency(EndInstance *endInstance, char **binaryString, void (*makeAdjacenct)(EndInstance *, EndInstance *)) {
+	const char *cA;
+	EndInstance *endInstance2;
+	cA = binaryRepresentation_getNameStatic(binaryString);
+	endInstance2 = net_getEndInstance(end_getNet(endInstance_getEnd(endInstance)), cA);
+	if(endInstance2 != NULL) { //if null we'll make the adjacency when the other end is parsed.
+		makeAdjacenct(endInstance, endInstance2);
+	}
+}
+
+EndInstance *endInstance_loadFromBinaryRepresentation(char **binaryString, End *end) {
+	EndInstance *endInstance;
+	endInstance = NULL;
+	if(binaryRepresentation_getNextElementType(binaryString) == CODE_END_INSTANCE) {
+		endInstance = endInstance_construct(binaryRepresentation_getName(binaryString), end);
+	}
+	else if(binaryRepresentation_getNextElementType(binaryString) == CODE_END_INSTANCE_WITH_COORDINATES) {
+		endInstance = endInstance_constructWithCoordinates(binaryRepresentation_getNameStatic(binaryString),
+				end, binaryRepresentation_getInteger(binaryString), net_getSequence(end_getNet(end),
+						binaryRepresentation_getNameStatic(binaryString)));
+	}
+	if(binaryRepresentation_getNextElementType(binaryString) == CODE_ADJACENCY) {
+		endInstance_parseAdjacency(endInstance, binaryString, endInstance_makeAdjacent1);
+	}
+	if(binaryRepresentation_getNextElementType(binaryString) == CODE_ADJACENCY) {
+		endInstance_parseAdjacency(endInstance, binaryString, endInstance_makeAdjacent1);
+	}
+	return endInstance;
+}
+
 ////////////////////////////////////////////////
 ////////////////////////////////////////////////
 ////////////////////////////////////////////////
@@ -502,6 +631,16 @@ void end_setAdjacencyComponent(End *end, AdjacencyComponent *adjacencyComponent)
 	end->adjacencyComponent = adjacencyComponent;
 }
 
+void *end_writeBinaryRepresentation(End *end, void (*writeFn)(const char *string, ...)) {
+
+}
+
+End *end_loadFromBinaryRepresentation(char **binaryString, Net *net) {
+	if(binaryRepresentation_getNextElementType(binaryString) == CODE_END_INSTANCE) {
+		endInstance = endInstance_construct(binaryRepresentation_getName(binaryString), end);
+	}
+}
+
 ////////////////////////////////////////////////
 ////////////////////////////////////////////////
 ////////////////////////////////////////////////
@@ -623,6 +762,18 @@ AtomInstance *atomInstance_getChild(AtomInstance *atomInstance, int32_t index) {
 	return NULL;
 }
 
+/*
+ * Private functions
+ */
+
+void *atomInstance_writeBinaryRepresentation(AtomInstance *atomInstance, void (*writeFn)(const char *string, ...)) {
+
+}
+
+AtomInstance *atomInstance_loadFromBinaryRepresentation(char **binaryString, Net *net) {
+
+}
+
 ////////////////////////////////////////////////
 ////////////////////////////////////////////////
 ////////////////////////////////////////////////
@@ -741,6 +892,14 @@ void atom_removeInstance(Atom *atom, AtomInstance *atomInstance) {
 	sortedSet_delete(atom->atomContents->atomInstances, atomInstance);
 }
 
+void *atom_writeBinaryRepresentation(Atom *atom, void (*writeFn)(const char *string, ...)) {
+
+}
+
+Atom *atom_loadFromBinaryRepresentation(char **binaryString, Net *net) {
+
+}
+
 ////////////////////////////////////////////////
 ////////////////////////////////////////////////
 ////////////////////////////////////////////////
@@ -856,6 +1015,14 @@ void adjacencyComponent_setChain(AdjacencyComponent *adjacencyComponent, Chain *
 	adjacencyComponent->chain = chain;
 }
 
+void *adjacencyComponent_writeBinaryRepresentation(AdjacencyComponent *adjacencyComponent, void (*writeFn)(const char *string, ...)) {
+
+}
+
+AdjacencyComponent *adjacencyComponent_loadFromBinaryRepresentation(char **binaryString, Net *net) {
+
+}
+
 ////////////////////////////////////////////////
 ////////////////////////////////////////////////
 ////////////////////////////////////////////////
@@ -919,6 +1086,18 @@ Chain *link_getChain(Link *link) {
 
 int32_t link_getIndex(Link *link) {
 	return link->linkIndex;
+}
+
+/*
+ * Private functions
+ */
+
+void *link_writeBinaryRepresentation(Link *link, void (*writeFn)(const char *string, ...)) {
+
+}
+
+Link *link_loadFromBinaryRepresentation(char **binaryString, Net *net) {
+
 }
 
 ////////////////////////////////////////////////
@@ -999,6 +1178,14 @@ void chain_setIndex(Chain *chain, int32_t index) {
 	chain->chainIndex = index;
 }
 
+void *chain_writeBinaryRepresentation(Chain *chain, void (*writeFn)(const char *string, ...)) {
+
+}
+
+Chain *chain_loadFromBinaryRepresentation(char **binaryString, Net *net) {
+
+}
+
 ////////////////////////////////////////////////
 ////////////////////////////////////////////////
 ////////////////////////////////////////////////
@@ -1029,6 +1216,14 @@ Net *operation_getNet(Operation *operation) {
  */
 void operation_setIndex(Operation *operation, int32_t index) {
 	operation->index = index;
+}
+
+void *operation_writeBinaryRepresentation(Operation *operation, void (*writeFn)(const char *string, ...)) {
+
+}
+
+Operation *operation_loadFromBinaryRepresentation(char **binaryString, Net *net) {
+
 }
 
 ////////////////////////////////////////////////
@@ -1195,6 +1390,15 @@ End *net_getEnd(Net *net, const char *name) {
 	return sortedSet_find(net->ends, &end);
 }
 
+EndInstance *net_getEndInstance(Net *net, const char *completeName) {
+	End *end;
+	end = net_getEnd(net, netMisc_getElementNameStatic(completeName));
+	if(end != NULL) { //if null we'll make the adjacency when the other end is parsed.
+		return end_getInstance(end, netMisc_getInstanceNameStatic(completeName));
+	}
+	return NULL;
+}
+
 int32_t net_getEndNumber(Net *net) {
 	return sortedSet_getLength(net->ends);
 }
@@ -1229,6 +1433,15 @@ Atom *net_getAtom(Net *net, const char *name) {
 	atom.atomContents = &atomContents;
 	atomContents.name = (char *)name;
 	return sortedSet_find(net->atoms, &atom);
+}
+
+AtomInstance *net_getAtomInstance(Net *net, const char *completeName) {
+	Atom *atom;
+	atom = net_getAtom(net, netMisc_getElementNameStatic(completeName));
+	if(atom != NULL) { //if null we'll make the adjacency when the other end is parsed.
+		return atom_getInstance(atom, netMisc_getInstanceNameStatic(completeName));
+	}
+	return NULL;
 }
 
 int32_t net_getAtomNumber(Net *net) {
@@ -1363,15 +1576,9 @@ void net_destructOperationIterator(Net_OperationIterator *operationIterator) {
 	iterator_destruct(operationIterator);
 }
 
-char *net_makeBinaryRepresentation(Net *net) {
-}
-
 char *net_makeXMLRepresentation(Net *net) {
 }
 
-Net *net_loadFromBinaryRepresentation(char *binaryString, NetDisk *netDisk) {
-
-}
 
 Net *net_loadFromXMLRepresentation(char *xmlString, NetDisk *netDisk) {
 
@@ -1425,6 +1632,66 @@ void net_addOperation(Net *net, Operation *operation) {
 
 void net_removeOperation(Net *net, Operation *operation) {
 	sortedSet_delete(net->operations, operation);
+}
+
+void net_writeBinaryRepresentation(Net *net, void (*writeFn)(const char *string, ...)) {
+	Net_EndIterator *endIterator;
+	Net_AtomIterator *atomIterator;
+	Net_AdjacencyComponentIterator *adjacencyComponentIterator;
+	Net_ChainIterator *chainIterator;
+	Net_OperationIterator *operationIterator;
+	End *end;
+	Atom *atom;
+	AdjacencyComponent *adjacencyComponent;
+	Chain *chain;
+	Operation *operation;
+
+	binaryRepresentation_writeName(net_getName(net), writeFn);
+
+	endIterator = net_getEndIterator(net);
+	while((end = net_getNextEnd(endIterator)) != NULL) {
+		end_writeBinaryRepresentation(end, writeFn);
+	}
+	net_destructEndIterator(endIterator);
+
+	atomIterator = net_getAtomIterator(net);
+	while((atom = net_getNextAtom(atomIterator)) != NULL) {
+		atom_writeBinaryRepresentation(atom, writeFn);
+	}
+	net_destructAtomIterator(atomIterator);
+
+	adjacencyComponentIterator = net_getAdjacencyComponentIterator(net);
+	while((adjacencyComponent = net_getNextAdjacencyComponent(adjacencyComponentIterator)) != NULL) {
+		adjacencyComponent_writeBinaryRepresentation(adjacencyComponent, writeFn);
+	}
+	net_destructAdjacencyComponentIterator(adjacencyComponentIterator);
+
+	chainIterator = net_getChainIterator(net);
+	while((chain = net_getNextChain(chainIterator)) != NULL) {
+		chain_writeBinaryRepresentation(chain, writeFn);
+	}
+	net_destructChainIterator(chainIterator);
+
+	operationIterator = net_getOperationIterator(net);
+	while((operation = net_getNextOperation(operationIterator)) != NULL) {
+		operation_writeBinaryRepresentation(operation, writeFn);
+	}
+	net_destructOperationIterator(operationIterator);
+}
+
+char *net_makeBinaryRepresentation(Net *net) {
+
+}
+
+Net *net_loadFromBinaryRepresentation(char **binaryString, NetDisk *netDisk) {
+	Net *net;
+	net = net_construct(binaryRepresentation_getNameStatic(binaryString), netDisk);
+	while(end_loadFromBinaryRepresentation(binaryString, net) != NULL);
+	while(atom_loadFromBinaryRepresentation(binaryString, net) != NULL);
+	while(adjacencyComponent_loadFromBinaryRepresentation(binaryString, net) != NULL);
+	while(chain_loadFromBinaryRepresentation(binaryString, net) != NULL);
+	while(operation_loadFromBinaryRepresentation(binaryString, net) != NULL);
+	return net;
 }
 
 ////////////////////////////////////////////////
