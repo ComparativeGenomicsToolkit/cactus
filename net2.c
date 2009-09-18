@@ -136,6 +136,7 @@ void databaseIterator_destruct(BDBCUR *iterator) {
 
 #define CODE_SEQUENCE 0
 #define CODE_ADJACENCY 3
+#define CODE_PARENT 3
 #define CODE_END_INSTANCE 1
 #define CODE_END_INSTANCE_WITH_COORDINATES 2
 #define CODE_END 2
@@ -428,9 +429,9 @@ void endInstance_breakAdjacency2(EndInstance *endInstance) {
 	}
 }
 
-void endInstance_writeAdjacency(EndInstance *endInstance, EndInstance *endInstance2, void (*writeFn)(const char *string, ...)) {
+void endInstance_writeBinaryRepresentationP(EndInstance *endInstance, EndInstance *endInstance2, int32_t elementType, void (*writeFn)(const char *string, ...)) {
 	char *cA;
-	binaryRepresentation_writeElementType(CODE_ADJACENCY, writeFn);
+	binaryRepresentation_writeElementType(elementType, writeFn);
 	cA = endInstance_getCompleteName(endInstance2);
 	binaryRepresentation_writeName(cA, writeFn);
 	free(cA);
@@ -449,21 +450,26 @@ void endInstance_writeBinaryRepresentation(EndInstance *endInstance, void (*writ
 		binaryRepresentation_writeName(sequence_getName(endInstance_getSequence(endInstance)), writeFn);
 	}
 	if((endInstance2 = endInstance_getAdjacency(endInstance)) != NULL) {
-		endInstance_writeAdjacency(endInstance, endInstance2, writeFn);
+		endInstance_writeBinaryRepresentationP(endInstance, endInstance2, CODE_ADJACENCY, writeFn);
 	}
 	if((endInstance2 = endInstance_getAdjacency2(endInstance)) != NULL) {
-		endInstance_writeAdjacency(endInstance, endInstance2, writeFn);
+		endInstance_writeBinaryRepresentationP(endInstance, endInstance2, CODE_ADJACENCY, writeFn);
+	}
+	if((endInstance2 = endInstance_getParent(endInstance)) != NULL) {
+		endInstance_writeBinaryRepresentationP(endInstance, endInstance2, CODE_PARENT, writeFn);
 	}
 }
 
-void endInstance_parseAdjacency(EndInstance *endInstance, char **binaryString, void (*makeAdjacenct)(EndInstance *, EndInstance *)) {
+int32_t endInstance_loadFromBinaryRepresentationP(EndInstance *endInstance, char **binaryString, void (*linkFn)(EndInstance *, EndInstance *)) {
 	const char *cA;
 	EndInstance *endInstance2;
 	cA = binaryRepresentation_getNameStatic(binaryString);
 	endInstance2 = net_getEndInstance(end_getNet(endInstance_getEnd(endInstance)), cA);
 	if(endInstance2 != NULL) { //if null we'll make the adjacency when the other end is parsed.
-		makeAdjacenct(endInstance, endInstance2);
+		linkFn(endInstance2, endInstance);
+		return 0;
 	}
+	return 1;
 }
 
 EndInstance *endInstance_loadFromBinaryRepresentation(char **binaryString, End *end) {
@@ -478,11 +484,15 @@ EndInstance *endInstance_loadFromBinaryRepresentation(char **binaryString, End *
 						binaryRepresentation_getNameStatic(binaryString)));
 	}
 	if(binaryRepresentation_getNextElementType(binaryString) == CODE_ADJACENCY) {
-		endInstance_parseAdjacency(endInstance, binaryString, endInstance_makeAdjacent1);
+		endInstance_loadFromBinaryRepresentationP(endInstance, binaryString, endInstance_makeAdjacent1);
 	}
 	if(binaryRepresentation_getNextElementType(binaryString) == CODE_ADJACENCY) {
-		endInstance_parseAdjacency(endInstance, binaryString, endInstance_makeAdjacent1);
+		endInstance_loadFromBinaryRepresentationP(endInstance, binaryString, endInstance_makeAdjacent2);
 	}
+	if(binaryRepresentation_getNextElementType(binaryString) == CODE_PARENT) {
+		assert(endInstance_loadFromBinaryRepresentationP(endInstance, binaryString, endInstance_makeParentAndChild) == 0);
+	}
+
 	return endInstance;
 }
 
@@ -632,7 +642,15 @@ void end_setAdjacencyComponent(End *end, AdjacencyComponent *adjacencyComponent)
 }
 
 void *end_writeBinaryRepresentation(End *end, void (*writeFn)(const char *string, ...)) {
-
+	End_InstanceIterator *iterator;
+	EndInstance *endInstance;
+	binaryRepresentation_writeElementType(CODE_END, writeFn);
+	binaryRepresentation_writeName(end_getName(end), writeFn);
+	iterator = end_getInstanceIterator(end);
+	while((endInstance = end_getNext(iterator)) != NULL) {
+		endInstance_writeBinaryRepresentation(endInstance, writeFn);
+	}
+	end_destructInstanceIterator(iterator);
 }
 
 End *end_loadFromBinaryRepresentation(char **binaryString, Net *net) {
