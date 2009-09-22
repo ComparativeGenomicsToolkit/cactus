@@ -14,7 +14,7 @@
 ////////////////////////////////////////////////
 ////////////////////////////////////////////////
 ////////////////////////////////////////////////
-//Misc reused functions
+//Functions on a sorted set and its iterator
 ////////////////////////////////////////////////
 ////////////////////////////////////////////////
 ////////////////////////////////////////////////
@@ -75,6 +75,14 @@ void *iterator_getPrevious(struct avl_traverser *iterator) {
 	return avl_t_prev(iterator);
 }
 
+////////////////////////////////////////////////
+////////////////////////////////////////////////
+////////////////////////////////////////////////
+//Database functions
+////////////////////////////////////////////////
+////////////////////////////////////////////////
+////////////////////////////////////////////////
+
 TCBDB *database_construct(const char *name) {
 	int32_t ecode;
 	TCBDB *database;
@@ -134,67 +142,340 @@ void databaseIterator_destruct(BDBCUR *iterator) {
 	tcbdbcurdel(iterator);
 }
 
-#define CODE_SEQUENCE 0
-#define CODE_ADJACENCY 3
-#define CODE_PARENT 3
-#define CODE_END_INSTANCE 1
-#define CODE_END_INSTANCE_WITH_COORDINATES 2
-#define CODE_END 2
-#define CODE_ATOM_INSTANCE 3
-#define CODE_ATOM 3
-#define CODE_ADJACENCY_COMPONENT 2
-#define CODE_LINK 2
-#define CODE_CHAIN 3
-#define CODE_OPERATION 3
+////////////////////////////////////////////////
+////////////////////////////////////////////////
+////////////////////////////////////////////////
+//Functions for serialising the objects.
+////////////////////////////////////////////////
+////////////////////////////////////////////////
+////////////////////////////////////////////////
 
-/*
- * Writes a code for the element type.
- */
 void binaryRepresentation_writeElementType(int32_t elementCode, void (*writeFn)(const char *, ...)) {
 
 }
 
-/*
- * Writes a name to the binary stream
- */
-void binaryRepresentation_writeName(const char *name, void (*writeFn)(const char *, ...)) {
+void binaryRepresentation_writeString(const char *name, void (*writeFn)(const char *, ...)) {
 
 }
 
-/*
- * Writes an integer to the binary stream
- */
 void binaryRepresentation_writeInteger(int32_t i, void (*writeFn)(const char *, ...)) {
 
 }
 
-/*
- * Returns indicating which element is next.
- */
-int32_t binaryRepresentation_getNextElementType(char **binaryString) {
+void binaryRepresentation_writeFloat(float f, void (*writeFn)(const char *, ...)) {
 
 }
 
-/*
- * Parses out a name string, returning it in a newly allocated string which must be freed.
- */
-char *binaryRepresentation_getName(char **binaryString) {
+int32_t binaryRepresentation_peekNextElementType(char **binaryString) {
 
 }
 
-/*
- * Parses out a name string, placing the memory in a buffer owned by the function. Thid buffer
- * will be overidden by the next call to the function.
- */
-const char *binaryRepresentation_getNameStatic(char **binaryString) {
+int32_t binaryRepresentation_popNextElementType(char **binaryString) {
 
 }
 
-/*
- * Parses an integer from binary string.
- */
+char *binaryRepresentation_getString(char **binaryString) {
+
+}
+
+const char *binaryRepresentation_getStringStatic(char **binaryString) {
+
+}
+
 int32_t binaryRepresentation_getInteger(char **binaryString) {
 
+}
+
+float binaryRepresentation_getFloat(char **binaryString) {
+
+}
+
+////////////////////////////////////////////////
+////////////////////////////////////////////////
+////////////////////////////////////////////////
+//Basic event functions.
+////////////////////////////////////////////////
+////////////////////////////////////////////////
+////////////////////////////////////////////////
+
+Event *event_construct(const char *name, float branchLength,
+		Event *parentEvent, EventTree *eventTree) {
+	Event *event;
+	event = malloc(sizeof(Event));
+	event->name = stringCopy(name);
+	event->parent = parentEvent;
+	event->branchLength = branchLength;
+	if(parentEvent != NULL) {
+		listAppend(parentEvent->children, event);
+	}
+	event->eventTree = eventTree;
+	eventTree_addEvent(eventTree, event);
+	return event;
+}
+
+Event *event_construct2(const char *name, float branchLength,
+		Event *parentEvent, Event *childEvent, EventTree *eventTree) {
+	Event *event;
+	event = event_construct(name, branchLength, parentEvent, eventTree);
+#ifdef BEN_DEBUG
+	assert(parentEvent != NULL);
+	assert(listContains(parentEvent->children, childEvent));
+#endif
+	listRemove(parentEvent->children, childEvent);
+	listAppend(event->children, childEvent);
+	childEvent->parent = event;
+	childEvent->branchLength = childEvent->branchLength - event->branchLength;
+	if(childEvent->branchLength < 0.0) {
+		childEvent->branchLength = 0.0;
+	}
+	return event;
+}
+
+Event *event_getParent(Event *event) {
+	return event->parent;
+}
+
+const char *event_getName(Event *event) {
+	return event->name;
+}
+
+float event_getBranchLength(Event *event) {
+	return event->branchLength;
+}
+
+int32_t event_getChildNumber(Event *event) {
+	return event->children->length;
+}
+
+Event *event_getChild(Event *event, int32_t index) {
+#ifdef BEN_DEBUG
+	assert(index >= 0);
+	assert(index < event_getChildNumber(event));
+#endif
+	return event->children->list[index];
+}
+
+EventTree *event_getEventTree(Event *event) {
+	return event->eventTree;
+}
+
+int32_t event_isAncestor(Event *event, Event *otherEvent) {
+	return event != otherEvent && eventTree_getCommonAncestor(event, otherEvent) == otherEvent;
+}
+
+int32_t event_isDescendant(Event *event, Event *otherEvent) {
+	return event != otherEvent && eventTree_getCommonAncestor(event, otherEvent) == event;
+}
+
+int32_t event_isSibling(Event *event, Event *otherEvent) {
+	Event *ancestorEvent;
+	ancestorEvent = eventTree_getCommonAncestor(event, otherEvent);
+	return event != otherEvent && ancestorEvent != event && ancestorEvent != otherEvent;
+}
+
+/*
+ * Private functions
+ */
+
+void event_destruct(Event *event) {
+	int32_t i;
+	eventTree_removeEvent(event_getEventTree(event), event);
+	for(i=0; i<event_getChildNumber(event); i++) {
+		event_destruct(event_getChild(event, i));
+	}
+	free(event->name);
+	free(event);
+}
+
+void event_writeBinaryRepresentation(Event *event,
+		void (*writeFn)(const char *string, ...)) {
+	binaryRepresentation_writeElementType(CODE_EVENT, writeFn);
+	binaryRepresentation_writeString(event_getName(event_getParent(event)), writeFn);
+	binaryRepresentation_writeString(event_getName(event), writeFn);
+	binaryRepresentation_writeFloat(event_getBranchLength(event), writeFn);
+}
+
+Event *event_loadFromBinaryRepresentation(char **binaryString,
+		EventTree *eventTree) {
+	Event *event;
+	char *parentName;
+	const char *name;
+	float branchLength;
+	
+	event = NULL;
+	if(binaryRepresentation_peekNextElementType(binaryString) == CODE_EVENT) {
+		binaryRepresentation_popNextElementType(binaryString);
+		parentName = binaryRepresentation_getString(binaryString);
+		branchLength = binaryRepresentation_getFloat(binaryString);
+		name = binaryRepresentation_getStringStatic(binaryString);
+		event = event_construct(name, branchLength, NULL, eventTree);
+		free(parentName);
+	}
+	return event;
+}
+
+////////////////////////////////////////////////
+////////////////////////////////////////////////
+////////////////////////////////////////////////
+//Basic event tree functions.
+////////////////////////////////////////////////
+////////////////////////////////////////////////
+////////////////////////////////////////////////
+
+int32_t eventTree_constructP(const void *o1, const void *o2, void *a) {
+	return strcmp(event_getName((Event *)o1), event_getName((Event *)o2));
+}
+
+EventTree *eventTree_construct(const char *rootEventName, Net *net) {
+	EventTree *eventTree;
+	eventTree = malloc(sizeof(EventTree));
+	eventTree->rootEvent = event_construct(rootEventName, INT32_MAX, NULL, eventTree);
+	eventTree->events = sortedSet_construct(eventTree_constructP);
+	eventTree->net = net;
+	return eventTree;
+}
+
+void eventTree_copyConstructP(EventTree *eventTree, Event *event,
+		int32_t (unaryEventFilterFn)(Event *event)) {
+	int32_t i;
+	Event *event2;
+	for(i=0; i<event_getChildNumber(event); i++) {
+		event2 = event_getChild(event, i);
+		while(event_getChildNumber(event2) == 1 && !unaryEventFilterFn(event2)) {
+			//skip the event
+			event2 = event_getChild(event2, 0);
+		}
+		event_construct(event_getName(event2), event_getBranchLength(event2),
+						eventTree_getEvent(eventTree, event_getName(event)), eventTree);
+		eventTree_copyConstructP(eventTree, event2, unaryEventFilterFn);
+	}
+}
+
+EventTree *eventTree_copyConstruct(EventTree *eventTree, Net *newNet,
+		int32_t (unaryEventFilterFn)(Event *event)) {
+	EventTree *eventTree2;
+	eventTree2 = eventTree_construct(event_getName(eventTree_getRootEvent(eventTree)), newNet);
+	eventTree_copyConstructP(eventTree2, eventTree_getRootEvent(eventTree), unaryEventFilterFn);
+	return eventTree2;
+}
+
+Event *eventTree_getRootEvent(EventTree *eventTree) {
+	return eventTree->rootEvent;
+}
+
+Event *eventTree_getEvent(EventTree *eventTree, const char *eventName) {
+	static Event event;
+	event.name = (char *)eventName;
+	return sortedSet_find(eventTree->events, &event);
+}
+
+Event *eventTree_getCommonAncestor(Event *event, Event *event2) {
+	Event *ancestorEvent;
+	struct List *list;
+
+	list = constructEmptyList(0, NULL);
+	ancestorEvent = event;
+	while(ancestorEvent != NULL) {
+		if(ancestorEvent == event2) {
+			destructList(list);
+			return event2;
+		}
+		listAppend(list, ancestorEvent);
+		ancestorEvent = event_getParent(ancestorEvent);
+	}
+
+	ancestorEvent = event2;
+	while((ancestorEvent = event_getParent(ancestorEvent)) != NULL) {
+		if(listContains(list, ancestorEvent)) {
+			destructList(list);
+			return event;
+		}
+	}
+	assert(FALSE);
+	return NULL;
+}
+
+Net *eventTree_getNet(EventTree *eventTree) {
+	return eventTree->net;
+}
+
+Event *eventTree_getFirst(EventTree *eventTree) {
+	return sortedSet_getFirst(eventTree->events);
+}
+
+EventTree_Iterator *eventTree_getIterator(EventTree *eventTree) {
+	return iterator_construct(eventTree->events);
+}
+
+Event *eventTree_getNext(EventTree_Iterator *iterator) {
+	return iterator_getNext(iterator);
+}
+
+Event *eventTree_getPrevious(EventTree_Iterator *iterator) {
+	return iterator_getPrevious(iterator);
+}
+
+EventTree_Iterator *eventTree_copyIterator(EventTree_Iterator *iterator) {
+	return iterator_copy(iterator);
+}
+
+void eventTree_destructIterator(EventTree_Iterator *iterator) {
+	iterator_destruct(iterator);
+
+}
+
+/*
+ * Private functions.
+ */
+
+void eventTree_destruct(EventTree *eventTree) {
+	Event *event;
+	while((event = eventTree_getFirst(eventTree)) != NULL) {
+		event_destruct(event);
+	}
+	sortedSet_destruct(eventTree->events, NULL);
+	free(eventTree);
+}
+
+void eventTree_addEvent(EventTree *eventTree, Event *event) {
+	sortedSet_insert(eventTree->events, event);
+}
+
+void end_removeEvent(EventTree *eventTree, EndInstance *event) {
+	sortedSet_delete(eventTree->events, event);
+}
+
+
+void eventTree_writeBinaryRepresentationP(Event *event, void (*writeFn)(const char *string, ...)) {
+	int32_t i;
+	event_writeBinaryRepresentation(event, writeFn);
+	for(i=0; i<event_getChildNumber(event); i++) {
+		eventTree_writeBinaryRepresentationP(event, writeFn);
+	}
+}
+
+void eventTree_writeBinaryRepresentation(EventTree *eventTree, void (*writeFn)(const char *string, ...)) {
+	int32_t i;
+	Event *event;
+	event = eventTree_getRootEvent(eventTree);
+	binaryRepresentation_writeElementType(CODE_EVENT_TREE, writeFn);
+	binaryRepresentation_writeString(event_getName(event), writeFn);
+	for(i=0; i<event_getChildNumber(event); i++) {
+		eventTree_writeBinaryRepresentationP(event_getChild(event, i), writeFn);
+	}
+}
+
+EventTree *eventTree_loadFromBinaryRepresentation(char **binaryString, Net *net) {
+	EventTree *eventTree;
+	eventTree = NULL;
+	if(binaryRepresentation_peekNextElementType(binaryString) == CODE_EVENT_TREE) {
+		binaryRepresentation_popNextElementType(binaryString);
+		eventTree = eventTree_construct(binaryRepresentation_getStringStatic(binaryString), net);
+		while(binaryRepresentation_peekNextElementType(binaryString) == CODE_EVENT) {
+			event_loadFromBinaryRepresentation(binaryString, eventTree);
+		}
+	}
+	return eventTree;
 }
 
 ////////////////////////////////////////////////
@@ -206,7 +487,7 @@ int32_t binaryRepresentation_getInteger(char **binaryString) {
 ////////////////////////////////////////////////
 
 Sequence *sequence_construct(const char *name, int32_t length,
-		const char *file, NetDisk *netDisk) {
+							 const char *file, const char *eventName, NetDisk *netDisk) {
 	Sequence *sequence;
 #ifdef BEN_DEBUG
 	assert(length >= 0);
@@ -215,6 +496,7 @@ Sequence *sequence_construct(const char *name, int32_t length,
 	sequence->file = stringCopy(file);
 	sequence->name = stringCopy(name);
 	sequence->length = length;
+	sequence->eventName = stringCopy(eventName);
 	sequence->netDisk = netDisk;
 
 	netDisk_addSequence(netDisk, sequence);
@@ -237,6 +519,10 @@ const char *sequence_getName(Sequence *sequence) {
 	return sequence->name;
 }
 
+const char *sequence_getEventName(Sequence *sequence) {
+	return sequence->eventName;
+}
+
 const char *sequence_getFile(Sequence *sequence) {
 	return sequence->file;
 }
@@ -253,8 +539,12 @@ Sequence *sequence_loadFromXMLRepresentation(char *xmlString, NetDisk *netDisk) 
  * Private functions
  */
 
-void *sequence_writeBinaryRepresentation(Sequence *sequence, void (*writeFn)(const char *string, ...)) {
-
+void sequence_writeBinaryRepresentation(Sequence *sequence, void (*writeFn)(const char *string, ...)) {
+	binaryRepresentation_writeElementType(CODE_SEQUENCE, writeFn);
+	binaryRepresentation_writeString(sequence_getName(sequence), writeFn);
+	binaryRepresentation_writeInteger(sequence_getLength(sequence), writeFn);
+	binaryRepresentation_writeString(sequence_getEventName(sequence), writeFn);
+	binaryRepresentation_writeString(sequence_getFile(sequence), writeFn);
 }
 
 char *sequence_makeBinaryRepresentation(Sequence *sequence) {
@@ -262,9 +552,24 @@ char *sequence_makeBinaryRepresentation(Sequence *sequence) {
 }
 
 Sequence *sequence_loadFromBinaryRepresentation(char **binaryString, NetDisk *netDisk) {
-
+	Sequence *sequence;
+	char *name;
+	int32_t length;
+	char *eventName;
+	const char *fileString;
+	sequence = NULL;
+	if(binaryRepresentation_peekNextElementType(binaryString) == CODE_SEQUENCE) {
+		binaryRepresentation_popNextElementType(binaryString);
+		name = binaryRepresentation_getString(binaryString);
+		length = binaryRepresentation_getInteger(binaryString);
+		eventName = binaryRepresentation_getString(binaryString);
+		fileString = binaryRepresentation_getStringStatic(binaryString);
+		sequence = sequence_construct(name, length, fileString, eventName, netDisk);
+		free(name);
+		free(eventName);
+	}
+	return sequence;
 }
-
 
 ////////////////////////////////////////////////
 ////////////////////////////////////////////////
@@ -302,7 +607,15 @@ EndInstance *endInstance_constructWithCoordinates(const char *instance, End *end
 	endInstance = endInstance_construct(instance, end);
 	endInstance->coordinate = coordinate;
 	endInstance->sequence = sequence;
+	endInstance->event = sequence_getEvent(sequence);
 	return endInstance;
+}
+
+void endInstance_setEvent(EndInstance *endInstance, Event *event) {
+#ifdef BEN_DEBUG
+	assert(endInstance_getEvent(endInstance) == NULL);
+#endif
+	endInstance->event = event;
 }
 
 void endInstance_destruct(EndInstance *endInstance) {
@@ -324,6 +637,10 @@ const char *endInstance_getElementName(EndInstance *endInstance) {
 
 char *endInstance_getCompleteName(EndInstance *endInstance) {
 	return netMisc_makeCompleteName(endInstance_getElementName(endInstance), endInstance_getInstanceName(endInstance));
+}
+
+Event *endInstance_getEvent(EndInstance *endInstance) {
+	return endInstance->event;
 }
 
 End *endInstance_getEnd(EndInstance *endInstance) {
@@ -433,21 +750,28 @@ void endInstance_writeBinaryRepresentationP(EndInstance *endInstance, EndInstanc
 	char *cA;
 	binaryRepresentation_writeElementType(elementType, writeFn);
 	cA = endInstance_getCompleteName(endInstance2);
-	binaryRepresentation_writeName(cA, writeFn);
+	binaryRepresentation_writeString(cA, writeFn);
 	free(cA);
 }
 
 void endInstance_writeBinaryRepresentation(EndInstance *endInstance, void (*writeFn)(const char *string, ...)) {
 	EndInstance *endInstance2;
 	if(endInstance_getCoordinate(endInstance) == INT32_MAX) {
-		binaryRepresentation_writeElementType(CODE_END_INSTANCE, writeFn);
-		binaryRepresentation_writeName(endInstance_getInstanceName(endInstance), writeFn);
+		if(endInstance_getEvent(endInstance) == NULL) {
+			binaryRepresentation_writeElementType(CODE_END_INSTANCE, writeFn);
+			binaryRepresentation_writeString(endInstance_getInstanceName(endInstance), writeFn);
+		}
+		else {
+			binaryRepresentation_writeElementType(CODE_END_INSTANCE_WITH_EVENT, writeFn);
+			binaryRepresentation_writeString(endInstance_getInstanceName(endInstance), writeFn);
+			binaryRepresentation_writeString(event_getName(endInstance_getEvent(endInstance)), writeFn);
+		}
 	}
 	else {
 		binaryRepresentation_writeElementType(CODE_END_INSTANCE_WITH_COORDINATES, writeFn);
-		binaryRepresentation_writeName(endInstance_getInstanceName(endInstance), writeFn);
+		binaryRepresentation_writeString(endInstance_getInstanceName(endInstance), writeFn);
 		binaryRepresentation_writeInteger(endInstance_getCoordinate(endInstance), writeFn);
-		binaryRepresentation_writeName(sequence_getName(endInstance_getSequence(endInstance)), writeFn);
+		binaryRepresentation_writeString(sequence_getName(endInstance_getSequence(endInstance)), writeFn);
 	}
 	if((endInstance2 = endInstance_getAdjacency(endInstance)) != NULL) {
 		endInstance_writeBinaryRepresentationP(endInstance, endInstance2, CODE_ADJACENCY, writeFn);
@@ -463,7 +787,8 @@ void endInstance_writeBinaryRepresentation(EndInstance *endInstance, void (*writ
 int32_t endInstance_loadFromBinaryRepresentationP(EndInstance *endInstance, char **binaryString, void (*linkFn)(EndInstance *, EndInstance *)) {
 	const char *cA;
 	EndInstance *endInstance2;
-	cA = binaryRepresentation_getNameStatic(binaryString);
+	binaryRepresentation_popNextElementType(binaryString);
+	cA = binaryRepresentation_getStringStatic(binaryString);
 	endInstance2 = net_getEndInstance(end_getNet(endInstance_getEnd(endInstance)), cA);
 	if(endInstance2 != NULL) { //if null we'll make the adjacency when the other end is parsed.
 		linkFn(endInstance2, endInstance);
@@ -474,22 +799,35 @@ int32_t endInstance_loadFromBinaryRepresentationP(EndInstance *endInstance, char
 
 EndInstance *endInstance_loadFromBinaryRepresentation(char **binaryString, End *end) {
 	EndInstance *endInstance;
+	char *name;
+	int32_t coordinate;
+	Sequence *sequence;
+
 	endInstance = NULL;
-	if(binaryRepresentation_getNextElementType(binaryString) == CODE_END_INSTANCE) {
-		endInstance = endInstance_construct(binaryRepresentation_getName(binaryString), end);
+	if(binaryRepresentation_peekNextElementType(binaryString) == CODE_END_INSTANCE) {
+		binaryRepresentation_popNextElementType(binaryString);
+		endInstance = endInstance_construct(binaryRepresentation_getStringStatic(binaryString), end);
 	}
-	else if(binaryRepresentation_getNextElementType(binaryString) == CODE_END_INSTANCE_WITH_COORDINATES) {
-		endInstance = endInstance_constructWithCoordinates(binaryRepresentation_getNameStatic(binaryString),
-				end, binaryRepresentation_getInteger(binaryString), net_getSequence(end_getNet(end),
-						binaryRepresentation_getNameStatic(binaryString)));
+	else if(binaryRepresentation_peekNextElementType(binaryString) == CODE_END_INSTANCE_WITH_EVENT) {
+		binaryRepresentation_popNextElementType(binaryString);
+		endInstance = endInstance_construct(binaryRepresentation_getStringStatic(binaryString), end);
+		endInstance_setEvent(endInstance, eventTree_getEvent(net_getEventTree(end_getNet(end)), binaryRepresentation_getStringStatic(binaryString)));
 	}
-	if(binaryRepresentation_getNextElementType(binaryString) == CODE_ADJACENCY) {
+	else if(binaryRepresentation_peekNextElementType(binaryString) == CODE_END_INSTANCE_WITH_COORDINATES) {
+		binaryRepresentation_popNextElementType(binaryString);
+		name = binaryRepresentation_getString(binaryString);
+		coordinate = binaryRepresentation_getInteger(binaryString);
+		sequence = net_getSequence(end_getNet(end), binaryRepresentation_getStringStatic(binaryString));
+		endInstance = endInstance_constructWithCoordinates(name, end, coordinate, sequence);
+		free(name);
+	}
+	if(binaryRepresentation_peekNextElementType(binaryString) == CODE_ADJACENCY) {
 		endInstance_loadFromBinaryRepresentationP(endInstance, binaryString, endInstance_makeAdjacent1);
 	}
-	if(binaryRepresentation_getNextElementType(binaryString) == CODE_ADJACENCY) {
+	if(binaryRepresentation_peekNextElementType(binaryString) == CODE_ADJACENCY) {
 		endInstance_loadFromBinaryRepresentationP(endInstance, binaryString, endInstance_makeAdjacent2);
 	}
-	if(binaryRepresentation_getNextElementType(binaryString) == CODE_PARENT) {
+	if(binaryRepresentation_peekNextElementType(binaryString) == CODE_PARENT) {
 		assert(endInstance_loadFromBinaryRepresentationP(endInstance, binaryString, endInstance_makeParentAndChild) == 0);
 	}
 
@@ -641,22 +979,46 @@ void end_setAdjacencyComponent(End *end, AdjacencyComponent *adjacencyComponent)
 	end->adjacencyComponent = adjacencyComponent;
 }
 
-void *end_writeBinaryRepresentation(End *end, void (*writeFn)(const char *string, ...)) {
+void end_writeBinaryRepresentationP(EndInstance *endInstance, void (*writeFn)(const char *string, ...)) {
+	int32_t i;
+	endInstance_writeBinaryRepresentation(endInstance, writeFn);
+	for(i=0; i<endInstance_getChildNumber(endInstance); i++) {
+		end_writeBinaryRepresentationP(endInstance_getChild(endInstance, i), writeFn);
+	}
+}
+
+void end_writeBinaryRepresentation(End *end, void (*writeFn)(const char *string, ...)) {
 	End_InstanceIterator *iterator;
 	EndInstance *endInstance;
+
 	binaryRepresentation_writeElementType(CODE_END, writeFn);
-	binaryRepresentation_writeName(end_getName(end), writeFn);
-	iterator = end_getInstanceIterator(end);
-	while((endInstance = end_getNext(iterator)) != NULL) {
-		endInstance_writeBinaryRepresentation(endInstance, writeFn);
+	binaryRepresentation_writeString(end_getName(end), writeFn);
+	endInstance = end_getRootEndInstance(end);
+
+	if(endInstance == NULL) {
+		iterator = end_getInstanceIterator(end);
+		while((endInstance = end_getNext(iterator)) != NULL) {
+			endInstance_writeBinaryRepresentation(endInstance, writeFn);
+		}
+		end_destructInstanceIterator(iterator);
 	}
-	end_destructInstanceIterator(iterator);
+	else {
+		end_writeBinaryRepresentationP(endInstance, writeFn);
+	}
 }
 
 End *end_loadFromBinaryRepresentation(char **binaryString, Net *net) {
-	if(binaryRepresentation_getNextElementType(binaryString) == CODE_END_INSTANCE) {
-		endInstance = endInstance_construct(binaryRepresentation_getName(binaryString), end);
+	End *end;
+
+	end = NULL;
+	if(binaryRepresentation_peekNextElementType(binaryString) == CODE_END) {
+		binaryRepresentation_popNextElementType(binaryString);
+		end = end_construct(binaryRepresentation_getStringStatic(binaryString), net);
+		while(binaryRepresentation_peekNextElementType(binaryString) == CODE_END_INSTANCE) {
+			endInstance_loadFromBinaryRepresentation(binaryString, end);
+		}
 	}
+	return end;
 }
 
 ////////////////////////////////////////////////
@@ -667,51 +1029,40 @@ End *end_loadFromBinaryRepresentation(char **binaryString, Net *net) {
 ////////////////////////////////////////////////
 ////////////////////////////////////////////////
 
-AtomInstance *atomInstance_constructP(const char *instance, Atom *atom) {
+AtomInstance *atomInstance_construct(const char *instance, Atom *atom,
+		EndInstance *leftEndInstance, EndInstance *rightEndInstance) {
 	AtomInstance *atomInstance;
 	atomInstance = malloc(sizeof(AtomInstance));
 	atomInstance->rInstance = malloc(sizeof(AtomInstance));
 	atomInstance->rInstance->rInstance = atomInstance;
 	atomInstance->atom = atom;
 	atomInstance->rInstance->atom = atom_getReverse(atom);
-	return atomInstance;
-}
-
-AtomInstance *atomInstance_construct(const char *instance, Atom *atom) {
-	AtomInstance *atomInstance;
-	atomInstance = atomInstance_constructP(instance, atom);
-	atomInstance->leftEndInstance =
-			endInstance_construct(instance, atom_getLeft(atom));
+	atomInstance->leftEndInstance = leftEndInstance;
+	atomInstance->rInstance->leftEndInstance = rightEndInstance;
 	endInstance_setAtomInstance(atomInstance->leftEndInstance, atomInstance);
-
-	atomInstance->rInstance->leftEndInstance =
-				endInstance_construct(instance, atom_getRight(atom));
 	endInstance_setAtomInstance(atomInstance->rInstance->leftEndInstance, atomInstance->rInstance);
 	atom_addInstance(atom, atomInstance);
 	return atomInstance;
 }
 
-AtomInstance *atomInstance_constructWithCoordinates(const char *instance, Atom *atom,
-		int32_t startCoordinate, Sequence *sequence) {
-	AtomInstance *atomInstance;
+AtomInstance *atomInstance_construct2(const char *instance, Atom *atom) {
+	return atomInstance_construct(instance, atom,
+			endInstance_construct(instance, atom_getLeft(atom)),
+			endInstance_construct(instance, atom_getRight(atom)));
+}
 
+AtomInstance *atomInstance_construct3(const char *instance, Atom *atom,
+		int32_t startCoordinate, Sequence *sequence) {
 #ifdef BEN_DEBUG
 	assert(startCoordinate >= 0);
 	assert(startCoordinate + atom_getLength(atom) <= sequence_getLength(sequence));
 #endif
 
-	atomInstance = atomInstance_constructP(instance, atom);
-	atomInstance->leftEndInstance =
+	return atomInstance_construct(instance, atom,
 			endInstance_constructWithCoordinates(instance, atom_getLeft(atom),
-					startCoordinate, sequence);
-	endInstance_setAtomInstance(atomInstance->leftEndInstance, atomInstance);
-
-	atomInstance->rInstance->leftEndInstance =
-				endInstance_constructWithCoordinates(instance, atom_getRight(atom),
-						-(startCoordinate + atom_getLength(atom)), sequence);
-	endInstance_setAtomInstance(atomInstance->rInstance->leftEndInstance, atomInstance->rInstance);
-	atom_addInstance(atom, atomInstance);
-	return atomInstance;
+					startCoordinate, sequence),
+			endInstance_constructWithCoordinates(instance, atom_getRight(atom),
+						-(startCoordinate + atom_getLength(atom)), sequence));
 }
 
 void atomInstance_destruct(AtomInstance *atomInstance) {
@@ -734,6 +1085,10 @@ const char *atomInstance_getElementName(AtomInstance *atomInstance) {
 
 char *atomInstance_getCompleteName(AtomInstance *atomInstance) {
 	return netMisc_makeCompleteName(atomInstance_getInstanceName(atomInstance), atomInstance_getElementName(atomInstance));
+}
+
+Event *atomInstance_getEvent(AtomInstance *atomInstance) {
+	return endInstance_getEvent(atomInstance_getLeft(atomInstance));
 }
 
 AtomInstance *atomInstance_getReverse(AtomInstance *atomInstance) {
@@ -784,12 +1139,23 @@ AtomInstance *atomInstance_getChild(AtomInstance *atomInstance, int32_t index) {
  * Private functions
  */
 
-void *atomInstance_writeBinaryRepresentation(AtomInstance *atomInstance, void (*writeFn)(const char *string, ...)) {
-
+void atomInstance_writeBinaryRepresentation(AtomInstance *atomInstance, void (*writeFn)(const char *string, ...)) {
+	binaryRepresentation_writeElementType(CODE_ATOM_INSTANCE, writeFn);
+	binaryRepresentation_writeString(atomInstance_getInstanceName(atomInstance), writeFn);
 }
 
-AtomInstance *atomInstance_loadFromBinaryRepresentation(char **binaryString, Net *net) {
+AtomInstance *atomInstance_loadFromBinaryRepresentation(char **binaryString, Atom *atom) {
+	const char *name;
+	AtomInstance *atomInstance;
 
+	atomInstance = NULL;
+	if(binaryRepresentation_peekNextElementType(binaryString) == CODE_ATOM_INSTANCE) {
+		binaryRepresentation_popNextElementType(binaryString);
+		name = binaryRepresentation_getStringStatic(binaryString);
+		atomInstance = atomInstance_construct(name, atom, end_getInstance(atom_getLeft(atom), name),
+		end_getInstance(atom_getRight(atom), name));
+	}
+	return atomInstance;
 }
 
 ////////////////////////////////////////////////
@@ -910,12 +1276,36 @@ void atom_removeInstance(Atom *atom, AtomInstance *atomInstance) {
 	sortedSet_delete(atom->atomContents->atomInstances, atomInstance);
 }
 
-void *atom_writeBinaryRepresentation(Atom *atom, void (*writeFn)(const char *string, ...)) {
+void atom_writeBinaryRepresentation(Atom *atom, void (*writeFn)(const char *string, ...)) {
+	Atom_InstanceIterator *iterator;
+	AtomInstance *atomInstance;
 
+	binaryRepresentation_writeElementType(CODE_ATOM, writeFn);
+	binaryRepresentation_writeString(atom_getName(atom), writeFn);
+	binaryRepresentation_writeInteger(atom_getLength(atom), writeFn);
+	iterator = atom_getInstanceIterator(atom);
+	while((atomInstance = atom_getNext(iterator)) != NULL) {
+		atomInstance_writeBinaryRepresentation(atomInstance, writeFn);
+	}
+	atom_destructInstanceIterator(iterator);
 }
 
 Atom *atom_loadFromBinaryRepresentation(char **binaryString, Net *net) {
+	Atom *atom;
+	const char *name;
+	int32_t length;
 
+	atom = NULL;
+	if(binaryRepresentation_peekNextElementType(binaryString) == CODE_ATOM) {
+		binaryRepresentation_popNextElementType(binaryString);
+		name = binaryRepresentation_getStringStatic(binaryString);
+		length = binaryRepresentation_getInteger(binaryString);
+		atom = atom_construct(name, length, net);
+		while(binaryRepresentation_peekNextElementType(binaryString) == CODE_ATOM_INSTANCE) {
+			atomInstance_loadFromBinaryRepresentation(binaryString, atom);
+		}
+	}
+	return atom;
 }
 
 ////////////////////////////////////////////////
@@ -1033,8 +1423,24 @@ void adjacencyComponent_setChain(AdjacencyComponent *adjacencyComponent, Chain *
 	adjacencyComponent->chain = chain;
 }
 
-void *adjacencyComponent_writeBinaryRepresentation(AdjacencyComponent *adjacencyComponent, void (*writeFn)(const char *string, ...)) {
+void adjacencyComponent_writeBinaryRepresentation(AdjacencyComponent *adjacencyComponent, void (*writeFn)(const char *string, ...)) {
+	Chain *chain;
+	End *end;
+	AdjacencyComponent_EndIterator *iterator;
 
+	binaryRepresentation_writeElementType(CODE_ADJACENCY_COMPONENT, writeFn);
+	binaryRepresentation_writeString(adjacencyComponent_getNestedNetName(adjacencyComponent), writeFn);
+	chain = adjacencyComponent_getChain(adjacencyComponent);
+	if(chain == NULL) {
+		binaryRepresentation_writeElementType(CODE_ADJACENCY_COMPONENT_CHAIN, writeFn);
+		binaryRepresentation_writeInteger(chain_getIndex(chain), writeFn);
+	}
+	iterator = adjacencyComponent_getEndIterator(adjacencyComponent);
+	while((end = adjacencyComponent_getNextEnd(iterator)) != NULL) {
+		binaryRepresentation_writeElementType(CODE_ADJACENCY_COMPONENT_END, writeFn);
+		binaryRepresentation_writeString(end_getName(end), writeFn);
+	}
+	adjacencyComponent_destructEndIterator(iterator);
 }
 
 AdjacencyComponent *adjacencyComponent_loadFromBinaryRepresentation(char **binaryString, Net *net) {
@@ -1110,11 +1516,11 @@ int32_t link_getIndex(Link *link) {
  * Private functions
  */
 
-void *link_writeBinaryRepresentation(Link *link, void (*writeFn)(const char *string, ...)) {
+void link_writeBinaryRepresentation(Link *link, void (*writeFn)(const char *string, ...)) {
 
 }
 
-Link *link_loadFromBinaryRepresentation(char **binaryString, Net *net) {
+Link *link_loadFromBinaryRepresentation(char **binaryString, Chain *chain) {
 
 }
 
@@ -1196,7 +1602,7 @@ void chain_setIndex(Chain *chain, int32_t index) {
 	chain->chainIndex = index;
 }
 
-void *chain_writeBinaryRepresentation(Chain *chain, void (*writeFn)(const char *string, ...)) {
+void chain_writeBinaryRepresentation(Chain *chain, void (*writeFn)(const char *string, ...)) {
 
 }
 
@@ -1606,6 +2012,10 @@ Net *net_loadFromXMLRepresentation(char *xmlString, NetDisk *netDisk) {
  * Private functions
  */
 
+void net_addEventTree(Net *net, EventTree *eventTree) {
+	net->eventTree = eventTree;
+}
+
 void net_addAtom(Net *net, Atom *atom) {
 	sortedSet_insert(net->atoms, atom);
 }
@@ -1664,7 +2074,7 @@ void net_writeBinaryRepresentation(Net *net, void (*writeFn)(const char *string,
 	Chain *chain;
 	Operation *operation;
 
-	binaryRepresentation_writeName(net_getName(net), writeFn);
+	binaryRepresentation_writeString(net_getName(net), writeFn);
 
 	endIterator = net_getEndIterator(net);
 	while((end = net_getNextEnd(endIterator)) != NULL) {
@@ -1703,7 +2113,7 @@ char *net_makeBinaryRepresentation(Net *net) {
 
 Net *net_loadFromBinaryRepresentation(char **binaryString, NetDisk *netDisk) {
 	Net *net;
-	net = net_construct(binaryRepresentation_getNameStatic(binaryString), netDisk);
+	net = net_construct(binaryRepresentation_getStringStatic(binaryString), netDisk);
 	while(end_loadFromBinaryRepresentation(binaryString, net) != NULL);
 	while(atom_loadFromBinaryRepresentation(binaryString, net) != NULL);
 	while(adjacencyComponent_loadFromBinaryRepresentation(binaryString, net) != NULL);
@@ -1796,6 +2206,7 @@ int32_t netDisk_write(NetDisk *netDisk){
 
 Sequence *netDisk_getSequence(NetDisk *netDisk, const char *sequenceName) {
 	char *cA;
+	char *cA2;
 	Sequence *sequence;
 
 	//try in memory list first.
@@ -1808,7 +2219,8 @@ Sequence *netDisk_getSequence(NetDisk *netDisk, const char *sequenceName) {
 		return NULL;
 	}
 	else {
-		sequence = sequence_loadFromBinaryRepresentation(cA, netDisk);
+		cA2 = cA;
+		sequence = sequence_loadFromBinaryRepresentation(&cA2, netDisk);
 		free(cA);
 		return sequence;
 	}
@@ -1866,6 +2278,7 @@ void netDisk_destructSequenceIterator(NetDisk_SequenceIterator *sequenceIterator
 
 Net *netDisk_getNet(NetDisk *netDisk, const char *netName) {
 	char *cA;
+	char *cA2;
 	Net *net;
 
 	//try in memory list first.
@@ -1878,7 +2291,8 @@ Net *netDisk_getNet(NetDisk *netDisk, const char *netName) {
 		return NULL;
 	}
 	else {
-		net = net_loadFromBinaryRepresentation(cA, netDisk);
+		cA2 = cA;
+		net = net_loadFromBinaryRepresentation(&cA2, netDisk);
 		free(cA);
 		return net;
 	}

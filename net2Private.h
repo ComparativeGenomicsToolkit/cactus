@@ -12,9 +12,24 @@
 ////////////////////////////////////////////////
 ////////////////////////////////////////////////
 
+struct _event {
+	char *name;
+	struct List *children;
+	float branchLength;
+	Event *parent;
+	EventTree *eventTree;
+};
+
+struct _eventTree {
+	Event *rootEvent;
+	struct avl_table *events;
+	Net *net;
+};
+
 struct _sequence {
 	char *name;
 	int32_t length;
+	char *eventName;
 	char *file;
 	NetDisk *netDisk;
 };
@@ -23,6 +38,7 @@ struct _endInstance {
 	char *instance;
 	End *end;
 	int32_t coordinate;
+	Event *event;
 	Sequence *sequence;
 	EndInstance *adjacency;
 	EndInstance *adjacency2;
@@ -93,6 +109,7 @@ struct _operation {
 
 struct _net {
 	char *name;
+	EventTree *eventTree;
 	struct avl_table *sequences;
 	struct avl_table *ends;
 	struct avl_table *atoms;
@@ -117,6 +134,265 @@ struct _netDisk {
 ///
 //Private functions.
 ///
+
+////////////////////////////////////////////////
+////////////////////////////////////////////////
+////////////////////////////////////////////////
+//Functions on a sorted set and its iterator
+////////////////////////////////////////////////
+////////////////////////////////////////////////
+////////////////////////////////////////////////
+
+/*
+ * Constructs a sorted set, using the given comparison function.
+ */
+struct avl_table *sortedSet_construct(int32_t (*compareFn)(const void *, const void *, void *));
+
+/*
+ * Destructs the sorted set, applying the destruct function to each element.
+ */
+void sortedSet_destruct(struct avl_table *sortedSet, void (*destructElementFn)(void *, void *));
+
+/*
+ * Inserts the object into the sorted set.
+ */
+void sortedSet_insert(struct avl_table *sortedSet, void *object);
+
+/*
+ * Finds the objects in the sorted set, or returns null.
+ */
+void *sortedSet_find(struct avl_table *sortedSet, void *object);
+
+/*
+ * Deletes the object in the sorted set.
+ */
+void sortedSet_delete(struct avl_table *sortedSet, void *object);
+
+/*
+ * Gets the number of elements in the sorted set.
+ */
+int32_t sortedSet_getLength(struct avl_table *sortedSet);
+
+/*
+ * Gets the first element (with lowest value), in the sorted set.
+ */
+void *sortedSet_getFirst(struct avl_table *items);
+
+/*
+ * Constructs an iterator for the sorted set.
+ */
+struct avl_traverser *iterator_construct(struct avl_table *items);
+
+/*
+ * Destructs an iterator for the sorted set.
+ */
+void iterator_destruct(struct avl_traverser *iterator);
+
+/*
+ * Gets next element in the sorted set.
+ */
+void *iterator_getNext(struct avl_traverser *iterator);
+
+/*
+ * Gets the previous element in the sorted set.
+ */
+void *iterator_getPrevious(struct avl_traverser *iterator);
+
+/*
+ * Copies the iterator.
+ */
+struct avl_traverser *iterator_copy(struct avl_traverser *iterator);
+
+////////////////////////////////////////////////
+////////////////////////////////////////////////
+////////////////////////////////////////////////
+//Database functions
+////////////////////////////////////////////////
+////////////////////////////////////////////////
+////////////////////////////////////////////////
+
+/*
+ * Constructs a sorted-set database object.
+ */
+TCBDB *database_construct(const char *name);
+
+/*
+ * Destructs a database.
+ */
+void database_destruct(TCBDB *database);
+
+/*
+ * Returns number of records in database.
+ */
+int32_t database_getNumberOfRecords(TCBDB *database);
+
+/*
+ * Gets a record from the database, given the key. The record is in newly allocated memory, and must be freed.
+ */
+char *database_getRecord(TCBDB *database, const char *key);
+
+/*
+ * Writes a key value record to the database.
+ */
+int32_t database_writeRecord(TCBDB *database, const char *key, const char *value);
+
+/*
+ * Removes a record from the database.
+ */
+int32_t database_removeRecord(TCBDB *database, const char *key);
+
+/*
+ * Constructs an iterator over the sorted database records.
+ */
+BDBCUR *databaseIterator_construct(TCBDB *database);
+
+/*
+ * Gets the next element from the database iterator.
+ */
+const char *databaseIterator_getNext(BDBCUR *iterator);
+
+/*
+ * Destructs a database iterator.
+ */
+void databaseIterator_destruct(BDBCUR *iterator);
+
+////////////////////////////////////////////////
+////////////////////////////////////////////////
+////////////////////////////////////////////////
+//Functions for serialising the objects.
+////////////////////////////////////////////////
+////////////////////////////////////////////////
+////////////////////////////////////////////////
+
+/*
+ * Codes used to define which objects are being encoded/decoded from a binary database stream.
+ */
+
+#define CODE_EVENT 0
+#define CODE_POINTER 1
+#define CODE_EVENT_TREE 1
+#define CODE_SEQUENCE 0
+#define CODE_ADJACENCY 3
+#define CODE_PARENT 3
+#define CODE_END_INSTANCE 1
+#define CODE_END_INSTANCE_WITH_EVENT 1
+#define CODE_END_INSTANCE_WITH_COORDINATES 2
+#define CODE_END 2
+#define CODE_ATOM_INSTANCE 3
+#define CODE_ATOM 3
+#define CODE_ADJACENCY_COMPONENT 2
+#define CODE_ADJACENCY_COMPONENT_CHAIN 2
+#define CODE_ADJACENCY_COMPONENT_END 2
+#define CODE_LINK 2
+#define CODE_CHAIN 3
+#define CODE_OPERATION 3
+
+/*
+ * Writes a code for the element type.
+ */
+void binaryRepresentation_writeElementType(int32_t elementCode, void (*writeFn)(const char *, ...));
+
+/*
+ * Writes a string, containing no white space, to the binary stream.
+ */
+void binaryRepresentation_writeString(const char *string, void (*writeFn)(const char *, ...));
+
+/*
+ * Writes an integer to the binary stream
+ */
+void binaryRepresentation_writeInteger(int32_t i, void (*writeFn)(const char *, ...));
+
+/*
+ * Writes a float to the binary stream.
+ */
+void binaryRepresentation_writeFloat(float f, void (*writeFn)(const char *, ...));
+
+/*
+ * Returns indicating which element is next, but does not increment the string pointer.
+ */
+int32_t binaryRepresentation_peekNextElementType(char **binaryString);
+
+/*
+ * Returns indicating which element is next, while incrementing the string pointer.
+ */
+int32_t binaryRepresentation_popNextElementType(char **binaryString);
+
+/*
+ * Parses out a string, returning it in a newly allocated string which must be freed.
+ */
+char *binaryRepresentation_getString(char **binaryString);
+
+/*
+ * Parses out a string, placing the memory in a buffer owned by the function. Thid buffer
+ * will be overidden by the next call to the function.
+ */
+const char *binaryRepresentation_getStringStatic(char **binaryString);
+
+/*
+ * Parses an integer from binary string.
+ */
+int32_t binaryRepresentation_getInteger(char **binaryString);
+
+/*
+ * Parses a float from the binary string.
+ */
+float binaryRepresentation_getFloat(char **binaryString);
+
+////////////////////////////////////////////////
+////////////////////////////////////////////////
+////////////////////////////////////////////////
+//Basic event functions.
+////////////////////////////////////////////////
+////////////////////////////////////////////////
+////////////////////////////////////////////////
+
+/*
+ * Destructs the event and also destructs any attached child events.
+ */
+void event_destruct(Event *event);
+
+/*
+ * Creates a binary representation of the event, returned as a char string.
+ */
+void event_writeBinaryRepresentation(Event *event, void (*writeFn)(const char *string, ...));
+
+/*
+ * Loads a event into memory from a binary representation of the event.
+ */
+Event *event_loadFromBinaryRepresentation(char **binaryString, EventTree *eventTree);
+
+////////////////////////////////////////////////
+////////////////////////////////////////////////
+////////////////////////////////////////////////
+//Basic event tree functions.
+////////////////////////////////////////////////
+////////////////////////////////////////////////
+////////////////////////////////////////////////
+
+/*
+ * Destructs the event tree and all its events.
+ */
+void eventTree_destruct(EventTree *eventTree);
+
+/*
+ * Adds the end instance to the event tree.
+ */
+void eventTree_addEvent(EventTree *eventTree, Event *event);
+
+/*
+ * Removes the instance from the event tree.
+ */
+void eventTree_removeEvent(EventTree *eventTree, Event *event);
+
+/*
+ * Creates a binary representation of the eventTree, returned as a char string.
+ */
+void eventTree_writeBinaryRepresentation(EventTree *eventTree, void (*writeFn)(const char *string, ...));
+
+/*
+ * Loads a eventTree into memory from a binary representation of the eventTree.
+ */
+EventTree *eventTree_loadFromBinaryRepresentation(char **binaryString, Net *net);
 
 ////////////////////////////////////////////////
 ////////////////////////////////////////////////
@@ -398,6 +674,11 @@ Operation *operation_loadFromBinaryRepresentation(char **binaryString, Net *net)
 ////////////////////////////////////////////////
 ////////////////////////////////////////////////
 ////////////////////////////////////////////////
+
+/*
+ * Adds the event tree for the net to the net.
+ */
+void net_addEventTree(Net *net, EventTree *eventTree);
 
 /*
  * Adds the atom to the net.

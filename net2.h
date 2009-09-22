@@ -22,6 +22,8 @@
 ////////////////////////////////////////////////
 ////////////////////////////////////////////////
 
+typedef struct _event Event;
+typedef struct _eventTree EventTree;
 typedef struct _sequence Sequence;
 typedef struct _end End;
 typedef struct _endInstance EndInstance;
@@ -34,6 +36,7 @@ typedef struct _operation Operation;
 typedef struct _net Net;
 typedef struct _netDisk NetDisk;
 
+typedef struct avl_traverser EventTree_Iterator;
 typedef struct avl_traverser End_InstanceIterator;
 typedef struct avl_traverser Atom_InstanceIterator;
 typedef struct avl_traverser AdjacencyComponent_EndIterator;
@@ -51,6 +54,141 @@ typedef struct avl_traverser NetDisk_NetIterator;
 ////////////////////////////////////////////////
 ////////////////////////////////////////////////
 ////////////////////////////////////////////////
+//Basic event functions.
+////////////////////////////////////////////////
+////////////////////////////////////////////////
+////////////////////////////////////////////////
+
+/*
+ * Constructs an event, attached on a branch from the parent event, with the given branch length.
+ */
+Event *event_construct(const char *name, float branchLength, Event *parentEvent, EventTree *eventTree);
+
+/*
+ * Constructs an event, on the branch between the given child and parent events. The branch length is the
+ * length from the parent to the new event. In this case it should be less than the length from the parent to
+ * the pre-existing child event.
+ */
+Event *event_construct2(const char *name, float branchLength,
+		Event *parentEvent, Event *childEvent, EventTree *eventTree);
+
+/*
+ * Returns the parent event, or NULL if root.
+ */
+Event *event_getParent(Event *event);
+
+/*
+ * Gets the name of the event.
+ */
+const char *event_getName(Event *event);
+
+/*
+ * Gets the branch length.
+ */
+float event_getBranchLength(Event *event);
+
+/*
+ * Get number of children.
+ */
+int32_t event_getChildNumber(Event *event);
+
+/*
+ * Gets a child by its index.
+ */
+Event *event_getChild(Event *event, int32_t index);
+
+/*
+ * Gets the event tree the event is part of.
+ */
+EventTree *event_getEventTree(Event *event);
+
+/*
+ * Returns non zero if the other event is an ancestor of the event.
+ */
+int32_t event_isAncestor(Event *event, Event *otherEvent);
+
+/*
+ * Returns non zero if the other event is a child of the event.
+ */
+int32_t event_isDescendant(Event *event, Event *otherEvent);
+
+/*
+ * Returns non zero if the other event is a sibling of the other event.
+ */
+int32_t event_isSibling(Event *event, Event *otherEvent);
+
+////////////////////////////////////////////////
+////////////////////////////////////////////////
+////////////////////////////////////////////////
+//Basic event tree functions.
+////////////////////////////////////////////////
+////////////////////////////////////////////////
+////////////////////////////////////////////////
+
+/*
+ * Constructs an event tree, with one root event.
+ */
+EventTree *eventTree_construct(const char *rootEventName, Net *net);
+
+/*
+ * Copy constructs the event tree, replacing the existing net with the newNet. Only includes
+ * the unary events which are true, given the unary event function.
+ */
+EventTree *eventTree_copyConstruct(EventTree *eventTree, Net *newNet, int32_t (unaryEventFilterFn)(Event *event));
+
+/*
+ * Returns the root event.
+ */
+Event *eventTree_getRootEvent(EventTree *eventTree);
+
+/*
+ * Gets the event with the given name.
+ */
+Event *eventTree_getEvent(EventTree *eventTree, const char *eventName);
+
+/*
+ * Gets the common ancestor of two events.
+ */
+Event *eventTree_getCommonAncestor(Event *event, Event *event2);
+
+/*
+ * Gets the parent net.
+ */
+Net *eventTree_getNet(EventTree *eventTree);
+
+/*
+ * Gets the first event in the list.
+ */
+Event *eventTree_getFirst(EventTree *eventTree);
+
+/*
+ * Gets an iterator over the eventTree events.
+ */
+EventTree_Iterator *eventTree_getIterator(EventTree *eventTree);
+
+/*
+ * Gets the next event from the iterator.
+ */
+Event *eventTree_getNext(EventTree_Iterator *iterator);
+
+/*
+ * Gets the previous event from the iterator.
+ */
+Event *eventTree_getPrevious(EventTree_Iterator *iterator);
+
+/*
+ * Duplicates the iterator.
+ */
+EventTree_Iterator *eventTree_copyIterator(EventTree_Iterator *iterator);
+
+/*
+ * Destructs the iterator.
+ */
+void eventTree_destructIterator(EventTree_Iterator *iterator);
+
+////////////////////////////////////////////////
+////////////////////////////////////////////////
+////////////////////////////////////////////////
 //Basic sequence functions.
 ////////////////////////////////////////////////
 ////////////////////////////////////////////////
@@ -59,7 +197,7 @@ typedef struct avl_traverser NetDisk_NetIterator;
 /*
  * Constructs a sequence. If the sequence name is already in netDisk, then an assert error is created.
  */
-Sequence *sequence_construct(const char *name, int32_t length, const char *file, NetDisk *netDisk);
+Sequence *sequence_construct(const char *name, int32_t length, const char *file, const char *eventName, NetDisk *netDisk);
 
 /*
  * Destructs the sequence.
@@ -75,6 +213,11 @@ int32_t sequence_getLength(Sequence *sequence);
  * Gets the name of the sequence.
  */
 const char *sequence_getName(Sequence *sequence);
+
+/*
+ * Gets the event name associated with the sequence.
+ */
+const char *sequence_getEventName(Sequence *sequence);
 
 /*
  * Gets the file containing the sequence.
@@ -105,9 +248,14 @@ Sequence *sequence_loadFromXMLRepresentation(char *xmlString, NetDisk *netDisk);
 EndInstance *endInstance_construct(const char *instance, End *end);
 
 /*
- * As default constructor, but also sets the instance's coordinates.
+ * As default constructor, but also sets the instance's coordinates and event.
  */
 EndInstance *endInstance_constructWithCoordinates(const char *instance, End *end, int32_t coordinate, Sequence *sequence);
+
+/*
+ * Sets the event associated with the event. Will create an error if the event is already set.
+ */
+void endInstance_setEvent(EndInstance *endInstance, Event *event);
 
 /*
  * Returns the m part of an instance's n.m name.
@@ -124,6 +272,11 @@ const char *endInstance_getElementName(EndInstance *endInstance);
  * cleaning up the string's memory.
  */
 char *endInstance_getCompleteName(EndInstance *endInstance);
+
+/*
+ * Gets the event associated with the endInstance.
+ */
+Event *endInstance_getEvent(EndInstance *endInstance);
 
 /*
  * Gets the encompassing end.
@@ -258,6 +411,11 @@ EndInstance *end_getInstance(End *end, const char *instanceName);
 EndInstance *end_getFirst(End *end);
 
 /*
+ * Gets the root end instance of the end, if it is set, or returns NULL;
+ */
+EndInstance *end_getRootInstance(End *end);
+
+/*
  * Gets an iterator over the end instances.
  */
 End_InstanceIterator *end_getInstanceIterator(End *end);
@@ -306,14 +464,26 @@ int32_t end_isAtomEnd(End *end);
 ////////////////////////////////////////////////
 
 /*
- * Constructs atom instance with two end instances. Instance is the suffix m of the instance name n.m.
+ * Constructs atom instance with the two end instances. Instance is the suffix m of the instance name n.m.
  */
-AtomInstance *atomInstance_construct(const char *instance, Atom *atom);
+AtomInstance *atomInstance_construct(const char *instance, Atom *atom,
+		EndInstance *leftEndInstance, EndInstance *rightEndInstance);
 
 /*
- * As default constructor, but also sets the instance's coordinates.
+ * Constructs an atom instance and its two attached end instances.
  */
-AtomInstance *atomInstance_constructWithCoordinates(const char *instance, Atom *atom, int32_t startCoordinate, Sequence *sequenceName);
+AtomInstance *atomInstance_construct2(const char *instance, Atom *atom);
+
+/*
+ * Constructs an atom instance and its two attached end instances, with the given coordinates.
+ */
+AtomInstance *atomInstance_construct3(const char *instance, Atom *atom,
+		int32_t startCoordinate, Sequence *sequence);
+
+/*
+ * As default constructor, but also sets the instance's coordinates and event.
+ */
+AtomInstance *atomInstance_constructWithCoordinates(const char *instance, Atom *atom, int32_t startCoordinate, Sequence *sequence);
 
 /*
  * Gets the encompassing atom.
@@ -335,6 +505,11 @@ const char *atomInstance_getElementName(AtomInstance *atomInstance);
  * cleaning up the string's memory.
  */
 char *atomInstance_getCompleteName(AtomInstance *atomInstance);
+
+/*
+ * Gets the event associated with the instance.
+ */
+Event *atomInstance_getEvent(AtomInstance *atomInstance);
 
 /*
  * Gets the reverse atom instance, giving a reversed view of the atom instance.
@@ -670,6 +845,11 @@ const char *net_getName(Net *net);
  * Gets the parent net disk.
  */
 NetDisk *net_getNetDisk(Net *net);
+
+/*
+ * Gets the net tree associated with the event tree.
+ */
+EventTree *net_getEventTree(Net *net);
 
 /*
  * Adds the sequence to the net.
