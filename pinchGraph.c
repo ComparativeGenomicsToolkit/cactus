@@ -11,6 +11,7 @@
 #include "pinchGraph.h"
 #include "net.h"
 #include "pairwiseAlignment.h"
+#include "cactusGraph.h"
 
 /*
  * Basic stuff for building and manipulating pinch graphs
@@ -1232,7 +1233,7 @@ char *getColour(struct hashtable *hash, void *thing) {
 }
 
 void writeOutPinchGraphWithChains(struct PinchGraph *pinchGraph,
-								  struct List *chainsList,
+								  struct List *biConnectComponentsList,
 								  struct List *adjacencyComponents,
 								  struct hashtable *names,
 								  FILE *fileHandle) {
@@ -1250,7 +1251,8 @@ void writeOutPinchGraphWithChains(struct PinchGraph *pinchGraph,
 	struct hashtable *hash;
 	struct List *chains;
 	struct List *adjacencyComponent;
-	struct Chain *chain;
+	struct List *biConnectedComponent;
+	struct CactusEdge *cactusEdge;
 	struct Segment *segment;
 	char *colour;
 	char *name;
@@ -1261,18 +1263,17 @@ void writeOutPinchGraphWithChains(struct PinchGraph *pinchGraph,
 	hash = create_hashtable(pinchGraph->vertices->length*10,
 								hashtable_key, hashtable_equalKey,
 							   NULL, (void (*)(void *))destructInt);
-	chains = constructEmptyList(0, NULL);
-	if(chainsList != NULL) {
-		flattenChainList(chainsList, chains);
-		for(i=0; i<chains->length;i++) {
-			chain = chains->list[i];
-			while(chain != NULL) {
-				for(j=0; j<chain->segments->length; j++) {
-					segment = chain->segments->list[j];
+
+	if(biConnectComponentsList != NULL) {
+		for(i=0; i<biConnectComponentsList->length;i++) {
+			biConnectedComponent = biConnectComponentsList->list[i];
+			for(k=0; k<biConnectedComponent->length; k++) {
+				cactusEdge = biConnectedComponent->list[k];
+				for(j=0; j<cactusEdge->segments->length; j++) {
+					segment = cactusEdge->segments->list[j];
 					hashtable_insert(hash, segment, constructInt(i));
 					hashtable_insert(hash, segment->rSegment, constructInt(i));
 				}
-				chain = chain->nLink;
 			}
 		}
 	}

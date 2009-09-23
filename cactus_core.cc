@@ -11,7 +11,6 @@
 
 #include "xmlParser.h"
 #include "Argument_helper.h"
-#include "reconstructionTree.h"
 
 extern "C" {
 	#include "pinchGraph.h"
@@ -25,14 +24,14 @@ extern "C" {
 };
 
 void writePinchGraph(char *name, struct PinchGraph *pinchGraph, const char *namePrefix,
-						struct List *chainsList, struct List *adjacencyComponents,
+						struct List *biConnectedComponents, struct List *adjacencyComponents,
 						struct List *contigIndexToContigStrings) {
 	struct hashtable *names;
 	FILE *fileHandle;
 
 	fileHandle = fopen(name, "w");
 	names = getNames(pinchGraph, contigIndexToContigStrings, namePrefix);
-	writeOutPinchGraphWithChains(pinchGraph, chainsList, adjacencyComponents, names, fileHandle);
+	writeOutPinchGraphWithChains(pinchGraph, biConnectedComponents, adjacencyComponents, names, fileHandle);
 	fclose(fileHandle);
 	hashtable_destroy(names, TRUE, FALSE);
 }
@@ -116,6 +115,7 @@ int main(int argc, char *argv[]) {
 	struct hashtable *contigStringsToSequences;
 	struct hashtable *names;
 	struct List *contigEventSets;
+	NetDisk *netDisk;
 
 	///////////////////////////////////////////////////////////////////////////
 	// (0) Parse the inputs handed by genomeCactus.py / setup stuff.
@@ -123,8 +123,8 @@ int main(int argc, char *argv[]) {
 
 	std::string logLevelString = "None";
 	std::string alignmentsFile = "None";
-	std::string absolutePathPrefix = "None";
-	std::string relativeReconstructionProblemFile = "None";
+	std::string netDiskName = "None";
+	std::string netName = "None";
 	std::string tempFileRootDirectory = "None";
 	std::string treeProgram = "None";
 	std::string uniqueNamePrefix = "None";
@@ -134,13 +134,14 @@ int main(int argc, char *argv[]) {
 	double discardRatio = 0.0;
 	double minimumTreeCoverage = 0.8;
 	int32_t minimumChainLength = 10;
+	struct List *biConnectedComponents;
 
 	dsr::Argument_helper ah;
 
 	ah.new_named_string('a', "logLevel", "", "Set the log level", logLevelString);
 	ah.new_named_string('b', "alignments", "", "The input alignments file", alignmentsFile);
-	ah.new_named_string('c', "absolutePathPrefix", "", "The absolute file path to the reconstruction tree hierarchy", absolutePathPrefix);
-	ah.new_named_string('d', "reconstructionProblem", "", "The relative path to the file in which to write the reconstruction problem", relativeReconstructionProblemFile);
+	ah.new_named_string('c', "netDisk", "", "The location of the net disk", netDiskName);
+	ah.new_named_string('d', "netName", "", "The name of the net to be aligned", netName);
 	ah.new_named_string('e', "tempDirRoot", "", "The temp file root directory", tempFileRootDirectory);
 	ah.new_named_int('f', "maxEdgeDegree", "", "Maximum degree of aligned edges", maxEdgeDegree);
 	ah.new_flag('g', "writeDebugFiles", "Write the debug files", writeDebugFiles);
@@ -185,25 +186,32 @@ int main(int argc, char *argv[]) {
 
 	initialiseTempFileTree((char *)tempFileRootDirectory.c_str(), 100, 4);
 
+	//////////////////////////////////////////////
+	//Load the database
+	//////////////////////////////////////////////
+
+	netDisk = netDisk_construct(netDiskName.c_str());
+	logInfo("Set up the net disk\n");
+
 	///////////////////////////////////////////////////////////////////////////
-	// Parse the basic reconstruction problem and setup the basic pinch graph
+	// Parse the basic reconstruction problem
 	///////////////////////////////////////////////////////////////////////////
+
+	net = netDisk_getNet(netName.c_str());
+	logInfo("Parsed the net to be refined\n");
 
 	startTime = time(NULL);
-	XMLNode xMainNode=XMLNode::openFileHelper(absoluteReconstructionProblemFile.c_str(), "reconstruction_problem");
 	setUniqueNamePrefix(uniqueNamePrefix.c_str());
-	logInfo("Parsed the reconstruction problem from the XML file\n");
 
-#ifdef BEN_DEBUG
-	checkReconstructionTree(absolutePathPrefix.c_str(), xMainNode, TRUE, FALSE);
-	logInfo("Checked the input reconstruction problem file\n");
-#endif
+	///////////////////////////////////////////////////////////////////////////
+	//Setup the basic pinch graph
+	///////////////////////////////////////////////////////////////////////////
 
 	//Construct graph
 	contigIndexToContigStrings = constructEmptyList(0, free);
 	contigIndexToContigStart = constructEmptyIntList(0);
 
-	pinchGraph = constructPinchGraph(xMainNode,  contigIndexToContigStrings, contigIndexToContigStart);
+	pinchGraph = constructPinchGraph(net, contigIndexToContigStrings, contigIndexToContigStart);
 	contigStringsToSequences = parseSequences(xMainNode);
 
 	if(writeDebugFiles) {
@@ -373,30 +381,19 @@ int main(int argc, char *argv[]) {
 		logDebug("Finished writing out dot formatted version of the final cactus graph\n");
 	}
 
-	logInfo("Constructed the final cactus graph in: %i seconds\n", time(NULL) - startTime);
-
-	///////////////////////////////////////////////////////////////////////////
-	// (8) Constructing the net.
-	///////////////////////////////////////////////////////////////////////////
-
-	startTime = time(NULL);
-	net = constructNet(cactusGraph);
-
-	if(writeDebugFiles) {
-		logDebug("Writing out initial net\n");
-		writeNet("net1.dot", pinchGraph, net,
-				uniqueNamePrefix.c_str(),
-				contigIndexToContigStrings);
-		logDebug("Finished writing out initial net\n");
-	}
-
 	if(writeDebugFiles) {
 		logDebug("Writing out dot formatted final pinch graph showing chains prior to pruning\n");
-		writePinchGraph("pinchGraph5.dot", pinchGraph, uniqueNamePrefix.c_str(), net->chains, NULL, contigIndexToContigStrings);
+		writePinchGraph("pinchGraph5.dot", pinchGraph, uniqueNamePrefix.c_str(), biConnectedComponents, NULL, contigIndexToContigStrings);
 		logDebug("Finished writing out final pinch graph showing chains prior to pruning\n");
 	}
 
-	logInfo("Constructed the initial net in: %i seconds\n", time(NULL) - startTime);
+	logInfo("Constructed the final cactus graph in: %i seconds\n", time(NULL) - startTime);
+
+	////////////////////////////////////////////////
+	//Get sorted bi-connected components.
+	////////////////////////////////////////////////
+
+	biConnectedComponents = computeSortedBiConnectedComponents(cactusGraph);
 
 	///////////////////////////////////////////////////////////////////////////
 	// (9) Choosing an atom subset.
@@ -408,104 +405,41 @@ int main(int argc, char *argv[]) {
 
 	startTime = time(NULL);
 	chosenAtoms = constructEmptyList(0, NULL);
-	list = constructEmptyList(0, NULL);
-	flattenChainList(net->chains, list);
 	contigEventSets = constructContigEventSets(xMainNode);
-	filterAtomsByTreeCoverageAndLength(list, chosenAtoms,
+	filterAtomsByTreeCoverageAndLength(biConnectedComponents, chosenAtoms,
 			contigEventSets, proportionToKeep,
 			discardRatio, minimumTreeCoverage, minimumChainLength,
 			pinchGraph, contigIndexToContigStrings);
-	filterAtomsByIfStubOrCap(list, chosenAtoms, pinchGraph);
+	filterAtomsByIfStubOrCap(biConnectedComponents, chosenAtoms, pinchGraph);
 	//now report the results
-	logTheChosenAtomSubset(list, chosenAtoms, pinchGraph, contigEventSets, contigIndexToContigStrings);
+	logTheChosenAtomSubset(biConnectedComponents, chosenAtoms, pinchGraph, contigEventSets, contigIndexToContigStrings);
 
 	//cleanup the selection.
 	destructList(contigEventSets);
 	destructList(list);
 
-	///////////////////////////////////////////////////////////////////////////
-	// (10) Pruning the net.
-	///////////////////////////////////////////////////////////////////////////
-
-	startTime = time(NULL);
-	pruneNet(net, chosenAtoms);
-
 	if(writeDebugFiles) {
-		logDebug("Writing out pruned net\n");
-		writeNet("net2.dot", pinchGraph, net,
-						uniqueNamePrefix.c_str(),
-						contigIndexToContigStrings);
-		logDebug("Finished writing out pruned net\n");
+		logDebug("Writing out dot formatted final pinch graph showing chains after pruning\n");
+		writePinchGraph("pinchGraph5.dot", pinchGraph, uniqueNamePrefix.c_str(), net->chains, NULL, contigIndexToContigStrings);
+		logDebug("Finished writing out final pinch graph showing chains prior to pruning\n");
 	}
 
-	logInfo("Pruned the net in: %i seconds\n", time(NULL) - startTime);
-
 	///////////////////////////////////////////////////////////////////////////
-	// (11) Identifying pseudo adjacency components.
+	// (8) Constructing the net.
 	///////////////////////////////////////////////////////////////////////////
 
-	startTime = time(NULL);
-	adjacencyComponents = identifyPseudoAdjacencyComponents(chosenAtoms, pinchGraph);
-
-	if(writeDebugFiles) {
-		logDebug("Writing out dot formatted final pinch graph showing chains and adjacency components\n");
-		writePinchGraph("pinchGraph6.dot", pinchGraph, uniqueNamePrefix.c_str(), net->chains, adjacencyComponents, contigIndexToContigStrings);
-		logDebug("Finished writing out final pinch graph showing chains and adjacency components\n");
-	}
-
-	logInfo("Identified the pseudo adjacency components in: %i seconds\n", time(NULL) - startTime);
+	constructNetFromInputs(cactusGraph,
+			pinchGraph, names, includeFn,
+			contigStringsToSequences, contigIndexToContigStrings,
+			netDisk, getUniqueName);
 
 	///////////////////////////////////////////////////////////////////////////
-	// (12) Adding the pseudo adjacency components to the graph.
+	// (9) Write the net to disk.
 	///////////////////////////////////////////////////////////////////////////
 
-	startTime = time(NULL);
-	addAdjacencyComponents(net, pinchGraph, adjacencyComponents);
-	removeStubAdjacencyComponents(net);
+	netDisk_write(netDisk);
 
-	if(writeDebugFiles) {
-		logDebug("Writing out net with adjacency components\n");
-		writeNet("net3.dot", pinchGraph, net,
-						uniqueNamePrefix.c_str(),
-						contigIndexToContigStrings);
-		logDebug("Finished writing out net with adjacency components\n");
-	}
-	destructList(adjacencyComponents);
-
-	logInfo("Added adjacency components to the net in: %i seconds\n", time(NULL) - startTime);
-
-	///////////////////////////////////////////////////////////////////////////
-	// (13) Adding the ends (caps/stubs) to the net
-	///////////////////////////////////////////////////////////////////////////
-
-	startTime = time(NULL);
-	addEnds(net);
-	logInfo("Added ends to the net in: %i seconds\n", time(NULL) - startTime);
-
-	///////////////////////////////////////////////////////////////////////////
-	// (14) Constructing the basic reconstruction tree and simultaneously constructing the trees.
-	///////////////////////////////////////////////////////////////////////////
-
-	startTime = time(NULL);
-	names = getNames(pinchGraph, contigIndexToContigStrings, uniqueNamePrefix.c_str());
-	i = createReconstructionProblem(
-			(char *)absolutePathPrefix.c_str(), (char *)relativeReconstructionProblemFile.c_str(),
-			net->chains, net->adjacencyComponents, net->ends,
-			pinchGraph, names,
-			contigIndexToContigStrings, contigStringsToSequences,
-			treeProgram.c_str(), tempFileRootDirectory.c_str());
-	hashtable_destroy(names, TRUE, FALSE);
-
-	if(i != 0) {
-		logInfo("Something went wrong creating the reconstruction tree: %i\n", i);
-		return 10;
-	}
-
-#ifdef BEN_DEBUG
-	checkReconstructionTree(absolutePathPrefix.c_str(), xMainNode, TRUE, FALSE);
-#endif
-
-	logInfo("Created the reconstruction tree okay in: %i seconds\n", time(NULL) - startTime);
+	logInfo("Updated the net on disk\m");
 
 	///////////////////////////////////////////////////////////////////////////
 	//(15) Clean up.
@@ -513,6 +447,7 @@ int main(int argc, char *argv[]) {
 
 	//Destruct stuff
 	startTime = time(NULL);
+	destructList(biConnectedComponents);
 	destructPinchGraph(pinchGraph);
 	destructList(extraEdges);
 	destructList(contigIndexToContigStrings);

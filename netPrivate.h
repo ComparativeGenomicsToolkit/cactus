@@ -1,7 +1,7 @@
 #ifndef NET_PRIVATE_H_
 #define NET_PRIVATE_H_
 
-#include "net2.h"
+#include "net.h"
 #include "commonC.h"
 
 ////////////////////////////////////////////////

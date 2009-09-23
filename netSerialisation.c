@@ -4,8 +4,8 @@
 #include <string.h>
 #include <stdlib.h>
 
-#include "net2.h"
-#include "net2Private.h"
+#include "net.h"
+#include "netPrivate.h"
 #include "bioioC.h"
 
 /*

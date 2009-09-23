@@ -3,1220 +3,2087 @@
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
+#include <stdarg.h>
 
-#include "commonC.h"
-#include "fastCMaths.h"
-#include "bioioC.h"
-#include "hashTableC.h"
-#include "pinchGraph.h"
-#include "cactusGraph.h"
 #include "net.h"
+#include "netPrivate.h"
+
+/*
+ * Implementation of the net API
+ */
 
 ////////////////////////////////////////////////
 ////////////////////////////////////////////////
 ////////////////////////////////////////////////
-//Chains
+//Functions on a sorted set and its iterator
 ////////////////////////////////////////////////
 ////////////////////////////////////////////////
 ////////////////////////////////////////////////
 
-struct Chain *constructChain(struct List *segments, struct Chain *pLink) {
-	struct Chain *chain;
+struct avl_table *sortedSet_construct(int32_t (*compareFn)(const void *, const void *, void *)) {
+	return avl_create(compareFn, NULL, NULL);
+}
+
+void sortedSet_destruct(struct avl_table *sortedSet, void (*destructElementFn)(void *, void *)) {
+	avl_destroy(sortedSet, destructElementFn);
+}
+
+void sortedSet_insert(struct avl_table *sortedSet, void *object) {
+	avl_insert(sortedSet, object);
+}
+
+void *sortedSet_find(struct avl_table *sortedSet, void *object) {
+	return avl_find(sortedSet, object);
+}
+
+void sortedSet_delete(struct avl_table *sortedSet, void *object) {
+	avl_delete(sortedSet, object);
+}
+
+int32_t sortedSet_getLength(struct avl_table *sortedSet) {
+	return avl_count(sortedSet);
+}
+
+void *sortedSet_getFirst(struct avl_table *items) {
+	static struct avl_traverser iterator;
+	avl_t_init(&iterator, items);
+	return avl_t_first(&iterator, items);
+}
+
+struct avl_traverser *iterator_construct(struct avl_table *items) {
+	struct avl_traverser *iterator;
+	iterator = mallocLocal(sizeof(struct avl_traverser));
+	avl_t_init(iterator, items);
+	return iterator;
+}
+
+void iterator_destruct(struct avl_traverser *iterator) {
+	free(iterator);
+}
+
+void *iterator_getNext(struct avl_traverser *iterator) {
+	return avl_t_next(iterator);
+}
+
+struct avl_traverser *iterator_copy(struct avl_traverser *iterator) {
+	struct avl_traverser *copyIterator;
+	copyIterator = mallocLocal(sizeof(struct avl_traverser));
+	avl_t_copy(copyIterator, iterator);
+	return copyIterator;
+}
+
+void *iterator_getPrevious(struct avl_traverser *iterator) {
+	return avl_t_prev(iterator);
+}
+
+////////////////////////////////////////////////
+////////////////////////////////////////////////
+////////////////////////////////////////////////
+//Database functions
+////////////////////////////////////////////////
+////////////////////////////////////////////////
+////////////////////////////////////////////////
+
+TCBDB *database_construct(const char *name) {
+	int32_t ecode;
+	TCBDB *database;
+	database = tcbdbnew();
+	if(!tcbdbopen(database, name, BDBOWRITER | BDBOCREAT)) {
+	   ecode = tcbdbecode(database);
+	   fprintf(stderr, "Opening database error: %s\n", tcbdberrmsg(ecode));
+	   exit(1);
+	}
+	return database;
+}
+
+void database_destruct(TCBDB *database) {
+	int32_t ecode;
+	if(!tcbdbclose(database)){
+		ecode = tcbdbecode(database);
+		fprintf(stderr, "Closing database error: %s\n", tcbdberrmsg(ecode));
+		exit(1);
+	}
+	tcbdbdel(database);
+}
+
+int32_t database_getNumberOfRecords(TCBDB *database) {
+	return tcbdbrnum(database);
+}
+
+char *database_getRecord(TCBDB *database, const char *key) {
+	//Return value must be freed.
+	return tcbdbget2(database, key);
+}
+
+int32_t database_writeRecord(TCBDB *database, const char *key, const char *value) {
+	int32_t ecode = 0;
+	if(!tcbdbput2(database, key, value)){
+		ecode = tcbdbecode(database);
+		fprintf(stderr, "Adding net to database error: %s\n", tcbdberrmsg(ecode));
+	}
+	return ecode;
+}
+
+int32_t database_removeRecord(TCBDB *database, const char *key) {
+}
+
+BDBCUR *databaseIterator_construct(TCBDB *database) {
+	BDBCUR *iterator;
+	iterator = tcbdbcurnew(database);
+	tcbdbcurfirst(iterator);
+	return iterator;
+}
+
+const char *databaseIterator_getNext(BDBCUR *iterator) {
+	return tcbdbcurkey2(iterator);
+}
+
+void databaseIterator_destruct(BDBCUR *iterator) {
+	tcbdbcurdel(iterator);
+}
+
+////////////////////////////////////////////////
+////////////////////////////////////////////////
+////////////////////////////////////////////////
+//Basic event functions.
+////////////////////////////////////////////////
+////////////////////////////////////////////////
+////////////////////////////////////////////////
+
+Event *event_construct(const char *name, float branchLength,
+		Event *parentEvent, EventTree *eventTree) {
+	Event *event;
+	event = malloc(sizeof(Event));
+	event->name = stringCopy(name);
+	event->parent = parentEvent;
+	event->branchLength = branchLength;
+	if(parentEvent != NULL) {
+		listAppend(parentEvent->children, event);
+	}
+	event->eventTree = eventTree;
+	eventTree_addEvent(eventTree, event);
+	return event;
+}
+
+Event *event_construct2(const char *name, float branchLength,
+		Event *parentEvent, Event *childEvent, EventTree *eventTree) {
+	Event *event;
+	event = event_construct(name, branchLength, parentEvent, eventTree);
+#ifdef BEN_DEBUG
+	assert(parentEvent != NULL);
+	assert(listContains(parentEvent->children, childEvent));
+#endif
+	listRemove(parentEvent->children, childEvent);
+	listAppend(event->children, childEvent);
+	childEvent->parent = event;
+	childEvent->branchLength = childEvent->branchLength - event->branchLength;
+	if(childEvent->branchLength < 0.0) {
+		childEvent->branchLength = 0.0;
+	}
+	return event;
+}
+
+Event *event_getParent(Event *event) {
+	return event->parent;
+}
+
+const char *event_getName(Event *event) {
+	return event->name;
+}
+
+float event_getBranchLength(Event *event) {
+	return event->branchLength;
+}
+
+int32_t event_getChildNumber(Event *event) {
+	return event->children->length;
+}
+
+Event *event_getChild(Event *event, int32_t index) {
+#ifdef BEN_DEBUG
+	assert(index >= 0);
+	assert(index < event_getChildNumber(event));
+#endif
+	return event->children->list[index];
+}
+
+EventTree *event_getEventTree(Event *event) {
+	return event->eventTree;
+}
+
+int32_t event_isAncestor(Event *event, Event *otherEvent) {
+	return event != otherEvent && eventTree_getCommonAncestor(event, otherEvent) == otherEvent;
+}
+
+int32_t event_isDescendant(Event *event, Event *otherEvent) {
+	return event != otherEvent && eventTree_getCommonAncestor(event, otherEvent) == event;
+}
+
+int32_t event_isSibling(Event *event, Event *otherEvent) {
+	Event *ancestorEvent;
+	ancestorEvent = eventTree_getCommonAncestor(event, otherEvent);
+	return event != otherEvent && ancestorEvent != event && ancestorEvent != otherEvent;
+}
+
+/*
+ * Private functions
+ */
+
+void event_destruct(Event *event) {
 	int32_t i;
-	struct Segment *segment;
+	eventTree_removeEvent(event_getEventTree(event), event);
+	for(i=0; i<event_getChildNumber(event); i++) {
+		event_destruct(event_getChild(event, i));
+	}
+	free(event->name);
+	free(event);
+}
 
-	chain = mallocLocal(sizeof(struct Chain));
+////////////////////////////////////////////////
+////////////////////////////////////////////////
+////////////////////////////////////////////////
+//Basic event tree functions.
+////////////////////////////////////////////////
+////////////////////////////////////////////////
+////////////////////////////////////////////////
 
-	chain->subChains = constructEmptyList(0, (void(*)(void *))destructChain);
-	chain->adjacencyComponents = constructEmptyList(0, (void (*)(void *))destructList);
-	chain->ends = constructEmptyList(0, NULL);
-	chain->segments = constructEmptyList(0, NULL);
-	chain->pLink = pLink;
-	chain->nLink = NULL;
-	chain->score = 0.0;
+int32_t eventTree_constructP(const void *o1, const void *o2, void *a) {
+	return strcmp(event_getName((Event *)o1), event_getName((Event *)o2));
+}
 
-	if(pLink != NULL) {
-		pLink->nLink = chain;
+EventTree *eventTree_construct(const char *rootEventName, Net *net) {
+	EventTree *eventTree;
+	eventTree = malloc(sizeof(EventTree));
+	eventTree->rootEvent = event_construct(rootEventName, INT32_MAX, NULL, eventTree);
+	eventTree->events = sortedSet_construct(eventTree_constructP);
+	eventTree->net = net;
+	return eventTree;
+}
+
+void eventTree_copyConstructP(EventTree *eventTree, Event *event,
+		int32_t (unaryEventFilterFn)(Event *event)) {
+	int32_t i;
+	Event *event2;
+	for(i=0; i<event_getChildNumber(event); i++) {
+		event2 = event_getChild(event, i);
+		while(event_getChildNumber(event2) == 1 && !unaryEventFilterFn(event2)) {
+			//skip the event
+			event2 = event_getChild(event2, 0);
+		}
+		event_construct(event_getName(event2), event_getBranchLength(event2),
+						eventTree_getEvent(eventTree, event_getName(event)), eventTree);
+		eventTree_copyConstructP(eventTree, event2, unaryEventFilterFn);
+	}
+}
+
+EventTree *eventTree_copyConstruct(EventTree *eventTree, Net *newNet,
+		int32_t (unaryEventFilterFn)(Event *event)) {
+	EventTree *eventTree2;
+	eventTree2 = eventTree_construct(event_getName(eventTree_getRootEvent(eventTree)), newNet);
+	eventTree_copyConstructP(eventTree2, eventTree_getRootEvent(eventTree), unaryEventFilterFn);
+	return eventTree2;
+}
+
+Event *eventTree_getRootEvent(EventTree *eventTree) {
+	return eventTree->rootEvent;
+}
+
+Event *eventTree_getEvent(EventTree *eventTree, const char *eventName) {
+	static Event event;
+	event.name = (char *)eventName;
+	return sortedSet_find(eventTree->events, &event);
+}
+
+Event *eventTree_getCommonAncestor(Event *event, Event *event2) {
+	Event *ancestorEvent;
+	struct List *list;
+
+	list = constructEmptyList(0, NULL);
+	ancestorEvent = event;
+	while(ancestorEvent != NULL) {
+		if(ancestorEvent == event2) {
+			destructList(list);
+			return event2;
+		}
+		listAppend(list, ancestorEvent);
+		ancestorEvent = event_getParent(ancestorEvent);
 	}
 
-	for(i=0; i<segments->length; i++) {
-		segment = segments->list[i];
-		listAppend(chain->segments, segment);
+	ancestorEvent = event2;
+	while((ancestorEvent = event_getParent(ancestorEvent)) != NULL) {
+		if(listContains(list, ancestorEvent)) {
+			destructList(list);
+			return event;
+		}
 	}
+	assert(FALSE);
+	return NULL;
+}
+
+Net *eventTree_getNet(EventTree *eventTree) {
+	return eventTree->net;
+}
+
+Event *eventTree_getFirst(EventTree *eventTree) {
+	return sortedSet_getFirst(eventTree->events);
+}
+
+EventTree_Iterator *eventTree_getIterator(EventTree *eventTree) {
+	return iterator_construct(eventTree->events);
+}
+
+Event *eventTree_getNext(EventTree_Iterator *iterator) {
+	return iterator_getNext(iterator);
+}
+
+Event *eventTree_getPrevious(EventTree_Iterator *iterator) {
+	return iterator_getPrevious(iterator);
+}
+
+EventTree_Iterator *eventTree_copyIterator(EventTree_Iterator *iterator) {
+	return iterator_copy(iterator);
+}
+
+void eventTree_destructIterator(EventTree_Iterator *iterator) {
+	iterator_destruct(iterator);
+
+}
+
+/*
+ * Private functions.
+ */
+
+void eventTree_destruct(EventTree *eventTree) {
+	Event *event;
+	while((event = eventTree_getFirst(eventTree)) != NULL) {
+		event_destruct(event);
+	}
+	sortedSet_destruct(eventTree->events, NULL);
+	free(eventTree);
+}
+
+void eventTree_addEvent(EventTree *eventTree, Event *event) {
+	sortedSet_insert(eventTree->events, event);
+}
+
+void end_removeEvent(EventTree *eventTree, EndInstance *event) {
+	sortedSet_delete(eventTree->events, event);
+}
+
+
+////////////////////////////////////////////////
+////////////////////////////////////////////////
+////////////////////////////////////////////////
+//Meta sequence functions.
+////////////////////////////////////////////////
+////////////////////////////////////////////////
+////////////////////////////////////////////////
+
+MetaSequence *metaSequence_construct(const char *name, int32_t length,
+		const char *file, const char *eventName, NetDisk *netDisk) {
+	MetaSequence *metaSequence;
+
+	metaSequence = malloc(sizeof(MetaSequence));
+	metaSequence->name = stringCopy(name);
+	assert(length >= 0);
+	metaSequence->length = length;
+	metaSequence->file = stringCopy(file);
+	metaSequence->eventName = stringCopy(eventName);
+	metaSequence->netDisk = netDisk;
+	metaSequence->referenceCount = 0;
+
+	netDisk_addMetaSequence(netDisk, metaSequence);
+
+	return metaSequence;
+}
+
+void metaSequence_destruct(MetaSequence *metaSequence) {
+	assert(metaSequence->referenceCount == 0);
+	netDisk_unloadMetaSequence(metaSequence->netDisk, metaSequence);
+	free(metaSequence->name);
+	free(metaSequence->file);
+	free(metaSequence->eventName);
+	free(metaSequence);
+}
+
+const char *metaSequence_getName(MetaSequence *metaSequence) {
+	return metaSequence->name;
+}
+
+int32_t metaSequence_getLength(MetaSequence *metaSequence) {
+	return metaSequence->length;
+}
+
+const char *metaSequence_getFile(MetaSequence *metaSequence) {
+	return metaSequence->file;
+}
+
+const char *metaSequence_getEventName(MetaSequence *metaSequence) {
+	return metaSequence->eventName;
+}
+
+void metaSequence_increaseReferenceCount(MetaSequence *metaSequence) {
+	metaSequence->referenceCount++;
+}
+
+void metaSequence_decreaseReferenceCountAndDestructIfZero(MetaSequence *metaSequence) {
+	metaSequence->referenceCount--;
+	assert(metaSequence->referenceCount >= 0);
+	if(metaSequence->referenceCount == 0) {
+		metaSequence_destruct(metaSequence);
+	}
+}
+
+////////////////////////////////////////////////
+////////////////////////////////////////////////
+////////////////////////////////////////////////
+//Basic sequence functions.
+////////////////////////////////////////////////
+////////////////////////////////////////////////
+////////////////////////////////////////////////
+
+Sequence *sequence_construct2(MetaSequence *metaSequence, Net *net) {
+	Sequence *sequence;
+	sequence = malloc(sizeof(Sequence));
+	sequence->metaSequence = metaSequence;
+	metaSequence_increaseReferenceCount(metaSequence);
+	sequence->net = net;
+	net_addSequence(net, sequence);
+
+	return sequence;
+}
+
+Sequence *sequence_construct(const char *name, int32_t length,
+							 const char *file, Event *event, Net *net) {
+	return sequence_construct2(metaSequence_construct(name, length, file,
+			event_getName(event), net_getNetDisk(net)), net);
+}
+
+Sequence *sequence_copyConstruct(Sequence *sequence, Net *newNet) {
+	return sequence_construct2(sequence->metaSequence, newNet);
+}
+
+void sequence_destruct(Sequence *sequence) {
+	net_removeSequence(sequence_getNet(sequence), sequence);
+	metaSequence_decreaseReferenceCountAndDestructIfZero(sequence->metaSequence);
+	free(sequence);
+}
+
+int32_t sequence_getLength(Sequence *sequence) {
+	return metaSequence_getLength(sequence->metaSequence);
+}
+
+const char *sequence_getName(Sequence *sequence) {
+	return metaSequence_getName(sequence->metaSequence);
+}
+
+Event *sequence_getEvent(Sequence *sequence) {
+	return eventTree_getEvent(net_getEventTree(sequence_getNet(sequence)), metaSequence_getEventName(sequence->metaSequence));
+}
+
+const char *sequence_getFile(Sequence *sequence) {
+	return metaSequence_getFile(sequence->metaSequence);
+}
+
+Net *sequence_getNet(Sequence *sequence) {
+	return sequence->net;
+}
+
+////////////////////////////////////////////////
+////////////////////////////////////////////////
+////////////////////////////////////////////////
+//Basic end instance functions.
+////////////////////////////////////////////////
+////////////////////////////////////////////////
+////////////////////////////////////////////////
+
+EndInstance *endInstance_construct(const char *instance, End *end) {
+	EndInstance *endInstance;
+
+	endInstance = malloc(sizeof(EndInstance));
+	endInstance->instance = stringCopy(instance);
+	endInstance->end = end;
+
+	endInstance->coordinate = INT32_MAX;
+	endInstance->sequence = NULL;
+	endInstance->adjacency = NULL;
+	endInstance->adjacency2 = NULL;
+	endInstance->operation = NULL;
+	endInstance->atomInstance = NULL;
+	endInstance->parent = NULL;
+	endInstance->children = constructEmptyList(0, NULL);
+
+	end_addInstance(end, endInstance);
+	return endInstance;
+}
+
+EndInstance *endInstance_constructWithCoordinates(const char *instance, End *end, int32_t coordinate, Sequence *sequence) {
+	EndInstance *endInstance;
+	endInstance = endInstance_construct(instance, end);
+	endInstance->coordinate = coordinate;
+	endInstance->sequence = sequence;
+	endInstance->event = sequence_getEvent(sequence);
+	return endInstance;
+}
+
+void endInstance_setEvent(EndInstance *endInstance, Event *event) {
+#ifdef BEN_DEBUG
+	assert(endInstance_getEvent(endInstance) == NULL);
+#endif
+	endInstance->event = event;
+}
+
+void endInstance_destruct(EndInstance *endInstance) {
+	//Remove from end.
+	end_removeInstance(endInstance_getEnd(endInstance), endInstance);
+
+	destructList(endInstance->children);
+	free(endInstance->instance);
+	free(endInstance);
+}
+
+const char *endInstance_getInstanceName(EndInstance *endInstance) {
+	return endInstance->instance;
+}
+
+const char *endInstance_getElementName(EndInstance *endInstance) {
+	return end_getName(endInstance_getEnd(endInstance));
+}
+
+char *endInstance_getCompleteName(EndInstance *endInstance) {
+	return netMisc_makeCompleteName(endInstance_getElementName(endInstance), endInstance_getInstanceName(endInstance));
+}
+
+Event *endInstance_getEvent(EndInstance *endInstance) {
+	return endInstance->event;
+}
+
+End *endInstance_getEnd(EndInstance *endInstance) {
+	return endInstance->end;
+}
+
+AtomInstance *endInstance_getAtomInstance(EndInstance *endInstance) {
+	return endInstance->atomInstance;
+}
+
+int32_t endInstance_getCoordinate(EndInstance *endInstance) {
+	return endInstance->coordinate;
+}
+
+Sequence *endInstance_getSequence(EndInstance *endInstance) {
+	return endInstance->sequence;
+}
+
+void endInstance_makeAdjacent1(EndInstance *endInstance, EndInstance *endInstance2) {
+	endInstance_breakAdjacency1(endInstance);
+	endInstance_breakAdjacency1(endInstance2);
+	endInstance->adjacency = endInstance2;
+	endInstance2->adjacency = endInstance;
+}
+
+void endInstance_makeAdjacent2(EndInstance *endInstance, EndInstance *endInstance2) {
+	endInstance_breakAdjacency2(endInstance);
+	endInstance_breakAdjacency2(endInstance2);
+	endInstance->adjacency2 = endInstance2;
+	endInstance2->adjacency2 = endInstance;
+}
+
+EndInstance *endInstance_getAdjacency(EndInstance *endInstance) {
+	return endInstance->adjacency;
+}
+
+EndInstance *endInstance_getAdjacency2(EndInstance *endInstance) {
+	return endInstance->adjacency2;
+}
+
+Operation *endInstance_getOperation(EndInstance *endInstance) {
+	return endInstance->operation;
+}
+
+EndInstance *endInstance_getParent(EndInstance *endInstance) {
+	return endInstance->parent;
+}
+
+int32_t endInstance_getChildNumber(EndInstance *endInstance) {
+	return endInstance->children->length;
+}
+
+EndInstance *endInstance_getChild(EndInstance *endInstance, int32_t index) {
+#ifdef BEN_DEBUG
+	assert(endInstance_getChildNumber(endInstance) > index);
+	assert(index >= 0);
+#endif
+	return endInstance->children->list[index];
+}
+
+void endInstance_makeParentAndChild(EndInstance *endInstanceParent, EndInstance *endInstanceChild) {
+	if(!listContains(endInstanceParent->children, endInstanceChild)) { //defensive, means second calls will have no effect.
+		listAppend(endInstanceParent->children, endInstanceChild);
+	}
+	endInstanceChild->parent = endInstanceParent;
+}
+
+int32_t endInstance_isInternal(EndInstance *endInstance) {
+	return endInstance_getChildNumber(endInstance) >= 0;
+}
+
+int32_t endInstance_isAugmented(EndInstance *endInstance) {
+	return end_getAtom(endInstance_getEnd(endInstance)) != NULL && endInstance_getAtomInstance(endInstance) == NULL;
+}
+
+/*
+ * Private functions.
+ */
+
+void endInstance_setAtomInstance(EndInstance *endInstance, AtomInstance *atomInstance) {
+	endInstance->atomInstance = atomInstance;
+}
+
+void endInstance_setOperation(EndInstance *endInstance, Operation *operation) {
+	endInstance->operation = operation;
+}
+
+void endInstance_breakAdjacency1(EndInstance *endInstance) {
+	EndInstance *endInstance2;
+	endInstance2 = endInstance_getAdjacency(endInstance);
+	if(endInstance2 != NULL) {
+		endInstance2->adjacency = NULL;
+		endInstance->adjacency = NULL;
+	}
+}
+
+void endInstance_breakAdjacency2(EndInstance *endInstance) {
+	EndInstance *endInstance2;
+	endInstance2 = endInstance_getAdjacency2(endInstance);
+	if(endInstance2 != NULL) {
+		endInstance2->adjacency2 = NULL;
+		endInstance->adjacency2 = NULL;
+	}
+}
+
+////////////////////////////////////////////////
+////////////////////////////////////////////////
+////////////////////////////////////////////////
+//Basic end functions.
+////////////////////////////////////////////////
+////////////////////////////////////////////////
+////////////////////////////////////////////////
+
+int32_t end_constructP(const void *o1, const void *o2, void *a) {
+	return strcmp(endInstance_getInstanceName((EndInstance *)o1), endInstance_getInstanceName((EndInstance *)o2));
+}
+
+End *end_construct(const char *name, Net *net) {
+	End *end;
+	end = malloc(sizeof(End));
+	end->name = stringCopy(net);
+	end->endInstances = sortedSet_construct(end_constructP);
+	end->attachedAtom = NULL;
+	end->adjacencyComponent = NULL;
+	end->net = net;
+	net_addEnd(net, end);
+	return end;
+}
+
+End *end_copyConstruct(End *end, Net *newNet) {
+	End *end2 = end_construct(end_getName(end), newNet);
+	End_InstanceIterator *iterator;
+	EndInstance *endInstance;
+	EndInstance *endInstance2;
+
+	//Copy the instances.
+	iterator = end_getInstanceIterator(end);
+	while((endInstance = end_getNext(iterator)) != NULL) {
+		if(endInstance_getCoordinate(endInstance) != INT32_MAX) {
+			endInstance_constructWithCoordinates(endInstance_getInstanceName(endInstance), end2,
+					endInstance_getCoordinate(endInstance), endInstance_getSequence(endInstance));
+		}
+		else {
+			endInstance_construct(endInstance_getInstanceName(endInstance), end2);
+		}
+	}
+	end_destructInstanceIterator(iterator);
+
+	//Copy any parent child links.
+	iterator = end_getInstanceIterator(end);
+	while((endInstance = end_getNext(iterator)) != NULL) {
+		if((endInstance2 = endInstance_getParent(endInstance)) != NULL) {
+			endInstance_makeParentAndChild(end_getInstance(end2, endInstance_getInstanceName(endInstance2)),
+										   end_getInstance(end2, endInstance_getInstanceName(endInstance)));
+		}
+	}
+	end_destructInstanceIterator(iterator);
+	return end2;
+}
+
+void end_destruct(End *end) {
+	EndInstance *endInstance;
+	//remove from net.
+	net_removeEnd(end_getNet(end), end);
+
+	//remove instances
+	while((endInstance = end_getFirst(end)) != NULL) {
+		endInstance_destruct(endInstance);
+	}
+	//now the actual instances.
+	sortedSet_destruct(end->endInstances, NULL);
+
+	free(end->name);
+	free(end);
+}
+
+const char *end_getName(End *end) {
+	return end->name;
+}
+
+Net *end_getNet(End *end) {
+	return end->net;
+}
+
+AdjacencyComponent *end_getAdjacencyComponent(End *end) {
+	return end->adjacencyComponent;
+}
+
+int32_t end_getInstanceNumber(End *end) {
+	return sortedSet_getLength(end->endInstances);
+}
+
+EndInstance *end_getInstance(End *end, const char *name) {
+	static EndInstance endInstance;
+	endInstance.instance = (char *)name;
+	return sortedSet_find(end->endInstances, &endInstance);
+}
+
+EndInstance *end_getFirst(End *end) {
+	return sortedSet_getFirst(end->endInstances);
+}
+
+End_InstanceIterator *end_getInstanceIterator(End *end) {
+	return iterator_construct(end->endInstances);
+}
+
+EndInstance *end_getNext(End_InstanceIterator *iterator) {
+	return iterator_getNext(iterator);
+}
+
+EndInstance *end_getPrevious(End_InstanceIterator *iterator) {
+	return iterator_getPrevious(iterator);
+}
+
+End_InstanceIterator *end_copyInstanceIterator(End_InstanceIterator *iterator) {
+	return iterator_copy(iterator);
+}
+
+void end_destructInstanceIterator(End_InstanceIterator *iterator) {
+	iterator_destruct(iterator);
+}
+
+int32_t end_isStub(End *end) {
+	return end_getName(end)[0] == '$';
+}
+
+int32_t end_isCap(End *end) {
+	return !end_isStub(end) && end_getAtom(end) != NULL;
+}
+
+int32_t end_isAtomEnd(End *end) {
+	return end_getAtom(end) != NULL;
+}
+
+/*
+ * Private functions
+ */
+
+void end_addInstance(End *end, EndInstance *endInstance) {
+	sortedSet_insert(end->endInstances, endInstance);
+}
+
+void end_removeInstance(End *end, EndInstance *endInstance) {
+	sortedSet_delete(end->endInstances, endInstance);
+}
+
+void end_setAdjacencyComponent(End *end, AdjacencyComponent *adjacencyComponent) {
+	//argument may be NULL
+	end->adjacencyComponent = adjacencyComponent;
+}
+
+////////////////////////////////////////////////
+////////////////////////////////////////////////
+////////////////////////////////////////////////
+//Basic atom instance functions
+////////////////////////////////////////////////
+////////////////////////////////////////////////
+////////////////////////////////////////////////
+
+AtomInstance *atomInstance_construct(Atom *atom,
+		EndInstance *leftEndInstance, EndInstance *rightEndInstance) {
+	AtomInstance *atomInstance;
+	atomInstance = malloc(sizeof(AtomInstance));
+	atomInstance->rInstance = malloc(sizeof(AtomInstance));
+	atomInstance->rInstance->rInstance = atomInstance;
+	atomInstance->atom = atom;
+	atomInstance->rInstance->atom = atom_getReverse(atom);
+	atomInstance->leftEndInstance = leftEndInstance;
+	atomInstance->rInstance->leftEndInstance = rightEndInstance;
+	endInstance_setAtomInstance(atomInstance->leftEndInstance, atomInstance);
+	endInstance_setAtomInstance(atomInstance->rInstance->leftEndInstance, atomInstance->rInstance);
+	atom_addInstance(atom, atomInstance);
+	return atomInstance;
+}
+
+AtomInstance *atomInstance_construct2(const char *instance, Atom *atom) {
+	return atomInstance_construct(atom,
+			endInstance_construct(instance, atom_getLeft(atom)),
+			endInstance_construct(instance, atom_getRight(atom)));
+}
+
+AtomInstance *atomInstance_construct3(const char *instance, Atom *atom,
+		int32_t startCoordinate, Sequence *sequence) {
+#ifdef BEN_DEBUG
+	assert(startCoordinate >= 0);
+	assert(startCoordinate + atom_getLength(atom) <= sequence_getLength(sequence));
+#endif
+
+	return atomInstance_construct(atom,
+			endInstance_constructWithCoordinates(instance, atom_getLeft(atom),
+					startCoordinate, sequence),
+			endInstance_constructWithCoordinates(instance, atom_getRight(atom),
+						-(startCoordinate + atom_getLength(atom)), sequence));
+}
+
+void atomInstance_destruct(AtomInstance *atomInstance) {
+	atom_removeInstance(atomInstance_getAtom(atomInstance), atomInstance);
+	free(atomInstance->rInstance);
+	free(atomInstance);
+}
+
+Atom *atomInstance_getAtom(AtomInstance *atomInstance) {
+	return atomInstance->atom;
+}
+
+const char *atomInstance_getInstanceName(AtomInstance *atomInstance) {
+	return endInstance_getInstanceName(atomInstance_getLeft(atomInstance));
+}
+
+const char *atomInstance_getElementName(AtomInstance *atomInstance) {
+	return atom_getName(atomInstance_getAtom(atomInstance));
+}
+
+char *atomInstance_getCompleteName(AtomInstance *atomInstance) {
+	return netMisc_makeCompleteName(atomInstance_getInstanceName(atomInstance), atomInstance_getElementName(atomInstance));
+}
+
+Event *atomInstance_getEvent(AtomInstance *atomInstance) {
+	return endInstance_getEvent(atomInstance_getLeft(atomInstance));
+}
+
+AtomInstance *atomInstance_getReverse(AtomInstance *atomInstance) {
+	return atomInstance->rInstance;
+}
+
+int32_t atomInstance_getStart(AtomInstance *atomInstance) {
+	return endInstance_getCoordinate(atomInstance_getLeft(atomInstance));
+}
+
+int32_t atomInstance_getLength(AtomInstance *atomInstance) {
+	return atom_getLength(atomInstance_getAtom(atomInstance));
+}
+
+Sequence *atomInstance_getSequence(AtomInstance *atomInstance) {
+	return endInstance_getSequence(atomInstance_getLeft(atomInstance));
+}
+
+EndInstance *atomInstance_getLeft(AtomInstance *atomInstance) {
+	return atomInstance->leftEndInstance;
+}
+
+EndInstance *atomInstance_getRight(AtomInstance *atomInstance) {
+	return atomInstance_getLeft(atomInstance_getReverse(atomInstance));
+}
+
+AtomInstance *atomInstance_getParent(AtomInstance *atomInstance) {
+	EndInstance *endInstance;
+	AtomInstance *atomInstance2;
+	endInstance = atomInstance_getLeft(atomInstance);
+	while((endInstance = endInstance_getParent(endInstance)) != NULL) {
+		if((atomInstance2 = endInstance_getAtomInstance(endInstance)) != NULL) {
+			return atomInstance2;
+		}
+	}
+	return NULL;
+}
+
+int32_t atomInstance_getChildNumber(AtomInstance *atomInstance) {
+	return 0;
+}
+
+AtomInstance *atomInstance_getChild(AtomInstance *atomInstance, int32_t index) {
+	return NULL;
+}
+
+////////////////////////////////////////////////
+////////////////////////////////////////////////
+////////////////////////////////////////////////
+//Basic atom functions.
+////////////////////////////////////////////////
+////////////////////////////////////////////////
+////////////////////////////////////////////////
+
+int32_t atomConstruct_constructP(const void *o1, const void *o2, void *a) {
+	return strcmp(atomInstance_getInstanceName((AtomInstance *)o1), atomInstance_getInstanceName((AtomInstance *)o2));
+}
+
+Atom *atom_construct(const char *name, int32_t length, Net *net) {
+	Atom *atom;
+	atom = malloc(sizeof(Atom));
+	atom->rAtom = malloc(sizeof(Atom));
+	atom->rAtom->rAtom = atom;
+	atom->atomContents = malloc(sizeof(struct AtomContents));
+	atom->rAtom->atomContents = atom->atomContents;
+
+	atom->atomContents->name = stringCopy(name);
+	atom->atomContents->atomInstances = sortedSet_construct(atomConstruct_constructP);
+	atom->atomContents->length = length;
+	atom->atomContents->net = net;
+
+	return atom;
+}
+
+void atom_destruct(Atom *atom) {
+	AtomInstance *atomInstance;
+	//remove from net.
+	net_removeAtom(atom_getNet(atom), atom);
+
+	//remove instances
+	while((atomInstance = atom_getFirst(atom)) != NULL) {
+		atomInstance_destruct(atomInstance);
+	}
+	//now the actual instances.
+	sortedSet_destruct(atom->atomContents->atomInstances, NULL);
+
+	free(atom->rAtom);
+	free(atom->atomContents->name);
+	free(atom->atomContents);
+	free(atom);
+}
+
+const char *atom_getName(Atom *atom) {
+	return atom->atomContents->name;
+}
+
+int32_t atom_getLength(Atom *atom) {
+	return atom->atomContents->length;
+}
+
+Net *atom_getNet(Atom *atom) {
+	return atom->atomContents->net;
+}
+
+End *atom_getLeft(Atom *atom) {
+	return atom->leftEnd;
+}
+
+End *atom_getRight(Atom *atom) {
+	return atom->rAtom->leftEnd;
+}
+
+Atom *atom_getReverse(Atom *atom) {
+	return atom->rAtom;
+}
+
+int32_t atom_getInstanceNumber(Atom *atom) {
+	return sortedSet_getLength(atom->atomContents->atomInstances);
+}
+
+AtomInstance *atom_getInstance(Atom *atom, const char *name) {
+	static AtomInstance atomInstance;
+	static EndInstance endInstance;
+	endInstance.instance = (char *)name;
+	atomInstance.leftEndInstance = &endInstance;
+	return sortedSet_find(atom->atomContents->atomInstances, &atomInstance);
+}
+
+AtomInstance *atom_getFirst(Atom *atom) {
+	return sortedSet_getFirst(atom->atomContents->atomInstances);
+}
+
+Atom_InstanceIterator *atom_getInstanceIterator(Atom *atom) {
+	return iterator_construct(atom->atomContents->atomInstances);
+}
+
+AtomInstance *atom_getNext(Atom_InstanceIterator *iterator) {
+	return iterator_getNext(iterator);
+}
+
+AtomInstance *atom_getPrevious(Atom_InstanceIterator *iterator) {
+	return iterator_getPrevious(iterator);
+}
+
+Atom_InstanceIterator *atom_copyInstanceIterator(Atom_InstanceIterator *iterator) {
+	return iterator_copy(iterator);
+}
+
+void atom_destructInstanceIterator(Atom_InstanceIterator *atomInstanceIterator) {
+	iterator_destruct(atomInstanceIterator);
+}
+
+/*
+ * Private functions.
+ */
+
+void atom_addInstance(Atom *atom, AtomInstance *atomInstance) {
+	sortedSet_insert(atom->atomContents->atomInstances, atomInstance);
+}
+
+void atom_removeInstance(Atom *atom, AtomInstance *atomInstance) {
+	sortedSet_delete(atom->atomContents->atomInstances, atomInstance);
+}
+
+////////////////////////////////////////////////
+////////////////////////////////////////////////
+////////////////////////////////////////////////
+//Basic adjacency component functions.
+////////////////////////////////////////////////
+////////////////////////////////////////////////
+////////////////////////////////////////////////
+
+int32_t adjacencyComponent_constructP(const void *o1, const void *o2, void *a) {
+	return strcmp(end_getName((End *)o1), end_getName((End *)o2));
+}
+
+AdjacencyComponent *adjacencyComponent_construct(Net *net, Net *nestedNet) {
+	AdjacencyComponent *adjacencyComponent;
+
+	adjacencyComponent = adjacencyComponent_construct2(net, net_getName(nestedNet));
+	adjacencyComponent_updateContainedEnds(adjacencyComponent);
+	return adjacencyComponent;
+}
+
+void adjacencyComponent_destructP(End *end, void *o) {
+	end_setAdjacencyComponent(end, NULL);
+}
+
+void adjacencyComponent_updateContainedEnds(AdjacencyComponent *adjacencyComponent) {
+	Net *net;
+	Net_EndIterator *iterator;
+	End *end;
+	End *end2;
+	//wipe the slate clean.
+	sortedSet_destruct(adjacencyComponent->ends, (void (*)(void *, void *))adjacencyComponent_destructP);
+	adjacencyComponent->ends = sortedSet_construct(adjacencyComponent_constructP);
+	//now calculate the ends
+	net = adjacencyComponent_getNet(adjacencyComponent);
+	iterator = net_getEndIterator(adjacencyComponent_getNestedNet(adjacencyComponent));
+	while((end = net_getNextEnd(iterator)) != NULL) {
+		if((end2 = net_getEnd(net, end_getName(end))) != NULL) {
+			adjacencyComponent_addEnd(adjacencyComponent, end);
+		}
+	}
+	net_destructEndIterator(iterator);
+}
+
+void adjacencyComponent_destruct(AdjacencyComponent *adjacencyComponent) {
+	//Detach from the parent net.
+	net_removeAdjacencyComponent(adjacencyComponent_getNet(adjacencyComponent), adjacencyComponent);
+	sortedSet_destruct(adjacencyComponent->ends, NULL);
+	//Free the memory
+	free(adjacencyComponent->nestedNetName);
+	free(adjacencyComponent);
+}
+
+Net *adjacencyComponent_getNet(AdjacencyComponent *adjacencyComponent) {
+	return adjacencyComponent->net;
+}
+
+const char *adjacencyComponent_getNestedNetName(AdjacencyComponent *adjacencyComponent) {
+	return adjacencyComponent->nestedNetName;
+}
+
+Net *adjacencyComponent_getNestedNet(AdjacencyComponent *adjacencyComponent) {
+	return netDisk_getNet(net_getNetDisk(adjacencyComponent_getNestedNet(adjacencyComponent)), adjacencyComponent->nestedNetName);
+}
+
+Chain *adjacencyComponent_getChain(AdjacencyComponent *adjacencyComponent) {
+	return adjacencyComponent->chain;
+}
+
+End *adjacencyComponent_getEnd(AdjacencyComponent *adjacencyComponent, const char *name) {
+	static End end;
+	end.name = (char *)name;
+	return sortedSet_find(adjacencyComponent->ends, &end);
+}
+
+int32_t adjacencyComponent_getEndNumber(AdjacencyComponent *adjacencyComponent) {
+	return sortedSet_getLength(adjacencyComponent->ends);
+}
+
+AdjacencyComponent_EndIterator *adjacencyComponent_getEndIterator(AdjacencyComponent *adjacencyComponent) {
+	return iterator_construct(adjacencyComponent->ends);
+}
+
+End *adjacencyComponent_getNextEnd(AdjacencyComponent_EndIterator *endIterator) {
+	return iterator_getNext(endIterator);
+}
+
+End *adjacencyComponent_getPreviousEnd(AdjacencyComponent_EndIterator *endIterator) {
+	return iterator_getPrevious(endIterator);
+}
+
+AdjacencyComponent_EndIterator *adjacencyComponent_copyEndIterator(AdjacencyComponent_EndIterator *endIterator) {
+	return iterator_copy(endIterator);
+}
+
+void adjacencyComponent_destructEndIterator(AdjacencyComponent_EndIterator *endIterator) {
+	iterator_destruct(endIterator);
+}
+
+/*
+ * Private functions.
+ */
+
+AdjacencyComponent *adjacencyComponent_construct2(Net *net, const char *nestedNetName) {
+	AdjacencyComponent *adjacencyComponent;
+	adjacencyComponent = malloc(sizeof(AdjacencyComponent));
+
+	adjacencyComponent->net = net;
+	adjacencyComponent->chain = NULL;
+	adjacencyComponent->nestedNetName = stringCopy(nestedNetName);
+	adjacencyComponent->ends = sortedSet_construct(adjacencyComponent_constructP);
+	net_addAdjacencyComponent(net, adjacencyComponent);
+
+	return adjacencyComponent;
+}
+
+void adjacencyComponent_addEnd(AdjacencyComponent *adjacencyComponent, End *end) {
+	sortedSet_insert(adjacencyComponent->ends, end);
+	end_setAdjacencyComponent(end, adjacencyComponent);
+}
+
+void adjacencyComponent_setChain(AdjacencyComponent *adjacencyComponent, Chain *chain) {
+	//argument may be NULL
+	adjacencyComponent->chain = chain;
+}
+
+////////////////////////////////////////////////
+////////////////////////////////////////////////
+////////////////////////////////////////////////
+//Basic link functions.
+////////////////////////////////////////////////
+////////////////////////////////////////////////
+////////////////////////////////////////////////
+
+Link *link_construct(End *leftEnd, End *rightEnd, AdjacencyComponent *adjacencyComponent, Chain *parentChain) {
+	Link *link;
+	link = malloc(sizeof(Link));
+
+	link->leftEnd = leftEnd;
+	link->rightEnd = rightEnd;
+	link->chain = parentChain;
+	link->adjacencyComponent = adjacencyComponent;
+
+	chain_addLink(parentChain, link); //will set the link indices.
+	return link;
+}
+
+void link_destruct(Link *link) {
+	Link *link2;
+	link_getChain(link)->linkNumber = link->linkIndex;
+	if(link->pLink == NULL) {
+		link_getChain(link)->link = NULL;
+	}
+	else {
+		link->pLink->nLink = NULL;
+	}
+	while(link != NULL) {
+		link2 = link->nLink;
+		link = link->nLink;
+		free(link2);
+	}
+}
+
+Link *link_getNextLink(Link *link) {
+	return link->nLink;
+}
+
+Link *link_getPreviousLink(Link *link) {
+	return link->pLink;
+}
+
+AdjacencyComponent *link_getAdjacencyComponent(Link *link) {
+	return link->adjacencyComponent;
+}
+
+End *link_getLeft(Link *link) {
+	return link->leftEnd;
+}
+
+End *link_getRight(Link *link) {
+	return link->rightEnd;
+}
+
+Chain *link_getChain(Link *link) {
+	return link->chain;
+}
+
+int32_t link_getIndex(Link *link) {
+	return link->linkIndex;
+}
+
+////////////////////////////////////////////////
+////////////////////////////////////////////////
+////////////////////////////////////////////////
+//Basic chain functions.
+////////////////////////////////////////////////
+////////////////////////////////////////////////
+////////////////////////////////////////////////
+
+Chain *chain_construct(Net *net) {
+	Chain *chain;
+	chain = malloc(sizeof(Chain));
+	chain->net = net;
+	chain->link = NULL;
+	chain->linkNumber = 0;
+	net_addChain(net, chain);
 	return chain;
 }
 
-void destructChain(struct Chain *chain) {
-	destructList(chain->subChains);
-	destructList(chain->adjacencyComponents);
-	destructList(chain->ends);
-	destructList(chain->segments);
-	if(chain->nLink != NULL) {
-		destructChain(chain->nLink);
+void chain_destruct(Chain *chain) {
+	net_removeChain(chain_getNet(chain), chain);
+	if(chain->link != NULL) {
+		link_destruct(chain->link);
 	}
 	free(chain);
 }
 
-////////////////////////////////////////////////
-////////////////////////////////////////////////
-////////////////////////////////////////////////
-//Methods on chains
-////////////////////////////////////////////////
-////////////////////////////////////////////////
-////////////////////////////////////////////////
-
-int sortChains_P(const struct Chain **c1, const struct Chain **c2) {
-	//Sort in descending order of score
-	return ((*c1)->score > (*c2)->score) ? -1 : ((*c1)->score < (*c2)->score ? 1 : 0);
-}
-
-void sortChains(struct List *listOfChains) {
-	/*
-	 * Sorts a list of alignments by there script (in descending order of score).
-	 */
-	qsort(listOfChains->list, listOfChains->length, sizeof(void *),
-			(int (*)(const void *v, const void *))sortChains_P);
-}
-
-void flattenChainList(struct List *chainList, struct List *flatList) {
+Link *chain_getLink(Chain *chain, int32_t linkIndex) {
 	int32_t i;
-	struct Chain *chain;
+	Link *link;
 
-	for(i=0; i<chainList->length; i++) {
-		chain = chainList->list[i];
-		listAppend(flatList, chain);
-		while(chain != NULL) {
-			flattenChainList(chain->subChains, flatList);
-			chain = chain->nLink;
-		}
+#ifdef BEN_DEBUG
+	assert(linkIndex >= 0);
+	assert(linkIndex < chain->linkNumber);
+#endif
+
+	i=0;
+	link = chain->link;
+	while(i++ < linkIndex) {
+		link = link->nLink;
 	}
+	return link;
 }
 
-int32_t isAStubOrCapChain(struct Chain *chain, struct PinchGraph *pinchGraph) {
-	/*
-	 * Returns true if this element in the chain represents either a stub or cap.
-	 */
-	struct Segment *segment;
-	struct PinchEdge *pinchEdge;
-#ifdef BEN_DEBUG
-	assert(chain->segments->length > 0);
-#endif
-	segment = (struct Segment *)chain->segments->list[0];
-	pinchEdge = getContainingBlackEdge(pinchGraph, segment->contig, segment->start);
-	return isAStubOrCap(pinchEdge);
+int32_t chain_getLength(Chain *chain) {
+	return chain->linkNumber;
+}
+
+int32_t chain_getIndex(Chain *chain) {
+	return chain->chainIndex;
+}
+
+Net *chain_getNet(Chain *chain) {
+	return chain->net;
+}
+
+/*
+ * Private functions
+ */
+
+void chain_addLink(Chain *chain, Link *childLink) {
+	Link *pLink;
+	if(chain->linkNumber != 0) {
+		pLink = chain_getLink(chain, chain->linkNumber -1);
+		pLink->nLink = childLink;
+		childLink->pLink = pLink;
+	}
+	else {
+		childLink->pLink = NULL;
+		chain->link = childLink;
+	}
+	childLink->nLink = NULL;
+	childLink->linkIndex = chain->linkNumber++;
+}
+
+void chain_setIndex(Chain *chain, int32_t index) {
+	chain->chainIndex = index;
 }
 
 ////////////////////////////////////////////////
 ////////////////////////////////////////////////
 ////////////////////////////////////////////////
-//Nets
+//Basic operation functions.
 ////////////////////////////////////////////////
 ////////////////////////////////////////////////
 ////////////////////////////////////////////////
 
-struct Net *constructNet(struct CactusGraph *cactusGraph) {
-	struct Net *net;
-	struct Chain *chain;
+Operation *operation_construct(Net *net) {
+	Operation *operation;
+	operation = malloc(sizeof(Operation));
 
-	struct CactusEdge *edge;
-	struct List *chainsAdjacencyList;
-	struct List *chains;
-	struct List *edges;
-	struct List *biConnectedComponent;
-	struct List *list;
-	struct List *biConnectedComponents;
-#ifdef BEN_DEBUG
-	struct CactusEdge *edge2;
-#endif
+	net_addOperation(net, operation);
+	return operation;
+}
 
-	int32_t i, j;
+void operation_destruct(Operation *operation) {
+	net_removeOperation(operation_getNet(operation), operation);
+	free(operation);
+}
 
-	logDebug("Building the net\n");
+Net *operation_getNet(Operation *operation) {
+	return operation->net;
+}
 
-	////////////////////////////////////////////////
-	//(1) Get sorted bi-connected components.
-	////////////////////////////////////////////////
+/*
+ * Private functions
+ */
+void operation_setIndex(Operation *operation, int32_t index) {
+	operation->index = index;
+}
 
-	biConnectedComponents = computeSortedBiConnectedComponents(cactusGraph);
+////////////////////////////////////////////////
+////////////////////////////////////////////////
+////////////////////////////////////////////////
+//Basic net functions.
+////////////////////////////////////////////////
+////////////////////////////////////////////////
+////////////////////////////////////////////////
 
-	////////////////////////////////////////////////
-	//(2) Construct chain for each cycle.
-	////////////////////////////////////////////////
+int32_t net_constructSequencesP(const void *o1, const void *o2, void *a) {
+	return strcmp(sequence_getName((Sequence *)o1), sequence_getName((Sequence *)o2));
+}
 
-	chainsAdjacencyList = constructEmptyList(cactusGraph->vertices->length, NULL);
-	for(i=0; i<cactusGraph->vertices->length; i++) {
-		chainsAdjacencyList->list[i] = constructEmptyList(0, (void (*)(void *))destructChain);
-	}
+int32_t net_constructEndsP(const void *o1, const void *o2, void *a) {
+	return strcmp(end_getName((End *)o1), end_getName((End *)o2));
+}
 
-	chains = constructEmptyList(0, NULL);
-	edges = constructEmptyList(0, (void (*)(void *))destructList);
+int32_t net_constructAtomsP(const void *o1, const void *o2, void *a) {
+	return strcmp(atom_getName((Atom *)o1), atom_getName((Atom *)o2));
+}
 
-	for(i=0; i<biConnectedComponents->length; i++) {
-		biConnectedComponent = biConnectedComponents->list[i];
-		edge = biConnectedComponent->list[0];
-		chain = constructChain(edge->segments, NULL);
-		qsort(chain->segments->list, chain->segments->length, sizeof(void *),
-				(int (*)(const void *, const void*))segmentComparatorPointers);
-		list = chainsAdjacencyList->list[edge->from->vertexID];
-		listAppend(list, chain);
-		listAppend(chains, chain);
-		list = constructEmptyList(0, NULL);
-		listAppend(edges, list);
-		listAppend(list, edge);
+int32_t net_constructAdjacencyComponentsP(const void *o1, const void *o2, void *a) {
+	return strcmp(adjacencyComponent_getNestedNetName((AdjacencyComponent *)o1),
+			adjacencyComponent_getNestedNetName((AdjacencyComponent *)o2));
+}
 
-		for(j=1; j<biConnectedComponent->length; j++) {
-			edge = biConnectedComponent->list[j];
-			listAppend(list, edge);
-			chain = constructChain(edge->segments, chain);
-			qsort(chain->segments->list, chain->segments->length, sizeof(void *),
-				  (int (*)(const void *, const void*))segmentComparatorPointers);
-		}
-	}
-	logDebug("Constructed chain for each cycle.\n");
+int32_t net_constructChainsP(const void *o1, const void *o2, void *a) {
+	return chain_getIndex((Chain *)o1) - chain_getIndex((Chain *)o2);
+}
 
-	////////////////////////////////////////////////
-	//(3) Link sub-chains to parent chains.
-	////////////////////////////////////////////////
+int32_t net_constructOperationsP(const void *o1, const void *o2, void *a) {
+	return operation_getIndex((Operation *)o1) - operation_getIndex((Operation *)o2);
+}
 
-#ifdef BEN_DEBUG
-	assert(edges->length == chains->length);
-#endif
+Net *net_construct(const char *name, NetDisk *netDisk) {
+	Net *net;
+	net = malloc(sizeof(Net));
 
-	for(i=0; i<chains->length; i++) {
+	net->name = stringCopy(name);
 
-		chain = chains->list[i];
-		list = edges->list[i];
+	net->sequences = sortedSet_construct(net_constructSequencesP);
+	net->ends = sortedSet_construct(net_constructEndsP);
+	net->atoms = sortedSet_construct(net_constructAtomsP);
+	net->adjacencyComponents = sortedSet_construct(net_constructAdjacencyComponentsP);
+	net->chains = sortedSet_construct(net_constructChainsP);
+	net->operations = sortedSet_construct(net_constructOperationsP);
 
-		for(j=1; j<list->length; j++) {
-#ifdef BEN_DEBUG
-			assert(chain != NULL);
-#endif
-			edge = list->list[j];
-#ifdef BEN_DEBUG
-			assert(edge->from->vertexID != 0);
-			edge2 = list->list[j-1];
-			assert(edge2->to == edge->from);
-#endif
-			destructList(chain->subChains);
-			chain->subChains = chainsAdjacencyList->list[edge->from->vertexID];
-#ifdef BEN_DEBUG
-			assert(chain->subChains != NULL);
-			chainsAdjacencyList->list[edge->from->vertexID] = NULL;
-#endif
-			chain = chain->nLink;
-		}
-#ifdef BEN_DEBUG
-		assert(chain != NULL);
-		assert(chain->nLink == NULL);
-#endif
-	}
+	net->parentNetName = NULL;
+	net->netDisk = netDisk;
+	net->operationIndex = 0;
+	net->chainIndex = 0;
 
-	net = mallocLocal(sizeof(struct Net));
-	net->adjacencyComponents = constructEmptyList(0, (void (*)(void *))destructList);
-	net->ends = constructEmptyList(0, NULL);
-	net->chains = chainsAdjacencyList->list[0];
-#ifdef BEN_DEBUG
-	assert(net->chains != NULL);
-	chainsAdjacencyList->list[0] = NULL;
-	for(i=0; i<chainsAdjacencyList->length; i++) {
-		assert(chainsAdjacencyList->list[i] == NULL);
-	}
-#endif
-	logDebug("Linked sub-chains to parent chains.\n");
-
-	////////////////////////////////////////////////
-	//(6)Cleanup/return net
-	////////////////////////////////////////////////
-	destructList(chainsAdjacencyList);
-	destructList(chains);
-	destructList(edges);
-	destructList(biConnectedComponents);
-
-	//check the constructed net
-	checkNet(cactusGraph, net);
-
-	logDebug("Cleaned up and am returning the finished net.\n");
+	netDisk_addNet(net->netDisk, net);
 
 	return net;
 }
 
-void destructNet(struct Net *net) {
-	destructList(net->adjacencyComponents);
-	destructList(net->chains);
-	destructList(net->ends);
+const char *net_getName(Net *net) {
+	return net->name;
+}
+
+NetDisk *net_getNetDisk(Net *net) {
+	return net->netDisk;
+}
+
+void net_destruct(Net *net, int32_t recursive) {
+	Net_AdjacencyComponentIterator *iterator;
+	Sequence *sequence;
+	End *end;
+	Atom *atom;
+	AdjacencyComponent *adjacencyComponent;
+	Chain *chain;
+	Operation *operation;
+
+	if(recursive) {
+		iterator = net_getAdjacencyComponentIterator(net);
+		while((adjacencyComponent = net_getNextAdjacencyComponent(iterator)) != NULL) {
+			net_destruct(adjacencyComponent_getNestedNet(adjacencyComponent), recursive);
+		}
+		net_destructAdjacencyComponentIterator(iterator);
+	}
+
+	netDisk_unloadNet(net->netDisk, net);
+
+	eventTree_destruct(net_getEventTree(net));
+
+	sortedSet_destruct(net->sequences, NULL);
+	while((sequence = net_getFirstSequence(net)) != NULL) {
+		sequence_destruct(sequence);
+	}
+
+	while((end = net_getFirstEnd(net)) != NULL) {
+		end_destruct(end);
+	}
+	sortedSet_destruct(net->ends, NULL);
+
+	while((atom = net_getFirstAtom(net)) != NULL) {
+		atom_destruct(atom);
+	}
+	sortedSet_destruct(net->atoms, NULL);
+
+	while((adjacencyComponent = net_getFirstAdjacencyComponent(net)) != NULL) {
+		adjacencyComponent_destruct(adjacencyComponent);
+	}
+	sortedSet_destruct(net->adjacencyComponents, NULL);
+
+	while((chain = net_getFirstChain(net)) != NULL) {
+		chain_destruct(chain);
+	}
+	sortedSet_destruct(net->chains, NULL);
+
+	while((operation = net_getFirstOperation(net)) != NULL) {
+		operation_destruct(operation);
+	}
+	sortedSet_destruct(net->operations, NULL);
+
+	free(net->name);
+	if(net->parentNetName != NULL) {
+		free(net->parentNetName);
+	}
 	free(net);
 }
 
-void checkNet(struct CactusGraph *graph, struct Net *net) {
-	/*
-	 * Check that the net is okay with respect to the pinch graph.
-	 *
-	 * Currently checks that every base is covered (every aligned base is included).
-	 */
-#ifdef BEN_DEBUG
-	int32_t i, j, k;
-	struct Chain *chain;
-	struct Segment *segment;
-	struct List *flatList;
-	struct hashtable *segmentsHash;
-	struct CactusVertex *vertex;
-	struct CactusEdge *edge;
-
-	flatList = constructEmptyList(0, NULL);
-	flattenChainList(net->chains, flatList);
-
-	//check every base is covered (every aligned base is included).
-	segmentsHash = create_hashtable(graph->vertices->length*2,
-					hashtable_key, hashtable_equalKey,
-					NULL, NULL);
-	for(i=0; i<flatList->length; i++) {
-		chain = flatList->list[i];
-		while(chain != NULL) {
-			for(j=0; j<chain->segments->length; j++) {
-				segment = chain->segments->list[j];
-
-				//check not already in
-				assert(hashtable_search(segmentsHash, segment) == NULL);
-				assert(hashtable_search(segmentsHash, segment->rSegment) == NULL);
-
-				//now add
-				hashtable_insert(segmentsHash, segment, segment);
-				hashtable_insert(segmentsHash, segment->rSegment, segment->rSegment);
-			}
-			chain = chain->nLink;
-		}
-	}
-
-	for(i=0; i<graph->vertices->length; i++) {
-		vertex = graph->vertices->list[i];
-		for(j=0; j<vertex->edges->length; j++) {
-			edge = vertex->edges->list[j];
-			for(k=0; k<edge->segments->length; k++) {
-				assert(hashtable_search(segmentsHash, edge->segments->list[k]) != NULL);
-			}
-		}
-	}
-	hashtable_destroy(segmentsHash, FALSE, FALSE);
-
-	destructList(flatList);
-
-#endif
+Sequence *net_getFirstSequence(Net *net) {
+	return sortedSet_getFirst(net->sequences);
 }
 
-void writeOutNet(struct Net *net, struct hashtable *names, FILE *fileHandle) {
-	/*
-	 * Writes out the chains in the net in 'dot' format, compatible with graphviz.
-	 */
-	int32_t i, j, k, l, m;
-	struct Chain *chain;
-	struct List *list;
-	struct List *adjacencyComponent;
-	struct hashtable *chainHash;
-
-	logDebug("Writing a net\n");
-
-	//Write the preliminaries.
-	fprintf(fileHandle, "graph G {\n");
-	fprintf(fileHandle, "overlap=false\n");
-
-	list = constructEmptyList(0, NULL);
-	flattenChainList(net->chains, list);
-
-
-	chainHash = create_hashtable(list->length*2,
-							     hashtable_key, hashtable_equalKey,
-								 NULL, (void (*)(void *))destructInt);
-
-	//Write the sink vertex
-	fprintf(fileHandle, "node[width=0.3,height=0.3,shape=diamond,fontsize=14];\n");
-	fprintf(fileHandle, "n" INT_STRING "n [label=\"" INT_STRING "\"];\n", 0, 0);
-
-	//Write the chain vertices.
-	j = 1;
-	for(i=0; i<list->length; i++) {
-		chain = list->list[i];
-		fprintf(fileHandle, "node[width=0.3,height=0.3,shape=circle,fontsize=14];\n");
-		fprintf(fileHandle, "n" INT_STRING "n [label=\"" INT_STRING "\"];\n", j, j);
-		hashtable_insert(chainHash, chain, constructInt(j++));
-	}
-
-	//Write the organising link vertices.
-	for(i=0; i<list->length; i++) {
-		chain = list->list[i];
-		while(chain->nLink != NULL) {
-			hashtable_insert(chainHash, chain->subChains, constructInt(j));
-			fprintf(fileHandle, "node[width=0.3,height=0.3,shape=box,fontsize=14];\n");
-			fprintf(fileHandle, "n" INT_STRING "n [label=\"" INT_STRING "\"];\n", j, j);
-			chain = chain->nLink;
-			j++;
-		}
-	}
-
-	//Write the adjacency component vertices.
-	for(i=0; i<list->length; i++) {
-		chain = list->list[i];
-		while(chain->nLink != NULL) {
-			for(k=0; k<chain->adjacencyComponents->length; k++) {
-				adjacencyComponent = chain->adjacencyComponents->list[k];
-				hashtable_insert(chainHash, adjacencyComponent, constructInt(j));
-				fprintf(fileHandle, "node[width=0.3,height=0.3,shape=diamond,fontsize=14];\n");
-				fprintf(fileHandle, "n" INT_STRING "n [label=\"" INT_STRING "\"];\n", j, j);
-				j++;
-			}
-			chain = chain->nLink;
-		}
-	}
-
-	//Write the adjacency components attached to the sink
-	for(k=0; k<net->adjacencyComponents->length; k++) {
-		adjacencyComponent = net->adjacencyComponents->list[k];
-		hashtable_insert(chainHash, adjacencyComponent, constructInt(j));
-		fprintf(fileHandle, "node[width=0.3,height=0.3,shape=diamond,fontsize=14];\n");
-		fprintf(fileHandle, "n" INT_STRING "n [label=\"" INT_STRING "\"];\n", j, j);
-		j++;
-	}
-
-	logDebug("Written the vertices of the net\n");
-
-	//Format of the edges.
-	fprintf(fileHandle, "edge[color=black,len=2.5,weight=100,dir=forward];\n");
-
-	//Write the sink edges.
-
-	//edge from sink node to child node
-	for(i=0; i<net->chains->length; i++) {
-		j = *((int32_t *)hashtable_search(chainHash, net->chains->list[i]));
-		fprintf(fileHandle, "n" INT_STRING "n -- n" INT_STRING "n;\n", 0, j);
-	}
-
-	//edge from sink node to adjacency components
-	for(i=0; i<net->adjacencyComponents->length; i++) {
-		j = *((int32_t *)hashtable_search(chainHash, net->adjacencyComponents->list[i]));
-		fprintf(fileHandle, "n" INT_STRING "n -- n" INT_STRING "n;\n", 0, j);
-	}
-
-	logDebug("Written the edges from the sink node\n");
-
-	//Write the edges excluding the sink edges
-	for(i=0; i<list->length; i++) {
-		chain = list->list[i];
-		j = *((int32_t *)hashtable_search(chainHash, chain));
-		while(chain->nLink != NULL) {
-			k = *((int32_t *)hashtable_search(chainHash, chain->subChains));
-			//edge from parent chain node to organising node
-			fprintf(fileHandle, "n" INT_STRING "n -- n" INT_STRING "n;\n", j, k);
-
-			//edge from organising node to child chain.
-			for(l=0; l<chain->subChains->length; l++) {
-				m = *((int32_t *)hashtable_search(chainHash, chain->subChains->list[l]));
-				fprintf(fileHandle, "n" INT_STRING "n -- n" INT_STRING "n;\n", k, m);
-			}
-
-			//edge from organising node to adjacency component
-			for(l=0; l<chain->adjacencyComponents->length; l++) {
-				m = *((int32_t *)hashtable_search(chainHash, chain->adjacencyComponents->list[l]));
-				fprintf(fileHandle, "n" INT_STRING "n -- n" INT_STRING "n;\n", k, m);
-			}
-
-			chain = chain->nLink;
-		}
-	}
-
-	logDebug("Written the edges of the net\n");
-
-	fprintf(fileHandle, "}\n");
-
-	destructList(list);
-	hashtable_destroy(chainHash, TRUE, FALSE);
-
-	logDebug("Written the net\n");
+Sequence *net_getSequence(Net *net, const char *name) {
+	static Sequence sequence;
+	static MetaSequence metaSequence;
+	sequence.metaSequence = &metaSequence;
+	metaSequence.name = (char *)name;
+	return sortedSet_find(net->sequences, &sequence);
 }
 
-////////////////////////////////////////////////
-////////////////////////////////////////////////
-////////////////////////////////////////////////
-//Methods to manipulate a net.
-////////////////////////////////////////////////
-////////////////////////////////////////////////
-////////////////////////////////////////////////
-
-void pruneNetP_destructChain(struct Chain *chain) { //safely deletes the chain
-	chain->nLink = NULL;
-	chain->pLink = NULL;
-	chain->subChains->length = 0;
-	destructChain(chain);
+int32_t net_getSequenceNumber(Net *net) {
+	return sortedSet_getLength(net->sequences);
 }
 
-struct List *pruneNetP(struct Chain *chain, struct hashtable *chosenChains) {
-	int32_t i, j;
-	struct List *list;
-	struct List *list2;
-	struct List *list3;
-	struct Chain *chainToDelete;
-
-	list = constructEmptyList(0, NULL);
-	chainToDelete = NULL;
-	while(TRUE) {
-		list2 = constructEmptyList(0, NULL);
-#ifdef BEN_DEBUG
-		if(chain->nLink == NULL) {
-			assert(chain->subChains->length == 0);
-		}
-#endif
-		for(i=0; i<chain->subChains->length; i++) {
-			list3 = pruneNetP(chain->subChains->list[i], chosenChains);
-			for(j=0; j<list3->length; j++) {
-				listAppend(list2, list3->list[j]);
-			}
-			destructList(list3);
-		}
-
-		if(hashtable_search(chosenChains, chain) == NULL) { //must be removed
-			chainToDelete = chain;
-			if(chain->nLink != NULL) {
-				chain->nLink->pLink = chain->pLink;
-			}
-			if(chain->pLink != NULL) {
-				chain->pLink->nLink = chain->nLink;
-				for(j=0; j<list2->length; j++) {
-					listAppend(chain->pLink->subChains, list2->list[j]);
-				}
-				if(chain->nLink == NULL) { //have to remove when last link in chain is removed
-					for(j=0; j<chain->pLink->subChains->length; j++) {
-						listAppend(list, chain->pLink->subChains->list[j]);
-					}
-					chain->pLink->subChains->length = 0;
-				}
-			}
-			else {
-				for(j=0; j<list2->length; j++) {
-					listAppend(list, list2->list[j]);
-				}
-			}
-		}
-		else {
-			chain->subChains->length = 0;
-			for(j=0; j<list2->length; j++) {
-				listAppend(chain->subChains, list2->list[j]);
-			}
-		}
-		destructList(list2);
-		if(chain->nLink == NULL) {
-			while(chain->pLink != NULL) {
-				chain = chain->pLink;
-			}
-			if(hashtable_search(chosenChains, chain) != NULL) {
-				listAppend(list, chain);
-			}
-			if(chainToDelete != NULL) { //now we delete it
-				pruneNetP_destructChain(chainToDelete);
-				chainToDelete = NULL;
-			}
-			break;
-		}
-		chain = chain->nLink;
-		if(chainToDelete != NULL) { //now we delete it
-			pruneNetP_destructChain(chainToDelete);
-			chainToDelete = NULL;
-		}
-	}
-	return list;
+Net_SequenceIterator *net_getSequenceIterator(Net *net) {
+	return iterator_construct(net->sequences);
 }
 
-void pruneNet(struct Net *net, struct List *chosenAtoms) {
-	/*
-	 * Method removes all atoms not in the chosen atom list from the net.
-	 */
-	int32_t i, j;
-	struct Chain *chain;
-	struct hashtable *hash;
-	struct List *list;
-	struct List *list2;
-#ifdef BEN_DEBUG
-	int32_t k;
-#endif
-
-	hash = create_hashtable(chosenAtoms->length*2,
-								hashtable_key, hashtable_equalKey,
-								NULL, NULL);
-	for(i=0; i<chosenAtoms->length; i++) {
-		chain = chosenAtoms->list[i];
-		hashtable_insert(hash, chain, chain);
-	}
-
-	list = constructEmptyList(0, NULL);
-	for(i=0; i<net->chains->length; i++) {
-		list2 = pruneNetP(net->chains->list[i], hash);
-		for(j=0; j<list2->length; j++) {
-			listAppend(list, list2->list[j]);
-		}
-		destructList(list2);
-	}
-	net->chains->length = 0;
-	for(j=0; j<list->length; j++) {
-		listAppend(net->chains, list->list[j]);
-	}
-
-
-#ifdef BEN_DEBUG
-	assert(list->destructElement == NULL); //defensive
-	list->length = 0;
-	flattenChainList(net->chains, list);
-
-	j = 0;
-	for(i=0; i<list->length; i++) {
-		chain = list->list[i];
-		while(chain != NULL) {
-			assert(hashtable_search(hash, chain) != NULL);
-			j++;
-			if(chain->nLink == NULL) {
-				assert(chain->subChains->length == 0);
-			}
-			k = chain->subChains->length;
-			listRemoveDuplicates(chain->subChains);
-			assert(chain->subChains->length == k);
-			chain = chain->nLink;
-		}
-	}
-	assert(j == chosenAtoms->length);
-#endif
-
-	destructList(list);
-	hashtable_destroy(hash, FALSE, FALSE);
+Sequence *net_getNextSequence(Net_SequenceIterator *sequenceIterator) {
+	return iterator_getNext(sequenceIterator);
 }
 
-struct List *identifyPseudoAdjacencyComponents(struct List *chosenAtoms, struct PinchGraph *pinchGraph) {
-	/*
-	 * Method identifies pseudo adjacency components.
-	 */
-	int32_t i, j;
-	struct List *list;
-	struct List *list2;
-	struct Chain *chain;
-	struct Segment *segment;
-	struct PinchEdge *pinchEdge;
-	struct PinchVertex *pinchVertex;
-	struct List *adjacencyComponents;
-	struct hashtable *capsHash;
-
-	//////////////////
-	//get the pseudo adjacency components.
-	//////////////////
-
-	list = constructEmptyList(0, NULL);
-	for(i=0; i<chosenAtoms->length; i++) { //build the excluded edges hash.
-		chain = chosenAtoms->list[i];
-#ifdef BEN_DEBUG
-		assert(chain->segments->length > 0);
-#endif
-		segment = chain->segments->list[0];
-		pinchEdge = getContainingBlackEdge(pinchGraph, segment->contig, segment->start);
-#ifdef BEN_DEBUG
-		assert(pinchEdge != NULL);
-#endif
-		listAppend(list, pinchEdge);
-	}
-	adjacencyComponents = getRecursiveComponents2(pinchGraph, list);
-	destructList(list);
-
-	/////////////////
-	//build the caps hash
-	////////////////////
-	capsHash = create_hashtable(chosenAtoms->length*2,
-								hashtable_key, hashtable_equalKey,
-								NULL, NULL);
-	hashtable_insert(capsHash, pinchGraph->vertices->list[0], pinchGraph->vertices->list[0]);
-
-	for(i=0; i<chosenAtoms->length; i++) {
-		chain = chosenAtoms->list[i];
-#ifdef BEN_DEBUG
-		assert(chain->segments->length > 0);
-#endif
-		segment = chain->segments->list[0];
-		pinchEdge = getContainingBlackEdge(pinchGraph, segment->contig, segment->start);
-		hashtable_insert(capsHash, pinchEdge->from, pinchEdge->from);
-		hashtable_insert(capsHash, pinchEdge->to, pinchEdge->to);
-	}
-
-#ifdef BEN_DEBUG
-	for(i=0; i<pinchGraph->vertices->length; i++) { //check chosen atoms contains all the caps.
-		pinchVertex = pinchGraph->vertices->list[i];
-		void *blackEdgeIterator = getBlackEdgeIterator(pinchVertex);
-		while((pinchEdge = getNextBlackEdge(pinchVertex, blackEdgeIterator)) != NULL) {
-			if(isAStubOrCap(pinchEdge)) {
-				assert(hashtable_search(capsHash, pinchEdge->from) != NULL);
-				assert(hashtable_search(capsHash, pinchEdge->to) != NULL);
-			}
-		}
-		destructBlackEdgeIterator(blackEdgeIterator);
-	}
-#endif
-
-	//////////////////////////////
-	//get rid of the vertices in the adjacency components not linked to chosen atoms.
-	//////////////////////////////
-	for(i=0; i<adjacencyComponents->length; i++) {
-		list = adjacencyComponents->list[i];
-		list2 = constructEmptyList(0, NULL);
-		for(j=0; j<list->length; j++) {
-			pinchVertex = list->list[j];
-			if(hashtable_search(capsHash, pinchVertex) != NULL) {
-				listAppend(list2, pinchVertex);
-			}
-		}
-#ifdef BEN_DEBUG
-		assert(list2->length > 0);
-#endif
-		destructList(adjacencyComponents->list[i]);
-		adjacencyComponents->list[i] = list2;
-	}
-	hashtable_destroy(capsHash, FALSE, FALSE);
-
-	return adjacencyComponents;
+Sequence *net_getPreviousSequence(Net_SequenceIterator *sequenceIterator) {
+	return iterator_getPrevious(sequenceIterator);
 }
 
-struct List *addAdjacencyComponentsP(struct List *subChains, struct PinchGraph *pinchGraph) {
-	struct Chain *chain;
-	struct Segment *segment;
-	struct PinchEdge *edge;
-	struct List *list;
-	int32_t i;
-
-	list = constructEmptyList(0, NULL);
-	for(i=0; i<subChains->length; i++) {
-		chain = subChains->list[i];
-		//start of chain
-		segment = chain->segments->list[0];
-		edge = getContainingBlackEdge(pinchGraph, segment->contig, segment->start);
-		listAppend(list, edge->from);
-		while(chain->nLink != NULL) {
-			chain = chain->nLink;
-		}
-		//end of chain
-		segment = chain->segments->list[0];
-		edge = getContainingBlackEdge(pinchGraph, segment->contig, segment->start);
-		listAppend(list, edge->to);
-	}
-
-	return list;
+Net_SequenceIterator *net_copySequenceIterator(Net_SequenceIterator *sequenceIterator) {
+	return iterator_copy(sequenceIterator);
 }
 
-void addAdjacencyComponents(struct Net *net, struct PinchGraph *pinchGraph, struct List *adjacencyComponents) {
-	/*
-	 * Adds the adjacency components to the net.
-	 */
-	int32_t i, j;
-	struct List *list;
-	struct List *list2;
-	struct List *adjacencyComponent;
-	struct Chain *chain;
-	struct hashtable *hash;
-	struct PinchEdge *edge;
-	struct PinchVertex *vertex;
-	struct Segment *segment;
-#ifdef BEN_DEBUG
-	int32_t k, l;
-	struct PinchVertex *vertex2;
-#endif
-
-	list = constructEmptyList(0, NULL);
-	flattenChainList(net->chains, list);
-	hash = create_hashtable(list->length*2,
-							hashtable_key, hashtable_equalKey,
-							NULL, NULL);
-
-	for(i=0; i<adjacencyComponents->length; i++) {
-		adjacencyComponent = listCopy(adjacencyComponents->list[i]);
-		for(j=0; j<adjacencyComponent->length; j++) {
-			vertex = adjacencyComponent->list[j];
-			hashtable_insert(hash, vertex, adjacencyComponent);
-		}
-	}
-
-#ifdef BEN_DEBUG
-	k=0;
-#endif
-	for(i=0; i<list->length; i++) {
-		chain = list->list[i];
-		while(chain->nLink != NULL) {
-			list2 = addAdjacencyComponentsP(chain->subChains, pinchGraph);
-			//left side of the chain
-			segment = chain->segments->list[0];
-			edge = getContainingBlackEdge(pinchGraph, segment->contig, segment->start);
-			listAppend(list2, edge->to);
-			//right side of the chain
-			segment = chain->nLink->segments->list[0];
-			edge = getContainingBlackEdge(pinchGraph, segment->contig, segment->start);
-			listAppend(list2, edge->from);
-			//adjacency component
-			for(j=0; j<list2->length; j++) {
-				vertex = list2->list[j];
-				adjacencyComponent = hashtable_search(hash, vertex);
-#ifdef BEN_DEBUG
-				assert(adjacencyComponent != NULL);
-#endif
-				if(listContains(chain->adjacencyComponents, adjacencyComponent) == FALSE) {
-					listAppend(chain->adjacencyComponents, adjacencyComponent);
-#ifdef BEN_DEBUG
-					k++;
-					for(l=0; l<adjacencyComponent->length; l++) {
-						vertex2 = adjacencyComponent->list[l];
-						assert(listContains(list2, vertex2) == TRUE);
-					}
-#endif
-				}
-			}
-			destructList(list2);
-			chain = chain->nLink;
-		}
-#ifdef BEN_DEBUG
-		assert(chain->subChains->length == 0);
-#endif
-	}
-	destructList(list);
-
-	list2 = addAdjacencyComponentsP(net->chains, pinchGraph);
-	listAppend(list2, pinchGraph->vertices->list[0]);
-	for(j=0; j<list2->length; j++) {
-		vertex = list2->list[j];
-		adjacencyComponent = hashtable_search(hash, vertex);
-#ifdef BEN_DEBUG
-		assert(adjacencyComponent != NULL);
-#endif
-		if(listContains(net->adjacencyComponents, adjacencyComponent) == FALSE) {
-			listAppend(net->adjacencyComponents, adjacencyComponent);
-#ifdef BEN_DEBUG
-			k++;
-			for(l=0; l<adjacencyComponent->length; l++) {
-				vertex2 = adjacencyComponent->list[l];
-				assert(listContains(list2, vertex2) == TRUE);
-			}
-#endif
-		}
-	}
-	destructList(list2);
-
-#ifdef BEN_DEBUG
-	assert(k == adjacencyComponents->length);
-#endif
-
-	hashtable_destroy(hash, FALSE, FALSE);
+void net_destructSequenceIterator(Net_SequenceIterator *sequenceIterator) {
+	iterator_destruct(sequenceIterator);
 }
 
-int32_t isAStubAdjacencyComponent(struct List *adjacencyComponent) {
-	int32_t i;
-	struct PinchVertex *vertex;
-
-	for(i=0; i<adjacencyComponent->length; i++) {
-		vertex = adjacencyComponent->list[i];
-		if(vertex->vertexID == 0) {
-#ifdef BEN_DEBUG
-			int32_t j;
-			for(j=0; j<adjacencyComponent->length; j++) {
-				vertex = adjacencyComponent->list[j];
-				if(vertex->vertexID != 0) {
-					assert(lengthBlackEdges(vertex) > 0);
-					assert(isAStubOrCap(getFirstBlackEdge(vertex)));
-				}
-			}
-#endif
-			return TRUE;
-		}
-		assert(lengthBlackEdges(vertex) > 0);
-		if(isAStubOrCap(getFirstBlackEdge(vertex)) && lengthGreyEdges(vertex) == 0) {
-#ifdef BEN_DEBUG
-			assert(adjacencyComponent->length == 1);
-#endif
-			return TRUE;
-		}
-	}
-
-	return FALSE;
+End *net_getFirstEnd(Net *net) {
+	return sortedSet_getFirst(net->ends);
 }
 
-struct List *processAdjacencyComponents(struct List *adjacencyComponents) {
-	struct List *list;
-	int32_t i;
-
-	list = constructEmptyList(0, adjacencyComponents->destructElement);
-	for(i=0; i<adjacencyComponents->length; i++) {
-		if(isAStubAdjacencyComponent(adjacencyComponents->list[i]) == FALSE) {
-			listAppend(list, adjacencyComponents->list[i]);
-		}
-		else {
-			destructList(adjacencyComponents->list[i]);
-		}
-	}
-	adjacencyComponents->destructElement = NULL;
-	destructList(adjacencyComponents);
-	return list;
+End *net_getEnd(Net *net, const char *name) {
+	static End end;
+	end.name = (char *)name;
+	return sortedSet_find(net->ends, &end);
 }
 
-void removeStubAdjacencyComponents(struct Net *net) {
-	/*
-	 * Removes adjacency components from the net which contain the invisible ends of stubs/caps.
-	 */
-	struct List *list;
-	int32_t i;
-	struct Chain *chain;
-#ifdef BEN_DEBUG
-	int32_t j;
-#endif
-
-	list = constructEmptyList(0, NULL);
-	flattenChainList(net->chains, list);
-	net->adjacencyComponents = processAdjacencyComponents(net->adjacencyComponents);
-
-#ifdef BEN_DEBUG
-	i = net->adjacencyComponents->length;
-	listRemoveDuplicates(net->adjacencyComponents);
-	assert(i == net->adjacencyComponents->length);
-#endif
-
-	for(i=0; i<list->length; i++) {
-		chain = list->list[i];
-		while(chain->nLink != NULL) {
-			chain->adjacencyComponents = processAdjacencyComponents(chain->adjacencyComponents);
-
-#ifdef BEN_DEBUG
-			j = chain->adjacencyComponents->length;
-			listRemoveDuplicates(chain->adjacencyComponents);
-			assert(j == chain->adjacencyComponents->length);
-#endif
-
-			chain = chain->nLink;
-		}
+EndInstance *net_getEndInstance(Net *net, const char *completeName) {
+	End *end;
+	end = net_getEnd(net, netMisc_getElementNameStatic(completeName));
+	if(end != NULL) { //if null we'll make the adjacency when the other end is parsed.
+		return end_getInstance(end, netMisc_getInstanceNameStatic(completeName));
 	}
-	destructList(list);
+	return NULL;
 }
 
-void addEndsP(struct List *adjacencyComponents, struct List *chains, struct List *ends, struct List *parentEnds) {
-	int32_t i, j;
-	struct Chain *chain;
-	struct PinchVertex *vertex;
-	struct List *list;
-
-	logDebug("Adding ends to this link of the net\n");
-
-	//find the child ends recursively first
-	for(i=0; i<chains->length; i++) {
-		chain = chains->list[i];
-		while(chain->nLink != NULL) {
-			addEndsP(chain->adjacencyComponents, chain->subChains, chain->ends, ends);
-			chain = chain->nLink;
-		}
-	}
-
-	logDebug("Got child ends recursively\n");
-
-	//now add the adjacency components
-	for(i=0; i<adjacencyComponents->length; i++) {
-		list = adjacencyComponents->list[i];
-		for(j=0; j<list->length; j++) {
-			vertex = list->list[j];
-#ifdef BEN_DEBUG
-			assert(lengthBlackEdges(vertex) > 0);
-#endif
-			if(isAStubOrCap(getFirstBlackEdge(vertex))) {
-				listAppend(ends, vertex);
-			}
-		}
-	}
-
-#ifdef BEN_DEBUG
-	i = ends->length;
-	listRemoveDuplicates(ends);
-	assert(i == ends->length);
-#endif
-
-	logDebug("Added the adjacency components\n");
-	//now filter the stubs for the parent
-	for(i=0; i<ends->length; i++) {
-		vertex = ends->list[i];
-#ifdef BEN_DEBUG
-		assert(lengthBlackEdges(vertex) > 0);
-		assert(isAStubOrCap(getFirstBlackEdge(vertex)) == TRUE);
-#endif
-		listAppend(parentEnds, vertex);
-	}
-
-	logDebug("Added the ends to this bit of the net\n");
+int32_t net_getEndNumber(Net *net) {
+	return sortedSet_getLength(net->ends);
 }
 
-void addEnds(struct Net *net) {
-	/*
-	 * Adds the ends pertinent to each link + base of the net.
-	 * This allows us to trace the set of strings associated with each link + the base.
-	 *
-	 */
-	struct List *list;
+Net_EndIterator *net_getEndIterator(Net *net) {
+	return iterator_construct(net->ends);
+}
 
-	logDebug("Starting to add ends to net\n");
+End *net_getNextEnd(Net_EndIterator *endIterator) {
+	return iterator_getNext(endIterator);
+}
 
-	list = constructEmptyList(0, NULL);
-	addEndsP(net->adjacencyComponents, net->chains, net->ends, list);
-	destructList(list);
+End *net_getPreviousEnd(Net_EndIterator *endIterator) {
+	return iterator_getPrevious(endIterator);
+}
 
-	logDebug("Finished adding ends to net\n");
+Net_EndIterator *net_copyEndIterator(Net_EndIterator *endIterator) {
+	return iterator_copy(endIterator);
+}
+
+void net_destructEndIterator(Net_EndIterator *endIterator) {
+	iterator_destruct(endIterator);
+}
+
+Atom *net_getFirstAtom(Net *net) {
+	return sortedSet_getFirst(net->atoms);
+}
+
+Atom *net_getAtom(Net *net, const char *name) {
+	static Atom atom;
+	static struct AtomContents atomContents;
+	atom.atomContents = &atomContents;
+	atomContents.name = (char *)name;
+	return sortedSet_find(net->atoms, &atom);
+}
+
+AtomInstance *net_getAtomInstance(Net *net, const char *completeName) {
+	Atom *atom;
+	atom = net_getAtom(net, netMisc_getElementNameStatic(completeName));
+	if(atom != NULL) { //if null we'll make the adjacency when the other end is parsed.
+		return atom_getInstance(atom, netMisc_getInstanceNameStatic(completeName));
+	}
+	return NULL;
+}
+
+int32_t net_getAtomNumber(Net *net) {
+	return sortedSet_getLength(net->atoms);
+}
+
+Net_AtomIterator *net_getAtomIterator(Net *net) {
+	return iterator_construct(net->atoms);
+}
+
+Atom *net_getNextAtom(Net_AtomIterator *atomIterator) {
+	return iterator_getNext(atomIterator);
+}
+
+Atom *net_getPreviousAtom(Net_AtomIterator *atomIterator) {
+	return iterator_getPrevious(atomIterator);
+}
+
+Net_AtomIterator *net_copyAtomIterator(Net_AtomIterator *atomIterator) {
+	return iterator_copy(atomIterator);
+}
+
+void net_destructAtomIterator(Net_AtomIterator *atomIterator) {
+	iterator_destruct(atomIterator);
+}
+
+AdjacencyComponent *net_getFirstAdjacencyComponent(Net *net) {
+	return sortedSet_getFirst(net->adjacencyComponents);
+}
+
+AdjacencyComponent *net_getAdjacencyComponent(Net *net, const char *netName) {
+	static AdjacencyComponent adjacencyComponent;
+	adjacencyComponent.nestedNetName = (char *)netName;
+	return sortedSet_find(net->adjacencyComponents, &adjacencyComponent);
+}
+
+int32_t net_getAdjacencyComponentNumber(Net *net) {
+	return sortedSet_getLength(net->adjacencyComponents);
+}
+
+Net_AdjacencyComponentIterator *net_getAdjacencyComponentIterator(Net *net) {
+	return iterator_construct(net->adjacencyComponents);
+}
+
+AdjacencyComponent *net_getNextAdjacencyComponent(Net_AdjacencyComponentIterator *adjacencyComponentIterator) {
+	return iterator_getNext(adjacencyComponentIterator);
+}
+
+AdjacencyComponent *net_getPreviousAdjacencyComponent(Net_AdjacencyComponentIterator *adjacencyComponentIterator) {
+	return iterator_getPrevious(adjacencyComponentIterator);
+}
+
+Net_AdjacencyComponentIterator *net_copyAdjacencyComponentIterator(Net_AdjacencyComponentIterator *adjacencyComponentIterator) {
+	return iterator_copy(adjacencyComponentIterator);
+}
+
+void net_destructAdjacencyComponentIterator(Net_AdjacencyComponentIterator *adjacencyComponentIterator) {
+	iterator_destruct(adjacencyComponentIterator);
+}
+
+AdjacencyComponent *net_getParentAdjacencyComponent(Net *net) {
+	Net *net2;
+	net2 = netDisk_getNet(net_getNetDisk(net), net->parentNetName);
+	return net_getAdjacencyComponent(net2, net_getName(net));
+}
+
+Chain *net_getFirstChain(Net *net) {
+	return sortedSet_getFirst(net->chains);
+}
+
+Chain *net_getChain(Net *net, int32_t index) {
+	static Chain chain;
+	chain.chainIndex = index;
+	return sortedSet_find(net->chains, &chain);
+}
+
+int32_t net_getChainNumber(Net *net) {
+	return sortedSet_getLength(net->chains);
+}
+
+Net_ChainIterator *net_getChainIterator(Net *net) {
+	return iterator_construct(net->chains);
+}
+
+Chain *net_getNextChain(Net_ChainIterator *chainIterator) {
+	return iterator_getNext(chainIterator);
+}
+
+Chain *net_getPreviousChain(Net_ChainIterator *chainIterator) {
+	return iterator_getPrevious(chainIterator);
+}
+
+Net_ChainIterator *net_copyChainIterator(Net_ChainIterator *chainIterator) {
+	return iterator_copy(chainIterator);
+}
+
+void net_destructChainIterator(Net_ChainIterator *chainIterator) {
+	iterator_destruct(chainIterator);
+}
+
+Operation *net_getFirstOperation(Net *net) {
+	return sortedSet_getFirst(net->operations);
+}
+
+Operation *net_getOperation(Net *net, int32_t index) {
+	static Operation operation;
+	operation.index = index;
+	return sortedSet_find(net->operations, &operation);
+}
+
+int32_t net_getOperationNumber(Net *net) {
+	return sortedSet_getLength(net->operations);
+}
+
+Net_OperationIterator *net_getOperationIterator(Net *net) {
+	return iterator_construct(net->operations);
+}
+
+Operation *net_getNextOperation(Net_OperationIterator *operationIterator) {
+	return iterator_getNext(operationIterator);
+}
+
+Operation *net_getPreviousOperation(Net_OperationIterator *operationIterator) {
+	return iterator_getPrevious(operationIterator);
+}
+
+Net_OperationIterator *net_copyOperationIterator(Net_OperationIterator *operationIterator) {
+	return iterator_copy(operationIterator);
+}
+
+void net_destructOperationIterator(Net_OperationIterator *operationIterator) {
+	iterator_destruct(operationIterator);
+}
+
+/*
+ * Private functions
+ */
+
+void net_addEventTree(Net *net, EventTree *eventTree) {
+	net->eventTree = eventTree;
+}
+
+void net_addSequence(Net *net, Sequence *sequence) {
+	sortedSet_insert(net->sequences, sequence);
+}
+
+void net_removeSequence(Net *net, Sequence *sequence) {
+	sortedSet_delete(net->sequences, sequence);
+}
+
+void net_addEnd(Net *net, End *end) {
+	sortedSet_insert(net->ends, end);
+}
+
+void net_removeEnd(Net *net, End *end) {
+	sortedSet_delete(net->ends, end);
+}
+
+void net_addAtom(Net *net, Atom *atom) {
+	sortedSet_insert(net->atoms, atom);
+}
+
+void net_removeAtom(Net *net, Atom *atom) {
+	sortedSet_delete(net->atoms, atom);
+}
+
+void net_addChain(Net *net, Chain *chain) {
+	chain_setIndex(chain, net->chainIndex++);
+	sortedSet_insert(net->chains, chain);
+}
+
+void net_removeChain(Net *net, Chain *chain) {
+	sortedSet_delete(net->chains, chain);
+}
+
+void net_addAdjacencyComponent(Net *net, AdjacencyComponent *adjacencyComponent) {
+	sortedSet_insert(net->adjacencyComponents, adjacencyComponent);
+}
+
+void net_removeAdjacencyComponent(Net *net, AdjacencyComponent *adjacencyComponent) {
+	sortedSet_delete(net->adjacencyComponents, adjacencyComponent);
+}
+
+void net_setParentAdjacencyComponent(Net *net, AdjacencyComponent *adjacencyComponent) {
+	net->parentNetName = stringCopy(net_getName(adjacencyComponent_getNet(adjacencyComponent)));
+}
+
+void net_addOperation(Net *net, Operation *operation) {
+	operation_setIndex(operation, net_getOperationNumber(net));
+	sortedSet_insert(net->operations, operation);
+}
+
+void net_removeOperation(Net *net, Operation *operation) {
+	sortedSet_delete(net->operations, operation);
 }
 
 ////////////////////////////////////////////////
 ////////////////////////////////////////////////
 ////////////////////////////////////////////////
-//Choosing which atoms in the chains to keep.
+//Basic net disk functions.
 ////////////////////////////////////////////////
 ////////////////////////////////////////////////
 ////////////////////////////////////////////////
 
-struct ContigEventSet *constructContigEventSet() {
-	struct ContigEventSet *contigEventSet;
-
-	contigEventSet = malloc(sizeof(struct ContigEventSet));
-	contigEventSet->contigs = create_hashtable(0,
-			hashtable_stringHashKey, hashtable_stringEqualKey,
-			free, NULL);
-	contigEventSet->event = NULL;
-	contigEventSet->branchLength = 0.0;
-
-	return contigEventSet;
+int32_t netDisk_constructNetsP(const void *o1, const void *o2, void *a) {
+	return strcmp(net_getName((Net *)o1), net_getName((Net *)o2));
 }
 
-void destructContigEventSet(struct ContigEventSet *contigEventSet) {
-	hashtable_destroy(contigEventSet->contigs, FALSE, TRUE);
-	free(contigEventSet->event);
-	free(contigEventSet);
+int32_t netDisk_constructMetaSequencesP(const void *o1, const void *o2, void *a) {
+	return strcmp(metaSequence_getName((MetaSequence *)o1), metaSequence_getName((MetaSequence *)o2));
 }
 
-//first get tree covering score for each atom -
-//drop all atoms with score less than X.
-//accept chains whose remaining element's combined length is greater than a set length.
+NetDisk *netDisk_construct(const char *netDiskFile) {
+	NetDisk *netDisk;
+	netDisk = malloc(sizeof(NetDisk));
 
-float treeCoverage(struct Chain *chain, struct List *nodeSets,
-		struct List *contigIndexToContigStrings, struct PinchGraph *pinchGraph) {
-	/*
-	 * Returns the proportion of the tree covered by the atom.
-	 */
-	int32_t i, j, k;
-	struct ContigEventSet *contigEventSet;
-	struct Segment *segment;
-	float treeCoverage = 0.0;
-	float totalTreeBranchLength = 0.0;
+	//construct lists of in memory objects
+	netDisk->metaSequences = sortedSet_construct(netDisk_constructMetaSequencesP);
+	netDisk->nets = sortedSet_construct(netDisk_constructNetsP);
+
+	//open the sequences database
+	netDisk->metaSequencesDatabase = database_construct(netDisk->metaSequencesDatabaseName);
+	netDisk->netsDatabase = database_construct(netDisk->netsDatabaseName);
+
+	return netDisk;
+}
+
+void netDisk_destruct(NetDisk *netDisk){
+	Net *net;
+
+	while((net = netDisk_getFirstNetInMemory(netDisk)) != NULL) {
+		net_destruct(net, FALSE);
+	}
+	sortedSet_destruct(netDisk->nets, NULL);
+
+	sortedSet_destruct(netDisk->metaSequences, NULL);
+
+	//close DBs
+	database_destruct(netDisk->metaSequencesDatabase);
+	database_destruct(netDisk->netsDatabase);
+
+	free(netDisk);
+}
+
+int32_t netDisk_write(NetDisk *netDisk){
+	NetDisk_NetIterator *netIterator;
+	struct avl_traverser *metaSequenceIterator;
 	char *cA;
+	Net *net;
+	MetaSequence *metaSequence;
+	int32_t ecode;
 
+	netIterator = netDisk_getNetInMemoryIterator(netDisk);
+	while((net = netDisk_getNextNet(netIterator)) != NULL) {
+		cA = netMisc_makeBinaryRepresentation(net,
+				(void (*)(void *, void (*)(const char *string, ...)))net_writeBinaryRepresentation);
+		if((ecode = database_writeRecord(netDisk->netsDatabase, net_getName(net), cA)) != 0) {
+			return ecode;
+		}
+		free(cA);
+	}
+	netDisk_destructNetIterator(netIterator);
+
+	metaSequenceIterator = iterator_construct(netDisk->metaSequences);
+	while((metaSequence = iterator_getNext(metaSequenceIterator)) != NULL) {
+		cA = netMisc_makeBinaryRepresentation(metaSequence,
+				(void (*)(void *, void (*)(const char *string, ...)))metaSequence_writeBinaryRepresentation);
+		if((ecode = database_writeRecord(netDisk->metaSequencesDatabase, metaSequence_getName(metaSequence), cA)) != 0) {
+			return ecode;
+		}
+		free(cA);
+	}
+	iterator_destruct(metaSequenceIterator);
+	return 0;
+}
+
+void *netDisk_getObject(NetDisk *netDisk, TCBDB *database, void *(*getObjectInMemory)(NetDisk *, const char *),
+		void *(*loadFromBinaryRepresentation)(char **, NetDisk *), const char *objectName) {
+	char *cA;
+	char *cA2;
+	void *object;
+
+	//try in memory list first.
+	if((object = getObjectInMemory(netDisk, objectName)) != NULL) {
+		return object;
+	}
+	//else try the database.
+	cA = database_getRecord(database, objectName);
+	if(cA == NULL) {
+		return NULL;
+	}
+	else {
+		cA2 = cA;
+		object = loadFromBinaryRepresentation(&cA2, netDisk);
+		free(cA);
+		return object;
+	}
+}
+
+Net *netDisk_getNet(NetDisk *netDisk, const char *netName) {
+	return netDisk_getObject(netDisk, netDisk->netsDatabase,
+			(void *(*)(NetDisk *, const char *))netDisk_getNetInMemory,
+			(void *(*)(char **, NetDisk *))net_loadFromBinaryRepresentation, netName);
+}
+
+int32_t netDisk_getNetNumberOnDisk(NetDisk *netDisk) {
+	return database_getNumberOfRecords(netDisk->netsDatabase);
+}
+
+NetDisk_NetNameIterator *netDisk_getNetNameIterator(NetDisk *netDisk) {
+	return databaseIterator_construct(netDisk->netsDatabase);
+}
+
+const char *netDisk_getNextNetName(NetDisk_NetNameIterator *netIterator) {
+	return databaseIterator_getNext(netIterator);
+}
+
+void netDisk_destructNetNameIterator(NetDisk_NetNameIterator *netIterator) {
+	databaseIterator_destruct(netIterator);
+}
+
+Net *netDisk_getNetInMemory(NetDisk *netDisk, const char *netName) {
+	static Net net;
+	net.name = (char *)netName;
+	return sortedSet_find(netDisk->nets, &net);
+}
+
+Net *netDisk_getFirstNetInMemory(NetDisk *netDisk) {
+	return sortedSet_getFirst(netDisk->nets);
+}
+
+int32_t netDisk_getNetNumberInMemory(NetDisk *netDisk) {
+	return sortedSet_getLength(netDisk->nets);
+}
+
+NetDisk_NetIterator *netDisk_getNetInMemoryIterator(NetDisk *netDisk) {
+	return iterator_construct(netDisk->nets);
+}
+
+Net *netDisk_getNextNet(NetDisk_NetIterator *netIterator) {
+	return iterator_getNext(netIterator);
+}
+
+Net *netDisk_getPreviousNet(NetDisk_NetIterator *netIterator) {
+	return iterator_getPrevious(netIterator);
+}
+
+NetDisk_NetIterator *netDisk_copyNetIterator(NetDisk_NetIterator *netIterator) {
+	return iterator_copy(netIterator);
+}
+
+void netDisk_destructNetIterator(NetDisk_NetIterator *netIterator) {
+	iterator_destruct(netIterator);
+}
+
+/*
+ * Private functions.
+ */
+
+void netDisk_addNet(NetDisk *netDisk, Net *net) {
+	assert(netDisk_getNet(netDisk, net_getName(net)) == NULL);
+	sortedSet_insert(netDisk->nets, net);
+}
+
+int32_t netDisk_deleteNetFromDisk(NetDisk *netDisk, const char *netName) {
+	return database_removeRecord(netDisk->netsDatabase, netName);
+}
+
+void netDisk_unloadNet(NetDisk *netDisk, Net *net) {
+	assert(netDisk_getNetInMemory(netDisk, net_getName(net)) != NULL);
+	sortedSet_delete(netDisk->nets, net);
+}
+
+void netDisk_addMetaSequence(NetDisk *netDisk, MetaSequence *metaSequence) {
 #ifdef BEN_DEBUG
-	assert(!isAStubOrCapChain(chain, pinchGraph));
+	assert(netDisk_getMetaSequence(netDisk, metaSequence_getName(metaSequence)) == NULL);
 #endif
-	for(i=0; i<nodeSets->length; i++) {
-		contigEventSet = nodeSets->list[i];
-		totalTreeBranchLength += contigEventSet->branchLength;
-		k = 0;
-		for(j=0; j<chain->segments->length; j++) {
-			segment = chain->segments->list[j];
+	sortedSet_insert(netDisk->metaSequences, metaSequence);
+}
+
+int32_t netDisk_deleteMetaSequenceFromDisk(NetDisk *netDisk, const char *metaSequenceName) {
+	return database_removeRecord(netDisk->metaSequencesDatabase, metaSequenceName);
+}
+
+void netDisk_unloadMetaSequence(NetDisk *netDisk, MetaSequence *metaSequence) {
+	sortedSet_delete(netDisk->metaSequences, metaSequence);
+}
+
+MetaSequence *netDisk_getMetaSequenceInMemory(NetDisk *netDisk, const char *metaSequenceName) {
+	static MetaSequence metaSequence;
+	metaSequence.name = (void *)metaSequenceName;
+	return sortedSet_find(netDisk->metaSequences, &metaSequence);
+}
+
+MetaSequence *netDisk_getMetaSequence(NetDisk *netDisk, const char *metaSequenceName) {
+return netDisk_getObject(netDisk, netDisk->netsDatabase,
+		(void *(*)(NetDisk *, const char *))netDisk_getMetaSequenceInMemory,
+		(void *(*)(char **, NetDisk *))metaSequence_loadFromBinaryRepresentation, metaSequenceName);
+}
+
+////////////////////////////////////////////////
+////////////////////////////////////////////////
+////////////////////////////////////////////////
+//Useful utility functions.
+////////////////////////////////////////////////
+////////////////////////////////////////////////
+////////////////////////////////////////////////
+
+char *netMisc_getInstanceName(const char *completeName) {
+	char *cA;
+	char *cA2;
+	char *cA3;
 #ifdef BEN_DEBUG
-			assert(segment->contig < contigIndexToContigStrings->length);
+	assert(completeName != NULL);
 #endif
-			cA = contigIndexToContigStrings->list[segment->contig];
-			if(hashtable_search(contigEventSet->contigs, cA) != NULL) {
-				k += 1;
-			}
-		}
-		if(k == chain->segments->length) {
-			treeCoverage = 0.0; //reset as all segments must be contained within children of this node
-		}
-		else if(k > 0) {
-			treeCoverage += contigEventSet->branchLength;
-		}
+	cA = stringCopy(completeName);
+	cA2 = cA;
+#ifdef BEN_DEBUG
+	assert(strlen(cA2) > 0);
+#endif
+	while(cA2[0] != '.') {
+		cA2++;
+#ifdef BEN_DEBUG
+		assert(strlen(cA2) > 0);
+#endif
 	}
 #ifdef BEN_DEBUG
-	assert(chain->segments->length > 0);
-	assert(treeCoverage >= 0);
-	assert(treeCoverage <= totalTreeBranchLength);
+	assert(cA2[0] == '.');
 #endif
-	return treeCoverage/totalTreeBranchLength;
+	cA3 = stringCopy(cA2+1);
+	free(cA);
+	return cA3;
 }
 
-float atomScore(struct Chain *chain, struct List *nodeSets,
-				struct List *contigIndexToContigStrings, struct PinchGraph *pinchGraph) {
-	struct Segment *segment = chain->segments->list[0];
-	return (segment->end - segment->start + 1) * treeCoverage(chain, nodeSets, contigIndexToContigStrings, pinchGraph);
-}
-
-int32_t chainScore(struct Chain *chain, struct List *nodeSets,
-		struct List *contigIndexToContigStrings, struct PinchGraph *pinchGraph) {
-	/*
-	 * Gets the 'length' of the chain, including only those atoms in the chain that are
-	 * true according to the 'includeAtom' function.
-	 *
-	 * Length is total length of atoms (all sequences in an atom have the same length).
-	 */
-	int32_t totalScore = 0;
-
-	while(chain != NULL) {
-		if(!isAStubOrCapChain(chain, pinchGraph)) {
-			totalScore += atomScore(chain, nodeSets, contigIndexToContigStrings, pinchGraph);
-		}
-		chain = chain->nLink;
+static char *netMisc_getInstanceNameStatic_instanceName = NULL;
+const char *netMisc_getInstanceNameStatic(const char *completeName) {
+	if(netMisc_getInstanceNameStatic_instanceName != NULL) {
+		free(netMisc_getInstanceNameStatic_instanceName);
 	}
-	return totalScore;
+	netMisc_getInstanceNameStatic_instanceName = netMisc_getInstanceName(completeName);
+	return netMisc_getInstanceNameStatic_instanceName;
 }
 
-int
-compareFloats (const float *a, const float *b)
-{
-  return (int) (*a - *b);
-}
-
-int32_t chainLength(struct Chain *chain, int32_t includeStubs, struct PinchGraph *pinchGraph) {
-	/*
-	 * Get the number of links in the chain.
-	 */
-	int32_t i = 0;
-	while(chain != NULL) {
-		if(includeStubs || !isAStubOrCapChain(chain, pinchGraph)) {
-			i++;
-		}
-		chain = chain->nLink;
-	}
-	return i;
-}
-
-int32_t chainBaseLength(struct Chain *chain, struct PinchGraph *pinchGraph) {
-	/*
-	 * Get the number of links in the chain.
-	 */
-	int32_t i = 0;
-	struct Segment *segment;
-	while(chain != NULL) {
-		if(!isAStubOrCapChain(chain, pinchGraph)) {
-			segment = chain->segments->list[0];
-			i += segment->end - segment->start + 1;
-		}
-		chain = chain->nLink;
-	}
-	return i;
-}
-
-void filterAtomsByTreeCoverageAndLength(struct List *chainsList,
-		struct List *chosenAtoms,
-		struct List *nodeSets,
-		float proportionToKeep, /*Proportion of all atoms to select to keep*/
-		float discardRatio, /*The proportion of an atom's chain's average atom score required to be score to be considered */
-		float minimumTreeCoverage, /*Minimum tree coverage to be included */
-		int32_t minimumChainLength, /* Minimum chain length to be included */
-		struct PinchGraph *pinchGraph,
-		struct List *contigIndexToContigStrings) {
-	/*
-	 * Filters atoms in chains by length and tree coverage score.
-	 *
-	 * Returns a list of all accepted atoms.
-	 */
+char *netMisc_getElementName(const char *completeName) {
+	char *cA2;
 	int32_t i;
-	struct Chain *chain;
-	float *fA;
-	float minScore;
-	float minAtomScore;
-	float f;
+
+	cA2 = (char *)mallocLocal(sizeof(char)*(strlen(completeName)+1));
+
+	i=0;
+	while(completeName[i] != '.' && completeName[i] != '\0') {
+		cA2[i] = completeName[i];
+		i++;
+	}
 
 #ifdef BEN_DEBUG
-	assert(proportionToKeep <= 1.0);
-	assert(proportionToKeep >= 0.0);
-	assert(discardRatio >= 0.0);
+	assert(i <= (int32_t)strlen(completeName));
 #endif
 
-	///////////////
-	//Calculate the minimum score to be kept.
-	///////////////
-	fA = mallocLocal(sizeof(float)*chainsList->length);
-	for(i=0; i<chainsList->length; i++) {
-		chain = chainsList->list[i];
-		fA[i] = chainScore(chain, nodeSets, contigIndexToContigStrings, pinchGraph);
-	}
-	qsort(fA, chainsList->length, sizeof(float),
-			(int (*)(const void *v, const void *))compareFloats);
-	i = (1.0 - proportionToKeep)*chainsList->length;
-	minScore = i < chainsList->length ? fA[i] : 10000000000000.0;
-	logInfo("The minimum chain score to be kept is %f and %f \n", minScore, proportionToKeep);
-	free(fA);
-
-	///////////////
-	//Gets those atoms whose chain meet the minimum score and have at
-	///////////////
-
-	for(i=0; i<chainsList->length; i++) {
-		chain = chainsList->list[i];
-		f = chainScore(chain, nodeSets, contigIndexToContigStrings, pinchGraph);
-		if(f >= minScore && chainBaseLength(chain, pinchGraph) >= minimumChainLength) {
-			minAtomScore = (minScore / chainLength(chain, FALSE, pinchGraph)) * discardRatio;
-			while(chain != NULL) {
-				if(!isAStubOrCapChain(chain, pinchGraph)) {
-					if(treeCoverage(chain, nodeSets, contigIndexToContigStrings, pinchGraph) >= minimumTreeCoverage &&
-						atomScore(chain, nodeSets, contigIndexToContigStrings, pinchGraph) >= minAtomScore) {
-						listAppend(chosenAtoms, chain);
-					}
-				}
-				chain = chain->nLink;
-			}
-		}
-	}
+	cA2[i] = '\0';
+	return cA2;
 }
 
-void filterAtomsByIfStubOrCap(struct List *chainsList,
-		struct List *chosenAtoms, struct PinchGraph *pinchGraph) {
-	/*
-	 * Adds all chains which represent either stubs or caps to the list of chosen atoms.
-	 */
-	int32_t i;
-	struct Chain *chain;
-
-	for(i=0; i<chainsList->length; i++) {
-		chain = (struct Chain *)chainsList->list[i];
-		while(chain != NULL) {
-			if(isAStubOrCapChain(chain, pinchGraph)) {
-				listAppend(chosenAtoms, chain);
-			}
-			chain = chain->nLink;
-		}
+static char *netMisc_getElementNameStatic_elementName = NULL;
+const char *netMisc_getElementNameStatic(const char *completeName) {
+	if(netMisc_getElementNameStatic_elementName != NULL) {
+		free(netMisc_getElementNameStatic_elementName);
 	}
+	netMisc_getElementNameStatic_elementName = netMisc_getElementName(completeName);
+	return netMisc_getElementNameStatic_elementName;
 }
 
-void logTheChosenAtomSubset(struct List *allAtoms, struct List *chosenAtoms, struct PinchGraph *pinchGraph,
-		struct List *nodeSets, struct List *contigIndexToContigStrings) {
+char *netMisc_makeCompleteName(const char *elementName, const char *instanceName) {
+	char *cA;
+	cA = malloc(sizeof(char) * (strlen(elementName) + strlen(instanceName) + 2));
+	sprintf(cA, "%s.%s", elementName, instanceName);
+	return cA;
+}
+
+static char *netMisc_makeCompleteNameStatic_completeName = NULL;
+const char *netMisc_makeCompleteNameStatic(const char *elementName, const char *instanceName) {
+	if(netMisc_makeCompleteNameStatic_completeName != NULL) {
+		free(netMisc_makeCompleteNameStatic_completeName);
+	}
+	netMisc_makeCompleteNameStatic_completeName = netMisc_makeCompleteName(elementName, instanceName);
+	return netMisc_makeCompleteNameStatic_completeName;
+}
+
+/*
+ * Private utility functions.
+ */
+
+char netMisc_makeBinaryRepresentationP_cA[100000];
+int32_t netMisc_makeBinaryRepresentationP_i = 0;
+void netMisc_makeBinaryRepresentationP(const char *string, ...) {
 	/*
-	 * Produces logging information about the chosen atoms.
+	 * Records the cummulative size of the substrings written out in creating the net.
 	 */
-	int32_t i, j;
-	struct Chain *chain;
-	struct Segment *segment;
-	float totalAtomScore = 0.0;
-	float totalAtomLength = 0.0;
-	float totalBaseLengthOfAllAtoms = 0.0;
-	float totalNumberOfAllAtoms = 0.0;
-	float totalNumberOfStubAtoms = 0.0;
-	float averageSegmentNumber = 0.0;
-	float averageSegmentNumberOfAllAtoms = 0.0;
-	for(i=0; i<allAtoms->length; i++) {
-		chain = allAtoms->list[i];
-		totalBaseLengthOfAllAtoms += chainBaseLength(chain, pinchGraph);
-		totalNumberOfAllAtoms += chainLength(chain, FALSE, pinchGraph);
-		totalNumberOfStubAtoms += chainLength(chain, TRUE, pinchGraph) - chainLength(chain, FALSE, pinchGraph);
-		while(chain != NULL) {
-			if(!isAStubOrCapChain(chain, pinchGraph)) {
-				averageSegmentNumberOfAllAtoms += chain->segments->length;
-			}
-			chain = chain->nLink;
-		}
-	}
-	j = 0;
-	for(i=0; i<chosenAtoms->length; i++) {
-		chain = chosenAtoms->list[i];
-		if(!isAStubOrCapChain(chain, pinchGraph)) {
-			totalAtomScore += treeCoverage(chain, nodeSets, contigIndexToContigStrings, pinchGraph);
-			segment = chain->segments->list[0];
-			totalAtomLength += segment->end - segment->start + 1;
-			averageSegmentNumber += chain->segments->length;
-			j++;
-		}
-	}
-	logInfo("Chosen atom subset composed of %i atoms, of average length %f and average tree coverage %f, total base length of all atoms: %f, total number of all atoms %f, average length of all atoms: %f, total number of stub atoms: %f, average segment number of chosen atoms: %f, average segment number of all atoms: %f\n",
-				chosenAtoms->length, totalAtomLength/j, totalAtomScore/j, totalBaseLengthOfAllAtoms, totalNumberOfAllAtoms, totalBaseLengthOfAllAtoms/totalNumberOfAllAtoms, totalNumberOfStubAtoms, averageSegmentNumber/j, averageSegmentNumberOfAllAtoms/totalNumberOfAllAtoms);
+	//return;
+    va_list ap;
+    va_start(ap, string);
+    sprintf(netMisc_makeBinaryRepresentationP_cA, string, ap);
+    netMisc_makeBinaryRepresentationP_i += strlen(netMisc_makeBinaryRepresentationP_cA);
+    va_end(ap);
+}
+
+char *netMisc_makeBinaryRepresentationP2_cA = NULL;
+void netMisc_makeBinaryRepresentationP2(const char *string, ...) {
+	/*
+	 * Cummulates all the sequences into one.
+	 */
+	//return;
+    va_list ap;
+    va_start(ap, string);
+    sprintf(netMisc_makeBinaryRepresentationP2_cA, string, ap);
+    netMisc_makeBinaryRepresentationP2_cA += strlen(netMisc_makeBinaryRepresentationP2_cA);
+    va_end(ap);
+}
+
+char *netMisc_makeBinaryRepresentation(void *object, void (*writeBinaryRepresentation)(void *, void (*writeFn)(const char *string, ...))) {
+	char *cA;
+	netMisc_makeBinaryRepresentationP_i = 0;
+	writeBinaryRepresentation(object, netMisc_makeBinaryRepresentationP);
+	cA = malloc(sizeof(char)*(netMisc_makeBinaryRepresentationP_i + 1));
+	netMisc_makeBinaryRepresentationP2_cA = cA;
+	net_writeBinaryRepresentation(object, netMisc_makeBinaryRepresentationP2);
+	return cA;
 }
