@@ -46,8 +46,6 @@ typedef struct avl_traverser Net_AtomIterator;
 typedef struct avl_traverser Net_AdjacencyComponentIterator;
 typedef struct avl_traverser Net_ChainIterator;
 typedef struct avl_traverser Net_OperationIterator;
-typedef BDBCUR NetDisk_SequenceNameIterator;
-typedef struct avl_traverser NetDisk_SequenceIterator;
 typedef BDBCUR NetDisk_NetNameIterator;
 typedef struct avl_traverser NetDisk_NetIterator;
 
@@ -197,7 +195,12 @@ void eventTree_destructIterator(EventTree_Iterator *iterator);
 /*
  * Constructs a sequence. If the sequence name is already in netDisk, then an assert error is created.
  */
-Sequence *sequence_construct(const char *name, int32_t length, const char *file, const char *eventName, NetDisk *netDisk);
+Sequence *sequence_construct(const char *name, int32_t length, const char *file, Event *event, Net *net);
+
+/*
+ * Copy constructs the sequence, replacing the current event with the event in the net.
+ */
+Sequence *sequence_copyConstruct(Sequence *sequence, Net *newNet);
 
 /*
  * Destructs the sequence.
@@ -215,9 +218,9 @@ int32_t sequence_getLength(Sequence *sequence);
 const char *sequence_getName(Sequence *sequence);
 
 /*
- * Gets the event name associated with the sequence.
+ * Gets the name associated with the sequence.
  */
-const char *sequence_getEventName(Sequence *sequence);
+Event *sequence_getEvent(Sequence *sequence);
 
 /*
  * Gets the file containing the sequence.
@@ -225,14 +228,9 @@ const char *sequence_getEventName(Sequence *sequence);
 const char *sequence_getFile(Sequence *sequence);
 
 /*
- * Creates an XML representation of the sequence, returned as a char string.
+ * Gets the net the sequence is associated with.
  */
-char *sequence_makeXMLRepresentation(Sequence *sequence);
-
-/*
- * Loads a sequence into memory from an XML representation of the sequence.
- */
-Sequence *sequence_loadFromXMLRepresentation(char *xmlString, NetDisk *netDisk);
+Net *sequence_getNet(Sequence *sequence);
 
 ////////////////////////////////////////////////
 ////////////////////////////////////////////////
@@ -344,7 +342,7 @@ EndInstance *endInstance_getChild(EndInstance *endInstance, int32_t index);
 /*
  * Links together a parent and child end instance.
  */
-void endInstance_linkParentAndChild(EndInstance *endInstanceParent, EndInstance *endInstanceChild);
+void endInstance_makeParentAndChild(EndInstance *endInstanceParent, EndInstance *endInstanceChild);
 
 /*
  * Returns non zero if the end instance is internal (part of an internal tree).
@@ -464,9 +462,9 @@ int32_t end_isAtomEnd(End *end);
 ////////////////////////////////////////////////
 
 /*
- * Constructs atom instance with the two end instances. Instance is the suffix m of the instance name n.m.
+ * Constructs atom instance with the two end instances, which must both have the same instance name.
  */
-AtomInstance *atomInstance_construct(const char *instance, Atom *atom,
+AtomInstance *atomInstance_construct(Atom *atom,
 		EndInstance *leftEndInstance, EndInstance *rightEndInstance);
 
 /*
@@ -1111,16 +1109,6 @@ Net_OperationIterator *net_copyOperationIterator(Net_OperationIterator *operatio
  */
 void net_destructOperationIterator(Net_OperationIterator *operationIterator);
 
-/*
- * Creates an XML representation of the net, returned as a char string.
- */
-char *net_makeXMLRepresentation(Net *net);
-
-/*
- * Loads a net into memory from an XML representation of the net.
- */
-Net *net_loadFromXMLRepresentation(char *xmlString, NetDisk *netDisk);
-
 ////////////////////////////////////////////////
 ////////////////////////////////////////////////
 ////////////////////////////////////////////////
@@ -1144,71 +1132,6 @@ void netDisk_destruct(NetDisk *netDisk);
  * Returns 0 for success, non-zero for failure.
  */
 int32_t netDisk_write(NetDisk *netDisk);
-
-/*
- * Gets a sequence the netDisk contains. If the sequence is not in memory it will be loaded. If not in memory or on disk, returns NULL.
- */
-Sequence *netDisk_getSequence(NetDisk *netDisk, const char *sequenceName);
-
-/*
- * Returns the number of sequences on disk.
- */
-int32_t netDisk_getSequenceNumberOnDisk(NetDisk *netDisk);
-
-/*
- * Gets an iterator to iterate through the sequence names currently on disk.
- */
-NetDisk_SequenceNameIterator *netDisk_getSequenceNameIterator(NetDisk *netDisk);
-
-/*
- * Gets the next sequence name from the iterator.
- */
-const char *netDisk_getNextSequenceName(NetDisk_SequenceNameIterator *sequenceIterator);
-
-/*
- * Destructs the iterator.
- */
-void netDisk_destructSequenceNameIterator(NetDisk_SequenceNameIterator *sequenceIterator);
-
-/*
- * Gets a sequence the netDisk contains that is currently in memory. Returns NULL if not in memory.
- */
-Sequence *netDisk_getSequenceInMemory(NetDisk *netDisk, const char *sequenceName);
-
-/*
- * Gets the first sequence in the list of sequences in memory, or returns NULL if the list is empty.
- */
-Sequence *netDisk_getFirstSequenceInMemory(NetDisk *netDisk);
-
-/*
- * Returns the number of sequences currently in memory.
- */
-int32_t netDisk_getSequenceNumberInMemory(NetDisk *netDisk);
-
-/*
- * Gets an iterator to iterate through the sequences currently in memory.
- */
-NetDisk_SequenceIterator *netDisk_getSequenceInMemoryIterator(NetDisk *netDisk);
-
-/*
- * Gets the next sequence from the iterator.
- */
-Sequence *netDisk_getNextSequence(NetDisk_SequenceIterator *sequenceIterator);
-
-/*
- * Gets the previous sequence from the iterator.
- */
-Sequence *netDisk_getPreviousSequence(NetDisk_SequenceIterator *sequenceIterator);
-
-/*
- * Duplicates the iterator.
- */
-NetDisk_SequenceIterator *netDisk_copySequenceIterator(NetDisk_SequenceIterator *sequenceIterator);
-
-/*
- * Destructs the iterator.
- */
-void netDisk_destructSequenceIterator(NetDisk_SequenceIterator *sequenceIterator);
 
 /*
  * Gets a net the netDisk contains. If the net is not in memory it will be loaded. If not in memory or on disk, returns NULL.
