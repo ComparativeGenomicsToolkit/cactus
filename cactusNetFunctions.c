@@ -20,6 +20,30 @@
 ////////////////////////////////////////////////
 ////////////////////////////////////////////////
 
+struct PinchEdge *hookUpEdge(struct Segment *segment, struct PinchGraph *pinchGraph,
+		struct PinchVertex *vertex2, struct PinchVertex *vertex3) {
+	struct PinchEdge *edge;
+
+	edge = constructPinchEdge(segment);
+
+	//Connect up each end of the black edge.
+	vertex2 = constructPinchVertex(pinchGraph, -1);
+	edge->from = vertex2;
+	edge->rEdge->to = vertex2;
+	insertBlackEdge(vertex2, edge);
+
+	vertex3 = constructPinchVertex(pinchGraph, -1);
+	edge->to = vertex3;
+	edge->rEdge->from = vertex3;
+	insertBlackEdge(vertex3, edge->rEdge);
+
+	//Now add segments connected to edges to the graph.
+	avl_insert(pinchGraph->edges, edge);
+	avl_insert(pinchGraph->edges, edge->rEdge);
+
+	return edge;
+}
+
 struct PinchGraph *constructPinchGraph(Net *net,
 		struct List *contigIndexToContigStrings,
 		struct IntList *contigIndexToContigStart) {
@@ -32,17 +56,26 @@ struct PinchGraph *constructPinchGraph(Net *net,
 	struct PinchVertex *sourceVertex;
 	struct PinchVertex *pinchVertex;
 	struct PinchVertex *pinchVertex2;
-	struct PinchVertex *pinchVertex3;
-	struct PinchVertex *pinchVertex4;
-	struct PinchEdge *pinchEdge;
+	struct PinchEdge *leftCapEdge;
+	struct PinchEdge *edge;
+	struct PinchEdge *rightCapEdge;
 	struct hashtable *hash;
-	char *name;
+	struct hashtable *hash2;
+	int32_t length;
 
 	//make basic object.
 	graph = pinchGraph_construct();
 	sourceVertex = graph->vertices->list[0];
 
-	//for each cap, build a pair of vertices and a series of black edges, representing each leaf instance.
+	//make hashes for ends to vertices
+	hash = create_hashtable(net_getEndNumber(net) * 2,
+				 hashtable_stringHashKey, hashtable_stringEqualKey,
+				 NULL, NULL);
+	hash2 = create_hashtable(net_getEndNumber(net) * 2,
+					 hashtable_stringHashKey, hashtable_stringEqualKey,
+					 NULL, NULL);
+
+	//for each cap, build a pair of vertices
 	endIterator = net_getEndIterator(net);
 	while((end = net_getNextEnd(endIterator)) != NULL) {
 		pinchVertex = constructPinchVertex(graph, -1);
@@ -51,50 +84,67 @@ struct PinchGraph *constructPinchGraph(Net *net,
 		if(end_isCap(end)) {
 			connectVertices(sourceVertex, pinchVertex);
 		}
-		instanceIterator = end_getInstanceIterator(end);
-		while((endInstance = end_getNext(instanceIterator)) != NULL) {
-			listAppend(contigIndexToContigStrings, endInstance_getCompleteName(endInstance));
-			intListAppend(contigIndexToContigStart, endInstance_getCoordinate(endInstance));
-			pinchEdge = constructPinchEdge(constructSegment(contigIndexToContigStrings->length-1,
-					endInstance_getCoordinate(endInstance), endInstance_getCoordinate(endInstance)));
-			insertBlackEdge(pinchVertex, pinchEdge);
-			insertBlackEdge(pinchVertex2, pinchEdge->rEdge);
-		}
+		hashtable_insert(hash, (char *)end_getName(end), pinchVertex);
+		hashtable_insert(hash2, (char *)end_getName(end), pinchVertex2);
 	}
 	net_destructEndIterator(endIterator);
 
-	//for each adjacency construct a pair of vertices and connect them via a black edge containing the sequence.
 	endIterator = net_getEndIterator(net);
 	while((end = net_getNextEnd(endIterator)) != NULL) {
 		instanceIterator = end_getInstanceIterator(end);
 		while((endInstance = end_getNext(instanceIterator)) != NULL) {
-			endInstance2 = endInstance_getAdjacency(endInstance);
-			name = endInstance_getCompleteName(endInstance);
-			pinchVertex = hashtable_search(hash, name);
-			free(name);
-			name = endInstance_getCompleteName(endInstance2);
-			pinchVertex2 = hashtable_search(hash, name);
-			free(name);
-			//now connect them with a sequence.
-			if(abs(endInstance_getCoordinate(endInstance2) - endInstance_getCoordinate(endInstance)) > 0) {
+			if(hashtable_search(hash2, endInstance) == NULL) {
+				endInstance2 = endInstance_getAdjacency(endInstance);
+				assert(hashtable_search(hash2, endInstance) == NULL);
+
+				//Make black edges for caps/stubs on left end
 				listAppend(contigIndexToContigStrings, endInstance_getCompleteName(endInstance));
-				intListAppend(contigIndexToContigStart, endInstance_getCoordinate(endInstance));
-				pinchEdge = constructPinchEdge(constructSegment(contigIndexToContigStrings->length-1,
-						endInstance_getCoordinate(endInstance), endInstance_getCoordinate(endInstance2)));
-				pinchVertex3 = constructPinchVertex(graph, -1);
-				pinchVertex3 = constructPinchVertex(graph, -1);
-				insertBlackEdge(pinchVertex3, pinchEdge);
-				insertBlackEdge(pinchVertex4, pinchEdge->rEdge);
-				connectVertices(pinchVertex, pinchVertex3);
-				connectVertices(pinchVertex4, pinchVertex2);
-			}
-			else {
-				connectVertices(pinchVertex, pinchVertex2);
+				intListAppend(contigIndexToContigStart, start+1);
+				leftCapEdge = hookUpEdge(constructSegment(contigIndexToContigStrings->length-1, start+1, start+1), graph,
+						hashtable_search(hash, (void *)end_getName(endInstance_getEnd(endInstance))),
+						hashtable_search(hash2, (void *)end_getName(endInstance_getEnd(endInstance))));
+
+				//Construct the middle sequence.
+				//This order is important. It ensures that the contig index of the stub/cap instance
+				//to the left of the sequence is always one less than
+				//contig index of the actual sequence.
+				//Similarly it ensures that the contig index of the stub/cap instance
+				//to the right of the sequence is always one greater than the contig index of the actual sequence!
+				//This allows us to unambiguously identify which stub/cap instances lie to the left and right of which sequences,
+				//useful if we unalign edges and need to work out there original (grey) adjacencies with a stub.
+				listAppend(contigIndexToContigStrings, stringCopy(sequence_getName(endInstance_getSequence(endInstance))));
+				intListAppend(contigIndexToContigStart, start+2);
+				length = endInstance_getCoordinate(endInstance) - endInstance_getCoordinate(endInstance2);
+				if(length > 0) {
+					edge = hookUpEdge(constructSegment(contigIndexToContigStrings->length-1, start+2, start+length+1), graph,
+							constructPinchVertex(graph, -1), constructPinchVertex(graph, -1));
+				}
+
+				//Construct the right cap/stub
+				listAppend(contigIndexToContigStrings, endInstance_getCompleteName(endInstance));
+				intListAppend(contigIndexToContigStart, start+length+2);
+				rightCapEdge = hookUpEdge(constructSegment(contigIndexToContigStrings->length-1, start+length+2, start+length+2), graph,
+						hashtable_search(hash, (void *)end_getName(endInstance_getEnd(endInstance2))),
+						hashtable_search(hash2, (void *)end_getName(endInstance_getEnd(endInstance2))));
+
+				//Connect the edges
+				if(length > 0) {
+					assert(edge != NULL);
+					connectVertices(leftCapEdge->to, edge->from);
+					connectVertices(edge->to, rightCapEdge->from);
+				}
+				else {
+					connectVertices(leftCapEdge->to, rightCapEdge->from);
+				}
 			}
 		}
 		end_destructInstanceIterator(instanceIterator);
 	}
 	net_destructEndIterator(endIterator);
+
+	//Cleanup the hashes
+	hashtable_destroy(hash, FALSE, FALSE);
+	hashtable_destroy(hash2, FALSE, FALSE);
 
 	return graph;
 }

@@ -14,6 +14,7 @@
 #include "hashTableC.h"
 #include "net.h"
 #include "pairwiseAlignment.h"
+#include "cactusNetFunctions.h"
 
 void writePinchGraph(char *name, struct PinchGraph *pinchGraph, const char *namePrefix,
 						struct List *biConnectedComponents, struct List *adjacencyComponents,
@@ -106,7 +107,6 @@ int main(int argc, char *argv[]) {
 	struct List *threeEdgeConnectedComponents;
 	struct List *chosenAtoms;
 	struct List *list;
-	struct hashtable *contigStringsToSequences;
 	struct hashtable *names;
 	NetDisk *netDisk;
 	Net *net;
@@ -275,7 +275,6 @@ int main(int argc, char *argv[]) {
 	contigIndexToContigStart = constructEmptyIntList(0);
 
 	pinchGraph = constructPinchGraph(net, contigIndexToContigStrings, contigIndexToContigStart);
-	contigStringsToSequences = parseSequences(xMainNode);
 
 	if(writeDebugFiles) {
 		logDebug("Writing out dot formatted version of initial pinch graph\n");
@@ -491,7 +490,7 @@ int main(int argc, char *argv[]) {
 
 	constructNetFromInputs(cactusGraph,
 			pinchGraph, names, includeFn,
-			contigStringsToSequences, contigIndexToContigStrings,
+			contigIndexToContigStrings,
 			netDisk, getUniqueName);
 
 	///////////////////////////////////////////////////////////////////////////
@@ -517,7 +516,6 @@ int main(int argc, char *argv[]) {
 	destructList(threeEdgeConnectedComponents);
 	destructCactusGraph(cactusGraph);
 	destructList(chosenAtoms);
-	hashtable_destroy(contigStringsToSequences, TRUE, FALSE);
 	removeAllTempFiles();
 	netDisk_destruct(netDisk);
 
