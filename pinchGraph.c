@@ -25,7 +25,7 @@
 ////////////////////////////////////////////////
 ////////////////////////////////////////////////
 
-void recycleSegment(struct Segment *segment, int32_t contig, int32_t start, int32_t end) {
+void segment_recycle(struct Segment *segment, int32_t contig, int32_t start, int32_t end) {
 	segment->contig = contig;
 
 	segment->start = start;
@@ -46,7 +46,7 @@ struct Segment *constructSegment(int32_t contig, int32_t start, int32_t end) {
 	segment->rSegment = rSegment;
 	rSegment->rSegment = segment;
 
-	recycleSegment(segment, contig, start, end);
+	segment_recycle(segment, contig, start, end);
 	return segment;
 }
 
@@ -605,6 +605,16 @@ int32_t isADeadEnd(struct PinchVertex *vertex) {
 ////////////////////////////////////////////////
 ////////////////////////////////////////////////
 
+struct PinchGraph *pinchGraph_construct() {
+	struct PinchGraph *pinchGraph;
+
+	pinchGraph->edges = avl_create((int32_t (*)(const void *, const void *, void *a))edgeComparator, NULL, NULL);
+	pinchGraph->vertices = constructEmptyList(0, (void (*)(void *))destructPinchVertex);
+	constructPinchVertex(pinchGraph, -1);
+
+	return pinchGraph;
+}
+
 void destructPinchGraph_1(struct PinchEdge *edge, void *o) {
 	if(edge->from->vertexID > edge->to->vertexID) {
 		destructSegment(edge->segment);
@@ -990,16 +1000,16 @@ void pinchMerge(struct PinchGraph *graph, struct PairwiseAlignment *pA, struct h
 		op = pA->operationList->list[i];
 		if(op->opType == PAIRWISE_MATCH) {
 			if(pA->strand1 == '+') {
-				recycleSegment(&segment1, contig1, j, j+op->length-1);
+				segment_recycle(&segment1, contig1, j, j+op->length-1);
 			}
 			else {
-				recycleSegment(&segment1, contig1, -(j+op->length-1), -j);
+				segment_recycle(&segment1, contig1, -(j+op->length-1), -j);
 			}
 			if(pA->strand2 == '+') {
-				recycleSegment(&segment2, contig2, k, k+op->length-1);
+				segment_recycle(&segment2, contig2, k, k+op->length-1);
 			}
 			else {
-				recycleSegment(&segment2, contig2, -(k+op->length-1), -k);
+				segment_recycle(&segment2, contig2, -(k+op->length-1), -k);
 			}
 			pinchMergeSegment(graph, &segment1, &segment2);
 		}

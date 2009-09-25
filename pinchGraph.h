@@ -32,7 +32,7 @@ struct Segment {
 	struct Segment *rSegment;
 };
 
-void recycleSegment(struct Segment *segment, int32_t contig, int32_t start, int32_t end);
+void segment_recycle(struct Segment *segment, int32_t contig, int32_t start, int32_t end);
 
 struct Segment *constructSegment(int32_t contig, int32_t start, int32_t end);
 
@@ -208,6 +208,11 @@ void destructBlackEdgeIterator(void *iterator);
 ////////////////////////////////////////////////
 ////////////////////////////////////////////////
 ////////////////////////////////////////////////
+
+/*
+ * Constructs an empty pinch graph.
+ */
+struct PinchGraph *pinchGraph_construct();
 
 void destructPinchGraph(struct PinchGraph *);
 

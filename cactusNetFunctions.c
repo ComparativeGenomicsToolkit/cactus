@@ -15,23 +15,97 @@
 ////////////////////////////////////////////////
 ////////////////////////////////////////////////
 ////////////////////////////////////////////////
-//Functions on nets.
+//Functions to construct pinch graphs from nets.
 ////////////////////////////////////////////////
 ////////////////////////////////////////////////
 ////////////////////////////////////////////////
 
-struct PinchEdge *cactusEdgeToFirstPinchEdge(struct CactusEdge *edge, struct PinchGraph *pinchGraph) {
-	struct Segment *segment;
-#ifdef BEN_DEBUG
-	assert(edge->segments->length > 0);
-#endif
-	segment = edge->segments->list[0];
-	return getContainingBlackEdge(pinchGraph, segment->contig, segment->start);
+struct PinchGraph *constructPinchGraph(Net *net,
+		struct List *contigIndexToContigStrings,
+		struct IntList *contigIndexToContigStart) {
+	struct PinchGraph *graph;
+	Net_EndIterator *endIterator;
+	End_InstanceIterator *instanceIterator;
+	End *end;
+	EndInstance *endInstance;
+	EndInstance *endInstance2;
+	struct PinchVertex *sourceVertex;
+	struct PinchVertex *pinchVertex;
+	struct PinchVertex *pinchVertex2;
+	struct PinchVertex *pinchVertex3;
+	struct PinchVertex *pinchVertex4;
+	struct PinchEdge *pinchEdge;
+	struct hashtable *hash;
+	char *name;
+
+	//make basic object.
+	graph = pinchGraph_construct();
+	sourceVertex = graph->vertices->list[0];
+
+	//for each cap, build a pair of vertices and a series of black edges, representing each leaf instance.
+	endIterator = net_getEndIterator(net);
+	while((end = net_getNextEnd(endIterator)) != NULL) {
+		pinchVertex = constructPinchVertex(graph, -1);
+		pinchVertex2 = constructPinchVertex(graph, -1);
+		//connect to source.
+		if(end_isCap(end)) {
+			connectVertices(sourceVertex, pinchVertex);
+		}
+		instanceIterator = end_getInstanceIterator(end);
+		while((endInstance = end_getNext(instanceIterator)) != NULL) {
+			listAppend(contigIndexToContigStrings, endInstance_getCompleteName(endInstance));
+			intListAppend(contigIndexToContigStart, endInstance_getCoordinate(endInstance));
+			pinchEdge = constructPinchEdge(constructSegment(contigIndexToContigStrings->length-1,
+					endInstance_getCoordinate(endInstance), endInstance_getCoordinate(endInstance)));
+			insertBlackEdge(pinchVertex, pinchEdge);
+			insertBlackEdge(pinchVertex2, pinchEdge->rEdge);
+		}
+	}
+	net_destructEndIterator(endIterator);
+
+	//for each adjacency construct a pair of vertices and connect them via a black edge containing the sequence.
+	endIterator = net_getEndIterator(net);
+	while((end = net_getNextEnd(endIterator)) != NULL) {
+		instanceIterator = end_getInstanceIterator(end);
+		while((endInstance = end_getNext(instanceIterator)) != NULL) {
+			endInstance2 = endInstance_getAdjacency(endInstance);
+			name = endInstance_getCompleteName(endInstance);
+			pinchVertex = hashtable_search(hash, name);
+			free(name);
+			name = endInstance_getCompleteName(endInstance2);
+			pinchVertex2 = hashtable_search(hash, name);
+			free(name);
+			//now connect them with a sequence.
+			if(abs(endInstance_getCoordinate(endInstance2) - endInstance_getCoordinate(endInstance)) > 0) {
+				listAppend(contigIndexToContigStrings, endInstance_getCompleteName(endInstance));
+				intListAppend(contigIndexToContigStart, endInstance_getCoordinate(endInstance));
+				pinchEdge = constructPinchEdge(constructSegment(contigIndexToContigStrings->length-1,
+						endInstance_getCoordinate(endInstance), endInstance_getCoordinate(endInstance2)));
+				pinchVertex3 = constructPinchVertex(graph, -1);
+				pinchVertex3 = constructPinchVertex(graph, -1);
+				insertBlackEdge(pinchVertex3, pinchEdge);
+				insertBlackEdge(pinchVertex4, pinchEdge->rEdge);
+				connectVertices(pinchVertex, pinchVertex3);
+				connectVertices(pinchVertex4, pinchVertex2);
+			}
+			else {
+				connectVertices(pinchVertex, pinchVertex2);
+			}
+		}
+		end_destructInstanceIterator(instanceIterator);
+	}
+	net_destructEndIterator(endIterator);
+
+	return graph;
 }
 
-int32_t isAStubOrCapCactusEdge(struct CactusEdge *edge, struct PinchGraph *pinchGraph) {
-	return isAStubOrCap(cactusEdgeToFirstPinchEdge(edge, pinchGraph));
-}
+////////////////////////////////////////////////
+////////////////////////////////////////////////
+////////////////////////////////////////////////
+//Functions to construct nets.
+////////////////////////////////////////////////
+////////////////////////////////////////////////
+////////////////////////////////////////////////
 
 struct CactusEdge *getNonDeadEndOfStubOrCapCactusEdge(struct CactusEdge *edge, struct PinchGraph *pinchGraph) {
 	struct PinchEdge *pinchEdge;

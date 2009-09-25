@@ -3,25 +3,17 @@
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
-
-#include <stdlib.h>
-#include <sstream>
-#include <iostream>
 #include <time.h>
+#include <getopt.h>
 
-#include "xmlParser.h"
-#include "Argument_helper.h"
-
-extern "C" {
-	#include "pinchGraph.h"
-	#include "cactusGraph.h"
-	#include "commonC.h"
-	#include "fastCMaths.h"
-	#include "bioioC.h"
-	#include "hashTableC.h"
-	#include "net.h"
-	#include "pairwiseAlignment.h"
-};
+#include "pinchGraph.h"
+#include "cactusGraph.h"
+#include "commonC.h"
+#include "fastCMaths.h"
+#include "bioioC.h"
+#include "hashTableC.h"
+#include "net.h"
+#include "pairwiseAlignment.h"
 
 void writePinchGraph(char *name, struct PinchGraph *pinchGraph, const char *namePrefix,
 						struct List *biConnectedComponents, struct List *adjacencyComponents,
@@ -49,17 +41,21 @@ void writeCactusGraph(char *name, struct PinchGraph *pinchGraph,
 	hashtable_destroy(names, TRUE, FALSE);
 }
 
-void writeNet(char *name, struct PinchGraph *pinchGraph,
-				 struct Net *net, const char *namePrefix,
-				 struct List *contigIndexToContigStrings) {
-	struct hashtable *names;
-	FILE *fileHandle;
-
-	fileHandle = fopen(name, "w");
-	names = getNames(pinchGraph, contigIndexToContigStrings, namePrefix);
-	writeOutNet(net, names, fileHandle);
-	fclose(fileHandle);
-	hashtable_destroy(names, TRUE, FALSE);
+void usage() {
+	fprintf(stderr, "cactus_core, version 0.2\n");
+	fprintf(stderr, "-a --logLevel : Set the log level\n");
+	fprintf(stderr, "-b --alignments : The input alignments file\n");
+	fprintf(stderr, "-c --absolutePathPrefix : The absolute file path to the reconstruction tree hierarchy\n");
+	fprintf(stderr, "-d --reconstructionProblem : The relative path to the file in which to write the reconstruction problem\n");
+	fprintf(stderr, "-e --tempDirRoot : The temp file root directory\n");
+	fprintf(stderr, "-f --maxEdgeDegree : Maximum degree of aligned edges\n");
+	fprintf(stderr, "-g --writeDebugFiles : Write the debug files\n");
+	fprintf(stderr, "-h --help : Print this help screen\n");
+	fprintf(stderr, "-j --uniqueNamePrefix : An alpha-numeric prefix which, when appended with any alpha-numeric characters is guaranteed to produce a unique name\n");
+	fprintf(stderr, "-k --proportionToKeep : The proportion of the highest scoring atoms to keep\n");
+	fprintf(stderr, "-l --discardRatio : The proportion of the average atom score in an atom's chain an atom must score to be kept\n");
+	fprintf(stderr, "-m --minimumTreeCoverage : Minimum tree coverage proportion to be included in the problem\n");
+	fprintf(stderr, "-n --minimumChainLength : The minimum chain length required to be included in the problem\n");
 }
 
 int main(int argc, char *argv[]) {
@@ -108,100 +104,167 @@ int main(int argc, char *argv[]) {
 	struct IntList *contigIndexToContigStart;
 	struct hashtable *contigStringToContigIndex;
 	struct List *threeEdgeConnectedComponents;
-	struct Net *net;
 	struct List *chosenAtoms;
 	struct List *list;
-	struct List *adjacencyComponents;
 	struct hashtable *contigStringsToSequences;
 	struct hashtable *names;
-	struct List *contigEventSets;
 	NetDisk *netDisk;
+	Net *net;
+	struct List *biConnectedComponents;
+	int key;
+
+	/*
+	 * Arguments/options
+	 */
+	char * logLevelString = NULL;
+	char * alignmentsFile = NULL;
+	char * netDiskName = NULL;
+	char * netName = NULL;
+	char * tempFileRootDirectory = NULL;
+	int32_t maxEdgeDegree = 50;
+	int32_t writeDebugFiles = FALSE;
+	char * uniqueNamePrefix = NULL;
+	float proportionToKeep = 1.0;
+	float discardRatio = 0.0;
+	float minimumTreeCoverage = 0.8;
+	int32_t minimumChainLength = 10;
 
 	///////////////////////////////////////////////////////////////////////////
 	// (0) Parse the inputs handed by genomeCactus.py / setup stuff.
 	///////////////////////////////////////////////////////////////////////////
 
-	std::string logLevelString = "None";
-	std::string alignmentsFile = "None";
-	std::string netDiskName = "None";
-	std::string netName = "None";
-	std::string tempFileRootDirectory = "None";
-	std::string treeProgram = "None";
-	std::string uniqueNamePrefix = "None";
-	int32_t maxEdgeDegree = 50;
-	bool writeDebugFiles = false;
-	double proportionToKeep = 1.0;
-	double discardRatio = 0.0;
-	double minimumTreeCoverage = 0.8;
-	int32_t minimumChainLength = 10;
-	struct List *biConnectedComponents;
+	while(1) {
+		static struct option long_options[] = {
+			{ "logLevel", required_argument, 0, 'a' },
+			{ "alignments", required_argument, 0, 'b' },
+			{ "netDisk", required_argument, 0, 'c' },
+			{ "netName", required_argument, 0, 'd' },
+			{ "tempDirRoot", required_argument, 0, 'e' },
+			{ "maxEdgeDegree", required_argument, 0, 'f' },
+			{ "writeDebugFiles", required_argument, 0, 'g' },
+			{ "help", no_argument, 0, 'h' },
+			{ "uniqueNamePrefix", required_argument, 0, 'j' },
+			{ "proportionToKeep", required_argument, 0, 'k' },
+			{ "discardRatio", required_argument, 0, 'l' },
+			{ "minimumTreeCoverage", required_argument, 0, 'm' },
+			{ "minimumChainLength", required_argument, 0, 'n' },
+			{ 0, 0, 0, 0 }
+		};
 
-	dsr::Argument_helper ah;
+		int option_index = 0;
 
-	ah.new_named_string('a', "logLevel", "", "Set the log level", logLevelString);
-	ah.new_named_string('b', "alignments", "", "The input alignments file", alignmentsFile);
-	ah.new_named_string('c', "netDisk", "", "The location of the net disk", netDiskName);
-	ah.new_named_string('d', "netName", "", "The name of the net to be aligned", netName);
-	ah.new_named_string('e', "tempDirRoot", "", "The temp file root directory", tempFileRootDirectory);
-	ah.new_named_int('f', "maxEdgeDegree", "", "Maximum degree of aligned edges", maxEdgeDegree);
-	ah.new_flag('g', "writeDebugFiles", "Write the debug files", writeDebugFiles);
-	ah.new_named_string('h', "treeProgram", "", "Program to add trees to a reconstruction problem", treeProgram);
-	ah.new_named_string('i', "uniqueNamePrefix", "", "An alpha-numeric prefix which, when appended with any alpha-numeric characters is guaranteed to produce a unique name", uniqueNamePrefix);
-	ah.new_named_double('j', "proportionToKeep", "", "The proportion of the highest scoring atoms to keep", proportionToKeep);
-	ah.new_named_double('k', "discardRatio", "", "The proportion of the average atom score in an atom's chain an atom must score to be kept", discardRatio);
-	ah.new_named_double('l', "minimumTreeCoverage", "", "Minimum tree coverage proportion to be included in the problem", minimumTreeCoverage);
-	ah.new_named_int('m', "minimumChainLength", "", "The minimum chain length required to be included in the problem", minimumChainLength);
+		key = getopt_long(argc, argv, "a:b:c:d:e:f:g:h:i:j:k:l:m", long_options, &option_index);
 
-	ah.set_description("cactus");
-	ah.set_author("Benedict Paten, benedict@soe.ucsc.edu");
-	ah.set_version("0.1");
+		if(key == -1) {
+			break;
+		}
 
-	ah.process(argc, argv);
+		switch(key) {
+			case 'a':
+				logLevelString = optarg;
+				break;
+			case 'b':
+				alignmentsFile = optarg;
+				break;
+			case 'c':
+				netDiskName = optarg;
+				break;
+			case 'd':
+				netName = optarg;
+				break;
+			case 'e':
+				tempFileRootDirectory = optarg;
+				break;
+			case 'f':
+				assert(sscanf("%i", optarg, &maxEdgeDegree) == 1);
+				break;
+			case 'g':
+				assert(sscanf("%i", optarg, &writeDebugFiles) == 1);
+				break;
+			case 'j':
+				uniqueNamePrefix = optarg;
+				break;
+			case 'k':
+				assert(sscanf("%f", optarg, &proportionToKeep) == 1);
+				break;
+			case 'l':
+				assert(sscanf("%f", optarg, &discardRatio) == 1);
+				break;
+			case 'm':
+				assert(sscanf("%f", optarg, &minimumTreeCoverage) == 1);
+				break;
+			case 'n':
+				assert(sscanf("%i", optarg, &minimumChainLength) == 1);
+				break;
+			case 'h':
+				usage();
+				return 0;
+			default:
+				usage();
+				return 1;
+		}
+	}
 
-	assert(alignmentsFile != "None");
-	assert(absolutePathPrefix != "None");
-	assert(relativeReconstructionProblemFile != "None");
-	assert(tempFileRootDirectory != "None");
+	///////////////////////////////////////////////////////////////////////////
+	// (0) Check the inputs.
+	///////////////////////////////////////////////////////////////////////////
 
-	std::string absoluteReconstructionProblemFile = (absolutePathPrefix + "/" + relativeReconstructionProblemFile).c_str();
+	assert(logLevelString == NULL || strcmp(logLevelString, "INFO") == 0 || strcmp(logLevelString, "DEBUG") == 0);
+	assert(alignmentsFile != NULL);
+	assert(netDiskName != NULL);
+	assert(netName != NULL);
+	assert(tempFileRootDirectory != NULL);
+	assert(maxEdgeDegree > 0);
+	assert(uniqueNamePrefix != NULL);
+	assert(proportionToKeep >= 0.0 && proportionToKeep <= 1.0);
+	assert(discardRatio >= 0.0);
+	assert(minimumTreeCoverage >= 0.0);
+	assert(minimumChainLength >= 0);
 
 	//////////////////////////////////////////////
-	//Set up logging/log inputs
+	//Set up logging
 	//////////////////////////////////////////////
 
-	if(strcmp(logLevelString.c_str(), "INFO") == 0) {
+	if(strcmp(logLevelString, "INFO") == 0) {
 		setLogLevel(LOGGING_INFO);
 	}
-	if(strcmp(logLevelString.c_str(), "DEBUG") == 0) {
+	if(strcmp(logLevelString, "DEBUG") == 0) {
 		setLogLevel(LOGGING_DEBUG);
 	}
 
-	logInfo("Pairwise alignments file : %s\n", alignmentsFile.c_str());
-	logInfo("The reconstruction problem file (top of hierarchy) : %s\n", absoluteReconstructionProblemFile.c_str());
-	logInfo("Root directory of temporary files: %s\n", tempFileRootDirectory.c_str());
+	//////////////////////////////////////////////
+	//Log (some of) the inputs
+	//////////////////////////////////////////////
+
+	logInfo("Pairwise alignments file : %s\n", alignmentsFile);
+	logInfo("Net disk name : %s\n", netDiskName);
+	logInfo("Net name : %s\n", netName);
+	logInfo("Temp file root directory : %s\n", tempFileRootDirectory);
+	logInfo("Max edge degree : %s\n", maxEdgeDegree);
+	logInfo("Unique name prefix : %s\n", uniqueNamePrefix);
 
 	//////////////////////////////////////////////
 	//Set up the temp file root directory
 	//////////////////////////////////////////////
 
-	initialiseTempFileTree((char *)tempFileRootDirectory.c_str(), 100, 4);
+	initialiseTempFileTree(tempFileRootDirectory, 100, 4);
 
 	//////////////////////////////////////////////
 	//Load the database
 	//////////////////////////////////////////////
 
-	netDisk = netDisk_construct(netDiskName.c_str());
+	netDisk = netDisk_construct(netDiskName);
 	logInfo("Set up the net disk\n");
 
 	///////////////////////////////////////////////////////////////////////////
 	// Parse the basic reconstruction problem
 	///////////////////////////////////////////////////////////////////////////
 
-	net = netDisk_getNet(netName.c_str());
+	net = netDisk_getNet(netDisk, netName);
 	logInfo("Parsed the net to be refined\n");
 
 	startTime = time(NULL);
-	setUniqueNamePrefix(uniqueNamePrefix.c_str());
+	setUniqueNamePrefix(uniqueNamePrefix);
 
 	///////////////////////////////////////////////////////////////////////////
 	//Setup the basic pinch graph
@@ -216,7 +279,7 @@ int main(int argc, char *argv[]) {
 
 	if(writeDebugFiles) {
 		logDebug("Writing out dot formatted version of initial pinch graph\n");
-		writePinchGraph("pinchGraph1.dot", pinchGraph, uniqueNamePrefix.c_str(), NULL, NULL, contigIndexToContigStrings);
+		writePinchGraph("pinchGraph1.dot", pinchGraph, uniqueNamePrefix, NULL, NULL, contigIndexToContigStrings);
 		logDebug("Finished writing out dot formatted version of initial pinch graph\n");
 	}
 	//check the graph is consistent
@@ -250,7 +313,7 @@ int main(int argc, char *argv[]) {
 
 	//Now run through all the alignments.
 	startTime = time(NULL);
-	fileHandle = fopen(alignmentsFile.c_str(), "r");
+	fileHandle = fopen(alignmentsFile, "r");
 	pairwiseAlignment = cigarRead(fileHandle);
 	logInfo("Now doing the pinch merges:\n");
 	i = 0;
@@ -265,7 +328,7 @@ int main(int argc, char *argv[]) {
 
 	if(writeDebugFiles) {
 		logDebug("Writing out dot formatted version of pinch graph with alignments added\n");
-		writePinchGraph("pinchGraph2.dot", pinchGraph, uniqueNamePrefix.c_str(), NULL, NULL, contigIndexToContigStrings);
+		writePinchGraph("pinchGraph2.dot", pinchGraph, uniqueNamePrefix, NULL, NULL, contigIndexToContigStrings);
 		logDebug("Finished writing out dot formatted version of pinch graph with alignments added\n");
 	}
 
@@ -287,7 +350,7 @@ int main(int argc, char *argv[]) {
 
 	if(writeDebugFiles) {
 		logDebug("Writing out dot formatted version of pinch graph with over aligned edges removed\n");
-		writePinchGraph("pinchGraph3.dot", pinchGraph, uniqueNamePrefix.c_str(), NULL, NULL, contigIndexToContigStrings);
+		writePinchGraph("pinchGraph3.dot", pinchGraph, uniqueNamePrefix, NULL, NULL, contigIndexToContigStrings);
 		logDebug("Finished writing out dot formatted version of pinch graph with over aligned edges removed\n");
 	}
 
@@ -303,7 +366,7 @@ int main(int argc, char *argv[]) {
 
 	if(writeDebugFiles) {
 		logDebug("Writing out dot formatted version of pinch graph stub components linked to the sink vertex\n");
-		writePinchGraph("pinchGraph4.dot", pinchGraph, uniqueNamePrefix.c_str(), NULL, NULL, contigIndexToContigStrings);
+		writePinchGraph("pinchGraph4.dot", pinchGraph, uniqueNamePrefix, NULL, NULL, contigIndexToContigStrings);
 		logDebug("Finished writing out dot formatted version of pinch graph with stub components linked to the sink vertex\n");
 	}
 
@@ -316,7 +379,7 @@ int main(int argc, char *argv[]) {
 
 	startTime = time(NULL);
 	extraEdges = getEmptyExtraEdges(pinchGraph);
-	i = computeCactusGraph(pinchGraph, &cactusGraph, &threeEdgeConnectedComponents, extraEdges, (char *)logLevelString.c_str());
+	i = computeCactusGraph(pinchGraph, &cactusGraph, &threeEdgeConnectedComponents, extraEdges, (char *)logLevelString);
 
 	if(i != 0) {
 		logInfo("Something went wrong constructing the initial cactus graph\n");
@@ -325,7 +388,7 @@ int main(int argc, char *argv[]) {
 
 	if(writeDebugFiles) {
 		logDebug("Writing out dot formatted version of initial cactus graph\n");
-		writeCactusGraph("cactusGraph1.dot", pinchGraph, cactusGraph, uniqueNamePrefix.c_str(),
+		writeCactusGraph("cactusGraph1.dot", pinchGraph, cactusGraph, uniqueNamePrefix,
 						 contigIndexToContigStrings);
 		logDebug("Finished writing out dot formatted version of initial cactus graph\n");
 	}
@@ -340,7 +403,7 @@ int main(int argc, char *argv[]) {
 	circulariseStems(cactusGraph, extraEdges, threeEdgeConnectedComponents);
 	destructCactusGraph(cactusGraph); //clean up the initial cactus graph.
 	destructList(threeEdgeConnectedComponents);
-	i = computeCactusGraph(pinchGraph, &cactusGraph, &threeEdgeConnectedComponents, extraEdges, (char *)logLevelString.c_str());
+	i = computeCactusGraph(pinchGraph, &cactusGraph, &threeEdgeConnectedComponents, extraEdges, (char *)logLevelString);
 
 	if(i != 0) {
 		logInfo("Something went wrong constructing the cactus with circularised stems\n");
@@ -349,7 +412,7 @@ int main(int argc, char *argv[]) {
 
 	if(writeDebugFiles) {
 		logDebug("Writing out dot formatted version of 2-edge component only cactus graph\n");
-		writeCactusGraph("cactusGraph2.dot", pinchGraph, cactusGraph, uniqueNamePrefix.c_str(),
+		writeCactusGraph("cactusGraph2.dot", pinchGraph, cactusGraph, uniqueNamePrefix,
 						 contigIndexToContigStrings);
 		logDebug("Finished writing out dot formatted version of 2-edge component only cactus graph\n");
 	}
@@ -367,7 +430,7 @@ int main(int argc, char *argv[]) {
 	breakLoopDiscontinuities(cactusGraph, extraEdges, threeEdgeConnectedComponents);
 	destructCactusGraph(cactusGraph); //clean up the initial cactus graph.
 	destructList(threeEdgeConnectedComponents);
-	i = computeCactusGraph(pinchGraph, &cactusGraph, &threeEdgeConnectedComponents, extraEdges, (char *)logLevelString.c_str());
+	i = computeCactusGraph(pinchGraph, &cactusGraph, &threeEdgeConnectedComponents, extraEdges, (char *)logLevelString);
 
 	if(i != 0) {
 		logInfo("Something went wrong constructing the cactus without loop discontinuities\n");
@@ -376,14 +439,14 @@ int main(int argc, char *argv[]) {
 
 	if(writeDebugFiles) {
 		logDebug("Writing out dot formatted version of the final cactus graph\n");
-		writeCactusGraph("cactusGraph3.dot", pinchGraph, cactusGraph, uniqueNamePrefix.c_str(),
+		writeCactusGraph("cactusGraph3.dot", pinchGraph, cactusGraph, uniqueNamePrefix,
 											contigIndexToContigStrings);
 		logDebug("Finished writing out dot formatted version of the final cactus graph\n");
 	}
 
 	if(writeDebugFiles) {
 		logDebug("Writing out dot formatted final pinch graph showing chains prior to pruning\n");
-		writePinchGraph("pinchGraph5.dot", pinchGraph, uniqueNamePrefix.c_str(), biConnectedComponents, NULL, contigIndexToContigStrings);
+		writePinchGraph("pinchGraph5.dot", pinchGraph, uniqueNamePrefix, biConnectedComponents, NULL, contigIndexToContigStrings);
 		logDebug("Finished writing out final pinch graph showing chains prior to pruning\n");
 	}
 
@@ -405,22 +468,20 @@ int main(int argc, char *argv[]) {
 
 	startTime = time(NULL);
 	chosenAtoms = constructEmptyList(0, NULL);
-	contigEventSets = constructContigEventSets(xMainNode);
 	filterAtomsByTreeCoverageAndLength(biConnectedComponents, chosenAtoms,
-			contigEventSets, proportionToKeep,
+			net, proportionToKeep,
 			discardRatio, minimumTreeCoverage, minimumChainLength,
 			pinchGraph, contigIndexToContigStrings);
 	filterAtomsByIfStubOrCap(biConnectedComponents, chosenAtoms, pinchGraph);
 	//now report the results
-	logTheChosenAtomSubset(biConnectedComponents, chosenAtoms, pinchGraph, contigEventSets, contigIndexToContigStrings);
-
-	//cleanup the selection.
-	destructList(contigEventSets);
-	destructList(list);
+	logTheChosenAtomSubset(biConnectedComponents, chosenAtoms, pinchGraph, net, contigIndexToContigStrings);
 
 	if(writeDebugFiles) {
 		logDebug("Writing out dot formatted final pinch graph showing chains after pruning\n");
-		writePinchGraph("pinchGraph5.dot", pinchGraph, uniqueNamePrefix.c_str(), net->chains, NULL, contigIndexToContigStrings);
+		list = constructEmptyList(0, NULL);
+		listAppend(list, chosenAtoms);
+		writePinchGraph("pinchGraph5.dot", pinchGraph, uniqueNamePrefix, list, NULL, contigIndexToContigStrings);
+		destructList(list);
 		logDebug("Finished writing out final pinch graph showing chains prior to pruning\n");
 	}
 
@@ -439,7 +500,7 @@ int main(int argc, char *argv[]) {
 
 	netDisk_write(netDisk);
 
-	logInfo("Updated the net on disk\m");
+	logInfo("Updated the net on disk\n");
 
 	///////////////////////////////////////////////////////////////////////////
 	//(15) Clean up.
@@ -455,10 +516,10 @@ int main(int argc, char *argv[]) {
 	hashtable_destroy(contigStringToContigIndex, TRUE, FALSE);
 	destructList(threeEdgeConnectedComponents);
 	destructCactusGraph(cactusGraph);
-	destructNet(net);
 	destructList(chosenAtoms);
 	hashtable_destroy(contigStringsToSequences, TRUE, FALSE);
 	removeAllTempFiles();
+	netDisk_destruct(netDisk);
 
 	logInfo("Cleaned stuff up and am finished in: %i seconds\n", time(NULL) - startTime);
 	return 0;

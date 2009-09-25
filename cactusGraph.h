@@ -7,6 +7,8 @@
 //#include "net.h"
 
 #include "avl.h"
+#include "net.h"
+#include "commonC.h"
 
 /*
  * Data structures and methods used in building the cactus graph from
@@ -133,6 +135,37 @@ void circulariseStems(struct CactusGraph *cactusGraph, struct List *extraEdges, 
 void breakLoopDiscontinuities(struct CactusGraph *cactusGraph, struct List *extraEdges,
 							  struct List *threeEdgeConnectedComponents);
 
+////////////////////////////////////////////////
+////////////////////////////////////////////////
+////////////////////////////////////////////////
+//Choosing which atoms in the chains to keep.
+////////////////////////////////////////////////
+////////////////////////////////////////////////
+////////////////////////////////////////////////
 
+void filterAtomsByTreeCoverageAndLength(struct List *biConnectedComponents,
+		struct List *chosenAtoms,
+		Net *net,
+		float proportionToKeep, /*Proportion of all atoms to select to keep*/
+		float discardRatio, /*The proportion of an atom's chain's average atom score required to be score to be considered */
+		float minimumTreeCoverage, /*Minimum tree coverage to be included */
+		int32_t minimumChainLength, /* Minimum chain length to be included */
+		struct PinchGraph *pinchGraph,
+		struct List *contigIndexToContigStrings);
+
+void logTheChosenAtomSubset(struct List *biConnectedComponents, struct List *chosenAtoms, struct PinchGraph *pinchGraph,
+		Net *net, struct List *contigIndexToContigStrings);
+
+////////////////////////////////////////////////
+////////////////////////////////////////////////
+////////////////////////////////////////////////
+//Cactus graph misc functions.
+////////////////////////////////////////////////
+////////////////////////////////////////////////
+////////////////////////////////////////////////
+
+struct PinchEdge *cactusEdgeToFirstPinchEdge(struct CactusEdge *edge, struct PinchGraph *pinchGraph);
+
+int32_t isAStubOrCapCactusEdge(struct CactusEdge *edge, struct PinchGraph *pinchGraph);
 
 #endif

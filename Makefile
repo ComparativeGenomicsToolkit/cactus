@@ -10,8 +10,7 @@ ${binPath}/cactus_3Edge : 3_Absorb3edge2x.c ${libPath}/sonLib.a
 	${cxx} ${cflags} -I ${libPath} -o ${binPath}/cactus_3Edge 3_Absorb3edge2x.c ${libPath}/sonLib.a
 
 ${binPath}/cactus_core : *.cc *.c *.h ${libPath}/sonLib.a ${libPath}/sonLibPlus.a ${libPath}/xmlLib.a
-	${cxx} ${cflags} -I ${libPath} -c pinchGraph.c pinchGraphTest.c pinchGraphManipulation.c cactusGraph.c net.c netSerialisation.c cactusNetFunctions.c ${libPath}/sonLib.a 
-	${cyy} ${cpflags} -I ${libPath} -o ${binPath}/cactus_core cactus_core.cc pinchGraph.o pinchGraphTest.o pinchGraphManipulation.o cactusGraph.o net.o netSerialisation.o cactusNetFunctions.o ${libPath}/sonLib.a ${libPath}/sonLibPlus.a ${libPath}/xmlLib.a
+	${cxx} ${cflags} -I ${libPath} -o ${binPath}/cactus_core cactus_core.c pinchGraph.c pinchGraphTest.c pinchGraphManipulation.c cactusGraph.c net.c netSerialisation.c cactusNetFunctions.c ${libPath}/sonLib.a
 	rm *.o
 
 ${binPath}/cactus_setup.py : cactus_setup.py cactus_setup_processFasta.c ${libPath}/sonLib.a

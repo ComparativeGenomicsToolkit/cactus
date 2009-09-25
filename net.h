@@ -86,6 +86,17 @@ const char *event_getName(Event *event);
 float event_getBranchLength(Event *event);
 
 /*
+ * Gets the branch length of the subtree rooted at this event, excluding the branch length of the event
+ * itself.
+ */
+float event_getSubTreeBranchLength(Event *event);
+
+/*
+ * Gets the number of events in the sub tree of the event, excluding the event itself.
+ */
+float event_getSubTreeEventNumber(Event *event);
+
+/*
  * Get number of children.
  */
 int32_t event_getChildNumber(Event *event);
@@ -153,6 +164,11 @@ Event *eventTree_getCommonAncestor(Event *event, Event *event2);
  * Gets the parent net.
  */
 Net *eventTree_getNet(EventTree *eventTree);
+
+/*
+ * Gets the total number of events in the event tree.
+ */
+int32_t eventTree_getEventNumber(EventTree *eventTree);
 
 /*
  * Gets the first event in the list.

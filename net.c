@@ -195,6 +195,31 @@ float event_getBranchLength(Event *event) {
 	return event->branchLength;
 }
 
+float event_getSubTreeBranchLength(Event *event) {
+	int32 i;
+	Event *childEvent;
+	float branchLength;
+
+	branchLength = 0.0;
+	for(i=0; i<event_getChildNumber(event); i++) {
+		childEvent = event_getChild(event, i);
+		branchLength += event_getSubTreeBranchLength(childEvent) + event_getBranchLength(childEvent);
+	}
+	return branchLength;
+}
+
+int32_t event_getSubTreeEventNumber(Event *event) {
+	int32 i, j;
+	Event *childEvent;
+
+	j = 0.0;
+	for(i=0; i<event_getChildNumber(event); i++) {
+		childEvent = event_getChild(event, i);
+		j += event_getSubTreeEventNumber(childEvent) + 1;
+	}
+	return j;
+}
+
 int32_t event_getChildNumber(Event *event) {
 	return event->children->length;
 }
@@ -322,6 +347,10 @@ Event *eventTree_getCommonAncestor(Event *event, Event *event2) {
 
 Net *eventTree_getNet(EventTree *eventTree) {
 	return eventTree->net;
+}
+
+int32_t eventTree_getEventNumber(EventTree *eventTree) {
+	return event_getSubTreeEventNumber(eventTree_getRootEvent(eventTree)) + 1;
 }
 
 Event *eventTree_getFirst(EventTree *eventTree) {
