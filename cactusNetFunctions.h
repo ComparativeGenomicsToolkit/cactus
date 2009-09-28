@@ -9,13 +9,14 @@
 #include "cactusGraph.h"
 #include "net.h"
 
-Net *constructNetFromInputs(struct CactusGraph *cactusGraph,
-		struct PinchGraph *pinchGraph, struct hashtable *names, struct List *chosenAtoms,
-		struct hashtable *contigStringsToSequences, struct List *contigIndexToContigStrings,
-		NetDisk *netDisk, const char *(*getUniqueName)());
+Net *constructNetFromInputs(Net *parentNet, struct CactusGraph *cactusGraph,
+		struct PinchGraph *pinchGraph, const char *uniqueNamePrefix, struct List *chosenAtoms,
+		struct List *contigIndexToContigStrings);
 
 struct PinchGraph *constructPinchGraph(Net *net,
 		struct List *contigIndexToContigStrings,
 		struct IntList *contigIndexToContigStart);
+
+void copyEndTreePhylogenies(Net *parentNet, Net *net);
 
 #endif

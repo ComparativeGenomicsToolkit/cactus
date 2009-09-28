@@ -109,7 +109,9 @@ void writeOut3EdgeGraph(struct PinchGraph *pinchGraph, struct List *greyEdgeComp
 
 struct List *readThreeEdgeComponents(struct PinchGraph *, struct List *greyEdgeComponents, char *file);
 
-void writeOutCactusGraph(struct CactusGraph *cactusGraph, struct PinchGraph *pinchGraph, struct hashtable *names, FILE *fileHandle);
+void writeOutCactusGraph(struct CactusGraph *cactusGraph, struct PinchGraph *pinchGraph,
+		struct List *contigIndexToContigStrings,
+		const char *namePrefix, FILE *fileHandle);
 
 ////////////////////////////////////////////////
 ////////////////////////////////////////////////

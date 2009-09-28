@@ -863,7 +863,9 @@ struct List *readThreeEdgeComponents(struct PinchGraph *pinchGraph, struct List 
 	return list;
 }
 
-void writeOutCactusGraph(struct CactusGraph *cactusGraph, struct PinchGraph *pinchGraph, struct hashtable *names, FILE *fileHandle) {
+void writeOutCactusGraph(struct CactusGraph *cactusGraph, struct PinchGraph *pinchGraph,
+		struct List *contigIndexToContigStrings,
+		const char *namePrefix, FILE *fileHandle) {
 	/*
 	 * Writes out a graph in 'dot' format, compatible with graphviz.
 	 *
@@ -877,6 +879,10 @@ void writeOutCactusGraph(struct CactusGraph *cactusGraph, struct PinchGraph *pin
 	struct PinchEdge *pinchEdge;
 	struct Segment *segment;
 	char *name;
+	struct hashtable *names;
+
+	//calculate the names of the pinch graph elements.
+	names = getNames(pinchGraph, contigIndexToContigStrings, namePrefix);
 
 	//Write the preliminaries.
 	fprintf(fileHandle, "graph G {\n");
@@ -915,6 +921,8 @@ void writeOutCactusGraph(struct CactusGraph *cactusGraph, struct PinchGraph *pin
 		}
 	}
 	fprintf(fileHandle, "}\n");
+
+	hashtable_destroy(names, TRUE, FALSE);
 }
 
 ////////////////////////////////////////////////

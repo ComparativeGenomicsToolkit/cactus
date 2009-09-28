@@ -260,7 +260,8 @@ char *getInstance(const char *name);
 void writeOutPinchGraphWithChains(struct PinchGraph *pinchGraph,
 								  struct List *chainsList,
 								  struct List *adjacencyComponents,
-								  struct hashtable *names,
+								  struct List *contigIndexToContigStrings,
+								  const char *uniqueNamePrefix,
 								  FILE *fileHandle);
 
 struct hashtable *getNames(struct PinchGraph *pinchGraph,

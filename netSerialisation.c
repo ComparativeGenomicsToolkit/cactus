@@ -222,7 +222,7 @@ Sequence *sequence_loadFromBinaryRepresentation(char **binaryString, Net *net) {
 ////////////////////////////////////////////////
 ////////////////////////////////////////////////
 
-void endInstance_writeBinaryRepresentationP(EndInstance *endInstance, EndInstance *endInstance2, int32_t elementType, void (*writeFn)(const char *string, ...)) {
+void endInstance_writeBinaryRepresentationP(EndInstance *endInstance2, int32_t elementType, void (*writeFn)(const char *string, ...)) {
 	char *cA;
 	binaryRepresentation_writeElementType(elementType, writeFn);
 	cA = endInstance_getCompleteName(endInstance2);
@@ -247,16 +247,17 @@ void endInstance_writeBinaryRepresentation(EndInstance *endInstance, void (*writ
 		binaryRepresentation_writeElementType(CODE_END_INSTANCE_WITH_COORDINATES, writeFn);
 		binaryRepresentation_writeString(endInstance_getInstanceName(endInstance), writeFn);
 		binaryRepresentation_writeInteger(endInstance_getCoordinate(endInstance), writeFn);
+		binaryRepresentation_writeInteger(endInstance_getStrand(endInstance), writeFn);
 		binaryRepresentation_writeString(sequence_getName(endInstance_getSequence(endInstance)), writeFn);
 	}
 	if((endInstance2 = endInstance_getAdjacency(endInstance)) != NULL) {
-		endInstance_writeBinaryRepresentationP(endInstance, endInstance2, CODE_ADJACENCY, writeFn);
+		endInstance_writeBinaryRepresentationP(endInstance2, CODE_ADJACENCY, writeFn);
 	}
 	if((endInstance2 = endInstance_getAdjacency2(endInstance)) != NULL) {
-		endInstance_writeBinaryRepresentationP(endInstance, endInstance2, CODE_ADJACENCY, writeFn);
+		endInstance_writeBinaryRepresentationP(endInstance2, CODE_ADJACENCY, writeFn);
 	}
 	if((endInstance2 = endInstance_getParent(endInstance)) != NULL) {
-		endInstance_writeBinaryRepresentationP(endInstance, endInstance2, CODE_PARENT, writeFn);
+		endInstance_writeBinaryRepresentationP(endInstance2, CODE_PARENT, writeFn);
 	}
 }
 
@@ -277,6 +278,7 @@ EndInstance *endInstance_loadFromBinaryRepresentation(char **binaryString, End *
 	EndInstance *endInstance;
 	char *name;
 	int32_t coordinate;
+	int32_t strand;
 	Sequence *sequence;
 
 	endInstance = NULL;
@@ -293,8 +295,9 @@ EndInstance *endInstance_loadFromBinaryRepresentation(char **binaryString, End *
 		binaryRepresentation_popNextElementType(binaryString);
 		name = binaryRepresentation_getString(binaryString);
 		coordinate = binaryRepresentation_getInteger(binaryString);
+		strand = binaryRepresentation_getInteger(binaryString);
 		sequence = net_getSequence(end_getNet(end), binaryRepresentation_getStringStatic(binaryString));
-		endInstance = endInstance_constructWithCoordinates(name, end, coordinate, sequence);
+		endInstance = endInstance_constructWithCoordinates(name, end, coordinate, strand, sequence);
 		free(name);
 	}
 	if(binaryRepresentation_peekNextElementType(*binaryString) == CODE_ADJACENCY) {
@@ -332,7 +335,7 @@ void end_writeBinaryRepresentation(End *end, void (*writeFn)(const char *string,
 
 	binaryRepresentation_writeElementType(CODE_END, writeFn);
 	binaryRepresentation_writeString(end_getName(end), writeFn);
-	endInstance = end_getRootEndInstance(end);
+	endInstance = end_getRootInstance(end);
 
 	if(endInstance == NULL) {
 		iterator = end_getInstanceIterator(end);

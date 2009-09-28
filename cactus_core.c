@@ -19,27 +19,21 @@
 void writePinchGraph(char *name, struct PinchGraph *pinchGraph, const char *namePrefix,
 						struct List *biConnectedComponents, struct List *adjacencyComponents,
 						struct List *contigIndexToContigStrings) {
-	struct hashtable *names;
 	FILE *fileHandle;
-
 	fileHandle = fopen(name, "w");
-	names = getNames(pinchGraph, contigIndexToContigStrings, namePrefix);
-	writeOutPinchGraphWithChains(pinchGraph, biConnectedComponents, adjacencyComponents, names, fileHandle);
+	writeOutPinchGraphWithChains(pinchGraph, biConnectedComponents, adjacencyComponents,
+			contigIndexToContigStrings, namePrefix, fileHandle);
 	fclose(fileHandle);
-	hashtable_destroy(names, TRUE, FALSE);
 }
 
 void writeCactusGraph(char *name, struct PinchGraph *pinchGraph,
 						 struct CactusGraph *cactusGraph, const char *namePrefix,
 						 struct List *contigIndexToContigStrings) {
-	struct hashtable *names;
 	FILE *fileHandle;
-
 	fileHandle = fopen(name, "w");
-	names = getNames(pinchGraph, contigIndexToContigStrings, namePrefix);
-	writeOutCactusGraph(cactusGraph, pinchGraph, names, fileHandle);
+	writeOutCactusGraph(cactusGraph, pinchGraph, contigIndexToContigStrings,
+			namePrefix, fileHandle);
 	fclose(fileHandle);
-	hashtable_destroy(names, TRUE, FALSE);
 }
 
 void usage() {
@@ -107,7 +101,6 @@ int main(int argc, char *argv[]) {
 	struct List *threeEdgeConnectedComponents;
 	struct List *chosenAtoms;
 	struct List *list;
-	struct hashtable *names;
 	NetDisk *netDisk;
 	Net *net;
 	struct List *biConnectedComponents;
@@ -485,10 +478,8 @@ int main(int argc, char *argv[]) {
 	// (8) Constructing the net.
 	///////////////////////////////////////////////////////////////////////////
 
-	constructNetFromInputs(cactusGraph,
-			pinchGraph, names, chosenAtoms,
-			contigIndexToContigStrings,
-			netDisk, getUniqueName);
+	constructNetFromInputs(net, cactusGraph, pinchGraph, uniqueNamePrefix, chosenAtoms,
+			contigIndexToContigStrings);
 
 	///////////////////////////////////////////////////////////////////////////
 	// (9) Write the net to disk.

@@ -1245,7 +1245,8 @@ char *getColour(struct hashtable *hash, void *thing) {
 void writeOutPinchGraphWithChains(struct PinchGraph *pinchGraph,
 								  struct List *biConnectComponentsList,
 								  struct List *adjacencyComponents,
-								  struct hashtable *names,
+								  struct List *contigIndexToContigStrings,
+								  const char *uniqueNamePrefix,
 								  FILE *fileHandle) {
 	/*
 	 * Writes out a graph in 'dot' format, compatible with graphviz.
@@ -1266,8 +1267,11 @@ void writeOutPinchGraphWithChains(struct PinchGraph *pinchGraph,
 	struct Segment *segment;
 	char *colour;
 	char *name;
+	struct hashtable *names;
 
 	logDebug("Writing the pinch graph\n");
+
+	names = getNames(pinchGraph, contigIndexToContigStrings, uniqueNamePrefix);
 
 	//Put the chain segments in a hash to colour the black edges of the pinch graph.
 	hash = create_hashtable(pinchGraph->vertices->length*10,
@@ -1381,6 +1385,7 @@ void writeOutPinchGraphWithChains(struct PinchGraph *pinchGraph,
 
 	destructList(chains);
 	hashtable_destroy(hash, TRUE, FALSE);
+	hashtable_destroy(names, TRUE, FALSE);
 
 	logDebug("Written the pinch graph\n");
 }

@@ -11,6 +11,7 @@
 #include "pinchGraph.h"
 #include "cactusGraph.h"
 #include "net.h"
+#include "cactusNetFunctions.h"
 
 ////////////////////////////////////////////////
 ////////////////////////////////////////////////
@@ -412,7 +413,7 @@ void addAdjacencyComponentsP(Net *net, Net *nestedNet, End *end) {
 	end_destructInstanceIterator(endInstanceIterator);
 }
 
-void addAdjacencyComponents(Net *net, const char *(*getUniqueName)()) {
+void addAdjacencyComponents(Net *net, char *(*getUniqueName)()) {
 	/*
 	 * Adds adjacency components to each net.
 	 */
@@ -421,12 +422,15 @@ void addAdjacencyComponents(Net *net, const char *(*getUniqueName)()) {
 	End *end;
 	AdjacencyComponent *adjacencyComponent;
 	Net *nestedNet;
+	char *name;
 
 	endIterator = net_getEndIterator(net);
 	while((end = net_getNextEnd(endIterator)) != NULL) {
 		adjacencyComponent = end_getAdjacencyComponent(end);
 		if(adjacencyComponent == NULL) {
-			nestedNet = net_construct(getUniqueName(), net_getNetDisk(net));
+			name = getUniqueName();
+			nestedNet = net_construct(name, net_getNetDisk(net));
+			free(name);
 			adjacencyComponent_construct(net, nestedNet);
 			addAdjacencyComponentsP(net, nestedNet, end);
 		}
@@ -470,11 +474,21 @@ void addSequencesToNet(Net *net) {
 	net_destructAdjacencyComponentIterator(adjacencyIterator);
 }
 
+int32_t constructNetFromInputs_uniquePostFix;
+const char *constructNetFromInputs_uniqueNamePrefix;
+
+char *constructNetFromInputs_getUniqueName() {
+	char *cA;
+	cA = malloc(sizeof(char) * strlen(constructNetFromInputs_uniqueNamePrefix) + 10);
+	sprintf(cA, "%s%i", constructNetFromInputs_uniqueNamePrefix, constructNetFromInputs_uniquePostFix++);
+	return cA;
+}
+
 Net *constructNetFromInputs(
 		Net *parentNet,
 		struct CactusGraph *cactusGraph,
-		struct PinchGraph *pinchGraph, struct hashtable *names, struct List *chosenAtoms,
-		struct List *contigIndexToContigStrings, const char *(*getUniqueName)()) {
+		struct PinchGraph *pinchGraph, const char *uniqueNamePrefix, struct List *chosenAtoms,
+		struct List *contigIndexToContigStrings) {
 	Net *net;
 	Chain *chain;
 	AdjacencyComponent *adjacencyComponent;
@@ -489,8 +503,19 @@ Net *constructNetFromInputs(
 	int32_t *mergedVertexIDs;
 	int32_t i, j, k;
 	struct hashtable *chosenAtomsHash;
+	struct hashtable *names;
+	char *name;
+
 
 	logDebug("Building the net\n");
+
+	////////////////////////////////////////////////
+	//Get names of the elements.
+	////////////////////////////////////////////////
+
+	names = getNames(pinchGraph, contigIndexToContigStrings, uniqueNamePrefix);
+	constructNetFromInputs_uniqueNamePrefix = uniqueNamePrefix;
+	constructNetFromInputs_uniquePostFix = pinchGraph->vertices->length;
 
 	////////////////////////////////////////////////
 	//Get sorted bi-connected components.
@@ -561,7 +586,9 @@ Net *constructNetFromInputs(
 		//get the net.
 		net = nets[mergedVertexIDs[cactusEdge->from->vertexID]];
 		if(net == NULL) {
-			net = net_construct(getUniqueName(), net_getNetDisk(parentNet));
+			name = constructNetFromInputs_getUniqueName();
+			net = net_construct(name, net_getNetDisk(parentNet));
+			free(name);
 			nets[mergedVertexIDs[cactusEdge->from->vertexID]] = net;
 		}
 		parentNets[i] = net;
@@ -634,7 +661,7 @@ Net *constructNetFromInputs(
 	//Add adjacency components.
 	////////////////////////////////////////////////
 
-	addAdjacencyComponents(net, getUniqueName);
+	addAdjacencyComponents(net, constructNetFromInputs_getUniqueName);
 
 	////////////////////////////////////////////////
 	//Ensure end trees are copied in base.
@@ -654,4 +681,41 @@ Net *constructNetFromInputs(
 	hashtable_destroy(chosenAtomsHash, FALSE, FALSE);
 
 	return net;
+}
+
+void copyEndTreePhylogenies(Net *parentNet, Net *net) {
+	/*
+	 * For each end in the parent net that is alos in the net, we copy
+	 * the the phylogenetic information across.
+	 */
+	End *end1;
+	End *end2;
+	EndInstance *endInstance1;
+	EndInstance *endInstance2;
+	EndInstance *endInstance3;
+	EndInstance *endInstance4;
+	Net_EndIterator *endIterator;
+	End_InstanceIterator *instanceIterator;
+
+	endIterator = net_getEndIterator(net);
+	while((end1 = net_getNextEnd(endIterator)) != NULL) {
+		end2 = net_getEnd(parentNet, end_getName(end1));
+		assert(end2 != NULL);
+		instanceIterator = end_getInstanceIterator(end1);
+		while((endInstance1 = end_getNext(instanceIterator)) != NULL) {
+			assert(endInstance_getParent(endInstance1) == NULL);
+			endInstance2 = end_getInstance(end2, endInstance_getInstanceName(endInstance1));
+			assert(endInstance2 != NULL);
+			if((endInstance3 = endInstance_getParent(endInstance2)) != NULL) {
+				endInstance4 = end_getInstance(end1, endInstance_getInstanceName(endInstance3));
+				assert(endInstance4 != NULL);
+				endInstance_makeParentAndChild(endInstance4, endInstance1);
+			}
+			else {
+				assert(end_getRootInstance(end2) == endInstance2);
+			}
+		}
+		end_destructInstanceIterator(instanceIterator);
+	}
+	net_destructEndIterator(endIterator);
 }

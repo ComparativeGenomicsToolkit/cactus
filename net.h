@@ -94,7 +94,7 @@ float event_getSubTreeBranchLength(Event *event);
 /*
  * Gets the number of events in the sub tree of the event, excluding the event itself.
  */
-float event_getSubTreeEventNumber(Event *event);
+int32_t event_getSubTreeEventNumber(Event *event);
 
 /*
  * Get number of children.
