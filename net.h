@@ -264,7 +264,7 @@ EndInstance *endInstance_construct(const char *instance, End *end);
 /*
  * As default constructor, but also sets the instance's coordinates and event.
  */
-EndInstance *endInstance_constructWithCoordinates(const char *instance, End *end, int32_t coordinate, Sequence *sequence);
+EndInstance *endInstance_constructWithCoordinates(const char *instance, End *end, int32_t startCoordinate, int32_t strand, Sequence *sequence);
 
 /*
  * Sets the event associated with the event. Will create an error if the event is already set.
@@ -309,9 +309,24 @@ AtomInstance *endInstance_getAtomInstance(EndInstance *endInstance);
 int32_t endInstance_getCoordinate(EndInstance *endInstance);
 
 /*
+ * Returns positive if one the forward strand, and negative if on the minus strand.
+ */
+int32_t endInstance_getStrand(EndInstance *endInstance);
+
+/*
+ * Returns positive if on the left side, negative if on the right side.
+ */
+int32_t endInstance_getSide(EndInstance *endInstance);
+
+/*
  * Gets the sequence in which the instance exists, or NULL if not set.
  */
 Sequence *endInstance_getSequence(EndInstance *endInstance);
+
+/*
+ * Gets the reversed end instance (the equivalent on the opposite strand).
+ */
+EndInstance *endInstance_getReverse(EndInstance *endInstance);
 
 /*
  * Sets adjacent end instances (this will set the adjacency reciprocally).
@@ -393,6 +408,11 @@ End *end_copyConstruct(End *end, Net *newNet);
  *	Name of the end.
  */
 const char *end_getName(End *end);
+
+/*
+ * Returns a reverse strand view of the end.
+ */
+End *end_getReverse(End *end);
 
 /*
  * Gets the net the end is part of.
@@ -497,7 +517,7 @@ AtomInstance *atomInstance_construct3(const char *instance, Atom *atom,
 /*
  * As default constructor, but also sets the instance's coordinates and event.
  */
-AtomInstance *atomInstance_constructWithCoordinates(const char *instance, Atom *atom, int32_t startCoordinate, Sequence *sequence);
+AtomInstance *atomInstance_constructWithCoordinates(const char *instance, Atom *atom, int32_t startCoordinate, int32_t strand, Sequence *sequence);
 
 /*
  * Gets the encompassing atom.
@@ -534,6 +554,11 @@ AtomInstance *atomInstance_getReverse(AtomInstance *atomInstance);
  * Gets the start coordinate of the atom instance, returns INT32_MAX if coordinate not set.
  */
 int32_t atomInstance_getStart(AtomInstance *atomInstance);
+
+/*
+ * Returns positive if one the forward strand, and negative if on the minus strand.
+ */
+int32_t atomInstance_getStrand(AtomInstance *atomInstance);
 
 /*
  * Gets the length of the atom instance.

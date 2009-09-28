@@ -61,6 +61,7 @@ struct PinchGraph *constructPinchGraph(Net *net,
 	struct PinchEdge *rightCapEdge;
 	struct hashtable *hash;
 	struct hashtable *hash2;
+	int32_t i;
 	int32_t length;
 
 	//make basic object.
@@ -93,14 +94,15 @@ struct PinchGraph *constructPinchGraph(Net *net,
 	while((end = net_getNextEnd(endIterator)) != NULL) {
 		instanceIterator = end_getInstanceIterator(end);
 		while((endInstance = end_getNext(instanceIterator)) != NULL) {
-			if(hashtable_search(hash2, endInstance) == NULL) {
+			if(endInstance_getStrand(endInstance)) {
 				endInstance2 = endInstance_getAdjacency(endInstance);
-				assert(hashtable_search(hash2, endInstance) == NULL);
+				assert(endInstance_getStrand(endInstance2));
 
 				//Make black edges for caps/stubs on left end
 				listAppend(contigIndexToContigStrings, endInstance_getCompleteName(endInstance));
-				intListAppend(contigIndexToContigStart, start+1);
-				leftCapEdge = hookUpEdge(constructSegment(contigIndexToContigStrings->length-1, start+1, start+1), graph,
+				i = endInstance_getCoordinate(endInstance)+1;
+				intListAppend(contigIndexToContigStart, i);
+				leftCapEdge = hookUpEdge(constructSegment(contigIndexToContigStrings->length-1, i, i), graph,
 						hashtable_search(hash, (void *)end_getName(endInstance_getEnd(endInstance))),
 						hashtable_search(hash2, (void *)end_getName(endInstance_getEnd(endInstance))));
 
@@ -113,17 +115,19 @@ struct PinchGraph *constructPinchGraph(Net *net,
 				//This allows us to unambiguously identify which stub/cap instances lie to the left and right of which sequences,
 				//useful if we unalign edges and need to work out there original (grey) adjacencies with a stub.
 				listAppend(contigIndexToContigStrings, stringCopy(sequence_getName(endInstance_getSequence(endInstance))));
-				intListAppend(contigIndexToContigStart, start+2);
-				length = endInstance_getCoordinate(endInstance) - endInstance_getCoordinate(endInstance2);
+				intListAppend(contigIndexToContigStart, i+2);
+				length = endInstance_getCoordinate(endInstance2) - endInstance_getCoordinate(endInstance) - 1;
+				assert(length >= 0);
 				if(length > 0) {
-					edge = hookUpEdge(constructSegment(contigIndexToContigStrings->length-1, start+2, start+length+1), graph,
+					edge = hookUpEdge(constructSegment(contigIndexToContigStrings->length-1, i+1, i+length), graph,
 							constructPinchVertex(graph, -1), constructPinchVertex(graph, -1));
 				}
 
 				//Construct the right cap/stub
 				listAppend(contigIndexToContigStrings, endInstance_getCompleteName(endInstance));
-				intListAppend(contigIndexToContigStart, start+length+2);
-				rightCapEdge = hookUpEdge(constructSegment(contigIndexToContigStrings->length-1, start+length+2, start+length+2), graph,
+				i = endInstance_getCoordinate(endInstance2)+1;
+				intListAppend(contigIndexToContigStart, i);
+				rightCapEdge = hookUpEdge(constructSegment(contigIndexToContigStrings->length-1, i, i), graph,
 						hashtable_search(hash, (void *)end_getName(endInstance_getEnd(endInstance2))),
 						hashtable_search(hash2, (void *)end_getName(endInstance_getEnd(endInstance2))));
 
@@ -183,21 +187,29 @@ const char *cactusEdgeToEndName(struct CactusEdge *edge, struct PinchGraph *pinc
 	return cA;
 }
 
+Sequence *copySequence(Net *parentNet, Net *net, const char *name) {
+	Sequence *sequence = net_getSequence(parentNet, name);
+	if(net_getSequence(net, sequence_getName(sequence)) == NULL) {
+		sequence_copyConstruct(sequence, net);
+	}
+	return sequence;
+}
+
 End *constructEndFromCactusEdge(struct CactusEdge *edge,
 		struct PinchGraph *pinchGraph, struct hashtable *names,
-		Net *net, struct List *contigIndexToContigStrings) {
+		Net *net, struct List *contigIndexToContigStrings, Net *parentNet) {
 	int32_t i;
 	End *end;
 	struct Segment *segment;
 	char *instanceName;
-	NetDisk *netDisk = net_getNetDisk(net);
 	end = end_construct(cactusEdgeToEndName(edge, pinchGraph, names), net);
 	for(i=0; i<edge->segments->length; i++) {
 		segment = edge->segments->list[i];
 		instanceName = getInstance(hashtable_search(names,
 										getContainingBlackEdge(pinchGraph, segment->contig, segment->start)));
-		endInstance_constructWithCoordinates(instanceName, end, segment->start,
-				   netDisk_getSequence(netDisk, contigIndexToContigStrings->list[segment->contig]));
+		endInstance_constructWithCoordinates(instanceName, end,
+				(segment->start > 0 ? segment->start : -segment->start) - 1, segment->start > 0,
+				copySequence(parentNet, net, contigIndexToContigStrings->list[segment->contig]));
 		free(instanceName);
 	}
 	return end;
@@ -205,7 +217,8 @@ End *constructEndFromCactusEdge(struct CactusEdge *edge,
 
 Atom *constructAtomFromCactusEdge(struct CactusEdge *edge,
 		struct PinchGraph *pinchGraph, struct hashtable *names,
-		Net *net, struct List *contigIndexToContigStrings) {
+		Net *net, struct List *contigIndexToContigStrings,
+		Net *parentNet) {
 	/*
 	 * Constructs an atom and two connected ends.
 	 */
@@ -213,7 +226,6 @@ Atom *constructAtomFromCactusEdge(struct CactusEdge *edge,
 	Atom *atom;
 	struct Segment *segment;
 	char *name;
-	NetDisk *netDisk = net_getNetDisk(net);
 	name = cactusEdgeToAtomName(edge, pinchGraph, names);
 	segment = edge->segments->list[0];
 	atom = atom_construct(name, segment->end - segment->start + 1, net);
@@ -222,8 +234,8 @@ Atom *constructAtomFromCactusEdge(struct CactusEdge *edge,
 		segment = edge->segments->list[i];
 		atomInstance_constructWithCoordinates(getInstance(hashtable_search(names,
 							   getContainingBlackEdge(pinchGraph, segment->contig, segment->start))),
-							   atom, segment->start,
-							   netDisk_getSequence(netDisk, contigIndexToContigStrings->list[segment->contig]));
+							   atom, (segment->start > 0 ? segment->start : -segment->start) - 1, segment->start > 0,
+							   copySequence(parentNet, net, contigIndexToContigStrings->list[segment->contig]));
 	}
 	return atom;
 }
@@ -418,6 +430,7 @@ void addAdjacencyComponents(Net *net, const char *(*getUniqueName)()) {
 			adjacencyComponent_construct(net, nestedNet);
 			addAdjacencyComponentsP(net, nestedNet, end);
 		}
+		adjacencyComponent_updateContainedEnds(adjacencyComponent); //ensure adjacency component is properly initialised.
 	}
 	net_destructEndIterator(endIterator);
 
@@ -457,12 +470,12 @@ void addSequencesToNet(Net *net) {
 	net_destructAdjacencyComponentIterator(adjacencyIterator);
 }
 
-Net *constructNetFromInputs(struct CactusGraph *cactusGraph,
-		struct PinchGraph *pinchGraph, struct hashtable *names, int32_t *(*includeFn)(struct List *segments),
-		struct hashtable *contigStringsToSequences, struct List *contigIndexToContigStrings,
-		NetDisk *netDisk, const char *(*getUniqueName)()) {
+Net *constructNetFromInputs(
+		Net *parentNet,
+		struct CactusGraph *cactusGraph,
+		struct PinchGraph *pinchGraph, struct hashtable *names, struct List *chosenAtoms,
+		struct List *contigIndexToContigStrings, const char *(*getUniqueName)()) {
 	Net *net;
-	Net *parentNet;
 	Chain *chain;
 	AdjacencyComponent *adjacencyComponent;
 	struct CactusVertex *cactusVertex;
@@ -475,14 +488,9 @@ Net *constructNetFromInputs(struct CactusGraph *cactusGraph,
 	int32_t *vertexDiscoveryTimes;
 	int32_t *mergedVertexIDs;
 	int32_t i, j, k;
+	struct hashtable *chosenAtomsHash;
 
 	logDebug("Building the net\n");
-
-	////////////////////////////////////////////////
-	//Building the sequences.
-	////////////////////////////////////////////////
-
-
 
 	////////////////////////////////////////////////
 	//Get sorted bi-connected components.
@@ -500,6 +508,13 @@ Net *constructNetFromInputs(struct CactusGraph *cactusGraph,
 	//Prune the cactus graph to include only those edges relevant to the desired net.
 	////////////////////////////////////////////////
 
+	chosenAtomsHash = create_hashtable(chosenAtoms->length*2,
+							 hashtable_key, hashtable_equalKey,
+							 NULL, NULL);
+	for(i=0; i<chosenAtoms->length; i++) {
+		hashtable_insert(chosenAtomsHash, chosenAtoms->list[i], &i);
+	}
+
 	mergedVertexIDs = malloc(sizeof(int32_t)*cactusGraph->vertices->length);
 	for(i=0; i<cactusGraph->vertices->length; i++) {
 		mergedVertexIDs[i] = ((struct CactusVertex *)cactusGraph->vertices->list[i])->vertexID;
@@ -509,7 +524,7 @@ Net *constructNetFromInputs(struct CactusGraph *cactusGraph,
 		list = constructEmptyList(0, NULL);
 		for(j=0; j<biConnectedComponent->length; j++) {
 			cactusEdge = biConnectedComponent->list[j];
-			if(!includeFn(cactusEdge->segments)) {
+			if(isAStubOrCapCactusEdge(cactusEdge, pinchGraph) || hashtable_search(chosenAtomsHash, cactusEdge) != NULL) {
 				//merge vertices
 				if(vertexDiscoveryTimes[cactusEdge->from->vertexID] < vertexDiscoveryTimes[cactusEdge->to->vertexID]) {
 					mergedVertexIDs[cactusEdge->to->vertexID] = mergedVertexIDs[cactusEdge->from->vertexID];
@@ -536,7 +551,7 @@ Net *constructNetFromInputs(struct CactusGraph *cactusGraph,
 	////////////////////////////////////////////////
 
 	nets = mallocLocal(sizeof(void *) * cactusGraph->vertices->length);
-	for(i=0; i<cactusGraph->vertices->length; i++) {
+	for(i=1; i<cactusGraph->vertices->length; i++) {
 		nets[i] = NULL;
 	}
 	parentNets = mallocLocal(sizeof(void *) * biConnectedComponents->length);
@@ -546,7 +561,7 @@ Net *constructNetFromInputs(struct CactusGraph *cactusGraph,
 		//get the net.
 		net = nets[mergedVertexIDs[cactusEdge->from->vertexID]];
 		if(net == NULL) {
-			net = net_construct(getUniqueName(), netDisk);
+			net = net_construct(getUniqueName(), net_getNetDisk(parentNet));
 			nets[mergedVertexIDs[cactusEdge->from->vertexID]] = net;
 		}
 		parentNets[i] = net;
@@ -555,10 +570,11 @@ Net *constructNetFromInputs(struct CactusGraph *cactusGraph,
 		for(j=0; j<biConnectedComponent->length; j++) {
 			cactusEdge = biConnectedComponent->list[j];
 			if(!isAStubOrCapCactusEdge(cactusEdge, pinchGraph)) {
-				constructAtomFromCactusEdge(cactusEdge, pinchGraph, names, net, contigIndexToContigStrings);
+				constructAtomFromCactusEdge(cactusEdge, pinchGraph, names, net, contigIndexToContigStrings, parentNet);
 			}
 			else {
-				constructEndFromCactusEdge(getNonDeadEndOfStubOrCapCactusEdge(cactusEdge, pinchGraph), pinchGraph, names, net, contigIndexToContigStrings);
+				constructEndFromCactusEdge(getNonDeadEndOfStubOrCapCactusEdge(cactusEdge, pinchGraph),
+						pinchGraph, names, net, contigIndexToContigStrings, parentNet);
 			}
 		}
 	}
@@ -621,10 +637,10 @@ Net *constructNetFromInputs(struct CactusGraph *cactusGraph,
 	addAdjacencyComponents(net, getUniqueName);
 
 	////////////////////////////////////////////////
-	//Add sequence objects to net.
+	//Ensure end trees are copied in base.
 	////////////////////////////////////////////////
 
-	addSequencesToNet(net);
+	copyEndTreePhylogenies(parentNet, net);
 
 	////////////////////////////////////////////////
 	//Clean up
@@ -635,6 +651,7 @@ Net *constructNetFromInputs(struct CactusGraph *cactusGraph,
 	free(vertexDiscoveryTimes);
 	free(parentNets);
 	destructList(biConnectedComponents);
+	hashtable_destroy(chosenAtomsHash, FALSE, FALSE);
 
 	return net;
 }

@@ -10,7 +10,7 @@
 #include "net.h"
 
 Net *constructNetFromInputs(struct CactusGraph *cactusGraph,
-		struct PinchGraph *pinchGraph, struct hashtable *names, int32_t *(*includeFn)(struct List *segments),
+		struct PinchGraph *pinchGraph, struct hashtable *names, struct List *chosenAtoms,
 		struct hashtable *contigStringsToSequences, struct List *contigIndexToContigStrings,
 		NetDisk *netDisk, const char *(*getUniqueName)());
 

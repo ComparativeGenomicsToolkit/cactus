@@ -1387,8 +1387,7 @@ int32_t chainBaseLength(struct List *biConnectedComponent, struct PinchGraph *pi
 	return i;
 }
 
-void filterAtomsByTreeCoverageAndLength(struct List *biConnectedComponents,
-		struct List *chosenAtoms,
+struct List *filterAtomsByTreeCoverageAndLength(struct List *biConnectedComponents,
 		Net *net,
 		float proportionToKeep, /*Proportion of all atoms to select to keep*/
 		float discardRatio, /*The proportion of an atom's chain's average atom score required to be score to be considered */
@@ -1408,6 +1407,7 @@ void filterAtomsByTreeCoverageAndLength(struct List *biConnectedComponents,
 	float minAtomScore;
 	float f;
 	struct List *biConnectedComponent;
+	struct List *chosenAtoms;
 
 #ifdef BEN_DEBUG
 	assert(proportionToKeep <= 1.0);
@@ -1434,6 +1434,8 @@ void filterAtomsByTreeCoverageAndLength(struct List *biConnectedComponents,
 	//Gets those atoms whose chain meet the minimum score and have the minimum tree coverage.
 	///////////////
 
+	chosenAtoms = constructEmptyList(0, NULL);
+
 	for(i=0; i<biConnectedComponents->length; i++) {
 		biConnectedComponent = biConnectedComponents->list[i];
 		f = chainScore(biConnectedComponent, net, contigIndexToContigStrings, pinchGraph);
@@ -1450,6 +1452,8 @@ void filterAtomsByTreeCoverageAndLength(struct List *biConnectedComponents,
 			}
 		}
 	}
+
+	return chosenAtoms;
 }
 
 void logTheChosenAtomSubset(struct List *biConnectedComponents, struct List *chosenAtoms, struct PinchGraph *pinchGraph,

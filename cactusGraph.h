@@ -143,8 +143,7 @@ void breakLoopDiscontinuities(struct CactusGraph *cactusGraph, struct List *extr
 ////////////////////////////////////////////////
 ////////////////////////////////////////////////
 
-void filterAtomsByTreeCoverageAndLength(struct List *biConnectedComponents,
-		struct List *chosenAtoms,
+struct List *filterAtomsByTreeCoverageAndLength(struct List *biConnectedComponents,
 		Net *net,
 		float proportionToKeep, /*Proportion of all atoms to select to keep*/
 		float discardRatio, /*The proportion of an atom's chain's average atom score required to be score to be considered */

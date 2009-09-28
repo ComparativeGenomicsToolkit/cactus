@@ -264,7 +264,6 @@ int main(int argc, char *argv[]) {
 	logInfo("Parsed the net to be refined\n");
 
 	startTime = time(NULL);
-	setUniqueNamePrefix(uniqueNamePrefix);
 
 	///////////////////////////////////////////////////////////////////////////
 	//Setup the basic pinch graph
@@ -466,12 +465,10 @@ int main(int argc, char *argv[]) {
 	//accept chains whose remaining element's combined length is greater than a set length.
 
 	startTime = time(NULL);
-	chosenAtoms = constructEmptyList(0, NULL);
-	filterAtomsByTreeCoverageAndLength(biConnectedComponents, chosenAtoms,
+	chosenAtoms = filterAtomsByTreeCoverageAndLength(biConnectedComponents,
 			net, proportionToKeep,
 			discardRatio, minimumTreeCoverage, minimumChainLength,
 			pinchGraph, contigIndexToContigStrings);
-	filterAtomsByIfStubOrCap(biConnectedComponents, chosenAtoms, pinchGraph);
 	//now report the results
 	logTheChosenAtomSubset(biConnectedComponents, chosenAtoms, pinchGraph, net, contigIndexToContigStrings);
 
@@ -489,7 +486,7 @@ int main(int argc, char *argv[]) {
 	///////////////////////////////////////////////////////////////////////////
 
 	constructNetFromInputs(cactusGraph,
-			pinchGraph, names, includeFn,
+			pinchGraph, names, chosenAtoms,
 			contigIndexToContigStrings,
 			netDisk, getUniqueName);
 
