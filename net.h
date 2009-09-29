@@ -37,8 +37,8 @@ typedef struct _net Net;
 typedef struct _netDisk NetDisk;
 
 typedef struct avl_traverser EventTree_Iterator;
-typedef struct avl_traverser End_InstanceIterator;
-typedef struct avl_traverser Atom_InstanceIterator;
+typedef struct _end_instanceIterator End_InstanceIterator;
+typedef struct _atom_instanceIterator Atom_InstanceIterator;
 typedef struct avl_traverser AdjacencyComponent_EndIterator;
 typedef struct avl_traverser Net_SequenceIterator;
 typedef struct avl_traverser Net_EndIterator;
@@ -264,7 +264,7 @@ EndInstance *endInstance_construct(const char *instance, End *end);
 /*
  * As default constructor, but also sets the instance's coordinates and event.
  */
-EndInstance *endInstance_constructWithCoordinates(const char *instance, End *end, int32_t startCoordinate, int32_t strand, Sequence *sequence);
+EndInstance *endInstance_construct2(const char *instance, End *end, int32_t startCoordinate, int32_t strand, int32_t side, Sequence *sequence);
 
 /*
  * Sets the event associated with the event. Will create an error if the event is already set.
@@ -288,6 +288,28 @@ const char *endInstance_getElementName(EndInstance *endInstance);
 char *endInstance_getCompleteName(EndInstance *endInstance);
 
 /*
+ * Returns a positive integer if the end instance is oriented positively with respect to the end.
+ * Else, returns a negative integer if the end instance is oriented negatively with respect to the end.
+ *
+ * Thus, if you want to know the sign of instance, call this function and prefix a minus sign to the name if
+ * this function returns a negative integer.
+ */
+int32_t endInstance_getOrientation(EndInstance *endInstance);
+
+/*
+ * Gets the complete name of an instance, as in endInstance_getCompleteName, but prefixes
+ * the name a sign if the instance is the reverse orientation.
+ *
+ * You must clean up the returned string.
+ */
+char *endInstance_getCompleteNameWithOrientation(EndInstance *endInstance);
+
+/*
+ * Gets the reversed end instance (the equivalent on the opposite strand, with the opposite orientation).
+ */
+EndInstance *endInstance_getReverse(EndInstance *endInstance);
+
+/*
  * Gets the event associated with the endInstance.
  */
 Event *endInstance_getEvent(EndInstance *endInstance);
@@ -304,17 +326,20 @@ End *endInstance_getEnd(EndInstance *endInstance);
 AtomInstance *endInstance_getAtomInstance(EndInstance *endInstance);
 
 /*
- * Gets the coordinate of the end instance, returns INT32_MAX if coordinate not set.
+ * Gets the coordinate of the position that end instance is on the end of,
+ * returns INT32_MAX if coordinate not set.
  */
 int32_t endInstance_getCoordinate(EndInstance *endInstance);
 
 /*
- * Returns positive if one the forward strand, and negative if on the minus strand.
+ * Returns positive if the coordinate of the end instance (see endInstance_getCoordinate)
+ * is on the forward strand, and negative if on the minus strand.
  */
 int32_t endInstance_getStrand(EndInstance *endInstance);
 
 /*
- * Returns positive if on the left side, negative if on the right side.
+ * Returns positive if on the 5' side of the position returned by endInstance_getCoordinate,
+ * negative if on the 3' side.
  */
 int32_t endInstance_getSide(EndInstance *endInstance);
 
@@ -322,11 +347,6 @@ int32_t endInstance_getSide(EndInstance *endInstance);
  * Gets the sequence in which the instance exists, or NULL if not set.
  */
 Sequence *endInstance_getSequence(EndInstance *endInstance);
-
-/*
- * Gets the reversed end instance (the equivalent on the opposite strand).
- */
-EndInstance *endInstance_getReverse(EndInstance *endInstance);
 
 /*
  * Sets adjacent end instances (this will set the adjacency reciprocally).
@@ -410,7 +430,27 @@ End *end_copyConstruct(End *end, Net *newNet);
 const char *end_getName(End *end);
 
 /*
- * Returns a reverse strand view of the end.
+ * Returns a positive integer if the end is oriented positively.
+ * Else, returns a negative integer.
+ * The orientation is arbitrary (it is not explicitly with respect to anything else), but is consistent.
+ *
+ * All instances returned by the iterator of the end_getInstance() will have the same orientation as the
+ * parent end.
+ *
+ * Thus, if you want to know the sign of end, call this function and prefix a minus sign to the name if
+ * this function returns a negative integer.
+ */
+int32_t end_getOrientation(End *end);
+
+/*
+ *	Gets the name of the end, as in end_getName(), but prefixes a minus sign to the name
+ *	if in the reverse orientation.
+ *	You must clean up the returned string.
+ */
+char *end_getNameWithOrientation(End *end);
+
+/*
+ * Returns a reverse strand view of the end (in the opposite orientation).
  */
 End *end_getReverse(End *end);
 
@@ -512,12 +552,7 @@ AtomInstance *atomInstance_construct2(const char *instance, Atom *atom);
  * Constructs an atom instance and its two attached end instances, with the given coordinates.
  */
 AtomInstance *atomInstance_construct3(const char *instance, Atom *atom,
-		int32_t startCoordinate, Sequence *sequence);
-
-/*
- * As default constructor, but also sets the instance's coordinates and event.
- */
-AtomInstance *atomInstance_constructWithCoordinates(const char *instance, Atom *atom, int32_t startCoordinate, int32_t strand, Sequence *sequence);
+		int32_t startCoordinate, int32_t strand, Sequence *sequence);
 
 /*
  * Gets the encompassing atom.
@@ -541,9 +576,19 @@ const char *atomInstance_getElementName(AtomInstance *atomInstance);
 char *atomInstance_getCompleteName(AtomInstance *atomInstance);
 
 /*
- * Gets the event associated with the instance.
+ * Returns a positive integer if the instance is oriented positively with respect to the atom.
+ * Else, returns a negative integer if the instance is oriented negatively with respect to the atom.
+ *
+ * Thus, if you want to know the sign of the instance, call this function and prefix a minus sign to the name if
+ * this function returns a negative integer.
  */
-Event *atomInstance_getEvent(AtomInstance *atomInstance);
+int32_t atomInstance_getOrientation(AtomInstance *atomInstance);
+
+/*
+ * Gets the complete name of an instance, as in atomInstance_getCompleteName, but prefixes
+ * the name a sign if the instance is the reverse orientation.
+ */
+char *atomInstance_getCompleteNameWithOrientation(AtomInstance *atomInstance);
 
 /*
  * Gets the reverse atom instance, giving a reversed view of the atom instance.
@@ -551,7 +596,13 @@ Event *atomInstance_getEvent(AtomInstance *atomInstance);
 AtomInstance *atomInstance_getReverse(AtomInstance *atomInstance);
 
 /*
- * Gets the start coordinate of the atom instance, returns INT32_MAX if coordinate not set.
+ * Gets the event associated with the instance.
+ */
+Event *atomInstance_getEvent(AtomInstance *atomInstance);
+
+/*
+ * Gets the start coordinate (that which is closest to the 5' end of the strand)
+ *  of the atom instance, returns INT32_MAX if coordinate not set.
  */
 int32_t atomInstance_getStart(AtomInstance *atomInstance);
 
@@ -573,12 +624,12 @@ Sequence *atomInstance_getSequence(AtomInstance *atomInstance);
 /*
  * Gets the left end instance of the atom instance.
  */
-EndInstance *atomInstance_getLeft(AtomInstance *atomInstance);
+EndInstance *atomInstance_get5End(AtomInstance *atomInstance);
 
 /*
  * Gets the right end instance of the atom instance.
  */
-EndInstance *atomInstance_getRight(AtomInstance *atomInstance);
+EndInstance *atomInstance_get3End(AtomInstance *atomInstance);
 
 /*
  * Returns the parent instance, or NULL, if none exists.
@@ -614,6 +665,31 @@ Atom *atom_construct(const char *name, int32_t length, Net *net);
 const char *atom_getName(Atom *atom);
 
 /*
+ * Returns a positive integer if the atom is oriented positively.
+ * Else, returns a negative integer.
+ * The orientation is arbitrary (it is not explicitly with respect to anything else), but is consistent.
+ *
+ * All instances returned by the iterator of the atom_getInstance() will have the same orientation as the
+ * parent end.
+ *
+ * Thus, if you want to know the sign of end, call this function and prefix a minus sign to the name if
+ * this function returns a negative integer.
+ */
+int32_t atom_getOrientation(Atom *atom);
+
+/*
+ *	Gets the name of the atom, as in atom_getName(), but prefixes a minus sign to the name
+ *	if in the reverse orientation.
+ *	You must clean up the returned string.
+ */
+char *atom_getNameWithOrientation(Atom *atom);
+
+/*
+ * Returns a reversed view of the atom (in the opposite orientation).
+ */
+Atom *atom_getReverse(Atom *atom);
+
+/*
  * Returns the length in bases of the atom.
  */
 int32_t atom_getLength(Atom *atom);
@@ -626,17 +702,12 @@ Net *atom_getNet(Atom *atom);
 /*
  * Gets the left end of the atom.
  */
-End *atom_getLeft(Atom *atom);
+End *atom_get5End(Atom *atom);
 
 /*
  * Gets the right end of the atom.
  */
-End *atom_getRight(Atom *atom);
-
-/*
- * Returns a reversed view of the atom.
- */
-Atom *atom_getReverse(Atom *atom);
+End *atom_get3End(Atom *atom);
 
 /*
  * Returns the number of instances (including any internal instances), the atom contains.
@@ -1277,13 +1348,18 @@ const char *netMisc_getElementNameStatic(const char *completeName);
  * Concatenates an element name n and instance name m to form a complete name of the form n.m .
  * This involves memory allocation, you are responsible for cleaning up the memory.
  */
-char *netMisc_makeCompleteName(const char *elementName, const char *instanceName);
+char *netMisc_makeCompleteName(const char *elementName, const char *instanceName, int32_t orientation);
 
 /*
  * Concatenates an element name n and instance name m to form a complete name of the form n.m .
  * The memory for the string is owned by the function, so you needn't clean it up.
  * However, this memory will be overwritten with each call to the function.
  */
-const char *netMisc_makeCompleteNameStatic(const char *elementName, const char *instanceName);
+const char *netMisc_makeCompleteNameStatic(const char *elementName, const char *instanceName, int32_t orientation);
+
+/*
+ * Adds an orientation to a name. The returned string must be manually freed.
+ */
+char *netMisc_getNameWithOrientation(const char *name, int32_t orientation);
 
 #endif

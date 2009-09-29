@@ -233,7 +233,7 @@ Atom *constructAtomFromCactusEdge(struct CactusEdge *edge,
 	free(name);
 	for(i=0; i<edge->segments->length; i++) {
 		segment = edge->segments->list[i];
-		atomInstance_constructWithCoordinates(getInstance(hashtable_search(names,
+		atomInstance_construct3(getInstance(hashtable_search(names,
 							   getContainingBlackEdge(pinchGraph, segment->contig, segment->start))),
 							   atom, (segment->start > 0 ? segment->start : -segment->start) - 1, segment->start > 0,
 							   copySequence(parentNet, net, contigIndexToContigStrings->list[segment->contig]));

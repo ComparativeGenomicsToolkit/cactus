@@ -196,7 +196,7 @@ float event_getBranchLength(Event *event) {
 }
 
 float event_getSubTreeBranchLength(Event *event) {
-	int32 i;
+	int32_t i;
 	Event *childEvent;
 	float branchLength;
 
@@ -209,7 +209,7 @@ float event_getSubTreeBranchLength(Event *event) {
 }
 
 int32_t event_getSubTreeEventNumber(Event *event) {
-	int32 i, j;
+	int32_t i, j;
 	Event *childEvent;
 
 	j = 0.0;
@@ -530,28 +530,42 @@ EndInstance *endInstance_construct(const char *instance, End *end) {
 	EndInstance *endInstance;
 
 	endInstance = malloc(sizeof(EndInstance));
-	endInstance->instance = stringCopy(instance);
-	endInstance->end = end;
+	endInstance->endInstanceContents = malloc(sizeof(EndInstanceContents));
+	endInstance->rEndInstance = malloc(sizeof(EndInstance));
+	endInstance->rEndInstance->rEndInstance = endInstance;
+	endInstance->rEndInstance->endInstanceContents = endInstance->endInstanceContents;
 
-	endInstance->coordinate = INT32_MAX;
-	endInstance->sequence = NULL;
-	endInstance->adjacency = NULL;
-	endInstance->adjacency2 = NULL;
-	endInstance->operation = NULL;
-	endInstance->atomInstance = NULL;
-	endInstance->parent = NULL;
-	endInstance->children = constructEmptyList(0, NULL);
+	end->orientation = 1;
+	end->rEnd->orientation = -1;
+
+	endInstance->end = end;
+	endInstance->rEndInstance->end = end_getReverse(end);
+
+	endInstance->endInstanceContents->instance = stringCopy(instance);
+	endInstance->endInstanceContents->coordinate = INT32_MAX;
+	endInstance->endInstanceContents->sequence = NULL;
+	endInstance->endInstanceContents->adjacency = NULL;
+	endInstance->endInstanceContents->adjacency2 = NULL;
+	endInstance->endInstanceContents->operation = NULL;
+	endInstance->endInstanceContents->atomInstance = NULL;
+	endInstance->endInstanceContents->parent = NULL;
+	endInstance->endInstanceContents->children = constructEmptyList(0, NULL);
 
 	end_addInstance(end, endInstance);
 	return endInstance;
 }
 
-EndInstance *endInstance_constructWithCoordinates(const char *instance, End *end, int32_t coordinate, Sequence *sequence) {
+EndInstance *endInstance_construct2(const char *instance, End *end,
+		int32_t coordinate, int32_t strand, int32_t side, Sequence *sequence) {
 	EndInstance *endInstance;
 	endInstance = endInstance_construct(instance, end);
-	endInstance->coordinate = coordinate;
-	endInstance->sequence = sequence;
-	endInstance->event = sequence_getEvent(sequence);
+	endInstance->endInstanceContents->coordinate = coordinate;
+	assert(strand != 0);
+	assert(side != 0);
+	endInstance->endInstanceContents->strand = strand;
+	endInstance->endInstanceContents->side = side;
+	endInstance->endInstanceContents->sequence = sequence;
+	endInstance->endInstanceContents->event = sequence_getEvent(sequence);
 	return endInstance;
 }
 
@@ -559,20 +573,22 @@ void endInstance_setEvent(EndInstance *endInstance, Event *event) {
 #ifdef BEN_DEBUG
 	assert(endInstance_getEvent(endInstance) == NULL);
 #endif
-	endInstance->event = event;
+	endInstance->endInstanceContents->event = event;
 }
 
 void endInstance_destruct(EndInstance *endInstance) {
 	//Remove from end.
 	end_removeInstance(endInstance_getEnd(endInstance), endInstance);
 
-	destructList(endInstance->children);
-	free(endInstance->instance);
+	destructList(endInstance->endInstanceContents->children);
+	free(endInstance->rEndInstance);
+	free(endInstance->endInstanceContents->instance);
+	free(endInstance->endInstanceContents);
 	free(endInstance);
 }
 
 const char *endInstance_getInstanceName(EndInstance *endInstance) {
-	return endInstance->instance;
+	return endInstance->endInstanceContents->instance;
 }
 
 const char *endInstance_getElementName(EndInstance *endInstance) {
@@ -580,11 +596,24 @@ const char *endInstance_getElementName(EndInstance *endInstance) {
 }
 
 char *endInstance_getCompleteName(EndInstance *endInstance) {
-	return netMisc_makeCompleteName(endInstance_getElementName(endInstance), endInstance_getInstanceName(endInstance));
+	return netMisc_makeCompleteName(endInstance_getElementName(endInstance), endInstance_getInstanceName(endInstance), 1);
+}
+
+int32_t endInstance_getOrientation(EndInstance *endInstance) {
+	return end_getOrientation(endInstance_getEnd(endInstance));
+}
+
+char *endInstance_getCompleteNameWithOrientation(EndInstance *endInstance) {
+	return netMisc_makeCompleteName(endInstance_getElementName(endInstance),
+			endInstance_getInstanceName(endInstance), endInstance_getOrientation(endInstance));
+}
+
+EndInstance *endInstance_getReverse(EndInstance *endInstance) {
+	return endInstance->rEndInstance;
 }
 
 Event *endInstance_getEvent(EndInstance *endInstance) {
-	return endInstance->event;
+	return endInstance->endInstanceContents->event;
 }
 
 End *endInstance_getEnd(EndInstance *endInstance) {
@@ -592,49 +621,66 @@ End *endInstance_getEnd(EndInstance *endInstance) {
 }
 
 AtomInstance *endInstance_getAtomInstance(EndInstance *endInstance) {
-	return endInstance->atomInstance;
+	return endInstance_getOrientation(endInstance) > 0 ?
+			endInstance->endInstanceContents->atomInstance :
+	(endInstance->endInstanceContents->atomInstance != NULL ? atomInstance_getReverse(endInstance->endInstanceContents->atomInstance) : NULL);
 }
 
 int32_t endInstance_getCoordinate(EndInstance *endInstance) {
-	return endInstance->coordinate;
+	return endInstance->endInstanceContents->coordinate;
+}
+
+int32_t endInstance_getStrand(EndInstance *endInstance) {
+	return endInstance_getOrientation(endInstance) ? endInstance->endInstanceContents->strand : -endInstance->endInstanceContents->strand;
+}
+
+int32_t endInstance_getSide(EndInstance *endInstance) {
+	return endInstance_getOrientation(endInstance) ? endInstance->endInstanceContents->side : -endInstance->endInstanceContents->side;
 }
 
 Sequence *endInstance_getSequence(EndInstance *endInstance) {
-	return endInstance->sequence;
+	return endInstance->endInstanceContents->sequence;
 }
 
 void endInstance_makeAdjacent1(EndInstance *endInstance, EndInstance *endInstance2) {
 	endInstance_breakAdjacency1(endInstance);
 	endInstance_breakAdjacency1(endInstance2);
-	endInstance->adjacency = endInstance2;
-	endInstance2->adjacency = endInstance;
+	endInstance->endInstanceContents->adjacency = endInstance2;
+	endInstance2->endInstanceContents->adjacency = endInstance;
 }
 
 void endInstance_makeAdjacent2(EndInstance *endInstance, EndInstance *endInstance2) {
 	endInstance_breakAdjacency2(endInstance);
 	endInstance_breakAdjacency2(endInstance2);
-	endInstance->adjacency2 = endInstance2;
-	endInstance2->adjacency2 = endInstance;
+	endInstance->endInstanceContents->adjacency2 = endInstance2;
+	endInstance2->endInstanceContents->adjacency2 = endInstance;
+}
+
+EndInstance *endInstance_getP(EndInstance *endInstance, EndInstance *connectedEndInstance) {
+	return connectedEndInstance == NULL ? NULL :
+			endInstance_getOrientation(endInstance) > 0 ? connectedEndInstance : endInstance_getReverse(connectedEndInstance);
 }
 
 EndInstance *endInstance_getAdjacency(EndInstance *endInstance) {
-	return endInstance->adjacency;
+	return endInstance_getP(endInstance, endInstance->endInstanceContents->adjacency);
 }
 
 EndInstance *endInstance_getAdjacency2(EndInstance *endInstance) {
-	return endInstance->adjacency2;
+	return endInstance_getP(endInstance, endInstance->endInstanceContents->adjacency2);
 }
 
 Operation *endInstance_getOperation(EndInstance *endInstance) {
-	return endInstance->operation;
+	return endInstance->endInstanceContents->operation;
 }
 
 EndInstance *endInstance_getParent(EndInstance *endInstance) {
-	return endInstance->parent;
+	EndInstance *e = endInstance->endInstanceContents->parent;
+	return e == NULL ? NULL :
+		endInstance_getOrientation(endInstance) > 0 ? e : endInstance_getReverse(e);
 }
 
 int32_t endInstance_getChildNumber(EndInstance *endInstance) {
-	return endInstance->children->length;
+	return endInstance->endInstanceContents->children->length;
 }
 
 EndInstance *endInstance_getChild(EndInstance *endInstance, int32_t index) {
@@ -642,14 +688,15 @@ EndInstance *endInstance_getChild(EndInstance *endInstance, int32_t index) {
 	assert(endInstance_getChildNumber(endInstance) > index);
 	assert(index >= 0);
 #endif
-	return endInstance->children->list[index];
+	return endInstance_getP(endInstance, endInstance->endInstanceContents->children->list[index]);
 }
 
 void endInstance_makeParentAndChild(EndInstance *endInstanceParent, EndInstance *endInstanceChild) {
-	if(!listContains(endInstanceParent->children, endInstanceChild)) { //defensive, means second calls will have no effect.
-		listAppend(endInstanceParent->children, endInstanceChild);
+	assert(endInstance_getOrientation(endInstanceParent) == endInstance_getOrientation(endInstanceChild));
+	if(!listContains(endInstanceParent->endInstanceContents->children, endInstanceChild)) { //defensive, means second calls will have no effect.
+		listAppend(endInstanceParent->endInstanceContents->children, endInstanceChild);
 	}
-	endInstanceChild->parent = endInstanceParent;
+	endInstanceChild->endInstanceContents->parent = endInstanceParent;
 }
 
 int32_t endInstance_isInternal(EndInstance *endInstance) {
@@ -665,19 +712,19 @@ int32_t endInstance_isAugmented(EndInstance *endInstance) {
  */
 
 void endInstance_setAtomInstance(EndInstance *endInstance, AtomInstance *atomInstance) {
-	endInstance->atomInstance = atomInstance;
+	endInstance->endInstanceContents->atomInstance = atomInstance;
 }
 
 void endInstance_setOperation(EndInstance *endInstance, Operation *operation) {
-	endInstance->operation = operation;
+	endInstance->endInstanceContents->operation = operation;
 }
 
 void endInstance_breakAdjacency1(EndInstance *endInstance) {
 	EndInstance *endInstance2;
 	endInstance2 = endInstance_getAdjacency(endInstance);
 	if(endInstance2 != NULL) {
-		endInstance2->adjacency = NULL;
-		endInstance->adjacency = NULL;
+		endInstance2->endInstanceContents->adjacency = NULL;
+		endInstance->endInstanceContents->adjacency = NULL;
 	}
 }
 
@@ -685,8 +732,8 @@ void endInstance_breakAdjacency2(EndInstance *endInstance) {
 	EndInstance *endInstance2;
 	endInstance2 = endInstance_getAdjacency2(endInstance);
 	if(endInstance2 != NULL) {
-		endInstance2->adjacency2 = NULL;
-		endInstance->adjacency2 = NULL;
+		endInstance2->endInstanceContents->adjacency2 = NULL;
+		endInstance->endInstanceContents->adjacency2 = NULL;
 	}
 }
 
@@ -705,11 +752,19 @@ int32_t end_constructP(const void *o1, const void *o2, void *a) {
 End *end_construct(const char *name, Net *net) {
 	End *end;
 	end = malloc(sizeof(End));
-	end->name = stringCopy(net);
-	end->endInstances = sortedSet_construct(end_constructP);
-	end->attachedAtom = NULL;
-	end->adjacencyComponent = NULL;
-	end->net = net;
+	end->rEnd = malloc(sizeof(End));
+	end->rEnd->rEnd = end;
+	end->endContents = malloc(sizeof(EndContents));
+	end->rEnd->endContents = end->endContents;
+
+	end->orientation = 1;
+	end->rEnd->orientation = -1;
+
+	end->endContents->name = stringCopy(name);
+	end->endContents->endInstances = sortedSet_construct(end_constructP);
+	end->endContents->attachedAtom = NULL;
+	end->endContents->adjacencyComponent = NULL;
+	end->endContents->net = net;
 	net_addEnd(net, end);
 	return end;
 }
@@ -724,8 +779,9 @@ End *end_copyConstruct(End *end, Net *newNet) {
 	iterator = end_getInstanceIterator(end);
 	while((endInstance = end_getNext(iterator)) != NULL) {
 		if(endInstance_getCoordinate(endInstance) != INT32_MAX) {
-			endInstance_constructWithCoordinates(endInstance_getInstanceName(endInstance), end2,
-					endInstance_getCoordinate(endInstance), endInstance_getSequence(endInstance));
+			endInstance_construct2(endInstance_getInstanceName(endInstance), end2,
+					endInstance_getCoordinate(endInstance), endInstance_getStrand(endInstance),
+					endInstance_getSide(endInstance), endInstance_getSequence(endInstance));
 		}
 		else {
 			endInstance_construct(endInstance_getInstanceName(endInstance), end2);
@@ -755,56 +811,85 @@ void end_destruct(End *end) {
 		endInstance_destruct(endInstance);
 	}
 	//now the actual instances.
-	sortedSet_destruct(end->endInstances, NULL);
+	sortedSet_destruct(end->endContents->endInstances, NULL);
 
-	free(end->name);
+	free(end->endContents->name);
+	free(end->endContents);
+	free(end->rEnd);
 	free(end);
 }
 
 const char *end_getName(End *end) {
-	return end->name;
+	return end->endContents->name;
+}
+
+int32_t end_getOrientation(End *end) {
+	return end->orientation;
+}
+
+char *end_getNameWithOrientation(End *end) {
+	return netMisc_getNameWithOrientation(end_getName(end), end_getOrientation(end));
+}
+
+End *end_getReverse(End *end) {
+	return end->rEnd;
 }
 
 Net *end_getNet(End *end) {
-	return end->net;
+	return end->endContents->net;
 }
 
 AdjacencyComponent *end_getAdjacencyComponent(End *end) {
-	return end->adjacencyComponent;
+	return end->endContents->adjacencyComponent;
 }
 
 int32_t end_getInstanceNumber(End *end) {
-	return sortedSet_getLength(end->endInstances);
+	return sortedSet_getLength(end->endContents->endInstances);
+}
+
+EndInstance *end_getInstanceP(End *end, EndInstance *connectedEndInstance) {
+	return end_getOrientation(end) > 0 ? connectedEndInstance : connectedEndInstance;
 }
 
 EndInstance *end_getInstance(End *end, const char *name) {
 	static EndInstance endInstance;
-	endInstance.instance = (char *)name;
-	return sortedSet_find(end->endInstances, &endInstance);
+	static EndInstanceContents endInstanceContents;
+	endInstance.endInstanceContents = &endInstanceContents;
+	endInstanceContents.instance = (char *)name;
+	return end_getInstanceP(end, sortedSet_find(end->endContents->endInstances, &endInstance));
 }
 
 EndInstance *end_getFirst(End *end) {
-	return sortedSet_getFirst(end->endInstances);
+	return end_getInstanceP(end, sortedSet_getFirst(end->endContents->endInstances));
 }
 
 End_InstanceIterator *end_getInstanceIterator(End *end) {
-	return iterator_construct(end->endInstances);
+	End_InstanceIterator *iterator;
+	iterator = malloc(sizeof(struct _end_instanceIterator));
+	iterator->end = end;
+	iterator->iterator = iterator_construct(end->endContents->endInstances);
+	return iterator;
 }
 
 EndInstance *end_getNext(End_InstanceIterator *iterator) {
-	return iterator_getNext(iterator);
+	return end_getInstanceP(iterator->end, iterator_getNext(iterator->iterator));
 }
 
 EndInstance *end_getPrevious(End_InstanceIterator *iterator) {
-	return iterator_getPrevious(iterator);
+	return end_getInstanceP(iterator->end, iterator_getPrevious(iterator->iterator));
 }
 
 End_InstanceIterator *end_copyInstanceIterator(End_InstanceIterator *iterator) {
-	return iterator_copy(iterator);
+	End_InstanceIterator *iterator2;
+	iterator2 = malloc(sizeof(struct _end_instanceIterator));
+	iterator2->end = iterator->end;
+	iterator2->iterator = iterator_copy(iterator->iterator);
+	return iterator2;
 }
 
 void end_destructInstanceIterator(End_InstanceIterator *iterator) {
-	iterator_destruct(iterator);
+	iterator_destruct(iterator->iterator);
+	free(iterator);
 }
 
 int32_t end_isStub(End *end) {
@@ -824,16 +909,18 @@ int32_t end_isAtomEnd(End *end) {
  */
 
 void end_addInstance(End *end, EndInstance *endInstance) {
-	sortedSet_insert(end->endInstances, endInstance);
+	assert(end_getOrientation(end) == endInstance_getOrientation(endInstance));
+	sortedSet_insert(end->endContents->endInstances, endInstance);
 }
 
 void end_removeInstance(End *end, EndInstance *endInstance) {
-	sortedSet_delete(end->endInstances, endInstance);
+	assert(end_getOrientation(end) == endInstance_getOrientation(endInstance));
+	sortedSet_delete(end->endContents->endInstances, endInstance);
 }
 
 void end_setAdjacencyComponent(End *end, AdjacencyComponent *adjacencyComponent) {
 	//argument may be NULL
-	end->adjacencyComponent = adjacencyComponent;
+	end->endContents->adjacencyComponent = adjacencyComponent;
 }
 
 ////////////////////////////////////////////////
@@ -852,32 +939,32 @@ AtomInstance *atomInstance_construct(Atom *atom,
 	atomInstance->rInstance->rInstance = atomInstance;
 	atomInstance->atom = atom;
 	atomInstance->rInstance->atom = atom_getReverse(atom);
-	atomInstance->leftEndInstance = leftEndInstance;
-	atomInstance->rInstance->leftEndInstance = rightEndInstance;
-	endInstance_setAtomInstance(atomInstance->leftEndInstance, atomInstance);
-	endInstance_setAtomInstance(atomInstance->rInstance->leftEndInstance, atomInstance->rInstance);
+	atomInstance->_5EndInstance = leftEndInstance;
+	atomInstance->rInstance->_5EndInstance = rightEndInstance;
+	endInstance_setAtomInstance(atomInstance->_5EndInstance, atomInstance);
+	endInstance_setAtomInstance(atomInstance->rInstance->_5EndInstance, atomInstance->rInstance);
 	atom_addInstance(atom, atomInstance);
 	return atomInstance;
 }
 
 AtomInstance *atomInstance_construct2(const char *instance, Atom *atom) {
 	return atomInstance_construct(atom,
-			endInstance_construct(instance, atom_getLeft(atom)),
-			endInstance_construct(instance, atom_getRight(atom)));
+			endInstance_construct(instance, atom_get5End(atom)),
+			endInstance_construct(instance, atom_get3End(atom)));
 }
 
 AtomInstance *atomInstance_construct3(const char *instance, Atom *atom,
-		int32_t startCoordinate, Sequence *sequence) {
+		int32_t startCoordinate, int32_t strand, Sequence *sequence) {
 #ifdef BEN_DEBUG
 	assert(startCoordinate >= 0);
 	assert(startCoordinate + atom_getLength(atom) <= sequence_getLength(sequence));
 #endif
 
 	return atomInstance_construct(atom,
-			endInstance_constructWithCoordinates(instance, atom_getLeft(atom),
-					startCoordinate, sequence),
-			endInstance_constructWithCoordinates(instance, atom_getRight(atom),
-						-(startCoordinate + atom_getLength(atom)), sequence));
+			endInstance_construct2(instance, atom_get5End(atom),
+					startCoordinate, strand, 1, sequence),
+			endInstance_construct2(instance, atom_get3End(atom),
+						startCoordinate + atom_getLength(atom) - 1, strand, -1, sequence));
 }
 
 void atomInstance_destruct(AtomInstance *atomInstance) {
@@ -891,7 +978,7 @@ Atom *atomInstance_getAtom(AtomInstance *atomInstance) {
 }
 
 const char *atomInstance_getInstanceName(AtomInstance *atomInstance) {
-	return endInstance_getInstanceName(atomInstance_getLeft(atomInstance));
+	return endInstance_getInstanceName(atomInstance_get5End(atomInstance));
 }
 
 const char *atomInstance_getElementName(AtomInstance *atomInstance) {
@@ -899,19 +986,31 @@ const char *atomInstance_getElementName(AtomInstance *atomInstance) {
 }
 
 char *atomInstance_getCompleteName(AtomInstance *atomInstance) {
-	return netMisc_makeCompleteName(atomInstance_getInstanceName(atomInstance), atomInstance_getElementName(atomInstance));
+	return netMisc_makeCompleteName(atomInstance_getInstanceName(atomInstance), atomInstance_getElementName(atomInstance), 1);
 }
 
-Event *atomInstance_getEvent(AtomInstance *atomInstance) {
-	return endInstance_getEvent(atomInstance_getLeft(atomInstance));
+int32_t atomInstance_getOrientation(AtomInstance *atomInstance) {
+	return atom_getOrientation(atomInstance_getAtom(atomInstance));
+}
+
+char *atomInstance_getCompleteNameWithOrientation(AtomInstance *atomInstance) {
+	return netMisc_makeCompleteName(atomInstance_getInstanceName(atomInstance), atomInstance_getElementName(atomInstance), atomInstance_getOrientation(atomInstance));
 }
 
 AtomInstance *atomInstance_getReverse(AtomInstance *atomInstance) {
 	return atomInstance->rInstance;
 }
 
+Event *atomInstance_getEvent(AtomInstance *atomInstance) {
+	return endInstance_getEvent(atomInstance_get5End(atomInstance));
+}
+
 int32_t atomInstance_getStart(AtomInstance *atomInstance) {
-	return endInstance_getCoordinate(atomInstance_getLeft(atomInstance));
+	return endInstance_getCoordinate(atomInstance_get5End(atomInstance));
+}
+
+int32_t atomInstance_getStrand(AtomInstance *atomInstance) {
+	return endInstance_getStrand(atomInstance_get5End(atomInstance));
 }
 
 int32_t atomInstance_getLength(AtomInstance *atomInstance) {
@@ -919,21 +1018,21 @@ int32_t atomInstance_getLength(AtomInstance *atomInstance) {
 }
 
 Sequence *atomInstance_getSequence(AtomInstance *atomInstance) {
-	return endInstance_getSequence(atomInstance_getLeft(atomInstance));
+	return endInstance_getSequence(atomInstance_get5End(atomInstance));
 }
 
-EndInstance *atomInstance_getLeft(AtomInstance *atomInstance) {
-	return atomInstance->leftEndInstance;
+EndInstance *atomInstance_get5End(AtomInstance *atomInstance) {
+	return atomInstance->_5EndInstance;
 }
 
-EndInstance *atomInstance_getRight(AtomInstance *atomInstance) {
-	return atomInstance_getLeft(atomInstance_getReverse(atomInstance));
+EndInstance *atomInstance_get3End(AtomInstance *atomInstance) {
+	return atomInstance_get5End(atomInstance_getReverse(atomInstance));
 }
 
 AtomInstance *atomInstance_getParent(AtomInstance *atomInstance) {
 	EndInstance *endInstance;
 	AtomInstance *atomInstance2;
-	endInstance = atomInstance_getLeft(atomInstance);
+	endInstance = atomInstance_get5End(atomInstance);
 	while((endInstance = endInstance_getParent(endInstance)) != NULL) {
 		if((atomInstance2 = endInstance_getAtomInstance(endInstance)) != NULL) {
 			return atomInstance2;
@@ -967,8 +1066,11 @@ Atom *atom_construct(const char *name, int32_t length, Net *net) {
 	atom = malloc(sizeof(Atom));
 	atom->rAtom = malloc(sizeof(Atom));
 	atom->rAtom->rAtom = atom;
-	atom->atomContents = malloc(sizeof(struct AtomContents));
+	atom->atomContents = malloc(sizeof(AtomContents));
 	atom->rAtom->atomContents = atom->atomContents;
+
+	atom->orientation = 1;
+	atom->rAtom->orientation = -1;
 
 	atom->atomContents->name = stringCopy(name);
 	atom->atomContents->atomInstances = sortedSet_construct(atomConstruct_constructP);
@@ -996,6 +1098,18 @@ void atom_destruct(Atom *atom) {
 	free(atom);
 }
 
+int32_t atom_getOrientation(Atom *atom) {
+	return atom->orientation;
+}
+
+char *atom_getNameWithOrientation(Atom *atom) {
+	return netMisc_getNameWithOrientation(atom_getName(atom), atom_getOrientation(atom));
+}
+
+Atom *atom_getReverse(Atom *atom) {
+	return atom->rAtom;
+}
+
 const char *atom_getName(Atom *atom) {
 	return atom->atomContents->name;
 }
@@ -1008,52 +1122,63 @@ Net *atom_getNet(Atom *atom) {
 	return atom->atomContents->net;
 }
 
-End *atom_getLeft(Atom *atom) {
-	return atom->leftEnd;
+End *atom_get5End(Atom *atom) {
+	return atom->_5End;
 }
 
-End *atom_getRight(Atom *atom) {
-	return atom->rAtom->leftEnd;
-}
-
-Atom *atom_getReverse(Atom *atom) {
-	return atom->rAtom;
+End *atom_get3End(Atom *atom) {
+	return atom->rAtom->_5End;
 }
 
 int32_t atom_getInstanceNumber(Atom *atom) {
 	return sortedSet_getLength(atom->atomContents->atomInstances);
 }
 
+AtomInstance *atom_getInstanceP(Atom *atom, AtomInstance *connectedAtomInstance) {
+	return atom_getOrientation(atom) > 0 || connectedAtomInstance == NULL ? connectedAtomInstance : atomInstance_getReverse(connectedAtomInstance);
+}
+
 AtomInstance *atom_getInstance(Atom *atom, const char *name) {
 	static AtomInstance atomInstance;
 	static EndInstance endInstance;
-	endInstance.instance = (char *)name;
-	atomInstance.leftEndInstance = &endInstance;
-	return sortedSet_find(atom->atomContents->atomInstances, &atomInstance);
+	static EndInstanceContents endInstanceContents;
+	endInstanceContents.instance = (char *)name;
+	endInstance.endInstanceContents = &endInstanceContents;
+	atomInstance._5EndInstance = &endInstance;
+	return atom_getInstanceP(atom, sortedSet_find(atom->atomContents->atomInstances, &atomInstance));
 }
 
 AtomInstance *atom_getFirst(Atom *atom) {
-	return sortedSet_getFirst(atom->atomContents->atomInstances);
+	return atom_getInstanceP(atom, sortedSet_getFirst(atom->atomContents->atomInstances));
 }
 
 Atom_InstanceIterator *atom_getInstanceIterator(Atom *atom) {
-	return iterator_construct(atom->atomContents->atomInstances);
+	Atom_InstanceIterator *iterator;
+	iterator = malloc(sizeof(struct _atom_instanceIterator));
+	iterator->atom = atom;
+	iterator->iterator = iterator_construct(atom->atomContents->atomInstances);
+	return iterator;
 }
 
 AtomInstance *atom_getNext(Atom_InstanceIterator *iterator) {
-	return iterator_getNext(iterator);
+	return atom_getInstanceP(iterator->atom, iterator_getNext(iterator->iterator));
 }
 
 AtomInstance *atom_getPrevious(Atom_InstanceIterator *iterator) {
-	return iterator_getPrevious(iterator);
+	return atom_getInstanceP(iterator->atom, iterator_getPrevious(iterator->iterator));
 }
 
 Atom_InstanceIterator *atom_copyInstanceIterator(Atom_InstanceIterator *iterator) {
-	return iterator_copy(iterator);
+	Atom_InstanceIterator *iterator2;
+	iterator2 = malloc(sizeof(struct _atom_instanceIterator));
+	iterator2->atom = iterator->atom;
+	iterator2->iterator = iterator_copy(iterator->iterator);
+	return iterator2;
 }
 
-void atom_destructInstanceIterator(Atom_InstanceIterator *atomInstanceIterator) {
-	iterator_destruct(atomInstanceIterator);
+void atom_destructInstanceIterator(Atom_InstanceIterator *iterator) {
+	iterator_destruct(iterator->iterator);
+	free(iterator);
 }
 
 /*
@@ -1138,7 +1263,9 @@ Chain *adjacencyComponent_getChain(AdjacencyComponent *adjacencyComponent) {
 
 End *adjacencyComponent_getEnd(AdjacencyComponent *adjacencyComponent, const char *name) {
 	static End end;
-	end.name = (char *)name;
+	static EndContents endContents;
+	end.endContents = &endContents;
+	endContents.name = (char *)name;
 	return sortedSet_find(adjacencyComponent->ends, &end);
 }
 
@@ -1532,7 +1659,9 @@ End *net_getFirstEnd(Net *net) {
 
 End *net_getEnd(Net *net, const char *name) {
 	static End end;
-	end.name = (char *)name;
+	static EndContents endContents;
+	end.endContents = &endContents;
+	endContents.name = (char *)name;
 	return sortedSet_find(net->ends, &end);
 }
 
@@ -1575,7 +1704,7 @@ Atom *net_getFirstAtom(Net *net) {
 
 Atom *net_getAtom(Net *net, const char *name) {
 	static Atom atom;
-	static struct AtomContents atomContents;
+	static AtomContents atomContents;
 	atom.atomContents = &atomContents;
 	atomContents.name = (char *)name;
 	return sortedSet_find(net->atoms, &atom);
@@ -2060,20 +2189,42 @@ const char *netMisc_getElementNameStatic(const char *completeName) {
 	return netMisc_getElementNameStatic_elementName;
 }
 
-char *netMisc_makeCompleteName(const char *elementName, const char *instanceName) {
+char *netMisc_makeCompleteName(const char *elementName, const char *instanceName, int32_t orientation) {
 	char *cA;
-	cA = malloc(sizeof(char) * (strlen(elementName) + strlen(instanceName) + 2));
-	sprintf(cA, "%s.%s", elementName, instanceName);
+	if(orientation > 0) {
+		cA = malloc(sizeof(char) * (strlen(elementName) + strlen(instanceName) + 2));
+		sprintf(cA, "%s.%s", elementName, instanceName);
+	}
+	else {
+		cA = malloc(sizeof(char) * (strlen(elementName) + strlen(instanceName) + 3));
+		sprintf(cA, "-%s.%s", elementName, instanceName);
+	}
 	return cA;
 }
 
 static char *netMisc_makeCompleteNameStatic_completeName = NULL;
-const char *netMisc_makeCompleteNameStatic(const char *elementName, const char *instanceName) {
+const char *netMisc_makeCompleteNameStatic(const char *elementName, const char *instanceName, int32_t orientation) {
 	if(netMisc_makeCompleteNameStatic_completeName != NULL) {
 		free(netMisc_makeCompleteNameStatic_completeName);
 	}
-	netMisc_makeCompleteNameStatic_completeName = netMisc_makeCompleteName(elementName, instanceName);
+	netMisc_makeCompleteNameStatic_completeName = netMisc_makeCompleteName(elementName, instanceName, orientation);
 	return netMisc_makeCompleteNameStatic_completeName;
+}
+
+char *netMisc_getNameWithOrientation(const char *name, int32_t orientation) {
+	char *cA;
+	assert(strlen(name) > 0);
+	assert(orientation != 0);
+	if(name[0] == '-') {
+		assert(orientation < 0);
+		return stringCopy(name);
+	}
+	if(orientation > 1) {
+		return stringCopy(name);
+	}
+	cA = malloc(sizeof(char) * (strlen(name) + 2));
+	sprintf(cA, "-%s", name);
+	return cA;
 }
 
 /*

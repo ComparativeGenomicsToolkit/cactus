@@ -40,10 +40,11 @@ struct _sequence {
 	Net *net;
 };
 
-struct _endInstance {
+typedef struct _endInstanceContents {
 	char *instance;
-	End *end;
 	int32_t coordinate;
+	int32_t strand;
+	int32_t side;
 	Event *event;
 	Sequence *sequence;
 	EndInstance *adjacency;
@@ -52,32 +53,55 @@ struct _endInstance {
 	AtomInstance *atomInstance;
 	EndInstance *parent;
 	struct List *children;
+} EndInstanceContents;
+
+struct _endInstance {
+	EndInstanceContents *endInstanceContents;
+	End *end;
+	EndInstance *rEndInstance;
+};
+
+typedef struct _endContents {
+	char *name;
+	Atom *attachedAtom;
+	struct avl_table *endInstances;
+	AdjacencyComponent *adjacencyComponent;
+	Net *net;
+} EndContents;
+
+struct _end_instanceIterator {
+	struct avl_traverser *iterator;
+	End *end;
 };
 
 struct _end {
-	char *name;
-	struct avl_table *endInstances;
-	Atom *attachedAtom;
-	AdjacencyComponent *adjacencyComponent;
-	Net *net;
+	EndContents *endContents;
+	int32_t orientation;
+	End *rEnd;
 };
 
 struct _atomInstance {
-	EndInstance *leftEndInstance;
+	EndInstance *_5EndInstance;
 	AtomInstance *rInstance;
 	Atom *atom;
 };
 
-struct AtomContents {
+typedef struct _atomContents {
 	char *name;
 	struct avl_table *atomInstances;
 	int32_t length;
 	Net *net;
+} AtomContents;
+
+struct _atom_instanceIterator {
+	struct avl_traverser *iterator;
+	Atom *atom;
 };
 
 struct _atom {
-	struct AtomContents *atomContents;
-	End *leftEnd;
+	AtomContents *atomContents;
+	int32_t orientation;
+	End *_5End;
 	Atom *rAtom;
 };
 

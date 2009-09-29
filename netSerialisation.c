@@ -383,8 +383,8 @@ AtomInstance *atomInstance_loadFromBinaryRepresentation(char **binaryString, Ato
 	if(binaryRepresentation_peekNextElementType(*binaryString) == CODE_ATOM_INSTANCE) {
 		binaryRepresentation_popNextElementType(binaryString);
 		name = binaryRepresentation_getStringStatic(binaryString);
-		atomInstance = atomInstance_construct(atom, end_getInstance(atom_getLeft(atom), name),
-		end_getInstance(atom_getRight(atom), name));
+		atomInstance = atomInstance_construct(atom, end_getInstance(atom_get5End(atom), name),
+		end_getInstance(atom_get3End(atom), name));
 	}
 	return atomInstance;
 }
