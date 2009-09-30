@@ -125,6 +125,7 @@ int32_t database_writeRecord(TCBDB *database, const char *key, const char *value
 }
 
 int32_t database_removeRecord(TCBDB *database, const char *key) {
+	return tcbdbout2(database, key);
 }
 
 BDBCUR *databaseIterator_construct(TCBDB *database) {
@@ -273,6 +274,7 @@ void event_destruct(Event *event) {
 ////////////////////////////////////////////////
 
 int32_t eventTree_constructP(const void *o1, const void *o2, void *a) {
+	assert(a == NULL);
 	return strcmp(event_getName((Event *)o1), event_getName((Event *)o2));
 }
 
@@ -395,7 +397,7 @@ void eventTree_addEvent(EventTree *eventTree, Event *event) {
 	sortedSet_insert(eventTree->events, event);
 }
 
-void end_removeEvent(EventTree *eventTree, EndInstance *event) {
+void eventTree_removeEvent(EventTree *eventTree, Event *event) {
 	sortedSet_delete(eventTree->events, event);
 }
 
@@ -700,7 +702,7 @@ void endInstance_makeParentAndChild(EndInstance *endInstanceParent, EndInstance 
 }
 
 int32_t endInstance_isInternal(EndInstance *endInstance) {
-	return endInstance_getChildNumber(endInstance) >= 0;
+	return endInstance_getChildNumber(endInstance) > 0;
 }
 
 int32_t endInstance_isAugmented(EndInstance *endInstance) {
@@ -746,6 +748,7 @@ void endInstance_breakAdjacency2(EndInstance *endInstance) {
 ////////////////////////////////////////////////
 
 int32_t end_constructP(const void *o1, const void *o2, void *a) {
+	assert(a == NULL);
 	return strcmp(endInstance_getInstanceName((EndInstance *)o1), endInstance_getInstanceName((EndInstance *)o2));
 }
 
@@ -760,6 +763,7 @@ End *end_construct(const char *name, Net *net) {
 	end->orientation = 1;
 	end->rEnd->orientation = -1;
 
+	end->endContents->rootInstance = NULL;
 	end->endContents->name = stringCopy(name);
 	end->endContents->endInstances = sortedSet_construct(end_constructP);
 	end->endContents->attachedAtom = NULL;
@@ -798,6 +802,9 @@ End *end_copyConstruct(End *end, Net *newNet) {
 		}
 	}
 	end_destructInstanceIterator(iterator);
+
+	//Copy root.
+	end_setRootInstance(end2, end_getRootInstance(end));
 	return end2;
 }
 
@@ -839,6 +846,11 @@ Net *end_getNet(End *end) {
 	return end->endContents->net;
 }
 
+Atom *end_getAtom(End *end) {
+	Atom *a = end->endContents->attachedAtom;
+	return a == NULL || end_getOrientation(end) > 0 ? a : atom_getReverse(a);
+}
+
 AdjacencyComponent *end_getAdjacencyComponent(End *end) {
 	return end->endContents->adjacencyComponent;
 }
@@ -861,6 +873,14 @@ EndInstance *end_getInstance(End *end, const char *name) {
 
 EndInstance *end_getFirst(End *end) {
 	return end_getInstanceP(end, sortedSet_getFirst(end->endContents->endInstances));
+}
+
+EndInstance *end_getRootInstance(End *end) {
+	return end_getInstanceP(end, end->endContents->rootInstance);
+}
+
+void end_setRootInstance(End *end, EndInstance *endInstance) {
+	end->endContents->rootInstance = endInstance_getOrientation(endInstance) > 0 ? endInstance : endInstance_getReverse(endInstance);
 }
 
 End_InstanceIterator *end_getInstanceIterator(End *end) {
@@ -1042,11 +1062,20 @@ AtomInstance *atomInstance_getParent(AtomInstance *atomInstance) {
 }
 
 int32_t atomInstance_getChildNumber(AtomInstance *atomInstance) {
-	return 0;
+	return endInstance_getChildNumber(atomInstance_get5End(atomInstance));
 }
 
 AtomInstance *atomInstance_getChild(AtomInstance *atomInstance, int32_t index) {
-	return NULL;
+	EndInstance *endInstance;
+	AtomInstance *atomInstance2;
+	endInstance = endInstance_getChild(atomInstance_get5End(atomInstance), index);
+	while(endInstance_isAugmented(endInstance)) {
+		assert(endInstance_getChildNumber(endInstance) == 1);
+		endInstance = endInstance_getChild(endInstance, 0);
+	}
+	atomInstance2 = endInstance_getAtomInstance(endInstance);
+	assert(atomInstance_getOrientation(atomInstance) == atomInstance_getOrientation(atomInstance2));
+	return atomInstance2;
 }
 
 ////////////////////////////////////////////////
@@ -1058,6 +1087,7 @@ AtomInstance *atomInstance_getChild(AtomInstance *atomInstance, int32_t index) {
 ////////////////////////////////////////////////
 
 int32_t atomConstruct_constructP(const void *o1, const void *o2, void *a) {
+	assert(a == NULL);
 	return strcmp(atomInstance_getInstanceName((AtomInstance *)o1), atomInstance_getInstanceName((AtomInstance *)o2));
 }
 
@@ -1202,6 +1232,7 @@ void atom_removeInstance(Atom *atom, AtomInstance *atomInstance) {
 ////////////////////////////////////////////////
 
 int32_t adjacencyComponent_constructP(const void *o1, const void *o2, void *a) {
+	assert(a == NULL);
 	return strcmp(end_getName((End *)o1), end_getName((End *)o2));
 }
 
@@ -1214,6 +1245,7 @@ AdjacencyComponent *adjacencyComponent_construct(Net *net, Net *nestedNet) {
 }
 
 void adjacencyComponent_destructP(End *end, void *o) {
+	assert(o == NULL);
 	end_setAdjacencyComponent(end, NULL);
 }
 
@@ -1393,9 +1425,10 @@ int32_t link_getIndex(Link *link) {
 ////////////////////////////////////////////////
 ////////////////////////////////////////////////
 
-Chain *chain_construct(Net *net) {
+Chain *chain_construct(Net *net, const char *name) {
 	Chain *chain;
 	chain = malloc(sizeof(Chain));
+	chain->name = stringCopy(name);
 	chain->net = net;
 	chain->link = NULL;
 	chain->linkNumber = 0;
@@ -1408,6 +1441,7 @@ void chain_destruct(Chain *chain) {
 	if(chain->link != NULL) {
 		link_destruct(chain->link);
 	}
+	free(chain->name);
 	free(chain);
 }
 
@@ -1432,8 +1466,8 @@ int32_t chain_getLength(Chain *chain) {
 	return chain->linkNumber;
 }
 
-int32_t chain_getIndex(Chain *chain) {
-	return chain->chainIndex;
+const char *chain_getName(Chain *chain) {
+	return chain->name;
 }
 
 Net *chain_getNet(Chain *chain) {
@@ -1459,10 +1493,6 @@ void chain_addLink(Chain *chain, Link *childLink) {
 	childLink->linkIndex = chain->linkNumber++;
 }
 
-void chain_setIndex(Chain *chain, int32_t index) {
-	chain->chainIndex = index;
-}
-
 ////////////////////////////////////////////////
 ////////////////////////////////////////////////
 ////////////////////////////////////////////////
@@ -1471,10 +1501,10 @@ void chain_setIndex(Chain *chain, int32_t index) {
 ////////////////////////////////////////////////
 ////////////////////////////////////////////////
 
-Operation *operation_construct(Net *net) {
+Operation *operation_construct(Net *net, const char *name) {
 	Operation *operation;
 	operation = malloc(sizeof(Operation));
-
+	operation->name = stringCopy(name);
 	net_addOperation(net, operation);
 	return operation;
 }
@@ -1486,6 +1516,10 @@ void operation_destruct(Operation *operation) {
 
 Net *operation_getNet(Operation *operation) {
 	return operation->net;
+}
+
+const char *operation_getName(Operation *operation) {
+	return operation->name;
 }
 
 /*
@@ -1504,28 +1538,34 @@ void operation_setIndex(Operation *operation, int32_t index) {
 ////////////////////////////////////////////////
 
 int32_t net_constructSequencesP(const void *o1, const void *o2, void *a) {
+	assert(a == NULL);
 	return strcmp(sequence_getName((Sequence *)o1), sequence_getName((Sequence *)o2));
 }
 
 int32_t net_constructEndsP(const void *o1, const void *o2, void *a) {
+	assert(a == NULL);
 	return strcmp(end_getName((End *)o1), end_getName((End *)o2));
 }
 
 int32_t net_constructAtomsP(const void *o1, const void *o2, void *a) {
+	assert(a == NULL);
 	return strcmp(atom_getName((Atom *)o1), atom_getName((Atom *)o2));
 }
 
 int32_t net_constructAdjacencyComponentsP(const void *o1, const void *o2, void *a) {
+	assert(a == NULL);
 	return strcmp(adjacencyComponent_getNestedNetName((AdjacencyComponent *)o1),
 			adjacencyComponent_getNestedNetName((AdjacencyComponent *)o2));
 }
 
 int32_t net_constructChainsP(const void *o1, const void *o2, void *a) {
-	return chain_getIndex((Chain *)o1) - chain_getIndex((Chain *)o2);
+	assert(a == NULL);
+	return strcmp(chain_getName((Chain *)o1), chain_getName((Chain *)o2));
 }
 
 int32_t net_constructOperationsP(const void *o1, const void *o2, void *a) {
-	return operation_getIndex((Operation *)o1) - operation_getIndex((Operation *)o2);
+	assert(a == NULL);
+	return strcmp(operation_getName((Operation *)o1), operation_getName((Operation *)o2));
 }
 
 Net *net_construct(const char *name, NetDisk *netDisk) {
@@ -1551,13 +1591,6 @@ Net *net_construct(const char *name, NetDisk *netDisk) {
 	return net;
 }
 
-const char *net_getName(Net *net) {
-	return net->name;
-}
-
-NetDisk *net_getNetDisk(Net *net) {
-	return net->netDisk;
-}
 
 void net_destruct(Net *net, int32_t recursive) {
 	Net_AdjacencyComponentIterator *iterator;
@@ -1615,6 +1648,18 @@ void net_destruct(Net *net, int32_t recursive) {
 		free(net->parentNetName);
 	}
 	free(net);
+}
+
+const char *net_getName(Net *net) {
+	return net->name;
+}
+
+NetDisk *net_getNetDisk(Net *net) {
+	return net->netDisk;
+}
+
+EventTree *net_getEventTree(Net *net) {
+	return net->eventTree;
 }
 
 Sequence *net_getFirstSequence(Net *net) {
@@ -1787,9 +1832,9 @@ Chain *net_getFirstChain(Net *net) {
 	return sortedSet_getFirst(net->chains);
 }
 
-Chain *net_getChain(Net *net, int32_t index) {
+Chain *net_getChain(Net *net, const char *name) {
 	static Chain chain;
-	chain.chainIndex = index;
+	chain.name = (char *)name;
 	return sortedSet_find(net->chains, &chain);
 }
 
@@ -1821,9 +1866,9 @@ Operation *net_getFirstOperation(Net *net) {
 	return sortedSet_getFirst(net->operations);
 }
 
-Operation *net_getOperation(Net *net, int32_t index) {
+Operation *net_getOperation(Net *net, const char *name) {
 	static Operation operation;
-	operation.index = index;
+	operation.name = (char *)name;
 	return sortedSet_find(net->operations, &operation);
 }
 
@@ -1884,7 +1929,6 @@ void net_removeAtom(Net *net, Atom *atom) {
 }
 
 void net_addChain(Net *net, Chain *chain) {
-	chain_setIndex(chain, net->chainIndex++);
 	sortedSet_insert(net->chains, chain);
 }
 
@@ -1905,7 +1949,6 @@ void net_setParentAdjacencyComponent(Net *net, AdjacencyComponent *adjacencyComp
 }
 
 void net_addOperation(Net *net, Operation *operation) {
-	operation_setIndex(operation, net_getOperationNumber(net));
 	sortedSet_insert(net->operations, operation);
 }
 
@@ -1922,10 +1965,12 @@ void net_removeOperation(Net *net, Operation *operation) {
 ////////////////////////////////////////////////
 
 int32_t netDisk_constructNetsP(const void *o1, const void *o2, void *a) {
+	assert(a == NULL);
 	return strcmp(net_getName((Net *)o1), net_getName((Net *)o2));
 }
 
 int32_t netDisk_constructMetaSequencesP(const void *o1, const void *o2, void *a) {
+	assert(a == NULL);
 	return strcmp(metaSequence_getName((MetaSequence *)o1), metaSequence_getName((MetaSequence *)o2));
 }
 
@@ -1936,6 +1981,10 @@ NetDisk *netDisk_construct(const char *netDiskFile) {
 	//construct lists of in memory objects
 	netDisk->metaSequences = sortedSet_construct(netDisk_constructMetaSequencesP);
 	netDisk->nets = sortedSet_construct(netDisk_constructNetsP);
+
+	//the files to write the databases in
+	netDisk->metaSequencesDatabaseName = pathJoin(netDiskFile, "sequences");
+	netDisk->netsDatabaseName = pathJoin(netDiskFile, "nets");
 
 	//open the sequences database
 	netDisk->metaSequencesDatabase = database_construct(netDisk->metaSequencesDatabaseName);
@@ -1957,6 +2006,10 @@ void netDisk_destruct(NetDisk *netDisk){
 	//close DBs
 	database_destruct(netDisk->metaSequencesDatabase);
 	database_destruct(netDisk->netsDatabase);
+
+	//free string names
+	free(netDisk->metaSequencesDatabaseName);
+	free(netDisk->netsDatabaseName);
 
 	free(netDisk);
 }

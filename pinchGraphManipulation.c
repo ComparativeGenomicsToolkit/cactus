@@ -358,6 +358,7 @@ struct List *getRecursiveComponents2(struct PinchGraph *pinchGraph, struct List 
 ////////////////////////////////////////////////
 
 int32_t linkStubComponentsToTheSinkComponent_excludedEdgesFn(void *o) {
+	assert(o != NULL);
 	return FALSE;
 }
 

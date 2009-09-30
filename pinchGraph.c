@@ -225,6 +225,7 @@ int32_t oComparator(const void *o1, const void *o2, void *a) {
 	/*
 	 * Compares the objects by there address.
 	 */
+	assert(a == NULL);
 	return o1 > o2 ? 1 : o1 < o2 ? -1 : 0;
 }
 
@@ -279,6 +280,7 @@ void *getGreyEdgeIterator(struct PinchVertex *vertex) {
 }
 
 struct PinchVertex *getNextGreyEdge(struct PinchVertex *vertex, void *iterator) {
+	assert(vertex != NULL);
 	return avl_t_next(iterator);
 }
 
@@ -352,6 +354,7 @@ void *getBlackEdgeIterator(struct PinchVertex *vertex) {
 }
 
 struct PinchEdge *getNextBlackEdge(struct PinchVertex *vertex, void *iterator) {
+	assert(vertex != NULL);
 	return avl_t_next(iterator);
 }
 
@@ -431,6 +434,7 @@ int32_t edgeComparator(struct PinchEdge *edge1, struct PinchEdge *edge2, void *o
 	/*
 	 * Compares the segments by their segments.
 	 */
+	assert(o == NULL);
 	return segmentComparator(edge1->segment, edge2->segment);
 }
 
@@ -616,6 +620,7 @@ struct PinchGraph *pinchGraph_construct() {
 }
 
 void destructPinchGraph_1(struct PinchEdge *edge, void *o) {
+	assert(o == NULL);
 	if(edge->from->vertexID > edge->to->vertexID) {
 		destructSegment(edge->segment);
 	}

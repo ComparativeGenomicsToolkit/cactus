@@ -196,26 +196,6 @@ Sequence *copySequence(Net *parentNet, Net *net, const char *name) {
 	return sequence;
 }
 
-End *constructEndFromCactusEdge(struct CactusEdge *edge,
-		struct PinchGraph *pinchGraph, struct hashtable *names,
-		Net *net, struct List *contigIndexToContigStrings, Net *parentNet) {
-	int32_t i;
-	End *end;
-	struct Segment *segment;
-	char *instanceName;
-	end = end_construct(cactusEdgeToEndName(edge, pinchGraph, names), net);
-	for(i=0; i<edge->segments->length; i++) {
-		segment = edge->segments->list[i];
-		instanceName = getInstance(hashtable_search(names,
-										getContainingBlackEdge(pinchGraph, segment->contig, segment->start)));
-		endInstance_constructWithCoordinates(instanceName, end,
-				(segment->start > 0 ? segment->start : -segment->start) - 1, segment->start > 0,
-				copySequence(parentNet, net, contigIndexToContigStrings->list[segment->contig]));
-		free(instanceName);
-	}
-	return end;
-}
-
 Atom *constructAtomFromCactusEdge(struct CactusEdge *edge,
 		struct PinchGraph *pinchGraph, struct hashtable *names,
 		Net *net, struct List *contigIndexToContigStrings,
@@ -241,7 +221,7 @@ Atom *constructAtomFromCactusEdge(struct CactusEdge *edge,
 	return atom;
 }
 
-struct List *addEnvelopedStubEnds(Net *net) {
+struct List *addEnvelopedStubEnds(Net *net, int32_t addToNet) {
 	/*
 	 * For each net contained within a link in a chain, adds the encompassing ends
 	 * of the chain to the nested net.
@@ -250,16 +230,22 @@ struct List *addEnvelopedStubEnds(Net *net) {
 	End *end;
 	Net *net2;
 	struct List *list;
-	End_InstanceIterator *endIterator;
+	Net_EndIterator *endIterator;
 	AdjacencyComponent_EndIterator *adjacencyIterator;
 	AdjacencyComponent *adjacencyComponent;
 
 	adjacencyIterator = net_getAdjacencyComponentIterator(net);
 	while((adjacencyComponent = net_getNextAdjacencyComponent(adjacencyIterator)) != NULL) {
 		net2 = adjacencyComponent_getNestedNet(adjacencyComponent);
-		list = addEnvelopedStubEnds(net2);
+		list = addEnvelopedStubEnds(net2, TRUE);
 		for(j=0; j<list->length; j++) {
-			end_copyConstruct(list->list[j], net);
+			end = list->list[j];
+			if(addToNet) {
+				end_copyConstruct(end, net);
+			}
+			else {
+				assert(net_getEnd(net, end_getName(end)) != NULL);
+			}
 		}
 		destructList(list);
 	}
@@ -281,13 +267,15 @@ void addEnvelopingEnds(Net *net) {
 	 * For each net contained within a link in a chain, adds the encompassing ends of the chain to the
 	 * nested net.
 	 */
-	int32_t i;
 	Link *link;
 	AdjacencyComponent *adjacencyComponent;
+	Net_ChainIterator *chainIterator;
 	Net *net2;
+	Chain *chain;
 
-	for(i=0; i<net_getChainNumber(net); i++) {
-		link = chain_getLink(net_getChain(net, i), 0);
+	chainIterator = net_getChainIterator(net);
+	while((chain = net_getNextChain(chainIterator)) != NULL) {
+		link = chain_getLink(chain, 0);
 		while(link != NULL) {
 			adjacencyComponent = link_getAdjacencyComponent(link);
 			net2 = adjacencyComponent_getNestedNet(adjacencyComponent);
@@ -298,6 +286,7 @@ void addEnvelopingEnds(Net *net) {
 			link = link_getNextLink(link);
 		}
 	}
+	net_destructChainIterator(chainIterator);
 }
 
 struct PinchEdge *getOtherEnd(struct PinchGraph *graph, Net *net, struct hashtable *names,
@@ -484,12 +473,14 @@ char *constructNetFromInputs_getUniqueName() {
 	return cA;
 }
 
-Net *constructNetFromInputs(
+void fillOutNetFromInputs(
 		Net *parentNet,
 		struct CactusGraph *cactusGraph,
-		struct PinchGraph *pinchGraph, const char *uniqueNamePrefix, struct List *chosenAtoms,
+		struct PinchGraph *pinchGraph, const char *uniqueNamePrefix,
+		struct List *chosenAtoms,
 		struct List *contigIndexToContigStrings) {
 	Net *net;
+	End *end;
 	Chain *chain;
 	AdjacencyComponent *adjacencyComponent;
 	struct CactusVertex *cactusVertex;
@@ -505,7 +496,6 @@ Net *constructNetFromInputs(
 	struct hashtable *chosenAtomsHash;
 	struct hashtable *names;
 	char *name;
-
 
 	logDebug("Building the net\n");
 
@@ -579,6 +569,7 @@ Net *constructNetFromInputs(
 	for(i=1; i<cactusGraph->vertices->length; i++) {
 		nets[i] = NULL;
 	}
+	nets[0] = parentNet;
 	parentNets = mallocLocal(sizeof(void *) * biConnectedComponents->length);
 	for(i=0; i<biConnectedComponents->length; i++) {
 		biConnectedComponent = biConnectedComponents->list[i];
@@ -600,8 +591,12 @@ Net *constructNetFromInputs(
 				constructAtomFromCactusEdge(cactusEdge, pinchGraph, names, net, contigIndexToContigStrings, parentNet);
 			}
 			else {
-				constructEndFromCactusEdge(getNonDeadEndOfStubOrCapCactusEdge(cactusEdge, pinchGraph),
-						pinchGraph, names, net, contigIndexToContigStrings, parentNet);
+				name = (char *)cactusEdgeToEndName(getNonDeadEndOfStubOrCapCactusEdge(cactusEdge, pinchGraph), pinchGraph, names);
+				end = net_getEnd(parentNet, name);
+				assert(end != NULL);
+				if(net != parentNet) {
+					end_copyConstruct(end, net);
+				}
 			}
 		}
 	}
@@ -618,7 +613,7 @@ Net *constructNetFromInputs(
 #ifdef BEN_DEBUG
 			assert(parentNet != NULL);
 #endif
-			chain = chain_construct(net);
+			chain = chain_construct(net, constructNetFromInputs_getUniqueName());
 			for(j=1; j<biConnectedComponent->length; j++) {
 				cactusEdge = biConnectedComponent->list[j-1];
 				net = nets[mergedVertexIDs[cactusEdge->to->vertexID]];
@@ -637,8 +632,6 @@ Net *constructNetFromInputs(
 	}
 	logDebug("Constructed the chains and linked together the nets\n");
 
-	net = nets[0];
-
 	////////////////////////////////////////////////
 	//Add surrounding atom caps to each chain
 	////////////////////////////////////////////////
@@ -649,7 +642,7 @@ Net *constructNetFromInputs(
 	//Add nested ends to nets.
 	////////////////////////////////////////////////
 
-	destructList(addEnvelopedStubEnds(net));
+	destructList(addEnvelopedStubEnds(net, FALSE));
 
 	////////////////////////////////////////////////
 	//Add adjacencies between ends.
@@ -664,12 +657,6 @@ Net *constructNetFromInputs(
 	addAdjacencyComponents(net, constructNetFromInputs_getUniqueName);
 
 	////////////////////////////////////////////////
-	//Ensure end trees are copied in base.
-	////////////////////////////////////////////////
-
-	copyEndTreePhylogenies(parentNet, net);
-
-	////////////////////////////////////////////////
 	//Clean up
 	////////////////////////////////////////////////
 
@@ -679,8 +666,6 @@ Net *constructNetFromInputs(
 	free(parentNets);
 	destructList(biConnectedComponents);
 	hashtable_destroy(chosenAtomsHash, FALSE, FALSE);
-
-	return net;
 }
 
 void copyEndTreePhylogenies(Net *parentNet, Net *net) {

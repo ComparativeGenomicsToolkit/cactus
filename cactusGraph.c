@@ -934,6 +934,7 @@ void writeOutCactusGraph(struct CactusGraph *cactusGraph, struct PinchGraph *pin
 ////////////////////////////////////////////////
 
 int32_t computeCactusGraph_excludedEdgesFn(void *o) {
+	assert(o != NULL);
 	return TRUE;
 }
 

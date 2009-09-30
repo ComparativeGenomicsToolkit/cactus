@@ -248,6 +248,7 @@ void endInstance_writeBinaryRepresentation(EndInstance *endInstance, void (*writ
 		binaryRepresentation_writeString(endInstance_getInstanceName(endInstance), writeFn);
 		binaryRepresentation_writeInteger(endInstance_getCoordinate(endInstance), writeFn);
 		binaryRepresentation_writeInteger(endInstance_getStrand(endInstance), writeFn);
+		binaryRepresentation_writeInteger(endInstance_getSide(endInstance), writeFn);
 		binaryRepresentation_writeString(sequence_getName(endInstance_getSequence(endInstance)), writeFn);
 	}
 	if((endInstance2 = endInstance_getAdjacency(endInstance)) != NULL) {
@@ -279,6 +280,7 @@ EndInstance *endInstance_loadFromBinaryRepresentation(char **binaryString, End *
 	char *name;
 	int32_t coordinate;
 	int32_t strand;
+	int32_t side;
 	Sequence *sequence;
 
 	endInstance = NULL;
@@ -296,8 +298,9 @@ EndInstance *endInstance_loadFromBinaryRepresentation(char **binaryString, End *
 		name = binaryRepresentation_getString(binaryString);
 		coordinate = binaryRepresentation_getInteger(binaryString);
 		strand = binaryRepresentation_getInteger(binaryString);
+		side = binaryRepresentation_getInteger(binaryString);
 		sequence = net_getSequence(end_getNet(end), binaryRepresentation_getStringStatic(binaryString));
-		endInstance = endInstance_constructWithCoordinates(name, end, coordinate, strand, sequence);
+		endInstance = endInstance_construct2(name, end, coordinate, strand, side, sequence);
 		free(name);
 	}
 	if(binaryRepresentation_peekNextElementType(*binaryString) == CODE_ADJACENCY) {
@@ -333,9 +336,10 @@ void end_writeBinaryRepresentation(End *end, void (*writeFn)(const char *string,
 	End_InstanceIterator *iterator;
 	EndInstance *endInstance;
 
-	binaryRepresentation_writeElementType(CODE_END, writeFn);
-	binaryRepresentation_writeString(end_getName(end), writeFn);
 	endInstance = end_getRootInstance(end);
+	binaryRepresentation_writeElementType(endInstance == NULL ?
+			CODE_END_WITHOUT_PHYLOGENY : CODE_END_WITH_PHYLOGENY, writeFn);
+	binaryRepresentation_writeString(end_getName(end), writeFn);
 
 	if(endInstance == NULL) {
 		iterator = end_getInstanceIterator(end);
@@ -354,11 +358,20 @@ End *end_loadFromBinaryRepresentation(char **binaryString, Net *net) {
 	End *end;
 
 	end = NULL;
-	if(binaryRepresentation_peekNextElementType(*binaryString) == CODE_END) {
+	if(binaryRepresentation_peekNextElementType(*binaryString) == CODE_END_WITHOUT_PHYLOGENY) {
 		binaryRepresentation_popNextElementType(binaryString);
 		end = end_construct(binaryRepresentation_getStringStatic(binaryString), net);
 		while(endInstance_loadFromBinaryRepresentation(binaryString, end) != NULL);
 	}
+	else {
+		if(binaryRepresentation_peekNextElementType(*binaryString) == CODE_END_WITH_PHYLOGENY) {
+			binaryRepresentation_popNextElementType(binaryString);
+			end = end_construct(binaryRepresentation_getStringStatic(binaryString), net);
+			end_setRootInstance(end, endInstance_loadFromBinaryRepresentation(binaryString, end));
+			while(endInstance_loadFromBinaryRepresentation(binaryString, end) != NULL);
+		}
+	}
+
 	return end;
 }
 
@@ -512,6 +525,7 @@ Link *link_loadFromBinaryRepresentation(char **binaryString, Chain *chain) {
 void chain_writeBinaryRepresentation(Chain *chain, void (*writeFn)(const char *string, ...)) {
 	Link *link;
 	binaryRepresentation_writeElementType(CODE_CHAIN, writeFn);
+	binaryRepresentation_writeString(chain_getName(chain), writeFn);
 	link = chain_getLink(chain, 0);
 	while(link != NULL) {
 		link_writeBinaryRepresentation(link, writeFn);
@@ -525,7 +539,7 @@ Chain *chain_loadFromBinaryRepresentation(char **binaryString, Net *net) {
 	chain = NULL;
 	if(binaryRepresentation_peekNextElementType(*binaryString) == CODE_CHAIN) {
 		binaryRepresentation_popNextElementType(binaryString);
-		chain = chain_construct(net);
+		chain = chain_construct(net, binaryRepresentation_getStringStatic(binaryString));
 		while(link_loadFromBinaryRepresentation(binaryString, chain) != NULL);
 	}
 	return chain;
@@ -541,6 +555,7 @@ Chain *chain_loadFromBinaryRepresentation(char **binaryString, Net *net) {
 
 void operation_writeBinaryRepresentation(Operation *operation, void (*writeFn)(const char *string, ...)) {
 	binaryRepresentation_writeElementType(CODE_OPERATION, writeFn);
+	binaryRepresentation_writeString(operation_getName(operation), writeFn);
 }
 
 Operation *operation_loadFromBinaryRepresentation(char **binaryString, Net *net) {
@@ -549,7 +564,7 @@ Operation *operation_loadFromBinaryRepresentation(char **binaryString, Net *net)
 	operation = NULL;
 	if(binaryRepresentation_peekNextElementType(*binaryString) == CODE_OPERATION) {
 		binaryRepresentation_popNextElementType(binaryString);
-		operation = operation_construct(net);
+		operation = operation_construct(net, binaryRepresentation_getStringStatic(binaryString));
 	}
 	return operation;
 }

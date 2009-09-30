@@ -62,6 +62,7 @@ struct _endInstance {
 };
 
 typedef struct _endContents {
+	EndInstance *rootInstance;
 	char *name;
 	Atom *attachedAtom;
 	struct avl_table *endInstances;
@@ -126,6 +127,7 @@ struct _link {
 };
 
 struct _chain {
+	char *name;
 	Net *net;
 	Link *link;
 	int32_t linkNumber;
@@ -133,6 +135,7 @@ struct _chain {
 };
 
 struct _operation {
+	char *name;
 	Net *net;
 	int32_t index;
 };
@@ -308,7 +311,8 @@ void databaseIterator_destruct(BDBCUR *iterator);
 #define CODE_END_INSTANCE 1
 #define CODE_END_INSTANCE_WITH_EVENT 1
 #define CODE_END_INSTANCE_WITH_COORDINATES 2
-#define CODE_END 2
+#define CODE_END_WITHOUT_PHYLOGENY 2
+#define CODE_END_WITH_PHYLOGENY 2
 #define CODE_ATOM_INSTANCE 3
 #define CODE_ATOM 3
 #define CODE_ADJACENCY_COMPONENT 2
@@ -724,11 +728,6 @@ void chain_destruct(Chain *chain);
  * Add the link to the chain.
  */
 void chain_addLink(Chain *chain, Link *childLink);
-
-/*
- * Sets the chain's index.
- */
-void chain_setIndex(Chain *chain, int32_t index);
 
 /*
  * Write a binary representation of the chain to the write function.

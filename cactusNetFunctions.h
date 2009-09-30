@@ -9,7 +9,7 @@
 #include "cactusGraph.h"
 #include "net.h"
 
-Net *constructNetFromInputs(Net *parentNet, struct CactusGraph *cactusGraph,
+void fillOutNetFromInputs(Net *parentNet, struct CactusGraph *cactusGraph,
 		struct PinchGraph *pinchGraph, const char *uniqueNamePrefix, struct List *chosenAtoms,
 		struct List *contigIndexToContigStrings);
 

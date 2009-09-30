@@ -40,8 +40,8 @@ void usage() {
 	fprintf(stderr, "cactus_core, version 0.2\n");
 	fprintf(stderr, "-a --logLevel : Set the log level\n");
 	fprintf(stderr, "-b --alignments : The input alignments file\n");
-	fprintf(stderr, "-c --absolutePathPrefix : The absolute file path to the reconstruction tree hierarchy\n");
-	fprintf(stderr, "-d --reconstructionProblem : The relative path to the file in which to write the reconstruction problem\n");
+	fprintf(stderr, "-c --netDisk : The location of the net disk directory\n");
+	fprintf(stderr, "-d --netName : The name of the net (the key in the database)\n");
 	fprintf(stderr, "-e --tempDirRoot : The temp file root directory\n");
 	fprintf(stderr, "-f --maxEdgeDegree : Maximum degree of aligned edges\n");
 	fprintf(stderr, "-g --writeDebugFiles : Write the debug files\n");
@@ -478,7 +478,7 @@ int main(int argc, char *argv[]) {
 	// (8) Constructing the net.
 	///////////////////////////////////////////////////////////////////////////
 
-	constructNetFromInputs(net, cactusGraph, pinchGraph, uniqueNamePrefix, chosenAtoms,
+	fillOutNetFromInputs(net, cactusGraph, pinchGraph, uniqueNamePrefix, chosenAtoms,
 			contigIndexToContigStrings);
 
 	///////////////////////////////////////////////////////////////////////////

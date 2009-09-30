@@ -392,6 +392,7 @@ EndInstance *endInstance_getChild(EndInstance *endInstance, int32_t index);
 
 /*
  * Links together a parent and child end instance.
+ *
  */
 void endInstance_makeParentAndChild(EndInstance *endInstanceParent, EndInstance *endInstanceChild);
 
@@ -460,7 +461,7 @@ End *end_getReverse(End *end);
 Net *end_getNet(End *end);
 
 /*
- * Gets the atom the end is on the left of.
+ * Gets the atom the end is on the side of.
  */
 Atom *end_getAtom(End *end);
 
@@ -488,6 +489,12 @@ EndInstance *end_getFirst(End *end);
  * Gets the root end instance of the end, if it is set, or returns NULL;
  */
 EndInstance *end_getRootInstance(End *end);
+
+/*
+ * Sets the root end instance of the end. Will throw an error if the endInstance
+ * is not part of the end, or already has a parent.
+ */
+void end_setRootInstance(End *end, EndInstance *endInstance);
 
 /*
  * Gets an iterator over the end instances.
@@ -882,7 +889,7 @@ int32_t link_getIndex(Link *link);
 /*
  * Constructs a chain, which in turn holds links.
  */
-Chain *chain_construct(Net *net);
+Chain *chain_construct(Net *net, const char *name);
 
 /*
  * Gets a link in the chain.
@@ -895,9 +902,9 @@ Link *chain_getLink(Chain *chain, int32_t linkIndex);
 int32_t chain_getLength(Chain *chain);
 
 /*
- * Gets the index of the chain in the net.
+ * Gets the name of the chain in the net.
  */
-int32_t chain_getIndex(Chain *chain);
+const char *chain_getName(Chain *chain);
 
 /*
  * Gets the parent net of the chain.
@@ -915,7 +922,7 @@ Net *chain_getNet(Chain *chain);
 /*
  * Constructs an operation.
  */
-Operation *operation_construct(Net *net);
+Operation *operation_construct(Net *net, const char *name);
 
 /*
  * Gets the net it is part of.
@@ -923,9 +930,9 @@ Operation *operation_construct(Net *net);
 Net *operation_getNet(Operation *opetation);
 
 /*
- * Get the index of the operation.
+ * Get the name of the operation.
  */
-int32_t operation_getIndex(Operation *operation);
+const char *operation_getName(Operation *operation);
 
 ////////////////////////////////////////////////
 ////////////////////////////////////////////////
@@ -1149,7 +1156,7 @@ Chain *net_getFirstChain(Net *net);
 /*
  * Gets a chain by its index
  */
-Chain *net_getChain(Net *net, int32_t index);
+Chain *net_getChain(Net *net, const char *name);
 
 /*
  * Returns the number of chains.
@@ -1189,7 +1196,7 @@ Operation *net_getFirstOperation(Net *net);
 /*
  * Gets an chain by index.
  */
-Operation *net_getOperation(Net *net, int32_t index);
+Operation *net_getOperation(Net *net, const char *name);
 
 /*
  * Returns the number of operations.
