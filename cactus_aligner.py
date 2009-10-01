@@ -202,7 +202,7 @@ def main():
                                 parsedOptions.resultsFile, options)
     firstTarget.execute(parsedOptions.jobFile)
     
-    logger.info("Ran the first target okay")    
+    logger.info("Ran the first target okay")
 
 def _test():
     import doctest      

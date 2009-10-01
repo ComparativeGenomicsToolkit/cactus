@@ -244,6 +244,12 @@ Event *sequence_getEvent(Sequence *sequence);
 const char *sequence_getFile(Sequence *sequence);
 
 /*
+ * Gets a sub string of the the sequence, indexes start from zero. The strand
+ * will return a reverse complement if set negative.
+ */
+char *sequence_getString(Sequence *sequence, int32_t start, int32_t length, int32_t strand);
+
+/*
  * Gets the net the sequence is associated with.
  */
 Net *sequence_getNet(Sequence *sequence);
