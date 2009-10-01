@@ -28,11 +28,13 @@ struct _eventTree {
 
 typedef struct _metaSequence {
 	char *name;
+	int64_t fileOffset;
+	int32_t start;
 	int32_t length;
 	char *eventName;
-	char *file;
 	NetDisk *netDisk;
 	int32_t referenceCount;
+	char *header;
 } MetaSequence;
 
 struct _sequence {
@@ -156,6 +158,8 @@ struct _net {
 };
 
 struct _netDisk {
+	char *stringFile;
+	int64_t stringFileLength;
 	char *netsDatabaseName;
 	char *metaSequencesDatabaseName;
 	TCBDB *netsDatabase;
@@ -332,9 +336,19 @@ void binaryRepresentation_writeElementType(int32_t elementCode, void (*writeFn)(
 void binaryRepresentation_writeString(const char *string, void (*writeFn)(const char *, ...));
 
 /*
+ * Writes a line, potentially containing white space, to the binary stream.
+ */
+void binaryRepresentation_writeLine(const char *line, void (*writeFn)(const char *, ...));
+
+/*
  * Writes an integer to the binary stream
  */
 void binaryRepresentation_writeInteger(int32_t i, void (*writeFn)(const char *, ...));
+
+/*
+ * Writes an integer to the binary stream
+ */
+void binaryRepresentation_write64BitInteger(int64_t i, void (*writeFn)(const char *, ...));
 
 /*
  * Writes a float to the binary stream.
@@ -363,9 +377,19 @@ char *binaryRepresentation_getString(char **binaryString);
 const char *binaryRepresentation_getStringStatic(char **binaryString);
 
 /*
+ * Parses a string containing white space from the binary string.
+ */
+char *binaryRepresentation_getLine(char **binaryString);
+
+/*
  * Parses an integer from binary string.
  */
 int32_t binaryRepresentation_getInteger(char **binaryString);
+
+/*
+ * Parses an 64bit integer from binary string.
+ */
+int64_t binaryRepresentation_get64BitInteger(char **binaryString);
 
 /*
  * Parses a float from the binary string.
@@ -438,8 +462,16 @@ EventTree *eventTree_loadFromBinaryRepresentation(char **binaryString, Net *net)
 
 /*
  * Constructs a meta sequence, which contains all the essential info for a sequence.
+ *
+ * This function is NOT thread safe, do not try to have concurrent instances of this function!
  */
-MetaSequence *metaSequence_construct(const char *name, int32_t length, const char *file,
+MetaSequence *metaSequence_construct(const char *name, int32_t start, int32_t length, const char *string, const char *header,
+		const char *eventName, NetDisk *netDisk);
+
+/*
+ * Constructs a meta sequence using an existing reference to a sequence in the sequence file.
+ */
+MetaSequence *metaSequence_construct2(const char *name, int32_t start, int32_t length, int64_t fileOffset, const char *header,
 		const char *eventName, NetDisk *netDisk);
 
 /*
@@ -453,19 +485,34 @@ void metaSequence_destruct(MetaSequence *metaSequence);
 const char *metaSequence_getName(MetaSequence *metaSequence);
 
 /*
+ * Gets the start coordinate of the sequence.
+ */
+int32_t metaSequence_getStart(MetaSequence *metaSequence);
+
+/*
  * Gets the length of the sequence.
  */
 int32_t metaSequence_getLength(MetaSequence *metaSequence);
 
 /*
- * Gets the file containing the sequence.
- */
-const char *metaSequence_getFile(MetaSequence *metaSequence);
-
-/*
  * Gets the associated event name.
  */
 const char *metaSequence_getEventName(MetaSequence *metaSequence);
+
+/*
+ * Gets a string for representing a subsequence of the meta sequence.
+ */
+char *metaSequence_getString(MetaSequence *metaSequence, int32_t start, int32_t length, int32_t strand);
+
+/*
+ * Gets the header line associated with the meta sequence.
+ */
+const char *metaSequence_getHeader(MetaSequence *metaSequence);
+
+/*
+ * Gets the file offset location of the string backing the metasequence.
+ */
+int64_t metaSequence_getFileOffset(MetaSequence *metaSequence);
 
 /*
  * Increases the number of references (held by sequence objects), to one.
@@ -903,6 +950,18 @@ MetaSequence *netDisk_getMetaSequenceInMemory(NetDisk *netDisk, const char *meta
  * Gets the meta sequence for an object.
  */
 MetaSequence *netDisk_getMetaSequence(NetDisk *netDisk, const char *metaSequenceName);
+
+/*
+ * Adds the sequence string to the bucket of sequence.
+ *
+ * This function is NOT thread safe.
+ */
+int64_t netDisk_addString(NetDisk *netDisk, const char *string, int32_t length);
+
+/*
+ * Retrieves a string from the bucket of sequence.
+ */
+char *netDisk_getString(NetDisk *netDisk, int64_t offset, int32_t start, int32_t length, int32_t strand);
 
 ////////////////////////////////////////////////
 ////////////////////////////////////////////////

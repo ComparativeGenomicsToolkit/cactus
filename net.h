@@ -210,8 +210,10 @@ void eventTree_destructIterator(EventTree_Iterator *iterator);
 
 /*
  * Constructs a sequence. If the sequence name is already in netDisk, then an assert error is created.
+ *
+ * This function is NOT thread safe - do not try to create multiple sequences simulataneously!
  */
-Sequence *sequence_construct(const char *name, int32_t length, const char *file, Event *event, Net *net);
+Sequence *sequence_construct(const char *name, int32_t start, int32_t length, const char *string, const char *header, Event *event, Net *net);
 
 /*
  * Copy constructs the sequence, replacing the current event with the event in the net.
@@ -222,6 +224,11 @@ Sequence *sequence_copyConstruct(Sequence *sequence, Net *newNet);
  * Destructs the sequence.
  */
 void sequence_destruct(Sequence *sequence);
+
+/*
+ * Gets the start coordinate of the sequence (inclusive).
+ */
+int32_t sequence_getStart(Sequence *sequence);
 
 /*
  * Gets the length of the sequence.
@@ -239,15 +246,19 @@ const char *sequence_getName(Sequence *sequence);
 Event *sequence_getEvent(Sequence *sequence);
 
 /*
- * Gets the file containing the sequence.
- */
-const char *sequence_getFile(Sequence *sequence);
-
-/*
- * Gets a sub string of the the sequence, indexes start from zero. The strand
- * will return a reverse complement if set negative.
+ * Gets a sub string of the the sequence, indexes must be equal to or greater than the start coordinate,
+ * and less than the start coordinate plus the sequences length.
+ * If the strand is negative then the sequence returned will be the reverse complement sequence, traversing
+ * in the opposite direction.
+ *
+ * The returned string must be freed.
  */
 char *sequence_getString(Sequence *sequence, int32_t start, int32_t length, int32_t strand);
+
+/*
+ * Gets the header line associated with the sequence.
+ */
+const char *sequence_getHeader(Sequence *sequence);
 
 /*
  * Gets the net the sequence is associated with.
@@ -294,11 +305,11 @@ const char *endInstance_getElementName(EndInstance *endInstance);
 char *endInstance_getCompleteName(EndInstance *endInstance);
 
 /*
- * Returns a positive integer if the end instance is oriented positively with respect to the end.
- * Else, returns a negative integer if the end instance is oriented negatively with respect to the end.
+ * Returns a non zero integer if the end instance is oriented positively with respect to the end.
+ * Else, returns zero if the end instance is oriented negatively with respect to the end.
  *
  * Thus, if you want to know the sign of instance, call this function and prefix a minus sign to the name if
- * this function returns a negative integer.
+ * this function returns zero.
  */
 int32_t endInstance_getOrientation(EndInstance *endInstance);
 
@@ -338,14 +349,14 @@ AtomInstance *endInstance_getAtomInstance(EndInstance *endInstance);
 int32_t endInstance_getCoordinate(EndInstance *endInstance);
 
 /*
- * Returns positive if the coordinate of the end instance (see endInstance_getCoordinate)
- * is on the forward strand, and negative if on the minus strand.
+ * Returns a non zero integer if the coordinate of the end instance (see endInstance_getCoordinate)
+ * is on the forward strand, and zero if on the negative strand.
  */
 int32_t endInstance_getStrand(EndInstance *endInstance);
 
 /*
- * Returns positive if on the 5' side of the position returned by endInstance_getCoordinate,
- * negative if on the 3' side.
+ * Returns a non zero integer if on the 5' side of the position returned by endInstance_getCoordinate,
+ * zero if on the 3' side.
  */
 int32_t endInstance_getSide(EndInstance *endInstance);
 
@@ -589,11 +600,8 @@ const char *atomInstance_getElementName(AtomInstance *atomInstance);
 char *atomInstance_getCompleteName(AtomInstance *atomInstance);
 
 /*
- * Returns a positive integer if the instance is oriented positively with respect to the atom.
- * Else, returns a negative integer if the instance is oriented negatively with respect to the atom.
- *
- * Thus, if you want to know the sign of the instance, call this function and prefix a minus sign to the name if
- * this function returns a negative integer.
+ * Returns a non zero integer if the instance is oriented positively with respect to the atom.
+ * Else, returns zero if the instance is oriented negatively with respect to the atom.
  */
 int32_t atomInstance_getOrientation(AtomInstance *atomInstance);
 
@@ -620,7 +628,7 @@ Event *atomInstance_getEvent(AtomInstance *atomInstance);
 int32_t atomInstance_getStart(AtomInstance *atomInstance);
 
 /*
- * Returns positive if one the forward strand, and negative if on the minus strand.
+ * Returns non zero if one the forward strand, and zero if on the minus strand.
  */
 int32_t atomInstance_getStrand(AtomInstance *atomInstance);
 
@@ -1375,4 +1383,13 @@ const char *netMisc_makeCompleteNameStatic(const char *elementName, const char *
  */
 char *netMisc_getNameWithOrientation(const char *name, int32_t orientation);
 
+/*
+ * Computes the reverse complement character of a ACTGactg, returning other characters unmodified.
+ */
+char netMisc_reverseComplementChar(char c);
+
+/*
+ * Computes the reverse complement of the string, returning the r-c string in newly allocated memory that must be freed.
+ */
+char *netMisc_reverseComplementString(const char *string);
 #endif

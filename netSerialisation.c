@@ -28,8 +28,16 @@ void binaryRepresentation_writeString(const char *name, void (*writeFn)(const ch
 	writeFn("%s ", name);
 }
 
+void binaryRepresentation_writeLine(const char *line, void (*writeFn)(const char *, ...)) {
+
+}
+
 void binaryRepresentation_writeInteger(int32_t i, void (*writeFn)(const char *, ...)) {
 	writeFn("%i ", i);
+}
+
+void binaryRepresentation_write64BitInteger(int64_t i, void (*writeFn)(const char *, ...)) {
+
 }
 
 void binaryRepresentation_writeFloat(float f, void (*writeFn)(const char *, ...)) {
@@ -66,10 +74,18 @@ const char *binaryRepresentation_getStringStatic(char **binaryString) {
 	return binaryRepresentation_getStringStatic_cA;
 }
 
+char *binaryRepresentation_getLine(char **binaryString) {
+
+}
+
 int32_t binaryRepresentation_getInteger(char **binaryString) {
 	int32_t i;
 	assert(parseInt(binaryString, &i) == 1);
 	return i;
+}
+
+int64_t binaryRepresentation_get64BitInteger(char **binaryString) {
+
 }
 
 float binaryRepresentation_getFloat(char **binaryString) {
@@ -162,30 +178,37 @@ EventTree *eventTree_loadFromBinaryRepresentation(char **binaryString, Net *net)
 void metaSequence_writeBinaryRepresentation(MetaSequence *metaSequence,
 		void (*writeFn)(const char *string, ...)) {
 	binaryRepresentation_writeElementType(CODE_META_SEQUENCE, writeFn);
+	binaryRepresentation_writeInteger(metaSequence_getStart(metaSequence), writeFn);
 	binaryRepresentation_writeInteger(metaSequence_getLength(metaSequence), writeFn);
 	binaryRepresentation_writeString(metaSequence_getEventName(metaSequence), writeFn);
-	binaryRepresentation_writeString(metaSequence_getFile(metaSequence), writeFn);
+	binaryRepresentation_write64BitInteger(metaSequence_getFileOffset(metaSequence), writeFn);
+	binaryRepresentation_writeLine(metaSequence_getHeader(metaSequence), writeFn);
 }
 
 MetaSequence *metaSequence_loadFromBinaryRepresentation(char **binaryString,
 		NetDisk *netDisk) {
 	MetaSequence *metaSequence;
 	char *name;
+	int32_t start;
 	int32_t length;
+	int64_t fileOffset;
 	char *eventName;
-	const char *fileString;
+	char *header;
 
 	metaSequence = NULL;
 	if(binaryRepresentation_peekNextElementType(*binaryString) == CODE_META_SEQUENCE) {
 		binaryRepresentation_popNextElementType(binaryString);
 		name = binaryRepresentation_getString(binaryString);
+		start = binaryRepresentation_getInteger(binaryString);
 		length = binaryRepresentation_getInteger(binaryString);
 		eventName = binaryRepresentation_getString(binaryString);
-		fileString = binaryRepresentation_getStringStatic(binaryString);
-		metaSequence = metaSequence_construct(name, length,
-				fileString, eventName, netDisk);
+		fileOffset = binaryRepresentation_get64BitInteger(binaryString);
+		header = binaryRepresentation_getLine(binaryString);
+		metaSequence = metaSequence_construct2(name, start, length,
+				fileOffset, header, eventName, netDisk);
 		free(name);
 		free(eventName);
+		free(header);
 	}
 	return metaSequence;
 }

@@ -401,7 +401,6 @@ void eventTree_removeEvent(EventTree *eventTree, Event *event) {
 	sortedSet_delete(eventTree->events, event);
 }
 
-
 ////////////////////////////////////////////////
 ////////////////////////////////////////////////
 ////////////////////////////////////////////////
@@ -410,30 +409,39 @@ void eventTree_removeEvent(EventTree *eventTree, Event *event) {
 ////////////////////////////////////////////////
 ////////////////////////////////////////////////
 
-MetaSequence *metaSequence_construct(const char *name, int32_t length,
-		const char *file, const char *eventName, NetDisk *netDisk) {
+MetaSequence *metaSequence_construct2(const char *name, int32_t start,
+		int32_t length, int64_t fileOffset, const char *header,
+		const char *eventName, NetDisk *netDisk) {
 	MetaSequence *metaSequence;
 
 	metaSequence = malloc(sizeof(MetaSequence));
 	metaSequence->name = stringCopy(name);
 	assert(length >= 0);
+	metaSequence->start = start;
 	metaSequence->length = length;
-	metaSequence->file = stringCopy(file);
+	metaSequence->fileOffset = fileOffset;
 	metaSequence->eventName = stringCopy(eventName);
 	metaSequence->netDisk = netDisk;
 	metaSequence->referenceCount = 0;
+	metaSequence->header = stringCopy(header);
 
 	netDisk_addMetaSequence(netDisk, metaSequence);
-
 	return metaSequence;
+}
+
+MetaSequence *metaSequence_construct(const char *name, int32_t start, int32_t length,
+		const char *string, const char *header, const char *eventName, NetDisk *netDisk) {
+	int64_t fileOffset;
+	fileOffset = netDisk_addString(netDisk, string, length);
+	return metaSequence_construct2(name, start, length, fileOffset, header, eventName, netDisk);
 }
 
 void metaSequence_destruct(MetaSequence *metaSequence) {
 	assert(metaSequence->referenceCount == 0);
 	netDisk_unloadMetaSequence(metaSequence->netDisk, metaSequence);
 	free(metaSequence->name);
-	free(metaSequence->file);
 	free(metaSequence->eventName);
+	free(metaSequence->header);
 	free(metaSequence);
 }
 
@@ -441,16 +449,30 @@ const char *metaSequence_getName(MetaSequence *metaSequence) {
 	return metaSequence->name;
 }
 
+int32_t metaSequence_getStart(MetaSequence *metaSequence) {
+	return metaSequence->start;
+}
+
 int32_t metaSequence_getLength(MetaSequence *metaSequence) {
 	return metaSequence->length;
 }
 
-const char *metaSequence_getFile(MetaSequence *metaSequence) {
-	return metaSequence->file;
-}
-
 const char *metaSequence_getEventName(MetaSequence *metaSequence) {
 	return metaSequence->eventName;
+}
+
+char *metaSequence_getString(MetaSequence *metaSequence, int32_t start, int32_t length, int32_t strand) {
+	assert(start >= metaSequence_getStart(metaSequence));
+	assert(start < metaSequence_getStart(metaSequence) + metaSequence_getLength(metaSequence));
+	return netDisk_getString(metaSequence->netDisk, metaSequence->fileOffset, start, length, strand);
+}
+
+const char *metaSequence_getHeader(MetaSequence *metaSequence) {
+	return metaSequence->header;
+}
+
+int64_t metaSequence_getFileOffset(MetaSequence *metaSequence) {
+	return metaSequence->fileOffset;
 }
 
 void metaSequence_increaseReferenceCount(MetaSequence *metaSequence) {
@@ -484,9 +506,9 @@ Sequence *sequence_construct2(MetaSequence *metaSequence, Net *net) {
 	return sequence;
 }
 
-Sequence *sequence_construct(const char *name, int32_t length,
-							 const char *file, Event *event, Net *net) {
-	return sequence_construct2(metaSequence_construct(name, length, file,
+Sequence *sequence_construct(const char *name, int32_t start, int32_t length,
+							 const char *string, const char *header, Event *event, Net *net) {
+	return sequence_construct2(metaSequence_construct(name, start, length, string, header,
 			event_getName(event), net_getNetDisk(net)), net);
 }
 
@@ -498,6 +520,10 @@ void sequence_destruct(Sequence *sequence) {
 	net_removeSequence(sequence_getNet(sequence), sequence);
 	metaSequence_decreaseReferenceCountAndDestructIfZero(sequence->metaSequence);
 	free(sequence);
+}
+
+int32_t sequence_getStart(Sequence *sequence) {
+	return metaSequence_getStart(sequence->metaSequence);
 }
 
 int32_t sequence_getLength(Sequence *sequence) {
@@ -512,12 +538,16 @@ Event *sequence_getEvent(Sequence *sequence) {
 	return eventTree_getEvent(net_getEventTree(sequence_getNet(sequence)), metaSequence_getEventName(sequence->metaSequence));
 }
 
-const char *sequence_getFile(Sequence *sequence) {
-	return metaSequence_getFile(sequence->metaSequence);
-}
-
 Net *sequence_getNet(Sequence *sequence) {
 	return sequence->net;
+}
+
+char *sequence_getString(Sequence *sequence, int32_t start, int32_t length, int32_t strand) {
+	return metaSequence_getString(sequence->metaSequence, start, length, strand);
+}
+
+const char *sequence_getHeader(Sequence *sequence) {
+	return metaSequence_getHeader(sequence->metaSequence);
 }
 
 ////////////////////////////////////////////////
@@ -623,7 +653,7 @@ End *endInstance_getEnd(EndInstance *endInstance) {
 }
 
 AtomInstance *endInstance_getAtomInstance(EndInstance *endInstance) {
-	return endInstance_getOrientation(endInstance) > 0 ?
+	return endInstance_getOrientation(endInstance) ?
 			endInstance->endInstanceContents->atomInstance :
 	(endInstance->endInstanceContents->atomInstance != NULL ? atomInstance_getReverse(endInstance->endInstanceContents->atomInstance) : NULL);
 }
@@ -633,11 +663,11 @@ int32_t endInstance_getCoordinate(EndInstance *endInstance) {
 }
 
 int32_t endInstance_getStrand(EndInstance *endInstance) {
-	return endInstance_getOrientation(endInstance) ? endInstance->endInstanceContents->strand : -endInstance->endInstanceContents->strand;
+	return endInstance_getOrientation(endInstance) ? endInstance->endInstanceContents->strand : !endInstance->endInstanceContents->strand;
 }
 
 int32_t endInstance_getSide(EndInstance *endInstance) {
-	return endInstance_getOrientation(endInstance) ? endInstance->endInstanceContents->side : -endInstance->endInstanceContents->side;
+	return endInstance_getOrientation(endInstance) ? endInstance->endInstanceContents->side : !endInstance->endInstanceContents->side;
 }
 
 Sequence *endInstance_getSequence(EndInstance *endInstance) {
@@ -660,7 +690,7 @@ void endInstance_makeAdjacent2(EndInstance *endInstance, EndInstance *endInstanc
 
 EndInstance *endInstance_getP(EndInstance *endInstance, EndInstance *connectedEndInstance) {
 	return connectedEndInstance == NULL ? NULL :
-			endInstance_getOrientation(endInstance) > 0 ? connectedEndInstance : endInstance_getReverse(connectedEndInstance);
+			endInstance_getOrientation(endInstance) ? connectedEndInstance : endInstance_getReverse(connectedEndInstance);
 }
 
 EndInstance *endInstance_getAdjacency(EndInstance *endInstance) {
@@ -678,7 +708,7 @@ Operation *endInstance_getOperation(EndInstance *endInstance) {
 EndInstance *endInstance_getParent(EndInstance *endInstance) {
 	EndInstance *e = endInstance->endInstanceContents->parent;
 	return e == NULL ? NULL :
-		endInstance_getOrientation(endInstance) > 0 ? e : endInstance_getReverse(e);
+		endInstance_getOrientation(endInstance) ? e : endInstance_getReverse(e);
 }
 
 int32_t endInstance_getChildNumber(EndInstance *endInstance) {
@@ -848,7 +878,7 @@ Net *end_getNet(End *end) {
 
 Atom *end_getAtom(End *end) {
 	Atom *a = end->endContents->attachedAtom;
-	return a == NULL || end_getOrientation(end) > 0 ? a : atom_getReverse(a);
+	return a == NULL || end_getOrientation(end) ? a : atom_getReverse(a);
 }
 
 AdjacencyComponent *end_getAdjacencyComponent(End *end) {
@@ -860,7 +890,7 @@ int32_t end_getInstanceNumber(End *end) {
 }
 
 EndInstance *end_getInstanceP(End *end, EndInstance *connectedEndInstance) {
-	return end_getOrientation(end) > 0 ? connectedEndInstance : connectedEndInstance;
+	return end_getOrientation(end) ? connectedEndInstance : connectedEndInstance;
 }
 
 EndInstance *end_getInstance(End *end, const char *name) {
@@ -880,7 +910,7 @@ EndInstance *end_getRootInstance(End *end) {
 }
 
 void end_setRootInstance(End *end, EndInstance *endInstance) {
-	end->endContents->rootInstance = endInstance_getOrientation(endInstance) > 0 ? endInstance : endInstance_getReverse(endInstance);
+	end->endContents->rootInstance = endInstance_getOrientation(endInstance) ? endInstance : endInstance_getReverse(endInstance);
 }
 
 End_InstanceIterator *end_getInstanceIterator(End *end) {
@@ -1165,7 +1195,7 @@ int32_t atom_getInstanceNumber(Atom *atom) {
 }
 
 AtomInstance *atom_getInstanceP(Atom *atom, AtomInstance *connectedAtomInstance) {
-	return atom_getOrientation(atom) > 0 || connectedAtomInstance == NULL ? connectedAtomInstance : atomInstance_getReverse(connectedAtomInstance);
+	return atom_getOrientation(atom) || connectedAtomInstance == NULL ? connectedAtomInstance : atomInstance_getReverse(connectedAtomInstance);
 }
 
 AtomInstance *atom_getInstance(Atom *atom, const char *name) {
@@ -1990,6 +2020,10 @@ NetDisk *netDisk_construct(const char *netDiskFile) {
 	netDisk->metaSequencesDatabase = database_construct(netDisk->metaSequencesDatabaseName);
 	netDisk->netsDatabase = database_construct(netDisk->netsDatabaseName);
 
+	//construct the string file
+	netDisk->stringFile = pathJoin(netDiskFile, "strings");
+	netDisk->stringFileLength = 0;
+
 	return netDisk;
 }
 
@@ -2170,6 +2204,39 @@ return netDisk_getObject(netDisk, netDisk->netsDatabase,
 		(void *(*)(char **, NetDisk *))metaSequence_loadFromBinaryRepresentation, metaSequenceName);
 }
 
+int64_t netDisk_addString(NetDisk *netDisk, const char *string, int32_t length) {
+	int64_t fileOffset;
+	FILE *fileHandle;
+
+	assert(length == (int32_t)strlen(string));
+	fileOffset = netDisk->stringFileLength;
+	netDisk->stringFileLength += length;
+	fileHandle = fopen(netDisk->stringFile, "a");
+	fprintf(fileHandle, "%s", string);
+	fclose(fileHandle);
+	return fileOffset;
+}
+
+char *netDisk_getString(NetDisk *netDisk, int64_t offset, int32_t start, int32_t length, int32_t strand) {
+	FILE *fileHandle;
+	char *cA;
+	char *cA2;
+
+	fileHandle = fopen(netDisk->stringFile, "r");
+	fseek(fileHandle, offset+start, SEEK_SET);
+	cA = malloc(sizeof(char)*(length+1));
+	fread(cA, sizeof(char), length, fileHandle);
+	cA[length] = '\0';
+	fclose(fileHandle);
+
+	if(!strand) {
+		cA2 = netMisc_reverseComplementString(cA);
+		free(cA);
+		return cA2;
+	}
+	return cA;
+}
+
 ////////////////////////////////////////////////
 ////////////////////////////////////////////////
 ////////////////////////////////////////////////
@@ -2320,3 +2387,40 @@ char *netMisc_makeBinaryRepresentation(void *object, void (*writeBinaryRepresent
 	net_writeBinaryRepresentation(object, netMisc_makeBinaryRepresentationP2);
 	return cA;
 }
+
+char netMisc_reverseComplementChar(char c) {
+	switch(c) {
+		case 'a':
+			return 't';
+		case 'c':
+			return 'g';
+		case 'g':
+			return 'c';
+		case 't':
+			return 'a';
+		case 'A':
+			return 'T';
+		case 'C':
+			return 'G';
+		case 'G':
+			return 'C';
+		case 'T':
+			return 'A';
+		default:
+			return c;
+	}
+}
+
+char *netMisc_reverseComplementString(const char *string) {
+	int32_t i, j;
+
+	j = strlen(string);
+	char *cA;
+
+	cA = malloc(sizeof(string) *(j+1));
+	for(i=0; i<j; i++) {
+		cA[i] = netMisc_reverseComplementChar(string[j-1-i]);
+	}
+	return cA;
+}
+

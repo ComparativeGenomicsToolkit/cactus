@@ -34,13 +34,13 @@ int main(int argc, char *argv[]) {
 	logInfo("Set up the net disk\n");
 	net = netDisk_getNet(netDisk, argv[2]);
 	logInfo("Read the net\n");
-	fileHandle = fopen(argv[3], "r");
+	fileHandle = fopen(argv[3], "w");
 	logInfo("Opened the file %s to write the sub-sequences in\n", argv[3]);
 	endIterator = net_getEndIterator(net);
 	while((end = net_getNextEnd(endIterator)) != NULL) {
 		instanceIterator = end_getInstanceIterator(end);
 		while((endInstance = end_getNext(instanceIterator)) != NULL) {
-			if(endInstance_getStrand(endInstance) > 0) {
+			if(endInstance_getStrand(endInstance)) {
 				endInstance2 = endInstance_getAdjacency(endInstance);
 				assert(endInstance2 != NULL);
 				sequence = endInstance_getSequence(endInstance);

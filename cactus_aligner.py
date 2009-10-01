@@ -14,8 +14,8 @@ from sonLib.bioio import fastaEncodeHeader
 from sonLib.bioio import fastaDecodeHeader
 from sonLib.bioio import cigarRead
 from sonLib.bioio import cigarWrite
+from sonLib.bioio import system
 from workflow.jobTree.scriptTree.target import Target
-from workflow.jobTree.scriptTree.target import CleanupTarget
 
 from pecan2.pecan2_batch import pecan2BatchWrapperTopLevel
 
@@ -37,10 +37,10 @@ class MakeSequences(Target):
     """Take a reconstruction problem and generate the sequences to be blasted.
     Then setup the follow on blast targets and collation targets.
     """
-    def __init__(self, job, absolutePathPrefix, 
-                 reconstructionProblem, resultsFile, options):
-        self.absolutePathPrefix = absolutePathPrefix
-        self.reconstructionProblem = reconstructionProblem
+    def __init__(self, job, netDisk, 
+                 netName, resultsFile, options):
+        self.netDisk = netDisk
+        self.netName = netName
         self.resultsFile = resultsFile
         self.options = options
         Target.__init__(self, job, None)
@@ -56,45 +56,12 @@ class MakeSequences(Target):
         logger.info("Built temporary files")
         
         ##########################################
-        #Read the top level reconstruction tags and the file containing the reconstruction problem node
-        ##########################################
-        
-        reconstructionProblemTag = ET.parse(os.path.join(self.absolutePathPrefix, self.reconstructionProblem)).getroot()
-        
-        logger.info("Parsed the input reconstruction problem")
-        
-        ##########################################
         #Construct the sequences file for doing all against all blast.
         ##########################################
         
-        strings = reconstructionProblemTag.find("strings")
-        sequences = reconstructionProblemTag.find("sequences")
-        sequencesMap = {}
-        for sequence in sequences.findall("sequence"):
-            sequencesMap[sequence.attrib["contig"]] = sequence
+        system("cactus_aligner %s %s %s" % (self.netDisk, self.netName, tempSeqFile))
         
-        fileHandle = open(tempSeqFile, 'w')
-        
-        for string in strings.findall("string"):
-            contig = string.attrib["contig"]
-            assert contig != None
-            start = int(string.attrib["start"])
-            length = int(string.attrib["length"])
-            sequenceTag = sequencesMap[contig]
-            
-            fileHandle.write(">%s\n" % fastaEncodeHeader([ contig, start ])) #Do not use the checks of the fastaWrite function
-            fileHandle2 = open(os.path.join(self.absolutePathPrefix, sequenceTag.attrib["sequence_file"]), 'r')
-            fileHandle2.seek(start)
-            seq = fileHandle2.read(length)
-            fileHandle2.close()
-            assert len(seq) == length
-            fileHandle.write(seq)
-            seq = ""
-            fileHandle.write("\n")
-        
-        fileHandle.close()
-        
-        logger.info("Written")
+        logger.info("Got the sequence files to align")
         
         ##########################################
         #Make blast target
@@ -174,11 +141,11 @@ def main():
     parser.add_option("--job", dest="jobFile", 
                       help="Job file containing command to run")
     
-    parser.add_option("--absolutePathPrefix", dest="absolutePathPrefix", 
-                      help="The path to the root of the reconstruction tree problem")
+    parser.add_option("--netDisk", dest="netDisk", 
+                      help="The path to the net-disk")
     
-    parser.add_option("--reconstructionProblem", dest="reconstructionProblem", 
-                      help="The file containing the reconstruction problem")
+    parser.add_option("--netName", dest="netName", 
+                      help="The name of the net in which to get the sequences to align")
     
     parser.add_option("--useDummy", dest="useDummy", action="store_true",
                       help="Use a dummy blast aligner target (for testing)",
@@ -197,8 +164,8 @@ def main():
     
     job = ET.parse(parsedOptions.jobFile).getroot()
     
-    firstTarget = MakeSequences(job, parsedOptions.absolutePathPrefix, 
-                                parsedOptions.reconstructionProblem, 
+    firstTarget = MakeSequences(job, parsedOptions.netDisk, 
+                                parsedOptions.netName, 
                                 parsedOptions.resultsFile, options)
     firstTarget.execute(parsedOptions.jobFile)
     
