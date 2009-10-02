@@ -2015,14 +2015,19 @@ NetDisk *netDisk_construct(const char *netDiskFile) {
 	//the files to write the databases in
 	netDisk->metaSequencesDatabaseName = pathJoin(netDiskFile, "sequences");
 	netDisk->netsDatabaseName = pathJoin(netDiskFile, "nets");
+	netDisk->iDDatabaseName = pathJoin(netDiskFile, "uniqueIDs");
 
 	//open the sequences database
 	netDisk->metaSequencesDatabase = database_construct(netDisk->metaSequencesDatabaseName);
 	netDisk->netsDatabase = database_construct(netDisk->netsDatabaseName);
+	netDisk->iDDatabase = database_construct(netDisk->iDDatabaseName);
 
 	//construct the string file
 	netDisk->stringFile = pathJoin(netDiskFile, "strings");
 	netDisk->stringFileLength = 0;
+
+	//initialise the unique ids.
+	netDisk_getUniqueID(netDisk);
 
 	return netDisk;
 }
@@ -2235,6 +2240,30 @@ char *netDisk_getString(NetDisk *netDisk, int64_t offset, int32_t start, int32_t
 		return cA2;
 	}
 	return cA;
+}
+
+void netDisk_getBlockOfUniqueIDs(NetDisk *netDisk) {
+	char *cA;
+	char *cA2;
+	cA = database_getRecord(netDisk->iDDatabase, "uniqueID");
+	if(cA == NULL) {
+		database_writeRecord(netDisk->iDDatabase, "uniqueID", "0");
+		cA = database_getRecord(netDisk->iDDatabase, "uniqueID");
+	}
+	cA2 = cA;
+	database_
+	netDisk->uniqueNumber = binaryRepresentation_get64BitInteger(&cA2);
+	netDisk->uniqueNumber = database_getRecord(netDisk->);
+	netDisk->maxUniqueNumber = netDisk->uniqueNumber + MAX_INCREMENT_NUMBER;
+	free(cA);
+}
+
+int64_t netDisk_getUniqueID(NetDisk *netDisk) {
+	assert(netDisk->uniqueNumber <= netDisk->maxUniqueNumber);
+	if(netDisk->uniqueNumber == netDisk->maxUniqueNumber) {
+		netDisk_getBlockOfUniqueIDs(netDisk);
+	}
+	return netDisk->uniqueNumber++;
 }
 
 ////////////////////////////////////////////////

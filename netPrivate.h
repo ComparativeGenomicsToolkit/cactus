@@ -162,10 +162,14 @@ struct _netDisk {
 	int64_t stringFileLength;
 	char *netsDatabaseName;
 	char *metaSequencesDatabaseName;
+	char *iDDatabaseName;
 	TCBDB *netsDatabase;
 	TCBDB *metaSequencesDatabase;
+	TCBDB *iDDatabase;
 	struct avl_table *metaSequences;
 	struct avl_table *nets;
+	int64_t uniqueNumber;
+	int64_t maxUniqueNumber;
 };
 
 ///
@@ -962,6 +966,11 @@ int64_t netDisk_addString(NetDisk *netDisk, const char *string, int32_t length);
  * Retrieves a string from the bucket of sequence.
  */
 char *netDisk_getString(NetDisk *netDisk, int64_t offset, int32_t start, int32_t length, int32_t strand);
+
+/*
+ * Retrieves the next unique ID.
+ */
+int64_t netDisk_getUniqueID(char *netDisk);
 
 ////////////////////////////////////////////////
 ////////////////////////////////////////////////
