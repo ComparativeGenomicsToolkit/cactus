@@ -64,12 +64,15 @@ void fn(const char *fastaHeader, const char *string, int32_t length) {
 	End *end2;
 	EndInstance *endInstance1;
 	EndInstance *endInstance2;
+	MetaSequence *metaSequence;
 	Sequence *sequence;
 	char *name;
 
 	//Now put the details in a net.
 	name = getUniqueName();
-	sequence = sequence_construct(name, 1, length, string, fastaHeader, event, net);
+	metaSequence = metaSequence_construct(name, 1, length, string, fastaHeader,
+			event_getName(event), netDisk);
+	sequence = sequence_construct(metaSequence, net);
 	end1 = end_construct(getUniqueStubName(), net);
 	end2 = end_construct(getUniqueStubName(), net);
 	endInstance1 = endInstance_construct2("0", end1, 1, 1, -1, sequence);
@@ -207,7 +210,7 @@ int main(int argc, char *argv[]) {
 
 	binaryTree = newickTreeParser(speciesTree, 0.0, &strings);
 	name = getUniqueName();
-	eventTree = eventTree_construct(name, net); //creates the event tree and the root even
+	eventTree = eventTree_construct(metaEvent_construct(name, "ROOT", netDisk), net); //creates the event tree and the root even
 	//now traverse the tree
 	stack = constructEmptyList(0, NULL);
 	listAppend(stack, eventTree_getEvent(eventTree, name));
@@ -219,8 +222,8 @@ int main(int argc, char *argv[]) {
 		binaryTree = stack->list[--stack->length];
 		assert(binaryTree != NULL);
 		name = getUniqueName();
-		event = event_construct(name, binaryTree->distance, event, eventTree);
 		if(binaryTree->internal) {
+			event = event_construct(metaEvent_construct(name, NULL, netDisk), binaryTree->distance, event, eventTree);
 			listAppend(stack, event);
 			listAppend(stack, binaryTree->right);
 			listAppend(stack, event);
@@ -229,7 +232,7 @@ int main(int argc, char *argv[]) {
 		else {
 			assert(i < strings->length);
 			originalName = strings->list[i];
-			//fprintf(nameMapFileHandle, "<event original_name=\"%s\" event=\"%s\"></event>\n", originalName, name);
+			event = event_construct(metaEvent_construct(name, originalName, netDisk), binaryTree->distance, event, eventTree);
 			free(originalName);
 			strings->list[i++] = name;
 		}

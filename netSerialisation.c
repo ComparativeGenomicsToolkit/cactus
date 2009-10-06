@@ -20,53 +20,57 @@
 ////////////////////////////////////////////////
 ////////////////////////////////////////////////
 
-void binaryRepresentation_writeElementType(int32_t elementCode, void (*writeFn)(const char *, ...)) {
-	writeFn("%c ", (char)elementCode);
+void binaryRepresentation_writeElementType(char elementCode, void (*writeFn)(const void * ptr, size_t size, size_t count)) {
+	writeFn(&elementCode, sizeof(char), 1);
 }
 
-void binaryRepresentation_writeString(const char *name, void (*writeFn)(const char *, ...)) {
-	writeFn("%s ", name);
+void binaryRepresentation_writeString(const char *name, void (*writeFn)(const void * ptr, size_t size, size_t count)) {
+	int32_t i;
+	i = strlen(name);
+	writeFn(&i, sizeof(int32_t), 1);
+	writeFn(&name, sizeof(char), i);
 }
 
-void binaryRepresentation_writeLine(const char *line, void (*writeFn)(const char *, ...)) {
-
+void binaryRepresentation_writeInteger(int32_t i, void (*writeFn)(const void * ptr, size_t size, size_t count)) {
+	writeFn(&i, sizeof(int32_t), 1);
 }
 
-void binaryRepresentation_writeInteger(int32_t i, void (*writeFn)(const char *, ...)) {
-	writeFn("%i ", i);
+void binaryRepresentation_write64BitInteger(int64_t i, void (*writeFn)(const void * ptr, size_t size, size_t count)) {
+	writeFn(&i, sizeof(int64_t), 1);
 }
 
-void binaryRepresentation_write64BitInteger(int64_t i, void (*writeFn)(const char *, ...)) {
-
+void binaryRepresentation_writeFloat(float f, void (*writeFn)(const void * ptr, size_t size, size_t count)) {
+	writeFn(&f, sizeof(float), 1);
 }
 
-void binaryRepresentation_writeFloat(float f, void (*writeFn)(const char *, ...)) {
-	writeFn("%f ", f);
+char binaryRepresentation_peekNextElementType(void *binaryString) {
+	return *((char *)binaryString);
 }
 
-int32_t binaryRepresentation_peekNextElementType(char *binaryString) {
-	char c;
-	assert(sscanf(binaryString, "%c", &c) == 1);
-	return c;
+char binaryRepresentation_popNextElementType(void **binaryString) {
+	return binaryRepresentation_getChar(binaryString);
 }
 
-int32_t binaryRepresentation_popNextElementType(char **binaryString) {
+char binaryRepresentation_getChar(void **binaryString) {
+	char *c;
+	c = *binaryString;
+	*binaryString = c + 1;
+	return *c;
+}
+
+char *binaryRepresentation_getString(void **binaryString) {
+	int32_t i, j;
 	char *cA;
-	char c;
-	cA = binaryRepresentation_getString(binaryString);
-	c = cA[0];
-	free(cA);
-	return c;
-}
-
-char *binaryRepresentation_getString(char **binaryString) {
-	static char cA[100000];
-	assert(parseString(binaryString, cA) == 1);
-	return stringCopy(cA);
+	i = binaryRepresentation_getInteger(binaryString);
+	cA = malloc(sizeof(char)*i);
+	for(j=0; j<i; j++) {
+		cA[j] = binaryRepresentation_popNextElementType(binaryString);
+	}
+	return cA;
 }
 
 char *binaryRepresentation_getStringStatic_cA = NULL;
-const char *binaryRepresentation_getStringStatic(char **binaryString) {
+const char *binaryRepresentation_getStringStatic(void **binaryString) {
 	if(binaryRepresentation_getStringStatic_cA != NULL) {
 		free(binaryRepresentation_getStringStatic_cA);
 	}
@@ -74,24 +78,56 @@ const char *binaryRepresentation_getStringStatic(char **binaryString) {
 	return binaryRepresentation_getStringStatic_cA;
 }
 
-char *binaryRepresentation_getLine(char **binaryString) {
-
+int32_t binaryRepresentation_getInteger(void **binaryString) {
+	int32_t *i;
+	i = *binaryString;
+	*binaryString = i + 1;
+	return *i;
 }
 
-int32_t binaryRepresentation_getInteger(char **binaryString) {
-	int32_t i;
-	assert(parseInt(binaryString, &i) == 1);
-	return i;
+int64_t binaryRepresentation_get64BitInteger(void **binaryString) {
+	int64_t *i;
+	i = *binaryString;
+	*binaryString = i + 1;
+	return *i;
 }
 
-int64_t binaryRepresentation_get64BitInteger(char **binaryString) {
-
+float binaryRepresentation_getFloat(void **binaryString) {
+	float *i;
+	i = *binaryString;
+	*binaryString = i + 1;
+	return *i;
 }
 
-float binaryRepresentation_getFloat(char **binaryString) {
-	float f;
-	assert(parseFloat(binaryString, &f) == 1);
-	return f;
+////////////////////////////////////////////////
+////////////////////////////////////////////////
+////////////////////////////////////////////////
+//Meta event functions.
+////////////////////////////////////////////////
+////////////////////////////////////////////////
+////////////////////////////////////////////////
+
+void metaEvent_writeBinaryRepresentation(MetaEvent *metaEvent, void (*writeFn)(const void * ptr, size_t size, size_t count)) {
+	binaryRepresentation_writeElementType(CODE_META_EVENT, writeFn);
+	binaryRepresentation_writeString(metaEvent_getName(metaEvent), writeFn);
+	binaryRepresentation_writeString(metaEvent_getHeader(metaEvent), writeFn);
+}
+
+MetaEvent *metaEvent_loadFromBinaryRepresentation(void **binaryString, NetDisk *netDisk) {
+	MetaEvent *metaEvent;
+	char *name;
+	char *header;
+
+	metaEvent = NULL;
+	if(binaryRepresentation_peekNextElementType(*binaryString) == CODE_META_EVENT) {
+		binaryRepresentation_popNextElementType(binaryString);
+		name = binaryRepresentation_getString(binaryString);
+		header = binaryRepresentation_getString(binaryString);
+		metaEvent = metaEvent_construct(name, header, netDisk);
+		free(name);
+		free(header);
+	}
+	return metaEvent;
 }
 
 ////////////////////////////////////////////////
@@ -103,18 +139,17 @@ float binaryRepresentation_getFloat(char **binaryString) {
 ////////////////////////////////////////////////
 
 void event_writeBinaryRepresentation(Event *event,
-		void (*writeFn)(const char *string, ...)) {
+		void (*writeFn)(const void * ptr, size_t size, size_t count)) {
 	binaryRepresentation_writeElementType(CODE_EVENT, writeFn);
 	binaryRepresentation_writeString(event_getName(event_getParent(event)), writeFn);
 	binaryRepresentation_writeString(event_getName(event), writeFn);
 	binaryRepresentation_writeFloat(event_getBranchLength(event), writeFn);
 }
 
-Event *event_loadFromBinaryRepresentation(char **binaryString,
+Event *event_loadFromBinaryRepresentation(void **binaryString,
 		EventTree *eventTree) {
 	Event *event;
 	char *parentName;
-	const char *name;
 	float branchLength;
 
 	event = NULL;
@@ -122,8 +157,9 @@ Event *event_loadFromBinaryRepresentation(char **binaryString,
 		binaryRepresentation_popNextElementType(binaryString);
 		parentName = binaryRepresentation_getString(binaryString);
 		branchLength = binaryRepresentation_getFloat(binaryString);
-		name = binaryRepresentation_getStringStatic(binaryString);
-		event = event_construct(name, branchLength, NULL, eventTree);
+		event = event_construct(netDisk_getMetaEvent(net_getNetDisk(eventTree_getNet(eventTree)),
+				binaryRepresentation_getStringStatic(binaryString)), branchLength,
+				eventTree_getEvent(eventTree, parentName), eventTree);
 		free(parentName);
 	}
 	return event;
@@ -137,7 +173,7 @@ Event *event_loadFromBinaryRepresentation(char **binaryString,
 ////////////////////////////////////////////////
 ////////////////////////////////////////////////
 
-void eventTree_writeBinaryRepresentationP(Event *event, void (*writeFn)(const char *string, ...)) {
+void eventTree_writeBinaryRepresentationP(Event *event, void (*writeFn)(const void * ptr, size_t size, size_t count)) {
 	int32_t i;
 	event_writeBinaryRepresentation(event, writeFn);
 	for(i=0; i<event_getChildNumber(event); i++) {
@@ -145,7 +181,7 @@ void eventTree_writeBinaryRepresentationP(Event *event, void (*writeFn)(const ch
 	}
 }
 
-void eventTree_writeBinaryRepresentation(EventTree *eventTree, void (*writeFn)(const char *string, ...)) {
+void eventTree_writeBinaryRepresentation(EventTree *eventTree, void (*writeFn)(const void * ptr, size_t size, size_t count)) {
 	int32_t i;
 	Event *event;
 	event = eventTree_getRootEvent(eventTree);
@@ -156,12 +192,13 @@ void eventTree_writeBinaryRepresentation(EventTree *eventTree, void (*writeFn)(c
 	}
 }
 
-EventTree *eventTree_loadFromBinaryRepresentation(char **binaryString, Net *net) {
+EventTree *eventTree_loadFromBinaryRepresentation(void **binaryString, Net *net) {
 	EventTree *eventTree;
 	eventTree = NULL;
 	if(binaryRepresentation_peekNextElementType(*binaryString) == CODE_EVENT_TREE) {
 		binaryRepresentation_popNextElementType(binaryString);
-		eventTree = eventTree_construct(binaryRepresentation_getStringStatic(binaryString), net);
+		eventTree = eventTree_construct(netDisk_getMetaEvent(net_getNetDisk(eventTree_getNet(eventTree)),
+				binaryRepresentation_getStringStatic(binaryString)), net);
 		while(event_loadFromBinaryRepresentation(binaryString, eventTree) != NULL);
 	}
 	return eventTree;
@@ -176,16 +213,16 @@ EventTree *eventTree_loadFromBinaryRepresentation(char **binaryString, Net *net)
 ////////////////////////////////////////////////
 
 void metaSequence_writeBinaryRepresentation(MetaSequence *metaSequence,
-		void (*writeFn)(const char *string, ...)) {
+		void (*writeFn)(const void * ptr, size_t size, size_t count)) {
 	binaryRepresentation_writeElementType(CODE_META_SEQUENCE, writeFn);
 	binaryRepresentation_writeInteger(metaSequence_getStart(metaSequence), writeFn);
 	binaryRepresentation_writeInteger(metaSequence_getLength(metaSequence), writeFn);
 	binaryRepresentation_writeString(metaSequence_getEventName(metaSequence), writeFn);
 	binaryRepresentation_write64BitInteger(metaSequence_getFileOffset(metaSequence), writeFn);
-	binaryRepresentation_writeLine(metaSequence_getHeader(metaSequence), writeFn);
+	binaryRepresentation_writeString(metaSequence_getHeader(metaSequence), writeFn);
 }
 
-MetaSequence *metaSequence_loadFromBinaryRepresentation(char **binaryString,
+MetaSequence *metaSequence_loadFromBinaryRepresentation(void **binaryString,
 		NetDisk *netDisk) {
 	MetaSequence *metaSequence;
 	char *name;
@@ -203,7 +240,7 @@ MetaSequence *metaSequence_loadFromBinaryRepresentation(char **binaryString,
 		length = binaryRepresentation_getInteger(binaryString);
 		eventName = binaryRepresentation_getString(binaryString);
 		fileOffset = binaryRepresentation_get64BitInteger(binaryString);
-		header = binaryRepresentation_getLine(binaryString);
+		header = binaryRepresentation_getString(binaryString);
 		metaSequence = metaSequence_construct2(name, start, length,
 				fileOffset, header, eventName, netDisk);
 		free(name);
@@ -221,18 +258,18 @@ MetaSequence *metaSequence_loadFromBinaryRepresentation(char **binaryString,
 ////////////////////////////////////////////////
 ////////////////////////////////////////////////
 
-void sequence_writeBinaryRepresentation(Sequence *sequence, void (*writeFn)(const char *string, ...)) {
+void sequence_writeBinaryRepresentation(Sequence *sequence, void (*writeFn)(const void * ptr, size_t size, size_t count)) {
 	binaryRepresentation_writeElementType(CODE_SEQUENCE, writeFn);
 	binaryRepresentation_writeString(sequence_getName(sequence), writeFn);
 }
 
-Sequence *sequence_loadFromBinaryRepresentation(char **binaryString, Net *net) {
+Sequence *sequence_loadFromBinaryRepresentation(void **binaryString, Net *net) {
 	Sequence *sequence;
 
 	sequence = NULL;
 	if(binaryRepresentation_peekNextElementType(*binaryString) == CODE_SEQUENCE) {
 		binaryRepresentation_popNextElementType(binaryString);
-		sequence = sequence_construct2(netDisk_getMetaSequence(net_getNetDisk(net), binaryRepresentation_getStringStatic(binaryString)), net);
+		sequence = sequence_construct(netDisk_getMetaSequence(net_getNetDisk(net), binaryRepresentation_getStringStatic(binaryString)), net);
 	}
 	return sequence;
 }
@@ -245,7 +282,7 @@ Sequence *sequence_loadFromBinaryRepresentation(char **binaryString, Net *net) {
 ////////////////////////////////////////////////
 ////////////////////////////////////////////////
 
-void endInstance_writeBinaryRepresentationP(EndInstance *endInstance2, int32_t elementType, void (*writeFn)(const char *string, ...)) {
+void endInstance_writeBinaryRepresentationP(EndInstance *endInstance2, int32_t elementType, void (*writeFn)(const void * ptr, size_t size, size_t count)) {
 	char *cA;
 	binaryRepresentation_writeElementType(elementType, writeFn);
 	cA = endInstance_getCompleteName(endInstance2);
@@ -253,7 +290,7 @@ void endInstance_writeBinaryRepresentationP(EndInstance *endInstance2, int32_t e
 	free(cA);
 }
 
-void endInstance_writeBinaryRepresentation(EndInstance *endInstance, void (*writeFn)(const char *string, ...)) {
+void endInstance_writeBinaryRepresentation(EndInstance *endInstance, void (*writeFn)(const void * ptr, size_t size, size_t count)) {
 	EndInstance *endInstance2;
 	if(endInstance_getCoordinate(endInstance) == INT32_MAX) {
 		if(endInstance_getEvent(endInstance) == NULL) {
@@ -285,7 +322,7 @@ void endInstance_writeBinaryRepresentation(EndInstance *endInstance, void (*writ
 	}
 }
 
-int32_t endInstance_loadFromBinaryRepresentationP(EndInstance *endInstance, char **binaryString, void (*linkFn)(EndInstance *, EndInstance *)) {
+int32_t endInstance_loadFromBinaryRepresentationP(EndInstance *endInstance, void **binaryString, void (*linkFn)(EndInstance *, EndInstance *)) {
 	const char *cA;
 	EndInstance *endInstance2;
 	binaryRepresentation_popNextElementType(binaryString);
@@ -298,7 +335,7 @@ int32_t endInstance_loadFromBinaryRepresentationP(EndInstance *endInstance, char
 	return 1;
 }
 
-EndInstance *endInstance_loadFromBinaryRepresentation(char **binaryString, End *end) {
+EndInstance *endInstance_loadFromBinaryRepresentation(void **binaryString, End *end) {
 	EndInstance *endInstance;
 	char *name;
 	int32_t coordinate;
@@ -347,7 +384,7 @@ EndInstance *endInstance_loadFromBinaryRepresentation(char **binaryString, End *
 ////////////////////////////////////////////////
 ////////////////////////////////////////////////
 
-void end_writeBinaryRepresentationP(EndInstance *endInstance, void (*writeFn)(const char *string, ...)) {
+void end_writeBinaryRepresentationP(EndInstance *endInstance, void (*writeFn)(const void * ptr, size_t size, size_t count)) {
 	int32_t i;
 	endInstance_writeBinaryRepresentation(endInstance, writeFn);
 	for(i=0; i<endInstance_getChildNumber(endInstance); i++) {
@@ -355,7 +392,7 @@ void end_writeBinaryRepresentationP(EndInstance *endInstance, void (*writeFn)(co
 	}
 }
 
-void end_writeBinaryRepresentation(End *end, void (*writeFn)(const char *string, ...)) {
+void end_writeBinaryRepresentation(End *end, void (*writeFn)(const void * ptr, size_t size, size_t count)) {
 	End_InstanceIterator *iterator;
 	EndInstance *endInstance;
 
@@ -377,7 +414,7 @@ void end_writeBinaryRepresentation(End *end, void (*writeFn)(const char *string,
 	}
 }
 
-End *end_loadFromBinaryRepresentation(char **binaryString, Net *net) {
+End *end_loadFromBinaryRepresentation(void **binaryString, Net *net) {
 	End *end;
 
 	end = NULL;
@@ -406,12 +443,12 @@ End *end_loadFromBinaryRepresentation(char **binaryString, Net *net) {
 ////////////////////////////////////////////////
 ////////////////////////////////////////////////
 
-void atomInstance_writeBinaryRepresentation(AtomInstance *atomInstance, void (*writeFn)(const char *string, ...)) {
+void atomInstance_writeBinaryRepresentation(AtomInstance *atomInstance, void (*writeFn)(const void * ptr, size_t size, size_t count)) {
 	binaryRepresentation_writeElementType(CODE_ATOM_INSTANCE, writeFn);
 	binaryRepresentation_writeString(atomInstance_getInstanceName(atomInstance), writeFn);
 }
 
-AtomInstance *atomInstance_loadFromBinaryRepresentation(char **binaryString, Atom *atom) {
+AtomInstance *atomInstance_loadFromBinaryRepresentation(void **binaryString, Atom *atom) {
 	const char *name;
 	AtomInstance *atomInstance;
 
@@ -433,7 +470,7 @@ AtomInstance *atomInstance_loadFromBinaryRepresentation(char **binaryString, Ato
 ////////////////////////////////////////////////
 ////////////////////////////////////////////////
 
-void atom_writeBinaryRepresentation(Atom *atom, void (*writeFn)(const char *string, ...)) {
+void atom_writeBinaryRepresentation(Atom *atom, void (*writeFn)(const void * ptr, size_t size, size_t count)) {
 	Atom_InstanceIterator *iterator;
 	AtomInstance *atomInstance;
 
@@ -447,7 +484,7 @@ void atom_writeBinaryRepresentation(Atom *atom, void (*writeFn)(const char *stri
 	atom_destructInstanceIterator(iterator);
 }
 
-Atom *atom_loadFromBinaryRepresentation(char **binaryString, Net *net) {
+Atom *atom_loadFromBinaryRepresentation(void **binaryString, Net *net) {
 	Atom *atom;
 	const char *name;
 	int32_t length;
@@ -471,7 +508,7 @@ Atom *atom_loadFromBinaryRepresentation(char **binaryString, Net *net) {
 ////////////////////////////////////////////////
 ////////////////////////////////////////////////
 
-void adjacencyComponent_writeBinaryRepresentation(AdjacencyComponent *adjacencyComponent, void (*writeFn)(const char *string, ...)) {
+void adjacencyComponent_writeBinaryRepresentation(AdjacencyComponent *adjacencyComponent, void (*writeFn)(const void * ptr, size_t size, size_t count)) {
 	Chain *chain;
 	End *end;
 	AdjacencyComponent_EndIterator *iterator;
@@ -487,7 +524,7 @@ void adjacencyComponent_writeBinaryRepresentation(AdjacencyComponent *adjacencyC
 	adjacencyComponent_destructEndIterator(iterator);
 }
 
-AdjacencyComponent *adjacencyComponent_loadFromBinaryRepresentation(char **binaryString, Net *net) {
+AdjacencyComponent *adjacencyComponent_loadFromBinaryRepresentation(void **binaryString, Net *net) {
 	AdjacencyComponent *adjacencyComponent;
 
 	adjacencyComponent = NULL;
@@ -510,14 +547,14 @@ AdjacencyComponent *adjacencyComponent_loadFromBinaryRepresentation(char **binar
 ////////////////////////////////////////////////
 ////////////////////////////////////////////////
 
-void link_writeBinaryRepresentation(Link *link, void (*writeFn)(const char *string, ...)) {
+void link_writeBinaryRepresentation(Link *link, void (*writeFn)(const void * ptr, size_t size, size_t count)) {
 	binaryRepresentation_writeElementType(CODE_LINK, writeFn);
 	binaryRepresentation_writeString(adjacencyComponent_getNestedNetName(link_getAdjacencyComponent(link)), writeFn);
 	binaryRepresentation_writeString(end_getName(link_getLeft(link)), writeFn);
 	binaryRepresentation_writeString(end_getName(link_getRight(link)), writeFn);
 }
 
-Link *link_loadFromBinaryRepresentation(char **binaryString, Chain *chain) {
+Link *link_loadFromBinaryRepresentation(void **binaryString, Chain *chain) {
 	AdjacencyComponent *adjacencyComponent;
 	End *leftEnd;
 	End *rightEnd;
@@ -545,7 +582,7 @@ Link *link_loadFromBinaryRepresentation(char **binaryString, Chain *chain) {
 ////////////////////////////////////////////////
 ////////////////////////////////////////////////
 
-void chain_writeBinaryRepresentation(Chain *chain, void (*writeFn)(const char *string, ...)) {
+void chain_writeBinaryRepresentation(Chain *chain, void (*writeFn)(const void * ptr, size_t size, size_t count)) {
 	Link *link;
 	binaryRepresentation_writeElementType(CODE_CHAIN, writeFn);
 	binaryRepresentation_writeString(chain_getName(chain), writeFn);
@@ -556,7 +593,7 @@ void chain_writeBinaryRepresentation(Chain *chain, void (*writeFn)(const char *s
 	}
 }
 
-Chain *chain_loadFromBinaryRepresentation(char **binaryString, Net *net) {
+Chain *chain_loadFromBinaryRepresentation(void **binaryString, Net *net) {
 	Chain *chain;
 
 	chain = NULL;
@@ -576,12 +613,12 @@ Chain *chain_loadFromBinaryRepresentation(char **binaryString, Net *net) {
 ////////////////////////////////////////////////
 ////////////////////////////////////////////////
 
-void operation_writeBinaryRepresentation(Operation *operation, void (*writeFn)(const char *string, ...)) {
+void operation_writeBinaryRepresentation(Operation *operation, void (*writeFn)(const void * ptr, size_t size, size_t count)) {
 	binaryRepresentation_writeElementType(CODE_OPERATION, writeFn);
 	binaryRepresentation_writeString(operation_getName(operation), writeFn);
 }
 
-Operation *operation_loadFromBinaryRepresentation(char **binaryString, Net *net) {
+Operation *operation_loadFromBinaryRepresentation(void **binaryString, Net *net) {
 	Operation *operation;
 
 	operation = NULL;
@@ -600,7 +637,7 @@ Operation *operation_loadFromBinaryRepresentation(char **binaryString, Net *net)
 ////////////////////////////////////////////////
 ////////////////////////////////////////////////
 
-void net_writeBinaryRepresentation(Net *net, void (*writeFn)(const char *string, ...)) {
+void net_writeBinaryRepresentation(Net *net, void (*writeFn)(const void * ptr, size_t size, size_t count)) {
 	Net_SequenceIterator *sequenceIterator;
 	Net_EndIterator *endIterator;
 	Net_AtomIterator *atomIterator;
@@ -655,7 +692,7 @@ void net_writeBinaryRepresentation(Net *net, void (*writeFn)(const char *string,
 	net_destructChainIterator(chainIterator);
 }
 
-Net *net_loadFromBinaryRepresentation(char **binaryString, NetDisk *netDisk) {
+Net *net_loadFromBinaryRepresentation(void **binaryString, NetDisk *netDisk) {
 	Net *net;
 	net = net_construct(binaryRepresentation_getStringStatic(binaryString), netDisk);
 	assert(eventTree_loadFromBinaryRepresentation(binaryString, net) != NULL);

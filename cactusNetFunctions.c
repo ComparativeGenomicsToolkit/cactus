@@ -190,8 +190,8 @@ const char *cactusEdgeToEndName(struct CactusEdge *edge, struct PinchGraph *pinc
 
 Sequence *copySequence(Net *parentNet, Net *net, const char *name) {
 	Sequence *sequence = net_getSequence(parentNet, name);
-	if(net_getSequence(net, sequence_getName(sequence)) == NULL) {
-		sequence_copyConstruct(sequence, net);
+	if(net_getSequence(net, sequence_getName(sequence)) != NULL) {
+		sequence_construct(sequence_getMetaSequence(sequence), net);
 	}
 	return sequence;
 }

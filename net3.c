@@ -110,14 +110,15 @@ int32_t database_getNumberOfRecords(TCBDB *database) {
 	return tcbdbrnum(database);
 }
 
-char *database_getRecord(TCBDB *database, const char *key) {
+void *database_getRecord(TCBDB *database, const char *key) {
 	//Return value must be freed.
-	return tcbdbget2(database, key);
+	int32_t i; //the size is ignored
+	return tcbdbget(database, key, (strlen(key)+1)*sizeof(key), &i);
 }
 
-int32_t database_writeRecord(TCBDB *database, const char *key, const char *value) {
+int32_t database_writeRecord(TCBDB *database, const char *key, const void *value, int32_t sizeOfRecord) {
 	int32_t ecode = 0;
-	if(!tcbdbput2(database, key, value)){
+	if(!tcbdbput(database, key, (strlen(key)+1)*sizeof(key), value, sizeOfRecord)){
 		ecode = tcbdbecode(database);
 		fprintf(stderr, "Adding net to database error: %s\n", tcbdberrmsg(ecode));
 	}
@@ -146,16 +147,63 @@ void databaseIterator_destruct(BDBCUR *iterator) {
 ////////////////////////////////////////////////
 ////////////////////////////////////////////////
 ////////////////////////////////////////////////
+//Meta event functions.
+////////////////////////////////////////////////
+////////////////////////////////////////////////
+////////////////////////////////////////////////
+
+MetaEvent *metaEvent_construct(const char *name, const char *header,
+		NetDisk *netDisk) {
+	MetaEvent *metaEvent;
+	metaEvent = malloc(sizeof(MetaEvent));
+	metaEvent->name = stringCopy(name);
+	metaEvent->header = stringCopy(header);
+	metaEvent->netDisk = netDisk;
+	metaEvent->referenceCount = 0;
+	netDisk_addMetaEvent(netDisk, metaEvent);
+	return metaEvent;
+}
+
+const char *metaEvent_getName(MetaEvent *metaEvent) {
+	return metaEvent->name;
+}
+
+const char *metaEvent_getHeader(MetaEvent *metaEvent) {
+	return metaEvent->header;
+}
+
+void metaEvent_destruct(MetaEvent *metaEvent) {
+	assert(metaEvent->referenceCount <= 0);
+	netDisk_unloadMetaEvent(metaEvent->netDisk, metaEvent);
+	free(metaEvent->name);
+	free(metaEvent->header);
+	free(metaEvent);
+}
+
+void metaEvent_increaseReferenceCount(MetaEvent *metaEvent) {
+	metaEvent->referenceCount++;
+}
+
+void metaEvent_decreaseReferenceCountAndDestructIfZero(MetaEvent *metaEvent) {
+	metaEvent->referenceCount--;
+	if(metaEvent->referenceCount <= 0) {
+		metaEvent_destruct(metaEvent);
+	}
+}
+
+////////////////////////////////////////////////
+////////////////////////////////////////////////
+////////////////////////////////////////////////
 //Basic event functions.
 ////////////////////////////////////////////////
 ////////////////////////////////////////////////
 ////////////////////////////////////////////////
 
-Event *event_construct(const char *name, float branchLength,
+Event *event_construct(MetaEvent *metaEvent, float branchLength,
 		Event *parentEvent, EventTree *eventTree) {
 	Event *event;
 	event = malloc(sizeof(Event));
-	event->name = stringCopy(name);
+	event->metaEvent = metaEvent;
 	event->parent = parentEvent;
 	event->branchLength = branchLength;
 	if(parentEvent != NULL) {
@@ -166,10 +214,10 @@ Event *event_construct(const char *name, float branchLength,
 	return event;
 }
 
-Event *event_construct2(const char *name, float branchLength,
+Event *event_construct2(MetaEvent *metaEvent, float branchLength,
 		Event *parentEvent, Event *childEvent, EventTree *eventTree) {
 	Event *event;
-	event = event_construct(name, branchLength, parentEvent, eventTree);
+	event = event_construct(metaEvent, branchLength, parentEvent, eventTree);
 #ifdef BEN_DEBUG
 	assert(parentEvent != NULL);
 	assert(listContains(parentEvent->children, childEvent));
@@ -189,7 +237,15 @@ Event *event_getParent(Event *event) {
 }
 
 const char *event_getName(Event *event) {
-	return event->name;
+	return metaEvent_getName(event->metaEvent);
+}
+
+MetaEvent *event_getMetaEvent(Event *event) {
+	return event->metaEvent;
+}
+
+const char *event_getHeader(Event *event) {
+	return metaEvent_getHeader(event->metaEvent);
 }
 
 float event_getBranchLength(Event *event) {
@@ -261,7 +317,7 @@ void event_destruct(Event *event) {
 	for(i=0; i<event_getChildNumber(event); i++) {
 		event_destruct(event_getChild(event, i));
 	}
-	free(event->name);
+	metaEvent_decreaseReferenceCountAndDestructIfZero(event->metaEvent);
 	free(event);
 }
 
@@ -278,10 +334,10 @@ int32_t eventTree_constructP(const void *o1, const void *o2, void *a) {
 	return strcmp(event_getName((Event *)o1), event_getName((Event *)o2));
 }
 
-EventTree *eventTree_construct(const char *rootEventName, Net *net) {
+EventTree *eventTree_construct(MetaEvent *rootMetaEvent, Net *net) {
 	EventTree *eventTree;
 	eventTree = malloc(sizeof(EventTree));
-	eventTree->rootEvent = event_construct(rootEventName, INT32_MAX, NULL, eventTree);
+	eventTree->rootEvent = event_construct(rootMetaEvent, INT32_MAX, NULL, eventTree);
 	eventTree->events = sortedSet_construct(eventTree_constructP);
 	eventTree->net = net;
 	return eventTree;
@@ -297,7 +353,7 @@ void eventTree_copyConstructP(EventTree *eventTree, Event *event,
 			//skip the event
 			event2 = event_getChild(event2, 0);
 		}
-		event_construct(event_getName(event2), event_getBranchLength(event2),
+		event_construct(event_getMetaEvent(event), event_getBranchLength(event2),
 						eventTree_getEvent(eventTree, event_getName(event)), eventTree);
 		eventTree_copyConstructP(eventTree, event2, unaryEventFilterFn);
 	}
@@ -306,7 +362,7 @@ void eventTree_copyConstructP(EventTree *eventTree, Event *event,
 EventTree *eventTree_copyConstruct(EventTree *eventTree, Net *newNet,
 		int32_t (unaryEventFilterFn)(Event *event)) {
 	EventTree *eventTree2;
-	eventTree2 = eventTree_construct(event_getName(eventTree_getRootEvent(eventTree)), newNet);
+	eventTree2 = eventTree_construct(event_getMetaEvent(eventTree_getRootEvent(eventTree)), newNet);
 	eventTree_copyConstructP(eventTree2, eventTree_getRootEvent(eventTree), unaryEventFilterFn);
 	return eventTree2;
 }
@@ -317,7 +373,9 @@ Event *eventTree_getRootEvent(EventTree *eventTree) {
 
 Event *eventTree_getEvent(EventTree *eventTree, const char *eventName) {
 	static Event event;
-	event.name = (char *)eventName;
+	static MetaEvent metaEvent;
+	metaEvent.name = (char *)eventName;
+	event.metaEvent = &metaEvent;
 	return sortedSet_find(eventTree->events, &event);
 }
 
@@ -495,31 +553,24 @@ void metaSequence_decreaseReferenceCountAndDestructIfZero(MetaSequence *metaSequ
 ////////////////////////////////////////////////
 ////////////////////////////////////////////////
 
-Sequence *sequence_construct2(MetaSequence *metaSequence, Net *net) {
+Sequence *sequence_construct(MetaSequence *metaSequence, Net *net) {
 	Sequence *sequence;
 	sequence = malloc(sizeof(Sequence));
 	sequence->metaSequence = metaSequence;
 	metaSequence_increaseReferenceCount(metaSequence);
 	sequence->net = net;
 	net_addSequence(net, sequence);
-
 	return sequence;
-}
-
-Sequence *sequence_construct(const char *name, int32_t start, int32_t length,
-							 const char *string, const char *header, Event *event, Net *net) {
-	return sequence_construct2(metaSequence_construct(name, start, length, string, header,
-			event_getName(event), net_getNetDisk(net)), net);
-}
-
-Sequence *sequence_copyConstruct(Sequence *sequence, Net *newNet) {
-	return sequence_construct2(sequence->metaSequence, newNet);
 }
 
 void sequence_destruct(Sequence *sequence) {
 	net_removeSequence(sequence_getNet(sequence), sequence);
 	metaSequence_decreaseReferenceCountAndDestructIfZero(sequence->metaSequence);
 	free(sequence);
+}
+
+MetaSequence *sequence_getMetaSequence(Sequence *sequence) {
+	return sequence->metaSequence;
 }
 
 int32_t sequence_getStart(Sequence *sequence) {
@@ -2004,21 +2055,27 @@ int32_t netDisk_constructMetaSequencesP(const void *o1, const void *o2, void *a)
 	return strcmp(metaSequence_getName((MetaSequence *)o1), metaSequence_getName((MetaSequence *)o2));
 }
 
+int32_t netDisk_constructMetaEventsP(const void *o1, const void *o2, void *a) {
+	assert(a == NULL);
+	return strcmp(metaEvent_getName((MetaEvent *)o1), metaEvent_getName((MetaEvent *)o2));
+}
+
 NetDisk *netDisk_construct(const char *netDiskFile) {
 	NetDisk *netDisk;
 	netDisk = malloc(sizeof(NetDisk));
 
 	//construct lists of in memory objects
+	netDisk->metaEvents = sortedSet_construct(netDisk_constructMetaEventsP);
 	netDisk->metaSequences = sortedSet_construct(netDisk_constructMetaSequencesP);
 	netDisk->nets = sortedSet_construct(netDisk_constructNetsP);
 
 	//the files to write the databases in
-	netDisk->metaSequencesDatabaseName = pathJoin(netDiskFile, "sequences");
+	netDisk->metaDataDatabaseName = pathJoin(netDiskFile, "sequences");
 	netDisk->netsDatabaseName = pathJoin(netDiskFile, "nets");
 	netDisk->iDDatabaseName = pathJoin(netDiskFile, "uniqueIDs");
 
 	//open the sequences database
-	netDisk->metaSequencesDatabase = database_construct(netDisk->metaSequencesDatabaseName);
+	netDisk->metaDataDatabase = database_construct(netDisk->metaDataDatabaseName);
 	netDisk->netsDatabase = database_construct(netDisk->netsDatabaseName);
 	netDisk->iDDatabase = database_construct(netDisk->iDDatabaseName);
 
@@ -2027,7 +2084,7 @@ NetDisk *netDisk_construct(const char *netDiskFile) {
 	netDisk->stringFileLength = 0;
 
 	//initialise the unique ids.
-	netDisk_getUniqueID(netDisk);
+	//netDisk_getUniqueID(netDisk);
 
 	return netDisk;
 }
@@ -2041,13 +2098,14 @@ void netDisk_destruct(NetDisk *netDisk){
 	sortedSet_destruct(netDisk->nets, NULL);
 
 	sortedSet_destruct(netDisk->metaSequences, NULL);
+	sortedSet_destruct(netDisk->metaEvents, NULL);
 
 	//close DBs
-	database_destruct(netDisk->metaSequencesDatabase);
+	database_destruct(netDisk->metaDataDatabase);
 	database_destruct(netDisk->netsDatabase);
 
 	//free string names
-	free(netDisk->metaSequencesDatabaseName);
+	free(netDisk->metaDataDatabaseName);
 	free(netDisk->netsDatabaseName);
 
 	free(netDisk);
@@ -2056,30 +2114,31 @@ void netDisk_destruct(NetDisk *netDisk){
 int32_t netDisk_write(NetDisk *netDisk){
 	NetDisk_NetIterator *netIterator;
 	struct avl_traverser *metaSequenceIterator;
-	char *cA;
+	void *vA;
+	int32_t recordSize;
 	Net *net;
 	MetaSequence *metaSequence;
 	int32_t ecode;
 
 	netIterator = netDisk_getNetInMemoryIterator(netDisk);
 	while((net = netDisk_getNextNet(netIterator)) != NULL) {
-		cA = netMisc_makeBinaryRepresentation(net,
-				(void (*)(void *, void (*)(const char *string, ...)))net_writeBinaryRepresentation);
-		if((ecode = database_writeRecord(netDisk->netsDatabase, net_getName(net), cA)) != 0) {
+		vA = netMisc_makeBinaryRepresentation(net,
+				(void (*)(void *, void (*)(const void * ptr, size_t size, size_t count)))net_writeBinaryRepresentation, &recordSize);
+		if((ecode = database_writeRecord(netDisk->netsDatabase, net_getName(net), vA, recordSize)) != 0) {
 			return ecode;
 		}
-		free(cA);
+		free(vA);
 	}
 	netDisk_destructNetIterator(netIterator);
 
 	metaSequenceIterator = iterator_construct(netDisk->metaSequences);
 	while((metaSequence = iterator_getNext(metaSequenceIterator)) != NULL) {
-		cA = netMisc_makeBinaryRepresentation(metaSequence,
-				(void (*)(void *, void (*)(const char *string, ...)))metaSequence_writeBinaryRepresentation);
-		if((ecode = database_writeRecord(netDisk->metaSequencesDatabase, metaSequence_getName(metaSequence), cA)) != 0) {
+		vA = netMisc_makeBinaryRepresentation(metaSequence,
+				(void (*)(void *, void (*)(const void * ptr, size_t size, size_t count)))metaSequence_writeBinaryRepresentation, &recordSize);
+		if((ecode = database_writeRecord(netDisk->metaDataDatabase, metaSequence_getName(metaSequence), vA, recordSize)) != 0) {
 			return ecode;
 		}
-		free(cA);
+		free(vA);
 	}
 	iterator_destruct(metaSequenceIterator);
 	return 0;
@@ -2182,6 +2241,10 @@ void netDisk_unloadNet(NetDisk *netDisk, Net *net) {
 	sortedSet_delete(netDisk->nets, net);
 }
 
+/*
+ * Functions on meta sequences.
+ */
+
 void netDisk_addMetaSequence(NetDisk *netDisk, MetaSequence *metaSequence) {
 #ifdef BEN_DEBUG
 	assert(netDisk_getMetaSequence(netDisk, metaSequence_getName(metaSequence)) == NULL);
@@ -2190,7 +2253,7 @@ void netDisk_addMetaSequence(NetDisk *netDisk, MetaSequence *metaSequence) {
 }
 
 int32_t netDisk_deleteMetaSequenceFromDisk(NetDisk *netDisk, const char *metaSequenceName) {
-	return database_removeRecord(netDisk->metaSequencesDatabase, metaSequenceName);
+	return database_removeRecord(netDisk->metaDataDatabase, metaSequenceName);
 }
 
 void netDisk_unloadMetaSequence(NetDisk *netDisk, MetaSequence *metaSequence) {
@@ -2208,6 +2271,41 @@ return netDisk_getObject(netDisk, netDisk->netsDatabase,
 		(void *(*)(NetDisk *, const char *))netDisk_getMetaSequenceInMemory,
 		(void *(*)(char **, NetDisk *))metaSequence_loadFromBinaryRepresentation, metaSequenceName);
 }
+
+/*
+ * Functions on meta events.
+ */
+
+void netDisk_addMetaEvent(NetDisk *netDisk, MetaEvent *metaEvent) {
+#ifdef BEN_DEBUG
+	assert(netDisk_getMetaEvent(netDisk, metaEvent_getName(metaEvent)) == NULL);
+#endif
+	sortedSet_insert(netDisk->metaEvents, metaEvent);
+}
+
+int32_t netDisk_deleteMetaEventFromDisk(NetDisk *netDisk, const char *metaEventName) {
+	return database_removeRecord(netDisk->metaDataDatabase, metaEventName);
+}
+
+void netDisk_unloadMetaEvent(NetDisk *netDisk, MetaEvent *metaEvent) {
+	sortedSet_delete(netDisk->metaEvents, metaEvent);
+}
+
+MetaEvent *netDisk_getMetaEventInMemory(NetDisk *netDisk, const char *metaEventName) {
+	static MetaEvent metaEvent;
+	metaEvent.name = (void *)metaEventName;
+	return sortedSet_find(netDisk->metaEvents, &metaEvent);
+}
+
+MetaEvent *netDisk_getMetaEvent(NetDisk *netDisk, const char *metaEventName) {
+return netDisk_getObject(netDisk, netDisk->netsDatabase,
+		(void *(*)(NetDisk *, const char *))netDisk_getMetaEventInMemory,
+		(void *(*)(char **, NetDisk *))metaEvent_loadFromBinaryRepresentation, metaEventName);
+}
+
+/*
+ * Functions on strings stored by the net disk.
+ */
 
 int64_t netDisk_addString(NetDisk *netDisk, const char *string, int32_t length) {
 	int64_t fileOffset;
@@ -2242,7 +2340,7 @@ char *netDisk_getString(NetDisk *netDisk, int64_t offset, int32_t start, int32_t
 	return cA;
 }
 
-void netDisk_getBlockOfUniqueIDs(NetDisk *netDisk) {
+/*void netDisk_getBlockOfUniqueIDs(NetDisk *netDisk) {
 	char *cA;
 	char *cA2;
 	cA = database_getRecord(netDisk->iDDatabase, "uniqueID");
@@ -2264,7 +2362,7 @@ int64_t netDisk_getUniqueID(NetDisk *netDisk) {
 		netDisk_getBlockOfUniqueIDs(netDisk);
 	}
 	return netDisk->uniqueNumber++;
-}
+}*/
 
 ////////////////////////////////////////////////
 ////////////////////////////////////////////////
@@ -2380,41 +2478,33 @@ char *netMisc_getNameWithOrientation(const char *name, int32_t orientation) {
  * Private utility functions.
  */
 
-char netMisc_makeBinaryRepresentationP_cA[100000];
 int32_t netMisc_makeBinaryRepresentationP_i = 0;
-void netMisc_makeBinaryRepresentationP(const char *string, ...) {
+void netMisc_makeBinaryRepresentationP(const void * ptr, size_t size, size_t count) {
 	/*
 	 * Records the cummulative size of the substrings written out in creating the net.
 	 */
-	//return;
-    va_list ap;
-    va_start(ap, string);
-    sprintf(netMisc_makeBinaryRepresentationP_cA, string, ap);
-    netMisc_makeBinaryRepresentationP_i += strlen(netMisc_makeBinaryRepresentationP_cA);
-    va_end(ap);
+	assert(ptr != NULL);
+	netMisc_makeBinaryRepresentationP_i += size * count;
 }
 
-char *netMisc_makeBinaryRepresentationP2_cA = NULL;
-void netMisc_makeBinaryRepresentationP2(const char *string, ...) {
+void *netMisc_makeBinaryRepresentationP2_vA = NULL;
+void netMisc_makeBinaryRepresentationP2(const void * ptr, size_t size, size_t count) {
 	/*
-	 * Cummulates all the sequences into one.
+	 * Cummulates all the binary data into one array
 	 */
-	//return;
-    va_list ap;
-    va_start(ap, string);
-    sprintf(netMisc_makeBinaryRepresentationP2_cA, string, ap);
-    netMisc_makeBinaryRepresentationP2_cA += strlen(netMisc_makeBinaryRepresentationP2_cA);
-    va_end(ap);
+	memcpy(netMisc_makeBinaryRepresentationP2_vA, ptr, size*count);
+	netMisc_makeBinaryRepresentationP2_vA += size * count;
 }
 
-char *netMisc_makeBinaryRepresentation(void *object, void (*writeBinaryRepresentation)(void *, void (*writeFn)(const char *string, ...))) {
-	char *cA;
+void *netMisc_makeBinaryRepresentation(void *object, void (*writeBinaryRepresentation)(void *, void (*writeFn)(const void * ptr, size_t size, size_t count)), int32_t *recordSize) {
+	void *vA;
 	netMisc_makeBinaryRepresentationP_i = 0;
 	writeBinaryRepresentation(object, netMisc_makeBinaryRepresentationP);
-	cA = malloc(sizeof(char)*(netMisc_makeBinaryRepresentationP_i + 1));
-	netMisc_makeBinaryRepresentationP2_cA = cA;
+	vA = malloc(netMisc_makeBinaryRepresentationP_i);
+	netMisc_makeBinaryRepresentationP2_vA = vA;
 	net_writeBinaryRepresentation(object, netMisc_makeBinaryRepresentationP2);
-	return cA;
+	*recordSize = netMisc_makeBinaryRepresentationP_i;
+	return vA;
 }
 
 char netMisc_reverseComplementChar(char c) {

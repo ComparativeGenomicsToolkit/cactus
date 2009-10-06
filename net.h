@@ -22,8 +22,10 @@
 ////////////////////////////////////////////////
 ////////////////////////////////////////////////
 
+typedef struct _metaEvent MetaEvent;
 typedef struct _event Event;
 typedef struct _eventTree EventTree;
+typedef struct _metaSequence MetaSequence;
 typedef struct _sequence Sequence;
 typedef struct _end End;
 typedef struct _endInstance EndInstance;
@@ -52,6 +54,30 @@ typedef struct avl_traverser NetDisk_NetIterator;
 ////////////////////////////////////////////////
 ////////////////////////////////////////////////
 ////////////////////////////////////////////////
+//Meta event functions.
+////////////////////////////////////////////////
+////////////////////////////////////////////////
+////////////////////////////////////////////////
+
+/*
+ * Constructs a meta event, which contains all the essential info for a event.
+ */
+MetaEvent *metaEvent_construct(const char *name, const char *header,
+		NetDisk *netDisk);
+
+/*
+ * Gets the name of the event.
+ */
+const char *metaEvent_getName(MetaEvent *metaEvent);
+
+/*
+ * Gets the header line associated with the meta event.
+ */
+const char *metaEvent_getHeader(MetaEvent *metaEvent);
+
+////////////////////////////////////////////////
+////////////////////////////////////////////////
+////////////////////////////////////////////////
 //Basic event functions.
 ////////////////////////////////////////////////
 ////////////////////////////////////////////////
@@ -60,14 +86,14 @@ typedef struct avl_traverser NetDisk_NetIterator;
 /*
  * Constructs an event, attached on a branch from the parent event, with the given branch length.
  */
-Event *event_construct(const char *name, float branchLength, Event *parentEvent, EventTree *eventTree);
+Event *event_construct(MetaEvent *metaEvent, float branchLength, Event *parentEvent, EventTree *eventTree);
 
 /*
  * Constructs an event, on the branch between the given child and parent events. The branch length is the
  * length from the parent to the new event. In this case it should be less than the length from the parent to
  * the pre-existing child event.
  */
-Event *event_construct2(const char *name, float branchLength,
+Event *event_construct2(MetaEvent *metaEvent, float branchLength,
 		Event *parentEvent, Event *childEvent, EventTree *eventTree);
 
 /*
@@ -79,6 +105,16 @@ Event *event_getParent(Event *event);
  * Gets the name of the event.
  */
 const char *event_getName(Event *event);
+
+/*
+ * Gets the associated meta event.
+ */
+MetaEvent *event_getMetaEvent(Event *event);
+
+/*
+ * Gets the header sequence associated with the event.
+ */
+const char *event_getHeader(Event *event);
 
 /*
  * Gets the branch length.
@@ -137,7 +173,7 @@ int32_t event_isSibling(Event *event, Event *otherEvent);
 /*
  * Constructs an event tree, with one root event.
  */
-EventTree *eventTree_construct(const char *rootEventName, Net *net);
+EventTree *eventTree_construct(MetaEvent *rootMetaEvent, Net *net);
 
 /*
  * Copy constructs the event tree, replacing the existing net with the newNet. Only includes
@@ -203,27 +239,72 @@ void eventTree_destructIterator(EventTree_Iterator *iterator);
 ////////////////////////////////////////////////
 ////////////////////////////////////////////////
 ////////////////////////////////////////////////
+//Meta sequence functions.
+////////////////////////////////////////////////
+////////////////////////////////////////////////
+////////////////////////////////////////////////
+
+
+/*
+ * Constructs a meta sequence, which contains all the essential info for a sequence.
+ *
+ * This function is NOT thread safe, do not try to have concurrent instances of this function!
+ */
+MetaSequence *metaSequence_construct(const char *name, int32_t start, int32_t length, const char *string, const char *header,
+		const char *eventName, NetDisk *netDisk);
+
+/*
+ * Gets the name of the sequence.
+ */
+const char *metaSequence_getName(MetaSequence *metaSequence);
+
+/*
+ * Gets the start coordinate of the sequence.
+ */
+int32_t metaSequence_getStart(MetaSequence *metaSequence);
+
+/*
+ * Gets the length of the sequence.
+ */
+int32_t metaSequence_getLength(MetaSequence *metaSequence);
+
+/*
+ * Gets the associated event name.
+ */
+const char *metaSequence_getEventName(MetaSequence *metaSequence);
+
+/*
+ * Gets a string for representing a subsequence of the meta sequence.
+ */
+char *metaSequence_getString(MetaSequence *metaSequence, int32_t start, int32_t length, int32_t strand);
+
+/*
+ * Gets the header line associated with the meta sequence.
+ */
+const char *metaSequence_getHeader(MetaSequence *metaSequence);
+
+////////////////////////////////////////////////
+////////////////////////////////////////////////
+////////////////////////////////////////////////
 //Basic sequence functions.
 ////////////////////////////////////////////////
 ////////////////////////////////////////////////
 ////////////////////////////////////////////////
 
 /*
- * Constructs a sequence. If the sequence name is already in netDisk, then an assert error is created.
- *
- * This function is NOT thread safe - do not try to create multiple sequences simulataneously!
+ * Creates a sequence for a net, wrapping a meta sequence.
  */
-Sequence *sequence_construct(const char *name, int32_t start, int32_t length, const char *string, const char *header, Event *event, Net *net);
-
-/*
- * Copy constructs the sequence, replacing the current event with the event in the net.
- */
-Sequence *sequence_copyConstruct(Sequence *sequence, Net *newNet);
+Sequence *sequence_construct(MetaSequence *metaSequence, Net *net);
 
 /*
  * Destructs the sequence.
  */
 void sequence_destruct(Sequence *sequence);
+
+/*
+ * Gets the associated meta sequence.
+ */
+MetaSequence *sequence_getMetaSequence(Sequence *sequence);
 
 /*
  * Gets the start coordinate of the sequence (inclusive).

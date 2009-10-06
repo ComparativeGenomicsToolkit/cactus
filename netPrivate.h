@@ -12,8 +12,15 @@
 ////////////////////////////////////////////////
 ////////////////////////////////////////////////
 
-struct _event {
+struct _metaEvent {
 	char *name;
+	char *header;
+	NetDisk *netDisk;
+	int32_t referenceCount;
+};
+
+struct _event {
+	MetaEvent *metaEvent;
 	struct List *children;
 	float branchLength;
 	Event *parent;
@@ -26,16 +33,16 @@ struct _eventTree {
 	Net *net;
 };
 
-typedef struct _metaSequence {
+struct _metaSequence {
 	char *name;
 	int64_t fileOffset;
 	int32_t start;
 	int32_t length;
 	char *eventName;
 	NetDisk *netDisk;
-	int32_t referenceCount;
 	char *header;
-} MetaSequence;
+	int32_t referenceCount;
+};
 
 struct _sequence {
 	MetaSequence *metaSequence;
@@ -161,12 +168,13 @@ struct _netDisk {
 	char *stringFile;
 	int64_t stringFileLength;
 	char *netsDatabaseName;
-	char *metaSequencesDatabaseName;
+	char *metaDataDatabaseName;
 	char *iDDatabaseName;
 	TCBDB *netsDatabase;
-	TCBDB *metaSequencesDatabase;
+	TCBDB *metaDataDatabase;
 	TCBDB *iDDatabase;
 	struct avl_table *metaSequences;
+	struct avl_table *metaEvents;
 	struct avl_table *nets;
 	int64_t uniqueNumber;
 	int64_t maxUniqueNumber;
@@ -270,12 +278,12 @@ int32_t database_getNumberOfRecords(TCBDB *database);
 /*
  * Gets a record from the database, given the key. The record is in newly allocated memory, and must be freed.
  */
-char *database_getRecord(TCBDB *database, const char *key);
+void *database_getRecord(TCBDB *database, const char *key);
 
 /*
  * Writes a key value record to the database.
  */
-int32_t database_writeRecord(TCBDB *database, const char *key, const char *value);
+int32_t database_writeRecord(TCBDB *database, const char *key, const void *value, int32_t sizeOfRecord);
 
 /*
  * Removes a record from the database.
@@ -309,96 +317,126 @@ void databaseIterator_destruct(BDBCUR *iterator);
  * Codes used to define which objects are being encoded/decoded from a binary database stream.
  */
 
+#define CODE_META_EVENT 19
 #define CODE_EVENT 0
 #define CODE_POINTER 1
-#define CODE_EVENT_TREE 1
-#define CODE_META_SEQUENCE 1
-#define CODE_SEQUENCE 0
-#define CODE_ADJACENCY 3
-#define CODE_PARENT 3
-#define CODE_END_INSTANCE 1
-#define CODE_END_INSTANCE_WITH_EVENT 1
-#define CODE_END_INSTANCE_WITH_COORDINATES 2
-#define CODE_END_WITHOUT_PHYLOGENY 2
-#define CODE_END_WITH_PHYLOGENY 2
-#define CODE_ATOM_INSTANCE 3
-#define CODE_ATOM 3
-#define CODE_ADJACENCY_COMPONENT 2
-#define CODE_ADJACENCY_COMPONENT_END 2
-#define CODE_LINK 2
-#define CODE_CHAIN 3
-#define CODE_OPERATION 3
+#define CODE_EVENT_TREE 2
+#define CODE_META_SEQUENCE 3
+#define CODE_SEQUENCE 4
+#define CODE_ADJACENCY 5
+#define CODE_PARENT 6
+#define CODE_END_INSTANCE 7
+#define CODE_END_INSTANCE_WITH_EVENT 8
+#define CODE_END_INSTANCE_WITH_COORDINATES 9
+#define CODE_END_WITHOUT_PHYLOGENY 10
+#define CODE_END_WITH_PHYLOGENY 11
+#define CODE_ATOM_INSTANCE 12
+#define CODE_ATOM 13
+#define CODE_ADJACENCY_COMPONENT 14
+#define CODE_ADJACENCY_COMPONENT_END 15
+#define CODE_LINK 16
+#define CODE_CHAIN 17
+#define CODE_OPERATION 18
 
 /*
  * Writes a code for the element type.
  */
-void binaryRepresentation_writeElementType(int32_t elementCode, void (*writeFn)(const char *, ...));
+void binaryRepresentation_writeElementType(char elementCode, void (*writeFn)(const void * ptr, size_t size, size_t count));
 
 /*
- * Writes a string, containing no white space, to the binary stream.
+ * Writes a string to the binary stream.
  */
-void binaryRepresentation_writeString(const char *string, void (*writeFn)(const char *, ...));
-
-/*
- * Writes a line, potentially containing white space, to the binary stream.
- */
-void binaryRepresentation_writeLine(const char *line, void (*writeFn)(const char *, ...));
+void binaryRepresentation_writeString(const char *string, void (*writeFn)(const void * ptr, size_t size, size_t count));
 
 /*
  * Writes an integer to the binary stream
  */
-void binaryRepresentation_writeInteger(int32_t i, void (*writeFn)(const char *, ...));
+void binaryRepresentation_writeInteger(int32_t i, void (*writeFn)(const void * ptr, size_t size, size_t count));
 
 /*
  * Writes an integer to the binary stream
  */
-void binaryRepresentation_write64BitInteger(int64_t i, void (*writeFn)(const char *, ...));
+void binaryRepresentation_write64BitInteger(int64_t i, void (*writeFn)(const void * ptr, size_t size, size_t count));
 
 /*
  * Writes a float to the binary stream.
  */
-void binaryRepresentation_writeFloat(float f, void (*writeFn)(const char *, ...));
+void binaryRepresentation_writeFloat(float f, void (*writeFn)(const void * ptr, size_t size, size_t count));
 
 /*
  * Returns indicating which element is next, but does not increment the string pointer.
  */
-int32_t binaryRepresentation_peekNextElementType(char *binaryString);
+char binaryRepresentation_peekNextElementType(void *binaryString);
 
 /*
  * Returns indicating which element is next, while incrementing the string pointer.
  */
-int32_t binaryRepresentation_popNextElementType(char **binaryString);
+char binaryRepresentation_popNextElementType(void **binaryString);
+
+/*
+ * Returns a char from the binary string, moving up the pointer.
+ */
+char binaryRepresentation_getChar(void **binaryString);
 
 /*
  * Parses out a string, returning it in a newly allocated string which must be freed.
  */
-char *binaryRepresentation_getString(char **binaryString);
+char *binaryRepresentation_getString(void **binaryString);
 
 /*
  * Parses out a string, placing the memory in a buffer owned by the function. Thid buffer
  * will be overidden by the next call to the function.
  */
-const char *binaryRepresentation_getStringStatic(char **binaryString);
-
-/*
- * Parses a string containing white space from the binary string.
- */
-char *binaryRepresentation_getLine(char **binaryString);
+const char *binaryRepresentation_getStringStatic(void **binaryString);
 
 /*
  * Parses an integer from binary string.
  */
-int32_t binaryRepresentation_getInteger(char **binaryString);
+int32_t binaryRepresentation_getInteger(void **binaryString);
 
 /*
  * Parses an 64bit integer from binary string.
  */
-int64_t binaryRepresentation_get64BitInteger(char **binaryString);
+int64_t binaryRepresentation_get64BitInteger(void **binaryString);
 
 /*
  * Parses a float from the binary string.
  */
-float binaryRepresentation_getFloat(char **binaryString);
+float binaryRepresentation_getFloat(void **binaryString);
+
+////////////////////////////////////////////////
+////////////////////////////////////////////////
+////////////////////////////////////////////////
+//Meta event functions.
+////////////////////////////////////////////////
+////////////////////////////////////////////////
+////////////////////////////////////////////////
+
+/*
+ * Destructs a meta event.
+ */
+void metaEvent_destruct(MetaEvent *metaEvent);
+
+/*
+ * Increases the number of references (held by event objects), to one.
+ */
+void metaEvent_increaseReferenceCount(MetaEvent *metaEvent);
+
+/*
+ * Descrease the number of references, by one. If it gets to zero then the object will
+ * be destroyed.
+ */
+void metaEvent_decreaseReferenceCountAndDestructIfZero(MetaEvent *metaEvent);
+
+/*
+ * Creates a binary representation of the eventTree, returned as a char string.
+ */
+void metaEvent_writeBinaryRepresentation(MetaEvent *metaEvent, void (*writeFn)(const void * ptr, size_t size, size_t count));
+
+/*
+ * Loads a eventTree into memory from a binary representation of the eventTree.
+ */
+MetaEvent *metaEvent_loadFromBinaryRepresentation(void **binaryString, NetDisk *netDisk);
 
 ////////////////////////////////////////////////
 ////////////////////////////////////////////////
@@ -416,12 +454,12 @@ void event_destruct(Event *event);
 /*
  * Creates a binary representation of the event, returned as a char string.
  */
-void event_writeBinaryRepresentation(Event *event, void (*writeFn)(const char *string, ...));
+void event_writeBinaryRepresentation(Event *event, void (*writeFn)(const void * ptr, size_t size, size_t count));
 
 /*
  * Loads a event into memory from a binary representation of the event.
  */
-Event *event_loadFromBinaryRepresentation(char **binaryString, EventTree *eventTree);
+Event *event_loadFromBinaryRepresentation(void **binaryString, EventTree *eventTree);
 
 ////////////////////////////////////////////////
 ////////////////////////////////////////////////
@@ -449,12 +487,12 @@ void eventTree_removeEvent(EventTree *eventTree, Event *event);
 /*
  * Creates a binary representation of the eventTree, returned as a char string.
  */
-void eventTree_writeBinaryRepresentation(EventTree *eventTree, void (*writeFn)(const char *string, ...));
+void eventTree_writeBinaryRepresentation(EventTree *eventTree, void (*writeFn)(const void * ptr, size_t size, size_t count));
 
 /*
  * Loads a eventTree into memory from a binary representation of the eventTree.
  */
-EventTree *eventTree_loadFromBinaryRepresentation(char **binaryString, Net *net);
+EventTree *eventTree_loadFromBinaryRepresentation(void **binaryString, Net *net);
 
 ////////////////////////////////////////////////
 ////////////////////////////////////////////////
@@ -463,14 +501,6 @@ EventTree *eventTree_loadFromBinaryRepresentation(char **binaryString, Net *net)
 ////////////////////////////////////////////////
 ////////////////////////////////////////////////
 ////////////////////////////////////////////////
-
-/*
- * Constructs a meta sequence, which contains all the essential info for a sequence.
- *
- * This function is NOT thread safe, do not try to have concurrent instances of this function!
- */
-MetaSequence *metaSequence_construct(const char *name, int32_t start, int32_t length, const char *string, const char *header,
-		const char *eventName, NetDisk *netDisk);
 
 /*
  * Constructs a meta sequence using an existing reference to a sequence in the sequence file.
@@ -482,36 +512,6 @@ MetaSequence *metaSequence_construct2(const char *name, int32_t start, int32_t l
  * Destructs a meta sequence.
  */
 void metaSequence_destruct(MetaSequence *metaSequence);
-
-/*
- * Gets the name of the sequence.
- */
-const char *metaSequence_getName(MetaSequence *metaSequence);
-
-/*
- * Gets the start coordinate of the sequence.
- */
-int32_t metaSequence_getStart(MetaSequence *metaSequence);
-
-/*
- * Gets the length of the sequence.
- */
-int32_t metaSequence_getLength(MetaSequence *metaSequence);
-
-/*
- * Gets the associated event name.
- */
-const char *metaSequence_getEventName(MetaSequence *metaSequence);
-
-/*
- * Gets a string for representing a subsequence of the meta sequence.
- */
-char *metaSequence_getString(MetaSequence *metaSequence, int32_t start, int32_t length, int32_t strand);
-
-/*
- * Gets the header line associated with the meta sequence.
- */
-const char *metaSequence_getHeader(MetaSequence *metaSequence);
 
 /*
  * Gets the file offset location of the string backing the metasequence.
@@ -532,12 +532,12 @@ void metaSequence_decreaseReferenceCountAndDestructIfZero(MetaSequence *metaSequ
 /*
  * Creates a binary representation of the eventTree, returned as a char string.
  */
-void metaSequence_writeBinaryRepresentation(MetaSequence *metaSequence, void (*writeFn)(const char *string, ...));
+void metaSequence_writeBinaryRepresentation(MetaSequence *metaSequence, void (*writeFn)(const void * ptr, size_t size, size_t count));
 
 /*
  * Loads a eventTree into memory from a binary representation of the eventTree.
  */
-MetaSequence *metaSequence_loadFromBinaryRepresentation(char **binaryString, NetDisk *netDisk);
+MetaSequence *metaSequence_loadFromBinaryRepresentation(void **binaryString, NetDisk *netDisk);
 
 ////////////////////////////////////////////////
 ////////////////////////////////////////////////
@@ -548,19 +548,14 @@ MetaSequence *metaSequence_loadFromBinaryRepresentation(char **binaryString, Net
 ////////////////////////////////////////////////
 
 /*
- * Constructs the sequence from the meta sequence, increasing the meta sequences reference count.
- */
-Sequence *sequence_construct2(MetaSequence *metaSequence, Net *net);
-
-/*
  * Write a binary representation of the sequence to the write function.
  */
-void sequence_writeBinaryRepresentation(Sequence *sequence, void (*writeFn)(const char *string, ...));
+void sequence_writeBinaryRepresentation(Sequence *sequence, void (*writeFn)(const void * ptr, size_t size, size_t count));
 
 /*
  * Loads a sequence into memory from a binary representation of the sequence.
  */
-Sequence *sequence_loadFromBinaryRepresentation(char **binaryString, Net *net);
+Sequence *sequence_loadFromBinaryRepresentation(void **binaryString, Net *net);
 
 ////////////////////////////////////////////////
 ////////////////////////////////////////////////
@@ -599,12 +594,12 @@ void endInstance_breakAdjacency2(EndInstance *endInstance);
 /*
  * Write a binary representation of the endInstance to the write function.
  */
-void endInstance_writeBinaryRepresentation(EndInstance *endInstance, void (*writeFn)(const char *string, ...));
+void endInstance_writeBinaryRepresentation(EndInstance *endInstance, void (*writeFn)(const void * ptr, size_t size, size_t count));
 
 /*
  * Loads a net into memory from a binary representation of the net.
  */
-EndInstance *endInstance_loadFromBinaryRepresentation(char **binaryString, End *end);
+EndInstance *endInstance_loadFromBinaryRepresentation(void **binaryString, End *end);
 
 ////////////////////////////////////////////////
 ////////////////////////////////////////////////
@@ -637,12 +632,12 @@ void end_setAdjacencyComponent(End *end, AdjacencyComponent *adjacencyComponent)
 /*
  * Write a binary representation of the end to the write function.
  */
-void end_writeBinaryRepresentation(End *end, void (*writeFn)(const char *string, ...));
+void end_writeBinaryRepresentation(End *end, void (*writeFn)(const void * ptr, size_t size, size_t count));
 
 /*
  * Loads a net into memory from a binary representation of the net.
  */
-End *end_loadFromBinaryRepresentation(char **binaryString, Net *net);
+End *end_loadFromBinaryRepresentation(void **binaryString, Net *net);
 
 ////////////////////////////////////////////////
 ////////////////////////////////////////////////
@@ -660,12 +655,12 @@ void atomInstance_destruct(AtomInstance *atomInstance);
 /*
  * Write a binary representation of the atomInstance to the write function.
  */
-void atomInstance_writeBinaryRepresentation(AtomInstance *atomInstance, void (*writeFn)(const char *string, ...));
+void atomInstance_writeBinaryRepresentation(AtomInstance *atomInstance, void (*writeFn)(const void * ptr, size_t size, size_t count));
 
 /*
  * Loads a net into memory from a binary representation of the net.
  */
-AtomInstance *atomInstance_loadFromBinaryRepresentation(char **binaryString, Atom *atom);
+AtomInstance *atomInstance_loadFromBinaryRepresentation(void **binaryString, Atom *atom);
 
 ////////////////////////////////////////////////
 ////////////////////////////////////////////////
@@ -693,12 +688,12 @@ void atom_removeInstance(Atom *atom, AtomInstance *atomInstance);
 /*
  * Write a binary representation of the atom to the write function.
  */
-void atom_writeBinaryRepresentation(Atom *atom, void (*writeFn)(const char *string, ...));
+void atom_writeBinaryRepresentation(Atom *atom, void (*writeFn)(const void * ptr, size_t size, size_t count));
 
 /*
  * Loads a net into memory from a binary representation of the net.
  */
-Atom *atom_loadFromBinaryRepresentation(char **binaryString, Net *net);
+Atom *atom_loadFromBinaryRepresentation(void **binaryString, Net *net);
 
 ////////////////////////////////////////////////
 ////////////////////////////////////////////////
@@ -732,12 +727,12 @@ void adjacencyComponent_setChain(AdjacencyComponent *adjacencyComponent, Chain *
 /*
  * Write a binary representation of the adjacencyComponent to the write function.
  */
-void adjacencyComponent_writeBinaryRepresentation(AdjacencyComponent *adjacencyComponent, void (*writeFn)(const char *string, ...));
+void adjacencyComponent_writeBinaryRepresentation(AdjacencyComponent *adjacencyComponent, void (*writeFn)(const void * ptr, size_t size, size_t count));
 
 /*
  * Loads a net into memory from a binary representation of the net.
  */
-AdjacencyComponent *adjacencyComponent_loadFromBinaryRepresentation(char **binaryString, Net *net);
+AdjacencyComponent *adjacencyComponent_loadFromBinaryRepresentation(void **binaryString, Net *net);
 
 ////////////////////////////////////////////////
 ////////////////////////////////////////////////
@@ -755,12 +750,12 @@ void link_destruct(Link *link);
 /*
  * Write a binary representation of the link to the write function.
  */
-void link_writeBinaryRepresentation(Link *link, void (*writeFn)(const char *string, ...));
+void link_writeBinaryRepresentation(Link *link, void (*writeFn)(const void * ptr, size_t size, size_t count));
 
 /*
  * Loads a net into memory from a binary representation of the net.
  */
-Link *link_loadFromBinaryRepresentation(char **binaryString, Chain *chain);
+Link *link_loadFromBinaryRepresentation(void **binaryString, Chain *chain);
 
 ////////////////////////////////////////////////
 ////////////////////////////////////////////////
@@ -783,12 +778,12 @@ void chain_addLink(Chain *chain, Link *childLink);
 /*
  * Write a binary representation of the chain to the write function.
  */
-void chain_writeBinaryRepresentation(Chain *chain, void (*writeFn)(const char *string, ...));
+void chain_writeBinaryRepresentation(Chain *chain, void (*writeFn)(const void * ptr, size_t size, size_t count));
 
 /*
  * Loads a net into memory from a binary representation of the net.
  */
-Chain *chain_loadFromBinaryRepresentation(char **binaryString, Net *net);
+Chain *chain_loadFromBinaryRepresentation(void **binaryString, Net *net);
 
 ////////////////////////////////////////////////
 ////////////////////////////////////////////////
@@ -811,12 +806,12 @@ void operation_setIndex(Operation *operation, int32_t index);
 /*
  * Write a binary representation of the operation to the write function.
  */
-void operation_writeBinaryRepresentation(Operation *operation, void (*writeFn)(const char *string, ...));
+void operation_writeBinaryRepresentation(Operation *operation, void (*writeFn)(const void * ptr, size_t size, size_t count));
 
 /*
  * Loads a net into memory from a binary representation of the net.
  */
-Operation *operation_loadFromBinaryRepresentation(char **binaryString, Net *net);
+Operation *operation_loadFromBinaryRepresentation(void **binaryString, Net *net);
 
 ////////////////////////////////////////////////
 ////////////////////////////////////////////////
@@ -899,12 +894,12 @@ void net_removeOperation(Net *net, Operation *operation);
 /*
  * Write a binary representation of the net to the write function.
  */
-void net_writeBinaryRepresentation(Net *net, void (*writeFn)(const char *string, ...));
+void net_writeBinaryRepresentation(Net *net, void (*writeFn)(const void * ptr, size_t size, size_t count));
 
 /*
  * Loads a net into memory from a binary representation of the net.
  */
-Net *net_loadFromBinaryRepresentation(char **binaryString, NetDisk *netDisk);
+Net *net_loadFromBinaryRepresentation(void **binaryString, NetDisk *netDisk);
 
 
 ////////////////////////////////////////////////
@@ -931,7 +926,11 @@ int32_t netDisk_deleteNetFromDisk(NetDisk *netDisk, const char *netName);
 void netDisk_unloadNet(NetDisk *netDisk, Net *net);
 
 /*
- * Adds a newly constructed sequence to the memory of the netDisk.
+ * Functions on meta sequences.
+ */
+
+/*
+ * Adds a newly constructed meta sequence to the memory of the netDisk.
  */
 void netDisk_addMetaSequence(NetDisk *netDisk, MetaSequence *metaSequence);
 
@@ -941,7 +940,7 @@ void netDisk_addMetaSequence(NetDisk *netDisk, MetaSequence *metaSequence);
 int32_t netDisk_deleteMetaSequenceFromDisk(NetDisk *netDisk, const char *metaSequenceName);
 
 /*
- * Registers the sequence is being freed from memory.
+ * Registers the meta sequence is being freed from memory.
  */
 void netDisk_unloadMetaSequence(NetDisk *netDisk, MetaSequence *metaSequence);
 
@@ -954,6 +953,39 @@ MetaSequence *netDisk_getMetaSequenceInMemory(NetDisk *netDisk, const char *meta
  * Gets the meta sequence for an object.
  */
 MetaSequence *netDisk_getMetaSequence(NetDisk *netDisk, const char *metaSequenceName);
+
+/*
+ * Functions on meta events.
+ */
+
+/*
+ * Adds a newly constructed meta sequence to the memory of the netDisk.
+ */
+void netDisk_addMetaEvent(NetDisk *netDisk, MetaEvent *metaEvent);
+
+/*
+ * Deletes the meta event from the disk.
+ */
+int32_t netDisk_deleteMetaEventFromDisk(NetDisk *netDisk, const char *metaEventName);
+
+/*
+ * Registers the meta event is being freed from memory.
+ */
+void netDisk_unloadMetaEvent(NetDisk *netDisk, MetaEvent *metaEvent);
+
+/*
+ * Gets a meta event from the pool of meta events in memory, or returns null.
+ */
+MetaEvent *netDisk_getMetaEventInMemory(NetDisk *netDisk, const char *metaEventName);
+
+/*
+ * Gets a meta event from either disk or memory.
+ */
+MetaEvent *netDisk_getMetaEvent(NetDisk *netDisk, const char *metaEventName);
+
+/*
+ * Functions on strings stored by the net disk.
+ */
 
 /*
  * Adds the sequence string to the bucket of sequence.
@@ -970,7 +1002,7 @@ char *netDisk_getString(NetDisk *netDisk, int64_t offset, int32_t start, int32_t
 /*
  * Retrieves the next unique ID.
  */
-int64_t netDisk_getUniqueID(char *netDisk);
+//int64_t netDisk_getUniqueID(NetDisk *netDisk);
 
 ////////////////////////////////////////////////
 ////////////////////////////////////////////////
@@ -981,9 +1013,9 @@ int64_t netDisk_getUniqueID(char *netDisk);
 ////////////////////////////////////////////////
 
 /*
- * Makes a string representation of an object, using a passed function which writes
+ * Makes a binary representation of an object, using a passed function which writes
  * out the representation of the considered object.
  */
-char *netMisc_makeBinaryRepresentation(void *object, void (*writeBinaryRepresentation)(void *, void (*writeFn)(const char *string, ...)));
+void *netMisc_makeBinaryRepresentation(void *object, void (*writeBinaryRepresentation)(void *, void (*writeFn)(const void * ptr, size_t size, size_t count)), int32_t *recordSize);
 
 #endif
