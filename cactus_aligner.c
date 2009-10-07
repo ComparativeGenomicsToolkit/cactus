@@ -8,7 +8,7 @@
 #include <inttypes.h>
 
 #include "bioioC.h"
-#include "net.h"
+#include "cactus.h"
 
 int main(int argc, char *argv[]) {
 	/*

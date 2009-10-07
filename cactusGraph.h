@@ -7,7 +7,7 @@
 //#include "net.h"
 
 #include "avl.h"
-#include "net.h"
+#include "cactus.h"
 #include "commonC.h"
 
 /*

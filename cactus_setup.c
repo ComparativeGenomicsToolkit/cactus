@@ -8,7 +8,7 @@
 #include <inttypes.h>
 
 #include "bioioC.h"
-#include "net.h"
+#include "cactus.h"
 
 void usage() {
 	fprintf(stderr, "cactus_setup [fastaFile]xN, version 0.2\n");

@@ -7,7 +7,7 @@
 #include "hashTableC.h"
 #include "pinchGraph.h"
 #include "cactusGraph.h"
-#include "net.h"
+#include "cactus.h"
 
 void fillOutNetFromInputs(Net *parentNet, struct CactusGraph *cactusGraph,
 		struct PinchGraph *pinchGraph, const char *uniqueNamePrefix, struct List *chosenAtoms,

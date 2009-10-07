@@ -10,7 +10,7 @@
 #include "hashTableC.h"
 #include "pinchGraph.h"
 #include "cactusGraph.h"
-#include "net.h"
+#include "cactus.h"
 #include "cactusNetFunctions.h"
 
 ////////////////////////////////////////////////

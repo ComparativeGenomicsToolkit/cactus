@@ -12,7 +12,7 @@
 #include "fastCMaths.h"
 #include "bioioC.h"
 #include "hashTableC.h"
-#include "net.h"
+#include "cactus.h"
 #include "pairwiseAlignment.h"
 #include "cactusNetFunctions.h"
 

@@ -9,7 +9,7 @@
 #include "bioioC.h"
 #include "hashTableC.h"
 #include "pinchGraph.h"
-#include "net.h"
+#include "cactus.h"
 #include "pairwiseAlignment.h"
 
 /*
