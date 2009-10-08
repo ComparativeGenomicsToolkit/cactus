@@ -32,7 +32,8 @@ int main(int argc, char *argv[]) {
 	assert(argc == 4);
 	netDisk = netDisk_construct(argv[1]);
 	logInfo("Set up the net disk\n");
-	net = netDisk_getNet(netDisk, argv[2]);
+
+	net = netDisk_getNet(netDisk, netMisc_stringToName(argv[2]));
 	logInfo("Read the net\n");
 	fileHandle = fopen(argv[3], "w");
 	logInfo("Opened the file %s to write the sub-sequences in\n", argv[3]);
@@ -46,7 +47,7 @@ int main(int argc, char *argv[]) {
 				sequence = endInstance_getSequence(endInstance);
 				assert(sequence != NULL);
 				string = sequence_getString(sequence, endInstance_getCoordinate(endInstance), endInstance_getCoordinate(endInstance2)-endInstance_getCoordinate(endInstance)-1, TRUE);
-				fprintf(fileHandle, ">%s|%i\n%s\n", sequence_getName(sequence), endInstance_getCoordinate(endInstance)+1, string);
+				fprintf(fileHandle, ">%s|%i\n%s\n", netMisc_nameToStringStatic(sequence_getName(sequence)), endInstance_getCoordinate(endInstance)+1, string);
 				free(string);
 			}
 		}

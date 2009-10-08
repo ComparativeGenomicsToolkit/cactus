@@ -14,8 +14,6 @@ void usage() {
 	fprintf(stderr, "cactus_setup [fastaFile]xN, version 0.2\n");
 	fprintf(stderr, "-a --logLevel : Set the log level\n");
 	fprintf(stderr, "-b --netDisk : The location of the net disk directory\n");
-	fprintf(stderr, "-c --netName : The name of the first net (the key in the database)\n");
-	fprintf(stderr, "-e --uniqueNamePrefix : An alpha-numeric prefix which, when appended with any alpha-numeric characters is guaranteed to produce a unique name\n");
 	fprintf(stderr, "-f --speciesTree : The species tree, which will form the skeleton of the event tree\n");
 	fprintf(stderr, "-h --help : Print this help screen\n");
 }
@@ -24,41 +22,14 @@ void usage() {
  * Plenty of global variables!
  */
 char * netDiskName = NULL;
-char * uniqueNamePrefix = NULL;
 NetDisk *netDisk;
 Net *net;
 EventTree *eventTree;
 Event *event;
-char *fastaFileName;
-int32_t uniqueElementIndex=0;
-int32_t uniqueSequenceNumber = 0;
-
-char *getUniqueName() {
-	/*
-	 * Gets a unique string.
-	 */
-	char *cA;
-	cA = malloc(sizeof(char) * strlen(uniqueNamePrefix) + 10);
-	sprintf(cA, "%s%i", uniqueNamePrefix, uniqueElementIndex++);
-	return cA;
-}
-
-char *getUniqueStubName() {
-	/*
-	 * Gets a unique string with a '$' appended.
-	 */
-	char *cA;
-	char *name;
-	cA = getUniqueName();
-	name = malloc(sizeof(char)*(strlen(name)+2));
-	sprintf(name, "$%s", cA);
-	free(cA);
-	return name;
-}
 
 void fn(const char *fastaHeader, const char *string, int32_t length) {
 	/*
-	 * Processes a sequence by creating a file for it and adding it to the net.
+	 * Processes a sequence by adding it to the net disk.
 	 */
 	End *end1;
 	End *end2;
@@ -69,14 +40,13 @@ void fn(const char *fastaHeader, const char *string, int32_t length) {
 	char *name;
 
 	//Now put the details in a net.
-	name = getUniqueName();
-	metaSequence = metaSequence_construct(name, 1, length, string, fastaHeader,
+	metaSequence = metaSequence_construct(1, length, string, fastaHeader,
 			event_getName(event), netDisk);
 	sequence = sequence_construct(metaSequence, net);
-	end1 = end_construct(getUniqueStubName(), net);
-	end2 = end_construct(getUniqueStubName(), net);
-	endInstance1 = endInstance_construct2("0", end1, 1, 1, -1, sequence);
-	endInstance2 = endInstance_construct2("0", end2, length, 1, 1, sequence);
+	end1 = end_construct(1, net);
+	end2 = end_construct(1, net);
+	endInstance1 = endInstance_construct2(end1, 1, 1, -1, sequence);
+	endInstance2 = endInstance_construct2(end2, length, 1, 1, sequence);
 	endInstance_makeAdjacent1(endInstance1, endInstance2);
 
 	//cleanup
@@ -95,8 +65,7 @@ int main(int argc, char *argv[]) {
 	 */
 
 	int32_t key, i;
-	char *originalName;
-	char *name;
+	MetaEvent *metaEvent;
 	struct List *strings;
 	struct List *stack;
 	struct BinaryTree *binaryTree;
@@ -106,7 +75,6 @@ int main(int argc, char *argv[]) {
 	 * Arguments/options
 	 */
 	char * logLevelString = NULL;
-	char * netName = NULL;
 	char * speciesTree = NULL;
 
 	///////////////////////////////////////////////////////////////////////////
@@ -117,8 +85,6 @@ int main(int argc, char *argv[]) {
 		static struct option long_options[] = {
 				{ "logLevel", required_argument, 0, 'a' },
 				{ "netDisk", required_argument, 0, 'b' },
-				{ "netName", required_argument, 0, 'c' },
-				{ "uniqueNamePrefix", required_argument, 0, 'e' },
 				{ "speciesTree", required_argument, 0, 'f' },
 				{ "help", no_argument, 0, 'h' },
 				{ 0, 0, 0, 0 }
@@ -139,12 +105,6 @@ int main(int argc, char *argv[]) {
 		case 'b':
 			netDiskName = optarg;
 			break;
-		case 'c':
-			netName = optarg;
-			break;
-		case 'e':
-			uniqueNamePrefix = optarg;
-			break;
 		case 'f':
 			speciesTree = optarg;
 			break;
@@ -163,8 +123,6 @@ int main(int argc, char *argv[]) {
 
 	assert(logLevelString == NULL || strcmp(logLevelString, "INFO") == 0 || strcmp(logLevelString, "DEBUG") == 0);
 	assert(netDiskName != NULL);
-	assert(netName != NULL);
-	assert(uniqueNamePrefix != NULL);
 	assert(speciesTree != NULL);
 
 	//////////////////////////////////////////////
@@ -183,8 +141,6 @@ int main(int argc, char *argv[]) {
 	//////////////////////////////////////////////
 
 	logInfo("Net disk name : %s\n", netDiskName);
-	logInfo("Net name : %s\n", netName);
-	logInfo("Unique name prefix : %s\n", uniqueNamePrefix);
 
 	for (i = optind; i < argc; i++) {
 	   logInfo("Sequence file %s\n", argv[i]);
@@ -201,7 +157,7 @@ int main(int argc, char *argv[]) {
 	//Construct the net
 	//////////////////////////////////////////////
 
-	net = net_construct(netName, netDisk);
+	net = net_construct(netDisk);
 	logInfo("Constructed the net\n");
 
 	//////////////////////////////////////////////
@@ -209,21 +165,19 @@ int main(int argc, char *argv[]) {
 	//////////////////////////////////////////////
 
 	binaryTree = newickTreeParser(speciesTree, 0.0, &strings);
-	name = getUniqueName();
-	eventTree = eventTree_construct(metaEvent_construct(name, "ROOT", netDisk), net); //creates the event tree and the root even
+	metaEvent = metaEvent_construct("ROOT", netDisk);
+	eventTree = eventTree_construct(metaEvent, net); //creates the event tree and the root even
 	//now traverse the tree
 	stack = constructEmptyList(0, NULL);
-	listAppend(stack, eventTree_getEvent(eventTree, name));
+	listAppend(stack, metaEvent);
 	listAppend(stack, binaryTree);
-	free(name);
 	i=0;
 	while(stack->length > 0) {
 		event = stack->list[--stack->length];
 		binaryTree = stack->list[--stack->length];
 		assert(binaryTree != NULL);
-		name = getUniqueName();
 		if(binaryTree->internal) {
-			event = event_construct(metaEvent_construct(name, NULL, netDisk), binaryTree->distance, event, eventTree);
+			event = event_construct(metaEvent_construct(NULL, netDisk), binaryTree->distance, event, eventTree);
 			listAppend(stack, event);
 			listAppend(stack, binaryTree->right);
 			listAppend(stack, event);
@@ -231,30 +185,14 @@ int main(int argc, char *argv[]) {
 		}
 		else {
 			assert(i < strings->length);
-			originalName = strings->list[i];
-			event = event_construct(metaEvent_construct(name, originalName, netDisk), binaryTree->distance, event, eventTree);
-			free(originalName);
-			strings->list[i++] = name;
+			event = event_construct(metaEvent_construct(strings->list[i], netDisk), binaryTree->distance, event, eventTree);
+			fileHandle = fopen(argv[i++], "r");
+			fastaReadToFunction(fileHandle, fn);
+			fclose(fileHandle);
 		}
 	}
 	assert(i == strings->length);
-	logInfo("Constructed the event tree\n");
-
-	//////////////////////////////////////////////
-	//Process the sequences
-	//////////////////////////////////////////////
-
-	assert(strings->length == argc - optind);
-	for (i = optind; i < argc; i++) {
-		logInfo("Sequence file %s\n", argv[i]);
-		//put sequence in a special file.
-		fastaFileName = argv[i];
-		event = eventTree_getEvent(eventTree, strings->list[i]);
-		fileHandle = fopen(fastaFileName, "r");
-		fastaReadToFunction(fileHandle, fn);
-		fclose(fileHandle);
-	}
-	logInfo("Construct the event graph\n");
+	logInfo("Constructed the initial net\n");
 
 	///////////////////////////////////////////////////////////////////////////
 	// Write the net to disk.
@@ -268,6 +206,7 @@ int main(int argc, char *argv[]) {
 	///////////////////////////////////////////////////////////////////////////
 
 	destructList(strings);
+	netDisk_destruct(netDisk);
 
 	return 0;
 }

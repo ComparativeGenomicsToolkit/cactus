@@ -6,7 +6,7 @@ libPath = ../../lib
 
 tokyoCabinetSettings = -ltokyocabinet -lz -lbz2 -lpthread -lm -lc
 
-all : ${binPath}/cactus_core ${binPath}/cactus_3Edge ${binPath}/cactus_setup ${binPath}/cactus_aligner.py ${binPath}/cactus_workflow.py ${binPath}/cactus_alignerTestAligner.py ${binPath}/cactus_coreTestTreeBuilder.py ${binPath}/cactus_adjacencyTestAdjacencyBuilder.py ${binPath}/cactus_reconstructionTreeViewer.py ${binPath}/cactus_atomGraphViewer.py
+all : ${binPath}/cactus_3Edge ${binPath}/cactus_setup ${binPath}/cactus_aligner.py ${binPath}/cactus_core ${binPath}/cactus_workflow.py ${binPath}/cactus_alignerTestAligner.py ${binPath}/cactus_coreTestTreeBuilder.py ${binPath}/cactus_adjacencyTestAdjacencyBuilder.py ${binPath}/cactus_reconstructionTreeViewer.py ${binPath}/cactus_atomGraphViewer.py
 
 ${binPath}/cactus_3Edge : 3_Absorb3edge2x.c ${libPath}/sonLib.a
 	${cxx} ${cflags} -I ${libPath} -o ${binPath}/cactus_3Edge 3_Absorb3edge2x.c ${libPath}/sonLib.a 

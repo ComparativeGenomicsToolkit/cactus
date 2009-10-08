@@ -253,7 +253,7 @@ int main(int argc, char *argv[]) {
 	// Parse the basic reconstruction problem
 	///////////////////////////////////////////////////////////////////////////
 
-	net = netDisk_getNet(netDisk, netName);
+	net = netDisk_getNet(netDisk, netMisc_stringToName(netName));
 	logInfo("Parsed the net to be refined\n");
 
 	startTime = time(NULL);
