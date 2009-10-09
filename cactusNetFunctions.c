@@ -188,7 +188,7 @@ const char *cactusEdgeToEndName(struct CactusEdge *edge, struct PinchGraph *pinc
 	return cA;
 }
 
-Sequence *copySequence(Net *parentNet, Net *net, const char *name) {
+Sequence *copySequence(Net *parentNet, Net *net, Name name) {
 	Sequence *sequence = net_getSequence(parentNet, name);
 	if(net_getSequence(net, sequence_getName(sequence)) != NULL) {
 		sequence_construct(sequence_getMetaSequence(sequence), net);
@@ -206,16 +206,11 @@ Atom *constructAtomFromCactusEdge(struct CactusEdge *edge,
 	int32_t i;
 	Atom *atom;
 	struct Segment *segment;
-	char *name;
-	name = cactusEdgeToAtomName(edge, pinchGraph, names);
 	segment = edge->segments->list[0];
-	atom = atom_construct(name, segment->end - segment->start + 1, net);
-	free(name);
+	atom = atom_construct(segment->end - segment->start + 1, net);
 	for(i=0; i<edge->segments->length; i++) {
 		segment = edge->segments->list[i];
-		atomInstance_construct3(getInstance(hashtable_search(names,
-							   getContainingBlackEdge(pinchGraph, segment->contig, segment->start))),
-							   atom, (segment->start > 0 ? segment->start : -segment->start) - 1, segment->start > 0,
+		atomInstance_construct2(atom, (segment->start > 0 ? segment->start : -segment->start) - 1, segment->start > 0,
 							   copySequence(parentNet, net, contigIndexToContigStrings->list[segment->contig]));
 	}
 	return atom;
@@ -411,15 +406,12 @@ void addAdjacencyComponents(Net *net, char *(*getUniqueName)()) {
 	End *end;
 	AdjacencyComponent *adjacencyComponent;
 	Net *nestedNet;
-	char *name;
 
 	endIterator = net_getEndIterator(net);
 	while((end = net_getNextEnd(endIterator)) != NULL) {
 		adjacencyComponent = end_getAdjacencyComponent(end);
 		if(adjacencyComponent == NULL) {
-			name = getUniqueName();
-			nestedNet = net_construct(name, net_getNetDisk(net));
-			free(name);
+			nestedNet = net_construct(net_getNetDisk(net));
 			adjacencyComponent_construct(net, nestedNet);
 			addAdjacencyComponentsP(net, nestedNet, end);
 		}
@@ -495,7 +487,7 @@ void fillOutNetFromInputs(
 	int32_t i, j, k;
 	struct hashtable *chosenAtomsHash;
 	struct hashtable *names;
-	char *name;
+	Name name;
 
 	logDebug("Building the net\n");
 
@@ -577,9 +569,7 @@ void fillOutNetFromInputs(
 		//get the net.
 		net = nets[mergedVertexIDs[cactusEdge->from->vertexID]];
 		if(net == NULL) {
-			name = constructNetFromInputs_getUniqueName();
-			net = net_construct(name, net_getNetDisk(parentNet));
-			free(name);
+			net = net_construct(net_getNetDisk(parentNet));
 			nets[mergedVertexIDs[cactusEdge->from->vertexID]] = net;
 		}
 		parentNets[i] = net;
@@ -591,7 +581,7 @@ void fillOutNetFromInputs(
 				constructAtomFromCactusEdge(cactusEdge, pinchGraph, names, net, contigIndexToContigStrings, parentNet);
 			}
 			else {
-				name = (char *)cactusEdgeToEndName(getNonDeadEndOfStubOrCapCactusEdge(cactusEdge, pinchGraph), pinchGraph, names);
+				name = cactusEdgeToEndName(getNonDeadEndOfStubOrCapCactusEdge(cactusEdge, pinchGraph), pinchGraph, names);
 				end = net_getEnd(parentNet, name);
 				assert(end != NULL);
 				if(net != parentNet) {
@@ -613,7 +603,7 @@ void fillOutNetFromInputs(
 #ifdef BEN_DEBUG
 			assert(parentNet != NULL);
 #endif
-			chain = chain_construct(net, constructNetFromInputs_getUniqueName());
+			chain = chain_construct(net);
 			for(j=1; j<biConnectedComponent->length; j++) {
 				cactusEdge = biConnectedComponent->list[j-1];
 				net = nets[mergedVertexIDs[cactusEdge->to->vertexID]];
@@ -689,10 +679,10 @@ void copyEndTreePhylogenies(Net *parentNet, Net *net) {
 		instanceIterator = end_getInstanceIterator(end1);
 		while((endInstance1 = end_getNext(instanceIterator)) != NULL) {
 			assert(endInstance_getParent(endInstance1) == NULL);
-			endInstance2 = end_getInstance(end2, endInstance_getInstanceName(endInstance1));
+			endInstance2 = end_getInstance(end2, endInstance_getName(endInstance1));
 			assert(endInstance2 != NULL);
 			if((endInstance3 = endInstance_getParent(endInstance2)) != NULL) {
-				endInstance4 = end_getInstance(end1, endInstance_getInstanceName(endInstance3));
+				endInstance4 = end_getInstance(end1, endInstance_getName(endInstance3));
 				assert(endInstance4 != NULL);
 				endInstance_makeParentAndChild(endInstance4, endInstance1);
 			}
