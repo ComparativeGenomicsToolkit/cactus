@@ -184,7 +184,6 @@ void three_edge_connectP(int w,int v, struct Frame *frame, struct List *stack) {
    int u;
    adjacentG edge;
 
-   //uglyf("boo frame, %i %i %i %i\n", frame->w, frame->v, frame->u, frame->start);
    if(frame->start == 1) {
 	   u = frame->u;
 	   edge = frame->edge;
