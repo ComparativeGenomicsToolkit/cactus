@@ -7,6 +7,8 @@
 #include <getopt.h>
 #include <inttypes.h>
 #include <sys/types.h>
+#include <sys/param.h>
+#include <sys/stat.h>
 #include <dirent.h>
 
 #include "bioioC.h"
@@ -39,7 +41,6 @@ void fn(const char *fastaHeader, const char *string, int32_t length) {
 	EndInstance *endInstance2;
 	MetaSequence *metaSequence;
 	Sequence *sequence;
-	char *name;
 
 	//Now put the details in a net.
 	metaSequence = metaSequence_construct(1, length, string, fastaHeader,
@@ -50,9 +51,6 @@ void fn(const char *fastaHeader, const char *string, int32_t length) {
 	endInstance1 = endInstance_construct2(end1, 1, 1, -1, sequence);
 	endInstance2 = endInstance_construct2(end2, length, 1, 1, sequence);
 	endInstance_makeAdjacent1(endInstance1, endInstance2);
-
-	//cleanup
-	free(name);
 }
 
 int main(int argc, char *argv[]) {
@@ -191,18 +189,27 @@ int main(int argc, char *argv[]) {
 		}
 		else {
 			assert(i < strings->length);
-			uglyf("Number of stirngs %i\n", strings->length);
 			assert(j < argc);
 			event = event_construct(metaEvent_construct(strings->list[i++], netDisk), binaryTree->distance, event, eventTree);
-			DIR *dh;//directory handle
+
 			struct dirent *file;//a 'directory entity' AKA file
-			dh=opendir(argv[j++]);
+			struct stat info;//info about the file.
+			DIR *dh=opendir(argv[j]);
 			while((file=readdir(dh)) != NULL) {
-			    printf("%s\n",file->d_name);
+				if(file->d_name[0]!='.') {
+					stat(file->d_name,&info);
+					if(!S_ISDIR(info.st_mode)) {
+						char *cA = pathJoin(argv[j], file->d_name);
+						logInfo("Processing file: %s\n", cA);
+						fileHandle = fopen(cA, "r");
+						fastaReadToFunction(fileHandle, fn);
+						fclose(fileHandle);
+						free(cA);
+					}
+				}
 			}
-			//fileHandle = fopen(argv[i++], "r");
-			//fastaReadToFunction(fileHandle, fn);
-			//fclose(fileHandle);
+			j++;
+			closedir(dh);
 		}
 	}
 	assert(i == strings->length);
