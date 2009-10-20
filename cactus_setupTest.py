@@ -27,7 +27,7 @@ class TestCase(unittest.TestCase):
         for tempFile in self.tempFiles:
             os.remove(tempFile)
         unittest.TestCase.tearDown(self)
-        system("rm -rf %s" % self.tempDir)
+        #system("rm -rf %s" % self.tempDir)
         
     def testCactusSetup(self):
         for test in xrange(self.testNo): 
@@ -41,6 +41,11 @@ class TestCase(unittest.TestCase):
             
             runCactusSetup(self.tempReconstructionDirectory, sequenceDirs, 
                                newickTreeString, cactusTempDir)
+            
+            system("rm -rf %s" % self.tempReconstructionDirectory)
+            
+            return
+            
             runCactusSetup(self.tempReconstructionDirectory, sequenceDirs, 
                                newickTreeString, cactusTempDir) #Run it twice to check the job is atomic.
     

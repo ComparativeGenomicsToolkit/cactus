@@ -6,6 +6,8 @@
 #include <time.h>
 #include <getopt.h>
 #include <inttypes.h>
+#include <sys/types.h>
+#include <dirent.h>
 
 #include "bioioC.h"
 #include "cactus.h"
@@ -64,7 +66,7 @@ int main(int argc, char *argv[]) {
 	 * Finish!
 	 */
 
-	int32_t key, i;
+	int32_t key, i, j;
 	MetaEvent *metaEvent;
 	struct List *strings;
 	struct List *stack;
@@ -92,7 +94,7 @@ int main(int argc, char *argv[]) {
 
 		int option_index = 0;
 
-		key = getopt_long(argc, argv, "a:b:c:e:f:h", long_options, &option_index);
+		key = getopt_long(argc, argv, "a:b:f:h", long_options, &option_index);
 
 		if(key == -1) {
 			break;
@@ -143,7 +145,7 @@ int main(int argc, char *argv[]) {
 	logInfo("Net disk name : %s\n", netDiskName);
 
 	for (i = optind; i < argc; i++) {
-	   logInfo("Sequence file %s\n", argv[i]);
+	   logInfo("Sequence file/directory %s\n", argv[i]);
 	}
 
 	//////////////////////////////////////////////
@@ -167,17 +169,21 @@ int main(int argc, char *argv[]) {
 	binaryTree = newickTreeParser(speciesTree, 0.0, &strings);
 	metaEvent = metaEvent_construct("ROOT", netDisk);
 	eventTree = eventTree_construct(metaEvent, net); //creates the event tree and the root even
+	logInfo("Constructed the basic event tree\n");
+
 	//now traverse the tree
 	stack = constructEmptyList(0, NULL);
-	listAppend(stack, metaEvent);
+	listAppend(stack, eventTree_getRootEvent(eventTree));
 	listAppend(stack, binaryTree);
 	i=0;
+	j=optind;
 	while(stack->length > 0) {
-		event = stack->list[--stack->length];
 		binaryTree = stack->list[--stack->length];
+		event = stack->list[--stack->length];
 		assert(binaryTree != NULL);
 		if(binaryTree->internal) {
-			event = event_construct(metaEvent_construct(NULL, netDisk), binaryTree->distance, event, eventTree);
+			assert(i < strings->length);
+			event = event_construct(metaEvent_construct(strings->list[i++], netDisk), binaryTree->distance, event, eventTree);
 			listAppend(stack, event);
 			listAppend(stack, binaryTree->right);
 			listAppend(stack, event);
@@ -185,10 +191,18 @@ int main(int argc, char *argv[]) {
 		}
 		else {
 			assert(i < strings->length);
-			event = event_construct(metaEvent_construct(strings->list[i], netDisk), binaryTree->distance, event, eventTree);
-			fileHandle = fopen(argv[i++], "r");
-			fastaReadToFunction(fileHandle, fn);
-			fclose(fileHandle);
+			uglyf("Number of stirngs %i\n", strings->length);
+			assert(j < argc);
+			event = event_construct(metaEvent_construct(strings->list[i++], netDisk), binaryTree->distance, event, eventTree);
+			DIR *dh;//directory handle
+			struct dirent *file;//a 'directory entity' AKA file
+			dh=opendir(argv[j++]);
+			while((file=readdir(dh)) != NULL) {
+			    printf("%s\n",file->d_name);
+			}
+			//fileHandle = fopen(argv[i++], "r");
+			//fastaReadToFunction(fileHandle, fn);
+			//fclose(fileHandle);
 		}
 	}
 	assert(i == strings->length);

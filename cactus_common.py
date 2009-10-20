@@ -75,11 +75,11 @@ def getRandomCactusInputs(tempDir,
     return sequenceDirs, newickTreeString
 
 def runCactusSetup(reconstructionRootDir, sequences, 
-                   newickTreeString, tempDir, uniqueNamePrefix=getRandomAlphaNumericString(), logLevel="DEBUG"):
-    system("cactus_setup.py %s --speciesTree '%s' --reconstructionTree %s \
---logLevel %s --uniqueNamePrefix %s --tempDirRoot %s" \
+                   newickTreeString, tempDir, logLevel="DEBUG"):
+    system("cactus_setup %s --speciesTree '%s' --netDisk %s \
+--logLevel %s" \
            % (" ".join(sequences), newickTreeString,
-              reconstructionRootDir, logLevel, uniqueNamePrefix, tempDir))
+              reconstructionRootDir, logLevel))
     logger.info("Ran cactus setup okay")
     
 def runCactusAligner(reconstructionRootDir, alignmentFile, tempDir, useDummy=True, reconstructionProblem="reconstructionProblem.xml", logLevel="DEBUG"):        
