@@ -16,23 +16,19 @@
 #include "pairwiseAlignment.h"
 #include "cactusNetFunctions.h"
 
-void writePinchGraph(char *name, struct PinchGraph *pinchGraph, const char *namePrefix,
-						struct List *biConnectedComponents, struct List *adjacencyComponents,
-						struct List *contigIndexToContigStrings) {
+void writePinchGraph(char *name, struct PinchGraph *pinchGraph,
+						struct List *biConnectedComponents, struct List *adjacencyComponents) {
 	FILE *fileHandle;
 	fileHandle = fopen(name, "w");
-	writeOutPinchGraphWithChains(pinchGraph, biConnectedComponents, adjacencyComponents,
-			contigIndexToContigStrings, namePrefix, fileHandle);
+	writeOutPinchGraphWithChains(pinchGraph, biConnectedComponents, adjacencyComponents, fileHandle);
 	fclose(fileHandle);
 }
 
 void writeCactusGraph(char *name, struct PinchGraph *pinchGraph,
-						 struct CactusGraph *cactusGraph, const char *namePrefix,
-						 struct List *contigIndexToContigStrings) {
+						 struct CactusGraph *cactusGraph) {
 	FILE *fileHandle;
 	fileHandle = fopen(name, "w");
-	writeOutCactusGraph(cactusGraph, pinchGraph, contigIndexToContigStrings,
-			namePrefix, fileHandle);
+	writeOutCactusGraph(cactusGraph, pinchGraph, fileHandle);
 	fclose(fileHandle);
 }
 
@@ -46,7 +42,6 @@ void usage() {
 	fprintf(stderr, "-f --maxEdgeDegree : Maximum degree of aligned edges\n");
 	fprintf(stderr, "-g --writeDebugFiles : Write the debug files\n");
 	fprintf(stderr, "-h --help : Print this help screen\n");
-	fprintf(stderr, "-j --uniqueNamePrefix : An alpha-numeric prefix which, when appended with any alpha-numeric characters is guaranteed to produce a unique name\n");
 	fprintf(stderr, "-k --proportionToKeep : The proportion of the highest scoring atoms to keep\n");
 	fprintf(stderr, "-l --discardRatio : The proportion of the average atom score in an atom's chain an atom must score to be kept\n");
 	fprintf(stderr, "-m --minimumTreeCoverage : Minimum tree coverage proportion to be included in the problem\n");
@@ -95,9 +90,6 @@ int main(int argc, char *argv[]) {
 	int32_t i, startTime;
 	FILE *fileHandle;
 	struct PairwiseAlignment *pairwiseAlignment;
-	struct List *contigIndexToContigStrings;
-	struct IntList *contigIndexToContigStart;
-	struct hashtable *contigStringToContigIndex;
 	struct List *threeEdgeConnectedComponents;
 	struct List *chosenAtoms;
 	struct List *list;
@@ -115,8 +107,7 @@ int main(int argc, char *argv[]) {
 	char * netName = NULL;
 	char * tempFileRootDirectory = NULL;
 	int32_t maxEdgeDegree = 50;
-	int32_t writeDebugFiles = FALSE;
-	char * uniqueNamePrefix = NULL;
+	int32_t writeDebugFiles = 0;
 	float proportionToKeep = 1.0;
 	float discardRatio = 0.0;
 	float minimumTreeCoverage = 0.8;
@@ -134,9 +125,8 @@ int main(int argc, char *argv[]) {
 			{ "netName", required_argument, 0, 'd' },
 			{ "tempDirRoot", required_argument, 0, 'e' },
 			{ "maxEdgeDegree", required_argument, 0, 'f' },
-			{ "writeDebugFiles", required_argument, 0, 'g' },
+			{ "writeDebugFiles", no_argument, 0, 'g' },
 			{ "help", no_argument, 0, 'h' },
-			{ "uniqueNamePrefix", required_argument, 0, 'j' },
 			{ "proportionToKeep", required_argument, 0, 'k' },
 			{ "discardRatio", required_argument, 0, 'l' },
 			{ "minimumTreeCoverage", required_argument, 0, 'm' },
@@ -146,7 +136,7 @@ int main(int argc, char *argv[]) {
 
 		int option_index = 0;
 
-		key = getopt_long(argc, argv, "a:b:c:d:e:f:g:h:i:j:k:l:m", long_options, &option_index);
+		key = getopt_long(argc, argv, "a:b:c:d:e:f:g:h:j:k:l:m", long_options, &option_index);
 
 		if(key == -1) {
 			break;
@@ -172,10 +162,7 @@ int main(int argc, char *argv[]) {
 				assert(sscanf("%i", optarg, &maxEdgeDegree) == 1);
 				break;
 			case 'g':
-				assert(sscanf("%i", optarg, &writeDebugFiles) == 1);
-				break;
-			case 'j':
-				uniqueNamePrefix = optarg;
+				writeDebugFiles = 1;
 				break;
 			case 'k':
 				assert(sscanf("%f", optarg, &proportionToKeep) == 1);
@@ -208,7 +195,6 @@ int main(int argc, char *argv[]) {
 	assert(netName != NULL);
 	assert(tempFileRootDirectory != NULL);
 	assert(maxEdgeDegree > 0);
-	assert(uniqueNamePrefix != NULL);
 	assert(proportionToKeep >= 0.0 && proportionToKeep <= 1.0);
 	assert(discardRatio >= 0.0);
 	assert(minimumTreeCoverage >= 0.0);
@@ -233,8 +219,7 @@ int main(int argc, char *argv[]) {
 	logInfo("Net disk name : %s\n", netDiskName);
 	logInfo("Net name : %s\n", netName);
 	logInfo("Temp file root directory : %s\n", tempFileRootDirectory);
-	logInfo("Max edge degree : %s\n", maxEdgeDegree);
-	logInfo("Unique name prefix : %s\n", uniqueNamePrefix);
+	logInfo("Max edge degree : %i\n", maxEdgeDegree);
 
 	//////////////////////////////////////////////
 	//Set up the temp file root directory
@@ -262,38 +247,16 @@ int main(int argc, char *argv[]) {
 	//Setup the basic pinch graph
 	///////////////////////////////////////////////////////////////////////////
 
-	//Construct graph
-	contigIndexToContigStrings = constructEmptyList(0, free);
-	contigIndexToContigStart = constructEmptyIntList(0);
 
-	pinchGraph = constructPinchGraph(net, contigIndexToContigStrings, contigIndexToContigStart);
+	pinchGraph = constructPinchGraph(net);
 
 	if(writeDebugFiles) {
 		logDebug("Writing out dot formatted version of initial pinch graph\n");
-		writePinchGraph("pinchGraph1.dot", pinchGraph, uniqueNamePrefix, NULL, NULL, contigIndexToContigStrings);
+		writePinchGraph("pinchGraph1.dot", pinchGraph, NULL, NULL);
 		logDebug("Finished writing out dot formatted version of initial pinch graph\n");
 	}
 	//check the graph is consistent
 	checkPinchGraph(pinchGraph);
-
-	//create a reverse hash of the contig strings.
-	contigStringToContigIndex = create_hashtable(pinchGraph->vertices->length*2,
-												hashtable_stringHashKey, hashtable_stringEqualKey,
-												NULL, (void (*)(void *))destructList);
-#ifdef BEN_DEBUG
-	assert(contigIndexToContigStart->length == contigIndexToContigStrings->length);
-#endif
-	for(i=0; i<contigIndexToContigStrings->length; i++) {
-#ifdef BEN_DEBUG
-		assert(contigIndexToContigStrings->list[i] != NULL);
-#endif
-		list = (struct List *)hashtable_search(contigStringToContigIndex, contigIndexToContigStrings->list[i]);
-		if(list == NULL) {
-			list = constructEmptyList(0, (void (*)(void *))destructIntPair);
-			hashtable_insert(contigStringToContigIndex, contigIndexToContigStrings->list[i], list);
-		}
-		listAppend(list, constructIntPair(contigIndexToContigStart->list[i], i));
-	}
 
 	logInfo("Constructed the graph in: %i seconds\n", time(NULL) - startTime);
 	logInfo("Vertex number %i \n", pinchGraph->vertices->length);
@@ -311,7 +274,7 @@ int main(int argc, char *argv[]) {
 	while(pairwiseAlignment != NULL) {
 		logDebug("Alignment : %i , score %f\n", i++, pairwiseAlignment->score);
 		logPairwiseAlignment(pairwiseAlignment);
-		pinchMerge(pinchGraph, pairwiseAlignment, contigStringToContigIndex);
+		pinchMerge(pinchGraph, pairwiseAlignment);
 		destructPairwiseAlignment(pairwiseAlignment);
 		pairwiseAlignment = cigarRead(fileHandle);
 	}
@@ -319,7 +282,7 @@ int main(int argc, char *argv[]) {
 
 	if(writeDebugFiles) {
 		logDebug("Writing out dot formatted version of pinch graph with alignments added\n");
-		writePinchGraph("pinchGraph2.dot", pinchGraph, uniqueNamePrefix, NULL, NULL, contigIndexToContigStrings);
+		writePinchGraph("pinchGraph2.dot", pinchGraph, NULL, NULL);
 		logDebug("Finished writing out dot formatted version of pinch graph with alignments added\n");
 	}
 
@@ -341,7 +304,7 @@ int main(int argc, char *argv[]) {
 
 	if(writeDebugFiles) {
 		logDebug("Writing out dot formatted version of pinch graph with over aligned edges removed\n");
-		writePinchGraph("pinchGraph3.dot", pinchGraph, uniqueNamePrefix, NULL, NULL, contigIndexToContigStrings);
+		writePinchGraph("pinchGraph3.dot", pinchGraph, NULL, NULL);
 		logDebug("Finished writing out dot formatted version of pinch graph with over aligned edges removed\n");
 	}
 
@@ -357,7 +320,7 @@ int main(int argc, char *argv[]) {
 
 	if(writeDebugFiles) {
 		logDebug("Writing out dot formatted version of pinch graph stub components linked to the sink vertex\n");
-		writePinchGraph("pinchGraph4.dot", pinchGraph, uniqueNamePrefix, NULL, NULL, contigIndexToContigStrings);
+		writePinchGraph("pinchGraph4.dot", pinchGraph, NULL, NULL);
 		logDebug("Finished writing out dot formatted version of pinch graph with stub components linked to the sink vertex\n");
 	}
 
@@ -379,8 +342,7 @@ int main(int argc, char *argv[]) {
 
 	if(writeDebugFiles) {
 		logDebug("Writing out dot formatted version of initial cactus graph\n");
-		writeCactusGraph("cactusGraph1.dot", pinchGraph, cactusGraph, uniqueNamePrefix,
-						 contigIndexToContigStrings);
+		writeCactusGraph("cactusGraph1.dot", pinchGraph, cactusGraph);
 		logDebug("Finished writing out dot formatted version of initial cactus graph\n");
 	}
 
@@ -403,8 +365,7 @@ int main(int argc, char *argv[]) {
 
 	if(writeDebugFiles) {
 		logDebug("Writing out dot formatted version of 2-edge component only cactus graph\n");
-		writeCactusGraph("cactusGraph2.dot", pinchGraph, cactusGraph, uniqueNamePrefix,
-						 contigIndexToContigStrings);
+		writeCactusGraph("cactusGraph2.dot", pinchGraph, cactusGraph);
 		logDebug("Finished writing out dot formatted version of 2-edge component only cactus graph\n");
 	}
 
@@ -430,14 +391,13 @@ int main(int argc, char *argv[]) {
 
 	if(writeDebugFiles) {
 		logDebug("Writing out dot formatted version of the final cactus graph\n");
-		writeCactusGraph("cactusGraph3.dot", pinchGraph, cactusGraph, uniqueNamePrefix,
-											contigIndexToContigStrings);
+		writeCactusGraph("cactusGraph3.dot", pinchGraph, cactusGraph);
 		logDebug("Finished writing out dot formatted version of the final cactus graph\n");
 	}
 
 	if(writeDebugFiles) {
 		logDebug("Writing out dot formatted final pinch graph showing chains prior to pruning\n");
-		writePinchGraph("pinchGraph5.dot", pinchGraph, uniqueNamePrefix, biConnectedComponents, NULL, contigIndexToContigStrings);
+		writePinchGraph("pinchGraph5.dot", pinchGraph, biConnectedComponents, NULL);
 		logDebug("Finished writing out final pinch graph showing chains prior to pruning\n");
 	}
 
@@ -461,15 +421,15 @@ int main(int argc, char *argv[]) {
 	chosenAtoms = filterAtomsByTreeCoverageAndLength(biConnectedComponents,
 			net, proportionToKeep,
 			discardRatio, minimumTreeCoverage, minimumChainLength,
-			pinchGraph, contigIndexToContigStrings);
+			pinchGraph);
 	//now report the results
-	logTheChosenAtomSubset(biConnectedComponents, chosenAtoms, pinchGraph, net, contigIndexToContigStrings);
+	logTheChosenAtomSubset(biConnectedComponents, chosenAtoms, pinchGraph, net);
 
 	if(writeDebugFiles) {
 		logDebug("Writing out dot formatted final pinch graph showing chains after pruning\n");
 		list = constructEmptyList(0, NULL);
 		listAppend(list, chosenAtoms);
-		writePinchGraph("pinchGraph5.dot", pinchGraph, uniqueNamePrefix, list, NULL, contigIndexToContigStrings);
+		writePinchGraph("pinchGraph5.dot", pinchGraph, list, NULL);
 		destructList(list);
 		logDebug("Finished writing out final pinch graph showing chains prior to pruning\n");
 	}
@@ -478,15 +438,13 @@ int main(int argc, char *argv[]) {
 	// (8) Constructing the net.
 	///////////////////////////////////////////////////////////////////////////
 
-	fillOutNetFromInputs(net, cactusGraph, pinchGraph, uniqueNamePrefix, chosenAtoms,
-			contigIndexToContigStrings);
+	//fillOutNetFromInputs(net, cactusGraph, pinchGraph, chosenAtoms);
 
 	///////////////////////////////////////////////////////////////////////////
 	// (9) Write the net to disk.
 	///////////////////////////////////////////////////////////////////////////
 
 	netDisk_write(netDisk);
-
 	logInfo("Updated the net on disk\n");
 
 	///////////////////////////////////////////////////////////////////////////
@@ -498,9 +456,6 @@ int main(int argc, char *argv[]) {
 	destructList(biConnectedComponents);
 	destructPinchGraph(pinchGraph);
 	destructList(extraEdges);
-	destructList(contigIndexToContigStrings);
-	destructIntList(contigIndexToContigStart);
-	hashtable_destroy(contigStringToContigIndex, TRUE, FALSE);
 	destructList(threeEdgeConnectedComponents);
 	destructCactusGraph(cactusGraph);
 	destructList(chosenAtoms);

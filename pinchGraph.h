@@ -7,6 +7,7 @@
 #include "pairwiseAlignment.h"
 #include "avl.h"
 //#include "net.h"
+#include "cactus.h"
 
 ////////////////////////////////////////////////
 ////////////////////////////////////////////////
@@ -20,8 +21,8 @@ struct Segment {
 	/*
 	 * Type for representing a sub-sequence.
 	 */
-	//a string representing the contig from which it comes.
-	int32_t contig;
+    //The sequence from which it comes.
+	Name contig;
 	//inclusive start coordinate
 	int32_t start;
 	//inclusive end coordinate.
@@ -32,9 +33,9 @@ struct Segment {
 	struct Segment *rSegment;
 };
 
-void segment_recycle(struct Segment *segment, int32_t contig, int32_t start, int32_t end);
+void segment_recycle(struct Segment *segment, Name contig, int32_t start, int32_t end);
 
-struct Segment *constructSegment(int32_t contig, int32_t start, int32_t end);
+struct Segment *constructSegment(Name contig, int32_t start, int32_t end);
 
 void destructSegment(struct Segment *segment);
 
@@ -62,6 +63,8 @@ struct PinchVertex {
 	struct avl_table *greyEdges;
 	//a unique ID for each vertex.
 	int32_t vertexID;
+	bool isEnd;
+	bool isDeadEnd;
 };
 
 
@@ -94,7 +97,7 @@ struct PinchGraph {
 ////////////////////////////////////////////////
 ////////////////////////////////////////////////
 
-struct PinchVertex *constructPinchVertex(struct PinchGraph *graph, int32_t vertexID);
+struct PinchVertex *constructPinchVertex(struct PinchGraph *graph, int32_t vertexID, bool isEnd, bool isDeadEnd);
 
 void destructPinchVertex(struct PinchVertex *);
 
@@ -102,6 +105,16 @@ void destructPinchVertex(struct PinchVertex *);
 struct PinchVertex *mergeVertices(struct PinchGraph *graph, struct PinchVertex *vertex1, struct PinchVertex *vertex2);
 
 void removeVertexFromGraphAndDestruct(struct PinchGraph *graph, struct PinchVertex *vertex);
+
+/*
+ * Returns true if the vertex is an end.
+ */
+bool vertex_isEnd(struct PinchVertex *vertex);
+
+/*
+ * Returns true if the vertex is a dead end.
+ */
+bool vertex_isDeadEnd(struct PinchVertex *vertex);
 
 ////////////////////////////////////////////////
 ////////////////////////////////////////////////
@@ -157,19 +170,17 @@ int32_t edgeComparator(struct PinchEdge *edge1, struct PinchEdge *edge2, void *o
 
 int32_t isAStubOrCap(struct PinchEdge *edge);
 
-int32_t isADeadEnd(struct PinchVertex *vertex);
-
 /*
  * Types for choosing the sides of positions.
  */
 #define LEFT 0
 #define RIGHT 1
 
-struct PinchEdge *getContainingBlackEdge(struct PinchGraph *graph, int32_t contig, int32_t position);
+struct PinchEdge *getContainingBlackEdge(struct PinchGraph *graph, Name contig, int32_t position);
 
 struct PinchEdge *getNextEdge(struct PinchGraph *graph, struct PinchEdge *edge);
 
-struct PinchVertex *splitEdge(struct PinchGraph *graph, int32_t contig, int32_t position, int32_t leftOrRight);
+struct PinchVertex *splitEdge(struct PinchGraph *graph, Name contig, int32_t position, int32_t leftOrRight);
 
 ////////////////////////////////////////////////
 ////////////////////////////////////////////////
@@ -232,7 +243,7 @@ void pinchMergeSegment(struct PinchGraph *graph,
 					   struct Segment *segment1,
 					   struct Segment *segment2);
 
-void pinchMerge(struct PinchGraph *graph, struct PairwiseAlignment *pairwiseAlignment, struct hashtable *contigStringToContigIndex);
+void pinchMerge(struct PinchGraph *graph, struct PairwiseAlignment *pairwiseAlignment);
 
 ////////////////////////////////////////////////
 ////////////////////////////////////////////////
@@ -253,20 +264,10 @@ struct List *getGreyEdgeSegments(struct PinchVertex *vertex, struct PinchVertex 
 ////////////////////////////////////////////////
 ////////////////////////////////////////////////
 
-char *removeInstance(const char *name);
-
-char *getInstance(const char *name);
-
 void writeOutPinchGraphWithChains(struct PinchGraph *pinchGraph,
 								  struct List *chainsList,
 								  struct List *adjacencyComponents,
-								  struct List *contigIndexToContigStrings,
-								  const char *uniqueNamePrefix,
 								  FILE *fileHandle);
-
-struct hashtable *getNames(struct PinchGraph *pinchGraph,
-						   struct List *contigIndexToContigStrings,
-						   const char *atomNamePrefix);
 
 ////////////////////////////////////////////////
 ////////////////////////////////////////////////

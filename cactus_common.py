@@ -75,14 +75,17 @@ def getRandomCactusInputs(tempDir,
     return sequenceDirs, newickTreeString
 
 def runCactusSetup(reconstructionRootDir, sequences, 
-                   newickTreeString, tempDir, logLevel="DEBUG"):
+                   newickTreeString, tempDir, logLevel="DEBUG", debug=False):
+    debugString = ""
+    if debug:
+        debugString = "--debug"
     system("cactus_setup %s --speciesTree '%s' --netDisk %s \
---logLevel %s" \
+--logLevel %s %s" \
            % (" ".join(sequences), newickTreeString,
-              reconstructionRootDir, logLevel))
+              reconstructionRootDir, logLevel, debugString))
     logger.info("Ran cactus setup okay")
     
-def runCactusAligner(reconstructionRootDir, alignmentFile, tempDir, useDummy=True, reconstructionProblem="reconstructionProblem.xml", logLevel="DEBUG"):        
+def runCactusAligner(netDisk, alignmentFile, tempDir, useDummy=True, netName="0", logLevel="DEBUG"):        
     """Runs job tree and fails if not complete.
     """
     tempDir = getTempDirectory(tempDir)
@@ -91,18 +94,15 @@ def runCactusAligner(reconstructionRootDir, alignmentFile, tempDir, useDummy=Tru
         useDummy = "--useDummy"
     else:
         useDummy = ""
-    command = "cactus_aligner.py --absolutePathPrefix %s --reconstructionProblem %s \
---resultsFile %s %s --job JOB_FILE" % \
-(reconstructionRootDir, reconstructionProblem, alignmentFile, useDummy)
+    command = "cactus_aligner.py --netDisk %s --netName %s \
+--resultsFile %s %s --job JOB_FILE" % (netDisk, netName, alignmentFile, useDummy)
     runJobTree(command, jobTreeDir, logLevel=logLevel)
     runJobTreeStatusAndFailIfNotComplete(jobTreeDir)
     system("rm -rf %s" % tempDir)
     logger.info("Ran the cactus aligner okay")
             
-def runCactusCore(reconstructionRootDir, alignmentFile, tempDir, 
-                  reconstructionProblem="reconstructionProblem.xml",
-                  treeProgram="cactus_coreTestTreeBuilder.py",
-                  uniqueNamePrefix=getRandomAlphaNumericString(),
+def runCactusCore(netDisk, alignmentFile, tempDir, 
+                  netName=0,
                   logLevel="DEBUG", writeDebugFiles=False,
                   maximumEdgeDegree=None,
                   proportionOfAtomsToKeep=None,
@@ -139,12 +139,11 @@ def runCactusCore(reconstructionRootDir, alignmentFile, tempDir,
     else:
         minimumChainLength = ""
     
-    command = "cactus_core --absolutePathPrefix %s \
---reconstructionProblem %s --alignments %s \
---treeProgram '%s' --uniqueNamePrefix %s --tempDirRoot %s --logLevel %s \
+    command = "cactus_core --netDisk %s --netName %s --alignments %s \
+--tempDirRoot %s --logLevel %s \
 %s %s %s %s %s %s" % \
-    (reconstructionRootDir, reconstructionProblem, alignmentFile, 
-     treeProgram, uniqueNamePrefix, tempDir, logLevel, writeDebugFiles,
+    (netDisk, netName, alignmentFile, 
+     tempDir, logLevel, writeDebugFiles,
      maximumEdgeDegree, proportionOfAtomsToKeep, discardRatio, minimumTreeCoverage, minimumChainLength)
     #logger.info("Running command: %s" % command)
     #sys.exit(1)

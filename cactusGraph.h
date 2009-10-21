@@ -109,9 +109,7 @@ void writeOut3EdgeGraph(struct PinchGraph *pinchGraph, struct List *greyEdgeComp
 
 struct List *readThreeEdgeComponents(struct PinchGraph *, struct List *greyEdgeComponents, char *file);
 
-void writeOutCactusGraph(struct CactusGraph *cactusGraph, struct PinchGraph *pinchGraph,
-		struct List *contigIndexToContigStrings,
-		const char *namePrefix, FILE *fileHandle);
+void writeOutCactusGraph(struct CactusGraph *cactusGraph, struct PinchGraph *pinchGraph, FILE *fileHandle);
 
 ////////////////////////////////////////////////
 ////////////////////////////////////////////////
@@ -151,11 +149,10 @@ struct List *filterAtomsByTreeCoverageAndLength(struct List *biConnectedComponen
 		float discardRatio, /*The proportion of an atom's chain's average atom score required to be score to be considered */
 		float minimumTreeCoverage, /*Minimum tree coverage to be included */
 		int32_t minimumChainLength, /* Minimum chain length to be included */
-		struct PinchGraph *pinchGraph,
-		struct List *contigIndexToContigStrings);
+		struct PinchGraph *pinchGraph);
 
 void logTheChosenAtomSubset(struct List *biConnectedComponents, struct List *chosenAtoms, struct PinchGraph *pinchGraph,
-		Net *net, struct List *contigIndexToContigStrings);
+		Net *net);
 
 ////////////////////////////////////////////////
 ////////////////////////////////////////////////

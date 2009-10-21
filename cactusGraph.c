@@ -864,8 +864,7 @@ struct List *readThreeEdgeComponents(struct PinchGraph *pinchGraph, struct List 
 }
 
 void writeOutCactusGraph(struct CactusGraph *cactusGraph, struct PinchGraph *pinchGraph,
-		struct List *contigIndexToContigStrings,
-		const char *namePrefix, FILE *fileHandle) {
+		FILE *fileHandle) {
 	/*
 	 * Writes out a graph in 'dot' format, compatible with graphviz.
 	 *
@@ -878,11 +877,6 @@ void writeOutCactusGraph(struct CactusGraph *cactusGraph, struct PinchGraph *pin
 	struct CactusEdge *edge;
 	struct PinchEdge *pinchEdge;
 	struct Segment *segment;
-	char *name;
-	struct hashtable *names;
-
-	//calculate the names of the pinch graph elements.
-	names = getNames(pinchGraph, contigIndexToContigStrings, namePrefix);
 
 	//Write the preliminaries.
 	fprintf(fileHandle, "graph G {\n");
@@ -909,9 +903,8 @@ void writeOutCactusGraph(struct CactusGraph *cactusGraph, struct PinchGraph *pin
 					for(k=0; k<edge->segments->length; k++) {
 						segment = edge->segments->list[k];
 						pinchEdge = getContainingBlackEdge(pinchGraph, segment->contig, segment->start);
-						name = (char *)hashtable_search(names, pinchEdge);
-						fprintf(fileHandle, "n" INT_STRING "n -- n" INT_STRING "n [label=\"" INT_STRING "." INT_STRING ":" INT_STRING ":%s\"];\n",
-								edge->from->vertexID, edge->to->vertexID, segment->contig, segment->start, segment->end, name);
+						fprintf(fileHandle, "n" INT_STRING "n -- n" INT_STRING "n [label=\"" INT_STRING ":" INT_STRING ":%s\"];\n",
+								edge->from->vertexID, edge->to->vertexID, segment->start, segment->end, netMisc_nameToStringStatic(segment->contig));
 					}
 				}
 				else {
@@ -921,8 +914,6 @@ void writeOutCactusGraph(struct CactusGraph *cactusGraph, struct PinchGraph *pin
 		}
 	}
 	fprintf(fileHandle, "}\n");
-
-	hashtable_destroy(names, TRUE, FALSE);
 }
 
 ////////////////////////////////////////////////
@@ -1283,7 +1274,7 @@ void breakLoopDiscontinuities(struct CactusGraph *cactusGraph, struct List *extr
 //accept chains whose remaining element's combined length is greater than a set length.
 
 float treeCoverage(struct CactusEdge *cactusEdge, Net *net,
-		struct List *contigIndexToContigStrings, struct PinchGraph *pinchGraph) {
+		struct PinchGraph *pinchGraph) {
 	/*
 	 * Returns the proportion of the tree covered by the atom.
 	 */
@@ -1303,7 +1294,7 @@ float treeCoverage(struct CactusEdge *cactusEdge, Net *net,
 	commonAncestorEvent = NULL;
 	for(i=0; i<cactusEdge->segments->length; i++) {
 		segment = cactusEdge->segments->list[i];
-		event = sequence_getEvent(net_getSequence(net, contigIndexToContigStrings->list[segment->contig]));
+		event = sequence_getEvent(net_getSequence(net, segment->contig));
 		commonAncestorEvent = commonAncestorEvent == NULL ? event : eventTree_getCommonAncestor(event, commonAncestorEvent);
 	}
 
@@ -1314,7 +1305,7 @@ float treeCoverage(struct CactusEdge *cactusEdge, Net *net,
 
 	for(i=0; i<cactusEdge->segments->length; i++) {
 		segment = cactusEdge->segments->list[i];
-		event = sequence_getEvent(net_getSequence(net, contigIndexToContigStrings->list[segment->contig]));
+		event = sequence_getEvent(net_getSequence(net, segment->contig));
 		while(event != commonAncestorEvent && hashtable_search(hash, event) == NULL) {
 			treeCoverage += event_getBranchLength(event);
 			hashtable_insert(hash, event, event);
@@ -1329,13 +1320,13 @@ float treeCoverage(struct CactusEdge *cactusEdge, Net *net,
 }
 
 float atomScore(struct CactusEdge *cactusEdge, Net *net,
-				struct List *contigIndexToContigStrings, struct PinchGraph *pinchGraph) {
+				struct PinchGraph *pinchGraph) {
 	struct Segment *segment = cactusEdge->segments->list[0];
-	return (segment->end - segment->start + 1) * treeCoverage(cactusEdge, net, contigIndexToContigStrings, pinchGraph);
+	return (segment->end - segment->start + 1) * treeCoverage(cactusEdge, net, pinchGraph);
 }
 
 int32_t chainScore(struct List *biConnectedComponent, Net *net,
-		struct List *contigIndexToContigStrings, struct PinchGraph *pinchGraph) {
+		struct PinchGraph *pinchGraph) {
 	/*
 	 * Gets the 'length' of the chain, including only those atoms in the chain that are
 	 * true according to the 'includeAtom' function.
@@ -1349,7 +1340,7 @@ int32_t chainScore(struct List *biConnectedComponent, Net *net,
 	for(i=0; i<biConnectedComponent->length; i++) {
 		cactusEdge = biConnectedComponent->list[i];
 		if(!isAStubOrCapCactusEdge(cactusEdge, pinchGraph)) {
-			totalScore += atomScore(cactusEdge, net, contigIndexToContigStrings, pinchGraph);
+			totalScore += atomScore(cactusEdge, net, pinchGraph);
 		}
 	}
 	return totalScore;
@@ -1402,8 +1393,7 @@ struct List *filterAtomsByTreeCoverageAndLength(struct List *biConnectedComponen
 		float discardRatio, /*The proportion of an atom's chain's average atom score required to be score to be considered */
 		float minimumTreeCoverage, /*Minimum tree coverage to be included */
 		int32_t minimumChainLength, /* Minimum chain length to be included */
-		struct PinchGraph *pinchGraph,
-		struct List *contigIndexToContigStrings) {
+		struct PinchGraph *pinchGraph) {
 	/*
 	 * Filters atoms in chains by length and tree coverage score.
 	 *
@@ -1430,7 +1420,7 @@ struct List *filterAtomsByTreeCoverageAndLength(struct List *biConnectedComponen
 	fA = mallocLocal(sizeof(float)*biConnectedComponents->length);
 	for(i=0; i<biConnectedComponents->length; i++) {
 		biConnectedComponent = biConnectedComponents->list[i];
-		fA[i] = chainScore(biConnectedComponent, net, contigIndexToContigStrings, pinchGraph);
+		fA[i] = chainScore(biConnectedComponent, net, pinchGraph);
 	}
 	qsort(fA, biConnectedComponents->length, sizeof(float),
 			(int (*)(const void *v, const void *))compareFloats);
@@ -1447,14 +1437,14 @@ struct List *filterAtomsByTreeCoverageAndLength(struct List *biConnectedComponen
 
 	for(i=0; i<biConnectedComponents->length; i++) {
 		biConnectedComponent = biConnectedComponents->list[i];
-		f = chainScore(biConnectedComponent, net, contigIndexToContigStrings, pinchGraph);
+		f = chainScore(biConnectedComponent, net, pinchGraph);
 		if(f >= minScore && chainBaseLength(biConnectedComponent, pinchGraph) >= minimumChainLength) {
 			minAtomScore = (minScore / chainLength(biConnectedComponent, FALSE, pinchGraph)) * discardRatio;
 			for(j=0; j<biConnectedComponent->length; j++) {
 				cactusEdge = biConnectedComponent->list[j];
 				if(!isAStubOrCapCactusEdge(cactusEdge, pinchGraph)) {
-					if(treeCoverage(cactusEdge, net, contigIndexToContigStrings, pinchGraph) >= minimumTreeCoverage &&
-						atomScore(cactusEdge, net, contigIndexToContigStrings, pinchGraph) >= minAtomScore) {
+					if(treeCoverage(cactusEdge, net, pinchGraph) >= minimumTreeCoverage &&
+						atomScore(cactusEdge, net, pinchGraph) >= minAtomScore) {
 						listAppend(chosenAtoms, cactusEdge);
 					}
 				}
@@ -1466,7 +1456,7 @@ struct List *filterAtomsByTreeCoverageAndLength(struct List *biConnectedComponen
 }
 
 void logTheChosenAtomSubset(struct List *biConnectedComponents, struct List *chosenAtoms, struct PinchGraph *pinchGraph,
-		Net *net, struct List *contigIndexToContigStrings) {
+		Net *net) {
 	/*
 	 * Produces logging information about the chosen atoms.
 	 */
@@ -1497,7 +1487,7 @@ void logTheChosenAtomSubset(struct List *biConnectedComponents, struct List *cho
 	for(i=0; i<chosenAtoms->length; i++) {
 		cactusEdge = chosenAtoms->list[i];
 		if(!isAStubOrCapCactusEdge(cactusEdge, pinchGraph)) {
-			totalAtomScore += treeCoverage(cactusEdge, net, contigIndexToContigStrings, pinchGraph);
+			totalAtomScore += treeCoverage(cactusEdge, net, pinchGraph);
 			segment = cactusEdge->segments->list[0];
 			totalAtomLength += segment->end - segment->start + 1;
 			averageSegmentNumber += cactusEdge->segments->length;

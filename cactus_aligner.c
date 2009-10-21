@@ -28,7 +28,7 @@ int main(int argc, char *argv[]) {
 	Sequence *sequence;
 	char *string;
 	FILE *fileHandle;
-
+	setLogLevel(LOGGING_DEBUG);
 	assert(argc == 4);
 	netDisk = netDisk_construct(argv[1]);
 	logInfo("Set up the net disk\n");
@@ -41,9 +41,12 @@ int main(int argc, char *argv[]) {
 	while((end = net_getNextEnd(endIterator)) != NULL) {
 		instanceIterator = end_getInstanceIterator(end);
 		while((endInstance = end_getNext(instanceIterator)) != NULL) {
-			if(endInstance_getStrand(endInstance)) {
-				endInstance2 = endInstance_getAdjacency(endInstance);
-				assert(endInstance2 != NULL);
+			assert(endInstance_getStrand(endInstance));
+			endInstance2 = endInstance_getAdjacency(endInstance);
+			assert(endInstance2 != NULL);
+			assert(endInstance_getStrand(endInstance2));
+
+			if(endInstance_getCoordinate(endInstance2)-endInstance_getCoordinate(endInstance)-1 >= 0) {
 				sequence = endInstance_getSequence(endInstance);
 				assert(sequence != NULL);
 				string = sequence_getString(sequence, endInstance_getCoordinate(endInstance), endInstance_getCoordinate(endInstance2)-endInstance_getCoordinate(endInstance)-1, TRUE);

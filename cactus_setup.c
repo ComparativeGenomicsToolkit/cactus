@@ -20,6 +20,7 @@ void usage() {
 	fprintf(stderr, "-b --netDisk : The location of the net disk directory\n");
 	fprintf(stderr, "-f --speciesTree : The species tree, which will form the skeleton of the event tree\n");
 	fprintf(stderr, "-h --help : Print this help screen\n");
+	fprintf(stderr, "-d --debug : Run some extra debug checks at the end\n");
 }
 
 /*
@@ -30,6 +31,7 @@ NetDisk *netDisk;
 Net *net;
 EventTree *eventTree;
 Event *event;
+int32_t totalSequenceNumber = 0;
 
 void fn(const char *fastaHeader, const char *string, int32_t length) {
 	/*
@@ -48,9 +50,10 @@ void fn(const char *fastaHeader, const char *string, int32_t length) {
 	sequence = sequence_construct(metaSequence, net);
 	end1 = end_construct(1, net);
 	end2 = end_construct(1, net);
-	endInstance1 = endInstance_construct2(end1, 1, 1, -1, sequence);
-	endInstance2 = endInstance_construct2(end2, length, 1, 1, sequence);
+	endInstance1 = endInstance_construct2(end1, 1, 1, 1, sequence);
+	endInstance2 = endInstance_construct2(end2, length, 1, 0, sequence);
 	endInstance_makeAdjacent1(endInstance1, endInstance2);
+	totalSequenceNumber++;
 }
 
 int main(int argc, char *argv[]) {
@@ -70,6 +73,8 @@ int main(int argc, char *argv[]) {
 	struct List *stack;
 	struct BinaryTree *binaryTree;
 	FILE *fileHandle;
+	bool debug = 0;
+	int32_t totalEventNumber;
 
 	/*
 	 * Arguments/options
@@ -87,12 +92,13 @@ int main(int argc, char *argv[]) {
 				{ "netDisk", required_argument, 0, 'b' },
 				{ "speciesTree", required_argument, 0, 'f' },
 				{ "help", no_argument, 0, 'h' },
+				{ "debug", no_argument, 0, 'd' },
 				{ 0, 0, 0, 0 }
 		};
 
 		int option_index = 0;
 
-		key = getopt_long(argc, argv, "a:b:f:h", long_options, &option_index);
+		key = getopt_long(argc, argv, "a:b:f:h:d", long_options, &option_index);
 
 		if(key == -1) {
 			break;
@@ -111,6 +117,9 @@ int main(int argc, char *argv[]) {
 		case 'h':
 			usage();
 			return 0;
+		case 'd':
+			debug = 1;
+			break;
 		default:
 			usage();
 			return 1;
@@ -157,6 +166,11 @@ int main(int argc, char *argv[]) {
 	//Construct the net
 	//////////////////////////////////////////////
 
+	if(netDisk_getNetNumberOnDisk(netDisk) != 0) {
+		netDisk_destruct(netDisk);
+		uglyf("The first net already exists\n");
+		return 0;
+	}
 	net = net_construct(netDisk);
 	logInfo("Constructed the net\n");
 
@@ -167,6 +181,7 @@ int main(int argc, char *argv[]) {
 	binaryTree = newickTreeParser(speciesTree, 0.0, &strings);
 	metaEvent = metaEvent_construct("ROOT", netDisk);
 	eventTree = eventTree_construct(metaEvent, net); //creates the event tree and the root even
+	totalEventNumber=1;
 	logInfo("Constructed the basic event tree\n");
 
 	//now traverse the tree
@@ -179,6 +194,7 @@ int main(int argc, char *argv[]) {
 		binaryTree = stack->list[--stack->length];
 		event = stack->list[--stack->length];
 		assert(binaryTree != NULL);
+		totalEventNumber++;
 		if(binaryTree->internal) {
 			assert(i < strings->length);
 			event = event_construct(metaEvent_construct(strings->list[i++], netDisk), binaryTree->distance, event, eventTree);
@@ -213,7 +229,7 @@ int main(int argc, char *argv[]) {
 		}
 	}
 	assert(i == strings->length);
-	logInfo("Constructed the initial net\n");
+	logInfo("Constructed the initial net with %i sequences and %i events\n", totalSequenceNumber, totalEventNumber);
 
 	///////////////////////////////////////////////////////////////////////////
 	// Write the net to disk.
@@ -228,6 +244,20 @@ int main(int argc, char *argv[]) {
 
 	destructList(strings);
 	netDisk_destruct(netDisk);
+
+	///////////////////////////////////////////////////////////////////////////
+	// Debug
+	///////////////////////////////////////////////////////////////////////////
+
+	if(debug) {
+		netDisk = netDisk_construct(netDiskName);
+		net = netDisk_getNet(netDisk, 0);
+		assert(net != NULL);
+		assert(net_getSequenceNumber(net) == totalSequenceNumber);
+		assert(net_getEndNumber(net) == 2*totalSequenceNumber);
+		assert(eventTree_getEventNumber(net_getEventTree(net)) == totalEventNumber);
+		netDisk_destruct(netDisk);
+	}
 
 	return 0;
 }

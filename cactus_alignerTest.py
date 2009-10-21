@@ -45,7 +45,7 @@ class TestCase(unittest.TestCase):
         for test in xrange(self.testNo): 
             runAligner(self.tempDir, self.tempReconstructionDirectory, tempAlignmentFile, useDummy=False)
     
-def runAligner(tempDir, tempReconstructionDir, tempAlignmentFile, useDummy=True):        
+def runAligner(tempDir, tempReconstructionDir, tempAlignmentFile, useDummy=True):       
     ##########################################
     #Make inputs
     ##########################################

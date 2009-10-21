@@ -40,57 +40,10 @@ class TestCase(unittest.TestCase):
             cactusTempDir=getTempDirectory(self.tempDir)
             
             runCactusSetup(self.tempReconstructionDirectory, sequenceDirs, 
-                               newickTreeString, cactusTempDir)
+                               newickTreeString, cactusTempDir, debug=True)
             
             runCactusSetup(self.tempReconstructionDirectory, sequenceDirs, 
-                               newickTreeString, cactusTempDir) #Run it twice to check the job is atomic.
-    
-            continue
-    
-            ##########################################
-            #Evaluate the output.
-            ##########################################
-            
-            #Cat the file to the screen
-            logger.info("The top level reconstruction problem")
-            system("cat %s" % os.path.join(self.tempReconstructionDirectory, "reconstructionProblem.xml"))
-            system("cat %s" % os.path.join(self.tempReconstructionDirectory, "fastaMap.xml"))
-    
-            #File
-            reconProblem = ET.parse(os.path.join(self.tempReconstructionDirectory, "reconstructionProblem.xml")).getroot()
-            fastaMap = ET.parse(os.path.join(self.tempReconstructionDirectory, "fastaMap.xml")).getroot()
-    
-            #Check the fasta sequences have been properly processed.
-            assert len(reconProblem.find("sequences").findall("sequence")) == sequenceNumber
-            assert len(fastaMap.find("fasta_map").findall("fasta")) == sequenceNumber
-            
-            fMap = {}
-            seqFiles = set()
-            for fasta in fastaMap.find("fasta_map").findall("fasta"):
-                i = False
-                for sequence in reconProblem.find("sequences").findall("sequence"):
-                    if sequence.attrib["contig"] == fasta.attrib["contig"]:
-                        assert i == False
-                        i = True
-                        assert fasta.attrib["event"] == sequence.attrib["event"]
-                        fMap[fasta.attrib["header"]] = os.path.join(self.tempReconstructionDirectory, sequence.attrib["sequence_file"])
-                        assert sequence.attrib["sequence_file"] not in seqFiles
-                        seqFiles.add(sequence.attrib["sequence_file"])
-                assert i == True
-            
-            for sequenceDir in sequenceDirs:
-                for sequenceFile in os.listdir(sequenceDir):
-                    fileHandle = open(os.path.join(sequenceDir, sequenceFile), 'r')
-                    for fastaHeader, sequence in fastaRead(fileHandle):
-                        assert fMap.has_key(fastaHeader)
-                        fileHandle2 = open(fMap[fastaHeader], 'r')
-                        sequence2 = fileHandle2.read()
-                        assert sequence == sequence2
-                        fileHandle2.close()
-                    fileHandle.close()
-            
-            logger.info("\nChecked the sequences in the reconstruction problem")
-    
+                               newickTreeString, cactusTempDir, debug=True) #Run it twice to check the job is atomic.
     
             system("rm -rf %s" % self.tempReconstructionDirectory)
             

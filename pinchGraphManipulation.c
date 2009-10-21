@@ -130,7 +130,7 @@ void splitMultipleBlackEdgesFromVertex(struct PinchGraph *pinchGraph, struct Pin
 #ifdef BEN_DEBUG
 	assert(vertex == pinchGraph->vertices->list[vertex->vertexID]);
 	assert(lengthBlackEdges(vertex) > 0);
-	assert(isADeadEnd(vertex) == FALSE);
+	assert(vertex_isDeadEnd(vertex) == FALSE);
 #endif
 
 	list = constructEmptyList(0, NULL);
@@ -140,7 +140,7 @@ void splitMultipleBlackEdgesFromVertex(struct PinchGraph *pinchGraph, struct Pin
 		assert(isAStubOrCap(edge) == FALSE);
 #endif
 		//make a new vertex
-		vertex2 = constructPinchVertex(pinchGraph, -1);
+		vertex2 = constructPinchVertex(pinchGraph, -1, 0, 0);
 		listAppend(newVerticesList, vertex2);
 
 		//attach the new vertex to the black edges.

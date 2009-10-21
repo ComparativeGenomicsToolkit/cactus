@@ -25,7 +25,7 @@
 ////////////////////////////////////////////////
 ////////////////////////////////////////////////
 
-void segment_recycle(struct Segment *segment, int32_t contig, int32_t start, int32_t end) {
+void segment_recycle(struct Segment *segment, Name contig, int32_t start, int32_t end) {
 	segment->contig = contig;
 
 	segment->start = start;
@@ -36,7 +36,7 @@ void segment_recycle(struct Segment *segment, int32_t contig, int32_t start, int
 	segment->rSegment->end = -start;
 }
 
-struct Segment *constructSegment(int32_t contig, int32_t start, int32_t end) {
+struct Segment *constructSegment(Name contig, int32_t start, int32_t end) {
 	struct Segment *segment;
 	struct Segment *rSegment;
 
@@ -102,7 +102,7 @@ int segmentComparator(struct Segment *segment1, struct Segment *segment2) {
 ////////////////////////////////////////////////
 ////////////////////////////////////////////////
 
-struct PinchVertex *constructPinchVertex(struct PinchGraph *graph, int32_t vertexID) {
+struct PinchVertex *constructPinchVertex(struct PinchGraph *graph, int32_t vertexID, bool isEnd, bool isDeadEnd) {
 	struct PinchVertex *pinchVertex;
 
 	pinchVertex = mallocLocal(sizeof(struct PinchVertex));
@@ -116,7 +116,19 @@ struct PinchVertex *constructPinchVertex(struct PinchGraph *graph, int32_t verte
 	else {
 		pinchVertex->vertexID = vertexID;
 	}
+	assert((!isEnd && !isDeadEnd) || (isEnd && !isDeadEnd) || (!isEnd && isDeadEnd));
+	pinchVertex->isEnd = isEnd;
+	pinchVertex->isDeadEnd = isDeadEnd;
+
 	return pinchVertex;
+}
+
+bool vertex_isEnd(struct PinchVertex *vertex) {
+	return vertex->isEnd;
+}
+
+bool vertex_isDeadEnd(struct PinchVertex *vertex) {
+	return vertex->isDeadEnd;
 }
 
 void destructPinchVertex(struct PinchVertex *pinchVertex) {
@@ -438,7 +450,7 @@ int32_t edgeComparator(struct PinchEdge *edge1, struct PinchEdge *edge2, void *o
 	return segmentComparator(edge1->segment, edge2->segment);
 }
 
-struct PinchEdge *getContainingBlackEdge(struct PinchGraph *graph, int32_t contig, int32_t position) {
+struct PinchEdge *getContainingBlackEdge(struct PinchGraph *graph, Name contig, int32_t position) {
 	/*
 	 * Gets edge containing the considered segment.
 	 */
@@ -507,7 +519,7 @@ void splitEdge_P(struct PinchGraph *graph,
 
 struct List *sE_list = NULL;
 
-struct PinchVertex *splitEdge(struct PinchGraph *graph, int32_t contig,
+struct PinchVertex *splitEdge(struct PinchGraph *graph, Name contig,
 							  int32_t position, int32_t leftOrRight) {
 	/*
 	 * This function splits the edges (including all those in the same aligned edge).
@@ -566,8 +578,8 @@ struct PinchVertex *splitEdge(struct PinchGraph *graph, int32_t contig,
 #endif
 
 	//Construct the vertices these things will be attached to.
-	vertex1 = constructPinchVertex(graph, -1);
-	vertex2 = constructPinchVertex(graph, -1);
+	vertex1 = constructPinchVertex(graph, -1, 0, 0);
+	vertex2 = constructPinchVertex(graph, -1, 0, 0);
 	//Add grey edges to connect new vertices.
 	connectVertices(vertex1, vertex2);
 
@@ -586,17 +598,7 @@ struct PinchVertex *splitEdge(struct PinchGraph *graph, int32_t contig,
 }
 
 int32_t isAStubOrCap(struct PinchEdge *edge) {
-	return edge->segment->contig % 3 != 1;
-}
-
-int32_t isADeadEnd(struct PinchVertex *vertex) {
-	/*
-	 * Is dead end if is sink vertex, is attached by a grey edge to the sink vertex
-	 * or has no grey edges.
-	 */
-	return lengthBlackEdges(vertex) == 0 ||
-	lengthGreyEdges(vertex) == 0 ||
-	(lengthGreyEdges(vertex) == 1 && getFirstGreyEdge(vertex)->vertexID == 0);
+	return vertex_isEnd(edge->from) || vertex_isEnd(edge->to);
 }
 
 ////////////////////////////////////////////////
@@ -614,7 +616,7 @@ struct PinchGraph *pinchGraph_construct() {
 
 	pinchGraph->edges = avl_create((int32_t (*)(const void *, const void *, void *a))edgeComparator, NULL, NULL);
 	pinchGraph->vertices = constructEmptyList(0, (void (*)(void *))destructPinchVertex);
-	constructPinchVertex(pinchGraph, -1);
+	constructPinchVertex(pinchGraph, -1, 0, 0);
 
 	return pinchGraph;
 }
@@ -976,12 +978,13 @@ int32_t pinchMerge_getContig(char *contig, int32_t start, struct hashtable *cont
 	return k;
 }
 
-void pinchMerge(struct PinchGraph *graph, struct PairwiseAlignment *pA, struct hashtable *contigStringToContigIndex) {
+void pinchMerge(struct PinchGraph *graph, struct PairwiseAlignment *pA) {
 	/*
 	 * Method to pinch together the graph using all the aligned matches in the
 	 * input alignment.
 	 */
-	int32_t i, j, k, contig1, contig2;
+	int32_t i, j, k;
+	Name contig1, contig2;
 	struct AlignmentOperation *op;
 	static struct Segment segment1;
 	static struct Segment rSegment1;
@@ -998,8 +1001,8 @@ void pinchMerge(struct PinchGraph *graph, struct PairwiseAlignment *pA, struct h
 	j = pA->start1+2;
 	k = pA->start2+2;
 
-	contig1 = pinchMerge_getContig(pA->contig1, j, contigStringToContigIndex);
-	contig2 = pinchMerge_getContig(pA->contig2, k, contigStringToContigIndex);
+	contig1 = netMisc_stringToName(pA->contig1);
+	contig2 = netMisc_stringToName(pA->contig2);
 
 	for(i=0; i<pA->operationList->length; i++) {
 		op = pA->operationList->list[i];
@@ -1034,158 +1037,6 @@ void pinchMerge(struct PinchGraph *graph, struct PairwiseAlignment *pA, struct h
 ////////////////////////////////////////////////
 ////////////////////////////////////////////////
 ////////////////////////////////////////////////
-
-char *removeInstance(const char *name) {
-	/*
-	 * Returns the name of the element from a element instance string.
-	 *
-	 * All element instances are of the form element_name.instance_id, we therefore
-	 * simply remove the .instance_id suffix
-	 *
-	 */
-	char *cA;
-	char *cA2;
-	int32_t i;
-
-	cA = (char *)name;
-	cA2 = (char *)mallocLocal(sizeof(char)*(strlen(cA)+1));
-
-	i=0;
-	while(cA[i] != '.' && cA[i] != '\0') {
-		cA2[i] = cA[i];
-		i++;
-	}
-
-#ifdef BEN_DEBUG
-	assert(i <= (int32_t)strlen(cA));
-#endif
-
-	cA2[i] = '\0';
-	return cA2;
-}
-
-char *getInstance(const char *name) {
-	/*
-	 * Returns the instance name of the element instance from a element instance string.
-	 *
-	 * All element instances are of the form element_name.instance_id, we therefore
-	 * simply remove the element_name. prefix
-	 *
-	 */
-	char *cA;
-	char *cA2;
-	char *cA3;
-#ifdef BEN_DEBUG
-	assert(name != NULL);
-#endif
-	cA = stringCopy(name);
-	cA2 = cA;
-#ifdef BEN_DEBUG
-	assert(strlen(cA2) > 0);
-#endif
-	while(cA2[0] != '.') {
-		cA2++;
-#ifdef BEN_DEBUG
-		assert(strlen(cA2) > 0);
-#endif
-	}
-#ifdef BEN_DEBUG
-	assert(cA2[0] == '.');
-#endif
-	cA3 = stringCopy(cA2+1);
-	free(cA);
-	return cA3;
-}
-
-struct hashtable *getNames(struct PinchGraph *pinchGraph, struct List *contigIndexToContigStrings, const char *atomNamePrefix) {
-	/*
-	 * Constructs names for each element (vertex and edge).
-	 *
-	 * Every edge is given a instance name, which is either an atom instance name, or an existing cap instance name,
-	 * depending on if the edge is part of an atom or cap.
-	 *
-	 * Every vertex except 'dead' vertices are given cap names.
-	 */
-	int32_t i, j;
-	struct PinchVertex *vertex;
-	struct PinchEdge *edge;
-	struct hashtable *names;
-	char *cA;
-
-	names = create_hashtable(pinchGraph->vertices->length*10,
-							 hashtable_key, hashtable_equalKey,
-							 NULL, free);
-
-	for(i=0; i<pinchGraph->vertices->length; i++) { //excludes the sink vertex.
-		vertex = (struct PinchVertex *)pinchGraph->vertices->list[i];
-
-		if(isADeadEnd(vertex) == FALSE) {
-#ifdef BEN_DEBUG
-			assert(lengthBlackEdges(vertex) > 0);
-#endif
-			//for each edge
-			edge = getFirstBlackEdge(vertex);
-			if(isAStubOrCap(edge)) { //if the vertex is part of a stub or cap return the stub/cap name
-				void *blackEdgeIterator = getBlackEdgeIterator(vertex);
-				while((edge = getNextBlackEdge(vertex, blackEdgeIterator)) != NULL) { //for each edge create atom/cap instance name
-#ifdef BEN_DEBUG
-					assert(isAStubOrCap(edge) == TRUE);
-					assert(hashtable_search(names, edge) == NULL);
-					assert(hashtable_search(names, edge->rEdge) == NULL);
-#endif
-					cA = stringCopy((char *)contigIndexToContigStrings->list[edge->segment->contig]);
-					hashtable_insert(names, edge, cA);
-				}
-				destructBlackEdgeIterator(blackEdgeIterator);
-			}
-			else {
-				if(edge->from->vertexID < edge->to->vertexID) {
-					j = 0;
-					void *blackEdgeIterator = getBlackEdgeIterator(vertex);
-					while((edge = getNextBlackEdge(vertex, blackEdgeIterator)) != NULL) { //for each edge create atom/cap instance name
-#ifdef BEN_DEBUG
-						assert(edge->from->vertexID < edge->to->vertexID);
-						assert(isAStubOrCap(edge) == FALSE);
-						assert(hashtable_search(names, edge) == NULL);
-						assert(hashtable_search(names, edge->rEdge) == NULL);
-#endif
-						//return a name using the given prefix plus the smaller vertex of the atom
-						cA = (char *)mallocLocal(sizeof(char)*(50 + strlen(atomNamePrefix)));
-						sprintf(cA, "%s%i.%i", atomNamePrefix, edge->from->vertexID, j);
-						hashtable_insert(names, edge, cA);
-
-						cA = (char *)mallocLocal(sizeof(char)*(50 + strlen(atomNamePrefix)));
-						sprintf(cA, "-%s%i.%i", atomNamePrefix, edge->from->vertexID, j);
-						hashtable_insert(names, edge->rEdge, cA);
-						j++;
-					}
-					destructBlackEdgeIterator(blackEdgeIterator);
-				}
-			}
-
-			//for each vertex get the cap name, unless is wrong end of stub/cap, else do not add.
-			edge = getFirstBlackEdge(vertex);
-			if(isAStubOrCap(edge)) {
-				cA = removeInstance((char *)contigIndexToContigStrings->list[edge->segment->contig]);
-			}
-			else {
-				cA = (char *)mallocLocal(sizeof(char)*(50 + strlen(atomNamePrefix)));
-				if(edge->from->vertexID < edge->to->vertexID) {
-					sprintf(cA, "%s%i]", atomNamePrefix, edge->from->vertexID);
-				}
-				else {
-					sprintf(cA, "[%s%i", atomNamePrefix, edge->to->vertexID);
-				}
-			}
-#ifdef BEN_DEBUG
-			assert(hashtable_search(names, vertex) == NULL);
-#endif
-			hashtable_insert(names, vertex, cA);
-		}
-	}
-
-	return names;
-}
 
 char *getColour(struct hashtable *hash, void *thing) {
 	static char cA[50];
@@ -1247,12 +1098,8 @@ char *getColour(struct hashtable *hash, void *thing) {
 	return cA;
 }
 
-void writeOutPinchGraphWithChains(struct PinchGraph *pinchGraph,
-								  struct List *biConnectComponentsList,
-								  struct List *adjacencyComponents,
-								  struct List *contigIndexToContigStrings,
-								  const char *uniqueNamePrefix,
-								  FILE *fileHandle) {
+void writeOutPinchGraphWithChains(struct PinchGraph *pinchGraph, struct List *biConnectComponentsList,
+								  struct List *adjacencyComponents, FILE *fileHandle) {
 	/*
 	 * Writes out a graph in 'dot' format, compatible with graphviz.
 	 *
@@ -1271,12 +1118,9 @@ void writeOutPinchGraphWithChains(struct PinchGraph *pinchGraph,
 	struct CactusEdge *cactusEdge;
 	struct Segment *segment;
 	char *colour;
-	char *name;
-	struct hashtable *names;
 
-	logDebug("Writing the pinch graph\n");
-
-	names = getNames(pinchGraph, contigIndexToContigStrings, uniqueNamePrefix);
+	logDebug("Writing the pinch graph: %i, %i\n", pinchGraph, pinchGraph->vertices);
+	logDebug("Writing the pinch graph: %i\n", pinchGraph->vertices->length);
 
 	//Put the chain segments in a hash to colour the black edges of the pinch graph.
 	hash = create_hashtable(pinchGraph->vertices->length*10,
@@ -1320,13 +1164,7 @@ void writeOutPinchGraphWithChains(struct PinchGraph *pinchGraph,
 #endif
 		colour = getColour(hash, vertex);
 		fprintf(fileHandle, "node[width=0.3,height=0.3,shape=circle,colour=%s,fontsize=14];\n", colour);
-		name = (char *)hashtable_search(names, vertex);
-		if(name == NULL) {
-			fprintf(fileHandle, "n" INT_STRING "n [label=\"" INT_STRING "\"];\n", vertex->vertexID, vertex->vertexID);
-		}
-		else {
-			fprintf(fileHandle, "n" INT_STRING "n [label=\"%s\"];\n", vertex->vertexID, name);
-		}
+		fprintf(fileHandle, "n" INT_STRING "n [label=\"" INT_STRING "\"];\n", vertex->vertexID, vertex->vertexID);
 	}
 
 	logDebug("Written the vertices\n");
@@ -1344,15 +1182,9 @@ void writeOutPinchGraphWithChains(struct PinchGraph *pinchGraph,
 
 				void *blackEdgeIterator = getBlackEdgeIterator(vertex);
 				while((edge = getNextBlackEdge(vertex, blackEdgeIterator)) != NULL) {
-					name = (char *)hashtable_search(names, edge);
-					if(name == NULL) {
-						name = (char *)hashtable_search(names, edge->rEdge);
-					}
-#ifdef BEN_DEBUG
-					assert(name != NULL);
-#endif
-					fprintf(fileHandle, "n" INT_STRING "n -- n" INT_STRING "n [label=\"" INT_STRING "." INT_STRING ":" INT_STRING ":%s\"];\n",
-							edge->from->vertexID, edge->to->vertexID, edge->segment->contig, edge->segment->start, edge->segment->end, name);
+					fprintf(fileHandle, "n" INT_STRING "n -- n" INT_STRING "n [label=\"" INT_STRING ":" INT_STRING ":%s\"];\n",
+							edge->from->vertexID, edge->to->vertexID, edge->segment->start, edge->segment->end,
+							netMisc_nameToStringStatic(edge->segment->contig));
 				}
 				destructBlackEdgeIterator(blackEdgeIterator);
 			}
@@ -1390,7 +1222,6 @@ void writeOutPinchGraphWithChains(struct PinchGraph *pinchGraph,
 
 	destructList(chains);
 	hashtable_destroy(hash, TRUE, FALSE);
-	hashtable_destroy(names, TRUE, FALSE);
 
 	logDebug("Written the pinch graph\n");
 }

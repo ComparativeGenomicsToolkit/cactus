@@ -10,12 +10,9 @@
 #include "cactus.h"
 
 void fillOutNetFromInputs(Net *parentNet, struct CactusGraph *cactusGraph,
-		struct PinchGraph *pinchGraph, const char *uniqueNamePrefix, struct List *chosenAtoms,
-		struct List *contigIndexToContigStrings);
+		struct PinchGraph *pinchGraph, struct List *chosenAtoms);
 
-struct PinchGraph *constructPinchGraph(Net *net,
-		struct List *contigIndexToContigStrings,
-		struct IntList *contigIndexToContigStart);
+struct PinchGraph *constructPinchGraph(Net *net);
 
 void copyEndTreePhylogenies(Net *parentNet, Net *net);
 
