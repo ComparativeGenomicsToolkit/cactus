@@ -376,7 +376,7 @@ int main(int argc, char *argv[]) {
 	// (7) Eliminating chain discontinuities.
 	///////////////////////////////////////////////////////////////////////////
 
-	startTime = time(NULL);
+	/*startTime = time(NULL);
 	breakLoopDiscontinuities(cactusGraph, extraEdges, threeEdgeConnectedComponents);
 	destructCactusGraph(cactusGraph); //clean up the initial cactus graph.
 	destructList(threeEdgeConnectedComponents);
@@ -393,7 +393,7 @@ int main(int argc, char *argv[]) {
 		logDebug("Finished writing out dot formatted version of the final cactus graph\n");
 	}
 
-	logInfo("Constructed the final cactus graph in: %i seconds\n", time(NULL) - startTime);
+	logInfo("Constructed the final cactus graph in: %i seconds\n", time(NULL) - startTime);*/
 
 	////////////////////////////////////////////////
 	//Get sorted bi-connected components.
