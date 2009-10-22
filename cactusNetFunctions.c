@@ -187,13 +187,16 @@ Atom *constructAtomFromCactusEdge(struct CactusEdge *edge, Net *net) {
 	 */
 	int32_t i;
 	Atom *atom;
+	Sequence *sequence;
 	struct Segment *segment;
 	segment = edge->segments->list[0];
 	atom = atom_construct(segment->end - segment->start + 1, net);
 	for(i=0; i<edge->segments->length; i++) {
 		segment = edge->segments->list[i];
-		atomInstance_construct2(atom, segment->start > 0 ? segment->start : -segment->start, segment->start > 0,
-				copySequence(net, segment->contig));
+		sequence = copySequence(net, segment->contig);
+		//uglyf("This is what I got: %i %i %i %i\n", segment->start, segment->end - segment->start + 1, sequence_getStart(sequence), sequence_getLength(sequence));
+		atomInstance_construct2(atom, segment->start > 0 ? segment->start : -segment->end, segment->start > 0,
+				sequence);
 	}
 	return atom;
 }
@@ -401,6 +404,7 @@ void fillOutNetFromInputs(
 	AdjacencyComponent *adjacencyComponent;
 	struct CactusVertex *cactusVertex;
 	struct CactusEdge *cactusEdge;
+	struct CactusEdge *cactusEdge2;
 	struct List *biConnectedComponent;
 	struct List *list;
 	struct List *biConnectedComponents;
@@ -412,6 +416,7 @@ void fillOutNetFromInputs(
 	struct hashtable *chosenAtomsHash;
 	struct hashtable *endNamesHash;
 	struct PinchEdge *pinchEdge;
+	struct Segment *segment;
 
 	logDebug("Building the net\n");
 
@@ -440,6 +445,7 @@ void fillOutNetFromInputs(
 	while((end = net_getNextEnd(endIterator)) != NULL) {
 		endInstance = end_getFirst(end);
 		pinchEdge = getContainingBlackEdge(pinchGraph, sequence_getName(endInstance_getSequence(endInstance)), endInstance_getCoordinate(endInstance));
+		assert(pinchEdge != NULL);
 		if(vertex_isEnd(pinchEdge->from)) {
 			assert(vertex_isDeadEnd(pinchEdge->to));
 			hashtable_insert(endNamesHash, pinchEdge->from, netMisc_nameToString(end_getName(end)));
@@ -518,23 +524,35 @@ void fillOutNetFromInputs(
 			}
 			parentNets[i] = net;
 
+			uglyf("boo \n");
 			//Make the atoms and ends
 			for(j=0; j<biConnectedComponent->length; j++) {
 				cactusEdge = biConnectedComponent->list[j];
+				segment = cactusEdge->segments->list[0];
+				uglyf("Component: %s %i %i ", netMisc_nameToStringStatic(segment->contig), segment->start, segment->end);
 				if(!isAStubOrCapCactusEdge(cactusEdge, pinchGraph)) {
 					atom = constructAtomFromCactusEdge(cactusEdge, net);
 					pinchEdge = cactusEdgeToFirstPinchEdge(cactusEdge, pinchGraph);
 					hashtable_insert(endNamesHash, pinchEdge->from, netMisc_nameToString(end_getName(atom_getLeftEnd(atom))));
 					hashtable_insert(endNamesHash, pinchEdge->to, netMisc_nameToString(end_getName(atom_getRightEnd(atom))));
+					assert(cactusEdgeToEndName(cactusEdge, endNamesHash, pinchGraph) == end_getName(atom_getLeftEnd(atom)));
+					assert(cactusEdgeToEndName(cactusEdge->rEdge, endNamesHash, pinchGraph) == end_getName(atom_getRightEnd(atom)));
 				}
 				else {
-					end = net_getEnd(parentNet, cactusEdgeToEndName(getNonDeadEndOfStubOrCapCactusEdge(cactusEdge, pinchGraph), endNamesHash, pinchGraph));
+					assert(j == 0 || j == biConnectedComponent->length-1);
+					cactusEdge2 = getNonDeadEndOfStubOrCapCactusEdge(cactusEdge, pinchGraph);
+					if(cactusEdge2 != cactusEdge) {
+						uglyf(" [Opposite] ");
+						//assert(j == 0); //biConnectedComponent->length-1);
+					}
+					end = net_getEnd(parentNet, cactusEdgeToEndName(cactusEdge2, endNamesHash, pinchGraph));
 					assert(end != NULL);
 					if(net != parentNet) {
 						end_copyConstruct(end, net);
 					}
 				}
 			}
+			uglyf("boo2\n");
 		}
 	}
 	logDebug("Constructed atoms and nets for the cycle.\n");
@@ -546,28 +564,38 @@ void fillOutNetFromInputs(
 	for(i=0; i<biConnectedComponents->length; i++) {
 		biConnectedComponent = biConnectedComponents->list[i];
 		parentNet = parentNets[i];
-		if(biConnectedComponents->length > 1) {
-#ifdef BEN_DEBUG
+		if(biConnectedComponent->length > 1) {
 			assert(parentNet != NULL);
-#endif
 			chain = chain_construct(net);
+			uglyf("foo \n");
 			for(j=1; j<biConnectedComponent->length; j++) {
 				cactusEdge = biConnectedComponent->list[j-1];
+				segment = cactusEdge->segments->list[0];
+				uglyf("Here_goes: %s %i %i ", netMisc_nameToStringStatic(segment->contig), segment->start, segment->end);
 				net = nets[mergedVertexIDs[cactusEdge->to->vertexID]];
-#ifdef BEN_DEBUG
 				assert(cactusEdge->to->vertexID != 0);
-				assert(net != NULL);
-#endif
-				end = net_getEnd(parentNet, cactusEdgeToEndName(cactusEdge->rEdge, endNamesHash, pinchGraph));
-				end_copyConstruct(end, net);
-				end2 = net_getEnd(parentNet, cactusEdgeToEndName(biConnectedComponent->list[j], endNamesHash, pinchGraph));
-				end_copyConstruct(end2, net);
+				if(net == NULL) {
+					net = net_construct(net_getNetDisk(parentNet));
+				}
+				//end = net_getEnd(parentNet, cactusEdgeToEndName(cactusEdge->rEdge, endNamesHash, pinchGraph));
+				//end_copyConstruct(end, net);
+				//end2 = net_getEnd(parentNet, cactusEdgeToEndName(biConnectedComponent->list[j], endNamesHash, pinchGraph));
+				//end_copyConstruct(end2, net);
 				adjacencyComponent = adjacencyComponent_construct(parentNet, net);
-				nets[cactusEdge->to->vertexID] = NULL; //defensive
+				uglyf("Making %i null\n", mergedVertexIDs[cactusEdge->to->vertexID]);
+				nets[mergedVertexIDs[cactusEdge->to->vertexID]] = NULL; //defensive
 				//Make link chain
-				link_construct(end, end2, adjacencyComponent, chain);
+				//link_construct(end, end2, adjacencyComponent, chain);
 			}
+			uglyf("foo2 \n");
 		}
+	}
+	net = nets[0];
+	for(i=1; i<cactusGraph->vertices->length; i++) {
+		if(nets[i] != NULL) {
+			uglyf("gggg %i\n", i);
+		}
+		//assert(nets[i] == NULL);
 	}
 	logDebug("Constructed the chains and linked together the nets\n");
 

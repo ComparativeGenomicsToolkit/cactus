@@ -110,8 +110,8 @@ int main(int argc, char *argv[]) {
 	bool writeDebugFiles = 0;
 	float proportionToKeep = 1.0;
 	float discardRatio = 0.0;
-	float minimumTreeCoverage = 0.8;
-	int32_t minimumChainLength = 10;
+	float minimumTreeCoverage = 0.1;
+	int32_t minimumChainLength = 1;
 
 	///////////////////////////////////////////////////////////////////////////
 	// (0) Parse the inputs handed by genomeCactus.py / setup stuff.
@@ -393,12 +393,6 @@ int main(int argc, char *argv[]) {
 		logDebug("Finished writing out dot formatted version of the final cactus graph\n");
 	}
 
-	if(writeDebugFiles) {
-		logDebug("Writing out dot formatted final pinch graph showing chains prior to pruning\n");
-		writePinchGraph("pinchGraph5.dot", pinchGraph, biConnectedComponents, NULL);
-		logDebug("Finished writing out final pinch graph showing chains prior to pruning\n");
-	}
-
 	logInfo("Constructed the final cactus graph in: %i seconds\n", time(NULL) - startTime);
 
 	////////////////////////////////////////////////
@@ -406,6 +400,12 @@ int main(int argc, char *argv[]) {
 	////////////////////////////////////////////////
 
 	biConnectedComponents = computeSortedBiConnectedComponents(cactusGraph);
+
+	if(writeDebugFiles) {
+		logDebug("Writing out dot formatted final pinch graph showing chains prior to pruning\n");
+		writePinchGraph("pinchGraph5.dot", pinchGraph, biConnectedComponents, NULL);
+		logDebug("Finished writing out final pinch graph showing chains prior to pruning\n");
+	}
 
 	///////////////////////////////////////////////////////////////////////////
 	// (9) Choosing an atom subset.
