@@ -478,7 +478,7 @@ void fillOutNetFromInputs(
 		list = constructEmptyList(0, NULL);
 		for(j=0; j<biConnectedComponent->length; j++) {
 			cactusEdge = biConnectedComponent->list[j];
-			if(!isAStubOrCapCactusEdge(cactusEdge, pinchGraph) && hashtable_search(chosenAtomsHash, cactusEdge) == NULL) {
+			if(!isAStubOrCapCactusEdge(cactusEdge, pinchGraph) && hashtable_search(chosenAtomsHash, cactusEdge) == NULL && 0) {
 				//merge vertices
 				if(vertexDiscoveryTimes[cactusEdge->from->vertexID] < vertexDiscoveryTimes[cactusEdge->to->vertexID]) {
 					mergedVertexIDs[cactusEdge->to->vertexID] = mergedVertexIDs[cactusEdge->from->vertexID];
@@ -595,7 +595,7 @@ void fillOutNetFromInputs(
 		if(nets[i] != NULL) {
 			uglyf("gggg %i\n", i);
 		}
-		//assert(nets[i] == NULL);
+		assert(nets[i] == NULL);
 	}
 	logDebug("Constructed the chains and linked together the nets\n");
 
