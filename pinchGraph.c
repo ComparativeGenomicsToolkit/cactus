@@ -614,6 +614,7 @@ int32_t isAStubOrCap(struct PinchEdge *edge) {
 struct PinchGraph *pinchGraph_construct() {
 	struct PinchGraph *pinchGraph;
 
+	pinchGraph = malloc(sizeof(struct PinchGraph));
 	pinchGraph->edges = avl_create((int32_t (*)(const void *, const void *, void *a))edgeComparator, NULL, NULL);
 	pinchGraph->vertices = constructEmptyList(0, (void (*)(void *))destructPinchVertex);
 	constructPinchVertex(pinchGraph, -1, 0, 0);
@@ -998,8 +999,8 @@ void pinchMerge(struct PinchGraph *graph, struct PairwiseAlignment *pA) {
 	segment2.rSegment = &rSegment2;
 	rSegment2.rSegment = &segment2;
 
-	j = pA->start1+2;
-	k = pA->start2+2;
+	j = pA->start1;
+	k = pA->start2;
 
 	contig1 = netMisc_stringToName(pA->contig1);
 	contig2 = netMisc_stringToName(pA->contig2);
@@ -1112,16 +1113,13 @@ void writeOutPinchGraphWithChains(struct PinchGraph *pinchGraph, struct List *bi
 	struct PinchVertex *vertex2;
 	struct PinchEdge *edge;
 	struct hashtable *hash;
-	struct List *chains;
 	struct List *adjacencyComponent;
 	struct List *biConnectedComponent;
 	struct CactusEdge *cactusEdge;
 	struct Segment *segment;
 	char *colour;
 
-	logDebug("Writing the pinch graph: %i, %i\n", pinchGraph, pinchGraph->vertices);
-	logDebug("Writing the pinch graph: %i\n", pinchGraph->vertices->length);
-
+	logDebug("Writing the pinch graph\n");
 	//Put the chain segments in a hash to colour the black edges of the pinch graph.
 	hash = create_hashtable(pinchGraph->vertices->length*10,
 								hashtable_key, hashtable_equalKey,
@@ -1220,7 +1218,6 @@ void writeOutPinchGraphWithChains(struct PinchGraph *pinchGraph, struct List *bi
 
 	logDebug("Written the grey edges\n");
 
-	destructList(chains);
 	hashtable_destroy(hash, TRUE, FALSE);
 
 	logDebug("Written the pinch graph\n");

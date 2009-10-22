@@ -107,7 +107,7 @@ int main(int argc, char *argv[]) {
 	char * netName = NULL;
 	char * tempFileRootDirectory = NULL;
 	int32_t maxEdgeDegree = 50;
-	int32_t writeDebugFiles = 0;
+	bool writeDebugFiles = 0;
 	float proportionToKeep = 1.0;
 	float discardRatio = 0.0;
 	float minimumTreeCoverage = 0.8;
@@ -136,7 +136,7 @@ int main(int argc, char *argv[]) {
 
 		int option_index = 0;
 
-		key = getopt_long(argc, argv, "a:b:c:d:e:f:g:h:j:k:l:m", long_options, &option_index);
+		key = getopt_long(argc, argv, "a:b:c:d:e:f:ghk:l:m:n:", long_options, &option_index);
 
 		if(key == -1) {
 			break;
@@ -144,19 +144,19 @@ int main(int argc, char *argv[]) {
 
 		switch(key) {
 			case 'a':
-				logLevelString = optarg;
+				logLevelString = stringCopy(optarg);
 				break;
 			case 'b':
-				alignmentsFile = optarg;
+				alignmentsFile = stringCopy(optarg);
 				break;
 			case 'c':
-				netDiskName = optarg;
+				netDiskName = stringCopy(optarg);
 				break;
 			case 'd':
-				netName = optarg;
+				netName = stringCopy(optarg);
 				break;
 			case 'e':
-				tempFileRootDirectory = optarg;
+				tempFileRootDirectory = stringCopy(optarg);
 				break;
 			case 'f':
 				assert(sscanf("%i", optarg, &maxEdgeDegree) == 1);
@@ -164,6 +164,9 @@ int main(int argc, char *argv[]) {
 			case 'g':
 				writeDebugFiles = 1;
 				break;
+			case 'h':
+				usage();
+				return 0;
 			case 'k':
 				assert(sscanf("%f", optarg, &proportionToKeep) == 1);
 				break;
@@ -176,9 +179,6 @@ int main(int argc, char *argv[]) {
 			case 'n':
 				assert(sscanf("%i", optarg, &minimumChainLength) == 1);
 				break;
-			case 'h':
-				usage();
-				return 0;
 			default:
 				usage();
 				return 1;
@@ -204,10 +204,10 @@ int main(int argc, char *argv[]) {
 	//Set up logging
 	//////////////////////////////////////////////
 
-	if(strcmp(logLevelString, "INFO") == 0) {
+	if(logLevelString != NULL && strcmp(logLevelString, "INFO") == 0) {
 		setLogLevel(LOGGING_INFO);
 	}
-	if(strcmp(logLevelString, "DEBUG") == 0) {
+	if(logLevelString != NULL && strcmp(logLevelString, "DEBUG") == 0) {
 		setLogLevel(LOGGING_DEBUG);
 	}
 
@@ -247,11 +247,9 @@ int main(int argc, char *argv[]) {
 	//Setup the basic pinch graph
 	///////////////////////////////////////////////////////////////////////////
 
-
 	pinchGraph = constructPinchGraph(net);
 
 	if(writeDebugFiles) {
-		logDebug("Writing out dot formatted version of initial pinch graph\n");
 		writePinchGraph("pinchGraph1.dot", pinchGraph, NULL, NULL);
 		logDebug("Finished writing out dot formatted version of initial pinch graph\n");
 	}
@@ -429,7 +427,7 @@ int main(int argc, char *argv[]) {
 		logDebug("Writing out dot formatted final pinch graph showing chains after pruning\n");
 		list = constructEmptyList(0, NULL);
 		listAppend(list, chosenAtoms);
-		writePinchGraph("pinchGraph5.dot", pinchGraph, list, NULL);
+		writePinchGraph("pinchGraph6.dot", pinchGraph, list, NULL);
 		destructList(list);
 		logDebug("Finished writing out final pinch graph showing chains prior to pruning\n");
 	}
@@ -438,7 +436,7 @@ int main(int argc, char *argv[]) {
 	// (8) Constructing the net.
 	///////////////////////////////////////////////////////////////////////////
 
-	//fillOutNetFromInputs(net, cactusGraph, pinchGraph, chosenAtoms);
+	fillOutNetFromInputs(net, cactusGraph, pinchGraph, chosenAtoms);
 
 	///////////////////////////////////////////////////////////////////////////
 	// (9) Write the net to disk.

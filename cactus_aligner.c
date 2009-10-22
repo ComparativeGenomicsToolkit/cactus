@@ -46,10 +46,12 @@ int main(int argc, char *argv[]) {
 			assert(endInstance2 != NULL);
 			assert(endInstance_getStrand(endInstance2));
 
-			if(endInstance_getCoordinate(endInstance2)-endInstance_getCoordinate(endInstance)-1 >= 0) {
+			if(!endInstance_getSide(endInstance)) {
+				assert(endInstance_getSide(endInstance2));
+				assert(endInstance_getCoordinate(endInstance2)-endInstance_getCoordinate(endInstance)-1 >= 0);
 				sequence = endInstance_getSequence(endInstance);
 				assert(sequence != NULL);
-				string = sequence_getString(sequence, endInstance_getCoordinate(endInstance), endInstance_getCoordinate(endInstance2)-endInstance_getCoordinate(endInstance)-1, TRUE);
+				string = sequence_getString(sequence, endInstance_getCoordinate(endInstance)+1, endInstance_getCoordinate(endInstance2)-endInstance_getCoordinate(endInstance)-1, TRUE);
 				fprintf(fileHandle, ">%s|%i\n%s\n", netMisc_nameToStringStatic(sequence_getName(sequence)), endInstance_getCoordinate(endInstance)+1, string);
 				free(string);
 			}

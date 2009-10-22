@@ -23,14 +23,14 @@ from cactus.cactus_common import runCactusCheckReconstructionTree
 class TestCase(unittest.TestCase):
     
     def setUp(self):
-        self.testNo = TestStatus.getTestSetup(1, 20, 0, 0)
+        self.testNo = TestStatus.getTestSetup(1, 100, 0, 0)
         self.tempDir = getTempDirectory(os.getcwd())
         unittest.TestCase.setUp(self)
     
     def tearDown(self):
         unittest.TestCase.tearDown(self)
         #system("rm -rf %s" % self.tempDir)
-        system("rm -rf pinchGraph1.dot pinchGraph2.dot pinchGraph3.dot pinchGraph4.dot cactusGraph1.dot cactusGraph2.dot cactusGraph3.dot net1.dot net2.dot net3.dot pinchGraph5.dot pinchGraph6.dot")
+        #system("rm -rf pinchGraph1.dot pinchGraph2.dot pinchGraph3.dot pinchGraph4.dot cactusGraph1.dot cactusGraph2.dot cactusGraph3.dot net1.dot net2.dot net3.dot pinchGraph5.dot pinchGraph6.dot")
         system("rm -rf pinchGraph1.pdf pinchGraph2.pdf pinchGraph3.pdf pinchGraph4.pdf cactusGraph1.pdf cactusGraph2.pdf cactusGraph3.pdf net1.pdf net2.pdf net3.pdf pinchGraph5.pdf pinchGraph6.pdf")
     
     def testChromosomes(self):
@@ -67,15 +67,13 @@ class TestCase(unittest.TestCase):
             system("neato pinchGraph2.dot -Tpdf > pinchGraph2.pdf")
             system("neato pinchGraph3.dot -Tpdf > pinchGraph3.pdf")
             system("neato pinchGraph4.dot -Tpdf > pinchGraph4.pdf")
+            system("neato pinchGraph5.dot -Tpdf > pinchGraph5.pdf")
+            system("neato pinchGraph6.dot -Tpdf > pinchGraph6.pdf")
             system("neato cactusGraph1.dot -Tpdf > cactusGraph1.pdf")
             system("neato cactusGraph2.dot -Tpdf > cactusGraph2.pdf")
             system("neato cactusGraph3.dot -Tpdf > cactusGraph3.pdf")
-            system("neato net1.dot -Tpdf > net1.pdf")
-            system("neato pinchGraph5.dot -Tpdf > pinchGraph5.pdf")
-            system("neato net2.dot -Tpdf > net2.pdf")
-            system("neato pinchGraph6.dot -Tpdf > pinchGraph6.pdf")
-            system("neato net3.dot -Tpdf > net3.pdf")
             """
+            
             
 def runPipe(sequenceDirs, newickTreeString, tempDir, useDummy=False, writeDebugFiles=False, randomAtomParameters=False):
     tempAlignmentFile = getTempFile(rootDir=tempDir)

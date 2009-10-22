@@ -45,13 +45,13 @@ void fn(const char *fastaHeader, const char *string, int32_t length) {
 	Sequence *sequence;
 
 	//Now put the details in a net.
-	metaSequence = metaSequence_construct(1, length, string, fastaHeader,
+	metaSequence = metaSequence_construct(2, length, string, fastaHeader,
 			event_getName(event), netDisk);
 	sequence = sequence_construct(metaSequence, net);
 	end1 = end_construct(1, net);
 	end2 = end_construct(1, net);
-	endInstance1 = endInstance_construct2(end1, 1, 1, 1, sequence);
-	endInstance2 = endInstance_construct2(end2, length, 1, 0, sequence);
+	endInstance1 = endInstance_construct2(end1, 1, 1, 0, sequence);
+	endInstance2 = endInstance_construct2(end2, length+2, 1, 1, sequence);
 	endInstance_makeAdjacent1(endInstance1, endInstance2);
 	totalSequenceNumber++;
 }
