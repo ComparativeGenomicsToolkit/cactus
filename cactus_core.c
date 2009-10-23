@@ -110,8 +110,8 @@ int main(int argc, char *argv[]) {
 	bool writeDebugFiles = 0;
 	float proportionToKeep = 1.0;
 	float discardRatio = 0.0;
-	float minimumTreeCoverage = 0.1;
-	int32_t minimumChainLength = 1;
+	float minimumTreeCoverage = 0.8;
+	int32_t minimumChainLength = 10;
 
 	///////////////////////////////////////////////////////////////////////////
 	// (0) Parse the inputs handed by genomeCactus.py / setup stuff.
@@ -159,7 +159,7 @@ int main(int argc, char *argv[]) {
 				tempFileRootDirectory = stringCopy(optarg);
 				break;
 			case 'f':
-				assert(sscanf("%i", optarg, &maxEdgeDegree) == 1);
+				assert(sscanf(optarg, "%i", &maxEdgeDegree) == 1);
 				break;
 			case 'g':
 				writeDebugFiles = 1;
@@ -168,16 +168,16 @@ int main(int argc, char *argv[]) {
 				usage();
 				return 0;
 			case 'k':
-				assert(sscanf("%f", optarg, &proportionToKeep) == 1);
+				assert(sscanf(optarg, "%f", &proportionToKeep) == 1);
 				break;
 			case 'l':
-				assert(sscanf("%f", optarg, &discardRatio) == 1);
+				assert(sscanf(optarg, "%f", &discardRatio) == 1);
 				break;
 			case 'm':
-				assert(sscanf("%f", optarg, &minimumTreeCoverage) == 1);
+				assert(sscanf(optarg, "%f", &minimumTreeCoverage) == 1);
 				break;
 			case 'n':
-				assert(sscanf("%i", optarg, &minimumChainLength) == 1);
+				assert(sscanf(optarg, "%i", &minimumChainLength) == 1);
 				break;
 			default:
 				usage();

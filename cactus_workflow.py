@@ -38,37 +38,6 @@ from cactus.cactus_aligner import MakeSequencesOptions
 
 from pecan2.pecan2_batch import pecan2BatchWrapperMiddleLevel
 from pecan2.pecan2_batch import pecan2BatchWrapperTopLevel
-
-############################################################
-############################################################
-############################################################
-##Common functions
-############################################################
-############################################################
-############################################################
-
-alphaNumericChars = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
-
-def getUniquePrefix(jobNumber):
-    """Gets a unique string prefix for a given job number.
-    """
-    jobNumber = int(jobNumber) #defensive, to protect against failure to convert from string
-    return "".join([ alphaNumericChars[int(jobNumber / math.pow(len(alphaNumericChars), 4-i))\
-                                         % len(alphaNumericChars)] for i in xrange(5) ])
-
-def getUniqueJobNumber(prefix):
-    """The inverse function to getUniquePrefix.
-    
-    >>> for i in xrange(1000):
-    ...     import random
-    ...     j = random.choice(xrange(10000000))
-    ...     k = getUniquePrefix(j)
-    ...     l = getUniqueJobNumber(k)
-    ...     assert j == int(l)
-    ...
-    """
-    return sum([ alphaNumericChars.index(prefix[i]) * math.pow(len(alphaNumericChars), 4-i)\
-                 for i in xrange(5) ])
     
 ############################################################
 ############################################################

@@ -87,8 +87,7 @@ def runPipe(sequenceDirs, newickTreeString, tempDir, useDummy=False, writeDebugF
     system("cat %s" % tempAlignmentFile)
     
     logger.info("Constructed the alignments")
-    """
-    if False and randomAtomParameters:
+    if randomAtomParameters:
         runCactusCore(tempReconstructionDirectory, tempAlignmentFile, 
                       tempDir=getTempDirectory(tempDir), 
                       writeDebugFiles=writeDebugFiles,
@@ -98,9 +97,8 @@ def runPipe(sequenceDirs, newickTreeString, tempDir, useDummy=False, writeDebugF
                       minimumTreeCoverage=random.random(),
                       minimumChainLength=random.random()*5)
     else:
-    """
-    runCactusCore(tempReconstructionDirectory, tempAlignmentFile, 
-                  tempDir=getTempDirectory(tempDir), writeDebugFiles=writeDebugFiles)
+        runCactusCore(tempReconstructionDirectory, tempAlignmentFile, 
+                      tempDir=getTempDirectory(tempDir), writeDebugFiles=writeDebugFiles)
     
     #runCactusCheckReconstructionTree(tempReconstructionDirectory, checkAdjacencies=False)
     
