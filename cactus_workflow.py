@@ -17,7 +17,6 @@ In the verification phase the reconstruction tree is checked against the expecte
 """
 import xml.etree.ElementTree as ET
 import os
-import math
 
 from sonLib.bioio import logger
 from sonLib.bioio import getBasicOptionParser
@@ -30,8 +29,6 @@ from workflow.jobTree.scriptTree.target import Target
 
 from cactus.cactus_common import runCactusSetup
 from cactus.cactus_common import runCactusCore
-from cactus.cactus_common import runCactusAdjacencyBuilder
-from cactus.cactus_common import runCactusCheckReconstructionTree
 
 from cactus.cactus_aligner import MakeSequences
 from cactus.cactus_aligner import MakeSequencesOptions
@@ -58,7 +55,7 @@ class SetupPhase(Target):
         #Make the child setup job.
         self.addChildTarget(CactusSetupWrapper(job, self.options, self.sequences))
         #initialise the down pass as the follow on..
-        DownPassPhase(job, self, self.options)
+        DownPassPhase(job, self, '0', self.options)
         logger.info("Created child target cactus_setup job, and follow on down pass job")
 
 class CactusSetupWrapper(Target):
@@ -69,9 +66,8 @@ class CactusSetupWrapper(Target):
         
     def run(self, job):
         logger.info("Starting cactus setup target")
-        runCactusSetup(self.options.reconstructionTree, self.sequences, 
+        runCactusSetup(self.options.netDisk, self.sequences, 
                        self.options.speciesTree,
-                       uniqueNamePrefix=getUniquePrefix(int(job.attrib["job_number"])),
                        tempDir=job.attrib["local_temp_dir"], logLevel=getLogLevelString())
         logger.info("Finished the setup phase target")
 
@@ -87,22 +83,23 @@ class CactusSetupWrapper(Target):
 ############################################################
     
 class DownPassPhase(Target):
-    def __init__(self, job, previousTarget, options):
+    def __init__(self, job, previousTarget, netName, options):
+        self.netName = netName
         self.options = options
         Target.__init__(self, job, previousTarget)
 
     def run(self, job):
         logger.info("Starting the down pass target")
         #Setup call to cactus aligner wrapper as child
-        childTarget = CactusAlignerWrapper(job, self.options, "reconstructionProblem.xml", 0)
+        childTarget = CactusAlignerWrapper(job, self.options, self.netName, 0)
         self.addChildTarget(childTarget)
-        UpPassPhase(job, self, self.options)
+        #UpPassPhase(job, self, self.options)
         logger.info("Created child target aligner/core job, and follow on cleanup job")
     
 class CactusAlignerWrapper(Target):
-    def __init__(self, job, options, reconstructionProblem, iteration):
+    def __init__(self, job, options, netName, iteration):
         self.options = options
-        self.reconstructionProblem = reconstructionProblem
+        self.netName = netName
         self.iteration = int(iteration)
         Target.__init__(self, job, None)
     
@@ -117,17 +114,12 @@ class CactusAlignerWrapper(Target):
             makeSequencesOptions = MakeSequencesOptions(pecan2BatchWrapperTopLevel)
         else:
             makeSequencesOptions = MakeSequencesOptions(pecan2BatchWrapperMiddleLevel)
-        self.addChildTarget(MakeSequences(job, self.options.reconstructionTree, 
-                                          self.reconstructionProblem, 
-                                          alignmentFile, makeSequencesOptions))
+        self.addChildTarget(MakeSequences(job, self.options.netDisk, 
+                                          self.netName, alignmentFile, makeSequencesOptions))
         logger.info("Created the cactus_aligner child target")
-    
-        #First copy the reconstruction problem, so that we can rerun cactus core target if it fails.
-        inputReconstructionProblem = getTempFile(suffix=".xml", rootDir=job.attrib["global_temp_dir"])
-        system("cp %s %s" % (os.path.join(self.options.reconstructionTree, self.reconstructionProblem), inputReconstructionProblem))
         
         #Now setup a call to cactus core wrapper as a follow on
-        CactusCoreWrapper(job, self, self.options, inputReconstructionProblem, self.reconstructionProblem, alignmentFile, self.iteration)
+        CactusCoreWrapper(job, self, self.options, self.netName, alignmentFile, self.iteration)
         logger.info("Setup the follow on cactus_core target")
         
 def cactusCoreParameters1():
@@ -137,44 +129,25 @@ def cactusCoreParameters2():
     return { "maximumEdgeDegree":50, "proportionToKeep":1.0, "discardRatio":0.5, "minimumTreeCoverage":0.5, "minimumChainLength":1 }
 
 class CactusCoreWrapper(Target):
-    def __init__(self, job, previousTarget, options, inputReconstructionProblem,
-                 outputReconstructionProblem, alignmentFile, iteration):
+    def __init__(self, job, previousTarget, options, netName, alignmentFile, iteration):
         self.options = options
-        self.inputReconstructionProblem = inputReconstructionProblem
-        self.outputReconstructionProblem = outputReconstructionProblem
+        self.netName = netName
         self.alignmentFile = alignmentFile
-        self.iteration = iteration
-        
-        #Debug check that directory of reconstruction problem contains initially no directories (which will contain the child problems)
-        absReconstructionProblem = os.path.join(self.options.reconstructionTree, self.outputReconstructionProblem)
-        parentDir = os.path.split(absReconstructionProblem)[0]
-        for fileName in list(os.listdir(parentDir)):
-            absFileName = os.path.join(parentDir, fileName)
-            assert not os.path.isdir(absFileName)
-            
+        self.iteration = iteration     
         Target.__init__(self, job, previousTarget)
     
     def run(self, job):
         logger.info("Starting the core wrapper target")
-        #Remove the child reconstruction directories from the directory.
-        absReconstructionProblem = os.path.join(self.options.reconstructionTree, self.outputReconstructionProblem)
-        parentDir = os.path.split(absReconstructionProblem)[0]
-        for fileName in list(os.listdir(parentDir)):
-            absFileName = os.path.join(parentDir, fileName)
-            if os.path.isdir(absFileName):
-                system("rm -rf %s" % absFileName)
-        #Copy the input reconstruction problem to the output copy (This restores the input file if it was previously broken).
-        system("cp %s %s" % (self.inputReconstructionProblem, absReconstructionProblem))
+
         if self.iteration == 0: 
             coreParameters = cactusCoreParameters1()
         else:
             coreParameters = cactusCoreParameters2()
-        runCactusCore(reconstructionRootDir=self.options.reconstructionTree, 
+            
+        runCactusCore(netDisk=self.options.netDisk, 
                       alignmentFile=self.alignmentFile, 
                       tempDir=job.attrib["local_temp_dir"], 
-                      reconstructionProblem=self.outputReconstructionProblem,
-                      treeProgram=self.options.treeBuilder, 
-                      uniqueNamePrefix=getUniquePrefix(int(job.attrib["job_number"])),
+                      netName=self.netName,
                       logLevel=getLogLevelString(), 
                       maximumEdgeDegree=coreParameters["maximumEdgeDegree"],
                       proportionOfAtomsToKeep=coreParameters["proportionToKeep"],
@@ -183,153 +156,35 @@ class CactusCoreWrapper(Target):
                       minimumChainLength=coreParameters["minimumChainLength"])
         logger.info("Ran the cactus core program okay")
         #Setup call to core and aligner recursive as follow on.
-        CactusDownPass(job, self, self.options, self.inputReconstructionProblem,
-                       self.outputReconstructionProblem, self.alignmentFile, self.iteration)
+        CactusDownPass(job, self, self.options, self.netName, self.alignmentFile, self.iteration)
         logger.info("Issued a the recursive/cleanup wrapper as a follow on job")
 
 class CactusDownPass(Target):
-    def __init__(self, job, previousTarget, options, inputReconstructionProblem,
-                 outputReconstructionProblem, alignmentFile, iteration):
+    def __init__(self, job, previousTarget, options, netName, alignmentFile, iteration):
         self.options = options
-        self.inputReconstructionProblem = inputReconstructionProblem
-        self.outputReconstructionProblem = outputReconstructionProblem
+        self.iteration = iteration
+        self.netName = netName
         self.alignmentFile = alignmentFile
-        self.iteration = iteration    
         Target.__init__(self, job, previousTarget)
     
     def cleanup(self, job):
         #Cleans up from a round
-        system("rm -rf %s" % self.inputReconstructionProblem) #Clean up the alignments file
         system("rm -rf %s" % self.alignmentFile) #Clean up the alignments file
     
     def run(self, job):
         logger.info("Starting the cactus down pass (recursive) target")
         #Traverses leaf jobs and create aligner wrapper targets as children.
         if self.iteration+1 < int(self.options.alignmentIterations):
-            def fn(reconstructionProblem):
-                tree = ET.parse(os.path.join(self.options.reconstructionTree, 
-                                            reconstructionProblem)).getroot()
-                adjacencyComponent = tree.find("adjacency_components")    
-                adjacencyComponents = adjacencyComponent.findall("adjacency_component")     
-                if len(adjacencyComponents) > 0:      
-                    for adjacencyComponent in adjacencyComponents:
-                        fn(adjacencyComponent.attrib["child_file"])
-                else:
-                    self.addChildTarget(CactusAlignerWrapper(job, self.options, reconstructionProblem, self.iteration+1))
-            fn(self.outputReconstructionProblem)
+            netNamesFile = getTempFile(".txt", job.attrib["global_temp_dir"])
+            system("cactus_workflow_getNets %s %s %s" % (self.options.netDisk, self.netName, netNamesFile))
+            fileHandle = open(netNamesFile, 'r')
+            line = fileHandle.readline()
+            while line != '':
+                childNetName = line.split()[0]
+                self.addChildTarget(CactusAlignerWrapper(job, self.options, childNetName, self.iteration+1))
+                line = fileHandle.readline()
+            fileHandle.close()
             logger.info("Created child targets for all the recursive reconstruction jobs")
-    
-############################################################
-############################################################
-############################################################
-# The up-pass phase.
-#
-# This phase adds the adjacencies.
-############################################################
-############################################################
-############################################################
-    
-class UpPassPhase(Target):
-    def __init__(self, job, previousTarget, options):
-        self.options = options
-        Target.__init__(self, job, previousTarget)
-
-    def run(self, job):
-        logger.info("Starting the cactus up pass phase target")
-        #Create child
-        self.addChildTarget(CactusUpPass(job, self.options, "reconstructionProblem.xml"))
-        
-        ValidationPhase(job, self, self.options)
-        logger.info("Created the adjacency building child targets and the follow on verification target")
-   
-def createChildTargets(job, options, reconstructionProblem, addChildTarget, childTarget):     
-    tree = ET.parse(os.path.join(options.reconstructionTree,
-                                 reconstructionProblem)).getroot()
-    #Do the child jobs first.
-    adjacencyComponent = tree.find("adjacency_components")
-    adjacencyComponents = adjacencyComponent.findall("adjacency_component")
-    for adjacencyComponent in adjacencyComponents:
-        addChildTarget(childTarget(job, options, adjacencyComponent.attrib["child_file"]))
-    
-class CactusUpPass(Target):
-    def __init__(self, job, options, reconstructionProblem):
-        self.options = options
-        self.reconstructionProblem = reconstructionProblem
-        Target.__init__(self, job, None)
-    
-    def run(self, job):
-        logger.info("Starting the cactus up pass target")
-        createChildTargets(job, self.options, self.reconstructionProblem, self.addChildTarget, CactusUpPass)
-        #Now do the follow on jobs.
-        CactusAdjacencyBuilder(job, self, self.options, self.reconstructionProblem)
-        logger.info("Issued the cactus up pass follow on jobs")
-        
-class CactusAdjacencyBuilder(Target):
-    def __init__(self, job, previousTarget, options, reconstructionProblem):
-        self.options = options
-        self.reconstructionProblem = reconstructionProblem
-        self.inputReconstructionProblem = getTempFile(suffix=".xml", rootDir=job.attrib["global_temp_dir"])
-        system("cp %s %s" % (os.path.join(self.options.reconstructionTree, self.reconstructionProblem), self.inputReconstructionProblem))
-        Target.__init__(self, job, previousTarget)
-    
-    def run(self, job):
-        logger.info("Starting the cactus up pass follow on target, to build the actual adjacencies")
-        #Copy the input reconstruction problem to the output copy (This restores the input file if it was previously broken).
-        system("cp %s %s" % (self.inputReconstructionProblem, os.path.join(self.options.reconstructionTree, self.reconstructionProblem)))    
-        #Run the adjacency builder.. 
-        runCactusAdjacencyBuilder(self.options.reconstructionTree, self.reconstructionProblem, 
-                                  tempDir=job.attrib["local_temp_dir"], 
-                                  uniqueNamePrefix=getUniquePrefix(int(job.attrib["job_number"])),
-                                  adjacencyProgram=self.options.adjacencyBuilder, 
-                                  logLevel=job.attrib["log_level"])
-        #Make a follow on job to clean up the adjacency builder.
-        CactusAdjacencyBuilderFollowOn(job, self, self.inputReconstructionProblem)
-
-class CactusAdjacencyBuilderFollowOn(Target):
-    def __init__(self, job, previousTarget, inputReconstructionProblem):
-        self.inputReconstructionProblem = inputReconstructionProblem
-        Target.__init__(self, job, previousTarget)
-    
-    def cleanup(self, job):
-        system("rm -rf %s" % self.inputReconstructionProblem)
-
-############################################################
-############################################################
-############################################################
-# The validation phase.
-#
-# This phase checks the reconstruction tree.
-############################################################
-############################################################
-############################################################  
-   
-class ValidationPhase(UpPassPhase):
-    def run(self, job):
-        logger.info("Starting the validation phase target")
-        #Create child
-        self.addChildTarget(CactusCheckReconstructionTree(job, self.options, "reconstructionProblem.xml"))
-        #Currently has no follow on.. will have verification target
-    
-class CactusCheckReconstructionTree(CactusUpPass):
-    def run(self, job):
-        logger.info("Starting the cactus check reconstruction target")
-        
-        createChildTargets(job, self.options, self.reconstructionProblem, self.addChildTarget, CactusCheckReconstructionTree)
-        #Now do the follow on jobs.
-        CactusCheckReconstructionTreeFollowOn(job, self, self.options, self.reconstructionProblem)
-        logger.info("Issued the cactus up pass follow on jobs")
-        
-class CactusCheckReconstructionTreeFollowOn(Target):
-    def __init__(self, job, previousTarget, options, reconstructionProblem):
-        self.options = options
-        self.reconstructionProblem = reconstructionProblem
-        Target.__init__(self, job, previousTarget)
-    
-    def run(self, job):
-        logger.info("Starting the cactus check reconstruction tree follow on target, to verify the reconstruction tree.")
-        #Run the adjacency builder.. 
-        runCactusCheckReconstructionTree(self.options.reconstructionTree, self.reconstructionProblem, 
-                                         logLevel=job.attrib["log_level"], recursive=False)
       
 def main():
     ##########################################
@@ -343,15 +198,9 @@ def main():
 
     parser.add_option("--speciesTree", dest="speciesTree", help="The species tree relating the input sequences")
     
-    parser.add_option("--reconstructionTree", dest="reconstructionTree", help="Top level directory that will be created to write the reconstruction tree structure in") 
-    
-    parser.add_option("--aligner", dest="aligner", help="The program to build alignments from (is used as prefix string, and so may contain additional arguments to the program (such as a configuration file)")  
+    parser.add_option("--netDisk", dest="netDisk", help="The location of the net disk.") 
     
     parser.add_option("--alignmentIterations", dest="alignmentIterations", help="The number of recursive alignment iterations to emply", default="2")  
-    
-    parser.add_option("--treeBuilder", dest="treeBuilder", help="The program to build trees from", default="cactus_coreTestTreeBuilder.py")  
-    
-    parser.add_option("--adjacencyBuilder", dest="adjacencyBuilder", help="The program to build adjacencies from", default="cactus_adjacencyTestAdjacencyBuilder.py")
     
     options, args = parseBasicOptions(parser)
 

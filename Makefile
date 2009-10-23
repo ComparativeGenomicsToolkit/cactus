@@ -6,8 +6,7 @@ libPath = ../../lib
 
 tokyoCabinetSettings = -ltokyocabinet -lz -lbz2 -lpthread -lm -lc
 
-all : ${binPath}/cactus_3Edge ${binPath}/cactus_core ${binPath}/cactus_setup ${binPath}/cactus_aligner.py ${binPath}/cactus_workflow.py ${binPath}/cactus_alignerTestAligner.py ${binPath}/cactus_coreTestTreeBuilder.py ${binPath}/cactus_adjacencyTestAdjacencyBuilder.py 
-
+all : ${binPath}/cactus_3Edge ${binPath}/cactus_core ${binPath}/cactus_setup ${binPath}/cactus_aligner.py ${binPath}/cactus_workflow.py ${binPath}/cactus_workflow_getNets ${binPath}/cactus_alignerTestAligner.py ${binPath}/cactus_coreTestTreeBuilder.py ${binPath}/cactus_adjacencyTestAdjacencyBuilder.py 
 
 ${binPath}/cactus_3Edge : 3_Absorb3edge2x.c ${libPath}/sonLib.a
 	${cxx} ${cflags} -I ${libPath} -o ${binPath}/cactus_3Edge 3_Absorb3edge2x.c ${libPath}/sonLib.a 
@@ -26,6 +25,9 @@ ${binPath}/cactus_aligner.py : cactus_aligner.py cactus_aligner.c ${libPath}/cac
 ${binPath}/cactus_workflow.py : cactus_workflow.py
 	cp cactus_workflow.py ${binPath}/cactus_workflow.py
 	chmod +x ${binPath}/cactus_workflow.py
+
+${binPath}/cactus_workflow_getNets : cactus_workflow_getNets.c ${libPath}/sonLib.a ${libPath}/cactusLib.a
+	${cxx} ${cflags} -I ${libPath} -o ${binPath}/cactus_workflow_getNets cactus_workflow_getNets.c ${libPath}/sonLib.a ${libPath}/cactusLib.a ${tokyoCabinetSettings}
 	
 ${binPath}/cactus_alignerTestAligner.py : cactus_alignerTestAligner.py
 	cp cactus_alignerTestAligner.py ${binPath}/cactus_alignerTestAligner.py

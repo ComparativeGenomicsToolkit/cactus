@@ -200,7 +200,7 @@ def runCactusAtomGraphViewer(graphFile,
                     % (reconstructionRootDir, reconstructionProblem, graphFile, logLevel, includeCaps, includeInternalAdjacencies))
     logger.info("Created a break point graph of the problem")
     
-def runCactusWorkflow(reconstructionRootDir, sequenceFiles, 
+def runCactusWorkflow(netDisk, sequenceFiles, 
                       newickTreeString, 
                       jobTreeDir, treeBuilder="cactus_coreTestTreeBuilder.py",
                       adjacencyBuilder="cactus_adjacencyTestAdjacencyBuilder.py",
@@ -210,9 +210,9 @@ def runCactusWorkflow(reconstructionRootDir, sequenceFiles,
     else:
         alignmentIterationsString = ""
     command = "cactus_workflow.py %s --speciesTree '%s' \
---reconstructionTree %s --treeBuilder '%s' --adjacencyBuilder '%s' %s --job JOB_FILE" % \
+--netDisk %s %s --job JOB_FILE" % \
             (" ".join(sequenceFiles), newickTreeString,
-             reconstructionRootDir, treeBuilder, adjacencyBuilder, alignmentIterationsString)
+             netDisk, alignmentIterationsString)
     runJobTree(command, jobTreeDir, logLevel, retryCount, batchSystem, rescueJobFrequency)
-    logger.info("Ran the cactus workflow for %s okay" % reconstructionRootDir)
+    logger.info("Ran the cactus workflow for %s okay" % netDisk)
 
