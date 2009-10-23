@@ -41,7 +41,7 @@ int main(int argc, char *argv[]) {
 	while((end = net_getNextEnd(endIterator)) != NULL) {
 		instanceIterator = end_getInstanceIterator(end);
 		while((endInstance = end_getNext(instanceIterator)) != NULL) {
-			assert(endInstance_getStrand(endInstance));
+			endInstance = endInstance_getStrand(endInstance) ? endInstance : endInstance_getReverse(endInstance);
 			endInstance2 = endInstance_getAdjacency(endInstance);
 			assert(endInstance2 != NULL);
 			assert(endInstance_getStrand(endInstance2));
