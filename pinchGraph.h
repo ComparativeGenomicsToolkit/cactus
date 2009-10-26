@@ -178,7 +178,7 @@ int32_t isAStubOrCap(struct PinchEdge *edge);
 
 struct PinchEdge *getContainingBlackEdge(struct PinchGraph *graph, Name contig, int32_t position);
 
-struct PinchEdge *getNextEdge(struct PinchGraph *graph, struct PinchEdge *edge);
+struct PinchEdge *getNextEdge(struct PinchGraph *graph, struct PinchEdge *edge, Net *net);
 
 struct PinchVertex *splitEdge(struct PinchGraph *graph, Name contig, int32_t position, int32_t leftOrRight);
 
@@ -277,7 +277,7 @@ void writeOutPinchGraphWithChains(struct PinchGraph *pinchGraph,
 ////////////////////////////////////////////////
 ////////////////////////////////////////////////
 
-void removeOverAlignedEdges(struct PinchGraph *pinchGraph, int32_t degree);
+void removeOverAlignedEdges(struct PinchGraph *pinchGraph, int32_t degree, Net *net);
 
 struct List *getRecursiveComponents(struct PinchGraph *pinchGraph, int32_t (*excludedEdgesFn)(void *));
 

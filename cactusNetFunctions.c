@@ -94,7 +94,7 @@ struct PinchGraph *constructPinchGraph(Net *net) {
 	while((end = net_getNextEnd(endIterator)) != NULL) {
 		instanceIterator = end_getInstanceIterator(end);
 		while((endInstance = end_getNext(instanceIterator)) != NULL) {
-			assert(endInstance_getStrand(endInstance));
+			endInstance = endInstance_getStrand(endInstance) ? endInstance : endInstance_getReverse(endInstance);
 			endInstance2 = endInstance_getAdjacency(endInstance);
 			sequence = endInstance_getSequence(endInstance);
 
@@ -112,7 +112,7 @@ struct PinchGraph *constructPinchGraph(Net *net) {
 				assert(length >= 0);
 
 				//Make black edges for caps/stubs on left end
-				leftCapEdge = hookUpEdge(constructSegment(sequence_getName(sequence), start, start), graph,
+				leftCapEdge = hookUpEdge(constructSegment(endInstance_getName(endInstance), start, start), graph,
 						hashtable_search(hash, (void *)netMisc_nameToStringStatic(end_getName(endInstance_getEnd(endInstance)))),
 						hashtable_search(hash2, (void *)netMisc_nameToStringStatic(end_getName(endInstance_getEnd(endInstance)))));
 
@@ -124,7 +124,7 @@ struct PinchGraph *constructPinchGraph(Net *net) {
 				}
 
 				//Construct the right cap/stub
-				rightCapEdge = hookUpEdge(constructSegment(sequence_getName(sequence), stop, stop), graph,
+				rightCapEdge = hookUpEdge(constructSegment(endInstance_getName(endInstance2), stop, stop), graph,
 						hashtable_search(hash, (void *)netMisc_nameToStringStatic(end_getName(endInstance_getEnd(endInstance2)))),
 						hashtable_search(hash2, (void *)netMisc_nameToStringStatic(end_getName(endInstance_getEnd(endInstance2)))));
 
@@ -134,7 +134,7 @@ struct PinchGraph *constructPinchGraph(Net *net) {
 					connectVertices(edge->to, rightCapEdge->from);
 				}
 				else {
-					connectVertices(leftCapEdge->to, rightCapEdge->from);
+					connectVertices(leftCapEdge->to, rightCapEdge->to);
 				}
 			}
 		}
@@ -488,7 +488,7 @@ void fillOutNetFromInputs(
 	endIterator = net_getEndIterator(parentNet);
 	while((end = net_getNextEnd(endIterator)) != NULL) {
 		endInstance = end_getFirst(end);
-		pinchEdge = getContainingBlackEdge(pinchGraph, sequence_getName(endInstance_getSequence(endInstance)), endInstance_getCoordinate(endInstance));
+		pinchEdge = getContainingBlackEdge(pinchGraph, endInstance_getName(endInstance), endInstance_getCoordinate(endInstance));
 		assert(pinchEdge != NULL);
 		if(vertex_isEnd(pinchEdge->from)) {
 			assert(vertex_isDeadEnd(pinchEdge->to));

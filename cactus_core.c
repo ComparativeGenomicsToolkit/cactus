@@ -294,7 +294,7 @@ int main(int argc, char *argv[]) {
 	startTime = time(NULL);
 	assert(maxEdgeDegree >= 1);
 	logInfo("Before removing over aligned edges the graph has %i vertices and %i black edges\n", pinchGraph->vertices->length, avl_count(pinchGraph->edges));
-	removeOverAlignedEdges(pinchGraph, maxEdgeDegree);
+	removeOverAlignedEdges(pinchGraph, maxEdgeDegree, net);
 	logInfo("After removing over aligned edges (degree %i) the graph has %i vertices and %i black edges\n", maxEdgeDegree, pinchGraph->vertices->length, avl_count(pinchGraph->edges));
 	removeTrivialGreyEdgeComponents(pinchGraph, pinchGraph->vertices);
 	logInfo("After removing the trivial graph components the graph has %i vertices and %i black edges\n", pinchGraph->vertices->length, avl_count(pinchGraph->edges));

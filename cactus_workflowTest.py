@@ -21,7 +21,7 @@ from workflow.jobTree.jobTreeTest import plotJobTreeGraph
 class TestCase(unittest.TestCase):
     
     def setUp(self):
-        self.testNo = TestStatus.getTestSetup(1, 1, 5, 1)
+        self.testNo = TestStatus.getTestSetup(1, 100, 0, 0)
         self.alignmentIterations = TestStatus.getTestSetup(2, 2, 2, 3)
         self.sequenceNumber = TestStatus.getTestSetup(5, 50, 50, 100)
         self.tempFiles = []
@@ -35,10 +35,10 @@ class TestCase(unittest.TestCase):
         unittest.TestCase.setUp(self)
     
     def tearDown(self):
-        for tempFile in self.tempFiles:
-            os.remove(tempFile)
+        #for tempFile in self.tempFiles:
+        #    os.remove(tempFile)
         unittest.TestCase.tearDown(self)
-        system("rm -rf %s" % self.tempDir)
+        #system("rm -rf %s" % self.tempDir)
         
     def testCactusWorkflow_Random(self):
         """Runs the tests across some simulated regions.
@@ -58,7 +58,7 @@ class TestCase(unittest.TestCase):
     def testCactusWorkflow_Blanchette(self): 
         """Runs the workflow on blanchette's simulated (colinear) regions.
         """
-        if TestStatus.getTestStatus() in (TestStatus.TEST_LONG, TestStatus.TEST_VERY_LONG):
+        if TestStatus.getTestStatus() in (TestStatus.TEST_LONG,):
             blanchettePath = os.path.join(TestStatus.getPathToDataSets(), "blanchettesSimulation")
             
             newickTreeFile = os.path.join(blanchettePath, "tree.newick")
@@ -80,7 +80,7 @@ class TestCase(unittest.TestCase):
     def testCactusWorkflow_Encode(self): 
         """Run the workflow on the encode pilot regions.
         """
-        if TestStatus.getTestStatus() in (TestStatus.TEST_LONG, TestStatus.TEST_VERY_LONG):
+        if TestStatus.getTestStatus() in (TestStatus.TEST_VERY_LONG,):
             encodeDatasetPath = os.path.join(TestStatus.getPathToDataSets(), "MAY-2005")
             encodeResultsPath = os.path.join(TestStatus.getPathToDataSets(), "cactus", "encodeRegionsTest")
             newickTreeFile = os.path.join(encodeDatasetPath, "reducedTree.newick")
@@ -111,7 +111,7 @@ def runWorkflow(sequences, newickTreeFile, outputDir, tempDir,
     jobTreeDir = os.path.join(getTempDirectory(tempDir), "jobTree")
     logger.info("Got a job tree dir for the test: %s" % jobTreeDir)
     
-    runCactusWorkflow(netDisk, sequences, newickTreeString, jobTreeDir, batchSystem=batchSystem, alignmentIterations=1)
+    runCactusWorkflow(netDisk, sequences, newickTreeString, jobTreeDir, batchSystem=batchSystem, alignmentIterations=2)
     logger.info("Ran the the workflow")
     
     runJobTreeStatusAndFailIfNotComplete(jobTreeDir)
@@ -119,7 +119,7 @@ def runWorkflow(sequences, newickTreeFile, outputDir, tempDir,
     
     #runCactusCheckReconstructionTree(reconstructionTree)
     #logger.info("Checked the reconstruction tree")
-    
+    """
     if reconstructionTreeGraphFile != None:
         runCactusReconstructionTreeViewer(reconstructionTreeGraphFile, reconstructionTree)
         runGraphViz(reconstructionTreeGraphFile, reconstructionTreeGraphPDFFile)
@@ -130,9 +130,10 @@ def runWorkflow(sequences, newickTreeFile, outputDir, tempDir,
      
     if jobTreeGraphPDFFile != None:
         plotJobTreeGraph(jobTreeDir, jobTreeGraphPDFFile)
+    """
         
     #Cleanup
-    system("rm -rf %s" % jobTreeDir)
+    #system("rm -rf %s" % jobTreeDir)
     logger.info("Successfully ran job for the blanchette sequences")
 
 def main():

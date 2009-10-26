@@ -464,26 +464,41 @@ struct PinchEdge *getContainingBlackEdge(struct PinchGraph *graph, Name contig, 
 	segment.end = position;
 	//Now get the edge.
 	edge2 = avl_find(graph->edges, &edge);
+	assert(edge2 != NULL);
 	return edge2;
 }
 
-struct PinchEdge *getNextEdge(struct PinchGraph *graph, struct PinchEdge *edge) {
+struct PinchEdge *getNextEdge(struct PinchGraph *graph, struct PinchEdge *edge, Net *net) {
 	/*
 	 * Gets the next in the sequence from the given edge, used for traversing paths in the pinch graph.
 	 */
 	struct PinchEdge *edge2;
+	struct PinchVertex *vertex2;
+	EndInstance *endInstance;
 
-	edge2 = getContainingBlackEdge(graph, edge->segment->contig - (edge->segment->contig % 3) + 2, edge->segment->end+1);
-	if(edge2 == NULL) {
-		edge2 = getContainingBlackEdge(graph, edge->segment->contig - (edge->segment->contig % 3) + 1, edge->segment->end+1);
+	edge2 = getContainingBlackEdge(graph, edge->segment->contig, edge->segment->end+1);
+	if(edge2 != NULL) {
+		return edge2;
 	}
-	if(edge2 == NULL) {
-		edge2 = getContainingBlackEdge(graph, edge->segment->contig - (edge->segment->contig % 3), edge->segment->end+1);
+	void *iterator = getGreyEdgeIterator(edge->to);
+	while((vertex2 = getNextGreyEdge(edge2->to, iterator)) != NULL) {
+		if(vertex_isEnd(vertex2)) {
+			void *iterator2 = getBlackEdgeIterator(vertex2);
+			while((edge2 = getNextBlackEdge(vertex2, iterator2)) != NULL) {
+				if(edge2->segment->start == edge->segment->end+1) {
+					endInstance = net_getEndInstance(net, edge2->segment->contig);
+					assert(endInstance != NULL);
+					if(sequence_getName(endInstance_getSequence(endInstance)) == edge->segment->contig) {
+						return edge2;
+					}
+				}
+			}
+			destructBlackEdgeIterator(iterator2);
+		}
 	}
-#ifdef BEN_DEBUG
-	assert(edge2 != NULL);
-#endif
-	return edge2;
+	destructGreyEdgeIterator(iterator);
+	exitOnFailure(0, "Failed to find correct edge\n");
+	assert(0);
 }
 
 void splitEdge_P(struct PinchGraph *graph,

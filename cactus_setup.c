@@ -208,24 +208,35 @@ int main(int argc, char *argv[]) {
 			assert(j < argc);
 			event = event_construct(metaEvent_construct(strings->list[i++], netDisk), binaryTree->distance, event, eventTree);
 
-			struct dirent *file;//a 'directory entity' AKA file
 			struct stat info;//info about the file.
-			DIR *dh=opendir(argv[j]);
-			while((file=readdir(dh)) != NULL) {
-				if(file->d_name[0]!='.') {
-					stat(file->d_name,&info);
-					if(!S_ISDIR(info.st_mode)) {
+			exitOnFailure(stat(argv[j], &info), "Failed to get information about the file: %s\n", argv[j]);
+			if(S_ISDIR(info.st_mode)) {
+				logInfo("Processing directory: %s\n", argv[j]);
+				struct dirent *file;//a 'directory entity' AKA file
+				DIR *dh=opendir(argv[j]);
+				while((file=readdir(dh)) != NULL) {
+					if(file->d_name[0]!='.') {
+						struct stat info2;
 						char *cA = pathJoin(argv[j], file->d_name);
-						logInfo("Processing file: %s\n", cA);
-						fileHandle = fopen(cA, "r");
-						fastaReadToFunction(fileHandle, fn);
-						fclose(fileHandle);
+						exitOnFailure(stat(cA,&info2), "Failed to get information about the file: %s\n", file->d_name);
+						if(!S_ISDIR(info2.st_mode)) {
+							logInfo("Processing file: %s\n", cA);
+							fileHandle = fopen(cA, "r");
+							fastaReadToFunction(fileHandle, fn);
+							fclose(fileHandle);
+						}
 						free(cA);
 					}
 				}
+				closedir(dh);
+			}
+			else {
+				logInfo("Processing file: %s\n", argv[j]);
+				fileHandle = fopen(argv[j], "r");
+				fastaReadToFunction(fileHandle, fn);
+				fclose(fileHandle);
 			}
 			j++;
-			closedir(dh);
 		}
 	}
 	assert(i == strings->length);

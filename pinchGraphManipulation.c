@@ -116,7 +116,8 @@ void removeTrivialGreyEdgeComponents(struct PinchGraph *graph, struct List *list
 	destructList(list);
 }
 
-void splitMultipleBlackEdgesFromVertex(struct PinchGraph *pinchGraph, struct PinchVertex *vertex, struct List *newVerticesList) {
+void splitMultipleBlackEdgesFromVertex(struct PinchGraph *pinchGraph, struct PinchVertex *vertex,
+		struct List *newVerticesList, Net *net) {
 	/*
 	 * Splits multiple black edges from the vertex, so that vertex is incidental with only one black and grey
 	 * edge.
@@ -149,7 +150,7 @@ void splitMultipleBlackEdgesFromVertex(struct PinchGraph *pinchGraph, struct Pin
 		insertBlackEdge(vertex2, edge);
 
 		//now find the grey edge to attach to the new vertex.
-		vertex3 = getNextEdge(pinchGraph, edge->rEdge)->from;
+		vertex3 = getNextEdge(pinchGraph, edge->rEdge, net)->from;
 		listAppend(list, vertex3); //can't detach the old vertices yet
 		connectVertices(vertex2, vertex3);
 	}
@@ -164,7 +165,7 @@ void splitMultipleBlackEdgesFromVertex(struct PinchGraph *pinchGraph, struct Pin
 	destructList(list);
 }
 
-void removeOverAlignedEdges(struct PinchGraph *pinchGraph, int32_t degree) {
+void removeOverAlignedEdges(struct PinchGraph *pinchGraph, int32_t degree, Net *net) {
 	/*
 	 * Method splits black edges from the graph with degree higher than a given number of sequences.
 	 */
@@ -191,8 +192,8 @@ void removeOverAlignedEdges(struct PinchGraph *pinchGraph, int32_t degree) {
 		vertex = list->list[i];
 		vertex2 = getFirstBlackEdge(vertex)->to;
 		list2->length = 0;
-		splitMultipleBlackEdgesFromVertex(pinchGraph, vertex, list2);
-		splitMultipleBlackEdgesFromVertex(pinchGraph, vertex2, list2);
+		splitMultipleBlackEdgesFromVertex(pinchGraph, vertex, list2, net);
+		splitMultipleBlackEdgesFromVertex(pinchGraph, vertex2, list2, net);
 		removeTrivialGreyEdgeComponents(pinchGraph, list2); //now get rid of any trivial components
 	}
 
