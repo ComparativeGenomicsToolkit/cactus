@@ -464,7 +464,7 @@ struct PinchEdge *getContainingBlackEdge(struct PinchGraph *graph, Name contig, 
 	segment.end = position;
 	//Now get the edge.
 	edge2 = avl_find(graph->edges, &edge);
-	assert(edge2 != NULL);
+	//assert(edge2 != NULL);
 	return edge2;
 }
 
@@ -481,7 +481,7 @@ struct PinchEdge *getNextEdge(struct PinchGraph *graph, struct PinchEdge *edge, 
 		return edge2;
 	}
 	void *iterator = getGreyEdgeIterator(edge->to);
-	while((vertex2 = getNextGreyEdge(edge2->to, iterator)) != NULL) {
+	while((vertex2 = getNextGreyEdge(edge->to, iterator)) != NULL) {
 		if(vertex_isEnd(vertex2)) {
 			void *iterator2 = getBlackEdgeIterator(vertex2);
 			while((edge2 = getNextBlackEdge(vertex2, iterator2)) != NULL) {
@@ -489,6 +489,8 @@ struct PinchEdge *getNextEdge(struct PinchGraph *graph, struct PinchEdge *edge, 
 					endInstance = net_getEndInstance(net, edge2->segment->contig);
 					assert(endInstance != NULL);
 					if(sequence_getName(endInstance_getSequence(endInstance)) == edge->segment->contig) {
+						destructGreyEdgeIterator(iterator);
+						destructBlackEdgeIterator(iterator2);
 						return edge2;
 					}
 				}
@@ -498,7 +500,7 @@ struct PinchEdge *getNextEdge(struct PinchGraph *graph, struct PinchEdge *edge, 
 	}
 	destructGreyEdgeIterator(iterator);
 	exitOnFailure(0, "Failed to find correct edge\n");
-	assert(0);
+	return NULL;
 }
 
 void splitEdge_P(struct PinchGraph *graph,

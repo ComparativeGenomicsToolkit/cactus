@@ -131,14 +131,20 @@ void splitMultipleBlackEdgesFromVertex(struct PinchGraph *pinchGraph, struct Pin
 #ifdef BEN_DEBUG
 	assert(vertex == pinchGraph->vertices->list[vertex->vertexID]);
 	assert(lengthBlackEdges(vertex) > 0);
-	assert(vertex_isDeadEnd(vertex) == FALSE);
+	assert(!vertex_isDeadEnd(vertex));
+	assert(!vertex_isEnd(vertex));
 #endif
 
 	list = constructEmptyList(0, NULL);
 	while(lengthBlackEdges(vertex) > 0) {
-		edge = popBlackEdge(vertex); //detaches edge from vertex.
+		edge = getFirstBlackEdge(vertex);
+		//first find the grey edge to attach to the new vertex we're about to create
+		vertex3 = getNextEdge(pinchGraph, edge->rEdge, net)->from;
+		listAppend(list, vertex3); //can't detach the old vertices yet
+
+		assert(popBlackEdge(vertex) == edge); //detaches edge from vertex.
 #ifdef BEN_DEBUG
-		assert(isAStubOrCap(edge) == FALSE);
+		assert(!isAStubOrCap(edge));
 #endif
 		//make a new vertex
 		vertex2 = constructPinchVertex(pinchGraph, -1, 0, 0);
@@ -149,9 +155,7 @@ void splitMultipleBlackEdgesFromVertex(struct PinchGraph *pinchGraph, struct Pin
 		edge->rEdge->to = vertex2;
 		insertBlackEdge(vertex2, edge);
 
-		//now find the grey edge to attach to the new vertex.
-		vertex3 = getNextEdge(pinchGraph, edge->rEdge, net)->from;
-		listAppend(list, vertex3); //can't detach the old vertices yet
+		//finally connect the two new vertices.
 		connectVertices(vertex2, vertex3);
 	}
 	for(j=0; j<list->length; j++) {

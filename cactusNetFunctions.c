@@ -125,8 +125,8 @@ struct PinchGraph *constructPinchGraph(Net *net) {
 
 				//Construct the right cap/stub
 				rightCapEdge = hookUpEdge(constructSegment(endInstance_getName(endInstance2), stop, stop), graph,
-						hashtable_search(hash, (void *)netMisc_nameToStringStatic(end_getName(endInstance_getEnd(endInstance2)))),
-						hashtable_search(hash2, (void *)netMisc_nameToStringStatic(end_getName(endInstance_getEnd(endInstance2)))));
+						hashtable_search(hash2, (void *)netMisc_nameToStringStatic(end_getName(endInstance_getEnd(endInstance2)))),
+						hashtable_search(hash, (void *)netMisc_nameToStringStatic(end_getName(endInstance_getEnd(endInstance2)))));
 
 				//Connect the edges
 				if(length > 0) {

@@ -16,12 +16,11 @@ from cactus.cactus_common import runCactusReconstructionTreeViewer
 from cactus.cactus_common import runCactusAtomGraphViewer
 
 from workflow.jobTree.jobTreeTest import runJobTreeStatusAndFailIfNotComplete
-from workflow.jobTree.jobTreeTest import plotJobTreeGraph
 
 class TestCase(unittest.TestCase):
     
     def setUp(self):
-        self.testNo = TestStatus.getTestSetup(1, 100, 0, 0)
+        self.testNo = TestStatus.getTestSetup(1, 100, 10, 10)
         self.alignmentIterations = TestStatus.getTestSetup(2, 2, 2, 3)
         self.sequenceNumber = TestStatus.getTestSetup(5, 50, 50, 100)
         self.tempFiles = []
@@ -35,10 +34,10 @@ class TestCase(unittest.TestCase):
         unittest.TestCase.setUp(self)
     
     def tearDown(self):
-        #for tempFile in self.tempFiles:
-        #    os.remove(tempFile)
+        for tempFile in self.tempFiles:
+            os.remove(tempFile)
         unittest.TestCase.tearDown(self)
-        #system("rm -rf %s" % self.tempDir)
+        system("rm -rf %s" % self.tempDir)
         
     def testCactusWorkflow_Random(self):
         """Runs the tests across some simulated regions.
@@ -86,7 +85,7 @@ class TestCase(unittest.TestCase):
             newickTreeFile = os.path.join(encodeDatasetPath, "reducedTree.newick")
             
             for encodeRegion in [ "ENm00" + str(i) for i in xrange(1, 3) ]:
-                sequences = [ os.path.join(encodeDatasetPath, encodeRegion, ("%s.%s.fa" % species, encodeRegion)) for\
+                sequences = [ os.path.join(encodeDatasetPath, encodeRegion, ("%s.%s.fa" % (species, encodeRegion))) for\
                              species in ("human", "chimp", "baboon", "mouse", "rat", "dog", "cow") ]
                 outputDir = os.path.join(encodeResultsPath, encodeRegion)
                 
@@ -111,7 +110,7 @@ def runWorkflow(sequences, newickTreeFile, outputDir, tempDir,
     jobTreeDir = os.path.join(getTempDirectory(tempDir), "jobTree")
     logger.info("Got a job tree dir for the test: %s" % jobTreeDir)
     
-    runCactusWorkflow(netDisk, sequences, newickTreeString, jobTreeDir, batchSystem=batchSystem, alignmentIterations=2)
+    runCactusWorkflow(netDisk, sequences, newickTreeString, jobTreeDir, batchSystem=batchSystem, alignmentIterations=1)
     logger.info("Ran the the workflow")
     
     runJobTreeStatusAndFailIfNotComplete(jobTreeDir)

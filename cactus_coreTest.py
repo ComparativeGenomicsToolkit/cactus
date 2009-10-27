@@ -23,7 +23,7 @@ from cactus.cactus_common import runCactusCheckReconstructionTree
 class TestCase(unittest.TestCase):
     
     def setUp(self):
-        self.testNo = TestStatus.getTestSetup(1, 100, 0, 0)
+        self.testNo = TestStatus.getTestSetup(1, 100, 10, 10)
         self.tempDir = getTempDirectory(os.getcwd())
         unittest.TestCase.setUp(self)
     
@@ -91,7 +91,7 @@ def runPipe(sequenceDirs, newickTreeString, tempDir, useDummy=False, writeDebugF
         runCactusCore(tempReconstructionDirectory, tempAlignmentFile, 
                       tempDir=getTempDirectory(tempDir), 
                       writeDebugFiles=writeDebugFiles,
-                      maximumEdgeDegree=1+random.random()*100,
+                      maximumEdgeDegree=1+random.random()*10,
                       proportionOfAtomsToKeep=random.random(),
                       discardRatio=random.random()*2,
                       minimumTreeCoverage=random.random(),
