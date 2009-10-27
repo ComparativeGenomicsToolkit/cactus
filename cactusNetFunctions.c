@@ -134,7 +134,7 @@ struct PinchGraph *constructPinchGraph(Net *net) {
 					connectVertices(edge->to, rightCapEdge->from);
 				}
 				else {
-					connectVertices(leftCapEdge->to, rightCapEdge->to);
+					connectVertices(leftCapEdge->to, rightCapEdge->from);
 				}
 			}
 		}
