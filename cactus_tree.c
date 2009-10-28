@@ -9,28 +9,172 @@
 #include "cactus.h"
 #include "avl.h"
 #include "commonC.h"
+#include "hashTableC.h"
 
 typedef struct _chainAlignment {
 	//Matrix of alignment, matrix[column][row]
-	AtomInstance **matrix;
+	AtomInstance ***matrix;
+	Atom **atoms;
 	int32_t columnNumber;
 	int32_t rowNumber;
-	End *leftEnds;
-	int32_t leftEndNumber;
-	End *rightEnds;
-	int32_t rightEndNumber;
 	int32_t totalAlignmentLength;
 } ChainAlignment;
 
-void buildChainTrees(ChainAlignment *chainAlignment, EventTree *eventTree) {
+char **chainAlignment_getAlignment(ChainAlignment *chainAlignment) {
+	char **alignment;
+	int32_t i, j, k, l;
+	AtomInstance *atomInstance;
+	char *cA;
+
+	//do allocation
+	alignment = malloc(sizeof(void *) * chainAlignment->totalAlignmentLength);
+	for(i=0; i<chainAlignment->totalAlignmentLength; i++) {
+		alignment[i] = malloc(sizeof(char) *chainAlignment->rowNumber);
+	}
+
+	//fill in the array.
+	for(j=0; j<chainAlignment->rowNumber; j++) {
+		l = 0;
+		for(i=0; i<chainAlignment->columnNumber; i++) {
+			atomInstance = chainAlignment->matrix[i][j];
+			if(atomInstance == NULL) {
+				for(k=0; k<atom_getLength(chainAlignment->atoms[i]); k++) {
+					alignment[l++][j]  = 'N';
+				}
+			}
+			else {
+				cA = atomInstance_getString(atomInstance);
+				for(k=0; k<atomInstance_getLength(atomInstance); k++) {
+					alignment[l++][j]  = cA[k];
+				}
+				free(cA);
+			}
+		}
+		assert(l == chainAlignment->totalAlignmentLength);
+	}
+
+	return alignment;
+}
+
+AtomInstance *chainAlignment_getFirstNonNullAtomInstance(ChainAlignment *chainAlignment, int32_t row, bool increasing) {
+	AtomInstance *atomInstance;
+	int32_t j = 0, k = chainAlignment->columnNumber, l = 1;
+	if(!increasing) {
+		j = chainAlignment->columnNumber-1;
+		k = -1;
+		l = -1;
+	}
+	for(; j!=k; j += l) {
+		atomInstance = chainAlignment->matrix[j][row];
+		if(atomInstance != NULL) {
+			return atomInstance;
+		}
+	}
+	assert(0);
+	return NULL;
+}
+
+Name *chainAlignment_getEndNames(ChainAlignment *chainAlignment, bool _5End) {
+	Name *names;
+	int32_t i;
+	AtomInstance *atomInstance;
+
+	names = malloc(sizeof(Name) * chainAlignment->rowNumber);
+	for(i=0; i<chainAlignment->rowNumber; i++) {
+		atomInstance = chainAlignment_getFirstNonNullAtomInstance(chainAlignment, i, _5End);
+		names[i] = end_getName(endInstance_getEnd(endInstance_getAdjacency(_5End ? atomInstance_get5End(atomInstance) : atomInstance_get3End(atomInstance))));
+	}
+	return names;
+}
+
+Name *chainAlignment_getLeafEventNames(ChainAlignment *chainAlignment) {
+	Name *names;
+	int32_t i;
+	AtomInstance *atomInstance;
+
+	names = malloc(sizeof(Name) * chainAlignment->rowNumber);
+	for(i=0; i<chainAlignment->rowNumber; i++) {
+		atomInstance = chainAlignment_getFirstNonNullAtomInstance(chainAlignment, i, 1);
+		names[i] = event_getName(atomInstance_getEvent(atomInstance));
+	}
+	return names;
+}
+
+int32_t *chainAlignment_getAtomBoundaries(ChainAlignment *chainAlignment) {
+	//for(i=0; i<chainAlignment->)
+}
+
+void buildChainTrees_Bernard(char ***concatenatedAtoms, Name **_5Ends, Name **_3Ends, Name **leafEventLabels,
+							int32_t **atomBoundaries, char *eventTreeString, int32_t chainNumber, const char *tempDir) {
 	/*
-	 * This is the function todo the tree construction in.
+	 * Here's the function you need to fill in, I haven't defined the outputs yet - you get it working and then we can discuss.
+	 *
+	 * Arrays are all indexed first by the chain/concatenated atoms.
+	 * Alignments are column/row indexed with rows as chain instances and columns as aligned bases.
+	 * So for example: concatenatedAtoms[i][j][k] is the ith chain/concatenated atom, jth column (position in concatenated atom), kth row (chain instance).
+	 *
+	 * Names can be converted to strings with: netMisc_nameToString() and netMisc_nameToStringStatic() (See the API).
 	 */
+
+
+}
+
+void buildChainTrees(ChainAlignment **chainAlignments, int32_t chainAlignmentNumber, EventTree *eventTree) {
+	/*
+	 * This is the function to do the tree construction in.
+	 */
+	int32_t i;
+
+	char ***concatenatedAtoms;
+	Name **_5Ends;
+	Name **_3Ends;
+	Name **leafEventLabels;
+	int32_t **atomBoundaries;
+	char *eventTreeString;
+
+	//Make the atom alignments.
+	concatenatedAtoms = malloc(sizeof(void *) * chainAlignmentNumber);
+	_5Ends = malloc(sizeof(void *) * chainAlignmentNumber);
+	_3Ends = malloc(sizeof(void *) * chainAlignmentNumber);
+	leafEventLabels = malloc(sizeof(void *) * chainAlignmentNumber);
+	atomBoundaries = malloc(sizeof(void *) * chainAlignmentNumber);
+	for(i=0; i<chainAlignmentNumber; i++) {
+		concatenatedAtoms[i] = chainAlignment_getAlignment(chainAlignments[i]);
+		_5Ends[i] = chainAlignment_getEndNames(chainAlignments[i], 1);
+		_3Ends[i] = chainAlignment_getEndNames(chainAlignments[i], 0);
+		leafEventLabels[i] = chainAlignment_getLeafEventNames(chainAlignments[i]);
+		atomBoundaries[i] = chainAlignment_getAtomBoundaries(chainAlignments[i]);
+	}
+	//Event tree string
+	eventTreeString = eventTree_makeNewickString(eventTree);
+
+	//call to Bernard's code
+	buildChainTrees_Bernard(concatenatedAtoms, _5Ends, _3Ends, leafEventLabels, atomBoundaries, eventTreeString,
+			constructRandomDir(tempFileTree));
+
+	//build trees, augmented event trees.
+
+	//clean up.
+	for(i=0; i<chainAlignmentNumber; i++) {
+		free(concatenatedAtoms[i]);
+		free(_5Ends[i]);
+		free(_3Ends[i]);
+		free(leafEventLabels[i]);
+		free(atomBoundaries[i]);
+	}
+	free(concatenatedAtoms);
+	free(_5Ends);
+	free(_3Ends);
+	free(leafEventLabels);
+	free(atomBoundaries);
+	free(eventTreeString);
+
+	//done!
 }
 
 int32_t chainAlignment_cmpFn(ChainAlignment *cA1, ChainAlignment *cA2, const void *a) {
 	assert(a == NULL);
-	return cA1->totalAlignmentLength - cA2->totalAlignmentLength;
+	return cA2->totalAlignmentLength - cA1->totalAlignmentLength; //sort descending
 }
 
 int chainAlignment_constructP(AtomInstance **atomInstance1, AtomInstance **atomInstance2) {
@@ -48,37 +192,83 @@ int chainAlignment_constructP(AtomInstance **atomInstance1, AtomInstance **atomI
 }
 
 ChainAlignment *chainAlignment_construct(struct List *atoms) {
-	int32_t i;
+	int32_t i, j;
 	Atom *atom;
+	Atom *atom2;
 	AtomInstance *atomInstance;
-	ChainAlignment *chainAlignment = malloc(sizeof(ChainAlignment));
-	struct List *instances;
+	AtomInstance *atomInstance2;
+	ChainAlignment *chainAlignment;
+	struct hashtable *hash;
+	struct List *list;
+	struct List *list2;
 
-	//sort the instances into order
-	instances = constructEmptyList(0, NULL);
+	//Construct a list of chain instances.
+	hash = create_hashtable(1, hashtable_key, hashtable_equalKey, NULL, NULL);
+	list = constructEmptyList(0, (void (*)(void *))destructList);
 	for(i=0; i<atoms->length; i++) {
 		atom = atoms->list[i];
 		Atom_InstanceIterator *instanceIterator = atom_getInstanceIterator(atom);
 		while((atomInstance = atom_getNext(instanceIterator)) != NULL) {
-			listAppend(instances, atomInstance_getStrand(atomInstance) ? atomInstance : atomInstance_getReverse(atomInstance));
+			if(hashtable_search(hash, atomInstance) == NULL) {
+				list2 = constructEmptyList(atoms->length, NULL);
+				for(j=0; j<atoms->length; j++) {
+					list2->list[j] = NULL;
+				}
+				listAppend(list, list2);
+				j = i;
+				while(1) {
+					hashtable_insert(hash, atomInstance, atomInstance);
+					list2->list[j++] = atomInstance;
+					atomInstance2 = endInstance_getAtomInstance(endInstance_getAdjacency(atomInstance_get3End(atomInstance)));
+					if(atomInstance2 == NULL) {
+						break;
+					}
+					atom2 = j < atoms->length ? atoms->list[j] : NULL;
+					if(atomInstance_getAtom(atomInstance2) != atom2) {
+						break;
+					}
+					atomInstance = atomInstance2;
+				}
+			}
 		}
 		atom_destructInstanceIterator(instanceIterator);
 	}
-	qsort(instances->list, instances->length, sizeof(AtomInstance *), (int (*)(const void *v, const void *))chainAlignment_constructP);
 
-	//now construct the instances matrix
-	for(i=0; i<instances->length; i++) {
-		atomInstance = instances->list[i];
+	//Now do actual construction;
+	chainAlignment = malloc(sizeof(ChainAlignment));
+	chainAlignment->matrix = malloc(sizeof(AtomInstance **) * atoms->length);
+	for(i=0; i<atoms->length; i++) {
+		chainAlignment->matrix[i] = malloc(sizeof(AtomInstance *) * list->length);
+	}
+	chainAlignment->columnNumber = atoms->length;
+	chainAlignment->rowNumber = list->length;
+	for(i=0; i<list->length; i++) {
+		list2 = list->list[i];
+		for(j=0; j<list2->length; j++) {
+			chainAlignment->matrix[j][i] = list2->list[j];
+		}
+	}
+	//Calculate the total length.
+	chainAlignment->totalAlignmentLength = 0;
+	for(i=0;atoms->length; i++) {
+		chainAlignment->totalAlignmentLength += atom_getLength(atoms->list[i]);
 	}
 
+	//Cleanup
+	destructList(list);
+	hashtable_destroy(hash, FALSE, FALSE);
 
 	return chainAlignment;
 }
 
 void chainAlignment_destruct(ChainAlignment *chainAlignment) {
+	int32_t i;
+	for(i=0; i<chainAlignment->columnNumber; i++) {
+		free(chainAlignment->matrix[i]);
+	}
 	free(chainAlignment->matrix);
-	free(chainAlignment->leftEnds);
-	free(chainAlignment->rightEnds);
+	//free(chainAlignment->leftEnds);
+	//free(chainAlignment->rightEnds);
 	free(chainAlignment);
 }
 
@@ -154,6 +344,7 @@ int main(int argc, char *argv[]) {
 	struct List *atoms;
 	struct avl_table *sortedChainAlignments;
 	ChainAlignment *chainAlignment;
+	struct List *list;
 
 	/*
 	 * Arguments/options
@@ -309,9 +500,13 @@ int main(int argc, char *argv[]) {
 	startTime = time(NULL);
 	struct avl_traverser *chainAlignmentIterator = mallocLocal(sizeof(struct avl_traverser));
 	avl_t_init(chainAlignmentIterator, sortedChainAlignments);
+	list = constructEmptyList(0, NULL);
 	while((chainAlignment = avl_t_next(chainAlignmentIterator)) != NULL) {
-		buildChainTrees(chainAlignment, net_getEventTree(net));
+		listAppend(list, chainAlignment);
 	}
+	buildChainTrees((ChainAlignment **)list->list, list->length, net_getEventTree(net));
+	destructList(list);
+
 	logInfo("Augmented the atom trees in: %i seconds\n", time(NULL) - startTime);
 
 	///////////////////////////////////////////////////////////////////////////
