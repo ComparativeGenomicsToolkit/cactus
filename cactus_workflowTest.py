@@ -30,7 +30,7 @@ class TestCase(unittest.TestCase):
             self.batchSystem = "parasol"
         else:
             self.batchSystem = "single_machine"
-        self.batchSystem = "single_machine"
+        #self.batchSystem = "single_machine"
         unittest.TestCase.setUp(self)
     
     def tearDown(self):

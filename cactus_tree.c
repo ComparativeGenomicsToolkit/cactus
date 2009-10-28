@@ -7,6 +7,74 @@
 #include <getopt.h>
 
 #include "cactus.h"
+#include "avl.h"
+#include "commonC.h"
+
+typedef struct _chainAlignment {
+	//Matrix of alignment, matrix[column][row]
+	AtomInstance **matrix;
+	int32_t columnNumber;
+	int32_t rowNumber;
+	End *leftEnds;
+	int32_t leftEndNumber;
+	End *rightEnds;
+	int32_t rightEndNumber;
+	int32_t totalAlignmentLength;
+} ChainAlignment;
+
+void buildChainTrees(ChainAlignment *chainAlignment, EventTree *eventTree) {
+	/*
+	 * This is the function todo the tree construction in.
+	 */
+}
+
+int32_t chainAlignment_cmpFn(ChainAlignment *cA1, ChainAlignment *cA2, const void *a) {
+	assert(a == NULL);
+	return cA1->totalAlignmentLength - cA2->totalAlignmentLength;
+}
+
+ChainAlignment *chainAlignment_construct(struct List *atoms) {
+	int32_t i;
+	Atom *atom;
+	ChainAlignment *chainAlignment = malloc(sizeof(ChainAlignment));
+
+	for(i=0; i<atoms->length; i++) {
+		atom = atoms->list[i];
+	}
+
+	return chainAlignment;
+}
+
+void chainAlignment_destruct(ChainAlignment *chainAlignment) {
+	free(chainAlignment->matrix);
+	free(chainAlignment->leftEnds);
+	free(chainAlignment->rightEnds);
+	free(chainAlignment);
+}
+
+Event *copyConstructUnaryEvent(Event *event, EventTree *eventTree2) {
+	assert(event_getChildNumber(event) == 1);
+
+	double branchLength = event_getBranchLength(event);
+
+	Event *parentEvent = event_getParent(event);
+	while(eventTree_getEvent(eventTree2, event_getName(parentEvent)) == NULL) {
+		branchLength += event_getBranchLength(parentEvent);
+		parentEvent = event_getParent(parentEvent);
+		assert(parentEvent != NULL);
+	}
+	parentEvent = eventTree_getEvent(eventTree2, event_getName(parentEvent));
+
+	Event *childEvent = event_getChild(event, 0);
+	while(eventTree_getEvent(eventTree2, event_getName(parentEvent)) == NULL) {
+		assert(event_getChildNumber(childEvent) == 1);
+		childEvent = event_getChild(parentEvent, 0);
+		assert(childEvent != NULL);
+	}
+	childEvent = eventTree_getEvent(eventTree2, event_getName(childEvent));
+
+	return event_construct2(event_getMetaEvent(event), branchLength, parentEvent, childEvent, eventTree2);
+}
 
 void usage() {
 	fprintf(stderr, "cactus_tree, version 0.2\n");
@@ -15,7 +83,6 @@ void usage() {
 	fprintf(stderr, "-d --netName : The name of the net (the key in the database)\n");
 	fprintf(stderr, "-e --tempDirRoot : The temp file root directory\n");
 	fprintf(stderr, "-h --help : Print this help screen\n");
-	fprintf(stderr, "-k --job : The job file.\n");
 }
 
 int main(int argc, char *argv[]) {
@@ -44,6 +111,19 @@ int main(int argc, char *argv[]) {
 	 */
 	NetDisk *netDisk;
 	Net *net;
+	Net *net2;
+	int32_t startTime;
+	int32_t i;
+	Chain *chain;
+	Link *link;
+	End *end;
+	End *end2;
+	EndInstance *endInstance;
+	Atom *atom;
+	AdjacencyComponent *adjacencyComponent;
+	struct List *atoms;
+	struct avl_table *sortedChainAlignments;
+	ChainAlignment *chainAlignment;
 
 	/*
 	 * Arguments/options
@@ -52,7 +132,6 @@ int main(int argc, char *argv[]) {
 	char * netDiskName = NULL;
 	char * netName = NULL;
 	char * tempFileRootDirectory = NULL;
-	char * jobFile;
 
 	///////////////////////////////////////////////////////////////////////////
 	// (0) Parse the inputs handed by genomeCactus.py / setup stuff.
@@ -61,23 +140,16 @@ int main(int argc, char *argv[]) {
 	while(1) {
 		static struct option long_options[] = {
 			{ "logLevel", required_argument, 0, 'a' },
-			{ "alignments", required_argument, 0, 'b' },
 			{ "netDisk", required_argument, 0, 'c' },
 			{ "netName", required_argument, 0, 'd' },
 			{ "tempDirRoot", required_argument, 0, 'e' },
-			{ "maxEdgeDegree", required_argument, 0, 'f' },
-			{ "writeDebugFiles", no_argument, 0, 'g' },
 			{ "help", no_argument, 0, 'h' },
-			{ "proportionToKeep", required_argument, 0, 'k' },
-			{ "discardRatio", required_argument, 0, 'l' },
-			{ "minimumTreeCoverage", required_argument, 0, 'm' },
-			{ "minimumChainLength", required_argument, 0, 'n' },
 			{ 0, 0, 0, 0 }
 		};
 
 		int option_index = 0;
 
-		key = getopt_long(argc, argv, "a:b:c:d:e:f:ghk:l:m:n:", long_options, &option_index);
+		int key = getopt_long(argc, argv, "a:c:d:e:h", long_options, &option_index);
 
 		if(key == -1) {
 			break;
@@ -86,9 +158,6 @@ int main(int argc, char *argv[]) {
 		switch(key) {
 			case 'a':
 				logLevelString = stringCopy(optarg);
-				break;
-			case 'b':
-				alignmentsFile = stringCopy(optarg);
 				break;
 			case 'c':
 				netDiskName = stringCopy(optarg);
@@ -99,27 +168,9 @@ int main(int argc, char *argv[]) {
 			case 'e':
 				tempFileRootDirectory = stringCopy(optarg);
 				break;
-			case 'f':
-				assert(sscanf(optarg, "%i", &maxEdgeDegree) == 1);
-				break;
-			case 'g':
-				writeDebugFiles = 1;
-				break;
 			case 'h':
 				usage();
 				return 0;
-			case 'k':
-				assert(sscanf(optarg, "%f", &proportionToKeep) == 1);
-				break;
-			case 'l':
-				assert(sscanf(optarg, "%f", &discardRatio) == 1);
-				break;
-			case 'm':
-				assert(sscanf(optarg, "%f", &minimumTreeCoverage) == 1);
-				break;
-			case 'n':
-				assert(sscanf(optarg, "%i", &minimumChainLength) == 1);
-				break;
 			default:
 				usage();
 				return 1;
@@ -131,15 +182,9 @@ int main(int argc, char *argv[]) {
 	///////////////////////////////////////////////////////////////////////////
 
 	assert(logLevelString == NULL || strcmp(logLevelString, "INFO") == 0 || strcmp(logLevelString, "DEBUG") == 0);
-	assert(alignmentsFile != NULL);
 	assert(netDiskName != NULL);
 	assert(netName != NULL);
 	assert(tempFileRootDirectory != NULL);
-	assert(maxEdgeDegree > 0);
-	assert(proportionToKeep >= 0.0 && proportionToKeep <= 1.0);
-	assert(discardRatio >= 0.0);
-	assert(minimumTreeCoverage >= 0.0);
-	assert(minimumChainLength >= 0);
 
 	//////////////////////////////////////////////
 	//Set up logging
@@ -156,11 +201,9 @@ int main(int argc, char *argv[]) {
 	//Log (some of) the inputs
 	//////////////////////////////////////////////
 
-	logInfo("Pairwise alignments file : %s\n", alignmentsFile);
 	logInfo("Net disk name : %s\n", netDiskName);
 	logInfo("Net name : %s\n", netName);
 	logInfo("Temp file root directory : %s\n", tempFileRootDirectory);
-	logInfo("Max edge degree : %i\n", maxEdgeDegree);
 
 	//////////////////////////////////////////////
 	//Set up the temp file root directory
@@ -182,209 +225,111 @@ int main(int argc, char *argv[]) {
 	net = netDisk_getNet(netDisk, netMisc_stringToName(netName));
 	logInfo("Parsed the net to be refined\n");
 
-	startTime = time(NULL);
-
 	///////////////////////////////////////////////////////////////////////////
-	//Setup the basic pinch graph
-	///////////////////////////////////////////////////////////////////////////
-
-	pinchGraph = constructPinchGraph(net);
-
-	if(writeDebugFiles) {
-		writePinchGraph("pinchGraph1.dot", pinchGraph, NULL, NULL);
-		logDebug("Finished writing out dot formatted version of initial pinch graph\n");
-	}
-	//check the graph is consistent
-	checkPinchGraph(pinchGraph);
-
-	logInfo("Constructed the graph in: %i seconds\n", time(NULL) - startTime);
-	logInfo("Vertex number %i \n", pinchGraph->vertices->length);
-
-	///////////////////////////////////////////////////////////////////////////
-	//  (2) Adding alignments to the pinch graph
-	///////////////////////////////////////////////////////////////////////////
-
-	//Now run through all the alignments.
-	startTime = time(NULL);
-	fileHandle = fopen(alignmentsFile, "r");
-	pairwiseAlignment = cigarRead(fileHandle);
-	logInfo("Now doing the pinch merges:\n");
-	i = 0;
-	while(pairwiseAlignment != NULL) {
-		logDebug("Alignment : %i , score %f\n", i++, pairwiseAlignment->score);
-		logPairwiseAlignment(pairwiseAlignment);
-		pinchMerge(pinchGraph, pairwiseAlignment);
-		destructPairwiseAlignment(pairwiseAlignment);
-		pairwiseAlignment = cigarRead(fileHandle);
-	}
-	logInfo("Finished pinch merges\n");
-
-	if(writeDebugFiles) {
-		logDebug("Writing out dot formatted version of pinch graph with alignments added\n");
-		writePinchGraph("pinchGraph2.dot", pinchGraph, NULL, NULL);
-		logDebug("Finished writing out dot formatted version of pinch graph with alignments added\n");
-	}
-
-	checkPinchGraph(pinchGraph);
-	logInfo("Pinched the graph in: %i seconds\n", time(NULL) - startTime);
-
-	///////////////////////////////////////////////////////////////////////////
-	// (3) Removing over aligned stuff.
+	//Construct the chain alignments for all the non-trivial chains.
 	///////////////////////////////////////////////////////////////////////////
 
 	startTime = time(NULL);
-	assert(maxEdgeDegree >= 1);
-	logInfo("Before removing over aligned edges the graph has %i vertices and %i black edges\n", pinchGraph->vertices->length, avl_count(pinchGraph->edges));
-	removeOverAlignedEdges(pinchGraph, maxEdgeDegree, net);
-	logInfo("After removing over aligned edges (degree %i) the graph has %i vertices and %i black edges\n", maxEdgeDegree, pinchGraph->vertices->length, avl_count(pinchGraph->edges));
-	removeTrivialGreyEdgeComponents(pinchGraph, pinchGraph->vertices);
-	logInfo("After removing the trivial graph components the graph has %i vertices and %i black edges\n", pinchGraph->vertices->length, avl_count(pinchGraph->edges));
-	checkPinchGraphDegree(pinchGraph, maxEdgeDegree);
-
-	if(writeDebugFiles) {
-		logDebug("Writing out dot formatted version of pinch graph with over aligned edges removed\n");
-		writePinchGraph("pinchGraph3.dot", pinchGraph, NULL, NULL);
-		logDebug("Finished writing out dot formatted version of pinch graph with over aligned edges removed\n");
+	sortedChainAlignments = avl_create((int32_t (*)(const void *, const void *, void *))chainAlignment_cmpFn, NULL, NULL);
+	Net_ChainIterator *chainIterator = net_getChainIterator(net);
+	while((chain = net_getNextChain(chainIterator)) != NULL) {
+		atoms = constructEmptyList(0, NULL);
+		for(i=0; i<chain_getLength(chain); i++) {
+			link = chain_getLink(chain, i);
+			end = link_getLeft(link);
+			atom = end_getAtom(end);
+			if(atom != NULL) {
+				listAppend(atoms, atom);
+			}
+		}
+		link = chain_getLink(chain, chain_getLength(chain)-1);
+		end = link_getRight(link);
+		atom = end_getAtom(end);
+		if(atom != NULL) {
+			listAppend(atoms, atom);
+		}
+		avl_insert(sortedChainAlignments, chainAlignment_construct(atoms));
+		destructList(atoms);
 	}
-
-	checkPinchGraph(pinchGraph);
-	logInfo("Removed the over aligned edges in: %i seconds\n", time(NULL) - startTime);
+	net_destructChainIterator(chainIterator);
+	logInfo("Constructed the atom trees for the non-trivial chains in the net in: %i seconds\n", time(NULL) - startTime);
 
 	///////////////////////////////////////////////////////////////////////////
-	// (4) Linking stub components to the sink component.
+	//For each lone atom call the tree construction function.
 	///////////////////////////////////////////////////////////////////////////
 
 	startTime = time(NULL);
-	linkStubComponentsToTheSinkComponent(pinchGraph);
-
-	if(writeDebugFiles) {
-		logDebug("Writing out dot formatted version of pinch graph stub components linked to the sink vertex\n");
-		writePinchGraph("pinchGraph4.dot", pinchGraph, NULL, NULL);
-		logDebug("Finished writing out dot formatted version of pinch graph with stub components linked to the sink vertex\n");
+	Net_AtomIterator *atomIterator = net_getAtomIterator(net);
+	while((atom = net_getNextAtom(atomIterator)) != NULL) {
+		if(atom_getChain(atom) == NULL) {
+			atoms = constructEmptyList(0, NULL);
+			listAppend(atoms, atom);
+			avl_insert(sortedChainAlignments, chainAlignment_construct(atoms));
+			destructList(atoms);
+		}
 	}
+	net_destructAtomIterator(atomIterator);
 
-	checkPinchGraph(pinchGraph);
-	logInfo("Linked stub components to the sink component in: %i seconds\n", time(NULL) - startTime);
+	logInfo("Constructed the atom trees for the trivial chains in the net in: %i seconds\n", time(NULL) - startTime);
 
 	///////////////////////////////////////////////////////////////////////////
-	// (5) Constructing the basic cactus.
+	//For each chain call the tree construction function.
 	///////////////////////////////////////////////////////////////////////////
 
 	startTime = time(NULL);
-	extraEdges = getEmptyExtraEdges(pinchGraph);
-	i = computeCactusGraph(pinchGraph, &cactusGraph, &threeEdgeConnectedComponents, extraEdges, (char *)logLevelString);
-
-	if(i != 0) {
-		logInfo("Something went wrong constructing the initial cactus graph\n");
-		return i;
+	struct avl_traverser *chainAlignmentIterator = mallocLocal(sizeof(struct avl_traverser));
+	avl_t_init(chainAlignmentIterator, sortedChainAlignments);
+	while((chainAlignment = avl_t_next(chainAlignmentIterator)) != NULL) {
+		buildChainTrees(chainAlignment, net_getEventTree(net));
 	}
-
-	if(writeDebugFiles) {
-		logDebug("Writing out dot formatted version of initial cactus graph\n");
-		writeCactusGraph("cactusGraph1.dot", pinchGraph, cactusGraph);
-		logDebug("Finished writing out dot formatted version of initial cactus graph\n");
-	}
-
-	logInfo("Constructed the initial cactus graph in: %i seconds\n", time(NULL) - startTime);
+	logInfo("Augmented the atom trees in: %i seconds\n", time(NULL) - startTime);
 
 	///////////////////////////////////////////////////////////////////////////
-	// (6) Circularising the stems in the cactus.
+	//Pass the end trees and augmented events to the child nets.
 	///////////////////////////////////////////////////////////////////////////
 
 	startTime = time(NULL);
-	circulariseStems(cactusGraph, extraEdges, threeEdgeConnectedComponents);
-	destructCactusGraph(cactusGraph); //clean up the initial cactus graph.
-	destructList(threeEdgeConnectedComponents);
-	i = computeCactusGraph(pinchGraph, &cactusGraph, &threeEdgeConnectedComponents, extraEdges, (char *)logLevelString);
-
-	if(i != 0) {
-		logInfo("Something went wrong constructing the cactus with circularised stems\n");
-		return i;
+	Net_AdjacencyComponentIterator *adjacencyComponentIterator = net_getAdjacencyComponentIterator(net);
+	while((adjacencyComponent = net_getNextAdjacencyComponent(adjacencyComponentIterator)) != NULL) {
+		net2 = adjacencyComponent_getNestedNet(adjacencyComponent);
+		//add in the end trees and augment the event trees.
+		AdjacencyComponent_EndIterator *endIterator = adjacencyComponent_getEndIterator(adjacencyComponent);
+		while((end = adjacencyComponent_getNextEnd(endIterator)) != NULL) {
+			end2 = net_getEnd(net2, end_getName(end));
+			//copy the end instances.
+			End_InstanceIterator *instanceIterator = end_getInstanceIterator(end);
+			while((endInstance = end_getNext(instanceIterator)) != NULL) {
+				if(end_getInstance(end2, endInstance_getName(endInstance)) == NULL) {
+					//make sure the augmented event is in there.
+					if(eventTree_getEvent(net_getEventTree(net2), event_getName(endInstance_getEvent(endInstance))) == NULL) {
+						copyConstructUnaryEvent(endInstance_getEvent(endInstance), net_getEventTree(net2));
+					}
+					endInstance_construct(end, endInstance_getEvent(endInstance));
+				}
+			}
+			//now copy the parent links.
+			while((endInstance = end_getPrevious(instanceIterator)) != NULL) {
+				if(endInstance_getParent(endInstance) != NULL) {
+					endInstance_makeParentAndChild(
+							end_getInstance(end2, endInstance_getName(endInstance_getParent(endInstance))),
+							end_getInstance(end2, endInstance_getName(endInstance)));
+				}
+			}
+			end_destructInstanceIterator(instanceIterator);
+		}
+		adjacencyComponent_destructEndIterator(endIterator);
 	}
+	net_destructAdjacencyComponentIterator(adjacencyComponentIterator);
 
-	if(writeDebugFiles) {
-		logDebug("Writing out dot formatted version of 2-edge component only cactus graph\n");
-		writeCactusGraph("cactusGraph2.dot", pinchGraph, cactusGraph);
-		logDebug("Finished writing out dot formatted version of 2-edge component only cactus graph\n");
-	}
-
-	logInfo("Constructed the 2-edge component only cactus graph\n");
-
-	checkCactusContainsOnly2EdgeConnectedComponents(cactusGraph);
-	logInfo("Checked the cactus contains only 2-edge connected components in: %i seconds\n", time(NULL) - startTime);
-
-	///////////////////////////////////////////////////////////////////////////
-	// (7) Eliminating chain discontinuities.
-	///////////////////////////////////////////////////////////////////////////
-
-	/*startTime = time(NULL);
-	breakLoopDiscontinuities(cactusGraph, extraEdges, threeEdgeConnectedComponents);
-	destructCactusGraph(cactusGraph); //clean up the initial cactus graph.
-	destructList(threeEdgeConnectedComponents);
-	i = computeCactusGraph(pinchGraph, &cactusGraph, &threeEdgeConnectedComponents, extraEdges, (char *)logLevelString);
-
-	if(i != 0) {
-		logInfo("Something went wrong constructing the cactus without loop discontinuities\n");
-		return i;
-	}
-
-	if(writeDebugFiles) {
-		logDebug("Writing out dot formatted version of the final cactus graph\n");
-		writeCactusGraph("cactusGraph3.dot", pinchGraph, cactusGraph);
-		logDebug("Finished writing out dot formatted version of the final cactus graph\n");
-	}
-
-	logInfo("Constructed the final cactus graph in: %i seconds\n", time(NULL) - startTime);*/
-
-	////////////////////////////////////////////////
-	//Get sorted bi-connected components.
-	////////////////////////////////////////////////
-
-	biConnectedComponents = computeSortedBiConnectedComponents(cactusGraph);
-
-	if(writeDebugFiles) {
-		logDebug("Writing out dot formatted final pinch graph showing chains prior to pruning\n");
-		writePinchGraph("pinchGraph5.dot", pinchGraph, biConnectedComponents, NULL);
-		logDebug("Finished writing out final pinch graph showing chains prior to pruning\n");
-	}
-
-	///////////////////////////////////////////////////////////////////////////
-	// (9) Choosing an atom subset.
-	///////////////////////////////////////////////////////////////////////////
-
-	//first get tree covering score for each atom -
-	//drop all atoms with score less than X.
-	//accept chains whose remaining element's combined length is greater than a set length.
-
-	startTime = time(NULL);
-	chosenAtoms = filterAtomsByTreeCoverageAndLength(biConnectedComponents,
-			net, proportionToKeep,
-			discardRatio, minimumTreeCoverage, minimumChainLength,
-			pinchGraph);
-	//now report the results
-	logTheChosenAtomSubset(biConnectedComponents, chosenAtoms, pinchGraph, net);
-
-	if(writeDebugFiles) {
-		logDebug("Writing out dot formatted final pinch graph showing chains after pruning\n");
-		list = constructEmptyList(0, NULL);
-		listAppend(list, chosenAtoms);
-		writePinchGraph("pinchGraph6.dot", pinchGraph, list, NULL);
-		destructList(list);
-		logDebug("Finished writing out final pinch graph showing chains prior to pruning\n");
-	}
-
-	///////////////////////////////////////////////////////////////////////////
-	// (8) Constructing the net.
-	///////////////////////////////////////////////////////////////////////////
-
-	fillOutNetFromInputs(net, cactusGraph, pinchGraph, chosenAtoms);
+	logInfo("Filled in end trees and augmented the event trees for the child nets in: %i seconds\n", time(NULL) - startTime);
 
 	///////////////////////////////////////////////////////////////////////////
 	// (9) Write the net to disk.
 	///////////////////////////////////////////////////////////////////////////
 
+	startTime = time(NULL);
 	netDisk_write(netDisk);
-	logInfo("Updated the net on disk\n");
+	logInfo("Updated the net on disk in: %i seconds\n", time(NULL) - startTime);
 
 	///////////////////////////////////////////////////////////////////////////
 	//(15) Clean up.
@@ -392,13 +337,6 @@ int main(int argc, char *argv[]) {
 
 	//Destruct stuff
 	startTime = time(NULL);
-	destructList(biConnectedComponents);
-	destructPinchGraph(pinchGraph);
-	destructList(extraEdges);
-	destructList(threeEdgeConnectedComponents);
-	destructCactusGraph(cactusGraph);
-	destructList(chosenAtoms);
-	removeAllTempFiles();
 	netDisk_destruct(netDisk);
 
 	logInfo("Cleaned stuff up and am finished in: %i seconds\n", time(NULL) - startTime);

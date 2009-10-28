@@ -4,13 +4,16 @@ libPath = ../../lib
 
 cflags += ${tokyoCabinetIncl}
 
-all : ${binPath}/cactus_3Edge ${binPath}/cactus_core ${binPath}/cactus_setup ${binPath}/cactus_aligner.py ${binPath}/cactus_workflow.py ${binPath}/cactus_workflow_getNets ${binPath}/cactus_alignerTestAligner.py ${binPath}/cactus_coreTestTreeBuilder.py ${binPath}/cactus_adjacencyTestAdjacencyBuilder.py 
+all : ${binPath}/cactus_3Edge ${binPath}/cactus_core ${binPath}/cactus_tree ${binPath}/cactus_setup ${binPath}/cactus_aligner.py ${binPath}/cactus_workflow.py ${binPath}/cactus_workflow_getNets ${binPath}/cactus_alignerTestAligner.py ${binPath}/cactus_coreTestTreeBuilder.py ${binPath}/cactus_adjacencyTestAdjacencyBuilder.py 
 
 ${binPath}/cactus_3Edge : 3_Absorb3edge2x.c ${libPath}/sonLib.a
 	${cxx} ${cflags} -I ${libPath} -o ${binPath}/cactus_3Edge 3_Absorb3edge2x.c ${libPath}/sonLib.a 
 
-${binPath}/cactus_core : *.c *.h ${libPath}/sonLib.a ${libPath}/sonLibPlus.a ${libPath}/xmlLib.a ${libPath}/cactusLib.a
+${binPath}/cactus_core : *.c *.h ${libPath}/sonLib.a ${libPath}/cactusLib.a
 	${cxx} ${cflags} -I ${libPath} -o ${binPath}/cactus_core cactus_core.c pinchGraph.c pinchGraphTest.c pinchGraphManipulation.c cactusGraph.c cactusNetFunctions.c ${libPath}/sonLib.a ${libPath}/cactusLib.a ${tokyoCabinetLib}
+
+${binPath}/cactus_tree : *.c *.h ${libPath}/sonLib.a ${libPath}/cactusLib.a
+	${cxx} ${cflags} -I ${libPath} -o ${binPath}/cactus_tree cactus_tree.c  ${libPath}/sonLib.a ${libPath}/cactusLib.a ${tokyoCabinetLib}
 
 ${binPath}/cactus_setup : cactus_setup.c ${libPath}/sonLib.a ${libPath}/cactusLib.a
 	${cxx} ${cflags} -I ${libPath} -o ${binPath}/cactus_setup cactus_setup.c ${libPath}/cactusLib.a ${libPath}/sonLib.a ${tokyoCabinetLib}
@@ -41,4 +44,4 @@ ${binPath}/cactus_adjacencyTestAdjacencyBuilder.py : cactus_adjacencyTestAdjacen
 
 clean :
 	rm -f *.o
-	rm -f ${binPath}/cactus_core ${binPath}/cactus_3Edge ${binPath}/cactus_checkReconstructionTree ${binPath}/cactus_setup ${binPath}/cactus_aligner.py ${binPath}/cactus_aligner ${binPath}/cactus_workflow.py ${binPath}/cactus_alignerTestAligner.py ${binPath}/cactus_coreTestTreeBuilder.py ${binPath}/cactus_adjacencyTestAdjacencyBuilder.py ${binPath}/cactus_reconstructionTreeViewer.py ${binPath}/cactus_atomGraphViewer.py
+	rm -f ${binPath}/cactus_core ${binPath}/cactus_tree ${binPath}/cactus_3Edge ${binPath}/cactus_checkReconstructionTree ${binPath}/cactus_setup ${binPath}/cactus_aligner.py ${binPath}/cactus_aligner ${binPath}/cactus_workflow.py ${binPath}/cactus_alignerTestAligner.py ${binPath}/cactus_coreTestTreeBuilder.py ${binPath}/cactus_adjacencyTestAdjacencyBuilder.py ${binPath}/cactus_reconstructionTreeViewer.py ${binPath}/cactus_atomGraphViewer.py
