@@ -33,14 +33,44 @@ int32_t chainAlignment_cmpFn(ChainAlignment *cA1, ChainAlignment *cA2, const voi
 	return cA1->totalAlignmentLength - cA2->totalAlignmentLength;
 }
 
+int chainAlignment_constructP(AtomInstance **atomInstance1, AtomInstance **atomInstance2) {
+	assert(atomInstance_getStrand(*atomInstance1) && atomInstance_getStrand(*atomInstance2));
+	Sequence *sequence1 = atomInstance_getSequence(*atomInstance1);
+	Sequence *sequence2 = atomInstance_getSequence(*atomInstance2);
+	int32_t i = netMisc_nameCompare(sequence_getName(sequence1), sequence_getName(sequence2));
+	if(i == 0) {
+		int32_t j = atomInstance_getStart(*atomInstance1);
+		int32_t k = atomInstance_getStart(*atomInstance2);
+		i = j - k;
+		assert(i != 0);
+	}
+	return i;
+}
+
 ChainAlignment *chainAlignment_construct(struct List *atoms) {
 	int32_t i;
 	Atom *atom;
+	AtomInstance *atomInstance;
 	ChainAlignment *chainAlignment = malloc(sizeof(ChainAlignment));
+	struct List *instances;
 
+	//sort the instances into order
+	instances = constructEmptyList(0, NULL);
 	for(i=0; i<atoms->length; i++) {
 		atom = atoms->list[i];
+		Atom_InstanceIterator *instanceIterator = atom_getInstanceIterator(atom);
+		while((atomInstance = atom_getNext(instanceIterator)) != NULL) {
+			listAppend(instances, atomInstance_getStrand(atomInstance) ? atomInstance : atomInstance_getReverse(atomInstance));
+		}
+		atom_destructInstanceIterator(instanceIterator);
 	}
+	qsort(instances->list, instances->length, sizeof(AtomInstance *), (int (*)(const void *v, const void *))chainAlignment_constructP);
+
+	//now construct the instances matrix
+	for(i=0; i<instances->length; i++) {
+		atomInstance = instances->list[i];
+	}
+
 
 	return chainAlignment;
 }
