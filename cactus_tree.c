@@ -207,25 +207,25 @@ int chainAlignment_constructP(AtomInstance **atomInstance1, AtomInstance **atomI
 }
 
 ChainAlignment *chainAlignment_construct(struct List *atoms) {
-	int32_t i, j;
+	int32_t i, j, k;
 	Atom *atom;
-	Atom *atom2;
 	AtomInstance *atomInstance;
 	AtomInstance *atomInstance2;
+	EndInstance *endInstance;
 	ChainAlignment *chainAlignment;
 	struct hashtable *hash;
 	struct List *list;
 	struct List *list2;
 
-	uglyf("Got %i atoms\n", atoms->length);
-
 	//Construct a list of chain instances.
 	hash = create_hashtable(1, hashtable_key, hashtable_equalKey, NULL, NULL);
 	list = constructEmptyList(0, (void (*)(void *))destructList);
+	k = 0;
 	for(i=0; i<atoms->length; i++) {
 		atom = atoms->list[i];
 		Atom_InstanceIterator *instanceIterator = atom_getInstanceIterator(atom);
 		while((atomInstance = atom_getNext(instanceIterator)) != NULL) {
+			k++;
 			assert(atomInstance_getOrientation(atomInstance));
 			if(hashtable_search(hash, atomInstance) == NULL) {
 				list2 = constructEmptyList(atoms->length, NULL);
@@ -238,12 +238,17 @@ ChainAlignment *chainAlignment_construct(struct List *atoms) {
 					assert(atomInstance_getOrientation(atomInstance));
 					hashtable_insert(hash, atomInstance, atomInstance);
 					list2->list[j++] = atomInstance;
-					atomInstance2 = endInstance_getAtomInstance(endInstance_getAdjacency(atomInstance_get3End(atomInstance)));
-					if(atomInstance2 == NULL) {
+					if(j == atoms->length) { //end of chain
 						break;
 					}
-					atom2 = j < atoms->length ? atoms->list[j] : NULL;
-					if(atomInstance_getAtom(atomInstance2) != atom2) {
+					endInstance = endInstance_getAdjacency(atomInstance_get3End(atomInstance));
+					if(end_isStub(endInstance_getEnd(endInstance))) { //terminates with missing information.
+						break;
+					}
+					atomInstance2 = endInstance_getAtomInstance(endInstance);
+					assert(atomInstance != NULL); //must be connected to an atom instance (not a cap).
+					assert(atomInstance_getAtom(atomInstance2) == atoms->list[j] || atomInstance_getAtom(atomInstance2) == atom_getReverse(atoms->list[j-1])); //must be connected to reverse of itself or the next atom
+					if(atomInstance_getAtom(atomInstance2) != atoms->list[j]) {
 						break;
 					}
 					atomInstance = atomInstance2;
@@ -252,6 +257,7 @@ ChainAlignment *chainAlignment_construct(struct List *atoms) {
 		}
 		atom_destructInstanceIterator(instanceIterator);
 	}
+	assert(k == (int32_t)hashtable_count(hash));
 
 	//Now do actual construction;
 	chainAlignment = malloc(sizeof(ChainAlignment));
@@ -263,6 +269,7 @@ ChainAlignment *chainAlignment_construct(struct List *atoms) {
 	chainAlignment->rowNumber = list->length;
 	for(i=0; i<list->length; i++) {
 		list2 = list->list[i];
+		assert(list2->length == atoms->length);
 		for(j=0; j<list2->length; j++) {
 			chainAlignment->matrix[j][i] = list2->list[j];
 		}
@@ -291,8 +298,6 @@ void chainAlignment_destruct(ChainAlignment *chainAlignment) {
 		free(chainAlignment->matrix[i]);
 	}
 	free(chainAlignment->matrix);
-	//free(chainAlignment->leftEnds);
-	//free(chainAlignment->rightEnds);
 	free(chainAlignment);
 }
 
@@ -525,7 +530,10 @@ int main(int argc, char *argv[]) {
 	struct avl_traverser *chainAlignmentIterator = mallocLocal(sizeof(struct avl_traverser));
 	avl_t_init(chainAlignmentIterator, sortedChainAlignments);
 	list = constructEmptyList(0, NULL);
+	i = INT32_MAX;
 	while((chainAlignment = avl_t_next(chainAlignmentIterator)) != NULL) {
+		assert(chainAlignment->totalAlignmentLength <= i);
+		i = chainAlignment->totalAlignmentLength;
 		listAppend(list, chainAlignment);
 	}
 	buildChainTrees((ChainAlignment **)list->list, list->length, net_getEventTree(net), tempFileRootDirectory);
