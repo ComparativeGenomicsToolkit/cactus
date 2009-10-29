@@ -150,6 +150,14 @@ def runCactusCore(netDisk, alignmentFile, tempDir,
     system(command)
     logger.info("Ran cactus_core okay")
     
+def runCactusTree(netDisk, tempDir, 
+                  netName=0,
+                  logLevel="DEBUG"):
+    command = "cactus_tree --netDisk %s --netName %s --tempDirRoot %s --logLevel %s " % \
+    (netDisk, netName, tempDir, logLevel)
+    system(command)
+    logger.info("Ran cactus_core okay")
+    
 def runCactusAdjacencyBuilder(reconstructionRootDir, reconstructionProblem, tempDir, 
                               uniqueNamePrefix=getRandomAlphaNumericString(),
                               adjacencyProgram="cactus_adjacencyTestAdjacencyBuilder.py", logLevel="DEBUG"):
