@@ -217,6 +217,8 @@ ChainAlignment *chainAlignment_construct(struct List *atoms) {
 	struct List *list;
 	struct List *list2;
 
+	uglyf("Got %i atoms\n", atoms->length);
+
 	//Construct a list of chain instances.
 	hash = create_hashtable(1, hashtable_key, hashtable_equalKey, NULL, NULL);
 	list = constructEmptyList(0, (void (*)(void *))destructList);
@@ -224,6 +226,7 @@ ChainAlignment *chainAlignment_construct(struct List *atoms) {
 		atom = atoms->list[i];
 		Atom_InstanceIterator *instanceIterator = atom_getInstanceIterator(atom);
 		while((atomInstance = atom_getNext(instanceIterator)) != NULL) {
+			assert(atomInstance_getOrientation(atomInstance));
 			if(hashtable_search(hash, atomInstance) == NULL) {
 				list2 = constructEmptyList(atoms->length, NULL);
 				for(j=0; j<atoms->length; j++) {
@@ -232,6 +235,7 @@ ChainAlignment *chainAlignment_construct(struct List *atoms) {
 				listAppend(list, list2);
 				j = i;
 				while(1) {
+					assert(atomInstance_getOrientation(atomInstance));
 					hashtable_insert(hash, atomInstance, atomInstance);
 					list2->list[j++] = atomInstance;
 					atomInstance2 = endInstance_getAtomInstance(endInstance_getAdjacency(atomInstance_get3End(atomInstance)));
@@ -265,8 +269,13 @@ ChainAlignment *chainAlignment_construct(struct List *atoms) {
 	}
 	//Calculate the total length.
 	chainAlignment->totalAlignmentLength = 0;
-	for(i=0;atoms->length; i++) {
+	for(i=0;i<atoms->length; i++) {
 		chainAlignment->totalAlignmentLength += atom_getLength(atoms->list[i]);
+	}
+	//Add chain of atoms.
+	chainAlignment->atoms = malloc(sizeof(void *)*atoms->length);
+	for(i=0; i<atoms->length; i++) {
+		chainAlignment->atoms[i] = atoms->list[i];
 	}
 
 	//Cleanup
@@ -528,7 +537,7 @@ int main(int argc, char *argv[]) {
 	//Pass the end trees and augmented events to the child nets.
 	///////////////////////////////////////////////////////////////////////////
 
-	startTime = time(NULL);
+	/*startTime = time(NULL);
 	Net_AdjacencyComponentIterator *adjacencyComponentIterator = net_getAdjacencyComponentIterator(net);
 	while((adjacencyComponent = net_getNextAdjacencyComponent(adjacencyComponentIterator)) != NULL) {
 		net2 = adjacencyComponent_getNestedNet(adjacencyComponent);
@@ -561,7 +570,7 @@ int main(int argc, char *argv[]) {
 	}
 	net_destructAdjacencyComponentIterator(adjacencyComponentIterator);
 
-	logInfo("Filled in end trees and augmented the event trees for the child nets in: %i seconds\n", time(NULL) - startTime);
+	logInfo("Filled in end trees and augmented the event trees for the child nets in: %i seconds\n", time(NULL) - startTime);*/
 
 	///////////////////////////////////////////////////////////////////////////
 	// (9) Write the net to disk.

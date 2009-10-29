@@ -1,11 +1,9 @@
-"""Tests the core of the cactus tree pipeline.
+"""Tests the tree building of the cactus pipeline.
 """
 
 import unittest
-
 import os
 import sys
-import random
 
 from sonLib.bioio import parseSuiteTestOptions
 from sonLib.bioio import TestStatus
@@ -19,7 +17,6 @@ from cactus.cactus_common import runCactusAligner
 from cactus.cactus_common import runCactusCore
 from cactus.cactus_common import runCactusTree
 from cactus.cactus_common import getRandomCactusInputs
-from cactus.cactus_common import runCactusCheckReconstructionTree
 
 class TestCase(unittest.TestCase):
     
@@ -30,12 +27,14 @@ class TestCase(unittest.TestCase):
     
     def tearDown(self):
         unittest.TestCase.tearDown(self)
-        system("rm -rf %s" % self.tempDir)
+        #system("rm -rf %s" % self.tempDir)
+        system("rm -rf pinchGraph1.dot pinchGraph2.dot pinchGraph3.dot pinchGraph4.dot cactusGraph1.dot cactusGraph2.dot cactusGraph3.dot net1.dot net2.dot net3.dot pinchGraph5.dot pinchGraph6.dot")
+        system("rm -rf pinchGraph1.pdf pinchGraph2.pdf pinchGraph3.pdf pinchGraph4.pdf cactusGraph1.pdf cactusGraph2.pdf cactusGraph3.pdf net1.pdf net2.pdf net3.pdf pinchGraph5.pdf pinchGraph6.pdf")
     
     def testCactusTree(self):
         for test in xrange(self.testNo):
             sequenceDirs, newickTreeString = getRandomCactusInputs(tempDir=getTempDirectory(self.tempDir))
-            runPipe(sequenceDirs, newickTreeString, self.tempDir, useDummy=True, writeDebugFiles=True,
+            runPipe(sequenceDirs, newickTreeString, self.tempDir, useDummy=True, writeDebugFiles=False,
                     randomAtomParameters=True)
             
 def runPipe(sequenceDirs, newickTreeString, tempDir, useDummy=False, writeDebugFiles=False, randomAtomParameters=False):
@@ -47,7 +46,12 @@ def runPipe(sequenceDirs, newickTreeString, tempDir, useDummy=False, writeDebugF
     runCactusAligner(tempReconstructionDirectory, tempAlignmentFile,
                      tempDir=getTempDirectory(tempDir), useDummy=useDummy)
     runCactusCore(tempReconstructionDirectory, tempAlignmentFile, 
-                    tempDir=getTempDirectory(tempDir), writeDebugFiles=writeDebugFiles)
+                    tempDir=getTempDirectory(tempDir), writeDebugFiles=writeDebugFiles,
+                    maximumEdgeDegree=10000,
+                    proportionOfAtomsToKeep=1.0,
+                    discardRatio=0.0,
+                    minimumTreeCoverage=0.1,
+                    minimumChainLength=1)
     runCactusTree(tempReconstructionDirectory, tempDir=getTempDirectory(tempDir))
     
     system("rm -rf %s %s" % (tempReconstructionDirectory, tempAlignmentFile))
