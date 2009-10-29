@@ -150,13 +150,13 @@ def runCactusCore(netDisk, alignmentFile, tempDir,
     system(command)
     logger.info("Ran cactus_core okay")
     
-def runCactusTree(netDisk, tempDir, 
+def runCactusPhylogeny(netDisk, tempDir, 
                   netName=0,
                   logLevel="DEBUG"):
-    command = "cactus_tree --netDisk %s --netName %s --tempDirRoot %s --logLevel %s " % \
+    command = "cactus_phylogeny --netDisk %s --netName %s --tempDirRoot %s --logLevel %s " % \
     (netDisk, netName, tempDir, logLevel)
     system(command)
-    logger.info("Ran cactus_core okay")
+    logger.info("Ran cactus_phylogeny okay")
     
 def runCactusAdjacencyBuilder(reconstructionRootDir, reconstructionProblem, tempDir, 
                               uniqueNamePrefix=getRandomAlphaNumericString(),

@@ -15,7 +15,7 @@ from sonLib.bioio import system
 from cactus.cactus_common import runCactusSetup
 from cactus.cactus_common import runCactusAligner
 from cactus.cactus_common import runCactusCore
-from cactus.cactus_common import runCactusTree
+from cactus.cactus_common import runCactusPhylogeny
 from cactus.cactus_common import getRandomCactusInputs
 
 class TestCase(unittest.TestCase):
@@ -52,7 +52,7 @@ def runPipe(sequenceDirs, newickTreeString, tempDir, useDummy=False, writeDebugF
                     discardRatio=0.0,
                     minimumTreeCoverage=0.1,
                     minimumChainLength=1)
-    runCactusTree(tempReconstructionDirectory, tempDir=getTempDirectory(tempDir))
+    runCactusPhylogeny(tempReconstructionDirectory, tempDir=getTempDirectory(tempDir))
     
     system("rm -rf %s %s" % (tempReconstructionDirectory, tempAlignmentFile))
     
