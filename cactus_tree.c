@@ -101,11 +101,21 @@ Name *chainAlignment_getLeafEventNames(ChainAlignment *chainAlignment) {
 }
 
 int32_t *chainAlignment_getAtomBoundaries(ChainAlignment *chainAlignment) {
-	//for(i=0; i<chainAlignment->)
+	int32_t *atomBoundaries;
+	int32_t i, j;
+
+	atomBoundaries = malloc(sizeof(int32_t) * chainAlignment->columnNumber);
+	j = 0;
+	for(i=0; i<chainAlignment->columnNumber; i++) {
+		atomBoundaries[i] = j + atom_getLength(chainAlignment->atoms[i]);
+		j = atomBoundaries[i];
+	}
+
+	return atomBoundaries;
 }
 
-void buildChainTrees_Bernard(char ***concatenatedAtoms, Name **_5Ends, Name **_3Ends, Name **leafEventLabels,
-							int32_t **atomBoundaries, char *eventTreeString, int32_t chainNumber, const char *tempDir) {
+void buildChainTrees_Bernard(int32_t atomNumber, char ***concatenatedAtoms, Name **_5Ends, Name **_3Ends, Name **leafEventLabels,
+							int32_t **atomBoundaries, char *eventTreeString, const char *tempDir) {
 	/*
 	 * Here's the function you need to fill in, I haven't defined the outputs yet - you get it working and then we can discuss.
 	 *
@@ -119,7 +129,8 @@ void buildChainTrees_Bernard(char ***concatenatedAtoms, Name **_5Ends, Name **_3
 
 }
 
-void buildChainTrees(ChainAlignment **chainAlignments, int32_t chainAlignmentNumber, EventTree *eventTree) {
+void buildChainTrees(ChainAlignment **chainAlignments, int32_t chainAlignmentNumber, EventTree *eventTree,
+		const char *tempFilePath) {
 	/*
 	 * This is the function to do the tree construction in.
 	 */
@@ -131,6 +142,7 @@ void buildChainTrees(ChainAlignment **chainAlignments, int32_t chainAlignmentNum
 	Name **leafEventLabels;
 	int32_t **atomBoundaries;
 	char *eventTreeString;
+	char *randomDir;
 
 	//Make the atom alignments.
 	concatenatedAtoms = malloc(sizeof(void *) * chainAlignmentNumber);
@@ -148,9 +160,12 @@ void buildChainTrees(ChainAlignment **chainAlignments, int32_t chainAlignmentNum
 	//Event tree string
 	eventTreeString = eventTree_makeNewickString(eventTree);
 
+	exitOnFailure(constructRandomDir(tempFilePath, &randomDir), "Tried to make a recursive directory of temp files but failed\n");
+
 	//call to Bernard's code
-	buildChainTrees_Bernard(concatenatedAtoms, _5Ends, _3Ends, leafEventLabels, atomBoundaries, eventTreeString,
-			constructRandomDir(tempFileTree));
+	buildChainTrees_Bernard(chainAlignmentNumber, concatenatedAtoms, _5Ends, _3Ends, leafEventLabels, atomBoundaries, eventTreeString, randomDir);
+
+	exitOnFailure(destructRandomDir(randomDir), "Tried to destroy a recursive directory of temp files but failed\n");
 
 	//build trees, augmented event trees.
 
@@ -504,7 +519,7 @@ int main(int argc, char *argv[]) {
 	while((chainAlignment = avl_t_next(chainAlignmentIterator)) != NULL) {
 		listAppend(list, chainAlignment);
 	}
-	buildChainTrees((ChainAlignment **)list->list, list->length, net_getEventTree(net));
+	buildChainTrees((ChainAlignment **)list->list, list->length, net_getEventTree(net), tempFileRootDirectory);
 	destructList(list);
 
 	logInfo("Augmented the atom trees in: %i seconds\n", time(NULL) - startTime);
