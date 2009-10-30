@@ -30,10 +30,17 @@ double calculateTotalContainedSequence(Net *net) {
 			End_InstanceIterator *instanceIterator = end_getInstanceIterator(end);
 			EndInstance *endInstance;
 			while((endInstance = end_getNext(instanceIterator)) != NULL) {
-				endInstance = endInstance_getPositiveOrientation(endInstance);
+				endInstance = endInstance_getStrand(endInstance) ? endInstance : endInstance_getReverse(endInstance);
 				if(!endInstance_getSide(endInstance)) {
 					EndInstance *endInstance2 = endInstance_getAdjacency(endInstance);
-					assert(endInstance_getStrand(endInstance2));
+					while(end_isAtomEnd(endInstance_getEnd(endInstance2))) {
+						AtomInstance *atomInstance = endInstance_getAtomInstance(endInstance2);
+						assert(atomInstance != NULL);
+						assert(atomInstance_get5End(atomInstance) == endInstance2);
+						endInstance2 = endInstance_getAdjacency(atomInstance_get3End(atomInstance));
+						assert(endInstance_getStrand(endInstance2));
+						assert(endInstance_getSide(endInstance2));
+					}
 					int32_t length = endInstance_getCoordinate(endInstance2) - endInstance_getCoordinate(endInstance) - 1;
 					assert(length >= 0);
 					totalLength += length;
@@ -63,10 +70,11 @@ double calculateTreeBits(Net *net, double pathBitScore) {
 			totalSequenceSize += atom_getLength(atom) * atom_getInstanceNumber(atom);
 		}
 		net_destructAtomIterator(atomIterator);
-		return totalBitScore + ((log(totalSequenceSize) / log(2.0)) + pathBitScore) * totalSequenceSize;
+		return totalBitScore + (totalSequenceSize > 0 ? ((log(totalSequenceSize) / log(2.0)) + pathBitScore) * totalSequenceSize : 0.0);
 	}
+	assert(net_getAtomNumber(net) == 0);
 	double i = calculateTotalContainedSequence(net);
-	return (pathBitScore + log(i)/log(2.0)) * i;
+	return i > 0 ? (pathBitScore + log(i)/log(2.0)) * i : 0.0;
 }
 
 int main(int argc, char *argv[]) {
@@ -170,6 +178,7 @@ int main(int argc, char *argv[]) {
 	///////////////////////////////////////////////////////////////////////////
 
 	net = netDisk_getNet(netDisk, netMisc_stringToName(netName));
+	assert(net != NULL);
 	logInfo("Parsed the top level net of the cactus tree to build\n");
 
 	///////////////////////////////////////////////////////////////////////////
@@ -180,8 +189,13 @@ int main(int argc, char *argv[]) {
 	double i = calculateTotalContainedSequence(net);
 	double totalQ = (log(i) / log(2.0)) * i;
 	assert(totalP >= totalQ);
+	double relativeEntropy = totalP - totalQ;
+	double normalisedRelativeEntropy = relativeEntropy / i;
 
-	logInfo("The total P, Q and relative entropy of the cactus tree: %d %d %d\n", totalP, totalQ, totalP - totalQ);
+	logInfo("The total sequence length: %f, total P: %f, Q: %f, relative entropy of the cactus tree: %f, sequence length normalised relative entropy: %f\n", i, totalP, totalQ, relativeEntropy, normalisedRelativeEntropy);
+	fileHandle = fopen(outputFile, "w");
+	fprintf(fileHandle, "<stats netDisk=\"%s\" netName=\"%s\" totalSequenceLength=\"%f\" totalP=\"%f\" totalQ=\"%f\" relativeEntropy=\"%f\" normalisedRelativeEntropy=\"%f\"/>\n", netDiskName, netName, i, totalP, totalQ, relativeEntropy, normalisedRelativeEntropy);
+	fclose(fileHandle);
 
 	///////////////////////////////////////////////////////////////////////////
 	// Clean up.
