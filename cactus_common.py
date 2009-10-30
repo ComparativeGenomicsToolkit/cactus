@@ -169,28 +169,13 @@ def runCactusAdjacencyBuilder(reconstructionRootDir, reconstructionProblem, temp
     system(command)
     logger.info("Adjacency builder ran okay")
     
-def runCactusCheckReconstructionTree(reconstructionRootDir, 
-                                     reconstructionProblem="reconstructionProblem.xml", 
-                                     logLevel="DEBUG", recursive=True, checkAdjacencies=True):
-    if recursive:
-        recursiveString = "--recursive"
-    else:
-        recursiveString = ""
-    if checkAdjacencies:
-        checkAdjacenciesString = ""
-    else:
-        checkAdjacenciesString = "--dontCheckAdjacencies"
-    system("cactus_checkReconstructionTree --absolutePathPrefix %s --reconstructionProblem %s --logLevel %s %s %s" \
-                    % (reconstructionRootDir, reconstructionProblem, logLevel, recursiveString, checkAdjacenciesString))
-    logger.info("Checked the adjacencies okay")
-    
-def runCactusReconstructionTreeViewer(graphFile,
-                                      reconstructionRootDir, 
-                                      reconstructionProblem="reconstructionProblem.xml", 
-                                      logLevel="DEBUG", nodesProportionalTo="atoms"):
-    system("cactus_reconstructionTreeViewer.py --absolutePathPrefix %s --reconstructionProblem %s --graphFile %s --logLevel %s --nodesProportionalTo %s" \
-                    % (reconstructionRootDir, reconstructionProblem, graphFile, logLevel, nodesProportionalTo))
-    logger.info("Created a reconstruction tree graph")
+def runCactusTreeViewer(graphFile,
+                        netDisk, 
+                        netName="0", 
+                        logLevel="DEBUG", nodesProportionalTo="atoms"):
+    system("cactus_treeViewer --netDisk %s --netName %s --outputFile %s --logLevel %s" \
+                    % (netDisk, netName, graphFile, logLevel))
+    logger.info("Created a cactus tree graph")
     
 def runCactusAtomGraphViewer(graphFile,
                              reconstructionRootDir, 

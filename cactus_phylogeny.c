@@ -348,15 +348,6 @@ int main(int argc, char *argv[]) {
 	 *
 	 * (5) It copies the relevant augmented events into the event trees of its descendants.
 	 *
-	 * For number 2, building the trees for the atoms it:
-	 *
-	 * (a) Gets the sequences for the chains.. and makes them into mafs.
-	 *
-	 * (b) Writes out the
-	 *
-	 * (c) Runs the program to build the trees from this input.
-	 *
-	 * (d) Reads the results.
 	 */
 	NetDisk *netDisk;
 	Net *net;

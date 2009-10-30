@@ -110,7 +110,7 @@ int main(int argc, char *argv[]) {
 	bool writeDebugFiles = 0;
 	float proportionToKeep = 1.0;
 	float discardRatio = 0.0;
-	float minimumTreeCoverage = 0.8;
+	float minimumTreeCoverage = 0.7;
 	int32_t minimumChainLength = 10;
 
 	///////////////////////////////////////////////////////////////////////////

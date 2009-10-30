@@ -9,10 +9,9 @@ from sonLib.bioio import logger
 from sonLib.bioio import system
 from sonLib.bioio import runGraphViz
 
-from cactus.cactus_common import runCactusCheckReconstructionTree
 from cactus.cactus_common import getRandomCactusInputs
 from cactus.cactus_common import runCactusWorkflow
-from cactus.cactus_common import runCactusReconstructionTreeViewer
+from cactus.cactus_common import runCactusTreeViewer
 from cactus.cactus_common import runCactusAtomGraphViewer
 
 from workflow.jobTree.jobTreeTest import runJobTreeStatusAndFailIfNotComplete
@@ -20,7 +19,7 @@ from workflow.jobTree.jobTreeTest import runJobTreeStatusAndFailIfNotComplete
 class TestCase(unittest.TestCase):
     
     def setUp(self):
-        self.testNo = TestStatus.getTestSetup(1, 100, 10, 10)
+        self.testNo = TestStatus.getTestSetup(1, 100, 0, 0)
         self.alignmentIterations = TestStatus.getTestSetup(2, 2, 2, 3)
         self.sequenceNumber = TestStatus.getTestSetup(5, 50, 50, 100)
         self.tempFiles = []
@@ -49,7 +48,6 @@ class TestCase(unittest.TestCase):
                                batchSystem=self.batchSystem, alignmentIterations=self.alignmentIterations)
             #Run the checker to check the file is okay.
             runJobTreeStatusAndFailIfNotComplete(jobTreeDir)
-            #runCactusCheckReconstructionTree(self.tempReconstructionDirectory)
             #Cleanup this test
             system("rm -rf %s %s" % (self.tempReconstructionDirectory, jobTreeDir))
             logger.info("Finished this round of test")
@@ -61,7 +59,7 @@ class TestCase(unittest.TestCase):
             blanchettePath = os.path.join(TestStatus.getPathToDataSets(), "blanchettesSimulation")
             
             newickTreeFile = os.path.join(blanchettePath, "tree.newick")
-            for region in xrange(0, 1):
+            for region in xrange(0, 5):
                 sequences = [ os.path.join(blanchettePath, 
                                                ("%.2i.job" % region), species) \
                                  for species in ("HUMAN", "CHIMP", "BABOON", "MOUSE", "RAT", "DOG", "CAT", "PIG", "COW") ] #Same order as tree
@@ -70,11 +68,10 @@ class TestCase(unittest.TestCase):
                                                             "blanchettesRegionsTest", str(region))
                 
                 runWorkflow(sequences, newickTreeFile, outputDir, self.tempDir, batchSystem=self.batchSystem, 
-                            reconstructionTreeGraphFile=os.path.join(outputDir, "reconTree.dot"),
-                            reconstructionTreeGraphPDFFile=os.path.join(outputDir, "reconTree.pdf"),
+                            cactusTreeGraphFile=os.path.join(outputDir, "cactusTree.dot"),
+                            cactusTreeGraphPDFFile=os.path.join(outputDir, "cactusTree.pdf"),
                             atomGraphFile=os.path.join(outputDir, "atomGraph.dot"),
-                            atomGraphPDFFile=os.path.join(outputDir, "atomGraph.pdf"),
-                            jobTreeGraphPDFFile=os.path.join(outputDir, "jobTreeGraph.pdf"))
+                            atomGraphPDFFile=os.path.join(outputDir, "atomGraph.pdf"))
         
     def testCactusWorkflow_Encode(self): 
         """Run the workflow on the encode pilot regions.
@@ -93,9 +90,8 @@ class TestCase(unittest.TestCase):
 
 def runWorkflow(sequences, newickTreeFile, outputDir, tempDir, 
                 batchSystem="single_machine",
-                reconstructionTreeGraphFile=None, reconstructionTreeGraphPDFFile=None, 
-                atomGraphFile=None, atomGraphPDFFile=None, 
-                jobTreeGraphPDFFile=None):
+                cactusTreeGraphFile=None, cactusTreeGraphPDFFile=None, 
+                atomGraphFile=None, atomGraphPDFFile=None):
     fileHandle = open(newickTreeFile, 'r')
     newickTreeString = fileHandle.readline()
     fileHandle.close()
@@ -116,23 +112,18 @@ def runWorkflow(sequences, newickTreeFile, outputDir, tempDir,
     runJobTreeStatusAndFailIfNotComplete(jobTreeDir)
     logger.info("Checked the job tree dir")
     
-    #runCactusCheckReconstructionTree(reconstructionTree)
-    #logger.info("Checked the reconstruction tree")
+    if cactusTreeGraphFile != None:
+        runCactusTreeViewer(cactusTreeGraphFile, netDisk)
+        runGraphViz(cactusTreeGraphFile, cactusTreeGraphPDFFile)
+    
     """
-    if reconstructionTreeGraphFile != None:
-        runCactusReconstructionTreeViewer(reconstructionTreeGraphFile, reconstructionTree)
-        runGraphViz(reconstructionTreeGraphFile, reconstructionTreeGraphPDFFile)
-     
     if atomGraphFile != None:
         runCactusAtomGraphViewer(atomGraphFile, reconstructionTree)
         runGraphViz(atomGraphFile, atomGraphPDFFile, "neato")
-     
-    if jobTreeGraphPDFFile != None:
-        plotJobTreeGraph(jobTreeDir, jobTreeGraphPDFFile)
     """
         
     #Cleanup
-    #system("rm -rf %s" % jobTreeDir)
+    system("rm -rf %s" % jobTreeDir)
     logger.info("Successfully ran job for the blanchette sequences")
 
 def main():
