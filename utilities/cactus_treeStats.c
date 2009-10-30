@@ -77,6 +77,65 @@ double calculateTreeBits(Net *net, double pathBitScore) {
 	return i > 0 ? (pathBitScore + log(i)/log(2.0)) * i : 0.0;
 }
 
+void tabulateStats(struct IntList *unsortedValues, double *totalNumber, double *min, double *max, double *avg, double *median) {
+	assert(unsortedValues->length > 0);
+	qsort(unsortedValues->list, unsortedValues->length, sizeof(int32_t), (int (*)(const void *, const void *))intComparator_Int);
+	*totalNumber = unsortedValues->length;
+	*min = unsortedValues->list[0];
+	*max = unsortedValues->list[unsortedValues->length-1];
+	*median = unsortedValues->list[unsortedValues->length/2];
+	int32_t i, j = 0;
+	for(i=0; i<unsortedValues->length; i++) {
+		j += unsortedValues->list[j];
+	}
+	*avg = j / unsortedValues->length;
+}
+
+void netStatsP(Net *net, int32_t currentDepth, struct IntList *depths) {
+	Net_AdjacencyComponentIterator *adjacencyComponentIterator = net_getAdjacencyComponentIterator(net);
+	AdjacencyComponent *adjacencyComponent;
+	while((adjacencyComponent = net_getNextAdjacencyComponent(adjacencyComponentIterator)) != NULL) {
+		netStatsP(adjacencyComponent_getNestedNet(adjacencyComponent), currentDepth+1, depths);
+	}
+	net_destructAdjacencyComponentIterator(adjacencyComponentIterator);
+
+	if(net_getAdjacencyComponentNumber(net) == 0) {
+		intListAppend(depths, currentDepth);
+	}
+}
+
+void netStats(Net *net, double *totalNetNumber, double *minDepth, double *maxDepth, double *avgDepth, double *medianDepth) {
+	struct IntList *depths = constructEmptyIntList(0);
+	netStatsP(net, 1, depths);
+	tabulateStats(depths, totalNetNumber, minDepth, maxDepth, avgDepth, medianDepth);
+	destructIntList(depths);
+}
+
+void atomStatsP(Net *net, int32_t currentDepth, struct IntList *depths) {
+	Net_AdjacencyComponentIterator *adjacencyComponentIterator = net_getAdjacencyComponentIterator(net);
+	AdjacencyComponent *adjacencyComponent;
+	while((adjacencyComponent = net_getNextAdjacencyComponent(adjacencyComponentIterator)) != NULL) {
+		netStatsP(adjacencyComponent_getNestedNet(adjacencyComponent), currentDepth+1, depths);
+	}
+	net_destructAdjacencyComponentIterator(adjacencyComponentIterator);
+
+	if(net_getAdjacencyComponentNumber(net) == 0) {
+		intListAppend(depths, currentDepth);
+	}
+}
+
+void netStats(Net *net, double *totalNetNumber, double *minDepth, double *maxDepth, double *avgDepth, double *medianDepth) {
+	struct IntList *depths = constructEmptyIntList(0);
+	netStatsP(net, 1, depths);
+	tabulateStats(depths, totalNetNumber, minDepth, maxDepth, avgDepth, medianDepth);
+	destructIntList(depths);
+}
+
+//atom number,  average atom's per node, atom avg length, average atom degree
+//chain number, average chain's per node, max length, average length, median length, alignment length, max, min, average, median gap size
+//max, average, median end degree
+
+
 int main(int argc, char *argv[]) {
 	/*
 	 * The script builds a cactus tree representation of the chains and nets.
