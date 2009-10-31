@@ -124,7 +124,7 @@ void atomStatsP(Net *net, int32_t currentDepth, struct IntList *depths) {
 	}
 }
 
-void netStats(Net *net, double *totalNetNumber, double *minDepth, double *maxDepth, double *avgDepth, double *medianDepth) {
+void atomStats(Net *net, double *totalNetNumber, double *minDepth, double *maxDepth, double *avgDepth, double *medianDepth) {
 	struct IntList *depths = constructEmptyIntList(0);
 	netStatsP(net, 1, depths);
 	tabulateStats(depths, totalNetNumber, minDepth, maxDepth, avgDepth, medianDepth);
