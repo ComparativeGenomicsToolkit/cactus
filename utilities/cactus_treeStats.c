@@ -91,50 +91,147 @@ void tabulateStats(struct IntList *unsortedValues, double *totalNumber, double *
 	*avg = j / unsortedValues->length;
 }
 
-void netStatsP(Net *net, int32_t currentDepth, struct IntList *depths) {
+void netStatsP(Net *net, int32_t currentDepth, struct IntList *children, struct IntList *depths) {
 	Net_AdjacencyComponentIterator *adjacencyComponentIterator = net_getAdjacencyComponentIterator(net);
 	AdjacencyComponent *adjacencyComponent;
 	while((adjacencyComponent = net_getNextAdjacencyComponent(adjacencyComponentIterator)) != NULL) {
-		netStatsP(adjacencyComponent_getNestedNet(adjacencyComponent), currentDepth+1, depths);
+		netStatsP(adjacencyComponent_getNestedNet(adjacencyComponent), currentDepth+1, children, depths);
 	}
 	net_destructAdjacencyComponentIterator(adjacencyComponentIterator);
 
 	if(net_getAdjacencyComponentNumber(net) == 0) {
 		intListAppend(depths, currentDepth);
 	}
+	else {
+		intListAppend(children, net_getAdjacencyComponentNumber(net));
+	}
 }
 
-void netStats(Net *net, double *totalNetNumber, double *minDepth, double *maxDepth, double *avgDepth, double *medianDepth) {
+void netStats(Net *net, double *totalNetNumber,
+		double *maxChildren, double *avgChildren, double *medianChildren,
+		double *minDepth, double *maxDepth, double *avgDepth, double *medianDepth) {
+	struct IntList *children = constructEmptyIntList(0);
 	struct IntList *depths = constructEmptyIntList(0);
-	netStatsP(net, 1, depths);
+	netStatsP(net, 1, children, depths);
+	double f;
+	tabulateStats(children, totalNetNumber, &f, maxChildren, avgChildren, medianChildren);
 	tabulateStats(depths, totalNetNumber, minDepth, maxDepth, avgDepth, medianDepth);
+	*totalNetNumber = children->length + depths->length;
+	destructIntList(children);
 	destructIntList(depths);
 }
 
-void atomStatsP(Net *net, int32_t currentDepth, struct IntList *depths) {
+void atomStatsP(Net *net, struct IntList *counts, struct IntList *lengths, struct IntList *degrees) {
 	Net_AdjacencyComponentIterator *adjacencyComponentIterator = net_getAdjacencyComponentIterator(net);
 	AdjacencyComponent *adjacencyComponent;
 	while((adjacencyComponent = net_getNextAdjacencyComponent(adjacencyComponentIterator)) != NULL) {
-		netStatsP(adjacencyComponent_getNestedNet(adjacencyComponent), currentDepth+1, depths);
+		atomStatsP(adjacencyComponent_getNestedNet(adjacencyComponent), counts, lengths, degrees);
 	}
 	net_destructAdjacencyComponentIterator(adjacencyComponentIterator);
 
-	if(net_getAdjacencyComponentNumber(net) == 0) {
-		intListAppend(depths, currentDepth);
+	Net_AtomIterator *atomIterator;
+	Atom *atom;
+	while((atom = net_getNextAtom(atomIterator)) != NULL) {
+		intListAppend(lengths, atom_getLength(atom));
+		intListAppend(degrees, atom_getInstanceNumber(atom));
 	}
+	net_destructAtomIterator(atomIterator);
+	intListAppend(counts, net_getAtomNumber(net));
 }
 
-void atomStats(Net *net, double *totalNetNumber, double *minDepth, double *maxDepth, double *avgDepth, double *medianDepth) {
-	struct IntList *depths = constructEmptyIntList(0);
-	netStatsP(net, 1, depths);
-	tabulateStats(depths, totalNetNumber, minDepth, maxDepth, avgDepth, medianDepth);
-	destructIntList(depths);
+void atomStats(Net *net, double *totalAtomNumber,
+		double *maxNumberPerNet, double *averageNumberPerNet, double *medianNumberPerNet,
+		double *maxLength, double *averageLength, double *medianLength,
+		double *maxDegree, double *averageDegree, double *medianDegree) {
+	struct IntList *counts = constructEmptyIntList(0);
+	struct IntList *lengths = constructEmptyIntList(0);
+	struct IntList *degrees = constructEmptyIntList(0);
+	atomStatsP(net, counts, lengths, degrees);
+	double f;
+	tabulateStats(counts, &f, &f, maxNumberPerNet, averageNumberPerNet, medianNumberPerNet);
+	tabulateStats(lengths, totalAtomNumber, &f, maxLength, averageLength, medianLength);
+	tabulateStats(degrees, totalAtomNumber, &f, maxDegree, averageDegree, medianDegree);
+	destructIntList(counts);
+	destructIntList(lengths);
+	destructIntList(degrees);
 }
 
-//atom number,  average atom's per node, atom avg length, average atom degree
-//chain number, average chain's per node, max length, average length, median length, alignment length, max, min, average, median gap size
-//max, average, median end degree
+void chainStatsP(Net *net, struct IntList *counts, struct IntList *lengths, struct IntList *baseLengths) {
+	Net_AdjacencyComponentIterator *adjacencyComponentIterator = net_getAdjacencyComponentIterator(net);
+	AdjacencyComponent *adjacencyComponent;
+	while((adjacencyComponent = net_getNextAdjacencyComponent(adjacencyComponentIterator)) != NULL) {
+		chainStatsP(adjacencyComponent_getNestedNet(adjacencyComponent), counts, lengths, baseLengths);
+	}
+	net_destructAdjacencyComponentIterator(adjacencyComponentIterator);
 
+	Net_ChainIterator *chainIterator = net_getChainIterator(net);
+	Chain *chain;
+	Atom **atoms;
+	int32_t i, j, k;
+	while((chain = net_getNextChain(chainIterator)) != NULL) {
+		atoms = chain_getAtomChain(chain, &i);
+		k = 0;
+		for(j=0; j<i; j++) {
+			k += atom_getLength(atoms[j]);
+		}
+		intListAppend(baseLengths, k);
+		intListAppend(lengths, chain_getLength(chain));
+	}
+	net_destructAtomIterator(chainIterator);
+	intListAppend(counts, net_getChainNumber(net));
+}
+
+void chainStats(Net *net, double *totalChainNumber,
+		double *maxNumberPerNet, double *averageNumberPerNet, double *medianNumberPerNet,
+		double *maxLength, double *averageLength, double *medianLength,
+		double *maxDegree, double *averageDegree, double *medianDegree) {
+	struct IntList *counts = constructEmptyIntList(0);
+	struct IntList *lengths = constructEmptyIntList(0);
+	struct IntList *degrees = constructEmptyIntList(0);
+	chainStatsP(net, counts, lengths, degrees);
+	double f;
+	tabulateStats(counts, &f, &f, maxNumberPerNet, averageNumberPerNet, medianNumberPerNet);
+	tabulateStats(lengths, totalChainNumber, &f, maxLength, averageLength, medianLength);
+	tabulateStats(degrees, totalChainNumber, &f, maxDegree, averageDegree, medianDegree);
+	destructIntList(counts);
+	destructIntList(lengths);
+	destructIntList(degrees);
+}
+
+void endStatsP(Net *net, struct IntList *degrees) {
+	Net_AdjacencyComponentIterator *adjacencyComponentIterator = net_getAdjacencyComponentIterator(net);
+	AdjacencyComponent *adjacencyComponent;
+	while((adjacencyComponent = net_getNextAdjacencyComponent(adjacencyComponentIterator)) != NULL) {
+		endStatsP(adjacencyComponent_getNestedNet(adjacencyComponent), degrees);
+	}
+	net_destructAdjacencyComponentIterator(adjacencyComponentIterator);
+
+	Net_EndIterator *endIterator;
+	End *end;
+	while((end = net_getNextEnd(endIterator)) != NULL) {
+		struct List *list = constructEmptyList(0, NULL);
+		End_InstanceIterator *instanceIterator = end_getInstanceIterator(end);
+		EndInstance *endInstance;
+		while((endInstance = end_getNext(instanceIterator)) != NULL) {
+			End *end =  end_getPositiveOrientation(endInstance_getEnd(endInstance));
+			if(!listContains(list, end)) {
+				listAppend(list, end);
+			}
+		}
+		end_destructInstanceIterator(instanceIterator);
+		intListAppend(degrees, list->length);
+		destructList(list);
+	}
+	net_destructEndIterator(endIterator);
+}
+
+void endStats(Net *net, double *maxDegree, double *averageDegree, double *medianDegree) {
+	struct IntList *degrees = constructEmptyIntList(0);
+	endStatsP(net, degrees);
+	double f;
+	tabulateStats(degrees, &f, &f, maxDegree, averageDegree, medianDegree);
+	destructIntList(degrees);
+}
 
 int main(int argc, char *argv[]) {
 	/*
@@ -251,10 +348,50 @@ int main(int argc, char *argv[]) {
 	double relativeEntropy = totalP - totalQ;
 	double normalisedRelativeEntropy = relativeEntropy / i;
 
-	logInfo("The total sequence length: %f, total P: %f, Q: %f, relative entropy of the cactus tree: %f, sequence length normalised relative entropy: %f\n", i, totalP, totalQ, relativeEntropy, normalisedRelativeEntropy);
 	fileHandle = fopen(outputFile, "w");
-	fprintf(fileHandle, "<stats netDisk=\"%s\" netName=\"%s\" totalSequenceLength=\"%f\" totalP=\"%f\" totalQ=\"%f\" relativeEntropy=\"%f\" normalisedRelativeEntropy=\"%f\"/>\n", netDiskName, netName, i, totalP, totalQ, relativeEntropy, normalisedRelativeEntropy);
+	fprintf(fileHandle, "<stats netDisk=\"%s\" netName=\"%s\"><summaryStats totalSequenceLength=\"%f\" totalP=\"%f\" totalQ=\"%f\" relativeEntropy=\"%f\" normalisedRelativeEntropy=\"%f\"/>", netDiskName, netName, i, totalP, totalQ, relativeEntropy, normalisedRelativeEntropy);
+
+	double totalNetNumber;
+	double maxChildren;
+	double avgChildren;
+	double medianChildren;
+	double minDepth;
+	double maxDepth;
+	double avgDepth;
+	double medianDepth;
+
+	double totalNumber;
+	double maxNumberPerNet;
+	double averageNumberPerNet;
+	double medianNumberPerNet;
+	double maxLength;
+	double averageLength;
+	double medianLength;
+	double maxDegree;
+	double averageDegree;
+	double medianDegree;
+
+	netStats(net, &totalNetNumber, &maxChildren, &avgChildren, &medianChildren, &minDepth,
+			&maxDepth, &avgDepth, &medianDepth);
+	fprintf(fileHandle, "<nets totalNetNumber=\"%f\" maxChildren=\"%f\" avgChildren=\"%f\" medianChildren=\"%f\" minDepth=\"%f\" maxDepth=\"%f\" avgDepth=\"%f\" medianDepth=\"%f\"/>",
+			totalNetNumber, maxChildren, avgChildren, medianChildren, minDepth, maxDepth, avgDepth, medianDepth);
+
+	atomStats(net, &totalNumber, &maxNumberPerNet, &averageNumberPerNet, &medianNumberPerNet,
+			&maxLength, &averageLength, &medianLength,
+			&maxDegree, &averageDegree, &medianDegree);
+	fprintf(fileHandle, "<atoms totalNumber=\"%f\" maxNumberPerNet=\"%f\" averageNumberPerNet=\"%f\" medianNumberPerNet=\"%f\" maxLength=\"%f\" averageLength=\"%f\" medianLength=\"%f\" maxDegree=\"%f\" averageDegree=\"%f\" medianDegree=\"%f\"/>",
+			totalNumber, maxNumberPerNet, averageNumberPerNet, medianNumberPerNet, maxLength, averageLength, medianLength, maxDegree, averageDegree, medianDegree);
+
+	chainStats(net, &totalNumber, &maxNumberPerNet, &averageNumberPerNet, &medianNumberPerNet,
+				&maxLength, &averageLength, &medianLength,
+				&maxDegree, &averageDegree, &medianDegree);
+	fprintf(fileHandle, "<chains totalNumber=\"%f\" maxNumberPerNet=\"%f\" averageNumberPerNet=\"%f\" medianNumberPerNet=\"%f\" maxLength=\"%f\" averageLength=\"%f\" medianLength=\"%f\" maxDegree=\"%f\" averageDegree=\"%f\" medianDegree=\"%f\"/>",
+			totalNumber, maxNumberPerNet, averageNumberPerNet, medianNumberPerNet, maxLength, averageLength, medianLength, maxDegree, averageDegree, medianDegree);
+
+	endStats(net, &maxDegree, &averageDegree, &medianDegree);
+	fprintf(fileHandle, "<ends maxDegree=\"%f\" averageDegree=\"%f\" medianDegree=\"%f\"/></stats>\n", maxDegree, averageDegree, medianDegree);
 	fclose(fileHandle);
+	logInfo("Finished writing out the stats.\n");
 
 	///////////////////////////////////////////////////////////////////////////
 	// Clean up.

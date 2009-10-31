@@ -206,7 +206,7 @@ int chainAlignment_constructP(AtomInstance **atomInstance1, AtomInstance **atomI
 	return i;
 }
 
-ChainAlignment *chainAlignment_construct(struct List *atoms) {
+ChainAlignment *chainAlignment_construct(Atom **atoms, int32_t atomsLength) {
 	int32_t i, j, k;
 	Atom *atom;
 	AtomInstance *atomInstance;
@@ -221,15 +221,15 @@ ChainAlignment *chainAlignment_construct(struct List *atoms) {
 	hash = create_hashtable(1, hashtable_key, hashtable_equalKey, NULL, NULL);
 	list = constructEmptyList(0, (void (*)(void *))destructList);
 	k = 0;
-	for(i=0; i<atoms->length; i++) {
-		atom = atoms->list[i];
+	for(i=0; i<atomsLength; i++) {
+		atom = atoms[i];
 		Atom_InstanceIterator *instanceIterator = atom_getInstanceIterator(atom);
 		while((atomInstance = atom_getNext(instanceIterator)) != NULL) {
 			k++;
 			assert(atomInstance_getOrientation(atomInstance));
 			if(hashtable_search(hash, atomInstance) == NULL) {
-				list2 = constructEmptyList(atoms->length, NULL);
-				for(j=0; j<atoms->length; j++) {
+				list2 = constructEmptyList(atomsLength, NULL);
+				for(j=0; j<atomsLength; j++) {
 					list2->list[j] = NULL;
 				}
 				listAppend(list, list2);
@@ -238,7 +238,7 @@ ChainAlignment *chainAlignment_construct(struct List *atoms) {
 					assert(atomInstance_getOrientation(atomInstance));
 					hashtable_insert(hash, atomInstance, atomInstance);
 					list2->list[j++] = atomInstance;
-					if(j == atoms->length) { //end of chain
+					if(j == atomsLength) { //end of chain
 						break;
 					}
 					endInstance = endInstance_getAdjacency(atomInstance_get3End(atomInstance));
@@ -247,8 +247,8 @@ ChainAlignment *chainAlignment_construct(struct List *atoms) {
 					}
 					atomInstance2 = endInstance_getAtomInstance(endInstance);
 					assert(atomInstance != NULL); //must be connected to an atom instance (not a cap).
-					assert(atomInstance_getAtom(atomInstance2) == atoms->list[j] || atomInstance_getAtom(atomInstance2) == atom_getReverse(atoms->list[j-1])); //must be connected to reverse of itself or the next atom
-					if(atomInstance_getAtom(atomInstance2) != atoms->list[j]) {
+					assert(atomInstance_getAtom(atomInstance2) == atoms[j] || atomInstance_getAtom(atomInstance2) == atom_getReverse(atoms[j-1])); //must be connected to reverse of itself or the next atom
+					if(atomInstance_getAtom(atomInstance2) != atoms[j]) {
 						break;
 					}
 					atomInstance = atomInstance2;
@@ -261,28 +261,28 @@ ChainAlignment *chainAlignment_construct(struct List *atoms) {
 
 	//Now do actual construction;
 	chainAlignment = malloc(sizeof(ChainAlignment));
-	chainAlignment->matrix = malloc(sizeof(AtomInstance **) * atoms->length);
-	for(i=0; i<atoms->length; i++) {
+	chainAlignment->matrix = malloc(sizeof(AtomInstance **) * atomsLength);
+	for(i=0; i<atomsLength; i++) {
 		chainAlignment->matrix[i] = malloc(sizeof(AtomInstance *) * list->length);
 	}
-	chainAlignment->columnNumber = atoms->length;
+	chainAlignment->columnNumber = atomsLength;
 	chainAlignment->rowNumber = list->length;
 	for(i=0; i<list->length; i++) {
 		list2 = list->list[i];
-		assert(list2->length == atoms->length);
+		assert(list2->length == atomsLength);
 		for(j=0; j<list2->length; j++) {
 			chainAlignment->matrix[j][i] = list2->list[j];
 		}
 	}
 	//Calculate the total length.
 	chainAlignment->totalAlignmentLength = 0;
-	for(i=0;i<atoms->length; i++) {
-		chainAlignment->totalAlignmentLength += atom_getLength(atoms->list[i]);
+	for(i=0;i<atomsLength; i++) {
+		chainAlignment->totalAlignmentLength += atom_getLength(atoms[i]);
 	}
 	//Add chain of atoms.
-	chainAlignment->atoms = malloc(sizeof(void *)*atoms->length);
-	for(i=0; i<atoms->length; i++) {
-		chainAlignment->atoms[i] = atoms->list[i];
+	chainAlignment->atoms = malloc(sizeof(void *)*atomsLength);
+	for(i=0; i<atomsLength; i++) {
+		chainAlignment->atoms[i] = atoms[i];
 	}
 
 	//Cleanup
@@ -351,17 +351,10 @@ int main(int argc, char *argv[]) {
 	 */
 	NetDisk *netDisk;
 	Net *net;
-	Net *net2;
 	int32_t startTime;
 	int32_t i;
 	Chain *chain;
-	Link *link;
-	End *end;
-	End *end2;
-	EndInstance *endInstance;
 	Atom *atom;
-	AdjacencyComponent *adjacencyComponent;
-	struct List *atoms;
 	struct avl_table *sortedChainAlignments;
 	ChainAlignment *chainAlignment;
 	struct List *list;
@@ -450,7 +443,7 @@ int main(int argc, char *argv[]) {
 	//Set up the temp file root directory
 	//////////////////////////////////////////////
 
-	initialiseTempFileTree(tempFileRootDirectory, 100, 4);
+	//initialiseTempFileTree(tempFileRootDirectory, 100, 4);
 
 	//////////////////////////////////////////////
 	//Load the database
@@ -474,23 +467,9 @@ int main(int argc, char *argv[]) {
 	sortedChainAlignments = avl_create((int32_t (*)(const void *, const void *, void *))chainAlignment_cmpFn, NULL, NULL);
 	Net_ChainIterator *chainIterator = net_getChainIterator(net);
 	while((chain = net_getNextChain(chainIterator)) != NULL) {
-		atoms = constructEmptyList(0, NULL);
-		for(i=0; i<chain_getLength(chain); i++) {
-			link = chain_getLink(chain, i);
-			end = link_getLeft(link);
-			atom = end_getAtom(end);
-			if(atom != NULL) {
-				listAppend(atoms, atom);
-			}
-		}
-		link = chain_getLink(chain, chain_getLength(chain)-1);
-		end = link_getRight(link);
-		atom = end_getAtom(end);
-		if(atom != NULL) {
-			listAppend(atoms, atom);
-		}
-		avl_insert(sortedChainAlignments, chainAlignment_construct(atoms));
-		destructList(atoms);
+		Atom **atomChain = chain_getAtomChain(chain, &i);
+		avl_insert(sortedChainAlignments, chainAlignment_construct(atomChain, i));
+		free(atomChain);
 	}
 	net_destructChainIterator(chainIterator);
 	logInfo("Constructed the atom trees for the non-trivial chains in the net in: %i seconds\n", time(NULL) - startTime);
@@ -503,10 +482,7 @@ int main(int argc, char *argv[]) {
 	Net_AtomIterator *atomIterator = net_getAtomIterator(net);
 	while((atom = net_getNextAtom(atomIterator)) != NULL) {
 		if(atom_getChain(atom) == NULL) {
-			atoms = constructEmptyList(0, NULL);
-			listAppend(atoms, atom);
-			avl_insert(sortedChainAlignments, chainAlignment_construct(atoms));
-			destructList(atoms);
+			avl_insert(sortedChainAlignments, chainAlignment_construct(&atom, 1));
 		}
 	}
 	net_destructAtomIterator(atomIterator);
