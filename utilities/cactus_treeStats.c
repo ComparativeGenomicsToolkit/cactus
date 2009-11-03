@@ -112,8 +112,8 @@ double largestChildStatsP(Net *net, struct List *childProportions) {
 	Net_AdjacencyComponentIterator *adjacencyComponentIterator = net_getAdjacencyComponentIterator(net);
 	AdjacencyComponent *adjacencyComponent;
 	double problemSize = calculateTotalContainedSequence(net);
-	if(net_getAdjacencyComponentNumber(net) != 0) {
-		double childProportion = 0.0;
+	if(net_getAdjacencyComponentNumber(net) != 0  && problemSize > 0) {
+		double childProportion = -10.0;
 		while((adjacencyComponent = net_getNextAdjacencyComponent(adjacencyComponentIterator)) != NULL) {
 			double f = largestChildStatsP(adjacencyComponent_getNestedNet(adjacencyComponent), childProportions);
 			if(f/problemSize > childProportion) {
@@ -151,18 +151,18 @@ void netStatsP(Net *net, int32_t currentDepth, struct IntList *children, struct 
 	}
 }
 
-void netStats(Net *net, double *totalNetNumber,
+void netStats(Net *net,
+		struct IntList **children, struct IntList **depths,
+		double *totalNetNumber,
 		double *maxChildren, double *avgChildren, double *medianChildren,
 		double *minDepth, double *maxDepth, double *avgDepth, double *medianDepth) {
-	struct IntList *children = constructEmptyIntList(0);
-	struct IntList *depths = constructEmptyIntList(0);
-	netStatsP(net, 1, children, depths);
+	*children = constructEmptyIntList(0);
+	*depths = constructEmptyIntList(0);
+	netStatsP(net, 1, *children, *depths);
 	double f;
-	tabulateStats(children, totalNetNumber, &f, maxChildren, avgChildren, medianChildren);
-	tabulateStats(depths, totalNetNumber, minDepth, maxDepth, avgDepth, medianDepth);
-	*totalNetNumber = children->length + depths->length;
-	destructIntList(children);
-	destructIntList(depths);
+	tabulateStats(*children, totalNetNumber, &f, maxChildren, avgChildren, medianChildren);
+	tabulateStats(*depths, totalNetNumber, minDepth, maxDepth, avgDepth, medianDepth);
+	*totalNetNumber = (*children)->length + (*depths)->length;
 }
 
 void atomStatsP(Net *net, struct IntList *counts, struct IntList *lengths, struct IntList *degrees,
@@ -185,26 +185,24 @@ void atomStatsP(Net *net, struct IntList *counts, struct IntList *lengths, struc
 	intListAppend(counts, net_getAtomNumber(net));
 }
 
-void atomStats(Net *net, double *totalAtomNumber,
+void atomStats(Net *net,
+		struct IntList **counts, struct IntList **lengths,
+		struct IntList **degrees, struct IntList **coverage,
+		double *totalAtomNumber,
 		double *maxNumberPerNet, double *averageNumberPerNet, double *medianNumberPerNet,
 		double *maxLength, double *averageLength, double *medianLength,
 		double *maxDegree, double *averageDegree, double *medianDegree,
 		double *maxCoverage, double *averageCoverage, double *medianCoverage) {
-	struct IntList *counts = constructEmptyIntList(0);
-	struct IntList *lengths = constructEmptyIntList(0);
-	struct IntList *degrees = constructEmptyIntList(0);
-	struct IntList *coverage = constructEmptyIntList(0);
-
-	atomStatsP(net, counts, lengths, degrees, coverage);
+	*counts = constructEmptyIntList(0);
+	*lengths = constructEmptyIntList(0);
+	*degrees = constructEmptyIntList(0);
+	*coverage = constructEmptyIntList(0);
+	atomStatsP(net, *counts, *lengths, *degrees, *coverage);
 	double f;
-	tabulateStats(counts, &f, &f, maxNumberPerNet, averageNumberPerNet, medianNumberPerNet);
-	tabulateStats(lengths, totalAtomNumber, &f, maxLength, averageLength, medianLength);
-	tabulateStats(degrees, totalAtomNumber, &f, maxDegree, averageDegree, medianDegree);
-	tabulateStats(coverage, totalAtomNumber, &f, maxCoverage, averageCoverage, medianCoverage);
-	destructIntList(counts);
-	destructIntList(lengths);
-	destructIntList(degrees);
-	destructIntList(coverage);
+	tabulateStats(*counts, &f, &f, maxNumberPerNet, averageNumberPerNet, medianNumberPerNet);
+	tabulateStats(*lengths, totalAtomNumber, &f, maxLength, averageLength, medianLength);
+	tabulateStats(*degrees, totalAtomNumber, &f, maxDegree, averageDegree, medianDegree);
+	tabulateStats(*coverage, totalAtomNumber, &f, maxCoverage, averageCoverage, medianCoverage);
 }
 
 void chainStatsP(Net *net, struct IntList *counts, struct IntList *lengths, struct IntList *baseLengths) {
@@ -232,21 +230,20 @@ void chainStatsP(Net *net, struct IntList *counts, struct IntList *lengths, stru
 	intListAppend(counts, net_getChainNumber(net));
 }
 
-void chainStats(Net *net, double *totalChainNumber,
+void chainStats(Net *net,
+		struct IntList **counts, struct IntList **lengths, struct IntList **degrees,
+		double *totalChainNumber,
 		double *maxNumberPerNet, double *averageNumberPerNet, double *medianNumberPerNet,
 		double *maxLength, double *averageLength, double *medianLength,
 		double *maxDegree, double *averageDegree, double *medianDegree) {
-	struct IntList *counts = constructEmptyIntList(0);
-	struct IntList *lengths = constructEmptyIntList(0);
-	struct IntList *degrees = constructEmptyIntList(0);
-	chainStatsP(net, counts, lengths, degrees);
+	*counts = constructEmptyIntList(0);
+	*lengths = constructEmptyIntList(0);
+	*degrees = constructEmptyIntList(0);
+	chainStatsP(net, *counts, *lengths, *degrees);
 	double f;
-	tabulateStats(counts, &f, &f, maxNumberPerNet, averageNumberPerNet, medianNumberPerNet);
-	tabulateStats(lengths, totalChainNumber, &f, maxLength, averageLength, medianLength);
-	tabulateStats(degrees, totalChainNumber, &f, maxDegree, averageDegree, medianDegree);
-	destructIntList(counts);
-	destructIntList(lengths);
-	destructIntList(degrees);
+	tabulateStats(*counts, &f, &f, maxNumberPerNet, averageNumberPerNet, medianNumberPerNet);
+	tabulateStats(*lengths, totalChainNumber, &f, maxLength, averageLength, medianLength);
+	tabulateStats(*degrees, totalChainNumber, &f, maxDegree, averageDegree, medianDegree);
 }
 
 void endStatsP(Net *net, struct IntList *counts, struct IntList *degrees) {
@@ -278,16 +275,15 @@ void endStatsP(Net *net, struct IntList *counts, struct IntList *degrees) {
 }
 
 void endStats(Net *net,
+		struct IntList **counts, struct IntList **degrees,
 		double *maxNumberPerNet, double *averageNumberPerNet, double *medianNumberPerNet,
 		double *maxDegree, double *averageDegree, double *medianDegree) {
-	struct IntList *counts = constructEmptyIntList(0);
-	struct IntList *degrees = constructEmptyIntList(0);
-	endStatsP(net, counts, degrees);
+	*counts = constructEmptyIntList(0);
+	*degrees = constructEmptyIntList(0);
+	endStatsP(net, *counts, *degrees);
 	double f;
-	tabulateStats(counts, &f, &f, maxNumberPerNet, averageNumberPerNet, medianNumberPerNet);
-	tabulateStats(degrees, &f, &f, maxDegree, averageDegree, medianDegree);
-	destructIntList(counts);
-	destructIntList(degrees);
+	tabulateStats(*counts, &f, &f, maxNumberPerNet, averageNumberPerNet, medianNumberPerNet);
+	tabulateStats(*degrees, &f, &f, maxDegree, averageDegree, medianDegree);
 }
 
 void leafStatsP(Net *net, struct IntList *leafSizes) {
@@ -303,12 +299,13 @@ void leafStatsP(Net *net, struct IntList *leafSizes) {
 	}
 }
 
-void leafStats(Net *net, double *totalLeafNumber,
-		double *minSeqSize, double *maxSeqSize, double *avgSeqSize, double *medianSeqSize) {
-	struct IntList *leafSizes = constructEmptyIntList(0);
-	leafStatsP(net, leafSizes);
-	tabulateStats(leafSizes, totalLeafNumber, minSeqSize, maxSeqSize, avgSeqSize, medianSeqSize);
-	destructIntList(leafSizes);
+void leafStats(Net *net,
+		struct IntList **leafSizes, double *totalLeafNumber,
+		double *minSeqSize, double *maxSeqSize, double *avgSeqSize,
+		double *medianSeqSize) {
+	*leafSizes = constructEmptyIntList(0);
+	leafStatsP(net, *leafSizes);
+	tabulateStats(*leafSizes, totalLeafNumber, minSeqSize, maxSeqSize, avgSeqSize, medianSeqSize);
 }
 
 void nonTrivialAdjacencyComponentStatsP(Net *net, struct IntList *nonTrivialAdjacencyComponentCounts) {
@@ -328,28 +325,36 @@ void nonTrivialAdjacencyComponentStatsP(Net *net, struct IntList *nonTrivialAdja
 	}
 }
 
-void nonTrivialAdjacencyComponentStats(Net *net, double *totalNonTrivialAdjacencyComponents,
-		double *maxNonTrivialAdjacencyComponents, double *avgNonTrivialAdjacencyComponents, double *medianNonTrivialAdjacencyComponents) {
-	struct IntList *nonTrivialAdjacencyComponentCounts = constructEmptyIntList(0);
-	nonTrivialAdjacencyComponentStatsP(net, nonTrivialAdjacencyComponentCounts);
+void nonTrivialAdjacencyComponentStats(Net *net,
+		struct IntList **nonTrivialAdjacencyComponentCounts,
+		double *totalNonTrivialAdjacencyComponents,
+		double *maxNonTrivialAdjacencyComponents,
+		double *avgNonTrivialAdjacencyComponents,
+		double *medianNonTrivialAdjacencyComponents) {
+	*nonTrivialAdjacencyComponentCounts = constructEmptyIntList(0);
+	nonTrivialAdjacencyComponentStatsP(net, *nonTrivialAdjacencyComponentCounts);
 	double f;
-	tabulateStats(nonTrivialAdjacencyComponentCounts,
+	tabulateStats(*nonTrivialAdjacencyComponentCounts,
 			totalNonTrivialAdjacencyComponents, &f, maxNonTrivialAdjacencyComponents,
 			avgNonTrivialAdjacencyComponents, medianNonTrivialAdjacencyComponents);
-	destructIntList(nonTrivialAdjacencyComponentCounts);
 }
 
 void printFloatValues(struct List *values, const char *tag, FILE *fileHandle) {
-	fprintf(fileHandle, );
+	int32_t i;
+	fprintf(fileHandle, "<%s>", tag);
 	for(i=0; i<values->length; i++) {
 		fprintf(fileHandle, "%f ", *(float *)values->list[i]);
 	}
+	fprintf(fileHandle, "</%s>", tag);
 }
 
-void printIntValues(struct IntList *values, FILE *fileHandle) {
+void printIntValues(struct IntList *values, const char *tag, FILE *fileHandle) {
+	int32_t i;
+	fprintf(fileHandle, "<%s>", tag);
 	for(i=0; i<values->length; i++) {
 		fprintf(fileHandle, "%i ", values->list[i]);
 	}
+	fprintf(fileHandle, "</%s>", tag);
 }
 
 int main(int argc, char *argv[]) {
@@ -486,9 +491,9 @@ int main(int argc, char *argv[]) {
 	double medianProportion;
 	struct List *childProportions;
 	largestChildStats(net, &childProportions, &minProportion, &maxProportion, &avgProportion, &medianProportion);
-
-	fprintf(fileHandle, "<largestChild minProportion=\"%f\" maxProportion=\"%f\" avgProportion=\"%f\" medianProportion=\"%f\" />", minProportion, maxProportion, avgProportion, medianProportion);
-
+	fprintf(fileHandle, "<largestChild minProportion=\"%f\" maxProportion=\"%f\" avgProportion=\"%f\" medianProportion=\"%f\">", minProportion, maxProportion, avgProportion, medianProportion);
+	printFloatValues(childProportions, "childProportions", fileHandle);
+	fprintf(fileHandle, "</largestChild>");
 	destructList(childProportions);
 
 	/*
@@ -503,11 +508,17 @@ int main(int argc, char *argv[]) {
 	double maxDepth;
 	double avgDepth;
 	double medianDepth;
-
-	netStats(net, &totalNetNumber, &maxChildren, &avgChildren, &medianChildren, &minDepth,
+	struct IntList *children;
+	struct IntList *depths;
+	netStats(net, &children, &depths, &totalNetNumber, &maxChildren, &avgChildren, &medianChildren, &minDepth,
 			&maxDepth, &avgDepth, &medianDepth);
-	fprintf(fileHandle, "<nets totalNetNumber=\"%f\" maxChildren=\"%f\" avgChildren=\"%f\" medianChildren=\"%f\" minDepth=\"%f\" maxDepth=\"%f\" avgDepth=\"%f\" medianDepth=\"%f\"/>",
+	fprintf(fileHandle, "<nets totalNetNumber=\"%f\" maxChildren=\"%f\" avgChildren=\"%f\" medianChildren=\"%f\" minDepth=\"%f\" maxDepth=\"%f\" avgDepth=\"%f\" medianDepth=\"%f\">",
 			totalNetNumber, maxChildren, avgChildren, medianChildren, minDepth, maxDepth, avgDepth, medianDepth);
+	printIntValues(children, "children", fileHandle);
+	printIntValues(depths, "depths", fileHandle);
+	fprintf(fileHandle, "</nets>");
+	destructIntList(children);
+	destructIntList(depths);
 
 	/*
 	 * Numbers on the atoms. Length is the number base pairs in an atom (they are gapless). Degree is the number of instances in an atom. Coverage is the length multiplied by the degree.
@@ -525,53 +536,97 @@ int main(int argc, char *argv[]) {
 	double maxCoverage;
 	double averageCoverage;
 	double medianCoverage;
-
-	atomStats(net, &totalNumber, &maxNumberPerNet, &averageNumberPerNet, &medianNumberPerNet,
+	struct IntList *counts;
+	struct IntList *lengths;
+	struct IntList *degrees;
+	struct IntList *coverage;
+	atomStats(net,
+			&counts, &lengths, &degrees, &coverage,
+			&totalNumber, &maxNumberPerNet, &averageNumberPerNet, &medianNumberPerNet,
 			&maxLength, &averageLength, &medianLength,
 			&maxDegree, &averageDegree, &medianDegree,
 			&maxCoverage, &averageCoverage, &medianCoverage);
-	fprintf(fileHandle, "<atoms totalNumber=\"%f\" totalBaseLength=\"%f\" maxNumberPerNet=\"%f\" averageNumberPerNet=\"%f\" medianNumberPerNet=\"%f\" maxLength=\"%f\" averageLength=\"%f\" medianLength=\"%f\" maxDegree=\"%f\" averageDegree=\"%f\" medianDegree=\"%f\" maxCoverage=\"%f\" averageCoverage=\"%f\" medianCoverage=\"%f\"/>",
+	fprintf(fileHandle, "<atoms totalNumber=\"%f\" totalBaseLength=\"%f\" maxNumberPerNet=\"%f\" averageNumberPerNet=\"%f\" medianNumberPerNet=\"%f\" maxLength=\"%f\" averageLength=\"%f\" medianLength=\"%f\" maxDegree=\"%f\" averageDegree=\"%f\" medianDegree=\"%f\" maxCoverage=\"%f\" averageCoverage=\"%f\" medianCoverage=\"%f\">",
 			totalNumber, totalNumber*averageLength, maxNumberPerNet, averageNumberPerNet, medianNumberPerNet, maxLength, averageLength, medianLength, maxDegree, averageDegree, medianDegree, maxCoverage, averageCoverage, medianCoverage);
+	printIntValues(counts, "counts", fileHandle);
+	printIntValues(lengths, "lengths", fileHandle);
+	printIntValues(degrees, "degrees", fileHandle);
+	printIntValues(coverage, "coverage", fileHandle);
+	fprintf(fileHandle, "</atoms>");
+	destructIntList(counts);
+	destructIntList(lengths);
+	destructIntList(degrees);
+	destructIntList(coverage);
 
-	chainStats(net, &totalNumber, &maxNumberPerNet, &averageNumberPerNet, &medianNumberPerNet,
+	/*
+	 * Chain statistics.
+	 */
+	chainStats(net,
+				&counts, &lengths, &degrees,
+				&totalNumber, &maxNumberPerNet, &averageNumberPerNet, &medianNumberPerNet,
 				&maxLength, &averageLength, &medianLength,
 				&maxDegree, &averageDegree, &medianDegree);
-	fprintf(fileHandle, "<chains totalNumber=\"%f\" maxNumberPerNet=\"%f\" averageNumberPerNet=\"%f\" medianNumberPerNet=\"%f\" maxLength=\"%f\" averageLength=\"%f\" medianLength=\"%f\" maxBaseLength=\"%f\" averageBaseLength=\"%f\" medianBaseLength=\"%f\"/>",
+	fprintf(fileHandle, "<chains totalNumber=\"%f\" maxNumberPerNet=\"%f\" averageNumberPerNet=\"%f\" medianNumberPerNet=\"%f\" maxLength=\"%f\" averageLength=\"%f\" medianLength=\"%f\" maxBaseLength=\"%f\" averageBaseLength=\"%f\" medianBaseLength=\"%f\">",
 			totalNumber, maxNumberPerNet, averageNumberPerNet, medianNumberPerNet, maxLength, averageLength, medianLength, maxDegree, averageDegree, medianDegree);
+	printIntValues(counts, "counts", fileHandle);
+	printIntValues(lengths, "lengths", fileHandle);
+	printIntValues(degrees, "degrees", fileHandle);
+	fprintf(fileHandle, "</chains>");
+	destructIntList(counts);
+	destructIntList(lengths);
+	destructIntList(degrees);
 
 	/*
 	 * Stats on the ends in the problem. An end's degree is the number of distinct ends that it has adjacencies with.
 	 */
 	endStats(net,
+			&counts, &degrees,
 			&maxNumberPerNet, &averageNumberPerNet, &medianNumberPerNet,
 			&maxDegree, &averageDegree, &medianDegree);
-	fprintf(fileHandle, "<ends maxNumberPerNet=\"%f\" averageNumberPerNet=\"%f\" medianNumberPerNet=\"%f\" maxDegree=\"%f\" averageDegree=\"%f\" medianDegree=\"%f\"/>", maxNumberPerNet, averageNumberPerNet, medianNumberPerNet, maxDegree, averageDegree, medianDegree);
+	fprintf(fileHandle, "<ends maxNumberPerNet=\"%f\" averageNumberPerNet=\"%f\" medianNumberPerNet=\"%f\" maxDegree=\"%f\" averageDegree=\"%f\" medianDegree=\"%f\">", maxNumberPerNet, averageNumberPerNet, medianNumberPerNet, maxDegree, averageDegree, medianDegree);
+	printIntValues(counts, "counts", fileHandle);
+	printIntValues(degrees, "degrees", fileHandle);
+	fprintf(fileHandle, "</ends>");
+	destructIntList(counts);
+	destructIntList(degrees);
 
+	/*
+	 * Stats on leaf nodes in the tree. The seq size of a leaf node is the amount of sequence (in bases), that it covers.
+	 */
 	double totalLeafNumber;
 	double minSeqSize;
 	double maxSeqSize;
 	double avgSeqSize;
 	double medianSeqSize;
-
-	/*
-	 * Stats on leaf nodes in the tree. The seq size of a leaf node is the amount of sequence (in bases), that it covers.
-	 */
-	leafStats(net, &totalLeafNumber, &minSeqSize, &maxSeqSize, &avgSeqSize, &medianSeqSize);
-	fprintf(fileHandle, "<leafs totalLeafNumber=\"%f\" minSeqSize=\"%f\" maxSeqSize=\"%f\" avgSeqSize=\"%f\" medianSeqSize=\"%f\" />", totalLeafNumber, minSeqSize, maxSeqSize, avgSeqSize, medianSeqSize);
-
-	double totalNonTrivialAdjacencyComponents;
-	double maxNonTrivialAdjacencyComponentsPerNet;
-	double avgNonTrivialAdjacencyComponentsPerNet;
-	double medianNonTrivialAdjacencyComponentsPetNet;
+	struct IntList *leafSizes;
+	leafStats(net, &leafSizes, &totalLeafNumber, &minSeqSize, &maxSeqSize, &avgSeqSize, &medianSeqSize);
+	fprintf(fileHandle, "<leaves totalLeafNumber=\"%f\" minSeqSize=\"%f\" maxSeqSize=\"%f\" avgSeqSize=\"%f\" medianSeqSize=\"%f\" >", totalLeafNumber, minSeqSize, maxSeqSize, avgSeqSize, medianSeqSize);
+	printIntValues(leafSizes, "leafSizes", fileHandle);
+	fprintf(fileHandle, "</leaves>");
+	destructIntList(leafSizes);
 
 	/*
 	 * Stats on the non trivial adjacency component.
 	 */
-	nonTrivialAdjacencyComponentStats(net, &totalNonTrivialAdjacencyComponents,
-			&maxNonTrivialAdjacencyComponentsPerNet, &avgNonTrivialAdjacencyComponentsPerNet, &medianNonTrivialAdjacencyComponentsPetNet);
-	fprintf(fileHandle, "<nonTrivialGroups total=\"%f\" maxPerNet=\"%f\" avgPerNet=\"%f\" medianPerNet=\"%f\" /></stats>\n", totalNonTrivialAdjacencyComponents,
+	double totalNonTrivialAdjacencyComponents;
+	double maxNonTrivialAdjacencyComponentsPerNet;
+	double avgNonTrivialAdjacencyComponentsPerNet;
+	double medianNonTrivialAdjacencyComponentsPetNet;
+	struct IntList *nonTrivialAdjacencyComponentCounts;
+	nonTrivialAdjacencyComponentStats(net,
+			&nonTrivialAdjacencyComponentCounts,
+			&totalNonTrivialAdjacencyComponents,
+			&maxNonTrivialAdjacencyComponentsPerNet,
+			&avgNonTrivialAdjacencyComponentsPerNet,
+			&medianNonTrivialAdjacencyComponentsPetNet);
+	fprintf(fileHandle, "<nonTrivialGroups total=\"%f\" maxPerNet=\"%f\" avgPerNet=\"%f\" medianPerNet=\"%f\" >", totalNonTrivialAdjacencyComponents,
 			maxNonTrivialAdjacencyComponentsPerNet, avgNonTrivialAdjacencyComponentsPerNet, medianNonTrivialAdjacencyComponentsPetNet);
+	printIntValues(nonTrivialAdjacencyComponentCounts, "trivialAdjacencyComponents", fileHandle);
+	fprintf(fileHandle, "</nonTrivialGroups>");
+	destructIntList(nonTrivialAdjacencyComponentCounts);
 
+
+	fprintf(fileHandle, "</stats>\n");
 	fclose(fileHandle);
 	logInfo("Finished writing out the stats.\n");
 
