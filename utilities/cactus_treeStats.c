@@ -41,6 +41,8 @@ double calculateTotalContainedSequence(Net *net) {
 						assert(endInstance_getStrand(endInstance2));
 						assert(endInstance_getSide(endInstance2));
 					}
+					assert(endInstance_getStrand(endInstance2));
+					assert(endInstance_getSide(endInstance2));
 					int32_t length = endInstance_getCoordinate(endInstance2) - endInstance_getCoordinate(endInstance) - 1;
 					assert(length >= 0);
 					totalLength += length;
@@ -77,6 +79,21 @@ double calculateTreeBits(Net *net, double pathBitScore) {
 	return i > 0 ? (pathBitScore + log(i)/log(2.0)) * i : 0.0;
 }
 
+void tabulateFloatStats(struct List *unsortedValues, double *totalNumber, double *min, double *max, double *avg, double *median) {
+	assert(unsortedValues->length > 0);
+	qsort(unsortedValues->list, unsortedValues->length, sizeof(void *), (int (*)(const void *, const void *))floatComparator);
+	*totalNumber = unsortedValues->length;
+	*min = *(float *)unsortedValues->list[0];
+	*max = *(float *)unsortedValues->list[unsortedValues->length-1];
+	*median = *(float *)unsortedValues->list[unsortedValues->length/2];
+	int32_t i;
+	float j = 0;
+	for(i=0; i<unsortedValues->length; i++) {
+		j += *(float *)unsortedValues->list[i];
+	}
+	*avg = j / unsortedValues->length;
+}
+
 void tabulateStats(struct IntList *unsortedValues, double *totalNumber, double *min, double *max, double *avg, double *median) {
 	assert(unsortedValues->length > 0);
 	qsort(unsortedValues->list, unsortedValues->length, sizeof(int32_t), (int (*)(const void *, const void *))intComparator_Int);
@@ -89,6 +106,33 @@ void tabulateStats(struct IntList *unsortedValues, double *totalNumber, double *
 		j += unsortedValues->list[i];
 	}
 	*avg = (double)j / unsortedValues->length;
+}
+
+double largestChildStatsP(Net *net, struct List *childProportions) {
+	Net_AdjacencyComponentIterator *adjacencyComponentIterator = net_getAdjacencyComponentIterator(net);
+	AdjacencyComponent *adjacencyComponent;
+	double problemSize = calculateTotalContainedSequence(net);
+	if(net_getAdjacencyComponentNumber(net) != 0) {
+		double childProportion = 0.0;
+		while((adjacencyComponent = net_getNextAdjacencyComponent(adjacencyComponentIterator)) != NULL) {
+			double f = largestChildStatsP(adjacencyComponent_getNestedNet(adjacencyComponent), childProportions);
+			if(f/problemSize > childProportion) {
+				childProportion = f/problemSize;
+			}
+		}
+		net_destructAdjacencyComponentIterator(adjacencyComponentIterator);
+		listAppend(childProportions, constructFloat(childProportion));
+	}
+	return problemSize;
+}
+
+void largestChildStats(Net *net,
+		struct List **childProportions,
+		double *minProportion, double *maxProportion, double *avgProportion, double *medianProportion) {
+	*childProportions = constructEmptyList(0, (void (*)(void *))destructFloat);
+	largestChildStatsP(net, *childProportions);
+	double f;
+	tabulateFloatStats(*childProportions, &f, minProportion, maxProportion, avgProportion, medianProportion);
 }
 
 void netStatsP(Net *net, int32_t currentDepth, struct IntList *children, struct IntList *depths) {
@@ -121,11 +165,12 @@ void netStats(Net *net, double *totalNetNumber,
 	destructIntList(depths);
 }
 
-void atomStatsP(Net *net, struct IntList *counts, struct IntList *lengths, struct IntList *degrees) {
+void atomStatsP(Net *net, struct IntList *counts, struct IntList *lengths, struct IntList *degrees,
+		struct IntList *coverage) {
 	Net_AdjacencyComponentIterator *adjacencyComponentIterator = net_getAdjacencyComponentIterator(net);
 	AdjacencyComponent *adjacencyComponent;
 	while((adjacencyComponent = net_getNextAdjacencyComponent(adjacencyComponentIterator)) != NULL) {
-		atomStatsP(adjacencyComponent_getNestedNet(adjacencyComponent), counts, lengths, degrees);
+		atomStatsP(adjacencyComponent_getNestedNet(adjacencyComponent), counts, lengths, degrees, coverage);
 	}
 	net_destructAdjacencyComponentIterator(adjacencyComponentIterator);
 
@@ -134,32 +179,32 @@ void atomStatsP(Net *net, struct IntList *counts, struct IntList *lengths, struc
 	while((atom = net_getNextAtom(atomIterator)) != NULL) {
 		intListAppend(lengths, atom_getLength(atom));
 		intListAppend(degrees, atom_getInstanceNumber(atom));
+		intListAppend(coverage, atom_getLength(atom)*atom_getInstanceNumber(atom));
 	}
 	net_destructAtomIterator(atomIterator);
 	intListAppend(counts, net_getAtomNumber(net));
 }
 
-void atomStats(Net *net, double *totalAtomNumber, double *totalCoverage,
+void atomStats(Net *net, double *totalAtomNumber,
 		double *maxNumberPerNet, double *averageNumberPerNet, double *medianNumberPerNet,
 		double *maxLength, double *averageLength, double *medianLength,
-		double *maxDegree, double *averageDegree, double *medianDegree) {
+		double *maxDegree, double *averageDegree, double *medianDegree,
+		double *maxCoverage, double *averageCoverage, double *medianCoverage) {
 	struct IntList *counts = constructEmptyIntList(0);
 	struct IntList *lengths = constructEmptyIntList(0);
 	struct IntList *degrees = constructEmptyIntList(0);
-	atomStatsP(net, counts, lengths, degrees);
+	struct IntList *coverage = constructEmptyIntList(0);
+
+	atomStatsP(net, counts, lengths, degrees, coverage);
 	double f;
 	tabulateStats(counts, &f, &f, maxNumberPerNet, averageNumberPerNet, medianNumberPerNet);
 	tabulateStats(lengths, totalAtomNumber, &f, maxLength, averageLength, medianLength);
 	tabulateStats(degrees, totalAtomNumber, &f, maxDegree, averageDegree, medianDegree);
-	int32_t i;
-	assert(lengths->length == degrees->length);
-	*totalCoverage = 0.0;
-	for(i=0; i<lengths->length; i++) {
-		*totalCoverage += lengths->list[i] * degrees->list[i];
-	}
+	tabulateStats(coverage, totalAtomNumber, &f, maxCoverage, averageCoverage, medianCoverage);
 	destructIntList(counts);
 	destructIntList(lengths);
 	destructIntList(degrees);
+	destructIntList(coverage);
 }
 
 void chainStatsP(Net *net, struct IntList *counts, struct IntList *lengths, struct IntList *baseLengths) {
@@ -243,6 +288,68 @@ void endStats(Net *net,
 	tabulateStats(degrees, &f, &f, maxDegree, averageDegree, medianDegree);
 	destructIntList(counts);
 	destructIntList(degrees);
+}
+
+void leafStatsP(Net *net, struct IntList *leafSizes) {
+	Net_AdjacencyComponentIterator *adjacencyComponentIterator = net_getAdjacencyComponentIterator(net);
+	AdjacencyComponent *adjacencyComponent;
+	while((adjacencyComponent = net_getNextAdjacencyComponent(adjacencyComponentIterator)) != NULL) {
+		leafStatsP(adjacencyComponent_getNestedNet(adjacencyComponent), leafSizes);
+	}
+	net_destructAdjacencyComponentIterator(adjacencyComponentIterator);
+
+	if(net_getAdjacencyComponentNumber(net) == 0) {
+		intListAppend(leafSizes, (int32_t)calculateTotalContainedSequence(net));
+	}
+}
+
+void leafStats(Net *net, double *totalLeafNumber,
+		double *minSeqSize, double *maxSeqSize, double *avgSeqSize, double *medianSeqSize) {
+	struct IntList *leafSizes = constructEmptyIntList(0);
+	leafStatsP(net, leafSizes);
+	tabulateStats(leafSizes, totalLeafNumber, minSeqSize, maxSeqSize, avgSeqSize, medianSeqSize);
+	destructIntList(leafSizes);
+}
+
+void nonTrivialAdjacencyComponentStatsP(Net *net, struct IntList *nonTrivialAdjacencyComponentCounts) {
+	Net_AdjacencyComponentIterator *adjacencyComponentIterator = net_getAdjacencyComponentIterator(net);
+	AdjacencyComponent *adjacencyComponent;
+	int32_t i = 0;
+	while((adjacencyComponent = net_getNextAdjacencyComponent(adjacencyComponentIterator)) != NULL) {
+		nonTrivialAdjacencyComponentStatsP(adjacencyComponent_getNestedNet(adjacencyComponent), nonTrivialAdjacencyComponentCounts);
+		if(adjacencyComponent_getLink(adjacencyComponent) == NULL) {
+			i++;
+		}
+	}
+	net_destructAdjacencyComponentIterator(adjacencyComponentIterator);
+
+	if(net_getAdjacencyComponentNumber(net) != 0) {
+		intListAppend(nonTrivialAdjacencyComponentCounts, i);
+	}
+}
+
+void nonTrivialAdjacencyComponentStats(Net *net, double *totalNonTrivialAdjacencyComponents,
+		double *maxNonTrivialAdjacencyComponents, double *avgNonTrivialAdjacencyComponents, double *medianNonTrivialAdjacencyComponents) {
+	struct IntList *nonTrivialAdjacencyComponentCounts = constructEmptyIntList(0);
+	nonTrivialAdjacencyComponentStatsP(net, nonTrivialAdjacencyComponentCounts);
+	double f;
+	tabulateStats(nonTrivialAdjacencyComponentCounts,
+			totalNonTrivialAdjacencyComponents, &f, maxNonTrivialAdjacencyComponents,
+			avgNonTrivialAdjacencyComponents, medianNonTrivialAdjacencyComponents);
+	destructIntList(nonTrivialAdjacencyComponentCounts);
+}
+
+void printFloatValues(struct List *values, const char *tag, FILE *fileHandle) {
+	fprintf(fileHandle, );
+	for(i=0; i<values->length; i++) {
+		fprintf(fileHandle, "%f ", *(float *)values->list[i]);
+	}
+}
+
+void printIntValues(struct IntList *values, FILE *fileHandle) {
+	for(i=0; i<values->length; i++) {
+		fprintf(fileHandle, "%i ", values->list[i]);
+	}
 }
 
 int main(int argc, char *argv[]) {
@@ -350,19 +457,44 @@ int main(int argc, char *argv[]) {
 	logInfo("Parsed the top level net of the cactus tree to build\n");
 
 	///////////////////////////////////////////////////////////////////////////
-	// Calculate the relative entropy.
+	// Calculate and print to file a crap load of numbers.
 	///////////////////////////////////////////////////////////////////////////
 
-	double totalP = calculateTreeBits(net, 0.0);
-	double i = calculateTotalContainedSequence(net);
-	double totalQ = (log(i) / log(2.0)) * i;
-	assert(totalP >= totalQ);
-	double relativeEntropy = totalP - totalQ;
-	double normalisedRelativeEntropy = relativeEntropy / i;
+	double totalSeqSize = calculateTotalContainedSequence(net);
 
 	fileHandle = fopen(outputFile, "w");
-	fprintf(fileHandle, "<stats netDisk=\"%s\" netName=\"%s\"><summaryStats totalSequenceLength=\"%f\" totalP=\"%f\" totalQ=\"%f\" relativeEntropy=\"%f\" normalisedRelativeEntropy=\"%f\"/>", netDiskName, netName, i, totalP, totalQ, relativeEntropy, normalisedRelativeEntropy);
+	fprintf(fileHandle, "<stats netDisk=\"%s\" netName=\"%s\" totalSequenceLength=\"%f\" >", netDiskName, netName, totalSeqSize);
 
+	/*
+	 * Relative entropy stats. Supposed to give a metric of how balanced the tree is in how it subdivides the input sequences.
+	 */
+	double totalP = calculateTreeBits(net, 0.0);
+	double totalQ = (log(totalSeqSize) / log(2.0)) * totalSeqSize;
+	assert(totalP >= totalQ);
+	double relativeEntropy = totalP - totalQ;
+	double normalisedRelativeEntropy = relativeEntropy / totalSeqSize;
+
+	fprintf(fileHandle, "<relativeEntropyStats totalP=\"%f\" totalQ=\"%f\" relativeEntropy=\"%f\" normalisedRelativeEntropy=\"%f\"/>", totalP, totalQ, relativeEntropy, normalisedRelativeEntropy);
+
+	/*
+	 * Largest child stats - another tree balance stat. The idea is to supplant the more complex relative entropy function with a simple stat, that provides a cross check.
+	 * The largest child is the proportion of the sequence the parent covers contained in a single child. min, max, avg and median numbers are given.
+	 */
+	double minProportion;
+	double maxProportion;
+	double avgProportion;
+	double medianProportion;
+	struct List *childProportions;
+	largestChildStats(net, &childProportions, &minProportion, &maxProportion, &avgProportion, &medianProportion);
+
+	fprintf(fileHandle, "<largestChild minProportion=\"%f\" maxProportion=\"%f\" avgProportion=\"%f\" medianProportion=\"%f\" />", minProportion, maxProportion, avgProportion, medianProportion);
+
+	destructList(childProportions);
+
+	/*
+	 * Numbers on the structure of the tree. Children numbers are based on the numbers of children each internal node in the cactus tree has.
+	 * The depth numbers are how deep the tree is, in terms of total nodes on the path from the root to the leaves. So the min-depth is the minimum depth to a leaf node etc..
+	 */
 	double totalNetNumber;
 	double maxChildren;
 	double avgChildren;
@@ -372,8 +504,15 @@ int main(int argc, char *argv[]) {
 	double avgDepth;
 	double medianDepth;
 
+	netStats(net, &totalNetNumber, &maxChildren, &avgChildren, &medianChildren, &minDepth,
+			&maxDepth, &avgDepth, &medianDepth);
+	fprintf(fileHandle, "<nets totalNetNumber=\"%f\" maxChildren=\"%f\" avgChildren=\"%f\" medianChildren=\"%f\" minDepth=\"%f\" maxDepth=\"%f\" avgDepth=\"%f\" medianDepth=\"%f\"/>",
+			totalNetNumber, maxChildren, avgChildren, medianChildren, minDepth, maxDepth, avgDepth, medianDepth);
+
+	/*
+	 * Numbers on the atoms. Length is the number base pairs in an atom (they are gapless). Degree is the number of instances in an atom. Coverage is the length multiplied by the degree.
+	 */
 	double totalNumber;
-	double totalCoverage;
 	double maxNumberPerNet;
 	double averageNumberPerNet;
 	double medianNumberPerNet;
@@ -383,17 +522,16 @@ int main(int argc, char *argv[]) {
 	double maxDegree;
 	double averageDegree;
 	double medianDegree;
+	double maxCoverage;
+	double averageCoverage;
+	double medianCoverage;
 
-	netStats(net, &totalNetNumber, &maxChildren, &avgChildren, &medianChildren, &minDepth,
-			&maxDepth, &avgDepth, &medianDepth);
-	fprintf(fileHandle, "<nets totalNetNumber=\"%f\" maxChildren=\"%f\" avgChildren=\"%f\" medianChildren=\"%f\" minDepth=\"%f\" maxDepth=\"%f\" avgDepth=\"%f\" medianDepth=\"%f\"/>",
-			totalNetNumber, maxChildren, avgChildren, medianChildren, minDepth, maxDepth, avgDepth, medianDepth);
-
-	atomStats(net, &totalNumber, &totalCoverage, &maxNumberPerNet, &averageNumberPerNet, &medianNumberPerNet,
+	atomStats(net, &totalNumber, &maxNumberPerNet, &averageNumberPerNet, &medianNumberPerNet,
 			&maxLength, &averageLength, &medianLength,
-			&maxDegree, &averageDegree, &medianDegree);
-	fprintf(fileHandle, "<atoms totalNumber=\"%f\" totalBaseLength=\"%f\" totalCovergae=\"%f\" maxNumberPerNet=\"%f\" averageNumberPerNet=\"%f\" medianNumberPerNet=\"%f\" maxLength=\"%f\" averageLength=\"%f\" medianLength=\"%f\" maxDegree=\"%f\" averageDegree=\"%f\" medianDegree=\"%f\"/>",
-			totalNumber, totalNumber*averageLength, totalCoverage, maxNumberPerNet, averageNumberPerNet, medianNumberPerNet, maxLength, averageLength, medianLength, maxDegree, averageDegree, medianDegree);
+			&maxDegree, &averageDegree, &medianDegree,
+			&maxCoverage, &averageCoverage, &medianCoverage);
+	fprintf(fileHandle, "<atoms totalNumber=\"%f\" totalBaseLength=\"%f\" maxNumberPerNet=\"%f\" averageNumberPerNet=\"%f\" medianNumberPerNet=\"%f\" maxLength=\"%f\" averageLength=\"%f\" medianLength=\"%f\" maxDegree=\"%f\" averageDegree=\"%f\" medianDegree=\"%f\" maxCoverage=\"%f\" averageCoverage=\"%f\" medianCoverage=\"%f\"/>",
+			totalNumber, totalNumber*averageLength, maxNumberPerNet, averageNumberPerNet, medianNumberPerNet, maxLength, averageLength, medianLength, maxDegree, averageDegree, medianDegree, maxCoverage, averageCoverage, medianCoverage);
 
 	chainStats(net, &totalNumber, &maxNumberPerNet, &averageNumberPerNet, &medianNumberPerNet,
 				&maxLength, &averageLength, &medianLength,
@@ -401,10 +539,39 @@ int main(int argc, char *argv[]) {
 	fprintf(fileHandle, "<chains totalNumber=\"%f\" maxNumberPerNet=\"%f\" averageNumberPerNet=\"%f\" medianNumberPerNet=\"%f\" maxLength=\"%f\" averageLength=\"%f\" medianLength=\"%f\" maxBaseLength=\"%f\" averageBaseLength=\"%f\" medianBaseLength=\"%f\"/>",
 			totalNumber, maxNumberPerNet, averageNumberPerNet, medianNumberPerNet, maxLength, averageLength, medianLength, maxDegree, averageDegree, medianDegree);
 
+	/*
+	 * Stats on the ends in the problem. An end's degree is the number of distinct ends that it has adjacencies with.
+	 */
 	endStats(net,
 			&maxNumberPerNet, &averageNumberPerNet, &medianNumberPerNet,
 			&maxDegree, &averageDegree, &medianDegree);
-	fprintf(fileHandle, "<ends maxNumberPerNet=\"%f\" averageNumberPerNet=\"%f\" medianNumberPerNet=\"%f\" maxDegree=\"%f\" averageDegree=\"%f\" medianDegree=\"%f\"/></stats>\n", maxNumberPerNet, averageNumberPerNet, medianNumberPerNet, maxDegree, averageDegree, medianDegree);
+	fprintf(fileHandle, "<ends maxNumberPerNet=\"%f\" averageNumberPerNet=\"%f\" medianNumberPerNet=\"%f\" maxDegree=\"%f\" averageDegree=\"%f\" medianDegree=\"%f\"/>", maxNumberPerNet, averageNumberPerNet, medianNumberPerNet, maxDegree, averageDegree, medianDegree);
+
+	double totalLeafNumber;
+	double minSeqSize;
+	double maxSeqSize;
+	double avgSeqSize;
+	double medianSeqSize;
+
+	/*
+	 * Stats on leaf nodes in the tree. The seq size of a leaf node is the amount of sequence (in bases), that it covers.
+	 */
+	leafStats(net, &totalLeafNumber, &minSeqSize, &maxSeqSize, &avgSeqSize, &medianSeqSize);
+	fprintf(fileHandle, "<leafs totalLeafNumber=\"%f\" minSeqSize=\"%f\" maxSeqSize=\"%f\" avgSeqSize=\"%f\" medianSeqSize=\"%f\" />", totalLeafNumber, minSeqSize, maxSeqSize, avgSeqSize, medianSeqSize);
+
+	double totalNonTrivialAdjacencyComponents;
+	double maxNonTrivialAdjacencyComponentsPerNet;
+	double avgNonTrivialAdjacencyComponentsPerNet;
+	double medianNonTrivialAdjacencyComponentsPetNet;
+
+	/*
+	 * Stats on the non trivial adjacency component.
+	 */
+	nonTrivialAdjacencyComponentStats(net, &totalNonTrivialAdjacencyComponents,
+			&maxNonTrivialAdjacencyComponentsPerNet, &avgNonTrivialAdjacencyComponentsPerNet, &medianNonTrivialAdjacencyComponentsPetNet);
+	fprintf(fileHandle, "<nonTrivialGroups total=\"%f\" maxPerNet=\"%f\" avgPerNet=\"%f\" medianPerNet=\"%f\" /></stats>\n", totalNonTrivialAdjacencyComponents,
+			maxNonTrivialAdjacencyComponentsPerNet, avgNonTrivialAdjacencyComponentsPerNet, medianNonTrivialAdjacencyComponentsPetNet);
+
 	fclose(fileHandle);
 	logInfo("Finished writing out the stats.\n");
 
