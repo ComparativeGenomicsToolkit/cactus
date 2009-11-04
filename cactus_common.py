@@ -176,6 +176,13 @@ def runCactusTreeViewer(graphFile,
     system("cactus_treeViewer --netDisk %s --netName %s --outputFile %s --logLevel %s" \
                     % (netDisk, netName, graphFile, logLevel))
     logger.info("Created a cactus tree graph")
+
+def runCactusCheck(netDisk, 
+                    netName="0", 
+                    logLevel="DEBUG"):
+    system("cactus_check --netDisk %s --netName %s --logLevel %s" \
+                    % (netDisk, netName, logLevel))
+    logger.info("Ran cactus check")
     
 def runCactusAtomGraphViewer(graphFile,
                              reconstructionRootDir, 

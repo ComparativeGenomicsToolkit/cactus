@@ -522,18 +522,20 @@ void fillOutNetFromInputs(
 		list = constructEmptyList(0, NULL);
 		for(j=0; j<biConnectedComponent->length; j++) {
 			cactusEdge = biConnectedComponent->list[j];
-			if(!isAStubOrCapCactusEdge(cactusEdge, pinchGraph) && hashtable_search(chosenAtomsHash, cactusEdge) == NULL && 0) {
+			if((!isAStubOrCapCactusEdge(cactusEdge, pinchGraph)) && hashtable_search(chosenAtomsHash, cactusEdge) == NULL) {
 				//merge vertices
 				if(vertexDiscoveryTimes[cactusEdge->from->vertexID] < vertexDiscoveryTimes[cactusEdge->to->vertexID]) {
 					mergedVertexIDs[cactusEdge->to->vertexID] = mergedVertexIDs[cactusEdge->from->vertexID];
 				}
 				else if (vertexDiscoveryTimes[cactusEdge->from->vertexID] > vertexDiscoveryTimes[cactusEdge->to->vertexID]) {
-					for(k=0; k <= j; k++) {
+					assert(j == biConnectedComponent->length-1);
+					listAppend(list, cactusEdge);
+					/*for(k=0; k <= j; k++) {
 						cactusVertex = ((struct CactusEdge *)biConnectedComponent->list[j])->from;
 						if(mergedVertexIDs[cactusVertex->vertexID] == mergedVertexIDs[cactusEdge->from->vertexID]) {
 							mergedVertexIDs[cactusVertex->vertexID] = mergedVertexIDs[cactusEdge->to->vertexID];
 						}
-					}
+					}*/
 				}
 			}
 			else {

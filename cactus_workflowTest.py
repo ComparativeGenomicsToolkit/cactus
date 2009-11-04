@@ -13,6 +13,7 @@ from cactus.cactus_common import getRandomCactusInputs
 from cactus.cactus_common import runCactusWorkflow
 from cactus.cactus_common import runCactusTreeViewer
 from cactus.cactus_common import runCactusAtomGraphViewer
+from cactus.cactus_common import runCactusCheck
 
 from workflow.jobTree.jobTreeTest import runJobTreeStatusAndFailIfNotComplete
 
@@ -46,6 +47,7 @@ class TestCase(unittest.TestCase):
             jobTreeDir = os.path.join(getTempDirectory(self.tempDir), "jobTree")
             runCactusWorkflow(self.tempReconstructionDirectory, sequenceDirs, newickTreeString, jobTreeDir, logLevel='INFO',
                                batchSystem=self.batchSystem, alignmentIterations=self.alignmentIterations)
+            runCactusCheck(self.tempReconstructionDirectory)
             #Run the checker to check the file is okay.
             runJobTreeStatusAndFailIfNotComplete(jobTreeDir)
             #Cleanup this test
@@ -111,6 +113,9 @@ def runWorkflow(sequences, newickTreeFile, outputDir, tempDir,
     
     runJobTreeStatusAndFailIfNotComplete(jobTreeDir)
     logger.info("Checked the job tree dir")
+    
+    runCactusCheck(netDisk)
+    logger.info("Checked the cactus tree")
     
     if cactusTreeGraphFile != None:
         runCactusTreeViewer(cactusTreeGraphFile, netDisk)
