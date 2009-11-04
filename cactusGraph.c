@@ -899,7 +899,7 @@ void writeOutCactusGraph(struct CactusGraph *cactusGraph, struct PinchGraph *pin
 			assert(edge != edge->rEdge);
 #endif
 			if(edge > edge->rEdge) {
-				if(edge->segments->length > 0) {
+				/*if(edge->segments->length > 0) {
 					for(k=0; k<edge->segments->length; k++) {
 						segment = edge->segments->list[k];
 						pinchEdge = getContainingBlackEdge(pinchGraph, segment->contig, segment->start);
@@ -907,9 +907,9 @@ void writeOutCactusGraph(struct CactusGraph *cactusGraph, struct PinchGraph *pin
 								edge->from->vertexID, edge->to->vertexID, segment->start, segment->end, netMisc_nameToStringStatic(segment->contig));
 					}
 				}
-				else {
+				else {*/
 					fprintf(fileHandle, "n" INT_STRING "n -- n" INT_STRING "n;\n", edge->from->vertexID, edge->to->vertexID);
-				}
+				//}
 			}
 		}
 	}

@@ -4,7 +4,7 @@ libPath = ../../lib
 
 cflags += ${tokyoCabinetIncl}
 
-all : ${binPath}/cactus_3Edge ${binPath}/cactus_core ${binPath}/cactus_phylogeny ${binPath}/cactus_setup ${binPath}/cactus_aligner.py ${binPath}/cactus_workflow.py ${binPath}/cactus_workflow_getNets ${binPath}/cactus_alignerTestAligner.py ${binPath}/cactus_adjacencyTestAdjacencyBuilder.py utilitiesM
+all : ${binPath}/cactus_3Edge ${binPath}/cactus_core ${binPath}/cactus_phylogeny ${binPath}/cactus_setup ${binPath}/cactus_aligner.py ${binPath}/cactus_workflow.py ${binPath}/cactus_workflow_getNets ${binPath}/cactus_alignerTestAligner.py utilitiesM
 
 ${binPath}/cactus_3Edge : 3_Absorb3edge2x.c ${libPath}/sonLib.a
 	${cxx} ${cflags} -I ${libPath} -o ${binPath}/cactus_3Edge 3_Absorb3edge2x.c ${libPath}/sonLib.a 
@@ -34,17 +34,13 @@ ${binPath}/cactus_alignerTestAligner.py : cactus_alignerTestAligner.py
 	cp cactus_alignerTestAligner.py ${binPath}/cactus_alignerTestAligner.py
 	chmod +x ${binPath}/cactus_alignerTestAligner.py
 
-${binPath}/cactus_adjacencyTestAdjacencyBuilder.py : cactus_adjacencyTestAdjacencyBuilder.py
-	cp cactus_adjacencyTestAdjacencyBuilder.py ${binPath}/cactus_adjacencyTestAdjacencyBuilder.py
-	chmod +x ${binPath}/cactus_adjacencyTestAdjacencyBuilder.py
-
 utilitiesM :
 	#Making cactus utilities
 	cd utilities && make all
 	
 clean : utilities.clean
 	rm -f *.o
-	rm -f ${binPath}/cactus_core ${binPath}/cactus_phylogeny ${binPath}/cactus_3Edge ${binPath}/cactus_setup ${binPath}/cactus_aligner.py ${binPath}/cactus_aligner ${binPath}/cactus_workflow.py ${binPath}/cactus_alignerTestAligner.py ${binPath}/cactus_adjacencyTestAdjacencyBuilder.py 
+	rm -f ${binPath}/cactus_core ${binPath}/cactus_phylogeny ${binPath}/cactus_3Edge ${binPath}/cactus_setup ${binPath}/cactus_aligner.py ${binPath}/cactus_aligner ${binPath}/cactus_workflow.py ${binPath}/cactus_alignerTestAligner.py 
 
 utilities.clean :
 	#Making cactus utilities
