@@ -529,13 +529,12 @@ void fillOutNetFromInputs(
 				}
 				else if (vertexDiscoveryTimes[cactusEdge->from->vertexID] > vertexDiscoveryTimes[cactusEdge->to->vertexID]) {
 					assert(j == biConnectedComponent->length-1);
-					listAppend(list, cactusEdge);
-					/*for(k=0; k <= j; k++) {
-						cactusVertex = ((struct CactusEdge *)biConnectedComponent->list[j])->from;
+					for(k=0; k <= j; k++) {
+						cactusVertex = ((struct CactusEdge *)biConnectedComponent->list[k])->from;
 						if(mergedVertexIDs[cactusVertex->vertexID] == mergedVertexIDs[cactusEdge->from->vertexID]) {
 							mergedVertexIDs[cactusVertex->vertexID] = mergedVertexIDs[cactusEdge->to->vertexID];
 						}
-					}*/
+					}
 				}
 			}
 			else {
