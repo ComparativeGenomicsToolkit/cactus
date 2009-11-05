@@ -11,6 +11,8 @@
 #include "commonC.h"
 #include "hashTableC.h"
 
+#include "utilitiesShared.h"
+
 
 void usage() {
 	fprintf(stderr, "cactus_treeStats, version 0.1\n");
@@ -19,40 +21,6 @@ void usage() {
 	fprintf(stderr, "-d --netName : The name of the net (the key in the database)\n");
 	fprintf(stderr, "-e --outputFile : The file to write the stats in, XML formatted.\n");
 	fprintf(stderr, "-h --help : Print this help screen\n");
-}
-
-double calculateTotalContainedSequence(Net *net) {
-	Net_EndIterator *endIterator = net_getEndIterator(net);
-	End *end;
-	double totalLength = 0.0;
-	while((end = net_getNextEnd(endIterator)) != NULL) {
-		if(!end_isAtomEnd(end)) {
-			End_InstanceIterator *instanceIterator = end_getInstanceIterator(end);
-			EndInstance *endInstance;
-			while((endInstance = end_getNext(instanceIterator)) != NULL) {
-				endInstance = endInstance_getStrand(endInstance) ? endInstance : endInstance_getReverse(endInstance);
-				if(!endInstance_getSide(endInstance)) {
-					EndInstance *endInstance2 = endInstance_getAdjacency(endInstance);
-					while(end_isAtomEnd(endInstance_getEnd(endInstance2))) {
-						AtomInstance *atomInstance = endInstance_getAtomInstance(endInstance2);
-						assert(atomInstance != NULL);
-						assert(atomInstance_get5End(atomInstance) == endInstance2);
-						endInstance2 = endInstance_getAdjacency(atomInstance_get3End(atomInstance));
-						assert(endInstance_getStrand(endInstance2));
-						assert(endInstance_getSide(endInstance2));
-					}
-					assert(endInstance_getStrand(endInstance2));
-					assert(endInstance_getSide(endInstance2));
-					int32_t length = endInstance_getCoordinate(endInstance2) - endInstance_getCoordinate(endInstance) - 1;
-					assert(length >= 0);
-					totalLength += length;
-				}
-			}
-			end_destructInstanceIterator(instanceIterator);
-		}
-	}
-	net_destructEndIterator(endIterator);
-	return totalLength;
 }
 
 double calculateTreeBits(Net *net, double pathBitScore) {

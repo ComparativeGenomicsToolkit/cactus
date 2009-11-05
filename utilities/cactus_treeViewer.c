@@ -11,8 +11,14 @@
 #include "commonC.h"
 #include "hashTableC.h"
 
+#include "utilitiesShared.h"
 
-void usage() {
+/*
+ * Global variables.
+ */
+static double totalProblemSize;
+
+static void usage() {
 	fprintf(stderr, "cactus_tree, version 0.2\n");
 	fprintf(stderr, "-a --logLevel : Set the log level\n");
 	fprintf(stderr, "-c --netDisk : The location of the net disk directory\n");
@@ -21,50 +27,62 @@ void usage() {
 	fprintf(stderr, "-h --help : Print this help screen\n");
 }
 
-void makeCactusTree_net(Net *net, FILE *fileHandle, const char *parentNodeName);
+static void addNodeToGraph(const char *nodeName, FILE *graphFileHandle,
+		double scalingFactor, const char *shape) {
+    /*
+     * Adds a node to the graph, scaling it's size.
+     */
 
-void makeCactusTree_chain(Chain *chain, FILE *fileHandle, const char *parentNodeName) {
+    double height = 1;
+    double width = 0.1;
+    if(scalingFactor >= 1) {
+        height = 4 * sqrt(scalingFactor);
+        width = 1.0 * sqrt(scalingFactor);
+    }
+    graphViz_addNodeToGraph(nodeName, graphFileHandle, "", width, height, shape, "black", 14);
+}
+
+void makeCactusTree_net(Net *net, FILE *fileHandle, const char *parentNodeName, const char *parentEdgeColour);
+
+void makeCactusTree_chain(Chain *chain, FILE *fileHandle, const char *parentNodeName, const char *parentEdgeColour) {
 	//Write the net nodes.
-	fprintf(fileHandle, "node[width=0.3,height=0.3,shape=box,colour=black,fontsize=14];\n");
 	char *chainNameString = netMisc_nameToString(chain_getName(chain));
-	fprintf(fileHandle, "n%sn [label=\"%s\"];\n", chainNameString, chainNameString);
+	const char *edgeColour = graphViz_getColour();
+	addNodeToGraph(chainNameString, fileHandle, 100*calculateChainSize(chain)/totalProblemSize, "box");
 	//Write in the parent edge.
 	if(parentNodeName != NULL) {
-		//fprintf(fileHandle, "edge[color=black,len=2.5,weight=100,dir=forward];\n");
-		fprintf(fileHandle, "n%sn -- n%sn;\n", parentNodeName, chainNameString);
+		graphViz_addEdgeToGraph(parentNodeName, chainNameString, fileHandle, "", parentEdgeColour, 10, 1, "forward");
 	}
 	//Create the linkers to the nested nets.
 	int32_t i;
 	for(i=0; i<chain_getLength(chain); i++) {
 		makeCactusTree_net(adjacencyComponent_getNestedNet(link_getAdjacencyComponent(chain_getLink(chain, i))),
-				fileHandle, chainNameString);
+				fileHandle, chainNameString, edgeColour);
 	}
 	free(chainNameString);
 }
 
-void makeCactusTree_net(Net *net, FILE *fileHandle, const char *parentNodeName) {
+void makeCactusTree_net(Net *net, FILE *fileHandle, const char *parentNodeName, const char *parentEdgeColour) {
 	//Write the net nodes.
-	fprintf(fileHandle, "node[width=0.3,height=0.3,shape=circle,colour=black,fontsize=14];\n");
 	char *netNameString = netMisc_nameToString(net_getName(net));
-	fprintf(fileHandle, "n%sn [label=\"%s\"];\n", netNameString, netNameString);
+	const char *edgeColour = graphViz_getColour();
+	addNodeToGraph(netNameString, fileHandle, 100*calculateTotalContainedSequence(net)/totalProblemSize, "ellipse");
 	//Write in the parent edge.
 	if(parentNodeName != NULL) {
-		//fprintf(fileHandle, "edge[color=black,len=2.5,weight=100,dir=forward];\n");
-		fprintf(fileHandle, "n%sn -- n%sn;\n", parentNodeName, netNameString);
+		graphViz_addEdgeToGraph(parentNodeName, netNameString, fileHandle, "", parentEdgeColour, 10, 1, "forward");
 	}
 	//Create the chains.
 	Net_ChainIterator *chainIterator = net_getChainIterator(net);
 	Chain *chain;
 	while((chain = net_getNextChain(chainIterator)) != NULL) {
-		makeCactusTree_chain(chain, fileHandle, netNameString);
+		makeCactusTree_chain(chain, fileHandle, netNameString, edgeColour);
 	}
 	net_destructChainIterator(chainIterator);
 
 	//Create the diamond node
-	fprintf(fileHandle, "node[width=0.3,height=0.3,shape=diamond,colour=black,fontsize=14];\n");
 	char *diamondNodeNameString = malloc(sizeof(char)*(strlen(netNameString) + 2));
 	sprintf(diamondNodeNameString, "z%s", netNameString);
-
+	const char *diamondEdgeColour = graphViz_getColour();
 	//Create all the adjacency components linked to the diamond.
 	Net_AdjacencyComponentIterator *adjacencyComponentIterator = net_getAdjacencyComponentIterator(net);
 	AdjacencyComponent *adjacencyComponent;
@@ -73,11 +91,10 @@ void makeCactusTree_net(Net *net, FILE *fileHandle, const char *parentNodeName) 
 		if(adjacencyComponent_getLink(adjacencyComponent) == NULL) { //linked to the diamond node.
 			if(i) { //only write if needed.
 				i = 0;
-				fprintf(fileHandle, "n%sn;\n", diamondNodeNameString);
-				//fprintf(fileHandle, "edge[color=black,len=2.5,weight=100,dir=forward];\n");
-				fprintf(fileHandle, "n%sn -- n%sn;\n", netNameString, diamondNodeNameString);
+				addNodeToGraph(diamondNodeNameString, fileHandle, 0.2, "diamond");
+				graphViz_addEdgeToGraph(netNameString, diamondNodeNameString, fileHandle, "", edgeColour, 10, 1, "forward");
 			}
-			makeCactusTree_net(adjacencyComponent_getNestedNet(adjacencyComponent), fileHandle, diamondNodeNameString);
+			makeCactusTree_net(adjacencyComponent_getNestedNet(adjacencyComponent), fileHandle, diamondNodeNameString, diamondEdgeColour);
 		}
 	}
 	net_destructAdjacencyComponentIterator(adjacencyComponentIterator);
@@ -193,12 +210,11 @@ int main(int argc, char *argv[]) {
 	// Build the graph.
 	///////////////////////////////////////////////////////////////////////////
 
+	totalProblemSize = calculateTotalContainedSequence(net);
 	fileHandle = fopen(outputFile, "w");
-
-	fprintf(fileHandle, "graph G {\n");
-	fprintf(fileHandle, "overlap=false\n");
-	makeCactusTree_net(net, fileHandle, NULL);
-	fprintf(fileHandle, "}\n");
+	graphViz_setupGraphFile(fileHandle);
+	makeCactusTree_net(net, fileHandle, NULL, NULL);
+	graphViz_finishGraphFile(fileHandle);
 	fclose(fileHandle);
 	logInfo("Written the tree to file\n");
 
