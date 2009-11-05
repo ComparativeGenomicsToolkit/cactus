@@ -1,5 +1,5 @@
 /*
- * The script builds a cactus tree representation of the chains and nets.
+ * The script builds a cactus graph representation of the chains and nets.
  * The format of the output graph is dot format.
  */
 #include <assert.h>
@@ -25,7 +25,7 @@ static bool scaleNodeSizes = 1;
 static bool nameLabels = 0;
 
 static void usage() {
-	fprintf(stderr, "cactus_treeViewer, version 0.2\n");
+	fprintf(stderr, "cactus_graphViewer, version 0.2\n");
 	fprintf(stderr, "-a --logLevel : Set the log level\n");
 	fprintf(stderr, "-c --netDisk : The location of the net disk directory\n");
 	fprintf(stderr, "-d --netName : The name of the net (the key in the database)\n");
@@ -33,42 +33,6 @@ static void usage() {
 	fprintf(stderr, "-f --scaleNodeSizes : Scale the node sizes according to the volume of sequence they contained.\n");
 	fprintf(stderr, "-g --nameLabels : Give chain and net nodes name labels.\n");
 	fprintf(stderr, "-h --help : Print this help screen\n");
-}
-
-static void addNodeToGraph(const char *nodeName, FILE *graphFileHandle,
-		double scalingFactor, const char *shape, const char *nodeLabel) {
-    /*
-     * Adds a node to the graph, scaling it's size.
-     */
-
-    double height = 1;
-    double width = 0.25;
-    scalingFactor *= 100.0;
-    if(scaleNodeSizes && scalingFactor >= 1) {
-        height = 4 * sqrt(scalingFactor);
-        width = 1.0 * sqrt(scalingFactor);
-    }
-    graphViz_addNodeToGraph(nodeName, graphFileHandle, nameLabels ? nodeLabel : "", width, height, shape, "black", 14);
-}
-
-void makeCactusTree_net(Net *net, FILE *fileHandle, const char *parentNodeName, const char *parentEdgeColour);
-
-void makeCactusTree_chain(Chain *chain, FILE *fileHandle, const char *parentNodeName, const char *parentEdgeColour) {
-	//Write the net nodes.
-	char *chainNameString = netMisc_nameToString(chain_getName(chain));
-	const char *edgeColour = graphViz_getColour();
-	addNodeToGraph(chainNameString, fileHandle, calculateChainSize(chain)/totalProblemSize, "box", chainNameString);
-	//Write in the parent edge.
-	if(parentNodeName != NULL) {
-		graphViz_addEdgeToGraph(parentNodeName, chainNameString, fileHandle, "", parentEdgeColour, 10, 1, "forward");
-	}
-	//Create the linkers to the nested nets.
-	int32_t i;
-	for(i=0; i<chain_getLength(chain); i++) {
-		makeCactusTree_net(adjacencyComponent_getNestedNet(link_getAdjacencyComponent(chain_getLink(chain, i))),
-				fileHandle, chainNameString, edgeColour);
-	}
-	free(chainNameString);
 }
 
 void makeCactusTree_net(Net *net, FILE *fileHandle, const char *parentNodeName, const char *parentEdgeColour) {
