@@ -3,6 +3,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
+#include <sys/stat.h>
 #include <time.h>
 #include <getopt.h>
 
@@ -26,6 +27,35 @@ char **chainAlignment_getAlignment(ChainAlignment *chainAlignment) {
 	AtomInstance *atomInstance;
 	char *cA;
 
+	alignment = malloc(sizeof(void *) * chainAlignment->rowNumber);
+	for(i=0; i<chainAlignment->rowNumber; i++) {
+		alignment[i] = malloc(sizeof(char) * (chainAlignment->totalAlignmentLength + 1));
+	}
+
+	for(j=0; j<chainAlignment->rowNumber; j++) {
+		l = 0;
+		for(i=0; i<chainAlignment->columnNumber; i++) {
+			atomInstance = chainAlignment->matrix[i][j];
+			if(atomInstance == NULL) {
+				for(k=0; k<atom_getLength(chainAlignment->atoms[i]); k++) {
+					alignment[j][l++]  = 'N';
+				}
+			}
+			else {
+				cA = atomInstance_getString(atomInstance);
+				for(k=0; k<atomInstance_getLength(atomInstance); k++) {
+					alignment[j][l++]  = cA[k];
+				}
+				free(cA);
+			}
+		}
+		alignment[j][l] = '\0';
+		assert(l == chainAlignment->totalAlignmentLength);
+	}
+
+	return alignment;
+
+/*
 	//do allocation
 	alignment = malloc(sizeof(void *) * chainAlignment->totalAlignmentLength);
 	for(i=0; i<chainAlignment->totalAlignmentLength; i++) {
@@ -52,6 +82,7 @@ char **chainAlignment_getAlignment(ChainAlignment *chainAlignment) {
 		}
 		assert(l == chainAlignment->totalAlignmentLength);
 	}
+*/
 
 	return alignment;
 }
@@ -115,7 +146,7 @@ int32_t *chainAlignment_getAtomBoundaries(ChainAlignment *chainAlignment) {
 }
 
 void buildChainTrees_Bernard(int32_t atomNumber, char ***concatenatedAtoms, Name **_5Ends, Name **_3Ends, Name **leafEventLabels,
-							int32_t **atomBoundaries, char *eventTreeString, const char *tempDir) {
+							int32_t **atomBoundaries, char *eventTreeString, const char *tempDir, ChainAlignment **chainAlignments) {
 	/*
 	 * Here's the function you need to fill in, I haven't defined the outputs yet - you get it working and then we can discuss.
 	 *
@@ -126,6 +157,106 @@ void buildChainTrees_Bernard(int32_t atomNumber, char ***concatenatedAtoms, Name
 	 * Names can be converted to strings with: netMisc_nameToString() and netMisc_nameToStringStatic() (See the API).
 	 */
 
+	int32_t i = 0;
+	int32_t j = 0;
+	int32_t atomIdx = 0;
+
+	char *randomDirName = NULL;
+
+	int32_t rowNumber = 0;
+
+	char eventTreeFileName[] = "pre.event.tree";
+	char atomFileName[] = "annot";
+	char mafDirFileName[] = "mafs";
+	char augTreeFileName[] = "remap.augtree";
+	char dupTreeFileName[] = "R.duptree";
+
+	const int32_t TMP_BUFFER_SIZE = 256; // Assume that 256 chars is enough for any temp filename strings
+	char tmpStringBuffer[TMP_BUFFER_SIZE];
+	FILE *fp = NULL;
+
+	randomDirName = strrchr(tempDir, '/');
+	if (randomDirName == NULL) {
+		; // Assume this doesn't happen
+	} else {
+		randomDirName += 1;
+	}
+
+//	char tempDirDir[] = "/Users/bsuh/TOKYO";
+
+	/* Output the eventTree to file */
+	snprintf(tmpStringBuffer, TMP_BUFFER_SIZE, "%s/%s", tempDir, eventTreeFileName);
+//	snprintf(tmpStringBuffer, TMP_BUFFER_SIZE, "%s/%s", tempDirDir, eventTreeFileName);
+	fp = fopen(tmpStringBuffer, "w");
+	fprintf(fp, "%s\n", eventTreeString);
+	fclose(fp);
+
+	/* Output the atom definition file */
+	snprintf(tmpStringBuffer, TMP_BUFFER_SIZE, "%s/%s", tempDir, atomFileName);
+//	snprintf(tmpStringBuffer, TMP_BUFFER_SIZE, "%s/%s", tempDirDir, atomFileName);
+	fp = fopen(tmpStringBuffer, "w");
+	for (i=0; i<atomNumber; i++) {
+		rowNumber = chainAlignments[i]->rowNumber;
+
+		/* NOTE: Atom Numbers start at 1 */
+		fprintf(fp, ">%d %d %d\n", i+1, chainAlignments[i]->totalAlignmentLength, rowNumber);
+		for (j=0; j<rowNumber; j++) {
+			fprintf(fp, "%s.chr0:1-%d + %s %s\n", netMisc_nameToString(leafEventLabels[i][j]), chainAlignments[i]->totalAlignmentLength, netMisc_nameToString(_5Ends[i][j]), netMisc_nameToString(_3Ends[i][j]));
+		}
+	}
+	fclose(fp);
+
+	/* Atom boundaries */
+	for (i=0; i<atomNumber; i++) {
+		rowNumber = chainAlignments[i]->rowNumber;
+		for (j=0; j<rowNumber; j++) {
+			atomIdx = atomBoundaries[i][j];
+		}
+	}
+
+	/* Atom map */
+	snprintf(tmpStringBuffer, TMP_BUFFER_SIZE, "%s/%s", tempDir, "atom.map");
+//	snprintf(tmpStringBuffer, TMP_BUFFER_SIZE, "%s/%s", tempDirDir, "atom.map");
+	fp = fopen(tmpStringBuffer, "w");
+	for (i=0; i<atomNumber; i++) {
+		/* NOTE: Atom Numbers start at 1 */
+		fprintf(fp, "%d\t%d\n", i+1, i+1);
+	}
+	fclose(fp);
+
+	/* Create the maf files */
+	snprintf(tmpStringBuffer, TMP_BUFFER_SIZE, "%s/%s", tempDir, mafDirFileName);
+//	snprintf(tmpStringBuffer, TMP_BUFFER_SIZE, "%s/%s", tempDirDir, mafDirFileName);
+	mkdir(tmpStringBuffer, 0777);
+
+	for (i=0; i<atomNumber; i++) {
+		/* NOTE: Atom Numbers start at 1 */
+		snprintf(tmpStringBuffer, TMP_BUFFER_SIZE, "%s/%s/%d", tempDir, mafDirFileName, i+1);
+//		snprintf(tmpStringBuffer, TMP_BUFFER_SIZE, "%s/%s/%d", tempDirDir, mafDirFileName, i+1);
+
+		fp = fopen(tmpStringBuffer, "w");
+
+		rowNumber = chainAlignments[i]->rowNumber;
+		for (j=0; j<rowNumber; j++) {
+			fprintf(fp, ">%s\n", netMisc_nameToString(leafEventLabels[i][j]));
+			fprintf(fp, "%s\n", concatenatedAtoms[i][j]);
+		}
+
+		fclose(fp);
+	}
+
+	/* Run the tree pipeline */
+	snprintf(tmpStringBuffer, TMP_BUFFER_SIZE, "conTrees_PhyloBuilder.py %s", tempDir);
+	system(tmpStringBuffer);
+
+	/* Readin tree pipeline output */
+	snprintf(tmpStringBuffer, TMP_BUFFER_SIZE, "%s/%s", tempDir, dupTreeFileName);
+	fp = fopen(tmpStringBuffer, "r");
+	fclose(fp);
+
+	snprintf(tmpStringBuffer, TMP_BUFFER_SIZE, "%s/%s", tempDir, augTreeFileName);
+	fp = fopen(tmpStringBuffer, "r");
+	fclose(fp);
 
 }
 
@@ -163,7 +294,7 @@ void buildChainTrees(ChainAlignment **chainAlignments, int32_t chainAlignmentNum
 	exitOnFailure(constructRandomDir(tempFilePath, &randomDir), "Tried to make a recursive directory of temp files but failed\n");
 
 	//call to Bernard's code
-	buildChainTrees_Bernard(chainAlignmentNumber, concatenatedAtoms, _5Ends, _3Ends, leafEventLabels, atomBoundaries, eventTreeString, randomDir);
+	buildChainTrees_Bernard(chainAlignmentNumber, concatenatedAtoms, _5Ends, _3Ends, leafEventLabels, atomBoundaries, eventTreeString, randomDir, chainAlignments);
 
 	exitOnFailure(destructRandomDir(randomDir), "Tried to destroy a recursive directory of temp files but failed\n");
 
