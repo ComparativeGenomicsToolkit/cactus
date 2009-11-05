@@ -54,37 +54,6 @@ char **chainAlignment_getAlignment(ChainAlignment *chainAlignment) {
 	}
 
 	return alignment;
-
-/*
-	//do allocation
-	alignment = malloc(sizeof(void *) * chainAlignment->totalAlignmentLength);
-	for(i=0; i<chainAlignment->totalAlignmentLength; i++) {
-		alignment[i] = malloc(sizeof(char) *chainAlignment->rowNumber);
-	}
-
-	//fill in the array.
-	for(j=0; j<chainAlignment->rowNumber; j++) {
-		l = 0;
-		for(i=0; i<chainAlignment->columnNumber; i++) {
-			atomInstance = chainAlignment->matrix[i][j];
-			if(atomInstance == NULL) {
-				for(k=0; k<atom_getLength(chainAlignment->atoms[i]); k++) {
-					alignment[l++][j]  = 'N';
-				}
-			}
-			else {
-				cA = atomInstance_getString(atomInstance);
-				for(k=0; k<atomInstance_getLength(atomInstance); k++) {
-					alignment[l++][j]  = cA[k];
-				}
-				free(cA);
-			}
-		}
-		assert(l == chainAlignment->totalAlignmentLength);
-	}
-*/
-
-	return alignment;
 }
 
 AtomInstance *chainAlignment_getFirstNonNullAtomInstance(ChainAlignment *chainAlignment, int32_t row, bool increasing) {
@@ -146,7 +115,8 @@ int32_t *chainAlignment_getAtomBoundaries(ChainAlignment *chainAlignment) {
 }
 
 void buildChainTrees_Bernard(int32_t atomNumber, char ***concatenatedAtoms, Name **_5Ends, Name **_3Ends, Name **leafEventLabels,
-							int32_t **atomBoundaries, char *eventTreeString, const char *tempDir, ChainAlignment **chainAlignments) {
+							int32_t **atomBoundaries, char *eventTreeString, const char *tempDir, ChainAlignment **chainAlignments,
+							char **modifiedEventTreeString, char ***atomTreeStrings) {
 	/*
 	 * Here's the function you need to fill in, I haven't defined the outputs yet - you get it working and then we can discuss.
 	 *
@@ -247,7 +217,7 @@ void buildChainTrees_Bernard(int32_t atomNumber, char ***concatenatedAtoms, Name
 
 	/* Run the tree pipeline */
 	snprintf(tmpStringBuffer, TMP_BUFFER_SIZE, "conTrees_PhyloBuilder.py %s", tempDir);
-	system(tmpStringBuffer);
+	exitOnFailure(system(tmpStringBuffer), "conTrees_PhyloBuilder.py failed\n");
 
 	/* Readin tree pipeline output */
 	snprintf(tmpStringBuffer, TMP_BUFFER_SIZE, "%s/%s", tempDir, dupTreeFileName);
@@ -257,6 +227,11 @@ void buildChainTrees_Bernard(int32_t atomNumber, char ***concatenatedAtoms, Name
 	snprintf(tmpStringBuffer, TMP_BUFFER_SIZE, "%s/%s", tempDir, augTreeFileName);
 	fp = fopen(tmpStringBuffer, "r");
 	fclose(fp);
+
+	/*
+	 *
+	 */
+
 
 }
 
@@ -294,7 +269,10 @@ void buildChainTrees(ChainAlignment **chainAlignments, int32_t chainAlignmentNum
 	exitOnFailure(constructRandomDir(tempFilePath, &randomDir), "Tried to make a recursive directory of temp files but failed\n");
 
 	//call to Bernard's code
-	buildChainTrees_Bernard(chainAlignmentNumber, concatenatedAtoms, _5Ends, _3Ends, leafEventLabels, atomBoundaries, eventTreeString, randomDir, chainAlignments);
+	char *modifiedEventTreeString;
+	char **atomTreeStrings;
+	buildChainTrees_Bernard(chainAlignmentNumber, concatenatedAtoms, _5Ends, _3Ends, leafEventLabels, atomBoundaries, eventTreeString, randomDir, chainAlignments,
+			&modifiedEventTreeString, &atomTreeStrings);
 
 	exitOnFailure(destructRandomDir(randomDir), "Tried to destroy a recursive directory of temp files but failed\n");
 
