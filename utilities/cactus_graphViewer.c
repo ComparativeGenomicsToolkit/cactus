@@ -20,6 +20,7 @@
 /*
  * Global variables.
  */
+static bool edgeColours = 1;
 static bool nameLabels = 0;
 
 static void usage() {
@@ -28,6 +29,7 @@ static void usage() {
 	fprintf(stderr, "-c --netDisk : The location of the net disk directory\n");
 	fprintf(stderr, "-d --netName : The name of the net (the key in the database)\n");
 	fprintf(stderr, "-e --outputFile : The file to write the dot graph file in.\n");
+	fprintf(stderr, "-f --chainColours : Do not give chains distinct colours (instead of just black)\n");
 	fprintf(stderr, "-g --nameLabels : Give chain and net nodes name labels.\n");
 	fprintf(stderr, "-h --help : Print this help screen\n");
 }
@@ -37,13 +39,16 @@ void addEndNodeToGraph(End *end, FILE *fileHandle) {
 	graphViz_addNodeToGraph(nameString, fileHandle, nameString, 0.5, 0.5, "circle", "black", 14);
 }
 
-void addEdgeToGraph(End *end1, End *end2, const char *colour, double length, double weight, FILE *fileHandle) {
+void addEdgeToGraph(End *end1, End *end2, const char *colour, const char *label, double length, double weight, const char *direction, FILE *fileHandle) {
 	char *nameString1 = netMisc_nameToString(end_getName(end1));
 	char *nameString2 = netMisc_nameToString(end_getName(end2));
-	graphViz_addEdgeToGraph(nameString1, nameString2, fileHandle, "", colour, length, weight, "forward");
+	graphViz_addEdgeToGraph(nameString1, nameString2, fileHandle, nameLabels ? label : "", colour, length, weight, direction);
+	free(nameString1);
+	free(nameString2);
 }
 
 void addAtomToGraph(Atom *atom, const char *colour, FILE *fileHandle) {
+	static char label[100000];
 	End *leftEnd = atom_getLeftEnd(atom);
 	End *rightEnd = atom_getRightEnd(atom);
 	addEndNodeToGraph(leftEnd, fileHandle);
@@ -51,8 +56,12 @@ void addAtomToGraph(Atom *atom, const char *colour, FILE *fileHandle) {
 	Atom_InstanceIterator *iterator = atom_getInstanceIterator(atom);
 	AtomInstance *atomInstance;
 	while((atomInstance = atom_getNext(iterator)) != NULL) {
-		assert(atomInstance != NULL);
-		addEdgeToGraph(leftEnd, rightEnd, colour, 5, 10, fileHandle);
+		atomInstance = atomInstance_getStrand(atomInstance) ? atomInstance : atomInstance_getReverse(atomInstance);
+		sprintf(label, "%s:%i:%i", netMisc_nameToStringStatic(sequence_getName(atomInstance_getSequence(atomInstance))),
+				atomInstance_getStart(atomInstance), atomInstance_getStart(atomInstance)+atomInstance_getLength(atomInstance));
+		addEdgeToGraph(endInstance_getEnd(atomInstance_get5End(atomInstance)),
+					   endInstance_getEnd(atomInstance_get3End(atomInstance)),
+					   edgeColours ? colour : "black", label, 1.5, 100, "forward", fileHandle);
 	}
 	atom_destructInstanceIterator(iterator);
 }
@@ -78,14 +87,18 @@ void addChainsToGraph(Net *net, FILE *fileHandle) {
 	Net_ChainIterator *chainIterator = net_getChainIterator(net);
 	Chain *chain;
 	while((chain = net_getNextChain(chainIterator)) != NULL) {
-		int32_t i;
-		const char *chainColour = graphViz_getColour(chainColour);
-		for(i=1; i<chain_getLength(chain); i++) {
-			Link *link = chain_getLink(chain, i);
-			Atom *atom = end_getAtom(link_getLeft(link));
-			assert(atom != NULL);
-			addAtomToGraph(atom, chainColour, fileHandle);
+		int32_t i, j;
+		const char *chainColour;
+		while((chainColour = graphViz_getColour(chainColour)) != NULL) { //ensure the chain colours don't match the trivial atom chains and the adjacencies.
+			if(strcmp(chainColour, "black") != 0 && strcmp(chainColour, "grey") != 0) {
+				break;
+			}
 		}
+		Atom **atoms = chain_getAtomChain(chain, &i);
+		for(j=0; j<i; j++) {
+			addAtomToGraph(atoms[j], chainColour, fileHandle);
+		}
+		free(atoms);
 	}
 	net_destructChainIterator(chainIterator);
 }
@@ -94,14 +107,21 @@ void addAdjacencies(Net *net, FILE *fileHandle) {
 	/*
 	 * Adds adjacency edges to the graph.
 	 */
+	static char label[10000];
 	Net_EndIterator *endIterator = net_getEndIterator(net);
 	End *end;
 	while((end = net_getNextEnd(endIterator)) != NULL) {
 		End_InstanceIterator *instanceIterator = end_getInstanceIterator(end);
 		EndInstance *endInstance;
 		while((endInstance = end_getNext(instanceIterator)) != NULL) {
+			endInstance = endInstance_getStrand(endInstance) ? endInstance : endInstance_getReverse(endInstance);
 			EndInstance *endInstance2 = endInstance_getAdjacency(endInstance);
-			addEdgeToGraph(endInstance_getEnd(endInstance), endInstance_getEnd(endInstance2), "grey", 10, 1, fileHandle);
+			if(!endInstance_getSide(endInstance)) {
+				assert(endInstance_getCoordinate(endInstance) < endInstance_getCoordinate(endInstance2));
+				sprintf(label, "%s:%i:%i", netMisc_nameToStringStatic(sequence_getName(endInstance_getSequence(endInstance))),
+						endInstance_getCoordinate(endInstance), endInstance_getCoordinate(endInstance2));
+				addEdgeToGraph(endInstance_getEnd(endInstance), endInstance_getEnd(endInstance2), "grey", label, 1.5, 1, "forward", fileHandle);
+			}
 		}
 		end_destructInstanceIterator(instanceIterator);
 	}
@@ -159,6 +179,7 @@ int main(int argc, char *argv[]) {
 			{ "netDisk", required_argument, 0, 'c' },
 			{ "netName", required_argument, 0, 'd' },
 			{ "outputFile", required_argument, 0, 'e' },
+			{ "edgeColours", no_argument, 0, 'f' },
 			{ "nameLabels", no_argument, 0, 'g' },
 			{ "help", no_argument, 0, 'h' },
 			{ 0, 0, 0, 0 }
@@ -166,7 +187,7 @@ int main(int argc, char *argv[]) {
 
 		int option_index = 0;
 
-		int key = getopt_long(argc, argv, "a:c:d:e:gh", long_options, &option_index);
+		int key = getopt_long(argc, argv, "a:c:d:e:fgh", long_options, &option_index);
 
 		if(key == -1) {
 			break;
@@ -184,6 +205,9 @@ int main(int argc, char *argv[]) {
 				break;
 			case 'e':
 				outputFile = stringCopy(optarg);
+				break;
+			case 'f':
+				edgeColours = !edgeColours;
 				break;
 			case 'g':
 				nameLabels = !nameLabels;
