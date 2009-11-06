@@ -108,7 +108,7 @@ void checkEnds(Net *net) {
 			assert(net_getAdjacencyComponentNumber(end_getNet(end)) == 0);
 		}
 		else {
-		assert(adjacencyComponent_getEnd(adjacencyComponent, end_getName(end)) == end);
+			assert(adjacencyComponent_getEnd(adjacencyComponent, end_getName(end)) == end);
 		}
 
 		/*

@@ -635,8 +635,8 @@ void fillOutNetFromInputs(
 			}
 		}
 	}
-#ifdef BEN_DEBUG
 	net = nets[0];
+#ifdef BEN_DEBUG
 	for(i=1; i<cactusGraph->vertices->length; i++) {
 		assert(nets[i] == NULL);
 	}
