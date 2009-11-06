@@ -130,18 +130,18 @@ void buildChainTrees_Bernard(int32_t atomNumber, char ***concatenatedAtoms, Name
 	 *
 	 * Arrays are all indexed first by the chain/concatenated atoms.
 	 * Alignments are column/row indexed with rows as chain instances and columns as aligned bases.
-	 * So for example: concatenatedAtoms[i][j][k] is the ith chain/concatenated atom, jth column (position in concatenated atom), kth row (chain instance).
+	 * So for example: concatenatedAtoms[i][j][k] is the ith chain/concatenated atom, jth row (chain instance), kth column (position in concatenated atom)
 	 *
 	 * Names can be converted to strings with: netMisc_nameToString() and netMisc_nameToStringStatic() (See the API).
 	 */
 
 	int32_t i = 0;
 	int32_t j = 0;
-	int32_t atomIdx = 0;
 
 	char *randomDirName = NULL;
 
 	int32_t rowNumber = 0;
+	int32_t colNumber = 0;
 
 	char eventTreeFileName[] = "pre.event.tree";
 	char atomFileName[] = "annot";
@@ -156,6 +156,11 @@ void buildChainTrees_Bernard(int32_t atomNumber, char ***concatenatedAtoms, Name
 	const int32_t LINE_BUFF_SIZE = 4096; // Assume that 4096 chars is enough for reading in a single line of a file
 	char lineBuffer[LINE_BUFF_SIZE];
 	char *tmpString = NULL;
+
+	int32_t **newAtomBoundaries = NULL;
+	int32_t *newAtomNumbers = NULL;
+
+	char ***atomTreeArray = NULL;
 
 	randomDirName = strrchr(tempDir, '/');
 	if (randomDirName == NULL) {
@@ -188,13 +193,19 @@ void buildChainTrees_Bernard(int32_t atomNumber, char ***concatenatedAtoms, Name
 	}
 	fclose(fp);
 
-	/* Atom boundaries */
+	/* Clone Atom boundaries to refined Atom Boundaries*/
+	newAtomBoundaries = malloc(sizeof(void *) * atomNumber);
+	newAtomNumbers = malloc(sizeof(int32_t) * atomNumber);
 	for (i=0; i<atomNumber; i++) {
-		rowNumber = chainAlignments[i]->rowNumber;
-		for (j=0; j<rowNumber; j++) {
-			atomIdx = atomBoundaries[i][j];
+		colNumber = chainAlignments[i]->columnNumber;
+		newAtomBoundaries[i] = malloc(sizeof(int32_t) * colNumber);
+		newAtomNumbers[i] = colNumber;
+		for (j=0; j<colNumber; j++) {
+			newAtomBoundaries[i][j] = atomBoundaries[i][j];
 		}
 	}
+	refinedAtomBoundaries = &newAtomBoundaries;
+	refinedAtomNumbers = &newAtomNumbers;
 
 	/* Atom map */
 	snprintf(tmpStringBuffer, TMP_BUFFER_SIZE, "%s/%s", tempDir, "atom.map");
@@ -232,7 +243,7 @@ void buildChainTrees_Bernard(int32_t atomNumber, char ***concatenatedAtoms, Name
 	exitOnFailure(system(tmpStringBuffer), "conTrees_PhyloBuilder.py failed\n");
 	printf("Completed running tree pipeline, now onto parsing\n");
 
-	/* Readin tree pipeline output for the event tree */
+	/* Read in tree pipeline output for the event tree */
 	snprintf(tmpStringBuffer, TMP_BUFFER_SIZE, "%s/%s", tempDir, dupTreeFileName);
 	fp = fopen(tmpStringBuffer, "r");
 	if (fp != NULL) {
@@ -248,11 +259,13 @@ void buildChainTrees_Bernard(int32_t atomNumber, char ***concatenatedAtoms, Name
 	}
 	fclose(fp);
 
-	/* Readin tree pipeline output for the aug tree */
-	char **atomTreeArray = NULL;
-
+	/* Read in tree pipeline output for the aug tree */
 	atomTreeArray = malloc(sizeof(void *) * atomNumber);
-	i = 0; // Reset 
+	for (i=0; i<atomNumber; i++) {
+		colNumber = chainAlignments[i]->columnNumber;
+		atomTreeArray[i] = malloc(sizeof(void *) * colNumber);
+	}
+	i = 0; // Variable to store atomNumber
 	snprintf(tmpStringBuffer, TMP_BUFFER_SIZE, "%s/%s", tempDir, augTreeFileName);
 	fp = fopen(tmpStringBuffer, "r");
 	if (fp != NULL) {
@@ -260,10 +273,13 @@ void buildChainTrees_Bernard(int32_t atomNumber, char ***concatenatedAtoms, Name
 			chomp(lineBuffer);
 			if (lineBuffer[0] == '>') {
 				sscanf(lineBuffer, ">%d", &i);
-				i -= 1;
+				i -= 1; // Atom number ids start at 1
 			} else {
-				tmpString = stringCopy(lineBuffer);
-				atomTreeArray[i] = tmpString;
+				colNumber = chainAlignments[i]->columnNumber;
+				for (j=0; j<colNumber; j++) {
+					tmpString = stringCopy(lineBuffer);
+					atomTreeArray[i][j] = tmpString;
+				}
 			}
 		}
 	} else {
@@ -272,10 +288,7 @@ void buildChainTrees_Bernard(int32_t atomNumber, char ***concatenatedAtoms, Name
 	fclose(fp);
 	atomTreeStrings = &atomTreeArray;
 
-	/*
-	 *
-	 */
-
+	return;
 }
 
 void augmentEventTree(struct BinaryTree *modifiedEventTree, EventTree *eventTree) {
