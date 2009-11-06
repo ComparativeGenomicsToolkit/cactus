@@ -57,11 +57,13 @@ void addAtomToGraph(Atom *atom, const char *colour, FILE *fileHandle) {
 	AtomInstance *atomInstance;
 	while((atomInstance = atom_getNext(iterator)) != NULL) {
 		atomInstance = atomInstance_getStrand(atomInstance) ? atomInstance : atomInstance_getReverse(atomInstance);
-		sprintf(label, "%s:%i:%i", netMisc_nameToStringStatic(sequence_getName(atomInstance_getSequence(atomInstance))),
-				atomInstance_getStart(atomInstance), atomInstance_getStart(atomInstance)+atomInstance_getLength(atomInstance));
-		addEdgeToGraph(endInstance_getEnd(atomInstance_get5End(atomInstance)),
-					   endInstance_getEnd(atomInstance_get3End(atomInstance)),
-					   edgeColours ? colour : "black", label, 1.5, 100, "forward", fileHandle);
+		if(atomInstance_getSequence(atomInstance) != NULL) {
+			sprintf(label, "%s:%i:%i", netMisc_nameToStringStatic(sequence_getName(atomInstance_getSequence(atomInstance))),
+					atomInstance_getStart(atomInstance), atomInstance_getStart(atomInstance)+atomInstance_getLength(atomInstance));
+			addEdgeToGraph(endInstance_getEnd(atomInstance_get5End(atomInstance)),
+						   endInstance_getEnd(atomInstance_get3End(atomInstance)),
+						   edgeColours ? colour : "black", label, 1.5, 100, "forward", fileHandle);
+		}
 	}
 	atom_destructInstanceIterator(iterator);
 }
@@ -114,13 +116,15 @@ void addAdjacencies(Net *net, FILE *fileHandle) {
 		End_InstanceIterator *instanceIterator = end_getInstanceIterator(end);
 		EndInstance *endInstance;
 		while((endInstance = end_getNext(instanceIterator)) != NULL) {
-			endInstance = endInstance_getStrand(endInstance) ? endInstance : endInstance_getReverse(endInstance);
-			EndInstance *endInstance2 = endInstance_getAdjacency(endInstance);
-			if(!endInstance_getSide(endInstance)) {
-				assert(endInstance_getCoordinate(endInstance) < endInstance_getCoordinate(endInstance2));
-				sprintf(label, "%s:%i:%i", netMisc_nameToStringStatic(sequence_getName(endInstance_getSequence(endInstance))),
-						endInstance_getCoordinate(endInstance), endInstance_getCoordinate(endInstance2));
-				addEdgeToGraph(endInstance_getEnd(endInstance), endInstance_getEnd(endInstance2), "grey", label, 1.5, 1, "forward", fileHandle);
+			if(endInstance_getSequence(endInstance) != NULL) {
+				endInstance = endInstance_getStrand(endInstance) ? endInstance : endInstance_getReverse(endInstance);
+				EndInstance *endInstance2 = endInstance_getAdjacency(endInstance);
+				if(!endInstance_getSide(endInstance)) {
+					assert(endInstance_getCoordinate(endInstance) < endInstance_getCoordinate(endInstance2));
+					sprintf(label, "%s:%i:%i", netMisc_nameToStringStatic(sequence_getName(endInstance_getSequence(endInstance))),
+							endInstance_getCoordinate(endInstance), endInstance_getCoordinate(endInstance2));
+					addEdgeToGraph(endInstance_getEnd(endInstance), endInstance_getEnd(endInstance2), "grey", label, 1.5, 1, "forward", fileHandle);
+				}
 			}
 		}
 		end_destructInstanceIterator(instanceIterator);

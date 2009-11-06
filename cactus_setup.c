@@ -67,9 +67,8 @@ int main(int argc, char *argv[]) {
 	 * Finish!
 	 */
 
-	int32_t key, i, j;
+	int32_t key, j;
 	MetaEvent *metaEvent;
-	struct List *strings;
 	struct List *stack;
 	struct BinaryTree *binaryTree;
 	FILE *fileHandle;
@@ -151,8 +150,8 @@ int main(int argc, char *argv[]) {
 
 	logInfo("Net disk name : %s\n", netDiskName);
 
-	for (i = optind; i < argc; i++) {
-	   logInfo("Sequence file/directory %s\n", argv[i]);
+	for (j = optind; j < argc; j++) {
+	   logInfo("Sequence file/directory %s\n", argv[j]);
 	}
 
 	//////////////////////////////////////////////
@@ -178,7 +177,7 @@ int main(int argc, char *argv[]) {
 	//Construct the event tree
 	//////////////////////////////////////////////
 
-	binaryTree = newickTreeParser(speciesTree, 0.0, &strings);
+	binaryTree = newickTreeParser(speciesTree, 0.0);
 	metaEvent = metaEvent_construct("ROOT", netDisk);
 	eventTree = eventTree_construct(metaEvent, net); //creates the event tree and the root even
 	totalEventNumber=1;
@@ -188,7 +187,6 @@ int main(int argc, char *argv[]) {
 	stack = constructEmptyList(0, NULL);
 	listAppend(stack, eventTree_getRootEvent(eventTree));
 	listAppend(stack, binaryTree);
-	i=0;
 	j=optind;
 	while(stack->length > 0) {
 		binaryTree = stack->list[--stack->length];
@@ -196,17 +194,15 @@ int main(int argc, char *argv[]) {
 		assert(binaryTree != NULL);
 		totalEventNumber++;
 		if(binaryTree->internal) {
-			assert(i < strings->length);
-			event = event_construct(metaEvent_construct(strings->list[i++], netDisk), binaryTree->distance, event, eventTree);
+			event = event_construct(metaEvent_construct(binaryTree->label, netDisk), binaryTree->distance, event, eventTree);
 			listAppend(stack, event);
 			listAppend(stack, binaryTree->right);
 			listAppend(stack, event);
 			listAppend(stack, binaryTree->left);
 		}
 		else {
-			assert(i < strings->length);
 			assert(j < argc);
-			event = event_construct(metaEvent_construct(strings->list[i++], netDisk), binaryTree->distance, event, eventTree);
+			event = event_construct(metaEvent_construct(binaryTree->label, netDisk), binaryTree->distance, event, eventTree);
 
 			struct stat info;//info about the file.
 			exitOnFailure(stat(argv[j], &info), "Failed to get information about the file: %s\n", argv[j]);
@@ -239,7 +235,6 @@ int main(int argc, char *argv[]) {
 			j++;
 		}
 	}
-	assert(i == strings->length);
 	logInfo("Constructed the initial net with %i sequences and %i events\n", totalSequenceNumber, totalEventNumber);
 
 	///////////////////////////////////////////////////////////////////////////
@@ -253,7 +248,6 @@ int main(int argc, char *argv[]) {
 	// Cleanup.
 	///////////////////////////////////////////////////////////////////////////
 
-	destructList(strings);
 	netDisk_destruct(netDisk);
 
 	///////////////////////////////////////////////////////////////////////////

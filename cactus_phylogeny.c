@@ -11,6 +11,7 @@
 #include "avl.h"
 #include "commonC.h"
 #include "hashTableC.h"
+#include "bioioC.h"
 
 typedef struct _chainAlignment {
 	//Matrix of alignment, matrix[column][row]
@@ -116,7 +117,7 @@ int32_t *chainAlignment_getAtomBoundaries(ChainAlignment *chainAlignment) {
 
 void buildChainTrees_Bernard(int32_t atomNumber, char ***concatenatedAtoms, Name **_5Ends, Name **_3Ends, Name **leafEventLabels,
 							int32_t **atomBoundaries, char *eventTreeString, const char *tempDir, ChainAlignment **chainAlignments,
-							char **modifiedEventTreeString, char ***atomTreeStrings) {
+							char **modifiedEventTreeString, char ****atomTreeStrings, int32_t ***refinedAtomBoundaries, int32_t **refinedAtomNumbers) {
 	/*
 	 * Here's the function you need to fill in, I haven't defined the outputs yet - you get it working and then we can discuss.
 	 *
@@ -227,11 +228,13 @@ void buildChainTrees_Bernard(int32_t atomNumber, char ***concatenatedAtoms, Name
 	snprintf(tmpStringBuffer, TMP_BUFFER_SIZE, "%s/%s", tempDir, augTreeFileName);
 	fp = fopen(tmpStringBuffer, "r");
 	fclose(fp);
+}
 
-	/*
-	 *
-	 */
+void augmentEventTree(struct BinaryTree *modifiedEventTree, EventTree *eventTree) {
 
+}
+
+void buildAtomTree(struct BinaryTree *atomTree, Net *net, Atom *atom) {
 
 }
 
@@ -240,7 +243,7 @@ void buildChainTrees(ChainAlignment **chainAlignments, int32_t chainAlignmentNum
 	/*
 	 * This is the function to do the tree construction in.
 	 */
-	int32_t i;
+	int32_t i, j;
 
 	char ***concatenatedAtoms;
 	Name **_5Ends;
@@ -270,9 +273,27 @@ void buildChainTrees(ChainAlignment **chainAlignments, int32_t chainAlignmentNum
 
 	//call to Bernard's code
 	char *modifiedEventTreeString;
-	char **atomTreeStrings;
-	buildChainTrees_Bernard(chainAlignmentNumber, concatenatedAtoms, _5Ends, _3Ends, leafEventLabels, atomBoundaries, eventTreeString, randomDir, chainAlignments,
-			&modifiedEventTreeString, &atomTreeStrings);
+	char ***atomTreeStrings;
+	int32_t **refinedAtomBoundaries;
+	int32_t *refinedAtomNumbers;
+	buildChainTrees_Bernard(chainAlignmentNumber, concatenatedAtoms, _5Ends, _3Ends, leafEventLabels,
+							atomBoundaries, eventTreeString, randomDir, chainAlignments,
+							&modifiedEventTreeString, &atomTreeStrings, &refinedAtomBoundaries, &refinedAtomNumbers);
+
+	/*
+	 * Augment the event tree with the new events.
+	 */
+	struct BinaryTree *modifiedEventTree = newickTreeParser(modifiedEventTreeString, 0.0);
+	augmentEventTree(modifiedEventTree, eventTree);
+
+	/*
+	 * Now process each new atom tree.
+	 */
+	for(i=0; i<chainAlignmentNumber; i++) {
+		for(j=0; j<refinedAtomNumbers[i]; j++) {
+			newickTreeParser(atomTreeStrings[i][j], 0.0);
+		}
+	}
 
 	exitOnFailure(destructRandomDir(randomDir), "Tried to destroy a recursive directory of temp files but failed\n");
 
