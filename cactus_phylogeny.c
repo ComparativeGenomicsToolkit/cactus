@@ -115,6 +115,13 @@ int32_t *chainAlignment_getAtomBoundaries(ChainAlignment *chainAlignment) {
 	return atomBoundaries;
 }
 
+void chomp(const char *s) {
+	char *p;
+	while (NULL != s && NULL != (p = strrchr(s, '\n'))) {
+		*p = '\0';
+	}
+}
+
 void buildChainTrees_Bernard(int32_t atomNumber, char ***concatenatedAtoms, Name **_5Ends, Name **_3Ends, Name **leafEventLabels,
 							int32_t **atomBoundaries, char *eventTreeString, const char *tempDir, ChainAlignment **chainAlignments,
 							char **modifiedEventTreeString, char ****atomTreeStrings, int32_t ***refinedAtomBoundaries, int32_t **refinedAtomNumbers) {
@@ -140,11 +147,15 @@ void buildChainTrees_Bernard(int32_t atomNumber, char ***concatenatedAtoms, Name
 	char atomFileName[] = "annot";
 	char mafDirFileName[] = "mafs";
 	char augTreeFileName[] = "remap.augtree";
-	char dupTreeFileName[] = "R.duptree";
+	char dupTreeFileName[] = "event.duptree";
 
 	const int32_t TMP_BUFFER_SIZE = 256; // Assume that 256 chars is enough for any temp filename strings
 	char tmpStringBuffer[TMP_BUFFER_SIZE];
 	FILE *fp = NULL;
+
+	const int32_t LINE_BUFF_SIZE = 4096; // Assume that 4096 chars is enough for reading in a single line of a file
+	char lineBuffer[LINE_BUFF_SIZE];
+	char *tmpString = NULL;
 
 	randomDirName = strrchr(tempDir, '/');
 	if (randomDirName == NULL) {
@@ -153,7 +164,7 @@ void buildChainTrees_Bernard(int32_t atomNumber, char ***concatenatedAtoms, Name
 		randomDirName += 1;
 	}
 
-//	char tempDirDir[] = "/Users/bsuh/TOKYO";
+//	char tempDirDir[] = "/Users/bsuh/TESTDIR";
 
 	/* Output the eventTree to file */
 	snprintf(tmpStringBuffer, TMP_BUFFER_SIZE, "%s/%s", tempDir, eventTreeFileName);
@@ -219,15 +230,52 @@ void buildChainTrees_Bernard(int32_t atomNumber, char ***concatenatedAtoms, Name
 	/* Run the tree pipeline */
 	snprintf(tmpStringBuffer, TMP_BUFFER_SIZE, "conTrees_PhyloBuilder.py %s", tempDir);
 	exitOnFailure(system(tmpStringBuffer), "conTrees_PhyloBuilder.py failed\n");
+	printf("Completed running tree pipeline, now onto parsing\n");
 
-	/* Readin tree pipeline output */
+	/* Readin tree pipeline output for the event tree */
 	snprintf(tmpStringBuffer, TMP_BUFFER_SIZE, "%s/%s", tempDir, dupTreeFileName);
 	fp = fopen(tmpStringBuffer, "r");
+	if (fp != NULL) {
+		if (fgets(lineBuffer, LINE_BUFF_SIZE, fp) != NULL) {
+			chomp(lineBuffer);
+			tmpString = stringCopy(lineBuffer);
+			modifiedEventTreeString = &tmpString;
+		} else {
+			perror("Failed to read new eventTree file");
+		}
+	} else {
+		perror("Failed to open new eventTree file");
+	}
 	fclose(fp);
 
+	/* Readin tree pipeline output for the aug tree */
+	char **atomTreeArray = NULL;
+
+	atomTreeArray = malloc(sizeof(void *) * atomNumber);
+	i = 0; // Reset 
 	snprintf(tmpStringBuffer, TMP_BUFFER_SIZE, "%s/%s", tempDir, augTreeFileName);
 	fp = fopen(tmpStringBuffer, "r");
+	if (fp != NULL) {
+		while(fgets(lineBuffer, LINE_BUFF_SIZE, fp) != NULL) {
+			chomp(lineBuffer);
+			if (lineBuffer[0] == '>') {
+				sscanf(lineBuffer, ">%d", &i);
+				i -= 1;
+			} else {
+				tmpString = stringCopy(lineBuffer);
+				atomTreeArray[i] = tmpString;
+			}
+		}
+	} else {
+		perror("Failed to open augTree file");
+	}
 	fclose(fp);
+	atomTreeStrings = &atomTreeArray;
+
+	/*
+	 *
+	 */
+
 }
 
 void augmentEventTree(struct BinaryTree *modifiedEventTree, EventTree *eventTree) {
