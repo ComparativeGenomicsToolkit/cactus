@@ -585,7 +585,7 @@ struct PinchVertex *splitEdge(struct PinchGraph *graph, Name contig,
 	}
 	destructBlackEdgeIterator(blackEdgeIterator);
 
-#ifdef BEN_DEBUG
+#ifdef BEN_ULTRA_DEBUG
 	//check every edge has the same absolute length.
 	blackEdgeIterator = getBlackEdgeIterator(edge->from);
 	while((edge2 = getNextBlackEdge(edge->from, blackEdgeIterator)) != NULL) {
@@ -837,7 +837,7 @@ void pinchMergeSegment(struct PinchGraph *graph,
 
 	pinchMergeSegment_getChainOfVertices(graph, segment1, segment2, pMS_vertexChain1, pMS_vertexChain2);
 
-#ifdef BEN_DEBUG
+#ifdef BEN_ULTRA_DEBUG
 	//do some debug checks
 	assert(pMS_vertexChain1->listOfVertices->length == pMS_vertexChain2->listOfVertices->length);
 	assert((pMS_vertexChain1->listOfVertices->length % 2) == 0);
@@ -915,7 +915,7 @@ void pinchMergeSegment(struct PinchGraph *graph,
 	}
 	//Done the merging of the vertices
 
-#ifdef BEN_DEBUG
+#ifdef BEN_ULTRA_DEBUG
 	/*
 	 * Do debug checks that the merge went okay.
 	 */

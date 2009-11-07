@@ -345,8 +345,12 @@ struct List *getRecursiveComponents2(struct PinchGraph *pinchGraph, struct List 
 	for(i=0; i<edgesToExclude->length; i++) { //build the excluded edges hash.
 		edge = edgesToExclude->list[i];
 		iA = constructIntPair(edge->from->vertexID, edge->to->vertexID);
-		assert(hashtable_search(getRecursiveComponents2_excludedEdgesHash, iA) == NULL);
-		hashtable_insert(getRecursiveComponents2_excludedEdgesHash, iA, iA);
+		if(hashtable_search(getRecursiveComponents2_excludedEdgesHash, iA) == NULL) {
+			hashtable_insert(getRecursiveComponents2_excludedEdgesHash, iA, iA);
+		}
+		else {
+			destructIntPair(iA);
+		}
 	}
 	adjacencyComponents = getRecursiveComponents(pinchGraph, getRecursiveComponents2_excludedEdgesFn);
 	hashtable_destroy(getRecursiveComponents2_excludedEdgesHash, FALSE, TRUE);

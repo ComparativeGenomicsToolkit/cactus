@@ -115,18 +115,25 @@ void addAdjacencies(Net *net, FILE *fileHandle) {
 	while((end = net_getNextEnd(endIterator)) != NULL) {
 		End_InstanceIterator *instanceIterator = end_getInstanceIterator(end);
 		EndInstance *endInstance;
+		char *netName = netMisc_nameToString(net_getName(net));
 		while((endInstance = end_getNext(instanceIterator)) != NULL) {
 			if(endInstance_getSequence(endInstance) != NULL) {
 				endInstance = endInstance_getStrand(endInstance) ? endInstance : endInstance_getReverse(endInstance);
 				EndInstance *endInstance2 = endInstance_getAdjacency(endInstance);
 				if(!endInstance_getSide(endInstance)) {
 					assert(endInstance_getCoordinate(endInstance) < endInstance_getCoordinate(endInstance2));
-					sprintf(label, "%s:%i:%i", netMisc_nameToStringStatic(sequence_getName(endInstance_getSequence(endInstance))),
-							endInstance_getCoordinate(endInstance), endInstance_getCoordinate(endInstance2));
+					sprintf(label, "%s:%i:%i:%s:%i", netMisc_nameToStringStatic(sequence_getName(endInstance_getSequence(endInstance))),
+							endInstance_getCoordinate(endInstance), endInstance_getCoordinate(endInstance2),
+							netName,
+							net_getEndNumber(net));
+					//sprintf(label, "%s:%i",
+					//		netName,
+					//		net_getEndNumber(net));
 					addEdgeToGraph(endInstance_getEnd(endInstance), endInstance_getEnd(endInstance2), "grey", label, 1.5, 1, "forward", fileHandle);
 				}
 			}
 		}
+		free(netName);
 		end_destructInstanceIterator(instanceIterator);
 	}
 	net_destructEndIterator(endIterator);
