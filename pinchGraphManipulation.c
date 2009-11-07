@@ -234,7 +234,7 @@ void getRecursiveComponents_P(struct PinchVertex *vertex, int32_t (*excludedEdge
 				listAppend(stack, vertex2);
 				//getRecursiveComponents_P(vertex2, excludedEdges, seen, component);
 			}
-#ifdef BEN_DEBUG
+#ifdef BEN_ULTRA_DEBUG
 			else {
 				//check vertex2 is already in the component.
 				int32_t k;
@@ -257,7 +257,7 @@ void getRecursiveComponents_P(struct PinchVertex *vertex, int32_t (*excludedEdge
 			listAppend(stack, vertex2);
 			//getRecursiveComponents_P(vertex2, excludedEdges, seen, component);
 		}
-#ifdef BEN_DEBUG
+#ifdef BEN_ULTRA_DEBUG
 		else {
 			//check vertex2 is already in the component.
 			int32_t k;

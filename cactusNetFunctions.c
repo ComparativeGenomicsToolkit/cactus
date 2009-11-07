@@ -592,7 +592,7 @@ void fillOutNetFromInputs(
 	logDebug("Built the chosen atoms hash\n");
 
 	////////////////////////////////////////////////
-	//Construct chain for each cycle.
+	//Atoms and ends for each net.
 	////////////////////////////////////////////////
 
 	nets = mallocLocal(sizeof(void *) * cactusGraph->vertices->length);
@@ -647,7 +647,7 @@ void fillOutNetFromInputs(
 	logDebug("Constructed atoms and nets for the cycle.\n");
 
 	////////////////////////////////////////////////
-	//Link nets to parent nets.
+	//Link nets to parent nets and construct chains.
 	////////////////////////////////////////////////
 
 	for(i=0; i<biConnectedComponents->length; i++) {

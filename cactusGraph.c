@@ -227,7 +227,10 @@ void destructCactusGraph(struct CactusGraph *cactusGraph) {
 void checkCactusGraph(struct PinchGraph *pinchGraph,
 					  struct List *threeEdgeConnectedComponents,
 					  struct CactusGraph *cactusGraph) {
-#ifdef BEN_DEBUG
+	assert(pinchGraph != NULL);
+	assert(threeEdgeConnectedComponents != NULL);
+	assert(cactusGraph != NULL);
+#ifdef BEN_ULTRA_DEBUG
 	struct hashtable *hashTable;
 	int32_t i, j, k, l, m;
 	struct CactusVertex *cactusVertex;
@@ -410,7 +413,8 @@ void checkCactusGraph(struct PinchGraph *pinchGraph,
 
 
 void checkCactusContainsOnly2EdgeConnectedComponents(struct CactusGraph *cactusGraph) {
-#ifdef BEN_DEBUG
+	assert(cactusGraph != NULL);
+#ifdef BEN_ULTRA_DEBUG
 	struct CactusEdge *edge;
 	struct CactusEdge *edge2;
 	struct List *list;
@@ -424,7 +428,6 @@ void checkCactusContainsOnly2EdgeConnectedComponents(struct CactusGraph *cactusG
 	////////////////////////////////////////////////
 	biConnectedComponents = computeBiConnectedComponents(cactusGraph);
 	logDebug("Constructed the biconnected components for making the net\n");
-
 
 	////////////////////////////////////////////////
 	//(2) Check every component is a cycle.
@@ -593,7 +596,7 @@ struct List *computeSortedBiConnectedComponents(struct CactusGraph *cactusGraph)
 	struct List *biConnectedComponent;
 	int32_t i;
 
-#ifdef BEN_DEBUG
+#ifdef BEN_ULTRA_DEBUG
 	struct CactusEdge *edge;
 	struct CactusEdge *edge2;
 	struct CactusVertex *vertex;
@@ -619,7 +622,7 @@ struct List *computeSortedBiConnectedComponents(struct CactusGraph *cactusGraph)
 		biConnectedComponent = biConnectedComponents->list[i];
 		qsort(biConnectedComponent->list, biConnectedComponent->length, sizeof(void *),
 				(int (*)(const void *v, const void *))sortBiConnectedComponentsP);
-#ifdef BEN_DEBUG
+#ifdef BEN_ULTRA_DEBUG
 		edge = biConnectedComponent->list[0];
 		vertex = edge->from;
 		for(j=0; j+1<biConnectedComponent->length; j++) {
@@ -737,7 +740,7 @@ void writeOut3EdgeGraph(struct PinchGraph *pinchGraph, struct List *greyEdgeComp
 			hashtable_insert(vertexHash, vertex, constructInt(i));
 		}
 	}
-#ifdef BEN_DEBUG
+#ifdef BEN_ULTRA_DEBUG
 	assert((int32_t)hashtable_count(vertexHash) == pinchGraph->vertices->length);
 
 	for(i=0; i<pinchGraph->vertices->length; i++) {
@@ -865,6 +868,7 @@ struct List *readThreeEdgeComponents(struct PinchGraph *pinchGraph, struct List 
 
 void writeOutCactusGraph(struct CactusGraph *cactusGraph, struct PinchGraph *pinchGraph,
 		FILE *fileHandle) {
+	assert(pinchGraph != NULL);
 	/*
 	 * Writes out a graph in 'dot' format, compatible with graphviz.
 	 *
@@ -872,11 +876,11 @@ void writeOutCactusGraph(struct CactusGraph *cactusGraph, struct PinchGraph *pin
 	 * the segments associated with the black (segment containing) edges
 	 * of the graph.
 	 */
-	int32_t i, j, k;
+	int32_t i, j; //, k;
 	struct CactusVertex *vertex;
 	struct CactusEdge *edge;
-	struct PinchEdge *pinchEdge;
-	struct Segment *segment;
+	//struct PinchEdge *pinchEdge;
+	//struct Segment *segment;
 
 	//Write the preliminaries.
 	fprintf(fileHandle, "graph G {\n");
@@ -908,7 +912,7 @@ void writeOutCactusGraph(struct CactusGraph *cactusGraph, struct PinchGraph *pin
 					}
 				}
 				else {*/
-					fprintf(fileHandle, "n" INT_STRING "n -- n" INT_STRING "n;\n", edge->from->vertexID, edge->to->vertexID);
+				fprintf(fileHandle, "n" INT_STRING "n -- n" INT_STRING "n;\n", edge->from->vertexID, edge->to->vertexID);
 				//}
 			}
 		}
