@@ -120,9 +120,6 @@ int32_t computeCactusGraph(struct PinchGraph *pinchGraph, struct CactusGraph **c
 
 void circulariseStems(struct CactusGraph *cactusGraph);
 
-void breakLoopDiscontinuities(struct CactusGraph *cactusGraph, struct List *extraEdges,
-							  struct List *threeEdgeConnectedComponents);
-
 ////////////////////////////////////////////////
 ////////////////////////////////////////////////
 ////////////////////////////////////////////////

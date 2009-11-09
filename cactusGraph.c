@@ -85,7 +85,7 @@ struct CactusGraph *constructCactusGraph(struct PinchGraph *pinchGraph,
 	struct CactusEdge *cactusEdge;
 	struct CactusVertex *cactusVertex;
 	struct CactusVertex *cactusVertex2;
-	int32_t i, j, k;
+	int32_t i, j;
 	void *greyEdgeIterator;
 	struct List *list;
 	struct PinchVertex *pinchVertex;
@@ -94,7 +94,6 @@ struct CactusGraph *constructCactusGraph(struct PinchGraph *pinchGraph,
 	struct List *pinchVertexToCactusVertex;
 	struct List *emptyList;
 	struct List *list2;
-	struct List *extras;
 
 	cactusGraph = mallocLocal(sizeof(struct CactusGraph));
 	cactusGraph->vertices = constructEmptyList(0, (void (*)(void *))destructCactusVertex);
@@ -957,13 +956,43 @@ int32_t computeCactusGraph(struct PinchGraph *pinchGraph, struct CactusGraph **c
 ////////////////////////////////////////////////
 ////////////////////////////////////////////////
 
+void cactusVertex_merge(struct CactusGraph *cactusGraph, struct CactusVertex *one, struct CactusVertex *two) {
+	/*
+	 * Merges two into one, destroying two and adding to one.
+	 */
+	assert(one != two);
+	assert(one->vertexID != two->vertexID);
+	//redirect all edges to one.
+	int32_t i;
+	for(i=0; i<two->edges->length; i++) {
+		struct CactusEdge *edge = two->edges->list[i];
+#if BEN_ULTRA_DEBUG
+		assert(edge->from == two);
+		assert(edge->rEdge->to == two);
+		assert(!listContains(one->edges, edge));
+#endif
+		edge->from = one;
+		edge->rEdge->to = one;
+		listAppend(one->edges, edge);
+	}
+	//switch the vertex id's of the highest cactus vertex and two.
+	struct CactusVertex *three = cactusGraph->vertices->list[cactusGraph->vertices->length-1];
+	assert(three->vertexID == cactusGraph->vertices->length-1);
+	three->vertexID = two->vertexID;
+	assert(cactusGraph->vertices->list[two->vertexID] == two);
+	cactusGraph->vertices->list[two->vertexID] = three;
+	cactusGraph->vertices->length--;
+
+	//now destruct two, but not its list of edges.
+	two->edges->destructElement = NULL;
+	destructCactusVertex(two);
+}
 
 void circulariseStemsP(struct CactusGraph *cactusGraph,
 		struct CactusEdge *edge, struct CactusVertex *sourceVertex,
-		struct hashtable *stemHash, struct hashtable *seen) {
+		struct hashtable *stemHash, struct hashtable *seen, struct List *edgesToMerge) {
 	int32_t i, j;
 	struct CactusEdge *edge2;
-	struct List *list;
 
 	if(hashtable_search(seen, edge->to) == NULL) {
 		hashtable_insert(seen, edge->to, edge->to);
@@ -971,14 +1000,14 @@ void circulariseStemsP(struct CactusGraph *cactusGraph,
 			j = 0;
 			for(i=0; i<edge->to->edges->length; i++) {
 				edge2 = edge->to->edges->list[i];
-				if(edge2 != edge->rEdge && hashtable_search(stemHash, edge) != NULL) {//is a stem
+				if(hashtable_search(stemHash, edge) != NULL) {//is a stem
 					j++;
 				}
 			}
-			if(j != 1) { //if is either branch or leaf.
-				list = constructEmptyList(0, NULL);
-				constructCactusEdge2(list, sourceVertex, edge->to);
-				destructList(list);
+			assert(j > 0);
+			if(j != 2) { //if is either branch or leaf.
+				listAppend(edgesToMerge, sourceVertex);
+				listAppend(edgesToMerge, edge->to);
 				sourceVertex = edge->to;
 			}
 		}
@@ -987,7 +1016,7 @@ void circulariseStemsP(struct CactusGraph *cactusGraph,
 		}
 		for(i=0; i<edge->to->edges->length; i++) { //call recursively.
 			edge2 = edge->to->edges->list[i];
-			circulariseStemsP(cactusGraph, edge2, sourceVertex, stemHash, seen);
+			circulariseStemsP(cactusGraph, edge2, sourceVertex, stemHash, seen, edgesToMerge);
 		}
 	}
 }
@@ -999,6 +1028,7 @@ void circulariseStems(struct CactusGraph *cactusGraph) {
 	struct hashtable *seen;
 	struct CactusEdge *edge;
 	struct CactusVertex *vertex;
+	struct List *cactusGraphMerges;
 	int32_t i;
 
 	logDebug("Circularising the stems\n");
@@ -1026,10 +1056,11 @@ void circulariseStems(struct CactusGraph *cactusGraph) {
 			}
 		}
 	}
+
 	logDebug("Put the stems in a hash\n");
 
 	////////////////////////////////////////////////
-	//(3) Do DFS on graph
+	//(3) Do DFS on graph to find vertex merges that we wish to make
 	////////////////////////////////////////////////
 
 	seen = create_hashtable(cactusGraph->vertices->length*2,
@@ -1037,139 +1068,30 @@ void circulariseStems(struct CactusGraph *cactusGraph) {
 						    NULL, NULL);
 	vertex = cactusGraph->vertices->list[0];
 	hashtable_insert(seen, vertex, vertex);
+	cactusGraphMerges = constructEmptyList(0, NULL);
 	for(i=0; i<vertex->edges->length; i++) {
 		circulariseStemsP(cactusGraph, vertex->edges->list[i], vertex,
-				stemHash, seen);
+				stemHash, seen, cactusGraphMerges);
 	}
 	logDebug("Done the DFS\n");
 
 	////////////////////////////////////////////////
-	//(4) Cleanup
+	//(4) Do vertex merges.
+	////////////////////////////////////////////////
+
+	assert((cactusGraphMerges->length % 2) == 0);
+	for(i=cactusGraphMerges->length-1; i>=0; i-=2) {
+		assert(i > 0);
+		cactusVertex_merge(cactusGraph, cactusGraphMerges->list[i-1], cactusGraphMerges->list[i]);
+	}
+
+	////////////////////////////////////////////////
+	//(5) Cleanup
 	////////////////////////////////////////////////
 
 	hashtable_destroy(stemHash, FALSE, FALSE);
 	hashtable_destroy(seen, FALSE, FALSE);
 	destructList(biConnectedComponents);
-}
-
-////////////////////////////////////////////////
-////////////////////////////////////////////////
-////////////////////////////////////////////////
-//Method to break loop discontinuities
-////////////////////////////////////////////////
-////////////////////////////////////////////////
-////////////////////////////////////////////////
-
-struct Segment *edgeDiscontinuityP(struct CactusEdge *edge, struct Segment *segment) {
-	int32_t i;
-	struct Segment *segment2;
-	struct Segment *segment3;
-
-	segment2 = NULL;
-	for(i=0; i<edge->segments->length; i++) {
-		segment3 = edge->segments->list[i];
-		if(segment->contig == segment3->contig) {
-			if((segment->start < 1 && segment3->start < 1) || (segment->start > 1 && segment3->start > 1)) {
-				if(segment2 == NULL || segment3->start < segment2->start) {
-					segment2 = segment3;
-				}
-			}
-		}
-	}
-	return segment2;
-}
-
-int32_t edgeDiscontinuity(struct CactusEdge *edge, struct CactusEdge *edge2) {
-	struct Segment *segment;
-	struct Segment *segment2;
-	struct Segment *segment3;
-	int32_t i;
-
-	//for each sequence in edge:
-	for(i=0; i<edge->segments->length; i++) {
-		segment = edge->segments->list[i];
-		//get best match in edge2
-		segment2 = edgeDiscontinuityP(edge2, segment);
-		//get best match in edge->rEdge
-		segment3 = edgeDiscontinuityP(edge->rEdge, segment);
-		//if no match in either or match only in edge2 then no discontinuity.
-		if(segment3 == NULL) {
-			continue;
-		}
-		//if match only in edge->rEdge then discontinuity
-		if(segment2 == NULL) {
-			return TRUE;
-		}
-		//if match in both and:
-		//match in edge2 is sooner than match in edge->rEdge then no discontunity
-		if(segment2->start < segment3->start) {
-			continue;
-		}
-		//else there is a discontinuity.
-		return TRUE;
-	}
-	return FALSE;
-}
-
-void breakLoopDiscontinuities(struct CactusGraph *cactusGraph, struct List *extraEdges,
-							  struct List *threeEdgeConnectedComponents) {
-	struct CactusEdge *edge;
-	struct CactusEdge *edge2;
-	struct CactusVertex *vertex;
-	struct PinchVertex *pinchVertex1;
-	struct PinchVertex *pinchVertex2;
-
-	struct List *biConnectedComponent;
-	struct List *list;
-	struct List *biConnectedComponents;
-	struct List *component;
-	int32_t i, j;
-
-	////////////////////////////////////////////////
-	//(1) Sort each bi-connected component
-	////////////////////////////////////////////////
-
-	biConnectedComponents = computeSortedBiConnectedComponents(cactusGraph);
-	logDebug("Constructed the sorted biconnected components for making the net\n");
-
-	////////////////////////////////////////////////
-	//(2) Identify discontinuities and add extra edges
-	////////////////////////////////////////////////
-
-	for(i=0; i<biConnectedComponents->length; i++) {
-		biConnectedComponent = biConnectedComponents->list[i];
-		edge = biConnectedComponent->list[0];
-		vertex = edge->from;
-		for(j=0; j+1<biConnectedComponent->length; j++) {
-			edge = biConnectedComponent->list[j];
-			edge2 = biConnectedComponent->list[j+1];
-			if(edgeDiscontinuity(edge, edge2) || edgeDiscontinuity(edge2->rEdge, edge->rEdge)) {
-				//add edge between vertex and vertex2
-				component = threeEdgeConnectedComponents->list[edge->to->vertexID];
-				pinchVertex1 = component->list[0];
-				component = threeEdgeConnectedComponents->list[vertex->vertexID];
-				pinchVertex2 = component->list[0];
-
-				//give it a double dose to ensure they are in the same 3-edge component
-				list = extraEdges->list[pinchVertex1->vertexID];
-				listAppend(list, pinchVertex2);
-				listAppend(list, pinchVertex2);
-
-				list = extraEdges->list[pinchVertex2->vertexID];
-				listAppend(list, pinchVertex1);
-				listAppend(list, pinchVertex1);
-			}
-		}
-	}
-	logDebug("Computed the discontinuities\n");
-
-	////////////////////////////////////////////////
-	//(6)Cleanup/return net
-	////////////////////////////////////////////////
-	destructList(biConnectedComponents);
-	free(sortBiConnectedComponents_vertexOrdering);
-
-	logDebug("Cleaned up having calculated the loop discontinuities.\n");
 }
 
 ////////////////////////////////////////////////

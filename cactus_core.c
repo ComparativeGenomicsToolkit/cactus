@@ -362,29 +362,6 @@ int main(int argc, char *argv[]) {
 	checkCactusContainsOnly2EdgeConnectedComponents(cactusGraph);
 	logInfo("Checked the cactus contains only 2-edge connected components in: %i seconds\n", time(NULL) - startTime);
 
-	///////////////////////////////////////////////////////////////////////////
-	// (7) Eliminating chain discontinuities.
-	///////////////////////////////////////////////////////////////////////////
-
-	/*startTime = time(NULL);
-	breakLoopDiscontinuities(cactusGraph, extraEdges, threeEdgeConnectedComponents);
-	destructCactusGraph(cactusGraph); //clean up the initial cactus graph.
-	destructList(threeEdgeConnectedComponents);
-	i = computeCactusGraph(pinchGraph, &cactusGraph, &threeEdgeConnectedComponents, extraEdges, (char *)logLevelString);
-
-	if(i != 0) {
-		logInfo("Something went wrong constructing the cactus without loop discontinuities\n");
-		return i;
-	}
-
-	if(writeDebugFiles) {
-		logDebug("Writing out dot formatted version of the final cactus graph\n");
-		writeCactusGraph("cactusGraph3.dot", pinchGraph, cactusGraph);
-		logDebug("Finished writing out dot formatted version of the final cactus graph\n");
-	}
-
-	logInfo("Constructed the final cactus graph in: %i seconds\n", time(NULL) - startTime);*/
-
 	////////////////////////////////////////////////
 	//Get sorted bi-connected components.
 	////////////////////////////////////////////////
