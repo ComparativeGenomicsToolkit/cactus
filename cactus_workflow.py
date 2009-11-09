@@ -200,7 +200,7 @@ def main():
     
     parser.add_option("--netDisk", dest="netDisk", help="The location of the net disk.") 
     
-    parser.add_option("--alignmentIterations", dest="alignmentIterations", help="The number of recursive alignment iterations to emply", default="2")  
+    parser.add_option("--alignmentIterations", dest="alignmentIterations", help="The number of recursive alignment iterations to empty", default="1")  
     
     options, args = parseBasicOptions(parser)
 
