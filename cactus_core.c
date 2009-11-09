@@ -86,7 +86,6 @@ int main(int argc, char *argv[]) {
 	 */
 	struct PinchGraph *pinchGraph;
 	struct CactusGraph *cactusGraph;
-	struct List *extraEdges;
 	int32_t i, startTime;
 	FILE *fileHandle;
 	struct PairwiseAlignment *pairwiseAlignment;
@@ -330,8 +329,7 @@ int main(int argc, char *argv[]) {
 	///////////////////////////////////////////////////////////////////////////
 
 	startTime = time(NULL);
-	extraEdges = getEmptyExtraEdges(pinchGraph);
-	i = computeCactusGraph(pinchGraph, &cactusGraph, &threeEdgeConnectedComponents, extraEdges, (char *)logLevelString);
+	i = computeCactusGraph(pinchGraph, &cactusGraph, &threeEdgeConnectedComponents, (char *)logLevelString);
 
 	if(i != 0) {
 		logInfo("Something went wrong constructing the initial cactus graph\n");
@@ -351,15 +349,7 @@ int main(int argc, char *argv[]) {
 	///////////////////////////////////////////////////////////////////////////
 
 	startTime = time(NULL);
-	circulariseStems(cactusGraph, extraEdges, threeEdgeConnectedComponents);
-	destructCactusGraph(cactusGraph); //clean up the initial cactus graph.
-	destructList(threeEdgeConnectedComponents);
-	i = computeCactusGraph(pinchGraph, &cactusGraph, &threeEdgeConnectedComponents, extraEdges, (char *)logLevelString);
-
-	if(i != 0) {
-		logInfo("Something went wrong constructing the cactus with circularised stems\n");
-		return i;
-	}
+	circulariseStems(cactusGraph);
 
 	if(writeDebugFiles) {
 		logDebug("Writing out dot formatted version of 2-edge component only cactus graph\n");
@@ -453,7 +443,6 @@ int main(int argc, char *argv[]) {
 	startTime = time(NULL);
 	destructList(biConnectedComponents);
 	destructPinchGraph(pinchGraph);
-	destructList(extraEdges);
 	destructList(threeEdgeConnectedComponents);
 	destructCactusGraph(cactusGraph);
 	destructList(chosenAtoms);

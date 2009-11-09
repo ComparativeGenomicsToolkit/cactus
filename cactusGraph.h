@@ -49,7 +49,6 @@ struct CactusGraph {
 };
 
 struct CactusGraph *constructCactusGraph(struct PinchGraph *pinchGraph,
-										 struct List *extraEdges,
 										 struct List *threeEdgeConnectedComponents);
 
 void destructCactusGraph(struct CactusGraph *cactusGraph);
@@ -88,24 +87,13 @@ int32_t *getDFSDiscoveryTimes(struct CactusGraph *cactusGraph);
 ////////////////////////////////////////////////
 ////////////////////////////////////////////////
 ////////////////////////////////////////////////
-//Methods for dealing with  reverse complement matches
-//that create self loops and stubs that create free ends.
-////////////////////////////////////////////////
-////////////////////////////////////////////////
-////////////////////////////////////////////////
-
-struct List *getEmptyExtraEdges(struct PinchGraph *pinchGraph);
-
-////////////////////////////////////////////////
-////////////////////////////////////////////////
-////////////////////////////////////////////////
 //I/O Methods to interact with the 3-edge connected component
 //code.
 ////////////////////////////////////////////////
 ////////////////////////////////////////////////
 ////////////////////////////////////////////////
 
-void writeOut3EdgeGraph(struct PinchGraph *pinchGraph, struct List *greyEdgeComponents, struct List *extraEdges, FILE *fileHandle);
+void writeOut3EdgeGraph(struct PinchGraph *pinchGraph, struct List *greyEdgeComponents, FILE *fileHandle);
 
 struct List *readThreeEdgeComponents(struct PinchGraph *, struct List *greyEdgeComponents, char *file);
 
@@ -119,7 +107,7 @@ void writeOutCactusGraph(struct CactusGraph *cactusGraph, struct PinchGraph *pin
 ////////////////////////////////////////////////
 ////////////////////////////////////////////////
 
-int32_t computeCactusGraph(struct PinchGraph *pinchGraph, struct CactusGraph **cactusGraph, struct List **threeEdgeConnectedComponents, struct List *extraEdges, char *logLevelString);
+int32_t computeCactusGraph(struct PinchGraph *pinchGraph, struct CactusGraph **cactusGraph, struct List **threeEdgeConnectedComponents, char *logLevelString);
 
 
 ////////////////////////////////////////////////
@@ -130,7 +118,7 @@ int32_t computeCactusGraph(struct PinchGraph *pinchGraph, struct CactusGraph **c
 ////////////////////////////////////////////////
 ////////////////////////////////////////////////
 
-void circulariseStems(struct CactusGraph *cactusGraph, struct List *extraEdges, struct List *threeEdgeConnectedComponents);
+void circulariseStems(struct CactusGraph *cactusGraph);
 
 void breakLoopDiscontinuities(struct CactusGraph *cactusGraph, struct List *extraEdges,
 							  struct List *threeEdgeConnectedComponents);
