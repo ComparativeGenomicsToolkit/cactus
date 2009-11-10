@@ -339,7 +339,7 @@ int main(int argc, char *argv[]) {
 	 */
 	char * logLevelString = NULL;
 	char * netDiskName = NULL;
-	char * netName = NULL;
+	char * netName = "0";
 	char * outputFile = NULL;
 
 	///////////////////////////////////////////////////////////////////////////

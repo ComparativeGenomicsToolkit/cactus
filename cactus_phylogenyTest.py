@@ -17,6 +17,7 @@ from cactus.cactus_common import runCactusAligner
 from cactus.cactus_common import runCactusCore
 from cactus.cactus_common import runCactusPhylogeny
 from cactus.cactus_common import getRandomCactusInputs
+from cactus.cactus_common import runCactusCheck
 
 class TestCase(unittest.TestCase):
     
@@ -53,6 +54,7 @@ def runPipe(sequenceDirs, newickTreeString, tempDir, useDummy=False, writeDebugF
                     minimumTreeCoverage=0.1,
                     minimumChainLength=1)
     runCactusPhylogeny(tempReconstructionDirectory, tempDir=getTempDirectory(tempDir))
+    runCactusCheck(tempReconstructionDirectory)
     
     system("rm -rf %s %s" % (tempReconstructionDirectory, tempAlignmentFile))
     

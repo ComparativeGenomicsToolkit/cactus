@@ -291,12 +291,84 @@ void buildChainTrees_Bernard(int32_t atomNumber, char ***concatenatedAtoms, Name
 	return;
 }
 
-void augmentEventTree(struct BinaryTree *modifiedEventTree, EventTree *eventTree) {
+Event *augmentEventTree(struct BinaryTree *modifiedEventTree, EventTree *eventTree) {
+	Event *event;
+	Name eventName = netMisc_stringToName(modifiedEventTree->label);
 
+	if(modifiedEventTree->internal) {
+		Event *childEvent = augmentEventTree(modifiedEventTree->left, eventTree);
+		if(modifiedEventTree->right != NULL) {
+			augmentEventTree(modifiedEventTree->right, eventTree);
+			event = eventTree_getEvent(eventTree, eventName);
+			assert(event != NULL);
+			return event;
+		}
+		else { //a unary event
+			event = eventTree_getEvent(eventTree, eventName);
+			if(event == NULL) {
+				MetaEvent *metaEvent = metaEvent_construct("", net_getNetDisk(eventTree_getNet(eventTree)));
+				return event_construct2(metaEvent, modifiedEventTree->distance, event_getParent(childEvent), childEvent, eventTree);
+			}
+			return event;
+		}
+	}
+	else {
+		event = eventTree_getEvent(eventTree, eventName);
+		assert(event != NULL);
+		return event;
+	}
 }
 
-void buildAtomTree(struct BinaryTree *atomTree, Net *net, Atom *atom) {
+AtomInstance *buildChainTrees3(Atom *atom, AtomInstance **atomInstances, int32_t atomNumber, struct BinaryTree *binaryTree) {
+	if(binaryTree->internal) {
+		AtomInstance *leftInstance = buildChainTrees3(atom, atomInstances, atomNumber, binaryTree->left);
+		AtomInstance *rightInstance = buildChainTrees3(atom, atomInstances, atomNumber, binaryTree->right);
+		if(leftInstance != NULL) {
+			if(rightInstance != NULL) {
+				Event *event = eventTree_getEvent(net_getEventTree(atom_getNet(atom)), netMisc_stringToName(binaryTree->label));
+				assert(event != NULL);
+				AtomInstance *atomInstance = atomInstance_construct(atom, event);
+				atomInstance_makeParentAndChild(atomInstance, leftInstance);
+				atomInstance_makeParentAndChild(atomInstance, rightInstance);
+				return atomInstance;
+			}
+			return leftInstance;
+		}
+		return rightInstance;
+	}
+	else {
+		int32_t i;
+		assert(sscanf(binaryTree->label, "%i", &i) == 1);
+		assert(i < atomNumber);
+		assert(i >= 0);
+		return atomInstances[i];
+	}
+}
 
+void buildChainTrees2(ChainAlignment *chainAlignment,
+					  struct BinaryTree **refinedAtomTrees,
+					  int32_t *refinedAtomBoundaries,
+					  int32_t refinedAtomNumber) {
+	int32_t i, j, k;
+	Atom *atom, *leftAtom, *rightAtom;
+
+	i=0;
+	j=0;
+	k=0;
+	while(i < chainAlignment->columnNumber) {
+		atom = chainAlignment->atoms[i];
+		k += atom_getLength(atom);
+		while(j < refinedAtomNumber && refinedAtomBoundaries[j] <= k) {
+			if(j < k) { //we need to split the atom
+				atom_split(atom, atom_getLength(atom) - (k - j), &leftAtom, &rightAtom);
+				buildChainTrees3(leftAtom, chainAlignment->matrix[i], chainAlignment->rowNumber, refinedAtomTrees[j++]);
+				atom = rightAtom;
+			}
+			else {
+				buildChainTrees3(atom, chainAlignment->matrix[i], chainAlignment->rowNumber, refinedAtomTrees[j++]);
+			}
+		}
+	}
 }
 
 void buildChainTrees(ChainAlignment **chainAlignments, int32_t chainAlignmentNumber, EventTree *eventTree,
@@ -351,9 +423,15 @@ void buildChainTrees(ChainAlignment **chainAlignments, int32_t chainAlignmentNum
 	 * Now process each new atom tree.
 	 */
 	for(i=0; i<chainAlignmentNumber; i++) {
+		struct BinaryTree **atomTrees = malloc(sizeof(void *)* refinedAtomNumbers[i]);
 		for(j=0; j<refinedAtomNumbers[i]; j++) {
-			newickTreeParser(atomTreeStrings[i][j], 0.0);
+			atomTrees[j] = newickTreeParser(atomTreeStrings[i][j], 0.0);
 		}
+		buildChainTrees2(chainAlignments[i], atomTrees, refinedAtomBoundaries[i], refinedAtomNumbers[i]);
+		for(j=0; j<refinedAtomNumbers[i]; j++) {
+			destructBinaryTree(atomTrees[j]);
+		}
+		free(atomTrees);
 	}
 
 	exitOnFailure(destructRandomDir(randomDir), "Tried to destroy a recursive directory of temp files but failed\n");
@@ -549,6 +627,11 @@ int main(int argc, char *argv[]) {
 	struct avl_table *sortedChainAlignments;
 	ChainAlignment *chainAlignment;
 	struct List *list;
+	AdjacencyComponent *adjacencyComponent;
+	Net *net2;
+	End *end;
+	End *end2;
+	EndInstance *endInstance;
 
 	/*
 	 * Arguments/options
@@ -703,7 +786,7 @@ int main(int argc, char *argv[]) {
 	//Pass the end trees and augmented events to the child nets.
 	///////////////////////////////////////////////////////////////////////////
 
-	/*startTime = time(NULL);
+	startTime = time(NULL);
 	Net_AdjacencyComponentIterator *adjacencyComponentIterator = net_getAdjacencyComponentIterator(net);
 	while((adjacencyComponent = net_getNextAdjacencyComponent(adjacencyComponentIterator)) != NULL) {
 		net2 = adjacencyComponent_getNestedNet(adjacencyComponent);
@@ -736,7 +819,7 @@ int main(int argc, char *argv[]) {
 	}
 	net_destructAdjacencyComponentIterator(adjacencyComponentIterator);
 
-	logInfo("Filled in end trees and augmented the event trees for the child nets in: %i seconds\n", time(NULL) - startTime);*/
+	logInfo("Filled in end trees and augmented the event trees for the child nets in: %i seconds\n", time(NULL) - startTime);
 
 	///////////////////////////////////////////////////////////////////////////
 	// (9) Write the net to disk.
