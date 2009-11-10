@@ -177,7 +177,7 @@ int main(int argc, char *argv[]) {
 	//Construct the event tree
 	//////////////////////////////////////////////
 
-	binaryTree = newickTreeParser(speciesTree, 0.0);
+	binaryTree = newickTreeParser(speciesTree, 0.0, 0);
 	metaEvent = metaEvent_construct("ROOT", netDisk);
 	eventTree = eventTree_construct(metaEvent, net); //creates the event tree and the root even
 	totalEventNumber=1;

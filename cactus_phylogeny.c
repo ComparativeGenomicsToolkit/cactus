@@ -13,26 +13,39 @@
 #include "hashTableC.h"
 #include "bioioC.h"
 
+#define closeEnough 0.001
+
 typedef struct _chainAlignment {
+	/*
+	 * Structure to represent a concatenated list of atoms as a single 2d alignment.
+	 */
 	//Matrix of alignment, matrix[column][row]
-	AtomInstance ***matrix;
-	Atom **atoms;
-	int32_t columnNumber;
-	int32_t rowNumber;
-	int32_t totalAlignmentLength;
+	AtomInstance ***matrix; //NULL values are okay, where an instance of an atom is missing from an instance of the chain.
+	Atom **atoms; //this list of atoms, in order.
+	int32_t columnNumber; //the number of atoms.
+	int32_t rowNumber; //the number of rows of the alignment, each row containing an instance of atoms in the chain.
+	int32_t totalAlignmentLength; //the length in base pairs of the alignment.
 } ChainAlignment;
 
 char **chainAlignment_getAlignment(ChainAlignment *chainAlignment) {
+	/*
+	 * Constructs a concatenated 2d matrix of chars referenced by [atom][instance], representing the
+	 * base pair alignment of the chain alignment.
+	 */
 	char **alignment;
 	int32_t i, j, k, l;
 	AtomInstance *atomInstance;
 	char *cA;
 
+	//alloc the memory for the char alignment.
 	alignment = malloc(sizeof(void *) * chainAlignment->rowNumber);
 	for(i=0; i<chainAlignment->rowNumber; i++) {
 		alignment[i] = malloc(sizeof(char) * (chainAlignment->totalAlignmentLength + 1));
 	}
 
+	/*
+	 * Fills in the alignment.
+	 */
 	for(j=0; j<chainAlignment->rowNumber; j++) {
 		l = 0;
 		for(i=0; i<chainAlignment->columnNumber; i++) {
@@ -45,7 +58,7 @@ char **chainAlignment_getAlignment(ChainAlignment *chainAlignment) {
 			else {
 				cA = atomInstance_getString(atomInstance);
 				for(k=0; k<atomInstance_getLength(atomInstance); k++) {
-					alignment[j][l++]  = cA[k];
+					alignment[j][l++] = cA[k];
 				}
 				free(cA);
 			}
@@ -58,6 +71,9 @@ char **chainAlignment_getAlignment(ChainAlignment *chainAlignment) {
 }
 
 AtomInstance *chainAlignment_getFirstNonNullAtomInstance(ChainAlignment *chainAlignment, int32_t row, bool increasing) {
+	/*
+	 * Gets the first instance on an row in the chain alignment which is non null. If increasing is false, gets the last.
+	 */
 	AtomInstance *atomInstance;
 	int32_t j = 0, k = chainAlignment->columnNumber, l = 1;
 	if(!increasing) {
@@ -76,6 +92,9 @@ AtomInstance *chainAlignment_getFirstNonNullAtomInstance(ChainAlignment *chainAl
 }
 
 Name *chainAlignment_getEndNames(ChainAlignment *chainAlignment, bool _5End) {
+	/*
+	 * Gets the names of the ends associated with the instances at the ends of a chain alignment.
+	 */
 	Name *names;
 	int32_t i;
 	AtomInstance *atomInstance;
@@ -89,6 +108,9 @@ Name *chainAlignment_getEndNames(ChainAlignment *chainAlignment, bool _5End) {
 }
 
 Name *chainAlignment_getLeafEventNames(ChainAlignment *chainAlignment) {
+	/*
+	 * Gets the names of the leaf events of the rows (instances), in the alignment.
+	 */
 	Name *names;
 	int32_t i;
 	AtomInstance *atomInstance;
@@ -102,6 +124,9 @@ Name *chainAlignment_getLeafEventNames(ChainAlignment *chainAlignment) {
 }
 
 int32_t *chainAlignment_getAtomBoundaries(ChainAlignment *chainAlignment) {
+	/*
+	 * Gets the boundaries of atom in the chain alignment.
+	 */
 	int32_t *atomBoundaries;
 	int32_t i, j;
 
@@ -291,42 +316,72 @@ void buildChainTrees_Bernard(int32_t atomNumber, char ***concatenatedAtoms, Name
 	return;
 }
 
-Event *augmentEventTree(struct BinaryTree *modifiedEventTree, EventTree *eventTree) {
+Event *augmentEventTree(struct BinaryTree *augmentedEventTree, EventTree *eventTree) {
+	/*
+	 * Function takes an augmented event tree and adds in the extra (unary) events to the original
+	 * event tree.
+	 */
 	Event *event;
-	Name eventName = netMisc_stringToName(modifiedEventTree->label);
+	Name eventName = netMisc_stringToName(augmentedEventTree->label);
 
-	if(modifiedEventTree->internal) {
-		Event *childEvent = augmentEventTree(modifiedEventTree->left, eventTree);
-		if(modifiedEventTree->right != NULL) {
-			augmentEventTree(modifiedEventTree->right, eventTree);
+	if(augmentedEventTree->internal) {
+		Event *childEvent = augmentEventTree(augmentedEventTree->left, eventTree);
+		if(augmentedEventTree->right != NULL) { //is a speciation node.
+			Event *childEvent2 = augmentEventTree(augmentedEventTree->right, eventTree);
 			event = eventTree_getEvent(eventTree, eventName);
+#ifdef BEN_DEBUG
 			assert(event != NULL);
+			assert(event_getChildNumber(event) == 2);
+			assert(event_getParent(childEvent) == event);
+			assert(event_getParent(childEvent2) == event);
+			assert(floatValuesClose(event_getBranchLength(childEvent), augmentedEventTree->left->distance, closeEnough));
+			assert(floatValuesClose(event_getBranchLength(childEvent2), augmentedEventTree->right->distance, closeEnough));
+#endif
 			return event;
 		}
 		else { //a unary event
 			event = eventTree_getEvent(eventTree, eventName);
 			if(event == NULL) {
 				MetaEvent *metaEvent = metaEvent_construct("", net_getNetDisk(eventTree_getNet(eventTree)));
-				return event_construct2(metaEvent, modifiedEventTree->distance, event_getParent(childEvent), childEvent, eventTree);
+				//We set the branch length so that of the child branch is correct.
+				assert(augmentedEventTree->left->distance <= event_getBranchLength(childEvent));
+				event = event_construct2(metaEvent, event_getBranchLength(childEvent) - augmentedEventTree->left->distance, event_getParent(childEvent), childEvent, eventTree);
 			}
+#ifdef BEN_DEBUG
+			assert(event_getParent(childEvent) == event);
+			assert(floatValuesClose(event_getBranchLength(childEvent), augmentedEventTree->left->distance, closeEnough));
+#endif
 			return event;
 		}
 	}
-	else {
+	else { //is a leaf
 		event = eventTree_getEvent(eventTree, eventName);
+#ifdef BEN_DEBUG
 		assert(event != NULL);
+		assert(event_getChildNumber(event) == 0);
+#endif
 		return event;
 	}
 }
 
-AtomInstance *buildChainTrees3(Atom *atom, AtomInstance **atomInstances, int32_t atomNumber, struct BinaryTree *binaryTree) {
-	if(binaryTree->internal) {
-		AtomInstance *leftInstance = buildChainTrees3(atom, atomInstances, atomNumber, binaryTree->left);
-		AtomInstance *rightInstance = buildChainTrees3(atom, atomInstances, atomNumber, binaryTree->right);
+
+AtomInstance *buildChainTrees3P(Atom *atom, AtomInstance **atomInstances, int32_t atomNumber, struct BinaryTree *binaryTree) {
+	/*
+	 * Recursive partner to buildChainTree3 function, recurses on the binary tree constructing the atom tree.
+	 * The labels of the leaves are indexes into the atom instances array, the internal node's labels are events in the event tree.
+	 */
+	if(binaryTree->internal) { //deal with an internal node of the atom tree.
+		AtomInstance *leftInstance = buildChainTrees3P(atom, atomInstances, atomNumber, binaryTree->left);
+		AtomInstance *rightInstance = buildChainTrees3P(atom, atomInstances, atomNumber, binaryTree->right);
 		if(leftInstance != NULL) {
 			if(rightInstance != NULL) {
 				Event *event = eventTree_getEvent(net_getEventTree(atom_getNet(atom)), netMisc_stringToName(binaryTree->label));
-				assert(event != NULL);
+
+				assert(event != NULL); //check event is present in the event tree.
+				//Check that this does not create a cycle with respect to the event tree.
+				assert(event_isAncestor(atomInstance_getEvent(leftInstance), event));
+				assert(event_isAncestor(atomInstance_getEvent(rightInstance), event));
+
 				AtomInstance *atomInstance = atomInstance_construct(atom, event);
 				atomInstance_makeParentAndChild(atomInstance, leftInstance);
 				atomInstance_makeParentAndChild(atomInstance, rightInstance);
@@ -336,7 +391,7 @@ AtomInstance *buildChainTrees3(Atom *atom, AtomInstance **atomInstances, int32_t
 		}
 		return rightInstance;
 	}
-	else {
+	else { //a leaf, so find the leaf instance in the list of atom instances (this may be null if missing data).
 		int32_t i;
 		assert(sscanf(binaryTree->label, "%i", &i) == 1);
 		assert(i < atomNumber);
@@ -345,53 +400,85 @@ AtomInstance *buildChainTrees3(Atom *atom, AtomInstance **atomInstances, int32_t
 	}
 }
 
+void buildChainTrees3(Atom *atom, AtomInstance **atomInstances, int32_t atomNumber, struct BinaryTree *binaryTree) {
+	/*
+	 * Constructs an atom tree for the atom.
+	 */
+	AtomInstance *mostAncestralEvent = buildChainTrees3P(atom, atomInstances, atomNumber, binaryTree);
+	assert(atom_getInstanceNumber(atom) > 0);
+	assert(mostAncestralEvent != NULL);
+	//Make a root event.
+	Event *rootEvent = eventTree_getRootEvent(net_getEventTree(atom_getNet(atom)));
+	AtomInstance *rootAtomInstance = atomInstance_construct(atom, rootEvent);
+	assert(event_isAncestor(atomInstance_getEvent(mostAncestralEvent), rootEvent));
+	atomInstance_makeParentAndChild(rootAtomInstance, mostAncestralEvent);
+	atom_setRootInstance(atom, rootAtomInstance);
+
+#ifdef BEN_DEBUG //Now go through all events checking they have a parent.
+	Atom_InstanceIterator *instanceIterator = atom_getInstanceIterator(atom);
+	AtomInstance *atomInstance;
+	while((atomInstance = atom_getNext(instanceIterator)) != NULL) {
+		AtomInstance *parent = atomInstance_getParent(atomInstance);
+		if(parent == NULL) {
+			assert(atomInstance == rootAtomInstance);
+		}
+	}
+	atom_destructInstanceIterator(instanceIterator);
+#endif
+}
+
 void buildChainTrees2(ChainAlignment *chainAlignment,
 					  struct BinaryTree **refinedAtomTrees,
 					  int32_t *refinedAtomBoundaries,
 					  int32_t refinedAtomNumber) {
+	/*
+	 * Iterates through a chain alignment, constructing the atom trees and splitting atoms as needed.
+	 */
+	assert(chainAlignment->columnNumber <= refinedAtomNumber);
 	int32_t i, j, k;
 	Atom *atom, *leftAtom, *rightAtom;
 
-	i=0;
 	j=0;
 	k=0;
-	while(i < chainAlignment->columnNumber) {
+	for(i=0; i < chainAlignment->columnNumber; i++) {
 		atom = chainAlignment->atoms[i];
 		k += atom_getLength(atom);
-		while(j < refinedAtomNumber && refinedAtomBoundaries[j] <= k) {
+		//walk along the refined atom boundaries, splitting the considered as needed.
+		assert(j < refinedAtomNumber && refinedAtomBoundaries[j] <= k);
+		do {
 			if(j < k) { //we need to split the atom
-				atom_split(atom, atom_getLength(atom) - (k - j), &leftAtom, &rightAtom);
-				buildChainTrees3(leftAtom, chainAlignment->matrix[i], chainAlignment->rowNumber, refinedAtomTrees[j++]);
+				assert(refinedAtomBoundaries[j] >= k - atom_getLength(atom)); //boundary must break atom so that left atom is at least one base pair long.
+				assert(refinedAtomBoundaries[j] < k); //boundary must break atom so that right atom is at least one base pair long.
+				atom_split(atom, atom_getLength(atom) - (k - refinedAtomBoundaries[j]), &leftAtom, &rightAtom);
+				buildChainTrees3(leftAtom, chainAlignment->matrix[i], chainAlignment->rowNumber, refinedAtomTrees[j]);
 				atom = rightAtom;
+				assert(k - atom_getLength(atom) == refinedAtomBoundaries[j]); //check the split did what we expect
+				assert(j+1 < refinedAtomNumber && refinedAtomBoundaries[j+1] <= k); //check that we have another atom tree to deal with the right side of the split.
 			}
 			else {
-				buildChainTrees3(atom, chainAlignment->matrix[i], chainAlignment->rowNumber, refinedAtomTrees[j++]);
+				buildChainTrees3(atom, chainAlignment->matrix[i], chainAlignment->rowNumber, refinedAtomTrees[j]);
 			}
-		}
+			j++;
+		} while(j < refinedAtomNumber && refinedAtomBoundaries[j] <= k);
 	}
+	assert(j == refinedAtomNumber);
 }
 
 void buildChainTrees(ChainAlignment **chainAlignments, int32_t chainAlignmentNumber, EventTree *eventTree,
 		const char *tempFilePath) {
 	/*
-	 * This is the function to do the tree construction in.
+	 * This function builds a load of inputs which are then passed to Bernard's code.
 	 */
 	int32_t i, j;
 
-	char ***concatenatedAtoms;
-	Name **_5Ends;
-	Name **_3Ends;
-	Name **leafEventLabels;
-	int32_t **atomBoundaries;
-	char *eventTreeString;
-	char *randomDir;
-
 	//Make the atom alignments.
-	concatenatedAtoms = malloc(sizeof(void *) * chainAlignmentNumber);
-	_5Ends = malloc(sizeof(void *) * chainAlignmentNumber);
-	_3Ends = malloc(sizeof(void *) * chainAlignmentNumber);
-	leafEventLabels = malloc(sizeof(void *) * chainAlignmentNumber);
-	atomBoundaries = malloc(sizeof(void *) * chainAlignmentNumber);
+	char ***concatenatedAtoms = malloc(sizeof(void *) * chainAlignmentNumber); //this is the list of 2d alignments.
+	Name **_5Ends = malloc(sizeof(void *) * chainAlignmentNumber); //these are the lists of ends associated with each end.
+	Name **_3Ends = malloc(sizeof(void *) * chainAlignmentNumber);
+	Name **leafEventLabels = malloc(sizeof(void *) * chainAlignmentNumber); //this is the list of leaf event labels.
+	int32_t **atomBoundaries = malloc(sizeof(void *) * chainAlignmentNumber); //each chain alignment has a list of atom lengths to demark where the atom boundaries are.
+
+	//now fill out the the various arrays.
 	for(i=0; i<chainAlignmentNumber; i++) {
 		concatenatedAtoms[i] = chainAlignment_getAlignment(chainAlignments[i]);
 		_5Ends[i] = chainAlignment_getEndNames(chainAlignments[i], 1);
@@ -400,23 +487,30 @@ void buildChainTrees(ChainAlignment **chainAlignments, int32_t chainAlignmentNum
 		atomBoundaries[i] = chainAlignment_getAtomBoundaries(chainAlignments[i]);
 	}
 	//Event tree string
-	eventTreeString = eventTree_makeNewickString(eventTree);
+	char *eventTreeString = eventTree_makeNewickString(eventTree);
 
+	//Construct the random dir.
+	char *randomDir;
 	exitOnFailure(constructRandomDir(tempFilePath, &randomDir), "Tried to make a recursive directory of temp files but failed\n");
 
 	//call to Bernard's code
-	char *modifiedEventTreeString;
-	char ***atomTreeStrings;
-	int32_t **refinedAtomBoundaries;
-	int32_t *refinedAtomNumbers;
+	char *augmentedEventTreeString; //pointer to string holding the augmented event tree.
+	char ***atomTreeStrings; //array of string pointers, for holding the constructed atom trees.
+	int32_t **refinedAtomBoundaries; //like the atom boundaries, but revised by allowing for splits in the existing atoms.
+	int32_t *refinedAtomNumbers; //the lengths of the atom boundary arrays.
 	buildChainTrees_Bernard(chainAlignmentNumber, concatenatedAtoms, _5Ends, _3Ends, leafEventLabels,
 							atomBoundaries, eventTreeString, randomDir, chainAlignments,
-							&modifiedEventTreeString, &atomTreeStrings, &refinedAtomBoundaries, &refinedAtomNumbers);
+							&augmentedEventTreeString, &atomTreeStrings, &refinedAtomBoundaries, &refinedAtomNumbers);
+
+	/*
+	 * Clean up the temporary files directory.
+	 */
+	exitOnFailure(destructRandomDir(randomDir), "Tried to destroy a recursive directory of temp files but failed\n");
 
 	/*
 	 * Augment the event tree with the new events.
 	 */
-	struct BinaryTree *modifiedEventTree = newickTreeParser(modifiedEventTreeString, 0.0);
+	struct BinaryTree *modifiedEventTree = newickTreeParser(augmentedEventTreeString, 0.0, 1);
 	augmentEventTree(modifiedEventTree, eventTree);
 
 	/*
@@ -425,7 +519,7 @@ void buildChainTrees(ChainAlignment **chainAlignments, int32_t chainAlignmentNum
 	for(i=0; i<chainAlignmentNumber; i++) {
 		struct BinaryTree **atomTrees = malloc(sizeof(void *)* refinedAtomNumbers[i]);
 		for(j=0; j<refinedAtomNumbers[i]; j++) {
-			atomTrees[j] = newickTreeParser(atomTreeStrings[i][j], 0.0);
+			atomTrees[j] = newickTreeParser(atomTreeStrings[i][j], 0.0, 0);
 		}
 		buildChainTrees2(chainAlignments[i], atomTrees, refinedAtomBoundaries[i], refinedAtomNumbers[i]);
 		for(j=0; j<refinedAtomNumbers[i]; j++) {
@@ -434,11 +528,9 @@ void buildChainTrees(ChainAlignment **chainAlignments, int32_t chainAlignmentNum
 		free(atomTrees);
 	}
 
-	exitOnFailure(destructRandomDir(randomDir), "Tried to destroy a recursive directory of temp files but failed\n");
-
-	//build trees, augmented event trees.
-
-	//clean up.
+	/*
+	 * Cleanup the inputs.
+	 */
 	for(i=0; i<chainAlignmentNumber; i++) {
 		free(concatenatedAtoms[i]);
 		free(_5Ends[i]);
@@ -457,25 +549,17 @@ void buildChainTrees(ChainAlignment **chainAlignments, int32_t chainAlignmentNum
 }
 
 int32_t chainAlignment_cmpFn(ChainAlignment *cA1, ChainAlignment *cA2, const void *a) {
+	/*
+	 * Compares chain alignments by their total base pair alignment length, sorting them in descending order.
+	 */
 	assert(a == NULL);
-	return cA2->totalAlignmentLength - cA1->totalAlignmentLength; //sort descending
-}
-
-int chainAlignment_constructP(AtomInstance **atomInstance1, AtomInstance **atomInstance2) {
-	assert(atomInstance_getStrand(*atomInstance1) && atomInstance_getStrand(*atomInstance2));
-	Sequence *sequence1 = atomInstance_getSequence(*atomInstance1);
-	Sequence *sequence2 = atomInstance_getSequence(*atomInstance2);
-	int32_t i = netMisc_nameCompare(sequence_getName(sequence1), sequence_getName(sequence2));
-	if(i == 0) {
-		int32_t j = atomInstance_getStart(*atomInstance1);
-		int32_t k = atomInstance_getStart(*atomInstance2);
-		i = j - k;
-		assert(i != 0);
-	}
-	return i;
+	return cA2->totalAlignmentLength - cA1->totalAlignmentLength;
 }
 
 ChainAlignment *chainAlignment_construct(Atom **atoms, int32_t atomsLength) {
+	/*
+	 * Constructs a chain alignment structure from a chain of atoms.
+	 */
 	int32_t i, j, k;
 	Atom *atom;
 	AtomInstance *atomInstance;
@@ -486,31 +570,35 @@ ChainAlignment *chainAlignment_construct(Atom **atoms, int32_t atomsLength) {
 	struct List *list;
 	struct List *list2;
 
-	//Construct a list of chain instances.
-	hash = create_hashtable(1, hashtable_key, hashtable_equalKey, NULL, NULL);
-	list = constructEmptyList(0, (void (*)(void *))destructList);
+	/*
+	 * First iterate through all the atom instances in the chain, in order, to construct instances of the chain.
+	 */
+	hash = create_hashtable(1, hashtable_key, hashtable_equalKey, NULL, NULL); //to keep track of the instances included in a chain.
+	list = constructEmptyList(0, (void (*)(void *))destructList); //the list of chain instances.
 	k = 0;
+	assert(atomsLength > 0);
 	for(i=0; i<atomsLength; i++) {
 		atom = atoms[i];
 		Atom_InstanceIterator *instanceIterator = atom_getInstanceIterator(atom);
 		while((atomInstance = atom_getNext(instanceIterator)) != NULL) {
 			k++;
 			assert(atomInstance_getOrientation(atomInstance));
-			if(hashtable_search(hash, atomInstance) == NULL) {
+			if(hashtable_search(hash, atomInstance) == NULL) { //not yet in a chain instance
 				list2 = constructEmptyList(atomsLength, NULL);
-				for(j=0; j<atomsLength; j++) {
+				for(j=0; j<atomsLength; j++) { //this list will contain one instance for each atom, or NULL, of missing.
 					list2->list[j] = NULL;
 				}
 				listAppend(list, list2);
-				j = i;
+				j = i; //start from the atom we're up to.
 				while(1) {
 					assert(atomInstance_getOrientation(atomInstance));
-					hashtable_insert(hash, atomInstance, atomInstance);
-					list2->list[j++] = atomInstance;
+					hashtable_insert(hash, atomInstance, atomInstance); //put in the hash to say we've seen it.
+					list2->list[j++] = atomInstance; //put in the list of chains list.
 					if(j == atomsLength) { //end of chain
 						break;
 					}
 					endInstance = endInstance_getAdjacency(atomInstance_get3End(atomInstance));
+					assert(!end_isCap(endInstance_getEnd(endInstance))); //can not be a cap.
 					if(end_isStub(endInstance_getEnd(endInstance))) { //terminates with missing information.
 						break;
 					}
@@ -523,23 +611,32 @@ ChainAlignment *chainAlignment_construct(Atom **atoms, int32_t atomsLength) {
 					atomInstance = atomInstance2;
 				}
 			}
+			else {
+				assert(i != 0);
+			}
 		}
 		atom_destructInstanceIterator(instanceIterator);
 	}
 	assert(k == (int32_t)hashtable_count(hash));
+	assert(list->length > 0);
 
-	//Now do actual construction;
+	/*
+	 * Now convert the chain instances in the list into the desired format for the chain alignment.
+	 */
+
+	//alloc the chain alignment and the matrix of instances.
 	chainAlignment = malloc(sizeof(ChainAlignment));
 	chainAlignment->matrix = malloc(sizeof(AtomInstance **) * atomsLength);
 	for(i=0; i<atomsLength; i++) {
 		chainAlignment->matrix[i] = malloc(sizeof(AtomInstance *) * list->length);
 	}
+	//fill out the fields of the chain alignment, including the matrix.
 	chainAlignment->columnNumber = atomsLength;
 	chainAlignment->rowNumber = list->length;
 	for(i=0; i<list->length; i++) {
 		list2 = list->list[i];
 		assert(list2->length == atomsLength);
-		for(j=0; j<list2->length; j++) {
+		for(j=0; j<atomsLength; j++) {
 			chainAlignment->matrix[j][i] = list2->list[j];
 		}
 	}
@@ -548,6 +645,7 @@ ChainAlignment *chainAlignment_construct(Atom **atoms, int32_t atomsLength) {
 	for(i=0;i<atomsLength; i++) {
 		chainAlignment->totalAlignmentLength += atom_getLength(atoms[i]);
 	}
+	assert(chainAlignment->totalAlignmentLength > 0);
 	//Add chain of atoms.
 	chainAlignment->atoms = malloc(sizeof(void *)*atomsLength);
 	for(i=0; i<atomsLength; i++) {
@@ -562,6 +660,9 @@ ChainAlignment *chainAlignment_construct(Atom **atoms, int32_t atomsLength) {
 }
 
 void chainAlignment_destruct(ChainAlignment *chainAlignment) {
+	/*
+	 * Destructs a chain alignment.
+	 */
 	int32_t i;
 	for(i=0; i<chainAlignment->columnNumber; i++) {
 		free(chainAlignment->matrix[i]);
@@ -571,25 +672,34 @@ void chainAlignment_destruct(ChainAlignment *chainAlignment) {
 }
 
 Event *copyConstructUnaryEvent(Event *event, EventTree *eventTree2) {
+	/*
+	 * Adds the unary event to the event tree, allowing for the possibility that other unary events in the tree
+	 * of the event are not yet present in eventTree2.
+	 */
 	assert(event_getChildNumber(event) == 1);
 
 	double branchLength = event_getBranchLength(event);
 
+	//Search for the first ancestor of event which is also in eventTree2, adding to the branch length as we go.
 	Event *parentEvent = event_getParent(event);
 	while(eventTree_getEvent(eventTree2, event_getName(parentEvent)) == NULL) {
 		branchLength += event_getBranchLength(parentEvent);
 		parentEvent = event_getParent(parentEvent);
 		assert(parentEvent != NULL);
-	}
-	parentEvent = eventTree_getEvent(eventTree2, event_getName(parentEvent));
+	} //at this point branch length is equal to branch length in eventTree2 from new event to common ancestor in both trees.
+	parentEvent = eventTree_getEvent(eventTree2, event_getName(parentEvent)); //now get the event in the other tree.
+	assert(parentEvent != NULL);
 
+	//Search for the first descendant of the event which is also in eventTree2, adding to the branch length as we go.
 	Event *childEvent = event_getChild(event, 0);
-	while(eventTree_getEvent(eventTree2, event_getName(parentEvent)) == NULL) {
+	while(eventTree_getEvent(eventTree2, event_getName(childEvent)) == NULL) {
 		assert(event_getChildNumber(childEvent) == 1);
 		childEvent = event_getChild(parentEvent, 0);
 		assert(childEvent != NULL);
-	}
-	childEvent = eventTree_getEvent(eventTree2, event_getName(childEvent));
+	} //at this point the child event is present in both event trees.
+	childEvent = eventTree_getEvent(eventTree2, event_getName(childEvent)); //get the child event.
+	assert(childEvent != NULL);
+	assert(event_getBranchLength(childEvent) > branchLength);
 
 	return event_construct2(event_getMetaEvent(event), branchLength, parentEvent, childEvent, eventTree2);
 }
@@ -742,7 +852,9 @@ int main(int argc, char *argv[]) {
 	Net_ChainIterator *chainIterator = net_getChainIterator(net);
 	while((chain = net_getNextChain(chainIterator)) != NULL) {
 		Atom **atomChain = chain_getAtomChain(chain, &i);
-		avl_insert(sortedChainAlignments, chainAlignment_construct(atomChain, i));
+		if(i > 0) {
+			avl_insert(sortedChainAlignments, chainAlignment_construct(atomChain, i));
+		}
 		free(atomChain);
 	}
 	net_destructChainIterator(chainIterator);
