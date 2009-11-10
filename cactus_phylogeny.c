@@ -158,6 +158,9 @@ void buildChainTrees_Bernard(int32_t atomNumber, char ***concatenatedAtoms, Name
 	 * So for example: concatenatedAtoms[i][j][k] is the ith chain/concatenated atom, jth row (chain instance), kth column (position in concatenated atom)
 	 *
 	 * Names can be converted to strings with: netMisc_nameToString() and netMisc_nameToStringStatic() (See the API).
+	 *
+	 * The output arrays (last three arguments) must be initialised and are *pointers to* the point containing the array/string. Which must be
+	 * created.
 	 */
 
 	int32_t i = 0;
