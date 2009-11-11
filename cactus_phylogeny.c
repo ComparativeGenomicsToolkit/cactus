@@ -708,10 +708,9 @@ Event *copyConstructUnaryEvent(Event *event, EventTree *eventTree2) {
 }
 
 void usage() {
-	fprintf(stderr, "cactus_tree, version 0.2\n");
+	fprintf(stderr, "cactus_tree [net-names, ordered by order they should be processed], version 0.2\n");
 	fprintf(stderr, "-a --logLevel : Set the log level\n");
 	fprintf(stderr, "-c --netDisk : The location of the net disk directory\n");
-	fprintf(stderr, "-d --netName : The name of the net (the key in the database)\n");
 	fprintf(stderr, "-e --tempDirRoot : The temp file root directory\n");
 	fprintf(stderr, "-h --help : Print this help screen\n");
 }
@@ -734,7 +733,7 @@ int main(int argc, char *argv[]) {
 	NetDisk *netDisk;
 	Net *net;
 	int32_t startTime;
-	int32_t i;
+	int32_t i, j;
 	Chain *chain;
 	Atom *atom;
 	struct avl_table *sortedChainAlignments;
@@ -751,7 +750,6 @@ int main(int argc, char *argv[]) {
 	 */
 	char * logLevelString = NULL;
 	char * netDiskName = NULL;
-	char * netName = NULL;
 	char * tempFileRootDirectory = NULL;
 
 	///////////////////////////////////////////////////////////////////////////
@@ -762,7 +760,6 @@ int main(int argc, char *argv[]) {
 		static struct option long_options[] = {
 			{ "logLevel", required_argument, 0, 'a' },
 			{ "netDisk", required_argument, 0, 'c' },
-			{ "netName", required_argument, 0, 'd' },
 			{ "tempDirRoot", required_argument, 0, 'e' },
 			{ "help", no_argument, 0, 'h' },
 			{ 0, 0, 0, 0 }
@@ -770,7 +767,7 @@ int main(int argc, char *argv[]) {
 
 		int option_index = 0;
 
-		int key = getopt_long(argc, argv, "a:c:d:e:h", long_options, &option_index);
+		int key = getopt_long(argc, argv, "a:c:e:h", long_options, &option_index);
 
 		if(key == -1) {
 			break;
@@ -782,9 +779,6 @@ int main(int argc, char *argv[]) {
 				break;
 			case 'c':
 				netDiskName = stringCopy(optarg);
-				break;
-			case 'd':
-				netName = stringCopy(optarg);
 				break;
 			case 'e':
 				tempFileRootDirectory = stringCopy(optarg);
@@ -804,7 +798,6 @@ int main(int argc, char *argv[]) {
 
 	assert(logLevelString == NULL || strcmp(logLevelString, "INFO") == 0 || strcmp(logLevelString, "DEBUG") == 0);
 	assert(netDiskName != NULL);
-	assert(netName != NULL);
 	assert(tempFileRootDirectory != NULL);
 
 	//////////////////////////////////////////////
@@ -823,14 +816,7 @@ int main(int argc, char *argv[]) {
 	//////////////////////////////////////////////
 
 	logInfo("Net disk name : %s\n", netDiskName);
-	logInfo("Net name : %s\n", netName);
 	logInfo("Temp file root directory : %s\n", tempFileRootDirectory);
-
-	//////////////////////////////////////////////
-	//Set up the temp file root directory
-	//////////////////////////////////////////////
-
-	//initialiseTempFileTree(tempFileRootDirectory, 100, 4);
 
 	//////////////////////////////////////////////
 	//Load the database
@@ -839,102 +825,111 @@ int main(int argc, char *argv[]) {
 	netDisk = netDisk_construct(netDiskName);
 	logInfo("Set up the net disk\n");
 
-	///////////////////////////////////////////////////////////////////////////
-	// Parse the basic reconstruction problem
-	///////////////////////////////////////////////////////////////////////////
+	//////////////////////////////////////////////
+	//For each net do tree building..
+	//////////////////////////////////////////////
 
-	net = netDisk_getNet(netDisk, netMisc_stringToName(netName));
-	logInfo("Parsed the net to be refined\n");
+	for (j = optind; j < argc; j++) {
+		const char *netName = argv[j];
+		logInfo("Processing the net named: %s", netName);
 
-	///////////////////////////////////////////////////////////////////////////
-	//Construct the chain alignments for all the non-trivial chains.
-	///////////////////////////////////////////////////////////////////////////
+		///////////////////////////////////////////////////////////////////////////
+		// Parse the basic reconstruction problem
+		///////////////////////////////////////////////////////////////////////////
 
-	startTime = time(NULL);
-	sortedChainAlignments = avl_create((int32_t (*)(const void *, const void *, void *))chainAlignment_cmpFn, NULL, NULL);
-	Net_ChainIterator *chainIterator = net_getChainIterator(net);
-	while((chain = net_getNextChain(chainIterator)) != NULL) {
-		Atom **atomChain = chain_getAtomChain(chain, &i);
-		if(i > 0) {
-			avl_insert(sortedChainAlignments, chainAlignment_construct(atomChain, i));
+		net = netDisk_getNet(netDisk, netMisc_stringToName(netName));
+		logInfo("Parsed the net to be refined\n");
+
+		///////////////////////////////////////////////////////////////////////////
+		//Construct the chain alignments for all the non-trivial chains.
+		///////////////////////////////////////////////////////////////////////////
+
+		startTime = time(NULL);
+		sortedChainAlignments = avl_create((int32_t (*)(const void *, const void *, void *))chainAlignment_cmpFn, NULL, NULL);
+		Net_ChainIterator *chainIterator = net_getChainIterator(net);
+		while((chain = net_getNextChain(chainIterator)) != NULL) {
+			Atom **atomChain = chain_getAtomChain(chain, &i);
+			if(i > 0) {
+				avl_insert(sortedChainAlignments, chainAlignment_construct(atomChain, i));
+			}
+			free(atomChain);
 		}
-		free(atomChain);
-	}
-	net_destructChainIterator(chainIterator);
-	logInfo("Constructed the atom trees for the non-trivial chains in the net in: %i seconds\n", time(NULL) - startTime);
+		net_destructChainIterator(chainIterator);
+		logInfo("Constructed the atom trees for the non-trivial chains in the net in: %i seconds\n", time(NULL) - startTime);
 
-	///////////////////////////////////////////////////////////////////////////
-	//For each lone atom call the tree construction function.
-	///////////////////////////////////////////////////////////////////////////
+		///////////////////////////////////////////////////////////////////////////
+		//For each lone atom call the tree construction function.
+		///////////////////////////////////////////////////////////////////////////
 
-	startTime = time(NULL);
-	Net_AtomIterator *atomIterator = net_getAtomIterator(net);
-	while((atom = net_getNextAtom(atomIterator)) != NULL) {
-		if(atom_getChain(atom) == NULL) {
-			avl_insert(sortedChainAlignments, chainAlignment_construct(&atom, 1));
+		startTime = time(NULL);
+		Net_AtomIterator *atomIterator = net_getAtomIterator(net);
+		while((atom = net_getNextAtom(atomIterator)) != NULL) {
+			if(atom_getChain(atom) == NULL) {
+				avl_insert(sortedChainAlignments, chainAlignment_construct(&atom, 1));
+			}
 		}
-	}
-	net_destructAtomIterator(atomIterator);
+		net_destructAtomIterator(atomIterator);
 
-	logInfo("Constructed the atom trees for the trivial chains in the net in: %i seconds\n", time(NULL) - startTime);
+		logInfo("Constructed the atom trees for the trivial chains in the net in: %i seconds\n", time(NULL) - startTime);
 
-	///////////////////////////////////////////////////////////////////////////
-	//For each chain call the tree construction function.
-	///////////////////////////////////////////////////////////////////////////
+		///////////////////////////////////////////////////////////////////////////
+		//For each chain call the tree construction function.
+		///////////////////////////////////////////////////////////////////////////
 
-	startTime = time(NULL);
-	struct avl_traverser *chainAlignmentIterator = mallocLocal(sizeof(struct avl_traverser));
-	avl_t_init(chainAlignmentIterator, sortedChainAlignments);
-	list = constructEmptyList(0, NULL);
-	i = INT32_MAX;
-	while((chainAlignment = avl_t_next(chainAlignmentIterator)) != NULL) {
-		assert(chainAlignment->totalAlignmentLength <= i);
-		i = chainAlignment->totalAlignmentLength;
-		listAppend(list, chainAlignment);
-	}
-	buildChainTrees((ChainAlignment **)list->list, list->length, net_getEventTree(net), tempFileRootDirectory);
-	destructList(list);
+		startTime = time(NULL);
+		struct avl_traverser *chainAlignmentIterator = mallocLocal(sizeof(struct avl_traverser));
+		avl_t_init(chainAlignmentIterator, sortedChainAlignments);
+		list = constructEmptyList(0, NULL);
+		i = INT32_MAX;
+		while((chainAlignment = avl_t_next(chainAlignmentIterator)) != NULL) {
+			assert(chainAlignment->totalAlignmentLength <= i);
+			i = chainAlignment->totalAlignmentLength;
+			listAppend(list, chainAlignment);
+		}
+		buildChainTrees((ChainAlignment **)list->list, list->length, net_getEventTree(net), tempFileRootDirectory);
+		destructList(list);
 
-	logInfo("Augmented the atom trees in: %i seconds\n", time(NULL) - startTime);
+		logInfo("Augmented the atom trees in: %i seconds\n", time(NULL) - startTime);
 
-	///////////////////////////////////////////////////////////////////////////
-	//Pass the end trees and augmented events to the child nets.
-	///////////////////////////////////////////////////////////////////////////
+		///////////////////////////////////////////////////////////////////////////
+		//Pass the end trees and augmented events to the child nets.
+		///////////////////////////////////////////////////////////////////////////
 
-	startTime = time(NULL);
-	Net_AdjacencyComponentIterator *adjacencyComponentIterator = net_getAdjacencyComponentIterator(net);
-	while((adjacencyComponent = net_getNextAdjacencyComponent(adjacencyComponentIterator)) != NULL) {
-		net2 = adjacencyComponent_getNestedNet(adjacencyComponent);
-		//add in the end trees and augment the event trees.
-		AdjacencyComponent_EndIterator *endIterator = adjacencyComponent_getEndIterator(adjacencyComponent);
-		while((end = adjacencyComponent_getNextEnd(endIterator)) != NULL) {
-			end2 = net_getEnd(net2, end_getName(end));
-			//copy the end instances.
-			End_InstanceIterator *instanceIterator = end_getInstanceIterator(end);
-			while((endInstance = end_getNext(instanceIterator)) != NULL) {
-				if(end_getInstance(end2, endInstance_getName(endInstance)) == NULL) {
-					//make sure the augmented event is in there.
-					if(eventTree_getEvent(net_getEventTree(net2), event_getName(endInstance_getEvent(endInstance))) == NULL) {
-						copyConstructUnaryEvent(endInstance_getEvent(endInstance), net_getEventTree(net2));
+		startTime = time(NULL);
+		Net_AdjacencyComponentIterator *adjacencyComponentIterator = net_getAdjacencyComponentIterator(net);
+		while((adjacencyComponent = net_getNextAdjacencyComponent(adjacencyComponentIterator)) != NULL) {
+			net2 = adjacencyComponent_getNestedNet(adjacencyComponent);
+			//add in the end trees and augment the event trees.
+			AdjacencyComponent_EndIterator *endIterator = adjacencyComponent_getEndIterator(adjacencyComponent);
+			while((end = adjacencyComponent_getNextEnd(endIterator)) != NULL) {
+				end2 = net_getEnd(net2, end_getName(end));
+				//copy the end instances.
+				End_InstanceIterator *instanceIterator = end_getInstanceIterator(end);
+				while((endInstance = end_getNext(instanceIterator)) != NULL) {
+					if(end_getInstance(end2, endInstance_getName(endInstance)) == NULL) {
+						//make sure the augmented event is in there.
+						if(eventTree_getEvent(net_getEventTree(net2), event_getName(endInstance_getEvent(endInstance))) == NULL) {
+							copyConstructUnaryEvent(endInstance_getEvent(endInstance), net_getEventTree(net2));
+						}
+						endInstance_construct(end, endInstance_getEvent(endInstance));
 					}
-					endInstance_construct(end, endInstance_getEvent(endInstance));
 				}
-			}
-			//now copy the parent links.
-			while((endInstance = end_getPrevious(instanceIterator)) != NULL) {
-				if(endInstance_getParent(endInstance) != NULL) {
-					endInstance_makeParentAndChild(
-							end_getInstance(end2, endInstance_getName(endInstance_getParent(endInstance))),
-							end_getInstance(end2, endInstance_getName(endInstance)));
+				//now copy the parent links.
+				while((endInstance = end_getPrevious(instanceIterator)) != NULL) {
+					if(endInstance_getParent(endInstance) != NULL) {
+						endInstance_makeParentAndChild(
+								end_getInstance(end2, endInstance_getName(endInstance_getParent(endInstance))),
+								end_getInstance(end2, endInstance_getName(endInstance)));
+					}
 				}
+				end_destructInstanceIterator(instanceIterator);
 			}
-			end_destructInstanceIterator(instanceIterator);
+			adjacencyComponent_destructEndIterator(endIterator);
 		}
-		adjacencyComponent_destructEndIterator(endIterator);
-	}
-	net_destructAdjacencyComponentIterator(adjacencyComponentIterator);
+		net_destructAdjacencyComponentIterator(adjacencyComponentIterator);
 
-	logInfo("Filled in end trees and augmented the event trees for the child nets in: %i seconds\n", time(NULL) - startTime);
+		logInfo("Filled in end trees and augmented the event trees for the child nets in: %i seconds\n", time(NULL) - startTime);
+	}
 
 	///////////////////////////////////////////////////////////////////////////
 	// (9) Write the net to disk.

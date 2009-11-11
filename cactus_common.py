@@ -151,10 +151,10 @@ def runCactusCore(netDisk, alignmentFile, tempDir,
     logger.info("Ran cactus_core okay")
     
 def runCactusPhylogeny(netDisk, tempDir, 
-                  netName=0,
+                  netNames=[ "0" ],
                   logLevel="DEBUG"):
-    command = "cactus_phylogeny --netDisk %s --netName %s --tempDirRoot %s --logLevel %s " % \
-    (netDisk, netName, tempDir, logLevel)
+    command = "cactus_phylogeny --netDisk %s --tempDirRoot %s --logLevel %s %s" % \
+    (netDisk, tempDir, logLevel, " ".join(netNames))
     system(command)
     logger.info("Ran cactus_phylogeny okay")
     
