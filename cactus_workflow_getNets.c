@@ -26,7 +26,6 @@ static void getNets(Net *net, FILE *fileHandle) {
 int main(int argc, char *argv[]) {
 	/*
 	 * This code iterates through the empty adjacency components and returns them in a list.
-	 *
 	 */
 	NetDisk *netDisk;
 	Net *net;
