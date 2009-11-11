@@ -190,25 +190,26 @@ void buildChainTrees_Bernard(int32_t atomNumber, char ***concatenatedAtoms, Name
 
 	char ***atomTreeArray = NULL;
 
-	randomDirName = strrchr(tempDir, '/');
+	char *tempDirName;
+	tempDirName = (char *) tempDir;
+//	char debugDir[] = "/Users/bsuh/TESTDIR";
+//	tempDirName = (char *) &debugDir;
+
+	randomDirName = strrchr(tempDirName, '/');
 	if (randomDirName == NULL) {
 		; // Assume this doesn't happen
 	} else {
 		randomDirName += 1;
 	}
 
-//	char tempDirDir[] = "/Users/bsuh/TESTDIR";
-
 	/* Output the eventTree to file */
-	snprintf(tmpStringBuffer, TMP_BUFFER_SIZE, "%s/%s", tempDir, eventTreeFileName);
-//	snprintf(tmpStringBuffer, TMP_BUFFER_SIZE, "%s/%s", tempDirDir, eventTreeFileName);
+	snprintf(tmpStringBuffer, TMP_BUFFER_SIZE, "%s/%s", tempDirName, eventTreeFileName);
 	fp = fopen(tmpStringBuffer, "w");
 	fprintf(fp, "%s\n", eventTreeString);
 	fclose(fp);
 
 	/* Output the atom definition file */
-	snprintf(tmpStringBuffer, TMP_BUFFER_SIZE, "%s/%s", tempDir, atomFileName);
-//	snprintf(tmpStringBuffer, TMP_BUFFER_SIZE, "%s/%s", tempDirDir, atomFileName);
+	snprintf(tmpStringBuffer, TMP_BUFFER_SIZE, "%s/%s", tempDirName, atomFileName);
 	fp = fopen(tmpStringBuffer, "w");
 	for (i=0; i<atomNumber; i++) {
 		rowNumber = chainAlignments[i]->rowNumber;
@@ -236,8 +237,7 @@ void buildChainTrees_Bernard(int32_t atomNumber, char ***concatenatedAtoms, Name
 	refinedAtomNumbers = &newAtomNumbers;
 
 	/* Atom map */
-	snprintf(tmpStringBuffer, TMP_BUFFER_SIZE, "%s/%s", tempDir, "atom.map");
-//	snprintf(tmpStringBuffer, TMP_BUFFER_SIZE, "%s/%s", tempDirDir, "atom.map");
+	snprintf(tmpStringBuffer, TMP_BUFFER_SIZE, "%s/%s", tempDirName, "atom.map");
 	fp = fopen(tmpStringBuffer, "w");
 	for (i=0; i<atomNumber; i++) {
 		/* NOTE: Atom Numbers start at 1 */
@@ -246,14 +246,12 @@ void buildChainTrees_Bernard(int32_t atomNumber, char ***concatenatedAtoms, Name
 	fclose(fp);
 
 	/* Create the maf files */
-	snprintf(tmpStringBuffer, TMP_BUFFER_SIZE, "%s/%s", tempDir, mafDirFileName);
-//	snprintf(tmpStringBuffer, TMP_BUFFER_SIZE, "%s/%s", tempDirDir, mafDirFileName);
+	snprintf(tmpStringBuffer, TMP_BUFFER_SIZE, "%s/%s", tempDirName, mafDirFileName);
 	mkdir(tmpStringBuffer, 0777);
 
 	for (i=0; i<atomNumber; i++) {
 		/* NOTE: Atom Numbers start at 1 */
-		snprintf(tmpStringBuffer, TMP_BUFFER_SIZE, "%s/%s/%d", tempDir, mafDirFileName, i+1);
-//		snprintf(tmpStringBuffer, TMP_BUFFER_SIZE, "%s/%s/%d", tempDirDir, mafDirFileName, i+1);
+		snprintf(tmpStringBuffer, TMP_BUFFER_SIZE, "%s/%s/%d", tempDirName, mafDirFileName, i+1);
 
 		fp = fopen(tmpStringBuffer, "w");
 
@@ -267,12 +265,12 @@ void buildChainTrees_Bernard(int32_t atomNumber, char ***concatenatedAtoms, Name
 	}
 
 	/* Run the tree pipeline */
-	snprintf(tmpStringBuffer, TMP_BUFFER_SIZE, "conTrees_PhyloBuilder.py %s", tempDir);
+	snprintf(tmpStringBuffer, TMP_BUFFER_SIZE, "conTrees_PhyloBuilder.py %s", tempDirName);
 	exitOnFailure(system(tmpStringBuffer), "conTrees_PhyloBuilder.py failed\n");
 	printf("Completed running tree pipeline, now onto parsing\n");
 
 	/* Read in tree pipeline output for the event tree */
-	snprintf(tmpStringBuffer, TMP_BUFFER_SIZE, "%s/%s", tempDir, dupTreeFileName);
+	snprintf(tmpStringBuffer, TMP_BUFFER_SIZE, "%s/%s", tempDirName, dupTreeFileName);
 	fp = fopen(tmpStringBuffer, "r");
 	if (fp != NULL) {
 		if (fgets(lineBuffer, LINE_BUFF_SIZE, fp) != NULL) {
@@ -294,7 +292,7 @@ void buildChainTrees_Bernard(int32_t atomNumber, char ***concatenatedAtoms, Name
 		atomTreeArray[i] = malloc(sizeof(void *) * colNumber);
 	}
 	i = 0; // Variable to store atomNumber
-	snprintf(tmpStringBuffer, TMP_BUFFER_SIZE, "%s/%s", tempDir, augTreeFileName);
+	snprintf(tmpStringBuffer, TMP_BUFFER_SIZE, "%s/%s", tempDirName, augTreeFileName);
 	fp = fopen(tmpStringBuffer, "r");
 	if (fp != NULL) {
 		while(fgets(lineBuffer, LINE_BUFF_SIZE, fp) != NULL) {
