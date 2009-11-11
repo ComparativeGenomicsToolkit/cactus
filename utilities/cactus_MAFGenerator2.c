@@ -15,17 +15,90 @@
  * The script outputs a maf file containing all the atom in a net and its descendants.
  */
 
-void computeMAFs(Net *net, FILE *fileHandle) {
+/*
+ * Global variables.
+ */
+bool includeTreesInMafBlocks = 0;
 
+const char *formatSequenceHeader(Sequence *sequence) {
+	const char *sequenceHeader = sequence_getHeader(sequence);
+	static char cA[1000];
+
+	if(strlen(sequenceHeader) > 0) {
+		assert(strlen(sequenceHeader) < 1000);
+		sscanf(sequenceHeader, "%s", cA);
+		return cA;
+	}
+	else {
+		return netMisc_nameToStringStatic(sequence_getName(sequence));
+	}
 }
 
+void getMAFBlock(Atom *atom, FILE *fileHandle) {
+	/*
+	 * Outputs a MAF representation of the atom to the given file handle.
+	 */
+	fprintf(fileHandle, "a score=%i\n", atom_getLength(atom) *atom_getInstanceNumber(atom));
+	Atom_InstanceIterator *instanceIterator = atom_getInstanceIterator(atom);
+	AtomInstance *atomInstance;
+	while((atomInstance = atom_getNext(instanceIterator)) != NULL) {
+		Sequence *sequence = atomInstance_getSequence(atomInstance);
+		if(sequence != NULL) {
+			const char *sequenceHeader = formatSequenceHeader(sequence);
+			int32_t start;
+			if(atomInstance_getStrand(atomInstance)) {
+				start = atomInstance_getStart(atomInstance) - sequence_getStart(sequence);
+			}
+			else { //start with respect to the start of the reverse complement sequence
+				start = (sequence_getStart(sequence) + sequence_getLength(sequence) - 1) - atomInstance_getStart(atomInstance);
+			}
+			int32_t length = atomInstance_getLength(atomInstance);
+			char *strand = atomInstance_getStrand(atomInstance) ? "+" : "-";
+			int32_t sequenceLength = sequence_getLength(sequence);
+			char *instanceString = atomInstance_getString(atomInstance);
+			fprintf(fileHandle, "s\t%s\t%i\t%i\t%s\t%i\t%s\n", sequenceHeader, start, length, strand, sequenceLength, instanceString);
+			free(instanceString);
+		}
+	}
+	atom_destructInstanceIterator(instanceIterator);
+}
+
+void getMAFs(Net *net, FILE *fileHandle) {
+	/*
+	 * Outputs MAF representations of all the atom sin the net and its descendants.
+	 */
+
+	//Make MAF blocks for each atom
+	Net_AtomIterator *atomIterator = net_getAtomIterator(net);
+	Atom *atom;
+	while((atom = net_getNextAtom(atomIterator)) != NULL) {
+		getMAFBlock(atom, fileHandle);
+	}
+	net_destructAtomIterator(atomIterator);
+
+	//Call child nets recursively.
+	Net_AdjacencyComponentIterator *adjacencyComponentIterator = net_getAdjacencyComponentIterator(net);
+	AdjacencyComponent *adjacencyComponent;
+	while((adjacencyComponent = net_getNextAdjacencyComponent(adjacencyComponentIterator)) != NULL) {
+		getMAFs(adjacencyComponent_getNestedNet(adjacencyComponent), fileHandle); //recursive call.
+	}
+	net_destructAdjacencyComponentIterator(adjacencyComponentIterator);
+}
+
+void makeMAFHeader(Net *net, FILE *fileHandle) {
+	fprintf(fileHandle, "##maf version=1 scoring=NULL\n");
+	char *cA = eventTree_makeNewickString(net_getEventTree(net));
+	fprintf(fileHandle, "# cactus %s\n\n", cA);
+	free(cA);
+}
 
 void usage() {
 	fprintf(stderr, "cactus_mafGenerator, version 0.2\n");
 	fprintf(stderr, "-a --logLevel : Set the log level\n");
 	fprintf(stderr, "-c --netDisk : The location of the net disk directory\n");
 	fprintf(stderr, "-d --netName : The name of the net (the key in the database)\n");
-	fprintf(stderr, "-e --outputFile : The file to write the stats in, XML formatted.\n");
+	fprintf(stderr, "-e --outputFile : The file to write the MAFs in.\n");
+	fprintf(stderr, "-f --includeTrees : Include trees for each MAF block inside of a comment line.\n");
 	fprintf(stderr, "-h --help : Print this help screen\n");
 }
 
@@ -51,13 +124,14 @@ int main(int argc, char *argv[]) {
 			{ "netDisk", required_argument, 0, 'c' },
 			{ "netName", required_argument, 0, 'd' },
 			{ "outputFile", required_argument, 0, 'e' },
+			{ "includeTrees", no_argument, 0, 'f' },
 			{ "help", no_argument, 0, 'h' },
 			{ 0, 0, 0, 0 }
 		};
 
 		int option_index = 0;
 
-		int key = getopt_long(argc, argv, "a:c:d:e:h", long_options, &option_index);
+		int key = getopt_long(argc, argv, "a:c:d:e:fh", long_options, &option_index);
 
 		if(key == -1) {
 			break;
@@ -76,6 +150,9 @@ int main(int argc, char *argv[]) {
 			case 'e':
 				outputFile = stringCopy(optarg);
 				break;
+			case 'f':
+				includeTreesInMafBlocks = !includeTreesInMafBlocks;
+				break;
 			case 'h':
 				usage();
 				return 0;
@@ -89,7 +166,6 @@ int main(int argc, char *argv[]) {
 	// (0) Check the inputs.
 	///////////////////////////////////////////////////////////////////////////
 
-	assert(logLevelString == NULL || strcmp(logLevelString, "INFO") == 0 || strcmp(logLevelString, "DEBUG") == 0);
 	assert(netDiskName != NULL);
 	assert(netName != NULL);
 	assert(outputFile != NULL);
@@ -133,7 +209,8 @@ int main(int argc, char *argv[]) {
 
 	int64_t startTime = time(NULL);
 	FILE *fileHandle = fopen(outputFile, "w");
-	computeMAFs(net, fileHandle);
+	makeMAFHeader(net, fileHandle);
+	getMAFs(net, fileHandle);
 	fclose(fileHandle);
 	logInfo("Got the mafs in %i seconds/\n", time(NULL) - startTime);
 
