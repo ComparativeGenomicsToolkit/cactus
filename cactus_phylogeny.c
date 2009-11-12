@@ -222,21 +222,7 @@ void buildChainTrees_Bernard(int32_t atomNumber, char ***concatenatedAtoms, Name
 	}
 	fclose(fp);
 
-	/* Clone Atom boundaries to refined Atom Boundaries*/
-	newAtomBoundaries = malloc(sizeof(void *) * atomNumber);
-	newAtomNumbers = malloc(sizeof(int32_t) * atomNumber);
-	for (i=0; i<atomNumber; i++) {
-		colNumber = chainAlignments[i]->columnNumber;
-		newAtomBoundaries[i] = malloc(sizeof(int32_t) * colNumber);
-		newAtomNumbers[i] = colNumber;
-		for (j=0; j<colNumber; j++) {
-			newAtomBoundaries[i][j] = atomBoundaries[i][j];
-		}
-	}
-	refinedAtomBoundaries = &newAtomBoundaries;
-	refinedAtomNumbers = &newAtomNumbers;
-
-	/* Atom map */
+	/* Create the atom map file */
 	snprintf(tmpStringBuffer, TMP_BUFFER_SIZE, "%s/%s", tempDirName, "atom.map");
 	fp = fopen(tmpStringBuffer, "w");
 	for (i=0; i<atomNumber; i++) {
@@ -269,6 +255,20 @@ void buildChainTrees_Bernard(int32_t atomNumber, char ***concatenatedAtoms, Name
 	exitOnFailure(system(tmpStringBuffer), "conTrees_PhyloBuilder.py failed\n");
 	printf("Completed running tree pipeline, now onto parsing\n");
 
+	/* Clone Atom boundaries to refined Atom Boundaries*/
+	newAtomBoundaries = malloc(sizeof(void *) * atomNumber);
+	newAtomNumbers = malloc(sizeof(int32_t) * atomNumber);
+	for (i=0; i<atomNumber; i++) {
+		colNumber = chainAlignments[i]->columnNumber;
+		newAtomBoundaries[i] = malloc(sizeof(int32_t) * colNumber);
+		newAtomNumbers[i] = colNumber;
+		for (j=0; j<colNumber; j++) {
+			newAtomBoundaries[i][j] = atomBoundaries[i][j];
+		}
+	}
+	*refinedAtomBoundaries = newAtomBoundaries;
+	*refinedAtomNumbers = newAtomNumbers;
+
 	/* Read in tree pipeline output for the event tree */
 	snprintf(tmpStringBuffer, TMP_BUFFER_SIZE, "%s/%s", tempDirName, dupTreeFileName);
 	fp = fopen(tmpStringBuffer, "r");
@@ -276,7 +276,7 @@ void buildChainTrees_Bernard(int32_t atomNumber, char ***concatenatedAtoms, Name
 		if (fgets(lineBuffer, LINE_BUFF_SIZE, fp) != NULL) {
 			chomp(lineBuffer);
 			tmpString = stringCopy(lineBuffer);
-			modifiedEventTreeString = &tmpString;
+			*modifiedEventTreeString = tmpString;
 		} else {
 			perror("Failed to read new eventTree file");
 		}
@@ -312,7 +312,7 @@ void buildChainTrees_Bernard(int32_t atomNumber, char ***concatenatedAtoms, Name
 		perror("Failed to open augTree file");
 	}
 	fclose(fp);
-	atomTreeStrings = &atomTreeArray;
+	*atomTreeStrings = atomTreeArray;
 
 	return;
 }
