@@ -447,7 +447,7 @@ void buildChainTrees2(ChainAlignment *chainAlignment,
 		//walk along the refined atom boundaries, splitting the considered as needed.
 		assert(j < refinedAtomNumber && refinedAtomBoundaries[j] <= k);
 		do {
-			if(j < k) { //we need to split the atom
+			if(refinedAtomBoundaries[j] < k) { //we need to split the atom
 				assert(refinedAtomBoundaries[j] >= k - atom_getLength(atom)); //boundary must break atom so that left atom is at least one base pair long.
 				assert(refinedAtomBoundaries[j] < k); //boundary must break atom so that right atom is at least one base pair long.
 				atom_split(atom, atom_getLength(atom) - (k - refinedAtomBoundaries[j]), &leftAtom, &rightAtom);

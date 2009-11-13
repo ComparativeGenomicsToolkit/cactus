@@ -20,17 +20,15 @@
  */
 bool includeTreesInMafBlocks = 0;
 
-const char *formatSequenceHeader(Sequence *sequence) {
+char *formatSequenceHeader(Sequence *sequence) {
 	const char *sequenceHeader = sequence_getHeader(sequence);
-	static char cA[1000];
-
 	if(strlen(sequenceHeader) > 0) {
-		assert(strlen(sequenceHeader) < 1000);
+		char *cA = malloc(sizeof(char) *(1 + strlen(sequenceHeader)));
 		sscanf(sequenceHeader, "%s", cA);
 		return cA;
 	}
 	else {
-		return netMisc_nameToStringStatic(sequence_getName(sequence));
+		return netMisc_nameToString(sequence_getName(sequence));
 	}
 }
 
@@ -44,7 +42,7 @@ void getMAFBlock(Atom *atom, FILE *fileHandle) {
 	while((atomInstance = atom_getNext(instanceIterator)) != NULL) {
 		Sequence *sequence = atomInstance_getSequence(atomInstance);
 		if(sequence != NULL) {
-			const char *sequenceHeader = formatSequenceHeader(sequence);
+			char *sequenceHeader = formatSequenceHeader(sequence);
 			int32_t start;
 			if(atomInstance_getStrand(atomInstance)) {
 				start = atomInstance_getStart(atomInstance) - sequence_getStart(sequence);
@@ -58,6 +56,7 @@ void getMAFBlock(Atom *atom, FILE *fileHandle) {
 			char *instanceString = atomInstance_getString(atomInstance);
 			fprintf(fileHandle, "s\t%s\t%i\t%i\t%s\t%i\t%s\n", sequenceHeader, start, length, strand, sequenceLength, instanceString);
 			free(instanceString);
+			free(sequenceHeader);
 		}
 	}
 	atom_destructInstanceIterator(instanceIterator);
