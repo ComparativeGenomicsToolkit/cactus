@@ -317,18 +317,24 @@ void buildChainTrees_Bernard(int32_t atomNumber, char ***concatenatedAtoms, Name
 	return;
 }
 
-Event *augmentEventTree(struct BinaryTree *augmentedEventTree, EventTree *eventTree) {
+bool isNewEvent(const char *eventName) {
+	return strlen(eventName) >= 8 && eventName[0] == 'N' && eventName[1] == 'E' && eventName[2] == 'W';
+}
+
+Event *augmentEventTree(struct BinaryTree *augmentedEventTree,
+		EventTree *eventTree, struct hashtable *newEventNameMap) {
 	/*
 	 * Function takes an augmented event tree and adds in the extra (unary) events to the original
 	 * event tree.
 	 */
 	Event *event;
-	Name eventName = netMisc_stringToName(augmentedEventTree->label);
 
 	if(augmentedEventTree->internal) {
-		Event *childEvent = augmentEventTree(augmentedEventTree->left, eventTree);
+		Event *childEvent = augmentEventTree(augmentedEventTree->left, eventTree, newEventNameMap);
 		if(augmentedEventTree->right != NULL) { //is a speciation node.
-			Event *childEvent2 = augmentEventTree(augmentedEventTree->right, eventTree);
+			Event *childEvent2 = augmentEventTree(augmentedEventTree->right, eventTree, newEventNameMap);
+			assert(!isNewEvent(augmentedEventTree->label));
+			Name eventName = netMisc_stringToName(augmentedEventTree->label);
 			event = eventTree_getEvent(eventTree, eventName);
 #ifdef BEN_DEBUG
 			assert(event != NULL);
@@ -341,12 +347,19 @@ Event *augmentEventTree(struct BinaryTree *augmentedEventTree, EventTree *eventT
 			return event;
 		}
 		else { //a unary event
-			event = eventTree_getEvent(eventTree, eventName);
-			if(event == NULL) {
+			if(isNewEvent(augmentedEventTree->label)) {
 				MetaEvent *metaEvent = metaEvent_construct("", net_getNetDisk(eventTree_getNet(eventTree)));
 				//We set the branch length so that of the child branch is correct.
 				assert(augmentedEventTree->left->distance <= event_getBranchLength(childEvent));
 				event = event_construct2(metaEvent, event_getBranchLength(childEvent) - augmentedEventTree->left->distance, event_getParent(childEvent), childEvent, eventTree);
+				hashtable_insert(newEventNameMap,  //add to the map of new event names.
+								 stringCopy(augmentedEventTree->label),
+								 netMisc_nameToString(event_getName(event)));
+			}
+			else {
+				Name eventName = netMisc_stringToName(augmentedEventTree->label);
+				event = eventTree_getEvent(eventTree, eventName);
+				assert(event != NULL);
 			}
 #ifdef BEN_DEBUG
 			assert(event_getParent(childEvent) == event);
@@ -356,6 +369,8 @@ Event *augmentEventTree(struct BinaryTree *augmentedEventTree, EventTree *eventT
 		}
 	}
 	else { //is a leaf
+		assert(!isNewEvent(augmentedEventTree->label));
+		Name eventName = netMisc_stringToName(augmentedEventTree->label);
 		event = eventTree_getEvent(eventTree, eventName);
 #ifdef BEN_DEBUG
 		assert(event != NULL);
@@ -366,17 +381,27 @@ Event *augmentEventTree(struct BinaryTree *augmentedEventTree, EventTree *eventT
 }
 
 
-AtomInstance *buildChainTrees3P(Atom *atom, AtomInstance **atomInstances, int32_t atomNumber, struct BinaryTree *binaryTree) {
+AtomInstance *buildChainTrees3P(Atom *atom, AtomInstance **atomInstances, int32_t atomNumber,
+		struct BinaryTree *binaryTree, struct hashtable *newEventNameMap) {
 	/*
 	 * Recursive partner to buildChainTree3 function, recurses on the binary tree constructing the atom tree.
 	 * The labels of the leaves are indexes into the atom instances array, the internal node's labels are events in the event tree.
 	 */
 	if(binaryTree->internal) { //deal with an internal node of the atom tree.
-		AtomInstance *leftInstance = buildChainTrees3P(atom, atomInstances, atomNumber, binaryTree->left);
-		AtomInstance *rightInstance = buildChainTrees3P(atom, atomInstances, atomNumber, binaryTree->right);
+		AtomInstance *leftInstance = buildChainTrees3P(atom, atomInstances, atomNumber, binaryTree->left, newEventNameMap);
+		AtomInstance *rightInstance = buildChainTrees3P(atom, atomInstances, atomNumber, binaryTree->right, newEventNameMap);
 		if(leftInstance != NULL) {
 			if(rightInstance != NULL) {
-				Event *event = eventTree_getEvent(net_getEventTree(atom_getNet(atom)), netMisc_stringToName(binaryTree->label));
+
+				Event *event;
+				if(isNewEvent(binaryTree->label)) {
+					const char *cA = hashtable_search(newEventNameMap, binaryTree->label);
+					assert(cA != NULL);
+					event = eventTree_getEvent(net_getEventTree(atom_getNet(atom)), netMisc_stringToName(cA));
+				}
+				else {
+					event = eventTree_getEvent(net_getEventTree(atom_getNet(atom)), netMisc_stringToName(binaryTree->label));
+				}
 
 				assert(event != NULL); //check event is present in the event tree.
 				//Check that this does not create a cycle with respect to the event tree.
@@ -401,11 +426,11 @@ AtomInstance *buildChainTrees3P(Atom *atom, AtomInstance **atomInstances, int32_
 	}
 }
 
-void buildChainTrees3(Atom *atom, AtomInstance **atomInstances, int32_t atomNumber, struct BinaryTree *binaryTree) {
+void buildChainTrees3(Atom *atom, AtomInstance **atomInstances, int32_t atomNumber, struct BinaryTree *binaryTree, struct hashtable *newEventNameMap) {
 	/*
 	 * Constructs an atom tree for the atom.
 	 */
-	AtomInstance *mostAncestralEvent = buildChainTrees3P(atom, atomInstances, atomNumber, binaryTree);
+	AtomInstance *mostAncestralEvent = buildChainTrees3P(atom, atomInstances, atomNumber, binaryTree, newEventNameMap);
 	assert(atom_getInstanceNumber(atom) > 0);
 	assert(mostAncestralEvent != NULL);
 	//Make a root event.
@@ -431,7 +456,8 @@ void buildChainTrees3(Atom *atom, AtomInstance **atomInstances, int32_t atomNumb
 void buildChainTrees2(ChainAlignment *chainAlignment,
 					  struct BinaryTree **refinedAtomTrees,
 					  int32_t *refinedAtomBoundaries,
-					  int32_t refinedAtomNumber) {
+					  int32_t refinedAtomNumber,
+					  struct hashtable *newEventNameMap) {
 	/*
 	 * Iterates through a chain alignment, constructing the atom trees and splitting atoms as needed.
 	 */
@@ -451,13 +477,13 @@ void buildChainTrees2(ChainAlignment *chainAlignment,
 				assert(refinedAtomBoundaries[j] >= k - atom_getLength(atom)); //boundary must break atom so that left atom is at least one base pair long.
 				assert(refinedAtomBoundaries[j] < k); //boundary must break atom so that right atom is at least one base pair long.
 				atom_split(atom, atom_getLength(atom) - (k - refinedAtomBoundaries[j]), &leftAtom, &rightAtom);
-				buildChainTrees3(leftAtom, chainAlignment->matrix[i], chainAlignment->rowNumber, refinedAtomTrees[j]);
+				buildChainTrees3(leftAtom, chainAlignment->matrix[i], chainAlignment->rowNumber, refinedAtomTrees[j], newEventNameMap);
 				atom = rightAtom;
 				assert(k - atom_getLength(atom) == refinedAtomBoundaries[j]); //check the split did what we expect
 				assert(j+1 < refinedAtomNumber && refinedAtomBoundaries[j+1] <= k); //check that we have another atom tree to deal with the right side of the split.
 			}
 			else {
-				buildChainTrees3(atom, chainAlignment->matrix[i], chainAlignment->rowNumber, refinedAtomTrees[j]);
+				buildChainTrees3(atom, chainAlignment->matrix[i], chainAlignment->rowNumber, refinedAtomTrees[j], newEventNameMap);
 			}
 			j++;
 		} while(j < refinedAtomNumber && refinedAtomBoundaries[j] <= k);
@@ -502,6 +528,7 @@ void buildChainTrees(ChainAlignment **chainAlignments, int32_t chainAlignmentNum
 	buildChainTrees_Bernard(chainAlignmentNumber, concatenatedAtoms, _5Ends, _3Ends, leafEventLabels,
 							atomBoundaries, eventTreeString, randomDir, chainAlignments,
 							&augmentedEventTreeString, &atomTreeStrings, &refinedAtomBoundaries, &refinedAtomNumbers);
+	logDebug("Ran Bernard's code apparently okay\n");
 
 	/*
 	 * Clean up the temporary files directory.
@@ -512,7 +539,10 @@ void buildChainTrees(ChainAlignment **chainAlignments, int32_t chainAlignmentNum
 	 * Augment the event tree with the new events.
 	 */
 	struct BinaryTree *modifiedEventTree = newickTreeParser(augmentedEventTreeString, 0.0, 1);
-	augmentEventTree(modifiedEventTree, eventTree);
+	struct hashtable *newEventNameMap = create_hashtable(1, hashtable_stringHashKey,
+			hashtable_stringEqualKey, free, free);
+	augmentEventTree(modifiedEventTree, eventTree, newEventNameMap);
+	logDebug("Augmented the event tree\n");
 
 	/*
 	 * Now process each new atom tree.
@@ -522,12 +552,13 @@ void buildChainTrees(ChainAlignment **chainAlignments, int32_t chainAlignmentNum
 		for(j=0; j<refinedAtomNumbers[i]; j++) {
 			atomTrees[j] = newickTreeParser(atomTreeStrings[i][j], 0.0, 0);
 		}
-		buildChainTrees2(chainAlignments[i], atomTrees, refinedAtomBoundaries[i], refinedAtomNumbers[i]);
+		buildChainTrees2(chainAlignments[i], atomTrees, refinedAtomBoundaries[i], refinedAtomNumbers[i], newEventNameMap);
 		for(j=0; j<refinedAtomNumbers[i]; j++) {
 			destructBinaryTree(atomTrees[j]);
 		}
 		free(atomTrees);
 	}
+	logDebug("Processed the new atom trees\n");
 
 	/*
 	 * Cleanup the inputs.
@@ -545,6 +576,8 @@ void buildChainTrees(ChainAlignment **chainAlignments, int32_t chainAlignmentNum
 	free(leafEventLabels);
 	free(atomBoundaries);
 	free(eventTreeString);
+	hashtable_destroy(newEventNameMap, 1, 1);
+	logDebug("Cleaned up the inputs\n");
 
 	//done!
 }
@@ -893,7 +926,7 @@ int main(int argc, char *argv[]) {
 		//Pass the end trees and augmented events to the child nets.
 		///////////////////////////////////////////////////////////////////////////
 
-		startTime = time(NULL);
+		/*startTime = time(NULL);
 		Net_AdjacencyComponentIterator *adjacencyComponentIterator = net_getAdjacencyComponentIterator(net);
 		while((adjacencyComponent = net_getNextAdjacencyComponent(adjacencyComponentIterator)) != NULL) {
 			net2 = adjacencyComponent_getNestedNet(adjacencyComponent);
@@ -924,7 +957,7 @@ int main(int argc, char *argv[]) {
 			}
 			adjacencyComponent_destructEndIterator(endIterator);
 		}
-		net_destructAdjacencyComponentIterator(adjacencyComponentIterator);
+		net_destructAdjacencyComponentIterator(adjacencyComponentIterator);*/
 
 		logInfo("Filled in end trees and augmented the event trees for the child nets in: %i seconds\n", time(NULL) - startTime);
 	}
