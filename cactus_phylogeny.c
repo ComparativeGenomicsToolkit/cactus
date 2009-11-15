@@ -401,6 +401,9 @@ AtomInstance *buildChainTrees3P(Atom *atom, AtomInstance **atomInstances, int32_
 				}
 				else {
 					event = eventTree_getEvent(net_getEventTree(atom_getNet(atom)), netMisc_stringToName(binaryTree->label));
+					if(event != NULL) {
+						printBinaryTree(stderr, binaryTree);
+					}
 				}
 
 				assert(event != NULL); //check event is present in the event tree.
