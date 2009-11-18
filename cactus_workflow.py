@@ -88,6 +88,7 @@ class DownPassPhase(Target):
         self.options = options
 
     def run(self, job):
+        assert False
         logger.info("Starting the down pass target")
         #Setup call to cactus aligner wrapper as child
         childTarget = CactusAlignerWrapper(job, self.options, self.netName, 0)

@@ -61,7 +61,7 @@ class TestCase(unittest.TestCase):
             blanchettePath = os.path.join(TestStatus.getPathToDataSets(), "blanchettesSimulation")
             
             newickTreeFile = os.path.join(blanchettePath, "tree.newick")
-            for region in xrange(0, 5):
+            for region in xrange(0, 1):
                 sequences = [ os.path.join(blanchettePath, 
                                                ("%.2i.job" % region), species) \
                                  for species in ("HUMAN", "CHIMP", "BABOON", "MOUSE", "RAT", "DOG", "CAT", "PIG", "COW") ] #Same order as tree
@@ -73,7 +73,8 @@ class TestCase(unittest.TestCase):
                             cactusTreeGraphFile=os.path.join(outputDir, "cactusTree.dot"),
                             cactusTreeGraphPDFFile=os.path.join(outputDir, "cactusTree.pdf"),
                             atomGraphFile=os.path.join(outputDir, "atomGraph.dot"),
-                            atomGraphPDFFile=os.path.join(outputDir, "atomGraph.pdf"))
+                            atomGraphPDFFile=os.path.join(outputDir, "atomGraph.pdf"),
+                            alignmentIterations=1)
         
     def testCactusWorkflow_Encode(self): 
         """Run the workflow on the encode pilot regions.
@@ -93,7 +94,7 @@ class TestCase(unittest.TestCase):
 def runWorkflow(sequences, newickTreeFile, outputDir, tempDir, 
                 batchSystem="single_machine",
                 cactusTreeGraphFile=None, cactusTreeGraphPDFFile=None, 
-                atomGraphFile=None, atomGraphPDFFile=None):
+                atomGraphFile=None, atomGraphPDFFile=None, alignmentIterations=1):
     fileHandle = open(newickTreeFile, 'r')
     newickTreeString = fileHandle.readline()
     fileHandle.close()
@@ -108,7 +109,7 @@ def runWorkflow(sequences, newickTreeFile, outputDir, tempDir,
     jobTreeDir = os.path.join(getTempDirectory(tempDir), "jobTree")
     logger.info("Got a job tree dir for the test: %s" % jobTreeDir)
     
-    runCactusWorkflow(netDisk, sequences, newickTreeString, jobTreeDir, batchSystem=batchSystem, alignmentIterations=1)
+    runCactusWorkflow(netDisk, sequences, newickTreeString, jobTreeDir, batchSystem=batchSystem, alignmentIterations=alignmentIterations)
     logger.info("Ran the the workflow")
     
     runJobTreeStatusAndFailIfNotComplete(jobTreeDir)
@@ -129,7 +130,7 @@ def runWorkflow(sequences, newickTreeFile, outputDir, tempDir,
         
     #Cleanup
     system("rm -rf %s" % jobTreeDir)
-    logger.info("Successfully ran job for the blanchette sequences")
+    logger.info("Successfully ran job for the problem")
 
 def main():
     parseSuiteTestOptions()
