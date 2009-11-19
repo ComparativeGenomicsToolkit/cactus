@@ -243,7 +243,9 @@ void pinchMergeSegment(struct PinchGraph *graph,
 					   struct Segment *segment1,
 					   struct Segment *segment2);
 
-void pinchMerge(struct PinchGraph *graph, struct PairwiseAlignment *pairwiseAlignment);
+void pinchMerge(struct PinchGraph *graph, struct PairwiseAlignment *pairwiseAlignment,
+		void (*addFunction)(struct PinchGraph *pinchGraph, struct Segment *, struct Segment *, void *),
+		void *extraParameter);
 
 ////////////////////////////////////////////////
 ////////////////////////////////////////////////

@@ -123,10 +123,16 @@ class CactusAlignerWrapper(Target):
         logger.info("Setup the follow on cactus_core target")
         
 def cactusCoreParameters1():
-    return { "maximumEdgeDegree":50, "proportionToKeep":1.0, "discardRatio":0.0, "minimumTreeCoverage":0.6, "minimumChainLength":10 }
+    return { "maximumEdgeDegree":50, "minimumTreeCoverage":0.6, "minimumAtomLength":4, "minimumChainLength":12, "trim":3, "alignRepeats":False }
     
 def cactusCoreParameters2():
-    return { "maximumEdgeDegree":50, "proportionToKeep":1.0, "discardRatio":0.5, "minimumTreeCoverage":0.5, "minimumChainLength":1 }
+    return { "maximumEdgeDegree":50, "minimumTreeCoverage":0.5, "minimumAtomLength":4, "minimumChainLength":8, "trim":3, "alignRepeats":False }
+
+def cactusCoreParameters3():
+    return { "maximumEdgeDegree":50, "minimumTreeCoverage":0.5, "minimumAtomLength":4, "minimumChainLength":1, "trim":3, "alignRepeats":False }
+
+def cactusCoreParameters4():
+    return { "maximumEdgeDegree":50, "minimumTreeCoverage":0.0, "minimumAtomLength":4, "minimumChainLength":1, "trim":3, "alignRepeats":False }
 
 class CactusCoreWrapper(Target):
     def __init__(self, job, previousTarget, options, netName, alignmentFile, iteration):
@@ -141,8 +147,13 @@ class CactusCoreWrapper(Target):
 
         if self.iteration == 0: 
             coreParameters = cactusCoreParameters1()
-        else:
+        elif self.iteration == 1:
             coreParameters = cactusCoreParameters2()
+        elif self.iteration == 2:
+            coreParameters = cactusCoreParameters3()
+        else:
+            assert self.iteration == 3
+            coreParameters = cactusCoreParameters4()
             
         runCactusCore(netDisk=self.options.netDisk, 
                       alignmentFile=self.alignmentFile, 
@@ -150,10 +161,11 @@ class CactusCoreWrapper(Target):
                       netName=self.netName,
                       logLevel=getLogLevelString(), 
                       maximumEdgeDegree=coreParameters["maximumEdgeDegree"],
-                      proportionOfAtomsToKeep=coreParameters["proportionToKeep"],
-                      discardRatio=coreParameters["discardRatio"],
                       minimumTreeCoverage=coreParameters["minimumTreeCoverage"],
-                      minimumChainLength=coreParameters["minimumChainLength"])
+                      minimumAtomLength=coreParameters["minimumAtomLength"],
+                      minimumChainLength=coreParameters["minimumChainLength"],
+                      trim=coreParameters["trim"],
+                      alignRepeats=coreParameters["alignRepeats"])
         logger.info("Ran the cactus core program okay")
         #Setup call to core and aligner recursive as follow on.
         CactusDownPass(job, self, self.options, self.netName, self.alignmentFile, self.iteration)
@@ -174,7 +186,7 @@ class CactusDownPass(Target):
     def run(self, job):
         logger.info("Starting the cactus down pass (recursive) target")
         #Traverses leaf jobs and create aligner wrapper targets as children.
-        if self.iteration+1 < int(self.options.alignmentIterations):
+        if self.iteration+1 < int(self.options.alignmentIterations) and self.iteration+1 < 4:
             netNamesFile = getTempFile(".txt", job.attrib["global_temp_dir"])
             system("cactus_workflow_getNets %s %s %s" % (self.options.netDisk, self.netName, netNamesFile))
             fileHandle = open(netNamesFile, 'r')

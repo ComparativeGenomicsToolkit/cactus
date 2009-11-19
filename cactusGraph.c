@@ -1102,10 +1102,6 @@ void circulariseStems(struct CactusGraph *cactusGraph) {
 ////////////////////////////////////////////////
 ////////////////////////////////////////////////
 
-//first get tree covering score for each atom -
-//drop all atoms with score less than X.
-//accept chains whose remaining element's combined length is greater than a set length.
-
 float treeCoverage(struct CactusEdge *cactusEdge, Net *net,
 		struct PinchGraph *pinchGraph) {
 	/*
@@ -1152,39 +1148,6 @@ float treeCoverage(struct CactusEdge *cactusEdge, Net *net,
 	return treeCoverage / event_getSubTreeBranchLength(eventTree_getRootEvent(eventTree));
 }
 
-float atomScore(struct CactusEdge *cactusEdge, Net *net,
-				struct PinchGraph *pinchGraph) {
-	struct Segment *segment = cactusEdge->segments->list[0];
-	return (segment->end - segment->start + 1) * treeCoverage(cactusEdge, net, pinchGraph);
-}
-
-int32_t chainScore(struct List *biConnectedComponent, Net *net,
-		struct PinchGraph *pinchGraph) {
-	/*
-	 * Gets the 'length' of the chain, including only those atoms in the chain that are
-	 * true according to the 'includeAtom' function.
-	 *
-	 * Length is total length of atoms (all sequences in an atom have the same length).
-	 */
-	int32_t i, totalScore;
-	struct CactusEdge *cactusEdge;
-
-	totalScore = 0;
-	for(i=0; i<biConnectedComponent->length; i++) {
-		cactusEdge = biConnectedComponent->list[i];
-		if(!isAStubOrCapCactusEdge(cactusEdge, pinchGraph)) {
-			totalScore += atomScore(cactusEdge, net, pinchGraph);
-		}
-	}
-	return totalScore;
-}
-
-int
-compareFloats (const float *a, const float *b)
-{
-  return (int) (*a - *b);
-}
-
 int32_t chainLength(struct List *biConnectedComponent, int32_t includeStubs, struct PinchGraph *pinchGraph) {
 	/*
 	 * Get the number of links in the chain.
@@ -1222,45 +1185,19 @@ int32_t chainBaseLength(struct List *biConnectedComponent, struct PinchGraph *pi
 
 struct List *filterAtomsByTreeCoverageAndLength(struct List *biConnectedComponents,
 		Net *net,
-		float proportionToKeep, /*Proportion of all atoms to select to keep*/
-		float discardRatio, /*The proportion of an atom's chain's average atom score required to be score to be considered */
 		float minimumTreeCoverage, /*Minimum tree coverage to be included */
+		int32_t minimumAtomLength, /*The minimum length of an atom to be included */
 		int32_t minimumChainLength, /* Minimum chain length to be included */
 		struct PinchGraph *pinchGraph) {
 	/*
-	 * Filters atoms in chains by length and tree coverage score.
+	 * Filters atoms in chains by base length and tree coverage.
 	 *
-	 * Returns a list of all accepted atoms.
+	 * Returns a list of all accepted atoms, excluding stubs.
 	 */
 	int32_t i, j;
 	struct CactusEdge *cactusEdge;
-	float *fA;
-	float minScore;
-	float minAtomScore;
-	float f;
 	struct List *biConnectedComponent;
 	struct List *chosenAtoms;
-
-#ifdef BEN_DEBUG
-	assert(proportionToKeep <= 1.0);
-	assert(proportionToKeep >= 0.0);
-	assert(discardRatio >= 0.0);
-#endif
-
-	///////////////
-	//Calculate the minimum score to be kept.
-	///////////////
-	fA = mallocLocal(sizeof(float)*biConnectedComponents->length);
-	for(i=0; i<biConnectedComponents->length; i++) {
-		biConnectedComponent = biConnectedComponents->list[i];
-		fA[i] = chainScore(biConnectedComponent, net, pinchGraph);
-	}
-	qsort(fA, biConnectedComponents->length, sizeof(float),
-			(int (*)(const void *v, const void *))compareFloats);
-	i = (1.0 - proportionToKeep)*biConnectedComponent->length;
-	minScore = i < biConnectedComponents->length ? fA[i] : 10000000000000.0;
-	logInfo("The minimum chain score to be kept is %f and %f \n", minScore, proportionToKeep);
-	free(fA);
 
 	///////////////
 	//Gets those atoms whose chain meet the minimum score and have the minimum tree coverage.
@@ -1270,14 +1207,14 @@ struct List *filterAtomsByTreeCoverageAndLength(struct List *biConnectedComponen
 
 	for(i=0; i<biConnectedComponents->length; i++) {
 		biConnectedComponent = biConnectedComponents->list[i];
-		f = chainScore(biConnectedComponent, net, pinchGraph);
-		if(f >= minScore && chainBaseLength(biConnectedComponent, pinchGraph) >= minimumChainLength) {
-			minAtomScore = (minScore / chainLength(biConnectedComponent, FALSE, pinchGraph)) * discardRatio;
+		if(chainBaseLength(biConnectedComponent, pinchGraph) > minimumChainLength) {
 			for(j=0; j<biConnectedComponent->length; j++) {
 				cactusEdge = biConnectedComponent->list[j];
 				if(!isAStubOrCapCactusEdge(cactusEdge, pinchGraph)) {
+					assert(cactusEdge->segments->length > 0);
+					struct Segment *segment = cactusEdge->segments->list[0];
 					if(treeCoverage(cactusEdge, net, pinchGraph) >= minimumTreeCoverage &&
-						atomScore(cactusEdge, net, pinchGraph) >= minAtomScore) {
+					   (segment->end - segment->start + 1) >= minimumAtomLength) {
 						listAppend(chosenAtoms, cactusEdge);
 					}
 				}

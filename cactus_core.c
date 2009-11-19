@@ -42,10 +42,77 @@ void usage() {
 	fprintf(stderr, "-f --maxEdgeDegree : Maximum degree of aligned edges\n");
 	fprintf(stderr, "-g --writeDebugFiles : Write the debug files\n");
 	fprintf(stderr, "-h --help : Print this help screen\n");
-	fprintf(stderr, "-k --proportionToKeep : The proportion of the highest scoring atoms to keep\n");
-	fprintf(stderr, "-l --discardRatio : The proportion of the average atom score in an atom's chain an atom must score to be kept\n");
-	fprintf(stderr, "-m --minimumTreeCoverage : Minimum tree coverage proportion to be included in the problem\n");
-	fprintf(stderr, "-n --minimumChainLength : The minimum chain length required to be included in the problem\n");
+	fprintf(stderr, "-i --minimumTreeCoverage : Minimum tree coverage proportion of an atom to be included in the problem\n");
+	fprintf(stderr, "-j --minimumAtomLength : The minimum length of an atom required to be included in the problem\n");
+	fprintf(stderr, "-k --minimumChainLength : The minimum chain length required to be included in the problem\n");
+	fprintf(stderr, "-l --trim : The length of bases to remove from the end of each alignment\n");
+	fprintf(stderr, "-m --alignRepeats : Allow bases marked as repeats to be aligned (else alignments to these bases to be excluded)\n");
+}
+
+char *segment_getString(struct Segment *segment, Net *net) {
+	Sequence *sequence = net_getSequence(net, segment->contig);
+	if(segment->start >= 1) {
+		return sequence_getString(sequence, segment->start, segment->end - segment->start + 1, 1);
+	}
+	else {
+		return sequence_getString(sequence, -segment->end, segment->end - segment->start + 1, 0);
+	}
+}
+
+bool containsRepeatBases(char *string) {
+	/*
+	 * Function returns non zero if the string contains lower case bases or a base of type 'N'
+	 */
+	int32_t i, j;
+	j = strlen(string);
+	for(i=0; i<j; i++) {
+		char c = string[i];
+		if(c != '-') {
+			assert((c >= 65 && c <= 90) || (c >= 97 && c <= 122));
+			if((c >= 97 && c <= 122) || c == 'N') {
+				return 1;
+			}
+		}
+	}
+	return 0;
+}
+
+struct FilterAlignmentParameters {
+	int32_t alignRepeats;
+	int32_t trim;
+	Net *net;
+};
+
+void filterSegmentAndThenAddToGraph(struct PinchGraph *pinchGraph, struct Segment *segment, struct Segment *segment2,
+		struct FilterAlignmentParameters *filterParameters) {
+	/*
+	 * Function is used to filter the alignments added to the graph to optionally exclude alignments to repeats and to trim the edges of matches
+	 * to avoid misalignments due to edge wander effects.
+	 */
+	assert(segment->end - segment->start == segment2->end - segment2->start);
+	if(segment->end - segment->start + 1 > 2 * filterParameters->trim) { //only add to graph if non trivial in length.
+		//Do the trim.
+		segment->end -= filterParameters->trim;
+		segment->start += filterParameters->trim;
+		segment2->end -= filterParameters->trim;
+		segment2->start += filterParameters->trim;
+		assert(segment->end - segment->start == segment2->end - segment2->start);
+		assert(segment->end - segment->start >= 0);
+
+		//Now filter by repeat content.
+		if(!filterParameters->alignRepeats) {
+			char *string1 = segment_getString(segment, filterParameters->net);
+			char *string2 = segment_getString(segment2, filterParameters->net);
+			if(!containsRepeatBases(string1) && !containsRepeatBases(string2)) {
+				pinchMergeSegment(pinchGraph, segment, segment2);
+			}
+			free(string1);
+			free(string2);
+		}
+		else {
+			pinchMergeSegment(pinchGraph, segment, segment2);
+		}
+	}
 }
 
 int main(int argc, char *argv[]) {
@@ -107,10 +174,11 @@ int main(int argc, char *argv[]) {
 	char * tempFileRootDirectory = NULL;
 	int32_t maxEdgeDegree = 50;
 	bool writeDebugFiles = 0;
-	float proportionToKeep = 1.0;
-	float discardRatio = 0.0;
 	float minimumTreeCoverage = 0.7;
-	int32_t minimumChainLength = 10;
+	int32_t minimumAtomLength = 4;
+	int32_t minimumChainLength = 12;
+	int32_t trim = 3;
+	int32_t alignRepeats = 0;
 
 	///////////////////////////////////////////////////////////////////////////
 	// (0) Parse the inputs handed by genomeCactus.py / setup stuff.
@@ -126,16 +194,17 @@ int main(int argc, char *argv[]) {
 			{ "maxEdgeDegree", required_argument, 0, 'f' },
 			{ "writeDebugFiles", no_argument, 0, 'g' },
 			{ "help", no_argument, 0, 'h' },
-			{ "proportionToKeep", required_argument, 0, 'k' },
-			{ "discardRatio", required_argument, 0, 'l' },
-			{ "minimumTreeCoverage", required_argument, 0, 'm' },
-			{ "minimumChainLength", required_argument, 0, 'n' },
+			{ "minimumTreeCoverage", required_argument, 0, 'i' },
+			{ "minimumAtomLength", required_argument, 0, 'j' },
+			{ "minimumChainLength", required_argument, 0, 'k' },
+			{ "trim", required_argument, 0, 'l' },
+			{ "alignRepeats", no_argument, 0, 'm' },
 			{ 0, 0, 0, 0 }
 		};
 
 		int option_index = 0;
 
-		key = getopt_long(argc, argv, "a:b:c:d:e:f:ghk:l:m:n:", long_options, &option_index);
+		key = getopt_long(argc, argv, "a:b:c:d:e:f:ghi:j:k:l:m", long_options, &option_index);
 
 		if(key == -1) {
 			break;
@@ -166,17 +235,20 @@ int main(int argc, char *argv[]) {
 			case 'h':
 				usage();
 				return 0;
-			case 'k':
-				assert(sscanf(optarg, "%f", &proportionToKeep) == 1);
-				break;
-			case 'l':
-				assert(sscanf(optarg, "%f", &discardRatio) == 1);
-				break;
-			case 'm':
+			case 'i':
 				assert(sscanf(optarg, "%f", &minimumTreeCoverage) == 1);
 				break;
-			case 'n':
+			case 'j':
+				assert(sscanf(optarg, "%i", &minimumAtomLength) == 1);
+				break;
+			case 'k':
 				assert(sscanf(optarg, "%i", &minimumChainLength) == 1);
+				break;
+			case 'l':
+				assert(sscanf(optarg, "%i", &trim) == 1);
+				break;
+			case 'm':
+				alignRepeats = !alignRepeats;
 				break;
 			default:
 				usage();
@@ -194,9 +266,8 @@ int main(int argc, char *argv[]) {
 	assert(netName != NULL);
 	assert(tempFileRootDirectory != NULL);
 	assert(maxEdgeDegree > 0);
-	assert(proportionToKeep >= 0.0 && proportionToKeep <= 1.0);
-	assert(discardRatio >= 0.0);
 	assert(minimumTreeCoverage >= 0.0);
+	assert(minimumAtomLength >= 0.0);
 	assert(minimumChainLength >= 0);
 
 	//////////////////////////////////////////////
@@ -268,13 +339,20 @@ int main(int argc, char *argv[]) {
 	pairwiseAlignment = cigarRead(fileHandle);
 	logInfo("Now doing the pinch merges:\n");
 	i = 0;
+
+	struct FilterAlignmentParameters *filterParameters = malloc(sizeof(struct FilterAlignmentParameters));
+	filterParameters->trim = trim;
+	filterParameters->alignRepeats = alignRepeats;
+	filterParameters->net = net;
 	while(pairwiseAlignment != NULL) {
 		logDebug("Alignment : %i , score %f\n", i++, pairwiseAlignment->score);
 		logPairwiseAlignment(pairwiseAlignment);
-		pinchMerge(pinchGraph, pairwiseAlignment);
+		pinchMerge(pinchGraph, pairwiseAlignment,
+				(void (*)(struct PinchGraph *pinchGraph, struct Segment *, struct Segment *, void *))filterSegmentAndThenAddToGraph, filterParameters);
 		destructPairwiseAlignment(pairwiseAlignment);
 		pairwiseAlignment = cigarRead(fileHandle);
 	}
+	free(filterParameters);
 	logInfo("Finished pinch merges\n");
 
 	if(writeDebugFiles) {
@@ -384,8 +462,7 @@ int main(int argc, char *argv[]) {
 
 	startTime = time(NULL);
 	chosenAtoms = filterAtomsByTreeCoverageAndLength(biConnectedComponents,
-			net, proportionToKeep,
-			discardRatio, minimumTreeCoverage, minimumChainLength,
+			net, minimumTreeCoverage, minimumAtomLength, minimumChainLength,
 			pinchGraph);
 	//now report the results
 	logTheChosenAtomSubset(biConnectedComponents, chosenAtoms, pinchGraph, net);

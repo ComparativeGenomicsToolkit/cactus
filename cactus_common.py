@@ -105,10 +105,11 @@ def runCactusCore(netDisk, alignmentFile, tempDir,
                   netName=0,
                   logLevel="DEBUG", writeDebugFiles=False,
                   maximumEdgeDegree=None,
-                  proportionOfAtomsToKeep=None,
-                  discardRatio=None,
                   minimumTreeCoverage=None,
-                  minimumChainLength=None):
+                  minimumAtomLength=None,
+                  minimumChainLength=None,
+                  trim=None,
+                  alignRepeats=False):
     if writeDebugFiles:
         writeDebugFiles = "--writeDebugFiles"
     else:
@@ -119,34 +120,37 @@ def runCactusCore(netDisk, alignmentFile, tempDir,
     else:
         maximumEdgeDegree = ""
         
-    if proportionOfAtomsToKeep:
-        proportionOfAtomsToKeep = "--proportionToKeep %f" % proportionOfAtomsToKeep
-    else:
-        proportionOfAtomsToKeep = ""
-    
-    if discardRatio:
-        discardRatio = "--discardRatio %f" % discardRatio
-    else:
-        discardRatio = ""
-        
     if minimumTreeCoverage:
         minimumTreeCoverage = "--minimumTreeCoverage %f" % minimumTreeCoverage
     else:
         minimumTreeCoverage = ""
+        
+    if minimumAtomLength:
+        minimumAtomLength = "--minimumAtomLength %i" % minimumAtomLength
+    else:
+        minimumAtomLength = ""
     
     if minimumChainLength:
         minimumChainLength = "--minimumChainLength %i" % minimumChainLength
     else:
         minimumChainLength = ""
     
+    if trim:
+        trim = "--trim %i" % trim
+    else:
+        trim = ""
+    
+    if alignRepeats:
+        alignRepeats = "--alignRepeats"
+    else:
+        alignRepeats = ""
+    
     command = "cactus_core --netDisk %s --netName %s --alignments %s \
 --tempDirRoot %s --logLevel %s \
-%s %s %s %s %s %s" % \
+%s %s %s %s %s %s %s" % \
     (netDisk, netName, alignmentFile, 
      tempDir, logLevel, writeDebugFiles,
-     maximumEdgeDegree, proportionOfAtomsToKeep, discardRatio, minimumTreeCoverage, minimumChainLength)
-    #logger.info("Running command: %s" % command)
-    #sys.exit(1)
+     maximumEdgeDegree, minimumTreeCoverage, minimumAtomLength, minimumChainLength, trim, alignRepeats)
     system(command)
     logger.info("Ran cactus_core okay")
     

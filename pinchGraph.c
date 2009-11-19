@@ -215,7 +215,7 @@ struct PinchVertex *mergeVertices(struct PinchGraph *graph, struct PinchVertex *
 		vertex3 = graph->vertices->list[--graph->vertices->length];
 		vertex3->vertexID = vertex2->vertexID;
 		graph->vertices->list[vertex3->vertexID] = vertex3;
-		
+
 		//black edges
 		mergeVerticesBlackEdges(vertex2, vertex1);
 		//grey edges
@@ -528,7 +528,7 @@ void splitEdge_P(struct PinchGraph *graph,
 	assert(containsBlackEdge(edge->to, edge->rEdge));
 #endif
 	removePinchEdgeFromGraphAndDestruct(graph, edge);
-	
+
 	//add to graph after deleting old edge, or will have overlap.
 	addPinchEdgeToGraph(graph, edge1);
 	addPinchEdgeToGraph(graph, edge2);
@@ -996,7 +996,9 @@ int32_t pinchMerge_getContig(char *contig, int32_t start, struct hashtable *cont
 	return k;
 }
 
-void pinchMerge(struct PinchGraph *graph, struct PairwiseAlignment *pA) {
+void pinchMerge(struct PinchGraph *graph, struct PairwiseAlignment *pA,
+		void (*addFunction)(struct PinchGraph *pinchGraph, struct Segment *, struct Segment *, void *),
+		void *extraParameter) {
 	/*
 	 * Method to pinch together the graph using all the aligned matches in the
 	 * input alignment.
@@ -1037,7 +1039,7 @@ void pinchMerge(struct PinchGraph *graph, struct PairwiseAlignment *pA) {
 			else {
 				segment_recycle(&segment2, contig2, -(k+op->length-1), -k);
 			}
-			pinchMergeSegment(graph, &segment1, &segment2);
+			addFunction(graph, &segment1, &segment2, extraParameter);
 		}
 		if(op->opType != PAIRWISE_INDEL_Y) {
 			j += op->length;

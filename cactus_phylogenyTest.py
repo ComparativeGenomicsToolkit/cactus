@@ -47,12 +47,7 @@ def runPipe(sequenceDirs, newickTreeString, tempDir, useDummy=False, writeDebugF
     runCactusAligner(tempReconstructionDirectory, tempAlignmentFile,
                      tempDir=getTempDirectory(tempDir), useDummy=useDummy)
     runCactusCore(tempReconstructionDirectory, tempAlignmentFile, 
-                    tempDir=getTempDirectory(tempDir), writeDebugFiles=writeDebugFiles,
-                    maximumEdgeDegree=10000,
-                    proportionOfAtomsToKeep=1.0,
-                    discardRatio=0.0,
-                    minimumTreeCoverage=0.1,
-                    minimumChainLength=1)
+                    tempDir=getTempDirectory(tempDir), writeDebugFiles=writeDebugFiles)
     runCactusPhylogeny(tempReconstructionDirectory, tempDir=getTempDirectory(tempDir), netNames=[ "0" ])
     #runCactusCheck(tempReconstructionDirectory)
     

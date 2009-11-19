@@ -106,10 +106,11 @@ def runPipe(sequenceDirs, newickTreeString, tempDir, useDummy=False, writeDebugF
                       tempDir=getTempDirectory(tempDir), 
                       writeDebugFiles=writeDebugFiles,
                       maximumEdgeDegree=1+random.random()*10,
-                      proportionOfAtomsToKeep=random.random(),
-                      discardRatio=random.random()*2,
                       minimumTreeCoverage=random.random(),
-                      minimumChainLength=random.random()*5)
+                      minimumAtomLength=random.random()*5,
+                      minimumChainLength=random.random()*10,
+                      trim=random.random()*5,
+                      alignRepeats=random.random() > 0.5)
     else:
         runCactusCore(tempReconstructionDirectory, tempAlignmentFile, 
                       tempDir=getTempDirectory(tempDir), writeDebugFiles=writeDebugFiles)

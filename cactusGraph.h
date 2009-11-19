@@ -130,9 +130,8 @@ void circulariseStems(struct CactusGraph *cactusGraph);
 
 struct List *filterAtomsByTreeCoverageAndLength(struct List *biConnectedComponents,
 		Net *net,
-		float proportionToKeep, /*Proportion of all atoms to select to keep*/
-		float discardRatio, /*The proportion of an atom's chain's average atom score required to be score to be considered */
 		float minimumTreeCoverage, /*Minimum tree coverage to be included */
+		int32_t minimumAtomLength, /*The minimum length of an atom to be included */
 		int32_t minimumChainLength, /* Minimum chain length to be included */
 		struct PinchGraph *pinchGraph);
 
