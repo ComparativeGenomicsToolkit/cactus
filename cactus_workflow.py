@@ -31,11 +31,13 @@ from cactus.cactus_common import runCactusSetup
 from cactus.cactus_common import runCactusCore
 
 from cactus.cactus_aligner import MakeSequences
-from cactus.cactus_aligner import MakeSequencesOptions
 
-from pecan2.pecan2_batch import pecan2BatchWrapperMiddleLevel
-from pecan2.pecan2_batch import pecan2BatchWrapperTopLevel
-    
+from pecan2.pecan2_batch import makeTopLevelBlastOptions
+from pecan2.pecan2_batch import makeUpperMiddleLevelBlastOptions
+from pecan2.pecan2_batch import makeMiddleLevelBlastOptions
+from pecan2.pecan2_batch import makeLowLevelBlastOptions
+from pecan2.pecan2_batch import makeBlastFromOptions
+
 ############################################################
 ############################################################
 ############################################################
@@ -81,6 +83,27 @@ class CactusSetupWrapper(Target):
 ############################################################
 ############################################################
 ############################################################
+
+def getChildNets(netDisk, netName, tempDir):
+    """Gets a list of leaf nets attached to the given net. If the net has no children,
+    as is therefore a leaf, it will also be returned. 
+    
+    The net names are returned in a list of tuples with the size (in terms of total bases pairs 
+    of sequence contained within the net).
+    """
+    netNamesFile = getTempFile(".txt", tempDir)
+    system("cactus_workflow_getNets %s %s %s" % (netDisk, netName, netNamesFile))
+    fileHandle = open(netNamesFile, 'r')
+    line = fileHandle.readline()
+    l = []
+    while line != '':
+        childNetName = line.split()[0]
+        childNetSize = float(line.split()[1])
+        l.append((childNetName, childNetSize))
+        line = fileHandle.readline()
+    fileHandle.close()
+    os.remove(netNamesFile)
+    return l
     
 class DownPassPhase(Target):
     def __init__(self, job, previousTarget, netName, options):
@@ -91,15 +114,27 @@ class DownPassPhase(Target):
     def run(self, job):
         logger.info("Starting the down pass target")
         #Setup call to cactus aligner wrapper as child
-        childTarget = CactusAlignerWrapper(job, self.options, self.netName, 0)
+        #Calculate the size of the child.
+        l = getChildNets(self.options.netDisk, self.netName, job.attrib["local_temp_dir"])
+        assert(len(l) == 1)
+        assert(l[0][0] == self.netName)
+        assert(l[0][1] >= 0)
+        childTarget = CactusAlignerWrapper(job, self.options, self.netName, l[0][1], 0)
         self.addChildTarget(childTarget)
         #UpPassPhase(job, self, self.options)
         logger.info("Created child target aligner/core job, and follow on cleanup job")
-    
+
+#Each level around 30x larger than the last
+BASE_LEVEL_SIZE = 10000    
+GENE_LEVEL_SIZE = 300000
+LOCI_LEVEL_SIZE = 10000000
+CHR_LEVEL_SIZE =  300000000
+
 class CactusAlignerWrapper(Target):
-    def __init__(self, job, options, netName, iteration):
+    def __init__(self, job, options, netName, netSize, iteration):
         self.options = options
         self.netName = netName
+        self.netSize = netSize
         self.iteration = int(iteration)
         Target.__init__(self, job, None)
     
@@ -110,50 +145,52 @@ class CactusAlignerWrapper(Target):
         logger.info("Got an alignments file")
         
         #Now make the child aligner target
-        if self.iteration == 0:
-            makeSequencesOptions = MakeSequencesOptions(pecan2BatchWrapperTopLevel)
+        assert self.iteration <= 4
+        if self.iteration == 4 or self.netSize < BASE_LEVEL_SIZE:
+            self.iteration = 4
+            blastOptions = makeBlastFromOptions(makeLowLevelBlastOptions())
+        elif self.iteration == 3 or self.netSize < GENE_LEVEL_SIZE:
+            self.iteration = 3
+            blastOptions = makeBlastFromOptions(makeMiddleLevelBlastOptions())
+        elif self.iteration == 2 or self.netSize < LOCI_LEVEL_SIZE:
+            self.iteration = 2
+            blastOptions = makeBlastFromOptions(makeUpperMiddleLevelBlastOptions())
+        elif self.iteration == 1 or self.netSize < CHR_LEVEL_SIZE:
+            self.iteration = 1
+            blastOptions = makeBlastFromOptions(makeTopLevelBlastOptions())
         else:
-            makeSequencesOptions = MakeSequencesOptions(pecan2BatchWrapperMiddleLevel)
+            self.iteration = 0
+            blastOptions = makeBlastFromOptions(makeTopLevelBlastOptions())
+            
         self.addChildTarget(MakeSequences(job, self.options.netDisk, 
-                                          self.netName, alignmentFile, makeSequencesOptions))
+                                          self.netName, alignmentFile, blastOptions))
         logger.info("Created the cactus_aligner child target")
         
         #Now setup a call to cactus core wrapper as a follow on
-        CactusCoreWrapper(job, self, self.options, self.netName, alignmentFile, self.iteration)
+        CactusCoreWrapper(job, self, self.options, self.netName, self.netSize, alignmentFile, self.iteration)
         logger.info("Setup the follow on cactus_core target")
         
-def cactusCoreParameters1():
-    return { "maximumEdgeDegree":50, "minimumTreeCoverage":0.6, "minimumAtomLength":4, "minimumChainLength":12, "trim":3, "alignRepeats":False }
-    
-def cactusCoreParameters2():
-    return { "maximumEdgeDegree":50, "minimumTreeCoverage":0.5, "minimumAtomLength":4, "minimumChainLength":8, "trim":3, "alignRepeats":False }
-
-def cactusCoreParameters3():
-    return { "maximumEdgeDegree":50, "minimumTreeCoverage":0.5, "minimumAtomLength":4, "minimumChainLength":1, "trim":3, "alignRepeats":False }
-
-def cactusCoreParameters4():
-    return { "maximumEdgeDegree":50, "minimumTreeCoverage":0.0, "minimumAtomLength":4, "minimumChainLength":1, "trim":3, "alignRepeats":False }
+cactusCoreParameters = { 
+    0:{ "maximumEdgeDegree":50, "minimumTreeCoverage":0.6, "minimumAtomLength":4, "minimumChainLength":12, "trim":3, "alignRepeats":False },
+    1:{ "maximumEdgeDegree":50, "minimumTreeCoverage":0.5, "minimumAtomLength":4, "minimumChainLength":8, "trim":3, "alignRepeats":False },
+    2:{ "maximumEdgeDegree":50, "minimumTreeCoverage":0.5, "minimumAtomLength":4, "minimumChainLength":1, "trim":3, "alignRepeats":False },
+    3:{ "maximumEdgeDegree":50, "minimumTreeCoverage":0.0, "minimumAtomLength":4, "minimumChainLength":1, "trim":3, "alignRepeats":False },
+    4:{ "maximumEdgeDegree":50, "minimumTreeCoverage":0.0, "minimumAtomLength":1, "minimumChainLength":1, "trim":0, "alignRepeats":False }
+}
 
 class CactusCoreWrapper(Target):
-    def __init__(self, job, previousTarget, options, netName, alignmentFile, iteration):
+    def __init__(self, job, previousTarget, options, netName, netSize, alignmentFile, iteration):
         self.options = options
         self.netName = netName
+        self.netSize = netSize
         self.alignmentFile = alignmentFile
         self.iteration = iteration     
         Target.__init__(self, job, previousTarget)
     
     def run(self, job):
         logger.info("Starting the core wrapper target")
-
-        if self.iteration == 0: 
-            coreParameters = cactusCoreParameters1()
-        elif self.iteration == 1:
-            coreParameters = cactusCoreParameters2()
-        elif self.iteration == 2:
-            coreParameters = cactusCoreParameters3()
-        else:
-            assert self.iteration == 3
-            coreParameters = cactusCoreParameters4()
+    
+        coreParameters = cactusCoreParameters[self.iteration]
             
         runCactusCore(netDisk=self.options.netDisk, 
                       alignmentFile=self.alignmentFile, 
@@ -186,16 +223,10 @@ class CactusDownPass(Target):
     def run(self, job):
         logger.info("Starting the cactus down pass (recursive) target")
         #Traverses leaf jobs and create aligner wrapper targets as children.
-        if self.iteration+1 < int(self.options.alignmentIterations) and self.iteration+1 < 4:
-            netNamesFile = getTempFile(".txt", job.attrib["global_temp_dir"])
-            system("cactus_workflow_getNets %s %s %s" % (self.options.netDisk, self.netName, netNamesFile))
-            fileHandle = open(netNamesFile, 'r')
-            line = fileHandle.readline()
-            while line != '':
-                childNetName = line.split()[0]
-                self.addChildTarget(CactusAlignerWrapper(job, self.options, childNetName, self.iteration+1))
-                line = fileHandle.readline()
-            fileHandle.close()
+        if self.iteration+1 < 5:
+            for childNetName, childNetSize in getChildNets(self.options.netDisk, self.netName, job.attrib["local_temp_dir"]):
+                if childNetSize > 10000: #Does not do any refinement if the net is completely specified.
+                    self.addChildTarget(CactusAlignerWrapper(job, self.options, childNetName, childNetSize, self.iteration+1))
             logger.info("Created child targets for all the recursive reconstruction jobs")
       
 def main():
@@ -212,7 +243,7 @@ def main():
     
     parser.add_option("--netDisk", dest="netDisk", help="The location of the net disk.") 
     
-    parser.add_option("--alignmentIterations", dest="alignmentIterations", help="The number of recursive alignment iterations to empty", default="1")  
+    #parser.add_option("--alignmentIterations", dest="alignmentIterations", help="The number of recursive alignment iterations to empty", default="5")  
     
     options, args = parseBasicOptions(parser)
 

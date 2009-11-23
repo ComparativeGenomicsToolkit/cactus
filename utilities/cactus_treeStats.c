@@ -11,9 +11,6 @@
 #include "commonC.h"
 #include "hashTableC.h"
 
-#include "utilitiesShared.h"
-
-
 void usage() {
 	fprintf(stderr, "cactus_treeStats, version 0.1\n");
 	fprintf(stderr, "-a --logLevel : Set the log level\n");
@@ -43,7 +40,7 @@ double calculateTreeBits(Net *net, double pathBitScore) {
 		return totalBitScore + (totalSequenceSize > 0 ? ((log(totalSequenceSize) / log(2.0)) + pathBitScore) * totalSequenceSize : 0.0);
 	}
 	assert(net_getAtomNumber(net) == 0);
-	double i = calculateTotalContainedSequence(net);
+	double i = net_getTotalBaseLength(net);
 	return i > 0 ? (pathBitScore + log(i)/log(2.0)) * i : 0.0;
 }
 
@@ -79,7 +76,7 @@ void tabulateStats(struct IntList *unsortedValues, double *totalNumber, double *
 double largestChildStatsP(Net *net, struct List *childProportions) {
 	Net_AdjacencyComponentIterator *adjacencyComponentIterator = net_getAdjacencyComponentIterator(net);
 	AdjacencyComponent *adjacencyComponent;
-	double problemSize = calculateTotalContainedSequence(net);
+	double problemSize = net_getTotalBaseLength(net);
 	if(net_getAdjacencyComponentNumber(net) != 0  && problemSize > 0) {
 		double childProportion = -10.0;
 		while((adjacencyComponent = net_getNextAdjacencyComponent(adjacencyComponentIterator)) != NULL) {
@@ -263,7 +260,7 @@ void leafStatsP(Net *net, struct IntList *leafSizes) {
 	net_destructAdjacencyComponentIterator(adjacencyComponentIterator);
 
 	if(net_getAdjacencyComponentNumber(net) == 0) {
-		intListAppend(leafSizes, (int32_t)calculateTotalContainedSequence(net));
+		intListAppend(leafSizes, (int32_t)net_getTotalBaseLength(net));
 	}
 }
 
@@ -432,7 +429,7 @@ int main(int argc, char *argv[]) {
 	// Calculate and print to file a crap load of numbers.
 	///////////////////////////////////////////////////////////////////////////
 
-	double totalSeqSize = calculateTotalContainedSequence(net);
+	double totalSeqSize = net_getTotalBaseLength(net);
 
 	fileHandle = fopen(outputFile, "w");
 	fprintf(fileHandle, "<stats netDisk=\"%s\" netName=\"%s\" totalSequenceLength=\"%f\" >", netDiskName, netName, totalSeqSize);

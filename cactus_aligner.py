@@ -17,32 +17,21 @@ from sonLib.bioio import cigarWrite
 from sonLib.bioio import system
 from workflow.jobTree.scriptTree.target import Target
 
-from pecan2.pecan2_batch import pecan2BatchWrapperTopLevel
+from pecan2.pecan2_batch import makeBlastFromOptions
+from pecan2.pecan2_batch import makeTopLevelBlastOptions
 
-def cactusAlignerTestAligner(job, sequenceFiles, resultsFile):
-    """Function to create a cactus_alignerTestAligner.TestAligner target.
-    """
-    from cactus.cactus_alignerTestAligner import MakeBlasts
-    target = MakeBlasts(job, sequenceFiles, resultsFile)
-    logger.info("Constructed the cactus_alignerTestAligner target")
-    return target
-
-class MakeSequencesOptions:
-    """A class to contain options which can be passed to the MakeSequences target.
-    """
-    def __init__(self, makeBlastTarget=pecan2BatchWrapperTopLevel):
-        self.makeBlastTarget = makeBlastTarget
+from cactus.cactus_alignerTestAligner import MakeBlastsLoader as MakeBlastsTest
     
 class MakeSequences(Target):
     """Take a reconstruction problem and generate the sequences to be blasted.
     Then setup the follow on blast targets and collation targets.
     """
     def __init__(self, job, netDisk, 
-                 netName, resultsFile, options):
+                 netName, resultsFile, blastOptions):
         self.netDisk = netDisk
         self.netName = netName
         self.resultsFile = resultsFile
-        self.options = options
+        self.blastOptions = blastOptions
         Target.__init__(self, job, None)
         
     def run(self, job):
@@ -67,7 +56,7 @@ class MakeSequences(Target):
         #Make blast target
         ##########################################
         
-        self.addChildTarget(self.options.makeBlastTarget(job, [ tempSeqFile ], tempResultsFile))
+        self.addChildTarget(self.blastOptions.makeBlastOptions(job, [ tempSeqFile ], tempResultsFile))
         logger.info("Added child target okay")
         
         ##########################################
@@ -134,8 +123,6 @@ def main():
     #Construct the arguments.
     ##########################################    
     
-    options = MakeSequencesOptions()
-    
     parser = getBasicOptionParser("usage: %prog [options]", "%prog 0.1")
     
     parser.add_option("--job", dest="jobFile", 
@@ -159,14 +146,16 @@ def main():
     assert len(args) == 0
     logger.info("Parsed arguments")
     
+    blastOptions = makeBlastFromOptions(makeTopLevelBlastOptions())
     if parsedOptions.useDummy:
-        options.makeBlastTarget = cactusAlignerTestAligner
+        blastOptions = MakeBlastsTest()
     
     job = ET.parse(parsedOptions.jobFile).getroot()
     
     firstTarget = MakeSequences(job, parsedOptions.netDisk, 
                                 parsedOptions.netName, 
-                                parsedOptions.resultsFile, options)
+                                parsedOptions.resultsFile, 
+                                blastOptions)
     firstTarget.execute(parsedOptions.jobFile)
     
     logger.info("Ran the first target okay")

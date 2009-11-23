@@ -21,7 +21,6 @@ class TestCase(unittest.TestCase):
     
     def setUp(self):
         self.testNo = TestStatus.getTestSetup(1, 100, 0, 0)
-        self.alignmentIterations = TestStatus.getTestSetup(2, 2, 2, 3)
         self.sequenceNumber = TestStatus.getTestSetup(5, 50, 50, 100)
         self.tempFiles = []
         self.tempDir = getTempDirectory(os.getcwd())
@@ -46,7 +45,7 @@ class TestCase(unittest.TestCase):
             sequenceDirs, newickTreeString = getRandomCactusInputs(tempDir=getTempDirectory(self.tempDir), sequenceNumber=self.sequenceNumber)
             jobTreeDir = os.path.join(getTempDirectory(self.tempDir), "jobTree")
             runCactusWorkflow(self.tempReconstructionDirectory, sequenceDirs, newickTreeString, jobTreeDir, logLevel='INFO',
-                               batchSystem=self.batchSystem, alignmentIterations=self.alignmentIterations)
+                               batchSystem=self.batchSystem)
             runCactusCheck(self.tempReconstructionDirectory)
             #Run the checker to check the file is okay.
             runJobTreeStatusAndFailIfNotComplete(jobTreeDir)
@@ -73,8 +72,7 @@ class TestCase(unittest.TestCase):
                             cactusTreeGraphFile=os.path.join(outputDir, "cactusTree.dot"),
                             cactusTreeGraphPDFFile=os.path.join(outputDir, "cactusTree.pdf"),
                             atomGraphFile=os.path.join(outputDir, "atomGraph.dot"),
-                            atomGraphPDFFile=os.path.join(outputDir, "atomGraph.pdf"),
-                            alignmentIterations=1)
+                            atomGraphPDFFile=os.path.join(outputDir, "atomGraph.pdf"))
         
     def testCactusWorkflow_Encode(self): 
         """Run the workflow on the encode pilot regions.
@@ -94,7 +92,7 @@ class TestCase(unittest.TestCase):
 def runWorkflow(sequences, newickTreeFile, outputDir, tempDir, 
                 batchSystem="single_machine",
                 cactusTreeGraphFile=None, cactusTreeGraphPDFFile=None, 
-                atomGraphFile=None, atomGraphPDFFile=None, alignmentIterations=1):
+                atomGraphFile=None, atomGraphPDFFile=None):
     fileHandle = open(newickTreeFile, 'r')
     newickTreeString = fileHandle.readline()
     fileHandle.close()
@@ -109,7 +107,7 @@ def runWorkflow(sequences, newickTreeFile, outputDir, tempDir,
     jobTreeDir = os.path.join(getTempDirectory(tempDir), "jobTree")
     logger.info("Got a job tree dir for the test: %s" % jobTreeDir)
     
-    runCactusWorkflow(netDisk, sequences, newickTreeString, jobTreeDir, batchSystem=batchSystem, alignmentIterations=alignmentIterations)
+    runCactusWorkflow(netDisk, sequences, newickTreeString, jobTreeDir, batchSystem=batchSystem)
     logger.info("Ran the the workflow")
     
     runJobTreeStatusAndFailIfNotComplete(jobTreeDir)

@@ -12,6 +12,12 @@ from sonLib.bioio import getRandomOperationList
 from sonLib.bioio import fastaRead
 
 from workflow.jobTree.scriptTree.target import Target
+
+class MakeBlastsLoader:
+    """Used to get around strange pickling behavious todo with being unable to pickle functions.
+    """
+    def makeBlastOptions(self, job, sequences, resultsFile):
+        return MakeBlasts(job, sequences, resultsFile)
     
 class MakeBlasts(Target):
     """Fills the input file with some random alignments.

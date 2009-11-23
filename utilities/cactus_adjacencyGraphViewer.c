@@ -15,8 +15,6 @@
 #include "commonC.h"
 #include "hashTableC.h"
 
-#include "utilitiesShared.h"
-
 /*
  * Global variables.
  */

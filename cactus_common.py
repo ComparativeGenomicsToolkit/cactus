@@ -208,15 +208,11 @@ def runCactusWorkflow(netDisk, sequenceFiles,
                       newickTreeString, 
                       jobTreeDir, treeBuilder="cactus_coreTestTreeBuilder.py",
                       adjacencyBuilder="cactus_adjacencyTestAdjacencyBuilder.py",
-                      logLevel="DEBUG", retryCount=0, batchSystem="single_machine", rescueJobFrequency=None, alignmentIterations=None):
-    if alignmentIterations != None:
-        alignmentIterationsString = "--alignmentIterations=%s" % alignmentIterations
-    else:
-        alignmentIterationsString = ""
+                      logLevel="DEBUG", retryCount=0, batchSystem="single_machine", rescueJobFrequency=None):
     command = "cactus_workflow.py %s --speciesTree '%s' \
---netDisk %s %s --job JOB_FILE" % \
+--netDisk %s --job JOB_FILE" % \
             (" ".join(sequenceFiles), newickTreeString,
-             netDisk, alignmentIterationsString)
+             netDisk)
     runJobTree(command, jobTreeDir, logLevel, retryCount, batchSystem, rescueJobFrequency)
     logger.info("Ran the cactus workflow for %s okay" % netDisk)
 

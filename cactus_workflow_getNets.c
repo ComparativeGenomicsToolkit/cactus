@@ -13,7 +13,7 @@ static void getNets(Net *net, FILE *fileHandle) {
 	assert(net != NULL);
 	if(net_getAdjacencyComponentNumber(net) == 0) {
 		assert(net_getAtomNumber(net) == 0);
-		fprintf(fileHandle, "%s\n", netMisc_nameToStringStatic(net_getName(net)));
+		fprintf(fileHandle, "%s %f\n", netMisc_nameToStringStatic(net_getName(net)), net_getTotalBaseLength(net));
 	}
 
 	adjacencyComponentIterator = net_getAdjacencyComponentIterator(net);

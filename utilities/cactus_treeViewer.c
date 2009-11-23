@@ -15,8 +15,6 @@
 #include "commonC.h"
 #include "hashTableC.h"
 
-#include "utilitiesShared.h"
-
 /*
  * Global variables.
  */
@@ -57,7 +55,7 @@ void makeCactusTree_chain(Chain *chain, FILE *fileHandle, const char *parentNode
 	//Write the net nodes.
 	char *chainNameString = netMisc_nameToString(chain_getName(chain));
 	const char *edgeColour = graphViz_getColour();
-	addNodeToGraph(chainNameString, fileHandle, calculateChainSize(chain)/totalProblemSize, "box", chainNameString);
+	addNodeToGraph(chainNameString, fileHandle, chain_getAverageInstanceBaseLength(chain)/totalProblemSize, "box", chainNameString);
 	//Write in the parent edge.
 	if(parentNodeName != NULL) {
 		graphViz_addEdgeToGraph(parentNodeName, chainNameString, fileHandle, "", parentEdgeColour, 10, 1, "forward");
@@ -75,7 +73,7 @@ void makeCactusTree_net(Net *net, FILE *fileHandle, const char *parentNodeName, 
 	//Write the net nodes.
 	char *netNameString = netMisc_nameToString(net_getName(net));
 	const char *edgeColour = graphViz_getColour();
-	addNodeToGraph(netNameString, fileHandle, calculateTotalContainedSequence(net)/totalProblemSize, "ellipse", netNameString);
+	addNodeToGraph(netNameString, fileHandle, net_getTotalBaseLength(net)/totalProblemSize, "ellipse", netNameString);
 	//Write in the parent edge.
 	if(parentNodeName != NULL) {
 		graphViz_addEdgeToGraph(parentNodeName, netNameString, fileHandle, "", parentEdgeColour, 10, 1, "forward");
@@ -98,7 +96,7 @@ void makeCactusTree_net(Net *net, FILE *fileHandle, const char *parentNodeName, 
 	double size = 0.0; //get the size of the adjacency component organising node..
 	while((adjacencyComponent = net_getNextAdjacencyComponent(adjacencyComponentIterator)) != NULL) {
 		if(adjacencyComponent_getLink(adjacencyComponent) == NULL) { //linked to the diamond node.
-			size += calculateTotalContainedSequence(adjacencyComponent_getNestedNet(adjacencyComponent));
+			size += net_getTotalBaseLength(adjacencyComponent_getNestedNet(adjacencyComponent));
 		}
 	}
 	net_destructAdjacencyComponentIterator(adjacencyComponentIterator);
@@ -227,7 +225,7 @@ int main(int argc, char *argv[]) {
 	// Build the graph.
 	///////////////////////////////////////////////////////////////////////////
 
-	totalProblemSize = calculateTotalContainedSequence(net);
+	totalProblemSize = net_getTotalBaseLength(net);
 	fileHandle = fopen(outputFile, "w");
 	graphViz_setupGraphFile(fileHandle);
 	makeCactusTree_net(net, fileHandle, NULL, NULL);
