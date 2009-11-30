@@ -47,6 +47,7 @@ void usage() {
 	fprintf(stderr, "-k --minimumChainLength : The minimum chain length required to be included in the problem\n");
 	fprintf(stderr, "-l --trim : The length of bases to remove from the end of each alignment\n");
 	fprintf(stderr, "-m --alignRepeats : Allow bases marked as repeats to be aligned (else alignments to these bases to be excluded)\n");
+	fprintf(stderr, "-n --extensionSteps : The number of steps of attrition applied to edges proximal to over aligned edges.\n");
 }
 
 char *segment_getString(struct Segment *segment, Net *net) {
@@ -173,7 +174,7 @@ int main(int argc, char *argv[]) {
 	char * netName = NULL;
 	char * tempFileRootDirectory = NULL;
 	int32_t maxEdgeDegree = 50;
-	int32_t extensionSteps = 1;
+	int32_t extensionSteps = 3;
 	bool writeDebugFiles = 0;
 	float minimumTreeCoverage = 0.7;
 	int32_t minimumAtomLength = 4;
@@ -193,6 +194,7 @@ int main(int argc, char *argv[]) {
 			{ "netName", required_argument, 0, 'd' },
 			{ "tempDirRoot", required_argument, 0, 'e' },
 			{ "maxEdgeDegree", required_argument, 0, 'f' },
+			{ "extensionSteps", required_argument, 0, 'n' },
 			{ "writeDebugFiles", no_argument, 0, 'g' },
 			{ "help", no_argument, 0, 'h' },
 			{ "minimumTreeCoverage", required_argument, 0, 'i' },
@@ -205,7 +207,7 @@ int main(int argc, char *argv[]) {
 
 		int option_index = 0;
 
-		key = getopt_long(argc, argv, "a:b:c:d:e:f:ghi:j:k:l:m", long_options, &option_index);
+		key = getopt_long(argc, argv, "a:b:c:d:e:f:ghi:j:k:l:mn:", long_options, &option_index);
 
 		if(key == -1) {
 			break;
@@ -250,6 +252,9 @@ int main(int argc, char *argv[]) {
 				break;
 			case 'm':
 				alignRepeats = !alignRepeats;
+				break;
+			case 'n':
+				assert(sscanf(optarg, "%i", &extensionSteps) == 1);
 				break;
 			default:
 				usage();
