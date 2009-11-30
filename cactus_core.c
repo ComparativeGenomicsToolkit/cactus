@@ -173,6 +173,7 @@ int main(int argc, char *argv[]) {
 	char * netName = NULL;
 	char * tempFileRootDirectory = NULL;
 	int32_t maxEdgeDegree = 50;
+	int32_t extensionSteps = 1;
 	bool writeDebugFiles = 0;
 	float minimumTreeCoverage = 0.7;
 	int32_t minimumAtomLength = 4;
@@ -371,7 +372,7 @@ int main(int argc, char *argv[]) {
 	startTime = time(NULL);
 	assert(maxEdgeDegree >= 1);
 	logInfo("Before removing over aligned edges the graph has %i vertices and %i black edges\n", pinchGraph->vertices->length, avl_count(pinchGraph->edges));
-	removeOverAlignedEdges(pinchGraph, maxEdgeDegree, net);
+	removeOverAlignedEdges(pinchGraph, maxEdgeDegree, extensionSteps, net);
 	logInfo("After removing over aligned edges (degree %i) the graph has %i vertices and %i black edges\n", maxEdgeDegree, pinchGraph->vertices->length, avl_count(pinchGraph->edges));
 	removeTrivialGreyEdgeComponents(pinchGraph, pinchGraph->vertices);
 	logInfo("After removing the trivial graph components the graph has %i vertices and %i black edges\n", pinchGraph->vertices->length, avl_count(pinchGraph->edges));

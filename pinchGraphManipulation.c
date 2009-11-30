@@ -169,29 +169,82 @@ void splitMultipleBlackEdgesFromVertex(struct PinchGraph *pinchGraph, struct Pin
 	destructList(list);
 }
 
-void removeOverAlignedEdges(struct PinchGraph *pinchGraph, int32_t degree, Net *net) {
+void removeOverAlignedEdges_P(struct PinchVertex *vertex, struct List *list, struct hashtable *hash) {
+	void *greyEdgeIterator = getGreyEdgeIterator(vertex);
+	struct PinchVertex *vertex2;
+	struct PinchVertex *vertex3;
+	struct PinchVertex *vertex4;
+	while((vertex2 = getNextGreyEdge(vertex, greyEdgeIterator)) != NULL) {
+		if(lengthBlackEdges(vertex2) > 0) {
+			struct PinchEdge *edge = getFirstBlackEdge(vertex2);
+			vertex3 = edge->to;
+			if(vertex2->vertexID > vertex3->vertexID) {
+				vertex4 = vertex2;
+				vertex2 = vertex3;
+				vertex3 = vertex4;
+			}
+			assert(hashtable_search(hash, vertex3) == NULL);
+			if(hashtable_search(hash, vertex2) == NULL && !isAStubOrCap(edge)) {
+				hashtable_insert(hash, vertex2, vertex2);
+				listAppend(list, vertex2);
+			}
+		}
+	}
+	destructGreyEdgeIterator(greyEdgeIterator);
+}
+
+void removeOverAlignedEdges(struct PinchGraph *pinchGraph, int32_t degree, int32_t extensionSteps, Net *net) {
 	/*
 	 * Method splits black edges from the graph with degree higher than a given number of sequences.
 	 */
-	int32_t i;
+	int32_t i, j;
 	struct List *list;
 	struct List *list2;
 	struct PinchVertex *vertex;
 	struct PinchVertex *vertex2;
+	struct hashtable *hash;
 
 	list = constructEmptyList(0, NULL);
-	list2 = constructEmptyList(0, NULL);
 
+	hash = create_hashtable(0, hashtable_key, hashtable_equalKey, NULL, NULL);
 	for(i=0; i<pinchGraph->vertices->length; i++) {
 		vertex = pinchGraph->vertices->list[i];
-		if(lengthBlackEdges(vertex) > degree && isAStubOrCap(getFirstBlackEdge(vertex)) == FALSE) { //has a high degree and is not a stub/cap
+		if(lengthBlackEdges(vertex) > degree && !isAStubOrCap(getFirstBlackEdge(vertex))) { //has a high degree and is not a stub/cap
 			vertex2 = getFirstBlackEdge(vertex)->to;
 			if(vertex->vertexID < vertex2->vertexID) {
+				hashtable_insert(hash, vertex, vertex);
 				listAppend(list, vertex);
 			}
 		}
 	}
 
+	logDebug("Got the initial list of over-aligned black edges to undo\n");
+
+	for(i=0; i<extensionSteps; i++) {
+		list2 = listCopy(list); //just use the vertices in the existing list
+		for(j=0; j<list2->length; j++) {
+			vertex = list2->list[j];
+			vertex2 = getFirstBlackEdge(vertex)->to;
+			removeOverAlignedEdges_P(vertex, list, hash);
+			removeOverAlignedEdges_P(vertex2, list, hash);
+		}
+		destructList(list2);
+	}
+
+	//now remove all single black edge connected vertices
+	list2 = constructEmptyList(0, NULL);
+	for(i=0; i<list->length; i++) {
+		vertex = list->list[i];
+		if(lengthBlackEdges(vertex) > 1) {
+			listAppend(list2, vertex);
+		}
+	}
+	destructList(list);
+	list = list2;
+
+	logDebug("Got the list of black edges to undo!\n");
+
+	list2 = constructEmptyList(0, NULL);
 	for(i=0; i<list->length; i++) {
 		vertex = list->list[i];
 		vertex2 = getFirstBlackEdge(vertex)->to;
@@ -203,6 +256,7 @@ void removeOverAlignedEdges(struct PinchGraph *pinchGraph, int32_t degree, Net *
 
 	destructList(list);
 	destructList(list2);
+	hashtable_destroy(hash, 0, 0);
 }
 
 ////////////////////////////////////////////////

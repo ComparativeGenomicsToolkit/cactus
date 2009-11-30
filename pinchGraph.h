@@ -279,7 +279,7 @@ void writeOutPinchGraphWithChains(struct PinchGraph *pinchGraph,
 ////////////////////////////////////////////////
 ////////////////////////////////////////////////
 
-void removeOverAlignedEdges(struct PinchGraph *pinchGraph, int32_t degree, Net *net);
+void removeOverAlignedEdges(struct PinchGraph *pinchGraph, int32_t degree, int32_t extensionSteps, Net *net);
 
 struct List *getRecursiveComponents(struct PinchGraph *pinchGraph, int32_t (*excludedEdgesFn)(void *));
 

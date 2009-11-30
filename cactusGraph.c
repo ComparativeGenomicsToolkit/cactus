@@ -1145,7 +1145,10 @@ float treeCoverage(struct CactusEdge *cactusEdge, Net *net,
 		}
 	}
 	hashtable_destroy(hash, FALSE, FALSE);
-	return treeCoverage / event_getSubTreeBranchLength(eventTree_getRootEvent(eventTree));
+	treeCoverage /= event_getSubTreeBranchLength(eventTree_getRootEvent(eventTree));
+	assert(treeCoverage >= 0);
+	assert(treeCoverage <= 1.0001);
+	return treeCoverage;
 }
 
 int32_t chainLength(struct List *biConnectedComponent, int32_t includeStubs, struct PinchGraph *pinchGraph) {

@@ -223,7 +223,7 @@ class CactusDownPass(Target):
     def run(self, job):
         logger.info("Starting the cactus down pass (recursive) target")
         #Traverses leaf jobs and create aligner wrapper targets as children.
-        if self.iteration+1 <= 3:
+        if self.iteration+1 <= 2:
             for childNetName, childNetSize in getChildNets(self.options.netDisk, self.netName, job.attrib["local_temp_dir"]):
                 if childNetSize > 0: #Does not do any refinement if the net is completely specified.
                     self.addChildTarget(CactusAlignerWrapper(job, self.options, childNetName, childNetSize, self.iteration+1))
