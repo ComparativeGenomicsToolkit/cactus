@@ -115,27 +115,27 @@ def runCactusCore(netDisk, alignmentFile, tempDir,
     else:
         writeDebugFiles = ""
         
-    if maximumEdgeDegree:
+    if maximumEdgeDegree != None:
         maximumEdgeDegree = "--maxEdgeDegree %i" % maximumEdgeDegree
     else:
         maximumEdgeDegree = ""
         
-    if minimumTreeCoverage:
+    if minimumTreeCoverage != None:
         minimumTreeCoverage = "--minimumTreeCoverage %f" % minimumTreeCoverage
     else:
         minimumTreeCoverage = ""
         
-    if minimumAtomLength:
+    if minimumAtomLength != None:
         minimumAtomLength = "--minimumAtomLength %i" % minimumAtomLength
     else:
         minimumAtomLength = ""
     
-    if minimumChainLength:
+    if minimumChainLength != None:
         minimumChainLength = "--minimumChainLength %i" % minimumChainLength
     else:
         minimumChainLength = ""
     
-    if trim:
+    if trim != None:
         trim = "--trim %i" % trim
     else:
         trim = ""
@@ -215,4 +215,8 @@ def runCactusWorkflow(netDisk, sequenceFiles,
              netDisk)
     runJobTree(command, jobTreeDir, logLevel, retryCount, batchSystem, rescueJobFrequency)
     logger.info("Ran the cactus workflow for %s okay" % netDisk)
-
+    
+def runCactusTreeStats(netDisk, outputFile, netName='0'):
+    command = "cactus_treeStats --netDisk %s --netName %s --outputFile %s" % (netDisk, netName, outputFile)
+    system(command)
+    logger.info("Ran the cactus tree stats command apprently okay")

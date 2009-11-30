@@ -14,6 +14,7 @@ from cactus.cactus_common import runCactusWorkflow
 from cactus.cactus_common import runCactusTreeViewer
 from cactus.cactus_common import runCactusAtomGraphViewer
 from cactus.cactus_common import runCactusCheck
+from cactus.cactus_common import runCactusTreeStats
 
 from workflow.jobTree.jobTreeTest import runJobTreeStatusAndFailIfNotComplete
 
@@ -72,7 +73,8 @@ class TestCase(unittest.TestCase):
                             cactusTreeGraphFile=os.path.join(outputDir, "cactusTree.dot"),
                             cactusTreeGraphPDFFile=os.path.join(outputDir, "cactusTree.pdf"),
                             atomGraphFile=os.path.join(outputDir, "atomGraph.dot"),
-                            atomGraphPDFFile=os.path.join(outputDir, "atomGraph.pdf"))
+                            atomGraphPDFFile=os.path.join(outputDir, "atomGraph.pdf"),
+                            cactusTreeStatsFile=os.path.join(outputDir, "cactusTreeStats.xml"))
         
     def testCactusWorkflow_Encode(self): 
         """Run the workflow on the encode pilot regions.
@@ -82,17 +84,19 @@ class TestCase(unittest.TestCase):
             encodeResultsPath = os.path.join(TestStatus.getPathToDataSets(), "cactus", "encodeRegionsTest")
             newickTreeFile = os.path.join(encodeDatasetPath, "reducedTree.newick")
             
-            for encodeRegion in [ "ENm00" + str(i) for i in xrange(1, 3) ]:
+            for encodeRegion in [ "ENm00" + str(i) for i in xrange(1, 2) ]:
                 sequences = [ os.path.join(encodeDatasetPath, encodeRegion, ("%s.%s.fa" % (species, encodeRegion))) for\
                              species in ("human", "chimp", "baboon", "mouse", "rat", "dog", "cow") ]
                 outputDir = os.path.join(encodeResultsPath, encodeRegion)
                 
-                runWorkflow(sequences, newickTreeFile, outputDir, self.tempDir, batchSystem=self.batchSystem)
+                runWorkflow(sequences, newickTreeFile, outputDir, self.tempDir, batchSystem=self.batchSystem,
+                            cactusTreeStatsFile=os.path.join(outputDir, "cactusTreeStats.xml"))
 
 def runWorkflow(sequences, newickTreeFile, outputDir, tempDir, 
                 batchSystem="single_machine",
                 cactusTreeGraphFile=None, cactusTreeGraphPDFFile=None, 
-                atomGraphFile=None, atomGraphPDFFile=None):
+                atomGraphFile=None, atomGraphPDFFile=None,
+                cactusTreeStatsFile=None):
     fileHandle = open(newickTreeFile, 'r')
     newickTreeString = fileHandle.readline()
     fileHandle.close()
@@ -119,6 +123,9 @@ def runWorkflow(sequences, newickTreeFile, outputDir, tempDir,
     if cactusTreeGraphFile != None:
         runCactusTreeViewer(cactusTreeGraphFile, netDisk)
         runGraphViz(cactusTreeGraphFile, cactusTreeGraphPDFFile)
+        
+    if cactusTreeStatsFile != None:
+        runCactusTreeStats(netDisk, cactusTreeStatsFile)
     
     """
     if atomGraphFile != None:

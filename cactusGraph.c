@@ -1207,7 +1207,7 @@ struct List *filterAtomsByTreeCoverageAndLength(struct List *biConnectedComponen
 
 	for(i=0; i<biConnectedComponents->length; i++) {
 		biConnectedComponent = biConnectedComponents->list[i];
-		if(chainBaseLength(biConnectedComponent, pinchGraph) > minimumChainLength) {
+		if(chainBaseLength(biConnectedComponent, pinchGraph) >= minimumChainLength) {
 			for(j=0; j<biConnectedComponent->length; j++) {
 				cactusEdge = biConnectedComponent->list[j];
 				if(!isAStubOrCapCactusEdge(cactusEdge, pinchGraph)) {
@@ -1221,6 +1221,8 @@ struct List *filterAtomsByTreeCoverageAndLength(struct List *biConnectedComponen
 			}
 		}
 	}
+
+
 
 	return chosenAtoms;
 }

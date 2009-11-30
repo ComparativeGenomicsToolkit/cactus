@@ -125,10 +125,10 @@ class DownPassPhase(Target):
         logger.info("Created child target aligner/core job, and follow on cleanup job")
 
 #Each level around 30x larger than the last
-BASE_LEVEL_SIZE = 10000    
-GENE_LEVEL_SIZE = 300000
-LOCI_LEVEL_SIZE = 10000000
-CHR_LEVEL_SIZE =  300000000
+#BASE_LEVEL_SIZE = 10000
+GENE_LEVEL_SIZE = 500000
+LOCI_LEVEL_SIZE = 100000000
+CHR_LEVEL_SIZE =  3000000000
 
 class CactusAlignerWrapper(Target):
     def __init__(self, job, options, netName, netSize, iteration):
@@ -145,19 +145,19 @@ class CactusAlignerWrapper(Target):
         logger.info("Got an alignments file")
         
         #Now make the child aligner target
-        assert self.iteration <= 4
-        if self.iteration == 4 or self.netSize < BASE_LEVEL_SIZE:
-            self.iteration = 4
-            blastOptions = makeBlastFromOptions(makeLowLevelBlastOptions())
-        elif self.iteration == 3 or self.netSize < GENE_LEVEL_SIZE:
+        assert self.iteration <= 3
+        #if self.iteration == 4 or self.netSize < BASE_LEVEL_SIZE:
+        #    self.iteration = 4
+        #    blastOptions = makeBlastFromOptions(makeLowLevelBlastOptions())
+        if self.iteration == 3 or self.netSize < GENE_LEVEL_SIZE:
             self.iteration = 3
-            blastOptions = makeBlastFromOptions(makeMiddleLevelBlastOptions())
+            blastOptions = makeBlastFromOptions(makeLowLevelBlastOptions())
         elif self.iteration == 2 or self.netSize < LOCI_LEVEL_SIZE:
             self.iteration = 2
-            blastOptions = makeBlastFromOptions(makeUpperMiddleLevelBlastOptions())
+            blastOptions = makeBlastFromOptions(makeMiddleLevelBlastOptions())
         elif self.iteration == 1 or self.netSize < CHR_LEVEL_SIZE:
             self.iteration = 1
-            blastOptions = makeBlastFromOptions(makeTopLevelBlastOptions())
+            blastOptions = makeBlastFromOptions(makeUpperMiddleLevelBlastOptions())
         else:
             self.iteration = 0
             blastOptions = makeBlastFromOptions(makeTopLevelBlastOptions())
@@ -173,9 +173,9 @@ class CactusAlignerWrapper(Target):
 cactusCoreParameters = { 
     0:{ "maximumEdgeDegree":50, "minimumTreeCoverage":0.6, "minimumAtomLength":4, "minimumChainLength":12, "trim":3, "alignRepeats":False },
     1:{ "maximumEdgeDegree":50, "minimumTreeCoverage":0.5, "minimumAtomLength":4, "minimumChainLength":8, "trim":3, "alignRepeats":False },
-    2:{ "maximumEdgeDegree":50, "minimumTreeCoverage":0.5, "minimumAtomLength":4, "minimumChainLength":1, "trim":3, "alignRepeats":False },
-    3:{ "maximumEdgeDegree":50, "minimumTreeCoverage":0.0, "minimumAtomLength":4, "minimumChainLength":1, "trim":3, "alignRepeats":False },
-    4:{ "maximumEdgeDegree":50, "minimumTreeCoverage":0.0, "minimumAtomLength":1, "minimumChainLength":1, "trim":0, "alignRepeats":False }
+    2:{ "maximumEdgeDegree":30, "minimumTreeCoverage":0.2, "minimumAtomLength":4, "minimumChainLength":8, "trim":3, "alignRepeats":False },
+    3:{ "maximumEdgeDegree":50, "minimumTreeCoverage":0.0, "minimumAtomLength":0, "minimumChainLength":0, "trim":0, "alignRepeats":False },
+    #4:{ "maximumEdgeDegree":50, "minimumTreeCoverage":0.0, "minimumAtomLength":0, "minimumChainLength":0, "trim":0, "alignRepeats":False }
 }
 
 class CactusCoreWrapper(Target):
@@ -223,9 +223,9 @@ class CactusDownPass(Target):
     def run(self, job):
         logger.info("Starting the cactus down pass (recursive) target")
         #Traverses leaf jobs and create aligner wrapper targets as children.
-        if self.iteration+1 < 5:
+        if self.iteration+1 <= 3:
             for childNetName, childNetSize in getChildNets(self.options.netDisk, self.netName, job.attrib["local_temp_dir"]):
-                if childNetSize > 10000: #Does not do any refinement if the net is completely specified.
+                if childNetSize > 0: #Does not do any refinement if the net is completely specified.
                     self.addChildTarget(CactusAlignerWrapper(job, self.options, childNetName, childNetSize, self.iteration+1))
             logger.info("Created child targets for all the recursive reconstruction jobs")
       
@@ -242,8 +242,6 @@ def main():
     parser.add_option("--speciesTree", dest="speciesTree", help="The species tree relating the input sequences")
     
     parser.add_option("--netDisk", dest="netDisk", help="The location of the net disk.") 
-    
-    #parser.add_option("--alignmentIterations", dest="alignmentIterations", help="The number of recursive alignment iterations to empty", default="5")  
     
     options, args = parseBasicOptions(parser)
 
