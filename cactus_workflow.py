@@ -126,9 +126,9 @@ class DownPassPhase(Target):
 
 #Each level around 30x larger than the last
 #BASE_LEVEL_SIZE = 10000
-GENE_LEVEL_SIZE = 500000
-LOCI_LEVEL_SIZE = 100000000
-CHR_LEVEL_SIZE =  3000000000
+GENE_LEVEL_SIZE = 1000000
+LOCI_LEVEL_SIZE = 30000000
+CHR_LEVEL_SIZE =  1000000000
 
 class CactusAlignerWrapper(Target):
     def __init__(self, job, options, netName, netSize, iteration):
@@ -173,8 +173,8 @@ class CactusAlignerWrapper(Target):
 cactusCoreParameters = { 
     0:{ "maximumEdgeDegree":50, "extensionSteps":5, "minimumTreeCoverage":0.6, "minimumAtomLength":4, "minimumChainLength":12, "trim":3, "alignRepeats":False },
     1:{ "maximumEdgeDegree":50, "extensionSteps":400, "minimumTreeCoverage":0.5, "minimumAtomLength":4, "minimumChainLength":8, "trim":3, "alignRepeats":False },
-    2:{ "maximumEdgeDegree":50, "extensionSteps":400, "minimumTreeCoverage":0.5, "minimumAtomLength":4, "minimumChainLength":20, "trim":3, "alignRepeats":False },
-    3:{ "maximumEdgeDegree":50, "extensionSteps":0, "minimumTreeCoverage":0.0, "minimumAtomLength":0, "minimumChainLength":0, "trim":0, "alignRepeats":True },
+    2:{ "maximumEdgeDegree":50, "extensionSteps":400, "minimumTreeCoverage":0.5, "minimumAtomLength":0, "minimumChainLength":10, "trim":3, "alignRepeats":False },
+    3:{ "maximumEdgeDegree":50, "extensionSteps":20, "minimumTreeCoverage":0.5, "minimumAtomLength":0, "minimumChainLength":8, "trim":4, "alignRepeats":False },
     #4:{ "maximumEdgeDegree":50, "extensionSteps":5, "minimumTreeCoverage":0.0, "minimumAtomLength":0, "minimumChainLength":0, "trim":0, "alignRepeats":False }
 }
 
