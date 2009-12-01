@@ -105,6 +105,7 @@ def runCactusCore(netDisk, alignmentFile, tempDir,
                   netName=0,
                   logLevel="DEBUG", writeDebugFiles=False,
                   maximumEdgeDegree=None,
+                  extensionSteps=None,
                   minimumTreeCoverage=None,
                   minimumAtomLength=None,
                   minimumChainLength=None,
@@ -119,6 +120,11 @@ def runCactusCore(netDisk, alignmentFile, tempDir,
         maximumEdgeDegree = "--maxEdgeDegree %i" % maximumEdgeDegree
     else:
         maximumEdgeDegree = ""
+        
+    if extensionSteps != None:
+        extensionSteps = "--extensionSteps %i" % extensionSteps
+    else:
+        extensionSteps = ""
         
     if minimumTreeCoverage != None:
         minimumTreeCoverage = "--minimumTreeCoverage %f" % minimumTreeCoverage
@@ -147,10 +153,10 @@ def runCactusCore(netDisk, alignmentFile, tempDir,
     
     command = "cactus_core --netDisk %s --netName %s --alignments %s \
 --tempDirRoot %s --logLevel %s \
-%s %s %s %s %s %s %s" % \
+%s %s %s %s %s %s %s %s" % \
     (netDisk, netName, alignmentFile, 
      tempDir, logLevel, writeDebugFiles,
-     maximumEdgeDegree, minimumTreeCoverage, minimumAtomLength, minimumChainLength, trim, alignRepeats)
+     maximumEdgeDegree, extensionSteps, minimumTreeCoverage, minimumAtomLength, minimumChainLength, trim, alignRepeats)
     system(command)
     logger.info("Ran cactus_core okay")
     

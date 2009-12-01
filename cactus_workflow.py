@@ -171,11 +171,11 @@ class CactusAlignerWrapper(Target):
         logger.info("Setup the follow on cactus_core target")
         
 cactusCoreParameters = { 
-    0:{ "maximumEdgeDegree":50, "minimumTreeCoverage":0.6, "minimumAtomLength":4, "minimumChainLength":12, "trim":3, "alignRepeats":False },
-    1:{ "maximumEdgeDegree":50, "minimumTreeCoverage":0.5, "minimumAtomLength":4, "minimumChainLength":8, "trim":3, "alignRepeats":False },
-    2:{ "maximumEdgeDegree":30, "minimumTreeCoverage":0.2, "minimumAtomLength":4, "minimumChainLength":8, "trim":3, "alignRepeats":False },
-    3:{ "maximumEdgeDegree":50, "minimumTreeCoverage":0.0, "minimumAtomLength":0, "minimumChainLength":0, "trim":0, "alignRepeats":False },
-    #4:{ "maximumEdgeDegree":50, "minimumTreeCoverage":0.0, "minimumAtomLength":0, "minimumChainLength":0, "trim":0, "alignRepeats":False }
+    0:{ "maximumEdgeDegree":50, "extensionSteps":5, "minimumTreeCoverage":0.6, "minimumAtomLength":4, "minimumChainLength":12, "trim":3, "alignRepeats":False },
+    1:{ "maximumEdgeDegree":50, "extensionSteps":400, "minimumTreeCoverage":0.5, "minimumAtomLength":4, "minimumChainLength":8, "trim":3, "alignRepeats":False },
+    2:{ "maximumEdgeDegree":50, "extensionSteps":400, "minimumTreeCoverage":0.5, "minimumAtomLength":4, "minimumChainLength":20, "trim":3, "alignRepeats":False },
+    3:{ "maximumEdgeDegree":50, "extensionSteps":0, "minimumTreeCoverage":0.0, "minimumAtomLength":0, "minimumChainLength":0, "trim":0, "alignRepeats":True },
+    #4:{ "maximumEdgeDegree":50, "extensionSteps":5, "minimumTreeCoverage":0.0, "minimumAtomLength":0, "minimumChainLength":0, "trim":0, "alignRepeats":False }
 }
 
 class CactusCoreWrapper(Target):
@@ -198,6 +198,7 @@ class CactusCoreWrapper(Target):
                       netName=self.netName,
                       logLevel=getLogLevelString(), 
                       maximumEdgeDegree=coreParameters["maximumEdgeDegree"],
+                      extensionSteps=coreParameters["extensionSteps"],
                       minimumTreeCoverage=coreParameters["minimumTreeCoverage"],
                       minimumAtomLength=coreParameters["minimumAtomLength"],
                       minimumChainLength=coreParameters["minimumChainLength"],
@@ -223,7 +224,7 @@ class CactusDownPass(Target):
     def run(self, job):
         logger.info("Starting the cactus down pass (recursive) target")
         #Traverses leaf jobs and create aligner wrapper targets as children.
-        if self.iteration+1 <= 2:
+        if self.iteration+1 <= 3:
             for childNetName, childNetSize in getChildNets(self.options.netDisk, self.netName, job.attrib["local_temp_dir"]):
                 if childNetSize > 0: #Does not do any refinement if the net is completely specified.
                     self.addChildTarget(CactusAlignerWrapper(job, self.options, childNetName, childNetSize, self.iteration+1))

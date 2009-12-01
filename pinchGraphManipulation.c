@@ -169,24 +169,33 @@ void splitMultipleBlackEdgesFromVertex(struct PinchGraph *pinchGraph, struct Pin
 	destructList(list);
 }
 
-void removeOverAlignedEdges_P(struct PinchVertex *vertex, struct List *list, struct hashtable *hash) {
+void removeOverAlignedEdges_P(struct PinchVertex *vertex, int32_t extensionSteps, struct List *list, struct hashtable *hash) {
 	void *greyEdgeIterator = getGreyEdgeIterator(vertex);
 	struct PinchVertex *vertex2;
 	struct PinchVertex *vertex3;
-	struct PinchVertex *vertex4;
-	while((vertex2 = getNextGreyEdge(vertex, greyEdgeIterator)) != NULL) {
-		if(lengthBlackEdges(vertex2) > 0) {
-			struct PinchEdge *edge = getFirstBlackEdge(vertex2);
-			vertex3 = edge->to;
-			if(vertex2->vertexID > vertex3->vertexID) {
-				vertex4 = vertex2;
-				vertex2 = vertex3;
-				vertex3 = vertex4;
-			}
-			assert(hashtable_search(hash, vertex3) == NULL);
-			if(hashtable_search(hash, vertex2) == NULL && !isAStubOrCap(edge)) {
-				hashtable_insert(hash, vertex2, vertex2);
-				listAppend(list, vertex2);
+
+	int32_t distance = *(int32_t *)hashtable_search(hash, vertex);
+	if(distance < extensionSteps) {
+		while((vertex2 = getNextGreyEdge(vertex, greyEdgeIterator)) != NULL) {
+			if(lengthBlackEdges(vertex2) > 0) {
+				struct PinchEdge *edge = getFirstBlackEdge(vertex2);
+				int32_t length = edge->segment->end - edge->segment->start + 1;
+				if(!isAStubOrCap(edge)) {
+					int32_t *i = hashtable_search(hash, vertex2);
+					vertex3 = edge->to;
+					int32_t *j = hashtable_search(hash, vertex3);
+					if(i == NULL) {
+						assert(j == NULL);
+						listAppend(list, vertex2->vertexID > vertex3->vertexID ? vertex3 : vertex2);
+						hashtable_insert(hash, vertex2, constructInt(distance));
+						hashtable_insert(hash, vertex3, constructInt(distance + length));
+					}
+					else {
+						*i = *i > distance ? distance : *i;
+						assert(j != NULL);
+						*j = *j > distance + length ? distance + length : *j;
+					}
+				}
 			}
 		}
 	}
@@ -197,7 +206,7 @@ void removeOverAlignedEdges(struct PinchGraph *pinchGraph, int32_t degree, int32
 	/*
 	 * Method splits black edges from the graph with degree higher than a given number of sequences.
 	 */
-	int32_t i, j;
+	int32_t i, j, k;
 	struct List *list;
 	struct List *list2;
 	struct PinchVertex *vertex;
@@ -206,13 +215,14 @@ void removeOverAlignedEdges(struct PinchGraph *pinchGraph, int32_t degree, int32
 
 	list = constructEmptyList(0, NULL);
 
-	hash = create_hashtable(0, hashtable_key, hashtable_equalKey, NULL, NULL);
+	hash = create_hashtable(0, hashtable_key, hashtable_equalKey, NULL, free);
 	for(i=0; i<pinchGraph->vertices->length; i++) {
 		vertex = pinchGraph->vertices->list[i];
 		if(lengthBlackEdges(vertex) > degree && !isAStubOrCap(getFirstBlackEdge(vertex))) { //has a high degree and is not a stub/cap
 			vertex2 = getFirstBlackEdge(vertex)->to;
 			if(vertex->vertexID < vertex2->vertexID) {
-				hashtable_insert(hash, vertex, vertex);
+				hashtable_insert(hash, vertex, constructInt(0));
+				hashtable_insert(hash, vertex2, constructInt(0));
 				listAppend(list, vertex);
 			}
 		}
@@ -220,13 +230,16 @@ void removeOverAlignedEdges(struct PinchGraph *pinchGraph, int32_t degree, int32
 
 	logDebug("Got the initial list of over-aligned black edges to undo\n");
 
-	for(i=0; i<extensionSteps; i++) {
+	i = 0, k = 10;
+	while(list->length != i || k-- > 0) { //k term to ensure distances have been propagated
+		assert(list->length >= i);
+		i = list->length;
 		list2 = listCopy(list); //just use the vertices in the existing list
 		for(j=0; j<list2->length; j++) {
 			vertex = list2->list[j];
 			vertex2 = getFirstBlackEdge(vertex)->to;
-			removeOverAlignedEdges_P(vertex, list, hash);
-			removeOverAlignedEdges_P(vertex2, list, hash);
+			removeOverAlignedEdges_P(vertex, extensionSteps, list, hash);
+			removeOverAlignedEdges_P(vertex2, extensionSteps, list, hash);
 		}
 		destructList(list2);
 	}
@@ -256,7 +269,7 @@ void removeOverAlignedEdges(struct PinchGraph *pinchGraph, int32_t degree, int32
 
 	destructList(list);
 	destructList(list2);
-	hashtable_destroy(hash, 0, 0);
+	hashtable_destroy(hash, 1, 0);
 }
 
 ////////////////////////////////////////////////
