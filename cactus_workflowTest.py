@@ -79,7 +79,7 @@ class TestCase(unittest.TestCase):
     def testCactusWorkflow_Encode(self): 
         """Run the workflow on the encode pilot regions.
         """
-        if TestStatus.getTestStatus() in (TestStatus.TEST_VERY_LONG,):
+        if TestStatus.getTestStatus() in (TestStatus.TEST_LONG,):
             encodeDatasetPath = os.path.join(TestStatus.getPathToDataSets(), "MAY-2005")
             encodeResultsPath = os.path.join(TestStatus.getPathToDataSets(), "cactus", "encodeRegionsTest")
             newickTreeFile = os.path.join(encodeDatasetPath, "reducedTree.newick")
@@ -91,7 +91,19 @@ class TestCase(unittest.TestCase):
                 
                 runWorkflow(sequences, newickTreeFile, outputDir, self.tempDir, batchSystem=self.batchSystem,
                             cactusTreeStatsFile=os.path.join(outputDir, "cactusTreeStats.xml"))
-
+    
+    def testCactusWorkflow_Chromosomes(self):
+        #Tests cactus_core on the alignment of 4 whole chromosome X's, human, chimp, mouse, dog.
+        if TestStatus.getTestStatus() in (TestStatus.TEST_VERY_LONG,):
+            chrXPath = os.path.join(TestStatus.getPathToDataSets(), "chr_x")
+            chrXResultsPath = os.path.join(TestStatus.getPathToDataSets(), "cactus", "chrX")
+            sequences = [ os.path.join(chrXPath, seqFile) for seqFile in ("hg18.fa", "panTro2.fa", "mouse_chrX.fa", "dog_chrX.fa") ]
+            outputDir = chrXResultsPath
+            newickTreeFile = os.path.join(chrXPath, "newickTree.txt")
+            #newickTreeString = '(((h:0.006969, c:0.009727):0.13, m:0.36):0.02, d:0.15);'
+            runWorkflow(sequences, newickTreeFile, outputDir, self.tempDir, batchSystem=self.batchSystem,
+                    cactusTreeStatsFile=os.path.join(outputDir, "chrXStats.xml"))
+    
 def runWorkflow(sequences, newickTreeFile, outputDir, tempDir, 
                 batchSystem="single_machine",
                 cactusTreeGraphFile=None, cactusTreeGraphPDFFile=None, 
