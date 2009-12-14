@@ -47,10 +47,10 @@ double calculateTreeBits(Net *net, double pathBitScore) {
 void tabulateFloatStats(struct List *unsortedValues, double *totalNumber, double *min, double *max, double *avg, double *median) {
 	if(unsortedValues->length == 0) {
 		*totalNumber = 0;
-		*min = INFINITY;
-		*max = INFINITY;
-		*avg = INFINITY;
-		*median = INFINITY;
+		*min = INT32_MAX;
+		*max = INT32_MAX;
+		*avg = INT32_MAX;
+		*median = INT32_MAX;
 		return;
 	}
 	assert(unsortedValues->length > 0);
@@ -70,10 +70,10 @@ void tabulateFloatStats(struct List *unsortedValues, double *totalNumber, double
 void tabulateStats(struct IntList *unsortedValues, double *totalNumber, double *min, double *max, double *avg, double *median) {
 	if(unsortedValues->length == 0) {
 		*totalNumber = 0;
-		*min = INFINITY;
-		*max = INFINITY;
-		*avg = INFINITY;
-		*median = INFINITY;
+		*min = INT32_MAX;
+		*max = INT32_MAX;
+		*avg = INT32_MAX;
+		*median = INT32_MAX;
 		return;
 	}
 	assert(unsortedValues->length > 0);
