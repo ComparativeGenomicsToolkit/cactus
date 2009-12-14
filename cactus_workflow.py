@@ -119,16 +119,39 @@ class DownPassPhase(Target):
         assert(len(l) == 1)
         assert(l[0][0] == self.netName)
         assert(l[0][1] >= 0)
-        childTarget = CactusAlignerWrapper(job, self.options, self.netName, l[0][1], 0)
+        netSize = l[0][1]
+        childTarget = CactusAlignerWrapper(job, self.options, self.netName, netSize, 
+                                           getIteration(0, netSize))
         self.addChildTarget(childTarget)
         #UpPassPhase(job, self, self.options)
         logger.info("Created child target aligner/core job, and follow on cleanup job")
 
 #Each level around 30x larger than the last
-#BASE_LEVEL_SIZE = 10000
+#BASE_LEVEL_SIZE = 30000
 GENE_LEVEL_SIZE = 1000000
 LOCI_LEVEL_SIZE = 30000000
 CHR_LEVEL_SIZE =  1000000000
+
+def getIteration(iteration, netSize):
+    if iteration == 3 or netSize < GENE_LEVEL_SIZE:
+        return 3
+    elif iteration == 2 or netSize < LOCI_LEVEL_SIZE:
+        return 2
+    elif iteration == 1 or netSize < CHR_LEVEL_SIZE:
+        return 1
+    return 1
+        
+cactusCoreParameters = { 
+    0:{ "maximumEdgeDegree":50, "extensionSteps":400, "minimumTreeCoverage":0.5, "minimumTreeCoverageForAtoms":0.9, "minimumAtomLength":4, "minimumChainLength":8, "trim":4, "alignRepeats":False },
+    1:{ "maximumEdgeDegree":50, "extensionSteps":35000, "minimumTreeCoverage":0.7, "minimumTreeCoverageForAtoms":0.9, "minimumAtomLength":4, "minimumChainLength":8, "trim":20, "alignRepeats":False },
+    2:{ "maximumEdgeDegree":50, "extensionSteps":400, "minimumTreeCoverage":0.7, "minimumTreeCoverageForAtoms":0.7, "minimumAtomLength":0, "minimumChainLength":8, "trim":20, "alignRepeats":False },
+    3:{ "maximumEdgeDegree":50, "extensionSteps":20, "minimumTreeCoverage":0.5, "minimumTreeCoverageForAtoms":0.5, "minimumAtomLength":0, "minimumChainLength":8, "trim":4, "alignRepeats":False }
+    #4:{ "maximumEdgeDegree":50, "extensionSteps":5, "minimumTreeCoverage":0.0, "minimumTreeCoverageForAtoms":0.9, "minimumAtomLength":0, "minimumChainLength":0, "trim":0, "alignRepeats":False }
+}
+
+timeParameters = { 0:10000000, 1:10000000, 2:100, 3:20 }
+
+blastParameters = { 3:makeLowLevelBlastOptions, 2:makeMiddleLevelBlastOptions, 1:makeUpperMiddleLevelBlastOptions, 0:makeTopLevelBlastOptions }
 
 class CactusAlignerWrapper(Target):
     def __init__(self, job, options, netName, netSize, iteration):
@@ -136,7 +159,7 @@ class CactusAlignerWrapper(Target):
         self.netName = netName
         self.netSize = netSize
         self.iteration = int(iteration)
-        Target.__init__(self, job, None)
+        Target.__init__(self, job, None, timeParameters[iteration])
     
     def run(self, job):
         logger.info("Starting the cactus aligner target")
@@ -145,22 +168,7 @@ class CactusAlignerWrapper(Target):
         logger.info("Got an alignments file")
         
         #Now make the child aligner target
-        assert self.iteration <= 3
-        #if self.iteration == 4 or self.netSize < BASE_LEVEL_SIZE:
-        #    self.iteration = 4
-        #    blastOptions = makeBlastFromOptions(makeLowLevelBlastOptions())
-        if self.iteration == 3 or self.netSize < GENE_LEVEL_SIZE:
-            self.iteration = 3
-            blastOptions = makeBlastFromOptions(makeLowLevelBlastOptions())
-        elif self.iteration == 2 or self.netSize < LOCI_LEVEL_SIZE:
-            self.iteration = 2
-            blastOptions = makeBlastFromOptions(makeMiddleLevelBlastOptions())
-        elif self.iteration == 1 or self.netSize < CHR_LEVEL_SIZE:
-            self.iteration = 1
-            blastOptions = makeBlastFromOptions(makeUpperMiddleLevelBlastOptions())
-        else:
-            self.iteration = 0
-            blastOptions = makeBlastFromOptions(makeTopLevelBlastOptions())
+        blastOptions = makeBlastFromOptions(blastParameters[self.iteration]())
             
         self.addChildTarget(MakeSequences(job, self.options.netDisk, 
                                           self.netName, alignmentFile, blastOptions))
@@ -169,14 +177,6 @@ class CactusAlignerWrapper(Target):
         #Now setup a call to cactus core wrapper as a follow on
         CactusCoreWrapper(job, self, self.options, self.netName, self.netSize, alignmentFile, self.iteration)
         logger.info("Setup the follow on cactus_core target")
-        
-cactusCoreParameters = { 
-    0:{ "maximumEdgeDegree":50, "extensionSteps":400, "minimumTreeCoverage":0.5, "minimumAtomLength":4, "minimumChainLength":8, "trim":4, "alignRepeats":False },
-    1:{ "maximumEdgeDegree":50, "extensionSteps":20000, "minimumTreeCoverage":0.5, "minimumAtomLength":4, "minimumChainLength":8, "trim":4, "alignRepeats":False },
-    2:{ "maximumEdgeDegree":50, "extensionSteps":400, "minimumTreeCoverage":0.5, "minimumAtomLength":0, "minimumChainLength":8, "trim":4, "alignRepeats":False },
-    3:{ "maximumEdgeDegree":50, "extensionSteps":20, "minimumTreeCoverage":0.5, "minimumAtomLength":0, "minimumChainLength":8, "trim":4, "alignRepeats":False },
-    #4:{ "maximumEdgeDegree":50, "extensionSteps":5, "minimumTreeCoverage":0.0, "minimumAtomLength":0, "minimumChainLength":0, "trim":0, "alignRepeats":False }
-}
 
 class CactusCoreWrapper(Target):
     def __init__(self, job, previousTarget, options, netName, netSize, alignmentFile, iteration):
@@ -191,7 +191,11 @@ class CactusCoreWrapper(Target):
         logger.info("Starting the core wrapper target")
     
         coreParameters = cactusCoreParameters[self.iteration]
-            
+        
+        #system("rm -rf /Users/benedictpaten/Desktop/outDisk/*")
+        #system("cp %s/* /Users/benedictpaten/Desktop/outDisk/" % self.options.netDisk)
+        #self.options.netDisk = "/Users/benedictpaten/Desktop/outDisk"
+        
         runCactusCore(netDisk=self.options.netDisk, 
                       alignmentFile=self.alignmentFile, 
                       tempDir=job.attrib["local_temp_dir"], 
@@ -200,11 +204,17 @@ class CactusCoreWrapper(Target):
                       maximumEdgeDegree=coreParameters["maximumEdgeDegree"],
                       extensionSteps=coreParameters["extensionSteps"],
                       minimumTreeCoverage=coreParameters["minimumTreeCoverage"],
+                      minimumTreeCoverageForAtoms=coreParameters["minimumTreeCoverageForAtoms"],
                       minimumAtomLength=coreParameters["minimumAtomLength"],
                       minimumChainLength=coreParameters["minimumChainLength"],
                       trim=coreParameters["trim"],
                       alignRepeats=coreParameters["alignRepeats"])
         logger.info("Ran the cactus core program okay")
+        
+        #from cactus.cactus_common import runCactusTreeStats
+        #runCactusTreeStats(self.options.netDisk, "/Users/benedictpaten/Desktop/outputStats.xml")
+        #assert False
+        
         #Setup call to core and aligner recursive as follow on.
         CactusDownPass(job, self, self.options, self.netName, self.alignmentFile, self.iteration)
         logger.info("Issued a the recursive/cleanup wrapper as a follow on job")
@@ -224,10 +234,11 @@ class CactusDownPass(Target):
     def run(self, job):
         logger.info("Starting the cactus down pass (recursive) target")
         #Traverses leaf jobs and create aligner wrapper targets as children.
-        if self.iteration+1 <= 1:
+        if self.iteration+1 <= 3:
             for childNetName, childNetSize in getChildNets(self.options.netDisk, self.netName, job.attrib["local_temp_dir"]):
-                if childNetSize > 0: #Does not do any refinement if the net is completely specified.
-                    self.addChildTarget(CactusAlignerWrapper(job, self.options, childNetName, childNetSize, self.iteration+1))
+                nextIteration = getIteration(self.iteration+1, childNetSize)
+                if childNetSize > 30000: #Does not do any refinement if the net is completely specified.
+                    self.addChildTarget(CactusAlignerWrapper(job, self.options, childNetName, childNetSize, nextIteration))
             logger.info("Created child targets for all the recursive reconstruction jobs")
       
 def main():

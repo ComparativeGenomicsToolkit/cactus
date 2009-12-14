@@ -202,7 +202,7 @@ void removeOverAlignedEdges_P(struct PinchVertex *vertex, int32_t extensionSteps
 	destructGreyEdgeIterator(greyEdgeIterator);
 }
 
-void removeOverAlignedEdges(struct PinchGraph *pinchGraph, int32_t degree, int32_t extensionSteps, Net *net) {
+void removeOverAlignedEdges(struct PinchGraph *pinchGraph, float minimumTreeCoverage, int32_t maxDegree, int32_t extensionSteps, Net *net) {
 	/*
 	 * Method splits black edges from the graph with degree higher than a given number of sequences.
 	 */
@@ -218,30 +218,36 @@ void removeOverAlignedEdges(struct PinchGraph *pinchGraph, int32_t degree, int32
 	hash = create_hashtable(0, hashtable_key, hashtable_equalKey, NULL, free);
 	for(i=0; i<pinchGraph->vertices->length; i++) {
 		vertex = pinchGraph->vertices->list[i];
-		if(lengthBlackEdges(vertex) > degree && !isAStubOrCap(getFirstBlackEdge(vertex))) { //has a high degree and is not a stub/cap
-			vertex2 = getFirstBlackEdge(vertex)->to;
-			if(vertex->vertexID < vertex2->vertexID) {
-				hashtable_insert(hash, vertex, constructInt(0));
-				hashtable_insert(hash, vertex2, constructInt(0));
-				listAppend(list, vertex);
+		if(lengthBlackEdges(vertex) >= 1 &&
+			!isAStubOrCap(getFirstBlackEdge(vertex))) {
+			if (lengthBlackEdges(vertex) > maxDegree ||
+				treeCoverage(vertex, net, pinchGraph) < minimumTreeCoverage) { //has a high degree and is not a stub/cap
+				vertex2 = getFirstBlackEdge(vertex)->to;
+				if(vertex->vertexID < vertex2->vertexID) {
+					hashtable_insert(hash, vertex, constructInt(0));
+					hashtable_insert(hash, vertex2, constructInt(0));
+					listAppend(list, vertex);
+				}
 			}
 		}
 	}
 
-	logDebug("Got the initial list of over-aligned black edges to undo\n");
+	logDebug("Got the initial list of over-aligned black edges to undo, total: %i\n", list->length);
 
-	i = 0, k = 10;
-	while(list->length != i || k-- > 0) { //k term to ensure distances have been propagated
-		assert(list->length >= i);
-		i = list->length;
-		list2 = listCopy(list); //just use the vertices in the existing list
-		for(j=0; j<list2->length; j++) {
-			vertex = list2->list[j];
-			vertex2 = getFirstBlackEdge(vertex)->to;
-			removeOverAlignedEdges_P(vertex, extensionSteps, list, hash);
-			removeOverAlignedEdges_P(vertex2, extensionSteps, list, hash);
+	if(extensionSteps > 0) {
+		i = 0, k = 10;
+		while(list->length != i || k-- > 0) { //k term to ensure distances have been propagated
+			assert(list->length >= i);
+			i = list->length;
+			list2 = listCopy(list); //just use the vertices in the existing list
+			for(j=0; j<list2->length; j++) {
+				vertex = list2->list[j];
+				vertex2 = getFirstBlackEdge(vertex)->to;
+				removeOverAlignedEdges_P(vertex, extensionSteps, list, hash);
+				removeOverAlignedEdges_P(vertex2, extensionSteps, list, hash);
+			}
+			destructList(list2);
 		}
-		destructList(list2);
 	}
 
 	//now remove all single black edge connected vertices
@@ -255,7 +261,7 @@ void removeOverAlignedEdges(struct PinchGraph *pinchGraph, int32_t degree, int32
 	destructList(list);
 	list = list2;
 
-	logDebug("Got the list of black edges to undo!\n");
+	logDebug("Got the list of black edges to undo, total length: %i!\n", list->length);
 
 	list2 = constructEmptyList(0, NULL);
 	for(i=0; i<list->length; i++) {
@@ -471,4 +477,69 @@ void linkStubComponentsToTheSinkComponent(struct PinchGraph *pinchGraph) {
 
 	//clean up
 	destructList(components);
+}
+
+////////////////////////////////////////////////
+////////////////////////////////////////////////
+////////////////////////////////////////////////
+//Method for assessing how much of the event tree the
+//given set of connected pinch edges covers.
+////////////////////////////////////////////////
+////////////////////////////////////////////////
+////////////////////////////////////////////////
+
+
+float treeCoverage(struct PinchVertex *vertex, Net *net,
+		struct PinchGraph *pinchGraph) {
+	/*
+	 * Returns the proportion of the tree covered by the atom.
+	 */
+	struct Segment *segment;
+	EventTree *eventTree;
+	Event *event;
+	Event *commonAncestorEvent;
+	struct hashtable *hash;
+	float treeCoverage;
+
+#ifdef BEN_DEBUG
+	assert(lengthBlackEdges(vertex) > 0);
+	assert(!isAStubOrCap(getFirstBlackEdge(vertex)));
+#endif
+
+	eventTree = net_getEventTree(net);
+	commonAncestorEvent = NULL;
+	void *blackEdgeIterator = getBlackEdgeIterator(vertex);
+	struct PinchEdge *edge;
+	while((edge = getNextBlackEdge(vertex, blackEdgeIterator)) != NULL) {
+		segment = edge->segment;
+		event = sequence_getEvent(net_getSequence(net, segment->contig));
+		commonAncestorEvent = commonAncestorEvent == NULL ? event : eventTree_getCommonAncestor(event, commonAncestorEvent);
+	}
+	destructBlackEdgeIterator(blackEdgeIterator);
+
+
+	treeCoverage = 0.0;
+	hash = create_hashtable(eventTree_getEventNumber(eventTree)*2,
+					 hashtable_key, hashtable_equalKey,
+					 NULL, NULL);
+
+	blackEdgeIterator = getBlackEdgeIterator(vertex);
+	while((edge = getNextBlackEdge(vertex, blackEdgeIterator)) != NULL) {
+		segment = edge->segment;
+		event = sequence_getEvent(net_getSequence(net, segment->contig));
+		while(event != commonAncestorEvent && hashtable_search(hash, event) == NULL) {
+			treeCoverage += event_getBranchLength(event);
+			hashtable_insert(hash, event, event);
+			event = event_getParent(event);
+#ifdef BEN_DEBUG
+			assert(event != NULL);
+#endif
+		}
+	}
+	destructBlackEdgeIterator(blackEdgeIterator);
+	hashtable_destroy(hash, FALSE, FALSE);
+	treeCoverage /= event_getSubTreeBranchLength(eventTree_getRootEvent(eventTree));
+	assert(treeCoverage >= 0);
+	assert(treeCoverage <= 1.0001);
+	return treeCoverage;
 }

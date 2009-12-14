@@ -62,7 +62,7 @@ class TestCase(unittest.TestCase):
             blanchettePath = os.path.join(TestStatus.getPathToDataSets(), "blanchettesSimulation")
             
             newickTreeFile = os.path.join(blanchettePath, "tree.newick")
-            for region in xrange(0, 1):
+            for region in xrange(0, 2):
                 sequences = [ os.path.join(blanchettePath, 
                                                ("%.2i.job" % region), species) \
                                  for species in ("HUMAN", "CHIMP", "BABOON", "MOUSE", "RAT", "DOG", "CAT", "PIG", "COW") ] #Same order as tree
@@ -85,7 +85,7 @@ class TestCase(unittest.TestCase):
             encodeResultsPath = os.path.join(TestStatus.getPathToDataSets(), "cactus", "encodeRegionsTest")
             newickTreeFile = os.path.join(encodeDatasetPath, "reducedTree.newick")
             
-            for encodeRegion in [ "ENm00" + str(i) for i in xrange(1, 2) ]:
+            for encodeRegion in [ "ENm00" + str(i) for i in xrange(4, 5) ]:
                 sequences = [ os.path.join(encodeDatasetPath, encodeRegion, ("%s.%s.fa" % (species, encodeRegion))) for\
                              species in ("human", "chimp", "baboon", "mouse", "rat", "dog", "cow") ]
                 outputDir = os.path.join(encodeResultsPath, encodeRegion)
@@ -94,11 +94,11 @@ class TestCase(unittest.TestCase):
                             cactusTreeStatsFile=os.path.join(outputDir, "cactusTreeStats.xml"))
     
     def testCactusWorkflow_Chromosomes(self):
-        return 
         #Tests cactus_core on the alignment of 4 whole chromosome X's, human, chimp, mouse, dog.
         if TestStatus.getTestStatus() in (TestStatus.TEST_VERY_LONG,):
             chrXPath = os.path.join(TestStatus.getPathToDataSets(), "chr_x")
             chrXResultsPath = os.path.join(TestStatus.getPathToDataSets(), "cactus", "chrX")
+            #sequences = [ os.path.join(chrXPath, seqFile) for seqFile in ("hg18.fa", "mouse_chrX.fa") ]
             sequences = [ os.path.join(chrXPath, seqFile) for seqFile in ("hg18.fa", "panTro2.fa", "mouse_chrX.fa", "dog_chrX.fa") ]
             outputDir = chrXResultsPath
             newickTreeFile = os.path.join(chrXPath, "newickTree.txt")

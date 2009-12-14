@@ -42,7 +42,8 @@ void usage() {
 	fprintf(stderr, "-f --maxEdgeDegree : Maximum degree of aligned edges\n");
 	fprintf(stderr, "-g --writeDebugFiles : Write the debug files\n");
 	fprintf(stderr, "-h --help : Print this help screen\n");
-	fprintf(stderr, "-i --minimumTreeCoverage : Minimum tree coverage proportion of an atom to be included in the problem\n");
+	fprintf(stderr, "-i --minimumTreeCoverage : Minimum tree coverage proportion of an atom to be included in the graph\n");
+	fprintf(stderr, "-o --minimumTreeCoverageForAtoms : Minimum tree coverage for atoms, proportion of an atom to be included in the set of atoms at this level\n");
 	fprintf(stderr, "-j --minimumAtomLength : The minimum length of an atom required to be included in the problem\n");
 	fprintf(stderr, "-k --minimumChainLength : The minimum chain length required to be included in the problem\n");
 	fprintf(stderr, "-l --trim : The length of bases to remove from the end of each alignment\n");
@@ -173,10 +174,11 @@ int main(int argc, char *argv[]) {
 	char * netDiskName = NULL;
 	char * netName = NULL;
 	char * tempFileRootDirectory = NULL;
-	int32_t maxEdgeDegree = 50;
 	int32_t extensionSteps = 3;
+	int32_t maxEdgeDegree = 50;
 	bool writeDebugFiles = 0;
-	float minimumTreeCoverage = 0.7;
+	float minimumTreeCoverage = 0.5;
+	float minimumTreeCoverageForAtoms = 0.9;
 	int32_t minimumAtomLength = 4;
 	int32_t minimumChainLength = 12;
 	int32_t trim = 3;
@@ -198,6 +200,7 @@ int main(int argc, char *argv[]) {
 			{ "writeDebugFiles", no_argument, 0, 'g' },
 			{ "help", no_argument, 0, 'h' },
 			{ "minimumTreeCoverage", required_argument, 0, 'i' },
+			{ "minimumTreeCoverageForAtoms", required_argument, 0, 'o' },
 			{ "minimumAtomLength", required_argument, 0, 'j' },
 			{ "minimumChainLength", required_argument, 0, 'k' },
 			{ "trim", required_argument, 0, 'l' },
@@ -207,7 +210,7 @@ int main(int argc, char *argv[]) {
 
 		int option_index = 0;
 
-		key = getopt_long(argc, argv, "a:b:c:d:e:f:ghi:j:k:l:mn:", long_options, &option_index);
+		key = getopt_long(argc, argv, "a:b:c:d:e:f:ghi:j:k:l:mn:o:", long_options, &option_index);
 
 		if(key == -1) {
 			break;
@@ -256,6 +259,9 @@ int main(int argc, char *argv[]) {
 			case 'n':
 				assert(sscanf(optarg, "%i", &extensionSteps) == 1);
 				break;
+			case 'o':
+				assert(sscanf(optarg, "%f", &minimumTreeCoverageForAtoms) == 1);
+				break;
 			default:
 				usage();
 				return 1;
@@ -273,6 +279,7 @@ int main(int argc, char *argv[]) {
 	assert(tempFileRootDirectory != NULL);
 	assert(maxEdgeDegree > 0);
 	assert(minimumTreeCoverage >= 0.0);
+	assert(minimumTreeCoverageForAtoms >= 0.0);
 	assert(minimumAtomLength >= 0.0);
 	assert(minimumChainLength >= 0);
 
@@ -374,11 +381,22 @@ int main(int argc, char *argv[]) {
 	// (3) Removing over aligned stuff.
 	///////////////////////////////////////////////////////////////////////////
 
+	//calculate the optimum undo threshold.
+	//for steadily increasing extension threshold
+	//calculate edges to ignore.
+	//calculate edges to accept.. (does not include any ignored edges)..
+	//calculate grey edge adjacency components, ignoring the ignored edges..
+	//calculate sizes of adjacency components, record the largest.
+
+	//choose the extension threshold which reduces the size of the
+
 	startTime = time(NULL);
 	assert(maxEdgeDegree >= 1);
 	logInfo("Before removing over aligned edges the graph has %i vertices and %i black edges\n", pinchGraph->vertices->length, avl_count(pinchGraph->edges));
-	removeOverAlignedEdges(pinchGraph, maxEdgeDegree, extensionSteps, net);
+	removeOverAlignedEdges(pinchGraph, 0.0, maxEdgeDegree, extensionSteps, net);
 	logInfo("After removing over aligned edges (degree %i) the graph has %i vertices and %i black edges\n", maxEdgeDegree, pinchGraph->vertices->length, avl_count(pinchGraph->edges));
+	removeOverAlignedEdges(pinchGraph, minimumTreeCoverage, INT32_MAX, 0, net);
+	logInfo("After removing atoms with less than the minimum tree coverage (%f) the graph has %i vertices and %i black edges\n", minimumTreeCoverage, pinchGraph->vertices->length, avl_count(pinchGraph->edges));
 	removeTrivialGreyEdgeComponents(pinchGraph, pinchGraph->vertices);
 	logInfo("After removing the trivial graph components the graph has %i vertices and %i black edges\n", pinchGraph->vertices->length, avl_count(pinchGraph->edges));
 	checkPinchGraphDegree(pinchGraph, maxEdgeDegree);
@@ -468,7 +486,7 @@ int main(int argc, char *argv[]) {
 
 	startTime = time(NULL);
 	chosenAtoms = filterAtomsByTreeCoverageAndLength(biConnectedComponents,
-			net, minimumTreeCoverage, minimumAtomLength, minimumChainLength,
+			net, minimumTreeCoverageForAtoms, minimumAtomLength, minimumChainLength,
 			pinchGraph);
 	//now report the results
 	logTheChosenAtomSubset(biConnectedComponents, chosenAtoms, pinchGraph, net);

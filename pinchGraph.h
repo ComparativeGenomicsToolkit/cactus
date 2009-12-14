@@ -279,7 +279,7 @@ void writeOutPinchGraphWithChains(struct PinchGraph *pinchGraph,
 ////////////////////////////////////////////////
 ////////////////////////////////////////////////
 
-void removeOverAlignedEdges(struct PinchGraph *pinchGraph, int32_t degree, int32_t extensionSteps, Net *net);
+void removeOverAlignedEdges(struct PinchGraph *pinchGraph, float minimumTreeCoverage, int32_t maxDegree, int32_t extensionSteps, Net *net);
 
 struct List *getRecursiveComponents(struct PinchGraph *pinchGraph, int32_t (*excludedEdgesFn)(void *));
 
@@ -288,5 +288,9 @@ struct List *getRecursiveComponents2(struct PinchGraph *pinchGraph, struct List 
 void linkStubComponentsToTheSinkComponent(struct PinchGraph *pinchGraph);
 
 void removeTrivialGreyEdgeComponents(struct PinchGraph *graph, struct List *listOfVertices);
+
+float treeCoverage(struct PinchVertex *vertex, Net *net,
+		struct PinchGraph *pinchGraph);
+
 
 #endif

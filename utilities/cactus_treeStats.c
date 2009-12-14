@@ -45,6 +45,14 @@ double calculateTreeBits(Net *net, double pathBitScore) {
 }
 
 void tabulateFloatStats(struct List *unsortedValues, double *totalNumber, double *min, double *max, double *avg, double *median) {
+	if(unsortedValues->length == 0) {
+		*totalNumber = 0;
+		*min = INFINITY;
+		*max = INFINITY;
+		*avg = INFINITY;
+		*median = INFINITY;
+		return;
+	}
 	assert(unsortedValues->length > 0);
 	qsort(unsortedValues->list, unsortedValues->length, sizeof(void *), (int (*)(const void *, const void *))floatComparator);
 	*totalNumber = unsortedValues->length;
@@ -60,6 +68,14 @@ void tabulateFloatStats(struct List *unsortedValues, double *totalNumber, double
 }
 
 void tabulateStats(struct IntList *unsortedValues, double *totalNumber, double *min, double *max, double *avg, double *median) {
+	if(unsortedValues->length == 0) {
+		*totalNumber = 0;
+		*min = INFINITY;
+		*max = INFINITY;
+		*avg = INFINITY;
+		*median = INFINITY;
+		return;
+	}
 	assert(unsortedValues->length > 0);
 	qsort(unsortedValues->list, unsortedValues->length, sizeof(int32_t), (int (*)(const void *, const void *))intComparator_Int);
 	*totalNumber = unsortedValues->length;
@@ -170,11 +186,11 @@ void atomStats(Net *net,
 	tabulateStats(*coverage, totalAtomNumber, &f, maxCoverage, averageCoverage, medianCoverage);
 }
 
-void chainStatsP(Net *net, struct IntList *counts, struct IntList *lengths, struct IntList *baseLengths) {
+void chainStatsP(Net *net, struct IntList *counts, struct IntList *lengths, struct IntList *baseLengths, struct IntList *avgInstanceBaseLength) {
 	Net_AdjacencyComponentIterator *adjacencyComponentIterator = net_getAdjacencyComponentIterator(net);
 	AdjacencyComponent *adjacencyComponent;
 	while((adjacencyComponent = net_getNextAdjacencyComponent(adjacencyComponentIterator)) != NULL) {
-		chainStatsP(adjacencyComponent_getNestedNet(adjacencyComponent), counts, lengths, baseLengths);
+		chainStatsP(adjacencyComponent_getNestedNet(adjacencyComponent), counts, lengths, baseLengths, avgInstanceBaseLength);
 	}
 	net_destructAdjacencyComponentIterator(adjacencyComponentIterator);
 
@@ -190,25 +206,29 @@ void chainStatsP(Net *net, struct IntList *counts, struct IntList *lengths, stru
 		}
 		intListAppend(baseLengths, k);
 		intListAppend(lengths, chain_getLength(chain));
+		intListAppend(avgInstanceBaseLength, chain_getAverageInstanceBaseLength(chain));
 	}
 	net_destructAtomIterator(chainIterator);
 	intListAppend(counts, net_getChainNumber(net));
 }
 
 void chainStats(Net *net,
-		struct IntList **counts, struct IntList **lengths, struct IntList **degrees,
+		struct IntList **counts, struct IntList **lengths, struct IntList **degrees, struct IntList **avgInstanceBaseLength,
 		double *totalChainNumber,
 		double *maxNumberPerNet, double *averageNumberPerNet, double *medianNumberPerNet,
 		double *maxLength, double *averageLength, double *medianLength,
-		double *maxDegree, double *averageDegree, double *medianDegree) {
+		double *maxDegree, double *averageDegree, double *medianDegree,
+		double *maxInstanceLength, double *averageInstanceLength, double *medianInstanceLength) {
 	*counts = constructEmptyIntList(0);
 	*lengths = constructEmptyIntList(0);
 	*degrees = constructEmptyIntList(0);
-	chainStatsP(net, *counts, *lengths, *degrees);
+	*avgInstanceBaseLength = constructEmptyIntList(0);
+	chainStatsP(net, *counts, *lengths, *degrees, *avgInstanceBaseLength);
 	double f;
 	tabulateStats(*counts, &f, &f, maxNumberPerNet, averageNumberPerNet, medianNumberPerNet);
 	tabulateStats(*lengths, totalChainNumber, &f, maxLength, averageLength, medianLength);
 	tabulateStats(*degrees, totalChainNumber, &f, maxDegree, averageDegree, medianDegree);
+	tabulateStats(*avgInstanceBaseLength, totalChainNumber, &f, maxInstanceLength, averageInstanceLength, medianInstanceLength);
 }
 
 void endStatsP(Net *net, struct IntList *counts, struct IntList *degrees) {
@@ -500,6 +520,7 @@ int main(int argc, char *argv[]) {
 	double maxCoverage;
 	double averageCoverage;
 	double medianCoverage;
+
 	struct IntList *counts;
 	struct IntList *lengths;
 	struct IntList *degrees;
@@ -525,16 +546,23 @@ int main(int argc, char *argv[]) {
 	/*
 	 * Chain statistics.
 	 */
+	double maxInstanceLength;
+	double averageInstanceLength;
+	double medianInstanceLength;
+	struct IntList *avgInstanceBaseLength;
+
 	chainStats(net,
-				&counts, &lengths, &degrees,
+				&counts, &lengths, &degrees, &avgInstanceBaseLength,
 				&totalNumber, &maxNumberPerNet, &averageNumberPerNet, &medianNumberPerNet,
 				&maxLength, &averageLength, &medianLength,
-				&maxDegree, &averageDegree, &medianDegree);
-	fprintf(fileHandle, "<chains totalNumber=\"%f\" maxNumberPerNet=\"%f\" averageNumberPerNet=\"%f\" medianNumberPerNet=\"%f\" maxLength=\"%f\" averageLength=\"%f\" medianLength=\"%f\" maxBaseLength=\"%f\" averageBaseLength=\"%f\" medianBaseLength=\"%f\">",
-			totalNumber, maxNumberPerNet, averageNumberPerNet, medianNumberPerNet, maxLength, averageLength, medianLength, maxDegree, averageDegree, medianDegree);
+				&maxDegree, &averageDegree, &medianDegree,
+				&maxInstanceLength, &averageInstanceLength, &medianInstanceLength);
+	fprintf(fileHandle, "<chains totalNumber=\"%f\" maxNumberPerNet=\"%f\" averageNumberPerNet=\"%f\" medianNumberPerNet=\"%f\" maxLength=\"%f\" averageLength=\"%f\" medianLength=\"%f\" maxBaseLength=\"%f\" averageBaseLength=\"%f\" medianBaseLength=\"%f\" maxInstanceLength=\"%f\" averageInstanceLength=\"%f\" medianInstanceLength=\"%f\">",
+			totalNumber, maxNumberPerNet, averageNumberPerNet, medianNumberPerNet, maxLength, averageLength, medianLength, maxDegree, averageDegree, medianDegree, maxInstanceLength, averageInstanceLength, medianInstanceLength);
 	printIntValues(counts, "counts", fileHandle);
 	printIntValues(lengths, "lengths", fileHandle);
-	printIntValues(degrees, "degrees", fileHandle);
+	printIntValues(degrees, "baseLengths", fileHandle);
+	printIntValues(avgInstanceBaseLength, "avgInstanceLengths", fileHandle);
 	fprintf(fileHandle, "</chains>");
 	destructIntList(counts);
 	destructIntList(lengths);

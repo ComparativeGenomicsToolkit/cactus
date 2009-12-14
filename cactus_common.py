@@ -107,6 +107,7 @@ def runCactusCore(netDisk, alignmentFile, tempDir,
                   maximumEdgeDegree=None,
                   extensionSteps=None,
                   minimumTreeCoverage=None,
+                  minimumTreeCoverageForAtoms=None,
                   minimumAtomLength=None,
                   minimumChainLength=None,
                   trim=None,
@@ -130,6 +131,11 @@ def runCactusCore(netDisk, alignmentFile, tempDir,
         minimumTreeCoverage = "--minimumTreeCoverage %f" % minimumTreeCoverage
     else:
         minimumTreeCoverage = ""
+    
+    if minimumTreeCoverageForAtoms != None:
+        minimumTreeCoverageForAtoms = "--minimumTreeCoverageForAtoms %f" % minimumTreeCoverageForAtoms
+    else:
+        minimumTreeCoverageForAtoms = ""
         
     if minimumAtomLength != None:
         minimumAtomLength = "--minimumAtomLength %i" % minimumAtomLength
@@ -153,10 +159,10 @@ def runCactusCore(netDisk, alignmentFile, tempDir,
     
     command = "cactus_core --netDisk %s --netName %s --alignments %s \
 --tempDirRoot %s --logLevel %s \
-%s %s %s %s %s %s %s %s" % \
+%s %s %s %s %s %s %s %s %s" % \
     (netDisk, netName, alignmentFile, 
      tempDir, logLevel, writeDebugFiles,
-     maximumEdgeDegree, extensionSteps, minimumTreeCoverage, minimumAtomLength, minimumChainLength, trim, alignRepeats)
+     maximumEdgeDegree, extensionSteps, minimumTreeCoverage, minimumTreeCoverageForAtoms, minimumAtomLength, minimumChainLength, trim, alignRepeats)
     system(command)
     logger.info("Ran cactus_core okay")
     
@@ -219,6 +225,8 @@ def runCactusWorkflow(netDisk, sequenceFiles,
 --netDisk %s --job JOB_FILE" % \
             (" ".join(sequenceFiles), newickTreeString,
              netDisk)
+    #print "going to run the command:", command
+    #assert False
     runJobTree(command, jobTreeDir, logLevel, retryCount, batchSystem, rescueJobFrequency)
     logger.info("Ran the cactus workflow for %s okay" % netDisk)
     

@@ -1102,53 +1102,16 @@ void circulariseStems(struct CactusGraph *cactusGraph) {
 ////////////////////////////////////////////////
 ////////////////////////////////////////////////
 
-float treeCoverage(struct CactusEdge *cactusEdge, Net *net,
+
+float treeCoverage2(struct CactusEdge *cactusEdge, Net *net,
 		struct PinchGraph *pinchGraph) {
 	/*
 	 * Returns the proportion of the tree covered by the atom.
 	 */
-	int32_t i;
-	struct Segment *segment;
-	EventTree *eventTree;
-	Event *event;
-	Event *commonAncestorEvent;
-	struct hashtable *hash;
-	float treeCoverage;
-
 #ifdef BEN_DEBUG
 	assert(!isAStubOrCapCactusEdge(cactusEdge, pinchGraph));
 #endif
-
-	eventTree = net_getEventTree(net);
-	commonAncestorEvent = NULL;
-	for(i=0; i<cactusEdge->segments->length; i++) {
-		segment = cactusEdge->segments->list[i];
-		event = sequence_getEvent(net_getSequence(net, segment->contig));
-		commonAncestorEvent = commonAncestorEvent == NULL ? event : eventTree_getCommonAncestor(event, commonAncestorEvent);
-	}
-
-	treeCoverage = 0.0;
-	hash = create_hashtable(eventTree_getEventNumber(eventTree)*2,
-					 hashtable_key, hashtable_equalKey,
-					 NULL, NULL);
-
-	for(i=0; i<cactusEdge->segments->length; i++) {
-		segment = cactusEdge->segments->list[i];
-		event = sequence_getEvent(net_getSequence(net, segment->contig));
-		while(event != commonAncestorEvent && hashtable_search(hash, event) == NULL) {
-			treeCoverage += event_getBranchLength(event);
-			hashtable_insert(hash, event, event);
-			event = event_getParent(event);
-#ifdef BEN_DEBUG
-			assert(event != NULL);
-#endif
-		}
-	}
-	hashtable_destroy(hash, FALSE, FALSE);
-	treeCoverage /= event_getSubTreeBranchLength(eventTree_getRootEvent(eventTree));
-	assert(treeCoverage >= 0);
-	assert(treeCoverage <= 1.0001);
-	return treeCoverage;
+	return treeCoverage(cactusEdgeToFirstPinchEdge(cactusEdge, pinchGraph)->from, net, pinchGraph);
 }
 
 int32_t chainLength(struct List *biConnectedComponent, int32_t includeStubs, struct PinchGraph *pinchGraph) {
@@ -1216,7 +1179,7 @@ struct List *filterAtomsByTreeCoverageAndLength(struct List *biConnectedComponen
 				if(!isAStubOrCapCactusEdge(cactusEdge, pinchGraph)) {
 					assert(cactusEdge->segments->length > 0);
 					struct Segment *segment = cactusEdge->segments->list[0];
-					if(treeCoverage(cactusEdge, net, pinchGraph) >= minimumTreeCoverage &&
+					if(treeCoverage2(cactusEdge, net, pinchGraph) >= minimumTreeCoverage &&
 					   (segment->end - segment->start + 1) >= minimumAtomLength) {
 						listAppend(chosenAtoms, cactusEdge);
 					}
@@ -1262,7 +1225,7 @@ void logTheChosenAtomSubset(struct List *biConnectedComponents, struct List *cho
 	for(i=0; i<chosenAtoms->length; i++) {
 		cactusEdge = chosenAtoms->list[i];
 		if(!isAStubOrCapCactusEdge(cactusEdge, pinchGraph)) {
-			totalAtomScore += treeCoverage(cactusEdge, net, pinchGraph);
+			totalAtomScore += treeCoverage2(cactusEdge, net, pinchGraph);
 			segment = cactusEdge->segments->list[0];
 			totalAtomLength += segment->end - segment->start + 1;
 			averageSegmentNumber += cactusEdge->segments->length;
