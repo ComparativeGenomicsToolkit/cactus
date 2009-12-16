@@ -16,6 +16,7 @@
 #include "pairwiseAlignment.h"
 #include "cactusNetFunctions.h"
 
+
 void writePinchGraph(char *name, struct PinchGraph *pinchGraph,
 						struct List *biConnectedComponents, struct List *adjacencyComponents) {
 	FILE *fileHandle;
