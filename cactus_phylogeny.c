@@ -592,6 +592,14 @@ int chainAlignment_cmpFn(ChainAlignment **cA1, ChainAlignment **cA2) {
 	return (*cA2)->totalAlignmentLength - (*cA1)->totalAlignmentLength;
 }
 
+static int32_t oComparator(const void *o1, const void *o2, void *a) {
+	/*
+	 * Compares the objects by there address.
+	 */
+	assert(a == NULL);
+	return o1 > o2 ? 1 : o1 < o2 ? -1 : 0;
+}
+
 ChainAlignment *chainAlignment_construct(Atom **atoms, int32_t atomsLength) {
 	/*
 	 * Constructs a chain alignment structure from a chain of atoms.
@@ -605,7 +613,7 @@ ChainAlignment *chainAlignment_construct(Atom **atoms, int32_t atomsLength) {
 	struct hashtable *hash;
 	struct List *list;
 	struct List *list2;
-	struct avl_table *avlTable = avl_create(NULL, NULL, NULL);
+	struct avl_table *avlTable = avl_create(oComparator, NULL, NULL);
 	avl_destroy(avlTable, NULL);
 
 	/*

@@ -233,7 +233,7 @@ struct PinchVertex *mergeVertices(struct PinchGraph *graph, struct PinchVertex *
 ////////////////////////////////////////////////
 ////////////////////////////////////////////////
 
-int32_t oComparator(const void *o1, const void *o2, void *a) {
+static int32_t oComparator(const void *o1, const void *o2, void *a) {
 	/*
 	 * Compares the objects by there address.
 	 */
