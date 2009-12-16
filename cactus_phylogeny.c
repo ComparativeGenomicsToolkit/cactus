@@ -605,7 +605,8 @@ ChainAlignment *chainAlignment_construct(Atom **atoms, int32_t atomsLength) {
 	struct hashtable *hash;
 	struct List *list;
 	struct List *list2;
-	struct avl_table *avlTable;
+	struct avl_table *avlTable = avl_create(NULL, NULL, NULL);
+	avl_destroy(avlTable, NULL);
 
 	/*
 	 * First iterate through all the atom instances in the chain, in order, to construct instances of the chain.
