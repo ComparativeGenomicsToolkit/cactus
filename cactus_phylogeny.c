@@ -8,7 +8,6 @@
 #include <getopt.h>
 
 #include "cactus.h"
-#include "avl.h"
 #include "commonC.h"
 #include "hashTableC.h"
 #include "bioioC.h"

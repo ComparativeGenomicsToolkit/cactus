@@ -17,6 +17,16 @@
  * The checks are not comprehensive, just what I've bothered to check.
  */
 
+
+//Check for internal instances and trees, call this flag checkTrees
+//Check internal instances adjacencies, call this flag checkInternalAdjacencies
+//Stage 1, both checkTrees and checkInternalAdjacencies are false.
+//Stage 2, checkTrees is true, checkInternalAdjacencies is false.
+//Stage 3, checkTrees is true, checkInternalAdjacencies is true.
+
+int32_t CHECK_TREES = 0;
+int32_t CHECK_INTERNAL_ADJACENCIES = 0;
+
 void checkNetsRecursively(Net *net, Net *parentNet);
 
 void callCheckNetsRecursively(Net *net) {
@@ -99,6 +109,7 @@ void checkEnds(Net *net) {
 	 */
 	Net_EndIterator *endIterator = net_getEndIterator(net);
 	End *end;
+	int32_t i, j;
 	while((end = net_getNextEnd(endIterator)) != NULL) {
 		/*
 		 * Check end is part of an adjacency component
@@ -125,7 +136,7 @@ void checkEnds(Net *net) {
 		}
 
 		End_InstanceIterator *instanceIterator = end_getInstanceIterator(end);
-		EndInstance *endInstance;
+		EndInstance *endInstance, *endInstance2;
 		while((endInstance = end_getNext(instanceIterator)) != NULL) {
 			/*
 			 * Check the end instance is connected.
@@ -133,9 +144,45 @@ void checkEnds(Net *net) {
 			assert(endInstance_getEnd(endInstance) == end);
 
 			/*
+			 * Check end trees.
+			 */
+			if(CHECK_TREES) {
+				//check is labelled with an event.
+				assert(endInstance_getEvent(endInstance) != NULL);
+
+				endInstance2 = endInstance_getParent(endInstance);
+				if(endInstance2 == NULL) { //must be the root.
+					assert(end_getRootInstance(end) != NULL);
+					assert(endInstance == end_getRootInstance(end));
+					//assert(endInstance_getEvent(endInstance) == eventTree_getRootEvent(net_getEventTree(net))); //checks root is aligned with the root.
+				}
+				else {
+					//check parent and child are properly connected.
+					j = 0;
+					for(i=0; i<endInstance_getChildNumber(endInstance2); i++) {
+						if(endInstance_getChild(endInstance2, i) == endInstance) {
+							assert(!j);
+							j = 1;
+						}
+					}
+					assert(j);
+
+					//check parent event is ancestral.
+					assert(event_isAncestor(endInstance_getEvent(endInstance), endInstance_getEvent(endInstance2)));
+				}
+			}
+
+			/*
+			 * Skip checking internal instances if needed.
+			 */
+			if(endInstance_isInternal(endInstance) && !CHECK_INTERNAL_ADJACENCIES) {
+				continue;
+			}
+
+			/*
 			 * Check the required adjacency (1) between the end instances.
 			 */
-			EndInstance *endInstance2 = endInstance_getAdjacency(endInstance);
+			endInstance2 = endInstance_getAdjacency(endInstance);
 			assert(endInstance2 != NULL);
 			assert(endInstance_getAdjacency(endInstance2) == endInstance);
 			assert(endInstance_getEvent(endInstance) == endInstance_getEvent(endInstance2));
@@ -219,8 +266,31 @@ void checkAtoms(Net *net) {
 
 void checkEvents(Net *net) {
 	/*
-	 * Checks all the events.
+	 * Checks all the events in the event tree, checks we have one root, and that
+	 * all other events properly have a parent and are linked.
 	 */
+	EventTree *eventTree = net_getEventTree(net);
+	Event *event;
+	EventTree_Iterator *iterator = eventTree_getIterator(eventTree);
+	while((event = eventTree_getNext(iterator)) != NULL) {
+		Event *event2 = event_getParent(event);
+		if(event2 == NULL) { //is the root event.
+			assert(eventTree_getRootEvent(eventTree) == event);
+		}
+		else {
+			assert(event_isAncestor(event, event2));
+			int32_t i, j;
+			j = 0;
+			for(i=0; i<event_getChildNumber(event2); i++) {
+				if(event_getChild(event2, i) == event) {
+					assert(!j);
+					j = 1;
+				}
+			}
+			assert(j);
+		}
+	}
+	eventTree_destructIterator(iterator);
 }
 
 void checkNetsRecursively(Net *net, Net *parentNet) {
@@ -240,6 +310,8 @@ void usage() {
 	fprintf(stderr, "-a --logLevel : Set the log level\n");
 	fprintf(stderr, "-c --netDisk : The location of the net disk directory\n");
 	fprintf(stderr, "-d --netName : The name of the net (the key in the database)\n");
+	fprintf(stderr, "-e --checkTrees : Check that each end and atom has a tree structure which is reconcilable with the event tree\n");
+	fprintf(stderr, "-f --checkInternalAdjacencies : Checks that internal instances have adjacencies and that the operation structures which describe changes are correct\n");
 	fprintf(stderr, "-h --help : Print this help screen\n");
 }
 
@@ -263,13 +335,15 @@ int main(int argc, char *argv[]) {
 			{ "logLevel", required_argument, 0, 'a' },
 			{ "netDisk", required_argument, 0, 'c' },
 			{ "netName", required_argument, 0, 'd' },
+			{ "checkTrees", no_argument, 0, 'e' },
+			{ "checkInternalAdjacencies", no_argument, 0, 'f' },
 			{ "help", no_argument, 0, 'h' },
 			{ 0, 0, 0, 0 }
 		};
 
 		int option_index = 0;
 
-		int key = getopt_long(argc, argv, "a:c:d:h", long_options, &option_index);
+		int key = getopt_long(argc, argv, "a:c:d:efh", long_options, &option_index);
 
 		if(key == -1) {
 			break;
@@ -284,6 +358,12 @@ int main(int argc, char *argv[]) {
 				break;
 			case 'd':
 				netName = stringCopy(optarg);
+				break;
+			case 'e':
+				CHECK_TREES = !CHECK_TREES;
+				break;
+			case 'f':
+				CHECK_INTERNAL_ADJACENCIES = !CHECK_INTERNAL_ADJACENCIES;
 				break;
 			case 'h':
 				usage();

@@ -195,9 +195,20 @@ def runCactusTreeViewer(graphFile,
 
 def runCactusCheck(netDisk, 
                     netName="0", 
-                    logLevel="DEBUG"):
-    system("cactus_check --netDisk %s --netName %s --logLevel %s" \
-                    % (netDisk, netName, logLevel))
+                    logLevel="DEBUG",
+                    checkTrees=False,
+                    checkInternalAdjacencies=False):
+    if checkTrees:
+        checkTrees = "--checkTrees"
+    else:
+        checkTrees = ""
+    
+    if checkInternalAdjacencies:
+        checkInternalAdjacencies = "--checkInternalAdjacencies"
+    else:
+        checkInternalAdjacencies = ""
+    system("cactus_check --netDisk %s --netName %s --logLevel %s %s %s" \
+                    % (netDisk, netName, logLevel, checkTrees, checkInternalAdjacencies))
     logger.info("Ran cactus check")
     
 def runCactusAtomGraphViewer(graphFile,
