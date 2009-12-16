@@ -13,7 +13,7 @@ ${binPath}/cactus_core : *.c *.h ${libPath}/sonLib.a ${libPath}/cactusLib.a
 	${cxx} ${cflags} -I ${libPath} -o ${binPath}/cactus_core cactus_core.c pinchGraph.c pinchGraphTest.c pinchGraphManipulation.c cactusGraph.c cactusNetFunctions.c ${libPath}/sonLib.a ${libPath}/cactusLib.a ${tokyoCabinetLib}
 
 ${binPath}/cactus_phylogeny : *.c *.h ${libPath}/sonLib.a ${libPath}/cactusLib.a
-	${cxx} ${cflags} -I ${libPath} -o ${binPath}/cactus_phylogeny cactus_phylogeny.c  ${libPath}/sonLib.a ${libPath}/cactusLib.a ${tokyoCabinetLib}
+	${cxx} ${cflags} -I ${libPath} -o ${binPath}/cactus_phylogeny cactus_phylogeny.c ${libPath}/sonLib.a ${libPath}/cactusLib.a ${tokyoCabinetLib}
 
 ${binPath}/cactus_setup : cactus_setup.c ${libPath}/sonLib.a ${libPath}/cactusLib.a
 	${cxx} ${cflags} -I ${libPath} -o ${binPath}/cactus_setup cactus_setup.c ${libPath}/cactusLib.a ${libPath}/sonLib.a ${tokyoCabinetLib}
