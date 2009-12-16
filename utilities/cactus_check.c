@@ -154,7 +154,7 @@ void checkEnds(Net *net) {
 				if(endInstance2 == NULL) { //must be the root.
 					assert(end_getRootInstance(end) != NULL);
 					assert(endInstance == end_getRootInstance(end));
-					//assert(endInstance_getEvent(endInstance) == eventTree_getRootEvent(net_getEventTree(net))); //checks root is aligned with the root.
+					assert(endInstance_getEvent(endInstance) == eventTree_getRootEvent(net_getEventTree(net))); //checks root is aligned with the root.
 				}
 				else {
 					//check parent and child are properly connected.

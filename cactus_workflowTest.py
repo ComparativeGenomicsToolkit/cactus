@@ -131,7 +131,7 @@ def runWorkflow(sequences, newickTreeFile, outputDir, tempDir,
     runJobTreeStatusAndFailIfNotComplete(jobTreeDir)
     logger.info("Checked the job tree dir")
     
-    runCactusCheck(netDisk)
+    runCactusCheck(netDisk, checkTrees=True)
     logger.info("Checked the cactus tree")
     
     if cactusTreeGraphFile != None:

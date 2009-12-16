@@ -888,7 +888,11 @@ int main(int argc, char *argv[]) {
 			while((end = net_getNextEnd(endIterator)) != NULL) {
 				if(end_isStub(end)) {
 					assert(end_getInstanceNumber(end) == 1);
-					end_setRootInstance(end, end_getFirst(end));
+					Event *rootEvent = eventTree_getRootEvent(net_getEventTree(net));
+					EndInstance *rootEndInstance = endInstance_construct(end, rootEvent);
+					assert(event_isAncestor(endInstance_getEvent(end_getFirst(end)), rootEvent));
+					endInstance_makeParentAndChild(rootEndInstance, end_getFirst(end));
+					end_setRootInstance(end, rootEndInstance);
 				}
 				else {
 					assert(!end_isCap(end));
