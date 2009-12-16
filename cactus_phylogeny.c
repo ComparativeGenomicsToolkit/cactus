@@ -745,7 +745,7 @@ Event *copyConstructUnaryEvent(Event *event, EventTree *eventTree2) {
 	} //at this point the child event is present in both event trees.
 	childEvent = eventTree_getEvent(eventTree2, event_getName(childEvent)); //get the child event.
 	assert(childEvent != NULL);
-	assert(event_getBranchLength(childEvent) > branchLength);
+	//assert(event_getBranchLength(childEvent) >= branchLength);
 
 	return event_construct2(event_getMetaEvent(event), branchLength, parentEvent, childEvent, eventTree2);
 }
