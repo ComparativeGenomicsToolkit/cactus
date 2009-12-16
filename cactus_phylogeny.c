@@ -7,10 +7,11 @@
 #include <time.h>
 #include <getopt.h>
 
-#include "cactus.h"
-#include "commonC.h"
 #include "hashTableC.h"
 #include "bioioC.h"
+#include "commonC.h"
+#include "cactus.h"
+#include "avl.h"
 
 #define closeEnough 0.001
 
@@ -604,6 +605,7 @@ ChainAlignment *chainAlignment_construct(Atom **atoms, int32_t atomsLength) {
 	struct hashtable *hash;
 	struct List *list;
 	struct List *list2;
+	struct avl_table *avlTable;
 
 	/*
 	 * First iterate through all the atom instances in the chain, in order, to construct instances of the chain.
