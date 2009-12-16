@@ -234,3 +234,29 @@ def runCactusTreeStats(netDisk, outputFile, netName='0'):
     command = "cactus_treeStats --netDisk %s --netName %s --outputFile %s" % (netDisk, netName, outputFile)
     system(command)
     logger.info("Ran the cactus tree stats command apprently okay")
+
+def runCactusGetNets(netDisk, netName, tempDir, includeInternalNodes=False, recursive=True):
+    """Gets a list of nets attached to the given net. If the net has no children,
+    as is therefore a leaf, it will also be returned. If includeInternalNodes is true
+    the nodes will include the internal nodes, including the first node.
+    
+    The net names are returned in a list of tuples with the size (in terms of total bases pairs 
+    of sequence contained within the net).
+    
+    If recursive is switched off, it only includes the immediate children of the given node.
+    
+    The order of the nets is by ascending depth first discovery time.
+    """
+    netNamesFile = getTempFile(".txt", tempDir)
+    system("cactus_workflow_getNets %s %s %s %i %i" % (netDisk, netName, netNamesFile, int(includeInternalNodes), int(recursive)))
+    fileHandle = open(netNamesFile, 'r')
+    line = fileHandle.readline()
+    l = []
+    while line != '':
+        childNetName = line.split()[0]
+        childNetSize = float(line.split()[1])
+        l.append((childNetName, childNetSize))
+        line = fileHandle.readline()
+    fileHandle.close()
+    os.remove(netNamesFile)
+    return l

@@ -585,12 +585,11 @@ void buildChainTrees(ChainAlignment **chainAlignments, int32_t chainAlignmentNum
 	//done!
 }
 
-int32_t chainAlignment_cmpFn(ChainAlignment *cA1, ChainAlignment *cA2, const void *a) {
+int chainAlignment_cmpFn(ChainAlignment **cA1, ChainAlignment **cA2) {
 	/*
 	 * Compares chain alignments by their total base pair alignment length, sorting them in descending order.
 	 */
-	assert(a == NULL);
-	return cA2->totalAlignmentLength - cA1->totalAlignmentLength;
+	return (*cA2)->totalAlignmentLength - (*cA1)->totalAlignmentLength;
 }
 
 ChainAlignment *chainAlignment_construct(Atom **atoms, int32_t atomsLength) {
@@ -770,14 +769,16 @@ int main(int argc, char *argv[]) {
 	int32_t i, j;
 	Chain *chain;
 	Atom *atom;
-	struct avl_table *sortedChainAlignments;
-	ChainAlignment *chainAlignment;
-	struct List *list;
+	struct List *sortedChainAlignments;
 	AdjacencyComponent *adjacencyComponent;
 	Net *net2;
 	End *end;
 	End *end2;
 	EndInstance *endInstance;
+	EndInstance *endInstance2;
+	EndInstance *endInstance3;
+	Event *event;
+	Net_EndIterator *endIterator;
 
 	/*
 	 * Arguments/options
@@ -875,16 +876,47 @@ int main(int argc, char *argv[]) {
 		logInfo("Parsed the net to be refined\n");
 
 		///////////////////////////////////////////////////////////////////////////
+		//Setups the 'trees' for the caps for the top level problem.
+		//In other words, it ensure ends from stubs have there root instance set - only needs doing for
+		//the top level net, after which the stub roots will be set recursively.
+		///////////////////////////////////////////////////////////////////////////
+
+		if(net_getName(net) == 0) {
+			endIterator = net_getEndIterator(net);
+			while((end = net_getNextEnd(endIterator)) != NULL) {
+				if(end_isStub(end)) {
+					assert(end_getInstanceNumber(end) == 1);
+					end_setRootInstance(end, end_getFirst(end));
+				}
+				else {
+					assert(!end_isCap(end));
+					assert(end_isAtomEnd(end));
+				}
+			}
+			net_destructEndIterator(endIterator);
+		}
+
+#ifdef BEN_DEBUG
+		endIterator = net_getEndIterator(net);
+		while((end = net_getNextEnd(endIterator)) != NULL) {
+			if(!end_isAtomEnd(end)) {
+				assert(end_getRootInstance(end) != NULL);
+			}
+		}
+		net_destructEndIterator(endIterator);
+#endif
+
+		///////////////////////////////////////////////////////////////////////////
 		//Construct the chain alignments for all the non-trivial chains.
 		///////////////////////////////////////////////////////////////////////////
 
 		startTime = time(NULL);
-		sortedChainAlignments = avl_create((int32_t (*)(const void *, const void *, void *))chainAlignment_cmpFn, NULL, NULL);
+		sortedChainAlignments = constructEmptyList(0, (void (*)(void *))chainAlignment_destruct);
 		Net_ChainIterator *chainIterator = net_getChainIterator(net);
 		while((chain = net_getNextChain(chainIterator)) != NULL) {
 			Atom **atomChain = chain_getAtomChain(chain, &i);
 			if(i > 0) {
-				avl_insert(sortedChainAlignments, chainAlignment_construct(atomChain, i));
+				listAppend(sortedChainAlignments, chainAlignment_construct(atomChain, i));
 			}
 			free(atomChain);
 		}
@@ -892,17 +924,25 @@ int main(int argc, char *argv[]) {
 		logInfo("Constructed the atom trees for the non-trivial chains in the net in: %i seconds\n", time(NULL) - startTime);
 
 		///////////////////////////////////////////////////////////////////////////
-		//For each lone atom call the tree construction function.
+		//Construct the chain alignment for each trivial chain.
 		///////////////////////////////////////////////////////////////////////////
 
 		startTime = time(NULL);
 		Net_AtomIterator *atomIterator = net_getAtomIterator(net);
 		while((atom = net_getNextAtom(atomIterator)) != NULL) {
 			if(atom_getChain(atom) == NULL) {
-				avl_insert(sortedChainAlignments, chainAlignment_construct(&atom, 1));
+				listAppend(sortedChainAlignments, chainAlignment_construct(&atom, 1));
 			}
 		}
 		net_destructAtomIterator(atomIterator);
+
+		qsort(sortedChainAlignments->list, sortedChainAlignments->length, sizeof(void *), (int (*)(const void *, const void *))chainAlignment_cmpFn);
+#ifdef BEN_DEBUG
+		for(i=1; i<sortedChainAlignments->length; i++) {
+			assert(((ChainAlignment *)sortedChainAlignments->list[i-1])->totalAlignmentLength >=
+					((ChainAlignment *)sortedChainAlignments->list[i])->totalAlignmentLength);
+		}
+#endif
 
 		logInfo("Constructed the atom trees for the trivial chains in the net in: %i seconds\n", time(NULL) - startTime);
 
@@ -911,25 +951,24 @@ int main(int argc, char *argv[]) {
 		///////////////////////////////////////////////////////////////////////////
 
 		startTime = time(NULL);
-		struct avl_traverser *chainAlignmentIterator = mallocLocal(sizeof(struct avl_traverser));
-		avl_t_init(chainAlignmentIterator, sortedChainAlignments);
-		list = constructEmptyList(0, NULL);
-		i = INT32_MAX;
-		while((chainAlignment = avl_t_next(chainAlignmentIterator)) != NULL) {
-			assert(chainAlignment->totalAlignmentLength <= i);
-			i = chainAlignment->totalAlignmentLength;
-			listAppend(list, chainAlignment);
-		}
-		buildChainTrees((ChainAlignment **)list->list, list->length, net_getEventTree(net), tempFileRootDirectory);
-		destructList(list);
+		buildChainTrees((ChainAlignment **)sortedChainAlignments->list, sortedChainAlignments->length, net_getEventTree(net), tempFileRootDirectory);
+		destructList(sortedChainAlignments);
 
 		logInfo("Augmented the atom trees in: %i seconds\n", time(NULL) - startTime);
+
+#ifdef BEN_DEBUG
+		endIterator = net_getEndIterator(net);
+		while((end = net_getNextEnd(endIterator)) != NULL) {
+			assert(end_getRootInstance(end) != NULL);
+		}
+		net_destructEndIterator(endIterator);
+#endif
 
 		///////////////////////////////////////////////////////////////////////////
 		//Pass the end trees and augmented events to the child nets.
 		///////////////////////////////////////////////////////////////////////////
 
-		/*startTime = time(NULL);
+		startTime = time(NULL);
 		Net_AdjacencyComponentIterator *adjacencyComponentIterator = net_getAdjacencyComponentIterator(net);
 		while((adjacencyComponent = net_getNextAdjacencyComponent(adjacencyComponentIterator)) != NULL) {
 			net2 = adjacencyComponent_getNestedNet(adjacencyComponent);
@@ -937,30 +976,47 @@ int main(int argc, char *argv[]) {
 			AdjacencyComponent_EndIterator *endIterator = adjacencyComponent_getEndIterator(adjacencyComponent);
 			while((end = adjacencyComponent_getNextEnd(endIterator)) != NULL) {
 				end2 = net_getEnd(net2, end_getName(end));
+				assert(end2 != NULL);
 				//copy the end instances.
 				End_InstanceIterator *instanceIterator = end_getInstanceIterator(end);
 				while((endInstance = end_getNext(instanceIterator)) != NULL) {
 					if(end_getInstance(end2, endInstance_getName(endInstance)) == NULL) {
+						assert(endInstance_getChildNumber(endInstance) > 0); //can not be a leaf
 						//make sure the augmented event is in there.
-						if(eventTree_getEvent(net_getEventTree(net2), event_getName(endInstance_getEvent(endInstance))) == NULL) {
-							copyConstructUnaryEvent(endInstance_getEvent(endInstance), net_getEventTree(net2));
+						event = endInstance_getEvent(endInstance);
+						if(eventTree_getEvent(net_getEventTree(net2), event_getName(event)) == NULL) {
+							assert(event_getChildNumber(event) == 1); //must be a unary event
+							copyConstructUnaryEvent(event, net_getEventTree(net2));
 						}
-						endInstance_construct(end, endInstance_getEvent(endInstance));
+						event = eventTree_getEvent(net_getEventTree(net2), event_getName(event));
+						assert(event != NULL);
+						endInstance_copyConstruct(end2, endInstance);
 					}
 				}
 				//now copy the parent links.
 				while((endInstance = end_getPrevious(instanceIterator)) != NULL) {
+					endInstance2 = end_getInstance(end2, endInstance_getName(endInstance));
+					assert(endInstance2 != NULL);
 					if(endInstance_getParent(endInstance) != NULL) {
+						endInstance3 = end_getInstance(end2, endInstance_getName(endInstance_getParent(endInstance)));
+						assert(endInstance3 != NULL);
 						endInstance_makeParentAndChild(
-								end_getInstance(end2, endInstance_getName(endInstance_getParent(endInstance))),
-								end_getInstance(end2, endInstance_getName(endInstance)));
+								endInstance3,
+								endInstance2);
+					}
+					else {
+						assert(end_getRootInstance(end) != NULL);
+						assert(endInstance == end_getRootInstance(end));
+
+						assert(end_getRootInstance(end2) == NULL);
+						end_setRootInstance(end2, endInstance2);
 					}
 				}
 				end_destructInstanceIterator(instanceIterator);
 			}
 			adjacencyComponent_destructEndIterator(endIterator);
 		}
-		net_destructAdjacencyComponentIterator(adjacencyComponentIterator);*/
+		net_destructAdjacencyComponentIterator(adjacencyComponentIterator);
 
 		logInfo("Filled in end trees and augmented the event trees for the child nets in: %i seconds\n", time(NULL) - startTime);
 	}

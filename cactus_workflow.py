@@ -29,6 +29,8 @@ from workflow.jobTree.scriptTree.target import Target
 
 from cactus.cactus_common import runCactusSetup
 from cactus.cactus_common import runCactusCore
+from cactus.cactus_common import runCactusGetNets
+from cactus.cactus_common import runCactusPhylogeny
 
 from cactus.cactus_aligner import MakeSequences
 
@@ -57,7 +59,7 @@ class SetupPhase(Target):
         #Make the child setup job.
         self.addChildTarget(CactusSetupWrapper(job, self.options, self.sequences))
         #initialise the down pass as the follow on..
-        DownPassPhase(job, self, '0', self.options)
+        AlignmentPhase(job, self, '0', self.options)
         logger.info("Created child target cactus_setup job, and follow on down pass job")
 
 class CactusSetupWrapper(Target):
@@ -76,36 +78,14 @@ class CactusSetupWrapper(Target):
 ############################################################
 ############################################################
 ############################################################
-#The down-pass phase.
+#The alignment phase.
 #
-#Creates the reconstruction structure with atoms + trees
-#in a downward sweep.
+#Creates the reconstruction structure with atoms
 ############################################################
 ############################################################
 ############################################################
-
-def getChildNets(netDisk, netName, tempDir):
-    """Gets a list of leaf nets attached to the given net. If the net has no children,
-    as is therefore a leaf, it will also be returned. 
     
-    The net names are returned in a list of tuples with the size (in terms of total bases pairs 
-    of sequence contained within the net).
-    """
-    netNamesFile = getTempFile(".txt", tempDir)
-    system("cactus_workflow_getNets %s %s %s" % (netDisk, netName, netNamesFile))
-    fileHandle = open(netNamesFile, 'r')
-    line = fileHandle.readline()
-    l = []
-    while line != '':
-        childNetName = line.split()[0]
-        childNetSize = float(line.split()[1])
-        l.append((childNetName, childNetSize))
-        line = fileHandle.readline()
-    fileHandle.close()
-    os.remove(netNamesFile)
-    return l
-    
-class DownPassPhase(Target):
+class AlignmentPhase(Target):
     def __init__(self, job, previousTarget, netName, options):
         self.netName = netName
         self.options = options
@@ -115,7 +95,7 @@ class DownPassPhase(Target):
         logger.info("Starting the down pass target")
         #Setup call to cactus aligner wrapper as child
         #Calculate the size of the child.
-        l = getChildNets(self.options.netDisk, self.netName, job.attrib["local_temp_dir"])
+        l = runCactusGetNets(self.options.netDisk, self.netName, job.attrib["local_temp_dir"])
         assert(len(l) == 1)
         assert(l[0][0] == self.netName)
         assert(l[0][1] >= 0)
@@ -123,8 +103,8 @@ class DownPassPhase(Target):
         childTarget = CactusAlignerWrapper(job, self.options, self.netName, netSize, 
                                            getIteration(0, netSize))
         self.addChildTarget(childTarget)
-        #UpPassPhase(job, self, self.options)
-        logger.info("Created child target aligner/core job, and follow on cleanup job")
+        #Now create the follow on tree phase.
+        PhylogenyPhase(job, self, '0', netSize, self.options)
 
 #Each level around 30x larger than the last
 #BASE_LEVEL_SIZE = 30000
@@ -216,10 +196,11 @@ class CactusCoreWrapper(Target):
         #assert False
         
         #Setup call to core and aligner recursive as follow on.
-        CactusDownPass(job, self, self.options, self.netName, self.alignmentFile, self.iteration)
+        CactusCoreWrapper2(job, self, self.options, self.netName, self.alignmentFile, self.iteration)
         logger.info("Issued a the recursive/cleanup wrapper as a follow on job")
 
-class CactusDownPass(Target):
+class CactusCoreWrapper2(Target):
+    #We split, to deal with cleaning up the alignment file
     def __init__(self, job, previousTarget, options, netName, alignmentFile, iteration):
         self.options = options
         self.iteration = iteration
@@ -235,11 +216,47 @@ class CactusDownPass(Target):
         logger.info("Starting the cactus down pass (recursive) target")
         #Traverses leaf jobs and create aligner wrapper targets as children.
         if self.iteration+1 <= 3:
-            for childNetName, childNetSize in getChildNets(self.options.netDisk, self.netName, job.attrib["local_temp_dir"]):
+            for childNetName, childNetSize in runCactusGetNets(self.options.netDisk, self.netName, job.attrib["local_temp_dir"]):
                 nextIteration = getIteration(self.iteration+1, childNetSize)
                 if childNetSize > 30000: #Does not do any refinement if the net is completely specified.
                     self.addChildTarget(CactusAlignerWrapper(job, self.options, childNetName, childNetSize, nextIteration))
             logger.info("Created child targets for all the recursive reconstruction jobs")
+            
+############################################################
+############################################################
+############################################################
+#The tree phase.
+#
+#Adds trees to the reconstruction datastructure.
+############################################################
+############################################################
+############################################################
+
+class PhylogenyPhase(Target):
+    def __init__(self, job, previousTarget, netName, netSize, options):
+        self.netName = netName
+        self.netSize = netSize
+        self.options = options
+        Target.__init__(self, job, previousTarget)
+
+    def run(self, job):
+        logger.info("Starting the down pass target")
+        childTarget = CactusPhylogenyWrapper(job, self.options, self.netName, self.netSize)
+        self.addChildTarget(childTarget)
+
+class CactusPhylogenyWrapper(Target):
+    def __init__(self, job, options, netName, netSize):
+        self.options = options
+        self.netName = netName
+        Target.__init__(self, job, None, time=timeParameters[getIteration(0, netSize)])
+    
+    def run(self, job):
+        #Run cactus phylogeny
+        runCactusPhylogeny(self.options.netDisk, tempDir=job.attrib["local_temp_dir"], netNames=[ self.netName ])
+        #Make child jobs
+        for childNetName, childNetSize in runCactusGetNets(self.options.netDisk, self.netName, job.attrib["local_temp_dir"], includeInternalNodes=True, recursive=False):
+            if childNetName != self.netName: #Avoids running again for leaf without children
+                self.addChildTarget(CactusPhylogenyWrapper(job, self.options, childNetName, childNetSize))
       
 def main():
     ##########################################

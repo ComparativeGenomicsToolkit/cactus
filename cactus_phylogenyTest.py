@@ -18,6 +18,7 @@ from cactus.cactus_common import runCactusCore
 from cactus.cactus_common import runCactusPhylogeny
 from cactus.cactus_common import getRandomCactusInputs
 from cactus.cactus_common import runCactusCheck
+from cactus.cactus_common import runCactusGetNets
 
 class TestCase(unittest.TestCase):
     
@@ -48,7 +49,8 @@ def runPipe(sequenceDirs, newickTreeString, tempDir, useDummy=False, writeDebugF
                      tempDir=getTempDirectory(tempDir), useDummy=useDummy)
     runCactusCore(tempReconstructionDirectory, tempAlignmentFile, 
                     tempDir=getTempDirectory(tempDir), writeDebugFiles=writeDebugFiles)
-    runCactusPhylogeny(tempReconstructionDirectory, tempDir=getTempDirectory(tempDir), netNames=[ "0" ])
+    childNetNames = [ childNetName for (childNetName, childNetSize) in runCactusGetNets(tempReconstructionDirectory, "0", tempDir, includeInternalNodes=True) ]
+    runCactusPhylogeny(tempReconstructionDirectory, tempDir=getTempDirectory(tempDir), netNames=childNetNames)
     #runCactusCheck(tempReconstructionDirectory)
     
     system("rm -rf %s %s" % (tempReconstructionDirectory, tempAlignmentFile))
