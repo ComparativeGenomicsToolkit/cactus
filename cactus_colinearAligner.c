@@ -6,6 +6,52 @@ void usage() {
 	fprintf(stderr, "-h --help : Print this help screen\n");
 }
 
+double net_getTotalBaseLength(Net *net) {
+	Net_EndIterator *endIterator = net_getEndIterator(net);
+	End *end;
+	double totalLength = 0.0;
+	while((end = net_getNextEnd(endIterator)) != NULL) {
+		if(!end_isAtomEnd(end)) {
+			End_InstanceIterator *instanceIterator = end_getInstanceIterator(end);
+			EndInstance *endInstance;
+			while((endInstance = end_getNext(instanceIterator)) != NULL) {
+				endInstance = endInstance_getStrand(endInstance) ? endInstance : endInstance_getReverse(endInstance);
+				if(!endInstance_getSide(endInstance)) {
+					EndInstance *endInstance2 = endInstance_getAdjacency(endInstance);
+					while(end_isAtomEnd(endInstance_getEnd(endInstance2))) {
+						AtomInstance *atomInstance = endInstance_getAtomInstance(endInstance2);
+						assert(atomInstance != NULL);
+						assert(atomInstance_get5End(atomInstance) == endInstance2);
+						endInstance2 = endInstance_getAdjacency(atomInstance_get3End(atomInstance));
+						assert(endInstance_getStrand(endInstance2));
+						assert(endInstance_getSide(endInstance2));
+					}
+					assert(endInstance_getStrand(endInstance2));
+					assert(endInstance_getSide(endInstance2));
+					int32_t length = endInstance_getCoordinate(endInstance2) - endInstance_getCoordinate(endInstance) - 1;
+					assert(length >= 0);
+					totalLength += length;
+				}
+			}
+			end_destructInstanceIterator(instanceIterator);
+		}
+	}
+	net_destructEndIterator(endIterator);
+	return totalLength;
+}
+
+struct List *getOrientedSequences(Net *net) {
+
+}
+
+struct List *runPecan(struct List *sequences) {
+
+}
+
+void convertAlignmentToAtoms(struct List *alignment, int32_t alignmentLength, Net *net) {
+
+}
+
 int main(int argc, char *argv[]) {
 
 	char * logLevelString = NULL;
@@ -74,29 +120,39 @@ int main(int argc, char *argv[]) {
 		const char *netName = argv[j];
 		logInfo("Processing the net named: %s", netName);
 		net = netDisk_getNet(netDisk, netMisc_stringToName(netName));
-		logInfo("Parsed the net to be refined\n");
+		logInfo("Parsed the net to be aligned\n");
 
 		/*
 		 * Get out the sequences.
 		 */
-		const char **sequences = getOrientedSequences(net);
+		struct List *sequences = getOrientedSequences(net);
+		logInfo("Got the sequences\n");
 
 		/*
 		 * Call Pecan.
 		 */
-
-
-		/*
-		 * Read in the alignment.
-		 */
+		int32_t alignmentLength;
+		struct List *alignment = runPecan(sequences, &alignmentLength);
+		logInfo("Got the alignment\n");
 
 		/*
 		 * Convert the alignment into atoms.
 		 */
+		convertAlignmentToAtoms(alignment, net, alignmentLength);
+		logInfo("Converted the alignment to atoms\n");
+
+		/*
+		 * Cleanup
+		 */
+		destructList(sequences);
+		destructList(alignment);
 	}
 
 	/*
 	 * Write the net back to disk.
 	 */
+	startTime = time(NULL);
+	netDisk_write(netDisk);
+	logInfo("Updated the net on disk in: %i seconds\n", time(NULL) - startTime);
 }
 
