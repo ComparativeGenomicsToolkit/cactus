@@ -7,61 +7,93 @@ void usage() {
 }
 
 int main(int argc, char *argv[]) {
+
+	char * logLevelString = NULL;
+	char * netDiskName = NULL;
+
 	/*
 	 * Parse the options.
 	 */
 	while(1) {
 		static struct option long_options[] = {
 				{ "logLevel", required_argument, 0, 'a' },
-				{ "netDisk", required_argument, 0, 'c' },
+				{ "netDisk", required_argument, 0, 'b' },
+				{ "netName", required_argument, 0, 'c' },
 				{ "help", no_argument, 0, 'h' },
 				{ 0, 0, 0, 0 }
 		};
 
 		int option_index = 0;
 
-		int key = getopt_long(argc, argv, "a:b:h", long_options, &option_index);
+		int key = getopt_long(argc, argv, "a:b:c:h", long_options, &option_index);
 
 		if(key == -1) {
 			break;
 		}
 
 		switch(key) {
-		case 'a':
-			logLevelString = stringCopy(optarg);
-			break;
-		case 'c':
-			netDiskName = stringCopy(optarg);
-			break;
-		case 'h':
-			usage();
-			return 0;
-		default:
-			usage();
-			return 1;
+			case 'a':
+				logLevelString = stringCopy(optarg);
+				break;
+			case 'b':
+				netDiskName = stringCopy(optarg);
+				break;
+			case 'c':
+				netName = stringCopy(optarg);
+				break;
+			case 'h':
+				usage();
+				return 0;
+			default:
+				usage();
+				return 1;
 		}
+	}
+
+	if(logLevelString != NULL && strcmp(logLevelString, "INFO") == 0) {
+		setLogLevel(LOGGING_INFO);
+	}
+	if(logLevelString != NULL && strcmp(logLevelString, "DEBUG") == 0) {
+		setLogLevel(LOGGING_DEBUG);
 	}
 
 	/*
 	 * Load the netdisk
 	 */
 
+	netDisk = netDisk_construct(netDiskName);
+	logInfo("Set up the net disk\n");
 
 	/*
-	 * Get out the sequences.
+	 * For each net.
 	 */
+	for (j = optind; j < argc; j++) {
+		/*
+		 * Read the net.
+		 */
+		const char *netName = argv[j];
+		logInfo("Processing the net named: %s", netName);
+		net = netDisk_getNet(netDisk, netMisc_stringToName(netName));
+		logInfo("Parsed the net to be refined\n");
 
-	/*
-	 * Call Pecan.
-	 */
+		/*
+		 * Get out the sequences.
+		 */
+		const char **sequences = getOrientedSequences(net);
 
-	/*
-	 * Read in the alignment.
-	 */
+		/*
+		 * Call Pecan.
+		 */
 
-	/*
-	 * Convert the alignment into atoms.
-	 */
+
+		/*
+		 * Read in the alignment.
+		 */
+
+		/*
+		 * Convert the alignment into atoms.
+		 */
+	}
 
 	/*
 	 * Write the net back to disk.

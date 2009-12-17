@@ -90,11 +90,12 @@ void tabulateStats(struct IntList *unsortedValues, double *totalNumber, double *
 }
 
 double largestChildStatsP(Net *net, struct List *childProportions) {
-	Net_AdjacencyComponentIterator *adjacencyComponentIterator = net_getAdjacencyComponentIterator(net);
+	Net_AdjacencyComponentIterator *adjacencyComponentIterator;
 	AdjacencyComponent *adjacencyComponent;
 	double problemSize = net_getTotalBaseLength(net);
 	if(net_getAdjacencyComponentNumber(net) != 0  && problemSize > 0) {
 		double childProportion = -10.0;
+		adjacencyComponentIterator = net_getAdjacencyComponentIterator(net);
 		while((adjacencyComponent = net_getNextAdjacencyComponent(adjacencyComponentIterator)) != NULL) {
 			double f = largestChildStatsP(adjacencyComponent_getNestedNet(adjacencyComponent), childProportions);
 			if(f/problemSize > childProportion) {

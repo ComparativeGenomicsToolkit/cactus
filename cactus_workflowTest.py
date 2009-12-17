@@ -74,7 +74,8 @@ class TestCase(unittest.TestCase):
                             cactusTreeGraphPDFFile=os.path.join(outputDir, "cactusTree.pdf"),
                             atomGraphFile=os.path.join(outputDir, "atomGraph.dot"),
                             atomGraphPDFFile=os.path.join(outputDir, "atomGraph.pdf"),
-                            cactusTreeStatsFile=os.path.join(outputDir, "cactusTreeStats.xml"))
+                            cactusTreeStatsFile=os.path.join(outputDir, "cactusTreeStats.xml"),
+                            buildTrees=True)
         
     def testCactusWorkflow_Encode(self): 
         """Run the workflow on the encode pilot regions.
@@ -110,7 +111,7 @@ def runWorkflow(sequences, newickTreeFile, outputDir, tempDir,
                 batchSystem="single_machine",
                 cactusTreeGraphFile=None, cactusTreeGraphPDFFile=None, 
                 atomGraphFile=None, atomGraphPDFFile=None,
-                cactusTreeStatsFile=None):
+                cactusTreeStatsFile=None, buildTrees=False):
     fileHandle = open(newickTreeFile, 'r')
     newickTreeString = fileHandle.readline()
     fileHandle.close()
@@ -125,13 +126,17 @@ def runWorkflow(sequences, newickTreeFile, outputDir, tempDir,
     jobTreeDir = os.path.join(getTempDirectory(tempDir), "jobTree")
     logger.info("Got a job tree dir for the test: %s" % jobTreeDir)
     
-    runCactusWorkflow(netDisk, sequences, newickTreeString, jobTreeDir, batchSystem=batchSystem)
+    runCactusWorkflow(netDisk, sequences, newickTreeString, jobTreeDir, 
+                      batchSystem=batchSystem, buildTrees=buildTrees)
     logger.info("Ran the the workflow")
     
     runJobTreeStatusAndFailIfNotComplete(jobTreeDir)
     logger.info("Checked the job tree dir")
     
-    runCactusCheck(netDisk, checkTrees=True)
+    if buildTrees:
+        runCactusCheck(netDisk, checkTrees=True)
+    else:
+        runCactusCheck(netDisk)
     logger.info("Checked the cactus tree")
     
     if cactusTreeGraphFile != None:

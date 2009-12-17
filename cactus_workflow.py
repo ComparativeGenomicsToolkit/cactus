@@ -241,8 +241,9 @@ class PhylogenyPhase(Target):
 
     def run(self, job):
         logger.info("Starting the down pass target")
-        childTarget = CactusPhylogenyWrapper(job, self.options, self.netName, self.netSize)
-        self.addChildTarget(childTarget)
+        if self.options.buildTrees:
+            childTarget = CactusPhylogenyWrapper(job, self.options, self.netName, self.netSize)
+            self.addChildTarget(childTarget)
 
 class CactusPhylogenyWrapper(Target):
     def __init__(self, job, options, netName, netSize):
@@ -271,6 +272,9 @@ def main():
     parser.add_option("--speciesTree", dest="speciesTree", help="The species tree relating the input sequences")
     
     parser.add_option("--netDisk", dest="netDisk", help="The location of the net disk.") 
+    
+    parser.add_option("--buildTrees", dest="buildTrees", action="store_true",
+                      help="Build trees", default=False) 
     
     options, args = parseBasicOptions(parser)
 

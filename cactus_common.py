@@ -231,11 +231,17 @@ def runCactusWorkflow(netDisk, sequenceFiles,
                       newickTreeString, 
                       jobTreeDir, treeBuilder="cactus_coreTestTreeBuilder.py",
                       adjacencyBuilder="cactus_adjacencyTestAdjacencyBuilder.py",
-                      logLevel="DEBUG", retryCount=0, batchSystem="single_machine", rescueJobFrequency=None):
+                      logLevel="DEBUG", retryCount=0, batchSystem="single_machine", rescueJobFrequency=None,
+                      buildTrees=False):
+    if buildTrees:
+        buildTrees = "--buildTreees"
+    else:
+        buildTrees = ""
+    
     command = "cactus_workflow.py %s --speciesTree '%s' \
---netDisk %s --job JOB_FILE" % \
+--netDisk %s %s --job JOB_FILE" % \
             (" ".join(sequenceFiles), newickTreeString,
-             netDisk)
+             netDisk, buildTrees)
     #print "going to run the command:", command
     #assert False
     runJobTree(command, jobTreeDir, logLevel, retryCount, batchSystem, rescueJobFrequency)
