@@ -234,7 +234,7 @@ def runCactusWorkflow(netDisk, sequenceFiles,
                       logLevel="DEBUG", retryCount=0, batchSystem="single_machine", rescueJobFrequency=None,
                       buildTrees=False):
     if buildTrees:
-        buildTrees = "--buildTreees"
+        buildTrees = "--buildTrees"
     else:
         buildTrees = ""
     
