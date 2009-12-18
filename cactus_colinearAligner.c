@@ -1,3 +1,18 @@
+#include <assert.h>
+#include <limits.h>
+#include <stdio.h>
+#include <string.h>
+#include <stdlib.h>
+#include <sys/stat.h>
+#include <time.h>
+#include <getopt.h>
+
+#include "hashTableC.h"
+#include "bioioC.h"
+#include "commonC.h"
+#include "cactus.h"
+#include "avl.h"
+
 
 void usage() {
 	fprintf(stderr, "cactus_colinearAligner [net-names, ordered by order they should be processed], version 0.2\n");
@@ -11,7 +26,7 @@ int32_t getOrientedEndInstancesP(const void *o1, const void *o2, void *a) {
 	return netMisc_nameCompare(endInstance_getName((EndInstance *)o1), endInstance_getName((EndInstance *)o2));
 }
 
-struct avl_table *getOrientedEndInstances(Net *net, End *leftEnd, End *rightEnd) {
+struct List *getOrientedEndInstances(Net *net, End *leftEnd, End *rightEnd) {
 	/*
 	 * Gets a list of end instances, oriented such that each following sequence
 	 * can be aligned together to create a co-linear alignment.
@@ -80,20 +95,30 @@ struct avl_table *getOrientedEndInstances(Net *net, End *leftEnd, End *rightEnd)
 	}
 	net_destructEndIterator(endIterator);
 
-	return endInstances;
+	//Convert the avl_table to a list, because it's a bit easier to handle for some purposes.
+	struct List *list = constructEmptyList(0, NULL);
+	struct avl_traverser *endInstanceIterator = mallocLocal(sizeof(struct avl_traverser));
+	avl_t_init(endInstanceIterator, endInstances);
+	while((endInstance = avl_t_next(endInstanceIterator)) != NULL) {
+		listAppend(list, endInstances);
+	}
+
+	//Cleanup
+	free(endInstanceIterator);
+	avl_destroy(endInstances, NULL);
+
+	return list;
 }
 
-char **getStrings(struct avl_table *endInstances) {
+char **getStrings(struct List *endInstances) {
 	/*
 	 * Gets the strings associated with the adjacency interval for each end instance.
 	 */
-	char **strings = malloc(sizeof(void *) * avl_count(endInstances));
-	struct avl_traverser *iterator;
-	iterator = mallocLocal(sizeof(struct avl_traverser));
-	avl_t_init(iterator, items);
+	char **strings = malloc(sizeof(void *) * endInstances->length);
 	EndInstance *endInstance;
-	int32_t i = 0;
-	while((endInstance = avl_t_next(iterator)) != NULL) {
+	int32_t i = 0, j;
+	for(j=0; j<endInstances->length; j++) {
+		endInstance = endInstances->list[j];
 		Sequence *sequence = endInstance_getSequence(endInstance);
 		assert(sequence != NULL);
 		EndInstance *endInstance2 = endInstance_getAdjacency(endInstance);
@@ -114,7 +139,6 @@ char **getStrings(struct avl_table *endInstances) {
 		strings[i] = sequence_getString(sequence, endInstance_getCoordinate(endInstance)+1, length, strand);
 
 	}
-	free(iterator);
 	return strings;
 }
 
@@ -129,19 +153,19 @@ char **runPecan(const char **sequences, int32_t sequenceNumber, const char *temp
 	int32_t i;
 	struct List *tempFiles = constructEmptyList(0, free);
 	for(i=0; i<sequenceNumber; i++) {
-		char *name = printString("%i.fa", i);
-		char *tempFile = pathJoin(tempDir, cA);
-		free(name);
+		char *name = stringPrint("%i.fa", i);
+		char *tempFile = pathJoin(tempDir, name);
 		fileHandle = fopen(tempFile, "w");
-		fastaWrite(sequences[i], cA, fileHandle);
+		fastaWrite((char *)sequences[i], name, fileHandle);
 		fclose(fileHandle);
 		listAppend(tempFiles, tempFile);
+		free(name);
 	}
 
 	//Run pecan.
-	outputFile = pathJoin(tempDir, "output.mfa");
-	const char *tempFilesString = joinStrings(" ", tempFiles->list, tempFiles->length);
-	char *command = printString("java bp.pecan.Pecan -F %s -G %s", tempFilesString, outputFile);
+	char *outputFile = pathJoin(tempDir, "output.mfa");
+	char *tempFilesString = stringsJoin(" ", (const char **)tempFiles->list, tempFiles->length);
+	char *command = stringPrint("java bp.pecan.Pecan -F %s -G %s", tempFilesString, outputFile);
 	exitOnFailure(system(command), "Something went wrong running Pecan");
 	free(command);
 
@@ -168,6 +192,10 @@ char **runPecan(const char **sequences, int32_t sequenceNumber, const char *temp
 	}
 
 	//Cleanup.
+	command = stringPrint("rm %s %s", tempFilesString, outputFile);
+	exitOnFailure(system(command),
+			"Something went wrong cleaning up the temporary files.");  //Cleanup the temporary sequence files.
+	free(tempFilesString);
 	free(outputFile);
 	destructList(tempFiles);
 	destructList(fastaNames);
@@ -200,6 +228,8 @@ int main(int argc, char *argv[]) {
 
 	char * logLevelString = NULL;
 	char * netDiskName = NULL;
+	char * tempDir = NULL;
+	int32_t j;
 
 	/*
 	 * Parse the options.
@@ -208,14 +238,13 @@ int main(int argc, char *argv[]) {
 		static struct option long_options[] = {
 				{ "logLevel", required_argument, 0, 'a' },
 				{ "netDisk", required_argument, 0, 'b' },
-				{ "netName", required_argument, 0, 'c' },
 				{ "help", no_argument, 0, 'h' },
 				{ 0, 0, 0, 0 }
 		};
 
 		int option_index = 0;
 
-		int key = getopt_long(argc, argv, "a:b:c:h", long_options, &option_index);
+		int key = getopt_long(argc, argv, "a:b:h", long_options, &option_index);
 
 		if(key == -1) {
 			break;
@@ -227,9 +256,6 @@ int main(int argc, char *argv[]) {
 				break;
 			case 'b':
 				netDiskName = stringCopy(optarg);
-				break;
-			case 'c':
-				netName = stringCopy(optarg);
 				break;
 			case 'h':
 				usage();
@@ -251,7 +277,7 @@ int main(int argc, char *argv[]) {
 	 * Load the netdisk
 	 */
 
-	netDisk = netDisk_construct(netDiskName);
+	NetDisk *netDisk = netDisk_construct(netDiskName);
 	logInfo("Set up the net disk\n");
 
 	/*
@@ -263,20 +289,38 @@ int main(int argc, char *argv[]) {
 		 */
 		const char *netName = argv[j];
 		logInfo("Processing the net named: %s", netName);
-		net = netDisk_getNet(netDisk, netMisc_stringToName(netName));
+		Net *net = netDisk_getNet(netDisk, netMisc_stringToName(netName));
 		logInfo("Parsed the net to be aligned\n");
+
+		/*
+		 * Get the correct left and right ends.
+		 */
+		AdjacencyComponent *adjacencyComponent = net_getParentAdjacencyComponent(net);
+		assert(adjacencyComponent != NULL);
+		Link *link = adjacencyComponent_getLink(adjacencyComponent);
+		assert(link != NULL);
+		End *leftEnd = net_getEnd(net, end_getName(link_getLeft(link)));
+		End *rightEnd = net_getEnd(net, end_getName(link_getRight(link)));
+		assert(leftEnd != NULL);
+		assert(rightEnd != NULL);
+		logInfo("Got the left and right ends\n");
 
 		/*
 		 * Get out the sequences.
 		 */
-		struct List *sequences = getOrientedSequences(net);
-		logInfo("Got the sequences\n");
+		struct List *endInstances = getOrientedEndInstances(net, leftEnd, rightEnd);
+		logInfo("Got the oriented end Instances\n");
+		char **strings = getStrings(endInstances);
 
 		/*
 		 * Call Pecan.
 		 */
 		int32_t alignmentLength;
-		struct List *alignment = runPecan(sequences, &alignmentLength);
+
+		char **runPecan(const char **sequences, int32_t sequenceNumber, const char *tempDir,
+				int32_t *alignmentLength)
+
+		char **alignment = runPecan(strings, endInstances->length, tempDir, &alignmentLength);
 		logInfo("Got the alignment\n");
 
 		/*
