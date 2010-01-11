@@ -80,7 +80,7 @@ void alignSequences(char *tempSequenceFile1, char *tempSequenceFile2, char *temp
 	fclose(fileHandle);
 	//char *command = stringPrint("lastz --format=cigar %s[nameparse=darkspace] %s[nameparse=darkspace] --hspthresh=3000 --nogapped > %s",
 	//			tempSequenceFile1, tempSequenceFile2, tempCigarFile);
-	char *command = stringPrint("pecan2_pairwiseAligner %s %s --cigars %s", tempSequenceFile1, tempSequenceFile2, tempCigarFile);
+	char *command = stringPrint("pecan2_pairwiseModel %s %s --cigars %s", tempSequenceFile1, tempSequenceFile2, tempCigarFile);
 	//uglyf("I would run the command: %s\n", command);
 	exitOnFailure(system(command), "Failed to align the two sequences\n");
 	free(command);
