@@ -224,12 +224,12 @@ class CactusCoreWrapper2(Target):
                 if childNetSize > 0:
                     nextIteration = getIteration(self.iteration+1, childNetSize)
                     if nextIteration == 4:
-                        #if childNetSize < 9000:
-                        self.addChildTarget(CactusBaseLevelAlignerWrapper(job, self.options, childNetName))
+                        if childNetSize < 0:
+                            self.addChildTarget(CactusBaseLevelAlignerWrapper(job, self.options, childNetName))
                     else: #Does not do any refinement if the net is completely specified.
                         self.addChildTarget(CactusAlignerWrapper(job, self.options, childNetName, nextIteration))
             logger.info("Created child targets for all the recursive reconstruction jobs")
-    
+     
 class CactusBaseLevelAlignerWrapper(Target):
     #We split, to deal with cleaning up the alignment file
     def __init__(self, job, options, netName):
