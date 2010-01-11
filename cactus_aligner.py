@@ -17,8 +17,8 @@ from sonLib.bioio import cigarWrite
 from sonLib.bioio import system
 from workflow.jobTree.scriptTree.target import Target
 
-from pecan2.pecan2_batch import makeBlastFromOptions
-from pecan2.pecan2_batch import makeTopLevelBlastOptions
+from cactus.cactus_batch import makeBlastFromOptions
+from cactus.cactus_batch import makeTopLevelBlastOptions
 
 from cactus.cactus_alignerTestAligner import MakeBlastsLoader as MakeBlastsTest
     
@@ -85,38 +85,8 @@ class ModifyBlasts(Target):
         #Translate the coordinates
         ##########################################
         
-        fileHandle = open(self.tempResultsFile, 'r')
-        fileHandle2 = open(self.resultsFile, 'w')
-        
-        for pairwiseAlignment in cigarRead(fileHandle):
-            #Adjust contig1 coordinates
-            attributes = fastaDecodeHeader(pairwiseAlignment.contig1)
-            start = int(attributes[-1])
-            pairwiseAlignment.contig1 = fastaEncodeHeader(attributes[:-1])
-            pairwiseAlignment.start1 += start
-            pairwiseAlignment.end1 += start
-            #Adjust contig2 coordinates
-            attributes = fastaDecodeHeader(pairwiseAlignment.contig2)
-            start = int(attributes[-1])
-            pairwiseAlignment.contig2 = fastaEncodeHeader(attributes[:-1])
-            pairwiseAlignment.start2 += start
-            pairwiseAlignment.end2 += start
-            
-            cigarWrite(fileHandle2, pairwiseAlignment)
-        
-        fileHandle.close()
-        fileHandle2.close()
-        
-        logger.info("Processed alignments okay")
-        
-        ##########################################
-        #Make final cleanup target
-        ##########################################
-        
-        ##
-        #We allow jobTree to clean this up, as it doesn't seem worth creating a target just for this small amount of data.
-        ##
-        #CleanupTarget(job, self, [ self.tempResultsFile ])
+        system("cactus_batch_convertCoordinates %s %s" % (self.tempResultsFile, self.resultsFile))
+        logger.info("Translated the coordinates of the alignments to the final file: %s", self.resultsFile)
 
 def main():
     ##########################################
@@ -145,7 +115,7 @@ def main():
         
     assert len(args) == 0
     logger.info("Parsed arguments")
-    
+     
     blastOptions = makeBlastFromOptions(makeTopLevelBlastOptions())
     if parsedOptions.useDummy:
         blastOptions = MakeBlastsTest()

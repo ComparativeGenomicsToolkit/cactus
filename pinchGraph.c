@@ -1024,30 +1024,36 @@ void pinchMerge(struct PinchGraph *graph, struct PairwiseAlignment *pA,
 	contig1 = netMisc_stringToName(pA->contig1);
 	contig2 = netMisc_stringToName(pA->contig2);
 
+	logPairwiseAlignment(pA);
+
 	for(i=0; i<pA->operationList->length; i++) {
 		op = pA->operationList->list[i];
 		if(op->opType == PAIRWISE_MATCH) {
-			if(pA->strand1 == '+') {
+			assert(op->length >= 1);
+			if(pA->strand1) {
 				segment_recycle(&segment1, contig1, j, j+op->length-1);
 			}
 			else {
-				segment_recycle(&segment1, contig1, -(j+op->length-1), -j);
+				segment_recycle(&segment1, contig1, -(j-1), -(j-op->length));
 			}
-			if(pA->strand2 == '+') {
+			if(pA->strand2) {
 				segment_recycle(&segment2, contig2, k, k+op->length-1);
 			}
 			else {
-				segment_recycle(&segment2, contig2, -(k+op->length-1), -k);
+				segment_recycle(&segment2, contig2, -(k-1), -(k-op->length));
 			}
 			addFunction(graph, &segment1, &segment2, extraParameter);
 		}
 		if(op->opType != PAIRWISE_INDEL_Y) {
-			j += op->length;
+			j += pA->strand1 ? op->length : -op->length;
 		}
 		if(op->opType != PAIRWISE_INDEL_X) {
-			k += op->length;
+			k += pA->strand2 ? op->length : -op->length;
 		}
 	}
+
+	assert(j == pA->end1);
+	assert(k == pA->end2);
 }
 
 ////////////////////////////////////////////////

@@ -909,7 +909,7 @@ int32_t computeCactusGraph(struct PinchGraph *pinchGraph, struct CactusGraph **c
 	logInfo("Output the 3-edge graph description in tmp file: %s\n", threeEdgeOutputFile);
 
 	//Run three edge connected components.
-	sprintf(cA, "cactus_3Edge %s %s %s", logLevelString, threeEdgeOutputFile, threeEdgeInputFile);
+	sprintf(cA, "cactus_3Edge %s %s %s", logLevelString == NULL ? "CRITICAL" : logLevelString, threeEdgeOutputFile, threeEdgeInputFile);
 	assert(strlen(cA) < STRING_ARRAY_SIZE);
 	i = system(cA);
 	if(i != 0) {

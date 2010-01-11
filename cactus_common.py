@@ -277,3 +277,8 @@ def runCactusGetNets(netDisk, netName, tempDir, includeInternalNodes=False, recu
     fileHandle.close()
     os.remove(netNamesFile)
     return l
+
+def runCactusBaseAligner(netDisk, netNames, tempDir, logLevel="DEBUG"):
+    """Runs cactus base aligner.
+    """
+    system("cactus_baseAligner --netDisk %s --tempDir %s --logLevel %s %s" % (netDisk, tempDir, logLevel, " ".join(netNames)))

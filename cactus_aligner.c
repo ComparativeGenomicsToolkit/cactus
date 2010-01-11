@@ -52,7 +52,7 @@ int main(int argc, char *argv[]) {
 				sequence = endInstance_getSequence(endInstance);
 				assert(sequence != NULL);
 				string = sequence_getString(sequence, endInstance_getCoordinate(endInstance)+1, endInstance_getCoordinate(endInstance2)-endInstance_getCoordinate(endInstance)-1, TRUE);
-				fprintf(fileHandle, ">%s|%i\n%s\n", netMisc_nameToStringStatic(sequence_getName(sequence)), endInstance_getCoordinate(endInstance)+1, string);
+				fprintf(fileHandle, ">%s|1|%i\n%s\n", netMisc_nameToStringStatic(sequence_getName(sequence)), endInstance_getCoordinate(endInstance)+1, string);
 				free(string);
 			}
 		}

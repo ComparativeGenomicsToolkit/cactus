@@ -40,24 +40,12 @@ class MakeBlasts(Target):
         
         randomAlignmentNo = random.choice(xrange(5)) * len(sequences)
         
-        def getInterval(start, end):
-            assert end >= start
-            if end - start > 0:
-                i = random.choice(xrange(start, end))
-            else:
-                i = start
-            if end - i > 150:
-                j = i + random.choice(xrange(150))
-            elif end - i == 0:
-                j = i
-            else:
-                j = i + random.choice(xrange(end - i))
-            assert i >= start
-            assert j <= end    
-            assert i <= j
-            if random.random() > 0.5:
-                return i, j, '-'
-            return i, j, '+'
+        def getInterval(length):
+            i = random.choice(xrange(length))
+            j = random.choice(xrange(length))
+            if i <= j:
+                return i, j, True
+            return i, j, False
         
         ##########################################
         #Loop to make random alignments.
@@ -66,12 +54,12 @@ class MakeBlasts(Target):
         fileHandle = open(self.resultsFile, 'w')
         for i in xrange(randomAlignmentNo):
             contig1, length1 = random.choice(sequences)
-            start1, end1, strand1 = getInterval(0, length1)
+            start1, end1, strand1 = getInterval(length1)
             
             contig2, length2 = random.choice(sequences)
-            start2, end2, strand2 = getInterval(0, length2)
+            start2, end2, strand2 = getInterval(length2)
             
-            operationList = getRandomOperationList(end1-start1, end2-start2)
+            operationList = getRandomOperationList(abs(end1-start1), abs(end2-start2))
             
             pairwiseAlignment = \
                 PairwiseAlignment(contig1, start1, end1, strand1, \

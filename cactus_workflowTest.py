@@ -61,7 +61,7 @@ class TestCase(unittest.TestCase):
             blanchettePath = os.path.join(TestStatus.getPathToDataSets(), "blanchettesSimulation")
             
             newickTreeFile = os.path.join(blanchettePath, "tree.newick")
-            for region in xrange(0, 2):
+            for region in xrange(0, 1):
                 sequences = [ os.path.join(blanchettePath, 
                                                ("%.2i.job" % region), species) \
                                  for species in ("HUMAN", "CHIMP", "BABOON", "MOUSE", "RAT", "DOG", "CAT", "PIG", "COW") ] #Same order as tree
@@ -75,7 +75,7 @@ class TestCase(unittest.TestCase):
                             atomGraphFile=os.path.join(outputDir, "atomGraph.dot"),
                             atomGraphPDFFile=os.path.join(outputDir, "atomGraph.pdf"),
                             cactusTreeStatsFile=os.path.join(outputDir, "cactusTreeStats.xml"),
-                            buildTrees=True)
+                            buildTrees=False)
         
     def testCactusWorkflow_Encode(self): 
         """Run the workflow on the encode pilot regions.

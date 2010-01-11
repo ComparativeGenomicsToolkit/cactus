@@ -31,14 +31,15 @@ from cactus.cactus_common import runCactusSetup
 from cactus.cactus_common import runCactusCore
 from cactus.cactus_common import runCactusGetNets
 from cactus.cactus_common import runCactusPhylogeny
+from cactus.cactus_common import runCactusBaseAligner
 
 from cactus.cactus_aligner import MakeSequences
 
-from pecan2.pecan2_batch import makeTopLevelBlastOptions
-from pecan2.pecan2_batch import makeUpperMiddleLevelBlastOptions
-from pecan2.pecan2_batch import makeMiddleLevelBlastOptions
-from pecan2.pecan2_batch import makeLowLevelBlastOptions
-from pecan2.pecan2_batch import makeBlastFromOptions
+from cactus.cactus_batch import makeTopLevelBlastOptions
+from cactus.cactus_batch import makeUpperMiddleLevelBlastOptions
+from cactus.cactus_batch import makeMiddleLevelBlastOptions
+from cactus.cactus_batch import makeLowLevelBlastOptions
+from cactus.cactus_batch import makeBlastFromOptions
 
 ############################################################
 ############################################################
@@ -100,19 +101,24 @@ class AlignmentPhase(Target):
         assert(l[0][0] == self.netName)
         assert(l[0][1] >= 0)
         netSize = l[0][1]
-        childTarget = CactusAlignerWrapper(job, self.options, self.netName, netSize, 
-                                           getIteration(0, netSize))
+        iteration = getIteration(0, netSize)
+        if iteration < 4:
+            childTarget = CactusAlignerWrapper(job, self.options, self.netName, iteration)
+        else:
+            childTarget = CactusBaseLevelAlignerWrapper(job, self.options, self.netName)
         self.addChildTarget(childTarget)
         #Now create the follow on tree phase.
         PhylogenyPhase(job, self, '0', netSize, self.options)
 
 #Each level around 30x larger than the last
-#BASE_LEVEL_SIZE = 30000
+BASE_LEVEL_SIZE = 30000 #30000
 GENE_LEVEL_SIZE = 1000000
 LOCI_LEVEL_SIZE = 30000000
 CHR_LEVEL_SIZE =  1000000000
 
 def getIteration(iteration, netSize):
+    if iteration == 4 or netSize < BASE_LEVEL_SIZE:
+        return 4
     if iteration == 3 or netSize < GENE_LEVEL_SIZE:
         return 3
     elif iteration == 2 or netSize < LOCI_LEVEL_SIZE:
@@ -120,7 +126,11 @@ def getIteration(iteration, netSize):
     elif iteration == 1 or netSize < CHR_LEVEL_SIZE:
         return 1
     return 1
-        
+
+timeParameters = { 0:10000000, 1:10000000, 2:100, 3:20, 4:3 }
+
+blastParameters = { 3:makeLowLevelBlastOptions, 2:makeMiddleLevelBlastOptions, 1:makeUpperMiddleLevelBlastOptions, 0:makeTopLevelBlastOptions }
+
 cactusCoreParameters = { 
     0:{ "maximumEdgeDegree":50, "extensionSteps":400, "minimumTreeCoverage":0.5, "minimumTreeCoverageForAtoms":0.9, "minimumAtomLength":4, "minimumChainLength":8, "trim":4, "alignRepeats":False },
     1:{ "maximumEdgeDegree":50, "extensionSteps":35000, "minimumTreeCoverage":0.7, "minimumTreeCoverageForAtoms":0.9, "minimumAtomLength":4, "minimumChainLength":8, "trim":20, "alignRepeats":False },
@@ -129,15 +139,10 @@ cactusCoreParameters = {
     #4:{ "maximumEdgeDegree":50, "extensionSteps":5, "minimumTreeCoverage":0.0, "minimumTreeCoverageForAtoms":0.9, "minimumAtomLength":0, "minimumChainLength":0, "trim":0, "alignRepeats":False }
 }
 
-timeParameters = { 0:10000000, 1:10000000, 2:100, 3:20 }
-
-blastParameters = { 3:makeLowLevelBlastOptions, 2:makeMiddleLevelBlastOptions, 1:makeUpperMiddleLevelBlastOptions, 0:makeTopLevelBlastOptions }
-
 class CactusAlignerWrapper(Target):
-    def __init__(self, job, options, netName, netSize, iteration):
+    def __init__(self, job, options, netName, iteration):
         self.options = options
         self.netName = netName
-        self.netSize = netSize
         self.iteration = int(iteration)
         Target.__init__(self, job, None, timeParameters[iteration])
     
@@ -155,14 +160,13 @@ class CactusAlignerWrapper(Target):
         logger.info("Created the cactus_aligner child target")
         
         #Now setup a call to cactus core wrapper as a follow on
-        CactusCoreWrapper(job, self, self.options, self.netName, self.netSize, alignmentFile, self.iteration)
+        CactusCoreWrapper(job, self, self.options, self.netName, alignmentFile, self.iteration)
         logger.info("Setup the follow on cactus_core target")
 
 class CactusCoreWrapper(Target):
-    def __init__(self, job, previousTarget, options, netName, netSize, alignmentFile, iteration):
+    def __init__(self, job, previousTarget, options, netName, alignmentFile, iteration):
         self.options = options
         self.netName = netName
-        self.netSize = netSize
         self.alignmentFile = alignmentFile
         self.iteration = iteration     
         Target.__init__(self, job, previousTarget)
@@ -215,13 +219,28 @@ class CactusCoreWrapper2(Target):
     def run(self, job):
         logger.info("Starting the cactus down pass (recursive) target")
         #Traverses leaf jobs and create aligner wrapper targets as children.
-        if self.iteration+1 <= 3:
+        if self.iteration+1 <= 4:
             for childNetName, childNetSize in runCactusGetNets(self.options.netDisk, self.netName, job.attrib["local_temp_dir"]):
-                nextIteration = getIteration(self.iteration+1, childNetSize)
-                if childNetSize > 30000: #Does not do any refinement if the net is completely specified.
-                    self.addChildTarget(CactusAlignerWrapper(job, self.options, childNetName, childNetSize, nextIteration))
+                if childNetSize > 0:
+                    nextIteration = getIteration(self.iteration+1, childNetSize)
+                    if nextIteration == 4:
+                        #if childNetSize < 9000:
+                        self.addChildTarget(CactusBaseLevelAlignerWrapper(job, self.options, childNetName))
+                    else: #Does not do any refinement if the net is completely specified.
+                        self.addChildTarget(CactusAlignerWrapper(job, self.options, childNetName, nextIteration))
             logger.info("Created child targets for all the recursive reconstruction jobs")
-            
+    
+class CactusBaseLevelAlignerWrapper(Target):
+    #We split, to deal with cleaning up the alignment file
+    def __init__(self, job, options, netName):
+        self.options = options
+        self.netName = netName
+        Target.__init__(self, job, None, timeParameters[4])
+    
+    def run(self, job):
+        runCactusBaseAligner(self.options.netDisk, [ self.netName ], job.attrib["local_temp_dir"], getLogLevelString())
+        logger.info("Run the cactus base aligner")
+        
 ############################################################
 ############################################################
 ############################################################
