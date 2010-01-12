@@ -83,6 +83,9 @@ void alignSequences(char *tempSequenceFile1, char *tempSequenceFile2, char *temp
 	char *command = stringPrint("pecan2_pairwiseModel %s %s --cigars %s", tempSequenceFile1, tempSequenceFile2, tempCigarFile);
 	//uglyf("I would run the command: %s\n", command);
 	exitOnFailure(system(command), "Failed to align the two sequences\n");
+	system(stringPrint("cat %s", tempSequenceFile1));
+	system(stringPrint("cat %s", tempSequenceFile2));
+	system(stringPrint("cat %s", tempCigarFile));
 	free(command);
 }
 
@@ -165,7 +168,7 @@ int main(int argc, char *argv[]) {
 		}
 
 		/*
-		 * For every pair of sequences (both forward and reverse) generate cigars using our ninja pairwise aligner.
+		 * For every pair of sequences (both forward and reverse) generate cigars using our Ninja pairwise aligner.
 		 */
 
 		char *tempFile = pathJoin(tempDir, "temp.cigar");
@@ -236,7 +239,7 @@ int main(int argc, char *argv[]) {
 		free(command);
 		logInfo("Ran the cactus core script.");
 
-		//assert(0);
+		assert(0);
 
 		/*
 		 * Cleanup
