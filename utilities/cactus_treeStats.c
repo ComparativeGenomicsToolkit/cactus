@@ -460,7 +460,7 @@ int main(int argc, char *argv[]) {
 	 */
 	double totalP = calculateTreeBits(net, 0.0);
 	double totalQ = (log(totalSeqSize) / log(2.0)) * totalSeqSize;
-	assert(totalP >= totalQ);
+	//assert(totalP >= totalQ);
 	double relativeEntropy = totalP - totalQ;
 	double normalisedRelativeEntropy = relativeEntropy / totalSeqSize;
 

@@ -55,14 +55,14 @@ class TestCase(unittest.TestCase):
             
             #Choose random sub-range of alignment.
             columnStart = random.choice(xrange(len(columnAlignment)))
-            subAlignment = columnAlignment[columnStart:columnStart+500] #random.choice(xrange(1000))]
+            subAlignment = columnAlignment[columnStart:columnStart+random.choice(xrange(100))]
             logger.info("Got a sub alignment, it is %i columns long" % len(subAlignment))
             
             #Output the 'TRUE' alignment file
             trueMFAFile = os.path.join(testDir, "true.mfa")
             fastaAlignmentWrite(subAlignment, fastaHeaders, len(fastaHeaders), trueMFAFile)
             trueMAFFile = os.path.join(testDir, "true.maf")
-            system("eval_MFAToMaf --mFAFile %s --outputFile %s" % (trueMFAFile, trueMAFFile))
+            system("eval_MFAToMAF --mFAFile %s --outputFile %s" % (trueMFAFile, trueMAFFile))
             system("cat %s" % trueMAFFile)
             
             #Get sequences
