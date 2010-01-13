@@ -84,7 +84,7 @@ void removeTrivialGreyEdgeComponents(struct PinchGraph *graph, struct List *list
 	for(i=0; i<listOfVertices->length; i++) {
 		vertex1 = listOfVertices->list[i];
 		if(lengthBlackEdges(vertex1) == 1 && lengthGreyEdges(vertex1) == 1) {
-			edge1 = getFirstBlackEdge(vertex1);;
+			edge1 = getFirstBlackEdge(vertex1);
 			vertex2 = getFirstGreyEdge(vertex1);
 			if(lengthBlackEdges(vertex2) == 1 && lengthGreyEdges(vertex2) == 1) {
 				edge2 = getFirstBlackEdge(vertex2);

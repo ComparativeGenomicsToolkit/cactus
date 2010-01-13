@@ -20,7 +20,7 @@ from workflow.jobTree.jobTreeTest import runJobTreeStatusAndFailIfNotComplete
 class TestCase(unittest.TestCase):
     
     def setUp(self):
-        self.testNo = TestStatus.getTestSetup(5, 100, 0, 0)
+        self.testNo = TestStatus.getTestSetup(10, 100, 0, 0)
         self.tempFiles = []
         self.tempDir = getTempDirectory(os.getcwd())
         self.tempReconstructionDirectory = os.path.join(self.tempDir, "tempReconstruction")
@@ -46,7 +46,9 @@ class TestCase(unittest.TestCase):
         #The tree
         newickTreeString = "((((HUMAN:0.006969, CHIMP:0.009727):0.025291, BABOON:0.044568):0.11,(RAT:0.072818, MOUSE:0.081244):0.260342):0.023260,((DOG:0.07, CAT:0.07):0.087381,(PIG:0.06, COW:0.06):0.104728):0.04);"
         
-        parentResultsFile = os.path.join(self.tempDir, "results.xml")
+        parentResultsFile = os.path.join(self.tempDir, "finalResults.xml")
+        
+        random.seed(1)
         
         for test in xrange(self.testNo):
             logger.info("Starting the test %i" % test)
@@ -55,7 +57,7 @@ class TestCase(unittest.TestCase):
             
             #Choose random sub-range of alignment.
             columnStart = random.choice(xrange(len(columnAlignment)))
-            subAlignment = columnAlignment[columnStart:columnStart+random.choice(xrange(100))]
+            subAlignment = columnAlignment[columnStart:columnStart+random.choice(xrange(500))]
             logger.info("Got a sub alignment, it is %i columns long" % len(subAlignment))
             
             #Output the 'TRUE' alignment file
@@ -111,8 +113,10 @@ class TestCase(unittest.TestCase):
             
             if test > 0:
                 system("eval_mergeMAFComparatorResults.py --results1 %s --results2 %s --outputFile %s" % (parentResultsFile, resultsFile, parentResultsFile))
+                logger.info("Merging the results")
             else:
                 system("cp %s %s" % (resultsFile, parentResultsFile))
+                logger.info("Copying the results")
             
             #Cleanup
             system("rm -rf %s" % testDir)

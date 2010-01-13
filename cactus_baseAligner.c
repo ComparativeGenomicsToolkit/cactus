@@ -80,7 +80,7 @@ void alignSequences(char *tempSequenceFile1, char *tempSequenceFile2, char *temp
 	fclose(fileHandle);
 	//char *command = stringPrint("lastz --format=cigar %s[nameparse=darkspace] %s[nameparse=darkspace] --hspthresh=3000 --nogapped > %s",
 	//			tempSequenceFile1, tempSequenceFile2, tempCigarFile);
-	char *command = stringPrint("pecan2_pairwiseModel %s %s --cigars %s", tempSequenceFile1, tempSequenceFile2, tempCigarFile);
+	char *command = stringPrint("pecan2_pairwiseModel %s %s --cigars %s --matchThreshold 0.9", tempSequenceFile1, tempSequenceFile2, tempCigarFile);
 	//uglyf("I would run the command: %s\n", command);
 	exitOnFailure(system(command), "Failed to align the two sequences\n");
 	//system(stringPrint("cat %s", tempSequenceFile1));
@@ -208,8 +208,8 @@ int main(int argc, char *argv[]) {
 						alignSequences(tempSequenceFile1, tempSequenceFile3, tempFile2);
 						convertCoordinates(tempFile2, fileHandle);
 						//Do reverse - forward alignment.
-						//alignSequences(tempSequenceFile2, tempSequenceFile3, tempFile2);
-						//convertCoordinates(tempFile2, fileHandle);
+						alignSequences(tempSequenceFile2, tempSequenceFile3, tempFile2);
+						convertCoordinates(tempFile2, fileHandle);
 
 						cleanupTempFile(tempSequenceFile3);
 					}
