@@ -30,44 +30,44 @@
 //else:
 //create a new vertex and rejoin the edge.
 
+void removeTrivialGreyEdge(struct PinchGraph *graph, struct PinchVertex *vertex1, struct PinchVertex *vertex2, Net *net) {
+	assert(lengthBlackEdges(vertex1) == lengthBlackEdges(vertex2));
+	assert(lengthGreyEdges(vertex1) == 1);
+	assert(lengthGreyEdges(vertex2) == 1);
+	assert(getFirstGreyEdge(vertex1) == vertex2);
+	assert(getFirstGreyEdge(vertex2) == vertex1);
 
-struct PinchEdge *removeTrivialGreyEdge(struct PinchGraph *graph, struct PinchEdge *edge1, struct PinchEdge *edge2) {
-	/*
-	 * Removes a trivial grey edge component of two vertices from the graph.
-	 */
-	struct PinchEdge *edge3;
-	struct PinchVertex *vertex1;
-	struct PinchVertex *vertex2;
+	//if(lengthBlackEdges(vertex1) > 1) {
+	//	assert(FALSE);
+	//}
 
-#ifdef BEN_DEBUG
-	assert(lengthGreyEdges(edge1->to) == 1);
-	assert(lengthBlackEdges(edge1->to) == 1);
-	assert(lengthGreyEdges(edge2->from) == 1);
-	assert(lengthBlackEdges(edge2->from) == 1);
-	assert(edge1->segment->contig == edge2->segment->contig);
-	assert(edge1->segment->end+1 == edge2->segment->start);
-#endif
+	//For each black edge to vertex1 find consecutive edge from vertex2, then join.
+	while(lengthBlackEdges(vertex1) > 0) {
+		struct PinchEdge *edge1 = getFirstBlackEdge(vertex1);
+		assert(edge1 != NULL);
+		edge1 = edge1->rEdge;
+		//first find the grey edge to attach to the new vertex we're about to create
+		struct PinchEdge *edge2 = getNextEdge(graph, edge1, net);
 
-	edge3 = constructPinchEdge(constructSegment(edge1->segment->contig, edge1->segment->start, edge2->segment->end));
-	connectPinchEdge(edge3, edge1->from, edge2->to);
+		struct PinchEdge *edge3 = constructPinchEdge(constructSegment(edge1->segment->contig, edge1->segment->start, edge2->segment->end));
+		connectPinchEdge(edge3, edge1->from, edge2->to);
 
-	//Remove the old edges
-	vertex1 = edge1->to;
-	vertex2 = edge2->from;
-	removePinchEdgeFromGraphAndDestruct(graph, edge1);
-	removePinchEdgeFromGraphAndDestruct(graph, edge2);
+		//Remove the old edges
+		removePinchEdgeFromGraphAndDestruct(graph, edge1);
+		removePinchEdgeFromGraphAndDestruct(graph, edge2);
 
-	//Destruct the old vertices, after destructing the edges 1 and 2.
+		//Add the new pinch edge to the graph after removing the old edges from the graph.
+		addPinchEdgeToGraph(graph, edge3);
+	}
+
+	//Destruct the old vertices.
+	assert(lengthBlackEdges(vertex1) == 0);
+	assert(lengthBlackEdges(vertex2) == 0);
 	removeVertexFromGraphAndDestruct(graph, vertex1);
 	removeVertexFromGraphAndDestruct(graph, vertex2);
-
-	//Add the new pinch edge to the graph after removing the old edges from the graph.
-	addPinchEdgeToGraph(graph, edge3);
-
-	return edge3;
 }
 
-void removeTrivialGreyEdgeComponents(struct PinchGraph *graph, struct List *listOfVertices) {
+void removeTrivialGreyEdgeComponents(struct PinchGraph *graph, struct List *listOfVertices, Net *net) {
 	/*
 	 * Finds cases where two vertices are linked by adjacency, and have no other adjacencies,
 	 * to remove them from the graph.
@@ -83,10 +83,10 @@ void removeTrivialGreyEdgeComponents(struct PinchGraph *graph, struct List *list
 	list = constructEmptyList(0, NULL);
 	for(i=0; i<listOfVertices->length; i++) {
 		vertex1 = listOfVertices->list[i];
-		if(lengthBlackEdges(vertex1) == 1 && lengthGreyEdges(vertex1) == 1) {
+		if(lengthGreyEdges(vertex1) == 1) {
 			edge1 = getFirstBlackEdge(vertex1);
 			vertex2 = getFirstGreyEdge(vertex1);
-			if(lengthBlackEdges(vertex2) == 1 && lengthGreyEdges(vertex2) == 1) {
+			if(lengthGreyEdges(vertex2) == 1) {
 				edge2 = getFirstBlackEdge(vertex2);
 				if(!isAStubOrCap(edge1) && !isAStubOrCap(edge2)) {
 					if(vertex1->vertexID < vertex2->vertexID) { //Avoid treating self loops (equal) and dealing with trivial grey components twice.
@@ -100,16 +100,8 @@ void removeTrivialGreyEdgeComponents(struct PinchGraph *graph, struct List *list
 	//Remove the trivial components.
 	for(i=0; i<list->length; i++) {
 		vertex1 = list->list[i];
-#ifdef BEN_DEBUG
-		assert(lengthGreyEdges(vertex1) == 1);
-		assert(lengthBlackEdges(vertex1) == 1);
-#endif
 		vertex2 = getFirstGreyEdge(vertex1);
-#ifdef BEN_DEBUG
-		assert(lengthGreyEdges(vertex2) == 1);
-		assert(lengthBlackEdges(vertex2) == 1);
-#endif
-		removeTrivialGreyEdge(graph, getFirstBlackEdge(vertex1)->rEdge, getFirstBlackEdge(vertex2));
+		removeTrivialGreyEdge(graph, vertex1, vertex2, net);
 	}
 
 	//cleanup
@@ -270,7 +262,7 @@ void removeOverAlignedEdges(struct PinchGraph *pinchGraph, float minimumTreeCove
 		list2->length = 0;
 		splitMultipleBlackEdgesFromVertex(pinchGraph, vertex, list2, net);
 		splitMultipleBlackEdgesFromVertex(pinchGraph, vertex2, list2, net);
-		removeTrivialGreyEdgeComponents(pinchGraph, list2); //now get rid of any trivial components
+		removeTrivialGreyEdgeComponents(pinchGraph, list2, net); //now get rid of any trivial components
 	}
 
 	destructList(list);

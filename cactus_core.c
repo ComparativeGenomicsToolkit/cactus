@@ -398,7 +398,7 @@ int main(int argc, char *argv[]) {
 	logInfo("After removing over aligned edges (degree %i) the graph has %i vertices and %i black edges\n", maxEdgeDegree, pinchGraph->vertices->length, avl_count(pinchGraph->edges));
 	removeOverAlignedEdges(pinchGraph, minimumTreeCoverage, INT32_MAX, 0, net);
 	logInfo("After removing atoms with less than the minimum tree coverage (%f) the graph has %i vertices and %i black edges\n", minimumTreeCoverage, pinchGraph->vertices->length, avl_count(pinchGraph->edges));
-	removeTrivialGreyEdgeComponents(pinchGraph, pinchGraph->vertices);
+	removeTrivialGreyEdgeComponents(pinchGraph, pinchGraph->vertices, net);
 	logInfo("After removing the trivial graph components the graph has %i vertices and %i black edges\n", pinchGraph->vertices->length, avl_count(pinchGraph->edges));
 	checkPinchGraphDegree(pinchGraph, maxEdgeDegree);
 

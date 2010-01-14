@@ -41,6 +41,8 @@ class MakeBlasts(Target):
         randomAlignmentNo = random.choice(xrange(5)) * len(sequences)
         
         def getInterval(length):
+            if length == 0:
+                return 0, 0, True
             i = random.choice(xrange(length))
             j = random.choice(xrange(length))
             if i <= j:

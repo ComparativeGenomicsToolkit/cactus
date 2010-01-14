@@ -287,7 +287,7 @@ struct List *getRecursiveComponents2(struct PinchGraph *pinchGraph, struct List 
 
 void linkStubComponentsToTheSinkComponent(struct PinchGraph *pinchGraph);
 
-void removeTrivialGreyEdgeComponents(struct PinchGraph *graph, struct List *listOfVertices);
+void removeTrivialGreyEdgeComponents(struct PinchGraph *graph, struct List *listOfVertices, Net *net);
 
 float treeCoverage(struct PinchVertex *vertex, Net *net,
 		struct PinchGraph *pinchGraph);
