@@ -47,10 +47,10 @@ char *getSequence(EndInstance *endInstance) {
 char *getTempSequenceFile(EndInstance *endInstance, char *tempDir) {
 	assert(!endInstance_getSide(endInstance));
 	char *string = getSequence(endInstance);
-	if(strlen(string) == 0) {
-		free(string);
-		return NULL;
-	}
+	//if(strlen(string) == 0) {
+	//	free(string);
+	//	return NULL;
+	//}
 	char *tempFile = pathJoin(tempDir, netMisc_nameToStringStatic(endInstance_getName(endInstance)));
 	FILE *fileHandle = fopen(tempFile, "w");
 	struct List *attributes = constructEmptyList(0, free);
@@ -80,7 +80,7 @@ void alignSequences(char *tempSequenceFile1, char *tempSequenceFile2, char *temp
 	fclose(fileHandle);
 	//char *command = stringPrint("lastz --format=cigar %s[nameparse=darkspace] %s[nameparse=darkspace] --hspthresh=3000 --nogapped > %s",
 	//			tempSequenceFile1, tempSequenceFile2, tempCigarFile);
-	char *command = stringPrint("pecan2_pairwiseModel %s %s --cigars %s --matchThreshold 0.9", tempSequenceFile1, tempSequenceFile2, tempCigarFile);
+	char *command = stringPrint("pecan2_pairwiseModel %s %s --cigars %s --matchThreshold 0.85", tempSequenceFile1, tempSequenceFile2, tempCigarFile);
 	//uglyf("I would run the command: %s\n", command);
 	exitOnFailure(system(command), "Failed to align the two sequences\n");
 	//system(stringPrint("cat %s", tempSequenceFile1));
@@ -89,12 +89,65 @@ void alignSequences(char *tempSequenceFile1, char *tempSequenceFile2, char *temp
 	free(command);
 }
 
+char **getTempSequences(EndInstance *endInstance1, char *tempDir) {
+	assert(!endInstance_getSide(endInstance1));
+
+	EndInstance *endInstance2 = endInstance_getAdjacency(endInstance1);
+
+	assert(endInstance2 != NULL);
+	assert(endInstance_getStrand(endInstance2));
+	assert(endInstance_getSide(endInstance2));
+
+	char **tempSequenceFiles = malloc(sizeof(char *) * 2);
+	tempSequenceFiles[0] = getTempSequenceFile(endInstance1, tempDir);
+	tempSequenceFiles[1] = getTempSequenceFile(endInstance_getReverse(endInstance2), tempDir);
+	return tempSequenceFiles;
+}
+
+void destructTempSequences(char **tempSequenceFiles) {
+	cleanupTempFile(tempSequenceFiles[0]);
+	cleanupTempFile(tempSequenceFiles[1]);
+	free(tempSequenceFiles);
+}
+
+void constructSpanningTree(void **items, uint32_t length, struct List *pairs) {
+	/*
+	 * Constructs a spanning tree linking all the nodes in items into one component.
+	 */
+	if(length <= 1) {
+		return;
+	}
+	uint32_t i = length/2;
+	if(length > 2) {
+		constructSpanningTree(items, i, pairs);
+		constructSpanningTree(items + i, length-i, pairs);
+	}
+	//Only add if it's a new pair.
+	uint32_t j = (uint32_t)(RANDOM() * i);
+	assert(j < i);
+	void *item1 = items[j];
+	j = (uint32_t)(i + (RANDOM() * (length - i)));
+	assert(j >= i);
+	assert(j < length);
+	void *item2 = items[j];
+	int32_t k=0;
+	for(k=0; k<pairs->length; k+=2) {
+		if((pairs->list[k] == item1 && pairs->list[k+1] == item2) ||
+		   (pairs->list[k] == item2 && pairs->list[k+1] == item1)) {
+			return;
+		}
+	}
+	listAppend(pairs, item1);
+	listAppend(pairs, item2);
+
+}
+
 int main(int argc, char *argv[]) {
 
 	char * logLevelString = NULL;
 	char * netDiskName = NULL;
 	char * tempDir = NULL;
-	int32_t j;
+	int32_t i, j;
 
 	/*
 	 * Parse the options.
@@ -162,67 +215,67 @@ int main(int argc, char *argv[]) {
 		assert(net != NULL);
 		logInfo("Parsed the net to be aligned\n");
 
-		if(net_getEndInstanceNumber(net) > 40) {
-			netDisk_destruct(netDisk);
-			return 0;
+		/*
+		 * Make temp sequence files.
+		 */
+		Net_EndInstanceIterator *iterator1 = net_getEndInstanceIterator(net);
+		EndInstance *endInstance1;
+		struct List *tempSequenceFiles = constructEmptyList(0, (void (*)(void *))destructTempSequences);
+		while((endInstance1 = net_getNextEndInstance(iterator1)) != NULL) {
+			endInstance1 = endInstance_getStrand(endInstance1) ? endInstance1 : endInstance_getReverse(endInstance1);
+			if(!endInstance_getSide(endInstance1)) {
+				listAppend(tempSequenceFiles, getTempSequences(endInstance1, tempDir));
+			}
 		}
+		net_destructEndInstanceIterator(iterator1);
+		assert(tempSequenceFiles->length == net_getEndInstanceNumber(net)/2);
+		logInfo("Got the temporary sequence files representing the sequences in to be aligned\n");
 
 		/*
-		 * For every pair of sequences (both forward and reverse) generate cigars using our Ninja pairwise aligner.
+		 * Make a list of the pairwise comparisons to be aligned.
 		 */
+		struct List *pairs = constructEmptyList(0, NULL);
+		int32_t spanningTrees = 2;
+		for(i=0; i<spanningTrees; i++) {
+			arrayShuffle(tempSequenceFiles->list, tempSequenceFiles->length);
+			constructSpanningTree(tempSequenceFiles->list, tempSequenceFiles->length, pairs);
+		}
+		//check we have the expected number of pairs.
+		assert(tempSequenceFiles->length == 0 ||
+				(pairs->length/2 <= spanningTrees*(tempSequenceFiles->length-1) && (pairs->length/2 >= tempSequenceFiles->length-1)));
+		logInfo("Got the list of pairs to align\n");
 
+		/*
+		 * Do the alignments.
+		 */
 		char *tempFile = pathJoin(tempDir, "temp.cigar");
 		char *tempFile2 = pathJoin(tempDir, "temp2.cigar");
 		FILE *fileHandle = fopen(tempFile, "w");
-		Net_EndInstanceIterator *iterator1 = net_getEndInstanceIterator(net);
-		EndInstance *endInstance1;
-		while((endInstance1 = net_getNextEndInstance(iterator1)) != NULL) {
-			endInstance1 = endInstance_getStrand(endInstance1) ? endInstance1 : endInstance_getReverse(endInstance1);
-			EndInstance *endInstance2 = endInstance_getAdjacency(endInstance1);
-			assert(endInstance2 != NULL);
-			assert(endInstance_getStrand(endInstance2));
+		for(i=0; i<pairs->length; i+=2) {
+			char **tempSequenceFiles1 = pairs->list[i];
+			char **tempSequenceFiles2 = pairs->list[i+1];
 
-			if(!endInstance_getSide(endInstance1)) {
-				assert(endInstance_getSide(endInstance2));
-				char *tempSequenceFile1 = getTempSequenceFile(endInstance1, tempDir);
-				char *tempSequenceFile2 = getTempSequenceFile(endInstance_getReverse(endInstance2), tempDir);
+			char *tempSequenceFile1 = tempSequenceFiles1[0];
+			char *tempSequenceFile2 = tempSequenceFiles1[1];
+			char *tempSequenceFile3 = tempSequenceFiles2[0];
 
-				//uglyf("Have subsequence: %s %i %i\n", netMisc_nameToStringStatic(sequence_getName(endInstance_getSequence(endInstance1))), endInstance_getCoordinate(endInstance1), endInstance_getCoordinate(endInstance2));
-				if(tempSequenceFile1 == NULL) { //returns null is zero length
-					assert(tempSequenceFile2 == NULL);
-					continue;
-				}
-
-				EndInstance *endInstance3;
-				Net_EndInstanceIterator *iterator2 = net_copyEndInstanceIterator(iterator1);
-				while((endInstance3 = net_getNextEndInstance(iterator2)) != NULL) {
-					endInstance3 = endInstance_getStrand(endInstance3) ? endInstance3 : endInstance_getReverse(endInstance3);
-
-					if(!endInstance_getSide(endInstance3)) {
-						char *tempSequenceFile3 = getTempSequenceFile(endInstance3, tempDir);
-						if(tempSequenceFile3 == NULL) { //returns null if zero length.
-							continue;
-						}
-
-						//Do forward - forward alignment.
-						alignSequences(tempSequenceFile1, tempSequenceFile3, tempFile2);
-						convertCoordinates(tempFile2, fileHandle);
-						//Do reverse - forward alignment.
-						alignSequences(tempSequenceFile2, tempSequenceFile3, tempFile2);
-						convertCoordinates(tempFile2, fileHandle);
-
-						cleanupTempFile(tempSequenceFile3);
-					}
-				}
-				cleanupTempFile(tempSequenceFile1);
-				cleanupTempFile(tempSequenceFile2);
-				net_destructEndInstanceIterator(iterator2);
-			}
+			//Do forward - forward alignment.
+			alignSequences(tempSequenceFile1, tempSequenceFile2, tempFile2);
+			convertCoordinates(tempFile2, fileHandle);
+			//Do reverse - forward alignment.
+			alignSequences(tempSequenceFile1, tempSequenceFile3, tempFile2);
+			convertCoordinates(tempFile2, fileHandle);
 		}
-		cleanupTempFile(tempFile2);
-		net_destructEndInstanceIterator(iterator1);
 		fclose(fileHandle);
 		logInfo("Created the alignments\n");
+
+		/*
+		 * Cleanup the temporary sequence files and other stuff.
+		 */
+		destructList(tempSequenceFiles);
+		cleanupTempFile(tempFile2);
+		destructList(pairs);
+		logInfo("Cleaned up the temporary files\n");
 
 		/*
 		 * Close the netdisk.
@@ -244,10 +297,7 @@ int main(int argc, char *argv[]) {
 		/*
 		 * Cleanup
 		 */
-		command = stringPrint("rm %s", tempFile);
-		exitOnFailure(system(command),
-					"Something went wrong cleaning up the temporary alignment file");  //Cleanup the temporary sequence files.
-		free(tempFile);
+		cleanupTempFile(tempFile);
 		logInfo("Finished filling in the alignments for the net\n");
 	}
 

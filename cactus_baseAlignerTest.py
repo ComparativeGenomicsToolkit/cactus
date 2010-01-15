@@ -20,7 +20,7 @@ from workflow.jobTree.jobTreeTest import runJobTreeStatusAndFailIfNotComplete
 class TestCase(unittest.TestCase):
     
     def setUp(self):
-        self.testNo = TestStatus.getTestSetup(10, 100, 0, 0)
+        self.testNo = TestStatus.getTestSetup(100, 100, 0, 0)
         self.tempFiles = []
         self.tempDir = getTempDirectory(os.getcwd())
         self.tempReconstructionDirectory = os.path.join(self.tempDir, "tempReconstruction")
