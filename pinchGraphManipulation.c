@@ -531,7 +531,7 @@ float treeCoverage(struct PinchVertex *vertex, Net *net,
 	destructBlackEdgeIterator(blackEdgeIterator);
 	hashtable_destroy(hash, FALSE, FALSE);
 	treeCoverage /= event_getSubTreeBranchLength(eventTree_getRootEvent(eventTree));
-	assert(treeCoverage >= 0);
+	assert(treeCoverage >= -0.001);
 	assert(treeCoverage <= 1.0001);
 	return treeCoverage;
 }

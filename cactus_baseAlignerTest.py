@@ -17,10 +17,26 @@ from cactus.cactus_common import runCactusWorkflow
 
 from workflow.jobTree.jobTreeTest import runJobTreeStatusAndFailIfNotComplete
 
+"""Using this set of tests I have found that:
+
+Spanning tree no / Cut off / Sens / Spec
+
+1    0.9    0.5     0.95
+2    0.9    0.66    0.91
+2    0.85    0.69    0.87
+2    0.8    0.71    0.82
+3    0.9    0.71    0.89
+10    0.9    0.84    0.86
+All pairs 0.9 0.87 0.81
+
+By default we us 2/0.85
+
+"""
+
 class TestCase(unittest.TestCase):
     
     def setUp(self):
-        self.testNo = TestStatus.getTestSetup(100, 100, 0, 0)
+        self.testNo = TestStatus.getTestSetup(5, 100, 0, 0)
         self.tempFiles = []
         self.tempDir = getTempDirectory(os.getcwd())
         self.tempReconstructionDirectory = os.path.join(self.tempDir, "tempReconstruction")
