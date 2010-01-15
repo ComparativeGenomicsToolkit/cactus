@@ -224,7 +224,7 @@ class CactusCoreWrapper2(Target):
                 if childNetSize > 0:
                     nextIteration = getIteration(self.iteration+1, childNetSize)
                     if nextIteration == 4:
-                        if childNetSize < 1000:
+                        if childNetSize < 15000:
                             self.addChildTarget(CactusBaseLevelAlignerWrapper(job, self.options, childNetName))
                     else: #Does not do any refinement if the net is completely specified.
                         self.addChildTarget(CactusAlignerWrapper(job, self.options, childNetName, nextIteration))
