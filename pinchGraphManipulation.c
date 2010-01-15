@@ -43,11 +43,19 @@ void removeTrivialGreyEdge(struct PinchGraph *graph, struct PinchVertex *vertex1
 
 	//For each black edge to vertex1 find consecutive edge from vertex2, then join.
 	while(lengthBlackEdges(vertex1) > 0) {
+		assert(lengthBlackEdges(vertex1) == lengthBlackEdges(vertex2));
+
 		struct PinchEdge *edge1 = getFirstBlackEdge(vertex1);
 		assert(edge1 != NULL);
+		assert(!isAStubOrCap(edge1));
 		edge1 = edge1->rEdge;
+		assert(edge1->to == vertex1);
 		//first find the grey edge to attach to the new vertex we're about to create
+
 		struct PinchEdge *edge2 = getNextEdge(graph, edge1, net);
+		assert(edge2 != NULL);
+		assert(!isAStubOrCap(edge2));
+		assert(edge2->from == vertex2);
 
 		struct PinchEdge *edge3 = constructPinchEdge(constructSegment(edge1->segment->contig, edge1->segment->start, edge2->segment->end));
 		connectPinchEdge(edge3, edge1->from, edge2->to);
@@ -83,10 +91,10 @@ void removeTrivialGreyEdgeComponents(struct PinchGraph *graph, struct List *list
 	list = constructEmptyList(0, NULL);
 	for(i=0; i<listOfVertices->length; i++) {
 		vertex1 = listOfVertices->list[i];
-		if(lengthGreyEdges(vertex1) == 1) {
+		if(lengthGreyEdges(vertex1) == 1 && lengthBlackEdges(vertex1) > 0) {
 			edge1 = getFirstBlackEdge(vertex1);
 			vertex2 = getFirstGreyEdge(vertex1);
-			if(lengthGreyEdges(vertex2) == 1) {
+			if(lengthGreyEdges(vertex2) == 1 && lengthBlackEdges(vertex2) > 0) {
 				edge2 = getFirstBlackEdge(vertex2);
 				if(!isAStubOrCap(edge1) && !isAStubOrCap(edge2)) {
 					if(vertex1->vertexID < vertex2->vertexID) { //Avoid treating self loops (equal) and dealing with trivial grey components twice.
