@@ -539,6 +539,9 @@ float treeCoverage(struct PinchVertex *vertex, Net *net,
 	destructBlackEdgeIterator(blackEdgeIterator);
 	hashtable_destroy(hash, FALSE, FALSE);
 	treeCoverage /= event_getSubTreeBranchLength(eventTree_getRootEvent(eventTree));
+	if(treeCoverage < -0.001) {
+		uglyf("The tree coverage for this case is: %f\n", treeCoverage);
+	}
 	assert(treeCoverage >= -0.001);
 	assert(treeCoverage <= 1.0001);
 	return treeCoverage;
