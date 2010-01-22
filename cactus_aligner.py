@@ -3,17 +3,12 @@
 """Script for computing alignments for a reconstruction problem.
 """
 
-import xml.etree.ElementTree as ET
 import os
 
 from sonLib.bioio import getBasicOptionParser
 from sonLib.bioio import parseBasicOptions
 from sonLib.bioio import getTempFile
 from sonLib.bioio import logger
-from sonLib.bioio import fastaEncodeHeader
-from sonLib.bioio import fastaDecodeHeader
-from sonLib.bioio import cigarRead
-from sonLib.bioio import cigarWrite
 from sonLib.bioio import system
 from workflow.jobTree.scriptTree.target import Target
 
@@ -26,21 +21,20 @@ class MakeSequences(Target):
     """Take a reconstruction problem and generate the sequences to be blasted.
     Then setup the follow on blast targets and collation targets.
     """
-    def __init__(self, job, netDisk, 
-                 netName, resultsFile, blastOptions):
+    def __init__(self, netDisk, netName, resultsFile, blastOptions):
+        Target.__init__(self)
         self.netDisk = netDisk
         self.netName = netName
         self.resultsFile = resultsFile
         self.blastOptions = blastOptions
-        Target.__init__(self, job, None)
         
-    def run(self, job):
+    def run(self, localTempDir, globalTempDir):
         ##########################################
         #Setup the temp files
         ##########################################
         
-        tempSeqFile = getTempFile(rootDir=job.attrib["global_temp_dir"])
-        tempResultsFile = getTempFile(rootDir=job.attrib["global_temp_dir"])
+        tempSeqFile = getTempFile(rootDir=globalTempDir)
+        tempResultsFile = getTempFile(rootDir=globalTempDir)
         
         logger.info("Built temporary files")
         
@@ -56,31 +50,31 @@ class MakeSequences(Target):
         #Make blast target
         ##########################################
         
-        self.addChildTarget(self.blastOptions.makeBlastOptions(job, [ tempSeqFile ], tempResultsFile))
+        self.addChildTarget(self.blastOptions.makeBlastOptions([ tempSeqFile ], tempResultsFile))
         logger.info("Added child target okay")
         
         ##########################################
         #Setup follow on coordinates
         ##########################################
         
-        ModifyBlasts(job, self, tempSeqFile, tempResultsFile, self.resultsFile)
+        self.setFollowOnTarget(ModifyBlasts(tempSeqFile, tempResultsFile, self.resultsFile))
         logger.info("Created modify blasts target")
     
 class ModifyBlasts(Target):
     """Modifies the alignments file so that the sequences have the correct coordinates.
     """
     
-    def __init__(self, job, previousTarget, tempSeqFile, tempResultsFile, resultsFile):
+    def __init__(self, tempSeqFile, tempResultsFile, resultsFile):
+        Target.__init__(self)
         self.tempSeqFile = tempSeqFile
         self.tempResultsFile = tempResultsFile
-        self.resultsFile = resultsFile
-        Target.__init__(self, job, previousTarget)      
+        self.resultsFile = resultsFile    
         
-    def cleanup(self, job):
+    def cleanup(self, localTempDir, globalTempDir):
         os.remove(self.tempSeqFile)
         logger.info("Removed the temporary fasta file for the blast step")
     
-    def run(self, job):
+    def run(self, localTempDir, globalTempDir):
         ##########################################
         #Translate the coordinates
         ##########################################
@@ -120,9 +114,7 @@ def main():
     if parsedOptions.useDummy:
         blastOptions = MakeBlastsTest()
     
-    job = ET.parse(parsedOptions.jobFile).getroot()
-    
-    firstTarget = MakeSequences(job, parsedOptions.netDisk, 
+    firstTarget = MakeSequences(parsedOptions.netDisk, 
                                 parsedOptions.netName, 
                                 parsedOptions.resultsFile, 
                                 blastOptions)

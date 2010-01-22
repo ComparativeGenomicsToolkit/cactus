@@ -15,8 +15,6 @@ In the up pass phase the adjacencies are added.
 In the verification phase the reconstruction tree is checked against the expected spec.
 
 """
-import xml.etree.ElementTree as ET
-import os
 
 from sonLib.bioio import logger
 from sonLib.bioio import getBasicOptionParser
@@ -50,30 +48,30 @@ from cactus.cactus_batch import makeBlastFromOptions
 ############################################################
 
 class SetupPhase(Target):
-    def __init__(self, job, options, sequences):
+    def __init__(self, options, sequences):
+        Target.__init__(self, time=0)
         self.options = options 
         self.sequences = sequences 
-        Target.__init__(self, job, None)
 
-    def run(self, job):
+    def run(self, localTempDir, globalTempDir):
         logger.info("Starting setup phase target")
         #Make the child setup job.
-        self.addChildTarget(CactusSetupWrapper(job, self.options, self.sequences))
+        self.addChildTarget(CactusSetupWrapper(self.options, self.sequences))
         #initialise the down pass as the follow on..
-        AlignmentPhase(job, self, '0', self.options)
+        self.setFollowOnTarget(AlignmentPhase('0', self.options))
         logger.info("Created child target cactus_setup job, and follow on down pass job")
 
 class CactusSetupWrapper(Target):
-    def __init__(self, job, options, sequences):
+    def __init__(self, options, sequences):
+        Target.__init__(self, time=0)
         self.options = options
         self.sequences = sequences
-        Target.__init__(self, job, None)
         
-    def run(self, job):
+    def run(self, localTempDir, globalTempDir):
         logger.info("Starting cactus setup target")
         runCactusSetup(self.options.netDisk, self.sequences, 
                        self.options.speciesTree,
-                       tempDir=job.attrib["local_temp_dir"], logLevel=getLogLevelString())
+                       tempDir=localTempDir, logLevel=getLogLevelString())
         logger.info("Finished the setup phase target")
 
 ############################################################
@@ -87,28 +85,28 @@ class CactusSetupWrapper(Target):
 ############################################################
     
 class AlignmentPhase(Target):
-    def __init__(self, job, previousTarget, netName, options):
+    def __init__(self, netName, options):
+        Target.__init__(self, time=0)
         self.netName = netName
         self.options = options
-        Target.__init__(self, job, previousTarget)
-
-    def run(self, job):
+        
+    def run(self, localTempDir, globalTempDir):
         logger.info("Starting the down pass target")
         #Setup call to cactus aligner wrapper as child
         #Calculate the size of the child.
-        l = runCactusGetNets(self.options.netDisk, self.netName, job.attrib["local_temp_dir"])
+        l = runCactusGetNets(self.options.netDisk, self.netName, localTempDir)
         assert(len(l) == 1)
         assert(l[0][0] == self.netName)
         assert(l[0][1] >= 0)
         netSize = l[0][1]
         iteration = getIteration(0, netSize)
         if iteration < 4:
-            childTarget = CactusAlignerWrapper(job, self.options, self.netName, iteration)
+            childTarget = CactusAlignerWrapper(self.options, self.netName, iteration)
         else:
-            childTarget = CactusBaseLevelAlignerWrapper(job, self.options, self.netName)
+            childTarget = CactusBaseLevelAlignerWrapper(self.options, self.netName)
         self.addChildTarget(childTarget)
         #Now create the follow on tree phase.
-        PhylogenyPhase(job, self, '0', netSize, self.options)
+        self.setFollowOnTarget(PhylogenyPhase('0', netSize, self.options))
 
 #Each level around 30x larger than the last
 BASE_LEVEL_SIZE = 30000 #30000
@@ -127,7 +125,7 @@ def getIteration(iteration, netSize):
         return 1
     return 1
 
-timeParameters = { 0:10000000, 1:10000000, 2:100, 3:20, 4:3 }
+timeParameters = { 0:10000000, 1:10000000, 2:100, 3:20, 4:2 }
 
 blastParameters = { 3:makeLowLevelBlastOptions, 2:makeMiddleLevelBlastOptions, 1:makeUpperMiddleLevelBlastOptions, 0:makeTopLevelBlastOptions }
 
@@ -140,38 +138,38 @@ cactusCoreParameters = {
 }
 
 class CactusAlignerWrapper(Target):
-    def __init__(self, job, options, netName, iteration):
+    def __init__(self, options, netName, iteration):
+        Target.__init__(self, time=timeParameters[iteration])
         self.options = options
         self.netName = netName
         self.iteration = int(iteration)
-        Target.__init__(self, job, None, timeParameters[iteration])
     
-    def run(self, job):
+    def run(self, localTempDir, globalTempDir):
         logger.info("Starting the cactus aligner target")
         #Generate a temporary file to hold the alignments
-        alignmentFile = getTempFile(".fa", job.attrib["global_temp_dir"])
+        alignmentFile = getTempFile(".fa", globalTempDir)
         logger.info("Got an alignments file")
         
         #Now make the child aligner target
         blastOptions = makeBlastFromOptions(blastParameters[self.iteration]())
             
-        self.addChildTarget(MakeSequences(job, self.options.netDisk, 
+        self.addChildTarget(MakeSequences(self.options.netDisk, 
                                           self.netName, alignmentFile, blastOptions))
         logger.info("Created the cactus_aligner child target")
         
         #Now setup a call to cactus core wrapper as a follow on
-        CactusCoreWrapper(job, self, self.options, self.netName, alignmentFile, self.iteration)
+        self.setFollowOnTarget(CactusCoreWrapper(self.options, self.netName, alignmentFile, self.iteration))
         logger.info("Setup the follow on cactus_core target")
 
 class CactusCoreWrapper(Target):
-    def __init__(self, job, previousTarget, options, netName, alignmentFile, iteration):
+    def __init__(self, options, netName, alignmentFile, iteration):
+        Target.__init__(self, time=5)
         self.options = options
         self.netName = netName
         self.alignmentFile = alignmentFile
         self.iteration = iteration     
-        Target.__init__(self, job, previousTarget)
     
-    def run(self, job):
+    def run(self, localTempDir, globalTempDir):
         logger.info("Starting the core wrapper target")
     
         coreParameters = cactusCoreParameters[self.iteration]
@@ -182,7 +180,7 @@ class CactusCoreWrapper(Target):
         
         runCactusCore(netDisk=self.options.netDisk, 
                       alignmentFile=self.alignmentFile, 
-                      tempDir=job.attrib["local_temp_dir"], 
+                      tempDir=localTempDir, 
                       netName=self.netName,
                       logLevel=getLogLevelString(), 
                       maximumEdgeDegree=coreParameters["maximumEdgeDegree"],
@@ -200,45 +198,45 @@ class CactusCoreWrapper(Target):
         #assert False
         
         #Setup call to core and aligner recursive as follow on.
-        CactusCoreWrapper2(job, self, self.options, self.netName, self.alignmentFile, self.iteration)
+        self.setFollowOnTarget(CactusCoreWrapper2(self.options, self.netName, self.alignmentFile, self.iteration))
         logger.info("Issued a the recursive/cleanup wrapper as a follow on job")
 
 class CactusCoreWrapper2(Target):
     #We split, to deal with cleaning up the alignment file
-    def __init__(self, job, previousTarget, options, netName, alignmentFile, iteration):
+    def __init__(self, options, netName, alignmentFile, iteration):
+        Target.__init__(self, time=0)
         self.options = options
         self.iteration = iteration
         self.netName = netName
         self.alignmentFile = alignmentFile
-        Target.__init__(self, job, previousTarget)
     
-    def cleanup(self, job):
+    def cleanup(self, localTempDir, globalTempDir):
         #Cleans up from a round
         system("rm -rf %s" % self.alignmentFile) #Clean up the alignments file
     
-    def run(self, job):
+    def run(self, localTempDir, globalTempDir):
         logger.info("Starting the cactus down pass (recursive) target")
         #Traverses leaf jobs and create aligner wrapper targets as children.
         if self.iteration+1 <= 4:
-            for childNetName, childNetSize in runCactusGetNets(self.options.netDisk, self.netName, job.attrib["local_temp_dir"]):
+            for childNetName, childNetSize in runCactusGetNets(self.options.netDisk, self.netName, localTempDir):
                 if childNetSize > 0:
                     nextIteration = getIteration(self.iteration+1, childNetSize)
                     if nextIteration == 4:
-                        if childNetSize < 15000:
-                            self.addChildTarget(CactusBaseLevelAlignerWrapper(job, self.options, childNetName))
+                        if childNetSize < 500:
+                            self.addChildTarget(CactusBaseLevelAlignerWrapper(self.options, childNetName))
                     else: #Does not do any refinement if the net is completely specified.
-                        self.addChildTarget(CactusAlignerWrapper(job, self.options, childNetName, nextIteration))
+                        self.addChildTarget(CactusAlignerWrapper(self.options, childNetName, nextIteration))
             logger.info("Created child targets for all the recursive reconstruction jobs")
      
 class CactusBaseLevelAlignerWrapper(Target):
     #We split, to deal with cleaning up the alignment file
-    def __init__(self, job, options, netName):
+    def __init__(self, options, netName):
+        Target.__init__(self, timeParameters[4])
         self.options = options
         self.netName = netName
-        Target.__init__(self, job, None, timeParameters[4])
     
-    def run(self, job):
-        runCactusBaseAligner(self.options.netDisk, [ self.netName ], job.attrib["local_temp_dir"], getLogLevelString())
+    def run(self, localTempDir, globalTempDir):
+        runCactusBaseAligner(self.options.netDisk, [ self.netName ], localTempDir, getLogLevelString())
         logger.info("Run the cactus base aligner")
         
 ############################################################
@@ -252,31 +250,31 @@ class CactusBaseLevelAlignerWrapper(Target):
 ############################################################
 
 class PhylogenyPhase(Target):
-    def __init__(self, job, previousTarget, netName, netSize, options):
+    def __init__(self, netName, netSize, options):
+        Target.__init__(self, time=0)
         self.netName = netName
         self.netSize = netSize
         self.options = options
-        Target.__init__(self, job, previousTarget)
 
-    def run(self, job):
+    def run(self, localTempDir, globalTempDir):
         logger.info("Starting the down pass target")
         if self.options.buildTrees:
-            childTarget = CactusPhylogenyWrapper(job, self.options, self.netName, self.netSize)
+            childTarget = CactusPhylogenyWrapper(self.options, self.netName, self.netSize)
             self.addChildTarget(childTarget)
 
 class CactusPhylogenyWrapper(Target):
     def __init__(self, job, options, netName, netSize):
+        Target.__init__(self, time=timeParameters[getIteration(0, netSize)])
         self.options = options
         self.netName = netName
-        Target.__init__(self, job, None, time=timeParameters[getIteration(0, netSize)])
     
-    def run(self, job):
+    def run(self, localTempDir, globalTempDir):
         #Run cactus phylogeny
-        runCactusPhylogeny(self.options.netDisk, tempDir=job.attrib["local_temp_dir"], netNames=[ self.netName ])
+        runCactusPhylogeny(self.options.netDisk, tempDir=localTempDir, netNames=[ self.netName ])
         #Make child jobs
-        for childNetName, childNetSize in runCactusGetNets(self.options.netDisk, self.netName, job.attrib["local_temp_dir"], includeInternalNodes=True, recursive=False):
+        for childNetName, childNetSize in runCactusGetNets(self.options.netDisk, self.netName, localTempDir, includeInternalNodes=True, recursive=False):
             if childNetName != self.netName: #Avoids running again for leaf without children
-                self.addChildTarget(CactusPhylogenyWrapper(job, self.options, childNetName, childNetSize))
+                self.addChildTarget(CactusPhylogenyWrapper(self.options, childNetName, childNetSize))
       
 def main():
     ##########################################
@@ -299,8 +297,7 @@ def main():
 
     logger.info("Parsed arguments")
     
-    job = ET.parse(options.jobFile).getroot()
-    setupPhase = SetupPhase(job, options, args)
+    setupPhase = SetupPhase(options, args)
     setupPhase.execute(options.jobFile)
     
     logger.info("Done with first target")

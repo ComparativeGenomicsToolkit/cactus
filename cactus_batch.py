@@ -4,7 +4,6 @@
 sequences. Uses the jobTree framework to parallelise the blasts.
 """
 import os
-import xml.etree.ElementTree as ET
 from bz2 import BZ2File
 
 from sonLib.bioio import TempFileTree
@@ -21,7 +20,6 @@ from sonLib.bioio import fastaWrite
 #Allow selection of a larger memory machine for that job - as extra feature in jobTree.
 
 from workflow.jobTree.scriptTree.target import Target
-from workflow.jobTree.scriptTree.target import CleanupTarget
 
 class MakeBlastsOptions:
     def __init__(self, chunkSize, overlapSize, 
@@ -96,27 +94,27 @@ class makeBlastFromOptions:
     def __init__(self, blastOptions):
         self.blastOptions = blastOptions
     
-    def makeBlastOptions(self, job, sequenceFiles, resultsFile):
-        return MakeBlasts(job, self.blastOptions, sequenceFiles, resultsFile)
+    def makeBlastOptions(self, sequenceFiles, resultsFile):
+        return MakeBlasts(self.blastOptions, sequenceFiles, resultsFile)
 
 class MakeBlasts(Target):
     """Breaks up the inputs into bits a builds a bunch of alignment jobs.
     """
-    def __init__(self, job, options, sequences, finalResultsFile):
+    def __init__(self, options, sequences, finalResultsFile):
+        Target.__init__(self)
         assert options.chunkSize > options.overlapSize
         assert options.overlapSize >= 2
         assert options.chunksPerJob >= 1
         self.options = options
         self.sequences = sequences
         self.finalResultsFile = finalResultsFile
-        Target.__init__(self, job, None)
         
-    def run(self, job):
+    def run(self, localTempDir, globalTempDir):
         ##########################################
         #Setup the temp file structure.
         ##########################################
         
-        tempFileTreeDir = getTempDirectory(job.attrib["global_temp_dir"])
+        tempFileTreeDir = getTempDirectory(globalTempDir)
         tempFileTree = TempFileTree(tempFileTreeDir)
         
         logger.info("Setup the temporary files")
@@ -129,8 +127,8 @@ class MakeBlasts(Target):
         #Bridging the breaks between chunks (only between adjacency chunks) we create smaller overlapping, call these bridges.
         
         def processSequences(sequenceFiles, tempFilesDir):
-            chunkFiles = getTempFile(suffix=".txt", rootDir=job.attrib["local_temp_dir"])
-            bridgeFiles = getTempFile(suffix=".txt", rootDir=job.attrib["local_temp_dir"])
+            chunkFiles = getTempFile(suffix=".txt", rootDir=localTempDir)
+            bridgeFiles = getTempFile(suffix=".txt", rootDir=localTempDir)
             system("cactus_batch_chunkSequences %s %s %i %i %s %i %s" % \
                    (chunkFiles, bridgeFiles, 
                     self.options.chunkSize, self.options.overlapSize,
@@ -153,7 +151,7 @@ class MakeBlasts(Target):
             os.remove(bridgeFiles)
             return tempSeqFiles, tempOverlapSeqFiles
         
-        tempSeqFilesDir = getTempDirectory(job.attrib["global_temp_dir"])
+        tempSeqFilesDir = getTempDirectory(globalTempDir)
         tempSeqFiles, tempOverlapSeqFiles = processSequences(self.sequences, tempSeqFilesDir)
         logger.info("Broken up the sequence files into individual contigs files")
     
@@ -228,7 +226,7 @@ class MakeBlasts(Target):
                 resultsFile = tempFileTree.getTempFile()
                 resultsFiles.append(resultsFile)
                 l = chunks2[:self.options.chunksPerJob]
-                self.addChildTarget(RunBlast(job, self.options, chunks1[:], l, resultsFile))
+                self.addChildTarget(RunBlast(self.options, chunks1[:], l, resultsFile))
                 chunks2 = chunks2[self.options.chunksPerJob:]
                 
         def makeSelfBlastJobs(seqFiles):
@@ -236,7 +234,7 @@ class MakeBlasts(Target):
             """
             resultsFile = tempFileTree.getTempFile()
             resultsFiles.append(resultsFile)
-            self.addChildTarget(RunSelfBlast(job, self.options, seqFiles, resultsFile))
+            self.addChildTarget(RunSelfBlast(self.options, seqFiles, resultsFile))
         
         #Make the list of self blast jobs.
         for chunk in chunks:
@@ -254,7 +252,7 @@ class MakeBlasts(Target):
         #Make follow on job to collate results
         ##########################################
 
-        CollateBlasts(job, self, self.options, self.finalResultsFile, resultsFiles, tempFileTreeDir, tempSeqFilesDir)
+        self.setFollowOnTarget(CollateBlasts(self.options, self.finalResultsFile, resultsFiles, tempFileTreeDir, tempSeqFilesDir))
         
         logger.info("Made the follow on job")
         
@@ -293,23 +291,23 @@ def readFastaTemporaryFiles(fileNames, tempDir, compressFiles):
 class RunBlast(Target):
     """Runs blast as a job.
     """
-    def __init__(self, job, options, seqFilesChunks1, seqFilesChunks2, resultsFile):
+    def __init__(self, options, seqFilesChunks1, seqFilesChunks2, resultsFile):
+        Target.__init__(self)
         self.options = options
         self.seqFilesChunks1 = seqFilesChunks1
         self.seqFilesChunks2 = seqFilesChunks2
         self.resultsFile = resultsFile
-        Target.__init__(self, job, None)
     
-    def run(self, job):
-        self.seqFilesChunks1 = [ readFastaTemporaryFiles(seqFiles, job.attrib["local_temp_dir"], self.options.compressFiles) for seqFiles in self.seqFilesChunks1 ]
-        self.seqFilesChunks2 = [ readFastaTemporaryFiles(seqFiles, job.attrib["local_temp_dir"], self.options.compressFiles) for seqFiles in self.seqFilesChunks2 ]
+    def run(self, localTempDir, globalTempDir):
+        self.seqFilesChunks1 = [ readFastaTemporaryFiles(seqFiles, localTempDir, self.options.compressFiles) for seqFiles in self.seqFilesChunks1 ]
+        self.seqFilesChunks2 = [ readFastaTemporaryFiles(seqFiles, localTempDir, self.options.compressFiles) for seqFiles in self.seqFilesChunks2 ]
         
         logger.info("Created the temporary sequence files and copied input files to the local temporary directory")
         
         tempResultsFiles = []
         for tempSeqFile1 in self.seqFilesChunks1:
             for tempSeqFile2 in self.seqFilesChunks2:
-                tempResultsFile = getTempFile(suffix=".cigars", rootDir=job.attrib["local_temp_dir"])
+                tempResultsFile = getTempFile(suffix=".cigars", rootDir=localTempDir)
                 tempResultsFiles.append(tempResultsFile)
                 logger.info("Got a temporary results file")
                 executeBlast(tempSeqFile1, tempSeqFile2, tempResultsFile, self.options.blastString)
@@ -327,21 +325,21 @@ class RunBlast(Target):
 class RunSelfBlast(Target):
     """Runs blast as a job.
     """
-    def __init__(self, job, options, seqFiles, resultsFile):
+    def __init__(self, options, seqFiles, resultsFile):
+        Target.__init__(self)
         self.options = options
         self.seqFiles = seqFiles
         self.resultsFile = resultsFile
-        Target.__init__(self, job, None)
     
-    def run(self, job):
+    def run(self, localTempDir, globalTempDir):
         #Get temp file to put sequences and results in locally.
         for i in xrange(len(self.seqFiles)):
-            self.seqFiles[i] = readFastaTemporaryFiles(self.seqFiles[i:i+1], job.attrib["local_temp_dir"], self.options.compressFiles)
+            self.seqFiles[i] = readFastaTemporaryFiles(self.seqFiles[i:i+1], localTempDir, self.options.compressFiles)
         
-        tempResultsFile1 = getTempFile(suffix=".cigars", rootDir=job.attrib["local_temp_dir"])
-        tempResultsFile2 = getTempFile(suffix=".cigars", rootDir=job.attrib["local_temp_dir"])
-        tempSeqFile1 = getTempFile(suffix=".fa", rootDir=job.attrib["local_temp_dir"])
-        tempSeqFile2 = getTempFile(suffix=".fa", rootDir=job.attrib["local_temp_dir"])
+        tempResultsFile1 = getTempFile(suffix=".cigars", rootDir=localTempDir)
+        tempResultsFile2 = getTempFile(suffix=".cigars", rootDir=localTempDir)
+        tempSeqFile1 = getTempFile(suffix=".fa", rootDir=localTempDir)
+        tempSeqFile2 = getTempFile(suffix=".fa", rootDir=localTempDir)
         
         logger.info("Created the temporary files")
         
@@ -386,27 +384,21 @@ class RunSelfBlast(Target):
 class CollateBlasts(Target):
     """Collates all the blasts into a single alignments file.
     """
-    def __init__(self, job, previousTarget, options, finalResultsFile, resultsFiles, tempFileTreeDir, tempSeqFilesDir):
+    def __init__(self, options, finalResultsFile, resultsFiles, tempFileTreeDir, tempSeqFilesDir):
+        Target.__init__(self)
         self.options = options
         self.finalResultsFile = finalResultsFile
         self.resultsFiles = resultsFiles
         self.tempFileTreeDir = tempFileTreeDir
         self.tempSeqFilesDir = tempSeqFilesDir
-        Target.__init__(self, job, previousTarget)
     
-    def run(self, job):
+    def run(self, localTempDir, globalTempDir):
         ##########################################
         #Collate the results.
         ##########################################
         
         system("cactus_batch_convertCoordinates %s %s" % (" ".join(self.resultsFiles), self.finalResultsFile))
         logger.info("Collated the alignments to the file: %s",  self.finalResultsFile)
-        
-        ##########################################
-        #Make the final cleanup target
-        ##########################################
-        
-        CleanupTarget(job, self, [ self.tempFileTreeDir, self.tempSeqFilesDir ])
 
 def main():
     ##########################################
@@ -455,8 +447,7 @@ this allows each job to more than one chunk comparison per job, which will save 
     options, args = parseBasicOptions(parser)
     logger.info("Parsed arguments")
     
-    job = ET.parse(options.jobFile).getroot()
-    firstTarget = MakeBlasts(job, options, args, options.cigarFile)
+    firstTarget = MakeBlasts(options, args, options.cigarFile)
     firstTarget.execute(options.jobFile)
     
     logger.info("Ran the first target okay")

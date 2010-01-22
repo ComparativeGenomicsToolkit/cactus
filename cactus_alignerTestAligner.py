@@ -16,18 +16,18 @@ from workflow.jobTree.scriptTree.target import Target
 class MakeBlastsLoader:
     """Used to get around strange pickling behavious todo with being unable to pickle functions.
     """
-    def makeBlastOptions(self, job, sequences, resultsFile):
-        return MakeBlasts(job, sequences, resultsFile)
+    def makeBlastOptions(self, sequences, resultsFile):
+        return MakeBlasts(sequences, resultsFile)
     
 class MakeBlasts(Target):
     """Fills the input file with some random alignments.
     """
-    def __init__(self, job, sequences, resultsFile):
+    def __init__(self, sequences, resultsFile):
+        Target.__init__(self)
         self.sequences = sequences
         self.resultsFile = resultsFile
-        Target.__init__(self, job, None)
 
-    def run(self, job):
+    def run(self, localTempDir, globalTempDir):
         ##########################################
         #Stuff to make random alignments
         ##########################################
