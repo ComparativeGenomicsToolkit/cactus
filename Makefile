@@ -18,8 +18,8 @@ ${binPath}/cactus_phylogeny : *.c *.h ${libPath}/sonLib.a ${libPath}/cactusLib.a
 ${binPath}/cactus_setup : cactus_setup.c ${libPath}/sonLib.a ${libPath}/cactusLib.a
 	${cxx} ${cflags} -I ${libPath} -o ${binPath}/cactus_setup cactus_setup.c ${libPath}/cactusLib.a ${libPath}/sonLib.a ${tokyoCabinetLib}
 
-${binPath}/cactus_baseAligner : cactus_baseAligner.c cactus_misc.c cactus_misc.h ${libPath}/sonLib.a ${libPath}/cactusLib.a
-	${cxx} ${cflags} -I ${libPath} -o ${binPath}/cactus_baseAligner cactus_baseAligner.c cactus_misc.c ${libPath}/cactusLib.a ${libPath}/sonLib.a ${tokyoCabinetLib}
+${binPath}/cactus_baseAligner : cactus_baseAligner.cc ${libPath}/sonLib.a ${libPath}/cactusLib.a ${libPath}/pecan2Lib.a  ${libPath}/sonLibPlus.a ${libPath}/xmlLib.a
+	${cyy} ${cflags} -I ${libPath} -o ${binPath}/cactus_baseAligner cactus_baseAligner.cc ${libPath}/cactusLib.a ${libPath}/sonLib.a ${libPath}/pecan2Lib.a  ${libPath}/sonLibPlus.a ${libPath}/xmlLib.a ${tokyoCabinetLib}
 
 ${binPath}/cactus_aligner.py : cactus_aligner.py cactus_aligner.c ${libPath}/cactusLib.a
 	${cxx} ${cflags} -I ${libPath} -o ${binPath}/cactus_aligner cactus_aligner.c ${libPath}/cactusLib.a ${libPath}/sonLib.a ${tokyoCabinetLib}

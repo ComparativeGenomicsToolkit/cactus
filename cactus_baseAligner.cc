@@ -6,14 +6,30 @@
 #include <sys/stat.h>
 #include <time.h>
 #include <getopt.h>
+#include <stdlib.h>
+#include <sstream>
+#include <iostream>
 
-#include "hashTableC.h"
-#include "bioioC.h"
-#include "commonC.h"
-#include "cactus.h"
-#include "avl.h"
-#include "pairwiseAlignment.h"
-#include "cactus_misc.h"
+#include "pairwiseAlignmentModel.h"
+#include "pairwiseAlignmentModelInterface.h"
+#include "banding.h"
+#include "algebras.h"
+
+#include "XMLTools.h"
+#include "xmlParser.h"
+#include "substitutionIO.h"
+
+#define SPANNING_TREES 2
+#define MATCH_THRESHOLD 0.85
+
+extern "C" {
+	#include "hashTableC.h"
+	#include "bioioC.h"
+	#include "commonC.h"
+	#include "cactus.h"
+	#include "avl.h"
+	#include "pairwiseAlignment.h"
+};
 
 void usage() {
 	fprintf(stderr, "cactus_colinearAligner [net-names, ordered by order they should be processed], version 0.2\n");
@@ -28,6 +44,7 @@ char *getSequence(EndInstance *endInstance) {
 	assert(sequence != NULL);
 	EndInstance *endInstance2 = endInstance_getAdjacency(endInstance);
 	assert(!endInstance_getSide(endInstance));
+
 	if(endInstance_getStrand(endInstance)) {
 		int32_t length = endInstance_getCoordinate(endInstance2)
 					- endInstance_getCoordinate(endInstance) - 1;
@@ -44,28 +61,51 @@ char *getSequence(EndInstance *endInstance) {
 	}
 }
 
-char *getTempSequenceFile(EndInstance *endInstance, char *tempDir) {
+typedef struct _SubSequence {
+	char *string;
+	char *sequenceName;
+	int32_t strand;
+	int32_t start;
+	int32_t length;
+} SubSequence;
+
+SubSequence *getSequenceAndCoordinates(EndInstance *endInstance) {
 	assert(!endInstance_getSide(endInstance));
-	char *string = getSequence(endInstance);
-	//if(strlen(string) == 0) {
-	//	free(string);
-	//	return NULL;
-	//}
-	char *tempFile = pathJoin(tempDir, netMisc_nameToStringStatic(endInstance_getName(endInstance)));
-	FILE *fileHandle = fopen(tempFile, "w");
-	struct List *attributes = constructEmptyList(0, free);
+	SubSequence *subSequence = (SubSequence *)malloc(sizeof(SubSequence));
+	subSequence->string = getSequence(endInstance);
 	Sequence *sequence = endInstance_getSequence(endInstance);
-	listAppend(attributes, netMisc_nameToString(sequence_getName(sequence)));
-	listAppend(attributes, stringPrint("%i", endInstance_getStrand(endInstance)));
-	listAppend(attributes, stringPrint("%i", endInstance_getCoordinate(endInstance) + (endInstance_getStrand(endInstance) ? 1 : -1)));
-	char *header = fastaEncodeHeader(attributes);
-	//uglyf("I am making the header: %s with endInstance coordinates: %i %i %i\n", header, endInstance_getCoordinate(endInstance), endInstance_getCoordinate(endInstance_getAdjacency(endInstance)), strlen(string));
-	fprintf(fileHandle, ">%s\n%s\n", header, string);
-	fclose(fileHandle);
-	free(string);
-	free(header);
-	destructList(attributes);
-	return tempFile;
+	subSequence->sequenceName = netMisc_nameToString(sequence_getName(sequence));
+	subSequence->strand = endInstance_getStrand(endInstance);
+	subSequence->start = endInstance_getCoordinate(endInstance) + (endInstance_getStrand(endInstance) ? 1 : -1);
+	subSequence->length = strlen(subSequence->string);
+	return subSequence;
+}
+
+void destructSubSequence(SubSequence *subSequence) {
+	free(subSequence->string);
+	free(subSequence->sequenceName);
+	free(subSequence);
+}
+
+SubSequence **getForwardAndReverseSequences(EndInstance *endInstance1) {
+	assert(!endInstance_getSide(endInstance1));
+
+	EndInstance *endInstance2 = endInstance_getAdjacency(endInstance1);
+
+	assert(endInstance2 != NULL);
+	assert(endInstance_getStrand(endInstance2));
+	assert(endInstance_getSide(endInstance2));
+
+	SubSequence **subSequences = (SubSequence **)malloc(sizeof(void *) * 2);
+	subSequences[0] = getSequenceAndCoordinates(endInstance1);
+	subSequences[1] = getSequenceAndCoordinates(endInstance_getReverse(endInstance2));
+	return subSequences;
+}
+
+void destructSubsequences(SubSequence **subSequences) {
+	destructSubSequence(subSequences[0]);
+	destructSubSequence(subSequences[1]);
+	free(subSequences);
 }
 
 void cleanupTempFile(char *tempFile) {
@@ -75,39 +115,47 @@ void cleanupTempFile(char *tempFile) {
 	free(tempFile);
 }
 
-void alignSequences(char *tempSequenceFile1, char *tempSequenceFile2, char *tempCigarFile) {
-	FILE *fileHandle = fopen(tempCigarFile, "w");
-	fclose(fileHandle);
-	//char *command = stringPrint("lastz --format=cigar %s[nameparse=darkspace] %s[nameparse=darkspace] --hspthresh=3000 --nogapped > %s",
-	//			tempSequenceFile1, tempSequenceFile2, tempCigarFile);
-	char *command = stringPrint("pecan2_pairwiseModel %s %s --cigars %s --matchThreshold 0.85", tempSequenceFile1, tempSequenceFile2, tempCigarFile);
-	//uglyf("I would run the command: %s\n", command);
-	exitOnFailure(system(command), "Failed to align the two sequences\n");
-	//system(stringPrint("cat %s", tempSequenceFile1));
-	//system(stringPrint("cat %s", tempSequenceFile2));
-	//system(stringPrint("cat %s", tempCigarFile));
-	free(command);
-}
+struct PairwiseAlignment *alignSequences(SubSequence *seqX, SubSequence *seqY) {
+	vector<int> constraints;
+	AlignerDPTable *fTable;
+	AlignerDPTable *bTable;
+	bfloat fProb;
+	vector<double> gapPosteriorsX;
+	vector<double> gapPosteriorsY;
+	double divergence;
+	struct PairwiseAlignmentInputParameters *pAIP = constructPairwiseAlignmentInputParameters();
+	pAIP->matchThreshold = MATCH_THRESHOLD;
+	XMLNode xMainNode = getDefaultModelParams();
+	struct ModelParameters *modelParameters = readModelParameters(xMainNode);
 
-char **getTempSequences(EndInstance *endInstance1, char *tempDir) {
-	assert(!endInstance_getSide(endInstance1));
+	//Convert the sequences.
+	char *convertedSeqX = convertSequence(seqX->string, convertFromDNA);
+	char *convertedSeqY = convertSequence(seqY->string, convertFromDNA);
 
-	EndInstance *endInstance2 = endInstance_getAdjacency(endInstance1);
+	//Do the alignment.
+	vector<int> diagonals =
+			computePairwiseAlignment(convertedSeqX, convertedSeqY,
+					&modelParameters, pAIP, constraints,
+					&fTable, &bTable, &fProb, gapPosteriorsX,
+					gapPosteriorsY, &divergence);
 
-	assert(endInstance2 != NULL);
-	assert(endInstance_getStrand(endInstance2));
-	assert(endInstance_getSide(endInstance2));
+	struct PairwiseAlignment *pairwiseAlignment =
+			constructAlignment(diagonals,
+						seqX->sequenceName,
+						seqY->sequenceName,
+						seqX->length, seqY->length,
+						seqX->start, seqX->strand,
+						seqY->start, seqY->strand);
 
-	char **tempSequenceFiles = malloc(sizeof(char *) * 2);
-	tempSequenceFiles[0] = getTempSequenceFile(endInstance1, tempDir);
-	tempSequenceFiles[1] = getTempSequenceFile(endInstance_getReverse(endInstance2), tempDir);
-	return tempSequenceFiles;
-}
+	//Clean up.
+	free(convertedSeqX);
+	free(convertedSeqY);
+	delete fTable;
+	delete bTable;
+	destructModelParameters(modelParameters);
+	destructPairwiseAlignmentInputParameters(pAIP);
 
-void destructTempSequences(char **tempSequenceFiles) {
-	cleanupTempFile(tempSequenceFiles[0]);
-	cleanupTempFile(tempSequenceFiles[1]);
-	free(tempSequenceFiles);
+	return pairwiseAlignment;
 }
 
 void constructSpanningTree(void **items, uint32_t length, struct List *pairs) {
@@ -216,55 +264,56 @@ int main(int argc, char *argv[]) {
 		logInfo("Parsed the net to be aligned\n");
 
 		/*
-		 * Make temp sequence files.
+		 * Get the sequences
 		 */
 		Net_EndInstanceIterator *iterator1 = net_getEndInstanceIterator(net);
 		EndInstance *endInstance1;
-		struct List *tempSequenceFiles = constructEmptyList(0, (void (*)(void *))destructTempSequences);
+		struct List *subSequences = constructEmptyList(0, (void (*)(void *))destructSubsequences);
 		while((endInstance1 = net_getNextEndInstance(iterator1)) != NULL) {
 			endInstance1 = endInstance_getStrand(endInstance1) ? endInstance1 : endInstance_getReverse(endInstance1);
 			if(!endInstance_getSide(endInstance1)) {
-				listAppend(tempSequenceFiles, getTempSequences(endInstance1, tempDir));
+				listAppend(subSequences, getForwardAndReverseSequences(endInstance1));
 			}
 		}
 		net_destructEndInstanceIterator(iterator1);
-		assert(tempSequenceFiles->length == net_getEndInstanceNumber(net)/2);
-		logInfo("Got the temporary sequence files representing the sequences in to be aligned\n");
+		assert(subSequences->length == net_getEndInstanceNumber(net)/2);
+		logInfo("Got the temporary sequence files representing the sequences to be aligned\n");
 
 		/*
 		 * Make a list of the pairwise comparisons to be aligned.
 		 */
 		struct List *pairs = constructEmptyList(0, NULL);
-		int32_t spanningTrees = 2;
-		for(i=0; i<spanningTrees; i++) {
-			arrayShuffle(tempSequenceFiles->list, tempSequenceFiles->length);
-			constructSpanningTree(tempSequenceFiles->list, tempSequenceFiles->length, pairs);
+		for(i=0; i<SPANNING_TREES; i++) {
+			arrayShuffle(subSequences->list, subSequences->length);
+			constructSpanningTree(subSequences->list, subSequences->length, pairs);
 		}
 		//check we have the expected number of pairs.
-		assert(tempSequenceFiles->length == 0 ||
-				(pairs->length/2 <= spanningTrees*(tempSequenceFiles->length-1) && (pairs->length/2 >= tempSequenceFiles->length-1)));
+		assert(subSequences->length == 0 ||
+				(pairs->length/2 <= SPANNING_TREES*(subSequences->length-1) && (pairs->length/2 >= subSequences->length-1)));
 		logInfo("Got the list of pairs to align\n");
 
 		/*
 		 * Do the alignments.
 		 */
 		char *tempFile = pathJoin(tempDir, "temp.cigar");
-		char *tempFile2 = pathJoin(tempDir, "temp2.cigar");
 		FILE *fileHandle = fopen(tempFile, "w");
 		for(i=0; i<pairs->length; i+=2) {
-			char **tempSequenceFiles1 = pairs->list[i];
-			char **tempSequenceFiles2 = pairs->list[i+1];
+			SubSequence **subSequences1 = (SubSequence **)pairs->list[i];
+			SubSequence **subSequences2 = (SubSequence **)pairs->list[i+1];
 
-			char *tempSequenceFile1 = tempSequenceFiles1[0];
-			char *tempSequenceFile2 = tempSequenceFiles1[1];
-			char *tempSequenceFile3 = tempSequenceFiles2[0];
+			SubSequence *seq1 = subSequences1[0];
+			SubSequence *seq1R = subSequences1[1];
+			SubSequence *seq2 = subSequences2[0];
 
 			//Do forward - forward alignment.
-			alignSequences(tempSequenceFile1, tempSequenceFile2, tempFile2);
-			convertCoordinates(tempFile2, fileHandle);
+			struct PairwiseAlignment *pairwiseAlignment = alignSequences(seq1, seq2);
+			cigarWrite(fileHandle, pairwiseAlignment, 0);
+			destructPairwiseAlignment(pairwiseAlignment);
+
 			//Do reverse - forward alignment.
-			alignSequences(tempSequenceFile1, tempSequenceFile3, tempFile2);
-			convertCoordinates(tempFile2, fileHandle);
+			pairwiseAlignment = alignSequences(seq1R, seq2);
+			cigarWrite(fileHandle, pairwiseAlignment, 0);
+			destructPairwiseAlignment(pairwiseAlignment);
 		}
 		fclose(fileHandle);
 		logInfo("Created the alignments\n");
@@ -272,8 +321,7 @@ int main(int argc, char *argv[]) {
 		/*
 		 * Cleanup the temporary sequence files and other stuff.
 		 */
-		destructList(tempSequenceFiles);
-		cleanupTempFile(tempFile2);
+		destructList(subSequences);
 		destructList(pairs);
 		logInfo("Cleaned up the temporary files\n");
 
