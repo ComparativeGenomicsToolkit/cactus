@@ -125,7 +125,7 @@ def getIteration(iteration, netSize):
         return 1
     return 1
 
-timeParameters = { 0:10000000, 1:10000000, 2:100, 3:20, 4:2 }
+timeParameters = { 0:10000000, 1:10000000, 2:100, 3:20, 4:1 }
 
 blastParameters = { 3:makeLowLevelBlastOptions, 2:makeMiddleLevelBlastOptions, 1:makeUpperMiddleLevelBlastOptions, 0:makeTopLevelBlastOptions }
 
@@ -216,26 +216,33 @@ class CactusCoreWrapper2(Target):
     def run(self, localTempDir, globalTempDir):
         logger.info("Starting the cactus down pass (recursive) target")
         #Traverses leaf jobs and create aligner wrapper targets as children.
-        if self.iteration+1 <= 4:
-            for childNetName, childNetSize in runCactusGetNets(self.options.netDisk, self.netName, localTempDir):
-                if childNetSize > 0:
-                    nextIteration = getIteration(self.iteration+1, childNetSize)
-                    if nextIteration == 4:
-                        if childNetSize < 1000:
-                            self.addChildTarget(CactusBaseLevelAlignerWrapper(self.options, childNetName))
-                    else: #Does not do any refinement if the net is completely specified.
-                        self.addChildTarget(CactusAlignerWrapper(self.options, childNetName, nextIteration))
-            logger.info("Created child targets for all the recursive reconstruction jobs")
+        assert self.iteration+1 <= 4
+        baseLevelNets = []
+        for childNetName, childNetSize in runCactusGetNets(self.options.netDisk, self.netName, localTempDir):
+            if childNetSize > 0:
+                nextIteration = getIteration(self.iteration+1, childNetSize)
+                if nextIteration == 4:
+                    if childNetSize < 1000:
+                        baseLevelNets.append(childNetName)
+                        if len(baseLevelNets) > 200:
+                            self.addChildTarget(CactusBaseLevelAlignerWrapper(self.options, baseLevelNets))
+                            baseLevelNets = []
+                else: #Does not do any refinement if the net is completely specified.
+                    self.addChildTarget(CactusAlignerWrapper(self.options, childNetName, nextIteration))
+        if len(baseLevelNets) > 0:
+            self.addChildTarget(CactusBaseLevelAlignerWrapper(self.options, baseLevelNets))        
+        
+        logger.info("Created child targets for all the recursive reconstruction jobs")
      
 class CactusBaseLevelAlignerWrapper(Target):
     #We split, to deal with cleaning up the alignment file
-    def __init__(self, options, netName):
-        Target.__init__(self, timeParameters[4])
+    def __init__(self, options, netNames):
+        Target.__init__(self, timeParameters[4]*len(netNames))
         self.options = options
-        self.netName = netName
+        self.netNames = netNames
     
     def run(self, localTempDir, globalTempDir):
-        runCactusBaseAligner(self.options.netDisk, [ self.netName ], getLogLevelString())
+        runCactusBaseAligner(self.options.netDisk, self.netNames, getLogLevelString())
         logger.info("Run the cactus base aligner")
         
 ############################################################
