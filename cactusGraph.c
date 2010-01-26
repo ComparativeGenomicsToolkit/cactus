@@ -12,6 +12,7 @@
 #include "pinchGraph.h"
 #include "cactusGraph.h"
 #include "cactus.h"
+#include "3_Absorb3edge2x.h"
 
 ////////////////////////////////////////////////
 ////////////////////////////////////////////////
@@ -666,14 +667,13 @@ int32_t *getDFSDiscoveryTimes(struct CactusGraph *cactusGraph) {
 ////////////////////////////////////////////////
 ////////////////////////////////////////////////
 ////////////////////////////////////////////////
-//I/O Methods to interact with the 3-edge connected component
+//Methods to interact with the 3-edge connected component
 //code.
 ////////////////////////////////////////////////
 ////////////////////////////////////////////////
 ////////////////////////////////////////////////
 
-void writeOut3EdgeGraph(struct PinchGraph *pinchGraph, struct List *greyEdgeComponents,
-						FILE *fileHandle) {
+struct List *writeOut3EdgeGraph(struct PinchGraph *pinchGraph, struct List *greyEdgeComponents) {
 	/*
 	 * Writes a format compatible with the 3-edge connected component algorithm.
 	 */
@@ -682,6 +682,7 @@ void writeOut3EdgeGraph(struct PinchGraph *pinchGraph, struct List *greyEdgeComp
 	int32_t i, j, k;
 	struct List *component;
 	struct hashtable *vertexHash;
+	struct List *vertices = constructEmptyList(0, (void (*)(void *))destructIntList);
 
 	//setup vertex to grey edge component hash
 	vertexHash = create_hashtable(pinchGraph->vertices->length*2,
@@ -711,11 +712,10 @@ void writeOut3EdgeGraph(struct PinchGraph *pinchGraph, struct List *greyEdgeComp
 #endif
 
 	//Write number of nodes.
-	fprintf(fileHandle, "" INT_STRING "\n", greyEdgeComponents->length);
-
 	for(i=0; i<greyEdgeComponents->length;i++) {
 		component = greyEdgeComponents->list[i];
-		fprintf(fileHandle, "" INT_STRING "", i+1);
+		struct IntList *edges = constructEmptyIntList(0);
+		listAppend(vertices, edges);
 		for(j=0; j<component->length; j++) {
 			vertex = component->list[j];
 
@@ -723,7 +723,7 @@ void writeOut3EdgeGraph(struct PinchGraph *pinchGraph, struct List *greyEdgeComp
 			if(lengthBlackEdges(vertex) > 0) {
 				edge = getFirstBlackEdge(vertex);
 				k = *((int32_t *)hashtable_search(vertexHash, edge->to));
-				fprintf(fileHandle, ">" INT_STRING "", k+1);
+				intListAppend(edges, k+1);
 			}
 #ifdef BEN_DEBUG
 			else {
@@ -731,21 +731,18 @@ void writeOut3EdgeGraph(struct PinchGraph *pinchGraph, struct List *greyEdgeComp
 			}
 #endif
 		}
-		//Start a newline for the next component
-		fprintf(fileHandle, "\n");
 	}
 	hashtable_destroy(vertexHash, TRUE, FALSE);
+
+	return vertices;
 }
 
-struct List *readThreeEdgeComponents(struct PinchGraph *pinchGraph, struct List *greyEdgeComponents, char *file) {
+struct List *readThreeEdgeComponents(struct PinchGraph *pinchGraph, struct List *greyEdgeComponents, struct List *threeEdgeComponents) {
 	/*
 	 * Reads in the three edge connected components written out by the three
 	 * edge script.
 	 */
-	FILE *fileHandle;
 	int32_t i, j, k;
-	int32_t numberOfComponents;
-	int32_t *iA;
 	struct List *list;
 	struct List *list2;
 	struct List *list3;
@@ -753,27 +750,15 @@ struct List *readThreeEdgeComponents(struct PinchGraph *pinchGraph, struct List 
 	struct PinchVertex *vertex;
 
 #ifdef BEN_DEBUG
-	int32_t l;
+	int32_t l = 0;
 #endif
-
-	//construct stuff
-	fileHandle = fopen(file, "r");
-	iA = mallocLocal(sizeof(int32_t)*pinchGraph->vertices->length);
 	list = constructEmptyList(0, (void (*)(void *))destructList);
-
-	readIntegers(fileHandle, 1, iA);
-	numberOfComponents = iA[0];
-#ifdef BEN_DEBUG
-	l = 0;
-#endif
-	while(numberOfComponents-- > 0) {
-		readIntegers(fileHandle, 1, iA);
-		i = iA[0];
-		readIntegers(fileHandle, i, iA);
+	for(i=0; i<threeEdgeComponents->length; i++) {
+		list3 = threeEdgeComponents->list[i];
 		list2 = constructEmptyList(0, NULL);
 		listAppend(list, list2);
-		for(j=0; j<i; j++) {
-			component = greyEdgeComponents->list[iA[j]-1];
+		for(j=0; j<list3->length; j++) {
+			component = greyEdgeComponents->list[(*((int32_t *)list3->list[j]))-1];
 			for(k=0; k<component->length; k++) {
 				vertex = component->list[k];
 				listAppend(list2, vertex);
@@ -807,9 +792,6 @@ struct List *readThreeEdgeComponents(struct PinchGraph *pinchGraph, struct List 
 #endif
 
 	//destroy stuff
-	free(iA);
-	fclose(fileHandle);
-
 	return list;
 }
 
@@ -880,46 +862,30 @@ int32_t computeCactusGraph_excludedEdgesFn(void *o) {
 	return TRUE;
 }
 
-int32_t computeCactusGraph(struct PinchGraph *pinchGraph, struct CactusGraph **cactusGraph, struct List **threeEdgeConnectedComponents, char *logLevelString) {
-	char *threeEdgeOutputFile;
-	char *threeEdgeInputFile;
-	static char cA[STRING_ARRAY_SIZE];
+void computeCactusGraph(struct PinchGraph *pinchGraph, struct CactusGraph **cactusGraph, struct List **threeEdgeConnectedComponents) {
 	struct PinchVertex *vertex;
 	struct List *list;
 	int32_t i, j;
-	FILE *fileHandle;
 	struct List *greyEdgeComponents;
+	struct List *vertices;
 
 	///////////////////////////////////////////////////////////////////////////
 	// Run the three-edge connected component algorithm to identify
 	// three edge connected components.
 	///////////////////////////////////////////////////////////////////////////
 
-	//Get temp files for the three edge stuff.
-	threeEdgeOutputFile = getTempFile();
-	threeEdgeInputFile = getTempFile();
-
-	//Write out three-edge graph.
-	fileHandle = fopen(threeEdgeOutputFile, "w");
-
 	greyEdgeComponents = getRecursiveComponents(pinchGraph, computeCactusGraph_excludedEdgesFn);
 
-	writeOut3EdgeGraph(pinchGraph, greyEdgeComponents, fileHandle);
-	fclose(fileHandle);
-	logInfo("Output the 3-edge graph description in tmp file: %s\n", threeEdgeOutputFile);
+	vertices = writeOut3EdgeGraph(pinchGraph, greyEdgeComponents);
 
-	//Run three edge connected components.
-	sprintf(cA, "cactus_3Edge %s %s %s", logLevelString == NULL ? "CRITICAL" : logLevelString, threeEdgeOutputFile, threeEdgeInputFile);
-	assert(strlen(cA) < STRING_ARRAY_SIZE);
-	i = system(cA);
-	if(i != 0) {
-		logInfo("Tried to run the three edge command, but it went wrong: " INT_STRING "\n", i);
-		return i;
-	}
-	logInfo("Seems to have successfully run the three edge command: " INT_STRING "\n", i);
+	list = computeThreeEdgeConnectedComponents(vertices);
+	logInfo("Seems to have successfully run the three edge command: %i\n", list->length);
+
 	//Parse results (the three edge connected components).
-	*threeEdgeConnectedComponents = readThreeEdgeComponents(pinchGraph, greyEdgeComponents, threeEdgeInputFile);
+	*threeEdgeConnectedComponents = readThreeEdgeComponents(pinchGraph, greyEdgeComponents, list);
 	logInfo("Read in the three edge components\n");
+	destructList(list);
+
 	for(i=0; i<(*threeEdgeConnectedComponents)->length; i++) {
 		list = (*threeEdgeConnectedComponents)->list[i];
 		logDebug("3 edge component : " INT_STRING " ", i);
@@ -929,10 +895,9 @@ int32_t computeCactusGraph(struct PinchGraph *pinchGraph, struct CactusGraph **c
 		}
 		logDebug("\n");
 	}
-	//Cleanup the three edge input/output file
-	removeTempFile(threeEdgeInputFile);
-	removeTempFile(threeEdgeOutputFile);
+	//Cleanup the three edge input/output fil
 	destructList(greyEdgeComponents);
+	destructList(vertices);
 
 	///////////////////////////////////////////////////////////////////////////
 	// Merge vertices in each three edge connected component to convert the main graph
@@ -942,8 +907,6 @@ int32_t computeCactusGraph(struct PinchGraph *pinchGraph, struct CactusGraph **c
 	//Collapse the graph to cactus tree
 	*cactusGraph = constructCactusGraph(pinchGraph, *threeEdgeConnectedComponents);
 	checkCactusGraph(pinchGraph, *threeEdgeConnectedComponents, *cactusGraph);
-
-	return 0;
 }
 
 ////////////////////////////////////////////////

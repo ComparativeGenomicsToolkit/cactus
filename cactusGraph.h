@@ -93,9 +93,9 @@ int32_t *getDFSDiscoveryTimes(struct CactusGraph *cactusGraph);
 ////////////////////////////////////////////////
 ////////////////////////////////////////////////
 
-void writeOut3EdgeGraph(struct PinchGraph *pinchGraph, struct List *greyEdgeComponents, FILE *fileHandle);
+struct List *writeOut3EdgeGraph(struct PinchGraph *pinchGraph, struct List *greyEdgeComponents);
 
-struct List *readThreeEdgeComponents(struct PinchGraph *, struct List *greyEdgeComponents, char *file);
+struct List *readThreeEdgeComponents(struct PinchGraph *, struct List *greyEdgeComponents, struct List *threeEdgeComponents);
 
 void writeOutCactusGraph(struct CactusGraph *cactusGraph, struct PinchGraph *pinchGraph, FILE *fileHandle);
 
@@ -107,7 +107,7 @@ void writeOutCactusGraph(struct CactusGraph *cactusGraph, struct PinchGraph *pin
 ////////////////////////////////////////////////
 ////////////////////////////////////////////////
 
-int32_t computeCactusGraph(struct PinchGraph *pinchGraph, struct CactusGraph **cactusGraph, struct List **threeEdgeConnectedComponents, char *logLevelString);
+void computeCactusGraph(struct PinchGraph *pinchGraph, struct CactusGraph **cactusGraph, struct List **threeEdgeConnectedComponents);
 
 
 ////////////////////////////////////////////////

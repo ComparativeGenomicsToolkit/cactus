@@ -180,7 +180,6 @@ class CactusCoreWrapper(Target):
         
         runCactusCore(netDisk=self.options.netDisk, 
                       alignmentFile=self.alignmentFile, 
-                      tempDir=localTempDir, 
                       netName=self.netName,
                       logLevel=getLogLevelString(), 
                       maximumEdgeDegree=coreParameters["maximumEdgeDegree"],
@@ -222,7 +221,7 @@ class CactusCoreWrapper2(Target):
                 if childNetSize > 0:
                     nextIteration = getIteration(self.iteration+1, childNetSize)
                     if nextIteration == 4:
-                        if childNetSize < 500:
+                        if childNetSize < 1000:
                             self.addChildTarget(CactusBaseLevelAlignerWrapper(self.options, childNetName))
                     else: #Does not do any refinement if the net is completely specified.
                         self.addChildTarget(CactusAlignerWrapper(self.options, childNetName, nextIteration))
@@ -236,7 +235,7 @@ class CactusBaseLevelAlignerWrapper(Target):
         self.netName = netName
     
     def run(self, localTempDir, globalTempDir):
-        runCactusBaseAligner(self.options.netDisk, [ self.netName ], localTempDir, getLogLevelString())
+        runCactusBaseAligner(self.options.netDisk, [ self.netName ], getLogLevelString())
         logger.info("Run the cactus base aligner")
         
 ############################################################

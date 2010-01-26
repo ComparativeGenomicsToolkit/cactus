@@ -20,7 +20,7 @@
 #include "substitutionIO.h"
 
 #define SPANNING_TREES 2
-#define MATCH_THRESHOLD 0.85
+#define MATCH_THRESHOLD 0.8
 
 extern "C" {
 	#include "hashTableC.h"
@@ -29,13 +29,13 @@ extern "C" {
 	#include "cactus.h"
 	#include "avl.h"
 	#include "pairwiseAlignment.h"
+	#include "cactus_core.h"
 };
 
 void usage() {
 	fprintf(stderr, "cactus_colinearAligner [net-names, ordered by order they should be processed], version 0.2\n");
 	fprintf(stderr, "-a --logLevel : Set the log level\n");
 	fprintf(stderr, "-b --netDisk : The location of the net disk directory\n");
-	fprintf(stderr, "-e --tempDirRoot : The temp file root directory\n");
 	fprintf(stderr, "-h --help : Print this help screen\n");
 }
 
@@ -106,13 +106,6 @@ void destructSubsequences(SubSequence **subSequences) {
 	destructSubSequence(subSequences[0]);
 	destructSubSequence(subSequences[1]);
 	free(subSequences);
-}
-
-void cleanupTempFile(char *tempFile) {
-	char *command = stringPrint("rm -f %s", tempFile);
-	exitOnFailure(system(command), "Failed to remove a temporary file\n");
-	free(command);
-	free(tempFile);
 }
 
 struct PairwiseAlignment *alignSequences(SubSequence *seqX, SubSequence *seqY) {
@@ -190,11 +183,19 @@ void constructSpanningTree(void **items, uint32_t length, struct List *pairs) {
 
 }
 
+struct List *getAlignment_pairwiseAlignments;
+
+struct PairwiseAlignment *getAlignments() {
+	if(getAlignment_pairwiseAlignments->length > 0) {
+		return (struct PairwiseAlignment *)getAlignment_pairwiseAlignments->list[--getAlignment_pairwiseAlignments->length];
+	}
+	return NULL;
+}
+
 int main(int argc, char *argv[]) {
 
 	char * logLevelString = NULL;
 	char * netDiskName = NULL;
-	char * tempDir = NULL;
 	int32_t i, j;
 
 	/*
@@ -204,14 +205,13 @@ int main(int argc, char *argv[]) {
 		static struct option long_options[] = {
 				{ "logLevel", required_argument, 0, 'a' },
 				{ "netDisk", required_argument, 0, 'b' },
-				{ "tempDirRoot", required_argument, 0, 'e' },
 				{ "help", no_argument, 0, 'h' },
 				{ 0, 0, 0, 0 }
 		};
 
 		int option_index = 0;
 
-		int key = getopt_long(argc, argv, "a:b:e:h", long_options, &option_index);
+		int key = getopt_long(argc, argv, "a:b:h", long_options, &option_index);
 
 		if(key == -1) {
 			break;
@@ -223,9 +223,6 @@ int main(int argc, char *argv[]) {
 				break;
 			case 'b':
 				netDiskName = stringCopy(optarg);
-				break;
-			case 'e':
-				tempDir = stringCopy(optarg);
 				break;
 			case 'h':
 				usage();
@@ -244,16 +241,30 @@ int main(int argc, char *argv[]) {
 	}
 
 	/*
+	 * Setup the input parameters for cactus core.
+	 */
+	CactusCoreInputParameters *cCIP = constructCactusCoreInputParameters();
+	//--maxEdgeDegree 10000000 --minimumTreeCoverage 0 --minimumTreeCoverageForAtoms 0
+	//--minimumAtomLength 0 --minimumChainLength 0 --trim 0 --alignRepeats 1 --extensionSteps 0
+	cCIP->maxEdgeDegree = 10000000;
+	cCIP->minimumTreeCoverage = 0.0;
+	cCIP->minimumTreeCoverageForAtoms = 0.0;
+	cCIP->minimumAtomLength = 0.0;
+	cCIP->minimumChainLength = 0;
+	cCIP->trim = 0;
+	cCIP->alignRepeats = 1;
+	cCIP->extensionSteps = 0;
+
+	/*
+	 * Load the netdisk
+	 */
+	NetDisk *netDisk = netDisk_construct(netDiskName);
+	logInfo("Set up the net disk\n");
+
+	/*
 	 * For each net.
 	 */
 	for (j = optind; j < argc; j++) {
-		/*
-		 * Load the netdisk
-		 */
-
-		NetDisk *netDisk = netDisk_construct(netDiskName);
-		logInfo("Set up the net disk\n");
-
 		/*
 		 * Read the net.
 		 */
@@ -295,8 +306,7 @@ int main(int argc, char *argv[]) {
 		/*
 		 * Do the alignments.
 		 */
-		char *tempFile = pathJoin(tempDir, "temp.cigar");
-		FILE *fileHandle = fopen(tempFile, "w");
+		getAlignment_pairwiseAlignments = constructEmptyList(0, (void (*)(void *))destructPairwiseAlignment);
 		for(i=0; i<pairs->length; i+=2) {
 			SubSequence **subSequences1 = (SubSequence **)pairs->list[i];
 			SubSequence **subSequences2 = (SubSequence **)pairs->list[i+1];
@@ -306,16 +316,11 @@ int main(int argc, char *argv[]) {
 			SubSequence *seq2 = subSequences2[0];
 
 			//Do forward - forward alignment.
-			struct PairwiseAlignment *pairwiseAlignment = alignSequences(seq1, seq2);
-			cigarWrite(fileHandle, pairwiseAlignment, 0);
-			destructPairwiseAlignment(pairwiseAlignment);
+			listAppend(getAlignment_pairwiseAlignments, alignSequences(seq1, seq2));
 
 			//Do reverse - forward alignment.
-			pairwiseAlignment = alignSequences(seq1R, seq2);
-			cigarWrite(fileHandle, pairwiseAlignment, 0);
-			destructPairwiseAlignment(pairwiseAlignment);
+			listAppend(getAlignment_pairwiseAlignments, alignSequences(seq1R, seq2));
 		}
-		fclose(fileHandle);
 		logInfo("Created the alignments\n");
 
 		/*
@@ -326,28 +331,25 @@ int main(int argc, char *argv[]) {
 		logInfo("Cleaned up the temporary files\n");
 
 		/*
-		 * Close the netdisk.
-		 */
-		netDisk_destruct(netDisk);
-		logInfo("Finished with the net disk for this net.\n");
-
-		/*
 		 * Run the cactus core script.
 		 */
-		char *command = stringPrint("cactus_core --alignments %s --netDisk %s --netName %s --tempDirRoot %s --maxEdgeDegree 10000000 --minimumTreeCoverage 0 --minimumTreeCoverageForAtoms 0 --minimumAtomLength 0 --minimumChainLength 0 --trim 0 --alignRepeats 1 --extensionSteps 0 --logLevel %s",
-				tempFile, netDiskName, netName, tempDir, logLevelString);
-		exitOnFailure(system(command), "Failed to run cactus_core when taking alignments from the colinear aligner");
-		free(command);
+		cactusCorePipeline(net, cCIP, getAlignments);
 		logInfo("Ran the cactus core script.");
-
-		//assert(0);
 
 		/*
 		 * Cleanup
 		 */
-		cleanupTempFile(tempFile);
+		destructList(getAlignment_pairwiseAlignments);
 		logInfo("Finished filling in the alignments for the net\n");
 	}
+
+	/*
+	 * Write and close the netdisk.
+	 */
+	netDisk_write(netDisk);
+	netDisk_destruct(netDisk);
+	destructCactusCoreInputParameters(cCIP);
+	logInfo("Finished with the net disk for this net.\n");
 
 	return 0;
 }

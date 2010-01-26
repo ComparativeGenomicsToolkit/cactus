@@ -101,7 +101,7 @@ def runCactusAligner(netDisk, alignmentFile, tempDir, useDummy=True, netName="0"
     system("rm -rf %s" % tempDir)
     logger.info("Ran the cactus aligner okay")
             
-def runCactusCore(netDisk, alignmentFile, tempDir, 
+def runCactusCore(netDisk, alignmentFile, 
                   netName=0,
                   logLevel="DEBUG", writeDebugFiles=False,
                   maximumEdgeDegree=None,
@@ -157,11 +157,10 @@ def runCactusCore(netDisk, alignmentFile, tempDir,
     else:
         alignRepeats = ""
     
-    command = "cactus_core --netDisk %s --netName %s --alignments %s \
---tempDirRoot %s --logLevel %s \
+    command = "cactus_core --netDisk %s --netName %s --alignments %s --logLevel %s \
 %s %s %s %s %s %s %s %s %s" % \
     (netDisk, netName, alignmentFile, 
-     tempDir, logLevel, writeDebugFiles,
+     logLevel, writeDebugFiles,
      maximumEdgeDegree, extensionSteps, minimumTreeCoverage, minimumTreeCoverageForAtoms, minimumAtomLength, minimumChainLength, trim, alignRepeats)
     system(command)
     logger.info("Ran cactus_core okay")
@@ -278,7 +277,7 @@ def runCactusGetNets(netDisk, netName, tempDir, includeInternalNodes=False, recu
     os.remove(netNamesFile)
     return l
 
-def runCactusBaseAligner(netDisk, netNames, tempDir, logLevel="DEBUG"):
+def runCactusBaseAligner(netDisk, netNames, logLevel="DEBUG"):
     """Runs cactus base aligner.
     """
-    system("cactus_baseAligner --netDisk %s --tempDir %s --logLevel %s %s" % (netDisk, tempDir, logLevel, " ".join(netNames)))
+    system("cactus_baseAligner --netDisk %s --logLevel %s %s" % (netDisk, logLevel, " ".join(netNames)))

@@ -474,50 +474,18 @@ void three_edge_connectP(int w,int v, struct Frame *frame, struct List *stack) {
 }//end of three-edge-connect procedure
 //******************************************************************************
 
-int main(int argc, char **argv) {
+struct List *computeThreeEdgeConnectedComponents(struct List *vertices) {
 
 	list = constructEmptyList(0, (void (*)(void *))destructList);
 
-
-   if (argc < 3) {
-      printf("No input!\n");
-      abort();
-   }
-
-   //set the logging
-   if(strcmp(argv[1], "INFO") == 0) {
-   		setLogLevel(LOGGING_INFO);
-   	}
-   	if(strcmp(argv[1], "DEBUG") == 0) {
-   		setLogLevel(LOGGING_DEBUG);
-   	}
-
-   FILE *in;
-   char in_filename[5000];
-   int Vnum;
+   int Vnum = vertices->length+1;
    int edgeNum = 0; /*initilizing the number of edges in G*/
-   int r, n, ch, v, indx;
-   int next_list = 1, filename_length = strlen(argv[2]);
-   char ch2[max_length];
+   int r, n, v, indx;
+   int32_t i, j;
    double tsum;
    clock_t first, end;
 	 logInfo("\nComputing 3edge connected components using\nDr. Tsin's algorithm(The one with reduction)...\n");
    first=clock();  //save CPU clock to variable first
-
-//   if ((in_filename = (char*) malloc(filename_length * sizeof(char))) == NULL)
-//      abrt("Not enough memory to allocate buffer1");
-   for (indx=0; indx < filename_length; indx++)
-      in_filename[indx] = argv[2][indx];
-   in_filename[filename_length] = '\0';
-   if ((in = fopen(in_filename, "rt")) == NULL)
-      abrt("Cannot open input file.");
-	 indx = 0;
-   while ( (ch = fgetc(in)) != 10) {
-      ch2[indx] = (char)ch;
-      indx = indx + 1;
-   }
-   ch2[indx] = '\0';
-   Vnum = atoi(ch2) + 1;
 
 //*********************************Memory allocation
 
@@ -558,66 +526,23 @@ int main(int argc, char **argv) {
       visited[indx] = 'N';
       outgoing_tree_edge[indx] = '1';
 	 }
-	 indx = 0;
-   while ( (ch = fgetc(in)) != EOF) {
-      if (indx == 10 && (ch != 62 || ch != 10))
-			/*10 is a carriage return and 62 is a '>', after we reach to the maximum
-			length for a number we expect new line or '>'.
-			*/
-   		   abrt("Your input file has an error!");
-      else if (ch == 62) {
-         ch2[indx] = '\0';
-         indx = 0;
-			   n = atoi(ch2);
-         if (next_list) {
-				      v = n;
-							/*determine the next list
-							*/
-            next_list = 0;
-         }
-         else {
-            if (( edge = (adjacentG)malloc(sizeof(struct adjacent_with_u_in_G)) ) == NULL)
-               abrt("Not enough memory to allocate buffer23");
-            edge->more = NULL;
-   	        edge->u = n;
-      	    edge->more = LG[v];
-         	  LG[v] = edge;
-            edgeNum = edgeNum + 1;
-         }
-		  }
-      else if (ch == 10) {
-         ch2[indx] = '\0';
-         indx = 0;
-				 if (!next_list) {
-   			    n = atoi(ch2);
-            if (( edge = (adjacentG)malloc(sizeof(struct adjacent_with_u_in_G)) ) == NULL)
-               abrt("Not enough memory to allocate buffer24");
-            edge->more = NULL;
-            edge->u = n;
-            edge->more = LG[v];
-            LG[v] = edge;
-            edgeNum = edgeNum + 1;
-            next_list = 1;
-         }
-      }
-      else {
-         ch2[indx] = (char)ch;
-         indx = indx + 1;
-      }
-   }
-	 if (!next_list) {
-      ch2[indx] = '\0';
-      n = atoi(ch2);
-      if (( edge = (adjacentG)malloc(sizeof(struct adjacent_with_u_in_G)) ) == NULL)
-         abrt("Not enough memory to allocate buffer25");
-      edge->more = NULL;
-      edge->u = n;
-      edge->more = LG[v];
-      LG[v] = edge;
-      edgeNum = edgeNum + 1;
+   indx = 0;
+
+   for(i=0; i<vertices->length; i++) {
+	   struct IntList *edges = vertices->list[i];
+	   v = i+1;
+	   for(j=0; j<edges->length; j++) {
+		   n = edges->list[j];
+		   if (( edge = (adjacentG)malloc(sizeof(struct adjacent_with_u_in_G)) ) == NULL)
+			   abrt("Not enough memory to allocate buffer23");
+		   edge->more = NULL;
+		   edge->u = n;
+		   edge->more = LG[v];
+		   LG[v] = edge;
+		   edgeNum = edgeNum + 1;
+	   }
    }
    edgeNum = edgeNum / 2;
-   fclose(in);
 
 	 logInfo( "\nComplexity of the given graph:\n|V| + |E| = %d + %d = %d\n",Vnum-1,edgeNum,Vnum+edgeNum-1);
 
@@ -654,23 +579,6 @@ int main(int argc, char **argv) {
 
    logDebug("Found components\n");
 
-   int32_t i, j;
-   FILE *fileHandle;
-
-   fileHandle = fopen(argv[3], "w");
-   fprintf(fileHandle, "" INT_STRING " ", list->length);
-   for(i=0; i<list->length; i++) {
-   	   list2 = list->list[i];
-   	   fprintf(fileHandle, "" INT_STRING " ", list2->length);
-   	   for(j=0; j<list2->length; j++) {
-   		   fprintf(fileHandle, "" INT_STRING " ", ((int32_t *)list2->list[j])[0]);
-   	   }
-   }
-   fprintf(fileHandle, "\n");
-   fclose(fileHandle);
-   destructList(list);
-
-
 /*//YesOrNo
    printf("It's a YES instance!");
    end=clock(); //save again CPU clock to variable end
@@ -684,5 +592,5 @@ int main(int argc, char **argv) {
    logInfo( "\nElapsed Time: %f",tsum);
    logInfo( "\nConnected Components: %d\n",compNum);
 
-   return 0;
+   return list;
 }

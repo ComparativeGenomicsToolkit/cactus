@@ -4,13 +4,10 @@ libPath = ../../lib
 
 cflags += ${tokyoCabinetIncl}
 
-all : ${binPath}/cactus_3Edge ${binPath}/cactus_core ${binPath}/cactus_phylogeny ${binPath}/cactus_setup ${binPath}/cactus_aligner.py ${binPath}/cactus_workflow.py ${binPath}/cactus_workflow_getNets ${binPath}/cactus_alignerTestAligner.py utilitiesM ${binPath}/cactus_baseAligner ${binPath}/cactus_batch.py
-
-${binPath}/cactus_3Edge : 3_Absorb3edge2x.c ${libPath}/sonLib.a
-	${cxx} ${cflags} -I ${libPath} -o ${binPath}/cactus_3Edge 3_Absorb3edge2x.c ${libPath}/sonLib.a 
+all : ${binPath}/cactus_core ${binPath}/cactus_phylogeny ${binPath}/cactus_setup ${binPath}/cactus_aligner.py ${binPath}/cactus_workflow.py ${binPath}/cactus_workflow_getNets ${binPath}/cactus_alignerTestAligner.py utilitiesM ${binPath}/cactus_baseAligner ${binPath}/cactus_batch.py
 
 ${binPath}/cactus_core : *.c *.h ${libPath}/sonLib.a ${libPath}/cactusLib.a
-	${cxx} ${cflags} -I ${libPath} -o ${binPath}/cactus_core cactus_core.c pinchGraph.c pinchGraphTest.c pinchGraphManipulation.c cactusGraph.c cactusNetFunctions.c ${libPath}/sonLib.a ${libPath}/cactusLib.a ${tokyoCabinetLib}
+	${cxx} ${cflags} -I ${libPath} -o ${binPath}/cactus_core cactus_core2.c 3_Absorb3edge2x.c cactus_core.c pinchGraph.c pinchGraphTest.c pinchGraphManipulation.c cactusGraph.c cactusNetFunctions.c ${libPath}/sonLib.a ${libPath}/cactusLib.a ${tokyoCabinetLib}
 
 ${binPath}/cactus_phylogeny : *.c *.h ${libPath}/sonLib.a ${libPath}/cactusLib.a
 	${cxx} ${cflags} -I ${libPath} -o ${binPath}/cactus_phylogeny cactus_phylogeny.c ${libPath}/sonLib.a ${libPath}/cactusLib.a ${tokyoCabinetLib}
@@ -18,8 +15,10 @@ ${binPath}/cactus_phylogeny : *.c *.h ${libPath}/sonLib.a ${libPath}/cactusLib.a
 ${binPath}/cactus_setup : cactus_setup.c ${libPath}/sonLib.a ${libPath}/cactusLib.a
 	${cxx} ${cflags} -I ${libPath} -o ${binPath}/cactus_setup cactus_setup.c ${libPath}/cactusLib.a ${libPath}/sonLib.a ${tokyoCabinetLib}
 
-${binPath}/cactus_baseAligner : cactus_baseAligner.cc ${libPath}/sonLib.a ${libPath}/cactusLib.a ${libPath}/pecan2Lib.a  ${libPath}/sonLibPlus.a ${libPath}/xmlLib.a
-	${cyy} ${cflags} -I ${libPath} -o ${binPath}/cactus_baseAligner cactus_baseAligner.cc ${libPath}/cactusLib.a ${libPath}/sonLib.a ${libPath}/pecan2Lib.a  ${libPath}/sonLibPlus.a ${libPath}/xmlLib.a ${tokyoCabinetLib}
+${binPath}/cactus_baseAligner : cactus_baseAligner.cc cactus_core.c cactus_core.h 3_Absorb3edge2x.c 3_Absorb3edge2x.h ${libPath}/sonLib.a ${libPath}/cactusLib.a ${libPath}/pecan2Lib.a  ${libPath}/sonLibPlus.a ${libPath}/xmlLib.a
+	${cxx} -I ${libPath} -c cactus_core.c 3_Absorb3edge2x.c pinchGraph.c pinchGraphTest.c pinchGraphManipulation.c cactusGraph.c cactusNetFunctions.c 
+	${cyy} ${cflags} -I ${libPath} -o ${binPath}/cactus_baseAligner cactus_baseAligner.cc cactus_core.o 3_Absorb3edge2x.o pinchGraph.o pinchGraphTest.o pinchGraphManipulation.o cactusGraph.o cactusNetFunctions.o ${libPath}/cactusLib.a ${libPath}/sonLib.a ${libPath}/pecan2Lib.a  ${libPath}/sonLibPlus.a ${libPath}/xmlLib.a ${tokyoCabinetLib}
+	rm -f cactus_core.o 3_Absorb3edge2x.o pinchGraph.o pinchGraphTest.o pinchGraphManipulation.o cactusGraph.o cactusNetFunctions.o
 
 ${binPath}/cactus_aligner.py : cactus_aligner.py cactus_aligner.c ${libPath}/cactusLib.a
 	${cxx} ${cflags} -I ${libPath} -o ${binPath}/cactus_aligner cactus_aligner.c ${libPath}/cactusLib.a ${libPath}/sonLib.a ${tokyoCabinetLib}
@@ -49,7 +48,7 @@ utilitiesM :
 	
 clean : utilities.clean
 	rm -f *.o
-	rm -f ${binPath}/cactus_core ${binPath}/cactus_phylogeny ${binPath}/cactus_3Edge ${binPath}/cactus_setup ${binPath}/cactus_aligner.py ${binPath}/cactus_aligner ${binPath}/cactus_workflow.py ${binPath}/cactus_alignerTestAligner.py ${binPath}/cactus_baseAligner ${binPath}/cactus_batch.py ${binPath}/cactus_batch_chunkSequences ${binPath}/cactus_batch_convertCoordinates
+	rm -f ${binPath}/cactus_core ${binPath}/cactus_phylogeny ${binPath}/cactus_setup ${binPath}/cactus_aligner.py ${binPath}/cactus_aligner ${binPath}/cactus_workflow.py ${binPath}/cactus_alignerTestAligner.py ${binPath}/cactus_baseAligner ${binPath}/cactus_batch.py ${binPath}/cactus_batch_chunkSequences ${binPath}/cactus_batch_convertCoordinates
 
 utilities.clean :
 	#Making cactus utilities

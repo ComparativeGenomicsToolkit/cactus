@@ -103,7 +103,6 @@ def runPipe(sequenceDirs, newickTreeString, tempDir, useDummy=False, writeDebugF
     logger.info("Constructed the alignments")
     if randomAtomParameters:
         runCactusCore(tempReconstructionDirectory, tempAlignmentFile, 
-                      tempDir=getTempDirectory(tempDir), 
                       writeDebugFiles=writeDebugFiles,
                       maximumEdgeDegree=1+random.random()*10,
                       minimumTreeCoverage=random.random(),
