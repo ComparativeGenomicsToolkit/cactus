@@ -20,7 +20,7 @@
 #include "substitutionIO.h"
 
 #define SPANNING_TREES 2
-#define MATCH_THRESHOLD 0.8
+#define MATCH_THRESHOLD 0.5
 
 extern "C" {
 	#include "hashTableC.h"
@@ -246,7 +246,6 @@ int main(int argc, char *argv[]) {
 	CactusCoreInputParameters *cCIP = constructCactusCoreInputParameters();
 	//--maxEdgeDegree 10000000 --minimumTreeCoverage 0 --minimumTreeCoverageForAtoms 0
 	//--minimumAtomLength 0 --minimumChainLength 0 --trim 0 --alignRepeats 1 --extensionSteps 0
-	cCIP->maxEdgeDegree = 10000000;
 	cCIP->minimumTreeCoverage = 0.0;
 	cCIP->minimumTreeCoverageForAtoms = 0.0;
 	cCIP->minimumAtomLength = 0.0;
@@ -324,21 +323,17 @@ int main(int argc, char *argv[]) {
 		logInfo("Created the alignments\n");
 
 		/*
-		 * Cleanup the temporary sequence files and other stuff.
-		 */
-		destructList(subSequences);
-		destructList(pairs);
-		logInfo("Cleaned up the temporary files\n");
-
-		/*
 		 * Run the cactus core script.
 		 */
+		cCIP->maxEdgeDegree = subSequences->length;
 		cactusCorePipeline(net, cCIP, getAlignments);
 		logInfo("Ran the cactus core script.");
 
 		/*
 		 * Cleanup
 		 */
+		destructList(subSequences);
+		destructList(pairs);
 		destructList(getAlignment_pairwiseAlignments);
 		logInfo("Finished filling in the alignments for the net\n");
 	}
