@@ -164,10 +164,11 @@ void constructSpanningTree(void **items, uint32_t length, struct List *pairs) {
 		constructSpanningTree(items + i, length-i, pairs);
 	}
 	//Only add if it's a new pair.
-	uint32_t j = (uint32_t)(RANDOM() * i);
+	uint32_t j = min((uint32_t)(RANDOM() * i), i-1);
 	assert(j < i);
 	void *item1 = items[j];
-	j = (uint32_t)(i + (RANDOM() * (length - i)));
+	j = min((uint32_t)(i + (RANDOM() * (length - i))), length-1);
+	uglyf("I got %i %i %i\n", i, j, length);
 	assert(j >= i);
 	assert(j < length);
 	void *item2 = items[j];
@@ -287,7 +288,7 @@ int main(int argc, char *argv[]) {
 		}
 		net_destructEndInstanceIterator(iterator1);
 		assert(subSequences->length == net_getEndInstanceNumber(net)/2);
-		logInfo("Got the temporary sequence files representing the sequences to be aligned\n");
+		logInfo("Got the sequence to be aligned\n");
 
 		/*
 		 * Make a list of the pairwise comparisons to be aligned.

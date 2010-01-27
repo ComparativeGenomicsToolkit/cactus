@@ -18,7 +18,9 @@ static void getNets(Net *net, FILE *fileHandle, int32_t includeInternalNodes, in
 	if(recursive-- > 0) {
 		adjacencyComponentIterator = net_getAdjacencyComponentIterator(net);
 		while((adjacencyComponent = net_getNextAdjacencyComponent(adjacencyComponentIterator)) != NULL) {
-			getNets(adjacencyComponent_getNestedNet(adjacencyComponent), fileHandle, includeInternalNodes, recursive);
+			if(adjacencyComponent_getNestedNet(adjacencyComponent) != NULL) {
+				getNets(adjacencyComponent_getNestedNet(adjacencyComponent), fileHandle, includeInternalNodes, recursive);
+			}
 		}
 		net_destructAdjacencyComponentIterator(adjacencyComponentIterator);
 	}

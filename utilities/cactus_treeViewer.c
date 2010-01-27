@@ -63,8 +63,11 @@ void makeCactusTree_chain(Chain *chain, FILE *fileHandle, const char *parentNode
 	//Create the linkers to the nested nets.
 	int32_t i;
 	for(i=0; i<chain_getLength(chain); i++) {
-		makeCactusTree_net(adjacencyComponent_getNestedNet(link_getAdjacencyComponent(chain_getLink(chain, i))),
-				fileHandle, chainNameString, edgeColour);
+		AdjacencyComponent *adjacencyComponent = link_getAdjacencyComponent(chain_getLink(chain, i));
+		if(adjacencyComponent != NULL && adjacencyComponent_getNestedNet(adjacencyComponent) != NULL) {
+			makeCactusTree_net(adjacencyComponent_getNestedNet(adjacencyComponent),
+					fileHandle, chainNameString, edgeColour);
+		}
 	}
 	free(chainNameString);
 }
@@ -95,7 +98,7 @@ void makeCactusTree_net(Net *net, FILE *fileHandle, const char *parentNodeName, 
 	AdjacencyComponent *adjacencyComponent;
 	double size = 0.0; //get the size of the adjacency component organising node..
 	while((adjacencyComponent = net_getNextAdjacencyComponent(adjacencyComponentIterator)) != NULL) {
-		if(adjacencyComponent_getLink(adjacencyComponent) == NULL) { //linked to the diamond node.
+		if(adjacencyComponent_getLink(adjacencyComponent) == NULL && adjacencyComponent_getNestedNet(adjacencyComponent) != NULL) { //linked to the diamond node.
 			size += net_getTotalBaseLength(adjacencyComponent_getNestedNet(adjacencyComponent));
 		}
 	}
@@ -105,7 +108,7 @@ void makeCactusTree_net(Net *net, FILE *fileHandle, const char *parentNodeName, 
 		graphViz_addEdgeToGraph(netNameString, diamondNodeNameString, fileHandle, "", edgeColour, 10, 1, "forward");
 		adjacencyComponentIterator = net_getAdjacencyComponentIterator(net);
 		while((adjacencyComponent = net_getNextAdjacencyComponent(adjacencyComponentIterator)) != NULL) {
-			if(adjacencyComponent_getLink(adjacencyComponent) == NULL) { //linked to the diamond node.
+			if(adjacencyComponent_getLink(adjacencyComponent) == NULL && adjacencyComponent_getNestedNet(adjacencyComponent) != NULL) { //linked to the diamond node.
 				makeCactusTree_net(adjacencyComponent_getNestedNet(adjacencyComponent), fileHandle, diamondNodeNameString, diamondEdgeColour);
 			}
 		}

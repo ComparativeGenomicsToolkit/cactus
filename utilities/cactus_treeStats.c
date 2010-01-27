@@ -21,27 +21,24 @@ void usage() {
 }
 
 double calculateTreeBits(Net *net, double pathBitScore) {
-	if(net_getAdjacencyComponentNumber(net) > 0) { //internal node
-		double totalBitScore = 0.0;
-		Net_AdjacencyComponentIterator *adjacencyComponentIterator = net_getAdjacencyComponentIterator(net);
-		AdjacencyComponent *adjacencyComponent;
-		double followingPathBitScore = (log(net_getAdjacencyComponentNumber(net)) / log(2.0)) + pathBitScore;
-		while((adjacencyComponent = net_getNextAdjacencyComponent(adjacencyComponentIterator)) != NULL) {
+	double totalBitScore = 0.0;
+	Net_AdjacencyComponentIterator *adjacencyComponentIterator = net_getAdjacencyComponentIterator(net);
+	AdjacencyComponent *adjacencyComponent;
+	double followingPathBitScore = (log(net_getAdjacencyComponentNumber(net)) / log(2.0)) + pathBitScore;
+	while((adjacencyComponent = net_getNextAdjacencyComponent(adjacencyComponentIterator)) != NULL) {
+		if(adjacencyComponent_getNestedNet(adjacencyComponent) != NULL) {
 			totalBitScore += calculateTreeBits(adjacencyComponent_getNestedNet(adjacencyComponent), followingPathBitScore);
 		}
-		net_destructAdjacencyComponentIterator(adjacencyComponentIterator);
-		Net_AtomIterator *atomIterator = net_getAtomIterator(net);
-		Atom *atom;
-		int32_t totalSequenceSize = 0.0;
-		while((atom = net_getNextAtom(atomIterator)) != NULL) {
-			totalSequenceSize += atom_getLength(atom) * atom_getInstanceNumber(atom);
-		}
-		net_destructAtomIterator(atomIterator);
-		return totalBitScore + (totalSequenceSize > 0 ? ((log(totalSequenceSize) / log(2.0)) + pathBitScore) * totalSequenceSize : 0.0);
 	}
-	assert(net_getAtomNumber(net) == 0);
-	double i = net_getTotalBaseLength(net);
-	return i > 0 ? (pathBitScore + log(i)/log(2.0)) * i : 0.0;
+	net_destructAdjacencyComponentIterator(adjacencyComponentIterator);
+	Net_AtomIterator *atomIterator = net_getAtomIterator(net);
+	Atom *atom;
+	int32_t totalSequenceSize = 0.0;
+	while((atom = net_getNextAtom(atomIterator)) != NULL) {
+		totalSequenceSize += atom_getLength(atom) * atom_getInstanceNumber(atom);
+	}
+	net_destructAtomIterator(atomIterator);
+	return totalBitScore + (totalSequenceSize > 0 ? ((log(totalSequenceSize) / log(2.0)) + pathBitScore) * totalSequenceSize : 0.0);
 }
 
 void tabulateFloatStats(struct List *unsortedValues, double *totalNumber, double *min, double *max, double *avg, double *median) {
@@ -97,13 +94,17 @@ double largestChildStatsP(Net *net, struct List *childProportions) {
 		double childProportion = -10.0;
 		adjacencyComponentIterator = net_getAdjacencyComponentIterator(net);
 		while((adjacencyComponent = net_getNextAdjacencyComponent(adjacencyComponentIterator)) != NULL) {
-			double f = largestChildStatsP(adjacencyComponent_getNestedNet(adjacencyComponent), childProportions);
-			if(f/problemSize > childProportion) {
-				childProportion = f/problemSize;
+			if(adjacencyComponent_getNestedNet(adjacencyComponent) != NULL) {
+				double f = largestChildStatsP(adjacencyComponent_getNestedNet(adjacencyComponent), childProportions);
+				if(f/problemSize > childProportion) {
+					childProportion = f/problemSize;
+				}
 			}
 		}
 		net_destructAdjacencyComponentIterator(adjacencyComponentIterator);
-		listAppend(childProportions, constructFloat(childProportion));
+		if(childProportion != -10.0) {
+			listAppend(childProportions, constructFloat(childProportion));
+		}
 	}
 	return problemSize;
 }
@@ -121,16 +122,15 @@ void netStatsP(Net *net, int32_t currentDepth, struct IntList *children, struct 
 	Net_AdjacencyComponentIterator *adjacencyComponentIterator = net_getAdjacencyComponentIterator(net);
 	AdjacencyComponent *adjacencyComponent;
 	while((adjacencyComponent = net_getNextAdjacencyComponent(adjacencyComponentIterator)) != NULL) {
-		netStatsP(adjacencyComponent_getNestedNet(adjacencyComponent), currentDepth+1, children, depths);
+		if(adjacencyComponent_getNestedNet(adjacencyComponent) != NULL) {
+			netStatsP(adjacencyComponent_getNestedNet(adjacencyComponent), currentDepth+1, children, depths);
+		}
+		else {
+			intListAppend(depths, currentDepth);
+		}
 	}
 	net_destructAdjacencyComponentIterator(adjacencyComponentIterator);
-
-	if(net_getAdjacencyComponentNumber(net) == 0) {
-		intListAppend(depths, currentDepth);
-	}
-	else {
-		intListAppend(children, net_getAdjacencyComponentNumber(net));
-	}
+	intListAppend(children, net_getAdjacencyComponentNumber(net));
 }
 
 void netStats(Net *net,
@@ -152,7 +152,9 @@ void atomStatsP(Net *net, struct IntList *counts, struct IntList *lengths, struc
 	Net_AdjacencyComponentIterator *adjacencyComponentIterator = net_getAdjacencyComponentIterator(net);
 	AdjacencyComponent *adjacencyComponent;
 	while((adjacencyComponent = net_getNextAdjacencyComponent(adjacencyComponentIterator)) != NULL) {
-		atomStatsP(adjacencyComponent_getNestedNet(adjacencyComponent), counts, lengths, degrees, coverage);
+		if(adjacencyComponent_getNestedNet(adjacencyComponent) != NULL) {
+			atomStatsP(adjacencyComponent_getNestedNet(adjacencyComponent), counts, lengths, degrees, coverage);
+		}
 	}
 	net_destructAdjacencyComponentIterator(adjacencyComponentIterator);
 
@@ -191,7 +193,9 @@ void chainStatsP(Net *net, struct IntList *counts, struct IntList *lengths, stru
 	Net_AdjacencyComponentIterator *adjacencyComponentIterator = net_getAdjacencyComponentIterator(net);
 	AdjacencyComponent *adjacencyComponent;
 	while((adjacencyComponent = net_getNextAdjacencyComponent(adjacencyComponentIterator)) != NULL) {
-		chainStatsP(adjacencyComponent_getNestedNet(adjacencyComponent), counts, lengths, baseLengths, avgInstanceBaseLength);
+		if(adjacencyComponent_getNestedNet(adjacencyComponent) != NULL) {
+			chainStatsP(adjacencyComponent_getNestedNet(adjacencyComponent), counts, lengths, baseLengths, avgInstanceBaseLength);
+		}
 	}
 	net_destructAdjacencyComponentIterator(adjacencyComponentIterator);
 
@@ -236,7 +240,9 @@ void endStatsP(Net *net, struct IntList *counts, struct IntList *degrees) {
 	Net_AdjacencyComponentIterator *adjacencyComponentIterator = net_getAdjacencyComponentIterator(net);
 	AdjacencyComponent *adjacencyComponent;
 	while((adjacencyComponent = net_getNextAdjacencyComponent(adjacencyComponentIterator)) != NULL) {
-		endStatsP(adjacencyComponent_getNestedNet(adjacencyComponent), counts, degrees);
+		if(adjacencyComponent_getNestedNet(adjacencyComponent) != NULL) {
+			endStatsP(adjacencyComponent_getNestedNet(adjacencyComponent), counts, degrees);
+		}
 	}
 	net_destructAdjacencyComponentIterator(adjacencyComponentIterator);
 
@@ -273,10 +279,15 @@ void endStats(Net *net,
 }
 
 void leafStatsP(Net *net, struct IntList *leafSizes) {
+	/*
+	 * This only works while the reconstruction is incomplete.
+	 */
 	Net_AdjacencyComponentIterator *adjacencyComponentIterator = net_getAdjacencyComponentIterator(net);
 	AdjacencyComponent *adjacencyComponent;
 	while((adjacencyComponent = net_getNextAdjacencyComponent(adjacencyComponentIterator)) != NULL) {
-		leafStatsP(adjacencyComponent_getNestedNet(adjacencyComponent), leafSizes);
+		if(adjacencyComponent_getNestedNet(adjacencyComponent) != NULL) {
+			leafStatsP(adjacencyComponent_getNestedNet(adjacencyComponent), leafSizes);
+		}
 	}
 	net_destructAdjacencyComponentIterator(adjacencyComponentIterator);
 
@@ -299,16 +310,15 @@ void nonTrivialAdjacencyComponentStatsP(Net *net, struct IntList *nonTrivialAdja
 	AdjacencyComponent *adjacencyComponent;
 	int32_t i = 0;
 	while((adjacencyComponent = net_getNextAdjacencyComponent(adjacencyComponentIterator)) != NULL) {
-		nonTrivialAdjacencyComponentStatsP(adjacencyComponent_getNestedNet(adjacencyComponent), nonTrivialAdjacencyComponentCounts);
+		if(adjacencyComponent_getNestedNet(adjacencyComponent) != NULL) {
+			nonTrivialAdjacencyComponentStatsP(adjacencyComponent_getNestedNet(adjacencyComponent), nonTrivialAdjacencyComponentCounts);
+		}
 		if(adjacencyComponent_getLink(adjacencyComponent) == NULL) {
 			i++;
 		}
 	}
 	net_destructAdjacencyComponentIterator(adjacencyComponentIterator);
-
-	if(net_getAdjacencyComponentNumber(net) != 0) {
-		intListAppend(nonTrivialAdjacencyComponentCounts, i);
-	}
+	intListAppend(nonTrivialAdjacencyComponentCounts, i);
 }
 
 void nonTrivialAdjacencyComponentStats(Net *net,

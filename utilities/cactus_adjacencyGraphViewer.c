@@ -103,13 +103,14 @@ void addChainsToGraph(Net *net, FILE *fileHandle) {
 	net_destructChainIterator(chainIterator);
 }
 
-void addAdjacencies(Net *net, FILE *fileHandle) {
+void addAdjacencies(AdjacencyComponent *adjacencyComponent, FILE *fileHandle) {
 	/*
 	 * Adds adjacency edges to the graph.
 	 */
 	static char label[10000];
-	Net_EndIterator *endIterator = net_getEndIterator(net);
+	AdjacencyComponent_EndIterator *endIterator = adjacencyComponent_getEndIterator(adjacencyComponent);
 	End *end;
+	Net *net = adjacencyComponent_getNet(adjacencyComponent);
 	while((end = net_getNextEnd(endIterator)) != NULL) {
 		End_InstanceIterator *instanceIterator = end_getInstanceIterator(end);
 		EndInstance *endInstance;
@@ -134,7 +135,7 @@ void addAdjacencies(Net *net, FILE *fileHandle) {
 		free(netName);
 		end_destructInstanceIterator(instanceIterator);
 	}
-	net_destructEndIterator(endIterator);
+	adjacencyComponent_destructEndIterator(endIterator);
 }
 
 void addStubAndCapEndsToGraph(Net *net, FILE *fileHandle) {
@@ -154,13 +155,16 @@ void makeCactusGraph(Net *net, FILE *fileHandle) {
 	}
 	addTrivialChainsToGraph(net, fileHandle);
 	addChainsToGraph(net, fileHandle);
-	if(net_getAdjacencyComponentNumber(net) == 0) {
-		addAdjacencies(net, fileHandle);
-	}
 	Net_AdjacencyComponentIterator *adjacencyComponentIterator = net_getAdjacencyComponentIterator(net);
 	AdjacencyComponent *adjacencyComponent;
 	while((adjacencyComponent = net_getNextAdjacencyComponent(adjacencyComponentIterator)) != NULL) {
-		makeCactusGraph(adjacencyComponent_getNestedNet(adjacencyComponent), fileHandle);
+		Net *nestedNet = adjacencyComponent_getNestedNet(adjacencyComponent);
+		if(nestedNet != NULL) {
+			makeCactusGraph(nestedNet, fileHandle);
+		}
+		else { //time to add the adjacencies!
+			addAdjacencies(adjacencyComponent, fileHandle);
+		}
 	}
 	net_destructAdjacencyComponentIterator(adjacencyComponentIterator);
 }

@@ -48,7 +48,7 @@ def runPipe(sequenceDirs, newickTreeString, tempDir, useDummy=False, writeDebugF
     runCactusAligner(tempReconstructionDirectory, tempAlignmentFile,
                      tempDir=getTempDirectory(tempDir), useDummy=useDummy)
     runCactusCore(tempReconstructionDirectory, tempAlignmentFile, 
-                    tempDir=getTempDirectory(tempDir), writeDebugFiles=writeDebugFiles)
+                    writeDebugFiles=writeDebugFiles)
     childNetNames = [ childNetName for (childNetName, childNetSize) in runCactusGetNets(tempReconstructionDirectory, "0", tempDir, includeInternalNodes=True) ]
     runCactusPhylogeny(tempReconstructionDirectory, tempDir=getTempDirectory(tempDir), netNames=childNetNames)
     runCactusCheck(tempReconstructionDirectory, checkTrees=True)

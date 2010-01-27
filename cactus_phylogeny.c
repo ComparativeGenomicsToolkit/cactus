@@ -986,52 +986,53 @@ int main(int argc, char *argv[]) {
 		Net_AdjacencyComponentIterator *adjacencyComponentIterator = net_getAdjacencyComponentIterator(net);
 		while((adjacencyComponent = net_getNextAdjacencyComponent(adjacencyComponentIterator)) != NULL) {
 			net2 = adjacencyComponent_getNestedNet(adjacencyComponent);
-			//add in the end trees and augment the event trees.
-			AdjacencyComponent_EndIterator *endIterator = adjacencyComponent_getEndIterator(adjacencyComponent);
-			while((end = adjacencyComponent_getNextEnd(endIterator)) != NULL) {
-				end2 = net_getEnd(net2, end_getName(end));
-				assert(end2 != NULL);
-				//copy the end instances.
-				End_InstanceIterator *instanceIterator = end_getInstanceIterator(end);
-				while((endInstance = end_getNext(instanceIterator)) != NULL) {
-					if(end_getInstance(end2, endInstance_getName(endInstance)) == NULL) {
-						assert(endInstance_getChildNumber(endInstance) > 0); //can not be a leaf
-						//make sure the augmented event is in there.
-						event = endInstance_getEvent(endInstance);
-						if(eventTree_getEvent(net_getEventTree(net2), event_getName(event)) == NULL) {
-							assert(event_getChildNumber(event) == 1); //must be a unary event
-							copyConstructUnaryEvent(event, net_getEventTree(net2));
+			if(net2 != NULL) {
+				//add in the end trees and augment the event trees.
+				AdjacencyComponent_EndIterator *endIterator = adjacencyComponent_getEndIterator(adjacencyComponent);
+				while((end = adjacencyComponent_getNextEnd(endIterator)) != NULL) {
+					end2 = net_getEnd(net2, end_getName(end));
+					assert(end2 != NULL);
+					//copy the end instances.
+					End_InstanceIterator *instanceIterator = end_getInstanceIterator(end);
+					while((endInstance = end_getNext(instanceIterator)) != NULL) {
+						if(end_getInstance(end2, endInstance_getName(endInstance)) == NULL) {
+							assert(endInstance_getChildNumber(endInstance) > 0); //can not be a leaf
+							//make sure the augmented event is in there.
+							event = endInstance_getEvent(endInstance);
+							if(eventTree_getEvent(net_getEventTree(net2), event_getName(event)) == NULL) {
+								assert(event_getChildNumber(event) == 1); //must be a unary event
+								copyConstructUnaryEvent(event, net_getEventTree(net2));
+							}
+							event = eventTree_getEvent(net_getEventTree(net2), event_getName(event));
+							assert(event != NULL);
+							endInstance_copyConstruct(end2, endInstance);
 						}
-						event = eventTree_getEvent(net_getEventTree(net2), event_getName(event));
-						assert(event != NULL);
-						endInstance_copyConstruct(end2, endInstance);
 					}
-				}
-				//now copy the parent links.
-				while((endInstance = end_getPrevious(instanceIterator)) != NULL) {
-					endInstance2 = end_getInstance(end2, endInstance_getName(endInstance));
-					assert(endInstance2 != NULL);
-					if(endInstance_getParent(endInstance) != NULL) {
-						endInstance3 = end_getInstance(end2, endInstance_getName(endInstance_getParent(endInstance)));
-						assert(endInstance3 != NULL);
-						endInstance_makeParentAndChild(
-								endInstance3,
-								endInstance2);
-					}
-					else {
-						assert(end_getRootInstance(end) != NULL);
-						assert(endInstance == end_getRootInstance(end));
+					//now copy the parent links.
+					while((endInstance = end_getPrevious(instanceIterator)) != NULL) {
+						endInstance2 = end_getInstance(end2, endInstance_getName(endInstance));
+						assert(endInstance2 != NULL);
+						if(endInstance_getParent(endInstance) != NULL) {
+							endInstance3 = end_getInstance(end2, endInstance_getName(endInstance_getParent(endInstance)));
+							assert(endInstance3 != NULL);
+							endInstance_makeParentAndChild(
+									endInstance3,
+									endInstance2);
+						}
+						else {
+							assert(end_getRootInstance(end) != NULL);
+							assert(endInstance == end_getRootInstance(end));
 
-						assert(end_getRootInstance(end2) == NULL);
-						end_setRootInstance(end2, endInstance2);
+							assert(end_getRootInstance(end2) == NULL);
+							end_setRootInstance(end2, endInstance2);
+						}
 					}
+					end_destructInstanceIterator(instanceIterator);
 				}
-				end_destructInstanceIterator(instanceIterator);
+				adjacencyComponent_destructEndIterator(endIterator);
 			}
-			adjacencyComponent_destructEndIterator(endIterator);
 		}
 		net_destructAdjacencyComponentIterator(adjacencyComponentIterator);
-
 		logInfo("Filled in end trees and augmented the event trees for the child nets in: %i seconds\n", time(NULL) - startTime);
 	}
 

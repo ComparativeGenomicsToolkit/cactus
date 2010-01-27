@@ -34,7 +34,10 @@ void callCheckNetsRecursively(Net *net) {
 	Net_AdjacencyComponentIterator *iterator = net_getAdjacencyComponentIterator(net);
 	AdjacencyComponent *adjacencyComponent;
 	while((adjacencyComponent = net_getNextAdjacencyComponent(iterator)) != NULL) {
-		checkNetsRecursively(adjacencyComponent_getNestedNet(adjacencyComponent), net);
+		Net *nestedNet = adjacencyComponent_getNestedNet(adjacencyComponent);
+		if(nestedNet != NULL) {
+			checkNetsRecursively(nestedNet, net);
+		}
 	}
 	net_destructAdjacencyComponentIterator(iterator);
 }
@@ -51,8 +54,8 @@ void checkAdjacencyComponents(Net *net, Net *parentNet) {
 	assert(adjacencyComponent_getNet(adjacencyComponent) == parentNet);
 	assert(net == adjacencyComponent_getNestedNet(adjacencyComponent));
 	assert(parentNet == adjacencyComponent_getNet(adjacencyComponent));
-	assert(net_getName(net) == adjacencyComponent_getNestedNetName(adjacencyComponent));
-	assert(net_getAdjacencyComponent(parentNet, adjacencyComponent_getNestedNetName(adjacencyComponent)) == adjacencyComponent);
+	assert(net_getName(net) == adjacencyComponent_getName(adjacencyComponent));
+	assert(net_getAdjacencyComponent(parentNet, adjacencyComponent_getName(adjacencyComponent)) == adjacencyComponent);
 
 	//Check the ends.
 	AdjacencyComponent_EndIterator *endIterator = adjacencyComponent_getEndIterator(adjacencyComponent);

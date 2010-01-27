@@ -79,7 +79,10 @@ void getMAFs(Net *net, FILE *fileHandle) {
 	Net_AdjacencyComponentIterator *adjacencyComponentIterator = net_getAdjacencyComponentIterator(net);
 	AdjacencyComponent *adjacencyComponent;
 	while((adjacencyComponent = net_getNextAdjacencyComponent(adjacencyComponentIterator)) != NULL) {
-		getMAFs(adjacencyComponent_getNestedNet(adjacencyComponent), fileHandle); //recursive call.
+		Net *nestedNet = adjacencyComponent_getNestedNet(adjacencyComponent);
+		if(nestedNet != NULL) {
+			getMAFs(adjacencyComponent_getNestedNet(adjacencyComponent), fileHandle); //recursive call.
+		}
 	}
 	net_destructAdjacencyComponentIterator(adjacencyComponentIterator);
 }
