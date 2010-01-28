@@ -76,15 +76,15 @@ void getMAFs(Net *net, FILE *fileHandle) {
 	net_destructAtomIterator(atomIterator);
 
 	//Call child nets recursively.
-	Net_AdjacencyComponentIterator *adjacencyComponentIterator = net_getAdjacencyComponentIterator(net);
-	AdjacencyComponent *adjacencyComponent;
-	while((adjacencyComponent = net_getNextAdjacencyComponent(adjacencyComponentIterator)) != NULL) {
-		Net *nestedNet = adjacencyComponent_getNestedNet(adjacencyComponent);
+	Net_GroupIterator *groupIterator = net_getGroupIterator(net);
+	Group *group;
+	while((group = net_getNextGroup(groupIterator)) != NULL) {
+		Net *nestedNet = group_getNestedNet(group);
 		if(nestedNet != NULL) {
-			getMAFs(adjacencyComponent_getNestedNet(adjacencyComponent), fileHandle); //recursive call.
+			getMAFs(group_getNestedNet(group), fileHandle); //recursive call.
 		}
 	}
-	net_destructAdjacencyComponentIterator(adjacencyComponentIterator);
+	net_destructGroupIterator(groupIterator);
 }
 
 void makeMAFHeader(Net *net, FILE *fileHandle) {

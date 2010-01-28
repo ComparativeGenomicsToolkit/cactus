@@ -23,19 +23,19 @@ void usage() {
 double calculateTreeBits(Net *net, double pathBitScore) {
 	double totalBitScore = 0.0;
 	int32_t totalSequenceSize;
-	Net_AdjacencyComponentIterator *adjacencyComponentIterator = net_getAdjacencyComponentIterator(net);
-	AdjacencyComponent *adjacencyComponent;
-	double followingPathBitScore = (log(net_getAdjacencyComponentNumber(net)) / log(2.0)) + pathBitScore;
-	while((adjacencyComponent = net_getNextAdjacencyComponent(adjacencyComponentIterator)) != NULL) {
-		if(adjacencyComponent_getNestedNet(adjacencyComponent) != NULL) {
-			totalBitScore += calculateTreeBits(adjacencyComponent_getNestedNet(adjacencyComponent), followingPathBitScore);
+	Net_GroupIterator *groupIterator = net_getGroupIterator(net);
+	Group *group;
+	double followingPathBitScore = (log(net_getGroupNumber(net)) / log(2.0)) + pathBitScore;
+	while((group = net_getNextGroup(groupIterator)) != NULL) {
+		if(group_getNestedNet(group) != NULL) {
+			totalBitScore += calculateTreeBits(group_getNestedNet(group), followingPathBitScore);
 		}
 		else {
-			totalSequenceSize = adjacencyComponent_getTotalBaseLength(adjacencyComponent);
+			totalSequenceSize = group_getTotalBaseLength(group);
 			totalBitScore += (totalSequenceSize > 0 ? ((log(totalSequenceSize) / log(2.0)) + followingPathBitScore) * totalSequenceSize : 0.0);
 		}
 	}
-	net_destructAdjacencyComponentIterator(adjacencyComponentIterator);
+	net_destructGroupIterator(groupIterator);
 	Net_AtomIterator *atomIterator = net_getAtomIterator(net);
 	Atom *atom;
 	totalSequenceSize = 0.0;
@@ -92,18 +92,18 @@ void tabulateStats(struct IntList *unsortedValues, double *totalNumber, double *
 }
 
 void largestChildStatsP(Net *net, struct List *childProportions) {
-	Net_AdjacencyComponentIterator *adjacencyComponentIterator;
-	AdjacencyComponent *adjacencyComponent;
+	Net_GroupIterator *groupIterator;
+	Group *group;
 	double problemSize = net_getTotalBaseLength(net);
 	if(problemSize > 0) {
 		double childProportion = -10.0;
 		double cumProp = 0.0;
-		adjacencyComponentIterator = net_getAdjacencyComponentIterator(net);
-		while((adjacencyComponent = net_getNextAdjacencyComponent(adjacencyComponentIterator)) != NULL) {
-			if(adjacencyComponent_getNestedNet(adjacencyComponent) != NULL) {
-				largestChildStatsP(adjacencyComponent_getNestedNet(adjacencyComponent), childProportions);
+		groupIterator = net_getGroupIterator(net);
+		while((group = net_getNextGroup(groupIterator)) != NULL) {
+			if(group_getNestedNet(group) != NULL) {
+				largestChildStatsP(group_getNestedNet(group), childProportions);
 			}
-			double f = adjacencyComponent_getTotalBaseLength(adjacencyComponent);
+			double f = group_getTotalBaseLength(group);
 			assert(f >= 0.0);
 			assert(f/problemSize <= 1.001);
 			if(f/problemSize > childProportion) {
@@ -111,7 +111,7 @@ void largestChildStatsP(Net *net, struct List *childProportions) {
 			}
 			cumProp += f/problemSize;
 		}
-		net_destructAdjacencyComponentIterator(adjacencyComponentIterator);
+		net_destructGroupIterator(groupIterator);
 		assert(childProportion != -10.0);
 		assert(cumProp <= 1.001);
 		listAppend(childProportions, constructFloat(childProportion));
@@ -128,18 +128,18 @@ void largestChildStats(Net *net,
 }
 
 void netStatsP(Net *net, int32_t currentDepth, struct IntList *children, struct IntList *depths) {
-	Net_AdjacencyComponentIterator *adjacencyComponentIterator = net_getAdjacencyComponentIterator(net);
-	AdjacencyComponent *adjacencyComponent;
-	while((adjacencyComponent = net_getNextAdjacencyComponent(adjacencyComponentIterator)) != NULL) {
-		if(adjacencyComponent_getNestedNet(adjacencyComponent) != NULL) {
-			netStatsP(adjacencyComponent_getNestedNet(adjacencyComponent), currentDepth+1, children, depths);
+	Net_GroupIterator *groupIterator = net_getGroupIterator(net);
+	Group *group;
+	while((group = net_getNextGroup(groupIterator)) != NULL) {
+		if(group_getNestedNet(group) != NULL) {
+			netStatsP(group_getNestedNet(group), currentDepth+1, children, depths);
 		}
 		else {
 			intListAppend(depths, currentDepth);
 		}
 	}
-	net_destructAdjacencyComponentIterator(adjacencyComponentIterator);
-	intListAppend(children, net_getAdjacencyComponentNumber(net));
+	net_destructGroupIterator(groupIterator);
+	intListAppend(children, net_getGroupNumber(net));
 }
 
 void netStats(Net *net,
@@ -158,14 +158,14 @@ void netStats(Net *net,
 
 void atomStatsP(Net *net, struct IntList *counts, struct IntList *lengths, struct IntList *degrees,
 		struct IntList *coverage) {
-	Net_AdjacencyComponentIterator *adjacencyComponentIterator = net_getAdjacencyComponentIterator(net);
-	AdjacencyComponent *adjacencyComponent;
-	while((adjacencyComponent = net_getNextAdjacencyComponent(adjacencyComponentIterator)) != NULL) {
-		if(adjacencyComponent_getNestedNet(adjacencyComponent) != NULL) {
-			atomStatsP(adjacencyComponent_getNestedNet(adjacencyComponent), counts, lengths, degrees, coverage);
+	Net_GroupIterator *groupIterator = net_getGroupIterator(net);
+	Group *group;
+	while((group = net_getNextGroup(groupIterator)) != NULL) {
+		if(group_getNestedNet(group) != NULL) {
+			atomStatsP(group_getNestedNet(group), counts, lengths, degrees, coverage);
 		}
 	}
-	net_destructAdjacencyComponentIterator(adjacencyComponentIterator);
+	net_destructGroupIterator(groupIterator);
 
 	Net_AtomIterator *atomIterator = net_getAtomIterator(net);
 	Atom *atom;
@@ -199,14 +199,14 @@ void atomStats(Net *net,
 }
 
 void chainStatsP(Net *net, struct IntList *counts, struct IntList *lengths, struct IntList *baseLengths, struct IntList *avgInstanceBaseLength) {
-	Net_AdjacencyComponentIterator *adjacencyComponentIterator = net_getAdjacencyComponentIterator(net);
-	AdjacencyComponent *adjacencyComponent;
-	while((adjacencyComponent = net_getNextAdjacencyComponent(adjacencyComponentIterator)) != NULL) {
-		if(adjacencyComponent_getNestedNet(adjacencyComponent) != NULL) {
-			chainStatsP(adjacencyComponent_getNestedNet(adjacencyComponent), counts, lengths, baseLengths, avgInstanceBaseLength);
+	Net_GroupIterator *groupIterator = net_getGroupIterator(net);
+	Group *group;
+	while((group = net_getNextGroup(groupIterator)) != NULL) {
+		if(group_getNestedNet(group) != NULL) {
+			chainStatsP(group_getNestedNet(group), counts, lengths, baseLengths, avgInstanceBaseLength);
 		}
 	}
-	net_destructAdjacencyComponentIterator(adjacencyComponentIterator);
+	net_destructGroupIterator(groupIterator);
 
 	Net_ChainIterator *chainIterator = net_getChainIterator(net);
 	Chain *chain;
@@ -246,14 +246,14 @@ void chainStats(Net *net,
 }
 
 void endStatsP(Net *net, struct IntList *counts, struct IntList *degrees) {
-	Net_AdjacencyComponentIterator *adjacencyComponentIterator = net_getAdjacencyComponentIterator(net);
-	AdjacencyComponent *adjacencyComponent;
-	while((adjacencyComponent = net_getNextAdjacencyComponent(adjacencyComponentIterator)) != NULL) {
-		if(adjacencyComponent_getNestedNet(adjacencyComponent) != NULL) {
-			endStatsP(adjacencyComponent_getNestedNet(adjacencyComponent), counts, degrees);
+	Net_GroupIterator *groupIterator = net_getGroupIterator(net);
+	Group *group;
+	while((group = net_getNextGroup(groupIterator)) != NULL) {
+		if(group_getNestedNet(group) != NULL) {
+			endStatsP(group_getNestedNet(group), counts, degrees);
 		}
 	}
-	net_destructAdjacencyComponentIterator(adjacencyComponentIterator);
+	net_destructGroupIterator(groupIterator);
 
 	intListAppend(counts, net_getEndNumber(net));
 	Net_EndIterator *endIterator = net_getEndIterator(net);
@@ -291,17 +291,17 @@ void leafStatsP(Net *net, struct IntList *leafSizes) {
 	/*
 	 * This only works while the reconstruction is incomplete.
 	 */
-	Net_AdjacencyComponentIterator *adjacencyComponentIterator = net_getAdjacencyComponentIterator(net);
-	AdjacencyComponent *adjacencyComponent;
-	while((adjacencyComponent = net_getNextAdjacencyComponent(adjacencyComponentIterator)) != NULL) {
-		if(adjacencyComponent_getNestedNet(adjacencyComponent) != NULL) {
-			leafStatsP(adjacencyComponent_getNestedNet(adjacencyComponent), leafSizes);
+	Net_GroupIterator *groupIterator = net_getGroupIterator(net);
+	Group *group;
+	while((group = net_getNextGroup(groupIterator)) != NULL) {
+		if(group_getNestedNet(group) != NULL) {
+			leafStatsP(group_getNestedNet(group), leafSizes);
 		}
 		else {
-			intListAppend(leafSizes, (int32_t)adjacencyComponent_getTotalBaseLength(adjacencyComponent));
+			intListAppend(leafSizes, (int32_t)group_getTotalBaseLength(group));
 		}
 	}
-	net_destructAdjacencyComponentIterator(adjacencyComponentIterator);
+	net_destructGroupIterator(groupIterator);
 }
 
 void leafStats(Net *net,
@@ -313,34 +313,34 @@ void leafStats(Net *net,
 	tabulateStats(*leafSizes, totalLeafNumber, minSeqSize, maxSeqSize, avgSeqSize, medianSeqSize);
 }
 
-void nonTrivialAdjacencyComponentStatsP(Net *net, struct IntList *nonTrivialAdjacencyComponentCounts) {
-	Net_AdjacencyComponentIterator *adjacencyComponentIterator = net_getAdjacencyComponentIterator(net);
-	AdjacencyComponent *adjacencyComponent;
+void nonTrivialGroupStatsP(Net *net, struct IntList *nonTrivialGroupCounts) {
+	Net_GroupIterator *groupIterator = net_getGroupIterator(net);
+	Group *group;
 	int32_t i = 0;
-	while((adjacencyComponent = net_getNextAdjacencyComponent(adjacencyComponentIterator)) != NULL) {
-		if(adjacencyComponent_getNestedNet(adjacencyComponent) != NULL) {
-			nonTrivialAdjacencyComponentStatsP(adjacencyComponent_getNestedNet(adjacencyComponent), nonTrivialAdjacencyComponentCounts);
+	while((group = net_getNextGroup(groupIterator)) != NULL) {
+		if(group_getNestedNet(group) != NULL) {
+			nonTrivialGroupStatsP(group_getNestedNet(group), nonTrivialGroupCounts);
 		}
-		if(adjacencyComponent_getLink(adjacencyComponent) == NULL) {
+		if(group_getLink(group) == NULL) {
 			i++;
 		}
 	}
-	net_destructAdjacencyComponentIterator(adjacencyComponentIterator);
-	intListAppend(nonTrivialAdjacencyComponentCounts, i);
+	net_destructGroupIterator(groupIterator);
+	intListAppend(nonTrivialGroupCounts, i);
 }
 
-void nonTrivialAdjacencyComponentStats(Net *net,
-		struct IntList **nonTrivialAdjacencyComponentCounts,
-		double *totalNonTrivialAdjacencyComponents,
-		double *maxNonTrivialAdjacencyComponents,
-		double *avgNonTrivialAdjacencyComponents,
-		double *medianNonTrivialAdjacencyComponents) {
-	*nonTrivialAdjacencyComponentCounts = constructEmptyIntList(0);
-	nonTrivialAdjacencyComponentStatsP(net, *nonTrivialAdjacencyComponentCounts);
+void nonTrivialGroupStats(Net *net,
+		struct IntList **nonTrivialGroupCounts,
+		double *totalNonTrivialGroups,
+		double *maxNonTrivialGroups,
+		double *avgNonTrivialGroups,
+		double *medianNonTrivialGroups) {
+	*nonTrivialGroupCounts = constructEmptyIntList(0);
+	nonTrivialGroupStatsP(net, *nonTrivialGroupCounts);
 	double f;
-	tabulateStats(*nonTrivialAdjacencyComponentCounts,
-			totalNonTrivialAdjacencyComponents, &f, maxNonTrivialAdjacencyComponents,
-			avgNonTrivialAdjacencyComponents, medianNonTrivialAdjacencyComponents);
+	tabulateStats(*nonTrivialGroupCounts,
+			totalNonTrivialGroups, &f, maxNonTrivialGroups,
+			avgNonTrivialGroups, medianNonTrivialGroups);
 }
 
 void printFloatValues(struct List *values, const char *tag, FILE *fileHandle) {
@@ -617,24 +617,24 @@ int main(int argc, char *argv[]) {
 	destructIntList(leafSizes);
 
 	/*
-	 * Stats on the non trivial adjacency component.
+	 * Stats on the non trivial group.
 	 */
-	double totalNonTrivialAdjacencyComponents;
-	double maxNonTrivialAdjacencyComponentsPerNet;
-	double avgNonTrivialAdjacencyComponentsPerNet;
-	double medianNonTrivialAdjacencyComponentsPetNet;
-	struct IntList *nonTrivialAdjacencyComponentCounts;
-	nonTrivialAdjacencyComponentStats(net,
-			&nonTrivialAdjacencyComponentCounts,
-			&totalNonTrivialAdjacencyComponents,
-			&maxNonTrivialAdjacencyComponentsPerNet,
-			&avgNonTrivialAdjacencyComponentsPerNet,
-			&medianNonTrivialAdjacencyComponentsPetNet);
-	fprintf(fileHandle, "<nonTrivialGroups total=\"%f\" maxPerNet=\"%f\" avgPerNet=\"%f\" medianPerNet=\"%f\" >", totalNonTrivialAdjacencyComponents,
-			maxNonTrivialAdjacencyComponentsPerNet, avgNonTrivialAdjacencyComponentsPerNet, medianNonTrivialAdjacencyComponentsPetNet);
-	printIntValues(nonTrivialAdjacencyComponentCounts, "trivialAdjacencyComponents", fileHandle);
+	double totalNonTrivialGroups;
+	double maxNonTrivialGroupsPerNet;
+	double avgNonTrivialGroupsPerNet;
+	double medianNonTrivialGroupsPetNet;
+	struct IntList *nonTrivialGroupCounts;
+	nonTrivialGroupStats(net,
+			&nonTrivialGroupCounts,
+			&totalNonTrivialGroups,
+			&maxNonTrivialGroupsPerNet,
+			&avgNonTrivialGroupsPerNet,
+			&medianNonTrivialGroupsPetNet);
+	fprintf(fileHandle, "<nonTrivialGroups total=\"%f\" maxPerNet=\"%f\" avgPerNet=\"%f\" medianPerNet=\"%f\" >", totalNonTrivialGroups,
+			maxNonTrivialGroupsPerNet, avgNonTrivialGroupsPerNet, medianNonTrivialGroupsPetNet);
+	printIntValues(nonTrivialGroupCounts, "trivialGroups", fileHandle);
 	fprintf(fileHandle, "</nonTrivialGroups>");
-	destructIntList(nonTrivialAdjacencyComponentCounts);
+	destructIntList(nonTrivialGroupCounts);
 
 
 	fprintf(fileHandle, "</stats>\n");

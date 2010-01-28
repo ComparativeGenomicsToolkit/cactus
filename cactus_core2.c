@@ -43,39 +43,7 @@ void usage() {
 
 int main(int argc, char *argv[]) {
 	/*
-	 * The script has a number of reasonably distinct stages (see the accompanying paper for a description)
-	 *
-	 * (1) Constructing the basic pinch graph.
-	 *
-	 * (2) Adding alignments to the pinch graph
-	 *
-	 * (3) Removing over aligned stuff.
-	 *
-	 * (4) Linking stub components to the sink component.
-	 *
-	 * (5) Constructing the basic cactus.
-	 *
-	 * (6) Circularising the stems in the cactus.
-	 *
-	 * (7) Eliminating chain discontinuities.
-	 *
-	 * (8) Constructing the net.
-	 *
-	 * (9) Choosing an atom subset.
-	 *
-	 * (10) Pruning the net.
-	 *
-	 * (11) Identifying pseudo adjacency components.
-	 *
-	 * (12) Adding the pseudo adjacency components to the net.
-	 *
-	 * (13) Adding the ends (caps/stubs) to the net
-	 *
-	 * (14) Constructing the recursion tree + build trees/events trees for each reconstruction problem.
-	 *
-	 * Additionally the script reads in the set of caps, inputs and alignments and
-	 * outputs the recursion tree.
-	 *
+	 * Script for adding alignments to cactus tree.
 	 */
 	int32_t startTime;
 	NetDisk *netDisk;

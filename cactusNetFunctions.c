@@ -208,12 +208,12 @@ struct List *addEnvelopedStubEnds(Net *net, int32_t addToNet) {
 	Net *net2;
 	struct List *list;
 	Net_EndIterator *endIterator;
-	AdjacencyComponent_EndIterator *adjacencyIterator;
-	AdjacencyComponent *adjacencyComponent;
+	Group_EndIterator *adjacencyIterator;
+	Group *group;
 
-	adjacencyIterator = net_getAdjacencyComponentIterator(net);
-	while((adjacencyComponent = net_getNextAdjacencyComponent(adjacencyIterator)) != NULL) {
-		net2 = adjacencyComponent_getNestedNet(adjacencyComponent);
+	adjacencyIterator = net_getGroupIterator(net);
+	while((group = net_getNextGroup(adjacencyIterator)) != NULL) {
+		net2 = group_getNestedNet(group);
 		if(net2 != NULL) {
 			list = addEnvelopedStubEnds(net2, 1);
 			for(j=0; j<list->length; j++) {
@@ -226,10 +226,10 @@ struct List *addEnvelopedStubEnds(Net *net, int32_t addToNet) {
 				}
 			}
 			destructList(list);
-			adjacencyComponent_updateContainedEnds(adjacencyComponent);
+			group_updateContainedEnds(group);
 		}
 	}
-	net_destructAdjacencyComponentIterator(adjacencyIterator);
+	net_destructGroupIterator(adjacencyIterator);
 
 	list = constructEmptyList(0, NULL);
 	endIterator = net_getEndIterator(net);
@@ -244,14 +244,14 @@ struct List *addEnvelopedStubEnds(Net *net, int32_t addToNet) {
 
 void addAdjacenciesToEnds(Net *net) {
 	netMisc_addAdjacenciesToLeafEndInstances(net);
-	AdjacencyComponent_EndIterator *adjacencyIterator = net_getAdjacencyComponentIterator(net);
-	AdjacencyComponent *adjacencyComponent;
-	while((adjacencyComponent = net_getNextAdjacencyComponent(adjacencyIterator)) != NULL) {
-		if(adjacencyComponent_getNestedNet(adjacencyComponent) != NULL) {
-			addAdjacenciesToEnds(adjacencyComponent_getNestedNet(adjacencyComponent));
+	Group_EndIterator *adjacencyIterator = net_getGroupIterator(net);
+	Group *group;
+	while((group = net_getNextGroup(adjacencyIterator)) != NULL) {
+		if(group_getNestedNet(group) != NULL) {
+			addAdjacenciesToEnds(group_getNestedNet(group));
 		}
 	}
-	net_destructAdjacencyComponentIterator(adjacencyIterator);
+	net_destructGroupIterator(adjacencyIterator);
 }
 
 static int32_t returnsTrue(Event *event) {
@@ -259,7 +259,7 @@ static int32_t returnsTrue(Event *event) {
 	return 1;
 }
 
-bool adjacencyComponentIsZeroLength(struct List *endNames, Net *net) {
+bool groupIsZeroLength(struct List *endNames, Net *net) {
 	int32_t i;
 
 	for(i=0; i<endNames->length; i++) {
@@ -280,64 +280,64 @@ bool adjacencyComponentIsZeroLength(struct List *endNames, Net *net) {
 	return 1;
 }
 
-void addAdjacencyComponentsP(Net *net, struct hashtable *adjacencyComponents) {
+void addGroupsP(Net *net, struct hashtable *groups) {
 	/*
-	 * Adds the non chain adjacency components to each net.
+	 * Adds the non chain groups to each net.
 	 */
 	Net_EndIterator *endIterator;
-	Net_AdjacencyComponentIterator *adjacencyIterator;
-	AdjacencyComponent_EndIterator *endIterator2;
+	Net_GroupIterator *adjacencyIterator;
+	Group_EndIterator *endIterator2;
 	End *end;
 	End *end2;
-	AdjacencyComponent *adjacencyComponent;
+	Group *group;
 	struct List *endNames;
 	int32_t i;
 
 	//Do for each level of the net.
-	adjacencyIterator = net_getAdjacencyComponentIterator(net);
-	while((adjacencyComponent = net_getNextAdjacencyComponent(adjacencyIterator)) != NULL) {
-		if(adjacencyComponent_getNestedNet(adjacencyComponent) != NULL) {
-			addAdjacencyComponentsP(adjacencyComponent_getNestedNet(adjacencyComponent), adjacencyComponents);
+	adjacencyIterator = net_getGroupIterator(net);
+	while((group = net_getNextGroup(adjacencyIterator)) != NULL) {
+		if(group_getNestedNet(group) != NULL) {
+			addGroupsP(group_getNestedNet(group), groups);
 		}
-		else { //Ends are already in an terminal adjacency component!
-			endIterator2 = adjacencyComponent_getEndIterator(adjacencyComponent);
+		else { //Ends are already in an terminal group!
+			endIterator2 = group_getEndIterator(group);
 			endNames = NULL;
-			while((end = adjacencyComponent_getNextEnd(endIterator2)) != NULL) {
-				assert((endNames = hashtable_remove(adjacencyComponents, (void *)netMisc_nameToStringStatic(end_getName(end)), 0)) != NULL);
+			while((end = group_getNextEnd(endIterator2)) != NULL) {
+				assert((endNames = hashtable_remove(groups, (void *)netMisc_nameToStringStatic(end_getName(end)), 0)) != NULL);
 			}
-			adjacencyComponent_destructEndIterator(endIterator2);
+			group_destructEndIterator(endIterator2);
 			assert(endNames != NULL);
 			destructList(endNames);
 		}
 	}
-	net_destructAdjacencyComponentIterator(adjacencyIterator);
+	net_destructGroupIterator(adjacencyIterator);
 
 	endIterator = net_getEndIterator(net);
 	while((end = net_getNextEnd(endIterator)) != NULL) {
-		adjacencyComponent = end_getAdjacencyComponent(end);
-		if(adjacencyComponent == NULL) {
-			endNames = hashtable_search(adjacencyComponents, (void *)netMisc_nameToStringStatic(end_getName(end)));
+		group = end_getGroup(end);
+		if(group == NULL) {
+			endNames = hashtable_search(groups, (void *)netMisc_nameToStringStatic(end_getName(end)));
 			assert(endNames != NULL);
 #ifdef BEN_DEBUG
 			for(i=0; i<endNames->length; i++) {
 				end2 = net_getEnd(net, netMisc_stringToName(endNames->list[i]));
 				assert(end2 != NULL);
-				assert(end_getAdjacencyComponent(end2) == NULL);
+				assert(end_getGroup(end2) == NULL);
 			}
 #endif
-			adjacencyComponent = adjacencyComponent_construct2(net);
+			group = group_construct2(net);
 			for(i=0; i<endNames->length; i++) {
 				end2 = net_getEnd(net, netMisc_stringToName(endNames->list[i]));
-				adjacencyComponent_addEnd(adjacencyComponent, end2);
+				group_addEnd(group, end2);
 			}
 #ifdef BEN_DEBUG
 			for(i=0; i<endNames->length; i++) {
 				end2 = net_getEnd(net, netMisc_stringToName(endNames->list[i]));
-				assert(end_getAdjacencyComponent(end2) == adjacencyComponent);
+				assert(end_getGroup(end2) == group);
 			}
 #endif
 			for(i=0; i<endNames->length; i++) {
-				assert(hashtable_remove(adjacencyComponents, endNames->list[i], 0) == endNames);
+				assert(hashtable_remove(groups, endNames->list[i], 0) == endNames);
 			}
 			destructList(endNames);
 		}
@@ -345,17 +345,17 @@ void addAdjacencyComponentsP(Net *net, struct hashtable *adjacencyComponents) {
 	net_destructEndIterator(endIterator);
 
 #ifdef BEN_DEBUG
-	if(net_getAdjacencyComponentNumber(net) > 0 || net_getAtomNumber(net) > 0) {
+	if(net_getGroupNumber(net) > 0 || net_getAtomNumber(net) > 0) {
 		endIterator = net_getEndIterator(net);
 		while((end = net_getNextEnd(endIterator)) != NULL) {
-			assert(end_getAdjacencyComponent(end) != NULL);
+			assert(end_getGroup(end) != NULL);
 		}
 		net_destructEndIterator(endIterator);
 	}
 #endif
 }
 
-void addAdjacencyComponents(Net *net, struct PinchGraph *pinchGraph,
+void addGroups(Net *net, struct PinchGraph *pinchGraph,
 		struct List *chosenAtoms, struct hashtable *endNamesHash) {
 	int32_t i, j;
 	struct List *chosenPinchEdges = constructEmptyList(0, NULL);
@@ -369,13 +369,13 @@ void addAdjacencyComponents(Net *net, struct PinchGraph *pinchGraph,
 			listAppend(chosenPinchEdges, getFirstBlackEdge(vertex));
 		}
 	}
-	struct List *adjacencyComponentsList = getRecursiveComponents2(pinchGraph, chosenPinchEdges);
+	struct List *groupsList = getRecursiveComponents2(pinchGraph, chosenPinchEdges);
 	destructList(chosenPinchEdges);
-	struct hashtable *adjacencyComponentsHash =
-			create_hashtable(adjacencyComponentsList->length * 2,
+	struct hashtable *groupsHash =
+			create_hashtable(groupsList->length * 2,
 							 hashtable_stringHashKey, hashtable_stringEqualKey, NULL, NULL);
-	for(i=0; i<adjacencyComponentsList->length; i++) {
-		struct List *vertices = adjacencyComponentsList->list[i];
+	for(i=0; i<groupsList->length; i++) {
+		struct List *vertices = groupsList->list[i];
 		struct List *endNames = constructEmptyList(0, NULL);
 		assert(vertices->length > 0);
 		struct PinchVertex *vertex = vertices->list[0];
@@ -388,7 +388,7 @@ void addAdjacencyComponents(Net *net, struct PinchGraph *pinchGraph,
 				//assert(endNameString != NULL);
 				if(endNameString != NULL) {
 					listAppend(endNames, (void *)endNameString);
-					hashtable_insert(adjacencyComponentsHash, (void *)endNameString, endNames);
+					hashtable_insert(groupsHash, (void *)endNameString, endNames);
 				}
 			}
 			assert(endNames->length >= 1);
@@ -402,10 +402,10 @@ void addAdjacencyComponents(Net *net, struct PinchGraph *pinchGraph,
 		}
 #endif
 	}
-	destructList(adjacencyComponentsList);
-	addAdjacencyComponentsP(net, adjacencyComponentsHash);
-	assert(hashtable_count(adjacencyComponentsHash) == 0);
-	hashtable_destroy(adjacencyComponentsHash, FALSE, FALSE);
+	destructList(groupsList);
+	addGroupsP(net, groupsHash);
+	assert(hashtable_count(groupsHash) == 0);
+	hashtable_destroy(groupsHash, FALSE, FALSE);
 }
 
 
@@ -453,7 +453,7 @@ void fillOutNetFromInputs(
 	Net_EndIterator *endIterator;
 	EndInstance *endInstance;
 	Chain *chain;
-	AdjacencyComponent *adjacencyComponent;
+	Group *group;
 	struct CactusVertex *cactusVertex;
 	struct CactusEdge *cactusEdge;
 	struct CactusEdge *cactusEdge2;
@@ -637,18 +637,18 @@ void fillOutNetFromInputs(
 				cactusEdge2 = biConnectedComponent->list[j];
 				nestedNet = nets[mergedVertexIDs[cactusEdge->to->vertexID]];
 				assert(cactusEdge->to->vertexID != 0);
-				if(nestedNet == NULL) { //construct a terminal adjacency component.
-					adjacencyComponent = adjacencyComponent_construct2(net);
+				if(nestedNet == NULL) { //construct a terminal group.
+					group = group_construct2(net);
 
 					end = net_getEnd(net, cactusEdgeToEndName(isAStubOrCapCactusEdge(cactusEdge, pinchGraph) ?
 							getNonDeadEndOfStubOrCapCactusEdge(cactusEdge, pinchGraph) : cactusEdge->rEdge, endNamesHash, pinchGraph));
 					assert(end != NULL);
-					adjacencyComponent_addEnd(adjacencyComponent, end);
+					group_addEnd(group, end);
 
 					end2 = net_getEnd(net, cactusEdgeToEndName(isAStubOrCapCactusEdge(cactusEdge2, pinchGraph) ?
 							getNonDeadEndOfStubOrCapCactusEdge(cactusEdge2, pinchGraph) : cactusEdge2, endNamesHash, pinchGraph));
 					assert(end2 != NULL);
-					adjacencyComponent_addEnd(adjacencyComponent, end2);
+					group_addEnd(group, end2);
 				}
 				else { //construct a link between two existing chains.
 					assert(net_getEndNumber(nestedNet) > 0);
@@ -660,11 +660,11 @@ void fillOutNetFromInputs(
 							getNonDeadEndOfStubOrCapCactusEdge(cactusEdge2, pinchGraph) : cactusEdge2, endNamesHash, pinchGraph));
 					assert(end2 != NULL);
 					end_copyConstruct(end2, nestedNet);
-					adjacencyComponent = adjacencyComponent_construct(net, nestedNet);
+					group = group_construct(net, nestedNet);
 					nets[mergedVertexIDs[cactusEdge->to->vertexID]] = NULL;
 				}
 				//Make link chain
-				link_construct(end, end2, adjacencyComponent, chain);
+				link_construct(end, end2, group, chain);
 			}
 		}
 	}
@@ -691,11 +691,11 @@ void fillOutNetFromInputs(
 	logDebug("Added the adjacencies between the ends\n");
 
 	////////////////////////////////////////////////
-	//Add adjacency components.
+	//Add groups.
 	////////////////////////////////////////////////
 
-	addAdjacencyComponents(net, pinchGraph, chosenAtoms, endNamesHash);
-	logDebug("Added the trivial adjacency components\n");
+	addGroups(net, pinchGraph, chosenAtoms, endNamesHash);
+	logDebug("Added the trivial groups\n");
 
 	////////////////////////////////////////////////
 	//Clean up

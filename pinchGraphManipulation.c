@@ -406,10 +406,10 @@ int32_t getRecursiveComponents2_excludedEdgesFn(void *o) {
 
 struct List *getRecursiveComponents2(struct PinchGraph *pinchGraph, struct List *edgesToExclude) {
 	/*
-	 * Gets the adjacency components, given the list of edges to exlude
+	 * Gets the groups, given the list of edges to exlude
 	 */
 	struct PinchEdge *edge;
-	struct List *adjacencyComponents;
+	struct List *groups;
 	int32_t i;
 	int32_t *iA;
 
@@ -425,9 +425,9 @@ struct List *getRecursiveComponents2(struct PinchGraph *pinchGraph, struct List 
 			destructIntPair(iA);
 		}
 	}
-	adjacencyComponents = getRecursiveComponents(pinchGraph, getRecursiveComponents2_excludedEdgesFn);
+	groups = getRecursiveComponents(pinchGraph, getRecursiveComponents2_excludedEdgesFn);
 	hashtable_destroy(getRecursiveComponents2_excludedEdgesHash, FALSE, TRUE);
-	return adjacencyComponents;
+	return groups;
 }
 
 ////////////////////////////////////////////////

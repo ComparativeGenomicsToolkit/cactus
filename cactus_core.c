@@ -18,10 +18,10 @@
 #include "cactus_core.h"
 
 void writePinchGraph(char *name, struct PinchGraph *pinchGraph,
-						struct List *biConnectedComponents, struct List *adjacencyComponents) {
+						struct List *biConnectedComponents, struct List *groups) {
 	FILE *fileHandle;
 	fileHandle = fopen(name, "w");
-	writeOutPinchGraphWithChains(pinchGraph, biConnectedComponents, adjacencyComponents, fileHandle);
+	writeOutPinchGraphWithChains(pinchGraph, biConnectedComponents, groups, fileHandle);
 	fclose(fileHandle);
 }
 
@@ -187,8 +187,8 @@ int32_t cactusCorePipeline(Net *net,
 	//for steadily increasing extension threshold
 	//calculate edges to ignore.
 	//calculate edges to accept.. (does not include any ignored edges)..
-	//calculate grey edge adjacency components, ignoring the ignored edges..
-	//calculate sizes of adjacency components, record the largest.
+	//calculate grey edge groups, ignoring the ignored edges..
+	//calculate sizes of groups, record the largest.
 
 	//choose the extension threshold which reduces the size of the
 

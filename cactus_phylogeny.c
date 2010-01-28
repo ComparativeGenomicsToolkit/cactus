@@ -780,7 +780,7 @@ int main(int argc, char *argv[]) {
 	Chain *chain;
 	Atom *atom;
 	struct List *sortedChainAlignments;
-	AdjacencyComponent *adjacencyComponent;
+	Group *group;
 	Net *net2;
 	End *end;
 	End *end2;
@@ -983,13 +983,13 @@ int main(int argc, char *argv[]) {
 		///////////////////////////////////////////////////////////////////////////
 
 		startTime = time(NULL);
-		Net_AdjacencyComponentIterator *adjacencyComponentIterator = net_getAdjacencyComponentIterator(net);
-		while((adjacencyComponent = net_getNextAdjacencyComponent(adjacencyComponentIterator)) != NULL) {
-			net2 = adjacencyComponent_getNestedNet(adjacencyComponent);
+		Net_GroupIterator *groupIterator = net_getGroupIterator(net);
+		while((group = net_getNextGroup(groupIterator)) != NULL) {
+			net2 = group_getNestedNet(group);
 			if(net2 != NULL) {
 				//add in the end trees and augment the event trees.
-				AdjacencyComponent_EndIterator *endIterator = adjacencyComponent_getEndIterator(adjacencyComponent);
-				while((end = adjacencyComponent_getNextEnd(endIterator)) != NULL) {
+				Group_EndIterator *endIterator = group_getEndIterator(group);
+				while((end = group_getNextEnd(endIterator)) != NULL) {
 					end2 = net_getEnd(net2, end_getName(end));
 					assert(end2 != NULL);
 					//copy the end instances.
@@ -1029,10 +1029,10 @@ int main(int argc, char *argv[]) {
 					}
 					end_destructInstanceIterator(instanceIterator);
 				}
-				adjacencyComponent_destructEndIterator(endIterator);
+				group_destructEndIterator(endIterator);
 			}
 		}
-		net_destructAdjacencyComponentIterator(adjacencyComponentIterator);
+		net_destructGroupIterator(groupIterator);
 		logInfo("Filled in end trees and augmented the event trees for the child nets in: %i seconds\n", time(NULL) - startTime);
 	}
 

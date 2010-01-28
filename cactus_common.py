@@ -252,7 +252,7 @@ def runCactusTreeStats(netDisk, outputFile, netName='0'):
     logger.info("Ran the cactus tree stats command apprently okay")
 
 def runCactusGetNets(netDisk, netName, tempDir, includeInternalNodes=False, 
-                     recursive=True, extendNonZeroTrivialAdjacencyComponents=True):
+                     recursive=True, extendNonZeroTrivialGroups=True):
     """Gets a list of nets attached to the given net. If the net has no children,
     as is therefore a leaf, it will also be returned. If includeInternalNodes is true
     the nodes will include the internal nodes, including the first node.
@@ -267,7 +267,7 @@ def runCactusGetNets(netDisk, netName, tempDir, includeInternalNodes=False,
     netNamesFile = getTempFile(".txt", tempDir)
     system("cactus_workflow_getNets %s %s %s %i %i %i" % (netDisk, netName, netNamesFile, 
                                                           int(includeInternalNodes), int(recursive), 
-                                                          int(extendNonZeroTrivialAdjacencyComponents)))
+                                                          int(extendNonZeroTrivialGroups)))
     fileHandle = open(netNamesFile, 'r')
     line = fileHandle.readline()
     l = []

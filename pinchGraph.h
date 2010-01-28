@@ -268,7 +268,7 @@ struct List *getGreyEdgeSegments(struct PinchVertex *vertex, struct PinchVertex 
 
 void writeOutPinchGraphWithChains(struct PinchGraph *pinchGraph,
 								  struct List *chainsList,
-								  struct List *adjacencyComponents,
+								  struct List *groups,
 								  FILE *fileHandle);
 
 ////////////////////////////////////////////////

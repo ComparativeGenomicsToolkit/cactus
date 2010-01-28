@@ -100,7 +100,7 @@ def runPipe(sequenceDirs, newickTreeString, tempDir, useDummy=False, writeDebugF
     l = runCactusGetNets(tempReconstructionDirectory, 0, getTempDirectory(tempDir),
                                                   includeInternalNodes=False, 
                                                   recursive=True,
-                                                  extendNonZeroTrivialAdjacencyComponents=True)
+                                                  extendNonZeroTrivialGroups=True)
                                                   
     if len(l) > 0:
         childNetName, childNetSize = l[0]

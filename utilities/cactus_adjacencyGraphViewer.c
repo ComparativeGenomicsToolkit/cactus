@@ -103,14 +103,14 @@ void addChainsToGraph(Net *net, FILE *fileHandle) {
 	net_destructChainIterator(chainIterator);
 }
 
-void addAdjacencies(AdjacencyComponent *adjacencyComponent, FILE *fileHandle) {
+void addAdjacencies(Group *group, FILE *fileHandle) {
 	/*
 	 * Adds adjacency edges to the graph.
 	 */
 	static char label[10000];
-	AdjacencyComponent_EndIterator *endIterator = adjacencyComponent_getEndIterator(adjacencyComponent);
+	Group_EndIterator *endIterator = group_getEndIterator(group);
 	End *end;
-	Net *net = adjacencyComponent_getNet(adjacencyComponent);
+	Net *net = group_getNet(group);
 	while((end = net_getNextEnd(endIterator)) != NULL) {
 		End_InstanceIterator *instanceIterator = end_getInstanceIterator(end);
 		EndInstance *endInstance;
@@ -135,7 +135,7 @@ void addAdjacencies(AdjacencyComponent *adjacencyComponent, FILE *fileHandle) {
 		free(netName);
 		end_destructInstanceIterator(instanceIterator);
 	}
-	adjacencyComponent_destructEndIterator(endIterator);
+	group_destructEndIterator(endIterator);
 }
 
 void addStubAndCapEndsToGraph(Net *net, FILE *fileHandle) {
@@ -150,23 +150,23 @@ void addStubAndCapEndsToGraph(Net *net, FILE *fileHandle) {
 }
 
 void makeCactusGraph(Net *net, FILE *fileHandle) {
-	if(net_getParentAdjacencyComponent(net) == NULL) {
+	if(net_getParentGroup(net) == NULL) {
 		addStubAndCapEndsToGraph(net, fileHandle);
 	}
 	addTrivialChainsToGraph(net, fileHandle);
 	addChainsToGraph(net, fileHandle);
-	Net_AdjacencyComponentIterator *adjacencyComponentIterator = net_getAdjacencyComponentIterator(net);
-	AdjacencyComponent *adjacencyComponent;
-	while((adjacencyComponent = net_getNextAdjacencyComponent(adjacencyComponentIterator)) != NULL) {
-		Net *nestedNet = adjacencyComponent_getNestedNet(adjacencyComponent);
+	Net_GroupIterator *groupIterator = net_getGroupIterator(net);
+	Group *group;
+	while((group = net_getNextGroup(groupIterator)) != NULL) {
+		Net *nestedNet = group_getNestedNet(group);
 		if(nestedNet != NULL) {
 			makeCactusGraph(nestedNet, fileHandle);
 		}
 		else { //time to add the adjacencies!
-			addAdjacencies(adjacencyComponent, fileHandle);
+			addAdjacencies(group, fileHandle);
 		}
 	}
-	net_destructAdjacencyComponentIterator(adjacencyComponentIterator);
+	net_destructGroupIterator(groupIterator);
 }
 
 int main(int argc, char *argv[]) {

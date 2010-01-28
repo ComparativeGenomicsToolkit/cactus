@@ -49,19 +49,19 @@ static void addNodeToGraph(const char *nodeName, FILE *graphFileHandle,
     graphViz_addNodeToGraph(nodeName, graphFileHandle, nameLabels ? nodeLabel : "", width, height, shape, "black", 14);
 }
 
-void makeCactusTree_terminalNode(AdjacencyComponent *adjacencyComponent, FILE *fileHandle, const char *parentNodeName, const char *parentEdgeColour) {
-	char *adjacencyComponentNameString = netMisc_nameToString(adjacencyComponent_getName(adjacencyComponent));
-	double scalingFactor = adjacencyComponent_getTotalBaseLength(adjacencyComponent)/totalProblemSize;
+void makeCactusTree_terminalNode(Group *group, FILE *fileHandle, const char *parentNodeName, const char *parentEdgeColour) {
+	char *groupNameString = netMisc_nameToString(group_getName(group));
+	double scalingFactor = group_getTotalBaseLength(group)/totalProblemSize;
 	assert(scalingFactor <= 1.001);
 	assert(scalingFactor >= -0.001);
-	addNodeToGraph(adjacencyComponentNameString, fileHandle,
+	addNodeToGraph(groupNameString, fileHandle,
 			scalingFactor,
-			"triangle", adjacencyComponentNameString);
+			"triangle", groupNameString);
 	//Write in the parent edge.
 	if(parentNodeName != NULL) {
-		graphViz_addEdgeToGraph(parentNodeName, adjacencyComponentNameString, fileHandle, "", parentEdgeColour, 10, 1, "forward");
+		graphViz_addEdgeToGraph(parentNodeName, groupNameString, fileHandle, "", parentEdgeColour, 10, 1, "forward");
 	}
-	free(adjacencyComponentNameString);
+	free(groupNameString);
 }
 
 void makeCactusTree_net(Net *net, FILE *fileHandle, const char *parentNodeName, const char *parentEdgeColour);
@@ -78,14 +78,14 @@ void makeCactusTree_chain(Chain *chain, FILE *fileHandle, const char *parentNode
 	//Create the linkers to the nested nets.
 	int32_t i;
 	for(i=0; i<chain_getLength(chain); i++) {
-		AdjacencyComponent *adjacencyComponent = link_getAdjacencyComponent(chain_getLink(chain, i));
-		assert(adjacencyComponent != NULL);
-		if(adjacencyComponent_getNestedNet(adjacencyComponent) != NULL) {
-			makeCactusTree_net(adjacencyComponent_getNestedNet(adjacencyComponent),
+		Group *group = link_getGroup(chain_getLink(chain, i));
+		assert(group != NULL);
+		if(group_getNestedNet(group) != NULL) {
+			makeCactusTree_net(group_getNestedNet(group),
 					fileHandle, chainNameString, edgeColour);
 		}
 		else {
-			makeCactusTree_terminalNode(adjacencyComponent, fileHandle, chainNameString, edgeColour);
+			makeCactusTree_terminalNode(group, fileHandle, chainNameString, edgeColour);
 		}
 	}
 	free(chainNameString);
@@ -112,33 +112,33 @@ void makeCactusTree_net(Net *net, FILE *fileHandle, const char *parentNodeName, 
 	char *diamondNodeNameString = malloc(sizeof(char)*(strlen(netNameString) + 2));
 	sprintf(diamondNodeNameString, "z%s", netNameString);
 	const char *diamondEdgeColour = graphViz_getColour();
-	//Create all the adjacency components linked to the diamond.
-	Net_AdjacencyComponentIterator *adjacencyComponentIterator = net_getAdjacencyComponentIterator(net);
-	AdjacencyComponent *adjacencyComponent;
-	double size = 0.0; //get the size of the adjacency component organising node..
-	int32_t nonTrivialAdjacencyComponentCount = 0;
-	while((adjacencyComponent = net_getNextAdjacencyComponent(adjacencyComponentIterator)) != NULL) {
-		if(adjacencyComponent_getLink(adjacencyComponent) == NULL) {
-			size += adjacencyComponent_getTotalBaseLength(adjacencyComponent);
-			nonTrivialAdjacencyComponentCount++;
+	//Create all the groups linked to the diamond.
+	Net_GroupIterator *groupIterator = net_getGroupIterator(net);
+	Group *group;
+	double size = 0.0; //get the size of the group organising node..
+	int32_t nonTrivialGroupCount = 0;
+	while((group = net_getNextGroup(groupIterator)) != NULL) {
+		if(group_getLink(group) == NULL) {
+			size += group_getTotalBaseLength(group);
+			nonTrivialGroupCount++;
 		}
 	}
-	net_destructAdjacencyComponentIterator(adjacencyComponentIterator);
-	if(nonTrivialAdjacencyComponentCount) {
+	net_destructGroupIterator(groupIterator);
+	if(nonTrivialGroupCount) {
 		addNodeToGraph(diamondNodeNameString, fileHandle, size/totalProblemSize, "diamond", "");
 		graphViz_addEdgeToGraph(netNameString, diamondNodeNameString, fileHandle, "", edgeColour, 10, 1, "forward");
-		adjacencyComponentIterator = net_getAdjacencyComponentIterator(net);
-		while((adjacencyComponent = net_getNextAdjacencyComponent(adjacencyComponentIterator)) != NULL) {
-			if(adjacencyComponent_getLink(adjacencyComponent) == NULL) {
-				if(adjacencyComponent_getNestedNet(adjacencyComponent) != NULL) { //linked to the diamond node.
-					makeCactusTree_net(adjacencyComponent_getNestedNet(adjacencyComponent), fileHandle, diamondNodeNameString, diamondEdgeColour);
+		groupIterator = net_getGroupIterator(net);
+		while((group = net_getNextGroup(groupIterator)) != NULL) {
+			if(group_getLink(group) == NULL) {
+				if(group_getNestedNet(group) != NULL) { //linked to the diamond node.
+					makeCactusTree_net(group_getNestedNet(group), fileHandle, diamondNodeNameString, diamondEdgeColour);
 				}
 				else {
-					makeCactusTree_terminalNode(adjacencyComponent, fileHandle, diamondNodeNameString, diamondEdgeColour);
+					makeCactusTree_terminalNode(group, fileHandle, diamondNodeNameString, diamondEdgeColour);
 				}
 			}
 		}
-		net_destructAdjacencyComponentIterator(adjacencyComponentIterator);
+		net_destructGroupIterator(groupIterator);
 	}
 	free(netNameString);
 	free(diamondNodeNameString);

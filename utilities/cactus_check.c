@@ -31,49 +31,49 @@ void checkNetsRecursively(Net *net, Net *parentNet);
 
 void callCheckNetsRecursively(Net *net) {
 	//Call problem recursively
-	Net_AdjacencyComponentIterator *iterator = net_getAdjacencyComponentIterator(net);
-	AdjacencyComponent *adjacencyComponent;
-	while((adjacencyComponent = net_getNextAdjacencyComponent(iterator)) != NULL) {
-		Net *nestedNet = adjacencyComponent_getNestedNet(adjacencyComponent);
+	Net_GroupIterator *iterator = net_getGroupIterator(net);
+	Group *group;
+	while((group = net_getNextGroup(iterator)) != NULL) {
+		Net *nestedNet = group_getNestedNet(group);
 		if(nestedNet != NULL) {
 			checkNetsRecursively(nestedNet, net);
 		}
 	}
-	net_destructAdjacencyComponentIterator(iterator);
+	net_destructGroupIterator(iterator);
 }
 
-void checkNonTerminalAdjacencyComponents(Net *net, Net *parentNet) {
+void checkNonTerminalGroups(Net *net, Net *parentNet) {
 	/*
 	 * Check child parent connection between nets in the reconstruction tree.
 	 */
-	AdjacencyComponent *adjacencyComponent = net_getParentAdjacencyComponent(net);
-	//Check the adjacency component is not empty.
-	assert(adjacencyComponent_getEndNumber(adjacencyComponent) != 0);
+	Group *group = net_getParentGroup(net);
+	//Check the group is not empty.
+	assert(group_getEndNumber(group) != 0);
 
 	//Check the connection first
-	assert(adjacencyComponent_getNet(adjacencyComponent) == parentNet);
-	assert(net == adjacencyComponent_getNestedNet(adjacencyComponent));
-	assert(parentNet == adjacencyComponent_getNet(adjacencyComponent));
-	assert(net_getName(net) == adjacencyComponent_getName(adjacencyComponent));
-	assert(net_getAdjacencyComponent(parentNet, adjacencyComponent_getName(adjacencyComponent)) == adjacencyComponent);
+	assert(group_getNet(group) == parentNet);
+	assert(net == group_getNestedNet(group));
+	assert(parentNet == group_getNet(group));
+	assert(net_getName(net) == group_getName(group));
+	assert(net_getGroup(parentNet, group_getName(group)) == group);
 
 	//Check the ends.
-	AdjacencyComponent_EndIterator *endIterator = adjacencyComponent_getEndIterator(adjacencyComponent);
+	Group_EndIterator *endIterator = group_getEndIterator(group);
 	End *end;
-	while((end = adjacencyComponent_getNextEnd(endIterator)) != NULL) {
+	while((end = group_getNextEnd(endIterator)) != NULL) {
 		assert(net_getEnd(parentNet, end_getName(end)) == end);
 		assert(end_getNet(end) == parentNet);
 		assert(net_getEnd(net, end_getName(end)) != NULL);
 		assert(!end_isAtomEnd(net_getEnd(net, end_getName(end))));
-		assert(end_getAdjacencyComponent(end) == adjacencyComponent);
+		assert(end_getGroup(end) == group);
 	}
-	adjacencyComponent_destructEndIterator(endIterator);
+	group_destructEndIterator(endIterator);
 
 	//Check if part of link
-	Link *link = adjacencyComponent_getLink(adjacencyComponent);
+	Link *link = group_getLink(group);
 	if(link != NULL) {
-		assert(link_getAdjacencyComponent(link) == adjacencyComponent);
-		assert(adjacencyComponent_getEndNumber(adjacencyComponent) >= 2); //other checks are in check chains.
+		assert(link_getGroup(link) == group);
+		assert(group_getEndNumber(group) >= 2); //other checks are in check chains.
 	}
 }
 
@@ -91,10 +91,10 @@ void checkChains(Net *net) {
 			assert(link_getChain(link) == chain);
 			assert(end_getOrientation(link_getLeft(link)));
 			assert(end_getOrientation(link_getRight(link)));
-			AdjacencyComponent *adjacencyComponent = link_getAdjacencyComponent(link);
-			assert(adjacencyComponent_getEndNumber(adjacencyComponent) >= 2);
-			assert(adjacencyComponent_getEnd(adjacencyComponent, end_getName(link_getLeft(link))) == link_getLeft(link));
-			assert(adjacencyComponent_getEnd(adjacencyComponent, end_getName(link_getRight(link))) == link_getRight(link));
+			Group *group = link_getGroup(link);
+			assert(group_getEndNumber(group) >= 2);
+			assert(group_getEnd(group, end_getName(link_getLeft(link))) == link_getLeft(link));
+			assert(group_getEnd(group, end_getName(link_getRight(link))) == link_getRight(link));
 			if(i > 1) {
 				Link *link2 = chain_getLink(chain, i-1);
 				assert(end_isAtomEnd(link_getRight(link2)));
@@ -115,11 +115,11 @@ void checkEnds(Net *net) {
 	int32_t i, j;
 	while((end = net_getNextEnd(endIterator)) != NULL) {
 		/*
-		 * Check end is part of an adjacency component
+		 * Check end is part of an group
 		 */
-		AdjacencyComponent *adjacencyComponent = end_getAdjacencyComponent(end);
-		assert(adjacencyComponent != NULL);
-		assert(adjacencyComponent_getEnd(adjacencyComponent, end_getName(end)) == end);
+		Group *group = end_getGroup(end);
+		assert(group != NULL);
+		assert(group_getEnd(group, end_getName(end)) == end);
 
 		/*
 		 * Check stub/cap/atom-end status
@@ -183,7 +183,7 @@ void checkEnds(Net *net) {
 			 */
 			endInstance2 = endInstance_getAdjacency(endInstance);
 			assert(endInstance2 != NULL);
-			assert(end_getAdjacencyComponent(endInstance_getEnd(endInstance2)) == adjacencyComponent); //check they have the same adjacency component.
+			assert(end_getGroup(endInstance_getEnd(endInstance2)) == group); //check they have the same group.
 			assert(endInstance_getAdjacency(endInstance2) == endInstance);
 			assert(endInstance_getEvent(endInstance) == endInstance_getEvent(endInstance2));
 			assert(endInstance_getSequence(endInstance) == endInstance_getSequence(endInstance2));
@@ -303,21 +303,21 @@ void checkBasesAccountedFor(Net *net) {
 		atomBases += atom_getLength(atom) * atom_getInstanceNumber(atom);
 	}
 	net_destructAtomIterator(atomIterator);
-	Net_AdjacencyComponentIterator *iterator = net_getAdjacencyComponentIterator(net);
-	AdjacencyComponent *adjacencyComponent;
-	while((adjacencyComponent = net_getNextAdjacencyComponent(iterator)) != NULL) {
-		int64_t size = (int64_t)adjacencyComponent_getTotalBaseLength(adjacencyComponent);
-		if(adjacencyComponent_getNestedNet(adjacencyComponent) != NULL) {
-			assert(!adjacencyComponent_isTerminal(adjacencyComponent));
-			assert(net_getTotalBaseLength(adjacencyComponent_getNestedNet(adjacencyComponent)) == size);
+	Net_GroupIterator *iterator = net_getGroupIterator(net);
+	Group *group;
+	while((group = net_getNextGroup(iterator)) != NULL) {
+		int64_t size = (int64_t)group_getTotalBaseLength(group);
+		if(group_getNestedNet(group) != NULL) {
+			assert(!group_isTerminal(group));
+			assert(net_getTotalBaseLength(group_getNestedNet(group)) == size);
 		}
 		else {
-			assert(adjacencyComponent_isTerminal(adjacencyComponent));
+			assert(group_isTerminal(group));
 		}
 		assert(size >= 0);
 		childBases += size;
 	}
-	net_destructAdjacencyComponentIterator(iterator);
+	net_destructGroupIterator(iterator);
 	if(atomBases + childBases != totalBases) {
 		fprintf(stderr, "Got %i atom bases, %i childBases and %i total bases\n", (int)atomBases, (int)childBases, (int)totalBases);
 	}
@@ -327,7 +327,7 @@ void checkBasesAccountedFor(Net *net) {
 void checkNetsRecursively(Net *net, Net *parentNet) {
 	logInfo("Checking the net %s\n", netMisc_nameToStringStatic(net_getName(net)));
 	if(parentNet != NULL) {
-		checkNonTerminalAdjacencyComponents(net, parentNet);
+		checkNonTerminalGroups(net, parentNet);
 	}
 	checkChains(net);
 	checkEnds(net);

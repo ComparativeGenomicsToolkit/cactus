@@ -211,7 +211,7 @@ class CactusCoreWrapper2(Target):
         for childNetName, childNetSize in runCactusGetNets(self.options.netDisk, self.netName, localTempDir,
                                                            includeInternalNodes=False, 
                                                            recursive=True,
-                                                           extendNonZeroTrivialAdjacencyComponents=True):
+                                                           extendNonZeroTrivialGroups=True):
             assert childNetSize > 0
             nextIteration = getIteration(self.iteration+1, childNetSize)
             if nextIteration == 4:
@@ -271,7 +271,7 @@ class CactusPhylogenyWrapper(Target):
         runCactusPhylogeny(self.options.netDisk, tempDir=localTempDir, netNames=[ self.netName ])
         #Make child jobs
         for childNetName, childNetSize in runCactusGetNets(self.options.netDisk, self.netName, localTempDir, includeInternalNodes=True, 
-                                                           recursive=False, extendNonZeroTrivialAdjacencyComponents=False):
+                                                           recursive=False, extendNonZeroTrivialGroups=False):
             if childNetName != self.netName: #Avoids running again for leaf without children
                 self.addChildTarget(CactusPhylogenyWrapper(self.options, childNetName, childNetSize))
       

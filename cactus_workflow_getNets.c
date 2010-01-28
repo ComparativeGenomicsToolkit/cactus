@@ -7,9 +7,9 @@
 #include "cactus.h"
 
 static void getNets(Net *net, FILE *fileHandle, int32_t includeInternalNodes, int32_t recursive,
-		int32_t extendNonZeroTrivialAdjacencyComponents) {
-	Net_AdjacencyComponentIterator *adjacencyComponentIterator;
-	AdjacencyComponent *adjacencyComponent;
+		int32_t extendNonZeroTrivialGroups) {
+	Net_GroupIterator *groupIterator;
+	Group *group;
 
 	assert(net != NULL);
 	if(includeInternalNodes) {
@@ -17,30 +17,30 @@ static void getNets(Net *net, FILE *fileHandle, int32_t includeInternalNodes, in
 	}
 
 	if(recursive-- > 0) {
-		adjacencyComponentIterator = net_getAdjacencyComponentIterator(net);
-		while((adjacencyComponent = net_getNextAdjacencyComponent(adjacencyComponentIterator)) != NULL) {
-			if(adjacencyComponent_getNestedNet(adjacencyComponent) != NULL) {
-				getNets(adjacencyComponent_getNestedNet(adjacencyComponent), fileHandle, includeInternalNodes,
-						recursive, extendNonZeroTrivialAdjacencyComponents);
+		groupIterator = net_getGroupIterator(net);
+		while((group = net_getNextGroup(groupIterator)) != NULL) {
+			if(group_getNestedNet(group) != NULL) {
+				getNets(group_getNestedNet(group), fileHandle, includeInternalNodes,
+						recursive, extendNonZeroTrivialGroups);
 			}
 			else {
-				if(extendNonZeroTrivialAdjacencyComponents) {
-					int64_t size = adjacencyComponent_getTotalBaseLength(adjacencyComponent);
+				if(extendNonZeroTrivialGroups) {
+					int64_t size = group_getTotalBaseLength(group);
 					if(size > 0 && (size > 30000 || size < 1000)) {
-						adjacencyComponent_makeNonTerminal(adjacencyComponent);
+						group_makeNonTerminal(group);
 						fprintf(fileHandle, "%s %lld\n",
-								netMisc_nameToStringStatic(adjacencyComponent_getName(adjacencyComponent)),	size);
+								netMisc_nameToStringStatic(group_getName(group)),	size);
 					}
 				}
 			}
 		}
-		net_destructAdjacencyComponentIterator(adjacencyComponentIterator);
+		net_destructGroupIterator(groupIterator);
 	}
 }
 
 int main(int argc, char *argv[]) {
 	/*
-	 * This code iterates through the empty adjacency components and returns them in a list.
+	 * This code iterates through the empty groups and returns them in a list.
 	 */
 	NetDisk *netDisk;
 	Net *net;
@@ -65,15 +65,15 @@ int main(int argc, char *argv[]) {
 		recursive = 1;
 	}
 
-	int32_t extendNonZeroTrivialAdjacencyComponents;
-	assert(sscanf(argv[6], "%i", &extendNonZeroTrivialAdjacencyComponents) == 1);
+	int32_t extendNonZeroTrivialGroups;
+	assert(sscanf(argv[6], "%i", &extendNonZeroTrivialGroups) == 1);
 
 	FILE *fileHandle = fopen(argv[3], "w");
 	getNets(net, fileHandle, includeInternalNodes, recursive,
-			extendNonZeroTrivialAdjacencyComponents);
+			extendNonZeroTrivialGroups);
 	fclose(fileHandle);
 
-	if(extendNonZeroTrivialAdjacencyComponents) {
+	if(extendNonZeroTrivialGroups) {
 		netDisk_write(netDisk);
 	}
 	logInfo("Updated the netdisk\n");

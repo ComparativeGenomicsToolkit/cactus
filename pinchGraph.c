@@ -1125,7 +1125,7 @@ char *getColour(struct hashtable *hash, void *thing) {
 }
 
 void writeOutPinchGraphWithChains(struct PinchGraph *pinchGraph, struct List *biConnectComponentsList,
-								  struct List *adjacencyComponents, FILE *fileHandle) {
+								  struct List *groups, FILE *fileHandle) {
 	/*
 	 * Writes out a graph in 'dot' format, compatible with graphviz.
 	 *
@@ -1138,7 +1138,7 @@ void writeOutPinchGraphWithChains(struct PinchGraph *pinchGraph, struct List *bi
 	struct PinchVertex *vertex2;
 	struct PinchEdge *edge;
 	struct hashtable *hash;
-	struct List *adjacencyComponent;
+	struct List *group;
 	struct List *biConnectedComponent;
 	struct CactusEdge *cactusEdge;
 	struct Segment *segment;
@@ -1164,11 +1164,11 @@ void writeOutPinchGraphWithChains(struct PinchGraph *pinchGraph, struct List *bi
 		}
 	}
 
-	if(adjacencyComponents != NULL) {
-		for(i=0; i<adjacencyComponents->length; i++) {
-			adjacencyComponent = adjacencyComponents->list[i];
-			for(j=0; j<adjacencyComponent->length; j++) {
-				vertex = adjacencyComponent->list[j];
+	if(groups != NULL) {
+		for(i=0; i<groups->length; i++) {
+			group = groups->list[i];
+			for(j=0; j<group->length; j++) {
+				vertex = group->list[j];
 				hashtable_insert(hash, vertex, constructInt(i));
 			}
 		}
