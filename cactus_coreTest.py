@@ -1,4 +1,4 @@
-"""Tests the core of the cactus atomiser/reconstruction pipeline.
+"""Tests the core of the cactus blockiser/reconstruction pipeline.
 """
 
 import unittest
@@ -72,7 +72,7 @@ class TestCase(unittest.TestCase):
         for test in xrange(self.testNo):
             sequenceDirs, newickTreeString = getRandomCactusInputs(tempDir=getTempDirectory(self.tempDir))
             runPipe(sequenceDirs, newickTreeString, self.tempDir, useDummy=True, writeDebugFiles=True,
-                    randomAtomParameters=True)
+                    randomBlockParameters=True)
             
             ##########################################
             #Make neatos
@@ -90,7 +90,7 @@ class TestCase(unittest.TestCase):
             """
             
             
-def runPipe(sequenceDirs, newickTreeString, tempDir, useDummy=False, writeDebugFiles=False, randomAtomParameters=False):
+def runPipe(sequenceDirs, newickTreeString, tempDir, useDummy=False, writeDebugFiles=False, randomBlockParameters=False):
     tempAlignmentFile = getTempFile(rootDir=tempDir)
     tempReconstructionDirectory = os.path.join(getTempDirectory(tempDir), "tempReconstruction")
     
@@ -112,13 +112,13 @@ def runPipe(sequenceDirs, newickTreeString, tempDir, useDummy=False, writeDebugF
         system("cat %s" % tempAlignmentFile)
         
         logger.info("Constructed the alignments")
-        if randomAtomParameters:
+        if randomBlockParameters:
             runCactusCore(tempReconstructionDirectory, tempAlignmentFile, 
                           netName=childNetName,
                           writeDebugFiles=writeDebugFiles,
                           maximumEdgeDegree=1+random.random()*10,
                           minimumTreeCoverage=random.random(),
-                          minimumAtomLength=random.random()*5,
+                          minimumBlockLength=random.random()*5,
                           minimumChainLength=random.random()*10,
                           trim=random.random()*5,
                           alignRepeats=random.random() > 0.5)

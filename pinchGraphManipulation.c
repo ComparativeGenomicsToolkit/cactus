@@ -492,7 +492,7 @@ void linkStubComponentsToTheSinkComponent(struct PinchGraph *pinchGraph) {
 float treeCoverage(struct PinchVertex *vertex, Net *net,
 		struct PinchGraph *pinchGraph) {
 	/*
-	 * Returns the proportion of the tree covered by the atom.
+	 * Returns the proportion of the tree covered by the block.
 	 */
 	struct Segment *segment;
 	EventTree *eventTree;

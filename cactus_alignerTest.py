@@ -62,7 +62,7 @@ def runAligner(tempDir, tempReconstructionDir, tempAlignmentFile, useDummy=True)
     runCactusAligner(tempReconstructionDir, tempAlignmentFile, 
                      tempDir=getTempDirectory(tempDir), useDummy=useDummy)
     runCactusAligner(tempReconstructionDir, tempAlignmentFile, \
-                     tempDir=getTempDirectory(tempDir), useDummy=useDummy) #Run it twice to check atomicity
+                     tempDir=getTempDirectory(tempDir), useDummy=useDummy) #Run it twice to check blockicity
     logger.info("Ran cactus aligner")
     
     system("cat %s" % tempAlignmentFile)

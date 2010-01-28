@@ -107,8 +107,8 @@ def runCactusCore(netDisk, alignmentFile,
                   maximumEdgeDegree=None,
                   extensionSteps=None,
                   minimumTreeCoverage=None,
-                  minimumTreeCoverageForAtoms=None,
-                  minimumAtomLength=None,
+                  minimumTreeCoverageForBlocks=None,
+                  minimumBlockLength=None,
                   minimumChainLength=None,
                   trim=None,
                   alignRepeats=False):
@@ -132,15 +132,15 @@ def runCactusCore(netDisk, alignmentFile,
     else:
         minimumTreeCoverage = ""
     
-    if minimumTreeCoverageForAtoms != None:
-        minimumTreeCoverageForAtoms = "--minimumTreeCoverageForAtoms %f" % minimumTreeCoverageForAtoms
+    if minimumTreeCoverageForBlocks != None:
+        minimumTreeCoverageForBlocks = "--minimumTreeCoverageForBlocks %f" % minimumTreeCoverageForBlocks
     else:
-        minimumTreeCoverageForAtoms = ""
+        minimumTreeCoverageForBlocks = ""
         
-    if minimumAtomLength != None:
-        minimumAtomLength = "--minimumAtomLength %i" % minimumAtomLength
+    if minimumBlockLength != None:
+        minimumBlockLength = "--minimumBlockLength %i" % minimumBlockLength
     else:
-        minimumAtomLength = ""
+        minimumBlockLength = ""
     
     if minimumChainLength != None:
         minimumChainLength = "--minimumChainLength %i" % minimumChainLength
@@ -161,7 +161,7 @@ def runCactusCore(netDisk, alignmentFile,
 %s %s %s %s %s %s %s %s %s" % \
     (netDisk, netName, alignmentFile, 
      logLevel, writeDebugFiles,
-     maximumEdgeDegree, extensionSteps, minimumTreeCoverage, minimumTreeCoverageForAtoms, minimumAtomLength, minimumChainLength, trim, alignRepeats)
+     maximumEdgeDegree, extensionSteps, minimumTreeCoverage, minimumTreeCoverageForBlocks, minimumBlockLength, minimumChainLength, trim, alignRepeats)
     system(command)
     logger.info("Ran cactus_core okay")
     
@@ -187,7 +187,7 @@ def runCactusAdjacencyBuilder(reconstructionRootDir, reconstructionProblem, temp
 def runCactusTreeViewer(graphFile,
                         netDisk, 
                         netName="0", 
-                        logLevel="DEBUG", nodesProportionalTo="atoms"):
+                        logLevel="DEBUG", nodesProportionalTo="blocks"):
     system("cactus_treeViewer --netDisk %s --netName %s --outputFile %s --logLevel %s" \
                     % (netDisk, netName, graphFile, logLevel))
     logger.info("Created a cactus tree graph")
@@ -210,7 +210,7 @@ def runCactusCheck(netDisk,
                     % (netDisk, netName, logLevel, checkTrees, checkInternalAdjacencies))
     logger.info("Ran cactus check")
     
-def runCactusAtomGraphViewer(graphFile,
+def runCactusBlockGraphViewer(graphFile,
                              reconstructionRootDir, 
                              reconstructionProblem="reconstructionProblem.xml", 
                              logLevel="DEBUG", includeCaps=False, includeInternalAdjacencies=False):
@@ -222,7 +222,7 @@ def runCactusAtomGraphViewer(graphFile,
         includeInternalAdjacencies = "--includeInternalAdjacencies"
     else:
         includeInternalAdjacencies = ""
-    system("cactus_atomGraphViewer.py --absolutePathPrefix %s --reconstructionProblem %s --graphFile %s --logLevel %s %s %s" \
+    system("cactus_blockGraphViewer.py --absolutePathPrefix %s --reconstructionProblem %s --graphFile %s --logLevel %s %s %s" \
                     % (reconstructionRootDir, reconstructionProblem, graphFile, logLevel, includeCaps, includeInternalAdjacencies))
     logger.info("Created a break point graph of the problem")
     

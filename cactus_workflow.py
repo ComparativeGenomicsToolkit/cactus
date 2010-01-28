@@ -79,7 +79,7 @@ class CactusSetupWrapper(Target):
 ############################################################
 #The alignment phase.
 #
-#Creates the reconstruction structure with atoms
+#Creates the reconstruction structure with blocks
 ############################################################
 ############################################################
 ############################################################
@@ -119,11 +119,11 @@ timeParameters = { 0:10000000, 1:10000000, 2:100, 3:20, 4:1 }
 blastParameters = { 3:makeLowLevelBlastOptions, 2:makeMiddleLevelBlastOptions, 1:makeUpperMiddleLevelBlastOptions, 0:makeTopLevelBlastOptions }
 
 cactusCoreParameters = { 
-    0:{ "maximumEdgeDegree":50, "extensionSteps":400, "minimumTreeCoverage":0.5, "minimumTreeCoverageForAtoms":0.9, "minimumAtomLength":4, "minimumChainLength":8, "trim":4, "alignRepeats":False },
-    1:{ "maximumEdgeDegree":50, "extensionSteps":35000, "minimumTreeCoverage":0.7, "minimumTreeCoverageForAtoms":0.9, "minimumAtomLength":4, "minimumChainLength":8, "trim":20, "alignRepeats":False },
-    2:{ "maximumEdgeDegree":50, "extensionSteps":400, "minimumTreeCoverage":0.7, "minimumTreeCoverageForAtoms":0.7, "minimumAtomLength":0, "minimumChainLength":8, "trim":20, "alignRepeats":False },
-    3:{ "maximumEdgeDegree":50, "extensionSteps":20, "minimumTreeCoverage":0.5, "minimumTreeCoverageForAtoms":0.5, "minimumAtomLength":0, "minimumChainLength":8, "trim":4, "alignRepeats":False }
-    #4:{ "maximumEdgeDegree":50, "extensionSteps":5, "minimumTreeCoverage":0.0, "minimumTreeCoverageForAtoms":0.9, "minimumAtomLength":0, "minimumChainLength":0, "trim":0, "alignRepeats":False }
+    0:{ "maximumEdgeDegree":50, "extensionSteps":400, "minimumTreeCoverage":0.5, "minimumTreeCoverageForBlocks":0.9, "minimumBlockLength":4, "minimumChainLength":8, "trim":4, "alignRepeats":False },
+    1:{ "maximumEdgeDegree":50, "extensionSteps":35000, "minimumTreeCoverage":0.7, "minimumTreeCoverageForBlocks":0.9, "minimumBlockLength":4, "minimumChainLength":8, "trim":20, "alignRepeats":False },
+    2:{ "maximumEdgeDegree":50, "extensionSteps":400, "minimumTreeCoverage":0.7, "minimumTreeCoverageForBlocks":0.7, "minimumBlockLength":0, "minimumChainLength":8, "trim":20, "alignRepeats":False },
+    3:{ "maximumEdgeDegree":50, "extensionSteps":20, "minimumTreeCoverage":0.5, "minimumTreeCoverageForBlocks":0.5, "minimumBlockLength":0, "minimumChainLength":8, "trim":4, "alignRepeats":False }
+    #4:{ "maximumEdgeDegree":50, "extensionSteps":5, "minimumTreeCoverage":0.0, "minimumTreeCoverageForBlocks":0.9, "minimumBlockLength":0, "minimumChainLength":0, "trim":0, "alignRepeats":False }
 }
 
 class CactusAlignerWrapper(Target):
@@ -174,8 +174,8 @@ class CactusCoreWrapper(Target):
                       maximumEdgeDegree=coreParameters["maximumEdgeDegree"],
                       extensionSteps=coreParameters["extensionSteps"],
                       minimumTreeCoverage=coreParameters["minimumTreeCoverage"],
-                      minimumTreeCoverageForAtoms=coreParameters["minimumTreeCoverageForAtoms"],
-                      minimumAtomLength=coreParameters["minimumAtomLength"],
+                      minimumTreeCoverageForBlocks=coreParameters["minimumTreeCoverageForBlocks"],
+                      minimumBlockLength=coreParameters["minimumBlockLength"],
                       minimumChainLength=coreParameters["minimumChainLength"],
                       trim=coreParameters["trim"],
                       alignRepeats=coreParameters["alignRepeats"])

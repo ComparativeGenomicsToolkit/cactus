@@ -43,7 +43,7 @@ class TestCase(unittest.TestCase):
                                newickTreeString, cactusTempDir, debug=True)
             
             runCactusSetup(self.tempReconstructionDirectory, sequenceDirs, 
-                               newickTreeString, cactusTempDir, debug=True) #Run it twice to check the job is atomic.
+                               newickTreeString, cactusTempDir, debug=True) #Run it twice to check the job is blockic.
     
             system("rm -rf %s" % self.tempReconstructionDirectory)
             

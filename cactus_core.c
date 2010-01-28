@@ -105,8 +105,8 @@ CactusCoreInputParameters *constructCactusCoreInputParameters() {
 	cCIP->maxEdgeDegree = 50;
 	cCIP->writeDebugFiles = 0;
 	cCIP->minimumTreeCoverage = 0.5;
-	cCIP->minimumTreeCoverageForAtoms = 0.9;
-	cCIP->minimumAtomLength = 4;
+	cCIP->minimumTreeCoverageForBlocks = 0.9;
+	cCIP->minimumBlockLength = 4;
 	cCIP->minimumChainLength = 12;
 	cCIP->trim = 3;
 	cCIP->alignRepeats = 0;
@@ -125,7 +125,7 @@ int32_t cactusCorePipeline(Net *net,
 	int32_t i, startTime;
 	struct PairwiseAlignment *pairwiseAlignment;
 	struct List *threeEdgeConnectedComponents;
-	struct List *chosenAtoms;
+	struct List *chosenBlocks;
 	struct List *list;
 	struct List *biConnectedComponents;
 
@@ -198,7 +198,7 @@ int32_t cactusCorePipeline(Net *net,
 	removeOverAlignedEdges(pinchGraph, 0.0, cCIP->maxEdgeDegree, cCIP->extensionSteps, net);
 	logInfo("After removing over aligned edges (degree %i) the graph has %i vertices and %i black edges\n", cCIP->maxEdgeDegree, pinchGraph->vertices->length, avl_count(pinchGraph->edges));
 	removeOverAlignedEdges(pinchGraph, cCIP->minimumTreeCoverage, INT32_MAX, 0, net);
-	logInfo("After removing atoms with less than the minimum tree coverage (%f) the graph has %i vertices and %i black edges\n", cCIP->minimumTreeCoverage, pinchGraph->vertices->length, avl_count(pinchGraph->edges));
+	logInfo("After removing blocks with less than the minimum tree coverage (%f) the graph has %i vertices and %i black edges\n", cCIP->minimumTreeCoverage, pinchGraph->vertices->length, avl_count(pinchGraph->edges));
 	removeTrivialGreyEdgeComponents(pinchGraph, pinchGraph->vertices, net);
 	logInfo("After removing the trivial graph components the graph has %i vertices and %i black edges\n", pinchGraph->vertices->length, avl_count(pinchGraph->edges));
 	checkPinchGraphDegree(pinchGraph, cCIP->maxEdgeDegree);
@@ -274,24 +274,24 @@ int32_t cactusCorePipeline(Net *net,
 	}
 
 	///////////////////////////////////////////////////////////////////////////
-	// (9) Choosing an atom subset.
+	// (9) Choosing an block subset.
 	///////////////////////////////////////////////////////////////////////////
 
-	//first get tree covering score for each atom -
-	//drop all atoms with score less than X.
+	//first get tree covering score for each block -
+	//drop all blocks with score less than X.
 	//accept chains whose remaining element's combined length is greater than a set length.
 
 	startTime = time(NULL);
-	chosenAtoms = filterAtomsByTreeCoverageAndLength(biConnectedComponents,
-			net, cCIP->minimumTreeCoverageForAtoms, cCIP->minimumAtomLength, cCIP->minimumChainLength,
+	chosenBlocks = filterBlocksByTreeCoverageAndLength(biConnectedComponents,
+			net, cCIP->minimumTreeCoverageForBlocks, cCIP->minimumBlockLength, cCIP->minimumChainLength,
 			pinchGraph);
 	//now report the results
-	logTheChosenAtomSubset(biConnectedComponents, chosenAtoms, pinchGraph, net);
+	logTheChosenBlockSubset(biConnectedComponents, chosenBlocks, pinchGraph, net);
 
 	if(cCIP->writeDebugFiles) {
 		logDebug("Writing out dot formatted final pinch graph showing chains after pruning\n");
 		list = constructEmptyList(0, NULL);
-		listAppend(list, chosenAtoms);
+		listAppend(list, chosenBlocks);
 		writePinchGraph("pinchGraph6.dot", pinchGraph, list, NULL);
 		destructList(list);
 		logDebug("Finished writing out final pinch graph showing chains prior to pruning\n");
@@ -301,7 +301,7 @@ int32_t cactusCorePipeline(Net *net,
 	// (8) Constructing the net.
 	///////////////////////////////////////////////////////////////////////////
 
-	fillOutNetFromInputs(net, cactusGraph, pinchGraph, chosenAtoms);
+	fillOutNetFromInputs(net, cactusGraph, pinchGraph, chosenBlocks);
 
 	///////////////////////////////////////////////////////////////////////////
 	//(15) Clean up.
@@ -313,7 +313,7 @@ int32_t cactusCorePipeline(Net *net,
 	destructPinchGraph(pinchGraph);
 	destructList(threeEdgeConnectedComponents);
 	destructCactusGraph(cactusGraph);
-	destructList(chosenAtoms);
+	destructList(chosenBlocks);
 
 	logInfo("Ran the core pipeline script in: %i seconds\n", time(NULL) - startTime);
 	return 0;

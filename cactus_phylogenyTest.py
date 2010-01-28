@@ -37,9 +37,9 @@ class TestCase(unittest.TestCase):
         for test in xrange(self.testNo):
             sequenceDirs, newickTreeString = getRandomCactusInputs(tempDir=getTempDirectory(self.tempDir))
             runPipe(sequenceDirs, newickTreeString, self.tempDir, useDummy=True, writeDebugFiles=False,
-                    randomAtomParameters=True)
+                    randomBlockParameters=True)
             
-def runPipe(sequenceDirs, newickTreeString, tempDir, useDummy=False, writeDebugFiles=False, randomAtomParameters=False):
+def runPipe(sequenceDirs, newickTreeString, tempDir, useDummy=False, writeDebugFiles=False, randomBlockParameters=False):
     tempAlignmentFile = getTempFile(rootDir=tempDir)
     tempReconstructionDirectory = os.path.join(getTempDirectory(tempDir), "tempReconstruction")
     

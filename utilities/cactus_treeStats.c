@@ -36,13 +36,13 @@ double calculateTreeBits(Net *net, double pathBitScore) {
 		}
 	}
 	net_destructGroupIterator(groupIterator);
-	Net_AtomIterator *atomIterator = net_getAtomIterator(net);
-	Atom *atom;
+	Net_BlockIterator *blockIterator = net_getBlockIterator(net);
+	Block *block;
 	totalSequenceSize = 0.0;
-	while((atom = net_getNextAtom(atomIterator)) != NULL) {
-		totalSequenceSize += atom_getLength(atom) * atom_getInstanceNumber(atom);
+	while((block = net_getNextBlock(blockIterator)) != NULL) {
+		totalSequenceSize += block_getLength(block) * block_getInstanceNumber(block);
 	}
-	net_destructAtomIterator(atomIterator);
+	net_destructBlockIterator(blockIterator);
 	return totalBitScore + (totalSequenceSize > 0 ? ((log(totalSequenceSize) / log(2.0)) + pathBitScore) * totalSequenceSize : 0.0);
 }
 
@@ -156,32 +156,32 @@ void netStats(Net *net,
 	*totalNetNumber = (*children)->length + (*depths)->length;
 }
 
-void atomStatsP(Net *net, struct IntList *counts, struct IntList *lengths, struct IntList *degrees,
+void blockStatsP(Net *net, struct IntList *counts, struct IntList *lengths, struct IntList *degrees,
 		struct IntList *coverage) {
 	Net_GroupIterator *groupIterator = net_getGroupIterator(net);
 	Group *group;
 	while((group = net_getNextGroup(groupIterator)) != NULL) {
 		if(group_getNestedNet(group) != NULL) {
-			atomStatsP(group_getNestedNet(group), counts, lengths, degrees, coverage);
+			blockStatsP(group_getNestedNet(group), counts, lengths, degrees, coverage);
 		}
 	}
 	net_destructGroupIterator(groupIterator);
 
-	Net_AtomIterator *atomIterator = net_getAtomIterator(net);
-	Atom *atom;
-	while((atom = net_getNextAtom(atomIterator)) != NULL) {
-		intListAppend(lengths, atom_getLength(atom));
-		intListAppend(degrees, atom_getInstanceNumber(atom));
-		intListAppend(coverage, atom_getLength(atom)*atom_getInstanceNumber(atom));
+	Net_BlockIterator *blockIterator = net_getBlockIterator(net);
+	Block *block;
+	while((block = net_getNextBlock(blockIterator)) != NULL) {
+		intListAppend(lengths, block_getLength(block));
+		intListAppend(degrees, block_getInstanceNumber(block));
+		intListAppend(coverage, block_getLength(block)*block_getInstanceNumber(block));
 	}
-	net_destructAtomIterator(atomIterator);
-	intListAppend(counts, net_getAtomNumber(net));
+	net_destructBlockIterator(blockIterator);
+	intListAppend(counts, net_getBlockNumber(net));
 }
 
-void atomStats(Net *net,
+void blockStats(Net *net,
 		struct IntList **counts, struct IntList **lengths,
 		struct IntList **degrees, struct IntList **coverage,
-		double *totalAtomNumber,
+		double *totalBlockNumber,
 		double *maxNumberPerNet, double *averageNumberPerNet, double *medianNumberPerNet,
 		double *maxLength, double *averageLength, double *medianLength,
 		double *maxDegree, double *averageDegree, double *medianDegree,
@@ -190,12 +190,12 @@ void atomStats(Net *net,
 	*lengths = constructEmptyIntList(0);
 	*degrees = constructEmptyIntList(0);
 	*coverage = constructEmptyIntList(0);
-	atomStatsP(net, *counts, *lengths, *degrees, *coverage);
+	blockStatsP(net, *counts, *lengths, *degrees, *coverage);
 	double f;
 	tabulateStats(*counts, &f, &f, maxNumberPerNet, averageNumberPerNet, medianNumberPerNet);
-	tabulateStats(*lengths, totalAtomNumber, &f, maxLength, averageLength, medianLength);
-	tabulateStats(*degrees, totalAtomNumber, &f, maxDegree, averageDegree, medianDegree);
-	tabulateStats(*coverage, totalAtomNumber, &f, maxCoverage, averageCoverage, medianCoverage);
+	tabulateStats(*lengths, totalBlockNumber, &f, maxLength, averageLength, medianLength);
+	tabulateStats(*degrees, totalBlockNumber, &f, maxDegree, averageDegree, medianDegree);
+	tabulateStats(*coverage, totalBlockNumber, &f, maxCoverage, averageCoverage, medianCoverage);
 }
 
 void chainStatsP(Net *net, struct IntList *counts, struct IntList *lengths, struct IntList *baseLengths, struct IntList *avgInstanceBaseLength) {
@@ -210,19 +210,19 @@ void chainStatsP(Net *net, struct IntList *counts, struct IntList *lengths, stru
 
 	Net_ChainIterator *chainIterator = net_getChainIterator(net);
 	Chain *chain;
-	Atom **atoms;
+	Block **blocks;
 	int32_t i, j, k;
 	while((chain = net_getNextChain(chainIterator)) != NULL) {
-		atoms = chain_getAtomChain(chain, &i);
+		blocks = chain_getBlockChain(chain, &i);
 		k = 0;
 		for(j=0; j<i; j++) {
-			k += atom_getLength(atoms[j]);
+			k += block_getLength(blocks[j]);
 		}
 		intListAppend(baseLengths, k);
 		intListAppend(lengths, chain_getLength(chain));
 		intListAppend(avgInstanceBaseLength, chain_getAverageInstanceBaseLength(chain));
 	}
-	net_destructAtomIterator(chainIterator);
+	net_destructBlockIterator(chainIterator);
 	intListAppend(counts, net_getChainNumber(net));
 }
 
@@ -524,7 +524,7 @@ int main(int argc, char *argv[]) {
 	destructIntList(depths);
 
 	/*
-	 * Numbers on the atoms. Length is the number base pairs in an atom (they are gapless). Degree is the number of instances in an atom. Coverage is the length multiplied by the degree.
+	 * Numbers on the blocks. Length is the number base pairs in an block (they are gapless). Degree is the number of instances in an block. Coverage is the length multiplied by the degree.
 	 */
 	double totalNumber;
 	double maxNumberPerNet;
@@ -544,19 +544,19 @@ int main(int argc, char *argv[]) {
 	struct IntList *lengths;
 	struct IntList *degrees;
 	struct IntList *coverage;
-	atomStats(net,
+	blockStats(net,
 			&counts, &lengths, &degrees, &coverage,
 			&totalNumber, &maxNumberPerNet, &averageNumberPerNet, &medianNumberPerNet,
 			&maxLength, &averageLength, &medianLength,
 			&maxDegree, &averageDegree, &medianDegree,
 			&maxCoverage, &averageCoverage, &medianCoverage);
-	fprintf(fileHandle, "<atoms totalNumber=\"%f\" totalBaseLength=\"%f\" maxNumberPerNet=\"%f\" averageNumberPerNet=\"%f\" medianNumberPerNet=\"%f\" maxLength=\"%f\" averageLength=\"%f\" medianLength=\"%f\" maxDegree=\"%f\" averageDegree=\"%f\" medianDegree=\"%f\" maxCoverage=\"%f\" averageCoverage=\"%f\" medianCoverage=\"%f\">",
+	fprintf(fileHandle, "<blocks totalNumber=\"%f\" totalBaseLength=\"%f\" maxNumberPerNet=\"%f\" averageNumberPerNet=\"%f\" medianNumberPerNet=\"%f\" maxLength=\"%f\" averageLength=\"%f\" medianLength=\"%f\" maxDegree=\"%f\" averageDegree=\"%f\" medianDegree=\"%f\" maxCoverage=\"%f\" averageCoverage=\"%f\" medianCoverage=\"%f\">",
 			totalNumber, totalNumber*averageLength, maxNumberPerNet, averageNumberPerNet, medianNumberPerNet, maxLength, averageLength, medianLength, maxDegree, averageDegree, medianDegree, maxCoverage, averageCoverage, medianCoverage);
 	printIntValues(counts, "counts", fileHandle);
 	printIntValues(lengths, "lengths", fileHandle);
 	printIntValues(degrees, "degrees", fileHandle);
 	printIntValues(coverage, "coverage", fileHandle);
-	fprintf(fileHandle, "</atoms>");
+	fprintf(fileHandle, "</blocks>");
 	destructIntList(counts);
 	destructIntList(lengths);
 	destructIntList(degrees);

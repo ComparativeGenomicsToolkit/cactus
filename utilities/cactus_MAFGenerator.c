@@ -12,7 +12,7 @@
 #include "hashTableC.h"
 
 /*
- * The script outputs a maf file containing all the atom in a net and its descendants.
+ * The script outputs a maf file containing all the block in a net and its descendants.
  */
 
 /*
@@ -32,48 +32,48 @@ char *formatSequenceHeader(Sequence *sequence) {
 	}
 }
 
-void getMAFBlock(Atom *atom, FILE *fileHandle) {
+void getMAFBlock(Block *block, FILE *fileHandle) {
 	/*
-	 * Outputs a MAF representation of the atom to the given file handle.
+	 * Outputs a MAF representation of the block to the given file handle.
 	 */
-	fprintf(fileHandle, "a score=%i\n", atom_getLength(atom) *atom_getInstanceNumber(atom));
-	Atom_InstanceIterator *instanceIterator = atom_getInstanceIterator(atom);
-	AtomInstance *atomInstance;
-	while((atomInstance = atom_getNext(instanceIterator)) != NULL) {
-		Sequence *sequence = atomInstance_getSequence(atomInstance);
+	fprintf(fileHandle, "a score=%i\n", block_getLength(block) *block_getInstanceNumber(block));
+	Block_InstanceIterator *instanceIterator = block_getInstanceIterator(block);
+	BlockInstance *blockInstance;
+	while((blockInstance = block_getNext(instanceIterator)) != NULL) {
+		Sequence *sequence = blockInstance_getSequence(blockInstance);
 		if(sequence != NULL) {
 			char *sequenceHeader = formatSequenceHeader(sequence);
 			int32_t start;
-			if(atomInstance_getStrand(atomInstance)) {
-				start = atomInstance_getStart(atomInstance) - sequence_getStart(sequence);
+			if(blockInstance_getStrand(blockInstance)) {
+				start = blockInstance_getStart(blockInstance) - sequence_getStart(sequence);
 			}
 			else { //start with respect to the start of the reverse complement sequence
-				start = (sequence_getStart(sequence) + sequence_getLength(sequence) - 1) - atomInstance_getStart(atomInstance);
+				start = (sequence_getStart(sequence) + sequence_getLength(sequence) - 1) - blockInstance_getStart(blockInstance);
 			}
-			int32_t length = atomInstance_getLength(atomInstance);
-			char *strand = atomInstance_getStrand(atomInstance) ? "+" : "-";
+			int32_t length = blockInstance_getLength(blockInstance);
+			char *strand = blockInstance_getStrand(blockInstance) ? "+" : "-";
 			int32_t sequenceLength = sequence_getLength(sequence);
-			char *instanceString = atomInstance_getString(atomInstance);
+			char *instanceString = blockInstance_getString(blockInstance);
 			fprintf(fileHandle, "s\t%s\t%i\t%i\t%s\t%i\t%s\n", sequenceHeader, start, length, strand, sequenceLength, instanceString);
 			free(instanceString);
 			free(sequenceHeader);
 		}
 	}
-	atom_destructInstanceIterator(instanceIterator);
+	block_destructInstanceIterator(instanceIterator);
 }
 
 void getMAFs(Net *net, FILE *fileHandle) {
 	/*
-	 * Outputs MAF representations of all the atom sin the net and its descendants.
+	 * Outputs MAF representations of all the block sin the net and its descendants.
 	 */
 
-	//Make MAF blocks for each atom
-	Net_AtomIterator *atomIterator = net_getAtomIterator(net);
-	Atom *atom;
-	while((atom = net_getNextAtom(atomIterator)) != NULL) {
-		getMAFBlock(atom, fileHandle);
+	//Make MAF blocks for each block
+	Net_BlockIterator *blockIterator = net_getBlockIterator(net);
+	Block *block;
+	while((block = net_getNextBlock(blockIterator)) != NULL) {
+		getMAFBlock(block, fileHandle);
 	}
-	net_destructAtomIterator(atomIterator);
+	net_destructBlockIterator(blockIterator);
 
 	//Call child nets recursively.
 	Net_GroupIterator *groupIterator = net_getGroupIterator(net);

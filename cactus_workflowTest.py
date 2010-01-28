@@ -12,7 +12,7 @@ from sonLib.bioio import runGraphViz
 from cactus.cactus_common import getRandomCactusInputs
 from cactus.cactus_common import runCactusWorkflow
 from cactus.cactus_common import runCactusTreeViewer
-from cactus.cactus_common import runCactusAtomGraphViewer
+from cactus.cactus_common import runCactusBlockGraphViewer
 from cactus.cactus_common import runCactusCheck
 from cactus.cactus_common import runCactusTreeStats
 
@@ -72,8 +72,8 @@ class TestCase(unittest.TestCase):
                 runWorkflow(sequences, newickTreeFile, outputDir, self.tempDir, batchSystem=self.batchSystem, 
                             cactusTreeGraphFile=os.path.join(outputDir, "cactusTree.dot"),
                             cactusTreeGraphPDFFile=os.path.join(outputDir, "cactusTree.pdf"),
-                            atomGraphFile=os.path.join(outputDir, "atomGraph.dot"),
-                            atomGraphPDFFile=os.path.join(outputDir, "atomGraph.pdf"),
+                            blockGraphFile=os.path.join(outputDir, "blockGraph.dot"),
+                            blockGraphPDFFile=os.path.join(outputDir, "blockGraph.pdf"),
                             cactusTreeStatsFile=os.path.join(outputDir, "cactusTreeStats.xml"),
                             buildTrees=False)
         
@@ -110,7 +110,7 @@ class TestCase(unittest.TestCase):
 def runWorkflow(sequences, newickTreeFile, outputDir, tempDir, 
                 batchSystem="single_machine",
                 cactusTreeGraphFile=None, cactusTreeGraphPDFFile=None, 
-                atomGraphFile=None, atomGraphPDFFile=None,
+                blockGraphFile=None, blockGraphPDFFile=None,
                 cactusTreeStatsFile=None, buildTrees=False):
     fileHandle = open(newickTreeFile, 'r')
     newickTreeString = fileHandle.readline()
@@ -147,9 +147,9 @@ def runWorkflow(sequences, newickTreeFile, outputDir, tempDir,
         runCactusTreeStats(netDisk, cactusTreeStatsFile)
     
     """
-    if atomGraphFile != None:
-        runCactusAtomGraphViewer(atomGraphFile, reconstructionTree)
-        runGraphViz(atomGraphFile, atomGraphPDFFile, "neato")
+    if blockGraphFile != None:
+        runCactusBlockGraphViewer(blockGraphFile, reconstructionTree)
+        runGraphViz(blockGraphFile, blockGraphPDFFile, "neato")
     """
         
     #Cleanup

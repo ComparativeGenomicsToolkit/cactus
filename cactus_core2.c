@@ -32,9 +32,9 @@ void usage() {
 	fprintf(stderr, "-f --maxEdgeDegree : Maximum degree of aligned edges\n");
 	fprintf(stderr, "-g --writeDebugFiles : Write the debug files\n");
 	fprintf(stderr, "-h --help : Print this help screen\n");
-	fprintf(stderr, "-i --minimumTreeCoverage : Minimum tree coverage proportion of an atom to be included in the graph\n");
-	fprintf(stderr, "-o --minimumTreeCoverageForAtoms : Minimum tree coverage for atoms, proportion of an atom to be included in the set of atoms at this level\n");
-	fprintf(stderr, "-j --minimumAtomLength : The minimum length of an atom required to be included in the problem\n");
+	fprintf(stderr, "-i --minimumTreeCoverage : Minimum tree coverage proportion of an block to be included in the graph\n");
+	fprintf(stderr, "-o --minimumTreeCoverageForBlocks : Minimum tree coverage for blocks, proportion of an block to be included in the set of blocks at this level\n");
+	fprintf(stderr, "-j --minimumBlockLength : The minimum length of an block required to be included in the problem\n");
 	fprintf(stderr, "-k --minimumChainLength : The minimum chain length required to be included in the problem\n");
 	fprintf(stderr, "-l --trim : The length of bases to remove from the end of each alignment\n");
 	fprintf(stderr, "-m --alignRepeats : Allow bases marked as repeats to be aligned (else alignments to these bases to be excluded)\n");
@@ -74,8 +74,8 @@ int main(int argc, char *argv[]) {
 			{ "writeDebugFiles", no_argument, 0, 'g' },
 			{ "help", no_argument, 0, 'h' },
 			{ "minimumTreeCoverage", required_argument, 0, 'i' },
-			{ "minimumTreeCoverageForAtoms", required_argument, 0, 'o' },
-			{ "minimumAtomLength", required_argument, 0, 'j' },
+			{ "minimumTreeCoverageForBlocks", required_argument, 0, 'o' },
+			{ "minimumBlockLength", required_argument, 0, 'j' },
 			{ "minimumChainLength", required_argument, 0, 'k' },
 			{ "trim", required_argument, 0, 'l' },
 			{ "alignRepeats", no_argument, 0, 'm' },
@@ -116,7 +116,7 @@ int main(int argc, char *argv[]) {
 				assert(sscanf(optarg, "%f", &cCIP->minimumTreeCoverage) == 1);
 				break;
 			case 'j':
-				assert(sscanf(optarg, "%i", &cCIP->minimumAtomLength) == 1);
+				assert(sscanf(optarg, "%i", &cCIP->minimumBlockLength) == 1);
 				break;
 			case 'k':
 				assert(sscanf(optarg, "%i", &cCIP->minimumChainLength) == 1);
@@ -131,7 +131,7 @@ int main(int argc, char *argv[]) {
 				assert(sscanf(optarg, "%i", &cCIP->extensionSteps) == 1);
 				break;
 			case 'o':
-				assert(sscanf(optarg, "%f", &cCIP->minimumTreeCoverageForAtoms) == 1);
+				assert(sscanf(optarg, "%f", &cCIP->minimumTreeCoverageForBlocks) == 1);
 				break;
 			default:
 				usage();
@@ -149,8 +149,8 @@ int main(int argc, char *argv[]) {
 	assert(netName != NULL);
 	assert(cCIP->maxEdgeDegree > 0);
 	assert(cCIP->minimumTreeCoverage >= 0.0);
-	assert(cCIP->minimumTreeCoverageForAtoms >= 0.0);
-	assert(cCIP->minimumAtomLength >= 0.0);
+	assert(cCIP->minimumTreeCoverageForBlocks >= 0.0);
+	assert(cCIP->minimumBlockLength >= 0.0);
 	assert(cCIP->minimumChainLength >= 0);
 
 	//////////////////////////////////////////////

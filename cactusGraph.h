@@ -123,19 +123,19 @@ void circulariseStems(struct CactusGraph *cactusGraph);
 ////////////////////////////////////////////////
 ////////////////////////////////////////////////
 ////////////////////////////////////////////////
-//Choosing which atoms in the chains to keep.
+//Choosing which blocks in the chains to keep.
 ////////////////////////////////////////////////
 ////////////////////////////////////////////////
 ////////////////////////////////////////////////
 
-struct List *filterAtomsByTreeCoverageAndLength(struct List *biConnectedComponents,
+struct List *filterBlocksByTreeCoverageAndLength(struct List *biConnectedComponents,
 		Net *net,
 		float minimumTreeCoverage, /*Minimum tree coverage to be included */
-		int32_t minimumAtomLength, /*The minimum length of an atom to be included */
+		int32_t minimumBlockLength, /*The minimum length of an block to be included */
 		int32_t minimumChainLength, /* Minimum chain length to be included */
 		struct PinchGraph *pinchGraph);
 
-void logTheChosenAtomSubset(struct List *biConnectedComponents, struct List *chosenAtoms, struct PinchGraph *pinchGraph,
+void logTheChosenBlockSubset(struct List *biConnectedComponents, struct List *chosenBlocks, struct PinchGraph *pinchGraph,
 		Net *net);
 
 ////////////////////////////////////////////////

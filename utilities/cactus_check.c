@@ -64,7 +64,7 @@ void checkNonTerminalGroups(Net *net, Net *parentNet) {
 		assert(net_getEnd(parentNet, end_getName(end)) == end);
 		assert(end_getNet(end) == parentNet);
 		assert(net_getEnd(net, end_getName(end)) != NULL);
-		assert(!end_isAtomEnd(net_getEnd(net, end_getName(end))));
+		assert(!end_isBlockEnd(net_getEnd(net, end_getName(end))));
 		assert(end_getGroup(end) == group);
 	}
 	group_destructEndIterator(endIterator);
@@ -97,9 +97,9 @@ void checkChains(Net *net) {
 			assert(group_getEnd(group, end_getName(link_getRight(link))) == link_getRight(link));
 			if(i > 1) {
 				Link *link2 = chain_getLink(chain, i-1);
-				assert(end_isAtomEnd(link_getRight(link2)));
-				assert(end_isAtomEnd(link_getLeft(link)));
-				assert(end_getAtom(link_getRight(link2)) == end_getAtom(link_getLeft(link)));
+				assert(end_isBlockEnd(link_getRight(link2)));
+				assert(end_isBlockEnd(link_getLeft(link)));
+				assert(end_getBlock(link_getRight(link2)) == end_getBlock(link_getLeft(link)));
 			}
 		}
 	}
@@ -122,15 +122,15 @@ void checkEnds(Net *net) {
 		assert(group_getEnd(group, end_getName(end)) == end);
 
 		/*
-		 * Check stub/cap/atom-end status
+		 * Check stub/cap/block-end status
 		 */
-		if(end_isAtomEnd(end)) {
-			assert(end_getAtom(end) != NULL);
+		if(end_isBlockEnd(end)) {
+			assert(end_getBlock(end) != NULL);
 			assert(!end_isCap(end));
 			assert(!end_isStub(end));
 		}
 		else {
-			assert(end_getAtom(end) == NULL);
+			assert(end_getBlock(end) == NULL);
 			assert((end_isCap(end) && !end_isStub(end)) || (!end_isCap(end) && end_isStub(end)));
 		}
 
@@ -212,55 +212,55 @@ void checkEnds(Net *net) {
 	net_destructEndIterator(endIterator);
 }
 
-void checkAtoms(Net *net) {
-	Net_AtomIterator *atomIterator = net_getAtomIterator(net);
-	Atom *atom;
-	while((atom = net_getNextAtom(atomIterator)) != NULL) {
-		assert(atom_getOrientation(atom));
-		assert(atom_getLength(atom) > 0);
+void checkBlocks(Net *net) {
+	Net_BlockIterator *blockIterator = net_getBlockIterator(net);
+	Block *block;
+	while((block = net_getNextBlock(blockIterator)) != NULL) {
+		assert(block_getOrientation(block));
+		assert(block_getLength(block) > 0);
 
 		/*
 		 * Check we have two ends.
 		 */
-		End *leftEnd = atom_getLeftEnd(atom);
-		End *rightEnd = atom_getRightEnd(atom);
+		End *leftEnd = block_getLeftEnd(block);
+		End *rightEnd = block_getRightEnd(block);
 		assert(leftEnd != NULL);
 		assert(rightEnd != NULL);
-		assert(end_getAtom(leftEnd) == atom);
-		assert(end_getAtom(rightEnd) == atom);
+		assert(end_getBlock(leftEnd) == block);
+		assert(end_getBlock(rightEnd) == block);
 
 		/*
 		 * Check the instances.
 		 */
-		Atom_InstanceIterator *instanceIterator = atom_getInstanceIterator(atom);
-		AtomInstance *atomInstance;
-		while((atomInstance = atom_getNext(instanceIterator)) != NULL) {
-			assert(atomInstance_getAtom(atomInstance) == atom);
-			assert(atomInstance_getOrientation(atomInstance));
+		Block_InstanceIterator *instanceIterator = block_getInstanceIterator(block);
+		BlockInstance *blockInstance;
+		while((blockInstance = block_getNext(instanceIterator)) != NULL) {
+			assert(blockInstance_getBlock(blockInstance) == block);
+			assert(blockInstance_getOrientation(blockInstance));
 			/*
-			 * Check atom instance has two instances.
+			 * Check block instance has two instances.
 			 */
-			EndInstance *_5EndInstance = atomInstance_get5End(atomInstance);
-			EndInstance *_3EndInstance = atomInstance_get3End(atomInstance);
+			EndInstance *_5EndInstance = blockInstance_get5End(blockInstance);
+			EndInstance *_3EndInstance = blockInstance_get3End(blockInstance);
 			assert(_5EndInstance != NULL);
 			assert(_3EndInstance != NULL);
-			assert(endInstance_getAtomInstance(_5EndInstance) == atomInstance);
-			assert(endInstance_getAtomInstance(_3EndInstance) == atomInstance);
+			assert(endInstance_getBlockInstance(_5EndInstance) == blockInstance);
+			assert(endInstance_getBlockInstance(_3EndInstance) == blockInstance);
 			/*
 			 * Check the coordinates.
 			 */
-			assert(atomInstance_getLength(atomInstance) == atom_getLength(atom));
-			assert(atomInstance_getStrand(atomInstance) == endInstance_getStrand(_5EndInstance));
-			assert(atomInstance_getStrand(atomInstance) == endInstance_getStrand(_3EndInstance));
+			assert(blockInstance_getLength(blockInstance) == block_getLength(block));
+			assert(blockInstance_getStrand(blockInstance) == endInstance_getStrand(_5EndInstance));
+			assert(blockInstance_getStrand(blockInstance) == endInstance_getStrand(_3EndInstance));
 			assert(endInstance_getSide(_5EndInstance));
 			assert(!endInstance_getSide(_3EndInstance));
-			if(atomInstance_getStart(atomInstance) != INT32_MAX) {
-				assert(endInstance_getCoordinate(_5EndInstance) == atomInstance_getStart(atomInstance));
-				assert(endInstance_getCoordinate(_3EndInstance) == atomInstance_getStart(atomInstance) + (atomInstance_getStrand(atomInstance) ? atomInstance_getLength(atomInstance) - 1 : -atomInstance_getLength(atomInstance) + 1));
+			if(blockInstance_getStart(blockInstance) != INT32_MAX) {
+				assert(endInstance_getCoordinate(_5EndInstance) == blockInstance_getStart(blockInstance));
+				assert(endInstance_getCoordinate(_3EndInstance) == blockInstance_getStart(blockInstance) + (blockInstance_getStrand(blockInstance) ? blockInstance_getLength(blockInstance) - 1 : -blockInstance_getLength(blockInstance) + 1));
 			}
 		}
 	}
-	net_destructAtomIterator(atomIterator);
+	net_destructBlockIterator(blockIterator);
 }
 
 
@@ -295,14 +295,14 @@ void checkEvents(Net *net) {
 
 void checkBasesAccountedFor(Net *net) {
 	int64_t totalBases = net_getTotalBaseLength(net);
-	int64_t atomBases = 0.0;
+	int64_t blockBases = 0.0;
 	int64_t childBases = 0.0;
-	Net_AtomIterator *atomIterator = net_getAtomIterator(net);
-	Atom *atom;
-	while((atom = net_getNextAtom(atomIterator)) != NULL) {
-		atomBases += atom_getLength(atom) * atom_getInstanceNumber(atom);
+	Net_BlockIterator *blockIterator = net_getBlockIterator(net);
+	Block *block;
+	while((block = net_getNextBlock(blockIterator)) != NULL) {
+		blockBases += block_getLength(block) * block_getInstanceNumber(block);
 	}
-	net_destructAtomIterator(atomIterator);
+	net_destructBlockIterator(blockIterator);
 	Net_GroupIterator *iterator = net_getGroupIterator(net);
 	Group *group;
 	while((group = net_getNextGroup(iterator)) != NULL) {
@@ -318,10 +318,10 @@ void checkBasesAccountedFor(Net *net) {
 		childBases += size;
 	}
 	net_destructGroupIterator(iterator);
-	if(atomBases + childBases != totalBases) {
-		fprintf(stderr, "Got %i atom bases, %i childBases and %i total bases\n", (int)atomBases, (int)childBases, (int)totalBases);
+	if(blockBases + childBases != totalBases) {
+		fprintf(stderr, "Got %i block bases, %i childBases and %i total bases\n", (int)blockBases, (int)childBases, (int)totalBases);
 	}
-	assert(atomBases + childBases == totalBases);
+	assert(blockBases + childBases == totalBases);
 }
 
 void checkNetsRecursively(Net *net, Net *parentNet) {
@@ -331,7 +331,7 @@ void checkNetsRecursively(Net *net, Net *parentNet) {
 	}
 	checkChains(net);
 	checkEnds(net);
-	checkAtoms(net);
+	checkBlocks(net);
 	checkEvents(net);
 	checkBasesAccountedFor(net);
 	callCheckNetsRecursively(net);
@@ -342,7 +342,7 @@ void usage() {
 	fprintf(stderr, "-a --logLevel : Set the log level\n");
 	fprintf(stderr, "-c --netDisk : The location of the net disk directory\n");
 	fprintf(stderr, "-d --netName : The name of the net (the key in the database)\n");
-	fprintf(stderr, "-e --checkTrees : Check that each end and atom has a tree structure which is reconcilable with the event tree\n");
+	fprintf(stderr, "-e --checkTrees : Check that each end and block has a tree structure which is reconcilable with the event tree\n");
 	fprintf(stderr, "-f --checkInternalAdjacencies : Checks that internal instances have adjacencies and that the operation structures which describe changes are correct\n");
 	fprintf(stderr, "-h --help : Print this help screen\n");
 }

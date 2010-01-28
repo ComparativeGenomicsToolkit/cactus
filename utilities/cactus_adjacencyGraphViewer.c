@@ -45,60 +45,60 @@ void addEdgeToGraph(End *end1, End *end2, const char *colour, const char *label,
 	free(nameString2);
 }
 
-void addAtomToGraph(Atom *atom, const char *colour, FILE *fileHandle) {
+void addBlockToGraph(Block *block, const char *colour, FILE *fileHandle) {
 	static char label[100000];
-	End *leftEnd = atom_getLeftEnd(atom);
-	End *rightEnd = atom_getRightEnd(atom);
+	End *leftEnd = block_getLeftEnd(block);
+	End *rightEnd = block_getRightEnd(block);
 	addEndNodeToGraph(leftEnd, fileHandle);
 	addEndNodeToGraph(rightEnd, fileHandle);
-	Atom_InstanceIterator *iterator = atom_getInstanceIterator(atom);
-	AtomInstance *atomInstance;
-	while((atomInstance = atom_getNext(iterator)) != NULL) {
-		atomInstance = atomInstance_getStrand(atomInstance) ? atomInstance : atomInstance_getReverse(atomInstance);
-		if(atomInstance_getSequence(atomInstance) != NULL) {
-			sprintf(label, "%s:%i:%i", netMisc_nameToStringStatic(sequence_getName(atomInstance_getSequence(atomInstance))),
-					atomInstance_getStart(atomInstance), atomInstance_getStart(atomInstance)+atomInstance_getLength(atomInstance));
-			addEdgeToGraph(endInstance_getEnd(atomInstance_get5End(atomInstance)),
-						   endInstance_getEnd(atomInstance_get3End(atomInstance)),
+	Block_InstanceIterator *iterator = block_getInstanceIterator(block);
+	BlockInstance *blockInstance;
+	while((blockInstance = block_getNext(iterator)) != NULL) {
+		blockInstance = blockInstance_getStrand(blockInstance) ? blockInstance : blockInstance_getReverse(blockInstance);
+		if(blockInstance_getSequence(blockInstance) != NULL) {
+			sprintf(label, "%s:%i:%i", netMisc_nameToStringStatic(sequence_getName(blockInstance_getSequence(blockInstance))),
+					blockInstance_getStart(blockInstance), blockInstance_getStart(blockInstance)+blockInstance_getLength(blockInstance));
+			addEdgeToGraph(endInstance_getEnd(blockInstance_get5End(blockInstance)),
+						   endInstance_getEnd(blockInstance_get3End(blockInstance)),
 						   edgeColours ? colour : "black", label, 1.5, 100, "forward", fileHandle);
 		}
 	}
-	atom_destructInstanceIterator(iterator);
+	block_destructInstanceIterator(iterator);
 }
 
 void addTrivialChainsToGraph(Net *net, FILE *fileHandle) {
 	/*
-	 * Add atoms not part of chain to the graph
+	 * Add blocks not part of chain to the graph
 	 */
-	Net_AtomIterator *atomIterator = net_getAtomIterator(net);
-	Atom *atom;
-	while((atom = net_getNextAtom(atomIterator)) != NULL) {
-		if(atom_getChain(atom) == NULL) {
-			addAtomToGraph(atom, "black", fileHandle);
+	Net_BlockIterator *blockIterator = net_getBlockIterator(net);
+	Block *block;
+	while((block = net_getNextBlock(blockIterator)) != NULL) {
+		if(block_getChain(block) == NULL) {
+			addBlockToGraph(block, "black", fileHandle);
 		}
 	}
-	net_destructAtomIterator(atomIterator);
+	net_destructBlockIterator(blockIterator);
 }
 
 void addChainsToGraph(Net *net, FILE *fileHandle) {
 	/*
-	 * Add atoms part of a chain to the graph.
+	 * Add blocks part of a chain to the graph.
 	 */
 	Net_ChainIterator *chainIterator = net_getChainIterator(net);
 	Chain *chain;
 	while((chain = net_getNextChain(chainIterator)) != NULL) {
 		int32_t i, j;
 		const char *chainColour;
-		while((chainColour = graphViz_getColour(chainColour)) != NULL) { //ensure the chain colours don't match the trivial atom chains and the adjacencies.
+		while((chainColour = graphViz_getColour(chainColour)) != NULL) { //ensure the chain colours don't match the trivial block chains and the adjacencies.
 			if(strcmp(chainColour, "black") != 0 && strcmp(chainColour, "grey") != 0) {
 				break;
 			}
 		}
-		Atom **atoms = chain_getAtomChain(chain, &i);
+		Block **blocks = chain_getBlockChain(chain, &i);
 		for(j=0; j<i; j++) {
-			addAtomToGraph(atoms[j], chainColour, fileHandle);
+			addBlockToGraph(blocks[j], chainColour, fileHandle);
 		}
-		free(atoms);
+		free(blocks);
 	}
 	net_destructChainIterator(chainIterator);
 }
@@ -142,7 +142,7 @@ void addStubAndCapEndsToGraph(Net *net, FILE *fileHandle) {
 	Net_EndIterator *endIterator = net_getEndIterator(net);
 	End *end;
 	while((end = net_getNextEnd(endIterator)) != NULL) {
-		if(!end_isAtomEnd(end)) {
+		if(!end_isBlockEnd(end)) {
 			addEndNodeToGraph(end, fileHandle);
 		}
 	}

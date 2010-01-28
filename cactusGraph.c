@@ -1060,7 +1060,7 @@ void circulariseStems(struct CactusGraph *cactusGraph) {
 ////////////////////////////////////////////////
 ////////////////////////////////////////////////
 ////////////////////////////////////////////////
-//Choosing which atoms in the chains to keep.
+//Choosing which blocks in the chains to keep.
 ////////////////////////////////////////////////
 ////////////////////////////////////////////////
 ////////////////////////////////////////////////
@@ -1069,7 +1069,7 @@ void circulariseStems(struct CactusGraph *cactusGraph) {
 float treeCoverage2(struct CactusEdge *cactusEdge, Net *net,
 		struct PinchGraph *pinchGraph) {
 	/*
-	 * Returns the proportion of the tree covered by the atom.
+	 * Returns the proportion of the tree covered by the block.
 	 */
 #ifdef BEN_DEBUG
 	assert(!isAStubOrCapCactusEdge(cactusEdge, pinchGraph));
@@ -1112,27 +1112,27 @@ int32_t chainBaseLength(struct List *biConnectedComponent, struct PinchGraph *pi
 	return i;
 }
 
-struct List *filterAtomsByTreeCoverageAndLength(struct List *biConnectedComponents,
+struct List *filterBlocksByTreeCoverageAndLength(struct List *biConnectedComponents,
 		Net *net,
 		float minimumTreeCoverage, /*Minimum tree coverage to be included */
-		int32_t minimumAtomLength, /*The minimum length of an atom to be included */
+		int32_t minimumBlockLength, /*The minimum length of an block to be included */
 		int32_t minimumChainLength, /* Minimum chain length to be included */
 		struct PinchGraph *pinchGraph) {
 	/*
-	 * Filters atoms in chains by base length and tree coverage.
+	 * Filters blocks in chains by base length and tree coverage.
 	 *
-	 * Returns a list of all accepted atoms, excluding stubs.
+	 * Returns a list of all accepted blocks, excluding stubs.
 	 */
 	int32_t i, j;
 	struct CactusEdge *cactusEdge;
 	struct List *biConnectedComponent;
-	struct List *chosenAtoms;
+	struct List *chosenBlocks;
 
 	///////////////
-	//Gets those atoms whose chain meet the minimum score and have the minimum tree coverage.
+	//Gets those blocks whose chain meet the minimum score and have the minimum tree coverage.
 	///////////////
 
-	chosenAtoms = constructEmptyList(0, NULL);
+	chosenBlocks = constructEmptyList(0, NULL);
 
 	for(i=0; i<biConnectedComponents->length; i++) {
 		biConnectedComponent = biConnectedComponents->list[i];
@@ -1143,8 +1143,8 @@ struct List *filterAtomsByTreeCoverageAndLength(struct List *biConnectedComponen
 					assert(cactusEdge->segments->length > 0);
 					struct Segment *segment = cactusEdge->segments->list[0];
 					if(treeCoverage2(cactusEdge, net, pinchGraph) >= minimumTreeCoverage &&
-					   (segment->end - segment->start + 1) >= minimumAtomLength) {
-						listAppend(chosenAtoms, cactusEdge);
+					   (segment->end - segment->start + 1) >= minimumBlockLength) {
+						listAppend(chosenBlocks, cactusEdge);
 					}
 				}
 			}
@@ -1153,50 +1153,50 @@ struct List *filterAtomsByTreeCoverageAndLength(struct List *biConnectedComponen
 
 
 
-	return chosenAtoms;
+	return chosenBlocks;
 }
 
-void logTheChosenAtomSubset(struct List *biConnectedComponents, struct List *chosenAtoms, struct PinchGraph *pinchGraph,
+void logTheChosenBlockSubset(struct List *biConnectedComponents, struct List *chosenBlocks, struct PinchGraph *pinchGraph,
 		Net *net) {
 	/*
-	 * Produces logging information about the chosen atoms.
+	 * Produces logging information about the chosen blocks.
 	 */
 	int32_t i, j;
 	struct List *biConnectedComponent;
 	struct CactusEdge *cactusEdge;
 	struct Segment *segment;
-	float totalAtomScore = 0.0;
-	float totalAtomLength = 0.0;
-	float totalBaseLengthOfAllAtoms = 0.0;
-	float totalNumberOfAllAtoms = 0.0;
-	float totalNumberOfStubAtoms = 0.0;
+	float totalBlockScore = 0.0;
+	float totalBlockLength = 0.0;
+	float totalBaseLengthOfAllBlocks = 0.0;
+	float totalNumberOfAllBlocks = 0.0;
+	float totalNumberOfStubBlocks = 0.0;
 	float averageSegmentNumber = 0.0;
-	float averageSegmentNumberOfAllAtoms = 0.0;
+	float averageSegmentNumberOfAllBlocks = 0.0;
 	for(i=0; i<biConnectedComponents->length; i++) {
 		biConnectedComponent = biConnectedComponents->list[i];
-		totalBaseLengthOfAllAtoms += chainBaseLength(biConnectedComponent, pinchGraph);
-		totalNumberOfAllAtoms += chainLength(biConnectedComponent, FALSE, pinchGraph);
-		totalNumberOfStubAtoms += chainLength(biConnectedComponent, TRUE, pinchGraph) - chainLength(biConnectedComponent, FALSE, pinchGraph);
+		totalBaseLengthOfAllBlocks += chainBaseLength(biConnectedComponent, pinchGraph);
+		totalNumberOfAllBlocks += chainLength(biConnectedComponent, FALSE, pinchGraph);
+		totalNumberOfStubBlocks += chainLength(biConnectedComponent, TRUE, pinchGraph) - chainLength(biConnectedComponent, FALSE, pinchGraph);
 		for(j=0; j<biConnectedComponent->length; j++) {
 			cactusEdge = biConnectedComponent->list[j];
 			if(!isAStubOrCapCactusEdge(cactusEdge, pinchGraph)) {
-				averageSegmentNumberOfAllAtoms += cactusEdge->segments->length;
+				averageSegmentNumberOfAllBlocks += cactusEdge->segments->length;
 			}
 		}
 	}
 	j = 0;
-	for(i=0; i<chosenAtoms->length; i++) {
-		cactusEdge = chosenAtoms->list[i];
+	for(i=0; i<chosenBlocks->length; i++) {
+		cactusEdge = chosenBlocks->list[i];
 		if(!isAStubOrCapCactusEdge(cactusEdge, pinchGraph)) {
-			totalAtomScore += treeCoverage2(cactusEdge, net, pinchGraph);
+			totalBlockScore += treeCoverage2(cactusEdge, net, pinchGraph);
 			segment = cactusEdge->segments->list[0];
-			totalAtomLength += segment->end - segment->start + 1;
+			totalBlockLength += segment->end - segment->start + 1;
 			averageSegmentNumber += cactusEdge->segments->length;
 			j++;
 		}
 	}
-	logInfo("Chosen atom subset composed of %i atoms, of average length %f and average tree coverage %f, total base length of all atoms: %f, total number of all atoms %f, average length of all atoms: %f, total number of stub atoms: %f, average segment number of chosen atoms: %f, average segment number of all atoms: %f\n",
-				chosenAtoms->length, totalAtomLength/j, totalAtomScore/j, totalBaseLengthOfAllAtoms, totalNumberOfAllAtoms, totalBaseLengthOfAllAtoms/totalNumberOfAllAtoms, totalNumberOfStubAtoms, averageSegmentNumber/j, averageSegmentNumberOfAllAtoms/totalNumberOfAllAtoms);
+	logInfo("Chosen block subset composed of %i blocks, of average length %f and average tree coverage %f, total base length of all blocks: %f, total number of all blocks %f, average length of all blocks: %f, total number of stub blocks: %f, average segment number of chosen blocks: %f, average segment number of all blocks: %f\n",
+				chosenBlocks->length, totalBlockLength/j, totalBlockScore/j, totalBaseLengthOfAllBlocks, totalNumberOfAllBlocks, totalBaseLengthOfAllBlocks/totalNumberOfAllBlocks, totalNumberOfStubBlocks, averageSegmentNumber/j, averageSegmentNumberOfAllBlocks/totalNumberOfAllBlocks);
 }
 
 ////////////////////////////////////////////////

@@ -9,8 +9,8 @@ typedef struct _CactusCoreInputParameters {
 	int32_t maxEdgeDegree;
 	bool writeDebugFiles;
 	float minimumTreeCoverage;
-	float minimumTreeCoverageForAtoms;
-	int32_t minimumAtomLength;
+	float minimumTreeCoverageForBlocks;
+	int32_t minimumBlockLength;
 	int32_t minimumChainLength;
 	int32_t trim;
 	int32_t alignRepeats;

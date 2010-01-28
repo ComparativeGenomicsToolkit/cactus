@@ -179,23 +179,23 @@ Sequence *copySequence(Net *net, Name name) {
 	return sequence;
 }
 
-Atom *constructAtomFromCactusEdge(struct CactusEdge *edge, Net *net) {
+Block *constructBlockFromCactusEdge(struct CactusEdge *edge, Net *net) {
 	/*
-	 * Constructs an atom and two connected ends.
+	 * Constructs an block and two connected ends.
 	 */
 	int32_t i;
-	Atom *atom;
+	Block *block;
 	Sequence *sequence;
 	struct Segment *segment;
 	segment = edge->segments->list[0];
-	atom = atom_construct(segment->end - segment->start + 1, net);
+	block = block_construct(segment->end - segment->start + 1, net);
 	for(i=0; i<edge->segments->length; i++) {
 		segment = edge->segments->list[i];
 		sequence = copySequence(net, segment->contig);
-		atomInstance_construct2(atom, segment->start > 0 ? segment->start : -segment->end, segment->start > 0,
+		blockInstance_construct2(block, segment->start > 0 ? segment->start : -segment->end, segment->start > 0,
 				sequence);
 	}
-	return atom;
+	return block;
 }
 
 struct List *addEnvelopedStubEnds(Net *net, int32_t addToNet) {
@@ -345,7 +345,7 @@ void addGroupsP(Net *net, struct hashtable *groups) {
 	net_destructEndIterator(endIterator);
 
 #ifdef BEN_DEBUG
-	if(net_getGroupNumber(net) > 0 || net_getAtomNumber(net) > 0) {
+	if(net_getGroupNumber(net) > 0 || net_getBlockNumber(net) > 0) {
 		endIterator = net_getEndIterator(net);
 		while((end = net_getNextEnd(endIterator)) != NULL) {
 			assert(end_getGroup(end) != NULL);
@@ -356,11 +356,11 @@ void addGroupsP(Net *net, struct hashtable *groups) {
 }
 
 void addGroups(Net *net, struct PinchGraph *pinchGraph,
-		struct List *chosenAtoms, struct hashtable *endNamesHash) {
+		struct List *chosenBlocks, struct hashtable *endNamesHash) {
 	int32_t i, j;
 	struct List *chosenPinchEdges = constructEmptyList(0, NULL);
-	for(i=0; i<chosenAtoms->length; i++) {
-		listAppend(chosenPinchEdges, cactusEdgeToFirstPinchEdge(chosenAtoms->list[i], pinchGraph));
+	for(i=0; i<chosenBlocks->length; i++) {
+		listAppend(chosenPinchEdges, cactusEdgeToFirstPinchEdge(chosenBlocks->list[i], pinchGraph));
 		assert(chosenPinchEdges->list[i] != NULL);
 	}
 	for(i=0; i<pinchGraph->vertices->length; i++) {
@@ -444,12 +444,12 @@ void fillOutNetFromInputs(
 		Net *parentNet,
 		struct CactusGraph *cactusGraph,
 		struct PinchGraph *pinchGraph,
-		struct List *chosenAtoms) {
+		struct List *chosenBlocks) {
 	Net *net;
 	Net *nestedNet;
 	End *end;
 	End *end2;
-	Atom *atom;
+	Block *block;
 	Net_EndIterator *endIterator;
 	EndInstance *endInstance;
 	Chain *chain;
@@ -464,7 +464,7 @@ void fillOutNetFromInputs(
 	void **parentNets;
 	int32_t *mergedVertexIDs;
 	int32_t i, j, k;
-	struct hashtable *chosenAtomsHash;
+	struct hashtable *chosenBlocksHash;
 	struct hashtable *endNamesHash;
 	struct PinchEdge *pinchEdge;
 	struct Segment *segment;
@@ -503,7 +503,7 @@ void fillOutNetFromInputs(
 	//Build end names hash
 	////////////////////////////////////////////////
 
-	endNamesHash = create_hashtable(chosenAtoms->length*2,
+	endNamesHash = create_hashtable(chosenBlocks->length*2,
 			 hashtable_key, hashtable_equalKey,
 			 NULL, free);
 	endIterator = net_getEndIterator(parentNet);
@@ -528,11 +528,11 @@ void fillOutNetFromInputs(
 	//Prune the cactus graph to include only those edges relevant to the desired net.
 	////////////////////////////////////////////////
 
-	chosenAtomsHash = create_hashtable(chosenAtoms->length*2,
+	chosenBlocksHash = create_hashtable(chosenBlocks->length*2,
 							 hashtable_key, hashtable_equalKey,
 							 NULL, NULL);
-	for(i=0; i<chosenAtoms->length; i++) {
-		hashtable_insert(chosenAtomsHash, chosenAtoms->list[i], &i);
+	for(i=0; i<chosenBlocks->length; i++) {
+		hashtable_insert(chosenBlocksHash, chosenBlocks->list[i], &i);
 	}
 	mergedVertexIDs = malloc(sizeof(int32_t)*cactusGraph->vertices->length);
 	for(i=0; i<cactusGraph->vertices->length; i++) {
@@ -543,7 +543,7 @@ void fillOutNetFromInputs(
 		list = constructEmptyList(0, NULL);
 		for(j=0; j<biConnectedComponent->length; j++) {
 			cactusEdge = biConnectedComponent->list[j];
-			if((!isAStubOrCapCactusEdge(cactusEdge, pinchGraph)) && hashtable_search(chosenAtomsHash, cactusEdge) == NULL) {
+			if((!isAStubOrCapCactusEdge(cactusEdge, pinchGraph)) && hashtable_search(chosenBlocksHash, cactusEdge) == NULL) {
 				//merge vertices
 				if(vertexDiscoveryTimes[cactusEdge->from->vertexID] < vertexDiscoveryTimes[cactusEdge->to->vertexID]) {
 					mergedVertexIDs[cactusEdge->to->vertexID] = mergedVertexIDs[cactusEdge->from->vertexID];
@@ -565,10 +565,10 @@ void fillOutNetFromInputs(
 		destructList(biConnectedComponent);
 		biConnectedComponents->list[i] = list;
 	}
-	logDebug("Built the chosen atoms hash\n");
+	logDebug("Built the chosen blocks hash\n");
 
 	////////////////////////////////////////////////
-	//Atoms and ends for each net.
+	//Blocks and ends for each net.
 	////////////////////////////////////////////////
 
 	nets = mallocLocal(sizeof(void *) * cactusGraph->vertices->length);
@@ -590,17 +590,17 @@ void fillOutNetFromInputs(
 			}
 			parentNets[i] = net;
 
-			//Make the atoms and ends
+			//Make the blocks and ends
 			for(j=0; j<biConnectedComponent->length; j++) {
 				cactusEdge = biConnectedComponent->list[j];
 				segment = cactusEdge->segments->list[0];
 				if(!isAStubOrCapCactusEdge(cactusEdge, pinchGraph)) {
-					atom = constructAtomFromCactusEdge(cactusEdge, net);
+					block = constructBlockFromCactusEdge(cactusEdge, net);
 					pinchEdge = cactusEdgeToFirstPinchEdge(cactusEdge, pinchGraph);
-					hashtable_insert(endNamesHash, pinchEdge->from, netMisc_nameToString(end_getName(atom_getLeftEnd(atom))));
-					hashtable_insert(endNamesHash, pinchEdge->to, netMisc_nameToString(end_getName(atom_getRightEnd(atom))));
-					assert(cactusEdgeToEndName(cactusEdge, endNamesHash, pinchGraph) == end_getName(atom_getLeftEnd(atom)));
-					assert(cactusEdgeToEndName(cactusEdge->rEdge, endNamesHash, pinchGraph) == end_getName(atom_getRightEnd(atom)));
+					hashtable_insert(endNamesHash, pinchEdge->from, netMisc_nameToString(end_getName(block_getLeftEnd(block))));
+					hashtable_insert(endNamesHash, pinchEdge->to, netMisc_nameToString(end_getName(block_getRightEnd(block))));
+					assert(cactusEdgeToEndName(cactusEdge, endNamesHash, pinchGraph) == end_getName(block_getLeftEnd(block)));
+					assert(cactusEdgeToEndName(cactusEdge->rEdge, endNamesHash, pinchGraph) == end_getName(block_getRightEnd(block)));
 				}
 				else {
 					assert(j == 0 || j == biConnectedComponent->length-1);
@@ -620,7 +620,7 @@ void fillOutNetFromInputs(
 			}
 		}
 	}
-	logDebug("Constructed atoms and nets for the cycle.\n");
+	logDebug("Constructed blocks and nets for the cycle.\n");
 
 	////////////////////////////////////////////////
 	//Link nets to parent nets and construct chains.
@@ -694,7 +694,7 @@ void fillOutNetFromInputs(
 	//Add groups.
 	////////////////////////////////////////////////
 
-	addGroups(net, pinchGraph, chosenAtoms, endNamesHash);
+	addGroups(net, pinchGraph, chosenBlocks, endNamesHash);
 	logDebug("Added the trivial groups\n");
 
 	////////////////////////////////////////////////
@@ -706,7 +706,7 @@ void fillOutNetFromInputs(
 	free(vertexDiscoveryTimes);
 	free(parentNets);
 	destructList(biConnectedComponents);
-	hashtable_destroy(chosenAtomsHash, FALSE, FALSE);
+	hashtable_destroy(chosenBlocksHash, FALSE, FALSE);
 	hashtable_destroy(endNamesHash, TRUE, FALSE);
 }
 
