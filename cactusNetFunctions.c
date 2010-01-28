@@ -204,7 +204,7 @@ struct List *addEnvelopedStubEnds(Net *net, int32_t addToNet) {
 	 * of the chain to the nested net.
 	 */
 	int32_t j;
-	End *end;
+	End *end, *end2;
 	Net *net2;
 	struct List *list;
 	Net_EndIterator *endIterator;
@@ -219,14 +219,20 @@ struct List *addEnvelopedStubEnds(Net *net, int32_t addToNet) {
 			for(j=0; j<list->length; j++) {
 				end = list->list[j];
 				if(addToNet && net_getEnd(net, end_getName(end)) == NULL) {
-					end_copyConstruct(end, net);
+					group_addEnd(group, end_copyConstruct(end, net));
 				}
 				else {
-					assert(net_getEnd(net, end_getName(end)) != NULL);
+					end2 = net_getEnd(net, end_getName(end));
+					assert(end2 != NULL);
+					if(end_getGroup(end2) == NULL) {
+						group_addEnd(group, end2);
+					}
+					else {
+						assert(end_getGroup(end2) == group);
+					}
 				}
 			}
 			destructList(list);
-			group_updateContainedEnds(group);
 		}
 	}
 	net_destructGroupIterator(adjacencyIterator);
