@@ -13,7 +13,7 @@ static void getNets(Net *net, FILE *fileHandle, int32_t includeInternalNodes, in
 
 	assert(net != NULL);
 	if(includeInternalNodes) {
-		fprintf(fileHandle, "%s %f\n", netMisc_nameToStringStatic(net_getName(net)), net_getTotalBaseLength(net));
+		fprintf(fileHandle, "%s %lld\n", netMisc_nameToStringStatic(net_getName(net)), net_getTotalBaseLength(net));
 	}
 
 	if(recursive-- > 0) {
@@ -25,10 +25,10 @@ static void getNets(Net *net, FILE *fileHandle, int32_t includeInternalNodes, in
 			}
 			else {
 				if(extendNonZeroTrivialAdjacencyComponents) {
-					double size = adjacencyComponent_getTotalBaseLength(adjacencyComponent);
-					if(size > 0 && (size > 400000)) {
+					int64_t size = adjacencyComponent_getTotalBaseLength(adjacencyComponent);
+					if(size > 0 && (size > 30000 || size < 1000)) {
 						adjacencyComponent_makeNonTerminal(adjacencyComponent);
-						fprintf(fileHandle, "%s %f\n",
+						fprintf(fileHandle, "%s %lld\n",
 								netMisc_nameToStringStatic(adjacencyComponent_getName(adjacencyComponent)),	size);
 					}
 				}

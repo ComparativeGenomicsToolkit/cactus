@@ -45,13 +45,21 @@ def runPipe(sequenceDirs, newickTreeString, tempDir, useDummy=False, writeDebugF
     
     runCactusSetup(tempReconstructionDirectory, sequenceDirs, 
                    newickTreeString, getTempDirectory(tempDir))
-    runCactusAligner(tempReconstructionDirectory, tempAlignmentFile,
-                     tempDir=getTempDirectory(tempDir), useDummy=useDummy)
-    runCactusCore(tempReconstructionDirectory, tempAlignmentFile, 
-                    writeDebugFiles=writeDebugFiles)
-    childNetNames = [ childNetName for (childNetName, childNetSize) in runCactusGetNets(tempReconstructionDirectory, "0", tempDir, includeInternalNodes=True) ]
-    runCactusPhylogeny(tempReconstructionDirectory, tempDir=getTempDirectory(tempDir), netNames=childNetNames)
-    runCactusCheck(tempReconstructionDirectory, checkTrees=True)
+    l = runCactusGetNets(tempReconstructionDirectory, "0", getTempDirectory(tempDir),
+                                                  includeInternalNodes=False, 
+                                                  recursive=True,
+                                                  extendNonZeroTrivialAdjacencyComponents=True)
+    if len(l) > 0:
+        childNetName, childNetSize = l[0]
+        runCactusAligner(tempReconstructionDirectory, tempAlignmentFile, netName=childNetName,
+                         tempDir=getTempDirectory(tempDir), useDummy=useDummy)
+        runCactusCore(tempReconstructionDirectory, tempAlignmentFile, netName=childNetName,
+                        writeDebugFiles=writeDebugFiles)
+        childNetNames = [ childNetName for (childNetName, childNetSize) in runCactusGetNets(tempReconstructionDirectory, "0", tempDir, 
+                                                                                            includeInternalNodes=True, 
+                                                                                            recursive=True, extendNonZeroTrivialAdjacencyComponents=False) ]
+        runCactusPhylogeny(tempReconstructionDirectory, tempDir=getTempDirectory(tempDir), netNames=childNetNames)
+        runCactusCheck(tempReconstructionDirectory, checkTrees=True)
     
     system("rm -rf %s %s" % (tempReconstructionDirectory, tempAlignmentFile))
     

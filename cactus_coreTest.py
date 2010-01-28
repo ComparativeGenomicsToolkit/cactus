@@ -19,6 +19,7 @@ from cactus.cactus_common import runCactusAligner
 from cactus.cactus_common import runCactusCore
 from cactus.cactus_common import runCactusCheck
 from cactus.cactus_common import getRandomCactusInputs
+from cactus.cactus_common import runCactusGetNets
 
 class TestCase(unittest.TestCase):
     
@@ -95,24 +96,35 @@ def runPipe(sequenceDirs, newickTreeString, tempDir, useDummy=False, writeDebugF
     
     runCactusSetup(tempReconstructionDirectory, sequenceDirs, 
                    newickTreeString, getTempDirectory(tempDir))
-    runCactusAligner(tempReconstructionDirectory, tempAlignmentFile,
-                     tempDir=getTempDirectory(tempDir), useDummy=useDummy)
     
-    system("cat %s" % tempAlignmentFile)
+    l = runCactusGetNets(tempReconstructionDirectory, 0, getTempDirectory(tempDir),
+                                                  includeInternalNodes=False, 
+                                                  recursive=True,
+                                                  extendNonZeroTrivialAdjacencyComponents=True)
+                                                  
+    if len(l) > 0:
+        childNetName, childNetSize = l[0]
     
-    logger.info("Constructed the alignments")
-    if randomAtomParameters:
-        runCactusCore(tempReconstructionDirectory, tempAlignmentFile, 
-                      writeDebugFiles=writeDebugFiles,
-                      maximumEdgeDegree=1+random.random()*10,
-                      minimumTreeCoverage=random.random(),
-                      minimumAtomLength=random.random()*5,
-                      minimumChainLength=random.random()*10,
-                      trim=random.random()*5,
-                      alignRepeats=random.random() > 0.5)
-    else:
-        runCactusCore(tempReconstructionDirectory, tempAlignmentFile, 
-                      tempDir=getTempDirectory(tempDir), writeDebugFiles=writeDebugFiles)
+        runCactusAligner(tempReconstructionDirectory, tempAlignmentFile,
+                         netName=childNetName,
+                         tempDir=getTempDirectory(tempDir), useDummy=useDummy)
+        
+        system("cat %s" % tempAlignmentFile)
+        
+        logger.info("Constructed the alignments")
+        if randomAtomParameters:
+            runCactusCore(tempReconstructionDirectory, tempAlignmentFile, 
+                          netName=childNetName,
+                          writeDebugFiles=writeDebugFiles,
+                          maximumEdgeDegree=1+random.random()*10,
+                          minimumTreeCoverage=random.random(),
+                          minimumAtomLength=random.random()*5,
+                          minimumChainLength=random.random()*10,
+                          trim=random.random()*5,
+                          alignRepeats=random.random() > 0.5)
+        else:
+            runCactusCore(tempReconstructionDirectory, tempAlignmentFile, netName=childNetName,
+                          tempDir=getTempDirectory(tempDir), writeDebugFiles=writeDebugFiles)
   
     runCactusCheck(tempReconstructionDirectory)
   

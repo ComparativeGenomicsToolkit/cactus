@@ -242,78 +242,10 @@ struct List *addEnvelopedStubEnds(Net *net, int32_t addToNet) {
 	return list;
 }
 
-int addAdjacenciesToEndsP(EndInstance **endInstance1, EndInstance **endInstance2) {
-	assert(endInstance_getStrand(*endInstance1) && endInstance_getStrand(*endInstance2));
-	Sequence *sequence1 = endInstance_getSequence(*endInstance1);
-	Sequence *sequence2 = endInstance_getSequence(*endInstance2);
-	int32_t i = netMisc_nameCompare(sequence_getName(sequence1), sequence_getName(sequence2));
-	if(i == 0) {
-		int32_t j = endInstance_getCoordinate(*endInstance1);
-		int32_t k = endInstance_getCoordinate(*endInstance2);
-		i = j - k;
-		if(i == 0) {
-			assert(endInstance_getAtomInstance(*endInstance1) == endInstance_getAtomInstance(*endInstance2));
-			j = endInstance_getSide(*endInstance1);
-			k = endInstance_getSide(*endInstance2);
-			assert((j && !k) || (!j && k));
-			i = j ? -1 : 1;
-		}
-	}
-	return i;
-}
-
 void addAdjacenciesToEnds(Net *net) {
-	End *end;
-	EndInstance *endInstance;
-	EndInstance *endInstance2;
-	Net_EndIterator *endIterator;
-	End_InstanceIterator *instanceIterator;
-	Net_AdjacencyComponentIterator *adjacencyIterator;
+	netMisc_addAdjacenciesToLeafEndInstances(net);
+	AdjacencyComponent_EndIterator *adjacencyIterator = net_getAdjacencyComponentIterator(net);
 	AdjacencyComponent *adjacencyComponent;
-	struct List *list;
-	int32_t i;
-
-	/*
-	 * Build a list of end instances, then sort them.
-	 */
-	list = constructEmptyList(0, NULL);
-	endIterator = net_getEndIterator(net);
-	while ((end = net_getNextEnd(endIterator)) != NULL) {
-		instanceIterator = end_getInstanceIterator(end);
-		while ((endInstance = end_getNext(instanceIterator)) != NULL) {
-			if(!endInstance_getStrand(endInstance)) {
-				endInstance = endInstance_getReverse(endInstance);
-			}
-			listAppend(list, endInstance);
-		}
-		end_destructInstanceIterator(instanceIterator);
-	}
-	net_destructEndIterator(endIterator);
-	assert((list->length % 2) == 0);
-
-	/*
-	 * Sort the end instances.
-	 */
-	qsort(list->list, list->length, sizeof(void *), (int (*)(const void *v, const void *))addAdjacenciesToEndsP);
-
-	/*
-	 * Now make the adjacencies.
-	 */
-	for(i=1; i<list->length; i+=2) {
-		endInstance = list->list[i-1];
-		endInstance2 = list->list[i];
-		endInstance_makeAdjacent1(endInstance, endInstance2);
-	}
-
-	/*
-	 * Clean up.
-	 */
-	destructList(list);
-
-	/*
-	 * Now do it for the recursively held nets.
-	 */
-	adjacencyIterator = net_getAdjacencyComponentIterator(net);
 	while((adjacencyComponent = net_getNextAdjacencyComponent(adjacencyIterator)) != NULL) {
 		if(adjacencyComponent_getNestedNet(adjacencyComponent) != NULL) {
 			addAdjacenciesToEnds(adjacencyComponent_getNestedNet(adjacencyComponent));
@@ -719,6 +651,7 @@ void fillOutNetFromInputs(
 					adjacencyComponent_addEnd(adjacencyComponent, end2);
 				}
 				else { //construct a link between two existing chains.
+					assert(net_getEndNumber(nestedNet) > 0);
 					end = net_getEnd(net, cactusEdgeToEndName(isAStubOrCapCactusEdge(cactusEdge, pinchGraph) ?
 							getNonDeadEndOfStubOrCapCactusEdge(cactusEdge, pinchGraph) : cactusEdge->rEdge, endNamesHash, pinchGraph));
 					assert(end != NULL);

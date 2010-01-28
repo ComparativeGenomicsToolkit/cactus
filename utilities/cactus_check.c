@@ -308,8 +308,11 @@ void checkBasesAccountedFor(Net *net) {
 	while((adjacencyComponent = net_getNextAdjacencyComponent(iterator)) != NULL) {
 		int64_t size = (int64_t)adjacencyComponent_getTotalBaseLength(adjacencyComponent);
 		if(adjacencyComponent_getNestedNet(adjacencyComponent) != NULL) {
-			uglyf(" fooo %i %i\n", (int)net_getTotalBaseLength(adjacencyComponent_getNestedNet(adjacencyComponent)), (int)size);
+			assert(!adjacencyComponent_isTerminal(adjacencyComponent));
 			assert(net_getTotalBaseLength(adjacencyComponent_getNestedNet(adjacencyComponent)) == size);
+		}
+		else {
+			assert(adjacencyComponent_isTerminal(adjacencyComponent));
 		}
 		assert(size >= 0);
 		childBases += size;
