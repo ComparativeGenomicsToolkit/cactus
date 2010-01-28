@@ -42,7 +42,7 @@ void callCheckNetsRecursively(Net *net) {
 	net_destructAdjacencyComponentIterator(iterator);
 }
 
-void checkAdjacencyComponents(Net *net, Net *parentNet) {
+void checkNonTerminalAdjacencyComponents(Net *net, Net *parentNet) {
 	/*
 	 * Check child parent connection between nets in the reconstruction tree.
 	 */
@@ -118,12 +118,8 @@ void checkEnds(Net *net) {
 		 * Check end is part of an adjacency component
 		 */
 		AdjacencyComponent *adjacencyComponent = end_getAdjacencyComponent(end);
-		if(adjacencyComponent == NULL) {
-			assert(net_getAdjacencyComponentNumber(end_getNet(end)) == 0);
-		}
-		else {
-			assert(adjacencyComponent_getEnd(adjacencyComponent, end_getName(end)) == end);
-		}
+		assert(adjacencyComponent != NULL);
+		assert(adjacencyComponent_getEnd(adjacencyComponent, end_getName(end)) == end);
 
 		/*
 		 * Check stub/cap/atom-end status
@@ -183,10 +179,11 @@ void checkEnds(Net *net) {
 			}
 
 			/*
-			 * Check the required adjacency (1) between the end instances.
+			 * Check the required adjacency between the end instances.
 			 */
 			endInstance2 = endInstance_getAdjacency(endInstance);
 			assert(endInstance2 != NULL);
+			assert(end_getAdjacencyComponent(endInstance_getEnd(endInstance2)) == adjacencyComponent); //check they have the same adjacency component.
 			assert(endInstance_getAdjacency(endInstance2) == endInstance);
 			assert(endInstance_getEvent(endInstance) == endInstance_getEvent(endInstance2));
 			assert(endInstance_getSequence(endInstance) == endInstance_getSequence(endInstance2));
@@ -296,15 +293,44 @@ void checkEvents(Net *net) {
 	eventTree_destructIterator(iterator);
 }
 
+void checkBasesAccountedFor(Net *net) {
+	int64_t totalBases = net_getTotalBaseLength(net);
+	int64_t atomBases = 0.0;
+	int64_t childBases = 0.0;
+	Net_AtomIterator *atomIterator = net_getAtomIterator(net);
+	Atom *atom;
+	while((atom = net_getNextAtom(atomIterator)) != NULL) {
+		atomBases += atom_getLength(atom) * atom_getInstanceNumber(atom);
+	}
+	net_destructAtomIterator(atomIterator);
+	Net_AdjacencyComponentIterator *iterator = net_getAdjacencyComponentIterator(net);
+	AdjacencyComponent *adjacencyComponent;
+	while((adjacencyComponent = net_getNextAdjacencyComponent(iterator)) != NULL) {
+		int64_t size = (int64_t)adjacencyComponent_getTotalBaseLength(adjacencyComponent);
+		if(adjacencyComponent_getNestedNet(adjacencyComponent) != NULL) {
+			uglyf(" fooo %i %i\n", (int)net_getTotalBaseLength(adjacencyComponent_getNestedNet(adjacencyComponent)), (int)size);
+			assert(net_getTotalBaseLength(adjacencyComponent_getNestedNet(adjacencyComponent)) == size);
+		}
+		assert(size >= 0);
+		childBases += size;
+	}
+	net_destructAdjacencyComponentIterator(iterator);
+	if(atomBases + childBases != totalBases) {
+		fprintf(stderr, "Got %i atom bases, %i childBases and %i total bases\n", (int)atomBases, (int)childBases, (int)totalBases);
+	}
+	assert(atomBases + childBases == totalBases);
+}
+
 void checkNetsRecursively(Net *net, Net *parentNet) {
 	logInfo("Checking the net %s\n", netMisc_nameToStringStatic(net_getName(net)));
 	if(parentNet != NULL) {
-		checkAdjacencyComponents(net, parentNet);
+		checkNonTerminalAdjacencyComponents(net, parentNet);
 	}
 	checkChains(net);
 	checkEnds(net);
 	checkAtoms(net);
 	checkEvents(net);
+	checkBasesAccountedFor(net);
 	callCheckNetsRecursively(net);
 }
 

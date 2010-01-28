@@ -358,7 +358,6 @@ void addAdjacencyComponentsP(Net *net, struct hashtable *adjacencyComponents) {
 	End *end;
 	End *end2;
 	AdjacencyComponent *adjacencyComponent;
-	Net *nestedNet;
 	struct List *endNames;
 	int32_t i;
 
@@ -368,7 +367,7 @@ void addAdjacencyComponentsP(Net *net, struct hashtable *adjacencyComponents) {
 		if(adjacencyComponent_getNestedNet(adjacencyComponent) != NULL) {
 			addAdjacencyComponentsP(adjacencyComponent_getNestedNet(adjacencyComponent), adjacencyComponents);
 		}
-		else {
+		else { //Ends are already in an terminal adjacency component!
 			endIterator2 = adjacencyComponent_getEndIterator(adjacencyComponent);
 			endNames = NULL;
 			while((end = adjacencyComponent_getNextEnd(endIterator2)) != NULL) {
@@ -386,48 +385,29 @@ void addAdjacencyComponentsP(Net *net, struct hashtable *adjacencyComponents) {
 		adjacencyComponent = end_getAdjacencyComponent(end);
 		if(adjacencyComponent == NULL) {
 			endNames = hashtable_search(adjacencyComponents, (void *)netMisc_nameToStringStatic(end_getName(end)));
-			//assert(endNames != NULL);
-			if(endNames != NULL) {
+			assert(endNames != NULL);
 #ifdef BEN_DEBUG
-				for(i=0; i<endNames->length; i++) {
-					end2 = net_getEnd(net, netMisc_stringToName(endNames->list[i]));
-					assert(end2 != NULL);
-					assert(end_getAdjacencyComponent(end2) == NULL);
-				}
+			for(i=0; i<endNames->length; i++) {
+				end2 = net_getEnd(net, netMisc_stringToName(endNames->list[i]));
+				assert(end2 != NULL);
+				assert(end_getAdjacencyComponent(end2) == NULL);
+			}
 #endif
-				if(net_getAdjacencyComponentNumber(net) > 0 || net_getAtomNumber(net) > 0) {
-					if(adjacencyComponentIsZeroLength(endNames, net)) { //Net is zero length
-						adjacencyComponent = adjacencyComponent_construct2(net);
-						for(i=0; i<endNames->length; i++) {
-							end2 = net_getEnd(net, netMisc_stringToName(endNames->list[i]));
-							adjacencyComponent_addEnd(adjacencyComponent, end2);
-						}
-					}
-					else {
-						nestedNet = net_construct(net_getNetDisk(net));
-						eventTree_copyConstruct(net_getEventTree(net), nestedNet, returnsTrue);
-						for(i=0; i<endNames->length; i++) {
-							end2 = net_getEnd(net, netMisc_stringToName(endNames->list[i]));
-							end_copyConstruct(end2, nestedNet);
-						}
-						addAdjacenciesToEnds(nestedNet); //build the adjacencies for the problem.
-						adjacencyComponent = adjacencyComponent_construct(net, nestedNet);
-					}
+			adjacencyComponent = adjacencyComponent_construct2(net);
+			for(i=0; i<endNames->length; i++) {
+				end2 = net_getEnd(net, netMisc_stringToName(endNames->list[i]));
+				adjacencyComponent_addEnd(adjacencyComponent, end2);
+			}
 #ifdef BEN_DEBUG
-					for(i=0; i<endNames->length; i++) {
-						end2 = net_getEnd(net, netMisc_stringToName(endNames->list[i]));
-						assert(end_getAdjacencyComponent(end2) == adjacencyComponent);
-					}
+			for(i=0; i<endNames->length; i++) {
+				end2 = net_getEnd(net, netMisc_stringToName(endNames->list[i]));
+				assert(end_getAdjacencyComponent(end2) == adjacencyComponent);
+			}
 #endif
-				}
-				for(i=0; i<endNames->length; i++) {
-					assert(hashtable_remove(adjacencyComponents, endNames->list[i], 0) == endNames);
-				}
-				destructList(endNames);
+			for(i=0; i<endNames->length; i++) {
+				assert(hashtable_remove(adjacencyComponents, endNames->list[i], 0) == endNames);
 			}
-			else {
-				assert(net_getAdjacencyComponentNumber(net) == 0 && net_getAtomNumber(net) == 0);
-			}
+			destructList(endNames);
 		}
 	}
 	net_destructEndIterator(endIterator);
@@ -492,7 +472,7 @@ void addAdjacencyComponents(Net *net, struct PinchGraph *pinchGraph,
 	}
 	destructList(adjacencyComponentsList);
 	addAdjacencyComponentsP(net, adjacencyComponentsHash);
-	//assert(hashtable_count(adjacencyComponentsHash) == 0);
+	assert(hashtable_count(adjacencyComponentsHash) == 0);
 	hashtable_destroy(adjacencyComponentsHash, FALSE, FALSE);
 }
 
@@ -725,7 +705,7 @@ void fillOutNetFromInputs(
 				cactusEdge2 = biConnectedComponent->list[j];
 				nestedNet = nets[mergedVertexIDs[cactusEdge->to->vertexID]];
 				assert(cactusEdge->to->vertexID != 0);
-				if(nestedNet == NULL) {
+				if(nestedNet == NULL) { //construct a terminal adjacency component.
 					adjacencyComponent = adjacencyComponent_construct2(net);
 
 					end = net_getEnd(net, cactusEdgeToEndName(isAStubOrCapCactusEdge(cactusEdge, pinchGraph) ?
@@ -738,7 +718,7 @@ void fillOutNetFromInputs(
 					assert(end2 != NULL);
 					adjacencyComponent_addEnd(adjacencyComponent, end2);
 				}
-				else {
+				else { //construct a link between two existing chains.
 					end = net_getEnd(net, cactusEdgeToEndName(isAStubOrCapCactusEdge(cactusEdge, pinchGraph) ?
 							getNonDeadEndOfStubOrCapCactusEdge(cactusEdge, pinchGraph) : cactusEdge->rEdge, endNamesHash, pinchGraph));
 					assert(end != NULL);

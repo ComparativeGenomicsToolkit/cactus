@@ -22,6 +22,7 @@ void usage() {
 
 double calculateTreeBits(Net *net, double pathBitScore) {
 	double totalBitScore = 0.0;
+	int32_t totalSequenceSize;
 	Net_AdjacencyComponentIterator *adjacencyComponentIterator = net_getAdjacencyComponentIterator(net);
 	AdjacencyComponent *adjacencyComponent;
 	double followingPathBitScore = (log(net_getAdjacencyComponentNumber(net)) / log(2.0)) + pathBitScore;
@@ -29,11 +30,15 @@ double calculateTreeBits(Net *net, double pathBitScore) {
 		if(adjacencyComponent_getNestedNet(adjacencyComponent) != NULL) {
 			totalBitScore += calculateTreeBits(adjacencyComponent_getNestedNet(adjacencyComponent), followingPathBitScore);
 		}
+		else {
+			totalSequenceSize = adjacencyComponent_getTotalBaseLength(adjacencyComponent);
+			totalBitScore += (totalSequenceSize > 0 ? ((log(totalSequenceSize) / log(2.0)) + followingPathBitScore) * totalSequenceSize : 0.0);
+		}
 	}
 	net_destructAdjacencyComponentIterator(adjacencyComponentIterator);
 	Net_AtomIterator *atomIterator = net_getAtomIterator(net);
 	Atom *atom;
-	int32_t totalSequenceSize = 0.0;
+	totalSequenceSize = 0.0;
 	while((atom = net_getNextAtom(atomIterator)) != NULL) {
 		totalSequenceSize += atom_getLength(atom) * atom_getInstanceNumber(atom);
 	}
@@ -86,27 +91,31 @@ void tabulateStats(struct IntList *unsortedValues, double *totalNumber, double *
 	*avg = (double)j / unsortedValues->length;
 }
 
-double largestChildStatsP(Net *net, struct List *childProportions) {
+void largestChildStatsP(Net *net, struct List *childProportions) {
 	Net_AdjacencyComponentIterator *adjacencyComponentIterator;
 	AdjacencyComponent *adjacencyComponent;
 	double problemSize = net_getTotalBaseLength(net);
-	if(net_getAdjacencyComponentNumber(net) != 0  && problemSize > 0) {
+	if(problemSize > 0) {
 		double childProportion = -10.0;
+		double cumProp = 0.0;
 		adjacencyComponentIterator = net_getAdjacencyComponentIterator(net);
 		while((adjacencyComponent = net_getNextAdjacencyComponent(adjacencyComponentIterator)) != NULL) {
 			if(adjacencyComponent_getNestedNet(adjacencyComponent) != NULL) {
-				double f = largestChildStatsP(adjacencyComponent_getNestedNet(adjacencyComponent), childProportions);
-				if(f/problemSize > childProportion) {
-					childProportion = f/problemSize;
-				}
+				largestChildStatsP(adjacencyComponent_getNestedNet(adjacencyComponent), childProportions);
 			}
+			double f = adjacencyComponent_getTotalBaseLength(adjacencyComponent);
+			assert(f >= 0.0);
+			assert(f/problemSize <= 1.001);
+			if(f/problemSize > childProportion) {
+				childProportion = f/problemSize;
+			}
+			cumProp += f/problemSize;
 		}
 		net_destructAdjacencyComponentIterator(adjacencyComponentIterator);
-		if(childProportion != -10.0) {
-			listAppend(childProportions, constructFloat(childProportion));
-		}
+		assert(childProportion != -10.0);
+		assert(cumProp <= 1.001);
+		listAppend(childProportions, constructFloat(childProportion));
 	}
-	return problemSize;
 }
 
 void largestChildStats(Net *net,
@@ -288,12 +297,11 @@ void leafStatsP(Net *net, struct IntList *leafSizes) {
 		if(adjacencyComponent_getNestedNet(adjacencyComponent) != NULL) {
 			leafStatsP(adjacencyComponent_getNestedNet(adjacencyComponent), leafSizes);
 		}
+		else {
+			intListAppend(leafSizes, (int32_t)adjacencyComponent_getTotalBaseLength(adjacencyComponent));
+		}
 	}
 	net_destructAdjacencyComponentIterator(adjacencyComponentIterator);
-
-	if(net_getAdjacencyComponentNumber(net) == 0) {
-		intListAppend(leafSizes, (int32_t)net_getTotalBaseLength(net));
-	}
 }
 
 void leafStats(Net *net,

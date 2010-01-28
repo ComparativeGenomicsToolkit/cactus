@@ -94,19 +94,8 @@ class AlignmentPhase(Target):
         logger.info("Starting the down pass target")
         #Setup call to cactus aligner wrapper as child
         #Calculate the size of the child.
-        l = runCactusGetNets(self.options.netDisk, self.netName, localTempDir)
-        assert(len(l) == 1)
-        assert(l[0][0] == self.netName)
-        assert(l[0][1] >= 0)
-        netSize = l[0][1]
-        iteration = getIteration(0, netSize)
-        if iteration < 4:
-            childTarget = CactusAlignerWrapper(self.options, self.netName, iteration)
-        else:
-            childTarget = CactusBaseLevelAlignerWrapper(self.options, self.netName)
-        self.addChildTarget(childTarget)
-        #Now create the follow on tree phase.
-        self.setFollowOnTarget(PhylogenyPhase('0', netSize, self.options))
+        self.addChildTarget(CactusCoreWrapper2(self.options, '0', None, -1))
+        self.setFollowOnTarget(PhylogenyPhase('0', None, self.options))
 
 #Each level around 30x larger than the last
 BASE_LEVEL_SIZE = 30000 #30000
@@ -123,7 +112,7 @@ def getIteration(iteration, netSize):
         return 2
     elif iteration == 1 or netSize < CHR_LEVEL_SIZE:
         return 1
-    return 1
+    return 0
 
 timeParameters = { 0:10000000, 1:10000000, 2:100, 3:20, 4:1 }
 
@@ -211,24 +200,27 @@ class CactusCoreWrapper2(Target):
     
     def cleanup(self, localTempDir, globalTempDir):
         #Cleans up from a round
-        system("rm -rf %s" % self.alignmentFile) #Clean up the alignments file
+        if self.alignmentFile != None:
+            system("rm -rf %s" % self.alignmentFile) #Clean up the alignments file
     
     def run(self, localTempDir, globalTempDir):
         logger.info("Starting the cactus down pass (recursive) target")
         #Traverses leaf jobs and create aligner wrapper targets as children.
         assert self.iteration+1 <= 4
         baseLevelNets = []
-        for childNetName, childNetSize in runCactusGetNets(self.options.netDisk, self.netName, localTempDir):
-            if childNetSize > 0:
-                nextIteration = getIteration(self.iteration+1, childNetSize)
-                if nextIteration == 4:
-                    if childNetSize < 1000:
-                        baseLevelNets.append(childNetName)
-                        if len(baseLevelNets) > 200:
-                            self.addChildTarget(CactusBaseLevelAlignerWrapper(self.options, baseLevelNets))
-                            baseLevelNets = []
-                else: #Does not do any refinement if the net is completely specified.
-                    self.addChildTarget(CactusAlignerWrapper(self.options, childNetName, nextIteration))
+        for childNetName, childNetSize in runCactusGetNets(self.options.netDisk, self.netName, localTempDir,
+                                                           includeInternalNodes=False, 
+                                                           recursive=True,
+                                                           extendNonZeroTrivialAdjacencyComponents=True):
+            assert childNetSize > 0
+            nextIteration = getIteration(self.iteration+1, childNetSize)
+            if nextIteration == 4:
+                baseLevelNets.append(childNetName)
+                if len(baseLevelNets) > 200:
+                    self.addChildTarget(CactusBaseLevelAlignerWrapper(self.options, baseLevelNets))
+                    baseLevelNets = []
+            else: #Does not do any refinement if the net is completely specified.
+                self.addChildTarget(CactusAlignerWrapper(self.options, childNetName, nextIteration))
         if len(baseLevelNets) > 0:
             self.addChildTarget(CactusBaseLevelAlignerWrapper(self.options, baseLevelNets))        
         
@@ -278,7 +270,8 @@ class CactusPhylogenyWrapper(Target):
         #Run cactus phylogeny
         runCactusPhylogeny(self.options.netDisk, tempDir=localTempDir, netNames=[ self.netName ])
         #Make child jobs
-        for childNetName, childNetSize in runCactusGetNets(self.options.netDisk, self.netName, localTempDir, includeInternalNodes=True, recursive=False):
+        for childNetName, childNetSize in runCactusGetNets(self.options.netDisk, self.netName, localTempDir, includeInternalNodes=True, 
+                                                           recursive=False, extendNonZeroTrivialAdjacencyComponents=False):
             if childNetName != self.netName: #Avoids running again for leaf without children
                 self.addChildTarget(CactusPhylogenyWrapper(self.options, childNetName, childNetSize))
       

@@ -74,6 +74,9 @@ int main(int argc, char *argv[]) {
 	FILE *fileHandle;
 	bool debug = 0;
 	int32_t totalEventNumber;
+	AdjacencyComponent *adjacencyComponent;
+	Net_EndIterator *endIterator;
+	End *end;
 
 	/*
 	 * Arguments/options
@@ -236,6 +239,17 @@ int main(int argc, char *argv[]) {
 		}
 	}
 	logInfo("Constructed the initial net with %i sequences and %i events\n", totalSequenceNumber, totalEventNumber);
+
+	//////////////////////////////////////////////
+	//Construct the terminal adjacency component.
+	//////////////////////////////////////////////
+
+	adjacencyComponent = adjacencyComponent_construct2(net);
+	endIterator = net_getEndIterator(net);
+	while((end = net_getNextEnd(endIterator)) != NULL) {
+		adjacencyComponent_addEnd(adjacencyComponent, end);
+	}
+	net_destructEndIterator(endIterator);
 
 	///////////////////////////////////////////////////////////////////////////
 	// Write the net to disk.

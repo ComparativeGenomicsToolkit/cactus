@@ -49,6 +49,21 @@ static void addNodeToGraph(const char *nodeName, FILE *graphFileHandle,
     graphViz_addNodeToGraph(nodeName, graphFileHandle, nameLabels ? nodeLabel : "", width, height, shape, "black", 14);
 }
 
+void makeCactusTree_terminalNode(AdjacencyComponent *adjacencyComponent, FILE *fileHandle, const char *parentNodeName, const char *parentEdgeColour) {
+	char *adjacencyComponentNameString = netMisc_nameToString(adjacencyComponent_getName(adjacencyComponent));
+	double scalingFactor = adjacencyComponent_getTotalBaseLength(adjacencyComponent)/totalProblemSize;
+	assert(scalingFactor <= 1.001);
+	assert(scalingFactor >= -0.001);
+	addNodeToGraph(adjacencyComponentNameString, fileHandle,
+			scalingFactor,
+			"triangle", adjacencyComponentNameString);
+	//Write in the parent edge.
+	if(parentNodeName != NULL) {
+		graphViz_addEdgeToGraph(parentNodeName, adjacencyComponentNameString, fileHandle, "", parentEdgeColour, 10, 1, "forward");
+	}
+	free(adjacencyComponentNameString);
+}
+
 void makeCactusTree_net(Net *net, FILE *fileHandle, const char *parentNodeName, const char *parentEdgeColour);
 
 void makeCactusTree_chain(Chain *chain, FILE *fileHandle, const char *parentNodeName, const char *parentEdgeColour) {
@@ -64,9 +79,13 @@ void makeCactusTree_chain(Chain *chain, FILE *fileHandle, const char *parentNode
 	int32_t i;
 	for(i=0; i<chain_getLength(chain); i++) {
 		AdjacencyComponent *adjacencyComponent = link_getAdjacencyComponent(chain_getLink(chain, i));
-		if(adjacencyComponent != NULL && adjacencyComponent_getNestedNet(adjacencyComponent) != NULL) {
+		assert(adjacencyComponent != NULL);
+		if(adjacencyComponent_getNestedNet(adjacencyComponent) != NULL) {
 			makeCactusTree_net(adjacencyComponent_getNestedNet(adjacencyComponent),
 					fileHandle, chainNameString, edgeColour);
+		}
+		else {
+			makeCactusTree_terminalNode(adjacencyComponent, fileHandle, chainNameString, edgeColour);
 		}
 	}
 	free(chainNameString);
@@ -97,19 +116,26 @@ void makeCactusTree_net(Net *net, FILE *fileHandle, const char *parentNodeName, 
 	Net_AdjacencyComponentIterator *adjacencyComponentIterator = net_getAdjacencyComponentIterator(net);
 	AdjacencyComponent *adjacencyComponent;
 	double size = 0.0; //get the size of the adjacency component organising node..
+	int32_t nonTrivialAdjacencyComponentCount = 0;
 	while((adjacencyComponent = net_getNextAdjacencyComponent(adjacencyComponentIterator)) != NULL) {
-		if(adjacencyComponent_getLink(adjacencyComponent) == NULL && adjacencyComponent_getNestedNet(adjacencyComponent) != NULL) { //linked to the diamond node.
-			size += net_getTotalBaseLength(adjacencyComponent_getNestedNet(adjacencyComponent));
+		if(adjacencyComponent_getLink(adjacencyComponent) == NULL) {
+			size += adjacencyComponent_getTotalBaseLength(adjacencyComponent);
+			nonTrivialAdjacencyComponentCount++;
 		}
 	}
 	net_destructAdjacencyComponentIterator(adjacencyComponentIterator);
-	if(size > 0.0) {
+	if(nonTrivialAdjacencyComponentCount) {
 		addNodeToGraph(diamondNodeNameString, fileHandle, size/totalProblemSize, "diamond", "");
 		graphViz_addEdgeToGraph(netNameString, diamondNodeNameString, fileHandle, "", edgeColour, 10, 1, "forward");
 		adjacencyComponentIterator = net_getAdjacencyComponentIterator(net);
 		while((adjacencyComponent = net_getNextAdjacencyComponent(adjacencyComponentIterator)) != NULL) {
-			if(adjacencyComponent_getLink(adjacencyComponent) == NULL && adjacencyComponent_getNestedNet(adjacencyComponent) != NULL) { //linked to the diamond node.
-				makeCactusTree_net(adjacencyComponent_getNestedNet(adjacencyComponent), fileHandle, diamondNodeNameString, diamondEdgeColour);
+			if(adjacencyComponent_getLink(adjacencyComponent) == NULL) {
+				if(adjacencyComponent_getNestedNet(adjacencyComponent) != NULL) { //linked to the diamond node.
+					makeCactusTree_net(adjacencyComponent_getNestedNet(adjacencyComponent), fileHandle, diamondNodeNameString, diamondEdgeColour);
+				}
+				else {
+					makeCactusTree_terminalNode(adjacencyComponent, fileHandle, diamondNodeNameString, diamondEdgeColour);
+				}
 			}
 		}
 		net_destructAdjacencyComponentIterator(adjacencyComponentIterator);

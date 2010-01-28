@@ -6,12 +6,13 @@
 
 #include "cactus.h"
 
-static void getNets(Net *net, FILE *fileHandle, int32_t includeInternalNodes, int32_t recursive) {
+static void getNets(Net *net, FILE *fileHandle, int32_t includeInternalNodes, int32_t recursive,
+		int32_t extendNonZeroTrivialAdjacencyComponents) {
 	Net_AdjacencyComponentIterator *adjacencyComponentIterator;
 	AdjacencyComponent *adjacencyComponent;
 
 	assert(net != NULL);
-	if(net_getAdjacencyComponentNumber(net) == 0 || includeInternalNodes) {
+	if(includeInternalNodes) {
 		fprintf(fileHandle, "%s %f\n", netMisc_nameToStringStatic(net_getName(net)), net_getTotalBaseLength(net));
 	}
 
@@ -19,7 +20,18 @@ static void getNets(Net *net, FILE *fileHandle, int32_t includeInternalNodes, in
 		adjacencyComponentIterator = net_getAdjacencyComponentIterator(net);
 		while((adjacencyComponent = net_getNextAdjacencyComponent(adjacencyComponentIterator)) != NULL) {
 			if(adjacencyComponent_getNestedNet(adjacencyComponent) != NULL) {
-				getNets(adjacencyComponent_getNestedNet(adjacencyComponent), fileHandle, includeInternalNodes, recursive);
+				getNets(adjacencyComponent_getNestedNet(adjacencyComponent), fileHandle, includeInternalNodes,
+						recursive, extendNonZeroTrivialAdjacencyComponents);
+			}
+			else {
+				if(extendNonZeroTrivialAdjacencyComponents) {
+					double size = adjacencyComponent_getTotalBaseLength(adjacencyComponent);
+					if(size > 0 && (size > 400000)) {
+						adjacencyComponent_makeNonTerminal(adjacencyComponent);
+						fprintf(fileHandle, "%s %f\n",
+								netMisc_nameToStringStatic(adjacencyComponent_getName(adjacencyComponent)),	size);
+					}
+				}
 			}
 		}
 		net_destructAdjacencyComponentIterator(adjacencyComponentIterator);
@@ -33,7 +45,7 @@ int main(int argc, char *argv[]) {
 	NetDisk *netDisk;
 	Net *net;
 
-	assert(argc == 6);
+	assert(argc == 7);
 	netDisk = netDisk_construct(argv[1]);
 	logInfo("Set up the net disk\n");
 
@@ -45,6 +57,7 @@ int main(int argc, char *argv[]) {
 
 	int32_t recursive;
 	assert(sscanf(argv[5], "%i", &recursive) == 1);
+
 	if(recursive) {
 		recursive = INT32_MAX;
 	}
@@ -52,9 +65,20 @@ int main(int argc, char *argv[]) {
 		recursive = 1;
 	}
 
+	int32_t extendNonZeroTrivialAdjacencyComponents;
+	assert(sscanf(argv[6], "%i", &extendNonZeroTrivialAdjacencyComponents) == 1);
+
 	FILE *fileHandle = fopen(argv[3], "w");
-	getNets(net, fileHandle, includeInternalNodes, recursive);
+	getNets(net, fileHandle, includeInternalNodes, recursive,
+			extendNonZeroTrivialAdjacencyComponents);
 	fclose(fileHandle);
+
+	if(extendNonZeroTrivialAdjacencyComponents) {
+		netDisk_write(netDisk);
+	}
+	logInfo("Updated the netdisk\n");
+
+	netDisk_destruct(netDisk);
 
 	logInfo("Am finished\n");
 	return 0;
