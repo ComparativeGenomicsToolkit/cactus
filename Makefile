@@ -15,7 +15,7 @@ ${binPath}/cactus_phylogeny : *.c *.h ${libPath}/sonLib.a ${libPath}/cactusLib.a
 ${binPath}/cactus_setup : cactus_setup.c ${libPath}/sonLib.a ${libPath}/cactusLib.a
 	${cxx} ${cflags} -I${libPath} -o ${binPath}/cactus_setup cactus_setup.c ${libPath}/cactusLib.a ${libPath}/sonLib.a ${tokyoCabinetLib}
 
-${binPath}/cactus_baseAligner : cactus_baseAligner.cc cactus_core.c cactus_core.h 3_Absorb3edge2x.c 3_Absorb3edge2x.h ${libPath}/pecan2Lib.a ${libPath}/sonLib.a ${libPath}/cactusLib.a  ${libPath}/sonLibPlus.a ${libPath}/xmlLib.a
+${binPath}/cactus_baseAligner : *.c *.cc *.h ${libPath}/pecan2Lib.a ${libPath}/sonLib.a ${libPath}/cactusLib.a  ${libPath}/sonLibPlus.a ${libPath}/xmlLib.a
 	${cxx} ${cflags} -I${libPath} -c cactus_core.c 3_Absorb3edge2x.c pinchGraph.c pinchGraphTest.c pinchGraphManipulation.c cactusGraph.c cactusNetFunctions.c 
 	${cyy} ${cflags} -I${libPath} -o ${binPath}/cactus_baseAligner cactus_baseAligner.cc cactus_core.o 3_Absorb3edge2x.o pinchGraph.o pinchGraphTest.o pinchGraphManipulation.o cactusGraph.o cactusNetFunctions.o ${libPath}/cactusLib.a ${libPath}/pecan2Lib.a ${libPath}/sonLib.a  ${libPath}/sonLibPlus.a ${libPath}/xmlLib.a ${tokyoCabinetLib}
 	rm -f cactus_core.o 3_Absorb3edge2x.o pinchGraph.o pinchGraphTest.o pinchGraphManipulation.o cactusGraph.o cactusNetFunctions.o

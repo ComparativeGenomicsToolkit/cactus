@@ -758,13 +758,59 @@ int32_t pinchMergeSegment_P(struct VertexChain *vertexChain1,
 	return TRUE;
 }
 
+void updateVertexAdjacencyComponentLabels(struct hashtable *vertexAdjacencyComponents,
+		struct PinchVertex *vertex,
+		struct PinchGraph *pinchGraph) {
+	/*
+	 * Method establishes which adjacency component the vertex belongs in.
+	 */
+	int32_t *i, j;
+	i = hashtable_search(vertexAdjacencyComponents, vertex);
+	if(i == NULL) {
+		struct List *list = constructEmptyList(0, NULL);
+		while(1) {
+			listAppend(list, vertex);
+			assert(lengthGreyEdges(vertex) == 1);
+			struct PinchVertex *vertex2 = getFirstGreyEdge(vertex);
+			i = hashtable_search(vertexAdjacencyComponents, vertex2);
+			if(i != NULL) {
+				break;
+			}
+			listAppend(list, vertex2);
+			assert(lengthBlackEdges(vertex2) > 0);
+			vertex = getFirstBlackEdge(vertex2)->to;
+			i = hashtable_search(vertexAdjacencyComponents, vertex);
+			if(i != NULL) {
+				break;
+			}
+		}
+		for(j=0; j<list->length; j++) {
+			assert(hashtable_search(vertexAdjacencyComponents, list->list[j]) == NULL);
+			hashtable_insert(vertexAdjacencyComponents, list->list[j], constructInt(*i));
+		}
+		destructList(list);
+	}
+}
+
+void updateVertexAdjacencyComponentLabelsForChain(struct hashtable *vertexAdjacencyComponents,
+		struct VertexChain *vertexChain,
+		struct PinchGraph *pinchGraph) {
+	/*
+	 * Method runs through the vertices in the vertex chain and ensures each vertex has a label.
+	 */
+	int32_t i;
+	for(i=0; i<vertexChain->listOfVertices->length; i++) {
+		updateVertexAdjacencyComponentLabels(vertexAdjacencyComponents, vertexChain->listOfVertices->list[i], pinchGraph);
+	}
+}
+
 void pinchMergeSegment_getChainOfVertices(struct PinchGraph *graph,
 										  struct Segment *segment1,
 										  struct Segment *segment2,
 										  struct VertexChain *vertexChain1,
-										  struct VertexChain *vertexChain2) {
+										  struct VertexChain *vertexChain2,
+										  struct hashtable *vertexAdjacencyComponents) {
 	int32_t i, j, k;
-
 	getChainOfVertices(vertexChain1, graph, segment1);
 	getChainOfVertices(vertexChain2, graph, segment2);
 
@@ -788,22 +834,27 @@ void pinchMergeSegment_getChainOfVertices(struct PinchGraph *graph,
 		getChainOfVertices(vertexChain1, graph, segment1);
 		getChainOfVertices(vertexChain2, graph, segment2);
 	}
-}
 
+	/*
+	 * Label the new vertices in the chain with adjacency component labels.
+	 */
+	updateVertexAdjacencyComponentLabelsForChain(vertexAdjacencyComponents, vertexChain1, graph);
+	updateVertexAdjacencyComponentLabelsForChain(vertexAdjacencyComponents, vertexChain2, graph);
+}
 
 struct VertexChain *pMS_vertexChain1 = NULL;
 struct VertexChain *pMS_vertexChain2 = NULL;
 
 void pinchMergeSegment(struct PinchGraph *graph,
 					   struct Segment *segment1,
-					   struct Segment *segment2) {
+					   struct Segment *segment2,
+					   struct hashtable *vertexAdjacencyComponents) {
 	/*
 	 * Pinches the graph (with the minimum number of required pinches, to
 	 * represent the contiguous alignment of the two segments.
 	 *
 	 * Segments have to be of equal length.
 	 */
-
 	int32_t i, j, k, contig;
 	struct PinchVertex *vertex1;
 	struct PinchVertex *vertex2;
@@ -835,7 +886,7 @@ void pinchMergeSegment(struct PinchGraph *graph,
 	splitEdge(graph, segment2->contig, segment2->start, LEFT);
 	splitEdge(graph, segment2->contig, segment2->end, RIGHT);
 
-	pinchMergeSegment_getChainOfVertices(graph, segment1, segment2, pMS_vertexChain1, pMS_vertexChain2);
+	pinchMergeSegment_getChainOfVertices(graph, segment1, segment2, pMS_vertexChain1, pMS_vertexChain2, vertexAdjacencyComponents);
 
 #ifdef BEN_ULTRA_DEBUG
 	//do some debug checks
@@ -852,6 +903,20 @@ void pinchMergeSegment(struct PinchGraph *graph,
 		assert(edge->to == pMS_vertexChain2->listOfVertices->list[i+1]);
 	}
 #endif
+
+	/*
+	 * Determine if we should proceed with the merge by checking if all the
+	 * segments are in the same, else quit.
+	 */
+	for(i=0; i<pMS_vertexChain1->listOfVertices->length; i++) {
+		assert(hashtable_search(vertexAdjacencyComponents, pMS_vertexChain1->listOfVertices->list[i]) != NULL);
+		assert(hashtable_search(vertexAdjacencyComponents, pMS_vertexChain2->listOfVertices->list[i]) != NULL);
+		j = *(int32_t *)hashtable_search(vertexAdjacencyComponents, pMS_vertexChain1->listOfVertices->list[i]);
+		k = *(int32_t *)hashtable_search(vertexAdjacencyComponents, pMS_vertexChain2->listOfVertices->list[i]);
+		if(j != k) {
+			return;
+		}
+	}
 
 	/*
 	 * Merge the lists of vertices to do the final merge.
@@ -887,7 +952,9 @@ void pinchMergeSegment(struct PinchGraph *graph,
 				/*
 				 * The new vertices are not in the chain, so we re parse the vertex chain and start again.
 				 */
-				pinchMergeSegment_getChainOfVertices(graph, segment1, segment2, pMS_vertexChain1, pMS_vertexChain2);
+				pinchMergeSegment_getChainOfVertices(graph, segment1, segment2,
+						pMS_vertexChain1, pMS_vertexChain2, vertexAdjacencyComponents);
+
 				i = 0;
 				continue;
 			}
@@ -900,7 +967,14 @@ void pinchMergeSegment(struct PinchGraph *graph,
 			}
 		}
 		else {
+			assert(hashtable_search(vertexAdjacencyComponents, vertex1) != NULL);
+			assert(hashtable_search(vertexAdjacencyComponents, vertex2) != NULL);
+			k = *(int32_t *)hashtable_search(vertexAdjacencyComponents, vertex1);
+			assert(k == *(int32_t *)hashtable_search(vertexAdjacencyComponents, vertex2));
+			destructInt(hashtable_remove(vertexAdjacencyComponents, vertex1, 0));
+			destructInt(hashtable_remove(vertexAdjacencyComponents, vertex2, 0));
 			vertex3 = mergeVertices(graph, vertex1, vertex2);
+			hashtable_insert(vertexAdjacencyComponents, vertex3, constructInt(k));
 		}
 
 		for(j=i+1; j<pMS_vertexChain1->listOfVertices->length; j++) {
@@ -997,8 +1071,9 @@ int32_t pinchMerge_getContig(char *contig, int32_t start, struct hashtable *cont
 }
 
 void pinchMerge(struct PinchGraph *graph, struct PairwiseAlignment *pA,
-		void (*addFunction)(struct PinchGraph *pinchGraph, struct Segment *, struct Segment *, void *),
-		void *extraParameter) {
+		void (*addFunction)(struct PinchGraph *pinchGraph, struct Segment *, struct Segment *, struct hashtable *, void *),
+		void *extraParameter,
+		struct hashtable *vertexAdjacencyComponents) {
 	/*
 	 * Method to pinch together the graph using all the aligned matches in the
 	 * input alignment.
@@ -1042,7 +1117,7 @@ void pinchMerge(struct PinchGraph *graph, struct PairwiseAlignment *pA,
 			else {
 				segment_recycle(&segment2, contig2, -(k-1), -(k-op->length));
 			}
-			addFunction(graph, &segment1, &segment2, extraParameter);
+			addFunction(graph, &segment1, &segment2, vertexAdjacencyComponents, extraParameter);
 		}
 		if(op->opType != PAIRWISE_INDEL_Y) {
 			j += pA->strand1 ? op->length : -op->length;

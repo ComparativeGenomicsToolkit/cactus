@@ -241,11 +241,13 @@ void checkPinchGraphDegree(struct PinchGraph *graph, int32_t maxDegree);
 
 void pinchMergeSegment(struct PinchGraph *graph,
 					   struct Segment *segment1,
-					   struct Segment *segment2);
+					   struct Segment *segment2,
+					   struct hashtable *vertexAdjacencyComponents);
 
 void pinchMerge(struct PinchGraph *graph, struct PairwiseAlignment *pairwiseAlignment,
-		void (*addFunction)(struct PinchGraph *pinchGraph, struct Segment *, struct Segment *, void *),
-		void *extraParameter);
+		void (*addFunction)(struct PinchGraph *pinchGraph, struct Segment *, struct Segment *, struct hashtable *, void *),
+		void *extraParameter,
+		struct hashtable *vertexAdjacencyComponents);
 
 ////////////////////////////////////////////////
 ////////////////////////////////////////////////

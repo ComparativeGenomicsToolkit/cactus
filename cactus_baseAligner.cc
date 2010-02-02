@@ -20,7 +20,8 @@
 #include "substitutionIO.h"
 
 #define SPANNING_TREES 2
-#define MATCH_THRESHOLD 0.5
+#define MATCH_THRESHOLD 0.7
+#define MAXIMUM_LENGTH 1000
 
 extern "C" {
 	#include "hashTableC.h"
@@ -39,7 +40,7 @@ void usage() {
 	fprintf(stderr, "-h --help : Print this help screen\n");
 }
 
-char *getSequence(EndInstance *endInstance) {
+char *getSequence(EndInstance *endInstance, int32_t maxLength) {
 	Sequence *sequence = endInstance_getSequence(endInstance);
 	assert(sequence != NULL);
 	EndInstance *endInstance2 = endInstance_getAdjacency(endInstance);
@@ -49,15 +50,19 @@ char *getSequence(EndInstance *endInstance) {
 		int32_t length = endInstance_getCoordinate(endInstance2)
 					- endInstance_getCoordinate(endInstance) - 1;
 		assert(length >= 0);
+		assert(maxLength >= 0);
 		return sequence_getString(sequence, endInstance_getCoordinate(
-					endInstance) + 1, length, 1);
+					endInstance) + 1, length > maxLength ? maxLength : length, 1);
 	}
 	else {
 		int32_t length = endInstance_getCoordinate(endInstance)
 				- endInstance_getCoordinate(endInstance2) - 1;
 		assert(length >= 0);
-		return sequence_getString(sequence, endInstance_getCoordinate(
-				endInstance2) + 1, length, 0);
+		return sequence_getString(sequence,
+				length > maxLength ?
+				endInstance_getCoordinate(endInstance) - maxLength:
+				endInstance_getCoordinate(endInstance2) + 1,
+				length > maxLength ? maxLength : length, 0);
 	}
 }
 
@@ -69,10 +74,10 @@ typedef struct _SubSequence {
 	int32_t length;
 } SubSequence;
 
-SubSequence *getSequenceAndCoordinates(EndInstance *endInstance) {
+SubSequence *getSequenceAndCoordinates(EndInstance *endInstance, int32_t maxLength) {
 	assert(!endInstance_getSide(endInstance));
 	SubSequence *subSequence = (SubSequence *)malloc(sizeof(SubSequence));
-	subSequence->string = getSequence(endInstance);
+	subSequence->string = getSequence(endInstance, maxLength);
 	Sequence *sequence = endInstance_getSequence(endInstance);
 	subSequence->sequenceName = netMisc_nameToString(sequence_getName(sequence));
 	subSequence->strand = endInstance_getStrand(endInstance);
@@ -87,7 +92,7 @@ void destructSubSequence(SubSequence *subSequence) {
 	free(subSequence);
 }
 
-SubSequence **getForwardAndReverseSequences(EndInstance *endInstance1) {
+SubSequence **getForwardAndReverseSequences(EndInstance *endInstance1, int32_t maxLength) {
 	assert(!endInstance_getSide(endInstance1));
 
 	EndInstance *endInstance2 = endInstance_getAdjacency(endInstance1);
@@ -97,8 +102,8 @@ SubSequence **getForwardAndReverseSequences(EndInstance *endInstance1) {
 	assert(endInstance_getSide(endInstance2));
 
 	SubSequence **subSequences = (SubSequence **)malloc(sizeof(void *) * 2);
-	subSequences[0] = getSequenceAndCoordinates(endInstance1);
-	subSequences[1] = getSequenceAndCoordinates(endInstance_getReverse(endInstance2));
+	subSequences[0] = getSequenceAndCoordinates(endInstance1, maxLength);
+	subSequences[1] = getSequenceAndCoordinates(endInstance_getReverse(endInstance2), maxLength);
 	return subSequences;
 }
 
@@ -168,7 +173,6 @@ void constructSpanningTree(void **items, uint32_t length, struct List *pairs) {
 	assert(j < i);
 	void *item1 = items[j];
 	j = min((uint32_t)(i + (RANDOM() * (length - i))), length-1);
-	uglyf("I got %i %i %i\n", i, j, length);
 	assert(j >= i);
 	assert(j < length);
 	void *item2 = items[j];
@@ -184,13 +188,18 @@ void constructSpanningTree(void **items, uint32_t length, struct List *pairs) {
 
 }
 
-struct List *getAlignment_pairwiseAlignments;
+static struct List *getAlignment_pairwiseAlignments;
+static int32_t getAlignment_index = 0;
 
-struct PairwiseAlignment *getAlignments() {
-	if(getAlignment_pairwiseAlignments->length > 0) {
-		return (struct PairwiseAlignment *)getAlignment_pairwiseAlignments->list[--getAlignment_pairwiseAlignments->length];
+static struct PairwiseAlignment *getAlignments() {
+	while(getAlignment_index < getAlignment_pairwiseAlignments->length) {
+		return (struct PairwiseAlignment *)getAlignment_pairwiseAlignments->list[getAlignment_index++];
 	}
 	return NULL;
+}
+
+static void startAlignmentStack() {
+	getAlignment_index = 0;
 }
 
 int main(int argc, char *argv[]) {
@@ -283,7 +292,15 @@ int main(int argc, char *argv[]) {
 		while((endInstance1 = net_getNextEndInstance(iterator1)) != NULL) {
 			endInstance1 = endInstance_getStrand(endInstance1) ? endInstance1 : endInstance_getReverse(endInstance1);
 			if(!endInstance_getSide(endInstance1)) {
-				listAppend(subSequences, getForwardAndReverseSequences(endInstance1));
+				SubSequence **subSequences1 = getForwardAndReverseSequences(endInstance1, MAXIMUM_LENGTH);
+				listAppend(subSequences, subSequences1);
+				SubSequence *seq1 = subSequences1[0];
+				SubSequence *seq1R = subSequences1[1];
+
+				assert(seq1->length <= MAXIMUM_LENGTH);
+				assert(seq1R->length <= MAXIMUM_LENGTH);
+				assert((seq1->length == MAXIMUM_LENGTH && seq1R->length == MAXIMUM_LENGTH) ||
+						(seq1->length != MAXIMUM_LENGTH && seq1R->length != MAXIMUM_LENGTH));
 			}
 		}
 		net_destructEndInstanceIterator(iterator1);
@@ -314,12 +331,22 @@ int main(int argc, char *argv[]) {
 			SubSequence *seq1 = subSequences1[0];
 			SubSequence *seq1R = subSequences1[1];
 			SubSequence *seq2 = subSequences2[0];
+			SubSequence *seq2R = subSequences2[1];
 
 			//Do forward - forward alignment.
 			listAppend(getAlignment_pairwiseAlignments, alignSequences(seq1, seq2));
 
 			//Do reverse - forward alignment.
 			listAppend(getAlignment_pairwiseAlignments, alignSequences(seq1R, seq2));
+
+			//Check if sequences are greater maximum length and do extra alignments..
+			if(seq2->length == MAXIMUM_LENGTH || seq1->length == MAXIMUM_LENGTH) {
+				//Do forward - reverse alignment.
+				listAppend(getAlignment_pairwiseAlignments, alignSequences(seq1, seq2R));
+
+				//Do reverse - reverse alignment.
+				listAppend(getAlignment_pairwiseAlignments, alignSequences(seq1R, seq2R));
+			}
 		}
 		logInfo("Created the alignments\n");
 
@@ -327,8 +354,8 @@ int main(int argc, char *argv[]) {
 		 * Run the cactus core script.
 		 */
 		cCIP->maxEdgeDegree = subSequences->length;
-		cactusCorePipeline(net, cCIP, getAlignments);
-		logInfo("Ran the cactus core script.");
+		cactusCorePipeline(net, cCIP, getAlignments, startAlignmentStack);
+		logInfo("Ran the cactus core script.\n");
 
 		/*
 		 * Cleanup

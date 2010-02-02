@@ -7,7 +7,7 @@
 #include "cactus.h"
 
 static void getNets(Net *net, FILE *fileHandle, int32_t includeInternalNodes, int32_t recursive,
-		int32_t extendNonZeroTrivialGroups) {
+		int32_t extendNonZeroTrivialGroups, int32_t minSizeToExtend) {
 	Net_GroupIterator *groupIterator;
 	Group *group;
 
@@ -21,15 +21,15 @@ static void getNets(Net *net, FILE *fileHandle, int32_t includeInternalNodes, in
 		while((group = net_getNextGroup(groupIterator)) != NULL) {
 			if(group_getNestedNet(group) != NULL) {
 				getNets(group_getNestedNet(group), fileHandle, includeInternalNodes,
-						recursive, extendNonZeroTrivialGroups);
+						recursive, extendNonZeroTrivialGroups, minSizeToExtend);
 			}
 			else {
 				if(extendNonZeroTrivialGroups) {
 					int64_t size = group_getTotalBaseLength(group);
-					if(size > 0 && (size > 30000 || size < 1000)) {
+					if(size >= minSizeToExtend) {
 						group_makeNonTerminal(group);
 						fprintf(fileHandle, "%s %lld\n",
-								netMisc_nameToStringStatic(group_getName(group)),	size);
+								netMisc_nameToStringStatic(group_getName(group)), size);
 					}
 				}
 			}
@@ -45,7 +45,7 @@ int main(int argc, char *argv[]) {
 	NetDisk *netDisk;
 	Net *net;
 
-	assert(argc == 7);
+	assert(argc == 8);
 	netDisk = netDisk_construct(argv[1]);
 	logInfo("Set up the net disk\n");
 
@@ -68,9 +68,12 @@ int main(int argc, char *argv[]) {
 	int32_t extendNonZeroTrivialGroups;
 	assert(sscanf(argv[6], "%i", &extendNonZeroTrivialGroups) == 1);
 
+	int32_t minSizeToExtend;
+	assert(sscanf(argv[7], "%i", &minSizeToExtend) == 1);
+
 	FILE *fileHandle = fopen(argv[3], "w");
 	getNets(net, fileHandle, includeInternalNodes, recursive,
-			extendNonZeroTrivialGroups);
+			extendNonZeroTrivialGroups, minSizeToExtend);
 	fclose(fileHandle);
 
 	if(extendNonZeroTrivialGroups) {

@@ -98,10 +98,12 @@ class AlignmentPhase(Target):
         self.setFollowOnTarget(PhylogenyPhase('0', None, self.options))
 
 #Each level around 30x larger than the last
-BASE_LEVEL_SIZE = 30000 #30000
+BASE_LEVEL_SIZE = 2000 #30000
 GENE_LEVEL_SIZE = 1000000
 LOCI_LEVEL_SIZE = 30000000
 CHR_LEVEL_SIZE =  1000000000
+
+iterationMaxSize = { 4:BASE_LEVEL_SIZE, 3:GENE_LEVEL_SIZE, 2:LOCI_LEVEL_SIZE, 1:CHR_LEVEL_SIZE }
 
 def getIteration(iteration, netSize):
     if iteration == 4 or netSize < BASE_LEVEL_SIZE:
@@ -119,11 +121,25 @@ timeParameters = { 0:10000000, 1:10000000, 2:100, 3:20, 4:1 }
 blastParameters = { 3:makeLowLevelBlastOptions, 2:makeMiddleLevelBlastOptions, 1:makeUpperMiddleLevelBlastOptions, 0:makeTopLevelBlastOptions }
 
 cactusCoreParameters = { 
-    0:{ "maximumEdgeDegree":50, "extensionSteps":400, "minimumTreeCoverage":0.5, "minimumTreeCoverageForBlocks":0.9, "minimumBlockLength":4, "minimumChainLength":8, "trim":4, "alignRepeats":False },
-    1:{ "maximumEdgeDegree":50, "extensionSteps":35000, "minimumTreeCoverage":0.7, "minimumTreeCoverageForBlocks":0.9, "minimumBlockLength":4, "minimumChainLength":8, "trim":20, "alignRepeats":False },
-    2:{ "maximumEdgeDegree":50, "extensionSteps":400, "minimumTreeCoverage":0.7, "minimumTreeCoverageForBlocks":0.7, "minimumBlockLength":0, "minimumChainLength":8, "trim":20, "alignRepeats":False },
-    3:{ "maximumEdgeDegree":50, "extensionSteps":20, "minimumTreeCoverage":0.5, "minimumTreeCoverageForBlocks":0.5, "minimumBlockLength":0, "minimumChainLength":8, "trim":4, "alignRepeats":False }
-    #4:{ "maximumEdgeDegree":50, "extensionSteps":5, "minimumTreeCoverage":0.0, "minimumTreeCoverageForBlocks":0.9, "minimumBlockLength":0, "minimumChainLength":0, "trim":0, "alignRepeats":False }
+    0:{ "maximumEdgeDegree":50, "minimumTreeCoverage":0.7, "minimumTreeCoverageForBlocks":0.9, 
+       "minimumBlockLength":4, "minimumChainLength":8, "alignRepeats":True, "alignUndoLoops":10, 
+       "trim":20, "trimReduction":2, "extensionSteps":31500, "extensionStepsReduction":3500, 
+       "minimumTreeCoverageForAlignUndoBlock":0.95, "minimumTreeCoverageForAlignUndoBlockReduction":0.1 },
+    
+    1:{ "maximumEdgeDegree":50, "minimumTreeCoverage":0.7, "minimumTreeCoverageForBlocks":0.9, 
+       "minimumBlockLength":4, "minimumChainLength":8, "alignRepeats":True, "alignUndoLoops":10, 
+       "trim":20, "trimReduction":2, "extensionSteps":31500, "extensionStepsReduction":3500, 
+       "minimumTreeCoverageForAlignUndoBlock":0.95, "minimumTreeCoverageForAlignUndoBlockReduction":0.1 },
+    
+    2:{ "maximumEdgeDegree":50, "minimumTreeCoverage":0.7, "minimumTreeCoverageForBlocks":0.7, 
+       "minimumBlockLength":0, "minimumChainLength":8, "alignRepeats":True, "alignUndoLoops":10, 
+       "trim":20, "trimReduction":2, "extensionSteps":360, "extensionStepsReduction":40, 
+       "minimumTreeCoverageForAlignUndoBlock":0.95, "minimumTreeCoverageForAlignUndoBlockReduction":0.1 },
+    
+    3:{ "maximumEdgeDegree":50, "minimumTreeCoverage":0.01, "minimumTreeCoverageForBlocks":0.01, 
+       "minimumBlockLength":0, "minimumChainLength":2, "alignRepeats":True, "alignUndoLoops":10, 
+       "trim":9, "trimReduction":1, "extensionSteps":20, "extensionStepsReduction":3, 
+       "minimumTreeCoverageForAlignUndoBlock":0.95, "minimumTreeCoverageForAlignUndoBlockReduction":0.1 },
 }
 
 class CactusAlignerWrapper(Target):
@@ -163,27 +179,24 @@ class CactusCoreWrapper(Target):
     
         coreParameters = cactusCoreParameters[self.iteration]
         
-        #system("rm -rf /Users/benedictpaten/Desktop/outDisk/*")
-        #system("cp %s/* /Users/benedictpaten/Desktop/outDisk/" % self.options.netDisk)
-        #self.options.netDisk = "/Users/benedictpaten/Desktop/outDisk"
-        
         runCactusCore(netDisk=self.options.netDisk, 
                       alignmentFile=self.alignmentFile, 
                       netName=self.netName,
                       logLevel=getLogLevelString(), 
                       maximumEdgeDegree=coreParameters["maximumEdgeDegree"],
-                      extensionSteps=coreParameters["extensionSteps"],
                       minimumTreeCoverage=coreParameters["minimumTreeCoverage"],
                       minimumTreeCoverageForBlocks=coreParameters["minimumTreeCoverageForBlocks"],
                       minimumBlockLength=coreParameters["minimumBlockLength"],
                       minimumChainLength=coreParameters["minimumChainLength"],
+                      alignRepeats=coreParameters["alignRepeats"],
+                      alignUndoLoops=coreParameters["alignUndoLoops"],
                       trim=coreParameters["trim"],
-                      alignRepeats=coreParameters["alignRepeats"])
+                      trimReduction=coreParameters["trimReduction"],
+                      extensionSteps=coreParameters["extensionSteps"],
+                      extensionStepsReduction=coreParameters["extensionStepsReduction"],
+                      minimumTreeCoverageForAlignUndoBlock=coreParameters["minimumTreeCoverageForAlignUndoBlock"],
+                      minimumTreeCoverageForAlignUndoBlockReduction=coreParameters["minimumTreeCoverageForAlignUndoBlockReduction"])
         logger.info("Ran the cactus core program okay")
-        
-        #from cactus.cactus_common import runCactusTreeStats
-        #runCactusTreeStats(self.options.netDisk, "/Users/benedictpaten/Desktop/outputStats.xml")
-        #assert False
         
         #Setup call to core and aligner recursive as follow on.
         self.setFollowOnTarget(CactusCoreWrapper2(self.options, self.netName, self.alignmentFile, self.iteration))
@@ -208,10 +221,16 @@ class CactusCoreWrapper2(Target):
         #Traverses leaf jobs and create aligner wrapper targets as children.
         assert self.iteration+1 <= 4
         baseLevelNets = []
+        assert int(self.options.maxIteration) >= 0
+        if int(self.options.maxIteration) >= 4:
+            minSizeToExtend = 1
+        else:
+            minSizeToExtend = iterationMaxSize[int(self.options.maxIteration)+1]
         for childNetName, childNetSize in runCactusGetNets(self.options.netDisk, self.netName, localTempDir,
                                                            includeInternalNodes=False, 
                                                            recursive=True,
-                                                           extendNonZeroTrivialGroups=True):
+                                                           extendNonZeroTrivialGroups=True, 
+                                                           minSizeToExtend=minSizeToExtend):
             assert childNetSize > 0
             nextIteration = getIteration(self.iteration+1, childNetSize)
             if nextIteration == 4:
@@ -291,6 +310,9 @@ def main():
     
     parser.add_option("--buildTrees", dest="buildTrees", action="store_true",
                       help="Build trees", default=False) 
+    
+    parser.add_option("--maxIteraton", dest="maxIteration", help="The maximum iteration to align to (0-4)..", 
+                      default="3")
     
     options, args = parseBasicOptions(parser)
 

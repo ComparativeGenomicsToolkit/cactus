@@ -17,10 +17,18 @@
 #include "cactusNetFunctions.h"
 #include "cactus_core.h"
 
-FILE *getNextAlignment_FileHandle;
+char *startAlignmentStack_fileString;
+static FILE *getNextAlignment_FileHandle = NULL;
 
-struct PairwiseAlignment *getNextAlignment() {
+static struct PairwiseAlignment *getNextAlignment() {
 	return cigarRead(getNextAlignment_FileHandle);
+}
+
+static void startAlignmentStack() {
+	if(getNextAlignment_FileHandle != NULL) {
+		fclose(getNextAlignment_FileHandle);
+	}
+	getNextAlignment_FileHandle = fopen(startAlignmentStack_fileString, "r");
 }
 
 void usage() {
@@ -39,6 +47,11 @@ void usage() {
 	fprintf(stderr, "-l --trim : The length of bases to remove from the end of each alignment\n");
 	fprintf(stderr, "-m --alignRepeats : Allow bases marked as repeats to be aligned (else alignments to these bases to be excluded)\n");
 	fprintf(stderr, "-n --extensionSteps : The number of steps of attrition applied to edges proximal to over aligned edges.\n");
+	fprintf(stderr, "-p --alignUndoLoops : The number of rounds of alignment, undoing of over-aligned edges and recursion into adjacency connected components (groups)\n");
+	fprintf(stderr, "-q --minimumTreeCoverageForAlignUndoBlock : The minimum tree coverage required for a block to be considered in computing an adjacency connected component during the align/undo loops.\n");
+	fprintf(stderr, "-r --minimumTreeCoverageForAlignUndoBlockReduction : The reduction in the above minimum tree coverage required for subsequent rounds of align/undo loops (to a minimum of 0.0)\n");
+	fprintf(stderr, "-s --trimReduction : Trim reduction, the amount to reduce the trim after each align/undo loop (to a minimum of zero)\n");
+	fprintf(stderr, "-t --extensionStepsReduction : The reduction in the extension steps after each align/undo loop (to a minimum of zero).\n");
 }
 
 int main(int argc, char *argv[]) {
@@ -79,12 +92,17 @@ int main(int argc, char *argv[]) {
 			{ "minimumChainLength", required_argument, 0, 'k' },
 			{ "trim", required_argument, 0, 'l' },
 			{ "alignRepeats", no_argument, 0, 'm' },
+			{ "alignUndoLoops", required_argument, 0, 'p' },
+			{ "minimumTreeCoverageForAlignUndoBlock", required_argument, 0, 'q',  },
+			{ "minimumTreeCoverageForAlignUndoBlockReduction", required_argument, 0, 'r'  },
+			{ "trimReduction", required_argument, 0, 's',  },
+			{ "extensionStepsReduction", required_argument, 0, 't' },
 			{ 0, 0, 0, 0 }
 		};
 
 		int option_index = 0;
 
-		key = getopt_long(argc, argv, "a:b:c:d:f:ghi:j:k:l:mn:o:", long_options, &option_index);
+		key = getopt_long(argc, argv, "a:b:c:d:f:ghi:j:k:l:mn:o:p:q:r:s:t:", long_options, &option_index);
 
 		if(key == -1) {
 			break;
@@ -133,6 +151,21 @@ int main(int argc, char *argv[]) {
 			case 'o':
 				assert(sscanf(optarg, "%f", &cCIP->minimumTreeCoverageForBlocks) == 1);
 				break;
+			case 'p':
+				assert(sscanf(optarg, "%i", &cCIP->alignUndoLoops) == 1);
+				break;
+			case 'q':
+				assert(sscanf(optarg, "%f", &cCIP->minimumTreeCoverageForAlignUndoBlock) == 1);
+				break;
+			case 'r':
+				assert(sscanf(optarg, "%f", &cCIP->minimumTreeCoverageForAlignUndoBlockReduction) == 1);
+				break;
+			case 's':
+				assert(sscanf(optarg, "%i", &cCIP->trimReduction) == 1);
+				break;
+			case 't':
+				assert(sscanf(optarg, "%i", &cCIP->extensionStepsReduction) == 1);
+				break;
 			default:
 				usage();
 				return 1;
@@ -152,6 +185,13 @@ int main(int argc, char *argv[]) {
 	assert(cCIP->minimumTreeCoverageForBlocks >= 0.0);
 	assert(cCIP->minimumBlockLength >= 0.0);
 	assert(cCIP->minimumChainLength >= 0);
+	assert(cCIP->trim >= 0);
+	assert(cCIP->trimReduction >= 0);
+	assert(cCIP->alignUndoLoops >= 0);
+	assert(cCIP->minimumTreeCoverageForAlignUndoBlock >= 0);
+	assert(cCIP->minimumTreeCoverageForAlignUndoBlockReduction >= 0);
+	assert(cCIP->extensionSteps >= 0);
+	assert(cCIP->extensionStepsReduction >= 0);
 
 	//////////////////////////////////////////////
 	//Set up logging
@@ -193,8 +233,8 @@ int main(int argc, char *argv[]) {
 	// Call the core program.
 	///////////////////////////////////////////////////////////////////////////
 
-	getNextAlignment_FileHandle = fopen(alignmentsFile, "r");
-	exitOnFailure(cactusCorePipeline(net, cCIP, getNextAlignment), "Failed to run the cactus core pipeline\n");
+	startAlignmentStack_fileString = alignmentsFile;
+	exitOnFailure(cactusCorePipeline(net, cCIP, getNextAlignment, startAlignmentStack), "Failed to run the cactus core pipeline\n");
 	fclose(getNextAlignment_FileHandle);
 
 	///////////////////////////////////////////////////////////////////////////

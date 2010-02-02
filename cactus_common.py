@@ -3,6 +3,7 @@
 
 import random
 import os
+import sys
 
 from sonLib.bioio import logger
 from sonLib.bioio import getTempFile
@@ -105,13 +106,18 @@ def runCactusCore(netDisk, alignmentFile,
                   netName=0,
                   logLevel="DEBUG", writeDebugFiles=False,
                   maximumEdgeDegree=None,
-                  extensionSteps=None,
                   minimumTreeCoverage=None,
                   minimumTreeCoverageForBlocks=None,
                   minimumBlockLength=None,
                   minimumChainLength=None,
+                  alignRepeats=False,
+                  alignUndoLoops=False,
                   trim=None,
-                  alignRepeats=False):
+                  trimReduction=None,
+                  extensionSteps=None,
+                  extensionStepsReduction=None,
+                  minimumTreeCoverageForAlignUndoBlock=None,
+                  minimumTreeCoverageForAlignUndoBlockReduction=None):
     if writeDebugFiles:
         writeDebugFiles = "--writeDebugFiles"
     else:
@@ -121,11 +127,6 @@ def runCactusCore(netDisk, alignmentFile,
         maximumEdgeDegree = "--maxEdgeDegree %i" % maximumEdgeDegree
     else:
         maximumEdgeDegree = ""
-        
-    if extensionSteps != None:
-        extensionSteps = "--extensionSteps %i" % extensionSteps
-    else:
-        extensionSteps = ""
         
     if minimumTreeCoverage != None:
         minimumTreeCoverage = "--minimumTreeCoverage %f" % minimumTreeCoverage
@@ -147,21 +148,57 @@ def runCactusCore(netDisk, alignmentFile,
     else:
         minimumChainLength = ""
     
-    if trim != None:
-        trim = "--trim %i" % trim
-    else:
-        trim = ""
-    
     if alignRepeats:
         alignRepeats = "--alignRepeats"
     else:
         alignRepeats = ""
+        
+    if alignUndoLoops:
+        alignUndoLoops = "--alignUndoLoops %i" % alignUndoLoops
+    else:
+        alignUndoLoops = ""
+    
+    if trim:
+        trim = "--trim %i" % trim
+    else:
+        trim = ""
+        
+    if trimReduction:
+        trimReduction = "--trimReduction %i" % trimReduction
+    else:
+        trimReduction = ""
+    
+    if extensionSteps:
+        extensionSteps = "--extensionSteps %i" % extensionSteps
+    else:
+        extensionSteps = ""
+    
+    if extensionStepsReduction:
+        extensionStepsReduction = "--extensionStepsReduction %i" % extensionStepsReduction
+    else:
+        extensionStepsReduction = ""
+    
+    if minimumTreeCoverageForAlignUndoBlock:
+        minimumTreeCoverageForAlignUndoBlock = "--minimumTreeCoverageForAlignUndoBlock %f" % minimumTreeCoverageForAlignUndoBlock
+    else:
+        minimumTreeCoverageForAlignUndoBlock = ""
+    
+    if minimumTreeCoverageForAlignUndoBlockReduction:
+        minimumTreeCoverageForAlignUndoBlockReduction = "--minimumTreeCoverageForAlignUndoBlockReduction %f" % minimumTreeCoverageForAlignUndoBlockReduction
+    else:
+        minimumTreeCoverageForAlignUndoBlockReduction = ""
     
     command = "cactus_core --netDisk %s --netName %s --alignments %s --logLevel %s \
-%s %s %s %s %s %s %s %s %s" % \
+%s %s %s %s %s %s %s %s %s %s %s %s %s %s" % \
     (netDisk, netName, alignmentFile, 
      logLevel, writeDebugFiles,
-     maximumEdgeDegree, extensionSteps, minimumTreeCoverage, minimumTreeCoverageForBlocks, minimumBlockLength, minimumChainLength, trim, alignRepeats)
+     maximumEdgeDegree, minimumTreeCoverage, 
+     minimumTreeCoverageForBlocks, minimumBlockLength, 
+     minimumChainLength, alignRepeats,
+     alignUndoLoops, 
+     trim, trimReduction, 
+     extensionSteps, extensionStepsReduction, 
+     minimumTreeCoverageForAlignUndoBlock, minimumTreeCoverageForAlignUndoBlockReduction)
     system(command)
     logger.info("Ran cactus_core okay")
     
@@ -252,7 +289,8 @@ def runCactusTreeStats(netDisk, outputFile, netName='0'):
     logger.info("Ran the cactus tree stats command apprently okay")
 
 def runCactusGetNets(netDisk, netName, tempDir, includeInternalNodes=False, 
-                     recursive=True, extendNonZeroTrivialGroups=True):
+                     recursive=True, extendNonZeroTrivialGroups=True,
+                     minSizeToExtend=1):
     """Gets a list of nets attached to the given net. If the net has no children,
     as is therefore a leaf, it will also be returned. If includeInternalNodes is true
     the nodes will include the internal nodes, including the first node.
@@ -265,9 +303,10 @@ def runCactusGetNets(netDisk, netName, tempDir, includeInternalNodes=False,
     The order of the nets is by ascending depth first discovery time.
     """
     netNamesFile = getTempFile(".txt", tempDir)
-    system("cactus_workflow_getNets %s %s %s %i %i %i" % (netDisk, netName, netNamesFile, 
+    system("cactus_workflow_getNets %s %s %s %i %i %i %i" % (netDisk, netName, netNamesFile, 
                                                           int(includeInternalNodes), int(recursive), 
-                                                          int(extendNonZeroTrivialGroups)))
+                                                          int(extendNonZeroTrivialGroups),
+                                                          int(minSizeToExtend)))
     fileHandle = open(netNamesFile, 'r')
     line = fileHandle.readline()
     l = []

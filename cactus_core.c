@@ -67,7 +67,9 @@ struct FilterAlignmentParameters {
 	Net *net;
 };
 
-void filterSegmentAndThenAddToGraph(struct PinchGraph *pinchGraph, struct Segment *segment, struct Segment *segment2,
+void filterSegmentAndThenAddToGraph(struct PinchGraph *pinchGraph,
+		struct Segment *segment, struct Segment *segment2,
+		struct hashtable *vertexAdjacencyComponents,
 		struct FilterAlignmentParameters *filterParameters) {
 	/*
 	 * Function is used to filter the alignments added to the graph to optionally exclude alignments to repeats and to trim the edges of matches
@@ -88,13 +90,13 @@ void filterSegmentAndThenAddToGraph(struct PinchGraph *pinchGraph, struct Segmen
 			char *string1 = segment_getString(segment, filterParameters->net);
 			char *string2 = segment_getString(segment2, filterParameters->net);
 			if(!containsRepeatBases(string1) && !containsRepeatBases(string2)) {
-				pinchMergeSegment(pinchGraph, segment, segment2);
+				pinchMergeSegment(pinchGraph, segment, segment2, vertexAdjacencyComponents);
 			}
 			free(string1);
 			free(string2);
 		}
 		else {
-			pinchMergeSegment(pinchGraph, segment, segment2);
+			pinchMergeSegment(pinchGraph, segment, segment2, vertexAdjacencyComponents);
 		}
 	}
 }
@@ -102,14 +104,19 @@ void filterSegmentAndThenAddToGraph(struct PinchGraph *pinchGraph, struct Segmen
 CactusCoreInputParameters *constructCactusCoreInputParameters() {
 	CactusCoreInputParameters *cCIP = (CactusCoreInputParameters *)malloc(sizeof(CactusCoreInputParameters));
 	cCIP->extensionSteps = 3;
+	cCIP->extensionStepsReduction = 1;
 	cCIP->maxEdgeDegree = 50;
 	cCIP->writeDebugFiles = 0;
+	cCIP->minimumTreeCoverageForAlignUndoBlock = 1.0;
+	cCIP->minimumTreeCoverageForAlignUndoBlockReduction = 0.1;
 	cCIP->minimumTreeCoverage = 0.5;
 	cCIP->minimumTreeCoverageForBlocks = 0.9;
 	cCIP->minimumBlockLength = 4;
 	cCIP->minimumChainLength = 12;
 	cCIP->trim = 3;
+	cCIP->trimReduction = 1;
 	cCIP->alignRepeats = 0;
+	cCIP->alignUndoLoops = 5;
 	return cCIP;
 }
 
@@ -119,15 +126,18 @@ void destructCactusCoreInputParameters(CactusCoreInputParameters *cCIP) {
 
 int32_t cactusCorePipeline(Net *net,
 		CactusCoreInputParameters *cCIP,
-		struct PairwiseAlignment *(*getNextAlignment)()) {
+		struct PairwiseAlignment *(*getNextAlignment)(),
+		void (*startAlignmentStack)()) {
 	struct PinchGraph *pinchGraph;
+	struct PinchVertex *vertex;
 	struct CactusGraph *cactusGraph;
-	int32_t i, startTime;
+	int32_t i, j, k, startTime;
 	struct PairwiseAlignment *pairwiseAlignment;
 	struct List *threeEdgeConnectedComponents;
 	struct List *chosenBlocks;
 	struct List *list;
 	struct List *biConnectedComponents;
+	struct hashtable *vertexAdjacencyComponents;
 
 	///////////////////////////////////////////////////////////////////////////
 	//Setup the basic pinch graph
@@ -146,71 +156,133 @@ int32_t cactusCorePipeline(Net *net,
 	logInfo("Vertex number %i \n", pinchGraph->vertices->length);
 
 	///////////////////////////////////////////////////////////////////////////
-	//  (2) Adding alignments to the pinch graph
+	//  Loop between adding and undoing pairwise alignments
 	///////////////////////////////////////////////////////////////////////////
 
-	//Now run through all the alignments.
-	startTime = time(NULL);
-	pairwiseAlignment = getNextAlignment();
-	logInfo("Now doing the pinch merges:\n");
-	i = 0;
+	/*
+	 * These parameters are altered during the loops to push the sequences together.
+	 */
+	double minimumTreeCoverageForAlignUndoBlock = cCIP->minimumTreeCoverageForAlignUndoBlock;
+	int32_t trim = cCIP->trim;
+	int32_t extensionSteps = cCIP->extensionSteps;
+	for(j=0; j<cCIP->alignUndoLoops; j++) {
+		startTime = time(NULL);
+		///////////////////////////////////////////////////////////////////////////
+		//  Building the set of adjacency vertex components.
+		///////////////////////////////////////////////////////////////////////////
+		vertexAdjacencyComponents = create_hashtable(pinchGraph->vertices->length*2, hashtable_intHashKey, hashtable_intEqualKey, NULL, free);
+		if(j == 0) {
+			//Build a hash putting the vertices all in the same adjacency component.
+			for(i=0; i<pinchGraph->vertices->length; i++) {
+				hashtable_insert(vertexAdjacencyComponents, pinchGraph->vertices->list[i], constructInt(0));
+			}
+		}
+		else {
+			//Build a hash putting each vertex in its own adjacency component.
+			//Iterate through all the edges, keeping only those whose degree is greater than zero.
+			struct List *chosenPinchEdges = constructEmptyList(0, NULL);
+			for(i=0; i<pinchGraph->vertices->length; i++) {
+				struct PinchVertex *vertex = pinchGraph->vertices->list[i];
+				if(lengthBlackEdges(vertex) >= 1 && !isAStubOrCap(getFirstBlackEdge(vertex)) &&
+						treeCoverage(vertex, net, pinchGraph) >= minimumTreeCoverageForAlignUndoBlock) {
+					listAppend(chosenPinchEdges, getFirstBlackEdge(vertex));
+				}
+			}
+			struct List *groupsList = getRecursiveComponents2(pinchGraph, chosenPinchEdges);
+			destructList(chosenPinchEdges);
+			for(i=0; i<groupsList->length; i++) {
+				struct List *vertices = groupsList->list[i];
+				for(k=0; k<vertices->length; k++) {
+					hashtable_insert(vertexAdjacencyComponents, vertices->list[k], constructInt(i));
+				}
+			}
+		}
 
-	struct FilterAlignmentParameters *filterParameters = (struct FilterAlignmentParameters *)malloc(sizeof(struct FilterAlignmentParameters));
-	filterParameters->trim = cCIP->trim;
-	filterParameters->alignRepeats = cCIP->alignRepeats;
-	filterParameters->net = net;
-	while(pairwiseAlignment != NULL) {
-		logDebug("Alignment : %i , score %f\n", i++, pairwiseAlignment->score);
-		logPairwiseAlignment(pairwiseAlignment);
-		pinchMerge(pinchGraph, pairwiseAlignment,
-				(void (*)(struct PinchGraph *pinchGraph, struct Segment *, struct Segment *, void *))filterSegmentAndThenAddToGraph, filterParameters);
-		destructPairwiseAlignment(pairwiseAlignment);
+#ifdef BEN_DEBUG
+		assert(hashtable_count(vertexAdjacencyComponents) == pinchGraph->vertices->length);
+		for(i=0; i<pinchGraph->vertices->length; i++) {
+			vertex = pinchGraph->vertices->list[i];
+			assert(hashtable_search(vertexAdjacencyComponents, vertex) != NULL);
+		}
+#endif
+
+		//Must be called to initialise the alignment stack..
+		startAlignmentStack();
+
+		///////////////////////////////////////////////////////////////////////////
+		//  Adding alignments to the pinch graph
+		///////////////////////////////////////////////////////////////////////////
+
+		//Now run through all the alignments.
 		pairwiseAlignment = getNextAlignment();
+		logInfo("Now doing the pinch merges:\n");
+		i = 0;
+
+		struct FilterAlignmentParameters *filterParameters = (struct FilterAlignmentParameters *)malloc(sizeof(struct FilterAlignmentParameters));
+		assert(cCIP->trim >= 0);
+		filterParameters->trim = trim;
+		filterParameters->alignRepeats = cCIP->alignRepeats;
+		filterParameters->net = net;
+		while(pairwiseAlignment != NULL) {
+			logDebug("Alignment : %i , score %f\n", i++, pairwiseAlignment->score);
+			logPairwiseAlignment(pairwiseAlignment);
+			pinchMerge(pinchGraph, pairwiseAlignment,
+					(void (*)(struct PinchGraph *pinchGraph, struct Segment *, struct Segment *, struct hashtable *, void *))filterSegmentAndThenAddToGraph,
+					filterParameters, vertexAdjacencyComponents);
+			pairwiseAlignment = getNextAlignment();
+		}
+		free(filterParameters);
+		logInfo("Finished pinch merges\n");
+
+#ifdef BEN_DEBUG
+		for(i=0; i<pinchGraph->vertices->length; i++) {
+			assert(hashtable_search(vertexAdjacencyComponents, pinchGraph->vertices->list[i]) != NULL);
+		}
+		assert(hashtable_count(vertexAdjacencyComponents) == pinchGraph->vertices->length);
+#endif
+
+		if(cCIP->writeDebugFiles) {
+			logDebug("Writing out dot formatted version of pinch graph with alignments added\n");
+			writePinchGraph("pinchGraph2.dot", pinchGraph, NULL, NULL);
+			logDebug("Finished writing out dot formatted version of pinch graph with alignments added\n");
+		}
+
+		//Cleanup the adjacency component vertex hash.
+		hashtable_destroy(vertexAdjacencyComponents, 1, 0);
+
+		checkPinchGraph(pinchGraph);
+		logInfo("Pinched the graph in: %i seconds\n", time(NULL) - startTime);
+
+		///////////////////////////////////////////////////////////////////////////
+		// Removing over aligned stuff.
+		///////////////////////////////////////////////////////////////////////////
+
+		startTime = time(NULL);
+		assert(cCIP->maxEdgeDegree >= 1);
+		logInfo("Before removing over aligned edges the graph has %i vertices and %i black edges\n", pinchGraph->vertices->length, avl_count(pinchGraph->edges));
+		assert(cCIP->extensionSteps >= 0);
+		removeOverAlignedEdges(pinchGraph, 0.0, cCIP->maxEdgeDegree, extensionSteps, net);
+		logInfo("After removing over aligned edges (degree %i) the graph has %i vertices and %i black edges\n", cCIP->maxEdgeDegree, pinchGraph->vertices->length, avl_count(pinchGraph->edges));
+		removeOverAlignedEdges(pinchGraph, cCIP->minimumTreeCoverage, INT32_MAX, 0, net);
+		logInfo("After removing blocks with less than the minimum tree coverage (%f) the graph has %i vertices and %i black edges\n", cCIP->minimumTreeCoverage, pinchGraph->vertices->length, avl_count(pinchGraph->edges));
+		removeTrivialGreyEdgeComponents(pinchGraph, pinchGraph->vertices, net);
+		logInfo("After removing the trivial graph components the graph has %i vertices and %i black edges\n", pinchGraph->vertices->length, avl_count(pinchGraph->edges));
+		checkPinchGraphDegree(pinchGraph, cCIP->maxEdgeDegree);
+
+		if(cCIP->writeDebugFiles) {
+			logDebug("Writing out dot formatted version of pinch graph with over aligned edges removed\n");
+			writePinchGraph("pinchGraph3.dot", pinchGraph, NULL, NULL);
+			logDebug("Finished writing out dot formatted version of pinch graph with over aligned edges removed\n");
+		}
+
+		checkPinchGraph(pinchGraph);
+		logInfo("Removed the over aligned edges in: %i seconds\n", time(NULL) - startTime);
+
+		//Modify the parameters for the trim extension etc...
+		trim = trim - cCIP->trimReduction > 0 ? trim - cCIP->trimReduction : 0;
+		extensionSteps = extensionSteps - cCIP->extensionStepsReduction > 0 ? extensionSteps - cCIP->extensionStepsReduction : 0;
+		minimumTreeCoverageForAlignUndoBlock = minimumTreeCoverageForAlignUndoBlock - cCIP->minimumTreeCoverageForAlignUndoBlockReduction > 0 ? minimumTreeCoverageForAlignUndoBlock - cCIP->minimumTreeCoverageForAlignUndoBlockReduction : 0.0;
 	}
-	free(filterParameters);
-	logInfo("Finished pinch merges\n");
-
-	if(cCIP->writeDebugFiles) {
-		logDebug("Writing out dot formatted version of pinch graph with alignments added\n");
-		writePinchGraph("pinchGraph2.dot", pinchGraph, NULL, NULL);
-		logDebug("Finished writing out dot formatted version of pinch graph with alignments added\n");
-	}
-
-	checkPinchGraph(pinchGraph);
-	logInfo("Pinched the graph in: %i seconds\n", time(NULL) - startTime);
-
-	///////////////////////////////////////////////////////////////////////////
-	// (3) Removing over aligned stuff.
-	///////////////////////////////////////////////////////////////////////////
-
-	//calculate the optimum undo threshold.
-	//for steadily increasing extension threshold
-	//calculate edges to ignore.
-	//calculate edges to accept.. (does not include any ignored edges)..
-	//calculate grey edge groups, ignoring the ignored edges..
-	//calculate sizes of groups, record the largest.
-
-	//choose the extension threshold which reduces the size of the
-
-	startTime = time(NULL);
-	assert(cCIP->maxEdgeDegree >= 1);
-	logInfo("Before removing over aligned edges the graph has %i vertices and %i black edges\n", pinchGraph->vertices->length, avl_count(pinchGraph->edges));
-	removeOverAlignedEdges(pinchGraph, 0.0, cCIP->maxEdgeDegree, cCIP->extensionSteps, net);
-	logInfo("After removing over aligned edges (degree %i) the graph has %i vertices and %i black edges\n", cCIP->maxEdgeDegree, pinchGraph->vertices->length, avl_count(pinchGraph->edges));
-	removeOverAlignedEdges(pinchGraph, cCIP->minimumTreeCoverage, INT32_MAX, 0, net);
-	logInfo("After removing blocks with less than the minimum tree coverage (%f) the graph has %i vertices and %i black edges\n", cCIP->minimumTreeCoverage, pinchGraph->vertices->length, avl_count(pinchGraph->edges));
-	removeTrivialGreyEdgeComponents(pinchGraph, pinchGraph->vertices, net);
-	logInfo("After removing the trivial graph components the graph has %i vertices and %i black edges\n", pinchGraph->vertices->length, avl_count(pinchGraph->edges));
-	checkPinchGraphDegree(pinchGraph, cCIP->maxEdgeDegree);
-
-	if(cCIP->writeDebugFiles) {
-		logDebug("Writing out dot formatted version of pinch graph with over aligned edges removed\n");
-		writePinchGraph("pinchGraph3.dot", pinchGraph, NULL, NULL);
-		logDebug("Finished writing out dot formatted version of pinch graph with over aligned edges removed\n");
-	}
-
-	checkPinchGraph(pinchGraph);
-	logInfo("Removed the over aligned edges in: %i seconds\n", time(NULL) - startTime);
 
 	///////////////////////////////////////////////////////////////////////////
 	// (4) Linking stub components to the sink component.
