@@ -312,7 +312,7 @@ def main():
                       help="Build trees", default=False) 
     
     parser.add_option("--maxIteraton", dest="maxIteration", help="The maximum iteration to align to (0-4)..", 
-                      default="3")
+                      default="4")
     
     options, args = parseBasicOptions(parser)
 

@@ -87,7 +87,7 @@ class TestCase(unittest.TestCase):
             encodeResultsPath = os.path.join(TestStatus.getPathToDataSets(), "cactus", "encodeRegionsTest")
             newickTreeFile = os.path.join(encodeDatasetPath, "reducedTree.newick")
             
-            for encodeRegion in [ "ENm00" + str(i) for i in xrange(4, 5) ]:
+            for encodeRegion in [ "ENm00" + str(i) for i in xrange(1, 2) ]:
                 sequences = [ os.path.join(encodeDatasetPath, encodeRegion, ("%s.%s.fa" % (species, encodeRegion))) for\
                              species in ("human", "chimp", "baboon", "mouse", "rat", "dog", "cow") ]
                 outputDir = os.path.join(encodeResultsPath, encodeRegion)

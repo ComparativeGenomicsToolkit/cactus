@@ -198,12 +198,12 @@ void blockStats(Net *net,
 	tabulateStats(*coverage, totalBlockNumber, &f, maxCoverage, averageCoverage, medianCoverage);
 }
 
-void chainStatsP(Net *net, struct IntList *counts, struct IntList *lengths, struct IntList *baseLengths, struct IntList *avgInstanceBaseLength) {
+void chainStatsP(Net *net, struct IntList *counts, struct IntList *lengths, struct IntList *baseLengths, struct IntList *avgInstanceBaseLength, int32_t minNumberOfBlocksInChain) {
 	Net_GroupIterator *groupIterator = net_getGroupIterator(net);
 	Group *group;
 	while((group = net_getNextGroup(groupIterator)) != NULL) {
 		if(group_getNestedNet(group) != NULL) {
-			chainStatsP(group_getNestedNet(group), counts, lengths, baseLengths, avgInstanceBaseLength);
+			chainStatsP(group_getNestedNet(group), counts, lengths, baseLengths, avgInstanceBaseLength, minNumberOfBlocksInChain);
 		}
 	}
 	net_destructGroupIterator(groupIterator);
@@ -218,9 +218,13 @@ void chainStatsP(Net *net, struct IntList *counts, struct IntList *lengths, stru
 		for(j=0; j<i; j++) {
 			k += block_getLength(blocks[j]);
 		}
-		intListAppend(baseLengths, k);
-		intListAppend(lengths, chain_getLength(chain));
-		intListAppend(avgInstanceBaseLength, chain_getAverageInstanceBaseLength(chain));
+
+		/*Chain stats are only for those containing two or more blocks.*/
+		if(i >= minNumberOfBlocksInChain) {
+			intListAppend(baseLengths, k);
+			intListAppend(lengths, chain_getLength(chain));
+			intListAppend(avgInstanceBaseLength, chain_getAverageInstanceBaseLength(chain));
+		}
 	}
 	net_destructBlockIterator(chainIterator);
 	intListAppend(counts, net_getChainNumber(net));
@@ -232,12 +236,12 @@ void chainStats(Net *net,
 		double *maxNumberPerNet, double *averageNumberPerNet, double *medianNumberPerNet,
 		double *maxLength, double *averageLength, double *medianLength,
 		double *maxDegree, double *averageDegree, double *medianDegree,
-		double *maxInstanceLength, double *averageInstanceLength, double *medianInstanceLength) {
+		double *maxInstanceLength, double *averageInstanceLength, double *medianInstanceLength, int32_t minNumberOfBlocksInChain) {
 	*counts = constructEmptyIntList(0);
 	*lengths = constructEmptyIntList(0);
 	*degrees = constructEmptyIntList(0);
 	*avgInstanceBaseLength = constructEmptyIntList(0);
-	chainStatsP(net, *counts, *lengths, *degrees, *avgInstanceBaseLength);
+	chainStatsP(net, *counts, *lengths, *degrees, *avgInstanceBaseLength, minNumberOfBlocksInChain);
 	double f;
 	tabulateStats(*counts, &f, &f, maxNumberPerNet, averageNumberPerNet, medianNumberPerNet);
 	tabulateStats(*lengths, totalChainNumber, &f, maxLength, averageLength, medianLength);
@@ -245,43 +249,48 @@ void chainStats(Net *net,
 	tabulateStats(*avgInstanceBaseLength, totalChainNumber, &f, maxInstanceLength, averageInstanceLength, medianInstanceLength);
 }
 
-void endStatsP(Net *net, struct IntList *counts, struct IntList *degrees) {
+void endStatsP(Net *net, struct IntList *counts, struct IntList *degrees, int32_t includeNonTrivialGroups, int32_t includeTrivialGroups) {
 	Net_GroupIterator *groupIterator = net_getGroupIterator(net);
 	Group *group;
 	while((group = net_getNextGroup(groupIterator)) != NULL) {
 		if(group_getNestedNet(group) != NULL) {
-			endStatsP(group_getNestedNet(group), counts, degrees);
+			endStatsP(group_getNestedNet(group), counts, degrees, includeNonTrivialGroups, includeTrivialGroups);
 		}
+		if((includeNonTrivialGroups && includeTrivialGroups) ||
+				(includeNonTrivialGroups && group_getLink(group) == NULL) ||
+				(includeTrivialGroups && group_getLink(group) != NULL)) {
+			intListAppend(counts, group_getEndNumber(group));
+			Group_EndIterator *endIterator = group_getEndIterator(group);
+			End *end;
+			while((end = group_getNextEnd(endIterator)) != NULL) {
+				struct List *list = constructEmptyList(0, NULL);
+				End_InstanceIterator *instanceIterator = end_getInstanceIterator(end);
+				EndInstance *endInstance;
+				while((endInstance = end_getNext(instanceIterator)) != NULL) {
+					End *end =  end_getPositiveOrientation(endInstance_getEnd(endInstance_getAdjacency(endInstance)));
+					if(!listContains(list, end)) {
+						listAppend(list, end);
+					}
+				}
+				end_destructInstanceIterator(instanceIterator);
+				intListAppend(degrees, list->length);
+				destructList(list);
+			}
+			group_destructEndIterator(endIterator);
+		}
+
 	}
 	net_destructGroupIterator(groupIterator);
-
-	intListAppend(counts, net_getEndNumber(net));
-	Net_EndIterator *endIterator = net_getEndIterator(net);
-	End *end;
-	while((end = net_getNextEnd(endIterator)) != NULL) {
-		struct List *list = constructEmptyList(0, NULL);
-		End_InstanceIterator *instanceIterator = end_getInstanceIterator(end);
-		EndInstance *endInstance;
-		while((endInstance = end_getNext(instanceIterator)) != NULL) {
-			End *end =  end_getPositiveOrientation(endInstance_getEnd(endInstance_getAdjacency(endInstance)));
-			if(!listContains(list, end)) {
-				listAppend(list, end);
-			}
-		}
-		end_destructInstanceIterator(instanceIterator);
-		intListAppend(degrees, list->length);
-		destructList(list);
-	}
-	net_destructEndIterator(endIterator);
 }
 
 void endStats(Net *net,
 		struct IntList **counts, struct IntList **degrees,
 		double *maxNumberPerNet, double *averageNumberPerNet, double *medianNumberPerNet,
-		double *maxDegree, double *averageDegree, double *medianDegree) {
+		double *maxDegree, double *averageDegree, double *medianDegree,
+		int32_t includeNonTrivialGroups, int32_t includeTrivialGroups) {
 	*counts = constructEmptyIntList(0);
 	*degrees = constructEmptyIntList(0);
-	endStatsP(net, *counts, *degrees);
+	endStatsP(net, *counts, *degrees, includeNonTrivialGroups, includeTrivialGroups);
 	double f;
 	tabulateStats(*counts, &f, &f, maxNumberPerNet, averageNumberPerNet, medianNumberPerNet);
 	tabulateStats(*degrees, &f, &f, maxDegree, averageDegree, medianDegree);
@@ -471,7 +480,7 @@ int main(int argc, char *argv[]) {
 	double totalSeqSize = net_getTotalBaseLength(net);
 
 	fileHandle = fopen(outputFile, "w");
-	fprintf(fileHandle, "<stats netDisk=\"%s\" netName=\"%s\" totalSequenceLength=\"%f\" >", netDiskName, netName, totalSeqSize);
+	fprintf(fileHandle, "<stats net_disk=\"%s\" net_name=\"%s\" total_sequence_length=\"%f\" >", netDiskName, netName, totalSeqSize);
 
 	/*
 	 * Relative entropy stats. Supposed to give a metric of how balanced the tree is in how it subdivides the input sequences.
@@ -482,7 +491,7 @@ int main(int argc, char *argv[]) {
 	double relativeEntropy = totalP - totalQ;
 	double normalisedRelativeEntropy = relativeEntropy / totalSeqSize;
 
-	fprintf(fileHandle, "<relativeEntropyStats totalP=\"%f\" totalQ=\"%f\" relativeEntropy=\"%f\" normalisedRelativeEntropy=\"%f\"/>", totalP, totalQ, relativeEntropy, normalisedRelativeEntropy);
+	fprintf(fileHandle, "<relative_entropy_stats totalP=\"%f\" totalQ=\"%f\" relative_entropy=\"%f\" normalised_relative_entropy=\"%f\"/>", totalP, totalQ, relativeEntropy, normalisedRelativeEntropy);
 
 	/*
 	 * Largest child stats - another tree balance stat. The idea is to supplant the more complex relative entropy function with a simple stat, that provides a cross check.
@@ -494,9 +503,9 @@ int main(int argc, char *argv[]) {
 	double medianProportion;
 	struct List *childProportions;
 	largestChildStats(net, &childProportions, &minProportion, &maxProportion, &avgProportion, &medianProportion);
-	fprintf(fileHandle, "<largestChild minProportion=\"%f\" maxProportion=\"%f\" avgProportion=\"%f\" medianProportion=\"%f\">", minProportion, maxProportion, avgProportion, medianProportion);
-	printFloatValues(childProportions, "childProportions", fileHandle);
-	fprintf(fileHandle, "</largestChild>");
+	fprintf(fileHandle, "<largest_child min_proportion=\"%f\" max_proportion=\"%f\" avg_proportion=\"%f\" median_proportion=\"%f\">", minProportion, maxProportion, avgProportion, medianProportion);
+	printFloatValues(childProportions, "child_proportions", fileHandle);
+	fprintf(fileHandle, "</largest_child>");
 	destructList(childProportions);
 
 	/*
@@ -515,7 +524,7 @@ int main(int argc, char *argv[]) {
 	struct IntList *depths;
 	netStats(net, &children, &depths, &totalNetNumber, &maxChildren, &avgChildren, &medianChildren, &minDepth,
 			&maxDepth, &avgDepth, &medianDepth);
-	fprintf(fileHandle, "<nets totalNetNumber=\"%f\" maxChildren=\"%f\" avgChildren=\"%f\" medianChildren=\"%f\" minDepth=\"%f\" maxDepth=\"%f\" avgDepth=\"%f\" medianDepth=\"%f\">",
+	fprintf(fileHandle, "<nets total_net_number=\"%f\" max_children=\"%f\" avg_children=\"%f\" median_children=\"%f\" min_depth=\"%f\" max_depth=\"%f\" avg_depth=\"%f\" median_depth=\"%f\">",
 			totalNetNumber, maxChildren, avgChildren, medianChildren, minDepth, maxDepth, avgDepth, medianDepth);
 	printIntValues(children, "children", fileHandle);
 	printIntValues(depths, "depths", fileHandle);
@@ -550,7 +559,7 @@ int main(int argc, char *argv[]) {
 			&maxLength, &averageLength, &medianLength,
 			&maxDegree, &averageDegree, &medianDegree,
 			&maxCoverage, &averageCoverage, &medianCoverage);
-	fprintf(fileHandle, "<blocks totalNumber=\"%f\" totalBaseLength=\"%f\" maxNumberPerNet=\"%f\" averageNumberPerNet=\"%f\" medianNumberPerNet=\"%f\" maxLength=\"%f\" averageLength=\"%f\" medianLength=\"%f\" maxDegree=\"%f\" averageDegree=\"%f\" medianDegree=\"%f\" maxCoverage=\"%f\" averageCoverage=\"%f\" medianCoverage=\"%f\">",
+	fprintf(fileHandle, "<blocks total_number=\"%f\" total_base_length=\"%f\" max_number_per_net=\"%f\" average_number_per_net=\"%f\" median_number_per_net=\"%f\" max_length=\"%f\" average_length=\"%f\" median_length=\"%f\" max_degree=\"%f\" average_degree=\"%f\" median_degree=\"%f\" max_coverage=\"%f\" average_coverage=\"%f\" median_coverage=\"%f\">",
 			totalNumber, totalNumber*averageLength, maxNumberPerNet, averageNumberPerNet, medianNumberPerNet, maxLength, averageLength, medianLength, maxDegree, averageDegree, medianDegree, maxCoverage, averageCoverage, medianCoverage);
 	printIntValues(counts, "counts", fileHandle);
 	printIntValues(lengths, "lengths", fileHandle);
@@ -570,36 +579,50 @@ int main(int argc, char *argv[]) {
 	double medianInstanceLength;
 	struct IntList *avgInstanceBaseLength;
 
-	chainStats(net,
-				&counts, &lengths, &degrees, &avgInstanceBaseLength,
-				&totalNumber, &maxNumberPerNet, &averageNumberPerNet, &medianNumberPerNet,
-				&maxLength, &averageLength, &medianLength,
-				&maxDegree, &averageDegree, &medianDegree,
-				&maxInstanceLength, &averageInstanceLength, &medianInstanceLength);
-	fprintf(fileHandle, "<chains totalNumber=\"%f\" maxNumberPerNet=\"%f\" averageNumberPerNet=\"%f\" medianNumberPerNet=\"%f\" maxLength=\"%f\" averageLength=\"%f\" medianLength=\"%f\" maxBaseLength=\"%f\" averageBaseLength=\"%f\" medianBaseLength=\"%f\" maxInstanceLength=\"%f\" averageInstanceLength=\"%f\" medianInstanceLength=\"%f\">",
-			totalNumber, maxNumberPerNet, averageNumberPerNet, medianNumberPerNet, maxLength, averageLength, medianLength, maxDegree, averageDegree, medianDegree, maxInstanceLength, averageInstanceLength, medianInstanceLength);
-	printIntValues(counts, "counts", fileHandle);
-	printIntValues(lengths, "lengths", fileHandle);
-	printIntValues(degrees, "baseLengths", fileHandle);
-	printIntValues(avgInstanceBaseLength, "avgInstanceLengths", fileHandle);
-	fprintf(fileHandle, "</chains>");
-	destructIntList(counts);
-	destructIntList(lengths);
-	destructIntList(degrees);
+	int32_t i;
+	int32_t minimumBlockNumber[] = { 0, 2 };
+	char *chainNames[] = { "chains", "chains_with_two_or_more_blocks" };
+
+	for(i=0; i<2; i++) {
+		chainStats(net,
+					&counts, &lengths, &degrees, &avgInstanceBaseLength,
+					&totalNumber, &maxNumberPerNet, &averageNumberPerNet, &medianNumberPerNet,
+					&maxLength, &averageLength, &medianLength,
+					&maxDegree, &averageDegree, &medianDegree,
+					&maxInstanceLength, &averageInstanceLength, &medianInstanceLength, minimumBlockNumber[i]);
+		fprintf(fileHandle, "<%s total_number=\"%f\" max_number_per_net=\"%f\" average_number_per_net=\"%f\" median_number_per_net=\"%f\" max_length=\"%f\" average_length=\"%f\" median_length=\"%f\" max_base_length=\"%f\" average_base_length=\"%f\" median_base_length=\"%f\" max_instance_length=\"%f\" average_instance_length=\"%f\" median_instance_length=\"%f\">",
+				chainNames[i], totalNumber, maxNumberPerNet, averageNumberPerNet, medianNumberPerNet, maxLength, averageLength, medianLength, maxDegree, averageDegree, medianDegree, maxInstanceLength, averageInstanceLength, medianInstanceLength);
+		printIntValues(counts, "counts", fileHandle);
+		printIntValues(lengths, "lengths", fileHandle);
+		printIntValues(degrees, "base_lengths", fileHandle);
+		printIntValues(avgInstanceBaseLength, "avg_instance_lengths", fileHandle);
+		fprintf(fileHandle, "</%s>", chainNames[i]);
+		destructIntList(counts);
+		destructIntList(lengths);
+		destructIntList(degrees);
+	}
 
 	/*
 	 * Stats on the ends in the problem. An end's degree is the number of distinct ends that it has adjacencies with.
+	 * We break the numbers down into those for trivial/non-trivial groups and for both together.
 	 */
-	endStats(net,
-			&counts, &degrees,
-			&maxNumberPerNet, &averageNumberPerNet, &medianNumberPerNet,
-			&maxDegree, &averageDegree, &medianDegree);
-	fprintf(fileHandle, "<ends maxNumberPerNet=\"%f\" averageNumberPerNet=\"%f\" medianNumberPerNet=\"%f\" maxDegree=\"%f\" averageDegree=\"%f\" medianDegree=\"%f\">", maxNumberPerNet, averageNumberPerNet, medianNumberPerNet, maxDegree, averageDegree, medianDegree);
-	printIntValues(counts, "counts", fileHandle);
-	printIntValues(degrees, "degrees", fileHandle);
-	fprintf(fileHandle, "</ends>");
-	destructIntList(counts);
-	destructIntList(degrees);
+
+	int32_t includeNonTrivialGroups[] = { 1, 1, 0 };
+	int32_t includeTrivialGroups[] = { 1, 0, 1};
+	char *endNames[] = { "ends", "ends_non_trivial", "ends_trivial" };
+
+	for(i=0; i<3; i++) {
+		endStats(net,
+				&counts, &degrees,
+				&maxNumberPerNet, &averageNumberPerNet, &medianNumberPerNet,
+				&maxDegree, &averageDegree, &medianDegree, includeNonTrivialGroups[i], includeTrivialGroups[i]);
+		fprintf(fileHandle, "<%s max_number_per_group=\"%f\" average_number_per_group=\"%f\" median_number_per_group=\"%f\" max_degree=\"%f\" average_degree=\"%f\" median_degree=\"%f\">", endNames[i], maxNumberPerNet, averageNumberPerNet, medianNumberPerNet, maxDegree, averageDegree, medianDegree);
+		printIntValues(counts, "counts", fileHandle);
+		printIntValues(degrees, "degrees", fileHandle);
+		fprintf(fileHandle, "</%s>", endNames[i]);
+		destructIntList(counts);
+		destructIntList(degrees);
+	}
 
 	/*
 	 * Stats on leaf nodes in the tree. The seq size of a leaf node is the amount of sequence (in bases), that it covers.
@@ -611,8 +634,8 @@ int main(int argc, char *argv[]) {
 	double medianSeqSize;
 	struct IntList *leafSizes;
 	leafStats(net, &leafSizes, &totalLeafNumber, &minSeqSize, &maxSeqSize, &avgSeqSize, &medianSeqSize);
-	fprintf(fileHandle, "<leaves totalLeafNumber=\"%f\" minSeqSize=\"%f\" maxSeqSize=\"%f\" avgSeqSize=\"%f\" medianSeqSize=\"%f\" >", totalLeafNumber, minSeqSize, maxSeqSize, avgSeqSize, medianSeqSize);
-	printIntValues(leafSizes, "leafSizes", fileHandle);
+	fprintf(fileHandle, "<leaves total_leaf_number=\"%f\" min_seq_size=\"%f\" max_seq_size=\"%f\" avg_seq_size=\"%f\" median_seq_size=\"%f\" >", totalLeafNumber, minSeqSize, maxSeqSize, avgSeqSize, medianSeqSize);
+	printIntValues(leafSizes, "leaf_sizes", fileHandle);
 	fprintf(fileHandle, "</leaves>");
 	destructIntList(leafSizes);
 
@@ -630,10 +653,10 @@ int main(int argc, char *argv[]) {
 			&maxNonTrivialGroupsPerNet,
 			&avgNonTrivialGroupsPerNet,
 			&medianNonTrivialGroupsPetNet);
-	fprintf(fileHandle, "<nonTrivialGroups total=\"%f\" maxPerNet=\"%f\" avgPerNet=\"%f\" medianPerNet=\"%f\" >", totalNonTrivialGroups,
+	fprintf(fileHandle, "<non_trivial_groups total=\"%f\" max_per_net=\"%f\" avg_per_net=\"%f\" median_per_net=\"%f\" >", totalNonTrivialGroups,
 			maxNonTrivialGroupsPerNet, avgNonTrivialGroupsPerNet, medianNonTrivialGroupsPetNet);
-	printIntValues(nonTrivialGroupCounts, "trivialGroups", fileHandle);
-	fprintf(fileHandle, "</nonTrivialGroups>");
+	printIntValues(nonTrivialGroupCounts, "trivial_groups", fileHandle);
+	fprintf(fileHandle, "</non_trivial_groups>");
 	destructIntList(nonTrivialGroupCounts);
 
 
