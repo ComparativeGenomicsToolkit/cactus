@@ -78,6 +78,7 @@ void tabulateStats(struct IntList *unsortedValues, double *totalNumber, double *
 		*median = INT32_MAX;
 		return;
 	}
+	unsortedValues = intListCopy(unsortedValues);
 	assert(unsortedValues->length > 0);
 	qsort(unsortedValues->list, unsortedValues->length, sizeof(int32_t), (int (*)(const void *, const void *))intComparator_Int);
 	*totalNumber = unsortedValues->length;
@@ -89,6 +90,7 @@ void tabulateStats(struct IntList *unsortedValues, double *totalNumber, double *
 		j += unsortedValues->list[i];
 	}
 	*avg = (double)j / unsortedValues->length;
+	destructIntList(unsortedValues);
 }
 
 void largestChildStatsP(Net *net, struct List *childProportions) {
@@ -145,7 +147,7 @@ void netStatsP(Net *net, int32_t currentDepth, struct IntList *children, struct 
 			netStatsP(group_getNestedNet(group), currentDepth+1, children, depths);
 		}
 		else {
-			intListAppend(depths, currentDepth);
+			intListAppend(depths, currentDepth+1);
 		}
 	}
 	net_destructGroupIterator(groupIterator);
@@ -208,12 +210,16 @@ void blockStats(Net *net,
 	tabulateStats(*coverage, totalBlockNumber, &f, maxCoverage, averageCoverage, medianCoverage);
 }
 
-void chainStatsP(Net *net, struct IntList *counts, struct IntList *blockLengths,  struct IntList *lengths, struct IntList *baseLengths, struct IntList *avgInstanceBaseLength, int32_t minNumberOfBlocksInChain) {
+void chainStatsP(Net *net, struct IntList *counts, struct IntList *blockLengths,  struct IntList *lengths, struct IntList *baseLengths, struct IntList *avgInstanceBaseLength,
+		int32_t minNumberOfBlocksInChain, int32_t minimumNumberOfLinksInChain,
+		int32_t minimumNumberOfBasepairsInChain, int32_t minimumNumberOfBasepairsInInstance) {
 	Net_GroupIterator *groupIterator = net_getGroupIterator(net);
 	Group *group;
 	while((group = net_getNextGroup(groupIterator)) != NULL) {
 		if(group_getNestedNet(group) != NULL) {
-			chainStatsP(group_getNestedNet(group), counts, blockLengths, lengths, baseLengths, avgInstanceBaseLength, minNumberOfBlocksInChain);
+			chainStatsP(group_getNestedNet(group), counts, blockLengths, lengths, baseLengths, avgInstanceBaseLength,
+					minNumberOfBlocksInChain, minimumNumberOfLinksInChain,
+					minimumNumberOfBasepairsInChain, minimumNumberOfBasepairsInInstance);
 		}
 	}
 	net_destructGroupIterator(groupIterator);
@@ -231,7 +237,8 @@ void chainStatsP(Net *net, struct IntList *counts, struct IntList *blockLengths,
 		}
 
 		/*Chain stats are only for those containing two or more blocks.*/
-		if(i >= minNumberOfBlocksInChain) {
+		if(i >= minNumberOfBlocksInChain && chain_getLength(chain) >= minimumNumberOfLinksInChain &&
+				k >= minimumNumberOfBasepairsInChain && chain_getAverageInstanceBaseLength(chain) >= minimumNumberOfBasepairsInInstance) {
 			intListAppend(baseLengths, k);
 			intListAppend(blockLengths, i);
 			intListAppend(lengths, chain_getLength(chain));
@@ -250,13 +257,16 @@ void chainStats(Net *net,
 		double *maxBlockLength, double *averageBlockLength, double *medianBlockLength,
 		double *maxLength, double *averageLength, double *medianLength,
 		double *maxDegree, double *averageDegree, double *medianDegree,
-		double *maxInstanceLength, double *averageInstanceLength, double *medianInstanceLength, int32_t minNumberOfBlocksInChain) {
+		double *maxInstanceLength, double *averageInstanceLength, double *medianInstanceLength,
+		int32_t minNumberOfBlocksInChain, int32_t minimumNumberOfLinksInChain,
+		int32_t minimumNumberOfBasepairsInChain, int32_t minimumNumberOfBasepairsInInstance) {
 	*counts = constructEmptyIntList(0);
 	*blockLengths = constructEmptyIntList(0);
 	*lengths = constructEmptyIntList(0);
 	*degrees = constructEmptyIntList(0);
 	*avgInstanceBaseLength = constructEmptyIntList(0);
-	chainStatsP(net, *counts, *blockLengths, *lengths, *degrees, *avgInstanceBaseLength, minNumberOfBlocksInChain);
+	chainStatsP(net, *counts, *blockLengths, *lengths, *degrees, *avgInstanceBaseLength, minNumberOfBlocksInChain,
+			 minimumNumberOfLinksInChain, minimumNumberOfBasepairsInChain, minimumNumberOfBasepairsInInstance);
 	double f;
 	tabulateStats(*counts, &f, &f, maxNumberPerNet, averageNumberPerNet, medianNumberPerNet);
 	tabulateStats(*blockLengths, totalChainNumber, &f, maxBlockLength, averageBlockLength, medianBlockLength);
@@ -601,18 +611,17 @@ int main(int argc, char *argv[]) {
 
 	int32_t i;
 	int32_t minimumBlockNumber[] = { 0, 2 };
-	char *chainNames[] = { "chains", "chains_with_two_or_more_blocks", "chains_top_5_percent" };
-	int32_t minChainSize = 0;
-
-	for(i=0; i<3; i++) {
+	char *chainNames[] = { "chains", "chains_with_two_or_more_blocks" };
+	for(i=0; i<2; i++) {
 		chainStats(net,
 					&counts, &blockLengths, &lengths, &degrees, &avgInstanceBaseLength,
 					&totalNumber, &maxNumberPerNet, &averageNumberPerNet, &medianNumberPerNet,
 					&maxBlockLength, &averageBlockLength, &medianBlockLength,
 					&maxLength, &averageLength, &medianLength,
 					&maxDegree, &averageDegree, &medianDegree,
-					&maxInstanceLength, &averageInstanceLength, &medianInstanceLength, i < 2 ? minimumBlockNumber[i] : minChainSize);
-		fprintf(fileHandle, "<%s total_number=\"%f\" max_number_per_net=\"%f\" average_number_per_net=\"%f\" median_number_per_net=\"%f\" max_block_length=\"%f\" average__block_length=\"%f\" median_block_length=\"%f\" max_length=\"%f\" average_length=\"%f\" median_length=\"%f\" max_base_length=\"%f\" average_base_length=\"%f\" median_base_length=\"%f\" max_instance_length=\"%f\" average_instance_length=\"%f\" median_instance_length=\"%f\">",
+					&maxInstanceLength, &averageInstanceLength, &medianInstanceLength,
+					minimumBlockNumber[i], 0, 0, 0);
+		fprintf(fileHandle, "<%s total_number=\"%f\" max_number_per_net=\"%f\" average_number_per_net=\"%f\" median_number_per_net=\"%f\" max_block_length=\"%f\" average_block_length=\"%f\" median_block_length=\"%f\" max_length=\"%f\" average_length=\"%f\" median_length=\"%f\" max_base_length=\"%f\" average_base_length=\"%f\" median_base_length=\"%f\" max_instance_length=\"%f\" average_instance_length=\"%f\" median_instance_length=\"%f\">",
 				chainNames[i], totalNumber, maxNumberPerNet, averageNumberPerNet, medianNumberPerNet, maxBlockLength, averageBlockLength, medianBlockLength, maxLength, averageLength, medianLength, maxDegree, averageDegree, medianDegree, maxInstanceLength, averageInstanceLength, medianInstanceLength);
 		printIntValues(counts, "counts", fileHandle);
 		printIntValues(blockLengths, "block_lengths", fileHandle);
@@ -621,13 +630,10 @@ int main(int argc, char *argv[]) {
 		printIntValues(avgInstanceBaseLength, "avg_instance_lengths", fileHandle);
 		fprintf(fileHandle, "</%s>", chainNames[i]);
 
-		if(i == 0) {
-
-		}
-
 		destructIntList(counts);
 		destructIntList(lengths);
 		destructIntList(degrees);
+		destructIntList(avgInstanceBaseLength);
 	}
 
 	/*
