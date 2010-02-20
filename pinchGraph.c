@@ -20,75 +20,75 @@
 ////////////////////////////////////////////////
 ////////////////////////////////////////////////
 ////////////////////////////////////////////////
-//Segments
+//Pieces
 ////////////////////////////////////////////////
 ////////////////////////////////////////////////
 ////////////////////////////////////////////////
 
-void segment_recycle(struct Segment *segment, Name contig, int32_t start, int32_t end) {
-	segment->contig = contig;
+void piece_recycle(struct Piece *piece, Name contig, int32_t start, int32_t end) {
+	piece->contig = contig;
 
-	segment->start = start;
-	segment->end = end;
+	piece->start = start;
+	piece->end = end;
 
-	segment->rSegment->contig = segment->contig;
-	segment->rSegment->start = -end;
-	segment->rSegment->end = -start;
+	piece->rPiece->contig = piece->contig;
+	piece->rPiece->start = -end;
+	piece->rPiece->end = -start;
 }
 
-struct Segment *constructSegment(Name contig, int32_t start, int32_t end) {
-	struct Segment *segment;
-	struct Segment *rSegment;
+struct Piece *constructPiece(Name contig, int32_t start, int32_t end) {
+	struct Piece *piece;
+	struct Piece *rPiece;
 
-	segment = (struct Segment *)mallocLocal(sizeof(struct Segment));
-	rSegment = (struct Segment *)mallocLocal(sizeof(struct Segment));
+	piece = (struct Piece *)mallocLocal(sizeof(struct Piece));
+	rPiece = (struct Piece *)mallocLocal(sizeof(struct Piece));
 
-	segment->rSegment = rSegment;
-	rSegment->rSegment = segment;
+	piece->rPiece = rPiece;
+	rPiece->rPiece = piece;
 
-	segment_recycle(segment, contig, start, end);
-	return segment;
+	piece_recycle(piece, contig, start, end);
+	return piece;
 }
 
-void destructSegment(struct Segment *segment) {
-	free(segment->rSegment);
-	free(segment);
+void destructPiece(struct Piece *piece) {
+	free(piece->rPiece);
+	free(piece);
 }
 
-void logSegment(struct Segment *segment) {
+void logPiece(struct Piece *piece) {
 	logDebug("Contig : " INT_STRING ", start : " INT_STRING ", end : " INT_STRING "\n",
-			segment->contig, segment->start, segment->end);
+			piece->contig, piece->start, piece->end);
 }
 
-int segmentComparatorPointers(struct Segment **segment1, struct Segment **segment2) {
-	return segmentComparator(*segment1, *segment2);
+int pieceComparatorPointers(struct Piece **piece1, struct Piece **piece2) {
+	return pieceComparator(*piece1, *piece2);
 }
 
-int segmentComparator(struct Segment *segment1, struct Segment *segment2) {
+int pieceComparator(struct Piece *piece1, struct Piece *piece2) {
 	/*
-	 * Compares two segments to allow an ordering on any two segments
+	 * Compares two pieces to allow an ordering on any two pieces
 	 * to be constructued.
 	 */
 	//Compare the contigs
-	if(segment1->contig > segment2->contig) {
+	if(piece1->contig > piece2->contig) {
 		return 1;
 	}
-	if(segment1->contig < segment2->contig) {
+	if(piece1->contig < piece2->contig) {
 		return -1;
 	}
 	//Check if overlap.
-	if(segment1->start <= segment2->start) {
-		if(segment1->end >= segment2->start) {
+	if(piece1->start <= piece2->start) {
+		if(piece1->end >= piece2->start) {
 			return 0;
 		}
 	}
 	else {
-		if(segment2->end >= segment1->start) {
+		if(piece2->end >= piece1->start) {
 			return 0;
 		}
 	}
 	//Back to business
-	if(segment1->start < segment2->start) {
+	if(piece1->start < piece2->start) {
 		return -1;
 	}
 	return 1;
@@ -384,7 +384,7 @@ void destructBlackEdgeIterator(void *iterator) {
 ////////////////////////////////////////////////
 
 
-struct PinchEdge *constructPinchEdge(struct Segment *segment) {
+struct PinchEdge *constructPinchEdge(struct Piece *piece) {
 	struct PinchEdge *pinchEdge;
 	struct PinchEdge *rPinchEdge;
 
@@ -394,8 +394,8 @@ struct PinchEdge *constructPinchEdge(struct Segment *segment) {
 	pinchEdge->rEdge = rPinchEdge;
 	rPinchEdge->rEdge = pinchEdge;
 
-	pinchEdge->segment = segment;
-	rPinchEdge->segment = segment->rSegment;
+	pinchEdge->piece = piece;
+	rPinchEdge->piece = piece->rPiece;
 
 	return pinchEdge;
 }
@@ -421,9 +421,9 @@ void addPinchEdgeToGraph(struct PinchGraph *graph, struct PinchEdge *edge) {
 }
 
 void destructPinchEdge(struct PinchEdge *pinchEdge) {
-	//Destroys the contained segment but not the rEdge, so must be called on both.
+	//Destroys the contained piece but not the rEdge, so must be called on both.
 	free(pinchEdge->rEdge);
-	destructSegment(pinchEdge->segment);
+	destructPiece(pinchEdge->piece);
 	free(pinchEdge);
 }
 
@@ -444,24 +444,24 @@ void removePinchEdgeFromGraphAndDestruct(struct PinchGraph *graph, struct PinchE
 
 int32_t edgeComparator(struct PinchEdge *edge1, struct PinchEdge *edge2, void *o) {
 	/*
-	 * Compares the segments by their segments.
+	 * Compares the pieces by their pieces.
 	 */
 	assert(o == NULL);
-	return segmentComparator(edge1->segment, edge2->segment);
+	return pieceComparator(edge1->piece, edge2->piece);
 }
 
 struct PinchEdge *getContainingBlackEdge(struct PinchGraph *graph, Name contig, int32_t position) {
 	/*
-	 * Gets edge containing the considered segment.
+	 * Gets edge containing the considered piece.
 	 */
 	static struct PinchEdge edge;
 	struct PinchEdge *edge2;
-	static struct Segment segment;
-	//Edge is a wrapper for the segment - this is all a bit silly.
-	edge.segment = &segment;
-	segment.contig = contig;
-	segment.start = position;
-	segment.end = position;
+	static struct Piece piece;
+	//Edge is a wrapper for the piece - this is all a bit silly.
+	edge.piece = &piece;
+	piece.contig = contig;
+	piece.start = position;
+	piece.end = position;
 	//Now get the edge.
 	edge2 = avl_find(graph->edges, &edge);
 	//assert(edge2 != NULL);
@@ -474,9 +474,9 @@ struct PinchEdge *getNextEdge(struct PinchGraph *graph, struct PinchEdge *edge, 
 	 */
 	struct PinchEdge *edge2;
 	struct PinchVertex *vertex2;
-	EndInstance *endInstance;
+	Cap *cap;
 
-	edge2 = getContainingBlackEdge(graph, edge->segment->contig, edge->segment->end+1);
+	edge2 = getContainingBlackEdge(graph, edge->piece->contig, edge->piece->end+1);
 	if(edge2 != NULL) {
 		return edge2;
 	}
@@ -485,10 +485,10 @@ struct PinchEdge *getNextEdge(struct PinchGraph *graph, struct PinchEdge *edge, 
 		if(vertex_isEnd(vertex2)) {
 			void *iterator2 = getBlackEdgeIterator(vertex2);
 			while((edge2 = getNextBlackEdge(vertex2, iterator2)) != NULL) {
-				if(edge2->segment->start == edge->segment->end+1) {
-					endInstance = net_getEndInstance(net, edge2->segment->contig);
-					assert(endInstance != NULL);
-					if(sequence_getName(endInstance_getSequence(endInstance)) == edge->segment->contig) {
+				if(edge2->piece->start == edge->piece->end+1) {
+					cap = net_getCap(net, edge2->piece->contig);
+					assert(cap != NULL);
+					if(sequence_getName(cap_getSequence(cap)) == edge->piece->contig) {
 						destructGreyEdgeIterator(iterator);
 						destructBlackEdgeIterator(iterator2);
 						return edge2;
@@ -510,17 +510,17 @@ void splitEdge_P(struct PinchGraph *graph,
 	struct PinchEdge *edge2;
 
 #ifdef BEN_DEBUG
-	assert(edge->segment->start < position);
+	assert(edge->piece->start < position);
 #endif
 
 	//Otherwise create new pinch point.
-	//Split segment
-	edge1 = constructPinchEdge(constructSegment(edge->segment->contig,
-								edge->segment->start, position-1));
+	//Split piece
+	edge1 = constructPinchEdge(constructPiece(edge->piece->contig,
+								edge->piece->start, position-1));
 	connectPinchEdge(edge1, edge->from, vertex1);
 
-	edge2 = constructPinchEdge(constructSegment(edge->segment->contig,
-								position, edge->segment->end));
+	edge2 = constructPinchEdge(constructPiece(edge->piece->contig,
+								position, edge->piece->end));
 	connectPinchEdge(edge2, vertex2, edge->to);
 
 #ifdef BEN_DEBUG
@@ -564,12 +564,12 @@ struct PinchVertex *splitEdge(struct PinchGraph *graph, Name contig,
 #endif
 
 	//If pinch point already at the start..
-	if(edge->segment->start == position && leftOrRight == LEFT) {
+	if(edge->piece->start == position && leftOrRight == LEFT) {
 		return edge->from;
 	}
 
 	//If pinch point already at the end..
-	if(edge->segment->end == position && leftOrRight == RIGHT) {
+	if(edge->piece->end == position && leftOrRight == RIGHT) {
 		return edge->to;
 	}
 
@@ -589,7 +589,7 @@ struct PinchVertex *splitEdge(struct PinchGraph *graph, Name contig,
 	//check every edge has the same absolute length.
 	blackEdgeIterator = getBlackEdgeIterator(edge->from);
 	while((edge2 = getNextBlackEdge(edge->from, blackEdgeIterator)) != NULL) {
-		assert(edge2->segment->end - edge2->segment->start == edge->segment->end - edge->segment->start);
+		assert(edge2->piece->end - edge2->piece->start == edge->piece->end - edge->piece->start);
 	}
 	destructBlackEdgeIterator(blackEdgeIterator);
 #endif
@@ -600,14 +600,14 @@ struct PinchVertex *splitEdge(struct PinchGraph *graph, Name contig,
 	//Add grey edges to connect new vertices.
 	connectVertices(vertex1, vertex2);
 
-	j = position - edge->segment->start + (leftOrRight == LEFT ? 0 : 1);
+	j = position - edge->piece->start + (leftOrRight == LEFT ? 0 : 1);
 	assert(j > 0);
 	for(i=0; i<sE_list->length; i++) {
 		edge2 = sE_list->list[i];
 #ifdef BEN_DEBUG
-		assert(j + edge2->segment->start <= edge2->segment->end);
+		assert(j + edge2->piece->start <= edge2->piece->end);
 #endif
-		splitEdge_P(graph, edge2, j + edge2->segment->start, vertex1, vertex2);
+		splitEdge_P(graph, edge2, j + edge2->piece->start, vertex1, vertex2);
 	}
 
 	//Return either left or right new vertex, dependent on which was made.
@@ -642,7 +642,7 @@ struct PinchGraph *pinchGraph_construct() {
 void destructPinchGraph_1(struct PinchEdge *edge, void *o) {
 	assert(o == NULL);
 	if(edge->from->vertexID > edge->to->vertexID) {
-		destructSegment(edge->segment);
+		destructPiece(edge->piece);
 	}
 	free(edge);
 }
@@ -690,37 +690,37 @@ void resetVertexChain(struct VertexChain *vertexChain) {
 
 void getChainOfVertices(struct VertexChain *vertexChain,
 						struct PinchGraph *graph,
-					    struct Segment *segment) {
+					    struct Piece *piece) {
 	struct PinchVertex *vertex;
 	struct PinchEdge *edge;
 
 	resetVertexChain(vertexChain);
 
 	//do any adjustments off the bat
-	splitEdge(graph, segment->contig, segment->start, LEFT);
-	splitEdge(graph, segment->contig, segment->end, RIGHT);
+	splitEdge(graph, piece->contig, piece->start, LEFT);
+	splitEdge(graph, piece->contig, piece->end, RIGHT);
 
-	vertex = splitEdge(graph, segment->contig, segment->start, LEFT);
+	vertex = splitEdge(graph, piece->contig, piece->start, LEFT);
 	intListAppend(vertexChain->coordinates, 0);
 	intListAppend(vertexChain->leftsOrRights, LEFT);
 	listAppend(vertexChain->listOfVertices, vertex);
 
 	//follow chain to get remaining vertices
-	edge = getContainingBlackEdge(graph, segment->contig, segment->start);
-	while(edge->segment->end < segment->end) {
-		intListAppend(vertexChain->coordinates, edge->segment->end - segment->start);
+	edge = getContainingBlackEdge(graph, piece->contig, piece->start);
+	while(edge->piece->end < piece->end) {
+		intListAppend(vertexChain->coordinates, edge->piece->end - piece->start);
 		intListAppend(vertexChain->leftsOrRights, RIGHT);
 		listAppend(vertexChain->listOfVertices, edge->to);
 
-		edge = getContainingBlackEdge(graph, segment->contig, edge->segment->end+1);
-		intListAppend(vertexChain->coordinates, edge->segment->start - segment->start);
+		edge = getContainingBlackEdge(graph, piece->contig, edge->piece->end+1);
+		intListAppend(vertexChain->coordinates, edge->piece->start - piece->start);
 		intListAppend(vertexChain->leftsOrRights, LEFT);
 		listAppend(vertexChain->listOfVertices, edge->from);
 	}
 
 	//add the second vertex.
-	vertex = splitEdge(graph, segment->contig, segment->end, RIGHT);
-	intListAppend(vertexChain->coordinates, segment->end - segment->start);
+	vertex = splitEdge(graph, piece->contig, piece->end, RIGHT);
+	intListAppend(vertexChain->coordinates, piece->end - piece->start);
 	intListAppend(vertexChain->leftsOrRights, RIGHT);
 	listAppend(vertexChain->listOfVertices, vertex);
 
@@ -731,7 +731,7 @@ void getChainOfVertices(struct VertexChain *vertexChain,
 #endif
 }
 
-int32_t pinchMergeSegment_P(struct VertexChain *vertexChain1,
+int32_t pinchMergePiece_P(struct VertexChain *vertexChain1,
 						    struct VertexChain *vertexChain2) {
 	int32_t i, j, k;
 
@@ -804,17 +804,17 @@ void updateVertexAdjacencyComponentLabelsForChain(struct hashtable *vertexAdjace
 	}
 }
 
-void pinchMergeSegment_getChainOfVertices(struct PinchGraph *graph,
-										  struct Segment *segment1,
-										  struct Segment *segment2,
+void pinchMergePiece_getChainOfVertices(struct PinchGraph *graph,
+										  struct Piece *piece1,
+										  struct Piece *piece2,
 										  struct VertexChain *vertexChain1,
 										  struct VertexChain *vertexChain2,
 										  struct hashtable *vertexAdjacencyComponents) {
 	int32_t i, j, k;
-	getChainOfVertices(vertexChain1, graph, segment1);
-	getChainOfVertices(vertexChain2, graph, segment2);
+	getChainOfVertices(vertexChain1, graph, piece1);
+	getChainOfVertices(vertexChain2, graph, piece2);
 
-	while(pinchMergeSegment_P(vertexChain1, vertexChain2) == FALSE) {
+	while(pinchMergePiece_P(vertexChain1, vertexChain2) == FALSE) {
 		/*
 		 * match up the set of vertices for each chain
 		 */
@@ -822,17 +822,17 @@ void pinchMergeSegment_getChainOfVertices(struct PinchGraph *graph,
 			j = vertexChain1->coordinates->list[i];
 			k = vertexChain1->leftsOrRights->list[i];
 			//now search if there is an equivalent vertex.
-			splitEdge(graph, segment2->contig, segment2->start + j, k);
+			splitEdge(graph, piece2->contig, piece2->start + j, k);
 		}
 		for(i=0; i<vertexChain2->coordinates->length; i++) {
 			j = vertexChain2->coordinates->list[i];
 			k = vertexChain2->leftsOrRights->list[i];
 			//now search if there is an equivalent vertex.
-			splitEdge(graph, segment1->contig, segment1->start + j, k);
+			splitEdge(graph, piece1->contig, piece1->start + j, k);
 		}
 
-		getChainOfVertices(vertexChain1, graph, segment1);
-		getChainOfVertices(vertexChain2, graph, segment2);
+		getChainOfVertices(vertexChain1, graph, piece1);
+		getChainOfVertices(vertexChain2, graph, piece2);
 	}
 
 	/*
@@ -845,15 +845,15 @@ void pinchMergeSegment_getChainOfVertices(struct PinchGraph *graph,
 struct VertexChain *pMS_vertexChain1 = NULL;
 struct VertexChain *pMS_vertexChain2 = NULL;
 
-void pinchMergeSegment(struct PinchGraph *graph,
-					   struct Segment *segment1,
-					   struct Segment *segment2,
+void pinchMergePiece(struct PinchGraph *graph,
+					   struct Piece *piece1,
+					   struct Piece *piece2,
 					   struct hashtable *vertexAdjacencyComponents) {
 	/*
 	 * Pinches the graph (with the minimum number of required pinches, to
-	 * represent the contiguous alignment of the two segments.
+	 * represent the contiguous alignment of the two pieces.
 	 *
-	 * Segments have to be of equal length.
+	 * Pieces have to be of equal length.
 	 */
 	int32_t i, j, k, contig;
 	struct PinchVertex *vertex1;
@@ -872,21 +872,21 @@ void pinchMergeSegment(struct PinchGraph *graph,
 	}
 
 	/*
-	 * Check segments are of the same length (the current (temporary assumption))
+	 * Check pieces are of the same length (the current (temporary assumption))
 	 */
 #ifdef BEN_DEBUG
-	assert(segment1->end - segment1->start == segment2->end - segment2->start);
+	assert(piece1->end - piece1->start == piece2->end - piece2->start);
 #endif
 
 	/*
 	 * run through each chain finding the list of vertices.
 	 */
-	splitEdge(graph, segment1->contig, segment1->start, LEFT);
-	splitEdge(graph, segment1->contig, segment1->end, RIGHT);
-	splitEdge(graph, segment2->contig, segment2->start, LEFT);
-	splitEdge(graph, segment2->contig, segment2->end, RIGHT);
+	splitEdge(graph, piece1->contig, piece1->start, LEFT);
+	splitEdge(graph, piece1->contig, piece1->end, RIGHT);
+	splitEdge(graph, piece2->contig, piece2->start, LEFT);
+	splitEdge(graph, piece2->contig, piece2->end, RIGHT);
 
-	pinchMergeSegment_getChainOfVertices(graph, segment1, segment2, pMS_vertexChain1, pMS_vertexChain2, vertexAdjacencyComponents);
+	pinchMergePiece_getChainOfVertices(graph, piece1, piece2, pMS_vertexChain1, pMS_vertexChain2, vertexAdjacencyComponents);
 
 #ifdef BEN_ULTRA_DEBUG
 	//do some debug checks
@@ -906,7 +906,7 @@ void pinchMergeSegment(struct PinchGraph *graph,
 
 	/*
 	 * Determine if we should proceed with the merge by checking if all the
-	 * segments are in the same, else quit.
+	 * pieces are in the same, else quit.
 	 */
 	for(i=0; i<pMS_vertexChain1->listOfVertices->length; i++) {
 		assert(hashtable_search(vertexAdjacencyComponents, pMS_vertexChain1->listOfVertices->list[i]) != NULL);
@@ -928,15 +928,15 @@ void pinchMergeSegment(struct PinchGraph *graph,
 #ifdef BEN_DEBUG
 		assert(lengthBlackEdges(vertex1) > 0);
 #endif
-		//check if the two vertices are the ends of same segment.
+		//check if the two vertices are the ends of same piece.
 		edge = getFirstBlackEdge(vertex1);
 		if(edge->to == vertex2) {
-			//if edge segment is of length greater than one.
-			if(edge->segment->end - edge->segment->start > 0) {
-				j = (edge->segment->end - edge->segment->start + 1) / 2 + edge->segment->start - 1;
-				k = 1 + ((edge->segment->end - edge->segment->start + 1) % 2);
+			//if edge piece is of length greater than one.
+			if(edge->piece->end - edge->piece->start > 0) {
+				j = (edge->piece->end - edge->piece->start + 1) / 2 + edge->piece->start - 1;
+				k = 1 + ((edge->piece->end - edge->piece->start + 1) % 2);
 
-				contig = edge->segment->contig;
+				contig = edge->piece->contig;
 				vertex4 = splitEdge(graph, contig, j, RIGHT);
 				vertex5 = splitEdge(graph, contig, j+k, LEFT);
 
@@ -952,7 +952,7 @@ void pinchMergeSegment(struct PinchGraph *graph,
 				/*
 				 * The new vertices are not in the chain, so we re parse the vertex chain and start again.
 				 */
-				pinchMergeSegment_getChainOfVertices(graph, segment1, segment2,
+				pinchMergePiece_getChainOfVertices(graph, piece1, piece2,
 						pMS_vertexChain1, pMS_vertexChain2, vertexAdjacencyComponents);
 
 				i = 0;
@@ -994,17 +994,17 @@ void pinchMergeSegment(struct PinchGraph *graph,
 	 * Do debug checks that the merge went okay.
 	 */
 
-	getChainOfVertices(pMS_vertexChain1, graph, segment1);
-	getChainOfVertices(pMS_vertexChain2, graph, segment2);
+	getChainOfVertices(pMS_vertexChain1, graph, piece1);
+	getChainOfVertices(pMS_vertexChain2, graph, piece2);
 
 	for(i=0; i<pMS_vertexChain1->listOfVertices->length; i++) {
 		vertex1 = pMS_vertexChain1->listOfVertices->list[i];
 		void *blackEdgeIterator = getBlackEdgeIterator(vertex1);
 		edge = getNextBlackEdge(vertex1, blackEdgeIterator);
-		k = edge->segment->end - edge->segment->start;
+		k = edge->piece->end - edge->piece->start;
 		vertex2 = edge->to;
 		while((edge = getNextBlackEdge(vertex1, blackEdgeIterator)) != NULL) {
-			assert(edge->segment->end - edge->segment->start == k);
+			assert(edge->piece->end - edge->piece->start == k);
 			assert(edge->to == vertex2);
 		}
 		destructBlackEdgeIterator(blackEdgeIterator);
@@ -1014,10 +1014,10 @@ void pinchMergeSegment(struct PinchGraph *graph,
 		vertex1 = pMS_vertexChain2->listOfVertices->list[i];
 		void *blackEdgeIterator = getBlackEdgeIterator(vertex1);
 		edge = getNextBlackEdge(vertex1, blackEdgeIterator);
-		k = edge->segment->end - edge->segment->start;
+		k = edge->piece->end - edge->piece->start;
 		vertex2 = edge->to;
 		while((edge = getNextBlackEdge(vertex1, blackEdgeIterator)) != NULL) {
-			assert(edge->segment->end - edge->segment->start == k);
+			assert(edge->piece->end - edge->piece->start == k);
 			assert(edge->to == vertex2);
 		}
 		destructBlackEdgeIterator(blackEdgeIterator);
@@ -1071,7 +1071,7 @@ int32_t pinchMerge_getContig(char *contig, int32_t start, struct hashtable *cont
 }
 
 void pinchMerge(struct PinchGraph *graph, struct PairwiseAlignment *pA,
-		void (*addFunction)(struct PinchGraph *pinchGraph, struct Segment *, struct Segment *, struct hashtable *, void *),
+		void (*addFunction)(struct PinchGraph *pinchGraph, struct Piece *, struct Piece *, struct hashtable *, void *),
 		void *extraParameter,
 		struct hashtable *vertexAdjacencyComponents) {
 	/*
@@ -1081,17 +1081,17 @@ void pinchMerge(struct PinchGraph *graph, struct PairwiseAlignment *pA,
 	int32_t i, j, k;
 	Name contig1, contig2;
 	struct AlignmentOperation *op;
-	static struct Segment segment1;
-	static struct Segment rSegment1;
-	static struct Segment segment2;
-	static struct Segment rSegment2;
+	static struct Piece piece1;
+	static struct Piece rPiece1;
+	static struct Piece piece2;
+	static struct Piece rPiece2;
 
-	//links the static segments
-	segment1.rSegment = &rSegment1;
-	rSegment1.rSegment = &segment1;
+	//links the static pieces
+	piece1.rPiece = &rPiece1;
+	rPiece1.rPiece = &piece1;
 
-	segment2.rSegment = &rSegment2;
-	rSegment2.rSegment = &segment2;
+	piece2.rPiece = &rPiece2;
+	rPiece2.rPiece = &piece2;
 
 	j = pA->start1;
 	k = pA->start2;
@@ -1106,18 +1106,18 @@ void pinchMerge(struct PinchGraph *graph, struct PairwiseAlignment *pA,
 		if(op->opType == PAIRWISE_MATCH) {
 			assert(op->length >= 1);
 			if(pA->strand1) {
-				segment_recycle(&segment1, contig1, j, j+op->length-1);
+				piece_recycle(&piece1, contig1, j, j+op->length-1);
 			}
 			else {
-				segment_recycle(&segment1, contig1, -(j-1), -(j-op->length));
+				piece_recycle(&piece1, contig1, -(j-1), -(j-op->length));
 			}
 			if(pA->strand2) {
-				segment_recycle(&segment2, contig2, k, k+op->length-1);
+				piece_recycle(&piece2, contig2, k, k+op->length-1);
 			}
 			else {
-				segment_recycle(&segment2, contig2, -(k-1), -(k-op->length));
+				piece_recycle(&piece2, contig2, -(k-1), -(k-op->length));
 			}
-			addFunction(graph, &segment1, &segment2, vertexAdjacencyComponents, extraParameter);
+			addFunction(graph, &piece1, &piece2, vertexAdjacencyComponents, extraParameter);
 		}
 		if(op->opType != PAIRWISE_INDEL_Y) {
 			j += pA->strand1 ? op->length : -op->length;
@@ -1204,8 +1204,8 @@ void writeOutPinchGraphWithChains(struct PinchGraph *pinchGraph, struct List *bi
 	/*
 	 * Writes out a graph in 'dot' format, compatible with graphviz.
 	 *
-	 * The associated function 'writeOutEdgeSegments' gives a way of decoding
-	 * the segments associated with the black (segment containing) edges
+	 * The associated function 'writeOutEdgePieces' gives a way of decoding
+	 * the pieces associated with the black (piece containing) edges
 	 * of the graph.
 	 */
 	int32_t i, j, k;
@@ -1216,11 +1216,11 @@ void writeOutPinchGraphWithChains(struct PinchGraph *pinchGraph, struct List *bi
 	struct List *group;
 	struct List *biConnectedComponent;
 	struct CactusEdge *cactusEdge;
-	struct Segment *segment;
+	struct Piece *piece;
 	char *colour;
 
 	logDebug("Writing the pinch graph\n");
-	//Put the chain segments in a hash to colour the black edges of the pinch graph.
+	//Put the chain pieces in a hash to colour the black edges of the pinch graph.
 	hash = create_hashtable(pinchGraph->vertices->length*10,
 								hashtable_key, hashtable_equalKey,
 							   NULL, (void (*)(void *))destructInt);
@@ -1230,10 +1230,10 @@ void writeOutPinchGraphWithChains(struct PinchGraph *pinchGraph, struct List *bi
 			biConnectedComponent = biConnectComponentsList->list[i];
 			for(k=0; k<biConnectedComponent->length; k++) {
 				cactusEdge = biConnectedComponent->list[k];
-				for(j=0; j<cactusEdge->segments->length; j++) {
-					segment = cactusEdge->segments->list[j];
-					hashtable_insert(hash, segment, constructInt(i));
-					hashtable_insert(hash, segment->rSegment, constructInt(i));
+				for(j=0; j<cactusEdge->pieces->length; j++) {
+					piece = cactusEdge->pieces->list[j];
+					hashtable_insert(hash, piece, constructInt(i));
+					hashtable_insert(hash, piece->rPiece, constructInt(i));
 				}
 			}
 		}
@@ -1275,14 +1275,14 @@ void writeOutPinchGraphWithChains(struct PinchGraph *pinchGraph, struct List *bi
 			assert(vertex->vertexID != edge->to->vertexID);
 #endif
 			if(vertex->vertexID < edge->to->vertexID) {
-				colour = getColour(hash, edge->segment);
+				colour = getColour(hash, edge->piece);
 				fprintf(fileHandle, "edge[color=%s,len=2.5,weight=100,dir=forward];\n", colour);
 
 				void *blackEdgeIterator = getBlackEdgeIterator(vertex);
 				while((edge = getNextBlackEdge(vertex, blackEdgeIterator)) != NULL) {
 					fprintf(fileHandle, "n" INT_STRING "n -- n" INT_STRING "n [label=\"" INT_STRING ":" INT_STRING ":%s\"];\n",
-							edge->from->vertexID, edge->to->vertexID, edge->segment->start, edge->segment->end,
-							netMisc_nameToStringStatic(edge->segment->contig));
+							edge->from->vertexID, edge->to->vertexID, edge->piece->start, edge->piece->end,
+							netMisc_nameToStringStatic(edge->piece->contig));
 				}
 				destructBlackEdgeIterator(blackEdgeIterator);
 			}

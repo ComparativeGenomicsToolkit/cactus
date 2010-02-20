@@ -291,9 +291,9 @@ void endStatsP(Net *net, struct IntList *counts, struct IntList *degrees, int32_
 			while((end = group_getNextEnd(endIterator)) != NULL) {
 				struct List *list = constructEmptyList(0, NULL);
 				End_InstanceIterator *instanceIterator = end_getInstanceIterator(end);
-				EndInstance *endInstance;
-				while((endInstance = end_getNext(instanceIterator)) != NULL) {
-					End *end =  end_getPositiveOrientation(endInstance_getEnd(endInstance_getAdjacency(endInstance)));
+				Cap *cap;
+				while((cap = end_getNext(instanceIterator)) != NULL) {
+					End *end =  end_getPositiveOrientation(cap_getEnd(cap_getAdjacency(cap)));
 					if(!listContains(list, end)) {
 						listAppend(list, end);
 					}

@@ -38,22 +38,22 @@ void getMAFBlock(Block *block, FILE *fileHandle) {
 	 */
 	fprintf(fileHandle, "a score=%i\n", block_getLength(block) *block_getInstanceNumber(block));
 	Block_InstanceIterator *instanceIterator = block_getInstanceIterator(block);
-	BlockInstance *blockInstance;
-	while((blockInstance = block_getNext(instanceIterator)) != NULL) {
-		Sequence *sequence = blockInstance_getSequence(blockInstance);
+	Segment *segment;
+	while((segment = block_getNext(instanceIterator)) != NULL) {
+		Sequence *sequence = segment_getSequence(segment);
 		if(sequence != NULL) {
 			char *sequenceHeader = formatSequenceHeader(sequence);
 			int32_t start;
-			if(blockInstance_getStrand(blockInstance)) {
-				start = blockInstance_getStart(blockInstance) - sequence_getStart(sequence);
+			if(segment_getStrand(segment)) {
+				start = segment_getStart(segment) - sequence_getStart(sequence);
 			}
 			else { //start with respect to the start of the reverse complement sequence
-				start = (sequence_getStart(sequence) + sequence_getLength(sequence) - 1) - blockInstance_getStart(blockInstance);
+				start = (sequence_getStart(sequence) + sequence_getLength(sequence) - 1) - segment_getStart(segment);
 			}
-			int32_t length = blockInstance_getLength(blockInstance);
-			char *strand = blockInstance_getStrand(blockInstance) ? "+" : "-";
+			int32_t length = segment_getLength(segment);
+			char *strand = segment_getStrand(segment) ? "+" : "-";
 			int32_t sequenceLength = sequence_getLength(sequence);
-			char *instanceString = blockInstance_getString(blockInstance);
+			char *instanceString = segment_getString(segment);
 			fprintf(fileHandle, "s\t%s\t%i\t%i\t%s\t%i\t%s\n", sequenceHeader, start, length, strand, sequenceLength, instanceString);
 			free(instanceString);
 			free(sequenceHeader);

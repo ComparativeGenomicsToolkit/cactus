@@ -40,28 +40,28 @@ void usage() {
 	fprintf(stderr, "-h --help : Print this help screen\n");
 }
 
-char *getSequence(EndInstance *endInstance, int32_t maxLength) {
-	Sequence *sequence = endInstance_getSequence(endInstance);
+char *getSequence(Cap *cap, int32_t maxLength) {
+	Sequence *sequence = cap_getSequence(cap);
 	assert(sequence != NULL);
-	EndInstance *endInstance2 = endInstance_getAdjacency(endInstance);
-	assert(!endInstance_getSide(endInstance));
+	Cap *cap2 = cap_getAdjacency(cap);
+	assert(!cap_getSide(cap));
 
-	if(endInstance_getStrand(endInstance)) {
-		int32_t length = endInstance_getCoordinate(endInstance2)
-					- endInstance_getCoordinate(endInstance) - 1;
+	if(cap_getStrand(cap)) {
+		int32_t length = cap_getCoordinate(cap2)
+					- cap_getCoordinate(cap) - 1;
 		assert(length >= 0);
 		assert(maxLength >= 0);
-		return sequence_getString(sequence, endInstance_getCoordinate(
-					endInstance) + 1, length > maxLength ? maxLength : length, 1);
+		return sequence_getString(sequence, cap_getCoordinate(
+					cap) + 1, length > maxLength ? maxLength : length, 1);
 	}
 	else {
-		int32_t length = endInstance_getCoordinate(endInstance)
-				- endInstance_getCoordinate(endInstance2) - 1;
+		int32_t length = cap_getCoordinate(cap)
+				- cap_getCoordinate(cap2) - 1;
 		assert(length >= 0);
 		return sequence_getString(sequence,
 				length > maxLength ?
-				endInstance_getCoordinate(endInstance) - maxLength:
-				endInstance_getCoordinate(endInstance2) + 1,
+				cap_getCoordinate(cap) - maxLength:
+				cap_getCoordinate(cap2) + 1,
 				length > maxLength ? maxLength : length, 0);
 	}
 }
@@ -74,14 +74,14 @@ typedef struct _SubSequence {
 	int32_t length;
 } SubSequence;
 
-SubSequence *getSequenceAndCoordinates(EndInstance *endInstance, int32_t maxLength) {
-	assert(!endInstance_getSide(endInstance));
+SubSequence *getSequenceAndCoordinates(Cap *cap, int32_t maxLength) {
+	assert(!cap_getSide(cap));
 	SubSequence *subSequence = (SubSequence *)malloc(sizeof(SubSequence));
-	subSequence->string = getSequence(endInstance, maxLength);
-	Sequence *sequence = endInstance_getSequence(endInstance);
+	subSequence->string = getSequence(cap, maxLength);
+	Sequence *sequence = cap_getSequence(cap);
 	subSequence->sequenceName = netMisc_nameToString(sequence_getName(sequence));
-	subSequence->strand = endInstance_getStrand(endInstance);
-	subSequence->start = endInstance_getCoordinate(endInstance) + (endInstance_getStrand(endInstance) ? 1 : -1);
+	subSequence->strand = cap_getStrand(cap);
+	subSequence->start = cap_getCoordinate(cap) + (cap_getStrand(cap) ? 1 : -1);
 	subSequence->length = strlen(subSequence->string);
 	return subSequence;
 }
@@ -92,18 +92,18 @@ void destructSubSequence(SubSequence *subSequence) {
 	free(subSequence);
 }
 
-SubSequence **getForwardAndReverseSequences(EndInstance *endInstance1, int32_t maxLength) {
-	assert(!endInstance_getSide(endInstance1));
+SubSequence **getForwardAndReverseSequences(Cap *cap1, int32_t maxLength) {
+	assert(!cap_getSide(cap1));
 
-	EndInstance *endInstance2 = endInstance_getAdjacency(endInstance1);
+	Cap *cap2 = cap_getAdjacency(cap1);
 
-	assert(endInstance2 != NULL);
-	assert(endInstance_getStrand(endInstance2));
-	assert(endInstance_getSide(endInstance2));
+	assert(cap2 != NULL);
+	assert(cap_getStrand(cap2));
+	assert(cap_getSide(cap2));
 
 	SubSequence **subSequences = (SubSequence **)malloc(sizeof(void *) * 2);
-	subSequences[0] = getSequenceAndCoordinates(endInstance1, maxLength);
-	subSequences[1] = getSequenceAndCoordinates(endInstance_getReverse(endInstance2), maxLength);
+	subSequences[0] = getSequenceAndCoordinates(cap1, maxLength);
+	subSequences[1] = getSequenceAndCoordinates(cap_getReverse(cap2), maxLength);
 	return subSequences;
 }
 
@@ -286,13 +286,13 @@ int main(int argc, char *argv[]) {
 		/*
 		 * Get the sequences
 		 */
-		Net_EndInstanceIterator *iterator1 = net_getEndInstanceIterator(net);
-		EndInstance *endInstance1;
+		Net_CapIterator *iterator1 = net_getCapIterator(net);
+		Cap *cap1;
 		struct List *subSequences = constructEmptyList(0, (void (*)(void *))destructSubsequences);
-		while((endInstance1 = net_getNextEndInstance(iterator1)) != NULL) {
-			endInstance1 = endInstance_getStrand(endInstance1) ? endInstance1 : endInstance_getReverse(endInstance1);
-			if(!endInstance_getSide(endInstance1)) {
-				SubSequence **subSequences1 = getForwardAndReverseSequences(endInstance1, MAXIMUM_LENGTH);
+		while((cap1 = net_getNextCap(iterator1)) != NULL) {
+			cap1 = cap_getStrand(cap1) ? cap1 : cap_getReverse(cap1);
+			if(!cap_getSide(cap1)) {
+				SubSequence **subSequences1 = getForwardAndReverseSequences(cap1, MAXIMUM_LENGTH);
 				listAppend(subSequences, subSequences1);
 				SubSequence *seq1 = subSequences1[0];
 				SubSequence *seq1R = subSequences1[1];
@@ -303,8 +303,8 @@ int main(int argc, char *argv[]) {
 						(seq1->length != MAXIMUM_LENGTH && seq1R->length != MAXIMUM_LENGTH));
 			}
 		}
-		net_destructEndInstanceIterator(iterator1);
-		assert(subSequences->length == net_getEndInstanceNumber(net)/2);
+		net_destructCapIterator(iterator1);
+		assert(subSequences->length == net_getCapNumber(net)/2);
 		logInfo("Got the sequence to be aligned\n");
 
 		/*

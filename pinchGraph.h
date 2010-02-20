@@ -12,12 +12,12 @@
 ////////////////////////////////////////////////
 ////////////////////////////////////////////////
 ////////////////////////////////////////////////
-//Segments
+//Pieces
 ////////////////////////////////////////////////
 ////////////////////////////////////////////////
 ////////////////////////////////////////////////
 
-struct Segment {
+struct Piece {
 	/*
 	 * Type for representing a sub-sequence.
 	 */
@@ -27,23 +27,23 @@ struct Segment {
 	int32_t start;
 	//inclusive end coordinate.
 	int32_t end;
-	//the mirror segment in the opposite direction (this is always present
+	//the mirror piece in the opposite direction (this is always present
 	//make switching between the forward and reverse complement really simple
 	//and symmetric.
-	struct Segment *rSegment;
+	struct Piece *rPiece;
 };
 
-void segment_recycle(struct Segment *segment, Name contig, int32_t start, int32_t end);
+void piece_recycle(struct Piece *piece, Name contig, int32_t start, int32_t end);
 
-struct Segment *constructSegment(Name contig, int32_t start, int32_t end);
+struct Piece *constructPiece(Name contig, int32_t start, int32_t end);
 
-void destructSegment(struct Segment *segment);
+void destructPiece(struct Piece *piece);
 
-void logSegment(struct Segment *segment);
+void logPiece(struct Piece *piece);
 
-int segmentComparator(struct Segment *segment1, struct Segment *segment2);
+int pieceComparator(struct Piece *piece1, struct Piece *piece2);
 
-int segmentComparatorPointers(struct Segment **segment1, struct Segment **segment2);
+int pieceComparatorPointers(struct Piece **piece1, struct Piece **piece2);
 
 ////////////////////////////////////////////////
 ////////////////////////////////////////////////
@@ -70,12 +70,12 @@ struct PinchVertex {
 
 struct PinchEdge {
 	/*
-	 * The basic 'segment' containing edge type of the pinch graph. (as opposed
+	 * The basic 'piece' containing edge type of the pinch graph. (as opposed
 	 * to grey edges which are not explicitly defined).
 	 */
 	struct PinchVertex *from;
 	struct PinchVertex *to;
-	struct Segment *segment;
+	struct Piece *piece;
 	//we store everything forwards and backwards to make updating symmetrical.
 	struct PinchEdge *rEdge;
 };
@@ -156,7 +156,7 @@ void connectVertices(struct PinchVertex *vertex, struct PinchVertex *vertex2);
 ////////////////////////////////////////////////
 ////////////////////////////////////////////////
 
-struct PinchEdge *constructPinchEdge(struct Segment *);
+struct PinchEdge *constructPinchEdge(struct Piece *);
 
 void destructPinchEdge(struct PinchEdge *);
 
@@ -239,26 +239,26 @@ void checkPinchGraphDegree(struct PinchGraph *graph, int32_t maxDegree);
 ////////////////////////////////////////////////
 ////////////////////////////////////////////////
 
-void pinchMergeSegment(struct PinchGraph *graph,
-					   struct Segment *segment1,
-					   struct Segment *segment2,
+void pinchMergePiece(struct PinchGraph *graph,
+					   struct Piece *piece1,
+					   struct Piece *piece2,
 					   struct hashtable *vertexAdjacencyComponents);
 
 void pinchMerge(struct PinchGraph *graph, struct PairwiseAlignment *pairwiseAlignment,
-		void (*addFunction)(struct PinchGraph *pinchGraph, struct Segment *, struct Segment *, struct hashtable *, void *),
+		void (*addFunction)(struct PinchGraph *pinchGraph, struct Piece *, struct Piece *, struct hashtable *, void *),
 		void *extraParameter,
 		struct hashtable *vertexAdjacencyComponents);
 
 ////////////////////////////////////////////////
 ////////////////////////////////////////////////
 ////////////////////////////////////////////////
-//Methods to get the virtual segments that lie between two
+//Methods to get the virtual pieces that lie between two
 //vertices connected by a grey edge.
 ////////////////////////////////////////////////
 ////////////////////////////////////////////////
 ////////////////////////////////////////////////
 
-struct List *getGreyEdgeSegments(struct PinchVertex *vertex, struct PinchVertex *vertex2);
+struct List *getGreyEdgePieces(struct PinchVertex *vertex, struct PinchVertex *vertex2);
 
 ////////////////////////////////////////////////
 ////////////////////////////////////////////////

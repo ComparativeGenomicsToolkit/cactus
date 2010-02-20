@@ -36,11 +36,11 @@ void destructCactusVertex(struct CactusVertex *vertex);
 struct CactusEdge {
 	struct CactusVertex *from;
 	struct CactusVertex *to;
-	struct List *segments;
+	struct List *pieces;
 	struct CactusEdge *rEdge;
 };
 
-struct CactusEdge *constructCactusEdge(struct List *segments);
+struct CactusEdge *constructCactusEdge(struct List *pieces);
 
 void destructCactusEdge(struct CactusEdge *edge);
 

@@ -52,14 +52,14 @@ void addBlockToGraph(Block *block, const char *colour, FILE *fileHandle) {
 	addEndNodeToGraph(leftEnd, fileHandle);
 	addEndNodeToGraph(rightEnd, fileHandle);
 	Block_InstanceIterator *iterator = block_getInstanceIterator(block);
-	BlockInstance *blockInstance;
-	while((blockInstance = block_getNext(iterator)) != NULL) {
-		blockInstance = blockInstance_getStrand(blockInstance) ? blockInstance : blockInstance_getReverse(blockInstance);
-		if(blockInstance_getSequence(blockInstance) != NULL) {
-			sprintf(label, "%s:%i:%i", netMisc_nameToStringStatic(sequence_getName(blockInstance_getSequence(blockInstance))),
-					blockInstance_getStart(blockInstance), blockInstance_getStart(blockInstance)+blockInstance_getLength(blockInstance));
-			addEdgeToGraph(endInstance_getEnd(blockInstance_get5End(blockInstance)),
-						   endInstance_getEnd(blockInstance_get3End(blockInstance)),
+	Segment *segment;
+	while((segment = block_getNext(iterator)) != NULL) {
+		segment = segment_getStrand(segment) ? segment : segment_getReverse(segment);
+		if(segment_getSequence(segment) != NULL) {
+			sprintf(label, "%s:%i:%i", netMisc_nameToStringStatic(sequence_getName(segment_getSequence(segment))),
+					segment_getStart(segment), segment_getStart(segment)+segment_getLength(segment));
+			addEdgeToGraph(cap_getEnd(segment_get5Cap(segment)),
+						   cap_getEnd(segment_get3Cap(segment)),
 						   edgeColours ? colour : "black", label, 1.5, 100, "forward", fileHandle);
 		}
 	}
@@ -113,22 +113,22 @@ void addAdjacencies(Group *group, FILE *fileHandle) {
 	Net *net = group_getNet(group);
 	while((end = net_getNextEnd(endIterator)) != NULL) {
 		End_InstanceIterator *instanceIterator = end_getInstanceIterator(end);
-		EndInstance *endInstance;
+		Cap *cap;
 		char *netName = netMisc_nameToString(net_getName(net));
-		while((endInstance = end_getNext(instanceIterator)) != NULL) {
-			if(endInstance_getSequence(endInstance) != NULL) {
-				endInstance = endInstance_getStrand(endInstance) ? endInstance : endInstance_getReverse(endInstance);
-				EndInstance *endInstance2 = endInstance_getAdjacency(endInstance);
-				if(!endInstance_getSide(endInstance)) {
-					assert(endInstance_getCoordinate(endInstance) < endInstance_getCoordinate(endInstance2));
-					sprintf(label, "%s:%i:%i:%s:%i", netMisc_nameToStringStatic(sequence_getName(endInstance_getSequence(endInstance))),
-							endInstance_getCoordinate(endInstance), endInstance_getCoordinate(endInstance2),
+		while((cap = end_getNext(instanceIterator)) != NULL) {
+			if(cap_getSequence(cap) != NULL) {
+				cap = cap_getStrand(cap) ? cap : cap_getReverse(cap);
+				Cap *cap2 = cap_getAdjacency(cap);
+				if(!cap_getSide(cap)) {
+					assert(cap_getCoordinate(cap) < cap_getCoordinate(cap2));
+					sprintf(label, "%s:%i:%i:%s:%i", netMisc_nameToStringStatic(sequence_getName(cap_getSequence(cap))),
+							cap_getCoordinate(cap), cap_getCoordinate(cap2),
 							netName,
 							net_getEndNumber(net));
 					//sprintf(label, "%s:%i",
 					//		netName,
 					//		net_getEndNumber(net));
-					addEdgeToGraph(endInstance_getEnd(endInstance), endInstance_getEnd(endInstance2), "grey", label, 1.5, 1, "forward", fileHandle);
+					addEdgeToGraph(cap_getEnd(cap), cap_getEnd(cap2), "grey", label, 1.5, 1, "forward", fileHandle);
 				}
 			}
 		}

@@ -37,10 +37,10 @@ void destructCactusVertex(struct CactusVertex *vertex) {
 	free(vertex);
 }
 
-struct CactusEdge *constructCactusEdge(struct List *segments) {
+struct CactusEdge *constructCactusEdge(struct List *pieces) {
 	struct CactusEdge *edge;
 	struct CactusEdge *rEdge;
-	struct Segment *segment;
+	struct Piece *piece;
 	int32_t i;
 
 	edge = mallocLocal(sizeof(struct CactusEdge));
@@ -48,20 +48,20 @@ struct CactusEdge *constructCactusEdge(struct List *segments) {
 	edge->rEdge = rEdge;
 	rEdge->rEdge = edge;
 
-	edge->segments = constructEmptyList(segments->length, NULL);
-	edge->rEdge->segments = constructEmptyList(segments->length, NULL);
+	edge->pieces = constructEmptyList(pieces->length, NULL);
+	edge->rEdge->pieces = constructEmptyList(pieces->length, NULL);
 
-	for(i=0; i<segments->length; i++) {
-		segment = segments->list[i];
-		edge->segments->list[i] = segment;
-		edge->rEdge->segments->list[i] = segment->rSegment;
+	for(i=0; i<pieces->length; i++) {
+		piece = pieces->list[i];
+		edge->pieces->list[i] = piece;
+		edge->rEdge->pieces->list[i] = piece->rPiece;
 	}
 
 	return edge;
 }
 
-struct CactusEdge *constructCactusEdge2(struct List *segments, struct CactusVertex *from, struct CactusVertex *to) {
-	struct CactusEdge *cactusEdge = constructCactusEdge(segments);
+struct CactusEdge *constructCactusEdge2(struct List *pieces, struct CactusVertex *from, struct CactusVertex *to) {
+	struct CactusEdge *cactusEdge = constructCactusEdge(pieces);
 
 	listAppend(from->edges, cactusEdge);
 	cactusEdge->from = from;
@@ -76,7 +76,7 @@ struct CactusEdge *constructCactusEdge2(struct List *segments, struct CactusVert
 
 void destructCactusEdge(struct CactusEdge *edge) {
 	//the rEdge is dealt with by its respective from vertex.
-	destructList(edge->segments);
+	destructList(edge->pieces);
 	free(edge);
 }
 
@@ -160,11 +160,11 @@ struct CactusGraph *constructCactusGraph(struct PinchGraph *pinchGraph,
 				cactusVertex2 = pinchVertexToCactusVertex->list[pinchVertex2->vertexID];
 
 				if(pinchVertex->vertexID < pinchVertex2->vertexID) {
-					//getting the ordered segments.
+					//getting the ordered pieces.
 					list2 = constructEmptyList(0, NULL);
 					void *blackEdgeIterator = getBlackEdgeIterator(pinchVertex);
 					while((pinchEdge = getNextBlackEdge(pinchVertex, blackEdgeIterator)) != NULL) {
-						listAppend(list2, pinchEdge->segment);
+						listAppend(list2, pinchEdge->piece);
 					}
 					destructBlackEdgeIterator(blackEdgeIterator);
 
@@ -219,7 +219,7 @@ void checkCactusGraph(struct PinchGraph *pinchGraph,
 	struct PinchVertex *pinchVertex;
 	struct PinchVertex *pinchVertex2;
 	struct PinchEdge *pinchEdge;
-	struct Segment *segment;
+	struct Piece *piece;
 	struct List *list;
 	struct List *biConnectedComponents;
 	/*
@@ -283,9 +283,9 @@ void checkCactusGraph(struct PinchGraph *pinchGraph,
 				cactusEdge = cactusVertex->edges->list[k];
 				assert(cactusEdge->from == cactusVertex);
 				if(cactusEdge->to == cactusVertex2) {
-					for(l=0; l<cactusEdge->segments->length; l++) {
-						segment = cactusEdge->segments->list[l];
-						if(segmentComparator(pinchEdge->segment, segment) == 0) {
+					for(l=0; l<cactusEdge->pieces->length; l++) {
+						piece = cactusEdge->pieces->list[l];
+						if(pieceComparator(pinchEdge->piece, piece) == 0) {
 							assert(m == FALSE);
 							m = TRUE;
 						}
@@ -307,7 +307,7 @@ void checkCactusGraph(struct PinchGraph *pinchGraph,
 				cactusEdge = cactusVertex->edges->list[k];
 				assert(cactusEdge->from == cactusVertex);
 				if(cactusEdge->to == cactusVertex2) {
-					if(cactusEdge->segments->length == 0) {
+					if(cactusEdge->pieces->length == 0) {
 						m += 1;
 					}
 				}
@@ -801,15 +801,15 @@ void writeOutCactusGraph(struct CactusGraph *cactusGraph, struct PinchGraph *pin
 	/*
 	 * Writes out a graph in 'dot' format, compatible with graphviz.
 	 *
-	 * The associated function 'writeOutEdgeSegments' gives a way of decoding
-	 * the segments associated with the black (segment containing) edges
+	 * The associated function 'writeOutEdgePieces' gives a way of decoding
+	 * the pieces associated with the black (piece containing) edges
 	 * of the graph.
 	 */
 	int32_t i, j; //, k;
 	struct CactusVertex *vertex;
 	struct CactusEdge *edge;
 	//struct PinchEdge *pinchEdge;
-	//struct Segment *segment;
+	//struct Piece *piece;
 
 	//Write the preliminaries.
 	fprintf(fileHandle, "graph G {\n");
@@ -832,12 +832,12 @@ void writeOutCactusGraph(struct CactusGraph *cactusGraph, struct PinchGraph *pin
 			assert(edge != edge->rEdge);
 #endif
 			if(edge > edge->rEdge) {
-				/*if(edge->segments->length > 0) {
-					for(k=0; k<edge->segments->length; k++) {
-						segment = edge->segments->list[k];
-						pinchEdge = getContainingBlackEdge(pinchGraph, segment->contig, segment->start);
+				/*if(edge->pieces->length > 0) {
+					for(k=0; k<edge->pieces->length; k++) {
+						piece = edge->pieces->list[k];
+						pinchEdge = getContainingBlackEdge(pinchGraph, piece->contig, piece->start);
 						fprintf(fileHandle, "n" INT_STRING "n -- n" INT_STRING "n [label=\"" INT_STRING ":" INT_STRING ":%s\"];\n",
-								edge->from->vertexID, edge->to->vertexID, segment->start, segment->end, netMisc_nameToStringStatic(segment->contig));
+								edge->from->vertexID, edge->to->vertexID, piece->start, piece->end, netMisc_nameToStringStatic(piece->contig));
 					}
 				}
 				else {*/
@@ -1099,14 +1099,14 @@ int32_t chainBaseLength(struct List *biConnectedComponent, struct PinchGraph *pi
 	 */
 	int32_t i, j;
 	struct CactusEdge *cactusEdge;
-	struct Segment *segment;
+	struct Piece *piece;
 
 	i = 0;
 	for(j=0; j<biConnectedComponent->length; j++) {
 		cactusEdge = biConnectedComponent->list[j];
 		if(!isAStubOrCapCactusEdge(cactusEdge, pinchGraph)) {
-			segment = cactusEdge->segments->list[0];
-			i += segment->end - segment->start + 1;
+			piece = cactusEdge->pieces->list[0];
+			i += piece->end - piece->start + 1;
 		}
 	}
 	return i;
@@ -1140,10 +1140,10 @@ struct List *filterBlocksByTreeCoverageAndLength(struct List *biConnectedCompone
 			for(j=0; j<biConnectedComponent->length; j++) {
 				cactusEdge = biConnectedComponent->list[j];
 				if(!isAStubOrCapCactusEdge(cactusEdge, pinchGraph)) {
-					assert(cactusEdge->segments->length > 0);
-					struct Segment *segment = cactusEdge->segments->list[0];
+					assert(cactusEdge->pieces->length > 0);
+					struct Piece *piece = cactusEdge->pieces->list[0];
 					if(treeCoverage2(cactusEdge, net, pinchGraph) >= minimumTreeCoverage &&
-					   (segment->end - segment->start + 1) >= minimumBlockLength) {
+					   (piece->end - piece->start + 1) >= minimumBlockLength) {
 						listAppend(chosenBlocks, cactusEdge);
 					}
 				}
@@ -1164,14 +1164,14 @@ void logTheChosenBlockSubset(struct List *biConnectedComponents, struct List *ch
 	int32_t i, j;
 	struct List *biConnectedComponent;
 	struct CactusEdge *cactusEdge;
-	struct Segment *segment;
+	struct Piece *piece;
 	float totalBlockScore = 0.0;
 	float totalBlockLength = 0.0;
 	float totalBaseLengthOfAllBlocks = 0.0;
 	float totalNumberOfAllBlocks = 0.0;
 	float totalNumberOfStubBlocks = 0.0;
-	float averageSegmentNumber = 0.0;
-	float averageSegmentNumberOfAllBlocks = 0.0;
+	float averagePieceNumber = 0.0;
+	float averagePieceNumberOfAllBlocks = 0.0;
 	for(i=0; i<biConnectedComponents->length; i++) {
 		biConnectedComponent = biConnectedComponents->list[i];
 		totalBaseLengthOfAllBlocks += chainBaseLength(biConnectedComponent, pinchGraph);
@@ -1180,7 +1180,7 @@ void logTheChosenBlockSubset(struct List *biConnectedComponents, struct List *ch
 		for(j=0; j<biConnectedComponent->length; j++) {
 			cactusEdge = biConnectedComponent->list[j];
 			if(!isAStubOrCapCactusEdge(cactusEdge, pinchGraph)) {
-				averageSegmentNumberOfAllBlocks += cactusEdge->segments->length;
+				averagePieceNumberOfAllBlocks += cactusEdge->pieces->length;
 			}
 		}
 	}
@@ -1189,14 +1189,14 @@ void logTheChosenBlockSubset(struct List *biConnectedComponents, struct List *ch
 		cactusEdge = chosenBlocks->list[i];
 		if(!isAStubOrCapCactusEdge(cactusEdge, pinchGraph)) {
 			totalBlockScore += treeCoverage2(cactusEdge, net, pinchGraph);
-			segment = cactusEdge->segments->list[0];
-			totalBlockLength += segment->end - segment->start + 1;
-			averageSegmentNumber += cactusEdge->segments->length;
+			piece = cactusEdge->pieces->list[0];
+			totalBlockLength += piece->end - piece->start + 1;
+			averagePieceNumber += cactusEdge->pieces->length;
 			j++;
 		}
 	}
-	logInfo("Chosen block subset composed of %i blocks, of average length %f and average tree coverage %f, total base length of all blocks: %f, total number of all blocks %f, average length of all blocks: %f, total number of stub blocks: %f, average segment number of chosen blocks: %f, average segment number of all blocks: %f\n",
-				chosenBlocks->length, totalBlockLength/j, totalBlockScore/j, totalBaseLengthOfAllBlocks, totalNumberOfAllBlocks, totalBaseLengthOfAllBlocks/totalNumberOfAllBlocks, totalNumberOfStubBlocks, averageSegmentNumber/j, averageSegmentNumberOfAllBlocks/totalNumberOfAllBlocks);
+	logInfo("Chosen block subset composed of %i blocks, of average length %f and average tree coverage %f, total base length of all blocks: %f, total number of all blocks %f, average length of all blocks: %f, total number of stub blocks: %f, average piece number of chosen blocks: %f, average piece number of all blocks: %f\n",
+				chosenBlocks->length, totalBlockLength/j, totalBlockScore/j, totalBaseLengthOfAllBlocks, totalNumberOfAllBlocks, totalBaseLengthOfAllBlocks/totalNumberOfAllBlocks, totalNumberOfStubBlocks, averagePieceNumber/j, averagePieceNumberOfAllBlocks/totalNumberOfAllBlocks);
 }
 
 ////////////////////////////////////////////////
@@ -1208,12 +1208,12 @@ void logTheChosenBlockSubset(struct List *biConnectedComponents, struct List *ch
 ////////////////////////////////////////////////
 
 struct PinchEdge *cactusEdgeToFirstPinchEdge(struct CactusEdge *edge, struct PinchGraph *pinchGraph) {
-	struct Segment *segment;
+	struct Piece *piece;
 #ifdef BEN_DEBUG
-	assert(edge->segments->length > 0);
+	assert(edge->pieces->length > 0);
 #endif
-	segment = edge->segments->list[0];
-	return getContainingBlackEdge(pinchGraph, segment->contig, segment->start);
+	piece = edge->pieces->list[0];
+	return getContainingBlackEdge(pinchGraph, piece->contig, piece->start);
 }
 
 int32_t isAStubOrCapCactusEdge(struct CactusEdge *edge, struct PinchGraph *pinchGraph) {

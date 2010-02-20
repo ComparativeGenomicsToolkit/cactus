@@ -135,31 +135,31 @@ void checkEnds(Net *net) {
 		}
 
 		End_InstanceIterator *instanceIterator = end_getInstanceIterator(end);
-		EndInstance *endInstance, *endInstance2;
-		while((endInstance = end_getNext(instanceIterator)) != NULL) {
+		Cap *cap, *cap2;
+		while((cap = end_getNext(instanceIterator)) != NULL) {
 			/*
-			 * Check the end instance is connected.
+			 * Check the cap is connected.
 			 */
-			assert(endInstance_getEnd(endInstance) == end);
+			assert(cap_getEnd(cap) == end);
 
 			/*
 			 * Check end trees.
 			 */
 			if(CHECK_TREES) {
 				//check is labelled with an event.
-				assert(endInstance_getEvent(endInstance) != NULL);
+				assert(cap_getEvent(cap) != NULL);
 
-				endInstance2 = endInstance_getParent(endInstance);
-				if(endInstance2 == NULL) { //must be the root.
+				cap2 = cap_getParent(cap);
+				if(cap2 == NULL) { //must be the root.
 					assert(end_getRootInstance(end) != NULL);
-					assert(endInstance == end_getRootInstance(end));
-					assert(endInstance_getEvent(endInstance) == eventTree_getRootEvent(net_getEventTree(net))); //checks root is aligned with the root.
+					assert(cap == end_getRootInstance(end));
+					assert(cap_getEvent(cap) == eventTree_getRootEvent(net_getEventTree(net))); //checks root is aligned with the root.
 				}
 				else {
 					//check parent and child are properly connected.
 					j = 0;
-					for(i=0; i<endInstance_getChildNumber(endInstance2); i++) {
-						if(endInstance_getChild(endInstance2, i) == endInstance) {
+					for(i=0; i<cap_getChildNumber(cap2); i++) {
+						if(cap_getChild(cap2, i) == cap) {
 							assert(!j);
 							j = 1;
 						}
@@ -167,43 +167,43 @@ void checkEnds(Net *net) {
 					assert(j);
 
 					//check parent event is ancestral.
-					assert(event_isAncestor(endInstance_getEvent(endInstance), endInstance_getEvent(endInstance2)));
+					assert(event_isAncestor(cap_getEvent(cap), cap_getEvent(cap2)));
 				}
 			}
 
 			/*
 			 * Skip checking internal instances if needed.
 			 */
-			if(endInstance_isInternal(endInstance) && !CHECK_INTERNAL_ADJACENCIES) {
+			if(cap_isInternal(cap) && !CHECK_INTERNAL_ADJACENCIES) {
 				continue;
 			}
 
 			/*
-			 * Check the required adjacency between the end instances.
+			 * Check the required adjacency between the caps.
 			 */
-			endInstance2 = endInstance_getAdjacency(endInstance);
-			assert(endInstance2 != NULL);
-			assert(end_getGroup(endInstance_getEnd(endInstance2)) == group); //check they have the same group.
-			assert(endInstance_getAdjacency(endInstance2) == endInstance);
-			assert(endInstance_getEvent(endInstance) == endInstance_getEvent(endInstance2));
-			assert(endInstance_getSequence(endInstance) == endInstance_getSequence(endInstance2));
-			assert(endInstance_getStrand(endInstance) == endInstance_getStrand(endInstance2));
-			if(endInstance_getCoordinate(endInstance) != INT32_MAX) { //if they have a coordinate
-				assert(endInstance_getSide(endInstance) != endInstance_getSide(endInstance2));
-				if(endInstance_getStrand(endInstance)) {
-					if(!endInstance_getSide(endInstance)) {
-						assert(endInstance_getCoordinate(endInstance) < endInstance_getCoordinate(endInstance2));
+			cap2 = cap_getAdjacency(cap);
+			assert(cap2 != NULL);
+			assert(end_getGroup(cap_getEnd(cap2)) == group); //check they have the same group.
+			assert(cap_getAdjacency(cap2) == cap);
+			assert(cap_getEvent(cap) == cap_getEvent(cap2));
+			assert(cap_getSequence(cap) == cap_getSequence(cap2));
+			assert(cap_getStrand(cap) == cap_getStrand(cap2));
+			if(cap_getCoordinate(cap) != INT32_MAX) { //if they have a coordinate
+				assert(cap_getSide(cap) != cap_getSide(cap2));
+				if(cap_getStrand(cap)) {
+					if(!cap_getSide(cap)) {
+						assert(cap_getCoordinate(cap) < cap_getCoordinate(cap2));
 					}
 					else {
-						assert(endInstance_getCoordinate(endInstance) > endInstance_getCoordinate(endInstance2));
+						assert(cap_getCoordinate(cap) > cap_getCoordinate(cap2));
 					}
 				}
 				else {
-					if(endInstance_getSide(endInstance)) {
-						assert(endInstance_getCoordinate(endInstance) < endInstance_getCoordinate(endInstance2));
+					if(cap_getSide(cap)) {
+						assert(cap_getCoordinate(cap) < cap_getCoordinate(cap2));
 					}
 					else {
-						assert(endInstance_getCoordinate(endInstance) > endInstance_getCoordinate(endInstance2));
+						assert(cap_getCoordinate(cap) > cap_getCoordinate(cap2));
 					}
 				}
 			}
@@ -233,30 +233,30 @@ void checkBlocks(Net *net) {
 		 * Check the instances.
 		 */
 		Block_InstanceIterator *instanceIterator = block_getInstanceIterator(block);
-		BlockInstance *blockInstance;
-		while((blockInstance = block_getNext(instanceIterator)) != NULL) {
-			assert(blockInstance_getBlock(blockInstance) == block);
-			assert(blockInstance_getOrientation(blockInstance));
+		Segment *segment;
+		while((segment = block_getNext(instanceIterator)) != NULL) {
+			assert(segment_getBlock(segment) == block);
+			assert(segment_getOrientation(segment));
 			/*
-			 * Check block instance has two instances.
+			 * Check segment has two instances.
 			 */
-			EndInstance *_5EndInstance = blockInstance_get5End(blockInstance);
-			EndInstance *_3EndInstance = blockInstance_get3End(blockInstance);
-			assert(_5EndInstance != NULL);
-			assert(_3EndInstance != NULL);
-			assert(endInstance_getBlockInstance(_5EndInstance) == blockInstance);
-			assert(endInstance_getBlockInstance(_3EndInstance) == blockInstance);
+			Cap *_5Cap = segment_get5Cap(segment);
+			Cap *_3Cap = segment_get3Cap(segment);
+			assert(_5Cap != NULL);
+			assert(_3Cap != NULL);
+			assert(cap_getSegment(_5Cap) == segment);
+			assert(cap_getSegment(_3Cap) == segment);
 			/*
 			 * Check the coordinates.
 			 */
-			assert(blockInstance_getLength(blockInstance) == block_getLength(block));
-			assert(blockInstance_getStrand(blockInstance) == endInstance_getStrand(_5EndInstance));
-			assert(blockInstance_getStrand(blockInstance) == endInstance_getStrand(_3EndInstance));
-			assert(endInstance_getSide(_5EndInstance));
-			assert(!endInstance_getSide(_3EndInstance));
-			if(blockInstance_getStart(blockInstance) != INT32_MAX) {
-				assert(endInstance_getCoordinate(_5EndInstance) == blockInstance_getStart(blockInstance));
-				assert(endInstance_getCoordinate(_3EndInstance) == blockInstance_getStart(blockInstance) + (blockInstance_getStrand(blockInstance) ? blockInstance_getLength(blockInstance) - 1 : -blockInstance_getLength(blockInstance) + 1));
+			assert(segment_getLength(segment) == block_getLength(block));
+			assert(segment_getStrand(segment) == cap_getStrand(_5Cap));
+			assert(segment_getStrand(segment) == cap_getStrand(_3Cap));
+			assert(cap_getSide(_5Cap));
+			assert(!cap_getSide(_3Cap));
+			if(segment_getStart(segment) != INT32_MAX) {
+				assert(cap_getCoordinate(_5Cap) == segment_getStart(segment));
+				assert(cap_getCoordinate(_3Cap) == segment_getStart(segment) + (segment_getStrand(segment) ? segment_getLength(segment) - 1 : -segment_getLength(segment) + 1));
 			}
 		}
 	}

@@ -33,13 +33,13 @@ void writeCactusGraph(char *name, struct PinchGraph *pinchGraph,
 	fclose(fileHandle);
 }
 
-char *segment_getString(struct Segment *segment, Net *net) {
-	Sequence *sequence = net_getSequence(net, segment->contig);
-	if(segment->start >= 1) {
-		return sequence_getString(sequence, segment->start, segment->end - segment->start + 1, 1);
+char *piece_getString(struct Piece *piece, Net *net) {
+	Sequence *sequence = net_getSequence(net, piece->contig);
+	if(piece->start >= 1) {
+		return sequence_getString(sequence, piece->start, piece->end - piece->start + 1, 1);
 	}
 	else {
-		return sequence_getString(sequence, -segment->end, segment->end - segment->start + 1, 0);
+		return sequence_getString(sequence, -piece->end, piece->end - piece->start + 1, 0);
 	}
 }
 
@@ -67,36 +67,36 @@ struct FilterAlignmentParameters {
 	Net *net;
 };
 
-void filterSegmentAndThenAddToGraph(struct PinchGraph *pinchGraph,
-		struct Segment *segment, struct Segment *segment2,
+void filterPieceAndThenAddToGraph(struct PinchGraph *pinchGraph,
+		struct Piece *piece, struct Piece *piece2,
 		struct hashtable *vertexAdjacencyComponents,
 		struct FilterAlignmentParameters *filterParameters) {
 	/*
 	 * Function is used to filter the alignments added to the graph to optionally exclude alignments to repeats and to trim the edges of matches
 	 * to avoid misalignments due to edge wander effects.
 	 */
-	assert(segment->end - segment->start == segment2->end - segment2->start);
-	if(segment->end - segment->start + 1 > 2 * filterParameters->trim) { //only add to graph if non trivial in length.
+	assert(piece->end - piece->start == piece2->end - piece2->start);
+	if(piece->end - piece->start + 1 > 2 * filterParameters->trim) { //only add to graph if non trivial in length.
 		//Do the trim.
-		segment->end -= filterParameters->trim;
-		segment->start += filterParameters->trim;
-		segment2->end -= filterParameters->trim;
-		segment2->start += filterParameters->trim;
-		assert(segment->end - segment->start == segment2->end - segment2->start);
-		assert(segment->end - segment->start >= 0);
+		piece->end -= filterParameters->trim;
+		piece->start += filterParameters->trim;
+		piece2->end -= filterParameters->trim;
+		piece2->start += filterParameters->trim;
+		assert(piece->end - piece->start == piece2->end - piece2->start);
+		assert(piece->end - piece->start >= 0);
 
 		//Now filter by repeat content.
 		if(!filterParameters->alignRepeats) {
-			char *string1 = segment_getString(segment, filterParameters->net);
-			char *string2 = segment_getString(segment2, filterParameters->net);
+			char *string1 = piece_getString(piece, filterParameters->net);
+			char *string2 = piece_getString(piece2, filterParameters->net);
 			if(!containsRepeatBases(string1) && !containsRepeatBases(string2)) {
-				pinchMergeSegment(pinchGraph, segment, segment2, vertexAdjacencyComponents);
+				pinchMergePiece(pinchGraph, piece, piece2, vertexAdjacencyComponents);
 			}
 			free(string1);
 			free(string2);
 		}
 		else {
-			pinchMergeSegment(pinchGraph, segment, segment2, vertexAdjacencyComponents);
+			pinchMergePiece(pinchGraph, piece, piece2, vertexAdjacencyComponents);
 		}
 	}
 }
@@ -227,7 +227,7 @@ int32_t cactusCorePipeline(Net *net,
 			logDebug("Alignment : %i , score %f\n", i++, pairwiseAlignment->score);
 			logPairwiseAlignment(pairwiseAlignment);
 			pinchMerge(pinchGraph, pairwiseAlignment,
-					(void (*)(struct PinchGraph *pinchGraph, struct Segment *, struct Segment *, struct hashtable *, void *))filterSegmentAndThenAddToGraph,
+					(void (*)(struct PinchGraph *pinchGraph, struct Piece *, struct Piece *, struct hashtable *, void *))filterPieceAndThenAddToGraph,
 					filterParameters, vertexAdjacencyComponents);
 			pairwiseAlignment = getNextAlignment();
 		}

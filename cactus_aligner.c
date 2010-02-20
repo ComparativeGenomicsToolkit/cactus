@@ -23,8 +23,8 @@ int main(int argc, char *argv[]) {
 	Net_EndIterator *endIterator;
 	End_InstanceIterator *instanceIterator;
 	End *end;
-	EndInstance *endInstance;
-	EndInstance *endInstance2;
+	Cap *cap;
+	Cap *cap2;
 	Sequence *sequence;
 	char *string;
 	FILE *fileHandle;
@@ -40,19 +40,19 @@ int main(int argc, char *argv[]) {
 	endIterator = net_getEndIterator(net);
 	while((end = net_getNextEnd(endIterator)) != NULL) {
 		instanceIterator = end_getInstanceIterator(end);
-		while((endInstance = end_getNext(instanceIterator)) != NULL) {
-			endInstance = endInstance_getStrand(endInstance) ? endInstance : endInstance_getReverse(endInstance);
-			endInstance2 = endInstance_getAdjacency(endInstance);
-			assert(endInstance2 != NULL);
-			assert(endInstance_getStrand(endInstance2));
+		while((cap = end_getNext(instanceIterator)) != NULL) {
+			cap = cap_getStrand(cap) ? cap : cap_getReverse(cap);
+			cap2 = cap_getAdjacency(cap);
+			assert(cap2 != NULL);
+			assert(cap_getStrand(cap2));
 
-			if(!endInstance_getSide(endInstance)) {
-				assert(endInstance_getSide(endInstance2));
-				assert(endInstance_getCoordinate(endInstance2)-endInstance_getCoordinate(endInstance)-1 >= 0);
-				sequence = endInstance_getSequence(endInstance);
+			if(!cap_getSide(cap)) {
+				assert(cap_getSide(cap2));
+				assert(cap_getCoordinate(cap2)-cap_getCoordinate(cap)-1 >= 0);
+				sequence = cap_getSequence(cap);
 				assert(sequence != NULL);
-				string = sequence_getString(sequence, endInstance_getCoordinate(endInstance)+1, endInstance_getCoordinate(endInstance2)-endInstance_getCoordinate(endInstance)-1, TRUE);
-				fprintf(fileHandle, ">%s|1|%i\n%s\n", netMisc_nameToStringStatic(sequence_getName(sequence)), endInstance_getCoordinate(endInstance)+1, string);
+				string = sequence_getString(sequence, cap_getCoordinate(cap)+1, cap_getCoordinate(cap2)-cap_getCoordinate(cap)-1, TRUE);
+				fprintf(fileHandle, ">%s|1|%i\n%s\n", netMisc_nameToStringStatic(sequence_getName(sequence)), cap_getCoordinate(cap)+1, string);
 				free(string);
 			}
 		}

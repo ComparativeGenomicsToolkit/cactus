@@ -39,8 +39,8 @@ void fn(const char *fastaHeader, const char *string, int32_t length) {
 	 */
 	End *end1;
 	End *end2;
-	EndInstance *endInstance1;
-	EndInstance *endInstance2;
+	Cap *cap1;
+	Cap *cap2;
 	MetaSequence *metaSequence;
 	Sequence *sequence;
 
@@ -50,9 +50,9 @@ void fn(const char *fastaHeader, const char *string, int32_t length) {
 	sequence = sequence_construct(metaSequence, net);
 	end1 = end_construct(1, net);
 	end2 = end_construct(1, net);
-	endInstance1 = endInstance_construct2(end1, 1, 1, 0, sequence);
-	endInstance2 = endInstance_construct2(end2, length+2, 1, 1, sequence);
-	endInstance_makeAdjacent1(endInstance1, endInstance2);
+	cap1 = cap_construct2(end1, 1, 1, 0, sequence);
+	cap2 = cap_construct2(end2, length+2, 1, 1, sequence);
+	cap_makeAdjacent1(cap1, cap2);
 	totalSequenceNumber++;
 }
 
@@ -61,9 +61,9 @@ int main(int argc, char *argv[]) {
 	 * Open the database.
 	 * Construct a net.
 	 * Construct an event tree representing the species tree.
-	 * For each sequence contruct two ends each containing an end instance.
+	 * For each sequence contruct two ends each containing an cap.
 	 * Make a file for the sequence.
-	 * Link the two end instances.
+	 * Link the two caps.
 	 * Finish!
 	 */
 

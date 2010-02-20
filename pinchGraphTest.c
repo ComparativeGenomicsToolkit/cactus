@@ -88,16 +88,16 @@ void checkPinchGraph(struct PinchGraph *graph) {
 				assert(edge->rEdge->to == edge->from);
 				assert(edge->rEdge->from == edge->to);
 				//check edge okay coordiates.
-				assert(edge->segment->start <= edge->segment->end);
-				//check reverse segment
-				assert(edge->segment->rSegment->start == -edge->segment->end);
-				assert(edge->segment->rSegment->end == -edge->segment->start);
-				//check reverse edge segment is reverse segment
-				assert(edge->rEdge->segment == edge->segment->rSegment);
+				assert(edge->piece->start <= edge->piece->end);
+				//check reverse piece
+				assert(edge->piece->rPiece->start == -edge->piece->end);
+				assert(edge->piece->rPiece->end == -edge->piece->start);
+				//check reverse edge piece is reverse piece
+				assert(edge->rEdge->piece == edge->piece->rPiece);
 
 				//check the edge is in the edges tree.
-				assert(edge == getContainingBlackEdge(graph, edge->segment->contig, edge->segment->start));
-				assert(edge == getContainingBlackEdge(graph, edge->segment->contig, edge->segment->end));
+				assert(edge == getContainingBlackEdge(graph, edge->piece->contig, edge->piece->start));
+				assert(edge == getContainingBlackEdge(graph, edge->piece->contig, edge->piece->end));
 
 				//check its stub/cap-eyness.
 				if(isAStubOrCap(edge)) { //is a cap and must have one end pointing at the source or free
@@ -130,7 +130,7 @@ void checkPinchGraph(struct PinchGraph *graph) {
 			edge = getNextBlackEdge(vertex, blackEdgeIterator);
 			while((edge2 = getNextBlackEdge(vertex, blackEdgeIterator)) != NULL) {
 				//check edges have the same length.
-				assert(edge->segment->end - edge->segment->start == edge2->segment->end - edge2->segment->start);
+				assert(edge->piece->end - edge->piece->start == edge2->piece->end - edge2->piece->start);
 				//check they point at the same vertex.
 				assert(edge->to == edge2->to);
 			}

@@ -20,7 +20,7 @@ typedef struct _chainAlignment {
 	 * Structure to represent a concatenated list of blocks as a single 2d alignment.
 	 */
 	//Matrix of alignment, matrix[column][row]
-	BlockInstance ***matrix; //NULL values are okay, where an instance of an block is missing from an instance of the chain.
+	Segment ***matrix; //NULL values are okay, where an instance of an block is missing from an instance of the chain.
 	Block **blocks; //this list of blocks, in order.
 	int32_t columnNumber; //the number of blocks.
 	int32_t rowNumber; //the number of rows of the alignment, each row containing an instance of blocks in the chain.
@@ -34,7 +34,7 @@ char **chainAlignment_getAlignment(ChainAlignment *chainAlignment) {
 	 */
 	char **alignment;
 	int32_t i, j, k, l;
-	BlockInstance *blockInstance;
+	Segment *segment;
 	char *cA;
 
 	//alloc the memory for the char alignment.
@@ -49,15 +49,15 @@ char **chainAlignment_getAlignment(ChainAlignment *chainAlignment) {
 	for(j=0; j<chainAlignment->rowNumber; j++) {
 		l = 0;
 		for(i=0; i<chainAlignment->columnNumber; i++) {
-			blockInstance = chainAlignment->matrix[i][j];
-			if(blockInstance == NULL) {
+			segment = chainAlignment->matrix[i][j];
+			if(segment == NULL) {
 				for(k=0; k<block_getLength(chainAlignment->blocks[i]); k++) {
 					alignment[j][l++]  = 'N';
 				}
 			}
 			else {
-				cA = blockInstance_getString(blockInstance);
-				for(k=0; k<blockInstance_getLength(blockInstance); k++) {
+				cA = segment_getString(segment);
+				for(k=0; k<segment_getLength(segment); k++) {
 					alignment[j][l++] = cA[k];
 				}
 				free(cA);
@@ -70,11 +70,11 @@ char **chainAlignment_getAlignment(ChainAlignment *chainAlignment) {
 	return alignment;
 }
 
-BlockInstance *chainAlignment_getFirstNonNullBlockInstance(ChainAlignment *chainAlignment, int32_t row, bool increasing) {
+Segment *chainAlignment_getFirstNonNullSegment(ChainAlignment *chainAlignment, int32_t row, bool increasing) {
 	/*
 	 * Gets the first instance on an row in the chain alignment which is non null. If increasing is false, gets the last.
 	 */
-	BlockInstance *blockInstance;
+	Segment *segment;
 	int32_t j = 0, k = chainAlignment->columnNumber, l = 1;
 	if(!increasing) {
 		j = chainAlignment->columnNumber-1;
@@ -82,9 +82,9 @@ BlockInstance *chainAlignment_getFirstNonNullBlockInstance(ChainAlignment *chain
 		l = -1;
 	}
 	for(; j!=k; j += l) {
-		blockInstance = chainAlignment->matrix[j][row];
-		if(blockInstance != NULL) {
-			return blockInstance;
+		segment = chainAlignment->matrix[j][row];
+		if(segment != NULL) {
+			return segment;
 		}
 	}
 	assert(0);
@@ -97,12 +97,12 @@ Name *chainAlignment_getEndNames(ChainAlignment *chainAlignment, bool _5End) {
 	 */
 	Name *names;
 	int32_t i;
-	BlockInstance *blockInstance;
+	Segment *segment;
 
 	names = malloc(sizeof(Name) * chainAlignment->rowNumber);
 	for(i=0; i<chainAlignment->rowNumber; i++) {
-		blockInstance = chainAlignment_getFirstNonNullBlockInstance(chainAlignment, i, _5End);
-		names[i] = end_getName(endInstance_getEnd(endInstance_getAdjacency(_5End ? blockInstance_get5End(blockInstance) : blockInstance_get3End(blockInstance))));
+		segment = chainAlignment_getFirstNonNullSegment(chainAlignment, i, _5End);
+		names[i] = end_getName(cap_getEnd(cap_getAdjacency(_5End ? segment_get5Cap(segment) : segment_get3Cap(segment))));
 	}
 	return names;
 }
@@ -113,12 +113,12 @@ Name *chainAlignment_getLeafEventNames(ChainAlignment *chainAlignment) {
 	 */
 	Name *names;
 	int32_t i;
-	BlockInstance *blockInstance;
+	Segment *segment;
 
 	names = malloc(sizeof(Name) * chainAlignment->rowNumber);
 	for(i=0; i<chainAlignment->rowNumber; i++) {
-		blockInstance = chainAlignment_getFirstNonNullBlockInstance(chainAlignment, i, 1);
-		names[i] = event_getName(blockInstance_getEvent(blockInstance));
+		segment = chainAlignment_getFirstNonNullSegment(chainAlignment, i, 1);
+		names[i] = event_getName(segment_getEvent(segment));
 	}
 	return names;
 }
@@ -381,15 +381,15 @@ Event *augmentEventTree(struct BinaryTree *augmentedEventTree,
 }
 
 
-BlockInstance *buildChainTrees3P(Block *block, BlockInstance **blockInstances, int32_t blockNumber,
+Segment *buildChainTrees3P(Block *block, Segment **segments, int32_t blockNumber,
 		struct BinaryTree *binaryTree, struct hashtable *newEventNameMap) {
 	/*
 	 * Recursive partner to buildChainTree3 function, recurses on the binary tree constructing the block tree.
-	 * The labels of the leaves are indexes into the block instances array, the internal node's labels are events in the event tree.
+	 * The labels of the leaves are indexes into the segments array, the internal node's labels are events in the event tree.
 	 */
 	if(binaryTree->internal) { //deal with an internal node of the block tree.
-		BlockInstance *leftInstance = buildChainTrees3P(block, blockInstances, blockNumber, binaryTree->left, newEventNameMap);
-		BlockInstance *rightInstance = buildChainTrees3P(block, blockInstances, blockNumber, binaryTree->right, newEventNameMap);
+		Segment *leftInstance = buildChainTrees3P(block, segments, blockNumber, binaryTree->left, newEventNameMap);
+		Segment *rightInstance = buildChainTrees3P(block, segments, blockNumber, binaryTree->right, newEventNameMap);
 		if(leftInstance != NULL) {
 			if(rightInstance != NULL) {
 
@@ -408,48 +408,48 @@ BlockInstance *buildChainTrees3P(Block *block, BlockInstance **blockInstances, i
 
 				assert(event != NULL); //check event is present in the event tree.
 				//Check that this does not create a cycle with respect to the event tree.
-				assert(event_isAncestor(blockInstance_getEvent(leftInstance), event));
-				assert(event_isAncestor(blockInstance_getEvent(rightInstance), event));
+				assert(event_isAncestor(segment_getEvent(leftInstance), event));
+				assert(event_isAncestor(segment_getEvent(rightInstance), event));
 
-				BlockInstance *blockInstance = blockInstance_construct(block, event);
-				blockInstance_makeParentAndChild(blockInstance, leftInstance);
-				blockInstance_makeParentAndChild(blockInstance, rightInstance);
-				return blockInstance;
+				Segment *segment = segment_construct(block, event);
+				segment_makeParentAndChild(segment, leftInstance);
+				segment_makeParentAndChild(segment, rightInstance);
+				return segment;
 			}
 			return leftInstance;
 		}
 		return rightInstance;
 	}
-	else { //a leaf, so find the leaf instance in the list of block instances (this may be null if missing data).
+	else { //a leaf, so find the leaf instance in the list of segments (this may be null if missing data).
 		int32_t i;
 		assert(sscanf(binaryTree->label, "%i", &i) == 1);
 		assert(i < blockNumber);
 		assert(i >= 0);
-		return blockInstances[i];
+		return segments[i];
 	}
 }
 
-void buildChainTrees3(Block *block, BlockInstance **blockInstances, int32_t blockNumber, struct BinaryTree *binaryTree, struct hashtable *newEventNameMap) {
+void buildChainTrees3(Block *block, Segment **segments, int32_t blockNumber, struct BinaryTree *binaryTree, struct hashtable *newEventNameMap) {
 	/*
 	 * Constructs an block tree for the block.
 	 */
-	BlockInstance *mostAncestralEvent = buildChainTrees3P(block, blockInstances, blockNumber, binaryTree, newEventNameMap);
+	Segment *mostAncestralEvent = buildChainTrees3P(block, segments, blockNumber, binaryTree, newEventNameMap);
 	assert(block_getInstanceNumber(block) > 0);
 	assert(mostAncestralEvent != NULL);
 	//Make a root event.
 	Event *rootEvent = eventTree_getRootEvent(net_getEventTree(block_getNet(block)));
-	BlockInstance *rootBlockInstance = blockInstance_construct(block, rootEvent);
-	assert(event_isAncestor(blockInstance_getEvent(mostAncestralEvent), rootEvent));
-	blockInstance_makeParentAndChild(rootBlockInstance, mostAncestralEvent);
-	block_setRootInstance(block, rootBlockInstance);
+	Segment *rootSegment = segment_construct(block, rootEvent);
+	assert(event_isAncestor(segment_getEvent(mostAncestralEvent), rootEvent));
+	segment_makeParentAndChild(rootSegment, mostAncestralEvent);
+	block_setRootInstance(block, rootSegment);
 
 #ifdef BEN_DEBUG //Now go through all events checking they have a parent.
 	Block_InstanceIterator *instanceIterator = block_getInstanceIterator(block);
-	BlockInstance *blockInstance;
-	while((blockInstance = block_getNext(instanceIterator)) != NULL) {
-		BlockInstance *parent = blockInstance_getParent(blockInstance);
+	Segment *segment;
+	while((segment = block_getNext(instanceIterator)) != NULL) {
+		Segment *parent = segment_getParent(segment);
 		if(parent == NULL) {
-			assert(blockInstance == rootBlockInstance);
+			assert(segment == rootSegment);
 		}
 	}
 	block_destructInstanceIterator(instanceIterator);
@@ -606,9 +606,9 @@ ChainAlignment *chainAlignment_construct(Block **blocks, int32_t blocksLength) {
 	 */
 	int32_t i, j, k;
 	Block *block;
-	BlockInstance *blockInstance;
-	BlockInstance *blockInstance2;
-	EndInstance *endInstance;
+	Segment *segment;
+	Segment *segment2;
+	Cap *cap;
 	ChainAlignment *chainAlignment;
 	struct hashtable *hash;
 	struct List *list;
@@ -617,7 +617,7 @@ ChainAlignment *chainAlignment_construct(Block **blocks, int32_t blocksLength) {
 	avl_destroy(avlTable, NULL);
 
 	/*
-	 * First iterate through all the block instances in the chain, in order, to construct instances of the chain.
+	 * First iterate through all the segments in the chain, in order, to construct instances of the chain.
 	 */
 	hash = create_hashtable(1, hashtable_key, hashtable_equalKey, NULL, NULL); //to keep track of the instances included in a chain.
 	list = constructEmptyList(0, (void (*)(void *))destructList); //the list of chain instances.
@@ -626,10 +626,10 @@ ChainAlignment *chainAlignment_construct(Block **blocks, int32_t blocksLength) {
 	for(i=0; i<blocksLength; i++) {
 		block = blocks[i];
 		Block_InstanceIterator *instanceIterator = block_getInstanceIterator(block);
-		while((blockInstance = block_getNext(instanceIterator)) != NULL) {
+		while((segment = block_getNext(instanceIterator)) != NULL) {
 			k++;
-			assert(blockInstance_getOrientation(blockInstance));
-			if(hashtable_search(hash, blockInstance) == NULL) { //not yet in a chain instance
+			assert(segment_getOrientation(segment));
+			if(hashtable_search(hash, segment) == NULL) { //not yet in a chain instance
 				list2 = constructEmptyList(blocksLength, NULL);
 				for(j=0; j<blocksLength; j++) { //this list will contain one instance for each block, or NULL, of missing.
 					list2->list[j] = NULL;
@@ -637,24 +637,24 @@ ChainAlignment *chainAlignment_construct(Block **blocks, int32_t blocksLength) {
 				listAppend(list, list2);
 				j = i; //start from the block we're up to.
 				while(1) {
-					assert(blockInstance_getOrientation(blockInstance));
-					hashtable_insert(hash, blockInstance, blockInstance); //put in the hash to say we've seen it.
-					list2->list[j++] = blockInstance; //put in the list of chains list.
+					assert(segment_getOrientation(segment));
+					hashtable_insert(hash, segment, segment); //put in the hash to say we've seen it.
+					list2->list[j++] = segment; //put in the list of chains list.
 					if(j == blocksLength) { //end of chain
 						break;
 					}
-					endInstance = endInstance_getAdjacency(blockInstance_get3End(blockInstance));
-					assert(!end_isCap(endInstance_getEnd(endInstance))); //can not be a cap.
-					if(end_isStub(endInstance_getEnd(endInstance))) { //terminates with missing information.
+					cap = cap_getAdjacency(segment_get3Cap(segment));
+					assert(!end_isCap(cap_getEnd(cap))); //can not be a cap.
+					if(end_isStub(cap_getEnd(cap))) { //terminates with missing information.
 						break;
 					}
-					blockInstance2 = endInstance_getBlockInstance(endInstance);
-					assert(blockInstance != NULL); //must be connected to an block instance (not a cap).
-					assert(blockInstance_getBlock(blockInstance2) == blocks[j] || blockInstance_getBlock(blockInstance2) == block_getReverse(blocks[j-1])); //must be connected to reverse of itself or the next block
-					if(blockInstance_getBlock(blockInstance2) != blocks[j]) {
+					segment2 = cap_getSegment(cap);
+					assert(segment != NULL); //must be connected to an segment (not a cap).
+					assert(segment_getBlock(segment2) == blocks[j] || segment_getBlock(segment2) == block_getReverse(blocks[j-1])); //must be connected to reverse of itself or the next block
+					if(segment_getBlock(segment2) != blocks[j]) {
 						break;
 					}
-					blockInstance = blockInstance2;
+					segment = segment2;
 				}
 			}
 			else {
@@ -672,9 +672,9 @@ ChainAlignment *chainAlignment_construct(Block **blocks, int32_t blocksLength) {
 
 	//alloc the chain alignment and the matrix of instances.
 	chainAlignment = malloc(sizeof(ChainAlignment));
-	chainAlignment->matrix = malloc(sizeof(BlockInstance **) * blocksLength);
+	chainAlignment->matrix = malloc(sizeof(Segment **) * blocksLength);
 	for(i=0; i<blocksLength; i++) {
-		chainAlignment->matrix[i] = malloc(sizeof(BlockInstance *) * list->length);
+		chainAlignment->matrix[i] = malloc(sizeof(Segment *) * list->length);
 	}
 	//fill out the fields of the chain alignment, including the matrix.
 	chainAlignment->columnNumber = blocksLength;
@@ -784,9 +784,9 @@ int main(int argc, char *argv[]) {
 	Net *net2;
 	End *end;
 	End *end2;
-	EndInstance *endInstance;
-	EndInstance *endInstance2;
-	EndInstance *endInstance3;
+	Cap *cap;
+	Cap *cap2;
+	Cap *cap3;
 	Event *event;
 	Net_EndIterator *endIterator;
 
@@ -897,10 +897,10 @@ int main(int argc, char *argv[]) {
 				if(end_isStub(end)) {
 					assert(end_getInstanceNumber(end) == 1);
 					Event *rootEvent = eventTree_getRootEvent(net_getEventTree(net));
-					EndInstance *rootEndInstance = endInstance_construct(end, rootEvent);
-					assert(event_isAncestor(endInstance_getEvent(end_getFirst(end)), rootEvent));
-					endInstance_makeParentAndChild(rootEndInstance, end_getFirst(end));
-					end_setRootInstance(end, rootEndInstance);
+					Cap *rootCap = cap_construct(end, rootEvent);
+					assert(event_isAncestor(cap_getEvent(end_getFirst(end)), rootEvent));
+					cap_makeParentAndChild(rootCap, end_getFirst(end));
+					end_setRootInstance(end, rootCap);
 				}
 				else {
 					assert(!end_isCap(end));
@@ -992,39 +992,39 @@ int main(int argc, char *argv[]) {
 				while((end = group_getNextEnd(endIterator)) != NULL) {
 					end2 = net_getEnd(net2, end_getName(end));
 					assert(end2 != NULL);
-					//copy the end instances.
+					//copy the caps.
 					End_InstanceIterator *instanceIterator = end_getInstanceIterator(end);
-					while((endInstance = end_getNext(instanceIterator)) != NULL) {
-						if(end_getInstance(end2, endInstance_getName(endInstance)) == NULL) {
-							assert(endInstance_getChildNumber(endInstance) > 0); //can not be a leaf
+					while((cap = end_getNext(instanceIterator)) != NULL) {
+						if(end_getInstance(end2, cap_getName(cap)) == NULL) {
+							assert(cap_getChildNumber(cap) > 0); //can not be a leaf
 							//make sure the augmented event is in there.
-							event = endInstance_getEvent(endInstance);
+							event = cap_getEvent(cap);
 							if(eventTree_getEvent(net_getEventTree(net2), event_getName(event)) == NULL) {
 								assert(event_getChildNumber(event) == 1); //must be a unary event
 								copyConstructUnaryEvent(event, net_getEventTree(net2));
 							}
 							event = eventTree_getEvent(net_getEventTree(net2), event_getName(event));
 							assert(event != NULL);
-							endInstance_copyConstruct(end2, endInstance);
+							cap_copyConstruct(end2, cap);
 						}
 					}
 					//now copy the parent links.
-					while((endInstance = end_getPrevious(instanceIterator)) != NULL) {
-						endInstance2 = end_getInstance(end2, endInstance_getName(endInstance));
-						assert(endInstance2 != NULL);
-						if(endInstance_getParent(endInstance) != NULL) {
-							endInstance3 = end_getInstance(end2, endInstance_getName(endInstance_getParent(endInstance)));
-							assert(endInstance3 != NULL);
-							endInstance_makeParentAndChild(
-									endInstance3,
-									endInstance2);
+					while((cap = end_getPrevious(instanceIterator)) != NULL) {
+						cap2 = end_getInstance(end2, cap_getName(cap));
+						assert(cap2 != NULL);
+						if(cap_getParent(cap) != NULL) {
+							cap3 = end_getInstance(end2, cap_getName(cap_getParent(cap)));
+							assert(cap3 != NULL);
+							cap_makeParentAndChild(
+									cap3,
+									cap2);
 						}
 						else {
 							assert(end_getRootInstance(end) != NULL);
-							assert(endInstance == end_getRootInstance(end));
+							assert(cap == end_getRootInstance(end));
 
 							assert(end_getRootInstance(end2) == NULL);
-							end_setRootInstance(end2, endInstance2);
+							end_setRootInstance(end2, cap2);
 						}
 					}
 					end_destructInstanceIterator(instanceIterator);

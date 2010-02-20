@@ -22,11 +22,11 @@
 ////////////////////////////////////////////////
 ////////////////////////////////////////////////
 
-struct PinchEdge *hookUpEdge(struct Segment *segment, struct PinchGraph *pinchGraph,
+struct PinchEdge *hookUpEdge(struct Piece *piece, struct PinchGraph *pinchGraph,
 		struct PinchVertex *vertex2, struct PinchVertex *vertex3) {
 	struct PinchEdge *edge;
 
-	edge = constructPinchEdge(segment);
+	edge = constructPinchEdge(piece);
 
 	//Connect up each end of the black edge.
 	edge->from = vertex2;
@@ -37,7 +37,7 @@ struct PinchEdge *hookUpEdge(struct Segment *segment, struct PinchGraph *pinchGr
 	edge->rEdge->from = vertex3;
 	insertBlackEdge(vertex3, edge->rEdge);
 
-	//Now add segments connected to edges to the graph.
+	//Now add pieces connected to edges to the graph.
 	avl_insert(pinchGraph->edges, edge);
 	avl_insert(pinchGraph->edges, edge->rEdge);
 
@@ -49,8 +49,8 @@ struct PinchGraph *constructPinchGraph(Net *net) {
 	Net_EndIterator *endIterator;
 	End_InstanceIterator *instanceIterator;
 	End *end;
-	EndInstance *endInstance;
-	EndInstance *endInstance2;
+	Cap *cap;
+	Cap *cap2;
 	Sequence *sequence;
 	struct PinchVertex *sourceVertex;
 	struct PinchVertex *pinchVertex;
@@ -93,40 +93,40 @@ struct PinchGraph *constructPinchGraph(Net *net) {
 	endIterator = net_getEndIterator(net);
 	while((end = net_getNextEnd(endIterator)) != NULL) {
 		instanceIterator = end_getInstanceIterator(end);
-		while((endInstance = end_getNext(instanceIterator)) != NULL) {
-			endInstance = endInstance_getStrand(endInstance) ? endInstance : endInstance_getReverse(endInstance);
-			endInstance2 = endInstance_getAdjacency(endInstance);
-			sequence = endInstance_getSequence(endInstance);
+		while((cap = end_getNext(instanceIterator)) != NULL) {
+			cap = cap_getStrand(cap) ? cap : cap_getReverse(cap);
+			cap2 = cap_getAdjacency(cap);
+			sequence = cap_getSequence(cap);
 
-			assert(endInstance2 != NULL);
-			assert(endInstance_getStrand(endInstance2));
-			assert(sequence == endInstance_getSequence(endInstance2));
+			assert(cap2 != NULL);
+			assert(cap_getStrand(cap2));
+			assert(sequence == cap_getSequence(cap2));
 
 			//if(length >= 0)  {
-			if(!endInstance_getSide(endInstance)) {
-				assert(endInstance_getSide(endInstance2));
+			if(!cap_getSide(cap)) {
+				assert(cap_getSide(cap2));
 
-				start = endInstance_getCoordinate(endInstance);
-				stop = endInstance_getCoordinate(endInstance2);
+				start = cap_getCoordinate(cap);
+				stop = cap_getCoordinate(cap2);
 				length = stop - start - 1;
 				assert(length >= 0);
 
 				//Make black edges for caps/stubs on left end
-				leftCapEdge = hookUpEdge(constructSegment(endInstance_getName(endInstance), start, start), graph,
-						hashtable_search(hash, (void *)netMisc_nameToStringStatic(end_getName(endInstance_getEnd(endInstance)))),
-						hashtable_search(hash2, (void *)netMisc_nameToStringStatic(end_getName(endInstance_getEnd(endInstance)))));
+				leftCapEdge = hookUpEdge(constructPiece(cap_getName(cap), start, start), graph,
+						hashtable_search(hash, (void *)netMisc_nameToStringStatic(end_getName(cap_getEnd(cap)))),
+						hashtable_search(hash2, (void *)netMisc_nameToStringStatic(end_getName(cap_getEnd(cap)))));
 
 
 				//Construct the middle sequence, if not zero length.
 				if(length > 0) {
-					edge = hookUpEdge(constructSegment(sequence_getName(sequence), start+1, stop - 1), graph,
+					edge = hookUpEdge(constructPiece(sequence_getName(sequence), start+1, stop - 1), graph,
 							constructPinchVertex(graph, -1, 0, 0), constructPinchVertex(graph, -1, 0, 0));
 				}
 
 				//Construct the right cap/stub
-				rightCapEdge = hookUpEdge(constructSegment(endInstance_getName(endInstance2), stop, stop), graph,
-						hashtable_search(hash2, (void *)netMisc_nameToStringStatic(end_getName(endInstance_getEnd(endInstance2)))),
-						hashtable_search(hash, (void *)netMisc_nameToStringStatic(end_getName(endInstance_getEnd(endInstance2)))));
+				rightCapEdge = hookUpEdge(constructPiece(cap_getName(cap2), stop, stop), graph,
+						hashtable_search(hash2, (void *)netMisc_nameToStringStatic(end_getName(cap_getEnd(cap2)))),
+						hashtable_search(hash, (void *)netMisc_nameToStringStatic(end_getName(cap_getEnd(cap2)))));
 
 				//Connect the edges
 				if(length > 0) {
@@ -186,13 +186,13 @@ Block *constructBlockFromCactusEdge(struct CactusEdge *edge, Net *net) {
 	int32_t i;
 	Block *block;
 	Sequence *sequence;
-	struct Segment *segment;
-	segment = edge->segments->list[0];
-	block = block_construct(segment->end - segment->start + 1, net);
-	for(i=0; i<edge->segments->length; i++) {
-		segment = edge->segments->list[i];
-		sequence = copySequence(net, segment->contig);
-		blockInstance_construct2(block, segment->start > 0 ? segment->start : -segment->end, segment->start > 0,
+	struct Piece *piece;
+	piece = edge->pieces->list[0];
+	block = block_construct(piece->end - piece->start + 1, net);
+	for(i=0; i<edge->pieces->length; i++) {
+		piece = edge->pieces->list[i];
+		sequence = copySequence(net, piece->contig);
+		segment_construct2(block, piece->start > 0 ? piece->start : -piece->end, piece->start > 0,
 				sequence);
 	}
 	return block;
@@ -249,7 +249,7 @@ struct List *addEnvelopedStubEnds(Net *net, int32_t addToNet) {
 }
 
 void addAdjacenciesToEnds(Net *net) {
-	netMisc_addAdjacenciesToLeafEndInstances(net);
+	netMisc_addAdjacenciesToLeafCaps(net);
 	Group_EndIterator *adjacencyIterator = net_getGroupIterator(net);
 	Group *group;
 	while((group = net_getNextGroup(adjacencyIterator)) != NULL) {
@@ -271,11 +271,11 @@ bool groupIsZeroLength(struct List *endNames, Net *net) {
 	for(i=0; i<endNames->length; i++) {
 		End *end = net_getEnd(net, netMisc_stringToName(endNames->list[i]));
 		End_InstanceIterator *iterator = end_getInstanceIterator(end);
-		EndInstance *endInstance;
-		while((endInstance = end_getNext(iterator)) != NULL) {
-			EndInstance *endInstance2 = endInstance_getAdjacency(endInstance);
-			assert(endInstance2 != NULL);
-			uint32_t j = abs(endInstance_getCoordinate(endInstance) - endInstance_getCoordinate(endInstance2));
+		Cap *cap;
+		while((cap = end_getNext(iterator)) != NULL) {
+			Cap *cap2 = cap_getAdjacency(cap);
+			assert(cap2 != NULL);
+			uint32_t j = abs(cap_getCoordinate(cap) - cap_getCoordinate(cap2));
 			assert(j != 0);
 			if(j > 1) {
 				return 0;
@@ -457,7 +457,7 @@ void fillOutNetFromInputs(
 	End *end2;
 	Block *block;
 	Net_EndIterator *endIterator;
-	EndInstance *endInstance;
+	Cap *cap;
 	Chain *chain;
 	Group *group;
 	struct CactusVertex *cactusVertex;
@@ -473,7 +473,7 @@ void fillOutNetFromInputs(
 	struct hashtable *chosenBlocksHash;
 	struct hashtable *endNamesHash;
 	struct PinchEdge *pinchEdge;
-	struct Segment *segment;
+	struct Piece *piece;
 
 	logDebug("Building the net\n");
 
@@ -514,8 +514,8 @@ void fillOutNetFromInputs(
 			 NULL, free);
 	endIterator = net_getEndIterator(parentNet);
 	while((end = net_getNextEnd(endIterator)) != NULL) {
-		endInstance = end_getFirst(end);
-		pinchEdge = getContainingBlackEdge(pinchGraph, endInstance_getName(endInstance), endInstance_getCoordinate(endInstance));
+		cap = end_getFirst(end);
+		pinchEdge = getContainingBlackEdge(pinchGraph, cap_getName(cap), cap_getCoordinate(cap));
 		assert(pinchEdge != NULL);
 		if(vertex_isEnd(pinchEdge->from)) {
 			assert(vertex_isDeadEnd(pinchEdge->to));
@@ -599,7 +599,7 @@ void fillOutNetFromInputs(
 			//Make the blocks and ends
 			for(j=0; j<biConnectedComponent->length; j++) {
 				cactusEdge = biConnectedComponent->list[j];
-				segment = cactusEdge->segments->list[0];
+				piece = cactusEdge->pieces->list[0];
 				if(!isAStubOrCapCactusEdge(cactusEdge, pinchGraph)) {
 					block = constructBlockFromCactusEdge(cactusEdge, net);
 					pinchEdge = cactusEdgeToFirstPinchEdge(cactusEdge, pinchGraph);
@@ -723,10 +723,10 @@ void copyEndTreePhylogenies(Net *parentNet, Net *net) {
 	 */
 	End *end1;
 	End *end2;
-	EndInstance *endInstance1;
-	EndInstance *endInstance2;
-	EndInstance *endInstance3;
-	EndInstance *endInstance4;
+	Cap *cap1;
+	Cap *cap2;
+	Cap *cap3;
+	Cap *cap4;
 	Net_EndIterator *endIterator;
 	End_InstanceIterator *instanceIterator;
 
@@ -735,17 +735,17 @@ void copyEndTreePhylogenies(Net *parentNet, Net *net) {
 		end2 = net_getEnd(parentNet, end_getName(end1));
 		assert(end2 != NULL);
 		instanceIterator = end_getInstanceIterator(end1);
-		while((endInstance1 = end_getNext(instanceIterator)) != NULL) {
-			assert(endInstance_getParent(endInstance1) == NULL);
-			endInstance2 = end_getInstance(end2, endInstance_getName(endInstance1));
-			assert(endInstance2 != NULL);
-			if((endInstance3 = endInstance_getParent(endInstance2)) != NULL) {
-				endInstance4 = end_getInstance(end1, endInstance_getName(endInstance3));
-				assert(endInstance4 != NULL);
-				endInstance_makeParentAndChild(endInstance4, endInstance1);
+		while((cap1 = end_getNext(instanceIterator)) != NULL) {
+			assert(cap_getParent(cap1) == NULL);
+			cap2 = end_getInstance(end2, cap_getName(cap1));
+			assert(cap2 != NULL);
+			if((cap3 = cap_getParent(cap2)) != NULL) {
+				cap4 = end_getInstance(end1, cap_getName(cap3));
+				assert(cap4 != NULL);
+				cap_makeParentAndChild(cap4, cap1);
 			}
 			else {
-				assert(end_getRootInstance(end2) == endInstance2);
+				assert(end_getRootInstance(end2) == cap2);
 			}
 		}
 		end_destructInstanceIterator(instanceIterator);

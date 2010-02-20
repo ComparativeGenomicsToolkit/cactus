@@ -57,7 +57,7 @@ void removeTrivialGreyEdge(struct PinchGraph *graph, struct PinchVertex *vertex1
 		assert(!isAStubOrCap(edge2));
 		assert(edge2->from == vertex2);
 
-		struct PinchEdge *edge3 = constructPinchEdge(constructSegment(edge1->segment->contig, edge1->segment->start, edge2->segment->end));
+		struct PinchEdge *edge3 = constructPinchEdge(constructPiece(edge1->piece->contig, edge1->piece->start, edge2->piece->end));
 		connectPinchEdge(edge3, edge1->from, edge2->to);
 
 		//Remove the old edges
@@ -179,7 +179,7 @@ void removeOverAlignedEdges_P(struct PinchVertex *vertex, int32_t extensionSteps
 		while((vertex2 = getNextGreyEdge(vertex, greyEdgeIterator)) != NULL) {
 			if(lengthBlackEdges(vertex2) > 0) {
 				struct PinchEdge *edge = getFirstBlackEdge(vertex2);
-				int32_t length = edge->segment->end - edge->segment->start + 1;
+				int32_t length = edge->piece->end - edge->piece->start + 1;
 				if(!isAStubOrCap(edge)) {
 					int32_t *i = hashtable_search(hash, vertex2);
 					vertex3 = edge->to;
@@ -494,7 +494,7 @@ float treeCoverage(struct PinchVertex *vertex, Net *net,
 	/*
 	 * Returns the proportion of the tree covered by the block.
 	 */
-	struct Segment *segment;
+	struct Piece *piece;
 	EventTree *eventTree;
 	Event *event;
 	Event *commonAncestorEvent;
@@ -511,8 +511,8 @@ float treeCoverage(struct PinchVertex *vertex, Net *net,
 	void *blackEdgeIterator = getBlackEdgeIterator(vertex);
 	struct PinchEdge *edge;
 	while((edge = getNextBlackEdge(vertex, blackEdgeIterator)) != NULL) {
-		segment = edge->segment;
-		event = sequence_getEvent(net_getSequence(net, segment->contig));
+		piece = edge->piece;
+		event = sequence_getEvent(net_getSequence(net, piece->contig));
 		commonAncestorEvent = commonAncestorEvent == NULL ? event : eventTree_getCommonAncestor(event, commonAncestorEvent);
 	}
 	destructBlackEdgeIterator(blackEdgeIterator);
@@ -525,8 +525,8 @@ float treeCoverage(struct PinchVertex *vertex, Net *net,
 
 	blackEdgeIterator = getBlackEdgeIterator(vertex);
 	while((edge = getNextBlackEdge(vertex, blackEdgeIterator)) != NULL) {
-		segment = edge->segment;
-		event = sequence_getEvent(net_getSequence(net, segment->contig));
+		piece = edge->piece;
+		event = sequence_getEvent(net_getSequence(net, piece->contig));
 		while(event != commonAncestorEvent && hashtable_search(hash, event) == NULL) {
 			treeCoverage += event_getBranchLength(event);
 			hashtable_insert(hash, event, event);
