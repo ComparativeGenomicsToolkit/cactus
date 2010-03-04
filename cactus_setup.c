@@ -180,7 +180,9 @@ int main(int argc, char *argv[]) {
 	//Construct the event tree
 	//////////////////////////////////////////////
 
+	logInfo("Going to build the event tree with newick string: %s\n", speciesTree);
 	binaryTree = newickTreeParser(speciesTree, 0.0, 0);
+	binaryTree->distance = INT32_MAX;
 	metaEvent = metaEvent_construct("ROOT", netDisk);
 	eventTree = eventTree_construct(metaEvent, net); //creates the event tree and the root even
 	totalEventNumber=1;
@@ -238,7 +240,10 @@ int main(int argc, char *argv[]) {
 			j++;
 		}
 	}
-	logInfo("Constructed the initial net with %i sequences and %i events\n", totalSequenceNumber, totalEventNumber);
+	char *eventTreeString = eventTree_makeNewickString(eventTree);
+	logInfo("Constructed the initial net with %i sequences and %i events with string: %s\n", totalSequenceNumber, totalEventNumber, eventTreeString);
+	free(eventTreeString);
+	//assert(0);
 
 	//////////////////////////////////////////////
 	//Construct the terminal group.

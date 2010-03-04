@@ -93,52 +93,6 @@ void tabulateStats(struct IntList *unsortedValues, double *totalNumber, double *
 	destructIntList(unsortedValues);
 }
 
-void largestChildStatsP(Net *net, struct List *childProportions) {
-	Net_GroupIterator *groupIterator;
-	Group *group;
-	double problemSize = net_getTotalBaseLength(net);
-
-	int32_t internalNode = 0;
-	groupIterator = net_getGroupIterator(net);
-	while((group = net_getNextGroup(groupIterator)) != NULL) {
-		if(group_getNestedNet(group) != NULL) {
-			internalNode = 1;
-		}
-	}
-	net_destructGroupIterator(groupIterator);
-
-	if(internalNode) {
-		double childProportion = -10.0;
-		double cumProp = 0.0;
-		groupIterator = net_getGroupIterator(net);
-		while((group = net_getNextGroup(groupIterator)) != NULL) {
-			if(group_getNestedNet(group) != NULL) {
-				largestChildStatsP(group_getNestedNet(group), childProportions);
-			}
-			double f = group_getTotalBaseLength(group);
-			assert(f >= 0.0);
-			assert(f/problemSize <= 1.001);
-			if(f/problemSize > childProportion) {
-				childProportion = f/problemSize;
-			}
-			cumProp += f/problemSize;
-		}
-		net_destructGroupIterator(groupIterator);
-		assert(childProportion != -10.0);
-		assert(cumProp <= 1.001);
-		listAppend(childProportions, constructFloat(childProportion));
-	}
-}
-
-void largestChildStats(Net *net,
-		struct List **childProportions,
-		double *minProportion, double *maxProportion, double *avgProportion, double *medianProportion) {
-	*childProportions = constructEmptyList(0, (void (*)(void *))destructFloat);
-	largestChildStatsP(net, *childProportions);
-	double f;
-	tabulateFloatStats(*childProportions, &f, minProportion, maxProportion, avgProportion, medianProportion);
-}
-
 void netStatsP(Net *net, int32_t currentDepth, struct IntList *children, struct IntList *depths) {
 	Net_GroupIterator *groupIterator = net_getGroupIterator(net);
 	Group *group;
@@ -373,8 +327,13 @@ void nonTrivialGroupStats(Net *net,
 	*nonTrivialGroupCounts = constructEmptyIntList(0);
 	nonTrivialGroupStatsP(net, *nonTrivialGroupCounts);
 	double f;
+	*totalNonTrivialGroups = 0;
+	int32_t i;
+	for(i=0; i<(*nonTrivialGroupCounts)->length; i++) {
+		*totalNonTrivialGroups += (*nonTrivialGroupCounts)->list[i];
+	}
 	tabulateStats(*nonTrivialGroupCounts,
-			totalNonTrivialGroups, &f, maxNonTrivialGroups,
+			&f, &f, maxNonTrivialGroups,
 			avgNonTrivialGroups, medianNonTrivialGroups);
 }
 
@@ -518,21 +477,6 @@ int main(int argc, char *argv[]) {
 	double normalisedRelativeEntropy = relativeEntropy / totalSeqSize;
 
 	fprintf(fileHandle, "<relative_entropy_stats totalP=\"%f\" totalQ=\"%f\" relative_entropy=\"%f\" normalised_relative_entropy=\"%f\"/>", totalP, totalQ, relativeEntropy, normalisedRelativeEntropy);
-
-	/*
-	 * Largest child stats - another tree balance stat. The idea is to supplant the more complex relative entropy function with a simple stat, that provides a cross check.
-	 * The largest child is the proportion of the sequence the parent covers contained in a single child. min, max, avg and median numbers are given.
-	 */
-	double minProportion;
-	double maxProportion;
-	double avgProportion;
-	double medianProportion;
-	struct List *childProportions;
-	largestChildStats(net, &childProportions, &minProportion, &maxProportion, &avgProportion, &medianProportion);
-	fprintf(fileHandle, "<largest_child min_proportion=\"%f\" max_proportion=\"%f\" avg_proportion=\"%f\" median_proportion=\"%f\">", minProportion, maxProportion, avgProportion, medianProportion);
-	printFloatValues(childProportions, "child_proportions", fileHandle);
-	fprintf(fileHandle, "</largest_child>");
-	destructList(childProportions);
 
 	/*
 	 * Numbers on the structure of the tree. Children numbers are based on the numbers of children each internal node in the cactus tree has.
