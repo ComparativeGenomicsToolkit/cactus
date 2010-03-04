@@ -29,6 +29,7 @@ from cactus.cactus_common import runCactusSetup
 from cactus.cactus_common import runCactusCore
 from cactus.cactus_common import runCactusGetNets
 from cactus.cactus_common import runCactusPhylogeny
+from cactus.cactus_common import runCactusAdjacencies
 from cactus.cactus_common import runCactusBaseAligner
 
 from cactus.cactus_aligner import MakeSequences
@@ -38,6 +39,8 @@ from cactus.cactus_batch import makeUpperMiddleLevelBlastOptions
 from cactus.cactus_batch import makeMiddleLevelBlastOptions
 from cactus.cactus_batch import makeLowLevelBlastOptions
 from cactus.cactus_batch import makeBlastFromOptions
+
+IDEAL_JOB_RUNTIME = 200
 
 ############################################################
 ############################################################
@@ -95,7 +98,7 @@ class AlignmentPhase(Target):
         #Setup call to cactus aligner wrapper as child
         #Calculate the size of the child.
         self.addChildTarget(CactusCoreWrapper2(self.options, '0', None, -1))
-        self.setFollowOnTarget(PhylogenyPhase('0', None, self.options))
+        self.setFollowOnTarget(HistoryPhase('0', None, self.options))
 
 #Each level around 30x larger than the last
 BASE_LEVEL_SIZE = 2000 #30000
@@ -235,7 +238,7 @@ class CactusCoreWrapper2(Target):
             nextIteration = getIteration(self.iteration+1, childNetSize)
             if nextIteration == 4:
                 baseLevelNets.append(childNetName)
-                if len(baseLevelNets) > 200:
+                if timeParameters[4]*len(baseLevelNets) > IDEAL_JOB_RUNTIME:
                     self.addChildTarget(CactusBaseLevelAlignerWrapper(self.options, baseLevelNets))
                     baseLevelNets = []
             else: #Does not do any refinement if the net is completely specified.
@@ -259,14 +262,14 @@ class CactusBaseLevelAlignerWrapper(Target):
 ############################################################
 ############################################################
 ############################################################
-#The tree phase.
+#The history building phase
 #
-#Adds trees to the reconstruction datastructure.
+#Adds trees and adjacencies to the AVG component of the datastructure.
 ############################################################
 ############################################################
 ############################################################
 
-class PhylogenyPhase(Target):
+class HistoryPhase(Target):
     def __init__(self, netName, netSize, options):
         Target.__init__(self, time=0)
         self.netName = netName
@@ -276,23 +279,36 @@ class PhylogenyPhase(Target):
     def run(self, localTempDir, globalTempDir):
         logger.info("Starting the down pass target")
         if self.options.buildTrees:
-            childTarget = CactusPhylogenyWrapper(self.options, self.netName, self.netSize)
+            childTarget = CactusHistoryWrapper(self.options, [ self.netName ], self.netSize)
             self.addChildTarget(childTarget)
 
-class CactusPhylogenyWrapper(Target):
-    def __init__(self, job, options, netName, netSize):
-        Target.__init__(self, time=timeParameters[getIteration(0, netSize)])
+class CactusHistoryWrapper(Target):
+    def __init__(self, options, netNames, cummulativeNetSize):
+        Target.__init__(self, time=timeParameters[getIteration(0, cummulativeNetSize)])
         self.options = options
-        self.netName = netName
+        self.netNames = netNames
     
     def run(self, localTempDir, globalTempDir):
         #Run cactus phylogeny
-        runCactusPhylogeny(self.options.netDisk, tempDir=localTempDir, netNames=[ self.netName ])
+        if self.options.buildTrees:
+            runCactusPhylogeny(self.options.netDisk, tempDir=localTempDir, netNames=self.netNames)
+        if self.options.buildAdjacencies:
+            runCactusAdjacencies(self.options.netDisk, tempDir=localTempDir, netNames=self.netNames)
         #Make child jobs
-        for childNetName, childNetSize in runCactusGetNets(self.options.netDisk, self.netName, localTempDir, includeInternalNodes=True, 
-                                                           recursive=False, extendNonZeroTrivialGroups=False):
-            if childNetName != self.netName: #Avoids running again for leaf without children
-                self.addChildTarget(CactusPhylogenyWrapper(self.options, childNetName, childNetSize))
+        childNetNames = []
+        cummulativeNetSize = 0
+        for netName in self.netNames:
+            for childNetName, childNetSize in runCactusGetNets(self.options.netDisk, netName, localTempDir, includeInternalNodes=True, 
+                                                               recursive=False, extendNonZeroTrivialGroups=False):
+                if childNetName != netName: #Avoids running again for leaf without children
+                    childNetNames.append(childNetName)
+                    cummulativeNetSize += 1 #childNetSize
+                    if timeParameters[getIteration(0, cummulativeNetSize)] > IDEAL_JOB_RUNTIME:
+                        self.addChildTarget(CactusHistoryWrapper(self.options, childNetNames, cummulativeNetSize))
+                        childNetNames = []
+                        cummulativeNetSize = 0
+        if len(childNetNames) > 0:
+            self.addChildTarget(CactusHistoryWrapper(self.options, childNetNames, cummulativeNetSize))
       
 def main():
     ##########################################
@@ -308,18 +324,28 @@ def main():
     
     parser.add_option("--netDisk", dest="netDisk", help="The location of the net disk.") 
     
+    parser.add_option("--maxIteraton", dest="maxIteration", help="The maximum iteration to align to (0-4)..", 
+                      default="4")
+    
+    parser.add_option("--setupAndBuildAlignments", dest="setupAndBuildAlignments", action="store_true",
+                      help="Setup and build alignments", default=False)
+    
     parser.add_option("--buildTrees", dest="buildTrees", action="store_true",
                       help="Build trees", default=False) 
     
-    parser.add_option("--maxIteraton", dest="maxIteration", help="The maximum iteration to align to (0-4)..", 
-                      default="4")
+    parser.add_option("--buildAdjacencies", dest="buildAdjacencies", action="store_true",
+                      help="Build adjacencies", default=False) 
     
     options, args = parseBasicOptions(parser)
 
     logger.info("Parsed arguments")
     
-    setupPhase = SetupPhase(options, args)
-    setupPhase.execute(options.jobFile)
+    if options.setupAndBuildAlignments:
+        baseTarget = SetupPhase(options, args)
+    elif options.buildTrees or options.buildAdjacencies:
+        baseTarget = HistoryPhase('0', None, options)
+        
+    baseTarget.execute(options.jobFile)
     
     logger.info("Done with first target")
 

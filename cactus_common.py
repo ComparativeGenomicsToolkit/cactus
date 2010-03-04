@@ -210,16 +210,8 @@ def runCactusPhylogeny(netDisk, tempDir,
     system(command)
     logger.info("Ran cactus_phylogeny okay")
     
-def runCactusAdjacencyBuilder(reconstructionRootDir, reconstructionProblem, tempDir, 
-                              uniqueNamePrefix=getRandomAlphaNumericString(),
-                              adjacencyProgram="cactus_adjacencyTestAdjacencyBuilder.py", logLevel="DEBUG"):
-    
-    command = "%s --absolutePathPrefix %s --reconstructionProblem %s --uniqueNamePrefix %s \
---tempDirRoot %s --logLevel %s" % (adjacencyProgram, reconstructionRootDir, reconstructionProblem, uniqueNamePrefix, 
-                                   tempDir, logLevel)
-    logger.info("Running command : %s" % command)
-    system(command)
-    logger.info("Adjacency builder ran okay")
+def runCactusAdjacencies(netDisk,  tempDir, netNames=[ "0" ], logLevel="DEBUG"):
+    command = ""
     
 def runCactusTreeViewer(graphFile,
                         netDisk, 
@@ -268,16 +260,27 @@ def runCactusWorkflow(netDisk, sequenceFiles,
                       jobTreeDir, treeBuilder="cactus_coreTestTreeBuilder.py",
                       adjacencyBuilder="cactus_adjacencyTestAdjacencyBuilder.py",
                       logLevel="DEBUG", retryCount=0, batchSystem="single_machine", rescueJobFrequency=None,
-                      buildTrees=False):
+                      setupAndBuildAlignments=True,
+                      buildTrees=False, buildAdjacencies=False):
+    if setupAndBuildAlignments:
+        setupAndBuildAlignments = "--setupAndBuildAlignments"
+    else:
+        setupAndBuildAlignments = ""
+    
     if buildTrees:
         buildTrees = "--buildTrees"
     else:
         buildTrees = ""
+        
+    if buildAdjacencies:
+        buildAdjacencies = "--buildAdjacencies"
+    else:
+        buildAdjacencies = ""
     
     command = "cactus_workflow.py %s --speciesTree '%s' \
---netDisk %s %s --job JOB_FILE" % \
+--netDisk %s %s %s %s --job JOB_FILE" % \
             (" ".join(sequenceFiles), newickTreeString,
-             netDisk, buildTrees)
+             netDisk, setupAndBuildAlignments, buildTrees, buildAdjacencies)
     #print "going to run the command:", command
     #assert False
     runJobTree(command, jobTreeDir, logLevel, retryCount, batchSystem, rescueJobFrequency)

@@ -46,7 +46,7 @@ class TestCase(unittest.TestCase):
             sequenceDirs, newickTreeString = getRandomCactusInputs(tempDir=getTempDirectory(self.tempDir), sequenceNumber=self.sequenceNumber)
             jobTreeDir = os.path.join(getTempDirectory(self.tempDir), "jobTree")
             runCactusWorkflow(self.tempReconstructionDirectory, sequenceDirs, newickTreeString, jobTreeDir, logLevel='INFO',
-                               batchSystem=self.batchSystem)
+                               batchSystem=self.batchSystem, buildTrees=True, buildAdjacencies=True)
             runCactusCheck(self.tempReconstructionDirectory)
             #Run the checker to check the file is okay.
             runJobTreeStatusAndFailIfNotComplete(jobTreeDir)
@@ -75,7 +75,7 @@ class TestCase(unittest.TestCase):
                             blockGraphFile=os.path.join(outputDir, "blockGraph.dot"),
                             blockGraphPDFFile=os.path.join(outputDir, "blockGraph.pdf"),
                             cactusTreeStatsFile=os.path.join(outputDir, "cactusTreeStats.xml"),
-                            buildTrees=False)
+                            buildTrees=False, buildAdjacencies=False)
         
     def testCactusWorkflow_Encode(self): 
         """Run the workflow on the encode pilot regions.
@@ -111,7 +111,7 @@ def runWorkflow(sequences, newickTreeFile, outputDir, tempDir,
                 batchSystem="single_machine",
                 cactusTreeGraphFile=None, cactusTreeGraphPDFFile=None, 
                 blockGraphFile=None, blockGraphPDFFile=None,
-                cactusTreeStatsFile=None, buildTrees=False):
+                cactusTreeStatsFile=None, buildTrees=False, buildAdjacencies=False):
     fileHandle = open(newickTreeFile, 'r')
     newickTreeString = fileHandle.readline()
     fileHandle.close()
@@ -127,7 +127,7 @@ def runWorkflow(sequences, newickTreeFile, outputDir, tempDir,
     logger.info("Got a job tree dir for the test: %s" % jobTreeDir)
     
     runCactusWorkflow(netDisk, sequences, newickTreeString, jobTreeDir, 
-                      batchSystem=batchSystem, buildTrees=buildTrees)
+                      batchSystem=batchSystem, buildTrees=buildTrees, buildAdjacencies=buildAdjacencies)
     logger.info("Ran the the workflow")
     
     runJobTreeStatusAndFailIfNotComplete(jobTreeDir)
