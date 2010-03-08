@@ -322,7 +322,7 @@ def main():
 
     parser.add_option("--speciesTree", dest="speciesTree", help="The species tree relating the input sequences")
     
-    parser.add_option("--netDisk", dest="netDisk", help="The location of the net disk.") 
+    parser.add_option("--netDisk", dest="netDisk", help="The location of the net disk.", default="netDisk") 
     
     parser.add_option("--maxIteraton", dest="maxIteration", help="The maximum iteration to align to (0-4)..", 
                       default="4")
@@ -345,7 +345,7 @@ def main():
     elif options.buildTrees or options.buildAdjacencies:
         baseTarget = HistoryPhase('0', None, options)
         
-    baseTarget.execute(options.jobFile)
+    baseTarget.execute(options.jobFile) 
     
     logger.info("Done with first target")
 
