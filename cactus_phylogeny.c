@@ -402,7 +402,7 @@ Segment *buildChainTrees3P(Block *block, Segment **segments, int32_t blockNumber
 				else {
 					event = eventTree_getEvent(net_getEventTree(block_getNet(block)), netMisc_stringToName(binaryTree->label));
 					if(event != NULL) {
-						printBinaryTree(stderr, binaryTree);
+						// printBinaryTree(stderr, binaryTree);
 					}
 				}
 
