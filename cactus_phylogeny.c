@@ -341,8 +341,9 @@ Event *augmentEventTree(struct BinaryTree *augmentedEventTree,
 			assert(event_getChildNumber(event) == 2);
 			assert(event_getParent(childEvent) == event);
 			assert(event_getParent(childEvent2) == event);
-			assert(floatValuesClose(event_getBranchLength(childEvent), augmentedEventTree->left->distance, closeEnough));
-			assert(floatValuesClose(event_getBranchLength(childEvent2), augmentedEventTree->right->distance, closeEnough));
+			//The pipeline will not check branch lengths are comprable, and allow new events to change the overall branch length. Ugly but robust.
+			//assert(floatValuesClose(event_getBranchLength(childEvent), augmentedEventTree->left->distance, closeEnough));
+			//assert(floatValuesClose(event_getBranchLength(childEvent2), augmentedEventTree->right->distance, closeEnough));
 #endif
 			return event;
 		}
@@ -350,8 +351,8 @@ Event *augmentEventTree(struct BinaryTree *augmentedEventTree,
 			if(isNewEvent(augmentedEventTree->label)) {
 				MetaEvent *metaEvent = metaEvent_construct("", net_getNetDisk(eventTree_getNet(eventTree)));
 				//We set the branch length so that of the child branch is correct.
-				assert(augmentedEventTree->left->distance <= event_getBranchLength(childEvent));
-				event = event_construct2(metaEvent, event_getBranchLength(childEvent) - augmentedEventTree->left->distance, event_getParent(childEvent), childEvent, eventTree);
+				//assert(augmentedEventTree->left->distance <= event_getBranchLength(childEvent));
+				event = event_construct2(metaEvent, /*THIS IS A BUG, I THINK event_getBranchLength(childEvent) - */augmentedEventTree->left->distance, event_getParent(childEvent), childEvent, eventTree);
 				hashtable_insert(newEventNameMap,  //add to the map of new event names.
 								 stringCopy(augmentedEventTree->label),
 								 netMisc_nameToString(event_getName(event)));
@@ -363,7 +364,7 @@ Event *augmentEventTree(struct BinaryTree *augmentedEventTree,
 			}
 #ifdef BEN_DEBUG
 			assert(event_getParent(childEvent) == event);
-			assert(floatValuesClose(event_getBranchLength(childEvent), augmentedEventTree->left->distance, closeEnough));
+			//assert(floatValuesClose(event_getBranchLength(childEvent), augmentedEventTree->left->distance, closeEnough));
 #endif
 			return event;
 		}
@@ -431,7 +432,7 @@ Segment *buildChainTrees3P(Block *block, Segment **segments, int32_t blockNumber
 
 void buildChainTrees3(Block *block, Segment **segments, int32_t blockNumber, struct BinaryTree *binaryTree, struct hashtable *newEventNameMap) {
 	/*
-	 * Constructs an block tree for the block.
+	 * Constructs a block tree for the block.
 	 */
 	Segment *mostAncestralEvent = buildChainTrees3P(block, segments, blockNumber, binaryTree, newEventNameMap);
 	assert(block_getInstanceNumber(block) > 0);

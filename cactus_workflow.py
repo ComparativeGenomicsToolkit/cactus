@@ -292,6 +292,7 @@ class CactusHistoryWrapper(Target):
         #Run cactus phylogeny
         if self.options.buildTrees:
             runCactusPhylogeny(self.options.netDisk, tempDir=localTempDir, netNames=self.netNames)
+            #Not atomic!
         if self.options.buildAdjacencies:
             runCactusAdjacencies(self.options.netDisk, tempDir=localTempDir, netNames=self.netNames)
         #Make child jobs
