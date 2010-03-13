@@ -645,7 +645,7 @@ ChainAlignment *chainAlignment_construct(Block **blocks, int32_t blocksLength) {
 						break;
 					}
 					cap = cap_getAdjacency(segment_get3Cap(segment));
-					assert(!end_isCap(cap_getEnd(cap))); //can not be a cap.
+					assert(!end_isCap(cap_getEnd(cap))); //can not be inherited.
 					if(end_isStub(cap_getEnd(cap))) { //terminates with missing information.
 						break;
 					}
