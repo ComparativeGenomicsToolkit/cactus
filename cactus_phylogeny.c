@@ -251,8 +251,8 @@ void buildChainTrees_Bernard(int32_t blockNumber, char ***concatenatedBlocks, Na
 	}
 
 	/* Run the tree pipeline */
-	snprintf(tmpStringBuffer, TMP_BUFFER_SIZE, "conTrees_PhyloBuilder.py %s", tempDirName);
-	exitOnFailure(system(tmpStringBuffer), "conTrees_PhyloBuilder.py failed\n");
+	snprintf(tmpStringBuffer, TMP_BUFFER_SIZE, "conTrees_PhyloTreeBuilder.py %s", tempDirName);
+	exitOnFailure(system(tmpStringBuffer), "conTrees_PhyloTreeBuilder.py failed\n");
 	printf("Completed running tree pipeline, now onto parsing\n");
 
 	/* Clone Block boundaries to refined Block Boundaries*/
