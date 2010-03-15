@@ -352,7 +352,7 @@ Event *augmentEventTree(struct BinaryTree *augmentedEventTree,
 				MetaEvent *metaEvent = metaEvent_construct("", net_getNetDisk(eventTree_getNet(eventTree)));
 				//We set the branch length so that of the child branch is correct.
 				//assert(augmentedEventTree->left->distance <= event_getBranchLength(childEvent));
-				event = event_construct2(metaEvent, /*THIS IS A BUG, I THINK event_getBranchLength(childEvent) - */augmentedEventTree->left->distance, event_getParent(childEvent), childEvent, eventTree);
+				event = event_construct2(metaEvent, event_getBranchLength(childEvent) - augmentedEventTree->left->distance, event_getParent(childEvent), childEvent, eventTree);
 				hashtable_insert(newEventNameMap,  //add to the map of new event names.
 								 stringCopy(augmentedEventTree->label),
 								 netMisc_nameToString(event_getName(event)));
