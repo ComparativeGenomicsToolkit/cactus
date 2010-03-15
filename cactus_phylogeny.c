@@ -737,15 +737,19 @@ Event *copyConstructUnaryEvent(Event *event, EventTree *eventTree2) {
 	parentEvent = eventTree_getEvent(eventTree2, event_getName(parentEvent)); //now get the event in the other tree.
 	assert(parentEvent != NULL);
 
-	//Search for the first descendant of the event which is also in eventTree2, adding to the branch length as we go.
+	assert(eventTree_getEvent(eventTree2, event_getName(event)) == NULL); //check it isn't already in the tree.
+	//Search for the first descendant of the event which is also in eventTree2
 	Event *childEvent = event_getChild(event, 0);
+	assert(childEvent != NULL);
 	while(eventTree_getEvent(eventTree2, event_getName(childEvent)) == NULL) {
 		assert(event_getChildNumber(childEvent) == 1);
-		childEvent = event_getChild(parentEvent, 0);
+		childEvent = event_getChild(childEvent, 0);
 		assert(childEvent != NULL);
 	} //at this point the child event is present in both event trees.
 	childEvent = eventTree_getEvent(eventTree2, event_getName(childEvent)); //get the child event.
 	assert(childEvent != NULL);
+	assert(event_getParent(childEvent) != NULL);
+	assert(event_getParent(childEvent) == parentEvent);
 	//assert(event_getBranchLength(childEvent) >= branchLength);
 
 	return event_construct2(event_getMetaEvent(event), branchLength, parentEvent, childEvent, eventTree2);
