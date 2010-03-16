@@ -256,13 +256,7 @@ int main(int argc, char *argv[]) {
 	CactusCoreInputParameters *cCIP = constructCactusCoreInputParameters();
 	//--maxEdgeDegree 10000000 --minimumTreeCoverage 0 --minimumTreeCoverageForBlocks 0
 	//--minimumBlockLength 0 --minimumChainLength 0 --trim 0 --alignRepeats 1 --extensionSteps 0
-	cCIP->minimumTreeCoverage = 0.0;
-	cCIP->minimumTreeCoverageForBlocks = 0.0;
-	cCIP->minimumBlockLength = 0.0;
-	cCIP->minimumChainLength = 0;
-	cCIP->trim = 0;
 	cCIP->alignRepeats = 1;
-	cCIP->extensionSteps = 0;
 
 	/*
 	 * Load the netdisk

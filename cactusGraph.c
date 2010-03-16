@@ -857,11 +857,6 @@ void writeOutCactusGraph(struct CactusGraph *cactusGraph, struct PinchGraph *pin
 ////////////////////////////////////////////////
 ////////////////////////////////////////////////
 
-int32_t computeCactusGraph_excludedEdgesFn(void *o) {
-	assert(o != NULL);
-	return TRUE;
-}
-
 void computeCactusGraph(struct PinchGraph *pinchGraph, struct CactusGraph **cactusGraph, struct List **threeEdgeConnectedComponents) {
 	struct PinchVertex *vertex;
 	struct List *list;
@@ -874,7 +869,7 @@ void computeCactusGraph(struct PinchGraph *pinchGraph, struct CactusGraph **cact
 	// three edge connected components.
 	///////////////////////////////////////////////////////////////////////////
 
-	greyEdgeComponents = getRecursiveComponents(pinchGraph, computeCactusGraph_excludedEdgesFn);
+	greyEdgeComponents = getRecursiveComponents(pinchGraph, NULL);
 
 	vertices = writeOut3EdgeGraph(pinchGraph, greyEdgeComponents);
 

@@ -103,20 +103,20 @@ void filterPieceAndThenAddToGraph(struct PinchGraph *pinchGraph,
 
 CactusCoreInputParameters *constructCactusCoreInputParameters() {
 	CactusCoreInputParameters *cCIP = (CactusCoreInputParameters *)malloc(sizeof(CactusCoreInputParameters));
-	cCIP->extensionSteps = 3;
-	cCIP->extensionStepsReduction = 1;
-	cCIP->maxEdgeDegree = 50;
+	//Everything is essentially 'turned off' by default.
 	cCIP->writeDebugFiles = 0;
-	cCIP->minimumTreeCoverageForAlignUndoBlock = 1.0;
-	cCIP->minimumTreeCoverageForAlignUndoBlockReduction = 0.1;
-	cCIP->minimumTreeCoverage = 0.5;
-	cCIP->minimumTreeCoverageForBlocks = 0.9;
-	cCIP->minimumBlockLength = 4;
-	cCIP->minimumChainLength = 12;
-	cCIP->trim = 3;
-	cCIP->trimReduction = 1;
 	cCIP->alignRepeats = 0;
-	cCIP->alignUndoLoops = 5;
+	cCIP->alignUndoLoops = 1;
+	cCIP->maxEdgeDegree = 50;
+	cCIP->extensionSteps = 0;
+	cCIP->extensionStepsReduction = 0;
+	cCIP->trim = 0;
+	cCIP->trimReduction = 0;
+	cCIP->minimumTreeCoverage = 0.0;
+	cCIP->minimumTreeCoverageReduction = 0.0;
+	cCIP->minimumBlockLength = 0;
+	cCIP->minimumChainLength = 0;
+	cCIP->minimumChainLengthReduction = 0;
 	return cCIP;
 }
 
@@ -130,11 +130,13 @@ int32_t cactusCorePipeline(Net *net,
 		void (*startAlignmentStack)()) {
 	struct PinchGraph *pinchGraph;
 	struct PinchVertex *vertex;
+	struct PinchEdge *pinchEdge;
 	struct CactusGraph *cactusGraph;
-	int32_t i, j, k, startTime;
+	int32_t i, k, startTime;
 	struct PairwiseAlignment *pairwiseAlignment;
 	struct List *threeEdgeConnectedComponents;
 	struct List *chosenBlocks;
+	struct List *chosenPinchEdges;
 	struct List *list;
 	struct List *biConnectedComponents;
 	struct hashtable *vertexAdjacencyComponents;
@@ -162,43 +164,25 @@ int32_t cactusCorePipeline(Net *net,
 	/*
 	 * These parameters are altered during the loops to push the sequences together.
 	 */
-	double minimumTreeCoverageForAlignUndoBlock = cCIP->minimumTreeCoverageForAlignUndoBlock;
+	double minimumTreeCoverage = cCIP->minimumTreeCoverage;
+	int32_t minimumChainLength = cCIP->minimumChainLength;
 	int32_t trim = cCIP->trim;
 	int32_t extensionSteps = cCIP->extensionSteps;
-	for(j=0; j<cCIP->alignUndoLoops; j++) {
-		startTime = time(NULL);
-		///////////////////////////////////////////////////////////////////////////
-		//  Building the set of adjacency vertex components.
-		///////////////////////////////////////////////////////////////////////////
-		vertexAdjacencyComponents = create_hashtable(pinchGraph->vertices->length*2, hashtable_intHashKey, hashtable_intEqualKey, NULL, free);
-		if(j == 0) {
-			//Build a hash putting the vertices all in the same adjacency component.
-			for(i=0; i<pinchGraph->vertices->length; i++) {
-				hashtable_insert(vertexAdjacencyComponents, pinchGraph->vertices->list[i], constructInt(0));
-			}
-		}
-		else {
-			//Build a hash putting each vertex in its own adjacency component.
-			//Iterate through all the edges, keeping only those whose degree is greater than zero.
-			struct List *chosenPinchEdges = constructEmptyList(0, NULL);
-			for(i=0; i<pinchGraph->vertices->length; i++) {
-				struct PinchVertex *vertex = pinchGraph->vertices->list[i];
-				if(lengthBlackEdges(vertex) >= 1 && !isAStubOrCap(getFirstBlackEdge(vertex)) &&
-						treeCoverage(vertex, net, pinchGraph) >= minimumTreeCoverageForAlignUndoBlock) {
-					listAppend(chosenPinchEdges, getFirstBlackEdge(vertex));
-				}
-			}
-			struct List *groupsList = getRecursiveComponents2(pinchGraph, chosenPinchEdges);
-			destructList(chosenPinchEdges);
-			for(i=0; i<groupsList->length; i++) {
-				struct List *vertices = groupsList->list[i];
-				for(k=0; k<vertices->length; k++) {
-					hashtable_insert(vertexAdjacencyComponents, vertices->list[k], constructInt(i));
-				}
-			}
-		}
+
+	vertexAdjacencyComponents = create_hashtable(pinchGraph->vertices->length*2, hashtable_intHashKey, hashtable_intEqualKey, NULL, free);
+
+	//Build a hash putting the vertices all in the same adjacency component.
+	for(i=0; i<pinchGraph->vertices->length; i++) {
+		hashtable_insert(vertexAdjacencyComponents, pinchGraph->vertices->list[i], constructInt(0));
+	}
+
+	do {
 
 #ifdef BEN_DEBUG
+		///////////////////////////////////////////////////////////////////////////
+		//  Check the adjacency vertex components.
+		///////////////////////////////////////////////////////////////////////////
+
 		assert(hashtable_count(vertexAdjacencyComponents) == pinchGraph->vertices->length);
 		for(i=0; i<pinchGraph->vertices->length; i++) {
 			vertex = pinchGraph->vertices->list[i];
@@ -206,12 +190,13 @@ int32_t cactusCorePipeline(Net *net,
 		}
 #endif
 
-		//Must be called to initialise the alignment stack..
-		startAlignmentStack();
-
 		///////////////////////////////////////////////////////////////////////////
 		//  Adding alignments to the pinch graph
 		///////////////////////////////////////////////////////////////////////////
+
+		startTime = time(NULL);
+		//Must be called to initialise the alignment stack..
+		startAlignmentStack();
 
 		//Now run through all the alignments.
 		pairwiseAlignment = getNextAlignment();
@@ -261,10 +246,10 @@ int32_t cactusCorePipeline(Net *net,
 		assert(cCIP->maxEdgeDegree >= 1);
 		logInfo("Before removing over aligned edges the graph has %i vertices and %i black edges\n", pinchGraph->vertices->length, avl_count(pinchGraph->edges));
 		assert(cCIP->extensionSteps >= 0);
-		removeOverAlignedEdges(pinchGraph, 0.0, cCIP->maxEdgeDegree, extensionSteps, net);
+		removeOverAlignedEdges(pinchGraph, 0.0, cCIP->maxEdgeDegree, NULL, extensionSteps, net);
 		logInfo("After removing over aligned edges (degree %i) the graph has %i vertices and %i black edges\n", cCIP->maxEdgeDegree, pinchGraph->vertices->length, avl_count(pinchGraph->edges));
-		removeOverAlignedEdges(pinchGraph, cCIP->minimumTreeCoverage, INT32_MAX, 0, net);
-		logInfo("After removing blocks with less than the minimum tree coverage (%f) the graph has %i vertices and %i black edges\n", cCIP->minimumTreeCoverage, pinchGraph->vertices->length, avl_count(pinchGraph->edges));
+		//removeOverAlignedEdges(pinchGraph, cCIP->minimumTreeCoverage, INT32_MAX, 0, net);
+		//logInfo("After removing blocks with less than the minimum tree coverage (%f) the graph has %i vertices and %i black edges\n", cCIP->minimumTreeCoverage, pinchGraph->vertices->length, avl_count(pinchGraph->edges));
 		removeTrivialGreyEdgeComponents(pinchGraph, pinchGraph->vertices, net);
 		logInfo("After removing the trivial graph components the graph has %i vertices and %i black edges\n", pinchGraph->vertices->length, avl_count(pinchGraph->edges));
 		checkPinchGraphDegree(pinchGraph, cCIP->maxEdgeDegree);
@@ -278,115 +263,220 @@ int32_t cactusCorePipeline(Net *net,
 		checkPinchGraph(pinchGraph);
 		logInfo("Removed the over aligned edges in: %i seconds\n", time(NULL) - startTime);
 
-		//Modify the parameters for the trim extension etc...
-		trim = trim - cCIP->trimReduction > 0 ? trim - cCIP->trimReduction : 0;
-		extensionSteps = extensionSteps - cCIP->extensionStepsReduction > 0 ? extensionSteps - cCIP->extensionStepsReduction : 0;
-		minimumTreeCoverageForAlignUndoBlock = minimumTreeCoverageForAlignUndoBlock - cCIP->minimumTreeCoverageForAlignUndoBlockReduction > 0 ? minimumTreeCoverageForAlignUndoBlock - cCIP->minimumTreeCoverageForAlignUndoBlockReduction : 0.0;
-	}
+		///////////////////////////////////////////////////////////////////////////
+		// Linking stub components to the sink component (if they haven't been already.
+		///////////////////////////////////////////////////////////////////////////
+
+		startTime = time(NULL);
+		linkStubComponentsToTheSinkComponent(pinchGraph);
+
+		if(cCIP->writeDebugFiles) {
+			logDebug("Writing out dot formatted version of pinch graph stub components linked to the sink vertex\n");
+			writePinchGraph("pinchGraph4.dot", pinchGraph, NULL, NULL);
+			logDebug("Finished writing out dot formatted version of pinch graph with stub components linked to the sink vertex\n");
+		}
+
+		checkPinchGraph(pinchGraph);
+		logInfo("Linked stub components to the sink component in: %i seconds\n", time(NULL) - startTime);
+
+		///////////////////////////////////////////////////////////////////////////
+		// Constructing the basic cactus.
+		///////////////////////////////////////////////////////////////////////////
+
+		startTime = time(NULL);
+		computeCactusGraph(pinchGraph, &cactusGraph, &threeEdgeConnectedComponents);
+
+		if(cCIP->writeDebugFiles) {
+			logDebug("Writing out dot formatted version of initial cactus graph\n");
+			writeCactusGraph("cactusGraph1.dot", pinchGraph, cactusGraph);
+			logDebug("Finished writing out dot formatted version of initial cactus graph\n");
+		}
+
+		logInfo("Constructed the initial cactus graph in: %i seconds\n", time(NULL) - startTime);
+
+		///////////////////////////////////////////////////////////////////////////
+		// Circularising the stems in the cactus.
+		///////////////////////////////////////////////////////////////////////////
+
+		startTime = time(NULL);
+		circulariseStems(cactusGraph);
+
+		if(cCIP->writeDebugFiles) {
+			logDebug("Writing out dot formatted version of 2-edge component only cactus graph\n");
+			writeCactusGraph("cactusGraph2.dot", pinchGraph, cactusGraph);
+			logDebug("Finished writing out dot formatted version of 2-edge component only cactus graph\n");
+		}
+
+		logInfo("Constructed the 2-edge component only cactus graph\n");
+
+		checkCactusContainsOnly2EdgeConnectedComponents(cactusGraph);
+		logInfo("Checked the cactus contains only 2-edge connected components in: %i seconds\n", time(NULL) - startTime);
+
+		////////////////////////////////////////////////
+		// Get sorted bi-connected components.
+		////////////////////////////////////////////////
+
+		biConnectedComponents = computeSortedBiConnectedComponents(cactusGraph);
+
+		if(cCIP->writeDebugFiles) {
+			logDebug("Writing out dot formatted final pinch graph showing chains prior to pruning\n");
+			writePinchGraph("pinchGraph5.dot", pinchGraph, biConnectedComponents, NULL);
+			logDebug("Finished writing out final pinch graph showing chains prior to pruning\n");
+		}
+
+		///////////////////////////////////////////////////////////////////////////
+		// Choosing a block subset.
+		///////////////////////////////////////////////////////////////////////////
+
+		//first get tree covering score for each block -
+		//drop all blocks with score less than X.
+		//accept chains whose remaining element's combined length is greater than a set length.
+
+		startTime = time(NULL);
+		chosenBlocks = filterBlocksByTreeCoverageAndLength(biConnectedComponents,
+				net, minimumTreeCoverage, cCIP->minimumBlockLength, minimumChainLength,
+				pinchGraph);
+		//now report the results
+		logTheChosenBlockSubset(biConnectedComponents, chosenBlocks, pinchGraph, net);
+
+		chosenPinchEdges = constructEmptyList(0, NULL);
+		for(i=0; i<chosenBlocks->length; i++) {
+			pinchEdge = cactusEdgeToFirstPinchEdge(chosenBlocks->list[i], pinchGraph);
+			if(!isAStubOrCap(pinchEdge)) {
+				listAppend(chosenPinchEdges, pinchEdge);
+			}
+		}
+
+		if(cCIP->writeDebugFiles) {
+			logDebug("Writing out dot formatted final pinch graph showing chains after pruning\n");
+			list = constructEmptyList(0, NULL);
+			listAppend(list, chosenBlocks);
+			writePinchGraph("pinchGraph6.dot", pinchGraph, list, NULL);
+			destructList(list);
+			logDebug("Finished writing out final pinch graph showing chains prior to pruning\n");
+		}
+
+		logInfo("I have chosen %i blocks which meet the requirements\n", chosenBlocks->length);
+
+
+		if(cCIP->alignUndoLoops > 1) {
+			///////////////////////////////////////////////////////////////////////////
+			// Cleanup the cactus graph.
+			///////////////////////////////////////////////////////////////////////////
+
+			destructList(biConnectedComponents);
+			destructList(threeEdgeConnectedComponents);
+			destructCactusGraph(cactusGraph);
+			destructList(chosenBlocks);
+
+			///////////////////////////////////////////////////////////////////////////
+			// Removing stuff not in the chosen list of blocks
+			///////////////////////////////////////////////////////////////////////////
+
+			if(1) {
+				startTime = time(NULL);
+				/*
+				 * Make not chosen pinch edges.
+				 */
+				struct hashtable *chosenVerticesHash = create_hashtable(pinchGraph->vertices->length*2, hashtable_key, hashtable_equalKey, NULL, NULL);;
+				for(i=0; i<chosenPinchEdges->length; i++) {
+					pinchEdge = chosenPinchEdges->list[i];
+					hashtable_insert(chosenVerticesHash, pinchEdge->from, pinchEdge->from);
+					hashtable_insert(chosenVerticesHash, pinchEdge->to, pinchEdge->to);
+				}
+				struct List *notChosenPinchEdges = constructEmptyList(0, NULL);
+				for(i=0; i<pinchGraph->vertices->length; i++) {
+					vertex = pinchGraph->vertices->list[i];
+					if(lengthBlackEdges(vertex) > 1 && !isAStubOrCap(getFirstBlackEdge(vertex)) &&
+							hashtable_search(chosenVerticesHash, vertex) == NULL) {
+						listAppend(notChosenPinchEdges, getFirstBlackEdge(vertex));
+					}
+					//if(hashtable_search(hash, vertex) == NULL && isAS
+				}
+				removeOverAlignedEdges(pinchGraph, 0.0, INT32_MAX, notChosenPinchEdges, 0, net);
+				destructList(notChosenPinchEdges);
+				hashtable_destroy(chosenVerticesHash, 0, 0);
+				logInfo("After removing edges which were not chosen, the graph has %i vertices and %i black edges\n", pinchGraph->vertices->length, avl_count(pinchGraph->edges));
+				removeTrivialGreyEdgeComponents(pinchGraph, pinchGraph->vertices, net);
+				logInfo("After removing the trivial graph components the graph has %i vertices and %i black edges\n", pinchGraph->vertices->length, avl_count(pinchGraph->edges));
+				checkPinchGraphDegree(pinchGraph, cCIP->maxEdgeDegree);
+
+				if(cCIP->writeDebugFiles) {
+					logDebug("Writing out dot formatted version of pinch graph with non chosen blocks removed.\n");
+					writePinchGraph("pinchGraph7.dot", pinchGraph, NULL, NULL);
+					logDebug("Finished writing out dot formatted version of pinch graph with with non chosen blocks removed.\n");
+				}
+
+				checkPinchGraph(pinchGraph);
+				destructList(chosenPinchEdges);
+				logInfo("Removed the non-chosen block edges in: %i seconds\n", time(NULL) - startTime);
+
+				///////////////////////////////////////////////////////////////////////////
+				// Calculate the adjacency components for the next loop.
+				///////////////////////////////////////////////////////////////////////////
+
+				//Build a hash putting each vertex in its own adjacency component.
+				//Iterate through all the edges, keeping only those whose degree is greater than zero.
+				vertexAdjacencyComponents = create_hashtable(pinchGraph->vertices->length*2, hashtable_intHashKey, hashtable_intEqualKey, NULL, free);
+				struct List *groupsList = getRecursiveComponents(pinchGraph, NULL);
+				for(i=0; i<groupsList->length; i++) {
+					struct List *vertices = groupsList->list[i];
+					for(k=0; k<vertices->length; k++) {
+						hashtable_insert(vertexAdjacencyComponents, vertices->list[k], constructInt(i));
+					}
+				}
+				destructList(groupsList);
+			}
+			else {
+				///////////////////////////////////////////////////////////////////////////
+				// Calculate the adjacency components for the next loop.
+				///////////////////////////////////////////////////////////////////////////
+
+				//Build a hash putting each vertex in its own adjacency component.
+				//Iterate through all the edges, keeping only those whose degree is greater than zero.
+				vertexAdjacencyComponents = create_hashtable(pinchGraph->vertices->length*2, hashtable_intHashKey, hashtable_intEqualKey, NULL, free);
+				struct List *groupsList = getRecursiveComponents2(pinchGraph, chosenPinchEdges);
+				for(i=0; i<groupsList->length; i++) {
+					struct List *vertices = groupsList->list[i];
+					for(k=0; k<vertices->length; k++) {
+						hashtable_insert(vertexAdjacencyComponents, vertices->list[k], constructInt(i));
+					}
+				}
+				destructList(groupsList);
+				destructList(chosenPinchEdges);
+			}
+
+			///////////////////////////////////////////////////////////////////////////
+			// Modify parameters for next loop
+			///////////////////////////////////////////////////////////////////////////
+
+			trim = trim - cCIP->trimReduction > 0 ? trim - cCIP->trimReduction : 0;
+			extensionSteps = extensionSteps - cCIP->extensionStepsReduction > 0 ? extensionSteps - cCIP->extensionStepsReduction : 0;
+			minimumTreeCoverage = minimumTreeCoverage - cCIP->minimumTreeCoverageReduction > 0 ? minimumTreeCoverage - cCIP->minimumTreeCoverageReduction : 0.0;
+			minimumChainLength = minimumChainLength - cCIP->minimumChainLengthReduction > 0 ? minimumChainLength - cCIP->minimumChainLength : 0;
+
+
+		}
+		else {
+			///////////////////////////////////////////////////////////////////////////
+			// Constructing the net.
+			///////////////////////////////////////////////////////////////////////////
+
+			fillOutNetFromInputs(net, cactusGraph, pinchGraph, chosenBlocks);
+		}
+	} while(--cCIP->alignUndoLoops > 0);
 
 	///////////////////////////////////////////////////////////////////////////
-	// (4) Linking stub components to the sink component.
+	//Clean up remaining stuff.
 	///////////////////////////////////////////////////////////////////////////
 
-	startTime = time(NULL);
-	linkStubComponentsToTheSinkComponent(pinchGraph);
-
-	if(cCIP->writeDebugFiles) {
-		logDebug("Writing out dot formatted version of pinch graph stub components linked to the sink vertex\n");
-		writePinchGraph("pinchGraph4.dot", pinchGraph, NULL, NULL);
-		logDebug("Finished writing out dot formatted version of pinch graph with stub components linked to the sink vertex\n");
-	}
-
-	checkPinchGraph(pinchGraph);
-	logInfo("Linked stub components to the sink component in: %i seconds\n", time(NULL) - startTime);
-
-	///////////////////////////////////////////////////////////////////////////
-	// (5) Constructing the basic cactus.
-	///////////////////////////////////////////////////////////////////////////
-
-	startTime = time(NULL);
-	computeCactusGraph(pinchGraph, &cactusGraph, &threeEdgeConnectedComponents);
-
-	if(cCIP->writeDebugFiles) {
-		logDebug("Writing out dot formatted version of initial cactus graph\n");
-		writeCactusGraph("cactusGraph1.dot", pinchGraph, cactusGraph);
-		logDebug("Finished writing out dot formatted version of initial cactus graph\n");
-	}
-
-	logInfo("Constructed the initial cactus graph in: %i seconds\n", time(NULL) - startTime);
-
-	///////////////////////////////////////////////////////////////////////////
-	// (6) Circularising the stems in the cactus.
-	///////////////////////////////////////////////////////////////////////////
-
-	startTime = time(NULL);
-	circulariseStems(cactusGraph);
-
-	if(cCIP->writeDebugFiles) {
-		logDebug("Writing out dot formatted version of 2-edge component only cactus graph\n");
-		writeCactusGraph("cactusGraph2.dot", pinchGraph, cactusGraph);
-		logDebug("Finished writing out dot formatted version of 2-edge component only cactus graph\n");
-	}
-
-	logInfo("Constructed the 2-edge component only cactus graph\n");
-
-	checkCactusContainsOnly2EdgeConnectedComponents(cactusGraph);
-	logInfo("Checked the cactus contains only 2-edge connected components in: %i seconds\n", time(NULL) - startTime);
-
-	////////////////////////////////////////////////
-	//Get sorted bi-connected components.
-	////////////////////////////////////////////////
-
-	biConnectedComponents = computeSortedBiConnectedComponents(cactusGraph);
-
-	if(cCIP->writeDebugFiles) {
-		logDebug("Writing out dot formatted final pinch graph showing chains prior to pruning\n");
-		writePinchGraph("pinchGraph5.dot", pinchGraph, biConnectedComponents, NULL);
-		logDebug("Finished writing out final pinch graph showing chains prior to pruning\n");
-	}
-
-	///////////////////////////////////////////////////////////////////////////
-	// (9) Choosing an block subset.
-	///////////////////////////////////////////////////////////////////////////
-
-	//first get tree covering score for each block -
-	//drop all blocks with score less than X.
-	//accept chains whose remaining element's combined length is greater than a set length.
-
-	startTime = time(NULL);
-	chosenBlocks = filterBlocksByTreeCoverageAndLength(biConnectedComponents,
-			net, cCIP->minimumTreeCoverageForBlocks, cCIP->minimumBlockLength, cCIP->minimumChainLength,
-			pinchGraph);
-	//now report the results
-	logTheChosenBlockSubset(biConnectedComponents, chosenBlocks, pinchGraph, net);
-
-	if(cCIP->writeDebugFiles) {
-		logDebug("Writing out dot formatted final pinch graph showing chains after pruning\n");
-		list = constructEmptyList(0, NULL);
-		listAppend(list, chosenBlocks);
-		writePinchGraph("pinchGraph6.dot", pinchGraph, list, NULL);
-		destructList(list);
-		logDebug("Finished writing out final pinch graph showing chains prior to pruning\n");
-	}
-
-	///////////////////////////////////////////////////////////////////////////
-	// (8) Constructing the net.
-	///////////////////////////////////////////////////////////////////////////
-
-	fillOutNetFromInputs(net, cactusGraph, pinchGraph, chosenBlocks);
-
-	///////////////////////////////////////////////////////////////////////////
-	//(15) Clean up.
-	///////////////////////////////////////////////////////////////////////////
-
-	//Destruct stuff
-	startTime = time(NULL);
 	destructList(biConnectedComponents);
-	destructPinchGraph(pinchGraph);
 	destructList(threeEdgeConnectedComponents);
 	destructCactusGraph(cactusGraph);
 	destructList(chosenBlocks);
+	destructList(chosenPinchEdges);
+	destructPinchGraph(pinchGraph);
 
-	logInfo("Ran the core pipeline script in: %i seconds\n", time(NULL) - startTime);
+	logInfo("Ran the core pipeline script\n");
 	return 0;
 }

@@ -21,6 +21,17 @@ from sonLib.tree import makeRandomBinaryTree
 from workflow.jobTree.jobTree import runJobTree
 from workflow.jobTree.jobTreeTest import runJobTreeStatusAndFailIfNotComplete
 
+def nameValue(name, value, valueType=str):
+    """Little function to make it easier to make name value strings for commands.
+    """
+    if valueType == bool:
+        if value:
+            return "--%s" % name
+        return ""
+    if value == None:
+        return ""
+    return "--%s %s" % (name, valueType(value))
+
 def getRandomCactusInputs(tempDir,
                           sequenceNumber=random.choice(xrange(100)), 
                           avgSequenceLength=random.choice(xrange(1, 5000)), 
@@ -77,9 +88,7 @@ def getRandomCactusInputs(tempDir,
 
 def runCactusSetup(reconstructionRootDir, sequences, 
                    newickTreeString, tempDir, logLevel="DEBUG", debug=False):
-    debugString = ""
-    if debug:
-        debugString = "--debug"
+    debugString = nameValue("debug", debug, bool)
     system("cactus_setup %s --speciesTree '%s' --netDisk %s \
 --logLevel %s %s" \
            % (" ".join(sequences), newickTreeString,
@@ -91,10 +100,7 @@ def runCactusAligner(netDisk, alignmentFile, tempDir, useDummy=True, netName="0"
     """
     tempDir = getTempDirectory(tempDir)
     jobTreeDir = os.path.join(tempDir, "jobTree")
-    if useDummy:
-        useDummy = "--useDummy"
-    else:
-        useDummy = ""
+    useDummy = nameValue("useDummy", useDummy, bool)
     command = "cactus_aligner.py --netDisk %s --netName %s \
 --resultsFile %s %s --job JOB_FILE" % (netDisk, netName, alignmentFile, useDummy)
     runJobTree(command, jobTreeDir, logLevel=logLevel)
@@ -104,101 +110,52 @@ def runCactusAligner(netDisk, alignmentFile, tempDir, useDummy=True, netName="0"
             
 def runCactusCore(netDisk, alignmentFile, 
                   netName=0,
-                  logLevel="DEBUG", writeDebugFiles=False,
-                  maximumEdgeDegree=None,
-                  minimumTreeCoverage=None,
-                  minimumTreeCoverageForBlocks=None,
-                  minimumBlockLength=None,
-                  minimumChainLength=None,
+                  logLevel="DEBUG", 
+                  writeDebugFiles=False,
                   alignRepeats=False,
                   alignUndoLoops=False,
-                  trim=None,
-                  trimReduction=None,
+                  maximumEdgeDegree=None,
                   extensionSteps=None,
                   extensionStepsReduction=None,
-                  minimumTreeCoverageForAlignUndoBlock=None,
-                  minimumTreeCoverageForAlignUndoBlockReduction=None):
-    if writeDebugFiles:
-        writeDebugFiles = "--writeDebugFiles"
-    else:
-        writeDebugFiles = ""
-        
-    if maximumEdgeDegree != None:
-        maximumEdgeDegree = "--maxEdgeDegree %i" % maximumEdgeDegree
-    else:
-        maximumEdgeDegree = ""
-        
-    if minimumTreeCoverage != None:
-        minimumTreeCoverage = "--minimumTreeCoverage %f" % minimumTreeCoverage
-    else:
-        minimumTreeCoverage = ""
-    
-    if minimumTreeCoverageForBlocks != None:
-        minimumTreeCoverageForBlocks = "--minimumTreeCoverageForBlocks %f" % minimumTreeCoverageForBlocks
-    else:
-        minimumTreeCoverageForBlocks = ""
-        
-    if minimumBlockLength != None:
-        minimumBlockLength = "--minimumBlockLength %i" % minimumBlockLength
-    else:
-        minimumBlockLength = ""
-    
-    if minimumChainLength != None:
-        minimumChainLength = "--minimumChainLength %i" % minimumChainLength
-    else:
-        minimumChainLength = ""
-    
-    if alignRepeats:
-        alignRepeats = "--alignRepeats"
-    else:
-        alignRepeats = ""
-        
-    if alignUndoLoops:
-        alignUndoLoops = "--alignUndoLoops %i" % alignUndoLoops
-    else:
-        alignUndoLoops = ""
-    
-    if trim:
-        trim = "--trim %i" % trim
-    else:
-        trim = ""
-        
-    if trimReduction:
-        trimReduction = "--trimReduction %i" % trimReduction
-    else:
-        trimReduction = ""
-    
-    if extensionSteps:
-        extensionSteps = "--extensionSteps %i" % extensionSteps
-    else:
-        extensionSteps = ""
-    
-    if extensionStepsReduction:
-        extensionStepsReduction = "--extensionStepsReduction %i" % extensionStepsReduction
-    else:
-        extensionStepsReduction = ""
-    
-    if minimumTreeCoverageForAlignUndoBlock:
-        minimumTreeCoverageForAlignUndoBlock = "--minimumTreeCoverageForAlignUndoBlock %f" % minimumTreeCoverageForAlignUndoBlock
-    else:
-        minimumTreeCoverageForAlignUndoBlock = ""
-    
-    if minimumTreeCoverageForAlignUndoBlockReduction:
-        minimumTreeCoverageForAlignUndoBlockReduction = "--minimumTreeCoverageForAlignUndoBlockReduction %f" % minimumTreeCoverageForAlignUndoBlockReduction
-    else:
-        minimumTreeCoverageForAlignUndoBlockReduction = ""
+                  trim=None,
+                  trimReduction=None,
+                  minimumTreeCoverage=None,
+                  minimumTreeCoverageReduction=None,
+                  minimumBlockLength=None,
+                  minimumChainLength=None,
+                  minimumChainLengthReduction=None):
+    writeDebugFiles = nameValue("writeDebugFiles", writeDebugFiles)
+    alignRepeats = nameValue("alignRepeats", alignRepeats)
+    alignUndoLoops = nameValue("alignUndoLoops", alignUndoLoops, int)
+    maximumEdgeDegree = nameValue("maxEdgeDegree", maximumEdgeDegree, int)
+    extensionSteps = nameValue("extensionSteps", extensionSteps, int)
+    extensionStepsReduction = nameValue("extensionStepsReduction", extensionStepsReduction, int)
+    trim = nameValue("trim", trim, int)
+    trimReduction = nameValue("trimReduction", trimReduction, int)
+    minimumTreeCoverage = nameValue("minimumTreeCoverage", minimumTreeCoverage, float)
+    minimumTreeCoverageReduction = nameValue("minimumTreeCoverageReduction", minimumTreeCoverageReduction, float)
+    minimumBlockLength = nameValue("minimumBlockLength", minimumBlockLength, int)
+    minimumChainLength = nameValue("minimumChainLength", minimumChainLength, int)
+    minimumChainLengthReduction = nameValue("minimumChainLengthReduction", minimumChainLengthReduction, int)
     
     command = "cactus_core --netDisk %s --netName %s --alignments %s --logLevel %s \
-%s %s %s %s %s %s %s %s %s %s %s %s %s %s" % \
+%s %s %s %s %s %s %s %s %s %s %s %s %s" % \
     (netDisk, netName, alignmentFile, 
-     logLevel, writeDebugFiles,
-     maximumEdgeDegree, minimumTreeCoverage, 
-     minimumTreeCoverageForBlocks, minimumBlockLength, 
-     minimumChainLength, alignRepeats,
-     alignUndoLoops, 
-     trim, trimReduction, 
-     extensionSteps, extensionStepsReduction, 
-     minimumTreeCoverageForAlignUndoBlock, minimumTreeCoverageForAlignUndoBlockReduction)
+     logLevel, 
+     writeDebugFiles,
+     alignRepeats,
+     alignUndoLoops,
+     maximumEdgeDegree,
+     extensionSteps,
+     extensionStepsReduction,
+     trim,
+     trimReduction,
+     minimumTreeCoverage,
+     minimumTreeCoverageReduction,
+     minimumBlockLength,
+     minimumChainLength,
+     minimumChainLengthReduction)
+
     system(command)
     logger.info("Ran cactus_core okay")
     
@@ -226,15 +183,8 @@ def runCactusCheck(netDisk,
                     logLevel="DEBUG",
                     checkTrees=False,
                     checkInternalAdjacencies=False):
-    if checkTrees:
-        checkTrees = "--checkTrees"
-    else:
-        checkTrees = ""
-    
-    if checkInternalAdjacencies:
-        checkInternalAdjacencies = "--checkInternalAdjacencies"
-    else:
-        checkInternalAdjacencies = ""
+    checkTrees = nameValue("checkTrees", checkTrees, bool)
+    checkInternalAdjacencies = nameValue("checkInternalAdjacencies", checkInternalAdjacencies, bool)
     system("cactus_check --netDisk %s --netName %s --logLevel %s %s %s" \
                     % (netDisk, netName, logLevel, checkTrees, checkInternalAdjacencies))
     logger.info("Ran cactus check")
@@ -243,14 +193,8 @@ def runCactusBlockGraphViewer(graphFile,
                              reconstructionRootDir, 
                              reconstructionProblem="reconstructionProblem.xml", 
                              logLevel="DEBUG", includeCaps=False, includeInternalAdjacencies=False):
-    if includeCaps:
-        includeCaps = "--includeCaps"
-    else:
-        includeCaps = ""
-    if includeInternalAdjacencies:
-        includeInternalAdjacencies = "--includeInternalAdjacencies"
-    else:
-        includeInternalAdjacencies = ""
+    includeCaps = nameValue("includeCaps", includeCaps, bool)
+    includeInternalAdjacencies = nameValue("includeInternalAdjacencies", includeInternalAdjacencies, bool)
     system("cactus_blockGraphViewer.py --absolutePathPrefix %s --reconstructionProblem %s --graphFile %s --logLevel %s %s %s" \
                     % (reconstructionRootDir, reconstructionProblem, graphFile, logLevel, includeCaps, includeInternalAdjacencies))
     logger.info("Created a break point graph of the problem")
@@ -262,21 +206,9 @@ def runCactusWorkflow(netDisk, sequenceFiles,
                       logLevel="DEBUG", retryCount=0, batchSystem="single_machine", rescueJobFrequency=None,
                       setupAndBuildAlignments=True,
                       buildTrees=False, buildAdjacencies=False):
-    if setupAndBuildAlignments:
-        setupAndBuildAlignments = "--setupAndBuildAlignments"
-    else:
-        setupAndBuildAlignments = ""
-    
-    if buildTrees:
-        buildTrees = "--buildTrees"
-    else:
-        buildTrees = ""
-        
-    if buildAdjacencies:
-        buildAdjacencies = "--buildAdjacencies"
-    else:
-        buildAdjacencies = ""
-    
+    setupAndBuildAlignments = nameValue("setupAndBuildAlignments", setupAndBuildAlignments, bool)
+    buildTrees = nameValue("buildTrees", buildTrees, bool)
+    buildAdjacencies = nameValue("buildAdjacencies", buildAdjacencies, bool)
     command = "cactus_workflow.py %s --speciesTree '%s' \
 --netDisk %s %s %s %s --job JOB_FILE" % \
             (" ".join(sequenceFiles), newickTreeString,

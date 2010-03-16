@@ -202,13 +202,16 @@ void removeOverAlignedEdges_P(struct PinchVertex *vertex, int32_t extensionSteps
 	destructGreyEdgeIterator(greyEdgeIterator);
 }
 
-void removeOverAlignedEdges(struct PinchGraph *pinchGraph, float minimumTreeCoverage, int32_t maxDegree, int32_t extensionSteps, Net *net) {
+void removeOverAlignedEdges(struct PinchGraph *pinchGraph, float minimumTreeCoverage, int32_t maxDegree,
+		struct List *extraEdgesToUndo,
+		int32_t extensionSteps, Net *net) {
 	/*
 	 * Method splits black edges from the graph with degree higher than a given number of sequences.
 	 */
 	int32_t i, j, k;
 	struct List *list;
 	struct List *list2;
+	struct PinchEdge *edge;
 	struct PinchVertex *vertex;
 	struct PinchVertex *vertex2;
 	struct hashtable *hash;
@@ -227,6 +230,30 @@ void removeOverAlignedEdges(struct PinchGraph *pinchGraph, float minimumTreeCove
 					hashtable_insert(hash, vertex, constructInt(0));
 					hashtable_insert(hash, vertex2, constructInt(0));
 					listAppend(list, vertex);
+				}
+			}
+		}
+	}
+
+	/*
+	 * This adds a bunch of extra edges to the list which should be undone. It ignored stub edges
+	 * and duplicates.
+	 */
+	if(extraEdgesToUndo != NULL) {
+		for(i=0; i<extraEdgesToUndo->length; i++) {
+			edge = extraEdgesToUndo->list[i];
+			if(!isAStubOrCap(edge)) {
+				if(edge->from->vertexID > edge->to->vertexID) {
+					edge = edge->rEdge;
+				}
+				if(hashtable_search(hash, edge->from) == NULL) {
+					assert(hashtable_search(hash, edge->to) == NULL);
+					hashtable_insert(hash, edge->from, constructInt(0));
+					hashtable_insert(hash, edge->to, constructInt(0));
+					listAppend(list, edge->from);
+				}
+				else {
+					assert(hashtable_search(hash, edge->to) != NULL);
 				}
 			}
 		}
@@ -347,6 +374,11 @@ void getRecursiveComponents_P(struct PinchVertex *vertex, int32_t (*excludedEdge
 	destructGreyEdgeIterator(greyEdgeIterator);
 }
 
+int32_t getRecursiveComponents_excludedEdgesFn(void *o) {
+	assert(o != NULL);
+	return TRUE;
+}
+
 struct List *getRecursiveComponents(struct PinchGraph *pinchGraph, int32_t (*excludedEdgesFn)(void *)) {
 	/*
 	 * find recursive components (each recursive component is represented as a series of vertices)
@@ -359,6 +391,10 @@ struct List *getRecursiveComponents(struct PinchGraph *pinchGraph, int32_t (*exc
 	struct PinchVertex *vertex;
 	struct PinchVertex *vertex2;
 	struct List *stack;
+
+	if(excludedEdgesFn == NULL) {
+		excludedEdgesFn = getRecursiveComponents_excludedEdgesFn;
+	}
 
 	//allocate stuff.
 	seen = create_hashtable(0, hashtable_key, hashtable_equalKey, NULL, NULL);

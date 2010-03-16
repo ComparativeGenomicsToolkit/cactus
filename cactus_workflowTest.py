@@ -75,7 +75,7 @@ class TestCase(unittest.TestCase):
                             blockGraphFile=os.path.join(outputDir, "blockGraph.dot"),
                             blockGraphPDFFile=os.path.join(outputDir, "blockGraph.pdf"),
                             cactusTreeStatsFile=os.path.join(outputDir, "cactusTreeStats.xml"),
-                            buildTrees=False, buildAdjacencies=False)
+                            buildTrees=True, buildAdjacencies=False)
         
     def testCactusWorkflow_Encode(self): 
         """Run the workflow on the encode pilot regions.

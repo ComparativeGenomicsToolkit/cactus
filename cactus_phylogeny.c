@@ -341,7 +341,7 @@ Event *augmentEventTree(struct BinaryTree *augmentedEventTree,
 			assert(event_getChildNumber(event) == 2);
 			assert(event_getParent(childEvent) == event);
 			assert(event_getParent(childEvent2) == event);
-			//The pipeline will not check branch lengths are comprable, and allow new events to change the overall branch length. Ugly but robust.
+			//The pipeline will not check branch lengths are comparable, and allow new events to change the overall branch length. Ugly but robust.
 			//assert(floatValuesClose(event_getBranchLength(childEvent), augmentedEventTree->left->distance, closeEnough));
 			//assert(floatValuesClose(event_getBranchLength(childEvent2), augmentedEventTree->right->distance, closeEnough));
 #endif
