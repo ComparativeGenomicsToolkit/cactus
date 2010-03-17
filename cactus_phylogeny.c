@@ -181,7 +181,7 @@ void buildChainTrees_Bernard(int32_t blockNumber, char ***concatenatedBlocks, Na
 	char tmpStringBuffer[TMP_BUFFER_SIZE];
 	FILE *fp = NULL;
 
-	const int32_t LINE_BUFF_SIZE = 4096; // Assume that 4096 chars is enough for reading in a single line of a file
+	const int32_t LINE_BUFF_SIZE = 131072; // Assume that 4096 chars is enough for reading in a single line of a file
 	char lineBuffer[LINE_BUFF_SIZE];
 	char *tmpString = NULL;
 
