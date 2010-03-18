@@ -133,6 +133,9 @@ struct List *filterBlocksByTreeCoverageAndLength(struct List *biConnectedCompone
 		float minimumTreeCoverage, /*Minimum tree coverage to be included */
 		int32_t minimumBlockLength, /*The minimum length of an block to be included */
 		int32_t minimumChainLength, /* Minimum chain length to be included */
+		float maximumTreeCoverage, /*Maximum tree coverage to be included */
+		int32_t maximumBlockLength, /*The maximum length of an block to be included */
+		int32_t maximumChainLength, /* Maximum chain length to be included */
 		struct PinchGraph *pinchGraph);
 
 void logTheChosenBlockSubset(struct List *biConnectedComponents, struct List *chosenBlocks, struct PinchGraph *pinchGraph,

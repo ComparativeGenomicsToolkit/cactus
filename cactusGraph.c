@@ -1104,6 +1104,7 @@ int32_t chainBaseLength(struct List *biConnectedComponent, struct PinchGraph *pi
 			i += piece->end - piece->start + 1;
 		}
 	}
+	uglyf("I have a chain with %i blocks and %i lengths\n", biConnectedComponent->length, i);
 	return i;
 }
 
@@ -1112,13 +1113,17 @@ struct List *filterBlocksByTreeCoverageAndLength(struct List *biConnectedCompone
 		float minimumTreeCoverage, /*Minimum tree coverage to be included */
 		int32_t minimumBlockLength, /*The minimum length of an block to be included */
 		int32_t minimumChainLength, /* Minimum chain length to be included */
+		float maximumTreeCoverage, /*Maximum tree coverage to be included */
+		int32_t maximumBlockLength, /*The maximum length of an block to be included */
+		int32_t maximumChainLength, /* Maximum chain length to be included */
 		struct PinchGraph *pinchGraph) {
 	/*
 	 * Filters blocks in chains by base length and tree coverage.
 	 *
 	 * Returns a list of all accepted blocks, excluding stubs.
 	 */
-	int32_t i, j;
+	int32_t i, j, k, l;
+	float d;
 	struct CactusEdge *cactusEdge;
 	struct List *biConnectedComponent;
 	struct List *chosenBlocks;
@@ -1131,23 +1136,23 @@ struct List *filterBlocksByTreeCoverageAndLength(struct List *biConnectedCompone
 
 	for(i=0; i<biConnectedComponents->length; i++) {
 		biConnectedComponent = biConnectedComponents->list[i];
-		if(chainBaseLength(biConnectedComponent, pinchGraph) >= minimumChainLength) {
+		k = chainBaseLength(biConnectedComponent, pinchGraph);
+		if(k >= minimumChainLength && k <= maximumChainLength) {
 			for(j=0; j<biConnectedComponent->length; j++) {
 				cactusEdge = biConnectedComponent->list[j];
 				if(!isAStubOrCapCactusEdge(cactusEdge, pinchGraph)) {
 					assert(cactusEdge->pieces->length > 0);
 					struct Piece *piece = cactusEdge->pieces->list[0];
-					if(treeCoverage2(cactusEdge, net, pinchGraph) >= minimumTreeCoverage &&
-					   (piece->end - piece->start + 1) >= minimumBlockLength) {
+					d = treeCoverage2(cactusEdge, net, pinchGraph);
+					l = piece->end - piece->start + 1;
+					if(d >= minimumTreeCoverage && d <= maximumTreeCoverage &&
+					   l >= minimumBlockLength && l <= maximumBlockLength) {
 						listAppend(chosenBlocks, cactusEdge);
 					}
 				}
 			}
 		}
 	}
-
-
-
 	return chosenBlocks;
 }
 

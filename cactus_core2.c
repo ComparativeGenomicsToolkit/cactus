@@ -40,9 +40,9 @@ void usage() {
 	fprintf(stderr, "-e --writeDebugFiles : Write the debug files\n");
 	fprintf(stderr, "-h --help : Print this help screen\n");
 
-	fprintf(stderr, "-i --alignRepeats : Allow bases marked as repeats to be aligned (else alignments to these bases to be excluded)\n");
+	fprintf(stderr, "-i --alignUndoLoops : The number of rounds of alignment, undoing of over-aligned edges and recursion into adjacency connected components (groups)\n");
+	fprintf(stderr, "-j --alignRepeatsAtLoop : Allow bases marked as repeats to be aligned at loop (else alignments to these bases to be excluded)\n");
 
-	fprintf(stderr, "-j --alignUndoLoops : The number of rounds of alignment, undoing of over-aligned edges and recursion into adjacency connected components (groups)\n");
 	fprintf(stderr, "-k --maxEdgeDegree : Maximum degree of aligned edges\n");
 
 	fprintf(stderr, "-l --extensionSteps : The number of steps of attrition applied to edges proximal to over aligned edges.\n");
@@ -51,13 +51,19 @@ void usage() {
 	fprintf(stderr, "-n --trim : The length of bases to remove from the end of each alignment\n");
 	fprintf(stderr, "-o --trimReduction : Trim reduction, the amount to reduce the trim after each align/undo loop (to a minimum of zero)\n");
 
-	fprintf(stderr, "-p --minimumTreeCoverage : Minimum tree coverage proportion of an block to be included in the graph\n");
-	fprintf(stderr, "-q --minimumTreeCoverageReduction : Minimum tree coverage reduction after each align/undo loop\n");
+	fprintf(stderr, "-p --maximumTreeCoverageUndo : Maximum tree coverage proportion of an block to be undone during removement of spurious homologies steps.\n");
+	fprintf(stderr, "-q --maximumTreeCoverageUndoReduction : Maximum tree coverage undo reduction after each align/undo loop\n");
 
-	fprintf(stderr, "-r --minimumBlockLength : The minimum length of an block required to be included in the problem\n");
+	fprintf(stderr, "-s --maximumChainLengthUndo : The maximum chain length required to be undone during removement of spurious homologies steps.\n");
+	fprintf(stderr, "-t --maximumChainLengthUndoReduction : The maximum chain length undo reduction after each align/undo loop\n");
 
-	fprintf(stderr, "-s --minimumChainLength : The minimum chain length required to be included in the problem\n");
-	fprintf(stderr, "-t --minimumChainLengthReduction : The minimum chain length reduction after each align/undo loop\n");
+	fprintf(stderr, "-r --minimumTreeCoverage : Minimum tree coverage proportion of an block to be included in the graph\n");
+	fprintf(stderr, "-v --minimumTreeCoverageReduction : Minimum tree coverage reduction after each align/undo loop\n");
+
+	fprintf(stderr, "-w --minimumBlockLength : The minimum length of an block required to be included in the problem\n");
+
+	fprintf(stderr, "-x --minimumChainLength : The minimum chain length required to be included in the problem\n");
+	fprintf(stderr, "-y --minimumChainLengthReduction : The minimum chain length reduction after each align/undo loop\n");
 }
 
 int main(int argc, char *argv[]) {
@@ -91,9 +97,8 @@ int main(int argc, char *argv[]) {
 			{ "writeDebugFiles", no_argument, 0, 'e' },
 			{ "help", no_argument, 0, 'h' },
 
-			{ "alignRepeats", no_argument, 0, 'i' },
-
-			{ "alignUndoLoops", required_argument, 0, 'j' },
+			{ "alignUndoLoops", required_argument, 0, 'i' },
+			{ "alignRepeatsAtLoop", required_argument, 0, 'j' },
 			{ "maxEdgeDegree", required_argument, 0, 'k' },
 
 			{ "extensionSteps", required_argument, 0, 'l' },
@@ -102,20 +107,26 @@ int main(int argc, char *argv[]) {
 			{ "trim", required_argument, 0, 'n' },
 			{ "trimReduction", required_argument, 0, 'o',  },
 
-			{ "minimumTreeCoverage", required_argument, 0, 'p' },
-			{ "minimumTreeCoverageReduction", required_argument, 0, 'q' },
+			{ "maximumTreeCoverageUndo", required_argument, 0, 'p' },
+			{ "maximumTreeCoverageUndoReduction", required_argument, 0, 'q' },
 
-			{ "minimumBlockLength", required_argument, 0, 'r' },
+			{ "maximumChainLengthUndo", required_argument, 0, 's' },
+			{ "maximumChainLengthUndoReduction", required_argument, 0, 't',  },
 
-			{ "minimumChainLength", required_argument, 0, 's' },
-			{ "minimumChainLengthReduction", required_argument, 0, 't',  },
+			{ "minimumTreeCoverage", required_argument, 0, 'u' },
+			{ "minimumTreeCoverageReduction", required_argument, 0, 'v' },
+
+			{ "minimumBlockLength", required_argument, 0, 'w' },
+
+			{ "minimumChainLength", required_argument, 0, 'x' },
+			{ "minimumChainLengthReduction", required_argument, 0, 'y',  },
 
 			{ 0, 0, 0, 0 }
 		};
 
 		int option_index = 0;
 
-		key = getopt_long(argc, argv, "a:b:c:d:ehij:k:l:m:n:o:p:q:r:s:t:", long_options, &option_index);
+		key = getopt_long(argc, argv, "a:b:c:d:ehi:j:k:l:m:n:o:p:q:r:s:t:u:v:w:x:y:", long_options, &option_index);
 
 		if(key == -1) {
 			break;
@@ -135,16 +146,16 @@ int main(int argc, char *argv[]) {
 				netName = stringCopy(optarg);
 				break;
 			case 'e':
-				cCIP->writeDebugFiles = 1;
+				cCIP->writeDebugFiles = !cCIP->writeDebugFiles;
 				break;
 			case 'h':
 				usage();
 				return 0;
 			case 'i':
-				cCIP->alignRepeats = !cCIP->alignRepeats;
+				assert(sscanf(optarg, "%i", &cCIP->alignUndoLoops) == 1);
 				break;
 			case 'j':
-				assert(sscanf(optarg, "%i", &cCIP->alignUndoLoops) == 1);
+				assert(sscanf(optarg, "%i", &cCIP->alignRepeatsAtLoop) == 1);
 				break;
 			case 'k':
 				assert(sscanf(optarg, "%i", &cCIP->maxEdgeDegree) == 1);
@@ -162,18 +173,30 @@ int main(int argc, char *argv[]) {
 				assert(sscanf(optarg, "%i", &cCIP->trimReduction) == 1);
 				break;
 			case 'p':
-				assert(sscanf(optarg, "%f", &cCIP->minimumTreeCoverage) == 1);
+				assert(sscanf(optarg, "%f", &cCIP->maximumTreeCoverageUndo) == 1);
 				break;
 			case 'q':
-				assert(sscanf(optarg, "%f", &cCIP->minimumTreeCoverageReduction) == 1);
-				break;
-			case 'r':
-				assert(sscanf(optarg, "%i", &cCIP->minimumBlockLength) == 1);
+				assert(sscanf(optarg, "%f", &cCIP->maximumTreeCoverageUndoReduction) == 1);
 				break;
 			case 's':
-				assert(sscanf(optarg, "%i", &cCIP->minimumChainLength) == 1);
+				assert(sscanf(optarg, "%i", &cCIP->maximumChainLengthUndo) == 1);
 				break;
 			case 't':
+				assert(sscanf(optarg, "%i", &cCIP->maximumChainLengthUndoReduction) == 1);
+				break;
+			case 'u':
+				assert(sscanf(optarg, "%f", &cCIP->minimumTreeCoverage) == 1);
+				break;
+			case 'v':
+				assert(sscanf(optarg, "%f", &cCIP->minimumTreeCoverageReduction) == 1);
+				break;
+			case 'w':
+				assert(sscanf(optarg, "%i", &cCIP->minimumBlockLength) == 1);
+				break;
+			case 'x':
+				assert(sscanf(optarg, "%i", &cCIP->minimumChainLength) == 1);
+				break;
+			case 'y':
 				assert(sscanf(optarg, "%i", &cCIP->minimumChainLengthReduction) == 1);
 				break;
 

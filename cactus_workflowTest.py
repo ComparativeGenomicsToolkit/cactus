@@ -75,18 +75,17 @@ class TestCase(unittest.TestCase):
                             blockGraphFile=os.path.join(outputDir, "blockGraph.dot"),
                             blockGraphPDFFile=os.path.join(outputDir, "blockGraph.pdf"),
                             cactusTreeStatsFile=os.path.join(outputDir, "cactusTreeStats.xml"),
-                            buildTrees=True, buildAdjacencies=False)
+                            buildTrees=False, buildAdjacencies=False)
         
     def testCactusWorkflow_Encode(self): 
         """Run the workflow on the encode pilot regions.
         """
-        return
         if TestStatus.getTestStatus() in (TestStatus.TEST_LONG,):
             encodeDatasetPath = os.path.join(TestStatus.getPathToDataSets(), "MAY-2005")
             encodeResultsPath = os.path.join(TestStatus.getPathToDataSets(), "cactus", "encodeRegionsTest")
             newickTreeFile = os.path.join(encodeDatasetPath, "reducedTree.newick")
             
-            for encodeRegion in [ "ENm00" + str(i) for i in xrange(5, 6) ]:
+            for encodeRegion in [ "ENm00" + str(i) for i in xrange(1, 5) ]:
                 sequences = [ os.path.join(encodeDatasetPath, encodeRegion, ("%s.%s.fa" % (species, encodeRegion))) for\
                              species in ("human", "chimp", "baboon", "mouse", "rat", "dog", "cow") ]
                 outputDir = os.path.join(encodeResultsPath, encodeRegion)

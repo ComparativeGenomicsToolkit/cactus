@@ -124,25 +124,45 @@ timeParameters = { 0:10000000, 1:10000000, 2:100, 3:20, 4:1 }
 blastParameters = { 3:makeLowLevelBlastOptions, 2:makeMiddleLevelBlastOptions, 1:makeUpperMiddleLevelBlastOptions, 0:makeTopLevelBlastOptions }
 
 cactusCoreParameters = { 
-    0:{ "alignRepeats":True, "alignUndoLoops":10, "maximumEdgeDegree":50, "extensionSteps":31500,
-        "extensionStepsReduction":3500, "trim":20, "trimReduction":2, "minimumTreeCoverage":0.95, 
-        "minimumTreeCoverageReduction":0.1, "minimumBlockLength":4, "minimumChainLength":8,
-        "minimumChainLengthReduction":0 },
+    0:{ "alignUndoLoops":10, "alignRepeatsAtLoop":5, "maximumEdgeDegree":50, "extensionSteps":31500,
+        "extensionStepsReduction":3500, "trim":20, "trimReduction":2, 
         
-    1:{ "alignRepeats":True, "alignUndoLoops":10, "maximumEdgeDegree":50, "extensionSteps":31500,
-        "extensionStepsReduction":3500, "trim":20, "trimReduction":2, "minimumTreeCoverage":0.95, 
-        "minimumTreeCoverageReduction":0.1, "minimumBlockLength":4, "minimumChainLength":8,
-        "minimumChainLengthReduction":0 },
+        "maximumTreeCoverageUndo":0.0, 
+        "maximumTreeCoverageUndoReduction":0.0, "maximumChainLengthUndo":0,
+        "maximumChainLengthUndoReduction":0,
+        
+        "minimumTreeCoverage":0.95, "minimumTreeCoverageReduction":0.1, 
+        "minimumBlockLength":4, "minimumChainLength":8, "minimumChainLengthReduction":0 },
+        
+    1:{ "alignUndoLoops":10, "alignRepeatsAtLoop":5, "maximumEdgeDegree":50, "extensionSteps":31500,
+        "extensionStepsReduction":3500, "trim":20, "trimReduction":2, 
+        
+        "maximumTreeCoverageUndo":0.0, 
+        "maximumTreeCoverageUndoReduction":0.0, "maximumChainLengthUndo":0,
+        "maximumChainLengthUndoReduction":0,
+        
+        "minimumTreeCoverage":0.95, "minimumTreeCoverageReduction":0.1, 
+        "minimumBlockLength":4, "minimumChainLength":8, "minimumChainLengthReduction":0 },
        
-    2:{ "alignRepeats":True, "alignUndoLoops":20, "maximumEdgeDegree":50, "extensionSteps":360,
-        "extensionStepsReduction":40, "trim":9, "trimReduction":2, "minimumTreeCoverage":0.95, 
-        "minimumTreeCoverageReduction":0.1, "minimumBlockLength":0, "minimumChainLength":8,
-        "minimumChainLengthReduction":0 },
+    2:{ "alignUndoLoops":10, "alignRepeatsAtLoop":5, "maximumEdgeDegree":50, "extensionSteps":360,
+        "extensionStepsReduction":40, "trim":9, "trimReduction":2, 
+        
+        "maximumTreeCoverageUndo":0.0, 
+        "maximumTreeCoverageUndoReduction":0.0, "maximumChainLengthUndo":0,
+        "maximumChainLengthUndoReduction":0,
+        
+        "minimumTreeCoverage":0.95, "minimumTreeCoverageReduction":0.1, 
+        "minimumBlockLength":0, "minimumChainLength":8, "minimumChainLengthReduction":0 },
        
-    3:{ "alignRepeats":True, "alignUndoLoops":10, "maximumEdgeDegree":50, "extensionSteps":20,
-        "extensionStepsReduction":3, "trim":9, "trimReduction":1, "minimumTreeCoverage":1.0, 
-        "minimumTreeCoverageReduction":0.1, "minimumBlockLength":0, "minimumChainLength":2,
-        "minimumChainLengthReduction":0 },
+    3:{ "alignUndoLoops":10, "alignRepeatsAtLoop":5,  "maximumEdgeDegree":50, "extensionSteps":20,
+        "extensionStepsReduction":3, "trim":9, "trimReduction":1, 
+        
+        "maximumTreeCoverageUndo":1.0, 
+        "maximumTreeCoverageUndoReduction":0.0, "maximumChainLengthUndo":15,
+        "maximumChainLengthUndoReduction":2,
+        
+        "minimumTreeCoverage":0.9, "minimumTreeCoverageReduction":0.1, 
+        "minimumBlockLength":0, "minimumChainLength":0, "minimumChainLengthReduction":0 }, 
 }
 
 class CactusAlignerWrapper(Target):
@@ -186,13 +206,17 @@ class CactusCoreWrapper(Target):
                       alignmentFile=self.alignmentFile, 
                       netName=self.netName,
                       logLevel=getLogLevelString(), 
-                      alignRepeats=coreParameters["alignRepeats"],
                       alignUndoLoops=coreParameters["alignUndoLoops"],
+                      alignRepeatsAtLoop=coreParameters["alignRepeatsAtLoop"],
                       maximumEdgeDegree=coreParameters["maximumEdgeDegree"],
                       extensionSteps=coreParameters["extensionSteps"],
                       extensionStepsReduction=coreParameters["extensionStepsReduction"],
                       trim=coreParameters["trim"],
                       trimReduction=coreParameters["trimReduction"],
+                      maximumTreeCoverageUndo=coreParameters["maximumTreeCoverageUndo"],
+                      maximumTreeCoverageUndoReduction=coreParameters["maximumTreeCoverageUndoReduction"],
+                      maximumChainLengthUndo=coreParameters["maximumChainLengthUndo"],
+                      maximumChainLengthUndoReduction=coreParameters["maximumChainLengthUndoReduction"],
                       minimumTreeCoverage=coreParameters["minimumTreeCoverage"],
                       minimumTreeCoverageReduction=coreParameters["minimumTreeCoverageReduction"],
                       minimumBlockLength=coreParameters["minimumBlockLength"],
@@ -255,6 +279,7 @@ class CactusBaseLevelAlignerWrapper(Target):
         self.netNames = netNames
     
     def run(self, localTempDir, globalTempDir):
+        #return
         runCactusBaseAligner(self.options.netDisk, self.netNames, getLogLevelString())
         logger.info("Run the cactus base aligner")
         
