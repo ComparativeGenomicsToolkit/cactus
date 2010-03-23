@@ -30,7 +30,6 @@ from cactus.cactus_common import runCactusCore
 from cactus.cactus_common import runCactusGetNets
 from cactus.cactus_common import runCactusPhylogeny
 from cactus.cactus_common import runCactusAdjacencies
-from cactus.cactus_common import runCactusFaces
 from cactus.cactus_common import runCactusBaseAligner
 
 from cactus.cactus_aligner import MakeSequences
@@ -303,7 +302,7 @@ class HistoryPhase(Target):
 
     def run(self, localTempDir, globalTempDir):
         logger.info("Starting the down pass target")
-        if self.options.buildTrees or self.options.buildAdjacencies or self.options.buildFaces:
+        if self.options.buildTrees or self.options.buildAdjacencies:
             childTarget = CactusHistoryWrapper(self.options, [ self.netName ], self.netSize)
             self.addChildTarget(childTarget)
 
@@ -320,8 +319,6 @@ class CactusHistoryWrapper(Target):
             #Not atomic!
         if self.options.buildAdjacencies:
             runCactusAdjacencies(self.options.netDisk, tempDir=localTempDir, netNames=self.netNames)
-        if self.options.buildFaces:
-            runCactusFaces(self.options.netDisk, tempDir=localTempDir, netNames=self.netNames)
         #Make child jobs
         childNetNames = []
         cummulativeNetSize = 0
@@ -364,16 +361,13 @@ def main():
     parser.add_option("--buildAdjacencies", dest="buildAdjacencies", action="store_true",
                       help="Build adjacencies", default=False) 
     
-    parser.add_option("--buildFaces", dest="buildFaces", action="store_true",
-                      help="Build faces", default=False) 
-
     options, args = parseBasicOptions(parser)
 
     logger.info("Parsed arguments")
     
     if options.setupAndBuildAlignments:
         baseTarget = SetupPhase(options, args)
-    elif options.buildTrees or options.buildAdjacencies or options.buildFaces:
+    elif options.buildTrees or options.buildAdjacencies:
         baseTarget = HistoryPhase('0', None, options)
         
     baseTarget.execute(options.jobFile) 
