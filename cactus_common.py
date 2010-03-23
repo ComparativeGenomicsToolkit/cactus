@@ -182,8 +182,17 @@ def runCactusPhylogeny(netDisk, tempDir,
     logger.info("Ran cactus_phylogeny okay")
     
 def runCactusAdjacencies(netDisk,  tempDir, netNames=[ "0" ], logLevel="DEBUG"):
-    command = ""
+    command = "cactus_fillAdjacencies --netDisk %s --tempDirRoot %s --logLevel %s %s" %\
+    (netDisk, tempDir, logLevel, " ".join(netNames))
+    system(command)
+    logger.info("Ran cactus_fillAdjacencies OK")
     
+def runCactusFaces(netDisk,  tempDir, netNames=[ "0" ], logLevel="DEBUG"):
+    command = "cactus_buildFaces --netDisk %s --tempDirRoot %s --logLevel %s %s" %\
+    (netDisk, tempDir, logLevel, " ".join(netNames))
+    system(command)
+    logger.info("Ran cactus_buildFaces OK")
+
 def runCactusTreeViewer(graphFile,
                         netDisk, 
                         netName="0", 
