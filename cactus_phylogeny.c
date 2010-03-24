@@ -192,8 +192,6 @@ void buildChainTrees_Bernard(int32_t blockNumber, char ***concatenatedBlocks, Na
 
 	char *tempDirName;
 	tempDirName = (char *) tempDir;
-//	char debugDir[] = "/Users/bsuh/TESTDIR";
-//	tempDirName = (char *) &debugDir;
 
 	randomDirName = strrchr(tempDirName, '/');
 	if (randomDirName == NULL) {
