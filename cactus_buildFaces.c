@@ -359,7 +359,7 @@ static void buildFaces_constructFromCap(Cap *
 					   struct hashtable
 					   *liftedEdgesTable, Net * net)
 {
-	Face *face = face_construct(); 
+	Face *face = face_construct(net); 
 	struct List *topNodes = constructZeroLengthList(16, NULL);
 	struct List *liftedEdges;
 	Cap *cap;
@@ -416,8 +416,6 @@ static void buildFaces_constructFromCap(Cap *
 	if (!buildFaces_isSimple(face))
 		abort();
 #endif
-
-	net_addFace(net, face);
 
 	// Clean up
 	destructList(topNodes);
