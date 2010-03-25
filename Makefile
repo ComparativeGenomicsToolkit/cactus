@@ -4,8 +4,7 @@ libPath = ../../lib
 
 cflags += ${tokyoCabinetIncl}
 
-all : ${binPath}/cactus_core ${binPath}/cactus_phylogeny ${binPath}/cactus_setup ${binPath}/cactus_aligner.py ${binPath}/cactus_workflow.py ${binPath}/cactus_workflow_getNets ${binPath}/cactus_alignerTestAligner.py utilitiesM ${binPath}/cactus_baseAligner ${binPath}/cactus_batch.py 
-#${binPath}/cactus_fillAdjacencies ${binPath}/cactus_buildFaces
+all : ${binPath}/cactus_core ${binPath}/cactus_phylogeny ${binPath}/cactus_setup ${binPath}/cactus_aligner.py ${binPath}/cactus_workflow.py ${binPath}/cactus_workflow_getNets ${binPath}/cactus_alignerTestAligner.py utilitiesM ${binPath}/cactus_baseAligner ${binPath}/cactus_batch.py ${binPath}/cactus_fillAdjacencies
 
 ${binPath}/cactus_core : *.c *.h ${libPath}/sonLib.a ${libPath}/cactusLib.a
 	${cxx} ${cflags} -I${libPath} -o ${binPath}/cactus_core cactus_core2.c 3_Absorb3edge2x.c cactus_core.c pinchGraph.c pinchGraphTest.c pinchGraphManipulation.c cactusGraph.c cactusNetFunctions.c ${libPath}/sonLib.a ${libPath}/cactusLib.a ${tokyoCabinetLib}
