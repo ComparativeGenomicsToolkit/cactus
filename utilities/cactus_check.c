@@ -64,7 +64,7 @@ void checkNonTerminalGroups(Net *net, Net *parentNet) {
 		assert(net_getEnd(parentNet, end_getName(end)) == end);
 		assert(end_getNet(end) == parentNet);
 		assert(net_getEnd(net, end_getName(end)) != NULL);
-		assert(!end_isBlockEnd(net_getEnd(net, end_getName(end))));
+		assert(end_isStubEnd(net_getEnd(net, end_getName(end))));
 		assert(end_getGroup(end) == group);
 	}
 	group_destructEndIterator(endIterator);
@@ -126,12 +126,11 @@ void checkEnds(Net *net) {
 		 */
 		if(end_isBlockEnd(end)) {
 			assert(end_getBlock(end) != NULL);
-			assert(!end_isCap(end));
-			assert(!end_isStub(end));
+			assert(!end_isStubEnd(end));
 		}
 		else {
+			assert(end_isStubEnd(end));
 			assert(end_getBlock(end) == NULL);
-			assert((end_isCap(end) && !end_isStub(end)) || (!end_isCap(end) && end_isStub(end)));
 		}
 
 		End_InstanceIterator *instanceIterator = end_getInstanceIterator(end);

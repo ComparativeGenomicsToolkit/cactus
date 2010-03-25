@@ -614,7 +614,7 @@ struct PinchVertex *splitEdge(struct PinchGraph *graph, Name contig,
 	return leftOrRight == LEFT ? vertex2 : vertex1;
 }
 
-int32_t isAStubOrCap(struct PinchEdge *edge) {
+int32_t isAStub(struct PinchEdge *edge) {
 	return vertex_isEnd(edge->from) || vertex_isEnd(edge->to);
 }
 

@@ -111,17 +111,20 @@ def runPipe(sequenceDirs, newickTreeString, tempDir, useDummy=False, writeDebugF
         
         system("cat %s" % tempAlignmentFile)
         
+        
         logger.info("Constructed the alignments")
         if randomBlockParameters:
+            alignUndoLoops = 1 + int(random.random() * 10)
             runCactusCore(tempReconstructionDirectory, tempAlignmentFile, 
                           netName=childNetName,
                           writeDebugFiles=writeDebugFiles,
+                          alignUndoLoops=alignUndoLoops,
                           maximumEdgeDegree=1+random.random()*10,
                           minimumTreeCoverage=random.random(),
                           minimumBlockLength=random.random()*5,
                           minimumChainLength=random.random()*10,
                           trim=random.random()*5,
-                          alignRepeats=random.random() > 0.5)
+                          alignRepeatsAtLoop=int(random.random() * alignUndoLoops))
         else:
             runCactusCore(tempReconstructionDirectory, tempAlignmentFile, netName=childNetName,
                           tempDir=getTempDirectory(tempDir), writeDebugFiles=writeDebugFiles)

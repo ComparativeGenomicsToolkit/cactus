@@ -82,7 +82,7 @@ struct PinchGraph *constructPinchGraph(Net *net) {
 		pinchVertex = constructPinchVertex(graph, -1, 0, 1);
 		pinchVertex2 = constructPinchVertex(graph, -1, 1, 0);
 		//connect to source.
-		if(end_isCap(end)) {
+		if(end_isAttached(end)) {
 			connectVertices(sourceVertex, pinchVertex);
 		}
 		hashtable_insert(hash, netMisc_nameToString(end_getName(end)), pinchVertex);
@@ -156,10 +156,10 @@ struct PinchGraph *constructPinchGraph(Net *net) {
 ////////////////////////////////////////////////
 
 
-struct CactusEdge *getNonDeadEndOfStubOrCapCactusEdge(struct CactusEdge *edge, struct PinchGraph *pinchGraph) {
+struct CactusEdge *getNonDeadEndOfStubCactusEdge(struct CactusEdge *edge, struct PinchGraph *pinchGraph) {
 	struct PinchEdge *pinchEdge;
 	pinchEdge = cactusEdgeToFirstPinchEdge(edge, pinchGraph);
-	assert(isAStubOrCapCactusEdge(edge, pinchGraph));
+	assert(isAStubCactusEdge(edge, pinchGraph));
 	assert(vertex_isDeadEnd(pinchEdge->from) || vertex_isDeadEnd(pinchEdge->to));
 	return vertex_isDeadEnd(pinchEdge->from) ? edge->rEdge : edge;
 }
@@ -192,8 +192,7 @@ Block *constructBlockFromCactusEdge(struct CactusEdge *edge, Net *net) {
 	for(i=0; i<edge->pieces->length; i++) {
 		piece = edge->pieces->list[i];
 		sequence = copySequence(net, piece->contig);
-		segment_construct2(block, piece->start > 0 ? piece->start : -piece->end, piece->start > 0,
-				sequence);
+		segment_construct2(block, piece->start > 0 ? piece->start : -piece->end, piece->start > 0, sequence);
 	}
 	return block;
 }
@@ -240,7 +239,7 @@ struct List *addEnvelopedStubEnds(Net *net, int32_t addToNet) {
 	list = constructEmptyList(0, NULL);
 	endIterator = net_getEndIterator(net);
 	while((end = net_getNextEnd(endIterator)) != NULL) {
-		if(end_isStub(end)) {
+		if(end_isStubEnd(end)) {
 			listAppend(list, end);
 		}
 	}
@@ -549,7 +548,7 @@ void fillOutNetFromInputs(
 		list = constructEmptyList(0, NULL);
 		for(j=0; j<biConnectedComponent->length; j++) {
 			cactusEdge = biConnectedComponent->list[j];
-			if((!isAStubOrCapCactusEdge(cactusEdge, pinchGraph)) && hashtable_search(chosenBlocksHash, cactusEdge) == NULL) {
+			if((!isAStubCactusEdge(cactusEdge, pinchGraph)) && hashtable_search(chosenBlocksHash, cactusEdge) == NULL) {
 				//merge vertices
 				if(vertexDiscoveryTimes[cactusEdge->from->vertexID] < vertexDiscoveryTimes[cactusEdge->to->vertexID]) {
 					mergedVertexIDs[cactusEdge->to->vertexID] = mergedVertexIDs[cactusEdge->from->vertexID];
@@ -587,7 +586,7 @@ void fillOutNetFromInputs(
 		biConnectedComponent = biConnectedComponents->list[i];
 		if(biConnectedComponent->length > 0) {
 			cactusEdge = biConnectedComponent->list[0];
-			//get the net.
+			//Get the net.
 			net = nets[mergedVertexIDs[cactusEdge->from->vertexID]];
 			if(net == NULL) {
 				net = net_construct(net_getNetDisk(parentNet));
@@ -600,7 +599,7 @@ void fillOutNetFromInputs(
 			for(j=0; j<biConnectedComponent->length; j++) {
 				cactusEdge = biConnectedComponent->list[j];
 				piece = cactusEdge->pieces->list[0];
-				if(!isAStubOrCapCactusEdge(cactusEdge, pinchGraph)) {
+				if(!isAStubCactusEdge(cactusEdge, pinchGraph)) {
 					block = constructBlockFromCactusEdge(cactusEdge, net);
 					pinchEdge = cactusEdgeToFirstPinchEdge(cactusEdge, pinchGraph);
 					hashtable_insert(endNamesHash, pinchEdge->from, netMisc_nameToString(end_getName(block_getLeftEnd(block))));
@@ -610,7 +609,7 @@ void fillOutNetFromInputs(
 				}
 				else {
 					assert(j == 0 || j == biConnectedComponent->length-1);
-					cactusEdge2 = getNonDeadEndOfStubOrCapCactusEdge(cactusEdge, pinchGraph);
+					cactusEdge2 = getNonDeadEndOfStubCactusEdge(cactusEdge, pinchGraph);
 					//if(j == 0) { //not using these asserts currently
 						//assert(cactusEdge2 == cactusEdge->rEdge);
 					//}
@@ -646,24 +645,24 @@ void fillOutNetFromInputs(
 				if(nestedNet == NULL) { //construct a terminal group.
 					group = group_construct2(net);
 
-					end = net_getEnd(net, cactusEdgeToEndName(isAStubOrCapCactusEdge(cactusEdge, pinchGraph) ?
-							getNonDeadEndOfStubOrCapCactusEdge(cactusEdge, pinchGraph) : cactusEdge->rEdge, endNamesHash, pinchGraph));
+					end = net_getEnd(net, cactusEdgeToEndName(isAStubCactusEdge(cactusEdge, pinchGraph) ?
+							getNonDeadEndOfStubCactusEdge(cactusEdge, pinchGraph) : cactusEdge->rEdge, endNamesHash, pinchGraph));
 					assert(end != NULL);
 					group_addEnd(group, end);
 
-					end2 = net_getEnd(net, cactusEdgeToEndName(isAStubOrCapCactusEdge(cactusEdge2, pinchGraph) ?
-							getNonDeadEndOfStubOrCapCactusEdge(cactusEdge2, pinchGraph) : cactusEdge2, endNamesHash, pinchGraph));
+					end2 = net_getEnd(net, cactusEdgeToEndName(isAStubCactusEdge(cactusEdge2, pinchGraph) ?
+							getNonDeadEndOfStubCactusEdge(cactusEdge2, pinchGraph) : cactusEdge2, endNamesHash, pinchGraph));
 					assert(end2 != NULL);
 					group_addEnd(group, end2);
 				}
 				else { //construct a link between two existing chains.
 					assert(net_getEndNumber(nestedNet) > 0);
-					end = net_getEnd(net, cactusEdgeToEndName(isAStubOrCapCactusEdge(cactusEdge, pinchGraph) ?
-							getNonDeadEndOfStubOrCapCactusEdge(cactusEdge, pinchGraph) : cactusEdge->rEdge, endNamesHash, pinchGraph));
+					end = net_getEnd(net, cactusEdgeToEndName(isAStubCactusEdge(cactusEdge, pinchGraph) ?
+							getNonDeadEndOfStubCactusEdge(cactusEdge, pinchGraph) : cactusEdge->rEdge, endNamesHash, pinchGraph));
 					assert(end != NULL);
 					end_copyConstruct(end, nestedNet);
-					end2 = net_getEnd(net, cactusEdgeToEndName(isAStubOrCapCactusEdge(cactusEdge2, pinchGraph) ?
-							getNonDeadEndOfStubOrCapCactusEdge(cactusEdge2, pinchGraph) : cactusEdge2, endNamesHash, pinchGraph));
+					end2 = net_getEnd(net, cactusEdgeToEndName(isAStubCactusEdge(cactusEdge2, pinchGraph) ?
+							getNonDeadEndOfStubCactusEdge(cactusEdge2, pinchGraph) : cactusEdge2, endNamesHash, pinchGraph));
 					assert(end2 != NULL);
 					end_copyConstruct(end2, nestedNet);
 					group = group_construct(net, nestedNet);

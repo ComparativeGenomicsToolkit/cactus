@@ -37,7 +37,7 @@ void checkPinchGraphDegree(struct PinchGraph *graph, int32_t maxDegree) {
 	for(i=0; i<graph->vertices->length; i++) {
 		vertex = graph->vertices->list[i];
 		if(lengthBlackEdges(vertex) > 0) {
-			if(isAStubOrCap(getFirstBlackEdge(vertex)) == FALSE) { //we don't check stubs/caps/
+			if(isAStub(getFirstBlackEdge(vertex)) == FALSE) { //we don't check stubs/caps/
 				assert(lengthBlackEdges(vertex) <= maxDegree);
 			}
 		}
@@ -100,7 +100,7 @@ void checkPinchGraph(struct PinchGraph *graph) {
 				assert(edge == getContainingBlackEdge(graph, edge->piece->contig, edge->piece->end));
 
 				//check its stub/cap-eyness.
-				if(isAStubOrCap(edge)) { //is a cap and must have one end pointing at the source or free
+				if(isAStub(edge)) { //is a cap and must have one end pointing at the source or free
 					assert(lengthGreyEdges(edge->from) == 0 ||
 						(lengthGreyEdges(edge->from) == 1 &&
 						 getFirstGreyEdge(edge->from)->vertexID == 0) ||

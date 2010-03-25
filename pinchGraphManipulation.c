@@ -47,14 +47,14 @@ void removeTrivialGreyEdge(struct PinchGraph *graph, struct PinchVertex *vertex1
 
 		struct PinchEdge *edge1 = getFirstBlackEdge(vertex1);
 		assert(edge1 != NULL);
-		assert(!isAStubOrCap(edge1));
+		assert(!isAStub(edge1));
 		edge1 = edge1->rEdge;
 		assert(edge1->to == vertex1);
 		//first find the grey edge to attach to the new vertex we're about to create
 
 		struct PinchEdge *edge2 = getNextEdge(graph, edge1, net);
 		assert(edge2 != NULL);
-		assert(!isAStubOrCap(edge2));
+		assert(!isAStub(edge2));
 		assert(edge2->from == vertex2);
 
 		struct PinchEdge *edge3 = constructPinchEdge(constructPiece(edge1->piece->contig, edge1->piece->start, edge2->piece->end));
@@ -96,7 +96,7 @@ void removeTrivialGreyEdgeComponents(struct PinchGraph *graph, struct List *list
 			vertex2 = getFirstGreyEdge(vertex1);
 			if(lengthGreyEdges(vertex2) == 1 && lengthBlackEdges(vertex2) > 0) {
 				edge2 = getFirstBlackEdge(vertex2);
-				if(!isAStubOrCap(edge1) && !isAStubOrCap(edge2)) {
+				if(!isAStub(edge1) && !isAStub(edge2)) {
 					if(vertex1->vertexID < vertex2->vertexID) { //Avoid treating self loops (equal) and dealing with trivial grey components twice.
 						listAppend(list, vertex1);
 					}
@@ -144,7 +144,7 @@ void splitMultipleBlackEdgesFromVertex(struct PinchGraph *pinchGraph, struct Pin
 
 		assert(popBlackEdge(vertex) == edge); //detaches edge from vertex.
 #ifdef BEN_DEBUG
-		assert(!isAStubOrCap(edge));
+		assert(!isAStub(edge));
 #endif
 		//make a new vertex
 		vertex2 = constructPinchVertex(pinchGraph, -1, 0, 0);
@@ -180,7 +180,7 @@ void removeOverAlignedEdges_P(struct PinchVertex *vertex, int32_t extensionSteps
 			if(lengthBlackEdges(vertex2) > 0) {
 				struct PinchEdge *edge = getFirstBlackEdge(vertex2);
 				int32_t length = edge->piece->end - edge->piece->start + 1;
-				if(!isAStubOrCap(edge)) {
+				if(!isAStub(edge)) {
 					int32_t *i = hashtable_search(hash, vertex2);
 					vertex3 = edge->to;
 					int32_t *j = hashtable_search(hash, vertex3);
@@ -222,7 +222,7 @@ void removeOverAlignedEdges(struct PinchGraph *pinchGraph, float minimumTreeCove
 	for(i=0; i<pinchGraph->vertices->length; i++) {
 		vertex = pinchGraph->vertices->list[i];
 		if(lengthBlackEdges(vertex) >= 1 &&
-			!isAStubOrCap(getFirstBlackEdge(vertex))) {
+			!isAStub(getFirstBlackEdge(vertex))) {
 			if (lengthBlackEdges(vertex) > maxDegree ||
 				treeCoverage(vertex, net, pinchGraph) < minimumTreeCoverage) { //has a high degree and is not a stub/cap
 				vertex2 = getFirstBlackEdge(vertex)->to;
@@ -242,7 +242,7 @@ void removeOverAlignedEdges(struct PinchGraph *pinchGraph, float minimumTreeCove
 	if(extraEdgesToUndo != NULL) {
 		for(i=0; i<extraEdgesToUndo->length; i++) {
 			edge = extraEdgesToUndo->list[i];
-			if(!isAStubOrCap(edge)) {
+			if(!isAStub(edge)) {
 				if(edge->from->vertexID > edge->to->vertexID) {
 					edge = edge->rEdge;
 				}
@@ -480,12 +480,15 @@ int32_t linkStubComponentsToTheSinkComponent_excludedEdgesFn(void *o) {
 	return FALSE;
 }
 
-void linkStubComponentsToTheSinkComponent(struct PinchGraph *pinchGraph) {
+void linkStubComponentsToTheSinkComponent(struct PinchGraph *pinchGraph, Net *net) {
 	struct List *components;
 	struct List *component;
 	struct PinchVertex *vertex;
 	struct PinchVertex *sinkVertex;
-	int32_t i, j, k;
+	int32_t i, j, k, l;
+	struct PinchEdge *edge;
+	Sequence *sequence;
+	Sequence *longestSequence;
 
 	//isolate the separate graph components using the components method
 	components = getRecursiveComponents(pinchGraph, linkStubComponentsToTheSinkComponent_excludedEdgesFn);
@@ -493,22 +496,47 @@ void linkStubComponentsToTheSinkComponent(struct PinchGraph *pinchGraph) {
 	sinkVertex = pinchGraph->vertices->list[0];
 	//for each non-sink component select a random stub to link to the sink vertex.
 	k = 0;
+	l = 0;
 	for(i=0; i<components->length; i++) {
 		component = components->list[i];
 		if(!listContains(component, sinkVertex)) {
+			//Get the longest sequence contained in the component and attach
+			//its two ends to the source vertex.
+			//Make the the two ends attached end_makeAttached(end) / end_makeUnattached(end)
+			longestSequence = NULL;
 			for(j=0; j<component->length; j++) {
 				vertex = component->list[j];
-				if(isAStubOrCap(getFirstBlackEdge(vertex)) && lengthGreyEdges(vertex) == 0) {
-					k++;
-					connectVertices(vertex, sinkVertex);
-					break;
+				if(vertex_isDeadEnd(vertex)) {
+					assert(lengthGreyEdges(vertex) == 0);
+					assert(lengthBlackEdges(vertex) == 1);
+					edge = getFirstBlackEdge(getFirstGreyEdge(getFirstBlackEdge(vertex)->to));
+					sequence = net_getSequence(net, edge->piece->contig);
+					if(longestSequence == NULL ||
+							sequence_getLength(sequence) > sequence_getLength(longestSequence)) {
+						longestSequence = sequence;
+					}
+				}
+			}
+			//assert(0);
+			assert(longestSequence != NULL);
+			for(j=0; j<component->length; j++) {
+				vertex = component->list[j];
+				if(vertex_isDeadEnd(vertex)) {
+					assert(lengthGreyEdges(vertex) == 0);
+					assert(lengthBlackEdges(vertex) == 1);
+					edge = getFirstBlackEdge(getFirstGreyEdge(getFirstBlackEdge(vertex)->to));
+					sequence = net_getSequence(net, edge->piece->contig);
+					if(sequence == longestSequence) {
+						connectVertices(vertex, sinkVertex);
+						k++;
+					}
 				}
 			}
 		}
 	}
 
 #ifdef BEN_DEBUG
-	assert(k == components->length-1);
+	assert(k == 2*(components->length-1));
 #endif
 
 	//clean up
@@ -539,7 +567,7 @@ float treeCoverage(struct PinchVertex *vertex, Net *net,
 
 #ifdef BEN_DEBUG
 	assert(lengthBlackEdges(vertex) > 0);
-	assert(!isAStubOrCap(getFirstBlackEdge(vertex)));
+	assert(!isAStub(getFirstBlackEdge(vertex)));
 #endif
 
 	eventTree = net_getEventTree(net);

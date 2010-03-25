@@ -151,6 +151,6 @@ void logTheChosenBlockSubset(struct List *biConnectedComponents, struct List *ch
 
 struct PinchEdge *cactusEdgeToFirstPinchEdge(struct CactusEdge *edge, struct PinchGraph *pinchGraph);
 
-int32_t isAStubOrCapCactusEdge(struct CactusEdge *edge, struct PinchGraph *pinchGraph);
+int32_t isAStubCactusEdge(struct CactusEdge *edge, struct PinchGraph *pinchGraph);
 
 #endif

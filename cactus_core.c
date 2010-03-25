@@ -129,7 +129,7 @@ void destructCactusCoreInputParameters(CactusCoreInputParameters *cCIP) {
 }
 
 
-struct CactusGraph *cactusCorePipeline_2(struct PinchGraph *pinchGraph) {
+struct CactusGraph *cactusCorePipeline_2(struct PinchGraph *pinchGraph, Net *net) {
 	struct CactusGraph *cactusGraph;
 	struct List *threeEdgeConnectedComponents;
 	int32_t startTime;
@@ -139,7 +139,7 @@ struct CactusGraph *cactusCorePipeline_2(struct PinchGraph *pinchGraph) {
 	///////////////////////////////////////////////////////////////////////////
 
 	startTime = time(NULL);
-	linkStubComponentsToTheSinkComponent(pinchGraph);
+	linkStubComponentsToTheSinkComponent(pinchGraph, net);
 	checkPinchGraph(pinchGraph);
 	logInfo("Linked stub components to the sink component in: %i seconds\n", time(NULL) - startTime);
 
@@ -175,7 +175,7 @@ struct List *getChosenBlockPinchEdges(struct List *chosenBlocks, struct PinchGra
 	struct List *chosenPinchEdges = constructEmptyList(0, NULL);
 	for(i=0; i<chosenBlocks->length; i++) {
 		pinchEdge = cactusEdgeToFirstPinchEdge(chosenBlocks->list[i], pinchGraph);
-		if(!isAStubOrCap(pinchEdge)) {
+		if(!isAStub(pinchEdge)) {
 			listAppend(chosenPinchEdges, pinchEdge);
 		}
 	}
@@ -311,7 +311,7 @@ int32_t cactusCorePipeline(Net *net,
 		// Compute the cactus graph for the first time (for removing spurious homologies)
 		////////////////////////////////////////////////
 
-		cactusGraph = cactusCorePipeline_2(pinchGraph);
+		cactusGraph = cactusCorePipeline_2(pinchGraph, net);
 
 		////////////////////////////////////////////////
 		// Get sorted bi-connected components.
@@ -358,7 +358,7 @@ int32_t cactusCorePipeline(Net *net,
 		// Compute the cactus graph for the second time
 		////////////////////////////////////////////////
 
-		cactusGraph = cactusCorePipeline_2(pinchGraph);
+		cactusGraph = cactusCorePipeline_2(pinchGraph, net);
 
 		////////////////////////////////////////////////
 		// Get sorted bi-connected components.

@@ -168,7 +168,7 @@ void connectPinchEdge(struct PinchEdge *edge, struct PinchVertex *from, struct P
 
 int32_t edgeComparator(struct PinchEdge *edge1, struct PinchEdge *edge2, void *o);
 
-int32_t isAStubOrCap(struct PinchEdge *edge);
+int32_t isAStub(struct PinchEdge *edge);
 
 /*
  * Types for choosing the sides of positions.
@@ -288,7 +288,7 @@ struct List *getRecursiveComponents(struct PinchGraph *pinchGraph, int32_t (*exc
 
 struct List *getRecursiveComponents2(struct PinchGraph *pinchGraph, struct List *edgesToExclude);
 
-void linkStubComponentsToTheSinkComponent(struct PinchGraph *pinchGraph);
+void linkStubComponentsToTheSinkComponent(struct PinchGraph *pinchGraph, Net *net);
 
 void removeTrivialGreyEdgeComponents(struct PinchGraph *graph, struct List *listOfVertices, Net *net);
 

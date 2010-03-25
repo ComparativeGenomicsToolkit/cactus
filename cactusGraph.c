@@ -1067,7 +1067,7 @@ float treeCoverage2(struct CactusEdge *cactusEdge, Net *net,
 	 * Returns the proportion of the tree covered by the block.
 	 */
 #ifdef BEN_DEBUG
-	assert(!isAStubOrCapCactusEdge(cactusEdge, pinchGraph));
+	assert(!isAStubCactusEdge(cactusEdge, pinchGraph));
 #endif
 	return treeCoverage(cactusEdgeToFirstPinchEdge(cactusEdge, pinchGraph)->from, net, pinchGraph);
 }
@@ -1081,7 +1081,7 @@ int32_t chainLength(struct List *biConnectedComponent, int32_t includeStubs, str
 	i = 0;
 	for(j=0; j<biConnectedComponent->length; j++) {
 		cactusEdge = biConnectedComponent->list[j];
-		if(includeStubs || !isAStubOrCapCactusEdge(cactusEdge, pinchGraph)) {
+		if(includeStubs || !isAStubCactusEdge(cactusEdge, pinchGraph)) {
 			i++;
 		}
 	}
@@ -1099,7 +1099,7 @@ int32_t chainBaseLength(struct List *biConnectedComponent, struct PinchGraph *pi
 	i = 0;
 	for(j=0; j<biConnectedComponent->length; j++) {
 		cactusEdge = biConnectedComponent->list[j];
-		if(!isAStubOrCapCactusEdge(cactusEdge, pinchGraph)) {
+		if(!isAStubCactusEdge(cactusEdge, pinchGraph)) {
 			piece = cactusEdge->pieces->list[0];
 			i += piece->end - piece->start + 1;
 		}
@@ -1140,7 +1140,7 @@ struct List *filterBlocksByTreeCoverageAndLength(struct List *biConnectedCompone
 		if(k >= minimumChainLength && k <= maximumChainLength) {
 			for(j=0; j<biConnectedComponent->length; j++) {
 				cactusEdge = biConnectedComponent->list[j];
-				if(!isAStubOrCapCactusEdge(cactusEdge, pinchGraph)) {
+				if(!isAStubCactusEdge(cactusEdge, pinchGraph)) {
 					assert(cactusEdge->pieces->length > 0);
 					struct Piece *piece = cactusEdge->pieces->list[0];
 					d = treeCoverage2(cactusEdge, net, pinchGraph);
@@ -1179,7 +1179,7 @@ void logTheChosenBlockSubset(struct List *biConnectedComponents, struct List *ch
 		totalNumberOfStubBlocks += chainLength(biConnectedComponent, TRUE, pinchGraph) - chainLength(biConnectedComponent, FALSE, pinchGraph);
 		for(j=0; j<biConnectedComponent->length; j++) {
 			cactusEdge = biConnectedComponent->list[j];
-			if(!isAStubOrCapCactusEdge(cactusEdge, pinchGraph)) {
+			if(!isAStubCactusEdge(cactusEdge, pinchGraph)) {
 				averagePieceNumberOfAllBlocks += cactusEdge->pieces->length;
 			}
 		}
@@ -1187,7 +1187,7 @@ void logTheChosenBlockSubset(struct List *biConnectedComponents, struct List *ch
 	j = 0;
 	for(i=0; i<chosenBlocks->length; i++) {
 		cactusEdge = chosenBlocks->list[i];
-		if(!isAStubOrCapCactusEdge(cactusEdge, pinchGraph)) {
+		if(!isAStubCactusEdge(cactusEdge, pinchGraph)) {
 			totalBlockScore += treeCoverage2(cactusEdge, net, pinchGraph);
 			piece = cactusEdge->pieces->list[0];
 			totalBlockLength += piece->end - piece->start + 1;
@@ -1216,7 +1216,7 @@ struct PinchEdge *cactusEdgeToFirstPinchEdge(struct CactusEdge *edge, struct Pin
 	return getContainingBlackEdge(pinchGraph, piece->contig, piece->start);
 }
 
-int32_t isAStubOrCapCactusEdge(struct CactusEdge *edge, struct PinchGraph *pinchGraph) {
-	return isAStubOrCap(cactusEdgeToFirstPinchEdge(edge, pinchGraph));
+int32_t isAStubCactusEdge(struct CactusEdge *edge, struct PinchGraph *pinchGraph) {
+	return isAStub(cactusEdgeToFirstPinchEdge(edge, pinchGraph));
 }
 

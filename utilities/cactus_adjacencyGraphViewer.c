@@ -142,7 +142,7 @@ void addStubAndCapEndsToGraph(Net *net, FILE *fileHandle) {
 	Net_EndIterator *endIterator = net_getEndIterator(net);
 	End *end;
 	while((end = net_getNextEnd(endIterator)) != NULL) {
-		if(!end_isBlockEnd(end)) {
+		if(end_isStubEnd(end)) {
 			addEndNodeToGraph(end, fileHandle);
 		}
 	}

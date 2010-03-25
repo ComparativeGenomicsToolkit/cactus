@@ -11,8 +11,8 @@ tractible at the mammalian-scale using a cluster farm.
 ==== Installation: ====
 
 *) Read the file "doc/README.txt".
-	This file lists the environmental variables which will need to 
-sets well as list the programs which will need to be installed and the 
+	This file lists the environmental variables which you will need to 
+set, as well as listing the programs which will need to be installed and the 
 required minimum versions of various key programs.
 
 ==== Running: ====

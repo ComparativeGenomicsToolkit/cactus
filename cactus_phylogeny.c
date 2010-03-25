@@ -643,8 +643,8 @@ ChainAlignment *chainAlignment_construct(Block **blocks, int32_t blocksLength) {
 						break;
 					}
 					cap = cap_getAdjacency(segment_get3Cap(segment));
-					assert(!end_isCap(cap_getEnd(cap))); //can not be inherited.
-					if(end_isStub(cap_getEnd(cap))) { //terminates with missing information.
+					//assert(!end_isStub(cap_getEnd(cap))); //can not be inherited.
+					if(end_isStubEnd(cap_getEnd(cap))) { //terminates with missing information.
 						break;
 					}
 					segment2 = cap_getSegment(cap);
@@ -897,7 +897,7 @@ int main(int argc, char *argv[]) {
 		if(net_getName(net) == 0) {
 			endIterator = net_getEndIterator(net);
 			while((end = net_getNextEnd(endIterator)) != NULL) {
-				if(end_isStub(end)) {
+				if(end_isStubEnd(end)) {
 					assert(end_getInstanceNumber(end) == 1);
 					Event *rootEvent = eventTree_getRootEvent(net_getEventTree(net));
 					Cap *rootCap = cap_construct(end, rootEvent);
@@ -906,7 +906,7 @@ int main(int argc, char *argv[]) {
 					end_setRootInstance(end, rootCap);
 				}
 				else {
-					assert(!end_isCap(end));
+					assert(!end_isStubEnd(end));
 					assert(end_isBlockEnd(end));
 				}
 			}

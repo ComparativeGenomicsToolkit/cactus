@@ -26,6 +26,7 @@ void usage() {
 /*
  * Plenty of global variables!
  */
+int32_t isComplete = 1;
 char * netDiskName = NULL;
 NetDisk *netDisk;
 Net *net;
@@ -48,12 +49,27 @@ void fn(const char *fastaHeader, const char *string, int32_t length) {
 	metaSequence = metaSequence_construct(2, length, string, fastaHeader,
 			event_getName(event), netDisk);
 	sequence = sequence_construct(metaSequence, net);
-	end1 = end_construct(1, net);
-	end2 = end_construct(1, net);
+	//isComplete = 0;
+	end1 = end_construct(isComplete, net);
+	end2 = end_construct(isComplete, net);
 	cap1 = cap_construct2(end1, 1, 1, 0, sequence);
 	cap2 = cap_construct2(end2, length+2, 1, 1, sequence);
 	cap_makeAdjacent1(cap1, cap2);
 	totalSequenceNumber++;
+}
+
+void setCompleteStatus(const char *fileName) {
+	isComplete = 1;
+	int32_t i = strlen(fileName);
+	if(i > 11) {
+		const char *cA = fileName + i - 11;
+		if(strcmp(cA, ".incomplete") == 0) {
+			isComplete = 0;
+			logInfo("The file %s is specified incomplete, the sequences will be free\n", fileName);
+			return;
+		}
+	}
+	logInfo("The file %s is specified complete, the sequences will be attached\n", fileName);
 }
 
 int main(int argc, char *argv[]) {
@@ -219,7 +235,9 @@ int main(int argc, char *argv[]) {
 					if(file->d_name[0]!='.') {
 						struct stat info2;
 						char *cA = pathJoin(argv[j], file->d_name);
+						//ascertain if complete or not
 						exitOnFailure(stat(cA,&info2), "Failed to get information about the file: %s\n", file->d_name);
+						setCompleteStatus(file->d_name); //decide if the sequences in the file should be free or attached.
 						if(!S_ISDIR(info2.st_mode)) {
 							logInfo("Processing file: %s\n", cA);
 							fileHandle = fopen(cA, "r");
@@ -234,6 +252,7 @@ int main(int argc, char *argv[]) {
 			else {
 				logInfo("Processing file: %s\n", argv[j]);
 				fileHandle = fopen(argv[j], "r");
+				setCompleteStatus(argv[j]); //decide if the sequences in the file should be free or attached.
 				fastaReadToFunction(fileHandle, fn);
 				fclose(fileHandle);
 			}
