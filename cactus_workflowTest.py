@@ -46,7 +46,7 @@ class TestCase(unittest.TestCase):
             sequenceDirs, newickTreeString = getRandomCactusInputs(tempDir=getTempDirectory(self.tempDir), sequenceNumber=self.sequenceNumber)
             jobTreeDir = os.path.join(getTempDirectory(self.tempDir), "jobTree")
             runCactusWorkflow(self.tempReconstructionDirectory, sequenceDirs, newickTreeString, jobTreeDir, logLevel='INFO',
-                               batchSystem=self.batchSystem, buildTrees=True, buildAdjacencies=True)
+                               batchSystem=self.batchSystem, buildTrees=True, buildAdjacencies=False)
             runCactusCheck(self.tempReconstructionDirectory)
             #Run the checker to check the file is okay.
             runJobTreeStatusAndFailIfNotComplete(jobTreeDir)

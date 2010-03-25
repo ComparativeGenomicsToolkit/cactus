@@ -499,6 +499,7 @@ void linkStubComponentsToTheSinkComponent(struct PinchGraph *pinchGraph, Net *ne
 	l = 0;
 	for(i=0; i<components->length; i++) {
 		component = components->list[i];
+		assert(component->length > 0);
 		if(!listContains(component, sinkVertex)) {
 			//Get the longest sequence contained in the component and attach
 			//its two ends to the source vertex.
@@ -509,8 +510,11 @@ void linkStubComponentsToTheSinkComponent(struct PinchGraph *pinchGraph, Net *ne
 				if(vertex_isDeadEnd(vertex)) {
 					assert(lengthGreyEdges(vertex) == 0);
 					assert(lengthBlackEdges(vertex) == 1);
-					edge = getFirstBlackEdge(getFirstGreyEdge(getFirstBlackEdge(vertex)->to));
-					sequence = net_getSequence(net, edge->piece->contig);
+					edge = getFirstBlackEdge(vertex);
+					Cap *cap = net_getCap(net, edge->piece->contig);
+					assert(cap != NULL);
+					sequence = cap_getSequence(cap);
+					assert(sequence != NULL);
 					if(longestSequence == NULL ||
 							sequence_getLength(sequence) > sequence_getLength(longestSequence)) {
 						longestSequence = sequence;

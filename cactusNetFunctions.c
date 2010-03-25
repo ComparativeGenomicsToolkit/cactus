@@ -166,6 +166,7 @@ struct CactusEdge *getNonDeadEndOfStubCactusEdge(struct CactusEdge *edge, struct
 
 Name cactusEdgeToEndName(struct CactusEdge *edge, struct hashtable *endNamesHash, struct PinchGraph *pinchGraph) {
 	struct PinchEdge *pinchEdge = cactusEdgeToFirstPinchEdge(edge, pinchGraph);
+	assert(pinchEdge != NULL);
 	char *cA = (char *)hashtable_search(endNamesHash, pinchEdge->from);
 	assert(cA != NULL);
 	return netMisc_stringToName(cA);
@@ -445,6 +446,25 @@ int fillOutNetFromInputsP2(struct List **biConnectedComponent1, struct List **bi
 	return i - j;
 }
 
+void mergeCactusVertices(struct CactusEdge *cactusEdge, int32_t *mergedVertexIDs, int32_t j,
+		struct List *biConnectedComponent) {
+	int32_t k;
+	struct CactusVertex *cactusVertex;
+	//merge vertices
+	if(vertexDiscoveryTimes[cactusEdge->from->vertexID] < vertexDiscoveryTimes[cactusEdge->to->vertexID]) {
+		mergedVertexIDs[cactusEdge->to->vertexID] = mergedVertexIDs[cactusEdge->from->vertexID];
+	}
+	else if (vertexDiscoveryTimes[cactusEdge->from->vertexID] > vertexDiscoveryTimes[cactusEdge->to->vertexID]) {
+		assert(j == biConnectedComponent->length-1);
+		for(k=0; k <= j; k++) {
+			cactusVertex = ((struct CactusEdge *)biConnectedComponent->list[k])->from;
+			if(mergedVertexIDs[cactusVertex->vertexID] == mergedVertexIDs[cactusEdge->from->vertexID]) {
+				mergedVertexIDs[cactusVertex->vertexID] = mergedVertexIDs[cactusEdge->to->vertexID];
+			}
+		}
+	}
+}
+
 void fillOutNetFromInputs(
 		Net *parentNet,
 		struct CactusGraph *cactusGraph,
@@ -459,20 +479,21 @@ void fillOutNetFromInputs(
 	Cap *cap;
 	Chain *chain;
 	Group *group;
-	struct CactusVertex *cactusVertex;
+	//struct CactusVertex *cactusVertex;
 	struct CactusEdge *cactusEdge;
 	struct CactusEdge *cactusEdge2;
 	struct List *biConnectedComponent;
-	struct List *list;
+	struct List *list, *list2;
 	struct List *biConnectedComponents;
 	void **nets;
 	void **parentNets;
 	int32_t *mergedVertexIDs;
-	int32_t i, j, k;
+	int32_t i, j; //, k;
 	struct hashtable *chosenBlocksHash;
 	struct hashtable *endNamesHash;
 	struct PinchEdge *pinchEdge;
 	struct Piece *piece;
+	Name name;
 
 	logDebug("Building the net\n");
 
@@ -502,7 +523,7 @@ void fillOutNetFromInputs(
 
 	qsort(biConnectedComponents->list, biConnectedComponents->length, sizeof(void *),
 			(int (*)(const void *v, const void *))fillOutNetFromInputsP2);
-	logDebug("Sorted the biconnected components by vertex discovery time");
+	logDebug("Sorted the biconnected components by vertex discovery time\n");
 
 	////////////////////////////////////////////////
 	//Build end names hash
@@ -543,33 +564,49 @@ void fillOutNetFromInputs(
 	for(i=0; i<cactusGraph->vertices->length; i++) {
 		mergedVertexIDs[i] = ((struct CactusVertex *)cactusGraph->vertices->list[i])->vertexID;
 	}
+
+	list2 = constructEmptyList(0, NULL); //this list will hold un-attached stubs that are removed from the ends of
+	//bi-connected components.
 	for(i=0; i<biConnectedComponents->length; i++) {
 		biConnectedComponent = biConnectedComponents->list[i];
 		list = constructEmptyList(0, NULL);
 		for(j=0; j<biConnectedComponent->length; j++) {
 			cactusEdge = biConnectedComponent->list[j];
-			if((!isAStubCactusEdge(cactusEdge, pinchGraph)) && hashtable_search(chosenBlocksHash, cactusEdge) == NULL) {
-				//merge vertices
-				if(vertexDiscoveryTimes[cactusEdge->from->vertexID] < vertexDiscoveryTimes[cactusEdge->to->vertexID]) {
-					mergedVertexIDs[cactusEdge->to->vertexID] = mergedVertexIDs[cactusEdge->from->vertexID];
+			if(isAStubCactusEdge(cactusEdge, pinchGraph)) {
+				cactusEdge2 = getNonDeadEndOfStubCactusEdge(cactusEdge, pinchGraph);
+				assert(cactusEdge2 != NULL);
+				name = cactusEdgeToEndName(cactusEdge2, endNamesHash, pinchGraph);
+				end = net_getEnd(parentNet, name);
+				assert(end != NULL);
+				if(end_isFree(end)) { //we don't want free stubs in chains
+					//merge vertices
+					mergeCactusVertices(cactusEdge, mergedVertexIDs, j, biConnectedComponent);
+					//put it in it's own little component
+					listAppend(list2, cactusEdge);
 				}
-				else if (vertexDiscoveryTimes[cactusEdge->from->vertexID] > vertexDiscoveryTimes[cactusEdge->to->vertexID]) {
-					assert(j == biConnectedComponent->length-1);
-					for(k=0; k <= j; k++) {
-						cactusVertex = ((struct CactusEdge *)biConnectedComponent->list[k])->from;
-						if(mergedVertexIDs[cactusVertex->vertexID] == mergedVertexIDs[cactusEdge->from->vertexID]) {
-							mergedVertexIDs[cactusVertex->vertexID] = mergedVertexIDs[cactusEdge->to->vertexID];
-						}
-					}
+				else {
+					listAppend(list, cactusEdge);
 				}
 			}
-			else {
+			else if(hashtable_search(chosenBlocksHash, cactusEdge) == NULL) { //is a non stub not in the chosen list.
+				//merge vertices
+				mergeCactusVertices(cactusEdge, mergedVertexIDs, j, biConnectedComponent);
+			}
+			else { //is a non stub in the chosen list, so we'll add it.
 				listAppend(list, cactusEdge);
 			}
 		}
 		destructList(biConnectedComponent);
 		biConnectedComponents->list[i] = list;
 	}
+	//Put the stubs in there own little bi-connected components.
+	for(i=0; i<list2->length; i++) {
+		list = constructEmptyList(0, NULL);
+		listAppend(list, list2->list[i]);
+		listAppend(biConnectedComponents, list);
+	}
+	destructList(list2);
+
 	logDebug("Built the chosen blocks hash\n");
 
 	////////////////////////////////////////////////
