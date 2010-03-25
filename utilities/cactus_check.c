@@ -18,8 +18,8 @@
  */
 
 
-//Check for internal instances and trees, call this flag checkTrees
-//Check internal instances adjacencies, call this flag checkInternalAdjacencies
+//Check for internal instances and trees, call the flag checkTrees
+//Check internal instances adjacencies, call the flag checkInternalAdjacencies
 //Stage 1, both checkTrees and checkInternalAdjacencies are false.
 //Stage 2, checkTrees is true, checkInternalAdjacencies is false.
 //Stage 3, checkTrees is true, checkInternalAdjacencies is true.
@@ -95,6 +95,14 @@ void checkChains(Net *net) {
 			assert(group_getEndNumber(group) >= 2);
 			assert(group_getEnd(group, end_getName(link_getLeft(link))) == link_getLeft(link));
 			assert(group_getEnd(group, end_getName(link_getRight(link))) == link_getRight(link));
+			//Check stub ends are not free stubs.
+			if(end_isStubEnd(link_getLeft(link))) {
+				assert(end_isAttached(link_getLeft(link)));
+			}
+			if(end_isStubEnd(link_getRight(link))) {
+				assert(end_isAttached(link_getRight(link)));
+			}
+			//Check internal links link blocks.
 			if(i > 1) {
 				Link *link2 = chain_getLink(chain, i-1);
 				assert(end_isBlockEnd(link_getRight(link2)));
@@ -113,6 +121,7 @@ void checkEnds(Net *net) {
 	Net_EndIterator *endIterator = net_getEndIterator(net);
 	End *end;
 	int32_t i, j;
+	int32_t attachedEnds = 0;
 	while((end = net_getNextEnd(endIterator)) != NULL) {
 		/*
 		 * Check end is part of an group
@@ -127,10 +136,23 @@ void checkEnds(Net *net) {
 		if(end_isBlockEnd(end)) {
 			assert(end_getBlock(end) != NULL);
 			assert(!end_isStubEnd(end));
+			//check not attached
+			assert(end_isFree(end));
+			assert(!end_isAttached(end));
 		}
 		else {
+			//is stub
 			assert(end_isStubEnd(end));
 			assert(end_getBlock(end) == NULL);
+
+			//check attachment
+			if(end_isAttached(end)) {
+				attachedEnds++;
+				assert(!end_isFree(end));
+			}
+			else {
+				assert(end_isFree(end));
+			}
 		}
 
 		End_InstanceIterator *instanceIterator = end_getInstanceIterator(end);
@@ -209,6 +231,8 @@ void checkEnds(Net *net) {
 		}
 	}
 	net_destructEndIterator(endIterator);
+	//Check we have an even number of attached ends.
+	assert(attachedEnds % 2 == 0);
 }
 
 void checkBlocks(Net *net) {

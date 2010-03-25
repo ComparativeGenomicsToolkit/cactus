@@ -24,7 +24,7 @@ from cactus.cactus_common import runCactusGetNets
 class TestCase(unittest.TestCase):
     
     def setUp(self):
-        self.testNo = TestStatus.getTestSetup(1, 100, 0, 0)
+        self.testNo = TestStatus.getTestSetup(1, 1000, 0, 0)
         self.tempDir = getTempDirectory(os.getcwd())
         unittest.TestCase.setUp(self)
     

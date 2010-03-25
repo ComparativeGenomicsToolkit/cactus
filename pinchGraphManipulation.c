@@ -489,6 +489,7 @@ void linkStubComponentsToTheSinkComponent(struct PinchGraph *pinchGraph, Net *ne
 	struct PinchEdge *edge;
 	Sequence *sequence;
 	Sequence *longestSequence;
+	Cap *cap;
 
 	//isolate the separate graph components using the components method
 	components = getRecursiveComponents(pinchGraph, linkStubComponentsToTheSinkComponent_excludedEdgesFn);
@@ -511,7 +512,7 @@ void linkStubComponentsToTheSinkComponent(struct PinchGraph *pinchGraph, Net *ne
 					assert(lengthGreyEdges(vertex) == 0);
 					assert(lengthBlackEdges(vertex) == 1);
 					edge = getFirstBlackEdge(vertex);
-					Cap *cap = net_getCap(net, edge->piece->contig);
+					cap = net_getCap(net, edge->piece->contig);
 					assert(cap != NULL);
 					sequence = cap_getSequence(cap);
 					assert(sequence != NULL);
@@ -528,8 +529,11 @@ void linkStubComponentsToTheSinkComponent(struct PinchGraph *pinchGraph, Net *ne
 				if(vertex_isDeadEnd(vertex)) {
 					assert(lengthGreyEdges(vertex) == 0);
 					assert(lengthBlackEdges(vertex) == 1);
-					edge = getFirstBlackEdge(getFirstGreyEdge(getFirstBlackEdge(vertex)->to));
-					sequence = net_getSequence(net, edge->piece->contig);
+					edge = getFirstBlackEdge(vertex);
+					cap = net_getCap(net, edge->piece->contig);
+					assert(cap != NULL);
+					sequence = cap_getSequence(cap);
+					assert(sequence != NULL);
 					if(sequence == longestSequence) {
 						connectVertices(vertex, sinkVertex);
 						k++;
@@ -568,6 +572,7 @@ float treeCoverage(struct PinchVertex *vertex, Net *net,
 	Event *commonAncestorEvent;
 	struct hashtable *hash;
 	float treeCoverage;
+	Sequence *sequence;
 
 #ifdef BEN_DEBUG
 	assert(lengthBlackEdges(vertex) > 0);
@@ -580,11 +585,14 @@ float treeCoverage(struct PinchVertex *vertex, Net *net,
 	struct PinchEdge *edge;
 	while((edge = getNextBlackEdge(vertex, blackEdgeIterator)) != NULL) {
 		piece = edge->piece;
-		event = sequence_getEvent(net_getSequence(net, piece->contig));
+		sequence = net_getSequence(net, piece->contig);
+		assert(sequence != NULL);
+		event = sequence_getEvent(sequence);
+		assert(event != NULL);
 		commonAncestorEvent = commonAncestorEvent == NULL ? event : eventTree_getCommonAncestor(event, commonAncestorEvent);
 	}
 	destructBlackEdgeIterator(blackEdgeIterator);
-
+	assert(commonAncestorEvent != NULL);
 
 	treeCoverage = 0.0;
 	hash = create_hashtable(eventTree_getEventNumber(eventTree)*2,
@@ -594,7 +602,10 @@ float treeCoverage(struct PinchVertex *vertex, Net *net,
 	blackEdgeIterator = getBlackEdgeIterator(vertex);
 	while((edge = getNextBlackEdge(vertex, blackEdgeIterator)) != NULL) {
 		piece = edge->piece;
-		event = sequence_getEvent(net_getSequence(net, piece->contig));
+		sequence = net_getSequence(net, piece->contig);
+		assert(sequence != NULL);
+		event = sequence_getEvent(sequence);
+		assert(event != NULL);
 		while(event != commonAncestorEvent && hashtable_search(hash, event) == NULL) {
 			treeCoverage += event_getBranchLength(event);
 			hashtable_insert(hash, event, event);
@@ -607,7 +618,7 @@ float treeCoverage(struct PinchVertex *vertex, Net *net,
 	destructBlackEdgeIterator(blackEdgeIterator);
 	hashtable_destroy(hash, FALSE, FALSE);
 	treeCoverage /= event_getSubTreeBranchLength(event_getChild(eventTree_getRootEvent(eventTree), 0));
-	if(treeCoverage < -0.001) {
+	if(treeCoverage <= -0.001 || treeCoverage >= 1.001) {
 		uglyf("The tree coverage for this case is: %f\n", treeCoverage);
 	}
 	assert(treeCoverage >= -0.001);
