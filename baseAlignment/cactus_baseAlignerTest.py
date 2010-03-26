@@ -13,7 +13,7 @@ from sonLib.bioio import fastaWrite
 from sonLib.bioio import fastaAlignmentWrite
 from sonLib.bioio import fastaReadHeaders
 
-from cactus.cactus_common import runCactusWorkflow
+from cactus.shared.cactus_common import runCactusWorkflow
 
 from workflow.jobTree.jobTreeTest import runJobTreeStatusAndFailIfNotComplete
 

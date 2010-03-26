@@ -14,17 +14,17 @@ from sonLib.bioio import getTempFile
 from sonLib.bioio import logger
 from sonLib.bioio import system
 
-from cactus.cactus_common import runCactusSetup
-from cactus.cactus_common import runCactusAligner
-from cactus.cactus_common import runCactusCore
-from cactus.cactus_common import runCactusCheck
-from cactus.cactus_common import getRandomCactusInputs
-from cactus.cactus_common import runCactusGetNets
+from cactus.shared.cactus_common import runCactusSetup
+from cactus.shared.cactus_common import runCactusAligner
+from cactus.shared.cactus_common import runCactusCore
+from cactus.shared.cactus_common import runCactusCheck
+from cactus.shared.cactus_common import getRandomCactusInputs
+from cactus.shared.cactus_common import runCactusGetNets
 
 class TestCase(unittest.TestCase):
     
     def setUp(self):
-        self.testNo = TestStatus.getTestSetup(1, 1000, 0, 0)
+        self.testNo = TestStatus.getTestSetup(1, 100, 0, 0)
         self.tempDir = getTempDirectory(os.getcwd())
         unittest.TestCase.setUp(self)
     

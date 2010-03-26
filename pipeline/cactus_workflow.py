@@ -25,20 +25,20 @@ from sonLib.bioio import getLogLevelString
 
 from workflow.jobTree.scriptTree.target import Target
 
-from cactus.cactus_common import runCactusSetup
-from cactus.cactus_common import runCactusCore
-from cactus.cactus_common import runCactusGetNets
-from cactus.cactus_common import runCactusPhylogeny
-from cactus.cactus_common import runCactusAdjacencies
-from cactus.cactus_common import runCactusBaseAligner
+from cactus.shared.cactus_common import runCactusSetup
+from cactus.shared.cactus_common import runCactusCore
+from cactus.shared.cactus_common import runCactusGetNets
+from cactus.shared.cactus_common import runCactusPhylogeny
+from cactus.shared.cactus_common import runCactusAdjacencies
+from cactus.shared.cactus_common import runCactusBaseAligner
 
-from cactus.cactus_aligner import MakeSequences
+from cactus.blastAlignment.cactus_aligner import MakeSequences
 
-from cactus.cactus_batch import makeTopLevelBlastOptions
-from cactus.cactus_batch import makeUpperMiddleLevelBlastOptions
-from cactus.cactus_batch import makeMiddleLevelBlastOptions
-from cactus.cactus_batch import makeLowLevelBlastOptions
-from cactus.cactus_batch import makeBlastFromOptions
+from cactus.blastAlignment.cactus_batch import makeTopLevelBlastOptions
+from cactus.blastAlignment.cactus_batch import makeUpperMiddleLevelBlastOptions
+from cactus.blastAlignment.cactus_batch import makeMiddleLevelBlastOptions
+from cactus.blastAlignment.cactus_batch import makeLowLevelBlastOptions
+from cactus.blastAlignment.cactus_batch import makeBlastFromOptions
 
 IDEAL_JOB_RUNTIME = 200
 

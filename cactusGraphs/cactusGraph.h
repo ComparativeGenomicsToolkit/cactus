@@ -153,4 +153,7 @@ struct PinchEdge *cactusEdgeToFirstPinchEdge(struct CactusEdge *edge, struct Pin
 
 int32_t isAStubCactusEdge(struct CactusEdge *edge, struct PinchGraph *pinchGraph);
 
+struct hashtable *createHashColouringPinchEdgesByChains(struct PinchGraph *pinchGraph,
+		struct List *biConnectComponentsList);
+
 #endif

@@ -12,10 +12,10 @@ from sonLib.bioio import logger
 from sonLib.bioio import system
 from workflow.jobTree.scriptTree.target import Target
 
-from cactus.cactus_batch import makeBlastFromOptions
-from cactus.cactus_batch import makeTopLevelBlastOptions
+from cactus.blastAlignment.cactus_batch import makeBlastFromOptions
+from cactus.blastAlignment.cactus_batch import makeTopLevelBlastOptions
 
-from cactus.cactus_alignerTestAligner import MakeBlastsLoader as MakeBlastsTest
+from cactus.blastAlignment.cactus_alignerTestAligner import MakeBlastsLoader as MakeBlastsTest
     
 class MakeSequences(Target):
     """Take a reconstruction problem and generate the sequences to be blasted.

@@ -21,8 +21,10 @@ void writePinchGraph(char *name, struct PinchGraph *pinchGraph,
 						struct List *biConnectedComponents, struct List *groups) {
 	FILE *fileHandle;
 	fileHandle = fopen(name, "w");
-	writeOutPinchGraphWithChains(pinchGraph, biConnectedComponents, groups, fileHandle);
+	struct hashtable *hash = createHashColouringPinchEdgesByChains(pinchGraph, biConnectedComponents);
+	writeOutPinchGraphWithChains(pinchGraph, hash, groups, fileHandle);
 	fclose(fileHandle);
+	hashtable_destroy(hash, TRUE, FALSE);
 }
 
 void writeCactusGraph(char *name, struct PinchGraph *pinchGraph,

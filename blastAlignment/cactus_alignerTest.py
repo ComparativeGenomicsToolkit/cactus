@@ -8,9 +8,9 @@ from sonLib.bioio import system
 from sonLib.bioio import getTempDirectory
 from sonLib.bioio import getTempFile
 
-from cactus.cactus_common import getRandomCactusInputs
-from cactus.cactus_common import runCactusSetup
-from cactus.cactus_common import runCactusAligner
+from cactus.shared.cactus_common import getRandomCactusInputs
+from cactus.shared.cactus_common import runCactusSetup
+from cactus.shared.cactus_common import runCactusAligner
 
 from workflow.jobTree.jobTreeTest import runJobTreeStatusAndFailIfNotComplete
 

@@ -9,12 +9,12 @@ from sonLib.bioio import logger
 from sonLib.bioio import system
 from sonLib.bioio import runGraphViz
 
-from cactus.cactus_common import getRandomCactusInputs
-from cactus.cactus_common import runCactusWorkflow
-from cactus.cactus_common import runCactusTreeViewer
-from cactus.cactus_common import runCactusBlockGraphViewer
-from cactus.cactus_common import runCactusCheck
-from cactus.cactus_common import runCactusTreeStats
+from cactus.shared.cactus_common import getRandomCactusInputs
+from cactus.shared.cactus_common import runCactusWorkflow
+from cactus.shared.cactus_common import runCactusTreeViewer
+from cactus.shared.cactus_common import runCactusBlockGraphViewer
+from cactus.shared.cactus_common import runCactusCheck
+from cactus.shared.cactus_common import runCactusTreeStats
 
 from workflow.jobTree.jobTreeTest import runJobTreeStatusAndFailIfNotComplete
 
@@ -47,7 +47,7 @@ class TestCase(unittest.TestCase):
             jobTreeDir = os.path.join(getTempDirectory(self.tempDir), "jobTree")
             runCactusWorkflow(self.tempReconstructionDirectory, sequenceDirs, newickTreeString, jobTreeDir, logLevel='INFO',
                                batchSystem=self.batchSystem, buildTrees=True, buildAdjacencies=False)
-            runCactusCheck(self.tempReconstructionDirectory)
+            runCactusCheck(self.tempReconstructionDirectory, checkTrees=True, checkInternalAdjacencies=False)
             #Run the checker to check the file is okay.
             runJobTreeStatusAndFailIfNotComplete(jobTreeDir)
             #Cleanup this test

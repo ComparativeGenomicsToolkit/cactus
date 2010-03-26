@@ -22,8 +22,8 @@ from sonLib.bioio import PairwiseAlignment
 
 from workflow.jobTree.jobTreeTest import runJobTreeStatusAndFailIfNotComplete
 
-from cactus.cactus_batch import MakeBlasts
-from cactus.cactus_batch import makeTopLevelBlastOptions
+from cactus.blastAlignment.cactus_batch import MakeBlasts
+from cactus.blastAlignment.cactus_batch import makeTopLevelBlastOptions
 
 class TestCase(unittest.TestCase):
     def setUp(self):

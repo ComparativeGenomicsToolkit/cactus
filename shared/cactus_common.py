@@ -18,7 +18,7 @@ from sonLib.bioio import getRandomAlphaNumericString
 
 from sonLib.tree import makeRandomBinaryTree
 
-from workflow.jobTree.jobTree import runJobTree
+from workflow.jobTree.jobTree import runJobTree 
 from workflow.jobTree.jobTreeTest import runJobTreeStatusAndFailIfNotComplete
 
 def nameValue(name, value, valueType=str):

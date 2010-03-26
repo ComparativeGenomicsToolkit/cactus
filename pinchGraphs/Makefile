@@ -1,0 +1,22 @@
+makefile:
+
+include ../../../include.mk
+binPath = ../../../bin
+libPath = ../../../lib
+
+libSources = pinchGraph.c pinchGraphManipulation.c pinchGraphTest.c
+libHeaders = pinchGraph.h
+
+all : ${libPath}/pinchGraph.a 
+
+${libPath}/pinchGraph.a : ${libSources} ${libHeaders} ${libPath}/sonLib.a ${libPath}/cactusLib.a
+	${cxx} ${cflags} -I ${libPath}/ -c ${libSources}
+	ar rc pinchGraph.a *.o
+	ranlib pinchGraph.a 
+	rm *.o
+	mv pinchGraph.a ${libPath}/
+	cp ${libHeaders} ${libPath}/
+
+clean : 
+	rm -f ${libPath}/pinchGraph.a 
+

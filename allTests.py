@@ -1,23 +1,24 @@
 import unittest
 
-import cactus_setupTest
-import cactus_alignerTest
-import cactus_coreTest
-import cactus_workflowTest
-import cactus_baseAlignerTest
-import cactus_phylogenyTest
-import cactus_batchTest
+import cactus.setup.cactus_setupTest
+import cactus.blastAlignment.cactus_alignerTest
+import cactus.blastAlignment.cactus_batchTest
+import cactus.core.cactus_coreTest
+import cactus.pipeline.cactus_workflowTest
+import cactus.baseAlignment.cactus_baseAlignerTest
+import cactus.phylogeny.cactus_phylogenyTest
 
 from sonLib.bioio import parseSuiteTestOptions
 
 def allSuites(): 
-    cactus_setupSuite = unittest.makeSuite(cactus_setupTest.TestCase, 'test')
-    cactus_alignerSuite = unittest.makeSuite(cactus_alignerTest.TestCase, 'test')
-    cactus_coreSuite = unittest.makeSuite(cactus_coreTest.TestCase, 'test')
-    cactus_workflowSuite = unittest.makeSuite(cactus_workflowTest.TestCase, 'test')
-    cactus_baseAlignerSuite = unittest.makeSuite(cactus_baseAlignerTest.TestCase, 'test')
-    cactus_phylogenySuite = unittest.makeSuite(cactus_phylogenyTest.TestCase, 'test')
-    cactus_batchSuite = unittest.makeSuite(cactus_batchTest.TestCase, 'test')
+    cactus_setupSuite = unittest.makeSuite(cactus.setup.cactus_setupTest.TestCase, 'test')
+    cactus_alignerSuite = unittest.makeSuite(cactus.blastAlignment.cactus_alignerTest.TestCase, 'test')
+    cactus_batchSuite = unittest.makeSuite(cactus.blastAlignment.cactus_batchTest.TestCase, 'test')
+    cactus_coreSuite = unittest.makeSuite(cactus.core.cactus_coreTest.TestCase, 'test')
+    cactus_workflowSuite = unittest.makeSuite(cactus.pipeline.cactus_workflowTest.TestCase, 'test')
+    cactus_baseAlignerSuite = unittest.makeSuite(cactus.baseAlignment.cactus_baseAlignerTest.TestCase, 'test')
+    cactus_phylogenySuite = unittest.makeSuite(cactus.phylogeny.cactus_phylogenyTest.TestCase, 'test')
+    
     allTests = unittest.TestSuite((cactus_setupSuite, cactus_alignerSuite, 
                                    cactus_coreSuite, 
                                    cactus_workflowSuite, 

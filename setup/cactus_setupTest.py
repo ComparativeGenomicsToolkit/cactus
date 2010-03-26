@@ -11,8 +11,8 @@ from sonLib.bioio import system
 from sonLib.bioio import getTempDirectory
 from sonLib.bioio import fastaRead
 
-from cactus.cactus_common import runCactusSetup
-from cactus.cactus_common import getRandomCactusInputs
+from cactus.shared.cactus_common import runCactusSetup
+from cactus.shared.cactus_common import getRandomCactusInputs
 
 class TestCase(unittest.TestCase):
 

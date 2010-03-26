@@ -11,7 +11,7 @@
 #include "pinchGraph.h"
 #include "cactus.h"
 #include "pairwiseAlignment.h"
-#include "cactusGraph.h"
+//#include "cactusGraph.h"
 
 /*
  * Basic stuff for building and manipulating pinch graphs
@@ -1199,7 +1199,7 @@ char *getColour(struct hashtable *hash, void *thing) {
 	return cA;
 }
 
-void writeOutPinchGraphWithChains(struct PinchGraph *pinchGraph, struct List *biConnectComponentsList,
+void writeOutPinchGraphWithChains(struct PinchGraph *pinchGraph, struct hashtable *edgeColours,
 								  struct List *groups, FILE *fileHandle) {
 	/*
 	 * Writes out a graph in 'dot' format, compatible with graphviz.
@@ -1212,39 +1212,22 @@ void writeOutPinchGraphWithChains(struct PinchGraph *pinchGraph, struct List *bi
 	struct PinchVertex *vertex;
 	struct PinchVertex *vertex2;
 	struct PinchEdge *edge;
-	struct hashtable *hash;
+	struct hashtable *hash2;
 	struct List *group;
-	struct List *biConnectedComponent;
-	struct CactusEdge *cactusEdge;
-	struct Piece *piece;
 	char *colour;
 
 	logDebug("Writing the pinch graph\n");
-	//Put the chain pieces in a hash to colour the black edges of the pinch graph.
-	hash = create_hashtable(pinchGraph->vertices->length*10,
-								hashtable_key, hashtable_equalKey,
-							   NULL, (void (*)(void *))destructInt);
 
-	if(biConnectComponentsList != NULL) {
-		for(i=0; i<biConnectComponentsList->length;i++) {
-			biConnectedComponent = biConnectComponentsList->list[i];
-			for(k=0; k<biConnectedComponent->length; k++) {
-				cactusEdge = biConnectedComponent->list[k];
-				for(j=0; j<cactusEdge->pieces->length; j++) {
-					piece = cactusEdge->pieces->list[j];
-					hashtable_insert(hash, piece, constructInt(i));
-					hashtable_insert(hash, piece->rPiece, constructInt(i));
-				}
-			}
-		}
-	}
+	hash2 = create_hashtable(pinchGraph->vertices->length*10,
+							 hashtable_key, hashtable_equalKey,
+							 NULL, (void (*)(void *))destructInt);
 
 	if(groups != NULL) {
 		for(i=0; i<groups->length; i++) {
 			group = groups->list[i];
 			for(j=0; j<group->length; j++) {
 				vertex = group->list[j];
-				hashtable_insert(hash, vertex, constructInt(i));
+				hashtable_insert(hash2, vertex, constructInt(i));
 			}
 		}
 	}
@@ -1260,7 +1243,7 @@ void writeOutPinchGraphWithChains(struct PinchGraph *pinchGraph, struct List *bi
 #ifdef BEN_DEBUG
 		assert(vertex->vertexID == i);
 #endif
-		colour = getColour(hash, vertex);
+		colour = getColour(hash2, vertex);
 		fprintf(fileHandle, "node[width=0.3,height=0.3,shape=circle,colour=%s,fontsize=14];\n", colour);
 		fprintf(fileHandle, "n" INT_STRING "n [label=\"" INT_STRING "\"];\n", vertex->vertexID, vertex->vertexID);
 	}
@@ -1275,7 +1258,7 @@ void writeOutPinchGraphWithChains(struct PinchGraph *pinchGraph, struct List *bi
 			assert(vertex->vertexID != edge->to->vertexID);
 #endif
 			if(vertex->vertexID < edge->to->vertexID) {
-				colour = getColour(hash, edge->piece);
+				colour = getColour(edgeColours, edge->piece);
 				fprintf(fileHandle, "edge[color=%s,len=2.5,weight=100,dir=forward];\n", colour);
 
 				void *blackEdgeIterator = getBlackEdgeIterator(vertex);
@@ -1318,7 +1301,7 @@ void writeOutPinchGraphWithChains(struct PinchGraph *pinchGraph, struct List *bi
 
 	logDebug("Written the grey edges\n");
 
-	hashtable_destroy(hash, TRUE, FALSE);
+	hashtable_destroy(hash2, TRUE, FALSE);
 
 	logDebug("Written the pinch graph\n");
 }

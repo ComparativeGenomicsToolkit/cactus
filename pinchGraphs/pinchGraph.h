@@ -269,7 +269,7 @@ struct List *getGreyEdgePieces(struct PinchVertex *vertex, struct PinchVertex *v
 ////////////////////////////////////////////////
 
 void writeOutPinchGraphWithChains(struct PinchGraph *pinchGraph,
-								  struct List *chainsList,
+								  struct hashtable *edgeColours,
 								  struct List *groups,
 								  FILE *fileHandle);
 

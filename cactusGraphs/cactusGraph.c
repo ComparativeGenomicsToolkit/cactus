@@ -1220,3 +1220,33 @@ int32_t isAStubCactusEdge(struct CactusEdge *edge, struct PinchGraph *pinchGraph
 	return isAStub(cactusEdgeToFirstPinchEdge(edge, pinchGraph));
 }
 
+
+struct hashtable *createHashColouringPinchEdgesByChains(struct PinchGraph *pinchGraph,
+		struct List *biConnectComponentsList) {
+	struct List *biConnectedComponent;
+	struct CactusEdge *cactusEdge;
+	struct Piece *piece;
+	int32_t i, j, k;
+
+	//Put the chain pieces in a hash to colour the black edges of the pinch graph.
+	struct hashtable *hash = create_hashtable(pinchGraph->vertices->length*10,
+								hashtable_key, hashtable_equalKey,
+							   NULL, (void (*)(void *))destructInt);
+
+	if(biConnectComponentsList != NULL) {
+		for(i=0; i<biConnectComponentsList->length;i++) {
+			biConnectedComponent = biConnectComponentsList->list[i];
+			for(k=0; k<biConnectedComponent->length; k++) {
+				cactusEdge = biConnectedComponent->list[k];
+				for(j=0; j<cactusEdge->pieces->length; j++) {
+					piece = cactusEdge->pieces->list[j];
+					hashtable_insert(hash, piece, constructInt(i));
+					hashtable_insert(hash, piece->rPiece, constructInt(i));
+				}
+			}
+		}
+	}
+
+	return hash;
+}
+
