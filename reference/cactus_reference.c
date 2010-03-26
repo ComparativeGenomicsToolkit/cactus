@@ -22,7 +22,7 @@ void makeTopLevelPseudoChromosomes(Net *net, Reference *reference) {
 }
 
 void makeIntermediateLevelPseudoChromosomes(Net *net, Reference *reference) {
-	/* Make intermediate leve
+	/* Make intermediate leve */
 }
 
 void makePsuedoAdjacencies(Net *net, Reference *reference) {
