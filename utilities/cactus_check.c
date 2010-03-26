@@ -322,8 +322,16 @@ void checkBasesAccountedFor(Net *net) {
 	int64_t childBases = 0.0;
 	Net_BlockIterator *blockIterator = net_getBlockIterator(net);
 	Block *block;
+	Block_InstanceIterator *segmentIterator;
+	Segment *segment;
 	while((block = net_getNextBlock(blockIterator)) != NULL) {
-		blockBases += block_getLength(block) * block_getInstanceNumber(block);
+		segmentIterator = block_getInstanceIterator(block);
+		while((segment = block_getNext(segmentIterator)) != NULL) {
+			if(segment_getSequence(segment) != NULL) {
+				blockBases += segment_getLength(segment);
+			}
+		}
+		block_destructInstanceIterator(segmentIterator);
 	}
 	net_destructBlockIterator(blockIterator);
 	Net_GroupIterator *iterator = net_getGroupIterator(net);

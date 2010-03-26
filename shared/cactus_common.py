@@ -226,14 +226,15 @@ def runCactusWorkflow(netDisk, sequenceFiles,
                       adjacencyBuilder="cactus_adjacencyTestAdjacencyBuilder.py",
                       logLevel="DEBUG", retryCount=0, batchSystem="single_machine", rescueJobFrequency=None,
                       setupAndBuildAlignments=True,
-                      buildTrees=False, buildAdjacencies=False):
+                      buildTrees=False, buildAdjacencies=False, buildReference=False):
     setupAndBuildAlignments = nameValue("setupAndBuildAlignments", setupAndBuildAlignments, bool)
     buildTrees = nameValue("buildTrees", buildTrees, bool)
     buildAdjacencies = nameValue("buildAdjacencies", buildAdjacencies, bool)
+    buildReference = nameValue("buildReference", buildReference, bool)
     command = "cactus_workflow.py %s --speciesTree '%s' \
---netDisk %s %s %s %s --job JOB_FILE" % \
+--netDisk %s %s %s %s %s --job JOB_FILE" % \
             (" ".join(sequenceFiles), newickTreeString,
-             netDisk, setupAndBuildAlignments, buildTrees, buildAdjacencies)
+             netDisk, setupAndBuildAlignments, buildTrees, buildAdjacencies, buildReference)
     #print "going to run the command:", command
     #assert False
     runJobTree(command, jobTreeDir, logLevel, retryCount, batchSystem, rescueJobFrequency)
@@ -279,3 +280,8 @@ def runCactusBaseAligner(netDisk, netNames, logLevel="DEBUG"):
     """Runs cactus base aligner.
     """
     system("cactus_baseAligner --netDisk %s --logLevel %s %s" % (netDisk, logLevel, " ".join(netNames)))
+    
+def runCactusReference(netDisk, netNames, logLevel="DEBUG"):
+    """Runs cactus reference.
+    """
+    system("cactus_reference --netDisk %s --logLevel %s %s" % (netDisk, logLevel, " ".join(netNames)))

@@ -7,6 +7,7 @@ import cactus.core.cactus_coreTest
 import cactus.pipeline.cactus_workflowTest
 import cactus.baseAlignment.cactus_baseAlignerTest
 import cactus.phylogeny.cactus_phylogenyTest
+import cactus.reference.cactus_referenceTest
 
 from sonLib.bioio import parseSuiteTestOptions
 
@@ -18,12 +19,13 @@ def allSuites():
     cactus_workflowSuite = unittest.makeSuite(cactus.pipeline.cactus_workflowTest.TestCase, 'test')
     cactus_baseAlignerSuite = unittest.makeSuite(cactus.baseAlignment.cactus_baseAlignerTest.TestCase, 'test')
     cactus_phylogenySuite = unittest.makeSuite(cactus.phylogeny.cactus_phylogenyTest.TestCase, 'test')
-    
+    cactus_referenceSuite = unittest.makeSuite(cactus.reference.cactus_referenceTest.TestCase, 'test')
+     
     allTests = unittest.TestSuite((cactus_setupSuite, cactus_alignerSuite, 
                                    cactus_coreSuite, 
                                    cactus_workflowSuite, 
                                    cactus_baseAlignerSuite, cactus_phylogenySuite,
-                                   cactus_batchSuite))
+                                   cactus_batchSuite, cactus_referenceSuite))
     return allTests
         
 def main():

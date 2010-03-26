@@ -31,6 +31,7 @@ from cactus.shared.cactus_common import runCactusGetNets
 from cactus.shared.cactus_common import runCactusPhylogeny
 from cactus.shared.cactus_common import runCactusAdjacencies
 from cactus.shared.cactus_common import runCactusBaseAligner
+from cactus.shared.cactus_common import runCactusReference
 
 from cactus.blastAlignment.cactus_aligner import MakeSequences
 
@@ -98,7 +99,7 @@ class AlignmentPhase(Target):
         #Setup call to cactus aligner wrapper as child
         #Calculate the size of the child.
         self.addChildTarget(CactusCoreWrapper2(self.options, '0', None, -1))
-        self.setFollowOnTarget(HistoryPhase('0', None, self.options))
+        self.setFollowOnTarget(ExtensionPhase('0', None, self.options))
 
 #Each level around 30x larger than the last
 BASE_LEVEL_SIZE = 2000 #30000
@@ -286,14 +287,14 @@ class CactusBaseLevelAlignerWrapper(Target):
 ############################################################
 ############################################################
 ############################################################
-#The history building phase
+#The extension phase
 #
-#Adds trees and adjacencies to the AVG component of the datastructure.
+#Adds trees, adjacencies and reference orderings to the datastructure.
 ############################################################
 ############################################################
 ############################################################
 
-class HistoryPhase(Target):
+class ExtensionPhase(Target):
     def __init__(self, netName, netSize, options):
         Target.__init__(self, time=0)
         self.netName = netName
@@ -302,11 +303,11 @@ class HistoryPhase(Target):
 
     def run(self, localTempDir, globalTempDir):
         logger.info("Starting the down pass target")
-        if self.options.buildTrees or self.options.buildAdjacencies:
-            childTarget = CactusHistoryWrapper(self.options, [ self.netName ], self.netSize)
+        if self.options.buildTrees or self.options.buildAdjacencies or self.options.buildReference:
+            childTarget = CactusExtensionWrapper(self.options, [ self.netName ], self.netSize)
             self.addChildTarget(childTarget)
 
-class CactusHistoryWrapper(Target):
+class CactusExtensionWrapper(Target):
     def __init__(self, options, netNames, cummulativeNetSize):
         Target.__init__(self, time=timeParameters[getIteration(0, cummulativeNetSize)])
         self.options = options
@@ -319,6 +320,8 @@ class CactusHistoryWrapper(Target):
             #Not atomic!
         if self.options.buildAdjacencies:
             runCactusAdjacencies(self.options.netDisk, tempDir=localTempDir, netNames=self.netNames)
+        if self.options.buildReference:
+            runCactusReference(self.options.netDisk, netNames=self.netNames)
         #Make child jobs
         childNetNames = []
         cummulativeNetSize = 0
@@ -329,11 +332,11 @@ class CactusHistoryWrapper(Target):
                     childNetNames.append(childNetName)
                     cummulativeNetSize += 1 #childNetSize
                     if timeParameters[getIteration(0, cummulativeNetSize)] > IDEAL_JOB_RUNTIME:
-                        self.addChildTarget(CactusHistoryWrapper(self.options, childNetNames, cummulativeNetSize))
+                        self.addChildTarget(CactusExtensionWrapper(self.options, childNetNames, cummulativeNetSize))
                         childNetNames = []
                         cummulativeNetSize = 0
         if len(childNetNames) > 0:
-            self.addChildTarget(CactusHistoryWrapper(self.options, childNetNames, cummulativeNetSize))
+            self.addChildTarget(CactusExtensionWrapper(self.options, childNetNames, cummulativeNetSize))
       
 def main():
     ##########################################
@@ -359,7 +362,10 @@ def main():
                       help="Build trees", default=False) 
     
     parser.add_option("--buildAdjacencies", dest="buildAdjacencies", action="store_true",
-                      help="Build adjacencies", default=False) 
+                      help="Build adjacencies", default=False)
+    
+    parser.add_option("--buildReference", dest="buildReference", action="store_true",
+                      help="Creates a reference ordering for the nets", default=False)
     
     options, args = parseBasicOptions(parser)
 
@@ -367,8 +373,8 @@ def main():
     
     if options.setupAndBuildAlignments:
         baseTarget = SetupPhase(options, args)
-    elif options.buildTrees or options.buildAdjacencies:
-        baseTarget = HistoryPhase('0', None, options)
+    elif options.buildTrees or options.buildAdjacencies or options.buildReference:
+        baseTarget = ExtensionPhase('0', None, options)
         
     baseTarget.execute(options.jobFile) 
     
