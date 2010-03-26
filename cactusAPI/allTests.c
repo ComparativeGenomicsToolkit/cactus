@@ -1,0 +1,60 @@
+#include "cactusGlobalsPrivate.h"
+
+CuSuite *cactusGroupTestSuite();
+CuSuite *cactusSegmentTestSuite();
+CuSuite *cactusBlockTestSuite();
+CuSuite *cactusChainTestSuite();
+CuSuite *cactusDatabaseTestSuite();
+CuSuite *cactusCapTestSuite();
+CuSuite *cactusEndTestSuite();
+CuSuite *cactusEventTestSuite();
+CuSuite *cactusEventTreeTestSuite();
+CuSuite *cactusLinkTestSuite();
+CuSuite *cactusMetaEventTestSuite();
+CuSuite *cactusMetaSequenceTestSuite();
+CuSuite *cactusNetDiskTestSuite();
+CuSuite *cactusNetMiscTestSuite();
+CuSuite *cactusNetTestSuite();
+CuSuite *cactusFaceTestSuite();
+CuSuite *cactusSequenceTestSuite();
+CuSuite *cactusSerialisationTestSuite();
+CuSuite *cactusSortedSetTestSuite();
+CuSuite *cactusPseudoAdjacencyTestSuite();
+CuSuite *cactusPseudoChromosomeTestSuite();
+CuSuite *cactusReferenceTestSuite();
+
+void cactusAPIRunAllTests(void) {
+	CuString *output = CuStringNew();
+	CuSuite* suite = CuSuiteNew();
+	CuSuiteAddSuite(suite, cactusGroupTestSuite());
+	CuSuiteAddSuite(suite, cactusSegmentTestSuite());
+	CuSuiteAddSuite(suite, cactusBlockTestSuite());
+	CuSuiteAddSuite(suite, cactusChainTestSuite());
+	CuSuiteAddSuite(suite, cactusDatabaseTestSuite());
+	CuSuiteAddSuite(suite, cactusCapTestSuite());
+	CuSuiteAddSuite(suite, cactusEndTestSuite());
+	CuSuiteAddSuite(suite, cactusEventTestSuite());
+	CuSuiteAddSuite(suite, cactusEventTreeTestSuite());
+	CuSuiteAddSuite(suite, cactusLinkTestSuite());
+	CuSuiteAddSuite(suite, cactusMetaEventTestSuite());
+	CuSuiteAddSuite(suite, cactusMetaSequenceTestSuite());
+	CuSuiteAddSuite(suite, cactusNetDiskTestSuite());
+	CuSuiteAddSuite(suite, cactusNetMiscTestSuite());
+	CuSuiteAddSuite(suite, cactusNetTestSuite());
+	CuSuiteAddSuite(suite, cactusFaceTestSuite());
+	CuSuiteAddSuite(suite, cactusSequenceTestSuite());
+	CuSuiteAddSuite(suite, cactusSerialisationTestSuite());
+	CuSuiteAddSuite(suite, cactusSortedSetTestSuite());
+	CuSuiteAddSuite(suite, cactusPseudoAdjacencyTestSuite());
+	CuSuiteAddSuite(suite, cactusPseudoChromosomeTestSuite());
+	CuSuiteAddSuite(suite, cactusReferenceTestSuite());
+	CuSuiteRun(suite);
+	CuSuiteSummary(suite, output);
+	CuSuiteDetails(suite, output);
+	printf("%s\n", output->buffer);
+}
+
+int main(void) {
+	cactusAPIRunAllTests();
+	return 0;
+}
