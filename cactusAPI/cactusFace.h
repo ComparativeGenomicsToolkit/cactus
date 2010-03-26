@@ -14,7 +14,7 @@
 /*
  * Constructs faces in net
  */
-Face * face_construct();
+Face * face_construct(Net * net);
 
 /* 
  * Simple destructor
