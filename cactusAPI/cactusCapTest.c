@@ -8,7 +8,7 @@ void cactusCapTestSetup() {
 	}
 }
 
-inline void cactusCapTestTeardown() {
+void cactusCapTestTeardown() {
 	if(!nestedTest) {
 		cactusEndsTestSharedTeardown();
 	}

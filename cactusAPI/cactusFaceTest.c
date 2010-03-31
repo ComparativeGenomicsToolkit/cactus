@@ -2,7 +2,7 @@
 
 static bool nestedTest = 0;
 
-inline void cactusFaceTestSetup() {
+void cactusFaceTestSetup() {
 	if (!nestedTest) {
 		cactusFacesTestSharedSetup();
 	}

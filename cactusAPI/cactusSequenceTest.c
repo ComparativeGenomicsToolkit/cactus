@@ -11,7 +11,7 @@ static const char *headerString = ">one";
 
 static bool nestedTest = 0;
 
-inline void cactusSequenceTestTeardown() {
+void cactusSequenceTestTeardown() {
 	if(!nestedTest && netDisk != NULL) {
 		netDisk_destruct(netDisk);
 		testCommon_deleteTemporaryNetDisk();
