@@ -328,7 +328,7 @@ Segment *getSegment(struct BinaryTree *binaryTree, Segment **segments) {
 
 Event *getEvent(struct BinaryTree *binaryTree, Segment **segments) {
 	Segment *segment = getSegment(binaryTree, segments);
-	return segment != NULL ? segment_getEvent(segment) : segment;
+	return segment != NULL ? segment_getEvent(segment) : NULL;
 }
 
 Segment *buildChainTrees3P(Block *block, Segment **segments, int32_t blockNumber,
@@ -367,15 +367,9 @@ void buildChainTrees3(Block *block, Segment **segments, int32_t blockNumber, str
 	 * Constructs a block tree for the block.
 	 */
 	EventTree *eventTree = net_getEventTree(block_getNet(block));
-	//Now do the reconcilliation.
-	/*uglyf("Tree %s \n", eventTree_makeNewickString(eventTree));
-	printBinaryTree(stderr, binaryTree);
-	uglyf(" goooo %i \n", blockNumber);
-	int32_t i;
-	for(i=0; i<blockNumber; i++) {
-		uglyf("Segment %i\n", segments[i]);
-	}*/
+	//Now do the reconcilliation of events to events in the event tree.
 	reconcile(binaryTree, eventTree, (Event *(*)(struct BinaryTree *, void *))getEvent, segments);
+	//Now build the tree
 	Segment *mostAncestralEvent = buildChainTrees3P(block, segments, blockNumber, binaryTree);
 	assert(block_getInstanceNumber(block) > 0);
 	assert(mostAncestralEvent != NULL);
