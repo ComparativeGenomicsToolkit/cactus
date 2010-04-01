@@ -4,10 +4,15 @@ libPath = ../../../lib
 
 cflags += ${tokyoCabinetIncl}
 
-all : ${binPath}/cactus_phylogeny 
+treeIncPath = treelib/inc
 
-${binPath}/cactus_phylogeny : cactus_phylogeny.c reconcilliation.c neighbourJoining.c phylogeny.h ${libPath}/sonLib.a ${libPath}/cactusLib.a
-	${cxx} ${cflags} -I${libPath} -o ${binPath}/cactus_phylogeny cactus_phylogeny.c reconcilliation.c neighbourJoining.c ${libPath}/sonLib.a ${libPath}/cactusLib.a ${tokyoCabinetLib}
+all : ${binPath}/cactus_phylogeny treelib/libtree.a
+
+treelib/libtree.a:
+	cd treelib && make
+
+${binPath}/cactus_phylogeny : cactus_phylogeny.c reconcilliation.c phylogeny.h ${libPath}/sonLib.a ${libPath}/cactusLib.a treelib/libtree.a ${treeIncPath}/treelib.h
+	${cxx} ${cflags} -I${libPath} -I${treeIncPath} -o ${binPath}/cactus_phylogeny cactus_phylogeny.c reconcilliation.c ${libPath}/sonLib.a ${libPath}/cactusLib.a treelib/libtree.a ${tokyoCabinetLib}
 
 clean : 
 	rm -f *.o
