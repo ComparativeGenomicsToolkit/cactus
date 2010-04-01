@@ -12,6 +12,7 @@
 #include "commonC.h"
 #include "cactus.h"
 #include "avl.h"
+#include "phylogeny.h"
 
 #define closeEnough 0.001
 
@@ -319,92 +320,18 @@ bool isNewEvent(const char *eventName) {
 	return strlen(eventName) >= 8 && eventName[0] == 'N' && eventName[1] == 'E' && eventName[2] == 'W';
 }
 
-Event *augmentEventTree(struct BinaryTree *augmentedEventTree,
-		EventTree *eventTree, struct hashtable *newEventNameMap) {
-	/*
-	 * Function takes an augmented event tree and adds in the extra (unary) events to the original
-	 * event tree.
-	 */
-	Event *event;
-
-	if(augmentedEventTree->internal) {
-		Event *childEvent = augmentEventTree(augmentedEventTree->left, eventTree, newEventNameMap);
-		if(augmentedEventTree->right != NULL) { //is a speciation node.
-			Event *childEvent2 = augmentEventTree(augmentedEventTree->right, eventTree, newEventNameMap);
-			assert(!isNewEvent(augmentedEventTree->label));
-			Name eventName = netMisc_stringToName(augmentedEventTree->label);
-			event = eventTree_getEvent(eventTree, eventName);
-#ifdef BEN_DEBUG
-			assert(event != NULL);
-			assert(event_getChildNumber(event) == 2);
-			assert(event_getParent(childEvent) == event);
-			assert(event_getParent(childEvent2) == event);
-			//The pipeline will not check branch lengths are comparable, and allow new events to change the overall branch length. Ugly but robust.
-			//assert(floatValuesClose(event_getBranchLength(childEvent), augmentedEventTree->left->distance, closeEnough));
-			//assert(floatValuesClose(event_getBranchLength(childEvent2), augmentedEventTree->right->distance, closeEnough));
-#endif
-			return event;
-		}
-		else { //a unary event
-			if(isNewEvent(augmentedEventTree->label)) {
-				MetaEvent *metaEvent = metaEvent_construct("", net_getNetDisk(eventTree_getNet(eventTree)));
-				//We set the branch length so that of the child branch is correct.
-				//assert(augmentedEventTree->left->distance <= event_getBranchLength(childEvent));
-				event = event_construct2(metaEvent, event_getBranchLength(childEvent) - augmentedEventTree->left->distance, event_getParent(childEvent), childEvent, eventTree);
-				hashtable_insert(newEventNameMap,  //add to the map of new event names.
-								 stringCopy(augmentedEventTree->label),
-								 netMisc_nameToString(event_getName(event)));
-			}
-			else {
-				Name eventName = netMisc_stringToName(augmentedEventTree->label);
-				event = eventTree_getEvent(eventTree, eventName);
-				assert(event != NULL);
-			}
-#ifdef BEN_DEBUG
-			assert(event_getParent(childEvent) == event);
-			//assert(floatValuesClose(event_getBranchLength(childEvent), augmentedEventTree->left->distance, closeEnough));
-#endif
-			return event;
-		}
-	}
-	else { //is a leaf
-		assert(!isNewEvent(augmentedEventTree->label));
-		Name eventName = netMisc_stringToName(augmentedEventTree->label);
-		event = eventTree_getEvent(eventTree, eventName);
-#ifdef BEN_DEBUG
-		assert(event != NULL);
-		assert(event_getChildNumber(event) == 0);
-#endif
-		return event;
-	}
-}
-
-
 Segment *buildChainTrees3P(Block *block, Segment **segments, int32_t blockNumber,
-		struct BinaryTree *binaryTree, struct hashtable *newEventNameMap) {
+		struct BinaryTree *binaryTree) {
 	/*
 	 * Recursive partner to buildChainTree3 function, recurses on the binary tree constructing the block tree.
 	 * The labels of the leaves are indexes into the segments array, the internal node's labels are events in the event tree.
 	 */
 	if(binaryTree->internal) { //deal with an internal node of the block tree.
-		Segment *leftInstance = buildChainTrees3P(block, segments, blockNumber, binaryTree->left, newEventNameMap);
-		Segment *rightInstance = buildChainTrees3P(block, segments, blockNumber, binaryTree->right, newEventNameMap);
+		Segment *leftInstance = buildChainTrees3P(block, segments, blockNumber, binaryTree->left);
+		Segment *rightInstance = buildChainTrees3P(block, segments, blockNumber, binaryTree->right);
 		if(leftInstance != NULL) {
 			if(rightInstance != NULL) {
-
-				Event *event;
-				if(isNewEvent(binaryTree->label)) {
-					const char *cA = hashtable_search(newEventNameMap, binaryTree->label);
-					assert(cA != NULL);
-					event = eventTree_getEvent(net_getEventTree(block_getNet(block)), netMisc_stringToName(cA));
-				}
-				else {
-					event = eventTree_getEvent(net_getEventTree(block_getNet(block)), netMisc_stringToName(binaryTree->label));
-					if(event != NULL) {
-						// printBinaryTree(stderr, binaryTree);
-					}
-				}
-
+				Event *event = eventTree_getEvent(net_getEventTree(block_getNet(block)), netMisc_stringToName(binaryTree->label));
 				assert(event != NULL); //check event is present in the event tree.
 				//Check that this does not create a cycle with respect to the event tree.
 				assert(event_isAncestor(segment_getEvent(leftInstance), event));
@@ -428,11 +355,11 @@ Segment *buildChainTrees3P(Block *block, Segment **segments, int32_t blockNumber
 	}
 }
 
-void buildChainTrees3(Block *block, Segment **segments, int32_t blockNumber, struct BinaryTree *binaryTree, struct hashtable *newEventNameMap) {
+void buildChainTrees3(Block *block, Segment **segments, int32_t blockNumber, struct BinaryTree *binaryTree) {
 	/*
 	 * Constructs a block tree for the block.
 	 */
-	Segment *mostAncestralEvent = buildChainTrees3P(block, segments, blockNumber, binaryTree, newEventNameMap);
+	Segment *mostAncestralEvent = buildChainTrees3P(block, segments, blockNumber, binaryTree);
 	assert(block_getInstanceNumber(block) > 0);
 	assert(mostAncestralEvent != NULL);
 	//Make a root event.
@@ -458,8 +385,7 @@ void buildChainTrees3(Block *block, Segment **segments, int32_t blockNumber, str
 void buildChainTrees2(ChainAlignment *chainAlignment,
 					  struct BinaryTree **refinedBlockTrees,
 					  int32_t *refinedBlockBoundaries,
-					  int32_t refinedBlockNumber,
-					  struct hashtable *newEventNameMap) {
+					  int32_t refinedBlockNumber) {
 	/*
 	 * Iterates through a chain alignment, constructing the block trees and splitting blocks as needed.
 	 */
@@ -479,13 +405,13 @@ void buildChainTrees2(ChainAlignment *chainAlignment,
 				assert(refinedBlockBoundaries[j] >= k - block_getLength(block)); //boundary must break block so that left block is at least one base pair long.
 				assert(refinedBlockBoundaries[j] < k); //boundary must break block so that right block is at least one base pair long.
 				block_split(block, block_getLength(block) - (k - refinedBlockBoundaries[j]), &leftBlock, &rightBlock);
-				buildChainTrees3(leftBlock, chainAlignment->matrix[i], chainAlignment->rowNumber, refinedBlockTrees[j], newEventNameMap);
+				buildChainTrees3(leftBlock, chainAlignment->matrix[i], chainAlignment->rowNumber, refinedBlockTrees[j]);
 				block = rightBlock;
 				assert(k - block_getLength(block) == refinedBlockBoundaries[j]); //check the split did what we expect
 				assert(j+1 < refinedBlockNumber && refinedBlockBoundaries[j+1] <= k); //check that we have another block tree to deal with the right side of the split.
 			}
 			else {
-				buildChainTrees3(block, chainAlignment->matrix[i], chainAlignment->rowNumber, refinedBlockTrees[j], newEventNameMap);
+				buildChainTrees3(block, chainAlignment->matrix[i], chainAlignment->rowNumber, refinedBlockTrees[j]);
 			}
 			j++;
 		} while(j < refinedBlockNumber && refinedBlockBoundaries[j] <= k);
@@ -538,23 +464,15 @@ void buildChainTrees(ChainAlignment **chainAlignments, int32_t chainAlignmentNum
 	exitOnFailure(destructRandomDir(randomDir), "Tried to destroy a recursive directory of temp files but failed\n");
 
 	/*
-	 * Augment the event tree with the new events.
-	 */
-	struct BinaryTree *modifiedEventTree = newickTreeParser(augmentedEventTreeString, 0.0, 1);
-	struct hashtable *newEventNameMap = create_hashtable(1, hashtable_stringHashKey,
-			hashtable_stringEqualKey, free, free);
-	augmentEventTree(modifiedEventTree, eventTree, newEventNameMap);
-	logDebug("Augmented the event tree\n");
-
-	/*
-	 * Now process each new block tree.
+	 * Now process and reconcile each new block tree.
 	 */
 	for(i=0; i<chainAlignmentNumber; i++) {
 		struct BinaryTree **blockTrees = malloc(sizeof(void *)* refinedBlockNumbers[i]);
 		for(j=0; j<refinedBlockNumbers[i]; j++) {
 			blockTrees[j] = newickTreeParser(blockTreeStrings[i][j], 0.0, 0);
+			reconcile(blockTrees[j], eventTree);
 		}
-		buildChainTrees2(chainAlignments[i], blockTrees, refinedBlockBoundaries[i], refinedBlockNumbers[i], newEventNameMap);
+		buildChainTrees2(chainAlignments[i], blockTrees, refinedBlockBoundaries[i], refinedBlockNumbers[i]);
 		for(j=0; j<refinedBlockNumbers[i]; j++) {
 			destructBinaryTree(blockTrees[j]);
 		}
@@ -578,7 +496,6 @@ void buildChainTrees(ChainAlignment **chainAlignments, int32_t chainAlignmentNum
 	free(leafEventLabels);
 	free(blockBoundaries);
 	free(eventTreeString);
-	hashtable_destroy(newEventNameMap, 1, 1);
 	logDebug("Cleaned up the inputs\n");
 
 	//done!
