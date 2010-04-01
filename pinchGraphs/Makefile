@@ -6,6 +6,7 @@ libPath = ../../../lib
 
 libSources = pinchGraph.c pinchGraphManipulation.c pinchGraphTest.c
 libHeaders = pinchGraph.h
+cflags += ${tokyoCabinetIncl}
 
 all : ${libPath}/pinchGraph.a 
 
