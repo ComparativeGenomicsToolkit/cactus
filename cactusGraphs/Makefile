@@ -6,6 +6,7 @@ libPath = ../../../lib
 
 libSources = cactusGraph.c 
 libHeaders = cactusGraph.h
+cflags += ${tokyoCabinetIncl}
 
 all : ${libPath}/cactusGraph.a 
 
@@ -18,4 +19,4 @@ ${libPath}/cactusGraph.a : ${libSources} ${libHeaders} ${libPath}/pinchGraph.a $
 	cp ${libHeaders} ${libPath}/
 
 clean : 
-	rm -f ${libPath}/cactusGraph.a 
+	rm -f ${libPath}/cactusGraph.a
