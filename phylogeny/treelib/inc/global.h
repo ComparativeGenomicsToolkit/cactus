@@ -23,6 +23,8 @@
 #include <math.h>
 #include <assert.h>
 
+#include <stdbool.h>
+
 /****************** Conditional compilation switches *******************/
 
 /***************************** Constants *******************************/
@@ -93,7 +95,7 @@
 
 /**************************** Datatypes ********************************/
 //#ifndef __cplusplus
-//  typedef int                bool;
+//typedef int                bool;
 //#endif
 typedef unsigned char      uchar;
 typedef short int          shortint;
