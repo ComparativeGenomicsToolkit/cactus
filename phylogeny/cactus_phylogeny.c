@@ -14,6 +14,8 @@
 #include "avl.h"
 #include "phylogeny.h"
 
+#include "treelib.h"
+
 #define closeEnough 0.001
 
 typedef struct _chainAlignment {
@@ -167,94 +169,33 @@ void buildChainTrees_Bernard(int32_t blockNumber, char ***concatenatedBlocks, Na
 	int32_t i = 0;
 	int32_t j = 0;
 
-	char *randomDirName = NULL;
-
 	int32_t rowNumber = 0;
 	int32_t colNumber = 0;
 
-	char eventTreeFileName[] = "pre.event.tree";
-	char blockFileName[] = "annot";
-	char mafDirFileName[] = "mafs";
-	char augTreeFileName[] = "remap.augtree";
-	char dupTreeFileName[] = "event.duptree";
+	char ***blockTreeArray = NULL;
+	blockTreeArray = malloc(sizeof(void *) * blockNumber);
+	for (i=0; i<blockNumber; i++) {
+		colNumber = chainAlignments[i]->columnNumber;
+		blockTreeArray[i] = malloc(sizeof(void *) * colNumber);
+	}
 
-	const int32_t TMP_BUFFER_SIZE = 256; // Assume that 256 chars is enough for any temp filename strings
-	char tmpStringBuffer[TMP_BUFFER_SIZE];
-	FILE *fp = NULL;
+	for (i=0; i<blockNumber; i++) {
+		rowNumber = chainAlignments[i]->rowNumber;
+		colNumber = chainAlignments[i]->columnNumber;
 
-	const int32_t LINE_BUFF_SIZE = 131072; // Assume that 4096 chars is enough for reading in a single line of a file
-	char lineBuffer[LINE_BUFF_SIZE];
-	char *tmpString = NULL;
+		char *treestring = NULL;
+		treestring = msa2tree(concatenatedBlocks[i], rowNumber);
 
+		for (j=0; j<colNumber; j++) {
+			blockTreeArray[i][j] = treestring;
+		}
+	}
+	*blockTreeStrings = blockTreeArray;
+
+	/* Clone Block boundaries to refined Block Boundaries*/
 	int32_t **newBlockBoundaries = NULL;
 	int32_t *newBlockNumbers = NULL;
 
-	char ***blockTreeArray = NULL;
-
-	char *tempDirName;
-	tempDirName = (char *) tempDir;
-
-	randomDirName = strrchr(tempDirName, '/');
-	if (randomDirName == NULL) {
-		; // Assume this doesn't happen
-	} else {
-		randomDirName += 1;
-	}
-
-	/* Output the eventTree to file */
-	snprintf(tmpStringBuffer, TMP_BUFFER_SIZE, "%s/%s", tempDirName, eventTreeFileName);
-	fp = fopen(tmpStringBuffer, "w");
-	fprintf(fp, "%s\n", eventTreeString);
-	fclose(fp);
-
-	/* Output the block definition file */
-	snprintf(tmpStringBuffer, TMP_BUFFER_SIZE, "%s/%s", tempDirName, blockFileName);
-	fp = fopen(tmpStringBuffer, "w");
-	for (i=0; i<blockNumber; i++) {
-		rowNumber = chainAlignments[i]->rowNumber;
-
-		/* NOTE: Block Numbers start at 1 */
-		fprintf(fp, ">%d %d %d\n", i+1, chainAlignments[i]->totalAlignmentLength, rowNumber);
-		for (j=0; j<rowNumber; j++) {
-			fprintf(fp, "%s.chr0:1-%d + %s %s\n", netMisc_nameToString(leafEventLabels[i][j]), chainAlignments[i]->totalAlignmentLength, netMisc_nameToString(_5Ends[i][j]), netMisc_nameToString(_3Ends[i][j]));
-		}
-	}
-	fclose(fp);
-
-	/* Create the block map file */
-	snprintf(tmpStringBuffer, TMP_BUFFER_SIZE, "%s/%s", tempDirName, "block.map");
-	fp = fopen(tmpStringBuffer, "w");
-	for (i=0; i<blockNumber; i++) {
-		/* NOTE: Block Numbers start at 1 */
-		fprintf(fp, "%d\t%d\n", i+1, i+1);
-	}
-	fclose(fp);
-
-	/* Create the maf files */
-	snprintf(tmpStringBuffer, TMP_BUFFER_SIZE, "%s/%s", tempDirName, mafDirFileName);
-	mkdir(tmpStringBuffer, 0777);
-
-	for (i=0; i<blockNumber; i++) {
-		/* NOTE: Block Numbers start at 1 */
-		snprintf(tmpStringBuffer, TMP_BUFFER_SIZE, "%s/%s/%d", tempDirName, mafDirFileName, i+1);
-
-		fp = fopen(tmpStringBuffer, "w");
-
-		rowNumber = chainAlignments[i]->rowNumber;
-		for (j=0; j<rowNumber; j++) {
-			fprintf(fp, ">%s\n", netMisc_nameToString(leafEventLabels[i][j]));
-			fprintf(fp, "%s\n", concatenatedBlocks[i][j]);
-		}
-
-		fclose(fp);
-	}
-
-	/* Run the tree pipeline */
-	snprintf(tmpStringBuffer, TMP_BUFFER_SIZE, "conTrees_PhyloTreeBuilder.py %s", tempDirName);
-	exitOnFailure(system(tmpStringBuffer), "conTrees_PhyloTreeBuilder.py failed\n");
-	printf("Completed running tree pipeline, now onto parsing\n");
-
-	/* Clone Block boundaries to refined Block Boundaries*/
 	newBlockBoundaries = malloc(sizeof(void *) * blockNumber);
 	newBlockNumbers = malloc(sizeof(int32_t) * blockNumber);
 	for (i=0; i<blockNumber; i++) {
@@ -267,51 +208,6 @@ void buildChainTrees_Bernard(int32_t blockNumber, char ***concatenatedBlocks, Na
 	}
 	*refinedBlockBoundaries = newBlockBoundaries;
 	*refinedBlockNumbers = newBlockNumbers;
-
-	/* Read in tree pipeline output for the event tree */
-	snprintf(tmpStringBuffer, TMP_BUFFER_SIZE, "%s/%s", tempDirName, dupTreeFileName);
-	fp = fopen(tmpStringBuffer, "r");
-	if (fp != NULL) {
-		if (fgets(lineBuffer, LINE_BUFF_SIZE, fp) != NULL) {
-			chomp(lineBuffer);
-			tmpString = stringCopy(lineBuffer);
-			*modifiedEventTreeString = tmpString;
-		} else {
-			perror("Failed to read new eventTree file");
-		}
-	} else {
-		perror("Failed to open new eventTree file");
-	}
-	fclose(fp);
-
-	/* Read in tree pipeline output for the aug tree */
-	blockTreeArray = malloc(sizeof(void *) * blockNumber);
-	for (i=0; i<blockNumber; i++) {
-		colNumber = chainAlignments[i]->columnNumber;
-		blockTreeArray[i] = malloc(sizeof(void *) * colNumber);
-	}
-	i = 0; // Variable to store blockNumber
-	snprintf(tmpStringBuffer, TMP_BUFFER_SIZE, "%s/%s", tempDirName, augTreeFileName);
-	fp = fopen(tmpStringBuffer, "r");
-	if (fp != NULL) {
-		while(fgets(lineBuffer, LINE_BUFF_SIZE, fp) != NULL) {
-			chomp(lineBuffer);
-			if (lineBuffer[0] == '>') {
-				sscanf(lineBuffer, ">%d", &i);
-				i -= 1; // Block number ids start at 1
-			} else {
-				colNumber = chainAlignments[i]->columnNumber;
-				for (j=0; j<colNumber; j++) {
-					tmpString = stringCopy(lineBuffer);
-					blockTreeArray[i][j] = tmpString;
-				}
-			}
-		}
-	} else {
-		perror("Failed to open augTree file");
-	}
-	fclose(fp);
-	*blockTreeStrings = blockTreeArray;
 
 	return;
 }
