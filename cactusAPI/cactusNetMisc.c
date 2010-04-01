@@ -50,6 +50,7 @@ int32_t netMisc_nameCompare(Name name1, Name name2) {
 }
 
 Name netMisc_stringToName(const char *stringName) {
+	assert(stringName != NULL);
 	Name name;
 	int32_t i = sscanf(stringName, NAME_STRING, &name);
 	if(i != 1) {

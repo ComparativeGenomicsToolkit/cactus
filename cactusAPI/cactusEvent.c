@@ -44,26 +44,32 @@ Event *event_construct2(MetaEvent *metaEvent, float branchLength,
 }
 
 Event *event_getParent(Event *event) {
+	assert(event != NULL);
 	return event->parent;
 }
 
 Name event_getName(Event *event) {
+	assert(event != NULL);
 	return metaEvent_getName(event->metaEvent);
 }
 
 MetaEvent *event_getMetaEvent(Event *event) {
+	assert(event != NULL);
 	return event->metaEvent;
 }
 
 const char *event_getHeader(Event *event) {
+	assert(event != NULL);
 	return metaEvent_getHeader(event->metaEvent);
 }
 
 float event_getBranchLength(Event *event) {
+	assert(event != NULL);
 	return event->branchLength;
 }
 
 float event_getSubTreeBranchLength(Event *event) {
+	assert(event != NULL);
 	int32_t i;
 	Event *childEvent;
 	float branchLength;
@@ -77,6 +83,7 @@ float event_getSubTreeBranchLength(Event *event) {
 }
 
 int32_t event_getSubTreeEventNumber(Event *event) {
+	assert(event != NULL);
 	int32_t i, j;
 	Event *childEvent;
 
@@ -89,11 +96,13 @@ int32_t event_getSubTreeEventNumber(Event *event) {
 }
 
 int32_t event_getChildNumber(Event *event) {
+	assert(event != NULL);
 	return event->children->length;
 }
 
 Event *event_getChild(Event *event, int32_t index) {
 #ifdef BEN_DEBUG
+	assert(event != NULL);
 	assert(index >= 0);
 	assert(index < event_getChildNumber(event));
 #endif
@@ -101,6 +110,7 @@ Event *event_getChild(Event *event, int32_t index) {
 }
 
 EventTree *event_getEventTree(Event *event) {
+	assert(event != NULL);
 	return event->eventTree;
 }
 

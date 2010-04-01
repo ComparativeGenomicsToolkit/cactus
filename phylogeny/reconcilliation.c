@@ -4,35 +4,43 @@
  *  Created on: 31-Mar-2010
  *      Author: benedictpaten
  */
+#include <assert.h>
 
 #include "cactus.h"
 #include "commonC.h"
 
-Event *reconcile(struct BinaryTree *blockTree, EventTree *eventTree) {
+Event *labelAndReturnEvent(struct BinaryTree *blockTree, Event *event) {
+	assert(event != NULL);
+	blockTree->label = netMisc_nameToString(event_getName(event));
+	return event;
+}
+
+Event *reconcile(struct BinaryTree *blockTree, EventTree *eventTree,
+		Event *(*getEventFromLeaf)(struct BinaryTree *binaryTree, void *extraArg), void *extraArg) {
 	if(blockTree->internal) { //internal node
-		Event *leftChild = reconcile(blockTree->left, eventTree);
-		Event *rightChild = reconcile(blockTree->right, eventTree);
+		Event *leftChild = reconcile(blockTree->left, eventTree, getEventFromLeaf, extraArg);
+		Event *rightChild = reconcile(blockTree->right, eventTree, getEventFromLeaf, extraArg);
 		Event *commonAncestor = eventTree_getCommonAncestor(leftChild, rightChild);
+		assert(commonAncestor != eventTree_getRootEvent(eventTree));
 		if(commonAncestor == leftChild || commonAncestor == rightChild) {
 			Event *parentEvent = event_getParent(commonAncestor);
 			if(event_getChildNumber(parentEvent) != 1 || parentEvent == eventTree_getRootEvent(eventTree)) {
 				//we need to invent a new event before the parent speciation or root of tree
 				MetaEvent *metaEvent = metaEvent_construct(NULL, net_getNetDisk(eventTree_getNet(eventTree)));
-				Event *newEvent = event_construct(metaEvent, 0.01, parentEvent, eventTree);
-				blockTree->label = netMisc_nameToString(event_getName(newEvent));
-				return newEvent;
+				Event *newEvent = event_construct2(metaEvent, 0.01, parentEvent, commonAncestor, eventTree);
+				return labelAndReturnEvent(blockTree, newEvent);
 			}
 			else { //there already exists a valid unary event..
-				blockTree->label = netMisc_nameToString(event_getName(parentEvent));
-				return parentEvent;
+				return labelAndReturnEvent(blockTree, parentEvent);
 			}
 		}
 		else { //speciation case
-			blockTree->label = netMisc_nameToString(event_getName(commonAncestor));
-			return commonAncestor;
+			return labelAndReturnEvent(blockTree, commonAncestor);
 		}
 	}
 	else { //leaf case
-		return eventTree_getEvent(eventTree, netMisc_stringToName(blockTree->label));
+		Event *childEvent = getEventFromLeaf(blockTree, extraArg);
+		assert(childEvent != NULL);
+		return childEvent;
 	}
 }

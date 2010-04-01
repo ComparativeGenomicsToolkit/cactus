@@ -316,8 +316,21 @@ void buildChainTrees_Bernard(int32_t blockNumber, char ***concatenatedBlocks, Na
 	return;
 }
 
-bool isNewEvent(const char *eventName) {
-	return strlen(eventName) >= 8 && eventName[0] == 'N' && eventName[1] == 'E' && eventName[2] == 'W';
+Segment *getSegment(struct BinaryTree *binaryTree, Segment **segments) {
+	/*
+	 * Gets associated segment from integer index of leaf name.
+	 */
+	int32_t i;
+	assert(sscanf(binaryTree->label, "%i", &i) == 1);
+	//assert(i < blockNumber);
+	assert(i >= 0);
+	Segment *segment = segments[i];
+	assert(segment != NULL);
+	return segment;
+}
+
+Event *getEvent(struct BinaryTree *binaryTree, Segment **segments) {
+	return segment_getEvent(getSegment(binaryTree, segments));
 }
 
 Segment *buildChainTrees3P(Block *block, Segment **segments, int32_t blockNumber,
@@ -347,11 +360,7 @@ Segment *buildChainTrees3P(Block *block, Segment **segments, int32_t blockNumber
 		return rightInstance;
 	}
 	else { //a leaf, so find the leaf instance in the list of segments (this may be null if missing data).
-		int32_t i;
-		assert(sscanf(binaryTree->label, "%i", &i) == 1);
-		assert(i < blockNumber);
-		assert(i >= 0);
-		return segments[i];
+		return getSegment(binaryTree, segments);
 	}
 }
 
@@ -359,11 +368,14 @@ void buildChainTrees3(Block *block, Segment **segments, int32_t blockNumber, str
 	/*
 	 * Constructs a block tree for the block.
 	 */
+	EventTree *eventTree = net_getEventTree(block_getNet(block));
+	//Now do the reconcilliation.
+	reconcile(binaryTree, eventTree, (Event *(*)(struct BinaryTree *, void *))getEvent, segments);
 	Segment *mostAncestralEvent = buildChainTrees3P(block, segments, blockNumber, binaryTree);
 	assert(block_getInstanceNumber(block) > 0);
 	assert(mostAncestralEvent != NULL);
 	//Make a root event.
-	Event *rootEvent = eventTree_getRootEvent(net_getEventTree(block_getNet(block)));
+	Event *rootEvent = eventTree_getRootEvent(eventTree);
 	Segment *rootSegment = segment_construct(block, rootEvent);
 	assert(event_isAncestor(segment_getEvent(mostAncestralEvent), rootEvent));
 	segment_makeParentAndChild(rootSegment, mostAncestralEvent);
@@ -470,7 +482,6 @@ void buildChainTrees(ChainAlignment **chainAlignments, int32_t chainAlignmentNum
 		struct BinaryTree **blockTrees = malloc(sizeof(void *)* refinedBlockNumbers[i]);
 		for(j=0; j<refinedBlockNumbers[i]; j++) {
 			blockTrees[j] = newickTreeParser(blockTreeStrings[i][j], 0.0, 0);
-			reconcile(blockTrees[j], eventTree);
 		}
 		buildChainTrees2(chainAlignments[i], blockTrees, refinedBlockBoundaries[i], refinedBlockNumbers[i]);
 		for(j=0; j<refinedBlockNumbers[i]; j++) {

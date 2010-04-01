@@ -60,6 +60,9 @@ Event *eventTree_getCommonAncestor(Event *event, Event *event2) {
 	Event *ancestorEvent;
 	struct List *list;
 
+	assert(event != NULL);
+	assert(event2 != NULL);
+
 	list = constructEmptyList(0, NULL);
 	ancestorEvent = event;
 	while(ancestorEvent != NULL) {
@@ -78,6 +81,7 @@ Event *eventTree_getCommonAncestor(Event *event, Event *event2) {
 			return ancestorEvent;
 		}
 	}
+	destructList(list);
 	assert(FALSE);
 	return NULL;
 }
