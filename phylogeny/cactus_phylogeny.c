@@ -322,15 +322,13 @@ Segment *getSegment(struct BinaryTree *binaryTree, Segment **segments) {
 	 */
 	int32_t i;
 	assert(sscanf(binaryTree->label, "%i", &i) == 1);
-	//assert(i < blockNumber);
 	assert(i >= 0);
-	Segment *segment = segments[i];
-	assert(segment != NULL);
-	return segment;
+	return segments[i];
 }
 
 Event *getEvent(struct BinaryTree *binaryTree, Segment **segments) {
-	return segment_getEvent(getSegment(binaryTree, segments));
+	Segment *segment = getSegment(binaryTree, segments);
+	return segment != NULL ? segment_getEvent(segment) : segment;
 }
 
 Segment *buildChainTrees3P(Block *block, Segment **segments, int32_t blockNumber,
@@ -370,6 +368,13 @@ void buildChainTrees3(Block *block, Segment **segments, int32_t blockNumber, str
 	 */
 	EventTree *eventTree = net_getEventTree(block_getNet(block));
 	//Now do the reconcilliation.
+	/*uglyf("Tree %s \n", eventTree_makeNewickString(eventTree));
+	printBinaryTree(stderr, binaryTree);
+	uglyf(" goooo %i \n", blockNumber);
+	int32_t i;
+	for(i=0; i<blockNumber; i++) {
+		uglyf("Segment %i\n", segments[i]);
+	}*/
 	reconcile(binaryTree, eventTree, (Event *(*)(struct BinaryTree *, void *))getEvent, segments);
 	Segment *mostAncestralEvent = buildChainTrees3P(block, segments, blockNumber, binaryTree);
 	assert(block_getInstanceNumber(block) > 0);

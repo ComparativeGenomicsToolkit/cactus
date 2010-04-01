@@ -20,27 +20,36 @@ Event *reconcile(struct BinaryTree *blockTree, EventTree *eventTree,
 	if(blockTree->internal) { //internal node
 		Event *leftChild = reconcile(blockTree->left, eventTree, getEventFromLeaf, extraArg);
 		Event *rightChild = reconcile(blockTree->right, eventTree, getEventFromLeaf, extraArg);
-		Event *commonAncestor = eventTree_getCommonAncestor(leftChild, rightChild);
-		assert(commonAncestor != eventTree_getRootEvent(eventTree));
-		if(commonAncestor == leftChild || commonAncestor == rightChild) {
-			Event *parentEvent = event_getParent(commonAncestor);
-			if(event_getChildNumber(parentEvent) != 1 || parentEvent == eventTree_getRootEvent(eventTree)) {
-				//we need to invent a new event before the parent speciation or root of tree
-				MetaEvent *metaEvent = metaEvent_construct(NULL, net_getNetDisk(eventTree_getNet(eventTree)));
-				Event *newEvent = event_construct2(metaEvent, 0.01, parentEvent, commonAncestor, eventTree);
-				return labelAndReturnEvent(blockTree, newEvent);
+		if(leftChild != NULL) {
+			if(rightChild != NULL) {
+				Event *commonAncestor = eventTree_getCommonAncestor(leftChild, rightChild);
+				assert(commonAncestor != eventTree_getRootEvent(eventTree));
+				if(commonAncestor == leftChild || commonAncestor == rightChild) {
+					Event *parentEvent = event_getParent(commonAncestor);
+					if(event_getChildNumber(parentEvent) != 1 || parentEvent == eventTree_getRootEvent(eventTree)) {
+						//we need to invent a new event before the parent speciation or root of tree
+						MetaEvent *metaEvent = metaEvent_construct(NULL, net_getNetDisk(eventTree_getNet(eventTree)));
+						Event *newEvent = event_construct2(metaEvent, 0.01, parentEvent, commonAncestor, eventTree);
+						return labelAndReturnEvent(blockTree, newEvent);
+					}
+					else { //there already exists a valid unary event..
+						return labelAndReturnEvent(blockTree, parentEvent);
+					}
+				}
+				else { //speciation case
+					return labelAndReturnEvent(blockTree, commonAncestor);
+				}
 			}
-			else { //there already exists a valid unary event..
-				return labelAndReturnEvent(blockTree, parentEvent);
+			else {
+				return leftChild;
 			}
 		}
-		else { //speciation case
-			return labelAndReturnEvent(blockTree, commonAncestor);
+		else {
+			return rightChild;
 		}
 	}
 	else { //leaf case
 		Event *childEvent = getEventFromLeaf(blockTree, extraArg);
-		assert(childEvent != NULL);
 		return childEvent;
 	}
 }
