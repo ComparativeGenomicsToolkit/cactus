@@ -60,7 +60,7 @@ PseudoChromsome_PseudoAdjacencyIterator *pseudoChromosome_copyPseudoChromosomeIt
 	return iterator_copy(pseudoAdjacencyIterator);
 }
 
-void pseudoChromosome_destructPseudoChromosomeIterator(PseudoChromsome_PseudoAdjacencyIterator *pseudoAdjacencyIterator) {
+void pseudoChromosome_destructPseudoAdjacencyIterator(PseudoChromsome_PseudoAdjacencyIterator *pseudoAdjacencyIterator) {
 	iterator_destruct(pseudoAdjacencyIterator);
 }
 
@@ -132,7 +132,7 @@ void pseudoChromosome_writeBinaryRepresentation(PseudoChromosome *pseudoChromoso
 	while((pseudoAdjacency = pseudoChromosome_getNextPseudoAdjacency(iterator)) != NULL) {
 		pseudoAdjacency_writeBinaryRepresentation(pseudoAdjacency, writeFn);
 	}
-	pseudoChromosome_destructPseudoChromosomeIterator(iterator);
+	pseudoChromosome_destructPseudoAdjacencyIterator(iterator);
 }
 
 PseudoChromosome *pseudoChromosome_loadFromBinaryRepresentation(void **binaryString, Reference *reference) {

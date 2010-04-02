@@ -107,6 +107,28 @@ void testReference_serialisation(CuTest* testCase) {
 	testTeardown();
 }
 
+void testPrintCanonicalReference(CuTest *testCase) {
+	testSetup();
+	Reference_PseudoChromosomeIterator *pseudoChromosomeIterator = reference_getPseudoChromosomeIterator(reference);
+	PseudoChromosome *pC;
+	while((pC = reference_getNextPseudoChromosome(pseudoChromosomeIterator)) != NULL) {
+		PseudoChromsome_PseudoAdjacencyIterator *pseudoAdjacencyIterator = pseudoChromosome_getPseudoAdjacencyIterator(pC);
+		PseudoAdjacency *pA;
+		uglyf("Printing pseudo chromosome %s\n", netMisc_nameToStringStatic(pseudoChromosome_getName(pC)));
+		uglyf("The 5 end of the pseudo-chromosome %s\n", netMisc_nameToStringStatic(end_getName(pseudoChromosome_get5End(pC))));
+		while((pA = pseudoChromosome_getNextPseudoAdjacency(pseudoAdjacencyIterator)) != NULL) {
+			uglyf("Printing pseudo adjacency %s\n", netMisc_nameToStringStatic(pseudoAdjacency_getName(pA)));
+			uglyf("The pseudo adjacency containing 5 end: %s", netMisc_nameToStringStatic(end_getName(pseudoAdjacency_get5End(pA))));
+			uglyf("and 3 end %s\n", netMisc_nameToStringStatic(end_getName(pseudoAdjacency_get3End(pA))));
+		}
+		uglyf("The 3 end of the pseudo-chromosome %s\n", netMisc_nameToStringStatic(end_getName(pseudoChromosome_get3End(pC))));
+		pseudoChromosome_destructPseudoAdjacencyIterator(pseudoAdjacencyIterator);
+	}
+	reference_destructPseudoChromosomeIterator(pseudoChromosomeIterator);
+
+	testTeardown();
+}
+
 CuSuite* cactusReferenceTestSuite(void) {
 	CuSuite* suite = CuSuiteNew();
 	SUITE_ADD_TEST(suite, testReference_getName);
@@ -116,6 +138,7 @@ CuSuite* cactusReferenceTestSuite(void) {
 	SUITE_ADD_TEST(suite, testReference_getFirst);
 	SUITE_ADD_TEST(suite, testReference_pseudoChromosomeIterator);
 	SUITE_ADD_TEST(suite, testReference_serialisation);
+	SUITE_ADD_TEST(suite, testPrintCanonicalReference);
 	SUITE_ADD_TEST(suite, testReference_construct);
 
 	return suite;

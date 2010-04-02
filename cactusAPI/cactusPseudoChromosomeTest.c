@@ -97,8 +97,8 @@ void testPseudoChromosome_pseudoAdjacencyIterator(CuTest* testCase) {
 	CuAssertTrue(testCase, pseudoChromosome_getPreviousPseudoAdjacency(iterator2) == pseudoAdjacency1);
 	CuAssertTrue(testCase, pseudoChromosome_getPreviousPseudoAdjacency(iterator2) == NULL);
 
-	pseudoChromosome_destructPseudoChromosomeIterator(iterator);
-	pseudoChromosome_destructPseudoChromosomeIterator(iterator2);
+	pseudoChromosome_destructPseudoAdjacencyIterator(iterator);
+	pseudoChromosome_destructPseudoAdjacencyIterator(iterator2);
 
 	testTeardown();
 }

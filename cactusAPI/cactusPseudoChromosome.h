@@ -68,6 +68,6 @@ PseudoChromsome_PseudoAdjacencyIterator *pseudoChromosome_copyPseudoChromosomeIt
 /*
  * Destructs the iterator.
  */
-void pseudoChromosome_destructPseudoChromosomeIterator(PseudoChromsome_PseudoAdjacencyIterator *pseudoAdjacencyIterator);
+void pseudoChromosome_destructPseudoAdjacencyIterator(PseudoChromsome_PseudoAdjacencyIterator *pseudoAdjacencyIterator);
 
 #endif

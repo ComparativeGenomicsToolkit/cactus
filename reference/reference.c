@@ -131,7 +131,7 @@ void mergeGroupsLinkedByPseudoAdjacencies(Net *net, Reference *reference) {
 				group_mergeGroups(end_getGroup(_5End), end_getGroup(_3End));
 			}
 		}
-		pseudoChromosome_destructPseudoChromosomeIterator(pseudoAdjacencyIterator);
+		pseudoChromosome_destructPseudoAdjacencyIterator(pseudoAdjacencyIterator);
 	}
 
 	reference_destructPseudoChromosomeIterator(pseudoChromosomeIterator);

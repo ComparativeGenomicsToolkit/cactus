@@ -115,7 +115,7 @@ void reference_writeBinaryRepresentation(Reference *reference, void (*writeFn)(c
 	while((pseudoChromosome = reference_getNextPseudoChromosome(iterator)) != NULL) {
 		pseudoChromosome_writeBinaryRepresentation(pseudoChromosome, writeFn);
 	}
-	pseudoChromosome_destructPseudoChromosomeIterator(iterator);
+	pseudoChromosome_destructPseudoAdjacencyIterator(iterator);
 }
 
 Reference *reference_loadFromBinaryRepresentation(void **binaryString, Net *net) {
