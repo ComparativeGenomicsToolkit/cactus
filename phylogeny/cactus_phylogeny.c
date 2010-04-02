@@ -166,6 +166,8 @@ void buildChainTrees_Bernard(int32_t blockNumber, char ***concatenatedBlocks, Na
 	 * created.
 	 */
 
+	logInfo("Started Bernard's function");
+
 	int32_t i = 0;
 	int32_t j = 0;
 
@@ -208,6 +210,8 @@ void buildChainTrees_Bernard(int32_t blockNumber, char ***concatenatedBlocks, Na
 	}
 	*refinedBlockBoundaries = newBlockBoundaries;
 	*refinedBlockNumbers = newBlockNumbers;
+
+	logInfo("Ended Bernard's function");
 
 	return;
 }
