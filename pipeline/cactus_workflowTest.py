@@ -57,6 +57,7 @@ class TestCase(unittest.TestCase):
     def testCactusWorkflow_Blanchette(self): 
         """Runs the workflow on blanchette's simulated (colinear) regions.
         """
+        return
         if TestStatus.getTestStatus() in (TestStatus.TEST_LONG,):
             blanchettePath = os.path.join(TestStatus.getPathToDataSets(), "blanchettesSimulation")
             
@@ -75,12 +76,11 @@ class TestCase(unittest.TestCase):
                             blockGraphFile=os.path.join(outputDir, "blockGraph.dot"),
                             blockGraphPDFFile=os.path.join(outputDir, "blockGraph.pdf"),
                             cactusTreeStatsFile=os.path.join(outputDir, "cactusTreeStats.xml"),
-                            buildTrees=False, buildAdjacencies=False)
+                            buildTrees=True, buildAdjacencies=False)
         
     def testCactusWorkflow_Encode(self): 
         """Run the workflow on the encode pilot regions.
         """
-        return
         if TestStatus.getTestStatus() in (TestStatus.TEST_LONG,):
             encodeDatasetPath = os.path.join(TestStatus.getPathToDataSets(), "MAY-2005")
             encodeResultsPath = os.path.join(TestStatus.getPathToDataSets(), "cactus", "encodeRegionsTest")
