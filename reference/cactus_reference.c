@@ -7,54 +7,13 @@
 #include <getopt.h>
 
 #include "cactus.h"
+#include "reference.h"
 
 void usage() {
 	fprintf(stderr, "cactus_reference [net names], version 0.1\n");
 	fprintf(stderr, "-a --logLevel : Set the log level\n");
 	fprintf(stderr, "-c --netDisk : The location of the net disk directory\n");
 	fprintf(stderr, "-h --help : Print this help screen\n");
-}
-
-void makeTopLevelPseudoChromosomes(Net *net, Reference *reference) {
-	/* Get the top level attached ends, ordered according to sequence */
-
-	/* Make pseudo chromosome */
-}
-
-void makeIntermediateLevelPseudoChromosomes(Net *net, Reference *reference) {
-	/* Make intermediate leve */
-}
-
-void makePsuedoAdjacencies(Net *net, Reference *reference) {
-
-}
-
-void addReferenceToNet(Net *net) {
-	//Function will only work if no reference has already been added.
-	assert(net_getReferenceNumber(net) == 0);
-	Reference *reference = reference_construct(net);
-
-	if(net_getParentGroup(net) == NULL) {
-		/*
-		 * If this is the top level net then we will create the pseudo-chromosomes based
-		 * upon the set of attached stubs.. (we will throw an error ?! if we don't have at least one pair of
-		 * attached stubs). We do this in the order of the sequences that were passed to us.
-		 */
-		makeTopLevelPseudoChromosomes(net, reference);
-	}
-	else {
-		/*
-		 * Else this is not the top level net, and we must locate the pseudo-adjacencies in the parent
-		 * reference, to establish the ends of pseudo-chromosomes.
-		 * We do this in the order of the parent reference's pseudo-adjacencies.
-		 */
-		makeIntermediateLevelPseudoChromosomes(net, reference);
-	}
-	/*
-	 * Having defined the ordered pseudo chromosomes, we fill in the pseudo adjacencies.
-	 * For each pseudo-chromosome..
-	 */
-	makePsuedoAdjacencies(net, reference);
 }
 
 int main(int argc, char *argv[]) {

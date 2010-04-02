@@ -104,4 +104,12 @@ void group_destructEndIterator(Group_EndIterator *endIterator);
  */
 int64_t group_getTotalBaseLength(Group *group);
 
+/*
+ * Merges together the two groups and there nested nets, if they have them.
+ *
+ * Only works if both groups do not have links. Merging together groups that
+ * are in links means breaking the chains, which it currently will not do.
+ */
+void group_mergeGroups(Group *group1, Group *group2);
+
 #endif

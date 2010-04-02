@@ -366,5 +366,13 @@ Net_ReferenceIterator *net_copyReferenceIterator(Net_ReferenceIterator *referenc
  */
 void net_destructReferenceIterator(Net_ReferenceIterator *referenceIterator);
 
+/*
+ * Merges together the two nets and there parent groups.
+ *
+ * Only works if both parent groups do not have links. Merging together groups that
+ * are in links means breaking the chains, which it currently will not do.
+ */
+void net_mergeNets(Net *net1, Net *net2);
+
 
 #endif

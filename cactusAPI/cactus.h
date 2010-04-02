@@ -19,5 +19,8 @@
 #include "cactusNetMisc.h"
 #include "cactusFace.h"
 #include "cactusSequence.h"
+#include "cactusReference.h"
+#include "cactusPseudoChromosome.h"
+#include "cactusPseudoAdjacency.h"
 
 #endif

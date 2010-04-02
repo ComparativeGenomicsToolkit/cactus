@@ -78,6 +78,16 @@ int32_t reference_getPseudoChromosomeNumber(Reference *reference);
 PseudoChromosome *reference_getPseudoChromosome(Reference *reference, Name name);
 
 /*
+ * Get the pseudo-adjacency with the given name.
+ */
+PseudoAdjacency *reference_getPseudoAjacency(Reference *reference, Name name);
+
+/*
+ * Gets the pseudo-adjacency containing the given end.
+ */
+PseudoAdjacency *reference_getPseudoAdjacencyByEnd(Reference *reference, End *end);
+
+/*
  * Gets the first pseudo chromosome in the list of pseudo-chromosomes.
  */
 PseudoChromosome *reference_getFirst(Reference *reference);
