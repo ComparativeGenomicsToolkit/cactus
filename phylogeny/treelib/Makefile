@@ -2,7 +2,7 @@ SRC = src
 INC = inc
 
 CC = gcc
-CFLAGS = -I$(INC)
+CFLAGS = -I$(INC) -ggdb -Wall -DNDEBUG
 
 STRINGOBJ = strings.o lists.o global.o
 NJTREEOBJ = align.o buildtree.o cluster.o distancemat.o sequence.o tree.o util.o
