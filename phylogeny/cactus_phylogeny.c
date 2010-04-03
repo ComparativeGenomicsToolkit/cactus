@@ -166,7 +166,7 @@ void buildChainTrees_Bernard(int32_t blockNumber, char ***concatenatedBlocks, Na
 	 * created.
 	 */
 
-	logInfo("Started Bernard's function");
+	logInfo("Started Bernard's function\n");
 
 	int32_t i = 0;
 	int32_t j = 0;
@@ -181,7 +181,12 @@ void buildChainTrees_Bernard(int32_t blockNumber, char ***concatenatedBlocks, Na
 		blockTreeArray[i] = malloc(sizeof(void *) * colNumber);
 	}
 
+	char buffer[128];
+
 	for (i=0; i<blockNumber; i++) {
+
+sprintf(buffer, "\tBN start: %d of %d\n", i, blockNumber);
+logInfo(buffer);
 		rowNumber = chainAlignments[i]->rowNumber;
 		colNumber = chainAlignments[i]->columnNumber;
 
@@ -191,6 +196,7 @@ void buildChainTrees_Bernard(int32_t blockNumber, char ***concatenatedBlocks, Na
 		for (j=0; j<colNumber; j++) {
 			blockTreeArray[i][j] = treestring;
 		}
+logInfo("\tEnd the loop\n");
 	}
 	*blockTreeStrings = blockTreeArray;
 
@@ -211,7 +217,7 @@ void buildChainTrees_Bernard(int32_t blockNumber, char ***concatenatedBlocks, Na
 	*refinedBlockBoundaries = newBlockBoundaries;
 	*refinedBlockNumbers = newBlockNumbers;
 
-	logInfo("Ended Bernard's function");
+	logInfo("Ended Bernard's function\n");
 
 	return;
 }
