@@ -1,3 +1,5 @@
+#define _GNU_SOURCE
+
 #include "treelib.h"
 
 float
@@ -6,7 +8,10 @@ jcdist(char *seqA, char *seqB)
   float p = 0.0f;
 
   unsigned int seqA_len = strlen(seqA);
+
+  #ifndef NDEBUG
   unsigned int seqB_len = strlen(seqB);
+  #endif
 
   assert(seqA_len == seqB_len);
 
@@ -229,8 +234,13 @@ msa2tree (char **mfa, unsigned int num) {
   treestring = tree2string(njTree);
   fprintf(stderr, "TREELIB: %s\n", treestring);
 
+  fprintf(stderr, "TREELIB: free aln\n");
   aln = free_Alignment(aln);
+
+  fprintf(stderr, "TREELIB: free group\n");
   group = free_ClusterGroup(group);
+
+  fprintf(stderr, "TREELIB: free njTree\n");
   njTree = free_Tree(njTree);
 
   fprintf(stderr, "TREELIB: Ending msa2tree\n");
