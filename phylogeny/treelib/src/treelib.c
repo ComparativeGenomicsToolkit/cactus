@@ -34,12 +34,14 @@ jcdist(char *seqA, char *seqB)
 
   float dist = 10.0f;
   if (p < 0.75f) {
-    dist = -0.75f * log(1.0f - (4.0f/3.0f) * p);
+    dist = -0.75f * logf(1.0f - (4.0f/3.0f) * p);
   }
 
   if (dist == -0.0f) {
     dist = 0.0f;
   }
+
+//  printf("%s\t%s\t%f\t%f\n", seqA, seqB, p, dist);
 
   return dist;
 }
@@ -52,10 +54,11 @@ mfa2dist (char **aln, unsigned int num)
 
   unsigned int i, j;
 
+  float dist = 0.0f;
   for (i=0; i<num; i++) {
     for (j=i+1; j<num; j++) {
-      mat->data[i][j] = jcdist(aln[i], aln[j]);
-      mat->data[j][i] = jcdist(aln[i], aln[j]);
+      dist = jcdist(aln[i], aln[j]);
+      mat->data[j][i] = dist;
     }
   }
 
@@ -202,10 +205,10 @@ msa2tree (char **mfa, unsigned int num) {
     return treestring;
   }
 
-  fprintf(stderr, "TREELIB: Here is the msa\n");
+//  fprintf(stderr, "TREELIB: Here is the msa\n");
   unsigned int i = 0;  
   for (i=0; i<num; i++) {
-    fprintf(stderr, "TREELIB:\t%s\n", mfa[i]);
+//    fprintf(stderr, "TREELIB:\t%s\n", mfa[i]);
   }
 
   fprintf(stderr, "TREELIB: Building the distance matrix\n");
@@ -213,11 +216,11 @@ msa2tree (char **mfa, unsigned int num) {
   aln_init(&aln, num);
   group = alignment_to_ClusterGroup(aln, 0);
   group->matrix = mat;
+  //print_DistanceMatrix(stderr, mat);
 
   fprintf(stderr, "TREELIB: Building the NJ tree\n");
   njTree = neighbour_joining_buildtree(group, 0);
 
-/*
   struct Tnode *tmpNode = NULL;
   tmpNode = njTree->child[2];
   njTree->child[2] = NULL;
@@ -240,7 +243,6 @@ msa2tree (char **mfa, unsigned int num) {
   fprintf(stderr, "TREELIB: Converting tree to string\n");
   treestring = tree2string(njTree);
   fprintf(stderr, "TREELIB: [[%s]]\n", treestring);
-*/
 
   fprintf(stderr, "TREELIB: free aln\n");
   aln = free_Alignment(aln);
@@ -249,7 +251,7 @@ msa2tree (char **mfa, unsigned int num) {
   group = free_ClusterGroup(group);
 
   fprintf(stderr, "TREELIB: free njTree\n");
-//  njTree = free_Tree(njTree);
+  njTree = free_Tree(njTree);
 
   fprintf(stderr, "TREELIB: Ending msa2tree\n");
 
