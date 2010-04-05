@@ -86,13 +86,14 @@ class TestCase(unittest.TestCase):
             encodeResultsPath = os.path.join(TestStatus.getPathToDataSets(), "cactus", "encodeRegionsTest")
             newickTreeFile = os.path.join(encodeDatasetPath, "reducedTree.newick")
             
-            for encodeRegion in [ "ENm00" + str(i) for i in xrange(1, 5) ]:
+            for encodeRegion in [ "ENm00" + str(i) for i in xrange(1, 2) ]:
                 sequences = [ os.path.join(encodeDatasetPath, encodeRegion, ("%s.%s.fa" % (species, encodeRegion))) for\
                              species in ("human", "chimp", "baboon", "mouse", "rat", "dog", "cow") ]
                 outputDir = os.path.join(encodeResultsPath, encodeRegion)
                 
                 runWorkflow(sequences, newickTreeFile, outputDir, self.tempDir, batchSystem=self.batchSystem,
-                            cactusTreeStatsFile=os.path.join(outputDir, "cactusTreeStats.xml"))
+                            cactusTreeStatsFile=os.path.join(outputDir, "cactusTreeStats.xml"),
+                            buildTrees=True, buildAdjacencies=False)
     
     def testCactusWorkflow_Chromosomes(self):
         #Tests cactus_core on the alignment of 4 whole chromosome X's, human, chimp, mouse, dog.
