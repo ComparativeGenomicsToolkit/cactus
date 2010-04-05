@@ -22,5 +22,6 @@
 #include "cactusReference.h"
 #include "cactusPseudoChromosome.h"
 #include "cactusPseudoAdjacency.h"
+#include "cactusHash.h"
 
 #endif

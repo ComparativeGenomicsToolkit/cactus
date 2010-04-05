@@ -171,6 +171,10 @@ int64_t group_getTotalBaseLength(Group *group) {
 	return totalLength;
 }
 
+void group_mergeGroups(Group *group1, Group *group2) {
+
+}
+
 /*
  * Private functions.
  */

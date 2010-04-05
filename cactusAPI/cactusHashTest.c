@@ -1,107 +1,121 @@
 #include "cactusChainsTestShared.h"
 
-static bool nestedTest = 0;
+static Hash *hash;
+static Hash *hash2;
+static int32_t *one, *two, *three, *four, *five, *six;
+
+static uint32_t hashKey(void *o) {
+	return *((int32_t *)o);
+}
+
+static int32_t hashEqualsKey(void *o, void *o2) {
+	return *((int32_t *)o) == *((int32_t *)o2);
+}
+
+static void destructKey(void *o) {
+	destructInt(o);
+}
+
+static void destructValue(void *o) {
+	destructInt(o);
+}
 
 static void testSetup() {
-	if(!nestedTest) {
-		cactusChainsSharedTestSetup();
-	}
+	//compare by value of memory address
+	hash = hash_construct();
+	//compare by value of ints.
+	hash2 = hash_construct3(hashKey, hashEqualsKey, destructKey, destructValue);
+	one = constructInt(0);
+	two = constructInt(1);
+	three = constructInt(2);
+	four = constructInt(3);
+	five = constructInt(4);
+	six = constructInt(5);
+
+	hash_insert(hash, one, two);
+	hash_insert(hash, three, four);
+	hash_insert(hash, five, six);
+
+	hash_insert(hash2, one, two);
+	hash_insert(hash2, three, four);
+	hash_insert(hash2, five, six);
 }
 
 static void testTeardown() {
-	if(!nestedTest) {
-		cactusChainsSharedTestTeardown();
-	}
+	hash_destruct(hash);
+	hash_destruct(hash2);
 }
 
-void testLink_construct(CuTest* testCase) {
-	nestedTest = 0;
-	cactusLinkTestSetup();
-	CuAssertTrue(testCase, link1 != NULL);
-	CuAssertTrue(testCase, link2 != NULL);
-	cactusLinkTestTeardown();
+void testHash_construct(CuTest* testCase) {
+	testSetup();
+	/* Do nothing */
+	testTeardown();
 }
 
-void testLink_getNextLink(CuTest* testCase) {
-	cactusLinkTestSetup();
-	CuAssertTrue(testCase, link_getNextLink(link1) == link2);
-	CuAssertTrue(testCase, link_getNextLink(link2) == NULL);
-	cactusLinkTestTeardown();
+void testHash_search(CuTest* testCase) {
+	testSetup();
+
+	int32_t *i = constructInt(0);
+
+	//Check search by memory address
+	CuAssertTrue(testCase, hash_search(hash, one) == two);
+	CuAssertTrue(testCase, hash_search(hash, three) == four);
+	CuAssertTrue(testCase, hash_search(hash, five) == six);
+	//Check not present
+	CuAssertTrue(testCase, hash_search(hash, six) == NULL);
+	CuAssertTrue(testCase, hash_search(hash, i) == NULL);
+
+	//Check search by memory address
+	CuAssertTrue(testCase, hash_search(hash2, one) == two);
+	CuAssertTrue(testCase, hash_search(hash2, three) == four);
+	CuAssertTrue(testCase, hash_search(hash2, five) == six);
+	//Check not present
+	CuAssertTrue(testCase, hash_search(hash2, six) == NULL);
+	//Check is searching by memory.
+	CuAssertTrue(testCase, hash_search(hash2, i) == two);
+
+	destructInt(i);
+
+	testTeardown();
 }
 
-void testLink_getPreviousLink(CuTest* testCase) {
-	cactusLinkTestSetup();
-	CuAssertTrue(testCase, link_getPreviousLink(link2) == link1);
-	CuAssertTrue(testCase, link_getPreviousLink(link1) == NULL);
-	cactusLinkTestTeardown();
+void testHash_remove(CuTest* testCase) {
+	testSetup();
+
+	CuAssertTrue(testCase, hash_remove(hash, one) == two);
+	CuAssertTrue(testCase, hash_search(hash, one) == NULL);
+
+	CuAssertTrue(testCase, hash_remove(hash2, one) == two);
+	CuAssertTrue(testCase, hash_search(hash2, one) == NULL);
+
+	hash_insert(hash2, one, two);
+	CuAssertTrue(testCase, hash_search(hash2, one) == two);
+
+	testTeardown();
 }
 
-void testLink_getGroup(CuTest* testCase) {
-	cactusLinkTestSetup();
-	CuAssertTrue(testCase, link_getGroup(link1) == group1);
-	CuAssertTrue(testCase, link_getGroup(link2) == group2);
-	cactusLinkTestTeardown();
+void testHash_insert(CuTest* testCase) {
+	/*
+	 * Tests inserting already present keys.
+	 */
+	testSetup();
+
+	CuAssertTrue(testCase, hash_search(hash, one) == two);
+	hash_insert(hash, one, two);
+	CuAssertTrue(testCase, hash_search(hash, one) == two);
+	hash_insert(hash, one, three);
+	CuAssertTrue(testCase, hash_search(hash, one) == three);
+	hash_insert(hash, one, two);
+	CuAssertTrue(testCase, hash_search(hash, one) == two);
+
+	testTeardown();
 }
 
-void testLink_getLeft(CuTest* testCase) {
-	cactusLinkTestSetup();
-	CuAssertTrue(testCase, link_getLeft(link1) == end1);
-	CuAssertTrue(testCase, link_getLeft(link2) == block_getRightEnd(block));
-	cactusLinkTestTeardown();
-}
-
-void testLink_getRight(CuTest* testCase) {
-	cactusLinkTestSetup();
-	CuAssertTrue(testCase, link_getRight(link1) == block_getLeftEnd(block));
-	CuAssertTrue(testCase, link_getRight(link2) == end2);
-	cactusLinkTestTeardown();
-}
-
-void testLink_getChain(CuTest* testCase) {
-	cactusLinkTestSetup();
-	CuAssertTrue(testCase, link_getChain(link1) == chain);
-	CuAssertTrue(testCase, link_getChain(link2) == chain);
-	cactusLinkTestTeardown();
-}
-
-void testLink_getIndex(CuTest* testCase) {
-	cactusLinkTestSetup();
-	CuAssertIntEquals(testCase, 0, link_getIndex(link1));
-	CuAssertIntEquals(testCase, 1, link_getIndex(link2));
-	cactusLinkTestTeardown();
-}
-
-void testLink_serialisation(CuTest* testCase) {
-	cactusLinkTestSetup();
-	int32_t i;
-	void *vA = binaryRepresentation_makeBinaryRepresentation(link2,
-			(void (*)(void *, void (*)(const void *, size_t, size_t)))link_writeBinaryRepresentation, &i);
-	CuAssertTrue(testCase, i > 0);
-	link_destruct(link2);
-	void *vA2 = vA;
-	link2 = link_loadFromBinaryRepresentation(&vA2, chain);
-	nestedTest = 1;
-	testLink_getNextLink(testCase);
-	testLink_getPreviousLink(testCase);
-	testLink_getGroup(testCase);
-	testLink_getLeft(testCase);
-	testLink_getRight(testCase);
-	testLink_getChain(testCase);
-	testLink_getIndex(testCase);
-	nestedTest = 0;
-	cactusLinkTestTeardown();
-}
-
-CuSuite* cactusLinkTestSuite(void) {
+CuSuite* cactusHashTestSuite(void) {
 	CuSuite* suite = CuSuiteNew();
-	SUITE_ADD_TEST(suite, testLink_getNextLink);
-	SUITE_ADD_TEST(suite, testLink_getPreviousLink);
-	SUITE_ADD_TEST(suite, testLink_getGroup);
-	SUITE_ADD_TEST(suite, testLink_getLeft);
-	SUITE_ADD_TEST(suite, testLink_getRight);
-	SUITE_ADD_TEST(suite, testLink_getChain);
-	SUITE_ADD_TEST(suite, testLink_getIndex);
-	SUITE_ADD_TEST(suite, testLink_serialisation);
-	SUITE_ADD_TEST(suite, testLink_construct);
+	SUITE_ADD_TEST(suite, testHash_search);
+	SUITE_ADD_TEST(suite, testHash_remove);
+	SUITE_ADD_TEST(suite, testHash_insert);
+	SUITE_ADD_TEST(suite, testHash_construct);
 	return suite;
 }

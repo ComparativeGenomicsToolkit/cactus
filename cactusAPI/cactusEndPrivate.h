@@ -79,4 +79,15 @@ End *end_loadFromBinaryRepresentation(void **binaryString, Net *net);
  */
 End *end_getStaticNameWrapper(Name name);
 
+/*
+ * Hash key for an end, uses the name of the end to hash.. hence
+ * the key doesn't care about the orientation.
+ */
+uint32_t end_hashKey(void *o);
+
+/*
+ * Hash equals key, equal only if the two ends have the same name and orientation.
+ */
+int32_t end_hashEqualsKey(void *o, void *o2);
+
 #endif

@@ -11,9 +11,20 @@
 #include "cactusGlobals.h"
 
 /*
- * Constructs a hash.
+ * Constructs hash, with no destructors for keys or values.
  */
 Hash *hash_construct();
+
+/*
+ * Constructs a hash with given destructors, if null then destructors are ignored
+ */
+Hash *hash_construct2(void (*destructKeys)(void *), void (*destructValues)(void *));
+
+/*
+ * Constructs a hash using the given comparison functions.
+ */
+Hash *hash_construct3(uint32_t (*hashKey)(void *), int32_t (*hashEqualsKey)(void *, void *),
+		void (*destructKeys)(void *), void (*destructValues)(void *));
 
 /*
  * Destructs a hash.

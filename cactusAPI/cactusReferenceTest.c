@@ -74,6 +74,31 @@ void testReference_pseudoChromosomeIterator(CuTest* testCase) {
 	testTeardown();
 }
 
+void testReference_getEndToPseudoAdjacencyHash(CuTest* testCase) {
+	testSetup();
+
+	Hash *hash = reference_getEndToPseudoAdjacencyHash(reference);
+	CuAssertTrue(testCase, hash_search(hash, end1) == pseudoAdjacency1);
+	CuAssertTrue(testCase, hash_search(hash, end2) == pseudoAdjacency1);
+
+	CuAssertTrue(testCase, hash_search(hash, end3) == pseudoAdjacency2);
+	CuAssertTrue(testCase, hash_search(hash, end4) == pseudoAdjacency2);
+
+	CuAssertTrue(testCase, hash_search(hash, end5) == pseudoAdjacency3);
+	CuAssertTrue(testCase, hash_search(hash, end6) == pseudoAdjacency3);
+
+	CuAssertTrue(testCase, hash_search(hash, end7) == pseudoAdjacency4);
+	CuAssertTrue(testCase, hash_search(hash, end8) == pseudoAdjacency4);
+
+	//Try static wrappers.
+	CuAssertTrue(testCase, hash_search(hash, end_getStaticNameWrapper(end_getName(end1))) == pseudoAdjacency1);
+	CuAssertTrue(testCase, hash_search(hash, end_getStaticNameWrapper(end_getName(end2))) == pseudoAdjacency1);
+
+	hash_destruct(hash);
+
+	testTeardown();
+}
+
 void testReference_serialisation(CuTest* testCase) {
 	testSetup();
 	int32_t i;
@@ -139,6 +164,7 @@ CuSuite* cactusReferenceTestSuite(void) {
 	SUITE_ADD_TEST(suite, testReference_pseudoChromosomeIterator);
 	SUITE_ADD_TEST(suite, testReference_serialisation);
 	SUITE_ADD_TEST(suite, testPrintCanonicalReference);
+	SUITE_ADD_TEST(suite, testReference_getEndToPseudoAdjacencyHash);
 	SUITE_ADD_TEST(suite, testReference_construct);
 
 	return suite;

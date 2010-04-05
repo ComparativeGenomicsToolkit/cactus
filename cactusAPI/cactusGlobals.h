@@ -50,6 +50,7 @@ typedef struct _netDisk NetDisk;
 typedef struct _pseudoChromosome PseudoChromosome;
 typedef struct _pseudoAdjacency PseudoAdjacency;
 typedef struct _reference Reference;
+typedef struct _cactusHash Hash;
 
 typedef struct avl_traverser EventTree_Iterator;
 typedef struct _end_instanceIterator End_InstanceIterator;
@@ -67,6 +68,5 @@ typedef BDBCUR NetDisk_NetNameIterator;
 typedef struct avl_traverser NetDisk_NetIterator;
 typedef struct avl_traverser Reference_PseudoChromosomeIterator;
 typedef struct avl_traverser PseudoChromsome_PseudoAdjacencyIterator;
-typedef struct hashtable Hash;
 
 #endif

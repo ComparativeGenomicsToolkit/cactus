@@ -82,17 +82,16 @@ void makeTopLevelPseudoChromosomes(Net *net, Reference *reference) {
 	makePseudoChromosomes(net, reference, makeTopLevelPseudoChromosomes_cmpEnds);
 }
 
+static Hash *makeIntermediateLevelPseudoChromosomes_cmpEndsP = NULL;
+
 static int makeIntermediateLevelPseudoChromosomes_cmpEnds(End **end1, End **end2) {
 	/*
 	 * Sorts the attached ends according to the pairing in the higher level reference.
 	 */
-	Net *net = end_getNet(*end1);
-	Group *parentGroup = net_getParentGroup(net);
-	assert(parentGroup != NULL);
-	assert(net_getReferenceNumber(net) == 1);
-	Reference *reference = net_getFirstReference(net);
-	PseudoAdjacency *pseudoAdjacency1 = reference_getPseudoAdjacencyByEnd(reference, net_getEnd(net, end_getName(*end1)));
-	PseudoAdjacency *pseudoAdjacency2 = reference_getPseudoAdjacencyByEnd(reference, net_getEnd(net, end_getName(*end2)));
+	PseudoAdjacency *pseudoAdjacency1 = hash_search(makeIntermediateLevelPseudoChromosomes_cmpEndsP, *end1);
+	PseudoAdjacency *pseudoAdjacency2 = hash_search(makeIntermediateLevelPseudoChromosomes_cmpEndsP, *end2);
+	assert(pseudoAdjacency1 != NULL);
+	assert(pseudoAdjacency2 != NULL);
 	PseudoChromosome *pseudoChromosome1 = pseudoAdjacency_getPseudoChromosome(pseudoAdjacency1);
 	PseudoChromosome *pseudoChromosome2 = pseudoAdjacency_getPseudoChromosome(pseudoAdjacency2);
 
@@ -112,7 +111,13 @@ static int makeIntermediateLevelPseudoChromosomes_cmpEnds(End **end1, End **end2
 }
 
 void makeIntermediateLevelPseudoChromosomes(Net *net, Reference *reference) {
+	Group *parentGroup = net_getParentGroup(net);
+	assert(parentGroup != NULL);
+	assert(net_getReferenceNumber(net) == 1);
+	Reference *parentReference = net_getFirstReference(net);
+	makeIntermediateLevelPseudoChromosomes_cmpEndsP = reference_getEndToPseudoAdjacencyHash(parentReference);
 	makePseudoChromosomes(net, reference, makeIntermediateLevelPseudoChromosomes_cmpEnds);
+	hash_destruct(makeIntermediateLevelPseudoChromosomes_cmpEndsP);
 }
 
 void mergeGroupsLinkedByPseudoAdjacencies(Net *net, Reference *reference) {

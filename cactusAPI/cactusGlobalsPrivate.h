@@ -65,6 +65,7 @@
 #include "cactusSortedSet.h"
 #include "cactusTestCommon.h"
 #include "cactusHash.h"
+#include "cactusHashPrivate.h"
 
 
 #endif

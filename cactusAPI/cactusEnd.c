@@ -291,5 +291,16 @@ End *end_getStaticNameWrapper(Name name) {
 	static EndContents endContents;
 	end.endContents = &endContents;
 	endContents.name = name;
+	end.orientation = 1;
 	return &end;
+}
+
+uint32_t end_hashKey(void *o) {
+	return end_getName((End *)o);
+}
+
+int32_t end_hashEqualsKey(void *o, void *o2) {
+	End *end1 = o;
+	End *end2 = o2;
+	return end_getName(end1) == end_getName(end2) && end_getOrientation(end1) == end_getOrientation(end2);
 }

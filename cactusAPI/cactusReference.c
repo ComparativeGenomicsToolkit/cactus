@@ -30,14 +30,6 @@ PseudoChromosome *reference_getPseudoChromosome(Reference *reference, Name name)
 	return sortedSet_find(reference->pseudoChromosomes, pseudoChromosome);
 }
 
-PseudoAdjacency *reference_getPseudoAjacency(Reference *reference, Name name) {
-	//make hash by names
-}
-
-PseudoAdjacency *reference_getPseudoAdjacencyByEnd(Reference *reference, End *end) {
-	//make hash by end
-}
-
 PseudoChromosome *reference_getFirst(Reference *reference) {
 	return sortedSet_getFirst(reference->pseudoChromosomes);
 }
@@ -60,6 +52,25 @@ Reference_PseudoChromosomeIterator *reference_copyPseudoChromosomeIterator(Refer
 
 void reference_destructPseudoChromosomeIterator(Reference_PseudoChromosomeIterator *pseudoChromosomeIterator) {
 	iterator_destruct(pseudoChromosomeIterator);
+}
+
+Hash *reference_getEndToPseudoAdjacencyHash(Reference *reference) {
+	Hash *hash = hash_construct3(end_hashKey, end_hashEqualsKey, NULL, NULL);
+	Reference_PseudoChromosomeIterator *pseudoChromosomeIterator =
+		reference_getPseudoChromosomeIterator(reference);
+	PseudoChromosome *pseudoChromosome;
+	while((pseudoChromosome = reference_getNextPseudoChromosome(pseudoChromosomeIterator)) != NULL) {
+		PseudoChromsome_PseudoAdjacencyIterator *pseudoAdjacencyIterator =
+			pseudoChromosome_getPseudoAdjacencyIterator(pseudoChromosome);
+		PseudoAdjacency *pseudoAdjacency;
+		while((pseudoAdjacency = pseudoChromosome_getNextPseudoAdjacency(pseudoAdjacencyIterator)) != NULL) {
+			hash_insert(hash, pseudoAdjacency_get5End(pseudoAdjacency), pseudoAdjacency);
+			hash_insert(hash, pseudoAdjacency_get3End(pseudoAdjacency), pseudoAdjacency);
+		}
+		pseudoChromosome_destructPseudoAdjacencyIterator(pseudoAdjacencyIterator);
+	}
+	reference_destructPseudoChromosomeIterator(pseudoChromosomeIterator);
+	return hash;
 }
 
 ////////////////////////////////////////////////
