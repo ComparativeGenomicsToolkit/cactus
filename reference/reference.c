@@ -91,8 +91,8 @@ static int makeIntermediateLevelPseudoChromosomes_cmpEnds(End **end1, End **end2
 	assert(parentGroup != NULL);
 	assert(net_getReferenceNumber(net) == 1);
 	Reference *reference = net_getFirstReference(net);
-	PseudoAdjacency *pseudoAdjacency1 = reference_getPseudoAjacencyByEnd(reference, net_getEnd(net, end_getName(*end1)));
-	PseudoAdjacency *pseudoAdjacency2 = reference_getPseudoAjacencyByEnd(reference, net_getEnd(net, end_getName(*end2)));
+	PseudoAdjacency *pseudoAdjacency1 = reference_getPseudoAdjacencyByEnd(reference, net_getEnd(net, end_getName(*end1)));
+	PseudoAdjacency *pseudoAdjacency2 = reference_getPseudoAdjacencyByEnd(reference, net_getEnd(net, end_getName(*end2)));
 	PseudoChromosome *pseudoChromosome1 = pseudoAdjacency_getPseudoChromosome(pseudoAdjacency1);
 	PseudoChromosome *pseudoChromosome2 = pseudoAdjacency_getPseudoChromosome(pseudoAdjacency2);
 

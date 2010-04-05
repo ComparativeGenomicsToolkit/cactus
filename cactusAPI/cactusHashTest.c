@@ -1,0 +1,107 @@
+#include "cactusChainsTestShared.h"
+
+static bool nestedTest = 0;
+
+static void testSetup() {
+	if(!nestedTest) {
+		cactusChainsSharedTestSetup();
+	}
+}
+
+static void testTeardown() {
+	if(!nestedTest) {
+		cactusChainsSharedTestTeardown();
+	}
+}
+
+void testLink_construct(CuTest* testCase) {
+	nestedTest = 0;
+	cactusLinkTestSetup();
+	CuAssertTrue(testCase, link1 != NULL);
+	CuAssertTrue(testCase, link2 != NULL);
+	cactusLinkTestTeardown();
+}
+
+void testLink_getNextLink(CuTest* testCase) {
+	cactusLinkTestSetup();
+	CuAssertTrue(testCase, link_getNextLink(link1) == link2);
+	CuAssertTrue(testCase, link_getNextLink(link2) == NULL);
+	cactusLinkTestTeardown();
+}
+
+void testLink_getPreviousLink(CuTest* testCase) {
+	cactusLinkTestSetup();
+	CuAssertTrue(testCase, link_getPreviousLink(link2) == link1);
+	CuAssertTrue(testCase, link_getPreviousLink(link1) == NULL);
+	cactusLinkTestTeardown();
+}
+
+void testLink_getGroup(CuTest* testCase) {
+	cactusLinkTestSetup();
+	CuAssertTrue(testCase, link_getGroup(link1) == group1);
+	CuAssertTrue(testCase, link_getGroup(link2) == group2);
+	cactusLinkTestTeardown();
+}
+
+void testLink_getLeft(CuTest* testCase) {
+	cactusLinkTestSetup();
+	CuAssertTrue(testCase, link_getLeft(link1) == end1);
+	CuAssertTrue(testCase, link_getLeft(link2) == block_getRightEnd(block));
+	cactusLinkTestTeardown();
+}
+
+void testLink_getRight(CuTest* testCase) {
+	cactusLinkTestSetup();
+	CuAssertTrue(testCase, link_getRight(link1) == block_getLeftEnd(block));
+	CuAssertTrue(testCase, link_getRight(link2) == end2);
+	cactusLinkTestTeardown();
+}
+
+void testLink_getChain(CuTest* testCase) {
+	cactusLinkTestSetup();
+	CuAssertTrue(testCase, link_getChain(link1) == chain);
+	CuAssertTrue(testCase, link_getChain(link2) == chain);
+	cactusLinkTestTeardown();
+}
+
+void testLink_getIndex(CuTest* testCase) {
+	cactusLinkTestSetup();
+	CuAssertIntEquals(testCase, 0, link_getIndex(link1));
+	CuAssertIntEquals(testCase, 1, link_getIndex(link2));
+	cactusLinkTestTeardown();
+}
+
+void testLink_serialisation(CuTest* testCase) {
+	cactusLinkTestSetup();
+	int32_t i;
+	void *vA = binaryRepresentation_makeBinaryRepresentation(link2,
+			(void (*)(void *, void (*)(const void *, size_t, size_t)))link_writeBinaryRepresentation, &i);
+	CuAssertTrue(testCase, i > 0);
+	link_destruct(link2);
+	void *vA2 = vA;
+	link2 = link_loadFromBinaryRepresentation(&vA2, chain);
+	nestedTest = 1;
+	testLink_getNextLink(testCase);
+	testLink_getPreviousLink(testCase);
+	testLink_getGroup(testCase);
+	testLink_getLeft(testCase);
+	testLink_getRight(testCase);
+	testLink_getChain(testCase);
+	testLink_getIndex(testCase);
+	nestedTest = 0;
+	cactusLinkTestTeardown();
+}
+
+CuSuite* cactusLinkTestSuite(void) {
+	CuSuite* suite = CuSuiteNew();
+	SUITE_ADD_TEST(suite, testLink_getNextLink);
+	SUITE_ADD_TEST(suite, testLink_getPreviousLink);
+	SUITE_ADD_TEST(suite, testLink_getGroup);
+	SUITE_ADD_TEST(suite, testLink_getLeft);
+	SUITE_ADD_TEST(suite, testLink_getRight);
+	SUITE_ADD_TEST(suite, testLink_getChain);
+	SUITE_ADD_TEST(suite, testLink_getIndex);
+	SUITE_ADD_TEST(suite, testLink_serialisation);
+	SUITE_ADD_TEST(suite, testLink_construct);
+	return suite;
+}

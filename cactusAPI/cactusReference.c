@@ -30,6 +30,14 @@ PseudoChromosome *reference_getPseudoChromosome(Reference *reference, Name name)
 	return sortedSet_find(reference->pseudoChromosomes, pseudoChromosome);
 }
 
+PseudoAdjacency *reference_getPseudoAjacency(Reference *reference, Name name) {
+	//make hash by names
+}
+
+PseudoAdjacency *reference_getPseudoAdjacencyByEnd(Reference *reference, End *end) {
+	//make hash by end
+}
+
 PseudoChromosome *reference_getFirst(Reference *reference) {
 	return sortedSet_getFirst(reference->pseudoChromosomes);
 }
