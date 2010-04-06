@@ -67,4 +67,9 @@ Group *group_getStaticNameWrapper(Name netName);
  */
 void group_setNet(Group *group, Net *net);
 
+/*
+ * Adds an end to the group (the public function is end_setGroup).
+ */
+void group_addEnd(Group *group, End *end);
+
 #endif

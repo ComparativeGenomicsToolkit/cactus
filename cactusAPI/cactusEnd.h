@@ -61,6 +61,11 @@ Block *end_getBlock(End *end);
 Group *end_getGroup(End *end);
 
 /*
+ * Sets the group that the end is part of.
+ */
+void end_setGroup(End *end, Group *group);
+
+/*
  * Returns the number of caps the end contains.
  */
 int32_t end_getInstanceNumber(End *end);

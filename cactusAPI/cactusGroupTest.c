@@ -65,7 +65,7 @@ void testGroup_makeNonTerminal(CuTest *testCase) {
 void testGroup_addEnd(CuTest *testCase) {
 	cactusGroupTestSetup();
 	CuAssertTrue(testCase, group_getEndNumber(group2) == 0);
-	group_addEnd(group2, end4);
+	end_setGroup(end4, group2);
 	CuAssertTrue(testCase, group_getEndNumber(group2) == 1);
 	CuAssertTrue(testCase, end_getGroup(end4) == group2);
 	CuAssertTrue(testCase, group_getEnd(group2, end_getName(end4)) == end4);

@@ -76,7 +76,7 @@ void group_updateContainedEnds(Group *group) {
 	iterator = net_getEndIterator(group_getNestedNet(group));
 	while((end = net_getNextEnd(iterator)) != NULL) {
 		if((end2 = net_getEnd(net, end_getName(end))) != NULL) {
-			group_addEnd(group, end2);
+			end_setGroup(end2, group);
 		}
 	}
 	net_destructEndIterator(iterator);
@@ -85,8 +85,8 @@ void group_updateContainedEnds(Group *group) {
 void group_addEnd(Group *group, End *end) {
 	end = end_getPositiveOrientation(end);
 	sortedSet_insert(group->ends, end);
-	end_setGroup(end, group);
-	assert(net_getEnd(group_getNet(group), end_getName(end)) == end);
+	//end_setGroup(end, group);
+	//assert(net_getEnd(group_getNet(group), end_getName(end)) == end);
 	//assert(net_getEnd(group_getNestedNet(group), end_getName(end)) != NULL);
 }
 
@@ -261,7 +261,7 @@ Group *group_loadFromBinaryRepresentation(void **binaryString, Net *net) {
 		group = group_construct3(net, name, terminalGroup);
 		while(binaryRepresentation_peekNextElementType(*binaryString) == CODE_ADJACENCY_COMPONENT_END) {
 			binaryRepresentation_popNextElementType(binaryString);
-			group_addEnd(group, net_getEnd(net, binaryRepresentation_getName(binaryString)));
+			end_setGroup(net_getEnd(net, binaryRepresentation_getName(binaryString)), group);
 		}
 	}
 	return group;

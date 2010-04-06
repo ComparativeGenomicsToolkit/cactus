@@ -219,13 +219,13 @@ struct List *addEnvelopedStubEnds(Net *net, int32_t addToNet) {
 			for(j=0; j<list->length; j++) {
 				end = list->list[j];
 				if(addToNet && net_getEnd(net, end_getName(end)) == NULL) {
-					group_addEnd(group, end_copyConstruct(end, net));
+					end_setGroup(end_copyConstruct(end, net), group);
 				}
 				else {
 					end2 = net_getEnd(net, end_getName(end));
 					assert(end2 != NULL);
 					if(end_getGroup(end2) == NULL) {
-						group_addEnd(group, end2);
+						end_setGroup(end2, group);
 					}
 					else {
 						assert(end_getGroup(end2) == group);
@@ -334,7 +334,7 @@ void addGroupsP(Net *net, struct hashtable *groups) {
 			group = group_construct2(net);
 			for(i=0; i<endNames->length; i++) {
 				end2 = net_getEnd(net, netMisc_stringToName(endNames->list[i]));
-				group_addEnd(group, end2);
+				end_setGroup(end2, group);
 			}
 #ifdef BEN_DEBUG
 			for(i=0; i<endNames->length; i++) {
@@ -685,12 +685,12 @@ void fillOutNetFromInputs(
 					end = net_getEnd(net, cactusEdgeToEndName(isAStubCactusEdge(cactusEdge, pinchGraph) ?
 							getNonDeadEndOfStubCactusEdge(cactusEdge, pinchGraph) : cactusEdge->rEdge, endNamesHash, pinchGraph));
 					assert(end != NULL);
-					group_addEnd(group, end);
+					end_setGroup(end, group);
 
 					end2 = net_getEnd(net, cactusEdgeToEndName(isAStubCactusEdge(cactusEdge2, pinchGraph) ?
 							getNonDeadEndOfStubCactusEdge(cactusEdge2, pinchGraph) : cactusEdge2, endNamesHash, pinchGraph));
 					assert(end2 != NULL);
-					group_addEnd(group, end2);
+					end_setGroup(end2, group);
 				}
 				else { //construct a link between two existing chains.
 					assert(net_getEndNumber(nestedNet) > 0);

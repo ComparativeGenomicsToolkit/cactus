@@ -60,11 +60,6 @@ void end_addInstance(End *end, Cap *cap);
 void end_removeInstance(End *end, Cap *cap);
 
 /*
- * Sets the group that the end is part of.
- */
-void end_setGroup(End *end, Group *group);
-
-/*
  * Write a binary representation of the end to the write function.
  */
 void end_writeBinaryRepresentation(End *end, void (*writeFn)(const void * ptr, size_t size, size_t count));

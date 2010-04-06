@@ -271,7 +271,7 @@ int main(int argc, char *argv[]) {
 	group = group_construct2(net);
 	endIterator = net_getEndIterator(net);
 	while((end = net_getNextEnd(endIterator)) != NULL) {
-		group_addEnd(group, end);
+		end_setGroup(end, group);
 	}
 	net_destructEndIterator(endIterator);
 

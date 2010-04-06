@@ -200,6 +200,16 @@ bool end_isFree(End *end) {
 	return !end_isAttached(end);
 }
 
+void end_setGroup(End *end, Group *group) {
+	if(end_getGroup(end) != NULL) {
+		group_removeEnd(end_getGroup(end), end);
+	}
+	end->endContents->group = group;
+	if(group != NULL) {
+		group_addEnd(group, end);
+	}
+}
+
 
 /*
  * Private functions
@@ -211,12 +221,6 @@ void end_addInstance(End *end, Cap *cap) {
 
 void end_removeInstance(End *end, Cap *cap) {
 	sortedSet_delete(end->endContents->caps, cap);
-}
-
-void end_setGroup(End *end, Group *group) {
-	group_removeEnd(end_getGroup(end), end);
-	end->endContents->group = group;
-	group_addEnd(group, end);
 }
 
 void end_setNet(End *end, Net *net) {

@@ -38,11 +38,6 @@ bool group_isTerminal(Group *group);
 void group_makeNonTerminal(Group *group);
 
 /*
- * Adds an end to the group.
- */
-void group_addEnd(Group *group, End *end);
-
-/*
  *  Gets the net the group is part of.
  */
 Net *group_getNet(Group *group);
