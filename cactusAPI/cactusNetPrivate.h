@@ -142,6 +142,11 @@ void net_addReference(Net *net, Reference *reference);
 void net_removeReference(Net *net, Reference *reference);
 
 /*
+ * Function that does the actual work of merging together two nets.
+ */
+void net_mergeNetsP(Net *net1, Net *net2);
+
+/*
  * Write a binary representation of the net to the write function.
  */
 void net_writeBinaryRepresentation(Net *net, void (*writeFn)(const void * ptr, size_t size, size_t count));

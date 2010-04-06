@@ -214,8 +214,15 @@ void end_removeInstance(End *end, Cap *cap) {
 }
 
 void end_setGroup(End *end, Group *group) {
-	//argument may be NULL
+	group_removeEnd(end_getGroup(end), end);
 	end->endContents->group = group;
+	group_addEnd(group, end);
+}
+
+void end_setNet(End *end, Net *net) {
+	net_removeEnd(end_getNet(end), end);
+	end->endContents->net = net;
+	net_addEnd(net, end);
 }
 
 /*

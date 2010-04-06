@@ -16,10 +16,15 @@
  */
 Face * face_construct(Net * net);
 
-/* 
+/*
  * Simple destructor
  */
 void face_destruct(Face * face);
+
+/*
+ * Returns the net that contains the face.
+ */
+Net *face_getNet(Face *face);
 
 /*
  * Returns cardinal
@@ -47,9 +52,9 @@ int32_t face_getBottomNodeNumber(Face * face, int32_t topIndex);
 Cap * face_getBottomNode(Face * face, int32_t topNodeIndex, int32_t bottomNodeIndex);
 
 /*
- * Allocate arrays to allow for data 
+ * Allocate arrays to allow for data
  */
-void face_allocateSpace(Face * face, int32_t cardinal); 
+void face_allocateSpace(Face * face, int32_t cardinal);
 
 /*
  * Sets the selected top node

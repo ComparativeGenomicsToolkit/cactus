@@ -252,6 +252,12 @@ void block_removeInstance(Block *block, Segment *segment) {
 	sortedSet_delete(block->blockContents->segments, segment_getPositiveOrientation(segment));
 }
 
+void block_setNet(Block *block, Net *net) {
+	net_removeBlock(block_getNet(block), block);
+	block->blockContents->net = net;
+	net_addBlock(net, block);
+}
+
 /*
  * Serialisation functions.
  */

@@ -90,4 +90,9 @@ uint32_t end_hashKey(void *o);
  */
 int32_t end_hashEqualsKey(void *o, void *o2);
 
+/*
+ * Sets the net associated with the end.
+ */
+void end_setNet(End *end, Net *net);
+
 #endif

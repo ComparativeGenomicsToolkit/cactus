@@ -81,3 +81,9 @@ Sequence *sequence_getStaticNameWrapper(Name name) {
 	metaSequence.name = name;
 	return &sequence;
 }
+
+void sequence_setNet(Sequence *sequence, Net *net) {
+	net_removeSequence(sequence_getNet(sequence), sequence);
+	sequence->net = net;
+	net_addSequence(net, sequence);
+}

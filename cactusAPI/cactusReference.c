@@ -123,6 +123,12 @@ Reference *reference_getStaticNameWrapper(Name name) {
 	return &reference_getStaticNameWrapperP;
 }
 
+void reference_setNet(Reference *reference, Net *net) {
+	net_removeReference(reference_getNet(reference), reference);
+	reference->net = net;
+	net_addReference(net, reference);
+}
+
 void reference_writeBinaryRepresentation(Reference *reference, void (*writeFn)(const void * ptr, size_t size, size_t count)) {
 	Reference_PseudoChromosomeIterator *iterator;
 	PseudoChromosome *pseudoChromosome;

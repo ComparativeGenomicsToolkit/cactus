@@ -488,6 +488,16 @@ void net_destructReferenceIterator(Net_ReferenceIterator *referenceIterator) {
 	iterator_destruct(referenceIterator);
 }
 
+void net_mergeNets(Net *net1, Net *net2) {
+	if(net_getParentGroup(net1) == NULL) { //We are merging two top level reconstructions!
+		assert(net_getParentGroup(net2) == NULL);
+		net_mergeNetsP(net1, net2);
+	}
+	else { //We are merging two sister nets, merge there parent nets, which in turn will merge the child nets.
+		group_mergeGroups(net_getParentGroup(net1), net_getParentGroup(net2));
+	}
+}
+
 
 /*
  * Private functions
@@ -598,6 +608,47 @@ void net_addReference(Net *net, Reference *reference) {
 void net_removeReference(Net *net, Reference *reference) {
 	assert(sortedSet_find(net->references, reference) != NULL);
 	sortedSet_delete(net->references, reference);
+}
+
+void net_mergeNetsP(Net *net1, Net *net2) {
+	Sequence *sequence;
+
+	eventTree_merge(net_getEventTree(net1), net_getEventTree(net2));
+
+	while((sequence = net_getFirstSequence(net1)) != NULL) {
+		if(net_getSequence(net2, sequence_getName(sequence)) == NULL) {
+			sequence_setNet(sequence, net2);
+		}
+		else {
+			sequence_destruct(sequence);
+		}
+	}
+
+	while(net_getEndNumber(net1) > 0) {
+		end_setNet(net_getFirstEnd(net1), net2);
+	}
+
+	while(net_getBlockNumber(net1) > 0) {
+		block_setNet(net_getFirstBlock(net1), net2);
+	}
+
+	while(net_getFaceNumber(net1) > 0) {
+		face_setNet(net_getFirstFace(net1), net2);
+	}
+
+	while(net_getGroupNumber(net1) > 0) {
+		group_setNet(net_getFirstGroup(net1), net2);
+	}
+
+	while(net_getChainNumber(net1) > 0) {
+		chain_setNet(net_getFirstChain(net1), net2);
+	}
+
+	while(net_getReferenceNumber(net1) > 0) {
+		reference_setNet(net_getFirstReference(net1), net2);
+	}
+	//Now destroy the first net.
+	net_destruct(net1, 0);
 }
 
 /*

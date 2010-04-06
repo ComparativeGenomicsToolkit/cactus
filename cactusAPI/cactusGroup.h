@@ -64,6 +64,11 @@ Net *group_getNestedNet(Group *group);
 Link *group_getLink(Group *group);
 
 /*
+ * Gets the first end in the group.
+ */
+End *group_getFirstEnd(Group *group);
+
+/*
  * Gets an end by name
  */
 End *group_getEnd(Group *group, Name name);

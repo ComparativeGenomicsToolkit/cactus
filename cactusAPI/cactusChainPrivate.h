@@ -49,4 +49,9 @@ Chain *chain_loadFromBinaryRepresentation(void **binaryString, Net *net);
  */
 Chain *chain_getStaticNameWrapper(Name name);
 
+/*
+ * Sets the net containing the chain.
+ */
+void chain_setNet(Chain *chain, Net *net);
+
 #endif

@@ -65,4 +65,9 @@ Block *block_loadFromBinaryRepresentation(void **binaryString, Net *net);
  */
 Block *block_getStaticNameWrapper(Name name);
 
+/*
+ * Sets the net associated with the block.
+ */
+void block_setNet(Block *block, Net *net);
+
 #endif

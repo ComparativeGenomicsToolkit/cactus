@@ -64,4 +64,9 @@ Face *face_loadFromBinaryRepresentation(void **binaryString, Net * net);
  * Get a static instance (from the heap) with the name set.
  */
 Face *face_getStaticNameWrapper(Name name);
+
+/*
+ * Sets the net associated with the face.
+ */
+void face_setNet(Face *face, Net *net);
 #endif

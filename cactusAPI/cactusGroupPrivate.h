@@ -43,6 +43,11 @@ void group_updateContainedEnds(Group *group);
 void group_setLink(Group *group, Link *link);
 
 /*
+ * Removes the end from the group.
+ */
+void group_removeEnd(Group *group, End *end);
+
+/*
  * Write a binary representation of the group to the write function.
  */
 void group_writeBinaryRepresentation(Group *group, void (*writeFn)(const void * ptr, size_t size, size_t count));
@@ -56,5 +61,10 @@ Group *group_loadFromBinaryRepresentation(void **binaryString, Net *net);
  * Get a static instance (from the heap) with the netName set.
  */
 Group *group_getStaticNameWrapper(Name netName);
+
+/*
+ * Sets the net containing the group.
+ */
+void group_setNet(Group *group, Net *net);
 
 #endif

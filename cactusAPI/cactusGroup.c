@@ -114,6 +114,10 @@ Link *group_getLink(Group *group) {
 	return group->link;
 }
 
+End *group_getFirstEnd(Group *group) {
+	return sortedSet_getFirst(group->ends);
+}
+
 End *group_getEnd(Group *group, Name name) {
 	static End end;
 	static EndContents endContents;
@@ -172,7 +176,24 @@ int64_t group_getTotalBaseLength(Group *group) {
 }
 
 void group_mergeGroups(Group *group1, Group *group2) {
-
+	//Check they are in the same net..
+	assert(group_getNet(group1) == group_getNet(group2));
+	//First merge child nets
+	if(group_getNestedNet(group2) == NULL) {
+		Group *group3 = group1;
+		group1 = group2;
+		group2 = group3;
+	}
+	else if(group_getNestedNet(group1) != NULL) {
+		net_mergeNetsP(group_getNestedNet(group1), group_getNestedNet(group2));
+	}
+	//Now puts all the children in group1 into group2.
+	End *end;
+	while((end = group_getFirstEnd(group1)) != NULL) {
+		end_setGroup(end, group2);
+	}
+	//Now remove group1 from the net and destruct it
+	group_destruct(group1);
 }
 
 /*
@@ -198,6 +219,16 @@ void group_setLink(Group *group, Link *link) {
 	group->link = link;
 	assert(group_getEnd(group, end_getName(link_getLeft(link))) == link_getLeft(link));
 	assert(group_getEnd(group, end_getName(link_getRight(link))) == link_getRight(link));
+}
+
+void group_removeEnd(Group *group, End *end) {
+	sortedSet_delete(group->ends, end);
+}
+
+void group_setNet(Group *group, Net *net) {
+	net_removeGroup(group_getNet(group), group);
+	group->net = net;
+	net_addGroup(net, group);
 }
 
 /*

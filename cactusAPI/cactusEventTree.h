@@ -23,6 +23,11 @@ EventTree *eventTree_construct(MetaEvent *rootMetaEvent, Net *net);
 EventTree *eventTree_copyConstruct(EventTree *eventTree, Net *newNet, int32_t (unaryEventFilterFn)(Event *event));
 
 /*
+ * Merges the first event tree into the second event tree and destroys event tree 1.
+ */
+void eventTree_merge(EventTree *eventTree1, EventTree *eventTree2);
+
+/*
  * Returns the root event.
  */
 Event *eventTree_getRootEvent(EventTree *eventTree);

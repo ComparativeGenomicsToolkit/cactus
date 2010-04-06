@@ -47,6 +47,10 @@ EventTree *eventTree_copyConstruct(EventTree *eventTree, Net *newNet,
 	return eventTree2;
 }
 
+void eventTree_merge(EventTree *eventTree1, EventTree *eventTree2) {
+
+}
+
 Event *eventTree_getRootEvent(EventTree *eventTree) {
 	return eventTree->rootEvent;
 }

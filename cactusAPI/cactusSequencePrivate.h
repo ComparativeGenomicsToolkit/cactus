@@ -32,4 +32,9 @@ Sequence *sequence_loadFromBinaryRepresentation(void **binaryString, Net *net);
  */
 Sequence *sequence_getStaticNameWrapper(Name name);
 
+/*
+ * Set the sequence associated with the net.
+ */
+void sequence_setNet(Sequence *sequence, Net *net);
+
 #endif

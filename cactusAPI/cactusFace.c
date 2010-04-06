@@ -9,7 +9,7 @@ Face * face_construct2(Name name, Net * net) {
 	face->net = net;
 	face->name = name;
 	net_addFace(net, face);
-	return face;	
+	return face;
 }
 
 
@@ -38,6 +38,10 @@ void face_destruct(Face * face)
 		free(face->derivedEdgeDestinations);
 	}
 	free(face);
+}
+
+Net *face_getNet(Face *face) {
+	return face->net;
 }
 
 /*
@@ -76,7 +80,7 @@ Cap * face_getBottomNode(Face * face, int32_t topNodeIndex, int32_t bottomNodeIn
 }
 
 /*
- * Allocate arrays to allow for data 
+ * Allocate arrays to allow for data
  */
 void face_allocateSpace(Face * face, int32_t cardinal) {
 	face->cardinal = cardinal;
@@ -153,6 +157,12 @@ void face_engineerArtificialNodes(Face * face, Cap * topNode, Cap * bottomNode, 
 ////////////////////////////////////////////////
 ////////////////////////////////////////////////
 
+void face_setNet(Face *face, Net *net) {
+	net_removeFace(face_getNet(face), face);
+	face->net = net;
+	net_addFace(net, face);
+}
+
 /*
  * Serialization write function for a given top node in a face
  */
@@ -170,10 +180,10 @@ static void face_writeBinaryRepresentationAtIndex(Face * face, int32_t index,
 	binaryRepresentation_writeInteger(face->bottomNodeNumbers[index], writeFn);
 
 	// Names of bottom nodes
-	for (index2 = 0; index2 < face->bottomNodeNumbers[index]; index2++) 
+	for (index2 = 0; index2 < face->bottomNodeNumbers[index]; index2++)
 		binaryRepresentation_writeName(cap_getName(face->bottomNodes[index][index2]), writeFn);
 
-	// destination of the derived edge 
+	// destination of the derived edge
 	binaryRepresentation_writeName(cap_getName(face->derivedEdgeDestinations[index]), writeFn);
 }
 

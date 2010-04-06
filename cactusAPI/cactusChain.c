@@ -131,6 +131,12 @@ void chain_addLink(Chain *chain, Link *childLink) {
 	childLink->linkIndex = chain->linkNumber++;
 }
 
+void chain_setNet(Chain *chain, Net *net) {
+	net_removeChain(chain_getNet(chain), chain);
+	chain->net = net;
+	net_addChain(net, chain);
+}
+
 /*
  * Serialisation functions.
  */

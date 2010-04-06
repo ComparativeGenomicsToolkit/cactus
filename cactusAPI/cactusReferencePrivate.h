@@ -44,4 +44,9 @@ void reference_writeBinaryRepresentation(Reference *reference, void (*writeFn)(c
  */
 Reference *reference_loadFromBinaryRepresentation(void **binaryString, Net *net);
 
+/*
+ * Sets the net associated with the reference.
+ */
+void reference_setNet(Reference *reference, Net *net);
+
 #endif
