@@ -94,6 +94,7 @@ void face_allocateSpace(Face * face, int32_t cardinal) {
  */
 void face_setTopNode(Face * face, int32_t topIndex, Cap * topNode) {
 	face->topNodes[topIndex] = topNode;
+	cap_setFace(topNode, face);
 }
 
 /*
@@ -206,6 +207,7 @@ static void face_loadFromBinaryRepresentationAtIndex(void **binaryString, Face *
 	name = binaryRepresentation_getName(binaryString);
 	cap = net_getCap(net, name);
 	face->topNodes[index] = cap;
+	cap_setFace(cap, face);
 
 	// Number of bottom nodes
 	num = binaryRepresentation_getInteger(binaryString);
