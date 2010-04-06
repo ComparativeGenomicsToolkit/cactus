@@ -83,6 +83,9 @@ void end_destruct(End *end) {
 	//remove from net.
 	net_removeEnd(end_getNet(end), end);
 
+	//remove from group.
+	end_setGroup(end, NULL);
+
 	//remove instances
 	while((cap = end_getFirst(end)) != NULL) {
 		cap_destruct(cap);

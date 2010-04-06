@@ -33,11 +33,6 @@ bool group_isTerminal(Group *group) {
 	return group->terminalGroup;
 }
 
-void group_destructP(End *end, void *o) {
-	assert(o == NULL);
-	end_setGroup(end, NULL);
-}
-
 static int32_t returnsTrue(Event *event) {
 	assert(event != NULL);
 	return 1;
@@ -69,7 +64,10 @@ void group_updateContainedEnds(Group *group) {
 	End *end;
 	End *end2;
 	//wipe the slate clean.
-	sortedSet_destruct(group->ends, (void (*)(void *, void *))group_destructP);
+	while(group_getEndNumber(group) != 0) {
+		end_setGroup(group_getFirstEnd(group), NULL);
+	}
+	sortedSet_destruct(group->ends, NULL);
 	group->ends = sortedSet_construct(group_constructP);
 	//now calculate the ends
 	net = group_getNet(group);
@@ -85,14 +83,14 @@ void group_updateContainedEnds(Group *group) {
 void group_addEnd(Group *group, End *end) {
 	end = end_getPositiveOrientation(end);
 	sortedSet_insert(group->ends, end);
-	//end_setGroup(end, group);
-	//assert(net_getEnd(group_getNet(group), end_getName(end)) == end);
-	//assert(net_getEnd(group_getNestedNet(group), end_getName(end)) != NULL);
 }
 
 void group_destruct(Group *group) {
 	//Detach from the parent net.
 	net_removeGroup(group_getNet(group), group);
+	while(group_getEndNumber(group) != 0) {
+		end_setGroup(group_getFirstEnd(group), NULL);
+	}
 	sortedSet_destruct(group->ends, NULL);
 	//Free the memory
 	free(group);
@@ -222,6 +220,7 @@ void group_setLink(Group *group, Link *link) {
 }
 
 void group_removeEnd(Group *group, End *end) {
+	assert(group_getEnd(group, end_getName(end)) == end);
 	sortedSet_delete(group->ends, end);
 }
 
