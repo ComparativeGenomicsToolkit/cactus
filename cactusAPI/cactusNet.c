@@ -611,18 +611,47 @@ void net_removeReference(Net *net, Reference *reference) {
 }
 
 void net_mergeNetsP(Net *net1, Net *net2) {
+	//Make binary strings for the two nets
+	//Destruct the two nets and any children that are loaded.
+	//Load the net using both strings again.
+
+
+	//Write the e
+
+
 	Sequence *sequence;
 
-	eventTree_merge(net_getEventTree(net1), net_getEventTree(net2));
+	//Transfers the events not in event tree 1 into event tree 2.
+	EventTree *eventTree1 = net_getEventTree(net1);
+	EventTree *eventTree2 = net_getEventTree(net2);
+	EventTree_Iterator *eventIterator = eventTree_getIterator(eventTree1);
+	Event *event;
+	while((event = eventTree_getNext(eventIterator)) != NULL) {
+		if(eventTree_getEvent(eventTree2, event_getName(event)) == NULL) {
+			eventTree_addSiblingUnaryEvent(eventTree2, event);
+		}
+	}
+	eventTree_destructIterator(eventIterator);
 
 	while((sequence = net_getFirstSequence(net1)) != NULL) {
 		if(net_getSequence(net2, sequence_getName(sequence)) == NULL) {
 			sequence_setNet(sequence, net2);
+			//sequence_setEvent(sequence, eventTree_getEvent(eventTree2, event_getName(sequence_getEvent(sequence)))); //ensures it has the right event.
 		}
 		else {
 			sequence_destruct(sequence);
 		}
 	}
+
+	//Ensure caps, segments and sequences have event in the second event tree..
+	Net_CapIterator *capIterator = net_getCapIterator(net1);
+	Cap *cap;
+	while((cap = net_getNextCap(capIterator)) != NULL) {
+		//cap_setEvent(cap, eventTree_getEvent(eventTree2, event_getName(cap_getEvent(cap))));
+		//cap_setSequence(cap, eventTree_getEvent(eventTree2, event_getName(cap_getEvent(cap))));
+	}
+	net_destructCapIterator(capIterator);
+	//Segments currently use caps to get events.
 
 	while(net_getEndNumber(net1) > 0) {
 		end_setNet(net_getFirstEnd(net1), net2);

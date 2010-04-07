@@ -47,10 +47,6 @@ EventTree *eventTree_copyConstruct(EventTree *eventTree, Net *newNet,
 	return eventTree2;
 }
 
-void eventTree_merge(EventTree *eventTree1, EventTree *eventTree2) {
-
-}
-
 Event *eventTree_getRootEvent(EventTree *eventTree) {
 	return eventTree->rootEvent;
 }
@@ -66,6 +62,7 @@ Event *eventTree_getCommonAncestor(Event *event, Event *event2) {
 
 	assert(event != NULL);
 	assert(event2 != NULL);
+	assert(event_getEventTree(event) == event_getEventTree(event2));
 
 	list = constructEmptyList(0, NULL);
 	ancestorEvent = event;
@@ -160,6 +157,45 @@ char *eventTree_makeNewickString(EventTree *eventTree) {
 	sprintf(cA2, "%s;", cA);
 	free(cA);
 	return cA2;
+}
+
+int32_t eventTree_addSiblingUnaryEventP(Event *event, Event *event2) {
+	Group *group1 = net_getParentGroup(eventTree_getNet(event_getEventTree(event)));
+	Group *group2 = net_getParentGroup(eventTree_getNet(event_getEventTree(event2)));
+	if(group1 != NULL) {
+		assert(group2 != NULL);
+		Net *parentNet = group_getNet(group1);
+		assert(parentNet == group_getNet(group1));
+		EventTree *parentEventTree = net_getEventTree(parentNet);
+		Event *eventP = eventTree_getEvent(parentEventTree, event_getName(event));
+		Event *event2P = eventTree_getEvent(parentEventTree, event_getName(event2));
+		if(eventP != NULL && event2P != NULL) { //we can answer who is truly ancestral
+			Event *event3 = eventTree_getCommonAncestor(eventP, event2P);
+			assert(event3 == eventP || event2P); //one must be the ancestor of the other
+			return event3 == eventP;
+		}
+	}
+	else {
+		assert(group2 == NULL);
+	}
+	//Both novel, put the first in front of the second.. we could merge them ?!
+	return 0;
+}
+
+void eventTree_addSiblingUnaryEvent(EventTree *eventTree, Event *event) {
+	if(eventTree_getEvent(eventTree, event_getName(event)) == NULL) { //check it isn't already in there
+		Event *event2 = event;
+		do {
+			assert(event_getChildNumber(event2) == 1);
+			event2 = event_getChild(event2, 0);
+		} while(eventTree_getEvent(eventTree, event_getName(event2)) == NULL);
+		Event *event3 = event_getParent(event2);
+		while(eventTree_addSiblingUnaryEventP(event, event3)) {
+			event2 = event3;
+			event3 = event_getParent(event2);
+		}
+		event_construct2(event_getMetaEvent(event), 0.5, event3, event2, eventTree);
+	}
 }
 
 /*
