@@ -61,7 +61,7 @@ static int32_t transmap_directAdjacencyWasBroken(Cap * cap1, Cap * cap2, Event *
 		return true;
 	// Recursion: go up one generation
 	else 
-		return transmap_syntenyWasConserved(cap_getParent(cap1) , cap_getParent(cap2), event);
+		return transmap_directAdjacencyWasConserved(cap_getParent(cap1) , cap_getParent(cap2), event);
 }
 
 // Stub for recursive call in transmap_adjacencyWasBroken 
