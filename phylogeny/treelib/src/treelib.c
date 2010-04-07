@@ -41,8 +41,6 @@ jcdist(char *seqA, char *seqB)
     dist = 0.0f;
   }
 
-//  printf("%s\t%s\t%f\t%f\n", seqA, seqB, p, dist);
-
   return dist;
 }
 
@@ -184,7 +182,7 @@ tree2string (struct Tree *tree) {
 char *
 msa2tree (char **mfa, unsigned int num) {
 
-  fprintf(stderr, "TREELIB: Starting msa2tree [%d]\n", num);
+//  fprintf(stderr, "TREELIB: Starting msa2tree [%d]\n", num);
 
   struct DistanceMatrix *mat = NULL;
   struct Alignment *aln = NULL;
@@ -206,26 +204,26 @@ msa2tree (char **mfa, unsigned int num) {
   }
 
 //  fprintf(stderr, "TREELIB: Here is the msa\n");
-  unsigned int i = 0;  
-  for (i=0; i<num; i++) {
+//  unsigned int i = 0;  
+//  for (i=0; i<num; i++) {
 //    fprintf(stderr, "TREELIB:\t%s\n", mfa[i]);
-  }
+//  }
 
-  fprintf(stderr, "TREELIB: Building the distance matrix\n");
+//  fprintf(stderr, "TREELIB: Building the distance matrix\n");
   mat = mfa2dist(mfa, num);
   aln_init(&aln, num);
   group = alignment_to_ClusterGroup(aln, 0);
   group->matrix = mat;
   //print_DistanceMatrix(stderr, mat);
 
-  fprintf(stderr, "TREELIB: Building the NJ tree\n");
+//  fprintf(stderr, "TREELIB: Building the NJ tree\n");
   njTree = neighbour_joining_buildtree(group, 0);
 
   struct Tnode *tmpNode = NULL;
   tmpNode = njTree->child[2];
   njTree->child[2] = NULL;
 
-  fprintf(stderr, "TREELIB: Rooting the tree\n");
+//  fprintf(stderr, "TREELIB: Rooting the tree\n");
   struct Tnode *leftNode = NULL;
   leftNode = (struct Tnode *) malloc_util(sizeof(struct Tnode));
   leftNode->left = njTree->child[0];
@@ -240,20 +238,20 @@ msa2tree (char **mfa, unsigned int num) {
   njTree->child[0] = rootNode;
   njTree->child[1] = NULL;
 
-  fprintf(stderr, "TREELIB: Converting tree to string\n");
+//  fprintf(stderr, "TREELIB: Converting tree to string\n");
   treestring = tree2string(njTree);
-  fprintf(stderr, "TREELIB: [[%s]]\n", treestring);
+//  fprintf(stderr, "TREELIB: [[%s]]\n", treestring);
 
-  fprintf(stderr, "TREELIB: free aln\n");
+//  fprintf(stderr, "TREELIB: free aln\n");
   aln = free_Alignment(aln);
 
-  fprintf(stderr, "TREELIB: free group\n");
+//  fprintf(stderr, "TREELIB: free group\n");
   group = free_ClusterGroup(group);
 
-  fprintf(stderr, "TREELIB: free njTree\n");
-  njTree = free_Tree(njTree);
+//  fprintf(stderr, "TREELIB: free njTree\n");
+//  njTree = free_Tree(njTree);
 
-  fprintf(stderr, "TREELIB: Ending msa2tree\n");
+//  fprintf(stderr, "TREELIB: Ending msa2tree\n");
 
   return treestring;
 }
