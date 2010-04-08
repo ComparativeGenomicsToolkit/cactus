@@ -18,4 +18,4 @@ treelib/libtree.a: ${treeSrc} ${treeIncPath}/*.h
 clean : 
 	rm -f *.o
 	rm -f ${binPath}/cactus_phylogeny
-	rm treelib/libtree.a
+	rm -f treelib/libtree.a
