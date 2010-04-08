@@ -90,6 +90,24 @@ void testEnd_getBlock(CuTest* testCase) {
 	cactusEndTestTeardown();
 }
 
+void testEnd_getOtherBlockEnd(CuTest *testCase) {
+	cactusEndTestSetup();
+	Block *block = block_construct(10, net);
+	End *leftEnd = block_getLeftEnd(block);
+	End *rightEnd = block_getRightEnd(block);
+
+	CuAssertTrue(testCase, end_getOtherBlockEnd(end) == NULL);
+	CuAssertTrue(testCase, end_getOtherBlockEnd(end_getReverse(end)) == NULL);
+
+	CuAssertTrue(testCase, end_getOtherBlockEnd(leftEnd) == rightEnd);
+	CuAssertTrue(testCase, end_getOtherBlockEnd(rightEnd) == leftEnd);
+
+	CuAssertTrue(testCase, end_getOtherBlockEnd(end_getReverse(leftEnd)) == end_getReverse(rightEnd));
+	CuAssertTrue(testCase, end_getOtherBlockEnd(end_getReverse(rightEnd)) == end_getReverse(leftEnd));
+
+	cactusEndTestTeardown();
+}
+
 void testEnd_getGroup(CuTest* testCase) {
 	cactusEndTestSetup();
 	Net *net2 = net_construct(netDisk);
@@ -271,6 +289,7 @@ void testEnd_serialisation(CuTest* testCase) {
 	testEnd_getReverse(testCase);
 	testEnd_getNet(testCase);
 	testEnd_getBlock(testCase);
+	testEnd_getOtherBlockEnd(testCase);
 	testEnd_getGroup(testCase);
 	testEnd_setGroup(testCase);
 	testEnd_getInstanceNumber(testCase);
@@ -292,6 +311,7 @@ CuSuite* cactusEndTestSuite(void) {
 	SUITE_ADD_TEST(suite, testEnd_getReverse);
 	SUITE_ADD_TEST(suite, testEnd_getNet);
 	SUITE_ADD_TEST(suite, testEnd_getBlock);
+	SUITE_ADD_TEST(suite, testEnd_getOtherBlockEnd);
 	SUITE_ADD_TEST(suite, testEnd_getGroup);
 	SUITE_ADD_TEST(suite, testEnd_setGroup);
 	SUITE_ADD_TEST(suite, testEnd_getInstanceNumber);

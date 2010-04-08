@@ -16,7 +16,7 @@
 #include "cactus.h"
 #include "reference.h"
 
-static struct List *getAttachedEnds(Net *net) {
+static struct List *getAttachedStubEnds(Net *net) {
 	/*
 	 * Get the top level attached ends.
 	 */
@@ -24,11 +24,15 @@ static struct List *getAttachedEnds(Net *net) {
 	Net_EndIterator *endIterator = net_getEndIterator(net);
 	End *end;
 	while((end = net_getNextEnd(endIterator)) != NULL) {
-		if(end_isAttached(end) && end_getInstanceNumber(end) > 0) {
+		if(end_isAttached(end)) {
+			assert(end_isStubEnd(end));
+			assert(!end_isFree(end));
 			listAppend(list, end);
 		}
 	}
 	net_destructEndIterator(endIterator);
+	assert(list->length > 0);
+	assert(list->length % 2 == 0);
 	return list;
 }
 
@@ -40,19 +44,25 @@ static void makePseudoChromosomesFromPairs(struct List *ends, Reference *referen
 	//or more attached top level ends to build a reference genome currently.
 	assert(ends->length % 2 == 0); //we must have an even number of ends.
 	int32_t i;
-	for(i=0; i<=ends->length; i+=2) {
+	for(i=0; i<ends->length; i+=2) {
 		End *end1 = ends->list[i];
 		End *end2 = ends->list[i+1];
+		assert(end1 != NULL);
+		assert(end2 != NULL);
+		assert(end_isStubEnd(end1));
+		assert(end_isAttached(end1));
+		assert(end_isStubEnd(end2));
+		assert(end_isAttached(end2));
 		pseudoChromosome_construct(reference, end1, end2);
 	}
 }
 
 static void makePseudoChromosomes(Net *net, Reference *reference, int (*cmpFn)(End **, End **)) {
 	/*
-	 * Uses the above functions to construct an set of pairs of ends and then construct the pseudo-chromsomes,
+	 * Uses the above functions to construct a set of pairs of ends and then construct the pseudo-chromsomes,
 	 * but without any pseudo-adjacencies.
 	 */
-	struct List *ends = getAttachedEnds(net);
+	struct List *ends = getAttachedStubEnds(net);
 	/* Sort the ends and so construct pairing of attached ends to construct pseudo chromosomes*/
 	qsort(ends->list, ends->length, sizeof(void *),
 				(int (*)(const void *v, const void *))cmpFn);
@@ -60,18 +70,38 @@ static void makePseudoChromosomes(Net *net, Reference *reference, int (*cmpFn)(E
 	destructList(ends);
 }
 
+static Cap *makeTopLevelPseudoChromosomesP(End *end) {
+	/*
+	 * Gets the leaf cap from a top level attached stub. There can only
+	 * be one such cap per top level attached stub, currently.
+	 */
+	Cap *cap = NULL, *cap2;
+	End_InstanceIterator *iterator = end_getInstanceIterator(end);
+	while((cap2 = end_getNext(iterator)) != NULL) {
+		if(cap_getChildNumber(cap2) == 0) {
+			assert(cap == NULL);
+			cap = cap2;
+		}
+	}
+	end_destructInstanceIterator(iterator);
+	assert(cap != NULL);
+	return cap;
+}
+
 static int makeTopLevelPseudoChromosomes_cmpEnds(End **end1, End **end2) {
 	/*
 	 * Sorts the attached ends according to the sequences they are connected to.
 	 */
-	assert(end_getInstanceNumber(*end1) == 1); //this is the top level
-	assert(end_getInstanceNumber(*end2) == 1);
-	Cap *cap1 = end_getFirst(*end1);
-	Cap *cap2 = end_getFirst(*end2);
-	int32_t i = netMisc_nameCompare(sequence_getName(cap_getSequence(cap1)), sequence_getName(cap_getSequence(cap2)));
+	Cap *cap1 = makeTopLevelPseudoChromosomesP(*end1);
+	Cap *cap2 = makeTopLevelPseudoChromosomesP(*end2);
+	Sequence *sequence1 = cap_getSequence(cap1);
+	Sequence *sequence2 = cap_getSequence(cap2);
+	assert(sequence1 != NULL);
+	assert(sequence2 != NULL);
+	int32_t i = netMisc_nameCompare(sequence_getName(sequence1), sequence_getName(sequence2));
 	if(i == 0) {
 		assert(cap_getSide(cap1) != cap_getSide(cap2));
-		return cap_getSide(cap1) ? 1 : -1;
+		return cap_getSide(cap1) ? -1 : 1; //sort 5' to 3' (i.e. with the 5 prime with a lower index to the 3 prime side)
 	}
 	else {
 		return i;
@@ -83,13 +113,23 @@ void makeTopLevelPseudoChromosomes(Net *net, Reference *reference) {
 }
 
 static Hash *makeIntermediateLevelPseudoChromosomes_cmpEndsP = NULL;
+static Net *makeIntermediateLevelPseudoChromosomes_parentNet = NULL;
 
 static int makeIntermediateLevelPseudoChromosomes_cmpEnds(End **end1, End **end2) {
 	/*
 	 * Sorts the attached ends according to the pairing in the higher level reference.
 	 */
-	PseudoAdjacency *pseudoAdjacency1 = hash_search(makeIntermediateLevelPseudoChromosomes_cmpEndsP, *end1);
-	PseudoAdjacency *pseudoAdjacency2 = hash_search(makeIntermediateLevelPseudoChromosomes_cmpEndsP, *end2);
+	End *end3 = net_getEnd(makeIntermediateLevelPseudoChromosomes_parentNet, end_getName(*end1));
+	End *end4 = net_getEnd(makeIntermediateLevelPseudoChromosomes_parentNet, end_getName(*end2));
+	assert(end3 != NULL);
+	assert(end4 != NULL);
+	assert(end_getOrientation(end3));
+	assert(end_getOrientation(end4));
+	assert(end_isAttached(end3) || end_isBlockEnd(end3));
+	assert(end_isAttached(end4) || end_isBlockEnd(end4));
+
+	PseudoAdjacency *pseudoAdjacency1 = hash_search(makeIntermediateLevelPseudoChromosomes_cmpEndsP, end3);
+	PseudoAdjacency *pseudoAdjacency2 = hash_search(makeIntermediateLevelPseudoChromosomes_cmpEndsP, end4);
 	assert(pseudoAdjacency1 != NULL);
 	assert(pseudoAdjacency2 != NULL);
 	PseudoChromosome *pseudoChromosome1 = pseudoAdjacency_getPseudoChromosome(pseudoAdjacency1);
@@ -97,26 +137,35 @@ static int makeIntermediateLevelPseudoChromosomes_cmpEnds(End **end1, End **end2
 
 	//Sort first by pseudo chromosome
 	int32_t i = netMisc_nameCompare(pseudoChromosome_getName(pseudoChromosome1), pseudoChromosome_getName(pseudoChromosome2));
-	if(i != 0) {
+	if(i != 0) { //we order, so the chromosomes reflect the ordering of the parent adjacencies on the circle.
 		return i;
 	}
+	assert(pseudoChromosome1 == pseudoChromosome2);
 	//Then by pseudo-adjacency
 	i = netMisc_nameCompare(pseudoAdjacency_getName(pseudoAdjacency1), pseudoAdjacency_getName(pseudoAdjacency2));
 	if(i != 0) {
 		return i;
 	}
+	assert(pseudoAdjacency1 == pseudoAdjacency2);
 	//if in the same pseudo adjacency then
 	//return the proper pair according to ordering of ends in pair.
-	return end_getName(pseudoAdjacency_get5End(pseudoAdjacency1)) == end_getName(*end1) ? 1 : -1;
+	assert(end3 == pseudoAdjacency_get5End(pseudoAdjacency1) || end3 == pseudoAdjacency_get3End(pseudoAdjacency1));
+	assert(end4 == pseudoAdjacency_get5End(pseudoAdjacency1) || end4 == pseudoAdjacency_get3End(pseudoAdjacency1));
+	return pseudoAdjacency_get5End(pseudoAdjacency1) == end3 ? -1 : 1;
 }
 
 void makeIntermediateLevelPseudoChromosomes(Net *net, Reference *reference) {
 	Group *parentGroup = net_getParentGroup(net);
 	assert(parentGroup != NULL);
-	assert(net_getReferenceNumber(net) == 1);
-	Reference *parentReference = net_getFirstReference(net);
+	Net *parentNet = group_getNet(parentGroup);
+	assert(net_getReferenceNumber(parentNet) == 1);
+	Reference *parentReference = net_getFirstReference(parentNet);
+
+	makeIntermediateLevelPseudoChromosomes_parentNet = parentNet;
 	makeIntermediateLevelPseudoChromosomes_cmpEndsP = reference_getEndToPseudoAdjacencyHash(parentReference);
+
 	makePseudoChromosomes(net, reference, makeIntermediateLevelPseudoChromosomes_cmpEnds);
+
 	hash_destruct(makeIntermediateLevelPseudoChromosomes_cmpEndsP);
 }
 
@@ -131,14 +180,16 @@ void mergeGroupsLinkedByPseudoAdjacencies(Net *net, Reference *reference) {
 		while((pseudoAdjacency = pseudoChromosome_getNextPseudoAdjacency(pseudoAdjacencyIterator)) != NULL) {
 			End *_5End = pseudoAdjacency_get5End(pseudoAdjacency);
 			End *_3End = pseudoAdjacency_get5End(pseudoAdjacency);
+			assert(end_getPositiveOrientation(_5End) == _5End);
+			assert(end_getPositiveOrientation(_3End) == _3End);
 			//if the groups are distinct then we call the merge function..
 			if(end_getGroup(_5End) != end_getGroup(_3End)) {
 				group_mergeGroups(end_getGroup(_5End), end_getGroup(_3End));
 			}
+			assert(end_getGroup(_5End) == end_getGroup(_3End));
 		}
 		pseudoChromosome_destructPseudoAdjacencyIterator(pseudoAdjacencyIterator);
 	}
-
 	reference_destructPseudoChromosomeIterator(pseudoChromosomeIterator);
 }
 

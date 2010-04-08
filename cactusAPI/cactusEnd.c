@@ -129,6 +129,18 @@ Block *end_getBlock(End *end) {
 	return a == NULL || end_getOrientation(end) ? a : block_getReverse(a);
 }
 
+End *end_getOtherBlockEnd(End *end) {
+	if(!end_isBlockEnd(end)) {
+		return NULL; //the end must be block end to return the other end of a block!
+	}
+	Block *block = end_getBlock(end);
+	assert(block != NULL);
+	End *otherEnd = block_getRightEnd(block) == end ? block_getLeftEnd(block) : block_getRightEnd(block);
+	assert(end_getOrientation(end) == end_getOrientation(otherEnd));
+	assert(end != otherEnd);
+	return otherEnd;
+}
+
 Group *end_getGroup(End *end) {
 	return end->endContents->group;
 }

@@ -39,3 +39,7 @@ void *hash_search(Hash *hash, void *key) {
 void *hash_remove(Hash *hash, void *key) {
 	return hashtable_remove(hash->hash, key, 0);
 }
+
+int32_t hash_size(Hash *hash) {
+	return hashtable_count(hash->hash);
+}

@@ -187,6 +187,7 @@ void buildChainTrees_Bernard(int32_t blockNumber, char ***concatenatedBlocks, Na
 
 sprintf(buffer, "\tBN start: %d of %d\n", i, blockNumber);
 logInfo(buffer);
+
 		rowNumber = chainAlignments[i]->rowNumber;
 		colNumber = chainAlignments[i]->columnNumber;
 

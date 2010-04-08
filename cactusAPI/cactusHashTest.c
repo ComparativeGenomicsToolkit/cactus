@@ -111,11 +111,27 @@ void testHash_insert(CuTest* testCase) {
 	testTeardown();
 }
 
+void testHash_size(CuTest *testCase) {
+	/*
+	 * Tests the size function of the hash.
+	 */
+	testSetup();
+
+	CuAssertTrue(testCase, hash_size(hash) == 3);
+	CuAssertTrue(testCase, hash_size(hash2) == 3);
+	Hash *hash3 = hash_construct();
+	CuAssertTrue(testCase, hash_size(hash3) == 0);
+	hash_destruct(hash3);
+
+	testTeardown();
+}
+
 CuSuite* cactusHashTestSuite(void) {
 	CuSuite* suite = CuSuiteNew();
 	SUITE_ADD_TEST(suite, testHash_search);
 	SUITE_ADD_TEST(suite, testHash_remove);
 	SUITE_ADD_TEST(suite, testHash_insert);
+	SUITE_ADD_TEST(suite, testHash_size);
 	SUITE_ADD_TEST(suite, testHash_construct);
 	return suite;
 }

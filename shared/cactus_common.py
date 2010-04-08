@@ -64,12 +64,14 @@ def getRandomCactusInputs(tempDir,
     sequenceFile = None
     fileHandle = None
     parentSequence = getRandomSequence(length=random.choice(xrange(1, 2*avgSequenceLength)))[1]
+    first = True
     for i in xrange(sequenceNumber):
         if sequenceFile == None:
-            if random.random() > 0.5:
+            if not first and random.random() > 0.5: #Ensure we have at least one file with a pair of attached ends.
                 suffix = ".fa.incomplete"
             else:
                 suffix = ".fa"
+                first = False
             sequenceFile = getTempFile(rootDir=random.choice(sequenceDirs), suffix=suffix)
             fileHandle = open(sequenceFile, 'w')
         if random.random() > 0.8: #Get a new root sequence

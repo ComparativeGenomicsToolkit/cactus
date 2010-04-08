@@ -162,7 +162,7 @@ static void cap_checkProposedAdjacency(Cap *cap, Cap *cap2) {
 
 void cap_makeAdjacent1(Cap *cap, Cap *cap2) {
 	//We put them both on the same strand, as the strand is not important in the pairing
-	logDebug(">>>> Making adjacency %p -- %p\n", cap, cap2);
+	//logDebug(">>>> Making adjacency %p -- %p\n", cap, cap2);
 	cap = cap_getStrand(cap) ? cap : cap_getReverse(cap);
 	cap2 = cap_getStrand(cap2) ? cap2 : cap_getReverse(cap2);
 #ifdef BEN_DEBUG
@@ -234,7 +234,7 @@ void cap_makeParentAndChild(Cap *capParent, Cap *capChild) {
 		
 
 	if(!listContains(capParent->capContents->children, capChild)) { //defensive, means second calls will have no effect.
-		logDebug("YYYYYYYYYYY New parent %p->%p\n", capParent, capChild);
+		//logDebug("YYYYYYYYYYY New parent %p->%p\n", capParent, capChild);
 #ifdef BEN_DEBUG
 		assert(event_isDescendant(cap_getEvent(capParent), cap_getEvent(capChild)));
 #endif

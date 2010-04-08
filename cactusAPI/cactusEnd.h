@@ -56,6 +56,12 @@ Net *end_getNet(End *end);
 Block *end_getBlock(End *end);
 
 /*
+ * If the end is a block end returns the other end of the block, maintaining
+ * the same orientation as end. If not block end will return NULL (so be careful!)
+ */
+End *end_getOtherBlockEnd(End *end);
+
+/*
  * Gets the group that the end is part of.
  */
 Group *end_getGroup(End *end);

@@ -33,7 +33,7 @@ class TestCase(unittest.TestCase):
         for tempFile in self.tempFiles:
             os.remove(tempFile)
         unittest.TestCase.tearDown(self)
-        system("rm -rf %s" % self.tempDir)
+        #system("rm -rf %s" % self.tempDir)
         
     def testCactusReference_Random(self):
         """Creates a reference genome for random regions.

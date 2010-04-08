@@ -47,8 +47,8 @@ PseudoAdjacency *pseudoAdjacency_construct2(Name name,
 	assert(name != NULL_NAME);
 	assert(pseudoChromosome != NULL);
 	pseudoAdjacency->name = name;
-	pseudoAdjacency->_5End = _5End;
-	pseudoAdjacency->_3End = _3End;
+	pseudoAdjacency->_5End = end_getPositiveOrientation(_5End);
+	pseudoAdjacency->_3End = end_getPositiveOrientation(_3End);
 	pseudoAdjacency->pseudoChromosome = pseudoChromosome;
 	pseudoChromosome_addPseudoAdjacency(pseudoChromosome, pseudoAdjacency);
 	return pseudoAdjacency;

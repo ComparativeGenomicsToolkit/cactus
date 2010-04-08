@@ -46,4 +46,9 @@ void *hash_search(Hash *hash, void *key);
  */
 void *hash_remove(Hash *hash, void *key);
 
+/*
+ * Returns the number of key/value pairs in the hash.
+ */
+int32_t hash_size(Hash *hash);
+
 #endif

@@ -86,9 +86,10 @@ PseudoChromosome *pseudoChromosome_construct2(Name name, Reference *reference,
 	assert(_5End != NULL);
 	assert(_3End != NULL);
 
+
 	pseudoChromosome->pseudoAdjacencies = sortedSet_construct(pseudoChromosome_constructP);
-	pseudoChromosome->_5End = _5End;
-	pseudoChromosome->_3End = _3End;
+	pseudoChromosome->_5End = end_getPositiveOrientation(_5End); //everything is on the positive orientation.
+	pseudoChromosome->_3End = end_getPositiveOrientation(_3End);
 	pseudoChromosome->reference = reference;
 	pseudoChromosome->name = name;
 	reference_addPseudoChromosome(reference, pseudoChromosome);
