@@ -103,6 +103,35 @@ void testEnd_getGroup(CuTest* testCase) {
 	cactusEndTestTeardown();
 }
 
+void testEnd_setGroup(CuTest* testCase) {
+	cactusEndTestSetup();
+	Net *net2 = net_construct(netDisk);
+	Group *group2 = group_construct2(net2);
+	End *end2 = end_construct(1, net2);
+	End *end3 = end_construct(1, net2);
+	CuAssertTrue(testCase, group_getEndNumber(group2) == 0);
+	CuAssertTrue(testCase, end_getGroup(end2) == NULL);
+	CuAssertTrue(testCase, end_getGroup(end3) == NULL);
+	end_setGroup(end2, group2);
+	CuAssertTrue(testCase, group_getEndNumber(group2) == 1);
+	CuAssertTrue(testCase, end_getGroup(end2) == group2);
+	CuAssertTrue(testCase, group_getEnd(group2, end_getName(end2)) == end2);
+	CuAssertTrue(testCase, end_getGroup(end3) == NULL);
+	end_setGroup(end3, group2);
+	CuAssertTrue(testCase, group_getEndNumber(group2) == 2);
+	CuAssertTrue(testCase, end_getGroup(end2) == group2);
+	CuAssertTrue(testCase, group_getEnd(group2, end_getName(end2)) == end2);
+	CuAssertTrue(testCase, end_getGroup(end3) == group2);
+	CuAssertTrue(testCase, group_getEnd(group2, end_getName(end3)) == end3);
+	end_setGroup(end3, NULL);
+	end_setGroup(end2, group2);
+	CuAssertTrue(testCase, group_getEndNumber(group2) == 1);
+	CuAssertTrue(testCase, end_getGroup(end2) == group2);
+	CuAssertTrue(testCase, group_getEnd(group2, end_getName(end2)) == end2);
+	CuAssertTrue(testCase, end_getGroup(end3) == NULL);
+	cactusEndTestTeardown();
+}
+
 void testEnd_getInstanceNumber(CuTest* testCase) {
 	cactusEndTestSetup();
 	End *end2 = end_construct(0, net);
@@ -243,6 +272,7 @@ void testEnd_serialisation(CuTest* testCase) {
 	testEnd_getNet(testCase);
 	testEnd_getBlock(testCase);
 	testEnd_getGroup(testCase);
+	testEnd_setGroup(testCase);
 	testEnd_getInstanceNumber(testCase);
 	testEnd_getInstance(testCase);
 	testEnd_getFirst(testCase);
@@ -263,6 +293,7 @@ CuSuite* cactusEndTestSuite(void) {
 	SUITE_ADD_TEST(suite, testEnd_getNet);
 	SUITE_ADD_TEST(suite, testEnd_getBlock);
 	SUITE_ADD_TEST(suite, testEnd_getGroup);
+	SUITE_ADD_TEST(suite, testEnd_setGroup);
 	SUITE_ADD_TEST(suite, testEnd_getInstanceNumber);
 	SUITE_ADD_TEST(suite, testEnd_getInstance);
 	SUITE_ADD_TEST(suite, testEnd_getFirst);

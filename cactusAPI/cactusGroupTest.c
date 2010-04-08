@@ -191,6 +191,7 @@ CuSuite* cactusGroupTestSuite(void) {
 	SUITE_ADD_TEST(suite, testGroup_endIterator);
 	SUITE_ADD_TEST(suite, testGroup_getTotalBaseLength);
 	SUITE_ADD_TEST(suite, testGroup_serialisation);
+	//group_merge is tested thorougly by net_merge
 	SUITE_ADD_TEST(suite, testGroup_construct);
 	return suite;
 }

@@ -165,6 +165,86 @@ void testEventTree_makeNewickString(CuTest* testCase) {
 	cactusEventTreeTestTeardown();
 }
 
+void testEventTree_addSiblingUnaryEvent(CuTest *testCase) {
+	cactusEventTreeTestSetup();
+	//Create two sibling nets with the basic event tree..
+	//then try adding events from on into the other.
+	Group *group1 = group_construct2(net);
+	Group *group2 = group_construct2(net);
+	Net *net2 = net_construct(netDisk);
+	Net *net3 = net_construct(netDisk);
+	net_setParentGroup(net2, group1);
+	net_setParentGroup(net3, group2);
+	EventTree *eventTree2 = eventTree_copyConstruct(net_getEventTree(net), net2, NULL);
+	MetaEvent *unaryInternalMetaEvent1 = metaEvent_construct("UNARY1", netDisk);
+	MetaEvent *unaryInternalMetaEvent2 = metaEvent_construct("UNARY2", netDisk);
+	MetaEvent *unaryInternalMetaEvent3 = metaEvent_construct("UNARY3", netDisk);
+	Event *parentUnaryEvent1 = event_construct2(unaryInternalMetaEvent1, 0.1, internalEvent, leafEvent1, eventTree);
+	Event *parentUnaryEvent2 = event_construct2(unaryInternalMetaEvent2, 0.1, parentUnaryEvent1, leafEvent1, eventTree);
+	Event *parentUnaryEvent3 = event_construct2(unaryInternalMetaEvent3, 0.1, internalEvent, leafEvent2, eventTree);
+	//now event tree contains the added unary events.
+	EventTree *eventTree3 = eventTree_copyConstruct(net_getEventTree(net), net3, NULL);
+	//add a couple of denovo events into the new event tree
+	MetaEvent *unaryInternalMetaEvent4 = metaEvent_construct("UNARY4", netDisk);
+	MetaEvent *unaryInternalMetaEvent5 = metaEvent_construct("UNARY5", netDisk);
+	Event *internalEventChild = eventTree_getEvent(eventTree3, event_getName(internalEvent));
+	Event *unaryEvent1 = eventTree_getEvent(eventTree3, event_getName(parentUnaryEvent1));
+	Event *unaryEvent2 = eventTree_getEvent(eventTree3, event_getName(parentUnaryEvent2));
+	Event *unaryEvent3 = eventTree_getEvent(eventTree3, event_getName(parentUnaryEvent3));
+	Event *unaryEvent4 = event_construct2(unaryInternalMetaEvent4, 0.1,
+			internalEventChild, unaryEvent3, eventTree3);
+	Event *unaryEvent5 = event_construct2(unaryInternalMetaEvent5, 0.1,
+				internalEventChild, unaryEvent4, eventTree3);
+	//Now event-tree 2 does not contain the unary events but event-tree 3 does..
+
+	CuAssertTrue(testCase, eventTree_getEvent(eventTree2, event_getName(unaryEvent1)) == NULL);
+	CuAssertTrue(testCase, eventTree_getEvent(eventTree2, event_getName(unaryEvent2)) == NULL);
+	CuAssertTrue(testCase, eventTree_getEvent(eventTree2, event_getName(unaryEvent3)) == NULL);
+	CuAssertTrue(testCase, eventTree_getEvent(eventTree2, event_getName(unaryEvent4)) == NULL);
+	CuAssertTrue(testCase, eventTree_getEvent(eventTree2, event_getName(unaryEvent5)) == NULL);
+
+	eventTree_addSiblingUnaryEvent(eventTree2, unaryEvent1);
+	Event *unaryEvent12 = eventTree_getEvent(eventTree2, event_getName(unaryEvent1));
+	CuAssertTrue(testCase, unaryEvent12 != NULL);
+	CuAssertTrue(testCase, event_getName(event_getParent(unaryEvent12)) == event_getName(internalEvent));
+	CuAssertTrue(testCase, event_getChildNumber(unaryEvent12) == 1);
+	CuAssertTrue(testCase, event_getName(event_getChild(unaryEvent12, 0)) == event_getName(leafEvent1));
+
+	eventTree_addSiblingUnaryEvent(eventTree2, unaryEvent2);
+	Event *unaryEvent22 = eventTree_getEvent(eventTree2, event_getName(unaryEvent2));
+	CuAssertTrue(testCase, unaryEvent22 != NULL);
+	CuAssertTrue(testCase, event_getName(event_getParent(unaryEvent22)) == event_getName(unaryEvent1));
+	CuAssertTrue(testCase, event_getChildNumber(unaryEvent22) == 1);
+	CuAssertTrue(testCase, event_getName(event_getChild(unaryEvent22, 0)) == event_getName(leafEvent1));
+
+	eventTree_addSiblingUnaryEvent(eventTree2, unaryEvent3);
+	Event *unaryEvent32 = eventTree_getEvent(eventTree2, event_getName(unaryEvent3));
+	CuAssertTrue(testCase, unaryEvent32 != NULL);
+	CuAssertTrue(testCase, event_getName(event_getParent(unaryEvent32)) == event_getName(internalEvent));
+	CuAssertTrue(testCase, event_getChildNumber(unaryEvent32) == 1);
+	CuAssertTrue(testCase, event_getName(event_getChild(unaryEvent32, 0)) == event_getName(leafEvent2));
+
+	eventTree_addSiblingUnaryEvent(eventTree2, unaryEvent4);
+	Event *unaryEvent42 = eventTree_getEvent(eventTree2, event_getName(unaryEvent4));
+	CuAssertTrue(testCase, unaryEvent42 != NULL);
+	CuAssertTrue(testCase, event_getName(event_getParent(unaryEvent42)) == event_getName(internalEvent));
+	CuAssertTrue(testCase, event_getChildNumber(unaryEvent42) == 1);
+	CuAssertTrue(testCase, event_getName(event_getChild(unaryEvent42, 0)) == event_getName(unaryEvent3));
+
+	eventTree_addSiblingUnaryEvent(eventTree2, unaryEvent5);
+	Event *unaryEvent52 = eventTree_getEvent(eventTree2, event_getName(unaryEvent5));
+	CuAssertTrue(testCase, unaryEvent52 != NULL);
+	CuAssertTrue(testCase, event_getName(event_getParent(unaryEvent52)) == event_getName(internalEvent));
+	CuAssertTrue(testCase, event_getChildNumber(unaryEvent52) == 1);
+	CuAssertTrue(testCase, event_getName(event_getChild(unaryEvent52, 0)) == event_getName(unaryEvent4));
+
+	//uglyf("Event-tree-1 %s\n", eventTree_makeNewickString(eventTree));
+	//uglyf("Event-tree-2 %s\n", eventTree_makeNewickString(eventTree3));
+	//uglyf("Event-tree-3 %s\n", eventTree_makeNewickString(eventTree2));
+
+	cactusEventTreeTestTeardown();
+}
+
 void testEventTree_serialisation(CuTest* testCase) {
 	cactusEventTreeTestSetup();
 	int32_t i;
@@ -189,6 +269,7 @@ void testEventTree_serialisation(CuTest* testCase) {
 	testEventTree_getFirst(testCase);
 	testEventTree_makeNewickString(testCase);
 	testEventTree_iterator(testCase);
+	testEventTree_addSiblingUnaryEvent(testCase);
 	nestedTest = 0;
 	cactusEventTreeTestTeardown();
 }
@@ -204,6 +285,7 @@ CuSuite* cactusEventTreeTestSuite(void) {
 	SUITE_ADD_TEST(suite, testEventTree_getFirst);
 	SUITE_ADD_TEST(suite, testEventTree_iterator);
 	SUITE_ADD_TEST(suite, testEventTree_makeNewickString);
+	SUITE_ADD_TEST(suite, testEventTree_addSiblingUnaryEvent);
 	SUITE_ADD_TEST(suite, testEventTree_serialisation);
 	SUITE_ADD_TEST(suite, testEventTree_construct);
 	return suite;

@@ -58,6 +58,7 @@ typedef struct _block_instanceIterator Block_InstanceIterator;
 typedef struct avl_traverser Group_EndIterator;
 typedef struct avl_traverser Net_SequenceIterator;
 typedef struct avl_traverser Net_CapIterator;
+typedef struct avl_traverser Net_SegmentIterator;
 typedef struct avl_traverser Net_EndIterator;
 typedef struct avl_traverser Net_BlockIterator;
 typedef struct avl_traverser Net_GroupIterator;

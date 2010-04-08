@@ -63,7 +63,7 @@ Group *group_loadFromBinaryRepresentation(void **binaryString, Net *net);
 Group *group_getStaticNameWrapper(Name netName);
 
 /*
- * Sets the net containing the group.
+ * Sets the net containing the group (the public function is end_setGroup).
  */
 void group_setNet(Group *group, Net *net);
 

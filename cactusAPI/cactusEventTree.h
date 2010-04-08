@@ -83,8 +83,8 @@ void eventTree_destructIterator(EventTree_Iterator *iterator);
 char *eventTree_makeNewickString(EventTree *eventTree);
 
 /*
- * Insert given unary event, from a sibling event tree into the given event tree.
- * Here sibling means their containing nets have the same parent nets.
+ * Insert given unary event, from a sibling event tree into the given event tree,
+ * where sibling means their containing nets have the same parent nets.
  */
 void eventTree_addSiblingUnaryEvent(EventTree *eventTree, Event *event);
 

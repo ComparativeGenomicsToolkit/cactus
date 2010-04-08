@@ -389,3 +389,11 @@ Cap *cap_getStaticNameWrapper(Name name) {
 	cap.capContents->instance = name;
 	return &cap;
 }
+
+void cap_setEvent(Cap *cap, Event *event) {
+	cap->capContents->event = event;
+}
+
+void cap_setSequence(Cap *cap, Sequence *sequence) {
+	cap->capContents->sequence = sequence;
+}

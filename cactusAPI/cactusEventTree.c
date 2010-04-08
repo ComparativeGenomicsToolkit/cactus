@@ -159,27 +159,45 @@ char *eventTree_makeNewickString(EventTree *eventTree) {
 	return cA2;
 }
 
-int32_t eventTree_addSiblingUnaryEventP(Event *event, Event *event2) {
+static int32_t eventTree_addSiblingUnaryEventP(Event *event, Event *event2) {
+	/*
+	 * Event is the new event, event2 event from the event tree we're adding to.
+	 */
+	assert(event != event2);
 	Group *group1 = net_getParentGroup(eventTree_getNet(event_getEventTree(event)));
 	Group *group2 = net_getParentGroup(eventTree_getNet(event_getEventTree(event2)));
-	if(group1 != NULL) {
+	if(group1 != NULL) { //both events have a parent, so we can perhaps ask if one is the ancestor
+		//of the other in the parent event tree.
 		assert(group2 != NULL);
 		Net *parentNet = group_getNet(group1);
-		assert(parentNet == group_getNet(group1));
+		assert(parentNet == group_getNet(group2));
 		EventTree *parentEventTree = net_getEventTree(parentNet);
-		Event *eventP = eventTree_getEvent(parentEventTree, event_getName(event));
+		Event *eventP = eventTree_getEvent(parentEventTree, event_getName(event)); //get the ancestral version of the event.
 		Event *event2P = eventTree_getEvent(parentEventTree, event_getName(event2));
-		if(eventP != NULL && event2P != NULL) { //we can answer who is truly ancestral
+		if(eventP != NULL && event2P != NULL) { //we can answer who is truly ancestral because both are in the ancestral tree.
+			assert(eventP != event2P);
 			Event *event3 = eventTree_getCommonAncestor(eventP, event2P);
-			assert(event3 == eventP || event2P); //one must be the ancestor of the other
+			assert(event3 == eventP || event3 == event2P); //one must be the ancestor of the other
 			return event3 == eventP;
 		}
 	}
 	else {
-		assert(group2 == NULL);
+		assert(group2 == NULL); //they both must be root nets.
 	}
-	//Both novel, put the first in front of the second.. we could merge them ?!
-	return 0;
+	//Maybe both events are in the sibling event tree, we can refer to that tree
+	//to decide who is ancestral.
+	EventTree *eventTree = event_getEventTree(event);
+	Event *event2P = eventTree_getEvent(eventTree, event_getName(event2));
+	if(event2P != NULL) { //event2 is in the sibling event tree, so we can decide who is ancestral.
+		assert(event != event2P);
+		Event *event3 = eventTree_getCommonAncestor(event, event2P);
+		assert(event3 == event || event3 == event2P); //one must be the ancestor of the other
+		return event3 == event;
+	}
+
+	//event2 is not in the parent or the sibling, so we should schedule it after
+	//event, because the comparison might be valid for one event2's parent events..
+	return 1;
 }
 
 void eventTree_addSiblingUnaryEvent(EventTree *eventTree, Event *event) {
@@ -189,12 +207,14 @@ void eventTree_addSiblingUnaryEvent(EventTree *eventTree, Event *event) {
 			assert(event_getChildNumber(event2) == 1);
 			event2 = event_getChild(event2, 0);
 		} while(eventTree_getEvent(eventTree, event_getName(event2)) == NULL);
+		event2 = eventTree_getEvent(eventTree, event_getName(event2));
+		assert(event2 != NULL);
 		Event *event3 = event_getParent(event2);
 		while(eventTree_addSiblingUnaryEventP(event, event3)) {
 			event2 = event3;
 			event3 = event_getParent(event2);
 		}
-		event_construct2(event_getMetaEvent(event), 0.5, event3, event2, eventTree);
+		event_construct2(event_getMetaEvent(event), event_getBranchLength(event), event3, event2, eventTree);
 	}
 }
 

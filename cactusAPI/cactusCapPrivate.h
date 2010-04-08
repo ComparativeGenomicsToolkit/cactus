@@ -79,5 +79,15 @@ Cap *cap_loadFromBinaryRepresentation(void **binaryString, End *end);
  */
 Cap *cap_getStaticNameWrapper(Name name);
 
+/*
+ * Sets the event associated with the cap. Dangerous method, must be used carefully.
+ */
+void cap_setEvent(Cap *cap, Event *event);
+
+/*
+ * Sets the sequence associated with the cap. Dangerous method, must be used carefully.
+ */
+void cap_setSequence(Cap *cap, Sequence *sequence);
+
 
 #endif

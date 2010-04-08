@@ -77,7 +77,7 @@ void net_destructSequenceIterator(Net_SequenceIterator *sequenceIterator);
 Cap *net_getFirstCap(Net *net);
 
 /*
- * Gets an cap by its complete name.
+ * Gets an cap by its  name.
  */
 Cap *net_getCap(Net *net, Name name);
 
@@ -162,9 +162,44 @@ Block *net_getFirstBlock(Net *net);
 Block *net_getBlock(Net *net, Name name);
 
 /*
- * Gets an segment by its complete name.
+ *  Gets the 'first' segment.
  */
-Segment *net_getSegment(Net *net, Name completeName);
+Segment *net_getFirstSegment(Net *net);
+
+/*
+ * Gets an segment by its name.
+ */
+Segment *net_getSegment(Net *net, Name name);
+
+/*
+ * Returns the number of segments.
+ */
+int32_t net_getSegmentNumber(Net *net);
+
+/*
+ * Gets an iterator to iterate through the segments in the net, at this level.
+ */
+Net_SegmentIterator *net_getSegmentIterator(Net *net);
+
+/*
+ * Gets the next segment from the iterator.
+ */
+Segment *net_getNextSegment(Net_SegmentIterator *segmentIterator);
+
+/*
+ * Gets the previous segment from the iterator.
+ */
+Segment *net_getPreviousSegment(Net_SegmentIterator *segmentIterator);
+
+/*
+ * Duplicates the iterator.
+ */
+Net_SegmentIterator *net_copySegmentIterator(Net_SegmentIterator *segmentIterator);
+
+/*
+ * Destructs the iterator.
+ */
+void net_destructSegmentIterator(Net_SegmentIterator *segmentIterator);
 
 /*
  * Returns the number of blocks.
@@ -372,7 +407,7 @@ void net_destructReferenceIterator(Net_ReferenceIterator *referenceIterator);
  * Only works if both parent groups do not have links. Merging together groups that
  * are in links means breaking the chains, which it currently will not do.
  */
-void net_mergeNets(Net *net1, Net *net2);
+Net *net_mergeNets(Net *net1, Net *net2);
 
 
 #endif

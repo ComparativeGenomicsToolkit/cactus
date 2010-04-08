@@ -173,7 +173,7 @@ int64_t group_getTotalBaseLength(Group *group) {
 	return totalLength;
 }
 
-void group_mergeGroups(Group *group1, Group *group2) {
+Group *group_mergeGroups(Group *group1, Group *group2) {
 	//Check they are in the same net..
 	assert(group_getNet(group1) == group_getNet(group2));
 	//First merge child nets
@@ -192,6 +192,7 @@ void group_mergeGroups(Group *group1, Group *group2) {
 	}
 	//Now remove group1 from the net and destruct it
 	group_destruct(group1);
+	return group2;
 }
 
 /*
@@ -228,6 +229,10 @@ void group_setNet(Group *group, Net *net) {
 	net_removeGroup(group_getNet(group), group);
 	group->net = net;
 	net_addGroup(net, group);
+	Net *nestedNet = group_getNestedNet(group);
+	if(nestedNet != NULL) { //we re-do this link, because the parent net has changed.
+		net_setParentGroup(nestedNet, group);
+	}
 }
 
 /*

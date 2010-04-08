@@ -110,6 +110,6 @@ int64_t group_getTotalBaseLength(Group *group);
  * Only works if both groups do not have links. Merging together groups that
  * are in links means breaking the chains, which it currently will not do.
  */
-void group_mergeGroups(Group *group1, Group *group2);
+Group *group_mergeGroups(Group *group1, Group *group2);
 
 #endif

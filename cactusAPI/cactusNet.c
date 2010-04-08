@@ -268,6 +268,40 @@ void net_destructEndIterator(Net_EndIterator *endIterator) {
 	iterator_destruct(endIterator);
 }
 
+Segment *net_getFirstSegment(Net *net) {
+	return sortedSet_getFirst(net->segments);
+}
+
+Segment *net_getSegment(Net *net, Name name) {
+	Segment *segment;
+	segment = segment_getStaticNameWrapper(name);
+	return sortedSet_find(net->segments, segment);
+}
+
+int32_t net_getSegmentNumber(Net *net) {
+	return sortedSet_getLength(net->segments);
+}
+
+Net_SegmentIterator *net_getSegmentIterator(Net *net) {
+	return iterator_construct(net->segments);
+}
+
+Segment *net_getNextSegment(Net_SegmentIterator *segmentIterator) {
+	return iterator_getNext(segmentIterator);
+}
+
+Segment *net_getPreviousSegment(Net_SegmentIterator *segmentIterator) {
+	return iterator_getPrevious(segmentIterator);
+}
+
+Net_SegmentIterator *net_copySegmentIterator(Net_SegmentIterator *segmentIterator) {
+	return iterator_copy(segmentIterator);
+}
+
+void net_destructSegmentIterator(Net_SegmentIterator *segmentIterator) {
+	iterator_destruct(segmentIterator);
+}
+
 Block *net_getFirstBlock(Net *net) {
 	return sortedSet_getFirst(net->blocks);
 }
@@ -276,12 +310,6 @@ Block *net_getBlock(Net *net, Name name) {
 	Block *block;
 	block = block_getStaticNameWrapper(name);
 	return sortedSet_find(net->blocks, block);
-}
-
-Segment *net_getSegment(Net *net, Name completeName) {
-	Segment *segment;
-	segment = segment_getStaticNameWrapper(completeName);
-	return sortedSet_find(net->segments, segment);
 }
 
 int32_t net_getBlockNumber(Net *net) {
@@ -488,7 +516,7 @@ void net_destructReferenceIterator(Net_ReferenceIterator *referenceIterator) {
 	iterator_destruct(referenceIterator);
 }
 
-void net_mergeNets(Net *net1, Net *net2) {
+Net *net_mergeNets(Net *net1, Net *net2) {
 	if(net_getParentGroup(net1) == NULL) { //We are merging two top level reconstructions!
 		assert(net_getParentGroup(net2) == NULL);
 		net_mergeNetsP(net1, net2);
@@ -496,6 +524,7 @@ void net_mergeNets(Net *net1, Net *net2) {
 	else { //We are merging two sister nets, merge there parent nets, which in turn will merge the child nets.
 		group_mergeGroups(net_getParentGroup(net1), net_getParentGroup(net2));
 	}
+	return net2;
 }
 
 
@@ -586,7 +615,7 @@ void net_removeGroup(Net *net, Group *group) {
 }
 
 void net_setParentGroup(Net *net, Group *group) {
-	assert(net->parentNetName == NULL_NAME);
+	//assert(net->parentNetName == NULL_NAME); we can change this if merging the parent nets, so this no longer applies.
 	net->parentNetName = net_getName(group_getNet(group));
 }
 
@@ -611,16 +640,6 @@ void net_removeReference(Net *net, Reference *reference) {
 }
 
 void net_mergeNetsP(Net *net1, Net *net2) {
-	//Make binary strings for the two nets
-	//Destruct the two nets and any children that are loaded.
-	//Load the net using both strings again.
-
-
-	//Write the e
-
-
-	Sequence *sequence;
-
 	//Transfers the events not in event tree 1 into event tree 2.
 	EventTree *eventTree1 = net_getEventTree(net1);
 	EventTree *eventTree2 = net_getEventTree(net2);
@@ -633,25 +652,39 @@ void net_mergeNetsP(Net *net1, Net *net2) {
 	}
 	eventTree_destructIterator(eventIterator);
 
-	while((sequence = net_getFirstSequence(net1)) != NULL) {
+	//Transfers the sequences not in net2 from net1.
+	Sequence *sequence;
+	Net_SequenceIterator *sequenceIterator = net_getSequenceIterator(net1);
+	while((sequence = net_getNextSequence(sequenceIterator)) != NULL) {
 		if(net_getSequence(net2, sequence_getName(sequence)) == NULL) {
-			sequence_setNet(sequence, net2);
-			//sequence_setEvent(sequence, eventTree_getEvent(eventTree2, event_getName(sequence_getEvent(sequence)))); //ensures it has the right event.
-		}
-		else {
-			sequence_destruct(sequence);
+			sequence_construct(sequence_getMetaSequence(sequence), net2);
 		}
 	}
+	net_destructSequenceIterator(sequenceIterator);
 
-	//Ensure caps, segments and sequences have event in the second event tree..
+	//This is the difficult bit.. we're going to try and replace all the references
+	//to the objects left in net1 to those in net2.
+
+	//Ensure caps and segments have event in the second event tree..
 	Net_CapIterator *capIterator = net_getCapIterator(net1);
 	Cap *cap;
 	while((cap = net_getNextCap(capIterator)) != NULL) {
-		//cap_setEvent(cap, eventTree_getEvent(eventTree2, event_getName(cap_getEvent(cap))));
-		//cap_setSequence(cap, eventTree_getEvent(eventTree2, event_getName(cap_getEvent(cap))));
+		net_addCap(net2, cap);
+		cap_setEvent(cap, eventTree_getEvent(eventTree2, event_getName(cap_getEvent(cap))));
+		if(cap_getSequence(cap) != NULL) {
+			cap_setSequence(cap, net_getSequence(net2, sequence_getName(cap_getSequence(cap))));
+		}
 	}
 	net_destructCapIterator(capIterator);
-	//Segments currently use caps to get events.
+
+	//Segments currently use caps to get events, but we must include them from the
+	//net
+	Net_SegmentIterator *segmentIterator = net_getSegmentIterator(net1);
+	Segment *segment;
+	while((segment = net_getNextSegment(segmentIterator)) != NULL) {
+		net_addSegment(net2, segment);
+	}
+	net_destructSegmentIterator(segmentIterator);
 
 	while(net_getEndNumber(net1) > 0) {
 		end_setNet(net_getFirstEnd(net1), net2);
@@ -678,6 +711,8 @@ void net_mergeNetsP(Net *net1, Net *net2) {
 	}
 	//Now destroy the first net.
 	net_destruct(net1, 0);
+
+	//ensure net1 is not in the netdisk..
 }
 
 /*
