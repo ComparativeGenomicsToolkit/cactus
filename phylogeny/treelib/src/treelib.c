@@ -170,10 +170,29 @@ tree2string (struct Tree *tree) {
     }
   }
 
-  unsigned int strlen = String_length(s);
+//  unsigned int strlen = String_length(s);
   char *buffer = NULL;
-  buffer = malloc(sizeof(char) * (strlen+1));
-  strncpy(buffer, String_cString(s), strlen);
+//  buffer = malloc(sizeof(char) * (strlen+1));
+//  strncpy(buffer, String_cString(s), strlen);
+
+  char *position;
+  const char *cString = String_cString(s);
+//  fprintf(stderr, "[TREE]: ### %s ###\n", cString);
+  position = strchr(cString, ';');
+  if (position == NULL) {
+    fprintf(stderr, "Error in trees\n");
+    exit(-1);
+  }
+  int index = cString - position;
+  if (index < 0) {
+    index = -index;
+  }
+//  fprintf(stderr, "\tindex: %d\n", index);
+  buffer = malloc(sizeof(char) * (index+2));
+  strncpy(buffer, cString, index+1);
+  buffer[index+1] = '\0';
+//  fprintf(stderr, "\tbuffer: %s\n", buffer);
+
   String_delete(s);
 
   return buffer;
