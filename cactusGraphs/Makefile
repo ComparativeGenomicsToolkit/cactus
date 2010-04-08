@@ -1,5 +1,3 @@
-makefile:
-
 include ../../../include.mk
 binPath = ../../../bin
 libPath = ../../../lib
