@@ -13,7 +13,7 @@ libtree.a: $(SRC)/$(SOURCES)
 	$(CC) $(CFLAGS) -c $(SRC)/$(SOURCES)
 	ar rc libtree.a $(OBJ)
 	ranlib libtree.a
-	rm $(OBJ)
+	rm -f $(OBJ)
 
 clean:
-	rm libtree.a
+	rm -f libtree.a
