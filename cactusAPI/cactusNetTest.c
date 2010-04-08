@@ -330,7 +330,7 @@ void testNet_mergeNets(CuTest *testCase) {
 	//Make some sequences
 	MetaSequence *metaSequence1 = metaSequence_construct(0, 5, "ACTGG", "one", event_getName(unaryEvent1), netDisk);
 	MetaSequence *metaSequence2 = metaSequence_construct(0, 5, "CCCCC", "two", event_getName(unaryEvent2), netDisk);
-	MetaSequence *metaSequence3 = metaSequence_construct(0, 5, "TTTTT", "three", event_getName(unaryEvent3), netDisk);
+	MetaSequence *metaSequence3 = metaSequence_construct(0, 5, "TTTTT", "three", event_getName(leafEvent1), netDisk);
 	Sequence *sequence1 = sequence_construct(metaSequence1, net1);
 	Sequence *sequence2 = sequence_construct(metaSequence2, net1);
 	Sequence *sequence3 = sequence_construct(metaSequence3, net2);
@@ -395,7 +395,7 @@ void testNet_mergeNets(CuTest *testCase) {
 
 	CuAssertTrue(testCase, sequence_getEvent(net_getSequence(net6, metaSequence_getName(metaSequence1))) == eventTree_getEvent(eventTree3, metaEvent_getName(unaryInternalMetaEvent1)));
 	CuAssertTrue(testCase, sequence_getEvent(net_getSequence(net6, metaSequence_getName(metaSequence2))) == eventTree_getEvent(eventTree3, metaEvent_getName(unaryInternalMetaEvent2)));
-	CuAssertTrue(testCase, sequence_getEvent(net_getSequence(net6, metaSequence_getName(metaSequence3))) == eventTree_getEvent(eventTree3, metaEvent_getName(unaryInternalMetaEvent3)));
+	CuAssertTrue(testCase, sequence_getEvent(net_getSequence(net6, metaSequence_getName(metaSequence3))) == eventTree_getEvent(eventTree3, metaEvent_getName(leafMetaEvent1)));
 
 	//Check the groups..
 	CuAssertTrue(testCase, net_getGroupNumber(net6) == 5);
@@ -429,7 +429,7 @@ void testNet_mergeNets(CuTest *testCase) {
 	//Check the the events have been reassigned for the caps
 	CuAssertTrue(testCase, cap_getEvent(cap1) == eventTree_getEvent(eventTree3, metaEvent_getName(unaryInternalMetaEvent1)));
 	CuAssertTrue(testCase, cap_getEvent(cap2) == eventTree_getEvent(eventTree3, metaEvent_getName(unaryInternalMetaEvent2)));
-	CuAssertTrue(testCase, cap_getEvent(cap3) == eventTree_getEvent(eventTree3, metaEvent_getName(unaryInternalMetaEvent3)));
+	CuAssertTrue(testCase, cap_getEvent(cap3) == eventTree_getEvent(eventTree3, metaEvent_getName(leafMetaEvent1)));
 
 	//Check the caps have the right sequences.
 	CuAssertTrue(testCase, cap_getSequence(cap1) == net_getSequence(net6, metaSequence_getName(metaSequence1)));
