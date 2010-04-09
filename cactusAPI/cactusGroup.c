@@ -43,15 +43,12 @@ void group_makeNonTerminal(Group *group) {
 	group->terminalGroup = 0;
 	Net *nestedNet = net_construct2(group_getName(group), net_getNetDisk(group_getNet(group)));
 	net_setParentGroup(nestedNet, group);
-	if(net_getEventTree(group_getNet(group)) != NULL) {
-		eventTree_copyConstruct(net_getEventTree(group_getNet(group)), nestedNet, returnsTrue);
-	}
-	Group *nestedGroup = group_construct2(nestedNet);
+	eventTree_copyConstruct(net_getEventTree(group_getNet(group)), nestedNet, returnsTrue);
 	//Add the ends to the nested net.
 	Group_EndIterator *endIterator = group_getEndIterator(group);
 	End *end;
 	while((end = group_getNextEnd(endIterator)) != NULL) {
-		end_setGroup(end_copyConstruct(end, nestedNet), nestedGroup);
+		end_copyConstruct(end, nestedNet);
 	}
 	group_destructEndIterator(endIterator);
 	netMisc_addAdjacenciesToLeafCaps(nestedNet);
@@ -174,17 +171,35 @@ int64_t group_getTotalBaseLength(Group *group) {
 	return totalLength;
 }
 
+static void group_mergeGroupsP(Net *net) {
+	Net_EndIterator *endIterator = net_getEndIterator(net);
+	End *end;
+	Group *group = group_construct2(net);
+	while((end = net_getNextEnd(endIterator)) != NULL) {
+		end_setGroup(end, group);
+	}
+	net_destructEndIterator(endIterator);
+}
+
 Group *group_mergeGroups(Group *group1, Group *group2) {
 	//Check they are in the same net..
 	assert(group_getNet(group1) == group_getNet(group2));
 	assert(group1 != group2);
+	if(group_getLink(group1) != NULL) {
+		//link_removeFromChain(group_getLink(group1));
+	}
+	if(group_getLink(group2) != NULL) {
+		//link_removeFromChain(group_getLink(group2));
+	}
 
 	if(!group_isTerminal(group1) || !group_isTerminal(group2)) { //We must first merge the nested nets
 		if(group_isTerminal(group1)) { //Need to make a nested net to merge with the other
 			group_makeNonTerminal(group1);
+			group_mergeGroupsP(group_getNestedNet(group1));
 		}
 		if(group_isTerminal(group2)) { //Need to make a nested net to merge with the other
 			group_makeNonTerminal(group2);
+			group_mergeGroupsP(group_getNestedNet(group2));
 		}
 		assert(group_getNestedNet(group1) != NULL);
 		assert(group_getNestedNet(group2) != NULL);

@@ -65,8 +65,8 @@ void testGroup_makeNonTerminal(CuTest *testCase) {
 	CuAssertTrue(testCase, net_getEndNumber(nestedNet) == 1);
 	End *nestedEnd = net_getFirstEnd(nestedNet);
 	CuAssertTrue(testCase, end_getName(end4) == end_getName(nestedEnd));
-	CuAssertTrue(testCase, end_getGroup(nestedEnd) != NULL);
-	CuAssertTrue(testCase, net_getGroupNumber(nestedNet) == 1);
+	//CuAssertTrue(testCase, end_getGroup(nestedEnd) != NULL); we don't define the group for nested net
+	//CuAssertTrue(testCase, net_getGroupNumber(nestedNet) == 1);
 	cactusGroupTestTeardown();
 }
 

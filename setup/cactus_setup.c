@@ -84,7 +84,6 @@ int main(int argc, char *argv[]) {
 	 */
 
 	int32_t key, j;
-	MetaEvent *metaEvent;
 	struct List *stack;
 	struct BinaryTree *binaryTree;
 	FILE *fileHandle;
@@ -199,8 +198,7 @@ int main(int argc, char *argv[]) {
 	logInfo("Going to build the event tree with newick string: %s\n", speciesTree);
 	binaryTree = newickTreeParser(speciesTree, 0.0, 0);
 	binaryTree->distance = INT32_MAX;
-	metaEvent = metaEvent_construct("ROOT", netDisk);
-	eventTree = eventTree_construct(metaEvent, net); //creates the event tree and the root even
+	eventTree = eventTree_construct2(net); //creates the event tree and the root even
 	totalEventNumber=1;
 	logInfo("Constructed the basic event tree\n");
 

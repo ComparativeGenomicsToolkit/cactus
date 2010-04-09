@@ -19,7 +19,7 @@ static void getNets(Net *net, FILE *fileHandle, int32_t includeInternalNodes, in
 	if(recursive-- > 0) {
 		groupIterator = net_getGroupIterator(net);
 		while((group = net_getNextGroup(groupIterator)) != NULL) {
-			if(group_getNestedNet(group) != NULL) {
+			if(!group_isTerminal(group)) {
 				getNets(group_getNestedNet(group), fileHandle, includeInternalNodes,
 						recursive, extendNonZeroTrivialGroups, minSizeToExtend);
 			}
