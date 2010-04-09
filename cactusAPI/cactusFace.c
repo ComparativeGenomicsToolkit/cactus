@@ -351,6 +351,21 @@ static int32_t face_hasSeparateDescentEdges(Face * face) {
 	return true;
 }
 
+/*
+ * Returns the first attched ancestor of cap
+ */
+static Cap *face_getAttachedAncestor(Cap * cap)
+{
+	Cap *current = cap_getParent(cap);
+	Cap *parent;
+
+	while (current 
+	       && !cap_getAdjacency(cap)
+	       && (parent = cap_getParent(current)))
+		current = parent;
+
+	return current;
+}
 
 /*
  * Tests if a given top node is part of a simple alternating cycle
