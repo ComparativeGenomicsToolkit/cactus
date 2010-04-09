@@ -85,4 +85,19 @@ void face_engineerArtificialNodes(Face * face, Cap * topNode, Cap * bottomNode, 
  * Returns face name
  */
 Name face_getName(Face * face);
+
+/*
+ * Tests if simple
+ */
+int32_t face_isSimple(Face * face);
+
+/*
+ * Tests if regular
+ */
+int32_t face_isRegular(Face * face);
+
+/*
+ * Tests if canonical
+ */
+int32_t face_isCanonical(Face * face);
 #endif

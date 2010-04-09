@@ -30,19 +30,4 @@ void face_canonize(Face * face, Net * net);
  * Canonizes all the faces in the net
  */
 void face_canonizeFaces(Net * net);
-
-/*
- * Tests if simple
- */
-void face_isSimple(Face * face);
-
-/*
- * Tests if regular
- */
-int32_t face_isRegular(Face * face);
-
-/*
- * Tests if canonical
- */
-int32_t face_isCanonical(Face * face);
 #endif

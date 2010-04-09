@@ -281,3 +281,163 @@ Face *face_getStaticNameWrapper(Name name) {
 	face.name = name;
 	return &face;
 }
+
+/*
+ * Tests if a given node is a top node in face
+ */
+static int32_t face_isTopNode(Face * face, Cap * cap) {
+	int32_t cardinal = face_getCardinal(face);
+	int32_t index;
+
+	for (index = 0; index < cardinal; index++)
+		if (cap == face_getTopNode(face, index))
+			return true;
+
+	return false;
+}
+
+/*
+ * Tests if all the top nodes are separate from the bottom nodes
+ */
+static int32_t face_isPseudoBipartite(Face * face) {
+	int32_t cardinal = face_getCardinal(face);
+	int32_t topIndex, bottomIndex;
+	
+	for (topIndex = 0; topIndex < cardinal; topIndex++)
+		for (bottomIndex = 0; bottomIndex < face_getBottomNodeNumber(face, topIndex); bottomIndex++)
+			if (face_isTopNode(face, face_getBottomNode(face, topIndex, bottomIndex)))
+				return false;
+
+	return true;
+}
+
+/*
+ * Tests if all the descent paths coming out of one top node in face are edge disjoint
+ */
+static int32_t face_hasMergedDescentEdgesAtIndex(Face * face, int32_t topIndex) {
+	int32_t bottomNodeNumber = face_getBottomNodeNumber(face, topIndex);
+	int32_t index;
+	Cap * topNode = face_getTopNode(face, index);
+	Cap * current;
+	struct List * list = constructZeroLengthList(100, NULL); 
+
+	for (index = 0; index < bottomNodeNumber; index++) {
+		current = face_getBottomNode(face, topIndex, index);
+		while(current != topNode) {
+			if (listContains(list, current)) {
+				destructList(list);
+				return true;
+			} else 
+				listAppend(list, current);
+			current = cap_getParent(current);
+		} 
+	}
+
+	destructList(list);
+	return false;
+}
+
+/* 
+ * Tests is descent paths are edge-disjoint in face
+ */
+static int32_t face_hasSeparateDescentEdges(Face * face) {
+	int32_t cardinal = face_getCardinal(face);
+	int32_t index;
+	
+	for (index = 0; index < cardinal; index++)
+		if (face_hasMergedDescentEdgesAtIndex(face, index))
+			return false;
+
+	return true;
+}
+
+
+/*
+ * Tests if a given top node is part of a simple alternating cycle
+ */
+static int32_t face_breaksSimpleAlternatingPath(Face * face, int topIndex) {
+	int32_t bottomNodeNumber = face_getBottomNodeNumber(face, topIndex);
+	int32_t index;
+	Cap * topNode = face_getTopNode(face, topIndex);
+	Cap * partner = cap_getAdjacency(topNode); 
+	Cap * bottomNode;
+	Cap * bottomNodePartner;
+	Cap * bottomNodePartnerAncestor;
+	Cap * derivedDestination = NULL;
+
+	for (index = 0; index < bottomNodeNumber; index++) {
+		bottomNode = face_getBottomNode(face, topIndex, index);
+		bottomNodePartner = cap_getAdjacency(bottomNode);
+#ifdef BEN_DEBUG
+		if (!bottomNodePartner)
+			abort();
+#endif
+		bottomNodePartnerAncestor = face_getAttachedAncestor(bottomNodePartner);
+		if (bottomNodePartnerAncestor == partner)
+			continue;
+		else if (derivedDestination == NULL)
+			derivedDestination = bottomNodePartnerAncestor;
+		else 
+			return true;
+	}
+
+	return false;
+}
+
+/* 
+ * Tests if face is a simple alternating cycle
+ */
+static int32_t face_isSimpleAlternatingPath(Face * face) {
+	int32_t cardinal = face_getCardinal(face);
+	int32_t index;
+
+	for(index = 0; index < cardinal; index++)
+		if (face_breaksSimpleAlternatingPath(face, index))
+			return false;
+
+	return true;
+}
+
+/*
+ * Tests if a face is simple
+ */
+int32_t face_isSimple(Face * face) {
+	return face_isPseudoBipartite(face)
+	       && face_hasSeparateDescentEdges(face)
+	       && face_isSimpleAlternatingPath(face);
+}
+
+/*
+ * Tests if regular
+ */
+int32_t face_isRegular(Face * face)
+{
+	int32_t index;
+
+	if (!face_isSimple(face))
+		return false;	
+
+	for (index = 0; index < face_getCardinal(face); index++)
+		if (face_getBottomNodeNumber(face, index) > 1)
+			return false;
+
+	return true;
+}
+
+/*
+ * Tests if canonical
+ */
+int32_t face_isCanonical(Face * face)
+{
+	int32_t index;
+
+	if (!face_isRegular(face))
+		return false;
+
+	for (index = 0; index < face_getCardinal(face); index++)
+		if (face_getBottomNodeNumber(face, index) == 1)
+			return false;
+
+	return true;
+}
+

@@ -70,6 +70,9 @@ static void buildFaces_destructListElem(void *ptr)
 	buildFaces_destructLiftedEdge((LiftedEdge *) ptr);
 }
 
+/*
+ * Returns the first attched ancestor of cap
+ */
 static Cap *buildFaces_getAttachedAncestor(Cap * cap)
 {
 	Cap *current = cap_getParent(cap);
@@ -228,130 +231,6 @@ static Cap *buildFaces_getMinorLiftedEdgeDestination(Cap *
 }
 
 /*
- * Tests if a given node is a top node in face
- */
-static int32_t buildFaces_isTopNode(Face * face, Cap * cap) {
-	int32_t cardinal = face_getCardinal(face);
-	int32_t index;
-
-	for (index = 0; index < cardinal; index++)
-		if (cap == face_getTopNode(face, index))
-			return true;
-
-	return false;
-}
-
-/*
- * Tests if all the top nodes are separate from the bottom nodes
- */
-static int32_t buildFaces_isPseudoBipartite(Face * face) {
-	int32_t cardinal = face_getCardinal(face);
-	int32_t topIndex, bottomIndex;
-	
-	for (topIndex = 0; topIndex < cardinal; topIndex++)
-		for (bottomIndex = 0; bottomIndex < face_getBottomNodeNumber(face, topIndex); bottomIndex++)
-			if (buildFaces_isTopNode(face, face_getBottomNode(face, topIndex, bottomIndex)))
-				return false;
-
-	return true;
-}
-
-/*
- * Tests if all the descent paths coming out of one top node in face are edge disjoint
- */
-static int32_t buildFaces_hasMergedDescentEdgesAtIndex(Face * face, int32_t topIndex) {
-	int32_t bottomNodeNumber = face_getBottomNodeNumber(face, topIndex);
-	int32_t index;
-	Cap * topNode = face_getTopNode(face, index);
-	Cap * current;
-	struct List * list = constructZeroLengthList(100, NULL); 
-
-	for (index = 0; index < bottomNodeNumber; index++) {
-		current = face_getBottomNode(face, topIndex, index);
-		while(current != topNode) {
-			if (listContains(list, current)) {
-				destructList(list);
-				return true;
-			} else 
-				listAppend(list, current);
-			current = cap_getParent(current);
-		} 
-	}
-
-	destructList(list);
-	return false;
-}
-
-/* 
- * Tests is descent paths are edge-disjoint in face
- */
-static int32_t buildFaces_hasSeparateDescentEdges(Face * face) {
-	int32_t cardinal = face_getCardinal(face);
-	int32_t index;
-	
-	for (index = 0; index < cardinal; index++)
-		if (buildFaces_hasMergedDescentEdgesAtIndex(face, index))
-			return false;
-
-	return true;
-}
-
-/*
- * Tests if a given top node is part of a simple alternating cycle
- */
-static int32_t buildFaces_breaksSimpleAlternatingPath(Face * face, int topIndex) {
-	int32_t bottomNodeNumber = face_getBottomNodeNumber(face, topIndex);
-	int32_t index;
-	Cap * topNode = face_getTopNode(face, topIndex);
-	Cap * partner = cap_getAdjacency(topNode); 
-	Cap * bottomNode;
-	Cap * bottomNodePartner;
-	Cap * bottomNodePartnerAncestor;
-	Cap * derivedDestination = NULL;
-
-	for (index = 0; index < bottomNodeNumber; index++) {
-		bottomNode = face_getBottomNode(face, topIndex, index);
-		bottomNodePartner = cap_getAdjacency(bottomNode);
-#ifdef BEN_DEBUG
-		if (!bottomNodePartner)
-			abort();
-#endif
-		bottomNodePartnerAncestor = buildFaces_getAttachedAncestor(bottomNodePartner);
-		if (bottomNodePartnerAncestor == partner)
-			continue;
-		else if (derivedDestination == NULL)
-			derivedDestination = bottomNodePartnerAncestor;
-		else 
-			return true;
-	}
-
-	return false;
-}
-
-/* 
- * Tests if face is a simple alternating cycle
- */
-static int32_t buildFaces_isSimpleAlternatingPath(Face * face) {
-	int32_t cardinal = face_getCardinal(face);
-	int32_t index;
-
-	for(index = 0; index < cardinal; index++)
-		if (buildFaces_breaksSimpleAlternatingPath(face, index))
-			return false;
-
-	return true;
-}
-
-/*
- * Tests if a face is simple
- */
-int32_t buildFaces_isSimple(Face * face) {
-	return buildFaces_isPseudoBipartite(face)
-	       && buildFaces_hasSeparateDescentEdges(face)
-	       && buildFaces_isSimpleAlternatingPath(face);
-}
-
-/*
  * Constructs a face from a given Cap
  */
 static void buildFaces_constructFromCap(Cap *
@@ -444,25 +323,6 @@ void buildFaces_constructFaces(Net * net)
 
 	hashtable_destroy(liftedEdgesTable, true, false);
 	net_destructCapIterator(iter);
-}
-
-/*
- * Tests if regular
- */
-int32_t buildFaces_isRegular(Face * face)
-{
-	int32_t index;
-
-#ifdef BEN_DEBUG_ULTRA
-	if (!buildFaces_isSimple(face))
-		abort();
-#endif
-
-	for (index = 0; index < face_getCardinal(face); index++)
-		if (face_getBottomNodeNumber(face, index) > 1)
-			return false;
-
-	return true;
 }
 
 /*
@@ -665,7 +525,7 @@ void buildFaces_isolate(Face * face, Net * net)
 	Cap **interpolations;
 
 	// If uncessary
-	if (buildFaces_isRegular(face))
+	if (face_isRegular(face))
 		return;
 
 	// Interpolate top nodes
@@ -696,20 +556,6 @@ void buildFaces_isolateFaces(Net * net)
 		buildFaces_isolate(face, net);
 
 	net_destructFaceIterator(iter);
-}
-
-/*
- * Tests if canonical
- */
-int32_t buildFaces_isCanonical(Face * face)
-{
-	int32_t index;
-
-	for (index = 0; index < face_getCardinal(face); index++)
-		if (face_getBottomNodeNumber(face, index) == 1)
-			return false;
-
-	return true;
 }
 
 /*
@@ -838,7 +684,7 @@ void buildFaces_canonizeFaces(Net * net)
 	logInfo("Canonizing faces\n");
 
 	while ((face = net_getNextFace(iter)))
-		if (!buildFaces_isCanonical(face))
+		if (!face_isCanonical(face))
 			buildFaces_canonize(face, net);
 
 	net_destructFaceIterator(iter);
