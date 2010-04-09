@@ -42,6 +42,7 @@ void testSortedSet(CuTest* testCase) {
 	}
 	CuAssertIntEquals(testCase, sortedSize, sortedSet_getLength(sortedSet));
 	CuAssertIntEquals(testCase, sortedInput[0], *(int32_t *)sortedSet_getFirst(sortedSet));
+	CuAssertIntEquals(testCase, sortedInput[sortedSize-1], *(int32_t *)sortedSet_getLast(sortedSet));
 	for(i=0; i<sortedSize; i++) {
 		CuAssertIntEquals(testCase, sortedSize-i, sortedSet_getLength(sortedSet));
 		CuAssertTrue(testCase, *((int32_t *)sortedSet_find(sortedSet, &sortedInput[i])) == sortedInput[i]);

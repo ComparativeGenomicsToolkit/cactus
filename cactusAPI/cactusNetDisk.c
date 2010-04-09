@@ -225,8 +225,10 @@ void netDisk_addNet(NetDisk *netDisk, Net *net) {
 }
 
 void netDisk_deleteNetFromDisk(NetDisk *netDisk, Name netName) {
-	exitOnFailure(database_removeRecord(netDisk->netsDatabase, netName),
-			"Failed to remove the net: %s from the net disk database\n", netMisc_nameToStringStatic(netName));
+	if(database_getRecord(netDisk->netsDatabase, netName) != NULL) {
+		exitOnFailure(database_removeRecord(netDisk->netsDatabase, netName),
+				"Failed to remove the net: %s from the net disk database\n", netMisc_nameToStringStatic(netName));
+	}
 }
 
 void netDisk_unloadNet(NetDisk *netDisk, Net *net) {
@@ -254,10 +256,11 @@ void netDisk_addMetaSequence(NetDisk *netDisk, MetaSequence *metaSequence) {
 }
 
 void netDisk_deleteMetaSequenceFromDisk(NetDisk *netDisk, Name metaSequenceName) {
-	exitOnFailure(database_removeRecord(netDisk->metaDataDatabase, metaSequenceName),
-			"Failed to remove the meta sequence: %s from the net disk database\n", netMisc_nameToStringStatic(metaSequenceName));
+	if(database_getRecord(netDisk->metaDataDatabase, metaSequenceName) != NULL) {
+		exitOnFailure(database_removeRecord(netDisk->metaDataDatabase, metaSequenceName),
+				"Failed to remove the meta sequence: %s from the net disk database\n", netMisc_nameToStringStatic(metaSequenceName));
+	}
 }
-
 void netDisk_unloadMetaSequence(NetDisk *netDisk, MetaSequence *metaSequence) {
 	sortedSet_delete(netDisk->metaSequences, metaSequence);
 }

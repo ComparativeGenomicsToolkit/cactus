@@ -35,12 +35,12 @@ static void cactusEventTestSetup() {
 		cactusEventTestTeardown();
 		netDisk = netDisk_construct(testCommon_getTemporaryNetDisk());
 		net = net_construct(netDisk);
-		rootMetaEvent = metaEvent_construct("ROOT", netDisk);
 		internalMetaEvent = metaEvent_construct("INTERNAL", netDisk);
 		leafMetaEvent1 = metaEvent_construct("LEAF1", netDisk);
 		leafMetaEvent2 = metaEvent_construct("LEAF2", netDisk);
-		eventTree = eventTree_construct(rootMetaEvent, net);
-		rootEvent = eventTree_getEvent(eventTree, metaEvent_getName(rootMetaEvent));
+		eventTree = net_getEventTree(net);
+		rootEvent = eventTree_getRootEvent(eventTree);
+		rootMetaEvent = event_getMetaEvent(rootEvent);
 		internalEvent = event_construct(internalMetaEvent, 0.5, rootEvent, eventTree);
 		leafEvent1 = event_construct(leafMetaEvent1, 0.2, internalEvent, eventTree);
 		leafEvent2 = event_construct(leafMetaEvent2, 1.3, internalEvent, eventTree);

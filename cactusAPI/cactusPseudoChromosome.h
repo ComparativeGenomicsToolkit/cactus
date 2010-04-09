@@ -41,6 +41,11 @@ int32_t pseudoChromosome_getPseudoAdjacencyNumber(PseudoChromosome *pseudoChromo
 PseudoAdjacency *pseudoChromosome_getFirst(PseudoChromosome *pseudoChromosome);
 
 /*
+ * Get the last pseudo adjacency in the list.
+ */
+PseudoAdjacency *pseudoChromosome_getLast(PseudoChromosome *pseudoChromosome);
+
+/*
  * Get pseudo-adjacency with the given name.
  */
 PseudoAdjacency *pseudoChromosome_getPseudoAdjacency(PseudoChromosome *pseudoChromosome, Name name);

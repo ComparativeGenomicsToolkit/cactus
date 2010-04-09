@@ -12,9 +12,14 @@
 ////////////////////////////////////////////////
 
 /*
+ * Constructs an event tree, with given root event.
+ */
+EventTree *eventTree_construct(MetaEvent *rootEvent, Net *net);
+
+/*
  * Constructs an event tree, with one root event.
  */
-EventTree *eventTree_construct(MetaEvent *rootMetaEvent, Net *net);
+EventTree *eventTree_construct2(Net *net);
 
 /*
  * Copy constructs the event tree, replacing the existing net with the newNet. Only includes

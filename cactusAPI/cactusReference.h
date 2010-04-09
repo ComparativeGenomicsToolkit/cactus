@@ -113,4 +113,17 @@ void reference_destructPseudoChromosomeIterator(Reference_PseudoChromosomeIterat
  */
 Hash *reference_getEndToPseudoAdjacencyHash(Reference *reference);
 
+/*
+ * The following is checked by this function.. which creates an assert error if it fails.
+ *
+ * The every attached stub and block end is in exactly one pseudo-adjacency in the reference.
+ * That free stubs are not in the reference.
+ * That every pseudo-chromosome contains one or more pseudo-adjacencies.
+ * That order of ends in the pseudo chromosome is valid (i.e. that the 5 and 3 prime ends
+ * match and that internal pseudo-adjacencies span blocks).
+ * That the two ends in every pseudo-adjacency are in the same descendant group.
+ * That all ends in the reference are in the positive orientation.
+ */
+void reference_check(Reference *reference);
+
 #endif

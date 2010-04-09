@@ -73,6 +73,62 @@ Hash *reference_getEndToPseudoAdjacencyHash(Reference *reference) {
 	return hash;
 }
 
+void reference_check(Reference *reference) {
+	Net *net = reference_getNet(reference);
+	Hash *endsToPseudoAdjacencies = reference_getEndToPseudoAdjacencyHash(reference);
+
+	//Going ends --> pseudo adjacencies.
+	Net_EndIterator *endIterator = net_getEndIterator(net);
+	End *end;
+	while((end = net_getNextEnd(endIterator)) != NULL) {
+		if(end_isAttached(end) || end_isBlockEnd(end)) {
+			PseudoAdjacency *pseudoAdjacency = hash_search(endsToPseudoAdjacencies, end);
+			assert(pseudoAdjacency != NULL);
+			assert(pseudoAdjacency_get5End(pseudoAdjacency) == end || pseudoAdjacency_get3End(pseudoAdjacency) == end);
+		}
+		else {
+			assert(hash_search(endsToPseudoAdjacencies, end) == NULL); //check free stub end is not in the pseudo chromosomes..
+		}
+	}
+	net_destructEndIterator(endIterator);
+
+	//Going pseudo-adjacencies --> ends.
+	Reference_PseudoChromosomeIterator *pseudoChromosomeIterator = reference_getPseudoChromosomeIterator(reference);
+	PseudoChromosome *pseudoChromosome;
+	int32_t i = 0;
+	while((pseudoChromosome = reference_getNextPseudoChromosome(pseudoChromosomeIterator)) != NULL) {
+		//Here we check the structure of the pseudo chromosome also..
+		assert(pseudoChromosome_getPseudoAdjacencyNumber(pseudoChromosome) > 0); //must be at least one adjacency
+		assert(pseudoChromosome_get5End(pseudoChromosome) == pseudoAdjacency_get5End(pseudoChromosome_getFirst(pseudoChromosome))); //check the 5 end matches the 5 end of the first pseudo adjacency.
+		assert(pseudoChromosome_get3End(pseudoChromosome) == pseudoAdjacency_get3End(pseudoChromosome_getLast(pseudoChromosome))); //check the 5 end matches the 5 end of the first pseudo adjacency.
+
+		PseudoChromsome_PseudoAdjacencyIterator *pseudoAdjacencyIterator = pseudoChromosome_getPseudoAdjacencyIterator(pseudoChromosome);
+		PseudoAdjacency *pseudoAdjacency, *previousPseudoAdjacency = NULL;
+		while((pseudoAdjacency = pseudoChromosome_getNextPseudoAdjacency(pseudoAdjacencyIterator)) != NULL) {
+			End *_5End = pseudoAdjacency_get5End(pseudoAdjacency);
+			End *_3End = pseudoAdjacency_get3End(pseudoAdjacency);
+			assert(_5End == end_getPositiveOrientation(_5End)); //check they are positive orientation
+			assert(_3End == end_getPositiveOrientation(_3End)); //check they are positive orientation
+			assert(hash_search(endsToPseudoAdjacencies, _5End) == pseudoAdjacency); //check these are represented in the hash.. so that the mapping is unique.
+			assert(hash_search(endsToPseudoAdjacencies, _3End) == pseudoAdjacency);
+			assert(end_getGroup(_5End) != NULL); //check the groups are the same for both sides of the adjacency.
+			assert(end_getGroup(_5End) == end_getGroup(_3End));
+			i++;
+			if(previousPseudoAdjacency != NULL) { //check the adjacency spans the block...
+				assert(pseudoAdjacency_get3End(previousPseudoAdjacency) == end_getOtherBlockEnd(_5End));
+				assert(_5End == end_getOtherBlockEnd(pseudoAdjacency_get3End(previousPseudoAdjacency))); //do it the other way, just for fun.
+			}
+			previousPseudoAdjacency = pseudoAdjacency;
+		}
+		pseudoChromosome_destructPseudoAdjacencyIterator(pseudoAdjacencyIterator);
+	}
+	reference_destructPseudoChromosomeIterator(pseudoChromosomeIterator);
+	assert(i*2 == hash_size(endsToPseudoAdjacencies));
+
+	//Cleanup
+	hash_destruct(endsToPseudoAdjacencies);
+}
+
 ////////////////////////////////////////////////
 ////////////////////////////////////////////////
 ////////////////////////////////////////////////

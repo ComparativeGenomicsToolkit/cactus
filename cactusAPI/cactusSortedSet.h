@@ -47,6 +47,11 @@ int32_t sortedSet_getLength(struct avl_table *sortedSet);
 void *sortedSet_getFirst(struct avl_table *items);
 
 /*
+ * Gets the last element in the sorted set.
+ */
+void *sortedSet_getLast(struct avl_table *items);
+
+/*
  * Constructs an iterator for the sorted set.
  */
 struct avl_traverser *iterator_construct(struct avl_table *items);

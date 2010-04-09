@@ -55,10 +55,18 @@ void testGroup_updateContainedEnds(CuTest* testCase) {
 void testGroup_makeNonTerminal(CuTest *testCase) {
 	cactusGroupTestSetup();
 	CuAssertTrue(testCase, group_isTerminal(group2));
+	end_setGroup(end4, group2);
 	group_makeNonTerminal(group2);
 	CuAssertTrue(testCase, !group_isTerminal(group2));
-	CuAssertTrue(testCase, group_getNestedNet(group2) != NULL);
-	CuAssertTrue(testCase, net_getName(group_getNestedNet(group2)) == group_getName(group2));
+	Net *nestedNet = group_getNestedNet(group2);
+	CuAssertTrue(testCase, nestedNet != NULL);
+	CuAssertTrue(testCase, net_getName(nestedNet) == group_getName(group2));
+	CuAssertTrue(testCase, net_getParentGroup(nestedNet) == group2);
+	CuAssertTrue(testCase, net_getEndNumber(nestedNet) == 1);
+	End *nestedEnd = net_getFirstEnd(nestedNet);
+	CuAssertTrue(testCase, end_getName(end4) == end_getName(nestedEnd));
+	CuAssertTrue(testCase, end_getGroup(nestedEnd) != NULL);
+	CuAssertTrue(testCase, net_getGroupNumber(nestedNet) == 1);
 	cactusGroupTestTeardown();
 }
 
@@ -153,6 +161,53 @@ void testGroup_getTotalBaseLength(CuTest *testCase) {
 	cactusGroupTestTeardown();
 }
 
+void testGroup_mergeGroups(CuTest *testCase) {
+	cactusGroupTestSetup();
+
+	CuAssertTrue(testCase, group_getTotalBaseLength(group) == 0);
+	//cap_construct
+	Net *parentNet = net_construct(netDisk);
+	End *end1 = end_construct(0, parentNet);
+	End *end2 = end_construct(0, parentNet);
+	End *end3 = end_construct(0, parentNet);
+	End *end4 = end_construct(0, parentNet);
+
+	Group *parentGroup1 = group_construct2(parentNet);
+	Group *parentGroup2 = group_construct2(parentNet);
+	Group *parentGroup3 = group_construct2(parentNet);
+	Group *parentGroup4 = group_construct2(parentNet);
+
+	end_setGroup(end1, parentGroup1);
+	end_setGroup(end2, parentGroup1);
+	end_setGroup(end3, parentGroup2);
+	end_setGroup(end4, parentGroup3);
+
+	group_makeNonTerminal(parentGroup3);
+	group_makeNonTerminal(parentGroup4);
+
+	Group *mergedGroup1 = group_mergeGroups(parentGroup1, parentGroup2); //merge two terminal nets
+	Group *mergedGroup2 = group_mergeGroups(mergedGroup1, parentGroup3); //merge a terminal and non-terminal net
+	Group *finalGroup = group_mergeGroups(parentGroup4, mergedGroup2); //merge two non-terminal nets
+
+	CuAssertTrue(testCase, net_getGroupNumber(parentNet) == 1);
+	CuAssertTrue(testCase, net_getFirstGroup(parentNet) == finalGroup);
+	CuAssertTrue(testCase, net_getEndNumber(parentNet) == 4);
+	CuAssertTrue(testCase, end_getGroup(end1) == finalGroup);
+	CuAssertTrue(testCase, end_getGroup(end2) == finalGroup);
+	CuAssertTrue(testCase, end_getGroup(end3) == finalGroup);
+	CuAssertTrue(testCase, end_getGroup(end4) == finalGroup);
+
+	CuAssertTrue(testCase, !group_isTerminal(finalGroup));
+	Net *nestedNet = group_getNestedNet(finalGroup);
+	CuAssertTrue(testCase, net_getEndNumber(nestedNet) == 4);
+	CuAssertTrue(testCase, net_getEnd(nestedNet, end_getName(end1)) != NULL);
+	CuAssertTrue(testCase, net_getEnd(nestedNet, end_getName(end2)) != NULL);
+	CuAssertTrue(testCase, net_getEnd(nestedNet, end_getName(end3)) != NULL);
+	CuAssertTrue(testCase, net_getEnd(nestedNet, end_getName(end4)) != NULL);
+
+	cactusGroupTestTeardown();
+}
+
 void testGroup_serialisation(CuTest* testCase) {
 	cactusGroupTestSetup();
 	int32_t i;
@@ -190,8 +245,8 @@ CuSuite* cactusGroupTestSuite(void) {
 	SUITE_ADD_TEST(suite, testGroup_getEndNumber);
 	SUITE_ADD_TEST(suite, testGroup_endIterator);
 	SUITE_ADD_TEST(suite, testGroup_getTotalBaseLength);
+	SUITE_ADD_TEST(suite, testGroup_mergeGroups);
 	SUITE_ADD_TEST(suite, testGroup_serialisation);
-	//group_merge is tested thorougly by net_merge
 	SUITE_ADD_TEST(suite, testGroup_construct);
 	return suite;
 }

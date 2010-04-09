@@ -179,9 +179,7 @@ void mergeGroupsLinkedByPseudoAdjacencies(Net *net, Reference *reference) {
 		//iterate through the pseudo adjacencies in the pseudo chromosomes.
 		while((pseudoAdjacency = pseudoChromosome_getNextPseudoAdjacency(pseudoAdjacencyIterator)) != NULL) {
 			End *_5End = pseudoAdjacency_get5End(pseudoAdjacency);
-			End *_3End = pseudoAdjacency_get5End(pseudoAdjacency);
-			assert(end_getPositiveOrientation(_5End) == _5End);
-			assert(end_getPositiveOrientation(_3End) == _3End);
+			End *_3End = pseudoAdjacency_get3End(pseudoAdjacency);
 			//if the groups are distinct then we call the merge function..
 			if(end_getGroup(_5End) != end_getGroup(_3End)) {
 				group_mergeGroups(end_getGroup(_5End), end_getGroup(_3End));
@@ -223,5 +221,11 @@ void addReferenceToNet(Net *net) {
 	 * Now merge groups linked by novel pseudo-adjacencies.
 	 */
 	mergeGroupsLinkedByPseudoAdjacencies(net, reference);
+	/*
+	 * Now check the reference created for goodness.
+	 */
+#ifdef BEN_DEBUG
+	reference_check(reference);
+#endif
 }
 

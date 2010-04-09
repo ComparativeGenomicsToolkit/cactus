@@ -36,7 +36,7 @@ struct _netDisk {
 void netDisk_addNet(NetDisk *netDisk, Net *net);
 
 /*
- * Removes the net from the disk.
+ * Removes the net from the disk (if it is on disk);
  */
 void netDisk_deleteNetFromDisk(NetDisk *netDisk, Name netName);
 

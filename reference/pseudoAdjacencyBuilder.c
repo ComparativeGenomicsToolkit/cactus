@@ -146,8 +146,8 @@ static struct List *makeListOfAdjacencyPairs(Net *net) {
 			while((cap = end_getNext(capIterator)) != NULL) {
 				Cap *cap2 = cap_getAdjacency(cap); //we allow both internal inferred and leaf adjacencies.
 				if(cap2 != NULL) {
-					End *end2 = cap_getEnd(cap2);
-					if(end_isBlockEnd(end2) || end_isAttached(end2)) {
+					End *end2 = end_getPositiveOrientation(cap_getEnd(cap2));
+					if(end1 != end2 && (end_isBlockEnd(end2) || end_isAttached(end2))) { //we don't allow free stubs or adjacency pairs which create self loops, as we can traverse a node twice!
 						AdjacencyPair *adjacencyPair = adjacencyPair_construct(end1, end2);
 						if(hash_search(adjacenciesHash, adjacencyPair) == NULL) { //
 							hash_insert(adjacenciesHash, adjacencyPair, adjacencyPair);

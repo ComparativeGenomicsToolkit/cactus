@@ -44,6 +44,10 @@ PseudoAdjacency *pseudoChromosome_getFirst(PseudoChromosome *pseudoChromosome) {
 	return sortedSet_getFirst(pseudoChromosome->pseudoAdjacencies);
 }
 
+PseudoAdjacency *pseudoChromosome_getLast(PseudoChromosome *pseudoChromosome) {
+	return sortedSet_getLast(pseudoChromosome->pseudoAdjacencies);
+}
+
 PseudoChromsome_PseudoAdjacencyIterator *pseudoChromosome_getPseudoAdjacencyIterator(PseudoChromosome *pseudoChromosome) {
 	return iterator_construct(pseudoChromosome->pseudoAdjacencies);
 }

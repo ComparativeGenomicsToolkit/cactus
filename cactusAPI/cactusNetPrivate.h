@@ -44,7 +44,7 @@ void net_destruct(Net *net, int32_t recursive);
 /*
  * Adds the event tree for the net to the net.
  */
-void net_addEventTree(Net *net, EventTree *eventTree);
+void net_setEventTree(Net *net, EventTree *eventTree);
 
 /*
  * Adds the sequence to the net.

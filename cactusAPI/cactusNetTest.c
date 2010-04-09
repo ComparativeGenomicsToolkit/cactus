@@ -323,7 +323,7 @@ void testNet_mergeNets(CuTest *testCase) {
 				internalEventChild, eventTree_getEvent(eventTree1, event_getName(leafEvent1)), eventTree1);
 	Event *unaryEvent2 = event_construct2(unaryInternalMetaEvent2, 0.1,
 				internalEventChild, unaryEvent1, eventTree1);
-	Event *unaryEvent3 = event_construct2(unaryInternalMetaEvent3, 0.1,
+	event_construct2(unaryInternalMetaEvent3, 0.1,
 				internalEventChild, unaryEvent2, eventTree1);
 	CuAssertTrue(testCase, eventTree_getEventNumber(eventTree1) == 7);
 

@@ -38,6 +38,12 @@ void *sortedSet_getFirst(struct avl_table *items) {
 	return avl_t_first(&iterator, items);
 }
 
+void *sortedSet_getLast(struct avl_table *items) {
+	static struct avl_traverser iterator;
+	avl_t_init(&iterator, items);
+	return avl_t_last(&iterator, items);
+}
+
 struct avl_traverser *iterator_construct(struct avl_table *items) {
 	struct avl_traverser *iterator;
 	iterator = mallocLocal(sizeof(struct avl_traverser));

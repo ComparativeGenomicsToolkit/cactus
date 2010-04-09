@@ -46,11 +46,12 @@ void group_makeNonTerminal(Group *group) {
 	if(net_getEventTree(group_getNet(group)) != NULL) {
 		eventTree_copyConstruct(net_getEventTree(group_getNet(group)), nestedNet, returnsTrue);
 	}
+	Group *nestedGroup = group_construct2(nestedNet);
 	//Add the ends to the nested net.
 	Group_EndIterator *endIterator = group_getEndIterator(group);
 	End *end;
 	while((end = group_getNextEnd(endIterator)) != NULL) {
-		end_copyConstruct(end, nestedNet);
+		end_setGroup(end_copyConstruct(end, nestedNet), nestedGroup);
 	}
 	group_destructEndIterator(endIterator);
 	netMisc_addAdjacenciesToLeafCaps(nestedNet);
@@ -176,22 +177,31 @@ int64_t group_getTotalBaseLength(Group *group) {
 Group *group_mergeGroups(Group *group1, Group *group2) {
 	//Check they are in the same net..
 	assert(group_getNet(group1) == group_getNet(group2));
-	//First merge child nets
-	if(group_getNestedNet(group2) == NULL) {
-		Group *group3 = group1;
-		group1 = group2;
-		group2 = group3;
-	}
-	else if(group_getNestedNet(group1) != NULL) {
+	assert(group1 != group2);
+
+	if(!group_isTerminal(group1) || !group_isTerminal(group2)) { //We must first merge the nested nets
+		if(group_isTerminal(group1)) { //Need to make a nested net to merge with the other
+			group_makeNonTerminal(group1);
+		}
+		if(group_isTerminal(group2)) { //Need to make a nested net to merge with the other
+			group_makeNonTerminal(group2);
+		}
+		assert(group_getNestedNet(group1) != NULL);
+		assert(group_getNestedNet(group2) != NULL);
 		net_mergeNetsP(group_getNestedNet(group1), group_getNestedNet(group2));
 	}
-	//Now puts all the children in group1 into group2.
 	End *end;
 	while((end = group_getFirstEnd(group1)) != NULL) {
 		end_setGroup(end, group2);
 	}
-	//Now remove group1 from the net and destruct it
 	group_destruct(group1);
+
+#ifdef BEN_DEBUG
+	if(!group_isTerminal(group2)) {
+		assert(net_getParentGroup(group_getNestedNet(group2)) == group2);
+	}
+#endif
+
 	return group2;
 }
 

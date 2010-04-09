@@ -13,13 +13,17 @@ int32_t eventTree_constructP(const void *o1, const void *o2, void *a) {
 	return netMisc_nameCompare(event_getName((Event *)o1), event_getName((Event *)o2));
 }
 
-EventTree *eventTree_construct(MetaEvent *rootMetaEvent, Net *net) {
+EventTree *eventTree_construct2(Net *net) {
+	return eventTree_construct(metaEvent_construct("ROOT", net_getNetDisk(net)), net);
+}
+
+EventTree *eventTree_construct(MetaEvent *rootEvent, Net *net) {
 	EventTree *eventTree;
 	eventTree = malloc(sizeof(EventTree));
 	eventTree->events = sortedSet_construct(eventTree_constructP);
 	eventTree->net = net;
-	eventTree->rootEvent = event_construct(rootMetaEvent, INT32_MAX, NULL, eventTree); //do this last as reciprocal call made to add the event to the events.
-	net_addEventTree(net, eventTree);
+	eventTree->rootEvent = event_construct(rootEvent, INT32_MAX, NULL, eventTree); //do this last as reciprocal call made to add the event to the events.
+	net_setEventTree(net, eventTree);
 	return eventTree;
 }
 
@@ -224,6 +228,7 @@ void eventTree_addSiblingUnaryEvent(EventTree *eventTree, Event *event) {
 
 void eventTree_destruct(EventTree *eventTree) {
 	Event *event;
+	eventTree_getNet(eventTree)->eventTree = NULL;
 	while((event = eventTree_getFirst(eventTree)) != NULL) {
 		event_destruct(event);
 	}

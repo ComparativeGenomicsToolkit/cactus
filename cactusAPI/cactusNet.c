@@ -73,7 +73,6 @@ Net *net_construct2(Name name, NetDisk *netDisk) {
 	net->chains = sortedSet_construct(net_constructChainsP);
 	net->faces = sortedSet_construct(net_constructFacesP);
 	net->references = sortedSet_construct(net_constructReferencesP);
-	net->eventTree = NULL;
 
 	net->parentNetName = NULL_NAME;
 	net->netDisk = netDisk;
@@ -81,6 +80,10 @@ Net *net_construct2(Name name, NetDisk *netDisk) {
 	net->chainIndex = 0;
 
 	netDisk_addNet(net->netDisk, net);
+
+	//Do this bit last.. so the netdisk relationship is established
+	net->eventTree = NULL;
+	eventTree_construct2(net);
 
 	return net;
 }
@@ -115,9 +118,8 @@ void net_destruct(Net *net, int32_t recursive) {
 	}
 	sortedSet_destruct(net->faces, NULL);
 
-	if(net_getEventTree(net) != NULL) {
-		eventTree_destruct(net_getEventTree(net));
-	}
+	assert(net_getEventTree(net) != NULL);
+	eventTree_destruct(net_getEventTree(net));
 
 	while((sequence = net_getFirstSequence(net)) != NULL) {
 		sequence_destruct(sequence);
@@ -532,7 +534,10 @@ Net *net_mergeNets(Net *net1, Net *net2) {
  * Private functions
  */
 
-void net_addEventTree(Net *net, EventTree *eventTree) {
+void net_setEventTree(Net *net, EventTree *eventTree) {
+	if(net_getEventTree(net) != NULL) {
+		eventTree_destruct(net_getEventTree(net));
+	}
 	net->eventTree = eventTree;
 }
 
@@ -710,9 +715,11 @@ void net_mergeNetsP(Net *net1, Net *net2) {
 		reference_setNet(net_getFirstReference(net1), net2);
 	}
 	//Now destroy the first net.
+	Name netName1 = net_getName(net1);
 	net_destruct(net1, 0);
-
 	//ensure net1 is not in the netdisk..
+	netDisk_deleteNetFromDisk(net_getNetDisk(net2), netName1);
+	assert(netDisk_getNet(net_getNetDisk(net2), netName1) == NULL);
 }
 
 /*
