@@ -331,8 +331,8 @@ class CactusExtensionWrapper(Target):
                 if childNetName != netName: #Avoids running again for leaf without children
                     childNetNames.append(childNetName)
                     cummulativeNetSize += 1 #childNetSize
-                    if timeParameters[getIteration(0, cummulativeNetSize)] > IDEAL_JOB_RUNTIME:
-                        self.addChildTarget(CactusExtensionWrapper(self.options, childNetNames, cummulativeNetSize))
+                    if timeParameters[4]*len(childNetNames) > IDEAL_JOB_RUNTIME:
+                        self.addChildTarget(CactusExtensionWrapper(self.options, childNetNames, timeParameters[4]*len(childNetNames)))
                         childNetNames = []
                         cummulativeNetSize = 0
         if len(childNetNames) > 0:
