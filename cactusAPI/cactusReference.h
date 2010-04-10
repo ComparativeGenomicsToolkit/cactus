@@ -123,6 +123,8 @@ Hash *reference_getEndToPseudoAdjacencyHash(Reference *reference);
  * match and that internal pseudo-adjacencies span blocks).
  * That the two ends in every pseudo-adjacency are in the same descendant group.
  * That all ends in the reference are in the positive orientation.
+ * That for all pseudo adjacencies whose end are in a link, the link contains both ends of the
+ * pseudo adjacency.
  */
 void reference_check(Reference *reference);
 

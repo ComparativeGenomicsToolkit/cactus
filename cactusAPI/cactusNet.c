@@ -126,6 +126,16 @@ void net_destruct(Net *net, int32_t recursive) {
 	}
 	sortedSet_destruct(net->sequences, NULL);
 
+	while((reference = net_getFirstReference(net)) != NULL) {
+		reference_destruct(reference);
+	}
+	sortedSet_destruct(net->references, NULL);
+
+	while((chain = net_getFirstChain(net)) != NULL) {
+		chain_destruct(chain);
+	}
+	sortedSet_destruct(net->chains, NULL);
+
 	while((end = net_getFirstEnd(net)) != NULL) {
 		end_destruct(end);
 	}
@@ -143,15 +153,7 @@ void net_destruct(Net *net, int32_t recursive) {
 	}
 	sortedSet_destruct(net->groups, NULL);
 
-	while((chain = net_getFirstChain(net)) != NULL) {
-		chain_destruct(chain);
-	}
-	sortedSet_destruct(net->chains, NULL);
 
-	while((reference = net_getFirstReference(net)) != NULL) {
-		reference_destruct(reference);
-	}
-	sortedSet_destruct(net->references, NULL);
 
 	free(net);
 }

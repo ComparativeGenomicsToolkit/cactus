@@ -114,6 +114,7 @@ void reference_check(Reference *reference) {
 			assert(end_getGroup(_5End) != NULL); //check the groups are the same for both sides of the adjacency.
 			assert(end_getGroup(_5End) == end_getGroup(_3End));
 			i++;
+			assert(group_getLink(end_getGroup(_5End)) == group_getLink(end_getGroup(_3End))); //check if there is a link, they are in the same link.
 			if(previousPseudoAdjacency != NULL) { //check the adjacency spans the block...
 				assert(pseudoAdjacency_get3End(previousPseudoAdjacency) == end_getOtherBlockEnd(_5End));
 				assert(_5End == end_getOtherBlockEnd(pseudoAdjacency_get3End(previousPseudoAdjacency))); //do it the other way, just for fun.

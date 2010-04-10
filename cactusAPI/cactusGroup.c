@@ -186,11 +186,13 @@ Group *group_mergeGroups(Group *group1, Group *group2) {
 	assert(group_getNet(group1) == group_getNet(group2));
 	assert(group1 != group2);
 	if(group_getLink(group1) != NULL) {
-		//link_removeFromChain(group_getLink(group1));
+		link_split(group_getLink(group1));
 	}
+	assert(group_getLink(group1) == NULL);
 	if(group_getLink(group2) != NULL) {
-		//link_removeFromChain(group_getLink(group2));
+		link_split(group_getLink(group2));
 	}
+	assert(group_getLink(group2) == NULL);
 
 	if(!group_isTerminal(group1) || !group_isTerminal(group2)) { //We must first merge the nested nets
 		if(group_isTerminal(group1)) { //Need to make a nested net to merge with the other
@@ -241,8 +243,10 @@ Group *group_construct3(Net *net, Name name, bool terminalGroup) {
 void group_setLink(Group *group, Link *link) {
 	//argument may be NULL
 	group->link = link;
-	assert(group_getEnd(group, end_getName(link_getLeft(link))) == link_getLeft(link));
-	assert(group_getEnd(group, end_getName(link_getRight(link))) == link_getRight(link));
+	if(link != NULL) {
+		assert(group_getEnd(group, end_getName(link_getLeft(link))) == link_getLeft(link));
+		assert(group_getEnd(group, end_getName(link_getRight(link))) == link_getRight(link));
+	}
 }
 
 void group_removeEnd(Group *group, End *end) {
