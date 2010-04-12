@@ -303,7 +303,7 @@ class ExtensionPhase(Target):
 
     def run(self, localTempDir, globalTempDir):
         logger.info("Starting the down pass target")
-        if self.options.buildTrees or self.options.buildAdjacencies or self.options.buildReference:
+        if self.options.buildTrees or self.options.buildFaces or self.options.buildReference:
             childTarget = CactusExtensionWrapper(self.options, [ self.netName ], self.netSize)
             self.addChildTarget(childTarget)
 
@@ -318,7 +318,7 @@ class CactusExtensionWrapper(Target):
         if self.options.buildTrees:
             runCactusPhylogeny(self.options.netDisk, tempDir=localTempDir, netNames=self.netNames)
             #Not atomic!
-        if self.options.buildAdjacencies:
+        if self.options.buildFaces:
             runCactusAdjacencies(self.options.netDisk, tempDir=localTempDir, netNames=self.netNames)
         if self.options.buildReference:
             runCactusReference(self.options.netDisk, netNames=self.netNames)
@@ -361,7 +361,7 @@ def main():
     parser.add_option("--buildTrees", dest="buildTrees", action="store_true",
                       help="Build trees", default=False) 
     
-    parser.add_option("--buildAdjacencies", dest="buildAdjacencies", action="store_true",
+    parser.add_option("--buildFaces", dest="buildFaces", action="store_true",
                       help="Build adjacencies", default=False)
     
     parser.add_option("--buildReference", dest="buildReference", action="store_true",
@@ -373,7 +373,7 @@ def main():
     
     if options.setupAndBuildAlignments:
         baseTarget = SetupPhase(options, args)
-    elif options.buildTrees or options.buildAdjacencies or options.buildReference:
+    elif options.buildTrees or options.buildFaces or options.buildReference:
         baseTarget = ExtensionPhase('0', None, options)
         
     baseTarget.execute(options.jobFile) 

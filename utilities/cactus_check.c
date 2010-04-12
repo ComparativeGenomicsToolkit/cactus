@@ -357,6 +357,75 @@ void checkBasesAccountedFor(Net *net) {
 
 void checkNetsRecursively(Net *net, Net *parentNet) {
 	logInfo("Checking the net %s\n", netMisc_nameToStringStatic(net_getName(net)));
+	/*
+	 * Checks the following:
+	 * Events linked in a single tree, with root event at the root.
+	 * Events are consistent with any parent event tree.
+	 */
+	eventTree_check(net_getEventTree(net));
+
+	//The following function, when run for all groups, is sufficient to test all key properties
+	//of groups..
+	/*
+	 * Checks the following:
+	 * That the link is correctly linked to its containing net.
+	 * That the ends of the groups are doubly linked to the ends (so every end is in only one link).
+	 * That if terminal has no nested net,
+	 * else that any nested net contains the correct set of stub ends.
+	 * That if the group has only two non-free stub-ends:
+	 *  	it has a link group, with containing chain.
+	 * else:
+	 * 		it is not a link group, with no containing chain.
+	 */
+	//group_check(net);
+
+	//The following applied to each chain is sufficent to check properties of chains.
+	/*
+	 * Checks the following:
+	 * That each link is properly contained in the chain.
+	 * That each contiguous pair of link groups are bridged by a block.
+	 * If a block end is at the 5 or 3 prime end of a chain the other end of the
+	 * block is not in a link group (otherwise the chain is not maximal).
+	 */
+	//chain_check();
+
+	//The following tests all references..
+	Net_ReferenceIterator *referenceIterator = net_getReferenceIterator(net);
+	Reference *reference;
+	while((reference = net_getNextReference(referenceIterator)) != NULL) {
+		reference_check(reference);
+	}
+
+	/*
+	 * Checks the following:
+	 * Checks the cap are linked in a tree that is acyclic with the event tree
+	 * If stub end checks:
+	 *  (1) there is no attached block.
+	 *  (2) if attached the is inherited from a parent net to the containing net.
+	 *  (3) is consistent with any copy of end in the parent, in terms of connection and parent coordinates.
+	 * Checks adjacencies are properly linked and have consistent coordinates.
+	 */
+	//end_check();
+
+	/*
+	 * Checks (amongst other things) the following:
+	 * Checks the two ends are block ends.
+	 * For each segment:
+	 * 	Checks the coordinates of the caps are consistent with the segment.
+	 *  Checks the segments are linked in a tree that is consistent with the event tree.
+	 * Checks the end trees and block tree are consistent.
+	 */
+	//block_check();
+
+
+	/*
+	 * Checks the following:
+	 * Checks coordinates of ends do not overlap on the sequence.
+	 */
+	//sequence_check();
+
+
+
 	if(parentNet != NULL) {
 		checkNonTerminalGroups(net, parentNet);
 	}

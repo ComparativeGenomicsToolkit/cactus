@@ -205,11 +205,13 @@ def runCactusCheck(netDisk,
                     netName="0", 
                     logLevel="DEBUG",
                     checkTrees=False,
-                    checkInternalAdjacencies=False):
+                    checkFaces=False,
+                    checkReference=False):
     checkTrees = nameValue("checkTrees", checkTrees, bool)
-    checkInternalAdjacencies = nameValue("checkInternalAdjacencies", checkInternalAdjacencies, bool)
+    checkFaces = nameValue("checkFaces", checkFaces, bool)
+    checkReference = nameValue("checkReference", checkReference, bool)
     system("cactus_check --netDisk %s --netName %s --logLevel %s %s %s" \
-                    % (netDisk, netName, logLevel, checkTrees, checkInternalAdjacencies))
+                    % (netDisk, netName, logLevel, checkTrees, checkFaces, checkReference))
     logger.info("Ran cactus check")
     
 def runCactusBlockGraphViewer(graphFile,
@@ -228,15 +230,15 @@ def runCactusWorkflow(netDisk, sequenceFiles,
                       adjacencyBuilder="cactus_adjacencyTestAdjacencyBuilder.py",
                       logLevel="DEBUG", retryCount=0, batchSystem="single_machine", rescueJobFrequency=None,
                       setupAndBuildAlignments=True,
-                      buildTrees=False, buildAdjacencies=False, buildReference=False):
+                      buildTrees=False, buildFaces=False, buildReference=False):
     setupAndBuildAlignments = nameValue("setupAndBuildAlignments", setupAndBuildAlignments, bool)
     buildTrees = nameValue("buildTrees", buildTrees, bool)
-    buildAdjacencies = nameValue("buildAdjacencies", buildAdjacencies, bool)
+    buildFaces = nameValue("buildFaces", buildFaces, bool)
     buildReference = nameValue("buildReference", buildReference, bool)
     command = "cactus_workflow.py %s --speciesTree '%s' \
 --netDisk %s %s %s %s %s --job JOB_FILE" % \
             (" ".join(sequenceFiles), newickTreeString,
-             netDisk, setupAndBuildAlignments, buildTrees, buildAdjacencies, buildReference)
+             netDisk, setupAndBuildAlignments, buildTrees, buildFaces, buildReference)
     #print "going to run the command:", command
     #assert False
     runJobTree(command, jobTreeDir, logLevel, retryCount, batchSystem, rescueJobFrequency)

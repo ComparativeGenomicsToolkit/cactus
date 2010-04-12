@@ -21,7 +21,7 @@ from workflow.jobTree.jobTreeTest import runJobTreeStatusAndFailIfNotComplete
 class TestCase(unittest.TestCase):
     
     def setUp(self):
-        self.testNo = TestStatus.getTestSetup(1, 100, 0, 0)
+        self.testNo = TestStatus.getTestSetup(10, 0, 0, 0)
         self.sequenceNumber = TestStatus.getTestSetup(5, 50, 50, 100)
         self.tempFiles = []
         self.tempDir = getTempDirectory(os.getcwd())
@@ -46,8 +46,8 @@ class TestCase(unittest.TestCase):
             sequenceDirs, newickTreeString = getRandomCactusInputs(tempDir=getTempDirectory(self.tempDir), sequenceNumber=self.sequenceNumber)
             jobTreeDir = os.path.join(getTempDirectory(self.tempDir), "jobTree")
             runCactusWorkflow(self.tempReconstructionDirectory, sequenceDirs, newickTreeString, jobTreeDir, logLevel='INFO',
-                               batchSystem=self.batchSystem, buildTrees=True, buildAdjacencies=False)
-            runCactusCheck(self.tempReconstructionDirectory, checkTrees=True, checkInternalAdjacencies=False)
+                               batchSystem=self.batchSystem, buildTrees=True, buildFaces=False)
+            runCactusCheck(self.tempReconstructionDirectory, checkTrees=True, checkFaces=False)
             #Run the checker to check the file is okay.
             runJobTreeStatusAndFailIfNotComplete(jobTreeDir)
             #Cleanup this test
@@ -57,12 +57,11 @@ class TestCase(unittest.TestCase):
     def testCactusWorkflow_Blanchette(self): 
         """Runs the workflow on blanchette's simulated (colinear) regions.
         """
-        #return
-        if TestStatus.getTestStatus() in (TestStatus.TEST_LONG,):
+        if TestStatus.getTestStatus() in (TestStatus.TEST_MEDIUM,):
             blanchettePath = os.path.join(TestStatus.getPathToDataSets(), "blanchettesSimulation")
             
             newickTreeFile = os.path.join(blanchettePath, "tree.newick")
-            for region in xrange(0, 5):
+            for region in xrange(0, 1):
                 sequences = [ os.path.join(blanchettePath, 
                                                ("%.2i.job" % region), species) \
                                  for species in ("HUMAN", "CHIMP", "BABOON", "MOUSE", "RAT", "DOG", "CAT", "PIG", "COW") ] #Same order as tree
@@ -76,12 +75,11 @@ class TestCase(unittest.TestCase):
                             blockGraphFile=os.path.join(outputDir, "blockGraph.dot"),
                             blockGraphPDFFile=os.path.join(outputDir, "blockGraph.pdf"),
                             cactusTreeStatsFile=os.path.join(outputDir, "cactusTreeStats.xml"),
-                            buildTrees=False, buildAdjacencies=False, buildReference=True)
+                            buildTrees=False, buildFaces=False, buildReference=True)
         
     def testCactusWorkflow_Encode(self): 
         """Run the workflow on the encode pilot regions.
         """
-        return
         if TestStatus.getTestStatus() in (TestStatus.TEST_LONG,):
             encodeDatasetPath = os.path.join(TestStatus.getPathToDataSets(), "MAY-2005")
             encodeResultsPath = os.path.join(TestStatus.getPathToDataSets(), "cactus", "encodeRegionsTest")
@@ -94,9 +92,11 @@ class TestCase(unittest.TestCase):
                 
                 runWorkflow(sequences, newickTreeFile, outputDir, self.tempDir, batchSystem=self.batchSystem,
                             cactusTreeStatsFile=os.path.join(outputDir, "cactusTreeStats.xml"),
-                            buildTrees=False, buildAdjacencies=False, buildReference=True)
+                            buildTrees=True, buildFaces=True, buildReference=True)
     
     def testCactusWorkflow_Chromosomes(self):
+        """Run the workflow on mammalian chromsome X
+        """
         #Tests cactus_core on the alignment of 4 whole chromosome X's, human, chimp, mouse, dog.
         if TestStatus.getTestStatus() in (TestStatus.TEST_VERY_LONG,):
             chrXPath = os.path.join(TestStatus.getPathToDataSets(), "chr_x")
@@ -113,7 +113,7 @@ def runWorkflow(sequences, newickTreeFile, outputDir, tempDir,
                 batchSystem="single_machine",
                 cactusTreeGraphFile=None, cactusTreeGraphPDFFile=None, 
                 blockGraphFile=None, blockGraphPDFFile=None,
-                cactusTreeStatsFile=None, buildTrees=False, buildAdjacencies=False, buildReference=False):
+                cactusTreeStatsFile=None, buildTrees=False, buildFaces=False, buildReference=False):
     fileHandle = open(newickTreeFile, 'r')
     newickTreeString = fileHandle.readline()
     fileHandle.close()
@@ -130,18 +130,14 @@ def runWorkflow(sequences, newickTreeFile, outputDir, tempDir,
     
     runCactusWorkflow(netDisk, sequences, newickTreeString, jobTreeDir, 
                       batchSystem=batchSystem, buildTrees=buildTrees, 
-                      buildAdjacencies=buildAdjacencies, buildReference=buildReference)
+                      buildFaces=buildFaces, buildReference=buildReference)
     logger.info("Ran the the workflow")
     
     runJobTreeStatusAndFailIfNotComplete(jobTreeDir)
     logger.info("Checked the job tree dir")
     
-    if buildTrees:
-        pass
-        #runCactusCheck(netDisk, checkTrees=True)
-    else:
-        pass
-        #runCactusCheck(netDisk)
+    runCactusCheck(netDisk, checkTrees=buildTrees, checkFaces=buildFaces, checkReference=buildReference)
+    
     logger.info("Checked the cactus tree")
     
     if cactusTreeGraphFile != None:
