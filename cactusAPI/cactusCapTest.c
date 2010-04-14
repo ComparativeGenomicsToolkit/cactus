@@ -83,6 +83,26 @@ void testCap_getSegment(CuTest* testCase) {
 	cactusCapTestTeardown();
 }
 
+void testCap_getOtherSegmentCap(CuTest *testCase) {
+	cactusCapTestSetup();
+
+	Block *block = block_construct(3, net);
+	Segment *segment = segment_construct2(block, 2, 1, sequence);
+	Cap *_5Cap = segment_get5Cap(segment);
+	Cap *_3Cap = segment_get3Cap(segment);
+
+	CuAssertTrue(testCase, cap_getOtherSegmentCap(leaf1Cap) == NULL);
+	CuAssertTrue(testCase, cap_getOtherSegmentCap(cap_getReverse(leaf1Cap)) == NULL);
+
+	CuAssertTrue(testCase, cap_getOtherSegmentCap(_5Cap) == _3Cap);
+	CuAssertTrue(testCase, cap_getOtherSegmentCap(_3Cap) == _5Cap);
+
+	CuAssertTrue(testCase, cap_getOtherSegmentCap(cap_getReverse(_5Cap)) == cap_getReverse(_3Cap));
+	CuAssertTrue(testCase, cap_getOtherSegmentCap(cap_getReverse(_3Cap)) == cap_getReverse(_5Cap));
+
+	cactusCapTestTeardown();
+}
+
 void testCap_segmentCoordinates(CuTest* testCase) {
 	/*
 	 * Tests the coordinates of an segment and its 5 and 3 prime caps.
@@ -192,27 +212,15 @@ void testCap_getSequence(CuTest* testCase) {
 	cactusCapTestTeardown();
 }
 
-void testCap_adjacent1(CuTest* testCase) {
+void testCap_adjacent(CuTest* testCase) {
 	cactusCapTestSetup();
 	CuAssertTrue(testCase, cap_getAdjacency(leaf1Cap) == NULL);
 	CuAssertTrue(testCase, cap_getAdjacency(leaf3Cap) == NULL);
-	cap_makeAdjacent1(leaf1Cap, leaf3Cap);
+	cap_makeAdjacent(leaf1Cap, leaf3Cap);
 	CuAssertTrue(testCase, cap_getAdjacency(leaf1Cap) == cap_getReverse(leaf3Cap));
 	CuAssertTrue(testCase, cap_getAdjacency(leaf3Cap) == cap_getReverse(leaf1Cap));
 	CuAssertTrue(testCase, cap_getAdjacency(cap_getReverse(leaf1Cap)) == leaf3Cap);
 	CuAssertTrue(testCase, cap_getAdjacency(cap_getReverse(leaf3Cap)) == leaf1Cap);
-	cactusCapTestTeardown();
-}
-
-void testCap_adjacent2(CuTest* testCase) {
-	cactusCapTestSetup();
-	CuAssertTrue(testCase, cap_getAdjacency2(leaf1Cap) == NULL);
-	CuAssertTrue(testCase, cap_getAdjacency2(leaf3Cap) == NULL);
-	cap_makeAdjacent2(leaf1Cap, leaf3Cap);
-	CuAssertTrue(testCase, cap_getAdjacency2(leaf1Cap) == cap_getReverse(leaf3Cap));
-	CuAssertTrue(testCase, cap_getAdjacency2(leaf3Cap) == cap_getReverse(leaf1Cap));
-	CuAssertTrue(testCase, cap_getAdjacency2(cap_getReverse(leaf1Cap)) == leaf3Cap);
-	CuAssertTrue(testCase, cap_getAdjacency2(cap_getReverse(leaf3Cap)) == leaf1Cap);
 	cactusCapTestTeardown();
 }
 
@@ -270,7 +278,7 @@ void testCap_isAugmented(CuTest* testCase) {
 	CuAssertTrue(testCase, !cap_isAugmented(_5Cap));
 	CuAssertTrue(testCase, !cap_isAugmented(_3Cap));
 
-	End *leftEnd = block_getLeftEnd(block);
+	End *leftEnd = block_get5End(block);
 	Cap *augmentedCap = cap_construct(leftEnd, rootEvent);
 	CuAssertTrue(testCase, cap_isAugmented(augmentedCap));
 
@@ -294,14 +302,14 @@ void testCap_serialisation(CuTest* testCase) {
 	testCap_getEvent(testCase);
 	testCap_getEnd(testCase);
 	testCap_getSegment(testCase);
+	testCap_getOtherSegmentCap(testCase);
 	testCap_segmentCoordinates(testCase);
 	testCap_segmentCoordinatesReverseStrand(testCase);
 	testCap_getCoordinate(testCase);
 	testCap_getStrand(testCase);
 	testCap_getSide(testCase);
 	testCap_getSequence(testCase);
-	testCap_adjacent1(testCase);
-	testCap_adjacent2(testCase);
+	testCap_adjacent(testCase);
 	testCap_getFace(testCase);
 	testCap_getParent(testCase);
 	testCap_getChildNumber(testCase);
@@ -320,14 +328,14 @@ CuSuite* cactusCapTestSuite(void) {
 	SUITE_ADD_TEST(suite, testCap_getEvent);
 	SUITE_ADD_TEST(suite, testCap_getEnd);
 	SUITE_ADD_TEST(suite, testCap_getSegment);
+	SUITE_ADD_TEST(suite, testCap_getOtherSegmentCap);
 	SUITE_ADD_TEST(suite, testCap_segmentCoordinates);
 	SUITE_ADD_TEST(suite, testCap_segmentCoordinatesReverseStrand);
 	SUITE_ADD_TEST(suite, testCap_getCoordinate);
 	SUITE_ADD_TEST(suite, testCap_getStrand);
 	SUITE_ADD_TEST(suite, testCap_getSide);
 	SUITE_ADD_TEST(suite, testCap_getSequence);
-	SUITE_ADD_TEST(suite, testCap_adjacent1);
-	SUITE_ADD_TEST(suite, testCap_adjacent2);
+	SUITE_ADD_TEST(suite, testCap_adjacent);
 	SUITE_ADD_TEST(suite, testCap_getFace);
 	SUITE_ADD_TEST(suite, testCap_getParent);
 	SUITE_ADD_TEST(suite, testCap_getChildNumber);

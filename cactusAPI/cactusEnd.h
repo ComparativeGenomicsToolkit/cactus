@@ -46,6 +46,12 @@ End *end_getPositiveOrientation(End *end);
 End *end_getReverse(End *end);
 
 /*
+ * Returns a non zero integer if on the 5' side of the block from which it comes, else
+ * zero if on the 3' side. If is stub, will inherit its side from the parent stub.
+ */
+bool end_getSide(End *end);
+
+/*
  * Gets the net the end is part of.
  */
 Net *end_getNet(End *end);
@@ -142,5 +148,22 @@ bool end_isAttached(End *end);
  * The opposite of end_isAttached. Syntactic sugar such that !end_isAttached(end) == end_isFree(end).
  */
 bool end_isFree(End *end);
+
+/*
+ * Runs cap_check for each cap in end. And additionally checks the following:
+ *
+ * Check end is part of group.
+ * Check end and reverse end are mirrors.
+ * If block end:
+ * 	(1) Has attached block.
+ *  (2) The side matches the sides of the block.
+ *  (3) Is not attached.
+ * If stub end checks:
+ *  (1) there is no attached block.
+ *  (2) if attached then is inherited from a parent net to the containing net, and
+ *  the parent end has a matching side property.
+ * Checks adjacencies are properly linked and have consistent coordinates.
+ */
+void end_check(End *end);
 
 #endif

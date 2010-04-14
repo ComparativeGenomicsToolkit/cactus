@@ -42,11 +42,11 @@ Group *link_getGroup(Link *link) {
 	return link->group;
 }
 
-End *link_getLeft(Link *link) {
+End *link_get5End(Link *link) {
 	return link->leftEnd;
 }
 
-End *link_getRight(Link *link) {
+End *link_get3End(Link *link) {
 	return link->rightEnd;
 }
 
@@ -89,12 +89,12 @@ void link_split(Link *link) {
 		if(link2 == link) {
 			break;
 		}
-		link_construct(link_getLeft(link2), link_getRight(link2), end_getGroup(link_getLeft(link2)), chain1);
+		link_construct(link_get5End(link2), link_get3End(link2), end_getGroup(link_get5End(link2)), chain1);
 	}
 	while(i<chain_getLength(chain)) {
 		Link *link2 = chain_getLink(chain, i++);
 		assert(link2 != link);
-		link_construct(link_getLeft(link2), link_getRight(link2), end_getGroup(link_getLeft(link2)), chain2);
+		link_construct(link_get5End(link2), link_get3End(link2), end_getGroup(link_get5End(link2)), chain2);
 	}
 	assert(chain_getLength(chain1) + chain_getLength(chain2) == chain_getLength(chain)-1);
 	chain_destruct(chain);
@@ -113,8 +113,8 @@ void link_split(Link *link) {
 void link_writeBinaryRepresentation(Link *link, void (*writeFn)(const void * ptr, size_t size, size_t count)) {
 	binaryRepresentation_writeElementType(CODE_LINK, writeFn);
 	binaryRepresentation_writeName(group_getName(link_getGroup(link)), writeFn);
-	binaryRepresentation_writeName(end_getName(link_getLeft(link)), writeFn);
-	binaryRepresentation_writeName(end_getName(link_getRight(link)), writeFn);
+	binaryRepresentation_writeName(end_getName(link_get5End(link)), writeFn);
+	binaryRepresentation_writeName(end_getName(link_get3End(link)), writeFn);
 }
 
 Link *link_loadFromBinaryRepresentation(void **binaryString, Chain *chain) {

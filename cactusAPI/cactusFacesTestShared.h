@@ -52,10 +52,10 @@ static void cactusFacesTestSharedSetup() {
 	bottomCap4 = cap_construct(end2, leafEvent);
 	cap_makeParentAndChild(topCap4, bottomCap4);
 
-	cap_makeAdjacent1(topCap1, topCap3);
-	cap_makeAdjacent1(topCap2, topCap4);
-	cap_makeAdjacent1(bottomCap1, bottomCap4);
-	cap_makeAdjacent1(bottomCap2, bottomCap3);
+	cap_makeAdjacent(topCap1, topCap3);
+	cap_makeAdjacent(topCap2, topCap4);
+	cap_makeAdjacent(bottomCap1, bottomCap4);
+	cap_makeAdjacent(bottomCap2, bottomCap3);
 	
 	face = face_construct(net); 
 	face_allocateSpace(face, 4);

@@ -31,12 +31,12 @@ static void cactusChainsSharedTestSetup() {
 	end2 = end_construct(0, net);
 	block = block_construct(2, net);
 	end_copyConstruct(end1, nestedNet1);
-	end_copyConstruct(block_getLeftEnd(block), nestedNet1);
-	end_copyConstruct(block_getRightEnd(block), nestedNet2);
+	end_copyConstruct(block_get5End(block), nestedNet1);
+	end_copyConstruct(block_get3End(block), nestedNet2);
 	end_copyConstruct(end2, nestedNet2);
 	group1 = group_construct(net, nestedNet1);
 	group2 = group_construct(net, nestedNet2);
 	chain = chain_construct(net);
-	link1 = link_construct(end1, block_getLeftEnd(block), group1, chain);
-	link2 = link_construct(block_getRightEnd(block),end2, group2, chain);
+	link1 = link_construct(end1, block_get5End(block), group1, chain);
+	link2 = link_construct(block_get3End(block),end2, group2, chain);
 }

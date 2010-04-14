@@ -50,12 +50,12 @@ Net *block_getNet(Block *block);
 /*
  * Gets the left end of the block.
  */
-End *block_getLeftEnd(Block *block);
+End *block_get5End(Block *block);
 
 /*
  * Gets the right end of the block.
  */
-End *block_getRightEnd(Block *block);
+End *block_get3End(Block *block);
 
 /*
  * Returns the number of instances (including any internal instances), the block contains.
@@ -121,5 +121,14 @@ Chain *block_getChain(Block *block);
  * The original block and all its instances are destroyed by this operation. The new blocks are pointed to by the left and right block pointers.
  */
 void block_split(Block *block, int32_t splitPoint, Block **leftBlock, Block **rightBlock);
+
+/*
+ * Checks (amongst other things) the following:
+ * Checks the reverse is the mirror of the block.
+ * Checks the two ends are block ends and there properties are consistent with the block.
+ * That the block has non-zero length.
+ * For each segment calls segment_check.
+ */
+void block_check(Block *block);
 
 #endif

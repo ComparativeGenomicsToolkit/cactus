@@ -54,6 +54,20 @@ const char *sequence_getHeader(Sequence *sequence) {
 	return metaSequence_getHeader(sequence->metaSequence);
 }
 
+void sequence_check(Sequence *sequence) {
+	Net *net = sequence_getNet(sequence);
+	assert(net_getSequence(net, sequence_getName(sequence)) == sequence); //properly connected to the net..
+
+	Group *parentGroup = net_getParentGroup(net);
+	if(parentGroup != NULL) {
+		Net *parentNet = group_getNet(parentGroup);
+		Sequence *parentSequence = net_getSequence(parentNet, sequence_getName(sequence));
+		if(parentSequence != NULL) {
+			assert(event_getName(sequence_getEvent(sequence)) == event_getName(sequence_getEvent(parentSequence)));
+		}
+	}
+}
+
 /*
  * Serialisation functions.
  */

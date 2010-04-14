@@ -57,7 +57,7 @@ void testBlock_getNet(CuTest* testCase) {
 
 void testBlock_getLeftEnd(CuTest* testCase) {
 	cactusBlockTestSetup();
-	End *leftEnd = block_getLeftEnd(block);
+	End *leftEnd = block_get5End(block);
 	CuAssertTrue(testCase, leftEnd != NULL);
 	CuAssertTrue(testCase, end_getBlock(leftEnd) == block);
 	CuAssertTrue(testCase, block_getOrientation(block) == end_getOrientation(leftEnd));
@@ -66,7 +66,7 @@ void testBlock_getLeftEnd(CuTest* testCase) {
 
 void testBlock_getRightEnd(CuTest* testCase) {
 	cactusBlockTestSetup();
-	End *rightEnd = block_getRightEnd(block);
+	End *rightEnd = block_get3End(block);
 	CuAssertTrue(testCase, rightEnd != NULL);
 	CuAssertTrue(testCase, end_getBlock(rightEnd) == block);
 	CuAssertTrue(testCase, block_getOrientation(block) == end_getOrientation(rightEnd));
@@ -109,8 +109,8 @@ void testBlock_getSetRootInstance(CuTest *testCase) {
 	CuAssertTrue(testCase, block_getRootInstance(block) == NULL);
 	block_setRootInstance(block, segment_getReverse(rootSegment));
 	CuAssertTrue(testCase, block_getRootInstance(block) == segment_getReverse(rootSegment));
-	CuAssertTrue(testCase, end_getRootInstance(block_getLeftEnd(block)) == segment_get5Cap(segment_getReverse(rootSegment)));
-	CuAssertTrue(testCase, end_getRootInstance(block_getRightEnd(block)) == segment_get3Cap(segment_getReverse(rootSegment)));
+	CuAssertTrue(testCase, end_getRootInstance(block_get5End(block)) == segment_get5Cap(segment_getReverse(rootSegment)));
+	CuAssertTrue(testCase, end_getRootInstance(block_get3End(block)) == segment_get3Cap(segment_getReverse(rootSegment)));
 	cactusBlockTestTeardown();
 }
 
@@ -163,11 +163,11 @@ void testBlock_getChain(CuTest* testCase) {
 	Block *block2 = block_construct(2, net);
 	Net *net2 = net_construct(netDisk);
 	eventTree_copyConstruct(net_getEventTree(net), net2, NULL);
-	end_copyConstruct(block_getRightEnd(block), net2);
-	end_copyConstruct(block_getLeftEnd(block2), net2);
+	end_copyConstruct(block_get3End(block), net2);
+	end_copyConstruct(block_get5End(block2), net2);
 	Group *group = group_construct(net, net2);
 	Chain *chain = chain_construct(net);
-	link_construct(block_getRightEnd(block), block_getLeftEnd(block2), group, chain);
+	link_construct(block_get3End(block), block_get5End(block2), group, chain);
 
 	CuAssertTrue(testCase, block_getChain(block_construct(2, net)) == NULL);
 	CuAssertTrue(testCase, block_getChain(block) == chain);

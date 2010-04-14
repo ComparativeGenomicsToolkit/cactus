@@ -47,7 +47,7 @@ class TestCase(unittest.TestCase):
             jobTreeDir = os.path.join(getTempDirectory(self.tempDir), "jobTree")
             runCactusWorkflow(self.tempReconstructionDirectory, sequenceDirs, newickTreeString, jobTreeDir, logLevel='INFO',
                                batchSystem=self.batchSystem, buildTrees=True, buildFaces=False)
-            runCactusCheck(self.tempReconstructionDirectory, checkTrees=True, checkFaces=False)
+            runCactusCheck(self.tempReconstructionDirectory)
             #Run the checker to check the file is okay.
             runJobTreeStatusAndFailIfNotComplete(jobTreeDir)
             #Cleanup this test
@@ -75,7 +75,7 @@ class TestCase(unittest.TestCase):
                             blockGraphFile=os.path.join(outputDir, "blockGraph.dot"),
                             blockGraphPDFFile=os.path.join(outputDir, "blockGraph.pdf"),
                             cactusTreeStatsFile=os.path.join(outputDir, "cactusTreeStats.xml"),
-                            buildTrees=False, buildFaces=False, buildReference=True)
+                            buildTrees=True, buildFaces=True, buildReference=True)
         
     def testCactusWorkflow_Encode(self): 
         """Run the workflow on the encode pilot regions.
@@ -136,7 +136,7 @@ def runWorkflow(sequences, newickTreeFile, outputDir, tempDir,
     runJobTreeStatusAndFailIfNotComplete(jobTreeDir)
     logger.info("Checked the job tree dir")
     
-    runCactusCheck(netDisk, checkTrees=buildTrees, checkFaces=buildFaces, checkReference=buildReference)
+    runCactusCheck(netDisk)
     
     logger.info("Checked the cactus tree")
     

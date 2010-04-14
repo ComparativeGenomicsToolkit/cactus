@@ -203,15 +203,9 @@ def runCactusTreeViewer(graphFile,
 
 def runCactusCheck(netDisk, 
                     netName="0", 
-                    logLevel="DEBUG",
-                    checkTrees=False,
-                    checkFaces=False,
-                    checkReference=False):
-    checkTrees = nameValue("checkTrees", checkTrees, bool)
-    checkFaces = nameValue("checkFaces", checkFaces, bool)
-    checkReference = nameValue("checkReference", checkReference, bool)
-    system("cactus_check --netDisk %s --netName %s --logLevel %s %s %s" \
-                    % (netDisk, netName, logLevel, checkTrees, checkFaces, checkReference))
+                    logLevel="DEBUG"):
+    system("cactus_check --netDisk %s --netName %s --logLevel %s" \
+                    % (netDisk, netName, logLevel))
     logger.info("Ran cactus check")
     
 def runCactusBlockGraphViewer(graphFile,

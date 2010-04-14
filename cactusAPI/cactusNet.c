@@ -816,3 +816,51 @@ Net *net_loadFromBinaryRepresentation(void **binaryString, NetDisk *netDisk) {
 	}
 	return net;
 }
+
+void net_check(Net *net) {
+	eventTree_check(net_getEventTree(net));
+
+	Net_GroupIterator *groupIterator = net_getGroupIterator(net);
+	Group *group;
+	while((group = net_getNextGroup(groupIterator)) != NULL) {
+		group_check(group);
+	}
+	net_destructGroupIterator(groupIterator);
+
+	Net_ChainIterator *chainIterator = net_getChainIterator(net);
+	Chain *chain;
+	while((chain = net_getNextChain(chainIterator)) != NULL) {
+		chain_check(chain);
+	}
+	net_destructCapIterator(chainIterator);
+
+	Net_ReferenceIterator *referenceIterator = net_getReferenceIterator(net);
+	Reference *reference;
+	while((reference = net_getNextReference(referenceIterator)) != NULL) {
+		reference_check(reference);
+	}
+	net_destructReferenceIterator(referenceIterator);
+
+	Net_EndIterator *endIterator = net_getEndIterator(net);
+	End *end;
+	while((end = net_getNextEnd(endIterator)) != NULL) {
+		end_check(end);
+		end_check(end_getReverse(end)); //We will test everything backwards also.
+	}
+	net_destructEndIterator(endIterator);
+
+	Net_BlockIterator *blockIterator = net_getBlockIterator(net);
+	Block *block;
+	while((block = net_getNextBlock(blockIterator)) != NULL) {
+		block_check(block);
+		block_check(block_getReverse(block)); //We will test everything backwards also.
+	}
+	net_destructBlockIterator(blockIterator);
+
+	Net_SequenceIterator *sequenceIterator = net_getSequenceIterator(net);
+	Sequence *sequence;
+	while((sequence = net_getNextSequence(sequenceIterator)) != NULL) {
+		sequence_check(sequence);
+	}
+	net_destructSequenceIterator(sequenceIterator);
+}

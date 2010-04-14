@@ -66,4 +66,10 @@ const char *sequence_getHeader(Sequence *sequence);
  */
 Net *sequence_getNet(Sequence *sequence);
 
+/*
+ * Checks (amongst other things) the following:
+ * Checks the sequence if contained in the parent has the same event.
+ */
+void sequence_check(Sequence *sequence);
+
 #endif

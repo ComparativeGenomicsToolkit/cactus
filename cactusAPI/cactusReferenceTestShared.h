@@ -29,11 +29,11 @@ static void cactusReferenceTestSharedSetup() {
 
 	end1 = end_construct(0, net);
 	block1 = block_construct(1, net);
-	end2 = block_getLeftEnd(block1);
-	end3 = block_getRightEnd(block1);
+	end2 = block_get5End(block1);
+	end3 = block_get3End(block1);
 	block2 = block_construct(1, net);
-	end4 = block_getLeftEnd(block2);
-	end5 = block_getRightEnd(block2);
+	end4 = block_get5End(block2);
+	end5 = block_get3End(block2);
 	end6 = end_construct(0, net);
 	end7 = end_construct(0, net);
 	end8 = end_construct(0, net);

@@ -449,7 +449,7 @@ static void fillingIn_giveUp(Cap * cap,
 
 	// If forcing surrender through ancestral links
 	if ((partner = cap_getAdjacency(cap))) {
-		cap_breakAdjacency1(cap);
+		cap_breakAdjacency(cap);
 		blank_vote = adjacencyVote_construct(0);
 		adjacencyVoteTable_recordVote(table, partner, blank_vote);
 		fillingIn_giveUp(partner, table);
@@ -531,7 +531,7 @@ static void fillingIn_uniteCaps(Cap * cap,
 	if (cap_getEvent(cap) != cap_getEvent(partner))
 		partner = fillingIn_interpolateCaps(cap_getParent(partner), partner, cap_getEvent(cap));
 
-	cap_makeAdjacent1(cap, partner);
+	cap_makeAdjacent(cap, partner);
 
 	partnerVote = adjacencyVote_construct(1);
 	partnerVote->candidates[0] = cap;
@@ -678,14 +678,14 @@ static void fillingIn_pairUpToNullStub(Cap * cap, Cap * nonPartner, AdjacencyVot
 		cap_makeParentAndChild(nonPartnerParentStub, stub);
 	}
 
-	cap_makeAdjacent1(cap, stub);
+	cap_makeAdjacent(cap, stub);
 
 	// Create a partner for that stub:
 	if (nonPartnerParent) {
 		nonPartnerParentPartnerStub = adjacencyVote_getWitnessAncestor(cap, parentEvent); 
 		if (cap_getEvent(nonPartnerParentPartnerStub) != parentEvent)
 			nonPartnerParentPartnerStub = fillingIn_interpolateCaps(cap_getParent(nonPartnerParentPartnerStub), nonPartnerParentPartnerStub, parentEvent);
-		cap_makeAdjacent1(nonPartnerParentStub, nonPartnerParentPartnerStub);
+		cap_makeAdjacent(nonPartnerParentStub, nonPartnerParentPartnerStub);
 	}
 	
 	for (childIndex = 0; childIndex < childNumber; childIndex++) {
@@ -992,9 +992,9 @@ static void fillingIn_resolveSelfLoop(Cap * ancestor,
 	cap_makeParentAndChild(alterEgoChild, alterEgoAdjacency2);
 
 	// Join the two trees
-	cap_makeAdjacent1(interpolationJoin, alterEgoChild);
-	cap_makeAdjacent1(interpolation1, alterEgoAdjacency1);
-	cap_makeAdjacent1(interpolation2, alterEgoAdjacency2);
+	cap_makeAdjacent(interpolationJoin, alterEgoChild);
+	cap_makeAdjacent(interpolation1, alterEgoAdjacency1);
+	cap_makeAdjacent(interpolation2, alterEgoAdjacency2);
 }
 
 /*

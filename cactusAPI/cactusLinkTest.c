@@ -45,15 +45,15 @@ void testLink_getGroup(CuTest* testCase) {
 
 void testLink_getLeft(CuTest* testCase) {
 	cactusLinkTestSetup();
-	CuAssertTrue(testCase, link_getLeft(link1) == end1);
-	CuAssertTrue(testCase, link_getLeft(link2) == block_getRightEnd(block));
+	CuAssertTrue(testCase, link_get5End(link1) == end1);
+	CuAssertTrue(testCase, link_get5End(link2) == block_get3End(block));
 	cactusLinkTestTeardown();
 }
 
 void testLink_getRight(CuTest* testCase) {
 	cactusLinkTestSetup();
-	CuAssertTrue(testCase, link_getRight(link1) == block_getLeftEnd(block));
-	CuAssertTrue(testCase, link_getRight(link2) == end2);
+	CuAssertTrue(testCase, link_get3End(link1) == block_get5End(block));
+	CuAssertTrue(testCase, link_get3End(link2) == end2);
 	cactusLinkTestTeardown();
 }
 

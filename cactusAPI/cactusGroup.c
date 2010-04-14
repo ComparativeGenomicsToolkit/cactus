@@ -49,6 +49,7 @@ void group_makeNonTerminal(Group *group) {
 	End *end;
 	while((end = group_getNextEnd(endIterator)) != NULL) {
 		end_copyConstruct(end, nestedNet);
+		assert(end_getOrientation(end));
 	}
 	group_destructEndIterator(endIterator);
 	netMisc_addAdjacenciesToLeafCaps(nestedNet);
@@ -222,6 +223,56 @@ Group *group_mergeGroups(Group *group1, Group *group2) {
 	return group2;
 }
 
+
+void group_check(Group *group) {
+	Net *net = group_getNet(group);
+
+	//Check net and group properly connected.
+	assert(net_getGroup(net, group_getName(group)) == group);
+
+	Group_EndIterator *endIterator = group_getEndIterator(group);
+	End *end;
+	int32_t nonFree = 0;
+	while((end = group_getNextEnd(endIterator)) != NULL) {
+		//That the ends of the groups are doubly linked to the ends (so every end is in only one link).
+		assert(end_getGroup(end) == group);
+		if(end_isAttached(end) || end_isBlockEnd(end)) {
+			assert(end_isBlockEnd(end) || (end_isStubEnd(end) && end_isAttached(end)));
+			nonFree++;
+		}
+	}
+	group_destructEndIterator(endIterator);
+
+	Link *link = group_getLink(group);
+	if(nonFree == 2) {
+		assert(link != NULL); // has only two non-free ends, is a link therefore
+	}
+	else {
+		assert(link == NULL); // can not be a link!
+	}
+
+	if(group_isTerminal(group)) { //If terminal has no nested net
+		assert(group_getNestedNet(group) == NULL);
+	}
+	else { //else that any nested net contains the correct set of stub ends.
+		Net *nestedNet = group_getNestedNet(group);
+		assert(nestedNet != NULL);
+		endIterator = group_getEndIterator(group);
+		while((end = group_getNextEnd(endIterator)) != NULL) {
+			End *end2 = net_getEnd(nestedNet, end_getName(end));
+			assert(end2 != NULL);
+			assert(end_isStubEnd(end2));
+			if(end_isBlockEnd(end) || end_isAttached(end)) {
+				end_isAttached(end2);
+			}
+			else {
+				end_isFree(end2);
+			}
+		}
+		group_destructEndIterator(endIterator);
+	}
+}
+
 /*
  * Private functions.
  */
@@ -244,8 +295,8 @@ void group_setLink(Group *group, Link *link) {
 	//argument may be NULL
 	group->link = link;
 	if(link != NULL) {
-		assert(group_getEnd(group, end_getName(link_getLeft(link))) == link_getLeft(link));
-		assert(group_getEnd(group, end_getName(link_getRight(link))) == link_getRight(link));
+		assert(group_getEnd(group, end_getName(link_get5End(link))) == link_get5End(link));
+		assert(group_getEnd(group, end_getName(link_get3End(link))) == link_get3End(link));
 	}
 }
 
@@ -305,4 +356,5 @@ Group *group_getStaticNameWrapper(Name netName) {
 	group.name = netName;
 	return &group;
 }
+
 

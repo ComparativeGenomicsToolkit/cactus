@@ -114,4 +114,14 @@ Segment *segment_getChild(Segment *segment, int32_t index);
  */
 void segment_makeParentAndChild(Segment *segmentParent, Segment *segmentChild);
 
+/*
+ * Checks (amongst other things) the following:
+ * Checks the two ends have caps.
+ * Checks the coordinates of the caps are consistent with the segment.
+ * Checks the the segment has a parent, unless the root.
+ * Checks the reverse segment is mirror of the segment.
+ */
+void segment_check(Segment *segment);
+
+
 #endif

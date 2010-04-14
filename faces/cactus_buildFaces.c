@@ -443,7 +443,7 @@ static void buildFaces_connectInterpolatedNode(Cap ** interpolations,
 #endif
 
 	// Tie the knot
-	cap_makeAdjacent1(node, interpolations[adjacentIndex]);
+	cap_makeAdjacent(node, interpolations[adjacentIndex]);
 }
 
 /*
@@ -590,8 +590,8 @@ static void buildFaces_engineerCaps(Face * face, Net * net)
 				  cap_getEvent(face_getBottomNode(face, nonDerived, 0)));
 	cap_makeParentAndChild(X, Xprime);
 
-	cap_makeAdjacent1(X, nonAdjacent);
-	cap_makeAdjacent1(Xprime, face_getBottomNode(face, nonDerived, 0));
+	cap_makeAdjacent(X, nonAdjacent);
+	cap_makeAdjacent(Xprime, face_getBottomNode(face, nonDerived, 0));
 	if (cap_getParent(nonAdjacent)) {
 		parent = cap_construct(NULL, cap_getEvent(cap_getParent(nonAdjacent)));
 		cap_makeParentAndChild(parent, X);
@@ -656,9 +656,9 @@ static void buildFaces_close(Face * face)
 
 	// If the terminal nodes lack an adjacency edge
 	if (nonAdjacent2)
-		cap_makeAdjacent1(nonAdjacent1, nonAdjacent2);
+		cap_makeAdjacent(nonAdjacent1, nonAdjacent2);
 	else if (nonDerived2 > -1)
-		cap_makeAdjacent1(face_getBottomNode(face, nonDerived1, 0),
+		cap_makeAdjacent(face_getBottomNode(face, nonDerived1, 0),
 				  face_getBottomNode(face, nonDerived2, 0));
 }
 

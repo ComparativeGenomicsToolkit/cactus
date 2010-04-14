@@ -112,4 +112,16 @@ int64_t group_getTotalBaseLength(Group *group);
  */
 Group *group_mergeGroups(Group *group1, Group *group2);
 
+/*
+ * Checks (amongst other things) the following:
+ * That the ends of the groups are doubly linked to the ends (so every end is in only one link).
+ * That, if terminal has no nested net,
+ * else that any nested net contains the correct set of stub ends.
+ * That if the group has only two non-free stub-ends:
+ *  	it has a link group, with containing chain.
+ * else:
+ * 		it is not a link group, with no containing chain.
+ */
+void group_check(Group *group);
+
 #endif

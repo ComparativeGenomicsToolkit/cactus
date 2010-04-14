@@ -91,4 +91,12 @@ int32_t event_isDescendant(Event *event, Event *otherEvent);
  */
 int32_t event_isSibling(Event *event, Event *otherEvent);
 
+/*
+ * Checks the following:
+ * Event has parent, unless it is root.
+ * Each child event has event as parent.
+ * Ancestor-event --> event edge is consistent with any event tree that is in the parent of the containing net.
+ */
+void event_check(Event *event);
+
 #endif

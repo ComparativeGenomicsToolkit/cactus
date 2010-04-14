@@ -222,6 +222,18 @@ void eventTree_addSiblingUnaryEvent(EventTree *eventTree, Event *event) {
 	}
 }
 
+void eventTree_check(EventTree *eventTree) {
+	//Check net and event tree properly connected.
+	assert(net_getEventTree(eventTree_getNet(eventTree)) == eventTree);
+
+	Event *event;
+	EventTree_Iterator *eventIterator = eventTree_getIterator(eventTree);
+	while((event = eventTree_getNext(eventIterator)) != NULL) {
+		event_check(event);
+	}
+	eventTree_destructIterator(eventIterator);
+}
+
 /*
  * Private functions.
  */

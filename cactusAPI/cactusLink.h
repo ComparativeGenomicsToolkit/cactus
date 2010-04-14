@@ -34,12 +34,12 @@ Group *link_getGroup(Link *link);
 /*
  * Gets the left end of the link in the link.
  */
-End *link_getLeft(Link *link);
+End *link_get5End(Link *link);
 
 /*
  * Gets the right end of the link in the link.
  */
-End *link_getRight(Link *link);
+End *link_get3End(Link *link);
 
 /*
  * Gets the chain the link is part of.

@@ -47,8 +47,8 @@ void addEdgeToGraph(End *end1, End *end2, const char *colour, const char *label,
 
 void addBlockToGraph(Block *block, const char *colour, FILE *fileHandle) {
 	static char label[100000];
-	End *leftEnd = block_getLeftEnd(block);
-	End *rightEnd = block_getRightEnd(block);
+	End *leftEnd = block_get5End(block);
+	End *rightEnd = block_get3End(block);
 	addEndNodeToGraph(leftEnd, fileHandle);
 	addEndNodeToGraph(rightEnd, fileHandle);
 	Block_InstanceIterator *iterator = block_getInstanceIterator(block);

@@ -64,6 +64,23 @@ void testEnd_getReverse(CuTest* testCase) {
 	cactusEndTestTeardown();
 }
 
+void testEnd_getSide(CuTest *testCase) {
+	cactusEndTestSetup();
+	Block *block = block_construct(10, net);
+	End *_5End = block_get5End(block);
+	End *_3End = block_get3End(block);
+
+	CuAssertTrue(testCase, end_getSide(end));
+	CuAssertTrue(testCase, !end_getSide(end_getReverse(end)));
+
+	CuAssertTrue(testCase, end_getSide(_5End));
+	CuAssertTrue(testCase, !end_getSide(_3End));
+	CuAssertTrue(testCase, end_getSide(end_getReverse(_3End)));
+	CuAssertTrue(testCase, !end_getSide(end_getReverse(_5End)));
+
+	cactusEndTestTeardown();
+}
+
 void testEnd_getNet(CuTest* testCase) {
 	cactusEndTestSetup();
 	CuAssertTrue(testCase, end_getNet(end) == net);
@@ -73,8 +90,8 @@ void testEnd_getNet(CuTest* testCase) {
 void testEnd_getBlock(CuTest* testCase) {
 	cactusEndTestSetup();
 	Block *block = block_construct(10, net);
-	End *leftEnd = block_getLeftEnd(block);
-	End *rightEnd = block_getRightEnd(block);
+	End *leftEnd = block_get5End(block);
+	End *rightEnd = block_get3End(block);
 
 	CuAssertTrue(testCase, end_getBlock(end) == NULL);
 	CuAssertTrue(testCase, end_getBlock(end_getReverse(end)) == NULL);
@@ -93,8 +110,8 @@ void testEnd_getBlock(CuTest* testCase) {
 void testEnd_getOtherBlockEnd(CuTest *testCase) {
 	cactusEndTestSetup();
 	Block *block = block_construct(10, net);
-	End *leftEnd = block_getLeftEnd(block);
-	End *rightEnd = block_getRightEnd(block);
+	End *leftEnd = block_get5End(block);
+	End *rightEnd = block_get3End(block);
 
 	CuAssertTrue(testCase, end_getOtherBlockEnd(end) == NULL);
 	CuAssertTrue(testCase, end_getOtherBlockEnd(end_getReverse(end)) == NULL);
@@ -235,8 +252,8 @@ void testEnd_isBlockOrStubEnd(CuTest* testCase) {
 	CuAssertTrue(testCase, end_isStubEnd(end));
 	CuAssertTrue(testCase, !end_isBlockEnd(end));
 	Block *block = block_construct(2, net);
-	End *leftEnd = block_getLeftEnd(block);
-	End *rightEnd = block_getRightEnd(block);
+	End *leftEnd = block_get5End(block);
+	End *rightEnd = block_get3End(block);
 	CuAssertTrue(testCase, end_isBlockEnd(leftEnd));
 	CuAssertTrue(testCase, end_isBlockEnd(rightEnd));
 	CuAssertTrue(testCase, !end_isStubEnd(leftEnd));
@@ -249,8 +266,8 @@ void testEnd_isAttachedOrFree(CuTest* testCase) {
 	End *end2 = end_construct(1, net);
 	End *end3 = end_construct(0, net);
 	Block *block = block_construct(2, net);
-	End *end4 = block_getLeftEnd(block);
-	End *end5 = block_getRightEnd(block);
+	End *end4 = block_get5End(block);
+	End *end5 = block_get3End(block);
 	CuAssertTrue(testCase, end_isAttached(end2));
 	CuAssertTrue(testCase, !end_isAttached(end3));
 	CuAssertTrue(testCase, !end_isFree(end2));
@@ -287,6 +304,7 @@ void testEnd_serialisation(CuTest* testCase) {
 	testEnd_getName(testCase);
 	testEnd_getOrientation(testCase);
 	testEnd_getReverse(testCase);
+	testEnd_getSide(testCase);
 	testEnd_getNet(testCase);
 	testEnd_getBlock(testCase);
 	testEnd_getOtherBlockEnd(testCase);
@@ -309,6 +327,7 @@ CuSuite* cactusEndTestSuite(void) {
 	SUITE_ADD_TEST(suite, testEnd_getName);
 	SUITE_ADD_TEST(suite, testEnd_getOrientation);
 	SUITE_ADD_TEST(suite, testEnd_getReverse);
+	SUITE_ADD_TEST(suite, testEnd_getSide);
 	SUITE_ADD_TEST(suite, testEnd_getNet);
 	SUITE_ADD_TEST(suite, testEnd_getBlock);
 	SUITE_ADD_TEST(suite, testEnd_getOtherBlockEnd);

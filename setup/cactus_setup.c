@@ -54,7 +54,7 @@ void fn(const char *fastaHeader, const char *string, int32_t length) {
 	end2 = end_construct(isComplete, net);
 	cap1 = cap_construct2(end1, 1, 1, 0, sequence);
 	cap2 = cap_construct2(end2, length+2, 1, 1, sequence);
-	cap_makeAdjacent1(cap1, cap2);
+	cap_makeAdjacent(cap1, cap2);
 	totalSequenceNumber++;
 }
 

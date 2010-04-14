@@ -126,6 +126,18 @@ Segment *cap_getSegment(Cap *cap) {
 	(cap->capContents->segment != NULL ? segment_getReverse(cap->capContents->segment) : NULL);
 }
 
+Cap *cap_getOtherSegmentCap(Cap *cap) {
+	if(!end_isBlockEnd(cap_getEnd(cap))) {
+		assert(cap_getSegment(cap) == NULL);
+		return NULL;
+	}
+	Segment *segment = cap_getSegment(cap);
+	assert(segment != NULL);
+	Cap *otherCap = cap_getSide(cap) ? segment_get3Cap(segment) : segment_get5Cap(segment);
+	assert(cap != otherCap);
+	return otherCap;
+}
+
 int32_t cap_getCoordinate(Cap *cap) {
 	return cap->capContents->coordinate;
 }
@@ -160,7 +172,7 @@ static void cap_checkProposedAdjacency(Cap *cap, Cap *cap2) {
 }
 #endif
 
-void cap_makeAdjacent1(Cap *cap, Cap *cap2) {
+void cap_makeAdjacent(Cap *cap, Cap *cap2) {
 	//We put them both on the same strand, as the strand is not important in the pairing
 	//logDebug(">>>> Making adjacency %p -- %p\n", cap, cap2);
 	cap = cap_getStrand(cap) ? cap : cap_getReverse(cap);
@@ -173,23 +185,11 @@ void cap_makeAdjacent1(Cap *cap, Cap *cap2) {
 		assert(event_isDescendant(cap_getEvent(cap_getParent(cap2)), cap_getEvent(cap)));
 	}
 #endif
-	cap_breakAdjacency1(cap);
-	cap_breakAdjacency1(cap2);
+	cap_breakAdjacency(cap);
+	cap_breakAdjacency(cap2);
 	//we ensure we have them right with respect there orientation.
 	cap->capContents->adjacency = cap_getOrientation(cap) ? cap2 : cap_getReverse(cap2);
 	cap2->capContents->adjacency = cap_getOrientation(cap2) ? cap : cap_getReverse(cap);
-}
-
-void cap_makeAdjacent2(Cap *cap, Cap *cap2) {
-	cap = cap_getStrand(cap) ? cap : cap_getReverse(cap);
-	cap2 = cap_getStrand(cap2) ? cap2 : cap_getReverse(cap2);
-#ifdef BEN_DEBUG
-	cap_checkProposedAdjacency(cap, cap2);
-#endif
-	cap_breakAdjacency2(cap);
-	cap_breakAdjacency2(cap2);
-	cap->capContents->adjacency2 = cap_getOrientation(cap) ? cap2 : cap_getReverse(cap2);
-	cap2->capContents->adjacency2 = cap_getOrientation(cap2) ? cap : cap_getReverse(cap);
 }
 
 Cap *cap_getP(Cap *cap, Cap *connectedCap) {
@@ -199,10 +199,6 @@ Cap *cap_getP(Cap *cap, Cap *connectedCap) {
 
 Cap *cap_getAdjacency(Cap *cap) {
 	return cap_getP(cap, cap->capContents->adjacency);
-}
-
-Cap *cap_getAdjacency2(Cap *cap) {
-	return cap_getP(cap, cap->capContents->adjacency2);
 }
 
 Face *cap_getFace(Cap *cap) {
@@ -231,7 +227,7 @@ void cap_makeParentAndChild(Cap *capParent, Cap *capChild) {
 	capParent = cap_getPositiveOrientation(capParent);
 	capChild = cap_getPositiveOrientation(capChild);
 	assert(capChild->capContents->parent == NULL);
-		
+
 
 	if(!listContains(capParent->capContents->children, capChild)) { //defensive, means second calls will have no effect.
 		//logDebug("YYYYYYYYYYY New parent %p->%p\n", capParent, capChild);
@@ -255,7 +251,7 @@ void cap_changeParentAndChild(Cap* newCapParent, Cap* capChild) {
 	if(!listContains(newCapParent->capContents->children, capChild)) { //defensive, means second calls will have no effect.
 		listAppend(newCapParent->capContents->children, capChild);
 	}
-	listRemove(oldCapParent->capContents->children, capChild);	
+	listRemove(oldCapParent->capContents->children, capChild);
 	capChild->capContents->parent = newCapParent;
 }
 
@@ -265,6 +261,129 @@ int32_t cap_isInternal(Cap *cap) {
 
 int32_t cap_isAugmented(Cap *cap) {
 	return end_getBlock(cap_getEnd(cap)) != NULL && cap_getSegment(cap) == NULL;
+}
+
+void cap_check(Cap *cap) {
+	End *end = cap_getEnd(cap);
+	assert(end_getInstance(end, cap_getName(cap)) == cap);
+	assert(cap_getOrientation(cap) == end_getOrientation(end));
+
+	//If end has tree:
+	if(end_getRootInstance(end) != NULL) {
+		// checks the cap has a parent which has an ancestral event to the caps event, unless it is the root.
+		if(end_getRootInstance(end) == cap) {
+			assert(cap_getParent(cap) == NULL);
+		}
+		else {
+			Cap *ancestorCap = cap_getParent(cap);
+			assert(ancestorCap != NULL);
+			event_isAncestor(cap_getEvent(cap), cap_getEvent(ancestorCap));
+			assert(cap_getOrientation(cap) == cap_getOrientation(ancestorCap));
+		}
+		//Check caps ancestor/descendant links are proper.
+		int32_t i;
+		for(i=0; i<cap_getChildNumber(cap); i++) {
+			Cap *childCap = cap_getChild(cap, i);
+			assert(childCap != NULL);
+			assert(cap_getParent(childCap) == cap);
+		}
+	}
+	else {
+		assert(cap_getParent(cap) == NULL); //No root, so no tree.
+	}
+
+	//If stub end checks, there is no attached segment.
+	if(end_isStubEnd(end)) {
+		assert(cap_getSegment(cap) == NULL);
+	}
+	else {
+		Segment *segment = cap_getSegment(cap);
+		if(cap_isAugmented(cap)) {
+			assert(segment == NULL);
+		}
+		else {
+			assert(segment != NULL);
+			assert(cap_getOrientation(cap) == segment_getOrientation(segment));
+		}
+	}
+
+	//Checks adjacencies are properly linked and have consistent coordinates and the same group
+	Cap *cap2 = cap_getAdjacency(cap);
+	if(cap2 != NULL) {
+		assert(end_getGroup(cap_getEnd(cap2)) == end_getGroup(end)); //check they have the same group.
+		assert(cap_getAdjacency(cap2) == cap); //reciprocal connection
+		assert(cap_getEvent(cap) == cap_getEvent(cap2)); //common event
+		assert(cap_getSequence(cap) == cap_getSequence(cap2)); //common sequence (which may be null)
+		assert(cap_getStrand(cap) == cap_getStrand(cap2)); //common strand
+
+		if(cap_getCoordinate(cap) != INT32_MAX) { //if they have a coordinate
+			assert(cap_getSide(cap) != cap_getSide(cap2)); //they have to represent an interval
+			if(cap_getStrand(cap)) {
+				if(!cap_getSide(cap)) {
+					assert(cap_getCoordinate(cap) < cap_getCoordinate(cap2));
+				}
+				else {
+					assert(cap_getCoordinate(cap) > cap_getCoordinate(cap2));
+				}
+			}
+			else {
+				if(cap_getSide(cap)) {
+					assert(cap_getCoordinate(cap) < cap_getCoordinate(cap2));
+				}
+				else {
+					assert(cap_getCoordinate(cap) > cap_getCoordinate(cap2));
+				}
+			}
+		}
+	}
+
+	//Checks the reverse
+	Cap *rCap = cap_getReverse(cap);
+	assert(rCap != NULL);
+	assert(cap_getReverse(rCap) == cap);
+	assert(cap_getOrientation(cap) == !cap_getOrientation(rCap));
+	assert(cap_getEnd(cap) == end_getReverse(cap_getEnd(rCap)));
+	assert(cap_getName(cap) == cap_getName(rCap));
+	assert(cap_getEvent(cap) == cap_getEvent(rCap));
+	assert(cap_getEnd(cap) == end_getReverse(cap_getEnd(rCap)));
+	assert(cap_isAugmented(cap) == cap_isAugmented(rCap));
+	if(cap_getSegment(cap) == NULL) {
+		assert(cap_getSegment(rCap) == NULL);
+	}
+	else {
+		assert(cap_getSegment(cap) == segment_getReverse(cap_getSegment(rCap)));
+	}
+	assert(cap_getSide(cap) == !cap_getSide(rCap));
+	assert(cap_getCoordinate(cap) == cap_getCoordinate(rCap));
+	assert(cap_getSequence(cap) == cap_getSequence(rCap));
+	assert(cap_getStrand(cap) == !cap_getStrand(rCap));
+	if(cap_getAdjacency(cap) == NULL) {
+		assert(cap_getAdjacency(rCap) == NULL);
+	}
+	else {
+		assert(cap_getReverse(cap_getAdjacency(rCap)) == cap_getAdjacency(cap));
+	}
+	assert(cap_getFace(cap) == cap_getFace(rCap));
+	if(cap_getParent(cap) == NULL) {
+		assert(cap_getParent(rCap) == NULL);
+	}
+	else {
+		assert(cap_getParent(cap) == cap_getReverse(cap_getParent(rCap)));
+	}
+	assert(cap_isInternal(cap) == cap_isInternal(rCap));
+	assert(cap_getChildNumber(cap) == cap_getChildNumber(rCap));
+	int32_t i;
+	for(i=0; i<cap_getChildNumber(cap); i++) {
+		assert(cap_getChild(cap, i) == cap_getReverse(cap_getChild(rCap, i)));
+	}
+
+	//it is consistent with any copy of end in the nested net, in terms of events, connections and coordinates.
+	Net *nestedNet = group_getNestedNet(end_getGroup(end));
+	if(nestedNet != NULL) {
+		End *childEnd = net_getEnd(nestedNet, end_getName(end));
+		assert(childEnd != NULL); //End must be present in child
+		//Cap *childCap = end_getInstance(childEnd, cap_getName(cap));
+	}
 }
 
 /*
@@ -279,21 +398,12 @@ void cap_setFace(Cap *cap, Face *face) {
 	cap->capContents->face = face;
 }
 
-void cap_breakAdjacency1(Cap *cap) {
+void cap_breakAdjacency(Cap *cap) {
 	Cap *cap2;
 	cap2 = cap_getAdjacency(cap);
 	if(cap2 != NULL) {
 		cap2->capContents->adjacency = NULL;
 		cap->capContents->adjacency = NULL;
-	}
-}
-
-void cap_breakAdjacency2(Cap *cap) {
-	Cap *cap2;
-	cap2 = cap_getAdjacency2(cap);
-	if(cap2 != NULL) {
-		cap2->capContents->adjacency2 = NULL;
-		cap->capContents->adjacency2 = NULL;
 	}
 }
 
@@ -323,9 +433,6 @@ void cap_writeBinaryRepresentation(Cap *cap, void (*writeFn)(const void * ptr, s
 		binaryRepresentation_writeName(sequence_getName(cap_getSequence(cap)), writeFn);
 	}
 	if((cap2 = cap_getAdjacency(cap)) != NULL) {
-		cap_writeBinaryRepresentationP(cap2, CODE_ADJACENCY, writeFn);
-	}
-	if((cap2 = cap_getAdjacency2(cap)) != NULL) {
 		cap_writeBinaryRepresentationP(cap2, CODE_ADJACENCY, writeFn);
 	}
 	if((cap2 = cap_getParent(cap)) != NULL) {
@@ -370,10 +477,7 @@ Cap *cap_loadFromBinaryRepresentation(void **binaryString, End *end) {
 		cap = cap_construct4(name, end, coordinate, strand, side, sequence);
 	}
 	if(binaryRepresentation_peekNextElementType(*binaryString) == CODE_ADJACENCY) {
-		cap_loadFromBinaryRepresentationP(cap, binaryString, cap_makeAdjacent1);
-	}
-	if(binaryRepresentation_peekNextElementType(*binaryString) == CODE_ADJACENCY) {
-		cap_loadFromBinaryRepresentationP(cap, binaryString, cap_makeAdjacent2);
+		cap_loadFromBinaryRepresentationP(cap, binaryString, cap_makeAdjacent);
 	}
 	if(binaryRepresentation_peekNextElementType(*binaryString) == CODE_PARENT) {
 		assert(cap_loadFromBinaryRepresentationP(cap, binaryString, cap_makeParentAndChild) == 0);

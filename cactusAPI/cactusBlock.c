@@ -15,8 +15,8 @@ int32_t blockConstruct_constructP(const void *o1, const void *o2, void *a) {
 
 Block *block_construct(int32_t length, Net *net) {
 	return block_construct2(netDisk_getUniqueID(net_getNetDisk(net)), length,
-			end_construct2(netDisk_getUniqueID(net_getNetDisk(net)), 0, 0, net),
-			end_construct2(netDisk_getUniqueID(net_getNetDisk(net)), 0, 0, net), net);
+			end_construct2(netDisk_getUniqueID(net_getNetDisk(net)), 0, 0, 1, net),
+			end_construct2(netDisk_getUniqueID(net_getNetDisk(net)), 0, 0, 0, net), net);
 }
 
 Block *block_construct2(Name name, int32_t length,
@@ -88,11 +88,11 @@ Net *block_getNet(Block *block) {
 	return block->blockContents->net;
 }
 
-End *block_getLeftEnd(Block *block) {
+End *block_get5End(Block *block) {
 	return block->leftEnd;
 }
 
-End *block_getRightEnd(Block *block) {
+End *block_get3End(Block *block) {
 	return end_getReverse(block->rBlock->leftEnd);
 }
 
@@ -114,7 +114,7 @@ Segment *block_getFirst(Block *block) {
 }
 
 Segment *block_getRootInstance(Block *block) {
-	Cap *cap = end_getRootInstance(block_getLeftEnd(block));
+	Cap *cap = end_getRootInstance(block_get5End(block));
 	return cap != NULL ? cap_getSegment(cap) : NULL;
 }
 
@@ -122,8 +122,8 @@ void block_setRootInstance(Block *block, Segment *segment) {
 	block = block_getPositiveOrientation(block);
 	segment = segment_getPositiveOrientation(segment);
 	assert(block_getInstance(block, segment_getName(segment)) == segment);
-	end_setRootInstance(block_getLeftEnd(block), segment_get5Cap(segment));
-	end_setRootInstance(block_getRightEnd(block), segment_get3Cap(segment));
+	end_setRootInstance(block_get5End(block), segment_get5Cap(segment));
+	end_setRootInstance(block_get3End(block), segment_get3Cap(segment));
 }
 
 Block_InstanceIterator *block_getInstanceIterator(Block *block) {
@@ -158,9 +158,9 @@ void block_destructInstanceIterator(Block_InstanceIterator *iterator) {
 Chain *block_getChain(Block *block) {
 	Link *link;
 	Chain *chain1, *chain2;
-	Group *group = end_getGroup(block_getLeftEnd(block));
+	Group *group = end_getGroup(block_get5End(block));
 	chain1 = (group != NULL && (link = group_getLink(group)) != NULL) ? link_getChain(link) : NULL;
-	group = end_getGroup(block_getRightEnd(block));
+	group = end_getGroup(block_get3End(block));
 	chain2 = (group != NULL && (link = group_getLink(group)) != NULL) ? link_getChain(link) : NULL;
 	if(chain1 != NULL && chain2 != NULL) {
 		assert(chain1 == chain2); //block should not be in more than one chain!
@@ -177,28 +177,22 @@ Segment *block_splitP(Segment *segment,
 				? segment_construct2(rightBlock, segment_getStart(segment) + block_getLength(leftBlock), segment_getStrand(segment), segment_getSequence(segment))
 						: segment_construct(rightBlock, segment_getEvent(segment));
 	//link together.
-	cap_makeAdjacent1(segment_get3Cap(leftSegment), segment_get5Cap(rightSegment));
+	cap_makeAdjacent(segment_get3Cap(leftSegment), segment_get5Cap(rightSegment));
 	//update adjacencies.
 	Cap *_5Cap = segment_get5Cap(segment);
 	Cap *new5Cap = segment_get5Cap(leftSegment);
 	Cap *_3Cap = segment_get3Cap(segment);
 	Cap *new3Cap = segment_get3Cap(rightSegment);
 	if(cap_getAdjacency(_5Cap) != NULL) {
-		cap_makeAdjacent1(cap_getAdjacency(_5Cap), new5Cap);
-	}
-	if(cap_getAdjacency2(_5Cap) != NULL) {
-		cap_makeAdjacent2(cap_getAdjacency2(_5Cap), new5Cap);
+		cap_makeAdjacent(cap_getAdjacency(_5Cap), new5Cap);
 	}
 	if(cap_getAdjacency(_3Cap) != NULL) {
-		cap_makeAdjacent1(cap_getAdjacency(_3Cap), new3Cap);
-	}
-	if(cap_getAdjacency2(_3Cap) != NULL) {
-		cap_makeAdjacent2(cap_getAdjacency2(_3Cap), new3Cap);
+		cap_makeAdjacent(cap_getAdjacency(_3Cap), new3Cap);
 	}
 	return leftSegment;
 }
 
-void block_splitP2(Segment *segment,
+static void block_splitP2(Segment *segment,
 		Segment *parentLeftSegment,
 		Segment *parentRightSegment,
 		Block *leftBlock, Block *rightBlock) {
@@ -240,6 +234,52 @@ void block_split(Block *block, int32_t splitPoint, Block **leftBlock, Block **ri
 	block_destruct(block);
 }
 
+void block_check(Block *block) {
+	//Check is connected to net properly
+	assert(net_getBlock(block_getNet(block), block_getName(block)) == block_getPositiveOrientation(block));
+
+	//Checks the two ends are block ends.
+	End *_5End = block_get5End(block);
+	End *_3End = block_get3End(block);
+	assert(end_isBlockEnd(_5End));
+	assert(end_isBlockEnd(_3End));
+	assert(end_getOrientation(_5End) == block_getOrientation(block));
+	assert(end_getOrientation(_3End) == block_getOrientation(block));
+	assert(end_getBlock(_5End) == block);
+	assert(end_getBlock(_3End) == block);
+	assert(end_getSide(_5End)); //Check the sides of the ends are consistent.
+	assert(!end_getSide(_3End));
+
+	assert(block_getLength(block) > 0); //check block has non-zero length
+
+	//Check reverse
+	Block *rBlock = block_getReverse(block);
+	assert(rBlock != NULL);
+	assert(block_getReverse(block) == rBlock);
+	assert(block_getOrientation(block) == !block_getOrientation(rBlock));
+	assert(block_getLength(block) == block_getLength(rBlock));
+	assert(block_get5End(block) == end_getReverse(block_get3End(rBlock)));
+	assert(block_get3End(block) == end_getReverse(block_get5End(rBlock)));
+	assert(block_getInstanceNumber(block) == block_getInstanceNumber(rBlock));
+	if(block_getInstanceNumber(block) > 0) {
+		assert(block_getFirst(block) == segment_getReverse(block_getFirst(rBlock)));
+		if(block_getRootInstance(block) == NULL) {
+			assert(block_getRootInstance(rBlock) == NULL);
+		}
+		else {
+			assert(block_getRootInstance(block) == segment_getReverse(block_getRootInstance(rBlock)));
+		}
+	}
+
+	//For each segment calls segment_check.
+	Block_InstanceIterator *iterator = block_getInstanceIterator(block);
+	Segment *segment;
+	while((segment = block_getNext(iterator)) != NULL) {
+		segment_check(segment);
+	}
+	block_destructInstanceIterator(iterator);
+}
+
 /*
  * Private functions.
  */
@@ -270,8 +310,8 @@ void block_writeBinaryRepresentation(Block *block, void (*writeFn)(const void * 
 	binaryRepresentation_writeElementType(CODE_ATOM, writeFn);
 	binaryRepresentation_writeName(block_getName(block), writeFn);
 	binaryRepresentation_writeInteger(block_getLength(block), writeFn);
-	binaryRepresentation_writeName(end_getName(block_getLeftEnd(block)), writeFn);
-	binaryRepresentation_writeName(end_getName(block_getRightEnd(block)), writeFn);
+	binaryRepresentation_writeName(end_getName(block_get5End(block)), writeFn);
+	binaryRepresentation_writeName(end_getName(block_get3End(block)), writeFn);
 	iterator = block_getInstanceIterator(block);
 	while((segment = block_getNext(iterator)) != NULL) {
 		segment_writeBinaryRepresentation(segment, writeFn);

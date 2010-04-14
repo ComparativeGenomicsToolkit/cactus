@@ -22,6 +22,7 @@ struct _end_instanceIterator {
 struct _end {
 	EndContents *endContents;
 	bool orientation;
+	bool side;
 	End *rEnd;
 };
 
@@ -37,7 +38,7 @@ struct _end {
 /*
  * Constructs the end, but not any attached block.
  */
-End *end_construct2(Name name, int32_t isStub, int32_t isAttached, Net *net);
+End *end_construct2(Name name, int32_t isStub, int32_t isAttached, int32_t side, Net *net);
 
 /*
  * Destructs the end and any contained caps.

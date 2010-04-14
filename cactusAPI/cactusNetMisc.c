@@ -148,7 +148,7 @@ void netMisc_addAdjacenciesToLeafCaps(Net *net) {
 	for(i=1; i<list->length; i+=2) {
 		cap = list->list[i-1];
 		cap2 = list->list[i];
-		cap_makeAdjacent1(cap, cap2);
+		cap_makeAdjacent(cap, cap2);
 	}
 
 	/*

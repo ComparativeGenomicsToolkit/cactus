@@ -60,7 +60,7 @@ Block **chain_getBlockChain(Chain *chain, int32_t *blockNumber) {
 	struct List *blocks = constructEmptyList(0, NULL);
 	for(i=0; i<chain_getLength(chain); i++) {
 		link = chain_getLink(chain, i);
-		end = link_getLeft(link);
+		end = link_get5End(link);
 		block = end_getBlock(end);
 		if(block != NULL) {
 			listAppend(blocks, block);
@@ -68,7 +68,7 @@ Block **chain_getBlockChain(Chain *chain, int32_t *blockNumber) {
 	}
 	if(chain_getLength(chain) > 0) {
 		link = chain_getLink(chain, chain_getLength(chain)-1);
-		end = link_getRight(link);
+		end = link_get3End(link);
 		block = end_getBlock(end);
 		if(block != NULL) {
 			listAppend(blocks, block);
@@ -108,6 +108,51 @@ double chain_getAverageInstanceBaseLength(Chain *chain) {
 	return k;
 }
 
+void chain_check(Chain *chain) {
+	Link *link, *pLink = NULL;
+	int32_t i;
+	assert(chain_getLength(chain) > 0);
+	for(i=0; i<chain_getLength(chain); i++) {
+		link = chain_getLink(chain, i);
+		//That each link is properly contained in the chain.
+		assert(chain == link_getChain(link));
+		End *_5End = link_get5End(link);
+		End *_3End = link_get3End(link);
+		//Links and the contained ends are properly connected.
+		assert(group_getLink(end_getGroup(_5End)) == link);
+		assert(group_getLink(end_getGroup(_3End)) == link);
+		//Check the orientations
+		assert(end_getOrientation(_5End));
+		assert(end_getOrientation(_3End));
+
+		//Check stub ends are not free stubs.
+		if(end_isStubEnd(_5End)) {
+			assert(end_isAttached(_5End));
+		}
+		if(end_isStubEnd(_3End)) {
+			assert(end_isAttached(_3End));
+		}
+
+		//That each contiguous pair of link groups are bridged by a block.
+		if(pLink != NULL) {
+			assert(end_isBlockEnd(link_get3End(pLink)));
+			assert(end_isBlockEnd(_5End));
+			assert(end_getOtherBlockEnd(link_get3End(pLink)) == _5End);
+		}
+		else {
+			if(end_isBlockEnd(_5End)) {
+				//If a block end is at the 5 prime end of a chain the other end of the
+				//block is not in a link group (otherwise the chain is not maximal).
+				assert(group_getLink(end_getGroup(end_getOtherBlockEnd(_5End))) == NULL);
+			}
+		}
+		pLink = link;
+	}
+	//If a block end is at the 3 prime end of a chain the other end of the
+	//block is not in a link group (otherwise the chain is not maximal).
+	assert(group_getLink(end_getGroup(end_getOtherBlockEnd(link_get3End(link)))) == NULL);
+}
+
 /*
  * Private functions
  */
@@ -118,10 +163,10 @@ void chain_addLink(Chain *chain, Link *childLink) {
 		pLink = chain_getLink(chain, chain->linkNumber -1);
 		pLink->nLink = childLink;
 		childLink->pLink = pLink;
-		assert(link_getRight(pLink) != link_getLeft(childLink));
-		assert(end_getBlock(link_getRight(pLink)) != NULL);
-		assert(end_getBlock(link_getLeft(childLink)) != NULL);
-		assert(end_getBlock(link_getRight(pLink)) == end_getBlock(link_getLeft(childLink)));
+		assert(link_get3End(pLink) != link_get5End(childLink));
+		assert(end_getBlock(link_get3End(pLink)) != NULL);
+		assert(end_getBlock(link_get5End(childLink)) != NULL);
+		assert(end_getBlock(link_get3End(pLink)) == end_getBlock(link_get5End(childLink)));
 	}
 	else {
 		childLink->pLink = NULL;

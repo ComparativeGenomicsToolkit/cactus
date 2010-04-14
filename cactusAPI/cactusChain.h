@@ -47,4 +47,15 @@ Net *chain_getNet(Chain *chain);
  */
 double chain_getAverageInstanceBaseLength(Chain *chain);
 
+/*
+ * Checks (amongst other things) the following:
+ * That each link is properly contained in the chain.
+ * Links and the contained ends are properly connected.
+ * That each contiguous pair of link groups are bridged by a block.
+ * If a block end is at the 5 or 3 prime end of a chain the other end of the
+ * block is not in a link group (otherwise the chain is not maximal).
+ * That stub ends are not the ends of the links in the chain.
+ */
+void chain_check(Chain *chain);
+
 #endif

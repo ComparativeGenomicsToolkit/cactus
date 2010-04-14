@@ -360,7 +360,7 @@ void testNet_mergeNets(CuTest *testCase) {
 	Block *block1 = block_construct(0, net1);
 	Block *block2 = block_construct(0, net2);
 	Block *block3 = block_construct(0, net2);
-	end_setGroup(block_getLeftEnd(block3), group7);
+	end_setGroup(block_get5End(block3), group7);
 
 	//Make a segment
 	Segment *segment1 = segment_construct(block1, eventTree_getEvent(eventTree1, metaEvent_getName(leafMetaEvent1)));
@@ -371,7 +371,7 @@ void testNet_mergeNets(CuTest *testCase) {
 
 	//Make a couple of links in the chain
 	Link *link1 = link_construct(end1, end2, group6, chain1);
-	Link *link2 = link_construct(end3, block_getLeftEnd(block3), group7, chain2);
+	Link *link2 = link_construct(end3, block_get5End(block3), group7, chain2);
 
 	Name netName1 = net_getName(net1);
 	Net *net6 = net_mergeNets(net1, net2);
@@ -413,12 +413,12 @@ void testNet_mergeNets(CuTest *testCase) {
 	CuAssertTrue(testCase, net_getEnd(net6, end_getName(end1)) == end1);
 	CuAssertTrue(testCase, net_getEnd(net6, end_getName(end2)) == end2);
 	CuAssertTrue(testCase, net_getEnd(net6, end_getName(end3)) == end3);
-	CuAssertTrue(testCase, net_getEnd(net6, end_getName(block_getLeftEnd(block1))) == block_getLeftEnd(block1));
-	CuAssertTrue(testCase, net_getEnd(net6, end_getName(block_getLeftEnd(block2))) == block_getLeftEnd(block2));
-	CuAssertTrue(testCase, net_getEnd(net6, end_getName(block_getLeftEnd(block3))) == block_getLeftEnd(block3));
-	CuAssertTrue(testCase, net_getEnd(net6, end_getName(block_getRightEnd(block1))) == block_getRightEnd(block1));
-	CuAssertTrue(testCase, net_getEnd(net6, end_getName(block_getRightEnd(block2))) == block_getRightEnd(block2));
-	CuAssertTrue(testCase, net_getEnd(net6, end_getName(block_getRightEnd(block3))) == block_getRightEnd(block3));
+	CuAssertTrue(testCase, net_getEnd(net6, end_getName(block_get5End(block1))) == block_get5End(block1));
+	CuAssertTrue(testCase, net_getEnd(net6, end_getName(block_get5End(block2))) == block_get5End(block2));
+	CuAssertTrue(testCase, net_getEnd(net6, end_getName(block_get5End(block3))) == block_get5End(block3));
+	CuAssertTrue(testCase, net_getEnd(net6, end_getName(block_get3End(block1))) == block_get3End(block1));
+	CuAssertTrue(testCase, net_getEnd(net6, end_getName(block_get3End(block2))) == block_get3End(block2));
+	CuAssertTrue(testCase, net_getEnd(net6, end_getName(block_get3End(block3))) == block_get3End(block3));
 
 	//Check we have the right index of caps.
 	CuAssertTrue(testCase, net_getCapNumber(net6) == 5);
@@ -454,10 +454,10 @@ void testNet_mergeNets(CuTest *testCase) {
 	CuAssertTrue(testCase, net_getChain(net6, chain_getName(chain2)) == chain2);
 	CuAssertTrue(testCase, link_getChain(link1) == chain1);
 	CuAssertTrue(testCase, link_getChain(link2) == chain2);
-	CuAssertTrue(testCase, link_getLeft(link1) == end1);
-	CuAssertTrue(testCase, link_getRight(link1) == end2);
-	CuAssertTrue(testCase, link_getLeft(link2) == end3);
-	CuAssertTrue(testCase, link_getRight(link2) == block_getLeftEnd(block3));
+	CuAssertTrue(testCase, link_get5End(link1) == end1);
+	CuAssertTrue(testCase, link_get3End(link1) == end2);
+	CuAssertTrue(testCase, link_get5End(link2) == end3);
+	CuAssertTrue(testCase, link_get3End(link2) == block_get5End(block3));
 
 	//Check net1 is no longer in the database anywhere...
 	CuAssertTrue(testCase, netDisk_getNet(netDisk, netName1) == NULL);

@@ -59,7 +59,7 @@ def runPipe(sequenceDirs, newickTreeString, tempDir, useDummy=False, writeDebugF
                                                                                             includeInternalNodes=True, 
                                                                                             recursive=True, extendNonZeroTrivialGroups=False) ]
         runCactusPhylogeny(tempReconstructionDirectory, tempDir=getTempDirectory(tempDir), netNames=childNetNames)
-        runCactusCheck(tempReconstructionDirectory, checkTrees=True)
+        runCactusCheck(tempReconstructionDirectory)
     
     system("rm -rf %s %s" % (tempReconstructionDirectory, tempAlignmentFile))
     

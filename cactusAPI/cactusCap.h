@@ -64,6 +64,12 @@ End *cap_getEnd(Cap *cap);
 Segment *cap_getSegment(Cap *cap);
 
 /*
+ * If the cap is part of a segment, gets the other cap connected to the end of segment,
+ * else it returns NULL;
+ */
+Cap *cap_getOtherSegmentCap(Cap *cap);
+
+/*
  * Gets the coordinate of the position that cap is on the end of,
  * returns INT32_MAX if coordinate not set.
  */
@@ -90,28 +96,17 @@ Sequence *cap_getSequence(Cap *cap);
  * Sets adjacent caps (this will set the adjacency reciprocally).
  * Any previous adjacency will be set to NULL for both ends.
  */
-void cap_makeAdjacent1(Cap *cap, Cap *cap2);
-
-/*
- * Sets alternatively adjacent caps (this will set the adjacency reciprocally).
- * Any previous alternative adjacency will be set to NULL for both ends.
- */
-void cap_makeAdjacent2(Cap *cap, Cap *cap2);
+void cap_makeAdjacent(Cap *cap, Cap *cap2);
 
 /*
  * Sets any adjacent ends for the first adjacency of the instance to NULL;
  */
-void cap_breakAdjacency1(Cap *cap);
+void cap_breakAdjacency(Cap *cap);
 
 /*
  * Gets the adjacent cap.
  */
 Cap *cap_getAdjacency(Cap *cap);
-
-/*
- * Gets the alternative adjacency.
- */
-Cap *cap_getAdjacency2(Cap *cap);
 
 /*
  * Gets any face associated the cap.
@@ -152,6 +147,18 @@ int32_t cap_isInternal(Cap *cap);
  * Returns a non zero integer if the cap is augmented (added to accommodate an adjacency, but without an attached segment).
  */
 int32_t cap_isAugmented(Cap *cap);
+
+/*
+ * Checks the following (amongst other things):
+ * If end has tree:
+ *  (1) checks the cap has a parent which has an ancestral event to the caps event, unless it is the root.
+ *  (2) Check caps ancestor/descendant links are proper.
+ * If stub end checks, there is no attached segment.
+ * Checks adjacencies are properly linked and have consistent coordinates and the same group.
+ * It is consistent with any copy of end in the nested net, in terms of connections and coordinates.
+ * The reverse cap is the mirror of the cap.
+ */
+void cap_check(Cap *cap);
 
 
 #endif

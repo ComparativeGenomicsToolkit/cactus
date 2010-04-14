@@ -409,5 +409,10 @@ void net_destructReferenceIterator(Net_ReferenceIterator *referenceIterator);
  */
 Net *net_mergeNets(Net *net1, Net *net2);
 
+/*
+ * Runs check function for each type of object contained in the net.
+ */
+void net_check(Net *net);
+
 
 #endif

@@ -14,10 +14,10 @@ int32_t end_constructP(const void *o1, const void *o2, void *a) {
 }
 
 End *end_construct(bool isAttached, Net *net) {
-	return end_construct2(netDisk_getUniqueID(net_getNetDisk(net)), 1, isAttached, net);
+	return end_construct2(netDisk_getUniqueID(net_getNetDisk(net)), 1, isAttached, 1, net);
 }
 
-End *end_construct2(Name name, int32_t isStub, int32_t isAttached, Net *net) {
+End *end_construct2(Name name, int32_t isStub, int32_t isAttached, int32_t side, Net *net) {
 	End *end;
 	end = malloc(sizeof(End));
 	end->rEnd = malloc(sizeof(End));
@@ -27,6 +27,9 @@ End *end_construct2(Name name, int32_t isStub, int32_t isAttached, Net *net) {
 
 	end->orientation = 1;
 	end->rEnd->orientation = 0;
+
+	end->side = side;
+	end->rEnd->side = !side;
 
 	if(!isStub) {
 		assert(!isAttached);
@@ -53,7 +56,7 @@ End *end_copyConstruct(End *end, Net *newNet) {
 
 	assert(net_getEnd(newNet, end_getName(end)) == NULL);
 
-	end2 = end_construct2(end_getName(end), 1, end_isBlockEnd(end) ? 1 : end_isAttached(end), newNet);
+	end2 = end_construct2(end_getName(end), 1, end_isBlockEnd(end) ? 1 : end_isAttached(end), end_getSide(end), newNet);
 	//Copy the instances.
 	iterator = end_getInstanceIterator(end);
 	while((cap = end_getNext(iterator)) != NULL) {
@@ -120,6 +123,10 @@ End *end_getReverse(End *end) {
 	return end->rEnd;
 }
 
+bool end_getSide(End *end) {
+	return end->side;
+}
+
 Net *end_getNet(End *end) {
 	return end->endContents->net;
 }
@@ -135,7 +142,7 @@ End *end_getOtherBlockEnd(End *end) {
 	}
 	Block *block = end_getBlock(end);
 	assert(block != NULL);
-	End *otherEnd = block_getRightEnd(block) == end ? block_getLeftEnd(block) : block_getRightEnd(block);
+	End *otherEnd = end_getSide(end) ? block_get3End(block) :  block_get5End(block);
 	assert(end_getOrientation(end) == end_getOrientation(otherEnd));
 	assert(end != otherEnd);
 	return otherEnd;
@@ -225,6 +232,79 @@ void end_setGroup(End *end, Group *group) {
 	}
 }
 
+void end_check(End *end) {
+	//Check is connected to net properly
+	assert(net_getEnd(end_getNet(end), end_getName(end)) == end_getPositiveOrientation(end));
+
+	//check end is part of group..
+	Group *group = end_getGroup(end);
+	assert(group != NULL);
+	assert(group_getEnd(group, end_getName(end)) == end_getPositiveOrientation(end));
+
+	if(end_isBlockEnd(end)) {
+		assert(!end_isStubEnd(end));
+		assert(end_isFree(end));
+		//Check block..
+		Block *block = end_getBlock(end);
+		assert(block != NULL);
+		assert(block_getOrientation(block) == end_getOrientation(end));
+		//check not attached
+		assert(end_isFree(end));
+		assert(!end_isAttached(end));
+		//Check sides correspond..
+		if(end_getSide(end)) {
+			assert(block_get5End(block) == end);
+		}
+		else {
+			assert(block_get3End(block) == end);
+		}
+	}
+	else {
+		assert(end_isStubEnd(end)); //Is stub end:
+		//there must be no attached block.
+		assert(end_getBlock(end) == NULL);
+		Group *parentGroup = net_getParentGroup(end_getNet(end));
+		if(parentGroup != NULL) {
+			// if attached the is inherited from a parent net to the containing net.
+			End *parentEnd = group_getEnd(parentGroup, end_getName(end));
+			if(end_isAttached(end)) {
+				assert(parentEnd != NULL);
+			}
+			if(parentEnd != NULL) {
+				assert(end_getSide(end_getPositiveOrientation(parentEnd)) == end_getSide(end_getPositiveOrientation(end)));
+			}
+		}
+	}
+
+	//Check reverse, not comprehensively, perhaps.
+	End *rEnd = end_getReverse(end);
+	assert(rEnd != NULL);
+	assert(end_getReverse(rEnd) == end);
+	assert(end_getOrientation(end) == !end_getOrientation(rEnd));
+	assert(end_getSide(end) == !end_getSide(rEnd));
+	assert(end_getName(end) == end_getName(rEnd));
+	assert(end_getInstanceNumber(end) == end_getInstanceNumber(rEnd));
+	assert(end_isAttached(end) == end_isAttached(rEnd));
+	assert(end_isStubEnd(end) == end_isStubEnd(rEnd));
+	if(end_getRootInstance(end) == NULL) {
+		assert(end_getRootInstance(rEnd) == NULL);
+	}
+	else {
+		assert(end_getRootInstance(end) == cap_getReverse(end_getRootInstance(rEnd)));
+	}
+	if(end_getInstanceNumber(end) > 0) {
+		assert(end_getFirst(end) == cap_getReverse(end_getFirst(rEnd)));
+	}
+
+	//For each segment calls segment_check.
+	End_InstanceIterator *iterator = end_getInstanceIterator(end);
+	Cap *cap;
+	while((cap = end_getNext(iterator)) != NULL) {
+		cap_check(cap);
+	}
+	end_destructInstanceIterator(iterator);
+}
+
 
 /*
  * Private functions
@@ -268,6 +348,7 @@ void end_writeBinaryRepresentation(End *end, void (*writeFn)(const void * ptr, s
 	binaryRepresentation_writeName(end_getName(end), writeFn);
 	binaryRepresentation_writeBool(end_isStubEnd(end), writeFn);
 	binaryRepresentation_writeBool(end_isAttached(end), writeFn);
+	binaryRepresentation_writeBool(end_getSide(end), writeFn);
 
 	if(cap == NULL) {
 		iterator = end_getInstanceIterator(end);
@@ -287,6 +368,7 @@ End *end_loadFromBinaryRepresentation(void **binaryString, Net *net) {
 	Name name;
 	int32_t isStub;
 	int32_t isAttached;
+	int32_t side;
 
 	end = NULL;
 	if(binaryRepresentation_peekNextElementType(*binaryString) == CODE_END_WITHOUT_PHYLOGENY) {
@@ -294,7 +376,8 @@ End *end_loadFromBinaryRepresentation(void **binaryString, Net *net) {
 		name = binaryRepresentation_getName(binaryString);
 		isStub = binaryRepresentation_getBool(binaryString);
 		isAttached = binaryRepresentation_getBool(binaryString);
-		end = end_construct2(name, isStub, isAttached, net);
+		side = binaryRepresentation_getBool(binaryString);
+		end = end_construct2(name, isStub, isAttached, side, net);
 		while(cap_loadFromBinaryRepresentation(binaryString, end) != NULL);
 	}
 	else {
@@ -303,7 +386,8 @@ End *end_loadFromBinaryRepresentation(void **binaryString, Net *net) {
 			name = binaryRepresentation_getName(binaryString);
 			isStub = binaryRepresentation_getBool(binaryString);
 			isAttached = binaryRepresentation_getBool(binaryString);
-			end = end_construct2(name, isStub, isAttached, net);
+			side = binaryRepresentation_getBool(binaryString);
+			end = end_construct2(name, isStub, isAttached, side, net);
 			end_setRootInstance(end, cap_loadFromBinaryRepresentation(binaryString, end));
 			while(cap_loadFromBinaryRepresentation(binaryString, end) != NULL);
 		}

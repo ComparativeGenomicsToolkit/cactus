@@ -639,10 +639,10 @@ void fillOutNetFromInputs(
 				if(!isAStubCactusEdge(cactusEdge, pinchGraph)) {
 					block = constructBlockFromCactusEdge(cactusEdge, net);
 					pinchEdge = cactusEdgeToFirstPinchEdge(cactusEdge, pinchGraph);
-					hashtable_insert(endNamesHash, pinchEdge->from, netMisc_nameToString(end_getName(block_getLeftEnd(block))));
-					hashtable_insert(endNamesHash, pinchEdge->to, netMisc_nameToString(end_getName(block_getRightEnd(block))));
-					assert(cactusEdgeToEndName(cactusEdge, endNamesHash, pinchGraph) == end_getName(block_getLeftEnd(block)));
-					assert(cactusEdgeToEndName(cactusEdge->rEdge, endNamesHash, pinchGraph) == end_getName(block_getRightEnd(block)));
+					hashtable_insert(endNamesHash, pinchEdge->from, netMisc_nameToString(end_getName(block_get5End(block))));
+					hashtable_insert(endNamesHash, pinchEdge->to, netMisc_nameToString(end_getName(block_get3End(block))));
+					assert(cactusEdgeToEndName(cactusEdge, endNamesHash, pinchGraph) == end_getName(block_get5End(block)));
+					assert(cactusEdgeToEndName(cactusEdge->rEdge, endNamesHash, pinchGraph) == end_getName(block_get3End(block)));
 				}
 				else {
 					assert(j == 0 || j == biConnectedComponent->length-1);

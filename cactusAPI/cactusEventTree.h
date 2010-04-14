@@ -93,4 +93,9 @@ char *eventTree_makeNewickString(EventTree *eventTree);
  */
 void eventTree_addSiblingUnaryEvent(EventTree *eventTree, Event *event);
 
+/*
+ * Runs event_check for each event in tree, which is sufficient to check properties of event tree.
+ */
+void eventTree_check(EventTree *eventTree);
+
 #endif
