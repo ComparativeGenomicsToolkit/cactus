@@ -12,8 +12,8 @@ Segment *segment_construct(Block *block, Event *event) {
 	return segment_construct3(
 			netDisk_getUniqueID(net_getNetDisk(block_getNet(block))),
 			block,
-			cap_construct(block_get5End(block), event),
-			cap_construct(block_get3End(block), event));
+			cap_construct5(event, block_get5End(block), 1),
+			cap_construct5(event, block_get3End(block), 0));
 }
 
 Segment *segment_construct2(Block *block,
@@ -228,7 +228,8 @@ void segment_check(Segment *segment) {
 	assert(segment_getEvent(segment) == segment_getEvent(rSegment));
 	assert(segment_getSequence(segment) == segment_getSequence(rSegment));
 	assert(segment_getStrand(segment) == !segment_getStrand(rSegment));
-	assert(segment_getStart(segment) == segment_getStart(rSegment));
+	assert(segment_getStart(segment) == cap_getCoordinate(segment_get3Cap(rSegment)));
+	assert(segment_getStart(rSegment) == cap_getCoordinate(segment_get3Cap(segment)));
 	assert(segment_getLength(segment) == segment_getLength(rSegment));
 	assert(segment_get5Cap(segment) == cap_getReverse(segment_get3Cap(rSegment)));
 	assert(segment_get3Cap(segment) == cap_getReverse(segment_get5Cap(rSegment)));

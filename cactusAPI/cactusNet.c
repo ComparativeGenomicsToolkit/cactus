@@ -462,13 +462,15 @@ int64_t net_getTotalBaseLength(Net *net) {
 			Cap *cap;
 			while((cap = end_getNext(instanceIterator)) != NULL) {
 				cap = cap_getStrand(cap) ? cap : cap_getReverse(cap);
-				if(!cap_getSide(cap)) {
+				if(!cap_getSide(cap) && cap_getSequence(cap) != NULL) {
 					Cap *cap2 = cap_getAdjacency(cap);
+					assert(cap2 != NULL);
 					while(end_isBlockEnd(cap_getEnd(cap2))) {
 						Segment *segment = cap_getSegment(cap2);
 						assert(segment != NULL);
 						assert(segment_get5Cap(segment) == cap2);
 						cap2 = cap_getAdjacency(segment_get3Cap(segment));
+						assert(cap2 != NULL);
 						assert(cap_getStrand(cap2));
 						assert(cap_getSide(cap2));
 					}

@@ -357,7 +357,7 @@ Net_FaceIterator *net_copyFaceIterator(Net_FaceIterator *faceIterator);
 void net_destructFaceIterator(Net_FaceIterator *faceIterator);
 
 /*
- * Get net size, in terms of total bases it contains.
+ * Get net size, in terms of total bases it contains. Looks only at threads have defined sequences.
  */
 int64_t net_getTotalBaseLength(Net *net);
 

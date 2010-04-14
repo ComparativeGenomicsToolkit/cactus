@@ -99,8 +99,7 @@ Group_EndIterator *group_copyEndIterator(Group_EndIterator *endIterator);
 void group_destructEndIterator(Group_EndIterator *endIterator);
 
 /*
- * Gets the total number of bases in the group. Only works if the adjacencies have been set for the
- * leaf instances of the ends in the group.
+ * Gets the total number of bases in the group for threads that have defined sequences.
  */
 int64_t group_getTotalBaseLength(Group *group);
 

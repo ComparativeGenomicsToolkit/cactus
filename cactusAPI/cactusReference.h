@@ -15,8 +15,16 @@
  * A reference ordering structure for the non-stub ends in the net.
  *
  * There are three types of end in any net:
- * pseudo-telomere ends, stub ends and block ends.
- * Pseudo-telomere ends and stub ends are both inherited ends, in that they are
+ * attached stub ends, free stub ends and block ends.
+ * Stub ends represent the end of blocks / telomeres which are not observed in a
+ * particular net. Free stub ends are treated as missing information and are not part of the reference
+ * structure, attached stub ends in the top level problem represent known ends of
+ * the threass
+ *
+ * Attached stub ends are always inherited from a higher level problem,
+ * unless the problem is the top level.
+ * Free stu
+ * Both types of stub ends are both inherited ends, in that they are
  * contained in any parent net. Pseudo-telomeres are always paired, such that
  * there is an even number of them.
  * Block ends are the ends of the blocks in the considered net

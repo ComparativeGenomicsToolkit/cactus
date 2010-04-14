@@ -36,12 +36,17 @@ struct _cap {
 /*
  * Constructs an cap, but not its connecting objects. Instance is the suffix m of the instance name n.m.
  */
-Cap *cap_construct3(Name name, Event *event, End *end);
+Cap *cap_construct3(Name name, Event *event, End *end, int32_t side);
 
 /*
  * As default constructor, but also sets the instance's coordinates and event.
  */
 Cap *cap_construct4(Name name, End *end, int32_t startCoordinate, int32_t strand, int32_t side, Sequence *sequence);
+
+/*
+ * As constructor 3, but don't specify name.
+ */
+Cap *cap_construct5(Event *event, End *end, int32_t side);
 
 /*
  * Destructs the cap, but not any connecting objects.

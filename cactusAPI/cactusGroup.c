@@ -156,8 +156,9 @@ int64_t group_getTotalBaseLength(Group *group) {
 		Cap *cap;
 		while((cap = end_getNext(instanceIterator)) != NULL) {
 			cap = cap_getStrand(cap) ? cap : cap_getReverse(cap);
-			if(!cap_getSide(cap)) {
+			if(!cap_getSide(cap) && cap_getSequence(cap) != NULL) {
 				Cap *cap2 = cap_getAdjacency(cap);
+				assert(cap2 != NULL);
 				assert(cap_getStrand(cap2));
 				assert(cap_getSide(cap2));
 				assert(end_getGroup(cap_getEnd(cap2)) == group);

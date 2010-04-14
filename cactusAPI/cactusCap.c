@@ -9,10 +9,10 @@
 ////////////////////////////////////////////////
 
 Cap *cap_construct(End *end, Event *event) {
-	return cap_construct3(netDisk_getUniqueID(net_getNetDisk(end_getNet(end))), event, end);
+	return cap_construct3(netDisk_getUniqueID(net_getNetDisk(end_getNet(end))), event, end, 1);
 }
 
-Cap *cap_construct3(Name instance, Event *event, End *end) {
+Cap *cap_construct3(Name instance, Event *event, End *end, int32_t side) {
 	Cap *cap;
 
 	cap = malloc(sizeof(Cap));
@@ -35,7 +35,7 @@ Cap *cap_construct3(Name instance, Event *event, End *end) {
 	cap->capContents->children = constructEmptyList(0, NULL);
 	cap->capContents->event = event;
 	cap->capContents->strand = end_getOrientation(end);
-	cap->capContents->side = end_getOrientation(end);
+	cap->capContents->side = end_getOrientation(end) ? side : !side;
 
 	end_addInstance(end, cap);
 	net_addCap(end_getNet(end), cap);
@@ -51,12 +51,15 @@ Cap *cap_construct2(End *end,
 Cap *cap_construct4(Name instance, End *end,
 		int32_t coordinate, int32_t strand, int32_t side, Sequence *sequence) {
 	Cap *cap;
-	cap = cap_construct3(instance, sequence_getEvent(sequence), end);
+	cap = cap_construct3(instance, sequence_getEvent(sequence), end, side);
 	cap->capContents->coordinate = coordinate;
 	cap->capContents->strand = cap_getOrientation(cap) ? strand : !strand;
-	cap->capContents->side = cap_getOrientation(cap) ? side : !side;
 	cap->capContents->sequence = sequence;
 	return cap;
+}
+
+Cap *cap_construct5(Event *event, End *end, int32_t side) {
+	return cap_construct3(netDisk_getUniqueID(net_getNetDisk(end_getNet(end))), event, end, side);
 }
 
 Cap *cap_copyConstruct(End *end, Cap *cap) {
@@ -80,7 +83,7 @@ Cap *cap_copyConstruct(End *end, Cap *cap) {
 	else {
 		event = eventTree_getEvent(net_getEventTree(net), event_getName(cap_getEvent(cap)));
 		assert(event != NULL);
-		return cap_construct3(cap_getName(cap), event, end);
+		return cap_construct3(cap_getName(cap), event, end, cap_getSide(cap));
 	}
 }
 
@@ -423,6 +426,7 @@ void cap_writeBinaryRepresentation(Cap *cap, void (*writeFn)(const void * ptr, s
 		binaryRepresentation_writeElementType(CODE_END_INSTANCE, writeFn);
 		binaryRepresentation_writeName(cap_getName(cap), writeFn);
 		binaryRepresentation_writeName(event_getName(cap_getEvent(cap)), writeFn);
+		binaryRepresentation_writeBool(cap_getSide(cap), writeFn);
 	}
 	else {
 		binaryRepresentation_writeElementType(CODE_END_INSTANCE_WITH_COORDINATES, writeFn);
@@ -465,7 +469,8 @@ Cap *cap_loadFromBinaryRepresentation(void **binaryString, End *end) {
 		binaryRepresentation_popNextElementType(binaryString);
 		name = binaryRepresentation_getName(binaryString);
 		event = eventTree_getEvent(net_getEventTree(end_getNet(end)), binaryRepresentation_getName(binaryString));
-		cap = cap_construct3(name, event, end);
+		side = binaryRepresentation_getBool(binaryString);
+		cap = cap_construct3(name, event, end, side);
 	}
 	else if(binaryRepresentation_peekNextElementType(*binaryString) == CODE_END_INSTANCE_WITH_COORDINATES) {
 		binaryRepresentation_popNextElementType(binaryString);
