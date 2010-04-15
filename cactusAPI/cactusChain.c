@@ -109,7 +109,7 @@ double chain_getAverageInstanceBaseLength(Chain *chain) {
 }
 
 void chain_check(Chain *chain) {
-	Link *link, *pLink = NULL;
+	Link *link = NULL, *pLink = NULL;
 	int32_t i;
 	assert(chain_getLength(chain) > 0);
 	for(i=0; i<chain_getLength(chain); i++) {
@@ -118,6 +118,8 @@ void chain_check(Chain *chain) {
 		assert(chain == link_getChain(link));
 		End *_5End = link_get5End(link);
 		End *_3End = link_get3End(link);
+		assert(_5End != NULL);
+		assert(_3End != NULL);
 		//Links and the contained ends are properly connected.
 		assert(group_getLink(end_getGroup(_5End)) == link);
 		assert(group_getLink(end_getGroup(_3End)) == link);
@@ -150,7 +152,10 @@ void chain_check(Chain *chain) {
 	}
 	//If a block end is at the 3 prime end of a chain the other end of the
 	//block is not in a link group (otherwise the chain is not maximal).
-	assert(group_getLink(end_getGroup(end_getOtherBlockEnd(link_get3End(link)))) == NULL);
+	assert(link != NULL);
+	if(end_isBlockEnd(link_get3End(link))) {
+		assert(group_getLink(end_getGroup(end_getOtherBlockEnd(link_get3End(link)))) == NULL);
+	}
 }
 
 /*

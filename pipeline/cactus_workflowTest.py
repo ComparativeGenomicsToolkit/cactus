@@ -92,7 +92,7 @@ class TestCase(unittest.TestCase):
                 
                 runWorkflow(sequences, newickTreeFile, outputDir, self.tempDir, batchSystem=self.batchSystem,
                             cactusTreeStatsFile=os.path.join(outputDir, "cactusTreeStats.xml"),
-                            buildTrees=True, buildFaces=True, buildReference=True)
+                            buildTrees=True, buildFaces=False, buildReference=True)
     
     def testCactusWorkflow_Chromosomes(self):
         """Run the workflow on mammalian chromsome X
