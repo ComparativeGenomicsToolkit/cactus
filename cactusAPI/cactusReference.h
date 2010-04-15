@@ -16,52 +16,47 @@
  *
  * There are three types of end in any net:
  * attached stub ends, free stub ends and block ends.
- * Stub ends represent the end of blocks / telomeres which are not observed in a
- * particular net. Free stub ends are treated as missing information and are not part of the reference
- * structure, attached stub ends in the top level problem represent known ends of
- * the threass
  *
- * Attached stub ends are always inherited from a higher level problem,
- * unless the problem is the top level.
- * Free stu
- * Both types of stub ends are both inherited ends, in that they are
- * contained in any parent net. Pseudo-telomeres are always paired, such that
- * there is an even number of them.
- * Block ends are the ends of the blocks in the considered net
- * and become inherited in any child nets.
+ * Each block has two block ends, which represent collections of homologous caps
+ * representing the ends of the segments in the block.
  *
- * A reference ordering orders all the pseudo-telomeres and block ends in a net
+ * Stub ends represent telomeres or the end of blocks which are not observed in a
+ * particular net (but may be observed at higher levels).
+ * Stub ends are further broken down into free stub ends and attached stub ends.
+ *
+ * Free stub ends are treated as missing information, i.e. the ends of blocks or telomeres which we did not observe in any net
+ * and are therefore not part of the reference structure.
+ *
+ * A reference ordering orders all the attached stub ends and block ends in a net
  * into a set of linear "pseudo chromosomes".
  * Let (a, b) represent an "pseudo-adjacency" between two ends, so called because
  * there may not necessarily exist an actual adjacency between caps representing
  * the two ends.
  *
- * A reference ordering can be represented as a 2-d list of lists of adjacencies.
+ * A reference ordering can be represented as a 2-d list of lists of pseudo adjacencies.
  *
  * ( ( (L_{0, 0}, R_{0, 0}), (L_{0, 1}, R_{0, 1}) ... (L_{0, N}, R_{0, N}) ),
  *   ( (L_{1, 0}, R_{1, 0}), (L_{1, 1}, R_{1, 1}) ... (L_{1, O}, R_{1, O}) ),
  *   ...
  *   ( (L_{M, 0}, R_{M, 0}), (L_{M, 1}, R_{M, 1}) ... (L_{M, P}, R_{M, P}) ) )
  *
- * Where pair (L_{i, j}, R_{i, j}) represents the jth pseudo-adjacency,
- * where 0 <= j <= N, in the i_th  pseudo-chromosome, where 0 <= i <= M, which
- * contains N psuedo-adjacencies.
+ * Where pair (L_{i, j}, R_{i, j}) represents the jth pseudo-adjacency, 0 <= j <= N, in the i_th  pseudo-chromosome, 0 <= i <= M.
  *
- * A reference ordering R is valid for net N only if :
+ * A reference ordering is valid for a net only if :
  * (1) the first, L_{i, 0}, and last, R_{i, N}, ends
  * of the first and last pseudo-adjacencies of each pseudo-chromosome
- * represent a pair of paired pseudo-telomeres.
+ * represent a attached stub ends.
  * Call this property of R "properly terminated"
- * (2) for each link (a, b) in the set of child chains in N there exists
- * a valid pseudo-adjacency, call this property of R "link respecting".
- * (3) for each pair of contiguous adjacencies
+ * (2) for each pseudo adjacency (a, b) both a and b are in the same group,
+ * call this property of R "group respecting".
+ * (3) for each pair of contiguous psuedo-adjacencies
  *  ((L_{i, j}, R_{i, j}), (L_{i, j+1}, R_{i, j+1}))
  *  in a pseudo-chromosome, R_{i, j} L_{i, j+1} are opposite ends of the same block.
  *  Call this property of R "block respecting".
  *
  * A reference ordering R is valid for net N if and only if it contains only
- * the complete set of pseudo-telomeres and block ends for N and is properly terminated,
- * link respecting and block respecting.
+ * the complete set of attached stub end and block ends for N and is properly terminated,
+ * group respecting and block respecting.
  */
 Reference *reference_construct(Net *net);
 
