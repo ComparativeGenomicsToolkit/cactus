@@ -11,7 +11,7 @@
 
 /*
  * The script checks the nets are structured as we expect, essentially by
- * calling net_check for each net in the tree.
+ * calling net_check for each net in the tree. We do a couple of other tests also..
  */
 
 static void checkBasesAccountedFor(Net *net) {
