@@ -1210,11 +1210,9 @@ int main(int argc, char ** argv) {
 	// (9) Write the net to disk.
 	///////////////////////////////////////////////////////////////////////////
 
-	/*
 	startTime = time(NULL);
 	netDisk_write(netDisk);
 	logInfo("Updated the net on disk in: %i seconds\n", time(NULL) - startTime);
-	*/
 
 	///////////////////////////////////////////////////////////////////////////
 	//(15) Clean up.

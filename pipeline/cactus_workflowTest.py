@@ -61,7 +61,7 @@ class TestCase(unittest.TestCase):
             blanchettePath = os.path.join(TestStatus.getPathToDataSets(), "blanchettesSimulation")
             
             newickTreeFile = os.path.join(blanchettePath, "tree.newick")
-            for region in xrange(0, 1):
+            for region in xrange(0, 5):
                 sequences = [ os.path.join(blanchettePath, 
                                                ("%.2i.job" % region), species) \
                                  for species in ("HUMAN", "CHIMP", "BABOON", "MOUSE", "RAT", "DOG", "CAT", "PIG", "COW") ] #Same order as tree
@@ -85,14 +85,14 @@ class TestCase(unittest.TestCase):
             encodeResultsPath = os.path.join(TestStatus.getPathToDataSets(), "cactus", "encodeRegionsTest")
             newickTreeFile = os.path.join(encodeDatasetPath, "reducedTree.newick")
             
-            for encodeRegion in [ "ENm00" + str(i) for i in xrange(1, 2) ]:
+            for encodeRegion in [ "ENm00" + str(i) for i in xrange(1, 5) ]:
                 sequences = [ os.path.join(encodeDatasetPath, encodeRegion, ("%s.%s.fa" % (species, encodeRegion))) for\
                              species in ("human", "chimp", "baboon", "mouse", "rat", "dog", "cow") ]
                 outputDir = os.path.join(encodeResultsPath, encodeRegion)
                 
                 runWorkflow(sequences, newickTreeFile, outputDir, self.tempDir, batchSystem=self.batchSystem,
                             cactusTreeStatsFile=os.path.join(outputDir, "cactusTreeStats.xml"),
-                            buildTrees=True, buildFaces=False, buildReference=True)
+                            buildTrees=True, buildFaces=True, buildReference=True)
     
     def testCactusWorkflow_Chromosomes(self):
         """Run the workflow on mammalian chromsome X
