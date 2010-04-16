@@ -317,7 +317,7 @@ static int32_t face_isPseudoBipartite(Face * face) {
 static int32_t face_hasMergedDescentEdgesAtIndex(Face * face, int32_t topIndex) {
 	int32_t bottomNodeNumber = face_getBottomNodeNumber(face, topIndex);
 	int32_t index;
-	Cap * topNode = face_getTopNode(face, index);
+	Cap * topNode = face_getTopNode(face, topIndex);
 	Cap * current;
 	struct List * list = constructZeroLengthList(100, NULL); 
 
