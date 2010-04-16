@@ -851,6 +851,13 @@ void net_check(Net *net) {
 	}
 	net_destructEndIterator(endIterator);
 
+	Net_FaceIterator *faceIterator = net_getFaceIterator(net);
+	Face *face;
+	while((face = net_getNextFace(faceIterator)) != NULL) {
+		face_check(face);
+	}
+	net_destructFaceIterator(faceIterator);
+
 	Net_BlockIterator *blockIterator = net_getBlockIterator(net);
 	Block *block;
 	while((block = net_getNextBlock(blockIterator)) != NULL) {

@@ -184,8 +184,12 @@ static void face_writeBinaryRepresentationAtIndex(Face * face, int32_t index,
 		binaryRepresentation_writeName(cap_getName(face->bottomNodes[index][index2]), writeFn);
 
 	// destination of the derived edge
-	if (face->derivedEdgeDestinations[index])
+	if (face->derivedEdgeDestinations[index]) {
 		binaryRepresentation_writeName(cap_getName(face->derivedEdgeDestinations[index]), writeFn);
+	}
+	else {
+		binaryRepresentation_writeName(NULL_NAME, writeFn);
+	}
 }
 
 /*
@@ -233,8 +237,13 @@ static void face_loadFromBinaryRepresentationAtIndex(void **binaryString, Face *
 	}
 
 	// Derived edge destination
-	name = binaryRepresentation_getName(binaryString);
+	name = binaryRepresentation_getName(binaryString); //name may be null_name
 	cap = net_getCap(net, name);
+#ifdef BEN_DEBUG
+	if(name == NULL_NAME) {
+		assert(cap == NULL);
+	}
+#endif
 	face->derivedEdgeDestinations[index] = cap;
 }
 
@@ -303,7 +312,7 @@ static int32_t face_isTopNode(Face * face, Cap * cap) {
 static int32_t face_isPseudoBipartite(Face * face) {
 	int32_t cardinal = face_getCardinal(face);
 	int32_t topIndex, bottomIndex;
-	
+
 	for (topIndex = 0; topIndex < cardinal; topIndex++)
 		for (bottomIndex = 0; bottomIndex < face_getBottomNodeNumber(face, topIndex); bottomIndex++)
 			if (face_isTopNode(face, face_getBottomNode(face, topIndex, bottomIndex)))
@@ -320,7 +329,7 @@ static int32_t face_hasMergedDescentEdgesAtIndex(Face * face, int32_t topIndex) 
 	int32_t index;
 	Cap * topNode = face_getTopNode(face, topIndex);
 	Cap * current;
-	struct List * list = constructZeroLengthList(100, NULL); 
+	struct List * list = constructZeroLengthList(100, NULL);
 
 	for (index = 0; index < bottomNodeNumber; index++) {
 		current = face_getBottomNode(face, topIndex, index);
@@ -328,23 +337,23 @@ static int32_t face_hasMergedDescentEdgesAtIndex(Face * face, int32_t topIndex) 
 			if (listContains(list, current)) {
 				destructList(list);
 				return true;
-			} else 
+			} else
 				listAppend(list, current);
 			current = cap_getParent(current);
-		} 
+		}
 	}
 
 	destructList(list);
 	return false;
 }
 
-/* 
+/*
  * Tests is descent paths are edge-disjoint in face
  */
 static int32_t face_hasSeparateDescentEdges(Face * face) {
 	int32_t cardinal = face_getCardinal(face);
 	int32_t index;
-	
+
 	for (index = 0; index < cardinal; index++)
 		if (face_hasMergedDescentEdgesAtIndex(face, index))
 			return false;
@@ -360,7 +369,7 @@ static Cap *face_getAttachedAncestor(Cap * cap)
 	Cap *current = cap_getParent(cap);
 	Cap *parent;
 
-	while (current 
+	while (current
 	       && !cap_getAdjacency(cap)
 	       && (parent = cap_getParent(current)))
 		current = parent;
@@ -375,7 +384,7 @@ static int32_t face_breaksSimpleAlternatingPath(Face * face, int topIndex) {
 	int32_t bottomNodeNumber = face_getBottomNodeNumber(face, topIndex);
 	int32_t index;
 	Cap * topNode = face_getTopNode(face, topIndex);
-	Cap * partner = cap_getAdjacency(topNode); 
+	Cap * partner = cap_getAdjacency(topNode);
 	Cap * bottomNode;
 	Cap * bottomNodePartner;
 	Cap * bottomNodePartnerAncestor;
@@ -393,14 +402,14 @@ static int32_t face_breaksSimpleAlternatingPath(Face * face, int topIndex) {
 			continue;
 		else if (derivedDestination == NULL)
 			derivedDestination = bottomNodePartnerAncestor;
-		else 
+		else
 			return true;
 	}
 
 	return false;
 }
 
-/* 
+/*
  * Tests if face is a simple alternating cycle
  */
 static int32_t face_isSimpleAlternatingPath(Face * face) {
@@ -431,7 +440,7 @@ int32_t face_isRegular(Face * face)
 	int32_t index;
 
 	if (!face_isSimple(face))
-		return false;	
+		return false;
 
 	for (index = 0; index < face_getCardinal(face); index++)
 		if (face_getBottomNodeNumber(face, index) > 1)
@@ -455,5 +464,9 @@ int32_t face_isCanonical(Face * face)
 			return false;
 
 	return true;
+}
+
+void face_check(Face *face) {
+	assert(face_isSimple(face));
 }
 

@@ -100,4 +100,10 @@ int32_t face_isRegular(Face * face);
  * Tests if canonical
  */
 int32_t face_isCanonical(Face * face);
+
+/*
+ * Checks the face has the properties that we expect. Creates an assertion error if not.
+ */
+void face_check(Face *face);
+
 #endif
