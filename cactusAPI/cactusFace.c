@@ -184,7 +184,8 @@ static void face_writeBinaryRepresentationAtIndex(Face * face, int32_t index,
 		binaryRepresentation_writeName(cap_getName(face->bottomNodes[index][index2]), writeFn);
 
 	// destination of the derived edge
-	binaryRepresentation_writeName(cap_getName(face->derivedEdgeDestinations[index]), writeFn);
+	if (face->derivedEdgeDestinations[index])
+		binaryRepresentation_writeName(cap_getName(face->derivedEdgeDestinations[index]), writeFn);
 }
 
 /*
