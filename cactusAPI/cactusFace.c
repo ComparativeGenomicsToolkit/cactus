@@ -252,13 +252,13 @@ static void face_loadFromBinaryRepresentationAtIndex(void **binaryString, Face *
  */
 Face *face_loadFromBinaryRepresentation(void **binaryString, Net * net)
 {
-	Face *face = calloc(1, sizeof(face));
+	Face *face = NULL;
 	int32_t num, index;
 
-	face = NULL;
 	if (binaryRepresentation_peekNextElementType(*binaryString) ==
 	    CODE_FACE) {
 		binaryRepresentation_popNextElementType(binaryString);
+		face = calloc(1, sizeof(face));
 		face->net = net;
 		face->name = binaryRepresentation_getName(binaryString);
 		num = binaryRepresentation_getInteger(binaryString);
