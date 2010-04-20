@@ -92,6 +92,13 @@ def getRandomCactusInputs(tempDir,
     
     return sequenceDirs, newickTreeString
 
+def getRandomNetDisk():
+    """Runs cactus_workflow on a set of random inputs and returns the path to the
+    netdisk, which you should clean up.
+    """
+    pass
+    
+
 def runCactusSetup(reconstructionRootDir, sequences, 
                    newickTreeString, tempDir, logLevel="DEBUG", debug=False):
     debugString = nameValue("debug", debug, bool)

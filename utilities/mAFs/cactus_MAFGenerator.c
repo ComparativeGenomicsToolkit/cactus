@@ -15,11 +15,6 @@
  * The script outputs a maf file containing all the block in a net and its descendants.
  */
 
-/*
- * Global variables.
- */
-bool includeTreesInMafBlocks = 0;
-
 char *formatSequenceHeader(Sequence *sequence) {
 	const char *sequenceHeader = sequence_getHeader(sequence);
 	if(strlen(sequenceHeader) > 0) {
@@ -32,34 +27,43 @@ char *formatSequenceHeader(Sequence *sequence) {
 	}
 }
 
+static void getMAFBlockP(Segment *segment, FILE *fileHandle) {
+	assert(segment != NULL);
+	Sequence *sequence = segment_getSequence(segment);
+	if(sequence != NULL) {
+		char *sequenceHeader = formatSequenceHeader(sequence);
+		int32_t start;
+		if(segment_getStrand(segment)) {
+			start = segment_getStart(segment) - sequence_getStart(sequence);
+		}
+		else { //start with respect to the start of the reverse complement sequence
+			start = (sequence_getStart(sequence) + sequence_getLength(sequence) - 1) - segment_getStart(segment);
+		}
+		int32_t length = segment_getLength(segment);
+		char *strand = segment_getStrand(segment) ? "+" : "-";
+		int32_t sequenceLength = sequence_getLength(sequence);
+		char *instanceString = segment_getString(segment);
+		fprintf(fileHandle, "s\t%s\t%i\t%i\t%s\t%i\t%s\n", sequenceHeader, start, length, strand, sequenceLength, instanceString);
+		free(instanceString);
+		free(sequenceHeader);
+	}
+	int32_t i;
+	for(i=0; i<segment_getChildNumber(segment); i++) {
+		getMAFBlockP(segment, fileHandle);
+	}
+}
+
 void getMAFBlock(Block *block, FILE *fileHandle) {
 	/*
 	 * Outputs a MAF representation of the block to the given file handle.
 	 */
-	fprintf(fileHandle, "a score=%i\n", block_getLength(block) *block_getInstanceNumber(block));
-	Block_InstanceIterator *instanceIterator = block_getInstanceIterator(block);
-	Segment *segment;
-	while((segment = block_getNext(instanceIterator)) != NULL) {
-		Sequence *sequence = segment_getSequence(segment);
-		if(sequence != NULL) {
-			char *sequenceHeader = formatSequenceHeader(sequence);
-			int32_t start;
-			if(segment_getStrand(segment)) {
-				start = segment_getStart(segment) - sequence_getStart(sequence);
-			}
-			else { //start with respect to the start of the reverse complement sequence
-				start = (sequence_getStart(sequence) + sequence_getLength(sequence) - 1) - segment_getStart(segment);
-			}
-			int32_t length = segment_getLength(segment);
-			char *strand = segment_getStrand(segment) ? "+" : "-";
-			int32_t sequenceLength = sequence_getLength(sequence);
-			char *instanceString = segment_getString(segment);
-			fprintf(fileHandle, "s\t%s\t%i\t%i\t%s\t%i\t%s\n", sequenceHeader, start, length, strand, sequenceLength, instanceString);
-			free(instanceString);
-			free(sequenceHeader);
-		}
+	if(block_getInstanceNumber(block) > 0) {
+		fprintf(fileHandle, "a score=%i\n", block_getLength(block) *block_getInstanceNumber(block));
+		char *newickTreeString = block_makeNewickString(block, 1);
+		fprintf(fileHandle, "s tree=%s\n", newickTreeString);
+		free(newickTreeString);
+		getMAFBlockP(block_getRootInstance(block), fileHandle);
 	}
-	block_destructInstanceIterator(instanceIterator);
 }
 
 void getMAFs(Net *net, FILE *fileHandle) {
@@ -88,7 +92,7 @@ void getMAFs(Net *net, FILE *fileHandle) {
 }
 
 void makeMAFHeader(Net *net, FILE *fileHandle) {
-	fprintf(fileHandle, "##maf version=1 scoring=NULL\n");
+	fprintf(fileHandle, "##maf version=1 scoring=N/A\n");
 	char *cA = eventTree_makeNewickString(net_getEventTree(net));
 	fprintf(fileHandle, "# cactus %s\n\n", cA);
 	free(cA);
@@ -126,14 +130,13 @@ int main(int argc, char *argv[]) {
 			{ "netDisk", required_argument, 0, 'c' },
 			{ "netName", required_argument, 0, 'd' },
 			{ "outputFile", required_argument, 0, 'e' },
-			{ "includeTrees", no_argument, 0, 'f' },
 			{ "help", no_argument, 0, 'h' },
 			{ 0, 0, 0, 0 }
 		};
 
 		int option_index = 0;
 
-		int key = getopt_long(argc, argv, "a:c:d:e:fh", long_options, &option_index);
+		int key = getopt_long(argc, argv, "a:c:d:e:h", long_options, &option_index);
 
 		if(key == -1) {
 			break;
@@ -151,9 +154,6 @@ int main(int argc, char *argv[]) {
 				break;
 			case 'e':
 				outputFile = stringCopy(optarg);
-				break;
-			case 'f':
-				includeTreesInMafBlocks = !includeTreesInMafBlocks;
 				break;
 			case 'h':
 				usage();

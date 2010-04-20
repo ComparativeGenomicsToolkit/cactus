@@ -106,8 +106,10 @@ void testBlock_getFirst(CuTest* testCase) {
 
 void testBlock_getSetRootInstance(CuTest *testCase) {
 	cactusBlockTestSetup();
-	CuAssertTrue(testCase, block_getRootInstance(block) == NULL);
-	block_setRootInstance(block, segment_getReverse(rootSegment));
+	Block *block2 = block_construct(1, net);
+	CuAssertTrue(testCase, block_getRootInstance(block2) == NULL);
+	block_destruct(block2);
+	//block_setRootInstance(block, segment_getReverse(rootSegment)); //set in the constructor code of the test.
 	CuAssertTrue(testCase, block_getRootInstance(block) == segment_getReverse(rootSegment));
 	CuAssertTrue(testCase, end_getRootInstance(block_get5End(block)) == segment_get5Cap(segment_getReverse(rootSegment)));
 	CuAssertTrue(testCase, end_getRootInstance(block_get3End(block)) == segment_get3Cap(segment_getReverse(rootSegment)));
@@ -197,6 +199,14 @@ void testBlock_splitBlock(CuTest* testCase) {
 	cactusBlockTestTeardown();
 }
 
+void testBlock_makeNewickString(CuTest *testCase) {
+	cactusBlockTestSetup();
+	char *cA = block_makeNewickString(block, 1);
+	CuAssertStrEquals(testCase, "(B,E)8;", cA);
+	free(cA);
+	cactusBlockTestTeardown();
+}
+
 void testBlock_serialisation(CuTest* testCase) {
 	cactusBlockTestSetup();
 	Name rootInstanceName = segment_getName(rootSegment);
@@ -226,6 +236,7 @@ void testBlock_serialisation(CuTest* testCase) {
 	testBlock_getInstance(testCase);
 	testBlock_getFirst(testCase);
 	testBlock_instanceIterator(testCase);
+	testBlock_makeNewickString(testCase);
 	testBlock_getChain(testCase);
 	nestedTest = 0;
 	cactusBlockTestTeardown();
@@ -248,6 +259,7 @@ CuSuite* cactusBlockTestSuite(void) {
 	SUITE_ADD_TEST(suite, testBlock_getChain);
 	SUITE_ADD_TEST(suite, testBlock_splitBlock);
 	SUITE_ADD_TEST(suite, testBlock_serialisation);
+	SUITE_ADD_TEST(suite, testBlock_makeNewickString);
 	SUITE_ADD_TEST(suite, testBlock_construct);
 	return suite;
 }

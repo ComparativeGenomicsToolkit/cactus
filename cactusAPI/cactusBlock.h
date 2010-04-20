@@ -131,4 +131,13 @@ void block_split(Block *block, int32_t splitPoint, Block **leftBlock, Block **ri
  */
 void block_check(Block *block);
 
+/*
+ * Makes a newick string representation of the segments in the block.
+ * Does not include any branch lengths currents.
+ * Creates an assert error if the segments are not in a tree.
+ * Returns null if the block contains no segments.
+ * The names of the blocks are their names converted to strings.
+ */
+char *block_makeNewickString(Block *block, int32_t includeInternalNames);
+
 #endif

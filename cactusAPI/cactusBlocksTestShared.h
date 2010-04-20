@@ -46,4 +46,5 @@ static void cactusBlocksTestSharedSetup() {
 	leaf2Segment = segment_construct2(block_getReverse(block), 4, 0, sequence);
 	segment_makeParentAndChild(rootSegment, leaf1Segment);
 	segment_makeParentAndChild(rootSegment, leaf2Segment);
+	block_setRootInstance(block, rootSegment);
 }

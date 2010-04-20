@@ -205,8 +205,8 @@ static void block_splitP2(Segment *segment,
 	}
 	else {
 		assert(parentRightSegment == NULL);
-		block_setRootInstance(leftBlock, parentLeftSegment);
-		block_setRootInstance(rightBlock, parentRightSegment);
+		block_setRootInstance(leftBlock, leftSegment);
+		block_setRootInstance(rightBlock, rightSegment);
 	}
 	int32_t i;
 	for(i=0; i<segment_getChildNumber(segment); i++) {
@@ -278,6 +278,40 @@ void block_check(Block *block) {
 		segment_check(segment);
 	}
 	block_destructInstanceIterator(iterator);
+}
+
+char *block_makeNewickStringP(Segment *segment, int32_t includeInternalNames) {
+	if(segment_getChildNumber(segment) > 0) {
+		char *left = stringPrint("(");
+		int32_t i;
+		int32_t comma = 0;
+		for(i=0; i<segment_getChildNumber(segment); i++) {
+			Segment *childSegment = segment_getChild(segment, i);
+			char *cA = block_makeNewickStringP(childSegment, includeInternalNames);
+			char *cA2 = stringPrint(comma ? "%s,%s" : "%s%s", left, cA);
+			free(cA);
+			left = cA2;
+			comma = 1;
+		}
+		char *final = includeInternalNames ?
+				stringPrint("%s)%s", left, netMisc_nameToStringStatic(segment_getName(segment))) :
+				stringPrint("%s):%s", left);
+		free(left);
+		return final;
+	}
+	return netMisc_nameToString(segment_getName(segment));
+}
+
+char *block_makeNewickString(Block *block, int32_t includeInternalNames) {
+	Segment *segment = block_getRootInstance(block);
+	if(block_getInstanceNumber(block) > 0) {
+		assert(segment != NULL);
+		char *cA = block_makeNewickStringP(segment, 1);
+		char *cA2 = stringPrint("%s;", cA);
+		free(cA);
+		return cA2;
+	}
+	return NULL;
 }
 
 /*
