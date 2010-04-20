@@ -203,7 +203,7 @@ static Cap *buildFaces_getMinorLiftedEdgeDestination(Cap *
 {
 	int32_t index;
 	Cap *ancestralEdgeDestination =
-	    cap_getAdjacency(cap);
+	    cap_getPositiveOrientation(cap_getAdjacency(cap));
 	Cap *liftedDestination;
 
 #ifndef BEN_DEBUG
@@ -285,7 +285,7 @@ static void buildFaces_constructFromCap(Cap *
 
 #ifdef BEN_DEBUG
 			// If bottom nodes part of top nodes
-			if (listContains(topNodes, ((LiftedEdge*) liftedEdges->list[index2])->bottomNode))
+			if (listContains(topNodes, cap_getPositiveOrientation((LiftedEdge*) liftedEdges->list[index2])->bottomNode))
 				abort();
 #endif
 		}
@@ -368,8 +368,8 @@ static Cap *buildFaces_interpolateTopNode(Face * face, int32_t topIndex)
 	for (bottomNodeIndex = 0; bottomNodeIndex < bottomNodeNumber;
 	     bottomNodeIndex++) {
 		if (buildFaces_getAttachedAncestor
-		    (cap_getAdjacency
-		     (face_getBottomNode(face, topIndex, bottomNodeIndex))) ==
+		    (cap_getPositiveOrientation(cap_getAdjacency
+		     (face_getBottomNode(face, topIndex, bottomNodeIndex)))) ==
 		    derivedEdgeDestination) {
 			derivedEdgeBottomNode =
 			    face_getBottomNode(face, topIndex, bottomNodeIndex);
@@ -423,7 +423,7 @@ static void buildFaces_connectInterpolatedNode(Cap ** interpolations,
 {
 	Cap *node = interpolations[nodeIndex];
 	Cap *topNode = face_getTopNode(face, nodeIndex);
-	Cap *adjacentNode = cap_getAdjacency(topNode);
+	Cap *adjacentNode = cap_getPositiveOrientation(cap_getAdjacency(topNode));
 	int32_t adjacentIndex;
 
 	// If not interpolated or previously connected or top node disconnected
@@ -483,8 +483,8 @@ static void buildFaces_fillInterpolatedFace(Face * face, Cap ** interpolations, 
 	     face_getBottomNodeNumber(face, nodeIndex);
 	     bottomNodeIndex++) {
 		if (buildFaces_getAttachedAncestor
-		    (cap_getAdjacency
-		     (face_getBottomNode(face, nodeIndex, bottomNodeIndex))) == derivedDestination) {
+		    (cap_getPositiveOrientation(cap_getAdjacency
+		     (face_getBottomNode(face, nodeIndex, bottomNodeIndex)))) == derivedDestination) {
 			face_addBottomNode(interpolatedFace, nodeCount, bottomNodes[bottomNodeIndex]);
 			break;
 		}

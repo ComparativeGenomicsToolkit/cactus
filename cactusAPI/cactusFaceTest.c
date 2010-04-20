@@ -29,19 +29,19 @@ void testFace_getCardinal(CuTest* testCase) {
 
 void testFace_getTopNode(CuTest* testCase) {
 	cactusFaceTestSetup();
-	CuAssertTrue(testCase, face_getTopNode(face, 0) == topCap1);
-	CuAssertTrue(testCase, face_getTopNode(face, 1) == topCap2);
-	CuAssertTrue(testCase, face_getTopNode(face, 2) == topCap3);
-	CuAssertTrue(testCase, face_getTopNode(face, 3) == topCap4);
+	CuAssertTrue(testCase, face_getTopNode(face, 0) == cap_getPositiveOrientation(topCap1));
+	CuAssertTrue(testCase, face_getTopNode(face, 1) == cap_getPositiveOrientation(topCap2));
+	CuAssertTrue(testCase, face_getTopNode(face, 2) == cap_getPositiveOrientation(topCap3));
+	CuAssertTrue(testCase, face_getTopNode(face, 3) == cap_getPositiveOrientation(topCap4));
 	cactusFaceTestTeardown();
 }
 
 void testFace_getDerivedDestination(CuTest* testCase) {
 	cactusFaceTestSetup();
-	CuAssertTrue(testCase, face_getDerivedDestination(face, 0) == topCap4);
-	CuAssertTrue(testCase, face_getDerivedDestination(face, 1) == topCap3);
-	CuAssertTrue(testCase, face_getDerivedDestination(face, 2) == topCap2);
-	CuAssertTrue(testCase, face_getDerivedDestination(face, 3) == topCap1);
+	CuAssertTrue(testCase, face_getDerivedDestination(face, 0) == cap_getPositiveOrientation(topCap4));
+	CuAssertTrue(testCase, face_getDerivedDestination(face, 1) == cap_getPositiveOrientation(topCap3));
+	CuAssertTrue(testCase, face_getDerivedDestination(face, 2) == cap_getPositiveOrientation(topCap2));
+	CuAssertTrue(testCase, face_getDerivedDestination(face, 3) == cap_getPositiveOrientation(topCap1));
 	cactusFaceTestTeardown();
 }
 
@@ -56,10 +56,10 @@ void testFace_getBottomNodeNumber(CuTest* testCase) {
 
 void testFace_getBottomNode(CuTest* testCase) {
 	cactusFaceTestSetup();
-	CuAssertTrue(testCase, face_getBottomNode(face, 0, 0) == bottomCap1);
-	CuAssertTrue(testCase, face_getBottomNode(face, 1, 0) == bottomCap2);
-	CuAssertTrue(testCase, face_getBottomNode(face, 2, 0) == bottomCap3);
-	CuAssertTrue(testCase, face_getBottomNode(face, 3, 0) == bottomCap4);
+	CuAssertTrue(testCase, face_getBottomNode(face, 0, 0) == cap_getPositiveOrientation(bottomCap1));
+	CuAssertTrue(testCase, face_getBottomNode(face, 1, 0) == cap_getPositiveOrientation(bottomCap2));
+	CuAssertTrue(testCase, face_getBottomNode(face, 2, 0) == cap_getPositiveOrientation(bottomCap3));
+	CuAssertTrue(testCase, face_getBottomNode(face, 3, 0) == cap_getPositiveOrientation(bottomCap4));
 	cactusFaceTestTeardown();
 }
 
@@ -92,6 +92,7 @@ void testFace_serialisation(CuTest* testCase) {
 
 CuSuite *cactusFaceTestSuite(void) {
 	CuSuite* suite = CuSuiteNew();
+	//SUITE_ADD_TEST(suite, testFace_getTopNode);
 	SUITE_ADD_TEST(suite, testFace_getCardinal);
 	SUITE_ADD_TEST(suite, testFace_getDerivedDestination);
 	SUITE_ADD_TEST(suite, testFace_getBottomNodeNumber);

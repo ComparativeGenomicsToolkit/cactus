@@ -97,6 +97,7 @@ void face_allocateSpace(Face * face, int32_t cardinal) {
  * Sets the selected top node
  */
 void face_setTopNode(Face * face, int32_t topIndex, Cap * topNode) {
+	topNode = cap_getPositiveOrientation(topNode);
 	face->topNodes[topIndex] = topNode;
 	cap_setFace(topNode, face);
 }
@@ -116,6 +117,7 @@ void face_setBottomNodeNumber(Face * face, int32_t topIndex, int32_t number) {
  * Sets the derived edge destination for a given top node in face
  */
 void face_setDerivedDestination(Face * face, int32_t topIndex, Cap * destination) {
+	destination = cap_getPositiveOrientation(destination);
 	face->derivedEdgeDestinations[topIndex] = destination;
 }
 
@@ -123,6 +125,7 @@ void face_setDerivedDestination(Face * face, int32_t topIndex, Cap * destination
  * Adds bottom node to selected top node in face
  */
 void face_addBottomNode(Face * face, int32_t topIndex, Cap * bottomNode) {
+	bottomNode = cap_getPositiveOrientation(bottomNode);
 	face->bottomNodes[topIndex][face->bottomNodeNumbers[topIndex]++] = bottomNode;
 }
 
@@ -134,6 +137,7 @@ void face_engineerArtificialNodes(Face * face, Cap * topNode, Cap * bottomNode, 
 	face->topNodes =
 	    realloc(face->topNodes,
 		    face_getCardinal(face) * sizeof(Cap *));
+	topNode = cap_getPositiveOrientation(topNode);
 	face_setTopNode(face, index, topNode);
 	face->bottomNodeNumbers =
 	    realloc(face->topNodes, face_getCardinal(face) * sizeof(int32_t));
@@ -227,7 +231,7 @@ static void face_loadFromBinaryRepresentationAtIndex(void **binaryString, Face *
 	// Number of bottom nodes
 	num = binaryRepresentation_getInteger(binaryString);
 	face->bottomNodeNumbers[index] = num;
-	face->bottomNodes[index] = calloc(num, sizeof(Cap()));
+	face->bottomNodes[index] = calloc(num, sizeof(Cap));
 
 	// Names of bottom nodes
 	for(index2 = 0; index2 < num; index2++) {
@@ -258,7 +262,7 @@ Face *face_loadFromBinaryRepresentation(void **binaryString, Net * net)
 	if (binaryRepresentation_peekNextElementType(*binaryString) ==
 	    CODE_FACE) {
 		binaryRepresentation_popNextElementType(binaryString);
-		face = calloc(1, sizeof(face));
+		face = calloc(1, sizeof(Face));
 		face->net = net;
 		face->name = binaryRepresentation_getName(binaryString);
 		num = binaryRepresentation_getInteger(binaryString);
@@ -299,6 +303,7 @@ static int32_t face_isTopNode(Face * face, Cap * cap) {
 	int32_t cardinal = face_getCardinal(face);
 	int32_t index;
 
+	cap = cap_getPositiveOrientation(cap);
 	for (index = 0; index < cardinal; index++)
 		if (cap == face_getTopNode(face, index))
 			return true;
