@@ -15,21 +15,23 @@
  * A reference ordering structure for the non-stub ends in the net.
  *
  * There are three types of end in any net:
- * attached stub ends, free stub ends and block ends.
+ * 'attached stub-ends', 'free stub-ends' and 'block ends'.
  *
- * Each block has two block ends, which represent collections of homologous caps
- * representing the ends of the segments in the block.
+ * Each block has two 'block ends', that represent the two ends of the block.
  *
- * Stub ends represent telomeres or the end of blocks which are not observed in a
- * particular net (but may be observed at higher levels).
- * Stub ends are further broken down into free stub ends and attached stub ends.
+ * 'Stub-ends' represent telomeres, or the end of blocks that are not observed in the considered
+ * net (but may be observed in a parent net). Stub ends tell us about the boundaries
+ * of the sequences in a net. Stub-ends are further broken down into 'free stub-ends' and 'attached stub-ends'.
  *
- * Free stub ends are treated as missing information, i.e. the ends of blocks or telomeres which we did not observe in any net
- * and are therefore not part of the reference structure.
+ * Free stub-ends are treated as missing information, i.e. the ends of blocks or telomeres
+ * which we did not observe in any net. They are not part of the reference structure.,
+ *
+ * Attached stub ends must be present in any parent net, and if they represent a block end, the
+ * block must be present in a parent net.
  *
  * A reference ordering orders all the attached stub ends and block ends in a net
  * into a set of linear "pseudo chromosomes".
- * Let (a, b) represent an "pseudo-adjacency" between two ends, so called because
+ * Let (a, b) represent a "pseudo-adjacency" between two ends, so called because
  * there may not necessarily exist an actual adjacency between caps representing
  * the two ends.
  *
@@ -42,20 +44,20 @@
  *
  * Where pair (L_{i, j}, R_{i, j}) represents the jth pseudo-adjacency, 0 <= j <= N, in the i_th  pseudo-chromosome, 0 <= i <= M.
  *
- * A reference ordering is valid for a net only if :
+ * A reference ordering REF is valid for a net only if :
  * (1) the first, L_{i, 0}, and last, R_{i, N}, ends
  * of the first and last pseudo-adjacencies of each pseudo-chromosome
- * represent a attached stub ends.
- * Call this property of R "properly terminated"
+ * in REF are attached stub ends.
+ * Call this property of REF "properly terminated"
  * (2) for each pseudo adjacency (a, b) both a and b are in the same group,
- * call this property of R "group respecting".
+ * call this property of REF "group respecting".
  * (3) for each pair of contiguous psuedo-adjacencies
  *  ((L_{i, j}, R_{i, j}), (L_{i, j+1}, R_{i, j+1}))
- *  in a pseudo-chromosome, R_{i, j} L_{i, j+1} are opposite ends of the same block.
- *  Call this property of R "block respecting".
+ *  in a pseudo-chromosome in REF, R_{i, j} L_{i, j+1} are opposite ends of the same block.
+ *  Call this property of REF "block respecting".
  *
- * A reference ordering R is valid for net N if and only if it contains only
- * the complete set of attached stub end and block ends for N and is properly terminated,
+ * A reference ordering REF is valid for net NET if and only if REF contains only
+ * the complete set of attached stub end and block ends for NET and is properly terminated,
  * group respecting and block respecting.
  */
 Reference *reference_construct(Net *net);
