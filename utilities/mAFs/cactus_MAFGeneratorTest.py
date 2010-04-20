@@ -21,8 +21,10 @@ class TestCase(unittest.TestCase):
         
     def testCactusMafGenerator(self):
         for test in xrange(self.testNo):
-            netDisk = getRandomNetDisk()
-            runCactus
+            netDisk = getRandomNetDisk(tempDir=self.tempFileDir)
+            mafFile = getTempFile()
+            runCactusMAFGenerator(netDisk, mafFile)
+            
 
 def main():
     parseSuiteTestOptions()

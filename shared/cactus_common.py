@@ -97,7 +97,6 @@ def getRandomNetDisk():
     netdisk, which you should clean up.
     """
     pass
-    
 
 def runCactusSetup(reconstructionRootDir, sequences, 
                    newickTreeString, tempDir, logLevel="DEBUG", debug=False):
