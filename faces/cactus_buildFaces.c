@@ -285,7 +285,7 @@ static void buildFaces_constructFromCap(Cap *
 
 #ifdef BEN_DEBUG
 			// If bottom nodes part of top nodes
-			if (listContains(topNodes, cap_getPositiveOrientation((LiftedEdge*) liftedEdges->list[index2])->bottomNode))
+			if (listContains(topNodes, cap_getPositiveOrientation(((LiftedEdge*) liftedEdges->list[index2])->bottomNode)))
 				abort();
 #endif
 		}
