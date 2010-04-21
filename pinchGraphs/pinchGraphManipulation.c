@@ -593,6 +593,7 @@ float treeCoverage(struct PinchVertex *vertex, Net *net,
 	}
 	destructBlackEdgeIterator(blackEdgeIterator);
 	assert(commonAncestorEvent != NULL);
+	uglyf("I got %i children %f \n", event_getChildNumber(commonAncestorEvent), event_getBranchLength(event));
 
 	treeCoverage = 0.0;
 	hash = create_hashtable(eventTree_getEventNumber(eventTree)*2,
@@ -617,9 +618,14 @@ float treeCoverage(struct PinchVertex *vertex, Net *net,
 	}
 	destructBlackEdgeIterator(blackEdgeIterator);
 	hashtable_destroy(hash, FALSE, FALSE);
-	treeCoverage /= event_getSubTreeBranchLength(event_getChild(eventTree_getRootEvent(eventTree), 0));
+	float wholeTreeCoverage = event_getSubTreeBranchLength(event_getChild(eventTree_getRootEvent(eventTree), 0));
+	assert(wholeTreeCoverage >= 0.0);
+	if(wholeTreeCoverage <= 0.0) { //deal with case all leaf branches are not empty.
+		return 0.0;
+	}
+	treeCoverage /= wholeTreeCoverage;
 	if(treeCoverage <= -0.001 || treeCoverage >= 1.001) {
-		uglyf("The tree coverage for this case is: %f\n", treeCoverage);
+		uglyf("The tree coverage for this case is: %f, %f \n", treeCoverage, wholeTreeCoverage);
 	}
 	assert(treeCoverage >= -0.001);
 	assert(treeCoverage <= 1.0001);

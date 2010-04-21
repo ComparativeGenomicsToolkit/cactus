@@ -259,6 +259,7 @@ int main(int argc, char *argv[]) {
 	}
 	char *eventTreeString = eventTree_makeNewickString(eventTree);
 	logInfo("Constructed the initial net with %i sequences and %i events with string: %s\n", totalSequenceNumber, totalEventNumber, eventTreeString);
+	assert(event_getSubTreeBranchLength(eventTree_getRootEvent(eventTree)) >= 0.0);
 	free(eventTreeString);
 	//assert(0);
 

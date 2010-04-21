@@ -138,7 +138,7 @@ def runWorkflow_TestScript(sequences, newickTreeString,
                            tempDir=None,
                            outputDir=None, 
                            batchSystem="single_machine",
-                           buildTrees=True, buildFaces=False, buildReference=True,
+                           buildTrees=True, buildFaces=True, buildReference=True,
                            buildCactusPDF=False,
                            buildAdjacencyPDF=False,
                            makeCactusTreeStats=False,
@@ -183,7 +183,7 @@ def runWorkflow_TestScript(sequences, newickTreeString,
     logger.info("Checked the job tree dir")
     
     #Check if the netDisk is okay..
-    #runCactusCheck(netDisk)
+    runCactusCheck(netDisk)
     logger.info("Checked the cactus tree")
     
     #Now run various utilities..
@@ -233,13 +233,13 @@ def runWorkflow_TestScript(sequences, newickTreeString,
 testRestrictions_NotShort = ()
         
 def runWorkflow_multipleExamples(inputGenFunction,
-                               testNumber=1, 
-                               testRestrictions=(TestStatus.TEST_SHORT, TestStatus.TEST_MEDIUM, \
-                                                 TestStatus.TEST_LONG, TestStatus.TEST_VERY_LONG,),
+                                 testNumber=1, 
+                                 testRestrictions=(TestStatus.TEST_SHORT, TestStatus.TEST_MEDIUM, \
+                                                   TestStatus.TEST_LONG, TestStatus.TEST_VERY_LONG,),
                                inverseTestRestrictions=False,
                                outputDir=None,
                                batchSystem="single_machine",
-                               buildTrees=True, buildFaces=False, buildReference=True,
+                               buildTrees=True, buildFaces=True, buildReference=True,
                                buildCactusPDF=False, buildAdjacencyPDF=False,
                                makeCactusTreeStats=False, makeMAFs=False):
     """A wrapper to run a number of examples.
