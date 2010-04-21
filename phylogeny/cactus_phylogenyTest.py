@@ -8,62 +8,28 @@ import sys
 from sonLib.bioio import parseSuiteTestOptions
 from sonLib.bioio import TestStatus
 from sonLib.bioio import getTempDirectory
-from sonLib.bioio import getTempFile
 from sonLib.bioio import logger
 from sonLib.bioio import system
 
-from cactus.shared.cactus_common import runCactusSetup
-from cactus.shared.cactus_common import runCactusAligner
-from cactus.shared.cactus_common import runCactusCore
-from cactus.shared.cactus_common import runCactusPhylogeny
-from cactus.shared.cactus_common import getRandomCactusInputs
-from cactus.shared.cactus_common import runCactusCheck
-from cactus.shared.cactus_common import runCactusGetNets
+from cactus.shared.test import getCactusInputs_random
+from cactus.shared.test import runWorkflow_TestScript
 
 class TestCase(unittest.TestCase):
-    
     def setUp(self):
         self.testNo = TestStatus.getTestSetup(1, 5, 20, 100)
-        self.tempDir = getTempDirectory(os.getcwd())
         unittest.TestCase.setUp(self)
     
-    def tearDown(self):
-        unittest.TestCase.tearDown(self)
-        system("rm -rf %s" % self.tempDir)
-        system("rm -rf pinchGraph1.dot pinchGraph2.dot pinchGraph3.dot pinchGraph4.dot cactusGraph1.dot cactusGraph2.dot cactusGraph3.dot net1.dot net2.dot net3.dot pinchGraph5.dot pinchGraph6.dot")
-        system("rm -rf pinchGraph1.pdf pinchGraph2.pdf pinchGraph3.pdf pinchGraph4.pdf cactusGraph1.pdf cactusGraph2.pdf cactusGraph3.pdf net1.pdf net2.pdf net3.pdf pinchGraph5.pdf pinchGraph6.pdf")
-    
-    def testCactusTree(self):
-        for test in xrange(self.testNo):
-            sequenceDirs, newickTreeString = getRandomCactusInputs(tempDir=getTempDirectory(self.tempDir))
-            runPipe(sequenceDirs, newickTreeString, self.tempDir, useDummy=True, writeDebugFiles=False,
-                    randomBlockParameters=True)
-            
-def runPipe(sequenceDirs, newickTreeString, tempDir, useDummy=False, writeDebugFiles=False, randomBlockParameters=False):
-    tempAlignmentFile = getTempFile(rootDir=tempDir)
-    tempReconstructionDirectory = os.path.join(getTempDirectory(tempDir), "tempReconstruction")
-    
-    runCactusSetup(tempReconstructionDirectory, sequenceDirs, 
-                   newickTreeString, getTempDirectory(tempDir))
-    l = runCactusGetNets(tempReconstructionDirectory, "0", getTempDirectory(tempDir),
-                                                  includeInternalNodes=False, 
-                                                  recursive=True,
-                                                  extendNonZeroTrivialGroups=True)
-    if len(l) > 0:
-        childNetName, childNetSize = l[0]
-        runCactusAligner(tempReconstructionDirectory, tempAlignmentFile, netName=childNetName,
-                         tempDir=getTempDirectory(tempDir), useDummy=useDummy)
-        runCactusCore(tempReconstructionDirectory, tempAlignmentFile, netName=childNetName,
-                        writeDebugFiles=writeDebugFiles)
-        childNetNames = [ childNetName for (childNetName, childNetSize) in runCactusGetNets(tempReconstructionDirectory, "0", tempDir, 
-                                                                                            includeInternalNodes=True, 
-                                                                                            recursive=True, extendNonZeroTrivialGroups=False) ]
-        runCactusPhylogeny(tempReconstructionDirectory, tempDir=getTempDirectory(tempDir), netNames=childNetNames)
-        runCactusCheck(tempReconstructionDirectory)
-    
-    system("rm -rf %s %s" % (tempReconstructionDirectory, tempAlignmentFile))
-    
-    logger.info("Ran the test of the reconstruction program okay")
+    def testCactusPhylogeny_Random(self):
+        """Runs the tests across some simulated regions.
+        """
+        tempDir = getTempDirectory(os.getcwd())
+        for test in xrange(self.testNo): 
+            sequences, newickTreeString = getCactusInputs_random(tempDir)
+            runWorkflow_TestScript(sequences, newickTreeString, tempDir, 
+                                   buildTrees=True, buildReference=False, 
+                                   buildFaces=False)
+            logger.info("Finished random test %i" % test)
+        system("rm -rf %s" % tempDir)
         
 def main():
     parseSuiteTestOptions()

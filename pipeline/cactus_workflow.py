@@ -25,13 +25,13 @@ from sonLib.bioio import getLogLevelString
 
 from workflow.jobTree.scriptTree.target import Target
 
-from cactus.shared.cactus_common import runCactusSetup
-from cactus.shared.cactus_common import runCactusCore
-from cactus.shared.cactus_common import runCactusGetNets
-from cactus.shared.cactus_common import runCactusPhylogeny
-from cactus.shared.cactus_common import runCactusAdjacencies
-from cactus.shared.cactus_common import runCactusBaseAligner
-from cactus.shared.cactus_common import runCactusReference
+from cactus.shared.common import runCactusSetup
+from cactus.shared.common import runCactusCore
+from cactus.shared.common import runCactusGetNets
+from cactus.shared.common import runCactusPhylogeny
+from cactus.shared.common import runCactusAdjacencies
+from cactus.shared.common import runCactusBaseAligner
+from cactus.shared.common import runCactusReference
 
 from cactus.blastAlignment.cactus_aligner import MakeSequences
 
@@ -74,8 +74,7 @@ class CactusSetupWrapper(Target):
     def run(self, localTempDir, globalTempDir):
         logger.info("Starting cactus setup target")
         runCactusSetup(self.options.netDisk, self.sequences, 
-                       self.options.speciesTree,
-                       tempDir=localTempDir, logLevel=getLogLevelString())
+                       self.options.speciesTree, logLevel=getLogLevelString())
         logger.info("Finished the setup phase target")
 
 ############################################################
@@ -316,10 +315,10 @@ class CactusExtensionWrapper(Target):
     def run(self, localTempDir, globalTempDir):
         #Run cactus phylogeny
         if self.options.buildTrees:
-            runCactusPhylogeny(self.options.netDisk, tempDir=localTempDir, netNames=self.netNames)
+            runCactusPhylogeny(self.options.netDisk, netNames=self.netNames)
             #Not atomic!
         if self.options.buildFaces:
-            runCactusAdjacencies(self.options.netDisk, tempDir=localTempDir, netNames=self.netNames)
+            runCactusAdjacencies(self.options.netDisk, netNames=self.netNames)
         if self.options.buildReference:
             runCactusReference(self.options.netDisk, netNames=self.netNames)
         #Make child jobs
@@ -373,9 +372,13 @@ def main():
     
     if options.setupAndBuildAlignments:
         baseTarget = SetupPhase(options, args)
+        logger.info("Going to create alignments and define the cactus tree")
     elif options.buildTrees or options.buildFaces or options.buildReference:
         baseTarget = ExtensionPhase('0', None, options)
-        
+        logger.info("Starting from extension phase")
+    else:
+        logger.info("Nothing to do!")
+        return    
     baseTarget.execute(options.jobFile) 
     
     logger.info("Done with first target")

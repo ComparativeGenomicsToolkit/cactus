@@ -1,22 +1,12 @@
 """Setup functions for assisting in testing the various modules of the cactus package.
 """
 
-import random
 import os
-import sys
 
 from sonLib.bioio import logger
 from sonLib.bioio import getTempFile
 from sonLib.bioio import getTempDirectory
-from sonLib.bioio import getRandomSequence
-from sonLib.bioio import mutateSequence
-from sonLib.bioio import reverseComplement
-from sonLib.bioio import fastaWrite
-from sonLib.bioio import printBinaryTree
 from sonLib.bioio import system
-from sonLib.bioio import getRandomAlphaNumericString
-
-from sonLib.tree import makeRandomBinaryTree
 
 from workflow.jobTree.jobTree import runJobTree 
 from workflow.jobTree.jobTreeTest import runJobTreeStatusAndFailIfNotComplete
@@ -32,74 +22,15 @@ def nameValue(name, value, valueType=str):
         return ""
     return "--%s %s" % (name, valueType(value))
 
-def getRandomCactusInputs(tempDir,
-                          sequenceNumber=random.choice(xrange(100)), 
-                          avgSequenceLength=random.choice(xrange(1, 5000)), 
-                          treeLeafNumber=random.choice(xrange(1, 10))):
-    """Gets a random set of sequences, each of length given, and a species
-    tree relating them. Each sequence is a assigned an event in this tree.
-    """
-    
-    #Make tree
-    binaryTree = makeRandomBinaryTree(treeLeafNumber)
-    newickTreeString = printBinaryTree(binaryTree, includeDistances=True)
-    newickTreeLeafNames = []
-    def fn(tree):
-        if tree.internal:
-            fn(tree.left)
-            fn(tree.right)
-        else:
-            newickTreeLeafNames.append(tree.iD)
-    fn(binaryTree)
-    logger.info("Made random binary tree: %s" % newickTreeString)
-    
-    sequenceDirs = []
-    for i in xrange(len(newickTreeLeafNames)):
-        seqDir = getTempDirectory(rootDir=tempDir)
-        sequenceDirs.append(seqDir)
-        
-    logger.info("Made a set of random directories: %s" % " ".join(sequenceDirs))
-    
-    #Random sequences and species labelling
-    sequenceFile = None
-    fileHandle = None
-    parentSequence = getRandomSequence(length=random.choice(xrange(1, 2*avgSequenceLength)))[1]
-    first = True
-    for i in xrange(sequenceNumber):
-        if sequenceFile == None:
-            if not first and random.random() > 0.5: #Ensure we have at least one file with a pair of attached ends.
-                suffix = ".fa.incomplete"
-            else:
-                suffix = ".fa"
-                first = False
-            sequenceFile = getTempFile(rootDir=random.choice(sequenceDirs), suffix=suffix)
-            fileHandle = open(sequenceFile, 'w')
-        if random.random() > 0.8: #Get a new root sequence
-            parentSequence = getRandomSequence(length=random.choice(xrange(1, 2*avgSequenceLength)))[1]
-        sequence = mutateSequence(parentSequence, distance=random.random()*0.5)
-        name = getRandomAlphaNumericString(15)
-        if random.random() > 0.5:
-            sequence = reverseComplement(sequence)
-        fastaWrite(fileHandle, name, sequence)
-        if random.random() > 0.5:
-            fileHandle.close()
-            fileHandle = None
-            sequenceFile = None
-    if fileHandle != None:
-        fileHandle.close()
-        
-    logger.info("Made %s sequences in %s directories" % (sequenceNumber, len(sequenceDirs)))
-    
-    return sequenceDirs, newickTreeString
-
-def getRandomNetDisk():
-    """Runs cactus_workflow on a set of random inputs and returns the path to the
-    netdisk, which you should clean up.
-    """
-    pass
+#############################################
+#############################################
+#All the following provide command line wrappers
+#for core programs in the cactus pipeline.
+#############################################
+#############################################  
 
 def runCactusSetup(reconstructionRootDir, sequences, 
-                   newickTreeString, tempDir, logLevel="DEBUG", debug=False):
+                   newickTreeString, logLevel="DEBUG", debug=False):
     debugString = nameValue("debug", debug, bool)
     system("cactus_setup %s --speciesTree '%s' --netDisk %s \
 --logLevel %s %s" \
@@ -185,70 +116,20 @@ def runCactusCore(netDisk, alignmentFile,
     system(command)
     logger.info("Ran cactus_core okay")
     
-def runCactusPhylogeny(netDisk, tempDir, 
-                  netNames=[ "0" ],
+def runCactusPhylogeny(netDisk,
+                  netNames=("0",),
                   logLevel="DEBUG"):
-    command = "cactus_phylogeny --netDisk %s --tempDirRoot %s --logLevel %s %s" % \
-    (netDisk, tempDir, logLevel, " ".join(netNames))
+    command = "cactus_phylogeny --netDisk %s --logLevel %s %s" % \
+    (netDisk, logLevel, " ".join(netNames))
     system(command)
     logger.info("Ran cactus_phylogeny okay")
     
-def runCactusAdjacencies(netDisk,  tempDir, netNames=[ "0" ], logLevel="DEBUG"):
-    command = "cactus_fillAdjacencies --netDisk %s --tempDirRoot %s --logLevel %s %s" %\
-    (netDisk, tempDir, logLevel, " ".join(netNames))
+def runCactusAdjacencies(netDisk, netNames=("0",), logLevel="DEBUG"):
+    command = "cactus_fillAdjacencies --netDisk %s --logLevel %s %s" %\
+    (netDisk, logLevel, " ".join(netNames))
     system(command)
     logger.info("Ran cactus_fillAdjacencies OK")
     
-def runCactusTreeViewer(graphFile,
-                        netDisk, 
-                        netName="0", 
-                        logLevel="DEBUG", nodesProportionalTo="blocks"):
-    system("cactus_treeViewer --netDisk %s --netName %s --outputFile %s --logLevel %s" \
-                    % (netDisk, netName, graphFile, logLevel))
-    logger.info("Created a cactus tree graph")
-
-def runCactusCheck(netDisk, 
-                    netName="0", 
-                    logLevel="DEBUG"):
-    system("cactus_check --netDisk %s --netName %s --logLevel %s" \
-                    % (netDisk, netName, logLevel))
-    logger.info("Ran cactus check")
-    
-def runCactusBlockGraphViewer(graphFile,
-                             reconstructionRootDir, 
-                             reconstructionProblem="reconstructionProblem.xml", 
-                             logLevel="DEBUG", includeCaps=False, includeInternalAdjacencies=False):
-    includeCaps = nameValue("includeCaps", includeCaps, bool)
-    includeInternalAdjacencies = nameValue("includeInternalAdjacencies", includeInternalAdjacencies, bool)
-    system("cactus_blockGraphViewer.py --absolutePathPrefix %s --reconstructionProblem %s --graphFile %s --logLevel %s %s %s" \
-                    % (reconstructionRootDir, reconstructionProblem, graphFile, logLevel, includeCaps, includeInternalAdjacencies))
-    logger.info("Created a break point graph of the problem")
-    
-def runCactusWorkflow(netDisk, sequenceFiles, 
-                      newickTreeString, 
-                      jobTreeDir, treeBuilder="cactus_coreTestTreeBuilder.py",
-                      adjacencyBuilder="cactus_adjacencyTestAdjacencyBuilder.py",
-                      logLevel="DEBUG", retryCount=0, batchSystem="single_machine", rescueJobFrequency=None,
-                      setupAndBuildAlignments=True,
-                      buildTrees=False, buildFaces=False, buildReference=False):
-    setupAndBuildAlignments = nameValue("setupAndBuildAlignments", setupAndBuildAlignments, bool)
-    buildTrees = nameValue("buildTrees", buildTrees, bool)
-    buildFaces = nameValue("buildFaces", buildFaces, bool)
-    buildReference = nameValue("buildReference", buildReference, bool)
-    command = "cactus_workflow.py %s --speciesTree '%s' \
---netDisk %s %s %s %s %s --job JOB_FILE" % \
-            (" ".join(sequenceFiles), newickTreeString,
-             netDisk, setupAndBuildAlignments, buildTrees, buildFaces, buildReference)
-    #print "going to run the command:", command
-    #assert False
-    runJobTree(command, jobTreeDir, logLevel, retryCount, batchSystem, rescueJobFrequency)
-    logger.info("Ran the cactus workflow for %s okay" % netDisk)
-    
-def runCactusTreeStats(netDisk, outputFile, netName='0'):
-    command = "cactus_treeStats --netDisk %s --netName %s --outputFile %s" % (netDisk, netName, outputFile)
-    system(command)
-    logger.info("Ran the cactus tree stats command apprently okay")
-
 def runCactusGetNets(netDisk, netName, tempDir, includeInternalNodes=False, 
                      recursive=True, extendNonZeroTrivialGroups=True,
                      minSizeToExtend=1):
@@ -289,3 +170,64 @@ def runCactusReference(netDisk, netNames, logLevel="DEBUG"):
     """Runs cactus reference.
     """
     system("cactus_reference --netDisk %s --logLevel %s %s" % (netDisk, logLevel, " ".join(netNames)))
+
+def runCactusCheck(netDisk, 
+                    netName="0", 
+                    logLevel="DEBUG"):
+    system("cactus_check --netDisk %s --netName %s --logLevel %s" \
+                    % (netDisk, netName, logLevel))
+    logger.info("Ran cactus check")
+    
+def runCactusWorkflow(netDisk, sequenceFiles, 
+                      newickTreeString, 
+                      jobTreeDir, 
+                      logLevel="DEBUG", retryCount=0, 
+                      batchSystem="single_machine", 
+                      rescueJobFrequency=None,
+                      setupAndBuildAlignments=True,
+                      buildTrees=False, buildFaces=False, buildReference=False):
+    setupAndBuildAlignments = nameValue("setupAndBuildAlignments", setupAndBuildAlignments, bool)
+    buildTrees = nameValue("buildTrees", buildTrees, bool)
+    buildFaces = nameValue("buildFaces", buildFaces, bool)
+    buildReference = nameValue("buildReference", buildReference, bool)
+    command = "cactus_workflow.py %s --speciesTree '%s' \
+--netDisk %s %s %s %s %s --job JOB_FILE" % \
+            (" ".join(sequenceFiles), newickTreeString,
+             netDisk, setupAndBuildAlignments, buildTrees, buildFaces, buildReference)
+    #print "going to run the command:", command
+    #assert False
+    runJobTree(command, jobTreeDir, logLevel, retryCount, batchSystem, rescueJobFrequency)
+    logger.info("Ran the cactus workflow for %s okay" % netDisk)
+    
+#############################################
+#############################################
+#Runs cactus utilities.
+#############################################
+#############################################    
+    
+def runCactusTreeStats(netDisk, outputFile, netName='0'):
+    command = "cactus_treeStats --netDisk %s --netName %s --outputFile %s" % (netDisk, netName, outputFile)
+    system(command)
+    logger.info("Ran the cactus tree stats command apprently okay")
+    
+def runCactusTreeViewer(graphFile,
+                        netDisk, 
+                        netName="0", 
+                        logLevel="DEBUG"):
+    system("cactus_treeViewer --netDisk %s --netName %s --outputFile %s --logLevel %s" \
+                    % (netDisk, netName, graphFile, logLevel))
+    logger.info("Created a cactus tree graph")
+    
+def runCactusAdjacencyGraphViewer(graphFile,
+                             netDisk, netName="0",
+                             logLevel="DEBUG", includeInternalAdjacencies=False):
+    includeInternalAdjacencies = nameValue("includeInternalAdjacencies", includeInternalAdjacencies, bool)
+    system("cactus_adjacencyGraphViewer.py --netDisk %s --netName %s --outputFile %s --logLevel %s" \
+                    % (netDisk, netName, graphFile, logLevel))
+    logger.info("Created a break point graph of the problem")
+
+def runCactusMAFGenerator(mAFFile, netDisk, netName="0",
+                          logLevel="DEBUG"):
+    system("cactus_MAFGenerator --netDisk %s --netName %s --outputFile %s --logLevel %s" \
+            % (netDisk, netName, mAFFile, logLevel))
+    logger.info("Created a MAF for the given netDisk")

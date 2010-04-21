@@ -8,9 +8,10 @@ from sonLib.bioio import system
 from sonLib.bioio import getTempDirectory
 from sonLib.bioio import getTempFile
 
-from cactus.shared.cactus_common import getRandomCactusInputs
-from cactus.shared.cactus_common import runCactusSetup
-from cactus.shared.cactus_common import runCactusAligner
+from cactus.shared.test import getCactusInputs_random
+
+from cactus.shared.common import runCactusSetup
+from cactus.shared.common import runCactusAligner
 
 from workflow.jobTree.jobTreeTest import runJobTreeStatusAndFailIfNotComplete
 
@@ -50,9 +51,8 @@ def runAligner(tempDir, tempReconstructionDir, tempAlignmentFile, useDummy=True)
     #Make inputs
     ##########################################
     
-    sequenceDirs, newickTreeString = getRandomCactusInputs(tempDir=getTempDirectory(tempDir))
-    runCactusSetup(tempReconstructionDir, sequenceDirs, 
-                   newickTreeString, tempDir=getTempDirectory(tempDir))
+    sequenceDirs, newickTreeString = getCactusInputs_random(tempDir=getTempDirectory(tempDir))
+    runCactusSetup(tempReconstructionDir, sequenceDirs, newickTreeString)
     logger.info("Setup the test, running cactus aligner")
     
     ##########################################

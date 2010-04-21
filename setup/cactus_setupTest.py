@@ -1,7 +1,6 @@
 import unittest
 import sys
 import os
-import xml.etree.ElementTree as ET
 import random
 
 from sonLib.bioio import logger
@@ -9,46 +8,28 @@ from sonLib.bioio import parseSuiteTestOptions
 from sonLib.bioio import TestStatus
 from sonLib.bioio import system
 from sonLib.bioio import getTempDirectory
-from sonLib.bioio import fastaRead
 
-from cactus.shared.cactus_common import runCactusSetup
-from cactus.shared.cactus_common import getRandomCactusInputs
+from cactus.shared.common import runCactusSetup
+from cactus.shared.test import getCactusInputs_random
 
 class TestCase(unittest.TestCase):
 
     def setUp(self):
         self.testNo = TestStatus.getTestSetup()
-        self.tempFiles = []
-        self.tempDir = getTempDirectory()
-        self.tempReconstructionDirectory = os.path.join(self.tempDir, "tempReconstruction")
         unittest.TestCase.setUp(self)
-    
-    def tearDown(self):
-        for tempFile in self.tempFiles:
-            os.remove(tempFile)
-        unittest.TestCase.tearDown(self)
-        system("rm -rf %s" % self.tempDir)
-        
+       
     def testCactusSetup(self):
+        """Creates a bunch of random inputs and then passes them to cactus setup.
+        """
         for test in xrange(self.testNo): 
-            ##########################################
-            #Make random inputs
-            ##########################################
-            
+            tempDir = getTempDirectory(os.getcwd())
             sequenceNumber = random.choice(xrange(100))
-            sequenceDirs, newickTreeString = getRandomCactusInputs(tempDir=getTempDirectory(self.tempDir), sequenceNumber=sequenceNumber)
-            cactusTempDir=getTempDirectory(self.tempDir)
-            
-            runCactusSetup(self.tempReconstructionDirectory, sequenceDirs, 
-                               newickTreeString, cactusTempDir, debug=True)
-            
-            runCactusSetup(self.tempReconstructionDirectory, sequenceDirs, 
-                               newickTreeString, cactusTempDir, debug=True) #Run it twice to check the job is blockic.
-    
-            system("rm -rf %s" % self.tempReconstructionDirectory)
-            
-            logger.info("Finished test of cactus_setup.py")
-            
+            sequences, newickTreeString = getCactusInputs_random(tempDir=tempDir, sequenceNumber=sequenceNumber)
+            netDisk = os.path.join(tempDir, "netDisk")
+            runCactusSetup(netDisk, sequences, newickTreeString, debug=True)
+            runCactusSetup(netDisk, sequences, newickTreeString, debug=True)
+            system("rm -rf %s" % tempDir)
+            logger.info("Finished test %i of cactus_setup.py", test)
 
 def main():
     parseSuiteTestOptions()

@@ -5,7 +5,7 @@ from sonLib.bioio import parseSuiteTestOptions
 from sonLib.bioio import TestStatus
 from sonLib.bioio import system
 from sonLib.bioio import getTempFile
-from cactus.shared.cactus_common import getRandomNetDisk
+from cactus.shared.common import getRandomNetDisk
 
 class TestCase(unittest.TestCase):
 

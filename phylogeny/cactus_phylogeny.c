@@ -151,7 +151,7 @@ void chomp(const char *s) {
 }
 
 void buildChainTrees_Bernard(int32_t blockNumber, char ***concatenatedBlocks, Name **_5Ends, Name **_3Ends, Name **leafEventLabels,
-							int32_t **blockBoundaries, char *eventTreeString, const char *tempDir, ChainAlignment **chainAlignments,
+							int32_t **blockBoundaries, char *eventTreeString, ChainAlignment **chainAlignments,
 							char **modifiedEventTreeString, char ****blockTreeStrings, int32_t ***refinedBlockBoundaries, int32_t **refinedBlockNumbers) {
 	/*
 	 * Here's the function you need to fill in, I haven't defined the outputs yet - you get it working and then we can discuss.
@@ -337,8 +337,7 @@ void buildChainTrees2(ChainAlignment *chainAlignment,
 	assert(j == refinedBlockNumber);
 }
 
-void buildChainTrees(ChainAlignment **chainAlignments, int32_t chainAlignmentNumber, EventTree *eventTree,
-		const char *tempFilePath) {
+void buildChainTrees(ChainAlignment **chainAlignments, int32_t chainAlignmentNumber, EventTree *eventTree) {
 	/*
 	 * This function builds a load of inputs which are then passed to Bernard's code.
 	 */
@@ -362,24 +361,15 @@ void buildChainTrees(ChainAlignment **chainAlignments, int32_t chainAlignmentNum
 	//Event tree string
 	char *eventTreeString = eventTree_makeNewickString(eventTree);
 
-	//Construct the random dir.
-	char *randomDir;
-	exitOnFailure(constructRandomDir(tempFilePath, &randomDir), "Tried to make a recursive directory of temp files but failed\n");
-
 	//call to Bernard's code
 	char *augmentedEventTreeString; //pointer to string holding the augmented event tree.
 	char ***blockTreeStrings; //array of string pointers, for holding the constructed block trees.
 	int32_t **refinedBlockBoundaries; //like the block boundaries, but revised by allowing for splits in the existing blocks.
 	int32_t *refinedBlockNumbers; //the lengths of the block boundary arrays.
 	buildChainTrees_Bernard(chainAlignmentNumber, concatenatedBlocks, _5Ends, _3Ends, leafEventLabels,
-							blockBoundaries, eventTreeString, randomDir, chainAlignments,
+							blockBoundaries, eventTreeString, chainAlignments,
 							&augmentedEventTreeString, &blockTreeStrings, &refinedBlockBoundaries, &refinedBlockNumbers);
 	logDebug("Ran Bernard's code apparently okay\n");
-
-	/*
-	 * Clean up the temporary files directory.
-	 */
-	exitOnFailure(destructRandomDir(randomDir), "Tried to destroy a recursive directory of temp files but failed\n");
 
 	/*
 	 * Now process and reconcile each new block tree.
@@ -591,7 +581,6 @@ void usage() {
 	fprintf(stderr, "cactus_tree [net-names, ordered by order they should be processed], version 0.2\n");
 	fprintf(stderr, "-a --logLevel : Set the log level\n");
 	fprintf(stderr, "-c --netDisk : The location of the net disk directory\n");
-	fprintf(stderr, "-e --tempDirRoot : The temp file root directory\n");
 	fprintf(stderr, "-h --help : Print this help screen\n");
 }
 
@@ -632,7 +621,6 @@ int main(int argc, char *argv[]) {
 	 */
 	char * logLevelString = NULL;
 	char * netDiskName = NULL;
-	char * tempFileRootDirectory = NULL;
 
 	///////////////////////////////////////////////////////////////////////////
 	// (0) Parse the inputs handed by genomeCactus.py / setup stuff.
@@ -642,14 +630,13 @@ int main(int argc, char *argv[]) {
 		static struct option long_options[] = {
 			{ "logLevel", required_argument, 0, 'a' },
 			{ "netDisk", required_argument, 0, 'c' },
-			{ "tempDirRoot", required_argument, 0, 'e' },
 			{ "help", no_argument, 0, 'h' },
 			{ 0, 0, 0, 0 }
 		};
 
 		int option_index = 0;
 
-		int key = getopt_long(argc, argv, "a:c:e:h", long_options, &option_index);
+		int key = getopt_long(argc, argv, "a:c:h", long_options, &option_index);
 
 		if(key == -1) {
 			break;
@@ -661,9 +648,6 @@ int main(int argc, char *argv[]) {
 				break;
 			case 'c':
 				netDiskName = stringCopy(optarg);
-				break;
-			case 'e':
-				tempFileRootDirectory = stringCopy(optarg);
 				break;
 			case 'h':
 				usage();
@@ -680,7 +664,6 @@ int main(int argc, char *argv[]) {
 
 	assert(logLevelString == NULL || strcmp(logLevelString, "INFO") == 0 || strcmp(logLevelString, "DEBUG") == 0);
 	assert(netDiskName != NULL);
-	assert(tempFileRootDirectory != NULL);
 
 	//////////////////////////////////////////////
 	//Set up logging
@@ -698,7 +681,6 @@ int main(int argc, char *argv[]) {
 	//////////////////////////////////////////////
 
 	logInfo("Net disk name : %s\n", netDiskName);
-	logInfo("Temp file root directory : %s\n", tempFileRootDirectory);
 
 	//////////////////////////////////////////////
 	//Load the database
@@ -802,7 +784,7 @@ int main(int argc, char *argv[]) {
 		///////////////////////////////////////////////////////////////////////////
 
 		startTime = time(NULL);
-		buildChainTrees((ChainAlignment **)sortedChainAlignments->list, sortedChainAlignments->length, net_getEventTree(net), tempFileRootDirectory);
+		buildChainTrees((ChainAlignment **)sortedChainAlignments->list, sortedChainAlignments->length, net_getEventTree(net));
 		destructList(sortedChainAlignments);
 
 		logInfo("Augmented the block trees in: %i seconds\n", time(NULL) - startTime);
