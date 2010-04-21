@@ -202,9 +202,12 @@ static Cap *buildFaces_getMinorLiftedEdgeDestination(Cap *
 						       *liftedEdges)
 {
 	int32_t index;
-	Cap *ancestralEdgeDestination =
-	    cap_getPositiveOrientation(cap_getAdjacency(cap));
+	Cap * adjacency = cap_getAdjacency(cap);
+	Cap *ancestralEdgeDestination = NULL;
 	Cap *liftedDestination;
+
+	if (adjacency)
+	    ancestralEdgeDestination = cap_getPositiveOrientation(cap_getAdjacency(cap));
 
 #ifndef BEN_DEBUG
 	for (index = 0; index < liftedEdges->length; index++)
@@ -423,8 +426,11 @@ static void buildFaces_connectInterpolatedNode(Cap ** interpolations,
 {
 	Cap *node = interpolations[nodeIndex];
 	Cap *topNode = face_getTopNode(face, nodeIndex);
-	Cap *adjacentNode = cap_getPositiveOrientation(cap_getAdjacency(topNode));
+	Cap *adjacentNode = NULL; 
 	int32_t adjacentIndex;
+
+	if (cap_getAdjacency(topNode))
+		adjacentNode = cap_getPositiveOrientation(cap_getAdjacency(topNode));
 
 	// If not interpolated or previously connected or top node disconnected
 	if (node == NULL || cap_getAdjacency(node) || adjacentNode == NULL)

@@ -27,6 +27,7 @@ CuSuite *cactusHashTestSuite();
 void cactusAPIRunAllTests(void) {
 	CuString *output = CuStringNew();
 	CuSuite* suite = CuSuiteNew();
+	CuSuiteAddSuite(suite, cactusEventTestSuite());
 	CuSuiteAddSuite(suite, cactusGroupTestSuite());
 	CuSuiteAddSuite(suite, cactusSegmentTestSuite());
 	CuSuiteAddSuite(suite, cactusBlockTestSuite());
@@ -34,7 +35,6 @@ void cactusAPIRunAllTests(void) {
 	CuSuiteAddSuite(suite, cactusDatabaseTestSuite());
 	CuSuiteAddSuite(suite, cactusCapTestSuite());
 	CuSuiteAddSuite(suite, cactusEndTestSuite());
-	CuSuiteAddSuite(suite, cactusEventTestSuite());
 	CuSuiteAddSuite(suite, cactusEventTreeTestSuite());
 	CuSuiteAddSuite(suite, cactusLinkTestSuite());
 	CuSuiteAddSuite(suite, cactusMetaEventTestSuite());

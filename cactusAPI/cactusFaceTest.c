@@ -92,7 +92,7 @@ void testFace_serialisation(CuTest* testCase) {
 
 CuSuite *cactusFaceTestSuite(void) {
 	CuSuite* suite = CuSuiteNew();
-	//SUITE_ADD_TEST(suite, testFace_getTopNode);
+	SUITE_ADD_TEST(suite, testFace_getTopNode);
 	SUITE_ADD_TEST(suite, testFace_getCardinal);
 	SUITE_ADD_TEST(suite, testFace_getDerivedDestination);
 	SUITE_ADD_TEST(suite, testFace_getBottomNodeNumber);
