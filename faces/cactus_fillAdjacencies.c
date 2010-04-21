@@ -26,8 +26,8 @@ typedef struct adjacency_vote_table_st AdjacencyVoteTable;
 static int VOTE_CUTOFF = 16;
 
 ///////////////////////////////////////////////
-// Adjacency vote : 
-//      message passing structure for ambiguous 
+// Adjacency vote :
+//      message passing structure for ambiguous
 //      partner configurations
 ///////////////////////////////////////////////
 struct adjacency_vote_st {
@@ -146,7 +146,7 @@ static Cap *adjacencyVote_getWinner(AdjacencyVote * vote)
 
 /*
  * Checks if vote points to NULL
- */ 
+ */
 static bool adjacencyVote_isBlank(AdjacencyVote * vote) {
 	return vote->length == 1 && vote->candidates[0] == NULL;
 }
@@ -164,13 +164,13 @@ static AdjacencyVote *adjacencyVote_processVotes(AdjacencyVote * vote_1,
 	bool blank_1 = adjacencyVote_isBlank(vote_1);
 	bool blank_2 = adjacencyVote_isBlank(vote_2);
 
-	if (blank_1 && blank_2) 
+	if (blank_1 && blank_2)
 		return adjacencyVote_copy(vote_1);
-	else if (blank_1) 
+	else if (blank_1)
 		return adjacencyVote_copy(vote_2);
 	else if (blank_2)
 		return adjacencyVote_copy(vote_1);
-	
+
 	merged_vote = adjacencyVote_construct(vote_1->length + vote_2->length);
 
 	// Computing intersection first
@@ -179,7 +179,7 @@ static AdjacencyVote *adjacencyVote_processVotes(AdjacencyVote * vote_1,
 			merged_vote->candidates[index_merged++] =
 			    vote_1->candidates[index_1++];
 			index_2++;
-		} 
+		}
 		else if (cap_getName(vote_1->candidates[index_1]) <
 		         cap_getName(vote_2->candidates[index_2]))
 			index_1++;
@@ -191,22 +191,22 @@ static AdjacencyVote *adjacencyVote_processVotes(AdjacencyVote * vote_1,
 	if (index_merged > 0) {
 		merged_vote->length = index_merged;
 		return merged_vote;
-	} 
+	}
 
 	index_merged = 0;
 	index_1 = 0;
 	index_2 = 0;
 	merged_vote->intersection = false;
 
-	// If intersection failed: union 
+	// If intersection failed: union
 	while (index_1 < vote_1->length || index_2 < vote_2->length) {
-		if (index_1 < vote_1->length 
+		if (index_1 < vote_1->length
 		    && index_2 < vote_2->length
 		    && vote_1->candidates[index_1] == vote_2->candidates[index_2]) {
 			merged_vote->candidates[index_merged++] =
 			    vote_1->candidates[index_1++];
 			index_2++;
-		} 
+		}
 		else if (index_2 == vote_2->length)
 			merged_vote->candidates[index_merged++] =
 			    vote_1->candidates[index_1++];
@@ -268,7 +268,7 @@ static void adjacencyVote_goToParents(AdjacencyVote * vote,
 }
 
 ///////////////////////////////////////////////
-// Adjacency vote table : 
+// Adjacency vote table :
 //      simple lookup table of AdjacencyVotes
 ///////////////////////////////////////////////
 
@@ -356,12 +356,12 @@ static void adjacencyVoteTable_recordVote(AdjacencyVoteTable * table,
  */
 static bool adjacencyVoteTable_doesNotVote(Cap * cap, AdjacencyVoteTable * table) {
 	AdjacencyVote * vote = adjacencyVoteTable_getVote(cap, table);
-	
+
 	return (vote == NULL || vote->length  == 0);
 }
 
 ///////////////////////////////////////////////
-// Filling in method 
+// Filling in method
 ///////////////////////////////////////////////
 
 /*
@@ -394,12 +394,12 @@ static void fillingIn_registerParent(Cap * cap,
 /*
  * Initiate propagation by counting bottom nodes as decided
  */
-static void fillingIn_registerLeafCap(Cap * cap, 
+static void fillingIn_registerLeafCap(Cap * cap,
 					      AdjacencyVoteTable * table)
 {
 	AdjacencyVote *vote;
 
-	// Mark as decided 
+	// Mark as decided
 	vote = adjacencyVote_construct(1);
 	vote->candidates[0] = cap_getAdjacency(cap);
 	adjacencyVoteTable_recordVote(table, cap, vote);
@@ -482,10 +482,10 @@ static void fillingIn_propagateToParents(Cap * child,
 	// Already at root
 	if (parent == NULL)
 		return;
-	
+
 	// Parent already happily paired up
 	if (cap_getAdjacency(parent))
-		return;	
+		return;
 
 	// TODO: how about converting an old abstentionist?
 	if (adjacencyVoteTable_doesNotVote(parent, table))
@@ -511,13 +511,13 @@ static Cap *fillingIn_interpolateCaps(Cap * parentCap,
 	cap_changeParentAndChild(newCap, childCap);
 	cap_makeParentAndChild(parentCap, newCap);
 
-	logInfo("XXXXXXXXXXXXXXXXXXXXXXX Interpolated %p->%p->%p\n", parentCap, newCap, childCap); 
+	logInfo("XXXXXXXXXXXXXXXXXXXXXXX Interpolated %p->%p->%p\n", parentCap, newCap, childCap);
 
 	return newCap;
 }
 
 /*
- * Make two end instances adjacent, and record the decision 
+ * Make two end instances adjacent, and record the decision
  */
 static void fillingIn_uniteCaps(Cap * cap,
 					Cap * partner,
@@ -525,7 +525,7 @@ static void fillingIn_uniteCaps(Cap * cap,
 					AdjacencyVoteTable * table)
 {
 	AdjacencyVote * partnerVote;
-	
+
 	logInfo("UNITING caps %p -- %p\n", cap, partner);
 
 	if (cap_getEvent(cap) != cap_getEvent(partner))
@@ -548,7 +548,7 @@ static void fillingIn_uniteCaps(Cap * cap,
 	fillingIn_propagateToChildren(cap, partner, table);
 }
 
-/* 
+/*
  * Tests if a partner agrees to be paired up
  */
 static bool fillingIn_partnerConsents(Cap * partner, Cap * cap, AdjacencyVoteTable * table) {
@@ -579,13 +579,13 @@ static Event *fillingIn_interpolateEvents(Event* parentEvent, Event* childEvent)
 #ifdef BEN_DEBUG
 	assert(event_isDescendant(parentEvent, childEvent));
 #endif
-	
+
 	// Compute total branch length
-	for(ptr = childEvent; ptr != parentEvent; ptr = event_getParent(ptr)) 
+	for(ptr = childEvent; ptr != parentEvent; ptr = event_getParent(ptr))
 		branchLength += event_getBranchLength(ptr);
 
 	if (branchLength <= 1) {
-		metaEvent = metaEvent_construct("interpolation", netDisk); 
+		metaEvent = metaEvent_construct("interpolation", netDisk);
 		return event_construct2(metaEvent, 0, event_getParent(childEvent), childEvent, eventTree);
 	}
 
@@ -609,7 +609,7 @@ static Event *fillingIn_interpolateEvents(Event* parentEvent, Event* childEvent)
 	}
 
 	logInfo("%i %i\n", event_getBranchLength(ptr), branchLength);
-	metaEvent = metaEvent_construct("interpolation", netDisk); 
+	metaEvent = metaEvent_construct("interpolation", netDisk);
 	result = event_construct2(metaEvent, event_getBranchLength(ptr) - branchLength, event_getParent(ptr), ptr, eventTree);
 #ifdef BEN_DEBUG
 	assert(event_getBranchLength(result) > 0);
@@ -636,14 +636,14 @@ static void fillingIn_pairUpToNullStub(Cap * cap, Cap * nonPartner, AdjacencyVot
 	int32_t childIndex;
 	AdjacencyVote * vote, *stubVote, *nonPartnerParentStubVote, *nonPartnerParentPartnerStubVote;
 
-	Event * parentEvent;	
+	Event * parentEvent;
 	Event * nonPartnerParentEvent;
 
 	logInfo("Null stub %p %p %p %p %p\n", cap, nonPartner, cap_getAdjacency(nonPartner), cap_getEvent(cap), cap_getEvent(nonPartner));
 
-	// Get time stamps of nonPartnerParents 
+	// Get time stamps of nonPartnerParents
 	nonPartnerParent = cap_getParent(nonPartner);
-	if (nonPartnerParent) 
+	if (nonPartnerParent)
 		nonPartnerParentEvent = cap_getEvent(nonPartnerParent);
 
 #ifdef BEN_DEBUG
@@ -682,12 +682,12 @@ static void fillingIn_pairUpToNullStub(Cap * cap, Cap * nonPartner, AdjacencyVot
 
 	// Create a partner for that stub:
 	if (nonPartnerParent) {
-		nonPartnerParentPartnerStub = adjacencyVote_getWitnessAncestor(cap, parentEvent); 
+		nonPartnerParentPartnerStub = adjacencyVote_getWitnessAncestor(cap, parentEvent);
 		if (cap_getEvent(nonPartnerParentPartnerStub) != parentEvent)
 			nonPartnerParentPartnerStub = fillingIn_interpolateCaps(cap_getParent(nonPartnerParentPartnerStub), nonPartnerParentPartnerStub, parentEvent);
 		cap_makeAdjacent(nonPartnerParentStub, nonPartnerParentPartnerStub);
 	}
-	
+
 	for (childIndex = 0; childIndex < childNumber; childIndex++) {
 		child = cap_getChild(cap, childIndex);
 		childPartner = cap_getAdjacency(child);
@@ -698,16 +698,16 @@ static void fillingIn_pairUpToNullStub(Cap * cap, Cap * nonPartner, AdjacencyVot
 		cap_changeParentAndChild(stub, childPartner);
 	}
 
-	// Fill votes 
+	// Fill votes
 	vote->candidates[0] = stub;
-	adjacencyVoteTable_recordVote(table, cap, vote);	
+	adjacencyVoteTable_recordVote(table, cap, vote);
 	stubVote->candidates[0] = cap;
-	adjacencyVoteTable_recordVote(table, stub, stubVote);	
+	adjacencyVoteTable_recordVote(table, stub, stubVote);
 	if (nonPartnerParent) {
 		nonPartnerParentStubVote->candidates[0] = nonPartnerParentPartnerStub;
-		adjacencyVoteTable_recordVote(table, nonPartnerParentStub, nonPartnerParentStubVote);	
+		adjacencyVoteTable_recordVote(table, nonPartnerParentStub, nonPartnerParentStubVote);
 		nonPartnerParentPartnerStubVote->candidates[0] = nonPartnerParentStub;
-		adjacencyVoteTable_recordVote(table, nonPartnerParentPartnerStub, nonPartnerParentPartnerStubVote);	
+		adjacencyVoteTable_recordVote(table, nonPartnerParentPartnerStub, nonPartnerParentPartnerStubVote);
 	}
 
 	// Push computation front
@@ -744,7 +744,7 @@ static void fillingIn_processChildrenVote(Cap *
 	// Consult children
 	switch (childrenNumber) {
 	case 0:
-		// NOTE: This should not happen in theory since only 
+		// NOTE: This should not happen in theory since only
 		// children can register their parents
 #ifdef BEN_DEBUG
 		assert(false);
@@ -885,8 +885,8 @@ static void fillingIn_propagateAdjacencyDownwards(Cap *
 
 	if (!decision || !fillingIn_partnerConsents(decision, cap, table))
 		// If partner does not exist or refuses
-		fillingIn_chooseAtRandom(cap, vote, table);	
-	else 
+		fillingIn_chooseAtRandom(cap, vote, table);
+	else
 		// Determined partner accepts
 		fillingIn_uniteCaps(cap, decision, vote,
 					    table);
@@ -981,7 +981,7 @@ static void fillingIn_resolveSelfLoop(Cap * ancestor,
 	    fillingIn_interpolateCaps(interpolationJoin, descendant2,
 				    middleChildEvent);
 
-	// Create alter ego tree 
+	// Create alter ego tree
 	alterEgoParent = cap_construct(NULL, topEvent);
 	alterEgoChild = cap_construct(NULL, middleParentEvent);
 	alterEgoAdjacency1 = cap_construct(NULL, middleChildEvent);
@@ -1017,7 +1017,7 @@ static void fillingIn_removeSelfLoops(Net * net)
 			    fillingIn_getAttachedAncestor(partner);
 
 			// Self loop
-			if (adjacencyAncestor 
+			if (adjacencyAncestor
 			    && adjacencyAncestor == attachedAncestor)
 				fillingIn_resolveSelfLoop(attachedAncestor,
 							  cap,
@@ -1038,38 +1038,38 @@ void fillingIn_fillAdjacencies(Net * net)
 	AdjacencyVoteTable *table = adjacencyVoteTable_construct();
 	Net_CapIterator *iter = net_getCapIterator(net);
 
-	//////////////////////////////////////////////////////////////  
-	// Define a computation front  
-	//////////////////////////////////////////////////////////////  
+	//////////////////////////////////////////////////////////////
+	// Define a computation front
+	//////////////////////////////////////////////////////////////
 	logInfo("Registering leaf caps\n");
 	while ((cap = net_getNextCap(iter)))
 		if (cap_getChildNumber(cap) == 0)
 			fillingIn_registerLeafCap(cap, table);
 
-	//////////////////////////////////////////////////////////////  
-	// Compute greedily  
-	//////////////////////////////////////////////////////////////  
-	// DEBUG 
+	//////////////////////////////////////////////////////////////
+	// Compute greedily
+	//////////////////////////////////////////////////////////////
+	// DEBUG
 	logInfo("Propagation\n");
 	while (table->computationFront->length > 0)
 		fillingIn_stepForward(listRemoveFirst(table->computationFront), table);
 
 
-	//////////////////////////////////////////////////////////////  
-	// Remove self loops 
-	//////////////////////////////////////////////////////////////  
+	//////////////////////////////////////////////////////////////
+	// Remove self loops
+	//////////////////////////////////////////////////////////////
 	logInfo("Removing self-loops\n");
 	fillingIn_removeSelfLoops(net);
 
-	//////////////////////////////////////////////////////////////  
-	// Clean up 
-	//////////////////////////////////////////////////////////////  
+	//////////////////////////////////////////////////////////////
+	// Clean up
+	//////////////////////////////////////////////////////////////
 	logInfo("Clean up\n");
 	net_destructCapIterator(iter);
 	adjacencyVoteTable_destruct(table);
 }
 
-/* 
+/*
  * Prints out information
  */
 static void usage() {
@@ -1080,7 +1080,7 @@ static void usage() {
 	fprintf(stderr, "-h --help : Print this help screen\n");
 }
 
-/* 
+/*
  * Command line wrapper
  */
 int main(int argc, char ** argv) {
@@ -1104,7 +1104,6 @@ int main(int argc, char ** argv) {
 	 */
 	char * logLevelString = NULL;
 	char * netDiskName = NULL;
-	char * tempFileRootDirectory = NULL;
 
 	///////////////////////////////////////////////////////////////////////////
 	// (0) Parse the inputs handed by genomeCactus.py / setup stuff.
@@ -1114,14 +1113,13 @@ int main(int argc, char ** argv) {
 		static struct option long_options[] = {
 			{ "logLevel", required_argument, 0, 'a' },
 			{ "netDisk", required_argument, 0, 'c' },
-			{ "tempDirRoot", required_argument, 0, 'e' },
 			{ "help", no_argument, 0, 'h' },
 			{ 0, 0, 0, 0 }
 		};
 
 		int option_index = 0;
 
-		int key = getopt_long(argc, argv, "a:c:e:h", long_options, &option_index);
+		int key = getopt_long(argc, argv, "a:c:h", long_options, &option_index);
 
 		if(key == -1) {
 			break;
@@ -1133,9 +1131,6 @@ int main(int argc, char ** argv) {
 				break;
 			case 'c':
 				netDiskName = stringCopy(optarg);
-				break;
-			case 'e':
-				tempFileRootDirectory = stringCopy(optarg);
 				break;
 			case 'h':
 				usage();
@@ -1152,7 +1147,7 @@ int main(int argc, char ** argv) {
 
 	assert(logLevelString == NULL || strcmp(logLevelString, "INFO") == 0 || strcmp(logLevelString, "DEBUG") == 0);
 	assert(netDiskName != NULL);
-	assert(tempFileRootDirectory != NULL);
+	//assert(tempFileRootDirectory != NULL);
 
 	//////////////////////////////////////////////
 	//Set up logging
@@ -1170,7 +1165,6 @@ int main(int argc, char ** argv) {
 	//////////////////////////////////////////////
 
 	logInfo("Net disk name : %s\n", netDiskName);
-	logInfo("Temp file root directory : %s\n", tempFileRootDirectory);
 
 	//////////////////////////////////////////////
 	//Load the database
@@ -1196,7 +1190,7 @@ int main(int argc, char ** argv) {
 
 
 		///////////////////////////////////////////////////////////////////////////
-		// Fill adjencencies 
+		// Fill adjencencies
 		///////////////////////////////////////////////////////////////////////////
 
 		startTime = time(NULL);
@@ -1225,4 +1219,4 @@ int main(int argc, char ** argv) {
 	logInfo("Cleaned stuff up and am finished in: %i seconds\n", time(NULL) - startTime);
 	return 0;
 
-} 
+}

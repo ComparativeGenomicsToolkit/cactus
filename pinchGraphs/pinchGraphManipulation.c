@@ -593,8 +593,6 @@ float treeCoverage(struct PinchVertex *vertex, Net *net,
 	}
 	destructBlackEdgeIterator(blackEdgeIterator);
 	assert(commonAncestorEvent != NULL);
-	uglyf("I got %i children %f \n", event_getChildNumber(commonAncestorEvent), event_getBranchLength(event));
-
 	treeCoverage = 0.0;
 	hash = create_hashtable(eventTree_getEventNumber(eventTree)*2,
 					 hashtable_key, hashtable_equalKey,
