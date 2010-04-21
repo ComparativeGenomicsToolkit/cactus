@@ -19,5 +19,5 @@ ${libPath}/cactusLib.a : ${libSources} ${libHeaders} ${libPath}/sonLib.a
 	mv cactusLib.a ${libPath}/
 	cp cactus*.h ${libPath}/
 	
-${binPath}/cactusAPITests : ${libSources} ${libHeaders} ${libPath}/cactusLib.a ${libPath}/sonLib.a ${libPath}/cuTest.a
+${binPath}/cactusAPITests : ${libSources} ${libHeaders} allTests.c ${libPath}/cactusLib.a ${libPath}/sonLib.a ${libPath}/cuTest.a
 	${cxx} ${cflags} -I ${libPath} -o ${binPath}/cactusAPITests allTests.c ${libPath}/cactusLib.a ${libPath}/sonLib.a ${libPath}/cuTest.a ${tokyoCabinetLib}

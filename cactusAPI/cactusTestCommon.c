@@ -9,6 +9,7 @@
 ////////////////////////////////////////////////
 
 const char *testCommon_getTemporaryNetDisk() {
+	system("rm -rf temporaryNetDisk");
 	static char cA[] = "temporaryNetDisk";
 	return cA;
 }
