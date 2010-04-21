@@ -5,20 +5,14 @@ from sonLib.bioio import parseSuiteTestOptions
 from sonLib.bioio import TestStatus
 
 from cactus.shared.test import getCactusInputs_random
-from cactus.shared.test import getCactusInputs_blanchette
 from cactus.shared.test import runWorkflow_multipleExamples
 
 class TestCase(unittest.TestCase):
     def testCactus_Random(self):
         runWorkflow_multipleExamples(getCactusInputs_random, 
                                      testNumber=TestStatus.getTestSetup(), 
-                                     buildTrees=True, buildFaces=False, buildReference=False)
+                                     buildCactusPDF=True, buildAdjacencyPDF=True)
         
-    def testCactus_Blanchette(self):
-        runWorkflow_multipleExamples(getCactusInputs_blanchette, 
-                                     testRestrictions=(TestStatus.TEST_SHORT,), inverseTestRestrictions=True, 
-                                     buildTrees=True, buildFaces=False, buildReference=False)
-    
 def main():
     parseSuiteTestOptions()
     sys.argv = sys.argv[:1]

@@ -30,7 +30,7 @@ from sonLib.tree import makeRandomBinaryTree
 
 from workflow.jobTree.jobTreeTest import runJobTreeStatusAndFailIfNotComplete
 
-def getCactusInputs_random(tempDir,
+def getCactusInputs_random(regionNumber=0, tempDir=None,
                           sequenceNumber=random.choice(xrange(100)), 
                           avgSequenceLength=random.choice(xrange(1, 5000)), 
                           treeLeafNumber=random.choice(xrange(1, 10))):
@@ -95,7 +95,7 @@ def parseNewickTreeFile(newickTreeFile):
     fileHandle.close()
     return newickTreeString
 
-def getCactusInputs_blanchette(regionNumber=0):
+def getCactusInputs_blanchette(regionNumber=0, tempDir=None):
     """Gets the inputs for running cactus_workflow using a blanchette simulated region
     (0 <= regionNumber < 50).
     
@@ -109,7 +109,7 @@ def getCactusInputs_blanchette(regionNumber=0):
     newickTreeString = parseNewickTreeFile(os.path.join(blanchettePath, "tree.newick"))
     return sequences, newickTreeString
     
-def getCactusInputs_encode(regionNumber=0):
+def getCactusInputs_encode(regionNumber=0, tempDir=None):
     """Gets the inputs for running cactus_workflow using an Encode pilot project region.
      (0 <= regionNumber < 15).
     
@@ -123,7 +123,7 @@ def getCactusInputs_encode(regionNumber=0):
     newickTreeString = parseNewickTreeFile(os.path.join(encodeDatasetPath, "reducedTree.newick"))
     return sequences, newickTreeString
 
-def getCactusInputs_chromosomeX():
+def getCactusInputs_chromosomeX(regionNumber=0, tempDir=None):
     """Gets the inputs for running cactus_workflow using an some mammlian chromosome
     X's.
     
@@ -183,7 +183,7 @@ def runWorkflow_TestScript(sequences, newickTreeString,
     logger.info("Checked the job tree dir")
     
     #Check if the netDisk is okay..
-    runCactusCheck(netDisk)
+    #runCactusCheck(netDisk)
     logger.info("Checked the cactus tree")
     
     #Now run various utilities..
@@ -225,8 +225,39 @@ def runWorkflow_TestScript(sequences, newickTreeString,
         
     if cleanup:
         #Now remove everything
-        os.rmdir(tempDir)
+        system("rm -rf %s" % tempDir)
         logger.info("Cleaned everything up")
     else:
         logger.info("Not cleaning up")
+        
+testRestrictions_NotShort = ()
+        
+def runWorkflow_multipleExamples(inputGenFunction,
+                               testNumber=1, 
+                               testRestrictions=(TestStatus.TEST_SHORT, TestStatus.TEST_MEDIUM, \
+                                                 TestStatus.TEST_LONG, TestStatus.TEST_VERY_LONG,),
+                               inverseTestRestrictions=False,
+                               outputDir=None,
+                               batchSystem="single_machine",
+                               buildTrees=True, buildFaces=False, buildReference=True,
+                               buildCactusPDF=False, buildAdjacencyPDF=False,
+                               makeCactusTreeStats=False, makeMAFs=False):
+    """A wrapper to run a number of examples.
+    """
+    if (inverseTestRestrictions and TestStatus.getTestStatus() not in testRestrictions) or \
+        (not inverseTestRestrictions and TestStatus.getTestStatus() in testRestrictions):
+        for test in xrange(testNumber): 
+            tempDir = getTempDirectory(os.getcwd())
+            sequences, newickTreeString = inputGenFunction(regionNumber=test, tempDir=tempDir)
+            if outputDir != None:
+                out = os.path.join(outputDir, str(test))
+            else:
+                out = None
+            runWorkflow_TestScript(sequences, newickTreeString, tempDir=tempDir,
+                                   outputDir=out, batchSystem=batchSystem,
+                                   buildTrees=buildTrees, buildFaces=buildFaces, buildReference=buildReference, 
+                                   buildCactusPDF=buildCactusPDF, buildAdjacencyPDF=buildAdjacencyPDF,
+                                   makeCactusTreeStats=makeCactusTreeStats, makeMAFs=makeMAFs)
+            system("rm -rf %s" % tempDir)
+            logger.info("Finished random test %i" % test)
     
