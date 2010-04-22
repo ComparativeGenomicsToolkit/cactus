@@ -144,11 +144,6 @@ void cap_changeParentAndChild(Cap* newCapParent, Cap* capChild);
 int32_t cap_isInternal(Cap *cap);
 
 /*
- * Returns a non zero integer if the cap is augmented (added to accommodate an adjacency, but without an attached segment).
- */
-int32_t cap_isAugmented(Cap *cap);
-
-/*
  * Checks the following (amongst other things):
  * If end has tree:
  *  (1) checks the cap has a parent which has an ancestral event to the caps event, unless it is the root.

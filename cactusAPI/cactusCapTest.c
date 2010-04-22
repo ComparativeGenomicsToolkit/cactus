@@ -264,27 +264,6 @@ void testCap_isInternal(CuTest* testCase) {
 	cactusCapTestTeardown();
 }
 
-void testCap_isAugmented(CuTest* testCase) {
-	cactusCapTestSetup();
-	CuAssertTrue(testCase, !cap_isAugmented(rootCap));
-	CuAssertTrue(testCase, !cap_isAugmented(leaf1Cap));
-	CuAssertTrue(testCase, !cap_isAugmented(leaf2Cap));
-
-	Block *block = block_construct(3, net);
-	Segment *segment = segment_construct2(block, 2, 0, sequence);
-	Cap *_5Cap = segment_get5Cap(segment);
-	Cap *_3Cap = segment_get3Cap(segment);
-
-	CuAssertTrue(testCase, !cap_isAugmented(_5Cap));
-	CuAssertTrue(testCase, !cap_isAugmented(_3Cap));
-
-	End *leftEnd = block_get5End(block);
-	Cap *augmentedCap = cap_construct(leftEnd, rootEvent);
-	CuAssertTrue(testCase, cap_isAugmented(augmentedCap));
-
-	cactusCapTestTeardown();
-}
-
 void testCap_serialisation(CuTest* testCase) {
 	cactusCapTestSetup();
 	int32_t i;
@@ -315,7 +294,6 @@ void testCap_serialisation(CuTest* testCase) {
 	testCap_getChildNumber(testCase);
 	testCap_getChild(testCase);
 	testCap_isInternal(testCase);
-	testCap_isAugmented(testCase);
 	nestedTest = 0;
 	cactusCapTestTeardown();
 }
@@ -341,7 +319,6 @@ CuSuite* cactusCapTestSuite(void) {
 	SUITE_ADD_TEST(suite, testCap_getChildNumber);
 	SUITE_ADD_TEST(suite, testCap_getChild);
 	SUITE_ADD_TEST(suite, testCap_isInternal);
-	SUITE_ADD_TEST(suite, testCap_isAugmented);
 	SUITE_ADD_TEST(suite, testCap_serialisation);
 	SUITE_ADD_TEST(suite, testCap_construct);
 	return suite;

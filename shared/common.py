@@ -174,8 +174,7 @@ def runCactusReference(netDisk, netNames, logLevel="DEBUG"):
 def runCactusCheck(netDisk, 
                     netName="0", 
                     logLevel="DEBUG"):
-    system("cactus_check --netDisk %s --netName %s --logLevel %s" \
-                    % (netDisk, netName, logLevel))
+    system("cactus_check --netDisk %s --netName %s --logLevel %s"  % (netDisk, netName, logLevel))
     logger.info("Ran cactus check")
     
 def runCactusWorkflow(netDisk, sequenceFiles, 
@@ -185,7 +184,7 @@ def runCactusWorkflow(netDisk, sequenceFiles,
                       batchSystem="single_machine", 
                       rescueJobFrequency=None,
                       setupAndBuildAlignments=True,
-                      buildTrees=False, buildFaces=False, buildReference=False):
+                      buildTrees=True, buildFaces=True, buildReference=True):
     setupAndBuildAlignments = nameValue("setupAndBuildAlignments", setupAndBuildAlignments, bool)
     buildTrees = nameValue("buildTrees", buildTrees, bool)
     buildFaces = nameValue("buildFaces", buildFaces, bool)

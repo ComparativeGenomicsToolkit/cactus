@@ -51,10 +51,4 @@ char *netMisc_nameToStringWithOrientation(Name name, int32_t orientation);
  */
 const char *netMisc_nameToStringStaticWithOrientiation(Name name, int32_t orientation);
 
-/*
- * Add the adjacencies between leaf caps of a net. Does not touch internal instances.
- * All ends must be in the net before this function is called.
- */
-void netMisc_addAdjacenciesToLeafCaps(Net *net);
-
 #endif

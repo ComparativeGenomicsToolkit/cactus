@@ -262,10 +262,6 @@ int32_t cap_isInternal(Cap *cap) {
 	return cap_getChildNumber(cap) > 0;
 }
 
-int32_t cap_isAugmented(Cap *cap) {
-	return end_getBlock(cap_getEnd(cap)) != NULL && cap_getSegment(cap) == NULL;
-}
-
 void cap_check(Cap *cap) {
 	End *end = cap_getEnd(cap);
 	assert(end_getInstance(end, cap_getName(cap)) == cap);
@@ -301,11 +297,7 @@ void cap_check(Cap *cap) {
 	}
 	else {
 		Segment *segment = cap_getSegment(cap);
-		if(cap_isAugmented(cap)) {
-			assert(segment == NULL);
-		}
-		else {
-			assert(segment != NULL);
+		if(segment != NULL) {
 			assert(cap_getOrientation(cap) == segment_getOrientation(segment));
 		}
 	}
@@ -349,7 +341,6 @@ void cap_check(Cap *cap) {
 	assert(cap_getName(cap) == cap_getName(rCap));
 	assert(cap_getEvent(cap) == cap_getEvent(rCap));
 	assert(cap_getEnd(cap) == end_getReverse(cap_getEnd(rCap)));
-	assert(cap_isAugmented(cap) == cap_isAugmented(rCap));
 	if(cap_getSegment(cap) == NULL) {
 		assert(cap_getSegment(rCap) == NULL);
 	}

@@ -38,6 +38,36 @@ static int32_t returnsTrue(Event *event) {
 	return 1;
 }
 
+static void copyAdjacencies(Group *group, Net *nestedNet) {
+	assert(net_getParentGroup(nestedNet) == group);
+	Group_EndIterator *endIterator = group_getEndIterator(group);
+	End *end;
+	while((end = group_getNextEnd(endIterator)) != NULL) {
+		End *nestedEnd = net_getEnd(nestedNet, end_getName(end));
+		assert(nestedEnd != NULL);
+		Cap *cap, *adjacentCap, *nestedCap, *nestedAdjacentCap;
+		End_InstanceIterator *capIterator = end_getInstanceIterator(end);
+		while((cap = end_getNext(capIterator)) != NULL) {
+			adjacentCap = cap_getAdjacency(cap);
+			if(adjacentCap != NULL) {
+				nestedCap = end_getInstance(nestedEnd, cap_getName(cap));
+				nestedAdjacentCap = net_getCap(nestedNet, cap_getName(adjacentCap));
+				assert(nestedCap != NULL);
+				assert(nestedAdjacentCap != NULL);
+				nestedAdjacentCap = cap_getOrientation(adjacentCap) == cap_getOrientation(nestedAdjacentCap) ? nestedAdjacentCap : cap_getReverse(nestedAdjacentCap);
+				assert(cap_getOrientation(cap));
+				assert(cap_getOrientation(cap) == cap_getOrientation(nestedCap));
+				assert(cap_getOrientation(adjacentCap) == cap_getOrientation(nestedAdjacentCap));
+				assert(end_getNet(cap_getEnd(nestedCap)) == nestedNet);
+				assert(end_getNet(cap_getEnd(nestedAdjacentCap)) == nestedNet);
+				cap_makeAdjacent(nestedCap, nestedAdjacentCap);
+			}
+		}
+		end_destructInstanceIterator(capIterator);
+	}
+	group_destructEndIterator(endIterator);
+}
+
 void group_makeNonTerminal(Group *group) {
 	assert(group_isTerminal(group));
 	group->terminalGroup = 0;
@@ -52,7 +82,8 @@ void group_makeNonTerminal(Group *group) {
 		assert(end_getOrientation(end));
 	}
 	group_destructEndIterator(endIterator);
-	netMisc_addAdjacenciesToLeafCaps(nestedNet);
+	//Now add adjacencies between the caps, mirroring the parent adjacencies.
+	copyAdjacencies(group, nestedNet);
 	assert(group_getTotalBaseLength(group) == net_getTotalBaseLength(nestedNet));
 }
 
@@ -246,7 +277,8 @@ void group_check(Group *group) {
 
 	Link *link = group_getLink(group);
 	if(nonFree == 2) {
-		assert(link != NULL); // has only two non-free ends, is a link therefore
+		uglyf(" TTTT %s %i\n", netMisc_nameToString(net_getName(group_getNet(group))), group_getEndNumber(group));
+		//assert(link != NULL); // has only two non-free ends, is a link therefore
 	}
 	else {
 		assert(link == NULL); // can not be a link!

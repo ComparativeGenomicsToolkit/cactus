@@ -139,7 +139,7 @@ Segment *segment_getChild(Segment *segment, int32_t index) {
 	Cap *cap;
 	Segment *segment2;
 	cap = cap_getChild(segment_get5Cap(segment), index);
-	while(cap_isAugmented(cap)) {
+	while(cap_getSegment(cap) == NULL) {
 		assert(cap_getChildNumber(cap) == 1);
 		cap = cap_getChild(cap, 0);
 	}
