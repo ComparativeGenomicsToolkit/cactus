@@ -204,7 +204,7 @@ def runCactusWorkflow(netDisk, sequenceFiles,
 #############################################
 #############################################    
     
-def runCactusTreeStats(netDisk, outputFile, netName='0'):
+def runCactusTreeStats(outputFile, netDisk, netName='0'):
     command = "cactus_treeStats --netDisk %s --netName %s --outputFile %s" % (netDisk, netName, outputFile)
     system(command)
     logger.info("Ran the cactus tree stats command apprently okay")
@@ -221,7 +221,7 @@ def runCactusAdjacencyGraphViewer(graphFile,
                              netDisk, netName="0",
                              logLevel="DEBUG", includeInternalAdjacencies=False):
     includeInternalAdjacencies = nameValue("includeInternalAdjacencies", includeInternalAdjacencies, bool)
-    system("cactus_adjacencyGraphViewer.py --netDisk %s --netName %s --outputFile %s --logLevel %s" \
+    system("cactus_adjacencyGraphViewer --netDisk %s --netName %s --outputFile %s --logLevel %s" \
                     % (netDisk, netName, graphFile, logLevel))
     logger.info("Created a break point graph of the problem")
 

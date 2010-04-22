@@ -341,7 +341,7 @@ void block_writeBinaryRepresentation(Block *block, void (*writeFn)(const void * 
 	Segment *segment;
 
 	assert(block_getOrientation(block));
-	binaryRepresentation_writeElementType(CODE_ATOM, writeFn);
+	binaryRepresentation_writeElementType(CODE_BLOCK, writeFn);
 	binaryRepresentation_writeName(block_getName(block), writeFn);
 	binaryRepresentation_writeInteger(block_getLength(block), writeFn);
 	binaryRepresentation_writeName(end_getName(block_get5End(block)), writeFn);
@@ -359,7 +359,7 @@ Block *block_loadFromBinaryRepresentation(void **binaryString, Net *net) {
 	int32_t length;
 
 	block = NULL;
-	if(binaryRepresentation_peekNextElementType(*binaryString) == CODE_ATOM) {
+	if(binaryRepresentation_peekNextElementType(*binaryString) == CODE_BLOCK) {
 		binaryRepresentation_popNextElementType(binaryString);
 		name = binaryRepresentation_getName(binaryString);
 		length = binaryRepresentation_getInteger(binaryString);

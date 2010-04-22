@@ -277,7 +277,7 @@ void group_check(Group *group) {
 
 	Link *link = group_getLink(group);
 	if(nonFree == 2) {
-		uglyf(" TTTT %s %i\n", netMisc_nameToString(net_getName(group_getNet(group))), group_getEndNumber(group));
+		//The following is not necessarily true when you have multiple free stub ends..
 		//assert(link != NULL); // has only two non-free ends, is a link therefore
 	}
 	else {
@@ -356,12 +356,12 @@ void group_writeBinaryRepresentation(Group *group, void (*writeFn)(const void * 
 	End *end;
 	Group_EndIterator *iterator;
 
-	binaryRepresentation_writeElementType(CODE_ADJACENCY_COMPONENT, writeFn);
+	binaryRepresentation_writeElementType(CODE_GROUP, writeFn);
 	binaryRepresentation_writeBool(group_isTerminal(group), writeFn);
 	binaryRepresentation_writeName(group_getName(group), writeFn);
 	iterator = group_getEndIterator(group);
 	while((end = group_getNextEnd(iterator)) != NULL) {
-		binaryRepresentation_writeElementType(CODE_ADJACENCY_COMPONENT_END, writeFn);
+		binaryRepresentation_writeElementType(CODE_GROUP_END, writeFn);
 		binaryRepresentation_writeName(end_getName(end), writeFn);
 	}
 	group_destructEndIterator(iterator);
@@ -371,12 +371,12 @@ Group *group_loadFromBinaryRepresentation(void **binaryString, Net *net) {
 	Group *group;
 
 	group = NULL;
-	if(binaryRepresentation_peekNextElementType(*binaryString) == CODE_ADJACENCY_COMPONENT) {
+	if(binaryRepresentation_peekNextElementType(*binaryString) == CODE_GROUP) {
 		binaryRepresentation_popNextElementType(binaryString);
 		bool terminalGroup = binaryRepresentation_getBool(binaryString);
 		Name name = binaryRepresentation_getName(binaryString);
 		group = group_construct3(net, name, terminalGroup);
-		while(binaryRepresentation_peekNextElementType(*binaryString) == CODE_ADJACENCY_COMPONENT_END) {
+		while(binaryRepresentation_peekNextElementType(*binaryString) == CODE_GROUP_END) {
 			binaryRepresentation_popNextElementType(binaryString);
 			end_setGroup(net_getEnd(net, binaryRepresentation_getName(binaryString)), group);
 		}

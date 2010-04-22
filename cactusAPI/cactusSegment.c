@@ -252,7 +252,7 @@ void segment_check(Segment *segment) {
 
 void segment_writeBinaryRepresentation(Segment *segment, void (*writeFn)(const void * ptr, size_t size, size_t count)) {
 	assert(segment_getOrientation(segment));
-	binaryRepresentation_writeElementType(CODE_ATOM_INSTANCE, writeFn);
+	binaryRepresentation_writeElementType(CODE_SEGMENT, writeFn);
 	binaryRepresentation_writeName(segment_getName(segment), writeFn);
 	binaryRepresentation_writeName(cap_getName(segment_get5Cap(segment)), writeFn);
 	binaryRepresentation_writeName(cap_getName(segment_get3Cap(segment)), writeFn);
@@ -263,7 +263,7 @@ Segment *segment_loadFromBinaryRepresentation(void **binaryString, Block *block)
 	Segment *segment;
 
 	segment = NULL;
-	if(binaryRepresentation_peekNextElementType(*binaryString) == CODE_ATOM_INSTANCE) {
+	if(binaryRepresentation_peekNextElementType(*binaryString) == CODE_SEGMENT) {
 		binaryRepresentation_popNextElementType(binaryString);
 		name = binaryRepresentation_getName(binaryString);
 		_5InstanceName = binaryRepresentation_getName(binaryString);

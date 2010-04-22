@@ -49,7 +49,7 @@ static void getMAFBlockP(Segment *segment, FILE *fileHandle) {
 	}
 	int32_t i;
 	for(i=0; i<segment_getChildNumber(segment); i++) {
-		getMAFBlockP(segment, fileHandle);
+		getMAFBlockP(segment_getChild(segment, i), fileHandle);
 	}
 }
 
@@ -62,6 +62,7 @@ void getMAFBlock(Block *block, FILE *fileHandle) {
 		char *newickTreeString = block_makeNewickString(block, 1);
 		fprintf(fileHandle, "s tree=%s\n", newickTreeString);
 		free(newickTreeString);
+		assert(block_getRootInstance(block) != NULL);
 		getMAFBlockP(block_getRootInstance(block), fileHandle);
 	}
 }
@@ -83,8 +84,7 @@ void getMAFs(Net *net, FILE *fileHandle) {
 	Net_GroupIterator *groupIterator = net_getGroupIterator(net);
 	Group *group;
 	while((group = net_getNextGroup(groupIterator)) != NULL) {
-		Net *nestedNet = group_getNestedNet(group);
-		if(nestedNet != NULL) {
+		if(!group_isTerminal(group)) {
 			getMAFs(group_getNestedNet(group), fileHandle); //recursive call.
 		}
 	}

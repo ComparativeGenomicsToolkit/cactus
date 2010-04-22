@@ -414,13 +414,13 @@ void cap_writeBinaryRepresentationP(Cap *cap2, int32_t elementType, void (*write
 void cap_writeBinaryRepresentation(Cap *cap, void (*writeFn)(const void * ptr, size_t size, size_t count)) {
 	Cap *cap2;
 	if(cap_getCoordinate(cap) == INT32_MAX) {
-		binaryRepresentation_writeElementType(CODE_END_INSTANCE, writeFn);
+		binaryRepresentation_writeElementType(CODE_CAP, writeFn);
 		binaryRepresentation_writeName(cap_getName(cap), writeFn);
 		binaryRepresentation_writeName(event_getName(cap_getEvent(cap)), writeFn);
 		binaryRepresentation_writeBool(cap_getSide(cap), writeFn);
 	}
 	else {
-		binaryRepresentation_writeElementType(CODE_END_INSTANCE_WITH_COORDINATES, writeFn);
+		binaryRepresentation_writeElementType(CODE_CAP_WITH_COORDINATES, writeFn);
 		binaryRepresentation_writeName(cap_getName(cap), writeFn);
 		binaryRepresentation_writeInteger(cap_getCoordinate(cap), writeFn);
 		binaryRepresentation_writeBool(cap_getStrand(cap), writeFn);
@@ -456,14 +456,14 @@ Cap *cap_loadFromBinaryRepresentation(void **binaryString, End *end) {
 	Sequence *sequence;
 
 	cap = NULL;
-	if(binaryRepresentation_peekNextElementType(*binaryString) == CODE_END_INSTANCE) {
+	if(binaryRepresentation_peekNextElementType(*binaryString) == CODE_CAP) {
 		binaryRepresentation_popNextElementType(binaryString);
 		name = binaryRepresentation_getName(binaryString);
 		event = eventTree_getEvent(net_getEventTree(end_getNet(end)), binaryRepresentation_getName(binaryString));
 		side = binaryRepresentation_getBool(binaryString);
 		cap = cap_construct3(name, event, end, side);
 	}
-	else if(binaryRepresentation_peekNextElementType(*binaryString) == CODE_END_INSTANCE_WITH_COORDINATES) {
+	else if(binaryRepresentation_peekNextElementType(*binaryString) == CODE_CAP_WITH_COORDINATES) {
 		binaryRepresentation_popNextElementType(binaryString);
 		name = binaryRepresentation_getName(binaryString);
 		coordinate = binaryRepresentation_getInteger(binaryString);
