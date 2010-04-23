@@ -36,7 +36,7 @@ class TestCase(unittest.TestCase):
                                      testNumber=5,
                                      testRestrictions=(TestStatus.TEST_MEDIUM,),
                                      batchSystem=self.batchSystem,
-                                     buildCactusPDF=True, buildAdjacencyPDF=True,
+                                     buildCactusPDF=True,
                                      makeCactusTreeStats=True, makeMAFs=True)
                 
     def testCactus_Encode(self): 
@@ -46,7 +46,6 @@ class TestCase(unittest.TestCase):
                                      testNumber=5,
                                      testRestrictions=(TestStatus.TEST_LONG,),
                                      batchSystem=self.batchSystem,
-                                     buildCactusPDF=True, buildAdjacencyPDF=True,
                                      makeCactusTreeStats=True, makeMAFs=True)
     
     def testCactus_Chromosomes(self):
@@ -55,7 +54,6 @@ class TestCase(unittest.TestCase):
                                      outputDir=outputDir,
                                      testRestrictions=(TestStatus.TEST_VERY_LONG,),
                                      batchSystem=self.batchSystem,
-                                     buildCactusPDF=True, buildAdjacencyPDF=True,
                                      makeCactusTreeStats=True, makeMAFs=True)
     
 def main():

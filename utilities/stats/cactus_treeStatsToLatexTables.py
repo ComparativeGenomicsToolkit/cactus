@@ -90,8 +90,8 @@ def writeNetTable(stats, fileHandle):
                                 ("Bp Size", 1, 1, 0, 1), 
                                  ("T. Nets", 2, 4, 0, 0), 
                                  ("All", 2, 2, 1, 1), 
-                                 ("Nets", 3, 3, 1, 1), 
-                                 ("Chains", 4, 4, 1, 1), 
+                                 ("Links", 3, 3, 1, 1), 
+                                 ("Tangles", 4, 4, 1, 1), 
                                  ("Relative Entropy", 5, 7, 0, 0),
                                  ("P(X)/Z", 5, 5, 1, 1),
                                  ("Q(X)/Z", 6, 6, 1, 1),
@@ -106,36 +106,48 @@ def writeNetTable(stats, fileHandle):
                                  ("Avg.", 13, 13, 1, 1),
                                  ("Med.", 14, 14, 1, 1)), fileHandle)
     for statNode, regionName in stats:
+        #The nodes we use
         netsNode = statNode.find("nets")
-        totalNets = float(netsNode.attrib["total_net_number"])
-        nonTrivialGroups = float(statNode.find("non_trivial_groups").attrib["total"])
+        childrenNode = netsNode.find("children")
+        tangleChildrenNode = netsNode.find("tangle_children")
+        linkChildrenNode = netsNode.find("link_children")
+        depthNode = netsNode.find("depths")
         relativeEntropyNode = statNode.find("relative_entropy_stats")
-        largestChildNode = statNode.find("largest_child")
-        z = float(statNode.attrib["total_sequence_length"])
+       
+        #Net/group type numbers
+        totalNets = float(childrenNode.attrib["sum"])
+        totalTangles = float(tangleChildrenNode.attrib["sum"])
+        totalLinks = float(linkChildrenNode.attrib["sum"])
+        
+        totalSequenceLength = float(statNode.attrib["total_sequence_length"])
+        
+        #Relative entropy
+        z = totalSequenceLength
         p = math.log(z)/math.log(2)
         nre = float(relativeEntropyNode.attrib["normalised_relative_entropy"])
         q = nre + p
+        
         writeRow((regionName, 
-                  formatFloat(statNode.attrib["total_sequence_length"], decimals=0),
-                  formatFloat(str(totalNets), decimals=0),
-                  formatFloat(str(totalNets - nonTrivialGroups - 1), decimals=0),
-                  formatFloat(str(nonTrivialGroups), decimals=0),
+                  formatFloat(totalSequenceLength, decimals=0),
+                  formatFloat(1 + totalNets, decimals=0),
+                  formatFloat(totalLinks, decimals=0),
+                  formatFloat(totalTangles, decimals=0),
                   formatFloat(str(p), decimals=2), 
                   formatFloat(str(q), decimals=2), 
                   formatFloat(str(nre), decimals=2), 
-                  formatFloat(netsNode.attrib["max_children"], decimals=0),
-                  formatFloat(netsNode.attrib["avg_children"], decimals=2),
-                  formatFloat(netsNode.attrib["median_children"], decimals=0),
-                  formatFloat(netsNode.attrib["min_depth"], decimals=0),
-                  formatFloat(netsNode.attrib["max_depth"], decimals=0),
-                  formatFloat(netsNode.attrib["avg_depth"], decimals=2),
-                  formatFloat(netsNode.attrib["median_depth"], decimals=0)), fileHandle)
+                  formatFloat(childrenNode.attrib["max"], decimals=0),
+                  formatFloat(childrenNode.attrib["avg"], decimals=2),
+                  formatFloat(childrenNode.attrib["median"], decimals=0),
+                  formatFloat(depthNode.attrib["min"], decimals=0),
+                  formatFloat(depthNode.attrib["max"], decimals=0),
+                  formatFloat(depthNode.attrib["avg"], decimals=2),
+                  formatFloat(depthNode.attrib["median"], decimals=0)), fileHandle)
     writeEnd(fileHandle, "nets_table", "Statistics on the nets of the cactus trees. \
     Region: region name. \
     Bp size: total number of basepairs in the input sequences. \
-    T. nets: Total nets in the cactus tree, either 'all', including all nets in tree, 'nets', including \
-    only net contained groups or 'chains', including only chain contained groups.. Note the sum \
-    of net and chain contained groups is equal to all minus one (for the root node).\
+    T. nets: Total nets in the cactus tree, either 'all', including all nets in tree, 'links', including \
+    only links groups or 'tangles', including only tangle groups. Note the sum \
+    of link and tangle groups is equal to all minus one (for the root node).\
     Norm. relative entropy: Let $N$ be a net in the set of all nets $T$ in a cactus tree $X$. Furthermore let $N_0 \ldots N_{n-1}, N_{n}$ \
     denote the ancestral path of nodes from the root net $N_0$ of the cactus tree to the net $N_n$. Let $P(X) = \sum_{N_n \in T} |b(N_n)| \
     (log_2(|b(N_n)|) + \sum_{i=0}^{n-1} log_2(|c(N_i)|))$ and $Q(X) = Z log_2(Z)$, where $Z$ is the total number of basepairs in the input sequences, \
@@ -144,7 +156,7 @@ def writeNetTable(stats, fileHandle):
     The measure therefore reflects the balance of the tree.\
     Children: The children of a net are its direct descendants nets in the subsequent net layer of the (multi layered) cactus tree. Results given for non-leaf nets only. \
     Depth: The depth of a net is the number of nodes (excluding itself) on the path from it to the root node. Results for leaf nets only. \
-    (A leaf net is net with only chain descendants in the multi-layered cactus tree)")
+    (A leaf net is a terminal net in the multi-layered cactus tree)")
 
 def writeBlocksTable(stats, fileHandle):
     columnNumber = 14
@@ -170,19 +182,23 @@ def writeBlocksTable(stats, fileHandle):
                                  ("Med.", 13, 13, 1, 1)), fileHandle)
     for statNode, regionName in stats:
         blocksNode = statNode.find("blocks")
-        writeRow((regionName, formatFloat(blocksNode.attrib["total_number"], decimals=0),
-               formatFloat(blocksNode.attrib["max_number_per_net"], decimals=0), 
-               formatFloat(blocksNode.attrib["average_number_per_net"], decimals=2),
-               formatFloat(blocksNode.attrib["median_number_per_net"], decimals=0),
-               formatFloat(blocksNode.attrib["max_length"], decimals=0),
-               formatFloat(blocksNode.attrib["average_length"], decimals=2),
-               formatFloat(blocksNode.attrib["median_length"], decimals=0),
-               formatFloat(blocksNode.attrib["max_degree"], decimals=0),
-               formatFloat(blocksNode.attrib["average_degree"], decimals=2),
-               formatFloat(blocksNode.attrib["median_degree"], decimals=0),
-               formatFloat(blocksNode.attrib["max_coverage"], decimals=0),
-               formatFloat(blocksNode.attrib["average_coverage"], decimals=2),
-               formatFloat(blocksNode.attrib["median_coverage"], decimals=0)), fileHandle)
+        countsNode = blocksNode.find("counts")
+        lengthsNode = blocksNode.find("lengths")
+        degreesNode = blocksNode.find("degrees")
+        coverageNode = blocksNode.find("coverage")
+        writeRow((regionName, formatFloat(countsNode.attrib["sum"], decimals=0),
+               formatFloat(countsNode.attrib["max"], decimals=0), 
+               formatFloat(countsNode.attrib["avg"], decimals=2),
+               formatFloat(countsNode.attrib["median"], decimals=0),
+               formatFloat(lengthsNode.attrib["max"], decimals=0),
+               formatFloat(lengthsNode.attrib["avg"], decimals=2),
+               formatFloat(lengthsNode.attrib["median"], decimals=0),
+               formatFloat(degreesNode.attrib["max"], decimals=0),
+               formatFloat(degreesNode.attrib["avg"], decimals=2),
+               formatFloat(degreesNode.attrib["median"], decimals=0),
+               formatFloat(coverageNode.attrib["max"], decimals=0),
+               formatFloat(coverageNode.attrib["avg"], decimals=2),
+               formatFloat(coverageNode.attrib["median"], decimals=0)), fileHandle)
     writeEnd(fileHandle, "blocks_table", "Statistics on the blocks of the cactus trees. \
     Region: region name. \
     Total: total number of blocks in the cactus tree. \
@@ -221,49 +237,19 @@ def writeChainsTable(stats, fileHandle):
                                  ("Med.", 14, 14, 1, 1)), fileHandle)
     
     for statNode, regionName in stats:
-        chainsNode = statNode.find("chains")
-        chains2BNode = statNode.find("chains_with_two_or_more_blocks")
-        
-        writeLine(columnNumber, 2, ((regionName, 0, 0, 0, 1),
-                  ("all", 1, 1, 0, 0),
-                  (formatFloat(chainsNode.attrib["total_number"], decimals=0), 2, 2, 0, 0),
-                  
-                  (formatFloat(chainsNode.attrib["max_number_per_net"], decimals=0), 3, 3, 0, 0), 
-                  (formatFloat(chainsNode.attrib["average_number_per_net"], decimals=2), 4, 4, 0, 0),
-                  (formatFloat(chainsNode.attrib["median_number_per_net"], decimals=0), 5, 5, 0, 0),
-                  
-                  (formatFloat(chainsNode.attrib["max_length"], decimals=0), 6, 6, 0, 0),
-                  (formatFloat(chainsNode.attrib["average_length"], decimals=2), 7, 7, 0, 0),
-                  (formatFloat(chainsNode.attrib["median_length"], decimals=0), 8, 8, 0, 0),
-                  
-                  (formatFloat(chainsNode.attrib["max_base_length"], decimals=0), 9, 9, 0, 0),
-                  (formatFloat(chainsNode.attrib["average_base_length"], decimals=2), 10, 10, 0, 0),
-                  (formatFloat(chainsNode.attrib["median_base_length"], decimals=0), 11, 11, 0, 0),
-                  
-                  (formatFloat(chainsNode.attrib["max_instance_length"], decimals=0), 12, 12, 0, 0),
-                  (formatFloat(chainsNode.attrib["average_instance_length"], decimals=2), 13, 13, 0, 0),
-                  (formatFloat(chainsNode.attrib["median_instance_length"], decimals=0), 14, 14, 0, 0),
-                  
-                  ("$>=2$ B.", 1, 1, 1, 1),
-                  (formatFloat(chains2BNode.attrib["total_number"], decimals=0), 2, 2, 1, 1),
-                  
-                  (formatFloat(chains2BNode.attrib["max_number_per_net"], decimals=0), 3, 3, 1, 1), 
-                  (formatFloat(chains2BNode.attrib["average_number_per_net"], decimals=2), 4, 4, 1, 1),
-                  (formatFloat(chains2BNode.attrib["median_number_per_net"], decimals=0), 5, 5, 1, 1),
-                  
-                  (formatFloat(chains2BNode.attrib["max_length"], decimals=0), 6, 6, 1, 1),
-                  (formatFloat(chains2BNode.attrib["average_length"], decimals=2), 7, 7, 1, 1),
-                  (formatFloat(chains2BNode.attrib["median_length"], decimals=0), 8, 8, 1, 1),
-                  
-                  (formatFloat(chains2BNode.attrib["max_base_length"], decimals=0), 9, 9, 1, 1),
-                  (formatFloat(chains2BNode.attrib["average_base_length"], decimals=2), 10, 10, 1, 1),
-                  (formatFloat(chains2BNode.attrib["median_base_length"], decimals=0), 11, 11, 1, 1),
-                  
-                  (formatFloat(chains2BNode.attrib["max_instance_length"], decimals=0), 12, 12, 1, 1),
-                  (formatFloat(chains2BNode.attrib["average_instance_length"], decimals=2), 13, 13, 1, 1),
-                  (formatFloat(chains2BNode.attrib["median_instance_length"], decimals=0), 14, 14, 1, 1)), 
-                  fileHandle)
-    
+        l = [ (regionName, 0, 0, 0, 1) ]
+        i = 0
+        for chainsNode, blockType in ((statNode.findall("chains")[0], "all"), (statNode.findall("chains")[1], "$>=2$ B.")):
+            l.append((blockType, 1, 1, i, i))
+            l.append((formatFloat(chainsNode.find("counts").attrib["sum"], decimals=0), 2, 2, i, i))
+            j = 3
+            for typeNode in (chainsNode.find("counts"), chainsNode.find("base_block_lengths"), chainsNode.find("link_numbers"), chainsNode.find("avg_instance_base_length")):
+                l.append((formatFloat(typeNode.attrib["max"], decimals=0), j, j, i, i))
+                l.append((formatFloat(typeNode.attrib["avg"], decimals=2), j+1, j+1, i, i))
+                l.append((formatFloat(typeNode.attrib["median"], decimals=0), j+2, j+2, i, i))
+                j += 3
+            i += 1 
+        writeLine(columnNumber, 2, l, fileHandle)
     writeEnd(fileHandle, "chains_table", "Statistics on the chains of the cactus trees. \
     Region: region name. \
     Type: categories of chains, either `all', which includes all chains or `$>=2$ B.', \
@@ -275,53 +261,43 @@ def writeChainsTable(stats, fileHandle):
     Instance length: average number of basepairs in an instance of the chain, including both its blocks and intervening links.")
 
 def writeEndsTable(stats, fileHandle):
-    columnNumber = 8
+    columnNumber = 9
     writePreliminaries(columnNumber, fileHandle)
     writeLine(columnNumber, 1, (("Ends", 0, columnNumber-1, 0, 0),), fileHandle)
     writeLine(columnNumber, 2, (("Region", 0, 0, 0, 1), 
-                                ("Type", 1, 1, 0, 1), 
-                                 ("Per Group", 2, 4, 0, 0), 
-                                 ("Max", 2, 2, 1, 1),
-                                 ("Avg.", 3, 3, 1, 1),
-                                 ("Med.", 4, 4, 1, 1),
-                                 ("Connectivity", 5, 7, 0, 0), 
-                                 ("Max", 5, 5, 1, 1),
-                                 ("Avg.", 6, 6, 1, 1),
-                                 ("Med.", 7, 7, 1, 1)), fileHandle)
+                                ("Group type", 1, 2, 0, 0), 
+                                ("Terminal", 1, 1, 1, 1), 
+                                ("Type", 2, 2, 1, 1), 
+                                 ("Per Group", 3, 5, 0, 0), 
+                                 ("Max", 3, 3, 1, 1),
+                                 ("Avg.", 4, 4, 1, 1),
+                                 ("Med.", 5, 5, 1, 1),
+                                 ("Connectivity", 6, 8, 0, 0), 
+                                 ("Max", 6, 6, 1, 1),
+                                 ("Avg.", 7, 7, 1, 1),
+                                 ("Med.", 8, 8, 1, 1)), fileHandle)
     for statNode, regionName in stats:
-        endsNode = statNode.find("ends")
-        endsNonTrivialNode = statNode.find("ends_non_trivial")
-        endsTrivialNode = statNode.find("ends_trivial")
-        
-        writeLine(columnNumber, 3, ((regionName, 0, 0, 0, 2),
-                  ("all", 1, 1, 0, 0),
-                  (formatFloat(endsNode.attrib["max_number_per_group"], decimals=0), 2, 2, 0, 0),
-                  (formatFloat(endsNode.attrib["average_number_per_group"], decimals=2), 3, 3, 0, 0), 
-                  (formatFloat(endsNode.attrib["median_number_per_group"], decimals=0), 4, 4, 0, 0),
-                  (formatFloat(endsNode.attrib["max_degree"], decimals=0), 5, 5, 0, 0),
-                  (formatFloat(endsNode.attrib["average_degree"], decimals=2), 6, 6, 0, 0),
-                  (formatFloat(endsNode.attrib["median_degree"], decimals=0), 7, 7, 0, 0),
-                  
-                  ("links", 1, 1, 1, 1),
-                  (formatFloat(endsTrivialNode.attrib["max_number_per_group"], decimals=0), 2, 2, 1, 1),
-                  (formatFloat(endsTrivialNode.attrib["average_number_per_group"], decimals=2), 3, 3, 1, 1), 
-                  (formatFloat(endsTrivialNode.attrib["median_number_per_group"], decimals=0), 4, 4, 1, 1),
-                  (formatFloat(endsTrivialNode.attrib["max_degree"], decimals=0), 5, 5, 1, 1),
-                  (formatFloat(endsTrivialNode.attrib["average_degree"], decimals=2), 6, 6, 1, 1),
-                  (formatFloat(endsTrivialNode.attrib["median_degree"], decimals=0), 7, 7, 1, 1),
-                  
-                  ("tangles", 1, 1, 2, 2),
-                  (formatFloat(endsNonTrivialNode.attrib["max_number_per_group"], decimals=0), 2, 2, 2, 2),
-                  (formatFloat(endsNonTrivialNode.attrib["average_number_per_group"], decimals=2), 3, 3, 2, 2), 
-                  (formatFloat(endsNonTrivialNode.attrib["median_number_per_group"], decimals=0), 4, 4, 2, 2),
-                  (formatFloat(endsNonTrivialNode.attrib["max_degree"], decimals=0), 5, 5, 2, 2),
-                  (formatFloat(endsNonTrivialNode.attrib["average_degree"], decimals=2), 6, 6, 2, 2),
-                  (formatFloat(endsNonTrivialNode.attrib["median_degree"], decimals=0), 7, 7, 2, 2)), fileHandle)
+        endsNodes = statNode.findall("ends")
+        l = [ (regionName, 0, 0, 0, 8) ]
+        i = 0
+        for terminal in ("all", "terminal", "non-terminal"):
+            l.append((terminal, 1, 1, i, i+2))
+            for groupType in ("all", "tangles", "links"):
+                l.append((groupType, 2, 2, i, i))
+                l.append((formatFloat(endsNodes[i].find("counts").attrib["max"], decimals=0), 3, 3, i, i))
+                l.append((formatFloat(endsNodes[i].find("counts").attrib["avg"], decimals=2), 4, 4, i, i))
+                l.append((formatFloat(endsNodes[i].find("counts").attrib["median"], decimals=0), 5, 5, i, i))
+                l.append((formatFloat(endsNodes[i].find("degrees").attrib["max"], decimals=0), 6, 6, i, i))
+                l.append((formatFloat(endsNodes[i].find("degrees").attrib["avg"], decimals=2), 7, 7, i, i))
+                l.append((formatFloat(endsNodes[i].find("degrees").attrib["median"], decimals=0), 8, 8, i, i))
+                i += 1
+        writeLine(columnNumber, 9, l, fileHandle)
                      
     writeEnd(fileHandle, "ends_table", "Statistics on the ends of the cactus trees. \
     Region: region name. \
-    Type: categories of end, either `all', which includes all ends, `links', which includes all ends within a link group or \
-    `tangles', which includes ends found in tangle groups. \
+    Group: ends categorised by group. \
+    Terminal: either `terminal', `non-terminal' or both (`all') groups. \
+    Type: either `links', `tangles' or both (`all') groups. \
     Per Group: numbers of ends in a group. \
     Connectivity: the number of distinct ends an end is adjacent to.")
 

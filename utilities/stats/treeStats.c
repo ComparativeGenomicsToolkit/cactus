@@ -160,8 +160,8 @@ static void netStats(Net *net, int32_t currentDepth, struct IntList *children, s
 	 * Calculates basic stats on nets.
 	 * Children is the number of children internal nodes (those with children), have.
 	 * Tangle children, like children but only including groups that are tangle groups.
-	 * Link children, like children but only includring groups that are link groups.
-	 * Depth is the length of a path from the root net to a leaf net (which are the imaginary nets that would descend from terminal nodes).
+	 * Link children, like children but only including groups that are link groups.
+	 * Depth is the length of a path (in terms of edges/connections) from the root net to a terminal net (which are the imaginary nets that would descend from terminal groups of the tree).
 	 */
 	Net_GroupIterator *groupIterator = net_getGroupIterator(net);
 	Group *group;
@@ -357,7 +357,7 @@ void endStats(Net *net, struct IntList *counts, struct IntList *degrees,
 	Net_GroupIterator *groupIterator = net_getGroupIterator(net);
 	Group *group;
 	while((group = net_getNextGroup(groupIterator)) != NULL) {
-		if(  ((includeLinkGroups && group_getLink(group) != NULL) || (includeTangleGroups || group_getLink(group) == NULL)) &&
+		if(  ((includeLinkGroups && group_getLink(group) != NULL) || (includeTangleGroups && group_getLink(group) == NULL)) &&
 			 ((includeTerminalGroups && group_isTerminal(group)) || (includeNonTerminalGroups && !group_isTerminal(group))) ) {
 			intListAppend(counts, group_getEndNumber(group));
 			Group_EndIterator *endIterator = group_getEndIterator(group);
