@@ -295,7 +295,7 @@ char *block_makeNewickStringP(Segment *segment, int32_t includeInternalNames) {
 		}
 		char *final = includeInternalNames ?
 				stringPrint("%s)%s", left, netMisc_nameToStringStatic(segment_getName(segment))) :
-				stringPrint("%s):%s", left);
+				stringPrint("%s)", left);
 		free(left);
 		return final;
 	}
@@ -306,7 +306,7 @@ char *block_makeNewickString(Block *block, int32_t includeInternalNames) {
 	Segment *segment = block_getRootInstance(block);
 	if(block_getInstanceNumber(block) > 0) {
 		assert(segment != NULL);
-		char *cA = block_makeNewickStringP(segment, 1);
+		char *cA = block_makeNewickStringP(segment, includeInternalNames);
 		char *cA2 = stringPrint("%s;", cA);
 		free(cA);
 		return cA2;
