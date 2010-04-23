@@ -208,6 +208,13 @@ def runCactusTreeStats(outputFile, netDisk, netName='0'):
     command = "cactus_treeStats --netDisk %s --netName %s --outputFile %s" % (netDisk, netName, outputFile)
     system(command)
     logger.info("Ran the cactus tree stats command apprently okay")
+
+def runCactusTreeStatsToLatexTables(inputFile, outputFile):
+    command = "cactus_treeStatsToLatexTables.py --outputFile %s %s" % (outputFile, inputFile)
+    system(command)
+    logger.info("Ran cactus_treeStatsToLatexTables okay")
+    
+    
     
 def runCactusTreeViewer(graphFile,
                         netDisk, 
