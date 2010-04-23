@@ -60,10 +60,11 @@ void getMAFBlock(Block *block, FILE *fileHandle) {
 	if(block_getInstanceNumber(block) > 0) {
 		fprintf(fileHandle, "a score=%i\n", block_getLength(block) *block_getInstanceNumber(block));
 		char *newickTreeString = block_makeNewickString(block, 1);
-		fprintf(fileHandle, "s tree=%s\n", newickTreeString);
+		fprintf(fileHandle, "# tree=%s\n", newickTreeString);
 		free(newickTreeString);
 		assert(block_getRootInstance(block) != NULL);
 		getMAFBlockP(block_getRootInstance(block), fileHandle);
+		fprintf(fileHandle, "\n");
 	}
 }
 
