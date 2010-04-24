@@ -209,12 +209,12 @@ def runCactusTreeStats(outputFile, netDisk, netName='0'):
     system(command)
     logger.info("Ran the cactus tree stats command apprently okay")
 
-def runCactusTreeStatsToLatexTables(inputFile, outputFile):
-    command = "cactus_treeStatsToLatexTables.py --outputFile %s %s" % (outputFile, inputFile)
+def runCactusTreeStatsToLatexTables(inputFiles, regionNames, outputFile):
+    assert len(regionNames) == len(inputFiles)
+    k = " ".join([ "%s %s" % (i, j) for i, j in zip(inputFiles, regionNames) ])
+    command = "cactus_treeStatsToLatexTables.py --outputFile %s %s" % (outputFile, k)
     system(command)
     logger.info("Ran cactus_treeStatsToLatexTables okay")
-    
-    
     
 def runCactusTreeViewer(graphFile,
                         netDisk, 

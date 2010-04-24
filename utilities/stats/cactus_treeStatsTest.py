@@ -9,6 +9,7 @@ from sonLib.bioio import getTempDirectory
 
 from cactus.shared.test import getCactusInputs_random
 from cactus.shared.test import runWorkflow_multipleExamples
+from cactus.shared.common import runCactusTreeStatsToLatexTables
 
 class TestCase(unittest.TestCase):
     def testCactus_Random(self):
@@ -17,14 +18,10 @@ class TestCase(unittest.TestCase):
                                      outputDir=tempOutputDir,
                                      testNumber=TestStatus.getTestSetup(), 
                                      makeCactusTreeStats=True)
-        #Now check we can build a latex stats file..
-        l = []
-        for test in xrange(TestStatus.getTestSetup()):
-            l.append(os.path.join(tempOutputDir, str(test), "cactusStats.xml"))
-            l.append("region%s" % test)
+        inputFiles = [ os.path.join(tempOutputDir, str(test), "cactusStats.xml") for test in xrange(TestStatus.getTestSetup()) ]
+        regionNames = [ ("region%s" % test) for test in xrange(TestStatus.getTestSetup()) ]
         statsFileTEX = os.path.join(tempOutputDir, "cactusStats.tex")
-        system("cactus_treeStatsToLatexTables.py --outputFile %s %s" % \
-                (statsFileTEX, " ".join(l)))
+        runCactusTreeStatsToLatexTables(inputFiles, regionNames, statsFileTEX)
         system("rm -rf %s" % tempOutputDir)
         
 def main():

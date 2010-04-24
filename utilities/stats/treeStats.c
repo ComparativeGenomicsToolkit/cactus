@@ -205,7 +205,7 @@ void reportNetStats(Net *net, FILE *fileHandle) {
 }
 
 void blockStats(Net *net, struct IntList *counts, struct IntList *lengths, struct IntList *degrees,
-		struct IntList *leafDegrees, struct IntList *coverage, struct IntList *leafCoverage) {
+		struct IntList *leafDegrees, struct IntList *coverage, struct IntList *leafCoverage, int32_t minLeafDegree) {
 	/*
 	 * Calculates stats on the blocks.
 	 * Counts is numbers of blocks per net.
@@ -219,7 +219,7 @@ void blockStats(Net *net, struct IntList *counts, struct IntList *lengths, struc
 	Group *group;
 	while((group = net_getNextGroup(groupIterator)) != NULL) {
 		if(!group_isTerminal(group)) {
-			blockStats(group_getNestedNet(group), counts, lengths, degrees, leafDegrees, coverage, leafCoverage);
+			blockStats(group_getNestedNet(group), counts, lengths, degrees, leafDegrees, coverage, leafCoverage, minLeafDegree);
 		}
 	}
 	net_destructGroupIterator(groupIterator);
@@ -227,9 +227,6 @@ void blockStats(Net *net, struct IntList *counts, struct IntList *lengths, struc
 	Net_BlockIterator *blockIterator = net_getBlockIterator(net);
 	Block *block;
 	while((block = net_getNextBlock(blockIterator)) != NULL) {
-		intListAppend(lengths, block_getLength(block));
-		intListAppend(degrees, block_getInstanceNumber(block));
-		intListAppend(coverage, block_getLength(block)*block_getInstanceNumber(block));
 		Segment *segment;
 		Block_InstanceIterator *segmentIterator = block_getInstanceIterator(block);
 		int32_t i=0;
@@ -238,15 +235,20 @@ void blockStats(Net *net, struct IntList *counts, struct IntList *lengths, struc
 				i++;
 			}
 		}
-		intListAppend(leafDegrees, i);
-		intListAppend(leafCoverage, block_getLength(block)*i);
 		block_destructInstanceIterator(segmentIterator);
+		if(i >= minLeafDegree) {
+			intListAppend(lengths, block_getLength(block));
+			intListAppend(degrees, block_getInstanceNumber(block));
+			intListAppend(coverage, block_getLength(block)*block_getInstanceNumber(block));
+			intListAppend(leafDegrees, i);
+			intListAppend(leafCoverage, block_getLength(block)*i);
+		}
 	}
 	net_destructBlockIterator(blockIterator);
 	intListAppend(counts, net_getBlockNumber(net));
 }
 
-void reportBlockStats(Net *net, FILE *fileHandle) {
+void reportBlockStats(Net *net, FILE *fileHandle, int32_t minLeafDegree) {
 	/*
 	 * Prints the block stats to the XML file.
 	 */
@@ -256,8 +258,8 @@ void reportBlockStats(Net *net, FILE *fileHandle) {
 	struct IntList *leafDegrees = constructEmptyIntList(0);
 	struct IntList *coverage = constructEmptyIntList(0);
 	struct IntList *leafCoverage = constructEmptyIntList(0);
-	blockStats(net, counts, lengths, degrees, leafDegrees, coverage, leafCoverage);
-	printOpeningTag("blocks", fileHandle);
+	blockStats(net, counts, lengths, degrees, leafDegrees, coverage, leafCoverage, minLeafDegree);
+	fprintf(fileHandle, "<blocks minLeafDegree=%i>", minLeafDegree);
 	tabulateAndPrintIntValues(counts, "counts", fileHandle);
 	tabulateAndPrintIntValues(lengths, "lengths", fileHandle);
 	tabulateAndPrintIntValues(degrees, "degrees", fileHandle);
@@ -438,6 +440,97 @@ void reportTerminalGroupsSizes(Net *net, FILE *fileHandle) {
 	destructIntList(sizes);
 }
 
+void referenceStats(Net *net, struct IntList *pseudoChromosomeNumber,
+				    struct IntList *pseudoAdjacencyNumberPerChromosome,
+				    struct IntList *truePseudoAdjacencyNumberPerChromosome,
+				    struct IntList *linksPerChromosome) {
+	/*
+	 * Calculates stats on the reference genome structure.
+	 */
+	//Call recursively..
+	Net_GroupIterator *groupIterator = net_getGroupIterator(net);
+	Group *group;
+	while((group = net_getNextGroup(groupIterator)) != NULL) {
+		if(!group_isTerminal(group)) {
+			referenceStats(group_getNestedNet(group),
+							pseudoChromosomeNumber,
+							pseudoAdjacencyNumberPerChromosome,
+							truePseudoAdjacencyNumberPerChromosome,
+							linksPerChromosome);
+		}
+	}
+	net_destructGroupIterator(groupIterator);
+
+	//Calculate stats for first reference.
+	Reference *reference = net_getFirstReference(net);
+	Reference_PseudoChromosomeIterator *pseudoChromosomeIterator = reference_getPseudoChromosomeIterator(reference);
+	PseudoChromosome *pseudoChromosome;
+	intListAppend(pseudoChromosomeNumber, reference_getPseudoChromosomeNumber(reference));
+	while((pseudoChromosome = reference_getNextPseudoChromosome(pseudoChromosomeIterator)) != NULL) {
+		intListAppend(pseudoAdjacencyNumberPerChromosome, pseudoChromosome_getPseudoAdjacencyNumber(pseudoChromosome));
+		PseudoChromsome_PseudoAdjacencyIterator *adjacencyIterator = pseudoChromosome_getPseudoAdjacencyIterator(pseudoChromosome);
+		PseudoAdjacency *pseudoAdjacency;
+		int32_t i = 0, j = 0;
+		while((pseudoAdjacency = pseudoChromosome_getNextPseudoAdjacency(adjacencyIterator)) != NULL) {
+			Group *group = end_getGroup(pseudoAdjacency_get5End(pseudoAdjacency));
+			assert(group != NULL);
+			if(group_getLink(group) != NULL) {
+				i++;
+			}
+			End *_5End = pseudoAdjacency_get5End(pseudoAdjacency);
+			End *_3End = pseudoAdjacency_get5End(pseudoAdjacency);
+			Cap *cap;
+			int32_t k = 0;
+			End_InstanceIterator *instanceIterator = end_getInstanceIterator(_5End);
+			while((cap = end_getNext(instanceIterator)) != NULL) {
+				Cap *adjacentCap = cap_getAdjacency(cap);
+				if(adjacentCap != NULL) {
+					if(end_getPositiveOrientation(cap_getEnd(adjacentCap)) == _3End) {
+						k = 1;
+					}
+				}
+			}
+			if(k) {
+				j++;
+			}
+		}
+		intListAppend(linksPerChromosome, i);
+		intListAppend(truePseudoAdjacencyNumberPerChromosome, j);
+	}
+	reference_destructPseudoChromosomeIterator(pseudoChromosomeIterator);
+}
+
+void faceStats(Net *net, struct List *numberPerNet, struct IntList *cardinality,
+		struct IntList *isSimple, struct IntList *isRegular,
+		struct IntList *isCanonical, int32_t terminalGroups, int32_t nonTerminalGroups,
+		int32_t tangleGroups, int32_t linkGroups) {
+	/*
+	 * Face stats.
+	 * Number per net: faces per net.
+	 * Cardinality of face.
+	 * isSimple: if face is simple.
+	 * isRegular: is face is regular.
+	 * isCanonical: if face is canonical.
+	 */
+	//Call recursively..
+	Net_GroupIterator *groupIterator = net_getGroupIterator(net);
+	Group *group;
+	while((group = net_getNextGroup(groupIterator)) != NULL) {
+		if(!group_isTerminal(group)) {
+			faceStats(group_getNestedNet(group),
+					  numberPerNet, cardinality,
+					  isSimple, isRegular,
+					  isCanonical, terminalGroups, nonTerminalGroups,
+					  tangleGroups, linkGroups);
+		}
+	}
+	net_destructGroupIterator(groupIterator);
+
+	if(  ((includeLinkGroups && group_getLink(group) != NULL) || (includeTangleGroups && group_getLink(group) == NULL)) &&
+				 ((includeTerminalGroups && group_isTerminal(group)) || (includeNonTerminalGroups && !group_isTerminal(group))) ) {
+
+}
+
 void reportNetDiskStats(char *netDiskName, Net *net, FILE *fileHandle) {
 
 	double totalSeqSize = net_getTotalBaseLength(net);
@@ -456,7 +549,8 @@ void reportNetDiskStats(char *netDiskName, Net *net, FILE *fileHandle) {
 	/*
 	 * Numbers on the blocks.
 	 */
-	reportBlockStats(net, fileHandle);
+	reportBlockStats(net, fileHandle, 0);
+	reportBlockStats(net, fileHandle, 2);
 
 	/*
 	 * Chain statistics.
