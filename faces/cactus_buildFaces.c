@@ -565,6 +565,35 @@ void buildFaces_isolateFaces(Net * net)
 }
 
 /*
+ * Builds a stub node and creates at the same time an ad hoc end
+ */
+static Cap * buildFaces_constructStub(Cap * adjacentCap) {
+	//Construct the new stub and the new cap..
+	Net * net = end_getNet(cap_getEnd(adjacentCap));
+	End *newFreeStubEnd = end_construct(0, net);
+	Cap *cap = cap_construct(newFreeStubEnd, cap_getEvent(adjacentCap));
+
+	//Now set the group of the new stub end (they should be in the same group)
+	End *adjacentCapEnd = cap_getEnd(adjacentCap);
+	Group *group = end_getGroup(adjacentCapEnd);
+	end_setGroup(newFreeStubEnd, group);
+
+	//Now make adjacent
+	cap_makeAdjacent(cap, adjacentCap);
+
+	return cap;
+
+	/* 
+	The 0 argument to the end constructor is a bool saying the stub end is 'free', 
+	ie. not necessarily inherited from the parent (though it can be), and not part 
+	of the reference structure. I.e. some stub ends are 'attached' - opposite of free, 
+	representing the case where we know what happened to the other end of the stub 
+	(i.e. if it is a block end at a higher level or the defined end of a sequence defined 
+	at the top level).
+	*/
+}
+
+/*
  * Engineers a node so that a regular face has an even number of 
  * top/bottom node pairs
  */
@@ -590,16 +619,16 @@ static void buildFaces_engineerCaps(Face * face, Net * net)
 	}
 
 	// Engineer appropriate nodes
-	X = cap_construct(NULL, cap_getEvent(nonAdjacent));
+	X = buildFaces_constructStub(nonAdjacent);
+
 	Xprime =
-	    cap_construct(NULL,
+	    cap_construct(cap_getEnd(X),
 				  cap_getEvent(face_getBottomNode(face, nonDerived, 0)));
 	cap_makeParentAndChild(X, Xprime);
-
-	cap_makeAdjacent(X, nonAdjacent);
 	cap_makeAdjacent(Xprime, face_getBottomNode(face, nonDerived, 0));
+
 	if (cap_getParent(nonAdjacent)) {
-		parent = cap_construct(NULL, cap_getEvent(cap_getParent(nonAdjacent)));
+		parent = cap_construct(cap_getEnd(X), cap_getEvent(cap_getParent(nonAdjacent)));
 		cap_makeParentAndChild(parent, X);
 	}
 

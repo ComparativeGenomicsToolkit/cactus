@@ -938,6 +938,36 @@ static Cap *fillingIn_getAttachedAncestor(Cap *
 }
 
 /*
+ * Builds a stub node and creates at the same time an ad hoc end
+ */
+static Cap * fillingIn_constructStub(Cap * adjacentCap) {
+	//Construct the new stub and the new cap..
+	Net * net = end_getNet(cap_getEnd(adjacentCap));
+	End *newFreeStubEnd = end_construct(0, net);
+	Cap *cap = cap_construct(newFreeStubEnd, cap_getEvent(adjacentCap));
+
+	//Now set the group of the new stub end (they should be in the same group)
+	End *adjacentCapEnd = cap_getEnd(adjacentCap);
+	Group *group = end_getGroup(adjacentCapEnd);
+	end_setGroup(newFreeStubEnd, group);
+
+	//Now make adjacent
+	cap_makeAdjacent(cap, adjacentCap);
+
+	return cap;
+
+	/* 
+	The 0 argument to the end constructor is a bool saying the stub end is 'free', 
+	ie. not necessarily inherited from the parent (though it can be), and not part 
+	of the reference structure. I.e. some stub ends are 'attached' - opposite of free, 
+	representing the case where we know what happened to the other end of the stub 
+	(i.e. if it is a block end at a higher level or the defined end of a sequence defined 
+	at the top level).
+	*/
+}
+
+
+/*
  * Amend graph to remove lifted self loops
  */
 static void fillingIn_resolveSelfLoop(Cap * ancestor,
@@ -968,12 +998,9 @@ static void fillingIn_resolveSelfLoop(Cap * ancestor,
 		descendant2 = cap_getParent(descendant2);
 
 	// Modify top end of original tree
-	interpolationJoin = cap_construct(NULL, middleParentEvent);
-	cap_makeParentAndChild(ancestor, interpolationJoin);
-
-	cap_changeParentAndChild(interpolationJoin, descendant1);
+	interpolationJoin = fillingIn_interpolateCaps(ancestor, descendant1, middleParentEvent);
 	cap_changeParentAndChild(interpolationJoin, descendant2);
-	cap_makeParentAndChild(ancestor, interpolationJoin);
+
 	interpolation1 =
 	    fillingIn_interpolateCaps(interpolationJoin, descendant1,
 				    middleChildEvent);
@@ -982,17 +1009,16 @@ static void fillingIn_resolveSelfLoop(Cap * ancestor,
 				    middleChildEvent);
 
 	// Create alter ego tree
-	alterEgoParent = cap_construct(NULL, topEvent);
-	alterEgoChild = cap_construct(NULL, middleParentEvent);
-	alterEgoAdjacency1 = cap_construct(NULL, middleChildEvent);
-	alterEgoAdjacency2 = cap_construct(NULL, middleChildEvent);
+	alterEgoChild = fillingIn_constructStub(interpolationJoin);
+	alterEgoAdjacency1 = cap_construct(cap_getEnd(alterEgoChild), middleChildEvent);
+	alterEgoAdjacency2 = cap_construct(cap_getEnd(alterEgoChild), middleChildEvent);
+	alterEgoParent = cap_construct(cap_getEnd(alterEgoChild), topEvent);
 
 	cap_makeParentAndChild(alterEgoParent, alterEgoChild);
 	cap_makeParentAndChild(alterEgoChild, alterEgoAdjacency1);
 	cap_makeParentAndChild(alterEgoChild, alterEgoAdjacency2);
 
 	// Join the two trees
-	cap_makeAdjacent(interpolationJoin, alterEgoChild);
 	cap_makeAdjacent(interpolation1, alterEgoAdjacency1);
 	cap_makeAdjacent(interpolation2, alterEgoAdjacency2);
 }
