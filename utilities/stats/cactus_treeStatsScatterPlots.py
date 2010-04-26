@@ -43,9 +43,9 @@ def chainScatterPlots(stats):
     for statNode, regionName in stats:
         chainsNode = statNode.find("chains")
         regionNames.append(regionName)
-        linkLengths.append([ int(i) for i in chainsNode.find("lengths").text.split() ])
-        baseLengths.append([ int(i) for i in chainsNode.find("base_lengths").text.split() ])
-        instanceLengths.append([ int(i) for i in chainsNode.find("avg_instance_lengths").text.split() ])
+        linkLengths.append([ int(i) for i in chainsNode.find("link_numbers").text.split() ])
+        baseLengths.append([ int(i) for i in chainsNode.find("base_block_lengths").text.split() ])
+        instanceLengths.append([ int(i) for i in chainsNode.find("avg_instance_base_length").text.split() ])
     
     plot(linkLengths, baseLengths, regionNames, "chains_linkLengths_blockLengths.ps", "Links", "Blocks Combined Basepair Length", "Chains")
     plot(linkLengths, instanceLengths, regionNames, "chains_linkLengths_instanceLengths.ps", "Links", "Avg. Basepair Instance Length", "Chains")
@@ -59,9 +59,9 @@ def blockScatterPlots(stats):
     for statNode, regionName in stats:
         blocksNode = statNode.find("blocks")
         regionNames.append(regionName)
-        blockDegrees.append([ int(i) for i in blocksNode.find("degrees").text.split() ])
+        blockDegrees.append([ int(i) for i in blocksNode.find("leaf_degrees").text.split() ])
         blockLengths.append([ int(i) for i in blocksNode.find("lengths").text.split() ])
-        blockCoverage.append([ int(i) for i in blocksNode.find("coverage").text.split() ])
+        blockCoverage.append([ int(i) for i in blocksNode.find("leaf_coverage").text.split() ])
 
     plot(blockLengths, blockDegrees, regionNames, "blocks_lengths_degrees.ps", "Lengths", "Degrees", "Blocks")
     plot(blockLengths, blockCoverage, regionNames, "blocks_lengths_coverage.ps", "Lengths", "Coverage", "Blocks")

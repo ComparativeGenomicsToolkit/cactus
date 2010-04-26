@@ -585,18 +585,20 @@ void referenceStats(Net *net, struct IntList *pseudoChromosomeNumber,
 				i++;
 			}
 			End *_5End = pseudoAdjacency_get5End(pseudoAdjacency);
-			End *_3End = pseudoAdjacency_get5End(pseudoAdjacency);
+			End *_3End = pseudoAdjacency_get3End(pseudoAdjacency);
 			Cap *cap;
-			int32_t k = 0;
+			int32_t k = 1;
 			End_InstanceIterator *instanceIterator = end_getInstanceIterator(_5End);
 			while((cap = end_getNext(instanceIterator)) != NULL) {
 				Cap *adjacentCap = cap_getAdjacency(cap);
 				if(adjacentCap != NULL) {
+					assert(end_getOrientation(_3End));
 					if(end_getPositiveOrientation(cap_getEnd(adjacentCap)) == _3End) {
-						k = 1;
+						k = 0;
 					}
 				}
 			}
+			end_destructInstanceIterator(instanceIterator);
 			if(k) {
 				j++;
 			}
@@ -617,7 +619,7 @@ void reportReferenceStats(Net *net, FILE *fileHandle) {
 	struct IntList *linksPerChromosome = constructEmptyIntList(0);
 	referenceStats(net, pseudoChromosomeNumber, pseudoAdjacencyNumberPerChromosome,
 			truePseudoAdjacencyNumberPerChromosome, linksPerChromosome);
-	printOpeningTag("reference", fileHandle);
+	fprintf(fileHandle, "<reference method=\"%s\">", "default");
 	tabulateAndPrintIntValues(pseudoChromosomeNumber, "pseudo_chromosome_number", fileHandle);
 	tabulateAndPrintIntValues(pseudoAdjacencyNumberPerChromosome, "pseudo_adjacency_number_per_pseudo_chromosome", fileHandle);
 	tabulateAndPrintIntValues(truePseudoAdjacencyNumberPerChromosome, "true_pseudo_adjacency_number_per_pseudo_chromosome", fileHandle);

@@ -13,6 +13,8 @@ from sonLib.bioio import logger
 
 def formatFloat(string, decimals=1):
     f = float(string)
+    if f == 2147483647:
+        return "NaN"
     return ("%." + str(decimals) + "f") % f
 
 def writeDocumentPreliminaries(fileHandle):
@@ -185,7 +187,7 @@ def writeBlocksTable(stats, fileHandle):
     for statNode, regionName in stats:
         l.append((regionName, 0, 0, 0, 1))
         i = 0
-        for blocksNode in statNode.findAll("blocks"):
+        for blocksNode in statNode.findall("blocks"):
             countsNode = blocksNode.find("counts")
             lengthsNode = blocksNode.find("lengths")
             degreesNode = blocksNode.find("leaf_degrees")
@@ -350,9 +352,9 @@ def writeFacesTable(stats, fileHandle):
                 l.append((formatFloat(facesNodes[i].find("cardinality").attrib["median"], decimals=0), 8, 8, i, i))
                 l.append((formatFloat(facesNodes[i].find("faces_per_face_associated_end").attrib["max"], decimals=0), 9, 9, i, i))
                 l.append((formatFloat(facesNodes[i].find("faces_per_face_associated_end").attrib["avg"], decimals=2), 10, 10, i, i))
-                l.append((formatFloat(facesNodes[i].find("faces_per_face_associated_end").attrib["median"], decimals=0), 11, 12, i, i))
-                l.append((formatFloat(facesNodes[i].find("is_regular").attrib["avg"], decimals=2), 13, 13, i, i))
-                l.append((formatFloat(facesNodes[i].find("is_canonical").attrib["avg"], decimals=0), 14, 14, i, i))
+                l.append((formatFloat(facesNodes[i].find("faces_per_face_associated_end").attrib["median"], decimals=0), 11, 11, i, i))
+                l.append((formatFloat(facesNodes[i].find("is_regular").attrib["avg"], decimals=2), 12, 12, i, i))
+                l.append((formatFloat(facesNodes[i].find("is_canonical").attrib["avg"], decimals=0), 13, 13, i, i))
                 i += 1
         writeLine(columnNumber, 9, l, fileHandle)
     
@@ -392,9 +394,9 @@ def writeReferenceTable(stats, fileHandle):
                                  ("Med.", 13, 13, 1, 1)), fileHandle)
     for statNode, regionName in stats:
         referenceNodes = statNode.findall("reference")
-        l = [ (regionName, 0, 0, 0, len(referenceNodes)) ]
+        l = [ (regionName, 0, 0, 0, len(referenceNodes)-1) ]
         for i in xrange(len(referenceNodes)):
-            l.append(("default", 1, 1, i, i))
+            l.append((referenceNodes[i].attrib["method"], 1, 1, i, i))
             l.append((formatFloat(referenceNodes[i].find("pseudo_chromosome_number").attrib["max"], decimals=0), 2, 2, i, i))
             l.append((formatFloat(referenceNodes[i].find("pseudo_chromosome_number").attrib["avg"], decimals=2), 3, 3, i, i))
             l.append((formatFloat(referenceNodes[i].find("pseudo_chromosome_number").attrib["median"], decimals=0), 4, 4, i, i))
