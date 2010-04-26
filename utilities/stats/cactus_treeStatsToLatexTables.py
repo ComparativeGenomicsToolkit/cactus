@@ -159,52 +159,63 @@ def writeNetTable(stats, fileHandle):
     (A leaf net is a terminal net in the multi-layered cactus tree)")
 
 def writeBlocksTable(stats, fileHandle):
-    columnNumber = 14
+    columnNumber = 15
     writePreliminaries(columnNumber, fileHandle)
     writeLine(columnNumber, 1, (("Blocks", 0, columnNumber-1, 0, 0),), fileHandle)
     writeLine(columnNumber, 2, (("Region", 0, 0, 0, 1), 
-                                 ("Total", 1, 1, 0, 1), 
-                                 ("Per Net", 2, 4, 0, 0),
-                                 ("Max", 2, 2, 1, 1),
-                                 ("Avg.", 3, 3, 1, 1),
-                                 ("Med.", 4, 4, 1, 1),
-                                 ("Length", 5, 7, 0, 0),
-                                 ("Max", 5, 5, 1, 1),
-                                 ("Avg.", 6, 6, 1, 1),
-                                 ("Med.", 7, 7, 1, 1),
-                                 ("Degree", 8, 10, 0, 0),
-                                 ("Max", 8, 8, 1, 1),
-                                 ("Avg.", 9, 9, 1, 1),
-                                 ("Med.", 10, 10, 1, 1),
-                                 ("Coverage", 11, 13, 0, 0),
-                                 ("Max", 11, 11, 1, 1),
-                                 ("Avg.", 12, 12, 1, 1),
-                                 ("Med.", 13, 13, 1, 1)), fileHandle)
+                                ("Min. Block Degree", 1, 1, 0, 1),
+                                 ("Total", 2, 2, 0, 1), 
+                                 ("Per Net", 3, 5, 0, 0),
+                                 ("Max", 3, 3, 1, 1),
+                                 ("Avg.", 4, 4, 1, 1),
+                                 ("Med.", 5, 5, 1, 1),
+                                 ("Length", 6, 8, 0, 0),
+                                 ("Max", 6, 6, 1, 1),
+                                 ("Avg.", 7, 7, 1, 1),
+                                 ("Med.", 8, 8, 1, 1),
+                                 ("Degree", 9, 11, 0, 0),
+                                 ("Max", 9, 9, 1, 1),
+                                 ("Avg.", 10, 10, 1, 1),
+                                 ("Med.", 11, 11, 1, 1),
+                                 ("Coverage", 12, 14, 0, 0),
+                                 ("Max", 12, 12, 1, 1),
+                                 ("Avg.", 13, 13, 1, 1),
+                                 ("Med.", 14, 14, 1, 1)), fileHandle)
+    l = []
     for statNode, regionName in stats:
-        blocksNode = statNode.find("blocks")
-        countsNode = blocksNode.find("counts")
-        lengthsNode = blocksNode.find("lengths")
-        degreesNode = blocksNode.find("degrees")
-        coverageNode = blocksNode.find("coverage")
-        writeRow((regionName, formatFloat(countsNode.attrib["sum"], decimals=0),
-               formatFloat(countsNode.attrib["max"], decimals=0), 
-               formatFloat(countsNode.attrib["avg"], decimals=2),
-               formatFloat(countsNode.attrib["median"], decimals=0),
-               formatFloat(lengthsNode.attrib["max"], decimals=0),
-               formatFloat(lengthsNode.attrib["avg"], decimals=2),
-               formatFloat(lengthsNode.attrib["median"], decimals=0),
-               formatFloat(degreesNode.attrib["max"], decimals=0),
-               formatFloat(degreesNode.attrib["avg"], decimals=2),
-               formatFloat(degreesNode.attrib["median"], decimals=0),
-               formatFloat(coverageNode.attrib["max"], decimals=0),
-               formatFloat(coverageNode.attrib["avg"], decimals=2),
-               formatFloat(coverageNode.attrib["median"], decimals=0)), fileHandle)
+        l.append((regionName, 0, 0, 0, 1))
+        i = 0
+        for blocksNode in statNode.findAll("blocks"):
+            countsNode = blocksNode.find("counts")
+            lengthsNode = blocksNode.find("lengths")
+            degreesNode = blocksNode.find("leaf_degrees")
+            coverageNode = blocksNode.find("leaf_coverage")
+            l.append((blocksNode.attrib["minimum_leaf_degree"], 1, 1, i, i))
+            j = 2
+            for field, decimals in ((countsNode.attrib["sum"], 0),
+                                   (countsNode.attrib["max"], 0), 
+                                   (countsNode.attrib["avg"], 2),
+                                   (countsNode.attrib["median"], 0),
+                                   (lengthsNode.attrib["max"], 0),
+                                   (lengthsNode.attrib["avg"], 2),
+                                   (lengthsNode.attrib["median"], 0),
+                                   (degreesNode.attrib["max"], 0),
+                                   (degreesNode.attrib["avg"], 2),
+                                   (degreesNode.attrib["median"], 0),
+                                   (coverageNode.attrib["max"], 0),
+                                   (coverageNode.attrib["avg"], 2),
+                                   (coverageNode.attrib["median"], 0)):
+                l.append((formatFloat(field, decimals=decimals), j, j, i, i))
+                j+=1
+            i+=1
+    writeLine(columnNumber, 2, l, fileHandle)
     writeEnd(fileHandle, "blocks_table", "Statistics on the blocks of the cactus trees. \
     Region: region name. \
+    Min. Block Degree: the minimum number of leaf sequences in a block considered this round. \
     Total: total number of blocks in the cactus tree. \
     Per Net: numbers of blocks in the child chains of each net. \
     Length: number of basepairs in a block. \
-    Degree: number of sequences in a block. \
+    Degree: number of leaf sequences in a block. \
     Coverage: block's length * degree.")
 
 def writeChainsTable(stats, fileHandle):
@@ -300,6 +311,111 @@ def writeEndsTable(stats, fileHandle):
     Type: either `links', `tangles' or both (`all') groups. \
     Per Group: numbers of ends in a group. \
     Connectivity: the number of distinct ends an end is adjacent to.")
+    
+def writeFacesTable(stats, fileHandle):
+    columnNumber = 14
+    writePreliminaries(columnNumber, fileHandle)
+    writeLine(columnNumber, 1, (("Faces", 0, columnNumber-1, 0, 0),), fileHandle)
+    writeLine(columnNumber, 2, (("Region", 0, 0, 0, 1), 
+                                ("Group type", 1, 2, 0, 0), 
+                                ("Terminal", 1, 1, 1, 1), 
+                                ("Type", 2, 2, 1, 1), 
+                                 ("Per Group", 3, 5, 0, 0), 
+                                 ("Max", 3, 3, 1, 1),
+                                 ("Avg.", 4, 4, 1, 1),
+                                 ("Med.", 5, 5, 1, 1),
+                                 ("Cardinality", 6, 8, 0, 0), 
+                                 ("Max", 6, 6, 1, 1),
+                                 ("Avg.", 7, 7, 1, 1),
+                                 ("Med.", 8, 8, 1, 1),
+                                 ("Breakpoint reuse", 9, 11, 0, 0), 
+                                 ("Max", 9, 9, 1, 1),
+                                 ("Avg.", 10, 10, 1, 1),
+                                 ("Med.", 11, 11, 1, 1),
+                                 ("Prop. Reg.", 12, 12, 0, 1), 
+                                 ("Prop. Can.", 13, 13, 0, 1)), fileHandle)
+    for statNode, regionName in stats:
+        facesNodes = statNode.findall("faces")
+        l = [ (regionName, 0, 0, 0, 8) ]
+        i = 0
+        for terminal in ("all", "terminal", "non-terminal"):
+            l.append((terminal, 1, 1, i, i+2))
+            for groupType in ("all", "tangles", "links"):
+                l.append((groupType, 2, 2, i, i))
+                l.append((formatFloat(facesNodes[i].find("number_per_net").attrib["max"], decimals=0), 3, 3, i, i))
+                l.append((formatFloat(facesNodes[i].find("number_per_net").attrib["avg"], decimals=2), 4, 4, i, i))
+                l.append((formatFloat(facesNodes[i].find("number_per_net").attrib["median"], decimals=0), 5, 5, i, i))
+                l.append((formatFloat(facesNodes[i].find("cardinality").attrib["max"], decimals=0), 6, 6, i, i))
+                l.append((formatFloat(facesNodes[i].find("cardinality").attrib["avg"], decimals=2), 7, 7, i, i))
+                l.append((formatFloat(facesNodes[i].find("cardinality").attrib["median"], decimals=0), 8, 8, i, i))
+                l.append((formatFloat(facesNodes[i].find("faces_per_face_associated_end").attrib["max"], decimals=0), 9, 9, i, i))
+                l.append((formatFloat(facesNodes[i].find("faces_per_face_associated_end").attrib["avg"], decimals=2), 10, 10, i, i))
+                l.append((formatFloat(facesNodes[i].find("faces_per_face_associated_end").attrib["median"], decimals=0), 11, 12, i, i))
+                l.append((formatFloat(facesNodes[i].find("is_regular").attrib["avg"], decimals=2), 13, 13, i, i))
+                l.append((formatFloat(facesNodes[i].find("is_canonical").attrib["avg"], decimals=0), 14, 14, i, i))
+                i += 1
+        writeLine(columnNumber, 9, l, fileHandle)
+    
+    writeEnd(fileHandle, "faces_table", "Statistics on the faces of the AVGs. \
+    Region: region name. \
+    Group: ends categorised by group. \
+    Terminal: either `terminal', `non-terminal' or both (`all') groups. \
+    Type: either `links', `tangles' or both (`all') groups. \
+    Per Group: numbers of faces in a group. \
+    Cardinality: the cardinality of faces. \
+    Breakpoint reuse: Let E be the set of ends in AVGs such that each end in E has involved in atleast one\
+    nontrivial face. Breakpoint reuse is the number of distinct faces associated with members of E. \
+    Prop. Reg.: Proportion of non-trivial faces which are regular.\
+    Prop. Can.: Proportion of non-trivial faces which are canononical.")
+
+def writeReferenceTable(stats, fileHandle):
+    columnNumber = 14
+    writePreliminaries(columnNumber, fileHandle)
+    writeLine(columnNumber, 1, (("Reference", 0, columnNumber-1, 0, 0),), fileHandle)
+    writeLine(columnNumber, 2, (("Region", 0, 0, 0, 1), 
+                                ("Type", 1, 1, 0, 1), 
+                                 ("P.C. Number", 2, 4, 0, 0), 
+                                 ("Max", 2, 2, 1, 1),
+                                 ("Avg.", 3, 3, 1, 1),
+                                 ("Med.", 4, 4, 1, 1),
+                                 ("P.A./P.C.", 5, 7, 0, 0), 
+                                 ("Max", 5, 5, 1, 1),
+                                 ("Avg.", 6, 6, 1, 1),
+                                 ("Med.", 7, 7, 1, 1),
+                                 ("T.P.A./P.C.", 8, 10, 0, 0), 
+                                 ("Max", 8, 8, 1, 1),
+                                 ("Avg.", 9, 9, 1, 1),
+                                 ("Med.", 10, 10, 1, 1),
+                                 ("Links/P.C.", 11, 13, 0, 0), 
+                                 ("Max", 11, 11, 1, 1),
+                                 ("Avg.", 12, 12, 1, 1),
+                                 ("Med.", 13, 13, 1, 1)), fileHandle)
+    for statNode, regionName in stats:
+        referenceNodes = statNode.findall("reference")
+        l = [ (regionName, 0, 0, 0, len(referenceNodes)) ]
+        for i in xrange(len(referenceNodes)):
+            l.append(("default", 1, 1, i, i))
+            l.append((formatFloat(referenceNodes[i].find("pseudo_chromosome_number").attrib["max"], decimals=0), 2, 2, i, i))
+            l.append((formatFloat(referenceNodes[i].find("pseudo_chromosome_number").attrib["avg"], decimals=2), 3, 3, i, i))
+            l.append((formatFloat(referenceNodes[i].find("pseudo_chromosome_number").attrib["median"], decimals=0), 4, 4, i, i))
+            l.append((formatFloat(referenceNodes[i].find("pseudo_adjacency_number_per_pseudo_chromosome").attrib["max"], decimals=0), 5, 5, i, i))
+            l.append((formatFloat(referenceNodes[i].find("pseudo_adjacency_number_per_pseudo_chromosome").attrib["avg"], decimals=2), 6, 6, i, i))
+            l.append((formatFloat(referenceNodes[i].find("pseudo_adjacency_number_per_pseudo_chromosome").attrib["median"], decimals=0), 7, 7, i, i))
+            l.append((formatFloat(referenceNodes[i].find("true_pseudo_adjacency_number_per_pseudo_chromosome").attrib["max"], decimals=0), 8, 8, i, i))
+            l.append((formatFloat(referenceNodes[i].find("true_pseudo_adjacency_number_per_pseudo_chromosome").attrib["avg"], decimals=2), 9, 9, i, i))
+            l.append((formatFloat(referenceNodes[i].find("true_pseudo_adjacency_number_per_pseudo_chromosome").attrib["median"], decimals=0), 10, 10, i, i))
+            l.append((formatFloat(referenceNodes[i].find("links_per_chromosome").attrib["max"], decimals=0), 11, 11, i, i))
+            l.append((formatFloat(referenceNodes[i].find("links_per_chromosome").attrib["avg"], decimals=2), 12, 12, i, i))
+            l.append((formatFloat(referenceNodes[i].find("links_per_chromosome").attrib["median"], decimals=0), 13, 13, i, i))
+        writeLine(columnNumber, len(referenceNodes), l, fileHandle)
+    
+    writeEnd(fileHandle, "reference_table", "Statistics on the reference of the cactus trees. \
+    Region: region name. \
+    Type: reference algorithm. \
+    P.C. Number: Number of pseudo-chromosomes in reference. \
+    P.A./P.C.: Number of pseudo-adjacencies per pseudo-chromosome. \
+    T.P.A/P.C.: Number of true-pseudo adjacencies per pseudo-chromosome. \
+    Links/P.C.: Number of links per pseudo-chromosome.")
 
 def main():
     ##########################################
@@ -334,6 +450,8 @@ def main():
     writeBlocksTable(stats, fileHandle)
     writeChainsTable(stats, fileHandle)
     writeEndsTable(stats, fileHandle)
+    writeFacesTable(stats, fileHandle)
+    writeReferenceTable(stats, fileHandle)
     writeDocumentEnd(fileHandle)
     
     ##########################################

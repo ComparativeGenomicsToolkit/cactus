@@ -259,7 +259,7 @@ void reportBlockStats(Net *net, FILE *fileHandle, int32_t minLeafDegree) {
 	struct IntList *coverage = constructEmptyIntList(0);
 	struct IntList *leafCoverage = constructEmptyIntList(0);
 	blockStats(net, counts, lengths, degrees, leafDegrees, coverage, leafCoverage, minLeafDegree);
-	fprintf(fileHandle, "<blocks minLeafDegree=%i>", minLeafDegree);
+	fprintf(fileHandle, "<blocks minimum_leaf_degree=\"%i\">", minLeafDegree);
 	tabulateAndPrintIntValues(counts, "counts", fileHandle);
 	tabulateAndPrintIntValues(lengths, "lengths", fileHandle);
 	tabulateAndPrintIntValues(degrees, "degrees", fileHandle);
@@ -440,12 +440,119 @@ void reportTerminalGroupsSizes(Net *net, FILE *fileHandle) {
 	destructIntList(sizes);
 }
 
+void faceStats(Net *net, struct IntList *numberPerNet, struct IntList *cardinality,
+		struct IntList *isSimple, struct IntList *isRegular, struct IntList *isCanonical,
+		struct IntList *facesPerFaceAssociatedEnd,
+		int32_t includeLinkGroups, int32_t includeTangleGroups,
+		int32_t includeTerminalGroups, int32_t includeNonTerminalGroups) {
+	/*
+	 * Face stats.
+	 * Number per net: faces per net.
+	 * Cardinality of face.
+	 * isSimple: if face is simple.
+	 * isRegular: is face is regular.
+	 * isCanonical: if face is canonical.
+	 * facesPerFaceAssociatedEnd: the number of faces associated with each end that
+	 * is associated with at least one end. Used to calculate the breakpoint reuse ratio.
+	 */
+	Net_GroupIterator *groupIterator = net_getGroupIterator(net);
+	Group *group;
+	while((group = net_getNextGroup(groupIterator)) != NULL) {
+		//Call recursively..
+		if(!group_isTerminal(group)) {
+			faceStats(group_getNestedNet(group),
+					  numberPerNet, cardinality,
+					  isSimple, isRegular,
+					  isCanonical, facesPerFaceAssociatedEnd,
+					  includeLinkGroups, includeTangleGroups,
+                      includeTerminalGroups, includeNonTerminalGroups);
+		}
+
+		//Now the actual meat.
+		if(  ((includeLinkGroups && group_getLink(group) != NULL) || (includeTangleGroups && group_getLink(group) == NULL)) &&
+					 ((includeTerminalGroups && group_isTerminal(group)) || (includeNonTerminalGroups && !group_isTerminal(group))) ) {
+			intListAppend(numberPerNet, net_getFaceNumber(net));
+			Net_FaceIterator *faceIterator = net_getFaceIterator(net);
+			Face *face;
+			while((face = net_getNextFace(faceIterator)) != NULL) {
+				intListAppend(cardinality, face_getCardinal(face));
+				intListAppend(isSimple, face_isSimple(face));
+				intListAppend(isRegular, face_isRegular(face));
+				intListAppend(isCanonical, face_isCanonical(face));
+			}
+			net_destructFaceIterator(faceIterator);
+
+			/*
+			 * Calculate the number of faces associated with each end
+			 * associated with at least one face.
+			 */
+			End *end;
+			Net_EndIterator *endIterator = net_getFaceIterator(net);
+			while((end = net_getNextEnd(endIterator)) != NULL) {
+				End_InstanceIterator *capIterator = end_getInstanceIterator(end);
+				Cap *cap;
+				Hash *faceHash = hash_construct();
+				int32_t i = 0;
+				while((cap = end_getNext(capIterator)) != NULL) {
+					Face *face = cap_getFace(cap);
+					if(face != NULL) {
+						if(hash_search(faceHash, face) == NULL) {
+							hash_insert(faceHash, face, face);
+							i++;
+						}
+					}
+				}
+				hash_destruct(faceHash);
+				end_destructInstanceIterator(capIterator);
+				if(i > 0) {
+					intListAppend(facesPerFaceAssociatedEnd, i);
+				}
+			}
+			net_destructEndIterator(endIterator);
+		}
+	}
+	net_destructGroupIterator(groupIterator);
+}
+
+void reportFaceStats(Net *net,
+		int32_t includeLinkGroups, int32_t includeTangleGroups,
+		int32_t includeTerminalGroups, int32_t includeNonTerminalGroups, FILE *fileHandle) {
+	/*
+	 * Prints the reference stats to the XML file.
+	 */
+	struct IntList *numberPerNet = constructEmptyIntList(0);
+	struct IntList *cardinality = constructEmptyIntList(0);
+	struct IntList *isSimple = constructEmptyIntList(0);
+	struct IntList *isRegular = constructEmptyIntList(0);
+	struct IntList *isCanonical = constructEmptyIntList(0);
+	struct IntList *facesPerFaceAssociatedEnd = constructEmptyIntList(0);
+	faceStats(net, numberPerNet, cardinality, isSimple, isRegular, isCanonical,
+			  facesPerFaceAssociatedEnd,
+			  includeLinkGroups, includeTangleGroups,
+			  includeTerminalGroups, includeNonTerminalGroups);
+	fprintf(fileHandle, "<faces include_link_groups=\"%i\" include_tangle_groups=\"%i\" include_terminal_groups=\"%i\" include_non_terminal_groups=\"%i\">",
+				includeLinkGroups != 0, includeTangleGroups != 0, includeTerminalGroups != 0, includeNonTerminalGroups != 0);
+	tabulateAndPrintIntValues(numberPerNet, "number_per_net", fileHandle);
+	tabulateAndPrintIntValues(cardinality, "cardinality", fileHandle);
+	tabulateAndPrintIntValues(isSimple, "is_simple", fileHandle);
+	tabulateAndPrintIntValues(isRegular, "is_regular", fileHandle);
+	tabulateAndPrintIntValues(isCanonical, "is_canonical", fileHandle);
+	tabulateAndPrintIntValues(facesPerFaceAssociatedEnd, "faces_per_face_associated_end", fileHandle);
+	printClosingTag("faces", fileHandle);
+	destructIntList(numberPerNet);
+	destructIntList(cardinality);
+	destructIntList(isSimple);
+	destructIntList(isRegular);
+	destructIntList(isCanonical);
+}
+
 void referenceStats(Net *net, struct IntList *pseudoChromosomeNumber,
 				    struct IntList *pseudoAdjacencyNumberPerChromosome,
 				    struct IntList *truePseudoAdjacencyNumberPerChromosome,
 				    struct IntList *linksPerChromosome) {
 	/*
 	 * Calculates stats on the reference genome structure.
+	 * Stats are pretty obvious.
 	 */
 	//Call recursively..
 	Net_GroupIterator *groupIterator = net_getGroupIterator(net);
@@ -500,35 +607,26 @@ void referenceStats(Net *net, struct IntList *pseudoChromosomeNumber,
 	reference_destructPseudoChromosomeIterator(pseudoChromosomeIterator);
 }
 
-void faceStats(Net *net, struct List *numberPerNet, struct IntList *cardinality,
-		struct IntList *isSimple, struct IntList *isRegular,
-		struct IntList *isCanonical, int32_t terminalGroups, int32_t nonTerminalGroups,
-		int32_t tangleGroups, int32_t linkGroups) {
+void reportReferenceStats(Net *net, FILE *fileHandle) {
 	/*
-	 * Face stats.
-	 * Number per net: faces per net.
-	 * Cardinality of face.
-	 * isSimple: if face is simple.
-	 * isRegular: is face is regular.
-	 * isCanonical: if face is canonical.
+	 * Prints the reference stats to the XML file.
 	 */
-	//Call recursively..
-	Net_GroupIterator *groupIterator = net_getGroupIterator(net);
-	Group *group;
-	while((group = net_getNextGroup(groupIterator)) != NULL) {
-		if(!group_isTerminal(group)) {
-			faceStats(group_getNestedNet(group),
-					  numberPerNet, cardinality,
-					  isSimple, isRegular,
-					  isCanonical, terminalGroups, nonTerminalGroups,
-					  tangleGroups, linkGroups);
-		}
-	}
-	net_destructGroupIterator(groupIterator);
-
-	if(  ((includeLinkGroups && group_getLink(group) != NULL) || (includeTangleGroups && group_getLink(group) == NULL)) &&
-				 ((includeTerminalGroups && group_isTerminal(group)) || (includeNonTerminalGroups && !group_isTerminal(group))) ) {
-
+	struct IntList *pseudoChromosomeNumber = constructEmptyIntList(0);
+	struct IntList *pseudoAdjacencyNumberPerChromosome = constructEmptyIntList(0);
+	struct IntList *truePseudoAdjacencyNumberPerChromosome = constructEmptyIntList(0);
+	struct IntList *linksPerChromosome = constructEmptyIntList(0);
+	referenceStats(net, pseudoChromosomeNumber, pseudoAdjacencyNumberPerChromosome,
+			truePseudoAdjacencyNumberPerChromosome, linksPerChromosome);
+	printOpeningTag("reference", fileHandle);
+	tabulateAndPrintIntValues(pseudoChromosomeNumber, "pseudo_chromosome_number", fileHandle);
+	tabulateAndPrintIntValues(pseudoAdjacencyNumberPerChromosome, "pseudo_adjacency_number_per_pseudo_chromosome", fileHandle);
+	tabulateAndPrintIntValues(truePseudoAdjacencyNumberPerChromosome, "true_pseudo_adjacency_number_per_pseudo_chromosome", fileHandle);
+	tabulateAndPrintIntValues(linksPerChromosome, "links_per_chromosome", fileHandle);
+	printClosingTag("reference", fileHandle);
+	destructIntList(pseudoChromosomeNumber);
+	destructIntList(pseudoAdjacencyNumberPerChromosome);
+	destructIntList(truePseudoAdjacencyNumberPerChromosome);
+	destructIntList(linksPerChromosome);
 }
 
 void reportNetDiskStats(char *netDiskName, Net *net, FILE *fileHandle) {
@@ -576,6 +674,24 @@ void reportNetDiskStats(char *netDiskName, Net *net, FILE *fileHandle) {
 	 */
 	reportTerminalGroupsSizes(net, fileHandle);
 
-	fprintf(fileHandle, "</stats>\n");
+	/*
+	 * Stats on faces in the reconstruction..
+	 */
+	reportFaceStats(net, 1, 1, 1, 1, fileHandle);
+	reportFaceStats(net, 0, 1, 1, 1, fileHandle);
+	reportFaceStats(net, 1, 0, 1, 1, fileHandle);
+	reportFaceStats(net, 1, 1, 1, 0, fileHandle);
+	reportFaceStats(net, 0, 1, 1, 0, fileHandle);
+	reportFaceStats(net, 1, 0, 1, 0, fileHandle);
+	reportFaceStats(net, 1, 1, 0, 1, fileHandle);
+	reportFaceStats(net, 0, 1, 0, 1, fileHandle);
+	reportFaceStats(net, 1, 0, 0, 1, fileHandle);
+
+	/*
+	 * Stats on the reference in the reconstruction..
+	 */
+	reportReferenceStats(net, fileHandle);
+
+	printClosingTag("stats", fileHandle);
 }
 
