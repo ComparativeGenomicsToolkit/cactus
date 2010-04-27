@@ -24,7 +24,7 @@ def writeRData(data, name):
         DATA.write('%s\n' %(data[i]))
     DATA.close()
 
-def writeRScript(name, ylabel, numFiles, isLog=False, outputFormat='pdf', isLegend=False):
+def writeRScript(name, title, ylabel, numFiles, isLog=False, outputFormat='pdf', isLegend=False):
     if isLog:
         ylabel = 'log-log '+ylabel
     n=0
@@ -72,8 +72,8 @@ def writeRScript(name, ylabel, numFiles, isLog=False, outputFormat='pdf', isLege
     for i in range(0, numFiles):
         SCRIPT.write("lines(x=seq(from=0, to=1, length=length(y[[%d]])), y=y[[%d]], type='l', col=myColors[%d])\n" %(i+1, i+1, (i%len(myPyColors))+1))
     SCRIPT.write("title(xlab='Quantile')\n")
-    SCRIPT.write("title(ylab='%s')\n" %(ylabel))
-    SCRIPT.write("title(main='%s')\n" %(name.replace("_", " ")))
+    SCRIPT.write("title(ylab='%s')\n" % ylabel)
+    SCRIPT.write("title(main='%s')\n" % title)
     SCRIPT.write("names=c('file 1'")
     for i in range(1, numFiles):
         SCRIPT.write(", 'file %d'" %(i+1))
@@ -83,7 +83,7 @@ def writeRScript(name, ylabel, numFiles, isLog=False, outputFormat='pdf', isLege
     SCRIPT.write("dev.off()\n")
     SCRIPT.close()
 
-def runRScript(name, ylabel, numFiles, noCleanup, isLog=False, outputFormat='pdf', isLegend=False):
+def runRScript(name, title, ylabel, numFiles, noCleanup, isLog=False, outputFormat='pdf', isLegend=False):
     # we ignore the ylabel, isLog, outputFormat, isLegend
     scriptName = 'script_'+name+'.r'
     RCMD = 'R --no-save --no-restore <'+os.path.join(os.getcwd(), scriptName)+' >/dev/null 2>&1'
@@ -99,61 +99,32 @@ def runRScript(name, ylabel, numFiles, noCleanup, isLog=False, outputFormat='pdf
             os.remove(dataName)
         
 
-def writeScriptFunc(name, ylabel, numFiles, noCleanup, isLog=False, outputFormat='pdf', isLegend=False):
-    writeRScript(name, ylabel, numFiles, isLog, outputFormat, isLegend)
+def writeScriptFunc(name, title, ylabel, numFiles, noCleanup, isLog=False, outputFormat='pdf', isLegend=False):
+    writeRScript(name, title, ylabel, numFiles, isLog, outputFormat, isLegend)
+
+def getPlots(xmlNode):
+    l = []
+    counter = 0
+    def iterparent(tree):
+        for parent in tree.getiterator():
+            for child in parent:
+                yield parent, child
+    for parent, child in iterparent(xmlNode):
+        if child.text != None:
+            baseTokens = parent.tag.split("_") + child.tag.split("_")
+            attribTokens = [ "%s:%s" % (key, parent.attrib[key]) for key in parent.attrib.keys() ]
+            l.append((("%s_%i" % ("_".join(baseTokens), counter)), " ".join(baseTokens + attribTokens), " ".join(baseTokens), child))
+            counter += 1
+    return l
 
 def writeDataLoop(xml, number):
-    for name, node in (
-                         ("Nets_Children", xml.find("nets").find("children")),
-                         ("Nets_Depth", xml.find("nets").find("depths")),
-                         ("Blocks_Per_Net", xml.find("blocks").find("counts")),
-                         ("Blocks_Lengths", xml.find("blocks").find("lengths")),
-                         ("Blocks_Degrees", xml.find("blocks").find("degrees")),
-                         ("Blocks_Coverage", xml.find("blocks").find("coverage")),
-                         ("Chains_Per_Net", xml.find("chains").find("counts")),
-                         ("Chains_Block_Number", xml.find("chains").find("lengths")),
-                         ("Chains_Block_Basepair_Length", xml.find("chains").find("base_lengths")),
-                         ("Chains_Average_Instance_Length", xml.find("chains").find("avg_instance_lengths")),
-                         ("Chains_{Min._2_Blocks}_Per_Net", xml.find("chains_with_two_or_more_blocks").find("counts")),
-                         ("Chains_{Min._2_Blocks}_Number", xml.find("chains_with_two_or_more_blocks").find("lengths")),
-                         ("Chains_{Min._2_Blocks}_Basepair_Length", xml.find("chains_with_two_or_more_blocks").find("base_lengths")),
-                         ("Chains_{Min._2_Blocks}_Average_Instance_Length", xml.find("chains_with_two_or_more_blocks").find("avg_instance_lengths")),
-                         ("Ends_Per_Group", xml.find("ends").find("counts")),
-                         ("Ends_Connectivity", xml.find("ends").find("degrees")),
-                         ("Ends_{Tangles}_Per_Group", xml.find("ends_non_trivial").find("counts")),
-                         ("Ends_{Tangles}_Connectivity", xml.find("ends_non_trivial").find("degrees")),
-                         ("Ends_{Links}_Per_Group", xml.find("ends_trivial").find("counts")),
-                         ("Ends_{Links}_Connectivity", xml.find("ends_trivial").find("degrees")),
-                         ("Leaf_Sizes", xml.find("leaves").find("leaf_sizes")),
-                         ("Tangle_Groups_Per_Net", xml.find("non_trivial_groups").find("trivial_groups"))):
+    for name, title, yLabel, node in getPlots(xml):
         dist = node.text.split()
         writeRData(dist, name+'_'+str(number))
-
+        
 def allPlots(xmlList, function, noCleanup, isLog=False, outputFormat='pdf', isLegend=False):
-    for name, ylabel in (
-                         ("Nets_Children", "Children"),
-                         ("Nets_Depth", "Depth"),
-                         ("Blocks_Per_Net", "Blocks"),
-                         ("Blocks_Lengths", "Basepairs"),
-                         ("Blocks_Degrees", "Degree"),
-                         ("Blocks_Coverage", "Basepairs * Degree"),
-                         ("Chains_Per_Net", "Chains"),
-                         ("Chains_Block_Number", "Blocks"),
-                         ("Chains_Block_Basepair_Length", "Basepairs"),
-                         ("Chains_Average_Instance_Length", "Basepairs"),
-                         ("Chains_{Min._2_Blocks}_Per_Net", "Chains"),
-                         ("Chains_{Min._2_Blocks}_Number", "Blocks"),
-                         ("Chains_{Min._2_Blocks}_Basepair_Length", "Basepairs"),
-                         ("Chains_{Min._2_Blocks}_Average_Instance_Length", "Basepairs"),
-                         ("Ends_Per_Group", "Ends"),
-                         ("Ends_Connectivity", "Connected Ends"),
-                         ("Ends_{Tangles}_Per_Group", "Ends"),
-                         ("Ends_{Tangles}_Connectivity", "Connected Ends"),
-                         ("Ends_{Links}_Per_Group", "Ends"),
-                         ("Ends_{Links}_Connectivity", "Connected Ends"),
-                         ("Leaf_Sizes", "Basepairs"),
-                         ("Tangle_Groups_Per_Net", "Non-trivial Groups")):
-        function(name, ylabel, len(xmlList), noCleanup, isLog, outputFormat, isLegend)
+    for name, title, yLabel, node in getPlots(xmlList[0]):
+        function(name, title, yLabel, len(xmlList), noCleanup, isLog, outputFormat, isLegend)
     
 def main():
     if len(sys.argv) < 2:

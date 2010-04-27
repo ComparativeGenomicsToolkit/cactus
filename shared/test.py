@@ -116,9 +116,10 @@ def getCactusInputs_encode(regionNumber=0, tempDir=None):
     Requires setting SON_TRACE_DATASETS variable and having access to datasets.
     """
     assert regionNumber >= 0
-    assert regionNumber < 15
+    assert regionNumber < 14
+    encodeRegionString = "ENm%03i" % (regionNumber+1)
     encodeDatasetPath = os.path.join(TestStatus.getPathToDataSets(), "MAY-2005")
-    sequences = [ os.path.join(encodeDatasetPath, regionNumber, ("%s.%s.fa" % (species, regionNumber))) for\
+    sequences = [ os.path.join(encodeDatasetPath, encodeRegionString, ("%s.%s.fa" % (species, encodeRegionString))) for\
                 species in ("human", "chimp", "baboon", "mouse", "rat", "dog", "cow") ]
     newickTreeString = parseNewickTreeFile(os.path.join(encodeDatasetPath, "reducedTree.newick"))
     return sequences, newickTreeString
