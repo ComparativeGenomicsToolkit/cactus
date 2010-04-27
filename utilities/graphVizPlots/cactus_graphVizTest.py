@@ -11,7 +11,9 @@ class TestCase(unittest.TestCase):
     def testCactus_Random(self):
         runWorkflow_multipleExamples(getCactusInputs_random, 
                                      testNumber=TestStatus.getTestSetup(), 
-                                     buildCactusPDF=True, buildAdjacencyPDF=True)
+                                     buildCactusPDF=True, 
+                                     buildAdjacencyPDF=True,
+                                     buildReferencePDF=True)
         
 def main():
     parseSuiteTestOptions()

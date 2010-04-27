@@ -20,6 +20,7 @@ from sonLib.bioio import runGraphViz
 from cactus.shared.common import runCactusWorkflow
 from cactus.shared.common import runCactusTreeViewer
 from cactus.shared.common import runCactusAdjacencyGraphViewer
+from cactus.shared.common import runCactusReferenceGraphViewer
 from cactus.shared.common import runCactusCheck
 from cactus.shared.common import runCactusTreeStats
 from cactus.shared.common import runCactusMAFGenerator
@@ -142,6 +143,7 @@ def runWorkflow_TestScript(sequences, newickTreeString,
                            buildTrees=True, buildFaces=True, buildReference=True,
                            buildCactusPDF=False,
                            buildAdjacencyPDF=False,
+                           buildReferencePDF=False,
                            makeCactusTreeStats=False,
                            makeMAFs=False, 
                            cleanup=True):
@@ -190,7 +192,7 @@ def runWorkflow_TestScript(sequences, newickTreeString,
     
     #Now run various utilities..
     
-    #First run the cactus tree graph-viz plot
+    #Run the cactus tree graph-viz plot
     if buildCactusPDF:
         cactusTreeDotFile = os.path.join(outputDir, "cactusTree.dot")
         cactusTreePDFFile = os.path.join(outputDir, "cactusTree.pdf")
@@ -200,7 +202,7 @@ def runWorkflow_TestScript(sequences, newickTreeString,
     else:
         logger.info("Not building a cactus tree plot")
     
-    #First run the cactus tree graph-viz plot
+    #Run the cactus tree graph-viz plot
     if buildAdjacencyPDF:
         adjacencyGraphDotFile = os.path.join(outputDir, "adjacencyGraph.dot")
         adjacencyGraphPDFFile = os.path.join(outputDir, "adjacencyGraph.pdf")
@@ -209,6 +211,16 @@ def runWorkflow_TestScript(sequences, newickTreeString,
         logger.info("Ran the adjacency graph plot script")
     else:
         logger.info("Not building a adjacency graph plot")
+    
+    #Run the cactus tree graph-viz plot
+    if buildReferencePDF:
+        referenceGraphDotFile = os.path.join(outputDir, "referenceGraph.dot")
+        referenceGraphPDFFile = os.path.join(outputDir, "referenceGraph.pdf")
+        runCactusReferenceGraphViewer(referenceGraphDotFile, netDisk)
+        runGraphViz(referenceGraphDotFile, referenceGraphPDFFile)
+        logger.info("Ran the reference graph plot script")
+    else:
+        logger.info("Not building a reference graph plot")
     
     if makeCactusTreeStats:
         cactusTreeFile = os.path.join(outputDir, "cactusStats.xml")
@@ -243,6 +255,7 @@ def runWorkflow_multipleExamples(inputGenFunction,
                                batchSystem="single_machine",
                                buildTrees=True, buildFaces=True, buildReference=True,
                                buildCactusPDF=False, buildAdjacencyPDF=False,
+                               buildReferencePDF=False,
                                makeCactusTreeStats=False, makeMAFs=False):
     """A wrapper to run a number of examples.
     """
@@ -259,6 +272,7 @@ def runWorkflow_multipleExamples(inputGenFunction,
                                    outputDir=out, batchSystem=batchSystem,
                                    buildTrees=buildTrees, buildFaces=buildFaces, buildReference=buildReference, 
                                    buildCactusPDF=buildCactusPDF, buildAdjacencyPDF=buildAdjacencyPDF,
+                                   buildReferencePDF=buildReferencePDF,
                                    makeCactusTreeStats=makeCactusTreeStats, makeMAFs=makeMAFs)
             system("rm -rf %s" % tempDir)
             logger.info("Finished random test %i" % test)

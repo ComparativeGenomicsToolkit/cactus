@@ -231,6 +231,14 @@ def runCactusAdjacencyGraphViewer(graphFile,
     system("cactus_adjacencyGraphViewer --netDisk %s --netName %s --outputFile %s --logLevel %s" \
                     % (netDisk, netName, graphFile, logLevel))
     logger.info("Created a break point graph of the problem")
+    
+def runCactusReferenceGraphViewer(graphFile,
+                                  netDisk, netName="0",
+                                  logLevel="DEBUG"):
+    system("cactus_referenceViewer --netDisk %s --netName %s --outputFile %s --logLevel %s" \
+                    % (netDisk, netName, graphFile, logLevel))
+    logger.info("Created a cactus reference graph")
+    
 
 def runCactusMAFGenerator(mAFFile, netDisk, netName="0",
                           logLevel="DEBUG"):

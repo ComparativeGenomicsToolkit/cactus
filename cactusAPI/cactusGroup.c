@@ -142,6 +142,14 @@ Link *group_getLink(Group *group) {
 	return group->link;
 }
 
+bool group_isTangle(Group *group) {
+	return group_getLink(group) == NULL;
+}
+
+bool group_isLink(Group *group) {
+	return !group_getLink(group);
+}
+
 End *group_getFirstEnd(Group *group) {
 	return sortedSet_getFirst(group->ends);
 }

@@ -90,7 +90,7 @@ def main():
     ##########################################
     
     chainScatterPlots(stats)
-    #blockScatterPlots(stats)
+    blockScatterPlots(stats)
     
 def _test():
     import doctest      

@@ -59,6 +59,16 @@ Net *group_getNestedNet(Group *group);
 Link *group_getLink(Group *group);
 
 /*
+ * group_isTangle(group) == (group_getLink(group) == NULL)
+ */
+bool group_isTangle(Group *group);
+
+/*
+ * group_isLink(group) != group_isTangle(group);
+ */
+bool group_isLink(Group *group);
+
+/*
  * Gets the first end in the group.
  */
 End *group_getFirstEnd(Group *group);
