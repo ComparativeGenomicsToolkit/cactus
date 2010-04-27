@@ -4,7 +4,7 @@ libPath = ../../../../lib
 
 cflags += ${tokyoCabinetIncl}
 
-all :  ${binPath}/cactus_adjacencyGraphViewer ${binPath}/cactus_treeViewer ${binPath}/cactus_referenceViewer
+all :  ${binPath}/cactus_adjacencyGraphViewer ${binPath}/cactus_treeViewer 
 
 ${binPath}/cactus_adjacencyGraphViewer : *.c ${libPath}/sonLib.a ${libPath}/cactusLib.a
 	${cxx} ${cflags} -I ${libPath} -o ${binPath}/cactus_adjacencyGraphViewer cactus_adjacencyGraphViewer.c ${libPath}/sonLib.a ${libPath}/cactusLib.a ${libPath}/sonLib.a ${tokyoCabinetLib}
@@ -12,9 +12,6 @@ ${binPath}/cactus_adjacencyGraphViewer : *.c ${libPath}/sonLib.a ${libPath}/cact
 ${binPath}/cactus_treeViewer : *.c  ${libPath}/sonLib.a ${libPath}/cactusLib.a
 	${cxx} ${cflags} -I ${libPath} -o ${binPath}/cactus_treeViewer cactus_treeViewer.c ${libPath}/sonLib.a ${libPath}/cactusLib.a ${libPath}/sonLib.a ${tokyoCabinetLib}
 
-${binPath}/cactus_referenceViewer : *.c  ${libPath}/sonLib.a ${libPath}/cactusLib.a
-	${cxx} ${cflags} -I ${libPath} -o ${binPath}/cactus_referenceViewer cactus_referenceViewer.c ${libPath}/sonLib.a ${libPath}/cactusLib.a ${libPath}/sonLib.a ${tokyoCabinetLib}
-
 clean :
 	rm -f *.o
-	rm -f ${binPath}/cactus_adjacencyGraphViewer ${binPath}/cactus_treeViewer ${binPath}/cactus_referenceViewer
+	rm -f ${binPath}/cactus_adjacencyGraphViewer ${binPath}/cactus_treeViewer 

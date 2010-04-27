@@ -20,7 +20,7 @@ from sonLib.bioio import runGraphViz
 from cactus.shared.common import runCactusWorkflow
 from cactus.shared.common import runCactusTreeViewer
 from cactus.shared.common import runCactusAdjacencyGraphViewer
-from cactus.shared.common import runCactusReferenceGraphViewer
+from cactus.shared.common import runCactusReferenceGraphViewer 
 from cactus.shared.common import runCactusCheck
 from cactus.shared.common import runCactusTreeStats
 from cactus.shared.common import runCactusMAFGenerator

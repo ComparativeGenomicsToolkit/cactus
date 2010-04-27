@@ -1,5 +1,5 @@
 # order is important, libraries first
-modules = graphVizPlots mAFs stats
+modules = graphVizPlots mAFs stats referenceViewer
 .PHONY: all %.all clean %.clean
 #coreModule make file
 all : ${modules:%=all.%}

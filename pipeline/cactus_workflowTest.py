@@ -37,7 +37,6 @@ class TestCase(unittest.TestCase):
                                      testRestrictions=(TestStatus.TEST_MEDIUM,),
                                      batchSystem=self.batchSystem,
                                      buildCactusPDF=True,
-                                     buildReferencePDF=True,
                                      makeCactusTreeStats=True, makeMAFs=True)
                 
     def testCactus_Encode(self): 
