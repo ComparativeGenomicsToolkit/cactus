@@ -58,9 +58,17 @@ void getMAFBlock(Block *block, FILE *fileHandle) {
 	 * Outputs a MAF representation of the block to the given file handle.
 	 */
 	if(block_getInstanceNumber(block) > 0) {
-		fprintf(fileHandle, "a score=%i\n", block_getLength(block) *block_getInstanceNumber(block));
+		uglyf("!!!!!!!block %i\n", block_getInstanceNumber(block));
+
+		Block_InstanceIterator *instanceIterator = block_getInstanceIterator(block);
+		Segment *segment;
+		while((segment = block_getNext(instanceIterator)) != NULL) {
+			uglyf("!!!!!!Segment %i %i \n", segment_getParent(segment), segment_getChildNumber(segment));
+		}
+		block_destructInstanceIterator(instanceIterator);
+
 		char *newickTreeString = block_makeNewickString(block, 1);
-		fprintf(fileHandle, "# tree=%s\n", newickTreeString);
+		fprintf(fileHandle, "a score=%i tree='%s'\n", block_getLength(block) *block_getInstanceNumber(block), newickTreeString);
 		free(newickTreeString);
 		assert(block_getRootInstance(block) != NULL);
 		getMAFBlockP(block_getRootInstance(block), fileHandle);

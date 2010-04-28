@@ -316,7 +316,7 @@ class CactusExtensionWrapper(Target):
         self.netNames = netNames
     
     def run(self, localTempDir, globalTempDir):
-        #Run cactus phylogeny
+        #The following are atomic, in that we check if they have already been run successfully.
         if self.options.buildTrees:
             runCactusPhylogeny(self.options.netDisk, netNames=self.netNames)
             #Not atomic!

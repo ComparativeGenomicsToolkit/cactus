@@ -147,7 +147,6 @@ def runWorkflow_TestScript(sequences, newickTreeString,
                            makeCactusTreeStats=False,
                            makeMAFs=False, 
                            cleanup=True):
-    buildFaces = False
     """Runs the workflow and various downstream utilities.
     """
     logger.info("Running cactus workflow test script")
