@@ -38,9 +38,10 @@ void makeIntermediateLevelPseudoChromosomes(Net *net, Reference *reference);
 void mergeGroupsLinkedByPseudoAdjacencies(Net *net, Reference *reference);
 
 /*
- * This is the core function called to create a reference for a genome.
+ * This is the core function called to create a reference with the given name for a genome.
+ * If the reference already exists then it does nothing.
  */
-void addReferenceToNet(Net *net);
+void addReferenceToNet(Net *net, Name referenceName);
 
 
 #endif /* REFERENCE_H_ */

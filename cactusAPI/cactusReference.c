@@ -8,8 +8,25 @@
 ////////////////////////////////////////////////
 ////////////////////////////////////////////////
 
+static int32_t reference_constructP(const void *o1, const void *o2, void *a) {
+	assert(a == NULL);
+	return netMisc_nameCompare(pseudoChromosome_getName((PseudoChromosome *)o1),
+			pseudoChromosome_getName((PseudoChromosome *)o2));
+}
+
 Reference *reference_construct(Net *net) {
 	return reference_construct2(netDisk_getUniqueID(net_getNetDisk(net)), net);
+}
+
+Reference *reference_construct2(Name name, Net *net) {
+	Reference *reference = malloc(sizeof(Reference));
+	//Setup the basic structure - a sorted set of pseudo-chromosomes.
+	reference->pseudoChromosomes = sortedSet_construct(reference_constructP);
+	//Link the reference and net.
+	reference->net = net;
+	reference->name = name;
+	net_addReference(net, reference);
+	return reference;
 }
 
 Name reference_getName(Reference *reference) {
@@ -137,22 +154,6 @@ void reference_check(Reference *reference) {
 ////////////////////////////////////////////////
 ////////////////////////////////////////////////
 ////////////////////////////////////////////////
-
-static int32_t reference_constructP(const void *o1, const void *o2, void *a) {
-	assert(a == NULL);
-	return netMisc_nameCompare(pseudoChromosome_getName((PseudoChromosome *)o1),
-			pseudoChromosome_getName((PseudoChromosome *)o2));
-}
-
-Reference *reference_construct2(Name name, Net *net) {
-	Reference *reference = malloc(sizeof(Reference));
-	//Setup the basic structure - a sorted set of pseudo-chromosomes.
-	reference->pseudoChromosomes = sortedSet_construct(reference_constructP);
-	//Link the reference and net.
-	reference->net = net;
-	net_addReference(net, reference);
-	return reference;
-}
 
 void reference_destruct(Reference *reference) {
 	PseudoChromosome *pseudoChromosome;

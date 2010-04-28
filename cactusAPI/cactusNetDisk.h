@@ -22,6 +22,11 @@ NetDisk *netDisk_construct(const char *netDiskFile);
 void netDisk_destruct(NetDisk *netDisk);
 
 /*
+ * Retrieves the next unique ID.
+ */
+int64_t netDisk_getUniqueID(NetDisk *netDisk);
+
+/*
  * Writes the updated state of the parts of the net disk in memory to disk.
  *
  */

@@ -138,7 +138,7 @@ void addTangles(Net *net, Reference *reference, void *extraArgument) {
 	hash_destruct(endToPseudoAdjacencyHash);
 }
 
-void makeReferenceGraph(Net *net, void *extraArgument) {
+void makeReferenceGraph(Reference *reference, void *extraArgument) {
 	/*
 	 * Constructs a reference plot.
 	 *
@@ -146,8 +146,7 @@ void makeReferenceGraph(Net *net, void *extraArgument) {
 	 * Then it adds edges representing blocks, adjacencies and
 	 * edges between telomeres that are adjacent in the ordering.
 	 */
-	Reference *reference = net_getFirstReference(net);
-	assert(reference != NULL);
+	Net *net = reference_getNet(reference);
 	addReferenceEnds(reference, extraArgument);
 	addBlocks(net, extraArgument);
 	addTangles(net, reference, extraArgument);

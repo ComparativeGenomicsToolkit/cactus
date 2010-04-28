@@ -10,11 +10,6 @@ struct _reference {
 };
 
 /*
- * Reference with name specified.
- */
-Reference *reference_construct2(Name name, Net *net);
-
-/*
  * Destructor for reference.
  */
 void reference_destruct(Reference *reference);

@@ -57,6 +57,6 @@ void addTelomereEdge(End *_5End, End *_3End, void *extraArgument);
  * Function which does the magic and calls the above functions,
  * in the order given (first ends, second block edges... etc. , last telomere edges).
  */
-void makeReferenceGraph(Net *net, void *extraArgument);
+void makeReferenceGraph(Reference *reference, void *extraArgument);
 
 #endif

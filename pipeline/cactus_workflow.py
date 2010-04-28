@@ -31,6 +31,7 @@ from cactus.shared.common import runCactusGetNets
 from cactus.shared.common import runCactusPhylogeny
 from cactus.shared.common import runCactusAdjacencies
 from cactus.shared.common import runCactusBaseAligner
+from cactus.shared.common import runCactusGetUniqueName
 from cactus.shared.common import runCactusReference
 
 from cactus.blastAlignment.cactus_aligner import MakeSequences
@@ -302,6 +303,8 @@ class ExtensionPhase(Target):
 
     def run(self, localTempDir, globalTempDir):
         logger.info("Starting the down pass target")
+        if self.options.buildReference:
+            self.options.referenceName = runCactusGetUniqueName(self.options.netDisk, localTempDir)
         if self.options.buildTrees or self.options.buildFaces or self.options.buildReference:
             childTarget = CactusExtensionWrapper(self.options, [ self.netName ], self.netSize)
             self.addChildTarget(childTarget)
@@ -320,7 +323,8 @@ class CactusExtensionWrapper(Target):
         if self.options.buildFaces:
             runCactusAdjacencies(self.options.netDisk, netNames=self.netNames)
         if self.options.buildReference:
-            runCactusReference(self.options.netDisk, netNames=self.netNames)
+            runCactusReference(self.options.netDisk, netNames=self.netNames,
+                               referenceName=self.options.referenceName)
         #Make child jobs
         childNetNames = []
         cummulativeNetSize = 0

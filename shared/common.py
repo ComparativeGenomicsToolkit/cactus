@@ -161,15 +161,25 @@ def runCactusGetNets(netDisk, netName, tempDir, includeInternalNodes=False,
     os.remove(netNamesFile)
     return l
 
+def runCactusGetUniqueName(netDisk, tempDir):
+    """Gets a globally unique name.
+    """
+    uniqueNameFile = getTempFile(".txt", tempDir)
+    system("cactus_workflow_getUniqueName %s %s" % (netDisk, uniqueNameFile))
+    fileHandle = open(uniqueNameFile, 'r')
+    nameString = fileHandle.readline()[:-1]
+    os.remove(uniqueNameFile)
+    return nameString
+
 def runCactusBaseAligner(netDisk, netNames, logLevel="DEBUG"):
     """Runs cactus base aligner.
     """
     system("cactus_baseAligner --netDisk %s --logLevel %s %s" % (netDisk, logLevel, " ".join(netNames)))
     
-def runCactusReference(netDisk, netNames, logLevel="DEBUG"):
+def runCactusReference(netDisk, netNames, referenceName, logLevel="DEBUG"):
     """Runs cactus reference.
     """
-    system("cactus_reference --netDisk %s --logLevel %s %s" % (netDisk, logLevel, " ".join(netNames)))
+    system("cactus_reference --netDisk %s --logLevel %s --referenceName %s %s" % (netDisk, logLevel, referenceName, " ".join(netNames)))
 
 def runCactusCheck(netDisk, 
                     netName="0", 

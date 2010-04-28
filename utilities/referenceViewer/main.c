@@ -122,7 +122,8 @@ int main(int argc, char *argv[]) {
 
     fileHandle = fopen(outputFile, "w");
     graphViz_setupGraphFile(fileHandle);
-    makeReferenceGraph(net, fileHandle);
+    assert(net_getReferenceNumber(net) > 0);
+    makeReferenceGraph(net_getFirstReference(net), fileHandle);
     graphViz_finishGraphFile(fileHandle);
     fclose(fileHandle);
     logInfo("Written the reference graph to file\n");

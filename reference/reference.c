@@ -158,8 +158,9 @@ void makeIntermediateLevelPseudoChromosomes(Net *net, Reference *reference) {
 	Group *parentGroup = net_getParentGroup(net);
 	assert(parentGroup != NULL);
 	Net *parentNet = group_getNet(parentGroup);
-	assert(net_getReferenceNumber(parentNet) == 1);
-	Reference *parentReference = net_getFirstReference(parentNet);
+	assert(net_getReferenceNumber(parentNet) > 0);
+	Reference *parentReference = net_getReference(parentNet, reference_getName(reference));
+	assert(parentReference != NULL);
 
 	makeIntermediateLevelPseudoChromosomes_parentNet = parentNet;
 	makeIntermediateLevelPseudoChromosomes_cmpEndsP = reference_getEndToPseudoAdjacencyHash(parentReference);
@@ -191,10 +192,12 @@ void mergeGroupsLinkedByPseudoAdjacencies(Net *net, Reference *reference) {
 	reference_destructPseudoChromosomeIterator(pseudoChromosomeIterator);
 }
 
-void addReferenceToNet(Net *net) {
-	//Function will currently only work if no reference has already been added.
-	assert(net_getReferenceNumber(net) == 0);
-	Reference *reference = reference_construct(net);
+void addReferenceToNet(Net *net, Name referenceName) {
+	Reference *reference = net_getReference(net, referenceName);
+	if(reference != NULL) {
+		return; //we've already built it, so no need to do it again!
+	}
+	reference = reference_construct2(referenceName, net);
 
 	if(net_getParentGroup(net) == NULL) {
 		/*

@@ -129,9 +129,5 @@ int64_t netDisk_addString(NetDisk *netDisk, const char *string, int32_t length);
  */
 char *netDisk_getString(NetDisk *netDisk, int64_t offset, int32_t start, int32_t length, int32_t strand);
 
-/*
- * Retrieves the next unique ID.
- */
-int64_t netDisk_getUniqueID(NetDisk *netDisk);
 
 #endif
