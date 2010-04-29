@@ -18,7 +18,7 @@ from cactus.shared.common import runCactusSetup
 from cactus.shared.common import runCactusAligner
 from cactus.shared.common import runCactusCore
 from cactus.shared.common import runCactusCheck
-from cactus.shared.common import runCactusGetNets
+from cactus.shared.common import runCactusExtendNets
 
 from cactus.shared.test import getCactusInputs_random
 from cactus.shared.test import getCactusInputs_blanchette
@@ -90,10 +90,7 @@ def runPipe(sequenceDirs, newickTreeString, tempDir, useDummy=False, writeDebugF
     runCactusSetup(netDisk, sequenceDirs, 
                    newickTreeString)
     
-    l = runCactusGetNets(netDisk, 0, getTempDirectory(tempDir),
-                                                  includeInternalNodes=False, 
-                                                  recursive=True,
-                                                  extendNonZeroTrivialGroups=True)
+    l = runCactusExtendNets(netDisk, 0, getTempDirectory(tempDir))
                                                   
     if len(l) > 0:
         childNetName, childNetSize = l[0]

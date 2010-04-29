@@ -330,13 +330,13 @@ class CactusExtensionWrapper(Target):
         cummulativeNetSize = 0
         for netName in self.netNames:
             for childNetName, childNetSize in runCactusGetNets(self.options.netDisk, netName, localTempDir):
-                if childNetName != netName: #Avoids running again for leaf without children
-                    childNetNames.append(childNetName)
-                    cummulativeNetSize += 1 #childNetSize
-                    if timeParameters[4]*len(childNetNames) > IDEAL_JOB_RUNTIME:
-                        self.addChildTarget(CactusExtensionWrapper(self.options, childNetNames, timeParameters[4]*len(childNetNames)))
-                        childNetNames = []
-                        cummulativeNetSize = 0
+                assert childNetName != netName
+                childNetNames.append(childNetName)
+                cummulativeNetSize += 1 #childNetSize
+                if timeParameters[4]*len(childNetNames) > IDEAL_JOB_RUNTIME:
+                    self.addChildTarget(CactusExtensionWrapper(self.options, childNetNames, timeParameters[4]*len(childNetNames)))
+                    childNetNames = []
+                    cummulativeNetSize = 0
         if len(childNetNames) > 0:
             self.addChildTarget(CactusExtensionWrapper(self.options, childNetNames, cummulativeNetSize))
       

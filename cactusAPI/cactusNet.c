@@ -731,6 +731,11 @@ void net_removeReference(Net *net, Reference *reference) {
 }
 
 void net_mergeNetsP(Net *net1, Net *net2) {
+	//Check the build settings match
+	assert(net_builtBlocks(net1) == net_builtBlocks(net2));
+	assert(net_builtTrees(net1) == net_builtTrees(net2));
+	assert(net_builtFaces(net1) == net_builtFaces(net2));
+
 	//Transfers the events not in event tree 1 into event tree 2.
 	EventTree *eventTree1 = net_getEventTree(net1);
 	EventTree *eventTree2 = net_getEventTree(net2);
@@ -800,6 +805,7 @@ void net_mergeNetsP(Net *net1, Net *net2) {
 	while(net_getReferenceNumber(net1) > 0) {
 		reference_setNet(net_getFirstReference(net1), net2);
 	}
+
 	//Now destroy the first net.
 	Name netName1 = net_getName(net1);
 	net_destruct(net1, 0);

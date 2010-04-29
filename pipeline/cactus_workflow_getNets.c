@@ -6,24 +6,6 @@
 
 #include "cactus.h"
 
-/*
- * This code iterates through the nets returning them recursively.
- */
-static void getNets(Net *net, FILE *fileHandle) {
-	Net_GroupIterator *groupIterator;
-	Group *group;
-	assert(net_builtBlocks(net)); //This recursion depends on the block structure having been properly defined for all nodes.
-	assert(net != NULL);
-	fprintf(fileHandle, "%s %lld\n", netMisc_nameToStringStatic(net_getName(net)), net_getTotalBaseLength(net));
-	groupIterator = net_getGroupIterator(net);
-	while((group = net_getNextGroup(groupIterator)) != NULL) {
-		if(!group_isTerminal(group)) {
-			getNets(group_getNestedNet(group), fileHandle);
-		}
-	}
-	net_destructGroupIterator(groupIterator);
-}
-
 int main(int argc, char *argv[]) {
 	NetDisk *netDisk;
 	Net *net;
@@ -33,14 +15,24 @@ int main(int argc, char *argv[]) {
 	logInfo("Set up the net disk\n");
 
 	net = netDisk_getNet(netDisk, netMisc_stringToName(argv[2]));
+	assert(net != NULL);
+	assert(net_builtBlocks(net)); //This recursion depends on the block structure having been properly defined for all nodes.
 	logInfo("Parsed the net\n");
 
 	FILE *fileHandle = fopen(argv[3], "w");
-	getNets(net, fileHandle);
+	Net_GroupIterator *groupIterator = net_getGroupIterator(net);
+	Group *group;
+	while((group = net_getNextGroup(groupIterator)) != NULL) {
+		if(!group_isTerminal(group)) {
+			Net *nestedNet = group_getNestedNet(group);
+			assert(nestedNet != NULL);
+			assert(net_builtBlocks(nestedNet)); //This recursion depends on the block structure having been properly defined for all nodes.
+			fprintf(fileHandle, "%s %lld\n", netMisc_nameToStringStatic(net_getName(nestedNet)), net_getTotalBaseLength(nestedNet));
+		}
+	}
+	net_destructGroupIterator(groupIterator);
 	fclose(fileHandle);
-
 	netDisk_destruct(netDisk);
-
 	logInfo("Am finished\n");
 	return 0;
 }

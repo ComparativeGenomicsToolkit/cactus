@@ -226,7 +226,7 @@ Group *group_mergeGroups(Group *group1, Group *group2) {
 	//Check they are in the same net..
 	assert(group_getNet(group1) == group_getNet(group2));
 	assert(group1 != group2);
-	if(group_getLink(group1) != NULL) {
+	if(group_getLink(group1) != NULL) { //we have to break these links..
 		link_split(group_getLink(group1));
 	}
 	assert(group_getLink(group1) == NULL);
@@ -239,10 +239,18 @@ Group *group_mergeGroups(Group *group1, Group *group2) {
 		if(group_isTerminal(group1)) { //Need to make a nested net to merge with the other
 			group_makeNonTerminal(group1);
 			group_mergeGroupsP(group_getNestedNet(group1));
+			assert(!group_isTerminal(group2));
+			Net *nestedNet = group_getNestedNet(group1), *otherNet = group_getNestedNet(group2);
+			net_setBuiltBlocks(nestedNet, net_builtBlocks(otherNet));
+			net_setBuiltTrees(nestedNet, net_builtTrees(otherNet));
 		}
 		if(group_isTerminal(group2)) { //Need to make a nested net to merge with the other
 			group_makeNonTerminal(group2);
 			group_mergeGroupsP(group_getNestedNet(group2));
+			assert(!group_isTerminal(group1));
+			Net *nestedNet = group_getNestedNet(group2), *otherNet = group_getNestedNet(group1);
+			net_setBuiltBlocks(nestedNet, net_builtBlocks(otherNet));
+			net_setBuiltTrees(nestedNet, net_builtTrees(otherNet));
 		}
 		assert(group_getNestedNet(group1) != NULL);
 		assert(group_getNestedNet(group2) != NULL);
