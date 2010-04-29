@@ -273,6 +273,15 @@ int main(int argc, char *argv[]) {
 		end_setGroup(end, group);
 	}
 	net_destructEndIterator(endIterator);
+	assert(group_isTerminal(group));
+
+	///////////////////////////////////////////////////////////////////////////
+	// Set the blocksBuilt flag to true for this top level net.
+	///////////////////////////////////////////////////////////////////////////
+
+	assert(!net_builtBlocks(net));
+	net_setBuiltBlocks(net, 1);
+	assert(net_builtBlocks(net));
 
 	///////////////////////////////////////////////////////////////////////////
 	// Write the net to disk.

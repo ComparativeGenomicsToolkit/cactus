@@ -411,8 +411,43 @@ Net *net_mergeNets(Net *net1, Net *net2);
 
 /*
  * Runs check function for each type of object contained in the net.
+ * Checks that net_builtTrees and net_builtFaces are correctly set.
  */
 void net_check(Net *net);
+
+/*
+ * Returns non-zero iff the blocks for the net have been added (i.e. no further
+ * alignment will be added to the net).
+ */
+bool net_builtBlocks(Net *net);
+
+/*
+ * Switches the status of net_buildBlocks(). By default net_builtBlocks returns
+ * 0.
+ */
+void net_setBuiltBlocks(Net *net, bool b);
+
+/*
+ * Returns non-zero iff every end tree and block tree is well defined.
+ */
+bool net_builtTrees(Net *net);
+
+/*
+ * Switches the status of net_buildTrees(). By default net_builtTrees returns
+ * 0.
+ */
+void net_setBuiltTrees(Net *net, bool b);
+
+/*
+ * Returns non-zero iff all non-trivial faces have a defined face.
+ */
+bool net_builtFaces(Net *net);
+
+/*
+ * Switches the status of net_builtFaces(). By default net_builtFaces returns
+ * 0.
+ */
+void net_setBuiltFaces(Net *net, bool b);
 
 
 #endif

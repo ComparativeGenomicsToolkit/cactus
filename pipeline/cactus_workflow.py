@@ -28,6 +28,7 @@ from workflow.jobTree.scriptTree.target import Target
 from cactus.shared.common import runCactusSetup
 from cactus.shared.common import runCactusCore
 from cactus.shared.common import runCactusGetNets
+from cactus.shared.common import runCactusExtendNets
 from cactus.shared.common import runCactusPhylogeny
 from cactus.shared.common import runCactusAdjacencies
 from cactus.shared.common import runCactusBaseAligner
@@ -253,11 +254,10 @@ class CactusCoreWrapper2(Target):
             minSizeToExtend = 1
         else:
             minSizeToExtend = iterationMaxSize[int(self.options.maxIteration)+1]
-        for childNetName, childNetSize in runCactusGetNets(self.options.netDisk, self.netName, localTempDir,
-                                                           includeInternalNodes=False, 
-                                                           recursive=True,
-                                                           extendNonZeroTrivialGroups=True, 
-                                                           minSizeToExtend=minSizeToExtend):
+        #This loop is properly atomic, because if it is run twice it will return the same
+        #set of netnames!
+        for childNetName, childNetSize in runCactusExtendNets(self.options.netDisk, self.netName, 
+                                                              localTempDir, minSizeToExtend=minSizeToExtend):
             assert childNetSize > 0
             nextIteration = getIteration(self.iteration+1, childNetSize)
             if nextIteration == 4:
@@ -329,8 +329,7 @@ class CactusExtensionWrapper(Target):
         childNetNames = []
         cummulativeNetSize = 0
         for netName in self.netNames:
-            for childNetName, childNetSize in runCactusGetNets(self.options.netDisk, netName, localTempDir, includeInternalNodes=True, 
-                                                               recursive=False, extendNonZeroTrivialGroups=False):
+            for childNetName, childNetSize in runCactusGetNets(self.options.netDisk, netName, localTempDir):
                 if childNetName != netName: #Avoids running again for leaf without children
                     childNetNames.append(childNetName)
                     cummulativeNetSize += 1 #childNetSize

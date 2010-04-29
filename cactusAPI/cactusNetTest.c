@@ -468,6 +468,48 @@ void testNet_mergeNets(CuTest *testCase) {
 	cactusNetTestTeardown();
 }
 
+void testNet_builtBlocks(CuTest *testCase) {
+	cactusNetTestSetup();
+
+	CuAssertTrue(testCase, !net_builtBlocks(net));
+	net_setBuiltBlocks(net, 0);
+	CuAssertTrue(testCase, !net_builtBlocks(net));
+	net_setBuiltBlocks(net, 1);
+	CuAssertTrue(testCase, net_builtBlocks(net));
+	net_setBuiltBlocks(net, 0);
+	CuAssertTrue(testCase, !net_builtBlocks(net));
+
+	cactusNetTestTeardown();
+}
+
+void testNet_builtTrees(CuTest *testCase) {
+	cactusNetTestSetup();
+
+	CuAssertTrue(testCase, !net_builtTrees(net));
+	net_setBuiltTrees(net, 0);
+	CuAssertTrue(testCase, !net_builtTrees(net));
+	net_setBuiltTrees(net, 1);
+	CuAssertTrue(testCase, net_builtTrees(net));
+	net_setBuiltTrees(net, 0);
+	CuAssertTrue(testCase, !net_builtTrees(net));
+
+	cactusNetTestTeardown();
+}
+
+void testNet_builtFaces(CuTest *testCase) {
+	cactusNetTestSetup();
+
+	CuAssertTrue(testCase, !net_builtFaces(net));
+	net_setBuiltFaces(net, 0);
+	CuAssertTrue(testCase, !net_builtFaces(net));
+	net_setBuiltFaces(net, 1);
+	CuAssertTrue(testCase, net_builtFaces(net));
+	net_setBuiltFaces(net, 0);
+	CuAssertTrue(testCase, !net_builtFaces(net));
+
+	cactusNetTestTeardown();
+}
+
 CuSuite* cactusNetTestSuite(void) {
 	CuSuite* suite = CuSuiteNew();
 	SUITE_ADD_TEST(suite, testNet_getName);
@@ -482,6 +524,9 @@ CuSuite* cactusNetTestSuite(void) {
 	SUITE_ADD_TEST(suite, testNet_chain);
 	SUITE_ADD_TEST(suite, testNet_face);
 	SUITE_ADD_TEST(suite, testNet_mergeNets);
+	SUITE_ADD_TEST(suite, testNet_builtBlocks);
+	SUITE_ADD_TEST(suite, testNet_builtTrees);
+	SUITE_ADD_TEST(suite, testNet_builtFaces);
 	SUITE_ADD_TEST(suite, testNet_constructAndDestruct);
 	return suite;
 }

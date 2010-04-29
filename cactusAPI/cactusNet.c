@@ -79,6 +79,10 @@ Net *net_construct2(Name name, NetDisk *netDisk) {
 	net->faceIndex = 0;
 	net->chainIndex = 0;
 
+	net->builtBlocks = 0;
+	net->builtFaces = 0;
+	net->builtTrees = 0;
+
 	netDisk_addNet(net->netDisk, net);
 
 	//Do this bit last.. so the netdisk relationship is established
@@ -533,6 +537,84 @@ Net *net_mergeNets(Net *net1, Net *net2) {
 	return net2;
 }
 
+void net_check(Net *net) {
+	eventTree_check(net_getEventTree(net));
+
+	Net_GroupIterator *groupIterator = net_getGroupIterator(net);
+	Group *group;
+	while((group = net_getNextGroup(groupIterator)) != NULL) {
+		group_check(group);
+	}
+	net_destructGroupIterator(groupIterator);
+
+	Net_ChainIterator *chainIterator = net_getChainIterator(net);
+	Chain *chain;
+	while((chain = net_getNextChain(chainIterator)) != NULL) {
+		chain_check(chain);
+	}
+	net_destructCapIterator(chainIterator);
+
+	Net_ReferenceIterator *referenceIterator = net_getReferenceIterator(net);
+	Reference *reference;
+	while((reference = net_getNextReference(referenceIterator)) != NULL) {
+		reference_check(reference);
+	}
+	net_destructReferenceIterator(referenceIterator);
+
+	Net_EndIterator *endIterator = net_getEndIterator(net);
+	End *end;
+	while((end = net_getNextEnd(endIterator)) != NULL) {
+		end_check(end);
+		end_check(end_getReverse(end)); //We will test everything backwards also.
+	}
+	net_destructEndIterator(endIterator);
+
+	Net_FaceIterator *faceIterator = net_getFaceIterator(net);
+	Face *face;
+	while((face = net_getNextFace(faceIterator)) != NULL) {
+		face_check(face);
+	}
+	net_destructFaceIterator(faceIterator);
+
+	Net_BlockIterator *blockIterator = net_getBlockIterator(net);
+	Block *block;
+	while((block = net_getNextBlock(blockIterator)) != NULL) {
+		block_check(block);
+		block_check(block_getReverse(block)); //We will test everything backwards also.
+	}
+	net_destructBlockIterator(blockIterator);
+
+	Net_SequenceIterator *sequenceIterator = net_getSequenceIterator(net);
+	Sequence *sequence;
+	while((sequence = net_getNextSequence(sequenceIterator)) != NULL) {
+		sequence_check(sequence);
+	}
+	net_destructSequenceIterator(sequenceIterator);
+}
+
+bool net_builtBlocks(Net *net) {
+	return net->builtBlocks;
+}
+
+void net_setBuiltBlocks(Net *net, bool b) {
+	net->builtBlocks = b;
+}
+
+bool net_builtTrees(Net *net) {
+	return net->builtTrees;
+}
+
+void net_setBuiltTrees(Net *net, bool b) {
+	net->builtTrees = b;
+}
+
+bool net_builtFaces(Net *net) {
+	return net->builtFaces;
+}
+
+void net_setBuiltFaces(Net *net, bool b) {
+	net->builtFaces = b;
+}
 
 /*
  * Private functions
@@ -749,6 +831,9 @@ void net_writeBinaryRepresentation(Net *net, void (*writeFn)(const void * ptr, s
 
 	binaryRepresentation_writeElementType(CODE_NET, writeFn);
 	binaryRepresentation_writeName(net_getName(net), writeFn);
+	binaryRepresentation_writeBool(net_builtBlocks(net), writeFn);
+	binaryRepresentation_writeBool(net_builtTrees(net), writeFn);
+	binaryRepresentation_writeBool(net_builtFaces(net), writeFn);
 	binaryRepresentation_writeName(net->parentNetName, writeFn);
 
 	if(net_getEventTree(net) != NULL) {
@@ -805,6 +890,9 @@ Net *net_loadFromBinaryRepresentation(void **binaryString, NetDisk *netDisk) {
 	if(binaryRepresentation_peekNextElementType(*binaryString) == CODE_NET) {
 		binaryRepresentation_popNextElementType(binaryString);
 		net = net_construct2(binaryRepresentation_getName(binaryString), netDisk);
+		net_setBuiltBlocks(net, binaryRepresentation_getBool(binaryString));
+		net_setBuiltTrees(net, binaryRepresentation_getBool(binaryString));
+		net_setBuiltFaces(net, binaryRepresentation_getBool(binaryString));
 		net->parentNetName = binaryRepresentation_getName(binaryString);
 		eventTree_loadFromBinaryRepresentation(binaryString, net);
 		while(sequence_loadFromBinaryRepresentation(binaryString, net) != NULL);
@@ -817,59 +905,4 @@ Net *net_loadFromBinaryRepresentation(void **binaryString, NetDisk *netDisk) {
 		assert(binaryRepresentation_popNextElementType(binaryString) == CODE_NET);
 	}
 	return net;
-}
-
-void net_check(Net *net) {
-	eventTree_check(net_getEventTree(net));
-
-	Net_GroupIterator *groupIterator = net_getGroupIterator(net);
-	Group *group;
-	while((group = net_getNextGroup(groupIterator)) != NULL) {
-		group_check(group);
-	}
-	net_destructGroupIterator(groupIterator);
-
-	Net_ChainIterator *chainIterator = net_getChainIterator(net);
-	Chain *chain;
-	while((chain = net_getNextChain(chainIterator)) != NULL) {
-		chain_check(chain);
-	}
-	net_destructCapIterator(chainIterator);
-
-	Net_ReferenceIterator *referenceIterator = net_getReferenceIterator(net);
-	Reference *reference;
-	while((reference = net_getNextReference(referenceIterator)) != NULL) {
-		reference_check(reference);
-	}
-	net_destructReferenceIterator(referenceIterator);
-
-	Net_EndIterator *endIterator = net_getEndIterator(net);
-	End *end;
-	while((end = net_getNextEnd(endIterator)) != NULL) {
-		end_check(end);
-		end_check(end_getReverse(end)); //We will test everything backwards also.
-	}
-	net_destructEndIterator(endIterator);
-
-	Net_FaceIterator *faceIterator = net_getFaceIterator(net);
-	Face *face;
-	while((face = net_getNextFace(faceIterator)) != NULL) {
-		face_check(face);
-	}
-	net_destructFaceIterator(faceIterator);
-
-	Net_BlockIterator *blockIterator = net_getBlockIterator(net);
-	Block *block;
-	while((block = net_getNextBlock(blockIterator)) != NULL) {
-		block_check(block);
-		block_check(block_getReverse(block)); //We will test everything backwards also.
-	}
-	net_destructBlockIterator(blockIterator);
-
-	Net_SequenceIterator *sequenceIterator = net_getSequenceIterator(net);
-	Sequence *sequence;
-	while((sequence = net_getNextSequence(sequenceIterator)) != NULL) {
-		sequence_check(sequence);
-	}
-	net_destructSequenceIterator(sequenceIterator);
 }

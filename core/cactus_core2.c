@@ -260,22 +260,27 @@ int main(int argc, char *argv[]) {
 	net = netDisk_getNet(netDisk, netMisc_stringToName(netName));
 	logInfo("Parsed the net to be refined\n");
 
-	startTime = time(NULL);
+	if(!net_builtBlocks(net)) { // Do nothing if the net already has defined blocks
+		startTime = time(NULL);
 
-	///////////////////////////////////////////////////////////////////////////
-	// Call the core program.
-	///////////////////////////////////////////////////////////////////////////
+		///////////////////////////////////////////////////////////////////////////
+		// Call the core program.
+		///////////////////////////////////////////////////////////////////////////
 
-	startAlignmentStack_fileString = alignmentsFile;
-	exitOnFailure(cactusCorePipeline(net, cCIP, getNextAlignment, startAlignmentStack), "Failed to run the cactus core pipeline\n");
-	fclose(getNextAlignment_FileHandle);
+		startAlignmentStack_fileString = alignmentsFile;
+		exitOnFailure(cactusCorePipeline(net, cCIP, getNextAlignment, startAlignmentStack), "Failed to run the cactus core pipeline\n");
+		fclose(getNextAlignment_FileHandle);
 
-	///////////////////////////////////////////////////////////////////////////
-	// (9) Write the net to disk.
-	///////////////////////////////////////////////////////////////////////////
+		///////////////////////////////////////////////////////////////////////////
+		// (9) Write the net to disk.
+		///////////////////////////////////////////////////////////////////////////
 
-	netDisk_write(netDisk);
-	logInfo("Updated the net on disk\n");
+		netDisk_write(netDisk);
+		logInfo("Updated the net on disk\n");
+	}
+	else {
+		logInfo("We've already built blocks / alignments for this net\n");
+	}
 
 	///////////////////////////////////////////////////////////////////////////
 	//(10) Clean up.

@@ -123,5 +123,4 @@ void segment_makeParentAndChild(Segment *segmentParent, Segment *segmentChild);
  */
 void segment_check(Segment *segment);
 
-
 #endif

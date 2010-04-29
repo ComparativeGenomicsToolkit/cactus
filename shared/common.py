@@ -130,25 +130,7 @@ def runCactusAdjacencies(netDisk, netNames=("0",), logLevel="DEBUG"):
     system(command)
     logger.info("Ran cactus_fillAdjacencies OK")
     
-def runCactusGetNets(netDisk, netName, tempDir, includeInternalNodes=False, 
-                     recursive=True, extendNonZeroTrivialGroups=True,
-                     minSizeToExtend=1):
-    """Gets a list of nets attached to the given net. If the net has no children,
-    as is therefore a leaf, it will also be returned. If includeInternalNodes is true
-    the nodes will include the internal nodes, including the first node.
-    
-    The net names are returned in a list of tuples with the size (in terms of total bases pairs 
-    of sequence contained within the net).
-    
-    If recursive is switched off, it only includes the immediate children of the given node.
-    
-    The order of the nets is by ascending depth first discovery time.
-    """
-    netNamesFile = getTempFile(".txt", tempDir)
-    system("cactus_workflow_getNets %s %s %s %i %i %i %i" % (netDisk, netName, netNamesFile, 
-                                                          int(includeInternalNodes), int(recursive), 
-                                                          int(extendNonZeroTrivialGroups),
-                                                          int(minSizeToExtend)))
+def readNetNamesFile(netNamesFile):
     fileHandle = open(netNamesFile, 'r')
     line = fileHandle.readline()
     l = []
@@ -158,6 +140,26 @@ def runCactusGetNets(netDisk, netName, tempDir, includeInternalNodes=False,
         l.append((childNetName, childNetSize))
         line = fileHandle.readline()
     fileHandle.close()
+    return l
+    
+def runCactusGetNets(netDisk, netName, tempDir):
+    """Gets a list of nets attached to the given net. 
+    """
+    netNamesFile = getTempFile(".txt", tempDir)
+    system("cactus_workflow_getNets %s %s %s" % (netDisk, netName, netNamesFile))
+    l = readNetNamesFile(netNamesFile)
+    os.remove(netNamesFile)
+    return l
+
+def runCactusExtendNets(netDisk, netName, tempDir,
+                        minSizeToExtend=1):
+    """Extends the terminal groups in the cactus and returns the list
+    of their child nets with which to pass to core.
+    The order of the nets is by ascending depth first discovery time.
+    """
+    netNamesFile = getTempFile(".txt", tempDir)
+    system("cactus_workflow_extendNets %s %s %s %i" % (netDisk, netName, netNamesFile, int(minSizeToExtend)))
+    l = readNetNamesFile(netNamesFile)
     os.remove(netNamesFile)
     return l
 

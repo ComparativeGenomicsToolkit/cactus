@@ -198,6 +198,8 @@ int32_t cactusCorePipeline(Net *net,
 	struct List *list;
 	struct hashtable *vertexAdjacencyComponents;
 
+	assert(!net_builtBlocks(net)); //We can't do this if we've already built blocks for the net!.
+
 	///////////////////////////////////////////////////////////////////////////
 	//Setup the basic pinch graph
 	///////////////////////////////////////////////////////////////////////////

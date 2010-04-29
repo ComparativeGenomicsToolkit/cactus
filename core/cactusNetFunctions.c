@@ -64,6 +64,8 @@ struct PinchGraph *constructPinchGraph(Net *net) {
 	int32_t stop;
 	int32_t length;
 
+	assert(!net_builtBlocks(net));
+
 	//make basic object.
 	graph = pinchGraph_construct();
 	sourceVertex = graph->vertices->list[0];
@@ -79,6 +81,7 @@ struct PinchGraph *constructPinchGraph(Net *net) {
 	//for each cap, build a pair of vertices
 	endIterator = net_getEndIterator(net);
 	while((end = net_getNextEnd(endIterator)) != NULL) {
+		assert(!end_isBlockEnd(end));
 		pinchVertex = constructPinchVertex(graph, -1, 0, 1);
 		pinchVertex2 = constructPinchVertex(graph, -1, 1, 0);
 		//connect to source.
@@ -539,6 +542,23 @@ void mergeCactusVertices(struct CactusEdge *cactusEdge, int32_t *mergedVertexIDs
 	}
 }
 
+void setBlocksBuilt(Net *net) {
+	/*
+	 * Sets the 'built-blocks flag' for all the nets in the subtree, including the given net.
+	 */
+	assert(!net_builtBlocks(net));
+	net_setBuiltBlocks(net, 1);
+	assert(net_builtBlocks(net));
+	Net_GroupIterator *iterator = net_getGroupIterator(net);
+	Group *group;
+	while((group = net_getNextGroup(iterator)) != NULL) {
+		if(!group_isTerminal(group)) {
+			setBlocksBuilt(group_getNestedNet(group));
+		}
+	}
+	net_destructGroupIterator(iterator);
+}
+
 void fillOutNetFromInputs(
 		Net *parentNet,
 		struct CactusGraph *cactusGraph,
@@ -812,6 +832,12 @@ void fillOutNetFromInputs(
 
 	addGroups(net, pinchGraph, chosenBlocks, endNamesHash);
 	logDebug("Added the trivial groups\n");
+
+	////////////////////////////////////////////////
+	//Set blocks for each net to 'built'
+	////////////////////////////////////////////////
+
+	setBlocksBuilt(net);
 
 	////////////////////////////////////////////////
 	//Clean up

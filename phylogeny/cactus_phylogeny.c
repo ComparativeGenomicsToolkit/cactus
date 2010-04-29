@@ -702,7 +702,17 @@ int main(int argc, char *argv[]) {
 		///////////////////////////////////////////////////////////////////////////
 
 		net = netDisk_getNet(netDisk, netMisc_stringToName(netName));
+		assert(net != NULL);
 		logInfo("Parsed the net to be refined\n");
+
+		///////////////////////////////////////////////////////////////////////////
+		// Do nothing if we have already built the trees.
+		///////////////////////////////////////////////////////////////////////////
+
+		if(net_builtTrees(net)) {
+			logInfo("We have already built trees for net %s\n", netName);
+			continue;
+		}
 
 		///////////////////////////////////////////////////////////////////////////
 		//Setups the 'trees' for the caps for the top level problem.
@@ -853,6 +863,13 @@ int main(int argc, char *argv[]) {
 		}
 		net_destructGroupIterator(groupIterator);
 		logInfo("Filled in end trees and augmented the event trees for the child nets in: %i seconds\n", time(NULL) - startTime);
+
+		///////////////////////////////////////////////////////////////////////////
+		//Set the trees in the net to 'built' status.
+		///////////////////////////////////////////////////////////////////////////
+
+		assert(!net_builtTrees(net));
+		net_setBuiltTrees(net, 1);
 	}
 
 	///////////////////////////////////////////////////////////////////////////

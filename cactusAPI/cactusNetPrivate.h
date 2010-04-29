@@ -19,6 +19,9 @@ struct _net {
 	NetDisk *netDisk;
 	int32_t faceIndex;
 	int32_t chainIndex;
+	bool builtBlocks;
+	bool builtTrees;
+	bool builtFaces;
 };
 
 

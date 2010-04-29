@@ -60,6 +60,9 @@ void testGroup_makeNonTerminal(CuTest *testCase) {
 	CuAssertTrue(testCase, !group_isTerminal(group2));
 	Net *nestedNet = group_getNestedNet(group2);
 	CuAssertTrue(testCase, nestedNet != NULL);
+	CuAssertTrue(testCase, !net_builtBlocks(net));
+	CuAssertTrue(testCase, !net_builtTrees(net));
+	CuAssertTrue(testCase, !net_builtFaces(net));
 	CuAssertTrue(testCase, net_getName(nestedNet) == group_getName(group2));
 	CuAssertTrue(testCase, net_getParentGroup(nestedNet) == group2);
 	CuAssertTrue(testCase, net_getEndNumber(nestedNet) == 1);

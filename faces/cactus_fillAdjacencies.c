@@ -956,12 +956,12 @@ static Cap * fillingIn_constructStub(Cap * adjacentCap) {
 
 	return cap;
 
-	/* 
-	The 0 argument to the end constructor is a bool saying the stub end is 'free', 
-	ie. not necessarily inherited from the parent (though it can be), and not part 
-	of the reference structure. I.e. some stub ends are 'attached' - opposite of free, 
-	representing the case where we know what happened to the other end of the stub 
-	(i.e. if it is a block end at a higher level or the defined end of a sequence defined 
+	/*
+	The 0 argument to the end constructor is a bool saying the stub end is 'free',
+	ie. not necessarily inherited from the parent (though it can be), and not part
+	of the reference structure. I.e. some stub ends are 'attached' - opposite of free,
+	representing the case where we know what happened to the other end of the stub
+	(i.e. if it is a block end at a higher level or the defined end of a sequence defined
 	at the top level).
 	*/
 }
@@ -1212,8 +1212,17 @@ int main(int argc, char ** argv) {
 		///////////////////////////////////////////////////////////////////////////
 
 		net = netDisk_getNet(netDisk, netMisc_stringToName(netName));
+		assert(net_builtTrees(net)); //we must have already built the trees for the problem at this stage
 		logInfo("Parsed the net to be refined\n");
 
+		///////////////////////////////////////////////////////////////////////////
+		// Do nothing if we have already built the faces.
+		///////////////////////////////////////////////////////////////////////////
+
+		if(net_builtFaces(net)) {
+			logInfo("We have already built faces for net %s\n", netName);
+			continue;
+		}
 
 		///////////////////////////////////////////////////////////////////////////
 		// Fill adjencencies
@@ -1223,8 +1232,14 @@ int main(int argc, char ** argv) {
 		fillingIn_fillAdjacencies(net);
 		buildFaces_buildAndProcessFaces(net);
 		logInfo("Processed the nets in: %i seconds\n", time(NULL) - startTime);
-	}
 
+		///////////////////////////////////////////////////////////////////////////
+		//Set the faces in the net to 'built' status.
+		///////////////////////////////////////////////////////////////////////////
+
+		assert(!net_builtFaces(net));
+		net_setBuiltFaces(net, 1);
+	}
 
 	///////////////////////////////////////////////////////////////////////////
 	// (9) Write the net to disk.

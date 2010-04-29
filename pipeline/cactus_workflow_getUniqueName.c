@@ -17,5 +17,6 @@ int main(int argc, char *argv[]) {
 	FILE *fileHandle = fopen(argv[2], "w");
 	fprintf(fileHandle, "%s\n", netMisc_nameToStringStatic(name));
 	fclose(fileHandle);
+	netDisk_destruct(netDisk);
 	return 0;
 }
