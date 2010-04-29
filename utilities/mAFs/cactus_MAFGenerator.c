@@ -58,7 +58,8 @@ void getMAFBlock(Block *block, FILE *fileHandle) {
 	 * Outputs a MAF representation of the block to the given file handle.
 	 */
 	if(block_getInstanceNumber(block) > 0) {
-		char *newickTreeString = block_makeNewickString(block, 1);
+		/* Get newick tree string with internal labels and no unary events */
+		char *newickTreeString = block_makeNewickStringOptions(block, 1, 0);
 		fprintf(fileHandle, "a score=%i tree='%s'\n", block_getLength(block) *block_getInstanceNumber(block), newickTreeString);
 		free(newickTreeString);
 		assert(block_getRootInstance(block) != NULL);
@@ -104,7 +105,6 @@ void usage() {
 	fprintf(stderr, "-c --netDisk : The location of the net disk directory\n");
 	fprintf(stderr, "-d --netName : The name of the net (the key in the database)\n");
 	fprintf(stderr, "-e --outputFile : The file to write the MAFs in.\n");
-	fprintf(stderr, "-f --includeTrees : Include trees for each MAF block inside of a comment line.\n");
 	fprintf(stderr, "-h --help : Print this help screen\n");
 }
 
