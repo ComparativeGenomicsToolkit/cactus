@@ -11,6 +11,9 @@
 #include "commonC.h"
 #include "hashTableC.h"
 
+/*
+ * Stats for a terminally normalised net.
+ */
 
 void tabulateFloatStats(struct List *unsortedValues, double *totalNumber, double *totalSum, double *min, double *max, double *avg, double *median) {
 	/*
@@ -161,26 +164,27 @@ static void netStats(Net *net, int32_t currentDepth, struct IntList *children, s
 	 * Children is the number of children internal nodes (those with children), have.
 	 * Tangle children, like children but only including groups that are tangle groups.
 	 * Link children, like children but only including groups that are link groups.
-	 * Depth is the length of a path (in terms of edges/connections) from the root net to a terminal net (which are the imaginary nets that would descend from terminal groups of the tree).
+	 * Depth is the length of a path (in terms of edges/connections) from the root net to a terminal net (which are the leaf nets of the tree, if terminally normalised).
 	 */
-	Net_GroupIterator *groupIterator = net_getGroupIterator(net);
-	Group *group;
-	int32_t i = 0;
-	while((group = net_getNextGroup(groupIterator)) != NULL) {
-		if(group_isTerminal(group)) {
-			intListAppend(depths, currentDepth+1);
-		}
-		else {
+	if(!net_isTerminal(net)) {
+		Net_GroupIterator *groupIterator = net_getGroupIterator(net);
+		Group *group;
+		int32_t i = 0;
+		while((group = net_getNextGroup(groupIterator)) != NULL) {
+			assert(!group_isTerminal(group));
 			netStats(group_getNestedNet(group), currentDepth+1, children, tangleChildren, linkChildren, depths);
+			if(group_getLink(group) != NULL) {
+				i++;
+			}
 		}
-		if(group_getLink(group) != NULL) {
-			i++;
-		}
+		net_destructGroupIterator(groupIterator);
+		intListAppend(children, net_getGroupNumber(net));
+		intListAppend(tangleChildren, net_getGroupNumber(net) - i);
+		intListAppend(linkChildren, i);
 	}
-	net_destructGroupIterator(groupIterator);
-	intListAppend(children, net_getGroupNumber(net));
-	intListAppend(tangleChildren, net_getGroupNumber(net) - i);
-	intListAppend(linkChildren, i);
+	else {
+		intListAppend(depths, currentDepth);
+	}
 }
 
 void reportNetStats(Net *net, FILE *fileHandle) {
@@ -208,44 +212,44 @@ void blockStats(Net *net, struct IntList *counts, struct IntList *lengths, struc
 		struct IntList *leafDegrees, struct IntList *coverage, struct IntList *leafCoverage, int32_t minLeafDegree) {
 	/*
 	 * Calculates stats on the blocks.
-	 * Counts is numbers of blocks per net.
+	 * Counts is numbers of blocks per non-terminal net.
 	 * Lengths is lengths of blocks.
 	 * Degrees is the number of segment instances in each block.
 	 * Leaf degree is the number of leaf segment instances in each block.
 	 * Coverage is the length * degree of each block.
 	 * Leaf coverage is the length * leadf degree of each block.
 	 */
-	Net_GroupIterator *groupIterator = net_getGroupIterator(net);
-	Group *group;
-	while((group = net_getNextGroup(groupIterator)) != NULL) {
-		if(!group_isTerminal(group)) {
+	if(!net_isTerminal(net))  {
+		Net_GroupIterator *groupIterator = net_getGroupIterator(net);
+		Group *group;
+		while((group = net_getNextGroup(groupIterator)) != NULL) {
+			assert(!group_isTerminal(group));
 			blockStats(group_getNestedNet(group), counts, lengths, degrees, leafDegrees, coverage, leafCoverage, minLeafDegree);
 		}
-	}
-	net_destructGroupIterator(groupIterator);
-
-	Net_BlockIterator *blockIterator = net_getBlockIterator(net);
-	Block *block;
-	while((block = net_getNextBlock(blockIterator)) != NULL) {
-		Segment *segment;
-		Block_InstanceIterator *segmentIterator = block_getInstanceIterator(block);
-		int32_t i=0;
-		while((segment = block_getNext(segmentIterator)) != NULL) {
-			if(segment_getChildNumber(segment) == 0) {
-				i++;
+		net_destructGroupIterator(groupIterator);
+		Net_BlockIterator *blockIterator = net_getBlockIterator(net);
+		Block *block;
+		while((block = net_getNextBlock(blockIterator)) != NULL) {
+			Segment *segment;
+			Block_InstanceIterator *segmentIterator = block_getInstanceIterator(block);
+			int32_t i=0;
+			while((segment = block_getNext(segmentIterator)) != NULL) {
+				if(segment_getChildNumber(segment) == 0) {
+					i++;
+				}
+			}
+			block_destructInstanceIterator(segmentIterator);
+			if(i >= minLeafDegree) {
+				intListAppend(lengths, block_getLength(block));
+				intListAppend(degrees, block_getInstanceNumber(block));
+				intListAppend(coverage, block_getLength(block)*block_getInstanceNumber(block));
+				intListAppend(leafDegrees, i);
+				intListAppend(leafCoverage, block_getLength(block)*i);
 			}
 		}
-		block_destructInstanceIterator(segmentIterator);
-		if(i >= minLeafDegree) {
-			intListAppend(lengths, block_getLength(block));
-			intListAppend(degrees, block_getInstanceNumber(block));
-			intListAppend(coverage, block_getLength(block)*block_getInstanceNumber(block));
-			intListAppend(leafDegrees, i);
-			intListAppend(leafCoverage, block_getLength(block)*i);
-		}
+		net_destructBlockIterator(blockIterator);
+		intListAppend(counts, net_getBlockNumber(net));
 	}
-	net_destructBlockIterator(blockIterator);
-	intListAppend(counts, net_getBlockNumber(net));
 }
 
 void reportBlockStats(Net *net, FILE *fileHandle, int32_t minLeafDegree) {
@@ -281,45 +285,46 @@ static void chainStats(Net *net, struct IntList *counts, struct IntList *blockNu
 		int32_t minNumberOfBlocksInChain) {
 	/*
 	 * Gets stats on the chains.
-	 * Counts is numbers per net.
+	 * Counts is numbers per non-terminal net.
 	 * Block number is the number of blocks per chain.
 	 * Base block lengths in the number of basepairs in blocks per chain.
 	 * Link numbers if the number of links per chain.
 	 * Avg instance base lengths is the avg number of basepairs in an instance of a chain, per chain.
 	 */
-	Net_GroupIterator *groupIterator = net_getGroupIterator(net);
-	Group *group;
-	while((group = net_getNextGroup(groupIterator)) != NULL) {
-		if(group_getNestedNet(group) != NULL) {
+	if(!net_isTerminal(net)) {
+		Net_GroupIterator *groupIterator = net_getGroupIterator(net);
+		Group *group;
+		while((group = net_getNextGroup(groupIterator)) != NULL) {
+			assert(group_getNestedNet(group) != NULL);
 			chainStats(group_getNestedNet(group), counts, blockNumbers, baseBlockLengths, linkNumbers, avgInstanceBaseLengths,
-					minNumberOfBlocksInChain);
+					   minNumberOfBlocksInChain);
 		}
-	}
-	net_destructGroupIterator(groupIterator);
+		net_destructGroupIterator(groupIterator);
 
-	Net_ChainIterator *chainIterator = net_getChainIterator(net);
-	Chain *chain;
-	Block **blocks;
-	int32_t i, j, k, l;
-	l = 0;
-	while((chain = net_getNextChain(chainIterator)) != NULL) {
-		blocks = chain_getBlockChain(chain, &i);
-		k = 0;
-		for(j=0; j<i; j++) {
-			k += block_getLength(blocks[j]);
-		}
+		Net_ChainIterator *chainIterator = net_getChainIterator(net);
+		Chain *chain;
+		Block **blocks;
+		int32_t i, j, k, l;
+		l = 0;
+		while((chain = net_getNextChain(chainIterator)) != NULL) {
+			blocks = chain_getBlockChain(chain, &i);
+			k = 0;
+			for(j=0; j<i; j++) {
+				k += block_getLength(blocks[j]);
+			}
 
-		/*Chain stats are only for those containing two or more blocks.*/
-		if(i >= minNumberOfBlocksInChain) {
-			intListAppend(blockNumbers, i);
-			intListAppend(baseBlockLengths, k);
-			intListAppend(linkNumbers, chain_getLength(chain));
-			intListAppend(avgInstanceBaseLengths, chain_getAverageInstanceBaseLength(chain));
-			l++;
+			/*Chain stats are only for those containing two or more blocks.*/
+			if(i >= minNumberOfBlocksInChain) {
+				intListAppend(blockNumbers, i);
+				intListAppend(baseBlockLengths, k);
+				intListAppend(linkNumbers, chain_getLength(chain));
+				intListAppend(avgInstanceBaseLengths, chain_getAverageInstanceBaseLength(chain));
+				l++;
+			}
 		}
+		net_destructBlockIterator(chainIterator);
+		intListAppend(counts, l);
 	}
-	net_destructBlockIterator(chainIterator);
-	intListAppend(counts, l);
 }
 
 void reportChainStats(Net *net,
@@ -351,7 +356,7 @@ void endStats(Net *net, struct IntList *counts, struct IntList *degrees,
 		int32_t includeLinkGroups, int32_t includeTangleGroups,
 		int32_t includeTerminalGroups, int32_t includeNonTerminalGroups) {
 	/*
-	 * Calculates stats on the ends in nets.
+	 * Calculates stats on the ends.
 	 * Counts is the number of ends per net.
 	 * Degrees is the degree of each end, where the degree of an end is the number
 	 * of distinct adjacencies an end has to other ends.
