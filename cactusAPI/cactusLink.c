@@ -109,7 +109,7 @@ void link_split(Link *link) {
 		listAppend(list2, link_get5End(link2));
 		listAppend(list2, link_get3End(link2));
 	}
-	assert(list1->length + list2->length == (chain_getLength(chain)-1)*2);
+	assert(list1->length + list2->length + 2 == chain_getLength(chain)*2);
 	Net *net = chain_getNet(chain);
 	chain_destruct(chain);
 	link_splitP(list1, net);

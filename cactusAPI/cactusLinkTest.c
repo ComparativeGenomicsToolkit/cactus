@@ -73,9 +73,22 @@ void testLink_getIndex(CuTest* testCase) {
 
 void testLink_split(CuTest *testCase) {
 	cactusLinkTestSetup();
-
-
-
+	CuAssertTrue(testCase, net_getChainNumber(net) == 1);
+	CuAssertTrue(testCase, chain_getLength(chain) == 2);
+	CuAssertTrue(testCase, group_getLink(group1) == link1);
+	link_split(link1);
+	CuAssertTrue(testCase, group_getLink(group1) == NULL);
+	CuAssertTrue(testCase, net_getChainNumber(net) == 1);
+	chain = net_getFirstChain(net);
+	CuAssertTrue(testCase, chain_getLength(chain) == 1);
+	Link *link3 = chain_getLink(chain, 0);
+	CuAssertTrue(testCase, link_get5End(link3) == block_get3End(block));
+	CuAssertTrue(testCase, link_get3End(link3) == end2);
+	CuAssertTrue(testCase, group_getLink(group2) == link3);
+	link_split(chain_getLink(chain, 0));
+	CuAssertTrue(testCase, net_getChainNumber(net) == 0);
+	CuAssertTrue(testCase, group_getLink(group1) == NULL);
+	CuAssertTrue(testCase, group_getLink(group2) == NULL);
 	cactusLinkTestTeardown();
 }
 
@@ -96,7 +109,7 @@ void testLink_serialisation(CuTest* testCase) {
 	testLink_getRight(testCase);
 	testLink_getChain(testCase);
 	testLink_getIndex(testCase);
-	testLink_split(testCase);
+	//testLink_split(testCase); //can't do that test, because it disrupts stuff..
 	nestedTest = 0;
 	cactusLinkTestTeardown();
 }

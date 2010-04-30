@@ -139,15 +139,6 @@ void block_check(Block *block);
  * The names of the blocks are their names converted to strings.
  * Includes unary events in tree.
  */
-char *block_makeNewickString(Block *block, int32_t includeInternalNames);
-
-/*
- * Makes a newick string representation of the segments in the block.
- * Does not include any branch lengths currents.
- * Creates an assert error if the segments are not in a tree.
- * Returns null if the block contains no segments.
- * The names of the blocks are their names converted to strings.
- */
-char *block_makeNewickStringOptions(Block *block, int32_t includeInternalNames, int32_t includeUnaryEvents);
+char *block_makeNewickString(Block *block, int32_t includeInternalNames, int32_t includeUnaryEvents);
 
 #endif

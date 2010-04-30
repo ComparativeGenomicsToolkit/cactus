@@ -281,20 +281,14 @@ void block_check(Block *block) {
 }
 
 char *block_makeNewickStringP(Segment *segment, int32_t includeInternalNames, int32_t includeUnaryEvents) {
-	int32_t childNumber = segment_getChildNumber(segment);
-	
-	if(childNumber > 0) {
-		char *left = stringPrint("");
-		if (includeUnaryEvents) {
-			left = stringPrint("(");
-		} else {
-			if (childNumber > 1) {
-				left = stringPrint("(");
-			}
-		}
+	if(!includeUnaryEvents && segment_getChildNumber(segment) == 1) {
+		return block_makeNewickStringP(segment_getChild(segment, 0), includeInternalNames, includeUnaryEvents);
+	}
+	if(segment_getChildNumber(segment) > 1) {
+		char *left = stringPrint("(");
 		int32_t i;
 		int32_t comma = 0;
-		for(i=0; i<childNumber; i++) {
+		for(i=0; i<segment_getChildNumber(segment); i++) {
 			Segment *childSegment = segment_getChild(segment, i);
 			char *cA = block_makeNewickStringP(childSegment, includeInternalNames, includeUnaryEvents);
 			char *cA2 = stringPrint(comma ? "%s,%s" : "%s%s", left, cA);
@@ -302,29 +296,18 @@ char *block_makeNewickStringP(Segment *segment, int32_t includeInternalNames, in
 			left = cA2;
 			comma = 1;
 		}
-		char *final = NULL;
-		if (includeUnaryEvents) {
-			final = includeInternalNames ?
+		char *final = includeInternalNames ?
 				stringPrint("%s)%s", left, netMisc_nameToStringStatic(segment_getName(segment))) :
-				stringPrint("%s)", left);
-		} else {
-			if (childNumber > 1) {
-				final = includeInternalNames ?
-					stringPrint("%s)%s", left, netMisc_nameToStringStatic(segment_getName(segment))) :
-					stringPrint("%s)", left);
-			} else {
-				final = stringPrint("%s", left);
-			}
-		}
+				stringPrint("%s):%s", left);
 		free(left);
 		return final;
 	}
 	return netMisc_nameToString(segment_getName(segment));
 }
 
-char *block_makeNewickString(Block *block, int32_t includeInternalNames) {
+char *block_makeNewickString(Block *block, int32_t includeInternalNames, int32_t includeUnaryEvents) {
 	Segment *segment = block_getRootInstance(block);
-	if(block_getInstanceNumber(block) > 0) {
+	if(segment != NULL) {
 		assert(segment != NULL);
 		char *cA = block_makeNewickStringP(segment, includeInternalNames, 1);
 		char *cA2 = stringPrint("%s;", cA);
@@ -334,17 +317,6 @@ char *block_makeNewickString(Block *block, int32_t includeInternalNames) {
 	return NULL;
 }
 
-char *block_makeNewickStringOptions(Block *block, int32_t includeInternalNames, int32_t includeUnaryEvents) {
-	Segment *segment = block_getRootInstance(block);
-	if(block_getInstanceNumber(block) > 0) {
-		assert(segment != NULL);
-		char *cA = block_makeNewickStringP(segment, includeInternalNames, includeUnaryEvents);
-		char *cA2 = stringPrint("%s;", cA);
-		free(cA);
-		return cA2;
-	}
-	return NULL;
-}
 
 /*
  * Private functions.

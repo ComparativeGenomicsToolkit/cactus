@@ -59,8 +59,9 @@ void getMAFBlock(Block *block, FILE *fileHandle) {
 	 */
 	if(block_getInstanceNumber(block) > 0) {
 		/* Get newick tree string with internal labels and no unary events */
-		char *newickTreeString = block_makeNewickStringOptions(block, 1, 0);
-		fprintf(fileHandle, "a score=%i tree='%s'\n", block_getLength(block) *block_getInstanceNumber(block), newickTreeString);
+		char *newickTreeString = block_makeNewickString(block, 1, 0);
+		assert(newickTreeString != NULL);
+		fprintf(fileHandle, "a score=%i tree='%s'\n", block_getLength(block) * block_getInstanceNumber(block), newickTreeString);
 		free(newickTreeString);
 		assert(block_getRootInstance(block) != NULL);
 		getMAFBlockP(block_getRootInstance(block), fileHandle);

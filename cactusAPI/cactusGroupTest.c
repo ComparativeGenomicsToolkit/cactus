@@ -91,20 +91,41 @@ void testGroup_isTerminal(CuTest *testCase) {
 	cactusGroupTestTeardown();
 }
 
+static Chain *setupChain() {
+	Chain *chain = chain_construct(net);
+	end_setGroup(end1, group2);
+	end_setGroup(end2, group2);
+	link_construct(end1, end2, group2, chain);
+	return chain;
+}
+
 void testGroup_getLink(CuTest *testCase) {
 	cactusGroupTestSetup();
+	CuAssertTrue(testCase, group_getLink(group2) == NULL);
+	Chain *chain = setupChain();
+	CuAssertTrue(testCase, group_getLink(group2) == chain_getLink(chain, 0));
+	chain_destruct(chain);
+	CuAssertTrue(testCase, group_getLink(group2) == NULL);
 	cactusGroupTestTeardown();
 }
 
 void testGroup_isTangle(CuTest *testCase) {
 	cactusGroupTestSetup();
-
+	CuAssertTrue(testCase, group_isTangle(group2));
+	Chain *chain = setupChain();
+	CuAssertTrue(testCase, !group_isTangle(group2));
+	chain_destruct(chain);
+	CuAssertTrue(testCase, group_isTangle(group2));
 	cactusGroupTestTeardown();
 }
 
 void testGroup_isLink(CuTest *testCase) {
 	cactusGroupTestSetup();
-
+	CuAssertTrue(testCase, !group_isLink(group2));
+	Chain *chain = setupChain();
+	CuAssertTrue(testCase, group_isLink(group2));
+	chain_destruct(chain);
+	CuAssertTrue(testCase, !group_isLink(group2));
 	cactusGroupTestTeardown();
 }
 
