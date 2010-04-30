@@ -298,7 +298,7 @@ char *block_makeNewickStringP(Segment *segment, int32_t includeInternalNames, in
 		}
 		char *final = includeInternalNames ?
 				stringPrint("%s)%s", left, netMisc_nameToStringStatic(segment_getName(segment))) :
-				stringPrint("%s):%s", left);
+				stringPrint("%s)", left);
 		free(left);
 		return final;
 	}
