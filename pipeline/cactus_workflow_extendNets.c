@@ -8,7 +8,7 @@
 
 /*
  * Iterates through a tree an extends the cactus by creating new nets for
- * non-terminal groups.
+ * non-terminal groups. Used during the core stage.
  */
 
 static void extendNets(Net *net, FILE *fileHandle, int32_t minSizeToExtend) {

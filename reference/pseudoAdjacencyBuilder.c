@@ -497,6 +497,64 @@ void correctAttachedStubEndPairing(Hash *adjacencies, Net *net, Reference *refer
 	adjacenciesHash_cleanUp(net, correctEndPairing);
 }
 
+static Group *getSpareGroup(Net *net) {
+	//First try and find group with an odd number of ends..
+	Net_GroupIterator *groupIterator = net_getGroupIterator(net);
+	Group *group, *group2 = NULL;
+	while((group = net_getNextGroup(groupIterator)) != NULL) {
+		Group_EndIterator *endIterator = group_getEndIterator(group);
+		End *end;
+		int32_t i = 0;
+		while((end = group_getNextEnd(endIterator)) != NULL) {
+			i++;
+		}
+		group_destructEndIterator(endIterator);
+		if(i % 2) {
+			assert(!group_isLink(group));
+			net_destructGroupIterator(groupIterator);
+			return group;
+		}
+		else if(!group_isLink(group)){
+			group2 = group;
+		}
+	}
+	net_destructGroupIterator(groupIterator);
+
+	//Else get a group without a link..
+	if(group2 != NULL) {
+		assert(!group_isLink(group2));
+		return group2;
+	}
+
+	//Else all groups are link groups.. so get the first one and remove the link from the chain..
+	assert(net_getGroupNumber(net) > 0);
+	group = net_getFirstGroup(net);
+	assert(group != NULL);
+	assert(group_isLink(group));
+	link_split(group_getLink(group));
+	assert(!group_isLink(group));
+	return group;
+}
+
+static void pushEndIntoChildNets(End *end) {
+	/*
+	 * Ensures the given end is in all the child nets.
+	 */
+	assert(end_isAttached(end) || end_isBlockEnd(end));
+	Group *group = end_getGroup(end);
+	assert(group != NULL);
+	if(!group_isTerminal(group)) {
+		Net *nestedNet = group_getNestedNet(group);
+		assert(net_getEnd(nestedNet, end_getName(end)) == NULL);
+		End *end2 = end_copyConstruct(end, nestedNet);
+		end_setGroup(end2, getSpareGroup(nestedNet));
+		assert(end_getGroup(end2) != NULL);
+		assert(!group_isLink(end_getGroup(end2)));
+		//Now call recursively
+		pushEndIntoChildNets(end2);
+	}
+}
+
 static void fillInPseudoAdjacenciesP(End *end1, PseudoChromosome *pseudoChromosome, Hash *adjacencies) {
 	/*
 	 * Traverses the connected component of the contig constructing the pseudo-adjacencies in the pseudo-chromosome.
@@ -505,7 +563,29 @@ static void fillInPseudoAdjacenciesP(End *end1, PseudoChromosome *pseudoChromoso
 	assert(adjacencyPair != NULL);
 	//construct the new pseudo-adjacency!
 	End *end2 = adjacencyPair_getOtherEnd(adjacencyPair, end1);
-	pseudoAdjacency_construct(end1, end2, pseudoChromosome);
+	Group *group1 = end_getGroup(end1);
+	Group *group2 = end_getGroup(end2);
+	if(group1 != group2) {
+		Block *pseudoBlock = block_construct(1, end_getNet(end1));
+		End *end3 = block_get5End(pseudoBlock), *end4 = block_get3End(pseudoBlock);
+		if(group_isLink(group1)) {
+			link_split(group_getLink(group1));
+		}
+		if(group_isLink(group2)) {
+			link_split(group_getLink(group2));
+		}
+		end_setGroup(end3, group1);
+		end_setGroup(end4, group2);
+		//Push the new ends into the children
+		pushEndIntoChildNets(end3);
+		pushEndIntoChildNets(end4);
+		pseudoAdjacency_construct(end1, end3, pseudoChromosome);
+		pseudoAdjacency_construct(end4, end2, pseudoChromosome);
+		//Push block into children
+	}
+	else {
+		pseudoAdjacency_construct(end1, end2, pseudoChromosome);
+	}
 	if(pseudoChromosome_get3End(pseudoChromosome) != end2) {
 		assert(end_isBlockEnd(end2));
 		fillInPseudoAdjacenciesP(end_getOtherBlockEnd(end2), pseudoChromosome, adjacencies);

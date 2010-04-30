@@ -25,11 +25,6 @@ struct _group {
 Group *group_construct3(Net *net, Name nestedNetName, bool terminalGroup);
 
 /*
- * Destructs an group.
- */
-void group_destruct(Group *group);
-
-/*
  * Updates the group's set of ends to contain the intersection of ends
  * contained in both the parent net and the nested net of the group.
  *

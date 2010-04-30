@@ -142,11 +142,11 @@ def readNetNamesFile(netNamesFile):
     fileHandle.close()
     return l
     
-def runCactusGetNets(netDisk, netName, tempDir):
+def runCactusGetNets(netDisk, netNames, tempDir):
     """Gets a list of nets attached to the given net. 
     """
     netNamesFile = getTempFile(".txt", tempDir)
-    system("cactus_workflow_getNets %s %s %s" % (netDisk, netName, netNamesFile))
+    system("cactus_workflow_getNets %s %s %s" % (netDisk,  netNamesFile, " ".join(netNames)))
     l = readNetNamesFile(netNamesFile)
     os.remove(netNamesFile)
     return l
@@ -173,6 +173,11 @@ def runCactusGetUniqueName(netDisk, tempDir):
     os.remove(uniqueNameFile)
     return nameString
 
+def runCactusMakeTerminalNormal(netDisk, netNames):
+    """Makes the given nets terminal-normal (not a mix of terminal and non-terminal children).
+    """
+    system("cactus_workflow_makeTerminalNormal %s %s" % (netDisk, " ".join(netNames)))
+
 def runCactusBaseAligner(netDisk, netNames, logLevel="DEBUG"):
     """Runs cactus base aligner.
     """
@@ -184,9 +189,11 @@ def runCactusReference(netDisk, netNames, referenceName, logLevel="DEBUG"):
     system("cactus_reference --netDisk %s --logLevel %s --referenceName %s %s" % (netDisk, logLevel, referenceName, " ".join(netNames)))
 
 def runCactusCheck(netDisk, 
-                    netName="0", 
-                    logLevel="DEBUG"):
-    system("cactus_check --netDisk %s --netName %s --logLevel %s"  % (netDisk, netName, logLevel))
+                    netNames=("0",), 
+                    logLevel="DEBUG", 
+                    recursive=False):
+    recursive = nameValue("recursive", recursive, bool)
+    system("cactus_check --netDisk %s %s --logLevel %s %s"  % (netDisk, " ".join(netNames), logLevel, recursive))
     logger.info("Ran cactus check")
     
 def runCactusWorkflow(netDisk, sequenceFiles, 

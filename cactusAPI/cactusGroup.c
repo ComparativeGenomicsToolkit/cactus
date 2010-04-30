@@ -74,12 +74,13 @@ void group_makeNonTerminal(Group *group) {
 	Net *nestedNet = net_construct2(group_getName(group), net_getNetDisk(group_getNet(group)));
 	net_setParentGroup(nestedNet, group);
 	eventTree_copyConstruct(net_getEventTree(group_getNet(group)), nestedNet, returnsTrue);
+	Group *nestedGroup = group_construct2(nestedNet);
 	//Add the ends to the nested net.
 	Group_EndIterator *endIterator = group_getEndIterator(group);
 	End *end;
 	while((end = group_getNextEnd(endIterator)) != NULL) {
-		end_copyConstruct(end, nestedNet);
 		assert(end_getOrientation(end));
+		end_setGroup(end_copyConstruct(end, nestedNet), nestedGroup);
 	}
 	group_destructEndIterator(endIterator);
 	//Now add adjacencies between the caps, mirroring the parent adjacencies.
@@ -147,7 +148,7 @@ bool group_isTangle(Group *group) {
 }
 
 bool group_isLink(Group *group) {
-	return !group_getLink(group);
+	return group_getLink(group) != NULL;
 }
 
 End *group_getFirstEnd(Group *group) {
@@ -212,7 +213,7 @@ int64_t group_getTotalBaseLength(Group *group) {
 	return totalLength;
 }
 
-static void group_mergeGroupsP(Net *net) {
+/*static void group_mergeGroupsP(Net *net) {
 	Net_EndIterator *endIterator = net_getEndIterator(net);
 	End *end;
 	Group *group = group_construct2(net);
@@ -270,7 +271,7 @@ Group *group_mergeGroups(Group *group1, Group *group2) {
 
 	return group2;
 }
-
+*/
 
 void group_check(Group *group) {
 	Net *net = group_getNet(group);

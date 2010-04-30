@@ -29,7 +29,7 @@ class TestCase(unittest.TestCase):
             runCactusSetup(netDisk, sequences, newickTreeString, debug=True)
             runCactusSetup(netDisk, sequences, newickTreeString, debug=True)
             system("rm -rf %s" % tempDir)
-            logger.info("Finished test %i of cactus_setup.py", test)
+            logger.info("Finished test %i of cactus_setup.py", test) 
  
 def main():
     parseSuiteTestOptions()

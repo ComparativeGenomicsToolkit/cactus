@@ -15,6 +15,7 @@
 
 #include "cactus.h"
 #include "reference.h"
+#include "commonC.h"
 
 static struct List *getAttachedStubEnds(Net *net) {
 	/*
@@ -170,28 +171,6 @@ void makeIntermediateLevelPseudoChromosomes(Net *net, Reference *reference) {
 	hash_destruct(makeIntermediateLevelPseudoChromosomes_cmpEndsP);
 }
 
-void mergeGroupsLinkedByPseudoAdjacencies(Net *net, Reference *reference) {
-	PseudoChromosome *pseudoChromosome;
-	Reference_PseudoChromosomeIterator *pseudoChromosomeIterator = reference_getPseudoChromosomeIterator(reference);
-	while((pseudoChromosome = reference_getNextPseudoChromosome(pseudoChromosomeIterator)) != NULL) {
-		//iterate through all the pseudo chromosomes
-		PseudoAdjacency *pseudoAdjacency;
-		PseudoChromsome_PseudoAdjacencyIterator *pseudoAdjacencyIterator = pseudoChromosome_getPseudoAdjacencyIterator(pseudoChromosome);
-		//iterate through the pseudo adjacencies in the pseudo chromosomes.
-		while((pseudoAdjacency = pseudoChromosome_getNextPseudoAdjacency(pseudoAdjacencyIterator)) != NULL) {
-			End *_5End = pseudoAdjacency_get5End(pseudoAdjacency);
-			End *_3End = pseudoAdjacency_get3End(pseudoAdjacency);
-			//if the groups are distinct then we call the merge function..
-			if(end_getGroup(_5End) != end_getGroup(_3End)) {
-				group_mergeGroups(end_getGroup(_5End), end_getGroup(_3End));
-			}
-			assert(end_getGroup(_5End) == end_getGroup(_3End));
-		}
-		pseudoChromosome_destructPseudoAdjacencyIterator(pseudoAdjacencyIterator);
-	}
-	reference_destructPseudoChromosomeIterator(pseudoChromosomeIterator);
-}
-
 void addReferenceToNet(Net *net, Name referenceName) {
 	Reference *reference = net_getReference(net, referenceName);
 	if(reference != NULL) {
@@ -220,10 +199,6 @@ void addReferenceToNet(Net *net, Name referenceName) {
 	 * For each pseudo-chromosome..
 	 */
 	makePseudoAdjacencies(net, reference);
-	/*
-	 * Now merge groups linked by novel pseudo-adjacencies.
-	 */
-	mergeGroupsLinkedByPseudoAdjacencies(net, reference);
 	/*
 	 * Now check the reference created for goodness.
 	 */

@@ -23,6 +23,11 @@ Group *group_construct(Net *net, Net *nestedNet);
 Group *group_construct2(Net *net);
 
 /*
+ * Destructs a group.
+ */
+void group_destruct(Group *group);
+
+/*
  * A non-terminal group is one with out a nested net holding a subproblem and further recursion.
  * Returns 1 if the group is terminal, else returns zero.
  */
@@ -31,7 +36,7 @@ bool group_isTerminal(Group *group);
 /*
  * Converts a terminal group into a non-terminal group,
  * constructing a nested net containing the appropriate ends. The leaf adjacencies will
- * be set.
+ * be set and all the ends will be in one new terminal group.
  *
  * Will fail if the problem is already non-terminal.
  */
@@ -119,7 +124,7 @@ int64_t group_getTotalBaseLength(Group *group);
  * Only works if both groups do not have links. Merging together groups that
  * are in links means breaking the chains, which it currently will not do.
  */
-Group *group_mergeGroups(Group *group1, Group *group2);
+//Group *group_mergeGroups(Group *group1, Group *group2);
 
 /*
  * Checks (amongst other things) the following:

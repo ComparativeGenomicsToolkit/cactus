@@ -71,6 +71,14 @@ void testLink_getIndex(CuTest* testCase) {
 	cactusLinkTestTeardown();
 }
 
+void testLink_split(CuTest *testCase) {
+	cactusLinkTestSetup();
+
+
+
+	cactusLinkTestTeardown();
+}
+
 void testLink_serialisation(CuTest* testCase) {
 	cactusLinkTestSetup();
 	int32_t i;
@@ -88,6 +96,7 @@ void testLink_serialisation(CuTest* testCase) {
 	testLink_getRight(testCase);
 	testLink_getChain(testCase);
 	testLink_getIndex(testCase);
+	testLink_split(testCase);
 	nestedTest = 0;
 	cactusLinkTestTeardown();
 }
@@ -102,6 +111,7 @@ CuSuite* cactusLinkTestSuite(void) {
 	SUITE_ADD_TEST(suite, testLink_getChain);
 	SUITE_ADD_TEST(suite, testLink_getIndex);
 	SUITE_ADD_TEST(suite, testLink_serialisation);
+	SUITE_ADD_TEST(suite, testLink_split);
 	SUITE_ADD_TEST(suite, testLink_construct);
 	return suite;
 }

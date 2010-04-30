@@ -119,7 +119,7 @@ def runPipe(sequenceDirs, newickTreeString, tempDir, useDummy=False, writeDebugF
             runCactusCore(netDisk, tempAlignmentFile, netName=childNetName,
                           writeDebugFiles=writeDebugFiles)
   
-    runCactusCheck(netDisk)
+    runCactusCheck(netDisk, recursive=True)
   
     system("rm -rf %s %s" % (netDisk, tempAlignmentFile))
     

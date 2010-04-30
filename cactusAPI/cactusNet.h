@@ -407,7 +407,7 @@ void net_destructReferenceIterator(Net_ReferenceIterator *referenceIterator);
  * Only works if both parent groups do not have links. Merging together groups that
  * are in links means breaking the chains, which it currently will not do.
  */
-Net *net_mergeNets(Net *net1, Net *net2);
+//Net *net_mergeNets(Net *net1, Net *net2);
 
 /*
  * Runs check function for each type of object contained in the net.
@@ -448,6 +448,14 @@ bool net_builtFaces(Net *net);
  * 0.
  */
 void net_setBuiltFaces(Net *net, bool b);
+
+/*
+ * Returns non-zero iff there are no-ends in the net,
+ * or the ends in the net are all in one group, which is terminal.
+ * A terminally-normalised cactus tree is one in which ends are present in one
+ * terminal net. Creates an assert error if soe
+ */
+bool net_isTerminal(Net *net);
 
 
 #endif

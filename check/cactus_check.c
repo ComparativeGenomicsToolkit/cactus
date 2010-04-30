@@ -53,25 +53,27 @@ static void checkBasesAccountedFor(Net *net) {
 	assert(blockBases + childBases == totalBases);
 }
 
-static void checkNetsRecursively(Net *net) {
+static void checkNets(Net *net, int32_t recursive) {
 	net_check(net);
 	checkBasesAccountedFor(net);
 	//Call problem recursively
-	Net_GroupIterator *iterator = net_getGroupIterator(net);
-	Group *group;
-	while((group = net_getNextGroup(iterator)) != NULL) {
-		if(!group_isTerminal(group)) {
-			checkNetsRecursively(group_getNestedNet(group));
+	if(recursive) {
+		Net_GroupIterator *iterator = net_getGroupIterator(net);
+		Group *group;
+		while((group = net_getNextGroup(iterator)) != NULL) {
+			if(!group_isTerminal(group)) {
+				checkNets(group_getNestedNet(group), 1);
+			}
 		}
+		net_destructGroupIterator(iterator);
 	}
-	net_destructGroupIterator(iterator);
 }
 
 void usage() {
 	fprintf(stderr, "cactus_tree, version 0.2\n");
 	fprintf(stderr, "-a --logLevel : Set the log level\n");
 	fprintf(stderr, "-c --netDisk : The location of the net disk directory\n");
-	fprintf(stderr, "-d --netName : The name of the net (the key in the database)\n");
+	fprintf(stderr, "-e --recursive : Check all nets recursively\n");
 	fprintf(stderr, "-h --help : Print this help screen\n");
 }
 
@@ -84,7 +86,7 @@ int main(int argc, char *argv[]) {
 	 */
 	char * logLevelString = NULL;
 	char * netDiskName = NULL;
-	char * netName = NULL;
+	int32_t recursive = 0;
 
 	///////////////////////////////////////////////////////////////////////////
 	// (0) Parse the inputs handed by genomeCactus.py / setup stuff.
@@ -94,14 +96,14 @@ int main(int argc, char *argv[]) {
 		static struct option long_options[] = {
 			{ "logLevel", required_argument, 0, 'a' },
 			{ "netDisk", required_argument, 0, 'c' },
-			{ "netName", required_argument, 0, 'd' },
+			{ "recursive", no_argument, 0, 'e' },
 			{ "help", no_argument, 0, 'h' },
 			{ 0, 0, 0, 0 }
 		};
 
 		int option_index = 0;
 
-		int key = getopt_long(argc, argv, "a:c:d:efh", long_options, &option_index);
+		int key = getopt_long(argc, argv, "a:c:eh", long_options, &option_index);
 
 		if(key == -1) {
 			break;
@@ -114,8 +116,8 @@ int main(int argc, char *argv[]) {
 			case 'c':
 				netDiskName = stringCopy(optarg);
 				break;
-			case 'd':
-				netName = stringCopy(optarg);
+			case 'e':
+				recursive = 1;
 				break;
 			case 'h':
 				usage();
@@ -131,7 +133,6 @@ int main(int argc, char *argv[]) {
 	///////////////////////////////////////////////////////////////////////////
 
 	assert(netDiskName != NULL);
-	assert(netName != NULL);
 
 	//////////////////////////////////////////////
 	//Set up logging
@@ -149,7 +150,6 @@ int main(int argc, char *argv[]) {
 	//////////////////////////////////////////////
 
 	logInfo("Net disk name : %s\n", netDiskName);
-	logInfo("Net name : %s\n", netName);
 
 	//////////////////////////////////////////////
 	//Load the database
@@ -158,19 +158,25 @@ int main(int argc, char *argv[]) {
 	netDisk = netDisk_construct(netDiskName);
 	logInfo("Set up the net disk\n");
 
-	///////////////////////////////////////////////////////////////////////////
-	// Parse the basic reconstruction problem
-	///////////////////////////////////////////////////////////////////////////
+	int32_t j;
+	for (j = optind; j < argc; j++) {
+		const char *netName = argv[j];
+		logInfo("Processing the net named: %s", netName);
 
-	net = netDisk_getNet(netDisk, netMisc_stringToName(netName));
-	logInfo("Parsed the top level net of the cactus tree to check\n");
+		///////////////////////////////////////////////////////////////////////////
+		// Parse the basic reconstruction problem
+		///////////////////////////////////////////////////////////////////////////
 
-	///////////////////////////////////////////////////////////////////////////
-	// Recursive check the nets.
-	///////////////////////////////////////////////////////////////////////////
+		net = netDisk_getNet(netDisk, netMisc_stringToName(netName));
+		logInfo("Parsed the top level net of the cactus tree to check\n");
 
-	checkNetsRecursively(net);
-	logInfo("Checked the nets/\n");
+		///////////////////////////////////////////////////////////////////////////
+		// Recursive check the nets.
+		///////////////////////////////////////////////////////////////////////////
+
+		checkNets(net, recursive);
+		logInfo("Checked the nets/\n");
+	}
 
 	///////////////////////////////////////////////////////////////////////////
 	// Clean up.

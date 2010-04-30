@@ -186,7 +186,8 @@ def runWorkflow_TestScript(sequences, newickTreeString,
     logger.info("Checked the job tree dir")
     
     #Check if the netDisk is okay..
-    runCactusCheck(netDisk)
+    runCactusCheck(netDisk, recursive=True) #This should also occur during the workflow, so this
+    #is redundant, but defensive
     logger.info("Checked the cactus tree")
     
     #Now run various utilities..

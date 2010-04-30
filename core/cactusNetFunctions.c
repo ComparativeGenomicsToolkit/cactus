@@ -65,6 +65,7 @@ struct PinchGraph *constructPinchGraph(Net *net) {
 	int32_t length;
 
 	assert(!net_builtBlocks(net));
+	assert(net_isTerminal(net));
 
 	//make basic object.
 	graph = pinchGraph_construct();
@@ -590,6 +591,15 @@ void fillOutNetFromInputs(
 	Name name;
 
 	logDebug("Building the net\n");
+
+	////////////////////////////////////////////////
+	//Check the net to fill in terminal, and get rid of the group it contains..
+	////////////////////////////////////////////////
+
+	assert(net_isTerminal(parentNet));
+	assert(net_getGroupNumber(parentNet) == 1); //defensive, this should be true by the previous assert
+	assert(group_isTerminal(net_getFirstGroup(parentNet))); //this should be true by the previous assert
+	group_destruct(net_getFirstGroup(parentNet));
 
 	////////////////////////////////////////////////
 	//Get sorted bi-connected components (sorted as in ordered from root of vertex)

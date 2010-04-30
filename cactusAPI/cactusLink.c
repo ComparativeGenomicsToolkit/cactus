@@ -79,31 +79,41 @@ void link_destruct(Link *link) {
 	}
 }
 
+static void link_splitP(struct List *list, Net *net) {
+	if(list->length > 0) {
+		Chain *chain = chain_construct(net);
+		int32_t i;
+		assert(list->length % 2 == 0);
+		for(i=0; i<list->length; i+=2) {
+			link_construct(list->list[i], list->list[i+1], end_getGroup(list->list[i]), chain);
+		}
+	}
+	destructList(list);
+}
+
 void link_split(Link *link) {
 	Chain *chain = link_getChain(link);
-	Chain *chain1 = chain_construct(chain_getNet(chain));
-	Chain *chain2 = chain_construct(chain_getNet(chain));
+	struct List *list1 = constructEmptyList(0, NULL), *list2 = constructEmptyList(0, NULL);
 	int32_t i = 0;
 	while(i<chain_getLength(chain)) {
 		Link *link2 = chain_getLink(chain, i++);
 		if(link2 == link) {
 			break;
 		}
-		link_construct(link_get5End(link2), link_get3End(link2), end_getGroup(link_get5End(link2)), chain1);
+		listAppend(list1, link_get5End(link2));
+		listAppend(list1, link_get3End(link2));
 	}
 	while(i<chain_getLength(chain)) {
 		Link *link2 = chain_getLink(chain, i++);
 		assert(link2 != link);
-		link_construct(link_get5End(link2), link_get3End(link2), end_getGroup(link_get5End(link2)), chain2);
+		listAppend(list2, link_get5End(link2));
+		listAppend(list2, link_get3End(link2));
 	}
-	assert(chain_getLength(chain1) + chain_getLength(chain2) == chain_getLength(chain)-1);
+	assert(list1->length + list2->length == (chain_getLength(chain)-1)*2);
+	Net *net = chain_getNet(chain);
 	chain_destruct(chain);
-	if(chain_getLength(chain1) == 0) {
-		chain_destruct(chain1);
-	}
-	if(chain_getLength(chain2) == 0) {
-		chain_destruct(chain2);
-	}
+	link_splitP(list1, net);
+	link_splitP(list2, net);
 }
 
 /*

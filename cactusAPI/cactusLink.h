@@ -51,4 +51,10 @@ Chain *link_getChain(Link *link);
  */
 int32_t link_getIndex(Link *link);
 
+/*
+ * Destroys the link and splits any containing chain into two chains, before and after,
+ * unless they have zero length.
+ */
+void link_split(Link *link);
+
 #endif

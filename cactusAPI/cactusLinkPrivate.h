@@ -30,12 +30,6 @@ struct _link {
 void link_destruct(Link *link);
 
 /*
- * Destroys the link and splits any containing chain into two chains, before and after,
- * unless they have zero length.
- */
-void link_split(Link *link);
-
-/*
  * Write a binary representation of the link to the write function.
  */
 void link_writeBinaryRepresentation(Link *link, void (*writeFn)(const void * ptr, size_t size, size_t count));

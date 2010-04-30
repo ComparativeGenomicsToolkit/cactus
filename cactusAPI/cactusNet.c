@@ -526,7 +526,7 @@ void net_destructReferenceIterator(Net_ReferenceIterator *referenceIterator) {
 	iterator_destruct(referenceIterator);
 }
 
-Net *net_mergeNets(Net *net1, Net *net2) {
+/*Net *net_mergeNets(Net *net1, Net *net2) {
 	if(net_getParentGroup(net1) == NULL) { //We are merging two top level reconstructions!
 		assert(net_getParentGroup(net2) == NULL);
 		net_mergeNetsP(net1, net2);
@@ -535,7 +535,7 @@ Net *net_mergeNets(Net *net1, Net *net2) {
 		group_mergeGroups(net_getParentGroup(net1), net_getParentGroup(net2));
 	}
 	return net2;
-}
+}*/
 
 void net_check(Net *net) {
 	eventTree_check(net_getEventTree(net));
@@ -614,6 +614,17 @@ bool net_builtFaces(Net *net) {
 
 void net_setBuiltFaces(Net *net, bool b) {
 	net->builtFaces = b;
+}
+
+bool net_isTerminal(Net *net) {
+	if(net_getEndNumber(net) == 0) {
+		return 1;
+	}
+	if(net_getGroupNumber(net) == 1) {
+		Group *group = net_getFirstGroup(net);
+		return group_getEndNumber(group) == net_getEndNumber(net) && group_isTerminal(group);
+	}
+	return 0;
 }
 
 /*
@@ -730,7 +741,7 @@ void net_removeReference(Net *net, Reference *reference) {
 	sortedSet_delete(net->references, reference);
 }
 
-void net_mergeNetsP(Net *net1, Net *net2) {
+/*void net_mergeNetsP(Net *net1, Net *net2) {
 	//Check the build settings match
 	assert(net_builtBlocks(net1) == net_builtBlocks(net2));
 	assert(net_builtTrees(net1) == net_builtTrees(net2));
@@ -812,7 +823,7 @@ void net_mergeNetsP(Net *net1, Net *net2) {
 	//ensure net1 is not in the netdisk..
 	netDisk_deleteNetFromDisk(net_getNetDisk(net2), netName1);
 	assert(netDisk_getNet(net_getNetDisk(net2), netName1) == NULL);
-}
+}*/
 
 /*
  * Serialisation functions.
