@@ -49,11 +49,6 @@ int32_t net_constructFacesP(const void *o1, const void *o2, void *a) {
 	return netMisc_nameCompare(face_getName((Face *)o1), face_getName((Face *)o2));
 }
 
-int32_t net_constructReferencesP(const void *o1, const void *o2, void *a) {
-	assert(a == NULL);
-	return netMisc_nameCompare(reference_getName((Reference *)o1), reference_getName((Reference *)o2));
-}
-
 Net *net_construct(NetDisk *netDisk) {
 	return net_construct2(netDisk_getUniqueID(netDisk), netDisk);
 }
@@ -72,7 +67,7 @@ Net *net_construct2(Name name, NetDisk *netDisk) {
 	net->groups = sortedSet_construct(net_constructGroupsP);
 	net->chains = sortedSet_construct(net_constructChainsP);
 	net->faces = sortedSet_construct(net_constructFacesP);
-	net->references = sortedSet_construct(net_constructReferencesP);
+	net->reference = NULL;
 
 	net->parentNetName = NULL_NAME;
 	net->netDisk = netDisk;
@@ -89,6 +84,8 @@ Net *net_construct2(Name name, NetDisk *netDisk) {
 	net->eventTree = NULL;
 	eventTree_construct2(net);
 
+
+
 	return net;
 }
 
@@ -101,7 +98,6 @@ void net_destruct(Net *net, int32_t recursive) {
 	Group *group;
 	Chain *chain;
 	Face *face;
-	Reference *reference;
 	Net *nestedNet;
 
 	if(recursive) {
@@ -130,10 +126,9 @@ void net_destruct(Net *net, int32_t recursive) {
 	}
 	sortedSet_destruct(net->sequences, NULL);
 
-	while((reference = net_getFirstReference(net)) != NULL) {
-		reference_destruct(reference);
+	if(net_getReference(net) != NULL) {
+		reference_destruct(net_getReference(net));
 	}
-	sortedSet_destruct(net->references, NULL);
 
 	while((chain = net_getFirstChain(net)) != NULL) {
 		chain_destruct(chain);
@@ -492,38 +487,8 @@ int64_t net_getTotalBaseLength(Net *net) {
 	return totalLength;
 }
 
-Reference *net_getFirstReference(Net *net) {
-	return sortedSet_getFirst(net->references);
-}
-
-Reference *net_getReference(Net *net, Name name) {
-	Reference *reference;
-	reference = reference_getStaticNameWrapper(name);
-	return sortedSet_find(net->references, reference);
-}
-
-int32_t net_getReferenceNumber(Net *net) {
-	return sortedSet_getLength(net->references);
-}
-
-Net_ReferenceIterator *net_getReferenceIterator(Net *net) {
-	return iterator_construct(net->references);
-}
-
-Reference *net_getNextReference(Net_ReferenceIterator *referenceIterator) {
-	return iterator_getNext(referenceIterator);
-}
-
-Reference *net_getPreviousReference(Net_ReferenceIterator *referenceIterator) {
-	return iterator_getPrevious(referenceIterator);
-}
-
-Net_ReferenceIterator *net_copyReferenceIterator(Net_ReferenceIterator *referenceIterator) {
-	return iterator_copy(referenceIterator);
-}
-
-void net_destructReferenceIterator(Net_ReferenceIterator *referenceIterator) {
-	iterator_destruct(referenceIterator);
+Reference *net_getReference(Net *net) {
+	return net->reference;
 }
 
 /*Net *net_mergeNets(Net *net1, Net *net2) {
@@ -554,12 +519,9 @@ void net_check(Net *net) {
 	}
 	net_destructCapIterator(chainIterator);
 
-	Net_ReferenceIterator *referenceIterator = net_getReferenceIterator(net);
-	Reference *reference;
-	while((reference = net_getNextReference(referenceIterator)) != NULL) {
-		reference_check(reference);
+	if(net_getReference(net) != NULL) {
+		reference_check(net_getReference(net));
 	}
-	net_destructReferenceIterator(referenceIterator);
 
 	Net_EndIterator *endIterator = net_getEndIterator(net);
 	End *end;
@@ -636,6 +598,11 @@ void net_setEventTree(Net *net, EventTree *eventTree) {
 		eventTree_destruct(net_getEventTree(net));
 	}
 	net->eventTree = eventTree;
+}
+
+void net_removeEventTree(Net *net, EventTree *eventTree) {
+	assert(net_getEventTree(net) == eventTree);
+	net->eventTree = NULL;
 }
 
 void net_addSequence(Net *net, Sequence *sequence) {
@@ -731,15 +698,18 @@ void net_removeFace(Net *net, Face *face) {
 	sortedSet_delete(net->faces, face);
 }
 
-void net_addReference(Net *net, Reference *reference) {
-	assert(sortedSet_find(net->references, reference) == NULL);
-	sortedSet_insert(net->references, reference);
+void net_setReference(Net *net, Reference *reference) {
+	if(net_getReference(net) != NULL) {
+		reference_destruct(net_getReference(net));
+	}
+	net->reference = reference;
 }
 
 void net_removeReference(Net *net, Reference *reference) {
-	assert(sortedSet_find(net->references, reference) != NULL);
-	sortedSet_delete(net->references, reference);
+	assert(net_getReference(net) == reference);
+	net->reference = NULL;
 }
+
 
 /*void net_mergeNetsP(Net *net1, Net *net2) {
 	//Check the build settings match
@@ -837,14 +807,12 @@ void net_writeBinaryRepresentation(Net *net, void (*writeFn)(const void * ptr, s
 	Net_GroupIterator *groupIterator;
 	Net_ChainIterator *chainIterator;
 	Net_FaceIterator *faceIterator;
-	Net_ReferenceIterator *referenceIterator;
 	Sequence *sequence;
 	End *end;
 	Block *block;
 	Group *group;
 	Chain *chain;
 	Face *face;
-	Reference *reference;
 
 	binaryRepresentation_writeElementType(CODE_NET, writeFn);
 	binaryRepresentation_writeName(net_getName(net), writeFn);
@@ -881,11 +849,9 @@ void net_writeBinaryRepresentation(Net *net, void (*writeFn)(const void * ptr, s
 	}
 	net_destructFaceIterator(faceIterator);
 
-	referenceIterator = net_getReferenceIterator(net);
-	while((reference = net_getNextReference(referenceIterator)) != NULL) {
-		reference_writeBinaryRepresentation(reference, writeFn);
+	if(net_getReference(net) != NULL) {
+		reference_writeBinaryRepresentation(net_getReference(net), writeFn);
 	}
-	net_destructReferenceIterator(referenceIterator);
 
 	groupIterator = net_getGroupIterator(net);
 	while((group = net_getNextGroup(groupIterator)) != NULL) {
@@ -916,7 +882,7 @@ Net *net_loadFromBinaryRepresentation(void **binaryString, NetDisk *netDisk) {
 		while(end_loadFromBinaryRepresentation(binaryString, net) != NULL);
 		while(block_loadFromBinaryRepresentation(binaryString, net) != NULL);
 		while(face_loadFromBinaryRepresentation(binaryString, net) != NULL);
-		while(reference_loadFromBinaryRepresentation(binaryString, net) != NULL);
+		reference_loadFromBinaryRepresentation(binaryString, net);
 		while(group_loadFromBinaryRepresentation(binaryString, net) != NULL);
 		while(chain_loadFromBinaryRepresentation(binaryString, net) != NULL);
 		assert(binaryRepresentation_popNextElementType(binaryString) == CODE_NET);

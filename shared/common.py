@@ -183,10 +183,12 @@ def runCactusBaseAligner(netDisk, netNames, logLevel="DEBUG"):
     """
     system("cactus_baseAligner --netDisk %s --logLevel %s %s" % (netDisk, logLevel, " ".join(netNames)))
     
-def runCactusReference(netDisk, netNames, referenceName, logLevel="DEBUG"):
+def runCactusReference(netDisk, netNames, logLevel="DEBUG"):
     """Runs cactus reference.
     """
-    system("cactus_reference --netDisk %s --logLevel %s --referenceName %s %s" % (netDisk, logLevel, referenceName, " ".join(netNames)))
+    #print "running", "cactus_reference --netDisk %s --logLevel %s %s" % (netDisk, logLevel, " ".join(netNames))
+    #assert False
+    system("cactus_reference --netDisk %s --logLevel %s %s" % (netDisk, logLevel, " ".join(netNames)))
 
 def runCactusCheck(netDisk, 
                     netNames=("0",), 

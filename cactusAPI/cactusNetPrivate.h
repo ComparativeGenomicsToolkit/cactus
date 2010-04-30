@@ -6,6 +6,7 @@
 struct _net {
 	Name name;
 	EventTree *eventTree;
+	Reference *reference;
 	struct avl_table *sequences;
 	struct avl_table *ends;
 	struct avl_table *caps;
@@ -14,7 +15,6 @@ struct _net {
 	struct avl_table *groups;
 	struct avl_table *chains;
 	struct avl_table *faces;
-	struct avl_table *references;
 	Name parentNetName;
 	NetDisk *netDisk;
 	int32_t faceIndex;
@@ -46,8 +46,16 @@ void net_destruct(Net *net, int32_t recursive);
 
 /*
  * Adds the event tree for the net to the net.
+ * If an previous event tree exists for the net
+ * it will call eventTree_destruct for the existing tree
+ * (which should not exist without the net).
  */
 void net_setEventTree(Net *net, EventTree *eventTree);
+
+/*
+ * This function is called by eventTree_destruct and cleans up the reference.
+ */
+void net_removeEventTree(Net *net, EventTree *eventTree);
 
 /*
  * Adds the sequence to the net.
@@ -135,12 +143,15 @@ void net_addFace(Net *net, Face *face);
 void net_removeFace(Net *net, Face *face);
 
 /*
- * Adds the given reference ordering to the net.
+ * Adds the event tree for the net to the net.
+ * If an previous event tree exists for the net
+ * it will call Reference_destruct for the existing tree
+ * (which should not exist without the net).
  */
-void net_addReference(Net *net, Reference *reference);
+void net_setReference(Net *net, Reference *reference);
 
 /*
- * Removes the given reference ordering from the net.
+ * This function is called by Reference_destruct and cleans up the reference.
  */
 void net_removeReference(Net *net, Reference *reference);
 

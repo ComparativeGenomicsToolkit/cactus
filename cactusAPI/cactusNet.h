@@ -362,44 +362,9 @@ void net_destructFaceIterator(Net_FaceIterator *faceIterator);
 int64_t net_getTotalBaseLength(Net *net);
 
 /*
- * Gets the 'first' reference.
+ * Gets the reference defined for this net, or NULL if not set.
  */
-Reference *net_getFirstReference(Net *net);
-
-/*
- * Gets an chain by index.
- */
-Reference *net_getReference(Net *net, Name name);
-
-/*
- * Returns the number of references.
- */
-int32_t net_getReferenceNumber(Net *net);
-
-/*
- * Gets an iterator to iterate through the references in the net, at this level.
- */
-Net_ReferenceIterator *net_getReferenceIterator(Net *net);
-
-/*
- * Gets the next reference from the iterator.
- */
-Reference *net_getNextReference(Net_ReferenceIterator *referenceIterator);
-
-/*
- * Gets the previous reference from the iterator.
- */
-Reference *net_getPreviousReference(Net_ReferenceIterator *referenceIterator);
-
-/*
- * Duplicates the iterator.
- */
-Net_ReferenceIterator *net_copyReferenceIterator(Net_ReferenceIterator *referenceIterator);
-
-/*
- * Destructs the iterator.
- */
-void net_destructReferenceIterator(Net_ReferenceIterator *referenceIterator);
+Reference *net_getReference(Net *net);
 
 /*
  * Merges together the two nets and there parent groups.

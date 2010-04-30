@@ -546,7 +546,7 @@ void reportFaceStats(Net *net,
 	destructIntList(isCanonical);
 }
 
-void referenceStats(Net *net, Name referenceName, struct IntList *pseudoChromosomeNumber,
+void referenceStats(Net *net, struct IntList *pseudoChromosomeNumber,
 				    struct IntList *pseudoAdjacencyNumberPerChromosome,
 				    struct IntList *truePseudoAdjacencyNumberPerChromosome,
 				    struct IntList *linksPerChromosome) {
@@ -559,7 +559,7 @@ void referenceStats(Net *net, Name referenceName, struct IntList *pseudoChromoso
 	Group *group;
 	while((group = net_getNextGroup(groupIterator)) != NULL) {
 		if(!group_isTerminal(group)) {
-			referenceStats(group_getNestedNet(group), referenceName,
+			referenceStats(group_getNestedNet(group),
 							pseudoChromosomeNumber,
 							pseudoAdjacencyNumberPerChromosome,
 							truePseudoAdjacencyNumberPerChromosome,
@@ -569,7 +569,7 @@ void referenceStats(Net *net, Name referenceName, struct IntList *pseudoChromoso
 	net_destructGroupIterator(groupIterator);
 
 	//Calculate stats for first reference.
-	Reference *reference = net_getReference(net, referenceName);
+	Reference *reference = net_getReference(net);
 	assert(reference != NULL);
 	Reference_PseudoChromosomeIterator *pseudoChromosomeIterator = reference_getPseudoChromosomeIterator(reference);
 	PseudoChromosome *pseudoChromosome;
@@ -612,29 +612,24 @@ void referenceStats(Net *net, Name referenceName, struct IntList *pseudoChromoso
 
 void reportReferenceStats(Net *net, FILE *fileHandle) {
 	/*
-	 * Prints the reference stats to the XML file, doing each reference
-	 * as a seperate set of stats.
+	 * Prints the reference stats to the XML file.
 	 */
-	Net_ReferenceIterator *referenceIterator = net_getReferenceIterator(net);
-	Reference *reference;
-	while((reference = net_getNextReference(referenceIterator)) != NULL) {
-		struct IntList *pseudoChromosomeNumber = constructEmptyIntList(0);
-		struct IntList *pseudoAdjacencyNumberPerChromosome = constructEmptyIntList(0);
-		struct IntList *truePseudoAdjacencyNumberPerChromosome = constructEmptyIntList(0);
-		struct IntList *linksPerChromosome = constructEmptyIntList(0);
-		referenceStats(net, reference_getName(reference), pseudoChromosomeNumber, pseudoAdjacencyNumberPerChromosome,
-				truePseudoAdjacencyNumberPerChromosome, linksPerChromosome);
-		fprintf(fileHandle, "<reference method=\"%s\">", netMisc_nameToStringStatic(reference_getName(reference)));
-		tabulateAndPrintIntValues(pseudoChromosomeNumber, "pseudo_chromosome_number", fileHandle);
-		tabulateAndPrintIntValues(pseudoAdjacencyNumberPerChromosome, "pseudo_adjacency_number_per_pseudo_chromosome", fileHandle);
-		tabulateAndPrintIntValues(truePseudoAdjacencyNumberPerChromosome, "true_pseudo_adjacency_number_per_pseudo_chromosome", fileHandle);
-		tabulateAndPrintIntValues(linksPerChromosome, "links_per_chromosome", fileHandle);
-		printClosingTag("reference", fileHandle);
-		destructIntList(pseudoChromosomeNumber);
-		destructIntList(pseudoAdjacencyNumberPerChromosome);
-		destructIntList(truePseudoAdjacencyNumberPerChromosome);
-		destructIntList(linksPerChromosome);
-	}
+	struct IntList *pseudoChromosomeNumber = constructEmptyIntList(0);
+	struct IntList *pseudoAdjacencyNumberPerChromosome = constructEmptyIntList(0);
+	struct IntList *truePseudoAdjacencyNumberPerChromosome = constructEmptyIntList(0);
+	struct IntList *linksPerChromosome = constructEmptyIntList(0);
+	referenceStats(net, pseudoChromosomeNumber, pseudoAdjacencyNumberPerChromosome,
+			truePseudoAdjacencyNumberPerChromosome, linksPerChromosome);
+	fprintf(fileHandle, "<reference method=\"default\">");
+	tabulateAndPrintIntValues(pseudoChromosomeNumber, "pseudo_chromosome_number", fileHandle);
+	tabulateAndPrintIntValues(pseudoAdjacencyNumberPerChromosome, "pseudo_adjacency_number_per_pseudo_chromosome", fileHandle);
+	tabulateAndPrintIntValues(truePseudoAdjacencyNumberPerChromosome, "true_pseudo_adjacency_number_per_pseudo_chromosome", fileHandle);
+	tabulateAndPrintIntValues(linksPerChromosome, "links_per_chromosome", fileHandle);
+	printClosingTag("reference", fileHandle);
+	destructIntList(pseudoChromosomeNumber);
+	destructIntList(pseudoAdjacencyNumberPerChromosome);
+	destructIntList(truePseudoAdjacencyNumberPerChromosome);
+	destructIntList(linksPerChromosome);
 }
 
 void reportNetDiskStats(char *netDiskName, Net *net, FILE *fileHandle) {

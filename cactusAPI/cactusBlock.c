@@ -23,10 +23,10 @@ Block *block_construct2(Name name, int32_t length,
 		End *leftEnd, End *rightEnd,
 		Net *net) {
 	Block *block;
-	block = malloc(sizeof(Block));
-	block->rBlock = malloc(sizeof(Block));
+	block = mallocLocal(sizeof(Block));
+	block->rBlock = mallocLocal(sizeof(Block));
 	block->rBlock->rBlock = block;
-	block->blockContents = malloc(sizeof(BlockContents));
+	block->blockContents = mallocLocal(sizeof(BlockContents));
 	block->rBlock->blockContents = block->blockContents;
 
 	block->orientation = 1;

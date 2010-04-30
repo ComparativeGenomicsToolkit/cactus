@@ -15,22 +15,13 @@ static int32_t reference_constructP(const void *o1, const void *o2, void *a) {
 }
 
 Reference *reference_construct(Net *net) {
-	return reference_construct2(netDisk_getUniqueID(net_getNetDisk(net)), net);
-}
-
-Reference *reference_construct2(Name name, Net *net) {
 	Reference *reference = malloc(sizeof(Reference));
 	//Setup the basic structure - a sorted set of pseudo-chromosomes.
 	reference->pseudoChromosomes = sortedSet_construct(reference_constructP);
 	//Link the reference and net.
 	reference->net = net;
-	reference->name = name;
-	net_addReference(net, reference);
+	net_setReference(net, reference);
 	return reference;
-}
-
-Name reference_getName(Reference *reference) {
-	return reference->name;
 }
 
 Net *reference_getNet(Reference *reference) {
@@ -156,8 +147,8 @@ void reference_check(Reference *reference) {
 ////////////////////////////////////////////////
 
 void reference_destruct(Reference *reference) {
-	PseudoChromosome *pseudoChromosome;
 	net_removeReference(reference_getNet(reference), reference);
+	PseudoChromosome *pseudoChromosome;
 	while((pseudoChromosome = reference_getFirst(reference)) != NULL) {
 			pseudoChromosome_destruct(pseudoChromosome);
 	}
@@ -175,23 +166,10 @@ void reference_removePseudoChromosome(Reference *reference, PseudoChromosome *ps
 	sortedSet_delete(reference->pseudoChromosomes, pseudoChromosome);
 }
 
-Reference reference_getStaticNameWrapperP;
-Reference *reference_getStaticNameWrapper(Name name) {
-	reference_getStaticNameWrapperP.name = name;
-	return &reference_getStaticNameWrapperP;
-}
-
-void reference_setNet(Reference *reference, Net *net) {
-	net_removeReference(reference_getNet(reference), reference);
-	reference->net = net;
-	net_addReference(net, reference);
-}
-
 void reference_writeBinaryRepresentation(Reference *reference, void (*writeFn)(const void * ptr, size_t size, size_t count)) {
 	Reference_PseudoChromosomeIterator *iterator;
 	PseudoChromosome *pseudoChromosome;
 	binaryRepresentation_writeElementType(CODE_REFERENCE, writeFn);
-	binaryRepresentation_writeName(reference_getName(reference), writeFn);
 	binaryRepresentation_writeInteger(reference_getPseudoChromosomeNumber(reference), writeFn);
 
 	iterator = reference_getPseudoChromosomeIterator(reference);
@@ -204,15 +182,13 @@ void reference_writeBinaryRepresentation(Reference *reference, void (*writeFn)(c
 Reference *reference_loadFromBinaryRepresentation(void **binaryString, Net *net) {
 	Reference *reference = NULL;
 	int32_t pseudoChromosomeNumber;
-	Name name;
 
 	if(binaryRepresentation_peekNextElementType(*binaryString) == CODE_REFERENCE) {
 		binaryRepresentation_popNextElementType(binaryString);
-		name = binaryRepresentation_getName(binaryString);
-		reference = reference_construct2(name, net);
+		reference = reference_construct(net);
 		pseudoChromosomeNumber = binaryRepresentation_getInteger(binaryString);
 		while(pseudoChromosomeNumber-- > 0) {
-			pseudoChromosome_getName(pseudoChromosome_loadFromBinaryRepresentation(binaryString, reference));
+			pseudoChromosome_loadFromBinaryRepresentation(binaryString, reference);
 		}
 	}
 	return reference;

@@ -6,7 +6,6 @@
 struct _reference {
 	struct avl_table *pseudoChromosomes;
 	Net *net;
-	Name name;
 };
 
 /*
@@ -25,11 +24,6 @@ void reference_addPseudoChromosome(Reference *reference, PseudoChromosome *pseud
 void reference_removePseudoChromosome(Reference *reference, PseudoChromosome *pseudoChromosome);
 
 /*
- * Gets another reference wrapped name.
- */
-Reference *reference_getStaticNameWrapper(Name name);
-
-/*
  * Write a binary representation of the reference to the write function.
  */
 void reference_writeBinaryRepresentation(Reference *reference, void (*writeFn)(const void * ptr, size_t size, size_t count));
@@ -38,10 +32,5 @@ void reference_writeBinaryRepresentation(Reference *reference, void (*writeFn)(c
  * Loads a reference into memory from a binary representation of the net.
  */
 Reference *reference_loadFromBinaryRepresentation(void **binaryString, Net *net);
-
-/*
- * Sets the net associated with the reference.
- */
-void reference_setNet(Reference *reference, Net *net);
 
 #endif

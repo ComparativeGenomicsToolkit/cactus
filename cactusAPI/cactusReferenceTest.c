@@ -18,12 +18,6 @@ void testReference_construct(CuTest* testCase) {
 	testTeardown();
 }
 
-void testReference_getName(CuTest* testCase) {
-	testSetup();
-	CuAssertTrue(testCase, reference_getName(reference) != NULL_NAME);
-	testTeardown();
-}
-
 void testReference_getNet(CuTest* testCase) {
 	testSetup();
 	CuAssertTrue(testCase, reference_getNet(reference) == net);
@@ -120,7 +114,6 @@ void testReference_serialisation(CuTest* testCase) {
 
 	nestedTest = 1;
 
-	testReference_getName(testCase);
 	testReference_getNet(testCase);
 	testReference_getPseudoChromosomeNumber(testCase);
 	testReference_getPseudoChromosome(testCase);
@@ -156,7 +149,6 @@ void testPrintCanonicalReference(CuTest *testCase) {
 
 CuSuite* cactusReferenceTestSuite(void) {
 	CuSuite* suite = CuSuiteNew();
-	SUITE_ADD_TEST(suite, testReference_getName);
 	SUITE_ADD_TEST(suite, testReference_getNet);
 	SUITE_ADD_TEST(suite, testReference_getPseudoChromosomeNumber);
 	SUITE_ADD_TEST(suite, testReference_getPseudoChromosome);

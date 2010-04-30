@@ -63,17 +63,6 @@
 Reference *reference_construct(Net *net);
 
 /*
- * Reference with name specified - this allows
- * all the references in the cactus tree to have the same name.
- */
-Reference *reference_construct2(Name name, Net *net);
-
-/*
- * Gets the name.
- */
-Name reference_getName(Reference *reference);
-
-/*
  * Gets net associated with reference.
  */
 Net *reference_getNet(Reference *reference);

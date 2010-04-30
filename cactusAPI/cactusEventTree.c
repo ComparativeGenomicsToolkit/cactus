@@ -240,7 +240,7 @@ void eventTree_check(EventTree *eventTree) {
 
 void eventTree_destruct(EventTree *eventTree) {
 	Event *event;
-	eventTree_getNet(eventTree)->eventTree = NULL;
+	net_removeEventTree(eventTree_getNet(eventTree), eventTree);
 	while((event = eventTree_getFirst(eventTree)) != NULL) {
 		event_destruct(event);
 	}

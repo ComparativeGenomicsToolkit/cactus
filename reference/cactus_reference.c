@@ -13,7 +13,6 @@ void usage() {
 	fprintf(stderr, "cactus_reference [net names], version 0.1\n");
 	fprintf(stderr, "-a --logLevel : Set the log level\n");
 	fprintf(stderr, "-c --netDisk : The location of the net disk directory\n");
-	fprintf(stderr, "-d --referenceName : The name of the reference to build\n");
 	fprintf(stderr, "-h --help : Print this help screen\n");
 }
 
@@ -28,7 +27,6 @@ int main(int argc, char *argv[]) {
 	char * logLevelString = NULL;
 	char * netDiskName = NULL;
 	int32_t j;
-	Name referenceName = NULL_NAME;
 
 	///////////////////////////////////////////////////////////////////////////
 	// (0) Parse the inputs handed by genomeCactus.py / setup stuff.
@@ -38,14 +36,13 @@ int main(int argc, char *argv[]) {
 		static struct option long_options[] = {
 			{ "logLevel", required_argument, 0, 'a' },
 			{ "netDisk", required_argument, 0, 'c' },
-			{ "referenceName", required_argument, 0, 'd' },
 			{ "help", no_argument, 0, 'h' },
 			{ 0, 0, 0, 0 }
 		};
 
 		int option_index = 0;
 
-		int key = getopt_long(argc, argv, "a:c:d:h", long_options, &option_index);
+		int key = getopt_long(argc, argv, "a:c:h", long_options, &option_index);
 
 		if(key == -1) {
 			break;
@@ -57,9 +54,6 @@ int main(int argc, char *argv[]) {
 				break;
 			case 'c':
 				netDiskName = stringCopy(optarg);
-				break;
-			case 'd':
-				referenceName = netMisc_stringToName(optarg);
 				break;
 			case 'h':
 				usage();
@@ -76,7 +70,6 @@ int main(int argc, char *argv[]) {
 
 	assert(logLevelString == NULL || strcmp(logLevelString, "CRITICAL") == 0 || strcmp(logLevelString, "INFO") == 0 || strcmp(logLevelString, "DEBUG") == 0);
 	assert(netDiskName != NULL);
-	assert(referenceName != NULL_NAME);
 
 	//////////////////////////////////////////////
 	//Set up logging
@@ -119,7 +112,7 @@ int main(int argc, char *argv[]) {
 		/*
 		 * Now run the reference function.
 		 */
-		addReferenceToNet(net, referenceName);
+		addReferenceToNet(net);
 	}
 
 	///////////////////////////////////////////////////////////////////////////

@@ -26,6 +26,7 @@ static Segment *segment;
 static Segment *segment2;
 static Cap *cap;
 static Cap *cap2;
+static Reference *reference;
 
 /*
  * Setup/teardown functions.
@@ -41,6 +42,7 @@ static void cactusNetTestTeardown() {
 		eventTree = NULL;
 		metaSequence = NULL;
 		sequence = NULL;
+		reference = NULL;
 	}
 }
 
@@ -50,6 +52,8 @@ static void cactusNetTestSetup() {
 	net = net_construct(netDisk);
 	metaEvent = metaEvent_construct("ROOT", netDisk);
 	eventTree = eventTree_construct(metaEvent, net);
+	assert(net_getReference(net) == NULL);
+	reference = reference_construct(net);
 }
 
 static void sequenceSetup() {
@@ -180,6 +184,12 @@ void testNet_getEventTree(CuTest* testCase) {
 	cactusNetTestTeardown();
 }
 
+void testNet_getReference(CuTest* testCase) {
+	cactusNetTestSetup();
+	CuAssertTrue(testCase, net_getReference(net) == reference);
+	cactusNetTestTeardown();
+}
+
 void testNet_sequence(CuTest* testCase) {
 	testObjectRetrieval(testCase, sequenceSetup,
 			(int32_t (*)(Net *net))net_getSequenceNumber,
@@ -291,6 +301,7 @@ void testNet_face(CuTest* testCase) {
 			(void *(*)(void *))net_copyFaceIterator,
 			(void **)(&face), (void **)(&face2));
 }
+
 
 /*void testNet_mergeNets(CuTest *testCase) {
 	cactusNetTestSetup();
@@ -541,6 +552,7 @@ CuSuite* cactusNetTestSuite(void) {
 	SUITE_ADD_TEST(suite, testNet_group);
 	SUITE_ADD_TEST(suite, testNet_chain);
 	SUITE_ADD_TEST(suite, testNet_face);
+	SUITE_ADD_TEST(suite, testNet_getReference);
 	//SUITE_ADD_TEST(suite, testNet_mergeNets);
 	SUITE_ADD_TEST(suite, testNet_builtBlocks);
 	SUITE_ADD_TEST(suite, testNet_builtTrees);

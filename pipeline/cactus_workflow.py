@@ -362,7 +362,6 @@ class CactusReferencePhase(Target):
     def run(self, localTempDir, globalTempDir):
         logger.info("Starting the faces phase")
         if self.options.buildReference:
-            self.options.referenceName = runCactusGetUniqueName(self.options.netDisk, localTempDir)
             self.addChildTarget(CactusExtensionWrapper(self.options, [ self.netName ], BUILD_REFERENCE))
         self.setFollowOnTarget(CactusCheckPhase(self.netName, self.options))
             
@@ -416,8 +415,7 @@ class CactusExtensionWrapper(Target):
         elif self.switch == BUILD_FACES:
             runCactusAdjacencies(self.options.netDisk, netNames=self.netNames)
         elif self.switch == BUILD_REFERENCE:
-            runCactusReference(self.options.netDisk, netNames=self.netNames,
-                               referenceName=self.options.referenceName)
+            runCactusReference(self.options.netDisk, netNames=self.netNames)
         elif self.switch == CHECK:
             runCactusCheck(self.options.netDisk, self.netNames)
         #Make child jobs
