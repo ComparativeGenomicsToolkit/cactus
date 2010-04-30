@@ -309,14 +309,13 @@ char *block_makeNewickString(Block *block, int32_t includeInternalNames, int32_t
 	Segment *segment = block_getRootInstance(block);
 	if(segment != NULL) {
 		assert(segment != NULL);
-		char *cA = block_makeNewickStringP(segment, includeInternalNames, 1);
+		char *cA = block_makeNewickStringP(segment, includeInternalNames, includeUnaryEvents);
 		char *cA2 = stringPrint("%s;", cA);
 		free(cA);
 		return cA2;
 	}
 	return NULL;
 }
-
 
 /*
  * Private functions.
