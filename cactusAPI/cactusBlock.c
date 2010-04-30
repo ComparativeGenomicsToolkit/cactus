@@ -284,7 +284,7 @@ char *block_makeNewickStringP(Segment *segment, int32_t includeInternalNames, in
 	if(!includeUnaryEvents && segment_getChildNumber(segment) == 1) {
 		return block_makeNewickStringP(segment_getChild(segment, 0), includeInternalNames, includeUnaryEvents);
 	}
-	if(segment_getChildNumber(segment) > 1) {
+	if(segment_getChildNumber(segment) > 0) {
 		char *left = stringPrint("(");
 		int32_t i;
 		int32_t comma = 0;
