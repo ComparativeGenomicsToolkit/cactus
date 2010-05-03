@@ -3,21 +3,6 @@
 
 #include "cactus.h"
 
-/* 
- * Checks the breaks in a sequence of blocks from the present back to a 
- * specified event. 
- * Returns an array of booleans which is 1 element shorter than the array
- * of blocks (fence post principle)
- */
-int32_t * transmap_syntenyWasConservedSinceEvent(Block ** blocks, int32_t blockCount, Event * event);
-
-/* 
- * Checks the breaks in a sequence of blocks at a given time point
- * Returns an array of booleans which is 1 element shorter than the array
- * of blocks (fence post principle)
- */
-int32_t * transmap_syntenyWasConservedAtEvent(Block ** blocks, int32_t blockCount, Event * event);
-
 /*
  * The basic Transmap API functions.
  *
@@ -77,22 +62,22 @@ int32_t * transmap_syntenyWasConservedAtEvent(Block ** blocks, int32_t blockCoun
  */
 
 /*
- * Returns non-zero if and only if there exists a terminal thread or a virtual terminal terminal thread containing
- * (A, B), (B, A), (A, -B), and/or (-B, A) (and their mirrors) at event E.
- */
-bool transmap_connectivityWasPresentAtEvent(Event *E, Cap *A, Cap *B);
-
-/*
  * Returns non-zero if and only if there exists a terminal thread or a virtual terminal thread containing
  * (A, B) and/or (B, A) (and their mirrors) at event E.
  */
-bool transmap_connectivityAndOrderWasPresentAtEvent(Event *E, Cap *A, Cap *B);
+bool transmap_connectivityWasPresentAtEvent(Event *E, Cap *A, Cap *B, int sample_size, int result_cutoff, int distance_multiplier);
+
+/*
+ * Returns non-zero if and only if there exists a terminal thread or a virtual terminal terminal thread containing
+ * (A, B), (B, A), (A, -B), and/or (-B, A) (and their mirrors) at event E.
+ */
+bool transmap_connectivityAndOrderWasPresentAtEvent(Event *E, Cap *A, Cap *B, int sample_size, int result_cutoff, int distance_multiplier);
 
 /*
  * Returns non-zero if and only if there exists a terminal thread or a virtual terminal thread containing
  * (A, B) and/or (A, -B) (and their mirrors) at event E.
  */
-bool transmap_connectivityAndOrientationWasPresentAtEvent(Event *E, Cap *A, Cap *B);
+bool transmap_connectivityAndOrientationWasPresentAtEvent(Event *E, Cap *A, Cap *B, int sample_size, int result_cutoff, int distance_multiplier);
 
 /*
  * Returns non-zero if and only if there exists a terminal thread or a virtual terminal thread containing
@@ -100,22 +85,6 @@ bool transmap_connectivityAndOrientationWasPresentAtEvent(Event *E, Cap *A, Cap 
  *
  * All the above functions can be created by logic on this function.
  */
-bool transmap_connectivityOrderAndOrientationWasPresentAtEvent(Event *E, Cap *A, Cap *B);
-
-
-/*
- * Strictest
- */
-bool transmap_connectivityOrderAndOrientationWasConservedBetweenEvents(Event *descendantEvent, Event *ancestorEvent, Cap *_5Cap, Cap *_3Cap);
-
-bool transmap_connectivityWasConservedBetweenEventsOutsideOperations(Event *descendantEvent, Event *ancestorEvent, Cap *_5Cap, Cap *_3Cap);
-
-bool transmap_connectivityAndOrderWasConservedBetweenEventsOutsideOperations(Event *descendantEvent, Event *ancestorEvent, Cap *_5Cap, Cap *_3Cap);
-
-bool transmap_connectivityAndOrientationWasConservedBetweenEventsOutsideOperations(Event *descendantEvent, Event *ancestorEvent, Cap *_5Cap, Cap *_3Cap);
-
-bool transmap_connectivityOrderAndOrientationWasConservedBetweenEventsOutsideOperations(Event *descendantEvent, Event *ancestorEvent, Cap *_5Cap, Cap *_3Cap);
-
-
+bool transmap_connectivityOrderAndOrientationWasPresentAtEvent(Event *E, Cap *A, Cap *B, int sample_size, int result_cutoff, int distance_multiplier);
 
 #endif

@@ -206,25 +206,103 @@ static bool transmap_sampleOrderAndOrientationAtEvent(Event * E, Cap * A, Cap * 
  * Returns non-zero if and only if there exists a terminal thread or a virtual terminal thread containing
  * (A, B) at event E.
  *
- * All the above functions can be created by logic on this function.
+ * All the below functions can be created by logic on this function.
  */
-bool transmap_connectivityOrderAndOrientationWasPresentAtEvent(Event *E, Cap *A, Cap *B) {
-	const int SAMPLE_SIZE = 100;
-	const int RESULT_CUTOFF = 1;
-	const int DISTANCE_BARRIER_MULTIPLIER;
+bool transmap_connectivityOrderAndOrientationWasPresentAtEvent(Event *E, Cap *A, Cap *B, int sample_size, int result_cutoff, int distance_multiplier) {
 	int index;
 	int result = 0;
 	int32_t distance = transmap_getTotalDistanceBetweenCaps(A,B);
+	int32_t allowed_distance;
 
 	if (distance == -1)
 		return false;
 
-	distance *= DISTANCE_BARRIER_MULTIPLIER;
-	
-	for (index = 0; index < SAMPLE_SIZE; index++)
+	for (index = 0; index < sample_size; index++) {
+		allowed_distance = distance * distance_multiplier;
 		if (transmap_sampleOrderAndOrientationAtEvent(E, A, B, &distance))
-			if (++result > RESULT_CUTOFF)
+			if (++result > result_cutoff)
 				return true;
+	}
+
+	return false;
+}
+
+/*
+ * Returns non-zero if and only if there exists a terminal thread or a virtual terminal thread containing
+ * (A, B) and/or (A, -B) (and their mirrors) at event E.
+ */
+bool transmap_connectivityAndOrientationWasPresentAtEvent(Event *E, Cap *A, Cap *B, int sample_size, int result_cutoff, int distance_multiplier) {
+	int index;
+	int result = 0;
+	int32_t distance = transmap_getTotalDistanceBetweenCaps(A,B);
+	int32_t allowed_distance, allowed_distance2;
+
+	if (distance == -1)
+		return false;
+
+	for (index = 0; index < sample_size; index++) {
+		allowed_distance = distance * distance_multiplier;
+		allowed_distance2 = distance * distance_multiplier;
+		if (transmap_sampleOrderAndOrientationAtEvent(E, A, B, &distance)
+		    || transmap_sampleOrderAndOrientationAtEvent(E, B, A, &distance))
+			if (++result > result_cutoff)
+				return true;
+	}
+
+	return false;
+}
+
+/*
+ * Returns non-zero if and only if there exists a terminal thread or a virtual terminal thread containing
+ * (A, B) and/or (B, A) (and their mirrors) at event E.
+ */
+bool transmap_connectivityAndOrderWasPresentAtEvent(Event *E, Cap *A, Cap *B, int sample_size, int result_cutoff, int distance_multiplier) {
+	int index;
+	int result = 0;
+	int32_t distance = transmap_getTotalDistanceBetweenCaps(A,B);
+	int32_t allowed_distance, allowed_distance2;
+
+	if (distance == -1)
+		return false;
+
+	for (index = 0; index < sample_size; index++) {
+		allowed_distance = distance * distance_multiplier;
+		allowed_distance2 = distance * distance_multiplier;
+		if (transmap_sampleOrderAndOrientationAtEvent(E, A, B, &distance)
+		    || transmap_sampleOrderAndOrientationAtEvent(E, A, cap_getReverse(B), &distance))
+			if (++result > result_cutoff)
+				return true;
+	}
+
+	return false;
+
+}
+
+/*
+ * Returns non-zero if and only if there exists a terminal thread or a virtual terminal terminal thread containing
+ * (A, B), (B, A), (A, -B), and/or (-B, A) (and their mirrors) at event E.
+ */
+bool transmap_connectivityWasPresentAtEvent(Event *E, Cap *A, Cap *B, int sample_size, int result_cutoff, int distance_multiplier) {
+	int index;
+	int result = 0;
+	int32_t distance = transmap_getTotalDistanceBetweenCaps(A,B);
+	int32_t allowed_distance, allowed_distance2, allowed_distance3, allowed_distance4;
+
+	if (distance == -1)
+		return false;
+
+	for (index = 0; index < sample_size; index++) {
+		allowed_distance = distance * distance_multiplier;
+		allowed_distance2 = distance * distance_multiplier;
+		allowed_distance3 = distance * distance_multiplier;
+		allowed_distance4 = distance * distance_multiplier;
+		if (transmap_sampleOrderAndOrientationAtEvent(E, A, B, &distance)
+		    || transmap_sampleOrderAndOrientationAtEvent(E, A, cap_getReverse(B), &distance)
+		    || transmap_sampleOrderAndOrientationAtEvent(E, B, A, &distance)
+		    || transmap_sampleOrderAndOrientationAtEvent(E, cap_getReverse(B), A, &distance))
+			if (++result > result_cutoff)
+				return true;
+	}
 
 	return false;
 }
