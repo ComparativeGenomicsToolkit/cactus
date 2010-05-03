@@ -20,120 +20,207 @@
 #define false 0
 #endif
 
-/*
- * Check that a given direct adjacency (i.e. no nested net)
- * was preserved from the present back to the specified event (over_time == true), 
- * or at the specified time point (over_time == false)
- */
-static int32_t transmap_directAdjacencyWasBroken(Cap * cap1, Cap * cap2, Event * event, int32_t over_time) {
-	Event * event1 = cap_getEvent(cap1);
-	Event * event2 = cap_getEvent(cap2);
-
-	// TODO: This function assumes that the event DAG is a tree, other wise the whole metric 
-	// makes no sense... 
-
-	// If the chosen caps do not coincide in time
-	if (event1 != event2) {
-		// if cap2 is the daddy, switch caps
-		if (event_isDescendant(event1, event2)) {
-			Cap * tmp = cap2;
-			cap2 = cap1;
-			cap1 = tmp;
-		}
-
-		if (over_time 
-		    || event2 == event
-		    || event_isDescendant(event2, event)) {
-			if (!transmap_isDescendant(cap_getAdjacency(cap1), cap2) 
-			    || !cap_getAdjacency(cap2)
-			    || cap_getParent(cap2)
-			    || cap_getSegment(cap_getAdjacency(cap2)))
-				return true;
-			else 
-				return transmap_directAdjacencyWasConserved(cap1, cap_getParent(cap2), event);	
-		}
-	}
-	// Termination of recursion: if the process has reached an event anterior to the target event
-	else if (event1 == event || event_isDescendant(event1, event))
-		return cap_getAdjacency(cap1) == cap2; 
-	// Termination of recursion: if the process hit a break
-	else if (over_time && cap_getAdjacency(cap1) != cap2)
-		return true;
-	// Recursion: go up one generation
-	else 
-		return transmap_directAdjacencyWasConserved(cap_getParent(cap1) , cap_getParent(cap2), event);
-}
-
-// Stub for recursive call in transmap_adjacencyWasBroken 
-static int32_t transmap_syntenyWasBroken(Cap * cap1, Cap * cap2, Event * event, int32_t over_time);
-
 /* 
- * Returns a boolean depending on whether there is an actual 
- * conserved nested path from cap to its adjacent cap
+ * Computes the current distance between two caps
+ * Returns -1 if no simple path was found
  */
-static int32_t transmap_adjacencyWasBroken(Cap * cap, Event * event, int32_t over_time) {
-	Cap * target = cap_getAdjacency(cap);
-	Net * nestedNet = NULL;
-
-#ifdef BEN_DEBUG
-	assert(end_getGroup(cap_getEnd(cap)));
-#endif
-
-	nestedNet = group_getNestedNet(end_getGroup(cap_getEnd(cap)));
-
-	// End of recursion: we hit rock bottom
-	if (nestedNet == NULL)
-		return transmap_directAdjacencyWasBroken(cap, target, event, over_time);
-
-	// Project into nested net
-	cap = net_getCap(nestedNet, cap_getName(cap));
-	target = net_getCap(nestedNet, cap_getName(target));
-
-#ifdef BEN_DEBUG
-	assert(cap);
-	assert(target);
-#endif
-
-	// Recursion: step into nested net
-	return transmap_syntenyWasBroken(cap, target, event, over_time);
-}
-
-
-/*
- * Returns a boolean depending on whether there is a continuous
- * conserved path from cap1 to cap2
- */
-static int32_t transmap_syntenyWasBroken(Cap * cap1, Cap * cap2, Event * event, int32_t over_time) {
-	// Termination of recursion
-	if (cap1 == cap2)
-		return false;
-	// If the caps have no official neighbours
-	else if (!cap_getAdjacency(cap1) || !cap_getAdjacency(cap2))
-		return true;
-	// If the nested path is broken between cap1 and its immediate neighbour
-	else if (transmap_adjacencyWasBroken(cap1, event, over_time)) 
-		return true;
-	// Recursion: test the synteny one block closer to cap2
-	else 
-		return transmap_syntenyWasBroken(cap_getReverse(cap_getAdjacency(cap1)), cap2, event, over_time);
+static int32_t transmap_getTotalDistanceBetweenCaps(Cap * A, Cap * B) {
+	int32_t length = 0;
+	int32_t remaining_length;
 	
+	if (A == B)
+		return 0;
+
+	if (A == NULL)
+		return -1;
+
+	if (cap_getSide(A)) {
+		A = cap_getOtherCap(A)
+		length += segment_getLength(cap_getSegment(A));
+		if (A == B)
+			return length;
+		if (A == NULL)
+			return -1;
+	}
+
+	remaining_length = transmap_getTotalDistanceBetweenCap(cap_getAdjacency(A), B);
+
+	if (remaining_length == -1)
+		return -1;
+	else 
+		return length + remaining_length;
 }
 
 /* 
- * Checks the breaks in a sequence of blocks from the present back to a 
- * specified event. 
- * Returns an array of booleans which is 1 element shorter than the array
- * of blocks (fence post principle)
+ * Projects the stochastic search to a nested net
  */
-int32_t * transmap_syntenyWasConservedSinceEvent(Block ** blocks, int32_t blockCount, Event * event) {
-	// TODO
+static bool transmap_sampleOrderAndOrientationAtNestedNet(Event * E, Cap * A) {
+	Net * net = group_getNestedNet(end_getGroup(cap_getEnd(A))); 
+	Cap * B, * childA, * childB;
+	Event * childE;
+
+	if (!net)
+		return true;
+
+	B = cap_getAdjacency(A);
+
+#ifdef BEN_DEBUG
+	assert(B);
+#endif
+
+	childA = net_getCap(net, cap_getName(A));
+	childB = net_getCap(net, cap_getName(B));
+	childE = net_getEvent(net, event_getName(E));
+
+#ifdef BEN_DEBUG
+	assert(childA);
+	assert(childB);
+	assert(childE);
+#endif
+
+
+	return transmap_sampleOrderAndOrientationAtEvent(childE, childA, childB);
 }
 
 /* 
- * Checks the breaks in a sequence of blocks at a given time point
- * Returns an array of booleans which is 1 element shorter than the array
- * of blocks (fence post principle)
+ * Stochastic decision whether to jump a face or not
  */
-int32_t * transmap_syntenyWasConservedAtEvent(Block ** blocks, int32_t blockCount, Event * event) {
-	// TODO
+static boolean transmap_goByAncestralPath(Cap * A, Event * E) {
+	Cap * parent = cap_getParent(A);
+	Event * topEvent = cap_getEvent(parent);
+	Event * bottomNode = cap_getEvent(A);
+	Event * tmpEvent;
+	Face * face = cap_getFace(parent);
+	float totalTimeSpan = 0;
+	float partialTimeSpan = 0;
+	float timeRatio;
+	int32_t index;
+
+	// Get the framing events of the face
+	for (index = 0; index < face_getCardinal; index++) {
+		tmpEvent = cap_getEvent(face_getTopNode(face, index));
+		if (event_isAncestor(topEvent, tmpEvent))
+			topEvent = tmpEvent;
+
+#ifdef BEN_DEBUG
+		assert(face_getBottomNodeNumber(face, index) == 1);
+#endif
+		tmpEvent = cap_getEvent(face_getBottomNode(face, index, 0))
+		if (event_isAncestor(tmpEvent, bottomEvent))
+			bottomEvent = tmpEvent;
+	}
+
+	// If event out of bounds	
+	if (event_isAncestor(event, topEvent) || event == topEvent)
+		return true;
+	if (event_isAncestor(bottomEvent, event) || event == bottomEvent)
+		return false;
+
+	// Measure time span
+	for (tmpEvent = bottomEvent; event_isAncestor(event, tmpEvent); tmpEvent = event_getParent(tmpEvent))
+		partialTimeSpan += event_getBranchLength(tmpEvent);
+	for (tmpEvent = bottomEvent; event_isAncestor(topEvent, tmpEvent); tmpEvent = event_getParent(tmpEvent))
+		partialTimeSpan += event_getBranchLength(tmpEvent);
+
+	if (partialTimeSpan == 0)
+		return false;
+
+	timeRatio = partialTimeSpan / totalTimeSpan;	
+
+	// Random decision
+	srand(time(NULL));
+	return (rand() / (RAND_MAX + 1)) > timeRatio;
+}
+
+/*
+ * Tries to connect two caps at the time of event
+ * Returns true if success
+ */
+static bool transmap_sampleOrderAndOrientationAtEvent(Event * E, Cap * A, Cap * B, int32_t allowed_distance) {
+	Cap * parentA;
+	Face * face;
+	int32_t index;
+
+	// Termination of recursion
+	if (cap_getEnd(A) == cap_getEnd(B))
+		return true;
+	if (A == NULL)
+		return false;
+
+	// Synchronicity
+#ifdef BEN_DEBUG
+	assert(event_isAncestor(cap_getEvent(A), E) 
+	       || event_isAncestor(E, cap_getEvent(A))
+	       || cap_getEvent(A) == E);
+
+#endif
+	if (event_isAncestor(cap_getEvent(A), E)) {
+#ifdef BEN_DEBUG
+		assert(cap_getSide(A));
+		assert(cap_getFace(A));
+#endif
+		face = cap_getFace(A);
+		for (index = 0; index < face_getCardinal(face); index++)
+			if (face_getTopNode(face, index) == A)
+				break;
+#ifdef BEN_DEBUG
+		assert(index < face_getCardinal(face));
+		assert(face_getBottomNodeNumber(face, index) == 1);
+#endif
+		A = face_getBottomNode(face, index, 0);
+	} 
+
+	if (event_isAncestor(E, cap_getEvent(A))) {
+		while (cap_getParent(A)
+		       && (event_isAncestor(E, cap_getEvent(cap_getParent(A))) || cap_getEvent(cap_getParent(A)) == E))
+			A = cap_getParent(A);
+	}
+
+	// Recursion
+	if (cap_getSide(A)) {
+		// If 5' cap
+		A = cap_getOtherCap(A)
+		if (A == NULL)
+			return false;
+		allowed_distance -= segment_getLength(cap_getSegment(A));
+		if (allowed_distance < 0)
+			return false;
+	} else {
+		// If 3' cap
+		if (cap_getEvent(A) != E
+		    && cap_getFace(cap_getParent(A)) 
+		    && transmap_goByAncestralPath(A, E))
+			A = cap_getParent(A);				
+
+		if (!cap_getAdjacency(A))
+			return false;
+		if (!transmap_sampleOrderAndOrientationAtNestedNet(E, A))
+			return false;
+	}
+
+	return transmap_sampleOrderAndOrientation(A, B, allowed_distance);
+}
+
+/*
+ * Returns non-zero if and only if there exists a terminal thread or a virtual terminal thread containing
+ * (A, B) at event E.
+ *
+ * All the above functions can be created by logic on this function.
+ */
+bool transmap_connectivityOrderAndOrientationWasPresentAtEvent(Event *E, Cap *A, Cap *B) {
+	const int SAMPLE_SIZE = 100;
+	const int RESULT_CUTOFF = 1;
+	const int DISTANCE_BARRIER_MULTIPLIER;
+	int index;
+	int result = 0;
+	int32_t distance = transmap_getTotalDistanceBetweenCaps(A,B);
+
+	if (distance == -1)
+		return false;
+	
+	for (index = 0; index < SAMPLE_SIZE; index++)
+		if (transmap_sampleOrderAndOrientationAtEvent(E, A, B, distance * DISTANCE_BARRIER_MULTIPLIER))
+			result++;
+
+	return (result > RESULT_CUTOFF);
 }
