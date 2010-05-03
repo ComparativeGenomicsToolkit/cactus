@@ -31,19 +31,14 @@ int32_t getFreeStubEndNumber(Group *group) {
 }
 
 Group *getSpareGroup(Net *net) {
-	assert(net_getGroupNumber(net) > 0);
 	//First try and find group with an odd number of ends..
 	Net_GroupIterator *groupIterator = net_getGroupIterator(net);
 	Group *group, *group2 = NULL;
 	while((group = net_getNextGroup(groupIterator)) != NULL) {
-		Group_EndIterator *endIterator = group_getEndIterator(group);
-		End *end;
-		int32_t i = 0;
-		while((end = group_getNextEnd(endIterator)) != NULL) {
-			i++;
-		}
-		group_destructEndIterator(endIterator);
-		if(i % 2) {
+		int32_t i = getFreeStubEndNumber(group);
+		int32_t j = group_getEndNumber(group) - i; //the number of block ends and attached stub ends.
+		assert(j >= 0);
+		if(j % 2) {
 			assert(!group_isLink(group));
 			net_destructGroupIterator(groupIterator);
 			return group;

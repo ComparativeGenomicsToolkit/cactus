@@ -15,7 +15,6 @@ class TestCase(unittest.TestCase):
                                      buildTrees=False, buildFaces=False, buildReference=True)
         
     def testCactus_Blanchette(self):
-        return
         runWorkflow_multipleExamples(getCactusInputs_blanchette, 
                                      testRestrictions=(TestStatus.TEST_SHORT,), inverseTestRestrictions=True, 
                                      buildTrees=False, buildFaces=False, buildReference=True)
