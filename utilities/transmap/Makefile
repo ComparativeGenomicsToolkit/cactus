@@ -4,10 +4,10 @@ libPath = ../../../../lib
 
 cflags += ${tokyoCabinetIncl}
 
-all : cactus_transmap.o
+all : ${libPath}/cactus_transmap.o
 
 ${libPath}/cactus_transmap.o : *.c ${libPath}/sonLib.a ${libPath}/cactusLib.a
-	${cxx} ${cflags} -I ${libPath} -c -o cactus_transmap.o cactus_transmap.c ${libPath}/sonLib.a ${libPath}/cactusLib.a ${libPath}/sonLib.a ${tokyoCabinetLib}
+	${cxx} ${cflags} -I${libPath} -c -o cactus_transmap.o cactus_transmap.c ${libPath}/sonLib.a ${libPath}/cactusLib.a ${libPath}/sonLib.a ${tokyoCabinetLib}
 
 clean :
 	rm -f *.o

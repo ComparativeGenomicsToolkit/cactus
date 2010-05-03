@@ -35,7 +35,7 @@ static int32_t transmap_getTotalDistanceBetweenCaps(Cap * A, Cap * B) {
 		return -1;
 
 	if (cap_getSide(A)) {
-		A = cap_getOtherCap(A)
+		A = cap_getOtherSegmentCap(A);
 		length += segment_getLength(cap_getSegment(A));
 		if (A == B)
 			return length;
@@ -43,7 +43,7 @@ static int32_t transmap_getTotalDistanceBetweenCaps(Cap * A, Cap * B) {
 			return -1;
 	}
 
-	remaining_length = transmap_getTotalDistanceBetweenCap(cap_getAdjacency(A), B);
+	remaining_length = transmap_getTotalDistanceBetweenCaps(cap_getAdjacency(A), B);
 
 	if (remaining_length == -1)
 		return -1;
@@ -51,10 +51,13 @@ static int32_t transmap_getTotalDistanceBetweenCaps(Cap * A, Cap * B) {
 		return length + remaining_length;
 }
 
+// Stub for recursion
+static bool transmap_sampleOrderAndOrientationAtEvent(Event * E, Cap * A, Cap * B, int32_t * allowed_distance);
+
 /* 
  * Projects the stochastic search to a nested net
  */
-static bool transmap_sampleOrderAndOrientationAtNestedNet(Event * E, Cap * A) {
+static bool transmap_sampleOrderAndOrientationAtNestedNet(Event * E, Cap * A, int * allowed_distance) {
 	Net * net = group_getNestedNet(end_getGroup(cap_getEnd(A))); 
 	Cap * B, * childA, * childB;
 	Event * childE;
@@ -70,7 +73,7 @@ static bool transmap_sampleOrderAndOrientationAtNestedNet(Event * E, Cap * A) {
 
 	childA = net_getCap(net, cap_getName(A));
 	childB = net_getCap(net, cap_getName(B));
-	childE = net_getEvent(net, event_getName(E));
+	childE = eventTree_getEvent(net_getEventTree(net), event_getName(E));
 
 #ifdef BEN_DEBUG
 	assert(childA);
@@ -78,17 +81,16 @@ static bool transmap_sampleOrderAndOrientationAtNestedNet(Event * E, Cap * A) {
 	assert(childE);
 #endif
 
-
-	return transmap_sampleOrderAndOrientationAtEvent(childE, childA, childB);
+	return transmap_sampleOrderAndOrientationAtEvent(childE, childA, childB, allowed_distance);
 }
 
 /* 
  * Stochastic decision whether to jump a face or not
  */
-static boolean transmap_goByAncestralPath(Cap * A, Event * E) {
+static bool transmap_goByAncestralPath(Cap * A, Event * E) {
 	Cap * parent = cap_getParent(A);
 	Event * topEvent = cap_getEvent(parent);
-	Event * bottomNode = cap_getEvent(A);
+	Event * bottomEvent;
 	Event * tmpEvent;
 	Face * face = cap_getFace(parent);
 	float totalTimeSpan = 0;
@@ -97,7 +99,7 @@ static boolean transmap_goByAncestralPath(Cap * A, Event * E) {
 	int32_t index;
 
 	// Get the framing events of the face
-	for (index = 0; index < face_getCardinal; index++) {
+	for (index = 0; index < face_getCardinal(face); index++) {
 		tmpEvent = cap_getEvent(face_getTopNode(face, index));
 		if (event_isAncestor(topEvent, tmpEvent))
 			topEvent = tmpEvent;
@@ -105,19 +107,19 @@ static boolean transmap_goByAncestralPath(Cap * A, Event * E) {
 #ifdef BEN_DEBUG
 		assert(face_getBottomNodeNumber(face, index) == 1);
 #endif
-		tmpEvent = cap_getEvent(face_getBottomNode(face, index, 0))
+		tmpEvent = cap_getEvent(face_getBottomNode(face, index, 0));
 		if (event_isAncestor(tmpEvent, bottomEvent))
 			bottomEvent = tmpEvent;
 	}
 
 	// If event out of bounds	
-	if (event_isAncestor(event, topEvent) || event == topEvent)
+	if (event_isAncestor(E, topEvent) || E == topEvent)
 		return true;
-	if (event_isAncestor(bottomEvent, event) || event == bottomEvent)
+	if (event_isAncestor(bottomEvent, E) || E == bottomEvent)
 		return false;
 
 	// Measure time span
-	for (tmpEvent = bottomEvent; event_isAncestor(event, tmpEvent); tmpEvent = event_getParent(tmpEvent))
+	for (tmpEvent = bottomEvent; event_isAncestor(E, tmpEvent); tmpEvent = event_getParent(tmpEvent))
 		partialTimeSpan += event_getBranchLength(tmpEvent);
 	for (tmpEvent = bottomEvent; event_isAncestor(topEvent, tmpEvent); tmpEvent = event_getParent(tmpEvent))
 		partialTimeSpan += event_getBranchLength(tmpEvent);
@@ -129,15 +131,14 @@ static boolean transmap_goByAncestralPath(Cap * A, Event * E) {
 
 	// Random decision
 	srand(time(NULL));
-	return (rand() / (RAND_MAX + 1)) > timeRatio;
+	return (rand() / RAND_MAX) > timeRatio;
 }
 
 /*
  * Tries to connect two caps at the time of event
  * Returns true if success
  */
-static bool transmap_sampleOrderAndOrientationAtEvent(Event * E, Cap * A, Cap * B, int32_t allowed_distance) {
-	Cap * parentA;
+static bool transmap_sampleOrderAndOrientationAtEvent(Event * E, Cap * A, Cap * B, int32_t * allowed_distance) {
 	Face * face;
 	int32_t index;
 
@@ -179,11 +180,11 @@ static bool transmap_sampleOrderAndOrientationAtEvent(Event * E, Cap * A, Cap * 
 	// Recursion
 	if (cap_getSide(A)) {
 		// If 5' cap
-		A = cap_getOtherCap(A)
+		A = cap_getOtherSegmentCap(A);
 		if (A == NULL)
 			return false;
-		allowed_distance -= segment_getLength(cap_getSegment(A));
-		if (allowed_distance < 0)
+		*allowed_distance -= segment_getLength(cap_getSegment(A));
+		if (*allowed_distance < 0)
 			return false;
 	} else {
 		// If 3' cap
@@ -194,11 +195,11 @@ static bool transmap_sampleOrderAndOrientationAtEvent(Event * E, Cap * A, Cap * 
 
 		if (!cap_getAdjacency(A))
 			return false;
-		if (!transmap_sampleOrderAndOrientationAtNestedNet(E, A))
+		if (!transmap_sampleOrderAndOrientationAtNestedNet(E, A, allowed_distance))
 			return false;
 	}
 
-	return transmap_sampleOrderAndOrientation(A, B, allowed_distance);
+	return transmap_sampleOrderAndOrientationAtEvent(E, A, B, allowed_distance);
 }
 
 /*
@@ -217,10 +218,13 @@ bool transmap_connectivityOrderAndOrientationWasPresentAtEvent(Event *E, Cap *A,
 
 	if (distance == -1)
 		return false;
+
+	distance *= DISTANCE_BARRIER_MULTIPLIER;
 	
 	for (index = 0; index < SAMPLE_SIZE; index++)
-		if (transmap_sampleOrderAndOrientationAtEvent(E, A, B, distance * DISTANCE_BARRIER_MULTIPLIER))
-			result++;
+		if (transmap_sampleOrderAndOrientationAtEvent(E, A, B, &distance))
+			if (++result > RESULT_CUTOFF)
+				return true;
 
-	return (result > RESULT_CUTOFF);
+	return false;
 }
