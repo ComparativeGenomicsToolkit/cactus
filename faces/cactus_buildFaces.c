@@ -32,16 +32,14 @@ struct _liftedEdge {
 /*
  * Lifted edge destructor
  */
-static void buildFaces_destructLiftedEdge(LiftedEdge * liftedEdge)
-{
+static void buildFaces_destructLiftedEdge(LiftedEdge * liftedEdge) {
 	free(liftedEdge);
 }
 
 /*
  * Utility function for the lifted edge hashtable
  */
-static uint32_t buildFaces_hashfunction(void *ptr)
-{
+static uint32_t buildFaces_hashfunction(void *ptr) {
 	Cap *key = (Cap *) ptr;
 	return (uint32_t) cap_getName(key);
 }
@@ -49,38 +47,33 @@ static uint32_t buildFaces_hashfunction(void *ptr)
 /*
  * Utility function for the lifted edge hashtable
  */
-static int32_t buildFaces_key_eq_fn(void *ptrA, void *ptrB)
-{
+static int32_t buildFaces_key_eq_fn(void *ptrA, void *ptrB) {
 	return ptrA == ptrB;
 }
 
 /*
  * Utility function for the lifted edge hashtable
  */
-static void buildFaces_destructValue(void *ptr)
-{
+static void buildFaces_destructValue(void *ptr) {
 	destructList((struct List *) ptr);
 }
 
-/* 
+/*
  * Utility function for List struct
  */
-static void buildFaces_destructListElem(void *ptr)
-{
+static void buildFaces_destructListElem(void *ptr) {
 	buildFaces_destructLiftedEdge((LiftedEdge *) ptr);
 }
 
 /*
  * Returns the first attched ancestor of cap
  */
-static Cap *buildFaces_getAttachedAncestor(Cap * cap)
-{
+static Cap *buildFaces_getAttachedAncestor(Cap * cap) {
 	Cap *current = cap_getParent(cap);
 	Cap *parent;
 
-	while (current 
-	       && !cap_getAdjacency(cap)
-	       && (parent = cap_getParent(current)))
+	while (current && !cap_getAdjacency(cap) && (parent
+			= cap_getParent(current)))
 		current = parent;
 
 	return current;
@@ -90,11 +83,10 @@ static Cap *buildFaces_getAttachedAncestor(Cap * cap)
  * Fill in a hashtable which to every node associates
  * a list of lifted edges
  */
-static struct hashtable *buildFaces_computeLiftedEdges(Net * net)
-{
-	struct hashtable *liftedEdgesTable =
-	    create_hashtable(16, buildFaces_hashfunction, buildFaces_key_eq_fn, NULL,
-			     buildFaces_destructValue);
+static struct hashtable *buildFaces_computeLiftedEdges(Net * net) {
+	struct hashtable *liftedEdgesTable = create_hashtable(16,
+			buildFaces_hashfunction, buildFaces_key_eq_fn, NULL,
+			buildFaces_destructValue);
 	Net_CapIterator *iter = net_getCapIterator(net);
 	Cap *cap, *attachedAncestor;
 	Cap *adjacency, *adjacencyAncestor;
@@ -108,13 +100,11 @@ static struct hashtable *buildFaces_computeLiftedEdges(Net * net)
 		// ... check if connected
 		if ((adjacency = cap_getAdjacency(cap))) {
 			// ... lift
-			attachedAncestor =
-			    buildFaces_getAttachedAncestor(cap);
-			adjacencyAncestor =
-			    buildFaces_getAttachedAncestor(adjacency);
+			attachedAncestor = buildFaces_getAttachedAncestor(cap);
+			adjacencyAncestor = buildFaces_getAttachedAncestor(adjacency);
 
 			// If root node
-			if (attachedAncestor == NULL) 
+			if (attachedAncestor == NULL)
 				continue;
 
 			// ... create lifted edge
@@ -124,14 +114,13 @@ static struct hashtable *buildFaces_computeLiftedEdges(Net * net)
 
 #ifdef DEBUG
 			// Self loop
-			if (adjacencyAncestor == attachedAncestor) 
+			if (adjacencyAncestor == attachedAncestor)
 				abort();
 #endif
 
-			// ... add it to the hashtable 
-			if ((liftedEdges =
-			     hashtable_search(liftedEdgesTable,
-					      attachedAncestor))) {
+			// ... add it to the hashtable
+			if ((liftedEdges = hashtable_search(liftedEdgesTable,
+					attachedAncestor))) {
 				listAppend(liftedEdges, liftedEdge);
 #ifdef DEBUG
 				// If more than two lifted edge
@@ -140,13 +129,11 @@ static struct hashtable *buildFaces_computeLiftedEdges(Net * net)
 					abort();
 #endif
 			} else {
-				liftedEdges =
-				    constructZeroLengthList(2,
-							    buildFaces_destructListElem);
+				liftedEdges = constructZeroLengthList(2,
+						buildFaces_destructListElem);
 				listAppend(liftedEdges, liftedEdge);
-				hashtable_insert(liftedEdgesTable,
-						 attachedAncestor,
-						 liftedEdges);
+				hashtable_insert(liftedEdgesTable, attachedAncestor,
+						liftedEdges);
 			}
 		}
 	}
@@ -156,12 +143,11 @@ static struct hashtable *buildFaces_computeLiftedEdges(Net * net)
 }
 
 /*
- * Recursive function which fills a given list with the 
+ * Recursive function which fills a given list with the
  * connected nodes within a module
  */
 static void buildFaces_fillTopNodeList(Cap * cap, struct List *list,
-			    struct hashtable *liftedEdgesTable)
-{
+		struct hashtable *liftedEdgesTable) {
 	struct List *liftedEdges;
 	int32_t index;
 
@@ -176,14 +162,14 @@ static void buildFaces_fillTopNodeList(Cap * cap, struct List *list,
 	// Recursion through lifted edges
 	if ((liftedEdges = hashtable_search(liftedEdgesTable, cap)))
 		for (index = 0; index < liftedEdges->length; index++)
-			buildFaces_fillTopNodeList(((LiftedEdge *) liftedEdges->
-					 list[index])->destination, list,
-					liftedEdgesTable);
+			buildFaces_fillTopNodeList(
+					((LiftedEdge *) liftedEdges-> list[index])->destination,
+					list, liftedEdgesTable);
 
 	// Recursion through adjacency
 	if (cap_getAdjacency(cap))
-		buildFaces_fillTopNodeList(cap_getAdjacency(cap), 
-				list, liftedEdgesTable);
+		buildFaces_fillTopNodeList(cap_getAdjacency(cap), list,
+				liftedEdgesTable);
 
 	// Remove from lifted edges table to prevent double usage
 	// of end instances
@@ -196,24 +182,22 @@ static void buildFaces_fillTopNodeList(Cap * cap, struct List *list,
  * Produces the end instance which is the destination of the unique lifted edge
  * out of a top node
  */
-static Cap *buildFaces_getMinorLiftedEdgeDestination(Cap *
-						       cap,
-						       struct List
-						       *liftedEdges)
-{
+static Cap *buildFaces_getMinorLiftedEdgeDestination(Cap * cap,
+		struct List *liftedEdges) {
 	int32_t index;
 	Cap * adjacency = cap_getAdjacency(cap);
 	Cap *ancestralEdgeDestination = NULL;
 	Cap *liftedDestination;
 
 	if (adjacency)
-	    ancestralEdgeDestination = cap_getPositiveOrientation(cap_getAdjacency(cap));
+		ancestralEdgeDestination = cap_getPositiveOrientation(cap_getAdjacency(
+				cap));
 
 #ifndef BEN_DEBUG
 	for (index = 0; index < liftedEdges->length; index++)
-		if ((liftedDestination = ((LiftedEdge *) liftedEdges->list[index])->destination)
-		    && liftedDestination != ancestralEdgeDestination)
-			return liftedDestination; 
+	if ((liftedDestination = ((LiftedEdge *) liftedEdges->list[index])->destination)
+			&& liftedDestination != ancestralEdgeDestination)
+	return liftedDestination;
 
 	return NULL;
 #else
@@ -221,10 +205,11 @@ static Cap *buildFaces_getMinorLiftedEdgeDestination(Cap *
 
 	// Ensure that no more than one derived edge destinations
 	for (index = 0; index < liftedEdges->length; index++) {
-		if ((liftedDestination = ((LiftedEdge *) liftedEdges->list[index])->destination)
-		    && liftedDestination != ancestralEdgeDestination) {
+		if ((liftedDestination
+				= ((LiftedEdge *) liftedEdges->list[index])->destination)
+				&& liftedDestination != ancestralEdgeDestination) {
 			if (!candidate)
-				candidate = liftedDestination; 
+				candidate = liftedDestination;
 			else
 				abort();
 		}
@@ -236,12 +221,9 @@ static Cap *buildFaces_getMinorLiftedEdgeDestination(Cap *
 /*
  * Constructs a face from a given Cap
  */
-static void buildFaces_constructFromCap(Cap *
-					   startingCap,
-					   struct hashtable
-					   *liftedEdgesTable, Net * net)
-{
-	Face *face = face_construct(net); 
+static void buildFaces_constructFromCap(Cap * startingCap,
+		struct hashtable *liftedEdgesTable, Net * net) {
+	Face *face = face_construct(net);
 	struct List *topNodes = constructZeroLengthList(16, NULL);
 	struct List *liftedEdges;
 	Cap *cap;
@@ -267,8 +249,7 @@ static void buildFaces_constructFromCap(Cap *
 	for (index = 0; index < topNodes->length; index++) {
 		cap = topNodes->list[index];
 		face_setTopNode(face, index, cap);
-		liftedEdges =
-		    hashtable_search(liftedEdgesTable, cap);
+		liftedEdges = hashtable_search(liftedEdgesTable, cap);
 
 		if (!liftedEdges) {
 			face_setDerivedDestination(face, index, NULL);
@@ -277,18 +258,17 @@ static void buildFaces_constructFromCap(Cap *
 		}
 
 		face_setDerivedDestination(face, index,
-		    buildFaces_getMinorLiftedEdgeDestination(cap,
-						       liftedEdges));
+				buildFaces_getMinorLiftedEdgeDestination(cap, liftedEdges));
 		face_setBottomNodeNumber(face, index, liftedEdges->length);
 		// For every bottom node of that top node
 		for (index2 = 0; index2 < liftedEdges->length; index2++) {
 			face_addBottomNode(face, index,
-			    ((LiftedEdge *) liftedEdges->
-			     list[index2])->bottomNode);
+					((LiftedEdge *) liftedEdges-> list[index2])->bottomNode);
 
 #ifdef BEN_DEBUG
 			// If bottom nodes part of top nodes
-			if (listContains(topNodes, cap_getPositiveOrientation(((LiftedEdge*) liftedEdges->list[index2])->bottomNode)))
+			if (listContains(topNodes, cap_getPositiveOrientation(
+					((LiftedEdge*) liftedEdges->list[index2])->bottomNode)))
 				abort();
 #endif
 		}
@@ -296,7 +276,7 @@ static void buildFaces_constructFromCap(Cap *
 
 #ifdef BEN_DEBUG_ULTRA
 	if (!buildFaces_isSimple(face))
-		abort();
+	abort();
 #endif
 
 	// Clean up
@@ -306,8 +286,7 @@ static void buildFaces_constructFromCap(Cap *
 /*
  * Construct faces in net and add them to the Net's pointers
  */
-void buildFaces_constructFaces(Net * net)
-{
+void buildFaces_constructFaces(Net * net) {
 	struct hashtable *liftedEdgesTable = buildFaces_computeLiftedEdges(net);
 	Net_CapIterator *iter = net_getCapIterator(net);
 	struct List *liftedEdges;
@@ -315,25 +294,22 @@ void buildFaces_constructFaces(Net * net)
 
 	logInfo("Constructing faces\n");
 
-	while ((current = net_getNextCap(iter))) 
-	     	if ((liftedEdges = hashtable_search(liftedEdgesTable, current))
-		    && (liftedEdges->length >= 2
-		    	|| buildFaces_getMinorLiftedEdgeDestination(current,
-						       liftedEdges)))
-			buildFaces_constructFromCap(current,
-						      liftedEdgesTable,
-						      net);
+	while ((current = net_getNextCap(iter)))
+		if ((liftedEdges = hashtable_search(liftedEdgesTable, current))
+				&& (liftedEdges->length >= 2
+						|| buildFaces_getMinorLiftedEdgeDestination(current,
+								liftedEdges)))
+			buildFaces_constructFromCap(current, liftedEdgesTable, net);
 
-	hashtable_destroy(liftedEdgesTable, true, false);
+	hashtable_destroy(liftedEdgesTable, true,false);
 	net_destructCapIterator(iter);
 }
 
 /*
  * Create an interpolation between parent and child caps at event
  */
-static Cap *buildFaces_interpolateCaps(Cap * parentCap,
-					    Cap * childCap,
-					    Event * event) {
+static Cap *buildFaces_interpolateCaps(Cap * parentCap, Cap * childCap,
+		Event * event) {
 	Cap * newCap = cap_construct(cap_getEnd(childCap), event);
 	cap_changeParentAndChild(newCap, childCap);
 	cap_makeParentAndChild(parentCap, newCap);
@@ -343,21 +319,21 @@ static Cap *buildFaces_interpolateCaps(Cap * parentCap,
 /*
  * Creates an inteprolation half way on the branch between two events
  */
-static Event *buildFaces_interpolateEvents(Event* parentEvent, Event* childEvent) {
+static Event *buildFaces_interpolateEvents(Event* parentEvent,
+		Event* childEvent) {
 	EventTree * eventTree = event_getEventTree(parentEvent);
 	float branchLength = event_getBranchLength(childEvent) / 2;
 
-	return event_construct2(NULL, branchLength, parentEvent, childEvent, eventTree);
+	return event_construct2(NULL, branchLength, parentEvent, childEvent,
+			eventTree);
 }
 
 /*
  * Creates the interpolation of a top node
  */
-static Cap *buildFaces_interpolateTopNode(Face * face, int32_t topIndex)
-{
+static Cap *buildFaces_interpolateTopNode(Face * face, int32_t topIndex) {
 	Cap *topNode = face_getTopNode(face, topIndex);
-	Cap *derivedEdgeDestination =
-	    face_getDerivedDestination(face, topIndex);
+	Cap *derivedEdgeDestination = face_getDerivedDestination(face, topIndex);
 	int32_t bottomNodeIndex;
 	int32_t bottomNodeNumber = face_getBottomNodeNumber(face, topIndex);
 	Cap *derivedEdgeBottomNode = NULL;
@@ -368,14 +344,12 @@ static Cap *buildFaces_interpolateTopNode(Face * face, int32_t topIndex)
 		return NULL;
 
 	// Search for bottom node which generated the derived edge
-	for (bottomNodeIndex = 0; bottomNodeIndex < bottomNodeNumber;
-	     bottomNodeIndex++) {
-		if (buildFaces_getAttachedAncestor
-		    (cap_getPositiveOrientation(cap_getAdjacency
-		     (face_getBottomNode(face, topIndex, bottomNodeIndex)))) ==
-		    derivedEdgeDestination) {
-			derivedEdgeBottomNode =
-			    face_getBottomNode(face, topIndex, bottomNodeIndex);
+	for (bottomNodeIndex = 0; bottomNodeIndex < bottomNodeNumber; bottomNodeIndex++) {
+		if (buildFaces_getAttachedAncestor(cap_getPositiveOrientation(
+				cap_getAdjacency(face_getBottomNode(face, topIndex,
+						bottomNodeIndex)))) == derivedEdgeDestination) {
+			derivedEdgeBottomNode = face_getBottomNode(face, topIndex,
+					bottomNodeIndex);
 			break;
 		}
 	}
@@ -387,33 +361,30 @@ static Cap *buildFaces_interpolateTopNode(Face * face, int32_t topIndex)
 
 	// Go to the appropriate descent edge
 	while (cap_getParent(derivedEdgeBottomNode) != topNode)
-		derivedEdgeBottomNode =
-		    cap_getParent(derivedEdgeBottomNode);
+		derivedEdgeBottomNode = cap_getParent(derivedEdgeBottomNode);
 
 	// Event interpolation
 	topEvent = cap_getEvent(topNode);
 	bottomEvent = cap_getEvent(derivedEdgeBottomNode);
 	while (event_getParent(bottomEvent) != topEvent)
-		bottomEvent = event_getParent(bottomEvent); 
+		bottomEvent = event_getParent(bottomEvent);
 	interpolatedEvent = buildFaces_interpolateEvents(topEvent, bottomEvent);
 
 	// Cap interpolation
 	return buildFaces_interpolateCaps(topNode, derivedEdgeBottomNode,
-				       interpolatedEvent);
+			interpolatedEvent);
 }
 
-/* 
+/*
  * Produces array of interpolations for the top nodes of a face
  */
-static Cap **buildFaces_interpolateTopNodes(Face * face)
-{
-	Cap **interpolations =
-	    calloc(face_getCardinal(face), sizeof(Cap *));
+static Cap **buildFaces_interpolateTopNodes(Face * face) {
+	Cap **interpolations = calloc(face_getCardinal(face), sizeof(Cap *));
 	uint32_t topIndex;
 
 	for (topIndex = 0; topIndex < face_getCardinal(face); topIndex++)
-		interpolations[topIndex] =
-		    buildFaces_interpolateTopNode(face, topIndex);
+		interpolations[topIndex]
+				= buildFaces_interpolateTopNode(face, topIndex);
 
 	return interpolations;
 }
@@ -422,11 +393,10 @@ static Cap **buildFaces_interpolateTopNodes(Face * face)
  * Connects an interpolated node within a face
  */
 static void buildFaces_connectInterpolatedNode(Cap ** interpolations,
-					 int32_t nodeIndex, Face * face)
-{
+		int32_t nodeIndex, Face * face) {
 	Cap *node = interpolations[nodeIndex];
 	Cap *topNode = face_getTopNode(face, nodeIndex);
-	Cap *adjacentNode = NULL; 
+	Cap *adjacentNode = NULL;
 	int32_t adjacentIndex;
 
 	if (cap_getAdjacency(topNode))
@@ -436,9 +406,8 @@ static void buildFaces_connectInterpolatedNode(Cap ** interpolations,
 	if (node == NULL || cap_getAdjacency(node) || adjacentNode == NULL)
 		return;
 
-	// Look for index of adjacent node      
-	for (adjacentIndex = 0; adjacentIndex < face_getCardinal(face);
-	     adjacentIndex++)
+	// Look for index of adjacent node
+	for (adjacentIndex = 0; adjacentIndex < face_getCardinal(face); adjacentIndex++)
 		if (face_getTopNode(face, adjacentIndex) == adjacentNode)
 			break;
 
@@ -456,19 +425,18 @@ static void buildFaces_connectInterpolatedNode(Cap ** interpolations,
  * Connects the interpolated nodes of a face
  */
 static void buildFaces_connectInterpolatedNodes(Cap ** interpolations,
-					  Face * face)
-{
+		Face * face) {
 	int32_t topIndex;
 
 	for (topIndex = 0; topIndex < face_getCardinal(face); topIndex++)
-		buildFaces_connectInterpolatedNode(interpolations, topIndex,
-					     face);
+		buildFaces_connectInterpolatedNode(interpolations, topIndex, face);
 }
 
-/* 
+/*
  * Fill in interpolated face for a given top node
  */
-static void buildFaces_fillInterpolatedFace(Face * face, Cap ** interpolations, Face * interpolatedFace, int32_t nodeCount, int32_t nodeIndex) {
+static void buildFaces_fillInterpolatedFace(Face * face, Cap ** interpolations,
+		Face * interpolatedFace, int32_t nodeCount, int32_t nodeIndex) {
 	int32_t index, bottomNodeIndex;
 	Cap **bottomNodes;
 	Cap * derivedDestination = face_getDerivedDestination(face, nodeIndex);
@@ -480,18 +448,18 @@ static void buildFaces_fillInterpolatedFace(Face * face, Cap ** interpolations, 
 
 	// Fill face
 	face_setTopNode(interpolatedFace, nodeCount, interpolations[nodeIndex]);
-	face_setDerivedDestination(interpolatedFace, nodeCount, interpolations[index]);
+	face_setDerivedDestination(interpolatedFace, nodeCount,
+			interpolations[index]);
 	face_setBottomNodeNumber(interpolatedFace, nodeCount, 1);
 
 	// Search for bottom node which generated the derived edge
-	for (bottomNodeIndex = 0;
-	     bottomNodeIndex <
-	     face_getBottomNodeNumber(face, nodeIndex);
-	     bottomNodeIndex++) {
-		if (buildFaces_getAttachedAncestor
-		    (cap_getPositiveOrientation(cap_getAdjacency
-		     (face_getBottomNode(face, nodeIndex, bottomNodeIndex)))) == derivedDestination) {
-			face_addBottomNode(interpolatedFace, nodeCount, bottomNodes[bottomNodeIndex]);
+	for (bottomNodeIndex = 0; bottomNodeIndex < face_getBottomNodeNumber(face,
+			nodeIndex); bottomNodeIndex++) {
+		if (buildFaces_getAttachedAncestor(cap_getPositiveOrientation(
+				cap_getAdjacency(face_getBottomNode(face, nodeIndex,
+						bottomNodeIndex)))) == derivedDestination) {
+			face_addBottomNode(interpolatedFace, nodeCount,
+					bottomNodes[bottomNodeIndex]);
 			break;
 		}
 	}
@@ -501,9 +469,7 @@ static void buildFaces_fillInterpolatedFace(Face * face, Cap ** interpolations, 
  * Create face from interpolated nodes
  */
 static void buildFaces_createInterpolatedFace(Face * face,
-					Cap ** interpolations,
-					Net * net)
-{
+		Cap ** interpolations, Net * net) {
 	Face *interpolatedFace = face_construct(net);
 	int32_t nodeIndex;
 	int32_t nodeCount = 0;
@@ -519,15 +485,15 @@ static void buildFaces_createInterpolatedFace(Face * face,
 	// Project face info onto interpolated face
 	nodeCount = 0;
 	for (nodeIndex = 0; nodeIndex < face_getCardinal(face); nodeIndex++)
-		if (interpolations[nodeIndex] != NULL) 
-			buildFaces_fillInterpolatedFace(face, interpolations, interpolatedFace, nodeCount++, nodeIndex);
+		if (interpolations[nodeIndex] != NULL)
+			buildFaces_fillInterpolatedFace(face, interpolations,
+					interpolatedFace, nodeCount++, nodeIndex);
 }
 
 /*
  * Isolates into regular and trivial faces
  */
-void buildFaces_isolate(Face * face, Net * net)
-{
+void buildFaces_isolate(Face * face, Net * net) {
 	Cap **interpolations;
 
 	// If uncessary
@@ -551,8 +517,7 @@ void buildFaces_isolate(Face * face, Net * net)
 /*
  * Isolates all the faces in the net
  */
-void buildFaces_isolateFaces(Net * net)
-{
+void buildFaces_isolateFaces(Net * net) {
 	Net_FaceIterator *iter = net_getFaceIterator(net);
 	Face *face;
 
@@ -583,22 +548,21 @@ static Cap * buildFaces_constructStub(Cap * adjacentCap) {
 
 	return cap;
 
-	/* 
-	The 0 argument to the end constructor is a bool saying the stub end is 'free', 
-	ie. not necessarily inherited from the parent (though it can be), and not part 
-	of the reference structure. I.e. some stub ends are 'attached' - opposite of free, 
-	representing the case where we know what happened to the other end of the stub 
-	(i.e. if it is a block end at a higher level or the defined end of a sequence defined 
-	at the top level).
-	*/
+	/*
+	 The 0 argument to the end constructor is a bool saying the stub end is 'free',
+	 ie. not necessarily inherited from the parent (though it can be), and not part
+	 of the reference structure. I.e. some stub ends are 'attached' - opposite of free,
+	 representing the case where we know what happened to the other end of the stub
+	 (i.e. if it is a block end at a higher level or the defined end of a sequence defined
+	 at the top level).
+	 */
 }
 
 /*
- * Engineers a node so that a regular face has an even number of 
+ * Engineers a node so that a regular face has an even number of
  * top/bottom node pairs
  */
-static void buildFaces_engineerCaps(Face * face, Net * net)
-{
+static void buildFaces_engineerCaps(Face * face, Net * net) {
 	int32_t index;
 	Cap *nonAdjacent = NULL;
 	int32_t nonDerived = -1;
@@ -621,14 +585,14 @@ static void buildFaces_engineerCaps(Face * face, Net * net)
 	// Engineer appropriate nodes
 	X = buildFaces_constructStub(nonAdjacent);
 
-	Xprime =
-	    cap_construct(cap_getEnd(X),
-				  cap_getEvent(face_getBottomNode(face, nonDerived, 0)));
+	Xprime = cap_construct(cap_getEnd(X), cap_getEvent(face_getBottomNode(face,
+			nonDerived, 0)));
 	cap_makeParentAndChild(X, Xprime);
 	cap_makeAdjacent(Xprime, face_getBottomNode(face, nonDerived, 0));
 
 	if (cap_getParent(nonAdjacent)) {
-		parent = cap_construct(cap_getEnd(X), cap_getEvent(cap_getParent(nonAdjacent)));
+		parent = cap_construct(cap_getEnd(X), cap_getEvent(cap_getParent(
+				nonAdjacent)));
 		cap_makeParentAndChild(parent, X);
 	}
 
@@ -636,12 +600,11 @@ static void buildFaces_engineerCaps(Face * face, Net * net)
 	face_engineerArtificialNodes(face, X, Xprime, nonDerived);
 }
 
-/* 
+/*
  * Connects the ends of an even length regular path to from
  * a canonical cycle
  */
-static void buildFaces_close(Face * face)
-{
+static void buildFaces_close(Face * face) {
 	int32_t index;
 	Cap *nonAdjacent1 = NULL;
 	Cap *nonAdjacent2 = NULL;
@@ -687,21 +650,20 @@ static void buildFaces_close(Face * face)
 	// What if some nodes with no adjacency and others with no derived edge?
 	if (nonAdjacent1 && nonDerived1 > 1)
 		abort();
-#endif 
+#endif
 
 	// If the terminal nodes lack an adjacency edge
 	if (nonAdjacent2)
 		cap_makeAdjacent(nonAdjacent1, nonAdjacent2);
 	else if (nonDerived2 > -1)
 		cap_makeAdjacent(face_getBottomNode(face, nonDerived1, 0),
-				  face_getBottomNode(face, nonDerived2, 0));
+				face_getBottomNode(face, nonDerived2, 0));
 }
 
 /*
  * Canonizes face into a regular cycle
  */
-void buildFaces_canonize(Face * face, Net * net)
-{
+void buildFaces_canonize(Face * face, Net * net) {
 	if (face_getCardinal(face) % 2 == 0)
 		buildFaces_engineerCaps(face, net);
 
@@ -711,8 +673,7 @@ void buildFaces_canonize(Face * face, Net * net)
 /*
  * Canonizes all the faces in the net
  */
-void buildFaces_canonizeFaces(Net * net)
-{
+void buildFaces_canonizeFaces(Net * net) {
 	Net_FaceIterator *iter = net_getFaceIterator(net);
 	Face *face;
 
@@ -728,8 +689,7 @@ void buildFaces_canonizeFaces(Net * net)
 /*
  * The works: create, regularize and canonize faces in net
  */
-void buildFaces_buildAndProcessFaces(Net * net)
-{
+void buildFaces_buildAndProcessFaces(Net * net) {
 	buildFaces_constructFaces(net);
 	buildFaces_isolateFaces(net);
 	buildFaces_canonizeFaces(net);

@@ -13,6 +13,9 @@ Cap *cap_construct(End *end, Event *event) {
 }
 
 Cap *cap_construct3(Name instance, Event *event, End *end, int32_t side) {
+	assert(end != NULL);
+	assert(event != NULL);
+	assert(instance != NULL_NAME);
 	Cap *cap;
 
 	cap = malloc(sizeof(Cap));

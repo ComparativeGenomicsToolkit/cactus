@@ -8,6 +8,10 @@
 #ifndef REFERENCE_H_
 #define REFERENCE_H_
 
+/////////////////////
+//Core functions
+/////////////////////
+
 /*
  * Makes the pseudo adjacencies for each pseudo chromosome in reference.
  * In a top-down greedy definition of a reference this is the only function that can
@@ -42,6 +46,25 @@ void mergeGroupsLinkedByPseudoAdjacencies(Net *net, Reference *reference);
  * If the reference already exists then it does nothing.
  */
 void addReferenceToNet(Net *net);
+
+////////////////////////
+//Misc functions
+////////////////////////
+
+/*
+ * Gets a group in which to place an end, using a bunch of heuristics.
+ */
+Group *getSpareGroup(Net *net);
+
+/*
+ * Ensures the given end is in all the child nets.
+ */
+void pushEndIntoChildNets(End *end);
+
+/*
+ * Returns the number of free stub ends in the group.
+ */
+int32_t getFreeStubEndNumber(Group *group);
 
 
 #endif /* REFERENCE_H_ */

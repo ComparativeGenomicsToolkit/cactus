@@ -206,7 +206,6 @@ def runCactusWorkflow(netDisk, sequenceFiles,
                       rescueJobFrequency=None,
                       setupAndBuildAlignments=True,
                       buildTrees=True, buildFaces=True, buildReference=True):
-    buildFaces = False
     setupAndBuildAlignments = nameValue("setupAndBuildAlignments", setupAndBuildAlignments, bool)
     buildTrees = nameValue("buildTrees", buildTrees, bool)
     buildFaces = nameValue("buildFaces", buildFaces, bool)

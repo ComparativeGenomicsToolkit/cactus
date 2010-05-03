@@ -17,6 +17,75 @@
 #include "reference.h"
 #include "commonC.h"
 
+int32_t getFreeStubEndNumber(Group *group) {
+	End *end;
+	Group_EndIterator *endIterator = group_getEndIterator(group);
+	int32_t i = 0;
+	while((end = group_getNextEnd(endIterator)) != NULL) {
+		if(end_isStubEnd(end) && end_isFree(end)) {
+			i++;
+		}
+	}
+	group_destructEndIterator(endIterator);
+	return i;
+}
+
+Group *getSpareGroup(Net *net) {
+	assert(net_getGroupNumber(net) > 0);
+	//First try and find group with an odd number of ends..
+	Net_GroupIterator *groupIterator = net_getGroupIterator(net);
+	Group *group, *group2 = NULL;
+	while((group = net_getNextGroup(groupIterator)) != NULL) {
+		Group_EndIterator *endIterator = group_getEndIterator(group);
+		End *end;
+		int32_t i = 0;
+		while((end = group_getNextEnd(endIterator)) != NULL) {
+			i++;
+		}
+		group_destructEndIterator(endIterator);
+		if(i % 2) {
+			assert(!group_isLink(group));
+			net_destructGroupIterator(groupIterator);
+			return group;
+		}
+		else if(!group_isLink(group)){
+			group2 = group;
+		}
+	}
+	net_destructGroupIterator(groupIterator);
+
+	//Else get a group without a link..
+	if(group2 != NULL) {
+		assert(!group_isLink(group2));
+		return group2;
+	}
+
+	//Else all groups are link groups.. so get the first one and remove the link from the chain..
+	assert(net_getGroupNumber(net) > 0);
+	group = net_getFirstGroup(net);
+	assert(group != NULL);
+	assert(group_isLink(group));
+	link_split(group_getLink(group));
+	assert(!group_isLink(group));
+	return group;
+}
+
+void pushEndIntoChildNets(End *end) {
+	assert(end_isAttached(end) || end_isBlockEnd(end));
+	Group *group = end_getGroup(end);
+	assert(group != NULL);
+	if(!group_isTerminal(group)) {
+		Net *nestedNet = group_getNestedNet(group);
+		assert(net_getEnd(nestedNet, end_getName(end)) == NULL);
+		End *end2 = end_copyConstruct(end, nestedNet);
+		end_setGroup(end2, getSpareGroup(nestedNet));
+		assert(end_getGroup(end2) != NULL);
+		assert(!group_isLink(end_getGroup(end2)));
+		//Now call recursively
+		pushEndIntoChildNets(end2);
+	}
+}
+
 static struct List *getAttachedStubEnds(Net *net) {
 	/*
 	 * Get the top level attached ends.
@@ -32,7 +101,6 @@ static struct List *getAttachedStubEnds(Net *net) {
 		}
 	}
 	net_destructEndIterator(endIterator);
-	assert(list->length > 0);
 	assert(list->length % 2 == 0);
 	return list;
 }
@@ -58,12 +126,52 @@ static void makePseudoChromosomesFromPairs(struct List *ends, Reference *referen
 	}
 }
 
+static void linkZeroSizeGroups(Net *net) {
+	/*
+	 * Adds block ends into groups with zero non-free stub ends,
+	 * so that they will be properly included in the traversal.
+	 */
+	Group *group;
+	Net_GroupIterator *groupIterator = net_getGroupIterator(net);
+	while((group = net_getNextGroup(groupIterator)) != NULL) {
+		if(getFreeStubEndNumber(group) == group_getEndNumber(group)) { //We need to add some new blocks to the problem to link it into the problem..
+			assert(group_isTangle(group));
+			//Construct two pseudo blocks so that the group gets included.
+			Block *block = block_construct(1, net);
+			End *_5End = block_get5End(block);
+			End *_3End = block_get3End(block);
+			end_setGroup(_5End, group);
+			end_setGroup(_3End, group);
+			pushEndIntoChildNets(_5End);
+			pushEndIntoChildNets(_3End);
+		}
+	}
+	net_destructGroupIterator(groupIterator);
+}
+
+static End *constructTopLevelAttachedStub(Net *net) {
+	/*
+	 * Creates a top level attached stub and propogates it into the children.
+	 */
+	End *end = end_construct(1, net);
+	end_setGroup(end, getSpareGroup(net));
+	pushEndIntoChildNets(end);
+	return end;
+}
+
 static void makePseudoChromosomes(Net *net, Reference *reference, int (*cmpFn)(End **, End **)) {
 	/*
 	 * Uses the above functions to construct a set of pairs of ends and then construct the pseudo-chromsomes,
 	 * but without any pseudo-adjacencies.
 	 */
 	struct List *ends = getAttachedStubEnds(net);
+	if(ends->length == 0) {
+		assert(net_getParentGroup(net) == NULL); //If there are no attached ends / block ends in the problem we must be in the parent net or else our code to add them recursively has gone wrong
+		listAppend(ends, constructTopLevelAttachedStub(net));
+		listAppend(ends, constructTopLevelAttachedStub(net));
+	}
+	//Now think ahead to include all child groups in the ordering.
+	linkZeroSizeGroups(net); //these ends will be block ends, not attached ends, so no need to add to ends list.
 	/* Sort the ends and so construct pairing of attached ends to construct pseudo chromosomes*/
 	qsort(ends->list, ends->length, sizeof(void *),
 				(int (*)(const void *v, const void *))cmpFn);
@@ -176,6 +284,11 @@ void addReferenceToNet(Net *net) {
 		return; //we've already built it, so no need to do it again!
 	}
 	reference = reference_construct(net);
+
+	if(net_getGroupNumber(net) == 0) { //In this case we have nothing to add, and no point in continuing.
+		assert(net_getEndNumber(net) == 0);
+		return;
+	}
 
 	if(net_getParentGroup(net) == NULL) {
 		/*
