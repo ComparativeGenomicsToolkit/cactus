@@ -41,7 +41,6 @@ static int32_t transmap_getTotalDistanceAtAdjacency(Cap * A) {
 #ifdef BEN_DEBUG
 	assert(childA);
 	assert(childB);
-	assert(childE);
 #endif
 
 	return transmap_getTotalDistanceBetweenCaps(childA, childB);
@@ -157,28 +156,89 @@ static bool transmap_goByAncestralPath(Face * face, Event * E) {
 }
 
 /*
- * Reurns pointer to lowest attached cap above E
+ * Returns the number of highest attached caps below cap A
  */
-static Cap* transmap_findTopCap(Event * E, Cap * A) {
+static int32_t transmap_findBottomCapNumberBelow(Cap * A) {
+	int32_t total = 0;
+	int32_t childIndex;
+
+	// End of recursion
+	if (cap_getAdjacency(A))
+		return 1;
+
+	// Recursion
+	for (childIndex = 0; childIndex < cap_getChildNumber(A); childIndex++)
+		total += transmap_findBottomCapNumberBelow(cap_getChild(A, childIndex));
+
+	return total;
+}
+
+/*
+ * Returns the number of highest attached cap below or at event E
+ */
+static int32_t transmap_findBottomCapNumber(Event * E, Cap * A) {
 	Cap * tmp = A;
 
-	while (tmp && (!cap_getAdjacency(tmp) || event_isAncestor(E, cap_getEvent(tmp))))
-		tmp = cap_getParent(tmp);
+	// Try upwards
+	for (tmp = A; tmp && !event_isAncestor(cap_getEvent(tmp), E); tmp = cap_getParent(tmp))
+		if (cap_getAdjacency(tmp))
+			return 1;
 
-	return tmp;
+	// Still no luck, OK, going down... (risk of multiple hits)
+	return transmap_findBottomCapNumberBelow(A);
+}
+
+/*
+ * Reurns pointer to lowest attached cap above or at event E
+ */
+static Cap* transmap_findTopCap(Event * E, Cap * A) {
+	Cap * tmp;
+
+	for (tmp = A; tmp; tmp = cap_getParent(tmp))
+		if (cap_getAdjacency(tmp) && !event_isAncestor(E, cap_getEvent(tmp)))
+			return tmp;
+
+	return NULL;
+}
+
+/*
+ * Returns a pointer to one of the highest attached caps below cap A
+ * Normally you only run this function when you know there is only one
+ * such cap.
+ */
+static Cap* transmap_findBottomCapBelow(Cap * A) {
+	int32_t childIndex;
+	Cap * result;
+
+	// End of recursion
+	if (cap_getAdjacency(A))
+		return A;
+
+	// Recursion
+	for (childIndex = 0; childIndex < cap_getChildNumber(A); childIndex++)
+		if ((result = transmap_findBottomCapBelow(cap_getChild(A, childIndex))));
+			return result;
+
+	return NULL;
 }
 
 /*
  * Reurns pointer to highest attached cap below E
  */
-static Cap* transmap_findBottomCap(Event * E, Cap * topCap) {
-	Cap * tmp = topCap;
+static Cap* transmap_findBottomCap(Event * E, Cap * A) {
+	Cap * tmp;
 
- 	// .. then down
-	while (tmp && (!cap_getAdjacency(tmp) || event_isAncestor(cap_getEvent(tmp), E)))
-		
+	// Try upwards
+	for (tmp = A; tmp && !event_isAncestor(cap_getEvent(tmp), E); tmp = cap_getParent(tmp))
+		if (cap_getAdjacency(tmp))
+			return tmp;
 
-	return tmp;
+	// Did not work? That's all right, look around
+	if (cap_getAdjacency(A))
+		return A;
+
+
+	return NULL;
 }
 
 /*
@@ -188,7 +248,8 @@ static Cap* transmap_findBottomCap(Event * E, Cap * topCap) {
 static bool transmap_sampleOrderAndOrientationAtEvent(Event * E, Cap * A, Cap * B, int32_t * allowed_distance) {
 	Face * face;
 	int32_t index;
-	Cap * topCap;
+	Cap * topCap, *bottomCap;
+	int32_t bottomCapNumber;
 
 	// Termination of recursion
 	if (cap_getEnd(A) == cap_getEnd(B))
@@ -232,17 +293,26 @@ static bool transmap_sampleOrderAndOrientationAtEvent(Event * E, Cap * A, Cap * 
 	} else {
 		// If 3' cap
 		if (cap_getEvent(A) != E) {
-			bottomCap = transmap_findBottomCap(E,A);
-			topCap = transmap_findTopCap(E,A);
+			bottomCapNumber = transmap_findBottomCapNumber(E,A);
 
-			if (topCap
-			    && cap_getFace(topCap) 
-			    && transmap_goByAncestralPath(cap_getFace(topCap), E))
-				A = topCap;				
-			else if (bottomCap) 
-				A = bottomCap;
-			else 
+			if (bottomCapNumber == 0)
 				return false;
+			else if (bottomCapNumber > 1) {
+#ifdef BEN_DEBUG
+				topCap = transmap_findTopCap(E,A);
+				assert(topCap == NULL);
+#endif
+				return false;
+			} else {
+				topCap = transmap_findTopCap(E,A);
+				if (topCap && cap_getEvent(topCap) == E)
+					A = topCap;
+				if (topCap && cap_getFace(topCap)
+				    && transmap_goByAncestralPath(cap_getFace(topCap), E)) 
+					A = topCap;				
+				else
+					A = transmap_findBottomCap(E,A);
+			}
 		}
 
 		// Recursion down into nested net
