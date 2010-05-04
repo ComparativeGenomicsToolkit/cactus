@@ -1,4 +1,4 @@
-"""Setup functions for assisting in testing the various modules of the cactus package.
+"""Setup functions for assisting in running the various programs of the cactus package.
 """
 
 import os
@@ -7,20 +7,10 @@ from sonLib.bioio import logger
 from sonLib.bioio import getTempFile
 from sonLib.bioio import getTempDirectory
 from sonLib.bioio import system
+from sonLib.bioio import nameValue
 
 from workflow.jobTree.jobTree import runJobTree 
 from workflow.jobTree.jobTreeTest import runJobTreeStatusAndFailIfNotComplete
-
-def nameValue(name, value, valueType=str):
-    """Little function to make it easier to make name value strings for commands.
-    """
-    if valueType == bool:
-        if value:
-            return "--%s" % name
-        return ""
-    if value == None:
-        return ""
-    return "--%s %s" % (name, valueType(value))
 
 #############################################
 #############################################
