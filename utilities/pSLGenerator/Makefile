@@ -1,6 +1,6 @@
 include ../../../../include.mk
-binPath = ../../../../../bin
-libPath = ../../../../../lib
+binPath = ../../../../bin
+libPath = ../../../../lib
 
 cflags += ${tokyoCabinetIncl} -lssl
 
