@@ -943,7 +943,7 @@ static Cap *fillingIn_getAttachedAncestor(Cap *
 static Cap * fillingIn_constructStub(Cap * adjacentCap) {
 	//Construct the new stub and the new cap..
 	Net * net = end_getNet(cap_getEnd(adjacentCap));
-	End *newFreeStubEnd = end_construct(0, net);
+	End *newFreeStubEnd = createNewFreeStubEnd(net);
 	Cap *cap = cap_construct(newFreeStubEnd, cap_getEvent(adjacentCap));
 
 	//Now set the group of the new stub end (they should be in the same group)
@@ -1232,6 +1232,8 @@ int main(int argc, char ** argv) {
 			logInfo("We currently only build nets for terminal problems: %s\n", netName);
 			continue;
 		}
+		assert(net_getBlockNumber(net) == 0); //this should be true of the terminal problems.
+		assert(net_getGroupNumber(net) == 0);
 
 		///////////////////////////////////////////////////////////////////////////
 		// Fill adjencencies

@@ -1,10 +1,10 @@
-#ifndef BUILD_FACES_H_ 
+#ifndef BUILD_FACES_H_
 #define BUILD_FACES_H_
 
 #include "cactus.h"
 
 /*
- * The works: 
+ * The works:
  * 	Build faces from current adjacencies
  * 	Regularize faces,
  * 	Canonize faces.
@@ -30,4 +30,14 @@ void face_canonize(Face * face, Net * net);
  * Canonizes all the faces in the net
  */
 void face_canonizeFaces(Net * net);
+
+/////
+//Misc functions
+////
+
+/*
+ * Creates a new free stub end in which to place caps.
+ */
+End *createNewFreeStubEnd(Net *net);
+
 #endif

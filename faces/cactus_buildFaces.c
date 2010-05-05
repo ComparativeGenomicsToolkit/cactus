@@ -14,7 +14,11 @@
 #include "bioioC.h"
 #include "hashTableC.h"
 
+#include "cactus_buildFaces.h"
+
 typedef struct _liftedEdge LiftedEdge;
+
+
 
 ////////////////////////////////////////////////
 ////////////////////////////////////////////////
@@ -535,7 +539,7 @@ void buildFaces_isolateFaces(Net * net) {
 static Cap * buildFaces_constructStub(Cap * adjacentCap) {
 	//Construct the new stub and the new cap..
 	Net * net = end_getNet(cap_getEnd(adjacentCap));
-	End *newFreeStubEnd = end_construct(0, net);
+	End *newFreeStubEnd = createNewFreeStubEnd(net);
 	Cap *cap = cap_construct(newFreeStubEnd, cap_getEvent(adjacentCap));
 
 	//Now set the group of the new stub end (they should be in the same group)
@@ -694,3 +698,12 @@ void buildFaces_buildAndProcessFaces(Net * net) {
 	buildFaces_isolateFaces(net);
 	buildFaces_canonizeFaces(net);
 }
+
+//Todo - fine me a home.
+End *createNewFreeStubEnd(Net *net) {
+	End *newFreeStubEnd = end_construct(0, net);
+	assert(net_getGroupNumber(net) == 1);
+	end_setGroup(newFreeStubEnd, net_getFirstGroup(net));
+	return newFreeStubEnd;
+}
+
