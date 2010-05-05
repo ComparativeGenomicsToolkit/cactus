@@ -9,7 +9,7 @@ from cactus.baseAlignment.cactus_baseAlignerTest import TestCase as baseAlignerT
 from cactus.phylogeny.cactus_phylogenyTest import TestCase as phylogenyTest
 from cactus.faces.cactus_fillAdjacenciesTest import TestCase as adjacenciesTest
 from cactus.reference.cactus_referenceTest import TestCase as referenceTest
-from cactus.cactusAPI.allTests import TestCase as aPITest
+from cactus.api.allTests import TestCase as aPITest
 import cactus.utilities.allTests
  
 from sonLib.bioio import parseSuiteTestOptions
