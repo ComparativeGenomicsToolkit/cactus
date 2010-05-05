@@ -27,6 +27,7 @@ void testChain_getLink(CuTest* testCase) {
 	cactusChainTestSetup();
 	CuAssertTrue(testCase, chain_getLink(chain, 0) == link1);
 	CuAssertTrue(testCase, chain_getLink(chain, 1) == link2);
+	//CuAssertTrue(testCase, 0);
 	cactusChainTestTeardown();
 }
 

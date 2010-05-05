@@ -24,7 +24,7 @@ CuSuite *cactusPseudoChromosomeTestSuite();
 CuSuite *cactusReferenceTestSuite();
 CuSuite *cactusHashTestSuite();
 
-void cactusAPIRunAllTests(void) {
+int cactusAPIRunAllTests(void) {
 	CuString *output = CuStringNew();
 	CuSuite* suite = CuSuiteNew();
 	CuSuiteAddSuite(suite, cactusEventTestSuite());
@@ -54,9 +54,9 @@ void cactusAPIRunAllTests(void) {
 	CuSuiteSummary(suite, output);
 	CuSuiteDetails(suite, output);
 	printf("%s\n", output->buffer);
+	return suite->failCount > 0;
 }
 
 int main(void) {
-	cactusAPIRunAllTests();
-	return 0;
+	return cactusAPIRunAllTests();
 }
