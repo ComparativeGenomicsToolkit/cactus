@@ -553,7 +553,7 @@ void setBlocksBuilt(Net *net) {
 	Net_GroupIterator *iterator = net_getGroupIterator(net);
 	Group *group;
 	while((group = net_getNextGroup(iterator)) != NULL) {
-		if(!group_isTerminal(group)) {
+		if(!group_isLeaf(group)) {
 			setBlocksBuilt(group_getNestedNet(group));
 		}
 	}
@@ -597,8 +597,8 @@ void fillOutNetFromInputs(
 	////////////////////////////////////////////////
 
 	assert(net_isTerminal(parentNet));
-	assert(net_getGroupNumber(parentNet) == 1); //defensive, this should be true by the previous assert
-	assert(group_isTerminal(net_getFirstGroup(parentNet))); //this should be true by the previous assert
+	assert(net_getGroupNumber(parentNet) == 1);
+	assert(group_isLeaf(net_getFirstGroup(parentNet))); //this should be true by the previous assert
 	group_destruct(net_getFirstGroup(parentNet));
 
 	////////////////////////////////////////////////

@@ -270,8 +270,8 @@ void cap_check(Cap *cap) {
 	assert(end_getInstance(end, cap_getName(cap)) == cap);
 	assert(cap_getOrientation(cap) == end_getOrientation(end));
 
-	//If end has tree:
-	if(end_getRootInstance(end) != NULL) {
+	//If we've built the trees
+	if(net_builtTrees(end_getNet(cap_getEnd(cap)))) {
 		// checks the cap has a parent which has an ancestral event to the caps event, unless it is the root.
 		if(end_getRootInstance(end) == cap) {
 			assert(cap_getParent(cap) == NULL);

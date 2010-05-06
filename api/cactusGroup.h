@@ -28,21 +28,6 @@ Group *group_construct2(Net *net);
 void group_destruct(Group *group);
 
 /*
- * A non-terminal group is one with out a nested net holding a subproblem and further recursion.
- * Returns 1 if the group is terminal, else returns zero.
- */
-bool group_isTerminal(Group *group);
-
-/*
- * Converts a terminal group into a non-terminal group,
- * constructing a nested net containing the appropriate ends. The leaf adjacencies will
- * be set and all the ends will be in one new terminal group.
- *
- * Will fail if the problem is already non-terminal.
- */
-void group_makeNonTerminal(Group *group);
-
-/*
  *  Gets the net the group is part of.
  */
 Net *group_getNet(Group *group);
@@ -54,9 +39,24 @@ Net *group_getNet(Group *group);
 Name group_getName(Group *group);
 
 /*
+ * Equivalent to group_getNestedNet(group) == NULL.
+ */
+bool group_isLeaf(Group *group);
+
+/*
+ * Converts a leaf group into a non-leaf group,
+ * constructing a nested net containing the appropriate ends. The leaf adjacencies will
+ * be set and all the ends will be in one new leaf group.
+ *
+ * Will fail if the problem is already a non-leaf group.
+ */
+void group_makeNestedNet(Group *group);
+
+/*
  * Gets the nested net the group contains, or NULL if it doesn't contain one.
  */
 Net *group_getNestedNet(Group *group);
+
 
 /*
  * Gets the link the group is part of, or NULL, if not part of a chain.

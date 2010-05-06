@@ -1228,12 +1228,12 @@ int main(int argc, char ** argv) {
 		// Do nothing if not a leaf.
 		///////////////////////////////////////////////////////////////////////////
 
-		if(!net_isTerminal(net)) {
+		if(!net_isLeaf(net)) {
 			logInfo("We currently only build nets for terminal problems: %s\n", netName);
 			continue;
 		}
+		assert(net_isTerminal(net));
 		assert(net_getBlockNumber(net) == 0); //this should be true of the terminal problems.
-		assert(net_getGroupNumber(net) == 0);
 
 		///////////////////////////////////////////////////////////////////////////
 		// Fill adjencencies

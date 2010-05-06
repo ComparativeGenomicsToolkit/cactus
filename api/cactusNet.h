@@ -127,6 +127,26 @@ End *net_getEnd(Net *net, Name name);
 int32_t net_getEndNumber(Net *net);
 
 /*
+ * Sugar for net_getBlockNumber(net)*2
+ */
+int32_t net_getBlockEndNumber(Net *net);
+
+/*
+ * Returns number of stub ends in the net.
+ */
+int32_t net_getStubEndNumber(Net *net);
+
+/*
+ * Returns number of free stub ends in the net.
+ */
+int32_t net_getFreeStubEndNumber(Net *net);
+
+/*
+ * Returns the number of attached stub ends in the net.
+ */
+int32_t net_getAttachedStubEndNumber(Net *net);
+
+/*
  * Gets an iterator to iterate through the ends in the net, at this level.
  */
 Net_EndIterator *net_getEndIterator(Net *net);
@@ -414,11 +434,14 @@ bool net_builtFaces(Net *net);
  */
 void net_setBuiltFaces(Net *net, bool b);
 
+
 /*
- * Returns non-zero iff there are no-ends in the net,
- * or the ends in the net are all in one group, which is terminal.
- * A terminally-normalised cactus tree is one in which ends are present in one
- * terminal net. Creates an assert error if soe
+ * Returns non-zero iff the net has no nested nets.
+ */
+bool net_isLeaf(Net *net);
+
+/*
+ * Returns non-zero iff the net is a leaf and it contains only stub ends.
  */
 bool net_isTerminal(Net *net);
 

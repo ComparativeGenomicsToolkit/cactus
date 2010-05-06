@@ -14,7 +14,29 @@
  * calling net_check for each net in the tree. We do a couple of other tests also..
  */
 
+static void checkTreeIsTerminalNormalised(Net *net) {
+	/*
+	 * A cactus tree is terminally normalised if all leaf nets are terminal.
+	 * We haven't made this part of the api checks yet, as I don't know if we'll keep it
+	 * forever.
+	 */
+	if(net_isLeaf(net)) {
+		assert(net_isTerminal(net));
+		assert(net_getBlockNumber(net) == 0);
+		//The following are defensive checks.
+		Group *group;
+		Net_GroupIterator *iterator = net_getGroupIterator(net);
+		while((group = net_getNextGroup(iterator)) != NULL) {
+			assert(group_isLeaf(group));
+		}
+		net_destructGroupIterator(iterator);
+	}
+}
+
 static void checkBasesAccountedFor(Net *net) {
+	/*
+	 * Checks all the bases in a net end up in child net or a nested net.
+	 */
 	int64_t totalBases = net_getTotalBaseLength(net);
 	int64_t blockBases = 0.0;
 	int64_t childBases = 0.0;
@@ -37,11 +59,11 @@ static void checkBasesAccountedFor(Net *net) {
 	while((group = net_getNextGroup(iterator)) != NULL) {
 		int64_t size = (int64_t)group_getTotalBaseLength(group);
 		if(group_getNestedNet(group) != NULL) {
-			assert(!group_isTerminal(group));
+			assert(!group_isLeaf(group));
 			assert(net_getTotalBaseLength(group_getNestedNet(group)) == size);
 		}
 		else {
-			assert(group_isTerminal(group));
+			assert(group_isLeaf(group));
 		}
 		assert(size >= 0);
 		childBases += size;
@@ -56,12 +78,13 @@ static void checkBasesAccountedFor(Net *net) {
 static void checkNets(Net *net, int32_t recursive) {
 	net_check(net);
 	checkBasesAccountedFor(net);
+	checkTreeIsTerminalNormalised(net);
 	//Call problem recursively
 	if(recursive) {
 		Net_GroupIterator *iterator = net_getGroupIterator(net);
 		Group *group;
 		while((group = net_getNextGroup(iterator)) != NULL) {
-			if(!group_isTerminal(group)) {
+			if(!group_isLeaf(group)) {
 				checkNets(group_getNestedNet(group), 1);
 			}
 		}

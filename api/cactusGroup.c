@@ -29,8 +29,8 @@ Group *group_construct2(Net *net) {
 	return group;
 }
 
-bool group_isTerminal(Group *group) {
-	return group->terminalGroup;
+bool group_isLeaf(Group *group) {
+	return group->leafGroup;
 }
 
 static int32_t returnsTrue(Event *event) {
@@ -68,9 +68,9 @@ static void copyAdjacencies(Group *group, Net *nestedNet) {
 	group_destructEndIterator(endIterator);
 }
 
-void group_makeNonTerminal(Group *group) {
-	assert(group_isTerminal(group));
-	group->terminalGroup = 0;
+void group_makeNestedNet(Group *group) {
+	assert(group_isLeaf(group));
+	group->leafGroup = 0;
 	Net *nestedNet = net_construct2(group_getName(group), net_getNetDisk(group_getNet(group)));
 	net_setParentGroup(nestedNet, group);
 	eventTree_copyConstruct(net_getEventTree(group_getNet(group)), nestedNet, returnsTrue);
@@ -89,7 +89,7 @@ void group_makeNonTerminal(Group *group) {
 }
 
 void group_updateContainedEnds(Group *group) {
-	assert(!group_isTerminal(group));
+	assert(!group_isLeaf(group));
 	Net *net;
 	Net_EndIterator *iterator;
 	End *end;
@@ -136,7 +136,7 @@ Name group_getName(Group *group) {
 }
 
 Net *group_getNestedNet(Group *group) {
-	return group_isTerminal(group) ? NULL : netDisk_getNet(net_getNetDisk(group_getNet(group)), group->name);
+	return group_isLeaf(group) ? NULL : netDisk_getNet(net_getNetDisk(group_getNet(group)), group->name);
 }
 
 Link *group_getLink(Group *group) {
@@ -301,7 +301,7 @@ void group_check(Group *group) {
 		assert(link == NULL); // can not be a link!
 	}
 
-	if(group_isTerminal(group)) { //If terminal has no nested net
+	if(group_isLeaf(group)) { //If terminal has no nested net
 		assert(group_getNestedNet(group) == NULL);
 	}
 	else { //else that any nested net contains the correct set of stub ends.
@@ -335,7 +335,7 @@ Group *group_construct3(Net *net, Name name, bool terminalGroup) {
 	group->link = NULL;
 	group->name = name;
 	group->ends = sortedSet_construct(group_constructP);
-	group->terminalGroup = terminalGroup;
+	group->leafGroup = terminalGroup;
 	net_addGroup(net, group);
 
 	return group;
@@ -374,7 +374,7 @@ void group_writeBinaryRepresentation(Group *group, void (*writeFn)(const void * 
 	Group_EndIterator *iterator;
 
 	binaryRepresentation_writeElementType(CODE_GROUP, writeFn);
-	binaryRepresentation_writeBool(group_isTerminal(group), writeFn);
+	binaryRepresentation_writeBool(group_isLeaf(group), writeFn);
 	binaryRepresentation_writeName(group_getName(group), writeFn);
 	iterator = group_getEndIterator(group);
 	while((end = group_getNextEnd(iterator)) != NULL) {

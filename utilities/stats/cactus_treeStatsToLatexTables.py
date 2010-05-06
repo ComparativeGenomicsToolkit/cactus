@@ -156,8 +156,8 @@ def writeNetTable(stats, fileHandle):
     $b(N)$ is the set of basepairs contained in blocks of the net $N$, $|b(N)|$ is the the size of $b(N)$, $c(N)$ is the set of child nets (direct descendants) \
     of $N$ and $| c(N) |$ is the size of $c(N)$. The total relative entropy is $P(X) - Q(X)$ and the normalised relative entropy (NRE) is $ ( P(X) - Q(X) ) / Z $. \
     The measure therefore reflects the balance of the tree.\
-    Children: The children of a net are its direct descendants nets in the subsequent net layer of the (multi layered) cactus tree. Results given for non-leaf nets only. \
-    Depth: The depth of a net is the number of nodes (excluding itself) on the path from it to the root node. Results for leaf nets only. \
+    Children: The children of a net are its direct descendants nets in the subsequent net layer of the (multi layered) cactus tree. Results given for non-terminal nets only. \
+    Depth: The depth of a net is the number of nodes (excluding itself) on the path from it to the root node. Results for terminal nets only. \
     (A leaf net is a terminal net in the multi-layered cactus tree)")
 
 def writeBlocksTable(stats, fileHandle):
@@ -215,7 +215,7 @@ def writeBlocksTable(stats, fileHandle):
     Region: region name. \
     Min. Block Degree: the minimum number of leaf sequences in a block considered this round. \
     Total: total number of blocks in the cactus tree. \
-    Per Net: numbers of blocks in the child chains of each net. \
+    Per Net: numbers of blocks in the child chains of each net, excluding terminal nets. \
     Length: number of basepairs in a block. \
     Degree: number of leaf sequences in a block. \
     Coverage: block's length * degree.")
@@ -268,7 +268,7 @@ def writeChainsTable(stats, fileHandle):
     Type: categories of chains, either `all', which includes all chains or `$>=2$ B.', \
     which includes only chains containing a minimum of two blocks. \
     Total: total number of chains in the cactus tree. \
-    Per Net: numbers of child chains in each net. \
+    Per Net: numbers of child chains in each non-terminal net. \
     Link Number: number of links in chain. \
     Block Bp length: number of basepairs in blocks of chain. \
     Instance length: average number of basepairs in an instance of the chain, including both its blocks and intervening links.")
@@ -315,54 +315,48 @@ def writeEndsTable(stats, fileHandle):
     Connectivity: the number of distinct ends an end is adjacent to.")
     
 def writeFacesTable(stats, fileHandle):
-    columnNumber = 14
+    columnNumber = 13
     writePreliminaries(columnNumber, fileHandle)
     writeLine(columnNumber, 1, (("Faces", 0, columnNumber-1, 0, 0),), fileHandle)
     writeLine(columnNumber, 2, (("Region", 0, 0, 0, 1), 
-                                ("Group type", 1, 2, 0, 0), 
-                                ("Terminal", 1, 1, 1, 1), 
-                                ("Type", 2, 2, 1, 1), 
-                                 ("Per Group", 3, 5, 0, 0), 
-                                 ("Max", 3, 3, 1, 1),
-                                 ("Avg.", 4, 4, 1, 1),
-                                 ("Med.", 5, 5, 1, 1),
-                                 ("Cardinality", 6, 8, 0, 0), 
-                                 ("Max", 6, 6, 1, 1),
-                                 ("Avg.", 7, 7, 1, 1),
-                                 ("Med.", 8, 8, 1, 1),
-                                 ("Breakpoint reuse", 9, 11, 0, 0), 
-                                 ("Max", 9, 9, 1, 1),
-                                 ("Avg.", 10, 10, 1, 1),
-                                 ("Med.", 11, 11, 1, 1),
-                                 ("Prop. Reg.", 12, 12, 0, 1), 
-                                 ("Prop. Can.", 13, 13, 0, 1)), fileHandle)
+                                ("Group", 1, 1, 0, 1), 
+                                 ("Per Group", 2, 4, 0, 0), 
+                                 ("Max", 2, 2, 1, 1),
+                                 ("Avg.", 3, 3, 1, 1),
+                                 ("Med.", 4, 4, 1, 1),
+                                 ("Cardinality", 5, 7, 0, 0), 
+                                 ("Max", 5, 5, 1, 1),
+                                 ("Avg.", 6, 6, 1, 1),
+                                 ("Med.", 7, 7, 1, 1),
+                                 ("Breakpoint reuse", 8, 10, 0, 0), 
+                                 ("Max", 8, 8, 1, 1),
+                                 ("Avg.", 9, 9, 1, 1),
+                                 ("Med.", 10, 10, 1, 1),
+                                 ("Prop. Reg.", 11, 11, 0, 1), 
+                                 ("Prop. Can.", 12, 12, 0, 1)), fileHandle)
     for statNode, regionName in stats:
         facesNodes = statNode.findall("faces")
-        l = [ (regionName, 0, 0, 0, 8) ]
+        l = [ (regionName, 0, 0, 0, 3) ]
         i = 0
-        for terminal in ("all", "terminal", "non-terminal"):
-            l.append((terminal, 1, 1, i, i+2))
-            for groupType in ("all", "tangles", "links"):
-                l.append((groupType, 2, 2, i, i))
-                l.append((formatFloat(facesNodes[i].find("number_per_net").attrib["max"], decimals=0), 3, 3, i, i))
-                l.append((formatFloat(facesNodes[i].find("number_per_net").attrib["avg"], decimals=2), 4, 4, i, i))
-                l.append((formatFloat(facesNodes[i].find("number_per_net").attrib["median"], decimals=0), 5, 5, i, i))
-                l.append((formatFloat(facesNodes[i].find("cardinality").attrib["max"], decimals=0), 6, 6, i, i))
-                l.append((formatFloat(facesNodes[i].find("cardinality").attrib["avg"], decimals=2), 7, 7, i, i))
-                l.append((formatFloat(facesNodes[i].find("cardinality").attrib["median"], decimals=0), 8, 8, i, i))
-                l.append((formatFloat(facesNodes[i].find("faces_per_face_associated_end").attrib["max"], decimals=0), 9, 9, i, i))
-                l.append((formatFloat(facesNodes[i].find("faces_per_face_associated_end").attrib["avg"], decimals=2), 10, 10, i, i))
-                l.append((formatFloat(facesNodes[i].find("faces_per_face_associated_end").attrib["median"], decimals=0), 11, 11, i, i))
-                l.append((formatFloat(facesNodes[i].find("is_regular").attrib["avg"], decimals=2), 12, 12, i, i))
-                l.append((formatFloat(facesNodes[i].find("is_canonical").attrib["avg"], decimals=0), 13, 13, i, i))
-                i += 1
-        writeLine(columnNumber, 9, l, fileHandle)
+        for groupType in ("all", "tangles", "links"):
+            l.append((groupType, 1, 1, i, i))
+            l.append((formatFloat(facesNodes[i].find("number_per_group").attrib["max"], decimals=0), 2, 2, i, i))
+            l.append((formatFloat(facesNodes[i].find("number_per_group").attrib["avg"], decimals=2), 3, 3, i, i))
+            l.append((formatFloat(facesNodes[i].find("number_per_group").attrib["median"], decimals=0), 4, 4, i, i))
+            l.append((formatFloat(facesNodes[i].find("cardinality").attrib["max"], decimals=0), 5, 5, i, i))
+            l.append((formatFloat(facesNodes[i].find("cardinality").attrib["avg"], decimals=2), 6, 6, i, i))
+            l.append((formatFloat(facesNodes[i].find("cardinality").attrib["median"], decimals=0), 7, 7, i, i))
+            l.append((formatFloat(facesNodes[i].find("faces_per_face_associated_end").attrib["max"], decimals=0), 8, 8, i, i))
+            l.append((formatFloat(facesNodes[i].find("faces_per_face_associated_end").attrib["avg"], decimals=2), 9, 9, i, i))
+            l.append((formatFloat(facesNodes[i].find("faces_per_face_associated_end").attrib["median"], decimals=0), 10, 10, i, i))
+            l.append((formatFloat(facesNodes[i].find("is_regular").attrib["avg"], decimals=2), 11, 11, i, i))
+            l.append((formatFloat(facesNodes[i].find("is_canonical").attrib["avg"], decimals=0), 12, 12, i, i))
+            i += 1
+        writeLine(columnNumber, 3, l, fileHandle)
     
-    writeEnd(fileHandle, "faces_table", "Statistics on the faces of the AVGs. \
+    writeEnd(fileHandle, "faces_table", "Statistics on the faces of the terminal AVGs. \
     Region: region name. \
-    Group: ends categorised by group. \
-    Terminal: either `terminal', `non-terminal' or both (`all') groups. \
-    Type: either `links', `tangles' or both (`all') groups. \
+    Group: either `links', `tangles' or both (`all') groups. \
     Per Group: numbers of faces in a group. \
     Cardinality: the cardinality of faces. \
     Breakpoint reuse: Let E be the set of ends in AVGs such that each end in E has involved in atleast one\
@@ -411,7 +405,7 @@ def writeReferenceTable(stats, fileHandle):
             l.append((formatFloat(referenceNodes[i].find("links_per_chromosome").attrib["median"], decimals=0), 13, 13, i, i))
         writeLine(columnNumber, len(referenceNodes), l, fileHandle)
     
-    writeEnd(fileHandle, "reference_table", "Statistics on the reference of the cactus trees. \
+    writeEnd(fileHandle, "reference_table", "Statistics on the reference of the cactus trees, excluding terminal nets. \
     Region: region name. \
     Type: reference algorithm. \
     P.C. Number: Number of pseudo-chromosomes in reference. \

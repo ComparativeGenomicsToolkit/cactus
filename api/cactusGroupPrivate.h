@@ -8,7 +8,7 @@ struct _group {
 	Link *link;
 	Name name;
 	struct avl_table *ends;
-	bool terminalGroup;
+	bool leafGroup;
 };
 
 ////////////////////////////////////////////////

@@ -302,6 +302,38 @@ void testNet_face(CuTest* testCase) {
 			(void **)(&face), (void **)(&face2));
 }
 
+void testNet_getEndNumber(CuTest *testCase) {
+	/*
+	 * Tests the different end number functions.
+	 */
+	cactusNetTestSetup();
+	CuAssertTrue(testCase, net_getEndNumber(net) == 0);
+	CuAssertTrue(testCase, net_getBlockEndNumber(net) == 0);
+	CuAssertTrue(testCase, net_getStubEndNumber(net) == 0);
+	CuAssertTrue(testCase, net_getFreeStubEndNumber(net) == 0);
+	CuAssertTrue(testCase, net_getAttachedStubEndNumber(net) == 0);
+	int32_t blockNumber = 10;
+	int32_t freeStubEndNumber = 5;
+	int32_t attachedStubEndNumber = 3;
+	int32_t i;
+	for(i=0; i<blockNumber; i++) {
+		block_construct(1, net);
+	}
+	for(i=0; i<freeStubEndNumber; i++) {
+		end_construct(0, net);
+	}
+	for(i=0; i<attachedStubEndNumber; i++) {
+		end_construct(1, net);
+	}
+
+	CuAssertTrue(testCase, net_getEndNumber(net) == blockNumber*2 + freeStubEndNumber + attachedStubEndNumber);
+	CuAssertTrue(testCase, net_getBlockEndNumber(net) == blockNumber*2);
+	CuAssertTrue(testCase, net_getStubEndNumber(net) == freeStubEndNumber + attachedStubEndNumber);
+	CuAssertTrue(testCase, net_getFreeStubEndNumber(net) == freeStubEndNumber);
+	CuAssertTrue(testCase, net_getAttachedStubEndNumber(net) == attachedStubEndNumber);
+	cactusNetTestTeardown();
+}
+
 
 /*void testNet_mergeNets(CuTest *testCase) {
 	cactusNetTestSetup();
@@ -521,21 +553,25 @@ void testNet_builtFaces(CuTest *testCase) {
 	cactusNetTestTeardown();
 }
 
+void testNet_isLeaf(CuTest *testCase) {
+	cactusNetTestSetup();
+	CuAssertTrue(testCase, net_isLeaf(net));
+	Group *group = group_construct2(net);
+	CuAssertTrue(testCase, net_isLeaf(net));
+	group_makeNestedNet(group);
+	CuAssertTrue(testCase, !net_isLeaf(net));
+	cactusNetTestTeardown();
+}
+
 void testNet_isTerminal(CuTest *testCase) {
 	cactusNetTestSetup();
 	CuAssertTrue(testCase, net_isTerminal(net));
-	Group *group = group_construct2(net);
+	group_construct2(net);
 	CuAssertTrue(testCase, net_isTerminal(net));
-	End *end = end_construct(0, net);
-	CuAssertTrue(testCase, !net_isTerminal(net));
-	End *end2 = end_construct(0, net);
-	CuAssertTrue(testCase, !net_isTerminal(net));
-	end_setGroup(end, group);
-	end_setGroup(end2, group);
+	end_construct(0, net);
 	CuAssertTrue(testCase, net_isTerminal(net));
-	group_makeNonTerminal(group);
+	block_construct(1, net);
 	CuAssertTrue(testCase, !net_isTerminal(net));
-	CuAssertTrue(testCase, net_isTerminal(group_getNestedNet(group))); //currently function does not put the ends in a group.
 	cactusNetTestTeardown();
 }
 
@@ -547,6 +583,7 @@ CuSuite* cactusNetTestSuite(void) {
 	SUITE_ADD_TEST(suite, testNet_sequence);
 	SUITE_ADD_TEST(suite, testNet_cap);
 	SUITE_ADD_TEST(suite, testNet_end);
+	SUITE_ADD_TEST(suite, testNet_getEndNumber);
 	SUITE_ADD_TEST(suite, testNet_segment);
 	SUITE_ADD_TEST(suite, testNet_block);
 	SUITE_ADD_TEST(suite, testNet_group);
@@ -557,6 +594,7 @@ CuSuite* cactusNetTestSuite(void) {
 	SUITE_ADD_TEST(suite, testNet_builtBlocks);
 	SUITE_ADD_TEST(suite, testNet_builtTrees);
 	SUITE_ADD_TEST(suite, testNet_builtFaces);
+	SUITE_ADD_TEST(suite, testNet_isLeaf);
 	SUITE_ADD_TEST(suite, testNet_isTerminal);
 	SUITE_ADD_TEST(suite, testNet_constructAndDestruct);
 	return suite;

@@ -69,7 +69,7 @@ void pushEndIntoChildNets(End *end) {
 	assert(end_isAttached(end) || end_isBlockEnd(end));
 	Group *group = end_getGroup(end);
 	assert(group != NULL);
-	if(!group_isTerminal(group)) {
+	if(!group_isLeaf(group)) {
 		Net *nestedNet = group_getNestedNet(group);
 		assert(net_getEnd(nestedNet, end_getName(end)) == NULL);
 		End *end2 = end_copyConstruct(end, nestedNet);

@@ -251,6 +251,31 @@ int32_t net_getEndNumber(Net *net) {
 	return sortedSet_getLength(net->ends);
 }
 
+int32_t net_getBlockEndNumber(Net *net) {
+	return net_getBlockNumber(net) * 2;
+}
+
+int32_t net_getStubEndNumber(Net *net) {
+	return net_getEndNumber(net) - net_getBlockEndNumber(net);
+}
+
+int32_t net_getFreeStubEndNumber(Net *net) {
+	End *end;
+	Net_EndIterator *iterator = net_getEndIterator(net);
+	int32_t i = 0;
+	while((end = net_getNextEnd(iterator)) != NULL) {
+		if(end_isStubEnd(end) && end_isFree(end)) {
+			i++;
+		}
+	}
+	net_destructEndIterator(iterator);
+	return i;
+}
+
+int32_t net_getAttachedStubEndNumber(Net *net) {
+	return net_getStubEndNumber(net) - net_getFreeStubEndNumber(net);
+}
+
 Net_EndIterator *net_getEndIterator(Net *net) {
 	return iterator_construct(net->ends);
 }
@@ -523,6 +548,7 @@ void net_check(Net *net) {
 		reference_check(net_getReference(net));
 	}
 
+	//We check built trees in here.
 	Net_EndIterator *endIterator = net_getEndIterator(net);
 	End *end;
 	while((end = net_getNextEnd(endIterator)) != NULL) {
@@ -531,20 +557,32 @@ void net_check(Net *net) {
 	}
 	net_destructEndIterator(endIterator);
 
-	Net_FaceIterator *faceIterator = net_getFaceIterator(net);
-	Face *face;
-	while((face = net_getNextFace(faceIterator)) != NULL) {
-		face_check(face);
+	if(net_builtFaces(net)) {
+		Net_FaceIterator *faceIterator = net_getFaceIterator(net);
+		Face *face;
+		while((face = net_getNextFace(faceIterator)) != NULL) {
+			face_check(face);
+		}
+		net_destructFaceIterator(faceIterator);
 	}
-	net_destructFaceIterator(faceIterator);
+	else {
+		assert(net_getFaceNumber(net) == 0);
+	}
 
-	Net_BlockIterator *blockIterator = net_getBlockIterator(net);
-	Block *block;
-	while((block = net_getNextBlock(blockIterator)) != NULL) {
-		block_check(block);
-		block_check(block_getReverse(block)); //We will test everything backwards also.
+	if(net_builtBlocks(net)) { //Note that a net for which the blocks are not yet built must be a leaf.
+		Net_BlockIterator *blockIterator = net_getBlockIterator(net);
+		Block *block;
+		while((block = net_getNextBlock(blockIterator)) != NULL) {
+			block_check(block);
+			block_check(block_getReverse(block)); //We will test everything backwards also.
+		}
+		net_destructBlockIterator(blockIterator);
 	}
-	net_destructBlockIterator(blockIterator);
+	else {
+		assert(net_isLeaf(net)); //Defensive
+		assert(net_isTerminal(net)); //Checks that a net without built blocks is a leaf and does not
+		//contain any blocks.
+	}
 
 	Net_SequenceIterator *sequenceIterator = net_getSequenceIterator(net);
 	Sequence *sequence;
@@ -578,15 +616,20 @@ void net_setBuiltFaces(Net *net, bool b) {
 	net->builtFaces = b;
 }
 
+bool net_isLeaf(Net *net) {
+	Group *group;
+	Net_GroupIterator *iterator = net_getGroupIterator(net);
+	while((group = net_getNextGroup(iterator)) != NULL) {
+		if(!group_isLeaf(group)) {
+			return 0;
+		}
+	}
+	net_destructGroupIterator(iterator);
+	return 1;
+}
+
 bool net_isTerminal(Net *net) {
-	if(net_getEndNumber(net) == 0) {
-		return 1;
-	}
-	if(net_getGroupNumber(net) == 1) {
-		Group *group = net_getFirstGroup(net);
-		return group_getEndNumber(group) == net_getEndNumber(net) && group_isTerminal(group);
-	}
-	return 0;
+	return net_isLeaf(net) && net_getStubEndNumber(net) == net_getEndNumber(net);
 }
 
 /*

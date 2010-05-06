@@ -273,7 +273,7 @@ int main(int argc, char *argv[]) {
 		end_setGroup(end, group);
 	}
 	net_destructEndIterator(endIterator);
-	assert(group_isTerminal(group));
+	assert(group_isLeaf(group));
 
 	///////////////////////////////////////////////////////////////////////////
 	// Set the blocksBuilt flag to true for this top level net.

@@ -18,13 +18,13 @@ static void extendNets(Net *net, FILE *fileHandle, int32_t minSizeToExtend) {
 		assert(net != NULL);
 		groupIterator = net_getGroupIterator(net);
 		while((group = net_getNextGroup(groupIterator)) != NULL) {
-			if(!group_isTerminal(group)) {
+			if(!group_isLeaf(group)) {
 				extendNets(group_getNestedNet(group), fileHandle, minSizeToExtend);
 			}
 			else {
 				int64_t size = group_getTotalBaseLength(group);
 				if(size >= minSizeToExtend) {
-					group_makeNonTerminal(group);
+					group_makeNestedNet(group);
 					fprintf(fileHandle, "%s %lld\n",
 							netMisc_nameToStringStatic(group_getName(group)), size);
 				}

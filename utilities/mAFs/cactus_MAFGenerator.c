@@ -86,7 +86,7 @@ void getMAFs(Net *net, FILE *fileHandle) {
 	Net_GroupIterator *groupIterator = net_getGroupIterator(net);
 	Group *group;
 	while((group = net_getNextGroup(groupIterator)) != NULL) {
-		if(!group_isTerminal(group)) {
+		if(!group_isLeaf(group)) {
 			getMAFs(group_getNestedNet(group), fileHandle); //recursive call.
 		}
 	}

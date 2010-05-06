@@ -296,6 +296,11 @@ void end_check(End *end) {
 		assert(end_getFirst(end) == cap_getReverse(end_getFirst(rEnd)));
 	}
 
+	//Check has tree if built_trees set
+	if(net_builtTrees(end_getNet(end)) && end_getInstanceNumber(end) > 0) {
+		assert(end_getRootInstance(end) != NULL);
+	}
+
 	//For each segment calls segment_check.
 	End_InstanceIterator *iterator = end_getInstanceIterator(end);
 	Cap *cap;

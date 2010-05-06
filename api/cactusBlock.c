@@ -237,6 +237,8 @@ void block_split(Block *block, int32_t splitPoint, Block **leftBlock, Block **ri
 void block_check(Block *block) {
 	//Check is connected to net properly
 	assert(net_getBlock(block_getNet(block), block_getName(block)) == block_getPositiveOrientation(block));
+	//Check we have actually set built blocks for the net..
+	assert(net_builtBlocks(block_getNet(block)));
 
 	//Checks the two ends are block ends.
 	End *_5End = block_get5End(block);

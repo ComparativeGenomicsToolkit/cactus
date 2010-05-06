@@ -125,7 +125,7 @@ double calculateTreeBits(Net *net, double pathBitScore) {
 	Group *group;
 	double followingPathBitScore = (log(net_getGroupNumber(net)) / log(2.0)) + pathBitScore;
 	while((group = net_getNextGroup(groupIterator)) != NULL) {
-		if(group_isTerminal(group)) {
+		if(group_isLeaf(group)) {
 			totalSequenceSize = group_getTotalBaseLength(group);
 			totalBitScore += (totalSequenceSize > 0 ? ((log(totalSequenceSize) / log(2.0)) + followingPathBitScore) * totalSequenceSize : 0.0);
 		}
@@ -171,7 +171,7 @@ static void netStats(Net *net, int32_t currentDepth, struct IntList *children, s
 		Group *group;
 		int32_t i = 0;
 		while((group = net_getNextGroup(groupIterator)) != NULL) {
-			assert(!group_isTerminal(group));
+			assert(!group_isLeaf(group));
 			netStats(group_getNestedNet(group), currentDepth+1, children, tangleChildren, linkChildren, depths);
 			if(group_getLink(group) != NULL) {
 				i++;
@@ -211,7 +211,7 @@ void reportNetStats(Net *net, FILE *fileHandle) {
 void blockStats(Net *net, struct IntList *counts, struct IntList *lengths, struct IntList *degrees,
 		struct IntList *leafDegrees, struct IntList *coverage, struct IntList *leafCoverage, int32_t minLeafDegree) {
 	/*
-	 * Calculates stats on the blocks.
+	 * Calculates stats on the blocks outside of terminal nets.
 	 * Counts is numbers of blocks per non-terminal net.
 	 * Lengths is lengths of blocks.
 	 * Degrees is the number of segment instances in each block.
@@ -223,7 +223,7 @@ void blockStats(Net *net, struct IntList *counts, struct IntList *lengths, struc
 		Net_GroupIterator *groupIterator = net_getGroupIterator(net);
 		Group *group;
 		while((group = net_getNextGroup(groupIterator)) != NULL) {
-			assert(!group_isTerminal(group));
+			assert(!group_isLeaf(group));
 			blockStats(group_getNestedNet(group), counts, lengths, degrees, leafDegrees, coverage, leafCoverage, minLeafDegree);
 		}
 		net_destructGroupIterator(groupIterator);
@@ -352,50 +352,100 @@ void reportChainStats(Net *net,
 	destructIntList(avgInstanceBaseLengths);
 }
 
+void terminalNetSizes(Net *net, struct IntList *sizes) {
+	/*
+	 * Reports stats on the size of terminal nets..
+	 * Sizes = This gives the sizes of the terminal nets, i.e. the number of bases in adjacencies between ends in terminal nets.
+	 * If the cactus tree has been fully decomposed then all terminal nets will contain 0 bases.
+	 */
+	if(net_isTerminal(net)) {
+		intListAppend(sizes, net_getTotalBaseLength(net));
+	}
+	else {
+		Net_GroupIterator *groupIterator = net_getGroupIterator(net);
+		Group *group;
+		while((group = net_getNextGroup(groupIterator)) != NULL) {
+			assert(!group_isLeaf(group));
+			terminalNetSizes(group_getNestedNet(group), sizes);
+		}
+		net_destructGroupIterator(groupIterator);
+	}
+}
+
+void reportTerminalNetSizes(Net *net, FILE *fileHandle) {
+	/*
+	 * Prints the terminal group size stats to the XML file.
+	 */
+	struct IntList *sizes = constructEmptyIntList(0);
+	terminalNetSizes(net, sizes);
+	tabulateAndPrintIntValues(sizes, "terminal_group_sizes", fileHandle);
+	destructIntList(sizes);
+}
+
+static int32_t isTerminalGroup(Group *group) {
+	/*
+	 * Returns non-zero iff the groups nested net is terminal.
+	 */
+	if(group_isLeaf(group)) {
+		return 0;
+	}
+	return net_isTerminal(group_getNestedNet(group));
+}
+
+static int32_t endDegree(End *end) {
+	/*
+	 * Returns the number of distint ends and end is connected to.
+	 */
+	struct List *list = constructEmptyList(0, NULL);
+	End_InstanceIterator *instanceIterator = end_getInstanceIterator(end);
+	Cap *cap;
+	while((cap = end_getNext(instanceIterator)) != NULL) {
+		Cap *cap2 = cap_getAdjacency(cap);
+		if(cap2 != NULL) {
+			End *end =  end_getPositiveOrientation(cap_getEnd(cap2));
+			if(!listContains(list, end)) {
+				listAppend(list, end);
+			}
+		}
+	}
+	end_destructInstanceIterator(instanceIterator);
+	int32_t i = list->length;
+	destructList(list);
+	return i;
+}
+
 void endStats(Net *net, struct IntList *counts, struct IntList *degrees,
 		int32_t includeLinkGroups, int32_t includeTangleGroups,
 		int32_t includeTerminalGroups, int32_t includeNonTerminalGroups) {
 	/*
 	 * Calculates stats on the ends.
-	 * Counts is the number of ends per net.
+	 * Counts is the number of ends per group.
 	 * Degrees is the degree of each end, where the degree of an end is the number
 	 * of distinct adjacencies an end has to other ends.
 	 */
-	Net_GroupIterator *groupIterator = net_getGroupIterator(net);
-	Group *group;
-	while((group = net_getNextGroup(groupIterator)) != NULL) {
-		if(  ((includeLinkGroups && group_getLink(group) != NULL) || (includeTangleGroups && group_getLink(group) == NULL)) &&
-			 ((includeTerminalGroups && group_isTerminal(group)) || (includeNonTerminalGroups && !group_isTerminal(group))) ) {
-			intListAppend(counts, group_getEndNumber(group));
-			Group_EndIterator *endIterator = group_getEndIterator(group);
-			End *end;
-			while((end = group_getNextEnd(endIterator)) != NULL) {
-				struct List *list = constructEmptyList(0, NULL);
-				End_InstanceIterator *instanceIterator = end_getInstanceIterator(end);
-				Cap *cap;
-				while((cap = end_getNext(instanceIterator)) != NULL) {
-					Cap *cap2 = cap_getAdjacency(cap);
-					if(cap2 != NULL) {
-						End *end =  end_getPositiveOrientation(cap_getEnd(cap2));
-						if(!listContains(list, end)) {
-							listAppend(list, end);
-						}
-					}
+	if(net_isTerminal(net)) { //Do not double count terminal groups when doing the math.
+		Net_GroupIterator *groupIterator = net_getGroupIterator(net);
+		Group *group;
+		while((group = net_getNextGroup(groupIterator)) != NULL) {
+			//The stats calc.
+			if(  ((includeLinkGroups && group_getLink(group) != NULL) || (includeTangleGroups && group_getLink(group) == NULL)) &&
+				 ((includeTerminalGroups && isTerminalGroup(group)) || (includeNonTerminalGroups && !isTerminalGroup(group))) ) {
+				intListAppend(counts, group_getEndNumber(group));
+				Group_EndIterator *endIterator = group_getEndIterator(group);
+				End *end;
+				while((end = group_getNextEnd(endIterator)) != NULL) {
+					intListAppend(degrees, endDegree(end));
 				}
-				end_destructInstanceIterator(instanceIterator);
-				intListAppend(degrees, list->length);
-				destructList(list);
+				group_destructEndIterator(endIterator);
 			}
-			group_destructEndIterator(endIterator);
-		}
-		if(!group_isTerminal(group)) {
+
+			assert(!group_isLeaf(group));
 			endStats(group_getNestedNet(group), counts, degrees,
 					includeLinkGroups, includeTangleGroups,
 					includeTerminalGroups, includeNonTerminalGroups);
 		}
-
+		net_destructGroupIterator(groupIterator);
 	}
-	net_destructGroupIterator(groupIterator);
 }
 
 void reportEndStats(Net *net, int32_t includeLinkGroups, int32_t includeTangleGroups,
@@ -416,43 +466,32 @@ void reportEndStats(Net *net, int32_t includeLinkGroups, int32_t includeTangleGr
 	destructIntList(degrees);
 }
 
-void terminalGroupsSizes(Net *net, struct IntList *sizes) {
-	/*
-	 * Reports stats on the terminal groups.
-	 * Sizes = This gives the sizes of the terminal groups, i.e. the number of bases in adjacencies between ends in terminal groups.
-	 * If the cactus tree has been fully decomposed then all terminal groups will contain 0 bases.
-	 */
-	Net_GroupIterator *groupIterator = net_getGroupIterator(net);
-	Group *group;
-	while((group = net_getNextGroup(groupIterator)) != NULL) {
-		if(!group_isTerminal(group)) {
-			terminalGroupsSizes(group_getNestedNet(group), sizes);
-		}
-		else {
-			intListAppend(sizes, (int32_t)group_getTotalBaseLength(group));
+double nonSimpleFacesPerEnd(End *end) {
+	End_InstanceIterator *capIterator = end_getInstanceIterator(end);
+	Cap *cap;
+	Hash *faceHash = hash_construct();
+	int32_t i = 0;
+	while((cap = end_getNext(capIterator)) != NULL) {
+		Face *face = cap_getFace(cap);
+		if(face != NULL) {
+			if(hash_search(faceHash, face) == NULL) {
+				hash_insert(faceHash, face, face);
+				i++;
+			}
 		}
 	}
-	net_destructGroupIterator(groupIterator);
+	hash_destruct(faceHash);
+	end_destructInstanceIterator(capIterator);
+	return i;
 }
 
-void reportTerminalGroupsSizes(Net *net, FILE *fileHandle) {
-	/*
-	 * Prints the terminal group size stats to the XML file.
-	 */
-	struct IntList *sizes = constructEmptyIntList(0);
-	terminalGroupsSizes(net, sizes);
-	tabulateAndPrintIntValues(sizes, "terminal_group_sizes", fileHandle);
-	destructIntList(sizes);
-}
-
-void faceStats(Net *net, struct IntList *numberPerNet, struct IntList *cardinality,
+void faceStats(Net *net, struct IntList *numberPerGroup, struct IntList *cardinality,
 		struct IntList *isSimple, struct IntList *isRegular, struct IntList *isCanonical,
 		struct IntList *facesPerFaceAssociatedEnd,
-		int32_t includeLinkGroups, int32_t includeTangleGroups,
-		int32_t includeTerminalGroups, int32_t includeNonTerminalGroups) {
+		int32_t includeLinkGroups, int32_t includeTangleGroups) {
 	/*
-	 * Face stats.
-	 * Number per net: faces per net.
+	 * Face stats for the terminal AVGs.
+	 * Number per group: faces per group.
 	 * Cardinality of face.
 	 * isSimple: if face is simple.
 	 * isRegular: is face is regular.
@@ -460,23 +499,10 @@ void faceStats(Net *net, struct IntList *numberPerNet, struct IntList *cardinali
 	 * facesPerFaceAssociatedEnd: the number of faces associated with each end that
 	 * is associated with at least one end. Used to calculate the breakpoint reuse ratio.
 	 */
-	Net_GroupIterator *groupIterator = net_getGroupIterator(net);
-	Group *group;
-	while((group = net_getNextGroup(groupIterator)) != NULL) {
-		//Call recursively..
-		if(!group_isTerminal(group)) {
-			faceStats(group_getNestedNet(group),
-					  numberPerNet, cardinality,
-					  isSimple, isRegular,
-					  isCanonical, facesPerFaceAssociatedEnd,
-					  includeLinkGroups, includeTangleGroups,
-                      includeTerminalGroups, includeNonTerminalGroups);
-		}
-
-		//Now the actual meat.
-		if(  ((includeLinkGroups && group_getLink(group) != NULL) || (includeTangleGroups && group_getLink(group) == NULL)) &&
-					 ((includeTerminalGroups && group_isTerminal(group)) || (includeNonTerminalGroups && !group_isTerminal(group))) ) {
-			intListAppend(numberPerNet, net_getFaceNumber(net));
+	if(net_isTerminal(net)) {
+		Group *group = net_getParentGroup(net);
+		assert(group != NULL);
+		if((includeLinkGroups && group_getLink(group) != NULL) || (includeTangleGroups && group_getLink(group) == NULL)) {
 			Net_FaceIterator *faceIterator = net_getFaceIterator(net);
 			Face *face;
 			while((face = net_getNextFace(faceIterator)) != NULL) {
@@ -486,65 +512,48 @@ void faceStats(Net *net, struct IntList *numberPerNet, struct IntList *cardinali
 				intListAppend(isCanonical, face_isCanonical(face));
 			}
 			net_destructFaceIterator(faceIterator);
-
-			/*
-			 * Calculate the number of faces associated with each end
-			 * associated with at least one face.
-			 */
-			End *end;
-			Net_EndIterator *endIterator = net_getFaceIterator(net);
-			while((end = net_getNextEnd(endIterator)) != NULL) {
-				End_InstanceIterator *capIterator = end_getInstanceIterator(end);
-				Cap *cap;
-				Hash *faceHash = hash_construct();
-				int32_t i = 0;
-				while((cap = end_getNext(capIterator)) != NULL) {
-					Face *face = cap_getFace(cap);
-					if(face != NULL) {
-						if(hash_search(faceHash, face) == NULL) {
-							hash_insert(faceHash, face, face);
-							i++;
-						}
-					}
-				}
-				hash_destruct(faceHash);
-				end_destructInstanceIterator(capIterator);
-				if(i > 0) {
-					intListAppend(facesPerFaceAssociatedEnd, i);
-				}
-			}
-			net_destructEndIterator(endIterator);
 		}
 	}
-	net_destructGroupIterator(groupIterator);
+	else {
+		Net_GroupIterator *groupIterator = net_getGroupIterator(net);
+		Group *group;
+		while((group = net_getNextGroup(groupIterator)) != NULL) {
+			//Call recursively..
+			assert(!group_isLeaf(group));
+			faceStats(group_getNestedNet(group),
+					numberPerGroup, cardinality,
+					isSimple, isRegular,
+					isCanonical, facesPerFaceAssociatedEnd,
+					includeLinkGroups, includeTangleGroups);
+		}
+		net_destructGroupIterator(groupIterator);
+	}
 }
 
 void reportFaceStats(Net *net,
-		int32_t includeLinkGroups, int32_t includeTangleGroups,
-		int32_t includeTerminalGroups, int32_t includeNonTerminalGroups, FILE *fileHandle) {
+		int32_t includeLinkGroups, int32_t includeTangleGroups, FILE *fileHandle) {
 	/*
 	 * Prints the reference stats to the XML file.
 	 */
-	struct IntList *numberPerNet = constructEmptyIntList(0);
+	struct IntList *numberPerGroup = constructEmptyIntList(0);
 	struct IntList *cardinality = constructEmptyIntList(0);
 	struct IntList *isSimple = constructEmptyIntList(0);
 	struct IntList *isRegular = constructEmptyIntList(0);
 	struct IntList *isCanonical = constructEmptyIntList(0);
 	struct IntList *facesPerFaceAssociatedEnd = constructEmptyIntList(0);
-	faceStats(net, numberPerNet, cardinality, isSimple, isRegular, isCanonical,
+	faceStats(net, numberPerGroup, cardinality, isSimple, isRegular, isCanonical,
 			  facesPerFaceAssociatedEnd,
-			  includeLinkGroups, includeTangleGroups,
-			  includeTerminalGroups, includeNonTerminalGroups);
-	fprintf(fileHandle, "<faces include_link_groups=\"%i\" include_tangle_groups=\"%i\" include_terminal_groups=\"%i\" include_non_terminal_groups=\"%i\">",
-				includeLinkGroups != 0, includeTangleGroups != 0, includeTerminalGroups != 0, includeNonTerminalGroups != 0);
-	tabulateAndPrintIntValues(numberPerNet, "number_per_net", fileHandle);
+			  includeLinkGroups, includeTangleGroups);
+	fprintf(fileHandle, "<faces include_link_groups=\"%i\" include_tangle_groups=\"%i\">",
+				includeLinkGroups != 0, includeTangleGroups != 0);
+	tabulateAndPrintIntValues(numberPerGroup, "number_per_group", fileHandle);
 	tabulateAndPrintIntValues(cardinality, "cardinality", fileHandle);
 	tabulateAndPrintIntValues(isSimple, "is_simple", fileHandle);
 	tabulateAndPrintIntValues(isRegular, "is_regular", fileHandle);
 	tabulateAndPrintIntValues(isCanonical, "is_canonical", fileHandle);
 	tabulateAndPrintIntValues(facesPerFaceAssociatedEnd, "faces_per_face_associated_end", fileHandle);
 	printClosingTag("faces", fileHandle);
-	destructIntList(numberPerNet);
+	destructIntList(numberPerGroup);
 	destructIntList(cardinality);
 	destructIntList(isSimple);
 	destructIntList(isRegular);
@@ -563,7 +572,7 @@ void referenceStats(Net *net, struct IntList *pseudoChromosomeNumber,
 	Net_GroupIterator *groupIterator = net_getGroupIterator(net);
 	Group *group;
 	while((group = net_getNextGroup(groupIterator)) != NULL) {
-		if(!group_isTerminal(group)) {
+		if(!group_isLeaf(group)) {
 			referenceStats(group_getNestedNet(group),
 							pseudoChromosomeNumber,
 							pseudoAdjacencyNumberPerChromosome,
@@ -574,45 +583,47 @@ void referenceStats(Net *net, struct IntList *pseudoChromosomeNumber,
 	net_destructGroupIterator(groupIterator);
 
 	//Calculate stats for first reference.
-	Reference *reference = net_getReference(net);
-	assert(reference != NULL);
-	Reference_PseudoChromosomeIterator *pseudoChromosomeIterator = reference_getPseudoChromosomeIterator(reference);
-	PseudoChromosome *pseudoChromosome;
-	intListAppend(pseudoChromosomeNumber, reference_getPseudoChromosomeNumber(reference));
-	while((pseudoChromosome = reference_getNextPseudoChromosome(pseudoChromosomeIterator)) != NULL) {
-		intListAppend(pseudoAdjacencyNumberPerChromosome, pseudoChromosome_getPseudoAdjacencyNumber(pseudoChromosome));
-		PseudoChromsome_PseudoAdjacencyIterator *adjacencyIterator = pseudoChromosome_getPseudoAdjacencyIterator(pseudoChromosome);
-		PseudoAdjacency *pseudoAdjacency;
-		int32_t i = 0, j = 0;
-		while((pseudoAdjacency = pseudoChromosome_getNextPseudoAdjacency(adjacencyIterator)) != NULL) {
-			Group *group = end_getGroup(pseudoAdjacency_get5End(pseudoAdjacency));
-			assert(group != NULL);
-			if(group_getLink(group) != NULL) {
-				i++;
-			}
-			End *_5End = pseudoAdjacency_get5End(pseudoAdjacency);
-			End *_3End = pseudoAdjacency_get3End(pseudoAdjacency);
-			Cap *cap;
-			int32_t k = 1;
-			End_InstanceIterator *instanceIterator = end_getInstanceIterator(_5End);
-			while((cap = end_getNext(instanceIterator)) != NULL) {
-				Cap *adjacentCap = cap_getAdjacency(cap);
-				if(adjacentCap != NULL) {
-					assert(end_getOrientation(_3End));
-					if(end_getPositiveOrientation(cap_getEnd(adjacentCap)) == _3End) {
-						k = 0;
+	if(!net_isTerminal(net)) { //The terminal problems do not contribute to the reference.
+		Reference *reference = net_getReference(net);
+		assert(reference != NULL);
+		Reference_PseudoChromosomeIterator *pseudoChromosomeIterator = reference_getPseudoChromosomeIterator(reference);
+		PseudoChromosome *pseudoChromosome;
+		intListAppend(pseudoChromosomeNumber, reference_getPseudoChromosomeNumber(reference));
+		while((pseudoChromosome = reference_getNextPseudoChromosome(pseudoChromosomeIterator)) != NULL) {
+			intListAppend(pseudoAdjacencyNumberPerChromosome, pseudoChromosome_getPseudoAdjacencyNumber(pseudoChromosome));
+			PseudoChromsome_PseudoAdjacencyIterator *adjacencyIterator = pseudoChromosome_getPseudoAdjacencyIterator(pseudoChromosome);
+			PseudoAdjacency *pseudoAdjacency;
+			int32_t i = 0, j = 0;
+			while((pseudoAdjacency = pseudoChromosome_getNextPseudoAdjacency(adjacencyIterator)) != NULL) {
+				Group *group = end_getGroup(pseudoAdjacency_get5End(pseudoAdjacency));
+				assert(group != NULL);
+				if(group_getLink(group) != NULL) {
+					i++;
+				}
+				End *_5End = pseudoAdjacency_get5End(pseudoAdjacency);
+				End *_3End = pseudoAdjacency_get3End(pseudoAdjacency);
+				Cap *cap;
+				int32_t k = 1;
+				End_InstanceIterator *instanceIterator = end_getInstanceIterator(_5End);
+				while((cap = end_getNext(instanceIterator)) != NULL) {
+					Cap *adjacentCap = cap_getAdjacency(cap);
+					if(adjacentCap != NULL) {
+						assert(end_getOrientation(_3End));
+						if(end_getPositiveOrientation(cap_getEnd(adjacentCap)) == _3End) {
+							k = 0;
+						}
 					}
 				}
+				end_destructInstanceIterator(instanceIterator);
+				if(k) {
+					j++;
+				}
 			}
-			end_destructInstanceIterator(instanceIterator);
-			if(k) {
-				j++;
-			}
+			intListAppend(linksPerChromosome, i);
+			intListAppend(truePseudoAdjacencyNumberPerChromosome, j);
 		}
-		intListAppend(linksPerChromosome, i);
-		intListAppend(truePseudoAdjacencyNumberPerChromosome, j);
-	}
-	reference_destructPseudoChromosomeIterator(pseudoChromosomeIterator);
+		reference_destructPseudoChromosomeIterator(pseudoChromosomeIterator);
+		}
 }
 
 void reportReferenceStats(Net *net, FILE *fileHandle) {
@@ -665,6 +676,11 @@ void reportNetDiskStats(char *netDiskName, Net *net, FILE *fileHandle) {
 	reportChainStats(net, 2, fileHandle);
 
 	/*
+	 * Stats on terminal nets in the tree.
+	 */
+	reportTerminalNetSizes(net, fileHandle);
+
+	/*
 	 * Stats on the ends in the problem. We look at tangle and link groups separately and at terminal and non-terminal groups seperately.
 	 */
 	reportEndStats(net, 1, 1, 1, 1, fileHandle);
@@ -678,22 +694,11 @@ void reportNetDiskStats(char *netDiskName, Net *net, FILE *fileHandle) {
 	reportEndStats(net, 1, 0, 0, 1, fileHandle);
 
 	/*
-	 * Stats on terminal groups in the tree.
-	 */
-	reportTerminalGroupsSizes(net, fileHandle);
-
-	/*
 	 * Stats on faces in the reconstruction..
 	 */
-	reportFaceStats(net, 1, 1, 1, 1, fileHandle);
-	reportFaceStats(net, 0, 1, 1, 1, fileHandle);
-	reportFaceStats(net, 1, 0, 1, 1, fileHandle);
-	reportFaceStats(net, 1, 1, 1, 0, fileHandle);
-	reportFaceStats(net, 0, 1, 1, 0, fileHandle);
-	reportFaceStats(net, 1, 0, 1, 0, fileHandle);
-	reportFaceStats(net, 1, 1, 0, 1, fileHandle);
-	reportFaceStats(net, 0, 1, 0, 1, fileHandle);
-	reportFaceStats(net, 1, 0, 0, 1, fileHandle);
+	reportFaceStats(net, 1, 1, fileHandle);
+	reportFaceStats(net, 0, 1, fileHandle);
+	reportFaceStats(net, 1, 0, fileHandle);
 
 	/*
 	 * Stats on the reference in the reconstruction..

@@ -13,7 +13,7 @@
 
 int main(int argc, char *argv[]) {
 	/*
-	 * This code iterates through the terminal groups and returns
+	 * This code iterates through the leaf groups and returns
 	 * a list of the new nets.
 	 */
 	NetDisk *netDisk;
@@ -32,9 +32,9 @@ int main(int argc, char *argv[]) {
 			Group *group;
 			groupIterator = net_getGroupIterator(net);
 			while((group = net_getNextGroup(groupIterator)) != NULL) {
-				if(group_isTerminal(group)) {
+				if(group_isLeaf(group)) {
 					assert(group_getTotalBaseLength(group) == 0);
-					group_makeNonTerminal(group);
+					group_makeNestedNet(group);
 					net_setBuiltBlocks(group_getNestedNet(group), 1);
 				}
 			}

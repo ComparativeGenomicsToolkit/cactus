@@ -111,7 +111,7 @@ int main(int argc, char *argv[]) {
 
     net = netDisk_getNet(netDisk, netMisc_stringToName(netName));
     Group *group = net_getFirstGroup(net);
-    if(group != NULL && !group_isTerminal(group)) {
+    if(group != NULL && !group_isLeaf(group)) {
     	net = group_getNestedNet(group);
     }
     logInfo("Parsed the top level net of the cactus tree to build\n");
