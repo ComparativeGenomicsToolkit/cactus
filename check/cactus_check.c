@@ -14,6 +14,95 @@
  * calling net_check for each net in the tree. We do a couple of other tests also..
  */
 
+Cap *A(Cap *cap) {
+	Cap *cap2 = cap_getParent(cap);
+	while(1) {
+		if(cap_getAdjacency(cap2) != NULL) {
+			return cap2;
+		}
+		if(cap_getParent(cap2) == NULL) {
+			assert(end_getRootInstance(cap_getEnd(cap2)) == cap2);
+			return cap2;
+		}
+		cap2 = cap_getParent(cap2);
+	}
+}
+
+Hash *computeHashA(Net *net) {
+	/*
+	 * For each attached, non-root cap c finds A(c) and puts it in a hash "hashA",
+	 * such that hashA[c] = A(c).
+	 * Where A(c) is the lowest common ancestor of c which is attached, else
+	 * A(c) is the root ancestor of A(c).
+	 */
+	Hash *hashA = hash_construct();
+	Event *rootEvent = eventTree_getRootEvent(net_getEventTree(net));
+	Cap *cap;
+	Net_CapIterator *capIterator = net_getCapIterator(net);
+
+	while((cap = net_getNextCap(capIterator)) != NULL) {
+		if(cap_getEvent(cap) != rootEvent && cap_getAdjacency(cap) != NULL) {
+			Cap *cap2 = A(cap);
+			assert(hash_search(hashA, cap) == NULL);
+			hash_insert(hashA, cap, cap2);
+		}
+	}
+	net_destructCapIterator(capIterator);
+
+	return hashA;
+}
+
+Hash *computeHashInvA(Net *net) {
+	/*
+	 * For each attached or root cap c finds A'(c) and puts it in a hash "hashInvA",
+	 *  such that hashInvA[c] = A'(c).
+	 * Where A'(c) is the inverse of A(c) such that A'(c) = { d \in C | A(d) = c },
+	 * and C is the set of all caps. The members of A'(c) are called bottom nodes.
+	 *
+	 */
+	Hash *hashInvA = hash_construct();
+	Event *rootEvent = eventTree_getRootEvent(net_getEventTree(net));
+	Cap *cap;
+	Net_CapIterator *capIterator = net_getCapIterator(net);
+
+	while((cap = net_getNextCap(capIterator)) != NULL) {
+		if(cap_getEvent(cap) != rootEvent && cap_getAdjacency(cap) != NULL) {
+			Cap *cap2 = A(cap);
+			struct List *list;
+			if((list = hash_search(hashInvA, cap2)) == NULL) {
+				list = constructEmptyList(0, NULL);
+				hash_insert(hashInvA, cap2, list);
+			}
+			listAppend(list, cap);
+		}
+	}
+	net_destructCapIterator(capIterator);
+
+	return hashInvA;
+}
+
+static void checkFaces(Net *net) {
+	/*
+	 *
+	 */
+	//Compute hashes for A(c) and A'(c) (see legends for def).
+	Hash *hashA = computeHashA(net);
+	Hash *hashInvA = computeHashInvA(net);
+
+	//Construct lifted edges using A(c) function hash.
+	//Hash *liftedEdgesHash = computeLiftedEdges(net, hashA);
+
+	//Constructs lifted edge/adjacency edge connected components, called modules.
+	//Faces are simply the nodes in the modules (the top nodes) and the set of
+	//bottom nodes.
+	//struct List *modules = computeModules(net, liftedEdgesHash);
+
+	//Check all trivial faces are not represented in the set of Faces stored in the net.
+
+
+	//Check all non-trival faces are represented in the set of Faces stored in the net.
+}
+
 static void checkTreeIsTerminalNormalised(Net *net) {
 	/*
 	 * A cactus tree is terminally normalised if all leaf nets are terminal.

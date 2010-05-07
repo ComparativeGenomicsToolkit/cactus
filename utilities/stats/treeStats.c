@@ -423,7 +423,7 @@ void endStats(Net *net, struct IntList *counts, struct IntList *degrees,
 	 * Degrees is the degree of each end, where the degree of an end is the number
 	 * of distinct adjacencies an end has to other ends.
 	 */
-	if(net_isTerminal(net)) { //Do not double count terminal groups when doing the math.
+	if(!net_isTerminal(net)) { //Do not double count terminal groups when doing the math.
 		Net_GroupIterator *groupIterator = net_getGroupIterator(net);
 		Group *group;
 		while((group = net_getNextGroup(groupIterator)) != NULL) {
