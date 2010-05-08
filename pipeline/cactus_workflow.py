@@ -45,7 +45,7 @@ from cactus.blastAlignment.cactus_batch import makeMiddleLevelBlastOptions
 from cactus.blastAlignment.cactus_batch import makeLowLevelBlastOptions
 from cactus.blastAlignment.cactus_batch import makeBlastFromOptions
 
-IDEAL_JOB_RUNTIME = 500
+IDEAL_JOB_RUNTIME = 200
 
 ############################################################
 ############################################################
