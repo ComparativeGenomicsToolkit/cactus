@@ -80,28 +80,150 @@ Hash *computeHashInvA(Net *net) {
 
 	return hashInvA;
 }
+/*
+Hash *computeLiftedEdges(Net *net, Hash *hashA, Hash *hashInvA) {
+	Hash *liftedEdgesHash = hash_construct();
+	Hash_Iterator *iterator = hash_getIterator(hashInvA);
+	Cap *topCap;
+	while((topCap = hash_getNext(iterator)) != NULL) {
+		struct List *bottomCaps = hashInvA(topCap);
+		struct List *liftedEdges = constructEmptyList(0);
+		hash_insert(liftedEdgesHash, topCap, liftedEdges);
+		int32_t i;
+		for(i=0; i<bottomNodes->length; i++) {
+			Cap *bottomCap = bottomCaps->list[i];
+			Cap *adjacentBottomCap = cap_getAdjacency(bottomCap);
+			assert(adjacentBottomCap != NULL);
+			Cap *adjacentTopCap = hash_search(adjacentBottomCap, hashA);
+			assert(adjacentTopCap != NULL);
+			assert(hash_search(hashInvA, adjacentTopCap) != NULL);
+			listAppend(liftedEdgesHash, adjacentTopCap);
+		}
+	}
+	hash_destructIterator(iterator);
+}
+
+void computeModulesP(Cap *topCap, Hash *liftedEdges, struct List *module,
+		Hash *modulesHash) {
+	int32_t i;
+	Cap *adjacentTopCap;
+	if(hash_search(modulesHash, topCap) == NULL) {
+		//Add to module
+		hash_insert(modulesHash, topCap, module);
+		listAppend(module, topCap);
+
+		//Traverse the lifted edges
+		struct List *liftedEdges = hash_search(liftedEdges, topCap);
+		for(i=0; i<liftedEdges->length; i++) {
+			adjacentTopCap = liftedEdges->list[i];
+			computeModulesP(adjacentTopCap, liftedEdges, module, modulesHash);
+		}
+
+		//Traverse the direct adjaceny
+		adjacentTopCap = cap_getAdjacency(topCap);
+		if(adjacentTopCap != NULL) {
+			computeModulesP(adjacentTopCap, liftedEdges, module, modulesHash);
+		}
+	}
+}
+
+struct List *computeModules(Net *net, Hash *liftedEdges) {
+	struct List *modules = constructEmptyList(0, destructList);
+	Hash *modulesHash = hash_construct();
+
+	Hash_Iterator *iterator = hash_getIterator(hashInvA);
+	Cap *topCap;
+	while((topCap = hash_getNext(iterator)) != NULL) {
+		if(hash_search(modulesHash, topCap) == NULL) {
+			struct List *module = constructEmptyList();
+			computeModulesP(topCap, liftedEdges, module, modulesHash);
+			listAppend(modules, module);
+			assert(module->length >= 2);
+		}
+	}
+	hash_destructIterator(iterator);
+	hash_destruct(modulesHash);
+	return modules;
+}
+
+int32_t isDisjoint
+
+int32_t isTrivialFace(Net *net, struct List *module, Hash *hashInvA) {
+	if(module->length > 2) {
+		return 0;
+	}
+	assert(module->length == 2);
+	return isSimpleFace(net, module, hashInvA);
+}
+
+void checkTrivialFaceP(Net *net, Cap *topCap, Hash *hashInvA) {
+	assert(cap_getFace(topCap) == NULL); //top node of trivial face can not be in a cap.
+	assert(cap_getFace(cap_getReverse(topCap)) == NULL); //defensive, again top node of trivial face can not be in a cap.
+	//Currently we don't look at the bottom nodes
+	struct List *bottomNodes = hash_search(hashInvA, topCap);
+	assert(bottomNodes != NULL);
+	assert(net != NULL);
+}
+
+void checkTrivialFace(Net *net, struct List *module, Hash *hashInvA) {
+	//Checks the top nodes do not have an associated fae.
+	assert(module->length == 2);
+	checkTrivialFaceP(net, module->list[0], hashInvA);
+	checkTrivialFaceP(net, module->list[1], hashInvA);
+}
+
+void checkNonTrivialFace(Net *net, struct List *module, Hash *hashInvA) {
+	//Checks the top nodes are all in one associated face.
+	//Checks the set of bottom nodes for each face are in agreement.
+	int32_t i, j, k, l;
+	assert(module->length > 0);
+	Cap *topCap = module->list[0];
+	Face *face = cap_getFace(topCap);
+	assert(face != NULL);
+	for(i=1; i<module->length; i++) {
+		topCap = module->list[i];
+		assert(face == cap_getFace(topCap));
+		j = face_getTopNodeIndex(face, topCap);
+		assert(face_getTopNode(face, j) == topCap);
+		struct List *bottomCaps = hash_search(hashInvA, topCap);
+		assert(bottomCaps != NULL);
+		for(k=0; k<bottomCaps->length; k++) {
+			Cap *bottomCap = bottomCaps->list[k];
+		    l = face_getBottomNodeIndex(face, j, bottomCap);
+		    assert(face_getBottomNode(j, l) == bottomCap);
+		}
+	}
+}
+
+void diffFaces(Net *net, struct List *modules, Hash *hashInvA) {
+	int32_t i;
+	for(i=0; i<modules; i++) {
+		struct List *module = modules->list[i];
+		if(isTrivialFace(module, hashInvA)) {
+			checkTrivialFace(net, module, hashInvA);
+		}
+		else {
+			checkNonTrivialFace(net, module, hashInvA);
+		}
+	}
+}
 
 static void checkFaces(Net *net) {
-	/*
-	 *
-	 */
 	//Compute hashes for A(c) and A'(c) (see legends for def).
 	Hash *hashA = computeHashA(net);
 	Hash *hashInvA = computeHashInvA(net);
 
 	//Construct lifted edges using A(c) function hash.
-	//Hash *liftedEdgesHash = computeLiftedEdges(net, hashA);
+	Hash *liftedEdgesHash = computeLiftedEdges(net, hashA);
 
 	//Constructs lifted edge/adjacency edge connected components, called modules.
 	//Faces are simply the nodes in the modules (the top nodes) and the set of
 	//bottom nodes.
-	//struct List *modules = computeModules(net, liftedEdgesHash);
+	struct List *modules = computeModules(net, liftedEdgesHash);
 
-	//Check all trivial faces are not represented in the set of Faces stored in the net.
-
-
-	//Check all non-trival faces are represented in the set of Faces stored in the net.
-}
+	//Check all faces we have computed are the same as those computed by Daniel.
+	diffFaces(net, modules);
+}*/
 
 static void checkTreeIsTerminalNormalised(Net *net) {
 	/*
