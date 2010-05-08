@@ -38,6 +38,10 @@ void testFace_getTopNode(CuTest* testCase) {
 
 void testFace_getDerivedDestination(CuTest* testCase) {
 	cactusFaceTestSetup();
+	CuAssertTrue(testCase, face_getDerivedDestinationAtIndex(face, 0, 0) == cap_getPositiveOrientation(topCap4));
+	CuAssertTrue(testCase, face_getDerivedDestinationAtIndex(face, 1, 0) == cap_getPositiveOrientation(topCap3));
+	CuAssertTrue(testCase, face_getDerivedDestinationAtIndex(face, 2, 0) == cap_getPositiveOrientation(topCap2));
+	CuAssertTrue(testCase, face_getDerivedDestinationAtIndex(face, 3, 0) == cap_getPositiveOrientation(topCap1));
 	CuAssertTrue(testCase, face_getDerivedDestination(face, 0) == cap_getPositiveOrientation(topCap4));
 	CuAssertTrue(testCase, face_getDerivedDestination(face, 1) == cap_getPositiveOrientation(topCap3));
 	CuAssertTrue(testCase, face_getDerivedDestination(face, 2) == cap_getPositiveOrientation(topCap2));

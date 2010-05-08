@@ -6,10 +6,21 @@
 /*
  * The works:
  * 	Build faces from current adjacencies
+ *	Simplify faces,
  * 	Regularize faces,
  * 	Canonize faces.
  */
 void buildFaces_buildAndProcessFaces(Net * net);
+
+/*
+ * Simplifies a given face
+ */
+void buildFaces_simplify(Face * face, Net * net);
+
+/* 
+ * Simplifies all the faces in the net
+ */
+void buildFaces_simplifyFaces(Net * net);
 
 /*
  * Isolates into a regular and trivial faces

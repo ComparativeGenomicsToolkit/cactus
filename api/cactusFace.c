@@ -12,7 +12,6 @@ Face * face_construct2(Name name, Net * net) {
 	return face;
 }
 
-
 /*
  * Basc constructor
  */
@@ -35,6 +34,8 @@ void face_destruct(Face * face)
 			free(face->bottomNodes[index]);
 		free(face->bottomNodes);
 		free(face->bottomNodeNumbers);
+		for (index = 0; index < face->cardinal; index++)
+			free(face->derivedEdgeDestinations[index]);
 		free(face->derivedEdgeDestinations);
 	}
 	free(face);
@@ -59,10 +60,30 @@ Cap * face_getTopNode(Face * face, int32_t index) {
 }
 
 /*
- * Get selected derived destination  of selected top node
+ * Get selected derived destinations for selected top node
+ */
+Cap * face_getDerivedDestinationAtIndex(Face * face, int32_t topIndex, int32_t derivedIndex) {
+#ifdef BEN_DEBUG
+	assert(topIndex < face_getCardinal(face));
+	assert(derivedIndex < face_getBottomNodeNumber(face, topIndex));
+#endif 
+	return face->derivedEdgeDestinations[topIndex][derivedIndex];
+}
+
+/*
+ * Get non-null derived destination of selected top node (useful for simple face)
  */
 Cap * face_getDerivedDestination(Face * face, int32_t index) {
-	return face->derivedEdgeDestinations[index];
+	int32_t bottomIndex;
+#if BEN_DEBUG
+	assert(index < face_getCardinal(face));
+#endif
+
+	for (bottomIndex = 0; bottomIndex < face_getBottomNodeNumber(face, index); bottomIndex++)
+		if (face->derivedEdgeDestinations[index][bottomIndex])
+			return face->derivedEdgeDestinations[index][bottomIndex];
+	
+	return NULL;
 }
 
 /*
@@ -90,7 +111,7 @@ void face_allocateSpace(Face * face, int32_t cardinal) {
 	face->bottomNodeNumbers =
 	    calloc(cardinal, sizeof(int32_t));
 	face->derivedEdgeDestinations =
-	    calloc(cardinal, sizeof(Cap *));
+	    calloc(cardinal, sizeof(Cap **));
 }
 
 /*
@@ -108,19 +129,22 @@ void face_setTopNode(Face * face, int32_t topIndex, Cap * topNode) {
  */
 void face_setBottomNodeNumber(Face * face, int32_t topIndex, int32_t number) {
 	face->bottomNodeNumbers[topIndex] = 0;
-	if(number)
+	if(number) {
 		face->bottomNodes[topIndex] = calloc(number, sizeof(Cap *));
-	else
+		face->derivedEdgeDestinations[topIndex] = calloc(number, sizeof(Cap *));
+	} else {
 		face->bottomNodes[topIndex] = NULL;
+		face->derivedEdgeDestinations[topIndex] = NULL;
+	}
 }
 
 /*
  * Sets the derived edge destination for a given top node in face
  */
-void face_setDerivedDestination(Face * face, int32_t topIndex, Cap * destination) {
+void face_setDerivedDestination(Face * face, int32_t topIndex, int32_t bottomIndex, Cap * destination) {
 	if (destination)
 		destination = cap_getPositiveOrientation(destination);
-	face->derivedEdgeDestinations[topIndex] = destination;
+	face->derivedEdgeDestinations[topIndex][bottomIndex] = destination;
 }
 
 /*
@@ -137,23 +161,30 @@ void face_addBottomNode(Face * face, int32_t topIndex, Cap * bottomNode) {
  */
 void face_engineerArtificialNodes(Face * face, Cap * topNode, Cap * bottomNode, int32_t nonDerived) {
 	int32_t index = face->cardinal++;
+
+	if (topNode)
+		topNode = cap_getPositiveOrientation(topNode);
+
 	face->topNodes =
 	    realloc(face->topNodes,
 		    face_getCardinal(face) * sizeof(Cap *));
-	if (topNode)
-		topNode = cap_getPositiveOrientation(topNode);
 	face_setTopNode(face, index, topNode);
+
 	face->bottomNodeNumbers =
 	    realloc(face->topNodes, face_getCardinal(face) * sizeof(int32_t));
+	face->bottomNodeNumbers[index] = 1;
+
 	face->bottomNodes =
 	    realloc(face->topNodes,
 		    face_getCardinal(face) * sizeof(Cap **));
 	face->bottomNodes[index] = malloc(sizeof(Cap *));
 	face_addBottomNode(face, index, bottomNode);
+
 	face->derivedEdgeDestinations =
 	    realloc(face->topNodes,
 		    face_getCardinal(face) * sizeof(Cap *));
-	face_setDerivedDestination(face, index,
+	face->derivedEdgeDestinations[index] = malloc(sizeof(Cap *));
+	face_setDerivedDestination(face, index, 0,
 	    cap_getParent(face_getTopNode(face, nonDerived)));
 }
 
@@ -187,16 +218,15 @@ static void face_writeBinaryRepresentationAtIndex(Face * face, int32_t index,
 	// Number of bottom nodes
 	binaryRepresentation_writeInteger(face->bottomNodeNumbers[index], writeFn);
 
-	// Names of bottom nodes
-	for (index2 = 0; index2 < face->bottomNodeNumbers[index]; index2++)
+	for (index2 = 0; index2 < face->bottomNodeNumbers[index]; index2++) {
+		// Names of bottom nodes
 		binaryRepresentation_writeName(cap_getName(face->bottomNodes[index][index2]), writeFn);
 
-	// destination of the derived edge
-	if (face->derivedEdgeDestinations[index]) {
-		binaryRepresentation_writeName(cap_getName(face->derivedEdgeDestinations[index]), writeFn);
-	}
-	else {
-		binaryRepresentation_writeName(NULL_NAME, writeFn);
+		// destination of the derived edge
+		if (face->derivedEdgeDestinations[index][index2]) 
+			binaryRepresentation_writeName(cap_getName(face->derivedEdgeDestinations[index][index2]), writeFn);
+		else 
+			binaryRepresentation_writeName(NULL_NAME, writeFn);
 	}
 }
 
@@ -235,24 +265,24 @@ static void face_loadFromBinaryRepresentationAtIndex(void **binaryString, Face *
 	// Number of bottom nodes
 	num = binaryRepresentation_getInteger(binaryString);
 	face->bottomNodeNumbers[index] = num;
-	face->bottomNodes[index] = calloc(num, sizeof(Cap));
+	face->bottomNodes[index] = calloc(num, sizeof(Cap*));
+	face->derivedEdgeDestinations[index] = calloc(num, sizeof(Cap*));
 
 	// Names of bottom nodes
 	for(index2 = 0; index2 < num; index2++) {
 		name = binaryRepresentation_getName(binaryString);
 		cap = net_getCap(net, name);
 		face->bottomNodes[index][index2] = cap;
-	}
 
-	// Derived edge destination
-	name = binaryRepresentation_getName(binaryString); //name may be null_name
-	cap = net_getCap(net, name);
-#ifdef BEN_DEBUG
-	if(name == NULL_NAME) {
-		assert(cap == NULL);
+		// Derived edge destination
+		name = binaryRepresentation_getName(binaryString); //name may be null_name
+		cap = net_getCap(net, name);
+	#ifdef BEN_DEBUG
+		if(name == NULL_NAME)
+			assert(cap == NULL);
+	#endif
+		face->derivedEdgeDestinations[index][index2] = cap;
 	}
-#endif
-	face->derivedEdgeDestinations[index] = cap;
 }
 
 /*
@@ -275,7 +305,7 @@ Face *face_loadFromBinaryRepresentation(void **binaryString, Net * net)
 		face->topNodes = calloc(num, sizeof(Cap*));
 		face->bottomNodes = calloc(num, sizeof(Cap**));
 		face->bottomNodeNumbers = calloc(num, sizeof(int32_t));
-		face->derivedEdgeDestinations = calloc(num, sizeof(Cap*));
+		face->derivedEdgeDestinations = calloc(num, sizeof(Cap**));
 
 		for (index = 0; index < num; index++)
 			face_loadFromBinaryRepresentationAtIndex(binaryString, face, index, net);
@@ -398,7 +428,7 @@ static int32_t face_breaksSimpleAlternatingPath(Face * face, int topIndex) {
 	Cap * bottomNode;
 	Cap * bottomNodePartner;
 	Cap * bottomNodePartnerAncestor;
-	Cap * derivedDestination = NULL;
+	Cap * derivedEdgeDestination = NULL;
 
 	for (index = 0; index < bottomNodeNumber; index++) {
 		bottomNode = face_getBottomNode(face, topIndex, index);
@@ -410,8 +440,8 @@ static int32_t face_breaksSimpleAlternatingPath(Face * face, int topIndex) {
 		bottomNodePartnerAncestor = face_getAttachedAncestor(bottomNodePartner);
 		if (bottomNodePartnerAncestor == partner)
 			continue;
-		else if (derivedDestination == NULL)
-			derivedDestination = bottomNodePartnerAncestor;
+		else if (derivedEdgeDestination == NULL)
+			derivedEdgeDestination = bottomNodePartnerAncestor;
 		else
 			return true;
 	}

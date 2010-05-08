@@ -37,7 +37,12 @@ int32_t face_getCardinal(Face * face);
 Cap * face_getTopNode(Face * face, int32_t index);
 
 /*
- * Get selected derived destination  of selected top node
+ * Get selected derived destinations for selected top node
+ */
+Cap * face_getDerivedDestinationAtIndex(Face * face, int32_t topIndex, int32_t derivedIndex);
+
+/*
+ * Get non-null derived destination of selected top node (useful for simple faces)
  */
 Cap * face_getDerivedDestination(Face * face, int32_t index);
 
@@ -69,7 +74,7 @@ void face_setBottomNodeNumber(Face * face, int32_t topIndex, int32_t number);
 /*
  * Sets the derived edge destination for a given top node in face
  */
-void face_setDerivedDestination(Face * face, int32_t topIndex, Cap * destination);
+void face_setDerivedDestination(Face * face, int32_t topIndex, int32_t bottomIndex, Cap * destination);
 
 /*
  * Adds bottom node to selected top node in face

@@ -66,17 +66,17 @@ static void cactusFacesTestSharedSetup() {
 
 	face_setBottomNodeNumber(face, 0, 1);
 	face_addBottomNode(face, 0, bottomCap1);
-	face_setDerivedDestination(face, 0, topCap4);
+	face_setDerivedDestination(face, 0, 0, topCap4);
 
 	face_setBottomNodeNumber(face, 1, 1);
 	face_addBottomNode(face, 1, bottomCap2);
-	face_setDerivedDestination(face, 1, topCap3);
+	face_setDerivedDestination(face, 1, 0, topCap3);
 
 	face_setBottomNodeNumber(face, 2, 1);
 	face_addBottomNode(face, 2, bottomCap3);
-	face_setDerivedDestination(face, 2, topCap2);
+	face_setDerivedDestination(face, 2, 0, topCap2);
 
 	face_setBottomNodeNumber(face, 3, 1);
 	face_addBottomNode(face, 3, bottomCap4);
-	face_setDerivedDestination(face, 3, topCap1);
+	face_setDerivedDestination(face, 3, 0, topCap1);
 }

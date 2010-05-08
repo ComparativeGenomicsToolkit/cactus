@@ -25,7 +25,7 @@ struct _face {
 	int32_t *bottomNodeNumbers;
 
 	// Destination of the isolated lifted edge
-	Cap **derivedEdgeDestinations;
+	Cap ***derivedEdgeDestinations;
 };
 
 ////////////////////////////////////////////////
