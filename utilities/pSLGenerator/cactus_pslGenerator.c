@@ -15,7 +15,21 @@
 /*
  * nknguyen@soe.ucsc.edu
  * 04/28/2010
- * This script generates pair-wise alignment for 
+ * This script generates pair-wise alignment for the input 'query' and 'target'
+ * The program will return alignments of all sequences whose names contains 'query' and 'target'
+ * For example if query is 'hg19' and target is 'panTro2', and if hg19 has two sequences hg19-seq1 
+ * and hg19-seq2, all alignments between hg19-seq1 & panTro2, and hg19-seq2 & panTro2 are printed
+ * to output file.
+ *
+ * If option 'x' , or 'exhaust' is not specified, only the best alignment is returned for each level of cactus.
+ * Best is defined as the most bases the alignment covered.
+ * 
+ * If option 'r' or 'ref' is not specified, returns the alignments of the whole region. If 'r' is specified,
+ * return only alignments in the target's regions of the psl in ref.
+ * 
+ * If option 'g' or 'tangle' is specified, look at the non-chain blocks too.
+ * 
+ * More documentation later.
  */
 
 //====================== GLOBAL STRUCTURES ====================================
@@ -42,8 +56,6 @@ bool isStubCap(Cap *cap);
 int getPSL(struct Align *align, struct Thread *qThread, struct Thread *tThread, char *query, char *target, FILE *fileHandle);
 void getPSLNet(FILE *fileHandle, char *query, char *target, int start, int end, Cap *qstartCap, bool exhaust);
 Cap *net_getChildCap(Net *net, Cap *pcap);
-//int getPSL(Net *net, struct Align *align, struct Thread *qThread, struct Thread *tThread, char *query, char *target, FILE *fileHandle, int startI);
-//void getPSLNet(Net *net, FILE *fileHandle, char *query, char *target, int start, int end, Cap *qstartCap);
 
 //========================= INITIALIZATION FUNCTIONS ==========================
 struct Thread *setThread(){
@@ -79,78 +91,6 @@ void pslInitialize(struct psl *psl){
         psl->tBaseInsert = 0;
         psl->blockCount = 0;
    return;
-}
-//============================ PRINT FUNCTIONS ================================
-//For testing purpose - not necessary for main program
-void printCap(FILE *fileHandle, Cap *cap){
-   fprintf(fileHandle, "\t%s", netMisc_nameToString(cap_getName(cap)));
-   if(isStubCap(cap)){ return; }
-   char side = cap_getSide(cap) ? '5' : '3';
-   char strand = cap_getStrand(cap) ? '+' : '-';
-   int coor = cap_getCoordinate(cap);
-   Segment *segment = cap_getSegment(cap);
-   Cap *otherCap = cap_getSide(cap) ? segment_get3Cap(segment): segment_get5Cap(segment);
-   int otherCoor = cap_getCoordinate(otherCap);
-   fprintf(fileHandle, " %c%c%d => %d\t", side, strand, coor, otherCoor);
-}
-void printStubs(FILE *fileHandle, struct Stubs *stubs){
-   int i;
-   Cap *cap;
-   fprintf(fileHandle, "Query:\n");
-   fprintf(fileHandle, "3-end Stubs, %d total:\t", stubs->qnum);
-   for(i=0; i< stubs->qnum; i++){
-      cap = *(stubs->qstubs + i);
-      fprintf(fileHandle, "\t");
-      printCap(fileHandle, cap);
-      fprintf(fileHandle, " end%s", netMisc_nameToString(end_getName(cap_getEnd(cap))));
-   }
-   fprintf(fileHandle, "\n");
-   fprintf(fileHandle, "Target:\n");
-   fprintf(fileHandle, "3-end Stubs, %d total:\t", stubs->tnum);
-   for(i=0; i< stubs->tnum; i++){
-      cap = *(stubs->tstubs + i);
-      fprintf(fileHandle, "\t");
-      printCap(fileHandle, cap);
-      fprintf(fileHandle, " end%s", netMisc_nameToString(end_getName(cap_getEnd(cap))));
-   }
-   fprintf(fileHandle, "\n");
-}
-void printThread(FILE *fileHandle, struct Thread *thread){
-   fprintf(fileHandle, "printing Thread\n");
-   if(thread == NULL){
-      fprintf(fileHandle, "NULL\n");
-   }
-   int i;
-   fprintf(fileHandle, "Thread size %d\n", thread->size);
-   for(i=0; i< thread->size; i++){
-      Cap *cap = *(thread->caps +i);
-      //Segment *segment = cap_getSegment(cap);
-      //Block *block = segment_getBlock(segment);
-      //fprintf(fileHandle, "\t%s", netMisc_nameToString(block_getName(block)));
-      fprintf(fileHandle, "\t%s", netMisc_nameToString(end_getName(cap_getEnd(cap))));
-   }
-   fprintf(fileHandle, "\nCaps:\t");
-   for(i=0; i< thread->size; i++){
-      Cap *cap = *(thread->caps +i);
-      fprintf(fileHandle, "\t");
-      printCap(fileHandle, cap);
-   }
-   fprintf(fileHandle, "\n");
-}
-void printAlign(FILE *fileHandle, struct Align *align){
-   fprintf(fileHandle, "printing Align\n");
-   fprintf(fileHandle, "Align size %d\n", align->size);
-   int i;
-   fprintf(fileHandle, "qIndices:");
-   for(i=0; i< align->size; i++){
-      fprintf(fileHandle, "\t%d", *(align->qIndices +i));
-   }
-   fprintf(fileHandle, "\n");
-   fprintf(fileHandle, "tIndices:");
-   for(i=0; i< align->size; i++){
-      fprintf(fileHandle, "\t%d", *(align->tIndices +i));
-   }
-   fprintf(fileHandle, "\n");
 }
 
 //============================= UTILS FUNCTIONS ========================
@@ -445,20 +385,15 @@ void addPSLBlocks(struct psl *psl, struct Align *align, struct Thread *qThread, 
    return;
 }
 
-//int getPSL(Net *net, struct Align *align, struct Thread *qThread, struct Thread *tThread, char *query, char *target, FILE *fileHandle, int startI){
 int getPSL(struct Align *align, struct Thread *qThread, struct Thread *tThread, char *query, char *target, FILE *fileHandle){
    /*
     *Get PSL
     */
-   //char *pslDesc = NULL;
-   //FILE *err = fopen("dump", "w");
    if(align == NULL || qThread == NULL || tThread == NULL){
       return 0;
    }
    int blockSpace = 32; //default number of blocks 
    char strand[3];
-   //char *netName = netMisc_nameToString(net_getName(net));
-   //struct psl * psl = pslNew(netName, 0, 0, 0, target, 0, 0, 0, strand, blockSpace, 0);
    struct psl * psl = pslNew(query, 0, 0, 0, target, 0, 0, 0, strand, blockSpace, 0);
    pslInitialize(psl);
    
@@ -479,9 +414,7 @@ int getPSL(struct Align *align, struct Thread *qThread, struct Thread *tThread, 
       if(!isPlus(psl->strand[1])){
          pslRc(psl);
       }
-      //if(pslCheck(pslDesc, err, psl) == 0){
-         pslOutput(psl, fileHandle, sep, lastStep);
-      //}
+      pslOutput(psl, fileHandle, sep, lastStep);
    }
    numBlocks = psl->blockCount;
    pslFree(&psl);
@@ -496,72 +429,6 @@ void initializeIndices(int **qIndices, int **tIndices, int size, int qi, int ti)
    *((*tIndices) + size -1) = ti;
    return;
 }
-/*struct Align **alignThreads(struct Thread *qThread, struct Thread *tThread, int qi, int ti, int *size){
-   struct Align **aligns = NULL;
-   struct Align **prevAligns;
-   int *qIndices;
-   int *tIndices;
-   int curr_ti, k, l;
-   int count = 0;
-   int prevSize = 0;
-   bool checkMatch;
-   if(qi == qThread->size -1 || ti == tThread->size -1){//at the end of one (or both) thread(s)
-      if(isMatch(qThread, tThread, qi, ti)){
-         aligns = AllocA(struct Align *);
-         qIndices = AllocA(int);
-         tIndices = AllocA(int);
-	 *qIndices = qi;
-	 *tIndices = ti;
-         *aligns = setAlign(qIndices, tIndices, 1);
-	 *size = 1;
-	 return aligns;
-      }else{
-         return NULL;
-      }
-   }
-   for(curr_ti = ti; curr_ti < tThread->size - 1; curr_ti++){
-      checkMatch = isMatch(qThread, tThread, qi, curr_ti);
-      if(checkMatch){
-         prevSize = 0;
-         prevAligns = alignThreads(qThread, tThread, qi + 1, curr_ti + 1, &prevSize);
-	 if(prevSize == 0){
-            if(count == 0){
-               aligns = AllocA(struct Align *);
-	    }else{
-               aligns = needMoreMem(aligns, count*sizeof(struct Align *), (count +1)*sizeof(struct Align *));
-	    }
-            qIndices = AllocA(int);
-            tIndices = AllocA(int);
-	    *qIndices = qi;
-	    *tIndices = ti;
-	    *(aligns + count) = setAlign(qIndices, tIndices, 1);
-            count += 1;
-         }else{
-            if(count == 0){
-               aligns = AllocN(struct Align *, prevSize);
-	    }else{
-               aligns = needMoreMem(aligns, count*sizeof(struct Align *), (count +prevSize)*sizeof(struct Align *));
-	    }
-	    for(k=0; k < prevSize; k++){
-	       struct Align *pA = *(prevAligns +k);
-               qIndices = AllocN(int, 1+pA->size);
-               tIndices = AllocN(int, 1+pA->size);
-	       *qIndices = qi;
-	       *tIndices = curr_ti;
-               for(l=0; l< pA->size ; l++){
-	          *(qIndices +l +1) = *(pA->qIndices + l);
-	          *(tIndices +l +1) = *(pA->tIndices + l);
-	       }
-	       *(aligns + count +k) = setAlign(qIndices, tIndices, pA->size +1);
-	    }
-	    count += prevSize;
-         }
-         freeMem(prevAligns);
-      }
-   }
-   *size = count;
-   return aligns;
-}*/
 void aligns_getMem(struct Align ***aligns, int oldsize, int addsize){
    if(oldsize == 0){
       (*aligns) = AllocN(struct Align *, addsize);
@@ -621,7 +488,8 @@ struct Align *align_getBest(struct Align **aligns, int num, struct Thread *qthre
 }
 
 struct Align *alignThreads(struct Thread *qThread, struct Thread *tThread){
-   /* Dynamic programming - linear space to get the best alignment of qThread and tThread*/
+   /* Dynamic programming - linear space - to get the best alignment of qThread and tThread*/
+   //Still need to tidy this up...
    struct Align ***pA = NULL;//alignment of last & current rows
    struct Align *align;
    struct Align **aligns;
@@ -702,6 +570,7 @@ struct Align *alignThreads(struct Thread *qThread, struct Thread *tThread){
 }
 
 struct Align **alignThreads_exhaust(struct Thread *qThread, struct Thread *tThread, int *size){
+//Still need to tidy this up...
    fprintf(stderr, "Exhaustly aligning ...\n");
    struct Align ****pA = NULL;//alignment of last & current rows
    int **sizes;
@@ -994,8 +863,6 @@ void getPSLNet(FILE *fileHandle, char *query, char *target, int start, int end, 
    int size;
    int i=0;
    Cap *cap;
-   //char *netName = netMisc_nameToString(net_getName(net));
-   //fprintf(stderr, "\nNET: %s\n", netName);
    struct Thread *qThread = setThread();
    struct Align *align;
    End *startEnd = traverseQuery(qstartCap, &qThread, query, target, start, end, fileHandle, exhaust);
@@ -1011,7 +878,6 @@ void getPSLNet(FILE *fileHandle, char *query, char *target, int start, int end, 
          struct Thread *tThread = setThread();
          traverseTarget(cap, &tThread, query, target, start, end);
          i++;
-         //fprintf(stderr, "qThreadSize = %d, tThreadSize = %d\n", qThread->size, tThread->size);
          if(!exhaust){
             align = alignThreads(qThread, tThread);
             if(align != NULL){
@@ -1024,7 +890,6 @@ void getPSLNet(FILE *fileHandle, char *query, char *target, int start, int end, 
             aligns = alignThreads_exhaust(qThread, tThread, &size);
             int a;
             for(a = 0; a < size; a++){
-               //printAlign(stderr, *(aligns +a));
                   getPSL(*(aligns + a), qThread, tThread, query, target, fileHandle);
             }
 	    if(size > 0){ freeMem(aligns); }
@@ -1265,7 +1130,6 @@ void usage() {
    fprintf(stderr, "cactus_pslGenerator, version 0.2\n");
    fprintf(stderr, "-a --logLevel : Set the log level\n");
    fprintf(stderr, "-c --netDisk : The location of the net disk directory\n");
-   //fprintf(stderr, "-d --netName : The name of the net (the key in the database)\n");
    fprintf(stderr, "-e --outputFile : The file to write the PSLs in.\n");
    fprintf(stderr, "-q --query : Name of the query sequence.\n");
    fprintf(stderr, "-t --target : Name of the target sequence.\n");
@@ -1303,7 +1167,6 @@ int main(int argc, char *argv[]) {
 
    while(1) {
       static struct option long_options[] = {
-         //{ "netName", required_argument, 0, 'd' },
          { "exhaust", no_argument, 0, 'x' },
          { "tangle", no_argument, 0, 'g' },
          { "offset", required_argument, 0, 'o' },
@@ -1332,9 +1195,6 @@ int main(int argc, char *argv[]) {
          case 'c':
             netDiskName = stringCopy(optarg);
             break;
-         /*case 'd':
-            netName = stringCopy(optarg);
-            break;*/
          case 'e':
             outputFile = stringCopy(optarg);
             break;
@@ -1370,7 +1230,6 @@ int main(int argc, char *argv[]) {
    ///////////////////////////////////////////////////////////////////////////
 
    assert(netDiskName != NULL);
-   //assert(netName != NULL);
    assert(outputFile != NULL);
    assert(query != NULL);
    assert(target != NULL);
