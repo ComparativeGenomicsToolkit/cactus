@@ -331,32 +331,25 @@ Face *face_getStaticNameWrapper(Name name) {
 }
 
 /*
- * Tests if a given node is a top node in face
- */
-static int32_t face_isTopNode(Face * face, Cap * cap) {
-	int32_t cardinal = face_getCardinal(face);
-	int32_t index;
-
-	if (cap)
-		cap = cap_getPositiveOrientation(cap);
-	for (index = 0; index < cardinal; index++)
-		if (cap == face_getTopNode(face, index))
-			return true;
-
-	return false;
-}
-
-/*
  * Tests if all the top nodes are separate from the bottom nodes
  */
-static int32_t face_isPseudoBipartite(Face * face) {
+static int32_t face_isStronglyAcyclic(Face * face) {
 	int32_t cardinal = face_getCardinal(face);
-	int32_t topIndex, bottomIndex;
+	int32_t topIndex1, topIndex, bottomIndex;
+	Event * topEvent, * bottomEvent;
 
-	for (topIndex = 0; topIndex < cardinal; topIndex++)
-		for (bottomIndex = 0; bottomIndex < face_getBottomNodeNumber(face, topIndex); bottomIndex++)
-			if (face_isTopNode(face, face_getBottomNode(face, topIndex, bottomIndex)))
-				return false;
+	for (topIndex1 = 0; topIndex1 < cardinal; topIndex1++) {
+		topEvent = cap_getEvent(face_getTopNode(face, topIndex1));
+
+		for (topIndex = 0; topIndex < cardinal; topIndex++) {
+			for (bottomIndex = 0; bottomIndex < face_getBottomNodeNumber(face, topIndex); bottomIndex++) {
+				bottomEvent = cap_getEvent(face_getBottomNode(face, topIndex, bottomIndex));
+				if (bottomEvent == topEvent
+				    || event_isAncestor(bottomEvent, topEvent))
+					return false;
+			}
+		}
+	}
 
 	return true;
 }
@@ -467,7 +460,7 @@ static int32_t face_isSimpleAlternatingPath(Face * face) {
  * Tests if a face is simple
  */
 int32_t face_isSimple(Face * face) {
-	return face_isPseudoBipartite(face)
+	return face_isStronglyAcyclic(face)
 	       && face_hasSeparateDescentEdges(face)
 	       && face_isSimpleAlternatingPath(face);
 }
