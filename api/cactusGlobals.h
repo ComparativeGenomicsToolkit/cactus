@@ -16,6 +16,7 @@
  * For the hashtables.
  */
 #include "hashTableC.h"
+#include "hashTableC_itr.h"
 /*
  * For lists
  */
@@ -69,5 +70,6 @@ typedef BDBCUR NetDisk_NetNameIterator;
 typedef struct avl_traverser NetDisk_NetIterator;
 typedef struct avl_traverser Reference_PseudoChromosomeIterator;
 typedef struct avl_traverser PseudoChromsome_PseudoAdjacencyIterator;
+typedef struct hashtable_itr Hash_Iterator;
 
 #endif

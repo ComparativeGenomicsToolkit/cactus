@@ -1,4 +1,4 @@
-#include "cactusChainsTestShared.h"
+#include "cactusGlobalsPrivate.h"
 
 static Hash *hash;
 static Hash *hash2;
@@ -126,12 +126,42 @@ void testHash_size(CuTest *testCase) {
 	testTeardown();
 }
 
+void testHash_testIterator(CuTest *testCase) {
+	testSetup();
+
+	Hash_Iterator *iterator = hash_getIterator(hash);
+	Hash_Iterator *iteratorCopy = hash_copyIterator(iterator);
+	int32_t i=0;
+	Hash *seen = hash_construct();
+	for(i=0; i<3; i++) {
+		void *o = hash_getNext(iterator);
+		CuAssertTrue(testCase, o != NULL);
+		CuAssertTrue(testCase, hash_search(hash, o) != NULL);
+		CuAssertTrue(testCase, hash_search(seen, o) == NULL);
+		CuAssertTrue(testCase, hash_getNext(iteratorCopy) == o);
+		hash_insert(seen, o, o);
+		uglyf("Ho ho\n");
+	}
+	uglyf("done\n");
+	CuAssertTrue(testCase, hash_getNext(iterator) == NULL);
+	uglyf("goo\n");
+	CuAssertTrue(testCase, hash_getNext(iterator) == NULL);
+	CuAssertTrue(testCase, hash_getNext(iteratorCopy) == NULL);
+	hash_destruct(seen);
+	hash_destructIterator(iterator);
+	hash_destructIterator(iteratorCopy);
+
+	testTeardown();
+}
+
+
 CuSuite* cactusHashTestSuite(void) {
 	CuSuite* suite = CuSuiteNew();
 	SUITE_ADD_TEST(suite, testHash_search);
 	SUITE_ADD_TEST(suite, testHash_remove);
 	SUITE_ADD_TEST(suite, testHash_insert);
 	SUITE_ADD_TEST(suite, testHash_size);
+	SUITE_ADD_TEST(suite, testHash_testIterator);
 	SUITE_ADD_TEST(suite, testHash_construct);
 	return suite;
 }

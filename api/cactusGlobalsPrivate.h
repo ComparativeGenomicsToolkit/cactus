@@ -19,6 +19,7 @@
 #include "commonC.h"
 #include "avl.h"
 #include "hashTableC.h"
+#include "hashTableC_itr.h"
 
 #define NAME_STRING "%llX"
 

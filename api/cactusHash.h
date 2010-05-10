@@ -51,4 +51,24 @@ void *hash_remove(Hash *hash, void *key);
  */
 int32_t hash_size(Hash *hash);
 
+/*
+ * Returns an iterator of the keys in the hash.
+ */
+Hash_Iterator *hash_getIterator(Hash *hash);
+
+/*
+ * Gets the next key from the iterator.
+ */
+void *hash_getNext(Hash_Iterator *iterator);
+
+/*
+ * Duplicates the iterator.
+ */
+Hash_Iterator *hash_copyIterator(Hash_Iterator *iterator);
+
+/*
+ * Destructs the iterator.
+ */
+void hash_destructIterator(Hash_Iterator *iterator);
+
 #endif

@@ -43,3 +43,29 @@ void *hash_remove(Hash *hash, void *key) {
 int32_t hash_size(Hash *hash) {
 	return hashtable_count(hash->hash);
 }
+
+Hash_Iterator *hash_getIterator(Hash *hash) {
+	return hashtable_iterator(hash->hash);
+}
+
+void *hash_getNext(Hash_Iterator *iterator) {
+	if(iterator->e != NULL) {
+		void *o = hashtable_iterator_key(iterator);
+		hashtable_iterator_advance(iterator);
+		return o;
+	}
+	return NULL;
+}
+
+Hash_Iterator *hash_copyIterator(Hash_Iterator *iterator) {
+	Hash_Iterator *iterator2 = malloc(sizeof(Hash_Iterator));
+	iterator2->h = iterator->h;
+	iterator2->e = iterator->e;
+	iterator2->parent = iterator->parent;
+	iterator2->index = iterator->index;
+	return iterator2;
+}
+
+void hash_destructIterator(Hash_Iterator *iterator) {
+	free(iterator);
+}
