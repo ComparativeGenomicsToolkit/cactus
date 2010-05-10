@@ -472,7 +472,7 @@ double nonSimpleFacesPerEnd(End *end) {
 	Hash *faceHash = hash_construct();
 	int32_t i = 0;
 	while((cap = end_getNext(capIterator)) != NULL) {
-		Face *face = cap_getFace(cap);
+		Face *face = cap_getTopFace(cap);
 		if(face != NULL) {
 			if(hash_search(faceHash, face) == NULL) {
 				hash_insert(faceHash, face, face);

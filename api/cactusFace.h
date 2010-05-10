@@ -37,6 +37,31 @@ int32_t face_getCardinal(Face * face);
 Cap * face_getTopNode(Face * face, int32_t index);
 
 /*
+ * Gets an iterator over the face ends in the face.
+ */
+Face_FaceEndIterator *face_getFaceEndIterator(Face *face);
+
+/*
+ * Gets next face end.
+ */
+FaceEnd *face_getNextFaceEnd(Face_FaceEndIterator *iterator);
+
+/*
+ * Gets the previous face end.
+ */
+FaceEnd *face_getPreviousFaceEnd(Face_FaceEndIterator *iterator);
+
+/*
+ * Duplicates the iterator.
+ */
+Face_FaceEndIterator *face_copyFaceEndIterator(Face_FaceEndIterator *iterator);
+
+/*
+ * Deletes the iterator.
+ */
+void face_destructFaceEndIterator(Face_FaceEndIterator *iterator);
+
+/*
  * Get selected derived destinations for selected top node
  */
 Cap * face_getDerivedDestinationAtIndex(Face * face, int32_t topIndex, int32_t derivedIndex);
@@ -110,5 +135,11 @@ int32_t face_isCanonical(Face * face);
  * Checks the face has the properties that we expect. Creates an assertion error if not.
  */
 void face_check(Face *face);
+
+/*
+ * Checks that the set of faces is as we expect - with a face created
+ * for each non-trivial face.
+ */
+void face_checkFaces(Net *net);
 
 #endif

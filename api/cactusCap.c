@@ -207,8 +207,44 @@ Cap *cap_getAdjacency(Cap *cap) {
 	return cap_getP(cap, cap->capContents->adjacency);
 }
 
-Face *cap_getFace(Cap *cap) {
+Cap *cap_getTopCap(Cap *cap) {
+	if(cap_getAdjacency(cap) == NULL || end_getRootInstance(cap_getEnd(cap)) != cap) {
+		return NULL;
+	}
+	Cap *cap2 = cap_getParent(cap);
+	assert(cap2 != NULL);
+	while(1) {
+		if(cap_getAdjacency(cap2) != NULL) {
+			return cap2;
+		}
+		if(cap_getParent(cap2) == NULL) {
+			assert(end_getRootInstance(cap_getEnd(cap2)) == cap2);
+			return cap2;
+		}
+		cap2 = cap_getParent(cap2);
+	}
+}
+
+Face *cap_getTopFace(Cap *cap) {
 	return cap->capContents->face;
+}
+
+FaceEnd *cap_getTopFaceEnd(Cap *cap) {
+	Face *face = cap_getTopFace(cap);
+	if(face != NULL) {
+		FaceEnd *faceEnd = face_getFaceEndForTopNode(face, cap);
+		assert(faceEnd != NULL);
+		return faceEnd;
+	}
+	return NULL;
+}
+
+FaceEnd *cap_getBottomFaceEnd(Cap *cap) {
+	Cap *topNode = cap_getTopCap(cap);
+	if(topNode != NULL) {
+		return cap_getTopFaceEnd(topNode);
+	}
+	return NULL;
 }
 
 Cap *cap_getParent(Cap *cap) {
@@ -360,7 +396,7 @@ void cap_check(Cap *cap) {
 	else {
 		assert(cap_getReverse(cap_getAdjacency(rCap)) == cap_getAdjacency(cap));
 	}
-	assert(cap_getFace(cap) == cap_getFace(rCap));
+	assert(cap_getTopFace(cap) == cap_getTopFace(rCap));
 	if(cap_getParent(cap) == NULL) {
 		assert(cap_getParent(rCap) == NULL);
 	}

@@ -109,9 +109,26 @@ void cap_breakAdjacency(Cap *cap);
 Cap *cap_getAdjacency(Cap *cap);
 
 /*
- * Gets any face associated the cap.
+ * Returns the top node associated with the cap. Returns NULL if
+ * the cap is not attached or if the cap is a root node. This function is
+ * denoted A(c) for cap c in the AVG paper.
  */
-Face *cap_getFace(Cap *cap);
+Cap *cap_getTopCap(Cap *cap);
+
+/*
+ * Gets any face in which the cap is a top node.
+ */
+Face *cap_getTopFace(Cap *cap);
+
+/*
+ * Returns any face-end associated in which the cap is a top node, or NULL.
+ */
+FaceEnd *cap_getTopFaceEnd(Cap *cap);
+
+/*
+ * Returns any face-end associated in the cap is a bottom node, or NULL.
+ */
+FaceEnd *cap_getBottomFaceEnd(Cap *cap);
 
 /*
  * Gets the parent cap (in the tree of the end).

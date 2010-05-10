@@ -14,66 +14,66 @@
 /*
  * Constructs a sorted set, using the given comparison function.
  */
-struct avl_table *sortedSet_construct(int32_t (*compareFn)(const void *, const void *, void *));
+SortedSet *sortedSet_construct(int32_t (*compareFn)(const void *, const void *, void *));
 
 /*
  * Destructs the sorted set, applying the destruct function to each element.
  */
-void sortedSet_destruct(struct avl_table *sortedSet, void (*destructElementFn)(void *, void *));
+void sortedSet_destruct(SortedSet *sortedSet, void (*destructElementFn)(void *, void *));
 
 /*
  * Inserts the object into the sorted set.
  */
-void sortedSet_insert(struct avl_table *sortedSet, void *object);
+void sortedSet_insert(SortedSet *sortedSet, void *object);
 
 /*
  * Finds the objects in the sorted set, or returns null.
  */
-void *sortedSet_find(struct avl_table *sortedSet, void *object);
+void *sortedSet_find(SortedSet *sortedSet, void *object);
 
 /*
  * Deletes the object in the sorted set.
  */
-void sortedSet_delete(struct avl_table *sortedSet, void *object);
+void sortedSet_delete(SortedSet *sortedSet, void *object);
 
 /*
  * Gets the number of elements in the sorted set.
  */
-int32_t sortedSet_getLength(struct avl_table *sortedSet);
+int32_t sortedSet_getLength(SortedSet *sortedSet);
 
 /*
  * Gets the first element (with lowest value), in the sorted set.
  */
-void *sortedSet_getFirst(struct avl_table *items);
+void *sortedSet_getFirst(SortedSet *items);
 
 /*
  * Gets the last element in the sorted set.
  */
-void *sortedSet_getLast(struct avl_table *items);
+void *sortedSet_getLast(SortedSet *items);
 
 /*
  * Constructs an iterator for the sorted set.
  */
-struct avl_traverser *iterator_construct(struct avl_table *items);
+SortedSet_Iterator *iterator_construct(SortedSet *items);
 
 /*
  * Destructs an iterator for the sorted set.
  */
-void iterator_destruct(struct avl_traverser *iterator);
+void iterator_destruct(SortedSet_Iterator *iterator);
 
 /*
  * Gets next element in the sorted set.
  */
-void *iterator_getNext(struct avl_traverser *iterator);
+void *iterator_getNext(SortedSet_Iterator *iterator);
 
 /*
  * Gets the previous element in the sorted set.
  */
-void *iterator_getPrevious(struct avl_traverser *iterator);
+void *iterator_getPrevious(SortedSet_Iterator *iterator);
 
 /*
  * Copies the iterator.
  */
-struct avl_traverser *iterator_copy(struct avl_traverser *iterator);
+SortedSet_Iterator *iterator_copy(SortedSet_Iterator *iterator);
 
 #endif

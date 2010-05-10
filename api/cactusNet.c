@@ -558,6 +558,7 @@ void net_check(Net *net) {
 	net_destructEndIterator(endIterator);
 
 	if(net_builtFaces(net)) {
+		face_checkFaces(net);
 		Net_FaceIterator *faceIterator = net_getFaceIterator(net);
 		Face *face;
 		while((face = net_getNextFace(faceIterator)) != NULL) {

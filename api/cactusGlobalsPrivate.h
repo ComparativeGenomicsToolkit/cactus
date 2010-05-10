@@ -58,6 +58,8 @@
 #include "cactusPseudoAdjacencyPrivate.h"
 #include "cactusFace.h"
 #include "cactusFacePrivate.h"
+#include "cactusFaceEnd.h"
+#include "cactusFaceEndPrivate.h"
 #include "cactusReference.h"
 #include "cactusReferencePrivate.h"
 #include "cactusSequence.h"
@@ -67,6 +69,5 @@
 #include "cactusTestCommon.h"
 #include "cactusHash.h"
 #include "cactusHashPrivate.h"
-
 
 #endif

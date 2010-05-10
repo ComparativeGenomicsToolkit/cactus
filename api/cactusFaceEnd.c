@@ -1,0 +1,70 @@
+#include "cactusGlobalsPrivate.h"
+/*
+ * FaceEnd.c
+ *
+ *  Created on: 10-May-2010
+ *      Author: benedictpaten
+ */
+
+Cap *faceEnd_getTopNode(FaceEnd *faceEnd) {
+	return face_getTopNode(faceEnd_getFace(faceEnd), faceEnd->topNodeIndex);
+}
+
+Face *faceEnd_getFace(FaceEnd *faceEnd) {
+	return faceEnd->face;
+}
+
+int32_t faceEnd_getNumberOfBottomNodes(FaceEnd *faceEnd) {
+	return face_getBottomNodeNumber(faceEnd_getFace(faceEnd), faceEnd->topNodeIndex);
+}
+
+FaceEnd_BottomNodeIterator *faceEnd_getBottomNodeIterator(FaceEnd *faceEnd) {
+	FaceEnd_BottomNodeIterator *iterator = mallocLocal(sizeof(FaceEnd_BottomNodeIterator));
+	iterator->faceEnd = faceEnd;
+	iterator->bottomNodeIndex = 0;
+	return iterator;
+}
+
+Cap *faceEnd_getNextBottomNode(FaceEnd_BottomNodeIterator *iterator) {
+	Face *face = faceEnd_getFace(iterator->faceEnd);
+	if(iterator->bottomNodeIndex < face_getBottomNodeNumber(face, iterator->faceEnd->topNodeIndex)) {
+		return face_getBottomNode(face, iterator->faceEnd->topNodeIndex, iterator->bottomNodeIndex++);
+	}
+	return NULL;
+}
+
+Cap *faceEnd_getPreviousBottomNode(FaceEnd_BottomNodeIterator *iterator) {
+	Face *face = faceEnd_getFace(iterator->faceEnd);
+	assert(iterator->bottomNodeIndex <= face_getBottomNodeNumber(face, iterator->faceEnd->topNodeIndex));
+	if(iterator->bottomNodeIndex-1 >= 0) {
+		return face_getBottomNode(face, iterator->faceEnd->topNodeIndex, --iterator->bottomNodeIndex);
+	}
+	return NULL;
+}
+
+FaceEnd_BottomNodeIterator *faceEnd_copyBottomNodeIterator(FaceEnd_BottomNodeIterator *iterator) {
+	FaceEnd_BottomNodeIterator *iterator2 = faceEnd_getBottomNodeIterator(iterator->faceEnd);
+	iterator2->bottomNodeIndex = iterator->bottomNodeIndex;
+	return iterator2;
+}
+
+void faceEnd_destructBottomNodeIterator(FaceEnd_BottomNodeIterator *iterator) {
+	free(iterator);
+}
+
+/*
+ * Private functions
+ */
+
+FaceEnd *faceEnd_construct(Face *face, int32_t topNodeIndex) {
+	FaceEnd *faceEnd = mallocLocal(sizeof(FaceEnd));
+	assert(topNodeIndex >= 0);
+	assert(topNodeIndex <= face_getCardinal(face));
+	faceEnd->face = face;
+	faceEnd->topNodeIndex = topNodeIndex;
+	return faceEnd;
+}
+
+void faceEnd_destruct(FaceEnd *faceEnd) {
+	free(faceEnd);
+}

@@ -26,6 +26,14 @@ struct _face {
 
 	// Destination of the isolated lifted edge
 	Cap ***derivedEdgeDestinations;
+
+	//Pointer to memory for faceEnds..
+	FaceEnd **faceEnds;
+};
+
+struct _face_FaceEndIterator {
+	Face *face;
+	int32_t index;
 };
 
 ////////////////////////////////////////////////
@@ -69,4 +77,11 @@ Face *face_getStaticNameWrapper(Name name);
  * Sets the net associated with the face.
  */
 void face_setNet(Face *face, Net *net);
+
+/*
+ * Gets the face end associated with the top node of the cap. The public
+ * way todo this is cap_getTopFaceEnd(cap);
+ */
+FaceEnd *face_getFaceEndForTopNode(Face *face, Cap *cap);
+
 #endif

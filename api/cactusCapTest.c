@@ -224,11 +224,29 @@ void testCap_adjacent(CuTest* testCase) {
 	cactusCapTestTeardown();
 }
 
-void testCap_getFace(CuTest* testCase) {
+void testCap_getTopCap(CuTest* testCase) {
+	cactusCapTestSetup();
+
+	cactusCapTestTeardown();
+}
+
+void testCap_getTopFace(CuTest* testCase) {
 	cactusCapTestSetup();
 	Face *face = face_construct(net);
 	cap_setFace(rootCap, face);
-	CuAssertTrue(testCase, cap_getFace(rootCap) == face);
+	CuAssertTrue(testCase, cap_getTopFace(rootCap) == face);
+	cactusCapTestTeardown();
+}
+
+void testCap_getTopFaceEnd(CuTest* testCase) {
+	cactusCapTestSetup();
+
+	cactusCapTestTeardown();
+}
+
+void testCap_getBottomFaceEnd(CuTest* testCase) {
+	cactusCapTestSetup();
+
 	cactusCapTestTeardown();
 }
 
@@ -289,7 +307,10 @@ void testCap_serialisation(CuTest* testCase) {
 	testCap_getSide(testCase);
 	testCap_getSequence(testCase);
 	testCap_adjacent(testCase);
-	testCap_getFace(testCase);
+	testCap_getTopCap(testCase);
+	testCap_getTopFace(testCase);
+	testCap_getTopFaceEnd(testCase);
+	testCap_getBottomFaceEnd(testCase);
 	testCap_getParent(testCase);
 	testCap_getChildNumber(testCase);
 	testCap_getChild(testCase);
@@ -314,7 +335,10 @@ CuSuite* cactusCapTestSuite(void) {
 	SUITE_ADD_TEST(suite, testCap_getSide);
 	SUITE_ADD_TEST(suite, testCap_getSequence);
 	SUITE_ADD_TEST(suite, testCap_adjacent);
-	SUITE_ADD_TEST(suite, testCap_getFace);
+	SUITE_ADD_TEST(suite, testCap_getTopCap);
+	SUITE_ADD_TEST(suite, testCap_getTopFace);
+	SUITE_ADD_TEST(suite, testCap_getTopFaceEnd);
+	SUITE_ADD_TEST(suite, testCap_getBottomFaceEnd);
 	SUITE_ADD_TEST(suite, testCap_getParent);
 	SUITE_ADD_TEST(suite, testCap_getChildNumber);
 	SUITE_ADD_TEST(suite, testCap_getChild);

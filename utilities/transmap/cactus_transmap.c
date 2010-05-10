@@ -267,9 +267,9 @@ static bool transmap_sampleOrderAndOrientationAtEvent(Event * E, Cap * A, Cap * 
 	if (event_isAncestor(cap_getEvent(A), E)) {
 #ifdef BEN_DEBUG
 		assert(cap_getSide(A));
-		assert(cap_getFace(A));
+		assert(cap_getTopFace(A));
 #endif
-		face = cap_getFace(A);
+		face = cap_getTopFace(A);
 		for (index = 0; index < face_getCardinal(face); index++)
 			if (face_getTopNode(face, index) == A)
 				break;
@@ -307,8 +307,8 @@ static bool transmap_sampleOrderAndOrientationAtEvent(Event * E, Cap * A, Cap * 
 				topCap = transmap_findTopCap(E,A);
 				if (topCap && cap_getEvent(topCap) == E)
 					A = topCap;
-				if (topCap && cap_getFace(topCap)
-				    && transmap_goByAncestralPath(cap_getFace(topCap), E)) 
+				if (topCap && cap_getTopFace(topCap)
+				    && transmap_goByAncestralPath(cap_getTopFace(topCap), E)) 
 					A = topCap;				
 				else
 					A = transmap_findBottomCap(E,A);

@@ -18,6 +18,7 @@
 #include "cactusNetDisk.h"
 #include "cactusNetMisc.h"
 #include "cactusFace.h"
+#include "cactusFaceEnd.h"
 #include "cactusSequence.h"
 #include "cactusReference.h"
 #include "cactusPseudoChromosome.h"

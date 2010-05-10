@@ -36,6 +36,18 @@ void testFace_getTopNode(CuTest* testCase) {
 	cactusFaceTestTeardown();
 }
 
+void testFace_faceEndIterator(CuTest* testCase) {
+	cactusFaceTestSetup();
+
+	cactusFaceTestTeardown();
+}
+
+
+/*
+ * Duplicates the iterator.
+ */
+Face_FaceEndIterator *face_copyFaceEndIterator(Face_FaceEndIterator *iterator);
+
 void testFace_getDerivedDestination(CuTest* testCase) {
 	cactusFaceTestSetup();
 	CuAssertTrue(testCase, face_getDerivedDestinationAtIndex(face, 0, 0) == cap_getPositiveOrientation(topCap4));
@@ -98,6 +110,7 @@ CuSuite *cactusFaceTestSuite(void) {
 	CuSuite* suite = CuSuiteNew();
 	SUITE_ADD_TEST(suite, testFace_getTopNode);
 	SUITE_ADD_TEST(suite, testFace_getCardinal);
+	SUITE_ADD_TEST(suite, testFace_faceEndIterator);
 	SUITE_ADD_TEST(suite, testFace_getDerivedDestination);
 	SUITE_ADD_TEST(suite, testFace_getBottomNodeNumber);
 	SUITE_ADD_TEST(suite, testFace_getBottomNode);
