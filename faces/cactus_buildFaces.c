@@ -327,9 +327,7 @@ void buildFaces_constructFaces(Net * net) {
 
 	while ((current = net_getNextCap(iter)))
 		if ((liftedEdges = hashtable_search(liftedEdgesTable, current))
-				&& (liftedEdges->length >= 2
-						|| buildFaces_getMinorLiftedEdgeDestination(current,
-								liftedEdges)))
+		    && buildFaces_getMinorLiftedEdgeDestination(current, liftedEdges))
 			buildFaces_constructFromCap(current, liftedEdgesTable, ancestorsTable, net);
 
 	hashtable_destroy(liftedEdgesTable, true,false);
