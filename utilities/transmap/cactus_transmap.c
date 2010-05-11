@@ -19,6 +19,9 @@
 #ifndef false
 #define false 0
 #endif
+#ifndef maybe
+#define maybe -1
+#endif
 
 // Sub for recursion
 static int32_t transmap_getTotalDistanceBetweenCaps(Cap * A, Cap * B);
@@ -80,12 +83,12 @@ static int32_t transmap_getTotalDistanceBetweenCaps(Cap * A, Cap * B) {
 }
 
 // Stub for recursion
-static bool transmap_sampleOrderAndOrientationAtEvent(Event * E, Cap * A, Cap * B, int32_t * allowed_distance);
+static int32_t transmap_sampleOrderAndOrientationAtEvent(Event * E, Cap * A, Cap * B, int32_t * allowed_distance);
 
 /* 
  * Projects the stochastic search to a nested net
  */
-static bool transmap_sampleOrderAndOrientationAtNestedNet(Event * E, Cap * A, int * allowed_distance) {
+static int32_t transmap_sampleOrderAndOrientationAtNestedNet(Event * E, Cap * A, int * allowed_distance) {
 	Net * net = group_getNestedNet(end_getGroup(cap_getEnd(A))); 
 	Cap * B, * childA, * childB;
 	Event * childE;
@@ -108,13 +111,20 @@ static bool transmap_sampleOrderAndOrientationAtNestedNet(Event * E, Cap * A, in
 	assert(childE);
 #endif
 
-	return transmap_sampleOrderAndOrientationAtEvent(childE, childA, childB, allowed_distance);
+	switch (transmap_sampleOrderAndOrientationAtEvent(childE, childA, childB, allowed_distance)) {
+	case true:
+		return true;
+	case false:
+		return false;
+	default:
+		return (transmap_sampleOrderAndOrientationAtEvent(childE, cap_getReverse(childB), cap_getReverse(childA), allowed_distance) == maybe);
+	}
 }
 
 /* 
  * Stochastic decision whether to jump a face or not
  */
-static bool transmap_goByAncestralPath(Face * face, Event * E) {
+static int32_t transmap_goByAncestralPath(Face * face, Event * E) {
 	Event * topEvent, * bottomEvent, * tmpEvent;
 	float totalTimeSpan = 0;
 	float partialTimeSpan = 0;
@@ -245,10 +255,10 @@ static Cap* transmap_findBottomCap(Event * E, Cap * A) {
  * Tries to connect two caps at the time of event
  * Returns true if success
  */
-static bool transmap_sampleOrderAndOrientationAtEvent(Event * E, Cap * A, Cap * B, int32_t * allowed_distance) {
+static int32_t transmap_sampleOrderAndOrientationAtEvent(Event * E, Cap * A, Cap * B, int32_t * allowed_distance) {
 	Face * face;
 	int32_t index;
-	Cap * topCap, *bottomCap;
+	Cap * topCap;
 	int32_t bottomCapNumber;
 
 	// Termination of recursion
@@ -271,13 +281,16 @@ static bool transmap_sampleOrderAndOrientationAtEvent(Event * E, Cap * A, Cap * 
 #endif
 		face = cap_getTopFace(A);
 		for (index = 0; index < face_getCardinal(face); index++)
-			if (face_getTopNode(face, index) == A)
+			if (face_getTopNode(face, index) == cap_getPositiveOrientation(A))
 				break;
 #ifdef BEN_DEBUG
 		assert(index < face_getCardinal(face));
 		assert(face_getBottomNodeNumber(face, index) == 1);
 #endif
-		A = face_getBottomNode(face, index, 0);
+		if (cap_getOrientation(A))
+			A = face_getBottomNode(face, index, 0);
+		else 
+			A = cap_getReverse(face_getBottomNode(face, index, 0));
 #ifdef BEN_DEBUG
 		assert(event_isAncestor(E, cap_getEvent(A)));
 #endif
@@ -299,8 +312,7 @@ static bool transmap_sampleOrderAndOrientationAtEvent(Event * E, Cap * A, Cap * 
 				return false;
 			else if (bottomCapNumber > 1) {
 #ifdef BEN_DEBUG
-				topCap = transmap_findTopCap(E,A);
-				assert(topCap == NULL);
+				assert(transmap_findTopCap(E,A) == NULL);
 #endif
 				return false;
 			} else {
@@ -320,10 +332,26 @@ static bool transmap_sampleOrderAndOrientationAtEvent(Event * E, Cap * A, Cap * 
 			return false;
 
 		A = cap_getAdjacency(A);
+		if (!cap_getOtherSegmentCap(A))
+			return maybe;
 	}
 
 	// Recursion
 	return transmap_sampleOrderAndOrientationAtEvent(E, A, B, allowed_distance);
+}
+
+/*
+ * Wrapper to the transmap_sampleOrderAndOrientationAtEvent function
+ */
+static bool transmap_samplePathAtEvent(Event * E, Cap * A, Cap * B, int32_t distance) {
+	switch (transmap_sampleOrderAndOrientationAtEvent(E, A, B, &distance)) {
+	case true:
+		return true;
+	case false:
+		return false;
+	default:
+		return (transmap_sampleOrderAndOrientationAtEvent(E, cap_getReverse(B), cap_getReverse(A), &distance) == maybe);
+	}
 }
 
 /*
@@ -335,20 +363,17 @@ static bool transmap_sampleOrderAndOrientationAtEvent(Event * E, Cap * A, Cap * 
 bool transmap_connectivityOrderAndOrientationWasPresentAtEvent(Event *E, Cap *A, Cap *B, int sample_size, int result_cutoff, int distance_multiplier) {
 	int index;
 	int result = 0;
-	int32_t distance = transmap_getTotalDistanceBetweenCaps(A,B);
-	int32_t allowed_distance;
+	int32_t distance = distance_multiplier * transmap_getTotalDistanceBetweenCaps(A,B);
 
 	srand(time(NULL));
 
 	if (distance == -1)
 		return false;
 
-	for (index = 0; index < sample_size; index++) {
-		allowed_distance = distance * distance_multiplier;
-		if (transmap_sampleOrderAndOrientationAtEvent(E, A, B, &distance))
-			if (++result > result_cutoff)
-				return true;
-	}
+	for (index = 0; index < sample_size; index++) 
+		if (transmap_samplePathAtEvent(E, A, B, distance) 
+		    && ++result > result_cutoff)
+			return true;
 
 	return false;
 }
@@ -360,22 +385,18 @@ bool transmap_connectivityOrderAndOrientationWasPresentAtEvent(Event *E, Cap *A,
 bool transmap_connectivityAndOrientationWasPresentAtEvent(Event *E, Cap *A, Cap *B, int sample_size, int result_cutoff, int distance_multiplier) {
 	int index;
 	int result = 0;
-	int32_t distance = transmap_getTotalDistanceBetweenCaps(A,B);
-	int32_t allowed_distance, allowed_distance2;
+	int32_t distance = distance_multiplier * transmap_getTotalDistanceBetweenCaps(A,B);
 
 	srand(time(NULL));
 
 	if (distance == -1)
 		return false;
 
-	for (index = 0; index < sample_size; index++) {
-		allowed_distance = distance * distance_multiplier;
-		allowed_distance2 = distance * distance_multiplier;
-		if (transmap_sampleOrderAndOrientationAtEvent(E, A, B, &distance)
-		    || transmap_sampleOrderAndOrientationAtEvent(E, B, A, &distance))
+	for (index = 0; index < sample_size; index++) 
+		if (transmap_samplePathAtEvent(E, A, B, distance)
+		    || transmap_samplePathAtEvent(E, B, A, distance))
 			if (++result > result_cutoff)
 				return true;
-	}
 
 	return false;
 }
@@ -387,22 +408,18 @@ bool transmap_connectivityAndOrientationWasPresentAtEvent(Event *E, Cap *A, Cap 
 bool transmap_connectivityAndOrderWasPresentAtEvent(Event *E, Cap *A, Cap *B, int sample_size, int result_cutoff, int distance_multiplier) {
 	int index;
 	int result = 0;
-	int32_t distance = transmap_getTotalDistanceBetweenCaps(A,B);
-	int32_t allowed_distance, allowed_distance2;
+	int32_t distance = distance_multiplier * transmap_getTotalDistanceBetweenCaps(A,B);
 
 	srand(time(NULL));
 
 	if (distance == -1)
 		return false;
 
-	for (index = 0; index < sample_size; index++) {
-		allowed_distance = distance * distance_multiplier;
-		allowed_distance2 = distance * distance_multiplier;
-		if (transmap_sampleOrderAndOrientationAtEvent(E, A, B, &distance)
-		    || transmap_sampleOrderAndOrientationAtEvent(E, A, cap_getReverse(B), &distance))
+	for (index = 0; index < sample_size; index++) 
+		if (transmap_samplePathAtEvent(E, A, B, distance)
+		    || transmap_samplePathAtEvent(E, A, cap_getReverse(B), distance))
 			if (++result > result_cutoff)
 				return true;
-	}
 
 	return false;
 
@@ -415,26 +432,20 @@ bool transmap_connectivityAndOrderWasPresentAtEvent(Event *E, Cap *A, Cap *B, in
 bool transmap_connectivityWasPresentAtEvent(Event *E, Cap *A, Cap *B, int sample_size, int result_cutoff, int distance_multiplier) {
 	int index;
 	int result = 0;
-	int32_t distance = transmap_getTotalDistanceBetweenCaps(A,B);
-	int32_t allowed_distance, allowed_distance2, allowed_distance3, allowed_distance4;
+	int32_t distance = distance_multiplier * transmap_getTotalDistanceBetweenCaps(A,B);
 
 	srand(time(NULL));
 
 	if (distance == -1)
 		return false;
 
-	for (index = 0; index < sample_size; index++) {
-		allowed_distance = distance * distance_multiplier;
-		allowed_distance2 = distance * distance_multiplier;
-		allowed_distance3 = distance * distance_multiplier;
-		allowed_distance4 = distance * distance_multiplier;
-		if (transmap_sampleOrderAndOrientationAtEvent(E, A, B, &distance)
-		    || transmap_sampleOrderAndOrientationAtEvent(E, A, cap_getReverse(B), &distance)
-		    || transmap_sampleOrderAndOrientationAtEvent(E, B, A, &distance)
-		    || transmap_sampleOrderAndOrientationAtEvent(E, cap_getReverse(B), A, &distance))
+	for (index = 0; index < sample_size; index++) 
+		if (transmap_samplePathAtEvent(E, A, B, distance)
+		    || transmap_samplePathAtEvent(E, A, cap_getReverse(B), distance)
+		    || transmap_samplePathAtEvent(E, B, A, distance)
+		    || transmap_samplePathAtEvent(E, cap_getReverse(B), A, distance))
 			if (++result > result_cutoff)
 				return true;
-	}
 
 	return false;
 }
