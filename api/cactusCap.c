@@ -208,7 +208,7 @@ Cap *cap_getAdjacency(Cap *cap) {
 }
 
 Cap *cap_getTopCap(Cap *cap) {
-	if(cap_getAdjacency(cap) == NULL || end_getRootInstance(cap_getEnd(cap)) != cap) {
+	if(cap_getAdjacency(cap) == NULL || end_getRootInstance(cap_getEnd(cap)) == cap) {
 		return NULL;
 	}
 	Cap *cap2 = cap_getParent(cap);

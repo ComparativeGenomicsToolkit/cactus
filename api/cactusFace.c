@@ -76,6 +76,7 @@ Face_FaceEndIterator *face_getFaceEndIterator(Face *face) {
 static FaceEnd *face_getFaceEnd(Face *face, int32_t index) {
 	assert(index >= 0);
 	assert(index < face_getCardinal(face));
+	assert(face->faceEnds != NULL);
 	if(face->faceEnds[index] == NULL) {
 		face->faceEnds[index] = faceEnd_construct(face, index);
 	}
@@ -89,7 +90,7 @@ FaceEnd *face_getNextFaceEnd(Face_FaceEndIterator *iterator) {
 	return NULL;
 }
 
-FaceEnd *face_getPrevious(Face_FaceEndIterator *iterator) {
+FaceEnd *face_getPreviousFaceEnd(Face_FaceEndIterator *iterator) {
 	assert(iterator->index <= face_getCardinal(iterator->face));
 	if(iterator->index > 0) {
 		return face_getFaceEnd(iterator->face, --iterator->index);
@@ -153,6 +154,7 @@ Cap * face_getBottomNode(Face * face, int32_t topNodeIndex, int32_t bottomNodeIn
  * Allocate arrays to allow for data
  */
 void face_allocateSpace(Face * face, int32_t cardinal) {
+	assert(face->cardinal == 0);
 	face->cardinal = cardinal;
 	face->topNodes = calloc(cardinal, sizeof(Cap *));
 	face->bottomNodes =
@@ -339,33 +341,21 @@ static void face_loadFromBinaryRepresentationAtIndex(void **binaryString, Face *
 /*
  * Serialisation read function
  */
-Face *face_loadFromBinaryRepresentation(void **binaryString, Net * net)
-{
+Face *face_loadFromBinaryRepresentation(void **binaryString, Net * net) {
 	Face *face = NULL;
-	int32_t num, index;
-
-	if (binaryRepresentation_peekNextElementType(*binaryString) ==
-	    CODE_FACE) {
+	int32_t index;
+	if (binaryRepresentation_peekNextElementType(*binaryString) == CODE_FACE) {
 		binaryRepresentation_popNextElementType(binaryString);
-		face = calloc(1, sizeof(Face));
-		face->net = net;
-		face->name = binaryRepresentation_getName(binaryString);
-		num = binaryRepresentation_getInteger(binaryString);
-
-		face->cardinal = num;
-		face->topNodes = calloc(num, sizeof(Cap*));
-		face->bottomNodes = calloc(num, sizeof(Cap**));
-		face->bottomNodeNumbers = calloc(num, sizeof(int32_t));
-		face->derivedEdgeDestinations = calloc(num, sizeof(Cap**));
-
-		for (index = 0; index < num; index++)
+		face = face_construct2(binaryRepresentation_getName(binaryString), net);
+		face_allocateSpace(face, binaryRepresentation_getInteger(binaryString));
+		for (index = 0; index < face_getCardinal(face); index++)
 			face_loadFromBinaryRepresentationAtIndex(binaryString, face, index, net);
 	}
-
 	return face;
 }
 
 FaceEnd *face_getFaceEndForTopNode(Face *face, Cap *cap) {
+	cap = cap_getPositiveOrientation(cap);
 	int32_t i;
 	for(i=0; i<face_getCardinal(face); i++) {
 		if(face_getTopNode(face, i) == cap) {

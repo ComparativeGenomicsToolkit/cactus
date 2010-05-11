@@ -38,7 +38,33 @@ void testFace_getTopNode(CuTest* testCase) {
 
 void testFace_faceEndIterator(CuTest* testCase) {
 	cactusFaceTestSetup();
-
+	Face_FaceEndIterator *iterator = face_getFaceEndIterator(face);
+	FaceEnd *faceEnd1 = face_getNextFaceEnd(iterator);
+	CuAssertTrue(testCase, faceEnd1 != NULL);
+	CuAssertTrue(testCase, faceEnd_getTopNode(faceEnd1) == cap_getPositiveOrientation(topCap1));
+	FaceEnd *faceEnd2 = face_getNextFaceEnd(iterator);
+	CuAssertTrue(testCase, faceEnd2 != NULL);
+	CuAssertTrue(testCase, faceEnd_getTopNode(faceEnd2) == cap_getPositiveOrientation(topCap2));
+	FaceEnd *faceEnd3 = face_getNextFaceEnd(iterator);
+	CuAssertTrue(testCase, faceEnd3 != NULL);
+	CuAssertTrue(testCase, faceEnd_getTopNode(faceEnd3) == cap_getPositiveOrientation(topCap3));
+	FaceEnd *faceEnd4 = face_getNextFaceEnd(iterator);
+	CuAssertTrue(testCase, faceEnd4 != NULL);
+	CuAssertTrue(testCase, faceEnd_getTopNode(faceEnd4) == cap_getPositiveOrientation(topCap4));
+	CuAssertTrue(testCase, face_getNextFaceEnd(iterator) == NULL);
+	CuAssertTrue(testCase, face_getNextFaceEnd(iterator) == NULL);
+	CuAssertTrue(testCase, face_getNextFaceEnd(iterator) == NULL);
+	Face_FaceEndIterator *iterator2 = face_copyFaceEndIterator(iterator);
+	CuAssertTrue(testCase, face_getPreviousFaceEnd(iterator) == faceEnd4);
+	CuAssertTrue(testCase, face_getPreviousFaceEnd(iterator2) == faceEnd4); //test copied iterator
+	face_destructFaceEndIterator(iterator2);
+	CuAssertTrue(testCase, face_getPreviousFaceEnd(iterator) == faceEnd3);
+	CuAssertTrue(testCase, face_getPreviousFaceEnd(iterator) == faceEnd2);
+	CuAssertTrue(testCase, face_getPreviousFaceEnd(iterator) == faceEnd1);
+	CuAssertTrue(testCase, face_getPreviousFaceEnd(iterator) == NULL);
+	CuAssertTrue(testCase, face_getPreviousFaceEnd(iterator) == NULL);
+	CuAssertTrue(testCase, face_getNextFaceEnd(iterator) == faceEnd1);
+	face_destructFaceEndIterator(iterator);
 	cactusFaceTestTeardown();
 }
 
@@ -97,6 +123,7 @@ void testFace_serialisation(CuTest* testCase) {
 	free(vA);
 	nestedTest = 1;
 	testFace_getCardinal(testCase);
+	testFace_faceEndIterator(testCase);
 	testFace_getTopNode(testCase);
 	testFace_getDerivedDestination(testCase);
 	testFace_getBottomNodeNumber(testCase);

@@ -226,6 +226,49 @@ void testCap_adjacent(CuTest* testCase) {
 
 void testCap_getTopCap(CuTest* testCase) {
 	cactusCapTestSetup();
+	End *end1 = end_construct(0, net);
+	End *end2 = end_construct(0, net);
+	End *end3 = end_construct(0, net);
+	Event *intermediateEvent = event_construct2(metaEvent_construct(NULL, netDisk), 0.0, rootEvent, leafEvent, eventTree);
+
+	Cap *cap1T = cap_construct(end1, rootEvent);
+	Cap *cap1I = cap_construct(end1, intermediateEvent);
+	Cap *cap1L1 = cap_construct(end1, leafEvent);
+	Cap *cap1L2 = cap_construct(end1, leafEvent);
+	cap_makeParentAndChild(cap1I, cap1L1);
+	cap_makeParentAndChild(cap1I, cap1L2);
+	cap_makeParentAndChild(cap1T, cap1I);
+	end_setRootInstance(end1, cap1T);
+	assert(end_getRootInstance(end1) == cap1T);
+
+	CuAssertTrue(testCase, cap_getTopCap(cap1L1) == NULL);
+	CuAssertTrue(testCase, cap_getTopCap(cap_getReverse(cap1L1)) == NULL);
+	CuAssertTrue(testCase, cap_getTopCap(cap1L2) == NULL);
+	CuAssertTrue(testCase, cap_getTopCap(cap1I) == NULL);
+
+	Cap *cap2T = cap_construct(end2, rootEvent);
+	Cap *cap2L = cap_construct(end2, leafEvent);
+	cap_makeParentAndChild(cap2T, cap2L);
+	end_setRootInstance(end2, cap2T);
+	cap_makeAdjacent(cap1L1, cap2L);
+
+	CuAssertTrue(testCase, cap_getTopCap(cap1L1) == cap1T);
+	CuAssertTrue(testCase, cap_getTopCap(cap_getReverse(cap1L1)) == cap_getReverse(cap1T));
+	CuAssertTrue(testCase, cap_getTopCap(cap1I) == NULL);
+
+	Cap *cap3T = cap_construct(end3, rootEvent);
+	Cap *cap3I = cap_construct(end3, intermediateEvent);
+	cap_makeParentAndChild(cap3T, cap3I);
+	end_setRootInstance(end3, cap3T);
+	cap_makeAdjacent(cap1I, cap3I);
+	cap_makeAdjacent(cap1T, cap3T);
+
+	CuAssertTrue(testCase, cap_getTopCap(cap1L1) == cap1I);
+	CuAssertTrue(testCase, cap_getTopCap(cap_getReverse(cap1L1)) == cap_getReverse(cap1I));
+	CuAssertTrue(testCase, cap_getTopCap(cap1I) == cap1T);
+	CuAssertTrue(testCase, cap_getTopCap(cap_getReverse(cap1I)) == cap_getReverse(cap1T));
+
+	CuAssertTrue(testCase, cap_getTopCap(cap1T) == NULL);
 
 	cactusCapTestTeardown();
 }
@@ -235,17 +278,55 @@ void testCap_getTopFace(CuTest* testCase) {
 	Face *face = face_construct(net);
 	cap_setFace(rootCap, face);
 	CuAssertTrue(testCase, cap_getTopFace(rootCap) == face);
+	CuAssertTrue(testCase, cap_getTopFace(cap_getReverse(rootCap)) == face);
 	cactusCapTestTeardown();
 }
 
-void testCap_getTopFaceEnd(CuTest* testCase) {
+void testCap_getBottomAndTopFaceEnd(CuTest* testCase) {
 	cactusCapTestSetup();
 
-	cactusCapTestTeardown();
-}
+	End *end1 = end_construct(0, net);
+	Cap *cap1T = cap_construct(end1, rootEvent);
+	Cap *cap1L = cap_construct(end1, leafEvent);
+	cap_makeParentAndChild(cap1T, cap1L);
+	end_setRootInstance(end1, cap1T);
 
-void testCap_getBottomFaceEnd(CuTest* testCase) {
-	cactusCapTestSetup();
+	End *end2 = end_construct(0, net);
+	Cap *cap2T = cap_construct(end2, rootEvent);
+	Cap *cap2L = cap_construct(end2, leafEvent);
+	cap_makeParentAndChild(cap2T, cap2L);
+	end_setRootInstance(end2, cap2T);
+
+	CuAssertTrue(testCase, cap_getBottomFaceEnd(cap1T) == NULL);
+	CuAssertTrue(testCase, cap_getBottomFaceEnd(cap1L) == NULL);
+	CuAssertTrue(testCase, cap_getTopFaceEnd(cap1T) == NULL);
+	CuAssertTrue(testCase, cap_getTopFaceEnd(cap1L) == NULL);
+
+	cap_makeAdjacent(cap1L, cap2L);
+	cap_makeAdjacent(cap1T, cap2T);
+
+	//Now make the face
+	Face *face = face_construct(net);
+	face_allocateSpace(face, 2);
+	face_setTopNode(face, 0, cap1T);
+	face_setTopNode(face, 1, cap2T);
+	face_setBottomNodeNumber(face, 0, 1);
+	face_setBottomNodeNumber(face, 1, 1);
+	face_addBottomNode(face, 0, cap1L);
+	face_addBottomNode(face, 1, cap2L);
+
+	CuAssertTrue(testCase, cap_getTopFaceEnd(cap1L) == NULL);
+	CuAssertTrue(testCase, cap_getTopFaceEnd(cap2L) == NULL);
+	FaceEnd *faceEnd1 = cap_getTopFaceEnd(cap1T);
+	FaceEnd *faceEnd2 = cap_getTopFaceEnd(cap2T);
+	CuAssertTrue(testCase, faceEnd_getTopNode(faceEnd1) == cap1T);
+	CuAssertTrue(testCase, faceEnd_getTopNode(faceEnd2) == cap2T);
+
+
+	CuAssertTrue(testCase, cap_getBottomFaceEnd(cap1T) == NULL);
+	CuAssertTrue(testCase, cap_getBottomFaceEnd(cap2T) == NULL);
+	CuAssertTrue(testCase, cap_getBottomFaceEnd(cap1L) == faceEnd1);
+	CuAssertTrue(testCase, cap_getBottomFaceEnd(cap2L) == faceEnd2);
 
 	cactusCapTestTeardown();
 }
@@ -309,8 +390,7 @@ void testCap_serialisation(CuTest* testCase) {
 	testCap_adjacent(testCase);
 	testCap_getTopCap(testCase);
 	testCap_getTopFace(testCase);
-	testCap_getTopFaceEnd(testCase);
-	testCap_getBottomFaceEnd(testCase);
+	testCap_getBottomAndTopFaceEnd(testCase);
 	testCap_getParent(testCase);
 	testCap_getChildNumber(testCase);
 	testCap_getChild(testCase);
@@ -337,8 +417,7 @@ CuSuite* cactusCapTestSuite(void) {
 	SUITE_ADD_TEST(suite, testCap_adjacent);
 	SUITE_ADD_TEST(suite, testCap_getTopCap);
 	SUITE_ADD_TEST(suite, testCap_getTopFace);
-	SUITE_ADD_TEST(suite, testCap_getTopFaceEnd);
-	SUITE_ADD_TEST(suite, testCap_getBottomFaceEnd);
+	SUITE_ADD_TEST(suite, testCap_getBottomAndTopFaceEnd);
 	SUITE_ADD_TEST(suite, testCap_getParent);
 	SUITE_ADD_TEST(suite, testCap_getChildNumber);
 	SUITE_ADD_TEST(suite, testCap_getChild);
