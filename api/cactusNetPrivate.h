@@ -156,9 +156,15 @@ void net_setReference(Net *net, Reference *reference);
 void net_removeReference(Net *net, Reference *reference);
 
 /*
- * Function that does the actual work of merging together two nets.
+ * This function constructs faces for the net. If faces are already created then
+ * they will be first delete.
  */
-void net_mergeNetsP(Net *net1, Net *net2);
+void net_reconstructFaces(Net * net);
+
+/*
+ * Destroys all faces in the net.
+ */
+void net_destructFaces(Net *net);
 
 /*
  * Write a binary representation of the net to the write function.

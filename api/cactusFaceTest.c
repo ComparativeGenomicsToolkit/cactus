@@ -27,15 +27,6 @@ void testFace_getCardinal(CuTest* testCase) {
 	cactusFaceTestTeardown();
 }
 
-void testFace_getTopNode(CuTest* testCase) {
-	cactusFaceTestSetup();
-	CuAssertTrue(testCase, face_getTopNode(face, 0) == cap_getPositiveOrientation(topCap1));
-	CuAssertTrue(testCase, face_getTopNode(face, 1) == cap_getPositiveOrientation(topCap2));
-	CuAssertTrue(testCase, face_getTopNode(face, 2) == cap_getPositiveOrientation(topCap3));
-	CuAssertTrue(testCase, face_getTopNode(face, 3) == cap_getPositiveOrientation(topCap4));
-	cactusFaceTestTeardown();
-}
-
 void testFace_faceEndIterator(CuTest* testCase) {
 	cactusFaceTestSetup();
 	Face_FaceEndIterator *iterator = face_getFaceEndIterator(face);
@@ -68,11 +59,14 @@ void testFace_faceEndIterator(CuTest* testCase) {
 	cactusFaceTestTeardown();
 }
 
-
-/*
- * Duplicates the iterator.
- */
-Face_FaceEndIterator *face_copyFaceEndIterator(Face_FaceEndIterator *iterator);
+void testFace_getTopNode(CuTest* testCase) {
+	cactusFaceTestSetup();
+	CuAssertTrue(testCase, face_getTopNode(face, 0) == cap_getPositiveOrientation(topCap1));
+	CuAssertTrue(testCase, face_getTopNode(face, 1) == cap_getPositiveOrientation(topCap2));
+	CuAssertTrue(testCase, face_getTopNode(face, 2) == cap_getPositiveOrientation(topCap3));
+	CuAssertTrue(testCase, face_getTopNode(face, 3) == cap_getPositiveOrientation(topCap4));
+	cactusFaceTestTeardown();
+}
 
 void testFace_getDerivedDestination(CuTest* testCase) {
 	cactusFaceTestSetup();
@@ -111,28 +105,6 @@ void testFace_getName(CuTest * testCase) {
 	cactusFaceTestTeardown();
 }
 
-void testFace_serialisation(CuTest* testCase) {
-	cactusFaceTestSetup();
-	int32_t i;
-	void *vA = binaryRepresentation_makeBinaryRepresentation(face,
-			(void (*)(void *, void (*)(const void *, size_t, size_t)))face_writeBinaryRepresentation, &i);
-	CuAssertTrue(testCase, i > 0);
-	face_destruct(face);
-	void *vA2 = vA;
-	face = face_loadFromBinaryRepresentation(&vA2, net);
-	free(vA);
-	nestedTest = 1;
-	testFace_getCardinal(testCase);
-	testFace_faceEndIterator(testCase);
-	testFace_getTopNode(testCase);
-	testFace_getDerivedDestination(testCase);
-	testFace_getBottomNodeNumber(testCase);
-	testFace_getBottomNode(testCase);
-	testFace_getName(testCase);
-	nestedTest = 0;
-	cactusFaceTestTeardown();
-}
-
 CuSuite *cactusFaceTestSuite(void) {
 	CuSuite* suite = CuSuiteNew();
 	SUITE_ADD_TEST(suite, testFace_getTopNode);
@@ -141,7 +113,6 @@ CuSuite *cactusFaceTestSuite(void) {
 	SUITE_ADD_TEST(suite, testFace_getDerivedDestination);
 	SUITE_ADD_TEST(suite, testFace_getBottomNodeNumber);
 	SUITE_ADD_TEST(suite, testFace_getBottomNode);
-	SUITE_ADD_TEST(suite, testFace_serialisation);
 	SUITE_ADD_TEST(suite, testFace_construct);
 	SUITE_ADD_TEST(suite, testFace_getName);
 	return suite;

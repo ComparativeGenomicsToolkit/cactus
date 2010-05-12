@@ -45,28 +45,69 @@ struct _face_FaceEndIterator {
 ////////////////////////////////////////////////
 
 /*
+ * Constructs faces in net
+ */
+Face * face_construct(Net * net);
+
+/*
  * Private constructor
  */
 Face * face_construct2(Name name, Net * net);
 
 /*
- * Destructs the face
+ * Simple destructor
  */
 void face_destruct(Face * face);
 
 /*
- * Creates a binary representation of the face, returned as a char string.
+ * Get selected derived destinations for selected top node
  */
-void face_writeBinaryRepresentation(Face * face,
-				    void (*writeFn) (const void *ptr,
-						     size_t size,
-						     size_t count));
+Cap * face_getDerivedDestinationAtIndex(Face * face, int32_t topIndex, int32_t derivedIndex);
 
 /*
- * Loads a face into memory from a binary representation of the face.
+ * Get non-null derived destination of selected top node (useful for simple faces)
  */
-Face *face_loadFromBinaryRepresentation(void **binaryString, Net * net);
+Cap * face_getDerivedDestination(Face * face, int32_t index);
 
+/*
+ * Get the number of bottom nodes for the selected top node
+ */
+int32_t face_getBottomNodeNumber(Face * face, int32_t topIndex);
+
+/*
+ * Get selected bottom node from selected top node in face
+ */
+Cap * face_getBottomNode(Face * face, int32_t topNodeIndex, int32_t bottomNodeIndex);
+
+/*
+ * Allocate arrays to allow for data
+ */
+void face_allocateSpace(Face * face, int32_t cardinal);
+
+/*
+ * Sets the selected top node
+ */
+void face_setTopNode(Face * face, int32_t topIndex, Cap * topNode);
+
+/*
+ * Set bottom node count and allocate space to store pointers
+ */
+void face_setBottomNodeNumber(Face * face, int32_t topIndex, int32_t number);
+
+/*
+ * Sets the derived edge destination for a given top node in face
+ */
+void face_setDerivedDestination(Face * face, int32_t topIndex, int32_t bottomIndex, Cap * destination);
+
+/*
+ * Adds bottom node to selected top node in face
+ */
+void face_addBottomNode(Face * face, int32_t topIndex, Cap * bottomNode);
+
+/*
+ * Adds a top node with a single bottom node
+ */
+void face_engineerArtificialNodes(Face * face, Cap * topNode, Cap * bottomNode, int32_t nonDerived);
 
 /*
  * Get a static instance (from the heap) with the name set.
@@ -74,13 +115,8 @@ Face *face_loadFromBinaryRepresentation(void **binaryString, Net * net);
 Face *face_getStaticNameWrapper(Name name);
 
 /*
- * Sets the net associated with the face.
- */
-void face_setNet(Face *face, Net *net);
-
-/*
  * Gets the face end associated with the top node of the cap. The public
- * way todo this is cap_getTopFaceEnd(cap);
+ * way to do this is cap_getTopFaceEnd(cap);
  */
 FaceEnd *face_getFaceEndForTopNode(Face *face, Cap *cap);
 

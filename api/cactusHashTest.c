@@ -140,11 +140,8 @@ void testHash_testIterator(CuTest *testCase) {
 		CuAssertTrue(testCase, hash_search(seen, o) == NULL);
 		CuAssertTrue(testCase, hash_getNext(iteratorCopy) == o);
 		hash_insert(seen, o, o);
-		uglyf("Ho ho\n");
 	}
-	uglyf("done\n");
 	CuAssertTrue(testCase, hash_getNext(iterator) == NULL);
-	uglyf("goo\n");
 	CuAssertTrue(testCase, hash_getNext(iterator) == NULL);
 	CuAssertTrue(testCase, hash_getNext(iteratorCopy) == NULL);
 	hash_destruct(seen);

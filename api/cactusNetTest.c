@@ -543,11 +543,11 @@ void testNet_builtFaces(CuTest *testCase) {
 	cactusNetTestSetup();
 
 	CuAssertTrue(testCase, !net_builtFaces(net));
-	net_setBuiltFaces(net, 0);
+	net_setBuildFaces(net, 0);
 	CuAssertTrue(testCase, !net_builtFaces(net));
-	net_setBuiltFaces(net, 1);
+	net_setBuildFaces(net, 1);
 	CuAssertTrue(testCase, net_builtFaces(net));
-	net_setBuiltFaces(net, 0);
+	net_setBuildFaces(net, 0);
 	CuAssertTrue(testCase, !net_builtFaces(net));
 
 	cactusNetTestTeardown();

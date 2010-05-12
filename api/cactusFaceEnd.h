@@ -50,4 +50,9 @@ FaceEnd_BottomNodeIterator *faceEnd_copyBottomNodeIterator(FaceEnd_BottomNodeIte
  */
 void faceEnd_destructBottomNodeIterator(FaceEnd_BottomNodeIterator *iterator);
 
+/*
+ * Checks the structure of the face end.
+ */
+void faceEnd_check(FaceEnd *faceEnd);
+
 #endif /* FACEEND_H_ */

@@ -424,7 +424,8 @@ bool net_builtTrees(Net *net);
 void net_setBuiltTrees(Net *net, bool b);
 
 /*
- * Returns non-zero iff all non-trivial faces have a defined face.
+ * Returns non-zero iff faces are being built for the tree. If this is set
+ * then faces are built for the AVG.
  */
 bool net_builtFaces(Net *net);
 
@@ -432,7 +433,7 @@ bool net_builtFaces(Net *net);
  * Switches the status of net_builtFaces(). By default net_builtFaces returns
  * 0.
  */
-void net_setBuiltFaces(Net *net, bool b);
+void net_setBuildFaces(Net *net, bool b);
 
 
 /*

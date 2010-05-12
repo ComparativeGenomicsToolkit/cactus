@@ -12,7 +12,7 @@
 #include "fastCMaths.h"
 #include "bioioC.h"
 #include "hashTableC.h"
-#include "cactus_buildFaces.h"
+//#include "cactus_buildFaces.h"
 
 /*
  * Globals definitions
@@ -363,6 +363,16 @@ static bool adjacencyVoteTable_doesNotVote(Cap * cap, AdjacencyVoteTable * table
 ///////////////////////////////////////////////
 // Filling in method
 ///////////////////////////////////////////////
+
+/*
+ * Creates a new free stub end in which to place caps.
+ */
+End *createNewFreeStubEnd(Net *net) {
+	End *newFreeStubEnd = end_construct(0, net);
+	assert(net_getGroupNumber(net) == 1);
+	end_setGroup(newFreeStubEnd, net_getFirstGroup(net));
+	return newFreeStubEnd;
+}
 
 /*
  * If possible register parent node into compuation front
@@ -1241,15 +1251,16 @@ int main(int argc, char ** argv) {
 
 		startTime = time(NULL);
 		fillingIn_fillAdjacencies(net);
-		buildFaces_buildAndProcessFaces(net);
+		//buildFaces_buildAndProcessFaces(net);
 		logInfo("Processed the nets in: %i seconds\n", time(NULL) - startTime);
 
 		///////////////////////////////////////////////////////////////////////////
-		//Set the faces in the net to 'built' status.
+		//Set the faces in the net to 'built' status, which triggers the building
+		//of faces for the net.
 		///////////////////////////////////////////////////////////////////////////
 
 		assert(!net_builtFaces(net));
-		net_setBuiltFaces(net, 1);
+		net_setBuildFaces(net, 1);
 	}
 
 	///////////////////////////////////////////////////////////////////////////

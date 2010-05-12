@@ -52,6 +52,17 @@ void faceEnd_destructBottomNodeIterator(FaceEnd_BottomNodeIterator *iterator) {
 	free(iterator);
 }
 
+void faceEnd_check(FaceEnd *faceEnd) {
+	Cap *topCap = faceEnd_getTopNode(faceEnd);
+	assert(cap_getTopFaceEnd(topCap) == faceEnd);
+	Cap *bottomCap;
+	FaceEnd_BottomNodeIterator *iterator = faceEnd_getBottomNodeIterator(faceEnd);
+	while((bottomCap = faceEnd_getNextBottomNode(iterator)) != NULL) {
+		assert(cap_getBottomFaceEnd(bottomCap) == faceEnd);
+	}
+	faceEnd_destructBottomNodeIterator(iterator);
+}
+
 /*
  * Private functions
  */

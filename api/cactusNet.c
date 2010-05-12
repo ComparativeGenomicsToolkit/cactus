@@ -613,8 +613,11 @@ bool net_builtFaces(Net *net) {
 	return net->builtFaces;
 }
 
-void net_setBuiltFaces(Net *net, bool b) {
+void net_setBuildFaces(Net *net, bool b) {
 	net->builtFaces = b;
+	if(net_builtFaces(net)) {
+		net_reconstructFaces(net);
+	}
 }
 
 bool net_isLeaf(Net *net) {
@@ -850,19 +853,16 @@ void net_writeBinaryRepresentation(Net *net, void (*writeFn)(const void * ptr, s
 	Net_BlockIterator *blockIterator;
 	Net_GroupIterator *groupIterator;
 	Net_ChainIterator *chainIterator;
-	Net_FaceIterator *faceIterator;
 	Sequence *sequence;
 	End *end;
 	Block *block;
 	Group *group;
 	Chain *chain;
-	Face *face;
 
 	binaryRepresentation_writeElementType(CODE_NET, writeFn);
 	binaryRepresentation_writeName(net_getName(net), writeFn);
 	binaryRepresentation_writeBool(net_builtBlocks(net), writeFn);
 	binaryRepresentation_writeBool(net_builtTrees(net), writeFn);
-	binaryRepresentation_writeBool(net_builtFaces(net), writeFn);
 	binaryRepresentation_writeName(net->parentNetName, writeFn);
 
 	if(net_getEventTree(net) != NULL) {
@@ -887,12 +887,6 @@ void net_writeBinaryRepresentation(Net *net, void (*writeFn)(const void * ptr, s
 	}
 	net_destructBlockIterator(blockIterator);
 
-	faceIterator = net_getFaceIterator(net);
-	while((face = net_getNextFace(faceIterator)) != NULL) {
-		face_writeBinaryRepresentation(face, writeFn);
-	}
-	net_destructFaceIterator(faceIterator);
-
 	if(net_getReference(net) != NULL) {
 		reference_writeBinaryRepresentation(net_getReference(net), writeFn);
 	}
@@ -909,6 +903,7 @@ void net_writeBinaryRepresentation(Net *net, void (*writeFn)(const void * ptr, s
 	}
 	net_destructChainIterator(chainIterator);
 
+	binaryRepresentation_writeBool(net_builtFaces(net), writeFn);
 	binaryRepresentation_writeElementType(CODE_NET, writeFn); //this avoids interpretting things wrong.
 }
 
@@ -919,16 +914,15 @@ Net *net_loadFromBinaryRepresentation(void **binaryString, NetDisk *netDisk) {
 		net = net_construct2(binaryRepresentation_getName(binaryString), netDisk);
 		net_setBuiltBlocks(net, binaryRepresentation_getBool(binaryString));
 		net_setBuiltTrees(net, binaryRepresentation_getBool(binaryString));
-		net_setBuiltFaces(net, binaryRepresentation_getBool(binaryString));
 		net->parentNetName = binaryRepresentation_getName(binaryString);
 		eventTree_loadFromBinaryRepresentation(binaryString, net);
 		while(sequence_loadFromBinaryRepresentation(binaryString, net) != NULL);
 		while(end_loadFromBinaryRepresentation(binaryString, net) != NULL);
 		while(block_loadFromBinaryRepresentation(binaryString, net) != NULL);
-		while(face_loadFromBinaryRepresentation(binaryString, net) != NULL);
 		reference_loadFromBinaryRepresentation(binaryString, net);
 		while(group_loadFromBinaryRepresentation(binaryString, net) != NULL);
 		while(chain_loadFromBinaryRepresentation(binaryString, net) != NULL);
+		net_setBuildFaces(net, binaryRepresentation_getBool(binaryString));
 		assert(binaryRepresentation_popNextElementType(binaryString) == CODE_NET);
 	}
 	return net;
