@@ -215,8 +215,6 @@ static void buildFaces_constructFromCap(Cap * startingCap,
 		abort();
 #endif
 
-	printf("Cardinal = %i\n", topNodes->length);
-
 	// Initialize data structure
 	face_allocateSpace(face, topNodes->length);
 
@@ -457,8 +455,8 @@ static void checkFace(Net *net, struct List *module, Hash *bottomCapsHash) {
 				while((bottomCap = faceEnd_getNextBottomNode(bottomNodeIterator)) != NULL) {
 					uglyf("Bottom cap in Daniel's face: %i %i\n", bottomCap, cap_getTopCap(bottomCap));
 				}
-				for(i=0; i<bottomCaps->length; i++) {
-					bottomCap = bottomCaps->list[i];
+				for(k=0; k<bottomCaps->length; k++) {
+					bottomCap = bottomCaps->list[k];
 					uglyf("Bottom cap in Benedict's face: %i %i\n", bottomCap, cap_getTopCap(bottomCap));
 				}
 			}
