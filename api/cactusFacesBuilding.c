@@ -153,47 +153,6 @@ static void buildFaces_fillTopNodeList(Cap * cap, struct List *list,
 }
 
 /*
- * Produces the end instance which is the destination of the unique lifted edge
- * out of a top node
- */
-static Cap *buildFaces_getMinorLiftedEdgeDestination(Cap * cap,
-		struct List *liftedEdges) {
-	int32_t index;
-	Cap * adjacency = cap_getAdjacency(cap);
-	Cap *ancestralEdgeDestination = NULL;
-	Cap *liftedDestination;
-
-	if (adjacency) {
-		ancestralEdgeDestination = cap_getPositiveOrientation(cap_getAdjacency(cap));
-	}
-
-#ifndef BEN_DEBUG
-	for (index = 0; index < liftedEdges->length; index++)
-	if ((liftedDestination = ((LiftedEdge *) liftedEdges->list[index])->destination)
-			&& liftedDestination != ancestralEdgeDestination) {
-		return liftedDestination;
-	}
-
-	return NULL;
-#else
-	Cap * candidate = NULL;
-
-	// Ensure that no more than one derived edge destinations
-	for (index = 0; index < liftedEdges->length; index++) {
-		if ((liftedDestination
-				= ((LiftedEdge *) liftedEdges->list[index])->destination)
-				&& liftedDestination != ancestralEdgeDestination) {
-			if (!candidate)
-				candidate = liftedDestination;
-			else
-				abort();
-		}
-	}
-	return candidate;
-#endif
-}
-
-/*
  * Constructs a face from a given Cap
  */
 static void buildFaces_constructFromCap(Cap * startingCap,
@@ -274,8 +233,6 @@ void net_reconstructFaces(Net * net) {
 	while ((current = net_getNextCap(iter))) {
 		if ((liftedEdges = hash_search(liftedEdgesTable, current))
 				&& (liftedEdges->length >= 1)) {
-						//|| buildFaces_getMinorLiftedEdgeDestination(current,
-						//		liftedEdges))) {
 			buildFaces_constructFromCap(current, liftedEdgesTable, net);
 		}
 	}

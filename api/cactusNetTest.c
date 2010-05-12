@@ -133,8 +133,13 @@ static void testObjectRetrieval(CuTest* testCase,
 	/*
 	 * Test get function
 	 */
-	CuAssertTrue(testCase, getObjectFn(net, objectGetNameFn(*object)) == *object);
-	CuAssertTrue(testCase, getObjectFn(net, objectGetNameFn(*object2)) == *object2);
+	if(objectGetNameFn != NULL) {
+		CuAssertTrue(testCase, getObjectFn(net, objectGetNameFn(*object)) == *object);
+		CuAssertTrue(testCase, getObjectFn(net, objectGetNameFn(*object2)) == *object2);
+	}
+	else {
+		assert(getObjectFn == NULL);
+	}
 
 	/*
 	 * Test iterator.
@@ -292,8 +297,7 @@ void testNet_face(CuTest* testCase) {
 	testObjectRetrieval(testCase, facesSetup,
 			(int32_t (*)(Net *net))net_getFaceNumber,
 			(void *(*)(Net *))net_getFirstFace,
-			(Name (*)(void *))face_getName,
-			(void *(*)(Net *, Name name))net_getFace,
+			NULL, NULL,
 			(void *(*)(Net *))net_getFaceIterator,
 			(void (*)(void *))net_destructFaceIterator,
 			(void *(*)(void *))net_getNextFace,

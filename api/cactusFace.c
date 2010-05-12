@@ -2,21 +2,13 @@
 #include "cactusFacePrivate.h"
 
 /*
- * Private constructor
- */
-Face * face_construct2(Name name, Net * net) {
-	Face * face = calloc(1, sizeof(Face));
-	face->net = net;
-	face->name = name;
-	net_addFace(net, face);
-	return face;
-}
-
-/*
- * Basc constructor
+ * Basic constructor
  */
 Face * face_construct(Net * net) {
-	return face_construct2(netDisk_getUniqueID(net_getNetDisk(net)), net);
+	Face * face = calloc(1, sizeof(Face));
+	face->net = net;
+	net_addFace(net, face);
+	return face;
 }
 
 /*
@@ -27,6 +19,14 @@ void face_destruct(Face * face)
 	int32_t index;
 
 	net_removeFace(face->net, face);
+
+	//Remove reference to faces in the caps..
+	FaceEnd *faceEnd;
+	Face_FaceEndIterator *iterator = face_getFaceEndIterator(face);
+	while((faceEnd = face_getNextFaceEnd(iterator)) != NULL) {
+		cap_setTopFace(faceEnd_getTopNode(faceEnd), NULL);
+	}
+	face_destructFaceEndIterator(iterator);
 
 	if (face->cardinal > 0) {
 		free(face->topNodes);
@@ -119,22 +119,6 @@ FaceEnd *face_getFaceEndForTopNode(Face *face, Cap *cap) {
 	}
 	assert(0);
 	return NULL;
-}
-
-/*
- * Returns name of face (i.e. name of first cap)
- */
-Name face_getName(Face * face) {
-	return face->name;
-}
-
-/*
- * Function needed for unit testing
- */
-Face *face_getStaticNameWrapper(Name name) {
-	static Face face;
-	face.name = name;
-	return &face;
 }
 
 /*
@@ -378,7 +362,7 @@ void face_setTopNode(Face * face, int32_t topIndex, Cap * topNode) {
 	if (topNode)
 		topNode = cap_getPositiveOrientation(topNode);
 	face->topNodes[topIndex] = topNode;
-	cap_setFace(topNode, face);
+	cap_setTopFace(topNode, face);
 }
 
 /*

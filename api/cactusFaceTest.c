@@ -99,12 +99,6 @@ void testFace_getBottomNode(CuTest* testCase) {
 	cactusFaceTestTeardown();
 }
 
-void testFace_getName(CuTest * testCase) {
-	cactusFaceTestSetup();
-	CuAssertTrue(testCase, face_getName(face) == face->name);
-	cactusFaceTestTeardown();
-}
-
 CuSuite *cactusFaceTestSuite(void) {
 	CuSuite* suite = CuSuiteNew();
 	SUITE_ADD_TEST(suite, testFace_getTopNode);
@@ -114,6 +108,5 @@ CuSuite *cactusFaceTestSuite(void) {
 	SUITE_ADD_TEST(suite, testFace_getBottomNodeNumber);
 	SUITE_ADD_TEST(suite, testFace_getBottomNode);
 	SUITE_ADD_TEST(suite, testFace_construct);
-	SUITE_ADD_TEST(suite, testFace_getName);
 	return suite;
 }

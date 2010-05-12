@@ -427,7 +427,7 @@ void cap_setSegment(Cap *cap, Segment *segment) {
 	cap->capContents->segment = cap_getOrientation(cap) ? segment : segment_getReverse(segment);
 }
 
-void cap_setFace(Cap *cap, Face *face) {
+void cap_setTopFace(Cap *cap, Face *face) {
 	cap->capContents->face = face;
 }
 

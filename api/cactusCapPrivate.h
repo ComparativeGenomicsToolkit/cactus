@@ -62,7 +62,7 @@ void cap_setSegment(Cap *cap, Segment *segment);
 /*
  * Sets the face associated with the cap.
  */
-void cap_setFace(Cap *cap, Face *face);
+void cap_setTopFace(Cap *cap, Face *face);
 
 /*
  * Sets any adjacent ends for the alternative adjacency of the instance to NULL;

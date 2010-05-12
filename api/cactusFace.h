@@ -52,21 +52,6 @@ Face_FaceEndIterator *face_copyFaceEndIterator(Face_FaceEndIterator *iterator);
 void face_destructFaceEndIterator(Face_FaceEndIterator *iterator);
 
 /*
- * Gets the most ancestral event of the set of bottom caps.
- */
-Event *face_getMostAncestralDerivedEvent(Face *face);
-
-/*
- * Gets the most derived event of the set of top caps.
- */
-Event *face_getMostDerivedAncestralEvent(Face *face);
-
-/*
- * Returns face name
- */
-Name face_getName(Face * face);
-
-/*
  * Tests if simple
  */
 int32_t face_isSimple(Face * face);
@@ -87,8 +72,8 @@ int32_t face_isCanonical(Face * face);
 void face_check(Face *face);
 
 /*
- * Checks that the set of faces is as we expect - with a face created
- * for each face.
+ * Checks that the set of faces is as we expect - with a face object created
+ * for each valid face structure in the DNA history graph.
  */
 void face_checkFaces(Net *net);
 

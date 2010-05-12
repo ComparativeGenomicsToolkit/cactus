@@ -7,9 +7,6 @@ struct _face {
 	// Net
 	Net * net;
 
-	// Serialisation name
-	Name name;
-
 	// Number of top nodes in face, length of subsequent arrays
 	int32_t cardinal;
 
@@ -48,11 +45,6 @@ struct _face_FaceEndIterator {
  * Constructs faces in net
  */
 Face * face_construct(Net * net);
-
-/*
- * Private constructor
- */
-Face * face_construct2(Name name, Net * net);
 
 /*
  * Simple destructor
@@ -108,11 +100,6 @@ void face_addBottomNode(Face * face, int32_t topIndex, Cap * bottomNode);
  * Adds a top node with a single bottom node
  */
 void face_engineerArtificialNodes(Face * face, Cap * topNode, Cap * bottomNode, int32_t nonDerived);
-
-/*
- * Get a static instance (from the heap) with the name set.
- */
-Face *face_getStaticNameWrapper(Name name);
 
 /*
  * Gets the face end associated with the top node of the cap. The public

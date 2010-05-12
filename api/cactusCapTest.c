@@ -276,7 +276,7 @@ void testCap_getTopCap(CuTest* testCase) {
 void testCap_getTopFace(CuTest* testCase) {
 	cactusCapTestSetup();
 	Face *face = face_construct(net);
-	cap_setFace(rootCap, face);
+	cap_setTopFace(rootCap, face);
 	CuAssertTrue(testCase, cap_getTopFace(rootCap) == face);
 	CuAssertTrue(testCase, cap_getTopFace(cap_getReverse(rootCap)) == face);
 	cactusCapTestTeardown();

@@ -46,7 +46,9 @@ int32_t net_constructChainsP(const void *o1, const void *o2, void *a) {
 
 int32_t net_constructFacesP(const void *o1, const void *o2, void *a) {
 	assert(a == NULL);
-	return netMisc_nameCompare(face_getName((Face *)o1), face_getName((Face *)o2));
+	assert(o1 != NULL);
+	assert(o2 != NULL);
+	return o1 - o2;
 }
 
 Net *net_construct(NetDisk *netDisk) {
@@ -441,12 +443,6 @@ void net_destructChainIterator(Net_ChainIterator *chainIterator) {
 
 Face *net_getFirstFace(Net *net) {
 	return sortedSet_getFirst(net->faces);
-}
-
-Face *net_getFace(Net *net, Name name) {
-	Face *face;
-	face = face_getStaticNameWrapper(name);
-	return sortedSet_find(net->faces, face);
 }
 
 int32_t net_getFaceNumber(Net *net) {

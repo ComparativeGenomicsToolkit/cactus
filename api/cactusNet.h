@@ -342,11 +342,6 @@ void net_destructChainIterator(Net_ChainIterator *chainIterator);
 Face *net_getFirstFace(Net *net);
 
 /*
- * Gets an chain by index.
- */
-Face *net_getFace(Net *net, Name name);
-
-/*
  * Returns the number of faces.
  */
 int32_t net_getFaceNumber(Net *net);
