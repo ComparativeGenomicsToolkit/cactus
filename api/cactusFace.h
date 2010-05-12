@@ -52,6 +52,16 @@ Face_FaceEndIterator *face_copyFaceEndIterator(Face_FaceEndIterator *iterator);
 void face_destructFaceEndIterator(Face_FaceEndIterator *iterator);
 
 /*
+ * Gets the most ancestral event of the set of bottom caps.
+ */
+Event *face_getMostAncestralDerivedEvent(Face *face);
+
+/*
+ * Gets the most derived event of the set of top caps.
+ */
+Event *face_getMostDerivedAncestralEvent(Face *face);
+
+/*
  * Returns face name
  */
 Name face_getName(Face * face);
@@ -78,7 +88,7 @@ void face_check(Face *face);
 
 /*
  * Checks that the set of faces is as we expect - with a face created
- * for each non-trivial face.
+ * for each face.
  */
 void face_checkFaces(Net *net);
 
