@@ -273,13 +273,14 @@ void net_reconstructFaces(Net * net) {
 	struct List *liftedEdges;
 	Cap *current;
 
-	while ((current = net_getNextCap(iter)))
+	while ((current = net_getNextCap(iter))) {
 		if ((liftedEdges = hash_search(liftedEdgesTable, current))
-				&& (liftedEdges->length >= 2
-						|| buildFaces_getMinorLiftedEdgeDestination(current,
-								liftedEdges)))
+				&& (liftedEdges->length >= 1)) {
+						//|| buildFaces_getMinorLiftedEdgeDestination(current,
+						//		liftedEdges))) {
 			buildFaces_constructFromCap(current, liftedEdgesTable, net);
-
+		}
+	}
 	hash_destruct(liftedEdgesTable);
 	net_destructCapIterator(iter);
 }
@@ -306,14 +307,17 @@ static Hash *hashbottomCaps(Net *net) {
 	 * For each top node finds the corresponding set of bottom nodes and returns a
 	 * hash of top nodes to sets of bottom nodes.
 	 */
-	Hash *bottomCapsHash = hash_construct();
+	Hash *bottomCapsHash = hash_construct2(NULL, (void (*)(void *))destructList);
 	Event *rootEvent = eventTree_getRootEvent(net_getEventTree(net));
 	Cap *cap;
 	Net_CapIterator *capIterator = net_getCapIterator(net);
 
 	while((cap = net_getNextCap(capIterator)) != NULL) {
+		assert(cap_getOrientation(cap));
 		if(cap_getEvent(cap) != rootEvent && cap_getAdjacency(cap) != NULL) {
 			Cap *cap2 = cap_getTopCap(cap);
+			assert(cap2 != NULL);
+			assert(cap_getOrientation(cap2));
 			struct List *list;
 			if((list = hash_search(bottomCapsHash, cap2)) == NULL) {
 				list = constructEmptyList(0, NULL);
@@ -333,11 +337,14 @@ static Hash *computeLiftedEdges(Net *net, Hash *bottomCapsHash) {
 	 * edge. Returns a hash of top nodes to list of other top nodes
 	 * connected by lifted edges.
 	 */
-	Hash *liftedEdgesHash = hash_construct();
+	Hash *liftedEdgesHash = hash_construct2(NULL, (void (*)(void *))destructList);
 	Hash_Iterator *iterator = hash_getIterator(bottomCapsHash);
 	Cap *topCap;
 	while((topCap = hash_getNext(iterator)) != NULL) {
+		assert(cap_getOrientation(topCap));
 		struct List *bottomCaps = hash_search(bottomCapsHash, topCap);
+		assert(bottomCapsHash != NULL);
+		assert(bottomCaps->length > 0);
 		struct List *liftedEdges = constructEmptyList(0, NULL);
 		assert(hash_search(liftedEdgesHash, topCap) == NULL);
 		hash_insert(liftedEdgesHash, topCap, liftedEdges);
@@ -346,11 +353,14 @@ static Hash *computeLiftedEdges(Net *net, Hash *bottomCapsHash) {
 			Cap *bottomCap = bottomCaps->list[i];
 			Cap *adjacentBottomCap = cap_getAdjacency(bottomCap);
 			assert(adjacentBottomCap != NULL);
+			adjacentBottomCap = cap_getPositiveOrientation(adjacentBottomCap);
 			Cap *adjacentTopCap = cap_getTopCap(adjacentBottomCap);
 			assert(adjacentTopCap != NULL);
+			assert(cap_getOrientation(adjacentTopCap));
 			assert(hash_search(bottomCapsHash, adjacentTopCap) != NULL);
 			listAppend(liftedEdges, adjacentTopCap);
 		}
+		assert(liftedEdges->length == bottomCaps->length);
 	}
 	hash_destructIterator(iterator);
 	return liftedEdgesHash;
@@ -360,6 +370,7 @@ static void computeModulesP(Cap *topCap, Hash *liftedEdgesHash, struct List *mod
 		Hash *modulesHash) {
 	int32_t i;
 	Cap *adjacentTopCap;
+	assert(cap_getOrientation(topCap));
 	if(hash_search(modulesHash, topCap) == NULL) {
 		//Add to module
 		hash_insert(modulesHash, topCap, module);
@@ -367,16 +378,25 @@ static void computeModulesP(Cap *topCap, Hash *liftedEdgesHash, struct List *mod
 
 		//Traverse the lifted edges
 		struct List *liftedEdges = hash_search(liftedEdgesHash, topCap);
-		for(i=0; i<liftedEdges->length; i++) {
-			adjacentTopCap = liftedEdges->list[i];
-			computeModulesP(adjacentTopCap, liftedEdgesHash, module, modulesHash);
+		if(liftedEdges != NULL) {
+			assert(liftedEdges->length > 0);
+			for(i=0; i<liftedEdges->length; i++) {
+				adjacentTopCap = liftedEdges->list[i];
+				assert(cap_getOrientation(adjacentTopCap));
+				computeModulesP(adjacentTopCap, liftedEdgesHash, module, modulesHash);
+			}
 		}
 
 		//Traverse the direct adjaceny
 		adjacentTopCap = cap_getAdjacency(topCap);
 		if(adjacentTopCap != NULL) {
+			adjacentTopCap = cap_getPositiveOrientation(adjacentTopCap);
+			assert(adjacentTopCap != topCap);
 			computeModulesP(adjacentTopCap, liftedEdgesHash, module, modulesHash);
 		}
+	}
+	else {
+		assert(hash_search(modulesHash, topCap) == module);
 	}
 }
 
@@ -391,11 +411,12 @@ static struct List *computeModules(Net *net, Hash *liftedEdges) {
 	Hash_Iterator *iterator = hash_getIterator(liftedEdges);
 	Cap *topCap;
 	while((topCap = hash_getNext(iterator)) != NULL) {
+		assert(cap_getOrientation(topCap));
 		if(hash_search(modulesHash, topCap) == NULL) {
 			struct List *module = constructEmptyList(0, NULL);
 			computeModulesP(topCap, liftedEdges, module, modulesHash);
 			listAppend(modules, module);
-			assert(module->length >= 2);
+			assert(module->length >= 1); //with a self loop can have a module of length 1.
 		}
 	}
 	hash_destructIterator(iterator);
@@ -403,68 +424,9 @@ static struct List *computeModules(Net *net, Hash *liftedEdges) {
 	return modules;
 }
 
-static int32_t isTrivialFaceP(Cap *cap, Hash *bottomCapsHash, Cap *otherCap) {
-	struct List *bottomCaps = hash_search(bottomCapsHash, cap);
-	assert(bottomCaps != NULL);
-	int32_t i;
-	//Check is connected to only the other cap by the lifted edge.
-	for(i=0; i<bottomCaps->length; i++) {
-		if(bottomCaps->list[i] != otherCap) {
-			return 0;
-		}
-	}
-	//check paths are disjoint.
-	assert(bottomCaps->length > 0);
-	Event *event1 = cap_getEvent(bottomCaps->list[0]);
-	for(i=1; i<bottomCaps->length; i++) {
-		Event *event2 = cap_getEvent(bottomCaps->list[i]);
-		if(eventTree_getCommonAncestor(event1, event2) != cap_getEvent(cap)) {
-			return 0;
-		}
-	}
-	//if there is an adjacency, check it is to the other cap
-	return cap_getAdjacency(cap) == NULL ? 1 : cap_getAdjacency(cap) == otherCap;
-}
-
-static int32_t isTrivialFace(Net *net, struct List *module, Hash *bottomCapsHash) {
+static void checkFace(Net *net, struct List *module, Hash *bottomCapsHash) {
 	/*
-	 * Returns non-zero iff the module is trivial.
-	 */
-	if(module->length > 2) {
-		return 0;
-	}
-	assert(module->length == 2);
-
-	return isTrivialFaceP(module->list[0], bottomCapsHash, module->list[1]) &&
-			isTrivialFaceP(module->list[1], bottomCapsHash, module->list[0]);
-}
-
-static void checkTrivialFaceP(Net *net, Cap *topCap, Hash *bottomCapsHash) {
-	assert(cap_getTopFace(topCap) == NULL); //top node of trivial face can not be in a cap.
-	assert(cap_getTopFace(cap_getReverse(topCap)) == NULL); //defensive, again top node of trivial face can not be in a cap.
-	struct List *bottomCaps = hash_search(bottomCapsHash, topCap);
-	assert(bottomCaps != NULL);
-	int32_t i;
-	for(i=0; i<bottomCaps->length; i++) { //check nodes do not have a bottom cap..
-		Cap *bottomCap = bottomCaps->list[i];
-		assert(cap_getBottomFaceEnd(bottomCap) == NULL);
-	}
-	assert(net != NULL);
-}
-
-static void checkTrivialFace(Net *net, struct List *module, Hash *bottomCapsHash) {
-	/*
-	 * Checks a trivial face.
-	 */
-	//Checks the top nodes do not have an associated fae.
-	assert(module->length == 2);
-	checkTrivialFaceP(net, module->list[0], bottomCapsHash);
-	checkTrivialFaceP(net, module->list[1], bottomCapsHash);
-}
-
-static void checkNonTrivialFace(Net *net, struct List *module, Hash *bottomCapsHash) {
-	/*
-	 * Checks a non-trivial face.
+	 * Checks a face.
 	 */
 	//Checks the top nodes are all in one associated face.
 	//Checks the set of bottom nodes for each face are in agreement.
@@ -482,36 +444,33 @@ static void checkNonTrivialFace(Net *net, struct List *module, Hash *bottomCapsH
 		assert(face == faceEnd_getFace(faceEnd));
 		assert(faceEnd_getTopNode(faceEnd) == topCap);
 		struct List *bottomCaps = hash_search(bottomCapsHash, topCap);
-		assert(bottomCaps != NULL);
-		assert(faceEnd_getNumberOfBottomNodes(faceEnd) == bottomCaps->length);
-		for(k=0; k<bottomCaps->length; k++) {
-			Cap *bottomCap = bottomCaps->list[k];
-			assert(cap_getBottomFaceEnd(bottomCap) == faceEnd);
-		}
-	}
-}
-
-static void diffFaces(Net *net, struct List *modules, Hash *bottomCapsHash) {
-	/*
-	 * Compares the set of faces we compute with those stored.
-	 */
-	int32_t i, j = 0;
-	for(i=0; i<modules->length; i++) {
-		struct List *module = modules->list[i];
-		if(isTrivialFace(net, module, bottomCapsHash)) {
-			checkTrivialFace(net, module, bottomCapsHash);
+		if(bottomCaps != NULL) { //could be null if top node has no lifted edges.
+			for(k=0; k<bottomCaps->length; k++) {
+				Cap *bottomCap = bottomCaps->list[k];
+				assert(cap_getBottomFaceEnd(bottomCap) == faceEnd);
+			}
+			//Temp debug output
+			{
+				uglyf("Number of caps in D's face end %i, in B's face end %i, topCap %i \n", faceEnd_getNumberOfBottomNodes(faceEnd), bottomCaps->length, topCap);
+				FaceEnd_BottomNodeIterator *bottomNodeIterator = faceEnd_getBottomNodeIterator(faceEnd);
+				Cap *bottomCap;
+				while((bottomCap = faceEnd_getNextBottomNode(bottomNodeIterator)) != NULL) {
+					uglyf("Bottom cap in Daniel's face: %i %i\n", bottomCap, cap_getTopCap(bottomCap));
+				}
+				for(i=0; i<bottomCaps->length; i++) {
+					bottomCap = bottomCaps->list[i];
+					uglyf("Bottom cap in Benedict's face: %i %i\n", bottomCap, cap_getTopCap(bottomCap));
+				}
+			}
+			assert(faceEnd_getNumberOfBottomNodes(faceEnd) == bottomCaps->length);
 		}
 		else {
-			checkNonTrivialFace(net, module, bottomCapsHash);
-			j++;
+			assert(faceEnd_getNumberOfBottomNodes(faceEnd) == 0);
 		}
 	}
-	assert(j == net_getFaceNumber(net)); //we should have checked exactly the number of
-	//non-trivial faces.
 }
 
 void face_checkFaces(Net *net) {
-	return;
 	/*
 	 * Checks that the set of faces is as we expect - with a face created
 	 * for each non-trivial face.
@@ -528,7 +487,11 @@ void face_checkFaces(Net *net) {
 		struct List *modules = computeModules(net, liftedEdgesHash);
 
 		//Check all faces we have computed are the same as those computed by Daniel.
-		diffFaces(net, modules, bottomCapsHash);
+		int32_t i;
+		for(i=0; i<modules->length; i++) {
+			checkFace(net, modules->list[i], bottomCapsHash);
+		}
+		assert(modules->length == net_getFaceNumber(net)); //we should have checked exactly the number of faces.
 
 		//Cleanup
 		hash_destruct(bottomCapsHash);

@@ -179,7 +179,7 @@ static void cap_checkProposedAdjacency(Cap *cap, Cap *cap2) {
 #endif
 
 void cap_makeAdjacent(Cap *cap, Cap *cap2) {
-	//We put them both on the same strand, as the strand is not important in the pairing
+	//We put them both on the same strand, as the strand is important in the pairing
 	//logDebug(">>>> Making adjacency %p -- %p\n", cap, cap2);
 	cap = cap_getStrand(cap) ? cap : cap_getReverse(cap);
 	cap2 = cap_getStrand(cap2) ? cap2 : cap_getReverse(cap2);

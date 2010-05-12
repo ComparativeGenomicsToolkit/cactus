@@ -1250,7 +1250,7 @@ int main(int argc, char ** argv) {
 		///////////////////////////////////////////////////////////////////////////
 
 		startTime = time(NULL);
-		fillingIn_fillAdjacencies(net);
+		//fillingIn_fillAdjacencies(net);
 		//buildFaces_buildAndProcessFaces(net);
 		logInfo("Processed the nets in: %i seconds\n", time(NULL) - startTime);
 
