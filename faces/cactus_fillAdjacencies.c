@@ -365,16 +365,6 @@ static bool adjacencyVoteTable_doesNotVote(Cap * cap, AdjacencyVoteTable * table
 ///////////////////////////////////////////////
 
 /*
- * Creates a new free stub end in which to place caps.
- */
-End *createNewFreeStubEnd(Net *net) {
-	End *newFreeStubEnd = end_construct(0, net);
-	assert(net_getGroupNumber(net) == 1);
-	end_setGroup(newFreeStubEnd, net_getFirstGroup(net));
-	return newFreeStubEnd;
-}
-
-/*
  * If possible register parent node into compuation front
  */
 static void fillingIn_registerParent(Cap * cap,
@@ -948,34 +938,25 @@ static Cap *fillingIn_getAttachedAncestor(Cap *
 }
 
 /*
- * Builds a stub node and creates at the same time an ad hoc end
+ * Builds a free stub end with the given group. The new end contains a cap with the given
+ * event, and if the given event is not the root event, a root cap to attach the new
+ * cap to the event.
  */
-static Cap * fillingIn_constructStub(Cap * adjacentCap) {
-	//Construct the new stub and the new cap..
-	Net * net = end_getNet(cap_getEnd(adjacentCap));
-	End *newFreeStubEnd = createNewFreeStubEnd(net);
-	Cap *cap = cap_construct(newFreeStubEnd, cap_getEvent(adjacentCap));
-
-	//Now set the group of the new stub end (they should be in the same group)
-	End *adjacentCapEnd = cap_getEnd(adjacentCap);
-	Group *group = end_getGroup(adjacentCapEnd);
+static Cap * fillingIn_constructStub(Event *event, Group *group) {
+	EventTree *eventTree = event_getEventTree(event);
+	End *newFreeStubEnd = end_construct(0, group_getNet(group));
 	end_setGroup(newFreeStubEnd, group);
-
-	//Now make adjacent
-	cap_makeAdjacent(cap, adjacentCap);
-
+	Cap *cap = cap_construct(newFreeStubEnd, event);
+	Event *rootEvent = eventTree_getRootEvent(eventTree);
+	if(event == rootEvent) {
+		end_setRootInstance(newFreeStubEnd, cap);
+	}
+	else {
+		end_setRootInstance(newFreeStubEnd, cap_construct(newFreeStubEnd, rootEvent));
+		cap_makeParentAndChild(end_getRootInstance(newFreeStubEnd), cap);
+	}
 	return cap;
-
-	/*
-	The 0 argument to the end constructor is a bool saying the stub end is 'free',
-	ie. not necessarily inherited from the parent (though it can be), and not part
-	of the reference structure. I.e. some stub ends are 'attached' - opposite of free,
-	representing the case where we know what happened to the other end of the stub
-	(i.e. if it is a block end at a higher level or the defined end of a sequence defined
-	at the top level).
-	*/
 }
-
 
 /*
  * Amend graph to remove lifted self loops
@@ -991,6 +972,7 @@ static void fillingIn_resolveSelfLoop(Cap * ancestor,
 	Cap *interpolationJoin;
 	Event *bottomEvent = cap_getEvent(descendant1);
 	Event *topEvent = cap_getEvent(ancestor);
+	Group *group = end_getGroup(cap_getEnd(ancestor));
 	Event *middleParentEvent, *middleChildEvent;
 
 	// Move up on the event tree
@@ -1019,16 +1001,19 @@ static void fillingIn_resolveSelfLoop(Cap * ancestor,
 				    middleChildEvent);
 
 	// Create alter ego tree
-	alterEgoChild = fillingIn_constructStub(interpolationJoin);
-	alterEgoAdjacency1 = cap_construct(cap_getEnd(alterEgoChild), middleChildEvent);
-	alterEgoAdjacency2 = cap_construct(cap_getEnd(alterEgoChild), middleChildEvent);
-	alterEgoParent = cap_construct(cap_getEnd(alterEgoChild), topEvent);
+	alterEgoParent = fillingIn_constructStub(topEvent, group); //construct the parent stub (and possible a root cap above it).
+	End *newStubEnd = cap_getEnd(alterEgoParent);
+	alterEgoChild = cap_construct(newStubEnd, cap_getEvent(interpolationJoin));
+	alterEgoAdjacency1 = cap_construct(newStubEnd, middleChildEvent);
+	alterEgoAdjacency2 = cap_construct(newStubEnd, middleChildEvent);
 
 	cap_makeParentAndChild(alterEgoParent, alterEgoChild);
 	cap_makeParentAndChild(alterEgoChild, alterEgoAdjacency1);
 	cap_makeParentAndChild(alterEgoChild, alterEgoAdjacency2);
 
+
 	// Join the two trees
+	cap_makeAdjacent(interpolationJoin, alterEgoChild);
 	cap_makeAdjacent(interpolation1, alterEgoAdjacency1);
 	cap_makeAdjacent(interpolation2, alterEgoAdjacency2);
 }
@@ -1250,7 +1235,7 @@ int main(int argc, char ** argv) {
 		///////////////////////////////////////////////////////////////////////////
 
 		startTime = time(NULL);
-		//fillingIn_fillAdjacencies(net);
+		fillingIn_fillAdjacencies(net);
 		//buildFaces_buildAndProcessFaces(net);
 		logInfo("Processed the nets in: %i seconds\n", time(NULL) - startTime);
 

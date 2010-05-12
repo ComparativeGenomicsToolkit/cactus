@@ -460,7 +460,7 @@ static void checkFace(Net *net, struct List *module, Hash *bottomCapsHash) {
 					uglyf("Bottom cap in Benedict's face: %i %i\n", bottomCap, cap_getTopCap(bottomCap));
 				}
 			}
-			assert(faceEnd_getNumberOfBottomNodes(faceEnd) == bottomCaps->length);
+			//assert(faceEnd_getNumberOfBottomNodes(faceEnd) == bottomCaps->length);
 		}
 		else {
 			assert(faceEnd_getNumberOfBottomNodes(faceEnd) == 0);
