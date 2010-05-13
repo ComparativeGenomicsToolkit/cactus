@@ -288,6 +288,17 @@ def readFastaTemporaryFiles(fileNames, tempDir, compressFiles):
     fileHandle.close()
     return tempFileName
 
+def catFiles(filesToCat, catFile):
+    """Cats a bunch of files into one file. Ensures a no more than MAX_CAT files
+    are concatenated at each step.
+    """
+    MAX_CAT = 25
+    system("cat %s > %s" % (" ".join(filesToCat[:MAX_CAT]), catFile))
+    filesToCat = filesToCat[MAX_CAT:]
+    while len(filesToCat) > 0:
+        system("cat %s >> %s" % (" ".join(filesToCat[:MAX_CAT]), catFile))
+        filesToCat = filesToCat[MAX_CAT:]
+
 class RunBlast(Target):
     """Runs blast as a job.
     """
@@ -313,7 +324,7 @@ class RunBlast(Target):
                 executeBlast(tempSeqFile1, tempSeqFile2, tempResultsFile, self.options.blastString)
                 
         #Write stuff back to the central dirs.
-        system("cat %s > %s" % (" ".join(tempResultsFiles), self.resultsFile))
+        catFiles(tempResultsFiles, self.resultsFile)
         
         logger.info("Copied back the results files")
         
@@ -352,8 +363,8 @@ class RunSelfBlast(Target):
                 seqFiles1 = seqFiles[:len(seqFiles)/2]
                 seqFiles2 = seqFiles[len(seqFiles)/2:]
                 #Do blast job
-                system("cat %s > %s" % (" ".join(seqFiles1), tempSeqFile1))
-                system("cat %s > %s" % (" ".join(seqFiles2), tempSeqFile2))
+                catFiles(seqFiles1, tempSeqFile1)
+                catFiles(seqFiles2, tempSeqFile2)
                 
                 executeBlast(tempSeqFile1, tempSeqFile2, tempResultsFile1, self.options.blastString)
                 system("cat %s >> %s" % (tempResultsFile1, tempResultsFile2))
