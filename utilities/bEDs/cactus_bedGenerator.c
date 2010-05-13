@@ -14,13 +14,18 @@
 #include "psl.h"
 
 /*
- * The script outputs a maf file containing all the block in a net and its descendants.
+ *Prints to output file all segments of the target sequence that are in blocks that contain both query & target
+ *For example, if option 'query' is specified as 'hg19', and 'target' is as 'panTro2'. The program will look for
+ *all blocks in the input net and all recursive nets that contain segments of both hg19 and panTro2, and print 
+ *out all panTro2's (the target) BED records.
+ *Each BED record is just the Start and End of one segment.
+ *
+ *In case option 'ref' is specified:
+ *   'ref' is a file that contains all the PSL records of reference transcripts/genes, whose target is the 'query' above.
+ *   In our example, ref's target is 'hg19'.
+ *   The program will only print BEDs of target segments that are in the same blocks with those query segments that are
+ *   overlap with the range found in ref PSLs.
  */
-
-/*
- * Global variables.
- */
-bool includeTreesInMafBlocks = 0;
 
 char *formatSequenceHeader(Sequence *sequence) {
 	const char *sequenceHeader = sequence_getHeader(sequence);
@@ -33,6 +38,7 @@ char *formatSequenceHeader(Sequence *sequence) {
 		return netMisc_nameToString(sequence_getName(sequence));
 	}
 }
+
 void printCap(FILE *fileHandle, Cap *cap){
    char side = cap_getSide(cap) ? '5' : '3';
    char strand = cap_getStrand(cap) ? '+' : '-';
@@ -51,19 +57,20 @@ bool block_inRange(Block *block, char *name, int s, int e){
    Block_InstanceIterator *segmentIterator = block_getInstanceIterator(block);
    while((segment = block_getNext(segmentIterator)) != NULL){
       Sequence *sequence = segment_getSequence(segment);
-      if(sequence == NULL){continue;}
-      char *sequenceHeader = formatSequenceHeader(sequence);
-      if(strcmp(sequenceHeader, name) == 0){
-         bstart = cap_getCoordinate(segment_get5Cap(segment));
-         bend = cap_getCoordinate(segment_get3Cap(segment));
-         if(bstart > bend){
-            temp = bend;
-            bend = bstart;
-            bstart = temp;
-         }
-         if(bstart < e && s < bend){
-            inrange = true;
-            break;
+      if(sequence != NULL){
+         char *sequenceHeader = formatSequenceHeader(sequence);
+         if(strstr(sequenceHeader, name) == sequenceHeader){
+            bstart = cap_getCoordinate(segment_get5Cap(segment));
+            bend = cap_getCoordinate(segment_get3Cap(segment));
+            if(bstart > bend){
+               temp = bend;
+               bend = bstart;
+               bstart = temp;
+            }
+            if(bstart < e && s < bend){
+               inrange = true;
+               break;
+            }
          }
       }
    }
@@ -79,12 +86,11 @@ bool block_hasQueryTarget(Block *block, char *query, char *target){
    bool hasTarget = false;
    while((segment = block_getNext(instanceIterator)) != NULL){
       Sequence *sequence = segment_getSequence(segment);
-      if(sequence == NULL){continue;}
       if(sequence != NULL){ 
          char *sequenceHeader = formatSequenceHeader(sequence);
-         if(strcmp(sequenceHeader, query) == 0){
+         if(strstr(sequenceHeader, query) == sequenceHeader){
             hasQuery = true;
-         }else if(strcmp(sequenceHeader, target) == 0){
+         }else if(strstr(sequenceHeader, target) == sequenceHeader){
             hasTarget = true;
          }
          free(sequenceHeader);
@@ -100,7 +106,7 @@ bool block_hasQueryTarget(Block *block, char *query, char *target){
 
 void getBEDBlock(Block *block, FILE *fileHandle, char *target, int tstart) {
 	/*
-	 * Outputs a MAF representation of the block to the given file handle.
+	 * Outputs target BED records of the block to the given file handle.
 	 */
 	Block_InstanceIterator *instanceIterator = block_getInstanceIterator(block);
 	Segment *segment;
@@ -108,12 +114,11 @@ void getBEDBlock(Block *block, FILE *fileHandle, char *target, int tstart) {
 		Sequence *sequence = segment_getSequence(segment);
 		if(sequence != NULL) {
 			char *sequenceHeader = formatSequenceHeader(sequence);
-         		if(strcmp(sequenceHeader, target) == 0){
+         		if(strstr(sequenceHeader, target) == sequenceHeader){
                                 Cap *cap5 = segment_get5Cap(segment);
                                 Cap *cap3 = segment_get3Cap(segment);
 				int32_t coor5 = cap_getCoordinate(cap5);
 				int32_t coor3 = cap_getCoordinate(cap3);
-				//int32_t seqlength = sequence_getLength(sequence);
 				int32_t start, end;
 				if(coor5 < coor3){
 					start = coor5 + tstart -2;
@@ -122,6 +127,7 @@ void getBEDBlock(Block *block, FILE *fileHandle, char *target, int tstart) {
 					start = coor3 + tstart -2;
 					end = coor5 + tstart +1 -2;
 				}
+
 				fprintf(fileHandle, "chr\t%d\t%d\n", start, end);
 				
 			}
@@ -133,18 +139,15 @@ void getBEDBlock(Block *block, FILE *fileHandle, char *target, int tstart) {
 
 void getBED(Net *net, FILE *fileHandle, char *query, char *target, int tstart, int s, int e) {
 	/*
-	 * Outputs MAF representations of all the block sin the net and its descendants.
+	 * Outputs target BED records of all the blocks in the net and its descendants.
 	 */
 
-	//Make MAF blocks for each block
 	Net_BlockIterator *blockIterator = net_getBlockIterator(net);
 	Block *block;
 	while((block = net_getNextBlock(blockIterator)) != NULL) {
         	//if(block_getChain(block) == NULL){//ONLY print out NON CHAIN blocks
         	if(block_hasQueryTarget(block, query, target)){
-                        if(s < 0 || e < 0){
-				getBEDBlock(block, fileHandle, target, tstart);
-                	}else if(block_inRange(block, query, s, e)){
+                        if( (s < 0 || e < 0) || block_inRange(block, query, s, e) ){
 				getBEDBlock(block, fileHandle, target, tstart);
 			}
 		}
@@ -181,12 +184,11 @@ void usage() {
 	fprintf(stderr, "-c --netDisk : The location of the net disk directory\n");
 	fprintf(stderr, "-d --netName : The name of the net (the key in the database)\n");
 	fprintf(stderr, "-e --outputFile : The file to write the BEDs in.\n");
-	fprintf(stderr, "-r --ref : psl of reference genes\n");
+	fprintf(stderr, "-r --ref : file that contains psl records of reference genes, whose target is the same with query.\n");
 	fprintf(stderr, "-s --tstart : target sequence position on the chromosome\n");
 	fprintf(stderr, "-o --qstart : query sequence position on the chromosome\n");
 	fprintf(stderr, "-q --query\n");
 	fprintf(stderr, "-t --target\n");
-	fprintf(stderr, "-f --includeTrees : Include trees for each MAF block inside of a comment line.\n");
 	fprintf(stderr, "-h --help : Print this help screen\n");
 }
 
@@ -222,14 +224,13 @@ int main(int argc, char *argv[]) {
 			{ "tstart", required_argument, 0, 's' },
 			{ "qstart", required_argument, 0, 'o' },
 			{ "ref", required_argument, 0, 'r' },
-			{ "includeTrees", no_argument, 0, 'f' },
 			{ "help", no_argument, 0, 'h' },
 			{ 0, 0, 0, 0 }
 		};
 
 		int option_index = 0;
 
-		int key = getopt_long(argc, argv, "r:o:a:c:d:e:q:t:s:fh", long_options, &option_index);
+		int key = getopt_long(argc, argv, "r:o:a:c:d:e:q:t:s:h", long_options, &option_index);
 
 		if(key == -1) {
 			break;
@@ -262,9 +263,6 @@ int main(int argc, char *argv[]) {
 				break;
 			case 'r':
 				ref = stringCopy(optarg);
-				break;
-			case 'f':
-				includeTreesInMafBlocks = !includeTreesInMafBlocks;
 				break;
 			case 'h':
 				usage();
@@ -300,7 +298,7 @@ int main(int argc, char *argv[]) {
 
 	logInfo("Net disk name : %s\n", netDiskName);
 	logInfo("Net name : %s\n", netName);
-	logInfo("Output MAF file : %s\n", outputFile);
+	logInfo("Output BED file : %s\n", outputFile);
 
 	//////////////////////////////////////////////
 	//Load the database
@@ -329,7 +327,7 @@ int main(int argc, char *argv[]) {
 	   getBEDs(net, fileHandle, query, target, tstart, qstart, refpsl);
         }
 	fclose(fileHandle);
-	logInfo("Got the mafs in %i seconds/\n", time(NULL) - startTime);
+	logInfo("Got the beds in %i seconds/\n", time(NULL) - startTime);
 
 	///////////////////////////////////////////////////////////////////////////
 	// Clean up.
