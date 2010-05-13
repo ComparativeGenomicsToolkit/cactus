@@ -104,7 +104,7 @@ void filterPieceAndThenAddToGraph(struct PinchGraph *pinchGraph,
 }
 
 CactusCoreInputParameters *constructCactusCoreInputParameters() {
-	CactusCoreInputParameters *cCIP = (CactusCoreInputParameters *)malloc(sizeof(CactusCoreInputParameters));
+	CactusCoreInputParameters *cCIP = (CactusCoreInputParameters *)mallocLocal(sizeof(CactusCoreInputParameters));
 	//Everything is essentially 'turned off' by default.
 	cCIP->writeDebugFiles = 0;
 	cCIP->alignUndoLoops = 1;
@@ -265,7 +265,7 @@ int32_t cactusCorePipeline(Net *net,
 		logInfo("Now doing the pinch merges:\n");
 		i = 0;
 
-		struct FilterAlignmentParameters *filterParameters = (struct FilterAlignmentParameters *)malloc(sizeof(struct FilterAlignmentParameters));
+		struct FilterAlignmentParameters *filterParameters = (struct FilterAlignmentParameters *)mallocLocal(sizeof(struct FilterAlignmentParameters));
 		assert(cCIP->trim >= 0);
 		filterParameters->trim = trim;
 		filterParameters->alignRepeats = loop >= cCIP->alignRepeatsAtLoop; //cCIP->alignRepeats;

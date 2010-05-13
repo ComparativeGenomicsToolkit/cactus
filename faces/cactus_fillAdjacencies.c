@@ -41,11 +41,11 @@ struct adjacency_vote_st {
  */
 static AdjacencyVote *adjacencyVote_construct(int32_t length)
 {
-	AdjacencyVote *vote = calloc(1, sizeof(AdjacencyVote));
+	AdjacencyVote *vote = callocLocal(1, sizeof(AdjacencyVote));
 
 	vote->intersection = true;
 	vote->length = length;
-	vote->candidates = calloc(length, sizeof(Cap *));
+	vote->candidates = callocLocal(length, sizeof(Cap *));
 
 	return vote;
 }
@@ -295,7 +295,7 @@ static void valueFree(void *value)
 // Basic constructor
 static AdjacencyVoteTable *adjacencyVoteTable_construct()
 {
-	AdjacencyVoteTable *table = calloc(1, sizeof(AdjacencyVoteTable));
+	AdjacencyVoteTable *table = callocLocal(1, sizeof(AdjacencyVoteTable));
 	table->table =
 	    create_hashtable(16, hash_from_key_fn, keys_equal_fn, NULL,
 			     valueFree);

@@ -138,7 +138,7 @@ static struct hashtable *buildFaces_computeLiftedEdges(Net * net, struct hashtab
 				continue;
 
 			// ... create lifted edge
-			liftedEdge = malloc(sizeof(LiftedEdge));
+			liftedEdge = mallocLocal(sizeof(LiftedEdge));
 			liftedEdge->destination = adjacencyAncestor;
 			liftedEdge->bottomNode = cap;
 
@@ -434,7 +434,7 @@ static Cap *buildFaces_interpolateTopNode(Face * face, int32_t topIndex) {
  * Produces array of interpolations for the top nodes of a face
  */
 static Cap **buildFaces_interpolateTopNodes(Face * face) {
-	Cap **interpolations = calloc(face_getCardinal(face), sizeof(Cap *));
+	Cap **interpolations = callocLocal(face_getCardinal(face), sizeof(Cap *));
 	uint32_t topIndex;
 
 	for (topIndex = 0; topIndex < face_getCardinal(face); topIndex++)

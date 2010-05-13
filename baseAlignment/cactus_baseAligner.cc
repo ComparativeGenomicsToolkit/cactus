@@ -76,7 +76,7 @@ typedef struct _SubSequence {
 
 SubSequence *getSequenceAndCoordinates(Cap *cap, int32_t maxLength) {
 	assert(!cap_getSide(cap));
-	SubSequence *subSequence = (SubSequence *)malloc(sizeof(SubSequence));
+	SubSequence *subSequence = (SubSequence *)mallocLocal(sizeof(SubSequence));
 	subSequence->string = getSequence(cap, maxLength);
 	Sequence *sequence = cap_getSequence(cap);
 	subSequence->sequenceName = netMisc_nameToString(sequence_getName(sequence));
@@ -101,7 +101,7 @@ SubSequence **getForwardAndReverseSequences(Cap *cap1, int32_t maxLength) {
 	assert(cap_getStrand(cap2));
 	assert(cap_getSide(cap2));
 
-	SubSequence **subSequences = (SubSequence **)malloc(sizeof(void *) * 2);
+	SubSequence **subSequences = (SubSequence **)mallocLocal(sizeof(void *) * 2);
 	subSequences[0] = getSequenceAndCoordinates(cap1, maxLength);
 	subSequences[1] = getSequenceAndCoordinates(cap_getReverse(cap2), maxLength);
 	return subSequences;

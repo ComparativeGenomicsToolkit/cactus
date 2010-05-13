@@ -41,9 +41,9 @@ char **chainAlignment_getAlignment(ChainAlignment *chainAlignment) {
 	char *cA;
 
 	//alloc the memory for the char alignment.
-	alignment = malloc(sizeof(void *) * chainAlignment->rowNumber);
+	alignment = mallocLocal(sizeof(void *) * chainAlignment->rowNumber);
 	for(i=0; i<chainAlignment->rowNumber; i++) {
-		alignment[i] = malloc(sizeof(char) * (chainAlignment->totalAlignmentLength + 1));
+		alignment[i] = mallocLocal(sizeof(char) * (chainAlignment->totalAlignmentLength + 1));
 	}
 
 	/*
@@ -102,7 +102,7 @@ Name *chainAlignment_getEndNames(ChainAlignment *chainAlignment, bool _5End) {
 	int32_t i;
 	Segment *segment;
 
-	names = malloc(sizeof(Name) * chainAlignment->rowNumber);
+	names = mallocLocal(sizeof(Name) * chainAlignment->rowNumber);
 	for(i=0; i<chainAlignment->rowNumber; i++) {
 		segment = chainAlignment_getFirstNonNullSegment(chainAlignment, i, _5End);
 		names[i] = end_getName(cap_getEnd(cap_getAdjacency(_5End ? segment_get5Cap(segment) : segment_get3Cap(segment))));
@@ -118,7 +118,7 @@ Name *chainAlignment_getLeafEventNames(ChainAlignment *chainAlignment) {
 	int32_t i;
 	Segment *segment;
 
-	names = malloc(sizeof(Name) * chainAlignment->rowNumber);
+	names = mallocLocal(sizeof(Name) * chainAlignment->rowNumber);
 	for(i=0; i<chainAlignment->rowNumber; i++) {
 		segment = chainAlignment_getFirstNonNullSegment(chainAlignment, i, 1);
 		names[i] = event_getName(segment_getEvent(segment));
@@ -133,7 +133,7 @@ int32_t *chainAlignment_getBlockBoundaries(ChainAlignment *chainAlignment) {
 	int32_t *blockBoundaries;
 	int32_t i, j;
 
-	blockBoundaries = malloc(sizeof(int32_t) * chainAlignment->columnNumber);
+	blockBoundaries = mallocLocal(sizeof(int32_t) * chainAlignment->columnNumber);
 	j = 0;
 	for(i=0; i<chainAlignment->columnNumber; i++) {
 		blockBoundaries[i] = j + block_getLength(chainAlignment->blocks[i]);
@@ -175,10 +175,10 @@ void buildChainTrees_Bernard(int32_t blockNumber, char ***concatenatedBlocks, Na
 	int32_t colNumber = 0;
 
 	char ***blockTreeArray = NULL;
-	blockTreeArray = malloc(sizeof(void *) * blockNumber);
+	blockTreeArray = mallocLocal(sizeof(void *) * blockNumber);
 	for (i=0; i<blockNumber; i++) {
 		colNumber = chainAlignments[i]->columnNumber;
-		blockTreeArray[i] = malloc(sizeof(void *) * colNumber);
+		blockTreeArray[i] = mallocLocal(sizeof(void *) * colNumber);
 	}
 
 	char buffer[128];
@@ -205,11 +205,11 @@ logInfo("\tEnd the loop\n");
 	int32_t **newBlockBoundaries = NULL;
 	int32_t *newBlockNumbers = NULL;
 
-	newBlockBoundaries = malloc(sizeof(void *) * blockNumber);
-	newBlockNumbers = malloc(sizeof(int32_t) * blockNumber);
+	newBlockBoundaries = mallocLocal(sizeof(void *) * blockNumber);
+	newBlockNumbers = mallocLocal(sizeof(int32_t) * blockNumber);
 	for (i=0; i<blockNumber; i++) {
 		colNumber = chainAlignments[i]->columnNumber;
-		newBlockBoundaries[i] = malloc(sizeof(int32_t) * colNumber);
+		newBlockBoundaries[i] = mallocLocal(sizeof(int32_t) * colNumber);
 		newBlockNumbers[i] = colNumber;
 		for (j=0; j<colNumber; j++) {
 			newBlockBoundaries[i][j] = blockBoundaries[i][j];
@@ -344,11 +344,11 @@ void buildChainTrees(ChainAlignment **chainAlignments, int32_t chainAlignmentNum
 	int32_t i, j;
 
 	//Make the block alignments.
-	char ***concatenatedBlocks = malloc(sizeof(void *) * chainAlignmentNumber); //this is the list of 2d alignments.
-	Name **_5Ends = malloc(sizeof(void *) * chainAlignmentNumber); //these are the lists of ends associated with each end.
-	Name **_3Ends = malloc(sizeof(void *) * chainAlignmentNumber);
-	Name **leafEventLabels = malloc(sizeof(void *) * chainAlignmentNumber); //this is the list of leaf event labels.
-	int32_t **blockBoundaries = malloc(sizeof(void *) * chainAlignmentNumber); //each chain alignment has a list of block lengths to demark where the block boundaries are.
+	char ***concatenatedBlocks = mallocLocal(sizeof(void *) * chainAlignmentNumber); //this is the list of 2d alignments.
+	Name **_5Ends = mallocLocal(sizeof(void *) * chainAlignmentNumber); //these are the lists of ends associated with each end.
+	Name **_3Ends = mallocLocal(sizeof(void *) * chainAlignmentNumber);
+	Name **leafEventLabels = mallocLocal(sizeof(void *) * chainAlignmentNumber); //this is the list of leaf event labels.
+	int32_t **blockBoundaries = mallocLocal(sizeof(void *) * chainAlignmentNumber); //each chain alignment has a list of block lengths to demark where the block boundaries are.
 
 	//now fill out the the various arrays.
 	for(i=0; i<chainAlignmentNumber; i++) {
@@ -375,7 +375,7 @@ void buildChainTrees(ChainAlignment **chainAlignments, int32_t chainAlignmentNum
 	 * Now process and reconcile each new block tree.
 	 */
 	for(i=0; i<chainAlignmentNumber; i++) {
-		struct BinaryTree **blockTrees = malloc(sizeof(void *)* refinedBlockNumbers[i]);
+		struct BinaryTree **blockTrees = mallocLocal(sizeof(void *)* refinedBlockNumbers[i]);
 		for(j=0; j<refinedBlockNumbers[i]; j++) {
 			blockTrees[j] = newickTreeParser(blockTreeStrings[i][j], 0.0, 0);
 		}
@@ -494,10 +494,10 @@ ChainAlignment *chainAlignment_construct(Block **blocks, int32_t blocksLength) {
 	 */
 
 	//alloc the chain alignment and the matrix of instances.
-	chainAlignment = malloc(sizeof(ChainAlignment));
-	chainAlignment->matrix = malloc(sizeof(Segment **) * blocksLength);
+	chainAlignment = mallocLocal(sizeof(ChainAlignment));
+	chainAlignment->matrix = mallocLocal(sizeof(Segment **) * blocksLength);
 	for(i=0; i<blocksLength; i++) {
-		chainAlignment->matrix[i] = malloc(sizeof(Segment *) * list->length);
+		chainAlignment->matrix[i] = mallocLocal(sizeof(Segment *) * list->length);
 	}
 	//fill out the fields of the chain alignment, including the matrix.
 	chainAlignment->columnNumber = blocksLength;
@@ -516,7 +516,7 @@ ChainAlignment *chainAlignment_construct(Block **blocks, int32_t blocksLength) {
 	}
 	assert(chainAlignment->totalAlignmentLength > 0);
 	//Add chain of blocks.
-	chainAlignment->blocks = malloc(sizeof(void *)*blocksLength);
+	chainAlignment->blocks = mallocLocal(sizeof(void *)*blocksLength);
 	for(i=0; i<blocksLength; i++) {
 		chainAlignment->blocks[i] = blocks[i];
 	}

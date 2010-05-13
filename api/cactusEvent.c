@@ -12,7 +12,7 @@ Event *event_construct(MetaEvent *metaEvent, float branchLength,
 		Event *parentEvent, EventTree *eventTree) {
 	assert(eventTree_getEvent(eventTree, metaEvent_getName(metaEvent)) == NULL); //the event must not already exist in the tree.
 	Event *event;
-	event = malloc(sizeof(Event));
+	event = mallocLocal(sizeof(Event));
 	event->metaEvent = metaEvent;
 	event->parent = parentEvent;
 	event->children = constructEmptyList(0, NULL);

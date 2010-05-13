@@ -53,7 +53,7 @@ char *binaryRepresentation_getString(void **binaryString) {
 	int32_t i;
 	char *cA;
 	i = binaryRepresentation_getInteger(binaryString);
-	cA = malloc(sizeof(char)*(i+1));
+	cA = mallocLocal(sizeof(char)*(i+1));
 	memcpy(cA, *binaryString, sizeof(char)*i);
 	cA[i] = '\0';
 	*binaryString = *((char **)binaryString) + i;
@@ -123,7 +123,7 @@ void *binaryRepresentation_makeBinaryRepresentation(void *object, void (*writeBi
 	void *vA;
 	binaryRepresentation_makeBinaryRepresentationP_i = 0;
 	writeBinaryRepresentation(object, binaryRepresentation_makeBinaryRepresentationP);
-	vA = malloc(binaryRepresentation_makeBinaryRepresentationP_i);
+	vA = mallocLocal(binaryRepresentation_makeBinaryRepresentationP_i);
 	binaryRepresentation_makeBinaryRepresentationP2_vA = vA;
 	writeBinaryRepresentation(object, binaryRepresentation_makeBinaryRepresentationP2);
 	*recordSize = binaryRepresentation_makeBinaryRepresentationP_i;

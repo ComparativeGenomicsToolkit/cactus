@@ -16,7 +16,7 @@ Hash *hash_construct2(void (*destructKeys)(void *), void (*destructValues)(void 
 
 Hash *hash_construct3(uint32_t (*hashKey)(void *), int32_t (*hashEqualsKey)(void *, void *),
 		void (*destructKeys)(void *), void (*destructValues)(void *)) {
-	Hash *hash = malloc(sizeof(Hash));
+	Hash *hash = mallocLocal(sizeof(Hash));
 	hash->hash = create_hashtable(0, hashKey, hashEqualsKey, destructKeys, destructValues);
 	hash->destructKeys = destructKeys != NULL;
 	hash->destructValues = destructValues != NULL;
@@ -58,7 +58,7 @@ void *hash_getNext(Hash_Iterator *iterator) {
 }
 
 Hash_Iterator *hash_copyIterator(Hash_Iterator *iterator) {
-	Hash_Iterator *iterator2 = malloc(sizeof(Hash_Iterator));
+	Hash_Iterator *iterator2 = mallocLocal(sizeof(Hash_Iterator));
 	iterator2->h = iterator->h;
 	iterator2->e = iterator->e;
 	iterator2->parent = iterator->parent;

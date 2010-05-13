@@ -50,7 +50,7 @@ static AdjacencyPair *adjacencyPair_construct(End *end1, End *end2) {
 	end2 = end_getPositiveOrientation(end2);
 	assert(end1 != end2);
 	assert(end_getName(end1) != end_getName(end2));
-	AdjacencyPair *adjacencyPair = malloc(sizeof(AdjacencyPair));
+	AdjacencyPair *adjacencyPair = mallocLocal(sizeof(AdjacencyPair));
 	if(netMisc_nameCompare(end_getName(end1), end_getName(end2)) <= 0) {
 		adjacencyPair->end2 = end1;
 		adjacencyPair->end1 = end2;

@@ -664,7 +664,7 @@ void fillOutNetFromInputs(
 	for(i=0; i<chosenBlocks->length; i++) {
 		hashtable_insert(chosenBlocksHash, chosenBlocks->list[i], &i);
 	}
-	mergedVertexIDs = malloc(sizeof(int32_t)*cactusGraph->vertices->length);
+	mergedVertexIDs = mallocLocal(sizeof(int32_t)*cactusGraph->vertices->length);
 	for(i=0; i<cactusGraph->vertices->length; i++) {
 		mergedVertexIDs[i] = ((struct CactusVertex *)cactusGraph->vertices->list[i])->vertexID;
 	}

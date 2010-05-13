@@ -25,7 +25,7 @@ int32_t netDisk_constructMetaEventsP(const void *o1, const void *o2, void *a) {
 
 NetDisk *netDisk_construct(const char *netDiskFile) {
 	NetDisk *netDisk;
-	netDisk = malloc(sizeof(NetDisk));
+	netDisk = mallocLocal(sizeof(NetDisk));
 	int32_t i;
 
 	//construct lists of in memory objects
@@ -341,7 +341,7 @@ char *netDisk_getString(NetDisk *netDisk, int64_t offset, int32_t start, int32_t
 
 	fileHandle = fopen(netDisk->stringFile, "r");
 	fseek(fileHandle, offset+start, SEEK_SET);
-	cA = malloc(sizeof(char)*(length+1));
+	cA = mallocLocal(sizeof(char)*(length+1));
 	fread(cA, sizeof(char), length, fileHandle);
 	cA[length] = '\0';
 	fclose(fileHandle);

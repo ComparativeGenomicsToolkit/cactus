@@ -30,7 +30,7 @@
 char *formatSequenceHeader(Sequence *sequence) {
 	const char *sequenceHeader = sequence_getHeader(sequence);
 	if(strlen(sequenceHeader) > 0) {
-		char *cA = malloc(sizeof(char) *(1 + strlen(sequenceHeader)));
+		char *cA = mallocLocal(sizeof(char) *(1 + strlen(sequenceHeader)));
 		sscanf(sequenceHeader, "%s", cA);
 		return cA;
 	}

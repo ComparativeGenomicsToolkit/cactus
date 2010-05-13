@@ -19,7 +19,7 @@ EventTree *eventTree_construct2(Net *net) {
 
 EventTree *eventTree_construct(MetaEvent *rootEvent, Net *net) {
 	EventTree *eventTree;
-	eventTree = malloc(sizeof(EventTree));
+	eventTree = mallocLocal(sizeof(EventTree));
 	eventTree->events = sortedSet_construct(eventTree_constructP);
 	eventTree->net = net;
 	eventTree->rootEvent = event_construct(rootEvent, INT32_MAX, NULL, eventTree); //do this last as reciprocal call made to add the event to the events.
@@ -132,23 +132,23 @@ static char *eventTree_makeNewickStringP(Event *event) {
 		for(i=0;i<event_getChildNumber(event); i++) {
 			cA2 = eventTree_makeNewickStringP(event_getChild(event, i));
 			if(i > 0) {
-				cA3 = malloc(sizeof(char)*(strlen(cA)+strlen(cA2)+2));
+				cA3 = mallocLocal(sizeof(char)*(strlen(cA)+strlen(cA2)+2));
 				sprintf(cA3, "%s,%s", cA, cA2);
 				free(cA);
 				cA = cA3;
 			}
 			else {
-				cA = malloc(sizeof(char)*(strlen(cA2)+2));
+				cA = mallocLocal(sizeof(char)*(strlen(cA2)+2));
 				sprintf(cA, "(%s", cA2);
 			}
 		}
-		cA3 = malloc(sizeof(char)*(strlen(cA) + strlen(event_getHeader(event)) + 30));
+		cA3 = mallocLocal(sizeof(char)*(strlen(cA) + strlen(event_getHeader(event)) + 30));
 		sprintf(cA3, "%s)%s:%g", cA, netMisc_nameToStringStatic(event_getName(event)), event_getBranchLength(event));
 		free(cA);
 		cA = cA3;
 	}
 	else {
-		cA = malloc(sizeof(char)*(strlen(event_getHeader(event)) + 30));
+		cA = mallocLocal(sizeof(char)*(strlen(event_getHeader(event)) + 30));
 		sprintf(cA, "%s:%g", netMisc_nameToStringStatic(event_getName(event)), event_getBranchLength(event));
 	}
 	return cA;
@@ -157,7 +157,7 @@ static char *eventTree_makeNewickStringP(Event *event) {
 char *eventTree_makeNewickString(EventTree *eventTree) {
 	Event *rootEvent = eventTree_getRootEvent(eventTree);
 	char *cA = eventTree_makeNewickStringP(rootEvent);
-	char *cA2 = malloc(sizeof(char)*(strlen(cA) + 2));
+	char *cA2 = mallocLocal(sizeof(char)*(strlen(cA) + 2));
 	sprintf(cA2, "%s;", cA);
 	free(cA);
 	return cA2;

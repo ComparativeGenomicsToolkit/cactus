@@ -128,7 +128,7 @@ void block_setRootInstance(Block *block, Segment *segment) {
 
 Block_InstanceIterator *block_getInstanceIterator(Block *block) {
 	Block_InstanceIterator *iterator;
-	iterator = malloc(sizeof(struct _block_instanceIterator));
+	iterator = mallocLocal(sizeof(struct _block_instanceIterator));
 	iterator->block = block;
 	iterator->iterator = iterator_construct(block->blockContents->segments);
 	return iterator;
@@ -144,7 +144,7 @@ Segment *block_getPrevious(Block_InstanceIterator *iterator) {
 
 Block_InstanceIterator *block_copyInstanceIterator(Block_InstanceIterator *iterator) {
 	Block_InstanceIterator *iterator2;
-	iterator2 = malloc(sizeof(struct _block_instanceIterator));
+	iterator2 = mallocLocal(sizeof(struct _block_instanceIterator));
 	iterator2->block = iterator->block;
 	iterator2->iterator = iterator_copy(iterator->iterator);
 	return iterator2;

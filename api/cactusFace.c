@@ -5,7 +5,7 @@
  * Basic constructor
  */
 Face * face_construct(Net * net) {
-	Face * face = calloc(1, sizeof(Face));
+	Face * face = callocLocal(1, sizeof(Face));
 	face->net = net;
 	net_addFace(net, face);
 	return face;
@@ -344,15 +344,15 @@ Cap * face_getBottomNode(Face * face, int32_t topNodeIndex, int32_t bottomNodeIn
 void face_allocateSpace(Face * face, int32_t cardinal) {
 	assert(face->cardinal == 0);
 	face->cardinal = cardinal;
-	face->topNodes = calloc(cardinal, sizeof(Cap *));
+	face->topNodes = callocLocal(cardinal, sizeof(Cap *));
 	face->bottomNodes =
-	    calloc(cardinal, sizeof(Cap **));
+	    callocLocal(cardinal, sizeof(Cap **));
 	face->bottomNodeNumbers =
-	    calloc(cardinal, sizeof(int32_t));
+	    callocLocal(cardinal, sizeof(int32_t));
 	face->derivedEdgeDestinations =
-	    calloc(cardinal, sizeof(Cap **));
+	    callocLocal(cardinal, sizeof(Cap **));
 	face->faceEnds =
-		calloc(cardinal, sizeof(FaceEnd *));
+		callocLocal(cardinal, sizeof(FaceEnd *));
 }
 
 /*
@@ -371,8 +371,8 @@ void face_setTopNode(Face * face, int32_t topIndex, Cap * topNode) {
 void face_setBottomNodeNumber(Face * face, int32_t topIndex, int32_t number) {
 	face->bottomNodeNumbers[topIndex] = 0;
 	if(number) {
-		face->bottomNodes[topIndex] = calloc(number, sizeof(Cap *));
-		face->derivedEdgeDestinations[topIndex] = calloc(number, sizeof(Cap *));
+		face->bottomNodes[topIndex] = callocLocal(number, sizeof(Cap *));
+		face->derivedEdgeDestinations[topIndex] = callocLocal(number, sizeof(Cap *));
 	} else {
 		face->bottomNodes[topIndex] = NULL;
 		face->derivedEdgeDestinations[topIndex] = NULL;
@@ -418,13 +418,13 @@ void face_engineerArtificialNodes(Face * face, Cap * topNode, Cap * bottomNode, 
 	face->bottomNodes =
 	    realloc(face->topNodes,
 		    face_getCardinal(face) * sizeof(Cap **));
-	face->bottomNodes[index] = malloc(sizeof(Cap *));
+	face->bottomNodes[index] = mallocLocal(sizeof(Cap *));
 	face_addBottomNode(face, index, bottomNode);
 
 	face->derivedEdgeDestinations =
 	    realloc(face->topNodes,
 		    face_getCardinal(face) * sizeof(Cap *));
-	face->derivedEdgeDestinations[index] = malloc(sizeof(Cap *));
+	face->derivedEdgeDestinations[index] = mallocLocal(sizeof(Cap *));
 	face_setDerivedDestination(face, index, 0,
 	    cap_getParent(face_getTopNode(face, nonDerived)));
 }

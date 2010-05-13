@@ -41,7 +41,7 @@ PseudoChromosome *pseudoAdjacency_getPseudoChromosome(PseudoAdjacency *pseudoAdj
 PseudoAdjacency *pseudoAdjacency_construct2(Name name,
 		End *_5End, End *_3End,
 		PseudoChromosome *pseudoChromosome) {
-	PseudoAdjacency *pseudoAdjacency = malloc(sizeof(PseudoAdjacency));
+	PseudoAdjacency *pseudoAdjacency = mallocLocal(sizeof(PseudoAdjacency));
 	assert(_5End != NULL);
 	assert(_3End != NULL);
 	assert(name != NULL_NAME);

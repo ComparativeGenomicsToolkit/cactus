@@ -37,7 +37,7 @@ char *netMisc_reverseComplementString(const char *string) {
 	j = strlen(string);
 	char *cA;
 
-	cA = malloc(sizeof(char) *(j+1));
+	cA = mallocLocal(sizeof(char) *(j+1));
 	for(i=0; i<j; i++) {
 		cA[i] = netMisc_reverseComplementChar(string[j-1-i]);
 	}
@@ -62,7 +62,7 @@ Name netMisc_stringToName(const char *stringName) {
 
 char *netMisc_nameToString(Name name) {
 	char *cA;
-	cA = malloc(sizeof(char)*21);
+	cA = mallocLocal(sizeof(char)*21);
 	sprintf(cA, NAME_STRING, name);
 	return cA;
 }
@@ -75,7 +75,7 @@ const char *netMisc_nameToStringStatic(Name name) {
 
 char *netMisc_nameToStringWithOrientation(Name name, int32_t orientation) {
 	char *cA;
-	cA = malloc(sizeof(char)*22);
+	cA = mallocLocal(sizeof(char)*22);
 	sprintf(cA, orientation ? "%s" : "-%s", netMisc_nameToStringStatic(name));
 	return cA;
 }

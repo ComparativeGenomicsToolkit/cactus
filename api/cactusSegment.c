@@ -40,8 +40,8 @@ Segment *segment_construct2(Block *block,
 Segment *segment_construct3(Name name, Block *block,
 		Cap *_5Cap, Cap *_3Cap) {
 	Segment *segment;
-	segment = malloc(sizeof(Segment));
-	segment->rInstance = malloc(sizeof(Segment));
+	segment = mallocLocal(sizeof(Segment));
+	segment->rInstance = mallocLocal(sizeof(Segment));
 	segment->rInstance->rInstance = segment;
 	segment->name = name;
 	segment->rInstance->name = name;

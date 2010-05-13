@@ -109,7 +109,7 @@ void makeCactusTree_net(Net *net, FILE *fileHandle, const char *parentNodeName, 
 	net_destructChainIterator(chainIterator);
 
 	//Create the diamond node
-	char *diamondNodeNameString = malloc(sizeof(char)*(strlen(netNameString) + 2));
+	char *diamondNodeNameString = mallocLocal(sizeof(char)*(strlen(netNameString) + 2));
 	sprintf(diamondNodeNameString, "z%s", netNameString);
 	const char *diamondEdgeColour = graphViz_getColour();
 	//Create all the groups linked to the diamond.

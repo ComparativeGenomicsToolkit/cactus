@@ -89,7 +89,7 @@ static Hash *buildFaces_computeLiftedEdges(Net * net) {
 				continue;
 
 			// ... create lifted edge
-			liftedEdge = malloc(sizeof(LiftedEdge));
+			liftedEdge = mallocLocal(sizeof(LiftedEdge));
 			liftedEdge->destination = adjacencyAncestor;
 			liftedEdge->bottomNode = cap;
 

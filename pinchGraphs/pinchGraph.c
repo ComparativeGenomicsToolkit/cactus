@@ -631,7 +631,7 @@ int32_t isAStub(struct PinchEdge *edge) {
 struct PinchGraph *pinchGraph_construct() {
 	struct PinchGraph *pinchGraph;
 
-	pinchGraph = malloc(sizeof(struct PinchGraph));
+	pinchGraph = mallocLocal(sizeof(struct PinchGraph));
 	pinchGraph->edges = avl_create((int32_t (*)(const void *, const void *, void *a))edgeComparator, NULL, NULL);
 	pinchGraph->vertices = constructEmptyList(0, (void (*)(void *))destructPinchVertex);
 	constructPinchVertex(pinchGraph, -1, 0, 0);

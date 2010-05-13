@@ -155,7 +155,7 @@ struct Frame {
 
 void addToStack(int w,int v, int u, adjacentG edge, int start, struct List *stack) {
 	struct Frame *frame;
-	frame = malloc(sizeof(struct Frame));
+	frame = mallocLocal(sizeof(struct Frame));
 	frame->w = w;
 	frame->v = v;
 	frame->u = u;
@@ -420,7 +420,7 @@ void three_edge_connectP(int w,int v, struct Frame *frame, struct List *stack) {
 				 */
 				    /*going to append the outgoing back_edge to LB[w]
 						*/
-            if (( edge2 = (adjacentG)malloc(sizeof(struct adjacent_with_u_in_G)) ) == NULL)
+            if (( edge2 = (adjacentG)mallocLocal(sizeof(struct adjacent_with_u_in_G)) ) == NULL)
                abrt("Not enough memory to allocate bufferLB");
    		      edge2->u = u;
       	    edge2->more = LB[w];
@@ -489,34 +489,34 @@ struct List *computeThreeEdgeConnectedComponents(struct List *vertices) {
 
 //*********************************Memory allocation
 
-   if (( LG = (adjacentG*)malloc(Vnum * sizeof(struct adjacent_with_u_in_G *)) ) == NULL)
+   if (( LG = (adjacentG*)mallocLocal(Vnum * sizeof(struct adjacent_with_u_in_G *)) ) == NULL)
          abrt("Not enough memory to allocate buffer");
 
-   if (( LB = (adjacentG*)malloc(Vnum * sizeof(struct adjacent_with_u_in_G *)) ) == NULL)
+   if (( LB = (adjacentG*)mallocLocal(Vnum * sizeof(struct adjacent_with_u_in_G *)) ) == NULL)
 		abrt("Not enough memory to allocate buffer");
 
-   if (( LBend = (adjacentG*)malloc(Vnum * sizeof(struct adjacent_with_u_in_G *)) ) == NULL)
+   if (( LBend = (adjacentG*)mallocLocal(Vnum * sizeof(struct adjacent_with_u_in_G *)) ) == NULL)
          abrt("Not enough memory to allocate buffer");
 
-   if (( lowpt = (int *)malloc(Vnum * sizeof(int)) ) == NULL)
+   if (( lowpt = (int *)mallocLocal(Vnum * sizeof(int)) ) == NULL)
       abrt("Not enough memory to allocate buffer");
 
-   if (( pre = (int *)malloc(Vnum * sizeof(int)) ) == NULL)
+   if (( pre = (int *)mallocLocal(Vnum * sizeof(int)) ) == NULL)
       abrt("Not enough memory to allocate buffer");
 
-   if (( nd = (int *)malloc(Vnum * sizeof(int)) ) == NULL)
+   if (( nd = (int *)mallocLocal(Vnum * sizeof(int)) ) == NULL)
       abrt("Not enough memory to allocate buffer");
 
-   if (( next_on_path = (int *)malloc(Vnum * sizeof(int)) ) == NULL)
+   if (( next_on_path = (int *)mallocLocal(Vnum * sizeof(int)) ) == NULL)
       abrt("Not enough memory to allocate buffer");
 
-   if (( next_sigma_element = (int *)malloc(Vnum * sizeof(int)) ) == NULL)
+   if (( next_sigma_element = (int *)mallocLocal(Vnum * sizeof(int)) ) == NULL)
       abrt("Not enough memory to allocate buffer");
 
-   if (( visited = (char *)malloc(Vnum * sizeof(char)) ) == NULL)
+   if (( visited = (char *)mallocLocal(Vnum * sizeof(char)) ) == NULL)
       abrt("Not enough memory to allocate buffer");
 
-   if (( outgoing_tree_edge = (char *)malloc(Vnum * sizeof(char)) ) == NULL)
+   if (( outgoing_tree_edge = (char *)mallocLocal(Vnum * sizeof(char)) ) == NULL)
       abrt("Not enough memory to allocate buffer");
 
    for (indx = 0; indx < Vnum; indx++) {
@@ -533,7 +533,7 @@ struct List *computeThreeEdgeConnectedComponents(struct List *vertices) {
 	   v = i+1;
 	   for(j=0; j<edges->length; j++) {
 		   n = edges->list[j];
-		   if (( edge = (adjacentG)malloc(sizeof(struct adjacent_with_u_in_G)) ) == NULL)
+		   if (( edge = (adjacentG)mallocLocal(sizeof(struct adjacent_with_u_in_G)) ) == NULL)
 			   abrt("Not enough memory to allocate buffer23");
 		   edge->more = NULL;
 		   edge->u = n;

@@ -57,7 +57,7 @@ Net *net_construct(NetDisk *netDisk) {
 
 Net *net_construct2(Name name, NetDisk *netDisk) {
 	Net *net;
-	net = malloc(sizeof(Net));
+	net = mallocLocal(sizeof(Net));
 
 	net->name = name;
 
