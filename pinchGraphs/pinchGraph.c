@@ -1104,20 +1104,21 @@ void pinchMerge(struct PinchGraph *graph, struct PairwiseAlignment *pA,
 	for(i=0; i<pA->operationList->length; i++) {
 		op = pA->operationList->list[i];
 		if(op->opType == PAIRWISE_MATCH) {
-			assert(op->length >= 1);
-			if(pA->strand1) {
-				piece_recycle(&piece1, contig1, j, j+op->length-1);
+			if(op->length >= 1) { //deal with the possibility of a zero length match (strange, but not illegal)
+				if(pA->strand1) {
+					piece_recycle(&piece1, contig1, j, j+op->length-1);
+				}
+				else {
+					piece_recycle(&piece1, contig1, -(j-1), -(j-op->length));
+				}
+				if(pA->strand2) {
+					piece_recycle(&piece2, contig2, k, k+op->length-1);
+				}
+				else {
+					piece_recycle(&piece2, contig2, -(k-1), -(k-op->length));
+				}
+				addFunction(graph, &piece1, &piece2, vertexAdjacencyComponents, extraParameter);
 			}
-			else {
-				piece_recycle(&piece1, contig1, -(j-1), -(j-op->length));
-			}
-			if(pA->strand2) {
-				piece_recycle(&piece2, contig2, k, k+op->length-1);
-			}
-			else {
-				piece_recycle(&piece2, contig2, -(k-1), -(k-op->length));
-			}
-			addFunction(graph, &piece1, &piece2, vertexAdjacencyComponents, extraParameter);
 		}
 		if(op->opType != PAIRWISE_INDEL_Y) {
 			j += pA->strand1 ? op->length : -op->length;

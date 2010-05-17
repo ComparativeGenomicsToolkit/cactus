@@ -84,6 +84,7 @@ class TestCase(unittest.TestCase):
             system("rm -rf %s" % tempDir)
             
 def runPipe(sequenceDirs, newickTreeString, tempDir, useDummy=False, writeDebugFiles=False, randomBlockParameters=False):
+    #Redo with flexible parameters...
     tempAlignmentFile = getTempFile(rootDir=tempDir)
     netDisk = os.path.join(getTempDirectory(tempDir), "tempReconstruction")
     
