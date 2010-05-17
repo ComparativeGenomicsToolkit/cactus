@@ -772,10 +772,7 @@ void updateVertexAdjacencyComponentLabels(struct hashtable *vertexAdjacencyCompo
 			listAppend(list, vertex);
 			assert(lengthGreyEdges(vertex) == 1);
 			struct PinchVertex *vertex2 = getFirstGreyEdge(vertex);
-			i = hashtable_search(vertexAdjacencyComponents, vertex2);
-			if(i != NULL) {
-				break;
-			}
+			assert(hashtable_search(vertexAdjacencyComponents, vertex2) == NULL);
 			listAppend(list, vertex2);
 			assert(lengthBlackEdges(vertex2) > 0);
 			vertex = getFirstBlackEdge(vertex2)->to;
@@ -973,8 +970,11 @@ void pinchMergePiece(struct PinchGraph *graph,
 			assert(k == *(int32_t *)hashtable_search(vertexAdjacencyComponents, vertex2));
 			destructInt(hashtable_remove(vertexAdjacencyComponents, vertex1, 0));
 			destructInt(hashtable_remove(vertexAdjacencyComponents, vertex2, 0));
+			assert(hashtable_search(vertexAdjacencyComponents, vertex1) == NULL);
+			assert(hashtable_search(vertexAdjacencyComponents, vertex2) == NULL);
 			vertex3 = mergeVertices(graph, vertex1, vertex2);
 			hashtable_insert(vertexAdjacencyComponents, vertex3, constructInt(k));
+			assert(k == *(int32_t *)hashtable_search(vertexAdjacencyComponents, vertex3));
 		}
 
 		for(j=i+1; j<pMS_vertexChain1->listOfVertices->length; j++) {

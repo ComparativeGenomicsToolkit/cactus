@@ -230,7 +230,7 @@ int32_t cactusCorePipeline(Net *net,
 	double minimumTreeCoverage = cCIP->minimumTreeCoverage;
 	int32_t minimumChainLength = cCIP->minimumChainLength;
 
-	vertexAdjacencyComponents = create_hashtable(pinchGraph->vertices->length*2, hashtable_intHashKey, hashtable_intEqualKey, NULL, free);
+	vertexAdjacencyComponents = create_hashtable(pinchGraph->vertices->length*2, hashtable_key, hashtable_equalKey, NULL, free);
 
 	//Build a hash putting the vertices all in the same adjacency component.
 	for(i=0; i<pinchGraph->vertices->length; i++) {
@@ -281,6 +281,7 @@ int32_t cactusCorePipeline(Net *net,
 		free(filterParameters);
 		logInfo("Finished pinch merges\n");
 
+		//The following is not necessarily true!
 #ifdef BEN_DEBUG
 		for(i=0; i<pinchGraph->vertices->length; i++) {
 			assert(hashtable_search(vertexAdjacencyComponents, pinchGraph->vertices->list[i]) != NULL);
@@ -390,8 +391,7 @@ int32_t cactusCorePipeline(Net *net,
 
 			//Build a hash putting each vertex in its own adjacency component.
 			//Iterate through all the edges, keeping only those whose degree is greater than zero.
-			vertexAdjacencyComponents = create_hashtable(pinchGraph->vertices->length*2,
-					hashtable_intHashKey, hashtable_intEqualKey, NULL, free);
+			vertexAdjacencyComponents = create_hashtable(pinchGraph->vertices->length*2, hashtable_key, hashtable_equalKey, NULL, free);
 			list = getChosenBlockPinchEdges(chosenBlocks, pinchGraph);
 			struct List *groupsList = getRecursiveComponents2(pinchGraph, list);
 			for(i=0; i<groupsList->length; i++) {

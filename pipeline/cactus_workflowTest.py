@@ -54,7 +54,7 @@ class TestCase(unittest.TestCase):
                                      outputDir=outputDir,
                                      testRestrictions=(TestStatus.TEST_VERY_LONG,),
                                      batchSystem=self.batchSystem,
-                                     makeCactusTreeStats=True, makeMAFs=True)
+                                     makeCactusTreeStats=True, makeMAFs=True, buildFaces=False)
     
 def main():
     parseSuiteTestOptions()

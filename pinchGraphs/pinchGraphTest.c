@@ -63,11 +63,10 @@ void checkPinchGraph(struct PinchGraph *graph) {
 
 	for(i=0; i<graph->vertices->length; i++) {
 		vertex = graph->vertices->list[i];
-
+		assert(vertex->vertexID == i);
 		//check the black edges first.
 		if(vertex->vertexID == 0) {
 			//special condition for sink vertex.
-			assert(vertex->vertexID == i);
 			assert(lengthBlackEdges(vertex) == 0);
 		}
 		else {
