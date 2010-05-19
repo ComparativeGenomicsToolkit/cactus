@@ -1,131 +1,63 @@
-"""Tests the core of the cactus blockiser/reconstruction pipeline.
-"""
-
 import unittest
-
-import os
 import sys
+import os
+import xml.etree.ElementTree as ET
 import random
 
 from sonLib.bioio import parseSuiteTestOptions
 from sonLib.bioio import TestStatus
-from sonLib.bioio import getTempDirectory
 from sonLib.bioio import getTempFile
-from sonLib.bioio import logger
 from sonLib.bioio import system
 
-from cactus.shared.common import runCactusSetup
-from cactus.shared.common import runCactusAligner
-from cactus.shared.common import runCactusCore
-from cactus.shared.common import runCactusCheck
-from cactus.shared.common import runCactusExtendNets
+from sonLib.misc import sonTraceRootPath
 
 from cactus.shared.test import getCactusInputs_random
 from cactus.shared.test import getCactusInputs_blanchette
-from cactus.shared.test import getCactusInputs_chromosomeX
-from cactus.shared.test import getCactusInputs_encode
+from cactus.shared.test import runWorkflow_multipleExamples
 
 class TestCase(unittest.TestCase):
-    
-    def setUp(self):
-        self.testNo = TestStatus.getTestSetup(1, 100, 0, 0)
-        unittest.TestCase.setUp(self)
-    
-    def tearDown(self):
-        unittest.TestCase.tearDown(self)
-        system("rm -rf pinchGraph* cactusGraph*")
-        
-    def testCactusCore_Chromosomes(self):
-        """Tests cactus_core on the alignment of 4 whole chromosome X's, human, chimp, mouse, dog.
-        """
-        if TestStatus.getTestStatus() in (TestStatus.TEST_VERY_LONG,):
-            tempDir = getTempDirectory(os.getcwd())
-            sequences, newickTreeString = getCactusInputs_chromosomeX()
-            runPipe(sequences, newickTreeString, tempDir)
-            system("rm -rf %s" % tempDir)
-    
-    def testCactusCore_Encode(self): 
-        """Run the cactus_core on the CFTR encode pilot region.
-        """
-        if TestStatus.getTestStatus() in (TestStatus.TEST_LONG,):
-            tempDir = getTempDirectory(os.getcwd())
-            sequences, newickTreeString = getCactusInputs_encode()
-            runPipe(sequences, newickTreeString, tempDir)
-            system("rm -rf %s" % tempDir)
-    
-    def testCactusCore_Blanchette(self): 
-        """Runs cactus_core on blanchette's simulated (colinear) regions.
-        """
-        if TestStatus.getTestStatus() in (TestStatus.TEST_MEDIUM,):
-            tempDir = getTempDirectory(os.getcwd())
-            sequences, newickTreeString = getCactusInputs_blanchette()
-            runPipe(sequences, newickTreeString, tempDir)
-            system("rm -rf %s" % tempDir)
-            
     def testCactusCore_Random(self):
-        """Tests core on some random regions.
-        """
-        for test in xrange(self.testNo):
-            tempDir = getTempDirectory(os.getcwd())
-            sequences, newickTreeString = getCactusInputs_random(tempDir)
-            runPipe(sequences, newickTreeString, tempDir, 
-                    useDummy=True, writeDebugFiles=True,
-                    randomBlockParameters=True)
-            
-            ##########################################
-            #Make neatos
-            ##########################################
-            """
-            system("neato pinchGraph1.dot -Tpdf > pinchGraph1.pdf") 
-            system("neato pinchGraph2.dot -Tpdf > pinchGraph2.pdf")
-            system("neato pinchGraph3.dot -Tpdf > pinchGraph3.pdf")
-            system("neato cactusGraph.dot -Tpdf > cactusGraph1.pdf")
-            """
-            system("rm -rf %s" % tempDir)
-            
-def runPipe(sequenceDirs, newickTreeString, tempDir, useDummy=False, writeDebugFiles=False, randomBlockParameters=False):
-    #Redo with flexible parameters...
-    tempAlignmentFile = getTempFile(rootDir=tempDir)
-    netDisk = os.path.join(getTempDirectory(tempDir), "tempReconstruction")
-    
-    runCactusSetup(netDisk, sequenceDirs, 
-                   newickTreeString)
-    
-    l = runCactusExtendNets(netDisk, 0, getTempDirectory(tempDir))
-                                                  
-    if len(l) > 0:
-        childNetName, childNetSize = l[0]
-    
-        runCactusAligner(netDisk, tempAlignmentFile,
-                         netName=childNetName,
-                         tempDir=getTempDirectory(tempDir), useDummy=useDummy)
+        for test in xrange(TestStatus.getTestSetup()):
+            randomConfigFile=getRandomConfigFile()
+            runWorkflow_multipleExamples(getCactusInputs_random, 
+                                         buildTrees=False, buildFaces=False, buildReference=False, configFile=randomConfigFile)
+            os.remove(randomConfigFile)
         
-        system("cat %s" % tempAlignmentFile)
+    def testCactusCore_Blanchette(self):
+        runWorkflow_multipleExamples(getCactusInputs_blanchette, 
+                                     testRestrictions=(TestStatus.TEST_SHORT,), inverseTestRestrictions=True, 
+                                     buildTrees=False, buildFaces=False, buildReference=False)
         
-        
-        logger.info("Constructed the alignments")
-        if randomBlockParameters:
-            alignUndoLoops = 1 + int(random.random() * 10)
-            runCactusCore(netDisk, tempAlignmentFile, 
-                          netName=childNetName,
-                          writeDebugFiles=writeDebugFiles,
-                          alignUndoLoops=alignUndoLoops,
-                          maximumEdgeDegree=1+random.random()*10,
-                          minimumTreeCoverage=random.random(),
-                          minimumBlockLength=random.random()*5,
-                          minimumChainLength=random.random()*10,
-                          trim=random.random()*5,
-                          alignRepeatsAtLoop=int(random.random() * alignUndoLoops))
-        else:
-            runCactusCore(netDisk, tempAlignmentFile, netName=childNetName,
-                          writeDebugFiles=writeDebugFiles)
-  
-    runCactusCheck(netDisk, recursive=True)
-  
-    system("rm -rf %s %s" % (netDisk, tempAlignmentFile))
+
+def getRandomConfigFile():
+    tempConfigFile = getTempFile(rootDir="./", suffix=".xml")
+    config = ET.parse(os.path.join(sonTraceRootPath(), "src", "cactus", "pipeline", "cactus_workflow_config.xml")).getroot()
+    #Mess with the number of iterations and the parameters for the iteration..
+    iterations = config.find("alignment").find("iterations")
+    i = iterations.findall("iteration")
+    #Remove all the iterations bar one..
+    iterations.remove(i[0])
+    iterations.remove(i[1])
+    iterations.remove(i[-1])
+    iteration = i[2]
+    #Now make random parameters..
+    iteration.attrib["number"] = "0"
+    core = iteration.find("core")
+    alignUndoLoops = 1 + int(random.random() * 10)
+    core.attrib["alignUndoLoops"] = str(alignUndoLoops)
+    core.attrib["maximumEdgeDegree"] = str(1 + int(random.random() * 10))
+    core.attrib["minimumTreeCoverage"] = str(random.random())
+    core.attrib["minimumBlockLength"] = str(int(random.random() * 5))
+    core.attrib["minimumChainLength"] = str(int(random.random() * 10))
+    core.attrib["trim"] = str(1 + int(random.random() * 5))
+    core.attrib["alignRepeatsAtLoop"] = str(random.random() * alignUndoLoops)
+    #Now print the file..
+    fileHandle = open(tempConfigFile, 'w')
+    ET.ElementTree(config).write(fileHandle)
+    fileHandle.close()
+    system("cat %s" % tempConfigFile)
+    return tempConfigFile
     
-    logger.info("Ran the test of the reconstruction program okay")
-        
 def main():
     parseSuiteTestOptions()
     sys.argv = sys.argv[:1]

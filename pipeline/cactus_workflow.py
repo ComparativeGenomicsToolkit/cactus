@@ -131,31 +131,34 @@ class CactusAlignmentWrapper(Target):
     def run(self, localTempDir, globalTempDir):
         logger.info("Starting the cactus down pass (recursive) target")
         #Traverses leaf jobs and create aligner wrapper targets as children.
-        #This loop is properly atomic, because if it is run twice it will return the same
-        #set of netnames!
         iterations = self.options.config.find("alignment").find("iterations").findall("iteration")
-        idealJobRuntime = float(self.options.config.attrib["ideal_job_runtime"])
-        #base level nets.
-        baseLevelTime = 0.0
-        baseLevelNets = []
-        for childNetName, childNetSize in runCactusExtendNets(self.options.netDisk, self.netName, 
-                                                              localTempDir):
-            assert childNetSize > 0
-            nextIteration = getAlignmentIteration(iterations, self.iteration, childNetSize)
-            iterationTime = float(iterations[nextIteration].attrib["time"])
-            if iterations[nextIteration].attrib["type"] == "blast":
-                self.addChildTarget(CactusBlastWrapper(self.options, childNetName, nextIteration, iterationTime))
-            else:
-                assert(iterations[nextIteration].attrib["type"] == "base")
-                baseLevelNets.append(childNetName)
-                baseLevelTime += iterationTime
-                if baseLevelTime >= idealJobRuntime:
-                    self.addChildTarget(CactusBaseLevelAlignerWrapper(self.options, baseLevelNets, baseLevelTime))
-                    baseLevelNets = []
-                    baseLevelTime = 0.0
-        if len(baseLevelNets) > 0:
-            self.addChildTarget(CactusBaseLevelAlignerWrapper(self.options, baseLevelNets, baseLevelTime))        
-        logger.info("Created child targets for all the recursive reconstruction jobs")
+        if self.iteration < len(iterations):
+            idealJobRuntime = float(self.options.config.attrib["ideal_job_runtime"])
+            #base level nets.
+            baseLevelTime = 0.0
+            baseLevelNets = []
+            #This loop is properly atomic, because if it is run twice it will return the same
+            #set of netnames
+            for childNetName, childNetSize in runCactusExtendNets(self.options.netDisk, self.netName, 
+                                                                  localTempDir):
+                assert childNetSize > 0
+                nextIteration = getAlignmentIteration(iterations, self.iteration, childNetSize)
+                iterationTime = float(iterations[nextIteration].attrib["time"])
+                if iterations[nextIteration].attrib["type"] == "blast":
+                    self.addChildTarget(CactusBlastWrapper(self.options, childNetName, nextIteration, iterationTime))
+                else:
+                    assert(iterations[nextIteration].attrib["type"] == "base")
+                    baseLevelNets.append(childNetName)
+                    baseLevelTime += iterationTime
+                    if baseLevelTime >= idealJobRuntime:
+                        self.addChildTarget(CactusBaseLevelAlignerWrapper(self.options, baseLevelNets, baseLevelTime))
+                        baseLevelNets = []
+                        baseLevelTime = 0.0
+            if len(baseLevelNets) > 0:
+                self.addChildTarget(CactusBaseLevelAlignerWrapper(self.options, baseLevelNets, baseLevelTime))        
+            logger.info("Created child targets for all the recursive reconstruction jobs")
+        else:
+            logger.info("We've no more iterations to consider")
 
 class CactusBlastWrapper(Target):
     def __init__(self, options, netName, iteration, time):

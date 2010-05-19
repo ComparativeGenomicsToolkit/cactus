@@ -33,7 +33,7 @@ int main(int argc, char *argv[]) {
 			groupIterator = net_getGroupIterator(net);
 			while((group = net_getNextGroup(groupIterator)) != NULL) {
 				if(group_isLeaf(group)) {
-					assert(group_getTotalBaseLength(group) == 0);
+					//assert(group_getTotalBaseLength(group) == 0);
 					group_makeNestedNet(group);
 					net_setBuiltBlocks(group_getNestedNet(group), 1);
 				}

@@ -146,7 +146,8 @@ def runWorkflow_TestScript(sequences, newickTreeString,
                            buildReferencePDF=False,
                            makeCactusTreeStats=False,
                            makeMAFs=False, 
-                           cleanup=True):
+                           cleanup=True,
+                           configFile=None):
     """Runs the workflow and various downstream utilities.
     """
     logger.info("Running cactus workflow test script")
@@ -178,7 +179,8 @@ def runWorkflow_TestScript(sequences, newickTreeString,
     #Run the actual workflow
     runCactusWorkflow(netDisk, sequences, newickTreeString, jobTreeDir, 
                       batchSystem=batchSystem, buildTrees=buildTrees, 
-                      buildFaces=buildFaces, buildReference=buildReference)
+                      buildFaces=buildFaces, buildReference=buildReference,
+                      configFile=configFile)
     logger.info("Ran the the workflow")
     
     #Check if the jobtree completed sucessively.
@@ -256,7 +258,8 @@ def runWorkflow_multipleExamples(inputGenFunction,
                                buildTrees=True, buildFaces=True, buildReference=True,
                                buildCactusPDF=False, buildAdjacencyPDF=False,
                                buildReferencePDF=False,
-                               makeCactusTreeStats=False, makeMAFs=False):
+                               makeCactusTreeStats=False, makeMAFs=False,
+                               configFile=None):
     """A wrapper to run a number of examples.
     """
     if (inverseTestRestrictions and TestStatus.getTestStatus() not in testRestrictions) or \
@@ -273,7 +276,7 @@ def runWorkflow_multipleExamples(inputGenFunction,
                                    buildTrees=buildTrees, buildFaces=buildFaces, buildReference=buildReference, 
                                    buildCactusPDF=buildCactusPDF, buildAdjacencyPDF=buildAdjacencyPDF,
                                    buildReferencePDF=buildReferencePDF,
-                                   makeCactusTreeStats=makeCactusTreeStats, makeMAFs=makeMAFs)
+                                   makeCactusTreeStats=makeCactusTreeStats, makeMAFs=makeMAFs, configFile=configFile)
             system("rm -rf %s" % tempDir)
             logger.info("Finished random test %i" % test)
     

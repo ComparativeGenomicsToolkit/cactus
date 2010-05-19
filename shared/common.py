@@ -195,15 +195,17 @@ def runCactusWorkflow(netDisk, sequenceFiles,
                       batchSystem="single_machine", 
                       rescueJobFrequency=None,
                       setupAndBuildAlignments=True,
-                      buildTrees=True, buildFaces=True, buildReference=True):
+                      buildTrees=True, buildFaces=True, buildReference=True,
+                      configFile=None):
     setupAndBuildAlignments = nameValue("setupAndBuildAlignments", setupAndBuildAlignments, bool)
     buildTrees = nameValue("buildTrees", buildTrees, bool)
     buildFaces = nameValue("buildFaces", buildFaces, bool)
     buildReference = nameValue("buildReference", buildReference, bool)
+    configFile = nameValue("configFile", configFile)
     command = "cactus_workflow.py %s --speciesTree '%s' \
---netDisk %s %s %s %s %s --job JOB_FILE" % \
+--netDisk %s %s %s %s %s %s --job JOB_FILE" % \
             (" ".join(sequenceFiles), newickTreeString,
-             netDisk, setupAndBuildAlignments, buildTrees, buildFaces, buildReference)
+             netDisk, setupAndBuildAlignments, buildTrees, buildFaces, buildReference, configFile)
     #print "going to run the command:", command
     #assert False
     runJobTree(command, jobTreeDir, logLevel, retryCount, batchSystem, rescueJobFrequency)
