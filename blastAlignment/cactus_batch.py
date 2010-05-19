@@ -16,12 +16,9 @@ from sonLib.bioio import parseBasicOptions
 from sonLib.bioio import fastaRead
 from sonLib.bioio import fastaWrite
 
-#Improve the performance of cactus_core - to handle dramatically big problems.
-#Allow selection of a larger memory machine for that job - as extra feature in jobTree.
-
 from workflow.jobTree.scriptTree.target import Target
 
-class MakeBlastsOptions:
+class MakeBlastOptions:
     def __init__(self, chunkSize, overlapSize, 
                  blastString, selfBlastString, chunksPerJob, compressFiles):
         """Method makes options which can be passed to the to the make blasts target.
@@ -32,50 +29,8 @@ class MakeBlastsOptions:
         self.selfBlastString = selfBlastString
         self.chunksPerJob = 1
         self.compressFiles = compressFiles
-        
-def makeTopLevelBlastOptions():
-    """Function to create options for a pecan2_batch.MakeBlasts target for the top level
-    alignment. (whole mammalian chromosome range)
-    """
-    chunkSize = 300000000
-    overlapSize = 10000
-    chunksPerJob = 2
-    compressFiles = True
-    blastString="lastz --format=cigar --notransition --step=20 --nogapped SEQ_FILE_1[multiple][nameparse=darkspace] SEQ_FILE_2[nameparse=darkspace] > CIGARS_FILE"
-    selfBlastString="lastz --notransition --step=20 --nogapped --format=cigar SEQ_FILE[nameparse=darkspace] --self > CIGARS_FILE"
-    return MakeBlastsOptions(chunkSize=chunkSize, overlapSize=overlapSize,
-                                blastString=blastString, selfBlastString=selfBlastString,
-                                chunksPerJob=chunksPerJob, compressFiles=compressFiles)
 
-def makeUpperMiddleLevelBlastOptions():
-    """Function to create options for a pecan2_batch.MakeBlasts target for middle level 
-    alignments (20 MB range)
-    """
-    chunkSize = 150000000
-    overlapSize = 10000
-    chunksPerJob = 1
-    compressFiles = True
-    blastString="lastz --format=cigar --notransition --seed=14of22 --step=100 --nogapped --hspthresh=6000 SEQ_FILE_1[multiple][nameparse=darkspace] SEQ_FILE_2[nameparse=darkspace] > CIGARS_FILE"
-    selfBlastString="lastz --format=cigar --notransition --seed=14of22 --step=100 --nogapped --hspthresh=6000 SEQ_FILE[nameparse=darkspace] --self > CIGARS_FILE"
-    return MakeBlastsOptions(chunkSize=chunkSize, overlapSize=overlapSize,
-                                blastString=blastString, selfBlastString=selfBlastString,
-                                chunksPerJob=chunksPerJob, compressFiles=compressFiles)
-
-def makeMiddleLevelBlastOptions():
-    """Function to create options for a pecan2_batch.MakeBlasts target for middle level 
-    alignments (20 MB range)
-    """
-    chunkSize = 100000000
-    overlapSize = 10000
-    chunksPerJob = 1
-    compressFiles = True
-    blastString="lastz --format=cigar --notransition --step=20 --nogapped SEQ_FILE_1[multiple][nameparse=darkspace] SEQ_FILE_2[nameparse=darkspace] > CIGARS_FILE"
-    selfBlastString="lastz --notransition --step=20 --nogapped --format=cigar SEQ_FILE[nameparse=darkspace] --self > CIGARS_FILE"
-    return MakeBlastsOptions(chunkSize=chunkSize, overlapSize=overlapSize,
-                                blastString=blastString, selfBlastString=selfBlastString,
-                                chunksPerJob=chunksPerJob, compressFiles=compressFiles)
-    
-def makeLowLevelBlastOptions():
+def makeStandardBlastOptions():
     """Function to create options for a pecan2_batch.MakeBlasts target for middle level 
     alignments (20 MB range)
     """
@@ -85,10 +40,9 @@ def makeLowLevelBlastOptions():
     compressFiles = True
     blastString="lastz --format=cigar SEQ_FILE_1[multiple][nameparse=darkspace] SEQ_FILE_2[nameparse=darkspace] > CIGARS_FILE"
     selfBlastString="lastz --format=cigar SEQ_FILE[nameparse=darkspace] --self > CIGARS_FILE"
-    return MakeBlastsOptions(chunkSize=chunkSize, overlapSize=overlapSize,
+    return MakeBlastOptions(chunkSize=chunkSize, overlapSize=overlapSize,
                                 blastString=blastString, selfBlastString=selfBlastString,
                                 chunksPerJob=chunksPerJob, compressFiles=compressFiles)
-
 
 class makeBlastFromOptions:
     def __init__(self, blastOptions):
@@ -418,7 +372,7 @@ def main():
     
     parser = getBasicOptionParser("usage: %prog [options] contigFilexN", "%prog 0.1")
     
-    options = makeMiddleLevelBlastOptions()
+    options = makeStandardBlastOptions()
     
     parser.add_option("--job", dest="jobFile", 
                       help="Job file containing command to run")

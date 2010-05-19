@@ -16,12 +16,17 @@ In the verification phase the reconstruction tree is checked against the expecte
 
 """
 
+import os
+import xml.etree.ElementTree as ET
+
 from sonLib.bioio import logger
 from sonLib.bioio import getBasicOptionParser
 from sonLib.bioio import parseBasicOptions
 from sonLib.bioio import getTempFile
 from sonLib.bioio import system
 from sonLib.bioio import getLogLevelString
+
+from sonLib.misc import sonTraceRootPath
 
 from workflow.jobTree.scriptTree.target import Target
 
@@ -32,20 +37,14 @@ from cactus.shared.common import runCactusExtendNets
 from cactus.shared.common import runCactusPhylogeny
 from cactus.shared.common import runCactusAdjacencies
 from cactus.shared.common import runCactusBaseAligner
-from cactus.shared.common import runCactusGetUniqueName
 from cactus.shared.common import runCactusMakeTerminalNormal
 from cactus.shared.common import runCactusReference
 from cactus.shared.common import runCactusCheck
 
+
 from cactus.blastAlignment.cactus_aligner import MakeSequences
-
-from cactus.blastAlignment.cactus_batch import makeTopLevelBlastOptions
-from cactus.blastAlignment.cactus_batch import makeUpperMiddleLevelBlastOptions
-from cactus.blastAlignment.cactus_batch import makeMiddleLevelBlastOptions
-from cactus.blastAlignment.cactus_batch import makeLowLevelBlastOptions
+from cactus.blastAlignment.cactus_batch import MakeBlastOptions
 from cactus.blastAlignment.cactus_batch import makeBlastFromOptions
-
-IDEAL_JOB_RUNTIME = 200
 
 ############################################################
 ############################################################
@@ -101,139 +100,22 @@ class CactusAlignmentPhase(Target):
         logger.info("Starting the down pass target")
         #Setup call to cactus aligner wrapper as child
         #Calculate the size of the child.
-        self.addChildTarget(CactusCoreWrapper2(self.options, self.netName, None, -1))
+        self.addChildTarget(CactusAlignmentWrapper(self.options, self.netName, None, 0))
         self.setFollowOnTarget(CactusTerminalNormalPhase(self.netName, self.options))
 
-#Each level around 30x larger than the last
-BASE_LEVEL_SIZE = 2000 #30000
-GENE_LEVEL_SIZE = 1000000
-LOCI_LEVEL_SIZE = 30000000
-CHR_LEVEL_SIZE =  1000000000
+def getAlignmentIteration(iterations, iterationNumber, netSize):
+    assert len(iterations) > 0
+    i = len(iterations)-1
+    iterations = iterations[:]
+    iterations.reverse() #Ensure we navigate backwards
+    for iteration in iterations:
+        assert int(iteration.attrib["number"]) == i
+        if netSize < float(iteration.attrib["max_sequence_size"]) or iterationNumber >= i:
+            assert i >= iterationNumber
+            return i
+        i -= 1
 
-iterationMaxSize = { 4:BASE_LEVEL_SIZE, 3:GENE_LEVEL_SIZE, 2:LOCI_LEVEL_SIZE, 1:CHR_LEVEL_SIZE }
-
-def getIteration(iteration, netSize):
-    if iteration == 4 or netSize < BASE_LEVEL_SIZE:
-        return 4
-    if iteration == 3 or netSize < GENE_LEVEL_SIZE:
-        return 3
-    elif iteration == 2 or netSize < LOCI_LEVEL_SIZE:
-        return 2
-    elif iteration == 1 or netSize < CHR_LEVEL_SIZE:
-        return 1
-    return 0
-
-timeParameters = { 0:10000000, 1:10000000, 2:100, 3:20, 4:1 }
-
-blastParameters = { 3:makeLowLevelBlastOptions, 2:makeMiddleLevelBlastOptions, 1:makeUpperMiddleLevelBlastOptions, 0:makeTopLevelBlastOptions }
-
-cactusCoreParameters = { 
-    0:{ "alignUndoLoops":10, "alignRepeatsAtLoop":5, "maximumEdgeDegree":50, "extensionSteps":31500,
-        "extensionStepsReduction":3500, "trim":20, "trimReduction":2, 
-        
-        "maximumTreeCoverageUndo":0.0, 
-        "maximumTreeCoverageUndoReduction":0.0, "maximumChainLengthUndo":0,
-        "maximumChainLengthUndoReduction":0,
-        
-        "minimumTreeCoverage":0.95, "minimumTreeCoverageReduction":0.1, 
-        "minimumBlockLength":4, "minimumChainLength":8, "minimumChainLengthReduction":0 },
-        
-    1:{ "alignUndoLoops":10, "alignRepeatsAtLoop":5, "maximumEdgeDegree":50, "extensionSteps":31500,
-        "extensionStepsReduction":3500, "trim":20, "trimReduction":2, 
-        
-        "maximumTreeCoverageUndo":0.0, 
-        "maximumTreeCoverageUndoReduction":0.0, "maximumChainLengthUndo":0,
-        "maximumChainLengthUndoReduction":0,
-        
-        "minimumTreeCoverage":0.95, "minimumTreeCoverageReduction":0.1, 
-        "minimumBlockLength":4, "minimumChainLength":8, "minimumChainLengthReduction":0 },
-       
-    2:{ "alignUndoLoops":10, "alignRepeatsAtLoop":5, "maximumEdgeDegree":50, "extensionSteps":360,
-        "extensionStepsReduction":40, "trim":9, "trimReduction":2, 
-        
-        "maximumTreeCoverageUndo":0.0, 
-        "maximumTreeCoverageUndoReduction":0.0, "maximumChainLengthUndo":0,
-        "maximumChainLengthUndoReduction":0,
-        
-        "minimumTreeCoverage":0.95, "minimumTreeCoverageReduction":0.1, 
-        "minimumBlockLength":0, "minimumChainLength":8, "minimumChainLengthReduction":0 },
-       
-    3:{ "alignUndoLoops":10, "alignRepeatsAtLoop":5,  "maximumEdgeDegree":50, "extensionSteps":20,
-        "extensionStepsReduction":3, "trim":9, "trimReduction":1, 
-        
-        "maximumTreeCoverageUndo":1.0, 
-        "maximumTreeCoverageUndoReduction":0.0, "maximumChainLengthUndo":15,
-        "maximumChainLengthUndoReduction":2,
-        
-        "minimumTreeCoverage":0.9, "minimumTreeCoverageReduction":0.1, 
-        "minimumBlockLength":0, "minimumChainLength":0, "minimumChainLengthReduction":0 }, 
-}
-
-class CactusAlignerWrapper(Target):
-    def __init__(self, options, netName, iteration):
-        Target.__init__(self, time=timeParameters[iteration])
-        self.options = options
-        self.netName = netName
-        self.iteration = int(iteration)
-    
-    def run(self, localTempDir, globalTempDir):
-        logger.info("Starting the cactus aligner target")
-        #Generate a temporary file to hold the alignments
-        alignmentFile = getTempFile(".fa", globalTempDir)
-        logger.info("Got an alignments file")
-        
-        #Now make the child aligner target
-        blastOptions = makeBlastFromOptions(blastParameters[self.iteration]())
-            
-        self.addChildTarget(MakeSequences(self.options.netDisk, 
-                                          self.netName, alignmentFile, blastOptions))
-        logger.info("Created the cactus_aligner child target")
-        
-        #Now setup a call to cactus core wrapper as a follow on
-        self.setFollowOnTarget(CactusCoreWrapper(self.options, self.netName, alignmentFile, self.iteration))
-        logger.info("Setup the follow on cactus_core target")
-
-class CactusCoreWrapper(Target):
-    def __init__(self, options, netName, alignmentFile, iteration):
-        Target.__init__(self, time=5)
-        self.options = options
-        self.netName = netName
-        self.alignmentFile = alignmentFile
-        self.iteration = iteration     
-    
-    def run(self, localTempDir, globalTempDir):
-        logger.info("Starting the core wrapper target")
-    
-        coreParameters = cactusCoreParameters[self.iteration]
-        
-        runCactusCore(netDisk=self.options.netDisk, 
-                      alignmentFile=self.alignmentFile, 
-                      netName=self.netName,
-                      logLevel=getLogLevelString(), 
-                      alignUndoLoops=coreParameters["alignUndoLoops"],
-                      alignRepeatsAtLoop=coreParameters["alignRepeatsAtLoop"],
-                      maximumEdgeDegree=coreParameters["maximumEdgeDegree"],
-                      extensionSteps=coreParameters["extensionSteps"],
-                      extensionStepsReduction=coreParameters["extensionStepsReduction"],
-                      trim=coreParameters["trim"],
-                      trimReduction=coreParameters["trimReduction"],
-                      maximumTreeCoverageUndo=coreParameters["maximumTreeCoverageUndo"],
-                      maximumTreeCoverageUndoReduction=coreParameters["maximumTreeCoverageUndoReduction"],
-                      maximumChainLengthUndo=coreParameters["maximumChainLengthUndo"],
-                      maximumChainLengthUndoReduction=coreParameters["maximumChainLengthUndoReduction"],
-                      minimumTreeCoverage=coreParameters["minimumTreeCoverage"],
-                      minimumTreeCoverageReduction=coreParameters["minimumTreeCoverageReduction"],
-                      minimumBlockLength=coreParameters["minimumBlockLength"],
-                      minimumChainLength=coreParameters["minimumChainLength"],
-                      minimumChainLengthReduction=coreParameters["minimumChainLengthReduction"])
-        logger.info("Ran the cactus core program okay")
-        
-        #Setup call to core and aligner recursive as follow on.
-        self.setFollowOnTarget(CactusCoreWrapper2(self.options, self.netName, self.alignmentFile, self.iteration))
-        logger.info("Issued a the recursive/cleanup wrapper as a follow on job")
-
-class CactusCoreWrapper2(Target):
-    #We split, to deal with cleaning up the alignment file
+class CactusAlignmentWrapper(Target):
     def __init__(self, options, netName, alignmentFile, iteration):
         Target.__init__(self, time=0)
         self.options = options
@@ -249,35 +131,109 @@ class CactusCoreWrapper2(Target):
     def run(self, localTempDir, globalTempDir):
         logger.info("Starting the cactus down pass (recursive) target")
         #Traverses leaf jobs and create aligner wrapper targets as children.
-        assert self.iteration+1 <= 4
-        baseLevelNets = []
-        assert int(self.options.maxIteration) >= 0
-        if int(self.options.maxIteration) >= 4:
-            minSizeToExtend = 1
-        else:
-            minSizeToExtend = iterationMaxSize[int(self.options.maxIteration)+1]
         #This loop is properly atomic, because if it is run twice it will return the same
         #set of netnames!
+        iterations = self.options.config.find("alignment").find("iterations").findall("iteration")
+        idealJobRuntime = float(self.options.config.attrib["ideal_job_runtime"])
+        #base level nets.
+        baseLevelTime = 0.0
+        baseLevelNets = []
         for childNetName, childNetSize in runCactusExtendNets(self.options.netDisk, self.netName, 
-                                                              localTempDir, minSizeToExtend=minSizeToExtend):
+                                                              localTempDir):
             assert childNetSize > 0
-            nextIteration = getIteration(self.iteration+1, childNetSize)
-            if nextIteration == 4:
+            nextIteration = getAlignmentIteration(iterations, self.iteration, childNetSize)
+            iterationTime = float(iterations[nextIteration].attrib["time"])
+            if iterations[nextIteration].attrib["type"] == "blast":
+                self.addChildTarget(CactusBlastWrapper(self.options, childNetName, nextIteration, iterationTime))
+            else:
+                assert(iterations[nextIteration].attrib["type"] == "base")
                 baseLevelNets.append(childNetName)
-                if timeParameters[4]*len(baseLevelNets) > IDEAL_JOB_RUNTIME:
-                    self.addChildTarget(CactusBaseLevelAlignerWrapper(self.options, baseLevelNets))
+                baseLevelTime += iterationTime
+                if baseLevelTime >= idealJobRuntime:
+                    self.addChildTarget(CactusBaseLevelAlignerWrapper(self.options, baseLevelNets, baseLevelTime))
                     baseLevelNets = []
-            else: #Does not do any refinement if the net is completely specified.
-                self.addChildTarget(CactusAlignerWrapper(self.options, childNetName, nextIteration))
+                    baseLevelTime = 0.0
         if len(baseLevelNets) > 0:
-            self.addChildTarget(CactusBaseLevelAlignerWrapper(self.options, baseLevelNets))        
-        
+            self.addChildTarget(CactusBaseLevelAlignerWrapper(self.options, baseLevelNets, baseLevelTime))        
         logger.info("Created child targets for all the recursive reconstruction jobs")
+
+class CactusBlastWrapper(Target):
+    def __init__(self, options, netName, iteration, time):
+        Target.__init__(self, time=time)
+        self.options = options
+        self.netName = netName
+        self.iteration = int(iteration)
+    
+    def run(self, localTempDir, globalTempDir):
+        logger.info("Starting the cactus aligner target")
+        #Generate a temporary file to hold the alignments
+        alignmentFile = getTempFile(".fa", globalTempDir)
+        logger.info("Got an alignments file")
+        
+        #Now make the child aligner target
+        alignmentNode = self.options.config.find("alignment")
+        blastNode = alignmentNode.find("iterations").findall("iteration")[self.iteration].find("blast")
+        blastMiscNode = alignmentNode.find("blast_misc")
+        blastOptions =  \
+        makeBlastFromOptions(MakeBlastOptions(int(blastNode.attrib["chunkSize"]),
+                                              int(blastMiscNode.attrib["overlapSize"]), 
+                                              blastNode.attrib["blastString"], 
+                                              blastNode.attrib["selfBlastString"], 
+                                              int(blastMiscNode.attrib["chunksPerJob"]), 
+                                              bool(blastMiscNode.attrib["compressFiles"])))
+            
+        self.addChildTarget(MakeSequences(self.options.netDisk, 
+                                          self.netName, alignmentFile, blastOptions))
+        logger.info("Created the cactus_aligner child target")
+        
+        #Now setup a call to cactus core wrapper as a follow on
+        self.setFollowOnTarget(CactusCoreWrapper(self.options, self.netName, alignmentFile, self.iteration))
+        logger.info("Setup the follow on cactus_core target")
+        
+
+class CactusCoreWrapper(Target):
+    def __init__(self, options, netName, alignmentFile, iteration):
+        Target.__init__(self, time=0)
+        self.options = options
+        self.netName = netName
+        self.alignmentFile = alignmentFile
+        self.iteration = iteration
+    
+    def run(self, localTempDir, globalTempDir):
+        logger.info("Starting the core wrapper target")
+    
+        coreParameters = self.options.config.find("alignment").find("iterations").findall("iteration")[self.iteration].find("core")
+        
+        runCactusCore(netDisk=self.options.netDisk, 
+                      alignmentFile=self.alignmentFile, 
+                      netName=self.netName,
+                      logLevel=getLogLevelString(), 
+                      alignUndoLoops=float(coreParameters.attrib["alignUndoLoops"]),
+                      alignRepeatsAtLoop=float(coreParameters.attrib["alignRepeatsAtLoop"]),
+                      maximumEdgeDegree=float(coreParameters.attrib["maximumEdgeDegree"]),
+                      extensionSteps=float(coreParameters.attrib["extensionSteps"]),
+                      extensionStepsReduction=float(coreParameters.attrib["extensionStepsReduction"]),
+                      trim=float(coreParameters.attrib["trim"]),
+                      trimReduction=float(coreParameters.attrib["trimReduction"]),
+                      maximumTreeCoverageUndo=float(coreParameters.attrib["maximumTreeCoverageUndo"]),
+                      maximumTreeCoverageUndoReduction=float(coreParameters.attrib["maximumTreeCoverageUndoReduction"]),
+                      maximumChainLengthUndo=float(coreParameters.attrib["maximumChainLengthUndo"]),
+                      maximumChainLengthUndoReduction=float(coreParameters.attrib["maximumChainLengthUndoReduction"]),
+                      minimumTreeCoverage=float(coreParameters.attrib["minimumTreeCoverage"]),
+                      minimumTreeCoverageReduction=float(coreParameters.attrib["minimumTreeCoverageReduction"]),
+                      minimumBlockLength=float(coreParameters.attrib["minimumBlockLength"]),
+                      minimumChainLength=float(coreParameters.attrib["minimumChainLength"]),
+                      minimumChainLengthReduction=float(coreParameters.attrib["minimumChainLengthReduction"]))
+        logger.info("Ran the cactus core program okay")
+        
+        #Setup call to core and aligner recursive as follow on.
+        self.setFollowOnTarget(CactusAlignmentWrapper(self.options, self.netName, self.alignmentFile, self.iteration+1))
+        logger.info("Issued a the recursive/cleanup wrapper as a follow on job")
      
 class CactusBaseLevelAlignerWrapper(Target):
     #We split, to deal with cleaning up the alignment file
-    def __init__(self, options, netNames):
-        Target.__init__(self, timeParameters[4]*len(netNames))
+    def __init__(self, options, netNames, time):
+        Target.__init__(self, time=time)
         self.options = options
         self.netNames = netNames
     
@@ -302,7 +258,8 @@ class CactusTerminalNormalPhase(Target):
         
     def run(self, localTempDir, globalTempDir):
         logger.info("Starting the terminal normal phase")
-        self.addChildTarget(CactusExtensionWrapper(self.options, [ self.netName ], MAKE_TERMINAL_NORMAL))
+        time = float(self.options.config.find("terminal_normal").attrib["time"])
+        self.addChildTarget(CactusExtensionWrapper(self.options, [ self.netName ], MAKE_TERMINAL_NORMAL, time))
         self.setFollowOnTarget(CactusPhylogenyPhase(self.netName, self.options))
 
 ############################################################
@@ -322,7 +279,8 @@ class CactusPhylogenyPhase(Target):
     def run(self, localTempDir, globalTempDir):
         logger.info("Starting the phylogeny phase")
         if self.options.buildTrees:
-            self.addChildTarget(CactusExtensionWrapper(self.options, [ self.netName ], BUILD_TREES))
+            time = float(self.options.config.find("phylogeny").attrib["time"])
+            self.addChildTarget(CactusExtensionWrapper(self.options, [ self.netName ], BUILD_TREES, time))
         self.setFollowOnTarget(CactusFacesPhase(self.netName, self.options))
 
 ############################################################
@@ -342,7 +300,8 @@ class CactusFacesPhase(Target):
     def run(self, localTempDir, globalTempDir):
         logger.info("Starting the faces phase")
         if self.options.buildFaces:
-            self.addChildTarget(CactusExtensionWrapper(self.options, [ self.netName ], BUILD_FACES))
+            time = float(self.options.config.find("faces").attrib["time"])
+            self.addChildTarget(CactusExtensionWrapper(self.options, [ self.netName ], BUILD_FACES, time))
         self.setFollowOnTarget(CactusReferencePhase(self.netName, self.options))
 
 ############################################################
@@ -362,7 +321,8 @@ class CactusReferencePhase(Target):
     def run(self, localTempDir, globalTempDir):
         logger.info("Starting the faces phase")
         if self.options.buildReference:
-            self.addChildTarget(CactusExtensionWrapper(self.options, [ self.netName ], BUILD_REFERENCE))
+            time = float(self.options.config.find("reference").attrib["time"])
+            self.addChildTarget(CactusExtensionWrapper(self.options, [ self.netName ], BUILD_REFERENCE, time))
         self.setFollowOnTarget(CactusCheckPhase(self.netName, self.options))
             
 ############################################################
@@ -381,7 +341,8 @@ class CactusCheckPhase(Target):
         
     def run(self, localTempDir, globalTempDir):
         logger.info("Starting the verification phase")
-        self.addChildTarget(CactusExtensionWrapper(self.options, [ self.netName ], CHECK))
+        time = float(self.options.config.find("check").attrib["time"])
+        self.addChildTarget(CactusExtensionWrapper(self.options, [ self.netName ], CHECK, time))
         
 ############################################################
 ############################################################
@@ -398,11 +359,12 @@ BUILD_REFERENCE = 3
 CHECK = 4
 
 class CactusExtensionWrapper(Target):
-    def __init__(self, options, netNames, switch):
-        Target.__init__(self, time=timeParameters[getIteration(0, 0)])
+    def __init__(self, options, netNames, switch, unitTime):
+        Target.__init__(self, time=unitTime*len(netNames))
         self.options = options
         self.netNames = netNames
         self.switch = switch
+        self.unitTime = unitTime
     
     def run(self, localTempDir, globalTempDir):
         #The following are atomic, in that we check if they have already been run successfully.
@@ -419,14 +381,16 @@ class CactusExtensionWrapper(Target):
         elif self.switch == CHECK:
             runCactusCheck(self.options.netDisk, self.netNames)
         #Make child jobs
-        childNetNames = [] 
+        childNetNames = []
+        idealJobRuntime = float(self.options.config.attrib["ideal_job_runtime"])
         for childNetName, childNetSize in runCactusGetNets(self.options.netDisk, self.netNames, localTempDir):
+            assert(childNetSize) >= 0
             childNetNames.append(childNetName)
-            if timeParameters[4]*len(childNetNames) > IDEAL_JOB_RUNTIME:
-                self.addChildTarget(CactusExtensionWrapper(self.options, childNetNames, self.switch))
+            if self.unitTime*len(childNetNames) >= idealJobRuntime:
+                self.addChildTarget(CactusExtensionWrapper(self.options, childNetNames, self.switch, self.unitTime))
                 childNetNames = []
         if len(childNetNames) > 0:
-            self.addChildTarget(CactusExtensionWrapper(self.options, childNetNames, self.switch))
+            self.addChildTarget(CactusExtensionWrapper(self.options, childNetNames, self.switch, self.unitTime))
       
 def main():
     ##########################################
@@ -442,8 +406,8 @@ def main():
     
     parser.add_option("--netDisk", dest="netDisk", help="The location of the net disk.", default="netDisk") 
     
-    parser.add_option("--maxIteraton", dest="maxIteration", help="The maximum iteration to align to (0-4)..", 
-                      default="4")
+    parser.add_option("--configFile", dest="config", help="The file XML file containing the parameters for the pipeline", 
+                      default=os.path.join(sonTraceRootPath(), "src", "cactus", "pipeline", "cactus_workflow_config.xml"))
     
     parser.add_option("--setupAndBuildAlignments", dest="setupAndBuildAlignments", action="store_true",
                       help="Setup and build alignments", default=False)
@@ -461,6 +425,9 @@ def main():
 
     logger.info("Parsed arguments")
     
+    options.config = ET.parse(options.config).getroot()
+    logger.info("Parsed the XML options file")
+    
     if options.setupAndBuildAlignments:
         baseTarget = CactusSetupPhase(options, args)
         logger.info("Going to create alignments and define the cactus tree")
@@ -469,8 +436,9 @@ def main():
         logger.info("Starting from extension phase")
     else:
         logger.info("Nothing to do!")
-        return    
+        return
     baseTarget.execute(options.jobFile) 
+    
     
     logger.info("Done with first target")
 

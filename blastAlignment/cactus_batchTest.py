@@ -22,9 +22,6 @@ from sonLib.bioio import PairwiseAlignment
 
 from workflow.jobTree.jobTreeTest import runJobTreeStatusAndFailIfNotComplete
 
-from cactus.blastAlignment.cactus_batch import MakeBlasts
-from cactus.blastAlignment.cactus_batch import makeTopLevelBlastOptions
-
 class TestCase(unittest.TestCase):
     def setUp(self):
         self.testNo = TestStatus.getTestSetup(1, 5, 10, 100)
@@ -61,7 +58,7 @@ class TestCase(unittest.TestCase):
         tempOutputFile = getTempFile()
         self.tempFiles.append(tempOutputFile)
         tempOutputFile2 = getTempFile()
-        self.tempFiles.append(tempOutputFile2)
+        self.tempFiles.append(tempOutputFile2) 
         
         if TestStatus.getTestStatus() in (TestStatus.TEST_LONG, TestStatus.TEST_VERY_LONG):
             encodePath = os.path.join(TestStatus.getPathToDataSets(), "MAY-2005")

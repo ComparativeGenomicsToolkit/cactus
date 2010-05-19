@@ -13,7 +13,7 @@ from sonLib.bioio import system
 from workflow.jobTree.scriptTree.target import Target
 
 from cactus.blastAlignment.cactus_batch import makeBlastFromOptions
-from cactus.blastAlignment.cactus_batch import makeTopLevelBlastOptions
+from cactus.blastAlignment.cactus_batch import makeStandardBlastOptions
 
 from cactus.blastAlignment.cactus_alignerTestAligner import MakeBlastsLoader as MakeBlastsTest
     
@@ -110,7 +110,7 @@ def main():
     assert len(args) == 0
     logger.info("Parsed arguments")
      
-    blastOptions = makeBlastFromOptions(makeTopLevelBlastOptions())
+    blastOptions = makeBlastFromOptions(makeStandardBlastOptions())
     if parsedOptions.useDummy:
         blastOptions = MakeBlastsTest()
     

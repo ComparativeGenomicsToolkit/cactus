@@ -13,7 +13,7 @@ from cactus.shared.test import getCactusInputs_random
 from cactus.shared.common import runCactusSetup
 from cactus.shared.common import runCactusAligner
 
-from workflow.jobTree.jobTreeTest import runJobTreeStatusAndFailIfNotComplete
+from workflow.jobTree.jobTreeTest import runJobTreeStatusAndFailIfNotComplete 
 
 class TestCase(unittest.TestCase):
 
