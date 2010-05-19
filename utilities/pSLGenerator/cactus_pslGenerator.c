@@ -15,30 +15,75 @@
 /*
  * nknguyen@soe.ucsc.edu
  * 04/28/2010
- * This script generates pair-wise alignment for the input 'query' and 'target'
- * The program will return alignments of all sequences whose names contains 'query' and 'target'
+ ************************
+ * This script generates pair-wise alignment for the input 'query' and 'target'.
+ *
+ * The program returns alignments of all sequences whose names contains 'query' and 'target'.
  * For example if query is 'hg19' and target is 'panTro2', and if hg19 has two sequences hg19-seq1 
  * and hg19-seq2, all alignments between hg19-seq1 & panTro2, and hg19-seq2 & panTro2 are printed
  * to output file.
  *
- * If option 'x' , or 'exhaust' is not specified, only the best alignment is returned for each level of cactus.
- * Best is defined as the most bases the alignment covered.
+ * If option 'x' , or 'exhaust' is Not specified, only the best alignment is returned for each level of cactus.
+ * Best is defined as the alignment which covers the most number of bases. One limitation when outputing only the best
+ * alignment is that duplications will be missed. More on alignment below.
  * 
  * If option 'r' or 'ref' is not specified, returns the alignments of the whole region. If 'r' is specified,
  * return only alignments in the target's regions of the psl in ref.
  * 
  * If option 'g' or 'tangle' is specified, look at the non-chain blocks too.
+ *
+ *************************
+ *
+ * Alignment: 
+ * The idea is to convert cactus' alignments into PSL format.
+ * Cactus alignments lie in the block structure. Each block contains aligned segments of different and/or
+ * same sequences. The tricky part is to decide which segment should be aligned to which segment among the
+ * many segments that a block contains. Below describes how this program goes about the problem.
  * 
- * More documentation later.
+ * Since we only care about the pairwise alignment of two sequences: query and target, we will only
+ * look at the blocks that contain both query and target, or the 'common blocks'.
+ *
+ * First, traverse the net to get the aligned threads of the query and target. An aligned thread in this context is 
+ * a series of segments that belong to common blocks when traversing from the 5' end to 3' end of the sequence.
+ * For example, say we have common blocks 1 (AATC), 2 (CCT), and 3(GG). 
+ * Query is AATC...CCT...GG...AATC...CCT...AATC...CCT...GG and target is AATC...CCT...GG (... indicates unaligned bases)
+ * Query thread then would be 12312123 and target thread would be 123
+ * 
+ * Second, use DP to align threads. Aligning threads is essentiallly aligning segments.
+ * Two segments are matched and aligned if and only if they belong to the same block and have same orientations.
+ * 
+ * One limitation of aligning concerns inversion. Within a level of net, if an inversion occurs, it will be missed.
+ * (There should be a solution for this, for which i'll come back later. 
+ *  For now, if there is an inversion within a level, it'll just be reported to stderr.)
+ * However, if the inversion causes a nested net, then it will be reported.
+ * For example, if we have thread 1 as 0123-2-113 and thread 2 as 01231213, then the output alignment will be
+ * 012313 and 012313. 
+ * If we have 0123-2-1 and 0123-2-1, the alignment would be: 0123-2-1, 0123-2-1
+ * However, if we have 0123(-5-4)13 and 0123(45)13 where 4 and 5 belong to a nested net, then two alignments will
+ * be reported: (012313, 012313) and (45, 45) with the changes in sequence strands recorded. 
+ *
  */
 
 //====================== GLOBAL STRUCTURES ====================================
 struct Thread{
+   /*
+    *Thread is a series of connected caps (each cap corresponds to one segment). It represents DNA (or a.a) sequence.
+    */
    Cap **caps;//array of caps in order
    int size; //number of caps
 };
 
 struct Align{
+   /*
+    * Align represents the alignment of two threads.
+    * Since the purpose of aligning two threads is to find the best pairwise-alignment, 'align' only reports
+    * matched segments.
+    * E.g: consider two threads t1 with segments come from blocks: 123213  
+    *                       and t2 with segments come from blocks: 13212
+    * Then one possible alignment is: 12321[3]
+    *                                 1_321[2]
+    * Align will report: 0234 and 0123 (indices of matched segments)
+    */
    int *qIndices;//array of q caps indices (in qthread->caps) in the alignment
    int *tIndices;//array of t caps indices (in tthread->caps) in the alignment
    int size; //number of segments in the alignment
@@ -111,12 +156,15 @@ char *formatSequenceHeader(Sequence *sequence) {
 }
 
 Sequence *net_getSequenceByName(Net *net, char *name){
+   /*
+    *Return sequence in 'net' whose name is 'name'
+    */
    Sequence *sequence;
    Net_SequenceIterator * seqIterator = net_getSequenceIterator(net);
    while((sequence = net_getNextSequence(seqIterator)) != NULL){
       char *sequenceHeader = formatSequenceHeader(sequence);
       //if 'sequenceHeader' starts with 'name'
-      if(strstr(sequenceHeader, name) == sequenceHeader){
+      if(strcmp(sequenceHeader, name) == 0){
          free(sequenceHeader);
          return sequence;
       }
@@ -126,7 +174,7 @@ Sequence *net_getSequenceByName(Net *net, char *name){
 }
 
 int getSequences(Net *net, char ***seqs, char *name){
-   //get all the sequences in net that have name start with 'name'
+   //get names of all the sequences in 'net' that have their names start with 'name'
    int num = 0;
    Sequence *sequence;
    Net_SequenceIterator * seqIterator = net_getSequenceIterator(net);
@@ -149,6 +197,9 @@ int getSequences(Net *net, char ***seqs, char *name){
 }
 
 bool isStubCap(Cap *cap){
+   /*
+    *Return true if cap is of a stubEnd, otherwise return false
+    */
    End *end = cap_getEnd(cap);
    return (end_isStubEnd(end)) ? true : false;
 }
@@ -158,7 +209,9 @@ bool isPlus(char strand){
 }
 
 bool isCommonBlock(Block *block, char *query, char *target){
-   //Return true if block contains both query and target
+   /*
+    *Return true if block contains both query and target
+    */
    if(block == NULL){ return false; }
    bool hasT = false;
    bool hasQ = false;
@@ -176,7 +229,6 @@ bool isCommonBlock(Block *block, char *query, char *target){
       if(strcmp(sequenceHeader, target) == 0){
          hasT = true;
       }
-         //free(sequenceHeader);
    }
    block_destructInstanceIterator(segmentIterator);
    if (hasQ && hasT){
@@ -192,29 +244,24 @@ void moveCapToNextBlock(Cap **cap){
    if(cap_getEnd(*cap) == cap_getEnd(adjCap)){//self connected end
       *cap = adjCap;
    }else{
-      if(cap_getSide(*cap)){//5' end
-         *cap = cap_getAdjacency(segment_get3Cap(cap_getSegment(*cap)));
-      }else{
-         *cap = cap_getAdjacency(segment_get5Cap(cap_getSegment(*cap)));
-      }
+      *cap = cap_getAdjacency(cap_getOtherSegmentCap(*cap));
    }
 }
 
 void moveCapToPrevBlock(Cap **cap){
-   /*Move cap to the next block that its segment is adjacency to*/
+   /*Move cap to the previous block that its segment is adjacency to*/
    Cap *adjCap = cap_getAdjacency(*cap);
    if(cap_getEnd(*cap) == cap_getEnd(adjCap)){//self connected end
       *cap = adjCap;
    }else{
-      if(cap_getSide(adjCap)){//5' end
-         *cap = segment_get3Cap(cap_getSegment(adjCap));
-      }else{
-         *cap = segment_get5Cap(cap_getSegment(adjCap));
-      }
+      *cap = cap_getOtherSegmentCap(adjCap);
    }
 }
 
 void moveCapToNextCommonBlock(Cap **cap, char *name){
+   /*
+    *Move cap to next block that contains both cap's sequence and sequence 'name'
+    */
    bool commonBlock = false;
    Cap *currCap;
    while(!commonBlock && !isStubCap(*cap)){
@@ -237,7 +284,7 @@ void moveCapToNextCommonBlock(Cap **cap, char *name){
 }
 
 bool isMatch(struct Thread *qThread, struct Thread *tThread, int qi, int ti){
-   /*Return true if qsegment & tsegment come from same block, false otherwise*/
+   /*Return true if qcao & tcap come from same end, false otherwise*/
    Cap *qcap = *(qThread->caps + qi);
    Cap *tcap = *(tThread->caps + ti);
    End *qend = cap_getEnd(qcap);
@@ -717,6 +764,24 @@ Cap *cap_getOppCap(Cap *cap){
    return oppCap;
 }
 
+//DEBUGING --- check for inversion:
+void thread_hasInversion(struct Thread *thread){
+   int i, j;
+   Cap *cap1;
+   Cap *cap2;
+   for(i=0; i< thread->size -1; i++){
+      cap1 = *(thread->caps + i);
+      //Get the cap at the other end of the segment
+      cap1 = cap_getOtherSegmentCap(cap1);
+      for(j=i+1; j< thread->size; j++){
+         cap2 = *(thread->caps +j);
+         if(cap2 == cap_getReverse(cap1)){//inversion
+	    fprintf(stderr, "Inversion at indices %d and %d\n", i, j);
+	 }
+      }
+   }
+}//END DEBUG
+
 End *traverseQuery(Cap *cap, struct Thread **thread, char *query, char *target, int start, int end, FILE *fileHandle, bool exhaust){
    cap = cap_getAdjacency(cap);
    int coor;
@@ -854,7 +919,6 @@ Cap *net_getChildCap(Net *net, Cap *pcap){
 }
 
 //===================== GETTING PSLs FROM CHAINS FOR CURRENT NET ==============
-//void getPSLNet(Net *net, FILE *fileHandle, char *query, char *target, int start, int end, Cap *qstartCap){
 void getPSLNet(FILE *fileHandle, char *query, char *target, int start, int end, Cap *qstartCap, bool exhaust){
    /*
     *Get PSLs for net, current level
@@ -869,6 +933,9 @@ void getPSLNet(FILE *fileHandle, char *query, char *target, int start, int end, 
    if(startEnd == NULL){
       return;
    }
+   //DEBUG: check for inversion:
+   thread_hasInversion(qThread);
+   //END DEBUG
    End_InstanceIterator *capIterator = end_getInstanceIterator(startEnd);
    while((cap = end_getNext(capIterator)) != NULL){
       Sequence *sequence = cap_getSequence(cap);
