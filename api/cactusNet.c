@@ -115,9 +115,7 @@ void net_destruct(Net *net, int32_t recursive) {
 
 	netDisk_unloadNet(net->netDisk, net);
 
-	while((face = net_getFirstFace(net)) != NULL) {
-		face_destruct(face);
-	}
+	net_destructFaces(net);
 	sortedSet_destruct(net->faces, NULL);
 
 	assert(net_getEventTree(net) != NULL);

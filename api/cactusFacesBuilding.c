@@ -241,12 +241,10 @@ void net_reconstructFaces(Net * net) {
 }
 
 void net_destructFaces(Net *net) {
-	Net_FaceIterator *faceIterator = net_getFaceIterator(net);
 	Face *face;
-	while((face = net_getNextFace(faceIterator)) != NULL) {
+	while((face = net_getFirstFace(net)) != NULL) {
 		face_destruct(face);
 	}
-	net_destructFaceIterator(faceIterator);
 }
 
 
