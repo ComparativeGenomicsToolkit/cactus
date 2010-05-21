@@ -99,7 +99,6 @@ void net_destruct(Net *net, int32_t recursive) {
 	Block *block;
 	Group *group;
 	Chain *chain;
-	Face *face;
 	Net *nestedNet;
 
 	if(recursive) {
