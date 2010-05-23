@@ -282,13 +282,13 @@ void cap_makeParentAndChild(Cap *capParent, Cap *capChild) {
 }
 
 void cap_changeParentAndChild(Cap* newCapParent, Cap* capChild) {
-	Cap * oldCapParent = capChild->capContents->parent;
+	Cap * oldCapParent = cap_getParent(capChild);
 	newCapParent = cap_getPositiveOrientation(newCapParent);
 	capChild = cap_getPositiveOrientation(capChild);
 
+#ifdef BEN_DEBUG
 	assert(oldCapParent);
-
-	logInfo("Parent without child %p\n", oldCapParent);
+#endif
 
 	if(!listContains(newCapParent->capContents->children, capChild)) { //defensive, means second calls will have no effect.
 		listAppend(newCapParent->capContents->children, capChild);

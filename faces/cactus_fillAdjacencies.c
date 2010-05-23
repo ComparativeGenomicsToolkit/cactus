@@ -12,7 +12,7 @@
 #include "fastCMaths.h"
 #include "bioioC.h"
 #include "hashTableC.h"
-//#include "cactus_buildFaces.h"
+#include "cactus_buildFaces.h"
 
 /*
  * Globals definitions
@@ -84,8 +84,6 @@ static int32_t adjacencyVote_isDescendantOf(Cap * descendant,
 {
 	Cap *current = descendant;
 
-	logInfo("Testing descdance of %p -> %p\n", ancestor, descendant);
-
 	if (current == ancestor)
 		return true;
 
@@ -138,10 +136,7 @@ static int adjacencyVote_getLength(AdjacencyVote * vote)
  */
 static Cap *adjacencyVote_getWinner(AdjacencyVote * vote)
 {
-	if (vote->length == 1)
-		return vote->candidates[0];
-	else
-		return NULL;
+	return vote->candidates[0];
 }
 
 /*
@@ -373,8 +368,14 @@ static void fillingIn_registerParent(Cap * cap,
 	Cap *parent = cap_getParent(cap);
 	int32_t childIndex, childNumber;
 
-	if (parent == NULL || cap_getAdjacency(parent))
+	logInfo("Registering parent node %p\n", cap);
+
+	if (parent == NULL)
 		return;
+	if (cap_getAdjacency(parent)) {
+		fillingIn_registerParent(cap_getParent(cap), table);
+		return;
+	}
 
 #ifdef BEN_DEBUG
 	assert(cap_getAdjacency(parent) == NULL);
@@ -385,8 +386,6 @@ static void fillingIn_registerParent(Cap * cap,
 	for (childIndex = 0; childIndex < childNumber; childIndex++)
 		if (adjacencyVoteTable_doesNotVote(cap_getChild(parent, childIndex), table))
 			return;
-
-	logInfo("Registering %p %i\n", parent, childNumber);
 
 	listAppend(table->computationFront, parent);
 }
@@ -399,12 +398,12 @@ static void fillingIn_registerLeafCap(Cap * cap,
 {
 	AdjacencyVote *vote;
 
+	logInfo("Visiting leaf %p\n", cap);
+
 	// Mark as decided
 	vote = adjacencyVote_construct(1);
 	vote->candidates[0] = cap_getAdjacency(cap);
 	adjacencyVoteTable_recordVote(table, cap, vote);
-
-	logInfo("Recording vote %p -> %p (%p)\n", cap, cap_getAdjacency(cap), vote);
 
 	// Register parent
 	fillingIn_registerParent(cap, table);
@@ -445,8 +444,6 @@ static void fillingIn_giveUp(Cap * cap,
 	if (cap == NULL || !adjacencyVoteTable_getVote(cap, table))
 		return;
 
-	logInfo("Giving up!\n");
-
 	// If forcing surrender through ancestral links
 	if ((partner = cap_getAdjacency(cap))) {
 		cap_breakAdjacency(cap);
@@ -458,9 +455,6 @@ static void fillingIn_giveUp(Cap * cap,
 	// Create blank vote
 	blank_vote = adjacencyVote_construct(0);
 	adjacencyVoteTable_recordVote(table, cap, blank_vote);
-
-	// Transmit to parent
-	fillingIn_giveUp(cap_getParent(cap), table);
 }
 
 static void fillingIn_processChildrenVote(Cap *
@@ -503,15 +497,17 @@ static Cap *fillingIn_interpolateCaps(Cap * parentCap,
 					    Event * event) {
 	Cap * newCap = cap_construct(cap_getEnd(childCap), event);
 
+	if (!cap_getOrientation(newCap))
+		newCap = cap_getReverse(newCap);
+
 #ifdef BEN_DEBUG
+	logInfo("Interpolating %p\n", newCap);
 	assert(event_isDescendant(cap_getEvent(parentCap), cap_getEvent(newCap)));
 	assert(event_isDescendant(cap_getEvent(newCap), cap_getEvent(childCap)));
 	assert(event_isDescendant(cap_getEvent(parentCap), cap_getEvent(childCap)));
 #endif
 	cap_changeParentAndChild(newCap, childCap);
 	cap_makeParentAndChild(parentCap, newCap);
-
-	logInfo("XXXXXXXXXXXXXXXXXXXXXXX Interpolated %p->%p->%p\n", parentCap, newCap, childCap);
 
 	return newCap;
 }
@@ -526,10 +522,9 @@ static void fillingIn_uniteCaps(Cap * cap,
 {
 	AdjacencyVote * partnerVote;
 
-	logInfo("UNITING caps %p -- %p\n", cap, partner);
-
 	if (cap_getEvent(cap) != cap_getEvent(partner))
 		partner = fillingIn_interpolateCaps(cap_getParent(partner), partner, cap_getEvent(cap));
+	logInfo("A");
 
 	cap_makeAdjacent(cap, partner);
 
@@ -608,7 +603,6 @@ static Event *fillingIn_interpolateEvents(Event* parentEvent, Event* childEvent)
 #endif
 	}
 
-	logInfo("%i %i\n", event_getBranchLength(ptr), branchLength);
 	metaEvent = metaEvent_construct("interpolation", netDisk);
 	result = event_construct2(metaEvent, event_getBranchLength(ptr) - branchLength, event_getParent(ptr), ptr, eventTree);
 #ifdef BEN_DEBUG
@@ -618,7 +612,6 @@ static Event *fillingIn_interpolateEvents(Event* parentEvent, Event* childEvent)
 	assert(event_isDescendant(parentEvent, ptr));
 	assert(event_isDescendant(parentEvent, result));
 #endif
-	logInfo("IIIIIIIIIIIIINTERPOLATION %p\n", result);
 	return result;
 }
 
@@ -626,102 +619,241 @@ static Event *fillingIn_interpolateEvents(Event* parentEvent, Event* childEvent)
  * Pair up a node with a null stub if all else fails
  */
 static void fillingIn_pairUpToNullStub(Cap * cap, Cap * nonPartner, AdjacencyVoteTable * table) {
-	Cap * stub = cap_construct(cap_getEnd(nonPartner), cap_getEvent(cap));
-	Cap * nonPartnerParent;
-	Cap * nonPartnerParentStub;
-	Cap * nonPartnerParentPartnerStub;
-
-	Cap * child, *childPartner;
-	int32_t childNumber = cap_getChildNumber(cap);
-	int32_t childIndex;
-	AdjacencyVote * vote, *stubVote, *nonPartnerParentStubVote, *nonPartnerParentPartnerStubVote;
-
-	Event * parentEvent;
-	Event * nonPartnerParentEvent;
-
-	logInfo("Null stub %p %p %p %p %p\n", cap, nonPartner, cap_getAdjacency(nonPartner), cap_getEvent(cap), cap_getEvent(nonPartner));
-
-	// Get time stamps of nonPartnerParents
-	nonPartnerParent = cap_getParent(nonPartner);
-	if (nonPartnerParent)
-		nonPartnerParentEvent = cap_getEvent(nonPartnerParent);
 
 #ifdef BEN_DEBUG
-	assert((nonPartnerParent == NULL && cap_getParent(cap) == NULL) || (nonPartnerParent && cap_getParent(cap)));
+	assert((cap_getParent(nonPartner) == NULL && cap_getParent(cap) == NULL) || (cap_getParent(nonPartner) && cap_getParent(cap)));
 #endif
 
-	// Create new votes bulletins to stuff the electoral box
-	vote = adjacencyVote_construct(1);
-	stubVote = adjacencyVote_construct(1);
-	if (nonPartnerParent) {
-		nonPartnerParentStubVote = adjacencyVote_construct(1);
-		nonPartnerParentPartnerStubVote = adjacencyVote_construct(1);
-	}
+	if (event_isDescendant(cap_getEvent(cap), cap_getEvent(nonPartner))) {
+		Cap * stub = fillingIn_interpolateCaps(cap_getParent(nonPartner), nonPartner, cap_getEvent(cap));
+		Cap * child, *childPartner;
+		AdjacencyVote * vote, *stubVote;
+		int32_t childNumber, childIndex;
 
-	// DEBUG
+		logInfo("B");
+
+		cap_makeAdjacent(cap, stub);
+
+		// Create new votes bulletins to stuff the electoral box
+		vote = adjacencyVote_construct(1);
+		vote->candidates[0] = stub;
+		adjacencyVoteTable_recordVote(table, cap, vote);
+
+		stubVote = adjacencyVote_construct(1);
+		stubVote->candidates[0] = cap;
+		adjacencyVoteTable_recordVote(table, stub, stubVote);
+		
+		// Adjust children for consistency
+		childNumber = cap_getChildNumber(cap);
+		for (childIndex = 0; childIndex < childNumber; childIndex++) {
+			child = cap_getChild(cap, childIndex);
+			childPartner = cap_getAdjacency(child);
+
+			if (childPartner && adjacencyVote_isDescendantOf(childPartner, nonPartner, table))
+				cap_changeParentAndChild(stub, childPartner);
+		}
+
+		// Send info down
+		fillingIn_propagateToChildren(cap, stub, table);
+	} else if (cap_getParent(cap)) {
+		Cap * parent, * nonPartnerParent;
+		Cap * stub;
+		Cap * parentStub, * nonPartnerParentStub;
+
+		Cap * child, *childPartner;
+		int32_t childNumber = cap_getChildNumber(cap);
+		int32_t childIndex;
+		AdjacencyVote * vote, *stubVote, *nonPartnerParentStubVote, *parentStubVote;
+
+		Event * parentEvent;
+
+		// Get parents
+		parent = cap_getParent(cap);
+		nonPartnerParent = cap_getParent(nonPartner);
+
+		// Create pair
+		stub = cap_construct(cap_getEnd(nonPartner), cap_getEvent(cap));
+		logInfo("Constructing %p\n", stub);
+		cap_makeAdjacent(cap, stub);
+
+		// Create new votes bulletins to stuff the electoral box
+		vote = adjacencyVote_construct(1);
+		vote->candidates[0] = stub;
+		adjacencyVoteTable_recordVote(table, cap, vote);
+
+		stubVote = adjacencyVote_construct(1);
+		stubVote->candidates[0] = cap;
+		adjacencyVoteTable_recordVote(table, stub, stubVote);
+
+		// Adjust children for consistency
+		for (childIndex = 0; childIndex < childNumber; childIndex++) {
+			child = cap_getChild(cap, childIndex);
+			childPartner = cap_getAdjacency(child);
+
+			if (childPartner && adjacencyVote_isDescendantOf(childPartner, nonPartner, table))
+				cap_changeParentAndChild(stub, childPartner);
+		}
+
 #ifdef BEN_DEBUG
-	if (nonPartnerParent) {
+		assert(cap_getEvent(nonPartner) == cap_getEvent(cap));
 		assert(!event_isDescendant(cap_getEvent(cap), cap_getEvent(cap_getParent(nonPartner))));
 		assert(event_isDescendant(cap_getEvent(cap_getParent(nonPartner)), cap_getEvent(cap)));
 		assert(event_isDescendant(cap_getEvent(nonPartnerParent), cap_getEvent(cap)));
-	}
-	//assert(event_isDescendant(cap_getEvent(cap_getParent(cap_getAdjacency(nonPartner))), cap_getEvent(cap)));
-	//assert(event_isDescendant(cap_getEvent(nonPartnerParent), cap_getEvent(nonPartnerPartner)));
-	//assert(event_isDescendant(cap_getEvent(nonPartnerPartnerParent), cap_getEvent(nonPartner)));
-	//assert(event_isDescendant(nonPartnerPartnerParentEvent, cap_getEvent(nonPartner)));
-	//assert(event_isDescendant(nonPartnerParentEvent, cap_getEvent(nonPartnerPartner)));
+		assert(event_isDescendant(cap_getEvent(parent), cap_getEvent(nonPartnerParent))
+		       || event_isDescendant(cap_getEvent(nonPartnerParent), cap_getEvent(parent))
+		       || cap_getEvent(nonPartnerParent) == cap_getEvent(parent));
 #endif
 
-	if (nonPartnerParent) {
-		parentEvent = fillingIn_interpolateEvents(cap_getEvent(nonPartnerParent), cap_getEvent(cap));
+		if (event_isDescendant(cap_getEvent(parent), cap_getEvent(nonPartnerParent)))
+			parentEvent = fillingIn_interpolateEvents(cap_getEvent(nonPartnerParent), cap_getEvent(cap));
+		else
+			parentEvent = fillingIn_interpolateEvents(cap_getEvent(parent), cap_getEvent(cap));
+
 		nonPartnerParentStub = fillingIn_interpolateCaps(nonPartnerParent, nonPartner, parentEvent);
+		logInfo("C");
 		cap_makeParentAndChild(nonPartnerParentStub, stub);
-	}
 
-	cap_makeAdjacent(cap, stub);
+		parentStub = fillingIn_interpolateCaps(parent, cap, parentEvent); 
+		logInfo("D");
+		cap_makeAdjacent(nonPartnerParentStub, parentStub);
 
-	// Create a partner for that stub:
-	if (nonPartnerParent) {
-		nonPartnerParentPartnerStub = adjacencyVote_getWitnessAncestor(cap, parentEvent);
-		if (cap_getEvent(nonPartnerParentPartnerStub) != parentEvent)
-			nonPartnerParentPartnerStub = fillingIn_interpolateCaps(cap_getParent(nonPartnerParentPartnerStub), nonPartnerParentPartnerStub, parentEvent);
-		cap_makeAdjacent(nonPartnerParentStub, nonPartnerParentPartnerStub);
-	}
-
-	for (childIndex = 0; childIndex < childNumber; childIndex++) {
-		child = cap_getChild(cap, childIndex);
-		childPartner = cap_getAdjacency(child);
-
-		if (childPartner == NULL || !adjacencyVote_isDescendantOf(childPartner, nonPartner, table))
-			continue;
-
-		cap_changeParentAndChild(stub, childPartner);
-	}
-
-	// Fill votes
-	vote->candidates[0] = stub;
-	adjacencyVoteTable_recordVote(table, cap, vote);
-	stubVote->candidates[0] = cap;
-	adjacencyVoteTable_recordVote(table, stub, stubVote);
-	if (nonPartnerParent) {
-		nonPartnerParentStubVote->candidates[0] = nonPartnerParentPartnerStub;
+		nonPartnerParentStubVote = adjacencyVote_construct(1);
+		nonPartnerParentStubVote->candidates[0] = parentStub;
 		adjacencyVoteTable_recordVote(table, nonPartnerParentStub, nonPartnerParentStubVote);
-		nonPartnerParentPartnerStubVote->candidates[0] = nonPartnerParentStub;
-		adjacencyVoteTable_recordVote(table, nonPartnerParentPartnerStub, nonPartnerParentPartnerStubVote);
-	}
 
-	// Push computation front
-	if (nonPartnerParent) {
-		if (!adjacencyVoteTable_getVote(nonPartnerParentStub, table))
-			fillingIn_registerParent(nonPartnerParentStub, table);
-		if (!adjacencyVoteTable_getVote(nonPartnerParentPartnerStub, table))
-			fillingIn_registerParent(nonPartnerParentPartnerStub, table);
-	}
+		parentStubVote = adjacencyVote_construct(1);
+		parentStubVote->candidates[0] = nonPartnerParentStub;
+		adjacencyVoteTable_recordVote(table, parentStub, parentStubVote);
 
-	// Send info down
-	fillingIn_propagateToChildren(cap, stub, table);
+		// Send info down
+		fillingIn_propagateToChildren(cap, stub, table);
+
+		fillingIn_registerParent(cap, table);
+		fillingIn_registerParent(nonPartner, table);
+	} else {
+		// If working with root nodes the process is very similar, but must not be done
+		// at the root event level so as not to break up a descent tree in to
+		// It is therefore done just below
+		Cap * nonPartnerPartner = cap_getAdjacency(nonPartner);
+		Cap * stub, * nonPartnerStub, * partnerStub, *nonPartnerPartnerStub;
+		Cap * child, *childPartner;
+		Event * childEvent;
+		int32_t childNumber;
+		int32_t childIndex;
+		AdjacencyVote * vote, *stubVote, *nonPartnerStubVote, *nonPartnerPartnerStubVote;
+
+		childNumber = cap_getChildNumber(cap);
+#ifdef BEN_DEBUG
+		assert(nonPartnerPartner);
+		assert(childNumber != 0);
+#endif
+		childEvent = cap_getEvent(cap_getChild(cap, 0));
+		for (childIndex = 1; childIndex < childNumber; childIndex++) {
+			child = cap_getChild(cap, childIndex);
+			if (event_isDescendant(cap_getEvent(child), childEvent)) 
+				childEvent = cap_getEvent(child);
+		}
+
+		childNumber = cap_getChildNumber(nonPartner);
+#ifdef BEN_DEBUG
+		assert(childNumber != 0);
+#endif
+		for (childIndex = 1; childIndex < childNumber; childIndex++) {
+			child = cap_getChild(nonPartner, childIndex);
+			if (event_isDescendant(cap_getEvent(child), childEvent)) 
+				childEvent = cap_getEvent(child);
+		}
+
+		childNumber = cap_getChildNumber(nonPartnerPartner);
+#ifdef BEN_DEBUG
+		assert(childNumber != 0);
+#endif
+		for (childIndex = 1; childIndex < childNumber; childIndex++) {
+			child = cap_getChild(nonPartnerPartner, childIndex);
+			if (event_isDescendant(cap_getEvent(child), childEvent)) 
+				childEvent = cap_getEvent(child);
+		}
+
+		childEvent = fillingIn_interpolateEvents(cap_getEvent(cap), childEvent);
+
+		stub = cap_construct(cap_getEnd(cap), childEvent);
+		logInfo("Constructing %p\n", stub);
+		while(cap_getChildNumber(cap)) 
+			cap_changeParentAndChild(stub, cap_getChild(cap, 0));
+		cap_makeParentAndChild(cap, stub);
+
+		partnerStub = cap_construct(cap_getEnd(nonPartner), childEvent);
+		logInfo("Constructing %p\n", partnerStub);
+		cap_makeAdjacent(stub, partnerStub);
+
+		// Create new votes bulletins to stuff the electoral box
+		vote = adjacencyVote_construct(1);
+		vote->candidates[0] = stub;
+		adjacencyVoteTable_recordVote(table, partnerStub, vote);
+
+		stubVote = adjacencyVote_construct(1);
+		stubVote->candidates[0] = partnerStub;
+		adjacencyVoteTable_recordVote(table, stub, stubVote);
+		
+		nonPartnerPartnerStub = cap_construct(cap_getEnd(nonPartnerPartner), childEvent);
+		logInfo("Constructing %p\n", nonPartnerPartnerStub);
+		while(cap_getChildNumber(nonPartnerPartner))
+			cap_changeParentAndChild(nonPartnerPartnerStub, cap_getChild(nonPartnerPartner, 0));
+		cap_makeParentAndChild(nonPartnerPartner, nonPartnerPartnerStub);
+
+		nonPartnerStub = cap_construct(cap_getEnd(nonPartner), childEvent);
+		logInfo("Constructing %p\n", nonPartnerStub);
+		cap_makeAdjacent(nonPartnerStub, nonPartnerPartnerStub);
+
+		// Create new votes bulletins to stuff the electoral box
+		nonPartnerStubVote = adjacencyVote_construct(1);
+		vote->candidates[0] = nonPartnerPartnerStub;
+		adjacencyVoteTable_recordVote(table, nonPartnerStub, nonPartnerStubVote);
+
+		nonPartnerPartnerStubVote = adjacencyVote_construct(1);
+		stubVote->candidates[0] = nonPartnerStub;
+		adjacencyVoteTable_recordVote(table, nonPartnerPartnerStub, nonPartnerPartnerStubVote);
+
+		// Split nonPartner's children according to divorce line
+		childNumber = cap_getChildNumber(stub);
+		for (childIndex = 0; childIndex < childNumber; childIndex++) {
+			child = cap_getChild(stub, childIndex);
+			childPartner = cap_getAdjacency(child);
+
+			if (childPartner && adjacencyVote_isDescendantOf(childPartner, nonPartner, table))
+				cap_changeParentAndChild(partnerStub, childPartner);
+		}
+		while(cap_getChildNumber(nonPartner))
+			cap_changeParentAndChild(nonPartnerStub, cap_getChild(nonPartner, 0));
+
+		cap_makeParentAndChild(nonPartner, partnerStub);
+		cap_makeParentAndChild(nonPartner, nonPartnerStub);
+
+		// Send info down
+		fillingIn_propagateToChildren(stub, partnerStub, table);
+	} 
 }
 
+/*
+ * Register decision to pick a candidate at random
+ */
+static void fillingIn_chooseAtRandom(Cap * cap,
+				     AdjacencyVote * vote,
+				     AdjacencyVoteTable * table)
+{
+	Cap *partner;
+	int32_t index;
+
+	for (index = 0; index < vote->length; index++) {
+		partner = vote->candidates[index];
+		partner = adjacencyVote_getWitnessAncestor(partner, cap_getEvent(cap));
+		if (fillingIn_partnerConsents(partner, cap, table)) {
+			fillingIn_uniteCaps(cap, partner,
+						    vote, table);
+			return;
+		}
+	}
+}
 
 /*
  * Determine adjacencies from the module pointed by the given Cap
@@ -752,13 +884,6 @@ static void fillingIn_processChildrenVote(Cap *
 		break;
 	case 1:
 		first_child = cap_getChild(cap, 0);
-
-		// Check if child surrendered
-		if (adjacencyVoteTable_doesNotVote(first_child, table)) {
-			fillingIn_giveUp(cap, table);
-			return;
-		}
-
 		merged_vote =
 		    adjacencyVote_copy(adjacencyVoteTable_getVote
 				       (first_child, table));
@@ -766,20 +891,7 @@ static void fillingIn_processChildrenVote(Cap *
 		break;
 	case 2:
 		first_child = cap_getChild(cap, 0);
-
-		// Check if child surrendered
-		if (adjacencyVoteTable_doesNotVote(first_child, table)) {
-			fillingIn_giveUp(cap, table);
-			return;
-		}
-
 		second_child = cap_getChild(cap, 1);
-
-		// Check if child surrendered
-		if (adjacencyVoteTable_doesNotVote(second_child, table)) {
-			fillingIn_giveUp(cap, table);
-			return;
-		}
 
 		first_child_vote =
 		    adjacencyVote_copy(adjacencyVoteTable_getVote
@@ -819,6 +931,7 @@ static void fillingIn_processChildrenVote(Cap *
 			adjacencyVote_destruct(merged_vote);
 		}
 	}
+
 	// If still undecided record alternatives
 	else if (adjacencyVote_getLength(merged_vote) < VOTE_CUTOFF) {
 		fillingIn_propagateToParents(cap, table);
@@ -826,31 +939,21 @@ static void fillingIn_processChildrenVote(Cap *
 					      merged_vote);
 	}
 
-	// If going crazy make no decision
+	// If necessary to make a decision because junction node
+	else if (cap_getChildNumber(cap) > 1) {
+		fillingIn_chooseAtRandom(cap, merged_vote, table);
+		// If failure on junction: force to null stub
+		if (!cap_getAdjacency(cap)) {
+			partner = adjacencyVote_getWinner(merged_vote);
+			fillingIn_pairUpToNullStub(cap, partner, table);
+		}
+		adjacencyVote_destruct(merged_vote);
+	}
+
+	// If too lazy to make a decision
 	else {
 		fillingIn_giveUp(cap, table);
 		adjacencyVote_destruct(merged_vote);
-	}
-}
-
-/*
- * Register decision to pick a candidate at random
- */
-static void fillingIn_chooseAtRandom(Cap * cap,
-				     AdjacencyVote * vote,
-				     AdjacencyVoteTable * table)
-{
-	Cap *partner;
-	int32_t index;
-
-	for (index = 0; index < vote->length; index++) {
-		partner = vote->candidates[index];
-		partner = adjacencyVote_getWitnessAncestor(partner, cap_getEvent(cap));
-		if (fillingIn_partnerConsents(partner, cap, table)) {
-			fillingIn_uniteCaps(cap, partner,
-						    vote, table);
-			return;
-		}
 	}
 }
 
@@ -867,6 +970,10 @@ static void fillingIn_propagateAdjacencyDownwards(Cap *
 	AdjacencyVote *vote =
 	    adjacencyVoteTable_getVote(cap, table);
 
+#if BEN_DEBUG
+	assert(vote->length >= 1 || cap_getAdjacency(cap));
+#endif 
+
 	// If Cap does not exist (for NULL partners) or child already decided
 	if (!cap || vote->length <= 1)
 		return;
@@ -880,8 +987,6 @@ static void fillingIn_propagateAdjacencyDownwards(Cap *
 	if (decision)
 		decision = adjacencyVote_getWitnessAncestor(decision, cap_getEvent(cap));
 
-	if (decision)
-		logInfo("QQQQ %p %p %p\n", decision, cap_getEvent(decision), cap_getEvent(cap));
 
 	if (!decision || !fillingIn_partnerConsents(decision, cap, table))
 		// If partner does not exist or refuses
@@ -893,15 +998,18 @@ static void fillingIn_propagateAdjacencyDownwards(Cap *
 
 	if (decision)
 		decision = adjacencyVote_getWitnessAncestor(decision, cap_getEvent(cap));
-	if (decision)
-		logInfo("RRRR %p %p %p\n", decision, cap_getEvent(decision), cap_getEvent(cap));
 
 	// If failure on junction: force to null stub
-	if (!cap_getAdjacency(cap) && cap_getChildNumber(cap) > 1) {
-		if (decision && adjacencyVoteTable_getVote(decision, table))
-			fillingIn_pairUpToNullStub(cap, decision, table);
-		else
-			fillingIn_giveUp(cap, table);
+	if (!cap_getAdjacency(cap)) {
+		if (cap_getChildNumber(cap) > 1) {
+			if (decision && adjacencyVoteTable_getVote(decision, table))
+				fillingIn_pairUpToNullStub(cap, decision, table);
+			else {
+				adjacencyVote_goToParents(vote, cap);
+				decision = adjacencyVote_getWinner(vote);
+				fillingIn_pairUpToNullStub(cap, decision, table);
+			}
+		} 	
 	}
 
 }
@@ -912,13 +1020,41 @@ static void fillingIn_propagateAdjacencyDownwards(Cap *
 static void fillingIn_stepForward(Cap * cap,
 				  AdjacencyVoteTable * table)
 {
-	logInfo("Stepping into %p (%i)\n", cap, table->computationFront->length);
-
+	logInfo("Stepping into %p\n", cap);
 	// Assess node decision
 	fillingIn_processChildrenVote(cap, table);
 
 	// Add parents to computationFront
 	fillingIn_registerParent(cap, table);
+}
+
+/*
+ * Force the top junction node in tree to come to a decision
+ */
+static void fillingIn_forceIndecisiveTree(Cap * cap, AdjacencyVoteTable * table) {
+	AdjacencyVote * vote;
+	Cap * partner;
+
+	while(cap_getChildNumber(cap) == 1)
+		cap = cap_getChild(cap, 0);
+
+	// If non branched tree
+	if (cap_getChildNumber(cap) == 0)
+		return;
+
+	// If attached, job done
+	if (cap_getAdjacency(cap))
+		return;
+
+	// If not done, sort it out!!
+	vote = adjacencyVoteTable_getVote(cap, table);
+	fillingIn_chooseAtRandom(cap, vote, table);
+	// If failure on junction: force to null stub
+	if (!cap_getAdjacency(cap)) {
+		adjacencyVote_goToParents(vote, cap);
+		partner = adjacencyVote_getWinner(vote);
+		fillingIn_pairUpToNullStub(cap, partner, table);
+	}
 }
 
 /*
@@ -947,12 +1083,14 @@ static Cap * fillingIn_constructStub(Event *event, Group *group) {
 	End *newFreeStubEnd = end_construct(0, group_getNet(group));
 	end_setGroup(newFreeStubEnd, group);
 	Cap *cap = cap_construct(newFreeStubEnd, event);
+		logInfo("Constructing %p\n",cap);
 	Event *rootEvent = eventTree_getRootEvent(eventTree);
 	if(event == rootEvent) {
 		end_setRootInstance(newFreeStubEnd, cap);
 	}
 	else {
 		end_setRootInstance(newFreeStubEnd, cap_construct(newFreeStubEnd, rootEvent));
+		logInfo("Constructing %p\n", newFreeStubEnd);
 		cap_makeParentAndChild(end_getRootInstance(newFreeStubEnd), cap);
 	}
 	return cap;
@@ -991,6 +1129,7 @@ static void fillingIn_resolveSelfLoop(Cap * ancestor,
 
 	// Modify top end of original tree
 	interpolationJoin = fillingIn_interpolateCaps(ancestor, descendant1, middleParentEvent);
+	logInfo("E");
 	cap_changeParentAndChild(interpolationJoin, descendant2);
 
 	interpolation1 =
@@ -1004,8 +1143,11 @@ static void fillingIn_resolveSelfLoop(Cap * ancestor,
 	alterEgoParent = fillingIn_constructStub(topEvent, group); //construct the parent stub (and possible a root cap above it).
 	End *newStubEnd = cap_getEnd(alterEgoParent);
 	alterEgoChild = cap_construct(newStubEnd, cap_getEvent(interpolationJoin));
+		logInfo("Constructing %p\n", alterEgoChild);
 	alterEgoAdjacency1 = cap_construct(newStubEnd, middleChildEvent);
+		logInfo("Constructing %p\n", alterEgoAdjacency1);
 	alterEgoAdjacency2 = cap_construct(newStubEnd, middleChildEvent);
+		logInfo("Constructing %p\n", alterEgoAdjacency2);
 
 	cap_makeParentAndChild(alterEgoParent, alterEgoChild);
 	cap_makeParentAndChild(alterEgoChild, alterEgoAdjacency1);
@@ -1063,18 +1205,28 @@ void fillingIn_fillAdjacencies(Net * net)
 	// Define a computation front
 	//////////////////////////////////////////////////////////////
 	logInfo("Registering leaf caps\n");
-	while ((cap = net_getNextCap(iter)))
+	while ((cap = net_getNextCap(iter))) {
+		logInfo("Testing possible leaf %p\n", cap);
 		if (cap_getChildNumber(cap) == 0)
 			fillingIn_registerLeafCap(cap, table);
+	}
+	net_destructCapIterator(iter);
 
 	//////////////////////////////////////////////////////////////
 	// Compute greedily
 	//////////////////////////////////////////////////////////////
-	// DEBUG
 	logInfo("Propagation\n");
 	while (table->computationFront->length > 0)
 		fillingIn_stepForward(listRemoveFirst(table->computationFront), table);
 
+	//////////////////////////////////////////////////////////////
+	// Force decision for higher nodes 
+	//////////////////////////////////////////////////////////////
+	iter = net_getCapIterator(net);
+	while ((cap = net_getNextCap(iter)))
+		if (!cap_getParent(cap))
+			fillingIn_forceIndecisiveTree(cap, table);
+	net_destructCapIterator(iter);
 
 	//////////////////////////////////////////////////////////////
 	// Remove self loops
@@ -1086,7 +1238,6 @@ void fillingIn_fillAdjacencies(Net * net)
 	// Clean up
 	//////////////////////////////////////////////////////////////
 	logInfo("Clean up\n");
-	net_destructCapIterator(iter);
 	adjacencyVoteTable_destruct(table);
 }
 
@@ -1236,7 +1387,7 @@ int main(int argc, char ** argv) {
 
 		startTime = time(NULL);
 		fillingIn_fillAdjacencies(net);
-		//buildFaces_buildAndProcessFaces(net);
+		buildFaces_buildAndProcessFaces(net);
 		logInfo("Processed the nets in: %i seconds\n", time(NULL) - startTime);
 
 		///////////////////////////////////////////////////////////////////////////
