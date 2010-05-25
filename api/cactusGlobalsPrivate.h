@@ -16,10 +16,8 @@
 #include <tcutil.h>
 #include <tcbdb.h>
 #include "CuTest.h"
+#include "sonLib.h"
 #include "commonC.h"
-#include "avl.h"
-#include "hashTableC.h"
-#include "hashTableC_itr.h"
 
 #define NAME_STRING "%llX"
 

@@ -9,14 +9,9 @@
 #include <tcutil.h>
 #include <tcbdb.h>
 /*
- * For the sorted sets.
+ * For the basic lib stuff
  */
-#include "avl.h"
-/*
- * For the hashtables.
- */
-#include "hashTableC.h"
-#include "hashTableC_itr.h"
+#include "sonLib.h"
 /*
  * For lists
  */
@@ -52,30 +47,26 @@ typedef struct _netDisk NetDisk;
 typedef struct _pseudoChromosome PseudoChromosome;
 typedef struct _pseudoAdjacency PseudoAdjacency;
 typedef struct _reference Reference;
-typedef struct _cactusHash Hash;
 
-#define SORTED_SET_ITERATOR struct avl_traverser
-typedef SORTED_SET_ITERATOR EventTree_Iterator;
+typedef SortedSet_Iterator EventTree_Iterator;
 typedef struct _end_instanceIterator End_InstanceIterator;
 typedef struct _block_instanceIterator Block_InstanceIterator;
-typedef SORTED_SET_ITERATOR Group_EndIterator;
-typedef SORTED_SET_ITERATOR Net_SequenceIterator;
-typedef SORTED_SET_ITERATOR Net_CapIterator;
-typedef SORTED_SET_ITERATOR Net_SegmentIterator;
-typedef SORTED_SET_ITERATOR Net_EndIterator;
-typedef SORTED_SET_ITERATOR Net_BlockIterator;
-typedef SORTED_SET_ITERATOR Net_GroupIterator;
-typedef SORTED_SET_ITERATOR Net_ChainIterator;
-typedef SORTED_SET_ITERATOR Net_FaceIterator;
-typedef SORTED_SET_ITERATOR Net_ReferenceIterator;
+typedef SortedSet_Iterator Group_EndIterator;
+typedef SortedSet_Iterator Net_SequenceIterator;
+typedef SortedSet_Iterator Net_CapIterator;
+typedef SortedSet_Iterator Net_SegmentIterator;
+typedef SortedSet_Iterator Net_EndIterator;
+typedef SortedSet_Iterator Net_BlockIterator;
+typedef SortedSet_Iterator Net_GroupIterator;
+typedef SortedSet_Iterator Net_ChainIterator;
+typedef SortedSet_Iterator Net_FaceIterator;
+typedef SortedSet_Iterator Net_ReferenceIterator;
 typedef BDBCUR NetDisk_NetNameIterator;
-typedef SORTED_SET_ITERATOR NetDisk_NetIterator;
-typedef SORTED_SET_ITERATOR Reference_PseudoChromosomeIterator;
-typedef SORTED_SET_ITERATOR PseudoChromsome_PseudoAdjacencyIterator;
-typedef struct hashtable_itr Hash_Iterator;
+typedef SortedSet_Iterator NetDisk_NetIterator;
+typedef SortedSet_Iterator Reference_PseudoChromosomeIterator;
+typedef SortedSet_Iterator PseudoChromsome_PseudoAdjacencyIterator;
 typedef struct _face_FaceEndIterator Face_FaceEndIterator;
 typedef struct _faceEndIterator FaceEnd_BottomNodeIterator;
-typedef struct avl_table SortedSet;
-typedef SORTED_SET_ITERATOR SortedSet_Iterator;
+
 
 #endif
