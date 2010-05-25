@@ -16,6 +16,7 @@
 #include "pairwiseAlignment.h"
 #include "cactusNetFunctions.h"
 #include "cactus_core.h"
+#include "sonLib.h"
 
 char *startAlignmentStack_fileString;
 static FILE *getNextAlignment_FileHandle = NULL;
