@@ -20,7 +20,7 @@ EventTree *eventTree_construct2(Net *net) {
 EventTree *eventTree_construct(MetaEvent *rootEvent, Net *net) {
 	EventTree *eventTree;
 	eventTree = mallocLocal(sizeof(EventTree));
-	eventTree->events = sortedSet_construct(eventTree_constructP);
+	eventTree->events = st_sortedSet_construct(eventTree_constructP);
 	eventTree->net = net;
 	eventTree->rootEvent = event_construct(rootEvent, INT32_MAX, NULL, eventTree); //do this last as reciprocal call made to add the event to the events.
 	net_setEventTree(net, eventTree);
@@ -57,7 +57,7 @@ Event *eventTree_getRootEvent(EventTree *eventTree) {
 
 Event *eventTree_getEvent(EventTree *eventTree, Name eventName) {
 	Event *event = event_getStaticNameWrapper(eventName);
-	return sortedSet_find(eventTree->events, event);
+	return st_sortedSet_find(eventTree->events, event);
 }
 
 Event *eventTree_getCommonAncestor(Event *event, Event *event2) {
@@ -100,27 +100,27 @@ int32_t eventTree_getEventNumber(EventTree *eventTree) {
 }
 
 Event *eventTree_getFirst(EventTree *eventTree) {
-	return sortedSet_getFirst(eventTree->events);
+	return st_sortedSet_getFirst(eventTree->events);
 }
 
 EventTree_Iterator *eventTree_getIterator(EventTree *eventTree) {
-	return iterator_construct(eventTree->events);
+	return st_sortedSet_getIterator(eventTree->events);
 }
 
 Event *eventTree_getNext(EventTree_Iterator *iterator) {
-	return iterator_getNext(iterator);
+	return st_sortedSet_getNext(iterator);
 }
 
 Event *eventTree_getPrevious(EventTree_Iterator *iterator) {
-	return iterator_getPrevious(iterator);
+	return st_sortedSet_getPrevious(iterator);
 }
 
 EventTree_Iterator *eventTree_copyIterator(EventTree_Iterator *iterator) {
-	return iterator_copy(iterator);
+	return st_sortedSet_copyIterator(iterator);
 }
 
 void eventTree_destructIterator(EventTree_Iterator *iterator) {
-	iterator_destruct(iterator);
+	st_sortedSet_destructIterator(iterator);
 }
 
 static char *eventTree_makeNewickStringP(Event *event) {
@@ -244,16 +244,16 @@ void eventTree_destruct(EventTree *eventTree) {
 	while((event = eventTree_getFirst(eventTree)) != NULL) {
 		event_destruct(event);
 	}
-	sortedSet_destruct(eventTree->events, NULL);
+	st_sortedSet_destruct(eventTree->events, NULL);
 	free(eventTree);
 }
 
 void eventTree_addEvent(EventTree *eventTree, Event *event) {
-	sortedSet_insert(eventTree->events, event);
+	st_sortedSet_insert(eventTree->events, event);
 }
 
 void eventTree_removeEvent(EventTree *eventTree, Event *event) {
-	sortedSet_delete(eventTree->events, event);
+	st_sortedSet_delete(eventTree->events, event);
 }
 
 /*

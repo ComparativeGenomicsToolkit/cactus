@@ -469,18 +469,18 @@ void reportEndStats(Net *net, int32_t includeLinkGroups, int32_t includeTangleGr
 double nonSimpleFacesPerEnd(End *end) {
 	End_InstanceIterator *capIterator = end_getInstanceIterator(end);
 	Cap *cap;
-	Hash *faceHash = hash_construct();
+	stHash *faceHash = st_hash_construct();
 	int32_t i = 0;
 	while((cap = end_getNext(capIterator)) != NULL) {
 		Face *face = cap_getTopFace(cap);
 		if(face != NULL) {
-			if(hash_search(faceHash, face) == NULL) {
-				hash_insert(faceHash, face, face);
+			if(st_hash_search(faceHash, face) == NULL) {
+				st_hash_insert(faceHash, face, face);
 				i++;
 			}
 		}
 	}
-	hash_destruct(faceHash);
+	st_hash_destruct(faceHash);
 	end_destructInstanceIterator(capIterator);
 	return i;
 }

@@ -40,7 +40,7 @@ End *end_construct2(Name name, int32_t isStub, int32_t isAttached, int32_t side,
 
 	end->endContents->rootInstance = NULL;
 	end->endContents->name = name;
-	end->endContents->caps = sortedSet_construct(end_constructP);
+	end->endContents->caps = st_sortedSet_construct(end_constructP);
 	end->endContents->attachedBlock = NULL;
 	end->endContents->group = NULL;
 	end->endContents->net = net;
@@ -94,7 +94,7 @@ void end_destruct(End *end) {
 		cap_destruct(cap);
 	}
 	//now the actual instances.
-	sortedSet_destruct(end->endContents->caps, NULL);
+	st_sortedSet_destruct(end->endContents->caps, NULL);
 
 	free(end->endContents);
 	free(end->rEnd);
@@ -153,7 +153,7 @@ Group *end_getGroup(End *end) {
 }
 
 int32_t end_getInstanceNumber(End *end) {
-	return sortedSet_getLength(end->endContents->caps);
+	return st_sortedSet_getLength(end->endContents->caps);
 }
 
 Cap *end_getInstanceP(End *end, Cap *connectedCap) {
@@ -162,11 +162,11 @@ Cap *end_getInstanceP(End *end, Cap *connectedCap) {
 
 Cap *end_getInstance(End *end, Name name) {
 	Cap *cap = cap_getStaticNameWrapper(name);
-	return end_getInstanceP(end, sortedSet_find(end->endContents->caps, cap));
+	return end_getInstanceP(end, st_sortedSet_find(end->endContents->caps, cap));
 }
 
 Cap *end_getFirst(End *end) {
-	return end_getInstanceP(end, sortedSet_getFirst(end->endContents->caps));
+	return end_getInstanceP(end, st_sortedSet_getFirst(end->endContents->caps));
 }
 
 Cap *end_getRootInstance(End *end) {
@@ -181,28 +181,28 @@ End_InstanceIterator *end_getInstanceIterator(End *end) {
 	End_InstanceIterator *iterator;
 	iterator = mallocLocal(sizeof(struct _end_instanceIterator));
 	iterator->end = end;
-	iterator->iterator = iterator_construct(end->endContents->caps);
+	iterator->iterator = st_sortedSet_getIterator(end->endContents->caps);
 	return iterator;
 }
 
 Cap *end_getNext(End_InstanceIterator *iterator) {
-	return end_getInstanceP(iterator->end, iterator_getNext(iterator->iterator));
+	return end_getInstanceP(iterator->end, st_sortedSet_getNext(iterator->iterator));
 }
 
 Cap *end_getPrevious(End_InstanceIterator *iterator) {
-	return end_getInstanceP(iterator->end, iterator_getPrevious(iterator->iterator));
+	return end_getInstanceP(iterator->end, st_sortedSet_getPrevious(iterator->iterator));
 }
 
 End_InstanceIterator *end_copyInstanceIterator(End_InstanceIterator *iterator) {
 	End_InstanceIterator *iterator2;
 	iterator2 = mallocLocal(sizeof(struct _end_instanceIterator));
 	iterator2->end = iterator->end;
-	iterator2->iterator = iterator_copy(iterator->iterator);
+	iterator2->iterator = st_sortedSet_copyIterator(iterator->iterator);
 	return iterator2;
 }
 
 void end_destructInstanceIterator(End_InstanceIterator *iterator) {
-	iterator_destruct(iterator->iterator);
+	st_sortedSet_destructIterator(iterator->iterator);
 	free(iterator);
 }
 
@@ -316,11 +316,11 @@ void end_check(End *end) {
  */
 
 void end_addInstance(End *end, Cap *cap) {
-	sortedSet_insert(end->endContents->caps, cap_getPositiveOrientation(cap));
+	st_sortedSet_insert(end->endContents->caps, cap_getPositiveOrientation(cap));
 }
 
 void end_removeInstance(End *end, Cap *cap) {
-	sortedSet_delete(end->endContents->caps, cap);
+	st_sortedSet_delete(end->endContents->caps, cap);
 }
 
 void end_setNet(End *end, Net *net) {

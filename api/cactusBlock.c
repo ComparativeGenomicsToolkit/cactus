@@ -33,7 +33,7 @@ Block *block_construct2(Name name, int32_t length,
 	block->rBlock->orientation = 0;
 
 	block->blockContents->name = name;
-	block->blockContents->segments = sortedSet_construct(blockConstruct_constructP);
+	block->blockContents->segments = st_sortedSet_construct(blockConstruct_constructP);
 	block->blockContents->length = length;
 	block->blockContents->net = net;
 
@@ -57,7 +57,7 @@ void block_destruct(Block *block) {
 		segment_destruct(segment);
 	}
 	//now the actual instances.
-	sortedSet_destruct(block->blockContents->segments, NULL);
+	st_sortedSet_destruct(block->blockContents->segments, NULL);
 
 	free(block->rBlock);
 	free(block->blockContents);
@@ -97,7 +97,7 @@ End *block_get3End(Block *block) {
 }
 
 int32_t block_getInstanceNumber(Block *block) {
-	return sortedSet_getLength(block->blockContents->segments);
+	return st_sortedSet_getLength(block->blockContents->segments);
 }
 
 Segment *block_getInstanceP(Block *block, Segment *connectedSegment) {
@@ -106,11 +106,11 @@ Segment *block_getInstanceP(Block *block, Segment *connectedSegment) {
 
 Segment *block_getInstance(Block *block, Name name) {
 	Segment *segment = segment_getStaticNameWrapper(name);
-	return block_getInstanceP(block, sortedSet_find(block->blockContents->segments, segment));
+	return block_getInstanceP(block, st_sortedSet_find(block->blockContents->segments, segment));
 }
 
 Segment *block_getFirst(Block *block) {
-	return block_getInstanceP(block, sortedSet_getFirst(block->blockContents->segments));
+	return block_getInstanceP(block, st_sortedSet_getFirst(block->blockContents->segments));
 }
 
 Segment *block_getRootInstance(Block *block) {
@@ -130,28 +130,28 @@ Block_InstanceIterator *block_getInstanceIterator(Block *block) {
 	Block_InstanceIterator *iterator;
 	iterator = mallocLocal(sizeof(struct _block_instanceIterator));
 	iterator->block = block;
-	iterator->iterator = iterator_construct(block->blockContents->segments);
+	iterator->iterator = st_sortedSet_getIterator(block->blockContents->segments);
 	return iterator;
 }
 
 Segment *block_getNext(Block_InstanceIterator *iterator) {
-	return block_getInstanceP(iterator->block, iterator_getNext(iterator->iterator));
+	return block_getInstanceP(iterator->block, st_sortedSet_getNext(iterator->iterator));
 }
 
 Segment *block_getPrevious(Block_InstanceIterator *iterator) {
-	return block_getInstanceP(iterator->block, iterator_getPrevious(iterator->iterator));
+	return block_getInstanceP(iterator->block, st_sortedSet_getPrevious(iterator->iterator));
 }
 
 Block_InstanceIterator *block_copyInstanceIterator(Block_InstanceIterator *iterator) {
 	Block_InstanceIterator *iterator2;
 	iterator2 = mallocLocal(sizeof(struct _block_instanceIterator));
 	iterator2->block = iterator->block;
-	iterator2->iterator = iterator_copy(iterator->iterator);
+	iterator2->iterator = st_sortedSet_copyIterator(iterator->iterator);
 	return iterator2;
 }
 
 void block_destructInstanceIterator(Block_InstanceIterator *iterator) {
-	iterator_destruct(iterator->iterator);
+	st_sortedSet_destructIterator(iterator->iterator);
 	free(iterator);
 }
 
@@ -324,11 +324,11 @@ char *block_makeNewickString(Block *block, int32_t includeInternalNames, int32_t
  */
 
 void block_addInstance(Block *block, Segment *segment) {
-	sortedSet_insert(block->blockContents->segments, segment_getPositiveOrientation(segment));
+	st_sortedSet_insert(block->blockContents->segments, segment_getPositiveOrientation(segment));
 }
 
 void block_removeInstance(Block *block, Segment *segment) {
-	sortedSet_delete(block->blockContents->segments, segment_getPositiveOrientation(segment));
+	st_sortedSet_delete(block->blockContents->segments, segment_getPositiveOrientation(segment));
 }
 
 void block_setNet(Block *block, Net *net) {

@@ -17,7 +17,7 @@ static int32_t reference_constructP(const void *o1, const void *o2, void *a) {
 Reference *reference_construct(Net *net) {
 	Reference *reference = mallocLocal(sizeof(Reference));
 	//Setup the basic structure - a sorted set of pseudo-chromosomes.
-	reference->pseudoChromosomes = sortedSet_construct(reference_constructP);
+	reference->pseudoChromosomes = st_sortedSet_construct(reference_constructP);
 	//Link the reference and net.
 	reference->net = net;
 	net_setReference(net, reference);
@@ -29,41 +29,41 @@ Net *reference_getNet(Reference *reference) {
 }
 
 int32_t reference_getPseudoChromosomeNumber(Reference *reference) {
-	return sortedSet_getLength(reference->pseudoChromosomes);
+	return st_sortedSet_getLength(reference->pseudoChromosomes);
 }
 
 PseudoChromosome *reference_getPseudoChromosome(Reference *reference, Name name) {
 	PseudoChromosome *pseudoChromosome;
 	pseudoChromosome = pseudoChromosome_getStaticNameWrapper(name);
-	return sortedSet_find(reference->pseudoChromosomes, pseudoChromosome);
+	return st_sortedSet_find(reference->pseudoChromosomes, pseudoChromosome);
 }
 
 PseudoChromosome *reference_getFirst(Reference *reference) {
-	return sortedSet_getFirst(reference->pseudoChromosomes);
+	return st_sortedSet_getFirst(reference->pseudoChromosomes);
 }
 
 Reference_PseudoChromosomeIterator *reference_getPseudoChromosomeIterator(Reference *reference) {
-	return iterator_construct(reference->pseudoChromosomes);
+	return st_sortedSet_getIterator(reference->pseudoChromosomes);
 }
 
 PseudoChromosome *reference_getNextPseudoChromosome(Reference_PseudoChromosomeIterator *pseudoChromosomeIterator) {
-	return iterator_getNext(pseudoChromosomeIterator);
+	return st_sortedSet_getNext(pseudoChromosomeIterator);
 }
 
 PseudoChromosome *reference_getPreviousPseudoChromosome(Reference_PseudoChromosomeIterator *pseudoChromosomeIterator) {
-	return iterator_getPrevious(pseudoChromosomeIterator);
+	return st_sortedSet_getPrevious(pseudoChromosomeIterator);
 }
 
 Reference_PseudoChromosomeIterator *reference_copyPseudoChromosomeIterator(Reference_PseudoChromosomeIterator *pseudoChromosomeIterator) {
-	return iterator_copy(pseudoChromosomeIterator);
+	return st_sortedSet_copyIterator(pseudoChromosomeIterator);
 }
 
 void reference_destructPseudoChromosomeIterator(Reference_PseudoChromosomeIterator *pseudoChromosomeIterator) {
-	iterator_destruct(pseudoChromosomeIterator);
+	st_sortedSet_destructIterator(pseudoChromosomeIterator);
 }
 
-Hash *reference_getEndToPseudoAdjacencyHash(Reference *reference) {
-	Hash *hash = hash_construct3(end_hashKey, end_hashEqualsKey, NULL, NULL);
+stHash *reference_getEndToPseudoAdjacencyHash(Reference *reference) {
+	stHash *hash = st_hash_construct3(end_hashKey, end_hashEqualsKey, NULL, NULL);
 	Reference_PseudoChromosomeIterator *pseudoChromosomeIterator =
 		reference_getPseudoChromosomeIterator(reference);
 	PseudoChromosome *pseudoChromosome;
@@ -72,8 +72,8 @@ Hash *reference_getEndToPseudoAdjacencyHash(Reference *reference) {
 			pseudoChromosome_getPseudoAdjacencyIterator(pseudoChromosome);
 		PseudoAdjacency *pseudoAdjacency;
 		while((pseudoAdjacency = pseudoChromosome_getNextPseudoAdjacency(pseudoAdjacencyIterator)) != NULL) {
-			hash_insert(hash, pseudoAdjacency_get5End(pseudoAdjacency), pseudoAdjacency);
-			hash_insert(hash, pseudoAdjacency_get3End(pseudoAdjacency), pseudoAdjacency);
+			st_hash_insert(hash, pseudoAdjacency_get5End(pseudoAdjacency), pseudoAdjacency);
+			st_hash_insert(hash, pseudoAdjacency_get3End(pseudoAdjacency), pseudoAdjacency);
 		}
 		pseudoChromosome_destructPseudoAdjacencyIterator(pseudoAdjacencyIterator);
 	}
@@ -83,19 +83,19 @@ Hash *reference_getEndToPseudoAdjacencyHash(Reference *reference) {
 
 void reference_check(Reference *reference) {
 	Net *net = reference_getNet(reference);
-	Hash *endsToPseudoAdjacencies = reference_getEndToPseudoAdjacencyHash(reference);
+	stHash *endsToPseudoAdjacencies = reference_getEndToPseudoAdjacencyHash(reference);
 
 	//Going ends --> pseudo adjacencies.
 	Net_EndIterator *endIterator = net_getEndIterator(net);
 	End *end;
 	while((end = net_getNextEnd(endIterator)) != NULL) {
 		if(end_isAttached(end) || end_isBlockEnd(end)) {
-			PseudoAdjacency *pseudoAdjacency = hash_search(endsToPseudoAdjacencies, end);
+			PseudoAdjacency *pseudoAdjacency = st_hash_search(endsToPseudoAdjacencies, end);
 			assert(pseudoAdjacency != NULL);
 			assert(pseudoAdjacency_get5End(pseudoAdjacency) == end || pseudoAdjacency_get3End(pseudoAdjacency) == end);
 		}
 		else {
-			assert(hash_search(endsToPseudoAdjacencies, end) == NULL); //check free stub end is not in the pseudo chromosomes..
+			assert(st_hash_search(endsToPseudoAdjacencies, end) == NULL); //check free stub end is not in the pseudo chromosomes..
 		}
 	}
 	net_destructEndIterator(endIterator);
@@ -117,8 +117,8 @@ void reference_check(Reference *reference) {
 			End *_3End = pseudoAdjacency_get3End(pseudoAdjacency);
 			assert(_5End == end_getPositiveOrientation(_5End)); //check they are positive orientation
 			assert(_3End == end_getPositiveOrientation(_3End)); //check they are positive orientation
-			assert(hash_search(endsToPseudoAdjacencies, _5End) == pseudoAdjacency); //check these are represented in the hash.. so that the mapping is unique.
-			assert(hash_search(endsToPseudoAdjacencies, _3End) == pseudoAdjacency);
+			assert(st_hash_search(endsToPseudoAdjacencies, _5End) == pseudoAdjacency); //check these are represented in the hash.. so that the mapping is unique.
+			assert(st_hash_search(endsToPseudoAdjacencies, _3End) == pseudoAdjacency);
 			assert(end_getGroup(_5End) != NULL); //check the groups are the same for both sides of the adjacency.
 			assert(end_getGroup(_5End) == end_getGroup(_3End));
 			i++;
@@ -132,10 +132,10 @@ void reference_check(Reference *reference) {
 		pseudoChromosome_destructPseudoAdjacencyIterator(pseudoAdjacencyIterator);
 	}
 	reference_destructPseudoChromosomeIterator(pseudoChromosomeIterator);
-	assert(i*2 == hash_size(endsToPseudoAdjacencies));
+	assert(i*2 == st_hash_size(endsToPseudoAdjacencies));
 
 	//Cleanup
-	hash_destruct(endsToPseudoAdjacencies);
+	st_hash_destruct(endsToPseudoAdjacencies);
 }
 
 ////////////////////////////////////////////////
@@ -152,18 +152,18 @@ void reference_destruct(Reference *reference) {
 	while((pseudoChromosome = reference_getFirst(reference)) != NULL) {
 			pseudoChromosome_destruct(pseudoChromosome);
 	}
-	sortedSet_destruct(reference->pseudoChromosomes, NULL);
+	st_sortedSet_destruct(reference->pseudoChromosomes, NULL);
 	free(reference);
 }
 
 void reference_addPseudoChromosome(Reference *reference, PseudoChromosome *pseudoChromosome) {
-	assert(sortedSet_find(reference->pseudoChromosomes, pseudoChromosome) == NULL);
-	sortedSet_insert(reference->pseudoChromosomes, pseudoChromosome);
+	assert(st_sortedSet_find(reference->pseudoChromosomes, pseudoChromosome) == NULL);
+	st_sortedSet_insert(reference->pseudoChromosomes, pseudoChromosome);
 }
 
 void reference_removePseudoChromosome(Reference *reference, PseudoChromosome *pseudoChromosome) {
-	assert(sortedSet_find(reference->pseudoChromosomes, pseudoChromosome) != NULL);
-	sortedSet_delete(reference->pseudoChromosomes, pseudoChromosome);
+	assert(st_sortedSet_find(reference->pseudoChromosomes, pseudoChromosome) != NULL);
+	st_sortedSet_delete(reference->pseudoChromosomes, pseudoChromosome);
 }
 
 void reference_writeBinaryRepresentation(Reference *reference, void (*writeFn)(const void * ptr, size_t size, size_t count)) {
