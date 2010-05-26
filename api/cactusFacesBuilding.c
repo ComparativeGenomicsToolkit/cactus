@@ -62,8 +62,8 @@ static void buildFaces_destructListElem(void *ptr) {
  * Fill in a hashtable which to every node associates
  * a list of lifted edges
  */
-static stHash *buildFaces_computeLiftedEdges(Net * net) {
-	stHash *liftedEdgesTable = st_hash_construct3(buildFaces_hashfunction,
+static st_Hash *buildFaces_computeLiftedEdges(Net * net) {
+	st_Hash *liftedEdgesTable = st_hash_construct3(buildFaces_hashfunction,
 			buildFaces_key_eq_fn, NULL, buildFaces_destructValue);
 	Net_CapIterator *iter = net_getCapIterator(net);
 	Cap *cap, *attachedAncestor;
@@ -121,7 +121,7 @@ static stHash *buildFaces_computeLiftedEdges(Net * net) {
  * connected nodes within a module
  */
 static void buildFaces_fillTopNodeList(Cap * cap, struct List *list,
-		stHash *liftedEdgesTable) {
+		st_Hash *liftedEdgesTable) {
 	struct List *liftedEdges;
 	int32_t index;
 
@@ -156,7 +156,7 @@ static void buildFaces_fillTopNodeList(Cap * cap, struct List *list,
  * Constructs a face from a given Cap
  */
 static void buildFaces_constructFromCap(Cap * startingCap,
-		stHash *liftedEdgesTable, Net * net) {
+		st_Hash *liftedEdgesTable, Net * net) {
 	Face *face = face_construct(net);
 	struct List *topNodes = constructZeroLengthList(16, NULL);
 	struct List *liftedEdges;
@@ -225,7 +225,7 @@ static void buildFaces_constructFromCap(Cap * startingCap,
 
 void net_reconstructFaces(Net * net) {
 	net_destructFaces(net);
-	stHash *liftedEdgesTable = buildFaces_computeLiftedEdges(net);
+	st_Hash *liftedEdgesTable = buildFaces_computeLiftedEdges(net);
 	Net_CapIterator *iter = net_getCapIterator(net);
 	struct List *liftedEdges;
 	Cap *current;
@@ -255,12 +255,12 @@ void net_destructFaces(Net *net) {
  * !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
  */
 
-static stHash *hashbottomCaps(Net *net) {
+static st_Hash *hashbottomCaps(Net *net) {
 	/*
 	 * For each top node finds the corresponding set of bottom nodes and returns a
 	 * hash of top nodes to sets of bottom nodes.
 	 */
-	stHash *bottomCapsHash = st_hash_construct2(NULL, (void (*)(void *))destructList);
+	st_Hash *bottomCapsHash = st_hash_construct2(NULL, (void (*)(void *))destructList);
 	Event *rootEvent = eventTree_getRootEvent(net_getEventTree(net));
 	Cap *cap;
 	Net_CapIterator *capIterator = net_getCapIterator(net);
@@ -284,14 +284,14 @@ static stHash *hashbottomCaps(Net *net) {
 	return bottomCapsHash;
 }
 
-static stHash *computeLiftedEdges(Net *net, stHash *bottomCapsHash) {
+static st_Hash *computeLiftedEdges(Net *net, st_Hash *bottomCapsHash) {
 	/*
 	 * For each top node finds the set of top nodes connected to it by a lifted
 	 * edge. Returns a hash of top nodes to list of other top nodes
 	 * connected by lifted edges.
 	 */
-	stHash *liftedEdgesHash = st_hash_construct2(NULL, (void (*)(void *))destructList);
-	stHash_Iterator *iterator = st_hash_getIterator(bottomCapsHash);
+	st_Hash *liftedEdgesHash = st_hash_construct2(NULL, (void (*)(void *))destructList);
+	st_HashIterator *iterator = st_hash_getIterator(bottomCapsHash);
 	Cap *topCap;
 	while((topCap = st_hash_getNext(iterator)) != NULL) {
 		assert(cap_getOrientation(topCap));
@@ -319,8 +319,8 @@ static stHash *computeLiftedEdges(Net *net, stHash *bottomCapsHash) {
 	return liftedEdgesHash;
 }
 
-static void computeModulesP(Cap *topCap, stHash *liftedEdgesHash, struct List *module,
-		stHash *modulesHash) {
+static void computeModulesP(Cap *topCap, st_Hash *liftedEdgesHash, struct List *module,
+		st_Hash *modulesHash) {
 	int32_t i;
 	Cap *adjacentTopCap;
 	assert(cap_getOrientation(topCap));
@@ -353,15 +353,15 @@ static void computeModulesP(Cap *topCap, stHash *liftedEdgesHash, struct List *m
 	}
 }
 
-static struct List *computeModules(Net *net, stHash *liftedEdges) {
+static struct List *computeModules(Net *net, st_Hash *liftedEdges) {
 	/*
 	 * Finds the set of adjacency/lifted edge components, called modules,
 	 * and returns them in a list.
 	 */
 	struct List *modules = constructEmptyList(0, (void (*)(void *))destructList);
-	stHash *modulesHash = st_hash_construct();
+	st_Hash *modulesHash = st_hash_construct();
 
-	stHash_Iterator *iterator = st_hash_getIterator(liftedEdges);
+	st_HashIterator *iterator = st_hash_getIterator(liftedEdges);
 	Cap *topCap;
 	while((topCap = st_hash_getNext(iterator)) != NULL) {
 		assert(cap_getOrientation(topCap));
@@ -377,7 +377,7 @@ static struct List *computeModules(Net *net, stHash *liftedEdges) {
 	return modules;
 }
 
-static void checkFace(Net *net, struct List *module, stHash *bottomCapsHash) {
+static void checkFace(Net *net, struct List *module, st_Hash *bottomCapsHash) {
 	/*
 	 * Checks a face.
 	 */
@@ -429,10 +429,10 @@ void face_checkFaces(Net *net) {
 	 * for each non-trivial face.
 	 */
 	if(net_builtFaces(net)) { //only check the faces if they have been built..
-		stHash *bottomCapsHash = hashbottomCaps(net);
+		st_Hash *bottomCapsHash = hashbottomCaps(net);
 
 		//Construct lifted edges
-		stHash *liftedEdgesHash = computeLiftedEdges(net, bottomCapsHash);
+		st_Hash *liftedEdgesHash = computeLiftedEdges(net, bottomCapsHash);
 
 		//Constructs lifted edge/adjacency edge connected components, called modules.
 		//Faces are simply the nodes in the modules (the top nodes) and the set of

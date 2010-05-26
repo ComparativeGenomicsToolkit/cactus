@@ -62,8 +62,8 @@ void reference_destructPseudoChromosomeIterator(Reference_PseudoChromosomeIterat
 	st_sortedSet_destructIterator(pseudoChromosomeIterator);
 }
 
-stHash *reference_getEndToPseudoAdjacencyHash(Reference *reference) {
-	stHash *hash = st_hash_construct3(end_hashKey, end_hashEqualsKey, NULL, NULL);
+st_Hash *reference_getEndToPseudoAdjacencyHash(Reference *reference) {
+	st_Hash *hash = st_hash_construct3(end_hashKey, end_hashEqualsKey, NULL, NULL);
 	Reference_PseudoChromosomeIterator *pseudoChromosomeIterator =
 		reference_getPseudoChromosomeIterator(reference);
 	PseudoChromosome *pseudoChromosome;
@@ -83,7 +83,7 @@ stHash *reference_getEndToPseudoAdjacencyHash(Reference *reference) {
 
 void reference_check(Reference *reference) {
 	Net *net = reference_getNet(reference);
-	stHash *endsToPseudoAdjacencies = reference_getEndToPseudoAdjacencyHash(reference);
+	st_Hash *endsToPseudoAdjacencies = reference_getEndToPseudoAdjacencyHash(reference);
 
 	//Going ends --> pseudo adjacencies.
 	Net_EndIterator *endIterator = net_getEndIterator(net);

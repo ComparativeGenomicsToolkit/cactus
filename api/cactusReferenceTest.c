@@ -71,7 +71,7 @@ void testReference_pseudoChromosomeIterator(CuTest* testCase) {
 void testReference_getEndToPseudoAdjacencyHash(CuTest* testCase) {
 	testSetup();
 
-	stHash *hash = reference_getEndToPseudoAdjacencyHash(reference);
+	st_Hash *hash = reference_getEndToPseudoAdjacencyHash(reference);
 	CuAssertTrue(testCase, st_hash_search(hash, end1) == pseudoAdjacency1);
 	CuAssertTrue(testCase, st_hash_search(hash, end2) == pseudoAdjacency1);
 

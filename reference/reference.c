@@ -216,7 +216,7 @@ void makeTopLevelPseudoChromosomes(Net *net, Reference *reference) {
 	makePseudoChromosomes(net, reference, makeTopLevelPseudoChromosomes_cmpEnds);
 }
 
-static stHash *makeIntermediateLevelPseudoChromosomes_cmpEndsP = NULL;
+static st_Hash *makeIntermediateLevelPseudoChromosomes_cmpEndsP = NULL;
 static Net *makeIntermediateLevelPseudoChromosomes_parentNet = NULL;
 
 static int makeIntermediateLevelPseudoChromosomes_cmpEnds(End **end1, End **end2) {

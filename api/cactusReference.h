@@ -111,7 +111,7 @@ void reference_destructPseudoChromosomeIterator(Reference_PseudoChromosomeIterat
  * Gets hash in which keys are ends and the corresponding psuedo-adjacencies are the
  * values. The hash is yours to cleanup and will be unique for each invocation of the function.
  */
-stHash *reference_getEndToPseudoAdjacencyHash(Reference *reference);
+st_Hash *reference_getEndToPseudoAdjacencyHash(Reference *reference);
 
 /*
  * The following is checked by this function.. which creates an assert error if it fails.
