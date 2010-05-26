@@ -89,7 +89,7 @@ static st_Hash *buildFaces_computeLiftedEdges(Net * net) {
 				continue;
 
 			// ... create lifted edge
-			liftedEdge = mallocLocal(sizeof(LiftedEdge));
+			liftedEdge = st_malloc(sizeof(LiftedEdge));
 			liftedEdge->destination = adjacencyAncestor;
 			liftedEdge->bottomNode = cap;
 
@@ -130,7 +130,7 @@ static void buildFaces_fillTopNodeList(Cap * cap, struct List *list,
 		return;
 
 	// Actual filling
-	logInfo("Adding cap %p to face\n", cap);
+	st_logInfo("Adding cap %p to face\n", cap);
 	listAppend(list, cap);
 
 	// Recursion through lifted edges
@@ -404,15 +404,15 @@ static void checkFace(Net *net, struct List *module, st_Hash *bottomCapsHash) {
 			}
 			//Temp debug output
 			{
-				uglyf("Number of caps in D's face end %i, in B's face end %i, topCap %i \n", faceEnd_getNumberOfBottomNodes(faceEnd), bottomCaps->length, topCap);
+				st_uglyf("Number of caps in D's face end %i, in B's face end %i, topCap %i \n", faceEnd_getNumberOfBottomNodes(faceEnd), bottomCaps->length, topCap);
 				FaceEnd_BottomNodeIterator *bottomNodeIterator = faceEnd_getBottomNodeIterator(faceEnd);
 				Cap *bottomCap;
 				while((bottomCap = faceEnd_getNextBottomNode(bottomNodeIterator)) != NULL) {
-					uglyf("Bottom cap in Daniel's face: %i %i\n", bottomCap, cap_getTopCap(bottomCap));
+					st_uglyf("Bottom cap in Daniel's face: %i %i\n", bottomCap, cap_getTopCap(bottomCap));
 				}
 				for(k=0; k<bottomCaps->length; k++) {
 					bottomCap = bottomCaps->list[k];
-					uglyf("Bottom cap in Benedict's face: %i %i\n", bottomCap, cap_getTopCap(bottomCap));
+					st_uglyf("Bottom cap in Benedict's face: %i %i\n", bottomCap, cap_getTopCap(bottomCap));
 				}
 			}
 			//assert(faceEnd_getNumberOfBottomNodes(faceEnd) == bottomCaps->length);

@@ -105,7 +105,7 @@ void filterPieceAndThenAddToGraph(struct PinchGraph *pinchGraph,
 }
 
 CactusCoreInputParameters *constructCactusCoreInputParameters() {
-	CactusCoreInputParameters *cCIP = (CactusCoreInputParameters *)mallocLocal(sizeof(CactusCoreInputParameters));
+	CactusCoreInputParameters *cCIP = (CactusCoreInputParameters *)st_malloc(sizeof(CactusCoreInputParameters));
 	//Everything is essentially 'turned off' by default.
 	cCIP->writeDebugFiles = 0;
 	cCIP->alignUndoLoops = 1;
@@ -144,7 +144,7 @@ struct CactusGraph *cactusCorePipeline_2(struct PinchGraph *pinchGraph, Net *net
 	startTime = time(NULL);
 	linkStubComponentsToTheSinkComponent(pinchGraph, net);
 	checkPinchGraph(pinchGraph);
-	logInfo("Linked stub components to the sink component in: %i seconds\n", time(NULL) - startTime);
+	st_logInfo("Linked stub components to the sink component in: %i seconds\n", time(NULL) - startTime);
 
 	///////////////////////////////////////////////////////////////////////////
 	// Constructing the basic cactus.
@@ -152,7 +152,7 @@ struct CactusGraph *cactusCorePipeline_2(struct PinchGraph *pinchGraph, Net *net
 
 	startTime = time(NULL);
 	computeCactusGraph(pinchGraph, &cactusGraph, &threeEdgeConnectedComponents);
-	logInfo("Constructed the initial cactus graph in: %i seconds\n", time(NULL) - startTime);
+	st_logInfo("Constructed the initial cactus graph in: %i seconds\n", time(NULL) - startTime);
 
 	///////////////////////////////////////////////////////////////////////////
 	// Circularising the stems in the cactus.
@@ -160,9 +160,9 @@ struct CactusGraph *cactusCorePipeline_2(struct PinchGraph *pinchGraph, Net *net
 
 	startTime = time(NULL);
 	circulariseStems(cactusGraph);
-	logInfo("Constructed the 2-edge component only cactus graph\n");
+	st_logInfo("Constructed the 2-edge component only cactus graph\n");
 	checkCactusContainsOnly2EdgeConnectedComponents(cactusGraph);
-	logInfo("Checked the cactus contains only 2-edge connected components in: %i seconds\n", time(NULL) - startTime);
+	st_logInfo("Checked the cactus contains only 2-edge connected components in: %i seconds\n", time(NULL) - startTime);
 
 	///////////////////////////////////////////////////////////////////////////
 	// Cleanup.
@@ -209,13 +209,13 @@ int32_t cactusCorePipeline(Net *net,
 
 	if(cCIP->writeDebugFiles) {
 		writePinchGraph("pinchGraph1.dot", pinchGraph, NULL, NULL);
-		logDebug("Finished writing out dot formatted version of initial pinch graph\n");
+		st_logDebug("Finished writing out dot formatted version of initial pinch graph\n");
 	}
 	//check the graph is consistent
 	checkPinchGraph(pinchGraph);
 
-	logInfo("Constructed the graph in: %i seconds\n", time(NULL) - startTime);
-	logInfo("Vertex number %i \n", pinchGraph->vertices->length);
+	st_logInfo("Constructed the graph in: %i seconds\n", time(NULL) - startTime);
+	st_logInfo("Vertex number %i \n", pinchGraph->vertices->length);
 
 	///////////////////////////////////////////////////////////////////////////
 	//  Loop between adding and undoing pairwise alignments
@@ -263,16 +263,16 @@ int32_t cactusCorePipeline(Net *net,
 
 		//Now run through all the alignments.
 		pairwiseAlignment = getNextAlignment();
-		logInfo("Now doing the pinch merges:\n");
+		st_logInfo("Now doing the pinch merges:\n");
 		i = 0;
 
-		struct FilterAlignmentParameters *filterParameters = (struct FilterAlignmentParameters *)mallocLocal(sizeof(struct FilterAlignmentParameters));
+		struct FilterAlignmentParameters *filterParameters = (struct FilterAlignmentParameters *)st_malloc(sizeof(struct FilterAlignmentParameters));
 		assert(cCIP->trim >= 0);
 		filterParameters->trim = trim;
 		filterParameters->alignRepeats = loop >= cCIP->alignRepeatsAtLoop; //cCIP->alignRepeats;
 		filterParameters->net = net;
 		while(pairwiseAlignment != NULL) {
-			logDebug("Alignment : %i , score %f\n", i++, pairwiseAlignment->score);
+			st_logDebug("Alignment : %i , score %f\n", i++, pairwiseAlignment->score);
 			logPairwiseAlignment(pairwiseAlignment);
 			pinchMerge(pinchGraph, pairwiseAlignment,
 					(void (*)(struct PinchGraph *pinchGraph, struct Piece *, struct Piece *, struct hashtable *, void *))filterPieceAndThenAddToGraph,
@@ -280,7 +280,7 @@ int32_t cactusCorePipeline(Net *net,
 			pairwiseAlignment = getNextAlignment();
 		}
 		free(filterParameters);
-		logInfo("Finished pinch merges\n");
+		st_logInfo("Finished pinch merges\n");
 
 		//The following is not necessarily true!
 #ifdef BEN_DEBUG
@@ -294,7 +294,7 @@ int32_t cactusCorePipeline(Net *net,
 		hashtable_destroy(vertexAdjacencyComponents, 1, 0);
 
 		checkPinchGraph(pinchGraph);
-		logInfo("Pinched the graph in: %i seconds\n", time(NULL) - startTime);
+		st_logInfo("Pinched the graph in: %i seconds\n", time(NULL) - startTime);
 
 		///////////////////////////////////////////////////////////////////////////
 		// Removing over aligned stuff.
@@ -302,16 +302,16 @@ int32_t cactusCorePipeline(Net *net,
 
 		startTime = time(NULL);
 		assert(cCIP->maxEdgeDegree >= 1);
-		logInfo("Before removing over aligned edges the graph has %i vertices and %i black edges\n", pinchGraph->vertices->length, avl_count(pinchGraph->edges));
+		st_logInfo("Before removing over aligned edges the graph has %i vertices and %i black edges\n", pinchGraph->vertices->length, avl_count(pinchGraph->edges));
 		assert(cCIP->extensionSteps >= 0);
 		removeOverAlignedEdges(pinchGraph, 0.0, cCIP->maxEdgeDegree, NULL, extensionSteps, net);
-		logInfo("After removing over aligned edges (degree %i) the graph has %i vertices and %i black edges\n", cCIP->maxEdgeDegree, pinchGraph->vertices->length, avl_count(pinchGraph->edges));
+		st_logInfo("After removing over aligned edges (degree %i) the graph has %i vertices and %i black edges\n", cCIP->maxEdgeDegree, pinchGraph->vertices->length, avl_count(pinchGraph->edges));
 		removeTrivialGreyEdgeComponents(pinchGraph, pinchGraph->vertices, net);
-		logInfo("After removing the trivial graph components the graph has %i vertices and %i black edges\n", pinchGraph->vertices->length, avl_count(pinchGraph->edges));
+		st_logInfo("After removing the trivial graph components the graph has %i vertices and %i black edges\n", pinchGraph->vertices->length, avl_count(pinchGraph->edges));
 		checkPinchGraphDegree(pinchGraph, cCIP->maxEdgeDegree);
 
 		checkPinchGraph(pinchGraph);
-		logInfo("Removed the over aligned edges in: %i seconds\n", time(NULL) - startTime);
+		st_logInfo("Removed the over aligned edges in: %i seconds\n", time(NULL) - startTime);
 
 		////////////////////////////////////////////////
 		// Compute the cactus graph for the first time (for removing spurious homologies)
@@ -337,7 +337,7 @@ int32_t cactusCorePipeline(Net *net,
 				pinchGraph);
 		//now report the results
 		logTheChosenBlockSubset(biConnectedComponents, chosenBlocks, pinchGraph, net);
-		logInfo("I have chosen %i blocks which meet the requirements to be undone\n", chosenBlocks->length);
+		st_logInfo("I have chosen %i blocks which meet the requirements to be undone\n", chosenBlocks->length);
 
 		///////////////////////////////////////////////////////////////////////////
 		// Undo the blocks.
@@ -346,9 +346,9 @@ int32_t cactusCorePipeline(Net *net,
 		list = getChosenBlockPinchEdges(chosenBlocks, pinchGraph);
 		removeOverAlignedEdges(pinchGraph, 0.0, INT32_MAX, list, 0, net);
 		destructList(list);
-		logInfo("After removing edges which were not chosen, the graph has %i vertices and %i black edges\n", pinchGraph->vertices->length, avl_count(pinchGraph->edges));
+		st_logInfo("After removing edges which were not chosen, the graph has %i vertices and %i black edges\n", pinchGraph->vertices->length, avl_count(pinchGraph->edges));
 		removeTrivialGreyEdgeComponents(pinchGraph, pinchGraph->vertices, net);
-		logInfo("After removing the trivial graph components the graph has %i vertices and %i black edges\n", pinchGraph->vertices->length, avl_count(pinchGraph->edges));
+		st_logInfo("After removing the trivial graph components the graph has %i vertices and %i black edges\n", pinchGraph->vertices->length, avl_count(pinchGraph->edges));
 		checkPinchGraphDegree(pinchGraph, cCIP->maxEdgeDegree);
 
 		///////////////////////////////////////////////////////////////////////////
@@ -383,7 +383,7 @@ int32_t cactusCorePipeline(Net *net,
 				pinchGraph);
 		//now report the results
 		logTheChosenBlockSubset(biConnectedComponents, chosenBlocks, pinchGraph, net);
-		logInfo("I have chosen %i blocks which meet the requirements to keep\n", chosenBlocks->length);
+		st_logInfo("I have chosen %i blocks which meet the requirements to keep\n", chosenBlocks->length);
 
 		if(++loop < cCIP->alignUndoLoops) {
 			///////////////////////////////////////////////////////////////////////////
@@ -441,20 +441,20 @@ int32_t cactusCorePipeline(Net *net,
 		//Write out the graphs.
 		///////////////////////////////////////////////////////////////////////////
 
-		logDebug("Writing out dot formatted final pinch graph showing all chains\n");
+		st_logDebug("Writing out dot formatted final pinch graph showing all chains\n");
 		writePinchGraph("pinchGraph2.dot", pinchGraph, biConnectedComponents, NULL);
-		logDebug("Finished writing out final pinch graph showing all chains\n");
+		st_logDebug("Finished writing out final pinch graph showing all chains\n");
 
-		logDebug("Writing out dot formatted final pinch graph showing chosen blocks\n");
+		st_logDebug("Writing out dot formatted final pinch graph showing chosen blocks\n");
 		list = constructEmptyList(0, NULL);
 		listAppend(list, chosenBlocks);
 		writePinchGraph("pinchGraph3.dot", pinchGraph, list, NULL);
 		destructList(list);
-		logDebug("Finished writing out final pinch graph\n");
+		st_logDebug("Finished writing out final pinch graph\n");
 
-		logDebug("Writing out dot formatted version of final cactus graph\n");
+		st_logDebug("Writing out dot formatted version of final cactus graph\n");
 		writeCactusGraph("cactusGraph.dot", pinchGraph, cactusGraph);
-		logDebug("Finished writing out dot formatted version of cactus graph\n");
+		st_logDebug("Finished writing out dot formatted version of cactus graph\n");
 	}
 
 	///////////////////////////////////////////////////////////////////////////
@@ -466,6 +466,6 @@ int32_t cactusCorePipeline(Net *net,
 	destructList(biConnectedComponents);
 	destructPinchGraph(pinchGraph);
 
-	logInfo("Ran the core pipeline script\n");
+	st_logInfo("Ran the core pipeline script\n");
 	return 0;
 }

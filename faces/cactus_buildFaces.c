@@ -52,7 +52,7 @@ static struct hashtable * buildFaces_computeAncestors(Net * net) {
 	Net_CapIterator *iter = net_getCapIterator(net);
 	Cap * cap, * tmp;
 
-	logInfo("Computing ancestors\n");
+	st_logInfo("Computing ancestors\n");
 
 	while ((cap = net_getNextCap(iter))) {
 		// ... check if connected
@@ -119,7 +119,7 @@ static struct hashtable *buildFaces_computeLiftedEdges(Net * net, struct hashtab
 	struct List *liftedEdges;
 	LiftedEdge *liftedEdge;
 
-	logInfo("Computing lifted edges\n");
+	st_logInfo("Computing lifted edges\n");
 
 	// Iterate through potential bottom nodes
 	while ((cap = net_getNextCap(iter))) {
@@ -138,7 +138,7 @@ static struct hashtable *buildFaces_computeLiftedEdges(Net * net, struct hashtab
 				continue;
 
 			// ... create lifted edge
-			liftedEdge = mallocLocal(sizeof(LiftedEdge));
+			liftedEdge = st_malloc(sizeof(LiftedEdge));
 			liftedEdge->destination = adjacencyAncestor;
 			liftedEdge->bottomNode = cap;
 
@@ -180,7 +180,7 @@ static void buildFaces_fillTopNodeList(Cap * cap, struct List *list,
 		return;
 
 	// Actual filling
-	logInfo("Adding cap %p to face\n", cap);
+	st_logInfo("Adding cap %p to face\n", cap);
 	listAppend(list, cap);
 
 	// Recursion through lifted edges
@@ -323,7 +323,7 @@ void buildFaces_constructFaces(Net * net) {
 	struct List *liftedEdges;
 	Cap *current;
 
-	logInfo("Constructing faces\n");
+	st_logInfo("Constructing faces\n");
 
 	while ((current = net_getNextCap(iter)))
 		if ((liftedEdges = hashtable_search(liftedEdgesTable, current))
@@ -355,7 +355,7 @@ void buildFaces_simplifyFaces(Net * net) {
 	Net_FaceIterator *iter = net_getFaceIterator(net);
 	Face *face;
 
-	logInfo("Simplifying faces\n");
+	st_logInfo("Simplifying faces\n");
 
 	while ((face = net_getNextFace(iter)))
 		buildFaces_simplify(face, net);
@@ -434,7 +434,7 @@ static Cap *buildFaces_interpolateTopNode(Face * face, int32_t topIndex) {
  * Produces array of interpolations for the top nodes of a face
  */
 static Cap **buildFaces_interpolateTopNodes(Face * face) {
-	Cap **interpolations = callocLocal(face_getCardinal(face), sizeof(Cap *));
+	Cap **interpolations = st_calloc(face_getCardinal(face), sizeof(Cap *));
 	uint32_t topIndex;
 
 	for (topIndex = 0; topIndex < face_getCardinal(face); topIndex++)
@@ -577,7 +577,7 @@ void buildFaces_isolateFaces(Net * net) {
 	Net_FaceIterator *iter = net_getFaceIterator(net);
 	Face *face;
 
-	logInfo("Isolating faces\n");
+	st_logInfo("Isolating faces\n");
 
 	while ((face = net_getNextFace(iter)))
 		buildFaces_isolate(face, net);
@@ -737,7 +737,7 @@ void buildFaces_canonizeFaces(Net * net) {
 	Net_FaceIterator *iter = net_getFaceIterator(net);
 	Face *face;
 
-	logInfo("Canonizing faces\n");
+	st_logInfo("Canonizing faces\n");
 
 	while ((face = net_getNextFace(iter)))
 		if (!face_isCanonical(face))

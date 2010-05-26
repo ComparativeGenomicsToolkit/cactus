@@ -19,7 +19,7 @@ int32_t faceEnd_getNumberOfBottomNodes(FaceEnd *faceEnd) {
 }
 
 FaceEnd_BottomNodeIterator *faceEnd_getBottomNodeIterator(FaceEnd *faceEnd) {
-	FaceEnd_BottomNodeIterator *iterator = mallocLocal(sizeof(FaceEnd_BottomNodeIterator));
+	FaceEnd_BottomNodeIterator *iterator = st_malloc(sizeof(FaceEnd_BottomNodeIterator));
 	iterator->faceEnd = faceEnd;
 	iterator->bottomNodeIndex = 0;
 	return iterator;
@@ -68,7 +68,7 @@ void faceEnd_check(FaceEnd *faceEnd) {
  */
 
 FaceEnd *faceEnd_construct(Face *face, int32_t topNodeIndex) {
-	FaceEnd *faceEnd = mallocLocal(sizeof(FaceEnd));
+	FaceEnd *faceEnd = st_malloc(sizeof(FaceEnd));
 	assert(topNodeIndex >= 0);
 	assert(topNodeIndex <= face_getCardinal(face));
 	faceEnd->face = face;

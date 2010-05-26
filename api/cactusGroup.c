@@ -329,7 +329,7 @@ void group_check(Group *group) {
 
 Group *group_construct3(Net *net, Name name, bool terminalGroup) {
 	Group *group;
-	group = mallocLocal(sizeof(Group));
+	group = st_malloc(sizeof(Group));
 
 	group->net = net;
 	group->link = NULL;

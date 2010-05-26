@@ -51,16 +51,16 @@ int main(int argc, char *argv[]) {
 
         switch(key) {
             case 'a':
-                logLevelString = stringCopy(optarg);
+                logLevelString = st_string_copy(optarg);
                 break;
             case 'c':
-                netDiskName = stringCopy(optarg);
+                netDiskName = st_string_copy(optarg);
                 break;
             case 'd':
-                netName = stringCopy(optarg);
+                netName = st_string_copy(optarg);
                 break;
             case 'e':
-                outputFile = stringCopy(optarg);
+                outputFile = st_string_copy(optarg);
                 break;
             case 'h':
                 usage();
@@ -84,26 +84,26 @@ int main(int argc, char *argv[]) {
     //////////////////////////////////////////////
 
     if(logLevelString != NULL && strcmp(logLevelString, "INFO") == 0) {
-        setLogLevel(LOGGING_INFO);
+        st_setLogLevel(ST_LOGGING_INFO);
     }
     if(logLevelString != NULL && strcmp(logLevelString, "DEBUG") == 0) {
-        setLogLevel(LOGGING_DEBUG);
+        st_setLogLevel(ST_LOGGING_DEBUG);
     }
 
     //////////////////////////////////////////////
     //Log (some of) the inputs
     //////////////////////////////////////////////
 
-    logInfo("Net disk name : %s\n", netDiskName);
-    logInfo("Net name : %s\n", netName);
-    logInfo("Output graph file : %s\n", outputFile);
+    st_logInfo("Net disk name : %s\n", netDiskName);
+    st_logInfo("Net name : %s\n", netName);
+    st_logInfo("Output graph file : %s\n", outputFile);
 
     //////////////////////////////////////////////
     //Load the database
     //////////////////////////////////////////////
 
     netDisk = netDisk_construct(netDiskName);
-    logInfo("Set up the net disk\n");
+    st_logInfo("Set up the net disk\n");
 
     ///////////////////////////////////////////////////////////////////////////
     // Parse the basic reconstruction problem
@@ -114,7 +114,7 @@ int main(int argc, char *argv[]) {
     if(group != NULL && !group_isLeaf(group)) {
     	net = group_getNestedNet(group);
     }
-    logInfo("Parsed the top level net of the cactus tree to build\n");
+    st_logInfo("Parsed the top level net of the cactus tree to build\n");
 
     ///////////////////////////////////////////////////////////////////////////
     // Build the graph.
@@ -126,7 +126,7 @@ int main(int argc, char *argv[]) {
     makeReferenceGraph(net_getReference(net), fileHandle);
     graphViz_finishGraphFile(fileHandle);
     fclose(fileHandle);
-    logInfo("Written the reference graph to file\n");
+    st_logInfo("Written the reference graph to file\n");
 
     ///////////////////////////////////////////////////////////////////////////
     // Clean up.

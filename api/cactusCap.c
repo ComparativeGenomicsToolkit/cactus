@@ -18,9 +18,9 @@ Cap *cap_construct3(Name instance, Event *event, End *end, int32_t side) {
 	assert(instance != NULL_NAME);
 	Cap *cap;
 
-	cap = mallocLocal(sizeof(Cap));
-	cap->capContents = mallocLocal(sizeof(CapContents));
-	cap->rCap = mallocLocal(sizeof(Cap));
+	cap = st_malloc(sizeof(Cap));
+	cap->capContents = st_malloc(sizeof(CapContents));
+	cap->rCap = st_malloc(sizeof(Cap));
 	cap->rCap->rCap = cap;
 	cap->rCap->capContents = cap->capContents;
 

@@ -26,7 +26,7 @@ int32_t fn(char *fastaHeader, int32_t start, char *sequence, int32_t seqLength, 
 	tempSeqFile = getTempFile();
 	fileHandle2 = fopen(tempSeqFile, "w");
 	i = 0;
-	fastaHeader = stringCopy(fastaHeader);
+	fastaHeader = st_string_copy(fastaHeader);
 	while(fastaHeader[i] != '\0') {
 		if(fastaHeader[i] == ' ' || fastaHeader[i] == '\t') {
 			fastaHeader[i] = '\0';
@@ -50,14 +50,14 @@ int32_t fn(char *fastaHeader, int32_t start, char *sequence, int32_t seqLength, 
 
 	//Do compression if asked for
 	if(useCompression) {
-		i = systemLocal("bzip2 %s", tempSeqFile);
+		i = st_system("bzip2 %s", tempSeqFile);
 		if(i != 0) {
-			logInfo("Failed to compress file\n");
+			st_logInfo("Failed to compress file\n");
 			return i;
 		}
-		i = systemLocal("mv %s.bz2 %s", tempSeqFile, tempSeqFile);
+		i = st_system("mv %s.bz2 %s", tempSeqFile, tempSeqFile);
 		if(i != 0) {
-			logInfo("Failed to move file\n");
+			st_logInfo("Failed to move file\n");
 			return i;
 		}
 	}

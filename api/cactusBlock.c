@@ -23,10 +23,10 @@ Block *block_construct2(Name name, int32_t length,
 		End *leftEnd, End *rightEnd,
 		Net *net) {
 	Block *block;
-	block = mallocLocal(sizeof(Block));
-	block->rBlock = mallocLocal(sizeof(Block));
+	block = st_malloc(sizeof(Block));
+	block->rBlock = st_malloc(sizeof(Block));
 	block->rBlock->rBlock = block;
-	block->blockContents = mallocLocal(sizeof(BlockContents));
+	block->blockContents = st_malloc(sizeof(BlockContents));
 	block->rBlock->blockContents = block->blockContents;
 
 	block->orientation = 1;
@@ -128,7 +128,7 @@ void block_setRootInstance(Block *block, Segment *segment) {
 
 Block_InstanceIterator *block_getInstanceIterator(Block *block) {
 	Block_InstanceIterator *iterator;
-	iterator = mallocLocal(sizeof(struct _block_instanceIterator));
+	iterator = st_malloc(sizeof(struct _block_instanceIterator));
 	iterator->block = block;
 	iterator->iterator = st_sortedSet_getIterator(block->blockContents->segments);
 	return iterator;
@@ -144,7 +144,7 @@ Segment *block_getPrevious(Block_InstanceIterator *iterator) {
 
 Block_InstanceIterator *block_copyInstanceIterator(Block_InstanceIterator *iterator) {
 	Block_InstanceIterator *iterator2;
-	iterator2 = mallocLocal(sizeof(struct _block_instanceIterator));
+	iterator2 = st_malloc(sizeof(struct _block_instanceIterator));
 	iterator2->block = iterator->block;
 	iterator2->iterator = st_sortedSet_copyIterator(iterator->iterator);
 	return iterator2;
@@ -287,20 +287,20 @@ char *block_makeNewickStringP(Segment *segment, int32_t includeInternalNames, in
 		return block_makeNewickStringP(segment_getChild(segment, 0), includeInternalNames, includeUnaryEvents);
 	}
 	if(segment_getChildNumber(segment) > 0) {
-		char *left = stringPrint("(");
+		char *left = st_string_print("(");
 		int32_t i;
 		int32_t comma = 0;
 		for(i=0; i<segment_getChildNumber(segment); i++) {
 			Segment *childSegment = segment_getChild(segment, i);
 			char *cA = block_makeNewickStringP(childSegment, includeInternalNames, includeUnaryEvents);
-			char *cA2 = stringPrint(comma ? "%s,%s" : "%s%s", left, cA);
+			char *cA2 = st_string_print(comma ? "%s,%s" : "%s%s", left, cA);
 			free(cA);
 			left = cA2;
 			comma = 1;
 		}
 		char *final = includeInternalNames ?
-				stringPrint("%s)%s", left, netMisc_nameToStringStatic(segment_getName(segment))) :
-				stringPrint("%s)", left);
+				st_string_print("%s)%s", left, netMisc_nameToStringStatic(segment_getName(segment))) :
+				st_string_print("%s)", left);
 		free(left);
 		return final;
 	}
@@ -312,7 +312,7 @@ char *block_makeNewickString(Block *block, int32_t includeInternalNames, int32_t
 	if(segment != NULL) {
 		assert(segment != NULL);
 		char *cA = block_makeNewickStringP(segment, includeInternalNames, includeUnaryEvents);
-		char *cA2 = stringPrint("%s;", cA);
+		char *cA2 = st_string_print("%s;", cA);
 		free(cA);
 		return cA2;
 	}

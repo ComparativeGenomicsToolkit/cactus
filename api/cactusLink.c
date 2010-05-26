@@ -10,7 +10,7 @@
 
 Link *link_construct(End *leftEnd, End *rightEnd, Group *group, Chain *parentChain) {
 	Link *link;
-	link = mallocLocal(sizeof(Link));
+	link = st_malloc(sizeof(Link));
 
 	leftEnd = end_getPositiveOrientation(leftEnd);
 	rightEnd = end_getPositiveOrientation(rightEnd);

@@ -50,10 +50,10 @@ int main(int argc, char *argv[]) {
 
 		switch(key) {
 			case 'a':
-				logLevelString = stringCopy(optarg);
+				logLevelString = st_string_copy(optarg);
 				break;
 			case 'c':
-				netDiskName = stringCopy(optarg);
+				netDiskName = st_string_copy(optarg);
 				break;
 			case 'h':
 				usage();
@@ -76,24 +76,24 @@ int main(int argc, char *argv[]) {
 	//////////////////////////////////////////////
 
 	if(logLevelString != NULL && strcmp(logLevelString, "INFO") == 0) {
-		setLogLevel(LOGGING_INFO);
+		st_setLogLevel(ST_LOGGING_INFO);
 	}
 	if(logLevelString != NULL && strcmp(logLevelString, "DEBUG") == 0) {
-		setLogLevel(LOGGING_DEBUG);
+		st_setLogLevel(ST_LOGGING_DEBUG);
 	}
 
 	//////////////////////////////////////////////
 	//Log (some of) the inputs
 	//////////////////////////////////////////////
 
-	logInfo("Netdisk name : %s\n", netDiskName);
+	st_logInfo("Netdisk name : %s\n", netDiskName);
 
 	//////////////////////////////////////////////
 	//Load the database
 	//////////////////////////////////////////////
 
 	NetDisk *netDisk = netDisk_construct(netDiskName);
-	logInfo("Set up the net disk\n");
+	st_logInfo("Set up the net disk\n");
 
 	///////////////////////////////////////////////////////////////////////////
 	// Loop on the nets, doing the reference genome.
@@ -104,10 +104,10 @@ int main(int argc, char *argv[]) {
 		 * Read the net.
 		 */
 		const char *netName = argv[j];
-		logInfo("Processing the net named: %s\n", netName);
+		st_logInfo("Processing the net named: %s\n", netName);
 		Net *net = netDisk_getNet(netDisk, netMisc_stringToName(netName));
 		assert(net != NULL);
-		logInfo("Parsed the net in which to build a reference\n");
+		st_logInfo("Parsed the net in which to build a reference\n");
 
 		/*
 		 * Now run the reference function.
@@ -120,7 +120,7 @@ int main(int argc, char *argv[]) {
 	///////////////////////////////////////////////////////////////////////////
 
 	netDisk_write(netDisk);
-	logInfo("Updated the net on disk\n");
+	st_logInfo("Updated the net on disk\n");
 
 	///////////////////////////////////////////////////////////////////////////
 	//Clean up.
@@ -129,6 +129,6 @@ int main(int argc, char *argv[]) {
 	//Destruct stuff
 	netDisk_destruct(netDisk);
 
-	logInfo("Cleaned stuff up and am finished\n");
+	st_logInfo("Cleaned stuff up and am finished\n");
 	return 0;
 }

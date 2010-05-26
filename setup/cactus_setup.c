@@ -65,11 +65,11 @@ void setCompleteStatus(const char *fileName) {
 		const char *cA = fileName + i - 11;
 		if(strcmp(cA, ".incomplete") == 0) {
 			isComplete = 0;
-			logInfo("The file %s is specified incomplete, the sequences will be free\n", fileName);
+			st_logInfo("The file %s is specified incomplete, the sequences will be free\n", fileName);
 			return;
 		}
 	}
-	logInfo("The file %s is specified complete, the sequences will be attached\n", fileName);
+	st_logInfo("The file %s is specified complete, the sequences will be attached\n", fileName);
 }
 
 int main(int argc, char *argv[]) {
@@ -156,20 +156,20 @@ int main(int argc, char *argv[]) {
 	//////////////////////////////////////////////
 
 	if(strcmp(logLevelString, "INFO") == 0) {
-		setLogLevel(LOGGING_INFO);
+		st_setLogLevel(ST_LOGGING_INFO);
 	}
 	if(strcmp(logLevelString, "DEBUG") == 0) {
-		setLogLevel(LOGGING_DEBUG);
+		st_setLogLevel(ST_LOGGING_DEBUG);
 	}
 
 	//////////////////////////////////////////////
 	//Log (some of) the inputs
 	//////////////////////////////////////////////
 
-	logInfo("Net disk name : %s\n", netDiskName);
+	st_logInfo("Net disk name : %s\n", netDiskName);
 
 	for (j = optind; j < argc; j++) {
-	   logInfo("Sequence file/directory %s\n", argv[j]);
+	   st_logInfo("Sequence file/directory %s\n", argv[j]);
 	}
 
 	//////////////////////////////////////////////
@@ -177,7 +177,7 @@ int main(int argc, char *argv[]) {
 	//////////////////////////////////////////////
 
 	netDisk = netDisk_construct(netDiskName);
-	logInfo("Set up the net disk\n");
+	st_logInfo("Set up the net disk\n");
 
 	//////////////////////////////////////////////
 	//Construct the net
@@ -185,22 +185,22 @@ int main(int argc, char *argv[]) {
 
 	if(netDisk_getNetNumberOnDisk(netDisk) != 0) {
 		netDisk_destruct(netDisk);
-		uglyf("The first net already exists\n");
+		st_uglyf("The first net already exists\n");
 		return 0;
 	}
 	net = net_construct(netDisk);
-	logInfo("Constructed the net\n");
+	st_logInfo("Constructed the net\n");
 
 	//////////////////////////////////////////////
 	//Construct the event tree
 	//////////////////////////////////////////////
 
-	logInfo("Going to build the event tree with newick string: %s\n", speciesTree);
+	st_logInfo("Going to build the event tree with newick string: %s\n", speciesTree);
 	binaryTree = newickTreeParser(speciesTree, 0.0, 0);
 	binaryTree->distance = INT32_MAX;
 	eventTree = eventTree_construct2(net); //creates the event tree and the root even
 	totalEventNumber=1;
-	logInfo("Constructed the basic event tree\n");
+	st_logInfo("Constructed the basic event tree\n");
 
 	//now traverse the tree
 	stack = constructEmptyList(0, NULL);
@@ -226,7 +226,7 @@ int main(int argc, char *argv[]) {
 			struct stat info;//info about the file.
 			exitOnFailure(stat(argv[j], &info), "Failed to get information about the file: %s\n", argv[j]);
 			if(S_ISDIR(info.st_mode)) {
-				logInfo("Processing directory: %s\n", argv[j]);
+				st_logInfo("Processing directory: %s\n", argv[j]);
 				struct dirent *file;//a 'directory entity' AKA file
 				DIR *dh=opendir(argv[j]);
 				while((file=readdir(dh)) != NULL) {
@@ -237,7 +237,7 @@ int main(int argc, char *argv[]) {
 						exitOnFailure(stat(cA,&info2), "Failed to get information about the file: %s\n", file->d_name);
 						setCompleteStatus(file->d_name); //decide if the sequences in the file should be free or attached.
 						if(!S_ISDIR(info2.st_mode)) {
-							logInfo("Processing file: %s\n", cA);
+							st_logInfo("Processing file: %s\n", cA);
 							fileHandle = fopen(cA, "r");
 							fastaReadToFunction(fileHandle, fn);
 							fclose(fileHandle);
@@ -248,7 +248,7 @@ int main(int argc, char *argv[]) {
 				closedir(dh);
 			}
 			else {
-				logInfo("Processing file: %s\n", argv[j]);
+				st_logInfo("Processing file: %s\n", argv[j]);
 				fileHandle = fopen(argv[j], "r");
 				setCompleteStatus(argv[j]); //decide if the sequences in the file should be free or attached.
 				fastaReadToFunction(fileHandle, fn);
@@ -258,7 +258,7 @@ int main(int argc, char *argv[]) {
 		}
 	}
 	char *eventTreeString = eventTree_makeNewickString(eventTree);
-	logInfo("Constructed the initial net with %i sequences and %i events with string: %s\n", totalSequenceNumber, totalEventNumber, eventTreeString);
+	st_logInfo("Constructed the initial net with %i sequences and %i events with string: %s\n", totalSequenceNumber, totalEventNumber, eventTreeString);
 	assert(event_getSubTreeBranchLength(eventTree_getRootEvent(eventTree)) >= 0.0);
 	free(eventTreeString);
 	//assert(0);
@@ -288,7 +288,7 @@ int main(int argc, char *argv[]) {
 	///////////////////////////////////////////////////////////////////////////
 
 	netDisk_write(netDisk);
-	logInfo("Updated the net on disk\n");
+	st_logInfo("Updated the net on disk\n");
 
 	///////////////////////////////////////////////////////////////////////////
 	// Cleanup.

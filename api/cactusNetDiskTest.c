@@ -13,7 +13,7 @@ void cactusNetDiskTestTeardown() {
 
 void cactusNetDiskTestSetup() {
 	cactusNetDiskTestTeardown();
-	setLogLevel(LOGGING_DEBUG);
+	st_setLogLevel(ST_LOGGING_DEBUG);
 	netDiskFile = testCommon_getTemporaryNetDisk();
 	netDisk = netDisk_construct(netDiskFile);
 }

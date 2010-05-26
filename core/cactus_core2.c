@@ -135,16 +135,16 @@ int main(int argc, char *argv[]) {
 
 		switch(key) {
 			case 'a':
-				logLevelString = stringCopy(optarg);
+				logLevelString = st_string_copy(optarg);
 				break;
 			case 'b':
-				alignmentsFile = stringCopy(optarg);
+				alignmentsFile = st_string_copy(optarg);
 				break;
 			case 'c':
-				netDiskName = stringCopy(optarg);
+				netDiskName = st_string_copy(optarg);
 				break;
 			case 'd':
-				netName = stringCopy(optarg);
+				netName = st_string_copy(optarg);
 				break;
 			case 'e':
 				cCIP->writeDebugFiles = !cCIP->writeDebugFiles;
@@ -232,34 +232,34 @@ int main(int argc, char *argv[]) {
 	//////////////////////////////////////////////
 
 	if(logLevelString != NULL && strcmp(logLevelString, "INFO") == 0) {
-		setLogLevel(LOGGING_INFO);
+		st_setLogLevel(ST_LOGGING_INFO);
 	}
 	if(logLevelString != NULL && strcmp(logLevelString, "DEBUG") == 0) {
-		setLogLevel(LOGGING_DEBUG);
+		st_setLogLevel(ST_LOGGING_DEBUG);
 	}
 
 	//////////////////////////////////////////////
 	//Log (some of) the inputs
 	//////////////////////////////////////////////
 
-	logInfo("Pairwise alignments file : %s\n", alignmentsFile);
-	logInfo("Net disk name : %s\n", netDiskName);
-	logInfo("Net name : %s\n", netName);
-	logInfo("Max edge degree : %i\n", cCIP->maxEdgeDegree);
+	st_logInfo("Pairwise alignments file : %s\n", alignmentsFile);
+	st_logInfo("Net disk name : %s\n", netDiskName);
+	st_logInfo("Net name : %s\n", netName);
+	st_logInfo("Max edge degree : %i\n", cCIP->maxEdgeDegree);
 
 	//////////////////////////////////////////////
 	//Load the database
 	//////////////////////////////////////////////
 
 	netDisk = netDisk_construct(netDiskName);
-	logInfo("Set up the net disk\n");
+	st_logInfo("Set up the net disk\n");
 
 	///////////////////////////////////////////////////////////////////////////
 	// Parse the basic reconstruction problem
 	///////////////////////////////////////////////////////////////////////////
 
 	net = netDisk_getNet(netDisk, netMisc_stringToName(netName));
-	logInfo("Parsed the net to be refined\n");
+	st_logInfo("Parsed the net to be refined\n");
 
 	if(!net_builtBlocks(net)) { // Do nothing if the net already has defined blocks
 		startTime = time(NULL);
@@ -277,10 +277,10 @@ int main(int argc, char *argv[]) {
 		///////////////////////////////////////////////////////////////////////////
 
 		netDisk_write(netDisk);
-		logInfo("Updated the net on disk\n");
+		st_logInfo("Updated the net on disk\n");
 	}
 	else {
-		logInfo("We've already built blocks / alignments for this net\n");
+		st_logInfo("We've already built blocks / alignments for this net\n");
 	}
 
 	///////////////////////////////////////////////////////////////////////////
@@ -291,6 +291,6 @@ int main(int argc, char *argv[]) {
 	startTime = time(NULL);
 	netDisk_destruct(netDisk);
 
-	logInfo("Cleaned stuff up and am finished in: %i seconds\n", time(NULL) - startTime);
+	st_logInfo("Cleaned stuff up and am finished in: %i seconds\n", time(NULL) - startTime);
 	return 0;
 }

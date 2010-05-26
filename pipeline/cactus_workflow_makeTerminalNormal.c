@@ -21,12 +21,12 @@ int main(int argc, char *argv[]) {
 
 	assert(argc >= 2);
 	netDisk = netDisk_construct(argv[1]);
-	logInfo("Set up the net disk\n");
+	st_logInfo("Set up the net disk\n");
 	int32_t i;
 	for(i=2; i<argc; i++) {
 		net = netDisk_getNet(netDisk, netMisc_stringToName(argv[i]));
 		assert(net != NULL);
-		logInfo("Parsed net %s\n", argv[i]);
+		st_logInfo("Parsed net %s\n", argv[i]);
 		if(!net_isTerminal(net)) {
 			Net_GroupIterator *groupIterator;
 			Group *group;
@@ -43,10 +43,10 @@ int main(int argc, char *argv[]) {
 	}
 
 	netDisk_write(netDisk);
-	logInfo("Updated the netdisk\n");
+	st_logInfo("Updated the netdisk\n");
 
 	netDisk_destruct(netDisk);
 
-	logInfo("Am finished\n");
+	st_logInfo("Am finished\n");
 	return 0;
 }

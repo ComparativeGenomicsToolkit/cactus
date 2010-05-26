@@ -134,10 +134,10 @@ int main(int argc, char *argv[]) {
 
 		switch(key) {
 			case 'a':
-				logLevelString = stringCopy(optarg);
+				logLevelString = st_string_copy(optarg);
 				break;
 			case 'c':
-				netDiskName = stringCopy(optarg);
+				netDiskName = st_string_copy(optarg);
 				break;
 			case 'e':
 				recursive = 1;
@@ -162,43 +162,43 @@ int main(int argc, char *argv[]) {
 	//////////////////////////////////////////////
 
 	if(logLevelString != NULL && strcmp(logLevelString, "INFO") == 0) {
-		setLogLevel(LOGGING_INFO);
+		st_setLogLevel(ST_LOGGING_INFO);
 	}
 	if(logLevelString != NULL && strcmp(logLevelString, "DEBUG") == 0) {
-		setLogLevel(LOGGING_DEBUG);
+		st_setLogLevel(ST_LOGGING_DEBUG);
 	}
 
 	//////////////////////////////////////////////
 	//Log (some of) the inputs
 	//////////////////////////////////////////////
 
-	logInfo("Net disk name : %s\n", netDiskName);
+	st_logInfo("Net disk name : %s\n", netDiskName);
 
 	//////////////////////////////////////////////
 	//Load the database
 	//////////////////////////////////////////////
 
 	netDisk = netDisk_construct(netDiskName);
-	logInfo("Set up the net disk\n");
+	st_logInfo("Set up the net disk\n");
 
 	int32_t j;
 	for (j = optind; j < argc; j++) {
 		const char *netName = argv[j];
-		logInfo("Processing the net named: %s", netName);
+		st_logInfo("Processing the net named: %s", netName);
 
 		///////////////////////////////////////////////////////////////////////////
 		// Parse the basic reconstruction problem
 		///////////////////////////////////////////////////////////////////////////
 
 		net = netDisk_getNet(netDisk, netMisc_stringToName(netName));
-		logInfo("Parsed the top level net of the cactus tree to check\n");
+		st_logInfo("Parsed the top level net of the cactus tree to check\n");
 
 		///////////////////////////////////////////////////////////////////////////
 		// Recursive check the nets.
 		///////////////////////////////////////////////////////////////////////////
 
 		checkNets(net, recursive);
-		logInfo("Checked the nets/\n");
+		st_logInfo("Checked the nets/\n");
 	}
 
 	///////////////////////////////////////////////////////////////////////////

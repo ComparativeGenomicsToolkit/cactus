@@ -28,15 +28,15 @@ int main(int argc, char *argv[]) {
 	Sequence *sequence;
 	char *string;
 	FILE *fileHandle;
-	setLogLevel(LOGGING_DEBUG);
+	st_setLogLevel(ST_LOGGING_DEBUG);
 	assert(argc == 4);
 	netDisk = netDisk_construct(argv[1]);
-	logInfo("Set up the net disk\n");
+	st_logInfo("Set up the net disk\n");
 
 	net = netDisk_getNet(netDisk, netMisc_stringToName(argv[2]));
-	logInfo("Read the net\n");
+	st_logInfo("Read the net\n");
 	fileHandle = fopen(argv[3], "w");
-	logInfo("Opened the file %s to write the sub-sequences in\n", argv[3]);
+	st_logInfo("Opened the file %s to write the sub-sequences in\n", argv[3]);
 	endIterator = net_getEndIterator(net);
 	while((end = net_getNextEnd(endIterator)) != NULL) {
 		instanceIterator = end_getInstanceIterator(end);
@@ -57,7 +57,7 @@ int main(int argc, char *argv[]) {
 			}
 		}
 	}
-	logInfo("Finished writing the subsequences to the file\n");
+	st_logInfo("Finished writing the subsequences to the file\n");
 	fclose(fileHandle);
 	return 0;
 }

@@ -259,7 +259,7 @@ void removeOverAlignedEdges(struct PinchGraph *pinchGraph, float minimumTreeCove
 		}
 	}
 
-	logDebug("Got the initial list of over-aligned black edges to undo, total: %i\n", list->length);
+	st_logDebug("Got the initial list of over-aligned black edges to undo, total: %i\n", list->length);
 
 	if(extensionSteps > 0) {
 		i = 0, k = 10;
@@ -288,7 +288,7 @@ void removeOverAlignedEdges(struct PinchGraph *pinchGraph, float minimumTreeCove
 	destructList(list);
 	list = list2;
 
-	logDebug("Got the list of black edges to undo, total length: %i!\n", list->length);
+	st_logDebug("Got the list of black edges to undo, total length: %i!\n", list->length);
 
 	list2 = constructEmptyList(0, NULL);
 	for(i=0; i<list->length; i++) {
@@ -623,7 +623,7 @@ float treeCoverage(struct PinchVertex *vertex, Net *net,
 	}
 	treeCoverage /= wholeTreeCoverage;
 	if(treeCoverage <= -0.001 || treeCoverage >= 1.001) {
-		uglyf("The tree coverage for this case is: %f, %f \n", treeCoverage, wholeTreeCoverage);
+		st_uglyf("The tree coverage for this case is: %f, %f \n", treeCoverage, wholeTreeCoverage);
 	}
 	assert(treeCoverage >= -0.001);
 	assert(treeCoverage <= 1.0001);

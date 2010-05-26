@@ -591,7 +591,7 @@ void fillOutNetFromInputs(
 	struct Piece *piece;
 	Name name;
 
-	logDebug("Building the net\n");
+	st_logDebug("Building the net\n");
 
 	////////////////////////////////////////////////
 	//Check the net to fill in terminal, and get rid of the group it contains..
@@ -608,7 +608,7 @@ void fillOutNetFromInputs(
 
 	biConnectedComponents = computeSortedBiConnectedComponents(cactusGraph);
 
-	logDebug("Built the bi-connected components\n");
+	st_logDebug("Built the bi-connected components\n");
 
 	////////////////////////////////////////////////
 	//Get DFS numbering on cactus vertices
@@ -620,7 +620,7 @@ void fillOutNetFromInputs(
 		checkBiConnectedComponent(biConnectedComponents->list[i]);
 	}
 #endif
-	logDebug("Got the vertex discovery times\n");
+	st_logDebug("Got the vertex discovery times\n");
 
 	////////////////////////////////////////////////
 	//Sort the biconnected components by their start time
@@ -628,7 +628,7 @@ void fillOutNetFromInputs(
 
 	qsort(biConnectedComponents->list, biConnectedComponents->length, sizeof(void *),
 			(int (*)(const void *v, const void *))fillOutNetFromInputsP2);
-	logDebug("Sorted the biconnected components by vertex discovery time\n");
+	st_logDebug("Sorted the biconnected components by vertex discovery time\n");
 
 	////////////////////////////////////////////////
 	//Build end names hash
@@ -653,7 +653,7 @@ void fillOutNetFromInputs(
 		}
 	}
 	net_destructEndIterator(endIterator);
-	logDebug("Built the end names hash\n");
+	st_logDebug("Built the end names hash\n");
 
 	////////////////////////////////////////////////
 	//Prune the cactus graph to include only those edges relevant to the desired net.
@@ -665,7 +665,7 @@ void fillOutNetFromInputs(
 	for(i=0; i<chosenBlocks->length; i++) {
 		hashtable_insert(chosenBlocksHash, chosenBlocks->list[i], &i);
 	}
-	mergedVertexIDs = mallocLocal(sizeof(int32_t)*cactusGraph->vertices->length);
+	mergedVertexIDs = st_malloc(sizeof(int32_t)*cactusGraph->vertices->length);
 	for(i=0; i<cactusGraph->vertices->length; i++) {
 		mergedVertexIDs[i] = ((struct CactusVertex *)cactusGraph->vertices->list[i])->vertexID;
 	}
@@ -712,18 +712,18 @@ void fillOutNetFromInputs(
 	}
 	destructList(list2);
 
-	logDebug("Built the chosen blocks hash\n");
+	st_logDebug("Built the chosen blocks hash\n");
 
 	////////////////////////////////////////////////
 	//Blocks and ends for each net.
 	////////////////////////////////////////////////
 
-	nets = mallocLocal(sizeof(void *) * cactusGraph->vertices->length);
+	nets = st_malloc(sizeof(void *) * cactusGraph->vertices->length);
 	for(i=1; i<cactusGraph->vertices->length; i++) {
 		nets[i] = NULL;
 	}
 	nets[0] = parentNet;
-	parentNets = mallocLocal(sizeof(void *) * biConnectedComponents->length);
+	parentNets = st_malloc(sizeof(void *) * biConnectedComponents->length);
 	for(i=0; i<biConnectedComponents->length; i++) {
 		biConnectedComponent = biConnectedComponents->list[i];
 		if(biConnectedComponent->length > 0) {
@@ -767,7 +767,7 @@ void fillOutNetFromInputs(
 			}
 		}
 	}
-	logDebug("Constructed blocks and nets for the cycle.\n");
+	st_logDebug("Constructed blocks and nets for the cycle.\n");
 
 	////////////////////////////////////////////////
 	//Link nets to parent nets and construct chains.
@@ -821,28 +821,28 @@ void fillOutNetFromInputs(
 		assert(nets[i] == NULL);
 	}
 #endif
-	logDebug("Constructed the chains and linked together the nets\n");
+	st_logDebug("Constructed the chains and linked together the nets\n");
 
 	////////////////////////////////////////////////
 	//Add nested ends to nets.
 	////////////////////////////////////////////////
 
 	destructList(addEnvelopedStubEnds(parentNet, 0));
-	logDebug("Added the nested ends to the parent nets\n");
+	st_logDebug("Added the nested ends to the parent nets\n");
 
 	////////////////////////////////////////////////
 	//Add adjacencies between ends.
 	////////////////////////////////////////////////
 
 	addAdjacenciesToEnds(net);
-	logDebug("Added the adjacencies between the ends\n");
+	st_logDebug("Added the adjacencies between the ends\n");
 
 	////////////////////////////////////////////////
 	//Add groups.
 	////////////////////////////////////////////////
 
 	addGroups(net, pinchGraph, chosenBlocks, endNamesHash);
-	logDebug("Added the trivial groups\n");
+	st_logDebug("Added the trivial groups\n");
 
 	////////////////////////////////////////////////
 	//Set blocks for each net to 'built'

@@ -26,7 +26,7 @@
 struct CactusVertex *constructCactusVertex() {
 	struct CactusVertex *cactusVertex;
 
-	cactusVertex = mallocLocal(sizeof(struct CactusVertex));
+	cactusVertex = st_malloc(sizeof(struct CactusVertex));
 	cactusVertex->edges = constructEmptyList(0, (void (*)(void *))destructCactusEdge);
 
 	return cactusVertex;
@@ -43,8 +43,8 @@ struct CactusEdge *constructCactusEdge(struct List *pieces) {
 	struct Piece *piece;
 	int32_t i;
 
-	edge = mallocLocal(sizeof(struct CactusEdge));
-	rEdge = mallocLocal(sizeof(struct CactusEdge));
+	edge = st_malloc(sizeof(struct CactusEdge));
+	rEdge = st_malloc(sizeof(struct CactusEdge));
 	edge->rEdge = rEdge;
 	rEdge->rEdge = edge;
 
@@ -96,7 +96,7 @@ struct CactusGraph *constructCactusGraph(struct PinchGraph *pinchGraph,
 	struct List *emptyList;
 	struct List *list2;
 
-	cactusGraph = mallocLocal(sizeof(struct CactusGraph));
+	cactusGraph = st_malloc(sizeof(struct CactusGraph));
 	cactusGraph->vertices = constructEmptyList(0, (void (*)(void *))destructCactusVertex);
 
 #ifdef BEN_DEBUG
@@ -406,7 +406,7 @@ void checkCactusContainsOnly2EdgeConnectedComponents(struct CactusGraph *cactusG
 	//(1) Get bi-connected components.
 	////////////////////////////////////////////////
 	biConnectedComponents = computeBiConnectedComponents(cactusGraph);
-	logDebug("Constructed the biconnected components for making the net\n");
+	st_logDebug("Constructed the biconnected components for making the net\n");
 
 	////////////////////////////////////////////////
 	//(2) Check every component is a cycle.
@@ -445,7 +445,7 @@ void checkCactusContainsOnly2EdgeConnectedComponents(struct CactusGraph *cactusG
 
 	hashtable_destroy(hashTable, FALSE, FALSE);
 	destructList(biConnectedComponents);
-	logDebug("Checked that all edges in the cactus graph are in a single simple cycle.\n");
+	st_logDebug("Checked that all edges in the cactus graph are in a single simple cycle.\n");
 #endif
 }
 
@@ -541,9 +541,9 @@ struct List *computeBiConnectedComponents(struct CactusGraph *cactusGraph) {
 							hashtable_key, hashtable_equalKey,
 							NULL, NULL);
 	count = 0;
-	dFN = mallocLocal(sizeof(int32_t)*cactusGraph->vertices->length);
-	low = mallocLocal(sizeof(int32_t)*cactusGraph->vertices->length);
-	father = mallocLocal(sizeof(int32_t)*cactusGraph->vertices->length);
+	dFN = st_malloc(sizeof(int32_t)*cactusGraph->vertices->length);
+	low = st_malloc(sizeof(int32_t)*cactusGraph->vertices->length);
+	father = st_malloc(sizeof(int32_t)*cactusGraph->vertices->length);
 	for(i=0; i<cactusGraph->vertices->length; i++) {
 		dFN[i] = -1;
 		low[i] = -1;
@@ -586,13 +586,13 @@ struct List *computeSortedBiConnectedComponents(struct CactusGraph *cactusGraph)
 	//(1) Get bi-connected components.
 	////////////////////////////////////////////////
 	biConnectedComponents = computeBiConnectedComponents(cactusGraph);
-	logDebug("Constructed the biconnected components for making the net\n");
+	st_logDebug("Constructed the biconnected components for making the net\n");
 
 	////////////////////////////////////////////////
 	//(1) Get DFS ordering on nodes
 	////////////////////////////////////////////////
 	sortBiConnectedComponents_vertexOrdering = getDFSDiscoveryTimes(cactusGraph);
-	logDebug("Got the DFS discovery times\n");
+	st_logDebug("Got the DFS discovery times\n");
 
 	////////////////////////////////////////////////
 	//(2) Now sort each bi connected component
@@ -616,7 +616,7 @@ struct List *computeSortedBiConnectedComponents(struct CactusGraph *cactusGraph)
 		assert(edge->to->vertexID == vertex->vertexID);
 #endif
 	}
-	logDebug("Sorted each bi-connected component\n");
+	st_logDebug("Sorted each bi-connected component\n");
 	return biConnectedComponents;
 }
 
@@ -649,7 +649,7 @@ int32_t *getDFSDiscoveryTimes(struct CactusGraph *cactusGraph) {
 	int32_t i;
 	int32_t *vertexOrdering;
 
-	vertexOrdering = mallocLocal(sizeof(int32_t)*cactusGraph->vertices->length);
+	vertexOrdering = st_malloc(sizeof(int32_t)*cactusGraph->vertices->length);
 	for(i=0; i<cactusGraph->vertices->length; i++) {
 		vertexOrdering[i] = -1;
 	}
@@ -874,21 +874,21 @@ void computeCactusGraph(struct PinchGraph *pinchGraph, struct CactusGraph **cact
 	vertices = writeOut3EdgeGraph(pinchGraph, greyEdgeComponents);
 
 	list = computeThreeEdgeConnectedComponents(vertices);
-	logInfo("Seems to have successfully run the three edge command: %i\n", list->length);
+	st_logInfo("Seems to have successfully run the three edge command: %i\n", list->length);
 
 	//Parse results (the three edge connected components).
 	*threeEdgeConnectedComponents = readThreeEdgeComponents(pinchGraph, greyEdgeComponents, list);
-	logInfo("Read in the three edge components\n");
+	st_logInfo("Read in the three edge components\n");
 	destructList(list);
 
 	for(i=0; i<(*threeEdgeConnectedComponents)->length; i++) {
 		list = (*threeEdgeConnectedComponents)->list[i];
-		logDebug("3 edge component : " INT_STRING " ", i);
+		st_logDebug("3 edge component : " INT_STRING " ", i);
 		for(j=0; j<list->length; j++) {
 			vertex = list->list[j];
-			logDebug(" vertex, " INT_STRING " ", vertex->vertexID);
+			st_logDebug(" vertex, " INT_STRING " ", vertex->vertexID);
 		}
-		logDebug("\n");
+		st_logDebug("\n");
 	}
 	//Cleanup the three edge input/output fil
 	destructList(greyEdgeComponents);
@@ -989,13 +989,13 @@ void circulariseStems(struct CactusGraph *cactusGraph) {
 	struct List *cactusGraphMerges;
 	int32_t i;
 
-	logDebug("Circularising the stems\n");
+	st_logDebug("Circularising the stems\n");
 
 	////////////////////////////////////////////////
 	//(1) Get bi-connected components.
 	////////////////////////////////////////////////
 	biConnectedComponents = computeBiConnectedComponents(cactusGraph);
-	logDebug("Constructed the biconnected components for making the net\n");
+	st_logDebug("Constructed the biconnected components for making the net\n");
 
 	////////////////////////////////////////////////
 	//(2) Put stems in a hash
@@ -1015,7 +1015,7 @@ void circulariseStems(struct CactusGraph *cactusGraph) {
 		}
 	}
 
-	logDebug("Put the stems in a hash\n");
+	st_logDebug("Put the stems in a hash\n");
 
 	////////////////////////////////////////////////
 	//(3) Do DFS on graph to find vertex merges that we wish to make
@@ -1031,7 +1031,7 @@ void circulariseStems(struct CactusGraph *cactusGraph) {
 		circulariseStemsP(cactusGraph, vertex->edges->list[i], vertex,
 				stemHash, seen, cactusGraphMerges);
 	}
-	logDebug("Done the DFS\n");
+	st_logDebug("Done the DFS\n");
 
 	////////////////////////////////////////////////
 	//(4) Do vertex merges.
@@ -1104,7 +1104,7 @@ int32_t chainBaseLength(struct List *biConnectedComponent, struct PinchGraph *pi
 			i += piece->end - piece->start + 1;
 		}
 	}
-	uglyf("I have a chain with %i blocks and %i lengths\n", biConnectedComponent->length, i);
+	st_uglyf("I have a chain with %i blocks and %i lengths\n", biConnectedComponent->length, i);
 	return i;
 }
 
@@ -1195,7 +1195,7 @@ void logTheChosenBlockSubset(struct List *biConnectedComponents, struct List *ch
 			j++;
 		}
 	}
-	logInfo("Chosen block subset composed of %i blocks, of average length %f and average tree coverage %f, total base length of all blocks: %f, total number of all blocks %f, average length of all blocks: %f, total number of stub blocks: %f, average piece number of chosen blocks: %f, average piece number of all blocks: %f\n",
+	st_logInfo("Chosen block subset composed of %i blocks, of average length %f and average tree coverage %f, total base length of all blocks: %f, total number of all blocks %f, average length of all blocks: %f, total number of stub blocks: %f, average piece number of chosen blocks: %f, average piece number of all blocks: %f\n",
 				chosenBlocks->length, totalBlockLength/j, totalBlockScore/j, totalBaseLengthOfAllBlocks, totalNumberOfAllBlocks, totalBaseLengthOfAllBlocks/totalNumberOfAllBlocks, totalNumberOfStubBlocks, averagePieceNumber/j, averagePieceNumberOfAllBlocks/totalNumberOfAllBlocks);
 }
 

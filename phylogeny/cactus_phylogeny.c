@@ -41,9 +41,9 @@ char **chainAlignment_getAlignment(ChainAlignment *chainAlignment) {
 	char *cA;
 
 	//alloc the memory for the char alignment.
-	alignment = mallocLocal(sizeof(void *) * chainAlignment->rowNumber);
+	alignment = st_malloc(sizeof(void *) * chainAlignment->rowNumber);
 	for(i=0; i<chainAlignment->rowNumber; i++) {
-		alignment[i] = mallocLocal(sizeof(char) * (chainAlignment->totalAlignmentLength + 1));
+		alignment[i] = st_malloc(sizeof(char) * (chainAlignment->totalAlignmentLength + 1));
 	}
 
 	/*
@@ -102,7 +102,7 @@ Name *chainAlignment_getEndNames(ChainAlignment *chainAlignment, bool _5End) {
 	int32_t i;
 	Segment *segment;
 
-	names = mallocLocal(sizeof(Name) * chainAlignment->rowNumber);
+	names = st_malloc(sizeof(Name) * chainAlignment->rowNumber);
 	for(i=0; i<chainAlignment->rowNumber; i++) {
 		segment = chainAlignment_getFirstNonNullSegment(chainAlignment, i, _5End);
 		names[i] = end_getName(cap_getEnd(cap_getAdjacency(_5End ? segment_get5Cap(segment) : segment_get3Cap(segment))));
@@ -118,7 +118,7 @@ Name *chainAlignment_getLeafEventNames(ChainAlignment *chainAlignment) {
 	int32_t i;
 	Segment *segment;
 
-	names = mallocLocal(sizeof(Name) * chainAlignment->rowNumber);
+	names = st_malloc(sizeof(Name) * chainAlignment->rowNumber);
 	for(i=0; i<chainAlignment->rowNumber; i++) {
 		segment = chainAlignment_getFirstNonNullSegment(chainAlignment, i, 1);
 		names[i] = event_getName(segment_getEvent(segment));
@@ -133,7 +133,7 @@ int32_t *chainAlignment_getBlockBoundaries(ChainAlignment *chainAlignment) {
 	int32_t *blockBoundaries;
 	int32_t i, j;
 
-	blockBoundaries = mallocLocal(sizeof(int32_t) * chainAlignment->columnNumber);
+	blockBoundaries = st_malloc(sizeof(int32_t) * chainAlignment->columnNumber);
 	j = 0;
 	for(i=0; i<chainAlignment->columnNumber; i++) {
 		blockBoundaries[i] = j + block_getLength(chainAlignment->blocks[i]);
@@ -166,7 +166,7 @@ void buildChainTrees_Bernard(int32_t blockNumber, char ***concatenatedBlocks, Na
 	 * created.
 	 */
 
-	logInfo("Started Bernard's function\n");
+	st_logInfo("Started Bernard's function\n");
 
 	int32_t i = 0;
 	int32_t j = 0;
@@ -175,10 +175,10 @@ void buildChainTrees_Bernard(int32_t blockNumber, char ***concatenatedBlocks, Na
 	int32_t colNumber = 0;
 
 	char ***blockTreeArray = NULL;
-	blockTreeArray = mallocLocal(sizeof(void *) * blockNumber);
+	blockTreeArray = st_malloc(sizeof(void *) * blockNumber);
 	for (i=0; i<blockNumber; i++) {
 		colNumber = chainAlignments[i]->columnNumber;
-		blockTreeArray[i] = mallocLocal(sizeof(void *) * colNumber);
+		blockTreeArray[i] = st_malloc(sizeof(void *) * colNumber);
 	}
 
 	char buffer[128];
@@ -186,7 +186,7 @@ void buildChainTrees_Bernard(int32_t blockNumber, char ***concatenatedBlocks, Na
 	for (i=0; i<blockNumber; i++) {
 
 sprintf(buffer, "\tBN start: %d of %d\n", i, blockNumber);
-logInfo(buffer);
+st_logInfo(buffer);
 
 		rowNumber = chainAlignments[i]->rowNumber;
 		colNumber = chainAlignments[i]->columnNumber;
@@ -197,7 +197,7 @@ logInfo(buffer);
 		for (j=0; j<colNumber; j++) {
 			blockTreeArray[i][j] = treestring;
 		}
-logInfo("\tEnd the loop\n");
+st_logInfo("\tEnd the loop\n");
 	}
 	*blockTreeStrings = blockTreeArray;
 
@@ -205,11 +205,11 @@ logInfo("\tEnd the loop\n");
 	int32_t **newBlockBoundaries = NULL;
 	int32_t *newBlockNumbers = NULL;
 
-	newBlockBoundaries = mallocLocal(sizeof(void *) * blockNumber);
-	newBlockNumbers = mallocLocal(sizeof(int32_t) * blockNumber);
+	newBlockBoundaries = st_malloc(sizeof(void *) * blockNumber);
+	newBlockNumbers = st_malloc(sizeof(int32_t) * blockNumber);
 	for (i=0; i<blockNumber; i++) {
 		colNumber = chainAlignments[i]->columnNumber;
-		newBlockBoundaries[i] = mallocLocal(sizeof(int32_t) * colNumber);
+		newBlockBoundaries[i] = st_malloc(sizeof(int32_t) * colNumber);
 		newBlockNumbers[i] = colNumber;
 		for (j=0; j<colNumber; j++) {
 			newBlockBoundaries[i][j] = blockBoundaries[i][j];
@@ -218,7 +218,7 @@ logInfo("\tEnd the loop\n");
 	*refinedBlockBoundaries = newBlockBoundaries;
 	*refinedBlockNumbers = newBlockNumbers;
 
-	logInfo("Ended Bernard's function\n");
+	st_logInfo("Ended Bernard's function\n");
 
 	return;
 }
@@ -344,11 +344,11 @@ void buildChainTrees(ChainAlignment **chainAlignments, int32_t chainAlignmentNum
 	int32_t i, j;
 
 	//Make the block alignments.
-	char ***concatenatedBlocks = mallocLocal(sizeof(void *) * chainAlignmentNumber); //this is the list of 2d alignments.
-	Name **_5Ends = mallocLocal(sizeof(void *) * chainAlignmentNumber); //these are the lists of ends associated with each end.
-	Name **_3Ends = mallocLocal(sizeof(void *) * chainAlignmentNumber);
-	Name **leafEventLabels = mallocLocal(sizeof(void *) * chainAlignmentNumber); //this is the list of leaf event labels.
-	int32_t **blockBoundaries = mallocLocal(sizeof(void *) * chainAlignmentNumber); //each chain alignment has a list of block lengths to demark where the block boundaries are.
+	char ***concatenatedBlocks = st_malloc(sizeof(void *) * chainAlignmentNumber); //this is the list of 2d alignments.
+	Name **_5Ends = st_malloc(sizeof(void *) * chainAlignmentNumber); //these are the lists of ends associated with each end.
+	Name **_3Ends = st_malloc(sizeof(void *) * chainAlignmentNumber);
+	Name **leafEventLabels = st_malloc(sizeof(void *) * chainAlignmentNumber); //this is the list of leaf event labels.
+	int32_t **blockBoundaries = st_malloc(sizeof(void *) * chainAlignmentNumber); //each chain alignment has a list of block lengths to demark where the block boundaries are.
 
 	//now fill out the the various arrays.
 	for(i=0; i<chainAlignmentNumber; i++) {
@@ -369,13 +369,13 @@ void buildChainTrees(ChainAlignment **chainAlignments, int32_t chainAlignmentNum
 	buildChainTrees_Bernard(chainAlignmentNumber, concatenatedBlocks, _5Ends, _3Ends, leafEventLabels,
 							blockBoundaries, eventTreeString, chainAlignments,
 							&augmentedEventTreeString, &blockTreeStrings, &refinedBlockBoundaries, &refinedBlockNumbers);
-	logDebug("Ran Bernard's code apparently okay\n");
+	st_logDebug("Ran Bernard's code apparently okay\n");
 
 	/*
 	 * Now process and reconcile each new block tree.
 	 */
 	for(i=0; i<chainAlignmentNumber; i++) {
-		struct BinaryTree **blockTrees = mallocLocal(sizeof(void *)* refinedBlockNumbers[i]);
+		struct BinaryTree **blockTrees = st_malloc(sizeof(void *)* refinedBlockNumbers[i]);
 		for(j=0; j<refinedBlockNumbers[i]; j++) {
 			blockTrees[j] = newickTreeParser(blockTreeStrings[i][j], 0.0, 0);
 		}
@@ -385,7 +385,7 @@ void buildChainTrees(ChainAlignment **chainAlignments, int32_t chainAlignmentNum
 		}
 		free(blockTrees);
 	}
-	logDebug("Processed the new block trees\n");
+	st_logDebug("Processed the new block trees\n");
 
 	/*
 	 * Cleanup the inputs.
@@ -403,7 +403,7 @@ void buildChainTrees(ChainAlignment **chainAlignments, int32_t chainAlignmentNum
 	free(leafEventLabels);
 	free(blockBoundaries);
 	free(eventTreeString);
-	logDebug("Cleaned up the inputs\n");
+	st_logDebug("Cleaned up the inputs\n");
 
 	//done!
 }
@@ -494,10 +494,10 @@ ChainAlignment *chainAlignment_construct(Block **blocks, int32_t blocksLength) {
 	 */
 
 	//alloc the chain alignment and the matrix of instances.
-	chainAlignment = mallocLocal(sizeof(ChainAlignment));
-	chainAlignment->matrix = mallocLocal(sizeof(Segment **) * blocksLength);
+	chainAlignment = st_malloc(sizeof(ChainAlignment));
+	chainAlignment->matrix = st_malloc(sizeof(Segment **) * blocksLength);
 	for(i=0; i<blocksLength; i++) {
-		chainAlignment->matrix[i] = mallocLocal(sizeof(Segment *) * list->length);
+		chainAlignment->matrix[i] = st_malloc(sizeof(Segment *) * list->length);
 	}
 	//fill out the fields of the chain alignment, including the matrix.
 	chainAlignment->columnNumber = blocksLength;
@@ -516,7 +516,7 @@ ChainAlignment *chainAlignment_construct(Block **blocks, int32_t blocksLength) {
 	}
 	assert(chainAlignment->totalAlignmentLength > 0);
 	//Add chain of blocks.
-	chainAlignment->blocks = mallocLocal(sizeof(void *)*blocksLength);
+	chainAlignment->blocks = st_malloc(sizeof(void *)*blocksLength);
 	for(i=0; i<blocksLength; i++) {
 		chainAlignment->blocks[i] = blocks[i];
 	}
@@ -644,10 +644,10 @@ int main(int argc, char *argv[]) {
 
 		switch(key) {
 			case 'a':
-				logLevelString = stringCopy(optarg);
+				logLevelString = st_string_copy(optarg);
 				break;
 			case 'c':
-				netDiskName = stringCopy(optarg);
+				netDiskName = st_string_copy(optarg);
 				break;
 			case 'h':
 				usage();
@@ -670,24 +670,24 @@ int main(int argc, char *argv[]) {
 	//////////////////////////////////////////////
 
 	if(logLevelString != NULL && strcmp(logLevelString, "INFO") == 0) {
-		setLogLevel(LOGGING_INFO);
+		st_setLogLevel(ST_LOGGING_INFO);
 	}
 	if(logLevelString != NULL && strcmp(logLevelString, "DEBUG") == 0) {
-		setLogLevel(LOGGING_DEBUG);
+		st_setLogLevel(ST_LOGGING_DEBUG);
 	}
 
 	//////////////////////////////////////////////
 	//Log (some of) the inputs
 	//////////////////////////////////////////////
 
-	logInfo("Net disk name : %s\n", netDiskName);
+	st_logInfo("Net disk name : %s\n", netDiskName);
 
 	//////////////////////////////////////////////
 	//Load the database
 	//////////////////////////////////////////////
 
 	netDisk = netDisk_construct(netDiskName);
-	logInfo("Set up the net disk\n");
+	st_logInfo("Set up the net disk\n");
 
 	//////////////////////////////////////////////
 	//For each net do tree building..
@@ -695,7 +695,7 @@ int main(int argc, char *argv[]) {
 
 	for (j = optind; j < argc; j++) {
 		const char *netName = argv[j];
-		logInfo("Processing the net named: %s", netName);
+		st_logInfo("Processing the net named: %s", netName);
 
 		///////////////////////////////////////////////////////////////////////////
 		// Parse the basic reconstruction problem
@@ -703,14 +703,14 @@ int main(int argc, char *argv[]) {
 
 		net = netDisk_getNet(netDisk, netMisc_stringToName(netName));
 		assert(net != NULL);
-		logInfo("Parsed the net to be refined\n");
+		st_logInfo("Parsed the net to be refined\n");
 
 		///////////////////////////////////////////////////////////////////////////
 		// Do nothing if we have already built the trees.
 		///////////////////////////////////////////////////////////////////////////
 
 		if(net_builtTrees(net)) {
-			logInfo("We have already built trees for net %s\n", netName);
+			st_logInfo("We have already built trees for net %s\n", netName);
 			continue;
 		}
 
@@ -764,7 +764,7 @@ int main(int argc, char *argv[]) {
 			free(blockChain);
 		}
 		net_destructChainIterator(chainIterator);
-		logInfo("Constructed the block trees for the non-trivial chains in the net in: %i seconds\n", time(NULL) - startTime);
+		st_logInfo("Constructed the block trees for the non-trivial chains in the net in: %i seconds\n", time(NULL) - startTime);
 
 		///////////////////////////////////////////////////////////////////////////
 		//Construct the chain alignment for each trivial chain.
@@ -787,7 +787,7 @@ int main(int argc, char *argv[]) {
 		}
 #endif
 
-		logInfo("Constructed the block trees for the trivial chains in the net in: %i seconds\n", time(NULL) - startTime);
+		st_logInfo("Constructed the block trees for the trivial chains in the net in: %i seconds\n", time(NULL) - startTime);
 
 		///////////////////////////////////////////////////////////////////////////
 		//For each chain call the tree construction function.
@@ -797,7 +797,7 @@ int main(int argc, char *argv[]) {
 		buildChainTrees((ChainAlignment **)sortedChainAlignments->list, sortedChainAlignments->length, net_getEventTree(net));
 		destructList(sortedChainAlignments);
 
-		logInfo("Augmented the block trees in: %i seconds\n", time(NULL) - startTime);
+		st_logInfo("Augmented the block trees in: %i seconds\n", time(NULL) - startTime);
 
 #ifdef BEN_DEBUG
 		endIterator = net_getEndIterator(net);
@@ -862,7 +862,7 @@ int main(int argc, char *argv[]) {
 			}
 		}
 		net_destructGroupIterator(groupIterator);
-		logInfo("Filled in end trees and augmented the event trees for the child nets in: %i seconds\n", time(NULL) - startTime);
+		st_logInfo("Filled in end trees and augmented the event trees for the child nets in: %i seconds\n", time(NULL) - startTime);
 
 		///////////////////////////////////////////////////////////////////////////
 		//Set the trees in the net to 'built' status.
@@ -878,7 +878,7 @@ int main(int argc, char *argv[]) {
 
 	startTime = time(NULL);
 	netDisk_write(netDisk);
-	logInfo("Updated the net on disk in: %i seconds\n", time(NULL) - startTime);
+	st_logInfo("Updated the net on disk in: %i seconds\n", time(NULL) - startTime);
 
 	///////////////////////////////////////////////////////////////////////////
 	//(15) Clean up.
@@ -888,6 +888,6 @@ int main(int argc, char *argv[]) {
 	startTime = time(NULL);
 	netDisk_destruct(netDisk);
 
-	logInfo("Cleaned stuff up and am finished in: %i seconds\n", time(NULL) - startTime);
+	st_logInfo("Cleaned stuff up and am finished in: %i seconds\n", time(NULL) - startTime);
 	return 0;
 }

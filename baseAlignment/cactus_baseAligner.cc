@@ -76,7 +76,7 @@ typedef struct _SubSequence {
 
 SubSequence *getSequenceAndCoordinates(Cap *cap, int32_t maxLength) {
 	assert(!cap_getSide(cap));
-	SubSequence *subSequence = (SubSequence *)mallocLocal(sizeof(SubSequence));
+	SubSequence *subSequence = (SubSequence *)st_malloc(sizeof(SubSequence));
 	subSequence->string = getSequence(cap, maxLength);
 	Sequence *sequence = cap_getSequence(cap);
 	subSequence->sequenceName = netMisc_nameToString(sequence_getName(sequence));
@@ -101,7 +101,7 @@ SubSequence **getForwardAndReverseSequences(Cap *cap1, int32_t maxLength) {
 	assert(cap_getStrand(cap2));
 	assert(cap_getSide(cap2));
 
-	SubSequence **subSequences = (SubSequence **)mallocLocal(sizeof(void *) * 2);
+	SubSequence **subSequences = (SubSequence **)st_malloc(sizeof(void *) * 2);
 	subSequences[0] = getSequenceAndCoordinates(cap1, maxLength);
 	subSequences[1] = getSequenceAndCoordinates(cap_getReverse(cap2), maxLength);
 	return subSequences;
@@ -229,10 +229,10 @@ int main(int argc, char *argv[]) {
 
 		switch(key) {
 			case 'a':
-				logLevelString = stringCopy(optarg);
+				logLevelString = st_string_copy(optarg);
 				break;
 			case 'b':
-				netDiskName = stringCopy(optarg);
+				netDiskName = st_string_copy(optarg);
 				break;
 			case 'h':
 				usage();
@@ -244,10 +244,10 @@ int main(int argc, char *argv[]) {
 	}
 
 	if(logLevelString != NULL && strcmp(logLevelString, "INFO") == 0) {
-		setLogLevel(LOGGING_INFO);
+		st_setLogLevel(ST_LOGGING_INFO);
 	}
 	if(logLevelString != NULL && strcmp(logLevelString, "DEBUG") == 0) {
-		setLogLevel(LOGGING_DEBUG);
+		st_setLogLevel(ST_LOGGING_DEBUG);
 	}
 
 	/*
@@ -261,7 +261,7 @@ int main(int argc, char *argv[]) {
 	 * Load the netdisk
 	 */
 	NetDisk *netDisk = netDisk_construct(netDiskName);
-	logInfo("Set up the net disk\n");
+	st_logInfo("Set up the net disk\n");
 
 	/*
 	 * For each net.
@@ -271,10 +271,10 @@ int main(int argc, char *argv[]) {
 		 * Read the net.
 		 */
 		const char *netName = argv[j];
-		logInfo("Processing the net named: %s\n", netName);
+		st_logInfo("Processing the net named: %s\n", netName);
 		Net *net = netDisk_getNet(netDisk, netMisc_stringToName(netName));
 		assert(net != NULL);
-		logInfo("Parsed the net to be aligned\n");
+		st_logInfo("Parsed the net to be aligned\n");
 
 		/*
 		 * Get the sequences
@@ -298,7 +298,7 @@ int main(int argc, char *argv[]) {
 		}
 		net_destructCapIterator(iterator1);
 		assert(subSequences->length == net_getCapNumber(net)/2);
-		logInfo("Got the sequence to be aligned\n");
+		st_logInfo("Got the sequence to be aligned\n");
 
 		/*
 		 * Make a list of the pairwise comparisons to be aligned.
@@ -311,7 +311,7 @@ int main(int argc, char *argv[]) {
 		//check we have the expected number of pairs.
 		assert(subSequences->length == 0 ||
 				(pairs->length/2 <= SPANNING_TREES*(subSequences->length-1) && (pairs->length/2 >= subSequences->length-1)));
-		logInfo("Got the list of pairs to align\n");
+		st_logInfo("Got the list of pairs to align\n");
 
 		/*
 		 * Do the alignments.
@@ -341,14 +341,14 @@ int main(int argc, char *argv[]) {
 				listAppend(getAlignment_pairwiseAlignments, alignSequences(seq1R, seq2R));
 			}
 		}
-		logInfo("Created the alignments\n");
+		st_logInfo("Created the alignments\n");
 
 		/*
 		 * Run the cactus core script.
 		 */
 		cCIP->maxEdgeDegree = subSequences->length;
 		cactusCorePipeline(net, cCIP, getAlignments, startAlignmentStack);
-		logInfo("Ran the cactus core script.\n");
+		st_logInfo("Ran the cactus core script.\n");
 
 		/*
 		 * Cleanup
@@ -356,7 +356,7 @@ int main(int argc, char *argv[]) {
 		destructList(subSequences);
 		destructList(pairs);
 		destructList(getAlignment_pairwiseAlignments);
-		logInfo("Finished filling in the alignments for the net\n");
+		st_logInfo("Finished filling in the alignments for the net\n");
 	}
 
 	/*
@@ -365,7 +365,7 @@ int main(int argc, char *argv[]) {
 	netDisk_write(netDisk);
 	netDisk_destruct(netDisk);
 	destructCactusCoreInputParameters(cCIP);
-	logInfo("Finished with the net disk for this net.\n");
+	st_logInfo("Finished with the net disk for this net.\n");
 
 	return 0;
 }

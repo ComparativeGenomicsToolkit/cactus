@@ -25,7 +25,7 @@ int32_t netDisk_constructMetaEventsP(const void *o1, const void *o2, void *a) {
 
 NetDisk *netDisk_construct(const char *netDiskFile) {
 	NetDisk *netDisk;
-	netDisk = mallocLocal(sizeof(NetDisk));
+	netDisk = st_malloc(sizeof(NetDisk));
 	int32_t i;
 
 	//construct lists of in memory objects
@@ -38,12 +38,12 @@ NetDisk *netDisk_construct(const char *netDiskFile) {
 	netDisk->metaDataDatabaseName = pathJoin(netDiskFile, "metaData");
 	netDisk->iDDatabaseName = pathJoin(netDiskFile, "uniqueIDs");
 
-	logInfo("Constructing the databases: %s, %s, %s\n",
+	st_logInfo("Constructing the databases: %s, %s, %s\n",
 			netDisk->iDDatabaseName, netDisk->netsDatabaseName, netDisk->metaDataDatabaseName);
 
 	//create the net disk directory if it doesn't already exist.
 	i = mkdir(netDiskFile, S_IRWXU);
-	logInfo("Tried to create the base net disk directory with exit value: %i\n", i);
+	st_logInfo("Tried to create the base net disk directory with exit value: %i\n", i);
 
 	//open the sequences database
 	netDisk->netsDatabase = database_construct(netDisk->netsDatabaseName);
@@ -341,7 +341,7 @@ char *netDisk_getString(NetDisk *netDisk, int64_t offset, int32_t start, int32_t
 
 	fileHandle = fopen(netDisk->stringFile, "r");
 	fseek(fileHandle, offset+start, SEEK_SET);
-	cA = mallocLocal(sizeof(char)*(length+1));
+	cA = st_malloc(sizeof(char)*(length+1));
 	fread(cA, sizeof(char), length, fileHandle);
 	cA[length] = '\0';
 	fclose(fileHandle);

@@ -155,7 +155,7 @@ struct Frame {
 
 void addToStack(int w,int v, int u, adjacentG edge, int start, struct List *stack) {
 	struct Frame *frame;
-	frame = mallocLocal(sizeof(struct Frame));
+	frame = st_malloc(sizeof(struct Frame));
 	frame->w = w;
 	frame->v = v;
 	frame->u = u;
@@ -374,12 +374,12 @@ void three_edge_connectP(int w,int v, struct Frame *frame, struct List *stack) {
             list2 = constructEmptyList(0, (void (*)(void *))destructInt);
         	listAppend(list, list2);
         	listAppend(list2, constructInt(u));
-            logDebug( "\nNew component found: %d",u);
+            st_logDebug( "\nNew component found: %d",u);
 //PRINT
             tmp2 = next_sigma_element[u];
             while (tmp2 != u) {
 //PRINT
-               logDebug( ",%d",tmp2);
+               st_logDebug( ",%d",tmp2);
                listAppend(list2, constructInt(tmp2));
 //PRINT
                tmp2 = next_sigma_element[tmp2];
@@ -420,7 +420,7 @@ void three_edge_connectP(int w,int v, struct Frame *frame, struct List *stack) {
 				 */
 				    /*going to append the outgoing back_edge to LB[w]
 						*/
-            if (( edge2 = (adjacentG)mallocLocal(sizeof(struct adjacent_with_u_in_G)) ) == NULL)
+            if (( edge2 = (adjacentG)st_malloc(sizeof(struct adjacent_with_u_in_G)) ) == NULL)
                abrt("Not enough memory to allocate bufferLB");
    		      edge2->u = u;
       	    edge2->more = LB[w];
@@ -484,39 +484,39 @@ struct List *computeThreeEdgeConnectedComponents(struct List *vertices) {
    int32_t i, j;
    double tsum;
    clock_t first, end;
-	 logInfo("\nComputing 3edge connected components using\nDr. Tsin's algorithm(The one with reduction)...\n");
+	 st_logInfo("\nComputing 3edge connected components using\nDr. Tsin's algorithm(The one with reduction)...\n");
    first=clock();  //save CPU clock to variable first
 
 //*********************************Memory allocation
 
-   if (( LG = (adjacentG*)mallocLocal(Vnum * sizeof(struct adjacent_with_u_in_G *)) ) == NULL)
+   if (( LG = (adjacentG*)st_malloc(Vnum * sizeof(struct adjacent_with_u_in_G *)) ) == NULL)
          abrt("Not enough memory to allocate buffer");
 
-   if (( LB = (adjacentG*)mallocLocal(Vnum * sizeof(struct adjacent_with_u_in_G *)) ) == NULL)
+   if (( LB = (adjacentG*)st_malloc(Vnum * sizeof(struct adjacent_with_u_in_G *)) ) == NULL)
 		abrt("Not enough memory to allocate buffer");
 
-   if (( LBend = (adjacentG*)mallocLocal(Vnum * sizeof(struct adjacent_with_u_in_G *)) ) == NULL)
+   if (( LBend = (adjacentG*)st_malloc(Vnum * sizeof(struct adjacent_with_u_in_G *)) ) == NULL)
          abrt("Not enough memory to allocate buffer");
 
-   if (( lowpt = (int *)mallocLocal(Vnum * sizeof(int)) ) == NULL)
+   if (( lowpt = (int *)st_malloc(Vnum * sizeof(int)) ) == NULL)
       abrt("Not enough memory to allocate buffer");
 
-   if (( pre = (int *)mallocLocal(Vnum * sizeof(int)) ) == NULL)
+   if (( pre = (int *)st_malloc(Vnum * sizeof(int)) ) == NULL)
       abrt("Not enough memory to allocate buffer");
 
-   if (( nd = (int *)mallocLocal(Vnum * sizeof(int)) ) == NULL)
+   if (( nd = (int *)st_malloc(Vnum * sizeof(int)) ) == NULL)
       abrt("Not enough memory to allocate buffer");
 
-   if (( next_on_path = (int *)mallocLocal(Vnum * sizeof(int)) ) == NULL)
+   if (( next_on_path = (int *)st_malloc(Vnum * sizeof(int)) ) == NULL)
       abrt("Not enough memory to allocate buffer");
 
-   if (( next_sigma_element = (int *)mallocLocal(Vnum * sizeof(int)) ) == NULL)
+   if (( next_sigma_element = (int *)st_malloc(Vnum * sizeof(int)) ) == NULL)
       abrt("Not enough memory to allocate buffer");
 
-   if (( visited = (char *)mallocLocal(Vnum * sizeof(char)) ) == NULL)
+   if (( visited = (char *)st_malloc(Vnum * sizeof(char)) ) == NULL)
       abrt("Not enough memory to allocate buffer");
 
-   if (( outgoing_tree_edge = (char *)mallocLocal(Vnum * sizeof(char)) ) == NULL)
+   if (( outgoing_tree_edge = (char *)st_malloc(Vnum * sizeof(char)) ) == NULL)
       abrt("Not enough memory to allocate buffer");
 
    for (indx = 0; indx < Vnum; indx++) {
@@ -533,7 +533,7 @@ struct List *computeThreeEdgeConnectedComponents(struct List *vertices) {
 	   v = i+1;
 	   for(j=0; j<edges->length; j++) {
 		   n = edges->list[j];
-		   if (( edge = (adjacentG)mallocLocal(sizeof(struct adjacent_with_u_in_G)) ) == NULL)
+		   if (( edge = (adjacentG)st_malloc(sizeof(struct adjacent_with_u_in_G)) ) == NULL)
 			   abrt("Not enough memory to allocate buffer23");
 		   edge->more = NULL;
 		   edge->u = n;
@@ -544,7 +544,7 @@ struct List *computeThreeEdgeConnectedComponents(struct List *vertices) {
    }
    edgeNum = edgeNum / 2;
 
-	 logInfo( "\nComplexity of the given graph:\n|V| + |E| = %d + %d = %d\n",Vnum-1,edgeNum,Vnum+edgeNum-1);
+	 st_logInfo( "\nComplexity of the given graph:\n|V| + |E| = %d + %d = %d\n",Vnum-1,edgeNum,Vnum+edgeNum-1);
 
    count = 1;
 //   r = 1;
@@ -564,12 +564,12 @@ struct List *computeThreeEdgeConnectedComponents(struct List *vertices) {
          list2 = constructEmptyList(0, (void (*)(void *))destructInt);
          listAppend(list, list2);
          listAppend(list2, constructInt(r));
-         logDebug( "\nNew component found: %d",r);
+         st_logDebug( "\nNew component found: %d",r);
 //PRINT
          tmp2 = next_sigma_element[r];
          while (tmp2 != r) {
 //PRINT
-            logDebug( ",%d",tmp2);
+            st_logDebug( ",%d",tmp2);
             listAppend(list2, constructInt(tmp2));
 //PRINT
             tmp2 = next_sigma_element[tmp2];
@@ -577,7 +577,7 @@ struct List *computeThreeEdgeConnectedComponents(struct List *vertices) {
       }
    }
 
-   logDebug("Found components\n");
+   st_logDebug("Found components\n");
 
 /*//YesOrNo
    printf("It's a YES instance!");
@@ -589,8 +589,8 @@ struct List *computeThreeEdgeConnectedComponents(struct List *vertices) {
 
    end=clock();         //save again CPU clock to variable end
    tsum = (end-first)/CLOCKS_PER_SEC;  //compute total elapsed time
-   logInfo( "\nElapsed Time: %f",tsum);
-   logInfo( "\nConnected Components: %d\n",compNum);
+   st_logInfo( "\nElapsed Time: %f",tsum);
+   st_logInfo( "\nConnected Components: %d\n",compNum);
 
    return list;
 }

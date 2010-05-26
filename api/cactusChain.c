@@ -14,7 +14,7 @@ Chain *chain_construct(Net *net) {
 
 Chain *chain_construct2(Name name, Net *net) {
 	Chain *chain;
-	chain = mallocLocal(sizeof(Chain));
+	chain = st_malloc(sizeof(Chain));
 	chain->name = name;
 	chain->net = net;
 	chain->link = NULL;
@@ -75,7 +75,7 @@ Block **chain_getBlockChain(Chain *chain, int32_t *blockNumber) {
 		}
 	}
 	i = sizeof(void *)*(blocks->length+1);
-	Block **blockChain = memcpy(mallocLocal(i), blocks->list, i);
+	Block **blockChain = memcpy(st_malloc(i), blocks->list, i);
 	*blockNumber = blocks->length;
 	destructList(blocks);
 	return blockChain;

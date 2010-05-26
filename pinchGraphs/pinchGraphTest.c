@@ -148,7 +148,7 @@ void checkPinchGraph(struct PinchGraph *graph) {
 		}
 		destructGreyEdgeIterator(greyEdgeIterator);
 	}
-	logDebug("Checked the graph okay\n");
+	st_logDebug("Checked the graph okay\n");
 
 #endif
 }

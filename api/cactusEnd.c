@@ -19,10 +19,10 @@ End *end_construct(bool isAttached, Net *net) {
 
 End *end_construct2(Name name, int32_t isStub, int32_t isAttached, int32_t side, Net *net) {
 	End *end;
-	end = mallocLocal(sizeof(End));
-	end->rEnd = mallocLocal(sizeof(End));
+	end = st_malloc(sizeof(End));
+	end->rEnd = st_malloc(sizeof(End));
 	end->rEnd->rEnd = end;
-	end->endContents = mallocLocal(sizeof(EndContents));
+	end->endContents = st_malloc(sizeof(EndContents));
 	end->rEnd->endContents = end->endContents;
 
 	end->orientation = 1;
@@ -179,7 +179,7 @@ void end_setRootInstance(End *end, Cap *cap) {
 
 End_InstanceIterator *end_getInstanceIterator(End *end) {
 	End_InstanceIterator *iterator;
-	iterator = mallocLocal(sizeof(struct _end_instanceIterator));
+	iterator = st_malloc(sizeof(struct _end_instanceIterator));
 	iterator->end = end;
 	iterator->iterator = st_sortedSet_getIterator(end->endContents->caps);
 	return iterator;
@@ -195,7 +195,7 @@ Cap *end_getPrevious(End_InstanceIterator *iterator) {
 
 End_InstanceIterator *end_copyInstanceIterator(End_InstanceIterator *iterator) {
 	End_InstanceIterator *iterator2;
-	iterator2 = mallocLocal(sizeof(struct _end_instanceIterator));
+	iterator2 = st_malloc(sizeof(struct _end_instanceIterator));
 	iterator2->end = iterator->end;
 	iterator2->iterator = st_sortedSet_copyIterator(iterator->iterator);
 	return iterator2;

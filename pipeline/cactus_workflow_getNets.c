@@ -12,7 +12,7 @@ int main(int argc, char *argv[]) {
 
 	assert(argc >= 3);
 	netDisk = netDisk_construct(argv[1]);
-	logInfo("Set up the net disk\n");
+	st_logInfo("Set up the net disk\n");
 
 	FILE *fileHandle = fopen(argv[2], "w");
 
@@ -21,7 +21,7 @@ int main(int argc, char *argv[]) {
 		net = netDisk_getNet(netDisk, netMisc_stringToName(argv[i]));
 		assert(net != NULL);
 		assert(net_builtBlocks(net)); //This recursion depends on the block structure having been properly defined for all nodes.
-		logInfo("Parsed the net %s\n", argv[i]);
+		st_logInfo("Parsed the net %s\n", argv[i]);
 		Net_GroupIterator *groupIterator = net_getGroupIterator(net);
 		Group *group;
 		while((group = net_getNextGroup(groupIterator)) != NULL) {
@@ -36,6 +36,6 @@ int main(int argc, char *argv[]) {
 	}
 	fclose(fileHandle);
 	netDisk_destruct(netDisk);
-	logInfo("Am finished\n");
+	st_logInfo("Am finished\n");
 	return 0;
 }

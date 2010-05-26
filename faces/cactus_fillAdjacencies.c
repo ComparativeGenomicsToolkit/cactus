@@ -41,11 +41,11 @@ struct adjacency_vote_st {
  */
 static AdjacencyVote *adjacencyVote_construct(int32_t length)
 {
-	AdjacencyVote *vote = callocLocal(1, sizeof(AdjacencyVote));
+	AdjacencyVote *vote = st_calloc(1, sizeof(AdjacencyVote));
 
 	vote->intersection = true;
 	vote->length = length;
-	vote->candidates = callocLocal(length, sizeof(Cap *));
+	vote->candidates = st_calloc(length, sizeof(Cap *));
 
 	return vote;
 }
@@ -92,7 +92,7 @@ static int32_t adjacencyVote_isDescendantOf(Cap * descendant,
 
 	while ((current = cap_getParent(current))
 	       && adjacencyVoteTable_getVote(current, table)) {
-		logInfo("Testing %p\n", current);
+		st_logInfo("Testing %p\n", current);
 		if (cap_getParent(current) == ancestor)
 			return true;
 	}
@@ -290,7 +290,7 @@ static void valueFree(void *value)
 // Basic constructor
 static AdjacencyVoteTable *adjacencyVoteTable_construct()
 {
-	AdjacencyVoteTable *table = callocLocal(1, sizeof(AdjacencyVoteTable));
+	AdjacencyVoteTable *table = st_calloc(1, sizeof(AdjacencyVoteTable));
 	table->table =
 	    create_hashtable(16, hash_from_key_fn, keys_equal_fn, NULL,
 			     valueFree);
@@ -368,7 +368,7 @@ static void fillingIn_registerParent(Cap * cap,
 	Cap *parent = cap_getParent(cap);
 	int32_t childIndex, childNumber;
 
-	logInfo("Registering parent node %p\n", cap);
+	st_logInfo("Registering parent node %p\n", cap);
 
 	if (parent == NULL)
 		return;
@@ -398,7 +398,7 @@ static void fillingIn_registerLeafCap(Cap * cap,
 {
 	AdjacencyVote *vote;
 
-	logInfo("Visiting leaf %p\n", cap);
+	st_logInfo("Visiting leaf %p\n", cap);
 
 	// Mark as decided
 	vote = adjacencyVote_construct(1);
@@ -501,7 +501,7 @@ static Cap *fillingIn_interpolateCaps(Cap * parentCap,
 		newCap = cap_getReverse(newCap);
 
 #ifdef BEN_DEBUG
-	logInfo("Interpolating %p\n", newCap);
+	st_logInfo("Interpolating %p\n", newCap);
 	assert(event_isDescendant(cap_getEvent(parentCap), cap_getEvent(newCap)));
 	assert(event_isDescendant(cap_getEvent(newCap), cap_getEvent(childCap)));
 	assert(event_isDescendant(cap_getEvent(parentCap), cap_getEvent(childCap)));
@@ -524,7 +524,7 @@ static void fillingIn_uniteCaps(Cap * cap,
 
 	if (cap_getEvent(cap) != cap_getEvent(partner))
 		partner = fillingIn_interpolateCaps(cap_getParent(partner), partner, cap_getEvent(cap));
-	logInfo("A");
+	st_logInfo("A");
 
 	cap_makeAdjacent(cap, partner);
 
@@ -630,7 +630,7 @@ static void fillingIn_pairUpToNullStub(Cap * cap, Cap * nonPartner, AdjacencyVot
 		AdjacencyVote * vote, *stubVote;
 		int32_t childNumber, childIndex;
 
-		logInfo("B");
+		st_logInfo("B");
 
 		cap_makeAdjacent(cap, stub);
 
@@ -673,7 +673,7 @@ static void fillingIn_pairUpToNullStub(Cap * cap, Cap * nonPartner, AdjacencyVot
 
 		// Create pair
 		stub = cap_construct(cap_getEnd(nonPartner), cap_getEvent(cap));
-		logInfo("Constructing %p\n", stub);
+		st_logInfo("Constructing %p\n", stub);
 		cap_makeAdjacent(cap, stub);
 
 		// Create new votes bulletins to stuff the electoral box
@@ -710,11 +710,11 @@ static void fillingIn_pairUpToNullStub(Cap * cap, Cap * nonPartner, AdjacencyVot
 			parentEvent = fillingIn_interpolateEvents(cap_getEvent(parent), cap_getEvent(cap));
 
 		nonPartnerParentStub = fillingIn_interpolateCaps(nonPartnerParent, nonPartner, parentEvent);
-		logInfo("C");
+		st_logInfo("C");
 		cap_makeParentAndChild(nonPartnerParentStub, stub);
 
 		parentStub = fillingIn_interpolateCaps(parent, cap, parentEvent); 
-		logInfo("D");
+		st_logInfo("D");
 		cap_makeAdjacent(nonPartnerParentStub, parentStub);
 
 		nonPartnerParentStubVote = adjacencyVote_construct(1);
@@ -777,13 +777,13 @@ static void fillingIn_pairUpToNullStub(Cap * cap, Cap * nonPartner, AdjacencyVot
 		childEvent = fillingIn_interpolateEvents(cap_getEvent(cap), childEvent);
 
 		stub = cap_construct(cap_getEnd(cap), childEvent);
-		logInfo("Constructing %p\n", stub);
+		st_logInfo("Constructing %p\n", stub);
 		while(cap_getChildNumber(cap)) 
 			cap_changeParentAndChild(stub, cap_getChild(cap, 0));
 		cap_makeParentAndChild(cap, stub);
 
 		partnerStub = cap_construct(cap_getEnd(nonPartner), childEvent);
-		logInfo("Constructing %p\n", partnerStub);
+		st_logInfo("Constructing %p\n", partnerStub);
 		cap_makeAdjacent(stub, partnerStub);
 
 		// Create new votes bulletins to stuff the electoral box
@@ -796,13 +796,13 @@ static void fillingIn_pairUpToNullStub(Cap * cap, Cap * nonPartner, AdjacencyVot
 		adjacencyVoteTable_recordVote(table, stub, stubVote);
 		
 		nonPartnerPartnerStub = cap_construct(cap_getEnd(nonPartnerPartner), childEvent);
-		logInfo("Constructing %p\n", nonPartnerPartnerStub);
+		st_logInfo("Constructing %p\n", nonPartnerPartnerStub);
 		while(cap_getChildNumber(nonPartnerPartner))
 			cap_changeParentAndChild(nonPartnerPartnerStub, cap_getChild(nonPartnerPartner, 0));
 		cap_makeParentAndChild(nonPartnerPartner, nonPartnerPartnerStub);
 
 		nonPartnerStub = cap_construct(cap_getEnd(nonPartner), childEvent);
-		logInfo("Constructing %p\n", nonPartnerStub);
+		st_logInfo("Constructing %p\n", nonPartnerStub);
 		cap_makeAdjacent(nonPartnerStub, nonPartnerPartnerStub);
 
 		// Create new votes bulletins to stuff the electoral box
@@ -1020,7 +1020,7 @@ static void fillingIn_propagateAdjacencyDownwards(Cap *
 static void fillingIn_stepForward(Cap * cap,
 				  AdjacencyVoteTable * table)
 {
-	logInfo("Stepping into %p\n", cap);
+	st_logInfo("Stepping into %p\n", cap);
 	// Assess node decision
 	fillingIn_processChildrenVote(cap, table);
 
@@ -1083,14 +1083,14 @@ static Cap * fillingIn_constructStub(Event *event, Group *group) {
 	End *newFreeStubEnd = end_construct(0, group_getNet(group));
 	end_setGroup(newFreeStubEnd, group);
 	Cap *cap = cap_construct(newFreeStubEnd, event);
-		logInfo("Constructing %p\n",cap);
+		st_logInfo("Constructing %p\n",cap);
 	Event *rootEvent = eventTree_getRootEvent(eventTree);
 	if(event == rootEvent) {
 		end_setRootInstance(newFreeStubEnd, cap);
 	}
 	else {
 		end_setRootInstance(newFreeStubEnd, cap_construct(newFreeStubEnd, rootEvent));
-		logInfo("Constructing %p\n", newFreeStubEnd);
+		st_logInfo("Constructing %p\n", newFreeStubEnd);
 		cap_makeParentAndChild(end_getRootInstance(newFreeStubEnd), cap);
 	}
 	return cap;
@@ -1129,7 +1129,7 @@ static void fillingIn_resolveSelfLoop(Cap * ancestor,
 
 	// Modify top end of original tree
 	interpolationJoin = fillingIn_interpolateCaps(ancestor, descendant1, middleParentEvent);
-	logInfo("E");
+	st_logInfo("E");
 	cap_changeParentAndChild(interpolationJoin, descendant2);
 
 	interpolation1 =
@@ -1143,11 +1143,11 @@ static void fillingIn_resolveSelfLoop(Cap * ancestor,
 	alterEgoParent = fillingIn_constructStub(topEvent, group); //construct the parent stub (and possible a root cap above it).
 	End *newStubEnd = cap_getEnd(alterEgoParent);
 	alterEgoChild = cap_construct(newStubEnd, cap_getEvent(interpolationJoin));
-		logInfo("Constructing %p\n", alterEgoChild);
+		st_logInfo("Constructing %p\n", alterEgoChild);
 	alterEgoAdjacency1 = cap_construct(newStubEnd, middleChildEvent);
-		logInfo("Constructing %p\n", alterEgoAdjacency1);
+		st_logInfo("Constructing %p\n", alterEgoAdjacency1);
 	alterEgoAdjacency2 = cap_construct(newStubEnd, middleChildEvent);
-		logInfo("Constructing %p\n", alterEgoAdjacency2);
+		st_logInfo("Constructing %p\n", alterEgoAdjacency2);
 
 	cap_makeParentAndChild(alterEgoParent, alterEgoChild);
 	cap_makeParentAndChild(alterEgoChild, alterEgoAdjacency1);
@@ -1204,9 +1204,9 @@ void fillingIn_fillAdjacencies(Net * net)
 	//////////////////////////////////////////////////////////////
 	// Define a computation front
 	//////////////////////////////////////////////////////////////
-	logInfo("Registering leaf caps\n");
+	st_logInfo("Registering leaf caps\n");
 	while ((cap = net_getNextCap(iter))) {
-		logInfo("Testing possible leaf %p\n", cap);
+		st_logInfo("Testing possible leaf %p\n", cap);
 		if (cap_getChildNumber(cap) == 0)
 			fillingIn_registerLeafCap(cap, table);
 	}
@@ -1215,7 +1215,7 @@ void fillingIn_fillAdjacencies(Net * net)
 	//////////////////////////////////////////////////////////////
 	// Compute greedily
 	//////////////////////////////////////////////////////////////
-	logInfo("Propagation\n");
+	st_logInfo("Propagation\n");
 	while (table->computationFront->length > 0)
 		fillingIn_stepForward(listRemoveFirst(table->computationFront), table);
 
@@ -1231,13 +1231,13 @@ void fillingIn_fillAdjacencies(Net * net)
 	//////////////////////////////////////////////////////////////
 	// Remove self loops
 	//////////////////////////////////////////////////////////////
-	logInfo("Removing self-loops\n");
+	st_logInfo("Removing self-loops\n");
 	fillingIn_removeSelfLoops(net);
 
 	//////////////////////////////////////////////////////////////
 	// Clean up
 	//////////////////////////////////////////////////////////////
-	logInfo("Clean up\n");
+	st_logInfo("Clean up\n");
 	adjacencyVoteTable_destruct(table);
 }
 
@@ -1299,10 +1299,10 @@ int main(int argc, char ** argv) {
 
 		switch(key) {
 			case 'a':
-				logLevelString = stringCopy(optarg);
+				logLevelString = st_string_copy(optarg);
 				break;
 			case 'c':
-				netDiskName = stringCopy(optarg);
+				netDiskName = st_string_copy(optarg);
 				break;
 			case 'h':
 				usage();
@@ -1326,24 +1326,24 @@ int main(int argc, char ** argv) {
 	//////////////////////////////////////////////
 
 	if(logLevelString != NULL && strcmp(logLevelString, "INFO") == 0) {
-		setLogLevel(LOGGING_INFO);
+		st_setLogLevel(ST_LOGGING_INFO);
 	}
 	if(logLevelString != NULL && strcmp(logLevelString, "DEBUG") == 0) {
-		setLogLevel(LOGGING_DEBUG);
+		st_setLogLevel(ST_LOGGING_DEBUG);
 	}
 
 	//////////////////////////////////////////////
 	//Log (some of) the inputs
 	//////////////////////////////////////////////
 
-	logInfo("Net disk name : %s\n", netDiskName);
+	st_logInfo("Net disk name : %s\n", netDiskName);
 
 	//////////////////////////////////////////////
 	//Load the database
 	//////////////////////////////////////////////
 
 	netDisk = netDisk_construct(netDiskName);
-	logInfo("Set up the net disk\n");
+	st_logInfo("Set up the net disk\n");
 
 	//////////////////////////////////////////////
 	//For each net do tree building..
@@ -1351,7 +1351,7 @@ int main(int argc, char ** argv) {
 
 	for (j = optind; j < argc; j++) {
 		const char *netName = argv[j];
-		logInfo("Processing the net named: %s\n", netName);
+		st_logInfo("Processing the net named: %s\n", netName);
 
 		///////////////////////////////////////////////////////////////////////////
 		// Parse the basic reconstruction problem
@@ -1359,14 +1359,14 @@ int main(int argc, char ** argv) {
 
 		net = netDisk_getNet(netDisk, netMisc_stringToName(netName));
 		assert(net_builtTrees(net)); //we must have already built the trees for the problem at this stage
-		logInfo("Parsed the net to be refined\n");
+		st_logInfo("Parsed the net to be refined\n");
 
 		///////////////////////////////////////////////////////////////////////////
 		// Do nothing if we have already built the faces.
 		///////////////////////////////////////////////////////////////////////////
 
 		if(net_builtFaces(net)) {
-			logInfo("We have already built faces for net %s\n", netName);
+			st_logInfo("We have already built faces for net %s\n", netName);
 			continue;
 		}
 
@@ -1375,7 +1375,7 @@ int main(int argc, char ** argv) {
 		///////////////////////////////////////////////////////////////////////////
 
 		if(!net_isLeaf(net)) {
-			logInfo("We currently only build nets for terminal problems: %s\n", netName);
+			st_logInfo("We currently only build nets for terminal problems: %s\n", netName);
 			continue;
 		}
 		assert(net_isTerminal(net));
@@ -1388,7 +1388,7 @@ int main(int argc, char ** argv) {
 		startTime = time(NULL);
 		fillingIn_fillAdjacencies(net);
 		buildFaces_buildAndProcessFaces(net);
-		logInfo("Processed the nets in: %i seconds\n", time(NULL) - startTime);
+		st_logInfo("Processed the nets in: %i seconds\n", time(NULL) - startTime);
 
 		///////////////////////////////////////////////////////////////////////////
 		//Set the faces in the net to 'built' status, which triggers the building
@@ -1405,7 +1405,7 @@ int main(int argc, char ** argv) {
 
 	startTime = time(NULL);
 	netDisk_write(netDisk);
-	logInfo("Updated the net on disk in: %i seconds\n", time(NULL) - startTime);
+	st_logInfo("Updated the net on disk in: %i seconds\n", time(NULL) - startTime);
 
 	///////////////////////////////////////////////////////////////////////////
 	//(15) Clean up.
@@ -1415,7 +1415,7 @@ int main(int argc, char ** argv) {
 	startTime = time(NULL);
 	netDisk_destruct(netDisk);
 
-	logInfo("Cleaned stuff up and am finished in: %i seconds\n", time(NULL) - startTime);
+	st_logInfo("Cleaned stuff up and am finished in: %i seconds\n", time(NULL) - startTime);
 	return 0;
 
 }

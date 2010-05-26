@@ -16,9 +16,9 @@ MetaEvent *metaEvent_construct(const char *header,
 MetaEvent *metaEvent_construct2(Name name, const char *header,
 		NetDisk *netDisk) {
 	MetaEvent *metaEvent;
-	metaEvent = mallocLocal(sizeof(MetaEvent));
+	metaEvent = st_malloc(sizeof(MetaEvent));
 	metaEvent->name = name;
-	metaEvent->header = stringCopy(header != NULL ? header : "");
+	metaEvent->header = st_string_copy(header != NULL ? header : "");
 	metaEvent->netDisk = netDisk;
 	netDisk_addMetaEvent(netDisk, metaEvent);
 	return metaEvent;

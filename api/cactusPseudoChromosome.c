@@ -84,7 +84,7 @@ static int32_t pseudoChromosome_constructP(const void *o1, const void *o2, void 
 
 PseudoChromosome *pseudoChromosome_construct2(Name name, Reference *reference,
 		End *_5End, End *_3End) {
-	PseudoChromosome *pseudoChromosome = mallocLocal(sizeof(PseudoChromosome));
+	PseudoChromosome *pseudoChromosome = st_malloc(sizeof(PseudoChromosome));
 	assert(name != NULL_NAME);
 	assert(reference != NULL);
 	assert(_5End != NULL);

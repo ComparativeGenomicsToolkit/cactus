@@ -10,7 +10,7 @@
 
 Sequence *sequence_construct(MetaSequence *metaSequence, Net *net) {
 	Sequence *sequence;
-	sequence = mallocLocal(sizeof(Sequence));
+	sequence = st_malloc(sizeof(Sequence));
 	sequence->metaSequence = metaSequence;
 	sequence->net = net;
 	net_addSequence(net, sequence);

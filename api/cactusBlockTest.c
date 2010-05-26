@@ -205,10 +205,10 @@ void testBlock_makeNewickString(CuTest *testCase) {
 	char *cA2 = block_makeNewickString(block, 1, 1);
 	char *cA3 = block_makeNewickString(block, 0, 0);
 	char *cA4 = block_makeNewickString(block, 0, 1);
-	uglyf(" I got the block tree string 1 0: %s\n", cA1);
-	uglyf(" I got the block tree string 1 1: %s\n", cA2);
-	uglyf(" I got the block tree string 0 0: %s\n", cA3);
-	uglyf(" I got the block tree string 0 1: %s\n", cA4);
+	st_uglyf(" I got the block tree string 1 0: %s\n", cA1);
+	st_uglyf(" I got the block tree string 1 1: %s\n", cA2);
+	st_uglyf(" I got the block tree string 0 0: %s\n", cA3);
+	st_uglyf(" I got the block tree string 0 1: %s\n", cA4);
 	//CuAssertStrEquals(testCase, "(B,E)8;", cA);
 	free(cA1);
 	free(cA2);

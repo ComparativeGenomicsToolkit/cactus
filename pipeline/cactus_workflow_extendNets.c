@@ -50,10 +50,10 @@ int main(int argc, char *argv[]) {
 
 	assert(argc == 5);
 	netDisk = netDisk_construct(argv[1]);
-	logInfo("Set up the net disk\n");
+	st_logInfo("Set up the net disk\n");
 
 	net = netDisk_getNet(netDisk, netMisc_stringToName(argv[2]));
-	logInfo("Parsed the net\n");
+	st_logInfo("Parsed the net\n");
 
 	int32_t minSizeToExtend;
 	assert(sscanf(argv[4], "%i", &minSizeToExtend) == 1);
@@ -63,10 +63,10 @@ int main(int argc, char *argv[]) {
 	fclose(fileHandle);
 
 	netDisk_write(netDisk);
-	logInfo("Updated the netdisk\n");
+	st_logInfo("Updated the netdisk\n");
 
 	netDisk_destruct(netDisk);
 
-	logInfo("Am finished\n");
+	st_logInfo("Am finished\n");
 	return 0;
 }

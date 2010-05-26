@@ -132,14 +132,14 @@ void testPrintCanonicalReference(CuTest *testCase) {
 	while((pC = reference_getNextPseudoChromosome(pseudoChromosomeIterator)) != NULL) {
 		PseudoChromsome_PseudoAdjacencyIterator *pseudoAdjacencyIterator = pseudoChromosome_getPseudoAdjacencyIterator(pC);
 		PseudoAdjacency *pA;
-		uglyf("Printing pseudo chromosome %s\n", netMisc_nameToStringStatic(pseudoChromosome_getName(pC)));
-		uglyf("The 5 end of the pseudo-chromosome %s\n", netMisc_nameToStringStatic(end_getName(pseudoChromosome_get5End(pC))));
+		st_uglyf("Printing pseudo chromosome %s\n", netMisc_nameToStringStatic(pseudoChromosome_getName(pC)));
+		st_uglyf("The 5 end of the pseudo-chromosome %s\n", netMisc_nameToStringStatic(end_getName(pseudoChromosome_get5End(pC))));
 		while((pA = pseudoChromosome_getNextPseudoAdjacency(pseudoAdjacencyIterator)) != NULL) {
-			uglyf("Printing pseudo adjacency %s\n", netMisc_nameToStringStatic(pseudoAdjacency_getName(pA)));
-			uglyf("The pseudo adjacency containing 5 end: %s", netMisc_nameToStringStatic(end_getName(pseudoAdjacency_get5End(pA))));
-			uglyf("and 3 end %s\n", netMisc_nameToStringStatic(end_getName(pseudoAdjacency_get3End(pA))));
+			st_uglyf("Printing pseudo adjacency %s\n", netMisc_nameToStringStatic(pseudoAdjacency_getName(pA)));
+			st_uglyf("The pseudo adjacency containing 5 end: %s", netMisc_nameToStringStatic(end_getName(pseudoAdjacency_get5End(pA))));
+			st_uglyf("and 3 end %s\n", netMisc_nameToStringStatic(end_getName(pseudoAdjacency_get3End(pA))));
 		}
-		uglyf("The 3 end of the pseudo-chromosome %s\n", netMisc_nameToStringStatic(end_getName(pseudoChromosome_get3End(pC))));
+		st_uglyf("The 3 end of the pseudo-chromosome %s\n", netMisc_nameToStringStatic(end_getName(pseudoChromosome_get3End(pC))));
 		pseudoChromosome_destructPseudoAdjacencyIterator(pseudoAdjacencyIterator);
 	}
 	reference_destructPseudoChromosomeIterator(pseudoChromosomeIterator);

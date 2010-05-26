@@ -15,7 +15,7 @@ static int32_t reference_constructP(const void *o1, const void *o2, void *a) {
 }
 
 Reference *reference_construct(Net *net) {
-	Reference *reference = mallocLocal(sizeof(Reference));
+	Reference *reference = st_malloc(sizeof(Reference));
 	//Setup the basic structure - a sorted set of pseudo-chromosomes.
 	reference->pseudoChromosomes = st_sortedSet_construct(reference_constructP);
 	//Link the reference and net.

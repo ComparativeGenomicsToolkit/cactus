@@ -146,7 +146,7 @@ void makePSLHeader(Net *net, FILE *fileHandle) {
 char *formatSequenceHeader(Sequence *sequence) {
    const char *sequenceHeader = sequence_getHeader(sequence);
    if(strlen(sequenceHeader) > 0) {
-      char *cA = mallocLocal(sizeof(char) *(1 + strlen(sequenceHeader)));
+      char *cA = st_malloc(sizeof(char) *(1 + strlen(sequenceHeader)));
       sscanf(sequenceHeader, "%s", cA);
       return cA;
    }
@@ -1257,25 +1257,25 @@ int main(int argc, char *argv[]) {
 
       switch(key) {
          case 'a':
-            logLevelString = stringCopy(optarg);
+            logLevelString = st_string_copy(optarg);
             break;
          case 'c':
-            netDiskName = stringCopy(optarg);
+            netDiskName = st_string_copy(optarg);
             break;
          case 'e':
-            outputFile = stringCopy(optarg);
+            outputFile = st_string_copy(optarg);
             break;
          case 'q':
-            query = stringCopy(optarg);
+            query = st_string_copy(optarg);
             break;
          case 't':
-            target = stringCopy(optarg);
+            target = st_string_copy(optarg);
             break;
          case 'r':
-            ref = stringCopy(optarg);
+            ref = st_string_copy(optarg);
             break;
          case 'o':
-            sscanf(stringCopy(optarg), "%d", &offset);
+            sscanf(st_string_copy(optarg), "%d", &offset);
             break;
          case 'g':
             tangle = true;
@@ -1306,35 +1306,35 @@ int main(int argc, char *argv[]) {
    //////////////////////////////////////////////
 
    if(logLevelString != NULL && strcmp(logLevelString, "INFO") == 0) {
-      setLogLevel(LOGGING_INFO);
+      st_setLogLevel(ST_LOGGING_INFO);
    }
    if(logLevelString != NULL && strcmp(logLevelString, "DEBUG") == 0) {
-      setLogLevel(LOGGING_DEBUG);
+      st_setLogLevel(ST_LOGGING_DEBUG);
    }
 
    //////////////////////////////////////////////
    //Log (some of) the inputs
    //////////////////////////////////////////////
 
-   logInfo("Net disk name : %s\n", netDiskName);
-   logInfo("Net name : %s\n", netName);
-   logInfo("Output PSL file : %s\n", outputFile);
-   logInfo("Query: %s\n", query);
-   logInfo("Target: %s\n", target);
+   st_logInfo("Net disk name : %s\n", netDiskName);
+   st_logInfo("Net name : %s\n", netName);
+   st_logInfo("Output PSL file : %s\n", outputFile);
+   st_logInfo("Query: %s\n", query);
+   st_logInfo("Target: %s\n", target);
 
    //////////////////////////////////////////////
    //Load the database
    //////////////////////////////////////////////
 
    netDisk = netDisk_construct(netDiskName);
-   logInfo("Set up the net disk\n");
+   st_logInfo("Set up the net disk\n");
 
    ///////////////////////////////////////////////////////////////////////////
    // Parse the basic reconstruction problem
    ///////////////////////////////////////////////////////////////////////////
-   netName = stringCopy("0");
+   netName = st_string_copy("0");
    net = netDisk_getNet(netDisk, netMisc_stringToName(netName));
-   logInfo("Parsed the top level net of the cactus tree to check\n");
+   st_logInfo("Parsed the top level net of the cactus tree to check\n");
 
    ///////////////////////////////////////////////////////////////////////////
    // Recursive check the nets.
@@ -1349,7 +1349,7 @@ int main(int argc, char *argv[]) {
    }
    getAllPSLs(net, fileHandle, query, target, refpsl, offset, tangle, exhaust);
    fclose(fileHandle);
-   logInfo("Got the psls in %i seconds/\n", time(NULL) - startTime);
+   st_logInfo("Got the psls in %i seconds/\n", time(NULL) - startTime);
 
    ///////////////////////////////////////////////////////////////////////////
    // Clean up.

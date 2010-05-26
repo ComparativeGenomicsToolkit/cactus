@@ -13,7 +13,7 @@ MetaSequence *metaSequence_construct2(Name name, int32_t start,
 		Name eventName, NetDisk *netDisk) {
 	MetaSequence *metaSequence;
 
-	metaSequence = mallocLocal(sizeof(MetaSequence));
+	metaSequence = st_malloc(sizeof(MetaSequence));
 	metaSequence->name = name;
 	assert(length >= 0);
 	metaSequence->start = start;
@@ -21,7 +21,7 @@ MetaSequence *metaSequence_construct2(Name name, int32_t start,
 	metaSequence->fileOffset = fileOffset;
 	metaSequence->eventName = eventName;
 	metaSequence->netDisk = netDisk;
-	metaSequence->header = stringCopy(header != NULL ? header : "");
+	metaSequence->header = st_string_copy(header != NULL ? header : "");
 
 	netDisk_addMetaSequence(netDisk, metaSequence);
 	return metaSequence;

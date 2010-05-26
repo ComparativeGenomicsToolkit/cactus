@@ -40,8 +40,8 @@ struct Piece *constructPiece(Name contig, int32_t start, int32_t end) {
 	struct Piece *piece;
 	struct Piece *rPiece;
 
-	piece = (struct Piece *)mallocLocal(sizeof(struct Piece));
-	rPiece = (struct Piece *)mallocLocal(sizeof(struct Piece));
+	piece = (struct Piece *)st_malloc(sizeof(struct Piece));
+	rPiece = (struct Piece *)st_malloc(sizeof(struct Piece));
 
 	piece->rPiece = rPiece;
 	rPiece->rPiece = piece;
@@ -56,7 +56,7 @@ void destructPiece(struct Piece *piece) {
 }
 
 void logPiece(struct Piece *piece) {
-	logDebug("Contig : " INT_STRING ", start : " INT_STRING ", end : " INT_STRING "\n",
+	st_logDebug("Contig : " INT_STRING ", start : " INT_STRING ", end : " INT_STRING "\n",
 			piece->contig, piece->start, piece->end);
 }
 
@@ -105,7 +105,7 @@ int pieceComparator(struct Piece *piece1, struct Piece *piece2) {
 struct PinchVertex *constructPinchVertex(struct PinchGraph *graph, int32_t vertexID, bool isEnd, bool isDeadEnd) {
 	struct PinchVertex *pinchVertex;
 
-	pinchVertex = mallocLocal(sizeof(struct PinchVertex));
+	pinchVertex = st_malloc(sizeof(struct PinchVertex));
 
 	pinchVertex->blackEdges = constructBlackEdges();
 	pinchVertex->greyEdges = constructGreyEdges();
@@ -286,7 +286,7 @@ struct PinchVertex *popGreyEdge(struct PinchVertex *vertex)  {
 
 void *getGreyEdgeIterator(struct PinchVertex *vertex) {
 	struct avl_traverser *iterator;
-	iterator = mallocLocal(sizeof(struct avl_traverser));
+	iterator = st_malloc(sizeof(struct avl_traverser));
 	avl_t_init(iterator, vertex->greyEdges);
 	return iterator;
 }
@@ -360,7 +360,7 @@ struct PinchEdge *popBlackEdge(struct PinchVertex *vertex)  {
 
 void *getBlackEdgeIterator(struct PinchVertex *vertex) {
 	struct avl_traverser *iterator;
-	iterator = mallocLocal(sizeof(struct avl_traverser));
+	iterator = st_malloc(sizeof(struct avl_traverser));
 	avl_t_init(iterator, vertex->blackEdges);
 	return iterator;
 }
@@ -388,8 +388,8 @@ struct PinchEdge *constructPinchEdge(struct Piece *piece) {
 	struct PinchEdge *pinchEdge;
 	struct PinchEdge *rPinchEdge;
 
-	pinchEdge = mallocLocal(sizeof(struct PinchEdge));
-	rPinchEdge = mallocLocal(sizeof(struct PinchEdge));
+	pinchEdge = st_malloc(sizeof(struct PinchEdge));
+	rPinchEdge = st_malloc(sizeof(struct PinchEdge));
 
 	pinchEdge->rEdge = rPinchEdge;
 	rPinchEdge->rEdge = pinchEdge;
@@ -631,7 +631,7 @@ int32_t isAStub(struct PinchEdge *edge) {
 struct PinchGraph *pinchGraph_construct() {
 	struct PinchGraph *pinchGraph;
 
-	pinchGraph = mallocLocal(sizeof(struct PinchGraph));
+	pinchGraph = st_malloc(sizeof(struct PinchGraph));
 	pinchGraph->edges = avl_create((int32_t (*)(const void *, const void *, void *a))edgeComparator, NULL, NULL);
 	pinchGraph->vertices = constructEmptyList(0, (void (*)(void *))destructPinchVertex);
 	constructPinchVertex(pinchGraph, -1, 0, 0);
@@ -674,7 +674,7 @@ struct VertexChain {
 struct VertexChain *constructVertexChain() {
 	struct VertexChain *vertexChain;
 
-	vertexChain = mallocLocal(sizeof(struct VertexChain));
+	vertexChain = st_malloc(sizeof(struct VertexChain));
 	vertexChain->listOfVertices = constructEmptyList(0, NULL);
 	vertexChain->coordinates = constructEmptyIntList(0);
 	vertexChain->leftsOrRights = constructEmptyIntList(0);
@@ -1217,7 +1217,7 @@ void writeOutPinchGraphWithChains(struct PinchGraph *pinchGraph, struct hashtabl
 	struct List *group;
 	char *colour;
 
-	logDebug("Writing the pinch graph\n");
+	st_logDebug("Writing the pinch graph\n");
 
 	hash2 = create_hashtable(pinchGraph->vertices->length*10,
 							 hashtable_key, hashtable_equalKey,
@@ -1233,7 +1233,7 @@ void writeOutPinchGraphWithChains(struct PinchGraph *pinchGraph, struct hashtabl
 		}
 	}
 
-	logDebug("Done the preliminaries\n");
+	st_logDebug("Done the preliminaries\n");
 
 	//Write the preliminaries.
 	fprintf(fileHandle, "graph G {\n");
@@ -1249,7 +1249,7 @@ void writeOutPinchGraphWithChains(struct PinchGraph *pinchGraph, struct hashtabl
 		fprintf(fileHandle, "n" INT_STRING "n [label=\"" INT_STRING "\"];\n", vertex->vertexID, vertex->vertexID);
 	}
 
-	logDebug("Written the vertices\n");
+	st_logDebug("Written the vertices\n");
 
 	for(i=0; i<pinchGraph->vertices->length;i++) {
 		vertex = pinchGraph->vertices->list[i];
@@ -1273,7 +1273,7 @@ void writeOutPinchGraphWithChains(struct PinchGraph *pinchGraph, struct hashtabl
 		}
 	}
 
-	logDebug("Written the black edges\n");
+	st_logDebug("Written the black edges\n");
 
 	//Write the grey edges.
 	fprintf(fileHandle, "edge[color=grey20,len=2.5,weight=100,dir=none];\n");
@@ -1300,9 +1300,9 @@ void writeOutPinchGraphWithChains(struct PinchGraph *pinchGraph, struct hashtabl
 	}
 	fprintf(fileHandle, "}\n");
 
-	logDebug("Written the grey edges\n");
+	st_logDebug("Written the grey edges\n");
 
 	hashtable_destroy(hash2, TRUE, FALSE);
 
-	logDebug("Written the pinch graph\n");
+	st_logDebug("Written the pinch graph\n");
 }
