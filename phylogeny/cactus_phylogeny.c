@@ -374,6 +374,7 @@ void buildChainTrees(ChainAlignment **chainAlignments, int32_t chainAlignmentNum
 	/*
 	 * Now process and reconcile each new block tree.
 	 */
+	st_logDebug("Starting process and reconcile of new block tree\n");
 	for(i=0; i<chainAlignmentNumber; i++) {
 		struct BinaryTree **blockTrees = st_malloc(sizeof(void *)* refinedBlockNumbers[i]);
 		for(j=0; j<refinedBlockNumbers[i]; j++) {
