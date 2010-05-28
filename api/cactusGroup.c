@@ -97,8 +97,8 @@ void group_updateContainedEnds(Group *group) {
 	while(group_getEndNumber(group) != 0) {
 		end_setGroup(group_getFirstEnd(group), NULL);
 	}
-	st_sortedSet_destruct(group->ends);
-	group->ends = st_sortedSet_construct3(group_constructP, NULL);
+	stSortedSet_destruct(group->ends);
+	group->ends = stSortedSet_construct3(group_constructP, NULL);
 	//now calculate the ends
 	net = group_getNet(group);
 	iterator = net_getEndIterator(group_getNestedNet(group));
@@ -112,7 +112,7 @@ void group_updateContainedEnds(Group *group) {
 
 void group_addEnd(Group *group, End *end) {
 	end = end_getPositiveOrientation(end);
-	st_sortedSet_insert(group->ends, end);
+	stSortedSet_insert(group->ends, end);
 }
 
 void group_destruct(Group *group) {
@@ -121,7 +121,7 @@ void group_destruct(Group *group) {
 	while(group_getEndNumber(group) != 0) {
 		end_setGroup(group_getFirstEnd(group), NULL);
 	}
-	st_sortedSet_destruct(group->ends);
+	stSortedSet_destruct(group->ends);
 	//Free the memory
 	free(group);
 }
@@ -151,7 +151,7 @@ bool group_isLink(Group *group) {
 }
 
 End *group_getFirstEnd(Group *group) {
-	return st_sortedSet_getFirst(group->ends);
+	return stSortedSet_getFirst(group->ends);
 }
 
 End *group_getEnd(Group *group, Name name) {
@@ -159,31 +159,31 @@ End *group_getEnd(Group *group, Name name) {
 	static EndContents endContents;
 	end.endContents = &endContents;
 	endContents.name = name;
-	return st_sortedSet_find(group->ends, &end);
+	return stSortedSet_search(group->ends, &end);
 }
 
 int32_t group_getEndNumber(Group *group) {
-	return st_sortedSet_getLength(group->ends);
+	return stSortedSet_size(group->ends);
 }
 
 Group_EndIterator *group_getEndIterator(Group *group) {
-	return st_sortedSet_getIterator(group->ends);
+	return stSortedSet_getIterator(group->ends);
 }
 
 End *group_getNextEnd(Group_EndIterator *endIterator) {
-	return st_sortedSet_getNext(endIterator);
+	return stSortedSet_getNext(endIterator);
 }
 
 End *group_getPreviousEnd(Group_EndIterator *endIterator) {
-	return st_sortedSet_getPrevious(endIterator);
+	return stSortedSet_getPrevious(endIterator);
 }
 
 Group_EndIterator *group_copyEndIterator(Group_EndIterator *endIterator) {
-	return st_sortedSet_copyIterator(endIterator);
+	return stSortedSet_copyIterator(endIterator);
 }
 
 void group_destructEndIterator(Group_EndIterator *endIterator) {
-	st_sortedSet_destructIterator(endIterator);
+	stSortedSet_destructIterator(endIterator);
 }
 
 int64_t group_getTotalBaseLength(Group *group) {
@@ -333,7 +333,7 @@ Group *group_construct3(Net *net, Name name, bool terminalGroup) {
 	group->net = net;
 	group->link = NULL;
 	group->name = name;
-	group->ends = st_sortedSet_construct3(group_constructP, NULL);
+	group->ends = stSortedSet_construct3(group_constructP, NULL);
 	group->leafGroup = terminalGroup;
 	net_addGroup(net, group);
 
@@ -351,7 +351,7 @@ void group_setLink(Group *group, Link *link) {
 
 void group_removeEnd(Group *group, End *end) {
 	assert(group_getEnd(group, end_getName(end)) == end);
-	st_sortedSet_delete(group->ends, end);
+	stSortedSet_remove(group->ends, end);
 }
 
 void group_setNet(Group *group, Net *net) {

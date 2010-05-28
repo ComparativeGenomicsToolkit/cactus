@@ -216,7 +216,7 @@ void makeTopLevelPseudoChromosomes(Net *net, Reference *reference) {
 	makePseudoChromosomes(net, reference, makeTopLevelPseudoChromosomes_cmpEnds);
 }
 
-static st_Hash *makeIntermediateLevelPseudoChromosomes_cmpEndsP = NULL;
+static stHash *makeIntermediateLevelPseudoChromosomes_cmpEndsP = NULL;
 static Net *makeIntermediateLevelPseudoChromosomes_parentNet = NULL;
 
 static int makeIntermediateLevelPseudoChromosomes_cmpEnds(End **end1, End **end2) {
@@ -232,8 +232,8 @@ static int makeIntermediateLevelPseudoChromosomes_cmpEnds(End **end1, End **end2
 	assert(end_isAttached(end3) || end_isBlockEnd(end3));
 	assert(end_isAttached(end4) || end_isBlockEnd(end4));
 
-	PseudoAdjacency *pseudoAdjacency1 = st_hash_search(makeIntermediateLevelPseudoChromosomes_cmpEndsP, end3);
-	PseudoAdjacency *pseudoAdjacency2 = st_hash_search(makeIntermediateLevelPseudoChromosomes_cmpEndsP, end4);
+	PseudoAdjacency *pseudoAdjacency1 = stHash_search(makeIntermediateLevelPseudoChromosomes_cmpEndsP, end3);
+	PseudoAdjacency *pseudoAdjacency2 = stHash_search(makeIntermediateLevelPseudoChromosomes_cmpEndsP, end4);
 	assert(pseudoAdjacency1 != NULL);
 	assert(pseudoAdjacency2 != NULL);
 	PseudoChromosome *pseudoChromosome1 = pseudoAdjacency_getPseudoChromosome(pseudoAdjacency1);
@@ -270,7 +270,7 @@ void makeIntermediateLevelPseudoChromosomes(Net *net, Reference *reference) {
 
 	makePseudoChromosomes(net, reference, makeIntermediateLevelPseudoChromosomes_cmpEnds);
 
-	st_hash_destruct(makeIntermediateLevelPseudoChromosomes_cmpEndsP);
+	stHash_destruct(makeIntermediateLevelPseudoChromosomes_cmpEndsP);
 }
 
 void addReferenceToNet(Net *net) {

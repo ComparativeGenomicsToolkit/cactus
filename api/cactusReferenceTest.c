@@ -71,24 +71,24 @@ void testReference_pseudoChromosomeIterator(CuTest* testCase) {
 void testReference_getEndToPseudoAdjacencyHash(CuTest* testCase) {
 	testSetup();
 
-	st_Hash *hash = reference_getEndToPseudoAdjacencyHash(reference);
-	CuAssertTrue(testCase, st_hash_search(hash, end1) == pseudoAdjacency1);
-	CuAssertTrue(testCase, st_hash_search(hash, end2) == pseudoAdjacency1);
+	stHash *hash = reference_getEndToPseudoAdjacencyHash(reference);
+	CuAssertTrue(testCase, stHash_search(hash, end1) == pseudoAdjacency1);
+	CuAssertTrue(testCase, stHash_search(hash, end2) == pseudoAdjacency1);
 
-	CuAssertTrue(testCase, st_hash_search(hash, end3) == pseudoAdjacency2);
-	CuAssertTrue(testCase, st_hash_search(hash, end4) == pseudoAdjacency2);
+	CuAssertTrue(testCase, stHash_search(hash, end3) == pseudoAdjacency2);
+	CuAssertTrue(testCase, stHash_search(hash, end4) == pseudoAdjacency2);
 
-	CuAssertTrue(testCase, st_hash_search(hash, end5) == pseudoAdjacency3);
-	CuAssertTrue(testCase, st_hash_search(hash, end6) == pseudoAdjacency3);
+	CuAssertTrue(testCase, stHash_search(hash, end5) == pseudoAdjacency3);
+	CuAssertTrue(testCase, stHash_search(hash, end6) == pseudoAdjacency3);
 
-	CuAssertTrue(testCase, st_hash_search(hash, end7) == pseudoAdjacency4);
-	CuAssertTrue(testCase, st_hash_search(hash, end8) == pseudoAdjacency4);
+	CuAssertTrue(testCase, stHash_search(hash, end7) == pseudoAdjacency4);
+	CuAssertTrue(testCase, stHash_search(hash, end8) == pseudoAdjacency4);
 
 	//Try static wrappers.
-	CuAssertTrue(testCase, st_hash_search(hash, end_getStaticNameWrapper(end_getName(end1))) == pseudoAdjacency1);
-	CuAssertTrue(testCase, st_hash_search(hash, end_getStaticNameWrapper(end_getName(end2))) == pseudoAdjacency1);
+	CuAssertTrue(testCase, stHash_search(hash, end_getStaticNameWrapper(end_getName(end1))) == pseudoAdjacency1);
+	CuAssertTrue(testCase, stHash_search(hash, end_getStaticNameWrapper(end_getName(end2))) == pseudoAdjacency1);
 
-	st_hash_destruct(hash);
+	stHash_destruct(hash);
 
 	testTeardown();
 }

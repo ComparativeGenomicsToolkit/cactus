@@ -51,16 +51,16 @@ int main(int argc, char *argv[]) {
 
         switch(key) {
             case 'a':
-                logLevelString = st_string_copy(optarg);
+                logLevelString = stString_copy(optarg);
                 break;
             case 'c':
-                netDiskName = st_string_copy(optarg);
+                netDiskName = stString_copy(optarg);
                 break;
             case 'd':
-                netName = st_string_copy(optarg);
+                netName = stString_copy(optarg);
                 break;
             case 'e':
-                outputFile = st_string_copy(optarg);
+                outputFile = stString_copy(optarg);
                 break;
             case 'h':
                 usage();

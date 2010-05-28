@@ -53,14 +53,14 @@ Net *net_construct2(Name name, NetDisk *netDisk) {
 
 	net->name = name;
 
-	net->sequences = st_sortedSet_construct3(net_constructSequencesP, NULL);
-	net->caps = st_sortedSet_construct3(net_constructCapsP, NULL);
-	net->ends = st_sortedSet_construct3(net_constructEndsP, NULL);
-	net->segments = st_sortedSet_construct3(net_constructSegmentsP, NULL);
-	net->blocks = st_sortedSet_construct3(net_constructBlocksP, NULL);
-	net->groups = st_sortedSet_construct3(net_constructGroupsP, NULL);
-	net->chains = st_sortedSet_construct3(net_constructChainsP, NULL);
-	net->faces = st_sortedSet_construct3(net_constructFacesP, NULL);
+	net->sequences = stSortedSet_construct3(net_constructSequencesP, NULL);
+	net->caps = stSortedSet_construct3(net_constructCapsP, NULL);
+	net->ends = stSortedSet_construct3(net_constructEndsP, NULL);
+	net->segments = stSortedSet_construct3(net_constructSegmentsP, NULL);
+	net->blocks = stSortedSet_construct3(net_constructBlocksP, NULL);
+	net->groups = stSortedSet_construct3(net_constructGroupsP, NULL);
+	net->chains = stSortedSet_construct3(net_constructChainsP, NULL);
+	net->faces = stSortedSet_construct3(net_constructFacesP, NULL);
 	net->reference = NULL;
 
 	net->parentNetName = NULL_NAME;
@@ -105,7 +105,7 @@ void net_destruct(Net *net, int32_t recursive) {
 	netDisk_unloadNet(net->netDisk, net);
 
 	net_destructFaces(net);
-	st_sortedSet_destruct(net->faces);
+	stSortedSet_destruct(net->faces);
 
 	assert(net_getEventTree(net) != NULL);
 	eventTree_destruct(net_getEventTree(net));
@@ -113,7 +113,7 @@ void net_destruct(Net *net, int32_t recursive) {
 	while((sequence = net_getFirstSequence(net)) != NULL) {
 		sequence_destruct(sequence);
 	}
-	st_sortedSet_destruct(net->sequences);
+	stSortedSet_destruct(net->sequences);
 
 	if(net_getReference(net) != NULL) {
 		reference_destruct(net_getReference(net));
@@ -122,24 +122,24 @@ void net_destruct(Net *net, int32_t recursive) {
 	while((chain = net_getFirstChain(net)) != NULL) {
 		chain_destruct(chain);
 	}
-	st_sortedSet_destruct(net->chains);
+	stSortedSet_destruct(net->chains);
 
 	while((end = net_getFirstEnd(net)) != NULL) {
 		end_destruct(end);
 	}
-	st_sortedSet_destruct(net->caps);
-	st_sortedSet_destruct(net->ends);
+	stSortedSet_destruct(net->caps);
+	stSortedSet_destruct(net->ends);
 
 	while((block = net_getFirstBlock(net)) != NULL) {
 		block_destruct(block);
 	}
-	st_sortedSet_destruct(net->segments);
-	st_sortedSet_destruct(net->blocks);
+	stSortedSet_destruct(net->segments);
+	stSortedSet_destruct(net->blocks);
 
 	while((group = net_getFirstGroup(net)) != NULL) {
 		group_destruct(group);
 	}
-	st_sortedSet_destruct(net->groups);
+	stSortedSet_destruct(net->groups);
 
 
 
@@ -159,85 +159,85 @@ EventTree *net_getEventTree(Net *net) {
 }
 
 Sequence *net_getFirstSequence(Net *net) {
-	return st_sortedSet_getFirst(net->sequences);
+	return stSortedSet_getFirst(net->sequences);
 }
 
 Sequence *net_getSequence(Net *net, Name name) {
 	Sequence *sequence;
 	sequence = sequence_getStaticNameWrapper(name);
-	return st_sortedSet_find(net->sequences, sequence);
+	return stSortedSet_search(net->sequences, sequence);
 }
 
 int32_t net_getSequenceNumber(Net *net) {
-	return st_sortedSet_getLength(net->sequences);
+	return stSortedSet_size(net->sequences);
 }
 
 Net_SequenceIterator *net_getSequenceIterator(Net *net) {
-	return st_sortedSet_getIterator(net->sequences);
+	return stSortedSet_getIterator(net->sequences);
 }
 
 Sequence *net_getNextSequence(Net_SequenceIterator *sequenceIterator) {
-	return st_sortedSet_getNext(sequenceIterator);
+	return stSortedSet_getNext(sequenceIterator);
 }
 
 Sequence *net_getPreviousSequence(Net_SequenceIterator *sequenceIterator) {
-	return st_sortedSet_getPrevious(sequenceIterator);
+	return stSortedSet_getPrevious(sequenceIterator);
 }
 
 Net_SequenceIterator *net_copySequenceIterator(Net_SequenceIterator *sequenceIterator) {
-	return st_sortedSet_copyIterator(sequenceIterator);
+	return stSortedSet_copyIterator(sequenceIterator);
 }
 
 void net_destructSequenceIterator(Net_SequenceIterator *sequenceIterator) {
-	st_sortedSet_destructIterator(sequenceIterator);
+	stSortedSet_destructIterator(sequenceIterator);
 }
 
 Cap *net_getFirstCap(Net *net) {
-	return st_sortedSet_getFirst(net->caps);
+	return stSortedSet_getFirst(net->caps);
 }
 
 Cap *net_getCap(Net *net, Name name) {
 	Cap *cap;
 	cap = cap_getStaticNameWrapper(name);
-	return st_sortedSet_find(net->caps, cap);
+	return stSortedSet_search(net->caps, cap);
 }
 
 int32_t net_getCapNumber(Net *net) {
-	return st_sortedSet_getLength(net->caps);
+	return stSortedSet_size(net->caps);
 }
 
 Net_CapIterator *net_getCapIterator(Net *net) {
-	return st_sortedSet_getIterator(net->caps);
+	return stSortedSet_getIterator(net->caps);
 }
 
 Cap *net_getNextCap(Net_CapIterator *capIterator) {
-	return st_sortedSet_getNext(capIterator);
+	return stSortedSet_getNext(capIterator);
 }
 
 Cap *net_getPreviousCap(Net_CapIterator *capIterator) {
-	return st_sortedSet_getPrevious(capIterator);
+	return stSortedSet_getPrevious(capIterator);
 }
 
 Net_CapIterator *net_copyCapIterator(Net_CapIterator *capIterator) {
-	return st_sortedSet_copyIterator(capIterator);
+	return stSortedSet_copyIterator(capIterator);
 }
 
 void net_destructCapIterator(Net_CapIterator *capIterator) {
-	st_sortedSet_destructIterator(capIterator);
+	stSortedSet_destructIterator(capIterator);
 }
 
 End *net_getFirstEnd(Net *net) {
-	return st_sortedSet_getFirst(net->ends);
+	return stSortedSet_getFirst(net->ends);
 }
 
 End *net_getEnd(Net *net, Name name) {
 	End *end;
 	end = end_getStaticNameWrapper(name);
-	return st_sortedSet_find(net->ends, end);
+	return stSortedSet_search(net->ends, end);
 }
 
 int32_t net_getEndNumber(Net *net) {
-	return st_sortedSet_getLength(net->ends);
+	return stSortedSet_size(net->ends);
 }
 
 int32_t net_getBlockEndNumber(Net *net) {
@@ -266,124 +266,124 @@ int32_t net_getAttachedStubEndNumber(Net *net) {
 }
 
 Net_EndIterator *net_getEndIterator(Net *net) {
-	return st_sortedSet_getIterator(net->ends);
+	return stSortedSet_getIterator(net->ends);
 }
 
 End *net_getNextEnd(Net_EndIterator *endIterator) {
-	return st_sortedSet_getNext(endIterator);
+	return stSortedSet_getNext(endIterator);
 }
 
 End *net_getPreviousEnd(Net_EndIterator *endIterator) {
-	return st_sortedSet_getPrevious(endIterator);
+	return stSortedSet_getPrevious(endIterator);
 }
 
 Net_EndIterator *net_copyEndIterator(Net_EndIterator *endIterator) {
-	return st_sortedSet_copyIterator(endIterator);
+	return stSortedSet_copyIterator(endIterator);
 }
 
 void net_destructEndIterator(Net_EndIterator *endIterator) {
-	st_sortedSet_destructIterator(endIterator);
+	stSortedSet_destructIterator(endIterator);
 }
 
 Segment *net_getFirstSegment(Net *net) {
-	return st_sortedSet_getFirst(net->segments);
+	return stSortedSet_getFirst(net->segments);
 }
 
 Segment *net_getSegment(Net *net, Name name) {
 	Segment *segment;
 	segment = segment_getStaticNameWrapper(name);
-	return st_sortedSet_find(net->segments, segment);
+	return stSortedSet_search(net->segments, segment);
 }
 
 int32_t net_getSegmentNumber(Net *net) {
-	return st_sortedSet_getLength(net->segments);
+	return stSortedSet_size(net->segments);
 }
 
 Net_SegmentIterator *net_getSegmentIterator(Net *net) {
-	return st_sortedSet_getIterator(net->segments);
+	return stSortedSet_getIterator(net->segments);
 }
 
 Segment *net_getNextSegment(Net_SegmentIterator *segmentIterator) {
-	return st_sortedSet_getNext(segmentIterator);
+	return stSortedSet_getNext(segmentIterator);
 }
 
 Segment *net_getPreviousSegment(Net_SegmentIterator *segmentIterator) {
-	return st_sortedSet_getPrevious(segmentIterator);
+	return stSortedSet_getPrevious(segmentIterator);
 }
 
 Net_SegmentIterator *net_copySegmentIterator(Net_SegmentIterator *segmentIterator) {
-	return st_sortedSet_copyIterator(segmentIterator);
+	return stSortedSet_copyIterator(segmentIterator);
 }
 
 void net_destructSegmentIterator(Net_SegmentIterator *segmentIterator) {
-	st_sortedSet_destructIterator(segmentIterator);
+	stSortedSet_destructIterator(segmentIterator);
 }
 
 Block *net_getFirstBlock(Net *net) {
-	return st_sortedSet_getFirst(net->blocks);
+	return stSortedSet_getFirst(net->blocks);
 }
 
 Block *net_getBlock(Net *net, Name name) {
 	Block *block;
 	block = block_getStaticNameWrapper(name);
-	return st_sortedSet_find(net->blocks, block);
+	return stSortedSet_search(net->blocks, block);
 }
 
 int32_t net_getBlockNumber(Net *net) {
-	return st_sortedSet_getLength(net->blocks);
+	return stSortedSet_size(net->blocks);
 }
 
 Net_BlockIterator *net_getBlockIterator(Net *net) {
-	return st_sortedSet_getIterator(net->blocks);
+	return stSortedSet_getIterator(net->blocks);
 }
 
 Block *net_getNextBlock(Net_BlockIterator *blockIterator) {
-	return st_sortedSet_getNext(blockIterator);
+	return stSortedSet_getNext(blockIterator);
 }
 
 Block *net_getPreviousBlock(Net_BlockIterator *blockIterator) {
-	return st_sortedSet_getPrevious(blockIterator);
+	return stSortedSet_getPrevious(blockIterator);
 }
 
 Net_BlockIterator *net_copyBlockIterator(Net_BlockIterator *blockIterator) {
-	return st_sortedSet_copyIterator(blockIterator);
+	return stSortedSet_copyIterator(blockIterator);
 }
 
 void net_destructBlockIterator(Net_BlockIterator *blockIterator) {
-	st_sortedSet_destructIterator(blockIterator);
+	stSortedSet_destructIterator(blockIterator);
 }
 
 Group *net_getFirstGroup(Net *net) {
-	return st_sortedSet_getFirst(net->groups);
+	return stSortedSet_getFirst(net->groups);
 }
 
 Group *net_getGroup(Net *net, Name netName) {
 	Group *group= group_getStaticNameWrapper(netName);
-	return st_sortedSet_find(net->groups, group);
+	return stSortedSet_search(net->groups, group);
 }
 
 int32_t net_getGroupNumber(Net *net) {
-	return st_sortedSet_getLength(net->groups);
+	return stSortedSet_size(net->groups);
 }
 
 Net_GroupIterator *net_getGroupIterator(Net *net) {
-	return st_sortedSet_getIterator(net->groups);
+	return stSortedSet_getIterator(net->groups);
 }
 
 Group *net_getNextGroup(Net_GroupIterator *groupIterator) {
-	return st_sortedSet_getNext(groupIterator);
+	return stSortedSet_getNext(groupIterator);
 }
 
 Group *net_getPreviousGroup(Net_GroupIterator *groupIterator) {
-	return st_sortedSet_getPrevious(groupIterator);
+	return stSortedSet_getPrevious(groupIterator);
 }
 
 Net_GroupIterator *net_copyGroupIterator(Net_GroupIterator *groupIterator) {
-	return st_sortedSet_copyIterator(groupIterator);
+	return stSortedSet_copyIterator(groupIterator);
 }
 
 void net_destructGroupIterator(Net_GroupIterator *groupIterator) {
-	st_sortedSet_destructIterator(groupIterator);
+	stSortedSet_destructIterator(groupIterator);
 }
 
 Group *net_getParentGroup(Net *net) {
@@ -396,64 +396,64 @@ Group *net_getParentGroup(Net *net) {
 }
 
 Chain *net_getFirstChain(Net *net) {
-	return st_sortedSet_getFirst(net->chains);
+	return stSortedSet_getFirst(net->chains);
 }
 
 Chain *net_getChain(Net *net, Name name) {
 	Chain *chain = chain_getStaticNameWrapper(name);
-	return st_sortedSet_find(net->chains, chain);
+	return stSortedSet_search(net->chains, chain);
 }
 
 int32_t net_getChainNumber(Net *net) {
-	return st_sortedSet_getLength(net->chains);
+	return stSortedSet_size(net->chains);
 }
 
 Net_ChainIterator *net_getChainIterator(Net *net) {
-	return st_sortedSet_getIterator(net->chains);
+	return stSortedSet_getIterator(net->chains);
 }
 
 Chain *net_getNextChain(Net_ChainIterator *chainIterator) {
-	return st_sortedSet_getNext(chainIterator);
+	return stSortedSet_getNext(chainIterator);
 }
 
 Chain *net_getPreviousChain(Net_ChainIterator *chainIterator) {
-	return st_sortedSet_getPrevious(chainIterator);
+	return stSortedSet_getPrevious(chainIterator);
 }
 
 Net_ChainIterator *net_copyChainIterator(Net_ChainIterator *chainIterator) {
-	return st_sortedSet_copyIterator(chainIterator);
+	return stSortedSet_copyIterator(chainIterator);
 }
 
 void net_destructChainIterator(Net_ChainIterator *chainIterator) {
-	st_sortedSet_destructIterator(chainIterator);
+	stSortedSet_destructIterator(chainIterator);
 }
 
 Face *net_getFirstFace(Net *net) {
-	return st_sortedSet_getFirst(net->faces);
+	return stSortedSet_getFirst(net->faces);
 }
 
 int32_t net_getFaceNumber(Net *net) {
-	return st_sortedSet_getLength(net->faces);
+	return stSortedSet_size(net->faces);
 }
 
 Net_FaceIterator *net_getFaceIterator(Net *net) {
-	return st_sortedSet_getIterator(net->faces);
+	return stSortedSet_getIterator(net->faces);
 }
 
 Face *net_getNextFace(Net_FaceIterator *faceIterator) {
-	return st_sortedSet_getNext(faceIterator);
+	return stSortedSet_getNext(faceIterator);
 }
 
 Face *net_getPreviousFace(Net_FaceIterator *faceIterator) {
-	return st_sortedSet_getPrevious(faceIterator);
+	return stSortedSet_getPrevious(faceIterator);
 }
 
 Net_FaceIterator *net_copyFaceIterator(Net_FaceIterator *faceIterator) {
-	return st_sortedSet_copyIterator(faceIterator);
+	return stSortedSet_copyIterator(faceIterator);
 }
 
 void net_destructFaceIterator(Net_FaceIterator *faceIterator) {
-	st_sortedSet_destructIterator(faceIterator);
+	stSortedSet_destructIterator(faceIterator);
 }
 
 int64_t net_getTotalBaseLength(Net *net) {
@@ -636,81 +636,81 @@ void net_removeEventTree(Net *net, EventTree *eventTree) {
 }
 
 void net_addSequence(Net *net, Sequence *sequence) {
-	assert(st_sortedSet_find(net->sequences, sequence) == NULL);
-	st_sortedSet_insert(net->sequences, sequence);
+	assert(stSortedSet_search(net->sequences, sequence) == NULL);
+	stSortedSet_insert(net->sequences, sequence);
 }
 
 void net_removeSequence(Net *net, Sequence *sequence) {
-	assert(st_sortedSet_find(net->sequences, sequence) != NULL);
-	st_sortedSet_delete(net->sequences, sequence);
+	assert(stSortedSet_search(net->sequences, sequence) != NULL);
+	stSortedSet_remove(net->sequences, sequence);
 }
 
 void net_addCap(Net *net, Cap *cap) {
 	cap = cap_getPositiveOrientation(cap);
-	assert(st_sortedSet_find(net->caps, cap) == NULL);
-	st_sortedSet_insert(net->caps, cap);
+	assert(stSortedSet_search(net->caps, cap) == NULL);
+	stSortedSet_insert(net->caps, cap);
 }
 
 void net_removeCap(Net *net, Cap *cap) {
 	cap = cap_getPositiveOrientation(cap);
-	assert(st_sortedSet_find(net->caps, cap) != NULL);
-	st_sortedSet_delete(net->caps, cap);
+	assert(stSortedSet_search(net->caps, cap) != NULL);
+	stSortedSet_remove(net->caps, cap);
 }
 
 void net_addEnd(Net *net, End *end) {
 	end = end_getPositiveOrientation(end);
-	assert(st_sortedSet_find(net->ends, end) == NULL);
-	st_sortedSet_insert(net->ends, end);
+	assert(stSortedSet_search(net->ends, end) == NULL);
+	stSortedSet_insert(net->ends, end);
 }
 
 void net_removeEnd(Net *net, End *end) {
 	end = end_getPositiveOrientation(end);
-	assert(st_sortedSet_find(net->ends, end) != NULL);
-	st_sortedSet_delete(net->ends, end);
+	assert(stSortedSet_search(net->ends, end) != NULL);
+	stSortedSet_remove(net->ends, end);
 }
 
 void net_addSegment(Net *net, Segment *segment) {
 	segment = segment_getPositiveOrientation(segment);
-	assert(st_sortedSet_find(net->segments, segment) == NULL);
-	st_sortedSet_insert(net->segments, segment);
+	assert(stSortedSet_search(net->segments, segment) == NULL);
+	stSortedSet_insert(net->segments, segment);
 }
 
 void net_removeSegment(Net *net, Segment *segment) {
 	segment = segment_getPositiveOrientation(segment);
-	assert(st_sortedSet_find(net->segments, segment) != NULL);
-	st_sortedSet_delete(net->segments, segment);
+	assert(stSortedSet_search(net->segments, segment) != NULL);
+	stSortedSet_remove(net->segments, segment);
 }
 
 void net_addBlock(Net *net, Block *block) {
 	block = block_getPositiveOrientation(block);
-	assert(st_sortedSet_find(net->blocks, block) == NULL);
-	st_sortedSet_insert(net->blocks, block);
+	assert(stSortedSet_search(net->blocks, block) == NULL);
+	stSortedSet_insert(net->blocks, block);
 }
 
 void net_removeBlock(Net *net, Block *block) {
 	block = block_getPositiveOrientation(block);
-	assert(st_sortedSet_find(net->blocks, block) != NULL);
-	st_sortedSet_delete(net->blocks, block);
+	assert(stSortedSet_search(net->blocks, block) != NULL);
+	stSortedSet_remove(net->blocks, block);
 }
 
 void net_addChain(Net *net, Chain *chain) {
-	assert(st_sortedSet_find(net->chains, chain) == NULL);
-	st_sortedSet_insert(net->chains, chain);
+	assert(stSortedSet_search(net->chains, chain) == NULL);
+	stSortedSet_insert(net->chains, chain);
 }
 
 void net_removeChain(Net *net, Chain *chain) {
-	assert(st_sortedSet_find(net->chains, chain) != NULL);
-	st_sortedSet_delete(net->chains, chain);
+	assert(stSortedSet_search(net->chains, chain) != NULL);
+	stSortedSet_remove(net->chains, chain);
 }
 
 void net_addGroup(Net *net, Group *group) {
-	assert(st_sortedSet_find(net->groups, group) == NULL);
-	st_sortedSet_insert(net->groups, group);
+	assert(stSortedSet_search(net->groups, group) == NULL);
+	stSortedSet_insert(net->groups, group);
 }
 
 void net_removeGroup(Net *net, Group *group) {
-	assert(st_sortedSet_find(net->groups, group) != NULL);
-	st_sortedSet_delete(net->groups, group);
+	assert(stSortedSet_search(net->groups, group) != NULL);
+	stSortedSet_remove(net->groups, group);
 }
 
 void net_setParentGroup(Net *net, Group *group) {
@@ -719,13 +719,13 @@ void net_setParentGroup(Net *net, Group *group) {
 }
 
 void net_addFace(Net *net, Face *face) {
-	assert(st_sortedSet_find(net->faces, face) == NULL);
-	st_sortedSet_insert(net->faces, face);
+	assert(stSortedSet_search(net->faces, face) == NULL);
+	stSortedSet_insert(net->faces, face);
 }
 
 void net_removeFace(Net *net, Face *face) {
-	assert(st_sortedSet_find(net->faces, face) != NULL);
-	st_sortedSet_delete(net->faces, face);
+	assert(stSortedSet_search(net->faces, face) != NULL);
+	stSortedSet_remove(net->faces, face);
 }
 
 void net_setReference(Net *net, Reference *reference) {

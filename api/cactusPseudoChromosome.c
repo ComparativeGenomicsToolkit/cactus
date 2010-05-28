@@ -31,41 +31,41 @@ Reference *pseudoChromosome_getReference(PseudoChromosome *pseudoChromosome) {
 }
 
 int32_t pseudoChromosome_getPseudoAdjacencyNumber(PseudoChromosome *pseudoChromosome) {
-	return st_sortedSet_getLength(pseudoChromosome->pseudoAdjacencies);
+	return stSortedSet_size(pseudoChromosome->pseudoAdjacencies);
 }
 
 PseudoAdjacency *pseudoChromosome_getPseudoAdjacency(PseudoChromosome *pseudoChromosome, Name name) {
 	PseudoAdjacency *pseudoAdjacency;
 	pseudoAdjacency = pseudoAdjacency_getStaticNameWrapper(name);
-	return st_sortedSet_find(pseudoChromosome->pseudoAdjacencies, pseudoAdjacency);
+	return stSortedSet_search(pseudoChromosome->pseudoAdjacencies, pseudoAdjacency);
 }
 
 PseudoAdjacency *pseudoChromosome_getFirst(PseudoChromosome *pseudoChromosome) {
-	return st_sortedSet_getFirst(pseudoChromosome->pseudoAdjacencies);
+	return stSortedSet_getFirst(pseudoChromosome->pseudoAdjacencies);
 }
 
 PseudoAdjacency *pseudoChromosome_getLast(PseudoChromosome *pseudoChromosome) {
-	return st_sortedSet_getLast(pseudoChromosome->pseudoAdjacencies);
+	return stSortedSet_getLast(pseudoChromosome->pseudoAdjacencies);
 }
 
 PseudoChromsome_PseudoAdjacencyIterator *pseudoChromosome_getPseudoAdjacencyIterator(PseudoChromosome *pseudoChromosome) {
-	return st_sortedSet_getIterator(pseudoChromosome->pseudoAdjacencies);
+	return stSortedSet_getIterator(pseudoChromosome->pseudoAdjacencies);
 }
 
 PseudoAdjacency *pseudoChromosome_getNextPseudoAdjacency(PseudoChromsome_PseudoAdjacencyIterator *pseudoAdjacencyIterator) {
-	return st_sortedSet_getNext(pseudoAdjacencyIterator);
+	return stSortedSet_getNext(pseudoAdjacencyIterator);
 }
 
 PseudoAdjacency *pseudoChromosome_getPreviousPseudoAdjacency(PseudoChromsome_PseudoAdjacencyIterator *pseudoAdjacencyIterator) {
-	return st_sortedSet_getPrevious(pseudoAdjacencyIterator);
+	return stSortedSet_getPrevious(pseudoAdjacencyIterator);
 }
 
 PseudoChromsome_PseudoAdjacencyIterator *pseudoChromosome_copyPseudoChromosomeIterator(PseudoChromsome_PseudoAdjacencyIterator *pseudoAdjacencyIterator) {
-	return st_sortedSet_copyIterator(pseudoAdjacencyIterator);
+	return stSortedSet_copyIterator(pseudoAdjacencyIterator);
 }
 
 void pseudoChromosome_destructPseudoAdjacencyIterator(PseudoChromsome_PseudoAdjacencyIterator *pseudoAdjacencyIterator) {
-	st_sortedSet_destructIterator(pseudoAdjacencyIterator);
+	stSortedSet_destructIterator(pseudoAdjacencyIterator);
 }
 
 ////////////////////////////////////////////////
@@ -90,7 +90,7 @@ PseudoChromosome *pseudoChromosome_construct2(Name name, Reference *reference,
 	assert(_3End != NULL);
 
 
-	pseudoChromosome->pseudoAdjacencies = st_sortedSet_construct3(pseudoChromosome_constructP, NULL);
+	pseudoChromosome->pseudoAdjacencies = stSortedSet_construct3(pseudoChromosome_constructP, NULL);
 	pseudoChromosome->_5End = end_getPositiveOrientation(_5End); //everything is on the positive orientation.
 	pseudoChromosome->_3End = end_getPositiveOrientation(_3End);
 	pseudoChromosome->reference = reference;
@@ -105,18 +105,18 @@ void pseudoChromosome_destruct(PseudoChromosome *pseudoChromosome) {
 	while((pseudoAdjacency = pseudoChromosome_getFirst(pseudoChromosome)) != NULL) {
 		pseudoAdjacency_destruct(pseudoAdjacency);
 	}
-	st_sortedSet_destruct(pseudoChromosome->pseudoAdjacencies);
+	stSortedSet_destruct(pseudoChromosome->pseudoAdjacencies);
 	free(pseudoChromosome);
 }
 
 void pseudoChromosome_addPseudoAdjacency(PseudoChromosome *pseudoChromosome, PseudoAdjacency *pseudoAdjacency) {
-	assert(st_sortedSet_find(pseudoChromosome->pseudoAdjacencies, pseudoAdjacency) == NULL);
-	st_sortedSet_insert(pseudoChromosome->pseudoAdjacencies, pseudoAdjacency);
+	assert(stSortedSet_search(pseudoChromosome->pseudoAdjacencies, pseudoAdjacency) == NULL);
+	stSortedSet_insert(pseudoChromosome->pseudoAdjacencies, pseudoAdjacency);
 }
 
 void pseudoChromosome_removePseudoAdjacency(PseudoChromosome *pseudoChromosome, PseudoAdjacency *pseudoAdjacency) {
-	assert(st_sortedSet_find(pseudoChromosome->pseudoAdjacencies, pseudoAdjacency) != NULL);
-	st_sortedSet_delete(pseudoChromosome->pseudoAdjacencies, pseudoAdjacency);
+	assert(stSortedSet_search(pseudoChromosome->pseudoAdjacencies, pseudoAdjacency) != NULL);
+	stSortedSet_remove(pseudoChromosome->pseudoAdjacencies, pseudoAdjacency);
 }
 
 static PseudoChromosome pseudoChromosome_getStaticNameWrapperP;

@@ -21,7 +21,7 @@ MetaSequence *metaSequence_construct2(Name name, int32_t start,
 	metaSequence->fileOffset = fileOffset;
 	metaSequence->eventName = eventName;
 	metaSequence->netDisk = netDisk;
-	metaSequence->header = st_string_copy(header != NULL ? header : "");
+	metaSequence->header = stString_copy(header != NULL ? header : "");
 
 	netDisk_addMetaSequence(netDisk, metaSequence);
 	return metaSequence;

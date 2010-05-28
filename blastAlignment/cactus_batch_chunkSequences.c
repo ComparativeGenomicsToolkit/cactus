@@ -26,7 +26,7 @@ int32_t fn(char *fastaHeader, int32_t start, char *sequence, int32_t seqLength, 
 	tempSeqFile = getTempFile();
 	fileHandle2 = fopen(tempSeqFile, "w");
 	i = 0;
-	fastaHeader = st_string_copy(fastaHeader);
+	fastaHeader = stString_copy(fastaHeader);
 	while(fastaHeader[i] != '\0') {
 		if(fastaHeader[i] == ' ' || fastaHeader[i] == '\t') {
 			fastaHeader[i] = '\0';

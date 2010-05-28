@@ -135,16 +135,16 @@ int main(int argc, char *argv[]) {
 
 		switch(key) {
 			case 'a':
-				logLevelString = st_string_copy(optarg);
+				logLevelString = stString_copy(optarg);
 				break;
 			case 'b':
-				alignmentsFile = st_string_copy(optarg);
+				alignmentsFile = stString_copy(optarg);
 				break;
 			case 'c':
-				netDiskName = st_string_copy(optarg);
+				netDiskName = stString_copy(optarg);
 				break;
 			case 'd':
-				netName = st_string_copy(optarg);
+				netName = stString_copy(optarg);
 				break;
 			case 'e':
 				cCIP->writeDebugFiles = !cCIP->writeDebugFiles;

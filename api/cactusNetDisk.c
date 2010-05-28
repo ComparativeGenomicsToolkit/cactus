@@ -26,9 +26,9 @@ NetDisk *netDisk_construct(const char *netDiskFile) {
 	int32_t i;
 
 	//construct lists of in memory objects
-	netDisk->metaEvents = st_sortedSet_construct3(netDisk_constructMetaEventsP, NULL);
-	netDisk->metaSequences = st_sortedSet_construct3(netDisk_constructMetaSequencesP, NULL);
-	netDisk->nets = st_sortedSet_construct3(netDisk_constructNetsP, NULL);
+	netDisk->metaEvents = stSortedSet_construct3(netDisk_constructMetaEventsP, NULL);
+	netDisk->metaSequences = stSortedSet_construct3(netDisk_constructMetaSequencesP, NULL);
+	netDisk->nets = stSortedSet_construct3(netDisk_constructNetsP, NULL);
 
 	//the files to write the databases in
 	netDisk->netsDatabaseName = pathJoin(netDiskFile, "nets");
@@ -67,17 +67,17 @@ void netDisk_destruct(NetDisk *netDisk){
 	while((net = netDisk_getFirstNetInMemory(netDisk)) != NULL) {
 		net_destruct(net, FALSE);
 	}
-	st_sortedSet_destruct(netDisk->nets);
+	stSortedSet_destruct(netDisk->nets);
 
 	while((metaSequence = netDisk_getFirstMetaSequenceInMemory(netDisk)) != NULL) {
 		metaSequence_destruct(metaSequence);
 	}
-	st_sortedSet_destruct(netDisk->metaSequences);
+	stSortedSet_destruct(netDisk->metaSequences);
 
 	while((metaEvent = netDisk_getFirstMetaEventInMemory(netDisk)) != NULL) {
 		metaEvent_destruct(metaEvent);
 	}
-	st_sortedSet_destruct(netDisk->metaEvents);
+	stSortedSet_destruct(netDisk->metaEvents);
 
 	//close DBs
 	database_destruct(netDisk->metaDataDatabase);
@@ -116,8 +116,8 @@ void netDisk_write(NetDisk *netDisk) {
 	}
 	netDisk_destructNetsInMemoryIterator(netIterator);
 
-	metaDataIterator = st_sortedSet_getIterator(netDisk->metaSequences);
-	while((metaSequence = st_sortedSet_getNext(metaDataIterator)) != NULL) {
+	metaDataIterator = stSortedSet_getIterator(netDisk->metaSequences);
+	while((metaSequence = stSortedSet_getNext(metaDataIterator)) != NULL) {
 		vA = binaryRepresentation_makeBinaryRepresentation(metaSequence,
 				(void (*)(void *, void (*)(const void * ptr, size_t size, size_t count)))metaSequence_writeBinaryRepresentation, &recordSize);
 		exitOnFailure(database_writeRecord(netDisk->metaDataDatabase, metaSequence_getName(metaSequence), vA, recordSize),
@@ -125,10 +125,10 @@ void netDisk_write(NetDisk *netDisk) {
 				netMisc_nameToStringStatic(metaSequence_getName(metaSequence)));
 		free(vA);
 	}
-	st_sortedSet_destructIterator(metaDataIterator);
+	stSortedSet_destructIterator(metaDataIterator);
 
-	metaDataIterator = st_sortedSet_getIterator(netDisk->metaEvents);
-	while((metaEvent = st_sortedSet_getNext(metaDataIterator)) != NULL) {
+	metaDataIterator = stSortedSet_getIterator(netDisk->metaEvents);
+	while((metaEvent = stSortedSet_getNext(metaDataIterator)) != NULL) {
 		vA = binaryRepresentation_makeBinaryRepresentation(metaEvent,
 				(void (*)(void *, void (*)(const void *, size_t, size_t)))metaEvent_writeBinaryRepresentation, &recordSize);
 		exitOnFailure(database_writeRecord(netDisk->metaDataDatabase, metaEvent_getName(metaEvent), vA, recordSize),
@@ -136,7 +136,7 @@ void netDisk_write(NetDisk *netDisk) {
 				netMisc_nameToStringStatic(metaEvent_getName(metaEvent)));
 		free(vA);
 	}
-	st_sortedSet_destructIterator(metaDataIterator);
+	stSortedSet_destructIterator(metaDataIterator);
 
 	exitOnFailure(database_commitTransaction(netDisk->netsDatabase), "Failed to commit a transaction for the database: %s\n", netDisk->netsDatabaseName);
 	exitOnFailure(database_commitTransaction(netDisk->metaDataDatabase), "Failed to commit a transaction for the database: %s\n", netDisk->metaDataDatabaseName);
@@ -189,27 +189,27 @@ void netDisk_destructNetNamesOnDiskIterator(NetDisk_NetNameIterator *netIterator
 }
 
 int32_t netDisk_getNetNumberInMemory(NetDisk *netDisk) {
-	return st_sortedSet_getLength(netDisk->nets);
+	return stSortedSet_size(netDisk->nets);
 }
 
 NetDisk_NetIterator *netDisk_getNetsInMemoryIterator(NetDisk *netDisk) {
-	return st_sortedSet_getIterator(netDisk->nets);
+	return stSortedSet_getIterator(netDisk->nets);
 }
 
 Net *netDisk_getNextNet(NetDisk_NetIterator *netIterator) {
-	return st_sortedSet_getNext(netIterator);
+	return stSortedSet_getNext(netIterator);
 }
 
 Net *netDisk_getPreviousNet(NetDisk_NetIterator *netIterator) {
-	return st_sortedSet_getPrevious(netIterator);
+	return stSortedSet_getPrevious(netIterator);
 }
 
 NetDisk_NetIterator *netDisk_copyNetIterator(NetDisk_NetIterator *netIterator) {
-	return st_sortedSet_copyIterator(netIterator);
+	return stSortedSet_copyIterator(netIterator);
 }
 
 void netDisk_destructNetsInMemoryIterator(NetDisk_NetIterator *netIterator) {
-	st_sortedSet_destructIterator(netIterator);
+	stSortedSet_destructIterator(netIterator);
 }
 
 /*
@@ -217,8 +217,8 @@ void netDisk_destructNetsInMemoryIterator(NetDisk_NetIterator *netIterator) {
  */
 
 void netDisk_addNet(NetDisk *netDisk, Net *net) {
-	assert(st_sortedSet_find(netDisk->nets, net) == NULL);
-	st_sortedSet_insert(netDisk->nets, net);
+	assert(stSortedSet_search(netDisk->nets, net) == NULL);
+	stSortedSet_insert(netDisk->nets, net);
 }
 
 void netDisk_deleteNetFromDisk(NetDisk *netDisk, Name netName) {
@@ -230,17 +230,17 @@ void netDisk_deleteNetFromDisk(NetDisk *netDisk, Name netName) {
 
 void netDisk_unloadNet(NetDisk *netDisk, Net *net) {
 	assert(netDisk_getNetInMemory(netDisk, net_getName(net)) != NULL);
-	st_sortedSet_delete(netDisk->nets, net);
+	stSortedSet_remove(netDisk->nets, net);
 }
 
 Net *netDisk_getNetInMemory(NetDisk *netDisk, Name netName) {
 	static Net net;
 	net.name = netName;
-	return st_sortedSet_find(netDisk->nets, &net);
+	return stSortedSet_search(netDisk->nets, &net);
 }
 
 Net *netDisk_getFirstNetInMemory(NetDisk *netDisk) {
-	return st_sortedSet_getFirst(netDisk->nets);
+	return stSortedSet_getFirst(netDisk->nets);
 }
 
 /*
@@ -248,8 +248,8 @@ Net *netDisk_getFirstNetInMemory(NetDisk *netDisk) {
  */
 
 void netDisk_addMetaSequence(NetDisk *netDisk, MetaSequence *metaSequence) {
-	assert(st_sortedSet_find(netDisk->metaSequences, metaSequence) == NULL);
-	st_sortedSet_insert(netDisk->metaSequences, metaSequence);
+	assert(stSortedSet_search(netDisk->metaSequences, metaSequence) == NULL);
+	stSortedSet_insert(netDisk->metaSequences, metaSequence);
 }
 
 void netDisk_deleteMetaSequenceFromDisk(NetDisk *netDisk, Name metaSequenceName) {
@@ -259,17 +259,17 @@ void netDisk_deleteMetaSequenceFromDisk(NetDisk *netDisk, Name metaSequenceName)
 	}
 }
 void netDisk_unloadMetaSequence(NetDisk *netDisk, MetaSequence *metaSequence) {
-	st_sortedSet_delete(netDisk->metaSequences, metaSequence);
+	stSortedSet_remove(netDisk->metaSequences, metaSequence);
 }
 
 MetaSequence *netDisk_getFirstMetaSequenceInMemory(NetDisk *netDisk) {
-	return st_sortedSet_getFirst(netDisk->metaSequences);
+	return stSortedSet_getFirst(netDisk->metaSequences);
 }
 
 MetaSequence *netDisk_getMetaSequenceInMemory(NetDisk *netDisk, Name metaSequenceName) {
 	static MetaSequence metaSequence;
 	metaSequence.name = metaSequenceName;
-	return st_sortedSet_find(netDisk->metaSequences, &metaSequence);
+	return stSortedSet_search(netDisk->metaSequences, &metaSequence);
 }
 
 MetaSequence *netDisk_getMetaSequence(NetDisk *netDisk, Name metaSequenceName) {
@@ -284,8 +284,8 @@ return netDisk_getObject(netDisk, netDisk->metaDataDatabase,
  */
 
 void netDisk_addMetaEvent(NetDisk *netDisk, MetaEvent *metaEvent) {
-	assert(st_sortedSet_find(netDisk->metaEvents, metaEvent) == NULL);
-	st_sortedSet_insert(netDisk->metaEvents, metaEvent);
+	assert(stSortedSet_search(netDisk->metaEvents, metaEvent) == NULL);
+	stSortedSet_insert(netDisk->metaEvents, metaEvent);
 }
 
 void netDisk_deleteMetaEventFromDisk(NetDisk *netDisk, Name metaEventName) {
@@ -294,17 +294,17 @@ void netDisk_deleteMetaEventFromDisk(NetDisk *netDisk, Name metaEventName) {
 }
 
 void netDisk_unloadMetaEvent(NetDisk *netDisk, MetaEvent *metaEvent) {
-	st_sortedSet_delete(netDisk->metaEvents, metaEvent);
+	stSortedSet_remove(netDisk->metaEvents, metaEvent);
 }
 
 MetaEvent *netDisk_getFirstMetaEventInMemory(NetDisk *netDisk) {
-	return st_sortedSet_getFirst(netDisk->metaEvents);
+	return stSortedSet_getFirst(netDisk->metaEvents);
 }
 
 MetaEvent *netDisk_getMetaEventInMemory(NetDisk *netDisk, Name metaEventName) {
 	static MetaEvent metaEvent;
 	metaEvent.name = metaEventName;
-	return st_sortedSet_find(netDisk->metaEvents, &metaEvent);
+	return stSortedSet_search(netDisk->metaEvents, &metaEvent);
 }
 
 MetaEvent *netDisk_getMetaEvent(NetDisk *netDisk, Name metaEventName) {

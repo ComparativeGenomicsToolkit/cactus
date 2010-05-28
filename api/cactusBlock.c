@@ -32,7 +32,7 @@ Block *block_construct2(Name name, int32_t length,
 	block->rBlock->orientation = 0;
 
 	block->blockContents->name = name;
-	block->blockContents->segments = st_sortedSet_construct3(blockConstruct_constructP, NULL);
+	block->blockContents->segments = stSortedSet_construct3(blockConstruct_constructP, NULL);
 	block->blockContents->length = length;
 	block->blockContents->net = net;
 
@@ -56,7 +56,7 @@ void block_destruct(Block *block) {
 		segment_destruct(segment);
 	}
 	//now the actual instances.
-	st_sortedSet_destruct(block->blockContents->segments);
+	stSortedSet_destruct(block->blockContents->segments);
 
 	free(block->rBlock);
 	free(block->blockContents);
@@ -96,7 +96,7 @@ End *block_get3End(Block *block) {
 }
 
 int32_t block_getInstanceNumber(Block *block) {
-	return st_sortedSet_getLength(block->blockContents->segments);
+	return stSortedSet_size(block->blockContents->segments);
 }
 
 Segment *block_getInstanceP(Block *block, Segment *connectedSegment) {
@@ -105,11 +105,11 @@ Segment *block_getInstanceP(Block *block, Segment *connectedSegment) {
 
 Segment *block_getInstance(Block *block, Name name) {
 	Segment *segment = segment_getStaticNameWrapper(name);
-	return block_getInstanceP(block, st_sortedSet_find(block->blockContents->segments, segment));
+	return block_getInstanceP(block, stSortedSet_search(block->blockContents->segments, segment));
 }
 
 Segment *block_getFirst(Block *block) {
-	return block_getInstanceP(block, st_sortedSet_getFirst(block->blockContents->segments));
+	return block_getInstanceP(block, stSortedSet_getFirst(block->blockContents->segments));
 }
 
 Segment *block_getRootInstance(Block *block) {
@@ -129,28 +129,28 @@ Block_InstanceIterator *block_getInstanceIterator(Block *block) {
 	Block_InstanceIterator *iterator;
 	iterator = st_malloc(sizeof(struct _block_instanceIterator));
 	iterator->block = block;
-	iterator->iterator = st_sortedSet_getIterator(block->blockContents->segments);
+	iterator->iterator = stSortedSet_getIterator(block->blockContents->segments);
 	return iterator;
 }
 
 Segment *block_getNext(Block_InstanceIterator *iterator) {
-	return block_getInstanceP(iterator->block, st_sortedSet_getNext(iterator->iterator));
+	return block_getInstanceP(iterator->block, stSortedSet_getNext(iterator->iterator));
 }
 
 Segment *block_getPrevious(Block_InstanceIterator *iterator) {
-	return block_getInstanceP(iterator->block, st_sortedSet_getPrevious(iterator->iterator));
+	return block_getInstanceP(iterator->block, stSortedSet_getPrevious(iterator->iterator));
 }
 
 Block_InstanceIterator *block_copyInstanceIterator(Block_InstanceIterator *iterator) {
 	Block_InstanceIterator *iterator2;
 	iterator2 = st_malloc(sizeof(struct _block_instanceIterator));
 	iterator2->block = iterator->block;
-	iterator2->iterator = st_sortedSet_copyIterator(iterator->iterator);
+	iterator2->iterator = stSortedSet_copyIterator(iterator->iterator);
 	return iterator2;
 }
 
 void block_destructInstanceIterator(Block_InstanceIterator *iterator) {
-	st_sortedSet_destructIterator(iterator->iterator);
+	stSortedSet_destructIterator(iterator->iterator);
 	free(iterator);
 }
 
@@ -286,20 +286,20 @@ char *block_makeNewickStringP(Segment *segment, int32_t includeInternalNames, in
 		return block_makeNewickStringP(segment_getChild(segment, 0), includeInternalNames, includeUnaryEvents);
 	}
 	if(segment_getChildNumber(segment) > 0) {
-		char *left = st_string_print("(");
+		char *left = stString_print("(");
 		int32_t i;
 		int32_t comma = 0;
 		for(i=0; i<segment_getChildNumber(segment); i++) {
 			Segment *childSegment = segment_getChild(segment, i);
 			char *cA = block_makeNewickStringP(childSegment, includeInternalNames, includeUnaryEvents);
-			char *cA2 = st_string_print(comma ? "%s,%s" : "%s%s", left, cA);
+			char *cA2 = stString_print(comma ? "%s,%s" : "%s%s", left, cA);
 			free(cA);
 			left = cA2;
 			comma = 1;
 		}
 		char *final = includeInternalNames ?
-				st_string_print("%s)%s", left, netMisc_nameToStringStatic(segment_getName(segment))) :
-				st_string_print("%s)", left);
+				stString_print("%s)%s", left, netMisc_nameToStringStatic(segment_getName(segment))) :
+				stString_print("%s)", left);
 		free(left);
 		return final;
 	}
@@ -311,7 +311,7 @@ char *block_makeNewickString(Block *block, int32_t includeInternalNames, int32_t
 	if(segment != NULL) {
 		assert(segment != NULL);
 		char *cA = block_makeNewickStringP(segment, includeInternalNames, includeUnaryEvents);
-		char *cA2 = st_string_print("%s;", cA);
+		char *cA2 = stString_print("%s;", cA);
 		free(cA);
 		return cA2;
 	}
@@ -323,11 +323,11 @@ char *block_makeNewickString(Block *block, int32_t includeInternalNames, int32_t
  */
 
 void block_addInstance(Block *block, Segment *segment) {
-	st_sortedSet_insert(block->blockContents->segments, segment_getPositiveOrientation(segment));
+	stSortedSet_insert(block->blockContents->segments, segment_getPositiveOrientation(segment));
 }
 
 void block_removeInstance(Block *block, Segment *segment) {
-	st_sortedSet_delete(block->blockContents->segments, segment_getPositiveOrientation(segment));
+	stSortedSet_remove(block->blockContents->segments, segment_getPositiveOrientation(segment));
 }
 
 void block_setNet(Block *block, Net *net) {

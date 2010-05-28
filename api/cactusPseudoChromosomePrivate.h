@@ -5,7 +5,7 @@
 
 struct _pseudoChromosome {
 	Name name;
-	st_SortedSet *pseudoAdjacencies;
+	stSortedSet *pseudoAdjacencies;
 	End *_5End;
 	End *_3End;
 	Reference *reference;

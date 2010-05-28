@@ -135,7 +135,7 @@ static struct List *makeListOfAdjacencyPairs(Net *net) {
 	End *end1;
 	struct List *adjacencies = constructEmptyList(0, NULL);
 	Net_EndIterator *endIterator = net_getEndIterator(net);
-	st_Hash *adjacenciesHash = stHash_construct3(
+	stHash *adjacenciesHash = stHash_construct3(
 			(uint32_t (*)(void *))adjacencyPair_hashKey,
 			(int32_t (*)(void *, void *))adjacencyPair_hashEqual, NULL, NULL);
 	while((end1 = net_getNextEnd(endIterator)) != NULL) {
@@ -149,8 +149,8 @@ static struct List *makeListOfAdjacencyPairs(Net *net) {
 					End *end2 = end_getPositiveOrientation(cap_getEnd(cap2));
 					if(end1 != end2 && (end_isBlockEnd(end2) || end_isAttached(end2))) { //we don't allow free stubs or adjacency pairs which create self loops, as we can traverse a node twice!
 						AdjacencyPair *adjacencyPair = adjacencyPair_construct(end1, end2);
-						if(st_hash_search(adjacenciesHash, adjacencyPair) == NULL) { //
-							st_hash_insert(adjacenciesHash, adjacencyPair, adjacencyPair);
+						if(stHash_search(adjacenciesHash, adjacencyPair) == NULL) { //
+							stHash_insert(adjacenciesHash, adjacencyPair, adjacencyPair);
 							listAppend(adjacencies, adjacencyPair);
 						}
 						else {
@@ -163,33 +163,33 @@ static struct List *makeListOfAdjacencyPairs(Net *net) {
 		}
 	}
 	net_destructEndIterator(endIterator);
-	st_hash_destruct(adjacenciesHash);
+	stHash_destruct(adjacenciesHash);
 	return adjacencies;
 }
 
-static void addAdjacencyPairToHash(st_Hash *adjacenciesHash, AdjacencyPair *adjacencyPair) {
+static void addAdjacencyPairToHash(stHash *adjacenciesHash, AdjacencyPair *adjacencyPair) {
 	/*
 	 * Adds the adjacency pair to the hash.
 	 */
-	st_hash_insert(adjacenciesHash, adjacencyPair_getEnd1(adjacencyPair), adjacencyPair);
-	st_hash_insert(adjacenciesHash, adjacencyPair_getEnd2(adjacencyPair), adjacencyPair);
+	stHash_insert(adjacenciesHash, adjacencyPair_getEnd1(adjacencyPair), adjacencyPair);
+	stHash_insert(adjacenciesHash, adjacencyPair_getEnd2(adjacencyPair), adjacencyPair);
 }
 
-static void removeAndDestructAdjacency(st_Hash *adjacencies, AdjacencyPair *adjacencyPair) {
+static void removeAndDestructAdjacency(stHash *adjacencies, AdjacencyPair *adjacencyPair) {
 	/*
 	 * Removes the adjacency pair from the hash and destroys it.
 	 */
-	assert(st_hash_remove(adjacencies, adjacencyPair_getEnd1(adjacencyPair)) == adjacencyPair);
-	assert(st_hash_remove(adjacencies, adjacencyPair_getEnd2(adjacencyPair)) == adjacencyPair);
+	assert(stHash_remove(adjacencies, adjacencyPair_getEnd1(adjacencyPair)) == adjacencyPair);
+	assert(stHash_remove(adjacencies, adjacencyPair_getEnd2(adjacencyPair)) == adjacencyPair);
 	adjacencyPair_destruct(adjacencyPair);
 }
 
-static st_Hash *choosePairing(struct List *adjacencies, Net *net) {
+static stHash *choosePairing(struct List *adjacencies, Net *net) {
 	/*
 	 * Greedily picks the adjacencies from the list such that each end has one adjacency.
 	 * Destroys the input list in the process.
 	 */
-	st_Hash *adjacenciesHash = stHash_construct();
+	stHash *adjacenciesHash = stHash_construct();
 #ifdef BEN_DEBUG
 	double strength = INT32_MAX;
 #endif
@@ -200,8 +200,8 @@ static st_Hash *choosePairing(struct List *adjacencies, Net *net) {
 		assert(d <= strength);
 		strength = d;
 #endif
-		if(st_hash_search(adjacenciesHash, adjacencyPair_getEnd1(adjacencyPair)) == NULL &&
-		   st_hash_search(adjacenciesHash, adjacencyPair_getEnd2(adjacencyPair)) == NULL) {
+		if(stHash_search(adjacenciesHash, adjacencyPair_getEnd1(adjacencyPair)) == NULL &&
+		   stHash_search(adjacenciesHash, adjacencyPair_getEnd2(adjacencyPair)) == NULL) {
 			addAdjacencyPairToHash(adjacenciesHash, adjacencyPair);
 		}
 		else {
@@ -213,24 +213,24 @@ static st_Hash *choosePairing(struct List *adjacencies, Net *net) {
 	return adjacenciesHash;
 }
 
-void adjacenciesHash_cleanUp(Net *net, st_Hash *adjacencies) {
+void adjacenciesHash_cleanUp(Net *net, stHash *adjacencies) {
 	/*
 	 * Frees the adjacencies pairs in the adjacencies hash safely.
 	 */
 	Net_EndIterator *endIterator = net_getEndIterator(net);
 	End *end;
 	while((end = net_getNextEnd(endIterator)) != NULL) {
-		AdjacencyPair *adjacencyPair = st_hash_search(adjacencies, end);
+		AdjacencyPair *adjacencyPair = stHash_search(adjacencies, end);
 		if(adjacencyPair != NULL) {
 			removeAndDestructAdjacency(adjacencies, adjacencyPair);
 		}
 	}
 	net_destructEndIterator(endIterator);
-	assert(st_hash_size(adjacencies) == 0);
-	st_hash_destruct(adjacencies);
+	assert(stHash_size(adjacencies) == 0);
+	stHash_destruct(adjacencies);
 }
 
-static void addPseudoPseudoAdjacencies(st_Hash *adjacenciesHash, Net *net) {
+static void addPseudoPseudoAdjacencies(stHash *adjacenciesHash, Net *net) {
 	/*
 	 * Adds pseudo-pseudo adjacencies to ends that have no valid adjacency pair in the hash. Added adjacencies
 	 * are put in the hash and the list.
@@ -241,7 +241,7 @@ static void addPseudoPseudoAdjacencies(st_Hash *adjacenciesHash, Net *net) {
 	while((end1 = net_getNextEnd(endIterator)) != NULL) {
 		if(end_isBlockEnd(end1) || end_isAttached(end1)) { //not interested in free stubs.
 			assert(end_getPositiveOrientation(end1) == end1); //should be positive orientation for this to work.
-			if(st_hash_search(adjacenciesHash, end1) == NULL) {
+			if(stHash_search(adjacenciesHash, end1) == NULL) {
 				if(end2 == NULL) {
 					end2 = end1;
 				}
@@ -256,15 +256,15 @@ static void addPseudoPseudoAdjacencies(st_Hash *adjacenciesHash, Net *net) {
 	assert(end2 == NULL); //there must be an even number of pairs.
 }
 
-static void extendComponent(End *end, struct List *component, st_Hash *componentsHash, st_Hash *adjacencies) {
+static void extendComponent(End *end, struct List *component, stHash *componentsHash, stHash *adjacencies) {
 	/*
 	 * Sub-function of get connected components, extends the component.
 	 */
 	assert(end_getOrientation(end));
-	if(st_hash_search(componentsHash, end) == NULL) {
+	if(stHash_search(componentsHash, end) == NULL) {
 		listAppend(component, end);
-		st_hash_insert(componentsHash, end, component);
-		AdjacencyPair *adjacencyPair = st_hash_search(adjacencies, end);
+		stHash_insert(componentsHash, end, component);
+		AdjacencyPair *adjacencyPair = stHash_search(adjacencies, end);
 		if(adjacencyPair != NULL) {
 			extendComponent(adjacencyPair_getOtherEnd(adjacencyPair, end), component, componentsHash, adjacencies);
 		}
@@ -274,17 +274,17 @@ static void extendComponent(End *end, struct List *component, st_Hash *component
 	}
 }
 
-struct List *getConnectedComponents(st_Hash *adjacencies, Net *net) {
+struct List *getConnectedComponents(stHash *adjacencies, Net *net) {
 	/*
 	 * Gets a list of connected components of ends linked by adjacencies and blocks.
 	 */
 	struct List *components = constructEmptyList(0, (void (*)(void *))destructList);
-	st_Hash *componentsHash = stHash_construct();
+	stHash *componentsHash = stHash_construct();
 	End *end;
 	Net_EndIterator *endIterator = net_getEndIterator(net);
 	while((end = net_getNextEnd(endIterator)) != NULL) { //iterates over the positive oriented ends.
 		if(end_isBlockEnd(end) || end_isAttached(end)) { //ignore free stubs
-			struct List *component = st_hash_search(componentsHash, end);
+			struct List *component = stHash_search(componentsHash, end);
 			if(component == NULL) {
 				component = constructEmptyList(0, NULL);
 				listAppend(components, component);
@@ -293,7 +293,7 @@ struct List *getConnectedComponents(st_Hash *adjacencies, Net *net) {
 		}
 	}
 	net_destructEndIterator(endIterator);
-	st_hash_destruct(componentsHash);
+	stHash_destruct(componentsHash);
 	return components;
 }
 
@@ -320,7 +320,7 @@ void getAttachedStubEndsInComponent(struct List *component, End **end1, End **en
 	}
 }
 
-void switchAdjacencies(AdjacencyPair *adjacencyPair1, AdjacencyPair *adjacencyPair2, st_Hash *adjacencies,
+void switchAdjacencies(AdjacencyPair *adjacencyPair1, AdjacencyPair *adjacencyPair2, stHash *adjacencies,
 		AdjacencyPair **adjacencyPair3, AdjacencyPair **adjacencyPair4) {
 	/*
 	 * Removes two adjacencies and destroys them and creates two more (in random configuration of the two possible configs).
@@ -355,17 +355,17 @@ void splitIntoContigsAndCycles(struct List *components, struct List **contigs, s
 	}
 }
 
-AdjacencyPair *getAdjacencyPair(struct List *component, st_Hash *adjacencies) {
+AdjacencyPair *getAdjacencyPair(struct List *component, stHash *adjacencies) {
 	/*
 	 * Gets an adjacency pair from a component.
 	 */
 	assert(component->length > 0);
-	AdjacencyPair *adjacencyPair = st_hash_search(adjacencies, component->list[0]);
+	AdjacencyPair *adjacencyPair = stHash_search(adjacencies, component->list[0]);
 	assert(adjacencyPair != NULL);
 	return adjacencyPair;
 }
 
-void mergeCycles(st_Hash *adjacencies, Net *net) {
+void mergeCycles(stHash *adjacencies, Net *net) {
 	/*
 	 * Merges cycles not containing an attached stub end into components containing attached stub ends,
 	 * Updates adjacencies as we go and destroys the list of components.
@@ -395,12 +395,12 @@ void mergeCycles(st_Hash *adjacencies, Net *net) {
 	destructList(components);
 }
 
-static st_Hash *getCorrectEndPairing(Reference *reference) {
+static stHash *getCorrectEndPairing(Reference *reference) {
 	/*
 	 * Constructs a hash set of adjacency pairs, each pair being the 5 and 3 prime
 	 * ends of a pseudo chromosome in the reference.
 	 */
-	st_Hash *correctEndPairing = stHash_construct();
+	stHash *correctEndPairing = stHash_construct();
 	PseudoChromosome *pseudoChromosome;
 	Reference_PseudoChromosomeIterator *pseudoChromosomeIterator = reference_getPseudoChromosomeIterator(reference);
 	while((pseudoChromosome = reference_getNextPseudoChromosome(pseudoChromosomeIterator)) != NULL) {
@@ -411,8 +411,8 @@ static st_Hash *getCorrectEndPairing(Reference *reference) {
 	return correctEndPairing;
 }
 
-void breakApartMisPairedContigs(st_Hash *correctEndPairing,
-		st_Hash *adjacencies, Net *net) {
+void breakApartMisPairedContigs(stHash *correctEndPairing,
+		stHash *adjacencies, Net *net) {
 	/*
 	 * Breaks apart mispaired contigs.
 	 */
@@ -424,8 +424,8 @@ void breakApartMisPairedContigs(st_Hash *correctEndPairing,
 		getAttachedStubEndsInComponent(components->list[i], &end1, &end2);
 		assert(end1 != NULL);
 		assert(end2 != NULL);
-		AdjacencyPair *adjacencyPair1 = st_hash_search(correctEndPairing, end1); //defensive
-		AdjacencyPair *adjacencyPair2 = st_hash_search(correctEndPairing, end2);
+		AdjacencyPair *adjacencyPair1 = stHash_search(correctEndPairing, end1); //defensive
+		AdjacencyPair *adjacencyPair2 = stHash_search(correctEndPairing, end2);
 		if(adjacencyPair1 != adjacencyPair2) {
 			//Break an adjacency
 			removeAndDestructAdjacency(adjacencies, getAdjacencyPair(component, adjacencies));
@@ -434,7 +434,7 @@ void breakApartMisPairedContigs(st_Hash *correctEndPairing,
 	destructList(components);
 }
 
-End *getFreeEnd(struct List *component, st_Hash *adjacencies) {
+End *getFreeEnd(struct List *component, stHash *adjacencies) {
 	/*
 	 * Gets the end in the component with no adjacency.
 	 */
@@ -442,7 +442,7 @@ End *getFreeEnd(struct List *component, st_Hash *adjacencies) {
 	End *end = NULL;
 	for(i=0; i<component->length; i++) {
 		End *end2 = component->list[i];
-		if(st_hash_search(adjacencies, end2) == NULL) {
+		if(stHash_search(adjacencies, end2) == NULL) {
 			assert(end == NULL);
 			end = end2;
 		}
@@ -451,8 +451,8 @@ End *getFreeEnd(struct List *component, st_Hash *adjacencies) {
 	return end;
 }
 
-void pairBrokenContigs(st_Hash *correctEndPairing,
-		st_Hash *adjacencies, Net *net) {
+void pairBrokenContigs(stHash *correctEndPairing,
+		stHash *adjacencies, Net *net) {
 	/*
 	 * Pairs broken contigs together so that each has two stubs, paired
 	 * according to the correct end pairing.
@@ -465,13 +465,13 @@ void pairBrokenContigs(st_Hash *correctEndPairing,
 		getAttachedStubEndsInComponent(components->list[i], &end1, &end2);
 		assert(end1 != NULL);
 		if(end2 == NULL) { //get the other component
-			AdjacencyPair *adjacencyPair1 = st_hash_search(correctEndPairing, end1);
+			AdjacencyPair *adjacencyPair1 = stHash_search(correctEndPairing, end1);
 			for(j=0; j<i; j++) {
 				End *end3, *end4;
 				getAttachedStubEndsInComponent(components->list[j], &end3, &end4);
 				assert(end3 != NULL);
 				if(end4 == NULL) {
-					AdjacencyPair *adjacencyPair2 = st_hash_search(correctEndPairing, end3);
+					AdjacencyPair *adjacencyPair2 = stHash_search(correctEndPairing, end3);
 					if(adjacencyPair1 == adjacencyPair2) {
 						addAdjacencyPairToHash(adjacencies,
 								adjacencyPair_construct(getFreeEnd(components->list[i], adjacencies),
@@ -484,24 +484,24 @@ void pairBrokenContigs(st_Hash *correctEndPairing,
 	destructList(components);
 }
 
-void correctAttachedStubEndPairing(st_Hash *adjacencies, Net *net, Reference *reference) {
+void correctAttachedStubEndPairing(stHash *adjacencies, Net *net, Reference *reference) {
 	/*
 	 * If a-b and c-d are two components respectively containing stub ends a and b and c and d and the correct pairing
 	 * is a-c b-d then two adjacencies are broken and two are created to make this happen.
 	 * Destructs the list of components as we go.
 	 */
 	//Get the correct end pairings of the pseudo-telomeres in a hash of pseudo adjacencies.
-	st_Hash *correctEndPairing = getCorrectEndPairing(reference);
+	stHash *correctEndPairing = getCorrectEndPairing(reference);
 	breakApartMisPairedContigs(correctEndPairing, adjacencies, net);
 	pairBrokenContigs(correctEndPairing, adjacencies, net);
 	adjacenciesHash_cleanUp(net, correctEndPairing);
 }
 
-static void fillInPseudoAdjacenciesP(End *end1, PseudoChromosome *pseudoChromosome, st_Hash *adjacencies) {
+static void fillInPseudoAdjacenciesP(End *end1, PseudoChromosome *pseudoChromosome, stHash *adjacencies) {
 	/*
 	 * Traverses the connected component of the contig constructing the pseudo-adjacencies in the pseudo-chromosome.
 	 */
-	AdjacencyPair *adjacencyPair = st_hash_search(adjacencies, end1);
+	AdjacencyPair *adjacencyPair = stHash_search(adjacencies, end1);
 	assert(adjacencyPair != NULL);
 	//construct the new pseudo-adjacency!
 	End *end2 = adjacencyPair_getOtherEnd(adjacencyPair, end1);
@@ -534,7 +534,7 @@ static void fillInPseudoAdjacenciesP(End *end1, PseudoChromosome *pseudoChromoso
 	}
 }
 
-static void fillInPseudoAdjacencies(Net *net, Reference *reference, st_Hash *adjacencies) {
+static void fillInPseudoAdjacencies(Net *net, Reference *reference, stHash *adjacencies) {
 	/*
 	 * Walks through the list of pseudo-chromosomes, then
 	 * iterates through the adjacencies populating each psuedo chromosome with adjacencies.
@@ -555,7 +555,7 @@ void makePseudoAdjacencies(Net *net, Reference *reference) {
 	 */
 	struct List *adjacencies = makeListOfAdjacencyPairs(net);
 	qsort(adjacencies->list, adjacencies->length, sizeof(void *), (int (*)(const void *v, const void *))adjacencyPair_cmpFnByStrength);
-	st_Hash *adjacenciesHash = choosePairing(adjacencies, net);
+	stHash *adjacenciesHash = choosePairing(adjacencies, net);
 	addPseudoPseudoAdjacencies(adjacenciesHash, net);
 	mergeCycles(adjacenciesHash, net);
 	correctAttachedStubEndPairing(adjacenciesHash, net, reference);

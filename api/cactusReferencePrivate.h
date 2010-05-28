@@ -4,7 +4,7 @@
 #include "cactusGlobals.h"
 
 struct _reference {
-	st_SortedSet *pseudoChromosomes;
+	stSortedSet *pseudoChromosomes;
 	Net *net;
 };
 

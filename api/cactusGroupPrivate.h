@@ -7,7 +7,7 @@ struct _group {
 	Net *net;
 	Link *link;
 	Name name;
-	st_SortedSet *ends;
+	stSortedSet *ends;
 	bool leafGroup;
 };
 

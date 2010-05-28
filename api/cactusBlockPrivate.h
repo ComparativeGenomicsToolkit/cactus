@@ -5,13 +5,13 @@
 
 typedef struct _blockContents {
 	Name name;
-	st_SortedSet *segments;
+	stSortedSet *segments;
 	int32_t length;
 	Net *net;
 } BlockContents;
 
 struct _block_instanceIterator {
-	st_SortedSetIterator *iterator;
+	stSortedSetIterator *iterator;
 	Block *block;
 };
 

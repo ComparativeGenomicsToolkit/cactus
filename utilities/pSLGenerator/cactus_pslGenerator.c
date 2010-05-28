@@ -1257,25 +1257,25 @@ int main(int argc, char *argv[]) {
 
       switch(key) {
          case 'a':
-            logLevelString = st_string_copy(optarg);
+            logLevelString = stString_copy(optarg);
             break;
          case 'c':
-            netDiskName = st_string_copy(optarg);
+            netDiskName = stString_copy(optarg);
             break;
          case 'e':
-            outputFile = st_string_copy(optarg);
+            outputFile = stString_copy(optarg);
             break;
          case 'q':
-            query = st_string_copy(optarg);
+            query = stString_copy(optarg);
             break;
          case 't':
-            target = st_string_copy(optarg);
+            target = stString_copy(optarg);
             break;
          case 'r':
-            ref = st_string_copy(optarg);
+            ref = stString_copy(optarg);
             break;
          case 'o':
-            sscanf(st_string_copy(optarg), "%d", &offset);
+            sscanf(stString_copy(optarg), "%d", &offset);
             break;
          case 'g':
             tangle = true;
@@ -1332,7 +1332,7 @@ int main(int argc, char *argv[]) {
    ///////////////////////////////////////////////////////////////////////////
    // Parse the basic reconstruction problem
    ///////////////////////////////////////////////////////////////////////////
-   netName = st_string_copy("0");
+   netName = stString_copy("0");
    net = netDisk_getNet(netDisk, netMisc_stringToName(netName));
    st_logInfo("Parsed the top level net of the cactus tree to check\n");
 

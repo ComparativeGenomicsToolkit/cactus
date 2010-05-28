@@ -9,13 +9,13 @@ typedef struct _endContents {
 	bool isAttached;
 	Name name;
 	Block *attachedBlock;
-	st_SortedSet *caps;
+	stSortedSet *caps;
 	Group *group;
 	Net *net;
 } EndContents;
 
 struct _end_instanceIterator {
-	st_SortedSetIterator *iterator;
+	stSortedSetIterator *iterator;
 	End *end;
 };
 

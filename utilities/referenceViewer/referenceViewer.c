@@ -80,7 +80,7 @@ void addBlocks(Net *net, void *extraArgument) {
 	net_destructEndIterator(endIterator);
 }
 
-void addTangle(Group *group, st_Hash *endToPseudoAdjacencyHash, void *extraArgument) {
+void addTangle(Group *group, stHash *endToPseudoAdjacencyHash, void *extraArgument) {
 	/*
 	 * Adds a adjacency edge between pairs of ends connected in a tangle. Does not
 	 * add any adjacency edges between ends already connected by a pseudo-adjacency edge,
@@ -91,8 +91,8 @@ void addTangle(Group *group, st_Hash *endToPseudoAdjacencyHash, void *extraArgum
 	End *end;
 	while((end = group_getNextEnd(endIterator)) != NULL) {
 		if(end_isBlockEnd(end) || end_isAttached(end)) {
-			st_Hash *edgesHash = stHash_construct();
-			PseudoAdjacency *pseudoAdjacency = st_hash_search(endToPseudoAdjacencyHash, end);
+			stHash *edgesHash = stHash_construct();
+			PseudoAdjacency *pseudoAdjacency = stHash_search(endToPseudoAdjacencyHash, end);
 			assert(pseudoAdjacency != NULL);
 			End *otherEnd = pseudoAdjacency_get5End(pseudoAdjacency) == end ? pseudoAdjacency_get3End(pseudoAdjacency) : pseudoAdjacency_get5End(pseudoAdjacency);
 			assert(otherEnd != end);
@@ -106,17 +106,17 @@ void addTangle(Group *group, st_Hash *endToPseudoAdjacencyHash, void *extraArgum
 					assert(adjacentEnd != NULL);
 					if((end_isBlockEnd(adjacentEnd) || end_isAttached(adjacentEnd)) &&
 					   adjacentEnd != otherEnd) {
-						if(st_hash_search(edgesHash, adjacentEnd) == NULL) {
+						if(stHash_search(edgesHash, adjacentEnd) == NULL) {
 							if(netMisc_nameCompare(end_getName(end), end_getName(adjacentEnd)) == 1) { //only add in one direction
 								addAdjacencyEdge(end, adjacentEnd, extraArgument);
 							}
-							st_hash_insert(edgesHash, adjacentEnd, adjacentEnd);
+							stHash_insert(edgesHash, adjacentEnd, adjacentEnd);
 						}
 					}
 				}
 			}
 			end_destructInstanceIterator(capIterator);
-			st_hash_destruct(edgesHash);
+			stHash_destruct(edgesHash);
 		}
 	}
 	group_destructEndIterator(endIterator);
@@ -126,7 +126,7 @@ void addTangles(Net *net, Reference *reference, void *extraArgument) {
 	/*
 	 * Adds adjacency edges representing tangles to the structure.
 	 */
-	st_Hash *endToPseudoAdjacencyHash = reference_getEndToPseudoAdjacencyHash(reference);
+	stHash *endToPseudoAdjacencyHash = reference_getEndToPseudoAdjacencyHash(reference);
 	Net_GroupIterator *groupIterator = net_getGroupIterator(net);
 	Group *group;
 	while((group = net_getNextGroup(groupIterator)) != NULL) {
@@ -135,7 +135,7 @@ void addTangles(Net *net, Reference *reference, void *extraArgument) {
 		}
 	}
 	net_destructGroupIterator(groupIterator);
-	st_hash_destruct(endToPseudoAdjacencyHash);
+	stHash_destruct(endToPseudoAdjacencyHash);
 }
 
 void makeReferenceGraph(Reference *reference, void *extraArgument) {
