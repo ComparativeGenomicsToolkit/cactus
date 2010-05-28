@@ -135,7 +135,7 @@ static struct List *makeListOfAdjacencyPairs(Net *net) {
 	End *end1;
 	struct List *adjacencies = constructEmptyList(0, NULL);
 	Net_EndIterator *endIterator = net_getEndIterator(net);
-	st_Hash *adjacenciesHash = st_hash_construct3(
+	st_Hash *adjacenciesHash = stHash_construct3(
 			(uint32_t (*)(void *))adjacencyPair_hashKey,
 			(int32_t (*)(void *, void *))adjacencyPair_hashEqual, NULL, NULL);
 	while((end1 = net_getNextEnd(endIterator)) != NULL) {
@@ -189,7 +189,7 @@ static st_Hash *choosePairing(struct List *adjacencies, Net *net) {
 	 * Greedily picks the adjacencies from the list such that each end has one adjacency.
 	 * Destroys the input list in the process.
 	 */
-	st_Hash *adjacenciesHash = st_hash_construct();
+	st_Hash *adjacenciesHash = stHash_construct();
 #ifdef BEN_DEBUG
 	double strength = INT32_MAX;
 #endif
@@ -279,7 +279,7 @@ struct List *getConnectedComponents(st_Hash *adjacencies, Net *net) {
 	 * Gets a list of connected components of ends linked by adjacencies and blocks.
 	 */
 	struct List *components = constructEmptyList(0, (void (*)(void *))destructList);
-	st_Hash *componentsHash = st_hash_construct();
+	st_Hash *componentsHash = stHash_construct();
 	End *end;
 	Net_EndIterator *endIterator = net_getEndIterator(net);
 	while((end = net_getNextEnd(endIterator)) != NULL) { //iterates over the positive oriented ends.
@@ -400,7 +400,7 @@ static st_Hash *getCorrectEndPairing(Reference *reference) {
 	 * Constructs a hash set of adjacency pairs, each pair being the 5 and 3 prime
 	 * ends of a pseudo chromosome in the reference.
 	 */
-	st_Hash *correctEndPairing = st_hash_construct();
+	st_Hash *correctEndPairing = stHash_construct();
 	PseudoChromosome *pseudoChromosome;
 	Reference_PseudoChromosomeIterator *pseudoChromosomeIterator = reference_getPseudoChromosomeIterator(reference);
 	while((pseudoChromosome = reference_getNextPseudoChromosome(pseudoChromosomeIterator)) != NULL) {

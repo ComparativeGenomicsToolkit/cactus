@@ -14,9 +14,9 @@ struct _netDisk {
 	TCBDB *netsDatabase;
 	TCBDB *metaDataDatabase;
 	TCBDB *iDDatabase;
-	struct avl_table *metaSequences;
-	struct avl_table *metaEvents;
-	struct avl_table *nets;
+	st_SortedSet *metaSequences;
+	st_SortedSet *metaEvents;
+	st_SortedSet *nets;
 	Name uniqueNumber;
 	Name maxUniqueNumber;
 };

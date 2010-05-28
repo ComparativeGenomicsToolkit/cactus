@@ -272,12 +272,12 @@ struct adjacency_vote_table_st {
 	struct List * computationFront;
 };
 
-static uint32_t hash_from_key_fn(void *key)
+static uint32_t hash_from_key_fn(const void *key)
 {
 	return (uint32_t) cap_getName((Cap *) key);
 }
 
-static int32_t keys_equal_fn(void *key1, void *key2)
+static int keys_equal_fn(const void *key1, const void *key2)
 {
 	return key1 == key2;
 }
@@ -642,7 +642,7 @@ static void fillingIn_pairUpToNullStub(Cap * cap, Cap * nonPartner, AdjacencyVot
 		stubVote = adjacencyVote_construct(1);
 		stubVote->candidates[0] = cap;
 		adjacencyVoteTable_recordVote(table, stub, stubVote);
-		
+
 		// Adjust children for consistency
 		childNumber = cap_getChildNumber(cap);
 		for (childIndex = 0; childIndex < childNumber; childIndex++) {
@@ -713,7 +713,7 @@ static void fillingIn_pairUpToNullStub(Cap * cap, Cap * nonPartner, AdjacencyVot
 		st_logInfo("C");
 		cap_makeParentAndChild(nonPartnerParentStub, stub);
 
-		parentStub = fillingIn_interpolateCaps(parent, cap, parentEvent); 
+		parentStub = fillingIn_interpolateCaps(parent, cap, parentEvent);
 		st_logInfo("D");
 		cap_makeAdjacent(nonPartnerParentStub, parentStub);
 
@@ -750,7 +750,7 @@ static void fillingIn_pairUpToNullStub(Cap * cap, Cap * nonPartner, AdjacencyVot
 		childEvent = cap_getEvent(cap_getChild(cap, 0));
 		for (childIndex = 1; childIndex < childNumber; childIndex++) {
 			child = cap_getChild(cap, childIndex);
-			if (event_isDescendant(cap_getEvent(child), childEvent)) 
+			if (event_isDescendant(cap_getEvent(child), childEvent))
 				childEvent = cap_getEvent(child);
 		}
 
@@ -760,7 +760,7 @@ static void fillingIn_pairUpToNullStub(Cap * cap, Cap * nonPartner, AdjacencyVot
 #endif
 		for (childIndex = 1; childIndex < childNumber; childIndex++) {
 			child = cap_getChild(nonPartner, childIndex);
-			if (event_isDescendant(cap_getEvent(child), childEvent)) 
+			if (event_isDescendant(cap_getEvent(child), childEvent))
 				childEvent = cap_getEvent(child);
 		}
 
@@ -770,7 +770,7 @@ static void fillingIn_pairUpToNullStub(Cap * cap, Cap * nonPartner, AdjacencyVot
 #endif
 		for (childIndex = 1; childIndex < childNumber; childIndex++) {
 			child = cap_getChild(nonPartnerPartner, childIndex);
-			if (event_isDescendant(cap_getEvent(child), childEvent)) 
+			if (event_isDescendant(cap_getEvent(child), childEvent))
 				childEvent = cap_getEvent(child);
 		}
 
@@ -778,7 +778,7 @@ static void fillingIn_pairUpToNullStub(Cap * cap, Cap * nonPartner, AdjacencyVot
 
 		stub = cap_construct(cap_getEnd(cap), childEvent);
 		st_logInfo("Constructing %p\n", stub);
-		while(cap_getChildNumber(cap)) 
+		while(cap_getChildNumber(cap))
 			cap_changeParentAndChild(stub, cap_getChild(cap, 0));
 		cap_makeParentAndChild(cap, stub);
 
@@ -794,7 +794,7 @@ static void fillingIn_pairUpToNullStub(Cap * cap, Cap * nonPartner, AdjacencyVot
 		stubVote = adjacencyVote_construct(1);
 		stubVote->candidates[0] = partnerStub;
 		adjacencyVoteTable_recordVote(table, stub, stubVote);
-		
+
 		nonPartnerPartnerStub = cap_construct(cap_getEnd(nonPartnerPartner), childEvent);
 		st_logInfo("Constructing %p\n", nonPartnerPartnerStub);
 		while(cap_getChildNumber(nonPartnerPartner))
@@ -831,7 +831,7 @@ static void fillingIn_pairUpToNullStub(Cap * cap, Cap * nonPartner, AdjacencyVot
 
 		// Send info down
 		fillingIn_propagateToChildren(stub, partnerStub, table);
-	} 
+	}
 }
 
 /*
@@ -972,7 +972,7 @@ static void fillingIn_propagateAdjacencyDownwards(Cap *
 
 #if BEN_DEBUG
 	assert(vote->length >= 1 || cap_getAdjacency(cap));
-#endif 
+#endif
 
 	// If Cap does not exist (for NULL partners) or child already decided
 	if (!cap || vote->length <= 1)
@@ -1009,7 +1009,7 @@ static void fillingIn_propagateAdjacencyDownwards(Cap *
 				decision = adjacencyVote_getWinner(vote);
 				fillingIn_pairUpToNullStub(cap, decision, table);
 			}
-		} 	
+		}
 	}
 
 }
@@ -1220,7 +1220,7 @@ void fillingIn_fillAdjacencies(Net * net)
 		fillingIn_stepForward(listRemoveFirst(table->computationFront), table);
 
 	//////////////////////////////////////////////////////////////
-	// Force decision for higher nodes 
+	// Force decision for higher nodes
 	//////////////////////////////////////////////////////////////
 	iter = net_getCapIterator(net);
 	while ((cap = net_getNextCap(iter)))

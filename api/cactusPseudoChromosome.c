@@ -76,8 +76,7 @@ void pseudoChromosome_destructPseudoAdjacencyIterator(PseudoChromsome_PseudoAdja
 ////////////////////////////////////////////////
 ////////////////////////////////////////////////
 
-static int32_t pseudoChromosome_constructP(const void *o1, const void *o2, void *a) {
-	assert(a == NULL);
+static int pseudoChromosome_constructP(const void *o1, const void *o2) {
 	return netMisc_nameCompare(pseudoAdjacency_getName((PseudoAdjacency *)o1),
 							   pseudoAdjacency_getName((PseudoAdjacency *)o2));
 }
@@ -91,7 +90,7 @@ PseudoChromosome *pseudoChromosome_construct2(Name name, Reference *reference,
 	assert(_3End != NULL);
 
 
-	pseudoChromosome->pseudoAdjacencies = st_sortedSet_construct(pseudoChromosome_constructP);
+	pseudoChromosome->pseudoAdjacencies = st_sortedSet_construct3(pseudoChromosome_constructP, NULL);
 	pseudoChromosome->_5End = end_getPositiveOrientation(_5End); //everything is on the positive orientation.
 	pseudoChromosome->_3End = end_getPositiveOrientation(_3End);
 	pseudoChromosome->reference = reference;
@@ -106,6 +105,7 @@ void pseudoChromosome_destruct(PseudoChromosome *pseudoChromosome) {
 	while((pseudoAdjacency = pseudoChromosome_getFirst(pseudoChromosome)) != NULL) {
 		pseudoAdjacency_destruct(pseudoAdjacency);
 	}
+	st_sortedSet_destruct(pseudoChromosome->pseudoAdjacencies);
 	free(pseudoChromosome);
 }
 

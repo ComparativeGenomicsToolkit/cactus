@@ -91,7 +91,7 @@ void addTangle(Group *group, st_Hash *endToPseudoAdjacencyHash, void *extraArgum
 	End *end;
 	while((end = group_getNextEnd(endIterator)) != NULL) {
 		if(end_isBlockEnd(end) || end_isAttached(end)) {
-			st_Hash *edgesHash = st_hash_construct();
+			st_Hash *edgesHash = stHash_construct();
 			PseudoAdjacency *pseudoAdjacency = st_hash_search(endToPseudoAdjacencyHash, end);
 			assert(pseudoAdjacency != NULL);
 			End *otherEnd = pseudoAdjacency_get5End(pseudoAdjacency) == end ? pseudoAdjacency_get3End(pseudoAdjacency) : pseudoAdjacency_get5End(pseudoAdjacency);

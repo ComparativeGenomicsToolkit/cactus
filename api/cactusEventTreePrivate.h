@@ -5,7 +5,7 @@
 
 struct _eventTree {
 	Event *rootEvent;
-	struct avl_table *events;
+	st_SortedSet *events;
 	Net *net;
 };
 

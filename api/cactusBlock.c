@@ -8,8 +8,7 @@
 ////////////////////////////////////////////////
 ////////////////////////////////////////////////
 
-int32_t blockConstruct_constructP(const void *o1, const void *o2, void *a) {
-	assert(a == NULL);
+int blockConstruct_constructP(const void *o1, const void *o2) {
 	return netMisc_nameCompare(segment_getName((Segment *)o1), segment_getName((Segment *)o2));
 }
 
@@ -33,7 +32,7 @@ Block *block_construct2(Name name, int32_t length,
 	block->rBlock->orientation = 0;
 
 	block->blockContents->name = name;
-	block->blockContents->segments = st_sortedSet_construct(blockConstruct_constructP);
+	block->blockContents->segments = st_sortedSet_construct3(blockConstruct_constructP, NULL);
 	block->blockContents->length = length;
 	block->blockContents->net = net;
 
@@ -57,7 +56,7 @@ void block_destruct(Block *block) {
 		segment_destruct(segment);
 	}
 	//now the actual instances.
-	st_sortedSet_destruct(block->blockContents->segments, NULL);
+	st_sortedSet_destruct(block->blockContents->segments);
 
 	free(block->rBlock);
 	free(block->blockContents);

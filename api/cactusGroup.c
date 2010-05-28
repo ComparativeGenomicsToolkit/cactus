@@ -8,8 +8,7 @@
 ////////////////////////////////////////////////
 ////////////////////////////////////////////////
 
-int32_t group_constructP(const void *o1, const void *o2, void *a) {
-	assert(a == NULL);
+int group_constructP(const void *o1, const void *o2) {
 	return netMisc_nameCompare(end_getName((End *)o1), end_getName((End *)o2));
 }
 
@@ -98,8 +97,8 @@ void group_updateContainedEnds(Group *group) {
 	while(group_getEndNumber(group) != 0) {
 		end_setGroup(group_getFirstEnd(group), NULL);
 	}
-	st_sortedSet_destruct(group->ends, NULL);
-	group->ends = st_sortedSet_construct(group_constructP);
+	st_sortedSet_destruct(group->ends);
+	group->ends = st_sortedSet_construct3(group_constructP, NULL);
 	//now calculate the ends
 	net = group_getNet(group);
 	iterator = net_getEndIterator(group_getNestedNet(group));
@@ -122,7 +121,7 @@ void group_destruct(Group *group) {
 	while(group_getEndNumber(group) != 0) {
 		end_setGroup(group_getFirstEnd(group), NULL);
 	}
-	st_sortedSet_destruct(group->ends, NULL);
+	st_sortedSet_destruct(group->ends);
 	//Free the memory
 	free(group);
 }
@@ -334,7 +333,7 @@ Group *group_construct3(Net *net, Name name, bool terminalGroup) {
 	group->net = net;
 	group->link = NULL;
 	group->name = name;
-	group->ends = st_sortedSet_construct(group_constructP);
+	group->ends = st_sortedSet_construct3(group_constructP, NULL);
 	group->leafGroup = terminalGroup;
 	net_addGroup(net, group);
 

@@ -9,13 +9,13 @@ typedef struct _endContents {
 	bool isAttached;
 	Name name;
 	Block *attachedBlock;
-	struct avl_table *caps;
+	st_SortedSet *caps;
 	Group *group;
 	Net *net;
 } EndContents;
 
 struct _end_instanceIterator {
-	struct avl_traverser *iterator;
+	st_SortedSetIterator *iterator;
 	End *end;
 };
 
@@ -79,12 +79,12 @@ End *end_getStaticNameWrapper(Name name);
  * Hash key for an end, uses the name of the end to hash.. hence
  * the key doesn't care about the orientation.
  */
-uint32_t end_hashKey(void *o);
+uint32_t end_hashKey(const void *o);
 
 /*
  * Hash equals key, equal only if the two ends have the same name and orientation.
  */
-int32_t end_hashEqualsKey(void *o, void *o2);
+int end_hashEqualsKey(const void *o, const void *o2);
 
 /*
  * Sets the net associated with the end.

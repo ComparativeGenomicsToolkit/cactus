@@ -13,7 +13,7 @@ typedef struct _liftedEdge LiftedEdge;
 /*
  * Utility function for the lifted edge hashtable
  */
-static uint32_t buildFaces_hashfunction(void *ptr) {
+static uint32_t buildFaces_hashfunction(const void *ptr) {
 	Cap *key = (Cap *) ptr;
 	return (uint32_t) cap_getName(key);
 }
@@ -21,7 +21,7 @@ static uint32_t buildFaces_hashfunction(void *ptr) {
 /*
  * Utility function for the lifted edge hashtable
  */
-static int32_t buildFaces_key_eq_fn(void *ptrA, void *ptrB) {
+static int buildFaces_key_eq_fn(const void *ptrA, const void *ptrB) {
 	return ptrA == ptrB;
 }
 
@@ -63,7 +63,7 @@ static void buildFaces_destructListElem(void *ptr) {
  * a list of lifted edges
  */
 static st_Hash *buildFaces_computeLiftedEdges(Net * net) {
-	st_Hash *liftedEdgesTable = st_hash_construct3(buildFaces_hashfunction,
+	st_Hash *liftedEdgesTable = stHash_construct3(buildFaces_hashfunction,
 			buildFaces_key_eq_fn, NULL, buildFaces_destructValue);
 	Net_CapIterator *iter = net_getCapIterator(net);
 	Cap *cap, *attachedAncestor;
@@ -260,7 +260,7 @@ static st_Hash *hashbottomCaps(Net *net) {
 	 * For each top node finds the corresponding set of bottom nodes and returns a
 	 * hash of top nodes to sets of bottom nodes.
 	 */
-	st_Hash *bottomCapsHash = st_hash_construct2(NULL, (void (*)(void *))destructList);
+	st_Hash *bottomCapsHash = stHash_construct2(NULL, (void (*)(void *))destructList);
 	Event *rootEvent = eventTree_getRootEvent(net_getEventTree(net));
 	Cap *cap;
 	Net_CapIterator *capIterator = net_getCapIterator(net);
@@ -290,7 +290,7 @@ static st_Hash *computeLiftedEdges(Net *net, st_Hash *bottomCapsHash) {
 	 * edge. Returns a hash of top nodes to list of other top nodes
 	 * connected by lifted edges.
 	 */
-	st_Hash *liftedEdgesHash = st_hash_construct2(NULL, (void (*)(void *))destructList);
+	st_Hash *liftedEdgesHash = stHash_construct2(NULL, (void (*)(void *))destructList);
 	st_HashIterator *iterator = st_hash_getIterator(bottomCapsHash);
 	Cap *topCap;
 	while((topCap = st_hash_getNext(iterator)) != NULL) {
@@ -359,7 +359,7 @@ static struct List *computeModules(Net *net, st_Hash *liftedEdges) {
 	 * and returns them in a list.
 	 */
 	struct List *modules = constructEmptyList(0, (void (*)(void *))destructList);
-	st_Hash *modulesHash = st_hash_construct();
+	st_Hash *modulesHash = stHash_construct();
 
 	st_HashIterator *iterator = st_hash_getIterator(liftedEdges);
 	Cap *topCap;

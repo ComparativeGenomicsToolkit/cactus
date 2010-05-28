@@ -31,7 +31,7 @@ typedef struct _liftedEdge LiftedEdge;
 /*
  * Utility function for the lifted edge hashtable
  */
-static uint32_t buildFaces_hashfunction(void *ptr) {
+static uint32_t buildFaces_hashfunction(const void *ptr) {
 	Cap *key = (Cap *) ptr;
 	return (uint32_t) cap_getName(key);
 }
@@ -39,7 +39,7 @@ static uint32_t buildFaces_hashfunction(void *ptr) {
 /*
  * Utility function for the lifted edge hashtable
  */
-static int32_t buildFaces_key_eq_fn(void *ptrA, void *ptrB) {
+static int buildFaces_key_eq_fn(const void *ptrA, const void *ptrB) {
 	return ptrA == ptrB;
 }
 
@@ -131,7 +131,7 @@ static struct hashtable *buildFaces_computeLiftedEdges(Net * net, struct hashtab
 
 #ifdef BEN_DEBUG
 			assert((attachedAncestor && adjacencyAncestor) || (!attachedAncestor && !adjacencyAncestor));
-#endif 
+#endif
 
 			// If root node
 			if (attachedAncestor == NULL)
@@ -288,13 +288,13 @@ static void buildFaces_constructFromCap(Cap * startingCap,
 
 #if BEN_DEBUG
 			assert(cap_getAdjacency(bottomNode));
-#endif 
+#endif
 			ancestor = hashtable_search(ancestorsTable, cap_getPositiveOrientation(cap_getAdjacency(bottomNode)));
-			if (cap_getAdjacency(cap) != ancestor) 
+			if (cap_getAdjacency(cap) != ancestor)
 				face_setDerivedDestination(face, index, index2, ancestor);
 			else
 				face_setDerivedDestination(face, index, index2, NULL);
-				
+
 #ifdef BEN_DEBUG
 			// If bottom nodes part of top nodes
 			if (listContains(topNodes, cap_getPositiveOrientation(
@@ -336,7 +336,7 @@ void buildFaces_constructFaces(Net * net) {
 }
 
 /*
- * Simplify a given face	
+ * Simplify a given face
  */
 void buildFaces_simplify(Face * face, Net * net) {
 	// TODO
@@ -344,7 +344,7 @@ void buildFaces_simplify(Face * face, Net * net) {
 
 #ifdef BEN_DEBUG
 	assert(face_isSimple(face));
-#endif 
+#endif
 
 }
 
@@ -725,7 +725,7 @@ void buildFaces_canonize(Face * face, Net * net) {
 
 #ifdef BEN_DEBUG
 	assert(face_isCanonical(face));
-#endif 
+#endif
 
 	buildFaces_close(face);
 }

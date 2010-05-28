@@ -8,18 +8,15 @@
 ////////////////////////////////////////////////
 ////////////////////////////////////////////////
 
-int32_t netDisk_constructNetsP(const void *o1, const void *o2, void *a) {
-	assert(a == NULL);
+int32_t netDisk_constructNetsP(const void *o1, const void *o2) {
 	return netMisc_nameCompare(net_getName((Net *)o1), net_getName((Net *)o2));
 }
 
-int32_t netDisk_constructMetaSequencesP(const void *o1, const void *o2, void *a) {
-	assert(a == NULL);
+int32_t netDisk_constructMetaSequencesP(const void *o1, const void *o2) {
 	return netMisc_nameCompare(metaSequence_getName((MetaSequence *)o1), metaSequence_getName((MetaSequence *)o2));
 }
 
-int32_t netDisk_constructMetaEventsP(const void *o1, const void *o2, void *a) {
-	assert(a == NULL);
+int32_t netDisk_constructMetaEventsP(const void *o1, const void *o2) {
 	return netMisc_nameCompare(metaEvent_getName((MetaEvent *)o1), metaEvent_getName((MetaEvent *)o2));
 }
 
@@ -29,9 +26,9 @@ NetDisk *netDisk_construct(const char *netDiskFile) {
 	int32_t i;
 
 	//construct lists of in memory objects
-	netDisk->metaEvents = st_sortedSet_construct(netDisk_constructMetaEventsP);
-	netDisk->metaSequences = st_sortedSet_construct(netDisk_constructMetaSequencesP);
-	netDisk->nets = st_sortedSet_construct(netDisk_constructNetsP);
+	netDisk->metaEvents = st_sortedSet_construct3(netDisk_constructMetaEventsP, NULL);
+	netDisk->metaSequences = st_sortedSet_construct3(netDisk_constructMetaSequencesP, NULL);
+	netDisk->nets = st_sortedSet_construct3(netDisk_constructNetsP, NULL);
 
 	//the files to write the databases in
 	netDisk->netsDatabaseName = pathJoin(netDiskFile, "nets");
@@ -70,17 +67,17 @@ void netDisk_destruct(NetDisk *netDisk){
 	while((net = netDisk_getFirstNetInMemory(netDisk)) != NULL) {
 		net_destruct(net, FALSE);
 	}
-	st_sortedSet_destruct(netDisk->nets, NULL);
+	st_sortedSet_destruct(netDisk->nets);
 
 	while((metaSequence = netDisk_getFirstMetaSequenceInMemory(netDisk)) != NULL) {
 		metaSequence_destruct(metaSequence);
 	}
-	st_sortedSet_destruct(netDisk->metaSequences, NULL);
+	st_sortedSet_destruct(netDisk->metaSequences);
 
 	while((metaEvent = netDisk_getFirstMetaEventInMemory(netDisk)) != NULL) {
 		metaEvent_destruct(metaEvent);
 	}
-	st_sortedSet_destruct(netDisk->metaEvents, NULL);
+	st_sortedSet_destruct(netDisk->metaEvents);
 
 	//close DBs
 	database_destruct(netDisk->metaDataDatabase);

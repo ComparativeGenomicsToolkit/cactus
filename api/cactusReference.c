@@ -8,8 +8,7 @@
 ////////////////////////////////////////////////
 ////////////////////////////////////////////////
 
-static int32_t reference_constructP(const void *o1, const void *o2, void *a) {
-	assert(a == NULL);
+static int reference_constructP(const void *o1, const void *o2) {
 	return netMisc_nameCompare(pseudoChromosome_getName((PseudoChromosome *)o1),
 			pseudoChromosome_getName((PseudoChromosome *)o2));
 }
@@ -17,7 +16,7 @@ static int32_t reference_constructP(const void *o1, const void *o2, void *a) {
 Reference *reference_construct(Net *net) {
 	Reference *reference = st_malloc(sizeof(Reference));
 	//Setup the basic structure - a sorted set of pseudo-chromosomes.
-	reference->pseudoChromosomes = st_sortedSet_construct(reference_constructP);
+	reference->pseudoChromosomes = st_sortedSet_construct3(reference_constructP, NULL);
 	//Link the reference and net.
 	reference->net = net;
 	net_setReference(net, reference);
@@ -63,7 +62,7 @@ void reference_destructPseudoChromosomeIterator(Reference_PseudoChromosomeIterat
 }
 
 st_Hash *reference_getEndToPseudoAdjacencyHash(Reference *reference) {
-	st_Hash *hash = st_hash_construct3(end_hashKey, end_hashEqualsKey, NULL, NULL);
+	st_Hash *hash = stHash_construct3(end_hashKey, end_hashEqualsKey, NULL, NULL);
 	Reference_PseudoChromosomeIterator *pseudoChromosomeIterator =
 		reference_getPseudoChromosomeIterator(reference);
 	PseudoChromosome *pseudoChromosome;
@@ -152,7 +151,7 @@ void reference_destruct(Reference *reference) {
 	while((pseudoChromosome = reference_getFirst(reference)) != NULL) {
 			pseudoChromosome_destruct(pseudoChromosome);
 	}
-	st_sortedSet_destruct(reference->pseudoChromosomes, NULL);
+	st_sortedSet_destruct(reference->pseudoChromosomes);
 	free(reference);
 }
 

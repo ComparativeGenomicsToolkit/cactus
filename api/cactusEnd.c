@@ -8,8 +8,7 @@
 ////////////////////////////////////////////////
 ////////////////////////////////////////////////
 
-int32_t end_constructP(const void *o1, const void *o2, void *a) {
-	assert(a == NULL);
+static int32_t end_constructP(const void *o1, const void *o2) {
 	return netMisc_nameCompare(cap_getName((Cap *)o1), cap_getName((Cap *)o2));
 }
 
@@ -40,7 +39,7 @@ End *end_construct2(Name name, int32_t isStub, int32_t isAttached, int32_t side,
 
 	end->endContents->rootInstance = NULL;
 	end->endContents->name = name;
-	end->endContents->caps = st_sortedSet_construct(end_constructP);
+	end->endContents->caps = st_sortedSet_construct3(end_constructP, NULL);
 	end->endContents->attachedBlock = NULL;
 	end->endContents->group = NULL;
 	end->endContents->net = net;
@@ -94,7 +93,7 @@ void end_destruct(End *end) {
 		cap_destruct(cap);
 	}
 	//now the actual instances.
-	st_sortedSet_destruct(end->endContents->caps, NULL);
+	st_sortedSet_destruct(end->endContents->caps);
 
 	free(end->endContents);
 	free(end->rEnd);
@@ -410,12 +409,12 @@ End *end_getStaticNameWrapper(Name name) {
 	return &end;
 }
 
-uint32_t end_hashKey(void *o) {
+uint32_t end_hashKey(const void *o) {
 	return end_getName((End *)o);
 }
 
-int32_t end_hashEqualsKey(void *o, void *o2) {
-	End *end1 = o;
-	End *end2 = o2;
+int end_hashEqualsKey(const void *o, const void *o2) {
+	End *end1 = (End *)o;
+	End *end2 = (End *)o2;
 	return end_getName(end1) == end_getName(end2) && end_getOrientation(end1) == end_getOrientation(end2);
 }

@@ -8,8 +8,7 @@
 ////////////////////////////////////////////////
 ////////////////////////////////////////////////
 
-int32_t eventTree_constructP(const void *o1, const void *o2, void *a) {
-	assert(a == NULL);
+int eventTree_constructP(const void *o1, const void *o2) {
 	return netMisc_nameCompare(event_getName((Event *)o1), event_getName((Event *)o2));
 }
 
@@ -20,7 +19,7 @@ EventTree *eventTree_construct2(Net *net) {
 EventTree *eventTree_construct(MetaEvent *rootEvent, Net *net) {
 	EventTree *eventTree;
 	eventTree = st_malloc(sizeof(EventTree));
-	eventTree->events = st_sortedSet_construct(eventTree_constructP);
+	eventTree->events = st_sortedSet_construct3(eventTree_constructP, NULL);
 	eventTree->net = net;
 	eventTree->rootEvent = event_construct(rootEvent, INT32_MAX, NULL, eventTree); //do this last as reciprocal call made to add the event to the events.
 	net_setEventTree(net, eventTree);
@@ -244,7 +243,7 @@ void eventTree_destruct(EventTree *eventTree) {
 	while((event = eventTree_getFirst(eventTree)) != NULL) {
 		event_destruct(event);
 	}
-	st_sortedSet_destruct(eventTree->events, NULL);
+	st_sortedSet_destruct(eventTree->events);
 	free(eventTree);
 }
 

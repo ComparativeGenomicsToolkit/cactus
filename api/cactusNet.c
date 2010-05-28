@@ -8,44 +8,36 @@
 ////////////////////////////////////////////////
 ////////////////////////////////////////////////
 
-int32_t net_constructSequencesP(const void *o1, const void *o2, void *a) {
-	assert(a == NULL);
+int net_constructSequencesP(const void *o1, const void *o2) {
 	return netMisc_nameCompare(sequence_getName((Sequence *)o1), sequence_getName((Sequence *)o2));
 }
 
-int32_t net_constructCapsP(const void *o1, const void *o2, void *a) {
-	assert(a == NULL);
+int net_constructCapsP(const void *o1, const void *o2) {
 	return netMisc_nameCompare(cap_getName((Cap *)o1), cap_getName((Cap *)o2));
 }
 
-int32_t net_constructEndsP(const void *o1, const void *o2, void *a) {
-	assert(a == NULL);
+int net_constructEndsP(const void *o1, const void *o2) {
 	return netMisc_nameCompare(end_getName((End *)o1), end_getName((End *)o2));
 }
 
-int32_t net_constructSegmentsP(const void *o1, const void *o2, void *a) {
-	assert(a == NULL);
+int net_constructSegmentsP(const void *o1, const void *o2) {
 	return netMisc_nameCompare(segment_getName((Segment *)o1), segment_getName((Segment *)o2));
 }
 
-int32_t net_constructBlocksP(const void *o1, const void *o2, void *a) {
-	assert(a == NULL);
+int net_constructBlocksP(const void *o1, const void *o2) {
 	return netMisc_nameCompare(block_getName((Block *)o1), block_getName((Block *)o2));
 }
 
-int32_t net_constructGroupsP(const void *o1, const void *o2, void *a) {
-	assert(a == NULL);
+int net_constructGroupsP(const void *o1, const void *o2) {
 	return netMisc_nameCompare(group_getName((Group *)o1),
 			group_getName((Group *)o2));
 }
 
-int32_t net_constructChainsP(const void *o1, const void *o2, void *a) {
-	assert(a == NULL);
+int net_constructChainsP(const void *o1, const void *o2) {
 	return netMisc_nameCompare(chain_getName((Chain *)o1), chain_getName((Chain *)o2));
 }
 
-int32_t net_constructFacesP(const void *o1, const void *o2, void *a) {
-	assert(a == NULL);
+int net_constructFacesP(const void *o1, const void *o2) {
 	assert(o1 != NULL);
 	assert(o2 != NULL);
 	return o1 - o2;
@@ -61,14 +53,14 @@ Net *net_construct2(Name name, NetDisk *netDisk) {
 
 	net->name = name;
 
-	net->sequences = st_sortedSet_construct(net_constructSequencesP);
-	net->caps = st_sortedSet_construct(net_constructCapsP);
-	net->ends = st_sortedSet_construct(net_constructEndsP);
-	net->segments = st_sortedSet_construct(net_constructSegmentsP);
-	net->blocks = st_sortedSet_construct(net_constructBlocksP);
-	net->groups = st_sortedSet_construct(net_constructGroupsP);
-	net->chains = st_sortedSet_construct(net_constructChainsP);
-	net->faces = st_sortedSet_construct(net_constructFacesP);
+	net->sequences = st_sortedSet_construct3(net_constructSequencesP, NULL);
+	net->caps = st_sortedSet_construct3(net_constructCapsP, NULL);
+	net->ends = st_sortedSet_construct3(net_constructEndsP, NULL);
+	net->segments = st_sortedSet_construct3(net_constructSegmentsP, NULL);
+	net->blocks = st_sortedSet_construct3(net_constructBlocksP, NULL);
+	net->groups = st_sortedSet_construct3(net_constructGroupsP, NULL);
+	net->chains = st_sortedSet_construct3(net_constructChainsP, NULL);
+	net->faces = st_sortedSet_construct3(net_constructFacesP, NULL);
 	net->reference = NULL;
 
 	net->parentNetName = NULL_NAME;
@@ -85,8 +77,6 @@ Net *net_construct2(Name name, NetDisk *netDisk) {
 	//Do this bit last.. so the netdisk relationship is established
 	net->eventTree = NULL;
 	eventTree_construct2(net);
-
-
 
 	return net;
 }
@@ -115,7 +105,7 @@ void net_destruct(Net *net, int32_t recursive) {
 	netDisk_unloadNet(net->netDisk, net);
 
 	net_destructFaces(net);
-	st_sortedSet_destruct(net->faces, NULL);
+	st_sortedSet_destruct(net->faces);
 
 	assert(net_getEventTree(net) != NULL);
 	eventTree_destruct(net_getEventTree(net));
@@ -123,7 +113,7 @@ void net_destruct(Net *net, int32_t recursive) {
 	while((sequence = net_getFirstSequence(net)) != NULL) {
 		sequence_destruct(sequence);
 	}
-	st_sortedSet_destruct(net->sequences, NULL);
+	st_sortedSet_destruct(net->sequences);
 
 	if(net_getReference(net) != NULL) {
 		reference_destruct(net_getReference(net));
@@ -132,24 +122,24 @@ void net_destruct(Net *net, int32_t recursive) {
 	while((chain = net_getFirstChain(net)) != NULL) {
 		chain_destruct(chain);
 	}
-	st_sortedSet_destruct(net->chains, NULL);
+	st_sortedSet_destruct(net->chains);
 
 	while((end = net_getFirstEnd(net)) != NULL) {
 		end_destruct(end);
 	}
-	st_sortedSet_destruct(net->caps, NULL);
-	st_sortedSet_destruct(net->ends, NULL);
+	st_sortedSet_destruct(net->caps);
+	st_sortedSet_destruct(net->ends);
 
 	while((block = net_getFirstBlock(net)) != NULL) {
 		block_destruct(block);
 	}
-	st_sortedSet_destruct(net->segments, NULL);
-	st_sortedSet_destruct(net->blocks, NULL);
+	st_sortedSet_destruct(net->segments);
+	st_sortedSet_destruct(net->blocks);
 
 	while((group = net_getFirstGroup(net)) != NULL) {
 		group_destruct(group);
 	}
-	st_sortedSet_destruct(net->groups, NULL);
+	st_sortedSet_destruct(net->groups);
 
 
 
