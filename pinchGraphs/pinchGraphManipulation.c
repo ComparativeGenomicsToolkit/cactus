@@ -224,7 +224,7 @@ void removeOverAlignedEdges(struct PinchGraph *pinchGraph, float minimumTreeCove
 		if(lengthBlackEdges(vertex) >= 1 &&
 			!isAStub(getFirstBlackEdge(vertex))) {
 			if (lengthBlackEdges(vertex) > maxDegree ||
-				treeCoverage(vertex, net, pinchGraph) < minimumTreeCoverage) { //has a high degree and is not a stub/cap
+				treeCoverage(vertex, net) < minimumTreeCoverage) { //has a high degree and is not a stub/cap
 				vertex2 = getFirstBlackEdge(vertex)->to;
 				if(vertex->vertexID < vertex2->vertexID) {
 					hashtable_insert(hash, vertex, constructInt(0));
@@ -561,8 +561,7 @@ void linkStubComponentsToTheSinkComponent(struct PinchGraph *pinchGraph, Net *ne
 ////////////////////////////////////////////////
 
 
-float treeCoverage(struct PinchVertex *vertex, Net *net,
-		struct PinchGraph *pinchGraph) {
+float treeCoverage(struct PinchVertex *vertex, Net *net) {
 	/*
 	 * Returns the proportion of the tree covered by the block.
 	 */

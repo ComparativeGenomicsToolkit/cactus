@@ -14,6 +14,7 @@ static void testSetup() {
 
 void testReference_construct(CuTest* testCase) {
 	testSetup();
+	assert(testCase != NULL);
 	//tested the shared code
 	testTeardown();
 }
@@ -126,6 +127,7 @@ void testReference_serialisation(CuTest* testCase) {
 }
 
 void testPrintCanonicalReference(CuTest *testCase) {
+	assert(testCase != NULL);
 	testSetup();
 	Reference_PseudoChromosomeIterator *pseudoChromosomeIterator = reference_getPseudoChromosomeIterator(reference);
 	PseudoChromosome *pC;

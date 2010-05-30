@@ -246,7 +246,7 @@ int32_t cactusCorePipeline(Net *net,
 		//  Check the adjacency vertex components.
 		///////////////////////////////////////////////////////////////////////////
 
-		assert(hashtable_count(vertexAdjacencyComponents) == pinchGraph->vertices->length);
+		assert((int32_t)hashtable_count(vertexAdjacencyComponents) == pinchGraph->vertices->length);
 		for(i=0; i<pinchGraph->vertices->length; i++) {
 			vertex = pinchGraph->vertices->list[i];
 			assert(hashtable_search(vertexAdjacencyComponents, vertex) != NULL);
@@ -287,7 +287,7 @@ int32_t cactusCorePipeline(Net *net,
 		for(i=0; i<pinchGraph->vertices->length; i++) {
 			assert(hashtable_search(vertexAdjacencyComponents, pinchGraph->vertices->list[i]) != NULL);
 		}
-		assert(hashtable_count(vertexAdjacencyComponents) == pinchGraph->vertices->length);
+		assert((int32_t)hashtable_count(vertexAdjacencyComponents) == pinchGraph->vertices->length);
 #endif
 
 		//Cleanup the adjacency component vertex hash.

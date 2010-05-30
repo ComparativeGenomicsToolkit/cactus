@@ -292,8 +292,7 @@ void linkStubComponentsToTheSinkComponent(struct PinchGraph *pinchGraph, Net *ne
 
 void removeTrivialGreyEdgeComponents(struct PinchGraph *graph, struct List *listOfVertices, Net *net);
 
-float treeCoverage(struct PinchVertex *vertex, Net *net,
-		struct PinchGraph *pinchGraph);
+float treeCoverage(struct PinchVertex *vertex, Net *net);
 
 
 #endif

@@ -284,7 +284,7 @@ static stHash *hashbottomCaps(Net *net) {
 	return bottomCapsHash;
 }
 
-static stHash *computeLiftedEdges(Net *net, stHash *bottomCapsHash) {
+static stHash *computeLiftedEdges(stHash *bottomCapsHash) {
 	/*
 	 * For each top node finds the set of top nodes connected to it by a lifted
 	 * edge. Returns a hash of top nodes to list of other top nodes
@@ -353,7 +353,7 @@ static void computeModulesP(Cap *topCap, stHash *liftedEdgesHash, struct List *m
 	}
 }
 
-static struct List *computeModules(Net *net, stHash *liftedEdges) {
+static struct List *computeModules(stHash *liftedEdges) {
 	/*
 	 * Finds the set of adjacency/lifted edge components, called modules,
 	 * and returns them in a list.
@@ -377,7 +377,7 @@ static struct List *computeModules(Net *net, stHash *liftedEdges) {
 	return modules;
 }
 
-static void checkFace(Net *net, struct List *module, stHash *bottomCapsHash) {
+static void checkFace(struct List *module, stHash *bottomCapsHash) {
 	/*
 	 * Checks a face.
 	 */
@@ -432,17 +432,17 @@ void face_checkFaces(Net *net) {
 		stHash *bottomCapsHash = hashbottomCaps(net);
 
 		//Construct lifted edges
-		stHash *liftedEdgesHash = computeLiftedEdges(net, bottomCapsHash);
+		stHash *liftedEdgesHash = computeLiftedEdges(bottomCapsHash);
 
 		//Constructs lifted edge/adjacency edge connected components, called modules.
 		//Faces are simply the nodes in the modules (the top nodes) and the set of
 		//bottom nodes.
-		struct List *modules = computeModules(net, liftedEdgesHash);
+		struct List *modules = computeModules(liftedEdgesHash);
 
 		//Check all faces we have computed are the same as those computed by Daniel.
 		int32_t i;
 		for(i=0; i<modules->length; i++) {
-			checkFace(net, modules->list[i], bottomCapsHash);
+			checkFace(modules->list[i], bottomCapsHash);
 		}
 		assert(modules->length == net_getFaceNumber(net)); //we should have checked exactly the number of faces.
 

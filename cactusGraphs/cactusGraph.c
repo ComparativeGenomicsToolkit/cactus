@@ -1069,7 +1069,7 @@ float treeCoverage2(struct CactusEdge *cactusEdge, Net *net,
 #ifdef BEN_DEBUG
 	assert(!isAStubCactusEdge(cactusEdge, pinchGraph));
 #endif
-	return treeCoverage(cactusEdgeToFirstPinchEdge(cactusEdge, pinchGraph)->from, net, pinchGraph);
+	return treeCoverage(cactusEdgeToFirstPinchEdge(cactusEdge, pinchGraph)->from, net);
 }
 
 int32_t chainLength(struct List *biConnectedComponent, int32_t includeStubs, struct PinchGraph *pinchGraph) {

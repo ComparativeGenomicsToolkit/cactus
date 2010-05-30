@@ -189,6 +189,7 @@ static stHash *choosePairing(struct List *adjacencies, Net *net) {
 	 * Greedily picks the adjacencies from the list such that each end has one adjacency.
 	 * Destroys the input list in the process.
 	 */
+	assert(net != NULL); //we may need this parameter later..
 	stHash *adjacenciesHash = stHash_construct();
 #ifdef BEN_DEBUG
 	double strength = INT32_MAX;

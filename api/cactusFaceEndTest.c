@@ -16,6 +16,7 @@ static void testSetup() {
 
 void testFaceEnd_construct(CuTest* testCase) {
 	testSetup();
+	assert(testCase != NULL);
 	testTearDown();
 }
 

@@ -200,6 +200,7 @@ void testBlock_splitBlock(CuTest* testCase) {
 }
 
 void testBlock_makeNewickString(CuTest *testCase) {
+	assert(testCase != NULL);
 	cactusBlockTestSetup();
 	char *cA1 = block_makeNewickString(block, 1, 0);
 	char *cA2 = block_makeNewickString(block, 1, 1);

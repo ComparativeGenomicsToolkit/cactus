@@ -14,6 +14,7 @@ static void testSetup() {
 
 void testPseudoChromosome_construct(CuTest* testCase) {
 	testSetup();
+	assert(testCase != NULL);
 	//tested by setup code.
 	testTeardown();
 }

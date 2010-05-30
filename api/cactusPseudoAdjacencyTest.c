@@ -14,6 +14,7 @@ static void testSetup() {
 
 void testPseudoAdjacency_construct(CuTest* testCase) {
 	testSetup();
+	assert(testCase != NULL);
 	//already tested by shared code.
 	testTeardown();
 }

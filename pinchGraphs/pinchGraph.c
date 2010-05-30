@@ -759,8 +759,7 @@ int32_t pinchMergePiece_P(struct VertexChain *vertexChain1,
 }
 
 void updateVertexAdjacencyComponentLabels(struct hashtable *vertexAdjacencyComponents,
-		struct PinchVertex *vertex,
-		struct PinchGraph *pinchGraph) {
+		struct PinchVertex *vertex) {
 	/*
 	 * Method establishes which adjacency component the vertex belongs in.
 	 */
@@ -790,14 +789,13 @@ void updateVertexAdjacencyComponentLabels(struct hashtable *vertexAdjacencyCompo
 }
 
 void updateVertexAdjacencyComponentLabelsForChain(struct hashtable *vertexAdjacencyComponents,
-		struct VertexChain *vertexChain,
-		struct PinchGraph *pinchGraph) {
+		struct VertexChain *vertexChain) {
 	/*
 	 * Method runs through the vertices in the vertex chain and ensures each vertex has a label.
 	 */
 	int32_t i;
 	for(i=0; i<vertexChain->listOfVertices->length; i++) {
-		updateVertexAdjacencyComponentLabels(vertexAdjacencyComponents, vertexChain->listOfVertices->list[i], pinchGraph);
+		updateVertexAdjacencyComponentLabels(vertexAdjacencyComponents, vertexChain->listOfVertices->list[i]);
 	}
 }
 
@@ -835,8 +833,8 @@ void pinchMergePiece_getChainOfVertices(struct PinchGraph *graph,
 	/*
 	 * Label the new vertices in the chain with adjacency component labels.
 	 */
-	updateVertexAdjacencyComponentLabelsForChain(vertexAdjacencyComponents, vertexChain1, graph);
-	updateVertexAdjacencyComponentLabelsForChain(vertexAdjacencyComponents, vertexChain2, graph);
+	updateVertexAdjacencyComponentLabelsForChain(vertexAdjacencyComponents, vertexChain1);
+	updateVertexAdjacencyComponentLabelsForChain(vertexAdjacencyComponents, vertexChain2);
 }
 
 struct VertexChain *pMS_vertexChain1 = NULL;
