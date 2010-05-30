@@ -120,7 +120,7 @@ static uint32_t adjacencyPair_hashKey(AdjacencyPair *adjacencyPair) {
 	return end_getName(adjacencyPair_getEnd1(adjacencyPair));
 }
 
-static int32_t adjacencyPair_hashEqual(AdjacencyPair *adjacencyPair1, AdjacencyPair *adjacencyPair2) {
+static int adjacencyPair_hashEqual(AdjacencyPair *adjacencyPair1, AdjacencyPair *adjacencyPair2) {
 	/*
 	 * Hash equals function for adjacency pairs.
 	 */
@@ -136,8 +136,8 @@ static struct List *makeListOfAdjacencyPairs(Net *net) {
 	struct List *adjacencies = constructEmptyList(0, NULL);
 	Net_EndIterator *endIterator = net_getEndIterator(net);
 	stHash *adjacenciesHash = stHash_construct3(
-			(uint32_t (*)(void *))adjacencyPair_hashKey,
-			(int32_t (*)(void *, void *))adjacencyPair_hashEqual, NULL, NULL);
+			(uint32_t (*)(const void *))adjacencyPair_hashKey,
+			(int (*)(const void *, const void *))adjacencyPair_hashEqual, NULL, NULL);
 	while((end1 = net_getNextEnd(endIterator)) != NULL) {
 		if(end_isBlockEnd(end1) || end_isAttached(end1)) {
 			assert(end_getPositiveOrientation(end1) == end1); //they are always in the positive orientation, right?
