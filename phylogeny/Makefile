@@ -10,8 +10,7 @@ treeSrc = treelib/src/*.c
 all : ${binPath}/cactus_phylogeny treelib/libtree.a
 
 ${binPath}/cactus_phylogeny : cactus_phylogeny.c reconcilliation.c phylogeny.h ${libPath}/sonLib.a ${libPath}/cactusLib.a treelib/libtree.a ${treeIncPath}/treelib.h
-	${cxx} -I${libPath} -I${treeIncPath} -o ${binPath}/cactus_phylogeny cactus_phylogeny.c reconcilliation.c ${libPath}/sonLib.a ${libPath}/cactusLib.a ${libPath}/sonLib.a treelib/libtree.a ${tokyoCabinetLib}
-#${cflags}
+	${cxx} ${cflags} -I${libPath} -I${treeIncPath} -o ${binPath}/cactus_phylogeny cactus_phylogeny.c reconcilliation.c ${libPath}/sonLib.a ${libPath}/cactusLib.a ${libPath}/sonLib.a treelib/libtree.a ${tokyoCabinetLib}
 
 treelib/libtree.a: ${treeSrc} ${treeIncPath}/*.h
 	cd treelib && make
