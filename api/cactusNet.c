@@ -40,7 +40,7 @@ int net_constructChainsP(const void *o1, const void *o2) {
 int net_constructFacesP(const void *o1, const void *o2) {
 	assert(o1 != NULL);
 	assert(o2 != NULL);
-	return o1 - o2;
+	return o1 == o2 ? 0 : o1 > o2 ? 1 : -1;
 }
 
 Net *net_construct(NetDisk *netDisk) {

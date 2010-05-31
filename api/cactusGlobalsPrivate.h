@@ -19,7 +19,7 @@
 #include "sonLib.h"
 #include "commonC.h"
 
-#define NAME_STRING "%llX"
+#define NAME_STRING "%" PRIi64 "" //%I64d" //"%llX"
 
 #include "cactusGroup.h"
 #include "cactusGroupPrivate.h"

@@ -110,7 +110,7 @@ void binaryRepresentation_makeBinaryRepresentationP(const void * ptr, size_t siz
 	binaryRepresentation_makeBinaryRepresentationP_i += size * count;
 }
 
-void *binaryRepresentation_makeBinaryRepresentationP2_vA = NULL;
+char *binaryRepresentation_makeBinaryRepresentationP2_vA = NULL;
 void binaryRepresentation_makeBinaryRepresentationP2(const void * ptr, size_t size, size_t count) {
 	/*
 	 * Cummulates all the binary data into one array

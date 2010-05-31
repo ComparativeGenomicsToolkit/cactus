@@ -1,7 +1,7 @@
 #include "cactusGlobalsPrivate.h"
 
-static void *vA[1000];
-static void *vA3;
+static char vA[1000];
+static char *vA3;
 
 static void cactusSerialisationTestSetup() {
 	vA3 = vA;
