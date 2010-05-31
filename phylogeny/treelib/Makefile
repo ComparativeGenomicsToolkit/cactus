@@ -1,19 +1,18 @@
-SRC = src
-INC = inc
+include ../../../../include.mk
 
-CC = gcc
-CFLAGS = -I$(INC) -ggdb -Wall -DNDEBUG
+treelibSrc = src/*.c
+treelibInc = inc
+treelibObj = *.o
 
-SOURCES   = *.c
-OBJ = *.o
+cflags += -DNDEBUG -I${treelibInc}
 
 all: libtree.a
 
-libtree.a: $(SRC)/$(SOURCES)
-	$(CC) $(CFLAGS) -c $(SRC)/$(SOURCES)
-	ar rc libtree.a $(OBJ)
+libtree.a: ${treelibSrc}
+	${cxx} ${cflags} -c ${treelibSrc}
+	ar rc libtree.a ${treelibObj}
 	ranlib libtree.a
-	rm -f $(OBJ)
+	rm -f ${treelibObj}
 
 clean:
-	rm -f libtree.a
+	rm -f libtree.a ${treelibObj}
