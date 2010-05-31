@@ -224,43 +224,43 @@ typedef void               void32;
 #define _HALT_STRING1(z) _HALT_STRING2(z) 
 #define _HALT_STRING2(z) #z
 #undef HALT
-#define HALT(errorLevel, format, args...) \
+#define HALT(errorLevel, format, ...) \
  do \
   { \
-   __halt(__FILE__,__LINE__,errorLevel,format, ## args); \
+   __halt(__FILE__,__LINE__,errorLevel,format, __VA_ARGS__); \
   } \
  while (0)
 
-#define HALT_INSUFFICIENT_MEMORY(args...) \
+#define HALT_INSUFFICIENT_MEMORY(...) \
   do \
   { \
-     __abort(__FILE__,__LINE__,"FATAL ERROR: ","insufficient memory", ## args); \
+     __abort(__FILE__,__LINE__,"FATAL ERROR: ","insufficient memory", __VA_ARGS__); \
   } \
  while (0)
 
-#define HALT_FATAL_ERROR(format, args...) \
+#define HALT_FATAL_ERROR(format, ...) \
   do \
   { \
-     __abort(__FILE__, __LINE__,"FATAL ERROR: ",format, ## args); \
+     __abort(__FILE__, __LINE__,"FATAL ERROR: ",format, __VA_ARGS__); \
   } \
  while (0)
 
-#define HALT_INTERNAL_ERROR(format, args...) \
+#define HALT_INTERNAL_ERROR(format, ...) \
   do \
   { \
-     __abort(__FILE__, __LINE__, "INTERNAL ERROR: ", format, ## args); \
+     __abort(__FILE__, __LINE__, "INTERNAL ERROR: ", format, __VA_ARGS__); \
   } \
   while (0)
-#define HALT_INTERNAL_ERROR_STILL_NOT_IMPLEMENTED() \
+#define HALT_INTERNAL_ERROR_STILL_NOT_IMPLEMENTED(...) \
   do \
   { \
-     HALT_INTERNAL_ERROR("still not implemented"); \
+     HALT_INTERNAL_ERROR("still not implemented", __VA_ARGS__); \
   } \
   while (0)
-#define HALT_INTERNAL_ERROR_UNHANDLED_SWITCH_CASE() \
+#define HALT_INTERNAL_ERROR_UNHANDLED_SWITCH_CASE(...) \
   do \
   { \
-     HALT_INTERNAL_ERROR("unhandled switch case"); \
+     HALT_INTERNAL_ERROR("unhandled switch case", __VA_ARGS__); \
   } \
   while (0)
 #define HALT_INTERNAL_ERROR_UNREACHABLE() \
@@ -274,10 +274,10 @@ typedef void               void32;
 /* 2 macros necessary, because of "string"-construction */
 #define _FAIL_STRING1(z) _FAIL_STRING2(z) 
 #define _FAIL_STRING2(z) #z
-#define FAIL(errorLevel, format, args...) \
+#define FAIL(errorLevel, format, ...) \
  do \
   { \
-   fprintf(stderr, format " - fail in file " __FILE__ ", line " _FAIL_STRING1(__LINE__) "\n" , ## args); \
+   fprintf(stderr, format " - fail in file " __FILE__ ", line " _FAIL_STRING1(__LINE__) "\n" , __VA_ARGS__); \
    exit(errorLevel);\
   } \
  while (0)
