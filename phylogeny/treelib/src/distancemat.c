@@ -372,7 +372,7 @@ struct DistanceMatrix *read_phylip_DistanceMatrix( FILE *handle, struct Alignmen
   double dist;
 
   /* The size of the matrix will be on the first line on its own */
-  if (! fscanf( handle, "%d", &size ))
+  if (! fscanf( handle, "%u", &size ))
     fatal_util( "Parse error: The first line should contain the size of matrix");
 
   *aln_loc = (struct Alignment *) malloc_util( sizeof(struct Alignment )); 
