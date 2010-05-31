@@ -182,7 +182,7 @@ LOCAL inline struct __String* allocString(void)
   if (string == NULL)
   {
     #ifdef HALT_ON_INSUFFICIENT_MEMORY
-      HALT_INSUFFICIENT_MEMORY();
+      HALT_INSUFFICIENT_MEMORY(NULL);
     #else /* not HALT_ON_INSUFFICIENT_MEMORY */
       return NULL;
     #endif /* HALT_ON_INSUFFICIENT_MEMORY */
@@ -192,7 +192,7 @@ LOCAL inline struct __String* allocString(void)
   {
     free(string);
     #ifdef HALT_ON_INSUFFICIENT_MEMORY
-      HALT_INSUFFICIENT_MEMORY();
+      HALT_INSUFFICIENT_MEMORY(NULL);
     #else /* not HALT_ON_INSUFFICIENT_MEMORY */
       return NULL;
     #endif /* HALT_ON_INSUFFICIENT_MEMORY */
@@ -790,7 +790,7 @@ LOCAL bool parseString(const struct __String *string,
                   if (value.d != NULL) (*value.d) = strtod(buffer,NULL);
                   break;
                 case FORMAT_LENGTH_TYPE_LONGLONG:
-                  HALT_INTERNAL_ERROR_STILL_NOT_IMPLEMENTED();
+                  HALT_INTERNAL_ERROR_STILL_NOT_IMPLEMENTED(NULL);
                   break;
                 default:
                   #ifndef NDEBUG
@@ -1122,7 +1122,7 @@ LOCAL bool parseString(const struct __String *string,
             index++;
             break;
           default:
-            HALT_INTERNAL_ERROR_UNHANDLED_SWITCH_CASE();
+            HALT_INTERNAL_ERROR_UNHANDLED_SWITCH_CASE(NULL);
             break;
         }
       }
@@ -3302,7 +3302,7 @@ char* String_toCString(const String string)
   if (cString == NULL)
   {
     #ifdef HALT_ON_INSUFFICIENT_MEMORY
-      HALT_INSUFFICIENT_MEMORY();
+      HALT_INSUFFICIENT_MEMORY(NULL);
     #else /* not HALT_ON_INSUFFICIENT_MEMORY */
       return NULL;
     #endif /* HALT_ON_INSUFFICIENT_MEMORY */
