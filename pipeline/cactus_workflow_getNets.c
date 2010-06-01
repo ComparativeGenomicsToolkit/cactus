@@ -29,7 +29,7 @@ int main(int argc, char *argv[]) {
 				Net *nestedNet = group_getNestedNet(group);
 				assert(nestedNet != NULL);
 				assert(net_builtBlocks(nestedNet)); //This recursion depends on the block structure having been properly defined for all nodes.
-				fprintf(fileHandle, "%s %lld\n", netMisc_nameToStringStatic(net_getName(nestedNet)), net_getTotalBaseLength(nestedNet));
+				fprintf(fileHandle, "%s %lld\n", netMisc_nameToStringStatic(net_getName(nestedNet)), (long long)net_getTotalBaseLength(nestedNet));
 			}
 		}
 		net_destructGroupIterator(groupIterator);
