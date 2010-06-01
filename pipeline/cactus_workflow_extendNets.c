@@ -3,6 +3,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
+#include <inttypes.h>
 
 #include "cactus.h"
 
@@ -25,8 +26,7 @@ static void extendNets(Net *net, FILE *fileHandle, int32_t minSizeToExtend) {
 				int64_t size = group_getTotalBaseLength(group);
 				if(size >= minSizeToExtend) {
 					group_makeNestedNet(group);
-					fprintf(fileHandle, "%s %zd\n",
-                                                netMisc_nameToStringStatic(group_getName(group)), size);
+					fprintf(fileHandle, "%s %" PRIi64 "\n", netMisc_nameToStringStatic(group_getName(group)), size);
 				}
 			}
 		}
@@ -35,8 +35,7 @@ static void extendNets(Net *net, FILE *fileHandle, int32_t minSizeToExtend) {
 	else { //something went wrong last time, and the net hasn't been filled in.. so we'll return it
 		//again.
 		assert(net_getBlockNumber(net) == 0);
-		fprintf(fileHandle, "%s %zd\n",
-				netMisc_nameToStringStatic(net_getName(net)), net_getTotalBaseLength(net));
+		fprintf(fileHandle, "%s %" PRIi64 "\n", netMisc_nameToStringStatic(net_getName(net)), net_getTotalBaseLength(net));
 	}
 }
 
