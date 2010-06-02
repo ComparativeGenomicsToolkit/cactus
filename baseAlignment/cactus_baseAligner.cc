@@ -346,7 +346,6 @@ int main(int argc, char *argv[]) {
 		/*
 		 * Run the cactus core script.
 		 */
-		cCIP->maxEdgeDegree = subSequences->length;
 		cactusCorePipeline(net, cCIP, getAlignments, startAlignmentStack);
 		st_logInfo("Ran the cactus core script.\n");
 
