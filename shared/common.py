@@ -47,61 +47,38 @@ def runCactusCore(netDisk, alignmentFile,
                   writeDebugFiles=False,
                   alignUndoLoops=False,
                   alignRepeatsAtLoop=False,
-                  maximumEdgeDegree=None,
-                  extensionSteps=None,
-                  extensionStepsReduction=None,
                   trim=None,
                   trimReduction=None,
-                  maximumTreeCoverageUndo = None,
-                  maximumTreeCoverageUndoReduction = None,
-                  maximumChainLengthUndo = None,
-                  maximumChainLengthUndoReduction = None,
                   minimumTreeCoverage=None,
-                  minimumTreeCoverageReduction=None,
                   minimumBlockLength=None,
+                  minimumBlockLengthIncrease=None,
                   minimumChainLength=None,
-                  minimumChainLengthReduction=None):
+                  minimumChainLengthIncrease=None):
     writeDebugFiles = nameValue("writeDebugFiles", writeDebugFiles, bool)
     alignUndoLoops = nameValue("alignUndoLoops", alignUndoLoops, int)
     alignRepeatsAtLoop = nameValue("alignRepeatsAtLoop", alignRepeatsAtLoop, int)
-    maximumEdgeDegree = nameValue("maxEdgeDegree", maximumEdgeDegree, int)
-    extensionSteps = nameValue("extensionSteps", extensionSteps, int)
-    extensionStepsReduction = nameValue("extensionStepsReduction", extensionStepsReduction, int)
     trim = nameValue("trim", trim, int)
     trimReduction = nameValue("trimReduction", trimReduction, int)
     
-    maximumTreeCoverageUndo = nameValue("maximumTreeCoverageUndo", maximumTreeCoverageUndo, int)
-    maximumTreeCoverageUndoReduction = nameValue("maximumTreeCoverageUndoReduction", maximumTreeCoverageUndoReduction, float)
-    maximumChainLengthUndo = nameValue("maximumChainLengthUndo", maximumChainLengthUndo, int)
-    maximumChainLengthUndoReduction = nameValue("maximumChainLengthUndoReduction", maximumChainLengthUndoReduction, int)
-    
     minimumTreeCoverage = nameValue("minimumTreeCoverage", minimumTreeCoverage, float)
-    minimumTreeCoverageReduction = nameValue("minimumTreeCoverageReduction", minimumTreeCoverageReduction, float)
     minimumBlockLength = nameValue("minimumBlockLength", minimumBlockLength, int)
+    minimumBlockLengthIncrease = nameValue("minimumChainLengthIncrease", minimumBlockLengthIncrease, int)
     minimumChainLength = nameValue("minimumChainLength", minimumChainLength, int)
-    minimumChainLengthReduction = nameValue("minimumChainLengthReduction", minimumChainLengthReduction, int)
+    minimumChainLengthIncrease = nameValue("minimumChainLengthIncrease", minimumChainLengthIncrease, int)
     
-    command = "cactus_core --netDisk %s --netName %s --alignments %s --logLevel %s \
-%s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s" % \
+    command = "cactus_core --netDisk %s --netName %s --alignments %s --logLevel %s %s %s %s %s %s %s %s %s %s %s" % \
     (netDisk, netName, alignmentFile, 
      logLevel, 
      writeDebugFiles,
      alignUndoLoops,
      alignRepeatsAtLoop,
-     maximumEdgeDegree,
-     extensionSteps,
-     extensionStepsReduction,
      trim,
      trimReduction,
-     maximumTreeCoverageUndo,
-     maximumTreeCoverageUndoReduction,
-     maximumChainLengthUndo,
-     maximumChainLengthUndoReduction,
      minimumTreeCoverage,
-     minimumTreeCoverageReduction,
      minimumBlockLength,
+     minimumBlockLengthIncrease,
      minimumChainLength,
-     minimumChainLengthReduction)
+     minimumChainLengthIncrease)
 
     system(command)
     logger.info("Ran cactus_core okay")

@@ -1,105 +1,61 @@
 <cactus_workflow_config ideal_job_runtime="500">
 	<alignment>
-		<blast_misc 
-			overlapSize="10000"
-	    	chunksPerJob="1"
-	    	compressFiles="True"
-		/>
+		<blast_misc overlapSize="10000" chunksPerJob="1"
+			compressFiles="True" />
 		<iterations>
-			<iteration number="0" max_sequence_size="10e100" type="blast" time="1000">
-				<blast
-					chunkSize="100000000"
-	    			blastString="lastz --format=cigar --notransition --seed=14of22 --step=100 --nogapped --hspthresh=6000 SEQ_FILE_1[multiple][nameparse=darkspace] SEQ_FILE_2[nameparse=darkspace] > CIGARS_FILE"
-					selfBlastString="lastz --format=cigar --notransition --seed=14of22 --step=100 --nogapped --hspthresh=6000 SEQ_FILE[nameparse=darkspace] --self > CIGARS_FILE"
-				/>
-				<core 
-					alignUndoLoops="10"
-					alignRepeatsAtLoop="5" 
-					maximumEdgeDegree="50"
-					extensionSteps="31500"
-			        extensionStepsReduction="3500"
-			        trim="20" 
-			        trimReduction="2"
-			        maximumTreeCoverageUndo="0.0"
-			        maximumTreeCoverageUndoReduction="0.0"
-			        maximumChainLengthUndo="0"
-			        maximumChainLengthUndoReduction="0"
-			        minimumTreeCoverage="0.95" 
-			        minimumTreeCoverageReduction="0.1"
-			        minimumBlockLength="4" 
-			        minimumChainLength="8" 
-			        minimumChainLengthReduction="0"
-		        />
+			<iteration number="0" max_sequence_size="10e100" type="blast"
+				time="1000">
+				<blast chunkSize="100000000"
+					blastString="lastz --format=cigar --notransition --seed=14of22 --step=100 --nogapped --hspthresh=6000 SEQ_FILE_1[multiple][nameparse=darkspace] SEQ_FILE_2[nameparse=darkspace] > CIGARS_FILE"
+					selfBlastString="lastz --format=cigar --notransition --seed=14of22 --step=100 --nogapped --hspthresh=6000 SEQ_FILE[nameparse=darkspace] --self > CIGARS_FILE" />
+				<core alignUndoLoops="1" alignRepeatsAtLoop="0"
+					trim="0" trimReduction="0" 
+					minimumTreeCoverage="0.1" 
+					minimumBlockLength="0" minimumBlockLengthIncrease="0"
+					minimumChainLength="100" minimumChainLengthIncrease="0" />
 			</iteration>
-			
-			<iteration number="1" max_sequence_size="30000000" type="blast" time="1000">
-				<blast
-					chunkSize="10000000"
-	    			blastString="lastz --format=cigar --notransition --step=20 --nogapped SEQ_FILE_1[multiple][nameparse=darkspace] SEQ_FILE_2[nameparse=darkspace] > CIGARS_FILE"
-					selfBlastString="lastz --notransition --step=20 --nogapped --format=cigar SEQ_FILE[nameparse=darkspace] --self > CIGARS_FILE"
-				/>
-				<core 
-					alignUndoLoops="10" 
-					alignRepeatsAtLoop="5" 
-					maximumEdgeDegree="50" 
-					extensionSteps="360"
-	        		extensionStepsReduction="40" 
-	        		trim="9" 
-	        		trimReduction="2" 
-			        maximumTreeCoverageUndo="0.0" 
-			        maximumTreeCoverageUndoReduction="0.0" 
-			        maximumChainLengthUndo="0"
-			        maximumChainLengthUndoReduction="0"
-	        		minimumTreeCoverage="0.95" 
-	        		minimumTreeCoverageReduction="0.1" 
-	        		minimumBlockLength="0" 
-	        		minimumChainLength="8" 
-	        		minimumChainLengthReduction="0"
-		        />
+
+			<iteration number="1" max_sequence_size="30000000" type="blast"
+				time="1000">
+				<blast chunkSize="10000000"
+					blastString="lastz --format=cigar --notransition --step=20 --nogapped SEQ_FILE_1[multiple][nameparse=darkspace] SEQ_FILE_2[nameparse=darkspace] > CIGARS_FILE"
+					selfBlastString="lastz --notransition --step=20 --nogapped --format=cigar SEQ_FILE[nameparse=darkspace] --self > CIGARS_FILE" />
+				<core alignUndoLoops="1" alignRepeatsAtLoop="0"
+					trim="0" trimReduction="0" 
+					minimumTreeCoverage="0.1" 
+					minimumBlockLength="0" minimumBlockLengthIncrease="0"
+					minimumChainLength="100" minimumChainLengthIncrease="0" />
 			</iteration>
-		
-			<iteration number="2" max_sequence_size="1000000" type="blast" time="10">
-				<blast
-					chunkSize="1000000"
-	    			blastString="lastz --format=cigar SEQ_FILE_1[multiple][nameparse=darkspace] SEQ_FILE_2[nameparse=darkspace] > CIGARS_FILE"
-					selfBlastString="lastz --format=cigar SEQ_FILE[nameparse=darkspace] --self > CIGARS_FILE"
-				/>
-				<core 
-					alignUndoLoops="10" 
-					alignRepeatsAtLoop="5"  
-					maximumEdgeDegree="50" 
-					extensionSteps="20"
-	        		extensionStepsReduction="3" 
-	        		trim="9" 
-	        		trimReduction="1" 
-			        maximumTreeCoverageUndo="1.0" 
-			        maximumTreeCoverageUndoReduction="0.0" 
-			        maximumChainLengthUndo="15"
-			        maximumChainLengthUndoReduction="2"
-			        minimumTreeCoverage="0.9" 
-			        minimumTreeCoverageReduction="0.1" 
-			        minimumBlockLength="0" 
-			        minimumChainLength="0" 
-			        minimumChainLengthReduction="0"
-		        />
+
+			<iteration number="2" max_sequence_size="1000000" type="blast"
+				time="10">
+				<blast chunkSize="1000000"
+					blastString="lastz --format=cigar SEQ_FILE_1[multiple][nameparse=darkspace] SEQ_FILE_2[nameparse=darkspace] > CIGARS_FILE"
+					selfBlastString="lastz --format=cigar SEQ_FILE[nameparse=darkspace] --self > CIGARS_FILE" />
+				<core alignUndoLoops="1" alignRepeatsAtLoop="0"
+					trim="0" trimReduction="0" 
+					minimumTreeCoverage="0.1" 
+					minimumBlockLength="0" minimumBlockLengthIncrease="0"
+					minimumChainLength="100" minimumChainLengthIncrease="0" />
 			</iteration>
-			
-			<iteration number="3" max_sequence_size="2000" type="base" time="1"/>
+
+			<iteration number="3" max_sequence_size="2000" type="base"
+				time="1" />
 		</iterations>
 	</alignment>
-	
+
 	<terminal_normal time="1">
 	</terminal_normal>
-	
+
 	<phylogeny time="1">
 	</phylogeny>
-	
+
 	<faces time="1">
 	</faces>
-	
+
 	<reference time="1">
 	</reference>
-	
+
 	<check time="1">
 	</check>
 </cactus_workflow_config>

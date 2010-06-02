@@ -10,7 +10,7 @@
 #include "cactus.h"
 
 void fillOutNetFromInputs(Net *parentNet, struct CactusGraph *cactusGraph,
-		struct PinchGraph *pinchGraph, struct List *chosenBlocks);
+        struct PinchGraph *pinchGraph, struct List *chosenBlocks);
 
 struct PinchGraph *constructPinchGraph(Net *net);
 

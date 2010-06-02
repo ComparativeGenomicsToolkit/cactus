@@ -45,7 +45,6 @@ def getRandomConfigFile():
     core = iteration.find("core")
     alignUndoLoops = 1 + int(random.random() * 10)
     core.attrib["alignUndoLoops"] = str(alignUndoLoops)
-    core.attrib["maximumEdgeDegree"] = str(1 + int(random.random() * 10))
     core.attrib["minimumTreeCoverage"] = str(random.random())
     core.attrib["minimumBlockLength"] = str(int(random.random() * 5))
     core.attrib["minimumChainLength"] = str(int(random.random() * 10))

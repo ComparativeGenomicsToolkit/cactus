@@ -213,20 +213,13 @@ class CactusCoreWrapper(Target):
                       logLevel=getLogLevelString(), 
                       alignUndoLoops=float(coreParameters.attrib["alignUndoLoops"]),
                       alignRepeatsAtLoop=float(coreParameters.attrib["alignRepeatsAtLoop"]),
-                      maximumEdgeDegree=float(coreParameters.attrib["maximumEdgeDegree"]),
-                      extensionSteps=float(coreParameters.attrib["extensionSteps"]),
-                      extensionStepsReduction=float(coreParameters.attrib["extensionStepsReduction"]),
                       trim=float(coreParameters.attrib["trim"]),
                       trimReduction=float(coreParameters.attrib["trimReduction"]),
-                      maximumTreeCoverageUndo=float(coreParameters.attrib["maximumTreeCoverageUndo"]),
-                      maximumTreeCoverageUndoReduction=float(coreParameters.attrib["maximumTreeCoverageUndoReduction"]),
-                      maximumChainLengthUndo=float(coreParameters.attrib["maximumChainLengthUndo"]),
-                      maximumChainLengthUndoReduction=float(coreParameters.attrib["maximumChainLengthUndoReduction"]),
                       minimumTreeCoverage=float(coreParameters.attrib["minimumTreeCoverage"]),
-                      minimumTreeCoverageReduction=float(coreParameters.attrib["minimumTreeCoverageReduction"]),
                       minimumBlockLength=float(coreParameters.attrib["minimumBlockLength"]),
+                      minimumBlockLengthIncrease=float(coreParameters.attrib["minimumBlockLengthIncrease"]),
                       minimumChainLength=float(coreParameters.attrib["minimumChainLength"]),
-                      minimumChainLengthReduction=float(coreParameters.attrib["minimumChainLengthReduction"]))
+                      minimumChainLengthIncrease=float(coreParameters.attrib["minimumChainLengthIncrease"]))
         logger.info("Ran the cactus core program okay")
         
         #Setup call to core and aligner recursive as follow on.
