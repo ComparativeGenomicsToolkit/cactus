@@ -219,7 +219,8 @@ class CactusCoreWrapper(Target):
                       minimumBlockLength=float(coreParameters.attrib["minimumBlockLength"]),
                       minimumBlockLengthIncrease=float(coreParameters.attrib["minimumBlockLengthIncrease"]),
                       minimumChainLength=float(coreParameters.attrib["minimumChainLength"]),
-                      minimumChainLengthIncrease=float(coreParameters.attrib["minimumChainLengthIncrease"]))
+                      minimumChainLengthIncrease=float(coreParameters.attrib["minimumChainLengthIncrease"]),
+                      minimumChainLengthCactusUndoLoopStepSize=float(coreParameters.attrib["minimumChainLengthCactusUndoLoopStepSize"]))
         logger.info("Ran the cactus core program okay")
         
         #Setup call to core and aligner recursive as follow on.

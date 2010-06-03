@@ -17,7 +17,7 @@ typedef struct _CactusCoreInputParameters {
     int32_t minimumBlockLengthIncrease;
     int32_t minimumChainLength;
     int32_t minimumChainLengthIncrease;
-
+    int32_t minimumChainLengthCactusUndoLoopStepSize;
 } CactusCoreInputParameters;
 
 int32_t cactusCorePipeline(Net *net, CactusCoreInputParameters *cCIP,

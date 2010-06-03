@@ -53,7 +53,8 @@ def runCactusCore(netDisk, alignmentFile,
                   minimumBlockLength=None,
                   minimumBlockLengthIncrease=None,
                   minimumChainLength=None,
-                  minimumChainLengthIncrease=None):
+                  minimumChainLengthIncrease=None,
+                  minimumChainLengthCactusUndoLoopStepSize=None):
     writeDebugFiles = nameValue("writeDebugFiles", writeDebugFiles, bool)
     alignUndoLoops = nameValue("alignUndoLoops", alignUndoLoops, int)
     alignRepeatsAtLoop = nameValue("alignRepeatsAtLoop", alignRepeatsAtLoop, int)
@@ -62,11 +63,12 @@ def runCactusCore(netDisk, alignmentFile,
     
     minimumTreeCoverage = nameValue("minimumTreeCoverage", minimumTreeCoverage, float)
     minimumBlockLength = nameValue("minimumBlockLength", minimumBlockLength, int)
-    minimumBlockLengthIncrease = nameValue("minimumChainLengthIncrease", minimumBlockLengthIncrease, int)
+    minimumBlockLengthIncrease = nameValue("minimumBlockLengthIncrease", minimumBlockLengthIncrease, int)
     minimumChainLength = nameValue("minimumChainLength", minimumChainLength, int)
     minimumChainLengthIncrease = nameValue("minimumChainLengthIncrease", minimumChainLengthIncrease, int)
+    minimumChainLengthCactusUndoLoopStepSize = nameValue("minimumChainLengthCactusUndoLoopStepSize", minimumChainLengthCactusUndoLoopStepSize, int)
     
-    command = "cactus_core --netDisk %s --netName %s --alignments %s --logLevel %s %s %s %s %s %s %s %s %s %s %s" % \
+    command = "cactus_core --netDisk %s --netName %s --alignments %s --logLevel %s %s %s %s %s %s %s %s %s %s %s %s" % \
     (netDisk, netName, alignmentFile, 
      logLevel, 
      writeDebugFiles,
@@ -78,7 +80,8 @@ def runCactusCore(netDisk, alignmentFile,
      minimumBlockLength,
      minimumBlockLengthIncrease,
      minimumChainLength,
-     minimumChainLengthIncrease)
+     minimumChainLengthIncrease,
+     minimumChainLengthCactusUndoLoopStepSize)
 
     system(command)
     logger.info("Ran cactus_core okay")

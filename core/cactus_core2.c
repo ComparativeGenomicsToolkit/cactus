@@ -50,11 +50,12 @@ void usage() {
 
     fprintf(stderr, "-m --minimumTreeCoverage : Minimum tree coverage proportion of an block to be included in the graph\n");
 
-    fprintf(stderr, "-n --minimumBlockLength : The minimum length of an block required to be included in the problem\n");
-    fprintf(stderr, "-o --minimumBlockLengthIncrease : The minimum block length increase after each align/undo loop\n");
+    fprintf(stderr, "-n --minimumBlockLength : The minimum length of a block required to be included in the problem\n");
+    fprintf(stderr, "-o --minimumBlockLengthIncrease : The minimum-block-length increase after each align/undo loop\n");
 
     fprintf(stderr, "-p --minimumChainLength : The minimum chain length required to be included in the problem\n");
-    fprintf(stderr, "-q --minimumChainLengthReduction : The minimum chain length increase after each align/undo loop\n");
+    fprintf(stderr, "-q --minimumChainLengthIncrease : The minimum-chain-length increase after each align/undo loop\n");
+    fprintf(stderr, "-r --minimumChainLengthCactusUndoLoopStepSize: The amount to increase the minimum chain length after each cactus tree undo loop\n");
 }
 
 int main(int argc, char *argv[]) {
@@ -97,12 +98,13 @@ int main(int argc, char *argv[]) {
                         { "minimumBlockLengthIncrease", required_argument, 0, 'o' },
                         { "minimumChainLength", required_argument, 0, 'p' },
                         { "minimumChainLengthIncrease", required_argument, 0, 'q', },
+                        { "minimumChainLengthCactusUndoLoopStepSize", required_argument, 0, 'r', },
                         { 0, 0, 0, 0 } };
 
         int option_index = 0;
 
         key = getopt_long(argc, argv,
-                "a:b:c:d:ehi:j:k:l:m:n:o:p:q:", long_options,
+                "a:b:c:d:ehi:j:k:l:m:n:o:p:q:r:", long_options,
                 &option_index);
 
         if (key == -1) {
@@ -155,6 +157,9 @@ int main(int argc, char *argv[]) {
         case 'q':
             assert(sscanf(optarg, "%i", &cCIP->minimumChainLengthIncrease) == 1);
             break;
+        case 'r':
+             assert(sscanf(optarg, "%i", &cCIP->minimumChainLengthCactusUndoLoopStepSize) == 1);
+             break;
 
         default:
             usage();
@@ -178,6 +183,7 @@ int main(int argc, char *argv[]) {
     assert(cCIP->trim >= 0);
     assert(cCIP->trimReduction >= 0);
     assert(cCIP->alignUndoLoops >= 0);
+    assert(cCIP->minimumChainLengthCactusUndoLoopStepSize > 0);
 
     //////////////////////////////////////////////
     //Set up logging

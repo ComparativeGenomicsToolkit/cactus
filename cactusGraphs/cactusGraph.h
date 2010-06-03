@@ -9,6 +9,7 @@
 #include "avl.h"
 #include "cactus.h"
 #include "commonC.h"
+#include "sonLib.h"
 
 /*
  * Data structures and methods used in building the cactus graph from
@@ -59,6 +60,8 @@ void checkCactusGraph(struct PinchGraph *pinchGraph,
 
 void checkCactusContainsOnly2EdgeConnectedComponents(
         struct CactusGraph *cactusGraph);
+
+int32_t cactusGraph_getEdgeNumber(struct CactusGraph *cactusGraph);
 
 ////////////////////////////////////////////////
 ////////////////////////////////////////////////
@@ -134,18 +137,15 @@ void circulariseStems(struct CactusGraph *cactusGraph);
 ////////////////////////////////////////////////
 ////////////////////////////////////////////////
 
-struct List *filterBlocksByTreeCoverageAndLength(
+stSortedSet *filterBlocksByTreeCoverageAndLength(
         struct List *biConnectedComponents, Net *net,
         float minimumTreeCoverage, /*Minimum tree coverage to be included */
         int32_t minimumBlockLength, /*The minimum length of an block to be included */
         int32_t minimumChainLength, /* Minimum chain length to be included */
-        float maximumTreeCoverage, /*Maximum tree coverage to be included */
-        int32_t maximumBlockLength, /*The maximum length of an block to be included */
-        int32_t maximumChainLength, /* Maximum chain length to be included */
         struct PinchGraph *pinchGraph);
 
 void logTheChosenBlockSubset(struct List *biConnectedComponents,
-        struct List *chosenBlocks, struct PinchGraph *pinchGraph, Net *net);
+        stSortedSet *chosenBlocks, struct PinchGraph *pinchGraph, Net *net);
 
 ////////////////////////////////////////////////
 ////////////////////////////////////////////////

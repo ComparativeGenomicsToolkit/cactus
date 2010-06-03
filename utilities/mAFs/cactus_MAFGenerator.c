@@ -26,7 +26,7 @@ char *formatSequenceHeader(Sequence *sequence) {
     }
 }
 
-static void getMAFBlockP(Segment *segment, FILE *fileHandle) {
+static void getMAFBlockP2(Segment *segment, FILE *fileHandle) {
     assert(segment != NULL);
     Sequence *sequence = segment_getSequence(segment);
     if (sequence != NULL) {
@@ -47,10 +47,14 @@ static void getMAFBlockP(Segment *segment, FILE *fileHandle) {
         free(instanceString);
         free(sequenceHeader);
     }
+}
+
+static void getMAFBlockP(Segment *segment, FILE *fileHandle) {
     int32_t i;
     for (i = 0; i < segment_getChildNumber(segment); i++) {
         getMAFBlockP(segment_getChild(segment, i), fileHandle);
     }
+    getMAFBlockP2(segment, fileHandle);
 }
 
 void getMAFBlock(Block *block, FILE *fileHandle) {
@@ -58,15 +62,28 @@ void getMAFBlock(Block *block, FILE *fileHandle) {
      * Outputs a MAF representation of the block to the given file handle.
      */
     if (block_getInstanceNumber(block) > 0) {
-        /* Get newick tree string with internal labels and no unary events */
-        char *newickTreeString = block_makeNewickString(block, 1, 0);
-        assert(newickTreeString != NULL);
-        fprintf(fileHandle, "a score=%i tree='%s'\n", block_getLength(block)
-                * block_getInstanceNumber(block), newickTreeString);
-        free(newickTreeString);
-        assert(block_getRootInstance(block) != NULL);
-        getMAFBlockP(block_getRootInstance(block), fileHandle);
-        fprintf(fileHandle, "\n");
+        if(block_getRootInstance(block) != NULL) {
+            /* Get newick tree string with internal labels and no unary events */
+            char *newickTreeString = block_makeNewickString(block, 1, 0);
+            assert(newickTreeString != NULL);
+            fprintf(fileHandle, "a score=%i tree='%s'\n", block_getLength(block)
+                    * block_getInstanceNumber(block), newickTreeString);
+            free(newickTreeString);
+            assert(block_getRootInstance(block) != NULL);
+            getMAFBlockP(block_getRootInstance(block), fileHandle);
+            fprintf(fileHandle, "\n");
+        }
+        else {
+            /* Get newick tree string with internal labels and no unary events */
+            fprintf(fileHandle, "a score=%i\n", block_getLength(block) * block_getInstanceNumber(block));
+            Block_InstanceIterator *iterator = block_getInstanceIterator(block);
+            Segment *segment;
+            while((segment = block_getNext(iterator)) != NULL) {
+                getMAFBlockP2(segment, fileHandle);
+            }
+            block_destructInstanceIterator(iterator);
+            fprintf(fileHandle, "\n");
+        }
     }
 }
 
@@ -105,8 +122,7 @@ void usage() {
     fprintf(stderr, "cactus_mafGenerator, version 0.2\n");
     fprintf(stderr, "-a --logLevel : Set the log level\n");
     fprintf(stderr, "-c --netDisk : The location of the net disk directory\n");
-    fprintf(stderr,
-            "-d --netName : The name of the net (the key in the database)\n");
+    fprintf(stderr, "-d --netName : The name of the net (the key in the database)\n");
     fprintf(stderr, "-e --outputFile : The file to write the MAFs in.\n");
     fprintf(stderr, "-h --help : Print this help screen\n");
 }

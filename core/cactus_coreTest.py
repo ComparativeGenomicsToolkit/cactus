@@ -28,7 +28,6 @@ class TestCase(unittest.TestCase):
                                      testRestrictions=(TestStatus.TEST_SHORT,), inverseTestRestrictions=True, 
                                      buildTrees=False, buildFaces=False, buildReference=False)
         
-
 def getRandomConfigFile():
     tempConfigFile = getTempFile(rootDir="./", suffix=".xml")
     config = ET.parse(os.path.join(sonTraceRootPath(), "src", "cactus", "pipeline", "cactus_workflow_config.xml")).getroot()
@@ -48,6 +47,9 @@ def getRandomConfigFile():
     core.attrib["minimumTreeCoverage"] = str(random.random())
     core.attrib["minimumBlockLength"] = str(int(random.random() * 5))
     core.attrib["minimumChainLength"] = str(int(random.random() * 10))
+    core.attrib["minimumBlockLengthIncrease"] = str(int(random.random() * 5))
+    core.attrib["minimumChainLengthIncrease"] = str(int(random.random() * 5))
+    core.attrib["minimumChainLengthCactusUndoLoopStepSize"] = str(int(1 + random.random() * 5))
     core.attrib["trim"] = str(1 + int(random.random() * 5))
     core.attrib["alignRepeatsAtLoop"] = str(random.random() * alignUndoLoops)
     #Now print the file..

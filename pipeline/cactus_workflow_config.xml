@@ -12,7 +12,8 @@
 					trim="0" trimReduction="0" 
 					minimumTreeCoverage="0.1" 
 					minimumBlockLength="0" minimumBlockLengthIncrease="0"
-					minimumChainLength="100" minimumChainLengthIncrease="0" />
+					minimumChainLength="100" minimumChainLengthIncrease="0" 
+					minimumChainLengthCactusUndoLoopStepSize="100" />
 			</iteration>
 
 			<iteration number="1" max_sequence_size="30000000" type="blast"
@@ -24,7 +25,8 @@
 					trim="0" trimReduction="0" 
 					minimumTreeCoverage="0.1" 
 					minimumBlockLength="0" minimumBlockLengthIncrease="0"
-					minimumChainLength="100" minimumChainLengthIncrease="0" />
+					minimumChainLength="100" minimumChainLengthIncrease="0"
+					minimumChainLengthCactusUndoLoopStepSize="100" />
 			</iteration>
 
 			<iteration number="2" max_sequence_size="1000000" type="blast"
@@ -36,7 +38,8 @@
 					trim="0" trimReduction="0" 
 					minimumTreeCoverage="0.1" 
 					minimumBlockLength="0" minimumBlockLengthIncrease="0"
-					minimumChainLength="100" minimumChainLengthIncrease="0" />
+					minimumChainLength="100" minimumChainLengthIncrease="0"
+					minimumChainLengthCactusUndoLoopStepSize="10" />
 			</iteration>
 
 			<iteration number="3" max_sequence_size="2000" type="base"

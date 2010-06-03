@@ -215,6 +215,22 @@ void destructCactusGraph(struct CactusGraph *cactusGraph) {
     free(cactusGraph);
 }
 
+int32_t cactusGraph_getEdgeNumber(struct CactusGraph *cactusGraph) {
+    stSortedSet *sortedSet = stSortedSet_construct();
+    for(int32_t i=0; i<cactusGraph->vertices->length; i++) {
+        struct CactusVertex *cactusVertex = cactusGraph->vertices->list[i];
+        for(int32_t j=0; j<cactusVertex->edges->length; j++) {
+            struct CactusEdge *cactusEdge = cactusVertex->edges->list[j];
+            stSortedSet_insert(sortedSet, cactusEdge);
+            stSortedSet_insert(sortedSet, cactusEdge->rEdge);
+        }
+    }
+    int32_t k = stSortedSet_size(sortedSet);
+    stSortedSet_destruct(sortedSet);
+    assert(k % 2 == 0);
+    return k/2;
+}
+
 void checkCactusGraph(struct PinchGraph *pinchGraph,
         struct List *threeEdgeConnectedComponents,
         struct CactusGraph *cactusGraph) {
@@ -1143,47 +1159,31 @@ int32_t chainBaseLength(struct List *biConnectedComponent,
     return i;
 }
 
-struct List *filterBlocksByTreeCoverageAndLength(
+stSortedSet *filterBlocksByTreeCoverageAndLength(
         struct List *biConnectedComponents, Net *net,
         float minimumTreeCoverage, /*Minimum tree coverage to be included (>=) */
         int32_t minimumBlockLength, /*The minimum length of an block to be included (>=)*/
         int32_t minimumChainLength, /* Minimum chain length to be included (>=)*/
-        float maximumTreeCoverage, /*Maximum tree coverage to be included (<=) */
-        int32_t maximumBlockLength, /*The maximum length of an block to be included (<=)*/
-        int32_t maximumChainLength, /* Maximum chain length to be included (<=) */
         struct PinchGraph *pinchGraph) {
     /*
      * Filters blocks in chains by base length and tree coverage.
      *
      * Returns a list of all accepted blocks, excluding stubs.
      */
-    int32_t i, j, k, l;
-    float d;
-    struct CactusEdge *cactusEdge;
-    struct List *biConnectedComponent;
-    struct List *chosenBlocks;
-
-    ///////////////
-    //Gets those blocks whose chain meet the minimum score and have the minimum tree coverage.
-    ///////////////
-
-    chosenBlocks = constructEmptyList(0, NULL);
-
-    for (i = 0; i < biConnectedComponents->length; i++) {
-        biConnectedComponent = biConnectedComponents->list[i];
-        k = chainBaseLength(biConnectedComponent, pinchGraph);
-        if (k >= minimumChainLength && k <= maximumChainLength) {
-            for (j = 0; j < biConnectedComponent->length; j++) {
-                cactusEdge = biConnectedComponent->list[j];
+    stSortedSet *chosenBlocks = stSortedSet_construct();
+    for (int32_t i = 0; i < biConnectedComponents->length; i++) {
+        struct List *biConnectedComponent = biConnectedComponents->list[i];
+        int32_t k = chainBaseLength(biConnectedComponent, pinchGraph);
+        if (k >= minimumChainLength) {
+            for (int32_t j = 0; j < biConnectedComponent->length; j++) {
+                struct CactusEdge *cactusEdge = biConnectedComponent->list[j];
                 if (!isAStubCactusEdge(cactusEdge, pinchGraph)) {
                     assert(cactusEdge->pieces->length> 0);
                     struct Piece *piece = cactusEdge->pieces->list[0];
-                    d = treeCoverage2(cactusEdge, net, pinchGraph);
-                    l = piece->end - piece->start + 1;
-                    if (d >= minimumTreeCoverage && d <= maximumTreeCoverage
-                            && l >= minimumBlockLength && l
-                            <= maximumBlockLength) {
-                        listAppend(chosenBlocks, cactusEdge);
+                    float d = treeCoverage2(cactusEdge, net, pinchGraph);
+                    int32_t l = piece->end - piece->start + 1;
+                    if (d >= minimumTreeCoverage && l >= minimumBlockLength) {
+                        stSortedSet_insert(chosenBlocks, cactusEdge);
                     }
                 }
             }
@@ -1193,7 +1193,7 @@ struct List *filterBlocksByTreeCoverageAndLength(
 }
 
 void logTheChosenBlockSubset(struct List *biConnectedComponents,
-        struct List *chosenBlocks, struct PinchGraph *pinchGraph, Net *net) {
+        stSortedSet *chosenBlocks, struct PinchGraph *pinchGraph, Net *net) {
     /*
      * Produces logging information about the chosen blocks.
      */
@@ -1225,8 +1225,8 @@ void logTheChosenBlockSubset(struct List *biConnectedComponents,
         }
     }
     j = 0;
-    for (i = 0; i < chosenBlocks->length; i++) {
-        cactusEdge = chosenBlocks->list[i];
+    stSortedSetIterator *it = stSortedSet_getIterator(chosenBlocks);
+    while ((cactusEdge = stSortedSet_getNext(it)) != NULL) {
         if (!isAStubCactusEdge(cactusEdge, pinchGraph)) {
             totalBlockScore += treeCoverage2(cactusEdge, net, pinchGraph);
             piece = cactusEdge->pieces->list[0];
@@ -1235,9 +1235,10 @@ void logTheChosenBlockSubset(struct List *biConnectedComponents,
             j++;
         }
     }
+    stSortedSet_destructIterator(it);
     st_logInfo(
             "Chosen block subset composed of %i blocks, of average length %f and average tree coverage %f, total base length of all blocks: %f, total number of all blocks %f, average length of all blocks: %f, total number of stub blocks: %f, average piece number of chosen blocks: %f, average piece number of all blocks: %f\n",
-            chosenBlocks->length, totalBlockLength / j, totalBlockScore / j,
+            stSortedSet_size(chosenBlocks), totalBlockLength / j, totalBlockScore / j,
             totalBaseLengthOfAllBlocks, totalNumberOfAllBlocks,
             totalBaseLengthOfAllBlocks / totalNumberOfAllBlocks,
             totalNumberOfStubBlocks, averagePieceNumber / j,

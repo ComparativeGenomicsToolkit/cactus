@@ -452,14 +452,16 @@ void addGroupsP(Net *net, struct hashtable *groups) {
 }
 
 void addGroups(Net *net, struct PinchGraph *pinchGraph,
-        struct List *chosenBlocks, struct hashtable *endNamesHash) {
+        stSortedSet *chosenBlocks, struct hashtable *endNamesHash) {
     int32_t i, j;
     struct List *chosenPinchEdges = constructEmptyList(0, NULL);
-    for (i = 0; i < chosenBlocks->length; i++) {
-        listAppend(chosenPinchEdges, cactusEdgeToFirstPinchEdge(
-                chosenBlocks->list[i], pinchGraph));
-        assert(chosenPinchEdges->list[i] != NULL);
+    struct CactusEdge *cactusEdge;
+    stSortedSetIterator *chosenBlocksIt = stSortedSet_getIterator(chosenBlocks);
+    while((cactusEdge = stSortedSet_getNext(chosenBlocksIt)) != NULL) {
+        listAppend(chosenPinchEdges, cactusEdgeToFirstPinchEdge(cactusEdge, pinchGraph));
+        assert(chosenPinchEdges->list[chosenPinchEdges->length-1] != NULL);
     }
+    stSortedSet_destructIterator(chosenBlocksIt);
     for (i = 0; i < pinchGraph->vertices->length; i++) {
         struct PinchVertex *vertex = pinchGraph->vertices->list[i];
         if (vertex_isDeadEnd(vertex) || vertex_isEnd(vertex)) {
@@ -580,7 +582,7 @@ void setBlocksBuilt(Net *net) {
 }
 
 void fillOutNetFromInputs(Net *parentNet, struct CactusGraph *cactusGraph,
-        struct PinchGraph *pinchGraph, struct List *chosenBlocks) {
+        struct PinchGraph *pinchGraph, stSortedSet *chosenBlocks) {
     Net *net;
     Net *nestedNet;
     End *end;
@@ -600,7 +602,6 @@ void fillOutNetFromInputs(Net *parentNet, struct CactusGraph *cactusGraph,
     void **parentNets;
     int32_t *mergedVertexIDs;
     int32_t i, j; //, k;
-    struct hashtable *chosenBlocksHash;
     struct hashtable *endNamesHash;
     struct PinchEdge *pinchEdge;
     struct Piece *piece;
@@ -650,7 +651,7 @@ void fillOutNetFromInputs(Net *parentNet, struct CactusGraph *cactusGraph,
     //Build end names hash
     ////////////////////////////////////////////////
 
-    endNamesHash = create_hashtable(chosenBlocks->length * 2, hashtable_key,
+    endNamesHash = create_hashtable(stSortedSet_size(chosenBlocks), hashtable_key,
             hashtable_equalKey, NULL, free);
     endIterator = net_getEndIterator(parentNet);
     while ((end = net_getNextEnd(endIterator)) != NULL) {
@@ -676,11 +677,6 @@ void fillOutNetFromInputs(Net *parentNet, struct CactusGraph *cactusGraph,
     //Prune the cactus graph to include only those edges relevant to the desired net.
     ////////////////////////////////////////////////
 
-    chosenBlocksHash = create_hashtable(chosenBlocks->length * 2,
-            hashtable_key, hashtable_equalKey, NULL, NULL);
-    for (i = 0; i < chosenBlocks->length; i++) {
-        hashtable_insert(chosenBlocksHash, chosenBlocks->list[i], &i);
-    }
     mergedVertexIDs
             = st_malloc(sizeof(int32_t) * cactusGraph->vertices->length);
     for (i = 0; i < cactusGraph->vertices->length; i++) {
@@ -712,7 +708,7 @@ void fillOutNetFromInputs(Net *parentNet, struct CactusGraph *cactusGraph,
                 } else {
                     listAppend(list, cactusEdge);
                 }
-            } else if (hashtable_search(chosenBlocksHash, cactusEdge) == NULL) { //is a non stub not in the chosen list.
+            } else if (stSortedSet_search(chosenBlocks, cactusEdge) == NULL) { //is a non stub not in the chosen list.
                 //merge vertices
                 mergeCactusVertices(cactusEdge, mergedVertexIDs, j,
                         biConnectedComponent);
@@ -912,7 +908,6 @@ void fillOutNetFromInputs(Net *parentNet, struct CactusGraph *cactusGraph,
     free(vertexDiscoveryTimes);
     free(parentNets);
     destructList(biConnectedComponents);
-    hashtable_destroy(chosenBlocksHash, FALSE, FALSE);
     hashtable_destroy(endNamesHash, TRUE, FALSE);
 }
 
