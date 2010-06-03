@@ -393,7 +393,7 @@ int32_t cactusCorePipeline(Net *net, CactusCoreInputParameters *cCIP,
             ///////////////////////////////////////////////////////////////////////////
 
             chosenBlocks = filterBlocksByTreeCoverageAndLength(biConnectedComponents,
-                    net, cCIP->minimumTreeCoverage, 0, 0, pinchGraph);
+                    net, 0.001, 0, 0, pinchGraph); //the 0.001 ensures we have some coverage
 
 #ifdef BEN_DEBUG
             /*
