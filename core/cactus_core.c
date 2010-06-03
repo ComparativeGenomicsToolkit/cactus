@@ -397,14 +397,24 @@ int32_t cactusCorePipeline(Net *net, CactusCoreInputParameters *cCIP,
 
 #ifdef BEN_DEBUG
             /*
+             * This checks that the chosen blocks all have more than one sequence in them.
+             */
+            stSortedSetIterator *chosenBlocksIterator = stSortedSet_getIterator(chosenBlocks);
+            struct CactusEdge *cactusEdge;
+            while((cactusEdge = stSortedSet_getNext(chosenBlocksIterator)) != NULL) {
+                assert(cactusEdge->pieces->length > 1);
+            }
+            stSortedSet_destructIterator(chosenBlocksIterator);
+
+            /*
              * This test checks all blocks not in the chosen blocks have degree 1 or are stubs.
              */
             stSortedSet *allBlocks = filterBlocksByTreeCoverageAndLength(biConnectedComponents, net, 0.0, 0, 0, pinchGraph);
             assert(stSortedSet_size(allBlocks) == cactusGraph_getEdgeNumber(cactusGraph) - net_getStubEndNumber(net)); //check that this does slurp up all the block edges in the graph except those representing stub ends.
             //Now get the blocks to undo by computing the difference.
             stSortedSet *otherBlocks = stSortedSet_getDifference(allBlocks, chosenBlocks);
+            assert(stSortedSet_size(allBlocks) == stSortedSet_size(chosenBlocks) + stSortedSet_size(otherBlocks)); //just to be sure.
             stSortedSetIterator *otherBlocksIterator = stSortedSet_getIterator(otherBlocks);
-            struct CactusEdge *cactusEdge;
             while((cactusEdge = stSortedSet_getNext(otherBlocksIterator)) != NULL) {
                 assert(cactusEdge->pieces->length == 1);
             }
