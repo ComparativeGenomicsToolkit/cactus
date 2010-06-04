@@ -1162,6 +1162,7 @@ int32_t chainBaseLength(struct List *biConnectedComponent,
 stSortedSet *filterBlocksByTreeCoverageAndLength(
         struct List *biConnectedComponents, Net *net,
         float minimumTreeCoverage, /*Minimum tree coverage to be included (>=) */
+        int32_t minimumBlockDegree, /*The minimum number of segments in a block to be included (>=)*/
         int32_t minimumBlockLength, /*The minimum length of an block to be included (>=)*/
         int32_t minimumChainLength, /* Minimum chain length to be included (>=)*/
         struct PinchGraph *pinchGraph) {
@@ -1173,17 +1174,18 @@ stSortedSet *filterBlocksByTreeCoverageAndLength(
     stSortedSet *chosenBlocks = stSortedSet_construct();
     for (int32_t i = 0; i < biConnectedComponents->length; i++) {
         struct List *biConnectedComponent = biConnectedComponents->list[i];
-        int32_t k = chainBaseLength(biConnectedComponent, pinchGraph);
-        if (k >= minimumChainLength) {
+        if (minimumChainLength <= 0 || chainBaseLength(biConnectedComponent, pinchGraph) >= minimumChainLength) {
             for (int32_t j = 0; j < biConnectedComponent->length; j++) {
                 struct CactusEdge *cactusEdge = biConnectedComponent->list[j];
                 if (!isAStubCactusEdge(cactusEdge, pinchGraph)) {
                     assert(cactusEdge->pieces->length> 0);
-                    struct Piece *piece = cactusEdge->pieces->list[0];
-                    float d = treeCoverage2(cactusEdge, net, pinchGraph);
-                    int32_t l = piece->end - piece->start + 1;
-                    if (d >= minimumTreeCoverage && l >= minimumBlockLength) {
-                        stSortedSet_insert(chosenBlocks, cactusEdge);
+                    if(minimumBlockDegree <= 0 || cactusEdge->pieces->length >= minimumBlockDegree) {
+                        if(minimumTreeCoverage <= 0.0 || treeCoverage2(cactusEdge, net, pinchGraph) >= minimumTreeCoverage) {
+                            struct Piece *piece = cactusEdge->pieces->list[0];
+                            if (minimumBlockLength <= 0 || piece->end - piece->start + 1 >= minimumBlockLength) {
+                                stSortedSet_insert(chosenBlocks, cactusEdge);
+                            }
+                        }
                     }
                 }
             }

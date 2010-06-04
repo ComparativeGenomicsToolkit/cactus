@@ -115,13 +115,13 @@ CactusCoreInputParameters *constructCactusCoreInputParameters() {
     cCIP->alignUndoLoops = 1;
     cCIP->alignRepeatsAtLoop = 0;
     cCIP->trim = 0;
-    cCIP->trimReduction = 0;
+    cCIP->trimChange = 0.0;
     cCIP->minimumTreeCoverage = 0.0;
     cCIP->minimumBlockLength = 0;
-    cCIP->minimumBlockLengthIncrease = 0;
+    cCIP->minimumBlockLengthChange = 0.0;
     cCIP->minimumChainLength = 0;
-    cCIP->minimumChainLengthIncrease = 0;
-    cCIP->minimumChainLengthCactusUndoLoopStepSize = 1;
+    cCIP->minimumChainLengthChange = 0.0;
+    cCIP->minimumChainLengthCactusUndoLoopStepSize = 1.0;
     return cCIP;
 }
 
@@ -229,9 +229,9 @@ int32_t cactusCorePipeline(Net *net, CactusCoreInputParameters *cCIP,
      * These parameters are altered during the loops to push/pull the sequences together/apart.
      */
 
-    int32_t trim = cCIP->trim;
-    int32_t minimumChainLength = cCIP->minimumChainLength;
-    int32_t minimumBlockLength = cCIP->minimumBlockLength;
+    float trim = cCIP->trim;
+    float minimumChainLength = cCIP->minimumChainLength;
+    float minimumBlockLength = cCIP->minimumBlockLength;
 
     vertexAdjacencyComponents = create_hashtable(pinchGraph->vertices->length*2, hashtable_key, hashtable_equalKey, NULL, free);
 
@@ -269,7 +269,7 @@ int32_t cactusCorePipeline(Net *net, CactusCoreInputParameters *cCIP,
         i = 0;
 
         struct FilterAlignmentParameters *filterParameters = (struct FilterAlignmentParameters *)st_malloc(sizeof(struct FilterAlignmentParameters));
-        assert(cCIP->trim >= 0);
+        assert(trim >= 0);
         filterParameters->trim = trim;
         filterParameters->alignRepeats = loop >= cCIP->alignRepeatsAtLoop; //cCIP->alignRepeats;
         filterParameters->net = net;
@@ -305,8 +305,8 @@ int32_t cactusCorePipeline(Net *net, CactusCoreInputParameters *cCIP,
         // Loop a bunch of times to progressively remove longer and longer (upto minimum chain length) chains.
         ////////////////////////////////////////////////
 
-        assert(cCIP->minimumChainLengthCactusUndoLoopStepSize > 0);
-        int32_t minimumChainLengthCactusUndoLoopSize = cCIP->minimumChainLengthCactusUndoLoopStepSize >
+        assert(cCIP->minimumChainLengthCactusUndoLoopStepSize >= 1.0);
+        float minimumChainLengthCactusUndoLoopSize = cCIP->minimumChainLengthCactusUndoLoopStepSize >
         minimumChainLength ? minimumChainLength : cCIP->minimumChainLengthCactusUndoLoopStepSize;
         while(1) {
 
@@ -328,11 +328,11 @@ int32_t cactusCorePipeline(Net *net, CactusCoreInputParameters *cCIP,
 
             startTime = time(NULL);
             //Get all the blocks.
-            stSortedSet *allBlocks = filterBlocksByTreeCoverageAndLength(biConnectedComponents, net, 0.0, 0, 0, pinchGraph);
+            stSortedSet *allBlocks = filterBlocksByTreeCoverageAndLength(biConnectedComponents, net, 0.0, 0, 0, 0, pinchGraph);
             assert(stSortedSet_size(allBlocks) == cactusGraph_getEdgeNumber(cactusGraph) - net_getStubEndNumber(net)); //check that this does slurp up all the block edges in the graph except those representing stub ends.
             //Get the blocks we want to keep
             stSortedSet *chosenBlocksToKeep = filterBlocksByTreeCoverageAndLength(biConnectedComponents,
-                    net, cCIP->minimumTreeCoverage, minimumBlockLength, minimumChainLengthCactusUndoLoopSize, pinchGraph);
+                    net, cCIP->minimumTreeCoverage, 0, minimumBlockLength, minimumChainLengthCactusUndoLoopSize, pinchGraph);
             //Now get the blocks to undo by computing the difference.
             chosenBlocks = stSortedSet_getDifference(allBlocks, chosenBlocksToKeep);
             assert(stSortedSet_size(chosenBlocks) + stSortedSet_size(chosenBlocksToKeep) == stSortedSet_size(allBlocks)); //check the diff has the right proportions, at least.
@@ -363,7 +363,7 @@ int32_t cactusCorePipeline(Net *net, CactusCoreInputParameters *cCIP,
             destructCactusGraph(cactusGraph);
             stSortedSet_destruct(chosenBlocks);
 
-            if(minimumChainLengthCactusUndoLoopSize == minimumChainLength) {
+            if(minimumChainLengthCactusUndoLoopSize >= minimumChainLength) { //defensive, should always equal the minimumChainLength at the end..
                 break;
             }
             minimumChainLengthCactusUndoLoopSize += cCIP->minimumChainLengthCactusUndoLoopStepSize;
@@ -393,7 +393,7 @@ int32_t cactusCorePipeline(Net *net, CactusCoreInputParameters *cCIP,
             ///////////////////////////////////////////////////////////////////////////
 
             chosenBlocks = filterBlocksByTreeCoverageAndLength(biConnectedComponents,
-                    net, 0.001, 0, 0, pinchGraph); //the 0.001 ensures we have some coverage
+                    net, 0.0, 2, 0, 0, pinchGraph); //this gets all blocks that are aligned to something else..
 
 #ifdef BEN_DEBUG
             /*
@@ -409,7 +409,7 @@ int32_t cactusCorePipeline(Net *net, CactusCoreInputParameters *cCIP,
             /*
              * This test checks all blocks not in the chosen blocks have degree 1 or are stubs.
              */
-            stSortedSet *allBlocks = filterBlocksByTreeCoverageAndLength(biConnectedComponents, net, 0.0, 0, 0, pinchGraph);
+            stSortedSet *allBlocks = filterBlocksByTreeCoverageAndLength(biConnectedComponents, net, 0.0, 0, 0, 0, pinchGraph);
             assert(stSortedSet_size(allBlocks) == cactusGraph_getEdgeNumber(cactusGraph) - net_getStubEndNumber(net)); //check that this does slurp up all the block edges in the graph except those representing stub ends.
             //Now get the blocks to undo by computing the difference.
             stSortedSet *otherBlocks = stSortedSet_getDifference(allBlocks, chosenBlocks);
@@ -450,9 +450,12 @@ int32_t cactusCorePipeline(Net *net, CactusCoreInputParameters *cCIP,
             // Modify parameters for next loop
             ///////////////////////////////////////////////////////////////////////////
 
-            trim = trim - cCIP->trimReduction > 0 ? trim - cCIP->trimReduction : 0;
-            minimumBlockLength += cCIP->minimumBlockLengthIncrease;
-            minimumChainLength += cCIP->minimumChainLengthIncrease;
+            trim += cCIP->trimChange;
+            trim = trim < 0.0 ? 0.0 : trim;
+            minimumBlockLength += cCIP->minimumBlockLengthChange;
+            minimumBlockLength = minimumBlockLength < 0.0 ? 0.0 : minimumBlockLength;
+            minimumChainLength += cCIP->minimumChainLengthChange;
+            minimumChainLength = minimumChainLength < 0.0 ? 0.0 : minimumChainLength;
 
             ///////////////////////////////////////////////////////////////////////////
             // Cleanup the loop.
@@ -468,7 +471,7 @@ int32_t cactusCorePipeline(Net *net, CactusCoreInputParameters *cCIP,
             ///////////////////////////////////////////////////////////////////////////
 
             chosenBlocks = filterBlocksByTreeCoverageAndLength(biConnectedComponents,
-                                net, 0.0, 0, 0, pinchGraph);
+                                net, 0.0, 0, 0, 0, pinchGraph);
             assert(stSortedSet_size(chosenBlocks) == cactusGraph_getEdgeNumber(cactusGraph) - net_getStubEndNumber(net)); //check that this does slurp up all the block edges in the graph except those representing stub ends.
             fillOutNetFromInputs(net, cactusGraph, pinchGraph, chosenBlocks);
             break;

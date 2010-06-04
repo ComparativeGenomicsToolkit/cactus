@@ -48,24 +48,24 @@ def runCactusCore(netDisk, alignmentFile,
                   alignUndoLoops=False,
                   alignRepeatsAtLoop=False,
                   trim=None,
-                  trimReduction=None,
+                  trimChange=None,
                   minimumTreeCoverage=None,
                   minimumBlockLength=None,
-                  minimumBlockLengthIncrease=None,
+                  minimumBlockLengthChange=None,
                   minimumChainLength=None,
-                  minimumChainLengthIncrease=None,
+                  minimumChainLengthChange=None,
                   minimumChainLengthCactusUndoLoopStepSize=None):
     writeDebugFiles = nameValue("writeDebugFiles", writeDebugFiles, bool)
     alignUndoLoops = nameValue("alignUndoLoops", alignUndoLoops, int)
     alignRepeatsAtLoop = nameValue("alignRepeatsAtLoop", alignRepeatsAtLoop, int)
-    trim = nameValue("trim", trim, int)
-    trimReduction = nameValue("trimReduction", trimReduction, int)
     
+    trim = nameValue("trim", trim, int)
+    trimChange = nameValue("trimChange", trimChange, float)
     minimumTreeCoverage = nameValue("minimumTreeCoverage", minimumTreeCoverage, float)
     minimumBlockLength = nameValue("minimumBlockLength", minimumBlockLength, int)
-    minimumBlockLengthIncrease = nameValue("minimumBlockLengthIncrease", minimumBlockLengthIncrease, int)
+    minimumBlockLengthChange = nameValue("minimumBlockLengthChange", minimumBlockLengthChange, float)
     minimumChainLength = nameValue("minimumChainLength", minimumChainLength, int)
-    minimumChainLengthIncrease = nameValue("minimumChainLengthIncrease", minimumChainLengthIncrease, int)
+    minimumChainLengthChange = nameValue("minimumChainLengthChange", minimumChainLengthChange, float)
     minimumChainLengthCactusUndoLoopStepSize = nameValue("minimumChainLengthCactusUndoLoopStepSize", minimumChainLengthCactusUndoLoopStepSize, int)
     
     command = "cactus_core --netDisk %s --netName %s --alignments %s --logLevel %s %s %s %s %s %s %s %s %s %s %s %s" % \
@@ -75,12 +75,12 @@ def runCactusCore(netDisk, alignmentFile,
      alignUndoLoops,
      alignRepeatsAtLoop,
      trim,
-     trimReduction,
+     trimChange,
      minimumTreeCoverage,
      minimumBlockLength,
-     minimumBlockLengthIncrease,
+     minimumBlockLengthChange,
      minimumChainLength,
-     minimumChainLengthIncrease,
+     minimumChainLengthChange,
      minimumChainLengthCactusUndoLoopStepSize)
 
     system(command)

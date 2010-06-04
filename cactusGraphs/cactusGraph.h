@@ -140,6 +140,7 @@ void circulariseStems(struct CactusGraph *cactusGraph);
 stSortedSet *filterBlocksByTreeCoverageAndLength(
         struct List *biConnectedComponents, Net *net,
         float minimumTreeCoverage, /*Minimum tree coverage to be included */
+        int32_t minimumBlockDegree, /*The minimum number of segments in a block to be included (>=)*/
         int32_t minimumBlockLength, /*The minimum length of an block to be included */
         int32_t minimumChainLength, /* Minimum chain length to be included */
         struct PinchGraph *pinchGraph);

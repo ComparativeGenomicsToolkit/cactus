@@ -10,14 +10,14 @@ typedef struct _CactusCoreInputParameters {
     int32_t alignRepeatsAtLoop;
     /* Stuff for adding more homologies to graph progressively */
     int32_t trim;
-    int32_t trimReduction;
+    float trimChange;
     /* Stuff for selecting chains to keep */
     float minimumTreeCoverage;
     int32_t minimumBlockLength;
-    int32_t minimumBlockLengthIncrease;
+    float minimumBlockLengthChange;
     int32_t minimumChainLength;
-    int32_t minimumChainLengthIncrease;
-    int32_t minimumChainLengthCactusUndoLoopStepSize;
+    float minimumChainLengthChange;
+    float minimumChainLengthCactusUndoLoopStepSize;
 } CactusCoreInputParameters;
 
 int32_t cactusCorePipeline(Net *net, CactusCoreInputParameters *cCIP,

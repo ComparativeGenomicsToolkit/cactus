@@ -9,10 +9,10 @@
 					blastString="lastz --format=cigar --notransition --seed=14of22 --step=100 --nogapped --hspthresh=6000 SEQ_FILE_1[multiple][nameparse=darkspace] SEQ_FILE_2[nameparse=darkspace] > CIGARS_FILE"
 					selfBlastString="lastz --format=cigar --notransition --seed=14of22 --step=100 --nogapped --hspthresh=6000 SEQ_FILE[nameparse=darkspace] --self > CIGARS_FILE" />
 				<core alignUndoLoops="1" alignRepeatsAtLoop="0"
-					trim="0" trimReduction="0" 
+					trim="0" trimChange="0" 
 					minimumTreeCoverage="0.1" 
-					minimumBlockLength="0" minimumBlockLengthIncrease="0"
-					minimumChainLength="100" minimumChainLengthIncrease="0" 
+					minimumBlockLength="0" minimumBlockLengthChange="0"
+					minimumChainLength="100" minimumChainLengthChange="0" 
 					minimumChainLengthCactusUndoLoopStepSize="100" />
 			</iteration>
 
@@ -22,10 +22,10 @@
 					blastString="lastz --format=cigar --notransition --step=20 --nogapped SEQ_FILE_1[multiple][nameparse=darkspace] SEQ_FILE_2[nameparse=darkspace] > CIGARS_FILE"
 					selfBlastString="lastz --notransition --step=20 --nogapped --format=cigar SEQ_FILE[nameparse=darkspace] --self > CIGARS_FILE" />
 				<core alignUndoLoops="1" alignRepeatsAtLoop="0"
-					trim="0" trimReduction="0" 
+					trim="0" trimChange="0" 
 					minimumTreeCoverage="0.1" 
-					minimumBlockLength="0" minimumBlockLengthIncrease="0"
-					minimumChainLength="100" minimumChainLengthIncrease="0"
+					minimumBlockLength="0" minimumBlockLengthChange="0"
+					minimumChainLength="100" minimumChainLengthChange="0"
 					minimumChainLengthCactusUndoLoopStepSize="100" />
 			</iteration>
 
@@ -34,12 +34,12 @@
 				<blast chunkSize="1000000"
 					blastString="lastz --format=cigar SEQ_FILE_1[multiple][nameparse=darkspace] SEQ_FILE_2[nameparse=darkspace] > CIGARS_FILE"
 					selfBlastString="lastz --format=cigar SEQ_FILE[nameparse=darkspace] --self > CIGARS_FILE" />
-				<core alignUndoLoops="1" alignRepeatsAtLoop="0"
-					trim="0" trimReduction="0" 
-					minimumTreeCoverage="0.1" 
-					minimumBlockLength="0" minimumBlockLengthIncrease="0"
-					minimumChainLength="100" minimumChainLengthIncrease="0"
-					minimumChainLengthCactusUndoLoopStepSize="10" />
+				<core alignUndoLoops="10" alignRepeatsAtLoop="0"
+					trim="9" trimChange="-1" 
+					minimumTreeCoverage="0.0" 
+					minimumBlockLength="0" minimumBlockLengthChange="0"
+					minimumChainLength="20" minimumChainLengthChange="0"
+					minimumChainLengthCactusUndoLoopStepSize="2" />
 			</iteration>
 
 			<iteration number="3" max_sequence_size="2000" type="base"

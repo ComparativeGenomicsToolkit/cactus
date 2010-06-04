@@ -42,20 +42,20 @@ void usage() {
     fprintf(stderr, "-e --writeDebugFiles : Write the debug files\n");
     fprintf(stderr, "-h --help : Print this help screen\n");
 
-    fprintf(stderr, "-i --alignUndoLoops : The number of rounds of alignment, undoing of over-aligned edges and recursion into adjacency connected components (groups)\n");
-    fprintf(stderr, "-j --alignRepeatsAtLoop : Allow bases marked as repeats to be aligned at loop (else alignments to these bases to be excluded)\n");
+    fprintf(stderr, "-i --alignUndoLoops (int >= 1) : The number of rounds of alignment, undoing of over-aligned edges and recursion into adjacency connected components (groups)\n");
+    fprintf(stderr, "-j --alignRepeatsAtLoop (int  [0, alignUndoLoops) ) : Allow bases marked as repeats to be aligned at loop (else alignments to these bases to be excluded)\n");
 
-    fprintf(stderr, "-k --trim : The length of bases to remove from the end of each alignment\n");
-    fprintf(stderr, "-l --trimReduction : Trim reduction, the amount to reduce the trim after each align/undo loop (to a minimum of zero)\n");
+    fprintf(stderr, "-k --trim (float >= 0) : The length of bases to remove from the end of each alignment\n");
+    fprintf(stderr, "-l --trimChange : (float) Trim reduction, the amount to reduce the trim after each align/undo loop (to a minimum of zero)\n");
 
-    fprintf(stderr, "-m --minimumTreeCoverage : Minimum tree coverage proportion of an block to be included in the graph\n");
+    fprintf(stderr, "-m --minimumTreeCoverage : (float [0.0, 1.0]) Minimum tree coverage proportion of an block to be included in the graph\n");
 
-    fprintf(stderr, "-n --minimumBlockLength : The minimum length of a block required to be included in the problem\n");
-    fprintf(stderr, "-o --minimumBlockLengthIncrease : The minimum-block-length increase after each align/undo loop\n");
+    fprintf(stderr, "-n --minimumBlockLength : (int >= 0) The minimum length of a block required to be included in the problem\n");
+    fprintf(stderr, "-o --minimumBlockLengthChange : (float) The minimum-block-length increase after each align/undo loop\n");
 
-    fprintf(stderr, "-p --minimumChainLength : The minimum chain length required to be included in the problem\n");
-    fprintf(stderr, "-q --minimumChainLengthIncrease : The minimum-chain-length increase after each align/undo loop\n");
-    fprintf(stderr, "-r --minimumChainLengthCactusUndoLoopStepSize: The amount to increase the minimum chain length after each cactus tree undo loop\n");
+    fprintf(stderr, "-p --minimumChainLength : (int >= 0) The minimum chain length required to be included in the problem\n");
+    fprintf(stderr, "-q --minimumChainLengthChange : (float) The minimum-chain-length increase after each align/undo loop\n");
+    fprintf(stderr, "-r --minimumChainLengthCactusUndoLoopStepSize: (float >= 1.0) The amount to increase the minimum chain length after each cactus tree undo loop\n");
 }
 
 int main(int argc, char *argv[]) {
@@ -92,12 +92,12 @@ int main(int argc, char *argv[]) {
                         { "alignUndoLoops", required_argument, 0, 'i' },
                         { "alignRepeatsAtLoop", required_argument, 0, 'j' },
                         { "trim", required_argument, 0, 'k' },
-                        { "trimReduction", required_argument, 0, 'l', },
+                        { "trimChange", required_argument, 0, 'l', },
                         { "minimumTreeCoverage", required_argument, 0, 'm' },
                         { "minimumBlockLength", required_argument, 0, 'n' },
-                        { "minimumBlockLengthIncrease", required_argument, 0, 'o' },
+                        { "minimumBlockLengthChange", required_argument, 0, 'o' },
                         { "minimumChainLength", required_argument, 0, 'p' },
-                        { "minimumChainLengthIncrease", required_argument, 0, 'q', },
+                        { "minimumChainLengthChange", required_argument, 0, 'q', },
                         { "minimumChainLengthCactusUndoLoopStepSize", required_argument, 0, 'r', },
                         { 0, 0, 0, 0 } };
 
@@ -140,7 +140,7 @@ int main(int argc, char *argv[]) {
             assert(sscanf(optarg, "%i", &cCIP->trim) == 1);
             break;
         case 'l':
-            assert(sscanf(optarg, "%i", &cCIP->trimReduction) == 1);
+            assert(sscanf(optarg, "%f", &cCIP->trimChange) == 1);
             break;
         case 'm':
             assert(sscanf(optarg, "%f", &cCIP->minimumTreeCoverage) == 1);
@@ -149,16 +149,16 @@ int main(int argc, char *argv[]) {
             assert(sscanf(optarg, "%i", &cCIP->minimumBlockLength) == 1);
             break;
         case 'o':
-            assert(sscanf(optarg, "%i", &cCIP->minimumBlockLengthIncrease) == 1);
+            assert(sscanf(optarg, "%f", &cCIP->minimumBlockLengthChange) == 1);
             break;
         case 'p':
             assert(sscanf(optarg, "%i", &cCIP->minimumChainLength) == 1);
             break;
         case 'q':
-            assert(sscanf(optarg, "%i", &cCIP->minimumChainLengthIncrease) == 1);
+            assert(sscanf(optarg, "%f", &cCIP->minimumChainLengthChange) == 1);
             break;
         case 'r':
-             assert(sscanf(optarg, "%i", &cCIP->minimumChainLengthCactusUndoLoopStepSize) == 1);
+             assert(sscanf(optarg, "%f", &cCIP->minimumChainLengthCactusUndoLoopStepSize) == 1);
              break;
 
         default:
@@ -176,14 +176,12 @@ int main(int argc, char *argv[]) {
     assert(netDiskName != NULL);
     assert(netName != NULL);
     assert(cCIP->minimumTreeCoverage >= 0.0);
-    assert(cCIP->minimumBlockLength >= 0.0);
-    assert(cCIP->minimumBlockLengthIncrease >= 0);
+    assert(cCIP->minimumTreeCoverage <= 1.0);
+    assert(cCIP->minimumBlockLength >= 0);
     assert(cCIP->minimumChainLength >= 0);
-    assert(cCIP->minimumChainLengthIncrease >= 0);
     assert(cCIP->trim >= 0);
-    assert(cCIP->trimReduction >= 0);
     assert(cCIP->alignUndoLoops >= 0);
-    assert(cCIP->minimumChainLengthCactusUndoLoopStepSize > 0);
+    assert(cCIP->minimumChainLengthCactusUndoLoopStepSize >= 1.0);
 
     //////////////////////////////////////////////
     //Set up logging
