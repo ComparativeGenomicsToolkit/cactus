@@ -471,8 +471,8 @@ int32_t cactusCorePipeline(Net *net, CactusCoreInputParameters *cCIP,
             ///////////////////////////////////////////////////////////////////////////
 
             chosenBlocks = filterBlocksByTreeCoverageAndLength(biConnectedComponents,
-                                net, 0.0, 0, 0, 0, pinchGraph);
-            assert(stSortedSet_size(chosenBlocks) == cactusGraph_getEdgeNumber(cactusGraph) - net_getStubEndNumber(net)); //check that this does slurp up all the block edges in the graph except those representing stub ends.
+                                net, 0.0, 2, 0, 0, pinchGraph);
+            //assert(stSortedSet_size(chosenBlocks) == cactusGraph_getEdgeNumber(cactusGraph) - net_getStubEndNumber(net)); //check that this does slurp up all the block edges in the graph except those representing stub ends.
             fillOutNetFromInputs(net, cactusGraph, pinchGraph, chosenBlocks);
             break;
         }

@@ -192,7 +192,6 @@ class CactusBlastWrapper(Target):
         #Now setup a call to cactus core wrapper as a follow on
         self.setFollowOnTarget(CactusCoreWrapper(self.options, self.netName, alignmentFile, self.iteration))
         logger.info("Setup the follow on cactus_core target")
-        
 
 class CactusCoreWrapper(Target):
     def __init__(self, options, netName, alignmentFile, iteration):

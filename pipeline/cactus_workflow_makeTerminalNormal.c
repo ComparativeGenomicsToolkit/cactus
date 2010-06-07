@@ -12,41 +12,41 @@
  */
 
 int main(int argc, char *argv[]) {
-	/*
-	 * This code iterates through the leaf groups and returns
-	 * a list of the new nets.
-	 */
-	NetDisk *netDisk;
-	Net *net;
+    /*
+     * This code iterates through the leaf groups and returns
+     * a list of the new nets.
+     */
+    NetDisk *netDisk;
+    Net *net;
 
-	assert(argc >= 2);
-	netDisk = netDisk_construct(argv[1]);
-	st_logInfo("Set up the net disk\n");
-	int32_t i;
-	for(i=2; i<argc; i++) {
-		net = netDisk_getNet(netDisk, netMisc_stringToName(argv[i]));
-		assert(net != NULL);
-		st_logInfo("Parsed net %s\n", argv[i]);
-		if(!net_isTerminal(net)) {
-			Net_GroupIterator *groupIterator;
-			Group *group;
-			groupIterator = net_getGroupIterator(net);
-			while((group = net_getNextGroup(groupIterator)) != NULL) {
-				if(group_isLeaf(group)) {
-					//assert(group_getTotalBaseLength(group) == 0);
-					group_makeNestedNet(group);
-					net_setBuiltBlocks(group_getNestedNet(group), 1);
-				}
-			}
-			net_destructGroupIterator(groupIterator);
-		}
-	}
+    assert(argc >= 2);
+    netDisk = netDisk_construct(argv[1]);
+    st_logInfo("Set up the net disk\n");
+    int32_t i;
+    for (i = 2; i < argc; i++) {
+        net = netDisk_getNet(netDisk, netMisc_stringToName(argv[i]));
+        assert(net != NULL);
+        st_logInfo("Parsed net %s\n", argv[i]);
+        if (!net_isTerminal(net)) {
+            Net_GroupIterator *groupIterator;
+            Group *group;
+            groupIterator = net_getGroupIterator(net);
+            while ((group = net_getNextGroup(groupIterator)) != NULL) {
+                if (group_isLeaf(group)) {
+                    //assert(group_getTotalBaseLength(group) == 0);
+                    group_makeNestedNet(group);
+                    net_setBuiltBlocks(group_getNestedNet(group), 1);
+                }
+            }
+            net_destructGroupIterator(groupIterator);
+        }
+    }
 
-	netDisk_write(netDisk);
-	st_logInfo("Updated the netdisk\n");
+    netDisk_write(netDisk);
+    st_logInfo("Updated the netdisk\n");
 
-	netDisk_destruct(netDisk);
+    netDisk_destruct(netDisk);
 
-	st_logInfo("Am finished\n");
-	return 0;
+    st_logInfo("Am finished\n");
+    return 0;
 }
