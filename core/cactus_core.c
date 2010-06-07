@@ -302,77 +302,7 @@ int32_t cactusCorePipeline(Net *net, CactusCoreInputParameters *cCIP,
         checkPinchGraph(pinchGraph);
 
         ////////////////////////////////////////////////
-        // Loop a bunch of times to progressively remove longer and longer (upto minimum chain length) chains.
-        ////////////////////////////////////////////////
-
-        assert(cCIP->minimumChainLengthCactusUndoLoopStepSize >= 1.0);
-        float minimumChainLengthCactusUndoLoopSize = cCIP->minimumChainLengthCactusUndoLoopStepSize >
-        minimumChainLength ? minimumChainLength : cCIP->minimumChainLengthCactusUndoLoopStepSize;
-        while(1) {
-
-            ////////////////////////////////////////////////
-            // Compute the cactus graph (for removing spurious homologies)
-            ////////////////////////////////////////////////
-
-            cactusGraph = cactusCorePipeline_2(pinchGraph, net);
-
-            ////////////////////////////////////////////////
-            // Get sorted bi-connected components.
-            ////////////////////////////////////////////////
-
-            biConnectedComponents = computeSortedBiConnectedComponents(cactusGraph);
-
-            ///////////////////////////////////////////////////////////////////////////
-            // Choosing a block subset to undo.
-            ///////////////////////////////////////////////////////////////////////////
-
-            startTime = time(NULL);
-            //Get all the blocks.
-            stSortedSet *allBlocks = filterBlocksByTreeCoverageAndLength(biConnectedComponents, net, 0.0, 0, 0, 0, pinchGraph);
-            assert(stSortedSet_size(allBlocks) == cactusGraph_getEdgeNumber(cactusGraph) - net_getStubEndNumber(net)); //check that this does slurp up all the block edges in the graph except those representing stub ends.
-            //Get the blocks we want to keep
-            stSortedSet *chosenBlocksToKeep = filterBlocksByTreeCoverageAndLength(biConnectedComponents,
-                    net, cCIP->minimumTreeCoverage, 0, minimumBlockLength, minimumChainLengthCactusUndoLoopSize, pinchGraph);
-            //Now get the blocks to undo by computing the difference.
-            chosenBlocks = stSortedSet_getDifference(allBlocks, chosenBlocksToKeep);
-            assert(stSortedSet_size(chosenBlocks) + stSortedSet_size(chosenBlocksToKeep) == stSortedSet_size(allBlocks)); //check the diff has the right proportions, at least.
-            stSortedSet_destruct(chosenBlocksToKeep);
-            stSortedSet_destruct(allBlocks);
-
-            //now report the results
-            logTheChosenBlockSubset(biConnectedComponents, chosenBlocks, pinchGraph, net);
-            st_logInfo("I have chosen %i blocks which meet the requirements to be undone\n", stSortedSet_size(chosenBlocks));
-
-            ///////////////////////////////////////////////////////////////////////////
-            // Undo the blocks.
-            ///////////////////////////////////////////////////////////////////////////
-
-            list = getChosenBlockPinchEdges(chosenBlocks, pinchGraph);
-            removeOverAlignedEdges(pinchGraph, 0.0, INT32_MAX, list, 0, net);
-            destructList(list);
-            st_logInfo("After removing edges which were not chosen, the graph has %i vertices and %i black edges\n", pinchGraph->vertices->length, avl_count(pinchGraph->edges));
-            removeTrivialGreyEdgeComponents(pinchGraph, pinchGraph->vertices, net);
-            st_logInfo("After removing the trivial graph components the graph has %i vertices and %i black edges\n", pinchGraph->vertices->length, avl_count(pinchGraph->edges));
-
-            ///////////////////////////////////////////////////////////////////////////
-            // Cleanup the cactus graph (it is now out of sync with the pinch graph,
-            // after undoing the selected edges).
-            ///////////////////////////////////////////////////////////////////////////
-
-            destructList(biConnectedComponents);
-            destructCactusGraph(cactusGraph);
-            stSortedSet_destruct(chosenBlocks);
-
-            if(minimumChainLengthCactusUndoLoopSize >= minimumChainLength) { //defensive, should always equal the minimumChainLength at the end..
-                break;
-            }
-            minimumChainLengthCactusUndoLoopSize += cCIP->minimumChainLengthCactusUndoLoopStepSize;
-            minimumChainLengthCactusUndoLoopSize = minimumChainLengthCactusUndoLoopSize > minimumChainLength
-            ? minimumChainLength : minimumChainLengthCactusUndoLoopSize;
-        }
-
-        ////////////////////////////////////////////////
-        // Compute the cactus graph with spurious stuff removed
+        // Compute the cactus graph
         ////////////////////////////////////////////////
 
         cactusGraph = cactusCorePipeline_2(pinchGraph, net);
@@ -382,6 +312,75 @@ int32_t cactusCorePipeline(Net *net, CactusCoreInputParameters *cCIP,
         ////////////////////////////////////////////////
 
         biConnectedComponents = computeSortedBiConnectedComponents(cactusGraph);
+
+        ////////////////////////////////////////////////
+        // Loop a bunch of times to progressively remove longer and longer (upto minimum chain length) chains.
+        ////////////////////////////////////////////////
+
+        assert(cCIP->minimumChainLengthCactusUndoLoopStepSize >= 1.0);
+        float minimumChainLengthCactusUndoLoopSize = cCIP->minimumChainLengthCactusUndoLoopStepSize >
+        minimumChainLength ? minimumChainLength : cCIP->minimumChainLengthCactusUndoLoopStepSize;
+        while(1) {
+            ///////////////////////////////////////////////////////////////////////////
+            // Choosing a block subset to undo.
+            ///////////////////////////////////////////////////////////////////////////
+
+            startTime = time(NULL);
+            //Get all the blocks.
+            stSortedSet *allBlocksOfDegree2OrHigher = filterBlocksByTreeCoverageAndLength(biConnectedComponents, net, 0.0, 2, 0, 0, pinchGraph);
+            //Get the blocks we want to keep
+            stSortedSet *chosenBlocksToKeep = filterBlocksByTreeCoverageAndLength(biConnectedComponents,
+                    net, cCIP->minimumTreeCoverage, 0, minimumBlockLength, minimumChainLengthCactusUndoLoopSize, pinchGraph);
+            //Now get the blocks to undo by computing the difference.
+            chosenBlocks = stSortedSet_getDifference(allBlocksOfDegree2OrHigher, chosenBlocksToKeep);
+            stSortedSet_destruct(chosenBlocksToKeep);
+            stSortedSet_destruct(allBlocksOfDegree2OrHigher);
+
+            if(stSortedSet_size(chosenBlocks) > 0) {
+                //now report the results
+                logTheChosenBlockSubset(biConnectedComponents, chosenBlocks, pinchGraph, net);
+                st_logInfo("I have chosen %i blocks which meet the requirements to be undone\n", stSortedSet_size(chosenBlocks));
+
+                ///////////////////////////////////////////////////////////////////////////
+                // Undo the blocks.
+                ///////////////////////////////////////////////////////////////////////////
+
+                list = getChosenBlockPinchEdges(chosenBlocks, pinchGraph);
+                removeOverAlignedEdges(pinchGraph, 0.0, INT32_MAX, list, 0, net);
+                destructList(list);
+                st_logInfo("After removing edges which were not chosen, the graph has %i vertices and %i black edges\n", pinchGraph->vertices->length, avl_count(pinchGraph->edges));
+                removeTrivialGreyEdgeComponents(pinchGraph, pinchGraph->vertices, net);
+                st_logInfo("After removing the trivial graph components the graph has %i vertices and %i black edges\n", pinchGraph->vertices->length, avl_count(pinchGraph->edges));
+
+                ///////////////////////////////////////////////////////////////////////////
+                // Cleanup the old cactus graph (it is now out of sync with the pinch graph,
+                // after undoing the selected edges).
+                ///////////////////////////////////////////////////////////////////////////
+
+                destructList(biConnectedComponents);
+                destructCactusGraph(cactusGraph);
+                stSortedSet_destruct(chosenBlocks);
+
+                ////////////////////////////////////////////////
+                // Re-compute the cactus graph
+                ////////////////////////////////////////////////
+
+                cactusGraph = cactusCorePipeline_2(pinchGraph, net);
+
+                ////////////////////////////////////////////////
+                // Get the sorted bi-connected components, again
+                ////////////////////////////////////////////////
+
+                biConnectedComponents = computeSortedBiConnectedComponents(cactusGraph);
+            }
+
+            if(minimumChainLengthCactusUndoLoopSize >= minimumChainLength) { //defensive, should always equal the minimumChainLength at the end..
+                break;
+            }
+            minimumChainLengthCactusUndoLoopSize += cCIP->minimumChainLengthCactusUndoLoopStepSize;
+            minimumChainLengthCactusUndoLoopSize = minimumChainLengthCactusUndoLoopSize > minimumChainLength
+            ? minimumChainLength : minimumChainLengthCactusUndoLoopSize;
+        }
 
         ///////////////////////////////////////////////////////////////////////////
         // Choosing a block subset to keep in the final set of chains.
@@ -450,12 +449,13 @@ int32_t cactusCorePipeline(Net *net, CactusCoreInputParameters *cCIP,
             // Modify parameters for next loop
             ///////////////////////////////////////////////////////////////////////////
 
-            trim += cCIP->trimChange;
-            trim = trim < 0.0 ? 0.0 : trim;
             minimumBlockLength += cCIP->minimumBlockLengthChange;
             minimumBlockLength = minimumBlockLength < 0.0 ? 0.0 : minimumBlockLength;
             minimumChainLength += cCIP->minimumChainLengthChange;
             minimumChainLength = minimumChainLength < 0.0 ? 0.0 : minimumChainLength;
+            trim += cCIP->trimChange;
+            trim = trim < 0.0 ? 0.0 : trim;
+
 
             ///////////////////////////////////////////////////////////////////////////
             // Cleanup the loop.

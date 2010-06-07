@@ -39,7 +39,7 @@
 					minimumTreeCoverage="0.0" 
 					minimumBlockLength="0" minimumBlockLengthChange="0"
 					minimumChainLength="20" minimumChainLengthChange="0"
-					minimumChainLengthCactusUndoLoopStepSize="2" />
+					minimumChainLengthCactusUndoLoopStepSize="5" />
 			</iteration>
 
 			<iteration number="3" max_sequence_size="2000" type="base"

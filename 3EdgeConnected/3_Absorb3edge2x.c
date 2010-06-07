@@ -489,38 +489,25 @@ struct List *computeThreeEdgeConnectedComponents(struct List *vertices) {
 
     //*********************************Memory allocation
 
-    if ((LG = (adjacentG*) st_malloc(Vnum
-            * sizeof(struct adjacent_with_u_in_G *))) == NULL)
-        abrt("Not enough memory to allocate buffer");
+    LG = (adjacentG*) st_malloc(Vnum * sizeof(struct adjacent_with_u_in_G *));
 
-    if ((LB = (adjacentG*) st_malloc(Vnum
-            * sizeof(struct adjacent_with_u_in_G *))) == NULL)
-        abrt("Not enough memory to allocate buffer");
+    LB = (adjacentG*) st_malloc(Vnum * sizeof(struct adjacent_with_u_in_G *));
 
-    if ((LBend = (adjacentG*) st_malloc(Vnum
-            * sizeof(struct adjacent_with_u_in_G *))) == NULL)
-        abrt("Not enough memory to allocate buffer");
+    LBend = (adjacentG*) st_malloc(Vnum * sizeof(struct adjacent_with_u_in_G *));
 
-    if ((lowpt = (int *) st_malloc(Vnum * sizeof(int))) == NULL)
-        abrt("Not enough memory to allocate buffer");
+    lowpt = (int *) st_malloc(Vnum * sizeof(int));
 
-    if ((pre = (int *) st_malloc(Vnum * sizeof(int))) == NULL)
-        abrt("Not enough memory to allocate buffer");
+    pre = (int *) st_malloc(Vnum * sizeof(int));
 
-    if ((nd = (int *) st_malloc(Vnum * sizeof(int))) == NULL)
-        abrt("Not enough memory to allocate buffer");
+    nd = (int *) st_malloc(Vnum * sizeof(int));
 
-    if ((next_on_path = (int *) st_malloc(Vnum * sizeof(int))) == NULL)
-        abrt("Not enough memory to allocate buffer");
+    next_on_path = (int *) st_malloc(Vnum * sizeof(int));
 
-    if ((next_sigma_element = (int *) st_malloc(Vnum * sizeof(int))) == NULL)
-        abrt("Not enough memory to allocate buffer");
+    next_sigma_element = (int *) st_malloc(Vnum * sizeof(int));
 
-    if ((visited = (char *) st_malloc(Vnum * sizeof(char))) == NULL)
-        abrt("Not enough memory to allocate buffer");
+    visited = (char *) st_malloc(Vnum * sizeof(char));
 
-    if ((outgoing_tree_edge = (char *) st_malloc(Vnum * sizeof(char))) == NULL)
-        abrt("Not enough memory to allocate buffer");
+    outgoing_tree_edge = (char *) st_malloc(Vnum * sizeof(char));
 
     for (indx = 0; indx < Vnum; indx++) {
         LG[indx] = NULL;
@@ -536,9 +523,7 @@ struct List *computeThreeEdgeConnectedComponents(struct List *vertices) {
         v = i + 1;
         for (j = 0; j < edges->length; j++) {
             n = edges->list[j];
-            if ((edge = (adjacentG) st_malloc(
-                    sizeof(struct adjacent_with_u_in_G))) == NULL)
-                abrt("Not enough memory to allocate buffer23");
+            edge = (adjacentG) st_malloc(sizeof(struct adjacent_with_u_in_G));
             edge->more = NULL;
             edge->u = n;
             edge->more = LG[v];
