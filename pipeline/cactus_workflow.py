@@ -214,12 +214,12 @@ class CactusCoreWrapper(Target):
                       alignUndoLoops=float(coreParameters.attrib["alignUndoLoops"]),
                       alignRepeatsAtLoop=float(coreParameters.attrib["alignRepeatsAtLoop"]),
                       trim=float(coreParameters.attrib["trim"]),
-                      trimReduction=float(coreParameters.attrib["trimReduction"]),
+                      trimChange=float(coreParameters.attrib["trimChange"]),
                       minimumTreeCoverage=float(coreParameters.attrib["minimumTreeCoverage"]),
                       minimumBlockLength=float(coreParameters.attrib["minimumBlockLength"]),
-                      minimumBlockLengthIncrease=float(coreParameters.attrib["minimumBlockLengthIncrease"]),
+                      minimumBlockLengthChange=float(coreParameters.attrib["minimumBlockLengthChange"]),
                       minimumChainLength=float(coreParameters.attrib["minimumChainLength"]),
-                      minimumChainLengthIncrease=float(coreParameters.attrib["minimumChainLengthIncrease"]),
+                      minimumChainLengthChange=float(coreParameters.attrib["minimumChainLengthChange"]),
                       minimumChainLengthCactusUndoLoopStepSize=float(coreParameters.attrib["minimumChainLengthCactusUndoLoopStepSize"]))
         logger.info("Ran the cactus core program okay")
         
