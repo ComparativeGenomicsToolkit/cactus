@@ -45,8 +45,8 @@ def runCactusCore(netDisk, alignmentFile,
                   netName=0,
                   logLevel="DEBUG", 
                   writeDebugFiles=False,
-                  alignUndoLoops=False,
-                  alignRepeatsAtLoop=False,
+                  annealingRounds=False,
+                  alignRepeatsAtRound=False,
                   trim=None,
                   trimChange=None,
                   minimumTreeCoverage=None,
@@ -54,11 +54,10 @@ def runCactusCore(netDisk, alignmentFile,
                   minimumBlockLengthChange=None,
                   minimumChainLength=None,
                   minimumChainLengthChange=None,
-                  minimumChainLengthCactusUndoLoopStepSize=None):
+                  deannealingRounds=None):
     writeDebugFiles = nameValue("writeDebugFiles", writeDebugFiles, bool)
-    alignUndoLoops = nameValue("alignUndoLoops", alignUndoLoops, int)
-    alignRepeatsAtLoop = nameValue("alignRepeatsAtLoop", alignRepeatsAtLoop, int)
-    
+    annealingRounds = nameValue("annealingRounds", annealingRounds, int)
+    alignRepeatsAtRound = nameValue("alignRepeatsAtRound", alignRepeatsAtRound, int)
     trim = nameValue("trim", trim, int)
     trimChange = nameValue("trimChange", trimChange, float)
     minimumTreeCoverage = nameValue("minimumTreeCoverage", minimumTreeCoverage, float)
@@ -66,22 +65,12 @@ def runCactusCore(netDisk, alignmentFile,
     minimumBlockLengthChange = nameValue("minimumBlockLengthChange", minimumBlockLengthChange, float)
     minimumChainLength = nameValue("minimumChainLength", minimumChainLength, int)
     minimumChainLengthChange = nameValue("minimumChainLengthChange", minimumChainLengthChange, float)
-    minimumChainLengthCactusUndoLoopStepSize = nameValue("minimumChainLengthCactusUndoLoopStepSize", minimumChainLengthCactusUndoLoopStepSize, int)
+    deannealingRounds = nameValue("deannealingRounds", deannealingRounds, int)
     
     command = "cactus_core --netDisk %s --netName %s --alignments %s --logLevel %s %s %s %s %s %s %s %s %s %s %s %s" % \
-    (netDisk, netName, alignmentFile, 
-     logLevel, 
-     writeDebugFiles,
-     alignUndoLoops,
-     alignRepeatsAtLoop,
-     trim,
-     trimChange,
-     minimumTreeCoverage,
-     minimumBlockLength,
-     minimumBlockLengthChange,
-     minimumChainLength,
-     minimumChainLengthChange,
-     minimumChainLengthCactusUndoLoopStepSize)
+    (netDisk, netName, alignmentFile, logLevel, writeDebugFiles, annealingRounds, alignRepeatsAtRound,
+     trim, trimChange, minimumTreeCoverage, minimumBlockLength,
+     minimumBlockLengthChange, minimumChainLength, minimumChainLengthChange, deannealingRounds)
 
     system(command)
     logger.info("Ran cactus_core okay")

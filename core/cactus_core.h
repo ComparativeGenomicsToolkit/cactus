@@ -6,8 +6,8 @@ typedef struct _CactusCoreInputParameters {
      * Arguments/options
      */
     bool writeDebugFiles;
-    int32_t alignUndoLoops;
-    int32_t alignRepeatsAtLoop;
+    int32_t annealingRounds;
+    int32_t alignRepeatsAtRound;
     /* Stuff for adding more homologies to graph progressively */
     int32_t trim;
     float trimChange;
@@ -17,7 +17,7 @@ typedef struct _CactusCoreInputParameters {
     float minimumBlockLengthChange;
     int32_t minimumChainLength;
     float minimumChainLengthChange;
-    float minimumChainLengthCactusUndoLoopStepSize;
+    int32_t deannealingRounds;
 } CactusCoreInputParameters;
 
 int32_t cactusCorePipeline(Net *net, CactusCoreInputParameters *cCIP,

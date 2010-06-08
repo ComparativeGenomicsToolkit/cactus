@@ -41,7 +41,6 @@ from cactus.shared.common import runCactusMakeTerminalNormal
 from cactus.shared.common import runCactusReference
 from cactus.shared.common import runCactusCheck
 
-
 from cactus.blastAlignment.cactus_aligner import MakeSequences
 from cactus.blastAlignment.cactus_batch import MakeBlastOptions
 from cactus.blastAlignment.cactus_batch import makeBlastFromOptions
@@ -206,12 +205,12 @@ class CactusCoreWrapper(Target):
     
         coreParameters = self.options.config.find("alignment").find("iterations").findall("iteration")[self.iteration].find("core")
         
-        runCactusCore(netDisk=self.options.netDisk, 
+        runCactusCore(netDisk=self.options.netDisk,
                       alignmentFile=self.alignmentFile, 
                       netName=self.netName,
                       logLevel=getLogLevelString(), 
-                      alignUndoLoops=float(coreParameters.attrib["alignUndoLoops"]),
-                      alignRepeatsAtLoop=float(coreParameters.attrib["alignRepeatsAtLoop"]),
+                      annealingRounds=float(coreParameters.attrib["annealingRounds"]),
+                      alignRepeatsAtRound=float(coreParameters.attrib["alignRepeatsAtRound"]),
                       trim=float(coreParameters.attrib["trim"]),
                       trimChange=float(coreParameters.attrib["trimChange"]),
                       minimumTreeCoverage=float(coreParameters.attrib["minimumTreeCoverage"]),
@@ -219,7 +218,7 @@ class CactusCoreWrapper(Target):
                       minimumBlockLengthChange=float(coreParameters.attrib["minimumBlockLengthChange"]),
                       minimumChainLength=float(coreParameters.attrib["minimumChainLength"]),
                       minimumChainLengthChange=float(coreParameters.attrib["minimumChainLengthChange"]),
-                      minimumChainLengthCactusUndoLoopStepSize=float(coreParameters.attrib["minimumChainLengthCactusUndoLoopStepSize"]))
+                      deannealingRounds=float(coreParameters.attrib["deannealingRounds"]))
         logger.info("Ran the cactus core program okay")
         
         #Setup call to core and aligner recursive as follow on.

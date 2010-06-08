@@ -112,8 +112,8 @@ CactusCoreInputParameters *constructCactusCoreInputParameters() {
             sizeof(CactusCoreInputParameters));
     //Everything is essentially 'turned off' by default.
     cCIP->writeDebugFiles = 0;
-    cCIP->alignUndoLoops = 1;
-    cCIP->alignRepeatsAtLoop = 0;
+    cCIP->annealingRounds = 1;
+    cCIP->alignRepeatsAtRound = 0;
     cCIP->trim = 0;
     cCIP->trimChange = 0.0;
     cCIP->minimumTreeCoverage = 0.0;
@@ -121,7 +121,7 @@ CactusCoreInputParameters *constructCactusCoreInputParameters() {
     cCIP->minimumBlockLengthChange = 0.0;
     cCIP->minimumChainLength = 0;
     cCIP->minimumChainLengthChange = 0.0;
-    cCIP->minimumChainLengthCactusUndoLoopStepSize = 1.0;
+    cCIP->deannealingRounds = 1.0;
     return cCIP;
 }
 
@@ -271,7 +271,7 @@ int32_t cactusCorePipeline(Net *net, CactusCoreInputParameters *cCIP,
         struct FilterAlignmentParameters *filterParameters = (struct FilterAlignmentParameters *)st_malloc(sizeof(struct FilterAlignmentParameters));
         assert(trim >= 0);
         filterParameters->trim = trim;
-        filterParameters->alignRepeats = loop >= cCIP->alignRepeatsAtLoop; //cCIP->alignRepeats;
+        filterParameters->alignRepeats = loop >= cCIP->alignRepeatsAtRound; //cCIP->alignRepeats;
         filterParameters->net = net;
         while(pairwiseAlignment != NULL) {
             st_logDebug("Alignment : %i , score %f\n", i++, pairwiseAlignment->score);
@@ -317,9 +317,15 @@ int32_t cactusCorePipeline(Net *net, CactusCoreInputParameters *cCIP,
         // Loop a bunch of times to progressively remove longer and longer (upto minimum chain length) chains.
         ////////////////////////////////////////////////
 
-        assert(cCIP->minimumChainLengthCactusUndoLoopStepSize >= 1.0);
-        float minimumChainLengthCactusUndoLoopSize = cCIP->minimumChainLengthCactusUndoLoopStepSize >
-        minimumChainLength ? minimumChainLength : cCIP->minimumChainLengthCactusUndoLoopStepSize;
+        assert(cCIP->deannealingRounds >= 1.0);
+        float deannealingChainLengthStepSize;
+        if(cCIP->deannealingRounds >= 1.0) {
+            deannealingChainLengthStepSize = ((float)minimumChainLength) / cCIP->deannealingRounds;
+        }
+        else {
+            deannealingChainLengthStepSize = minimumChainLength;
+        }
+        float deannealingChainLength = deannealingChainLengthStepSize;
         while(1) {
             ///////////////////////////////////////////////////////////////////////////
             // Choosing a block subset to undo.
@@ -330,7 +336,7 @@ int32_t cactusCorePipeline(Net *net, CactusCoreInputParameters *cCIP,
             stSortedSet *allBlocksOfDegree2OrHigher = filterBlocksByTreeCoverageAndLength(biConnectedComponents, net, 0.0, 2, 0, 0, pinchGraph);
             //Get the blocks we want to keep
             stSortedSet *chosenBlocksToKeep = filterBlocksByTreeCoverageAndLength(biConnectedComponents,
-                    net, cCIP->minimumTreeCoverage, 0, minimumBlockLength, minimumChainLengthCactusUndoLoopSize, pinchGraph);
+                    net, cCIP->minimumTreeCoverage, 0, minimumBlockLength, deannealingChainLength, pinchGraph);
             //Now get the blocks to undo by computing the difference.
             chosenBlocks = stSortedSet_getDifference(allBlocksOfDegree2OrHigher, chosenBlocksToKeep);
             stSortedSet_destruct(chosenBlocksToKeep);
@@ -374,19 +380,17 @@ int32_t cactusCorePipeline(Net *net, CactusCoreInputParameters *cCIP,
                 biConnectedComponents = computeSortedBiConnectedComponents(cactusGraph);
             }
 
-            if(minimumChainLengthCactusUndoLoopSize >= minimumChainLength) { //defensive, should always equal the minimumChainLength at the end..
+            if(deannealingChainLength >= minimumChainLength) {
                 break;
             }
-            minimumChainLengthCactusUndoLoopSize += cCIP->minimumChainLengthCactusUndoLoopStepSize;
-            minimumChainLengthCactusUndoLoopSize = minimumChainLengthCactusUndoLoopSize > minimumChainLength
-            ? minimumChainLength : minimumChainLengthCactusUndoLoopSize;
+            deannealingChainLength += deannealingChainLengthStepSize;
         }
 
         ///////////////////////////////////////////////////////////////////////////
         // Choosing a block subset to keep in the final set of chains.
         ///////////////////////////////////////////////////////////////////////////
 
-        if(++loop < cCIP->alignUndoLoops) {
+        if(++loop < cCIP->annealingRounds) {
             ///////////////////////////////////////////////////////////////////////////
             // Calculate the blocks used to partition the graph for the next loop.
             ///////////////////////////////////////////////////////////////////////////

@@ -37,13 +37,12 @@ void usage() {
     fprintf(stderr, "-a --logLevel : Set the log level\n");
     fprintf(stderr, "-b --alignments : The input alignments file\n");
     fprintf(stderr, "-c --netDisk : The location of the net disk directory\n");
-    fprintf(
-            stderr, "-d --netName : The name of the net (the key in the database)\n");
+    fprintf(stderr, "-d --netName : The name of the net (the key in the database)\n");
     fprintf(stderr, "-e --writeDebugFiles : Write the debug files\n");
     fprintf(stderr, "-h --help : Print this help screen\n");
 
-    fprintf(stderr, "-i --alignUndoLoops (int >= 1) : The number of rounds of alignment, undoing of over-aligned edges and recursion into adjacency connected components (groups)\n");
-    fprintf(stderr, "-j --alignRepeatsAtLoop (int  [0, alignUndoLoops) ) : Allow bases marked as repeats to be aligned at loop (else alignments to these bases to be excluded)\n");
+    fprintf(stderr, "-i --annealingRounds (int >= 1) : The number of rounds of alignment, undoing of over-aligned edges and recursion into adjacency connected components (groups)\n");
+    fprintf(stderr, "-j --alignRepeatsAtRound (int  [0, alignUndoLoops) ) : Allow bases marked as repeats to be aligned at loop (else alignments to these bases to be excluded)\n");
 
     fprintf(stderr, "-k --trim (float >= 0) : The length of bases to remove from the end of each alignment\n");
     fprintf(stderr, "-l --trimChange : (float) Trim reduction, the amount to reduce the trim after each align/undo loop (to a minimum of zero)\n");
@@ -55,7 +54,8 @@ void usage() {
 
     fprintf(stderr, "-p --minimumChainLength : (int >= 0) The minimum chain length required to be included in the problem\n");
     fprintf(stderr, "-q --minimumChainLengthChange : (float) The minimum-chain-length increase after each align/undo loop\n");
-    fprintf(stderr, "-r --minimumChainLengthCactusUndoLoopStepSize: (float >= 1.0) The amount to increase the minimum chain length after each cactus tree undo loop\n");
+
+    fprintf(stderr, "-r --deannealingRounds: (float >= 1.0) The amount to increase the minimum chain length after each cactus tree undo loop\n");
 }
 
 int main(int argc, char *argv[]) {
@@ -89,8 +89,8 @@ int main(int argc, char *argv[]) {
                         { "netName", required_argument, 0, 'd' },
                         { "writeDebugFiles", no_argument, 0, 'e' },
                         { "help", no_argument, 0, 'h' },
-                        { "alignUndoLoops", required_argument, 0, 'i' },
-                        { "alignRepeatsAtLoop", required_argument, 0, 'j' },
+                        { "annealingRounds", required_argument, 0, 'i' },
+                        { "alignRepeatsAtRound", required_argument, 0, 'j' },
                         { "trim", required_argument, 0, 'k' },
                         { "trimChange", required_argument, 0, 'l', },
                         { "minimumTreeCoverage", required_argument, 0, 'm' },
@@ -98,7 +98,7 @@ int main(int argc, char *argv[]) {
                         { "minimumBlockLengthChange", required_argument, 0, 'o' },
                         { "minimumChainLength", required_argument, 0, 'p' },
                         { "minimumChainLengthChange", required_argument, 0, 'q', },
-                        { "minimumChainLengthCactusUndoLoopStepSize", required_argument, 0, 'r', },
+                        { "deannealingRounds", required_argument, 0, 'r', },
                         { 0, 0, 0, 0 } };
 
         int option_index = 0;
@@ -131,10 +131,10 @@ int main(int argc, char *argv[]) {
             usage();
             return 0;
         case 'i':
-            assert(sscanf(optarg, "%i", &cCIP->alignUndoLoops) == 1);
+            assert(sscanf(optarg, "%i", &cCIP->annealingRounds) == 1);
             break;
         case 'j':
-            assert(sscanf(optarg, "%i", &cCIP->alignRepeatsAtLoop) == 1);
+            assert(sscanf(optarg, "%i", &cCIP->alignRepeatsAtRound) == 1);
             break;
         case 'k':
             assert(sscanf(optarg, "%i", &cCIP->trim) == 1);
@@ -158,7 +158,7 @@ int main(int argc, char *argv[]) {
             assert(sscanf(optarg, "%f", &cCIP->minimumChainLengthChange) == 1);
             break;
         case 'r':
-             assert(sscanf(optarg, "%f", &cCIP->minimumChainLengthCactusUndoLoopStepSize) == 1);
+             assert(sscanf(optarg, "%i", &cCIP->deannealingRounds) == 1);
              break;
 
         default:
@@ -180,8 +180,9 @@ int main(int argc, char *argv[]) {
     assert(cCIP->minimumBlockLength >= 0);
     assert(cCIP->minimumChainLength >= 0);
     assert(cCIP->trim >= 0);
-    assert(cCIP->alignUndoLoops >= 0);
-    assert(cCIP->minimumChainLengthCactusUndoLoopStepSize >= 1.0);
+    assert(cCIP->annealingRounds >= 0);
+    assert(cCIP->deannealingRounds >= 1);
+    assert(cCIP->alignRepeatsAtRound >= 0);
 
     //////////////////////////////////////////////
     //Set up logging
