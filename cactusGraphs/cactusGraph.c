@@ -706,7 +706,7 @@ int32_t *getDFSDiscoveryTimes(struct CactusGraph *cactusGraph) {
 ////////////////////////////////////////////////
 ////////////////////////////////////////////////
 
-struct List *writeOut3EdgeGraph(struct PinchGraph *pinchGraph,
+stList *writeOut3EdgeGraph(struct PinchGraph *pinchGraph,
         struct List *greyEdgeComponents) {
     /*
      * Writes a format compatible with the 3-edge connected component algorithm.
@@ -716,7 +716,7 @@ struct List *writeOut3EdgeGraph(struct PinchGraph *pinchGraph,
     int32_t i, j, k;
     struct List *component;
     struct hashtable *vertexHash;
-    struct List *vertices = constructEmptyList(0,
+    stList *vertices = stList_construct3(0,
             (void(*)(void *)) destructIntList);
 
     //setup vertex to grey edge component hash
@@ -750,7 +750,7 @@ struct List *writeOut3EdgeGraph(struct PinchGraph *pinchGraph,
     for (i = 0; i < greyEdgeComponents->length; i++) {
         component = greyEdgeComponents->list[i];
         struct IntList *edges = constructEmptyIntList(0);
-        listAppend(vertices, edges);
+        stList_append(vertices, edges);
         for (j = 0; j < component->length; j++) {
             vertex = component->list[j];
 
@@ -773,7 +773,7 @@ struct List *writeOut3EdgeGraph(struct PinchGraph *pinchGraph,
 }
 
 struct List *readThreeEdgeComponents(struct PinchGraph *pinchGraph,
-        struct List *greyEdgeComponents, struct List *threeEdgeComponents) {
+        struct List *greyEdgeComponents, stList *threeEdgeComponents) {
     /*
      * Reads in the three edge connected components written out by the three
      * edge script.
@@ -781,7 +781,7 @@ struct List *readThreeEdgeComponents(struct PinchGraph *pinchGraph,
     int32_t i, j, k;
     struct List *list;
     struct List *list2;
-    struct List *list3;
+    stList *list3;
     struct List *component;
     struct PinchVertex *vertex;
 
@@ -789,14 +789,13 @@ struct List *readThreeEdgeComponents(struct PinchGraph *pinchGraph,
     int32_t l = 0;
 #endif
     list = constructEmptyList(0, (void(*)(void *)) destructList);
-    for (i = 0; i < threeEdgeComponents->length; i++) {
-        list3 = threeEdgeComponents->list[i];
+    for (i = 0; i < stList_length(threeEdgeComponents); i++) {
+        list3 = stList_get(threeEdgeComponents, i);
         list2 = constructEmptyList(0, NULL);
         listAppend(list, list2);
-        for (j = 0; j < list3->length; j++) {
-            component
-                    = greyEdgeComponents->list[(*((int32_t *) list3->list[j]))
-                            - 1];
+        for (j = 0; j < stList_length(list3); j++) {
+            component = greyEdgeComponents->list[stIntTuple_getPosition(stList_get(list3, j), 0) - 1];
+            assert(component != NULL);
             for (k = 0; k < component->length; k++) {
                 vertex = component->list[k];
                 listAppend(list2, vertex);
@@ -901,10 +900,10 @@ void computeCactusGraph(struct PinchGraph *pinchGraph,
         struct CactusGraph **cactusGraph,
         struct List **threeEdgeConnectedComponents) {
     struct PinchVertex *vertex;
-    struct List *list;
+    stList *list;
     int32_t i, j;
-    struct List *greyEdgeComponents;
-    struct List *vertices;
+    struct List *greyEdgeComponents, *list2;
+    stList *vertices;
 
     ///////////////////////////////////////////////////////////////////////////
     // Run the three-edge connected component algorithm to identify
@@ -917,26 +916,26 @@ void computeCactusGraph(struct PinchGraph *pinchGraph,
 
     list = computeThreeEdgeConnectedComponents(vertices);
     st_logInfo("Seems to have successfully run the three edge command: %i\n",
-            list->length);
+            stList_length(list));
 
     //Parse results (the three edge connected components).
     *threeEdgeConnectedComponents = readThreeEdgeComponents(pinchGraph,
             greyEdgeComponents, list);
     st_logInfo("Read in the three edge components\n");
-    destructList(list);
+    stList_destruct(list);
 
     for (i = 0; i < (*threeEdgeConnectedComponents)->length; i++) {
-        list = (*threeEdgeConnectedComponents)->list[i];
+        list2 = (*threeEdgeConnectedComponents)->list[i];
         st_logDebug("3 edge component : " INT_STRING " ", i);
-        for (j = 0; j < list->length; j++) {
-            vertex = list->list[j];
+        for (j = 0; j < list2->length; j++) {
+            vertex = list2->list[j];
             st_logDebug(" vertex, " INT_STRING " ", vertex->vertexID);
         }
         st_logDebug("\n");
     }
     //Cleanup the three edge input/output fil
     destructList(greyEdgeComponents);
-    destructList(vertices);
+    stList_destruct(vertices);
 
     ///////////////////////////////////////////////////////////////////////////
     // Merge vertices in each three edge connected component to convert the main graph

@@ -140,8 +140,8 @@ void absorb_path(int x0, int xi, int end) {
     }
 }
 
-struct List *list;
-struct List *list2;
+stList *list;
+stList *list2;
 
 struct Frame {
     int w;
@@ -152,7 +152,7 @@ struct Frame {
 };
 
 void addToStack(int w, int v, int u, adjacentG edge, int start,
-        struct List *stack) {
+        stList *stack) {
     struct Frame *frame;
     frame = st_malloc(sizeof(struct Frame));
     frame->w = w;
@@ -160,25 +160,39 @@ void addToStack(int w, int v, int u, adjacentG edge, int start,
     frame->u = u;
     frame->edge = edge;
     frame->start = start;
-    listAppend(stack, frame);
+    stList_append(stack, frame);
 }
 
-void three_edge_connectP(int w, int v, struct Frame *frame, struct List *stack);
+static stSortedSet *adjacencyEdgesSet;
+static adjacentG adjacencyEdge_construct() {
+    adjacentG g = st_malloc(sizeof(struct adjacent_with_u_in_G));
+    stSortedSet_insert(adjacencyEdgesSet, g);
+    return g;
+}
+
+void adjacencyEdge_destruct(adjacentG g) {
+    assert(stSortedSet_search(adjacencyEdgesSet, g) != NULL);
+    stSortedSet_remove(adjacencyEdgesSet, g);
+    free(g);
+}
+
+void three_edge_connectP(int w, int v, struct Frame *frame, stList *stack);
 
 void three_edge_connect(int w, int v) {
     struct Frame *frame;
-    struct List *stack;
+    stList *stack;
 
-    stack = constructEmptyList(0, NULL);
+    stack = stList_construct();
     addToStack(w, v, 0, NULL, 0, stack);
-    while (stack->length > 0) {
-        frame = stack->list[--stack->length];
+    while (stList_length(stack) > 0) {
+        frame = stList_pop(stack);
         three_edge_connectP(frame->w, frame->v, frame, stack);
         free(frame);
     }
+    stList_destruct(stack);
 }
 
-void three_edge_connectP(int w, int v, struct Frame *frame, struct List *stack) {
+void three_edge_connectP(int w, int v, struct Frame *frame, stList *stack) {
 
     int u;
     adjacentG edge;
@@ -256,7 +270,7 @@ void three_edge_connectP(int w, int v, struct Frame *frame, struct List *stack) 
                          */
                         edge2 = LB[u];
                         LB[u] = LB[u]->more;
-                        free(edge2);
+                        adjacencyEdge_destruct(edge2);
                     }
                 }
                 /*lB[U] is always the head of list, and at this time either it is
@@ -303,7 +317,7 @@ void three_edge_connectP(int w, int v, struct Frame *frame, struct List *stack) 
                          */
                         edge2 = LB[u];
                         LB[u] = LB[u]->more;
-                        free(edge2);
+                        adjacencyEdge_destruct(edge2);
                     }
                 }
                 if (bedge == 0)
@@ -368,16 +382,16 @@ void three_edge_connectP(int w, int v, struct Frame *frame, struct List *stack) 
                 }
                 compNum = compNum + 1;
                 //PRINT
-                list2 = constructEmptyList(0, (void(*)(void *)) destructInt);
-                listAppend(list, list2);
-                listAppend(list2, constructInt(u));
+                list2 = stList_construct3(0, (void(*)(void *)) stIntTuple_destruct);
+                stList_append(list, list2);
+                stList_append(list2, stIntTuple_construct(1, u));
                 st_logDebug("\nNew component found: %d", u);
                 //PRINT
                 tmp2 = next_sigma_element[u];
                 while (tmp2 != u) {
                     //PRINT
                     st_logDebug(",%d", tmp2);
-                    listAppend(list2, constructInt(tmp2));
+                    stList_append(list2, stIntTuple_construct(1, tmp2)); //constructInt(tmp2));
                     //PRINT
                     tmp2 = next_sigma_element[tmp2];
                 }
@@ -417,9 +431,7 @@ void three_edge_connectP(int w, int v, struct Frame *frame, struct List *stack) 
                  */
                 /*going to append the outgoing back_edge to LB[w]
                  */
-                if ((edge2 = (adjacentG) st_malloc(
-                        sizeof(struct adjacent_with_u_in_G))) == NULL)
-                    abrt("Not enough memory to allocate bufferLB");
+                edge2 = adjacencyEdge_construct();
                 edge2->u = u;
                 edge2->more = LB[w];
                 if (LB[w] == NULL)
@@ -473,11 +485,11 @@ void three_edge_connectP(int w, int v, struct Frame *frame, struct List *stack) 
 }//end of three-edge-connect procedure
 //******************************************************************************
 
-struct List *computeThreeEdgeConnectedComponents(struct List *vertices) {
+stList *computeThreeEdgeConnectedComponents(stList *vertices) {
+    adjacencyEdgesSet = stSortedSet_construct2(free);
+    list = stList_construct3(0, (void(*)(void *)) stList_destruct);
 
-    list = constructEmptyList(0, (void(*)(void *)) destructList);
-
-    int Vnum = vertices->length + 1;
+    int Vnum = stList_length(vertices) + 1;
     int edgeNum = 0; /*initilizing the number of edges in G*/
     int r, n, v, indx;
     int32_t i, j;
@@ -518,13 +530,12 @@ struct List *computeThreeEdgeConnectedComponents(struct List *vertices) {
     }
     indx = 0;
 
-    for (i = 0; i < vertices->length; i++) {
-        struct IntList *edges = vertices->list[i];
+    for (i = 0; i < stList_length(vertices); i++) {
+        struct IntList *edges = stList_get(vertices, i);
         v = i + 1;
         for (j = 0; j < edges->length; j++) {
             n = edges->list[j];
-            edge = (adjacentG) st_malloc(sizeof(struct adjacent_with_u_in_G));
-            edge->more = NULL;
+            edge = adjacencyEdge_construct();
             edge->u = n;
             edge->more = LG[v];
             LG[v] = edge;
@@ -551,16 +562,16 @@ struct List *computeThreeEdgeConnectedComponents(struct List *vertices) {
             three_edge_connect(r, 0);
             compNum++;
             //PRINT
-            list2 = constructEmptyList(0, (void(*)(void *)) destructInt);
-            listAppend(list, list2);
-            listAppend(list2, constructInt(r));
+            list2 = stList_construct3(0, (void(*)(void *)) stIntTuple_destruct);
+            stList_append(list, list2);
+            stList_append(list2, stIntTuple_construct(1, r));
             st_logDebug("\nNew component found: %d", r);
             //PRINT
             tmp2 = next_sigma_element[r];
             while (tmp2 != r) {
                 //PRINT
                 st_logDebug(",%d", tmp2);
-                listAppend(list2, constructInt(tmp2));
+                stList_append(list2, stIntTuple_construct(1, tmp2));
                 //PRINT
                 tmp2 = next_sigma_element[tmp2];
             }
@@ -581,6 +592,24 @@ struct List *computeThreeEdgeConnectedComponents(struct List *vertices) {
     tsum = (end - first) / CLOCKS_PER_SEC; //compute total elapsed time
     st_logInfo("\nElapsed Time: %f", tsum);
     st_logInfo("\nConnected Components: %d\n", compNum);
+
+    //////////////
+    //Cleanup
+    /////////////
+
+    stSortedSet_destruct(adjacencyEdgesSet); //This gets rid of all remaining edges
+
+
+    free(LG);
+    free(LB);
+    free(LBend);
+    free(lowpt);
+    free(pre);
+    free(nd);
+    free(next_on_path);
+    free(next_sigma_element);
+    free(visited);
+    free(outgoing_tree_edge);
 
     return list;
 }
