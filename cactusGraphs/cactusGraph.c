@@ -649,6 +649,12 @@ struct List *computeSortedBiConnectedComponents(struct CactusGraph *cactusGraph)
 #endif
     }
     st_logDebug("Sorted each bi-connected component\n");
+
+    /*
+     * Cleanup
+     */
+    free(sortBiConnectedComponents_vertexOrdering);
+
     return biConnectedComponents;
 }
 
@@ -1096,6 +1102,7 @@ void circulariseStems(struct CactusGraph *cactusGraph) {
     hashtable_destroy(stemHash, FALSE, FALSE);
     hashtable_destroy(seen, FALSE, FALSE);
     destructList(biConnectedComponents);
+    destructList(cactusGraphMerges);
 }
 
 ////////////////////////////////////////////////

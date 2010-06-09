@@ -598,7 +598,7 @@ stList *computeThreeEdgeConnectedComponents(stList *vertices) {
     /////////////
 
     stSortedSet_destruct(adjacencyEdgesSet); //This gets rid of all remaining edges
-
+    adjacencyEdgesSet = NULL;
 
     free(LG);
     free(LB);

@@ -198,7 +198,6 @@ int32_t cactusCorePipeline(Net *net, CactusCoreInputParameters *cCIP,
     int32_t i, k, startTime;
     struct List *biConnectedComponents;
     struct PairwiseAlignment *pairwiseAlignment;
-    stSortedSet *chosenBlocks;
     struct List *list;
     struct hashtable *vertexAdjacencyComponents;
 
@@ -264,7 +263,7 @@ int32_t cactusCorePipeline(Net *net, CactusCoreInputParameters *cCIP,
         startAlignmentStack();
 
         //Now run through all the alignments.
-        pairwiseAlignment = getNextAlignment();
+        pairwiseAlignment = getNextAlignment(); //we assume we own this memory, and will clean it up.
         st_logInfo("Now doing the pinch merges:\n");
         i = 0;
 
@@ -279,6 +278,7 @@ int32_t cactusCorePipeline(Net *net, CactusCoreInputParameters *cCIP,
             pinchMerge(pinchGraph, pairwiseAlignment,
                     (void (*)(struct PinchGraph *pinchGraph, struct Piece *, struct Piece *, struct hashtable *, void *))filterPieceAndThenAddToGraph,
                     filterParameters, vertexAdjacencyComponents);
+            destructPairwiseAlignment(pairwiseAlignment); //cleanup the previous alignment
             pairwiseAlignment = getNextAlignment();
         }
         free(filterParameters);
@@ -326,7 +326,7 @@ int32_t cactusCorePipeline(Net *net, CactusCoreInputParameters *cCIP,
             deannealingChainLengthStepSize = minimumChainLength;
         }
         float deannealingChainLength = deannealingChainLengthStepSize;
-if(loop+1 < cCIP->annealingRounds) {
+//if(loop+1 < cCIP->annealingRounds) {
         while(1) {
             ///////////////////////////////////////////////////////////////////////////
             // Choosing a block subset to undo.
@@ -339,20 +339,20 @@ if(loop+1 < cCIP->annealingRounds) {
             stSortedSet *chosenBlocksToKeep = filterBlocksByTreeCoverageAndLength(biConnectedComponents,
                     net, cCIP->minimumTreeCoverage, 0, minimumBlockLength, deannealingChainLength, pinchGraph);
             //Now get the blocks to undo by computing the difference.
-            chosenBlocks = stSortedSet_getDifference(allBlocksOfDegree2OrHigher, chosenBlocksToKeep);
+            stSortedSet *blocksToUndo = stSortedSet_getDifference(allBlocksOfDegree2OrHigher, chosenBlocksToKeep);
             stSortedSet_destruct(chosenBlocksToKeep);
             stSortedSet_destruct(allBlocksOfDegree2OrHigher);
 
-            if(stSortedSet_size(chosenBlocks) > 0) {
+            if(stSortedSet_size(blocksToUndo) > 0) {
                 //now report the results
-                logTheChosenBlockSubset(biConnectedComponents, chosenBlocks, pinchGraph, net);
-                st_logInfo("I have chosen %i blocks which meet the requirements to be undone\n", stSortedSet_size(chosenBlocks));
+                logTheChosenBlockSubset(biConnectedComponents, blocksToUndo, pinchGraph, net);
+                st_logInfo("I have chosen %i blocks which meet the requirements to be undone\n", stSortedSet_size(blocksToUndo));
 
                 ///////////////////////////////////////////////////////////////////////////
                 // Undo the blocks.
                 ///////////////////////////////////////////////////////////////////////////
 
-                list = getChosenBlockPinchEdges(chosenBlocks, pinchGraph);
+                list = getChosenBlockPinchEdges(blocksToUndo, pinchGraph);
                 removeOverAlignedEdges(pinchGraph, 0.0, INT32_MAX, list, 0, net);
                 destructList(list);
                 st_logInfo("After removing edges which were not chosen, the graph has %i vertices and %i black edges\n", pinchGraph->vertices->length, avl_count(pinchGraph->edges));
@@ -366,7 +366,6 @@ if(loop+1 < cCIP->annealingRounds) {
 
                 destructList(biConnectedComponents);
                 destructCactusGraph(cactusGraph);
-                stSortedSet_destruct(chosenBlocks);
 
                 ////////////////////////////////////////////////
                 // Re-compute the cactus graph
@@ -380,13 +379,14 @@ if(loop+1 < cCIP->annealingRounds) {
 
                 biConnectedComponents = computeSortedBiConnectedComponents(cactusGraph);
             }
+            stSortedSet_destruct(blocksToUndo);
 
             if(deannealingChainLength >= minimumChainLength) {
                 break;
             }
             deannealingChainLength += deannealingChainLengthStepSize;
         }
-}
+//}
 
         ///////////////////////////////////////////////////////////////////////////
         // Choosing a block subset to keep in the final set of chains.
@@ -397,7 +397,7 @@ if(loop+1 < cCIP->annealingRounds) {
             // Calculate the blocks used to partition the graph for the next loop.
             ///////////////////////////////////////////////////////////////////////////
 
-            chosenBlocks = filterBlocksByTreeCoverageAndLength(biConnectedComponents,
+            stSortedSet *chosenBlocks = filterBlocksByTreeCoverageAndLength(biConnectedComponents,
                     net, 0.0, 2, 0, 0, pinchGraph); //this gets all blocks that are aligned to something else..
 
 #ifdef BEN_DEBUG
@@ -476,34 +476,36 @@ if(loop+1 < cCIP->annealingRounds) {
             // Constructing the net.
             ///////////////////////////////////////////////////////////////////////////
 
-            chosenBlocks = filterBlocksByTreeCoverageAndLength(biConnectedComponents,
+            stSortedSet *chosenBlocks = filterBlocksByTreeCoverageAndLength(biConnectedComponents,
                                 net, 0.0, 2, 0, 0, pinchGraph);
             //assert(stSortedSet_size(chosenBlocks) == cactusGraph_getEdgeNumber(cactusGraph) - net_getStubEndNumber(net)); //check that this does slurp up all the block edges in the graph except those representing stub ends.
             fillOutNetFromInputs(net, cactusGraph, pinchGraph, chosenBlocks);
+
+            if(cCIP->writeDebugFiles) {
+                ///////////////////////////////////////////////////////////////////////////
+                //Write out the graphs.
+                ///////////////////////////////////////////////////////////////////////////
+
+                st_logDebug("Writing out dot formatted final pinch graph showing all chains\n");
+                writePinchGraph("pinchGraph2.dot", pinchGraph, biConnectedComponents, NULL);
+                st_logDebug("Finished writing out final pinch graph showing all chains\n");
+
+                st_logDebug("Writing out dot formatted final pinch graph showing chosen blocks\n");
+                list = constructEmptyList(0, NULL);
+                listAppend(list, chosenBlocks);
+                writePinchGraph("pinchGraph3.dot", pinchGraph, list, NULL);
+                destructList(list);
+                st_logDebug("Finished writing out final pinch graph\n");
+
+                st_logDebug("Writing out dot formatted version of final cactus graph\n");
+                writeCactusGraph("cactusGraph.dot", pinchGraph, cactusGraph);
+                st_logDebug("Finished writing out dot formatted version of cactus graph\n");
+            }
+
+            stSortedSet_destruct(chosenBlocks);
             break;
         }
 
-    }
-
-    if(cCIP->writeDebugFiles) {
-        ///////////////////////////////////////////////////////////////////////////
-        //Write out the graphs.
-        ///////////////////////////////////////////////////////////////////////////
-
-        st_logDebug("Writing out dot formatted final pinch graph showing all chains\n");
-        writePinchGraph("pinchGraph2.dot", pinchGraph, biConnectedComponents, NULL);
-        st_logDebug("Finished writing out final pinch graph showing all chains\n");
-
-        st_logDebug("Writing out dot formatted final pinch graph showing chosen blocks\n");
-        list = constructEmptyList(0, NULL);
-        listAppend(list, chosenBlocks);
-        writePinchGraph("pinchGraph3.dot", pinchGraph, list, NULL);
-        destructList(list);
-        st_logDebug("Finished writing out final pinch graph\n");
-
-        st_logDebug("Writing out dot formatted version of final cactus graph\n");
-        writeCactusGraph("cactusGraph.dot", pinchGraph, cactusGraph);
-        st_logDebug("Finished writing out dot formatted version of cactus graph\n");
     }
 
     ///////////////////////////////////////////////////////////////////////////
@@ -511,7 +513,6 @@ if(loop+1 < cCIP->annealingRounds) {
     ///////////////////////////////////////////////////////////////////////////
 
     destructCactusGraph(cactusGraph);
-    stSortedSet_destruct(chosenBlocks);
     destructList(biConnectedComponents);
     destructPinchGraph(pinchGraph);
 
