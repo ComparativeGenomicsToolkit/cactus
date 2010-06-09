@@ -326,6 +326,7 @@ int32_t cactusCorePipeline(Net *net, CactusCoreInputParameters *cCIP,
             deannealingChainLengthStepSize = minimumChainLength;
         }
         float deannealingChainLength = deannealingChainLengthStepSize;
+if(loop+1 < cCIP->annealingRounds) {
         while(1) {
             ///////////////////////////////////////////////////////////////////////////
             // Choosing a block subset to undo.
@@ -385,6 +386,7 @@ int32_t cactusCorePipeline(Net *net, CactusCoreInputParameters *cCIP,
             }
             deannealingChainLength += deannealingChainLengthStepSize;
         }
+}
 
         ///////////////////////////////////////////////////////////////////////////
         // Choosing a block subset to keep in the final set of chains.
