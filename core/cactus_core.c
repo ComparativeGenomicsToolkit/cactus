@@ -269,9 +269,16 @@ int32_t cactusCorePipeline(Net *net, CactusCoreInputParameters *cCIP,
 
         struct FilterAlignmentParameters *filterParameters = (struct FilterAlignmentParameters *)st_malloc(sizeof(struct FilterAlignmentParameters));
         assert(trim >= 0);
+if(loop+1 < cCIP->annealingRounds) {
         filterParameters->trim = trim;
         filterParameters->alignRepeats = loop >= cCIP->alignRepeatsAtRound; //cCIP->alignRepeats;
+}
+else {
+    filterParameters->trim = 0;
+    filterParameters->alignRepeats = 1;
+}
         filterParameters->net = net;
+
         while(pairwiseAlignment != NULL) {
             st_logDebug("Alignment : %i , score %f\n", i++, pairwiseAlignment->score);
             logPairwiseAlignment(pairwiseAlignment);
@@ -326,7 +333,7 @@ int32_t cactusCorePipeline(Net *net, CactusCoreInputParameters *cCIP,
             deannealingChainLengthStepSize = minimumChainLength;
         }
         float deannealingChainLength = deannealingChainLengthStepSize;
-//if(loop+1 < cCIP->annealingRounds) {
+if(loop+1 < cCIP->annealingRounds) {
         while(1) {
             ///////////////////////////////////////////////////////////////////////////
             // Choosing a block subset to undo.
@@ -386,7 +393,7 @@ int32_t cactusCorePipeline(Net *net, CactusCoreInputParameters *cCIP,
             }
             deannealingChainLength += deannealingChainLengthStepSize;
         }
-//}
+}
 
         ///////////////////////////////////////////////////////////////////////////
         // Choosing a block subset to keep in the final set of chains.

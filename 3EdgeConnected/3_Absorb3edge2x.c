@@ -83,7 +83,7 @@ struct adjacent_with_u_in_G {
 };
 typedef struct adjacent_with_u_in_G* adjacentG;
 
-adjacentG *LG, *LB, *LBend;
+static adjacentG *LG, *LB, *LBend;
 /* LG is a pointer to the pointer adjacentG. later on when we find out what is
  the vertex size of our graph, by using malloc we make LG to be
  a list of adjacentG pointers in order to construct our AJACANCY LISTs. At
@@ -94,25 +94,19 @@ adjacentG *LG, *LB, *LBend;
  adjacency lists we use each pointer of the list for adjacency of a vertex,
  and consider it as head of the link list(adjacency list).
  */
-adjacentG edge, edge2, temp;
+static adjacentG edge, edge2, temp;
 /*In order to handle edges of AJACANCY LISTs.
  */
-int count, Pu, compNum = 0, degree, bedge, tmp2;
+static int count, Pu, compNum = 0, degree, bedge, tmp2;
 /*bedge is used while we analysis lists of back edges to determine degree of u
  */
-int *pre, *lowpt, *nd, *next_on_path, *next_sigma_element;
-char *visited, *outgoing_tree_edge;
+static int *pre, *lowpt, *nd, *next_on_path, *next_sigma_element;
+static char *visited, *outgoing_tree_edge;
 
-int parent, child;
+static int parent, child;
 //******************************************************************************
 
-void abrt(char ch[50]) {
-    printf("\n%s", ch);
-    //   getchar();
-    exit(1);
-}
-
-void absorb_path(int x0, int xi, int end) {
+static void absorb_path(int x0, int xi, int end) {
     int xi_1 = x0;
     if (xi_1 != xi && xi_1 != end) {
         while (xi_1 != xi) {
@@ -140,8 +134,8 @@ void absorb_path(int x0, int xi, int end) {
     }
 }
 
-stList *list;
-stList *list2;
+static stList *list;
+static stList *list2;
 
 struct Frame {
     int w;
@@ -151,7 +145,7 @@ struct Frame {
     int start;
 };
 
-void addToStack(int w, int v, int u, adjacentG edge, int start,
+static void addToStack(int w, int v, int u, adjacentG edge, int start,
         stList *stack) {
     struct Frame *frame;
     frame = st_malloc(sizeof(struct Frame));
@@ -170,15 +164,15 @@ static adjacentG adjacencyEdge_construct() {
     return g;
 }
 
-void adjacencyEdge_destruct(adjacentG g) {
+static void adjacencyEdge_destruct(adjacentG g) {
     assert(stSortedSet_search(adjacencyEdgesSet, g) != NULL);
     stSortedSet_remove(adjacencyEdgesSet, g);
     free(g);
 }
 
-void three_edge_connectP(int w, int v, struct Frame *frame, stList *stack);
+static void three_edge_connectP(int w, int v, struct Frame *frame, stList *stack);
 
-void three_edge_connect(int w, int v) {
+static void three_edge_connect(int w, int v) {
     struct Frame *frame;
     stList *stack;
 
@@ -192,7 +186,7 @@ void three_edge_connect(int w, int v) {
     stList_destruct(stack);
 }
 
-void three_edge_connectP(int w, int v, struct Frame *frame, stList *stack) {
+static void three_edge_connectP(int w, int v, struct Frame *frame, stList *stack) {
 
     int u;
     adjacentG edge;
