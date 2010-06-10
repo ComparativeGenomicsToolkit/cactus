@@ -22,7 +22,7 @@ typedef struct _CactusCoreInputParameters {
 
 int32_t cactusCorePipeline(Net *net, CactusCoreInputParameters *cCIP,
         struct PairwiseAlignment *(*getNextAlignment)(),
-        void(*startAlignmentStack)());
+        void(*startAlignmentStack)(), int32_t terminateRecursion);
 
 void destructCactusCoreInputParameters(CactusCoreInputParameters *cCIP);
 

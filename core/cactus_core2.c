@@ -226,7 +226,7 @@ int main(int argc, char *argv[]) {
 
         startAlignmentStack_fileString = alignmentsFile;
         exitOnFailure(cactusCorePipeline(net, cCIP, getNextAlignment,
-                startAlignmentStack),
+                startAlignmentStack, 0),
                 "Failed to run the cactus core pipeline\n");
         fclose(getNextAlignment_FileHandle);
 

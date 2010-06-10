@@ -191,7 +191,7 @@ struct List *getChosenBlockPinchEdges(stSortedSet *chosenBlocks,
 
 int32_t cactusCorePipeline(Net *net, CactusCoreInputParameters *cCIP,
         struct PairwiseAlignment *(*getNextAlignment)(),
-        void(*startAlignmentStack)()) {
+        void(*startAlignmentStack)(), int32_t terminateRecursion) {
     struct PinchGraph *pinchGraph;
     struct PinchVertex *vertex;
     struct CactusGraph *cactusGraph;
@@ -269,14 +269,8 @@ int32_t cactusCorePipeline(Net *net, CactusCoreInputParameters *cCIP,
 
         struct FilterAlignmentParameters *filterParameters = (struct FilterAlignmentParameters *)st_malloc(sizeof(struct FilterAlignmentParameters));
         assert(trim >= 0);
-if(loop+1 < cCIP->annealingRounds) {
         filterParameters->trim = trim;
         filterParameters->alignRepeats = loop >= cCIP->alignRepeatsAtRound; //cCIP->alignRepeats;
-}
-else {
-    filterParameters->trim = 0;
-    filterParameters->alignRepeats = 1;
-}
         filterParameters->net = net;
 
         while(pairwiseAlignment != NULL) {
@@ -333,7 +327,7 @@ else {
             deannealingChainLengthStepSize = minimumChainLength;
         }
         float deannealingChainLength = deannealingChainLengthStepSize;
-if(loop+1 < cCIP->annealingRounds) {
+//if(loop+1 < cCIP->annealingRounds) {
         while(1) {
             ///////////////////////////////////////////////////////////////////////////
             // Choosing a block subset to undo.
@@ -393,7 +387,7 @@ if(loop+1 < cCIP->annealingRounds) {
             }
             deannealingChainLength += deannealingChainLengthStepSize;
         }
-}
+//}
 
         ///////////////////////////////////////////////////////////////////////////
         // Choosing a block subset to keep in the final set of chains.
@@ -484,7 +478,7 @@ if(loop+1 < cCIP->annealingRounds) {
             ///////////////////////////////////////////////////////////////////////////
 
             stSortedSet *chosenBlocks = filterBlocksByTreeCoverageAndLength(biConnectedComponents,
-                                net, 0.0, 2, 0, 0, pinchGraph);
+                                net, 0.0, terminateRecursion ? 0 : 2, 0, 0, pinchGraph);
             //assert(stSortedSet_size(chosenBlocks) == cactusGraph_getEdgeNumber(cactusGraph) - net_getStubEndNumber(net)); //check that this does slurp up all the block edges in the graph except those representing stub ends.
             fillOutNetFromInputs(net, cactusGraph, pinchGraph, chosenBlocks);
 

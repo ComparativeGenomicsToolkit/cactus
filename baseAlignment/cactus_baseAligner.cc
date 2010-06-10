@@ -20,8 +20,8 @@
 #include "substitutionIO.h"
 
 #define SPANNING_TREES 2
-#define MATCH_THRESHOLD 0.7
-#define MAXIMUM_LENGTH 1000
+#define MATCH_THRESHOLD 0.0
+#define MAXIMUM_LENGTH 2000
 
 extern "C" {
 	#include "hashTableC.h"
@@ -316,7 +316,7 @@ int main(int argc, char *argv[]) {
 		/*
 		 * Do the alignments.
 		 */
-		getAlignment_pairwiseAlignments = constructEmptyList(0, (void (*)(void *))destructPairwiseAlignment);
+		getAlignment_pairwiseAlignments = constructEmptyList(0, NULL); //We don't clean up this memory, it's done by cactus_core (void (*)(void *))destructPairwiseAlignment);
 		for(i=0; i<pairs->length; i+=2) {
 			SubSequence **subSequences1 = (SubSequence **)pairs->list[i];
 			SubSequence **subSequences2 = (SubSequence **)pairs->list[i+1];
@@ -346,7 +346,7 @@ int main(int argc, char *argv[]) {
 		/*
 		 * Run the cactus core script.
 		 */
-		cactusCorePipeline(net, cCIP, getAlignments, startAlignmentStack);
+		cactusCorePipeline(net, cCIP, getAlignments, startAlignmentStack, 1);
 		st_logInfo("Ran the cactus core script.\n");
 
 		/*

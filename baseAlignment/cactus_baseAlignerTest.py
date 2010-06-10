@@ -48,21 +48,16 @@ class TestCase(unittest.TestCase):
     
     def setUp(self):
         self.testNo = TestStatus.getTestSetup(5, 100, 0, 0)
-        self.tempFiles = []
-        self.tempDir = getTempDirectory(os.getcwd())
-        self.tempReconstructionDirectory = os.path.join(self.tempDir, "tempReconstruction")
         self.batchSystem = "parasol"
         unittest.TestCase.setUp(self)
-    
-    def tearDown(self):
-        for tempFile in self.tempFiles:
-            os.remove(tempFile)
-        unittest.TestCase.tearDown(self)
-        system("rm -rf %s" % self.tempDir)
 
     def testCactusWorkflow_Blanchette(self): 
         """Runs the workflow on blanchette's simulated (colinear) regions.
         """
+        tempFiles = []
+        tempDir = getTempDirectory(os.getcwd())
+        tempReconstructionDirectory = os.path.join(tempDir, "tempReconstruction")
+        
         trueAlignment = os.path.join(TestStatus.getPathToDataSets(), "blanchettesSimulation", "00.job", "true.mfa")
         
         #Load the true alignment.
@@ -73,14 +68,14 @@ class TestCase(unittest.TestCase):
         #The tree
         newickTreeString = "((((HUMAN:0.006969, CHIMP:0.009727):0.025291, BABOON:0.044568):0.11,(RAT:0.072818, MOUSE:0.081244):0.260342):0.023260,((DOG:0.07, CAT:0.07):0.087381,(PIG:0.06, COW:0.06):0.104728):0.04);"
         
-        parentResultsFile = os.path.join(self.tempDir, "finalResults.xml")
+        parentResultsFile = os.path.join(tempDir, "finalResults.xml")
         
         random.seed(1)
         
         for test in xrange(self.testNo):
             logger.info("Starting the test %i" % test)
             #Get random dir
-            testDir = getTempDirectory(self.tempDir)
+            testDir = getTempDirectory(tempDir)
             
             #Choose random sub-range of alignment.
             columnStart = random.choice(xrange(len(columnAlignment)))
@@ -113,7 +108,8 @@ class TestCase(unittest.TestCase):
             #Run the workflow
             netDisk = os.path.join(testDir, "netDisk")
             jobTree = os.path.join(testDir, "jobTree")
-            runCactusWorkflow(netDisk, tempFastaFiles, newickTreeString, jobTree)
+            runCactusWorkflow(netDisk, tempFastaFiles, newickTreeString, jobTree, 
+                              buildTrees=False, buildFaces=False, buildReference=False)
             logger.info("Ran the the workflow")
             
             #Check the output alignment
@@ -151,6 +147,14 @@ class TestCase(unittest.TestCase):
         
         system("cat %s" % parentResultsFile)
         logger.info("The final results file")
+        
+        #####
+        #Now cleanup
+        ####
+        
+        for tempFile in tempFiles:
+            os.remove(tempFile)
+        system("rm -rf %s" % tempDir)
 
 def main():
     parseSuiteTestOptions()
