@@ -32,8 +32,8 @@
 			<iteration number="2" max_sequence_size="1000000" type="blast"
 				time="10">
 				<blast chunkSize="1000000"
-					blastString="lastz --format=cigar SEQ_FILE_1[multiple][nameparse=darkspace] SEQ_FILE_2[nameparse=darkspace] > CIGARS_FILE"
-					selfBlastString="lastz --format=cigar SEQ_FILE[nameparse=darkspace] --self > CIGARS_FILE" />
+					blastString="lastz --format=cigar --hspthresh=3000 SEQ_FILE_1[multiple][nameparse=darkspace] SEQ_FILE_2[nameparse=darkspace] > CIGARS_FILE"
+					selfBlastString="lastz --format=cigar --hspthresh=3000 SEQ_FILE[nameparse=darkspace] --self > CIGARS_FILE" />
 				<core annealingRounds="5" alignRepeatsAtRound="0"
 					trim="5" trimChange="-0.5" 
 					minimumTreeCoverage="0.0" 
