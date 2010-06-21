@@ -100,7 +100,7 @@ void addChainsToGraph(Net *net, FILE *fileHandle) {
     while ((chain = net_getNextChain(chainIterator)) != NULL) {
         int32_t i, j;
         const char *chainColour;
-        while ((chainColour = graphViz_getColour(chainColour)) != NULL) { //ensure the chain colours don't match the trivial block chains and the adjacencies.
+        while ((chainColour = graphViz_getColour()) != NULL) { //ensure the chain colours don't match the trivial block chains and the adjacencies.
             if (strcmp(chainColour, "black") != 0
                     && strcmp(chainColour, "grey") != 0) {
                 break;
