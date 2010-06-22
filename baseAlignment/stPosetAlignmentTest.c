@@ -11,6 +11,18 @@
 #include "stPosetAlignment.h"
 #include "CuTest.h"
 
+/*
+ * The following test code builds a random alignment and checking as each
+ * extra pair of aligned positions is added to the alignment that the alignment
+ * remains partially ordered.
+ */
+static const int32_t MAX_SEQUENCE_NUMBER = 10;
+static const int32_t MAX_SEQUENCE_SIZE = 100;
+static const int32_t MAX_ALIGNMENTS = 100;
+static const int32_t MAX_ALIGNED_PAIRS = 10000;
+
+
+static int32_t sequenceNumber;
 static stPosetAlignment *posetAlignment = NULL;
 
 static void teardown() {
@@ -21,71 +33,19 @@ static void teardown() {
 
 static void setup() {
     teardown();
-    posetAlignment = stPosetAlignment_construct();
+    sequenceNumber = st_randomInt(0, MAX_SEQUENCE_NUMBER);
+    posetAlignment = stPosetAlignment_construct(sequenceNumber);
 }
 
 
 /*
- * Tests the constructor.
+ * Tests the constructor and the basic setup.
  */
-static void test_stPosetAlignment_construct(CuTest *testCase) {
+static void test_stPosetAlignment_getSequenceNumber(CuTest *testCase) {
     setup();
-    //do nothing, just check the constructor / destructor.
+    CuAssertTrue(testCase, sequenceNumber == stPosetAlignment_getSequenceNumber(posetAlignment));
     teardown();
 }
-
-/*
- * Tests adding sequences to the poset alignment.
- */
-static void test_stPosetAlignment_addSequence(CuTest *testCase) {
-    setup();
-    CuAssertTrue(testCase, stPosetAlignment_getSequenceNumber(posetAlignment) == 0);
-    stPosetAlignment_addSequence(posetAlignment, 10);
-    CuAssertTrue(testCase, stPosetAlignment_getSequenceNumber(posetAlignment) == 1);
-    CuAssertTrue(testCase, stPosetAlignment_getSequenceLength(posetAlignment, 0) == 10);
-    stPosetAlignment_addSequence(posetAlignment, 12);
-    CuAssertTrue(testCase, stPosetAlignment_getSequenceNumber(posetAlignment) == 2);
-    CuAssertTrue(testCase, stPosetAlignment_getSequenceLength(posetAlignment, 0) == 10);
-    CuAssertTrue(testCase, stPosetAlignment_getSequenceLength(posetAlignment, 1) == 12);
-    teardown();
-}
-
-/*
- * Tests adding pairwise alignments to the poset alignment.
- */
-static void test_stPosetAlignment_addPairwiseAlignmentPair(CuTest *testCase) {
-    setup();
-    stPosetAlignment_addSequence(posetAlignment, 10);
-    stPosetAlignment_addSequence(posetAlignment, 12);
-    stPosetAlignment_addSequence(posetAlignment, 5);
-    CuAssertTrue(testCase, stPosetAlignment_getNumberPairwiseAlignments(posetAlignment) == 0);
-    stPosetAlignment_addPairwiseAlignment(posetAlignment, 0, 2);
-    CuAssertTrue(testCase, stPosetAlignment_getNumberPairwiseAlignments(posetAlignment) == 1);
-    stPosetAlignment_addPairwiseAlignment(posetAlignment, 0, 1);
-    CuAssertTrue(testCase, stPosetAlignment_getNumberPairwiseAlignments(posetAlignment) == 2);
-    stPosetAlignment_addPairwiseAlignment(posetAlignment, 1, 2);
-    CuAssertTrue(testCase, stPosetAlignment_getNumberPairwiseAlignments(posetAlignment) == 3);
-    stPosetAlignment_addPairwiseAlignment(posetAlignment, 1, 2);
-    CuAssertTrue(testCase, stPosetAlignment_getNumberPairwiseAlignments(posetAlignment) == 3);
-    //Checks the pairs set is equivalent..
-    stSortedSet *pairs = stPosetAlignment_getPairwiseAlignments(posetAlignment);
-    CuAssertTrue(testCase, stSortedSet_size(pairs) == 3);
-    CuAssertTrue(testCase, stSortedSet_search(pairs, stIntTuple_construct(2, 0, 1)) != NULL);
-    CuAssertTrue(testCase, stSortedSet_search(pairs, stIntTuple_construct(2, 0, 2)) != NULL);
-    CuAssertTrue(testCase, stSortedSet_search(pairs, stIntTuple_construct(2, 1, 2)) != NULL);
-    stSortedSet_destruct(pairs);
-    teardown();
-}
-
-/*
- * The following test code builds a random alignment and checking as each
- * extra pair of aligned positions is added to the alignment that the alignment
- * remains partially ordered.
- */
-static const int32_t MAX_SEQUENCE_NUMBER = 10;
-static const int32_t MAX_SEQUENCE_SIZE = 100;
-static const int32_t MAX_ALIGNMENTS = 100;
-static const int32_t MAX_ALIGNED_PAIRS = 10000;
 
 
 /*
@@ -185,30 +145,19 @@ static void test_stPosetAlignment_addAndIsPossible(CuTest *testCase) {
         setup();
 
         //Make random number of sequences.
-        int32_t sequenceNumber = stRandom_choice(0, MAX_SEQUENCE_NUMBER);
+        stList *sequenceLengths = stList_construct3(0, (void (*)(void *))stIntTuple_destruct);
         for(int32_t i=0; i<sequenceNumber; i++) {
-            stPosetAlignment_addSequence(posetAlignment, stRandom_choice(0, MAX_SEQUENCE_SIZE));
+            stList_append(sequenceLengths, stIntTuple_construct(1, st_randomInt(0, MAX_SEQUENCE_SIZE)));
         }
-
-        //Make random number of alignment pairs.
-        int32_t maxAlignments = stRandom_choice(0, MAX_ALIGNMENTS);
-        for(int32_t i=0; i<maxAlignments; i++) {
-            int32_t seq1 = stRandom_choice(0, sequenceNumber);
-            int32_t seq2 = stRandom_choice(0, sequenceNumber);
-            if(seq1 != seq2) {
-                stPosetAlignment_addPairwiseAlignment(posetAlignment, seq1, seq2);
-            }
-        }
-        stSortedSet *pairwiseAlignments = stPosetAlignment_getPairwiseAlignments(posetAlignment);
 
         //Propose random alignment pairs...
         stList *pairs = stList_construct3(0, (void(*)(void *))stIntTuple_destruct);
-        int32_t maxAlignedPairs = stRandom_choice(0, MAX_ALIGNMENTS);
+        int32_t maxAlignedPairs = st_randomInt(0, MAX_ALIGNMENTS);
         for(int32_t i=0; i<maxAlignedPairs; i++) {
-            int32_t seq1 = stRandom_choice(0, sequenceNumber);
-            int32_t position1 = stRandom_choice(0, stPosetAlignment_getSequenceLength(posetAlignment, seq1));
-            int32_t seq2 = stRandom_choice(0, sequenceNumber);
-            int32_t position2 = stRandom_choice(0, stPosetAlignment_getSequenceLength(posetAlignment, seq2));
+            int32_t seq1 = st_randomInt(0, sequenceNumber);
+            int32_t position1 = st_randomInt(0, stIntTuple_getPosition(stList_get(sequenceLengths, seq1), 0));
+            int32_t seq2 = st_randomInt(0, sequenceNumber);
+            int32_t position2 = st_randomInt(0, stIntTuple_getPosition(stList_get(sequenceLengths, seq2), 0));
             if(seq1 != seq2) {
                 stList_append(pairs, stIntTuple_construct(4, seq1, position1, seq2, position2));
                 if(stPosetAlignment_isPossible(posetAlignment, seq1, position1, seq2, position2)) {
@@ -227,18 +176,16 @@ static void test_stPosetAlignment_addAndIsPossible(CuTest *testCase) {
         }
 
         //Cleanup
-        stSortedSet_destruct(pairwiseAlignments);
+        stList_destruct(sequenceLengths);
         stList_destruct(pairs);
         teardown();
-        st_logInfo("Passed a random ordering test with %i sequences, %i alignments, %i aligned pairs\n", sequenceNumber, pairwiseAlignments, maxAlignedPairs);
+        st_logInfo("Passed a random ordering test with %i sequences and %i aligned pairs\n", sequenceNumber, maxAlignedPairs);
     }
 }
 
 CuSuite* stPosetAlignmentTestSuite(void) {
     CuSuite* suite = CuSuiteNew();
-    SUITE_ADD_TEST(suite, test_stPosetAlignment_addSequence);
-    SUITE_ADD_TEST(suite, test_stPosetAlignment_addPairwiseAlignmentPair);
     SUITE_ADD_TEST(suite, test_stPosetAlignment_addAndIsPossible);
-    SUITE_ADD_TEST(suite, test_stPosetAlignment_construct);
+    SUITE_ADD_TEST(suite, test_stPosetAlignment_getSequenceNumber);
     return suite;
 }
