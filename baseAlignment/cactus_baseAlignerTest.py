@@ -50,6 +50,11 @@ class TestCase(unittest.TestCase):
         self.testNo = TestStatus.getTestSetup(5, 100, 0, 0)
         self.batchSystem = "parasol"
         unittest.TestCase.setUp(self)
+        
+    def testPosetAlignerAPI(self):
+        """Run all the cactus base aligner CuTests, fail if any of them fail.
+        """
+        system("cactus_baseAlignerTests")
 
     def testCactusWorkflow_Blanchette(self): 
         """Runs the workflow on blanchette's simulated (colinear) regions.
