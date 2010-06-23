@@ -12,9 +12,9 @@ static int comparePositions(stIntTuple *position1, stIntTuple *position2) {
     if(stIntTuple_getPosition(position1, 0) == INT32_MAX || stIntTuple_getPosition(position2, 0) == INT32_MAX) { //Indicates we should ignore the first position and compare the second.
         assert(stIntTuple_getPosition(position1, 1) != INT32_MAX);
         assert(stIntTuple_getPosition(position2, 1) != INT32_MAX);
-        return stIntTuple_getPosition(position1, 1) - stIntTuple_getPosition(position1, 1);
+        return stIntTuple_getPosition(position1, 1) - stIntTuple_getPosition(position2, 1);
     }
-    return stIntTuple_getPosition(position1, 0) - stIntTuple_getPosition(position1, 0);
+    return stIntTuple_getPosition(position1, 0) - stIntTuple_getPosition(position2, 0);
 }
 
 stPosetAlignment *stPosetAlignment_construct(int32_t sequenceNumber) {
@@ -103,7 +103,8 @@ void addConstraint_lessThanOrEquals(stPosetAlignment *posetAlignment, int32_t se
 }
 
 bool stPosetAlignment_isPossible(stPosetAlignment *posetAlignment, int32_t sequence1, int32_t position1, int32_t sequence2, int32_t position2) {
-    return position2 <= getConstraint_lessThanOrEquals(posetAlignment, sequence1, sequence2, position1) && position2 <= getConstraint_lessThanOrEquals(posetAlignment, sequence2, sequence1, position2);
+    return position2 <= getConstraint_lessThanOrEquals(posetAlignment, sequence1, position1, sequence2) &&
+    position2 <= getConstraint_lessThanOrEquals(posetAlignment, sequence2, position2, sequence1);
 }
 
 static void stPosetAlignment_addP2(stPosetAlignment *posetAlignment, int32_t sequence1, int32_t sequence3, int32_t position3, int32_t sequence2, int32_t position2) {
