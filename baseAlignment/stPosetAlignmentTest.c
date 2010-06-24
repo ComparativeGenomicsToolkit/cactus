@@ -101,7 +101,7 @@ static int32_t dfs(stHash *adjacencyList, stIntTuple *seqPos,
     if(stSortedSet_search(started, seqPos) != NULL) {
         if(stSortedSet_search(done, seqPos) == NULL) {
             //We have detected a cycle
-            st_uglyf("I have cycle %i %i\n", stIntTuple_getPosition(seqPos, 0), stIntTuple_getPosition(seqPos, 1));
+            //st_uglyf("I have cycle %i %i\n", stIntTuple_getPosition(seqPos, 0), stIntTuple_getPosition(seqPos, 1));
             return 1;
         }
         //We have already explored this area, but no cycle.
