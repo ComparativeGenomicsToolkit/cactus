@@ -81,7 +81,7 @@ static int32_t getConstraint_greaterThanOrEquals(stPosetAlignment *posetAlignmen
     stIntTuple *pos = stIntTuple_construct(2, INT32_MAX, position1);
     //Get less than or equal
     stIntTuple *constraint = stSortedSet_searchLessThanOrEqual(getConstraintList(posetAlignment, sequence2, sequence1), pos);
-    int32_t i = -MIN_SEQ_SIZE;
+    int32_t i = MIN_SEQ_SIZE;
     if(constraint != NULL) {
         i = stIntTuple_getPosition(constraint, 0) + (stIntTuple_getPosition(constraint, 1) == position1 ? 0 : 1);
     }
@@ -99,11 +99,17 @@ void addConstraint_lessThanOrEquals(stPosetAlignment *posetAlignment, int32_t se
     stIntTuple *pos = stIntTuple_construct(2, position1, position2);
     stIntTuple *pos2;
     while((pos2 = stSortedSet_searchLessThanOrEqual(constraintList, pos)) != NULL) {
-        if(stIntTuple_getPosition(pos2, 0) <= position1 && stIntTuple_getPosition(pos2, 1) >= position2) {
+        assert(stIntTuple_getPosition(pos2, 0) <= position1);
+        if(stIntTuple_getPosition(pos2, 1) >= position2) {
             stSortedSet_remove(constraintList, pos2);
+            st_uglyf("I am removing: %i %i %i %i\n", sequence1, stIntTuple_getPosition(pos2, 0), sequence2, stIntTuple_getPosition(pos2, 1));
             stIntTuple_destruct(pos2);
         }
+        else {
+            break;
+        }
     }
+    st_uglyf("I am adding: %i %i %i %i\n", sequence1, stIntTuple_getPosition(pos, 0), sequence2, stIntTuple_getPosition(pos, 1));
     stSortedSet_insert(constraintList, pos);
 }
 
@@ -132,6 +138,7 @@ static void stPosetAlignment_addP(stPosetAlignment *posetAlignment, int32_t sequ
                 if(sequence3 != sequence1) {
                     int32_t position3 = getConstraint_greaterThanOrEquals(posetAlignment, sequence1, position1, sequence3);
                     if(position2 < getConstraint_lessThanOrEquals(posetAlignment, sequence3, position3, sequence2)) { //new constraint found, so add it to the set..
+                        //st_uglyf("This is 137 %i %i %i %i\n", sequence3, position3, sequence2, position2);
                         addConstraint_lessThanOrEquals(posetAlignment, sequence3, position3, sequence2, position2);
                         stPosetAlignment_addP2(posetAlignment, sequence1, sequence3, position3, sequence2, position2);
                     }

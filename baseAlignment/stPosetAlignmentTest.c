@@ -101,6 +101,7 @@ static int32_t dfs(stHash *adjacencyList, stIntTuple *seqPos,
     if(stSortedSet_search(started, seqPos) != NULL) {
         if(stSortedSet_search(done, seqPos) == NULL) {
             //We have detected a cycle
+            st_uglyf("I have cycle %i %i\n", stIntTuple_getPosition(seqPos, 0), stIntTuple_getPosition(seqPos, 1));
             return 1;
         }
         //We have already explored this area, but no cycle.
@@ -196,13 +197,14 @@ static void test_stPosetAlignment_addAndIsPossible(CuTest *testCase) {
                 int32_t position2 = st_randomInt(0, seqLength2);
                 if(seq1 != seq2) {
                     stList_append(pairs, stIntTuple_construct(4, seq1, position1, seq2, position2));
-                    st_uglyf("Go %i %i %i %i \n", seq1, position1, seq2, position2);
                     if(stPosetAlignment_isPossible(posetAlignment, seq1, position1, seq2, position2)) {
+                        st_uglyf("In %i %i %i %i \n", seq1, position1, seq2, position2);
                         //For each accepted pair check it doesn't create a cycle.
                         CuAssertTrue(testCase, !containsACycle(pairs, sequenceNumber));
                         CuAssertTrue(testCase, stPosetAlignment_add(posetAlignment, seq1, position1, seq2, position2));
                     }
                     else {
+                        st_uglyf("Out %i %i %i %i \n", seq1, position1, seq2, position2);
                         //For each rejected pair check it creates a cycle..
                         CuAssertTrue(testCase, containsACycle(pairs, sequenceNumber));
                         CuAssertTrue(testCase, !stPosetAlignment_isPossible(posetAlignment, seq1, position1, seq2, position2));
