@@ -115,7 +115,7 @@ void addConstraint_lessThanOrEquals(stPosetAlignment *posetAlignment, int32_t se
 
 bool stPosetAlignment_isPossible(stPosetAlignment *posetAlignment, int32_t sequence1, int32_t position1, int32_t sequence2, int32_t position2) {
     return position2 <= getConstraint_lessThanOrEquals(posetAlignment, sequence1, position1, sequence2) &&
-    position2 <= getConstraint_lessThanOrEquals(posetAlignment, sequence2, position2, sequence1);
+    position1 <= getConstraint_lessThanOrEquals(posetAlignment, sequence2, position2, sequence1);
 }
 
 static void stPosetAlignment_addP2(stPosetAlignment *posetAlignment, int32_t sequence1, int32_t sequence3, int32_t position3, int32_t sequence2, int32_t position2) {
