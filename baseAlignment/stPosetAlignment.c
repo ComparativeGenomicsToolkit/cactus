@@ -3,6 +3,9 @@
 #include "stPosetAlignment.h"
 #include "stdlib.h"
 
+const int32_t MAX_SEQ_SIZE = 10000000;
+const int32_t MIN_SEQ_SIZE = -10000000;
+
 struct _stPosetAlignment {
     int32_t sequenceNumber;
     stSortedSet **constraintLists;
@@ -63,7 +66,7 @@ static int32_t getConstraint_lessThanOrEquals(stPosetAlignment *posetAlignment, 
     stIntTuple *pos = stIntTuple_construct(2, position1, INT32_MAX);
     //Get less than or equal
     stIntTuple *constraint = stSortedSet_searchGreaterThanOrEqual(getConstraintList(posetAlignment, sequence1, sequence2), pos);
-    int32_t i = INT32_MAX;
+    int32_t i = MAX_SEQ_SIZE;
     if(constraint != NULL) {
         i = stIntTuple_getPosition(constraint, 1) - (stIntTuple_getPosition(constraint, 0) == position1 ? 0 : 1);
     }
@@ -78,7 +81,7 @@ static int32_t getConstraint_greaterThanOrEquals(stPosetAlignment *posetAlignmen
     stIntTuple *pos = stIntTuple_construct(2, INT32_MAX, position1);
     //Get less than or equal
     stIntTuple *constraint = stSortedSet_searchLessThanOrEqual(getConstraintList(posetAlignment, sequence2, sequence1), pos);
-    int32_t i = INT32_MAX;
+    int32_t i = -MIN_SEQ_SIZE;
     if(constraint != NULL) {
         i = stIntTuple_getPosition(constraint, 0) + (stIntTuple_getPosition(constraint, 1) == position1 ? 0 : 1);
     }
@@ -91,6 +94,8 @@ static int32_t getConstraint_greaterThanOrEquals(stPosetAlignment *posetAlignmen
  */
 void addConstraint_lessThanOrEquals(stPosetAlignment *posetAlignment, int32_t sequence1, int32_t position1, int32_t sequence2, int32_t position2) {
     stSortedSet *constraintList = getConstraintList(posetAlignment, sequence1, sequence2);
+    assert(position1 != INT32_MAX);
+    assert(position2 != INT32_MAX);
     stIntTuple *pos = stIntTuple_construct(2, position1, position2);
     stIntTuple *pos2;
     while((pos2 = stSortedSet_searchLessThanOrEqual(constraintList, pos)) != NULL) {

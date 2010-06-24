@@ -72,14 +72,19 @@ static stHash *buildAdjacencyList(stList *pairs, int32_t sequenceNumber) {
        assert(column1 != NULL);
        stSortedSet *column2 = stHash_search(hash, seqPos2);
        assert(column2 != NULL);
-       stSortedSetIterator *it2 = stSortedSet_getIterator(column2);
-       stIntTuple *seqPos3;
-       while((seqPos3 = stSortedSet_getNext(it2)) != NULL) {
-           stSortedSet_insert(column1, seqPos3);
-           stHash_insert(hash, seqPos3, column1);
+       if(column1 != column2) { //Merge the columns
+           stSortedSetIterator *it2 = stSortedSet_getIterator(column2);
+           stIntTuple *seqPos3;
+           while((seqPos3 = stSortedSet_getNext(it2)) != NULL) {
+               assert(stSortedSet_search(column1, seqPos3) == NULL);
+               stSortedSet_insert(column1, seqPos3);
+               assert(stHash_search(hash, seqPos3) == column2);
+               stHash_insert(hash, seqPos3, column1);
+               assert(stHash_search(hash, seqPos3) == column1);
+           }
+           stSortedSet_destructIterator(it2);
+           stSortedSet_destruct(column2);
        }
-       stSortedSet_destructIterator(it2);
-       stSortedSet_destruct(column2);
        //Cleanup loop.
        stIntTuple_destruct(seqPos1);
        stIntTuple_destruct(seqPos2);
@@ -103,21 +108,22 @@ static int32_t dfs(stHash *adjacencyList, stIntTuple *seqPos,
     }
     stSortedSet_insert(started, seqPos);
 
-    int32_t i=0;
+    int32_t cycle =0;
 
     stIntTuple *nextSeqPos = stIntTuple_construct(2, stIntTuple_getPosition(seqPos, 0), stIntTuple_getPosition(seqPos, 1) + 1);
     stSortedSet *column = stHash_search(adjacencyList, nextSeqPos);
     if(column != NULL) { //It is in the adjacency list, so we can do the recursion
+        assert(stSortedSet_search(column, nextSeqPos) != NULL);
         stSortedSetIterator *it = stSortedSet_getIterator(column);
         stIntTuple *seqPos2;
         while((seqPos2 = stSortedSet_getNext(it)) != NULL) {
-            i = i || dfs(adjacencyList, seqPos2, started, done);
+            cycle = cycle || dfs(adjacencyList, seqPos2, started, done);
         }
         stSortedSet_destructIterator(it);
     }
     stIntTuple_destruct(nextSeqPos);
     stSortedSet_insert(done, seqPos);
-    return i;
+    return cycle;
 }
 
 /*
@@ -152,8 +158,8 @@ static int32_t containsACycle(stList *pairs, int32_t sequenceNumber) {
         stSortedSet_insert(columns, column);
     }
     stHash_destructIterator(it);
+    stHash_destruct(adjacencyList);
     stSortedSet_destruct(columns);
-    //stHash_destruct(adjacencyList);
     stSortedSet_destruct(started);
     stSortedSet_destruct(done);
 
@@ -177,26 +183,29 @@ static void test_stPosetAlignment_addAndIsPossible(CuTest *testCase) {
         if(sequenceNumber > 0) {
             for(int32_t i=0; i<maxAlignedPairs; i++) {
                 int32_t seq1 = st_randomInt(0, sequenceNumber);
-                if(stList_get(sequenceLengths, seq1) == 0) {
+                int32_t seqLength1 = stIntTuple_getPosition(stList_get(sequenceLengths, seq1), 0);
+                if(seqLength1 == 0) {
                     continue;
                 }
-                int32_t position1 = st_randomInt(0, stIntTuple_getPosition(stList_get(sequenceLengths, seq1), 0));
+                int32_t position1 = st_randomInt(0, seqLength1);
                 int32_t seq2 = st_randomInt(0, sequenceNumber);
-                if(stList_get(sequenceLengths, seq2) == 0) {
+                int32_t seqLength2 = stIntTuple_getPosition(stList_get(sequenceLengths, seq1), 0);
+                if(seqLength2 == 0) {
                     continue;
                 }
-                int32_t position2 = st_randomInt(0, stIntTuple_getPosition(stList_get(sequenceLengths, seq2), 0));
+                int32_t position2 = st_randomInt(0, seqLength2);
                 if(seq1 != seq2) {
                     stList_append(pairs, stIntTuple_construct(4, seq1, position1, seq2, position2));
-                    if(!containsACycle(pairs, sequenceNumber)) { //stPosetAlignment_isPossible(posetAlignment, seq1, position1, seq2, position2)) {
+                    st_uglyf("Go %i %i %i %i \n", seq1, position1, seq2, position2);
+                    if(stPosetAlignment_isPossible(posetAlignment, seq1, position1, seq2, position2)) {
                         //For each accepted pair check it doesn't create a cycle.
                         CuAssertTrue(testCase, !containsACycle(pairs, sequenceNumber));
-                        //CuAssertTrue(testCase, stPosetAlignment_add(posetAlignment, seq1, position1, seq2, position2));
+                        CuAssertTrue(testCase, stPosetAlignment_add(posetAlignment, seq1, position1, seq2, position2));
                     }
                     else {
                         //For each rejected pair check it creates a cycle..
                         CuAssertTrue(testCase, containsACycle(pairs, sequenceNumber));
-                        //CuAssertTrue(testCase, !stPosetAlignment_isPossible(posetAlignment, seq1, position1, seq2, position2));
+                        CuAssertTrue(testCase, !stPosetAlignment_isPossible(posetAlignment, seq1, position1, seq2, position2));
                         stIntTuple_destruct(stList_pop(pairs)); //remove the pair which created the cycle.
                         CuAssertTrue(testCase, !containsACycle(pairs, sequenceNumber)); //Check we're back to being okay..
                     }
