@@ -169,7 +169,7 @@ static int32_t containsACycle(stList *pairs, int32_t sequenceNumber) {
 
 
 static void test_stPosetAlignment_addAndIsPossible(CuTest *testCase) {
-    for(int32_t trial=0; trial<100; trial++) {
+    for(int32_t trial=0; trial<10; trial++) {
         setup();
 
         //Make random number of sequences.
