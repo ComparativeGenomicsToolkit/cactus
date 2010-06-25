@@ -184,6 +184,7 @@ void cap_makeAdjacent(Cap *cap, Cap *cap2) {
 	cap = cap_getStrand(cap) ? cap : cap_getReverse(cap);
 	cap2 = cap_getStrand(cap2) ? cap2 : cap_getReverse(cap2);
 #ifdef BEN_DEBUG
+	assert(cap != cap2);
 	cap_checkProposedAdjacency(cap, cap2); //checks, if they have coordinates, that they lie along a single range.
 	assert(cap_getEvent(cap) == cap_getEvent(cap2));
 	if (cap_getParent(cap) && cap_getParent(cap2)) {
