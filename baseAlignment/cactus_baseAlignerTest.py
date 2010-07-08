@@ -140,7 +140,6 @@ class TestCase(unittest.TestCase):
     def testPosetAlignerAPI(self):
         """Run all the cactus base aligner CuTests, fail if any of them fail.
         """
-        return
         system("cactus_baseAlignerTests")
 
 def main():
