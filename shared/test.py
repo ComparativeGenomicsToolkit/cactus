@@ -104,11 +104,12 @@ def getCactusInputs_blanchette(regionNumber=0, tempDir=None):
     """
     assert regionNumber >= 0
     assert regionNumber < 50
-    blanchettePath = os.path.join(TestStatus.getPathToDataSets(), "blanchetteSimulation")
-    sequences = [ os.path.join(blanchettePath, species) \
+    blanchettePath = os.path.join(TestStatus.getPathToDataSets(), "blanchettesSimulation")
+    sequences = [ os.path.join(blanchettePath, ("%.2i.job" % regionNumber), species) \
                  for species in ("HUMAN", "CHIMP", "BABOON", "MOUSE", "RAT", "DOG", "CAT", "PIG", "COW") ] #Same order as tree
     newickTreeString = parseNewickTreeFile(os.path.join(blanchettePath, "tree.newick"))
     return sequences, newickTreeString
+    
     
 def getCactusInputs_encode(regionNumber=0, tempDir=None):
     """Gets the inputs for running cactus_workflow using an Encode pilot project region.
