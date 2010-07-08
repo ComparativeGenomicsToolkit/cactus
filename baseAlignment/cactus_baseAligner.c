@@ -115,6 +115,7 @@ int main(int argc, char *argv[]) {
      * Setup the input parameters for cactus core.
      */
     CactusCoreInputParameters *cCIP = constructCactusCoreInputParameters();
+    cCIP->deannealingRounds = 0;
     //--maxEdgeDegree 10000000 --minimumTreeCoverage 0 --minimumTreeCoverageForBlocks 0
     //--minimumBlockLength 0 --minimumChainLength 0 --trim 0 --alignRepeats 1 --extensionSteps 0
 

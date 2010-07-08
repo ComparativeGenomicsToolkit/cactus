@@ -318,74 +318,77 @@ int32_t cactusCorePipeline(Net *net, CactusCoreInputParameters *cCIP,
         // Loop a bunch of times to progressively remove longer and longer (upto minimum chain length) chains.
         ////////////////////////////////////////////////
 
-        assert(cCIP->deannealingRounds >= 1.0);
-        float deannealingChainLengthStepSize;
-        if(cCIP->deannealingRounds >= 1.0) {
-            deannealingChainLengthStepSize = ((float)minimumChainLength) / cCIP->deannealingRounds;
-        }
-        else {
-            deannealingChainLengthStepSize = minimumChainLength;
-        }
-        float deannealingChainLength = deannealingChainLengthStepSize;
-//if(loop+1 < cCIP->annealingRounds) {
-        while(1) {
-            ///////////////////////////////////////////////////////////////////////////
-            // Choosing a block subset to undo.
-            ///////////////////////////////////////////////////////////////////////////
-
-            startTime = time(NULL);
-            //Get all the blocks.
-            stSortedSet *allBlocksOfDegree2OrHigher = filterBlocksByTreeCoverageAndLength(biConnectedComponents, net, 0.0, 2, 0, 0, pinchGraph);
-            //Get the blocks we want to keep
-            stSortedSet *chosenBlocksToKeep = filterBlocksByTreeCoverageAndLength(biConnectedComponents,
-                    net, cCIP->minimumTreeCoverage, 0, minimumBlockLength, deannealingChainLength, pinchGraph);
-            //Now get the blocks to undo by computing the difference.
-            stSortedSet *blocksToUndo = stSortedSet_getDifference(allBlocksOfDegree2OrHigher, chosenBlocksToKeep);
-            stSortedSet_destruct(chosenBlocksToKeep);
-            stSortedSet_destruct(allBlocksOfDegree2OrHigher);
-
-            if(stSortedSet_size(blocksToUndo) > 0) {
-                //now report the results
-                logTheChosenBlockSubset(biConnectedComponents, blocksToUndo, pinchGraph, net);
-                st_logInfo("I have chosen %i blocks which meet the requirements to be undone\n", stSortedSet_size(blocksToUndo));
-
-                ///////////////////////////////////////////////////////////////////////////
-                // Undo the blocks.
-                ///////////////////////////////////////////////////////////////////////////
-
-                list = getChosenBlockPinchEdges(blocksToUndo, pinchGraph);
-                removeOverAlignedEdges(pinchGraph, 0.0, INT32_MAX, list, 0, net);
-                destructList(list);
-                st_logInfo("After removing edges which were not chosen, the graph has %i vertices and %i black edges\n", pinchGraph->vertices->length, avl_count(pinchGraph->edges));
-                removeTrivialGreyEdgeComponents(pinchGraph, pinchGraph->vertices, net);
-                st_logInfo("After removing the trivial graph components the graph has %i vertices and %i black edges\n", pinchGraph->vertices->length, avl_count(pinchGraph->edges));
-
-                ///////////////////////////////////////////////////////////////////////////
-                // Cleanup the old cactus graph (it is now out of sync with the pinch graph,
-                // after undoing the selected edges).
-                ///////////////////////////////////////////////////////////////////////////
-
-                destructList(biConnectedComponents);
-                destructCactusGraph(cactusGraph);
-
-                ////////////////////////////////////////////////
-                // Re-compute the cactus graph
-                ////////////////////////////////////////////////
-
-                cactusGraph = cactusCorePipeline_2(pinchGraph, net);
-
-                ////////////////////////////////////////////////
-                // Get the sorted bi-connected components, again
-                ////////////////////////////////////////////////
-
-                biConnectedComponents = computeSortedBiConnectedComponents(cactusGraph);
+        //assert(cCIP->deannealingRounds >= 1.0);
+        if(cCIP->deannealingRounds >= 1) {
+            float deannealingChainLengthStepSize = ((float)minimumChainLength) / cCIP->deannealingRounds;
+            /*
+            if(cCIP->deannealingRounds >= 1.0) {
+                deannealingChainLengthStepSize = ((float)minimumChainLength) / cCIP->deannealingRounds;
             }
-            stSortedSet_destruct(blocksToUndo);
+            else {
+                deannealingChainLengthStepSize = minimumChainLength;
+            }*/
+            float deannealingChainLength = deannealingChainLengthStepSize;
+    //if(loop+1 < cCIP->annealingRounds) {
+            while(1) {
+                ///////////////////////////////////////////////////////////////////////////
+                // Choosing a block subset to undo.
+                ///////////////////////////////////////////////////////////////////////////
 
-            if(deannealingChainLength >= minimumChainLength) {
-                break;
+                startTime = time(NULL);
+                //Get all the blocks.
+                stSortedSet *allBlocksOfDegree2OrHigher = filterBlocksByTreeCoverageAndLength(biConnectedComponents, net, 0.0, 2, 0, 0, pinchGraph);
+                //Get the blocks we want to keep
+                stSortedSet *chosenBlocksToKeep = filterBlocksByTreeCoverageAndLength(biConnectedComponents,
+                        net, cCIP->minimumTreeCoverage, 0, minimumBlockLength, deannealingChainLength, pinchGraph);
+                //Now get the blocks to undo by computing the difference.
+                stSortedSet *blocksToUndo = stSortedSet_getDifference(allBlocksOfDegree2OrHigher, chosenBlocksToKeep);
+                stSortedSet_destruct(chosenBlocksToKeep);
+                stSortedSet_destruct(allBlocksOfDegree2OrHigher);
+
+                if(stSortedSet_size(blocksToUndo) > 0) {
+                    //now report the results
+                    logTheChosenBlockSubset(biConnectedComponents, blocksToUndo, pinchGraph, net);
+                    st_logInfo("I have chosen %i blocks which meet the requirements to be undone\n", stSortedSet_size(blocksToUndo));
+
+                    ///////////////////////////////////////////////////////////////////////////
+                    // Undo the blocks.
+                    ///////////////////////////////////////////////////////////////////////////
+
+                    list = getChosenBlockPinchEdges(blocksToUndo, pinchGraph);
+                    removeOverAlignedEdges(pinchGraph, 0.0, INT32_MAX, list, 0, net);
+                    destructList(list);
+                    st_logInfo("After removing edges which were not chosen, the graph has %i vertices and %i black edges\n", pinchGraph->vertices->length, avl_count(pinchGraph->edges));
+                    removeTrivialGreyEdgeComponents(pinchGraph, pinchGraph->vertices, net);
+                    st_logInfo("After removing the trivial graph components the graph has %i vertices and %i black edges\n", pinchGraph->vertices->length, avl_count(pinchGraph->edges));
+
+                    ///////////////////////////////////////////////////////////////////////////
+                    // Cleanup the old cactus graph (it is now out of sync with the pinch graph,
+                    // after undoing the selected edges).
+                    ///////////////////////////////////////////////////////////////////////////
+
+                    destructList(biConnectedComponents);
+                    destructCactusGraph(cactusGraph);
+
+                    ////////////////////////////////////////////////
+                    // Re-compute the cactus graph
+                    ////////////////////////////////////////////////
+
+                    cactusGraph = cactusCorePipeline_2(pinchGraph, net);
+
+                    ////////////////////////////////////////////////
+                    // Get the sorted bi-connected components, again
+                    ////////////////////////////////////////////////
+
+                    biConnectedComponents = computeSortedBiConnectedComponents(cactusGraph);
+                }
+                stSortedSet_destruct(blocksToUndo);
+
+                if(deannealingChainLength >= minimumChainLength) {
+                    break;
+                }
+                deannealingChainLength += deannealingChainLengthStepSize;
             }
-            deannealingChainLength += deannealingChainLengthStepSize;
         }
 //}
 
