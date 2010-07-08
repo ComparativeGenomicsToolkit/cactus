@@ -2,7 +2,7 @@ include ../../../../include.mk
 binPath = ../../../../bin
 libPath = ../../../../lib
 
-progs = $(notdir $(wildcard cactus_tuning.py))
+progs = $(notdir $(wildcard cactus_tuning.py cactus_tuning_parameters.py cactus_tuning_summary2.py))
 
 targets = ${progs:%=${binPath}/%}
 
