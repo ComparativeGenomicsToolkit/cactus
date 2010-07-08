@@ -8,12 +8,12 @@
 				<blast chunkSize="100000000"
 					blastString="lastz --format=cigar --notransition --seed=14of22 --step=100 --nogapped --hspthresh=6000 SEQ_FILE_1[multiple][nameparse=darkspace] SEQ_FILE_2[nameparse=darkspace] > CIGARS_FILE"
 					selfBlastString="lastz --format=cigar --notransition --seed=14of22 --step=100 --nogapped --hspthresh=6000 SEQ_FILE[nameparse=darkspace] --self > CIGARS_FILE" />
-				<core annealingRounds="1" alignRepeatsAtRound="0"
-					trim="0" trimChange="0" 
-					minimumTreeCoverage="0.1" 
-					minimumBlockLength="0" minimumBlockLengthChange="0"
-					minimumChainLength="100" minimumChainLengthChange="0" 
-					deannealingRounds="100" />
+				<core annealingRounds="5" alignRepeatsAtRound="0"
+					trim="5" trimChange="-0.5" 
+					minimumTreeCoverage="0.0" 
+					minimumBlockLength="5" minimumBlockLengthChange="0"
+					minimumChainLength="50" minimumChainLengthChange="-10"
+					deannealingRounds="10" />
 			</iteration>
 
 			<iteration number="1" max_sequence_size="30000000" type="blast"
@@ -21,24 +21,24 @@
 				<blast chunkSize="10000000"
 					blastString="lastz --format=cigar --notransition --step=20 --nogapped SEQ_FILE_1[multiple][nameparse=darkspace] SEQ_FILE_2[nameparse=darkspace] > CIGARS_FILE"
 					selfBlastString="lastz --notransition --step=20 --nogapped --format=cigar SEQ_FILE[nameparse=darkspace] --self > CIGARS_FILE" />
-				<core annealingRounds="1" alignRepeatsAtRound="0"
-					trim="0" trimChange="0" 
-					minimumTreeCoverage="0.1" 
-					minimumBlockLength="0" minimumBlockLengthChange="0"
-					minimumChainLength="100" minimumChainLengthChange="0"
-					deannealingRounds="100" />
+				<core annealingRounds="5" alignRepeatsAtRound="0"
+					trim="5" trimChange="-0.5" 
+					minimumTreeCoverage="0.0" 
+					minimumBlockLength="5" minimumBlockLengthChange="0"
+					minimumChainLength="100" minimumChainLengthChange="-10"
+					deannealingRounds="10" />
 			</iteration>
 
 			<iteration number="2" max_sequence_size="1000000" type="blast"
 				time="10">
 				<blast chunkSize="1000000"
-					blastString="lastz --format=cigar --hspthresh=3000 SEQ_FILE_1[multiple][nameparse=darkspace] SEQ_FILE_2[nameparse=darkspace] > CIGARS_FILE"
-					selfBlastString="lastz --format=cigar --hspthresh=3000 SEQ_FILE[nameparse=darkspace] --self > CIGARS_FILE" />
+					blastString="lastz --format=cigar --hspthresh=1800 SEQ_FILE_1[multiple][nameparse=darkspace] SEQ_FILE_2[nameparse=darkspace] > CIGARS_FILE"
+					selfBlastString="lastz --format=cigar --hspthresh=1800 SEQ_FILE[nameparse=darkspace] --self > CIGARS_FILE" />
 				<core annealingRounds="5" alignRepeatsAtRound="0"
 					trim="5" trimChange="-0.5" 
 					minimumTreeCoverage="0.0" 
 					minimumBlockLength="2" minimumBlockLengthChange="0"
-					minimumChainLength="10" minimumChainLengthChange="-1.25"
+					minimumChainLength="30" minimumChainLengthChange="-2.5"
 					deannealingRounds="10" />
 			</iteration>
 
