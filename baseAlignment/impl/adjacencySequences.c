@@ -5,14 +5,16 @@
  *      Author: benedictpaten
  */
 
+#include "adjacencySequences.h"
 
 /*
  * Gets the raw sequence.
  */
-char *getAdjacencySequence(Cap *cap, int32_t maxLength) {
+static char *getAdjacencySequenceP(Cap *cap, int32_t maxLength) {
         Sequence *sequence = cap_getSequence(cap);
         assert(sequence != NULL);
         Cap *cap2 = cap_getAdjacency(cap);
+        assert(cap2 != NULL);
         assert(!cap_getSide(cap));
 
         if(cap_getStrand(cap)) {
@@ -35,35 +37,21 @@ char *getAdjacencySequence(Cap *cap, int32_t maxLength) {
         }
 }
 
-/*
- * Datastructure to hold adjacency sequence.
- */
-typedef struct _AdjacencySequence {
-        char *string;
-        char *sequenceName;
-        int32_t strand;
-        int32_t start;
-        int32_t length;
-} AdjacencySequence;
-
-/*
- * Function to get an adjacency sequence.
- */
-AdjacencySequence *getAdjacencySequenceAndCoordinates(Cap *cap, int32_t maxLength) {
+AdjacencySequence *adjacencySequence_construct(Cap *cap, int32_t maxLength) {
         assert(!cap_getSide(cap));
         AdjacencySequence *subSequence = (AdjacencySequence *)st_malloc(sizeof(AdjacencySequence));
-        subSequence->string = getAdjacencySequence(cap, maxLength);
+        subSequence->string = getAdjacencySequenceP(cap, maxLength);
         Sequence *sequence = cap_getSequence(cap);
-        subSequence->sequenceName = netMisc_nameToString(sequence_getName(sequence));
+        assert(sequence != NULL);
+        subSequence->sequenceName = sequence_getName(sequence);
         subSequence->strand = cap_getStrand(cap);
         subSequence->start = cap_getCoordinate(cap) + (cap_getStrand(cap) ? 1 : -1);
         subSequence->length = strlen(subSequence->string);
         return subSequence;
 }
 
-void destructAdjacencySequence(AdjacencySequence *subSequence) {
+void adjacencySequence_destruct(AdjacencySequence *subSequence) {
         free(subSequence->string);
-        free(subSequence->sequenceName);
         free(subSequence);
 }
 

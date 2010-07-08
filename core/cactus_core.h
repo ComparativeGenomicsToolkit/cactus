@@ -1,6 +1,8 @@
 #ifndef CACTUS_CORE_H_
 #define CACTUS_CORE_H_
 
+#include "pairwiseAlignment.h"
+
 typedef struct _CactusCoreInputParameters {
     /*
      * Arguments/options

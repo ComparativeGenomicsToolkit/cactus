@@ -1,7 +1,6 @@
 import unittest
 import os
 import sys
-import random
 
 from sonLib.bioio import parseSuiteTestOptions
 from sonLib.bioio import TestStatus
@@ -50,18 +49,12 @@ class TestCase(unittest.TestCase):
         self.testNo = TestStatus.getTestSetup(5, 100, 0, 0)
         self.batchSystem = "parasol"
         unittest.TestCase.setUp(self)
-        
-    def testPosetAlignerAPI(self):
-        """Run all the cactus base aligner CuTests, fail if any of them fail.
-        """
-        system("cactus_baseAlignerTests")
 
     def testCactusWorkflow_Blanchette(self): 
         """Runs the workflow on blanchette's simulated (colinear) regions.
         """
         tempFiles = []
         tempDir = getTempDirectory(os.getcwd())
-        tempReconstructionDirectory = os.path.join(tempDir, "tempReconstruction")
         
         trueAlignment = os.path.join(TestStatus.getPathToDataSets(), "blanchettesSimulation", "00.job", "true.mfa")
         
@@ -73,85 +66,68 @@ class TestCase(unittest.TestCase):
         #The tree
         newickTreeString = "((((HUMAN:0.006969, CHIMP:0.009727):0.025291, BABOON:0.044568):0.11,(RAT:0.072818, MOUSE:0.081244):0.260342):0.023260,((DOG:0.07, CAT:0.07):0.087381,(PIG:0.06, COW:0.06):0.104728):0.04);"
         
-        parentResultsFile = os.path.join(tempDir, "finalResults.xml")
+        #Get random dir
+        testDir = getTempDirectory(tempDir)
         
-        random.seed(1)
+        #random alignment
+        subAlignment = columnAlignment[0:5000]
+        logger.info("Got a sub alignment, it is %i columns long" % len(subAlignment))
         
-        for test in xrange(self.testNo):
-            logger.info("Starting the test %i" % test)
-            #Get random dir
-            testDir = getTempDirectory(tempDir)
-            
-            #Choose random sub-range of alignment.
-            columnStart = random.choice(xrange(len(columnAlignment)))
-            subAlignment = columnAlignment[columnStart:columnStart+random.choice(xrange(500))]
-            logger.info("Got a sub alignment, it is %i columns long" % len(subAlignment))
-            
-            #Output the 'TRUE' alignment file
-            trueMFAFile = os.path.join(testDir, "true.mfa")
-            fastaAlignmentWrite(subAlignment, fastaHeaders, len(fastaHeaders), trueMFAFile)
-            trueMAFFile = os.path.join(testDir, "true.maf")
-            system("eval_MFAToMAF --mFAFile %s --outputFile %s" % (trueMFAFile, trueMAFFile))
-            system("cat %s" % trueMAFFile)
-            
-            #Get sequences
-            sequences = [ (fastaHeaders[seqNo], "".join([ column[seqNo] for column in subAlignment if column[seqNo] != '-' ])) for seqNo in xrange(sequenceNumber) ]
-            logger.info("Got the sequences")
-            
-            #Write sequences into temp files
-            tempFastaFiles = []
-            for seqNo in xrange(sequenceNumber):
-                header, sequence = sequences[seqNo]
-                logger.info("Making temp file for header: %s, seq: %s" % (header, sequence))
-                tempFastaFile = os.path.join(testDir, "%i.fa" % seqNo)
-                tempFastaFiles.append(tempFastaFile)
-                fileHandle = open(tempFastaFile, "w")
-                fastaWrite(fileHandle, header, sequence)
-                fileHandle.close()
-            logger.info("Got the temp sequence files")
-            
-            #Run the workflow
-            netDisk = os.path.join(testDir, "netDisk")
-            jobTree = os.path.join(testDir, "jobTree")
-            runCactusWorkflow(netDisk, tempFastaFiles, newickTreeString, jobTree, 
-                              buildTrees=False, buildFaces=False, buildReference=False)
-            logger.info("Ran the the workflow")
-            
-            #Check the output alignment
-            runJobTreeStatusAndFailIfNotComplete(jobTree)
-            logger.info("Checked the job tree dir")
-            
-            #Now get mafs for the region.
-            mAFFile = os.path.join(testDir, "net.maf")
-            system("cactus_MAFGenerator --netName 0 --netDisk %s --outputFile %s" % (netDisk, mAFFile))
-            logger.info("Got the MAFs from the net disk")
-            system("cat %s" % mAFFile)
-            
-            statsFile = os.path.join(testDir, "stats.xml")
-            system("cactus_treeStats --netDisk %s --netName 0 --outputFile %s" % (netDisk, statsFile))
-            system("cat %s" % statsFile)
-            logger.info("Got the cactus tree stats")
-            
-            #Now compare the mafs to the output.
-            resultsFile = os.path.join(testDir, "results.xml")
-            system("eval_MAFComparator --mAFFile1 %s --mAFFile2 %s --outputFile %s" % (trueMAFFile, mAFFile, resultsFile))
-            logger.info("Ran the maf comparator")
-            
-            system("cat %s" % resultsFile)
-            
-            if test > 0:
-                system("eval_mergeMAFComparatorResults.py --results1 %s --results2 %s --outputFile %s" % (parentResultsFile, resultsFile, parentResultsFile))
-                logger.info("Merging the results")
-            else:
-                system("cp %s %s" % (resultsFile, parentResultsFile))
-                logger.info("Copying the results")
-            
-            #Cleanup
-            system("rm -rf %s" % testDir)
-            logger.info("Successfully ran test for the problem")
+        #Output the 'TRUE' alignment file
+        trueMFAFile = os.path.join(testDir, "true.mfa")
+        fastaAlignmentWrite(subAlignment, fastaHeaders, len(fastaHeaders), trueMFAFile)
+        trueMAFFile = os.path.join(testDir, "true.maf")
+        system("eval_MFAToMAF --mFAFile %s --outputFile %s" % (trueMFAFile, trueMAFFile))
+        system("cat %s" % trueMAFFile)
         
-        system("cat %s" % parentResultsFile)
-        logger.info("The final results file")
+        #Get sequences
+        sequences = [ (fastaHeaders[seqNo], "".join([ column[seqNo] for column in subAlignment if column[seqNo] != '-' ])) for seqNo in xrange(sequenceNumber) ]
+        logger.info("Got the sequences")
+        
+        #Write sequences into temp files
+        tempFastaFiles = []
+        for seqNo in xrange(sequenceNumber):
+            header, sequence = sequences[seqNo]
+            logger.info("Making temp file for header: %s, seq: %s" % (header, sequence))
+            tempFastaFile = os.path.join(testDir, "%i.fa" % seqNo)
+            tempFastaFiles.append(tempFastaFile)
+            fileHandle = open(tempFastaFile, "w")
+            fastaWrite(fileHandle, header, sequence)
+            fileHandle.close()
+        logger.info("Got the temp sequence files")
+        
+        #Run the workflow
+        netDisk = os.path.join(testDir, "netDisk")
+        jobTree = os.path.join(testDir, "jobTree")
+        runCactusWorkflow(netDisk, tempFastaFiles, newickTreeString, jobTree, 
+                          buildTrees=False, buildFaces=False, buildReference=False)
+        logger.info("Ran the the workflow")
+        
+        #Check the output alignment
+        runJobTreeStatusAndFailIfNotComplete(jobTree)
+        logger.info("Checked the job tree dir")
+        
+        #Now get mafs for the region.
+        mAFFile = os.path.join(testDir, "net.maf")
+        system("cactus_MAFGenerator --netName 0 --netDisk %s --outputFile %s" % (netDisk, mAFFile))
+        logger.info("Got the MAFs from the net disk")
+        system("cat %s" % mAFFile)
+        
+        statsFile = os.path.join(testDir, "stats.xml")
+        system("cactus_treeStats --netDisk %s --netName 0 --outputFile %s" % (netDisk, statsFile))
+        system("cat %s" % statsFile)
+        logger.info("Got the cactus tree stats")
+        
+        #Now compare the mafs to the output.
+        resultsFile = os.path.join(testDir, "results.xml")
+        system("eval_MAFComparator --mAFFile1 %s --mAFFile2 %s --outputFile %s" % (trueMAFFile, mAFFile, resultsFile))
+        logger.info("Ran the maf comparator")
+        
+        system("cat %s" % resultsFile)
+        
+        #Cleanup
+        system("rm -rf %s" % testDir)
+        logger.info("Successfully ran test for the problem")
         
         #####
         #Now cleanup
@@ -160,6 +136,12 @@ class TestCase(unittest.TestCase):
         for tempFile in tempFiles:
             os.remove(tempFile)
         system("rm -rf %s" % tempDir)
+    
+    def testPosetAlignerAPI(self):
+        """Run all the cactus base aligner CuTests, fail if any of them fail.
+        """
+        return
+        system("cactus_baseAlignerTests")
 
 def main():
     parseSuiteTestOptions()
