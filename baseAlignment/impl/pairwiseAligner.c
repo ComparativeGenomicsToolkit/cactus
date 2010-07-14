@@ -71,9 +71,11 @@ static inline void logAddAndAssign(double *x, double y) {
 //State stuff.
 ////
 
+static const int32_t cellNo = 3;
+
 static void checkState(int32_t state) {
     assert(state >= 0);
-    assert(state < 3);
+    assert(state < cellNo);
 }
 
 static void checkPosition(int32_t z, int32_t zL) {
@@ -81,28 +83,20 @@ static void checkPosition(int32_t z, int32_t zL) {
     assert(z < zL);
 }
 
-static const int32_t cellNo = 3;
 static const double posteriorMatchThreshold = 0.01;
 
-static inline double *getCell(double *m, int32_t x, int32_t y, int32_t lX) {
-    if(x >= 0 && y >= 0) {
-        return &(m[(y * lX + x) * cellNo]);
-    }
-    return NULL;
-}
+#define matchContinueTransition -0.027602076970648346 //0.972775379521401f
+#define gapExtendTransition -0.025886909285416447 //0.974445284091146f;
+#define gapSwitchTransition -7.2203887919613203 //0.0007315179552849f;
+#define matchFromGapTransition -3.6959766616728253 //1.0 - gapExtend - gapSwitch = 0.024823197953569152
+#define gapOpenTransition -4.2967807310002062 //(1.0 - match)/2 = 0.013612310239299985
 
 static inline double transitionProb(int32_t from, int32_t to) {
     checkState(from);
     checkState(to);
-    static const double match = -0.027602076970648346; //0.972775379521401f
-    static const double gapExtend = -0.025886909285416447; //0.974445284091146f;
-    static const double gapSwitch = -7.2203887919613203; //0.0007315179552849f;
-    static const double matchFromGap = -3.6959766616728253; //1.0 - gapExtend - gapSwitch = 0.024823197953569152
-    static const double gapOpen = -4.2967807310002062; //(1.0 - match)/2 = 0.013612310239299985
-
-    const double transitions[9] = { /*Match */ match, matchFromGap, matchFromGap,
-            /*To gapX */ gapOpen, gapExtend, gapSwitch,
-            /*To gapY */ gapOpen, gapSwitch, gapExtend };
+    static const double transitions[9] = { /*Match */ matchContinueTransition, matchFromGapTransition, matchFromGapTransition,
+                /*To gapX */ gapOpenTransition, gapExtendTransition, gapSwitchTransition,
+                /*To gapY */ gapOpenTransition, gapSwitchTransition, gapExtendTransition };
     return transitions[to * cellNo + from];
 }
 
@@ -118,44 +112,45 @@ static inline int32_t getTransitionOffSetY(int32_t state) {
     return offsets[state];
 }
 
+#define gapEmission -1.6094379124341003 //log(0.2) = -1.6094379124341003
+#define matchEmission -2.1149196655034745 //log(0.12064298095701059);
+#define transversionEmission -4.5691014376830479 //log(0.010367271172731285);
+#define transitionEmission -3.9833860032220842 //log(0.01862247669752685);
+#define matchNEmission -3.2188758248682006 //log(0.04);
+
 static inline double emissionProb(int32_t x, int32_t y, int32_t lX, int32_t lY,
         const char *sX, const char *sY, int32_t state) {
     checkState(state);
-    static const double gapC = -1.6094379124341003; //log(0.2) = -1.6094379124341003
-    double gap[5] = { gapC, gapC, gapC, gapC, gapC };
-    static const double matchE = -2.1149196655034745; //log(0.12064298095701059);
-    static const double transversion = -4.5691014376830479; //log(0.010367271172731285);
-    static const double transition = -3.9833860032220842; //log(0.01862247669752685);
-    static const double matchN = -3.2188758248682006; //log(0.04);
-    double match[25] = { matchE, transversion, transition, transversion, matchN,
-            transversion, matchE, transversion, transition, matchN,
-            transition, transversion, matchE, transversion, matchN,
-            transversion, transition, transversion, matchE, matchN,
-            matchN, matchN, matchN, matchN, matchN };
+    static const double gapM[5] = { gapEmission, gapEmission, gapEmission, gapEmission, gapEmission };
+    static const double matchM[25] = { matchEmission, transversionEmission, transitionEmission, transversionEmission, matchNEmission,
+            transversionEmission, matchEmission, transversionEmission, transitionEmission, matchNEmission,
+            transitionEmission, transversionEmission, matchEmission, transversionEmission, matchNEmission,
+            transversionEmission, transitionEmission, transversionEmission, matchEmission, matchNEmission,
+            matchNEmission, matchNEmission, matchNEmission, matchNEmission, matchNEmission };
     switch(state) {
         case 0:
             checkPosition(x, lX);
             checkPosition(y, lY);
-            return match[sX[x-1] * 5 + sY[y-1]];
+            return matchM[sX[x-1] * 5 + sY[y-1]];
         case 1:
             checkPosition(x, lX);
-            return gap[(int32_t)sX[x-1]];
+            return gapM[(int32_t)sX[x-1]];
         case 2:
             checkPosition(y, lY);
-            return gap[(int32_t)sY[y-1]];
+            return gapM[(int32_t)sY[y-1]];
         default:
             assert(0);
     }
 }
 
-static inline double endStateProbs(int32_t state) {
+static inline double startStateProbs(int32_t state) {
     checkState(state);
-    static const double startProb = -1.0986122886681098; //math.log(1.0/3.0) = -1.0986122886681098
-    double endStates[3] = { startProb, startProb, startProb };
-    return endStates[state];
+    //static const double startProb = -1.0986122886681098; //math.log(1.0/3.0) = -1.0986122886681098
+    static const double startStates[3] = { matchContinueTransition, gapOpenTransition, gapOpenTransition };
+    return startStates[state];
 }
 
-static inline double startStateProbs(int32_t state) {
+static inline double endStateProbs(int32_t state) {
     checkState(state);
     static const double endProb = -1.0986122886681098; //math.log(1.0/3.0) = -1.0986122886681098
     double endStates[3] = { endProb, endProb, endProb };
@@ -165,6 +160,13 @@ static inline double startStateProbs(int32_t state) {
 /////
 //Forward matrix
 /////
+
+static inline double *getCell(double *m, int32_t x, int32_t y, int32_t lX) {
+    if(x >= 0 && y >= 0) {
+        return &(m[(y * lX + x) * cellNo]);
+    }
+    return NULL;
+}
 
 static inline double *getEmptyMatrix(int32_t lX, int32_t lY) {
     int32_t j = lX * lY * cellNo;
