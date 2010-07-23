@@ -132,10 +132,10 @@ def runCactusGetUniqueName(netDisk, tempDir):
     os.remove(uniqueNameFile)
     return nameString
 
-def runCactusMakeTerminalNormal(netDisk, netNames):
-    """Makes the given nets terminal-normal (not a mix of terminal and non-terminal children).
+def runCactusMakeNormal(netDisk, netNames, logLevel="DEBUG"):
+    """Makes the given nets normal (see normalisation for the various phases)
     """
-    system("cactus_workflow_makeTerminalNormal %s %s" % (netDisk, " ".join(netNames)))
+    system("cactus_normalisation --netDisk %s --logLevel %s %s" % (netDisk, logLevel, " ".join(netNames)))
 
 def runCactusBaseAligner(netDisk, netNames, logLevel="DEBUG"):
     """Runs cactus base aligner.

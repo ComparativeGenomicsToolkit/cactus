@@ -12,13 +12,13 @@
 ////////////////////////////////////////////////
 
 /*
- * Constructs a non-terminal group.
+ * Constructs a non-leaf group.
  */
 Group *group_construct(Net *net, Net *nestedNet);
 
 /*
  * Constructs an group without a nested net. The group is thus
- * labelled terminal (see group_isTerminal(group)).
+ * labelled a leaf (see group_isLeaf(group)).
  */
 Group *group_construct2(Net *net);
 

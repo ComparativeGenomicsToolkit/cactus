@@ -3,6 +3,10 @@
 #include <inttypes.h>
 #include <math.h>
 
+/*
+ * Basic Pecan HMM code used by Cactus base aligner.
+ */
+
 ///
 //Sequence stuff
 //
@@ -41,8 +45,9 @@ char *convertSequence(const char *s, int32_t sL) {
 //Basic math
 ///
 
-static const double logZero = -INFINITY;
-static const double logUnderflowThreshold = 7.5;
+#define logZero -INFINITY
+#define logUnderflowThreshold 7.5
+#define posteriorMatchThreshold 0.01
 
 static inline double lookup (double x){
   //return log (exp (x) + 1);
@@ -71,7 +76,7 @@ static inline void logAddAndAssign(double *x, double y) {
 //State stuff.
 ////
 
-static const int32_t cellNo = 3;
+static const int32_t cellNo = 5;
 
 static void checkState(int32_t state) {
     assert(state >= 0);
@@ -83,32 +88,37 @@ static void checkPosition(int32_t z, int32_t zL) {
     assert(z < zL);
 }
 
-static const double posteriorMatchThreshold = 0.01;
+#define matchContinueTransition -0.030064059121770816 //0.9703833696510062f
+#define gapOpenShortTransition -4.34381910900448 //0.0129868352330243
+#define gapOpenLongTransition -6.30810595366929 //(1.0 - match - 2*gapOpenShort)/2 = 0.001821479941473
 
-#define matchContinueTransition -0.027602076970648346 //0.972775379521401f
-#define gapExtendTransition -0.025886909285416447 //0.974445284091146f;
-#define gapSwitchTransition -7.2203887919613203 //0.0007315179552849f;
-#define matchFromGapTransition -3.6959766616728253 //1.0 - gapExtend - gapSwitch = 0.024823197953569152
-#define gapOpenTransition -4.2967807310002062 //(1.0 - match)/2 = 0.013612310239299985
+#define gapShortExtendTransition -0.3388262689231553 //0.7126062401851738f;
+#define gapShortSwitchTransition -4.910694825551255 //0.0073673675173412815f;
+#define matchFromShortGapTransition -1.272871422049609 //1.0 - gapExtend - gapSwitch = 0.280026392297485
+
+#define gapLongExtendTransition -0.003442492794189331 //0.99656342579062f;
+#define matchFromLongGapTransition -5.673280173170473 //1.0 - gapExtend - gapSwitch = 0.00343657420938
 
 static inline double transitionProb(int32_t from, int32_t to) {
     checkState(from);
     checkState(to);
-    static const double transitions[9] = { /*Match */ matchContinueTransition, matchFromGapTransition, matchFromGapTransition,
-                /*To gapX */ gapOpenTransition, gapExtendTransition, gapSwitchTransition,
-                /*To gapY */ gapOpenTransition, gapSwitchTransition, gapExtendTransition };
+    static const double transitions[25] = { /*Match */ matchContinueTransition, matchFromShortGapTransition, matchFromShortGapTransition, matchFromLongGapTransition, matchFromLongGapTransition,
+                /*To shortGapX */ gapOpenShortTransition, gapShortExtendTransition, gapShortSwitchTransition, logZero, logZero,
+                /*To shortGapY */ gapOpenShortTransition, gapShortSwitchTransition, gapShortExtendTransition, logZero, logZero,
+                /*To longGapX */ gapOpenLongTransition, logZero, logZero, gapLongExtendTransition, logZero,
+                /*To longGapY */ gapOpenLongTransition, logZero, logZero, logZero, gapLongExtendTransition };
     return transitions[to * cellNo + from];
 }
 
 static inline int32_t getTransitionOffSetX(int32_t state) {
     checkState(state);
-    static int32_t offsets[] = { 1, 1, 0 };
+    static int32_t offsets[] = { 1, 1, 0, 1, 0 };
     return offsets[state];
 }
 
 static inline int32_t getTransitionOffSetY(int32_t state) {
     checkState(state);
-    static int32_t offsets[] = { 1, 0, 1 };
+    static int32_t offsets[] = { 1, 0, 1, 0, 1 };
     return offsets[state];
 }
 
@@ -133,9 +143,11 @@ static inline double emissionProb(int32_t x, int32_t y, int32_t lX, int32_t lY,
             checkPosition(y, lY);
             return matchM[sX[x-1] * 5 + sY[y-1]];
         case 1:
+        case 3:
             checkPosition(x, lX);
             return gapM[(int32_t)sX[x-1]];
         case 2:
+        case 4:
             checkPosition(y, lY);
             return gapM[(int32_t)sY[y-1]];
         default:
@@ -146,14 +158,14 @@ static inline double emissionProb(int32_t x, int32_t y, int32_t lX, int32_t lY,
 static inline double startStateProbs(int32_t state) {
     checkState(state);
     //static const double startProb = -1.0986122886681098; //math.log(1.0/3.0) = -1.0986122886681098
-    static const double startStates[3] = { matchContinueTransition, gapOpenTransition, gapOpenTransition };
+    static const double startStates[5] = { matchContinueTransition, gapOpenShortTransition, gapOpenShortTransition, gapOpenLongTransition, gapOpenLongTransition };
     return startStates[state];
 }
 
 static inline double endStateProbs(int32_t state) {
     checkState(state);
-    static const double endProb = -1.0986122886681098; //math.log(1.0/3.0) = -1.0986122886681098
-    double endStates[3] = { endProb, endProb, endProb };
+    static const double endProb = -1.6094379124341; //math.log(1.0/5.0) = -1.6094379124341
+    double endStates[5] = { endProb, endProb, endProb, endProb, endProb };
     return endStates[state];
 }
 

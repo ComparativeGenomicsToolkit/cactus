@@ -47,8 +47,8 @@
 		</iterations>
 	</alignment>
 
-	<terminal_normal time="1">
-	</terminal_normal>
+	<normal time="1">
+	</normal>
 
 	<phylogeny time="1">
 	</phylogeny>

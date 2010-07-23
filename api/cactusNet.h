@@ -430,7 +430,6 @@ bool net_builtFaces(Net *net);
  */
 void net_setBuildFaces(Net *net, bool b);
 
-
 /*
  * Returns non-zero iff the net has no nested nets.
  */
@@ -441,5 +440,12 @@ bool net_isLeaf(Net *net);
  */
 bool net_isTerminal(Net *net);
 
+/*
+ * Deletes the net if it contains no blocks and just one child group
+ * (i.e. which are redundant because they do nothing to the decomposition).
+ * The child net is given the name of this net, so actually the child name disappears.
+ * Returns the net which this net has been replaced with, or NULL if nothing changes.
+ */
+Net *net_removeIfRedundant(Net *net);
 
 #endif

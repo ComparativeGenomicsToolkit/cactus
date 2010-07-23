@@ -58,4 +58,14 @@ double chain_getAverageInstanceBaseLength(Chain *chain);
  */
 void chain_check(Chain *chain);
 
+/*
+ * Ensures that all chains in this net are not part of a higher level chain, by promoting
+ * those chains which are.
+ *
+ * Let l be a link involving one attached stub-end and one block end. For any l in a
+ * net n, if the attached end in l is in a link in the parent of n (if n has a parent), then this
+ * function promotes the chain containing l to the higher level.
+ */
+void chain_promoteChainsThatExtendHigherLevelChains(Net *net);
+
 #endif

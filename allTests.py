@@ -10,7 +10,8 @@ from cactus.phylogeny.cactus_phylogenyTest import TestCase as phylogenyTest
 from cactus.faces.cactus_fillAdjacenciesTest import TestCase as adjacenciesTest
 from cactus.reference.cactus_referenceTest import TestCase as referenceTest
 from cactus.api.allTests import TestCase as aPITest
-import cactus.utilities.allTests
+from cactus.normalisation.cactus_normalisationTest import TestCase as normalisationTest
+import cactus.utilities.allTests 
  
 from sonLib.bioio import parseSuiteTestOptions
 
@@ -25,6 +26,7 @@ def allSuites():
                                    unittest.makeSuite(adjacenciesTest, 'test'),
                                    unittest.makeSuite(referenceTest, 'test'),
                                    unittest.makeSuite(aPITest, 'test'),
+                                   unittest.makeSuite(normalisationTest, 'test'),
                                    cactus.utilities.allTests.allSuites()))
     return allTests
         

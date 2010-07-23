@@ -37,7 +37,7 @@ from cactus.shared.common import runCactusExtendNets
 from cactus.shared.common import runCactusPhylogeny
 from cactus.shared.common import runCactusAdjacencies
 from cactus.shared.common import runCactusBaseAligner
-from cactus.shared.common import runCactusMakeTerminalNormal
+from cactus.shared.common import runCactusMakeNormal 
 from cactus.shared.common import runCactusReference
 from cactus.shared.common import runCactusCheck
 
@@ -100,7 +100,7 @@ class CactusAlignmentPhase(Target):
         #Setup call to cactus aligner wrapper as child
         #Calculate the size of the child.
         self.addChildTarget(CactusAlignmentWrapper(self.options, self.netName, None, 0))
-        self.setFollowOnTarget(CactusTerminalNormalPhase(self.netName, self.options))
+        self.setFollowOnTarget(CactusNormalPhase(self.netName, self.options))
 
 def getAlignmentIteration(iterations, iterationNumber, netSize):
     assert len(iterations) > 0
@@ -240,22 +240,33 @@ class CactusBaseLevelAlignerWrapper(Target):
 ############################################################
 ############################################################
 ############################################################
-#Terminal normal pass
+#Normalisation pass
 ############################################################
 ############################################################
 ############################################################
     
-class CactusTerminalNormalPhase(Target):
+class CactusNormalPhase(Target):
     def __init__(self, netName, options):
         Target.__init__(self, time=0)
         self.netName = netName
         self.options = options
         
     def run(self, localTempDir, globalTempDir):
-        logger.info("Starting the terminal normal phase")
-        time = float(self.options.config.find("terminal_normal").attrib["time"])
-        self.addChildTarget(CactusExtensionWrapper(self.options, [ self.netName ], MAKE_TERMINAL_NORMAL, time))
+        logger.info("Starting the normalisation phase")
+        time = float(self.options.config.find("normal").attrib["time"])
+        self.addChildTarget(CactusExtensionWrapper(self.options, [ self.netName ], MAKE_NORMAL, time))
         self.setFollowOnTarget(CactusPhylogenyPhase(self.netName, self.options))
+        
+class CactusNormalRunnable(Target):
+    """This targets run the normalisation script.
+    """
+    def __init__(self, netNames, options):
+        Target.__init__(self, time=0)
+        self.netNames = netNames
+        self.options = options
+        
+    def run(self, localTempDir, globalTempDir):
+        runCactusMakeNormal(self.options.netDisk, netNames=self.netNames)
 
 ############################################################
 ############################################################
@@ -347,7 +358,7 @@ class CactusCheckPhase(Target):
 ############################################################
 ############################################################
             
-MAKE_TERMINAL_NORMAL = 0
+MAKE_NORMAL = 0
 BUILD_TREES = 1
 BUILD_FACES = 2
 BUILD_REFERENCE = 3
@@ -364,8 +375,9 @@ class CactusExtensionWrapper(Target):
     def run(self, localTempDir, globalTempDir):
         #The following are atomic, in that we check if they have already been run successfully.
         #This ensures things end up terminal normal.. which we need for face building.
-        if self.switch == MAKE_TERMINAL_NORMAL:
-            runCactusMakeTerminalNormal(self.options.netDisk, netNames=self.netNames)
+        if self.switch == MAKE_NORMAL: #We set this as a follow on, as it is run in bottom up order (currently the only one, so it's on its own as a target)
+            self.setFollowOnTarget(CactusNormalRunnable(options=self.options, netNames=self.netNames))
+            #runCactusMakeNormal(self.options.netDisk, netNames=self.netNames)
         elif self.switch == BUILD_TREES:
             runCactusPhylogeny(self.options.netDisk, netNames=self.netNames)
             #Not atomic!
@@ -427,7 +439,7 @@ def main():
         baseTarget = CactusSetupPhase(options, args)
         logger.info("Going to create alignments and define the cactus tree")
     elif options.buildTrees or options.buildFaces or options.buildReference:
-        baseTarget = CactusTerminalNormalPhase('0', options)
+        baseTarget = CactusNormalPhase('0', options)
         logger.info("Starting from extension phase")
     else:
         logger.info("Nothing to do!")

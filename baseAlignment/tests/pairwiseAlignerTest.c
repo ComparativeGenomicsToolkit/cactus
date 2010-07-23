@@ -129,10 +129,12 @@ static void test_forwardMatrixCalculation(CuTest *testCase) {
     const char *seqX = "";
     const char *seqY = "";
     double *fM = forwardMatrix(1, 1, seqX, seqY);
-    CuAssertDblEquals(testCase, fM[0], log(1.0/3), 0.0001);
-    CuAssertDblEquals(testCase, fM[1], log(1.0/3), 0.0001);
-    CuAssertDblEquals(testCase, fM[2], log(1.0/3), 0.0001);
-    CuAssertDblEquals(testCase, totalForwardProb(fM, 1, 1), log(1.0/3), 0.0001);
+    CuAssertDblEquals(testCase, fM[0], log(0.9703833696510062), 0.0001);
+    CuAssertDblEquals(testCase, fM[1], log(0.0129868352330243), 0.0001);
+    CuAssertDblEquals(testCase, fM[2], log(0.0129868352330243), 0.0001);
+    CuAssertDblEquals(testCase, fM[3], log((1.0 - 0.9703833696510062 - 2*0.0129868352330243)/2), 0.0001);
+    CuAssertDblEquals(testCase, fM[4], log((1.0 - 0.9703833696510062 - 2*0.0129868352330243)/2), 0.0001);
+    CuAssertDblEquals(testCase, totalForwardProb(fM, 1, 1), log(1.0/5), 0.0001);
 }
 
 /*
@@ -147,10 +149,12 @@ static void test_backwardMatrixCalculation(CuTest *testCase) {
     const char *seqX = "";
     const char *seqY = "";
     double *bM = backwardMatrix(1, 1, seqX, seqY);
-    CuAssertDblEquals(testCase, bM[0], log(1.0/3), 0.0001);
-    CuAssertDblEquals(testCase, bM[1], log(1.0/3), 0.0001);
-    CuAssertDblEquals(testCase, bM[2], log(1.0/3), 0.0001);
-    CuAssertDblEquals(testCase, totalBackwardProb(bM, 1, 1), log(1.0/3), 0.0001);
+    CuAssertDblEquals(testCase, bM[0], log(1.0/5), 0.0001);
+    CuAssertDblEquals(testCase, bM[1], log(1.0/5), 0.0001);
+    CuAssertDblEquals(testCase, bM[2], log(1.0/5), 0.0001);
+    CuAssertDblEquals(testCase, bM[3], log(1.0/5), 0.0001);
+    CuAssertDblEquals(testCase, bM[4], log(1.0/5), 0.0001);
+    CuAssertDblEquals(testCase, totalBackwardProb(bM, 1, 1), log(1.0/5), 0.0001);
 }
 
 CuSuite* pairwiseAlignmentTestSuite(void) {

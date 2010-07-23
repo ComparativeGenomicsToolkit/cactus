@@ -574,6 +574,74 @@ void testNet_isTerminal(CuTest *testCase) {
     cactusNetTestTeardown();
 }
 
+void testNet_removeIfRedundant(CuTest *testCase) {
+    /*
+     * Do a simple test to see if function can remove a redundant net, first an non-root net,
+     * then a root net.
+     */
+    cactusNetTestSetup();
+    endsSetup();
+
+    //Name of the first net..
+    Name netName = net_getName(net);
+
+    //First construct a redundant net from the root.
+    Net *net2 = net_construct(netDisk);
+    Name net2Name = net_getName(net2);
+    Group *group = group_construct(net, net2);
+    end_setGroup(end, group);
+    end_setGroup(end2, group);
+
+    //Now hang another net of that.
+    Net *net3 = net_construct(netDisk);
+    group_construct(net2, net3);
+
+    //Finally hang one more net on the end..
+    Net *net4 = net_construct(netDisk);
+    group_construct(net3, net4);
+
+    //Copy the ends into the nets.
+    end_copyConstruct(end, net2);
+    end_copyConstruct(end2, net2);
+    end_copyConstruct(end, net3);
+    end_copyConstruct(end2, net3);
+    end_copyConstruct(end, net4);
+    end_copyConstruct(end2, net4);
+
+    //st_uglyf("I got %i %i %i %i\n", net_getName(net), net_getName(net2), net_getName(net3), net_getName(net4));
+
+    //Write the mess to disk.
+    netDisk_write(netDisk);
+
+    //Now test the removal function (check we get a negative on this leaf).
+    CuAssertTrue(testCase, net_removeIfRedundant(net4) == NULL);
+
+    //The intermediate node
+    CuAssertIntEquals(testCase, 4, netDisk_getNetNumberInMemory(netDisk));
+    CuAssertTrue(testCase, net_removeIfRedundant(net2) == net3);
+    CuAssertIntEquals(testCase, 3, netDisk_getNetNumberInMemory(netDisk));
+    CuAssertTrue(testCase, net_getName(net3) == net2Name);
+    CuAssertTrue(testCase, net_getName(net) == netName);
+    //Check the group connection (doubly)
+    CuAssertTrue(testCase, group_getNestedNet(group) == net3);
+    Group *parentGroup = net_getParentGroup(net3);
+    CuAssertTrue(testCase, parentGroup != NULL);
+    CuAssertTrue(testCase, group_getNet(parentGroup) == net);
+    //Check the children of the new net
+    CuAssertTrue(testCase, net_getParentGroup(net4) != NULL);
+    CuAssertTrue(testCase, group_getNet(net_getParentGroup(net4)) == net3);
+
+    //Now check the removal of a root net
+    CuAssertTrue(testCase, net_removeIfRedundant(net) == net3);
+    CuAssertIntEquals(testCase, 2, netDisk_getNetNumberInMemory(netDisk));
+    CuAssertTrue(testCase, net_getName(net3) == netName);
+    CuAssertTrue(testCase, net_getParentGroup(net3) == NULL);
+    CuAssertTrue(testCase, !net_isLeaf(net3));
+    CuAssertTrue(testCase, group_getNet(net_getParentGroup(net4)) == net3);
+
+    cactusNetTestTeardown();
+}
+
 CuSuite* cactusNetTestSuite(void) {
     CuSuite* suite = CuSuiteNew();
     SUITE_ADD_TEST(suite, testNet_getName);
@@ -595,6 +663,7 @@ CuSuite* cactusNetTestSuite(void) {
     SUITE_ADD_TEST(suite, testNet_builtFaces);
     SUITE_ADD_TEST(suite, testNet_isLeaf);
     SUITE_ADD_TEST(suite, testNet_isTerminal);
+    SUITE_ADD_TEST(suite, testNet_removeIfRedundant);
     SUITE_ADD_TEST(suite, testNet_constructAndDestruct);
     return suite;
 }
