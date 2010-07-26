@@ -108,14 +108,14 @@ int main(int argc, char *argv[]) {
         st_logInfo("Processing the net named: %s\n", netName);
         Net *net = netDisk_getNet(netDisk, netMisc_stringToName(netName));
         assert(net != NULL);
-        st_logInfo("Parsed the net in which to build a reference\n");
+        st_logInfo("Parsed the net to normalise\n");
 
         /*
          * Now run the normalisation function.
          */
         while(net != NULL) { //This is a while loop because the remove if redundant function
             //replaces redundant nets with their child.
-            //chain_promoteChainsThatExtendHigherLevelChains(net);
+            chain_promoteChainsThatExtendHigherLevelChains(net);
             makeTerminalNormal(net);
             net = net_removeIfRedundant(net);
         }

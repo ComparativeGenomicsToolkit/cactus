@@ -37,10 +37,10 @@ static void checkTreeIsTerminalNormalised(Net *net) {
 }
 
 static void checkChainsAreMaximal(Net *net) {
-    return;
     /*
      * Checks that each chain is maximal.
      */
+    return;
     Group *parentGroup = net_getParentGroup(net);
     if(parentGroup != NULL) {
         End *end;
