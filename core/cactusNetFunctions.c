@@ -564,7 +564,7 @@ void mergeCactusVertices(struct CactusEdge *cactusEdge,
     }
 }
 
-void setBlocksBuilt(Net *net) {
+static void setBlocksBuilt(Net *net) {
     /*
      * Sets the 'built-blocks flag' for all the nets in the subtree, including the given net.
      */
@@ -610,12 +610,26 @@ void fillOutNetFromInputs(Net *parentNet, struct CactusGraph *cactusGraph,
     st_logDebug("Building the net\n");
 
     ////////////////////////////////////////////////
-    //Check the net to fill in terminal, and get rid of the group it contains..
+    //Check the net to fill in terminal, and get rid of the group it contains and any terminal chain.
     ////////////////////////////////////////////////
 
+#ifdef BEN_DEBUG
+    net_check(parentNet);
     assert(net_isTerminal(parentNet));
     assert(net_getGroupNumber(parentNet) == 1);
     assert(group_isLeaf(net_getFirstGroup(parentNet))); //this should be true by the previous assert
+    //Destruct any chain
+    assert(net_getChainNumber(parentNet) <= 1);
+#endif
+    if(net_getChainNumber(parentNet) == 1) {
+        Chain *chain = net_getFirstChain(parentNet);
+#ifdef BEN_DEBUG
+        Group *parentParentGroup = net_getParentGroup(parentNet);
+        assert(parentParentGroup != NULL);
+        assert(group_getLink(parentParentGroup) != NULL);
+#endif
+        chain_destruct(chain);
+    }
     group_destruct(net_getFirstGroup(parentNet));
 
     ////////////////////////////////////////////////
@@ -897,7 +911,12 @@ void fillOutNetFromInputs(Net *parentNet, struct CactusGraph *cactusGraph,
     //Set blocks for each net to 'built'
     ////////////////////////////////////////////////
 
+    assert(net == parentNet);
     setBlocksBuilt(net);
+
+#ifdef BEN_DEBUG
+    net_check(net);
+#endif
 
     ////////////////////////////////////////////////
     //Clean up

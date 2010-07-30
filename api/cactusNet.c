@@ -647,8 +647,8 @@ Net *net_removeIfRedundant(Net *net) {
         //Ensure all the children of the nested net also have the right pointer.
         Group *group;
         Net_GroupIterator *it = net_getGroupIterator(nestedNet);
-        while((group = net_getNextGroup(it)) != NULL) {
-            if(!group_isLeaf(group)) {
+        while ((group = net_getNextGroup(it)) != NULL) {
+            if (!group_isLeaf(group)) {
                 Net *nestedNestedNet = group_getNestedNet(group);
                 assert(nestedNestedNet->parentNetName == oldName);
                 nestedNestedNet->parentNetName = nestedNet->name;
@@ -659,6 +659,28 @@ Net *net_removeIfRedundant(Net *net) {
         return nestedNet;
     }
     return NULL;
+}
+
+bool net_deleteIfEmpty(Net *net) {
+    if (net_getEndNumber(net) == 0 && net_getParentGroup(net) != NULL) { //contains nothing useful..
+        assert(net_getChainNumber(net) == 0);
+        assert(net_getBlockNumber(net) == 0);
+        while (net_getGroupNumber(net) > 0) {
+            Group *group = net_getFirstGroup(net);
+            if (!group_isLeaf(group)) {
+                bool i = net_deleteIfEmpty(group_getNestedNet(group));
+                assert(i);
+            }
+        }
+        assert(net_getGroupNumber(net) == 0);
+        //This needs modification so that we don't do this directly..
+        netDisk_deleteNetFromDisk(net_getNetDisk(net), net_getName(net));
+        Group *parentGroup = net_getParentGroup(net);
+        group_destruct(parentGroup);
+        net_destruct(net, 0);
+        return 1;
+    }
+    return 0;
 }
 
 /*

@@ -222,3 +222,10 @@ Chain *chain_getStaticNameWrapper(Name name) {
     chain.name = name;
     return &chain;
 }
+
+void chain_rename(Chain *chain, Name newName) {
+    assert(net_getChain(chain_getNet(chain), newName) == NULL);
+    chain->name = newName;
+    net_removeChain(chain_getNet(chain), chain);
+    net_addChain(chain_getNet(chain), chain);
+}

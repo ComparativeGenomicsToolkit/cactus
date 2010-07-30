@@ -68,7 +68,6 @@ int main(int argc, char *argv[]) {
 	FILE *fileHandle = fopen(argv[argc-1], "w");
 	int32_t i;
 	for(i=1; i<argc-1; i++) {
-		st_uglyf("doing %s %s\n", argv[i], argv[argc-1]);
 		convertCoordinates(argv[i], fileHandle);
 	}
 	fclose(fileHandle);

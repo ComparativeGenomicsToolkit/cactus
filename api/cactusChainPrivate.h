@@ -25,11 +25,6 @@ struct _chain {
 Chain *chain_construct2(Name name, Net *net);
 
 /*
- * Destructs the chain.
- */
-void chain_destruct(Chain *chain);
-
-/*
  * Add the link to the chain.
  */
 void chain_addLink(Chain *chain, Link *childLink);

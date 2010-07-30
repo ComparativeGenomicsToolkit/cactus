@@ -97,7 +97,7 @@ int main(int argc, char *argv[]) {
     st_logInfo("Set up the net disk\n");
 
     ///////////////////////////////////////////////////////////////////////////
-    // Loop on the nets, doing the reference genome.
+    // Loop on the nets, doing the reference genome (this process must be run bottom up)
     ///////////////////////////////////////////////////////////////////////////
 
     for (j = optind; j < argc; j++) {
@@ -111,13 +111,12 @@ int main(int argc, char *argv[]) {
         st_logInfo("Parsed the net to normalise\n");
 
         /*
-         * Now run the normalisation function.
+         * Now run the normalisation functions
          */
-        while(net != NULL) { //This is a while loop because the remove if redundant function
-            //replaces redundant nets with their child.
-            chain_promoteChainsThatExtendHigherLevelChains(net);
+        chain_promoteChainsThatExtendHigherLevelChains(net);
+        if (!net_deleteIfEmpty(net)) { //If we delete the net we need not run the remaining functions..
             makeTerminalNormal(net);
-            net = net_removeIfRedundant(net);
+            net_removeIfRedundant(net);
         }
     }
 

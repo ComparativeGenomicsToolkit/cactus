@@ -1160,8 +1160,6 @@ int32_t chainBaseLength(struct List *biConnectedComponent,
             i += piece->end - piece->start + 1;
         }
     }
-    st_uglyf("I have a chain with %i blocks and %i lengths\n",
-            biConnectedComponent->length, i);
     return i;
 }
 

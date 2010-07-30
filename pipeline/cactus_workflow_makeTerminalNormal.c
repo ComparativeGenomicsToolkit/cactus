@@ -13,8 +13,7 @@
 
 int main(int argc, char *argv[]) {
     /*
-     * This code iterates through the leaf groups and returns
-     * a list of the new nets.
+     * This code iterates through the leaf groups.
      */
     NetDisk *netDisk;
     Net *net;

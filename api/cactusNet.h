@@ -448,4 +448,10 @@ bool net_isTerminal(Net *net);
  */
 Net *net_removeIfRedundant(Net *net);
 
+/*
+ * If the net contains no ends and is not the root net of the tree the net is removed, along
+ * with any children. Returns non-zero if the net is removed, else returns false.
+ */
+bool net_deleteIfEmpty(Net *net);
+
 #endif

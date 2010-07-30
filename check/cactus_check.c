@@ -38,9 +38,8 @@ static void checkTreeIsTerminalNormalised(Net *net) {
 
 static void checkChainsAreMaximal(Net *net) {
     /*
-     * Checks that each chain is maximal.
+     * Checks that each chain is maximal and consistently named..
      */
-    return;
     Group *parentGroup = net_getParentGroup(net);
     if(parentGroup != NULL) {
         End *end;
@@ -49,7 +48,11 @@ static void checkChainsAreMaximal(Net *net) {
             assert(end_getOrientation(end));
             if(end_isStubEnd(end) && end_isAttached(end)) { //is an attached stub end (inherited from a higher level)
                 Link *link = group_getLink(end_getGroup(end));
-                assert(link == NULL); //must not be part of a chain
+                if(link != NULL) { //then the net must be a terminal net and the link is a copy of the one in the parent..
+                    Chain *chain = link_getChain(link);
+                    assert(net_isLeaf(net));
+                    assert(chain_getLength(chain) == 1);
+                }
             }
         }
         net_destructEndIterator(endIterator);
@@ -65,6 +68,28 @@ static void checkNetIsNotRedundant(Net *net) {
         assert(net_isLeaf(net));
     }
 }
+
+static void checkNetIsNotEmpty(Net *net) {
+    /*
+     * Checks that if the net contains at least one end, unless it is the parent problem
+     * and the whole reconstruction is empty.
+     */
+    if(net_getParentGroup(net) != NULL) {
+        assert(net_getEndNumber(net) > 0);
+    }
+}
+
+static void checkGroupsNotEmpty(Net *net) {
+    /*
+     * Checks that each group contains at least one end.
+     */
+    Group *group;
+    Net_GroupIterator *groupIt = net_getGroupIterator(net);
+    while((group = net_getNextGroup(groupIt)) != NULL) {
+        assert(group_getEndNumber(group) > 0);
+    }
+}
+
 
 
 /*
@@ -116,6 +141,8 @@ static void checkBasesAccountedFor(Net *net) {
 
 static void checkNets(Net *net, int32_t recursive) {
     net_check(net);
+    checkNetIsNotEmpty(net);
+    checkGroupsNotEmpty(net);
     checkBasesAccountedFor(net);
     //Normalisation checks..
     checkTreeIsTerminalNormalised(net);

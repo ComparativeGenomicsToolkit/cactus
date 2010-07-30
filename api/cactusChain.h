@@ -17,6 +17,11 @@
 Chain *chain_construct(Net *net);
 
 /*
+ * Destructs the chain. Does not mess with groups, should be clean.
+ */
+void chain_destruct(Chain *chain);
+
+/*
  * Gets a link in the chain.
  */
 Link *chain_getLink(Chain *chain, int32_t linkIndex);
@@ -67,5 +72,11 @@ void chain_check(Chain *chain);
  * function promotes the chain containing l to the higher level.
  */
 void chain_promoteChainsThatExtendHigherLevelChains(Net *net);
+
+/*
+ * Names the chain with the given name. Will fail if the name collides
+ * with an existing chain.
+ */
+void chain_rename(Chain *chain, Name newName);
 
 #endif

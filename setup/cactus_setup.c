@@ -64,7 +64,7 @@ void setCompleteStatus(const char *fileName) {
 	if(i > 11) {
 		const char *cA = fileName + i - 11;
 		if(strcmp(cA, ".incomplete") == 0) {
-			isComplete = 0;
+			//isComplete = 0;
 			st_logInfo("The file %s is specified incomplete, the sequences will be free\n", fileName);
 			return;
 		}
@@ -185,7 +185,7 @@ int main(int argc, char *argv[]) {
 
 	if(netDisk_getNetNumberOnDisk(netDisk) != 0) {
 		netDisk_destruct(netDisk);
-		st_uglyf("The first net already exists\n");
+		st_logInfo("The first net already exists\n");
 		return 0;
 	}
 	net = net_construct(netDisk);
