@@ -42,24 +42,11 @@ static void mergeStubEnd(End *end, Net *net, Net *parentNet) {
         assert(parentCap != NULL);
         Cap *adjacentCap = cap_getAdjacency(cap);
         if(cap_getAdjacency(cap) != NULL) {
-
-            st_uglyf("The capp is %i %i %i %i %i\n", adjacentCap, cap_getEnd(adjacentCap), end_getNet(cap_getEnd(adjacentCap)), net, parentNet);
-            st_uglyf("The cap is %i %i %i\n", end_isBlockEnd(cap_getEnd(adjacentCap)), end_isAttached(cap_getEnd(adjacentCap)), end_isStubEnd(cap_getEnd(adjacentCap)));
             Cap *parentAdjacentCap = net_getCap(parentNet, cap_getName(adjacentCap));
             assert(parentAdjacentCap != NULL);
             assert(netDisk_getNet(net_getNetDisk(net), net_getName(end_getNet(cap_getEnd(adjacentCap)))) == end_getNet(cap_getEnd(adjacentCap)));
             cap_breakAdjacency(cap); //We must remove the old adjacency so it doesn't hang around.
             cap_makeAdjacent(parentCap, parentAdjacentCap);
-            /*End *parentAdjacentEnd = cap_getEnd(parentAdjacentCap);
-            if(end_isStubEnd(parentAdjacentEnd) && end_isFree(parentAdjacentEnd)) { assert(0);
-                assert(end_getGroup(parentAdjacentEnd) == group || end_getGroup(parentAdjacentEnd) == net_getParentGroup(net));
-                if(end_getGroup(parentAdjacentEnd) == net_getParentGroup(net)) { //Must be in the same group as the end
-                    end_setGroup(parentAdjacentEnd, group);
-                }
-                else {
-                    assert(end_getGroup(parentAdjacentEnd) == group);
-                }
-            }*/
         }
     }
     end_destruct(end); //Destruct the old end
@@ -436,7 +423,6 @@ void chain_promote(Chain *chain) {
         //Check the end
         Name endName = netMisc_stringToName(stList_get(finalChainList, i));
         End *end = net_getEnd(parentNet, endName);
-        st_uglyf("I got %i %s %i %i %i %i %i\n", i, stList_get(finalChainList, i), net_getEnd(parentNet, endName), net_getEnd(net, endName), end_isStubEnd(end), end_isBlockEnd(end), end_isFree(end));
         assert(end != NULL);
         assert(end_getNet(end) == parentNet);
         //Check the group
@@ -454,7 +440,6 @@ void chain_promote(Chain *chain) {
         End_InstanceIterator *capIt = end_getInstanceIterator(end);
         while((cap = end_getNext(capIt)) != NULL) {
             Cap *adjacentCap = cap_getAdjacency(cap);
-            st_uglyf("I am a %i %i %i %i\n", cap_getEnd(adjacentCap), end_isStubEnd(cap_getEnd(adjacentCap)), end_isBlockEnd(cap_getEnd(adjacentCap)), end_isFree(cap_getEnd(adjacentCap)));
             assert(adjacentCap != NULL);
             assert(end_getGroup(cap_getEnd(adjacentCap)) == group);
             assert(end_getNet(cap_getEnd(adjacentCap)) == parentNet);
@@ -492,7 +477,6 @@ void chain_promote(Chain *chain) {
             assert(end_getNet(end_getOtherBlockEnd(_3End)) == parentNet);
             assert(end_isBlockEnd(otherEnd));
             assert(end_isBlockEnd(end_getOtherBlockEnd(_3End)));
-            st_uglyf("I got %i %i %i -- %i %i %i\n", _3End, end_getPositiveOrientation(end_getOtherBlockEnd(_3End)), end_getPositiveOrientation(end_getOtherBlockEnd(end_getOtherBlockEnd(_3End))), end_getPositiveOrientation(otherEnd), end_getPositiveOrientation(end_getOtherBlockEnd(otherEnd)), end_getPositiveOrientation(end_getOtherBlockEnd(end_getOtherBlockEnd(otherEnd))));
             assert(end_getPositiveOrientation(end_getOtherBlockEnd(_3End)) == otherEnd);
             //Check the connections with the segments..
             Segment *segment;
