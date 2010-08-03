@@ -422,9 +422,47 @@ void chain_promote(Chain *chain) {
         End *_3End = net_getEnd(parentNet, _3EndName);
         assert(_3End != NULL);
         Group *group = end_getGroup(_5End);
+#ifdef BEN_DEBUG
+        assert(group == end_getGroup(_3End));
+        assert(group_getLink(group) == NULL);
+        End *end;
+        Group_EndIterator *endIt = group_getEndIterator(group);
+        int32_t endNumber = 0;
+        while((end = group_getNextEnd(endIt)) != NULL) {
+            assert(end_getGroup(end) == group);
+            if(end_isBlockEnd(end) || end_isAttached(end)) {
+                endNumber++;
+                assert(end == _5End || end == _3End);
+            }
+        }
+        assert(endNumber == 2);
+        group_destructEndIterator(endIt);
+#endif
         link_construct(_5End, _3End, group, newChain);
     }
     stList_destruct(finalChainList);
+
+    if(net_getAttachedStubEndNumber(net) == 2 && group_isTangle(parentGroup)) {
+        //We've inadvertantly created a length one chain involving just the ends of the net
+        Chain *littleChain = chain_construct(parentNet);
+        End *_5End = NULL, *_3End = NULL;
+        End *end;
+        Group_EndIterator *endIt = group_getEndIterator(parentGroup);
+        while((end = group_getNextEnd(endIt)) != NULL) {
+            if(end_isBlockEnd(end) || end_isStubEnd(end)) {
+                assert(net_getEnd(net, end_getName(end)) != NULL);
+                if(_5End == NULL) {
+                    _5End = end;
+                }
+                else {
+                    assert(_3End == NULL);
+                    _3End = end;
+                }
+            }
+        }
+        group_destructEndIterator(endIt);
+        link_construct(_5End, _3End, parentGroup, littleChain);
+    }
 
 #ifdef BEN_DEBUG
     assert(net_getParentGroup(net) == parentGroup);
