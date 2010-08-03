@@ -101,9 +101,6 @@ void group_makeNestedNet(Group *group) {
         assert(_3End != NULL);
         link_construct(_5End, _3End, nestedGroup, nestedChain);
     }
-#ifdef BEN_DEBUG
-    net_check(nestedNet);
-#endif
 }
 
 void group_updateContainedEnds(Group *group) {

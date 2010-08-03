@@ -41,8 +41,9 @@ static void mergeStubEnd(End *end, Net *net, Net *parentNet) {
         Cap *parentCap = end_getInstance(parentEnd, cap_getName(cap));
         assert(parentCap != NULL);
         Cap *adjacentCap = cap_getAdjacency(cap);
-        if(cap_getAdjacency(cap) != NULL) {
-            Cap *parentAdjacentCap = net_getCap(parentNet, cap_getName(adjacentCap));
+        if (cap_getAdjacency(cap) != NULL) {
+            Cap *parentAdjacentCap = net_getCap(parentNet, cap_getName(
+                    adjacentCap));
             assert(parentAdjacentCap != NULL);
             assert(netDisk_getNet(net_getNetDisk(net), net_getName(end_getNet(cap_getEnd(adjacentCap)))) == end_getNet(cap_getEnd(adjacentCap)));
             cap_breakAdjacency(cap); //We must remove the old adjacency so it doesn't hang around.
@@ -94,17 +95,15 @@ static void promoteEndsBlocksAndGroups(Chain *chain, Net *net, Net *parentNet) {
         if (end_isBlockEnd(_5End)) {
             promoteBlock(end_getBlock(_5End), net, parentNet);
             promoteBlockEnd(_5End, net, parentNet);
-        }
-        else {
+        } else {
             assert(i == 0);
         }
-        if(end_isBlockEnd(_3End)) {
+        if (end_isBlockEnd(_3End)) {
             if (i + 1 == chain_getLength(chain)) {
                 promoteBlock(end_getBlock(_3End), net, parentNet);
             }
             promoteBlockEnd(_3End, net, parentNet);
-        }
-        else {
+        } else {
             assert(i == chain_getLength(chain)-1);
         }
         Group *group = link_getGroup(link);
@@ -113,8 +112,8 @@ static void promoteEndsBlocksAndGroups(Chain *chain, Net *net, Net *parentNet) {
         stList *freeStubEndsToPromote = stList_construct();
         Group_EndIterator *groupEndIt = group_getEndIterator(group);
         End *end;
-        while((end = group_getNextEnd(groupEndIt)) != NULL) {
-            if(end_isStubEnd(end) && end_isFree(end)) {
+        while ((end = group_getNextEnd(groupEndIt)) != NULL) {
+            if (end_isStubEnd(end) && end_isFree(end)) {
                 stList_append(freeStubEndsToPromote, end);
             }
         }
@@ -124,24 +123,24 @@ static void promoteEndsBlocksAndGroups(Chain *chain, Net *net, Net *parentNet) {
         net_addGroup(parentNet, group);
         group->net = parentNet;
         Net *nestedNet = group_getNestedNet(group);
-        if(nestedNet != NULL) {
+        if (nestedNet != NULL) {
             nestedNet->parentNetName = net_getName(parentNet);
         }
         //Promote any free stub ends..
-        while(stList_length(freeStubEndsToPromote) > 0) {
+        while (stList_length(freeStubEndsToPromote) > 0) {
             mergeStubEnd(stList_pop(freeStubEndsToPromote), net, parentNet);
         }
         stList_destruct(freeStubEndsToPromote);
     }
     //Now do the stub ends of the chain..
     End *_5End = link_get5End(chain_getLink(chain, 0));
-    if(end_isStubEnd(_5End)) {
+    if (end_isStubEnd(_5End)) {
         assert(end_isAttached(_5End));
         assert(end_getNet(_5End) == net);
         mergeStubEnd(_5End, net, parentNet);
     }
-    End *_3End = link_get3End(chain_getLink(chain, chain_getLength(chain)-1));
-    if(end_isStubEnd(_3End)) {
+    End *_3End = link_get3End(chain_getLink(chain, chain_getLength(chain) - 1));
+    if (end_isStubEnd(_3End)) {
         assert(end_isAttached(_3End));
         assert(end_getNet(_3End) == net);
         mergeStubEnd(_3End, net, parentNet);
@@ -168,6 +167,10 @@ static Cap *promoteChainEndP(Cap *cap, Net *parentNet) {
 }
 
 static void promoteChainEnd(End *end, Net *net, Net *parentNet) {
+    /*
+     * Promotes the block end of a chain to the parent net, creating a stub end
+     * in the lower level net.
+     */
     assert(end_isBlockEnd(end));
     assert(end_getOrientation(end));
     assert(end_getNet(end) == net);
@@ -243,22 +246,82 @@ static void addToChainList(Chain *chain, int32_t start, int32_t end,
     }
 }
 
-static void getMaximalChain_between(End *parent5End, End *parent3End, Link *parentLink,
-        Chain *chain, stList *chainList) {
+static void getMaximalChain_between(Link *parentLink, Chain *chain,
+        stList *chainList) {
     Chain *parentChain = link_getChain(parentLink);
     addToChainList(parentChain, 0, link_getIndex(parentLink), 1, chainList);
-    assert(link_get5End(parentLink) == parent5End || link_get3End(parentLink) == parent5End);
-    assert(link_get5End(parentLink) == parent3End || link_get3End(parentLink) == parent3End);
-    assert(parent5End != parent3End);
-    assert(end_getName(link_get5End(chain_getLink(chain, 0))) == end_getName(parent5End));
-    assert(end_getName(link_get3End(chain_getLink(chain, chain_getLength(chain)-1))) == end_getName(parent3End));
-    bool parentChainOrientation = link_get5End(parentLink) == parent5End;
-    if (parentChainOrientation) {
+    //Get the ends..
+    End *parent5End = link_get5End(parentLink);
+    End *parent3End = link_get3End(parentLink);
+    End *_5End = link_get5End(chain_getLink(chain, 0));
+    End *_3End = link_get3End(chain_getLink(chain, chain_getLength(chain) - 1));
+    Name parent5EndName = end_getName(parent5End);
+    Name parent3EndName = end_getName(parent3End);
+    Name _5EndName = end_getName(_5End);
+    Name _3EndName = end_getName(_3End);
+    if (parent5EndName == _5EndName) {
         addToChainList(chain, 0, chain_getLength(chain), 1, chainList);
-    } else {
+        if (parent3EndName != _3EndName) { //We need to introduce a link between the other block end and this link..
+            assert(end_isBlockEnd(_3End));
+            stList_append(chainList, netMisc_nameToString(end_getName(
+                    end_getOtherBlockEnd(_3End))));
+            stList_append(chainList, netMisc_nameToString(end_getName(
+                    parent3End)));
+        }
+    } else if (parent5EndName == _3EndName) {
         addToChainList(chain, 0, chain_getLength(chain), 0, chainList);
+        if (parent3EndName != _5EndName) { //We need to introduce a link between the other block end and this link..
+            assert(end_isBlockEnd(_5End));
+            stList_append(chainList, netMisc_nameToString(end_getName(
+                    end_getOtherBlockEnd(_5End))));
+            stList_append(chainList, netMisc_nameToString(end_getName(
+                    parent3End)));
+        }
+    } else { //We need to introduce a new link..
+        stList_append(chainList, netMisc_nameToString(end_getName(parent5End)));
+        if (parent3EndName == _3EndName) {
+            assert(end_isBlockEnd(_5End));
+            stList_append(chainList, netMisc_nameToString(end_getName(
+                    end_getOtherBlockEnd(_5End))));
+            addToChainList(chain, 0, chain_getLength(chain), 1, chainList);
+        } else {
+            assert(parent3EndName == _5EndName);
+            assert(end_isBlockEnd(_3End));
+            stList_append(chainList, netMisc_nameToString(end_getName(
+                    end_getOtherBlockEnd(_3End))));
+            addToChainList(chain, 0, chain_getLength(chain), 0, chainList);
+        }
     }
-    addToChainList(parentChain, link_getIndex(parentLink) + 1, chain_getLength(parentChain), 1, chainList);
+    addToChainList(parentChain, link_getIndex(parentLink) + 1, chain_getLength(
+            parentChain), 1, chainList);
+}
+
+void getMaximalChain_extension(End *parentEnd, End *end, stList *chainList, int32_t orientation) {
+    if (parentEnd != NULL) {
+        if (end_isBlockEnd(parentEnd)) {
+            End *parentOtherBlockEnd = end_getOtherBlockEnd(parentEnd);
+            Link *parentOtherLink = group_getLink(end_getGroup(
+                    parentOtherBlockEnd));
+            if (parentOtherLink != NULL) { //We can add this chain to the final chain
+                Chain *parentChain = link_getChain(parentOtherLink);
+#ifdef BEN_DEBUG
+                assert(link_get5End(parentOtherLink) == parentOtherBlockEnd || link_get3End(parentOtherLink) == parentOtherBlockEnd);
+                if (link_get5End(parentOtherLink) == parentOtherBlockEnd) {
+                    assert(link_getIndex(parentOtherLink) == 0);
+                } else {
+                    assert(link_getIndex(parentOtherLink) == chain_getLength(parentChain)-1);
+                }
+#endif
+                addToChainList(parentChain, 0, chain_getLength(parentChain),
+                        (orientation ? link_get3End(parentOtherLink) == parentOtherBlockEnd : link_get5End(parentOtherLink) == parentOtherBlockEnd),
+                        chainList);
+            }
+        } else {
+            assert(end_isStubEnd(parentEnd) && end_isAttached(parentEnd));
+        }
+    } else {
+        assert(end_isBlockEnd(end));
+    }
 }
 
 static stList *getMaximalChain(Chain *chain, Net *net, Net *parentNet) {
@@ -276,82 +339,18 @@ static stList *getMaximalChain(Chain *chain, Net *net, Net *parentNet) {
     End *_3End = link_get3End(_3Link);
     End *parent5End = net_getEnd(parentNet, end_getName(_5End));
     End *parent3End = net_getEnd(parentNet, end_getName(_3End));
-
-    if (parent5End != NULL && group_getLink(end_getGroup(parent5End)) != NULL) { //The chain is within an existing chain
-        Link *parent5Link = group_getLink(end_getGroup(parent5End));
-        assert(end_isStubEnd(_5End));
-        assert(end_isAttached(_5End));
-        assert(_3End != NULL);
-        assert(end_isStubEnd(_3End));
-        assert(end_isAttached(_3End));
-        st_uglyf("This is the set %s %s %s %s %s\n", netMisc_nameToString(end_getName(_5End)), netMisc_nameToString(end_getName(_3End)), netMisc_nameToString(end_getName(parent5End)), netMisc_nameToString(end_getName(link_get3End(parent5Link))), netMisc_nameToString(end_getName(link_get5End(parent5Link))));
-        assert(parent3End != NULL);
-        Link *parent3Link = group_getLink(end_getGroup(parent3End));
-        assert(parent3Link != NULL);
-        assert(link_getChain(parent5Link) == link_getChain(parent3Link));
-        //Now to the actual work..
-        getMaximalChain_between(parent5End, parent3End, parent5Link, chain, chainList);
+    Link *parentLink;
+    if (parent5End != NULL && (parentLink = group_getLink(end_getGroup(
+            parent5End))) != NULL) { //The chain is within an existing chain
+        getMaximalChain_between(parentLink, chain, chainList);
+    } else if (parent3End != NULL && (parentLink = group_getLink(end_getGroup(
+            parent3End))) != NULL) {
+        getMaximalChain_between(parentLink, chain, chainList);
     } else { //The chain lies within a net, and may extend one chain or join two seperate chains..
-        if (parent5End != NULL) {
-            if(end_isBlockEnd(parent5End)) {
-                End *parentOtherBlockEnd = end_getOtherBlockEnd(parent5End);
-                Link *parentOtherLink = group_getLink(end_getGroup(
-                        parentOtherBlockEnd));
-                if (parentOtherLink != NULL) { //We can add this chain to the final chain
-                    Chain *parentChain = link_getChain(parentOtherLink);
-#ifdef BEN_DEBUG
-                    assert(link_get5End(parentOtherLink) == parentOtherBlockEnd || link_get3End(parentOtherLink) == parentOtherBlockEnd);
-                    if(link_get5End(parentOtherLink) == parentOtherBlockEnd) {
-                        assert(link_getIndex(parentOtherLink) == 0);
-                    }
-                    else {
-                        assert(link_getIndex(parentOtherLink) == chain_getLength(parentChain)-1);
-                    }
-#endif
-                    addToChainList(parentChain, 0, chain_getLength(parentChain),
-                            link_get5End(parentOtherLink) != parentOtherBlockEnd,
-                            chainList);
-                }
-            }
-            else {
-                assert(end_isStubEnd(parent5End) && end_isAttached(parent5End));
-            }
-        }
-        else {
-            assert(end_isBlockEnd(_5End));
-        }
+        getMaximalChain_extension(parent5End, _5End, chainList, 1);
         addToChainList(chain, 0, chain_getLength(chain), 1, chainList);
-        if (parent3End != NULL) {
-            assert(group_getLink(end_getGroup(parent3End)) == NULL); //Check it is not in a link..
-            if(end_isBlockEnd(parent3End)) {
-                End *parentOtherBlockEnd = end_getOtherBlockEnd(parent3End);
-                Link *parentOtherLink = group_getLink(end_getGroup(
-                        parentOtherBlockEnd));
-                if (parentOtherLink != NULL) {
-                    Chain *parentChain = link_getChain(parentOtherLink);
-#ifdef BEN_DEBUG
-                    assert(link_get5End(parentOtherLink) == parentOtherBlockEnd || link_get3End(parentOtherLink) == parentOtherBlockEnd);
-                    if(link_get5End(parentOtherLink) == parentOtherBlockEnd) {
-                        assert(link_getIndex(parentOtherLink) == 0);
-                    }
-                    else {
-                        assert(link_getIndex(parentOtherLink) == chain_getLength(parentChain)-1);
-                    }
-#endif
-                    addToChainList(parentChain, 0, chain_getLength(parentChain),
-                            link_get5End(parentOtherLink) == parentOtherBlockEnd,
-                            chainList);
-                }
-            }
-            else {
-                assert(end_isStubEnd(parent3End) && end_isAttached(parent3End));
-            }
-        }
-        else {
-            assert(end_isBlockEnd(_3End));
-        }
+        getMaximalChain_extension(parent3End, _3End, chainList, 0);
     }
-
     assert(stList_length(chainList) % 2 == 0);
     return chainList;
 }
@@ -364,13 +363,15 @@ void chain_promote(Chain *chain) {
     Net *net = chain_getNet(chain);
     Group *parentGroup = net_getParentGroup(net);
     assert(parentGroup != NULL);
-    if(group_getLink(parentGroup) != NULL) { //Check we will be merging it into a higher level chain..
+    Net *parentNet = group_getNet(parentGroup);
+
+#ifdef BEN_DEBUG
+    if (group_getLink(parentGroup) != NULL) { //Check we will be merging it into a higher level chain..
         End *_5End = link_get5End(chain_getLink(chain, 0));
-        End *_3End = link_get3End(chain_getLink(chain, chain_getLength(chain)-1));
+        End *_3End = link_get3End(chain_getLink(chain, chain_getLength(chain)
+                - 1));
         assert(end_isStubEnd(_5End) || end_isStubEnd(_3End));
     }
-    Net *parentNet = group_getNet(parentGroup);
-#ifdef BEN_DEBUG
     net_check(net);
     net_check(parentNet);
 #endif
@@ -378,28 +379,22 @@ void chain_promote(Chain *chain) {
     //Calculate the final chain structure..
     stList *finalChainList = getMaximalChain(chain, net, parentNet);
 
-    //Calculate the chains the are involved in the final chain list.
-    stSortedSet *chainsToExpunge = stSortedSet_construct2((void (*)(void *))chain_destruct);
+    //Calculate the chains that are involved in the final chain list.
+    stSortedSet *chainsToExpunge = stSortedSet_construct2(
+            (void(*)(void *)) chain_destruct);
     stListIterator *endIt = stList_getIterator(finalChainList);
     char *endName;
-    while((endName = stList_getNext(endIt)) != NULL) {
-        End *end = net_getEnd(net, netMisc_stringToName(endName));
-        if(end != NULL) {
+    while ((endName = stList_getNext(endIt)) != NULL) { //Get chains in the parent which we extend..
+        End *end = net_getEnd(parentNet, netMisc_stringToName(endName));
+        if (end != NULL) {
             Link *link = group_getLink(end_getGroup(end));
-            assert(link != NULL);
-            stSortedSet_insert(chainsToExpunge, link_getChain(link));
-        }
-        end = net_getEnd(parentNet, netMisc_stringToName(endName));
-        if(end != NULL) {
-            Link *link = group_getLink(end_getGroup(end));
-            if(link != NULL) {
+            if (link != NULL) {
                 stSortedSet_insert(chainsToExpunge, link_getChain(link));
             }
         }
     }
-    assert(stSortedSet_size(chainsToExpunge) >= 1);
-    assert(stSortedSet_search(chainsToExpunge, chain) == chain);
     stList_destructIterator(endIt);
+    stSortedSet_insert(chainsToExpunge, chain);
 
     //Handling the ends of the chain
     End *_5End = link_get5End(chain_getLink(chain, 0));
@@ -413,120 +408,8 @@ void chain_promote(Chain *chain) {
     //Redirect and reorganise all the ends, blocks and groups in the chain
     promoteEndsBlocksAndGroups(chain, net, parentNet);
 
-
     //Get rid of the old chains (at this point we have everything barring the final chain structure).
     stSortedSet_destruct(chainsToExpunge);
-
-#ifdef BEN_DEBUG //Do some checks of the two nets..
-    //First the high level net
-    for(int32_t i=0; i<stList_length(finalChainList); i++) {
-        //Check the end
-        Name endName = netMisc_stringToName(stList_get(finalChainList, i));
-        End *end = net_getEnd(parentNet, endName);
-        assert(end != NULL);
-        assert(end_getNet(end) == parentNet);
-        //Check the group
-        Group *group = end_getGroup(end);
-        assert(group != NULL);
-        assert(group_getNet(group) == parentNet);
-        assert(group_getEnd(group, endName) == end);
-        assert(group_getLink(group) == NULL);
-        Net *nestedNet = group_getNestedNet(group);
-        if(nestedNet != NULL) {
-            assert(net_getParentGroup(nestedNet) == group);
-        }
-        //Check the end is only attached to ends in the same group.
-        Cap *cap;
-        End_InstanceIterator *capIt = end_getInstanceIterator(end);
-        while((cap = end_getNext(capIt)) != NULL) {
-            Cap *adjacentCap = cap_getAdjacency(cap);
-            assert(adjacentCap != NULL);
-            assert(end_getGroup(cap_getEnd(adjacentCap)) == group);
-            assert(end_getNet(cap_getEnd(adjacentCap)) == parentNet);
-        }
-    }
-    assert(stList_length(finalChainList) % 2 == 0);
-    for(int32_t i=1; i<stList_length(finalChainList); i+=2) {
-            //Check the end
-        Name _5EndName = netMisc_stringToName(stList_get(finalChainList, i-1));
-        End *_5End = net_getEnd(parentNet, _5EndName);
-        Name _3EndName = netMisc_stringToName(stList_get(finalChainList, i));
-        End *_3End = net_getEnd(parentNet, _3EndName);
-        //Check they are in the same group
-        Group *group = end_getGroup(_5End);
-        assert(group == end_getGroup(_3End));
-        //Check the group only contains these two ends..
-        Group_EndIterator *groupEndIt = group_getEndIterator(group);
-        End *groupEnd;
-        while((groupEnd = group_getNextEnd(groupEndIt)) != NULL) {
-            if(end_isBlockEnd(groupEnd) || end_isAttached(groupEnd)) {
-                assert(groupEnd == _5End || groupEnd == _3End);
-            }
-        }
-        group_destructEndIterator(groupEndIt);
-        //Check that there is a block end with proper connections if the 3End is not the end of the chain..
-        if(i+1 < stList_length(finalChainList)) {
-            assert(end_isBlockEnd(_3End));
-            Block *block = end_getBlock(_3End);
-            assert(block_getNet(block) == parentNet);
-            Name otherEndName = netMisc_stringToName(stList_get(finalChainList, i+1));
-            End *otherEnd = net_getEnd(parentNet, otherEndName);
-            assert(otherEnd != NULL);
-            assert(end_getNet(otherEnd) == parentNet);
-            assert(end_getOtherBlockEnd(_3End) != NULL);
-            assert(end_getNet(end_getOtherBlockEnd(_3End)) == parentNet);
-            assert(end_isBlockEnd(otherEnd));
-            assert(end_isBlockEnd(end_getOtherBlockEnd(_3End)));
-            assert(end_getPositiveOrientation(end_getOtherBlockEnd(_3End)) == otherEnd);
-            //Check the connections with the segments..
-            Segment *segment;
-            Block_InstanceIterator *segmentIt = block_getInstanceIterator(block);
-            while((segment = block_getNext(segmentIt)) != NULL) {
-                if(end_getSide(_3End)) {
-                    assert(!end_getSide(otherEnd));
-                    assert(end_getPositiveOrientation(cap_getEnd(segment_get5Cap(segment))) == _3End);
-                    assert(end_getPositiveOrientation(cap_getEnd(segment_get3Cap(segment))) == otherEnd);
-                }
-                else {
-                    assert(end_getSide(otherEnd));
-                    assert(end_getPositiveOrientation(cap_getEnd(segment_get5Cap(segment))) == otherEnd);
-                    assert(end_getPositiveOrientation(cap_getEnd(segment_get3Cap(segment))) == _3End);
-                }
-            }
-            block_destructInstanceIterator(segmentIt);
-        }
-    }
-    //Now the low level net
-    for(int32_t i=0; i<stList_length(finalChainList); i++) {
-        Name endName = netMisc_stringToName(stList_get(finalChainList, i));
-        End *lowLevelEnd = net_getEnd(net, endName);
-        End *highLevelEnd = net_getEnd(parentNet, endName);
-        assert(highLevelEnd != NULL);
-        if(lowLevelEnd != NULL) {
-            assert(end_isBlockEnd(highLevelEnd));
-            assert(end_isStubEnd(lowLevelEnd));
-            assert(end_isAttached(lowLevelEnd));
-
-            assert(end_getNet(lowLevelEnd) == net);
-            //Group checks
-            Group *highLevelGroup = end_getGroup(highLevelEnd);
-            assert(group_getNestedNet(highLevelGroup) == net);
-            Group *lowLevelGroup = end_getGroup(lowLevelEnd);
-            assert(lowLevelGroup != NULL);
-            assert(group_getNet(lowLevelGroup) == net);
-            //Check the end is only attached to ends in the same group.
-            Cap *cap;
-            End_InstanceIterator *capIt = end_getInstanceIterator(lowLevelEnd);
-            while((cap = end_getNext(capIt)) != NULL) {
-                Cap *adjacentCap = cap_getAdjacency(cap);
-                assert(adjacentCap != NULL);
-                assert(end_getGroup(cap_getEnd(adjacentCap)) == lowLevelGroup);
-                assert(end_getNet(cap_getEnd(adjacentCap)) == net);
-            }
-            end_destructInstanceIterator(capIt);
-        }
-    }
-#endif
 
     //Make the final chain..
     Chain *newChain = chain_construct(parentNet);
@@ -539,36 +422,19 @@ void chain_promote(Chain *chain) {
         End *_3End = net_getEnd(parentNet, _3EndName);
         assert(_3End != NULL);
         Group *group = end_getGroup(_5End);
-#ifdef BEN_DEBUG
-        assert(group == end_getGroup(_3End));
-        assert(group_getLink(group) == NULL);
-        End *end;
-        Group_EndIterator *endIt = group_getEndIterator(group);
-        int32_t endNumber = 0;
-        while((end = group_getNextEnd(endIt)) != NULL) {
-            assert(end_getGroup(end) == group);
-            if(end_isBlockEnd(end) || end_isAttached(end)) {
-                endNumber++;
-                assert(end == _5End || end == _3End);
-            }
-        }
-        assert(endNumber == 2);
-        group_destructEndIterator(endIt);
-#endif
         link_construct(_5End, _3End, group, newChain);
     }
     stList_destruct(finalChainList);
 
 #ifdef BEN_DEBUG
     assert(net_getParentGroup(net) == parentGroup);
-    assert(group_getLink(parentGroup) == NULL);
-    if(net_getEndNumber(net) == 0) { //Check the properties of the net if we've gutted it
+    //assert(group_getLink(parentGroup) == NULL);
+    if (net_getEndNumber(net) == 0) { //Check the properties of the net if we've gutted it
         assert(net_getBlockNumber(net) == 0);
         assert(net_getChainNumber(net) == 0);
         assert(net_getGroupNumber(net) == 0);
-    }
-    else {
-        assert(net_getGroupNumber(net) > 0);
+    } else {
+        assert(net_getGroupNumber(net)> 0);
     }
     net_check(net);
     net_check(parentNet);
@@ -599,3 +465,4 @@ void chain_promoteChainsThatExtendHigherLevelChains(Net *net) {
         }
     }
 }
+
