@@ -95,11 +95,11 @@ void group_makeNestedNet(Group *group) {
     if(group_getLink(group) != NULL) {
         Link *link = group_getLink(group);
         Chain *nestedChain = chain_construct(nestedNet);
-        End *_5End = group_getEnd(nestedGroup, end_getName(link_get5End(link)));
         End *_3End = group_getEnd(nestedGroup, end_getName(link_get3End(link)));
-        assert(_5End != NULL);
+        End *_5End = group_getEnd(nestedGroup, end_getName(link_get5End(link)));
         assert(_3End != NULL);
-        link_construct(_5End, _3End, nestedGroup, nestedChain);
+        assert(_5End != NULL);
+        link_construct(_3End, _5End, nestedGroup, nestedChain);
     }
 }
 
@@ -360,8 +360,8 @@ void group_setLink(Group *group, Link *link) {
     //argument may be NULL
     group->link = link;
     if (link != NULL) {
-        assert(group_getEnd(group, end_getName(link_get5End(link))) == link_get5End(link));
         assert(group_getEnd(group, end_getName(link_get3End(link))) == link_get3End(link));
+        assert(group_getEnd(group, end_getName(link_get5End(link))) == link_get5End(link));
     }
 }
 

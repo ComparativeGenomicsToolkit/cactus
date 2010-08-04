@@ -45,15 +45,15 @@ void testLink_getGroup(CuTest* testCase) {
 
 void testLink_getLeft(CuTest* testCase) {
 	cactusLinkTestSetup();
-	CuAssertTrue(testCase, link_get5End(link1) == end1);
-	CuAssertTrue(testCase, link_get5End(link2) == block_get3End(block));
+	CuAssertTrue(testCase, link_get3End(link1) == end1);
+	CuAssertTrue(testCase, link_get3End(link2) == block_get3End(block));
 	cactusLinkTestTeardown();
 }
 
 void testLink_getRight(CuTest* testCase) {
 	cactusLinkTestSetup();
-	CuAssertTrue(testCase, link_get3End(link1) == block_get5End(block));
-	CuAssertTrue(testCase, link_get3End(link2) == end2);
+	CuAssertTrue(testCase, link_get5End(link1) == block_get5End(block));
+	CuAssertTrue(testCase, link_get5End(link2) == end2);
 	cactusLinkTestTeardown();
 }
 
@@ -82,8 +82,8 @@ void testLink_split(CuTest *testCase) {
 	chain = net_getFirstChain(net);
 	CuAssertTrue(testCase, chain_getLength(chain) == 1);
 	Link *link3 = chain_getLink(chain, 0);
-	CuAssertTrue(testCase, link_get5End(link3) == block_get3End(block));
-	CuAssertTrue(testCase, link_get3End(link3) == end2);
+	CuAssertTrue(testCase, link_get3End(link3) == block_get3End(block));
+	CuAssertTrue(testCase, link_get5End(link3) == end2);
 	CuAssertTrue(testCase, group_getLink(group2) == link3);
 	link_split(chain_getLink(chain, 0));
 	CuAssertTrue(testCase, net_getChainNumber(net) == 0);

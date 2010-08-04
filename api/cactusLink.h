@@ -14,7 +14,7 @@
 /*
  * Construct a link.
  */
-Link *link_construct(End *leftEnd, End *rightEnd, Group *group, Chain *parentChain);
+Link *link_construct(End *_3End, End *_5End, Group *group, Chain *parentChain);
 
 /*
  * Gets the next link in the link.
@@ -32,14 +32,16 @@ Link *link_getPreviousLink(Link *link);
 Group *link_getGroup(Link *link);
 
 /*
- * Gets the left end of the link in the link.
- */
-End *link_get5End(Link *link);
-
-/*
- * Gets the right end of the link in the link.
+ * Gets the left end of the link in the link, which will
+ * be positively oriented and a 3' end.
  */
 End *link_get3End(Link *link);
+
+/*
+ * Gets the right end of the link in the link, which will
+ * be positively oriented and a 5' end.
+ */
+End *link_get5End(Link *link);
 
 /*
  * Gets the chain the link is part of.

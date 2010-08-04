@@ -8,27 +8,27 @@
 ////////////////////////////////////////////////
 ////////////////////////////////////////////////
 
-Link *link_construct(End *leftEnd, End *rightEnd, Group *group,
+Link *link_construct(End *_3End, End *_5End, Group *group,
         Chain *parentChain) {
     Link *link;
     link = st_malloc(sizeof(Link));
 
-    leftEnd = end_getPositiveOrientation(leftEnd);
-    rightEnd = end_getPositiveOrientation(rightEnd);
-    assert(leftEnd != rightEnd);
+    _3End = end_getPositiveOrientation(_3End);
+    _5End = end_getPositiveOrientation(_5End);
+    assert(_3End != _5End);
 
-    link->leftEnd = leftEnd;
-    link->rightEnd = rightEnd;
+    link->_3End = _3End;
+    link->_5End = _5End;
     link->chain = parentChain;
     link->group = group;
 
     //Checks.
-    assert(group_getEnd(group, end_getName(leftEnd)) == leftEnd);
-    assert(group_getEnd(group, end_getName(rightEnd)) == rightEnd);
+    assert(group_getEnd(group, end_getName(_3End)) == _3End);
+    assert(group_getEnd(group, end_getName(_5End)) == _5End);
     //The following ensure that our chain is oriented along an (arbitrary) but consistent direction.
-    assert(end_getSide(leftEnd) != end_getSide(rightEnd));
-    assert(!end_getSide(leftEnd));
-    assert(end_getSide(rightEnd));
+    assert(end_getSide(_3End) != end_getSide(_5End));
+    assert(!end_getSide(_3End));
+    assert(end_getSide(_5End));
 
     chain_addLink(parentChain, link); //will set the link indices.
     group_setLink(group, link);
@@ -47,12 +47,12 @@ Group *link_getGroup(Link *link) {
     return link->group;
 }
 
-End *link_get5End(Link *link) {
-    return link->leftEnd;
+End *link_get3End(Link *link) {
+    return link->_3End;
 }
 
-End *link_get3End(Link *link) {
-    return link->rightEnd;
+End *link_get5End(Link *link) {
+    return link->_5End;
 }
 
 Chain *link_getChain(Link *link) {
@@ -106,14 +106,14 @@ void link_split(Link *link) {
         if (link2 == link) {
             break;
         }
-        listAppend(list1, link_get5End(link2));
         listAppend(list1, link_get3End(link2));
+        listAppend(list1, link_get5End(link2));
     }
     while (i < chain_getLength(chain)) {
         Link *link2 = chain_getLink(chain, i++);
         assert(link2 != link);
-        listAppend(list2, link_get5End(link2));
         listAppend(list2, link_get3End(link2));
+        listAppend(list2, link_get5End(link2));
     }
     assert(list1->length + list2->length + 2 == chain_getLength(chain)*2);
     Net *net = chain_getNet(chain);
@@ -130,8 +130,8 @@ void link_writeBinaryRepresentation(Link *link, void(*writeFn)(
         const void * ptr, size_t size, size_t count)) {
     binaryRepresentation_writeElementType(CODE_LINK, writeFn);
     binaryRepresentation_writeName(group_getName(link_getGroup(link)), writeFn);
-    binaryRepresentation_writeName(end_getName(link_get5End(link)), writeFn);
     binaryRepresentation_writeName(end_getName(link_get3End(link)), writeFn);
+    binaryRepresentation_writeName(end_getName(link_get5End(link)), writeFn);
 }
 
 Link *link_loadFromBinaryRepresentation(void **binaryString, Chain *chain) {

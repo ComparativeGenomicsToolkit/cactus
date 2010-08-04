@@ -27,7 +27,7 @@ static void cactusChainsSharedTestSetup() {
 	net = net_construct(netDisk);
 	nestedNet1 = net_construct(netDisk);
 	nestedNet2 = net_construct(netDisk);
-	end1 = end_construct(0, net);
+	end1 = end_construct2(0, 0, net);
 	end2 = end_construct(0, net);
 	block = block_construct(2, net);
 	end_copyConstruct(end1, nestedNet1);
