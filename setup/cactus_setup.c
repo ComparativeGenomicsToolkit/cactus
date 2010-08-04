@@ -50,10 +50,10 @@ void fn(const char *fastaHeader, const char *string, int32_t length) {
 			event_getName(event), netDisk);
 	sequence = sequence_construct(metaSequence, net);
 	//isComplete = 0;
-	end1 = end_construct(isComplete, net);
-	end2 = end_construct(isComplete, net);
-	cap1 = cap_construct2(end1, 1, 1, 0, sequence);
-	cap2 = cap_construct2(end2, length+2, 1, 1, sequence);
+	end1 = end_construct2(0, isComplete, net);
+	end2 = end_construct2(1, isComplete, net);
+	cap1 = cap_construct2(end1, 1, 1, sequence);
+	cap2 = cap_construct2(end2, length+2, 1, sequence);
 	cap_makeAdjacent(cap1, cap2);
 	totalSequenceNumber++;
 }

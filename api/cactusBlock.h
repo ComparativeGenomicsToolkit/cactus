@@ -48,12 +48,12 @@ int32_t block_getLength(Block *block);
 Net *block_getNet(Block *block);
 
 /*
- * Gets the left end of the block.
+ * Gets the 5 end of the block.
  */
 End *block_get5End(Block *block);
 
 /*
- * Gets the right end of the block.
+ * Gets the 3 end of the block.
  */
 End *block_get3End(Block *block);
 

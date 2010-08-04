@@ -85,39 +85,39 @@ static void setup() {
     sequence4 = sequence_construct(metaSequence4, net);
 
     //Ends
-    end1 = end_construct(1, net);
-    end2 = end_construct(1, net);
-    end3 = end_construct(1, net);
+    end1 = end_construct2(0, 1, net);
+    end2 = end_construct2(1, 1, net);
+    end3 = end_construct2(1, 1, net);
 
     //Caps
     //ACTG, Seq 1, 1:4 (End 1 to 2)
-    cap1 = cap_construct2(end1, 0, 1, 0, sequence1);
-    cap2 = cap_construct2(end2, 5, 1, 1, sequence1);
+    cap1 = cap_construct2(end1, 0, 1, sequence1);
+    cap2 = cap_construct2(end2, 5, 1, sequence1);
     cap_makeAdjacent(cap1, cap2);
 
     //CTGAC, Seq 1, 6:10 (End 1 to 2)
-    cap3 = cap_construct2(end1, 5, 1, 0, sequence1);
-    cap4 = cap_construct2(end2, 11, 1, 1, sequence1);
+    cap3 = cap_construct2(end1, 5, 1, sequence1);
+    cap4 = cap_construct2(end2, 11, 1, sequence1);
     cap_makeAdjacent(cap3, cap4);
 
     //T, Seq 2, -8:-8 (End 1 to 3)
-    cap5 = cap_construct2(end1, 9, 0, 0, sequence2);
-    cap6 = cap_construct2(end3, 7, 0, 1, sequence2);
+    cap5 = cap_construct2(end1, 9, 0, sequence2);
+    cap6 = cap_construct2(end3, 7, 0, sequence2);
     cap_makeAdjacent(cap5, cap6);
 
     //CCGGTT, Seq 2, -6:-1 (End 3 to 1)
-    cap7 = cap_construct2(end3, 7, 0, 0, sequence2);
-    cap8 = cap_construct2(end1, 0, 0, 1, sequence2);
+    cap7 = cap_construct2(end_getReverse(end3), 7, 0, sequence2);
+    cap8 = cap_construct2(end_getReverse(end1), 0, 0, sequence2);
     cap_makeAdjacent(cap7, cap8);
 
     //CGGG, Seq 3, 1:4 (End 1 to 1) (self loop)
-    cap9 = cap_construct2(end1, 0, 1, 0, sequence3);
-    cap10 = cap_construct2(end1, 5, 1, 1, sequence3);
+    cap9 = cap_construct2(end1, 0, 1, sequence3);
+    cap10 = cap_construct2(end_getReverse(end1), 5, 1, sequence3);
     cap_makeAdjacent(cap9, cap10);
 
     //Seq 4, (between 1 and 2) (End 1 to 1) (zero length)
-    cap11 = cap_construct2(end2, 1, 1, 0, sequence4);
-    cap12 = cap_construct2(end3, 2, 1, 1, sequence4);
+    cap11 = cap_construct2(end_getReverse(end2), 1, 1, sequence4);
+    cap12 = cap_construct2(end3, 2, 1, sequence4);
     cap_makeAdjacent(cap11, cap12);
 }
 

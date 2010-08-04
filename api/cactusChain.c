@@ -63,6 +63,7 @@ Block **chain_getBlockChain(Chain *chain, int32_t *blockNumber) {
         end = link_get5End(link);
         block = end_getBlock(end);
         if (block != NULL) {
+            assert(block_getOrientation(block));
             listAppend(blocks, block);
         }
     }
@@ -71,6 +72,7 @@ Block **chain_getBlockChain(Chain *chain, int32_t *blockNumber) {
         end = link_get3End(link);
         block = end_getBlock(end);
         if (block != NULL) {
+            assert(block_getOrientation(block));
             listAppend(blocks, block);
         }
     }
@@ -136,6 +138,11 @@ void chain_check(Chain *chain) {
         if (end_isStubEnd(_3End)) {
             assert(end_isAttached(_3End));
         }
+
+        //That the ends are consistently oriented
+        assert(end_getSide(_5End) != end_getSide(_3End));
+        assert(!end_getSide(_5End));
+        assert(end_getSide(_3End));
 
         //That each contiguous pair of link groups are bridged by a block.
         if (pLink != NULL) {

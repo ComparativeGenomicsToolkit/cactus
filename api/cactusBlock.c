@@ -14,8 +14,8 @@ int blockConstruct_constructP(const void *o1, const void *o2) {
 
 Block *block_construct(int32_t length, Net *net) {
 	return block_construct2(netDisk_getUniqueID(net_getNetDisk(net)), length,
-			end_construct2(netDisk_getUniqueID(net_getNetDisk(net)), 0, 0, 1, net),
-			end_construct2(netDisk_getUniqueID(net_getNetDisk(net)), 0, 0, 0, net), net);
+			end_construct3(netDisk_getUniqueID(net_getNetDisk(net)), 0, 0, 1, net),
+			end_construct3(netDisk_getUniqueID(net_getNetDisk(net)), 0, 0, 0, net), net);
 }
 
 Block *block_construct2(Name name, int32_t length,

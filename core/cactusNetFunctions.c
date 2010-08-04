@@ -195,9 +195,9 @@ Sequence *copySequence(Net *net, Name name) {
     return sequence;
 }
 
-Block *constructBlockFromCactusEdge(struct CactusEdge *edge, Net *net) {
+static Block *constructBlockFromCactusEdge(struct CactusEdge *edge, Net *net) {
     /*
-     * Constructs an block and two connected ends.
+     * Constructs a block and two connected ends.
      */
     int32_t i;
     Block *block;
@@ -215,7 +215,7 @@ Block *constructBlockFromCactusEdge(struct CactusEdge *edge, Net *net) {
     return block;
 }
 
-struct List *addEnvelopedStubEnds(Net *net, int32_t addToNet) {
+static struct List *addEnvelopedStubEnds(Net *net, int32_t addToNet) {
     /*
      * For each net contained within a link in a chain, adds the encompassing ends
      * of the chain to the nested net.
@@ -457,8 +457,9 @@ void addGroups(Net *net, struct PinchGraph *pinchGraph,
     struct List *chosenPinchEdges = constructEmptyList(0, NULL);
     struct CactusEdge *cactusEdge;
     stSortedSetIterator *chosenBlocksIt = stSortedSet_getIterator(chosenBlocks);
-    while((cactusEdge = stSortedSet_getNext(chosenBlocksIt)) != NULL) {
-        listAppend(chosenPinchEdges, cactusEdgeToFirstPinchEdge(cactusEdge, pinchGraph));
+    while ((cactusEdge = stSortedSet_getNext(chosenBlocksIt)) != NULL) {
+        listAppend(chosenPinchEdges, cactusEdgeToFirstPinchEdge(cactusEdge,
+                pinchGraph));
         assert(chosenPinchEdges->list[chosenPinchEdges->length-1] != NULL);
     }
     stSortedSet_destructIterator(chosenBlocksIt);
@@ -473,39 +474,41 @@ void addGroups(Net *net, struct PinchGraph *pinchGraph,
     destructList(chosenPinchEdges);
     struct hashtable *groupsHash = create_hashtable(groupsList->length * 2,
             hashtable_stringHashKey, hashtable_stringEqualKey, NULL, NULL);
-            for(i=0; i<groupsList->length; i++) {
-                struct List *vertices = groupsList->list[i];
-                struct List *endNames = constructEmptyList(0, NULL);
-                assert(vertices->length> 0);
-                struct PinchVertex *vertex = vertices->list[0];
-                if(!vertex_isDeadEnd(vertex) && vertex->vertexID != 0) {
-                    for(j=0; j<vertices->length; j++) {
-                        vertex = vertices->list[j];
-                        assert(!vertex_isDeadEnd(vertex));
-                        assert(vertex->vertexID != 0);
-                        const char *endNameString = hashtable_search(endNamesHash, vertex);
-                        //assert(endNameString != NULL);
-            if(endNameString != NULL) {
-                listAppend(endNames, (void *)endNameString);
-                hashtable_insert(groupsHash, (void *)endNameString, endNames);
-            }
-        }
-        assert(endNames->length >= 1);
-    }
-#ifdef BEN_DEBUG
-            else {
-                for(j=0; j<vertices->length; j++) {
-                    vertex = vertices->list[j];
-                    assert(vertex_isDeadEnd(vertex) || vertex->vertexID == 0);
+    for (i = 0; i < groupsList->length; i++) {
+        struct List *vertices = groupsList->list[i];
+        struct List *endNames = constructEmptyList(0, NULL);
+        assert(vertices->length> 0);
+        struct PinchVertex *vertex = vertices->list[0];
+        if (!vertex_isDeadEnd(vertex) && vertex->vertexID != 0) {
+            for (j = 0; j < vertices->length; j++) {
+                vertex = vertices->list[j];
+                assert(!vertex_isDeadEnd(vertex));
+                assert(vertex->vertexID != 0);
+                const char *endNameString = hashtable_search(endNamesHash,
+                        vertex);
+                //assert(endNameString != NULL);
+                if (endNameString != NULL) {
+                    listAppend(endNames, (void *) endNameString);
+                    hashtable_insert(groupsHash, (void *) endNameString,
+                            endNames);
                 }
             }
-#endif
+            assert(endNames->length >= 1);
         }
-        destructList(groupsList);
-        addGroupsP(net, groupsHash);
-        assert(hashtable_count(groupsHash) == 0);
-        hashtable_destroy(groupsHash, FALSE, FALSE);
+#ifdef BEN_DEBUG
+        else {
+            for (j = 0; j < vertices->length; j++) {
+                vertex = vertices->list[j];
+                assert(vertex_isDeadEnd(vertex) || vertex->vertexID == 0);
+            }
+        }
+#endif
     }
+    destructList(groupsList);
+    addGroupsP(net, groupsHash);
+    assert(hashtable_count(groupsHash) == 0);
+    hashtable_destroy(groupsHash, FALSE, FALSE);
+}
 
 static int32_t *vertexDiscoveryTimes;
 
@@ -581,6 +584,42 @@ static void setBlocksBuilt(Net *net) {
     net_destructGroupIterator(iterator);
 }
 
+static bool getOrientationP(struct CactusEdge *cactusEdge,
+        struct PinchGraph *pinchGraph, Net *net, struct hashtable *endNamesHash) {
+    cactusEdge = getNonDeadEndOfStubCactusEdge(cactusEdge, pinchGraph);
+    End *end = net_getEnd(net, cactusEdgeToEndName(cactusEdge, endNamesHash, pinchGraph));
+    assert(end != NULL);
+    return end_getSide(end);
+}
+
+void reverseComponent(struct List *biConnectedComponent) {
+    listReverse(biConnectedComponent);
+    for(int32_t i=0; i<biConnectedComponent->length; i++) {
+        struct CactusEdge *cactusEdge = biConnectedComponent->list[i];
+        biConnectedComponent->list[i] = cactusEdge->rEdge;
+    }
+}
+
+void getOrientation(struct List *biConnectedComponent,
+        struct PinchGraph *pinchGraph, Net *net, struct hashtable *endNamesHash) {
+    //Make the blocks and ends
+    assert(biConnectedComponent->length > 0);
+    struct CactusEdge *cactusEdge = biConnectedComponent->list[0];
+    if (isAStubCactusEdge(cactusEdge, pinchGraph)) {
+        if(getOrientationP(cactusEdge, pinchGraph, net, endNamesHash)) { //Reverse the list
+            reverseComponent(biConnectedComponent);
+        }
+    }
+    else {
+        cactusEdge = biConnectedComponent->list[biConnectedComponent->length-1];
+        if (isAStubCactusEdge(cactusEdge, pinchGraph)) {
+            if(!getOrientationP(cactusEdge, pinchGraph, net, endNamesHash)) {
+                reverseComponent(biConnectedComponent);
+            }
+        }
+    }
+}
+
 void fillOutNetFromInputs(Net *parentNet, struct CactusGraph *cactusGraph,
         struct PinchGraph *pinchGraph, stSortedSet *chosenBlocks) {
     Net *net;
@@ -621,7 +660,7 @@ void fillOutNetFromInputs(Net *parentNet, struct CactusGraph *cactusGraph,
     //Destruct any chain
     assert(net_getChainNumber(parentNet) <= 1);
 #endif
-    if(net_getChainNumber(parentNet) == 1) {
+    if (net_getChainNumber(parentNet) == 1) {
         Chain *chain = net_getFirstChain(parentNet);
 #ifdef BEN_DEBUG
         Group *parentParentGroup = net_getParentGroup(parentNet);
@@ -665,8 +704,8 @@ void fillOutNetFromInputs(Net *parentNet, struct CactusGraph *cactusGraph,
     //Build end names hash
     ////////////////////////////////////////////////
 
-    endNamesHash = create_hashtable(stSortedSet_size(chosenBlocks), hashtable_key,
-            hashtable_equalKey, NULL, free);
+    endNamesHash = create_hashtable(stSortedSet_size(chosenBlocks),
+            hashtable_key, hashtable_equalKey, NULL, free);
     endIterator = net_getEndIterator(parentNet);
     while ((end = net_getNextEnd(endIterator)) != NULL) {
         cap = end_getFirst(end);
@@ -766,8 +805,8 @@ void fillOutNetFromInputs(Net *parentNet, struct CactusGraph *cactusGraph,
                 nets[mergedVertexIDs[cactusEdge->from->vertexID]] = net;
             }
             parentNets[i] = net;
-
             //Make the blocks and ends
+            getOrientation(biConnectedComponent, pinchGraph, parentNet, endNamesHash);
             for (j = 0; j < biConnectedComponent->length; j++) {
                 cactusEdge = biConnectedComponent->list[j];
                 piece = cactusEdge->pieces->list[0];
@@ -787,12 +826,6 @@ void fillOutNetFromInputs(Net *parentNet, struct CactusGraph *cactusGraph,
                     assert(j == 0 || j == biConnectedComponent->length-1);
                     cactusEdge2 = getNonDeadEndOfStubCactusEdge(cactusEdge,
                             pinchGraph);
-                    //if(j == 0) { //not using these asserts currently
-                    //assert(cactusEdge2 == cactusEdge->rEdge);
-                    //}
-                    //else {
-                    //assert(cactusEdge2 == cactusEdge);
-                    //}
                     end = net_getEnd(parentNet, cactusEdgeToEndName(
                             cactusEdge2, endNamesHash, pinchGraph));
                     assert(end != NULL);
@@ -822,7 +855,6 @@ void fillOutNetFromInputs(Net *parentNet, struct CactusGraph *cactusGraph,
                 assert(cactusEdge->to->vertexID != 0);
                 if (nestedNet == NULL) { //construct a terminal group.
                     group = group_construct2(net);
-
                     end
                             = net_getEnd(
                                     net,

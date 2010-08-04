@@ -465,89 +465,89 @@ ChainAlignment *chainAlignment_construct(Block **blocks, int32_t blocksLength) {
      * First iterate through all the segments in the chain, in order, to construct instances of the chain.
      */
     hash = create_hashtable(1, hashtable_key, hashtable_equalKey, NULL, NULL); //to keep track of the instances included in a chain.
-            list = constructEmptyList(0, (void (*)(void *))destructList); //the list of chain instances.
-            k = 0;
-            assert(blocksLength> 0);
-            for(i=0; i<blocksLength; i++) {
-                block = blocks[i];
-                Block_InstanceIterator *instanceIterator =block_getInstanceIterator(block);
-		while((segment = block_getNext(instanceIterator)) != NULL) {
-			k++;
-			assert(segment_getOrientation(segment));
-			if(hashtable_search(hash, segment) == NULL) { //not yet in a chain instance
-				list2 = constructEmptyList(blocksLength, NULL);
-				for(j=0; j<blocksLength; j++) { //this list will contain one instance for each block, or NULL, of missing.
-					list2->list[j] = NULL;
-				}
-				listAppend(list, list2);
-				j = i; //start from the block we're up to.
-				while(1) {
-					assert(segment_getOrientation(segment));
-					hashtable_insert(hash, segment, segment); //put in the hash to say we've seen it.
-					list2->list[j++] = segment; //put in the list of chains list.
-					if(j == blocksLength) { //end of chain
-						break;
-					}
-					cap = cap_getAdjacency(segment_get3Cap(segment));
-					//assert(!end_isStub(cap_getEnd(cap))); //can not be inherited.
-					if(end_isStubEnd(cap_getEnd(cap))) { //terminates with missing information.
-						break;
-					}
-					segment2 = cap_getSegment(cap);
-					assert(segment != NULL); //must be connected to an segment (not a cap).
-					assert(segment_getBlock(segment2) == blocks[j] || segment_getBlock(segment2) == block_getReverse(blocks[j-1])); //must be connected to reverse of itself or the next block
-					if(segment_getBlock(segment2) != blocks[j]) {
-						break;
-					}
-					segment = segment2;
-				}
-			}
-			else {
-				assert(i != 0);
-			}
-		}
-		block_destructInstanceIterator(instanceIterator);
-	}
-	assert(k == (int32_t)hashtable_count(hash));
-	assert(list->length > 0);
+    list = constructEmptyList(0, (void(*)(void *)) destructList); //the list of chain instances.
+    k = 0;
+    assert(blocksLength> 0);
+    for (i = 0; i < blocksLength; i++) {
+        block = blocks[i];
+        Block_InstanceIterator *instanceIterator = block_getInstanceIterator(
+                block);
+        while ((segment = block_getNext(instanceIterator)) != NULL) {
+            k++;
+            assert(segment_getOrientation(segment));
+            if (hashtable_search(hash, segment) == NULL) { //not yet in a chain instance
+                list2 = constructEmptyList(blocksLength, NULL);
+                for (j = 0; j < blocksLength; j++) { //this list will contain one instance for each block, or NULL, of missing.
+                    list2->list[j] = NULL;
+                }
+                listAppend(list, list2);
+                j = i; //start from the block we're up to.
+                while (1) {
+                    assert(segment_getOrientation(segment));
+                    hashtable_insert(hash, segment, segment); //put in the hash to say we've seen it.
+                    list2->list[j++] = segment; //put in the list of chains list.
+                    if (j == blocksLength) { //end of chain
+                        break;
+                    }
+                    cap = cap_getAdjacency(segment_get3Cap(segment));
+                    //assert(!end_isStub(cap_getEnd(cap))); //can not be inherited.
+                    if (end_isStubEnd(cap_getEnd(cap))) { //terminates with missing information.
+                        break;
+                    }
+                    segment2 = cap_getSegment(cap);
+                    assert(segment != NULL); //must be connected to a segment (not a cap).
+                    assert(segment_getBlock(segment2) == blocks[j] || segment_getBlock(segment2) == block_getReverse(blocks[j-1])); //must be connected to reverse of itself or the next block
+                    if (segment_getBlock(segment2) != blocks[j]) {
+                        break;
+                    }
+                    segment = segment2;
+                }
+            } else {
+                assert(i != 0);
+            }
+        }
+        block_destructInstanceIterator(instanceIterator);
+    }
+    assert(k == (int32_t)hashtable_count(hash));
+    assert(list->length > 0);
 
-	/*
-	 * Now convert the chain instances in the list into the desired format for the chain alignment.
-	 */
+    /*
+     * Now convert the chain instances in the list into the desired format for the chain alignment.
+     */
 
-	//alloc the chain alignment and the matrix of instances.
-	chainAlignment = st_malloc(sizeof(ChainAlignment));
-	chainAlignment->matrix = st_malloc(sizeof(Segment **) * blocksLength);
-	for(i=0; i<blocksLength; i++) {
-		chainAlignment->matrix[i] = st_malloc(sizeof(Segment *) * list->length);
-	}
-	//fill out the fields of the chain alignment, including the matrix.
-	chainAlignment->columnNumber = blocksLength;
-	chainAlignment->rowNumber = list->length;
-	for(i=0; i<list->length; i++) {
-		list2 = list->list[i];
-		assert(list2->length == blocksLength);
-		for(j=0; j<blocksLength; j++) {
-			chainAlignment->matrix[j][i] = list2->list[j];
-		}
-	}
-	//Calculate the total length.
-	chainAlignment->totalAlignmentLength = 0;
-	for(i=0;i<blocksLength; i++) {
-		chainAlignment->totalAlignmentLength += block_getLength(blocks[i]);
-	}
-	assert(chainAlignment->totalAlignmentLength > 0);
-	//Add chain of blocks.
-	chainAlignment->blocks = st_malloc(sizeof(void *)*blocksLength);
-	for(i=0; i<blocksLength; i++) {
-		chainAlignment->blocks[i] = blocks[i];
-	}
+    //alloc the chain alignment and the matrix of instances.
+    chainAlignment = st_malloc(sizeof(ChainAlignment));
+    chainAlignment->matrix = st_malloc(sizeof(Segment **) * blocksLength);
+    for (i = 0; i < blocksLength; i++) {
+        chainAlignment->matrix[i] = st_malloc(sizeof(Segment *) * list->length);
+    }
+    //fill out the fields of the chain alignment, including the matrix.
+    chainAlignment->columnNumber = blocksLength;
+    chainAlignment->rowNumber = list->length;
+    for (i = 0; i < list->length; i++) {
+        list2 = list->list[i];
+        assert(list2->length == blocksLength);
+        for (j = 0; j < blocksLength; j++) {
+            chainAlignment->matrix[j][i] = list2->list[j];
+        }
+    }
+    //Calculate the total length.
+    chainAlignment->totalAlignmentLength = 0;
+    for (i = 0; i < blocksLength; i++) {
+        chainAlignment->totalAlignmentLength += block_getLength(blocks[i]);
+    }
+    assert(chainAlignment->totalAlignmentLength > 0);
+    //Add chain of blocks.
+    chainAlignment->blocks = st_malloc(sizeof(void *) * blocksLength);
+    for (i = 0; i < blocksLength; i++) {
+        chainAlignment->blocks[i] = blocks[i];
+    }
 
-	//Cleanup
-	destructList(list);
-	hashtable_destroy(hash, FALSE, FALSE);
+    //Cleanup
+    destructList(list);
+    hashtable_destroy(hash, FALSE, FALSE);
 
-	return chainAlignment;
+    return chainAlignment;
 }
 
 void chainAlignment_destruct(ChainAlignment *chainAlignment) {
@@ -602,7 +602,8 @@ Event *copyConstructUnaryEvent(Event *event, EventTree *eventTree2) {
 
 void usage() {
     fprintf(
-            stderr, "cactus_tree [net-names, ordered by order they should be processed], version 0.2\n");
+            stderr,
+            "cactus_tree [net-names, ordered by order they should be processed], version 0.2\n");
     fprintf(stderr, "-a --logLevel : Set the log level\n");
     fprintf(stderr, "-c --netDisk : The location of the net disk directory\n");
     fprintf(stderr, "-h --help : Print this help screen\n");
@@ -664,18 +665,18 @@ int main(int argc, char *argv[]) {
         }
 
         switch (key) {
-        case 'a':
-            logLevelString = stString_copy(optarg);
-            break;
-        case 'c':
-            netDiskName = stString_copy(optarg);
-            break;
-        case 'h':
-            usage();
-            return 0;
-        default:
-            usage();
-            return 1;
+            case 'a':
+                logLevelString = stString_copy(optarg);
+                break;
+            case 'c':
+                netDiskName = stString_copy(optarg);
+                break;
+            case 'h':
+                usage();
+                return 0;
+            default:
+                usage();
+                return 1;
         }
     }
 

@@ -38,7 +38,7 @@ struct _end {
 /*
  * Constructs the end, but not any attached block.
  */
-End *end_construct2(Name name, int32_t isStub, int32_t isAttached, int32_t side, Net *net);
+End *end_construct3(Name name, int32_t isStub, int32_t isAttached, int32_t side, Net *net);
 
 /*
  * Destructs the end and any contained caps.

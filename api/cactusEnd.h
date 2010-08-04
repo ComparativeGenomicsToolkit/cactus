@@ -17,6 +17,12 @@
 End *end_construct(bool isAttached, Net *net);
 
 /*
+ * Constructs the end, but not any attached block, allows the specification of the side.
+ * 5' is non-zero, 3 if zero.
+ */
+End *end_construct2(bool side, bool isAttached, Net *net);
+
+/*
  * Copies the end, creating a stub (because the end will not be attached to any block).
  * The isAttached can be selected accordingly.
  * Replaces the net attached to the end with the given

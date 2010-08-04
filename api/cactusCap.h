@@ -19,7 +19,7 @@ Cap *cap_construct(End *end, Event *event);
 /*
  * As default constructor, but also sets the instance's coordinates and event.
  */
-Cap *cap_construct2(End *end, int32_t startCoordinate, bool strand, bool side, Sequence *sequence);
+Cap *cap_construct2(End *end, int32_t startCoordinate, bool strand, Sequence *sequence);
 
 /*
  * Adds the given cap into the end - will fail if the given cap is not a member of
