@@ -56,7 +56,7 @@ static void addNodeToGraph(const char *nodeName, FILE *graphFileHandle,
 
 void makeCactusTree_terminalNode(Group *group, FILE *fileHandle,
         const char *parentNodeName, const char *parentEdgeColour) {
-    char *groupNameString = netMisc_nameToString(group_getName(group));
+    char *groupNameString = cactusMisc_nameToString(group_getName(group));
     double scalingFactor = group_getTotalBaseLength(group) / totalProblemSize;
     assert(scalingFactor <= 1.001);
     assert(scalingFactor >= -0.001);
@@ -76,7 +76,7 @@ void makeCactusTree_net(Net *net, FILE *fileHandle, const char *parentNodeName,
 void makeCactusTree_chain(Chain *chain, FILE *fileHandle,
         const char *parentNodeName, const char *parentEdgeColour) {
     //Write the net nodes.
-    char *chainNameString = netMisc_nameToString(chain_getName(chain));
+    char *chainNameString = cactusMisc_nameToString(chain_getName(chain));
     const char *edgeColour = graphViz_getColour();
     addNodeToGraph(chainNameString, fileHandle,
             chain_getAverageInstanceBaseLength(chain) / totalProblemSize,
@@ -105,7 +105,7 @@ void makeCactusTree_chain(Chain *chain, FILE *fileHandle,
 void makeCactusTree_net(Net *net, FILE *fileHandle, const char *parentNodeName,
         const char *parentEdgeColour) {
     //Write the net nodes.
-    char *netNameString = netMisc_nameToString(net_getName(net));
+    char *netNameString = cactusMisc_nameToString(net_getName(net));
     const char *edgeColour = graphViz_getColour();
     addNodeToGraph(netNameString, fileHandle, net_getTotalBaseLength(net)
             / totalProblemSize, "ellipse", netNameString);
@@ -163,7 +163,7 @@ void makeCactusTree_net(Net *net, FILE *fileHandle, const char *parentNodeName,
 }
 
 int main(int argc, char *argv[]) {
-    NetDisk *netDisk;
+    CactusDisk *netDisk;
     Net *net;
     FILE *fileHandle;
 
@@ -255,14 +255,14 @@ int main(int argc, char *argv[]) {
     //Load the database
     //////////////////////////////////////////////
 
-    netDisk = netDisk_construct(netDiskName);
+    netDisk = cactusDisk_construct(netDiskName);
     st_logInfo("Set up the net disk\n");
 
     ///////////////////////////////////////////////////////////////////////////
     // Parse the basic reconstruction problem
     ///////////////////////////////////////////////////////////////////////////
 
-    net = netDisk_getNet(netDisk, netMisc_stringToName(netName));
+    net = cactusDisk_getNet(netDisk, cactusMisc_stringToName(netName));
     st_logInfo("Parsed the top level net of the cactus tree to build\n");
 
     ///////////////////////////////////////////////////////////////////////////
@@ -281,7 +281,7 @@ int main(int argc, char *argv[]) {
     // Clean up.
     ///////////////////////////////////////////////////////////////////////////
 
-    netDisk_destruct(netDisk);
+    cactusDisk_destruct(netDisk);
 
     return 0;
 }

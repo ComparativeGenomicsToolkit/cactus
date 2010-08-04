@@ -62,7 +62,7 @@ void testChain_getNet(CuTest* testCase) {
 
 void testChain_rename(CuTest* testCase) {
     cactusChainTestSetup();
-    Name newName = netDisk_getUniqueID(netDisk);
+    Name newName = cactusDisk_getUniqueID(cactusDisk);
     Name oldName = chain_getName(chain);
     chain_rename(chain, newName);
     assert(chain_getName(chain) == newName);

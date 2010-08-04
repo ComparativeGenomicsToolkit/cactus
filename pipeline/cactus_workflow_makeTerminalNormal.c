@@ -15,15 +15,15 @@ int main(int argc, char *argv[]) {
     /*
      * This code iterates through the leaf groups.
      */
-    NetDisk *netDisk;
+    CactusDisk *netDisk;
     Net *net;
 
     assert(argc >= 2);
-    netDisk = netDisk_construct(argv[1]);
+    netDisk = cactusDisk_construct(argv[1]);
     st_logInfo("Set up the net disk\n");
     int32_t i;
     for (i = 2; i < argc; i++) {
-        net = netDisk_getNet(netDisk, netMisc_stringToName(argv[i]));
+        net = cactusDisk_getNet(netDisk, cactusMisc_stringToName(argv[i]));
         assert(net != NULL);
         st_logInfo("Parsed net %s\n", argv[i]);
         if (!net_isTerminal(net)) {
@@ -41,10 +41,10 @@ int main(int argc, char *argv[]) {
         }
     }
 
-    netDisk_write(netDisk);
+    cactusDisk_write(netDisk);
     st_logInfo("Updated the netdisk\n");
 
-    netDisk_destruct(netDisk);
+    cactusDisk_destruct(netDisk);
 
     st_logInfo("Am finished\n");
     return 0;

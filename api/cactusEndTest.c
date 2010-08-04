@@ -28,7 +28,7 @@ int32_t testEnd_copyConstructP(Event *event) {
 
 void testEnd_copyConstruct(CuTest* testCase) {
     cactusEndTestSetup();
-    Net *net2 = net_construct(netDisk);
+    Net *net2 = net_construct(cactusDisk);
     eventTree_copyConstruct(eventTree, net2, testEnd_copyConstructP);
     sequence_construct(metaSequence, net2);
 
@@ -127,7 +127,7 @@ void testEnd_getOtherBlockEnd(CuTest *testCase) {
 
 void testEnd_getGroup(CuTest* testCase) {
     cactusEndTestSetup();
-    Net *net2 = net_construct(netDisk);
+    Net *net2 = net_construct(cactusDisk);
     eventTree_copyConstruct(eventTree, net2, testEnd_copyConstructP);
     sequence_construct(metaSequence, net2);
     End *end2 = end_copyConstruct(end, net2);
@@ -140,7 +140,7 @@ void testEnd_getGroup(CuTest* testCase) {
 
 void testEnd_setGroup(CuTest* testCase) {
     cactusEndTestSetup();
-    Net *net2 = net_construct(netDisk);
+    Net *net2 = net_construct(cactusDisk);
     Group *group2 = group_construct2(net2);
     End *end2 = end_construct(1, net2);
     End *end3 = end_construct(1, net2);

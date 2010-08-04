@@ -18,7 +18,7 @@ int main(int argc, char *argv[]) {
 	 * For each adjacency construct a sequence and put it in a fasta file.
 	 * Finish!
 	 */
-	NetDisk *netDisk;
+	CactusDisk *netDisk;
 	Net *net;
 	Net_EndIterator *endIterator;
 	End_InstanceIterator *instanceIterator;
@@ -30,10 +30,10 @@ int main(int argc, char *argv[]) {
 	FILE *fileHandle;
 	st_setLogLevel(ST_LOGGING_DEBUG);
 	assert(argc == 4);
-	netDisk = netDisk_construct(argv[1]);
+	netDisk = cactusDisk_construct(argv[1]);
 	st_logInfo("Set up the net disk\n");
 
-	net = netDisk_getNet(netDisk, netMisc_stringToName(argv[2]));
+	net = cactusDisk_getNet(netDisk, cactusMisc_stringToName(argv[2]));
 	st_logInfo("Read the net\n");
 	fileHandle = fopen(argv[3], "w");
 	st_logInfo("Opened the file %s to write the sub-sequences in\n", argv[3]);
@@ -52,7 +52,7 @@ int main(int argc, char *argv[]) {
 				sequence = cap_getSequence(cap);
 				assert(sequence != NULL);
 				string = sequence_getString(sequence, cap_getCoordinate(cap)+1, cap_getCoordinate(cap2)-cap_getCoordinate(cap)-1, TRUE);
-				fprintf(fileHandle, ">%s|1|%i\n%s\n", netMisc_nameToStringStatic(sequence_getName(sequence)), cap_getCoordinate(cap)+1, string);
+				fprintf(fileHandle, ">%s|1|%i\n%s\n", cactusMisc_nameToStringStatic(sequence_getName(sequence)), cap_getCoordinate(cap)+1, string);
 				free(string);
 			}
 		}

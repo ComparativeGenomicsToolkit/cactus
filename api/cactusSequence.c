@@ -83,7 +83,7 @@ Sequence *sequence_loadFromBinaryRepresentation(void **binaryString, Net *net) {
 	sequence = NULL;
 	if(binaryRepresentation_peekNextElementType(*binaryString) == CODE_SEQUENCE) {
 		binaryRepresentation_popNextElementType(binaryString);
-		sequence = sequence_construct(netDisk_getMetaSequence(net_getNetDisk(net), binaryRepresentation_getName(binaryString)), net);
+		sequence = sequence_construct(cactusDisk_getMetaSequence(net_getNetDisk(net), binaryRepresentation_getName(binaryString)), net);
 	}
 	return sequence;
 }

@@ -9,7 +9,7 @@
 ////////////////////////////////////////////////
 
 Segment *segment_construct(Block *block, Event *event) {
-    return segment_construct3(netDisk_getUniqueID(net_getNetDisk(block_getNet(
+    return segment_construct3(cactusDisk_getUniqueID(net_getNetDisk(block_getNet(
             block))), block, cap_construct5(event, block_get5End(block)),
             cap_construct5(event, block_get3End(block)));
 }
@@ -26,7 +26,7 @@ Segment *segment_construct2(Block *block, int32_t startCoordinate, bool strand,
         i = j;
         j = startCoordinate;
     }
-    return segment_construct3(netDisk_getUniqueID(net_getNetDisk(block_getNet(
+    return segment_construct3(cactusDisk_getUniqueID(net_getNetDisk(block_getNet(
             block))), block, cap_construct2(block_get5End(block), i, strand,
             sequence), cap_construct2(block_get3End(block), j, strand,
             sequence));

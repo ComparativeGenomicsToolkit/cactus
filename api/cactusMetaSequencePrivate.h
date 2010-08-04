@@ -9,7 +9,7 @@ struct _metaSequence {
 	int32_t start;
 	int32_t length;
 	Name eventName;
-	NetDisk *netDisk;
+	CactusDisk *cactusDisk;
 	char *header;
 };
 
@@ -26,7 +26,7 @@ struct _metaSequence {
  * Constructs a meta sequence using an existing reference to a sequence in the sequence file.
  */
 MetaSequence *metaSequence_construct2(Name name, int32_t start, int32_t length, int64_t fileOffset, const char *header,
-		Name eventName, NetDisk *netDisk);
+		Name eventName, CactusDisk *cactusDisk);
 
 /*
  * Destructs a meta sequence.
@@ -46,6 +46,6 @@ void metaSequence_writeBinaryRepresentation(MetaSequence *metaSequence, void (*w
 /*
  * Loads a eventTree into memory from a binary representation of the eventTree.
  */
-MetaSequence *metaSequence_loadFromBinaryRepresentation(void **binaryString, NetDisk *netDisk);
+MetaSequence *metaSequence_loadFromBinaryRepresentation(void **binaryString, CactusDisk *cactusDisk);
 
 #endif

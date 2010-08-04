@@ -9,35 +9,35 @@
 ////////////////////////////////////////////////
 
 int net_constructSequencesP(const void *o1, const void *o2) {
-    return netMisc_nameCompare(sequence_getName((Sequence *) o1),
+    return cactusMisc_nameCompare(sequence_getName((Sequence *) o1),
             sequence_getName((Sequence *) o2));
 }
 
 int net_constructCapsP(const void *o1, const void *o2) {
-    return netMisc_nameCompare(cap_getName((Cap *) o1), cap_getName((Cap *) o2));
+    return cactusMisc_nameCompare(cap_getName((Cap *) o1), cap_getName((Cap *) o2));
 }
 
 int net_constructEndsP(const void *o1, const void *o2) {
-    return netMisc_nameCompare(end_getName((End *) o1), end_getName((End *) o2));
+    return cactusMisc_nameCompare(end_getName((End *) o1), end_getName((End *) o2));
 }
 
 int net_constructSegmentsP(const void *o1, const void *o2) {
-    return netMisc_nameCompare(segment_getName((Segment *) o1),
+    return cactusMisc_nameCompare(segment_getName((Segment *) o1),
             segment_getName((Segment *) o2));
 }
 
 int net_constructBlocksP(const void *o1, const void *o2) {
-    return netMisc_nameCompare(block_getName((Block *) o1), block_getName(
+    return cactusMisc_nameCompare(block_getName((Block *) o1), block_getName(
             (Block *) o2));
 }
 
 int net_constructGroupsP(const void *o1, const void *o2) {
-    return netMisc_nameCompare(group_getName((Group *) o1), group_getName(
+    return cactusMisc_nameCompare(group_getName((Group *) o1), group_getName(
             (Group *) o2));
 }
 
 int net_constructChainsP(const void *o1, const void *o2) {
-    return netMisc_nameCompare(chain_getName((Chain *) o1), chain_getName(
+    return cactusMisc_nameCompare(chain_getName((Chain *) o1), chain_getName(
             (Chain *) o2));
 }
 
@@ -47,11 +47,11 @@ int net_constructFacesP(const void *o1, const void *o2) {
     return o1 == o2 ? 0 : o1 > o2 ? 1 : -1;
 }
 
-Net *net_construct(NetDisk *netDisk) {
-    return net_construct2(netDisk_getUniqueID(netDisk), netDisk);
+Net *net_construct(CactusDisk *cactusDisk) {
+    return net_construct2(cactusDisk_getUniqueID(cactusDisk), cactusDisk);
 }
 
-Net *net_construct2(Name name, NetDisk *netDisk) {
+Net *net_construct2(Name name, CactusDisk *cactusDisk) {
     Net *net;
     net = st_malloc(sizeof(Net));
 
@@ -68,7 +68,7 @@ Net *net_construct2(Name name, NetDisk *netDisk) {
     net->reference = NULL;
 
     net->parentNetName = NULL_NAME;
-    net->netDisk = netDisk;
+    net->cactusDisk = cactusDisk;
     net->faceIndex = 0;
     net->chainIndex = 0;
 
@@ -76,7 +76,7 @@ Net *net_construct2(Name name, NetDisk *netDisk) {
     net->builtFaces = 0;
     net->builtTrees = 0;
 
-    netDisk_addNet(net->netDisk, net);
+    cactusDisk_addNet(net->cactusDisk, net);
 
     //Do this bit last.. so the netdisk relationship is established
     net->eventTree = NULL;
@@ -105,7 +105,7 @@ void net_destruct(Net *net, int32_t recursive) {
         net_destructGroupIterator(iterator);
     }
 
-    netDisk_unloadNet(net->netDisk, net);
+    cactusDisk_unloadNet(net->cactusDisk, net);
 
     net_destructFaces(net);
     stSortedSet_destruct(net->faces);
@@ -151,8 +151,8 @@ Name net_getName(Net *net) {
     return net->name;
 }
 
-NetDisk *net_getNetDisk(Net *net) {
-    return net->netDisk;
+CactusDisk *net_getNetDisk(Net *net) {
+    return net->cactusDisk;
 }
 
 EventTree *net_getEventTree(Net *net) {
@@ -393,7 +393,7 @@ Group *net_getParentGroup(Net *net) {
     if (net->parentNetName == NULL_NAME) {
         return NULL;
     }
-    Net *net2 = netDisk_getNet(net_getNetDisk(net), net->parentNetName);
+    Net *net2 = cactusDisk_getNet(net_getNetDisk(net), net->parentNetName);
     assert(net2 != NULL);
     return net_getGroup(net2, net_getName(net));
 }
@@ -629,9 +629,9 @@ Net *net_removeIfRedundant(Net *net) {
         Net *nestedNet = group_getNestedNet(net_getFirstGroup(net));
 
         //Unload the child net from its position in the nets hash..
-        netDisk_unloadNet(net_getNetDisk(nestedNet), nestedNet);
+        cactusDisk_unloadNet(net_getNetDisk(nestedNet), nestedNet);
         //and remove it from the disk (if it has been written there)
-        netDisk_deleteNetFromDisk(net_getNetDisk(net), net_getName(nestedNet));
+        cactusDisk_deleteNetFromDisk(net_getNetDisk(net), net_getName(nestedNet));
 
         //reassign names
         Name oldName = net_getName(nestedNet);
@@ -642,7 +642,7 @@ Net *net_removeIfRedundant(Net *net) {
         net_destruct(net, 0);
 
         //Ensure the nested net is correctly hashed..
-        netDisk_addNet(net_getNetDisk(nestedNet), nestedNet);
+        cactusDisk_addNet(net_getNetDisk(nestedNet), nestedNet);
 
         //Ensure all the children of the nested net also have the right pointer.
         Group *group;
@@ -674,7 +674,7 @@ bool net_deleteIfEmpty(Net *net) {
         }
         assert(net_getGroupNumber(net) == 0);
         //This needs modification so that we don't do this directly..
-        netDisk_deleteNetFromDisk(net_getNetDisk(net), net_getName(net));
+        cactusDisk_deleteNetFromDisk(net_getNetDisk(net), net_getName(net));
         Group *parentGroup = net_getParentGroup(net);
         group_destruct(parentGroup);
         net_destruct(net, 0);
@@ -884,8 +884,8 @@ void net_removeReference(Net *net, Reference *reference) {
  Name netName1 = net_getName(net1);
  net_destruct(net1, 0);
  //ensure net1 is not in the netdisk..
- netDisk_deleteNetFromDisk(net_getNetDisk(net2), netName1);
- assert(netDisk_getNet(net_getNetDisk(net2), netName1) == NULL);
+ cactusDisk_deleteNetFromDisk(net_getNetDisk(net2), netName1);
+ assert(cactusDisk_getNet(net_getNetDisk(net2), netName1) == NULL);
  }*/
 
 /*
@@ -953,12 +953,12 @@ void net_writeBinaryRepresentation(Net *net, void(*writeFn)(const void * ptr,
     binaryRepresentation_writeElementType(CODE_NET, writeFn); //this avoids interpretting things wrong.
 }
 
-Net *net_loadFromBinaryRepresentation(void **binaryString, NetDisk *netDisk) {
+Net *net_loadFromBinaryRepresentation(void **binaryString, CactusDisk *cactusDisk) {
     Net *net = NULL;
     if (binaryRepresentation_peekNextElementType(*binaryString) == CODE_NET) {
         binaryRepresentation_popNextElementType(binaryString);
         net = net_construct2(binaryRepresentation_getName(binaryString),
-                netDisk);
+                cactusDisk);
         net_setBuiltBlocks(net, binaryRepresentation_getBool(binaryString));
         net_setBuiltTrees(net, binaryRepresentation_getBool(binaryString));
         net->parentNetName = binaryRepresentation_getName(binaryString);

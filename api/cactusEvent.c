@@ -233,7 +233,7 @@ Event *event_loadFromBinaryRepresentation(void **binaryString,
 		assert(parentEvent != NULL);
 		name = binaryRepresentation_getName(binaryString);
 		branchLength = binaryRepresentation_getFloat(binaryString);
-		metaEvent = netDisk_getMetaEvent(net_getNetDisk(eventTree_getNet(eventTree)),name);
+		metaEvent = cactusDisk_getMetaEvent(net_getNetDisk(eventTree_getNet(eventTree)),name);
 		assert(metaEvent != NULL);
 		event = event_construct(metaEvent, branchLength, parentEvent, eventTree);
 	}

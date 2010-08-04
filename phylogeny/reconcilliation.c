@@ -11,7 +11,7 @@
 
 Event *labelAndReturnEvent(struct BinaryTree *blockTree, Event *event) {
 	assert(event != NULL);
-	blockTree->label = netMisc_nameToString(event_getName(event));
+	blockTree->label = cactusMisc_nameToString(event_getName(event));
 	return event;
 }
 

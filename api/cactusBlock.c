@@ -9,13 +9,13 @@
 ////////////////////////////////////////////////
 
 int blockConstruct_constructP(const void *o1, const void *o2) {
-	return netMisc_nameCompare(segment_getName((Segment *)o1), segment_getName((Segment *)o2));
+	return cactusMisc_nameCompare(segment_getName((Segment *)o1), segment_getName((Segment *)o2));
 }
 
 Block *block_construct(int32_t length, Net *net) {
-	return block_construct2(netDisk_getUniqueID(net_getNetDisk(net)), length,
-			end_construct3(netDisk_getUniqueID(net_getNetDisk(net)), 0, 0, 1, net),
-			end_construct3(netDisk_getUniqueID(net_getNetDisk(net)), 0, 0, 0, net), net);
+	return block_construct2(cactusDisk_getUniqueID(net_getNetDisk(net)), length,
+			end_construct3(cactusDisk_getUniqueID(net_getNetDisk(net)), 0, 0, 1, net),
+			end_construct3(cactusDisk_getUniqueID(net_getNetDisk(net)), 0, 0, 0, net), net);
 }
 
 Block *block_construct2(Name name, int32_t length,
@@ -298,12 +298,12 @@ char *block_makeNewickStringP(Segment *segment, int32_t includeInternalNames, in
 			comma = 1;
 		}
 		char *final = includeInternalNames ?
-				stString_print("%s)%s", left, netMisc_nameToStringStatic(segment_getName(segment))) :
+				stString_print("%s)%s", left, cactusMisc_nameToStringStatic(segment_getName(segment))) :
 				stString_print("%s)", left);
 		free(left);
 		return final;
 	}
-	return netMisc_nameToString(segment_getName(segment));
+	return cactusMisc_nameToString(segment_getName(segment));
 }
 
 char *block_makeNewickString(Block *block, int32_t includeInternalNames, int32_t includeUnaryEvents) {

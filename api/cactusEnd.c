@@ -9,16 +9,16 @@
 ////////////////////////////////////////////////
 
 static int32_t end_constructP(const void *o1, const void *o2) {
-    return netMisc_nameCompare(cap_getName((Cap *) o1), cap_getName((Cap *) o2));
+    return cactusMisc_nameCompare(cap_getName((Cap *) o1), cap_getName((Cap *) o2));
 }
 
 End *end_construct(bool isAttached, Net *net) {
-    return end_construct3(netDisk_getUniqueID(net_getNetDisk(net)), 1,
+    return end_construct3(cactusDisk_getUniqueID(net_getNetDisk(net)), 1,
             isAttached, 1, net);
 }
 
 End *end_construct2(bool side, bool isAttached, Net *net) {
-    return end_construct3(netDisk_getUniqueID(net_getNetDisk(net)), 1,
+    return end_construct3(cactusDisk_getUniqueID(net_getNetDisk(net)), 1,
             isAttached, side, net);
 }
 

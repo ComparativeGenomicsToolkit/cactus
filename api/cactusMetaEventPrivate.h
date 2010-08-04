@@ -6,7 +6,7 @@
 struct _metaEvent {
 	Name name;
 	char *header;
-	NetDisk *netDisk;
+	CactusDisk *cactusDisk;
 };
 
 
@@ -22,7 +22,7 @@ struct _metaEvent {
  * Constructs a meta event, which contains all the essential info for a event.
  */
 MetaEvent *metaEvent_construct2(Name name, const char *header,
-		NetDisk *netDisk);
+		CactusDisk *cactusDisk);
 
 /*
  * Destructs a meta event.
@@ -37,6 +37,6 @@ void metaEvent_writeBinaryRepresentation(MetaEvent *metaEvent, void (*writeFn)(c
 /*
  * Loads a eventTree into memory from a binary representation of the eventTree.
  */
-MetaEvent *metaEvent_loadFromBinaryRepresentation(void **binaryString, NetDisk *netDisk);
+MetaEvent *metaEvent_loadFromBinaryRepresentation(void **binaryString, CactusDisk *cactusDisk);
 
 #endif

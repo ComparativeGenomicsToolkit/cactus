@@ -9,7 +9,7 @@
 ////////////////////////////////////////////////
 
 static int reference_constructP(const void *o1, const void *o2) {
-	return netMisc_nameCompare(pseudoChromosome_getName((PseudoChromosome *)o1),
+	return cactusMisc_nameCompare(pseudoChromosome_getName((PseudoChromosome *)o1),
 			pseudoChromosome_getName((PseudoChromosome *)o2));
 }
 

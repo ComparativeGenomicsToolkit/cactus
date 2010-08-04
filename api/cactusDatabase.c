@@ -12,7 +12,7 @@ int database_constructP(const char *vA1, int size1, const char *vA2, int size2, 
 	assert(size1 == sizeof(Name));
 	assert(size2 == sizeof(Name));
 	assert(a == NULL);
-	return netMisc_nameCompare(*(Name *)vA1, *(Name *)vA2);
+	return cactusMisc_nameCompare(*(Name *)vA1, *(Name *)vA2);
 }
 
 TCBDB *database_construct(const char *name) {

@@ -9,7 +9,7 @@
 ////////////////////////////////////////////////
 
 int eventTree_constructP(const void *o1, const void *o2) {
-	return netMisc_nameCompare(event_getName((Event *)o1), event_getName((Event *)o2));
+	return cactusMisc_nameCompare(event_getName((Event *)o1), event_getName((Event *)o2));
 }
 
 EventTree *eventTree_construct2(Net *net) {
@@ -142,13 +142,13 @@ static char *eventTree_makeNewickStringP(Event *event) {
 			}
 		}
 		cA3 = st_malloc(sizeof(char)*(strlen(cA) + strlen(event_getHeader(event)) + 30));
-		sprintf(cA3, "%s)%s:%g", cA, netMisc_nameToStringStatic(event_getName(event)), event_getBranchLength(event));
+		sprintf(cA3, "%s)%s:%g", cA, cactusMisc_nameToStringStatic(event_getName(event)), event_getBranchLength(event));
 		free(cA);
 		cA = cA3;
 	}
 	else {
 		cA = st_malloc(sizeof(char)*(strlen(event_getHeader(event)) + 30));
-		sprintf(cA, "%s:%g", netMisc_nameToStringStatic(event_getName(event)), event_getBranchLength(event));
+		sprintf(cA, "%s:%g", cactusMisc_nameToStringStatic(event_getName(event)), event_getBranchLength(event));
 	}
 	return cA;
 }
@@ -285,7 +285,7 @@ EventTree *eventTree_loadFromBinaryRepresentation(void **binaryString, Net *net)
 	eventTree = NULL;
 	if(binaryRepresentation_peekNextElementType(*binaryString) == CODE_EVENT_TREE) {
 		binaryRepresentation_popNextElementType(binaryString);
-		metaEvent = netDisk_getMetaEvent(net_getNetDisk(net),
+		metaEvent = cactusDisk_getMetaEvent(net_getNetDisk(net),
 				binaryRepresentation_getName(binaryString));
 		assert(metaEvent != NULL);
 		eventTree = eventTree_construct(metaEvent, net);

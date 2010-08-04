@@ -9,7 +9,7 @@
 ////////////////////////////////////////////////
 
 Cap *cap_construct(End *end, Event *event) {
-    return cap_construct3(netDisk_getUniqueID(net_getNetDisk(end_getNet(end))), event, end);
+    return cap_construct3(cactusDisk_getUniqueID(net_getNetDisk(end_getNet(end))), event, end);
 }
 
 Cap *cap_construct3(Name instance, Event *event, End *end) {
@@ -46,7 +46,7 @@ Cap *cap_construct3(Name instance, Event *event, End *end) {
 
 Cap *cap_construct2(End *end, int32_t coordinate, bool strand,
         Sequence *sequence) {
-    return cap_construct4(netDisk_getUniqueID(net_getNetDisk(end_getNet(end))),
+    return cap_construct4(cactusDisk_getUniqueID(net_getNetDisk(end_getNet(end))),
             end, coordinate, strand, sequence);
 }
 
@@ -61,7 +61,7 @@ Cap *cap_construct4(Name instance, End *end, int32_t coordinate,
 }
 
 Cap *cap_construct5(Event *event, End *end) {
-    return cap_construct3(netDisk_getUniqueID(net_getNetDisk(end_getNet(end))),
+    return cap_construct3(cactusDisk_getUniqueID(net_getNetDisk(end_getNet(end))),
             event, end);
 }
 
@@ -77,7 +77,7 @@ Cap *cap_copyConstruct(End *end, Cap *cap) {
         sequenceName = sequence_getName(cap_getSequence(cap));
         sequence = net_getSequence(net, sequenceName);
         if (sequence == NULL) { //add sequence to the net.
-            sequence = sequence_construct(netDisk_getMetaSequence(
+            sequence = sequence_construct(cactusDisk_getMetaSequence(
                     net_getNetDisk(net), sequenceName), net);
             assert(sequence != NULL);
         }

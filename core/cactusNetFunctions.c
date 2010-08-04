@@ -89,9 +89,9 @@ struct PinchGraph *constructPinchGraph(Net *net) {
         if (end_isAttached(end)) {
             connectVertices(sourceVertex, pinchVertex);
         }
-        hashtable_insert(hash, netMisc_nameToString(end_getName(end)),
+        hashtable_insert(hash, cactusMisc_nameToString(end_getName(end)),
                 pinchVertex);
-        hashtable_insert(hash2, netMisc_nameToString(end_getName(end)),
+        hashtable_insert(hash2, cactusMisc_nameToString(end_getName(end)),
                 pinchVertex2);
     }
     net_destructEndIterator(endIterator);
@@ -120,9 +120,9 @@ struct PinchGraph *constructPinchGraph(Net *net) {
                 //Make black edges for caps/stubs on left end
                 leftCapEdge = hookUpEdge(constructPiece(cap_getName(cap),
                         start, start), graph, hashtable_search(hash,
-                        (void *) netMisc_nameToStringStatic(end_getName(
+                        (void *) cactusMisc_nameToStringStatic(end_getName(
                                 cap_getEnd(cap)))), hashtable_search(hash2,
-                        (void *) netMisc_nameToStringStatic(end_getName(
+                        (void *) cactusMisc_nameToStringStatic(end_getName(
                                 cap_getEnd(cap)))));
 
                 //Construct the middle sequence, if not zero length.
@@ -136,9 +136,9 @@ struct PinchGraph *constructPinchGraph(Net *net) {
                 //Construct the right cap/stub
                 rightCapEdge = hookUpEdge(constructPiece(cap_getName(cap2),
                         stop, stop), graph, hashtable_search(hash2,
-                        (void *) netMisc_nameToStringStatic(end_getName(
+                        (void *) cactusMisc_nameToStringStatic(end_getName(
                                 cap_getEnd(cap2)))), hashtable_search(hash,
-                        (void *) netMisc_nameToStringStatic(end_getName(
+                        (void *) cactusMisc_nameToStringStatic(end_getName(
                                 cap_getEnd(cap2)))));
 
                 //Connect the edges
@@ -183,13 +183,13 @@ Name cactusEdgeToEndName(struct CactusEdge *edge,
     assert(pinchEdge != NULL);
     char *cA = (char *) hashtable_search(endNamesHash, pinchEdge->from);
     assert(cA != NULL);
-    return netMisc_stringToName(cA);
+    return cactusMisc_stringToName(cA);
 }
 
 Sequence *copySequence(Net *net, Name name) {
     Sequence *sequence = net_getSequence(net, name);
     if (sequence == NULL) {
-        sequence = sequence_construct(netDisk_getMetaSequence(net_getNetDisk(
+        sequence = sequence_construct(cactusDisk_getMetaSequence(net_getNetDisk(
                 net), name), net);
     }
     return sequence;
@@ -267,7 +267,7 @@ static int addAdjacenciesToLeafCapsP(Cap **cap1, Cap **cap2) {
     assert(cap_getStrand(*cap1) && cap_getStrand(*cap2));
     Sequence *sequence1 = cap_getSequence(*cap1);
     Sequence *sequence2 = cap_getSequence(*cap2);
-    int32_t i = netMisc_nameCompare(sequence_getName(sequence1),
+    int32_t i = cactusMisc_nameCompare(sequence_getName(sequence1),
             sequence_getName(sequence2));
     if (i == 0) {
         int32_t j = cap_getCoordinate(*cap1);
@@ -359,7 +359,7 @@ bool groupIsZeroLength(struct List *endNames, Net *net) {
     int32_t i;
 
     for (i = 0; i < endNames->length; i++) {
-        End *end = net_getEnd(net, netMisc_stringToName(endNames->list[i]));
+        End *end = net_getEnd(net, cactusMisc_stringToName(endNames->list[i]));
         End_InstanceIterator *iterator = end_getInstanceIterator(end);
         Cap *cap;
         while ((cap = end_getNext(iterator)) != NULL) {
@@ -398,7 +398,7 @@ void addGroupsP(Net *net, struct hashtable *groups) {
             endIterator2 = group_getEndIterator(group);
             endNames = NULL;
             while ((end = group_getNextEnd(endIterator2)) != NULL) {
-                assert((endNames = hashtable_remove(groups, (void *)netMisc_nameToStringStatic(end_getName(end)), 0)) != NULL);
+                assert((endNames = hashtable_remove(groups, (void *)cactusMisc_nameToStringStatic(end_getName(end)), 0)) != NULL);
             }
             group_destructEndIterator(endIterator2);
             assert(endNames != NULL);
@@ -412,23 +412,23 @@ void addGroupsP(Net *net, struct hashtable *groups) {
         group = end_getGroup(end);
         if (group == NULL) {
             endNames = hashtable_search(groups,
-                    (void *) netMisc_nameToStringStatic(end_getName(end)));
+                    (void *) cactusMisc_nameToStringStatic(end_getName(end)));
             assert(endNames != NULL);
 #ifdef BEN_DEBUG
             for (i = 0; i < endNames->length; i++) {
-                end2 = net_getEnd(net, netMisc_stringToName(endNames->list[i]));
+                end2 = net_getEnd(net, cactusMisc_stringToName(endNames->list[i]));
                 assert(end2 != NULL);
                 assert(end_getGroup(end2) == NULL);
             }
 #endif
             group = group_construct2(net);
             for (i = 0; i < endNames->length; i++) {
-                end2 = net_getEnd(net, netMisc_stringToName(endNames->list[i]));
+                end2 = net_getEnd(net, cactusMisc_stringToName(endNames->list[i]));
                 end_setGroup(end2, group);
             }
 #ifdef BEN_DEBUG
             for (i = 0; i < endNames->length; i++) {
-                end2 = net_getEnd(net, netMisc_stringToName(endNames->list[i]));
+                end2 = net_getEnd(net, cactusMisc_stringToName(endNames->list[i]));
                 assert(end_getGroup(end2) == group);
             }
 #endif
@@ -715,11 +715,11 @@ void fillOutNetFromInputs(Net *parentNet, struct CactusGraph *cactusGraph,
         if (vertex_isEnd(pinchEdge->from)) {
             assert(vertex_isDeadEnd(pinchEdge->to));
             hashtable_insert(endNamesHash, pinchEdge->from,
-                    netMisc_nameToString(end_getName(end)));
+                    cactusMisc_nameToString(end_getName(end)));
         } else {
             assert(vertex_isEnd(pinchEdge->to));
             assert(vertex_isDeadEnd(pinchEdge->from));
-            hashtable_insert(endNamesHash, pinchEdge->to, netMisc_nameToString(
+            hashtable_insert(endNamesHash, pinchEdge->to, cactusMisc_nameToString(
                     end_getName(end)));
         }
     }
@@ -815,10 +815,10 @@ void fillOutNetFromInputs(Net *parentNet, struct CactusGraph *cactusGraph,
                     pinchEdge = cactusEdgeToFirstPinchEdge(cactusEdge,
                             pinchGraph);
                     hashtable_insert(endNamesHash, pinchEdge->from,
-                            netMisc_nameToString(end_getName(block_get5End(
+                            cactusMisc_nameToString(end_getName(block_get5End(
                                     block))));
                     hashtable_insert(endNamesHash, pinchEdge->to,
-                            netMisc_nameToString(end_getName(block_get3End(
+                            cactusMisc_nameToString(end_getName(block_get3End(
                                     block))));
                     assert(cactusEdgeToEndName(cactusEdge, endNamesHash, pinchGraph) == end_getName(block_get5End(block)));
                     assert(cactusEdgeToEndName(cactusEdge->rEdge, endNamesHash, pinchGraph) == end_getName(block_get3End(block)));

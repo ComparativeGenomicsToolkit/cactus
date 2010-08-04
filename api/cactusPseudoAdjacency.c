@@ -10,7 +10,7 @@
 
 PseudoAdjacency *pseudoAdjacency_construct(End *_5End, End *_3End,
 		PseudoChromosome *pseudoChromosome) {
-	return pseudoAdjacency_construct2(netDisk_getUniqueID(net_getNetDisk(reference_getNet(pseudoChromosome_getReference(pseudoChromosome)))),
+	return pseudoAdjacency_construct2(cactusDisk_getUniqueID(net_getNetDisk(reference_getNet(pseudoChromosome_getReference(pseudoChromosome)))),
 			_5End, _3End, pseudoChromosome);
 }
 

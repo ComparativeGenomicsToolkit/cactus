@@ -5,15 +5,15 @@
  */
 
 static void addEdge(End *end1, End *end2, const char *colour, const char *label, double length, double weight, const char *direction, void *extraArgument) {
-    char *nameString1 = netMisc_nameToString(end_getName(end1));
-    char *nameString2 = netMisc_nameToString(end_getName(end2));
+    char *nameString1 = cactusMisc_nameToString(end_getName(end1));
+    char *nameString2 = cactusMisc_nameToString(end_getName(end2));
     graphViz_addEdgeToGraph(nameString1, nameString2, (FILE *)extraArgument, 1 ? label : "", colour, length, weight, direction);
     free(nameString1);
     free(nameString2);
 }
 
 void addEnd(End *end, void *extraArgument) {
-	const char *nameString = netMisc_nameToStringStatic(end_getName(end));
+	const char *nameString = cactusMisc_nameToStringStatic(end_getName(end));
 	const char *colour = "red";
 	const char *shape = "circle";
 	if(end_isBlockEnd(end)) {

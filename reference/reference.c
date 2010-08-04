@@ -202,7 +202,7 @@ static int makeTopLevelPseudoChromosomes_cmpEnds(End **end1, End **end2) {
 	Sequence *sequence2 = cap_getSequence(cap2);
 	assert(sequence1 != NULL);
 	assert(sequence2 != NULL);
-	int32_t i = netMisc_nameCompare(sequence_getName(sequence1), sequence_getName(sequence2));
+	int32_t i = cactusMisc_nameCompare(sequence_getName(sequence1), sequence_getName(sequence2));
 	if(i == 0) {
 		assert(cap_getSide(cap1) != cap_getSide(cap2));
 		return cap_getSide(cap1) ? -1 : 1; //sort 5' to 3' (i.e. with the 5 prime with a lower index to the 3 prime side)
@@ -240,13 +240,13 @@ static int makeIntermediateLevelPseudoChromosomes_cmpEnds(End **end1, End **end2
 	PseudoChromosome *pseudoChromosome2 = pseudoAdjacency_getPseudoChromosome(pseudoAdjacency2);
 
 	//Sort first by pseudo chromosome
-	int32_t i = netMisc_nameCompare(pseudoChromosome_getName(pseudoChromosome1), pseudoChromosome_getName(pseudoChromosome2));
+	int32_t i = cactusMisc_nameCompare(pseudoChromosome_getName(pseudoChromosome1), pseudoChromosome_getName(pseudoChromosome2));
 	if(i != 0) { //we order, so the chromosomes reflect the ordering of the parent adjacencies on the circle.
 		return i;
 	}
 	assert(pseudoChromosome1 == pseudoChromosome2);
 	//Then by pseudo-adjacency
-	i = netMisc_nameCompare(pseudoAdjacency_getName(pseudoAdjacency1), pseudoAdjacency_getName(pseudoAdjacency2));
+	i = cactusMisc_nameCompare(pseudoAdjacency_getName(pseudoAdjacency1), pseudoAdjacency_getName(pseudoAdjacency2));
 	if(i != 0) {
 		return i;
 	}

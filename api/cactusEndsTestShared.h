@@ -1,6 +1,6 @@
 #include "cactusGlobalsPrivate.h"
 
-static NetDisk *netDisk = NULL;
+static CactusDisk *cactusDisk = NULL;
 static Net *net;
 static EventTree *eventTree;
 static MetaSequence *metaSequence;
@@ -19,20 +19,20 @@ static Cap *leaf2Cap;
 static Cap *leaf3Cap;
 
 static void cactusEndsTestSharedTeardown() {
-    if (netDisk != NULL) {
-        netDisk_destruct(netDisk);
+    if (cactusDisk != NULL) {
+        cactusDisk_destruct(cactusDisk);
         testCommon_deleteTemporaryNetDisk();
-        netDisk = NULL;
+        cactusDisk = NULL;
     }
 }
 
 static void cactusEndsTestSharedSetup() {
     cactusEndsTestSharedTeardown();
-    netDisk = netDisk_construct(testCommon_getTemporaryNetDisk());
-    net = net_construct(netDisk);
+    cactusDisk = cactusDisk_construct(testCommon_getTemporaryNetDisk());
+    net = net_construct(cactusDisk);
 
-    rootMetaEvent = metaEvent_construct("ROOT", netDisk);
-    leafMetaEvent = metaEvent_construct("LEAF1", netDisk);
+    rootMetaEvent = metaEvent_construct("ROOT", cactusDisk);
+    leafMetaEvent = metaEvent_construct("LEAF1", cactusDisk);
 
     eventTree = eventTree_construct(rootMetaEvent, net);
 
@@ -40,7 +40,7 @@ static void cactusEndsTestSharedSetup() {
     leafEvent = event_construct(leafMetaEvent, 0.2, rootEvent, eventTree);
 
     metaSequence = metaSequence_construct(0, 10, "ACTGACTGAC", ">one",
-            metaEvent_getName(leafMetaEvent), netDisk);
+            metaEvent_getName(leafMetaEvent), cactusDisk);
     sequence = sequence_construct(metaSequence, net);
 
     end = end_construct(1, net);

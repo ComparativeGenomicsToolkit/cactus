@@ -1094,8 +1094,8 @@ void pinchMerge(struct PinchGraph *graph, struct PairwiseAlignment *pA,
 	j = pA->start1;
 	k = pA->start2;
 
-	contig1 = netMisc_stringToName(pA->contig1);
-	contig2 = netMisc_stringToName(pA->contig2);
+	contig1 = cactusMisc_stringToName(pA->contig1);
+	contig2 = cactusMisc_stringToName(pA->contig2);
 
 	logPairwiseAlignment(pA);
 
@@ -1264,7 +1264,7 @@ void writeOutPinchGraphWithChains(struct PinchGraph *pinchGraph, struct hashtabl
 				while((edge = getNextBlackEdge(vertex, blackEdgeIterator)) != NULL) {
 					fprintf(fileHandle, "n" INT_STRING "n -- n" INT_STRING "n [label=\"" INT_STRING ":" INT_STRING ":%s\"];\n",
 							edge->from->vertexID, edge->to->vertexID, edge->piece->start, edge->piece->end,
-							netMisc_nameToStringStatic(edge->piece->contig));
+							cactusMisc_nameToStringStatic(edge->piece->contig));
 				}
 				destructBlackEdgeIterator(blackEdgeIterator);
 			}

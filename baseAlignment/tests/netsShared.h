@@ -5,7 +5,7 @@
 #include <string.h>
 
 //Basic net.
-static NetDisk *netDisk;
+static CactusDisk *cactusDisk;
 static Net *net;
 
 //Event tree...
@@ -48,40 +48,40 @@ static Cap *cap11;
 static Cap *cap12;
 
 static void teardown() {
-    if (netDisk != NULL) {
-        netDisk_destruct(netDisk);
+    if (cactusDisk != NULL) {
+        cactusDisk_destruct(cactusDisk);
         testCommon_deleteTemporaryNetDisk();
-        netDisk = NULL;
+        cactusDisk = NULL;
     }
 }
 
 static void setup() {
     teardown();
-    netDisk = netDisk_construct(testCommon_getTemporaryNetDisk());
-    net = net_construct(netDisk);
+    cactusDisk = cactusDisk_construct(testCommon_getTemporaryNetDisk());
+    net = net_construct(cactusDisk);
 
     //Event tree
-    rootMetaEvent = metaEvent_construct("ROOT", netDisk);
-    leafMetaEvent = metaEvent_construct("LEAF1", netDisk);
+    rootMetaEvent = metaEvent_construct("ROOT", cactusDisk);
+    leafMetaEvent = metaEvent_construct("LEAF1", cactusDisk);
     eventTree = eventTree_construct(rootMetaEvent, net);
     rootEvent = eventTree_getRootEvent(eventTree);
     leafEvent = event_construct(leafMetaEvent, 0.2, rootEvent, eventTree);
 
     //Sequences
     metaSequence1 = metaSequence_construct(1, 10, "ACTGACTGAC", ">one",
-            metaEvent_getName(leafMetaEvent), netDisk);
+            metaEvent_getName(leafMetaEvent), cactusDisk);
     sequence1 = sequence_construct(metaSequence1, net);
 
     metaSequence2 = metaSequence_construct(1, 8, "AACCGGAA", ">two",
-            metaEvent_getName(leafMetaEvent), netDisk);
+            metaEvent_getName(leafMetaEvent), cactusDisk);
     sequence2 = sequence_construct(metaSequence2, net);
 
     metaSequence3 = metaSequence_construct(1, 4, "CGGG", ">three",
-                metaEvent_getName(leafMetaEvent), netDisk);
+                metaEvent_getName(leafMetaEvent), cactusDisk);
     sequence3 = sequence_construct(metaSequence3, net);
 
     metaSequence4 = metaSequence_construct(1, 1, "C", ">four",
-                    metaEvent_getName(leafMetaEvent), netDisk);
+                    metaEvent_getName(leafMetaEvent), cactusDisk);
     sequence4 = sequence_construct(metaSequence4, net);
 
     //Ends

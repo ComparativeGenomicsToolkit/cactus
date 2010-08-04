@@ -34,7 +34,7 @@ int main(int argc, char *argv[]) {
 	 * The script builds a cactus tree representation of the chains and nets.
 	 * The format of the output graph is dot format.
 	 */
-	NetDisk *netDisk;
+	CactusDisk *netDisk;
 	Net *net;
 	FILE *fileHandle;
 
@@ -121,14 +121,14 @@ int main(int argc, char *argv[]) {
 	//Load the database
 	//////////////////////////////////////////////
 
-	netDisk = netDisk_construct(netDiskName);
+	netDisk = cactusDisk_construct(netDiskName);
 	st_logInfo("Set up the net disk\n");
 
 	///////////////////////////////////////////////////////////////////////////
 	// Parse the basic reconstruction problem
 	///////////////////////////////////////////////////////////////////////////
 
-	net = netDisk_getNet(netDisk, netMisc_stringToName(netName));
+	net = cactusDisk_getNet(netDisk, cactusMisc_stringToName(netName));
 	assert(net != NULL);
 	st_logInfo("Parsed the top level net of the cactus tree to build\n");
 
@@ -145,7 +145,7 @@ int main(int argc, char *argv[]) {
 	// Clean up.
 	///////////////////////////////////////////////////////////////////////////
 
-	netDisk_destruct(netDisk);
+	cactusDisk_destruct(netDisk);
 
 	return 0;
 }

@@ -1,5 +1,5 @@
-#ifndef CACTUS_NET_H_
-#define CACTUS_NET_H_
+#ifndef CACTUS_FLOWER_H_
+#define CACTUS_FLOWER_H_
 
 #include "cactusGlobals.h"
 
@@ -14,7 +14,7 @@
 /*
  * Constructs the net.
  */
-Net *net_construct(NetDisk *netDisk);
+Net *net_construct(CactusDisk *cactusDisk);
 
 /*
  * Gets the name of the net.
@@ -24,7 +24,7 @@ Name net_getName(Net *net);
 /*
  * Gets the parent net disk.
  */
-NetDisk *net_getNetDisk(Net *net);
+CactusDisk *net_getNetDisk(Net *net);
 
 /*
  * Gets the net tree associated with the event tree.

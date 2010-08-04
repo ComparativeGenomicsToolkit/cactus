@@ -151,7 +151,7 @@ char *formatSequenceHeader(Sequence *sequence) {
       return cA;
    }
    else {
-      return netMisc_nameToString(sequence_getName(sequence));
+      return cactusMisc_nameToString(sequence_getName(sequence));
    }
 }
 
@@ -1092,7 +1092,7 @@ void getPSLs(Net *net, FILE *fileHandle, char *query, char *target, int *starts,
    /*
     *Print to output file PSLs of net and all (nested) nets in the lower levels
     */
-   char *netName = netMisc_nameToString(net_getName(net));
+   char *netName = cactusMisc_nameToString(net_getName(net));
    fprintf(stderr, "\nNET: %s\n", netName);
    int i, start, end;
    Cap *qstartCap = net_getThreadStart(net, query);
@@ -1211,7 +1211,7 @@ void usage() {
 
 //============================== MAIN =========================================
 int main(int argc, char *argv[]) {
-   NetDisk *netDisk;
+   CactusDisk *netDisk;
    Net *net;
 
    /*
@@ -1326,14 +1326,14 @@ int main(int argc, char *argv[]) {
    //Load the database
    //////////////////////////////////////////////
 
-   netDisk = netDisk_construct(netDiskName);
+   netDisk = cactusDisk_construct(netDiskName);
    st_logInfo("Set up the net disk\n");
 
    ///////////////////////////////////////////////////////////////////////////
    // Parse the basic reconstruction problem
    ///////////////////////////////////////////////////////////////////////////
    netName = stString_copy("0");
-   net = netDisk_getNet(netDisk, netMisc_stringToName(netName));
+   net = cactusDisk_getNet(netDisk, cactusMisc_stringToName(netName));
    st_logInfo("Parsed the top level net of the cactus tree to check\n");
 
    ///////////////////////////////////////////////////////////////////////////
@@ -1355,7 +1355,7 @@ int main(int argc, char *argv[]) {
    // Clean up.
    ///////////////////////////////////////////////////////////////////////////
 
-   netDisk_destruct(netDisk);
+   cactusDisk_destruct(netDisk);
 
    return 0;
 }

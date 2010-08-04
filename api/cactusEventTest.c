@@ -1,6 +1,6 @@
 #include "cactusGlobalsPrivate.h"
 
-static NetDisk *netDisk = NULL;
+static CactusDisk *cactusDisk = NULL;
 static Net *net;
 
 static MetaEvent *rootMetaEvent;
@@ -18,10 +18,10 @@ static EventTree *eventTree;
 static bool nestedTest = 0;
 
 static void cactusEventTestTeardown() {
-	if(!nestedTest && netDisk != NULL) {
-		netDisk_destruct(netDisk);
+	if(!nestedTest && cactusDisk != NULL) {
+		cactusDisk_destruct(cactusDisk);
 		testCommon_deleteTemporaryNetDisk();
-		netDisk = NULL;
+		cactusDisk = NULL;
 		eventTree = NULL;
 		rootEvent = NULL;
 		internalEvent = NULL;
@@ -33,11 +33,11 @@ static void cactusEventTestTeardown() {
 static void cactusEventTestSetup() {
 	if(!nestedTest) {
 		cactusEventTestTeardown();
-		netDisk = netDisk_construct(testCommon_getTemporaryNetDisk());
-		net = net_construct(netDisk);
-		internalMetaEvent = metaEvent_construct("INTERNAL", netDisk);
-		leafMetaEvent1 = metaEvent_construct("LEAF1", netDisk);
-		leafMetaEvent2 = metaEvent_construct("LEAF2", netDisk);
+		cactusDisk = cactusDisk_construct(testCommon_getTemporaryNetDisk());
+		net = net_construct(cactusDisk);
+		internalMetaEvent = metaEvent_construct("INTERNAL", cactusDisk);
+		leafMetaEvent1 = metaEvent_construct("LEAF1", cactusDisk);
+		leafMetaEvent2 = metaEvent_construct("LEAF2", cactusDisk);
 		eventTree = net_getEventTree(net);
 		rootEvent = eventTree_getRootEvent(eventTree);
 		rootMetaEvent = event_getMetaEvent(rootEvent);

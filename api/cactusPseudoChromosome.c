@@ -10,7 +10,7 @@
 
 PseudoChromosome *pseudoChromosome_construct(Reference *reference,
 		End *_5End, End *_3End) {
-	return pseudoChromosome_construct2(netDisk_getUniqueID(net_getNetDisk(reference_getNet(reference))),
+	return pseudoChromosome_construct2(cactusDisk_getUniqueID(net_getNetDisk(reference_getNet(reference))),
 			reference, _5End, _3End);
 }
 
@@ -77,7 +77,7 @@ void pseudoChromosome_destructPseudoAdjacencyIterator(PseudoChromsome_PseudoAdja
 ////////////////////////////////////////////////
 
 static int pseudoChromosome_constructP(const void *o1, const void *o2) {
-	return netMisc_nameCompare(pseudoAdjacency_getName((PseudoAdjacency *)o1),
+	return cactusMisc_nameCompare(pseudoAdjacency_getName((PseudoAdjacency *)o1),
 							   pseudoAdjacency_getName((PseudoAdjacency *)o2));
 }
 

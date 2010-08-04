@@ -8,7 +8,7 @@
 ////////////////////////////////////////////////
 ////////////////////////////////////////////////
 
-char netMisc_reverseComplementChar(char c) {
+char cactusMisc_reverseComplementChar(char c) {
 	switch(c) {
 		case 'a':
 			return 't';
@@ -31,7 +31,7 @@ char netMisc_reverseComplementChar(char c) {
 	}
 }
 
-char *netMisc_reverseComplementString(const char *string) {
+char *cactusMisc_reverseComplementString(const char *string) {
 	int32_t i, j;
 
 	j = strlen(string);
@@ -39,17 +39,17 @@ char *netMisc_reverseComplementString(const char *string) {
 
 	cA = st_malloc(sizeof(char) *(j+1));
 	for(i=0; i<j; i++) {
-		cA[i] = netMisc_reverseComplementChar(string[j-1-i]);
+		cA[i] = cactusMisc_reverseComplementChar(string[j-1-i]);
 	}
 	cA[j] = '\0';
 	return cA;
 }
 
-int32_t netMisc_nameCompare(Name name1, Name name2) {
+int32_t cactusMisc_nameCompare(Name name1, Name name2) {
 	return name1 - name2 > 0 ? 1 : (name1 < name2 ? -1 : 0); //cautious, to avoid 32bit overflows.
 }
 
-Name netMisc_stringToName(const char *stringName) {
+Name cactusMisc_stringToName(const char *stringName) {
 	assert(stringName != NULL);
 	Name name;
 	int32_t i = sscanf(stringName, NAME_STRING, &name);
@@ -60,29 +60,29 @@ Name netMisc_stringToName(const char *stringName) {
 	return name;
 }
 
-char *netMisc_nameToString(Name name) {
+char *cactusMisc_nameToString(Name name) {
 	char *cA;
 	cA = st_malloc(sizeof(char)*21);
 	sprintf(cA, NAME_STRING, name);
 	return cA;
 }
 
-const char *netMisc_nameToStringStatic(Name name) {
+const char *cactusMisc_nameToStringStatic(Name name) {
 	static char cA[100];
 	sprintf(cA, NAME_STRING, name);
 	return cA;
 }
 
-char *netMisc_nameToStringWithOrientation(Name name, int32_t orientation) {
+char *cactusMisc_nameToStringWithOrientation(Name name, int32_t orientation) {
 	char *cA;
 	cA = st_malloc(sizeof(char)*22);
-	sprintf(cA, orientation ? "%s" : "-%s", netMisc_nameToStringStatic(name));
+	sprintf(cA, orientation ? "%s" : "-%s", cactusMisc_nameToStringStatic(name));
 	return cA;
 }
 
-const char *netMisc_nameToStringStaticWithOrientiation(Name name, int32_t orientation) {
+const char *cactusMisc_nameToStringStaticWithOrientiation(Name name, int32_t orientation) {
 	static char cA[100];
-	sprintf(cA, orientation ? "%s" : "-%s", netMisc_nameToStringStatic(name));
+	sprintf(cA, orientation ? "%s" : "-%s", cactusMisc_nameToStringStatic(name));
 	return cA;
 }
 

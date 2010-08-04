@@ -1,29 +1,28 @@
-#ifndef CACTUS_NET_PRIVATE_H_
-#define CACTUS_NET_PRIVATE_H_
+#ifndef CACTUS_FLOWER_PRIVATE_H_
+#define CACTUS_FLOWER_PRIVATE_H_
 
 #include "cactusGlobals.h"
 
 struct _net {
-	Name name;
-	EventTree *eventTree;
-	Reference *reference;
-	stSortedSet *sequences;
-	stSortedSet *ends;
-	stSortedSet *caps;
-	stSortedSet *blocks;
-	stSortedSet *segments;
-	stSortedSet *groups;
-	stSortedSet *chains;
-	stSortedSet *faces;
-	Name parentNetName;
-	NetDisk *netDisk;
-	int32_t faceIndex;
-	int32_t chainIndex;
-	bool builtBlocks;
-	bool builtTrees;
-	bool builtFaces;
+    Name name;
+    EventTree *eventTree;
+    Reference *reference;
+    stSortedSet *sequences;
+    stSortedSet *ends;
+    stSortedSet *caps;
+    stSortedSet *blocks;
+    stSortedSet *segments;
+    stSortedSet *groups;
+    stSortedSet *chains;
+    stSortedSet *faces;
+    Name parentNetName;
+    CactusDisk *cactusDisk;
+    int32_t faceIndex;
+    int32_t chainIndex;
+    bool builtBlocks;
+    bool builtTrees;
+    bool builtFaces;
 };
-
 
 ////////////////////////////////////////////////
 ////////////////////////////////////////////////
@@ -36,7 +35,7 @@ struct _net {
 /*
  * Constructs the net.
  */
-Net *net_construct2(Name name, NetDisk *netDisk);
+Net *net_construct2(Name name, CactusDisk *cactusDisk);
 
 /*
  * Destructs the net, and all the elements it contains. If recursive the function will destroy all
@@ -169,11 +168,12 @@ void net_destructFaces(Net *net);
 /*
  * Write a binary representation of the net to the write function.
  */
-void net_writeBinaryRepresentation(Net *net, void (*writeFn)(const void * ptr, size_t size, size_t count));
+void net_writeBinaryRepresentation(Net *net, void(*writeFn)(const void * ptr,
+        size_t size, size_t count));
 
 /*
  * Loads a net into memory from a binary representation of the net.
  */
-Net *net_loadFromBinaryRepresentation(void **binaryString, NetDisk *netDisk);
+Net *net_loadFromBinaryRepresentation(void **binaryString, CactusDisk *cactusDisk);
 
 #endif

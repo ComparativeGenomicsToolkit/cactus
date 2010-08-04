@@ -18,7 +18,7 @@
  * This function is NOT thread safe, do not try to have concurrent instances of this function!
  */
 MetaSequence *metaSequence_construct(int32_t start, int32_t length, const char *string, const char *header,
-		Name eventName, NetDisk *netDisk);
+		Name eventName, CactusDisk *cactusDisk);
 
 /*
  * Gets the name of the sequence.

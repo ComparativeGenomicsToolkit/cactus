@@ -9,7 +9,7 @@
 ////////////////////////////////////////////////
 
 Chain *chain_construct(Net *net) {
-    return chain_construct2(netDisk_getUniqueID(net_getNetDisk(net)), net);
+    return chain_construct2(cactusDisk_getUniqueID(net_getNetDisk(net)), net);
 }
 
 Chain *chain_construct2(Name name, Net *net) {

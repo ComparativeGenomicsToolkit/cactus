@@ -585,7 +585,7 @@ static Event *fillingIn_interpolateEvents(Event* parentEvent, Event* childEvent)
     float branchLength;
     EventTree * eventTree = event_getEventTree(parentEvent);
     Net * net = eventTree_getNet(eventTree);
-    NetDisk * netDisk = net_getNetDisk(net);
+    CactusDisk * netDisk = net_getNetDisk(net);
     MetaEvent * metaEvent;
     Event * ptr = childEvent;
     Event * result;
@@ -1172,7 +1172,7 @@ int main(int argc, char ** argv) {
      * (3) It copies the relevant augmented events into the event trees of its descendants.
      *
      */
-    NetDisk *netDisk;
+    CactusDisk *netDisk;
     Net *net;
     int32_t startTime;
     int32_t j;
@@ -1248,7 +1248,7 @@ int main(int argc, char ** argv) {
     //Load the database
     //////////////////////////////////////////////
 
-    netDisk = netDisk_construct(netDiskName);
+    netDisk = cactusDisk_construct(netDiskName);
     st_logInfo("Set up the net disk\n");
 
     //////////////////////////////////////////////
@@ -1263,7 +1263,7 @@ int main(int argc, char ** argv) {
 	// Parse the basic reconstruction problem
 	///////////////////////////////////////////////////////////////////////////
 
-	net = netDisk_getNet(netDisk, netMisc_stringToName(netName));
+	net = cactusDisk_getNet(netDisk, cactusMisc_stringToName(netName));
 	assert(net_builtTrees(net)); //we must have already built the trees for the problem at this stage
 	st_logInfo("Parsed the net to be refined\n");
 
@@ -1310,7 +1310,7 @@ int main(int argc, char ** argv) {
     ///////////////////////////////////////////////////////////////////////////
 
     startTime = time(NULL);
-    netDisk_write(netDisk);
+    cactusDisk_write(netDisk);
     st_logInfo("Updated the net on disk in: %i seconds\n", time(NULL) - startTime);
 
     ///////////////////////////////////////////////////////////////////////////
@@ -1319,7 +1319,7 @@ int main(int argc, char ** argv) {
 
     //Destruct stuff
     startTime = time(NULL);
-    netDisk_destruct(netDisk);
+    cactusDisk_destruct(netDisk);
 
     st_logInfo("Cleaned stuff up and am finished in: %i seconds\n", time(NULL) - startTime);
     return 0;

@@ -1,6 +1,6 @@
 #include "cactusGlobalsPrivate.h"
 
-static NetDisk * netDisk;
+static CactusDisk * cactusDisk;
 static Net * net;
 static MetaEvent *rootMetaEvent;
 static MetaEvent *leafMetaEvent;
@@ -13,20 +13,20 @@ static Cap * bottomCap1, * bottomCap2, *bottomCap3, *bottomCap4;
 static Face * face;
 
 static void cactusFacesTestSharedTeardown() {
-	if(netDisk != NULL) {
-		netDisk_destruct(netDisk);
+	if(cactusDisk != NULL) {
+		cactusDisk_destruct(cactusDisk);
 		testCommon_deleteTemporaryNetDisk();
-		netDisk = NULL;
+		cactusDisk = NULL;
 	}
 }
 
 static void cactusFacesTestSharedSetup() {
 	cactusFacesTestSharedTeardown();
-	netDisk = netDisk_construct(testCommon_getTemporaryNetDisk());
-	net = net_construct(netDisk);
+	cactusDisk = cactusDisk_construct(testCommon_getTemporaryNetDisk());
+	net = net_construct(cactusDisk);
 
-	rootMetaEvent = metaEvent_construct("ROOT", netDisk);
-	leafMetaEvent = metaEvent_construct("LEAF1", netDisk);
+	rootMetaEvent = metaEvent_construct("ROOT", cactusDisk);
+	leafMetaEvent = metaEvent_construct("LEAF1", cactusDisk);
 
 	eventTree = eventTree_construct(rootMetaEvent, net);
 

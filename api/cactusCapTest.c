@@ -229,7 +229,7 @@ void testCap_getTopCap(CuTest* testCase) {
     End *end2 = end_construct(0, net);
     End *end3 = end_construct(0, net);
     Event *intermediateEvent = event_construct2(metaEvent_construct(NULL,
-            netDisk), 0.0, rootEvent, leafEvent, eventTree);
+            cactusDisk), 0.0, rootEvent, leafEvent, eventTree);
 
     Cap *cap1T = cap_construct(end1, rootEvent);
     Cap *cap1I = cap_construct(end1, intermediateEvent);

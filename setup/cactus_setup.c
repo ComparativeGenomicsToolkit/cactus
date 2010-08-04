@@ -28,7 +28,7 @@ void usage() {
  */
 int32_t isComplete = 1;
 char * netDiskName = NULL;
-NetDisk *netDisk;
+CactusDisk *netDisk;
 Net *net;
 EventTree *eventTree;
 Event *event;
@@ -176,15 +176,15 @@ int main(int argc, char *argv[]) {
 	//Load the database
 	//////////////////////////////////////////////
 
-	netDisk = netDisk_construct(netDiskName);
+	netDisk = cactusDisk_construct(netDiskName);
 	st_logInfo("Set up the net disk\n");
 
 	//////////////////////////////////////////////
 	//Construct the net
 	//////////////////////////////////////////////
 
-	if(netDisk_getNetNumberOnDisk(netDisk) != 0) {
-		netDisk_destruct(netDisk);
+	if(cactusDisk_getNetNumberOnDisk(netDisk) != 0) {
+		cactusDisk_destruct(netDisk);
 		st_logInfo("The first net already exists\n");
 		return 0;
 	}
@@ -287,27 +287,27 @@ int main(int argc, char *argv[]) {
 	// Write the net to disk.
 	///////////////////////////////////////////////////////////////////////////
 
-	netDisk_write(netDisk);
+	cactusDisk_write(netDisk);
 	st_logInfo("Updated the net on disk\n");
 
 	///////////////////////////////////////////////////////////////////////////
 	// Cleanup.
 	///////////////////////////////////////////////////////////////////////////
 
-	netDisk_destruct(netDisk);
+	cactusDisk_destruct(netDisk);
 
 	///////////////////////////////////////////////////////////////////////////
 	// Debug
 	///////////////////////////////////////////////////////////////////////////
 
 	if(debug) {
-		netDisk = netDisk_construct(netDiskName);
-		net = netDisk_getNet(netDisk, 0);
+		netDisk = cactusDisk_construct(netDiskName);
+		net = cactusDisk_getNet(netDisk, 0);
 		assert(net != NULL);
 		assert(net_getSequenceNumber(net) == totalSequenceNumber);
 		assert(net_getEndNumber(net) == 2*totalSequenceNumber);
 		assert(eventTree_getEventNumber(net_getEventTree(net)) == totalEventNumber);
-		netDisk_destruct(netDisk);
+		cactusDisk_destruct(netDisk);
 	}
 
 	return 0;

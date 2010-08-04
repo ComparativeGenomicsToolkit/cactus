@@ -1,6 +1,6 @@
 #include "cactusGlobalsPrivate.h"
 
-static NetDisk *netDisk;
+static CactusDisk *cactusDisk;
 static MetaEvent *metaEvent;
 static MetaSequence *metaSequence;
 static const char *sequenceString = "ACTGGCACTG";
@@ -9,10 +9,10 @@ static const char *headerString = ">one";
 static bool nestedTest = 0;
 
 static void cactusMetaSequenceTestTeardown() {
-	if(!nestedTest && netDisk != NULL) {
-		netDisk_destruct(netDisk);
+	if(!nestedTest && cactusDisk != NULL) {
+		cactusDisk_destruct(cactusDisk);
 		testCommon_deleteTemporaryNetDisk();
-		netDisk = NULL;
+		cactusDisk = NULL;
 		metaEvent = NULL;
 		metaSequence = NULL;
 	}
@@ -21,17 +21,17 @@ static void cactusMetaSequenceTestTeardown() {
 static void cactusMetaSequenceTestSetup() {
 	if(!nestedTest) {
 		cactusMetaSequenceTestTeardown();
-		netDisk = netDisk_construct(testCommon_getTemporaryNetDisk());
-		metaEvent = metaEvent_construct("ROOT", netDisk);
+		cactusDisk = cactusDisk_construct(testCommon_getTemporaryNetDisk());
+		metaEvent = metaEvent_construct("ROOT", cactusDisk);
 		metaSequence = metaSequence_construct(1, 10, sequenceString,
-					   headerString, metaEvent_getName(metaEvent), netDisk);
+					   headerString, metaEvent_getName(metaEvent), cactusDisk);
 	}
 }
 
 void testMetaSequence_getName(CuTest* testCase) {
 	cactusMetaSequenceTestSetup();
 	CuAssertTrue(testCase, metaSequence_getName(metaSequence) != NULL_NAME);
-	CuAssertTrue(testCase, netDisk_getMetaSequence(netDisk, metaSequence_getName(metaSequence)) == metaSequence);
+	CuAssertTrue(testCase, cactusDisk_getMetaSequence(cactusDisk, metaSequence_getName(metaSequence)) == metaSequence);
 	cactusMetaSequenceTestTeardown();
 }
 
@@ -75,21 +75,21 @@ void testMetaSequence_serialisation(CuTest* testCase) {
 	cactusMetaSequenceTestSetup();
 	int32_t i;
 	Name name = metaSequence_getName(metaSequence);
-	CuAssertTrue(testCase, netDisk_getMetaSequence(netDisk, name) == metaSequence);
+	CuAssertTrue(testCase, cactusDisk_getMetaSequence(cactusDisk, name) == metaSequence);
 	void *vA = binaryRepresentation_makeBinaryRepresentation(metaSequence,
 			(void (*)(void *, void (*)(const void *, size_t, size_t)))metaSequence_writeBinaryRepresentation, &i);
 	CuAssertTrue(testCase, i > 0);
 	metaSequence_destruct(metaSequence);
-	CuAssertTrue(testCase, netDisk_getMetaSequence(netDisk, name) == NULL);
+	CuAssertTrue(testCase, cactusDisk_getMetaSequence(cactusDisk, name) == NULL);
 	void *vA2 = vA;
-	metaSequence = metaSequence_loadFromBinaryRepresentation(&vA2, netDisk);
+	metaSequence = metaSequence_loadFromBinaryRepresentation(&vA2, cactusDisk);
 	CuAssertTrue(testCase, name == metaSequence_getName(metaSequence));
 	CuAssertStrEquals(testCase, headerString, metaSequence_getHeader(metaSequence));
-	CuAssertTrue(testCase, netDisk_getMetaSequence(netDisk, name) == metaSequence);
-	netDisk_write(netDisk);
+	CuAssertTrue(testCase, cactusDisk_getMetaSequence(cactusDisk, name) == metaSequence);
+	cactusDisk_write(cactusDisk);
 	metaSequence_destruct(metaSequence);
-	CuAssertTrue(testCase, netDisk_getMetaSequence(netDisk, name) != NULL);
-	metaSequence = netDisk_getMetaSequence(netDisk, name);
+	CuAssertTrue(testCase, cactusDisk_getMetaSequence(cactusDisk, name) != NULL);
+	metaSequence = cactusDisk_getMetaSequence(cactusDisk, name);
 	nestedTest = 1;
 	testMetaSequence_getName(testCase);
 	testMetaSequence_getStart(testCase);

@@ -107,7 +107,7 @@ void addTangle(Group *group, stHash *endToPseudoAdjacencyHash, void *extraArgume
 					if((end_isBlockEnd(adjacentEnd) || end_isAttached(adjacentEnd)) &&
 					   adjacentEnd != otherEnd) {
 						if(stHash_search(edgesHash, adjacentEnd) == NULL) {
-							if(netMisc_nameCompare(end_getName(end), end_getName(adjacentEnd)) == 1) { //only add in one direction
+							if(cactusMisc_nameCompare(end_getName(end), end_getName(adjacentEnd)) == 1) { //only add in one direction
 								addAdjacencyEdge(end, adjacentEnd, extraArgument);
 							}
 							stHash_insert(edgesHash, adjacentEnd, adjacentEnd);

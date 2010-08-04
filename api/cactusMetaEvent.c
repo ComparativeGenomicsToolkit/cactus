@@ -9,18 +9,18 @@
 ////////////////////////////////////////////////
 
 MetaEvent *metaEvent_construct(const char *header,
-		NetDisk *netDisk) {
-	return metaEvent_construct2(netDisk_getUniqueID(netDisk), header, netDisk);
+		CactusDisk *cactusDisk) {
+	return metaEvent_construct2(cactusDisk_getUniqueID(cactusDisk), header, cactusDisk);
 }
 
 MetaEvent *metaEvent_construct2(Name name, const char *header,
-		NetDisk *netDisk) {
+		CactusDisk *cactusDisk) {
 	MetaEvent *metaEvent;
 	metaEvent = st_malloc(sizeof(MetaEvent));
 	metaEvent->name = name;
 	metaEvent->header = stString_copy(header != NULL ? header : "");
-	metaEvent->netDisk = netDisk;
-	netDisk_addMetaEvent(netDisk, metaEvent);
+	metaEvent->cactusDisk = cactusDisk;
+	cactusDisk_addMetaEvent(cactusDisk, metaEvent);
 	return metaEvent;
 }
 
@@ -33,7 +33,7 @@ const char *metaEvent_getHeader(MetaEvent *metaEvent) {
 }
 
 void metaEvent_destruct(MetaEvent *metaEvent) {
-	netDisk_unloadMetaEvent(metaEvent->netDisk, metaEvent);
+	cactusDisk_unloadMetaEvent(metaEvent->cactusDisk, metaEvent);
 	free(metaEvent->header);
 	free(metaEvent);
 }
@@ -48,7 +48,7 @@ void metaEvent_writeBinaryRepresentation(MetaEvent *metaEvent, void (*writeFn)(c
 	binaryRepresentation_writeString(metaEvent_getHeader(metaEvent), writeFn);
 }
 
-MetaEvent *metaEvent_loadFromBinaryRepresentation(void **binaryString, NetDisk *netDisk) {
+MetaEvent *metaEvent_loadFromBinaryRepresentation(void **binaryString, CactusDisk *cactusDisk) {
 	MetaEvent *metaEvent;
 	Name name;
 	char *header;
@@ -58,7 +58,7 @@ MetaEvent *metaEvent_loadFromBinaryRepresentation(void **binaryString, NetDisk *
 		binaryRepresentation_popNextElementType(binaryString);
 		name = binaryRepresentation_getName(binaryString);
 		header = binaryRepresentation_getString(binaryString);
-		metaEvent = metaEvent_construct2(name, header, netDisk);
+		metaEvent = metaEvent_construct2(name, header, cactusDisk);
 		free(header);
 	}
 	return metaEvent;

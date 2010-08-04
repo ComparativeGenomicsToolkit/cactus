@@ -93,7 +93,7 @@ int main(int argc, char *argv[]) {
     //Load the database
     //////////////////////////////////////////////
 
-    NetDisk *netDisk = netDisk_construct(netDiskName);
+    CactusDisk *netDisk = cactusDisk_construct(netDiskName);
     st_logInfo("Set up the net disk\n");
 
     ///////////////////////////////////////////////////////////////////////////
@@ -106,7 +106,7 @@ int main(int argc, char *argv[]) {
          */
         const char *netName = argv[j];
         st_logInfo("Processing the net named: %s\n", netName);
-        Net *net = netDisk_getNet(netDisk, netMisc_stringToName(netName));
+        Net *net = cactusDisk_getNet(netDisk, cactusMisc_stringToName(netName));
         assert(net != NULL);
         st_logInfo("Parsed the net to normalise\n");
 
@@ -124,7 +124,7 @@ int main(int argc, char *argv[]) {
     // Write the net(s) back to disk.
     ///////////////////////////////////////////////////////////////////////////
 
-    netDisk_write(netDisk);
+    cactusDisk_write(netDisk);
     st_logInfo("Updated the net on disk\n");
 
     ///////////////////////////////////////////////////////////////////////////
@@ -132,7 +132,7 @@ int main(int argc, char *argv[]) {
     ///////////////////////////////////////////////////////////////////////////
 
     //Destruct stuff
-    netDisk_destruct(netDisk);
+    cactusDisk_destruct(netDisk);
 
     st_logInfo("Cleaned stuff up and am finished\n");
     return 0;

@@ -63,7 +63,7 @@ int main(int argc, char *argv[]) {
      * Script for adding alignments to cactus tree.
      */
     int32_t startTime;
-    NetDisk *netDisk;
+    CactusDisk *netDisk;
     Net *net;
     int key;
 
@@ -207,14 +207,14 @@ int main(int argc, char *argv[]) {
     //Load the database
     //////////////////////////////////////////////
 
-    netDisk = netDisk_construct(netDiskName);
+    netDisk = cactusDisk_construct(netDiskName);
     st_logInfo("Set up the net disk\n");
 
     ///////////////////////////////////////////////////////////////////////////
     // Parse the basic reconstruction problem
     ///////////////////////////////////////////////////////////////////////////
 
-    net = netDisk_getNet(netDisk, netMisc_stringToName(netName));
+    net = cactusDisk_getNet(netDisk, cactusMisc_stringToName(netName));
     st_logInfo("Parsed the net to be refined\n");
 
     if (!net_builtBlocks(net)) { // Do nothing if the net already has defined blocks
@@ -234,7 +234,7 @@ int main(int argc, char *argv[]) {
         // (9) Write the net to disk.
         ///////////////////////////////////////////////////////////////////////////
 
-        netDisk_write(netDisk);
+        cactusDisk_write(netDisk);
         st_logInfo("Updated the net on disk\n");
     } else {
         st_logInfo("We've already built blocks / alignments for this net\n");
@@ -246,7 +246,7 @@ int main(int argc, char *argv[]) {
 
     //Destruct stuff
     startTime = time(NULL);
-    netDisk_destruct(netDisk);
+    cactusDisk_destruct(netDisk);
 
     st_logInfo("Cleaned stuff up and am finished in: %i seconds\n", time(NULL)
             - startTime);

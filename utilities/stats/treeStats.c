@@ -715,7 +715,7 @@ void reportNetDiskStats(char *netDiskName, Net *net, FILE *fileHandle) {
     fprintf(
             fileHandle,
             "<stats net_disk=\"%s\" net_name=\"%s\" total_sequence_length=\"%f\" >",
-            netDiskName, netMisc_nameToStringStatic(net_getName(net)),
+            netDiskName, cactusMisc_nameToStringStatic(net_getName(net)),
             totalSeqSize);
 
     /*

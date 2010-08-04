@@ -31,8 +31,8 @@ static struct PairwiseAlignment *getAlignments() {
     }
     struct List *opList = constructEmptyList(0, NULL);
     listAppend(opList, constructAlignmentOperation(PAIRWISE_MATCH, 1, 0.0));
-    char *cA = netMisc_nameToString(alignedPair->sequence);
-    char *cA2 = netMisc_nameToString(alignedPair->reverse->sequence);
+    char *cA = cactusMisc_nameToString(alignedPair->sequence);
+    char *cA2 = cactusMisc_nameToString(alignedPair->reverse->sequence);
 
     int32_t i = alignedPair->position;
     int32_t j = i + 1;
@@ -122,7 +122,7 @@ int main(int argc, char *argv[]) {
     /*
      * Load the netdisk
      */
-    NetDisk *netDisk = netDisk_construct(netDiskName);
+    CactusDisk *netDisk = cactusDisk_construct(netDiskName);
     st_logInfo("Set up the net disk\n");
 
     /*
@@ -134,7 +134,7 @@ int main(int argc, char *argv[]) {
          */
         const char *netName = argv[j];
         st_logInfo("Processing the net named: %s\n", netName);
-        Net *net = netDisk_getNet(netDisk, netMisc_stringToName(netName));
+        Net *net = cactusDisk_getNet(netDisk, cactusMisc_stringToName(netName));
         assert(net != NULL);
         st_logInfo("Parsed the net to be aligned\n");
 
@@ -164,8 +164,8 @@ int main(int argc, char *argv[]) {
     /*
      * Write and close the netdisk.
      */
-    netDisk_write(netDisk);
-    netDisk_destruct(netDisk);
+    cactusDisk_write(netDisk);
+    cactusDisk_destruct(netDisk);
     destructCactusCoreInputParameters(cCIP);
     st_logInfo("Finished with the net disk for this net.\n");
 

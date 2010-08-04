@@ -22,7 +22,7 @@ char *formatSequenceHeader(Sequence *sequence) {
         sscanf(sequenceHeader, "%s", cA);
         return cA;
     } else {
-        return netMisc_nameToString(sequence_getName(sequence));
+        return cactusMisc_nameToString(sequence_getName(sequence));
     }
 }
 
@@ -128,7 +128,7 @@ void usage() {
 }
 
 int main(int argc, char *argv[]) {
-    NetDisk *netDisk;
+    CactusDisk *netDisk;
     Net *net;
 
     /*
@@ -212,14 +212,14 @@ int main(int argc, char *argv[]) {
     //Load the database
     //////////////////////////////////////////////
 
-    netDisk = netDisk_construct(netDiskName);
+    netDisk = cactusDisk_construct(netDiskName);
     st_logInfo("Set up the net disk\n");
 
     ///////////////////////////////////////////////////////////////////////////
     // Parse the basic reconstruction problem
     ///////////////////////////////////////////////////////////////////////////
 
-    net = netDisk_getNet(netDisk, netMisc_stringToName(netName));
+    net = cactusDisk_getNet(netDisk, cactusMisc_stringToName(netName));
     st_logInfo("Parsed the top level net of the cactus tree to check\n");
 
     ///////////////////////////////////////////////////////////////////////////
@@ -237,7 +237,7 @@ int main(int argc, char *argv[]) {
     // Clean up.
     ///////////////////////////////////////////////////////////////////////////
 
-    netDisk_destruct(netDisk);
+    cactusDisk_destruct(netDisk);
 
     return 0;
 }

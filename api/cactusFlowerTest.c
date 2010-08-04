@@ -4,7 +4,7 @@
  * Global variables for test.
  */
 
-static NetDisk *netDisk = NULL;
+static CactusDisk *cactusDisk = NULL;
 static Net *net;
 static MetaEvent *metaEvent;
 static EventTree *eventTree;
@@ -33,10 +33,10 @@ static Reference *reference;
  */
 
 static void cactusNetTestTeardown() {
-    if (netDisk != NULL) {
-        netDisk_destruct(netDisk);
+    if (cactusDisk != NULL) {
+        cactusDisk_destruct(cactusDisk);
         testCommon_deleteTemporaryNetDisk();
-        netDisk = NULL;
+        cactusDisk = NULL;
         net = NULL;
         metaEvent = NULL;
         eventTree = NULL;
@@ -48,9 +48,9 @@ static void cactusNetTestTeardown() {
 
 static void cactusNetTestSetup() {
     cactusNetTestTeardown();
-    netDisk = netDisk_construct(testCommon_getTemporaryNetDisk());
-    net = net_construct(netDisk);
-    metaEvent = metaEvent_construct("ROOT", netDisk);
+    cactusDisk = cactusDisk_construct(testCommon_getTemporaryNetDisk());
+    net = net_construct(cactusDisk);
+    metaEvent = metaEvent_construct("ROOT", cactusDisk);
     eventTree = eventTree_construct(metaEvent, net);
     assert(net_getReference(net) == NULL);
     reference = reference_construct(net);
@@ -58,10 +58,10 @@ static void cactusNetTestSetup() {
 
 static void sequenceSetup() {
     metaSequence = metaSequence_construct(0, 10, "ACTGACTGAC", ">one",
-            metaEvent_getName(metaEvent), netDisk);
+            metaEvent_getName(metaEvent), cactusDisk);
     sequence = sequence_construct(metaSequence, net);
     metaSequence2 = metaSequence_construct(0, 10, "ACTGACTGAC", ">two",
-            metaEvent_getName(metaEvent), netDisk);
+            metaEvent_getName(metaEvent), cactusDisk);
     sequence2 = sequence_construct(metaSequence2, net);
 }
 
@@ -93,8 +93,8 @@ static void chainsSetup() {
 }
 
 static void groupsSetup() {
-    group = group_construct(net, net_construct(netDisk));
-    group2 = group_construct(net, net_construct(netDisk));
+    group = group_construct(net, net_construct(cactusDisk));
+    group2 = group_construct(net, net_construct(cactusDisk));
 }
 
 static void facesSetup() {
@@ -172,13 +172,13 @@ void testNet_constructAndDestruct(CuTest* testCase) {
 void testNet_getName(CuTest* testCase) {
     cactusNetTestSetup();
     CuAssertTrue(testCase, net_getName(net) != NULL_NAME);
-    CuAssertTrue(testCase, netDisk_getNet(netDisk, net_getName(net)) == net);
+    CuAssertTrue(testCase, cactusDisk_getNet(cactusDisk, net_getName(net)) == net);
     cactusNetTestTeardown();
 }
 
 void testNet_getNetDisk(CuTest* testCase) {
     cactusNetTestSetup();
-    CuAssertTrue(testCase, net_getNetDisk(net) == netDisk);
+    CuAssertTrue(testCase, net_getNetDisk(net) == cactusDisk);
     cactusNetTestTeardown();
 }
 
@@ -337,18 +337,18 @@ void testNet_getEndNumber(CuTest *testCase) {
 /*void testNet_mergeNets(CuTest *testCase) {
  cactusNetTestSetup();
  //construct the nets to merge...
- Net *net1 = net_construct(netDisk);
- Net *net2 = net_construct(netDisk);
+ Net *net1 = net_construct(cactusDisk);
+ Net *net2 = net_construct(cactusDisk);
 
  //construct nets that are children of the nets to merge.
- Net *net3 = net_construct(netDisk);
- Net *net4 = net_construct(netDisk);
- Net *net5 = net_construct(netDisk);
+ Net *net3 = net_construct(cactusDisk);
+ Net *net4 = net_construct(cactusDisk);
+ Net *net5 = net_construct(cactusDisk);
 
  //Make event tree
- MetaEvent *internalMetaEvent = metaEvent_construct("INTERNAL", netDisk);
- MetaEvent *leafMetaEvent1 = metaEvent_construct("LEAF1", netDisk);
- MetaEvent *leafMetaEvent2 = metaEvent_construct("LEAF2", netDisk);
+ MetaEvent *internalMetaEvent = metaEvent_construct("INTERNAL", cactusDisk);
+ MetaEvent *leafMetaEvent1 = metaEvent_construct("LEAF1", cactusDisk);
+ MetaEvent *leafMetaEvent2 = metaEvent_construct("LEAF2", cactusDisk);
  Event *internalEvent = event_construct(internalMetaEvent, 0.5, eventTree_getRootEvent(eventTree), eventTree);
  Event *leafEvent1 = event_construct(leafMetaEvent1, 0.2, internalEvent, eventTree);
  event_construct(leafMetaEvent2, 1.3, internalEvent, eventTree);
@@ -356,9 +356,9 @@ void testNet_getEndNumber(CuTest *testCase) {
  //Copy the event tree into the children (this is tested by the merge event function)..
  EventTree *eventTree1 = eventTree_copyConstruct(eventTree, net1, NULL);
  eventTree_copyConstruct(eventTree, net2, NULL);
- MetaEvent *unaryInternalMetaEvent1 = metaEvent_construct("UNARY1", netDisk);
- MetaEvent *unaryInternalMetaEvent2 = metaEvent_construct("UNARY2", netDisk);
- MetaEvent *unaryInternalMetaEvent3 = metaEvent_construct("UNARY3", netDisk);
+ MetaEvent *unaryInternalMetaEvent1 = metaEvent_construct("UNARY1", cactusDisk);
+ MetaEvent *unaryInternalMetaEvent2 = metaEvent_construct("UNARY2", cactusDisk);
+ MetaEvent *unaryInternalMetaEvent3 = metaEvent_construct("UNARY3", cactusDisk);
 
  Event *internalEventChild = eventTree_getEvent(eventTree1, event_getName(internalEvent));
  Event *unaryEvent1 = event_construct2(unaryInternalMetaEvent1, 0.1,
@@ -370,9 +370,9 @@ void testNet_getEndNumber(CuTest *testCase) {
  CuAssertTrue(testCase, eventTree_getEventNumber(eventTree1) == 7);
 
  //Make some sequences
- MetaSequence *metaSequence1 = metaSequence_construct(0, 5, "ACTGG", "one", event_getName(unaryEvent1), netDisk);
- MetaSequence *metaSequence2 = metaSequence_construct(0, 5, "CCCCC", "two", event_getName(unaryEvent2), netDisk);
- MetaSequence *metaSequence3 = metaSequence_construct(0, 5, "TTTTT", "three", event_getName(leafEvent1), netDisk);
+ MetaSequence *metaSequence1 = metaSequence_construct(0, 5, "ACTGG", "one", event_getName(unaryEvent1), cactusDisk);
+ MetaSequence *metaSequence2 = metaSequence_construct(0, 5, "CCCCC", "two", event_getName(unaryEvent2), cactusDisk);
+ MetaSequence *metaSequence3 = metaSequence_construct(0, 5, "TTTTT", "three", event_getName(leafEvent1), cactusDisk);
  Sequence *sequence1 = sequence_construct(metaSequence1, net1);
  Sequence *sequence2 = sequence_construct(metaSequence2, net1);
  Sequence *sequence3 = sequence_construct(metaSequence3, net2);
@@ -502,10 +502,10 @@ void testNet_getEndNumber(CuTest *testCase) {
  CuAssertTrue(testCase, link_get3End(link2) == block_get5End(block3));
 
  //Check net1 is no longer in the database anywhere...
- CuAssertTrue(testCase, netDisk_getNet(netDisk, netName1) == NULL);
+ CuAssertTrue(testCase, cactusDisk_getNet(cactusDisk, netName1) == NULL);
 
  //Check the merged net is in the database.
- CuAssertTrue(testCase, netDisk_getNet(netDisk, net_getName(net6)) == net6);
+ CuAssertTrue(testCase, cactusDisk_getNet(cactusDisk, net_getName(net6)) == net6);
 
  cactusNetTestTeardown();
  }*/
@@ -586,18 +586,18 @@ void testNet_removeIfRedundant(CuTest *testCase) {
     Name netName = net_getName(net);
 
     //First construct a redundant net from the root.
-    Net *net2 = net_construct(netDisk);
+    Net *net2 = net_construct(cactusDisk);
     Name net2Name = net_getName(net2);
     Group *group = group_construct(net, net2);
     end_setGroup(end, group);
     end_setGroup(end2, group);
 
     //Now hang another net of that.
-    Net *net3 = net_construct(netDisk);
+    Net *net3 = net_construct(cactusDisk);
     group_construct(net2, net3);
 
     //Finally hang one more net on the end..
-    Net *net4 = net_construct(netDisk);
+    Net *net4 = net_construct(cactusDisk);
     group_construct(net3, net4);
 
     //Copy the ends into the nets.
@@ -611,15 +611,15 @@ void testNet_removeIfRedundant(CuTest *testCase) {
     //st_uglyf("I got %i %i %i %i\n", net_getName(net), net_getName(net2), net_getName(net3), net_getName(net4));
 
     //Write the mess to disk.
-    netDisk_write(netDisk);
+    cactusDisk_write(cactusDisk);
 
     //Now test the removal function (check we get a negative on this leaf).
     CuAssertTrue(testCase, net_removeIfRedundant(net4) == NULL);
 
     //The intermediate node
-    CuAssertIntEquals(testCase, 4, netDisk_getNetNumberInMemory(netDisk));
+    CuAssertIntEquals(testCase, 4, cactusDisk_getNetNumberInMemory(cactusDisk));
     CuAssertTrue(testCase, net_removeIfRedundant(net2) == net3);
-    CuAssertIntEquals(testCase, 3, netDisk_getNetNumberInMemory(netDisk));
+    CuAssertIntEquals(testCase, 3, cactusDisk_getNetNumberInMemory(cactusDisk));
     CuAssertTrue(testCase, net_getName(net3) == net2Name);
     CuAssertTrue(testCase, net_getName(net) == netName);
     //Check the group connection (doubly)
@@ -633,7 +633,7 @@ void testNet_removeIfRedundant(CuTest *testCase) {
 
     //Now check the removal of a root net
     CuAssertTrue(testCase, net_removeIfRedundant(net) == net3);
-    CuAssertIntEquals(testCase, 2, netDisk_getNetNumberInMemory(netDisk));
+    CuAssertIntEquals(testCase, 2, cactusDisk_getNetNumberInMemory(cactusDisk));
     CuAssertTrue(testCase, net_getName(net3) == netName);
     CuAssertTrue(testCase, net_getParentGroup(net3) == NULL);
     CuAssertTrue(testCase, !net_isLeaf(net3));

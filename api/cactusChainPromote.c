@@ -45,7 +45,7 @@ static void mergeStubEnd(End *end, Net *net, Net *parentNet) {
             Cap *parentAdjacentCap = net_getCap(parentNet, cap_getName(
                     adjacentCap));
             assert(parentAdjacentCap != NULL);
-            assert(netDisk_getNet(net_getNetDisk(net), net_getName(end_getNet(cap_getEnd(adjacentCap)))) == end_getNet(cap_getEnd(adjacentCap)));
+            assert(cactusDisk_getNet(net_getNetDisk(net), net_getName(end_getNet(cap_getEnd(adjacentCap)))) == end_getNet(cap_getEnd(adjacentCap)));
             cap_breakAdjacency(cap); //We must remove the old adjacency so it doesn't hang around.
             cap_makeAdjacent(parentCap, parentAdjacentCap);
         }
@@ -229,9 +229,9 @@ static void addToChainList(Chain *chain, int32_t start, int32_t end,
      */
     for (int32_t i = start; i < end; i++) {
         Link *link = chain_getLink(chain, i);
-        stList_append(chainList, netMisc_nameToString(end_getName(link_get3End(
+        stList_append(chainList, cactusMisc_nameToString(end_getName(link_get3End(
                 link))));
-        stList_append(chainList, netMisc_nameToString(end_getName(link_get5End(
+        stList_append(chainList, cactusMisc_nameToString(end_getName(link_get5End(
                 link))));
     }
 }
@@ -254,16 +254,16 @@ static void getMaximalChain_between(Link *parentLink, Chain *chain,
         addToChainList(chain, 0, chain_getLength(chain), chainList);
         if (parent5EndName != _5EndName) { //We need to introduce a link between the other block end and this link..
             assert(end_isBlockEnd(_5End));
-            stList_append(chainList, netMisc_nameToString(end_getName(
+            stList_append(chainList, cactusMisc_nameToString(end_getName(
                     end_getOtherBlockEnd(_5End))));
-            stList_append(chainList, netMisc_nameToString(end_getName(
+            stList_append(chainList, cactusMisc_nameToString(end_getName(
                     parent5End)));
         }
     } else { //We need to introduce a new link..
-        stList_append(chainList, netMisc_nameToString(end_getName(parent3End)));
+        stList_append(chainList, cactusMisc_nameToString(end_getName(parent3End)));
         assert(parent5EndName == _5EndName);
         assert(end_isBlockEnd(_3End));
-        stList_append(chainList, netMisc_nameToString(end_getName(
+        stList_append(chainList, cactusMisc_nameToString(end_getName(
                 end_getOtherBlockEnd(_3End))));
         addToChainList(chain, 0, chain_getLength(chain), chainList);
     }
@@ -365,7 +365,7 @@ void chain_promote(Chain *chain) {
     stListIterator *endIt = stList_getIterator(finalChainList);
     char *endName;
     while ((endName = stList_getNext(endIt)) != NULL) { //Get chains in the parent which we extend..
-        End *end = net_getEnd(parentNet, netMisc_stringToName(endName));
+        End *end = net_getEnd(parentNet, cactusMisc_stringToName(endName));
         if (end != NULL) {
             Link *link = group_getLink(end_getGroup(end));
             if (link != NULL) {
@@ -394,9 +394,9 @@ void chain_promote(Chain *chain) {
     //Make the final chain..
     Chain *newChain = chain_construct(parentNet);
     for (int32_t i = 0; i < stList_length(finalChainList); i += 2) {
-        Name _3EndName = netMisc_stringToName(stList_get(finalChainList, i));
+        Name _3EndName = cactusMisc_stringToName(stList_get(finalChainList, i));
         Name _5EndName =
-                netMisc_stringToName(stList_get(finalChainList, i + 1));
+                cactusMisc_stringToName(stList_get(finalChainList, i + 1));
         End *_3End = net_getEnd(parentNet, _3EndName);
         assert(_3End != NULL);
         End *_5End = net_getEnd(parentNet, _5EndName);

@@ -15,7 +15,7 @@ static void usage() {
 }
 
 int main(int argc, char *argv[]) {
-    NetDisk *netDisk;
+    CactusDisk *netDisk;
     Net *net;
     FILE *fileHandle;
 
@@ -102,14 +102,14 @@ int main(int argc, char *argv[]) {
     //Load the database
     //////////////////////////////////////////////
 
-    netDisk = netDisk_construct(netDiskName);
+    netDisk = cactusDisk_construct(netDiskName);
     st_logInfo("Set up the net disk\n");
 
     ///////////////////////////////////////////////////////////////////////////
     // Parse the basic reconstruction problem
     ///////////////////////////////////////////////////////////////////////////
 
-    net = netDisk_getNet(netDisk, netMisc_stringToName(netName));
+    net = cactusDisk_getNet(netDisk, cactusMisc_stringToName(netName));
     Group *group = net_getFirstGroup(net);
     if(group != NULL && !group_isLeaf(group)) {
     	net = group_getNestedNet(group);
@@ -132,7 +132,7 @@ int main(int argc, char *argv[]) {
     // Clean up.
     ///////////////////////////////////////////////////////////////////////////
 
-    netDisk_destruct(netDisk);
+    cactusDisk_destruct(netDisk);
 
     return 0;
 }

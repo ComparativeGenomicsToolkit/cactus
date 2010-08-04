@@ -1,6 +1,6 @@
 #include "cactusGlobalsPrivate.h"
 
-static NetDisk *netDisk = NULL;
+static CactusDisk *cactusDisk = NULL;
 static Net *net;
 static bool nestedTest = 0;
 
@@ -15,17 +15,17 @@ static PseudoAdjacency *pseudoAdjacency3;
 static PseudoAdjacency *pseudoAdjacency4;
 
 static void cactusReferenceTestSharedTeardown() {
-	if(netDisk != NULL) {
-		netDisk_destruct(netDisk);
+	if(cactusDisk != NULL) {
+		cactusDisk_destruct(cactusDisk);
 		testCommon_deleteTemporaryNetDisk();
-		netDisk = NULL;
+		cactusDisk = NULL;
 	}
 }
 
 static void cactusReferenceTestSharedSetup() {
 	cactusReferenceTestSharedTeardown();
-	netDisk = netDisk_construct(testCommon_getTemporaryNetDisk());
-	net = net_construct(netDisk);
+	cactusDisk = cactusDisk_construct(testCommon_getTemporaryNetDisk());
+	net = net_construct(cactusDisk);
 
 	end1 = end_construct(0, net);
 	block1 = block_construct(1, net);

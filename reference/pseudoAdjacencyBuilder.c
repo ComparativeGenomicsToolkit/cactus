@@ -51,7 +51,7 @@ static AdjacencyPair *adjacencyPair_construct(End *end1, End *end2) {
 	assert(end1 != end2);
 	assert(end_getName(end1) != end_getName(end2));
 	AdjacencyPair *adjacencyPair = st_malloc(sizeof(AdjacencyPair));
-	if(netMisc_nameCompare(end_getName(end1), end_getName(end2)) <= 0) {
+	if(cactusMisc_nameCompare(end_getName(end1), end_getName(end2)) <= 0) {
 		adjacencyPair->end2 = end1;
 		adjacencyPair->end1 = end2;
 	}
@@ -59,7 +59,7 @@ static AdjacencyPair *adjacencyPair_construct(End *end1, End *end2) {
 		adjacencyPair->end1 = end1;
 		adjacencyPair->end2 = end2;
 	}
-	assert(netMisc_nameCompare(end_getName(adjacencyPair_getEnd1(adjacencyPair)), end_getName(adjacencyPair_getEnd2(adjacencyPair))) >= 0);
+	assert(cactusMisc_nameCompare(end_getName(adjacencyPair_getEnd1(adjacencyPair)), end_getName(adjacencyPair_getEnd2(adjacencyPair))) >= 0);
 	return adjacencyPair;
 }
 

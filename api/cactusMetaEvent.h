@@ -15,7 +15,7 @@
  * Constructs a meta event, which contains all the essential info for a event.
  */
 MetaEvent *metaEvent_construct(const char *header,
-		NetDisk *netDisk);
+		CactusDisk *cactusDisk);
 
 /*
  * Gets the name of the event.

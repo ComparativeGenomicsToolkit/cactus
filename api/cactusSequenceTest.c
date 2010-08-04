@@ -1,6 +1,6 @@
 #include "cactusGlobalsPrivate.h"
 
-static NetDisk *netDisk = NULL;
+static CactusDisk *cactusDisk = NULL;
 static Net *net;
 static MetaEvent *metaEvent;
 static EventTree *eventTree;
@@ -12,10 +12,10 @@ static const char *headerString = ">one";
 static bool nestedTest = 0;
 
 void cactusSequenceTestTeardown() {
-	if(!nestedTest && netDisk != NULL) {
-		netDisk_destruct(netDisk);
+	if(!nestedTest && cactusDisk != NULL) {
+		cactusDisk_destruct(cactusDisk);
 		testCommon_deleteTemporaryNetDisk();
-		netDisk = NULL;
+		cactusDisk = NULL;
 		net = NULL;
 		metaEvent = NULL;
 		eventTree = NULL;
@@ -27,12 +27,12 @@ void cactusSequenceTestTeardown() {
 void cactusSequenceTestSetup() {
 	if(!nestedTest) {
 		cactusSequenceTestTeardown();
-		netDisk = netDisk_construct(testCommon_getTemporaryNetDisk());
-		net = net_construct(netDisk);
-		metaEvent = metaEvent_construct("ROOT", netDisk);
+		cactusDisk = cactusDisk_construct(testCommon_getTemporaryNetDisk());
+		net = net_construct(cactusDisk);
+		metaEvent = metaEvent_construct("ROOT", cactusDisk);
 		eventTree = eventTree_construct(metaEvent, net);
 		metaSequence = metaSequence_construct(1, 10, sequenceString,
-						   headerString, metaEvent_getName(metaEvent), netDisk);
+						   headerString, metaEvent_getName(metaEvent), cactusDisk);
 		sequence = sequence_construct(metaSequence, net);
 	}
 }

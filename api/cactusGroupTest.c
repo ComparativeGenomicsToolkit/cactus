@@ -1,6 +1,6 @@
 #include "cactusGlobalsPrivate.h"
 
-static NetDisk *netDisk;
+static CactusDisk *cactusDisk;
 static Net *net;
 static Net *nestedNet;
 static End *end1;
@@ -12,18 +12,18 @@ static End *nestedEnd2;
 static Group *group, *group2;
 
 static void cactusGroupTestTeardown() {
-    if (netDisk != NULL) {
-        netDisk_destruct(netDisk);
+    if (cactusDisk != NULL) {
+        cactusDisk_destruct(cactusDisk);
         testCommon_deleteTemporaryNetDisk();
-        netDisk = NULL;
+        cactusDisk = NULL;
     }
 }
 
 static void cactusGroupTestSetup() {
     cactusGroupTestTeardown();
-    netDisk = netDisk_construct(testCommon_getTemporaryNetDisk());
-    net = net_construct(netDisk);
-    nestedNet = net_construct(netDisk);
+    cactusDisk = cactusDisk_construct(testCommon_getTemporaryNetDisk());
+    net = net_construct(cactusDisk);
+    nestedNet = net_construct(cactusDisk);
     end1 = end_construct2(0, 0, net);
     end2 = end_construct(0, net);
     end3 = end_construct(0, net);
@@ -208,7 +208,7 @@ void testGroup_getTotalBaseLength(CuTest *testCase) {
 
  CuAssertTrue(testCase, group_getTotalBaseLength(group) == 0);
  //cap_construct
- Net *parentNet = net_construct(netDisk);
+ Net *parentNet = net_construct(cactusDisk);
  End *end1 = end_construct(0, parentNet);
  End *end2 = end_construct(0, parentNet);
  End *end3 = end_construct(0, parentNet);

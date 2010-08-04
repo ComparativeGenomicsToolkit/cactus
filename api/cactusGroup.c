@@ -9,7 +9,7 @@
 ////////////////////////////////////////////////
 
 int group_constructP(const void *o1, const void *o2) {
-    return netMisc_nameCompare(end_getName((End *) o1), end_getName((End *) o2));
+    return cactusMisc_nameCompare(end_getName((End *) o1), end_getName((End *) o2));
 }
 
 Group *group_construct(Net *net, Net *nestedNet) {
@@ -24,7 +24,7 @@ Group *group_construct(Net *net, Net *nestedNet) {
 Group *group_construct2(Net *net) {
     Group *group;
 
-    group = group_construct3(net, netDisk_getUniqueID(net_getNetDisk(net)), 1);
+    group = group_construct3(net, cactusDisk_getUniqueID(net_getNetDisk(net)), 1);
     return group;
 }
 
@@ -151,7 +151,7 @@ Name group_getName(Group *group) {
 }
 
 Net *group_getNestedNet(Group *group) {
-    return group_isLeaf(group) ? NULL : netDisk_getNet(net_getNetDisk(
+    return group_isLeaf(group) ? NULL : cactusDisk_getNet(net_getNetDisk(
             group_getNet(group)), group->name);
 }
 

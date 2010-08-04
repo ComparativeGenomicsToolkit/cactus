@@ -163,7 +163,7 @@ void testBlock_getChain(CuTest* testCase) {
     cactusBlockTestSetup();
 
     Block *block2 = block_construct(2, net);
-    Net *net2 = net_construct(netDisk);
+    Net *net2 = net_construct(cactusDisk);
     eventTree_copyConstruct(net_getEventTree(net), net2, NULL);
     end_copyConstruct(block_get3End(block), net2);
     end_copyConstruct(block_get5End(block2), net2);

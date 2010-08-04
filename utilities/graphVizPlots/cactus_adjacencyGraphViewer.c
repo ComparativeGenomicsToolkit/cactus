@@ -37,7 +37,7 @@ static void usage() {
 }
 
 void addEndNodeToGraph(End *end, FILE *fileHandle) {
-    const char *nameString = netMisc_nameToStringStatic(end_getName(end));
+    const char *nameString = cactusMisc_nameToStringStatic(end_getName(end));
     graphViz_addNodeToGraph(nameString, fileHandle, nameString, 0.5, 0.5,
             "circle", "black", 14);
 }
@@ -45,8 +45,8 @@ void addEndNodeToGraph(End *end, FILE *fileHandle) {
 void addEdgeToGraph(End *end1, End *end2, const char *colour,
         const char *label, double length, double weight, const char *direction,
         FILE *fileHandle) {
-    char *nameString1 = netMisc_nameToString(end_getName(end1));
-    char *nameString2 = netMisc_nameToString(end_getName(end2));
+    char *nameString1 = cactusMisc_nameToString(end_getName(end1));
+    char *nameString2 = cactusMisc_nameToString(end_getName(end2));
     graphViz_addEdgeToGraph(nameString1, nameString2, fileHandle,
             nameLabels ? label : "", colour, length, weight, direction);
     free(nameString1);
@@ -65,7 +65,7 @@ void addBlockToGraph(Block *block, const char *colour, FILE *fileHandle) {
         segment = segment_getStrand(segment) ? segment : segment_getReverse(
                 segment);
         if (segment_getSequence(segment) != NULL) {
-            sprintf(label, "%s:%i:%i", netMisc_nameToStringStatic(
+            sprintf(label, "%s:%i:%i", cactusMisc_nameToStringStatic(
                     sequence_getName(segment_getSequence(segment))),
                     segment_getStart(segment), segment_getStart(segment)
                             + segment_getLength(segment));
@@ -126,7 +126,7 @@ void addAdjacencies(Group *group, FILE *fileHandle) {
     while ((end = net_getNextEnd(endIterator)) != NULL) {
         End_InstanceIterator *instanceIterator = end_getInstanceIterator(end);
         Cap *cap;
-        char *netName = netMisc_nameToString(net_getName(net));
+        char *netName = cactusMisc_nameToString(net_getName(net));
         while ((cap = end_getNext(instanceIterator)) != NULL) {
             if (cap_getSequence(cap) != NULL) {
                 cap = cap_getStrand(cap) ? cap : cap_getReverse(cap);
@@ -134,7 +134,7 @@ void addAdjacencies(Group *group, FILE *fileHandle) {
                 if (!cap_getSide(cap)) {
                     assert(cap_getCoordinate(cap) < cap_getCoordinate(cap2));
                     sprintf(label, "%s:%i:%i:%s:%i",
-                            netMisc_nameToStringStatic(sequence_getName(
+                            cactusMisc_nameToStringStatic(sequence_getName(
                                     cap_getSequence(cap))), cap_getCoordinate(
                                     cap), cap_getCoordinate(cap2), netName,
                             net_getEndNumber(net));
@@ -183,7 +183,7 @@ void makeCactusGraph(Net *net, FILE *fileHandle) {
 }
 
 int main(int argc, char *argv[]) {
-    NetDisk *netDisk;
+    CactusDisk *netDisk;
     Net *net;
     FILE *fileHandle;
 
@@ -275,14 +275,14 @@ int main(int argc, char *argv[]) {
     //Load the database
     //////////////////////////////////////////////
 
-    netDisk = netDisk_construct(netDiskName);
+    netDisk = cactusDisk_construct(netDiskName);
     st_logInfo("Set up the net disk\n");
 
     ///////////////////////////////////////////////////////////////////////////
     // Parse the basic reconstruction problem
     ///////////////////////////////////////////////////////////////////////////
 
-    net = netDisk_getNet(netDisk, netMisc_stringToName(netName));
+    net = cactusDisk_getNet(netDisk, cactusMisc_stringToName(netName));
     st_logInfo("Parsed the top level net of the cactus tree to build\n");
 
     ///////////////////////////////////////////////////////////////////////////
@@ -300,7 +300,7 @@ int main(int argc, char *argv[]) {
     // Clean up.
     ///////////////////////////////////////////////////////////////////////////
 
-    netDisk_destruct(netDisk);
+    cactusDisk_destruct(netDisk);
 
     return 0;
 }
