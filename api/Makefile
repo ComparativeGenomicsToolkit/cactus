@@ -2,8 +2,11 @@ include ../../../include.mk
 binPath = ../../../bin
 libPath = ../../../lib
 
-libSources = cactus*.c
-libHeaders = cactus*.h
+libSources = impl/cactus*.c
+libHeaders = inc/cactus*.h
+libInternalHeaders = impl/*.h
+libTests = tests/cactus*.c
+
 cflags += ${tokyoCabinetIncl}
 
 all : ${libPath}/cactusLib.a ${binPath}/cactusAPITests
@@ -11,13 +14,13 @@ all : ${libPath}/cactusLib.a ${binPath}/cactusAPITests
 clean : 
 	rm -f ${libPath}/cactusLib.a ${libPath}/cactus*.h ${binPath}/cactusAPITests
 
-${libPath}/cactusLib.a : ${libSources} ${libHeaders} ${libPath}/sonLib.a 
-	${cxx} ${cflags} -I ${libPath}/ -c ${libSources} 
+${libPath}/cactusLib.a : ${libSources} ${libHeaders} ${libInternalHeaders} ${libPath}/sonLib.a 
+	cp ${libHeaders} ${libPath}/
+	${cxx} ${cflags} -I inc -I ${libPath}/ -c ${libSources}
 	ar rc cactusLib.a *.o
-	ranlib cactusLib.a
+	ranlib cactusLib.a 
 	rm *.o
 	mv cactusLib.a ${libPath}/
-	cp cactus*.h ${libPath}/
 	
-${binPath}/cactusAPITests : ${libSources} ${libHeaders} allTests.c ${libPath}/cactusLib.a ${libPath}/sonLib.a ${libPath}/cuTest.a
-	${cxx} ${cflags} -I ${libPath} -o ${binPath}/cactusAPITests allTests.c ${libPath}/cactusLib.a ${libPath}/sonLib.a ${libPath}/cuTest.a ${tokyoCabinetLib}
+${binPath}/cactusAPITests : ${libTests} ${libSources} ${libHeaders} ${libInternalHeaders} tests/allTests.c ${libPath}/cactusLib.a ${libPath}/sonLib.a ${libPath}/cuTest.a
+	${cxx} ${cflags} -I inc -I ${libPath} -o ${binPath}/cactusAPITests tests/allTests.c ${libTests} ${libPath}/cactusLib.a ${libPath}/sonLib.a ${libPath}/cuTest.a ${tokyoCabinetLib}
