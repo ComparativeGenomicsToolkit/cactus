@@ -159,7 +159,7 @@ struct CactusGraph *cactusCorePipeline_2(struct PinchGraph *pinchGraph,
     ///////////////////////////////////////////////////////////////////////////
 
     startTime = time(NULL);
-    circulariseStems(cactusGraph);
+    circulariseStems(cactusGraph, pinchGraph);
     st_logInfo("Constructed the 2-edge component only cactus graph\n");
     checkCactusContainsOnly2EdgeConnectedComponents(cactusGraph);
     st_logInfo(

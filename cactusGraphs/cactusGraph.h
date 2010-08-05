@@ -127,7 +127,7 @@ void computeCactusGraph(struct PinchGraph *pinchGraph,
 ////////////////////////////////////////////////
 ////////////////////////////////////////////////
 
-void circulariseStems(struct CactusGraph *cactusGraph);
+void circulariseStems(struct CactusGraph *cactusGraph, struct PinchGraph *pinchGraph);
 
 ////////////////////////////////////////////////
 ////////////////////////////////////////////////
@@ -159,7 +159,16 @@ void logTheChosenBlockSubset(struct List *biConnectedComponents,
 struct PinchEdge *cactusEdgeToFirstPinchEdge(struct CactusEdge *edge,
         struct PinchGraph *pinchGraph);
 
+/*
+ * Returns non-zero if the edge is a stub (i.e. not a block end).
+ */
 int32_t isAStubCactusEdge(struct CactusEdge *edge,
+        struct PinchGraph *pinchGraph);
+
+/*
+ * Returns non-zero if edge is stub end which is free (the dead end is not attached to the source vertex).
+ */
+int32_t isAFreeStubCactusEdge(struct CactusEdge *edge,
         struct PinchGraph *pinchGraph);
 
 struct hashtable *createHashColouringPinchEdgesByChains(
