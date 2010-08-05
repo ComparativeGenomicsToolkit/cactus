@@ -24,7 +24,7 @@ void testBlock_construct(CuTest* testCase) {
 void testBlock_getName(CuTest* testCase) {
     cactusBlockTestSetup();
     CuAssertTrue(testCase, block_getName(block) != NULL_NAME);
-    CuAssertTrue(testCase, net_getBlock(net, block_getName(block)) == block);
+    CuAssertTrue(testCase, flower_getBlock(flower, block_getName(block)) == block);
     CuAssertTrue(testCase, block_getName(block) == block_getName(block_getReverse(block)));
     cactusBlockTestTeardown();
 }
@@ -51,7 +51,7 @@ void testBlock_getLength(CuTest* testCase) {
 
 void testBlock_getNet(CuTest* testCase) {
     cactusBlockTestSetup();
-    CuAssertTrue(testCase, block_getNet(block) == net);
+    CuAssertTrue(testCase, block_getNet(block) == flower);
     cactusBlockTestTeardown();
 }
 
@@ -76,7 +76,7 @@ void testBlock_getRightEnd(CuTest* testCase) {
 void testBlock_getInstanceNumber(CuTest* testCase) {
     cactusBlockTestSetup();
     CuAssertTrue(testCase, block_getInstanceNumber(block) == 3);
-    Block *block2 = block_construct(1, net);
+    Block *block2 = block_construct(1, flower);
     CuAssertTrue(testCase, block_getInstanceNumber(block2) == 0);
     cactusBlockTestTeardown();
 }
@@ -98,7 +98,7 @@ void testBlock_getFirst(CuTest* testCase) {
     cactusBlockTestSetup();
     CuAssertTrue(testCase, block_getFirst(block) == segment_getReverse(rootSegment));
     CuAssertTrue(testCase, block_getFirst(block_getReverse(block)) == rootSegment);
-    Block *block2 = block_construct(1, net);
+    Block *block2 = block_construct(1, flower);
     CuAssertTrue(testCase, block_getFirst(block2) == NULL);
     CuAssertTrue(testCase, block_getFirst(block_getReverse(block2)) == NULL);
     cactusBlockTestTeardown();
@@ -106,7 +106,7 @@ void testBlock_getFirst(CuTest* testCase) {
 
 void testBlock_getSetRootInstance(CuTest *testCase) {
     cactusBlockTestSetup();
-    Block *block2 = block_construct(1, net);
+    Block *block2 = block_construct(1, flower);
     CuAssertTrue(testCase, block_getRootInstance(block2) == NULL);
     block_destruct(block2);
     //block_setRootInstance(block, segment_getReverse(rootSegment)); //set in the constructor code of the test.
@@ -162,16 +162,16 @@ void testBlock_instanceIterator(CuTest* testCase) {
 void testBlock_getChain(CuTest* testCase) {
     cactusBlockTestSetup();
 
-    Block *block2 = block_construct(2, net);
-    Net *net2 = net_construct(cactusDisk);
-    eventTree_copyConstruct(net_getEventTree(net), net2, NULL);
-    end_copyConstruct(block_get3End(block), net2);
-    end_copyConstruct(block_get5End(block2), net2);
-    Group *group = group_construct(net, net2);
-    Chain *chain = chain_construct(net);
+    Block *block2 = block_construct(2, flower);
+    Flower *flower2 = flower_construct(cactusDisk);
+    eventTree_copyConstruct(flower_getEventTree(flower), flower2, NULL);
+    end_copyConstruct(block_get3End(block), flower2);
+    end_copyConstruct(block_get5End(block2), flower2);
+    Group *group = group_construct(flower, flower2);
+    Chain *chain = chain_construct(flower);
     link_construct(block_get3End(block), block_get5End(block2), group, chain);
 
-    CuAssertTrue(testCase, block_getChain(block_construct(2, net)) == NULL);
+    CuAssertTrue(testCase, block_getChain(block_construct(2, flower)) == NULL);
     CuAssertTrue(testCase, block_getChain(block) == chain);
     CuAssertTrue(testCase, block_getChain(block2) == chain);
 
@@ -233,7 +233,7 @@ void testBlock_serialisation(CuTest* testCase) {
     CuAssertTrue(testCase, i > 0);
     block_destruct(block);
     void *vA2 = vA;
-    block = block_loadFromBinaryRepresentation(&vA2, net);
+    block = block_loadFromBinaryRepresentation(&vA2, flower);
     rootSegment
             = segment_getReverse(block_getInstance(block, rootInstanceName));
     leaf1Segment = block_getInstance(block, leaf1InstanceName);

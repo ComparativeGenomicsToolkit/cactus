@@ -83,9 +83,9 @@ void link_destruct(Link *link) {
     }
 }
 
-static void link_splitP(struct List *list, Net *net) {
+static void link_splitP(struct List *list, Flower *flower) {
     if (list->length > 0) {
-        Chain *chain = chain_construct(net);
+        Chain *chain = chain_construct(flower);
         int32_t i;
         assert(list->length % 2 == 0);
         for (i = 0; i < list->length; i += 2) {
@@ -116,10 +116,10 @@ void link_split(Link *link) {
         listAppend(list2, link_get5End(link2));
     }
     assert(list1->length + list2->length + 2 == chain_getLength(chain)*2);
-    Net *net = chain_getNet(chain);
+    Flower *flower = chain_getNet(chain);
     chain_destruct(chain);
-    link_splitP(list1, net);
-    link_splitP(list2, net);
+    link_splitP(list1, flower);
+    link_splitP(list2, flower);
 }
 
 /*
@@ -143,11 +143,11 @@ Link *link_loadFromBinaryRepresentation(void **binaryString, Chain *chain) {
     link = NULL;
     if (binaryRepresentation_peekNextElementType(*binaryString) == CODE_LINK) {
         binaryRepresentation_popNextElementType(binaryString);
-        group = net_getGroup(chain_getNet(chain), binaryRepresentation_getName(
+        group = flower_getGroup(chain_getNet(chain), binaryRepresentation_getName(
                 binaryString));
-        leftEnd = net_getEnd(chain_getNet(chain), binaryRepresentation_getName(
+        leftEnd = flower_getEnd(chain_getNet(chain), binaryRepresentation_getName(
                 binaryString));
-        rightEnd = net_getEnd(chain_getNet(chain),
+        rightEnd = flower_getEnd(chain_getNet(chain),
                 binaryRepresentation_getName(binaryString));
         link = link_construct(leftEnd, rightEnd, group, chain);
     }

@@ -16,7 +16,7 @@ static void usage() {
 
 int main(int argc, char *argv[]) {
     CactusDisk *netDisk;
-    Net *net;
+    Flower *net;
     FILE *fileHandle;
 
     /*
@@ -110,7 +110,7 @@ int main(int argc, char *argv[]) {
     ///////////////////////////////////////////////////////////////////////////
 
     net = cactusDisk_getNet(netDisk, cactusMisc_stringToName(netName));
-    Group *group = net_getFirstGroup(net);
+    Group *group = flower_getFirstGroup(net);
     if(group != NULL && !group_isLeaf(group)) {
     	net = group_getNestedNet(group);
     }
@@ -122,8 +122,8 @@ int main(int argc, char *argv[]) {
 
     fileHandle = fopen(outputFile, "w");
     graphViz_setupGraphFile(fileHandle);
-    assert(net_getReference(net) != NULL);
-    makeReferenceGraph(net_getReference(net), fileHandle);
+    assert(flower_getReference(net) != NULL);
+    makeReferenceGraph(flower_getReference(net), fileHandle);
     graphViz_finishGraphFile(fileHandle);
     fclose(fileHandle);
     st_logInfo("Written the reference graph to file\n");

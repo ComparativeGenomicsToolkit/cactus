@@ -31,15 +31,15 @@ static int32_t transmap_getTotalDistanceBetweenCaps(Cap * A, Cap * B);
  * cap in the nested sub-graph
  */
 static int32_t transmap_getTotalDistanceAtAdjacency(Cap * A) {
-	Net * net = group_getNestedNet(end_getGroup(cap_getEnd(A))); 
+	Flower * net = group_getNestedNet(end_getGroup(cap_getEnd(A))); 
 	Cap * B = cap_getAdjacency(A);
 	Cap * childA, * childB;
 
 	if (!net || !B)
 		return 0;
 
-	childA = net_getCap(net, cap_getName(A));
-	childB = net_getCap(net, cap_getName(B));
+	childA = flower_getCap(net, cap_getName(A));
+	childB = flower_getCap(net, cap_getName(B));
 
 #ifdef BEN_DEBUG
 	assert(childA);
@@ -89,7 +89,7 @@ static int32_t transmap_sampleOrderAndOrientationAtEvent(Event * E, Cap * A, Cap
  * Projects the stochastic search to a nested net
  */
 static int32_t transmap_sampleOrderAndOrientationAtNestedNet(Event * E, Cap * A, int * allowed_distance) {
-	Net * net = group_getNestedNet(end_getGroup(cap_getEnd(A))); 
+	Flower * net = group_getNestedNet(end_getGroup(cap_getEnd(A))); 
 	Cap * B, * childA, * childB;
 	Event * childE;
 
@@ -101,9 +101,9 @@ static int32_t transmap_sampleOrderAndOrientationAtNestedNet(Event * E, Cap * A,
 	if (!B)
 		return false;
 
-	childA = net_getCap(net, cap_getName(A));
-	childB = net_getCap(net, cap_getName(B));
-	childE = eventTree_getEvent(net_getEventTree(net), event_getName(E));
+	childA = flower_getCap(net, cap_getName(A));
+	childB = flower_getCap(net, cap_getName(B));
+	childE = eventTree_getEvent(flower_getEventTree(net), event_getName(E));
 
 #ifdef BEN_DEBUG
 	assert(childA);

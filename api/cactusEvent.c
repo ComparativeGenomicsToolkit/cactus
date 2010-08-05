@@ -151,10 +151,10 @@ void event_check(Event *event) {
 		assert(event_getParent(childEvent) == event);
 	}
 
-	//Ancestor-event --> event edge is consistent with any event tree that is in the parent of the containing net.
-	Group *parentGroup = net_getParentGroup(eventTree_getNet(event_getEventTree(event)));
+	//Ancestor-event --> event edge is consistent with any event tree that is in the parent of the containing flower.
+	Group *parentGroup = flower_getParentGroup(eventTree_getNet(event_getEventTree(event)));
 	if(parentGroup != NULL) {
-		EventTree *parentEventTree = net_getEventTree(group_getNet(parentGroup));
+		EventTree *parentEventTree = flower_getEventTree(group_getNet(parentGroup));
 		Event *parentEvent = eventTree_getEvent(parentEventTree, event_getName(event));
 		if(parentEvent != NULL) {
 			if(ancestorEvent == NULL) { //the case where they are both root.
@@ -233,7 +233,7 @@ Event *event_loadFromBinaryRepresentation(void **binaryString,
 		assert(parentEvent != NULL);
 		name = binaryRepresentation_getName(binaryString);
 		branchLength = binaryRepresentation_getFloat(binaryString);
-		metaEvent = cactusDisk_getMetaEvent(net_getNetDisk(eventTree_getNet(eventTree)),name);
+		metaEvent = cactusDisk_getMetaEvent(flower_getNetDisk(eventTree_getNet(eventTree)),name);
 		assert(metaEvent != NULL);
 		event = event_construct(metaEvent, branchLength, parentEvent, eventTree);
 	}

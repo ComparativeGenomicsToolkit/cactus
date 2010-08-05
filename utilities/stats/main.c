@@ -35,7 +35,7 @@ int main(int argc, char *argv[]) {
 	 * The format of the output graph is dot format.
 	 */
 	CactusDisk *netDisk;
-	Net *net;
+	Flower *net;
 	FILE *fileHandle;
 
 	/*

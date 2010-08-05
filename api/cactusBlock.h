@@ -14,7 +14,7 @@
 /*
  * Constructs the block, but not its ends.
  */
-Block *block_construct(int32_t length, Net *net);
+Block *block_construct(int32_t length, Flower *flower);
 
 /*
  * Returns string name of the block.
@@ -43,9 +43,9 @@ Block *block_getReverse(Block *block);
 int32_t block_getLength(Block *block);
 
 /*
- * Gets the net the block is part of.
+ * Gets the flower the block is part of.
  */
-Net *block_getNet(Block *block);
+Flower *block_getNet(Block *block);
 
 /*
  * Gets the 5 end of the block.

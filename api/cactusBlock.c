@@ -12,15 +12,15 @@ int blockConstruct_constructP(const void *o1, const void *o2) {
 	return cactusMisc_nameCompare(segment_getName((Segment *)o1), segment_getName((Segment *)o2));
 }
 
-Block *block_construct(int32_t length, Net *net) {
-	return block_construct2(cactusDisk_getUniqueID(net_getNetDisk(net)), length,
-			end_construct3(cactusDisk_getUniqueID(net_getNetDisk(net)), 0, 0, 1, net),
-			end_construct3(cactusDisk_getUniqueID(net_getNetDisk(net)), 0, 0, 0, net), net);
+Block *block_construct(int32_t length, Flower *flower) {
+	return block_construct2(cactusDisk_getUniqueID(flower_getNetDisk(flower)), length,
+			end_construct3(cactusDisk_getUniqueID(flower_getNetDisk(flower)), 0, 0, 1, flower),
+			end_construct3(cactusDisk_getUniqueID(flower_getNetDisk(flower)), 0, 0, 0, flower), flower);
 }
 
 Block *block_construct2(Name name, int32_t length,
 		End *leftEnd, End *rightEnd,
-		Net *net) {
+		Flower *flower) {
 	Block *block;
 	block = st_malloc(sizeof(Block));
 	block->rBlock = st_malloc(sizeof(Block));
@@ -34,22 +34,22 @@ Block *block_construct2(Name name, int32_t length,
 	block->blockContents->name = name;
 	block->blockContents->segments = stSortedSet_construct3(blockConstruct_constructP, NULL);
 	block->blockContents->length = length;
-	block->blockContents->net = net;
+	block->blockContents->flower = flower;
 
 	block->leftEnd = leftEnd;
 	end_setBlock(leftEnd, block);
 	block->rBlock->leftEnd = end_getReverse(rightEnd);
 	end_setBlock(rightEnd, block);
 
-	net_addBlock(net, block);
+	flower_addBlock(flower, block);
 
 	return block;
 }
 
 void block_destruct(Block *block) {
 	Segment *segment;
-	//remove from net.
-	net_removeBlock(block_getNet(block), block);
+	//remove from flower.
+	flower_removeBlock(block_getNet(block), block);
 
 	//remove instances
 	while((segment = block_getFirst(block)) != NULL) {
@@ -83,8 +83,8 @@ int32_t block_getLength(Block *block) {
 	return block->blockContents->length;
 }
 
-Net *block_getNet(Block *block) {
-	return block->blockContents->net;
+Flower *block_getNet(Block *block) {
+	return block->blockContents->flower;
 }
 
 End *block_get5End(Block *block) {
@@ -234,10 +234,10 @@ void block_split(Block *block, int32_t splitPoint, Block **leftBlock, Block **ri
 }
 
 void block_check(Block *block) {
-	//Check is connected to net properly
-	assert(net_getBlock(block_getNet(block), block_getName(block)) == block_getPositiveOrientation(block));
-	//Check we have actually set built blocks for the net..
-	assert(net_builtBlocks(block_getNet(block)));
+	//Check is connected to flower properly
+	assert(flower_getBlock(block_getNet(block), block_getName(block)) == block_getPositiveOrientation(block));
+	//Check we have actually set built blocks for the flower..
+	assert(flower_builtBlocks(block_getNet(block)));
 
 	//Checks the two ends are block ends.
 	End *_5End = block_get5End(block);
@@ -330,10 +330,10 @@ void block_removeInstance(Block *block, Segment *segment) {
 	stSortedSet_remove(block->blockContents->segments, segment_getPositiveOrientation(segment));
 }
 
-void block_setNet(Block *block, Net *net) {
-	net_removeBlock(block_getNet(block), block);
-	block->blockContents->net = net;
-	net_addBlock(net, block);
+void block_setNet(Block *block, Flower *flower) {
+	flower_removeBlock(block_getNet(block), block);
+	block->blockContents->flower = flower;
+	flower_addBlock(flower, block);
 }
 
 /*
@@ -357,7 +357,7 @@ void block_writeBinaryRepresentation(Block *block, void (*writeFn)(const void * 
 	block_destructInstanceIterator(iterator);
 }
 
-Block *block_loadFromBinaryRepresentation(void **binaryString, Net *net) {
+Block *block_loadFromBinaryRepresentation(void **binaryString, Flower *flower) {
 	Block *block;
 	Name name, leftEndName, rightEndName;
 	int32_t length;
@@ -369,7 +369,7 @@ Block *block_loadFromBinaryRepresentation(void **binaryString, Net *net) {
 		length = binaryRepresentation_getInteger(binaryString);
 		leftEndName = binaryRepresentation_getName(binaryString);
 		rightEndName = binaryRepresentation_getName(binaryString);
-		block = block_construct2(name, length, net_getEnd(net, leftEndName), net_getEnd(net, rightEndName), net);
+		block = block_construct2(name, length, flower_getEnd(flower, leftEndName), flower_getEnd(flower, rightEndName), flower);
 		while(segment_loadFromBinaryRepresentation(binaryString, block) != NULL);
 	}
 	return block;

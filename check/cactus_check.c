@@ -19,73 +19,73 @@
  * forever.
  */
 
-static void checkTreeIsTerminalNormalised(Net *net) {
+static void checkTreeIsTerminalNormalised(Flower *net) {
     /*
      * A cactus tree is terminally normalised if all leaf nets are terminal.
      */
-    if (net_isLeaf(net)) {
-        assert(net_getBlockNumber(net) == 0);
-        assert(net_isTerminal(net));
+    if (flower_isLeaf(net)) {
+        assert(flower_getBlockNumber(net) == 0);
+        assert(flower_isTerminal(net));
         //The following are defensive checks.
         Group *group;
-        Net_GroupIterator *iterator = net_getGroupIterator(net);
-        while ((group = net_getNextGroup(iterator)) != NULL) {
+        Flower_GroupIterator *iterator = flower_getGroupIterator(net);
+        while ((group = flower_getNextGroup(iterator)) != NULL) {
             assert(group_isLeaf(group));
         }
-        net_destructGroupIterator(iterator);
+        flower_destructGroupIterator(iterator);
     }
 }
 
-static void checkChainsAreMaximal(Net *net) {
+static void checkChainsAreMaximal(Flower *net) {
     /*
      * Checks that each chain is maximal and consistently named..
      */
-    Group *parentGroup = net_getParentGroup(net);
+    Group *parentGroup = flower_getParentGroup(net);
     if(parentGroup != NULL) {
         End *end;
-        Net_EndIterator *endIterator = net_getEndIterator(net);
-        while((end = net_getNextEnd(endIterator)) != NULL) {
+        Flower_EndIterator *endIterator = flower_getEndIterator(net);
+        while((end = flower_getNextEnd(endIterator)) != NULL) {
             assert(end_getOrientation(end));
             if(end_isStubEnd(end) && end_isAttached(end)) { //is an attached stub end (inherited from a higher level)
                 Link *link = group_getLink(end_getGroup(end));
                 if(link != NULL) { //then the net must be a terminal net and the link is a copy of the one in the parent..
                     Chain *chain = link_getChain(link);
-                    assert(net_isLeaf(net));
+                    assert(flower_isLeaf(net));
                     assert(chain_getLength(chain) == 1);
                 }
             }
         }
-        net_destructEndIterator(endIterator);
+        flower_destructEndIterator(endIterator);
     }
 }
 
-static void checkNetIsNotRedundant(Net *net) {
+static void checkNetIsNotRedundant(Flower *net) {
     /*
      * Checks that if the net is not a leaf that it contains blocks.
      */
-    assert(net_builtBlocks(net));
-    if(net_getBlockNumber(net) == 0 && net_getGroupNumber(net) == 1) {
-        assert(net_isLeaf(net));
+    assert(flower_builtBlocks(net));
+    if(flower_getBlockNumber(net) == 0 && flower_getGroupNumber(net) == 1) {
+        assert(flower_isLeaf(net));
     }
 }
 
-static void checkNetIsNotEmpty(Net *net) {
+static void checkNetIsNotEmpty(Flower *net) {
     /*
      * Checks that if the net contains at least one end, unless it is the parent problem
      * and the whole reconstruction is empty.
      */
-    if(net_getParentGroup(net) != NULL) {
-        assert(net_getEndNumber(net) > 0);
+    if(flower_getParentGroup(net) != NULL) {
+        assert(flower_getEndNumber(net) > 0);
     }
 }
 
-static void checkGroupsNotEmpty(Net *net) {
+static void checkGroupsNotEmpty(Flower *net) {
     /*
      * Checks that each group contains at least one end.
      */
     Group *group;
-    Net_GroupIterator *groupIt = net_getGroupIterator(net);
-    while((group = net_getNextGroup(groupIt)) != NULL) {
+    Flower_GroupIterator *groupIt = flower_getGroupIterator(net);
+    while((group = flower_getNextGroup(groupIt)) != NULL) {
         assert(group_getEndNumber(group) > 0);
     }
 }
@@ -96,18 +96,18 @@ static void checkGroupsNotEmpty(Net *net) {
  * Random other checks.
  */
 
-static void checkBasesAccountedFor(Net *net) {
+static void checkBasesAccountedFor(Flower *net) {
     /*
      * Checks all the bases in a net end up in child net or a nested net.
      */
-    int64_t totalBases = net_getTotalBaseLength(net);
+    int64_t totalBases = flower_getTotalBaseLength(net);
     int64_t blockBases = 0.0;
     int64_t childBases = 0.0;
-    Net_BlockIterator *blockIterator = net_getBlockIterator(net);
+    Flower_BlockIterator *blockIterator = flower_getBlockIterator(net);
     Block *block;
     Block_InstanceIterator *segmentIterator;
     Segment *segment;
-    while ((block = net_getNextBlock(blockIterator)) != NULL) {
+    while ((block = flower_getNextBlock(blockIterator)) != NULL) {
         segmentIterator = block_getInstanceIterator(block);
         while ((segment = block_getNext(segmentIterator)) != NULL) {
             if (segment_getSequence(segment) != NULL) {
@@ -116,21 +116,21 @@ static void checkBasesAccountedFor(Net *net) {
         }
         block_destructInstanceIterator(segmentIterator);
     }
-    net_destructBlockIterator(blockIterator);
-    Net_GroupIterator *iterator = net_getGroupIterator(net);
+    flower_destructBlockIterator(blockIterator);
+    Flower_GroupIterator *iterator = flower_getGroupIterator(net);
     Group *group;
-    while ((group = net_getNextGroup(iterator)) != NULL) {
+    while ((group = flower_getNextGroup(iterator)) != NULL) {
         int64_t size = (int64_t) group_getTotalBaseLength(group);
         if (group_getNestedNet(group) != NULL) {
             assert(!group_isLeaf(group));
-            assert(net_getTotalBaseLength(group_getNestedNet(group)) == size);
+            assert(flower_getTotalBaseLength(group_getNestedNet(group)) == size);
         } else {
             assert(group_isLeaf(group));
         }
         assert(size >= 0);
         childBases += size;
     }
-    net_destructGroupIterator(iterator);
+    flower_destructGroupIterator(iterator);
     if (blockBases + childBases != totalBases) {
         fprintf(stderr,
                 "Got %i block bases, %i childBases and %i total bases\n",
@@ -139,8 +139,8 @@ static void checkBasesAccountedFor(Net *net) {
     assert(blockBases + childBases == totalBases);
 }
 
-static void checkNets(Net *net, int32_t recursive) {
-    net_check(net);
+static void checkNets(Flower *net, int32_t recursive) {
+    flower_check(net);
     checkNetIsNotEmpty(net);
     checkGroupsNotEmpty(net);
     checkBasesAccountedFor(net);
@@ -151,14 +151,14 @@ static void checkNets(Net *net, int32_t recursive) {
 
     //Call problem recursively
     if (recursive) {
-        Net_GroupIterator *iterator = net_getGroupIterator(net);
+        Flower_GroupIterator *iterator = flower_getGroupIterator(net);
         Group *group;
-        while ((group = net_getNextGroup(iterator)) != NULL) {
+        while ((group = flower_getNextGroup(iterator)) != NULL) {
             if (!group_isLeaf(group)) {
                 checkNets(group_getNestedNet(group), 1);
             }
         }
-        net_destructGroupIterator(iterator);
+        flower_destructGroupIterator(iterator);
     }
 }
 
@@ -172,7 +172,7 @@ void usage() {
 
 int main(int argc, char *argv[]) {
     CactusDisk *netDisk;
-    Net *net;
+    Flower *net;
 
     /*
      * Arguments/options

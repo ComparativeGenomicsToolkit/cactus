@@ -5,7 +5,7 @@
 
 struct _chain {
 	Name name;
-	Net *net;
+	Flower *flower;
 	Link *link;
 	int32_t linkNumber;
 	int32_t chainIndex;
@@ -22,7 +22,7 @@ struct _chain {
 /*
  * Constructs a chain, which in turn holds links.
  */
-Chain *chain_construct2(Name name, Net *net);
+Chain *chain_construct2(Name name, Flower *flower);
 
 /*
  * Add the link to the chain.
@@ -35,9 +35,9 @@ void chain_addLink(Chain *chain, Link *childLink);
 void chain_writeBinaryRepresentation(Chain *chain, void (*writeFn)(const void * ptr, size_t size, size_t count));
 
 /*
- * Loads a net into memory from a binary representation of the net.
+ * Loads a flower into memory from a binary representation of the flower.
  */
-Chain *chain_loadFromBinaryRepresentation(void **binaryString, Net *net);
+Chain *chain_loadFromBinaryRepresentation(void **binaryString, Flower *flower);
 
 /*
  * Get a static instance (from the heap) with the name set.
@@ -45,8 +45,8 @@ Chain *chain_loadFromBinaryRepresentation(void **binaryString, Net *net);
 Chain *chain_getStaticNameWrapper(Name name);
 
 /*
- * Sets the net containing the chain.
+ * Sets the flower containing the chain.
  */
-void chain_setNet(Chain *chain, Net *net);
+void chain_setNet(Chain *chain, Flower *flower);
 
 #endif

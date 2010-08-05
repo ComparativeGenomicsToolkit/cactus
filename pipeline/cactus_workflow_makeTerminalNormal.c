@@ -16,7 +16,7 @@ int main(int argc, char *argv[]) {
      * This code iterates through the leaf groups.
      */
     CactusDisk *netDisk;
-    Net *net;
+    Flower *net;
 
     assert(argc >= 2);
     netDisk = cactusDisk_construct(argv[1]);
@@ -26,18 +26,18 @@ int main(int argc, char *argv[]) {
         net = cactusDisk_getNet(netDisk, cactusMisc_stringToName(argv[i]));
         assert(net != NULL);
         st_logInfo("Parsed net %s\n", argv[i]);
-        if (!net_isTerminal(net)) {
-            Net_GroupIterator *groupIterator;
+        if (!flower_isTerminal(net)) {
+            Flower_GroupIterator *groupIterator;
             Group *group;
-            groupIterator = net_getGroupIterator(net);
-            while ((group = net_getNextGroup(groupIterator)) != NULL) {
+            groupIterator = flower_getGroupIterator(net);
+            while ((group = flower_getNextGroup(groupIterator)) != NULL) {
                 if (group_isLeaf(group)) {
                     //assert(group_getTotalBaseLength(group) == 0);
                     group_makeNestedNet(group);
-                    net_setBuiltBlocks(group_getNestedNet(group), 1);
+                    flower_setBuiltBlocks(group_getNestedNet(group), 1);
                 }
             }
-            net_destructGroupIterator(groupIterator);
+            flower_destructGroupIterator(groupIterator);
         }
     }
 

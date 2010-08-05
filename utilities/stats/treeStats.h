@@ -11,7 +11,7 @@
 /*
  * Writes a lot
  */
-void reportNetDiskStats(char *netDiskName, Net *net, FILE *fileHandle);
+void reportNetDiskStats(char *netDiskName, Flower *net, FILE *fileHandle);
 
 
 #endif /* TREESTATS_H_ */

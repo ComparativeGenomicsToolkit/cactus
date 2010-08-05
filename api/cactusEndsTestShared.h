@@ -1,7 +1,7 @@
 #include "cactusGlobalsPrivate.h"
 
 static CactusDisk *cactusDisk = NULL;
-static Net *net;
+static Flower *flower;
 static EventTree *eventTree;
 static MetaSequence *metaSequence;
 static Sequence *sequence;
@@ -29,21 +29,21 @@ static void cactusEndsTestSharedTeardown() {
 static void cactusEndsTestSharedSetup() {
     cactusEndsTestSharedTeardown();
     cactusDisk = cactusDisk_construct(testCommon_getTemporaryNetDisk());
-    net = net_construct(cactusDisk);
+    flower = flower_construct(cactusDisk);
 
     rootMetaEvent = metaEvent_construct("ROOT", cactusDisk);
     leafMetaEvent = metaEvent_construct("LEAF1", cactusDisk);
 
-    eventTree = eventTree_construct(rootMetaEvent, net);
+    eventTree = eventTree_construct(rootMetaEvent, flower);
 
     rootEvent = eventTree_getRootEvent(eventTree);
     leafEvent = event_construct(leafMetaEvent, 0.2, rootEvent, eventTree);
 
     metaSequence = metaSequence_construct(0, 10, "ACTGACTGAC", ">one",
             metaEvent_getName(leafMetaEvent), cactusDisk);
-    sequence = sequence_construct(metaSequence, net);
+    sequence = sequence_construct(metaSequence, flower);
 
-    end = end_construct(1, net);
+    end = end_construct(1, flower);
     rootCap = cap_construct(end_getReverse(end), rootEvent);
     leaf1Cap = cap_construct2(end_getReverse(end), 4, 1, sequence);
     leaf2Cap = cap_construct2(end, 6, 0, sequence);

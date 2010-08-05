@@ -5,7 +5,7 @@
 
 struct _sequence {
 	MetaSequence *metaSequence;
-	Net *net;
+	Flower *flower;
 };
 
 
@@ -25,7 +25,7 @@ void sequence_writeBinaryRepresentation(Sequence *sequence, void (*writeFn)(cons
 /*
  * Loads a sequence into memory from a binary representation of the sequence.
  */
-Sequence *sequence_loadFromBinaryRepresentation(void **binaryString, Net *net);
+Sequence *sequence_loadFromBinaryRepresentation(void **binaryString, Flower *flower);
 
 /*
  * Get a static instance (from the heap) with the name set.

@@ -14,21 +14,21 @@
 /*
  * Constructs the stub end, not attached to any block.
  */
-End *end_construct(bool isAttached, Net *net);
+End *end_construct(bool isAttached, Flower *flower);
 
 /*
  * Constructs the end, but not any attached block, allows the specification of the side.
  * 5' is non-zero, 3 if zero.
  */
-End *end_construct2(bool side, bool isAttached, Net *net);
+End *end_construct2(bool side, bool isAttached, Flower *flower);
 
 /*
  * Copies the end, creating a stub (because the end will not be attached to any block).
  * The isAttached can be selected accordingly.
- * Replaces the net attached to the end with the given
+ * Replaces the flower attached to the end with the given
  * 'newNet'.
  */
-End *end_copyConstruct(End *end, Net *newNet);
+End *end_copyConstruct(End *end, Flower *newNet);
 
 /*
  *	Name of the end.
@@ -58,9 +58,9 @@ End *end_getReverse(End *end);
 bool end_getSide(End *end);
 
 /*
- * Gets the net the end is part of.
+ * Gets the flower the end is part of.
  */
-Net *end_getNet(End *end);
+Flower *end_getNet(End *end);
 
 /*
  * Gets the block the end is on the side of.
@@ -135,7 +135,7 @@ End_InstanceIterator *end_copyInstanceIterator(End_InstanceIterator *iterator);
 void end_destructInstanceIterator(End_InstanceIterator *end);
 
 /*
- * Return non zero if the end represents the end of an block represented in the net of the cap (at this level).
+ * Return non zero if the end represents the end of an block represented in the flower of the cap (at this level).
  */
 bool end_isBlockEnd(End *end);
 
@@ -166,7 +166,7 @@ bool end_isFree(End *end);
  *  (3) Is not attached.
  * If stub end checks:
  *  (1) there is no attached block.
- *  (2) if attached then is inherited from a parent net to the containing net, and
+ *  (2) if attached then is inherited from a parent flower to the containing flower, and
  *  the parent end has a matching side property.
  * Checks adjacencies are properly linked and have consistent coordinates.
  */

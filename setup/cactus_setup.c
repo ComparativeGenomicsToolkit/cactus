@@ -29,7 +29,7 @@ void usage() {
 int32_t isComplete = 1;
 char * netDiskName = NULL;
 CactusDisk *netDisk;
-Net *net;
+Flower *net;
 EventTree *eventTree;
 Event *event;
 int32_t totalSequenceNumber = 0;
@@ -90,7 +90,7 @@ int main(int argc, char *argv[]) {
 	bool debug = 0;
 	int32_t totalEventNumber;
 	Group *group;
-	Net_EndIterator *endIterator;
+	Flower_EndIterator *endIterator;
 	End *end;
 
 	/*
@@ -188,7 +188,7 @@ int main(int argc, char *argv[]) {
 		st_logInfo("The first net already exists\n");
 		return 0;
 	}
-	net = net_construct(netDisk);
+	net = flower_construct(netDisk);
 	st_logInfo("Constructed the net\n");
 
 	//////////////////////////////////////////////
@@ -268,20 +268,20 @@ int main(int argc, char *argv[]) {
 	//////////////////////////////////////////////
 
 	group = group_construct2(net);
-	endIterator = net_getEndIterator(net);
-	while((end = net_getNextEnd(endIterator)) != NULL) {
+	endIterator = flower_getEndIterator(net);
+	while((end = flower_getNextEnd(endIterator)) != NULL) {
 		end_setGroup(end, group);
 	}
-	net_destructEndIterator(endIterator);
+	flower_destructEndIterator(endIterator);
 	assert(group_isLeaf(group));
 
 	///////////////////////////////////////////////////////////////////////////
 	// Set the blocksBuilt flag to true for this top level net.
 	///////////////////////////////////////////////////////////////////////////
 
-	assert(!net_builtBlocks(net));
-	net_setBuiltBlocks(net, 1);
-	assert(net_builtBlocks(net));
+	assert(!flower_builtBlocks(net));
+	flower_setBuiltBlocks(net, 1);
+	assert(flower_builtBlocks(net));
 
 	///////////////////////////////////////////////////////////////////////////
 	// Write the net to disk.
@@ -304,9 +304,9 @@ int main(int argc, char *argv[]) {
 		netDisk = cactusDisk_construct(netDiskName);
 		net = cactusDisk_getNet(netDisk, 0);
 		assert(net != NULL);
-		assert(net_getSequenceNumber(net) == totalSequenceNumber);
-		assert(net_getEndNumber(net) == 2*totalSequenceNumber);
-		assert(eventTree_getEventNumber(net_getEventTree(net)) == totalEventNumber);
+		assert(flower_getSequenceNumber(net) == totalSequenceNumber);
+		assert(flower_getEndNumber(net) == 2*totalSequenceNumber);
+		assert(eventTree_getEventNumber(flower_getEventTree(net)) == totalEventNumber);
 		cactusDisk_destruct(netDisk);
 	}
 

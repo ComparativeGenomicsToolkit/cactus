@@ -137,14 +137,14 @@ void getBEDBlock(Block *block, FILE *fileHandle, char *target, int tstart) {
 	block_destructInstanceIterator(instanceIterator);
 }
 
-void getBED(Net *net, FILE *fileHandle, char *query, char *target, int tstart, int s, int e) {
+void getBED(Flower *net, FILE *fileHandle, char *query, char *target, int tstart, int s, int e) {
 	/*
 	 * Outputs target BED records of all the blocks in the net and its descendants.
 	 */
 
-	Net_BlockIterator *blockIterator = net_getBlockIterator(net);
+	Flower_BlockIterator *blockIterator = flower_getBlockIterator(net);
 	Block *block;
-	while((block = net_getNextBlock(blockIterator)) != NULL) {
+	while((block = flower_getNextBlock(blockIterator)) != NULL) {
         	//if(block_getChain(block) == NULL){//ONLY print out NON CHAIN blocks
         	if(block_hasQueryTarget(block, query, target)){
                         if( (s < 0 || e < 0) || block_inRange(block, query, s, e) ){
@@ -153,21 +153,21 @@ void getBED(Net *net, FILE *fileHandle, char *query, char *target, int tstart, i
 		}
         	//}
 	}
-	net_destructBlockIterator(blockIterator);
+	flower_destructBlockIterator(blockIterator);
 
 	//Call child nets recursively.
-	Net_GroupIterator *groupIterator = net_getGroupIterator(net);
+	Flower_GroupIterator *groupIterator = flower_getGroupIterator(net);
 	Group *group;
-	while((group = net_getNextGroup(groupIterator)) != NULL) {
-		Net *nestedNet = group_getNestedNet(group);
+	while((group = flower_getNextGroup(groupIterator)) != NULL) {
+		Flower *nestedNet = group_getNestedNet(group);
 		if(nestedNet != NULL) {
 			getBED(group_getNestedNet(group), fileHandle, query, target, tstart, s, e); //recursive call.
 		}
 	}
-	net_destructGroupIterator(groupIterator);
+	flower_destructGroupIterator(groupIterator);
 }
 
-void getBEDs(Net *net, FILE *fileHandle, char *query, char *target, int tstart, int offset, struct psl *refpsl){
+void getBEDs(Flower *net, FILE *fileHandle, char *query, char *target, int tstart, int offset, struct psl *refpsl){
    int start, end;
    while(refpsl != NULL){
       start = refpsl->tStart - offset +2;
@@ -194,7 +194,7 @@ void usage() {
 
 int main(int argc, char *argv[]) {
 	CactusDisk *netDisk;
-	Net *net;
+	Flower *net;
 
 	/*
 	 * Arguments/options

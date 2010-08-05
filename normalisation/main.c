@@ -106,7 +106,7 @@ int main(int argc, char *argv[]) {
          */
         const char *netName = argv[j];
         st_logInfo("Processing the net named: %s\n", netName);
-        Net *net = cactusDisk_getNet(netDisk, cactusMisc_stringToName(netName));
+        Flower *net = cactusDisk_getNet(netDisk, cactusMisc_stringToName(netName));
         assert(net != NULL);
         st_logInfo("Parsed the net to normalise\n");
 
@@ -114,9 +114,9 @@ int main(int argc, char *argv[]) {
          * Now run the normalisation functions
          */
         chain_promoteChainsThatExtendHigherLevelChains(net);
-        if (!net_deleteIfEmpty(net)) { //If we delete the net we need not run the remaining functions..
+        if (!flower_deleteIfEmpty(net)) { //If we delete the net we need not run the remaining functions..
             makeTerminalNormal(net);
-            net_removeIfRedundant(net);
+            flower_removeIfRedundant(net);
         }
     }
 

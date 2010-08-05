@@ -9,7 +9,7 @@
 ////////////////////////////////////////////////
 
 Segment *segment_construct(Block *block, Event *event) {
-    return segment_construct3(cactusDisk_getUniqueID(net_getNetDisk(block_getNet(
+    return segment_construct3(cactusDisk_getUniqueID(flower_getNetDisk(block_getNet(
             block))), block, cap_construct5(event, block_get5End(block)),
             cap_construct5(event, block_get3End(block)));
 }
@@ -26,7 +26,7 @@ Segment *segment_construct2(Block *block, int32_t startCoordinate, bool strand,
         i = j;
         j = startCoordinate;
     }
-    return segment_construct3(cactusDisk_getUniqueID(net_getNetDisk(block_getNet(
+    return segment_construct3(cactusDisk_getUniqueID(flower_getNetDisk(block_getNet(
             block))), block, cap_construct2(block_get5End(block), i, strand,
             sequence), cap_construct2(block_get3End(block), j, strand,
             sequence));
@@ -46,13 +46,13 @@ Segment *segment_construct3(Name name, Block *block, Cap *_5Cap, Cap *_3Cap) {
     cap_setSegment(_5Cap, segment);
     cap_setSegment(_3Cap, segment);
     block_addInstance(block, segment);
-    net_addSegment(block_getNet(block), segment);
+    flower_addSegment(block_getNet(block), segment);
     return segment;
 }
 
 void segment_destruct(Segment *segment) {
     block_removeInstance(segment_getBlock(segment), segment);
-    net_removeSegment(block_getNet(segment_getBlock(segment)), segment);
+    flower_removeSegment(block_getNet(segment_getBlock(segment)), segment);
     free(segment->rInstance);
     free(segment);
 }

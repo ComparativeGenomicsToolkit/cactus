@@ -20,45 +20,45 @@ static void cactusDiskTestSetup() {
 
 void testCactusDisk_constructAndDestruct(CuTest* testCase) {
     cactusDiskTestSetup();
-    CuAssertTrue(testCase, cactusDisk != NULL); //check the net is actually constructed.
+    CuAssertTrue(testCase, cactusDisk != NULL); //check the flower is actually constructed.
     cactusDiskTestTeardown();
 }
 
 void testCactusDisk_write(CuTest* testCase) {
     assert(testCase != NULL);
     cactusDiskTestSetup();
-    net_construct(cactusDisk);
+    flower_construct(cactusDisk);
     cactusDisk_write(cactusDisk);
     cactusDiskTestTeardown();
 }
 
 void testCactusDisk_getNet(CuTest* testCase) {
     cactusDiskTestSetup();
-    Net *net = net_construct(cactusDisk);
-    Net *net2 = net_construct(cactusDisk);
-    CuAssertTrue(testCase, cactusDisk_getNet(cactusDisk, net_getName(net)) == net);
-    CuAssertTrue(testCase, cactusDisk_getNet(cactusDisk, net_getName(net2)) == net2);
+    Flower *flower = flower_construct(cactusDisk);
+    Flower *flower2 = flower_construct(cactusDisk);
+    CuAssertTrue(testCase, cactusDisk_getNet(cactusDisk, flower_getName(flower)) == flower);
+    CuAssertTrue(testCase, cactusDisk_getNet(cactusDisk, flower_getName(flower2)) == flower2);
     //now try closing the disk, then reloading it, to see if we get the same result.
-    Name name1 = net_getName(net);
-    Name name2 = net_getName(net2);
+    Name name1 = flower_getName(flower);
+    Name name2 = flower_getName(flower2);
     cactusDisk_write(cactusDisk);
     cactusDisk_destruct(cactusDisk);
     cactusDisk = cactusDisk_construct(cactusDiskFile);
-    net = cactusDisk_getNet(cactusDisk, name1);
-    net2 = cactusDisk_getNet(cactusDisk, name2);
-    CuAssertTrue(testCase, net != NULL);
-    CuAssertTrue(testCase, net2 != NULL);
-    CuAssertTrue(testCase, net_getName(net) == name1);
-    CuAssertTrue(testCase, net_getName(net2) == name2);
+    flower = cactusDisk_getNet(cactusDisk, name1);
+    flower2 = cactusDisk_getNet(cactusDisk, name2);
+    CuAssertTrue(testCase, flower != NULL);
+    CuAssertTrue(testCase, flower2 != NULL);
+    CuAssertTrue(testCase, flower_getName(flower) == name1);
+    CuAssertTrue(testCase, flower_getName(flower2) == name2);
     cactusDiskTestTeardown();
 }
 
 void testCactusDisk_getNetNumberOnDisk(CuTest* testCase) {
     cactusDiskTestSetup();
     CuAssertIntEquals(testCase, 0, cactusDisk_getNetNumberOnDisk(cactusDisk));
-    net_construct(cactusDisk);
+    flower_construct(cactusDisk);
     CuAssertIntEquals(testCase, 0, cactusDisk_getNetNumberOnDisk(cactusDisk));
-    net_construct(cactusDisk);
+    flower_construct(cactusDisk);
     CuAssertIntEquals(testCase, 0, cactusDisk_getNetNumberOnDisk(cactusDisk));
     cactusDisk_write(cactusDisk);
     CuAssertIntEquals(testCase, 2, cactusDisk_getNetNumberOnDisk(cactusDisk));
@@ -68,7 +68,7 @@ void testCactusDisk_getNetNumberOnDisk(CuTest* testCase) {
     cactusDiskTestTeardown();
 }
 
-void testCactusDisk_netNamesOnDiskIterator(CuTest* testCase) {
+void testCactusDisk_flowerNamesOnDiskIterator(CuTest* testCase) {
     cactusDiskTestSetup();
     CactusDisk_NetNameIterator *iterator = cactusDisk_getNetNamesOnDiskIterator(
             cactusDisk);
@@ -80,13 +80,13 @@ void testCactusDisk_netNamesOnDiskIterator(CuTest* testCase) {
 
 void testCactusDisk_getNextNetName(CuTest* testCase) {
     cactusDiskTestSetup();
-    Name name1 = net_getName(net_construct(cactusDisk));
-    Name name2 = net_getName(net_construct(cactusDisk));
+    Name name1 = flower_getName(flower_construct(cactusDisk));
+    Name name2 = flower_getName(flower_construct(cactusDisk));
     cactusDisk_write(cactusDisk);
     cactusDisk_destruct(cactusDisk);
     cactusDisk = cactusDisk_construct(cactusDiskFile);
-    Name name3 = net_getName(net_construct(cactusDisk));
-    Name name4 = net_getName(net_construct(cactusDisk));
+    Name name3 = flower_getName(flower_construct(cactusDisk));
+    Name name4 = flower_getName(flower_construct(cactusDisk));
     cactusDisk_write(cactusDisk);
     CactusDisk_NetNameIterator *iterator = cactusDisk_getNetNamesOnDiskIterator(
             cactusDisk);
@@ -102,9 +102,9 @@ void testCactusDisk_getNextNetName(CuTest* testCase) {
 void testCactusDisk_getNetNumberInMemory(CuTest* testCase) {
     cactusDiskTestSetup();
     CuAssertIntEquals(testCase, 0, cactusDisk_getNetNumberInMemory(cactusDisk));
-    net_construct(cactusDisk);
+    flower_construct(cactusDisk);
     CuAssertIntEquals(testCase, 1, cactusDisk_getNetNumberInMemory(cactusDisk));
-    net_construct(cactusDisk);
+    flower_construct(cactusDisk);
     CuAssertIntEquals(testCase, 2, cactusDisk_getNetNumberInMemory(cactusDisk));
     cactusDisk_write(cactusDisk);
     CuAssertIntEquals(testCase, 2, cactusDisk_getNetNumberInMemory(cactusDisk));
@@ -114,7 +114,7 @@ void testCactusDisk_getNetNumberInMemory(CuTest* testCase) {
     cactusDiskTestTeardown();
 }
 
-void testCactusDisk_netsInMemoryIterator(CuTest* testCase) {
+void testCactusDisk_flowersInMemoryIterator(CuTest* testCase) {
     cactusDiskTestSetup();
     CactusDisk_NetIterator *iterator = cactusDisk_getNetsInMemoryIterator(cactusDisk);
     CuAssertTrue(testCase, iterator != NULL);
@@ -125,15 +125,15 @@ void testCactusDisk_netsInMemoryIterator(CuTest* testCase) {
 
 void testCactusDisk_getNextAndPreviousNet(CuTest* testCase) {
     cactusDiskTestSetup();
-    Net *net = net_construct(cactusDisk);
-    Net *net2 = net_construct(cactusDisk);
+    Flower *flower = flower_construct(cactusDisk);
+    Flower *flower2 = flower_construct(cactusDisk);
     CactusDisk_NetIterator *iterator = cactusDisk_getNetsInMemoryIterator(cactusDisk);
     CuAssertTrue(testCase, iterator != NULL);
-    CuAssertTrue(testCase, cactusDisk_getNextNet(iterator) == net);
-    CuAssertTrue(testCase, cactusDisk_getNextNet(iterator) == net2);
+    CuAssertTrue(testCase, cactusDisk_getNextNet(iterator) == flower);
+    CuAssertTrue(testCase, cactusDisk_getNextNet(iterator) == flower2);
     CuAssertTrue(testCase, cactusDisk_getNextNet(iterator) == NULL);
-    CuAssertTrue(testCase, cactusDisk_getPreviousNet(iterator) == net2);
-    CuAssertTrue(testCase, cactusDisk_getPreviousNet(iterator) == net);
+    CuAssertTrue(testCase, cactusDisk_getPreviousNet(iterator) == flower2);
+    CuAssertTrue(testCase, cactusDisk_getPreviousNet(iterator) == flower);
     CuAssertTrue(testCase, cactusDisk_getPreviousNet(iterator) == NULL);
     cactusDisk_destructNetsInMemoryIterator(iterator);
     cactusDiskTestTeardown();
@@ -141,14 +141,14 @@ void testCactusDisk_getNextAndPreviousNet(CuTest* testCase) {
 
 void testCactusDisk_copyNetIterator(CuTest* testCase) {
     cactusDiskTestSetup();
-    Net *net = net_construct(cactusDisk);
-    Net *net2 = net_construct(cactusDisk);
+    Flower *flower = flower_construct(cactusDisk);
+    Flower *flower2 = flower_construct(cactusDisk);
     CactusDisk_NetIterator *iterator = cactusDisk_getNetsInMemoryIterator(cactusDisk);
-    CuAssertTrue(testCase, cactusDisk_getNextNet(iterator) == net);
+    CuAssertTrue(testCase, cactusDisk_getNextNet(iterator) == flower);
     CactusDisk_NetIterator *iterator2 = cactusDisk_copyNetIterator(iterator);
-    CuAssertTrue(testCase, cactusDisk_getNextNet(iterator) == net2);
+    CuAssertTrue(testCase, cactusDisk_getNextNet(iterator) == flower2);
     CuAssertTrue(testCase, cactusDisk_getNextNet(iterator) == NULL);
-    CuAssertTrue(testCase, cactusDisk_getNextNet(iterator2) == net2);
+    CuAssertTrue(testCase, cactusDisk_getNextNet(iterator2) == flower2);
     CuAssertTrue(testCase, cactusDisk_getNextNet(iterator2) == NULL);
     cactusDisk_destructNetsInMemoryIterator(iterator);
     cactusDisk_destructNetsInMemoryIterator(iterator2);
@@ -161,9 +161,9 @@ CuSuite* cactusDiskTestSuite(void) {
     SUITE_ADD_TEST(suite, testCactusDisk_write);
     SUITE_ADD_TEST(suite, testCactusDisk_getNet);
     SUITE_ADD_TEST(suite, testCactusDisk_getNetNumberOnDisk);
-    SUITE_ADD_TEST(suite, testCactusDisk_netNamesOnDiskIterator);
+    SUITE_ADD_TEST(suite, testCactusDisk_flowerNamesOnDiskIterator);
     SUITE_ADD_TEST(suite, testCactusDisk_getNextNetName);
-    SUITE_ADD_TEST(suite, testCactusDisk_netsInMemoryIterator);
+    SUITE_ADD_TEST(suite, testCactusDisk_flowersInMemoryIterator);
     SUITE_ADD_TEST(suite, testCactusDisk_getNextAndPreviousNet);
     SUITE_ADD_TEST(suite, testCactusDisk_copyNetIterator);
     return suite;

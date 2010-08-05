@@ -1,7 +1,7 @@
 #include "cactusGlobalsPrivate.h"
 
 static CactusDisk *cactusDisk = NULL;
-static Net *net;
+static Flower *flower;
 static bool nestedTest = 0;
 
 static End *end1, *end2, *end3, *end4, *end5, *end6, *end7, *end8;
@@ -25,20 +25,20 @@ static void cactusReferenceTestSharedTeardown() {
 static void cactusReferenceTestSharedSetup() {
 	cactusReferenceTestSharedTeardown();
 	cactusDisk = cactusDisk_construct(testCommon_getTemporaryNetDisk());
-	net = net_construct(cactusDisk);
+	flower = flower_construct(cactusDisk);
 
-	end1 = end_construct(0, net);
-	block1 = block_construct(1, net);
+	end1 = end_construct(0, flower);
+	block1 = block_construct(1, flower);
 	end2 = block_get5End(block1);
 	end3 = block_get3End(block1);
-	block2 = block_construct(1, net);
+	block2 = block_construct(1, flower);
 	end4 = block_get5End(block2);
 	end5 = block_get3End(block2);
-	end6 = end_construct(0, net);
-	end7 = end_construct(0, net);
-	end8 = end_construct(0, net);
+	end6 = end_construct(0, flower);
+	end7 = end_construct(0, flower);
+	end8 = end_construct(0, flower);
 
-	reference = reference_construct(net);
+	reference = reference_construct(flower);
 
 	pseudoChromosome1 = pseudoChromosome_construct(reference, end1, end6);
 	pseudoChromosome2 = pseudoChromosome_construct(reference, end7, end8);

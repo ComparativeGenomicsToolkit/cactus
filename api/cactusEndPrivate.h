@@ -11,7 +11,7 @@ typedef struct _endContents {
 	Block *attachedBlock;
 	stSortedSet *caps;
 	Group *group;
-	Net *net;
+	Flower *flower;
 } EndContents;
 
 struct _end_instanceIterator {
@@ -38,7 +38,7 @@ struct _end {
 /*
  * Constructs the end, but not any attached block.
  */
-End *end_construct3(Name name, int32_t isStub, int32_t isAttached, int32_t side, Net *net);
+End *end_construct3(Name name, int32_t isStub, int32_t isAttached, int32_t side, Flower *flower);
 
 /*
  * Destructs the end and any contained caps.
@@ -66,9 +66,9 @@ void end_removeInstance(End *end, Cap *cap);
 void end_writeBinaryRepresentation(End *end, void (*writeFn)(const void * ptr, size_t size, size_t count));
 
 /*
- * Loads a net into memory from a binary representation of the net.
+ * Loads a flower into memory from a binary representation of the flower.
  */
-End *end_loadFromBinaryRepresentation(void **binaryString, Net *net);
+End *end_loadFromBinaryRepresentation(void **binaryString, Flower *flower);
 
 /*
  * Get a static instance (from the heap) with the name set.
@@ -87,8 +87,8 @@ uint32_t end_hashKey(const void *o);
 int end_hashEqualsKey(const void *o, const void *o2);
 
 /*
- * Sets the net associated with the end.
+ * Sets the flower associated with the end.
  */
-void end_setNet(End *end, Net *net);
+void end_setNet(End *end, Flower *flower);
 
 #endif

@@ -13,6 +13,6 @@
 /*
  * Ensures that all terminal groups have an attached leaf net.
  */
-void makeTerminalNormal(Net *net);
+void makeTerminalNormal(Flower *net);
 
 #endif /* NORMAL_H_ */

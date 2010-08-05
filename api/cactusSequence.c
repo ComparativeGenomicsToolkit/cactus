@@ -8,17 +8,17 @@
 ////////////////////////////////////////////////
 ////////////////////////////////////////////////
 
-Sequence *sequence_construct(MetaSequence *metaSequence, Net *net) {
+Sequence *sequence_construct(MetaSequence *metaSequence, Flower *flower) {
 	Sequence *sequence;
 	sequence = st_malloc(sizeof(Sequence));
 	sequence->metaSequence = metaSequence;
-	sequence->net = net;
-	net_addSequence(net, sequence);
+	sequence->flower = flower;
+	flower_addSequence(flower, sequence);
 	return sequence;
 }
 
 void sequence_destruct(Sequence *sequence) {
-	net_removeSequence(sequence_getNet(sequence), sequence);
+	flower_removeSequence(sequence_getNet(sequence), sequence);
 	free(sequence);
 }
 
@@ -39,11 +39,11 @@ Name sequence_getName(Sequence *sequence) {
 }
 
 Event *sequence_getEvent(Sequence *sequence) {
-	return eventTree_getEvent(net_getEventTree(sequence_getNet(sequence)), metaSequence_getEventName(sequence->metaSequence));
+	return eventTree_getEvent(flower_getEventTree(sequence_getNet(sequence)), metaSequence_getEventName(sequence->metaSequence));
 }
 
-Net *sequence_getNet(Sequence *sequence) {
-	return sequence->net;
+Flower *sequence_getNet(Sequence *sequence) {
+	return sequence->flower;
 }
 
 char *sequence_getString(Sequence *sequence, int32_t start, int32_t length, int32_t strand) {
@@ -55,13 +55,13 @@ const char *sequence_getHeader(Sequence *sequence) {
 }
 
 void sequence_check(Sequence *sequence) {
-	Net *net = sequence_getNet(sequence);
-	assert(net_getSequence(net, sequence_getName(sequence)) == sequence); //properly connected to the net..
+	Flower *flower = sequence_getNet(sequence);
+	assert(flower_getSequence(flower, sequence_getName(sequence)) == sequence); //properly connected to the flower..
 
-	Group *parentGroup = net_getParentGroup(net);
+	Group *parentGroup = flower_getParentGroup(flower);
 	if(parentGroup != NULL) {
-		Net *parentNet = group_getNet(parentGroup);
-		Sequence *parentSequence = net_getSequence(parentNet, sequence_getName(sequence));
+		Flower *parentNet = group_getNet(parentGroup);
+		Sequence *parentSequence = flower_getSequence(parentNet, sequence_getName(sequence));
 		if(parentSequence != NULL) {
 			assert(event_getName(sequence_getEvent(sequence)) == event_getName(sequence_getEvent(parentSequence)));
 		}
@@ -77,13 +77,13 @@ void sequence_writeBinaryRepresentation(Sequence *sequence, void (*writeFn)(cons
 	binaryRepresentation_writeName(sequence_getName(sequence), writeFn);
 }
 
-Sequence *sequence_loadFromBinaryRepresentation(void **binaryString, Net *net) {
+Sequence *sequence_loadFromBinaryRepresentation(void **binaryString, Flower *flower) {
 	Sequence *sequence;
 
 	sequence = NULL;
 	if(binaryRepresentation_peekNextElementType(*binaryString) == CODE_SEQUENCE) {
 		binaryRepresentation_popNextElementType(binaryString);
-		sequence = sequence_construct(cactusDisk_getMetaSequence(net_getNetDisk(net), binaryRepresentation_getName(binaryString)), net);
+		sequence = sequence_construct(cactusDisk_getMetaSequence(flower_getNetDisk(flower), binaryRepresentation_getName(binaryString)), flower);
 	}
 	return sequence;
 }

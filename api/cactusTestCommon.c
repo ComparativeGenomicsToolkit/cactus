@@ -16,5 +16,5 @@ const char *testCommon_getTemporaryNetDisk() {
 
 void testCommon_deleteTemporaryNetDisk() {
 	int32_t i = system("rm -rf temporaryNetDisk");
-	exitOnFailure(i, "Tried to delete the temporary net disk\n");
+	exitOnFailure(i, "Tried to delete the temporary flower disk\n");
 }

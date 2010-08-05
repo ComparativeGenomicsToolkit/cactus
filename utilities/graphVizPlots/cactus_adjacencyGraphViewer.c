@@ -77,27 +77,27 @@ void addBlockToGraph(Block *block, const char *colour, FILE *fileHandle) {
     block_destructInstanceIterator(iterator);
 }
 
-void addTrivialChainsToGraph(Net *net, FILE *fileHandle) {
+void addTrivialChainsToGraph(Flower *net, FILE *fileHandle) {
     /*
      * Add blocks not part of chain to the graph
      */
-    Net_BlockIterator *blockIterator = net_getBlockIterator(net);
+    Flower_BlockIterator *blockIterator = flower_getBlockIterator(net);
     Block *block;
-    while ((block = net_getNextBlock(blockIterator)) != NULL) {
+    while ((block = flower_getNextBlock(blockIterator)) != NULL) {
         if (block_getChain(block) == NULL) {
             addBlockToGraph(block, "black", fileHandle);
         }
     }
-    net_destructBlockIterator(blockIterator);
+    flower_destructBlockIterator(blockIterator);
 }
 
-void addChainsToGraph(Net *net, FILE *fileHandle) {
+void addChainsToGraph(Flower *net, FILE *fileHandle) {
     /*
      * Add blocks part of a chain to the graph.
      */
-    Net_ChainIterator *chainIterator = net_getChainIterator(net);
+    Flower_ChainIterator *chainIterator = flower_getChainIterator(net);
     Chain *chain;
-    while ((chain = net_getNextChain(chainIterator)) != NULL) {
+    while ((chain = flower_getNextChain(chainIterator)) != NULL) {
         int32_t i, j;
         const char *chainColour;
         while ((chainColour = graphViz_getColour()) != NULL) { //ensure the chain colours don't match the trivial block chains and the adjacencies.
@@ -112,7 +112,7 @@ void addChainsToGraph(Net *net, FILE *fileHandle) {
         }
         free(blocks);
     }
-    net_destructChainIterator(chainIterator);
+    flower_destructChainIterator(chainIterator);
 }
 
 void addAdjacencies(Group *group, FILE *fileHandle) {
@@ -122,11 +122,11 @@ void addAdjacencies(Group *group, FILE *fileHandle) {
     static char label[10000];
     Group_EndIterator *endIterator = group_getEndIterator(group);
     End *end;
-    Net *net = group_getNet(group);
-    while ((end = net_getNextEnd(endIterator)) != NULL) {
+    Flower *net = group_getNet(group);
+    while ((end = flower_getNextEnd(endIterator)) != NULL) {
         End_InstanceIterator *instanceIterator = end_getInstanceIterator(end);
         Cap *cap;
-        char *netName = cactusMisc_nameToString(net_getName(net));
+        char *netName = cactusMisc_nameToString(flower_getName(net));
         while ((cap = end_getNext(instanceIterator)) != NULL) {
             if (cap_getSequence(cap) != NULL) {
                 cap = cap_getStrand(cap) ? cap : cap_getReverse(cap);
@@ -137,7 +137,7 @@ void addAdjacencies(Group *group, FILE *fileHandle) {
                             cactusMisc_nameToStringStatic(sequence_getName(
                                     cap_getSequence(cap))), cap_getCoordinate(
                                     cap), cap_getCoordinate(cap2), netName,
-                            net_getEndNumber(net));
+                            flower_getEndNumber(net));
                     //sprintf(label, "%s:%i",
                     //		netName,
                     //		net_getEndNumber(net));
@@ -152,39 +152,39 @@ void addAdjacencies(Group *group, FILE *fileHandle) {
     group_destructEndIterator(endIterator);
 }
 
-void addStubAndCapEndsToGraph(Net *net, FILE *fileHandle) {
-    Net_EndIterator *endIterator = net_getEndIterator(net);
+void addStubAndCapEndsToGraph(Flower *net, FILE *fileHandle) {
+    Flower_EndIterator *endIterator = flower_getEndIterator(net);
     End *end;
-    while ((end = net_getNextEnd(endIterator)) != NULL) {
+    while ((end = flower_getNextEnd(endIterator)) != NULL) {
         if (end_isStubEnd(end)) {
             addEndNodeToGraph(end, fileHandle);
         }
     }
-    net_destructEndIterator(endIterator);
+    flower_destructEndIterator(endIterator);
 }
 
-void makeCactusGraph(Net *net, FILE *fileHandle) {
-    if (net_getParentGroup(net) == NULL) {
+void makeCactusGraph(Flower *net, FILE *fileHandle) {
+    if (flower_getParentGroup(net) == NULL) {
         addStubAndCapEndsToGraph(net, fileHandle);
     }
     addTrivialChainsToGraph(net, fileHandle);
     addChainsToGraph(net, fileHandle);
-    Net_GroupIterator *groupIterator = net_getGroupIterator(net);
+    Flower_GroupIterator *groupIterator = flower_getGroupIterator(net);
     Group *group;
-    while ((group = net_getNextGroup(groupIterator)) != NULL) {
-        Net *nestedNet = group_getNestedNet(group);
+    while ((group = flower_getNextGroup(groupIterator)) != NULL) {
+        Flower *nestedNet = group_getNestedNet(group);
         if (nestedNet != NULL) {
             makeCactusGraph(nestedNet, fileHandle);
         } else { //time to add the adjacencies!
             addAdjacencies(group, fileHandle);
         }
     }
-    net_destructGroupIterator(groupIterator);
+    flower_destructGroupIterator(groupIterator);
 }
 
 int main(int argc, char *argv[]) {
     CactusDisk *netDisk;
-    Net *net;
+    Flower *net;
     FILE *fileHandle;
 
     /*

@@ -6,7 +6,7 @@
 struct _eventTree {
 	Event *rootEvent;
 	stSortedSet *events;
-	Net *net;
+	Flower *flower;
 };
 
 
@@ -41,6 +41,6 @@ void eventTree_writeBinaryRepresentation(EventTree *eventTree, void (*writeFn)(c
 /*
  * Loads a eventTree into memory from a binary representation of the eventTree.
  */
-EventTree *eventTree_loadFromBinaryRepresentation(void **binaryString, Net *net);
+EventTree *eventTree_loadFromBinaryRepresentation(void **binaryString, Flower *flower);
 
 #endif

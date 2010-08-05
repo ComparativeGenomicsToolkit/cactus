@@ -128,17 +128,17 @@ void tabulateAndPrintIntValues(struct IntList *values, const char *tag,
     printClosingTag(tag, fileHandle);
 }
 
-double calculateTreeBits(Net *net, double pathBitScore) {
+double calculateTreeBits(Flower *net, double pathBitScore) {
     /*
      * Calculates the total number of bits to required to encode the path to every base in the net.
      */
     double totalBitScore = 0.0;
     int32_t totalSequenceSize;
-    Net_GroupIterator *groupIterator = net_getGroupIterator(net);
+    Flower_GroupIterator *groupIterator = flower_getGroupIterator(net);
     Group *group;
-    double followingPathBitScore = (log(net_getGroupNumber(net)) / log(2.0))
+    double followingPathBitScore = (log(flower_getGroupNumber(net)) / log(2.0))
             + pathBitScore;
-    while ((group = net_getNextGroup(groupIterator)) != NULL) {
+    while ((group = flower_getNextGroup(groupIterator)) != NULL) {
         if (group_isLeaf(group)) {
             totalSequenceSize = group_getTotalBaseLength(group);
             totalBitScore += (totalSequenceSize > 0 ? ((log(totalSequenceSize)
@@ -149,24 +149,24 @@ double calculateTreeBits(Net *net, double pathBitScore) {
                     followingPathBitScore);
         }
     }
-    net_destructGroupIterator(groupIterator);
-    Net_BlockIterator *blockIterator = net_getBlockIterator(net);
+    flower_destructGroupIterator(groupIterator);
+    Flower_BlockIterator *blockIterator = flower_getBlockIterator(net);
     Block *block;
     totalSequenceSize = 0.0;
-    while ((block = net_getNextBlock(blockIterator)) != NULL) {
+    while ((block = flower_getNextBlock(blockIterator)) != NULL) {
         totalSequenceSize += block_getLength(block) * block_getInstanceNumber(
                 block);
     }
-    net_destructBlockIterator(blockIterator);
+    flower_destructBlockIterator(blockIterator);
     return totalBitScore + (totalSequenceSize > 0 ? ((log(totalSequenceSize)
             / log(2.0)) + pathBitScore) * totalSequenceSize : 0.0);
 }
 
-void reportRelativeEntopyStats(Net *net, FILE *fileHandle) {
+void reportRelativeEntopyStats(Flower *net, FILE *fileHandle) {
     /*
      * Relative entropy stats. Supposed to give a metric of how balanced the tree is in how it subdivides the input sequences.
      */
-    double totalSeqSize = net_getTotalBaseLength(net);
+    double totalSeqSize = flower_getTotalBaseLength(net);
     double totalP = calculateTreeBits(net, 0.0);
     double totalQ = (log(totalSeqSize) / log(2.0)) * totalSeqSize;
     //assert(totalP >= totalQ);
@@ -179,7 +179,7 @@ void reportRelativeEntopyStats(Net *net, FILE *fileHandle) {
             totalP, totalQ, relativeEntropy, normalisedRelativeEntropy);
 }
 
-static void netStats(Net *net, int32_t currentDepth, struct IntList *children,
+static void netStats(Flower *net, int32_t currentDepth, struct IntList *children,
         struct IntList *tangleChildren, struct IntList *linkChildren,
         struct IntList *depths) {
     /*
@@ -189,11 +189,11 @@ static void netStats(Net *net, int32_t currentDepth, struct IntList *children,
      * Link children, like children but only including groups that are link groups.
      * Depth is the length of a path (in terms of edges/connections) from the root net to a terminal net (which are the leaf nets of the tree, if terminally normalised).
      */
-    if (!net_isTerminal(net)) {
-        Net_GroupIterator *groupIterator = net_getGroupIterator(net);
+    if (!flower_isTerminal(net)) {
+        Flower_GroupIterator *groupIterator = flower_getGroupIterator(net);
         Group *group;
         int32_t i = 0;
-        while ((group = net_getNextGroup(groupIterator)) != NULL) {
+        while ((group = flower_getNextGroup(groupIterator)) != NULL) {
             assert(!group_isLeaf(group));
             netStats(group_getNestedNet(group), currentDepth + 1, children,
                     tangleChildren, linkChildren, depths);
@@ -201,16 +201,16 @@ static void netStats(Net *net, int32_t currentDepth, struct IntList *children,
                 i++;
             }
         }
-        net_destructGroupIterator(groupIterator);
-        intListAppend(children, net_getGroupNumber(net));
-        intListAppend(tangleChildren, net_getGroupNumber(net) - i);
+        flower_destructGroupIterator(groupIterator);
+        intListAppend(children, flower_getGroupNumber(net));
+        intListAppend(tangleChildren, flower_getGroupNumber(net) - i);
         intListAppend(linkChildren, i);
     } else {
         intListAppend(depths, currentDepth);
     }
 }
 
-void reportNetStats(Net *net, FILE *fileHandle) {
+void reportNetStats(Flower *net, FILE *fileHandle) {
     /*
      * Prints the chain stats to the XML file.
      */
@@ -231,7 +231,7 @@ void reportNetStats(Net *net, FILE *fileHandle) {
     destructIntList(depths);
 }
 
-void blockStats(Net *net, struct IntList *counts, struct IntList *lengths,
+void blockStats(Flower *net, struct IntList *counts, struct IntList *lengths,
         struct IntList *degrees, struct IntList *leafDegrees,
         struct IntList *coverage, struct IntList *leafCoverage,
         int32_t minLeafDegree) {
@@ -244,18 +244,18 @@ void blockStats(Net *net, struct IntList *counts, struct IntList *lengths,
      * Coverage is the length * degree of each block.
      * Leaf coverage is the length * leadf degree of each block.
      */
-    if (!net_isTerminal(net)) {
-        Net_GroupIterator *groupIterator = net_getGroupIterator(net);
+    if (!flower_isTerminal(net)) {
+        Flower_GroupIterator *groupIterator = flower_getGroupIterator(net);
         Group *group;
-        while ((group = net_getNextGroup(groupIterator)) != NULL) {
+        while ((group = flower_getNextGroup(groupIterator)) != NULL) {
             assert(!group_isLeaf(group));
             blockStats(group_getNestedNet(group), counts, lengths, degrees,
                     leafDegrees, coverage, leafCoverage, minLeafDegree);
         }
-        net_destructGroupIterator(groupIterator);
-        Net_BlockIterator *blockIterator = net_getBlockIterator(net);
+        flower_destructGroupIterator(groupIterator);
+        Flower_BlockIterator *blockIterator = flower_getBlockIterator(net);
         Block *block;
-        while ((block = net_getNextBlock(blockIterator)) != NULL) {
+        while ((block = flower_getNextBlock(blockIterator)) != NULL) {
             Segment *segment;
             Block_InstanceIterator *segmentIterator =
                     block_getInstanceIterator(block);
@@ -275,12 +275,12 @@ void blockStats(Net *net, struct IntList *counts, struct IntList *lengths,
                 intListAppend(leafCoverage, block_getLength(block) * i);
             }
         }
-        net_destructBlockIterator(blockIterator);
-        intListAppend(counts, net_getBlockNumber(net));
+        flower_destructBlockIterator(blockIterator);
+        intListAppend(counts, flower_getBlockNumber(net));
     }
 }
 
-void reportBlockStats(Net *net, FILE *fileHandle, int32_t minLeafDegree) {
+void reportBlockStats(Flower *net, FILE *fileHandle, int32_t minLeafDegree) {
     /*
      * Prints the block stats to the XML file.
      */
@@ -308,7 +308,7 @@ void reportBlockStats(Net *net, FILE *fileHandle, int32_t minLeafDegree) {
     destructIntList(leafCoverage);
 }
 
-static void chainStats(Net *net, struct IntList *counts,
+static void chainStats(Flower *net, struct IntList *counts,
         struct IntList *blockNumbers, struct IntList *baseBlockLengths,
         struct IntList *linkNumbers, struct IntList *avgInstanceBaseLengths,
         int32_t minNumberOfBlocksInChain) {
@@ -320,23 +320,23 @@ static void chainStats(Net *net, struct IntList *counts,
      * Link numbers if the number of links per chain.
      * Avg instance base lengths is the avg number of basepairs in an instance of a chain, per chain.
      */
-    if (!net_isTerminal(net)) {
-        Net_GroupIterator *groupIterator = net_getGroupIterator(net);
+    if (!flower_isTerminal(net)) {
+        Flower_GroupIterator *groupIterator = flower_getGroupIterator(net);
         Group *group;
-        while ((group = net_getNextGroup(groupIterator)) != NULL) {
+        while ((group = flower_getNextGroup(groupIterator)) != NULL) {
             assert(group_getNestedNet(group) != NULL);
             chainStats(group_getNestedNet(group), counts, blockNumbers,
                     baseBlockLengths, linkNumbers, avgInstanceBaseLengths,
                     minNumberOfBlocksInChain);
         }
-        net_destructGroupIterator(groupIterator);
+        flower_destructGroupIterator(groupIterator);
 
-        Net_ChainIterator *chainIterator = net_getChainIterator(net);
+        Flower_ChainIterator *chainIterator = flower_getChainIterator(net);
         Chain *chain;
         Block **blocks;
         int32_t i, j, k, l;
         l = 0;
-        while ((chain = net_getNextChain(chainIterator)) != NULL) {
+        while ((chain = flower_getNextChain(chainIterator)) != NULL) {
             blocks = chain_getBlockChain(chain, &i);
             k = 0;
             for (j = 0; j < i; j++) {
@@ -353,12 +353,12 @@ static void chainStats(Net *net, struct IntList *counts,
                 l++;
             }
         }
-        net_destructBlockIterator(chainIterator);
+        flower_destructBlockIterator(chainIterator);
         intListAppend(counts, l);
     }
 }
 
-void reportChainStats(Net *net, int32_t minNumberOfBlocksInChain,
+void reportChainStats(Flower *net, int32_t minNumberOfBlocksInChain,
         FILE *fileHandle) {
     /*
      * Prints the chain stats to the XML file.
@@ -387,26 +387,26 @@ void reportChainStats(Net *net, int32_t minNumberOfBlocksInChain,
     destructIntList(avgInstanceBaseLengths);
 }
 
-void terminalNetSizes(Net *net, struct IntList *sizes) {
+void terminalNetSizes(Flower *net, struct IntList *sizes) {
     /*
      * Reports stats on the size of terminal nets..
      * Sizes = This gives the sizes of the terminal nets, i.e. the number of bases in adjacencies between ends in terminal nets.
      * If the cactus tree has been fully decomposed then all terminal nets will contain 0 bases.
      */
-    if (net_isTerminal(net)) {
-        intListAppend(sizes, net_getTotalBaseLength(net));
+    if (flower_isTerminal(net)) {
+        intListAppend(sizes, flower_getTotalBaseLength(net));
     } else {
-        Net_GroupIterator *groupIterator = net_getGroupIterator(net);
+        Flower_GroupIterator *groupIterator = flower_getGroupIterator(net);
         Group *group;
-        while ((group = net_getNextGroup(groupIterator)) != NULL) {
+        while ((group = flower_getNextGroup(groupIterator)) != NULL) {
             assert(!group_isLeaf(group));
             terminalNetSizes(group_getNestedNet(group), sizes);
         }
-        net_destructGroupIterator(groupIterator);
+        flower_destructGroupIterator(groupIterator);
     }
 }
 
-void reportTerminalNetSizes(Net *net, FILE *fileHandle) {
+void reportTerminalNetSizes(Flower *net, FILE *fileHandle) {
     /*
      * Prints the terminal group size stats to the XML file.
      */
@@ -423,7 +423,7 @@ static int32_t isTerminalGroup(Group *group) {
     if (group_isLeaf(group)) {
         return 0;
     }
-    return net_isTerminal(group_getNestedNet(group));
+    return flower_isTerminal(group_getNestedNet(group));
 }
 
 static int32_t endDegree(End *end) {
@@ -448,7 +448,7 @@ static int32_t endDegree(End *end) {
     return i;
 }
 
-void endStats(Net *net, struct IntList *counts, struct IntList *degrees,
+void endStats(Flower *net, struct IntList *counts, struct IntList *degrees,
         int32_t includeLinkGroups, int32_t includeTangleGroups,
         int32_t includeTerminalGroups, int32_t includeNonTerminalGroups) {
     /*
@@ -457,10 +457,10 @@ void endStats(Net *net, struct IntList *counts, struct IntList *degrees,
      * Degrees is the degree of each end, where the degree of an end is the number
      * of distinct adjacencies an end has to other ends.
      */
-    if (!net_isTerminal(net)) { //Do not double count terminal groups when doing the math.
-        Net_GroupIterator *groupIterator = net_getGroupIterator(net);
+    if (!flower_isTerminal(net)) { //Do not double count terminal groups when doing the math.
+        Flower_GroupIterator *groupIterator = flower_getGroupIterator(net);
         Group *group;
-        while ((group = net_getNextGroup(groupIterator)) != NULL) {
+        while ((group = flower_getNextGroup(groupIterator)) != NULL) {
             //The stats calc.
             if (((includeLinkGroups && group_getLink(group) != NULL)
                     || (includeTangleGroups && group_getLink(group) == NULL))
@@ -481,11 +481,11 @@ void endStats(Net *net, struct IntList *counts, struct IntList *degrees,
                     includeLinkGroups, includeTangleGroups,
                     includeTerminalGroups, includeNonTerminalGroups);
         }
-        net_destructGroupIterator(groupIterator);
+        flower_destructGroupIterator(groupIterator);
     }
 }
 
-void reportEndStats(Net *net, int32_t includeLinkGroups,
+void reportEndStats(Flower *net, int32_t includeLinkGroups,
         int32_t includeTangleGroups, int32_t includeTerminalGroups,
         int32_t includeNonTerminalGroups, FILE *fileHandle) {
     /*
@@ -526,7 +526,7 @@ double nonSimpleFacesPerEnd(End *end) {
     return i;
 }
 
-void faceStats(Net *net, struct IntList *numberPerGroup,
+void faceStats(Flower *net, struct IntList *numberPerGroup,
         struct IntList *cardinality, struct IntList *isSimple,
         struct IntList *isRegular, struct IntList *isCanonical,
         struct IntList *facesPerFaceAssociatedEnd, int32_t includeLinkGroups,
@@ -541,25 +541,25 @@ void faceStats(Net *net, struct IntList *numberPerGroup,
      * facesPerFaceAssociatedEnd: the number of faces associated with each end that
      * is associated with at least one end. Used to calculate the breakpoint reuse ratio.
      */
-    if (net_isTerminal(net)) {
-        Group *group = net_getParentGroup(net);
+    if (flower_isTerminal(net)) {
+        Group *group = flower_getParentGroup(net);
         assert(group != NULL);
         if ((includeLinkGroups && group_getLink(group) != NULL)
                 || (includeTangleGroups && group_getLink(group) == NULL)) {
-            Net_FaceIterator *faceIterator = net_getFaceIterator(net);
+            Flower_FaceIterator *faceIterator = flower_getFaceIterator(net);
             Face *face;
-            while ((face = net_getNextFace(faceIterator)) != NULL) {
+            while ((face = flower_getNextFace(faceIterator)) != NULL) {
                 intListAppend(cardinality, face_getCardinal(face));
                 intListAppend(isSimple, face_isSimple(face));
                 intListAppend(isRegular, face_isRegular(face));
                 intListAppend(isCanonical, face_isCanonical(face));
             }
-            net_destructFaceIterator(faceIterator);
+            flower_destructFaceIterator(faceIterator);
         }
     } else {
-        Net_GroupIterator *groupIterator = net_getGroupIterator(net);
+        Flower_GroupIterator *groupIterator = flower_getGroupIterator(net);
         Group *group;
-        while ((group = net_getNextGroup(groupIterator)) != NULL) {
+        while ((group = flower_getNextGroup(groupIterator)) != NULL) {
             //Call recursively..
             assert(!group_isLeaf(group));
             faceStats(group_getNestedNet(group), numberPerGroup, cardinality,
@@ -567,11 +567,11 @@ void faceStats(Net *net, struct IntList *numberPerGroup,
                     facesPerFaceAssociatedEnd, includeLinkGroups,
                     includeTangleGroups);
         }
-        net_destructGroupIterator(groupIterator);
+        flower_destructGroupIterator(groupIterator);
     }
 }
 
-void reportFaceStats(Net *net, int32_t includeLinkGroups,
+void reportFaceStats(Flower *net, int32_t includeLinkGroups,
         int32_t includeTangleGroups, FILE *fileHandle) {
     /*
      * Prints the reference stats to the XML file.
@@ -603,7 +603,7 @@ void reportFaceStats(Net *net, int32_t includeLinkGroups,
     destructIntList(isCanonical);
 }
 
-void referenceStats(Net *net, struct IntList *pseudoChromosomeNumber,
+void referenceStats(Flower *net, struct IntList *pseudoChromosomeNumber,
         struct IntList *pseudoAdjacencyNumberPerChromosome,
         struct IntList *truePseudoAdjacencyNumberPerChromosome,
         struct IntList *linksPerChromosome) {
@@ -612,20 +612,20 @@ void referenceStats(Net *net, struct IntList *pseudoChromosomeNumber,
      * Stats are pretty obvious.
      */
     //Call recursively..
-    Net_GroupIterator *groupIterator = net_getGroupIterator(net);
+    Flower_GroupIterator *groupIterator = flower_getGroupIterator(net);
     Group *group;
-    while ((group = net_getNextGroup(groupIterator)) != NULL) {
+    while ((group = flower_getNextGroup(groupIterator)) != NULL) {
         if (!group_isLeaf(group)) {
             referenceStats(group_getNestedNet(group), pseudoChromosomeNumber,
                     pseudoAdjacencyNumberPerChromosome,
                     truePseudoAdjacencyNumberPerChromosome, linksPerChromosome);
         }
     }
-    net_destructGroupIterator(groupIterator);
+    flower_destructGroupIterator(groupIterator);
 
     //Calculate stats for first reference.
-    if (!net_isTerminal(net)) { //The terminal problems do not contribute to the reference.
-        Reference *reference = net_getReference(net);
+    if (!flower_isTerminal(net)) { //The terminal problems do not contribute to the reference.
+        Reference *reference = flower_getReference(net);
         assert(reference != NULL);
         Reference_PseudoChromosomeIterator *pseudoChromosomeIterator =
                 reference_getPseudoChromosomeIterator(reference);
@@ -677,11 +677,11 @@ void referenceStats(Net *net, struct IntList *pseudoChromosomeNumber,
     }
 }
 
-void reportReferenceStats(Net *net, FILE *fileHandle) {
+void reportReferenceStats(Flower *net, FILE *fileHandle) {
     /*
      * Prints the reference stats to the XML file.
      */
-    if (net_getReference(net) != NULL) {
+    if (flower_getReference(net) != NULL) {
         struct IntList *pseudoChromosomeNumber = constructEmptyIntList(0);
         struct IntList *pseudoAdjacencyNumberPerChromosome =
                 constructEmptyIntList(0);
@@ -709,13 +709,13 @@ void reportReferenceStats(Net *net, FILE *fileHandle) {
     }
 }
 
-void reportNetDiskStats(char *netDiskName, Net *net, FILE *fileHandle) {
+void reportNetDiskStats(char *netDiskName, Flower *net, FILE *fileHandle) {
 
-    double totalSeqSize = net_getTotalBaseLength(net);
+    double totalSeqSize = flower_getTotalBaseLength(net);
     fprintf(
             fileHandle,
             "<stats net_disk=\"%s\" net_name=\"%s\" total_sequence_length=\"%f\" >",
-            netDiskName, cactusMisc_nameToStringStatic(net_getName(net)),
+            netDiskName, cactusMisc_nameToStringStatic(flower_getName(net)),
             totalSeqSize);
 
     /*

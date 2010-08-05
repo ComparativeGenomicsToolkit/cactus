@@ -7,7 +7,7 @@ typedef struct _blockContents {
 	Name name;
 	stSortedSet *segments;
 	int32_t length;
-	Net *net;
+	Flower *flower;
 } BlockContents;
 
 struct _block_instanceIterator {
@@ -33,7 +33,7 @@ struct _block {
 /*
  * Constructs the block, but not its ends.
  */
-Block *block_construct2(Name name, int32_t length, End *leftEnd, End *rightEnd, Net *net);
+Block *block_construct2(Name name, int32_t length, End *leftEnd, End *rightEnd, Flower *flower);
 
 /*
  * Destructs the block and all segments it contains.
@@ -56,9 +56,9 @@ void block_removeInstance(Block *block, Segment *segment);
 void block_writeBinaryRepresentation(Block *block, void (*writeFn)(const void * ptr, size_t size, size_t count));
 
 /*
- * Loads a net into memory from a binary representation of the net.
+ * Loads a flower into memory from a binary representation of the flower.
  */
-Block *block_loadFromBinaryRepresentation(void **binaryString, Net *net);
+Block *block_loadFromBinaryRepresentation(void **binaryString, Flower *flower);
 
 /*
  * Get a static instance (from the heap) with the name set.
@@ -66,8 +66,8 @@ Block *block_loadFromBinaryRepresentation(void **binaryString, Net *net);
 Block *block_getStaticNameWrapper(Name name);
 
 /*
- * Sets the net associated with the block.
+ * Sets the flower associated with the block.
  */
-void block_setNet(Block *block, Net *net);
+void block_setNet(Block *block, Flower *flower);
 
 #endif

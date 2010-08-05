@@ -3,7 +3,7 @@
 
 #include "cactusGlobals.h"
 
-struct _net {
+struct _flower {
     Name name;
     EventTree *eventTree;
     Reference *reference;
@@ -15,7 +15,7 @@ struct _net {
     stSortedSet *groups;
     stSortedSet *chains;
     stSortedSet *faces;
-    Name parentNetName;
+    Name parentFlowerName;
     CactusDisk *cactusDisk;
     int32_t faceIndex;
     int32_t chainIndex;
@@ -27,153 +27,153 @@ struct _net {
 ////////////////////////////////////////////////
 ////////////////////////////////////////////////
 ////////////////////////////////////////////////
-//Private net functions.
+//Private flower functions.
 ////////////////////////////////////////////////
 ////////////////////////////////////////////////
 ////////////////////////////////////////////////
 
 /*
- * Constructs the net.
+ * Constructs the flower.
  */
-Net *net_construct2(Name name, CactusDisk *cactusDisk);
+Flower *flower_construct2(Name name, CactusDisk *cactusDisk);
 
 /*
- * Destructs the net, and all the elements it contains. If recursive the function will destroy all
- * loaded nested nets.
+ * Destructs the flower, and all the elements it contains. If recursive the function will destroy all
+ * loaded nested flowers.
  */
-void net_destruct(Net *net, int32_t recursive);
+void flower_destruct(Flower *flower, int32_t recursive);
 
 /*
- * Adds the event tree for the net to the net.
- * If an previous event tree exists for the net
+ * Adds the event tree for the flower to the flower.
+ * If an previous event tree exists for the flower
  * it will call eventTree_destruct for the existing tree
- * (which should not exist without the net).
+ * (which should not exist without the flower).
  */
-void net_setEventTree(Net *net, EventTree *eventTree);
+void flower_setEventTree(Flower *flower, EventTree *eventTree);
 
 /*
  * This function is called by eventTree_destruct and cleans up the reference.
  */
-void net_removeEventTree(Net *net, EventTree *eventTree);
+void flower_removeEventTree(Flower *flower, EventTree *eventTree);
 
 /*
- * Adds the sequence to the net.
+ * Adds the sequence to the flower.
  */
-void net_addSequence(Net *net, Sequence *sequence);
+void flower_addSequence(Flower *flower, Sequence *sequence);
 
 /*
- * Removes the sequence from the net.
+ * Removes the sequence from the flower.
  */
-void net_removeSequence(Net *net, Sequence *sequence);
+void flower_removeSequence(Flower *flower, Sequence *sequence);
 
 /*
- * Adds the segment to the net.
+ * Adds the segment to the flower.
  */
-void net_addSegment(Net *net, Segment *segment);
+void flower_addSegment(Flower *flower, Segment *segment);
 
 /*
- * Remove the segment from the net.
+ * Remove the segment from the flower.
  */
-void net_removeSegment(Net *net, Segment *segment);
+void flower_removeSegment(Flower *flower, Segment *segment);
 
 /*
- * Adds the block to the net.
+ * Adds the block to the flower.
  */
-void net_addBlock(Net *net, Block *block);
+void flower_addBlock(Flower *flower, Block *block);
 
 /*
- * Remove the block from the net.
+ * Remove the block from the flower.
  */
-void net_removeBlock(Net *net, Block *block);
+void flower_removeBlock(Flower *flower, Block *block);
 
 /*
- * Adds the cap to the net.
+ * Adds the cap to the flower.
  */
-void net_addCap(Net *net, Cap *cap);
+void flower_addCap(Flower *flower, Cap *cap);
 
 /*
- * Remove the cap from the net.
+ * Remove the cap from the flower.
  */
-void net_removeCap(Net *net, Cap *cap);
+void flower_removeCap(Flower *flower, Cap *cap);
 
 /*
- * Adds the end to the net.
+ * Adds the end to the flower.
  */
-void net_addEnd(Net *net, End *end);
+void flower_addEnd(Flower *flower, End *end);
 
 /*
- * Remove the end from the net.
+ * Remove the end from the flower.
  */
-void net_removeEnd(Net *net, End *end);
+void flower_removeEnd(Flower *flower, End *end);
 
 /*
- * Adds the group to the net.
+ * Adds the group to the flower.
  */
-void net_addGroup(Net *net, Group *group);
+void flower_addGroup(Flower *flower, Group *group);
 
 /*
- * Removes an empty group from the net.
+ * Removes an empty group from the flower.
  */
-void net_removeGroup(Net *net, Group *group);
+void flower_removeGroup(Flower *flower, Group *group);
 
 /*
- * Sets the parent group of the net.
+ * Sets the parent group of the flower.
  */
-void net_setParentGroup(Net *net, Group *group);
+void flower_setParentGroup(Flower *flower, Group *group);
 
 /*
- * Adds the chain to the net.
+ * Adds the chain to the flower.
  */
-void net_addChain(Net *net, Chain *chain);
+void flower_addChain(Flower *flower, Chain *chain);
 
 /*
- * Remove the chain from the net.
+ * Remove the chain from the flower.
  */
-void net_removeChain(Net *net, Chain *chain);
+void flower_removeChain(Flower *flower, Chain *chain);
 
 /*
- * Adds the face to the net.
+ * Adds the face to the flower.
  */
-void net_addFace(Net *net, Face *face);
+void flower_addFace(Flower *flower, Face *face);
 
 /*
- * Remove the face from the net.
+ * Remove the face from the flower.
  */
-void net_removeFace(Net *net, Face *face);
+void flower_removeFace(Flower *flower, Face *face);
 
 /*
- * Adds the event tree for the net to the net.
- * If an previous event tree exists for the net
+ * Adds the event tree for the flower to the flower.
+ * If an previous event tree exists for the flower
  * it will call Reference_destruct for the existing tree
- * (which should not exist without the net).
+ * (which should not exist without the flower).
  */
-void net_setReference(Net *net, Reference *reference);
+void flower_setReference(Flower *flower, Reference *reference);
 
 /*
  * This function is called by Reference_destruct and cleans up the reference.
  */
-void net_removeReference(Net *net, Reference *reference);
+void flower_removeReference(Flower *flower, Reference *reference);
 
 /*
- * This function constructs faces for the net. If faces are already created then
+ * This function constructs faces for the flower. If faces are already created then
  * they will be first delete.
  */
-void net_reconstructFaces(Net * net);
+void flower_reconstructFaces(Flower * flower);
 
 /*
- * Destroys all faces in the net.
+ * Destroys all faces in the flower.
  */
-void net_destructFaces(Net *net);
+void flower_destructFaces(Flower *flower);
 
 /*
- * Write a binary representation of the net to the write function.
+ * Write a binary representation of the flower to the write function.
  */
-void net_writeBinaryRepresentation(Net *net, void(*writeFn)(const void * ptr,
+void flower_writeBinaryRepresentation(Flower *flower, void(*writeFn)(const void * ptr,
         size_t size, size_t count));
 
 /*
- * Loads a net into memory from a binary representation of the net.
+ * Loads a flower into memory from a binary representation of the flower.
  */
-Net *net_loadFromBinaryRepresentation(void **binaryString, CactusDisk *cactusDisk);
+Flower *flower_loadFromBinaryRepresentation(void **binaryString, CactusDisk *cactusDisk);
 
 #endif

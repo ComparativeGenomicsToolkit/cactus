@@ -12,12 +12,12 @@
 ////////////////////////////////////////////////
 
 /*
- * Constructs a cactus disk to load nets.
+ * Constructs a cactus disk to load flowers.
  */
 CactusDisk *cactusDisk_construct(const char *cactusDiskFile);
 
 /*
- * Destructs the cactus disk, and all open nets and sequences.
+ * Destructs the cactus disk, and all open flowers and sequences.
  */
 void cactusDisk_destruct(CactusDisk *cactusDisk);
 
@@ -33,60 +33,60 @@ int64_t cactusDisk_getUniqueID(CactusDisk *cactusDisk);
 void cactusDisk_write(CactusDisk *cactusDisk);
 
 /*
- * Gets a net the cactusDisk contains. If the net is not in memory it will be loaded. If not in memory or on disk, returns NULL.
+ * Gets a flower the cactusDisk contains. If the flower is not in memory it will be loaded. If not in memory or on disk, returns NULL.
  */
-Net *cactusDisk_getNet(CactusDisk *cactusDisk, Name netName);
+Flower *cactusDisk_getNet(CactusDisk *cactusDisk, Name flowerName);
 
 /*
- * Returns the total number of nets on disk.
+ * Returns the total number of flowers on disk.
  */
 int32_t cactusDisk_getNetNumberOnDisk(CactusDisk *cactusDisk);
 
 /*
- * Gets an iterator to iterate through all the net names of nets on disk.
+ * Gets an iterator to iterate through all the flower names of flowers on disk.
  */
 CactusDisk_NetNameIterator *cactusDisk_getNetNamesOnDiskIterator(CactusDisk *cactusDisk);
 
 /*
- * Gets the next net name from the iterator, returns 'NULL_NAME' when done.
+ * Gets the next flower name from the iterator, returns 'NULL_NAME' when done.
  */
-Name cactusDisk_getNextNetName(CactusDisk_NetNameIterator *netIterator);
+Name cactusDisk_getNextNetName(CactusDisk_NetNameIterator *flowerIterator);
 
 /*
  * Destructs the iterator.
  */
-void cactusDisk_destructNetNamesOnDiskIterator(CactusDisk_NetNameIterator *netIterator);
+void cactusDisk_destructNetNamesOnDiskIterator(CactusDisk_NetNameIterator *flowerIterator);
 
 /*
- * Returns the number of nets currently in memory.
+ * Returns the number of flowers currently in memory.
  */
 int32_t cactusDisk_getNetNumberInMemory(CactusDisk *cactusDisk);
 
 
 /*
- * Gets an iterator to iterate through the nets currently in memory.
+ * Gets an iterator to iterate through the flowers currently in memory.
  */
 CactusDisk_NetIterator *cactusDisk_getNetsInMemoryIterator(CactusDisk *cactusDisk);
 
 /*
- * Gets the next net from the iterator.
+ * Gets the next flower from the iterator.
  */
-Net *cactusDisk_getNextNet(CactusDisk_NetIterator *netIterator);
+Flower *cactusDisk_getNextNet(CactusDisk_NetIterator *flowerIterator);
 
 /*
- * Gets the previous net from the iterator.
+ * Gets the previous flower from the iterator.
  */
-Net *cactusDisk_getPreviousNet(CactusDisk_NetIterator *netIterator);
+Flower *cactusDisk_getPreviousNet(CactusDisk_NetIterator *flowerIterator);
 
 /*
  * Duplicates the iterator.
  */
-CactusDisk_NetIterator *cactusDisk_copyNetIterator(CactusDisk_NetIterator *netIterator);
+CactusDisk_NetIterator *cactusDisk_copyNetIterator(CactusDisk_NetIterator *flowerIterator);
 
 /*
  * Destructs the iterator.
  */
-void cactusDisk_destructNetsInMemoryIterator(CactusDisk_NetIterator *netIterator);
+void cactusDisk_destructNetsInMemoryIterator(CactusDisk_NetIterator *flowerIterator);
 
 /*
  * Functions on meta sequences.

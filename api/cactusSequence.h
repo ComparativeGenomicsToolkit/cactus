@@ -12,9 +12,9 @@
 ////////////////////////////////////////////////
 
 /*
- * Creates a sequence for a net, wrapping a meta sequence.
+ * Creates a sequence for a flower, wrapping a meta sequence.
  */
-Sequence *sequence_construct(MetaSequence *metaSequence, Net *net);
+Sequence *sequence_construct(MetaSequence *metaSequence, Flower *flower);
 
 /*
  * Destructs the sequence.
@@ -62,9 +62,9 @@ char *sequence_getString(Sequence *sequence, int32_t start, int32_t length, int3
 const char *sequence_getHeader(Sequence *sequence);
 
 /*
- * Gets the net the sequence is associated with.
+ * Gets the flower the sequence is associated with.
  */
-Net *sequence_getNet(Sequence *sequence);
+Flower *sequence_getNet(Sequence *sequence);
 
 /*
  * Checks (amongst other things) the following:

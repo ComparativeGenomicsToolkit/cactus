@@ -37,8 +37,8 @@ void writeCactusGraph(char *name, struct PinchGraph *pinchGraph,
     fclose(fileHandle);
 }
 
-char *piece_getString(struct Piece *piece, Net *net) {
-    Sequence *sequence = net_getSequence(net, piece->contig);
+char *piece_getString(struct Piece *piece, Flower *net) {
+    Sequence *sequence = flower_getSequence(net, piece->contig);
     if (piece->start >= 1) {
         return sequence_getString(sequence, piece->start, piece->end
                 - piece->start + 1, 1);
@@ -69,7 +69,7 @@ bool containsRepeatBases(char *string) {
 struct FilterAlignmentParameters {
     int32_t alignRepeats;
     int32_t trim;
-    Net *net;
+    Flower *net;
 };
 
 void filterPieceAndThenAddToGraph(struct PinchGraph *pinchGraph,
@@ -130,7 +130,7 @@ void destructCactusCoreInputParameters(CactusCoreInputParameters *cCIP) {
 }
 
 struct CactusGraph *cactusCorePipeline_2(struct PinchGraph *pinchGraph,
-        Net *net) {
+        Flower *net) {
     struct CactusGraph *cactusGraph;
     struct List *threeEdgeConnectedComponents;
     int32_t startTime;
@@ -189,7 +189,7 @@ struct List *getChosenBlockPinchEdges(stSortedSet *chosenBlocks,
     return chosenPinchEdges;
 }
 
-int32_t cactusCorePipeline(Net *net, CactusCoreInputParameters *cCIP,
+int32_t cactusCorePipeline(Flower *net, CactusCoreInputParameters *cCIP,
         struct PairwiseAlignment *(*getNextAlignment)(),
         void(*startAlignmentStack)(), int32_t terminateRecursion) {
     struct PinchGraph *pinchGraph;
@@ -201,7 +201,7 @@ int32_t cactusCorePipeline(Net *net, CactusCoreInputParameters *cCIP,
     struct List *list;
     struct hashtable *vertexAdjacencyComponents;
 
-    assert(!net_builtBlocks(net)); //We can't do this if we've already built blocks for the net!.
+    assert(!flower_builtBlocks(net)); //We can't do this if we've already built blocks for the net!.
 
     ///////////////////////////////////////////////////////////////////////////
     //Setup the basic pinch graph
@@ -419,7 +419,7 @@ int32_t cactusCorePipeline(Net *net, CactusCoreInputParameters *cCIP,
              * This test checks all blocks not in the chosen blocks have degree 1 or are stubs.
              */
             stSortedSet *allBlocks = filterBlocksByTreeCoverageAndLength(biConnectedComponents, net, 0.0, 0, 0, 0, pinchGraph);
-            assert(stSortedSet_size(allBlocks) == cactusGraph_getEdgeNumber(cactusGraph) - net_getStubEndNumber(net)); //check that this does slurp up all the block edges in the graph except those representing stub ends.
+            assert(stSortedSet_size(allBlocks) == cactusGraph_getEdgeNumber(cactusGraph) - flower_getStubEndNumber(net)); //check that this does slurp up all the block edges in the graph except those representing stub ends.
             //Now get the blocks to undo by computing the difference.
             stSortedSet *otherBlocks = stSortedSet_getDifference(allBlocks, chosenBlocks);
             assert(stSortedSet_size(allBlocks) == stSortedSet_size(chosenBlocks) + stSortedSet_size(otherBlocks)); //just to be sure.

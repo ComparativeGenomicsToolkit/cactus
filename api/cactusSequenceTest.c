@@ -1,7 +1,7 @@
 #include "cactusGlobalsPrivate.h"
 
 static CactusDisk *cactusDisk = NULL;
-static Net *net;
+static Flower *flower;
 static MetaEvent *metaEvent;
 static EventTree *eventTree;
 static MetaSequence *metaSequence;
@@ -16,7 +16,7 @@ void cactusSequenceTestTeardown() {
 		cactusDisk_destruct(cactusDisk);
 		testCommon_deleteTemporaryNetDisk();
 		cactusDisk = NULL;
-		net = NULL;
+		flower = NULL;
 		metaEvent = NULL;
 		eventTree = NULL;
 		metaSequence = NULL;
@@ -28,12 +28,12 @@ void cactusSequenceTestSetup() {
 	if(!nestedTest) {
 		cactusSequenceTestTeardown();
 		cactusDisk = cactusDisk_construct(testCommon_getTemporaryNetDisk());
-		net = net_construct(cactusDisk);
+		flower = flower_construct(cactusDisk);
 		metaEvent = metaEvent_construct("ROOT", cactusDisk);
-		eventTree = eventTree_construct(metaEvent, net);
+		eventTree = eventTree_construct(metaEvent, flower);
 		metaSequence = metaSequence_construct(1, 10, sequenceString,
 						   headerString, metaEvent_getName(metaEvent), cactusDisk);
-		sequence = sequence_construct(metaSequence, net);
+		sequence = sequence_construct(metaSequence, flower);
 	}
 }
 
@@ -64,7 +64,7 @@ void testSequence_getLength(CuTest* testCase) {
 void testSequence_getName(CuTest* testCase) {
 	cactusSequenceTestSetup();
 	CuAssertTrue(testCase, sequence_getName(sequence) != NULL_NAME);
-	CuAssertTrue(testCase, net_getSequence(net, sequence_getName(sequence)) == sequence);
+	CuAssertTrue(testCase, flower_getSequence(flower, sequence_getName(sequence)) == sequence);
 	cactusSequenceTestTeardown();
 }
 
@@ -94,7 +94,7 @@ void testSequence_getHeader(CuTest* testCase) {
 
 void testSequence_getNet(CuTest* testCase) {
 	cactusSequenceTestSetup();
-	CuAssertTrue(testCase, sequence_getNet(sequence) == net);
+	CuAssertTrue(testCase, sequence_getNet(sequence) == flower);
 	cactusSequenceTestTeardown();
 }
 
@@ -106,7 +106,7 @@ void testSequence_serialisation(CuTest* testCase) {
 	CuAssertTrue(testCase, i > 0);
 	sequence_destruct(sequence);
 	void *vA2 = vA;
-	sequence = sequence_loadFromBinaryRepresentation(&vA2, net);
+	sequence = sequence_loadFromBinaryRepresentation(&vA2, flower);
 	nestedTest = 1;
 	testSequence_getMetaSequence(testCase);
 	testSequence_getStart(testCase);

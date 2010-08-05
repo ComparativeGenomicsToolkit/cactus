@@ -7,7 +7,7 @@ struct _segment {
 	Cap *_5Cap;
 	Segment *rInstance;
 	Name name;
-	//Net *net;
+	//Net *flower;
 	Block *block;
 };
 
@@ -37,7 +37,7 @@ void segment_destruct(Segment *segment);
 void segment_writeBinaryRepresentation(Segment *segment, void (*writeFn)(const void * ptr, size_t size, size_t count));
 
 /*
- * Loads a net into memory from a binary representation of the net.
+ * Loads a flower into memory from a binary representation of the flower.
  */
 Segment *segment_loadFromBinaryRepresentation(void **binaryString, Block *block);
 

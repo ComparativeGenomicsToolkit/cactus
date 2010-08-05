@@ -64,7 +64,7 @@ int main(int argc, char *argv[]) {
      */
     int32_t startTime;
     CactusDisk *netDisk;
-    Net *net;
+    Flower *net;
     int key;
 
     /*
@@ -217,7 +217,7 @@ int main(int argc, char *argv[]) {
     net = cactusDisk_getNet(netDisk, cactusMisc_stringToName(netName));
     st_logInfo("Parsed the net to be refined\n");
 
-    if (!net_builtBlocks(net)) { // Do nothing if the net already has defined blocks
+    if (!flower_builtBlocks(net)) { // Do nothing if the net already has defined blocks
         startTime = time(NULL);
 
         ///////////////////////////////////////////////////////////////////////////

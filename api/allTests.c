@@ -14,7 +14,7 @@ CuSuite *cactusMetaEventTestSuite();
 CuSuite *cactusMetaSequenceTestSuite();
 CuSuite *cactusDiskTestSuite();
 CuSuite *cactusMiscTestSuite();
-CuSuite *cactusNetTestSuite();
+CuSuite *cactusFlowerTestSuite();
 CuSuite *cactusFaceTestSuite();
 CuSuite *cactusFaceEndTestSuite();
 CuSuite *cactusSequenceTestSuite();
@@ -41,7 +41,7 @@ int cactusAPIRunAllTests(void) {
 	CuSuiteAddSuite(suite, cactusMetaSequenceTestSuite());
 	CuSuiteAddSuite(suite, cactusDiskTestSuite());
 	CuSuiteAddSuite(suite, cactusMiscTestSuite());
-	CuSuiteAddSuite(suite, cactusNetTestSuite());
+	CuSuiteAddSuite(suite, cactusFlowerTestSuite());
 	CuSuiteAddSuite(suite, cactusFaceTestSuite());
 	CuSuiteAddSuite(suite, cactusFaceEndTestSuite());
 	CuSuiteAddSuite(suite, cactusSequenceTestSuite());

@@ -14,7 +14,7 @@
 /*
  * Constructs a chain, which in turn holds links.
  */
-Chain *chain_construct(Net *net);
+Chain *chain_construct(Flower *flower);
 
 /*
  * Destructs the chain. Does not mess with groups, should be clean.
@@ -38,14 +38,14 @@ int32_t chain_getLength(Chain *chain);
 Block **chain_getBlockChain(Chain *chain, int32_t *blockNumber);
 
 /*
- * Gets the name of the chain in the net.
+ * Gets the name of the chain in the flower.
  */
 Name chain_getName(Chain *chain);
 
 /*
- * Gets the parent net of the chain.
+ * Gets the parent flower of the chain.
  */
-Net *chain_getNet(Chain *chain);
+Flower *chain_getNet(Chain *chain);
 
 /*
  * Calculates the average number of bases in an instance of the chain (including those bases in the links)
@@ -64,14 +64,14 @@ double chain_getAverageInstanceBaseLength(Chain *chain);
 void chain_check(Chain *chain);
 
 /*
- * Ensures that all chains in this net are not part of a higher level chain, by promoting
+ * Ensures that all chains in this flower are not part of a higher level chain, by promoting
  * those chains which are.
  *
  * Let l be a link involving one attached stub-end and one block end. For any l in a
- * net n, if the attached end in l is in a link in the parent of n (if n has a parent), then this
+ * flower n, if the attached end in l is in a link in the parent of n (if n has a parent), then this
  * function promotes the chain containing l to the higher level.
  */
-void chain_promoteChainsThatExtendHigherLevelChains(Net *net);
+void chain_promoteChainsThatExtendHigherLevelChains(Flower *flower);
 
 /*
  * Names the chain with the given name. Will fail if the name collides

@@ -1,7 +1,7 @@
 #include "cactusGlobalsPrivate.h"
 
 static CactusDisk *cactusDisk = NULL;
-static Net *net;
+static Flower *flower;
 
 static MetaEvent *rootMetaEvent;
 static MetaEvent *internalMetaEvent;
@@ -34,11 +34,11 @@ static void cactusEventTestSetup() {
 	if(!nestedTest) {
 		cactusEventTestTeardown();
 		cactusDisk = cactusDisk_construct(testCommon_getTemporaryNetDisk());
-		net = net_construct(cactusDisk);
+		flower = flower_construct(cactusDisk);
 		internalMetaEvent = metaEvent_construct("INTERNAL", cactusDisk);
 		leafMetaEvent1 = metaEvent_construct("LEAF1", cactusDisk);
 		leafMetaEvent2 = metaEvent_construct("LEAF2", cactusDisk);
-		eventTree = net_getEventTree(net);
+		eventTree = flower_getEventTree(flower);
 		rootEvent = eventTree_getRootEvent(eventTree);
 		rootMetaEvent = event_getMetaEvent(rootEvent);
 		internalEvent = event_construct(internalMetaEvent, 0.5, rootEvent, eventTree);

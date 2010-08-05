@@ -584,8 +584,8 @@ static bool fillingIn_partnerConsents(Cap * partner, Cap * cap, AdjacencyVoteTab
 static Event *fillingIn_interpolateEvents(Event* parentEvent, Event* childEvent) {
     float branchLength;
     EventTree * eventTree = event_getEventTree(parentEvent);
-    Net * net = eventTree_getNet(eventTree);
-    CactusDisk * netDisk = net_getNetDisk(net);
+    Flower * net = eventTree_getNet(eventTree);
+    CactusDisk * netDisk = flower_getNetDisk(net);
     MetaEvent * metaEvent;
     Event * ptr = childEvent;
     Event * result;
@@ -1083,39 +1083,39 @@ static void fillingIn_testForPullDown(Cap * cap) {
 /*
  * Remove all lifted self loops and inconsistent adjacencies from net
  */
-static void fillingIn_pullDowns(Net * net)
+static void fillingIn_pullDowns(Flower * net)
 {
-    Net_CapIterator *iter = net_getCapIterator(net);
+    Flower_CapIterator *iter = flower_getCapIterator(net);
     Cap *cap;
 
     // Iterate through potential top nodes
-    while ((cap = net_getNextCap(iter))) 
+    while ((cap = flower_getNextCap(iter))) 
 	if (cap_getChildNumber(cap) > 1)
 	    fillingIn_testForPullDown(cap);
 
-    net_destructCapIterator(iter);
+    flower_destructCapIterator(iter);
 }
 
 /*
  * Fill adjacencies in net using descent trees and event tree
  * Correct non-AVG anomalies
  */
-void fillingIn_fillAdjacencies(Net * net)
+void fillingIn_fillAdjacencies(Flower * net)
 {
     Cap *cap;
     AdjacencyVoteTable *table = adjacencyVoteTable_construct();
-    Net_CapIterator *iter = net_getCapIterator(net);
+    Flower_CapIterator *iter = flower_getCapIterator(net);
 
     //////////////////////////////////////////////////////////////
     // Define a computation front
     //////////////////////////////////////////////////////////////
     st_logInfo("Registering leaf caps\n");
-    while ((cap = net_getNextCap(iter))) {
+    while ((cap = flower_getNextCap(iter))) {
 	st_logInfo("Testing possible leaf %p\n", cap);
 	if (cap_getChildNumber(cap) == 0)
 	    fillingIn_registerLeafCap(cap, table);
     }
-    net_destructCapIterator(iter);
+    flower_destructCapIterator(iter);
 
     //////////////////////////////////////////////////////////////
     // Compute greedily
@@ -1128,11 +1128,11 @@ void fillingIn_fillAdjacencies(Net * net)
     // Force decision for higher nodes
     //////////////////////////////////////////////////////////////
     st_logInfo("Force top of tree decisions\n");
-    iter = net_getCapIterator(net);
-    while ((cap = net_getNextCap(iter)))
+    iter = flower_getCapIterator(net);
+    while ((cap = flower_getNextCap(iter)))
 	if (!cap_getParent(cap))
 	    fillingIn_forceIndecisiveTree(cap, table);
-    net_destructCapIterator(iter);
+    flower_destructCapIterator(iter);
 
     //////////////////////////////////////////////////////////////
     // Remove self loops
@@ -1173,7 +1173,7 @@ int main(int argc, char ** argv) {
      *
      */
     CactusDisk *netDisk;
-    Net *net;
+    Flower *net;
     int32_t startTime;
     int32_t j;
 
@@ -1264,14 +1264,14 @@ int main(int argc, char ** argv) {
 	///////////////////////////////////////////////////////////////////////////
 
 	net = cactusDisk_getNet(netDisk, cactusMisc_stringToName(netName));
-	assert(net_builtTrees(net)); //we must have already built the trees for the problem at this stage
+	assert(flower_builtTrees(net)); //we must have already built the trees for the problem at this stage
 	st_logInfo("Parsed the net to be refined\n");
 
 	///////////////////////////////////////////////////////////////////////////
 	// Do nothing if we have already built the faces.
 	///////////////////////////////////////////////////////////////////////////
 
-	if(net_builtFaces(net)) {
+	if(flower_builtFaces(net)) {
 	    st_logInfo("We have already built faces for net %s\n", netName);
 	    continue;
 	}
@@ -1280,12 +1280,12 @@ int main(int argc, char ** argv) {
 	// Do nothing if not a leaf.
 	///////////////////////////////////////////////////////////////////////////
 
-	if(!net_isLeaf(net)) {
+	if(!flower_isLeaf(net)) {
 	    st_logInfo("We currently only build nets for terminal problems: %s\n", netName);
 	    continue;
 	}
-	assert(net_isTerminal(net));
-	assert(net_getBlockNumber(net) == 0); //this should be true of the terminal problems.
+	assert(flower_isTerminal(net));
+	assert(flower_getBlockNumber(net) == 0); //this should be true of the terminal problems.
 
 	///////////////////////////////////////////////////////////////////////////
 	// Fill adjencencies
@@ -1301,8 +1301,8 @@ int main(int argc, char ** argv) {
 	//of faces for the net.
 	///////////////////////////////////////////////////////////////////////////
 
-	assert(!net_builtFaces(net));
-	net_setBuildFaces(net, 1);
+	assert(!flower_builtFaces(net));
+	flower_setBuildFaces(net, 1);
     }
 
     ///////////////////////////////////////////////////////////////////////////

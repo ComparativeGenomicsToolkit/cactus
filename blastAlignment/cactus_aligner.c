@@ -19,8 +19,8 @@ int main(int argc, char *argv[]) {
 	 * Finish!
 	 */
 	CactusDisk *netDisk;
-	Net *net;
-	Net_EndIterator *endIterator;
+	Flower *net;
+	Flower_EndIterator *endIterator;
 	End_InstanceIterator *instanceIterator;
 	End *end;
 	Cap *cap;
@@ -37,8 +37,8 @@ int main(int argc, char *argv[]) {
 	st_logInfo("Read the net\n");
 	fileHandle = fopen(argv[3], "w");
 	st_logInfo("Opened the file %s to write the sub-sequences in\n", argv[3]);
-	endIterator = net_getEndIterator(net);
-	while((end = net_getNextEnd(endIterator)) != NULL) {
+	endIterator = flower_getEndIterator(net);
+	while((end = flower_getNextEnd(endIterator)) != NULL) {
 		instanceIterator = end_getInstanceIterator(end);
 		while((cap = end_getNext(instanceIterator)) != NULL) {
 			cap = cap_getStrand(cap) ? cap : cap_getReverse(cap);

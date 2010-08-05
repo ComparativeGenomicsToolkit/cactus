@@ -4,10 +4,10 @@
 /*
  * Basic constructor
  */
-Face * face_construct(Net * net) {
+Face * face_construct(Flower * flower) {
     Face * face = st_calloc(1, sizeof(Face));
-    face->net = net;
-    net_addFace(net, face);
+    face->flower = flower;
+    flower_addFace(flower, face);
     return face;
 }
 
@@ -17,7 +17,7 @@ Face * face_construct(Net * net) {
 void face_destruct(Face * face) {
     int32_t index;
 
-    net_removeFace(face->net, face);
+    flower_removeFace(face->flower, face);
 
     //Remove reference to faces in the caps..
     FaceEnd *faceEnd;
@@ -47,8 +47,8 @@ void face_destruct(Face * face) {
     free(face);
 }
 
-Net *face_getNet(Face *face) {
-    return face->net;
+Flower *face_getNet(Face *face) {
+    return face->flower;
 }
 
 /*

@@ -14,13 +14,13 @@
 /*
  * Constructs a non-leaf group.
  */
-Group *group_construct(Net *net, Net *nestedNet);
+Group *group_construct(Flower *flower, Flower *nestedNet);
 
 /*
- * Constructs an group without a nested net. The group is thus
+ * Constructs an group without a nested flower. The group is thus
  * labelled a leaf (see group_isLeaf(group)).
  */
-Group *group_construct2(Net *net);
+Group *group_construct2(Flower *flower);
 
 /*
  * Destructs a group.
@@ -28,12 +28,12 @@ Group *group_construct2(Net *net);
 void group_destruct(Group *group);
 
 /*
- *  Gets the net the group is part of.
+ *  Gets the flower the group is part of.
  */
-Net *group_getNet(Group *group);
+Flower *group_getNet(Group *group);
 
 /*
- * Gets the name of the group. This name will also be the name of the nested net,
+ * Gets the name of the group. This name will also be the name of the nested flower,
  * if the group has one.
  */
 Name group_getName(Group *group);
@@ -45,7 +45,7 @@ bool group_isLeaf(Group *group);
 
 /*
  * Converts a leaf group into a non-leaf group,
- * constructing a nested net containing the appropriate ends. The leaf adjacencies will
+ * constructing a nested flower containing the appropriate ends. The leaf adjacencies will
  * be set and all the ends will be in one new leaf group.
  *
  * Will fail if the problem is already a non-leaf group.
@@ -53,9 +53,9 @@ bool group_isLeaf(Group *group);
 void group_makeNestedNet(Group *group);
 
 /*
- * Gets the nested net the group contains, or NULL if it doesn't contain one.
+ * Gets the nested flower the group contains, or NULL if it doesn't contain one.
  */
-Net *group_getNestedNet(Group *group);
+Flower *group_getNestedNet(Group *group);
 
 
 /*
@@ -119,7 +119,7 @@ void group_destructEndIterator(Group_EndIterator *endIterator);
 int64_t group_getTotalBaseLength(Group *group);
 
 /*
- * Merges together the two groups and there nested nets, if they have them.
+ * Merges together the two groups and there nested flowers, if they have them.
  *
  * Only works if both groups do not have links. Merging together groups that
  * are in links means breaking the chains, which it currently will not do.
@@ -129,8 +129,8 @@ int64_t group_getTotalBaseLength(Group *group);
 /*
  * Checks (amongst other things) the following:
  * That the ends of the groups are doubly linked to the ends (so every end is in only one link).
- * That, if terminal has no nested net,
- * else that any nested net contains the correct set of stub ends.
+ * That, if terminal has no nested flower,
+ * else that any nested flower contains the correct set of stub ends.
  * That if the group has only two non-free stub-ends:
  *  	it has a link group, with containing chain.
  * else:

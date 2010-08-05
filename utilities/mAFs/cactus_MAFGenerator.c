@@ -87,33 +87,33 @@ void getMAFBlock(Block *block, FILE *fileHandle) {
     }
 }
 
-void getMAFs(Net *net, FILE *fileHandle) {
+void getMAFs(Flower *net, FILE *fileHandle) {
     /*
      * Outputs MAF representations of all the block sin the net and its descendants.
      */
 
     //Make MAF blocks for each block
-    Net_BlockIterator *blockIterator = net_getBlockIterator(net);
+    Flower_BlockIterator *blockIterator = flower_getBlockIterator(net);
     Block *block;
-    while ((block = net_getNextBlock(blockIterator)) != NULL) {
+    while ((block = flower_getNextBlock(blockIterator)) != NULL) {
         getMAFBlock(block, fileHandle);
     }
-    net_destructBlockIterator(blockIterator);
+    flower_destructBlockIterator(blockIterator);
 
     //Call child nets recursively.
-    Net_GroupIterator *groupIterator = net_getGroupIterator(net);
+    Flower_GroupIterator *groupIterator = flower_getGroupIterator(net);
     Group *group;
-    while ((group = net_getNextGroup(groupIterator)) != NULL) {
+    while ((group = flower_getNextGroup(groupIterator)) != NULL) {
         if (!group_isLeaf(group)) {
             getMAFs(group_getNestedNet(group), fileHandle); //recursive call.
         }
     }
-    net_destructGroupIterator(groupIterator);
+    flower_destructGroupIterator(groupIterator);
 }
 
-void makeMAFHeader(Net *net, FILE *fileHandle) {
+void makeMAFHeader(Flower *net, FILE *fileHandle) {
     fprintf(fileHandle, "##maf version=1 scoring=N/A\n");
-    char *cA = eventTree_makeNewickString(net_getEventTree(net));
+    char *cA = eventTree_makeNewickString(flower_getEventTree(net));
     fprintf(fileHandle, "# cactus %s\n\n", cA);
     free(cA);
 }
@@ -129,7 +129,7 @@ void usage() {
 
 int main(int argc, char *argv[]) {
     CactusDisk *netDisk;
-    Net *net;
+    Flower *net;
 
     /*
      * Arguments/options

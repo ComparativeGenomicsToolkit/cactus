@@ -6,7 +6,7 @@
 
 //Basic net.
 static CactusDisk *cactusDisk;
-static Net *net;
+static Flower *net;
 
 //Event tree...
 static EventTree *eventTree;
@@ -58,7 +58,7 @@ static void teardown() {
 static void setup() {
     teardown();
     cactusDisk = cactusDisk_construct(testCommon_getTemporaryNetDisk());
-    net = net_construct(cactusDisk);
+    net = flower_construct(cactusDisk);
 
     //Event tree
     rootMetaEvent = metaEvent_construct("ROOT", cactusDisk);

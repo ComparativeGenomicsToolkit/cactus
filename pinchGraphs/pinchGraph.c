@@ -468,7 +468,7 @@ struct PinchEdge *getContainingBlackEdge(struct PinchGraph *graph, Name contig, 
 	return edge2;
 }
 
-struct PinchEdge *getNextEdge(struct PinchGraph *graph, struct PinchEdge *edge, Net *net) {
+struct PinchEdge *getNextEdge(struct PinchGraph *graph, struct PinchEdge *edge, Flower *net) {
 	/*
 	 * Gets the next in the sequence from the given edge, used for traversing paths in the pinch graph.
 	 */
@@ -486,7 +486,7 @@ struct PinchEdge *getNextEdge(struct PinchGraph *graph, struct PinchEdge *edge, 
 			void *iterator2 = getBlackEdgeIterator(vertex2);
 			while((edge2 = getNextBlackEdge(vertex2, iterator2)) != NULL) {
 				if(edge2->piece->start == edge->piece->end+1) {
-					cap = net_getCap(net, edge2->piece->contig);
+					cap = flower_getCap(net, edge2->piece->contig);
 					assert(cap != NULL);
 					if(sequence_getName(cap_getSequence(cap)) == edge->piece->contig) {
 						destructGreyEdgeIterator(iterator);

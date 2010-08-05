@@ -12,9 +12,9 @@
 ////////////////////////////////////////////////
 
 /*
- * Returns the net that contains the face.
+ * Returns the flower that contains the face.
  */
-Net *face_getNet(Face *face);
+Flower *face_getNet(Face *face);
 
 /*
  * Returns cardinal
@@ -75,6 +75,6 @@ void face_check(Face *face);
  * Checks that the set of faces is as we expect - with a face object created
  * for each valid face structure in the DNA history graph.
  */
-void face_checkFaces(Net *net);
+void face_checkFaces(Flower *flower);
 
 #endif

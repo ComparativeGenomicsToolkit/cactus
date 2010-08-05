@@ -22,7 +22,7 @@ typedef struct _CactusCoreInputParameters {
     int32_t deannealingRounds;
 } CactusCoreInputParameters;
 
-int32_t cactusCorePipeline(Net *net, CactusCoreInputParameters *cCIP,
+int32_t cactusCorePipeline(Flower *net, CactusCoreInputParameters *cCIP,
         struct PairwiseAlignment *(*getNextAlignment)(),
         void(*startAlignmentStack)(), int32_t terminateRecursion);
 

@@ -1114,7 +1114,7 @@ void circulariseStems(struct CactusGraph *cactusGraph) {
 ////////////////////////////////////////////////
 
 
-float treeCoverage2(struct CactusEdge *cactusEdge, Net *net,
+float treeCoverage2(struct CactusEdge *cactusEdge, Flower *net,
         struct PinchGraph *pinchGraph) {
     /*
      * Returns the proportion of the tree covered by the block.
@@ -1164,7 +1164,7 @@ int32_t chainBaseLength(struct List *biConnectedComponent,
 }
 
 stSortedSet *filterBlocksByTreeCoverageAndLength(
-        struct List *biConnectedComponents, Net *net,
+        struct List *biConnectedComponents, Flower *net,
         float minimumTreeCoverage, /*Minimum tree coverage to be included (>=) */
         int32_t minimumBlockDegree, /*The minimum number of segments in a block to be included (>=)*/
         int32_t minimumBlockLength, /*The minimum length of an block to be included (>=)*/
@@ -1199,7 +1199,7 @@ stSortedSet *filterBlocksByTreeCoverageAndLength(
 }
 
 void logTheChosenBlockSubset(struct List *biConnectedComponents,
-        stSortedSet *chosenBlocks, struct PinchGraph *pinchGraph, Net *net) {
+        stSortedSet *chosenBlocks, struct PinchGraph *pinchGraph, Flower *net) {
     /*
      * Produces logging information about the chosen blocks.
      */

@@ -257,7 +257,7 @@ Segment *buildChainTrees3P(Block *block, Segment **segments,
                 blockNumber, binaryTree->right);
         if (leftInstance != NULL) {
             if (rightInstance != NULL) {
-                Event *event = eventTree_getEvent(net_getEventTree(
+                Event *event = eventTree_getEvent(flower_getEventTree(
                         block_getNet(block)), cactusMisc_stringToName(
                         binaryTree->label));
                 assert(event != NULL); //check event is present in the event tree.
@@ -283,7 +283,7 @@ void buildChainTrees3(Block *block, Segment **segments, int32_t blockNumber,
     /*
      * Constructs a block tree for the block.
      */
-    EventTree *eventTree = net_getEventTree(block_getNet(block));
+    EventTree *eventTree = flower_getEventTree(block_getNet(block));
     //Now do the reconcilliation of events to events in the event tree.
     reconcile(binaryTree, eventTree,
             (Event *(*)(struct BinaryTree *, void *)) getEvent, segments);
@@ -625,21 +625,21 @@ int main(int argc, char *argv[]) {
      *
      */
     CactusDisk *netDisk;
-    Net *net;
+    Flower *net;
     int32_t startTime;
     int32_t i, j;
     Chain *chain;
     Block *block;
     struct List *sortedChainAlignments;
     Group *group;
-    Net *net2;
+    Flower *net2;
     End *end;
     End *end2;
     Cap *cap;
     Cap *cap2;
     Cap *cap3;
     Event *event;
-    Net_EndIterator *endIterator;
+    Flower_EndIterator *endIterator;
 
     /*
      * Arguments/options
@@ -731,7 +731,7 @@ int main(int argc, char *argv[]) {
         // Do nothing if we have already built the trees.
         ///////////////////////////////////////////////////////////////////////////
 
-        if (net_builtTrees(net)) {
+        if (flower_builtTrees(net)) {
             st_logInfo("We have already built trees for net %s\n", netName);
             continue;
         }
@@ -742,12 +742,12 @@ int main(int argc, char *argv[]) {
         //the top level net, after which the stub roots will be set recursively.
         ///////////////////////////////////////////////////////////////////////////
 
-        if (net_getName(net) == 0) {
-            endIterator = net_getEndIterator(net);
-            while ((end = net_getNextEnd(endIterator)) != NULL) {
+        if (flower_getName(net) == 0) {
+            endIterator = flower_getEndIterator(net);
+            while ((end = flower_getNextEnd(endIterator)) != NULL) {
                 if (end_isStubEnd(end)) {
                     assert(end_getInstanceNumber(end) == 1);
-                    Event *rootEvent = eventTree_getRootEvent(net_getEventTree(
+                    Event *rootEvent = eventTree_getRootEvent(flower_getEventTree(
                             net));
                     Cap *rootCap = cap_construct(end, rootEvent);
                     assert(event_isAncestor(cap_getEvent(end_getFirst(end)), rootEvent));
@@ -758,17 +758,17 @@ int main(int argc, char *argv[]) {
                     assert(end_isBlockEnd(end));
                 }
             }
-            net_destructEndIterator(endIterator);
+            flower_destructEndIterator(endIterator);
         }
 
 #ifdef BEN_DEBUG
-        endIterator = net_getEndIterator(net);
-        while ((end = net_getNextEnd(endIterator)) != NULL) {
+        endIterator = flower_getEndIterator(net);
+        while ((end = flower_getNextEnd(endIterator)) != NULL) {
             if (!end_isBlockEnd(end)) {
                 assert(end_getRootInstance(end) != NULL);
             }
         }
-        net_destructEndIterator(endIterator);
+        flower_destructEndIterator(endIterator);
 #endif
 
         ///////////////////////////////////////////////////////////////////////////
@@ -778,8 +778,8 @@ int main(int argc, char *argv[]) {
         startTime = time(NULL);
         sortedChainAlignments = constructEmptyList(0,
                 (void(*)(void *)) chainAlignment_destruct);
-        Net_ChainIterator *chainIterator = net_getChainIterator(net);
-        while ((chain = net_getNextChain(chainIterator)) != NULL) {
+        Flower_ChainIterator *chainIterator = flower_getChainIterator(net);
+        while ((chain = flower_getNextChain(chainIterator)) != NULL) {
             Block **blockChain = chain_getBlockChain(chain, &i);
             if (i > 0) {
                 listAppend(sortedChainAlignments, chainAlignment_construct(
@@ -787,7 +787,7 @@ int main(int argc, char *argv[]) {
             }
             free(blockChain);
         }
-        net_destructChainIterator(chainIterator);
+        flower_destructChainIterator(chainIterator);
         st_logInfo(
                 "Constructed the block trees for the non-trivial chains in the net in: %i seconds\n",
                 time(NULL) - startTime);
@@ -797,14 +797,14 @@ int main(int argc, char *argv[]) {
         ///////////////////////////////////////////////////////////////////////////
 
         startTime = time(NULL);
-        Net_BlockIterator *blockIterator = net_getBlockIterator(net);
-        while ((block = net_getNextBlock(blockIterator)) != NULL) {
+        Flower_BlockIterator *blockIterator = flower_getBlockIterator(net);
+        while ((block = flower_getNextBlock(blockIterator)) != NULL) {
             if (block_getChain(block) == NULL) {
                 listAppend(sortedChainAlignments, chainAlignment_construct(
                         &block, 1));
             }
         }
-        net_destructBlockIterator(blockIterator);
+        flower_destructBlockIterator(blockIterator);
 
         qsort(sortedChainAlignments->list, sortedChainAlignments->length,
                 sizeof(void *),
@@ -826,18 +826,18 @@ int main(int argc, char *argv[]) {
 
         startTime = time(NULL);
         buildChainTrees((ChainAlignment **) sortedChainAlignments->list,
-                sortedChainAlignments->length, net_getEventTree(net));
+                sortedChainAlignments->length, flower_getEventTree(net));
         destructList(sortedChainAlignments);
 
         st_logInfo("Augmented the block trees in: %i seconds\n", time(NULL)
                 - startTime);
 
 #ifdef BEN_DEBUG
-        endIterator = net_getEndIterator(net);
-        while ((end = net_getNextEnd(endIterator)) != NULL) {
+        endIterator = flower_getEndIterator(net);
+        while ((end = flower_getNextEnd(endIterator)) != NULL) {
             assert(end_getRootInstance(end) != NULL);
         }
-        net_destructEndIterator(endIterator);
+        flower_destructEndIterator(endIterator);
 #endif
 
         ///////////////////////////////////////////////////////////////////////////
@@ -845,14 +845,14 @@ int main(int argc, char *argv[]) {
         ///////////////////////////////////////////////////////////////////////////
 
         startTime = time(NULL);
-        Net_GroupIterator *groupIterator = net_getGroupIterator(net);
-        while ((group = net_getNextGroup(groupIterator)) != NULL) {
+        Flower_GroupIterator *groupIterator = flower_getGroupIterator(net);
+        while ((group = flower_getNextGroup(groupIterator)) != NULL) {
             net2 = group_getNestedNet(group);
             if (net2 != NULL) {
                 //add in the end trees and augment the event trees.
                 Group_EndIterator *endIterator = group_getEndIterator(group);
                 while ((end = group_getNextEnd(endIterator)) != NULL) {
-                    end2 = net_getEnd(net2, end_getName(end));
+                    end2 = flower_getEnd(net2, end_getName(end));
                     assert(end2 != NULL);
                     //copy the caps.
                     End_InstanceIterator *instanceIterator =
@@ -862,13 +862,13 @@ int main(int argc, char *argv[]) {
                             assert(cap_getChildNumber(cap)> 0); //can not be a leaf
                             //make sure the augmented event is in there.
                             event = cap_getEvent(cap);
-                            if (eventTree_getEvent(net_getEventTree(net2),
+                            if (eventTree_getEvent(flower_getEventTree(net2),
                                     event_getName(event)) == NULL) {
                                 assert(event_getChildNumber(event) == 1); //must be a unary event
                                 copyConstructUnaryEvent(event,
-                                        net_getEventTree(net2));
+                                        flower_getEventTree(net2));
                             }
-                            event = eventTree_getEvent(net_getEventTree(net2),
+                            event = eventTree_getEvent(flower_getEventTree(net2),
                                     event_getName(event));
                             assert(event != NULL);
                             cap_copyConstruct(end2, cap);
@@ -896,7 +896,7 @@ int main(int argc, char *argv[]) {
                 group_destructEndIterator(endIterator);
             }
         }
-        net_destructGroupIterator(groupIterator);
+        flower_destructGroupIterator(groupIterator);
         st_logInfo(
                 "Filled in end trees and augmented the event trees for the child nets in: %i seconds\n",
                 time(NULL) - startTime);
@@ -905,8 +905,8 @@ int main(int argc, char *argv[]) {
         //Set the trees in the net to 'built' status.
         ///////////////////////////////////////////////////////////////////////////
 
-        assert(!net_builtTrees(net));
-        net_setBuiltTrees(net, 1);
+        assert(!flower_builtTrees(net));
+        flower_setBuiltTrees(net, 1);
     }
 
     ///////////////////////////////////////////////////////////////////////////

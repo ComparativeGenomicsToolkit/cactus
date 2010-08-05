@@ -36,7 +36,7 @@ void link_writeBinaryRepresentation(Link *link, void(*writeFn)(
         const void * ptr, size_t size, size_t count));
 
 /*
- * Loads a net into memory from a binary representation of the net.
+ * Loads a flower into memory from a binary representation of the flower.
  */
 Link *link_loadFromBinaryRepresentation(void **binaryString, Chain *chain);
 

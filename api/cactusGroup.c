@@ -12,19 +12,19 @@ int group_constructP(const void *o1, const void *o2) {
     return cactusMisc_nameCompare(end_getName((End *) o1), end_getName((End *) o2));
 }
 
-Group *group_construct(Net *net, Net *nestedNet) {
+Group *group_construct(Flower *flower, Flower *nestedNet) {
     Group *group;
 
-    group = group_construct3(net, net_getName(nestedNet), 0);
+    group = group_construct3(flower, flower_getName(nestedNet), 0);
     group_updateContainedEnds(group);
-    net_setParentGroup(nestedNet, group);
+    flower_setParentGroup(nestedNet, group);
     return group;
 }
 
-Group *group_construct2(Net *net) {
+Group *group_construct2(Flower *flower) {
     Group *group;
 
-    group = group_construct3(net, cactusDisk_getUniqueID(net_getNetDisk(net)), 1);
+    group = group_construct3(flower, cactusDisk_getUniqueID(flower_getNetDisk(flower)), 1);
     return group;
 }
 
@@ -37,12 +37,12 @@ static int32_t returnsTrue(Event *event) {
     return 1;
 }
 
-static void copyAdjacencies(Group *group, Net *nestedNet) {
-    assert(net_getParentGroup(nestedNet) == group);
+static void copyAdjacencies(Group *group, Flower *nestedNet) {
+    assert(flower_getParentGroup(nestedNet) == group);
     Group_EndIterator *endIterator = group_getEndIterator(group);
     End *end;
     while ((end = group_getNextEnd(endIterator)) != NULL) {
-        End *nestedEnd = net_getEnd(nestedNet, end_getName(end));
+        End *nestedEnd = flower_getEnd(nestedNet, end_getName(end));
         assert(nestedEnd != NULL);
         Cap *cap, *adjacentCap, *nestedCap, *nestedAdjacentCap;
         End_InstanceIterator *capIterator = end_getInstanceIterator(end);
@@ -50,7 +50,7 @@ static void copyAdjacencies(Group *group, Net *nestedNet) {
             adjacentCap = cap_getAdjacency(cap);
             if (adjacentCap != NULL) {
                 nestedCap = end_getInstance(nestedEnd, cap_getName(cap));
-                nestedAdjacentCap = net_getCap(nestedNet, cap_getName(
+                nestedAdjacentCap = flower_getCap(nestedNet, cap_getName(
                         adjacentCap));
                 assert(nestedCap != NULL);
                 assert(nestedAdjacentCap != NULL);
@@ -74,13 +74,13 @@ static void copyAdjacencies(Group *group, Net *nestedNet) {
 void group_makeNestedNet(Group *group) {
     assert(group_isLeaf(group));
     group->leafGroup = 0;
-    Net *nestedNet = net_construct2(group_getName(group), net_getNetDisk(
+    Flower *nestedNet = flower_construct2(group_getName(group), flower_getNetDisk(
             group_getNet(group)));
-    net_setParentGroup(nestedNet, group);
-    eventTree_copyConstruct(net_getEventTree(group_getNet(group)), nestedNet,
+    flower_setParentGroup(nestedNet, group);
+    eventTree_copyConstruct(flower_getEventTree(group_getNet(group)), nestedNet,
             returnsTrue);
     Group *nestedGroup = group_construct2(nestedNet);
-    //Add the ends to the nested net.
+    //Add the ends to the nested flower.
     Group_EndIterator *endIterator = group_getEndIterator(group);
     End *end;
     while ((end = group_getNextEnd(endIterator)) != NULL) {
@@ -90,7 +90,7 @@ void group_makeNestedNet(Group *group) {
     group_destructEndIterator(endIterator);
     //Now add adjacencies between the caps, mirroring the parent adjacencies.
     copyAdjacencies(group, nestedNet);
-    assert(group_getTotalBaseLength(group) == net_getTotalBaseLength(nestedNet));
+    assert(group_getTotalBaseLength(group) == flower_getTotalBaseLength(nestedNet));
     //Now copy any chain to the ends..
     if(group_getLink(group) != NULL) {
         Link *link = group_getLink(group);
@@ -105,8 +105,8 @@ void group_makeNestedNet(Group *group) {
 
 void group_updateContainedEnds(Group *group) {
     assert(!group_isLeaf(group));
-    Net *net;
-    Net_EndIterator *iterator;
+    Flower *flower;
+    Flower_EndIterator *iterator;
     End *end;
     End *end2;
     //wipe the slate clean.
@@ -116,14 +116,14 @@ void group_updateContainedEnds(Group *group) {
     stSortedSet_destruct(group->ends);
     group->ends = stSortedSet_construct3(group_constructP, NULL);
     //now calculate the ends
-    net = group_getNet(group);
-    iterator = net_getEndIterator(group_getNestedNet(group));
-    while ((end = net_getNextEnd(iterator)) != NULL) {
-        if ((end2 = net_getEnd(net, end_getName(end))) != NULL) {
+    flower = group_getNet(group);
+    iterator = flower_getEndIterator(group_getNestedNet(group));
+    while ((end = flower_getNextEnd(iterator)) != NULL) {
+        if ((end2 = flower_getEnd(flower, end_getName(end))) != NULL) {
             end_setGroup(end2, group);
         }
     }
-    net_destructEndIterator(iterator);
+    flower_destructEndIterator(iterator);
 }
 
 void group_addEnd(Group *group, End *end) {
@@ -132,8 +132,8 @@ void group_addEnd(Group *group, End *end) {
 }
 
 void group_destruct(Group *group) {
-    //Detach from the parent net.
-    net_removeGroup(group_getNet(group), group);
+    //Detach from the parent flower.
+    flower_removeGroup(group_getNet(group), group);
     while (group_getEndNumber(group) != 0) {
         end_setGroup(group_getFirstEnd(group), NULL);
     }
@@ -142,16 +142,16 @@ void group_destruct(Group *group) {
     free(group);
 }
 
-Net *group_getNet(Group *group) {
-    return group->net;
+Flower *group_getNet(Group *group) {
+    return group->flower;
 }
 
 Name group_getName(Group *group) {
     return group->name;
 }
 
-Net *group_getNestedNet(Group *group) {
-    return group_isLeaf(group) ? NULL : cactusDisk_getNet(net_getNetDisk(
+Flower *group_getNestedNet(Group *group) {
+    return group_isLeaf(group) ? NULL : cactusDisk_getNet(flower_getNetDisk(
             group_getNet(group)), group->name);
 }
 
@@ -230,18 +230,18 @@ int64_t group_getTotalBaseLength(Group *group) {
     return totalLength;
 }
 
-/*static void group_mergeGroupsP(Net *net) {
- Net_EndIterator *endIterator = net_getEndIterator(net);
+/*static void group_mergeGroupsP(Net *flower) {
+ Net_EndIterator *endIterator = flower_getEndIterator(flower);
  End *end;
- Group *group = group_construct2(net);
- while((end = net_getNextEnd(endIterator)) != NULL) {
+ Group *group = group_construct2(flower);
+ while((end = flower_getNextEnd(endIterator)) != NULL) {
  end_setGroup(end, group);
  }
- net_destructEndIterator(endIterator);
+ flower_destructEndIterator(endIterator);
  }
 
  Group *group_mergeGroups(Group *group1, Group *group2) {
- //Check they are in the same net..
+ //Check they are in the same flower..
  assert(group_getNet(group1) == group_getNet(group2));
  assert(group1 != group2);
  if(group_getLink(group1) != NULL) { //we have to break these links..
@@ -253,26 +253,26 @@ int64_t group_getTotalBaseLength(Group *group) {
  }
  assert(group_getLink(group2) == NULL);
 
- if(!group_isTerminal(group1) || !group_isTerminal(group2)) { //We must first merge the nested nets
- if(group_isTerminal(group1)) { //Need to make a nested net to merge with the other
+ if(!group_isTerminal(group1) || !group_isTerminal(group2)) { //We must first merge the nested flowers
+ if(group_isTerminal(group1)) { //Need to make a nested flower to merge with the other
  group_makeNonTerminal(group1);
  group_mergeGroupsP(group_getNestedNet(group1));
  assert(!group_isTerminal(group2));
  Net *nestedNet = group_getNestedNet(group1), *otherNet = group_getNestedNet(group2);
- net_setBuiltBlocks(nestedNet, net_builtBlocks(otherNet));
- net_setBuiltTrees(nestedNet, net_builtTrees(otherNet));
+ flower_setBuiltBlocks(nestedNet, flower_builtBlocks(otherNet));
+ flower_setBuiltTrees(nestedNet, flower_builtTrees(otherNet));
  }
- if(group_isTerminal(group2)) { //Need to make a nested net to merge with the other
+ if(group_isTerminal(group2)) { //Need to make a nested flower to merge with the other
  group_makeNonTerminal(group2);
  group_mergeGroupsP(group_getNestedNet(group2));
  assert(!group_isTerminal(group1));
  Net *nestedNet = group_getNestedNet(group2), *otherNet = group_getNestedNet(group1);
- net_setBuiltBlocks(nestedNet, net_builtBlocks(otherNet));
- net_setBuiltTrees(nestedNet, net_builtTrees(otherNet));
+ flower_setBuiltBlocks(nestedNet, flower_builtBlocks(otherNet));
+ flower_setBuiltTrees(nestedNet, flower_builtTrees(otherNet));
  }
  assert(group_getNestedNet(group1) != NULL);
  assert(group_getNestedNet(group2) != NULL);
- net_mergeNetsP(group_getNestedNet(group1), group_getNestedNet(group2));
+ flower_mergeNetsP(group_getNestedNet(group1), group_getNestedNet(group2));
  }
  End *end;
  while((end = group_getFirstEnd(group1)) != NULL) {
@@ -282,7 +282,7 @@ int64_t group_getTotalBaseLength(Group *group) {
 
  #ifdef BEN_DEBUG
  if(!group_isTerminal(group2)) {
- assert(net_getParentGroup(group_getNestedNet(group2)) == group2);
+ assert(flower_getParentGroup(group_getNestedNet(group2)) == group2);
  }
  #endif
 
@@ -291,10 +291,10 @@ int64_t group_getTotalBaseLength(Group *group) {
  */
 
 void group_check(Group *group) {
-    Net *net = group_getNet(group);
+    Flower *flower = group_getNet(group);
 
-    //Check net and group properly connected.
-    assert(net_getGroup(net, group_getName(group)) == group);
+    //Check flower and group properly connected.
+    assert(flower_getGroup(flower, group_getName(group)) == group);
 
     Group_EndIterator *endIterator = group_getEndIterator(group);
     End *end;
@@ -318,14 +318,14 @@ void group_check(Group *group) {
         assert(link == NULL); // can not be a link!
     }
 
-    if (group_isLeaf(group)) { //If terminal has no nested net
+    if (group_isLeaf(group)) { //If terminal has no nested flower
         assert(group_getNestedNet(group) == NULL);
-    } else { //else that any nested net contains the correct set of stub ends.
-        Net *nestedNet = group_getNestedNet(group);
+    } else { //else that any nested flower contains the correct set of stub ends.
+        Flower *nestedNet = group_getNestedNet(group);
         assert(nestedNet != NULL);
         endIterator = group_getEndIterator(group);
         while ((end = group_getNextEnd(endIterator)) != NULL) {
-            End *end2 = net_getEnd(nestedNet, end_getName(end));
+            End *end2 = flower_getEnd(nestedNet, end_getName(end));
             assert(end2 != NULL);
             assert(end_isStubEnd(end2));
             if (end_isBlockEnd(end) || end_isAttached(end)) {
@@ -342,16 +342,16 @@ void group_check(Group *group) {
  * Private functions.
  */
 
-Group *group_construct3(Net *net, Name name, bool terminalGroup) {
+Group *group_construct3(Flower *flower, Name name, bool terminalGroup) {
     Group *group;
     group = st_malloc(sizeof(Group));
 
-    group->net = net;
+    group->flower = flower;
     group->link = NULL;
     group->name = name;
     group->ends = stSortedSet_construct3(group_constructP, NULL);
     group->leafGroup = terminalGroup;
-    net_addGroup(net, group);
+    flower_addGroup(flower, group);
 
     return group;
 }
@@ -370,13 +370,13 @@ void group_removeEnd(Group *group, End *end) {
     stSortedSet_remove(group->ends, end);
 }
 
-void group_setNet(Group *group, Net *net) {
-    net_removeGroup(group_getNet(group), group);
-    group->net = net;
-    net_addGroup(net, group);
-    Net *nestedNet = group_getNestedNet(group);
-    if (nestedNet != NULL) { //we re-do this link, because the parent net has changed.
-        net_setParentGroup(nestedNet, group);
+void group_setNet(Group *group, Flower *flower) {
+    flower_removeGroup(group_getNet(group), group);
+    group->flower = flower;
+    flower_addGroup(flower, group);
+    Flower *nestedNet = group_getNestedNet(group);
+    if (nestedNet != NULL) { //we re-do this link, because the parent flower has changed.
+        flower_setParentGroup(nestedNet, group);
     }
 }
 
@@ -400,7 +400,7 @@ void group_writeBinaryRepresentation(Group *group, void(*writeFn)(
     group_destructEndIterator(iterator);
 }
 
-Group *group_loadFromBinaryRepresentation(void **binaryString, Net *net) {
+Group *group_loadFromBinaryRepresentation(void **binaryString, Flower *flower) {
     Group *group;
 
     group = NULL;
@@ -408,20 +408,20 @@ Group *group_loadFromBinaryRepresentation(void **binaryString, Net *net) {
         binaryRepresentation_popNextElementType(binaryString);
         bool terminalGroup = binaryRepresentation_getBool(binaryString);
         Name name = binaryRepresentation_getName(binaryString);
-        group = group_construct3(net, name, terminalGroup);
+        group = group_construct3(flower, name, terminalGroup);
         while (binaryRepresentation_peekNextElementType(*binaryString)
                 == CODE_GROUP_END) {
             binaryRepresentation_popNextElementType(binaryString);
-            end_setGroup(net_getEnd(net, binaryRepresentation_getName(
+            end_setGroup(flower_getEnd(flower, binaryRepresentation_getName(
                     binaryString)), group);
         }
     }
     return group;
 }
 
-Group *group_getStaticNameWrapper(Name netName) {
+Group *group_getStaticNameWrapper(Name flowerName) {
     static Group group;
-    group.name = netName;
+    group.name = flowerName;
     return &group;
 }
 

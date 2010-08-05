@@ -70,7 +70,7 @@ void makeCactusTree_terminalNode(Group *group, FILE *fileHandle,
     free(groupNameString);
 }
 
-void makeCactusTree_net(Net *net, FILE *fileHandle, const char *parentNodeName,
+void makeCactusTree_net(Flower *net, FILE *fileHandle, const char *parentNodeName,
         const char *parentEdgeColour);
 
 void makeCactusTree_chain(Chain *chain, FILE *fileHandle,
@@ -102,12 +102,12 @@ void makeCactusTree_chain(Chain *chain, FILE *fileHandle,
     free(chainNameString);
 }
 
-void makeCactusTree_net(Net *net, FILE *fileHandle, const char *parentNodeName,
+void makeCactusTree_net(Flower *net, FILE *fileHandle, const char *parentNodeName,
         const char *parentEdgeColour) {
     //Write the net nodes.
-    char *netNameString = cactusMisc_nameToString(net_getName(net));
+    char *netNameString = cactusMisc_nameToString(flower_getName(net));
     const char *edgeColour = graphViz_getColour();
-    addNodeToGraph(netNameString, fileHandle, net_getTotalBaseLength(net)
+    addNodeToGraph(netNameString, fileHandle, flower_getTotalBaseLength(net)
             / totalProblemSize, "ellipse", netNameString);
     //Write in the parent edge.
     if (parentNodeName != NULL) {
@@ -115,12 +115,12 @@ void makeCactusTree_net(Net *net, FILE *fileHandle, const char *parentNodeName,
                 parentEdgeColour, 10, 1, "forward");
     }
     //Create the chains.
-    Net_ChainIterator *chainIterator = net_getChainIterator(net);
+    Flower_ChainIterator *chainIterator = flower_getChainIterator(net);
     Chain *chain;
-    while ((chain = net_getNextChain(chainIterator)) != NULL) {
+    while ((chain = flower_getNextChain(chainIterator)) != NULL) {
         makeCactusTree_chain(chain, fileHandle, netNameString, edgeColour);
     }
-    net_destructChainIterator(chainIterator);
+    flower_destructChainIterator(chainIterator);
 
     //Create the diamond node
     char *diamondNodeNameString = st_malloc(sizeof(char) * (strlen(
@@ -128,24 +128,24 @@ void makeCactusTree_net(Net *net, FILE *fileHandle, const char *parentNodeName,
     sprintf(diamondNodeNameString, "z%s", netNameString);
     const char *diamondEdgeColour = graphViz_getColour();
     //Create all the groups linked to the diamond.
-    Net_GroupIterator *groupIterator = net_getGroupIterator(net);
+    Flower_GroupIterator *groupIterator = flower_getGroupIterator(net);
     Group *group;
     double size = 0.0; //get the size of the group organising node..
     int32_t nonTrivialGroupCount = 0;
-    while ((group = net_getNextGroup(groupIterator)) != NULL) {
+    while ((group = flower_getNextGroup(groupIterator)) != NULL) {
         if (group_getLink(group) == NULL) {
             size += group_getTotalBaseLength(group);
             nonTrivialGroupCount++;
         }
     }
-    net_destructGroupIterator(groupIterator);
+    flower_destructGroupIterator(groupIterator);
     if (nonTrivialGroupCount) {
         addNodeToGraph(diamondNodeNameString, fileHandle, size
                 / totalProblemSize, "diamond", "");
         graphViz_addEdgeToGraph(netNameString, diamondNodeNameString,
                 fileHandle, "", edgeColour, 10, 1, "forward");
-        groupIterator = net_getGroupIterator(net);
-        while ((group = net_getNextGroup(groupIterator)) != NULL) {
+        groupIterator = flower_getGroupIterator(net);
+        while ((group = flower_getNextGroup(groupIterator)) != NULL) {
             if (group_getLink(group) == NULL) {
                 if (group_getNestedNet(group) != NULL) { //linked to the diamond node.
                     makeCactusTree_net(group_getNestedNet(group), fileHandle,
@@ -156,7 +156,7 @@ void makeCactusTree_net(Net *net, FILE *fileHandle, const char *parentNodeName,
                 }
             }
         }
-        net_destructGroupIterator(groupIterator);
+        flower_destructGroupIterator(groupIterator);
     }
     free(netNameString);
     free(diamondNodeNameString);
@@ -164,7 +164,7 @@ void makeCactusTree_net(Net *net, FILE *fileHandle, const char *parentNodeName,
 
 int main(int argc, char *argv[]) {
     CactusDisk *netDisk;
-    Net *net;
+    Flower *net;
     FILE *fileHandle;
 
     /*
@@ -269,7 +269,7 @@ int main(int argc, char *argv[]) {
     // Build the graph.
     ///////////////////////////////////////////////////////////////////////////
 
-    totalProblemSize = net_getTotalBaseLength(net);
+    totalProblemSize = flower_getTotalBaseLength(net);
     fileHandle = fopen(outputFile, "w");
     graphViz_setupGraphFile(fileHandle);
     makeCactusTree_net(net, fileHandle, NULL, NULL);

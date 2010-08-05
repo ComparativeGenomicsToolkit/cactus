@@ -1,7 +1,7 @@
 #include "cactusGlobalsPrivate.h"
 
 static CactusDisk * cactusDisk;
-static Net * net;
+static Flower * flower;
 static MetaEvent *rootMetaEvent;
 static MetaEvent *leafMetaEvent;
 static EventTree * eventTree;
@@ -23,18 +23,18 @@ static void cactusFacesTestSharedTeardown() {
 static void cactusFacesTestSharedSetup() {
 	cactusFacesTestSharedTeardown();
 	cactusDisk = cactusDisk_construct(testCommon_getTemporaryNetDisk());
-	net = net_construct(cactusDisk);
+	flower = flower_construct(cactusDisk);
 
 	rootMetaEvent = metaEvent_construct("ROOT", cactusDisk);
 	leafMetaEvent = metaEvent_construct("LEAF1", cactusDisk);
 
-	eventTree = eventTree_construct(rootMetaEvent, net);
+	eventTree = eventTree_construct(rootMetaEvent, flower);
 
 	rootEvent = eventTree_getRootEvent(eventTree);
 	leafEvent = event_construct(leafMetaEvent, 0.2, rootEvent, eventTree);
 	
-	end1 = end_construct(1, net);
-	end2 = end_construct(1, net);
+	end1 = end_construct(1, flower);
+	end2 = end_construct(1, flower);
 
 	topCap1 = cap_construct(end_getReverse(end1), rootEvent);
 	bottomCap1 = cap_construct(end_getReverse(end1), leafEvent);
@@ -57,7 +57,7 @@ static void cactusFacesTestSharedSetup() {
 	cap_makeAdjacent(bottomCap1, bottomCap4);
 	cap_makeAdjacent(bottomCap2, bottomCap3);
 	
-	face = face_construct(net); 
+	face = face_construct(flower);
 	face_allocateSpace(face, 4);
 	face_setTopNode(face, 0, topCap1);
 	face_setTopNode(face, 1, topCap2);

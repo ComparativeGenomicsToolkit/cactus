@@ -12,13 +12,13 @@
  * non-terminal groups. Used during the core stage.
  */
 
-static void extendNets(Net *net, FILE *fileHandle, int32_t minSizeToExtend) {
-    Net_GroupIterator *groupIterator;
+static void extendNets(Flower *net, FILE *fileHandle, int32_t minSizeToExtend) {
+    Flower_GroupIterator *groupIterator;
     Group *group;
-    if(net_builtBlocks(net)) {
+    if(flower_builtBlocks(net)) {
         assert(net != NULL);
-        groupIterator = net_getGroupIterator(net);
-        while((group = net_getNextGroup(groupIterator)) != NULL) {
+        groupIterator = flower_getGroupIterator(net);
+        while((group = flower_getNextGroup(groupIterator)) != NULL) {
             if(!group_isLeaf(group)) {
                 extendNets(group_getNestedNet(group), fileHandle, minSizeToExtend);
             }
@@ -30,12 +30,12 @@ static void extendNets(Net *net, FILE *fileHandle, int32_t minSizeToExtend) {
                 }
             }
         }
-        net_destructGroupIterator(groupIterator);
+        flower_destructGroupIterator(groupIterator);
     }
     else { //something went wrong last time, and the net hasn't been filled in.. so we'll return it
         //again.
-        assert(net_getBlockNumber(net) == 0);
-        fprintf(fileHandle, "%s %" PRIi64 "\n", cactusMisc_nameToStringStatic(net_getName(net)), net_getTotalBaseLength(net));
+        assert(flower_getBlockNumber(net) == 0);
+        fprintf(fileHandle, "%s %" PRIi64 "\n", cactusMisc_nameToStringStatic(flower_getName(net)), flower_getTotalBaseLength(net));
     }
 }
 
@@ -45,7 +45,7 @@ int main(int argc, char *argv[]) {
      * a list of the new nets.
      */
     CactusDisk *netDisk;
-    Net *net;
+    Flower *net;
 
     assert(argc == 5);
     netDisk = cactusDisk_construct(argv[1]);

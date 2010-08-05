@@ -15,7 +15,7 @@
  * to construct the alignment, maxSequenceLength is the maximum length of a sequence to consider in the end alignment.
  * Model parameters is the parameters of the pairwise alignment model.
  */
-stSortedSet *makeNetAlignment(Net *net, int32_t spanningTrees,
+stSortedSet *makeNetAlignment(Flower *net, int32_t spanningTrees,
         int32_t maxSequenceLength, void *modelParameters);
 
 #endif /* NETALIGNER_H_ */

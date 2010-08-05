@@ -27,7 +27,7 @@ Link *link_getNextLink(Link *link);
 Link *link_getPreviousLink(Link *link);
 
 /*
- * Gets the nested net the link contains.
+ * Gets the nested flower the link contains.
  */
 Group *link_getGroup(Link *link);
 

@@ -50,13 +50,13 @@ void testChain_getBlockChain(CuTest* testCase) {
 void testChain_getName(CuTest* testCase) {
     cactusChainTestSetup();
     CuAssertTrue(testCase, chain_getName(chain) != NULL_NAME);
-    CuAssertTrue(testCase, net_getChain(net, chain_getName(chain)) == chain);
+    CuAssertTrue(testCase, flower_getChain(flower, chain_getName(chain)) == chain);
     cactusChainTestTeardown();
 }
 
 void testChain_getNet(CuTest* testCase) {
     cactusChainTestSetup();
-    CuAssertTrue(testCase, chain_getNet(chain) == net);
+    CuAssertTrue(testCase, chain_getNet(chain) == flower);
     cactusChainTestTeardown();
 }
 
@@ -66,8 +66,8 @@ void testChain_rename(CuTest* testCase) {
     Name oldName = chain_getName(chain);
     chain_rename(chain, newName);
     assert(chain_getName(chain) == newName);
-    assert(net_getChain(net, newName) == chain);
-    assert(net_getChain(net, oldName) == NULL);
+    assert(flower_getChain(flower, newName) == chain);
+    assert(flower_getChain(flower, oldName) == NULL);
     cactusChainTestTeardown();
 }
 
@@ -83,7 +83,7 @@ void testChain_serialisation(CuTest* testCase) {
     CuAssertTrue(testCase, i> 0);
     chain_destruct(chain);
     void *vA2 = vA;
-    chain = chain_loadFromBinaryRepresentation(&vA2, net);
+    chain = chain_loadFromBinaryRepresentation(&vA2, flower);
     CuAssertTrue(testCase, chain_getLength(chain) == 2);
     link1 = chain_getLink(chain, 0);
     link2 = chain_getLink(chain, 1);

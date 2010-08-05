@@ -9,14 +9,14 @@ struct _cactusDisk {
 	char *stringFile;
 	int64_t stringFileLength;
 	char *iDDatabaseName;
-	char *netsDatabaseName;
+	char *flowersDatabaseName;
 	char *metaDataDatabaseName;
-	TCBDB *netsDatabase;
+	TCBDB *flowersDatabase;
 	TCBDB *metaDataDatabase;
 	TCBDB *iDDatabase;
 	stSortedSet *metaSequences;
 	stSortedSet *metaEvents;
-	stSortedSet *nets;
+	stSortedSet *flowers;
 	Name uniqueNumber;
 	Name maxUniqueNumber;
 };
@@ -30,29 +30,29 @@ struct _cactusDisk {
 ////////////////////////////////////////////////
 
 /*
- * Adds a newly constructed net to the memory of the cactusDisk.
+ * Adds a newly constructed flower to the memory of the cactusDisk.
  */
-void cactusDisk_addNet(CactusDisk *cactusDisk, Net *net);
+void cactusDisk_addNet(CactusDisk *cactusDisk, Flower *flower);
 
 /*
- * Removes the net from the disk (if it is on disk);
+ * Removes the flower from the disk (if it is on disk);
  */
-void cactusDisk_deleteNetFromDisk(CactusDisk *cactusDisk, Name netName);
+void cactusDisk_deleteNetFromDisk(CactusDisk *cactusDisk, Name flowerName);
 
 /*
- * Registers the net is being freed from memory.
+ * Registers the flower is being freed from memory.
  */
-void cactusDisk_unloadNet(CactusDisk *cactusDisk, Net *net);
+void cactusDisk_unloadNet(CactusDisk *cactusDisk, Flower *flower);
 
 /*
- * Gets the first net in the list of nets in memory, or returns NULL if the list is empty.
+ * Gets the first flower in the list of flowers in memory, or returns NULL if the list is empty.
  */
-Net *cactusDisk_getFirstNetInMemory(CactusDisk *cactusDisk);
+Flower *cactusDisk_getFirstNetInMemory(CactusDisk *cactusDisk);
 
 /*
- * Returns a net in memory, or NULL, if not in memory.
+ * Returns a flower in memory, or NULL, if not in memory.
  */
-Net *cactusDisk_getNetInMemory(CactusDisk *cactusDisk, Name netName);
+Flower *cactusDisk_getNetInMemory(CactusDisk *cactusDisk, Name flowerName);
 
 /*
  * Functions on meta sequences.

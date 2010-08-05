@@ -5,7 +5,7 @@
 
 struct _face {
 	// Net
-	Net * net;
+	Flower * flower;
 
 	// Number of top nodes in face, length of subsequent arrays
 	int32_t cardinal;
@@ -42,9 +42,9 @@ struct _face_FaceEndIterator {
 ////////////////////////////////////////////////
 
 /*
- * Constructs faces in net
+ * Constructs faces in flower
  */
-Face * face_construct(Net * net);
+Face * face_construct(Flower * flower);
 
 /*
  * Simple destructor

@@ -3,13 +3,13 @@
 ////////////////////////////////////////////////
 ////////////////////////////////////////////////
 ////////////////////////////////////////////////
-//Basic net disk functions.
+//Basic flower disk functions.
 ////////////////////////////////////////////////
 ////////////////////////////////////////////////
 ////////////////////////////////////////////////
 
 static int32_t cactusDisk_constructNetsP(const void *o1, const void *o2) {
-	return cactusMisc_nameCompare(net_getName((Net *)o1), net_getName((Net *)o2));
+	return cactusMisc_nameCompare(flower_getName((Flower *)o1), flower_getName((Flower *)o2));
 }
 
 static int32_t cactusDisk_constructMetaSequencesP(const void *o1, const void *o2) {
@@ -28,22 +28,22 @@ CactusDisk *cactusDisk_construct(const char *cactusDiskFile) {
 	//construct lists of in memory objects
 	cactusDisk->metaEvents = stSortedSet_construct3(cactusDisk_constructMetaEventsP, NULL);
 	cactusDisk->metaSequences = stSortedSet_construct3(cactusDisk_constructMetaSequencesP, NULL);
-	cactusDisk->nets = stSortedSet_construct3(cactusDisk_constructNetsP, NULL);
+	cactusDisk->flowers = stSortedSet_construct3(cactusDisk_constructNetsP, NULL);
 
 	//the files to write the databases in
-	cactusDisk->netsDatabaseName = pathJoin(cactusDiskFile, "nets");
+	cactusDisk->flowersDatabaseName = pathJoin(cactusDiskFile, "flowers");
 	cactusDisk->metaDataDatabaseName = pathJoin(cactusDiskFile, "metaData");
 	cactusDisk->iDDatabaseName = pathJoin(cactusDiskFile, "uniqueIDs");
 
 	st_logInfo("Constructing the databases: %s, %s, %s\n",
-			cactusDisk->iDDatabaseName, cactusDisk->netsDatabaseName, cactusDisk->metaDataDatabaseName);
+			cactusDisk->iDDatabaseName, cactusDisk->flowersDatabaseName, cactusDisk->metaDataDatabaseName);
 
-	//create the net disk directory if it doesn't already exist.
+	//create the flower disk directory if it doesn't already exist.
 	i = mkdir(cactusDiskFile, S_IRWXU);
-	st_logInfo("Tried to create the base net disk directory with exit value: %i\n", i);
+	st_logInfo("Tried to create the base flower disk directory with exit value: %i\n", i);
 
 	//open the sequences database
-	cactusDisk->netsDatabase = database_construct(cactusDisk->netsDatabaseName);
+	cactusDisk->flowersDatabase = database_construct(cactusDisk->flowersDatabaseName);
 	cactusDisk->metaDataDatabase = database_construct(cactusDisk->metaDataDatabaseName);
 	cactusDisk->iDDatabase = database_construct(cactusDisk->iDDatabaseName);
 
@@ -60,14 +60,14 @@ CactusDisk *cactusDisk_construct(const char *cactusDiskFile) {
 }
 
 void cactusDisk_destruct(CactusDisk *cactusDisk){
-	Net *net;
+	Flower *flower;
 	MetaSequence *metaSequence;
 	MetaEvent *metaEvent;
 
-	while((net = cactusDisk_getFirstNetInMemory(cactusDisk)) != NULL) {
-		net_destruct(net, FALSE);
+	while((flower = cactusDisk_getFirstNetInMemory(cactusDisk)) != NULL) {
+		flower_destruct(flower, FALSE);
 	}
-	stSortedSet_destruct(cactusDisk->nets);
+	stSortedSet_destruct(cactusDisk->flowers);
 
 	while((metaSequence = cactusDisk_getFirstMetaSequenceInMemory(cactusDisk)) != NULL) {
 		metaSequence_destruct(metaSequence);
@@ -81,12 +81,12 @@ void cactusDisk_destruct(CactusDisk *cactusDisk){
 
 	//close DBs
 	database_destruct(cactusDisk->metaDataDatabase);
-	database_destruct(cactusDisk->netsDatabase);
+	database_destruct(cactusDisk->flowersDatabase);
 	database_destruct(cactusDisk->iDDatabase);
 
 	//free string names
 	free(cactusDisk->metaDataDatabaseName);
-	free(cactusDisk->netsDatabaseName);
+	free(cactusDisk->flowersDatabaseName);
 	free(cactusDisk->iDDatabaseName);
 	free(cactusDisk->stringFile);
 
@@ -94,27 +94,27 @@ void cactusDisk_destruct(CactusDisk *cactusDisk){
 }
 
 void cactusDisk_write(CactusDisk *cactusDisk) {
-	CactusDisk_NetIterator *netIterator;
+	CactusDisk_NetIterator *flowerIterator;
 	struct avl_traverser *metaDataIterator;
 	void *vA;
 	int32_t recordSize;
-	Net *net;
+	Flower *flower;
 	MetaSequence *metaSequence;
 	MetaEvent *metaEvent;
 
-	exitOnFailure(database_startTransaction(cactusDisk->netsDatabase), "Failed to start a transaction for the database: %s\n", cactusDisk->netsDatabaseName);
+	exitOnFailure(database_startTransaction(cactusDisk->flowersDatabase), "Failed to start a transaction for the database: %s\n", cactusDisk->flowersDatabaseName);
 	exitOnFailure(database_startTransaction(cactusDisk->metaDataDatabase), "Failed to start a transaction for the database: %s\n", cactusDisk->metaDataDatabaseName);
 
-	netIterator = cactusDisk_getNetsInMemoryIterator(cactusDisk);
-	while((net = cactusDisk_getNextNet(netIterator)) != NULL) {
-		vA = binaryRepresentation_makeBinaryRepresentation(net,
-				(void (*)(void *, void (*)(const void * ptr, size_t size, size_t count)))net_writeBinaryRepresentation, &recordSize);
-		exitOnFailure(database_writeRecord(cactusDisk->netsDatabase, net_getName(net), vA, recordSize),
-				"Failed to write the net: %s to disk\n",
-				cactusMisc_nameToStringStatic(net_getName(net)));
+	flowerIterator = cactusDisk_getNetsInMemoryIterator(cactusDisk);
+	while((flower = cactusDisk_getNextNet(flowerIterator)) != NULL) {
+		vA = binaryRepresentation_makeBinaryRepresentation(flower,
+				(void (*)(void *, void (*)(const void * ptr, size_t size, size_t count)))flower_writeBinaryRepresentation, &recordSize);
+		exitOnFailure(database_writeRecord(cactusDisk->flowersDatabase, flower_getName(flower), vA, recordSize),
+				"Failed to write the flower: %s to disk\n",
+				cactusMisc_nameToStringStatic(flower_getName(flower)));
 		free(vA);
 	}
-	cactusDisk_destructNetsInMemoryIterator(netIterator);
+	cactusDisk_destructNetsInMemoryIterator(flowerIterator);
 
 	metaDataIterator = stSortedSet_getIterator(cactusDisk->metaSequences);
 	while((metaSequence = stSortedSet_getNext(metaDataIterator)) != NULL) {
@@ -138,7 +138,7 @@ void cactusDisk_write(CactusDisk *cactusDisk) {
 	}
 	stSortedSet_destructIterator(metaDataIterator);
 
-	exitOnFailure(database_commitTransaction(cactusDisk->netsDatabase), "Failed to commit a transaction for the database: %s\n", cactusDisk->netsDatabaseName);
+	exitOnFailure(database_commitTransaction(cactusDisk->flowersDatabase), "Failed to commit a transaction for the database: %s\n", cactusDisk->flowersDatabaseName);
 	exitOnFailure(database_commitTransaction(cactusDisk->metaDataDatabase), "Failed to commit a transaction for the database: %s\n", cactusDisk->metaDataDatabaseName);
 }
 
@@ -165,82 +165,82 @@ void *cactusDisk_getObject(CactusDisk *cactusDisk, TCBDB *database, void *(*getO
 	}
 }
 
-Net *cactusDisk_getNet(CactusDisk *cactusDisk, Name netName) {
-	return cactusDisk_getObject(cactusDisk, cactusDisk->netsDatabase,
+Flower *cactusDisk_getNet(CactusDisk *cactusDisk, Name flowerName) {
+	return cactusDisk_getObject(cactusDisk, cactusDisk->flowersDatabase,
 			(void *(*)(CactusDisk *, Name ))cactusDisk_getNetInMemory,
-			(void *(*)(void **, CactusDisk *))net_loadFromBinaryRepresentation,
-			netName);
+			(void *(*)(void **, CactusDisk *))flower_loadFromBinaryRepresentation,
+			flowerName);
 }
 
 int32_t cactusDisk_getNetNumberOnDisk(CactusDisk *cactusDisk) {
-	return database_getNumberOfRecords(cactusDisk->netsDatabase);
+	return database_getNumberOfRecords(cactusDisk->flowersDatabase);
 }
 
 CactusDisk_NetNameIterator *cactusDisk_getNetNamesOnDiskIterator(CactusDisk *cactusDisk) {
-	return databaseIterator_construct(cactusDisk->netsDatabase);
+	return databaseIterator_construct(cactusDisk->flowersDatabase);
 }
 
-Name cactusDisk_getNextNetName(CactusDisk_NetNameIterator *netIterator) {
-	return databaseIterator_getNext(netIterator);
+Name cactusDisk_getNextNetName(CactusDisk_NetNameIterator *flowerIterator) {
+	return databaseIterator_getNext(flowerIterator);
 }
 
-void cactusDisk_destructNetNamesOnDiskIterator(CactusDisk_NetNameIterator *netIterator) {
-	databaseIterator_destruct(netIterator);
+void cactusDisk_destructNetNamesOnDiskIterator(CactusDisk_NetNameIterator *flowerIterator) {
+	databaseIterator_destruct(flowerIterator);
 }
 
 int32_t cactusDisk_getNetNumberInMemory(CactusDisk *cactusDisk) {
-	return stSortedSet_size(cactusDisk->nets);
+	return stSortedSet_size(cactusDisk->flowers);
 }
 
 CactusDisk_NetIterator *cactusDisk_getNetsInMemoryIterator(CactusDisk *cactusDisk) {
-	return stSortedSet_getIterator(cactusDisk->nets);
+	return stSortedSet_getIterator(cactusDisk->flowers);
 }
 
-Net *cactusDisk_getNextNet(CactusDisk_NetIterator *netIterator) {
-	return stSortedSet_getNext(netIterator);
+Flower *cactusDisk_getNextNet(CactusDisk_NetIterator *flowerIterator) {
+	return stSortedSet_getNext(flowerIterator);
 }
 
-Net *cactusDisk_getPreviousNet(CactusDisk_NetIterator *netIterator) {
-	return stSortedSet_getPrevious(netIterator);
+Flower *cactusDisk_getPreviousNet(CactusDisk_NetIterator *flowerIterator) {
+	return stSortedSet_getPrevious(flowerIterator);
 }
 
-CactusDisk_NetIterator *cactusDisk_copyNetIterator(CactusDisk_NetIterator *netIterator) {
-	return stSortedSet_copyIterator(netIterator);
+CactusDisk_NetIterator *cactusDisk_copyNetIterator(CactusDisk_NetIterator *flowerIterator) {
+	return stSortedSet_copyIterator(flowerIterator);
 }
 
-void cactusDisk_destructNetsInMemoryIterator(CactusDisk_NetIterator *netIterator) {
-	stSortedSet_destructIterator(netIterator);
+void cactusDisk_destructNetsInMemoryIterator(CactusDisk_NetIterator *flowerIterator) {
+	stSortedSet_destructIterator(flowerIterator);
 }
 
 /*
  * Private functions.
  */
 
-void cactusDisk_addNet(CactusDisk *cactusDisk, Net *net) {
-	assert(stSortedSet_search(cactusDisk->nets, net) == NULL);
-	stSortedSet_insert(cactusDisk->nets, net);
+void cactusDisk_addNet(CactusDisk *cactusDisk, Flower *flower) {
+	assert(stSortedSet_search(cactusDisk->flowers, flower) == NULL);
+	stSortedSet_insert(cactusDisk->flowers, flower);
 }
 
-void cactusDisk_deleteNetFromDisk(CactusDisk *cactusDisk, Name netName) {
-	if(database_getRecord(cactusDisk->netsDatabase, netName) != NULL) {
-		exitOnFailure(database_removeRecord(cactusDisk->netsDatabase, netName),
-				"Failed to remove the net: %s from the net disk database\n", cactusMisc_nameToStringStatic(netName));
+void cactusDisk_deleteNetFromDisk(CactusDisk *cactusDisk, Name flowerName) {
+	if(database_getRecord(cactusDisk->flowersDatabase, flowerName) != NULL) {
+		exitOnFailure(database_removeRecord(cactusDisk->flowersDatabase, flowerName),
+				"Failed to remove the flower: %s from the flower disk database\n", cactusMisc_nameToStringStatic(flowerName));
 	}
 }
 
-void cactusDisk_unloadNet(CactusDisk *cactusDisk, Net *net) {
-	assert(cactusDisk_getNetInMemory(cactusDisk, net_getName(net)) != NULL);
-	stSortedSet_remove(cactusDisk->nets, net);
+void cactusDisk_unloadNet(CactusDisk *cactusDisk, Flower *flower) {
+	assert(cactusDisk_getNetInMemory(cactusDisk, flower_getName(flower)) != NULL);
+	stSortedSet_remove(cactusDisk->flowers, flower);
 }
 
-Net *cactusDisk_getNetInMemory(CactusDisk *cactusDisk, Name netName) {
-	static Net net;
-	net.name = netName;
-	return stSortedSet_search(cactusDisk->nets, &net);
+Flower *cactusDisk_getNetInMemory(CactusDisk *cactusDisk, Name flowerName) {
+	static Flower flower;
+	flower.name = flowerName;
+	return stSortedSet_search(cactusDisk->flowers, &flower);
 }
 
-Net *cactusDisk_getFirstNetInMemory(CactusDisk *cactusDisk) {
-	return stSortedSet_getFirst(cactusDisk->nets);
+Flower *cactusDisk_getFirstNetInMemory(CactusDisk *cactusDisk) {
+	return stSortedSet_getFirst(cactusDisk->flowers);
 }
 
 /*
@@ -255,7 +255,7 @@ void cactusDisk_addMetaSequence(CactusDisk *cactusDisk, MetaSequence *metaSequen
 void cactusDisk_deleteMetaSequenceFromDisk(CactusDisk *cactusDisk, Name metaSequenceName) {
 	if(database_getRecord(cactusDisk->metaDataDatabase, metaSequenceName) != NULL) {
 		exitOnFailure(database_removeRecord(cactusDisk->metaDataDatabase, metaSequenceName),
-				"Failed to remove the meta sequence: %s from the net disk database\n", cactusMisc_nameToStringStatic(metaSequenceName));
+				"Failed to remove the meta sequence: %s from the flower disk database\n", cactusMisc_nameToStringStatic(metaSequenceName));
 	}
 }
 void cactusDisk_unloadMetaSequence(CactusDisk *cactusDisk, MetaSequence *metaSequence) {
@@ -290,7 +290,7 @@ void cactusDisk_addMetaEvent(CactusDisk *cactusDisk, MetaEvent *metaEvent) {
 
 void cactusDisk_deleteMetaEventFromDisk(CactusDisk *cactusDisk, Name metaEventName) {
 	exitOnFailure(database_removeRecord(cactusDisk->metaDataDatabase, metaEventName),
-			"Failed to remove the meta event: %s from the net disk database\n", cactusMisc_nameToStringStatic(metaEventName));
+			"Failed to remove the meta event: %s from the flower disk database\n", cactusMisc_nameToStringStatic(metaEventName));
 }
 
 void cactusDisk_unloadMetaEvent(CactusDisk *cactusDisk, MetaEvent *metaEvent) {
@@ -315,7 +315,7 @@ return cactusDisk_getObject(cactusDisk, cactusDisk->metaDataDatabase,
 }
 
 /*
- * Functions on strings stored by the net disk.
+ * Functions on strings stored by the flower disk.
  */
 
 int64_t cactusDisk_addString(CactusDisk *cactusDisk, const char *string, int32_t length) {

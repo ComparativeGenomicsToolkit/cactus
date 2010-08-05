@@ -5,7 +5,7 @@
 
 struct _reference {
 	stSortedSet *pseudoChromosomes;
-	Net *net;
+	Flower *flower;
 };
 
 /*
@@ -29,8 +29,8 @@ void reference_removePseudoChromosome(Reference *reference, PseudoChromosome *ps
 void reference_writeBinaryRepresentation(Reference *reference, void (*writeFn)(const void * ptr, size_t size, size_t count));
 
 /*
- * Loads a reference into memory from a binary representation of the net.
+ * Loads a reference into memory from a binary representation of the flower.
  */
-Reference *reference_loadFromBinaryRepresentation(void **binaryString, Net *net);
+Reference *reference_loadFromBinaryRepresentation(void **binaryString, Flower *flower);
 
 #endif

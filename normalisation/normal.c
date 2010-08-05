@@ -1,17 +1,17 @@
 #include "normal.h"
 
-void makeTerminalNormal(Net *net) {
-    if (!net_isTerminal(net)) {
-        Net_GroupIterator *groupIterator;
+void makeTerminalNormal(Flower *net) {
+    if (!flower_isTerminal(net)) {
+        Flower_GroupIterator *groupIterator;
         Group *group;
-        groupIterator = net_getGroupIterator(net);
-        while ((group = net_getNextGroup(groupIterator)) != NULL) {
+        groupIterator = flower_getGroupIterator(net);
+        while ((group = flower_getNextGroup(groupIterator)) != NULL) {
             if (group_isLeaf(group)) {
                 //assert(group_getTotalBaseLength(group) == 0);
                 group_makeNestedNet(group);
-                net_setBuiltBlocks(group_getNestedNet(group), 1);
+                flower_setBuiltBlocks(group_getNestedNet(group), 1);
             }
         }
-        net_destructGroupIterator(groupIterator);
+        flower_destructGroupIterator(groupIterator);
     }
 }

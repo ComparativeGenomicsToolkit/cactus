@@ -128,17 +128,17 @@ static int adjacencyPair_hashEqual(AdjacencyPair *adjacencyPair1, AdjacencyPair 
 			adjacencyPair_getEnd2(adjacencyPair1) == adjacencyPair_getEnd2(adjacencyPair2);
 }
 
-static struct List *makeListOfAdjacencyPairs(Net *net) {
+static struct List *makeListOfAdjacencyPairs(Flower *net) {
 	/*
 	 * Get a list of all adjacencies between ends, excluding free stubs, in the net.
 	 */
 	End *end1;
 	struct List *adjacencies = constructEmptyList(0, NULL);
-	Net_EndIterator *endIterator = net_getEndIterator(net);
+	Flower_EndIterator *endIterator = flower_getEndIterator(net);
 	stHash *adjacenciesHash = stHash_construct3(
 			(uint32_t (*)(const void *))adjacencyPair_hashKey,
 			(int (*)(const void *, const void *))adjacencyPair_hashEqual, NULL, NULL);
-	while((end1 = net_getNextEnd(endIterator)) != NULL) {
+	while((end1 = flower_getNextEnd(endIterator)) != NULL) {
 		if(end_isBlockEnd(end1) || end_isAttached(end1)) {
 			assert(end_getPositiveOrientation(end1) == end1); //they are always in the positive orientation, right?
 			End_InstanceIterator *capIterator = end_getInstanceIterator(end1);
@@ -162,7 +162,7 @@ static struct List *makeListOfAdjacencyPairs(Net *net) {
 			end_destructInstanceIterator(capIterator);
 		}
 	}
-	net_destructEndIterator(endIterator);
+	flower_destructEndIterator(endIterator);
 	stHash_destruct(adjacenciesHash);
 	return adjacencies;
 }
@@ -184,7 +184,7 @@ static void removeAndDestructAdjacency(stHash *adjacencies, AdjacencyPair *adjac
 	adjacencyPair_destruct(adjacencyPair);
 }
 
-static stHash *choosePairing(struct List *adjacencies, Net *net) {
+static stHash *choosePairing(struct List *adjacencies, Flower *net) {
 	/*
 	 * Greedily picks the adjacencies from the list such that each end has one adjacency.
 	 * Destroys the input list in the process.
@@ -214,32 +214,32 @@ static stHash *choosePairing(struct List *adjacencies, Net *net) {
 	return adjacenciesHash;
 }
 
-void adjacenciesHash_cleanUp(Net *net, stHash *adjacencies) {
+void adjacenciesHash_cleanUp(Flower *net, stHash *adjacencies) {
 	/*
 	 * Frees the adjacencies pairs in the adjacencies hash safely.
 	 */
-	Net_EndIterator *endIterator = net_getEndIterator(net);
+	Flower_EndIterator *endIterator = flower_getEndIterator(net);
 	End *end;
-	while((end = net_getNextEnd(endIterator)) != NULL) {
+	while((end = flower_getNextEnd(endIterator)) != NULL) {
 		AdjacencyPair *adjacencyPair = stHash_search(adjacencies, end);
 		if(adjacencyPair != NULL) {
 			removeAndDestructAdjacency(adjacencies, adjacencyPair);
 		}
 	}
-	net_destructEndIterator(endIterator);
+	flower_destructEndIterator(endIterator);
 	assert(stHash_size(adjacencies) == 0);
 	stHash_destruct(adjacencies);
 }
 
-static void addPseudoPseudoAdjacencies(stHash *adjacenciesHash, Net *net) {
+static void addPseudoPseudoAdjacencies(stHash *adjacenciesHash, Flower *net) {
 	/*
 	 * Adds pseudo-pseudo adjacencies to ends that have no valid adjacency pair in the hash. Added adjacencies
 	 * are put in the hash and the list.
 	 */
 	End *end1;
 	End *end2 = NULL;
-	Net_EndIterator *endIterator = net_getEndIterator(net);
-	while((end1 = net_getNextEnd(endIterator)) != NULL) {
+	Flower_EndIterator *endIterator = flower_getEndIterator(net);
+	while((end1 = flower_getNextEnd(endIterator)) != NULL) {
 		if(end_isBlockEnd(end1) || end_isAttached(end1)) { //not interested in free stubs.
 			assert(end_getPositiveOrientation(end1) == end1); //should be positive orientation for this to work.
 			if(stHash_search(adjacenciesHash, end1) == NULL) {
@@ -275,15 +275,15 @@ static void extendComponent(End *end, struct List *component, stHash *components
 	}
 }
 
-struct List *getConnectedComponents(stHash *adjacencies, Net *net) {
+struct List *getConnectedComponents(stHash *adjacencies, Flower *net) {
 	/*
 	 * Gets a list of connected components of ends linked by adjacencies and blocks.
 	 */
 	struct List *components = constructEmptyList(0, (void (*)(void *))destructList);
 	stHash *componentsHash = stHash_construct();
 	End *end;
-	Net_EndIterator *endIterator = net_getEndIterator(net);
-	while((end = net_getNextEnd(endIterator)) != NULL) { //iterates over the positive oriented ends.
+	Flower_EndIterator *endIterator = flower_getEndIterator(net);
+	while((end = flower_getNextEnd(endIterator)) != NULL) { //iterates over the positive oriented ends.
 		if(end_isBlockEnd(end) || end_isAttached(end)) { //ignore free stubs
 			struct List *component = stHash_search(componentsHash, end);
 			if(component == NULL) {
@@ -293,7 +293,7 @@ struct List *getConnectedComponents(stHash *adjacencies, Net *net) {
 			}
 		}
 	}
-	net_destructEndIterator(endIterator);
+	flower_destructEndIterator(endIterator);
 	stHash_destruct(componentsHash);
 	return components;
 }
@@ -366,7 +366,7 @@ AdjacencyPair *getAdjacencyPair(struct List *component, stHash *adjacencies) {
 	return adjacencyPair;
 }
 
-void mergeCycles(stHash *adjacencies, Net *net) {
+void mergeCycles(stHash *adjacencies, Flower *net) {
 	/*
 	 * Merges cycles not containing an attached stub end into components containing attached stub ends,
 	 * Updates adjacencies as we go and destroys the list of components.
@@ -413,7 +413,7 @@ static stHash *getCorrectEndPairing(Reference *reference) {
 }
 
 void breakApartMisPairedContigs(stHash *correctEndPairing,
-		stHash *adjacencies, Net *net) {
+		stHash *adjacencies, Flower *net) {
 	/*
 	 * Breaks apart mispaired contigs.
 	 */
@@ -453,7 +453,7 @@ End *getFreeEnd(struct List *component, stHash *adjacencies) {
 }
 
 void pairBrokenContigs(stHash *correctEndPairing,
-		stHash *adjacencies, Net *net) {
+		stHash *adjacencies, Flower *net) {
 	/*
 	 * Pairs broken contigs together so that each has two stubs, paired
 	 * according to the correct end pairing.
@@ -485,7 +485,7 @@ void pairBrokenContigs(stHash *correctEndPairing,
 	destructList(components);
 }
 
-void correctAttachedStubEndPairing(stHash *adjacencies, Net *net, Reference *reference) {
+void correctAttachedStubEndPairing(stHash *adjacencies, Flower *net, Reference *reference) {
 	/*
 	 * If a-b and c-d are two components respectively containing stub ends a and b and c and d and the correct pairing
 	 * is a-c b-d then two adjacencies are broken and two are created to make this happen.
@@ -535,7 +535,7 @@ static void fillInPseudoAdjacenciesP(End *end1, PseudoChromosome *pseudoChromoso
 	}
 }
 
-static void fillInPseudoAdjacencies(Net *net, Reference *reference, stHash *adjacencies) {
+static void fillInPseudoAdjacencies(Flower *net, Reference *reference, stHash *adjacencies) {
 	/*
 	 * Walks through the list of pseudo-chromosomes, then
 	 * iterates through the adjacencies populating each psuedo chromosome with adjacencies.
@@ -550,7 +550,7 @@ static void fillInPseudoAdjacencies(Net *net, Reference *reference, stHash *adja
 	reference_destructPseudoChromosomeIterator(pseudoChromosomeIterator);
 }
 
-void makePseudoAdjacencies(Net *net, Reference *reference) {
+void makePseudoAdjacencies(Flower *net, Reference *reference) {
 	/*
 	 * Makes the pseudo adjacencies for each pseudo chromosome in reference.
 	 */

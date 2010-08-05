@@ -4,7 +4,7 @@
 #include "cactusGlobals.h"
 
 struct _group {
-	Net *net;
+	Flower *flower;
 	Link *link;
 	Name name;
 	stSortedSet *ends;
@@ -20,13 +20,13 @@ struct _group {
 ////////////////////////////////////////////////
 
 /*
- * Constructs a nested net without having the nested net loaded in memory.
+ * Constructs a nested flower without having the nested flower loaded in memory.
  */
-Group *group_construct3(Net *net, Name nestedNetName, bool terminalGroup);
+Group *group_construct3(Flower *flower, Name nestedNetName, bool terminalGroup);
 
 /*
  * Updates the group's set of ends to contain the intersection of ends
- * contained in both the parent net and the nested net of the group.
+ * contained in both the parent flower and the nested flower of the group.
  *
  * This function will create an assertion error if the group is terminal.
  */
@@ -48,19 +48,19 @@ void group_removeEnd(Group *group, End *end);
 void group_writeBinaryRepresentation(Group *group, void (*writeFn)(const void * ptr, size_t size, size_t count));
 
 /*
- * Loads a net into memory from a binary representation of the net.
+ * Loads a flower into memory from a binary representation of the flower.
  */
-Group *group_loadFromBinaryRepresentation(void **binaryString, Net *net);
+Group *group_loadFromBinaryRepresentation(void **binaryString, Flower *flower);
 
 /*
- * Get a static instance (from the heap) with the netName set.
+ * Get a static instance (from the heap) with the flowerName set.
  */
-Group *group_getStaticNameWrapper(Name netName);
+Group *group_getStaticNameWrapper(Name flowerName);
 
 /*
- * Sets the net containing the group (the public function is end_setGroup).
+ * Sets the flower containing the group (the public function is end_setGroup).
  */
-void group_setNet(Group *group, Net *net);
+void group_setNet(Group *group, Flower *flower);
 
 /*
  * Adds an end to the group (the public function is end_setGroup).

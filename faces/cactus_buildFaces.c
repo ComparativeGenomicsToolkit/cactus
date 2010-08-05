@@ -46,15 +46,15 @@ static int buildFaces_key_eq_fn(const void *ptrA, const void *ptrB) {
 /*
  * compute hash table of ancestors
  */
-static struct hashtable * buildFaces_computeAncestors(Net * net) {
+static struct hashtable * buildFaces_computeAncestors(Flower * net) {
     struct hashtable *ancestorsTable = create_hashtable(16,
 	    buildFaces_hashfunction, buildFaces_key_eq_fn, NULL, NULL);
-    Net_CapIterator *iter = net_getCapIterator(net);
+    Flower_CapIterator *iter = flower_getCapIterator(net);
     Cap * cap, * tmp;
 
     st_logInfo("Computing ancestors\n");
 
-    while ((cap = net_getNextCap(iter))) {
+    while ((cap = flower_getNextCap(iter))) {
 	// ... check if connected
 	if (cap_getAdjacency(cap) && cap_getParent(cap)) {
 	    // Go up the tree
@@ -67,7 +67,7 @@ static struct hashtable * buildFaces_computeAncestors(Net * net) {
 	}
     }
 
-    net_destructCapIterator(iter);
+    flower_destructCapIterator(iter);
     return ancestorsTable;
 
 }
@@ -109,11 +109,11 @@ static void buildFaces_destructListElem(void *ptr) {
  * Fill in a hashtable which to every node associates
  * a list of lifted edges
  */
-static struct hashtable *buildFaces_computeLiftedEdges(Net * net, struct hashtable * ancestorsTable) {
+static struct hashtable *buildFaces_computeLiftedEdges(Flower * net, struct hashtable * ancestorsTable) {
     struct hashtable *liftedEdgesTable = create_hashtable(16,
 	    buildFaces_hashfunction, buildFaces_key_eq_fn, NULL,
 	    buildFaces_destructValue);
-    Net_CapIterator *iter = net_getCapIterator(net);
+    Flower_CapIterator *iter = flower_getCapIterator(net);
     Cap *cap, *attachedAncestor;
     Cap *adjacency, *adjacencyAncestor;
     struct List *liftedEdges;
@@ -122,7 +122,7 @@ static struct hashtable *buildFaces_computeLiftedEdges(Net * net, struct hashtab
     st_logInfo("Computing lifted edges\n");
 
     // Iterate through potential bottom nodes
-    while ((cap = net_getNextCap(iter))) {
+    while ((cap = flower_getNextCap(iter))) {
 	// ... check if connected
 	if ((adjacency = cap_getAdjacency(cap))) {
 	    // ... lift
@@ -162,7 +162,7 @@ static struct hashtable *buildFaces_computeLiftedEdges(Net * net, struct hashtab
 	}
     }
 
-    net_destructCapIterator(iter);
+    flower_destructCapIterator(iter);
     return liftedEdgesTable;
 }
 
@@ -246,7 +246,7 @@ static Cap *buildFaces_getMinorLiftedEdgeDestination(Cap * cap,
  * Constructs a face from a given Cap
  */
 static void buildFaces_constructFromCap(Cap * startingCap,
-	struct hashtable *liftedEdgesTable, struct hashtable *ancestorsTable, Net * net) {
+	struct hashtable *liftedEdgesTable, struct hashtable *ancestorsTable, Flower * net) {
     Face *face = face_construct(net);
     struct List *topNodes = constructZeroLengthList(16, NULL);
     struct List *liftedEdges;
@@ -316,29 +316,29 @@ static void buildFaces_constructFromCap(Cap * startingCap,
 /*
  * Construct faces in net and add them to the Net's pointers
  */
-void buildFaces_constructFaces(Net * net) {
+void buildFaces_constructFaces(Flower * net) {
     struct hashtable * ancestorsTable = buildFaces_computeAncestors(net);
     struct hashtable *liftedEdgesTable = buildFaces_computeLiftedEdges(net, ancestorsTable);
-    Net_CapIterator *iter = net_getCapIterator(net);
+    Flower_CapIterator *iter = flower_getCapIterator(net);
     struct List *liftedEdges;
     Cap *current;
 
     st_logInfo("Constructing faces\n");
 
-    while ((current = net_getNextCap(iter)))
+    while ((current = flower_getNextCap(iter)))
 	if ((liftedEdges = hashtable_search(liftedEdgesTable, current))
 	    && buildFaces_getMinorLiftedEdgeDestination(current, liftedEdges))
 	    buildFaces_constructFromCap(current, liftedEdgesTable, ancestorsTable, net);
 
     hashtable_destroy(liftedEdgesTable, true,false);
     hashtable_destroy(ancestorsTable, false,false);
-    net_destructCapIterator(iter);
+    flower_destructCapIterator(iter);
 }
 
 /*
  * Simplify a given face
  */
-void buildFaces_simplify(Face * face, Net * net) {
+void buildFaces_simplify(Face * face, Flower * net) {
     // TODO
     // Here lies NP-completeness
 
@@ -351,16 +351,16 @@ void buildFaces_simplify(Face * face, Net * net) {
 /*
  * Simplify all the faces in the net
  */
-void buildFaces_simplifyFaces(Net * net) {
-    Net_FaceIterator *iter = net_getFaceIterator(net);
+void buildFaces_simplifyFaces(Flower * net) {
+    Flower_FaceIterator *iter = flower_getFaceIterator(net);
     Face *face;
 
     st_logInfo("Simplifying faces\n");
 
-    while ((face = net_getNextFace(iter)))
+    while ((face = flower_getNextFace(iter)))
 	buildFaces_simplify(face, net);
 
-    net_destructFaceIterator(iter);
+    flower_destructFaceIterator(iter);
 }
 
 /*
@@ -521,7 +521,7 @@ static void buildFaces_fillInterpolatedFace(Face * face, Cap ** interpolations,
  * Create face from interpolated nodes
  */
 static void buildFaces_createInterpolatedFace(Face * face,
-	Cap ** interpolations, Net * net) {
+	Cap ** interpolations, Flower * net) {
     Face *interpolatedFace = face_construct(net);
     int32_t nodeIndex;
     int32_t nodeCount = 0;
@@ -545,7 +545,7 @@ static void buildFaces_createInterpolatedFace(Face * face,
 /*
  * Isolates into regular and trivial faces
  */
-void buildFaces_isolate(Face * face, Net * net) {
+void buildFaces_isolate(Face * face, Flower * net) {
     Cap **interpolations;
 
     // If uncessary
@@ -573,16 +573,16 @@ void buildFaces_isolate(Face * face, Net * net) {
 /*
  * Isolates all the faces in the net
  */
-void buildFaces_isolateFaces(Net * net) {
-    Net_FaceIterator *iter = net_getFaceIterator(net);
+void buildFaces_isolateFaces(Flower * net) {
+    Flower_FaceIterator *iter = flower_getFaceIterator(net);
     Face *face;
 
     st_logInfo("Isolating faces\n");
 
-    while ((face = net_getNextFace(iter)))
+    while ((face = flower_getNextFace(iter)))
 	buildFaces_isolate(face, net);
 
-    net_destructFaceIterator(iter);
+    flower_destructFaceIterator(iter);
 }
 
 /*
@@ -590,7 +590,7 @@ void buildFaces_isolateFaces(Net * net) {
  */
 static Cap * buildFaces_constructStub(Cap * adjacentCap) {
     //Construct the new stub and the new cap..
-    Net * net = end_getNet(cap_getEnd(adjacentCap));
+    Flower * net = end_getNet(cap_getEnd(adjacentCap));
     End *newFreeStubEnd = createNewFreeStubEnd(net);
     Cap *cap = cap_construct(newFreeStubEnd, cap_getEvent(adjacentCap));
 
@@ -618,7 +618,7 @@ static Cap * buildFaces_constructStub(Cap * adjacentCap) {
  * Engineers a node so that a regular face has an even number of
  * top/bottom node pairs
  */
-static void buildFaces_engineerCaps(Face * face, Net * net) {
+static void buildFaces_engineerCaps(Face * face, Flower * net) {
     int32_t index;
     Cap *nonAdjacent = NULL;
     int32_t nonDerived = -1;
@@ -719,7 +719,7 @@ static void buildFaces_close(Face * face) {
 /*
  * Canonizes face into a regular cycle
  */
-void buildFaces_canonize(Face * face, Net * net) {
+void buildFaces_canonize(Face * face, Flower * net) {
     if (face_getCardinal(face) % 2 == 0)
 	buildFaces_engineerCaps(face, net);
 
@@ -733,23 +733,23 @@ void buildFaces_canonize(Face * face, Net * net) {
 /*
  * Canonizes all the faces in the net
  */
-void buildFaces_canonizeFaces(Net * net) {
-    Net_FaceIterator *iter = net_getFaceIterator(net);
+void buildFaces_canonizeFaces(Flower * net) {
+    Flower_FaceIterator *iter = flower_getFaceIterator(net);
     Face *face;
 
     st_logInfo("Canonizing faces\n");
 
-    while ((face = net_getNextFace(iter)))
+    while ((face = flower_getNextFace(iter)))
 	if (!face_isCanonical(face))
 	    buildFaces_canonize(face, net);
 
-    net_destructFaceIterator(iter);
+    flower_destructFaceIterator(iter);
 }
 
 /*
  * The works: create, regularize and canonize faces in net
  */
-void buildFaces_buildAndProcessFaces(Net * net) {
+void buildFaces_buildAndProcessFaces(Flower * net) {
     buildFaces_constructFaces(net);
     buildFaces_simplifyFaces(net);
     buildFaces_isolateFaces(net);
@@ -757,10 +757,10 @@ void buildFaces_buildAndProcessFaces(Net * net) {
 }
 
 //Todo - fine me a home.
-End *createNewFreeStubEnd(Net *net) {
+End *createNewFreeStubEnd(Flower *net) {
     End *newFreeStubEnd = end_construct(0, net);
-    assert(net_getGroupNumber(net) == 1);
-    end_setGroup(newFreeStubEnd, net_getFirstGroup(net));
+    assert(flower_getGroupNumber(net) == 1);
+    end_setGroup(newFreeStubEnd, flower_getFirstGroup(net));
     return newFreeStubEnd;
 }
 

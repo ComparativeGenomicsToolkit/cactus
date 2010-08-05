@@ -9,11 +9,11 @@
 #include "cactusGraph.h"
 #include "cactus.h"
 
-void fillOutNetFromInputs(Net *parentNet, struct CactusGraph *cactusGraph,
+void fillOutNetFromInputs(Flower *parentNet, struct CactusGraph *cactusGraph,
         struct PinchGraph *pinchGraph, stSortedSet *chosenBlocks);
 
-struct PinchGraph *constructPinchGraph(Net *net);
+struct PinchGraph *constructPinchGraph(Flower *net);
 
-void copyEndTreePhylogenies(Net *parentNet, Net *net);
+void copyEndTreePhylogenies(Flower *parentNet, Flower *net);
 
 #endif

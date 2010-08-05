@@ -59,13 +59,13 @@ void addTelomereEdges(Reference *reference, void *extraArgument) {
 	reference_destructPseudoChromosomeIterator(pseudoChromosomeIterator);
 }
 
-void addBlocks(Net *net, void *extraArgument) {
+void addBlocks(Flower *net, void *extraArgument) {
 	/*
 	 * Adds block edges to the plot.
 	 */
-	Net_EndIterator *endIterator = net_getEndIterator(net);
+	Flower_EndIterator *endIterator = flower_getEndIterator(net);
 	End *end;
-	while((end = net_getNextEnd(endIterator)) != NULL) {
+	while((end = flower_getNextEnd(endIterator)) != NULL) {
 		if(end_isBlockEnd(end)) {
 			End *otherEnd = end_getOtherBlockEnd(end);
 			assert(otherEnd != NULL);
@@ -77,7 +77,7 @@ void addBlocks(Net *net, void *extraArgument) {
 			}
 		}
 	}
-	net_destructEndIterator(endIterator);
+	flower_destructEndIterator(endIterator);
 }
 
 void addTangle(Group *group, stHash *endToPseudoAdjacencyHash, void *extraArgument) {
@@ -122,19 +122,19 @@ void addTangle(Group *group, stHash *endToPseudoAdjacencyHash, void *extraArgume
 	group_destructEndIterator(endIterator);
 }
 
-void addTangles(Net *net, Reference *reference, void *extraArgument) {
+void addTangles(Flower *net, Reference *reference, void *extraArgument) {
 	/*
 	 * Adds adjacency edges representing tangles to the structure.
 	 */
 	stHash *endToPseudoAdjacencyHash = reference_getEndToPseudoAdjacencyHash(reference);
-	Net_GroupIterator *groupIterator = net_getGroupIterator(net);
+	Flower_GroupIterator *groupIterator = flower_getGroupIterator(net);
 	Group *group;
-	while((group = net_getNextGroup(groupIterator)) != NULL) {
+	while((group = flower_getNextGroup(groupIterator)) != NULL) {
 		if(group_isTangle(group)) { //the group is a tangle (not a link in a chain).
 			addTangle(group, endToPseudoAdjacencyHash, extraArgument);
 		}
 	}
-	net_destructGroupIterator(groupIterator);
+	flower_destructGroupIterator(groupIterator);
 	stHash_destruct(endToPseudoAdjacencyHash);
 }
 
@@ -146,7 +146,7 @@ void makeReferenceGraph(Reference *reference, void *extraArgument) {
 	 * Then it adds edges representing blocks, adjacencies and
 	 * edges between telomeres that are adjacent in the ordering.
 	 */
-	Net *net = reference_getNet(reference);
+	Flower *net = reference_getNet(reference);
 	addReferenceEnds(reference, extraArgument);
 	addBlocks(net, extraArgument);
 	addTangles(net, reference, extraArgument);

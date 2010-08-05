@@ -10,37 +10,37 @@
  * 	Regularize faces,
  * 	Canonize faces.
  */
-void buildFaces_buildAndProcessFaces(Net * net);
+void buildFaces_buildAndProcessFaces(Flower * net);
 
 /*
  * Simplifies a given face
  */
-void buildFaces_simplify(Face * face, Net * net);
+void buildFaces_simplify(Face * face, Flower * net);
 
 /* 
  * Simplifies all the faces in the net
  */
-void buildFaces_simplifyFaces(Net * net);
+void buildFaces_simplifyFaces(Flower * net);
 
 /*
  * Isolates into a regular and trivial faces
  */
-void face_isolate(Face * face, Net * net);
+void face_isolate(Face * face, Flower * net);
 
 /*
  * Isolates all the faces in the net
  */
-void face_isolateFaces(Net * net);
+void face_isolateFaces(Flower * net);
 
 /*
  * Canonizes face into a regular cycle
  */
-void face_canonize(Face * face, Net * net);
+void face_canonize(Face * face, Flower * net);
 
 /*
  * Canonizes all the faces in the net
  */
-void face_canonizeFaces(Net * net);
+void face_canonizeFaces(Flower * net);
 
 /////
 //Misc functions
@@ -49,6 +49,6 @@ void face_canonizeFaces(Net * net);
 /*
  * Creates a new free stub end in which to place caps.
  */
-End *createNewFreeStubEnd(Net *net);
+End *createNewFreeStubEnd(Flower *net);
 
 #endif

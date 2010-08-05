@@ -13,18 +13,18 @@ static int reference_constructP(const void *o1, const void *o2) {
 			pseudoChromosome_getName((PseudoChromosome *)o2));
 }
 
-Reference *reference_construct(Net *net) {
+Reference *reference_construct(Flower *flower) {
 	Reference *reference = st_malloc(sizeof(Reference));
 	//Setup the basic structure - a sorted set of pseudo-chromosomes.
 	reference->pseudoChromosomes = stSortedSet_construct3(reference_constructP, NULL);
-	//Link the reference and net.
-	reference->net = net;
-	net_setReference(net, reference);
+	//Link the reference and flower.
+	reference->flower = flower;
+	flower_setReference(flower, reference);
 	return reference;
 }
 
-Net *reference_getNet(Reference *reference) {
-	return reference->net;
+Flower *reference_getNet(Reference *reference) {
+	return reference->flower;
 }
 
 int32_t reference_getPseudoChromosomeNumber(Reference *reference) {
@@ -81,13 +81,13 @@ stHash *reference_getEndToPseudoAdjacencyHash(Reference *reference) {
 }
 
 void reference_check(Reference *reference) {
-	Net *net = reference_getNet(reference);
+	Flower *flower = reference_getNet(reference);
 	stHash *endsToPseudoAdjacencies = reference_getEndToPseudoAdjacencyHash(reference);
 
 	//Going ends --> pseudo adjacencies.
-	Net_EndIterator *endIterator = net_getEndIterator(net);
+	Flower_EndIterator *endIterator = flower_getEndIterator(flower);
 	End *end;
-	while((end = net_getNextEnd(endIterator)) != NULL) {
+	while((end = flower_getNextEnd(endIterator)) != NULL) {
 		if(end_isAttached(end) || end_isBlockEnd(end)) {
 			PseudoAdjacency *pseudoAdjacency = stHash_search(endsToPseudoAdjacencies, end);
 			assert(pseudoAdjacency != NULL);
@@ -97,7 +97,7 @@ void reference_check(Reference *reference) {
 			assert(stHash_search(endsToPseudoAdjacencies, end) == NULL); //check free stub end is not in the pseudo chromosomes..
 		}
 	}
-	net_destructEndIterator(endIterator);
+	flower_destructEndIterator(endIterator);
 
 	//Going pseudo-adjacencies --> ends.
 	Reference_PseudoChromosomeIterator *pseudoChromosomeIterator = reference_getPseudoChromosomeIterator(reference);
@@ -146,7 +146,7 @@ void reference_check(Reference *reference) {
 ////////////////////////////////////////////////
 
 void reference_destruct(Reference *reference) {
-	net_removeReference(reference_getNet(reference), reference);
+	flower_removeReference(reference_getNet(reference), reference);
 	PseudoChromosome *pseudoChromosome;
 	while((pseudoChromosome = reference_getFirst(reference)) != NULL) {
 			pseudoChromosome_destruct(pseudoChromosome);
@@ -178,13 +178,13 @@ void reference_writeBinaryRepresentation(Reference *reference, void (*writeFn)(c
 	pseudoChromosome_destructPseudoAdjacencyIterator(iterator);
 }
 
-Reference *reference_loadFromBinaryRepresentation(void **binaryString, Net *net) {
+Reference *reference_loadFromBinaryRepresentation(void **binaryString, Flower *flower) {
 	Reference *reference = NULL;
 	int32_t pseudoChromosomeNumber;
 
 	if(binaryRepresentation_peekNextElementType(*binaryString) == CODE_REFERENCE) {
 		binaryRepresentation_popNextElementType(binaryString);
-		reference = reference_construct(net);
+		reference = reference_construct(flower);
 		pseudoChromosomeNumber = binaryRepresentation_getInteger(binaryString);
 		while(pseudoChromosomeNumber-- > 0) {
 			pseudoChromosome_loadFromBinaryRepresentation(binaryString, reference);

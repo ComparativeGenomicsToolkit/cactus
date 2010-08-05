@@ -167,7 +167,7 @@ int32_t cap_isInternal(Cap *cap);
  *  (2) Check caps ancestor/descendant links are proper.
  * If stub end checks, there is no attached segment.
  * Checks adjacencies are properly linked and have consistent coordinates and the same group.
- * It is consistent with any copy of end in the nested net, in terms of connections and coordinates.
+ * It is consistent with any copy of end in the nested flower, in terms of connections and coordinates.
  * The reverse cap is the mirror of the cap.
  */
 void cap_check(Cap *cap);

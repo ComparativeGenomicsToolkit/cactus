@@ -75,7 +75,7 @@ void cap_writeBinaryRepresentation(Cap *cap, void(*writeFn)(const void * ptr,
         size_t size, size_t count));
 
 /*
- * Loads a net into memory from a binary representation of the net.
+ * Loads a flower into memory from a binary representation of the flower.
  */
 Cap *cap_loadFromBinaryRepresentation(void **binaryString, End *end);
 

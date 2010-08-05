@@ -9,7 +9,7 @@
 ////////////////////////////////////////////////
 
 Cap *cap_construct(End *end, Event *event) {
-    return cap_construct3(cactusDisk_getUniqueID(net_getNetDisk(end_getNet(end))), event, end);
+    return cap_construct3(cactusDisk_getUniqueID(flower_getNetDisk(end_getNet(end))), event, end);
 }
 
 Cap *cap_construct3(Name instance, Event *event, End *end) {
@@ -40,13 +40,13 @@ Cap *cap_construct3(Name instance, Event *event, End *end) {
     cap->capContents->strand = end_getOrientation(end);
 
     end_addInstance(end, cap);
-    net_addCap(end_getNet(end), cap);
+    flower_addCap(end_getNet(end), cap);
     return cap;
 }
 
 Cap *cap_construct2(End *end, int32_t coordinate, bool strand,
         Sequence *sequence) {
-    return cap_construct4(cactusDisk_getUniqueID(net_getNetDisk(end_getNet(end))),
+    return cap_construct4(cactusDisk_getUniqueID(flower_getNetDisk(end_getNet(end))),
             end, coordinate, strand, sequence);
 }
 
@@ -61,7 +61,7 @@ Cap *cap_construct4(Name instance, End *end, int32_t coordinate,
 }
 
 Cap *cap_construct5(Event *event, End *end) {
-    return cap_construct3(cactusDisk_getUniqueID(net_getNetDisk(end_getNet(end))),
+    return cap_construct3(cactusDisk_getUniqueID(flower_getNetDisk(end_getNet(end))),
             event, end);
 }
 
@@ -72,19 +72,19 @@ Cap *cap_copyConstruct(End *end, Cap *cap) {
     Name sequenceName;
     Sequence *sequence;
 
-    Net *net = end_getNet(end);
+    Flower *flower = end_getNet(end);
     if (cap_getCoordinate(cap) != INT32_MAX) {
         sequenceName = sequence_getName(cap_getSequence(cap));
-        sequence = net_getSequence(net, sequenceName);
-        if (sequence == NULL) { //add sequence to the net.
+        sequence = flower_getSequence(flower, sequenceName);
+        if (sequence == NULL) { //add sequence to the flower.
             sequence = sequence_construct(cactusDisk_getMetaSequence(
-                    net_getNetDisk(net), sequenceName), net);
+                    flower_getNetDisk(flower), sequenceName), flower);
             assert(sequence != NULL);
         }
         return cap_construct4(cap_getName(cap), end, cap_getCoordinate(cap),
                 cap_getStrand(cap), sequence);
     } else {
-        event = eventTree_getEvent(net_getEventTree(net), event_getName(
+        event = eventTree_getEvent(flower_getEventTree(flower), event_getName(
                 cap_getEvent(cap)));
         assert(event != NULL);
         return cap_construct3(cap_getName(cap), event, end);
@@ -94,7 +94,7 @@ Cap *cap_copyConstruct(End *end, Cap *cap) {
 void cap_destruct(Cap *cap) {
     //Remove from end.
     end_removeInstance(cap_getEnd(cap), cap);
-    net_removeCap(end_getNet(cap_getEnd(cap)), cap);
+    flower_removeCap(end_getNet(cap_getEnd(cap)), cap);
 
     destructList(cap->capContents->children);
     free(cap->rCap);
@@ -312,7 +312,7 @@ void cap_check(Cap *cap) {
     //that we have a consistently oriented set of caps in an end.
 
     //If we've built the trees
-    if (net_builtTrees(end_getNet(cap_getEnd(cap)))) {
+    if (flower_builtTrees(end_getNet(cap_getEnd(cap)))) {
         // checks the cap has a parent which has an ancestral event to the caps event, unless it is the root.
         if (end_getRootInstance(end) == cap) {
             assert(cap_getParent(cap) == NULL);
@@ -406,10 +406,10 @@ void cap_check(Cap *cap) {
         assert(cap_getChild(cap, i) == cap_getReverse(cap_getChild(rCap, i)));
     }
 
-    //it is consistent with any copy of end in the nested net, in terms of events, connections and coordinates.
-    Net *nestedNet = group_getNestedNet(end_getGroup(end));
+    //it is consistent with any copy of end in the nested flower, in terms of events, connections and coordinates.
+    Flower *nestedNet = group_getNestedNet(end_getGroup(end));
     if (nestedNet != NULL) {
-        End *childEnd = net_getEnd(nestedNet, end_getName(end));
+        End *childEnd = flower_getEnd(nestedNet, end_getName(end));
         assert(childEnd != NULL); //End must be present in child
         //Cap *childCap = end_getInstance(childEnd, cap_getName(cap));
     }
@@ -476,7 +476,7 @@ int32_t cap_loadFromBinaryRepresentationP(Cap *cap, void **binaryString,
         void(*linkFn)(Cap *, Cap *)) {
     Cap *cap2;
     binaryRepresentation_popNextElementType(binaryString);
-    cap2 = net_getCap(end_getNet(cap_getEnd(cap)),
+    cap2 = flower_getCap(end_getNet(cap_getEnd(cap)),
             binaryRepresentation_getName(binaryString));
     if (cap2 != NULL) { //if null we'll make the adjacency when the other end is parsed.
         linkFn(cap2, cap);
@@ -497,7 +497,7 @@ Cap *cap_loadFromBinaryRepresentation(void **binaryString, End *end) {
     if (binaryRepresentation_peekNextElementType(*binaryString) == CODE_CAP) {
         binaryRepresentation_popNextElementType(binaryString);
         name = binaryRepresentation_getName(binaryString);
-        event = eventTree_getEvent(net_getEventTree(end_getNet(end)),
+        event = eventTree_getEvent(flower_getEventTree(end_getNet(end)),
                 binaryRepresentation_getName(binaryString));
         cap = cap_construct3(name, event, end);
     } else if (binaryRepresentation_peekNextElementType(*binaryString)
@@ -506,7 +506,7 @@ Cap *cap_loadFromBinaryRepresentation(void **binaryString, End *end) {
         name = binaryRepresentation_getName(binaryString);
         coordinate = binaryRepresentation_getInteger(binaryString);
         strand = binaryRepresentation_getBool(binaryString);
-        sequence = net_getSequence(end_getNet(end),
+        sequence = flower_getSequence(end_getNet(end),
                 binaryRepresentation_getName(binaryString));
         cap = cap_construct4(name, end, coordinate, strand, sequence);
     }

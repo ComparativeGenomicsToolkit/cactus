@@ -12,17 +12,17 @@ int eventTree_constructP(const void *o1, const void *o2) {
 	return cactusMisc_nameCompare(event_getName((Event *)o1), event_getName((Event *)o2));
 }
 
-EventTree *eventTree_construct2(Net *net) {
-	return eventTree_construct(metaEvent_construct("ROOT", net_getNetDisk(net)), net);
+EventTree *eventTree_construct2(Flower *flower) {
+	return eventTree_construct(metaEvent_construct("ROOT", flower_getNetDisk(flower)), flower);
 }
 
-EventTree *eventTree_construct(MetaEvent *rootEvent, Net *net) {
+EventTree *eventTree_construct(MetaEvent *rootEvent, Flower *flower) {
 	EventTree *eventTree;
 	eventTree = st_malloc(sizeof(EventTree));
 	eventTree->events = stSortedSet_construct3(eventTree_constructP, NULL);
-	eventTree->net = net;
+	eventTree->flower = flower;
 	eventTree->rootEvent = event_construct(rootEvent, INT32_MAX, NULL, eventTree); //do this last as reciprocal call made to add the event to the events.
-	net_setEventTree(net, eventTree);
+	flower_setEventTree(flower, eventTree);
 	return eventTree;
 }
 
@@ -42,7 +42,7 @@ void eventTree_copyConstructP(EventTree *eventTree, Event *event,
 	}
 }
 
-EventTree *eventTree_copyConstruct(EventTree *eventTree, Net *newNet,
+EventTree *eventTree_copyConstruct(EventTree *eventTree, Flower *newNet,
 		int32_t (unaryEventFilterFn)(Event *event)) {
 	EventTree *eventTree2;
 	eventTree2 = eventTree_construct(event_getMetaEvent(eventTree_getRootEvent(eventTree)), newNet);
@@ -90,8 +90,8 @@ Event *eventTree_getCommonAncestor(Event *event, Event *event2) {
 	return NULL;
 }
 
-Net *eventTree_getNet(EventTree *eventTree) {
-	return eventTree->net;
+Flower *eventTree_getNet(EventTree *eventTree) {
+	return eventTree->flower;
 }
 
 int32_t eventTree_getEventNumber(EventTree *eventTree) {
@@ -167,14 +167,14 @@ static int32_t eventTree_addSiblingUnaryEventP(Event *event, Event *event2) {
 	 * Event is the new event, event2 event from the event tree we're adding to.
 	 */
 	assert(event != event2);
-	Group *group1 = net_getParentGroup(eventTree_getNet(event_getEventTree(event)));
-	Group *group2 = net_getParentGroup(eventTree_getNet(event_getEventTree(event2)));
+	Group *group1 = flower_getParentGroup(eventTree_getNet(event_getEventTree(event)));
+	Group *group2 = flower_getParentGroup(eventTree_getNet(event_getEventTree(event2)));
 	if(group1 != NULL) { //both events have a parent, so we can perhaps ask if one is the ancestor
 		//of the other in the parent event tree.
 		assert(group2 != NULL);
-		Net *parentNet = group_getNet(group1);
+		Flower *parentNet = group_getNet(group1);
 		assert(parentNet == group_getNet(group2));
-		EventTree *parentEventTree = net_getEventTree(parentNet);
+		EventTree *parentEventTree = flower_getEventTree(parentNet);
 		Event *eventP = eventTree_getEvent(parentEventTree, event_getName(event)); //get the ancestral version of the event.
 		Event *event2P = eventTree_getEvent(parentEventTree, event_getName(event2));
 		if(eventP != NULL && event2P != NULL) { //we can answer who is truly ancestral because both are in the ancestral tree.
@@ -185,7 +185,7 @@ static int32_t eventTree_addSiblingUnaryEventP(Event *event, Event *event2) {
 		}
 	}
 	else {
-		assert(group2 == NULL); //they both must be root nets.
+		assert(group2 == NULL); //they both must be root flowers.
 	}
 	//Maybe both events are in the sibling event tree, we can refer to that tree
 	//to decide who is ancestral.
@@ -222,8 +222,8 @@ void eventTree_addSiblingUnaryEvent(EventTree *eventTree, Event *event) {
 }
 
 void eventTree_check(EventTree *eventTree) {
-	//Check net and event tree properly connected.
-	assert(net_getEventTree(eventTree_getNet(eventTree)) == eventTree);
+	//Check flower and event tree properly connected.
+	assert(flower_getEventTree(eventTree_getNet(eventTree)) == eventTree);
 
 	Event *event;
 	EventTree_Iterator *eventIterator = eventTree_getIterator(eventTree);
@@ -239,7 +239,7 @@ void eventTree_check(EventTree *eventTree) {
 
 void eventTree_destruct(EventTree *eventTree) {
 	Event *event;
-	net_removeEventTree(eventTree_getNet(eventTree), eventTree);
+	flower_removeEventTree(eventTree_getNet(eventTree), eventTree);
 	while((event = eventTree_getFirst(eventTree)) != NULL) {
 		event_destruct(event);
 	}
@@ -279,16 +279,16 @@ void eventTree_writeBinaryRepresentation(EventTree *eventTree, void (*writeFn)(c
 	}
 }
 
-EventTree *eventTree_loadFromBinaryRepresentation(void **binaryString, Net *net) {
+EventTree *eventTree_loadFromBinaryRepresentation(void **binaryString, Flower *flower) {
 	EventTree *eventTree;
 	MetaEvent *metaEvent;
 	eventTree = NULL;
 	if(binaryRepresentation_peekNextElementType(*binaryString) == CODE_EVENT_TREE) {
 		binaryRepresentation_popNextElementType(binaryString);
-		metaEvent = cactusDisk_getMetaEvent(net_getNetDisk(net),
+		metaEvent = cactusDisk_getMetaEvent(flower_getNetDisk(flower),
 				binaryRepresentation_getName(binaryString));
 		assert(metaEvent != NULL);
-		eventTree = eventTree_construct(metaEvent, net);
+		eventTree = eventTree_construct(metaEvent, flower);
 		int32_t eventNumber = binaryRepresentation_getInteger(binaryString);
 		while(eventNumber-- > 0) {
 			event_loadFromBinaryRepresentation(binaryString, eventTree);

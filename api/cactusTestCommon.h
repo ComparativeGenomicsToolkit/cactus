@@ -12,12 +12,12 @@
 ////////////////////////////////////////////////
 
 /*
- * Get the location of a place to put a temporary net disk.
+ * Get the location of a place to put a temporary cactus disk.
  */
 const char *testCommon_getTemporaryNetDisk();
 
 /*
- * Removes the temporary net disk file from the disk.
+ * Removes the temporary cactus disk file from the disk.
  */
 void testCommon_deleteTemporaryNetDisk();
 

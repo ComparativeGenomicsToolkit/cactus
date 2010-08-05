@@ -14,18 +14,18 @@
 /*
  * Constructs an event tree, with given root event.
  */
-EventTree *eventTree_construct(MetaEvent *rootEvent, Net *net);
+EventTree *eventTree_construct(MetaEvent *rootEvent, Flower *flower);
 
 /*
  * Constructs an event tree, with one root event.
  */
-EventTree *eventTree_construct2(Net *net);
+EventTree *eventTree_construct2(Flower *flower);
 
 /*
- * Copy constructs the event tree, replacing the existing net with the newNet. Only includes
+ * Copy constructs the event tree, replacing the existing flower with the newNet. Only includes
  * the unary events which are true, given the unary event function.
  */
-EventTree *eventTree_copyConstruct(EventTree *eventTree, Net *newNet, int32_t (unaryEventFilterFn)(Event *event));
+EventTree *eventTree_copyConstruct(EventTree *eventTree, Flower *newNet, int32_t (unaryEventFilterFn)(Event *event));
 
 /*
  * Returns the root event.
@@ -43,9 +43,9 @@ Event *eventTree_getEvent(EventTree *eventTree, Name eventName);
 Event *eventTree_getCommonAncestor(Event *event, Event *event2);
 
 /*
- * Gets the parent net.
+ * Gets the parent flower.
  */
-Net *eventTree_getNet(EventTree *eventTree);
+Flower *eventTree_getNet(EventTree *eventTree);
 
 /*
  * Gets the total number of events in the event tree.
@@ -89,7 +89,7 @@ char *eventTree_makeNewickString(EventTree *eventTree);
 
 /*
  * Insert given unary event, from a sibling event tree into the given event tree,
- * where sibling means their containing nets have the same parent nets.
+ * where sibling means their containing flowers have the same parent flowers.
  */
 void eventTree_addSiblingUnaryEvent(EventTree *eventTree, Event *event);
 

@@ -21,7 +21,7 @@ void testReference_construct(CuTest* testCase) {
 
 void testReference_getNet(CuTest* testCase) {
 	testSetup();
-	CuAssertTrue(testCase, reference_getNet(reference) == net);
+	CuAssertTrue(testCase, reference_getNet(reference) == flower);
 	testTeardown();
 }
 
@@ -104,9 +104,9 @@ void testReference_serialisation(CuTest* testCase) {
 	Name name2 = pseudoChromosome_getName(pseudoChromosome2);
 	reference_destruct(reference);
 	void *vA2 = vA;
-	reference = reference_loadFromBinaryRepresentation(&vA2, net);
+	reference = reference_loadFromBinaryRepresentation(&vA2, flower);
 	free(vA);
-	//uglyf("Printing the following names %s %s\n", netMisc_nameToString(name1), netMisc_nameToString(name2));
+	//uglyf("Printing the following names %s %s\n", flowerMisc_nameToString(name1), flowerMisc_nameToString(name2));
 	pseudoChromosome1 = reference_getPseudoChromosome(reference, name1);
 	assert(pseudoChromosome1 != NULL);
 	pseudoChromosome2 = reference_getPseudoChromosome(reference, name2);

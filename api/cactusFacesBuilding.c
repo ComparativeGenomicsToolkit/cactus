@@ -62,17 +62,17 @@ static void buildFaces_destructListElem(void *ptr) {
  * Fill in a hashtable which to every node associates
  * a list of lifted edges
  */
-static stHash *buildFaces_computeLiftedEdges(Net * net) {
+static stHash *buildFaces_computeLiftedEdges(Flower * flower) {
     stHash *liftedEdgesTable = stHash_construct3(buildFaces_hashfunction,
             buildFaces_key_eq_fn, NULL, buildFaces_destructValue);
-    Net_CapIterator *iter = net_getCapIterator(net);
+    Flower_CapIterator *iter = flower_getCapIterator(flower);
     Cap *cap, *attachedAncestor;
     Cap *adjacency, *adjacencyAncestor;
     struct List *liftedEdges;
     LiftedEdge *liftedEdge;
 
     // Iterate through potential bottom nodes
-    while ((cap = net_getNextCap(iter))) {
+    while ((cap = flower_getNextCap(iter))) {
         // ... check if connected
         if ((adjacency = cap_getAdjacency(cap))) {
             // ... lift
@@ -112,7 +112,7 @@ static stHash *buildFaces_computeLiftedEdges(Net * net) {
         }
     }
 
-    net_destructCapIterator(iter);
+    flower_destructCapIterator(iter);
     return liftedEdgesTable;
 }
 
@@ -156,8 +156,8 @@ static void buildFaces_fillTopNodeList(Cap * cap, struct List *list,
  * Constructs a face from a given Cap
  */
 static void buildFaces_constructFromCap(Cap * startingCap,
-        stHash *liftedEdgesTable, Net * net) {
-    Face *face = face_construct(net);
+        stHash *liftedEdgesTable, Flower * flower) {
+    Face *face = face_construct(flower);
     struct List *topNodes = constructZeroLengthList(16, NULL);
     struct List *liftedEdges;
     Cap *cap, *bottomNode, *ancestor;
@@ -223,26 +223,26 @@ static void buildFaces_constructFromCap(Cap * startingCap,
     destructList(topNodes);
 }
 
-void net_reconstructFaces(Net * net) {
-    net_destructFaces(net);
-    stHash *liftedEdgesTable = buildFaces_computeLiftedEdges(net);
-    Net_CapIterator *iter = net_getCapIterator(net);
+void flower_reconstructFaces(Flower * flower) {
+    flower_destructFaces(flower);
+    stHash *liftedEdgesTable = buildFaces_computeLiftedEdges(flower);
+    Flower_CapIterator *iter = flower_getCapIterator(flower);
     struct List *liftedEdges;
     Cap *current;
 
-    while ((current = net_getNextCap(iter))) {
+    while ((current = flower_getNextCap(iter))) {
         if ((liftedEdges = stHash_search(liftedEdgesTable, current))
                 && (liftedEdges->length >= 1)) {
-            buildFaces_constructFromCap(current, liftedEdgesTable, net);
+            buildFaces_constructFromCap(current, liftedEdgesTable, flower);
         }
     }
     stHash_destruct(liftedEdgesTable);
-    net_destructCapIterator(iter);
+    flower_destructCapIterator(iter);
 }
 
-void net_destructFaces(Net *net) {
+void flower_destructFaces(Flower *flower) {
     Face *face;
-    while ((face = net_getFirstFace(net)) != NULL) {
+    while ((face = flower_getFirstFace(flower)) != NULL) {
         face_destruct(face);
     }
 }
@@ -254,18 +254,18 @@ void net_destructFaces(Net *net) {
  * !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
  */
 
-static stHash *hashbottomCaps(Net *net) {
+static stHash *hashbottomCaps(Flower *flower) {
     /*
      * For each top node finds the corresponding set of bottom nodes and returns a
      * hash of top nodes to sets of bottom nodes.
      */
     stHash *bottomCapsHash = stHash_construct2(
             NULL, (void(*)(void *)) destructList);
-    Event *rootEvent = eventTree_getRootEvent(net_getEventTree(net));
+    Event *rootEvent = eventTree_getRootEvent(flower_getEventTree(flower));
     Cap *cap;
-    Net_CapIterator *capIterator = net_getCapIterator(net);
+    Flower_CapIterator *capIterator = flower_getCapIterator(flower);
 
-    while ((cap = net_getNextCap(capIterator)) != NULL) {
+    while ((cap = flower_getNextCap(capIterator)) != NULL) {
         assert(cap_getOrientation(cap));
         if (cap_getEvent(cap) != rootEvent && cap_getAdjacency(cap) != NULL) {
             Cap *cap2 = cap_getTopCap(cap);
@@ -279,7 +279,7 @@ static stHash *hashbottomCaps(Net *net) {
             listAppend(list, cap);
         }
     }
-    net_destructCapIterator(capIterator);
+    flower_destructCapIterator(capIterator);
 
     return bottomCapsHash;
 }
@@ -432,13 +432,13 @@ static void checkFace(struct List *module, stHash *bottomCapsHash) {
     }
 }
 
-void face_checkFaces(Net *net) {
+void face_checkFaces(Flower *flower) {
     /*
      * Checks that the set of faces is as we expect - with a face created
      * for each non-trivial face.
      */
-    if (net_builtFaces(net)) { //only check the faces if they have been built..
-        stHash *bottomCapsHash = hashbottomCaps(net);
+    if (flower_builtFaces(flower)) { //only check the faces if they have been built..
+        stHash *bottomCapsHash = hashbottomCaps(flower);
 
         //Construct lifted edges
         stHash *liftedEdgesHash = computeLiftedEdges(bottomCapsHash);
@@ -453,7 +453,7 @@ void face_checkFaces(Net *net) {
         for (i = 0; i < modules->length; i++) {
             checkFace(modules->list[i], bottomCapsHash);
         }
-        assert(modules->length == net_getFaceNumber(net)); //we should have checked exactly the number of faces.
+        assert(modules->length == flower_getFaceNumber(flower)); //we should have checked exactly the number of faces.
 
         //Cleanup
         stHash_destruct(bottomCapsHash);
@@ -461,7 +461,7 @@ void face_checkFaces(Net *net) {
         destructList(modules);
     } else {
         //We do not like intermediate states.
-        assert(net_getFaceNumber(net) == 0);
+        assert(flower_getFaceNumber(flower) == 0);
     }
 }
 

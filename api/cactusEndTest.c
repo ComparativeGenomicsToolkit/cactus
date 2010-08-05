@@ -28,14 +28,14 @@ int32_t testEnd_copyConstructP(Event *event) {
 
 void testEnd_copyConstruct(CuTest* testCase) {
     cactusEndTestSetup();
-    Net *net2 = net_construct(cactusDisk);
-    eventTree_copyConstruct(eventTree, net2, testEnd_copyConstructP);
-    sequence_construct(metaSequence, net2);
+    Flower *flower2 = flower_construct(cactusDisk);
+    eventTree_copyConstruct(eventTree, flower2, testEnd_copyConstructP);
+    sequence_construct(metaSequence, flower2);
 
-    End *end2 = end_copyConstruct(end, net2);
+    End *end2 = end_copyConstruct(end, flower2);
     CuAssertTrue(testCase, end_getName(end2) != NULL_NAME);
     CuAssertTrue(testCase, end_getName(end2) == end_getName(end));
-    CuAssertTrue(testCase, net_getEnd(net2, end_getName(end2)) == end2);
+    CuAssertTrue(testCase, flower_getEnd(flower2, end_getName(end2)) == end2);
     CuAssertTrue(testCase, cap_getName(end_getInstance(end2, cap_getName(rootCap))) == cap_getName(rootCap));
     CuAssertTrue(testCase, cap_getName(end_getInstance(end2, cap_getName(leaf1Cap))) == cap_getName(leaf1Cap));
     CuAssertTrue(testCase, cap_getName(end_getInstance(end2, cap_getName(leaf2Cap))) == cap_getName(leaf2Cap));
@@ -45,8 +45,8 @@ void testEnd_copyConstruct(CuTest* testCase) {
 void testEnd_getName(CuTest* testCase) {
     cactusEndTestSetup();
     CuAssertTrue(testCase, end_getName(end) != NULL_NAME);
-    CuAssertTrue(testCase, net_getEnd(net, end_getName(end)) == end);
-    CuAssertTrue(testCase, net_getEnd(net, end_getName(end_getReverse(end))) == end);
+    CuAssertTrue(testCase, flower_getEnd(flower, end_getName(end)) == end);
+    CuAssertTrue(testCase, flower_getEnd(flower, end_getName(end_getReverse(end))) == end);
     cactusEndTestTeardown();
 }
 
@@ -66,7 +66,7 @@ void testEnd_getReverse(CuTest* testCase) {
 
 void testEnd_getSide(CuTest *testCase) {
     cactusEndTestSetup();
-    Block *block = block_construct(10, net);
+    Block *block = block_construct(10, flower);
     End *_5End = block_get5End(block);
     End *_3End = block_get3End(block);
 
@@ -83,13 +83,13 @@ void testEnd_getSide(CuTest *testCase) {
 
 void testEnd_getNet(CuTest* testCase) {
     cactusEndTestSetup();
-    CuAssertTrue(testCase, end_getNet(end) == net);
+    CuAssertTrue(testCase, end_getNet(end) == flower);
     cactusEndTestTeardown();
 }
 
 void testEnd_getBlock(CuTest* testCase) {
     cactusEndTestSetup();
-    Block *block = block_construct(10, net);
+    Block *block = block_construct(10, flower);
     End *leftEnd = block_get5End(block);
     End *rightEnd = block_get3End(block);
 
@@ -109,7 +109,7 @@ void testEnd_getBlock(CuTest* testCase) {
 
 void testEnd_getOtherBlockEnd(CuTest *testCase) {
     cactusEndTestSetup();
-    Block *block = block_construct(10, net);
+    Block *block = block_construct(10, flower);
     End *leftEnd = block_get5End(block);
     End *rightEnd = block_get3End(block);
 
@@ -127,12 +127,12 @@ void testEnd_getOtherBlockEnd(CuTest *testCase) {
 
 void testEnd_getGroup(CuTest* testCase) {
     cactusEndTestSetup();
-    Net *net2 = net_construct(cactusDisk);
-    eventTree_copyConstruct(eventTree, net2, testEnd_copyConstructP);
-    sequence_construct(metaSequence, net2);
-    End *end2 = end_copyConstruct(end, net2);
+    Flower *flower2 = flower_construct(cactusDisk);
+    eventTree_copyConstruct(eventTree, flower2, testEnd_copyConstructP);
+    sequence_construct(metaSequence, flower2);
+    End *end2 = end_copyConstruct(end, flower2);
     CuAssertTrue(testCase, end_getGroup(end) == NULL);
-    Group *group = group_construct(net, net2);
+    Group *group = group_construct(flower, flower2);
     CuAssertTrue(testCase, end_getGroup(end) == group);
     CuAssertTrue(testCase, end_getGroup(end2) == NULL);
     cactusEndTestTeardown();
@@ -140,10 +140,10 @@ void testEnd_getGroup(CuTest* testCase) {
 
 void testEnd_setGroup(CuTest* testCase) {
     cactusEndTestSetup();
-    Net *net2 = net_construct(cactusDisk);
-    Group *group2 = group_construct2(net2);
-    End *end2 = end_construct(1, net2);
-    End *end3 = end_construct(1, net2);
+    Flower *flower2 = flower_construct(cactusDisk);
+    Group *group2 = group_construct2(flower2);
+    End *end2 = end_construct(1, flower2);
+    End *end3 = end_construct(1, flower2);
     CuAssertTrue(testCase, group_getEndNumber(group2) == 0);
     CuAssertTrue(testCase, end_getGroup(end2) == NULL);
     CuAssertTrue(testCase, end_getGroup(end3) == NULL);
@@ -169,7 +169,7 @@ void testEnd_setGroup(CuTest* testCase) {
 
 void testEnd_getInstanceNumber(CuTest* testCase) {
     cactusEndTestSetup();
-    End *end2 = end_construct(0, net);
+    End *end2 = end_construct(0, flower);
     CuAssertTrue(testCase, end_getInstanceNumber(end2) == 0);
     CuAssertTrue(testCase, end_getInstanceNumber(end) == 4);
     cactusEndTestTeardown();
@@ -194,7 +194,7 @@ void testEnd_getSetRootInstance(CuTest* testCase) {
     CuAssertTrue(testCase, end_getRootInstance(end) == cap_getReverse(rootCap));
     CuAssertTrue(testCase, end_getRootInstance(end_getReverse(end)) == rootCap);
 
-    End *end2 = end_construct(0, net);
+    End *end2 = end_construct(0, flower);
     CuAssertTrue(testCase, end_getRootInstance(end2) == NULL);
     CuAssertTrue(testCase, end_getRootInstance(end_getReverse(end2)) == NULL);
     cactusEndTestTeardown();
@@ -251,7 +251,7 @@ void testEnd_isBlockOrStubEnd(CuTest* testCase) {
     cactusEndTestSetup();
     CuAssertTrue(testCase, end_isStubEnd(end));
     CuAssertTrue(testCase, !end_isBlockEnd(end));
-    Block *block = block_construct(2, net);
+    Block *block = block_construct(2, flower);
     End *leftEnd = block_get5End(block);
     End *rightEnd = block_get3End(block);
     CuAssertTrue(testCase, end_isBlockEnd(leftEnd));
@@ -263,9 +263,9 @@ void testEnd_isBlockOrStubEnd(CuTest* testCase) {
 
 void testEnd_isAttachedOrFree(CuTest* testCase) {
     cactusEndTestSetup();
-    End *end2 = end_construct(1, net);
-    End *end3 = end_construct(0, net);
-    Block *block = block_construct(2, net);
+    End *end2 = end_construct(1, flower);
+    End *end3 = end_construct(0, flower);
+    Block *block = block_construct(2, flower);
     End *end4 = block_get5End(block);
     End *end5 = block_get3End(block);
     CuAssertTrue(testCase, end_isAttached(end2));
@@ -295,7 +295,7 @@ void testEnd_serialisation(CuTest* testCase) {
     CuAssertTrue(testCase, i > 0);
     end_destruct(end);
     void *vA2 = vA;
-    end = end_loadFromBinaryRepresentation(&vA2, net);
+    end = end_loadFromBinaryRepresentation(&vA2, flower);
     rootCap = cap_getReverse(end_getInstance(end, rootInstanceName));
     leaf1Cap = cap_getReverse(end_getInstance(end, leaf1InstanceName));
     leaf2Cap = end_getInstance(end, leaf2InstanceName);

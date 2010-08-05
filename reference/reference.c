@@ -30,24 +30,24 @@ int32_t getFreeStubEndNumber(Group *group) {
 	return i;
 }
 
-Group *getSpareGroup(Net *net) {
+Group *getSpareGroup(Flower *net) {
 	//First try and find group with an odd number of ends..
-	Net_GroupIterator *groupIterator = net_getGroupIterator(net);
+	Flower_GroupIterator *groupIterator = flower_getGroupIterator(net);
 	Group *group, *group2 = NULL;
-	while((group = net_getNextGroup(groupIterator)) != NULL) {
+	while((group = flower_getNextGroup(groupIterator)) != NULL) {
 		int32_t i = getFreeStubEndNumber(group);
 		int32_t j = group_getEndNumber(group) - i; //the number of block ends and attached stub ends.
 		assert(j >= 0);
 		if(j % 2) {
 			assert(!group_isLink(group));
-			net_destructGroupIterator(groupIterator);
+			flower_destructGroupIterator(groupIterator);
 			return group;
 		}
 		else if(!group_isLink(group)){
 			group2 = group;
 		}
 	}
-	net_destructGroupIterator(groupIterator);
+	flower_destructGroupIterator(groupIterator);
 
 	//Else get a group without a link..
 	if(group2 != NULL) {
@@ -56,8 +56,8 @@ Group *getSpareGroup(Net *net) {
 	}
 
 	//Else all groups are link groups.. so get the first one and remove the link from the chain..
-	assert(net_getGroupNumber(net) > 0);
-	group = net_getFirstGroup(net);
+	assert(flower_getGroupNumber(net) > 0);
+	group = flower_getFirstGroup(net);
 	assert(group != NULL);
 	assert(group_isLink(group));
 	link_split(group_getLink(group));
@@ -70,8 +70,8 @@ void pushEndIntoChildNets(End *end) {
 	Group *group = end_getGroup(end);
 	assert(group != NULL);
 	if(!group_isLeaf(group)) {
-		Net *nestedNet = group_getNestedNet(group);
-		assert(net_getEnd(nestedNet, end_getName(end)) == NULL);
+		Flower *nestedNet = group_getNestedNet(group);
+		assert(flower_getEnd(nestedNet, end_getName(end)) == NULL);
 		End *end2 = end_copyConstruct(end, nestedNet);
 		end_setGroup(end2, getSpareGroup(nestedNet));
 		assert(end_getGroup(end2) != NULL);
@@ -81,21 +81,21 @@ void pushEndIntoChildNets(End *end) {
 	}
 }
 
-static struct List *getAttachedStubEnds(Net *net) {
+static struct List *getAttachedStubEnds(Flower *net) {
 	/*
 	 * Get the top level attached ends.
 	 */
 	struct List *list = constructEmptyList(0, NULL);
-	Net_EndIterator *endIterator = net_getEndIterator(net);
+	Flower_EndIterator *endIterator = flower_getEndIterator(net);
 	End *end;
-	while((end = net_getNextEnd(endIterator)) != NULL) {
+	while((end = flower_getNextEnd(endIterator)) != NULL) {
 		if(end_isAttached(end)) {
 			assert(end_isStubEnd(end));
 			assert(!end_isFree(end));
 			listAppend(list, end);
 		}
 	}
-	net_destructEndIterator(endIterator);
+	flower_destructEndIterator(endIterator);
 	assert(list->length % 2 == 0);
 	return list;
 }
@@ -121,14 +121,14 @@ static void makePseudoChromosomesFromPairs(struct List *ends, Reference *referen
 	}
 }
 
-static void linkZeroSizeGroups(Net *net) {
+static void linkZeroSizeGroups(Flower *net) {
 	/*
 	 * Adds block ends into groups with zero non-free stub ends,
 	 * so that they will be properly included in the traversal.
 	 */
 	Group *group;
-	Net_GroupIterator *groupIterator = net_getGroupIterator(net);
-	while((group = net_getNextGroup(groupIterator)) != NULL) {
+	Flower_GroupIterator *groupIterator = flower_getGroupIterator(net);
+	while((group = flower_getNextGroup(groupIterator)) != NULL) {
 		if(getFreeStubEndNumber(group) == group_getEndNumber(group)) { //We need to add some new blocks to the problem to link it into the problem..
 			assert(group_isTangle(group));
 			//Construct two pseudo blocks so that the group gets included.
@@ -141,10 +141,10 @@ static void linkZeroSizeGroups(Net *net) {
 			pushEndIntoChildNets(_3End);
 		}
 	}
-	net_destructGroupIterator(groupIterator);
+	flower_destructGroupIterator(groupIterator);
 }
 
-static End *constructTopLevelAttachedStub(Net *net) {
+static End *constructTopLevelAttachedStub(Flower *net) {
 	/*
 	 * Creates a top level attached stub and propogates it into the children.
 	 */
@@ -154,14 +154,14 @@ static End *constructTopLevelAttachedStub(Net *net) {
 	return end;
 }
 
-static void makePseudoChromosomes(Net *net, Reference *reference, int (*cmpFn)(End **, End **)) {
+static void makePseudoChromosomes(Flower *net, Reference *reference, int (*cmpFn)(End **, End **)) {
 	/*
 	 * Uses the above functions to construct a set of pairs of ends and then construct the pseudo-chromsomes,
 	 * but without any pseudo-adjacencies.
 	 */
 	struct List *ends = getAttachedStubEnds(net);
 	if(ends->length == 0) {
-		assert(net_getParentGroup(net) == NULL); //If there are no attached ends / block ends in the problem we must be in the parent net or else our code to add them recursively has gone wrong
+		assert(flower_getParentGroup(net) == NULL); //If there are no attached ends / block ends in the problem we must be in the parent net or else our code to add them recursively has gone wrong
 		listAppend(ends, constructTopLevelAttachedStub(net));
 		listAppend(ends, constructTopLevelAttachedStub(net));
 	}
@@ -212,19 +212,19 @@ static int makeTopLevelPseudoChromosomes_cmpEnds(End **end1, End **end2) {
 	}
 }
 
-void makeTopLevelPseudoChromosomes(Net *net, Reference *reference) {
+void makeTopLevelPseudoChromosomes(Flower *net, Reference *reference) {
 	makePseudoChromosomes(net, reference, makeTopLevelPseudoChromosomes_cmpEnds);
 }
 
 static stHash *makeIntermediateLevelPseudoChromosomes_cmpEndsP = NULL;
-static Net *makeIntermediateLevelPseudoChromosomes_parentNet = NULL;
+static Flower *makeIntermediateLevelPseudoChromosomes_parentNet = NULL;
 
 static int makeIntermediateLevelPseudoChromosomes_cmpEnds(End **end1, End **end2) {
 	/*
 	 * Sorts the attached ends according to the pairing in the higher level reference.
 	 */
-	End *end3 = net_getEnd(makeIntermediateLevelPseudoChromosomes_parentNet, end_getName(*end1));
-	End *end4 = net_getEnd(makeIntermediateLevelPseudoChromosomes_parentNet, end_getName(*end2));
+	End *end3 = flower_getEnd(makeIntermediateLevelPseudoChromosomes_parentNet, end_getName(*end1));
+	End *end4 = flower_getEnd(makeIntermediateLevelPseudoChromosomes_parentNet, end_getName(*end2));
 	assert(end3 != NULL);
 	assert(end4 != NULL);
 	assert(end_getOrientation(end3));
@@ -258,11 +258,11 @@ static int makeIntermediateLevelPseudoChromosomes_cmpEnds(End **end1, End **end2
 	return pseudoAdjacency_get5End(pseudoAdjacency1) == end3 ? -1 : 1;
 }
 
-void makeIntermediateLevelPseudoChromosomes(Net *net, Reference *reference) {
-	Group *parentGroup = net_getParentGroup(net);
+void makeIntermediateLevelPseudoChromosomes(Flower *net, Reference *reference) {
+	Group *parentGroup = flower_getParentGroup(net);
 	assert(parentGroup != NULL);
-	Net *parentNet = group_getNet(parentGroup);
-	Reference *parentReference = net_getReference(parentNet);
+	Flower *parentNet = group_getNet(parentGroup);
+	Reference *parentReference = flower_getReference(parentNet);
 	assert(parentReference != NULL);
 
 	makeIntermediateLevelPseudoChromosomes_parentNet = parentNet;
@@ -273,19 +273,19 @@ void makeIntermediateLevelPseudoChromosomes(Net *net, Reference *reference) {
 	stHash_destruct(makeIntermediateLevelPseudoChromosomes_cmpEndsP);
 }
 
-void addReferenceToNet(Net *net) {
-	Reference *reference = net_getReference(net);
+void addReferenceToNet(Flower *net) {
+	Reference *reference = flower_getReference(net);
 	if(reference != NULL) {
 		return; //we've already built it, so no need to do it again!
 	}
 	reference = reference_construct(net);
 
-	if(net_getGroupNumber(net) == 0) { //In this case we have nothing to add, and no point in continuing.
-		assert(net_getEndNumber(net) == 0);
+	if(flower_getGroupNumber(net) == 0) { //In this case we have nothing to add, and no point in continuing.
+		assert(flower_getEndNumber(net) == 0);
 		return;
 	}
 
-	if(net_getParentGroup(net) == NULL) {
+	if(flower_getParentGroup(net) == NULL) {
 		/*
 		 * If this is the top level net then we will create the pseudo-chromosomes based
 		 * upon the set of attached stubs.. (we will throw an error ?! if we don't have at least one pair of

@@ -104,7 +104,7 @@ bool binaryRepresentation_getBool(void **binaryString) {
 int32_t binaryRepresentation_makeBinaryRepresentationP_i = 0;
 void binaryRepresentation_makeBinaryRepresentationP(const void * ptr, size_t size, size_t count) {
 	/*
-	 * Records the cummulative size of the substrings written out in creating the net.
+	 * Records the cummulative size of the substrings written out in creating the flower.
 	 */
 	assert(ptr != NULL);
 	binaryRepresentation_makeBinaryRepresentationP_i += size * count;

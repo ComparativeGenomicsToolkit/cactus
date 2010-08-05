@@ -1,7 +1,7 @@
 #include "cactusGlobalsPrivate.h"
 
 static CactusDisk *cactusDisk = NULL;
-static Net *net;
+static Flower *flower;
 
 static MetaEvent *rootMetaEvent;
 static MetaEvent *internalMetaEvent;
@@ -34,13 +34,13 @@ static void cactusEventTreeTestSetup() {
 	if(!nestedTest) {
 		cactusEventTreeTestTeardown();
 		cactusDisk = cactusDisk_construct(testCommon_getTemporaryNetDisk());
-		net = net_construct(cactusDisk);
+		flower = flower_construct(cactusDisk);
 
 		rootMetaEvent = metaEvent_construct("ROOT", cactusDisk);
 		internalMetaEvent = metaEvent_construct("INTERNAL", cactusDisk);
 		leafMetaEvent1 = metaEvent_construct("LEAF1", cactusDisk);
 		leafMetaEvent2 = metaEvent_construct("LEAF2", cactusDisk);
-		eventTree = eventTree_construct(rootMetaEvent, net);
+		eventTree = eventTree_construct(rootMetaEvent, flower);
 
 		rootEvent = eventTree_getEvent(eventTree, metaEvent_getName(rootMetaEvent));
 		internalEvent = event_construct(internalMetaEvent, 0.5, rootEvent, eventTree);
@@ -64,8 +64,8 @@ static int32_t unaryEventFunction(Event *event) {
 
 void testEventTree_copyConstruct(CuTest* testCase) {
 	cactusEventTreeTestSetup();
-	Net *net2 = net_construct(cactusDisk);
-	EventTree *eventTree2 = eventTree_copyConstruct(eventTree, net2, unaryEventFunction);
+	Flower *flower2 = flower_construct(cactusDisk);
+	EventTree *eventTree2 = eventTree_copyConstruct(eventTree, flower2, unaryEventFunction);
 	CuAssertIntEquals(testCase, eventTree_getEventNumber(eventTree), eventTree_getEventNumber(eventTree2));
 	CuAssertTrue(testCase, event_getMetaEvent(eventTree_getEvent(eventTree2, event_getName(rootEvent))) == event_getMetaEvent(rootEvent));
 	CuAssertTrue(testCase, event_getMetaEvent(eventTree_getEvent(eventTree2, event_getName(internalEvent))) == event_getMetaEvent(internalEvent));
@@ -118,7 +118,7 @@ void testEventTree_getCommonAncestor(CuTest* testCase) {
 
 void testEventTree_getNet(CuTest* testCase) {
 	cactusEventTreeTestSetup();
-	CuAssertTrue(testCase, eventTree_getNet(eventTree) == net);
+	CuAssertTrue(testCase, eventTree_getNet(eventTree) == flower);
 	cactusEventTreeTestTeardown();
 }
 
@@ -167,15 +167,15 @@ void testEventTree_makeNewickString(CuTest* testCase) {
 
 void testEventTree_addSiblingUnaryEvent(CuTest *testCase) {
 	cactusEventTreeTestSetup();
-	//Create two sibling nets with the basic event tree..
+	//Create two sibling flowers with the basic event tree..
 	//then try adding events from on into the other.
-	Group *group1 = group_construct2(net);
-	Group *group2 = group_construct2(net);
-	Net *net2 = net_construct(cactusDisk);
-	Net *net3 = net_construct(cactusDisk);
-	net_setParentGroup(net2, group1);
-	net_setParentGroup(net3, group2);
-	EventTree *eventTree2 = eventTree_copyConstruct(net_getEventTree(net), net2, NULL);
+	Group *group1 = group_construct2(flower);
+	Group *group2 = group_construct2(flower);
+	Flower *flower2 = flower_construct(cactusDisk);
+	Flower *flower3 = flower_construct(cactusDisk);
+	flower_setParentGroup(flower2, group1);
+	flower_setParentGroup(flower3, group2);
+	EventTree *eventTree2 = eventTree_copyConstruct(flower_getEventTree(flower), flower2, NULL);
 	MetaEvent *unaryInternalMetaEvent1 = metaEvent_construct("UNARY1", cactusDisk);
 	MetaEvent *unaryInternalMetaEvent2 = metaEvent_construct("UNARY2", cactusDisk);
 	MetaEvent *unaryInternalMetaEvent3 = metaEvent_construct("UNARY3", cactusDisk);
@@ -183,7 +183,7 @@ void testEventTree_addSiblingUnaryEvent(CuTest *testCase) {
 	Event *parentUnaryEvent2 = event_construct2(unaryInternalMetaEvent2, 0.1, parentUnaryEvent1, leafEvent1, eventTree);
 	Event *parentUnaryEvent3 = event_construct2(unaryInternalMetaEvent3, 0.1, internalEvent, leafEvent2, eventTree);
 	//now event tree contains the added unary events.
-	EventTree *eventTree3 = eventTree_copyConstruct(net_getEventTree(net), net3, NULL);
+	EventTree *eventTree3 = eventTree_copyConstruct(flower_getEventTree(flower), flower3, NULL);
 	//add a couple of denovo events into the new event tree
 	MetaEvent *unaryInternalMetaEvent4 = metaEvent_construct("UNARY4", cactusDisk);
 	MetaEvent *unaryInternalMetaEvent5 = metaEvent_construct("UNARY5", cactusDisk);
@@ -253,7 +253,7 @@ void testEventTree_serialisation(CuTest* testCase) {
 	CuAssertTrue(testCase, i > 0);
 	eventTree_destruct(eventTree);
 	void *vA2 = vA;
-	eventTree = eventTree_loadFromBinaryRepresentation(&vA2, net);
+	eventTree = eventTree_loadFromBinaryRepresentation(&vA2, flower);
 	rootEvent = eventTree_getRootEvent(eventTree);
 	internalEvent = event_getChild(rootEvent, 0);
 	leafEvent1 = event_getChild(internalEvent, 0);

@@ -8,23 +8,23 @@
 ////////////////////////////////////////////////
 ////////////////////////////////////////////////
 
-Chain *chain_construct(Net *net) {
-    return chain_construct2(cactusDisk_getUniqueID(net_getNetDisk(net)), net);
+Chain *chain_construct(Flower *flower) {
+    return chain_construct2(cactusDisk_getUniqueID(flower_getNetDisk(flower)), flower);
 }
 
-Chain *chain_construct2(Name name, Net *net) {
+Chain *chain_construct2(Name name, Flower *flower) {
     Chain *chain;
     chain = st_malloc(sizeof(Chain));
     chain->name = name;
-    chain->net = net;
+    chain->flower = flower;
     chain->link = NULL;
     chain->linkNumber = 0;
-    net_addChain(net, chain);
+    flower_addChain(flower, chain);
     return chain;
 }
 
 void chain_destruct(Chain *chain) {
-    net_removeChain(chain_getNet(chain), chain);
+    flower_removeChain(chain_getNet(chain), chain);
     if (chain->link != NULL) {
         link_destruct(chain->link);
     }
@@ -87,8 +87,8 @@ Name chain_getName(Chain *chain) {
     return chain->name;
 }
 
-Net *chain_getNet(Chain *chain) {
-    return chain->net;
+Flower *chain_getNet(Chain *chain) {
+    return chain->flower;
 }
 
 double chain_getAverageInstanceBaseLength(Chain *chain) {
@@ -102,10 +102,10 @@ double chain_getAverageInstanceBaseLength(Chain *chain) {
     }
     free(blocks);
     for (i = 0; i < chain_getLength(chain); i++) {
-        Net *nestedNet = group_getNestedNet(link_getGroup(chain_getLink(chain,
+        Flower *nestedNet = group_getNestedNet(link_getGroup(chain_getLink(chain,
                 i)));
         if (nestedNet != NULL) {
-            k += (net_getTotalBaseLength(nestedNet) / net_getSequenceNumber(
+            k += (flower_getTotalBaseLength(nestedNet) / flower_getSequenceNumber(
                     nestedNet));
         }
     }
@@ -188,10 +188,10 @@ void chain_addLink(Chain *chain, Link *childLink) {
     childLink->linkIndex = chain->linkNumber++;
 }
 
-void chain_setNet(Chain *chain, Net *net) {
-    net_removeChain(chain_getNet(chain), chain);
-    chain->net = net;
-    net_addChain(net, chain);
+void chain_setNet(Chain *chain, Flower *flower) {
+    flower_removeChain(chain_getNet(chain), chain);
+    chain->flower = flower;
+    flower_addChain(flower, chain);
 }
 
 /*
@@ -210,14 +210,14 @@ void chain_writeBinaryRepresentation(Chain *chain, void(*writeFn)(
     }
 }
 
-Chain *chain_loadFromBinaryRepresentation(void **binaryString, Net *net) {
+Chain *chain_loadFromBinaryRepresentation(void **binaryString, Flower *flower) {
     Chain *chain;
 
     chain = NULL;
     if (binaryRepresentation_peekNextElementType(*binaryString) == CODE_CHAIN) {
         binaryRepresentation_popNextElementType(binaryString);
         chain = chain_construct2(binaryRepresentation_getName(binaryString),
-                net);
+                flower);
         while (link_loadFromBinaryRepresentation(binaryString, chain) != NULL)
             ;
     }
@@ -231,8 +231,8 @@ Chain *chain_getStaticNameWrapper(Name name) {
 }
 
 void chain_rename(Chain *chain, Name newName) {
-    assert(net_getChain(chain_getNet(chain), newName) == NULL);
+    assert(flower_getChain(chain_getNet(chain), newName) == NULL);
     chain->name = newName;
-    net_removeChain(chain_getNet(chain), chain);
-    net_addChain(chain_getNet(chain), chain);
+    flower_removeChain(chain_getNet(chain), chain);
+    flower_addChain(chain_getNet(chain), chain);
 }

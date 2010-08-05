@@ -9,7 +9,7 @@
 
 int main(int argc, char *argv[]) {
     CactusDisk *netDisk;
-    Net *net;
+    Flower *net;
 
     assert(argc >= 3);
     netDisk = cactusDisk_construct(argv[1]);
@@ -21,19 +21,19 @@ int main(int argc, char *argv[]) {
     for (i = 3; i < argc; i++) {
         net = cactusDisk_getNet(netDisk, cactusMisc_stringToName(argv[i]));
         assert(net != NULL);
-        assert(net_builtBlocks(net)); //This recursion depends on the block structure having been properly defined for all nodes.
+        assert(flower_builtBlocks(net)); //This recursion depends on the block structure having been properly defined for all nodes.
         st_logInfo("Parsed the net %s\n", argv[i]);
-        Net_GroupIterator *groupIterator = net_getGroupIterator(net);
+        Flower_GroupIterator *groupIterator = flower_getGroupIterator(net);
         Group *group;
-        while ((group = net_getNextGroup(groupIterator)) != NULL) {
+        while ((group = flower_getNextGroup(groupIterator)) != NULL) {
             if (!group_isLeaf(group)) {
-                Net *nestedNet = group_getNestedNet(group);
+                Flower *nestedNet = group_getNestedNet(group);
                 assert(nestedNet != NULL);
-                assert(net_builtBlocks(nestedNet)); //This recursion depends on the block structure having been properly defined for all nodes.
-                fprintf(fileHandle, "%s %" PRIi64 " \n", cactusMisc_nameToStringStatic(net_getName(nestedNet)), net_getTotalBaseLength(nestedNet));
+                assert(flower_builtBlocks(nestedNet)); //This recursion depends on the block structure having been properly defined for all nodes.
+                fprintf(fileHandle, "%s %" PRIi64 " \n", cactusMisc_nameToStringStatic(flower_getName(nestedNet)), flower_getTotalBaseLength(nestedNet));
             }
         }
-        net_destructGroupIterator(groupIterator);
+        flower_destructGroupIterator(groupIterator);
     }
     fclose(fileHandle);
     cactusDisk_destruct(netDisk);

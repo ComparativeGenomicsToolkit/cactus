@@ -12,18 +12,18 @@ static int32_t end_constructP(const void *o1, const void *o2) {
     return cactusMisc_nameCompare(cap_getName((Cap *) o1), cap_getName((Cap *) o2));
 }
 
-End *end_construct(bool isAttached, Net *net) {
-    return end_construct3(cactusDisk_getUniqueID(net_getNetDisk(net)), 1,
-            isAttached, 1, net);
+End *end_construct(bool isAttached, Flower *flower) {
+    return end_construct3(cactusDisk_getUniqueID(flower_getNetDisk(flower)), 1,
+            isAttached, 1, flower);
 }
 
-End *end_construct2(bool side, bool isAttached, Net *net) {
-    return end_construct3(cactusDisk_getUniqueID(net_getNetDisk(net)), 1,
-            isAttached, side, net);
+End *end_construct2(bool side, bool isAttached, Flower *flower) {
+    return end_construct3(cactusDisk_getUniqueID(flower_getNetDisk(flower)), 1,
+            isAttached, side, flower);
 }
 
 End *end_construct3(Name name, int32_t isStub, int32_t isAttached,
-        int32_t side, Net *net) {
+        int32_t side, Flower *flower) {
     End *end;
     end = st_malloc(sizeof(End));
     end->rEnd = st_malloc(sizeof(End));
@@ -49,18 +49,18 @@ End *end_construct3(Name name, int32_t isStub, int32_t isAttached,
     end->endContents->caps = stSortedSet_construct3(end_constructP, NULL);
     end->endContents->attachedBlock = NULL;
     end->endContents->group = NULL;
-    end->endContents->net = net;
-    net_addEnd(net, end);
+    end->endContents->flower = flower;
+    flower_addEnd(flower, end);
     return end;
 }
 
-End *end_copyConstruct(End *end, Net *newNet) {
+End *end_copyConstruct(End *end, Flower *newNet) {
     End *end2;
     End_InstanceIterator *iterator;
     Cap *cap;
     Cap *cap2;
 
-    assert(net_getEnd(newNet, end_getName(end)) == NULL);
+    assert(flower_getEnd(newNet, end_getName(end)) == NULL);
 
     end2 = end_construct3(end_getName(end), 1, end_isBlockEnd(end) ? 1
             : end_isAttached(end), end_getSide(end), newNet);
@@ -91,8 +91,8 @@ End *end_copyConstruct(End *end, Net *newNet) {
 
 void end_destruct(End *end) {
     Cap *cap;
-    //remove from net.
-    net_removeEnd(end_getNet(end), end);
+    //remove from flower.
+    flower_removeEnd(end_getNet(end), end);
 
     //remove from group.
     end_setGroup(end, NULL);
@@ -135,8 +135,8 @@ bool end_getSide(End *end) {
     return end->side;
 }
 
-Net *end_getNet(End *end) {
-    return end->endContents->net;
+Flower *end_getNet(End *end) {
+    return end->endContents->flower;
 }
 
 Block *end_getBlock(End *end) {
@@ -248,8 +248,8 @@ void end_setGroup(End *end, Group *group) {
 }
 
 void end_check(End *end) {
-    //Check is connected to net properly
-    assert(net_getEnd(end_getNet(end), end_getName(end)) == end_getPositiveOrientation(end));
+    //Check is connected to flower properly
+    assert(flower_getEnd(end_getNet(end), end_getName(end)) == end_getPositiveOrientation(end));
 
     //check end is part of group..
     Group *group = end_getGroup(end);
@@ -276,9 +276,9 @@ void end_check(End *end) {
         assert(end_isStubEnd(end)); //Is stub end:
         //there must be no attached block.
         assert(end_getBlock(end) == NULL);
-        Group *parentGroup = net_getParentGroup(end_getNet(end));
+        Group *parentGroup = flower_getParentGroup(end_getNet(end));
         if (parentGroup != NULL) {
-            // if attached the is inherited from a parent net to the containing net.
+            // if attached the is inherited from a parent flower to the containing flower.
             End *parentEnd = group_getEnd(parentGroup, end_getName(end));
             assert(end_getOrientation(parentEnd));
             if (end_isAttached(end)) {
@@ -310,7 +310,7 @@ void end_check(End *end) {
     }
 
     //Check has tree if built_trees set
-    if (net_builtTrees(end_getNet(end)) && end_getInstanceNumber(end) > 0) {
+    if (flower_builtTrees(end_getNet(end)) && end_getInstanceNumber(end) > 0) {
         assert(end_getRootInstance(end) != NULL);
     }
 
@@ -335,10 +335,10 @@ void end_removeInstance(End *end, Cap *cap) {
     stSortedSet_remove(end->endContents->caps, cap);
 }
 
-void end_setNet(End *end, Net *net) {
-    net_removeEnd(end_getNet(end), end);
-    end->endContents->net = net;
-    net_addEnd(net, end);
+void end_setNet(End *end, Flower *flower) {
+    flower_removeEnd(end_getNet(end), end);
+    end->endContents->flower = flower;
+    flower_addEnd(flower, end);
 }
 
 /*
@@ -381,7 +381,7 @@ void end_writeBinaryRepresentation(End *end, void(*writeFn)(const void * ptr,
     }
 }
 
-End *end_loadFromBinaryRepresentation(void **binaryString, Net *net) {
+End *end_loadFromBinaryRepresentation(void **binaryString, Flower *flower) {
     End *end;
     Name name;
     int32_t isStub;
@@ -396,7 +396,7 @@ End *end_loadFromBinaryRepresentation(void **binaryString, Net *net) {
         isStub = binaryRepresentation_getBool(binaryString);
         isAttached = binaryRepresentation_getBool(binaryString);
         side = binaryRepresentation_getBool(binaryString);
-        end = end_construct3(name, isStub, isAttached, side, net);
+        end = end_construct3(name, isStub, isAttached, side, flower);
         while (cap_loadFromBinaryRepresentation(binaryString, end) != NULL)
             ;
     } else {
@@ -407,7 +407,7 @@ End *end_loadFromBinaryRepresentation(void **binaryString, Net *net) {
             isStub = binaryRepresentation_getBool(binaryString);
             isAttached = binaryRepresentation_getBool(binaryString);
             side = binaryRepresentation_getBool(binaryString);
-            end = end_construct3(name, isStub, isAttached, side, net);
+            end = end_construct3(name, isStub, isAttached, side, flower);
             end_setRootInstance(end, cap_loadFromBinaryRepresentation(
                     binaryString, end));
             while (cap_loadFromBinaryRepresentation(binaryString, end) != NULL)
