@@ -1,4 +1,7 @@
-#include "cactusGlobalsPrivate.h"
+#include "CuTest.h"
+#include <stdlib.h>
+#include <stdio.h>
+#include <string.h>
 
 CuSuite* stPosetAlignmentTestSuite(void);
 CuSuite* pairwiseAlignmentTestSuite(void);
