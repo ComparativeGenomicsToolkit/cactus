@@ -4,7 +4,6 @@
 #include "cactusGroup.h"
 #include "cactusBlock.h"
 #include "cactusSegment.h"
-//#include "cactusBlockPrivate.h"
 #include "cactusChain.h"
 #include "cactusEnd.h"
 #include "cactusCap.h"
