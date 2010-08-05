@@ -6,6 +6,7 @@ libSources = impl/cactus*.c
 libHeaders = inc/cactus*.h
 libInternalHeaders = impl/*.h
 libTests = tests/cactus*.c
+libTestsHeaders = tests/cactus*.h
 
 cflags += ${tokyoCabinetIncl}
 
@@ -22,5 +23,5 @@ ${libPath}/cactusLib.a : ${libSources} ${libHeaders} ${libInternalHeaders} ${lib
 	rm *.o
 	mv cactusLib.a ${libPath}/
 	
-${binPath}/cactusAPITests : ${libTests} ${libSources} ${libHeaders} ${libInternalHeaders} tests/allTests.c ${libPath}/cactusLib.a ${libPath}/sonLib.a ${libPath}/cuTest.a
-	${cxx} ${cflags} -I inc -I ${libPath} -o ${binPath}/cactusAPITests tests/allTests.c ${libTests} ${libPath}/cactusLib.a ${libPath}/sonLib.a ${libPath}/cuTest.a ${tokyoCabinetLib}
+${binPath}/cactusAPITests : ${libTests} ${libTestsHeaders} ${libSources} ${libHeaders} ${libInternalHeaders} tests/allTests.c ${libPath}/cactusLib.a ${libPath}/sonLib.a ${libPath}/cuTest.a
+	${cxx} ${cflags} -I inc -I ${libPath} -I tests -o ${binPath}/cactusAPITests tests/allTests.c ${libTests} ${libPath}/cactusLib.a ${libPath}/sonLib.a ${libPath}/cuTest.a ${tokyoCabinetLib}
