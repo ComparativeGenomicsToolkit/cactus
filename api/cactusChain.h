@@ -45,7 +45,7 @@ Name chain_getName(Chain *chain);
 /*
  * Gets the parent flower of the chain.
  */
-Flower *chain_getNet(Chain *chain);
+Flower *chain_getFlower(Chain *chain);
 
 /*
  * Calculates the average number of bases in an instance of the chain (including those bases in the links)

@@ -50,14 +50,14 @@ static Cap *cap12;
 static void teardown() {
     if (cactusDisk != NULL) {
         cactusDisk_destruct(cactusDisk);
-        testCommon_deleteTemporaryNetDisk();
+        testCommon_deleteTemporaryCactusDisk();
         cactusDisk = NULL;
     }
 }
 
 static void setup() {
     teardown();
-    cactusDisk = cactusDisk_construct(testCommon_getTemporaryNetDisk());
+    cactusDisk = cactusDisk_construct(testCommon_getTemporaryCactusDisk());
     net = flower_construct(cactusDisk);
 
     //Event tree

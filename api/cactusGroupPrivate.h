@@ -22,7 +22,7 @@ struct _group {
 /*
  * Constructs a nested flower without having the nested flower loaded in memory.
  */
-Group *group_construct3(Flower *flower, Name nestedNetName, bool terminalGroup);
+Group *group_construct3(Flower *flower, Name nestedFlowerName, bool terminalGroup);
 
 /*
  * Updates the group's set of ends to contain the intersection of ends
@@ -60,7 +60,7 @@ Group *group_getStaticNameWrapper(Name flowerName);
 /*
  * Sets the flower containing the group (the public function is end_setGroup).
  */
-void group_setNet(Group *group, Flower *flower);
+void group_setFlower(Group *group, Flower *flower);
 
 /*
  * Adds an end to the group (the public function is end_setGroup).

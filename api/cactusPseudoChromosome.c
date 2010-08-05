@@ -10,7 +10,7 @@
 
 PseudoChromosome *pseudoChromosome_construct(Reference *reference,
 		End *_5End, End *_3End) {
-	return pseudoChromosome_construct2(cactusDisk_getUniqueID(flower_getNetDisk(reference_getNet(reference))),
+	return pseudoChromosome_construct2(cactusDisk_getUniqueID(flower_getCactusDisk(reference_getFlower(reference))),
 			reference, _5End, _3End);
 }
 
@@ -148,8 +148,8 @@ PseudoChromosome *pseudoChromosome_loadFromBinaryRepresentation(void **binaryStr
 	if(binaryRepresentation_peekNextElementType(*binaryString) == CODE_PSEUDO_CHROMOSOME) {
 		binaryRepresentation_popNextElementType(binaryString);
 		name = binaryRepresentation_getName(binaryString);
-		_5End = flower_getEnd(reference_getNet(reference), binaryRepresentation_getName(binaryString));
-		_3End = flower_getEnd(reference_getNet(reference), binaryRepresentation_getName(binaryString));
+		_5End = flower_getEnd(reference_getFlower(reference), binaryRepresentation_getName(binaryString));
+		_3End = flower_getEnd(reference_getFlower(reference), binaryRepresentation_getName(binaryString));
 		pseudoChromosome = pseudoChromosome_construct2(name, reference, _5End, _3End);
 		pseudoAdjacencyNumber = binaryRepresentation_getInteger(binaryString);
 		while(pseudoAdjacencyNumber-- > 0) {

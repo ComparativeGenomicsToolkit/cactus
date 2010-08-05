@@ -14,7 +14,7 @@
 /*
  * Returns the flower that contains the face.
  */
-Flower *face_getNet(Face *face);
+Flower *face_getFlower(Face *face);
 
 /*
  * Returns cardinal

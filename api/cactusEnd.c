@@ -13,12 +13,12 @@ static int32_t end_constructP(const void *o1, const void *o2) {
 }
 
 End *end_construct(bool isAttached, Flower *flower) {
-    return end_construct3(cactusDisk_getUniqueID(flower_getNetDisk(flower)), 1,
+    return end_construct3(cactusDisk_getUniqueID(flower_getCactusDisk(flower)), 1,
             isAttached, 1, flower);
 }
 
 End *end_construct2(bool side, bool isAttached, Flower *flower) {
-    return end_construct3(cactusDisk_getUniqueID(flower_getNetDisk(flower)), 1,
+    return end_construct3(cactusDisk_getUniqueID(flower_getCactusDisk(flower)), 1,
             isAttached, side, flower);
 }
 
@@ -54,16 +54,16 @@ End *end_construct3(Name name, int32_t isStub, int32_t isAttached,
     return end;
 }
 
-End *end_copyConstruct(End *end, Flower *newNet) {
+End *end_copyConstruct(End *end, Flower *newFlower) {
     End *end2;
     End_InstanceIterator *iterator;
     Cap *cap;
     Cap *cap2;
 
-    assert(flower_getEnd(newNet, end_getName(end)) == NULL);
+    assert(flower_getEnd(newFlower, end_getName(end)) == NULL);
 
     end2 = end_construct3(end_getName(end), 1, end_isBlockEnd(end) ? 1
-            : end_isAttached(end), end_getSide(end), newNet);
+            : end_isAttached(end), end_getSide(end), newFlower);
     //Copy the instances.
     iterator = end_getInstanceIterator(end);
     while ((cap = end_getNext(iterator)) != NULL) {
@@ -92,7 +92,7 @@ End *end_copyConstruct(End *end, Flower *newNet) {
 void end_destruct(End *end) {
     Cap *cap;
     //remove from flower.
-    flower_removeEnd(end_getNet(end), end);
+    flower_removeEnd(end_getFlower(end), end);
 
     //remove from group.
     end_setGroup(end, NULL);
@@ -135,7 +135,7 @@ bool end_getSide(End *end) {
     return end->side;
 }
 
-Flower *end_getNet(End *end) {
+Flower *end_getFlower(End *end) {
     return end->endContents->flower;
 }
 
@@ -249,7 +249,7 @@ void end_setGroup(End *end, Group *group) {
 
 void end_check(End *end) {
     //Check is connected to flower properly
-    assert(flower_getEnd(end_getNet(end), end_getName(end)) == end_getPositiveOrientation(end));
+    assert(flower_getEnd(end_getFlower(end), end_getName(end)) == end_getPositiveOrientation(end));
 
     //check end is part of group..
     Group *group = end_getGroup(end);
@@ -276,7 +276,7 @@ void end_check(End *end) {
         assert(end_isStubEnd(end)); //Is stub end:
         //there must be no attached block.
         assert(end_getBlock(end) == NULL);
-        Group *parentGroup = flower_getParentGroup(end_getNet(end));
+        Group *parentGroup = flower_getParentGroup(end_getFlower(end));
         if (parentGroup != NULL) {
             // if attached the is inherited from a parent flower to the containing flower.
             End *parentEnd = group_getEnd(parentGroup, end_getName(end));
@@ -310,7 +310,7 @@ void end_check(End *end) {
     }
 
     //Check has tree if built_trees set
-    if (flower_builtTrees(end_getNet(end)) && end_getInstanceNumber(end) > 0) {
+    if (flower_builtTrees(end_getFlower(end)) && end_getInstanceNumber(end) > 0) {
         assert(end_getRootInstance(end) != NULL);
     }
 
@@ -335,8 +335,8 @@ void end_removeInstance(End *end, Cap *cap) {
     stSortedSet_remove(end->endContents->caps, cap);
 }
 
-void end_setNet(End *end, Flower *flower) {
-    flower_removeEnd(end_getNet(end), end);
+void end_setFlower(End *end, Flower *flower) {
+    flower_removeEnd(end_getFlower(end), end);
     end->endContents->flower = flower;
     flower_addEnd(flower, end);
 }

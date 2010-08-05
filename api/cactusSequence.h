@@ -64,7 +64,7 @@ const char *sequence_getHeader(Sequence *sequence);
 /*
  * Gets the flower the sequence is associated with.
  */
-Flower *sequence_getNet(Sequence *sequence);
+Flower *sequence_getFlower(Sequence *sequence);
 
 /*
  * Checks (amongst other things) the following:

@@ -122,7 +122,7 @@ void addAdjacencies(Group *group, FILE *fileHandle) {
     static char label[10000];
     Group_EndIterator *endIterator = group_getEndIterator(group);
     End *end;
-    Flower *net = group_getNet(group);
+    Flower *net = group_getFlower(group);
     while ((end = flower_getNextEnd(endIterator)) != NULL) {
         End_InstanceIterator *instanceIterator = end_getInstanceIterator(end);
         Cap *cap;
@@ -172,7 +172,7 @@ void makeCactusGraph(Flower *net, FILE *fileHandle) {
     Flower_GroupIterator *groupIterator = flower_getGroupIterator(net);
     Group *group;
     while ((group = flower_getNextGroup(groupIterator)) != NULL) {
-        Flower *nestedNet = group_getNestedNet(group);
+        Flower *nestedNet = group_getNestedFlower(group);
         if (nestedNet != NULL) {
             makeCactusGraph(nestedNet, fileHandle);
         } else { //time to add the adjacencies!
@@ -282,7 +282,7 @@ int main(int argc, char *argv[]) {
     // Parse the basic reconstruction problem
     ///////////////////////////////////////////////////////////////////////////
 
-    net = cactusDisk_getNet(netDisk, cactusMisc_stringToName(netName));
+    net = cactusDisk_getFlower(netDisk, cactusMisc_stringToName(netName));
     st_logInfo("Parsed the top level net of the cactus tree to build\n");
 
     ///////////////////////////////////////////////////////////////////////////

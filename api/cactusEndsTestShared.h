@@ -21,14 +21,14 @@ static Cap *leaf3Cap;
 static void cactusEndsTestSharedTeardown() {
     if (cactusDisk != NULL) {
         cactusDisk_destruct(cactusDisk);
-        testCommon_deleteTemporaryNetDisk();
+        testCommon_deleteTemporaryCactusDisk();
         cactusDisk = NULL;
     }
 }
 
 static void cactusEndsTestSharedSetup() {
     cactusEndsTestSharedTeardown();
-    cactusDisk = cactusDisk_construct(testCommon_getTemporaryNetDisk());
+    cactusDisk = cactusDisk_construct(testCommon_getTemporaryCactusDisk());
     flower = flower_construct(cactusDisk);
 
     rootMetaEvent = metaEvent_construct("ROOT", cactusDisk);

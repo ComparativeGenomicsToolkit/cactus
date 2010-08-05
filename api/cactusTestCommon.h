@@ -14,11 +14,11 @@
 /*
  * Get the location of a place to put a temporary cactus disk.
  */
-const char *testCommon_getTemporaryNetDisk();
+const char *testCommon_getTemporaryCactusDisk();
 
 /*
  * Removes the temporary cactus disk file from the disk.
  */
-void testCommon_deleteTemporaryNetDisk();
+void testCommon_deleteTemporaryCactusDisk();
 
 #endif

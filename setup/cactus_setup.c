@@ -183,7 +183,7 @@ int main(int argc, char *argv[]) {
 	//Construct the net
 	//////////////////////////////////////////////
 
-	if(cactusDisk_getNetNumberOnDisk(netDisk) != 0) {
+	if(cactusDisk_getFlowerNumberOnDisk(netDisk) != 0) {
 		cactusDisk_destruct(netDisk);
 		st_logInfo("The first net already exists\n");
 		return 0;
@@ -302,7 +302,7 @@ int main(int argc, char *argv[]) {
 
 	if(debug) {
 		netDisk = cactusDisk_construct(netDiskName);
-		net = cactusDisk_getNet(netDisk, 0);
+		net = cactusDisk_getFlower(netDisk, 0);
 		assert(net != NULL);
 		assert(flower_getSequenceNumber(net) == totalSequenceNumber);
 		assert(flower_getEndNumber(net) == 2*totalSequenceNumber);

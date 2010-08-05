@@ -22,10 +22,10 @@ EventTree *eventTree_construct(MetaEvent *rootEvent, Flower *flower);
 EventTree *eventTree_construct2(Flower *flower);
 
 /*
- * Copy constructs the event tree, replacing the existing flower with the newNet. Only includes
+ * Copy constructs the event tree, replacing the existing flower with the new flower. Only includes
  * the unary events which are true, given the unary event function.
  */
-EventTree *eventTree_copyConstruct(EventTree *eventTree, Flower *newNet, int32_t (unaryEventFilterFn)(Event *event));
+EventTree *eventTree_copyConstruct(EventTree *eventTree, Flower *newFlower, int32_t (unaryEventFilterFn)(Event *event));
 
 /*
  * Returns the root event.
@@ -45,7 +45,7 @@ Event *eventTree_getCommonAncestor(Event *event, Event *event2);
 /*
  * Gets the parent flower.
  */
-Flower *eventTree_getNet(EventTree *eventTree);
+Flower *eventTree_getFlower(EventTree *eventTree);
 
 /*
  * Gets the total number of events in the event tree.

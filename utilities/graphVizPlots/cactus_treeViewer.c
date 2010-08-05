@@ -91,8 +91,8 @@ void makeCactusTree_chain(Chain *chain, FILE *fileHandle,
     for (i = 0; i < chain_getLength(chain); i++) {
         Group *group = link_getGroup(chain_getLink(chain, i));
         assert(group != NULL);
-        if (group_getNestedNet(group) != NULL) {
-            makeCactusTree_net(group_getNestedNet(group), fileHandle,
+        if (group_getNestedFlower(group) != NULL) {
+            makeCactusTree_net(group_getNestedFlower(group), fileHandle,
                     chainNameString, edgeColour);
         } else {
             makeCactusTree_terminalNode(group, fileHandle, chainNameString,
@@ -147,8 +147,8 @@ void makeCactusTree_net(Flower *net, FILE *fileHandle, const char *parentNodeNam
         groupIterator = flower_getGroupIterator(net);
         while ((group = flower_getNextGroup(groupIterator)) != NULL) {
             if (group_getLink(group) == NULL) {
-                if (group_getNestedNet(group) != NULL) { //linked to the diamond node.
-                    makeCactusTree_net(group_getNestedNet(group), fileHandle,
+                if (group_getNestedFlower(group) != NULL) { //linked to the diamond node.
+                    makeCactusTree_net(group_getNestedFlower(group), fileHandle,
                             diamondNodeNameString, diamondEdgeColour);
                 } else {
                     makeCactusTree_terminalNode(group, fileHandle,
@@ -262,7 +262,7 @@ int main(int argc, char *argv[]) {
     // Parse the basic reconstruction problem
     ///////////////////////////////////////////////////////////////////////////
 
-    net = cactusDisk_getNet(netDisk, cactusMisc_stringToName(netName));
+    net = cactusDisk_getFlower(netDisk, cactusMisc_stringToName(netName));
     st_logInfo("Parsed the top level net of the cactus tree to build\n");
 
     ///////////////////////////////////////////////////////////////////////////

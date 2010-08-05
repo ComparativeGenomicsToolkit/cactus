@@ -828,7 +828,7 @@ End *traverseQuery(Cap *cap, struct Thread **thread, char *query, char *target, 
 	 size++;
          //Traverse lower level nets if exists 
 	 Group *group = end_getGroup(end_getOppEnd(cend));
-	 Flower *nestedNet = group_getNestedNet(group);
+	 Flower *nestedNet = group_getNestedFlower(group);
          flower_check(nestedNet);
 	 if(nestedNet != NULL){//recursive call
             Cap *childCap = net_getChildCap(nestedNet, cap_getOppCap(cap));
@@ -1079,7 +1079,7 @@ void getPSLTangle(Flower *net, FILE *fileHandle, char *query, char *target, int 
    Flower_GroupIterator *groupIterator = flower_getGroupIterator(net);
    Group *group;
    while((group = flower_getNextGroup(groupIterator)) != NULL) {
-      Flower *nestedNet = group_getNestedNet(group);
+      Flower *nestedNet = group_getNestedFlower(group);
       if(nestedNet != NULL) {
          getPSLTangle(nestedNet, fileHandle, query, target, s, e);
       }
@@ -1160,7 +1160,7 @@ void getAllPSLs(Flower *net, FILE *fileHandle, char *query, char *target, struct
    char *qName;
    char *tName;
    int q, t;
-   net = group_getNestedNet(flower_getFirstGroup(net));
+   net = group_getNestedFlower(flower_getFirstGroup(net));
    //Look for all query and target sequences with name start with 'query' and 'target'
    int qnum = getSequences(net, &qseqs, query);
    int tnum = getSequences(net, &tseqs, target);
@@ -1333,7 +1333,7 @@ int main(int argc, char *argv[]) {
    // Parse the basic reconstruction problem
    ///////////////////////////////////////////////////////////////////////////
    netName = stString_copy("0");
-   net = cactusDisk_getNet(netDisk, cactusMisc_stringToName(netName));
+   net = cactusDisk_getFlower(netDisk, cactusMisc_stringToName(netName));
    st_logInfo("Parsed the top level net of the cactus tree to check\n");
 
    ///////////////////////////////////////////////////////////////////////////

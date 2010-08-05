@@ -23,7 +23,7 @@ int main(int argc, char *argv[]) {
     st_logInfo("Set up the net disk\n");
     int32_t i;
     for (i = 2; i < argc; i++) {
-        net = cactusDisk_getNet(netDisk, cactusMisc_stringToName(argv[i]));
+        net = cactusDisk_getFlower(netDisk, cactusMisc_stringToName(argv[i]));
         assert(net != NULL);
         st_logInfo("Parsed net %s\n", argv[i]);
         if (!flower_isTerminal(net)) {
@@ -33,8 +33,8 @@ int main(int argc, char *argv[]) {
             while ((group = flower_getNextGroup(groupIterator)) != NULL) {
                 if (group_isLeaf(group)) {
                     //assert(group_getTotalBaseLength(group) == 0);
-                    group_makeNestedNet(group);
-                    flower_setBuiltBlocks(group_getNestedNet(group), 1);
+                    group_makeNestedFlower(group);
+                    flower_setBuiltBlocks(group_getNestedFlower(group), 1);
                 }
             }
             flower_destructGroupIterator(groupIterator);

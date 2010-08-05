@@ -47,6 +47,6 @@ Chain *chain_getStaticNameWrapper(Name name);
 /*
  * Sets the flower containing the chain.
  */
-void chain_setNet(Chain *chain, Flower *flower);
+void chain_setFlower(Chain *chain, Flower *flower);
 
 #endif

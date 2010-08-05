@@ -32,27 +32,27 @@ struct _cactusDisk {
 /*
  * Adds a newly constructed flower to the memory of the cactusDisk.
  */
-void cactusDisk_addNet(CactusDisk *cactusDisk, Flower *flower);
+void cactusDisk_addFlower(CactusDisk *cactusDisk, Flower *flower);
 
 /*
  * Removes the flower from the disk (if it is on disk);
  */
-void cactusDisk_deleteNetFromDisk(CactusDisk *cactusDisk, Name flowerName);
+void cactusDisk_deleteFlowerFromDisk(CactusDisk *cactusDisk, Name flowerName);
 
 /*
  * Registers the flower is being freed from memory.
  */
-void cactusDisk_unloadNet(CactusDisk *cactusDisk, Flower *flower);
+void cactusDisk_unloadFlower(CactusDisk *cactusDisk, Flower *flower);
 
 /*
  * Gets the first flower in the list of flowers in memory, or returns NULL if the list is empty.
  */
-Flower *cactusDisk_getFirstNetInMemory(CactusDisk *cactusDisk);
+Flower *cactusDisk_getFirstFlowerInMemory(CactusDisk *cactusDisk);
 
 /*
  * Returns a flower in memory, or NULL, if not in memory.
  */
-Flower *cactusDisk_getNetInMemory(CactusDisk *cactusDisk, Name flowerName);
+Flower *cactusDisk_getFlowerInMemory(CactusDisk *cactusDisk, Name flowerName);
 
 /*
  * Functions on meta sequences.

@@ -11,7 +11,7 @@ static bool nestedTest = 0;
 static void cactusMetaSequenceTestTeardown() {
 	if(!nestedTest && cactusDisk != NULL) {
 		cactusDisk_destruct(cactusDisk);
-		testCommon_deleteTemporaryNetDisk();
+		testCommon_deleteTemporaryCactusDisk();
 		cactusDisk = NULL;
 		metaEvent = NULL;
 		metaSequence = NULL;
@@ -21,7 +21,7 @@ static void cactusMetaSequenceTestTeardown() {
 static void cactusMetaSequenceTestSetup() {
 	if(!nestedTest) {
 		cactusMetaSequenceTestTeardown();
-		cactusDisk = cactusDisk_construct(testCommon_getTemporaryNetDisk());
+		cactusDisk = cactusDisk_construct(testCommon_getTemporaryCactusDisk());
 		metaEvent = metaEvent_construct("ROOT", cactusDisk);
 		metaSequence = metaSequence_construct(1, 10, sequenceString,
 					   headerString, metaEvent_getName(metaEvent), cactusDisk);

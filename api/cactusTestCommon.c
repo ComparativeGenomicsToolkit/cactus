@@ -8,13 +8,13 @@
 ////////////////////////////////////////////////
 ////////////////////////////////////////////////
 
-const char *testCommon_getTemporaryNetDisk() {
-	system("rm -rf temporaryNetDisk");
-	static char cA[] = "temporaryNetDisk";
+const char *testCommon_getTemporaryCactusDisk() {
+	system("rm -rf temporaryCactusDisk");
+	static char cA[] = "temporaryCactusDisk";
 	return cA;
 }
 
-void testCommon_deleteTemporaryNetDisk() {
-	int32_t i = system("rm -rf temporaryNetDisk");
-	exitOnFailure(i, "Tried to delete the temporary flower disk\n");
+void testCommon_deleteTemporaryCactusDisk() {
+	int32_t i = system("rm -rf temporaryCactusDisk");
+	exitOnFailure(i, "Tried to delete the temporary cactus disk\n");
 }

@@ -214,7 +214,7 @@ int main(int argc, char *argv[]) {
     // Parse the basic reconstruction problem
     ///////////////////////////////////////////////////////////////////////////
 
-    net = cactusDisk_getNet(netDisk, cactusMisc_stringToName(netName));
+    net = cactusDisk_getFlower(netDisk, cactusMisc_stringToName(netName));
     st_logInfo("Parsed the net to be refined\n");
 
     if (!flower_builtBlocks(net)) { // Do nothing if the net already has defined blocks

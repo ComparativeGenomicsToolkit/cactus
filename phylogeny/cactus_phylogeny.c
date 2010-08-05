@@ -258,7 +258,7 @@ Segment *buildChainTrees3P(Block *block, Segment **segments,
         if (leftInstance != NULL) {
             if (rightInstance != NULL) {
                 Event *event = eventTree_getEvent(flower_getEventTree(
-                        block_getNet(block)), cactusMisc_stringToName(
+                        block_getFlower(block)), cactusMisc_stringToName(
                         binaryTree->label));
                 assert(event != NULL); //check event is present in the event tree.
                 //Check that this does not create a cycle with respect to the event tree.
@@ -283,7 +283,7 @@ void buildChainTrees3(Block *block, Segment **segments, int32_t blockNumber,
     /*
      * Constructs a block tree for the block.
      */
-    EventTree *eventTree = flower_getEventTree(block_getNet(block));
+    EventTree *eventTree = flower_getEventTree(block_getFlower(block));
     //Now do the reconcilliation of events to events in the event tree.
     reconcile(binaryTree, eventTree,
             (Event *(*)(struct BinaryTree *, void *)) getEvent, segments);
@@ -723,7 +723,7 @@ int main(int argc, char *argv[]) {
         // Parse the basic reconstruction problem
         ///////////////////////////////////////////////////////////////////////////
 
-        net = cactusDisk_getNet(netDisk, cactusMisc_stringToName(netName));
+        net = cactusDisk_getFlower(netDisk, cactusMisc_stringToName(netName));
         assert(net != NULL);
         st_logInfo("Parsed the net to be refined\n");
 
@@ -847,7 +847,7 @@ int main(int argc, char *argv[]) {
         startTime = time(NULL);
         Flower_GroupIterator *groupIterator = flower_getGroupIterator(net);
         while ((group = flower_getNextGroup(groupIterator)) != NULL) {
-            net2 = group_getNestedNet(group);
+            net2 = group_getNestedFlower(group);
             if (net2 != NULL) {
                 //add in the end trees and augment the event trees.
                 Group_EndIterator *endIterator = group_getEndIterator(group);

@@ -45,7 +45,7 @@ int32_t block_getLength(Block *block);
 /*
  * Gets the flower the block is part of.
  */
-Flower *block_getNet(Block *block);
+Flower *block_getFlower(Block *block);
 
 /*
  * Gets the 5 end of the block.

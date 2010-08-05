@@ -68,6 +68,6 @@ Block *block_getStaticNameWrapper(Name name);
 /*
  * Sets the flower associated with the block.
  */
-void block_setNet(Block *block, Flower *flower);
+void block_setFlower(Block *block, Flower *flower);
 
 #endif

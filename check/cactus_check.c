@@ -121,9 +121,9 @@ static void checkBasesAccountedFor(Flower *net) {
     Group *group;
     while ((group = flower_getNextGroup(iterator)) != NULL) {
         int64_t size = (int64_t) group_getTotalBaseLength(group);
-        if (group_getNestedNet(group) != NULL) {
+        if (group_getNestedFlower(group) != NULL) {
             assert(!group_isLeaf(group));
-            assert(flower_getTotalBaseLength(group_getNestedNet(group)) == size);
+            assert(flower_getTotalBaseLength(group_getNestedFlower(group)) == size);
         } else {
             assert(group_isLeaf(group));
         }
@@ -155,7 +155,7 @@ static void checkNets(Flower *net, int32_t recursive) {
         Group *group;
         while ((group = flower_getNextGroup(iterator)) != NULL) {
             if (!group_isLeaf(group)) {
-                checkNets(group_getNestedNet(group), 1);
+                checkNets(group_getNestedFlower(group), 1);
             }
         }
         flower_destructGroupIterator(iterator);
@@ -258,7 +258,7 @@ int main(int argc, char *argv[]) {
         // Parse the basic reconstruction problem
         ///////////////////////////////////////////////////////////////////////////
 
-        net = cactusDisk_getNet(netDisk, cactusMisc_stringToName(netName));
+        net = cactusDisk_getFlower(netDisk, cactusMisc_stringToName(netName));
         st_logInfo("Parsed the top level net of the cactus tree to check\n");
 
         ///////////////////////////////////////////////////////////////////////////

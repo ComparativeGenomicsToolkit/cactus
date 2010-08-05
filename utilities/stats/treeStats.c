@@ -145,7 +145,7 @@ double calculateTreeBits(Flower *net, double pathBitScore) {
                     / log(2.0)) + followingPathBitScore) * totalSequenceSize
                     : 0.0);
         } else {
-            totalBitScore += calculateTreeBits(group_getNestedNet(group),
+            totalBitScore += calculateTreeBits(group_getNestedFlower(group),
                     followingPathBitScore);
         }
     }
@@ -195,7 +195,7 @@ static void netStats(Flower *net, int32_t currentDepth, struct IntList *children
         int32_t i = 0;
         while ((group = flower_getNextGroup(groupIterator)) != NULL) {
             assert(!group_isLeaf(group));
-            netStats(group_getNestedNet(group), currentDepth + 1, children,
+            netStats(group_getNestedFlower(group), currentDepth + 1, children,
                     tangleChildren, linkChildren, depths);
             if (group_getLink(group) != NULL) {
                 i++;
@@ -249,7 +249,7 @@ void blockStats(Flower *net, struct IntList *counts, struct IntList *lengths,
         Group *group;
         while ((group = flower_getNextGroup(groupIterator)) != NULL) {
             assert(!group_isLeaf(group));
-            blockStats(group_getNestedNet(group), counts, lengths, degrees,
+            blockStats(group_getNestedFlower(group), counts, lengths, degrees,
                     leafDegrees, coverage, leafCoverage, minLeafDegree);
         }
         flower_destructGroupIterator(groupIterator);
@@ -324,8 +324,8 @@ static void chainStats(Flower *net, struct IntList *counts,
         Flower_GroupIterator *groupIterator = flower_getGroupIterator(net);
         Group *group;
         while ((group = flower_getNextGroup(groupIterator)) != NULL) {
-            assert(group_getNestedNet(group) != NULL);
-            chainStats(group_getNestedNet(group), counts, blockNumbers,
+            assert(group_getNestedFlower(group) != NULL);
+            chainStats(group_getNestedFlower(group), counts, blockNumbers,
                     baseBlockLengths, linkNumbers, avgInstanceBaseLengths,
                     minNumberOfBlocksInChain);
         }
@@ -400,7 +400,7 @@ void terminalNetSizes(Flower *net, struct IntList *sizes) {
         Group *group;
         while ((group = flower_getNextGroup(groupIterator)) != NULL) {
             assert(!group_isLeaf(group));
-            terminalNetSizes(group_getNestedNet(group), sizes);
+            terminalNetSizes(group_getNestedFlower(group), sizes);
         }
         flower_destructGroupIterator(groupIterator);
     }
@@ -423,7 +423,7 @@ static int32_t isTerminalGroup(Group *group) {
     if (group_isLeaf(group)) {
         return 0;
     }
-    return flower_isTerminal(group_getNestedNet(group));
+    return flower_isTerminal(group_getNestedFlower(group));
 }
 
 static int32_t endDegree(End *end) {
@@ -477,7 +477,7 @@ void endStats(Flower *net, struct IntList *counts, struct IntList *degrees,
             }
 
             assert(!group_isLeaf(group));
-            endStats(group_getNestedNet(group), counts, degrees,
+            endStats(group_getNestedFlower(group), counts, degrees,
                     includeLinkGroups, includeTangleGroups,
                     includeTerminalGroups, includeNonTerminalGroups);
         }
@@ -562,7 +562,7 @@ void faceStats(Flower *net, struct IntList *numberPerGroup,
         while ((group = flower_getNextGroup(groupIterator)) != NULL) {
             //Call recursively..
             assert(!group_isLeaf(group));
-            faceStats(group_getNestedNet(group), numberPerGroup, cardinality,
+            faceStats(group_getNestedFlower(group), numberPerGroup, cardinality,
                     isSimple, isRegular, isCanonical,
                     facesPerFaceAssociatedEnd, includeLinkGroups,
                     includeTangleGroups);
@@ -616,7 +616,7 @@ void referenceStats(Flower *net, struct IntList *pseudoChromosomeNumber,
     Group *group;
     while ((group = flower_getNextGroup(groupIterator)) != NULL) {
         if (!group_isLeaf(group)) {
-            referenceStats(group_getNestedNet(group), pseudoChromosomeNumber,
+            referenceStats(group_getNestedFlower(group), pseudoChromosomeNumber,
                     pseudoAdjacencyNumberPerChromosome,
                     truePseudoAdjacencyNumberPerChromosome, linksPerChromosome);
         }

@@ -9,7 +9,7 @@
 ////////////////////////////////////////////////
 
 Chain *chain_construct(Flower *flower) {
-    return chain_construct2(cactusDisk_getUniqueID(flower_getNetDisk(flower)), flower);
+    return chain_construct2(cactusDisk_getUniqueID(flower_getCactusDisk(flower)), flower);
 }
 
 Chain *chain_construct2(Name name, Flower *flower) {
@@ -24,7 +24,7 @@ Chain *chain_construct2(Name name, Flower *flower) {
 }
 
 void chain_destruct(Chain *chain) {
-    flower_removeChain(chain_getNet(chain), chain);
+    flower_removeChain(chain_getFlower(chain), chain);
     if (chain->link != NULL) {
         link_destruct(chain->link);
     }
@@ -87,7 +87,7 @@ Name chain_getName(Chain *chain) {
     return chain->name;
 }
 
-Flower *chain_getNet(Chain *chain) {
+Flower *chain_getFlower(Chain *chain) {
     return chain->flower;
 }
 
@@ -102,11 +102,11 @@ double chain_getAverageInstanceBaseLength(Chain *chain) {
     }
     free(blocks);
     for (i = 0; i < chain_getLength(chain); i++) {
-        Flower *nestedNet = group_getNestedNet(link_getGroup(chain_getLink(chain,
+        Flower *nestedFlower = group_getNestedFlower(link_getGroup(chain_getLink(chain,
                 i)));
-        if (nestedNet != NULL) {
-            k += (flower_getTotalBaseLength(nestedNet) / flower_getSequenceNumber(
-                    nestedNet));
+        if (nestedFlower != NULL) {
+            k += (flower_getTotalBaseLength(nestedFlower) / flower_getSequenceNumber(
+                    nestedFlower));
         }
     }
     return k;
@@ -188,8 +188,8 @@ void chain_addLink(Chain *chain, Link *childLink) {
     childLink->linkIndex = chain->linkNumber++;
 }
 
-void chain_setNet(Chain *chain, Flower *flower) {
-    flower_removeChain(chain_getNet(chain), chain);
+void chain_setFlower(Chain *chain, Flower *flower) {
+    flower_removeChain(chain_getFlower(chain), chain);
     chain->flower = flower;
     flower_addChain(flower, chain);
 }
@@ -231,8 +231,8 @@ Chain *chain_getStaticNameWrapper(Name name) {
 }
 
 void chain_rename(Chain *chain, Name newName) {
-    assert(flower_getChain(chain_getNet(chain), newName) == NULL);
+    assert(flower_getChain(chain_getFlower(chain), newName) == NULL);
     chain->name = newName;
-    flower_removeChain(chain_getNet(chain), chain);
-    flower_addChain(chain_getNet(chain), chain);
+    flower_removeChain(chain_getFlower(chain), chain);
+    flower_addChain(chain_getFlower(chain), chain);
 }

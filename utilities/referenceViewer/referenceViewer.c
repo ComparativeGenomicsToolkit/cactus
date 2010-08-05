@@ -146,7 +146,7 @@ void makeReferenceGraph(Reference *reference, void *extraArgument) {
 	 * Then it adds edges representing blocks, adjacencies and
 	 * edges between telomeres that are adjacent in the ordering.
 	 */
-	Flower *net = reference_getNet(reference);
+	Flower *net = reference_getFlower(reference);
 	addReferenceEnds(reference, extraArgument);
 	addBlocks(net, extraArgument);
 	addTangles(net, reference, extraArgument);

@@ -109,10 +109,10 @@ int main(int argc, char *argv[]) {
     // Parse the basic reconstruction problem
     ///////////////////////////////////////////////////////////////////////////
 
-    net = cactusDisk_getNet(netDisk, cactusMisc_stringToName(netName));
+    net = cactusDisk_getFlower(netDisk, cactusMisc_stringToName(netName));
     Group *group = flower_getFirstGroup(net);
     if(group != NULL && !group_isLeaf(group)) {
-    	net = group_getNestedNet(group);
+    	net = group_getNestedFlower(group);
     }
     st_logInfo("Parsed the top level net of the cactus tree to build\n");
 

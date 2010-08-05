@@ -89,6 +89,6 @@ int end_hashEqualsKey(const void *o, const void *o2);
 /*
  * Sets the flower associated with the end.
  */
-void end_setNet(End *end, Flower *flower);
+void end_setFlower(End *end, Flower *flower);
 
 #endif

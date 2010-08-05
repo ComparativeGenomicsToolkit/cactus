@@ -19,7 +19,7 @@ int main(int argc, char *argv[]) {
 
     int32_t i;
     for (i = 3; i < argc; i++) {
-        net = cactusDisk_getNet(netDisk, cactusMisc_stringToName(argv[i]));
+        net = cactusDisk_getFlower(netDisk, cactusMisc_stringToName(argv[i]));
         assert(net != NULL);
         assert(flower_builtBlocks(net)); //This recursion depends on the block structure having been properly defined for all nodes.
         st_logInfo("Parsed the net %s\n", argv[i]);
@@ -27,7 +27,7 @@ int main(int argc, char *argv[]) {
         Group *group;
         while ((group = flower_getNextGroup(groupIterator)) != NULL) {
             if (!group_isLeaf(group)) {
-                Flower *nestedNet = group_getNestedNet(group);
+                Flower *nestedNet = group_getNestedFlower(group);
                 assert(nestedNet != NULL);
                 assert(flower_builtBlocks(nestedNet)); //This recursion depends on the block structure having been properly defined for all nodes.
                 fprintf(fileHandle, "%s %" PRIi64 " \n", cactusMisc_nameToStringStatic(flower_getName(nestedNet)), flower_getTotalBaseLength(nestedNet));

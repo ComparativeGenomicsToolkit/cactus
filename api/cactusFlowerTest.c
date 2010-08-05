@@ -35,7 +35,7 @@ static Reference *reference;
 static void cactusFlowerTestTeardown() {
     if (cactusDisk != NULL) {
         cactusDisk_destruct(cactusDisk);
-        testCommon_deleteTemporaryNetDisk();
+        testCommon_deleteTemporaryCactusDisk();
         cactusDisk = NULL;
         flower = NULL;
         metaEvent = NULL;
@@ -48,7 +48,7 @@ static void cactusFlowerTestTeardown() {
 
 static void cactusFlowerTestSetup() {
     cactusFlowerTestTeardown();
-    cactusDisk = cactusDisk_construct(testCommon_getTemporaryNetDisk());
+    cactusDisk = cactusDisk_construct(testCommon_getTemporaryCactusDisk());
     flower = flower_construct(cactusDisk);
     metaEvent = metaEvent_construct("ROOT", cactusDisk);
     eventTree = eventTree_construct(metaEvent, flower);
@@ -172,13 +172,13 @@ void testFlower_constructAndDestruct(CuTest* testCase) {
 void testFlower_getName(CuTest* testCase) {
     cactusFlowerTestSetup();
     CuAssertTrue(testCase, flower_getName(flower) != NULL_NAME);
-    CuAssertTrue(testCase, cactusDisk_getNet(cactusDisk, flower_getName(flower)) == flower);
+    CuAssertTrue(testCase, cactusDisk_getFlower(cactusDisk, flower_getName(flower)) == flower);
     cactusFlowerTestTeardown();
 }
 
-void testFlower_getNetDisk(CuTest* testCase) {
+void testFlower_getCactusDisk(CuTest* testCase) {
     cactusFlowerTestSetup();
-    CuAssertTrue(testCase, flower_getNetDisk(flower) == cactusDisk);
+    CuAssertTrue(testCase, flower_getCactusDisk(flower) == cactusDisk);
     cactusFlowerTestTeardown();
 }
 
@@ -334,16 +334,16 @@ void testFlower_getEndNumber(CuTest *testCase) {
     cactusFlowerTestTeardown();
 }
 
-/*void testFlower_mergeNets(CuTest *testCase) {
+/*void testFlower_mergeFlowers(CuTest *testCase) {
  cactusFlowerTestSetup();
  //construct the flowers to merge...
- Net *flower1 = flower_construct(cactusDisk);
- Net *flower2 = flower_construct(cactusDisk);
+ Flower *flower1 = flower_construct(cactusDisk);
+ Flower *flower2 = flower_construct(cactusDisk);
 
  //construct flowers that are children of the flowers to merge.
- Net *flower3 = flower_construct(cactusDisk);
- Net *flower4 = flower_construct(cactusDisk);
- Net *flower5 = flower_construct(cactusDisk);
+ Flower *flower3 = flower_construct(cactusDisk);
+ Flower *flower4 = flower_construct(cactusDisk);
+ Flower *flower5 = flower_construct(cactusDisk);
 
  //Make event tree
  MetaEvent *internalMetaEvent = metaEvent_construct("INTERNAL", cactusDisk);
@@ -416,7 +416,7 @@ void testFlower_getEndNumber(CuTest *testCase) {
  Link *link2 = link_construct(end3, block_get5End(block3), group7, chain2);
 
  Name flowerName1 = flower_getName(flower1);
- Net *flower6 = flower_mergeNets(flower1, flower2);
+ Flower *flower6 = flower_mergeFlowers(flower1, flower2);
 
  //Check the events
  EventTree *eventTree3 = flower_getEventTree(flower6);
@@ -502,10 +502,10 @@ void testFlower_getEndNumber(CuTest *testCase) {
  CuAssertTrue(testCase, link_get3End(link2) == block_get5End(block3));
 
  //Check flower1 is no longer in the database anywhere...
- CuAssertTrue(testCase, cactusDisk_getNet(cactusDisk, flowerName1) == NULL);
+ CuAssertTrue(testCase, cactusDisk_getFlower(cactusDisk, flowerName1) == NULL);
 
  //Check the merged flower is in the database.
- CuAssertTrue(testCase, cactusDisk_getNet(cactusDisk, flower_getName(flower6)) == flower6);
+ CuAssertTrue(testCase, cactusDisk_getFlower(cactusDisk, flower_getName(flower6)) == flower6);
 
  cactusFlowerTestTeardown();
  }*/
@@ -557,7 +557,7 @@ void testFlower_isLeaf(CuTest *testCase) {
     CuAssertTrue(testCase, flower_isLeaf(flower));
     Group *group = group_construct2(flower);
     CuAssertTrue(testCase, flower_isLeaf(flower));
-    group_makeNestedNet(group);
+    group_makeNestedFlower(group);
     CuAssertTrue(testCase, !flower_isLeaf(flower));
     cactusFlowerTestTeardown();
 }
@@ -617,27 +617,27 @@ void testFlower_removeIfRedundant(CuTest *testCase) {
     CuAssertTrue(testCase, flower_removeIfRedundant(flower4) == NULL);
 
     //The intermediate node
-    CuAssertIntEquals(testCase, 4, cactusDisk_getNetNumberInMemory(cactusDisk));
+    CuAssertIntEquals(testCase, 4, cactusDisk_getFlowerNumberInMemory(cactusDisk));
     CuAssertTrue(testCase, flower_removeIfRedundant(flower2) == flower3);
-    CuAssertIntEquals(testCase, 3, cactusDisk_getNetNumberInMemory(cactusDisk));
+    CuAssertIntEquals(testCase, 3, cactusDisk_getFlowerNumberInMemory(cactusDisk));
     CuAssertTrue(testCase, flower_getName(flower3) == flower2Name);
     CuAssertTrue(testCase, flower_getName(flower) == flowerName);
     //Check the group connection (doubly)
-    CuAssertTrue(testCase, group_getNestedNet(group) == flower3);
+    CuAssertTrue(testCase, group_getNestedFlower(group) == flower3);
     Group *parentGroup = flower_getParentGroup(flower3);
     CuAssertTrue(testCase, parentGroup != NULL);
-    CuAssertTrue(testCase, group_getNet(parentGroup) == flower);
+    CuAssertTrue(testCase, group_getFlower(parentGroup) == flower);
     //Check the children of the new flower
     CuAssertTrue(testCase, flower_getParentGroup(flower4) != NULL);
-    CuAssertTrue(testCase, group_getNet(flower_getParentGroup(flower4)) == flower3);
+    CuAssertTrue(testCase, group_getFlower(flower_getParentGroup(flower4)) == flower3);
 
     //Now check the removal of a root flower
     CuAssertTrue(testCase, flower_removeIfRedundant(flower) == flower3);
-    CuAssertIntEquals(testCase, 2, cactusDisk_getNetNumberInMemory(cactusDisk));
+    CuAssertIntEquals(testCase, 2, cactusDisk_getFlowerNumberInMemory(cactusDisk));
     CuAssertTrue(testCase, flower_getName(flower3) == flowerName);
     CuAssertTrue(testCase, flower_getParentGroup(flower3) == NULL);
     CuAssertTrue(testCase, !flower_isLeaf(flower3));
-    CuAssertTrue(testCase, group_getNet(flower_getParentGroup(flower4)) == flower3);
+    CuAssertTrue(testCase, group_getFlower(flower_getParentGroup(flower4)) == flower3);
 
     cactusFlowerTestTeardown();
 }
@@ -645,7 +645,7 @@ void testFlower_removeIfRedundant(CuTest *testCase) {
 CuSuite* cactusFlowerTestSuite(void) {
     CuSuite* suite = CuSuiteNew();
     SUITE_ADD_TEST(suite, testFlower_getName);
-    SUITE_ADD_TEST(suite, testFlower_getNetDisk);
+    SUITE_ADD_TEST(suite, testFlower_getCactusDisk);
     SUITE_ADD_TEST(suite, testFlower_getEventTree);
     SUITE_ADD_TEST(suite, testFlower_sequence);
     SUITE_ADD_TEST(suite, testFlower_cap);
@@ -657,7 +657,7 @@ CuSuite* cactusFlowerTestSuite(void) {
     SUITE_ADD_TEST(suite, testFlower_chain);
     SUITE_ADD_TEST(suite, testFlower_face);
     SUITE_ADD_TEST(suite, testFlower_getReference);
-    //SUITE_ADD_TEST(suite, testFlower_mergeNets);
+    //SUITE_ADD_TEST(suite, testFlower_mergeFlowers);
     SUITE_ADD_TEST(suite, testFlower_builtBlocks);
     SUITE_ADD_TEST(suite, testFlower_builtTrees);
     SUITE_ADD_TEST(suite, testFlower_builtFaces);

@@ -159,9 +159,9 @@ void getBED(Flower *net, FILE *fileHandle, char *query, char *target, int tstart
 	Flower_GroupIterator *groupIterator = flower_getGroupIterator(net);
 	Group *group;
 	while((group = flower_getNextGroup(groupIterator)) != NULL) {
-		Flower *nestedNet = group_getNestedNet(group);
+		Flower *nestedNet = group_getNestedFlower(group);
 		if(nestedNet != NULL) {
-			getBED(group_getNestedNet(group), fileHandle, query, target, tstart, s, e); //recursive call.
+			getBED(group_getNestedFlower(group), fileHandle, query, target, tstart, s, e); //recursive call.
 		}
 	}
 	flower_destructGroupIterator(groupIterator);
@@ -311,7 +311,7 @@ int main(int argc, char *argv[]) {
 	// Parse the basic reconstruction problem
 	///////////////////////////////////////////////////////////////////////////
 
-	net = cactusDisk_getNet(netDisk, cactusMisc_stringToName(netName));
+	net = cactusDisk_getFlower(netDisk, cactusMisc_stringToName(netName));
 	st_logInfo("Parsed the top level net of the cactus tree to check\n");
 
 	///////////////////////////////////////////////////////////////////////////

@@ -23,7 +23,7 @@ Reference *reference_construct(Flower *flower) {
 	return reference;
 }
 
-Flower *reference_getNet(Reference *reference) {
+Flower *reference_getFlower(Reference *reference) {
 	return reference->flower;
 }
 
@@ -81,7 +81,7 @@ stHash *reference_getEndToPseudoAdjacencyHash(Reference *reference) {
 }
 
 void reference_check(Reference *reference) {
-	Flower *flower = reference_getNet(reference);
+	Flower *flower = reference_getFlower(reference);
 	stHash *endsToPseudoAdjacencies = reference_getEndToPseudoAdjacencyHash(reference);
 
 	//Going ends --> pseudo adjacencies.
@@ -146,7 +146,7 @@ void reference_check(Reference *reference) {
 ////////////////////////////////////////////////
 
 void reference_destruct(Reference *reference) {
-	flower_removeReference(reference_getNet(reference), reference);
+	flower_removeReference(reference_getFlower(reference), reference);
 	PseudoChromosome *pseudoChromosome;
 	while((pseudoChromosome = reference_getFirst(reference)) != NULL) {
 			pseudoChromosome_destruct(pseudoChromosome);

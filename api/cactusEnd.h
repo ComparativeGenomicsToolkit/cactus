@@ -26,9 +26,9 @@ End *end_construct2(bool side, bool isAttached, Flower *flower);
  * Copies the end, creating a stub (because the end will not be attached to any block).
  * The isAttached can be selected accordingly.
  * Replaces the flower attached to the end with the given
- * 'newNet'.
+ * 'newFlower'.
  */
-End *end_copyConstruct(End *end, Flower *newNet);
+End *end_copyConstruct(End *end, Flower *newFlower);
 
 /*
  *	Name of the end.
@@ -60,7 +60,7 @@ bool end_getSide(End *end);
 /*
  * Gets the flower the end is part of.
  */
-Flower *end_getNet(End *end);
+Flower *end_getFlower(End *end);
 
 /*
  * Gets the block the end is on the side of.

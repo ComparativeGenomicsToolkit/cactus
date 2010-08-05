@@ -7,7 +7,6 @@ struct _segment {
 	Cap *_5Cap;
 	Segment *rInstance;
 	Name name;
-	//Net *flower;
 	Block *block;
 };
 

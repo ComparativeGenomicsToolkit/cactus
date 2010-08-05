@@ -54,9 +54,9 @@ void testChain_getName(CuTest* testCase) {
     cactusChainTestTeardown();
 }
 
-void testChain_getNet(CuTest* testCase) {
+void testChain_getFlower(CuTest* testCase) {
     cactusChainTestSetup();
-    CuAssertTrue(testCase, chain_getNet(chain) == flower);
+    CuAssertTrue(testCase, chain_getFlower(chain) == flower);
     cactusChainTestTeardown();
 }
 
@@ -91,7 +91,7 @@ void testChain_serialisation(CuTest* testCase) {
     testChain_getLink(testCase);
     testChain_getLength(testCase);
     testChain_getName(testCase);
-    testChain_getNet(testCase);
+    testChain_getFlower(testCase);
     nestedTest = 0;
     cactusChainTestTeardown();
 }
@@ -102,7 +102,7 @@ CuSuite* cactusChainTestSuite(void) {
     SUITE_ADD_TEST(suite, testChain_getLength);
     SUITE_ADD_TEST(suite, testChain_getBlockChain);
     SUITE_ADD_TEST(suite, testChain_getName);
-    SUITE_ADD_TEST(suite, testChain_getNet);
+    SUITE_ADD_TEST(suite, testChain_getFlower);
     SUITE_ADD_TEST(suite, testChain_serialisation);
     SUITE_ADD_TEST(suite, testChain_rename);
     SUITE_ADD_TEST(suite, testChain_construct);

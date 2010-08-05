@@ -134,7 +134,7 @@ int main(int argc, char *argv[]) {
          */
         const char *netName = argv[j];
         st_logInfo("Processing the net named: %s\n", netName);
-        Flower *net = cactusDisk_getNet(netDisk, cactusMisc_stringToName(netName));
+        Flower *net = cactusDisk_getFlower(netDisk, cactusMisc_stringToName(netName));
         assert(net != NULL);
         st_logInfo("Parsed the net to be aligned\n");
 

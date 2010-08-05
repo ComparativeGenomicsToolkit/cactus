@@ -49,9 +49,9 @@ void testBlock_getLength(CuTest* testCase) {
     cactusBlockTestTeardown();
 }
 
-void testBlock_getNet(CuTest* testCase) {
+void testBlock_getFlower(CuTest* testCase) {
     cactusBlockTestSetup();
-    CuAssertTrue(testCase, block_getNet(block) == flower);
+    CuAssertTrue(testCase, block_getFlower(block) == flower);
     cactusBlockTestTeardown();
 }
 
@@ -245,7 +245,7 @@ void testBlock_serialisation(CuTest* testCase) {
     testBlock_getOrientation(testCase);
     testBlock_getReverse(testCase);
     testBlock_getLength(testCase);
-    testBlock_getNet(testCase);
+    testBlock_getFlower(testCase);
     testBlock_getLeftEnd(testCase);
     testBlock_getRightEnd(testCase);
     testBlock_getSetRootInstance(testCase);
@@ -265,7 +265,7 @@ CuSuite* cactusBlockTestSuite(void) {
     SUITE_ADD_TEST(suite, testBlock_getOrientation);
     SUITE_ADD_TEST(suite, testBlock_getReverse);
     SUITE_ADD_TEST(suite, testBlock_getLength);
-    SUITE_ADD_TEST(suite, testBlock_getNet);
+    SUITE_ADD_TEST(suite, testBlock_getFlower);
     SUITE_ADD_TEST(suite, testBlock_getLeftEnd);
     SUITE_ADD_TEST(suite, testBlock_getRightEnd);
     SUITE_ADD_TEST(suite, testBlock_getInstanceNumber);

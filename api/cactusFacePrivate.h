@@ -4,7 +4,7 @@
 #include "cactusGlobals.h"
 
 struct _face {
-	// Net
+	// Flower
 	Flower * flower;
 
 	// Number of top nodes in face, length of subsequent arrays

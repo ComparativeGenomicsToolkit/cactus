@@ -7,7 +7,7 @@ static MetaEvent *metaEvent;
 static void cactusMetaEventTestTeardown() {
 	if(cactusDisk != NULL) {
 		cactusDisk_destruct(cactusDisk);
-		testCommon_deleteTemporaryNetDisk();
+		testCommon_deleteTemporaryCactusDisk();
 		cactusDisk = NULL;
 		metaEvent = NULL;
 	}
@@ -15,7 +15,7 @@ static void cactusMetaEventTestTeardown() {
 
 static void cactusMetaEventTestSetup() {
 	cactusMetaEventTestTeardown();
-	cactusDisk = cactusDisk_construct(testCommon_getTemporaryNetDisk());
+	cactusDisk = cactusDisk_construct(testCommon_getTemporaryCactusDisk());
 	metaEvent = metaEvent_construct("ROOT", cactusDisk);
 }
 

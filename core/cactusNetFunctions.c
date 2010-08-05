@@ -189,7 +189,7 @@ Name cactusEdgeToEndName(struct CactusEdge *edge,
 Sequence *copySequence(Flower *net, Name name) {
     Sequence *sequence = flower_getSequence(net, name);
     if (sequence == NULL) {
-        sequence = sequence_construct(cactusDisk_getMetaSequence(flower_getNetDisk(
+        sequence = sequence_construct(cactusDisk_getMetaSequence(flower_getCactusDisk(
                 net), name), net);
     }
     return sequence;
@@ -230,7 +230,7 @@ static struct List *addEnvelopedStubEnds(Flower *net, int32_t addToNet) {
 
     adjacencyIterator = flower_getGroupIterator(net);
     while ((group = flower_getNextGroup(adjacencyIterator)) != NULL) {
-        net2 = group_getNestedNet(group);
+        net2 = group_getNestedFlower(group);
         if (net2 != NULL) {
             list = addEnvelopedStubEnds(net2, 1);
             for (j = 0; j < list->length; j++) {
@@ -343,8 +343,8 @@ void addAdjacenciesToEnds(Flower *net) {
     Group_EndIterator *adjacencyIterator = flower_getGroupIterator(net);
     Group *group;
     while ((group = flower_getNextGroup(adjacencyIterator)) != NULL) {
-        if (group_getNestedNet(group) != NULL) {
-            addAdjacenciesToEnds(group_getNestedNet(group));
+        if (group_getNestedFlower(group) != NULL) {
+            addAdjacenciesToEnds(group_getNestedFlower(group));
         }
     }
     flower_destructGroupIterator(adjacencyIterator);
@@ -392,8 +392,8 @@ void addGroupsP(Flower *net, struct hashtable *groups) {
     //Do for each level of the net.
     adjacencyIterator = flower_getGroupIterator(net);
     while ((group = flower_getNextGroup(adjacencyIterator)) != NULL) {
-        if (group_getNestedNet(group) != NULL) {
-            addGroupsP(group_getNestedNet(group), groups);
+        if (group_getNestedFlower(group) != NULL) {
+            addGroupsP(group_getNestedFlower(group), groups);
         } else { //Ends are already in an terminal group!
             endIterator2 = group_getEndIterator(group);
             endNames = NULL;
@@ -578,7 +578,7 @@ static void setBlocksBuilt(Flower *net) {
     Group *group;
     while ((group = flower_getNextGroup(iterator)) != NULL) {
         if (!group_isLeaf(group)) {
-            setBlocksBuilt(group_getNestedNet(group));
+            setBlocksBuilt(group_getNestedFlower(group));
         }
     }
     flower_destructGroupIterator(iterator);
@@ -799,7 +799,7 @@ void fillOutNetFromInputs(Flower *parentNet, struct CactusGraph *cactusGraph,
             //Get the net.
             net = nets[mergedVertexIDs[cactusEdge->from->vertexID]];
             if (net == NULL) {
-                net = flower_construct(flower_getNetDisk(parentNet));
+                net = flower_construct(flower_getCactusDisk(parentNet));
                 eventTree_copyConstruct(flower_getEventTree(parentNet), net,
                         returnsTrue);
                 nets[mergedVertexIDs[cactusEdge->from->vertexID]] = net;

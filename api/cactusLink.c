@@ -116,7 +116,7 @@ void link_split(Link *link) {
         listAppend(list2, link_get5End(link2));
     }
     assert(list1->length + list2->length + 2 == chain_getLength(chain)*2);
-    Flower *flower = chain_getNet(chain);
+    Flower *flower = chain_getFlower(chain);
     chain_destruct(chain);
     link_splitP(list1, flower);
     link_splitP(list2, flower);
@@ -143,11 +143,11 @@ Link *link_loadFromBinaryRepresentation(void **binaryString, Chain *chain) {
     link = NULL;
     if (binaryRepresentation_peekNextElementType(*binaryString) == CODE_LINK) {
         binaryRepresentation_popNextElementType(binaryString);
-        group = flower_getGroup(chain_getNet(chain), binaryRepresentation_getName(
+        group = flower_getGroup(chain_getFlower(chain), binaryRepresentation_getName(
                 binaryString));
-        leftEnd = flower_getEnd(chain_getNet(chain), binaryRepresentation_getName(
+        leftEnd = flower_getEnd(chain_getFlower(chain), binaryRepresentation_getName(
                 binaryString));
-        rightEnd = flower_getEnd(chain_getNet(chain),
+        rightEnd = flower_getEnd(chain_getFlower(chain),
                 binaryRepresentation_getName(binaryString));
         link = link_construct(leftEnd, rightEnd, group, chain);
     }

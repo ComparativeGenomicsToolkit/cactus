@@ -24,7 +24,7 @@ Name flower_getName(Flower *flower);
 /*
  * Gets the parent flower disk.
  */
-CactusDisk *flower_getNetDisk(Flower *flower);
+CactusDisk *flower_getCactusDisk(Flower *flower);
 
 /*
  * Gets the flower tree associated with the event tree.
@@ -387,7 +387,7 @@ Reference *flower_getReference(Flower *flower);
  * Only works if both parent groups do not have links. Merging together groups that
  * are in links means breaking the chains, which it currently will not do.
  */
-//Net *flower_mergeNets(Net *flower1, Net *flower2);
+//Flower *flower_mergeFlowers(Flower *flower1, Flower *flower2);
 
 /*
  * Runs check function for each type of object contained in the flower.

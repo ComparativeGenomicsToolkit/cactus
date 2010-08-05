@@ -10,7 +10,7 @@
 
 PseudoAdjacency *pseudoAdjacency_construct(End *_5End, End *_3End,
 		PseudoChromosome *pseudoChromosome) {
-	return pseudoAdjacency_construct2(cactusDisk_getUniqueID(flower_getNetDisk(reference_getNet(pseudoChromosome_getReference(pseudoChromosome)))),
+	return pseudoAdjacency_construct2(cactusDisk_getUniqueID(flower_getCactusDisk(reference_getFlower(pseudoChromosome_getReference(pseudoChromosome)))),
 			_5End, _3End, pseudoChromosome);
 }
 
@@ -81,8 +81,8 @@ PseudoAdjacency *pseudoAdjacency_loadFromBinaryRepresentation(void **binaryStrin
 	if(binaryRepresentation_peekNextElementType(*binaryString) == CODE_PSEUDO_ADJACENCY) {
 		binaryRepresentation_popNextElementType(binaryString);
 		name = binaryRepresentation_getName(binaryString);
-		_5End = flower_getEnd(reference_getNet(pseudoChromosome_getReference(pseudoChromosome)), binaryRepresentation_getName(binaryString));
-		_3End = flower_getEnd(reference_getNet(pseudoChromosome_getReference(pseudoChromosome)), binaryRepresentation_getName(binaryString));
+		_5End = flower_getEnd(reference_getFlower(pseudoChromosome_getReference(pseudoChromosome)), binaryRepresentation_getName(binaryString));
+		_3End = flower_getEnd(reference_getFlower(pseudoChromosome_getReference(pseudoChromosome)), binaryRepresentation_getName(binaryString));
 		pseudoAdjacency = pseudoAdjacency_construct2(name, _5End, _3End, pseudoChromosome);
 	}
 	return pseudoAdjacency;

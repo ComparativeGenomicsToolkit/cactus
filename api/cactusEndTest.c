@@ -81,9 +81,9 @@ void testEnd_getSide(CuTest *testCase) {
     cactusEndTestTeardown();
 }
 
-void testEnd_getNet(CuTest* testCase) {
+void testEnd_getFlower(CuTest* testCase) {
     cactusEndTestSetup();
-    CuAssertTrue(testCase, end_getNet(end) == flower);
+    CuAssertTrue(testCase, end_getFlower(end) == flower);
     cactusEndTestTeardown();
 }
 
@@ -308,7 +308,7 @@ void testEnd_serialisation(CuTest* testCase) {
     testEnd_getOrientation(testCase);
     testEnd_getReverse(testCase);
     testEnd_getSide(testCase);
-    testEnd_getNet(testCase);
+    testEnd_getFlower(testCase);
     testEnd_getBlock(testCase);
     testEnd_getOtherBlockEnd(testCase);
     testEnd_getGroup(testCase);
@@ -331,7 +331,7 @@ CuSuite* cactusEndTestSuite(void) {
     SUITE_ADD_TEST(suite, testEnd_getOrientation);
     SUITE_ADD_TEST(suite, testEnd_getReverse);
     SUITE_ADD_TEST(suite, testEnd_getSide);
-    SUITE_ADD_TEST(suite, testEnd_getNet);
+    SUITE_ADD_TEST(suite, testEnd_getFlower);
     SUITE_ADD_TEST(suite, testEnd_getBlock);
     SUITE_ADD_TEST(suite, testEnd_getOtherBlockEnd);
     SUITE_ADD_TEST(suite, testEnd_getGroup);

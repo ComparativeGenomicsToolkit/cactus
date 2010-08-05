@@ -590,7 +590,7 @@ void buildFaces_isolateFaces(Flower * net) {
  */
 static Cap * buildFaces_constructStub(Cap * adjacentCap) {
     //Construct the new stub and the new cap..
-    Flower * net = end_getNet(cap_getEnd(adjacentCap));
+    Flower * net = end_getFlower(cap_getEnd(adjacentCap));
     End *newFreeStubEnd = createNewFreeStubEnd(net);
     Cap *cap = cap_construct(newFreeStubEnd, cap_getEvent(adjacentCap));
 

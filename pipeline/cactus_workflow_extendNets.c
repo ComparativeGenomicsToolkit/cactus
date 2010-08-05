@@ -20,12 +20,12 @@ static void extendNets(Flower *net, FILE *fileHandle, int32_t minSizeToExtend) {
         groupIterator = flower_getGroupIterator(net);
         while((group = flower_getNextGroup(groupIterator)) != NULL) {
             if(!group_isLeaf(group)) {
-                extendNets(group_getNestedNet(group), fileHandle, minSizeToExtend);
+                extendNets(group_getNestedFlower(group), fileHandle, minSizeToExtend);
             }
             else {
                 int64_t size = group_getTotalBaseLength(group);
                 if(size >= minSizeToExtend) {
-                    group_makeNestedNet(group);
+                    group_makeNestedFlower(group);
                     fprintf(fileHandle, "%s %" PRIi64 "\n", cactusMisc_nameToStringStatic(group_getName(group)), size);
                 }
             }
@@ -51,7 +51,7 @@ int main(int argc, char *argv[]) {
     netDisk = cactusDisk_construct(argv[1]);
     st_logInfo("Set up the net disk\n");
 
-    net = cactusDisk_getNet(netDisk, cactusMisc_stringToName(argv[2]));
+    net = cactusDisk_getFlower(netDisk, cactusMisc_stringToName(argv[2]));
     st_logInfo("Parsed the net\n");
 
     int32_t minSizeToExtend;

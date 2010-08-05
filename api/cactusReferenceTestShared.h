@@ -17,14 +17,14 @@ static PseudoAdjacency *pseudoAdjacency4;
 static void cactusReferenceTestSharedTeardown() {
 	if(cactusDisk != NULL) {
 		cactusDisk_destruct(cactusDisk);
-		testCommon_deleteTemporaryNetDisk();
+		testCommon_deleteTemporaryCactusDisk();
 		cactusDisk = NULL;
 	}
 }
 
 static void cactusReferenceTestSharedSetup() {
 	cactusReferenceTestSharedTeardown();
-	cactusDisk = cactusDisk_construct(testCommon_getTemporaryNetDisk());
+	cactusDisk = cactusDisk_construct(testCommon_getTemporaryCactusDisk());
 	flower = flower_construct(cactusDisk);
 
 	end1 = end_construct(0, flower);

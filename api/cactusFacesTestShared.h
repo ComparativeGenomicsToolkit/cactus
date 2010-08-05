@@ -15,14 +15,14 @@ static Face * face;
 static void cactusFacesTestSharedTeardown() {
 	if(cactusDisk != NULL) {
 		cactusDisk_destruct(cactusDisk);
-		testCommon_deleteTemporaryNetDisk();
+		testCommon_deleteTemporaryCactusDisk();
 		cactusDisk = NULL;
 	}
 }
 
 static void cactusFacesTestSharedSetup() {
 	cactusFacesTestSharedTeardown();
-	cactusDisk = cactusDisk_construct(testCommon_getTemporaryNetDisk());
+	cactusDisk = cactusDisk_construct(testCommon_getTemporaryCactusDisk());
 	flower = flower_construct(cactusDisk);
 
 	rootMetaEvent = metaEvent_construct("ROOT", cactusDisk);

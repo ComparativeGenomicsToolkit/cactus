@@ -14,7 +14,7 @@ static bool nestedTest = 0;
 void cactusSequenceTestTeardown() {
 	if(!nestedTest && cactusDisk != NULL) {
 		cactusDisk_destruct(cactusDisk);
-		testCommon_deleteTemporaryNetDisk();
+		testCommon_deleteTemporaryCactusDisk();
 		cactusDisk = NULL;
 		flower = NULL;
 		metaEvent = NULL;
@@ -27,7 +27,7 @@ void cactusSequenceTestTeardown() {
 void cactusSequenceTestSetup() {
 	if(!nestedTest) {
 		cactusSequenceTestTeardown();
-		cactusDisk = cactusDisk_construct(testCommon_getTemporaryNetDisk());
+		cactusDisk = cactusDisk_construct(testCommon_getTemporaryCactusDisk());
 		flower = flower_construct(cactusDisk);
 		metaEvent = metaEvent_construct("ROOT", cactusDisk);
 		eventTree = eventTree_construct(metaEvent, flower);
@@ -92,9 +92,9 @@ void testSequence_getHeader(CuTest* testCase) {
 	cactusSequenceTestTeardown();
 }
 
-void testSequence_getNet(CuTest* testCase) {
+void testSequence_getFlower(CuTest* testCase) {
 	cactusSequenceTestSetup();
-	CuAssertTrue(testCase, sequence_getNet(sequence) == flower);
+	CuAssertTrue(testCase, sequence_getFlower(sequence) == flower);
 	cactusSequenceTestTeardown();
 }
 
@@ -115,7 +115,7 @@ void testSequence_serialisation(CuTest* testCase) {
 	testSequence_getEvent(testCase);
 	testSequence_getString(testCase);
 	testSequence_getHeader(testCase);
-	testSequence_getNet(testCase);
+	testSequence_getFlower(testCase);
 	nestedTest = 0;
 	cactusSequenceTestTeardown();
 }
@@ -129,7 +129,7 @@ CuSuite* cactusSequenceTestSuite(void) {
 	SUITE_ADD_TEST(suite, testSequence_getEvent);
 	SUITE_ADD_TEST(suite, testSequence_getString);
 	SUITE_ADD_TEST(suite, testSequence_getHeader);
-	SUITE_ADD_TEST(suite, testSequence_getNet);
+	SUITE_ADD_TEST(suite, testSequence_getFlower);
 	SUITE_ADD_TEST(suite, testSequence_serialisation);
 	SUITE_ADD_TEST(suite, testSequence_construct);
 	return suite;

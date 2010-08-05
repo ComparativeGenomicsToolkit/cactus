@@ -8,8 +8,8 @@ void makeTerminalNormal(Flower *net) {
         while ((group = flower_getNextGroup(groupIterator)) != NULL) {
             if (group_isLeaf(group)) {
                 //assert(group_getTotalBaseLength(group) == 0);
-                group_makeNestedNet(group);
-                flower_setBuiltBlocks(group_getNestedNet(group), 1);
+                group_makeNestedFlower(group);
+                flower_setBuiltBlocks(group_getNestedFlower(group), 1);
             }
         }
         flower_destructGroupIterator(groupIterator);

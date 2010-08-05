@@ -18,7 +18,7 @@ Sequence *sequence_construct(MetaSequence *metaSequence, Flower *flower) {
 }
 
 void sequence_destruct(Sequence *sequence) {
-	flower_removeSequence(sequence_getNet(sequence), sequence);
+	flower_removeSequence(sequence_getFlower(sequence), sequence);
 	free(sequence);
 }
 
@@ -39,10 +39,10 @@ Name sequence_getName(Sequence *sequence) {
 }
 
 Event *sequence_getEvent(Sequence *sequence) {
-	return eventTree_getEvent(flower_getEventTree(sequence_getNet(sequence)), metaSequence_getEventName(sequence->metaSequence));
+	return eventTree_getEvent(flower_getEventTree(sequence_getFlower(sequence)), metaSequence_getEventName(sequence->metaSequence));
 }
 
-Flower *sequence_getNet(Sequence *sequence) {
+Flower *sequence_getFlower(Sequence *sequence) {
 	return sequence->flower;
 }
 
@@ -55,13 +55,13 @@ const char *sequence_getHeader(Sequence *sequence) {
 }
 
 void sequence_check(Sequence *sequence) {
-	Flower *flower = sequence_getNet(sequence);
+	Flower *flower = sequence_getFlower(sequence);
 	assert(flower_getSequence(flower, sequence_getName(sequence)) == sequence); //properly connected to the flower..
 
 	Group *parentGroup = flower_getParentGroup(flower);
 	if(parentGroup != NULL) {
-		Flower *parentNet = group_getNet(parentGroup);
-		Sequence *parentSequence = flower_getSequence(parentNet, sequence_getName(sequence));
+		Flower *parentFlower = group_getFlower(parentGroup);
+		Sequence *parentSequence = flower_getSequence(parentFlower, sequence_getName(sequence));
 		if(parentSequence != NULL) {
 			assert(event_getName(sequence_getEvent(sequence)) == event_getName(sequence_getEvent(parentSequence)));
 		}
@@ -83,7 +83,7 @@ Sequence *sequence_loadFromBinaryRepresentation(void **binaryString, Flower *flo
 	sequence = NULL;
 	if(binaryRepresentation_peekNextElementType(*binaryString) == CODE_SEQUENCE) {
 		binaryRepresentation_popNextElementType(binaryString);
-		sequence = sequence_construct(cactusDisk_getMetaSequence(flower_getNetDisk(flower), binaryRepresentation_getName(binaryString)), flower);
+		sequence = sequence_construct(cactusDisk_getMetaSequence(flower_getCactusDisk(flower), binaryRepresentation_getName(binaryString)), flower);
 	}
 	return sequence;
 }

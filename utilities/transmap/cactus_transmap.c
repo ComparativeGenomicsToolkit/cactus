@@ -31,7 +31,7 @@ static int32_t transmap_getTotalDistanceBetweenCaps(Cap * A, Cap * B);
  * cap in the nested sub-graph
  */
 static int32_t transmap_getTotalDistanceAtAdjacency(Cap * A) {
-	Flower * net = group_getNestedNet(end_getGroup(cap_getEnd(A))); 
+	Flower * net = group_getNestedFlower(end_getGroup(cap_getEnd(A))); 
 	Cap * B = cap_getAdjacency(A);
 	Cap * childA, * childB;
 
@@ -89,7 +89,7 @@ static int32_t transmap_sampleOrderAndOrientationAtEvent(Event * E, Cap * A, Cap
  * Projects the stochastic search to a nested net
  */
 static int32_t transmap_sampleOrderAndOrientationAtNestedNet(Event * E, Cap * A, int * allowed_distance) {
-	Flower * net = group_getNestedNet(end_getGroup(cap_getEnd(A))); 
+	Flower * net = group_getNestedFlower(end_getGroup(cap_getEnd(A))); 
 	Cap * B, * childA, * childB;
 	Event * childE;
 

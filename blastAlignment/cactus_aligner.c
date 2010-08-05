@@ -33,7 +33,7 @@ int main(int argc, char *argv[]) {
 	netDisk = cactusDisk_construct(argv[1]);
 	st_logInfo("Set up the net disk\n");
 
-	net = cactusDisk_getNet(netDisk, cactusMisc_stringToName(argv[2]));
+	net = cactusDisk_getFlower(netDisk, cactusMisc_stringToName(argv[2]));
 	st_logInfo("Read the net\n");
 	fileHandle = fopen(argv[3], "w");
 	st_logInfo("Opened the file %s to write the sub-sequences in\n", argv[3]);

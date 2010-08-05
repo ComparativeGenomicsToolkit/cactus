@@ -105,7 +105,7 @@ void getMAFs(Flower *net, FILE *fileHandle) {
     Group *group;
     while ((group = flower_getNextGroup(groupIterator)) != NULL) {
         if (!group_isLeaf(group)) {
-            getMAFs(group_getNestedNet(group), fileHandle); //recursive call.
+            getMAFs(group_getNestedFlower(group), fileHandle); //recursive call.
         }
     }
     flower_destructGroupIterator(groupIterator);
@@ -219,7 +219,7 @@ int main(int argc, char *argv[]) {
     // Parse the basic reconstruction problem
     ///////////////////////////////////////////////////////////////////////////
 
-    net = cactusDisk_getNet(netDisk, cactusMisc_stringToName(netName));
+    net = cactusDisk_getFlower(netDisk, cactusMisc_stringToName(netName));
     st_logInfo("Parsed the top level net of the cactus tree to check\n");
 
     ///////////////////////////////////////////////////////////////////////////

@@ -65,7 +65,7 @@ Reference *reference_construct(Flower *flower);
 /*
  * Gets flower associated with reference.
  */
-Flower *reference_getNet(Reference *reference);
+Flower *reference_getFlower(Reference *reference);
 
 /*
  * Returns the number of pseudo-chromosomes in the reference.

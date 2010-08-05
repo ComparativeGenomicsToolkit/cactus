@@ -47,7 +47,7 @@ void face_destruct(Face * face) {
     free(face);
 }
 
-Flower *face_getNet(Face *face) {
+Flower *face_getFlower(Face *face) {
     return face->flower;
 }
 

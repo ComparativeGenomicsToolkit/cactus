@@ -584,8 +584,8 @@ static bool fillingIn_partnerConsents(Cap * partner, Cap * cap, AdjacencyVoteTab
 static Event *fillingIn_interpolateEvents(Event* parentEvent, Event* childEvent) {
     float branchLength;
     EventTree * eventTree = event_getEventTree(parentEvent);
-    Flower * net = eventTree_getNet(eventTree);
-    CactusDisk * netDisk = flower_getNetDisk(net);
+    Flower * net = eventTree_getFlower(eventTree);
+    CactusDisk * netDisk = flower_getCactusDisk(net);
     MetaEvent * metaEvent;
     Event * ptr = childEvent;
     Event * result;
@@ -641,7 +641,7 @@ static Event *fillingIn_interpolateEvents(Event* parentEvent, Event* childEvent)
  */
 static Cap * fillingIn_constructStub(Event *event, Group *group) {
     EventTree *eventTree = event_getEventTree(event);
-    End *newFreeStubEnd = end_construct(0, group_getNet(group));
+    End *newFreeStubEnd = end_construct(0, group_getFlower(group));
     end_setGroup(newFreeStubEnd, group);
     Cap *cap = cap_construct(newFreeStubEnd, event);
 	st_logInfo("Constructing %p\n",cap);
@@ -1263,7 +1263,7 @@ int main(int argc, char ** argv) {
 	// Parse the basic reconstruction problem
 	///////////////////////////////////////////////////////////////////////////
 
-	net = cactusDisk_getNet(netDisk, cactusMisc_stringToName(netName));
+	net = cactusDisk_getFlower(netDisk, cactusMisc_stringToName(netName));
 	assert(flower_builtTrees(net)); //we must have already built the trees for the problem at this stage
 	st_logInfo("Parsed the net to be refined\n");
 

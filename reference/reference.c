@@ -70,7 +70,7 @@ void pushEndIntoChildNets(End *end) {
 	Group *group = end_getGroup(end);
 	assert(group != NULL);
 	if(!group_isLeaf(group)) {
-		Flower *nestedNet = group_getNestedNet(group);
+		Flower *nestedNet = group_getNestedFlower(group);
 		assert(flower_getEnd(nestedNet, end_getName(end)) == NULL);
 		End *end2 = end_copyConstruct(end, nestedNet);
 		end_setGroup(end2, getSpareGroup(nestedNet));
@@ -261,7 +261,7 @@ static int makeIntermediateLevelPseudoChromosomes_cmpEnds(End **end1, End **end2
 void makeIntermediateLevelPseudoChromosomes(Flower *net, Reference *reference) {
 	Group *parentGroup = flower_getParentGroup(net);
 	assert(parentGroup != NULL);
-	Flower *parentNet = group_getNet(parentGroup);
+	Flower *parentNet = group_getFlower(parentGroup);
 	Reference *parentReference = flower_getReference(parentNet);
 	assert(parentReference != NULL);
 

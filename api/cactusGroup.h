@@ -14,7 +14,7 @@
 /*
  * Constructs a non-leaf group.
  */
-Group *group_construct(Flower *flower, Flower *nestedNet);
+Group *group_construct(Flower *flower, Flower *nestedFlower);
 
 /*
  * Constructs an group without a nested flower. The group is thus
@@ -30,7 +30,7 @@ void group_destruct(Group *group);
 /*
  *  Gets the flower the group is part of.
  */
-Flower *group_getNet(Group *group);
+Flower *group_getFlower(Group *group);
 
 /*
  * Gets the name of the group. This name will also be the name of the nested flower,
@@ -39,7 +39,7 @@ Flower *group_getNet(Group *group);
 Name group_getName(Group *group);
 
 /*
- * Equivalent to group_getNestedNet(group) == NULL.
+ * Equivalent to group_getNestedFlower(group) == NULL.
  */
 bool group_isLeaf(Group *group);
 
@@ -50,13 +50,12 @@ bool group_isLeaf(Group *group);
  *
  * Will fail if the problem is already a non-leaf group.
  */
-void group_makeNestedNet(Group *group);
+void group_makeNestedFlower(Group *group);
 
 /*
  * Gets the nested flower the group contains, or NULL if it doesn't contain one.
  */
-Flower *group_getNestedNet(Group *group);
-
+Flower *group_getNestedFlower(Group *group);
 
 /*
  * Gets the link the group is part of, or NULL, if not part of a chain.

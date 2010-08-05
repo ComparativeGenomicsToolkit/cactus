@@ -509,7 +509,7 @@ static void fillInPseudoAdjacenciesP(End *end1, PseudoChromosome *pseudoChromoso
 	Group *group1 = end_getGroup(end1);
 	Group *group2 = end_getGroup(end2);
 	if(group1 != group2) {
-		Block *pseudoBlock = block_construct(1, end_getNet(end1));
+		Block *pseudoBlock = block_construct(1, end_getFlower(end1));
 		End *end3 = block_get5End(pseudoBlock), *end4 = block_get3End(pseudoBlock);
 		if(group_isLink(group1)) {
 			link_split(group_getLink(group1));

@@ -8,7 +8,7 @@
 ////////////////////////////////////////////////
 ////////////////////////////////////////////////
 
-static int32_t cactusDisk_constructNetsP(const void *o1, const void *o2) {
+static int32_t cactusDisk_constructFlowersP(const void *o1, const void *o2) {
 	return cactusMisc_nameCompare(flower_getName((Flower *)o1), flower_getName((Flower *)o2));
 }
 
@@ -28,7 +28,7 @@ CactusDisk *cactusDisk_construct(const char *cactusDiskFile) {
 	//construct lists of in memory objects
 	cactusDisk->metaEvents = stSortedSet_construct3(cactusDisk_constructMetaEventsP, NULL);
 	cactusDisk->metaSequences = stSortedSet_construct3(cactusDisk_constructMetaSequencesP, NULL);
-	cactusDisk->flowers = stSortedSet_construct3(cactusDisk_constructNetsP, NULL);
+	cactusDisk->flowers = stSortedSet_construct3(cactusDisk_constructFlowersP, NULL);
 
 	//the files to write the databases in
 	cactusDisk->flowersDatabaseName = pathJoin(cactusDiskFile, "flowers");
@@ -64,7 +64,7 @@ void cactusDisk_destruct(CactusDisk *cactusDisk){
 	MetaSequence *metaSequence;
 	MetaEvent *metaEvent;
 
-	while((flower = cactusDisk_getFirstNetInMemory(cactusDisk)) != NULL) {
+	while((flower = cactusDisk_getFirstFlowerInMemory(cactusDisk)) != NULL) {
 		flower_destruct(flower, FALSE);
 	}
 	stSortedSet_destruct(cactusDisk->flowers);
@@ -94,7 +94,7 @@ void cactusDisk_destruct(CactusDisk *cactusDisk){
 }
 
 void cactusDisk_write(CactusDisk *cactusDisk) {
-	CactusDisk_NetIterator *flowerIterator;
+	CactusDisk_FlowerIterator *flowerIterator;
 	struct avl_traverser *metaDataIterator;
 	void *vA;
 	int32_t recordSize;
@@ -105,8 +105,8 @@ void cactusDisk_write(CactusDisk *cactusDisk) {
 	exitOnFailure(database_startTransaction(cactusDisk->flowersDatabase), "Failed to start a transaction for the database: %s\n", cactusDisk->flowersDatabaseName);
 	exitOnFailure(database_startTransaction(cactusDisk->metaDataDatabase), "Failed to start a transaction for the database: %s\n", cactusDisk->metaDataDatabaseName);
 
-	flowerIterator = cactusDisk_getNetsInMemoryIterator(cactusDisk);
-	while((flower = cactusDisk_getNextNet(flowerIterator)) != NULL) {
+	flowerIterator = cactusDisk_getFlowersInMemoryIterator(cactusDisk);
+	while((flower = cactusDisk_getNextFlower(flowerIterator)) != NULL) {
 		vA = binaryRepresentation_makeBinaryRepresentation(flower,
 				(void (*)(void *, void (*)(const void * ptr, size_t size, size_t count)))flower_writeBinaryRepresentation, &recordSize);
 		exitOnFailure(database_writeRecord(cactusDisk->flowersDatabase, flower_getName(flower), vA, recordSize),
@@ -114,7 +114,7 @@ void cactusDisk_write(CactusDisk *cactusDisk) {
 				cactusMisc_nameToStringStatic(flower_getName(flower)));
 		free(vA);
 	}
-	cactusDisk_destructNetsInMemoryIterator(flowerIterator);
+	cactusDisk_destructFlowersInMemoryIterator(flowerIterator);
 
 	metaDataIterator = stSortedSet_getIterator(cactusDisk->metaSequences);
 	while((metaSequence = stSortedSet_getNext(metaDataIterator)) != NULL) {
@@ -165,50 +165,50 @@ void *cactusDisk_getObject(CactusDisk *cactusDisk, TCBDB *database, void *(*getO
 	}
 }
 
-Flower *cactusDisk_getNet(CactusDisk *cactusDisk, Name flowerName) {
+Flower *cactusDisk_getFlower(CactusDisk *cactusDisk, Name flowerName) {
 	return cactusDisk_getObject(cactusDisk, cactusDisk->flowersDatabase,
-			(void *(*)(CactusDisk *, Name ))cactusDisk_getNetInMemory,
+			(void *(*)(CactusDisk *, Name ))cactusDisk_getFlowerInMemory,
 			(void *(*)(void **, CactusDisk *))flower_loadFromBinaryRepresentation,
 			flowerName);
 }
 
-int32_t cactusDisk_getNetNumberOnDisk(CactusDisk *cactusDisk) {
+int32_t cactusDisk_getFlowerNumberOnDisk(CactusDisk *cactusDisk) {
 	return database_getNumberOfRecords(cactusDisk->flowersDatabase);
 }
 
-CactusDisk_NetNameIterator *cactusDisk_getNetNamesOnDiskIterator(CactusDisk *cactusDisk) {
+CactusDisk_FlowerNameIterator *cactusDisk_getFlowerNamesOnDiskIterator(CactusDisk *cactusDisk) {
 	return databaseIterator_construct(cactusDisk->flowersDatabase);
 }
 
-Name cactusDisk_getNextNetName(CactusDisk_NetNameIterator *flowerIterator) {
+Name cactusDisk_getNextFlowerName(CactusDisk_FlowerNameIterator *flowerIterator) {
 	return databaseIterator_getNext(flowerIterator);
 }
 
-void cactusDisk_destructNetNamesOnDiskIterator(CactusDisk_NetNameIterator *flowerIterator) {
+void cactusDisk_destructFlowerNamesOnDiskIterator(CactusDisk_FlowerNameIterator *flowerIterator) {
 	databaseIterator_destruct(flowerIterator);
 }
 
-int32_t cactusDisk_getNetNumberInMemory(CactusDisk *cactusDisk) {
+int32_t cactusDisk_getFlowerNumberInMemory(CactusDisk *cactusDisk) {
 	return stSortedSet_size(cactusDisk->flowers);
 }
 
-CactusDisk_NetIterator *cactusDisk_getNetsInMemoryIterator(CactusDisk *cactusDisk) {
+CactusDisk_FlowerIterator *cactusDisk_getFlowersInMemoryIterator(CactusDisk *cactusDisk) {
 	return stSortedSet_getIterator(cactusDisk->flowers);
 }
 
-Flower *cactusDisk_getNextNet(CactusDisk_NetIterator *flowerIterator) {
+Flower *cactusDisk_getNextFlower(CactusDisk_FlowerIterator *flowerIterator) {
 	return stSortedSet_getNext(flowerIterator);
 }
 
-Flower *cactusDisk_getPreviousNet(CactusDisk_NetIterator *flowerIterator) {
+Flower *cactusDisk_getPreviousFlower(CactusDisk_FlowerIterator *flowerIterator) {
 	return stSortedSet_getPrevious(flowerIterator);
 }
 
-CactusDisk_NetIterator *cactusDisk_copyNetIterator(CactusDisk_NetIterator *flowerIterator) {
+CactusDisk_FlowerIterator *cactusDisk_copyFlowerIterator(CactusDisk_FlowerIterator *flowerIterator) {
 	return stSortedSet_copyIterator(flowerIterator);
 }
 
-void cactusDisk_destructNetsInMemoryIterator(CactusDisk_NetIterator *flowerIterator) {
+void cactusDisk_destructFlowersInMemoryIterator(CactusDisk_FlowerIterator *flowerIterator) {
 	stSortedSet_destructIterator(flowerIterator);
 }
 
@@ -216,30 +216,30 @@ void cactusDisk_destructNetsInMemoryIterator(CactusDisk_NetIterator *flowerItera
  * Private functions.
  */
 
-void cactusDisk_addNet(CactusDisk *cactusDisk, Flower *flower) {
+void cactusDisk_addFlower(CactusDisk *cactusDisk, Flower *flower) {
 	assert(stSortedSet_search(cactusDisk->flowers, flower) == NULL);
 	stSortedSet_insert(cactusDisk->flowers, flower);
 }
 
-void cactusDisk_deleteNetFromDisk(CactusDisk *cactusDisk, Name flowerName) {
+void cactusDisk_deleteFlowerFromDisk(CactusDisk *cactusDisk, Name flowerName) {
 	if(database_getRecord(cactusDisk->flowersDatabase, flowerName) != NULL) {
 		exitOnFailure(database_removeRecord(cactusDisk->flowersDatabase, flowerName),
 				"Failed to remove the flower: %s from the flower disk database\n", cactusMisc_nameToStringStatic(flowerName));
 	}
 }
 
-void cactusDisk_unloadNet(CactusDisk *cactusDisk, Flower *flower) {
-	assert(cactusDisk_getNetInMemory(cactusDisk, flower_getName(flower)) != NULL);
+void cactusDisk_unloadFlower(CactusDisk *cactusDisk, Flower *flower) {
+	assert(cactusDisk_getFlowerInMemory(cactusDisk, flower_getName(flower)) != NULL);
 	stSortedSet_remove(cactusDisk->flowers, flower);
 }
 
-Flower *cactusDisk_getNetInMemory(CactusDisk *cactusDisk, Name flowerName) {
+Flower *cactusDisk_getFlowerInMemory(CactusDisk *cactusDisk, Name flowerName) {
 	static Flower flower;
 	flower.name = flowerName;
 	return stSortedSet_search(cactusDisk->flowers, &flower);
 }
 
-Flower *cactusDisk_getFirstNetInMemory(CactusDisk *cactusDisk) {
+Flower *cactusDisk_getFirstFlowerInMemory(CactusDisk *cactusDisk) {
 	return stSortedSet_getFirst(cactusDisk->flowers);
 }
 

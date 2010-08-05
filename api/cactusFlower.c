@@ -76,7 +76,7 @@ Flower *flower_construct2(Name name, CactusDisk *cactusDisk) {
     flower->builtFaces = 0;
     flower->builtTrees = 0;
 
-    cactusDisk_addNet(flower->cactusDisk, flower);
+    cactusDisk_addFlower(flower->cactusDisk, flower);
 
     //Do this bit last.. so the flowerdisk relationship is established
     flower->eventTree = NULL;
@@ -92,20 +92,20 @@ void flower_destruct(Flower *flower, int32_t recursive) {
     Block *block;
     Group *group;
     Chain *chain;
-    Flower *nestedNet;
+    Flower *nestedFlower;
 
     if (recursive) {
         iterator = flower_getGroupIterator(flower);
         while ((group = flower_getNextGroup(iterator)) != NULL) {
-            nestedNet = group_getNestedNet(group);
-            if (nestedNet != NULL) {
-                flower_destruct(nestedNet, recursive);
+            nestedFlower = group_getNestedFlower(group);
+            if (nestedFlower != NULL) {
+                flower_destruct(nestedFlower, recursive);
             }
         }
         flower_destructGroupIterator(iterator);
     }
 
-    cactusDisk_unloadNet(flower->cactusDisk, flower);
+    cactusDisk_unloadFlower(flower->cactusDisk, flower);
 
     flower_destructFaces(flower);
     stSortedSet_destruct(flower->faces);
@@ -151,7 +151,7 @@ Name flower_getName(Flower *flower) {
     return flower->name;
 }
 
-CactusDisk *flower_getNetDisk(Flower *flower) {
+CactusDisk *flower_getCactusDisk(Flower *flower) {
     return flower->cactusDisk;
 }
 
@@ -393,7 +393,7 @@ Group *flower_getParentGroup(Flower *flower) {
     if (flower->parentFlowerName == NULL_NAME) {
         return NULL;
     }
-    Flower *flower2 = cactusDisk_getNet(flower_getNetDisk(flower), flower->parentFlowerName);
+    Flower *flower2 = cactusDisk_getFlower(flower_getCactusDisk(flower), flower->parentFlowerName);
     assert(flower2 != NULL);
     return flower_getGroup(flower2, flower_getName(flower));
 }
@@ -504,10 +504,10 @@ Reference *flower_getReference(Flower *flower) {
     return flower->reference;
 }
 
-/*Net *flower_mergeNets(Net *flower1, Net *flower2) {
+/*Flower *flower_mergeFlowers(Flower *flower1, Flower *flower2) {
  if(flower_getParentGroup(flower1) == NULL) { //We are merging two top level reconstructions!
  assert(flower_getParentGroup(flower2) == NULL);
- flower_mergeNetsP(flower1, flower2);
+ flower_mergeFlowersP(flower1, flower2);
  }
  else { //We are merging two sister flowers, merge there parent flowers, which in turn will merge the child flowers.
  group_mergeGroups(flower_getParentGroup(flower1), flower_getParentGroup(flower2));
@@ -626,37 +626,37 @@ bool flower_isTerminal(Flower *flower) {
 Flower *flower_removeIfRedundant(Flower *flower) {
     if (!flower_isLeaf(flower) && flower_getGroupNumber(flower) == 1 && flower_getBlockNumber(
             flower) == 0) { //We will remove this flower..
-        Flower *nestedNet = group_getNestedNet(flower_getFirstGroup(flower));
+        Flower *nestedFlower = group_getNestedFlower(flower_getFirstGroup(flower));
 
         //Unload the child flower from its position in the flowers hash..
-        cactusDisk_unloadNet(flower_getNetDisk(nestedNet), nestedNet);
+        cactusDisk_unloadFlower(flower_getCactusDisk(nestedFlower), nestedFlower);
         //and remove it from the disk (if it has been written there)
-        cactusDisk_deleteNetFromDisk(flower_getNetDisk(flower), flower_getName(nestedNet));
+        cactusDisk_deleteFlowerFromDisk(flower_getCactusDisk(flower), flower_getName(nestedFlower));
 
         //reassign names
-        Name oldName = flower_getName(nestedNet);
-        nestedNet->parentFlowerName = flower->parentFlowerName;
-        nestedNet->name = flower_getName(flower);
+        Name oldName = flower_getName(nestedFlower);
+        nestedFlower->parentFlowerName = flower->parentFlowerName;
+        nestedFlower->name = flower_getName(flower);
 
         //Get rid of the old flower..
         flower_destruct(flower, 0);
 
         //Ensure the nested flower is correctly hashed..
-        cactusDisk_addNet(flower_getNetDisk(nestedNet), nestedNet);
+        cactusDisk_addFlower(flower_getCactusDisk(nestedFlower), nestedFlower);
 
         //Ensure all the children of the nested flower also have the right pointer.
         Group *group;
-        Flower_GroupIterator *it = flower_getGroupIterator(nestedNet);
+        Flower_GroupIterator *it = flower_getGroupIterator(nestedFlower);
         while ((group = flower_getNextGroup(it)) != NULL) {
             if (!group_isLeaf(group)) {
-                Flower *nestedNestedNet = group_getNestedNet(group);
-                assert(nestedNestedNet->parentFlowerName == oldName);
-                nestedNestedNet->parentFlowerName = nestedNet->name;
+                Flower *nestedNestedFlower = group_getNestedFlower(group);
+                assert(nestedNestedFlower->parentFlowerName == oldName);
+                nestedNestedFlower->parentFlowerName = nestedFlower->name;
             }
         }
         flower_destructGroupIterator(it);
 
-        return nestedNet;
+        return nestedFlower;
     }
     return NULL;
 }
@@ -668,13 +668,13 @@ bool flower_deleteIfEmpty(Flower *flower) {
         while (flower_getGroupNumber(flower) > 0) {
             Group *group = flower_getFirstGroup(flower);
             if (!group_isLeaf(group)) {
-                bool i = flower_deleteIfEmpty(group_getNestedNet(group));
+                bool i = flower_deleteIfEmpty(group_getNestedFlower(group));
                 assert(i);
             }
         }
         assert(flower_getGroupNumber(flower) == 0);
         //This needs modification so that we don't do this directly..
-        cactusDisk_deleteNetFromDisk(flower_getNetDisk(flower), flower_getName(flower));
+        cactusDisk_deleteFlowerFromDisk(flower_getCactusDisk(flower), flower_getName(flower));
         Group *parentGroup = flower_getParentGroup(flower);
         group_destruct(parentGroup);
         flower_destruct(flower, 0);
@@ -778,8 +778,8 @@ void flower_removeGroup(Flower *flower, Group *group) {
 }
 
 void flower_setParentGroup(Flower *flower, Group *group) {
-    //assert(flower->parentNetName == NULL_NAME); we can change this if merging the parent flowers, so this no longer applies.
-    flower->parentFlowerName = flower_getName(group_getNet(group));
+    //assert(flower->parentFlowerName == NULL_NAME); we can change this if merging the parent flowers, so this no longer applies.
+    flower->parentFlowerName = flower_getName(group_getFlower(group));
 }
 
 void flower_addFace(Flower *flower, Face *face) {
@@ -804,7 +804,7 @@ void flower_removeReference(Flower *flower, Reference *reference) {
     flower->reference = NULL;
 }
 
-/*void flower_mergeNetsP(Net *flower1, Net *flower2) {
+/*void flower_mergeFlowersP(Flower *flower1, Flower *flower2) {
  //Check the build settings match
  assert(flower_builtBlocks(flower1) == flower_builtBlocks(flower2));
  assert(flower_builtTrees(flower1) == flower_builtTrees(flower2));
@@ -824,7 +824,7 @@ void flower_removeReference(Flower *flower, Reference *reference) {
 
  //Transfers the sequences not in flower2 from flower1.
  Sequence *sequence;
- Net_SequenceIterator *sequenceIterator = flower_getSequenceIterator(flower1);
+ Flower_SequenceIterator *sequenceIterator = flower_getSequenceIterator(flower1);
  while((sequence = flower_getNextSequence(sequenceIterator)) != NULL) {
  if(flower_getSequence(flower2, sequence_getName(sequence)) == NULL) {
  sequence_construct(sequence_getMetaSequence(sequence), flower2);
@@ -836,7 +836,7 @@ void flower_removeReference(Flower *flower, Reference *reference) {
  //to the objects left in flower1 to those in flower2.
 
  //Ensure caps and segments have event in the second event tree..
- Net_CapIterator *capIterator = flower_getCapIterator(flower1);
+ Flower_CapIterator *capIterator = flower_getCapIterator(flower1);
  Cap *cap;
  while((cap = flower_getNextCap(capIterator)) != NULL) {
  flower_addCap(flower2, cap);
@@ -849,7 +849,7 @@ void flower_removeReference(Flower *flower, Reference *reference) {
 
  //Segments currently use caps to get events, but we must include them from the
  //flower
- Net_SegmentIterator *segmentIterator = flower_getSegmentIterator(flower1);
+ Flower_SegmentIterator *segmentIterator = flower_getSegmentIterator(flower1);
  Segment *segment;
  while((segment = flower_getNextSegment(segmentIterator)) != NULL) {
  flower_addSegment(flower2, segment);
@@ -857,35 +857,35 @@ void flower_removeReference(Flower *flower, Reference *reference) {
  flower_destructSegmentIterator(segmentIterator);
 
  while(flower_getEndNumber(flower1) > 0) {
- end_setNet(flower_getFirstEnd(flower1), flower2);
+ end_setFlower(flower_getFirstEnd(flower1), flower2);
  }
 
  while(flower_getBlockNumber(flower1) > 0) {
- block_setNet(flower_getFirstBlock(flower1), flower2);
+ block_setFlower(flower_getFirstBlock(flower1), flower2);
  }
 
  while(flower_getFaceNumber(flower1) > 0) {
- face_setNet(flower_getFirstFace(flower1), flower2);
+ face_setFlower(flower_getFirstFace(flower1), flower2);
  }
 
  while(flower_getGroupNumber(flower1) > 0) {
- group_setNet(flower_getFirstGroup(flower1), flower2);
+ group_setFlower(flower_getFirstGroup(flower1), flower2);
  }
 
  while(flower_getChainNumber(flower1) > 0) {
- chain_setNet(flower_getFirstChain(flower1), flower2);
+ chain_setFlower(flower_getFirstChain(flower1), flower2);
  }
 
  while(flower_getReferenceNumber(flower1) > 0) {
- reference_setNet(flower_getFirstReference(flower1), flower2);
+ reference_setFlower(flower_getFirstReference(flower1), flower2);
  }
 
  //Now destroy the first flower.
  Name flowerName1 = flower_getName(flower1);
  flower_destruct(flower1, 0);
  //ensure flower1 is not in the flowerdisk..
- cactusDisk_deleteNetFromDisk(flower_getNetDisk(flower2), flowerName1);
- assert(cactusDisk_getNet(flower_getNetDisk(flower2), flowerName1) == NULL);
+ cactusDisk_deleteFlowerFromDisk(flower_getFlowerDisk(flower2), flowerName1);
+ assert(cactusDisk_getFlower(flower_getFlowerDisk(flower2), flowerName1) == NULL);
  }*/
 
 /*
@@ -905,7 +905,7 @@ void flower_writeBinaryRepresentation(Flower *flower, void(*writeFn)(const void 
     Group *group;
     Chain *chain;
 
-    binaryRepresentation_writeElementType(CODE_NET, writeFn);
+    binaryRepresentation_writeElementType(CODE_FLOWER, writeFn);
     binaryRepresentation_writeName(flower_getName(flower), writeFn);
     binaryRepresentation_writeBool(flower_builtBlocks(flower), writeFn);
     binaryRepresentation_writeBool(flower_builtTrees(flower), writeFn);
@@ -950,12 +950,12 @@ void flower_writeBinaryRepresentation(Flower *flower, void(*writeFn)(const void 
     flower_destructChainIterator(chainIterator);
 
     binaryRepresentation_writeBool(flower_builtFaces(flower), writeFn);
-    binaryRepresentation_writeElementType(CODE_NET, writeFn); //this avoids interpretting things wrong.
+    binaryRepresentation_writeElementType(CODE_FLOWER, writeFn); //this avoids interpretting things wrong.
 }
 
 Flower *flower_loadFromBinaryRepresentation(void **binaryString, CactusDisk *cactusDisk) {
     Flower *flower = NULL;
-    if (binaryRepresentation_peekNextElementType(*binaryString) == CODE_NET) {
+    if (binaryRepresentation_peekNextElementType(*binaryString) == CODE_FLOWER) {
         binaryRepresentation_popNextElementType(binaryString);
         flower = flower_construct2(binaryRepresentation_getName(binaryString),
                 cactusDisk);
@@ -975,7 +975,7 @@ Flower *flower_loadFromBinaryRepresentation(void **binaryString, CactusDisk *cac
         while (chain_loadFromBinaryRepresentation(binaryString, flower) != NULL)
             ;
         flower_setBuildFaces(flower, binaryRepresentation_getBool(binaryString));
-        assert(binaryRepresentation_popNextElementType(binaryString) == CODE_NET);
+        assert(binaryRepresentation_popNextElementType(binaryString) == CODE_FLOWER);
     }
     return flower;
 }

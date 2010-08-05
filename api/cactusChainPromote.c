@@ -8,7 +8,7 @@
 ////////////////////////////////////////////////
 ////////////////////////////////////////////////
 
-static void promoteBlock(Block *block, Flower *flower, Flower *parentNet) {
+static void promoteBlock(Block *block, Flower *flower, Flower *parentFlower) {
     /*
      * Redirects all the pointers in the block to the higher level.
      */
@@ -16,21 +16,21 @@ static void promoteBlock(Block *block, Flower *flower, Flower *parentNet) {
     Block_InstanceIterator *it = block_getInstanceIterator(block);
     while ((segment = block_getNext(it)) != NULL) {
         flower_removeSegment(flower, segment);
-        flower_addSegment(parentNet, segment);
+        flower_addSegment(parentFlower, segment);
     }
     block_destructInstanceIterator(it);
     flower_removeBlock(flower, block);
-    flower_addBlock(parentNet, block);
-    block->blockContents->flower = parentNet;
+    flower_addBlock(parentFlower, block);
+    block->blockContents->flower = parentFlower;
 }
 
-static void mergeStubEnd(End *end, Flower *flower, Flower *parentNet) {
+static void mergeStubEnd(End *end, Flower *flower, Flower *parentFlower) {
     /*
      * Removes the lower level stub end, reconnects the adjacencies of the higher level end to that of the lower level stub end.
      */
     assert(end_isStubEnd(end));
     assert(group_getLink(end_getGroup(end)) != NULL);
-    End *parentEnd = flower_getEnd(parentNet, end_getName(end));
+    End *parentEnd = flower_getEnd(parentFlower, end_getName(end));
     assert(parentEnd != NULL); //end is already present, so we will get rid of the lower level end, reconnecting the adjacencies..
     assert(end_getInstanceNumber(parentEnd) == end_getInstanceNumber(end));
 
@@ -42,49 +42,49 @@ static void mergeStubEnd(End *end, Flower *flower, Flower *parentNet) {
         assert(parentCap != NULL);
         Cap *adjacentCap = cap_getAdjacency(cap);
         if (cap_getAdjacency(cap) != NULL) {
-            Cap *parentAdjacentCap = flower_getCap(parentNet, cap_getName(
+            Cap *parentAdjacentCap = flower_getCap(parentFlower, cap_getName(
                     adjacentCap));
             assert(parentAdjacentCap != NULL);
-            assert(cactusDisk_getNet(flower_getNetDisk(flower), flower_getName(end_getNet(cap_getEnd(adjacentCap)))) == end_getNet(cap_getEnd(adjacentCap)));
+            assert(cactusDisk_getFlower(flower_getCactusDisk(flower), flower_getName(end_getFlower(cap_getEnd(adjacentCap)))) == end_getFlower(cap_getEnd(adjacentCap)));
             cap_breakAdjacency(cap); //We must remove the old adjacency so it doesn't hang around.
             cap_makeAdjacent(parentCap, parentAdjacentCap);
         }
     }
     end_destruct(end); //Destruct the old end
-    assert(group_getNet(group) == parentNet); //the group should already have been promoted
+    assert(group_getFlower(group) == parentFlower); //the group should already have been promoted
     end_setGroup(parentEnd, group); //ensures the parent end is in the group of the lower level flower..
 }
 
-static void promoteBlockEnd(End *end, Flower *flower, Flower *parentNet) {
+static void promoteBlockEnd(End *end, Flower *flower, Flower *parentFlower) {
     /*
      * Redirects all the pointers in the block end to the higher level flower.
      */
     assert(end_isBlockEnd(end));
-    assert(flower_getEnd(parentNet, end_getName(end)) == NULL);
+    assert(flower_getEnd(parentFlower, end_getName(end)) == NULL);
     Cap *cap;
     End_InstanceIterator *it = end_getInstanceIterator(end);
-    EventTree *eventTree = flower_getEventTree(parentNet);
+    EventTree *eventTree = flower_getEventTree(parentFlower);
     while ((cap = end_getNext(it)) != NULL) {
         Event *event = eventTree_getEvent(eventTree, event_getName(
                 cap_getEvent(cap)));
         assert(event != NULL);
         cap->capContents->event = event;
         if (cap_getSequence(cap) != NULL) {
-            Sequence *sequence = flower_getSequence(parentNet, sequence_getName(
+            Sequence *sequence = flower_getSequence(parentFlower, sequence_getName(
                     cap_getSequence(cap)));
             assert(sequence != NULL);
             cap->capContents->sequence = sequence;
         }
         flower_removeCap(flower, cap);
-        flower_addCap(parentNet, cap);
+        flower_addCap(parentFlower, cap);
     }
     end_destructInstanceIterator(it);
     flower_removeEnd(flower, end);
-    flower_addEnd(parentNet, end);
-    end->endContents->flower = parentNet;
+    flower_addEnd(parentFlower, end);
+    end->endContents->flower = parentFlower;
 }
 
-static void promoteEndsBlocksAndGroups(Chain *chain, Flower *flower, Flower *parentNet) {
+static void promoteEndsBlocksAndGroups(Chain *chain, Flower *flower, Flower *parentFlower) {
     /*
      * Promotes all the ends and blocks in the chain..
      */
@@ -93,16 +93,16 @@ static void promoteEndsBlocksAndGroups(Chain *chain, Flower *flower, Flower *par
         End *_3End = link_get3End(link);
         End *_5End = link_get5End(link);
         if (end_isBlockEnd(_3End)) {
-            promoteBlock(end_getBlock(_3End), flower, parentNet);
-            promoteBlockEnd(_3End, flower, parentNet);
+            promoteBlock(end_getBlock(_3End), flower, parentFlower);
+            promoteBlockEnd(_3End, flower, parentFlower);
         } else {
             assert(i == 0);
         }
         if (end_isBlockEnd(_5End)) {
             if (i + 1 == chain_getLength(chain)) {
-                promoteBlock(end_getBlock(_5End), flower, parentNet);
+                promoteBlock(end_getBlock(_5End), flower, parentFlower);
             }
-            promoteBlockEnd(_5End, flower, parentNet);
+            promoteBlockEnd(_5End, flower, parentFlower);
         } else {
             assert(i == chain_getLength(chain)-1);
         }
@@ -120,15 +120,15 @@ static void promoteEndsBlocksAndGroups(Chain *chain, Flower *flower, Flower *par
         group_destructEndIterator(groupEndIt);
         //Promote group
         flower_removeGroup(flower, group);
-        flower_addGroup(parentNet, group);
-        group->flower = parentNet;
-        Flower *nestedNet = group_getNestedNet(group);
-        if (nestedNet != NULL) {
-            nestedNet->parentFlowerName = flower_getName(parentNet);
+        flower_addGroup(parentFlower, group);
+        group->flower = parentFlower;
+        Flower *nestedFlower = group_getNestedFlower(group);
+        if (nestedFlower != NULL) {
+            nestedFlower->parentFlowerName = flower_getName(parentFlower);
         }
         //Promote any free stub ends..
         while (stList_length(freeStubEndsToPromote) > 0) {
-            mergeStubEnd(stList_pop(freeStubEndsToPromote), flower, parentNet);
+            mergeStubEnd(stList_pop(freeStubEndsToPromote), flower, parentFlower);
         }
         stList_destruct(freeStubEndsToPromote);
     }
@@ -136,46 +136,46 @@ static void promoteEndsBlocksAndGroups(Chain *chain, Flower *flower, Flower *par
     End *_3End = link_get3End(chain_getLink(chain, 0));
     if (end_isStubEnd(_3End)) {
         assert(end_isAttached(_3End));
-        assert(end_getNet(_3End) == flower);
-        mergeStubEnd(_3End, flower, parentNet);
+        assert(end_getFlower(_3End) == flower);
+        mergeStubEnd(_3End, flower, parentFlower);
     }
     End *_5End = link_get5End(chain_getLink(chain, chain_getLength(chain) - 1));
     if (end_isStubEnd(_5End)) {
         assert(end_isAttached(_5End));
-        assert(end_getNet(_5End) == flower);
-        mergeStubEnd(_5End, flower, parentNet);
+        assert(end_getFlower(_5End) == flower);
+        mergeStubEnd(_5End, flower, parentFlower);
     }
 }
 
-static Cap *promoteChainEndP(Cap *cap, Flower *parentNet) {
+static Cap *promoteChainEndP(Cap *cap, Flower *parentFlower) {
     End *end = cap_getEnd(cap);
     if (end_isBlockEnd(end)) {
-        assert(flower_getEnd(parentNet, end_getName(end)) == NULL);
+        assert(flower_getEnd(parentFlower, end_getName(end)) == NULL);
         Cap *otherCap = cap_getOtherSegmentCap(cap);
         assert(otherCap != NULL);
         assert(cap != otherCap);
         assert(cap_getEnd(otherCap) != cap_getEnd(cap));
         Cap *adjacentCap = cap_getAdjacency(otherCap);
         assert(adjacentCap != NULL);
-        return promoteChainEndP(adjacentCap, parentNet);
+        return promoteChainEndP(adjacentCap, parentFlower);
     }
-    Cap *higherCap = flower_getCap(parentNet, cap_getName(cap));
+    Cap *higherCap = flower_getCap(parentFlower, cap_getName(cap));
     assert(higherCap != NULL);
     assert(higherCap != cap);
     assert(cap_getName(higherCap) == cap_getName(cap));
     return higherCap;
 }
 
-static void promoteChainEnd(End *end, Flower *flower, Flower *parentNet) {
+static void promoteChainEnd(End *end, Flower *flower, Flower *parentFlower) {
     /*
      * Promotes the block end of a chain to the parent flower, creating a stub end
      * in the lower level flower.
      */
     assert(end_isBlockEnd(end));
     assert(end_getOrientation(end));
-    assert(end_getNet(end) == flower);
+    assert(end_getFlower(end) == flower);
     //promote the block end
-    promoteBlockEnd(end, flower, parentNet);
+    promoteBlockEnd(end, flower, parentFlower);
     //Sort out the group...
     Group *childGroup = end_getGroup(end);
     end_setGroup(end, flower_getParentGroup(flower));
@@ -193,8 +193,8 @@ static void promoteChainEnd(End *end, Flower *flower, Flower *parentNet) {
         Cap *childAdjacentCap = cap_getAdjacency(cap);
         assert(childCap != NULL);
         assert(childAdjacentCap != NULL);
-        assert(end_getNet(cap_getEnd(childCap)) == flower);
-        assert(end_getNet(cap_getEnd(childAdjacentCap)) == flower);
+        assert(end_getFlower(cap_getEnd(childCap)) == flower);
+        assert(end_getFlower(cap_getEnd(childAdjacentCap)) == flower);
         assert(end_getGroup(cap_getEnd(childCap)) == end_getGroup(cap_getEnd(childAdjacentCap)));
         cap_makeAdjacent(childCap, childAdjacentCap); //reconnect the adjacency.
     }
@@ -207,9 +207,9 @@ static void promoteChainEnd(End *end, Flower *flower, Flower *parentNet) {
         assert(parentCap != NULL);
         Cap *adjacentCap = cap_getAdjacency(cap);
         assert(adjacentCap != NULL);
-        assert(end_getNet(cap_getEnd(adjacentCap)) == flower);
+        assert(end_getFlower(cap_getEnd(adjacentCap)) == flower);
         //Search for the higher level adjacency..
-        Cap *adjacentParentCap = promoteChainEndP(adjacentCap, parentNet);
+        Cap *adjacentParentCap = promoteChainEndP(adjacentCap, parentFlower);
         assert(adjacentParentCap != NULL);
         assert(end_getGroup(cap_getEnd(parentCap)) == end_getGroup(cap_getEnd(adjacentParentCap)));
         cap_makeAdjacent(parentCap, adjacentParentCap);
@@ -304,7 +304,7 @@ void getMaximalChain_extension(End *parentEnd, End *end, stList *chainList,
     }
 }
 
-static stList *getMaximalChain(Chain *chain, Flower *flower, Flower *parentNet) {
+static stList *getMaximalChain(Chain *chain, Flower *flower, Flower *parentFlower) {
     /*
      * Calculates the structure of the promoted chain in relation to the existing parent chains.
      * This may result in the merging of the child chain with a parent chain.
@@ -317,8 +317,8 @@ static stList *getMaximalChain(Chain *chain, Flower *flower, Flower *parentNet) 
     Link *_3Link = chain_getLink(chain, chain_getLength(chain) - 1);
     End *_3End = link_get3End(_5Link);
     End *_5End = link_get5End(_3Link);
-    End *parent3End = flower_getEnd(parentNet, end_getName(_3End));
-    End *parent5End = flower_getEnd(parentNet, end_getName(_5End));
+    End *parent3End = flower_getEnd(parentFlower, end_getName(_3End));
+    End *parent5End = flower_getEnd(parentFlower, end_getName(_5End));
     Link *parentLink;
     if (parent3End != NULL && (parentLink = group_getLink(end_getGroup(
             parent3End))) != NULL) { //The chain is within an existing chain
@@ -340,10 +340,10 @@ void chain_promote(Chain *chain) {
      * Pushes the chain into the higher level flower.
      */
     assert(chain_getLength(chain)> 0);
-    Flower *flower = chain_getNet(chain);
+    Flower *flower = chain_getFlower(chain);
     Group *parentGroup = flower_getParentGroup(flower);
     assert(parentGroup != NULL);
-    Flower *parentNet = group_getNet(parentGroup);
+    Flower *parentFlower = group_getFlower(parentGroup);
 
 #ifdef BEN_DEBUG
     if (group_getLink(parentGroup) != NULL) { //Check we will be merging it into a higher level chain..
@@ -353,11 +353,11 @@ void chain_promote(Chain *chain) {
         assert(end_isStubEnd(_3End) || end_isStubEnd(_5End));
     }
     flower_check(flower);
-    flower_check(parentNet);
+    flower_check(parentFlower);
 #endif
 
     //Calculate the final chain structure..
-    stList *finalChainList = getMaximalChain(chain, flower, parentNet);
+    stList *finalChainList = getMaximalChain(chain, flower, parentFlower);
 
     //Calculate the chains that are involved in the final chain list.
     stSortedSet *chainsToExpunge = stSortedSet_construct2(
@@ -365,7 +365,7 @@ void chain_promote(Chain *chain) {
     stListIterator *endIt = stList_getIterator(finalChainList);
     char *endName;
     while ((endName = stList_getNext(endIt)) != NULL) { //Get chains in the parent which we extend..
-        End *end = flower_getEnd(parentNet, cactusMisc_stringToName(endName));
+        End *end = flower_getEnd(parentFlower, cactusMisc_stringToName(endName));
         if (end != NULL) {
             Link *link = group_getLink(end_getGroup(end));
             if (link != NULL) {
@@ -379,27 +379,27 @@ void chain_promote(Chain *chain) {
     //Handling the ends of the chain
     End *_3End = link_get3End(chain_getLink(chain, 0));
     if (end_isBlockEnd(_3End)) {
-        promoteChainEnd(end_getOtherBlockEnd(_3End), flower, parentNet);
+        promoteChainEnd(end_getOtherBlockEnd(_3End), flower, parentFlower);
     }
     End *_5End = link_get5End(chain_getLink(chain, chain_getLength(chain) - 1));
     if (end_isBlockEnd(_5End)) {
-        promoteChainEnd(end_getOtherBlockEnd(_5End), flower, parentNet);
+        promoteChainEnd(end_getOtherBlockEnd(_5End), flower, parentFlower);
     }
     //Redirect and reorganise all the ends, blocks and groups in the chain
-    promoteEndsBlocksAndGroups(chain, flower, parentNet);
+    promoteEndsBlocksAndGroups(chain, flower, parentFlower);
 
     //Get rid of the old chains (at this point we have everything barring the final chain structure).
     stSortedSet_destruct(chainsToExpunge);
 
     //Make the final chain..
-    Chain *newChain = chain_construct(parentNet);
+    Chain *newChain = chain_construct(parentFlower);
     for (int32_t i = 0; i < stList_length(finalChainList); i += 2) {
         Name _3EndName = cactusMisc_stringToName(stList_get(finalChainList, i));
         Name _5EndName =
                 cactusMisc_stringToName(stList_get(finalChainList, i + 1));
-        End *_3End = flower_getEnd(parentNet, _3EndName);
+        End *_3End = flower_getEnd(parentFlower, _3EndName);
         assert(_3End != NULL);
-        End *_5End = flower_getEnd(parentNet, _5EndName);
+        End *_5End = flower_getEnd(parentFlower, _5EndName);
         assert(_5End != NULL);
         Group *group = end_getGroup(_3End);
 #ifdef BEN_DEBUG
@@ -424,7 +424,7 @@ void chain_promote(Chain *chain) {
 
     if (flower_getAttachedStubEndNumber(flower) == 2 && group_isTangle(parentGroup)) {
         //We've inadvertantly created a length one chain involving just the ends of the flower
-        Chain *littleChain = chain_construct(parentNet);
+        Chain *littleChain = chain_construct(parentFlower);
         End *_3End = NULL, *_5End = NULL;
         End *end;
         Group_EndIterator *endIt = group_getEndIterator(parentGroup);
@@ -454,7 +454,7 @@ void chain_promote(Chain *chain) {
         assert(flower_getGroupNumber(flower)> 0);
     }
     flower_check(flower);
-    flower_check(parentNet);
+    flower_check(parentFlower);
 #endif
 }
 
@@ -467,7 +467,7 @@ void chain_promoteChainsThatExtendHigherLevelChains(Flower *flower) {
         stList *chains = stList_construct();
         while ((chain = flower_getNextChain(chainIt)) != NULL) {
             assert(chain_getLength(chain) >= 1);
-            assert(chain_getNet(chain) == flower);
+            assert(chain_getFlower(chain) == flower);
             stList_append(chains, chain);
         }
         flower_destructChainIterator(chainIt);

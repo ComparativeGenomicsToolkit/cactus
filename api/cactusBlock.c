@@ -13,9 +13,9 @@ int blockConstruct_constructP(const void *o1, const void *o2) {
 }
 
 Block *block_construct(int32_t length, Flower *flower) {
-	return block_construct2(cactusDisk_getUniqueID(flower_getNetDisk(flower)), length,
-			end_construct3(cactusDisk_getUniqueID(flower_getNetDisk(flower)), 0, 0, 1, flower),
-			end_construct3(cactusDisk_getUniqueID(flower_getNetDisk(flower)), 0, 0, 0, flower), flower);
+	return block_construct2(cactusDisk_getUniqueID(flower_getCactusDisk(flower)), length,
+			end_construct3(cactusDisk_getUniqueID(flower_getCactusDisk(flower)), 0, 0, 1, flower),
+			end_construct3(cactusDisk_getUniqueID(flower_getCactusDisk(flower)), 0, 0, 0, flower), flower);
 }
 
 Block *block_construct2(Name name, int32_t length,
@@ -49,7 +49,7 @@ Block *block_construct2(Name name, int32_t length,
 void block_destruct(Block *block) {
 	Segment *segment;
 	//remove from flower.
-	flower_removeBlock(block_getNet(block), block);
+	flower_removeBlock(block_getFlower(block), block);
 
 	//remove instances
 	while((segment = block_getFirst(block)) != NULL) {
@@ -83,7 +83,7 @@ int32_t block_getLength(Block *block) {
 	return block->blockContents->length;
 }
 
-Flower *block_getNet(Block *block) {
+Flower *block_getFlower(Block *block) {
 	return block->blockContents->flower;
 }
 
@@ -216,8 +216,8 @@ static void block_splitP2(Segment *segment,
 void block_split(Block *block, int32_t splitPoint, Block **leftBlock, Block **rightBlock) {
 	assert(splitPoint > 0);
 	assert(splitPoint < block_getLength(block));
-	*leftBlock = block_construct(splitPoint, block_getNet(block));
-	*rightBlock = block_construct(block_getLength(block) - splitPoint, block_getNet(block));
+	*leftBlock = block_construct(splitPoint, block_getFlower(block));
+	*rightBlock = block_construct(block_getLength(block) - splitPoint, block_getFlower(block));
 
 	Segment *segment = block_getRootInstance(block);
 	if(segment != NULL) {
@@ -235,9 +235,9 @@ void block_split(Block *block, int32_t splitPoint, Block **leftBlock, Block **ri
 
 void block_check(Block *block) {
 	//Check is connected to flower properly
-	assert(flower_getBlock(block_getNet(block), block_getName(block)) == block_getPositiveOrientation(block));
+	assert(flower_getBlock(block_getFlower(block), block_getName(block)) == block_getPositiveOrientation(block));
 	//Check we have actually set built blocks for the flower..
-	assert(flower_builtBlocks(block_getNet(block)));
+	assert(flower_builtBlocks(block_getFlower(block)));
 
 	//Checks the two ends are block ends.
 	End *_5End = block_get5End(block);
@@ -330,8 +330,8 @@ void block_removeInstance(Block *block, Segment *segment) {
 	stSortedSet_remove(block->blockContents->segments, segment_getPositiveOrientation(segment));
 }
 
-void block_setNet(Block *block, Flower *flower) {
-	flower_removeBlock(block_getNet(block), block);
+void block_setFlower(Block *block, Flower *flower) {
+	flower_removeBlock(block_getFlower(block), block);
 	block->blockContents->flower = flower;
 	flower_addBlock(flower, block);
 }

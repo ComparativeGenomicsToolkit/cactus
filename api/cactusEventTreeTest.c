@@ -20,7 +20,7 @@ static bool nestedTest = 0;
 static void cactusEventTreeTestTeardown() {
 	if(!nestedTest && cactusDisk != NULL) {
 		cactusDisk_destruct(cactusDisk);
-		testCommon_deleteTemporaryNetDisk();
+		testCommon_deleteTemporaryCactusDisk();
 		cactusDisk = NULL;
 		eventTree = NULL;
 		rootEvent = NULL;
@@ -33,7 +33,7 @@ static void cactusEventTreeTestTeardown() {
 static void cactusEventTreeTestSetup() {
 	if(!nestedTest) {
 		cactusEventTreeTestTeardown();
-		cactusDisk = cactusDisk_construct(testCommon_getTemporaryNetDisk());
+		cactusDisk = cactusDisk_construct(testCommon_getTemporaryCactusDisk());
 		flower = flower_construct(cactusDisk);
 
 		rootMetaEvent = metaEvent_construct("ROOT", cactusDisk);
@@ -116,9 +116,9 @@ void testEventTree_getCommonAncestor(CuTest* testCase) {
 	cactusEventTreeTestTeardown();
 }
 
-void testEventTree_getNet(CuTest* testCase) {
+void testEventTree_getFlower(CuTest* testCase) {
 	cactusEventTreeTestSetup();
-	CuAssertTrue(testCase, eventTree_getNet(eventTree) == flower);
+	CuAssertTrue(testCase, eventTree_getFlower(eventTree) == flower);
 	cactusEventTreeTestTeardown();
 }
 
@@ -264,7 +264,7 @@ void testEventTree_serialisation(CuTest* testCase) {
 	testEventTree_getRootEvent(testCase);
 	testEventTree_getEvent(testCase);
 	testEventTree_getCommonAncestor(testCase);
-	testEventTree_getNet(testCase);
+	testEventTree_getFlower(testCase);
 	testEventTree_getEventNumber(testCase);
 	testEventTree_getFirst(testCase);
 	testEventTree_makeNewickString(testCase);
@@ -280,7 +280,7 @@ CuSuite* cactusEventTreeTestSuite(void) {
 	SUITE_ADD_TEST(suite, testEventTree_getRootEvent);
 	SUITE_ADD_TEST(suite, testEventTree_getEvent);
 	SUITE_ADD_TEST(suite, testEventTree_getCommonAncestor);
-	SUITE_ADD_TEST(suite, testEventTree_getNet);
+	SUITE_ADD_TEST(suite, testEventTree_getFlower);
 	SUITE_ADD_TEST(suite, testEventTree_getEventNumber);
 	SUITE_ADD_TEST(suite, testEventTree_getFirst);
 	SUITE_ADD_TEST(suite, testEventTree_iterator);
