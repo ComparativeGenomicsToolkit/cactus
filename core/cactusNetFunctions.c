@@ -376,138 +376,73 @@ bool groupIsZeroLength(struct List *endNames, Flower *net) {
     return 1;
 }
 
-void addGroupsP(Flower *net, struct hashtable *groups) {
-    /*
-     * Adds the non chain groups to each net.
-     */
-    Flower_EndIterator *endIterator;
-    Flower_GroupIterator *adjacencyIterator;
-    Group_EndIterator *endIterator2;
-    End *end;
-    End *end2;
-    Group *group;
-    struct List *endNames;
-    int32_t i;
-
-    //Do for each level of the net.
-    adjacencyIterator = flower_getGroupIterator(net);
-    while ((group = flower_getNextGroup(adjacencyIterator)) != NULL) {
-        if (group_getNestedFlower(group) != NULL) {
-            addGroupsP(group_getNestedFlower(group), groups);
-        } else { //Ends are already in an terminal group!
-            endIterator2 = group_getEndIterator(group);
-            endNames = NULL;
-            while ((end = group_getNextEnd(endIterator2)) != NULL) {
-                assert((endNames = hashtable_remove(groups, (void *)cactusMisc_nameToStringStatic(end_getName(end)), 0)) != NULL);
-            }
-            group_destructEndIterator(endIterator2);
-            assert(endNames != NULL);
-            destructList(endNames);
+void addGroupsP(End *end, Group *group) {
+    End_InstanceIterator *capIt = end_getInstanceIterator(end);
+    Cap *cap;
+    assert(end_getGroup(end) == NULL);
+    end_setGroup(end, group);
+    assert(end_getGroup(end) == group);
+    while((cap = end_getNext(capIt)) != NULL) {
+        Cap *adjacentCap = cap_getAdjacency(cap);
+        assert(adjacentCap != NULL);
+        End *adjacentEnd = cap_getEnd(adjacentCap);
+        if(end_getGroup(adjacentEnd) == NULL) {
+            addGroupsP(adjacentEnd, group);
+        }
+        else {
+            assert(end_getGroup(adjacentEnd) == group);
         }
     }
-    flower_destructGroupIterator(adjacencyIterator);
-
-    endIterator = flower_getEndIterator(net);
-    while ((end = flower_getNextEnd(endIterator)) != NULL) {
-        group = end_getGroup(end);
-        if (group == NULL) {
-            endNames = hashtable_search(groups,
-                    (void *) cactusMisc_nameToStringStatic(end_getName(end)));
-            assert(endNames != NULL);
-#ifdef BEN_DEBUG
-            for (i = 0; i < endNames->length; i++) {
-                end2 = flower_getEnd(net, cactusMisc_stringToName(endNames->list[i]));
-                assert(end2 != NULL);
-                assert(end_getGroup(end2) == NULL);
-            }
-#endif
-            group = group_construct2(net);
-            for (i = 0; i < endNames->length; i++) {
-                end2 = flower_getEnd(net, cactusMisc_stringToName(endNames->list[i]));
-                end_setGroup(end2, group);
-            }
-#ifdef BEN_DEBUG
-            for (i = 0; i < endNames->length; i++) {
-                end2 = flower_getEnd(net, cactusMisc_stringToName(endNames->list[i]));
-                assert(end_getGroup(end2) == group);
-            }
-#endif
-            for (i = 0; i < endNames->length; i++) {
-                assert(hashtable_remove(groups, endNames->list[i], 0) == endNames);
-            }
-            destructList(endNames);
-        }
-    }
-    flower_destructEndIterator(endIterator);
-
-#ifdef BEN_DEBUG
-    if (flower_getGroupNumber(net) > 0 || flower_getBlockNumber(net) > 0) {
-        endIterator = flower_getEndIterator(net);
-        while ((end = flower_getNextEnd(endIterator)) != NULL) {
-            assert(end_getGroup(end) != NULL);
-        }
-        flower_destructEndIterator(endIterator);
-    }
-#endif
+    end_destructInstanceIterator(capIt);
 }
 
-void addGroups(Flower *net, struct PinchGraph *pinchGraph,
-        stSortedSet *chosenBlocks, struct hashtable *endNamesHash) {
-    int32_t i, j;
-    struct List *chosenPinchEdges = constructEmptyList(0, NULL);
-    struct CactusEdge *cactusEdge;
-    stSortedSetIterator *chosenBlocksIt = stSortedSet_getIterator(chosenBlocks);
-    while ((cactusEdge = stSortedSet_getNext(chosenBlocksIt)) != NULL) {
-        listAppend(chosenPinchEdges, cactusEdgeToFirstPinchEdge(cactusEdge,
-                pinchGraph));
-        assert(chosenPinchEdges->list[chosenPinchEdges->length-1] != NULL);
-    }
-    stSortedSet_destructIterator(chosenBlocksIt);
-    for (i = 0; i < pinchGraph->vertices->length; i++) {
-        struct PinchVertex *vertex = pinchGraph->vertices->list[i];
-        if (vertex_isDeadEnd(vertex) || vertex_isEnd(vertex)) {
-            listAppend(chosenPinchEdges, getFirstBlackEdge(vertex));
+void addGroups(Flower *flower) {
+    Flower_EndIterator *endIt = flower_getEndIterator(flower);
+    End *end;
+    while((end = flower_getNextEnd(endIt)) != NULL) {
+        Group *group = end_getGroup(end);
+        if(group == NULL) {
+            group = group_construct2(flower);
+            addGroupsP(end, group);
         }
     }
-    struct List *groupsList = getRecursiveComponents2(pinchGraph,
-            chosenPinchEdges);
-    destructList(chosenPinchEdges);
-    struct hashtable *groupsHash = create_hashtable(groupsList->length * 2,
-            hashtable_stringHashKey, hashtable_stringEqualKey, NULL, NULL);
-    for (i = 0; i < groupsList->length; i++) {
-        struct List *vertices = groupsList->list[i];
-        struct List *endNames = constructEmptyList(0, NULL);
-        assert(vertices->length> 0);
-        struct PinchVertex *vertex = vertices->list[0];
-        if (!vertex_isDeadEnd(vertex) && vertex->vertexID != 0) {
-            for (j = 0; j < vertices->length; j++) {
-                vertex = vertices->list[j];
-                assert(!vertex_isDeadEnd(vertex));
-                assert(vertex->vertexID != 0);
-                const char *endNameString = hashtable_search(endNamesHash,
-                        vertex);
-                //assert(endNameString != NULL);
-                if (endNameString != NULL) {
-                    listAppend(endNames, (void *) endNameString);
-                    hashtable_insert(groupsHash, (void *) endNameString,
-                            endNames);
+    flower_destructEndIterator(endIt);
+    //The following constructs a trivial chain, if necessary.
+    if(flower_isLeaf(flower) && flower_getAttachedStubEndNumber(flower) == 2 && flower_getBlockEndNumber(flower) == 0) {
+        assert(flower_getChainNumber(flower) == 0);
+        assert(flower_getGroupNumber(flower) == 1);
+        Group *group = flower_getFirstGroup(flower);
+        Chain *chain = chain_construct(flower);
+        End *_3End = NULL, *_5End = NULL;
+        End *end;
+        Flower_EndIterator *endIt = flower_getEndIterator(flower);
+        while ((end = group_getNextEnd(endIt)) != NULL) {
+            if (end_isAttached(end)) {
+                if (_3End == NULL) {
+                    _3End = end;
+                } else {
+                    assert(_5End == NULL);
+                    _5End = end;
                 }
             }
-            assert(endNames->length >= 1);
         }
-#ifdef BEN_DEBUG
+        flower_destructEndIterator(endIt);
+        if(end_getSide(_5End)) {
+            link_construct(_3End, _5End, group, chain);
+        }
         else {
-            for (j = 0; j < vertices->length; j++) {
-                vertex = vertices->list[j];
-                assert(vertex_isDeadEnd(vertex) || vertex->vertexID == 0);
-            }
+            link_construct(_5End, _3End, group, chain);
         }
-#endif
     }
-    destructList(groupsList);
-    addGroupsP(net, groupsHash);
-    assert(hashtable_count(groupsHash) == 0);
-    hashtable_destroy(groupsHash, FALSE, FALSE);
+    //Now call recursively
+    Flower_GroupIterator *groupIt = flower_getGroupIterator(flower);
+    Group *group;
+    while((group = flower_getNextGroup(groupIt)) != NULL) {
+        if(!group_isLeaf(group)) {
+            addGroups(group_getNestedFlower(group));
+        }
+    }
+    flower_destructGroupIterator(groupIt);
 }
 
 static int32_t *vertexDiscoveryTimes;
@@ -677,7 +612,7 @@ void fillOutNetFromInputs(Flower *parentNet, struct CactusGraph *cactusGraph,
 
     biConnectedComponents = computeSortedBiConnectedComponents(cactusGraph);
 
-    st_logDebug("Built the bi-connected components\n");
+    st_logDebug("Built the bi-connected components: %i\n", biConnectedComponents->length);
 
     ////////////////////////////////////////////////
     //Get DFS numbering on cactus vertices
@@ -745,6 +680,9 @@ void fillOutNetFromInputs(Flower *parentNet, struct CactusGraph *cactusGraph,
         for (j = 0; j < biConnectedComponent->length; j++) {
             cactusEdge = biConnectedComponent->list[j];
             if (isAStubCactusEdge(cactusEdge, pinchGraph)) {
+                if(isAFreeStubCactusEdge(cactusEdge, pinchGraph)) {
+                    assert(biConnectedComponent->length == 1);
+                }
                 cactusEdge2 = getNonDeadEndOfStubCactusEdge(cactusEdge,
                         pinchGraph);
                 assert(cactusEdge2 != NULL);
@@ -762,6 +700,7 @@ void fillOutNetFromInputs(Flower *parentNet, struct CactusGraph *cactusGraph,
                     listAppend(list, cactusEdge);
                 }
             } else if (stSortedSet_search(chosenBlocks, cactusEdge) == NULL) { //is a non stub not in the chosen list.
+                assert(cactusEdge->pieces->length == 1);
                 //merge vertices
                 mergeCactusVertices(cactusEdge, mergedVertexIDs, j,
                         biConnectedComponent);
@@ -936,8 +875,8 @@ void fillOutNetFromInputs(Flower *parentNet, struct CactusGraph *cactusGraph,
     //Add groups.
     ////////////////////////////////////////////////
 
-    addGroups(net, pinchGraph, chosenBlocks, endNamesHash);
-    st_logDebug("Added the trivial groups\n");
+    addGroups(net);
+    st_logDebug("Added the tangle groups\n");
 
     ////////////////////////////////////////////////
     //Set blocks for each net to 'built'
@@ -947,7 +886,7 @@ void fillOutNetFromInputs(Flower *parentNet, struct CactusGraph *cactusGraph,
     setBlocksBuilt(net);
 
 #ifdef BEN_DEBUG
-    flower_check(net);
+    flower_checkRecursive(net);
 #endif
 
     ////////////////////////////////////////////////

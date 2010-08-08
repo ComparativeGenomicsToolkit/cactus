@@ -579,6 +579,18 @@ void flower_check(Flower *flower) {
     flower_destructSequenceIterator(sequenceIterator);
 }
 
+void flower_checkRecursive(Flower *flower) {
+    flower_check(flower);
+    Flower_GroupIterator *groupIt = flower_getGroupIterator(flower);
+    Group *group;
+    while((group = flower_getNextGroup(groupIt)) != NULL) {
+        if(!group_isLeaf(group)) {
+            flower_checkRecursive(group_getNestedFlower(group));
+        }
+    }
+    flower_destructGroupIterator(groupIt);
+}
+
 bool flower_builtBlocks(Flower *flower) {
     return flower->builtBlocks;
 }

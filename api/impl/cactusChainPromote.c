@@ -429,7 +429,7 @@ void chain_promote(Chain *chain) {
         End *end;
         Group_EndIterator *endIt = group_getEndIterator(parentGroup);
         while ((end = group_getNextEnd(endIt)) != NULL) {
-            if (end_isBlockEnd(end) || end_isStubEnd(end)) {
+            if (end_isBlockEnd(end) || end_isAttached(end)) {
                 assert(flower_getEnd(flower, end_getName(end)) != NULL);
                 if (_3End == NULL) {
                     _3End = end;

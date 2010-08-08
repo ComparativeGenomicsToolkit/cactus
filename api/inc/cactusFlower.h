@@ -396,6 +396,11 @@ Reference *flower_getReference(Flower *flower);
 void flower_check(Flower *flower);
 
 /*
+ * Runs flower_check for the given flower and all nested flowers.
+ */
+void flower_checkRecursive(Flower *flower);
+
+/*
  * Returns non-zero iff the blocks for the flower have been added (i.e. no further
  * alignment will be added to the flower).
  */

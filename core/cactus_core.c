@@ -129,8 +129,8 @@ void destructCactusCoreInputParameters(CactusCoreInputParameters *cCIP) {
     free(cCIP);
 }
 
-struct CactusGraph *cactusCorePipeline_2(struct PinchGraph *pinchGraph,
-        Flower *net) {
+static struct CactusGraph *cactusCorePipeline_2(struct PinchGraph *pinchGraph,
+        Flower *net, int32_t excludeDegree1Edges) {
     struct CactusGraph *cactusGraph;
     struct List *threeEdgeConnectedComponents;
     int32_t startTime;
@@ -150,7 +150,7 @@ struct CactusGraph *cactusCorePipeline_2(struct PinchGraph *pinchGraph,
     ///////////////////////////////////////////////////////////////////////////
 
     startTime = time(NULL);
-    computeCactusGraph(pinchGraph, &cactusGraph, &threeEdgeConnectedComponents);
+    computeCactusGraph(pinchGraph, &cactusGraph, &threeEdgeConnectedComponents, excludeDegree1Edges);
     st_logInfo("Constructed the initial cactus graph in: %i seconds\n", time(
             NULL) - startTime);
 
@@ -306,7 +306,7 @@ int32_t cactusCorePipeline(Flower *net, CactusCoreInputParameters *cCIP,
         // Compute the cactus graph
         ////////////////////////////////////////////////
 
-        cactusGraph = cactusCorePipeline_2(pinchGraph, net);
+        cactusGraph = cactusCorePipeline_2(pinchGraph, net, !terminateRecursion);
 
         ////////////////////////////////////////////////
         // Get sorted bi-connected components.
@@ -374,7 +374,7 @@ int32_t cactusCorePipeline(Flower *net, CactusCoreInputParameters *cCIP,
                     // Re-compute the cactus graph
                     ////////////////////////////////////////////////
 
-                    cactusGraph = cactusCorePipeline_2(pinchGraph, net);
+                    cactusGraph = cactusCorePipeline_2(pinchGraph, net, !terminateRecursion);
 
                     ////////////////////////////////////////////////
                     // Get the sorted bi-connected components, again
@@ -482,9 +482,11 @@ int32_t cactusCorePipeline(Flower *net, CactusCoreInputParameters *cCIP,
 
             stSortedSet *chosenBlocks = filterBlocksByTreeCoverageAndLength(biConnectedComponents,
                                 net, 0.0, terminateRecursion ? 0 : 2, 0, 0, pinchGraph);
+            logTheChosenBlockSubset(biConnectedComponents,
+                    chosenBlocks,pinchGraph, net);
             //assert(stSortedSet_size(chosenBlocks) == cactusGraph_getEdgeNumber(cactusGraph) - net_getStubEndNumber(net)); //check that this does slurp up all the block edges in the graph except those representing stub ends.
             fillOutNetFromInputs(net, cactusGraph, pinchGraph, chosenBlocks);
-
+            //assert(0);
             if(cCIP->writeDebugFiles) {
                 ///////////////////////////////////////////////////////////////////////////
                 //Write out the graphs.

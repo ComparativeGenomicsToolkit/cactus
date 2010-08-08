@@ -64,7 +64,7 @@ void setCompleteStatus(const char *fileName) {
 	if(i > 11) {
 		const char *cA = fileName + i - 11;
 		if(strcmp(cA, ".incomplete") == 0) {
-			//isComplete = 0;
+			isComplete = 0;
 			st_logInfo("The file %s is specified incomplete, the sequences will be free\n", fileName);
 			return;
 		}
@@ -287,6 +287,9 @@ int main(int argc, char *argv[]) {
 	// Write the net to disk.
 	///////////////////////////////////////////////////////////////////////////
 
+#ifdef BEN_DEBUG //Check we've done okay.
+        flower_check(net);
+#endif
 	cactusDisk_write(netDisk);
 	st_logInfo("Updated the net on disk\n");
 

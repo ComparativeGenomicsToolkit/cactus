@@ -117,7 +117,8 @@ void writeOutCactusGraph(struct CactusGraph *cactusGraph,
 
 void computeCactusGraph(struct PinchGraph *pinchGraph,
         struct CactusGraph **cactusGraph,
-        struct List **threeEdgeConnectedComponents);
+        struct List **threeEdgeConnectedComponents,
+        int32_t excludeDegree1Edges);
 
 ////////////////////////////////////////////////
 ////////////////////////////////////////////////
