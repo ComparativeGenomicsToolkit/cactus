@@ -73,10 +73,5 @@ void chain_check(Chain *chain);
  */
 void chain_promoteChainsThatExtendHigherLevelChains(Flower *flower);
 
-/*
- * Names the chain with the given name. Will fail if the name collides
- * with an existing chain.
- */
-void chain_rename(Chain *chain, Name newName);
 
 #endif

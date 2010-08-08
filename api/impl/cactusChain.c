@@ -229,10 +229,3 @@ Chain *chain_getStaticNameWrapper(Name name) {
     chain.name = name;
     return &chain;
 }
-
-void chain_rename(Chain *chain, Name newName) {
-    assert(flower_getChain(chain_getFlower(chain), newName) == NULL);
-    chain->name = newName;
-    flower_removeChain(chain_getFlower(chain), chain);
-    flower_addChain(chain_getFlower(chain), chain);
-}

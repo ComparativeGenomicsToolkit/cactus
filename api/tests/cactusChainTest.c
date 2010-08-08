@@ -60,17 +60,6 @@ void testChain_getFlower(CuTest* testCase) {
     cactusChainTestTeardown();
 }
 
-void testChain_rename(CuTest* testCase) {
-    cactusChainTestSetup();
-    Name newName = cactusDisk_getUniqueID(cactusDisk);
-    Name oldName = chain_getName(chain);
-    chain_rename(chain, newName);
-    assert(chain_getName(chain) == newName);
-    assert(flower_getChain(flower, newName) == chain);
-    assert(flower_getChain(flower, oldName) == NULL);
-    cactusChainTestTeardown();
-}
-
 void testChain_serialisation(CuTest* testCase) {
     cactusChainTestSetup();
     int32_t i;
@@ -104,7 +93,6 @@ CuSuite* cactusChainTestSuite(void) {
     SUITE_ADD_TEST(suite, testChain_getName);
     SUITE_ADD_TEST(suite, testChain_getFlower);
     SUITE_ADD_TEST(suite, testChain_serialisation);
-    SUITE_ADD_TEST(suite, testChain_rename);
     SUITE_ADD_TEST(suite, testChain_construct);
     return suite;
 }

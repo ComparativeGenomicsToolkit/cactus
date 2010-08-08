@@ -9,7 +9,8 @@
 ////////////////////////////////////////////////
 
 int group_constructP(const void *o1, const void *o2) {
-    return cactusMisc_nameCompare(end_getName((End *) o1), end_getName((End *) o2));
+    return cactusMisc_nameCompare(end_getName((End *) o1), end_getName(
+            (End *) o2));
 }
 
 Group *group_construct(Flower *flower, Flower *nestedFlower) {
@@ -24,7 +25,8 @@ Group *group_construct(Flower *flower, Flower *nestedFlower) {
 Group *group_construct2(Flower *flower) {
     Group *group;
 
-    group = group_construct3(flower, cactusDisk_getUniqueID(flower_getCactusDisk(flower)), 1);
+    group = group_construct3(flower, cactusDisk_getUniqueID(
+            flower_getCactusDisk(flower)), 1);
     return group;
 }
 
@@ -74,11 +76,11 @@ static void copyAdjacencies(Group *group, Flower *nestedFlower) {
 void group_makeNestedFlower(Group *group) {
     assert(group_isLeaf(group));
     group->leafGroup = 0;
-    Flower *nestedFlower = flower_construct2(group_getName(group), flower_getCactusDisk(
-            group_getFlower(group)));
+    Flower *nestedFlower = flower_construct2(group_getName(group),
+            flower_getCactusDisk(group_getFlower(group)));
     flower_setParentGroup(nestedFlower, group);
-    eventTree_copyConstruct(flower_getEventTree(group_getFlower(group)), nestedFlower,
-            returnsTrue);
+    eventTree_copyConstruct(flower_getEventTree(group_getFlower(group)),
+            nestedFlower, returnsTrue);
     Group *nestedGroup = group_construct2(nestedFlower);
     //Add the ends to the nested flower.
     Group_EndIterator *endIterator = group_getEndIterator(group);
@@ -90,17 +92,9 @@ void group_makeNestedFlower(Group *group) {
     group_destructEndIterator(endIterator);
     //Now add adjacencies between the caps, mirroring the parent adjacencies.
     copyAdjacencies(group, nestedFlower);
+    //Create the trivial chain for the ends..
+    group_constructChainForLink(nestedGroup);
     assert(group_getTotalBaseLength(group) == flower_getTotalBaseLength(nestedFlower));
-    //Now copy any chain to the ends..
-    if(group_getLink(group) != NULL) {
-        Link *link = group_getLink(group);
-        Chain *nestedChain = chain_construct(nestedFlower);
-        End *_3End = group_getEnd(nestedGroup, end_getName(link_get3End(link)));
-        End *_5End = group_getEnd(nestedGroup, end_getName(link_get5End(link)));
-        assert(_3End != NULL);
-        assert(_5End != NULL);
-        link_construct(_3End, _5End, nestedGroup, nestedChain);
-    }
 }
 
 void group_updateContainedEnds(Group *group) {
@@ -151,8 +145,8 @@ Name group_getName(Group *group) {
 }
 
 Flower *group_getNestedFlower(Group *group) {
-    return group_isLeaf(group) ? NULL : cactusDisk_getFlower(flower_getCactusDisk(
-            group_getFlower(group)), group->name);
+    return group_isLeaf(group) ? NULL : cactusDisk_getFlower(
+            flower_getCactusDisk(group_getFlower(group)), group->name);
 }
 
 Link *group_getLink(Group *group) {
@@ -335,6 +329,44 @@ void group_check(Group *group) {
             }
         }
         group_destructEndIterator(endIterator);
+    }
+}
+
+void group_constructChainForLink(Group *group) {
+    //The following constructs a trivial chain, if necessary.
+    if (group_getLink(group) == NULL) {
+        Group_EndIterator *endIt = group_getEndIterator(group);
+        End *end;
+        int32_t i = 0;
+        while ((end = group_getNextEnd(endIt)) != NULL) {
+            if (end_isAttached(end) || end_isBlockEnd(end)) {
+                i++;
+            }
+        }
+        group_destructEndIterator(endIt);
+        if (i == 2) {
+            Chain *chain = chain_construct(group_getFlower(group));
+            End *_3End = NULL, *_5End = NULL;
+            endIt = group_getEndIterator(group);
+            while ((end = group_getNextEnd(endIt)) != NULL) {
+                if (end_isAttached(end) || end_isBlockEnd(end)) {
+                    if (_3End == NULL) {
+                        _3End = end;
+                    } else {
+                        assert(_5End == NULL);
+                        _5End = end;
+                    }
+                }
+            }
+            assert(_3End != NULL && _5End != NULL);
+            group_destructEndIterator(endIt);
+            if (end_getSide(_5End)) {
+                link_construct(_3End, _5End, group, chain);
+            } else {
+                link_construct(_5End, _3End, group, chain);
+            }
+            assert(group_isLink(group));
+        }
     }
 }
 

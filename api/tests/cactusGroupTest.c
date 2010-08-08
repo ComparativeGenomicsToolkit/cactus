@@ -203,6 +203,26 @@ void testGroup_getTotalBaseLength(CuTest *testCase) {
     cactusGroupTestTeardown();
 }
 
+void testGroup_constructChainForLink(CuTest *testCase) {
+    cactusGroupTestSetup();
+    //Create a link group and test function works!
+    Group *group3 = group_construct2(flower);
+    End *_5End = end_construct2(1, 1, flower);
+    End *_3End = end_construct2(0, 1, flower);
+    End *stubEnd = end_construct2(1, 0, flower);
+    end_setGroup(_5End, group3);
+    end_setGroup(_3End, group3);
+    end_setGroup(stubEnd, group3);
+    CuAssertTrue(testCase, group_isTangle(group3));
+    CuAssertTrue(testCase, group_getEndNumber(group3) == 3);
+    group_constructChainForLink(group3);
+    CuAssertTrue(testCase, group_isLink(group3));
+    Link *link = group_getLink(group3);
+    CuAssertTrue(testCase, link_get5End(link) == _5End);
+    CuAssertTrue(testCase, link_get3End(link) == _3End);
+    cactusGroupTestTeardown();
+}
+
 /*void testGroup_mergeGroups(CuTest *testCase) {
  cactusGroupTestSetup();
 
@@ -294,6 +314,7 @@ CuSuite* cactusGroupTestSuite(void) {
     SUITE_ADD_TEST(suite, testGroup_getEndNumber);
     SUITE_ADD_TEST(suite, testGroup_endIterator);
     SUITE_ADD_TEST(suite, testGroup_getTotalBaseLength);
+    SUITE_ADD_TEST(suite, testGroup_constructChainForLink);
     //SUITE_ADD_TEST(suite, testGroup_mergeGroups);
     SUITE_ADD_TEST(suite, testGroup_serialisation);
     SUITE_ADD_TEST(suite, testGroup_construct);

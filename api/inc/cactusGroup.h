@@ -137,4 +137,10 @@ int64_t group_getTotalBaseLength(Group *group);
  */
 void group_check(Group *group);
 
+/*
+ * If the group contains only two non-free stub ends (either block or attached stub ends),
+ * then the function constructs a chain and puts the two ends in the link.
+ */
+void group_constructChainForLink(Group *group);
+
 #endif

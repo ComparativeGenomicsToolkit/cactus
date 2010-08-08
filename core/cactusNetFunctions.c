@@ -407,40 +407,17 @@ void addGroups(Flower *flower) {
         }
     }
     flower_destructEndIterator(endIt);
-    //The following constructs a trivial chain, if necessary.
-    if(flower_isLeaf(flower) && flower_getAttachedStubEndNumber(flower) == 2 && flower_getBlockEndNumber(flower) == 0) {
-        assert(flower_getChainNumber(flower) == 0);
-        assert(flower_getGroupNumber(flower) == 1);
-        Group *group = flower_getFirstGroup(flower);
-        Chain *chain = chain_construct(flower);
-        End *_3End = NULL, *_5End = NULL;
-        End *end;
-        Flower_EndIterator *endIt = flower_getEndIterator(flower);
-        while ((end = group_getNextEnd(endIt)) != NULL) {
-            if (end_isAttached(end)) {
-                if (_3End == NULL) {
-                    _3End = end;
-                } else {
-                    assert(_5End == NULL);
-                    _5End = end;
-                }
-            }
-        }
-        flower_destructEndIterator(endIt);
-        if(end_getSide(_5End)) {
-            link_construct(_3End, _5End, group, chain);
-        }
-        else {
-            link_construct(_5End, _3End, group, chain);
-        }
-    }
-    //Now call recursively
+
+    //Now call recursively and make any little chains
     Flower_GroupIterator *groupIt = flower_getGroupIterator(flower);
     Group *group;
     while((group = flower_getNextGroup(groupIt)) != NULL) {
+        //Call recursively, if necessary
         if(!group_isLeaf(group)) {
             addGroups(group_getNestedFlower(group));
         }
+        //Make a little chain for the ends, if the group is empty.
+        group_constructChainForLink(group);
     }
     flower_destructGroupIterator(groupIt);
 }

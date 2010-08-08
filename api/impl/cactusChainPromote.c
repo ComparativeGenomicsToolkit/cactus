@@ -422,26 +422,8 @@ void chain_promote(Chain *chain) {
     }
     stList_destruct(finalChainList);
 
-    if (flower_getAttachedStubEndNumber(flower) == 2 && group_isTangle(parentGroup)) {
-        //We've inadvertantly created a length one chain involving just the ends of the flower
-        Chain *littleChain = chain_construct(parentFlower);
-        End *_3End = NULL, *_5End = NULL;
-        End *end;
-        Group_EndIterator *endIt = group_getEndIterator(parentGroup);
-        while ((end = group_getNextEnd(endIt)) != NULL) {
-            if (end_isBlockEnd(end) || end_isAttached(end)) {
-                assert(flower_getEnd(flower, end_getName(end)) != NULL);
-                if (_3End == NULL) {
-                    _3End = end;
-                } else {
-                    assert(_5End == NULL);
-                    _5End = end;
-                }
-            }
-        }
-        group_destructEndIterator(endIt);
-        link_construct(_3End, _5End, parentGroup, littleChain);
-    }
+    //We've inadvertantly created a length one chain involving just the ends of the flower
+    group_constructChainForLink(parentGroup);
 
 #ifdef BEN_DEBUG
     assert(flower_getParentGroup(flower) == parentGroup);
