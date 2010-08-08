@@ -193,6 +193,8 @@ static void promoteChainEnd(End *end, Flower *flower, Flower *parentFlower) {
         Cap *childAdjacentCap = cap_getAdjacency(cap);
         assert(childCap != NULL);
         assert(childAdjacentCap != NULL);
+        childAdjacentCap = flower_getCap(flower, cap_getName(childAdjacentCap)); //This is necessary in the case that there was a self loop!
+        assert(childAdjacentCap != NULL);
         assert(end_getFlower(cap_getEnd(childCap)) == flower);
         assert(end_getFlower(cap_getEnd(childAdjacentCap)) == flower);
         assert(end_getGroup(cap_getEnd(childCap)) == end_getGroup(cap_getEnd(childAdjacentCap)));
