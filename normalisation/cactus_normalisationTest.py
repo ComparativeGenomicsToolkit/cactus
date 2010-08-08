@@ -11,7 +11,7 @@ from cactus.shared.test import runWorkflow_multipleExamples
 class TestCase(unittest.TestCase):
     def testCactusNormalisation_Random(self):
         runWorkflow_multipleExamples(getCactusInputs_random,
-                                     testNumber=TestStatus.getTestSetup(),
+                                     testNumber=1000, #TestStatus.getTestSetup(),
                                      buildTrees=False, buildFaces=False, buildReference=False)
         
     def testCactusNormalisation_Blanchette(self):
