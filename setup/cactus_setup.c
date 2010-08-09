@@ -277,19 +277,18 @@ int main(int argc, char *argv[]) {
     //Construct the terminal group.
     //////////////////////////////////////////////
 
-    group = group_construct2(flower);
-    endIterator = flower_getEndIterator(flower);
-    while ((end = flower_getNextEnd(endIterator)) != NULL) {
-        end_setGroup(end, group);
+    if(flower_getEndNumber(flower) > 0) {
+        group = group_construct2(flower);
+        endIterator = flower_getEndIterator(flower);
+        while ((end = flower_getNextEnd(endIterator)) != NULL) {
+            end_setGroup(end, group);
+        }
+        flower_destructEndIterator(endIterator);
+        assert(group_isLeaf(group));
+
+        // Create a one link chain if there is only one pair of attached ends..
+        group_constructChainForLink(group);
     }
-    flower_destructEndIterator(endIterator);
-    assert(group_isLeaf(group));
-
-    ///////////////////////////////////////////////////////////////////////////
-    // Create a one link chain if there is only one pair of attached ends..
-    ///////////////////////////////////////////////////////////////////////////
-
-    group_constructChainForLink(group);
 
     ///////////////////////////////////////////////////////////////////////////
     // Set the blocksBuilt flag to true for this top level flower.
