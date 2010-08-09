@@ -131,15 +131,15 @@ class CactusWorkflowWrapper(Target):
       #----------------------------------------
       logger.info("CactusWorkflowWrapper: going to issue cactus run for simulation %s, parameter %s\n" %(self.simulation, self.paraFile))
       tempDir = getTempDirectory(self.outDir)
-      netdisk = os.path.join(tempDir, "netDisk")
+      flowerdisk = os.path.join(tempDir, "cactusDisk")
       jobtreeDir = os.path.join(tempDir, "jobTree")
       #batchSystem = "single_machine"
       batchSystem = "parasol"
       retryCount = 0
-      command = "cactus_workflow.py --speciesTree='%s' %s --configFile %s --buildTrees --setupAndBuildAlignments --netDisk %s --logDebug --job=JOB_FILE" %(self.tree, self.sequenceFiles, self.paraFile, netdisk)
+      command = "cactus_workflow.py --speciesTree='%s' %s --configFile %s --buildTrees --setupAndBuildAlignments --cactusDisk %s --logDebug --job=JOB_FILE" %(self.tree, self.sequenceFiles, self.paraFile, flowerdisk)
       starttime = time.time()
       runJobTree(command, jobtreeDir, "DEBUG", retryCount, batchSystem, None)
-      #runCactusWorkflow(netdisk, self.sequenceFiles, self.tree, jobtreeDir, "DEBUG", 0, batchSystem, None, True, True, False, False, self.config)
+      #runCactusWorkflow(flowerdisk, self.sequenceFiles, self.tree, jobtreeDir, "DEBUG", 0, batchSystem, None, True, True, False, False, self.config)
       runtime = time.time() - starttime
       logger.info("Done cactus_workflow for simulation %s, config %s\n" %(self.simulation, self.paraFile))
 
@@ -148,7 +148,7 @@ class CactusWorkflowWrapper(Target):
       #-----------------------
       #statsFile = os.path.join(self.outDir, "stats", "%s.xml" % self.simNum)
       statsFile = os.path.join(self.outDir, "stats", "%s.xml" % self.simName)
-      runCactusTreeStats(outputFile=statsFile, netDisk=netdisk)
+      runCactusTreeStats(outputFile=statsFile, cactusDisk=flowerdisk)
       #self.addChildCommand(command)
 
       #------------------- Adding child ------------------------#
@@ -167,16 +167,16 @@ class CactusMAFGeneratorWrapper(Target):
    def __init__(self, outDir, resultsDir, simTrueMafDir, simName, cactusRunTime):
       Target.__init__(self)
       self.outDir = outDir
-      self.resultsDir = resultsDir #Directory contains cactus netDisk and jobTree
+      self.resultsDir = resultsDir #Directory contains cactus cactusDisk and jobTree
       #self.simNum = simNum
       self.simTrueMafDir = simTrueMafDir
       self.simName = simName
       self.cactusRunTime = cactusRunTime
 
    def run(self, localTempDir, globalTempDir):
-      netdisk = os.path.join(self.resultsDir, "netDisk")
+      flowerdisk = os.path.join(self.resultsDir, "cactusDisk")
       maffile = os.path.join(self.resultsDir, "cactus.maf")
-      runCactusMAFGenerator(mAFFile = maffile, netDisk = netdisk)
+      runCactusMAFGenerator(mAFFile = maffile, cactusDisk = flowerdisk)
       #truemaffile = os.path.join(self.outDir,"..","sim", "%s_true.maf" %(self.simNum))
       #mafCompareFile = os.path.join(self.outDir, "mafCompare%s.xml" %self.simNum)
       truemaffile = os.path.join(self.simTrueMafDir, "%s_true.maf" %(self.simName))

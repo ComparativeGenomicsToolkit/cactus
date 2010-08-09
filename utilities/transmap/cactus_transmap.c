@@ -31,15 +31,15 @@ static int32_t transmap_getTotalDistanceBetweenCaps(Cap * A, Cap * B);
  * cap in the nested sub-graph
  */
 static int32_t transmap_getTotalDistanceAtAdjacency(Cap * A) {
-	Flower * net = group_getNestedFlower(end_getGroup(cap_getEnd(A))); 
+	Flower * flower = group_getNestedFlower(end_getGroup(cap_getEnd(A)));
 	Cap * B = cap_getAdjacency(A);
 	Cap * childA, * childB;
 
-	if (!net || !B)
+	if (!flower || !B)
 		return 0;
 
-	childA = flower_getCap(net, cap_getName(A));
-	childB = flower_getCap(net, cap_getName(B));
+	childA = flower_getCap(flower, cap_getName(A));
+	childB = flower_getCap(flower, cap_getName(B));
 
 #ifdef BEN_DEBUG
 	assert(childA);
@@ -86,14 +86,14 @@ static int32_t transmap_getTotalDistanceBetweenCaps(Cap * A, Cap * B) {
 static int32_t transmap_sampleOrderAndOrientationAtEvent(Event * E, Cap * A, Cap * B, int32_t * allowed_distance);
 
 /* 
- * Projects the stochastic search to a nested net
+ * Projects the stochastic search to a nested flower
  */
-static int32_t transmap_sampleOrderAndOrientationAtNestedNet(Event * E, Cap * A, int * allowed_distance) {
-	Flower * net = group_getNestedFlower(end_getGroup(cap_getEnd(A))); 
+static int32_t transmap_sampleOrderAndOrientationAtNestedFlower(Event * E, Cap * A, int * allowed_distance) {
+	Flower * flower = group_getNestedFlower(end_getGroup(cap_getEnd(A)));
 	Cap * B, * childA, * childB;
 	Event * childE;
 
-	if (!net)
+	if (!flower)
 		return true;
 	if (!A) 
 		return false;
@@ -101,9 +101,9 @@ static int32_t transmap_sampleOrderAndOrientationAtNestedNet(Event * E, Cap * A,
 	if (!B)
 		return false;
 
-	childA = flower_getCap(net, cap_getName(A));
-	childB = flower_getCap(net, cap_getName(B));
-	childE = eventTree_getEvent(flower_getEventTree(net), event_getName(E));
+	childA = flower_getCap(flower, cap_getName(A));
+	childB = flower_getCap(flower, cap_getName(B));
+	childE = eventTree_getEvent(flower_getEventTree(flower), event_getName(E));
 
 #ifdef BEN_DEBUG
 	assert(childA);
@@ -327,8 +327,8 @@ static int32_t transmap_sampleOrderAndOrientationAtEvent(Event * E, Cap * A, Cap
 			}
 		}
 
-		// Recursion down into nested net
-		if (!transmap_sampleOrderAndOrientationAtNestedNet(E, A, allowed_distance))
+		// Recursion down into nested flower
+		if (!transmap_sampleOrderAndOrientationAtNestedFlower(E, A, allowed_distance))
 			return false;
 
 		A = cap_getAdjacency(A);

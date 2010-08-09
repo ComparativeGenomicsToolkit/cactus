@@ -17,7 +17,7 @@
 void usage() {
     fprintf(stderr, "cactus_setup [fastaFile]xN, version 0.2\n");
     fprintf(stderr, "-a --logLevel : Set the log level\n");
-    fprintf(stderr, "-b --netDisk : The location of the net disk directory\n");
+    fprintf(stderr, "-b --cactusDisk : The location of the flower disk directory\n");
     fprintf(
             stderr,
             "-f --speciesTree : The species tree, which will form the skeleton of the event tree\n");
@@ -29,16 +29,16 @@ void usage() {
  * Plenty of global variables!
  */
 int32_t isComplete = 1;
-char * netDiskName = NULL;
-CactusDisk *netDisk;
-Flower *net;
+char * cactusDiskName = NULL;
+CactusDisk *cactusDisk;
+Flower *flower;
 EventTree *eventTree;
 Event *event;
 int32_t totalSequenceNumber = 0;
 
 void fn(const char *fastaHeader, const char *string, int32_t length) {
     /*
-     * Processes a sequence by adding it to the net disk.
+     * Processes a sequence by adding it to the flower disk.
      */
     End *end1;
     End *end2;
@@ -47,13 +47,13 @@ void fn(const char *fastaHeader, const char *string, int32_t length) {
     MetaSequence *metaSequence;
     Sequence *sequence;
 
-    //Now put the details in a net.
+    //Now put the details in a flower.
     metaSequence = metaSequence_construct(2, length, string, fastaHeader,
-            event_getName(event), netDisk);
-    sequence = sequence_construct(metaSequence, net);
+            event_getName(event), cactusDisk);
+    sequence = sequence_construct(metaSequence, flower);
     //isComplete = 0;
-    end1 = end_construct2(0, isComplete, net);
-    end2 = end_construct2(1, isComplete, net);
+    end1 = end_construct2(0, isComplete, flower);
+    end2 = end_construct2(1, isComplete, flower);
     cap1 = cap_construct2(end1, 1, 1, sequence);
     cap2 = cap_construct2(end2, length + 2, 1, sequence);
     cap_makeAdjacent(cap1, cap2);
@@ -81,7 +81,7 @@ void setCompleteStatus(const char *fileName) {
 int main(int argc, char *argv[]) {
     /*
      * Open the database.
-     * Construct a net.
+     * Construct a flower.
      * Construct an event tree representing the species tree.
      * For each sequence contruct two ends each containing an cap.
      * Make a file for the sequence.
@@ -111,7 +111,7 @@ int main(int argc, char *argv[]) {
 
     while (1) {
         static struct option long_options[] = { { "logLevel",
-                required_argument, 0, 'a' }, { "netDisk", required_argument, 0,
+                required_argument, 0, 'a' }, { "cactusDisk", required_argument, 0,
                 'b' }, { "speciesTree", required_argument, 0, 'f' }, { "help",
                 no_argument, 0, 'h' }, { "debug", no_argument, 0, 'd' }, { 0,
                 0, 0, 0 } };
@@ -129,7 +129,7 @@ int main(int argc, char *argv[]) {
                 logLevelString = optarg;
                 break;
             case 'b':
-                netDiskName = optarg;
+                cactusDiskName = optarg;
                 break;
             case 'f':
                 speciesTree = optarg;
@@ -151,7 +151,7 @@ int main(int argc, char *argv[]) {
     ///////////////////////////////////////////////////////////////////////////
 
     assert(logLevelString == NULL || strcmp(logLevelString, "CRITICAL") == 0 || strcmp(logLevelString, "INFO") == 0 || strcmp(logLevelString, "DEBUG") == 0);
-    assert(netDiskName != NULL);
+    assert(cactusDiskName != NULL);
     assert(speciesTree != NULL);
 
     //////////////////////////////////////////////
@@ -169,7 +169,7 @@ int main(int argc, char *argv[]) {
     //Log (some of) the inputs
     //////////////////////////////////////////////
 
-    st_logInfo("Net disk name : %s\n", netDiskName);
+    st_logInfo("Flower disk name : %s\n", cactusDiskName);
 
     for (j = optind; j < argc; j++) {
         st_logInfo("Sequence file/directory %s\n", argv[j]);
@@ -179,20 +179,20 @@ int main(int argc, char *argv[]) {
     //Load the database
     //////////////////////////////////////////////
 
-    netDisk = cactusDisk_construct(netDiskName);
-    st_logInfo("Set up the net disk\n");
+    cactusDisk = cactusDisk_construct(cactusDiskName);
+    st_logInfo("Set up the flower disk\n");
 
     //////////////////////////////////////////////
-    //Construct the net
+    //Construct the flower
     //////////////////////////////////////////////
 
-    if (cactusDisk_getFlowerNumberOnDisk(netDisk) != 0) {
-        cactusDisk_destruct(netDisk);
-        st_logInfo("The first net already exists\n");
+    if (cactusDisk_getFlowerNumberOnDisk(cactusDisk) != 0) {
+        cactusDisk_destruct(cactusDisk);
+        st_logInfo("The first flower already exists\n");
         return 0;
     }
-    net = flower_construct(netDisk);
-    st_logInfo("Constructed the net\n");
+    flower = flower_construct(cactusDisk);
+    st_logInfo("Constructed the flower\n");
 
     //////////////////////////////////////////////
     //Construct the event tree
@@ -202,7 +202,7 @@ int main(int argc, char *argv[]) {
             speciesTree);
     binaryTree = newickTreeParser(speciesTree, 0.0, 0);
     binaryTree->distance = INT32_MAX;
-    eventTree = eventTree_construct2(net); //creates the event tree and the root even
+    eventTree = eventTree_construct2(flower); //creates the event tree and the root even
     totalEventNumber = 1;
     st_logInfo("Constructed the basic event tree\n");
 
@@ -218,7 +218,7 @@ int main(int argc, char *argv[]) {
         totalEventNumber++;
         if (binaryTree->internal) {
             event = event_construct(metaEvent_construct(binaryTree->label,
-                    netDisk), binaryTree->distance, event, eventTree);
+                    cactusDisk), binaryTree->distance, event, eventTree);
             listAppend(stack, event);
             listAppend(stack, binaryTree->right);
             listAppend(stack, event);
@@ -226,7 +226,7 @@ int main(int argc, char *argv[]) {
         } else {
             assert(j < argc);
             event = event_construct(metaEvent_construct(binaryTree->label,
-                    netDisk), binaryTree->distance, event, eventTree);
+                    cactusDisk), binaryTree->distance, event, eventTree);
 
             struct stat info;//info about the file.
             exitOnFailure(stat(argv[j], &info),
@@ -267,7 +267,7 @@ int main(int argc, char *argv[]) {
     }
     char *eventTreeString = eventTree_makeNewickString(eventTree);
     st_logInfo(
-            "Constructed the initial net with %i sequences and %i events with string: %s\n",
+            "Constructed the initial flower with %i sequences and %i events with string: %s\n",
             totalSequenceNumber, totalEventNumber, eventTreeString);
     assert(event_getSubTreeBranchLength(eventTree_getRootEvent(eventTree)) >= 0.0);
     free(eventTreeString);
@@ -277,8 +277,8 @@ int main(int argc, char *argv[]) {
     //Construct the terminal group.
     //////////////////////////////////////////////
 
-    group = group_construct2(net);
-    endIterator = flower_getEndIterator(net);
+    group = group_construct2(flower);
+    endIterator = flower_getEndIterator(flower);
     while ((end = flower_getNextEnd(endIterator)) != NULL) {
         end_setGroup(end, group);
     }
@@ -292,41 +292,41 @@ int main(int argc, char *argv[]) {
     group_constructChainForLink(group);
 
     ///////////////////////////////////////////////////////////////////////////
-    // Set the blocksBuilt flag to true for this top level net.
+    // Set the blocksBuilt flag to true for this top level flower.
     ///////////////////////////////////////////////////////////////////////////
 
-    assert(!flower_builtBlocks(net));
-    flower_setBuiltBlocks(net, 1);
-    assert(flower_builtBlocks(net));
+    assert(!flower_builtBlocks(flower));
+    flower_setBuiltBlocks(flower, 1);
+    assert(flower_builtBlocks(flower));
 
     ///////////////////////////////////////////////////////////////////////////
-    // Write the net to disk.
+    // Write the flower to disk.
     ///////////////////////////////////////////////////////////////////////////
 
 #ifdef BEN_DEBUG //Check we've done okay.
-    flower_check(net);
+    flower_check(flower);
 #endif
-    cactusDisk_write(netDisk);
-    st_logInfo("Updated the net on disk\n");
+    cactusDisk_write(cactusDisk);
+    st_logInfo("Updated the flower on disk\n");
 
     ///////////////////////////////////////////////////////////////////////////
     // Cleanup.
     ///////////////////////////////////////////////////////////////////////////
 
-    cactusDisk_destruct(netDisk);
+    cactusDisk_destruct(cactusDisk);
 
     ///////////////////////////////////////////////////////////////////////////
     // Debug
     ///////////////////////////////////////////////////////////////////////////
 
     if (debug) {
-        netDisk = cactusDisk_construct(netDiskName);
-        net = cactusDisk_getFlower(netDisk, 0);
-        assert(net != NULL);
-        assert(flower_getSequenceNumber(net) == totalSequenceNumber);
-        assert(flower_getEndNumber(net) == 2*totalSequenceNumber);
-        assert(eventTree_getEventNumber(flower_getEventTree(net)) == totalEventNumber);
-        cactusDisk_destruct(netDisk);
+        cactusDisk = cactusDisk_construct(cactusDiskName);
+        flower = cactusDisk_getFlower(cactusDisk, 0);
+        assert(flower != NULL);
+        assert(flower_getSequenceNumber(flower) == totalSequenceNumber);
+        assert(flower_getEndNumber(flower) == 2*totalSequenceNumber);
+        assert(eventTree_getEventNumber(flower_getEventTree(flower)) == totalEventNumber);
+        cactusDisk_destruct(cactusDisk);
     }
 
     return 0;

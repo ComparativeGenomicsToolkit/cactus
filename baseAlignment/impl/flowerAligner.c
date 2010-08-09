@@ -186,11 +186,11 @@ static void pruneAlignments(Cap *cap, stSortedSet *endAlignment1, Cap *adjacentC
     stList_destruct(inducedAlignment2);
 }
 
-stSortedSet *makeNetAlignment(Flower *net, int32_t spanningTrees,
+stSortedSet *makeFlowerAlignment(Flower *flower, int32_t spanningTrees,
         int32_t maxSequenceLength, void *modelParameters) {
     //Make the end alignments, representing each as an adjacency alignment.
     End *end;
-    Flower_EndIterator *endIterator = flower_getEndIterator(net);
+    Flower_EndIterator *endIterator = flower_getEndIterator(flower);
     stHash *endAlignments = stHash_construct2(NULL,
             (void(*)(void *)) stSortedSet_destruct);
     while ((end = flower_getNextEnd(endIterator)) != NULL) {
@@ -200,7 +200,7 @@ stSortedSet *makeNetAlignment(Flower *net, int32_t spanningTrees,
     flower_destructEndIterator(endIterator);
 
     //Prune end alignments
-    endIterator = flower_getEndIterator(net);
+    endIterator = flower_getEndIterator(flower);
     while ((end = flower_getNextEnd(endIterator)) != NULL) {
         stSortedSet *endAlignment1 = stHash_search(endAlignments, end);
         assert(endAlignment1 != NULL);

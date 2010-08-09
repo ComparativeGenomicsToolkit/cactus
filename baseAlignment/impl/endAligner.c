@@ -59,7 +59,7 @@ stSortedSet *makeEndAlignment(End *end, int32_t spanningTrees, int32_t maxSequen
             cap = cap_getReverse(cap);
         }
         AdjacencySequence *adjacencySequence = adjacencySequence_construct(cap, maxSequenceLength);
-        //st_uglyf("I got the following %s %i %i %i \n", netMisc_nameToStringStatic(adjacencySequence->sequenceName), adjacencySequence->start, adjacencySequence->length, adjacencySequence->strand);
+        //st_uglyf("I got the following %s %i %i %i \n", flowerMisc_nameToStringStatic(adjacencySequence->sequenceName), adjacencySequence->start, adjacencySequence->length, adjacencySequence->strand);
         stList_append(sequences, adjacencySequence);
         stList_append(strings, adjacencySequence->string);
     }

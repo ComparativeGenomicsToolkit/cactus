@@ -11,8 +11,8 @@
 #include "cactus.h"
 
 /*
- * Ensures that all terminal groups have an attached leaf net.
+ * Ensures that all terminal groups have an attached leaf flower.
  */
-void makeTerminalNormal(Flower *net);
+void makeTerminalNormal(Flower *flower);
 
 #endif /* NORMAL_H_ */

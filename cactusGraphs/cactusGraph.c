@@ -434,7 +434,7 @@ void checkCactusContainsOnly2EdgeConnectedComponents(
     //(1) Get bi-connected components.
     ////////////////////////////////////////////////
     biConnectedComponents = computeBiConnectedComponents(cactusGraph);
-    st_logDebug("Constructed the biconnected components for making the net\n");
+    st_logDebug("Constructed the biconnected components for making the flower\n");
 
     ////////////////////////////////////////////////
     //(2) Check every component is a cycle.
@@ -613,7 +613,7 @@ struct List *computeSortedBiConnectedComponents(struct CactusGraph *cactusGraph)
     //(1) Get bi-connected components.
     ////////////////////////////////////////////////
     biConnectedComponents = computeBiConnectedComponents(cactusGraph);
-    st_logDebug("Constructed the biconnected components for making the net\n");
+    st_logDebug("Constructed the biconnected components for making the flower\n");
 
     ////////////////////////////////////////////////
     //(1) Get DFS ordering on nodes
@@ -880,7 +880,7 @@ void writeOutCactusGraph(struct CactusGraph *cactusGraph,
                  piece = edge->pieces->list[k];
                  pinchEdge = getContainingBlackEdge(pinchGraph, piece->contig, piece->start);
                  fprintf(fileHandle, "n" INT_STRING "n -- n" INT_STRING "n [label=\"" INT_STRING ":" INT_STRING ":%s\"];\n",
-                 edge->from->vertexID, edge->to->vertexID, piece->start, piece->end, netMisc_nameToStringStatic(piece->contig));
+                 edge->from->vertexID, edge->to->vertexID, piece->start, piece->end, flowerMisc_nameToStringStatic(piece->contig));
                  }
                  }
                  else {*/
@@ -1059,7 +1059,7 @@ static void circulariseStemsP(struct CactusGraph *cactusGraph,
     //(1) Get bi-connected components.
     ////////////////////////////////////////////////
     biConnectedComponents = computeBiConnectedComponents(cactusGraph);
-    st_logDebug("Constructed the biconnected components for making the net\n");
+    st_logDebug("Constructed the biconnected components for making the flower\n");
 
     ////////////////////////////////////////////////
     //(2) Put stems in a hash
@@ -1143,7 +1143,7 @@ void circulariseStems(struct CactusGraph *cactusGraph,
 ////////////////////////////////////////////////
 
 
-float treeCoverage2(struct CactusEdge *cactusEdge, Flower *net,
+float treeCoverage2(struct CactusEdge *cactusEdge, Flower *flower,
         struct PinchGraph *pinchGraph) {
     /*
      * Returns the proportion of the tree covered by the block.
@@ -1152,7 +1152,7 @@ float treeCoverage2(struct CactusEdge *cactusEdge, Flower *net,
     assert(!isAStubCactusEdge(cactusEdge, pinchGraph));
 #endif
     return treeCoverage(
-            cactusEdgeToFirstPinchEdge(cactusEdge, pinchGraph)->from, net);
+            cactusEdgeToFirstPinchEdge(cactusEdge, pinchGraph)->from, flower);
 }
 
 int32_t chainLength(struct List *biConnectedComponent, int32_t includeStubs,
@@ -1193,7 +1193,7 @@ int32_t chainBaseLength(struct List *biConnectedComponent,
 }
 
 stSortedSet *filterBlocksByTreeCoverageAndLength(
-        struct List *biConnectedComponents, Flower *net,
+        struct List *biConnectedComponents, Flower *flower,
         float minimumTreeCoverage, /*Minimum tree coverage to be included (>=) */
         int32_t minimumBlockDegree, /*The minimum number of segments in a block to be included (>=)*/
         int32_t minimumBlockLength, /*The minimum length of an block to be included (>=)*/
@@ -1216,7 +1216,7 @@ stSortedSet *filterBlocksByTreeCoverageAndLength(
                     if (minimumBlockDegree <= 0 || cactusEdge->pieces->length
                             >= minimumBlockDegree) {
                         if (minimumTreeCoverage <= 0.0 || treeCoverage2(
-                                cactusEdge, net, pinchGraph)
+                                cactusEdge, flower, pinchGraph)
                                 >= minimumTreeCoverage) {
                             struct Piece *piece = cactusEdge->pieces->list[0];
                             if (minimumBlockLength <= 0 || piece->end
@@ -1233,7 +1233,7 @@ stSortedSet *filterBlocksByTreeCoverageAndLength(
 }
 
 void logTheChosenBlockSubset(struct List *biConnectedComponents,
-        stSortedSet *chosenBlocks, struct PinchGraph *pinchGraph, Flower *net) {
+        stSortedSet *chosenBlocks, struct PinchGraph *pinchGraph, Flower *flower) {
     /*
      * Produces logging information about the chosen blocks.
      */
@@ -1268,7 +1268,7 @@ void logTheChosenBlockSubset(struct List *biConnectedComponents,
     stSortedSetIterator *it = stSortedSet_getIterator(chosenBlocks);
     while ((cactusEdge = stSortedSet_getNext(it)) != NULL) {
         if (!isAStubCactusEdge(cactusEdge, pinchGraph)) {
-            totalBlockScore += treeCoverage2(cactusEdge, net, pinchGraph);
+            totalBlockScore += treeCoverage2(cactusEdge, flower, pinchGraph);
             piece = cactusEdge->pieces->list[0];
             totalBlockLength += piece->end - piece->start + 1;
             averagePieceNumber += cactusEdge->pieces->length;

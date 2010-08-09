@@ -21,10 +21,10 @@ class MakeSequences(Target):
     """Take a reconstruction problem and generate the sequences to be blasted.
     Then setup the follow on blast targets and collation targets.
     """
-    def __init__(self, netDisk, netName, resultsFile, blastOptions):
+    def __init__(self, cactusDisk, flowerName, resultsFile, blastOptions):
         Target.__init__(self)
-        self.netDisk = netDisk
-        self.netName = netName
+        self.cactusDisk = cactusDisk
+        self.flowerName = flowerName
         self.resultsFile = resultsFile
         self.blastOptions = blastOptions
         
@@ -42,7 +42,7 @@ class MakeSequences(Target):
         #Construct the sequences file for doing all against all blast.
         ##########################################
         
-        system("cactus_aligner %s %s %s" % (self.netDisk, self.netName, tempSeqFile))
+        system("cactus_aligner %s %s %s" % (self.cactusDisk, self.flowerName, tempSeqFile))
         
         logger.info("Got the sequence files to align")
         
@@ -92,11 +92,11 @@ def main():
     parser.add_option("--job", dest="jobFile", 
                       help="Job file containing command to run")
     
-    parser.add_option("--netDisk", dest="netDisk", 
-                      help="The path to the net-disk")
+    parser.add_option("--cactusDisk", dest="cactusDisk", 
+                      help="The path to the flower-disk")
     
-    parser.add_option("--netName", dest="netName", 
-                      help="The name of the net in which to get the sequences to align")
+    parser.add_option("--flowerName", dest="flowerName", 
+                      help="The name of the flower in which to get the sequences to align")
     
     parser.add_option("--useDummy", dest="useDummy", action="store_true",
                       help="Use a dummy blast aligner target (for testing)",
@@ -114,8 +114,8 @@ def main():
     if parsedOptions.useDummy:
         blastOptions = MakeBlastsTest()
     
-    firstTarget = MakeSequences(parsedOptions.netDisk, 
-                                parsedOptions.netName, 
+    firstTarget = MakeSequences(parsedOptions.cactusDisk, 
+                                parsedOptions.flowerName, 
                                 parsedOptions.resultsFile, 
                                 blastOptions)
     firstTarget.execute(parsedOptions.jobFile)

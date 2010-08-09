@@ -1,30 +1,30 @@
 #include "referenceViewer.h"
 
 /*
- * The script builds a circos style plot of the reference structure of a net.
+ * The script builds a circos style plot of the reference structure of a flower.
  * The format of the output graph is dot format.
  */
 
 static void usage() {
     fprintf(stderr, "cactus_referenceViewer, version 0.2\n");
     fprintf(stderr, "-a --logLevel : Set the log level\n");
-    fprintf(stderr, "-c --netDisk : The location of the net disk directory\n");
-    fprintf(stderr, "-d --netName : The name of the net (the key in the database)\n");
+    fprintf(stderr, "-c --cactusDisk : The location of the flower disk directory\n");
+    fprintf(stderr, "-d --flowerName : The name of the flower (the key in the database)\n");
     fprintf(stderr, "-e --outputFile : The file to write the dot graph file in.\n");
     fprintf(stderr, "-h --help : Print this help screen\n");
 }
 
 int main(int argc, char *argv[]) {
-    CactusDisk *netDisk;
-    Flower *net;
+    CactusDisk *cactusDisk;
+    Flower *flower;
     FILE *fileHandle;
 
     /*
      * Arguments/options
      */
     char * logLevelString = NULL;
-    char * netDiskName = NULL;
-    char * netName = NULL;
+    char * cactusDiskName = NULL;
+    char * flowerName = NULL;
     char * outputFile = NULL;
 
     ///////////////////////////////////////////////////////////////////////////
@@ -34,8 +34,8 @@ int main(int argc, char *argv[]) {
     while(1) {
         static struct option long_options[] = {
             { "logLevel", required_argument, 0, 'a' },
-            { "netDisk", required_argument, 0, 'c' },
-            { "netName", required_argument, 0, 'd' },
+            { "cactusDisk", required_argument, 0, 'c' },
+            { "flowerName", required_argument, 0, 'd' },
             { "outputFile", required_argument, 0, 'e' },
             { "help", no_argument, 0, 'h' },
             { 0, 0, 0, 0 }
@@ -54,10 +54,10 @@ int main(int argc, char *argv[]) {
                 logLevelString = stString_copy(optarg);
                 break;
             case 'c':
-                netDiskName = stString_copy(optarg);
+                cactusDiskName = stString_copy(optarg);
                 break;
             case 'd':
-                netName = stString_copy(optarg);
+                flowerName = stString_copy(optarg);
                 break;
             case 'e':
                 outputFile = stString_copy(optarg);
@@ -75,8 +75,8 @@ int main(int argc, char *argv[]) {
     // (0) Check the inputs.
     ///////////////////////////////////////////////////////////////////////////
 
-    assert(netDiskName != NULL);
-    assert(netName != NULL);
+    assert(cactusDiskName != NULL);
+    assert(flowerName != NULL);
     assert(outputFile != NULL);
 
     //////////////////////////////////////////////
@@ -94,27 +94,27 @@ int main(int argc, char *argv[]) {
     //Log (some of) the inputs
     //////////////////////////////////////////////
 
-    st_logInfo("Net disk name : %s\n", netDiskName);
-    st_logInfo("Net name : %s\n", netName);
+    st_logInfo("Flower disk name : %s\n", cactusDiskName);
+    st_logInfo("Flower name : %s\n", flowerName);
     st_logInfo("Output graph file : %s\n", outputFile);
 
     //////////////////////////////////////////////
     //Load the database
     //////////////////////////////////////////////
 
-    netDisk = cactusDisk_construct(netDiskName);
-    st_logInfo("Set up the net disk\n");
+    cactusDisk = cactusDisk_construct(cactusDiskName);
+    st_logInfo("Set up the flower disk\n");
 
     ///////////////////////////////////////////////////////////////////////////
     // Parse the basic reconstruction problem
     ///////////////////////////////////////////////////////////////////////////
 
-    net = cactusDisk_getFlower(netDisk, cactusMisc_stringToName(netName));
-    Group *group = flower_getFirstGroup(net);
+    flower = cactusDisk_getFlower(cactusDisk, cactusMisc_stringToName(flowerName));
+    Group *group = flower_getFirstGroup(flower);
     if(group != NULL && !group_isLeaf(group)) {
-    	net = group_getNestedFlower(group);
+    	flower = group_getNestedFlower(group);
     }
-    st_logInfo("Parsed the top level net of the cactus tree to build\n");
+    st_logInfo("Parsed the top level flower of the cactus tree to build\n");
 
     ///////////////////////////////////////////////////////////////////////////
     // Build the graph.
@@ -122,8 +122,8 @@ int main(int argc, char *argv[]) {
 
     fileHandle = fopen(outputFile, "w");
     graphViz_setupGraphFile(fileHandle);
-    assert(flower_getReference(net) != NULL);
-    makeReferenceGraph(flower_getReference(net), fileHandle);
+    assert(flower_getReference(flower) != NULL);
+    makeReferenceGraph(flower_getReference(flower), fileHandle);
     graphViz_finishGraphFile(fileHandle);
     fclose(fileHandle);
     st_logInfo("Written the reference graph to file\n");
@@ -132,7 +132,7 @@ int main(int argc, char *argv[]) {
     // Clean up.
     ///////////////////////////////////////////////////////////////////////////
 
-    cactusDisk_destruct(netDisk);
+    cactusDisk_destruct(cactusDisk);
 
     return 0;
 }

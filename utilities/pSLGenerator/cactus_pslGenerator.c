@@ -43,7 +43,7 @@
  * Since we only care about the pairwise alignment of two sequences: query and target, we will only
  * look at the blocks that contain both query and target, or the 'common blocks'.
  *
- * First, traverse the net to get the aligned threads of the query and target. An aligned thread in this context is 
+ * First, traverse the flower to get the aligned threads of the query and target. An aligned thread in this context is
  * a series of segments that belong to common blocks when traversing from the 5' end to 3' end of the sequence.
  * For example, say we have common blocks 1 (AATC), 2 (CCT), and 3(GG). 
  * Query is AATC...CCT...GG...AATC...CCT...AATC...CCT...GG and target is AATC...CCT...GG (... indicates unaligned bases)
@@ -52,14 +52,14 @@
  * Second, use DP to align threads. Aligning threads is essentiallly aligning segments.
  * Two segments are matched and aligned if and only if they belong to the same block and have same orientations.
  * 
- * One limitation of aligning concerns inversion. Within a level of net, if an inversion occurs, it will be missed.
+ * One limitation of aligning concerns inversion. Within a level of flower, if an inversion occurs, it will be missed.
  * (There should be a solution for this, for which i'll come back later. 
  *  For now, if there is an inversion within a level, it'll just be reported to stderr.)
- * However, if the inversion causes a nested net, then it will be reported.
+ * However, if the inversion causes a nested flower, then it will be reported.
  * For example, if we have thread 1 as 0123-2-113 and thread 2 as 01231213, then the output alignment will be
  * 012313 and 012313. 
  * If we have 0123-2-1 and 0123-2-1, the alignment would be: 0123-2-1, 0123-2-1
- * However, if we have 0123(-5-4)13 and 0123(45)13 where 4 and 5 belong to a nested net, then two alignments will
+ * However, if we have 0123(-5-4)13 and 0123(45)13 where 4 and 5 belong to a nested flower, then two alignments will
  * be reported: (012313, 012313) and (45, 45) with the changes in sequence strands recorded. 
  *
  */
@@ -99,8 +99,8 @@ struct Stubs{
 //========================== PROTOTYPES =======================================
 bool isStubCap(Cap *cap);
 int getPSL(struct Align *align, struct Thread *qThread, struct Thread *tThread, char *query, char *target, FILE *fileHandle);
-void getPSLNet(FILE *fileHandle, char *query, char *target, int start, int end, Cap *qstartCap, bool exhaust);
-Cap *net_getChildCap(Flower *net, Cap *pcap);
+void getPSLFlower(FILE *fileHandle, char *query, char *target, int start, int end, Cap *qstartCap, bool exhaust);
+Cap *flower_getChildCap(Flower *flower, Cap *pcap);
 
 //========================= INITIALIZATION FUNCTIONS ==========================
 struct Thread *setThread(){
@@ -139,7 +139,7 @@ void pslInitialize(struct psl *psl){
 }
 
 //============================= UTILS FUNCTIONS ========================
-void makePSLHeader(Flower *net, FILE *fileHandle) {
+void makePSLHeader(Flower *flower, FILE *fileHandle) {
    pslWriteHead(fileHandle);
 } 
 
@@ -155,12 +155,12 @@ char *formatSequenceHeader(Sequence *sequence) {
    }
 }
 
-Sequence *net_getSequenceByName(Flower *net, char *name){
+Sequence *flower_getSequenceByName(Flower *flower, char *name){
    /*
-    *Return sequence in 'net' whose name is 'name'
+    *Return sequence in 'flower' whose name is 'name'
     */
    Sequence *sequence;
-   Flower_SequenceIterator * seqIterator = flower_getSequenceIterator(net);
+   Flower_SequenceIterator * seqIterator = flower_getSequenceIterator(flower);
    while((sequence = flower_getNextSequence(seqIterator)) != NULL){
       char *sequenceHeader = formatSequenceHeader(sequence);
       //if 'sequenceHeader' starts with 'name'
@@ -173,11 +173,11 @@ Sequence *net_getSequenceByName(Flower *net, char *name){
    return NULL;
 }
 
-int getSequences(Flower *net, char ***seqs, char *name){
-   //get names of all the sequences in 'net' that have their names start with 'name'
+int getSequences(Flower *flower, char ***seqs, char *name){
+   //get names of all the sequences in 'flower' that have their names start with 'name'
    int num = 0;
    Sequence *sequence;
-   Flower_SequenceIterator * seqIterator = flower_getSequenceIterator(net);
+   Flower_SequenceIterator * seqIterator = flower_getSequenceIterator(flower);
    while((sequence = flower_getNextSequence(seqIterator)) != NULL){
       char *sequenceHeader = formatSequenceHeader(sequence);
       //if 'sequenceHeader' starts with 'name'
@@ -792,7 +792,7 @@ End *traverseQuery(Cap *cap, struct Thread **thread, char *query, char *target, 
    if(!isCommonBlock(end_getBlock(cap_getEnd(cap)), query, target)){
       moveCapToNextCommonBlock(&cap, target);
    }
-   //traverse the net, start from 'cap', to get the thread
+   //traverse the flower, start from 'cap', to get the thread
    while(!isStubCap(cap)){
       End *cend = cap_getEnd(cap);
       Block *block = end_getBlock(cend);
@@ -801,7 +801,7 @@ End *traverseQuery(Cap *cap, struct Thread **thread, char *query, char *target, 
       if(coor >= end){ //past range
          if(past){//if already visited this cap before, break
             break;
-         }else{//if past the range, but hasn't visited any lower nets
+         }else{//if past the range, but hasn't visited any lower flowers
             cap = prevcap;
             past = true;
             continue;
@@ -826,14 +826,14 @@ End *traverseQuery(Cap *cap, struct Thread **thread, char *query, char *target, 
 	 }
 	 *((*thread)->caps + size) = cap;
 	 size++;
-         //Traverse lower level nets if exists 
+         //Traverse lower level flowers if exists
 	 Group *group = end_getGroup(end_getOppEnd(cend));
-	 Flower *nestedNet = group_getNestedFlower(group);
-         flower_check(nestedNet);
-	 if(nestedNet != NULL){//recursive call
-            Cap *childCap = net_getChildCap(nestedNet, cap_getOppCap(cap));
+	 Flower *nestedFlower = group_getNestedFlower(group);
+         flower_check(nestedFlower);
+	 if(nestedFlower != NULL){//recursive call
+            Cap *childCap = flower_getChildCap(nestedFlower, cap_getOppCap(cap));
             if(childCap != NULL){
-               getPSLNet(fileHandle, query, target, start, end, childCap, exhaust);
+               getPSLFlower(fileHandle, query, target, start, end, childCap, exhaust);
 	    }
 	 }
       }
@@ -861,7 +861,7 @@ bool cmpWithEnd(Cap *cap, char *name, int end){
 }
 void traverseTarget(Cap *cap, struct Thread **thread, char *query, char *target, int start, int end){
    int size = (*thread)->size;
-   //traverse the net, start from 'cap', to get the thread
+   //traverse the flower, start from 'cap', to get the thread
    while(!isStubCap(cap)){
       End *cend = cap_getEnd(cap);
       Block *block = end_getBlock(cend);
@@ -882,10 +882,10 @@ void traverseTarget(Cap *cap, struct Thread **thread, char *query, char *target,
 }
 
 //=================== GET START OF THREAD (3' STUB) ====================================
-Cap *net_getThreadStart(Flower *net, char *name){// from Net = 0
+Cap *flower_getThreadStart(Flower *flower, char *name){// from Flower = 0
    //Get 3' end Stubs of the sequence by its name
    Cap *cap;
-   Flower_CapIterator *capIterator = flower_getCapIterator(net);
+   Flower_CapIterator *capIterator = flower_getCapIterator(flower);
    while((cap= flower_getNextCap(capIterator)) != NULL){
       if(isStubCap(cap) && !cap_getSide(cap)){//3' dead end or inherited end
          Sequence *sequence = cap_getSequence(cap);
@@ -901,10 +901,10 @@ Cap *net_getThreadStart(Flower *net, char *name){// from Net = 0
    return cap;
 }
 
-Cap *net_getChildCap(Flower *net, Cap *pcap){
-   //Find stub in net that is correspond to input pcap, which is from parent net
+Cap *flower_getChildCap(Flower *flower, Cap *pcap){
+   //Find stub in flower that is correspond to input pcap, which is from parent flower
    Cap *cap;
-   Flower_CapIterator *capIterator = flower_getCapIterator(net);
+   Flower_CapIterator *capIterator = flower_getCapIterator(flower);
    while((cap= flower_getNextCap(capIterator)) != NULL){
       if(isStubCap(cap)){//inherited end
          if(cap_getName(pcap) == cap_getName(cap)){
@@ -919,11 +919,11 @@ Cap *net_getChildCap(Flower *net, Cap *pcap){
 }
 
 //===================== GETTING PSLs FROM CHAINS FOR CURRENT NET ==============
-void getPSLNet(FILE *fileHandle, char *query, char *target, int start, int end, Cap *qstartCap, bool exhaust){
+void getPSLFlower(FILE *fileHandle, char *query, char *target, int start, int end, Cap *qstartCap, bool exhaust){
    /*
-    *Get PSLs for net, current level
+    *Get PSLs for flower, current level
     */
-   //Each thread is an array of ordered caps obtained by traversing the net
+   //Each thread is an array of ordered caps obtained by traversing the flower
    int size;
    int i=0;
    Cap *cap;
@@ -970,7 +970,7 @@ void getPSLNet(FILE *fileHandle, char *query, char *target, int start, int end, 
 }
 
 //========================= TANGLE PSLs =======================================
-void block_getPSL(Flower *net, Cap *qcap, Cap *tcap, char *query, char *target, FILE *fileHandle){
+void block_getPSL(Flower *flower, Cap *qcap, Cap *tcap, char *query, char *target, FILE *fileHandle){
    /*
     *print PSL for 2 aligned segments (applied for tangle cases)
     */
@@ -980,8 +980,8 @@ void block_getPSL(Flower *net, Cap *qcap, Cap *tcap, char *query, char *target, 
    char lastStep = '\n';
    int blockSpace = 1; //default number of blocks 
    char strand[3];
-   //char *netName = netMisc_nameToString(net_getName(net));
-   //struct psl * psl = pslNew(netName, 0, 0, 0, target, 0, 0, 0, strand, blockSpace, 0);
+   //char *flowerName = flowerMisc_nameToString(flower_getName(flower));
+   //struct psl * psl = pslNew(flowerName, 0, 0, 0, target, 0, 0, 0, strand, blockSpace, 0);
    struct psl * psl = pslNew(query, 0, 0, 0, target, 0, 0, 0, strand, blockSpace, 0);
    pslInitialize(psl);
    
@@ -1029,14 +1029,14 @@ bool block_inRange(Block *block, char *name, int s, int e){
    block_destructInstanceIterator(segmentIterator);
    return inrange;
 }
-void getPSLTangle(Flower *net, FILE *fileHandle, char *query, char *target, int s, int e){
+void getPSLTangle(Flower *flower, FILE *fileHandle, char *query, char *target, int s, int e){
    End *end;
    Cap *cap;
    Cap *qcap;
    Cap *tcap;
    int i, j;
    struct Stubs *stubs = setStubs();
-   Flower_EndIterator *endIterator = flower_getEndIterator(net);
+   Flower_EndIterator *endIterator = flower_getEndIterator(flower);
    while((end= flower_getNextEnd(endIterator)) != NULL){
       Block *block = end_getBlock(end);
      if(block == NULL){ continue; }
@@ -1063,7 +1063,7 @@ void getPSLTangle(Flower *net, FILE *fileHandle, char *query, char *target, int 
 	       qcap = *(stubs->qstubs + i);
                for(j=0; j< stubs->tnum; j++){
 	          tcap = *(stubs->tstubs + j);
-                  block_getPSL(net, qcap, tcap,query, target, fileHandle);
+                  block_getPSL(flower, qcap, tcap,query, target, fileHandle);
 	       }
 	    }
 	 }
@@ -1076,41 +1076,41 @@ void getPSLTangle(Flower *net, FILE *fileHandle, char *query, char *target, int 
    }
    flower_destructEndIterator(endIterator);
 
-   Flower_GroupIterator *groupIterator = flower_getGroupIterator(net);
+   Flower_GroupIterator *groupIterator = flower_getGroupIterator(flower);
    Group *group;
    while((group = flower_getNextGroup(groupIterator)) != NULL) {
-      Flower *nestedNet = group_getNestedFlower(group);
-      if(nestedNet != NULL) {
-         getPSLTangle(nestedNet, fileHandle, query, target, s, e);
+      Flower *nestedFlower = group_getNestedFlower(group);
+      if(nestedFlower != NULL) {
+         getPSLTangle(nestedFlower, fileHandle, query, target, s, e);
       }
    }
    flower_destructGroupIterator(groupIterator);
 }
 
 //============================ GETTING ALL THE PSLs =========================
-void getPSLs(Flower *net, FILE *fileHandle, char *query, char *target, int *starts, int *ends, int size, bool tangle, bool exhaust) {
+void getPSLs(Flower *flower, FILE *fileHandle, char *query, char *target, int *starts, int *ends, int size, bool tangle, bool exhaust) {
    /*
-    *Print to output file PSLs of net and all (nested) nets in the lower levels
+    *Print to output file PSLs of flower and all (nested) flowers in the lower levels
     */
-   char *netName = cactusMisc_nameToString(flower_getName(net));
-   fprintf(stderr, "\nNET: %s\n", netName);
+   char *flowerName = cactusMisc_nameToString(flower_getName(flower));
+   fprintf(stderr, "\nNET: %s\n", flowerName);
    int i, start, end;
-   Cap *qstartCap = net_getThreadStart(net, query);
+   Cap *qstartCap = flower_getThreadStart(flower, query);
    if(size == 0){//No reference - set limit to the whole sequence - Won't do exhaust!
       start = 2;
-      Sequence *qseq = net_getSequenceByName(net, query);
+      Sequence *qseq = flower_getSequenceByName(flower, query);
       end = sequence_getLength(qseq) + 2;
       fprintf(stderr, "Getting psl for range: <%d -  %d>\n", start, end);
-      getPSLNet(fileHandle, query, target, start, end, qstartCap, false);
+      getPSLFlower(fileHandle, query, target, start, end, qstartCap, false);
       if(tangle){
-         getPSLTangle(net, fileHandle, query, target, start, end);
+         getPSLTangle(flower, fileHandle, query, target, start, end);
       }
    }else{
       for(i=0; i< size; i++){
          fprintf(stderr, "Getting psl for range: <%d -  %d>\n", *(starts +i), *(ends +i));
-         getPSLNet(fileHandle, query, target, *(starts + i), *(ends + i), qstartCap, exhaust);
+         getPSLFlower(fileHandle, query, target, *(starts + i), *(ends + i), qstartCap, exhaust);
          if(tangle){
-            getPSLTangle(net, fileHandle, query, target, *(starts + i), *(ends + i));
+            getPSLTangle(flower, fileHandle, query, target, *(starts + i), *(ends + i));
          }
       }
    }
@@ -1154,16 +1154,16 @@ int getRanges(struct psl *refpsl, int offset, int **starts, int **ends){
    return size;
 }
 
-void getAllPSLs(Flower *net, FILE *fileHandle, char *query, char *target, struct psl *refpsl, int offset, bool tangle, bool exhaust) {
+void getAllPSLs(Flower *flower, FILE *fileHandle, char *query, char *target, struct psl *refpsl, int offset, bool tangle, bool exhaust) {
    char **qseqs;
    char **tseqs;
    char *qName;
    char *tName;
    int q, t;
-   net = group_getNestedFlower(flower_getFirstGroup(net));
+   flower = group_getNestedFlower(flower_getFirstGroup(flower));
    //Look for all query and target sequences with name start with 'query' and 'target'
-   int qnum = getSequences(net, &qseqs, query);
-   int tnum = getSequences(net, &tseqs, target);
+   int qnum = getSequences(flower, &qseqs, query);
+   int tnum = getSequences(flower, &tseqs, target);
 
    //Find the set of limits from refpslList
    int *starts = NULL; 
@@ -1175,7 +1175,7 @@ void getAllPSLs(Flower *net, FILE *fileHandle, char *query, char *target, struct
       for(t = 0; t < tnum; t++){
          tName = *(tseqs + t);
          fprintf(stderr, "\tCurrent Target: %s\n", tName);
-         getPSLs(net, fileHandle, qName, tName, starts, ends, size, tangle, exhaust);
+         getPSLs(flower, fileHandle, qName, tName, starts, ends, size, tangle, exhaust);
       }
    }
    if(size > 0){
@@ -1196,7 +1196,7 @@ void getAllPSLs(Flower *net, FILE *fileHandle, char *query, char *target, struct
 void usage() {
    fprintf(stderr, "cactus_pslGenerator, version 0.2\n");
    fprintf(stderr, "-a --logLevel : Set the log level\n");
-   fprintf(stderr, "-c --netDisk : The location of the net disk directory\n");
+   fprintf(stderr, "-c --cactusDisk : The location of the flower disk directory\n");
    fprintf(stderr, "-e --outputFile : The file to write the PSLs in.\n");
    fprintf(stderr, "-q --query : Name of the query sequence.\n");
    fprintf(stderr, "-t --target : Name of the target sequence.\n");
@@ -1211,15 +1211,15 @@ void usage() {
 
 //============================== MAIN =========================================
 int main(int argc, char *argv[]) {
-   CactusDisk *netDisk;
-   Flower *net;
+   CactusDisk *cactusDisk;
+   Flower *flower;
 
    /*
     * Arguments/options
     */
    char * logLevelString = NULL;
-   char * netDiskName = NULL;
-   char * netName = NULL;
+   char * cactusDiskName = NULL;
+   char * flowerName = NULL;
    char * outputFile = NULL;
    char * query = NULL;
    char * target = NULL;
@@ -1241,7 +1241,7 @@ int main(int argc, char *argv[]) {
          { "query", required_argument, 0, 'q' },
          { "target", required_argument, 0, 't' },
          { "logLevel", required_argument, 0, 'a' },
-         { "netDisk", required_argument, 0, 'c' },
+         { "cactusDisk", required_argument, 0, 'c' },
          { "outputFile", required_argument, 0, 'e' },
          { "help", no_argument, 0, 'h' },
          { 0, 0, 0, 0 }
@@ -1260,7 +1260,7 @@ int main(int argc, char *argv[]) {
             logLevelString = stString_copy(optarg);
             break;
          case 'c':
-            netDiskName = stString_copy(optarg);
+            cactusDiskName = stString_copy(optarg);
             break;
          case 'e':
             outputFile = stString_copy(optarg);
@@ -1296,7 +1296,7 @@ int main(int argc, char *argv[]) {
    // (0) Check the inputs.
    ///////////////////////////////////////////////////////////////////////////
 
-   assert(netDiskName != NULL);
+   assert(cactusDiskName != NULL);
    assert(outputFile != NULL);
    assert(query != NULL);
    assert(target != NULL);
@@ -1316,8 +1316,8 @@ int main(int argc, char *argv[]) {
    //Log (some of) the inputs
    //////////////////////////////////////////////
 
-   st_logInfo("Net disk name : %s\n", netDiskName);
-   st_logInfo("Net name : %s\n", netName);
+   st_logInfo("Flower disk name : %s\n", cactusDiskName);
+   st_logInfo("Flower name : %s\n", flowerName);
    st_logInfo("Output PSL file : %s\n", outputFile);
    st_logInfo("Query: %s\n", query);
    st_logInfo("Target: %s\n", target);
@@ -1326,28 +1326,28 @@ int main(int argc, char *argv[]) {
    //Load the database
    //////////////////////////////////////////////
 
-   netDisk = cactusDisk_construct(netDiskName);
-   st_logInfo("Set up the net disk\n");
+   cactusDisk = cactusDisk_construct(cactusDiskName);
+   st_logInfo("Set up the flower disk\n");
 
    ///////////////////////////////////////////////////////////////////////////
    // Parse the basic reconstruction problem
    ///////////////////////////////////////////////////////////////////////////
-   netName = stString_copy("0");
-   net = cactusDisk_getFlower(netDisk, cactusMisc_stringToName(netName));
-   st_logInfo("Parsed the top level net of the cactus tree to check\n");
+   flowerName = stString_copy("0");
+   flower = cactusDisk_getFlower(cactusDisk, cactusMisc_stringToName(flowerName));
+   st_logInfo("Parsed the top level flower of the cactus tree to check\n");
 
    ///////////////////////////////////////////////////////////////////////////
-   // Recursive check the nets.
+   // Recursive check the flowers.
    ///////////////////////////////////////////////////////////////////////////
 
    int64_t startTime = time(NULL);
    FILE *fileHandle = fopen(outputFile, "w");
-   makePSLHeader(net, fileHandle);
+   makePSLHeader(flower, fileHandle);
    struct psl *refpsl = NULL;
    if(ref != NULL){
       refpsl = pslLoadAll(ref);
    }
-   getAllPSLs(net, fileHandle, query, target, refpsl, offset, tangle, exhaust);
+   getAllPSLs(flower, fileHandle, query, target, refpsl, offset, tangle, exhaust);
    fclose(fileHandle);
    st_logInfo("Got the psls in %i seconds/\n", time(NULL) - startTime);
 
@@ -1355,7 +1355,7 @@ int main(int argc, char *argv[]) {
    // Clean up.
    ///////////////////////////////////////////////////////////////////////////
 
-   cactusDisk_destruct(netDisk);
+   cactusDisk_destruct(cactusDisk);
 
    return 0;
 }

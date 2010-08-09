@@ -12,7 +12,7 @@
 #include "hashTableC.h"
 
 /*
- * The script outputs a maf file containing all the block in a net and its descendants.
+ * The script outputs a maf file containing all the block in a flower and its descendants.
  */
 
 char *formatSequenceHeader(Sequence *sequence) {
@@ -87,21 +87,21 @@ void getMAFBlock(Block *block, FILE *fileHandle) {
     }
 }
 
-void getMAFs(Flower *net, FILE *fileHandle) {
+void getMAFs(Flower *flower, FILE *fileHandle) {
     /*
-     * Outputs MAF representations of all the block sin the net and its descendants.
+     * Outputs MAF representations of all the block sin the flower and its descendants.
      */
 
     //Make MAF blocks for each block
-    Flower_BlockIterator *blockIterator = flower_getBlockIterator(net);
+    Flower_BlockIterator *blockIterator = flower_getBlockIterator(flower);
     Block *block;
     while ((block = flower_getNextBlock(blockIterator)) != NULL) {
         getMAFBlock(block, fileHandle);
     }
     flower_destructBlockIterator(blockIterator);
 
-    //Call child nets recursively.
-    Flower_GroupIterator *groupIterator = flower_getGroupIterator(net);
+    //Call child flowers recursively.
+    Flower_GroupIterator *groupIterator = flower_getGroupIterator(flower);
     Group *group;
     while ((group = flower_getNextGroup(groupIterator)) != NULL) {
         if (!group_isLeaf(group)) {
@@ -111,9 +111,9 @@ void getMAFs(Flower *net, FILE *fileHandle) {
     flower_destructGroupIterator(groupIterator);
 }
 
-void makeMAFHeader(Flower *net, FILE *fileHandle) {
+void makeMAFHeader(Flower *flower, FILE *fileHandle) {
     fprintf(fileHandle, "##maf version=1 scoring=N/A\n");
-    char *cA = eventTree_makeNewickString(flower_getEventTree(net));
+    char *cA = eventTree_makeNewickString(flower_getEventTree(flower));
     fprintf(fileHandle, "# cactus %s\n\n", cA);
     free(cA);
 }
@@ -121,22 +121,22 @@ void makeMAFHeader(Flower *net, FILE *fileHandle) {
 void usage() {
     fprintf(stderr, "cactus_mafGenerator, version 0.2\n");
     fprintf(stderr, "-a --logLevel : Set the log level\n");
-    fprintf(stderr, "-c --netDisk : The location of the net disk directory\n");
-    fprintf(stderr, "-d --netName : The name of the net (the key in the database)\n");
+    fprintf(stderr, "-c --cactusDisk : The location of the flower disk directory\n");
+    fprintf(stderr, "-d --flowerName : The name of the flower (the key in the database)\n");
     fprintf(stderr, "-e --outputFile : The file to write the MAFs in.\n");
     fprintf(stderr, "-h --help : Print this help screen\n");
 }
 
 int main(int argc, char *argv[]) {
-    CactusDisk *netDisk;
-    Flower *net;
+    CactusDisk *cactusDisk;
+    Flower *flower;
 
     /*
      * Arguments/options
      */
     char * logLevelString = NULL;
-    char * netDiskName = NULL;
-    char * netName = NULL;
+    char * cactusDiskName = NULL;
+    char * flowerName = NULL;
     char * outputFile = NULL;
 
     ///////////////////////////////////////////////////////////////////////////
@@ -145,8 +145,8 @@ int main(int argc, char *argv[]) {
 
     while (1) {
         static struct option long_options[] = { { "logLevel",
-                required_argument, 0, 'a' }, { "netDisk", required_argument, 0,
-                'c' }, { "netName", required_argument, 0, 'd' }, {
+                required_argument, 0, 'a' }, { "cactusDisk", required_argument, 0,
+                'c' }, { "flowerName", required_argument, 0, 'd' }, {
                 "outputFile", required_argument, 0, 'e' }, { "help",
                 no_argument, 0, 'h' }, { 0, 0, 0, 0 } };
 
@@ -164,10 +164,10 @@ int main(int argc, char *argv[]) {
                 logLevelString = stString_copy(optarg);
                 break;
             case 'c':
-                netDiskName = stString_copy(optarg);
+                cactusDiskName = stString_copy(optarg);
                 break;
             case 'd':
-                netName = stString_copy(optarg);
+                flowerName = stString_copy(optarg);
                 break;
             case 'e':
                 outputFile = stString_copy(optarg);
@@ -185,8 +185,8 @@ int main(int argc, char *argv[]) {
     // (0) Check the inputs.
     ///////////////////////////////////////////////////////////////////////////
 
-    assert(netDiskName != NULL);
-    assert(netName != NULL);
+    assert(cactusDiskName != NULL);
+    assert(flowerName != NULL);
     assert(outputFile != NULL);
 
     //////////////////////////////////////////////
@@ -204,32 +204,32 @@ int main(int argc, char *argv[]) {
     //Log (some of) the inputs
     //////////////////////////////////////////////
 
-    st_logInfo("Net disk name : %s\n", netDiskName);
-    st_logInfo("Net name : %s\n", netName);
+    st_logInfo("Flower disk name : %s\n", cactusDiskName);
+    st_logInfo("Flower name : %s\n", flowerName);
     st_logInfo("Output MAF file : %s\n", outputFile);
 
     //////////////////////////////////////////////
     //Load the database
     //////////////////////////////////////////////
 
-    netDisk = cactusDisk_construct(netDiskName);
-    st_logInfo("Set up the net disk\n");
+    cactusDisk = cactusDisk_construct(cactusDiskName);
+    st_logInfo("Set up the flower disk\n");
 
     ///////////////////////////////////////////////////////////////////////////
     // Parse the basic reconstruction problem
     ///////////////////////////////////////////////////////////////////////////
 
-    net = cactusDisk_getFlower(netDisk, cactusMisc_stringToName(netName));
-    st_logInfo("Parsed the top level net of the cactus tree to check\n");
+    flower = cactusDisk_getFlower(cactusDisk, cactusMisc_stringToName(flowerName));
+    st_logInfo("Parsed the top level flower of the cactus tree to check\n");
 
     ///////////////////////////////////////////////////////////////////////////
-    // Recursive check the nets.
+    // Recursive check the flowers.
     ///////////////////////////////////////////////////////////////////////////
 
     int64_t startTime = time(NULL);
     FILE *fileHandle = fopen(outputFile, "w");
-    makeMAFHeader(net, fileHandle);
-    getMAFs(net, fileHandle);
+    makeMAFHeader(flower, fileHandle);
+    getMAFs(flower, fileHandle);
     fclose(fileHandle);
     st_logInfo("Got the mafs in %i seconds/\n", time(NULL) - startTime);
 
@@ -237,7 +237,7 @@ int main(int argc, char *argv[]) {
     // Clean up.
     ///////////////////////////////////////////////////////////////////////////
 
-    cactusDisk_destruct(netDisk);
+    cactusDisk_destruct(cactusDisk);
 
     return 0;
 }

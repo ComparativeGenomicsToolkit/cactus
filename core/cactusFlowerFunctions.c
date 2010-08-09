@@ -11,14 +11,14 @@
 #include "pinchGraph.h"
 #include "cactusGraph.h"
 #include "cactus.h"
-#include "cactusNetFunctions.h"
+#include "cactusFlowerFunctions.h"
 #include "avl.h"
 #include "sonLib.h"
 
 ////////////////////////////////////////////////
 ////////////////////////////////////////////////
 ////////////////////////////////////////////////
-//Functions to construct pinch graphs from nets.
+//Functions to construct pinch graphs from flowers.
 ////////////////////////////////////////////////
 ////////////////////////////////////////////////
 ////////////////////////////////////////////////
@@ -46,7 +46,7 @@ struct PinchEdge *hookUpEdge(struct Piece *piece,
     return edge;
 }
 
-struct PinchGraph *constructPinchGraph(Flower *net) {
+struct PinchGraph *constructPinchGraph(Flower *flower) {
     struct PinchGraph *graph;
     Flower_EndIterator *endIterator;
     End_InstanceIterator *instanceIterator;
@@ -66,21 +66,21 @@ struct PinchGraph *constructPinchGraph(Flower *net) {
     int32_t stop;
     int32_t length;
 
-    assert(!flower_builtBlocks(net));
-    assert(flower_isTerminal(net));
+    assert(!flower_builtBlocks(flower));
+    assert(flower_isTerminal(flower));
 
     //make basic object.
     graph = pinchGraph_construct();
     sourceVertex = graph->vertices->list[0];
 
     //make hashes for ends to vertices
-    hash = create_hashtable(flower_getEndNumber(net) * 2, hashtable_stringHashKey,
+    hash = create_hashtable(flower_getEndNumber(flower) * 2, hashtable_stringHashKey,
             hashtable_stringEqualKey, free, NULL);
-    hash2 = create_hashtable(flower_getEndNumber(net) * 2,
+    hash2 = create_hashtable(flower_getEndNumber(flower) * 2,
             hashtable_stringHashKey, hashtable_stringEqualKey, free, NULL);
 
     //for each cap, build a pair of vertices
-    endIterator = flower_getEndIterator(net);
+    endIterator = flower_getEndIterator(flower);
     while ((end = flower_getNextEnd(endIterator)) != NULL) {
         assert(!end_isBlockEnd(end));
         pinchVertex = constructPinchVertex(graph, -1, 0, 1);
@@ -96,7 +96,7 @@ struct PinchGraph *constructPinchGraph(Flower *net) {
     }
     flower_destructEndIterator(endIterator);
 
-    endIterator = flower_getEndIterator(net);
+    endIterator = flower_getEndIterator(flower);
     while ((end = flower_getNextEnd(endIterator)) != NULL) {
         instanceIterator = end_getInstanceIterator(end);
         while ((cap = end_getNext(instanceIterator)) != NULL) {
@@ -162,7 +162,7 @@ struct PinchGraph *constructPinchGraph(Flower *net) {
 ////////////////////////////////////////////////
 ////////////////////////////////////////////////
 ////////////////////////////////////////////////
-//Functions to construct nets.
+//Functions to construct flowers.
 ////////////////////////////////////////////////
 ////////////////////////////////////////////////
 ////////////////////////////////////////////////
@@ -186,16 +186,16 @@ Name cactusEdgeToEndName(struct CactusEdge *edge,
     return cactusMisc_stringToName(cA);
 }
 
-Sequence *copySequence(Flower *net, Name name) {
-    Sequence *sequence = flower_getSequence(net, name);
+Sequence *copySequence(Flower *flower, Name name) {
+    Sequence *sequence = flower_getSequence(flower, name);
     if (sequence == NULL) {
         sequence = sequence_construct(cactusDisk_getMetaSequence(flower_getCactusDisk(
-                net), name), net);
+                flower), name), flower);
     }
     return sequence;
 }
 
-static Block *constructBlockFromCactusEdge(struct CactusEdge *edge, Flower *net) {
+static Block *constructBlockFromCactusEdge(struct CactusEdge *edge, Flower *flower) {
     /*
      * Constructs a block and two connected ends.
      */
@@ -204,10 +204,10 @@ static Block *constructBlockFromCactusEdge(struct CactusEdge *edge, Flower *net)
     Sequence *sequence;
     struct Piece *piece;
     piece = edge->pieces->list[0];
-    block = block_construct(piece->end - piece->start + 1, net);
+    block = block_construct(piece->end - piece->start + 1, flower);
     for (i = 0; i < edge->pieces->length; i++) {
         piece = edge->pieces->list[i];
-        sequence = copySequence(net, piece->contig);
+        sequence = copySequence(flower, piece->contig);
         segment_construct2(block,
                 piece->start > 0 ? piece->start : -piece->end,
                 piece->start > 0, sequence);
@@ -215,30 +215,30 @@ static Block *constructBlockFromCactusEdge(struct CactusEdge *edge, Flower *net)
     return block;
 }
 
-static struct List *addEnvelopedStubEnds(Flower *net, int32_t addToNet) {
+static struct List *addEnvelopedStubEnds(Flower *flower, int32_t addToFlower) {
     /*
-     * For each net contained within a link in a chain, adds the encompassing ends
-     * of the chain to the nested net.
+     * For each flower contained within a link in a chain, adds the encompassing ends
+     * of the chain to the nested flower.
      */
     int32_t j;
     End *end, *end2;
-    Flower *net2;
+    Flower *flower2;
     struct List *list;
     Flower_EndIterator *endIterator;
     Group_EndIterator *adjacencyIterator;
     Group *group;
 
-    adjacencyIterator = flower_getGroupIterator(net);
+    adjacencyIterator = flower_getGroupIterator(flower);
     while ((group = flower_getNextGroup(adjacencyIterator)) != NULL) {
-        net2 = group_getNestedFlower(group);
-        if (net2 != NULL) {
-            list = addEnvelopedStubEnds(net2, 1);
+        flower2 = group_getNestedFlower(group);
+        if (flower2 != NULL) {
+            list = addEnvelopedStubEnds(flower2, 1);
             for (j = 0; j < list->length; j++) {
                 end = list->list[j];
-                if (addToNet && flower_getEnd(net, end_getName(end)) == NULL) {
-                    end_setGroup(end_copyConstruct(end, net), group);
+                if (addToFlower && flower_getEnd(flower, end_getName(end)) == NULL) {
+                    end_setGroup(end_copyConstruct(end, flower), group);
                 } else {
-                    end2 = flower_getEnd(net, end_getName(end));
+                    end2 = flower_getEnd(flower, end_getName(end));
                     assert(end2 != NULL);
                     if (end_getGroup(end2) == NULL) {
                         end_setGroup(end2, group);
@@ -253,7 +253,7 @@ static struct List *addEnvelopedStubEnds(Flower *net, int32_t addToNet) {
     flower_destructGroupIterator(adjacencyIterator);
 
     list = constructEmptyList(0, NULL);
-    endIterator = flower_getEndIterator(net);
+    endIterator = flower_getEndIterator(flower);
     while ((end = flower_getNextEnd(endIterator)) != NULL) {
         if (end_isStubEnd(end)) {
             listAppend(list, end);
@@ -284,7 +284,7 @@ static int addAdjacenciesToLeafCapsP(Cap **cap1, Cap **cap2) {
     return i;
 }
 
-void addAdjacenciesToLeafCaps(Flower *net) {
+void addAdjacenciesToLeafCaps(Flower *flower) {
     End *end;
     Cap *cap;
     Cap *cap2;
@@ -297,7 +297,7 @@ void addAdjacenciesToLeafCaps(Flower *net) {
      * Build a list of caps, then sort them.
      */
     list = constructEmptyList(0, NULL);
-    endIterator = flower_getEndIterator(net);
+    endIterator = flower_getEndIterator(flower);
     while ((end = flower_getNextEnd(endIterator)) != NULL) {
         instanceIterator = end_getInstanceIterator(end);
         while ((cap = end_getNext(instanceIterator)) != NULL) {
@@ -334,13 +334,13 @@ void addAdjacenciesToLeafCaps(Flower *net) {
     destructList(list);
 }
 
-void addAdjacenciesToEnds(Flower *net) {
+void addAdjacenciesToEnds(Flower *flower) {
     /*
-     * Add the adjacencies between leaf caps of a net. Does not touch internal instances.
-     * All ends must be in the net before this function is called.
+     * Add the adjacencies between leaf caps of a flower. Does not touch internal instances.
+     * All ends must be in the flower before this function is called.
      */
-    addAdjacenciesToLeafCaps(net);
-    Group_EndIterator *adjacencyIterator = flower_getGroupIterator(net);
+    addAdjacenciesToLeafCaps(flower);
+    Group_EndIterator *adjacencyIterator = flower_getGroupIterator(flower);
     Group *group;
     while ((group = flower_getNextGroup(adjacencyIterator)) != NULL) {
         if (group_getNestedFlower(group) != NULL) {
@@ -355,11 +355,11 @@ static int32_t returnsTrue(Event *event) {
     return 1;
 }
 
-bool groupIsZeroLength(struct List *endNames, Flower *net) {
+bool groupIsZeroLength(struct List *endNames, Flower *flower) {
     int32_t i;
 
     for (i = 0; i < endNames->length; i++) {
-        End *end = flower_getEnd(net, cactusMisc_stringToName(endNames->list[i]));
+        End *end = flower_getEnd(flower, cactusMisc_stringToName(endNames->list[i]));
         End_InstanceIterator *iterator = end_getInstanceIterator(end);
         Cap *cap;
         while ((cap = end_getNext(iterator)) != NULL) {
@@ -443,7 +443,7 @@ void checkBiConnectedComponent(struct List *biConnnectedComponent) {
 }
 #endif
 
-int fillOutNetFromInputsP2(struct List **biConnectedComponent1,
+int fillOutFlowerFromInputsP2(struct List **biConnectedComponent1,
         struct List **biConnectedComponent2) {
     struct CactusEdge *cactusEdge1;
     struct CactusEdge *cactusEdge2;
@@ -479,14 +479,14 @@ void mergeCactusVertices(struct CactusEdge *cactusEdge,
     }
 }
 
-static void setBlocksBuilt(Flower *net) {
+static void setBlocksBuilt(Flower *flower) {
     /*
-     * Sets the 'built-blocks flag' for all the nets in the subtree, including the given net.
+     * Sets the 'built-blocks flag' for all the flowers in the subtree, including the given flower.
      */
-    assert(!flower_builtBlocks(net));
-    flower_setBuiltBlocks(net, 1);
-    assert(flower_builtBlocks(net));
-    Flower_GroupIterator *iterator = flower_getGroupIterator(net);
+    assert(!flower_builtBlocks(flower));
+    flower_setBuiltBlocks(flower, 1);
+    assert(flower_builtBlocks(flower));
+    Flower_GroupIterator *iterator = flower_getGroupIterator(flower);
     Group *group;
     while ((group = flower_getNextGroup(iterator)) != NULL) {
         if (!group_isLeaf(group)) {
@@ -497,9 +497,9 @@ static void setBlocksBuilt(Flower *net) {
 }
 
 static bool getOrientationP(struct CactusEdge *cactusEdge,
-        struct PinchGraph *pinchGraph, Flower *net, struct hashtable *endNamesHash) {
+        struct PinchGraph *pinchGraph, Flower *flower, struct hashtable *endNamesHash) {
     cactusEdge = getNonDeadEndOfStubCactusEdge(cactusEdge, pinchGraph);
-    End *end = flower_getEnd(net, cactusEdgeToEndName(cactusEdge, endNamesHash, pinchGraph));
+    End *end = flower_getEnd(flower, cactusEdgeToEndName(cactusEdge, endNamesHash, pinchGraph));
     assert(end != NULL);
     return end_getSide(end);
 }
@@ -513,29 +513,29 @@ void reverseComponent(struct List *biConnectedComponent) {
 }
 
 void getOrientation(struct List *biConnectedComponent,
-        struct PinchGraph *pinchGraph, Flower *net, struct hashtable *endNamesHash) {
+        struct PinchGraph *pinchGraph, Flower *flower, struct hashtable *endNamesHash) {
     //Make the blocks and ends
     assert(biConnectedComponent->length > 0);
     struct CactusEdge *cactusEdge = biConnectedComponent->list[0];
     if (isAStubCactusEdge(cactusEdge, pinchGraph)) {
-        if(getOrientationP(cactusEdge, pinchGraph, net, endNamesHash)) { //Reverse the list
+        if(getOrientationP(cactusEdge, pinchGraph, flower, endNamesHash)) { //Reverse the list
             reverseComponent(biConnectedComponent);
         }
     }
     else {
         cactusEdge = biConnectedComponent->list[biConnectedComponent->length-1];
         if (isAStubCactusEdge(cactusEdge, pinchGraph)) {
-            if(!getOrientationP(cactusEdge, pinchGraph, net, endNamesHash)) {
+            if(!getOrientationP(cactusEdge, pinchGraph, flower, endNamesHash)) {
                 reverseComponent(biConnectedComponent);
             }
         }
     }
 }
 
-void fillOutNetFromInputs(Flower *parentNet, struct CactusGraph *cactusGraph,
+void fillOutFlowerFromInputs(Flower *parentFlower, struct CactusGraph *cactusGraph,
         struct PinchGraph *pinchGraph, stSortedSet *chosenBlocks) {
-    Flower *net;
-    Flower *nestedNet;
+    Flower *flower;
+    Flower *nestedFlower;
     End *end;
     End *end2;
     Block *block;
@@ -549,8 +549,8 @@ void fillOutNetFromInputs(Flower *parentNet, struct CactusGraph *cactusGraph,
     struct List *biConnectedComponent;
     struct List *list, *list2;
     struct List *biConnectedComponents;
-    void **nets;
-    void **parentNets;
+    void **flowers;
+    void **parentFlowers;
     int32_t *mergedVertexIDs;
     int32_t i, j; //, k;
     struct hashtable *endNamesHash;
@@ -558,30 +558,30 @@ void fillOutNetFromInputs(Flower *parentNet, struct CactusGraph *cactusGraph,
     struct Piece *piece;
     Name name;
 
-    st_logDebug("Building the net\n");
+    st_logDebug("Building the flower\n");
 
     ////////////////////////////////////////////////
-    //Check the net to fill in terminal, and get rid of the group it contains and any terminal chain.
+    //Check the flower to fill in terminal, and get rid of the group it contains and any terminal chain.
     ////////////////////////////////////////////////
 
 #ifdef BEN_DEBUG
-    flower_check(parentNet);
-    assert(flower_isTerminal(parentNet));
-    assert(flower_getGroupNumber(parentNet) == 1);
-    assert(group_isLeaf(flower_getFirstGroup(parentNet))); //this should be true by the previous assert
+    flower_check(parentFlower);
+    assert(flower_isTerminal(parentFlower));
+    assert(flower_getGroupNumber(parentFlower) == 1);
+    assert(group_isLeaf(flower_getFirstGroup(parentFlower))); //this should be true by the previous assert
     //Destruct any chain
-    assert(flower_getChainNumber(parentNet) <= 1);
+    assert(flower_getChainNumber(parentFlower) <= 1);
 #endif
-    if (flower_getChainNumber(parentNet) == 1) {
-        Chain *chain = flower_getFirstChain(parentNet);
+    if (flower_getChainNumber(parentFlower) == 1) {
+        Chain *chain = flower_getFirstChain(parentFlower);
 #ifdef BEN_DEBUG
-        Group *parentParentGroup = flower_getParentGroup(parentNet);
+        Group *parentParentGroup = flower_getParentGroup(parentFlower);
         assert(parentParentGroup != NULL);
         assert(group_getLink(parentParentGroup) != NULL);
 #endif
         chain_destruct(chain);
     }
-    group_destruct(flower_getFirstGroup(parentNet));
+    group_destruct(flower_getFirstGroup(parentFlower));
 
     ////////////////////////////////////////////////
     //Get sorted bi-connected components (sorted as in ordered from root of vertex)
@@ -609,7 +609,7 @@ void fillOutNetFromInputs(Flower *parentNet, struct CactusGraph *cactusGraph,
 
     qsort(biConnectedComponents->list, biConnectedComponents->length,
             sizeof(void *),
-            (int(*)(const void *v, const void *)) fillOutNetFromInputsP2);
+            (int(*)(const void *v, const void *)) fillOutFlowerFromInputsP2);
     st_logDebug("Sorted the biconnected components by vertex discovery time\n");
 
     ////////////////////////////////////////////////
@@ -618,7 +618,7 @@ void fillOutNetFromInputs(Flower *parentNet, struct CactusGraph *cactusGraph,
 
     endNamesHash = create_hashtable(stSortedSet_size(chosenBlocks),
             hashtable_key, hashtable_equalKey, NULL, free);
-    endIterator = flower_getEndIterator(parentNet);
+    endIterator = flower_getEndIterator(parentFlower);
     while ((end = flower_getNextEnd(endIterator)) != NULL) {
         cap = end_getFirst(end);
         pinchEdge = getContainingBlackEdge(pinchGraph, cap_getName(cap),
@@ -639,7 +639,7 @@ void fillOutNetFromInputs(Flower *parentNet, struct CactusGraph *cactusGraph,
     st_logDebug("Built the end names hash\n");
 
     ////////////////////////////////////////////////
-    //Prune the cactus graph to include only those edges relevant to the desired net.
+    //Prune the cactus graph to include only those edges relevant to the desired flower.
     ////////////////////////////////////////////////
 
     mergedVertexIDs
@@ -665,7 +665,7 @@ void fillOutNetFromInputs(Flower *parentNet, struct CactusGraph *cactusGraph,
                 assert(cactusEdge2 != NULL);
                 name = cactusEdgeToEndName(cactusEdge2, endNamesHash,
                         pinchGraph);
-                end = flower_getEnd(parentNet, name);
+                end = flower_getEnd(parentFlower, name);
                 assert(end != NULL);
                 if (end_isFree(end)) { //we don't want free stubs in chains
                     //merge vertices
@@ -699,35 +699,35 @@ void fillOutNetFromInputs(Flower *parentNet, struct CactusGraph *cactusGraph,
     st_logDebug("Built the chosen blocks hash\n");
 
     ////////////////////////////////////////////////
-    //Blocks and ends for each net.
+    //Blocks and ends for each flower.
     ////////////////////////////////////////////////
 
-    nets = st_malloc(sizeof(void *) * cactusGraph->vertices->length);
+    flowers = st_malloc(sizeof(void *) * cactusGraph->vertices->length);
     for (i = 1; i < cactusGraph->vertices->length; i++) {
-        nets[i] = NULL;
+        flowers[i] = NULL;
     }
-    nets[0] = parentNet;
-    parentNets = st_malloc(sizeof(void *) * biConnectedComponents->length);
+    flowers[0] = parentFlower;
+    parentFlowers = st_malloc(sizeof(void *) * biConnectedComponents->length);
     for (i = 0; i < biConnectedComponents->length; i++) {
         biConnectedComponent = biConnectedComponents->list[i];
         if (biConnectedComponent->length > 0) {
             cactusEdge = biConnectedComponent->list[0];
-            //Get the net.
-            net = nets[mergedVertexIDs[cactusEdge->from->vertexID]];
-            if (net == NULL) {
-                net = flower_construct(flower_getCactusDisk(parentNet));
-                eventTree_copyConstruct(flower_getEventTree(parentNet), net,
+            //Get the flower.
+            flower = flowers[mergedVertexIDs[cactusEdge->from->vertexID]];
+            if (flower == NULL) {
+                flower = flower_construct(flower_getCactusDisk(parentFlower));
+                eventTree_copyConstruct(flower_getEventTree(parentFlower), flower,
                         returnsTrue);
-                nets[mergedVertexIDs[cactusEdge->from->vertexID]] = net;
+                flowers[mergedVertexIDs[cactusEdge->from->vertexID]] = flower;
             }
-            parentNets[i] = net;
+            parentFlowers[i] = flower;
             //Make the blocks and ends
-            getOrientation(biConnectedComponent, pinchGraph, parentNet, endNamesHash);
+            getOrientation(biConnectedComponent, pinchGraph, parentFlower, endNamesHash);
             for (j = 0; j < biConnectedComponent->length; j++) {
                 cactusEdge = biConnectedComponent->list[j];
                 piece = cactusEdge->pieces->list[0];
                 if (!isAStubCactusEdge(cactusEdge, pinchGraph)) {
-                    block = constructBlockFromCactusEdge(cactusEdge, net);
+                    block = constructBlockFromCactusEdge(cactusEdge, flower);
                     pinchEdge = cactusEdgeToFirstPinchEdge(cactusEdge,
                             pinchGraph);
                     hashtable_insert(endNamesHash, pinchEdge->from,
@@ -742,38 +742,38 @@ void fillOutNetFromInputs(Flower *parentNet, struct CactusGraph *cactusGraph,
                     assert(j == 0 || j == biConnectedComponent->length-1);
                     cactusEdge2 = getNonDeadEndOfStubCactusEdge(cactusEdge,
                             pinchGraph);
-                    end = flower_getEnd(parentNet, cactusEdgeToEndName(
+                    end = flower_getEnd(parentFlower, cactusEdgeToEndName(
                             cactusEdge2, endNamesHash, pinchGraph));
                     assert(end != NULL);
-                    if (net != parentNet) {
-                        end_copyConstruct(end, net);
+                    if (flower != parentFlower) {
+                        end_copyConstruct(end, flower);
                     }
                 }
             }
         }
     }
-    st_logDebug("Constructed blocks and nets for the cycle.\n");
+    st_logDebug("Constructed blocks and flowers for the cycle.\n");
 
     ////////////////////////////////////////////////
-    //Link nets to parent nets and construct chains.
+    //Link flowers to parent flowers and construct chains.
     ////////////////////////////////////////////////
 
     for (i = 0; i < biConnectedComponents->length; i++) {
         biConnectedComponent = biConnectedComponents->list[i];
-        net = parentNets[i];
+        flower = parentFlowers[i];
         if (biConnectedComponent->length > 1) {
-            assert(net != NULL);
-            chain = chain_construct(net);
+            assert(flower != NULL);
+            chain = chain_construct(flower);
             for (j = 1; j < biConnectedComponent->length; j++) {
                 cactusEdge = biConnectedComponent->list[j - 1];
                 cactusEdge2 = biConnectedComponent->list[j];
-                nestedNet = nets[mergedVertexIDs[cactusEdge->to->vertexID]];
+                nestedFlower = flowers[mergedVertexIDs[cactusEdge->to->vertexID]];
                 assert(cactusEdge->to->vertexID != 0);
-                if (nestedNet == NULL) { //construct a terminal group.
-                    group = group_construct2(net);
+                if (nestedFlower == NULL) { //construct a terminal group.
+                    group = group_construct2(flower);
                     end
                             = flower_getEnd(
-                                    net,
+                                    flower,
                                     cactusEdgeToEndName(
                                             isAStubCactusEdge(cactusEdge,
                                                     pinchGraph) ? getNonDeadEndOfStubCactusEdge(
@@ -785,7 +785,7 @@ void fillOutNetFromInputs(Flower *parentNet, struct CactusGraph *cactusGraph,
 
                     end2
                             = flower_getEnd(
-                                    net,
+                                    flower,
                                     cactusEdgeToEndName(
                                             isAStubCactusEdge(cactusEdge2,
                                                     pinchGraph) ? getNonDeadEndOfStubCactusEdge(
@@ -795,10 +795,10 @@ void fillOutNetFromInputs(Flower *parentNet, struct CactusGraph *cactusGraph,
                     assert(end2 != NULL);
                     end_setGroup(end2, group);
                 } else { //construct a link between two existing chains.
-                    assert(flower_getEndNumber(nestedNet)> 0);
+                    assert(flower_getEndNumber(nestedFlower)> 0);
                     end
                             = flower_getEnd(
-                                    net,
+                                    flower,
                                     cactusEdgeToEndName(
                                             isAStubCactusEdge(cactusEdge,
                                                     pinchGraph) ? getNonDeadEndOfStubCactusEdge(
@@ -806,10 +806,10 @@ void fillOutNetFromInputs(Flower *parentNet, struct CactusGraph *cactusGraph,
                                                     : cactusEdge->rEdge,
                                             endNamesHash, pinchGraph));
                     assert(end != NULL);
-                    end_copyConstruct(end, nestedNet);
+                    end_copyConstruct(end, nestedFlower);
                     end2
                             = flower_getEnd(
-                                    net,
+                                    flower,
                                     cactusEdgeToEndName(
                                             isAStubCactusEdge(cactusEdge2,
                                                     pinchGraph) ? getNonDeadEndOfStubCactusEdge(
@@ -817,71 +817,71 @@ void fillOutNetFromInputs(Flower *parentNet, struct CactusGraph *cactusGraph,
                                                     : cactusEdge2,
                                             endNamesHash, pinchGraph));
                     assert(end2 != NULL);
-                    end_copyConstruct(end2, nestedNet);
-                    group = group_construct(net, nestedNet);
-                    nets[mergedVertexIDs[cactusEdge->to->vertexID]] = NULL;
+                    end_copyConstruct(end2, nestedFlower);
+                    group = group_construct(flower, nestedFlower);
+                    flowers[mergedVertexIDs[cactusEdge->to->vertexID]] = NULL;
                 }
                 //Make link chain
                 link_construct(end, end2, group, chain);
             }
         }
     }
-    net = nets[0];
+    flower = flowers[0];
 #ifdef BEN_DEBUG
     for (i = 1; i < cactusGraph->vertices->length; i++) {
-        assert(nets[i] == NULL);
+        assert(flowers[i] == NULL);
     }
 #endif
-    st_logDebug("Constructed the chains and linked together the nets\n");
+    st_logDebug("Constructed the chains and linked together the flowers\n");
 
     ////////////////////////////////////////////////
-    //Add nested ends to nets.
+    //Add nested ends to flowers.
     ////////////////////////////////////////////////
 
-    destructList(addEnvelopedStubEnds(parentNet, 0));
-    st_logDebug("Added the nested ends to the parent nets\n");
+    destructList(addEnvelopedStubEnds(parentFlower, 0));
+    st_logDebug("Added the nested ends to the parent flowers\n");
 
     ////////////////////////////////////////////////
     //Add adjacencies between ends.
     ////////////////////////////////////////////////
 
-    addAdjacenciesToEnds(net);
+    addAdjacenciesToEnds(flower);
     st_logDebug("Added the adjacencies between the ends\n");
 
     ////////////////////////////////////////////////
     //Add groups.
     ////////////////////////////////////////////////
 
-    addGroups(net);
+    addGroups(flower);
     st_logDebug("Added the tangle groups\n");
 
     ////////////////////////////////////////////////
-    //Set blocks for each net to 'built'
+    //Set blocks for each flower to 'built'
     ////////////////////////////////////////////////
 
-    assert(net == parentNet);
-    setBlocksBuilt(net);
+    assert(flower == parentFlower);
+    setBlocksBuilt(flower);
 
 #ifdef BEN_DEBUG
-    flower_checkRecursive(net);
+    flower_checkRecursive(flower);
 #endif
 
     ////////////////////////////////////////////////
     //Clean up
     ////////////////////////////////////////////////
 
-    free(nets);
+    free(flowers);
     free(mergedVertexIDs);
     free(vertexDiscoveryTimes);
-    free(parentNets);
+    free(parentFlowers);
     destructList(biConnectedComponents);
     hashtable_destroy(endNamesHash, TRUE, FALSE);
 }
 
-void copyEndTreePhylogenies(Flower *parentNet, Flower *net) {
+void copyEndTreePhylogenies(Flower *parentFlower, Flower *flower) {
     /*
-     * For each end in the parent net that is also in the net, we copy
-     * the the phylogenetic information across.
+     * For each end in the parent flower that is also in the flower, we copy
+     * the the phylogefloweric information across.
      */
     End *end1;
     End *end2;
@@ -892,9 +892,9 @@ void copyEndTreePhylogenies(Flower *parentNet, Flower *net) {
     Flower_EndIterator *endIterator;
     End_InstanceIterator *instanceIterator;
 
-    endIterator = flower_getEndIterator(net);
+    endIterator = flower_getEndIterator(flower);
     while ((end1 = flower_getNextEnd(endIterator)) != NULL) {
-        end2 = flower_getEnd(parentNet, end_getName(end1));
+        end2 = flower_getEnd(parentFlower, end_getName(end1));
         assert(end2 != NULL);
         instanceIterator = end_getInstanceIterator(end1);
         while ((cap1 = end_getNext(instanceIterator)) != NULL) {

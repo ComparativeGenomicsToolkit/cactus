@@ -165,20 +165,20 @@ def runWorkflow_TestScript(sequences, newickTreeString,
         outputDir = getTempDirectory(tempDir)
     logger.info("Using the output dir: %s" % outputDir)
     
-    #Setup the net disk.
+    #Setup the flower disk.
     if not os.path.isdir(outputDir):
         os.mkdir(outputDir)
-    netDisk = os.path.join(outputDir, "netDisk")
-    logger.info("Using the netDisk: %s" % netDisk)
-    system("rm -rf %s" % netDisk)
-    logger.info("Cleaned up any previous net disk: %s" % netDisk)
+    cactusDisk = os.path.join(outputDir, "cactusDisk")
+    logger.info("Using the cactusDisk: %s" % cactusDisk)
+    system("rm -rf %s" % cactusDisk)
+    logger.info("Cleaned up any previous flower disk: %s" % cactusDisk)
     
     #Setup the job tree dir.
     jobTreeDir = os.path.join(getTempDirectory(tempDir), "jobTree")
     logger.info("Got a job tree dir for the test: %s" % jobTreeDir)
     
     #Run the actual workflow
-    runCactusWorkflow(netDisk, sequences, newickTreeString, jobTreeDir, 
+    runCactusWorkflow(cactusDisk, sequences, newickTreeString, jobTreeDir, 
                       batchSystem=batchSystem, buildTrees=buildTrees, 
                       buildFaces=buildFaces, buildReference=buildReference,
                       configFile=configFile)
@@ -188,8 +188,8 @@ def runWorkflow_TestScript(sequences, newickTreeString,
     runJobTreeStatusAndFailIfNotComplete(jobTreeDir)
     logger.info("Checked the job tree dir")
     
-    #Check if the netDisk is okay..
-    runCactusCheck(netDisk, recursive=True) #This should also occur during the workflow, so this
+    #Check if the cactusDisk is okay..
+    runCactusCheck(cactusDisk, recursive=True) #This should also occur during the workflow, so this
     #is redundant, but defensive
     logger.info("Checked the cactus tree")
     
@@ -199,7 +199,7 @@ def runWorkflow_TestScript(sequences, newickTreeString,
     if buildCactusPDF:
         cactusTreeDotFile = os.path.join(outputDir, "cactusTree.dot")
         cactusTreePDFFile = os.path.join(outputDir, "cactusTree.pdf")
-        runCactusTreeViewer(cactusTreeDotFile, netDisk)
+        runCactusTreeViewer(cactusTreeDotFile, cactusDisk)
         runGraphViz(cactusTreeDotFile, cactusTreePDFFile)
         logger.info("Ran the cactus tree plot script")
     else:
@@ -209,7 +209,7 @@ def runWorkflow_TestScript(sequences, newickTreeString,
     if buildAdjacencyPDF:
         adjacencyGraphDotFile = os.path.join(outputDir, "adjacencyGraph.dot")
         adjacencyGraphPDFFile = os.path.join(outputDir, "adjacencyGraph.pdf")
-        runCactusAdjacencyGraphViewer(adjacencyGraphDotFile, netDisk)
+        runCactusAdjacencyGraphViewer(adjacencyGraphDotFile, cactusDisk)
         runGraphViz(adjacencyGraphDotFile, adjacencyGraphPDFFile)
         logger.info("Ran the adjacency graph plot script")
     else:
@@ -219,7 +219,7 @@ def runWorkflow_TestScript(sequences, newickTreeString,
     if buildReferencePDF:
         referenceGraphDotFile = os.path.join(outputDir, "referenceGraph.dot")
         referenceGraphPDFFile = os.path.join(outputDir, "referenceGraph.pdf")
-        runCactusReferenceGraphViewer(referenceGraphDotFile, netDisk)
+        runCactusReferenceGraphViewer(referenceGraphDotFile, cactusDisk)
         runGraphViz(referenceGraphDotFile, referenceGraphPDFFile)
         logger.info("Ran the reference graph plot script")
     else:
@@ -227,7 +227,7 @@ def runWorkflow_TestScript(sequences, newickTreeString,
     
     if makeCactusTreeStats:
         cactusTreeFile = os.path.join(outputDir, "cactusStats.xml")
-        runCactusTreeStats(cactusTreeFile, netDisk)
+        runCactusTreeStats(cactusTreeFile, cactusDisk)
         #Then run the latex script?
         logger.info("Ran the tree stats script")
     else:
@@ -235,7 +235,7 @@ def runWorkflow_TestScript(sequences, newickTreeString,
     
     if makeMAFs:
         mAFFile = os.path.join(outputDir, "cactus.maf")
-        runCactusMAFGenerator(mAFFile, netDisk)
+        runCactusMAFGenerator(mAFFile, cactusDisk)
         logger.info("Ran the MAF building script")
     else:
         logger.info("Not building the MAFs")

@@ -8,7 +8,7 @@ CuSuite* pairwiseAlignmentTestSuite(void);
 CuSuite* multipleAlignerTestSuite(void);
 CuSuite* adjacencySequenceTestSuite(void);
 CuSuite* endAlignerTestSuite(void);
-CuSuite* netAlignerTestSuite(void);
+CuSuite* flowerAlignerTestSuite(void);
 
 int stBaseAlignerRunAllTests(void) {
 	CuString *output = CuStringNew();
@@ -18,7 +18,7 @@ int stBaseAlignerRunAllTests(void) {
 	CuSuiteAddSuite(suite, multipleAlignerTestSuite());
 	CuSuiteAddSuite(suite, adjacencySequenceTestSuite());
 	CuSuiteAddSuite(suite, endAlignerTestSuite());
-	CuSuiteAddSuite(suite, netAlignerTestSuite());
+	CuSuiteAddSuite(suite, flowerAlignerTestSuite());
 	CuSuiteRun(suite);
 	CuSuiteSummary(suite, output);
 	CuSuiteDetails(suite, output);

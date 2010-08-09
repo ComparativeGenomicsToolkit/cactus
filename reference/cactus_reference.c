@@ -10,22 +10,22 @@
 #include "reference.h"
 
 void usage() {
-    fprintf(stderr, "cactus_reference [net names], version 0.1\n");
+    fprintf(stderr, "cactus_reference [flower names], version 0.1\n");
     fprintf(stderr, "-a --logLevel : Set the log level\n");
-    fprintf(stderr, "-c --netDisk : The location of the net disk directory\n");
+    fprintf(stderr, "-c --cactusDisk : The location of the flower disk directory\n");
     fprintf(stderr, "-h --help : Print this help screen\n");
 }
 
 int main(int argc, char *argv[]) {
     /*
-     * Script for adding a reference genome to a net.
+     * Script for adding a reference genome to a flower.
      */
 
     /*
      * Arguments/options
      */
     char * logLevelString = NULL;
-    char * netDiskName = NULL;
+    char * cactusDiskName = NULL;
     int32_t j;
 
     ///////////////////////////////////////////////////////////////////////////
@@ -34,7 +34,7 @@ int main(int argc, char *argv[]) {
 
     while (1) {
         static struct option long_options[] = { { "logLevel",
-                required_argument, 0, 'a' }, { "netDisk", required_argument, 0,
+                required_argument, 0, 'a' }, { "cactusDisk", required_argument, 0,
                 'c' }, { "help", no_argument, 0, 'h' }, { 0, 0, 0, 0 } };
 
         int option_index = 0;
@@ -50,7 +50,7 @@ int main(int argc, char *argv[]) {
                 logLevelString = stString_copy(optarg);
                 break;
             case 'c':
-                netDiskName = stString_copy(optarg);
+                cactusDiskName = stString_copy(optarg);
                 break;
             case 'h':
                 usage();
@@ -66,7 +66,7 @@ int main(int argc, char *argv[]) {
     ///////////////////////////////////////////////////////////////////////////
 
     assert(logLevelString == NULL || strcmp(logLevelString, "CRITICAL") == 0 || strcmp(logLevelString, "INFO") == 0 || strcmp(logLevelString, "DEBUG") == 0);
-    assert(netDiskName != NULL);
+    assert(cactusDiskName != NULL);
 
     //////////////////////////////////////////////
     //Set up logging
@@ -83,49 +83,49 @@ int main(int argc, char *argv[]) {
     //Log (some of) the inputs
     //////////////////////////////////////////////
 
-    st_logInfo("Netdisk name : %s\n", netDiskName);
+    st_logInfo("Flowerdisk name : %s\n", cactusDiskName);
 
     //////////////////////////////////////////////
     //Load the database
     //////////////////////////////////////////////
 
-    CactusDisk *netDisk = cactusDisk_construct(netDiskName);
-    st_logInfo("Set up the net disk\n");
+    CactusDisk *cactusDisk = cactusDisk_construct(cactusDiskName);
+    st_logInfo("Set up the flower disk\n");
 
     ///////////////////////////////////////////////////////////////////////////
-    // Loop on the nets, doing the reference genome.
+    // Loop on the flowers, doing the reference genome.
     ///////////////////////////////////////////////////////////////////////////
 
     for (j = optind; j < argc; j++) {
         /*
-         * Read the net.
+         * Read the flower.
          */
-        const char *netName = argv[j];
-        st_logInfo("Processing the net named: %s\n", netName);
-        Flower *net = cactusDisk_getFlower(netDisk, cactusMisc_stringToName(
-                netName));
-        assert(net != NULL);
-        st_logInfo("Parsed the net in which to build a reference\n");
+        const char *flowerName = argv[j];
+        st_logInfo("Processing the flower named: %s\n", flowerName);
+        Flower *flower = cactusDisk_getFlower(cactusDisk, cactusMisc_stringToName(
+                flowerName));
+        assert(flower != NULL);
+        st_logInfo("Parsed the flower in which to build a reference\n");
 
         /*
          * Now run the reference function.
          */
-        addReferenceToNet(net);
+        addReferenceToFlower(flower);
     }
 
     ///////////////////////////////////////////////////////////////////////////
-    // Write the net(s) back to disk.
+    // Write the flower(s) back to disk.
     ///////////////////////////////////////////////////////////////////////////
 
-    cactusDisk_write(netDisk);
-    st_logInfo("Updated the net on disk\n");
+    cactusDisk_write(cactusDisk);
+    st_logInfo("Updated the flower on disk\n");
 
     ///////////////////////////////////////////////////////////////////////////
     //Clean up.
     ///////////////////////////////////////////////////////////////////////////
 
     //Destruct stuff
-    cactusDisk_destruct(netDisk);
+    cactusDisk_destruct(cactusDisk);
 
     st_logInfo("Cleaned stuff up and am finished\n");
     return 0;

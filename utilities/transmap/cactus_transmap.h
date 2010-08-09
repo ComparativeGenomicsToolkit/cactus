@@ -46,8 +46,8 @@
  * An adjacency ADJ(A, B) between two caps A and B contains an interval of sequence between A and B.
  * If this is interval is empty we say ADJ(A, B) is terminal, else it is non-terminal.
  *
- * For a complete cactus-tree and net N with non-terminal adjacency ADJ(A, B) there exists c(A) and c(B), copies of the
- * caps in a net which is a child of N (see "Cactus Graphs for Genome Comparison", Recomb 2010).
+ * For a complete cactus-tree and flower N with non-terminal adjacency ADJ(A, B) there exists c(A) and c(B), copies of the
+ * caps in a flower which is a child of N (see "Cactus Graphs for Genome Comparison", Recomb 2010).
  *
  * We say a thread is a "terminal thread" if it contains only terminal adjacencies. A non-terminal thread
  * has a "terminal replacement thread", if and only if each non-terminal adjacency ADJ(A, B) can be replaced with a terminal thread

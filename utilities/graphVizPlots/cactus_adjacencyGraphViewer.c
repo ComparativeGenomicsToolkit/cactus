@@ -1,5 +1,5 @@
 /*
- * The script builds a cactus tree representation of the chains and nets.
+ * The script builds a cactus tree representation of the chains and flowers.
  * The format of the output graph is dot format.
  */
 #include <assert.h>
@@ -24,15 +24,15 @@ static bool nameLabels = 0;
 static void usage() {
     fprintf(stderr, "cactus_graphViewer, version 0.2\n");
     fprintf(stderr, "-a --logLevel : Set the log level\n");
-    fprintf(stderr, "-c --netDisk : The location of the net disk directory\n");
+    fprintf(stderr, "-c --cactusDisk : The location of the flower disk directory\n");
     fprintf(stderr,
-            "-d --netName : The name of the net (the key in the database)\n");
+            "-d --flowerName : The name of the flower (the key in the database)\n");
     fprintf(stderr,
             "-e --outputFile : The file to write the dot graph file in.\n");
     fprintf(
             stderr,
             "-f --chainColours : Do not give chains distinct colours (instead of just black)\n");
-    fprintf(stderr, "-g --nameLabels : Give chain and net nodes name labels.\n");
+    fprintf(stderr, "-g --nameLabels : Give chain and flower nodes name labels.\n");
     fprintf(stderr, "-h --help : Print this help screen\n");
 }
 
@@ -77,11 +77,11 @@ void addBlockToGraph(Block *block, const char *colour, FILE *fileHandle) {
     block_destructInstanceIterator(iterator);
 }
 
-void addTrivialChainsToGraph(Flower *net, FILE *fileHandle) {
+void addTrivialChainsToGraph(Flower *flower, FILE *fileHandle) {
     /*
      * Add blocks not part of chain to the graph
      */
-    Flower_BlockIterator *blockIterator = flower_getBlockIterator(net);
+    Flower_BlockIterator *blockIterator = flower_getBlockIterator(flower);
     Block *block;
     while ((block = flower_getNextBlock(blockIterator)) != NULL) {
         if (block_getChain(block) == NULL) {
@@ -91,11 +91,11 @@ void addTrivialChainsToGraph(Flower *net, FILE *fileHandle) {
     flower_destructBlockIterator(blockIterator);
 }
 
-void addChainsToGraph(Flower *net, FILE *fileHandle) {
+void addChainsToGraph(Flower *flower, FILE *fileHandle) {
     /*
      * Add blocks part of a chain to the graph.
      */
-    Flower_ChainIterator *chainIterator = flower_getChainIterator(net);
+    Flower_ChainIterator *chainIterator = flower_getChainIterator(flower);
     Chain *chain;
     while ((chain = flower_getNextChain(chainIterator)) != NULL) {
         int32_t i, j;
@@ -122,11 +122,11 @@ void addAdjacencies(Group *group, FILE *fileHandle) {
     static char label[10000];
     Group_EndIterator *endIterator = group_getEndIterator(group);
     End *end;
-    Flower *net = group_getFlower(group);
+    Flower *flower = group_getFlower(group);
     while ((end = flower_getNextEnd(endIterator)) != NULL) {
         End_InstanceIterator *instanceIterator = end_getInstanceIterator(end);
         Cap *cap;
-        char *netName = cactusMisc_nameToString(flower_getName(net));
+        char *flowerName = cactusMisc_nameToString(flower_getName(flower));
         while ((cap = end_getNext(instanceIterator)) != NULL) {
             if (cap_getSequence(cap) != NULL) {
                 cap = cap_getStrand(cap) ? cap : cap_getReverse(cap);
@@ -136,24 +136,24 @@ void addAdjacencies(Group *group, FILE *fileHandle) {
                     sprintf(label, "%s:%i:%i:%s:%i",
                             cactusMisc_nameToStringStatic(sequence_getName(
                                     cap_getSequence(cap))), cap_getCoordinate(
-                                    cap), cap_getCoordinate(cap2), netName,
-                            flower_getEndNumber(net));
+                                    cap), cap_getCoordinate(cap2), flowerName,
+                            flower_getEndNumber(flower));
                     //sprintf(label, "%s:%i",
-                    //		netName,
-                    //		net_getEndNumber(net));
+                    //		flowerName,
+                    //		flower_getEndNumber(flower));
                     addEdgeToGraph(cap_getEnd(cap), cap_getEnd(cap2), "grey",
                             label, 1.5, 1, "forward", fileHandle);
                 }
             }
         }
-        free(netName);
+        free(flowerName);
         end_destructInstanceIterator(instanceIterator);
     }
     group_destructEndIterator(endIterator);
 }
 
-void addStubAndCapEndsToGraph(Flower *net, FILE *fileHandle) {
-    Flower_EndIterator *endIterator = flower_getEndIterator(net);
+void addStubAndCapEndsToGraph(Flower *flower, FILE *fileHandle) {
+    Flower_EndIterator *endIterator = flower_getEndIterator(flower);
     End *end;
     while ((end = flower_getNextEnd(endIterator)) != NULL) {
         if (end_isStubEnd(end)) {
@@ -163,18 +163,18 @@ void addStubAndCapEndsToGraph(Flower *net, FILE *fileHandle) {
     flower_destructEndIterator(endIterator);
 }
 
-void makeCactusGraph(Flower *net, FILE *fileHandle) {
-    if (flower_getParentGroup(net) == NULL) {
-        addStubAndCapEndsToGraph(net, fileHandle);
+void makeCactusGraph(Flower *flower, FILE *fileHandle) {
+    if (flower_getParentGroup(flower) == NULL) {
+        addStubAndCapEndsToGraph(flower, fileHandle);
     }
-    addTrivialChainsToGraph(net, fileHandle);
-    addChainsToGraph(net, fileHandle);
-    Flower_GroupIterator *groupIterator = flower_getGroupIterator(net);
+    addTrivialChainsToGraph(flower, fileHandle);
+    addChainsToGraph(flower, fileHandle);
+    Flower_GroupIterator *groupIterator = flower_getGroupIterator(flower);
     Group *group;
     while ((group = flower_getNextGroup(groupIterator)) != NULL) {
-        Flower *nestedNet = group_getNestedFlower(group);
-        if (nestedNet != NULL) {
-            makeCactusGraph(nestedNet, fileHandle);
+        Flower *nestedFlower = group_getNestedFlower(group);
+        if (nestedFlower != NULL) {
+            makeCactusGraph(nestedFlower, fileHandle);
         } else { //time to add the adjacencies!
             addAdjacencies(group, fileHandle);
         }
@@ -183,16 +183,16 @@ void makeCactusGraph(Flower *net, FILE *fileHandle) {
 }
 
 int main(int argc, char *argv[]) {
-    CactusDisk *netDisk;
-    Flower *net;
+    CactusDisk *cactusDisk;
+    Flower *flower;
     FILE *fileHandle;
 
     /*
      * Arguments/options
      */
     char * logLevelString = NULL;
-    char * netDiskName = NULL;
-    char * netName = NULL;
+    char * cactusDiskName = NULL;
+    char * flowerName = NULL;
     char * outputFile = NULL;
 
     ///////////////////////////////////////////////////////////////////////////
@@ -201,8 +201,8 @@ int main(int argc, char *argv[]) {
 
     while (1) {
         static struct option long_options[] = { { "logLevel",
-                required_argument, 0, 'a' }, { "netDisk", required_argument, 0,
-                'c' }, { "netName", required_argument, 0, 'd' }, {
+                required_argument, 0, 'a' }, { "cactusDisk", required_argument, 0,
+                'c' }, { "flowerName", required_argument, 0, 'd' }, {
                 "outputFile", required_argument, 0, 'e' }, { "edgeColours",
                 no_argument, 0, 'f' }, { "nameLabels", no_argument, 0, 'g' }, {
                 "help", no_argument, 0, 'h' }, { 0, 0, 0, 0 } };
@@ -221,10 +221,10 @@ int main(int argc, char *argv[]) {
                 logLevelString = stString_copy(optarg);
                 break;
             case 'c':
-                netDiskName = stString_copy(optarg);
+                cactusDiskName = stString_copy(optarg);
                 break;
             case 'd':
-                netName = stString_copy(optarg);
+                flowerName = stString_copy(optarg);
                 break;
             case 'e':
                 outputFile = stString_copy(optarg);
@@ -248,8 +248,8 @@ int main(int argc, char *argv[]) {
     // (0) Check the inputs.
     ///////////////////////////////////////////////////////////////////////////
 
-    assert(netDiskName != NULL);
-    assert(netName != NULL);
+    assert(cactusDiskName != NULL);
+    assert(flowerName != NULL);
     assert(outputFile != NULL);
 
     //////////////////////////////////////////////
@@ -267,23 +267,23 @@ int main(int argc, char *argv[]) {
     //Log (some of) the inputs
     //////////////////////////////////////////////
 
-    st_logInfo("Net disk name : %s\n", netDiskName);
-    st_logInfo("Net name : %s\n", netName);
+    st_logInfo("Flower disk name : %s\n", cactusDiskName);
+    st_logInfo("Flower name : %s\n", flowerName);
     st_logInfo("Output graph file : %s\n", outputFile);
 
     //////////////////////////////////////////////
     //Load the database
     //////////////////////////////////////////////
 
-    netDisk = cactusDisk_construct(netDiskName);
-    st_logInfo("Set up the net disk\n");
+    cactusDisk = cactusDisk_construct(cactusDiskName);
+    st_logInfo("Set up the flower disk\n");
 
     ///////////////////////////////////////////////////////////////////////////
     // Parse the basic reconstruction problem
     ///////////////////////////////////////////////////////////////////////////
 
-    net = cactusDisk_getFlower(netDisk, cactusMisc_stringToName(netName));
-    st_logInfo("Parsed the top level net of the cactus tree to build\n");
+    flower = cactusDisk_getFlower(cactusDisk, cactusMisc_stringToName(flowerName));
+    st_logInfo("Parsed the top level flower of the cactus tree to build\n");
 
     ///////////////////////////////////////////////////////////////////////////
     // Build the graph.
@@ -291,7 +291,7 @@ int main(int argc, char *argv[]) {
 
     fileHandle = fopen(outputFile, "w");
     graphViz_setupGraphFile(fileHandle);
-    makeCactusGraph(net, fileHandle);
+    makeCactusGraph(flower, fileHandle);
     graphViz_finishGraphFile(fileHandle);
     fclose(fileHandle);
     st_logInfo("Written the tree to file\n");
@@ -300,7 +300,7 @@ int main(int argc, char *argv[]) {
     // Clean up.
     ///////////////////////////////////////////////////////////////////////////
 
-    cactusDisk_destruct(netDisk);
+    cactusDisk_destruct(cactusDisk);
 
     return 0;
 }

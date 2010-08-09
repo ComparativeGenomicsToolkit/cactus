@@ -4,7 +4,7 @@
 #include "cactus.h"
 #include "sonLib.h"
 #include "endAligner.h"
-#include "netAligner.h"
+#include "flowerAligner.h"
 #include "cactus_core.h"
 #include "commonC.h"
 #include "pairwiseAlignment.h"
@@ -15,9 +15,9 @@
 void usage() {
     fprintf(
             stderr,
-            "cactus_colinearAligner [net-names, ordered by order they should be processed], version 0.2\n");
+            "cactus_baseAligner [flower-names, ordered by order they should be processed], version 0.2\n");
     fprintf(stderr, "-a --logLevel : Set the log level\n");
-    fprintf(stderr, "-b --netDisk : The location of the net disk directory\n");
+    fprintf(stderr, "-b --cactusDisk : The location of the flower disk directory\n");
     fprintf(stderr, "-h --help : Print this help screen\n");
 }
 
@@ -69,7 +69,7 @@ static void startAlignmentStack() {
 int main(int argc, char *argv[]) {
 
     char * logLevelString = NULL;
-    char * netDiskName = NULL;
+    char * cactusDiskName = NULL;
     int32_t j;
 
     /*
@@ -77,7 +77,7 @@ int main(int argc, char *argv[]) {
      */
     while (1) {
         static struct option long_options[] = { { "logLevel",
-                required_argument, 0, 'a' }, { "netDisk", required_argument, 0,
+                required_argument, 0, 'a' }, { "cactusDisk", required_argument, 0,
                 'b' }, { "help", no_argument, 0, 'h' }, { 0, 0, 0, 0 } };
 
         int option_index = 0;
@@ -93,7 +93,7 @@ int main(int argc, char *argv[]) {
                 logLevelString = stString_copy(optarg);
                 break;
             case 'b':
-                netDiskName = stString_copy(optarg);
+                cactusDiskName = stString_copy(optarg);
                 break;
             case 'h':
                 usage();
@@ -120,25 +120,25 @@ int main(int argc, char *argv[]) {
     //--minimumBlockLength 0 --minimumChainLength 0 --trim 0 --alignRepeats 1 --extensionSteps 0
 
     /*
-     * Load the netdisk
+     * Load the flowerdisk
      */
-    CactusDisk *netDisk = cactusDisk_construct(netDiskName);
-    st_logInfo("Set up the net disk\n");
+    CactusDisk *cactusDisk = cactusDisk_construct(cactusDiskName);
+    st_logInfo("Set up the flower disk\n");
 
     /*
-     * For each net.
+     * For each flower.
      */
     for (j = optind; j < argc; j++) {
         /*
-         * Read the net.
+         * Read the flower.
          */
-        const char *netName = argv[j];
-        st_logInfo("Processing the net named: %s\n", netName);
-        Flower *net = cactusDisk_getFlower(netDisk, cactusMisc_stringToName(netName));
-        assert(net != NULL);
-        st_logInfo("Parsed the net to be aligned\n");
+        const char *flowerName = argv[j];
+        st_logInfo("Processing the flower named: %s\n", flowerName);
+        Flower *flower = cactusDisk_getFlower(cactusDisk, cactusMisc_stringToName(flowerName));
+        assert(flower != NULL);
+        st_logInfo("Parsed the flower to be aligned\n");
 
-        getAlignment_alignedPairs = makeNetAlignment(net, SPANNING_TREES,
+        getAlignment_alignedPairs = makeFlowerAlignment(flower, SPANNING_TREES,
                 MAXIMUM_LENGTH, &j);
         st_logInfo("Created the alignment: %i pairs\n", stSortedSet_size(getAlignment_alignedPairs));
         //getAlignment_alignedPairs = stSortedSet_construct();
@@ -147,7 +147,7 @@ int main(int argc, char *argv[]) {
         /*
          * Run the cactus core script.
          */
-        cactusCorePipeline(net, cCIP, getAlignments,
+        cactusCorePipeline(flower, cCIP, getAlignments,
                 startAlignmentStack, 1);
         st_logInfo("Ran the cactus core script.\n");
 
@@ -158,16 +158,16 @@ int main(int argc, char *argv[]) {
         assert(getAlignment_iterator != NULL);
         stSortedSet_destructIterator(getAlignment_iterator);
         getAlignment_iterator = NULL;
-        st_logInfo("Finished filling in the alignments for the net\n");
+        st_logInfo("Finished filling in the alignments for the flower\n");
     }
 
     /*
-     * Write and close the netdisk.
+     * Write and close the cactusdisk.
      */
-    cactusDisk_write(netDisk);
-    cactusDisk_destruct(netDisk);
+    cactusDisk_write(cactusDisk);
+    cactusDisk_destruct(cactusDisk);
     destructCactusCoreInputParameters(cCIP);
-    st_logInfo("Finished with the net disk for this net.\n");
+    st_logInfo("Finished with the flower disk for this flower.\n");
 
     return 0;
 }

@@ -166,7 +166,7 @@ void buildChainTrees_Bernard(int32_t blockNumber, char ***concatenatedBlocks,
      * Alignments are column/row indexed with rows as chain instances and columns as aligned bases.
      * So for example: concatenatedBlocks[i][j][k] is the ith chain/concatenated block, jth row (chain instance), kth column (position in concatenated block)
      *
-     * Names can be converted to strings with: netMisc_nameToString() and netMisc_nameToStringStatic() (See the API).
+     * Names can be converted to strings with: flowerMisc_nameToString() and flowerMisc_nameToStringStatic() (See the API).
      *
      * The output arrays (last three arguments) must be initialised and are *pointers to* the point containing the array/string. Which must be
      * created.
@@ -603,9 +603,9 @@ Event *copyConstructUnaryEvent(Event *event, EventTree *eventTree2) {
 void usage() {
     fprintf(
             stderr,
-            "cactus_tree [net-names, ordered by order they should be processed], version 0.2\n");
+            "cactus_tree [flower-names, ordered by order they should be processed], version 0.2\n");
     fprintf(stderr, "-a --logLevel : Set the log level\n");
-    fprintf(stderr, "-c --netDisk : The location of the net disk directory\n");
+    fprintf(stderr, "-c --cactusDisk : The location of the flower disk directory\n");
     fprintf(stderr, "-h --help : Print this help screen\n");
 }
 
@@ -613,26 +613,26 @@ int main(int argc, char *argv[]) {
     /*
      * The script builds trees.
      *
-     * (1) It reads the net.
+     * (1) It reads the flower.
      *
      * (2) It builds trees for the blocks.
      *
      * (3) It augments the event tree.
      *
-     * (4) It copies the relevant block end trees into the ends of its descendant nets.
+     * (4) It copies the relevant block end trees into the ends of its descendant flowers.
      *
      * (5) It copies the relevant augmented events into the event trees of its descendants.
      *
      */
-    CactusDisk *netDisk;
-    Flower *net;
+    CactusDisk *cactusDisk;
+    Flower *flower;
     int32_t startTime;
     int32_t i, j;
     Chain *chain;
     Block *block;
     struct List *sortedChainAlignments;
     Group *group;
-    Flower *net2;
+    Flower *flower2;
     End *end;
     End *end2;
     Cap *cap;
@@ -645,7 +645,7 @@ int main(int argc, char *argv[]) {
      * Arguments/options
      */
     char * logLevelString = NULL;
-    char * netDiskName = NULL;
+    char * cactusDiskName = NULL;
 
     ///////////////////////////////////////////////////////////////////////////
     // (0) Parse the inputs handed by genomeCactus.py / setup stuff.
@@ -653,7 +653,7 @@ int main(int argc, char *argv[]) {
 
     while (1) {
         static struct option long_options[] = { { "logLevel",
-                required_argument, 0, 'a' }, { "netDisk", required_argument, 0,
+                required_argument, 0, 'a' }, { "cactusDisk", required_argument, 0,
                 'c' }, { "help", no_argument, 0, 'h' }, { 0, 0, 0, 0 } };
 
         int option_index = 0;
@@ -669,7 +669,7 @@ int main(int argc, char *argv[]) {
                 logLevelString = stString_copy(optarg);
                 break;
             case 'c':
-                netDiskName = stString_copy(optarg);
+                cactusDiskName = stString_copy(optarg);
                 break;
             case 'h':
                 usage();
@@ -685,7 +685,7 @@ int main(int argc, char *argv[]) {
     ///////////////////////////////////////////////////////////////////////////
 
     assert(logLevelString == NULL || strcmp(logLevelString, "INFO") == 0 || strcmp(logLevelString, "DEBUG") == 0);
-    assert(netDiskName != NULL);
+    assert(cactusDiskName != NULL);
 
     //////////////////////////////////////////////
     //Set up logging
@@ -702,53 +702,53 @@ int main(int argc, char *argv[]) {
     //Log (some of) the inputs
     //////////////////////////////////////////////
 
-    st_logInfo("Net disk name : %s\n", netDiskName);
+    st_logInfo("Flower disk name : %s\n", cactusDiskName);
 
     //////////////////////////////////////////////
     //Load the database
     //////////////////////////////////////////////
 
-    netDisk = cactusDisk_construct(netDiskName);
-    st_logInfo("Set up the net disk\n");
+    cactusDisk = cactusDisk_construct(cactusDiskName);
+    st_logInfo("Set up the flower disk\n");
 
     //////////////////////////////////////////////
-    //For each net do tree building..
+    //For each flower do tree building..
     //////////////////////////////////////////////
 
     for (j = optind; j < argc; j++) {
-        const char *netName = argv[j];
-        st_logInfo("Processing the net named: %s", netName);
+        const char *flowerName = argv[j];
+        st_logInfo("Processing the flower named: %s", flowerName);
 
         ///////////////////////////////////////////////////////////////////////////
         // Parse the basic reconstruction problem
         ///////////////////////////////////////////////////////////////////////////
 
-        net = cactusDisk_getFlower(netDisk, cactusMisc_stringToName(netName));
-        assert(net != NULL);
-        st_logInfo("Parsed the net to be refined\n");
+        flower = cactusDisk_getFlower(cactusDisk, cactusMisc_stringToName(flowerName));
+        assert(flower != NULL);
+        st_logInfo("Parsed the flower to be refined\n");
 
         ///////////////////////////////////////////////////////////////////////////
         // Do nothing if we have already built the trees.
         ///////////////////////////////////////////////////////////////////////////
 
-        if (flower_builtTrees(net)) {
-            st_logInfo("We have already built trees for net %s\n", netName);
+        if (flower_builtTrees(flower)) {
+            st_logInfo("We have already built trees for flower %s\n", flowerName);
             continue;
         }
 
         ///////////////////////////////////////////////////////////////////////////
         //Setups the 'trees' for the caps for the top level problem.
         //In other words, it ensure ends from stubs have there root instance set - only needs doing for
-        //the top level net, after which the stub roots will be set recursively.
+        //the top level flower, after which the stub roots will be set recursively.
         ///////////////////////////////////////////////////////////////////////////
 
-        if (flower_getName(net) == 0) {
-            endIterator = flower_getEndIterator(net);
+        if (flower_getName(flower) == 0) {
+            endIterator = flower_getEndIterator(flower);
             while ((end = flower_getNextEnd(endIterator)) != NULL) {
                 if (end_isStubEnd(end)) {
                     assert(end_getInstanceNumber(end) == 1);
                     Event *rootEvent = eventTree_getRootEvent(flower_getEventTree(
-                            net));
+                            flower));
                     Cap *rootCap = cap_construct(end, rootEvent);
                     assert(event_isAncestor(cap_getEvent(end_getFirst(end)), rootEvent));
                     cap_makeParentAndChild(rootCap, end_getFirst(end));
@@ -762,7 +762,7 @@ int main(int argc, char *argv[]) {
         }
 
 #ifdef BEN_DEBUG
-        endIterator = flower_getEndIterator(net);
+        endIterator = flower_getEndIterator(flower);
         while ((end = flower_getNextEnd(endIterator)) != NULL) {
             if (!end_isBlockEnd(end)) {
                 assert(end_getRootInstance(end) != NULL);
@@ -778,7 +778,7 @@ int main(int argc, char *argv[]) {
         startTime = time(NULL);
         sortedChainAlignments = constructEmptyList(0,
                 (void(*)(void *)) chainAlignment_destruct);
-        Flower_ChainIterator *chainIterator = flower_getChainIterator(net);
+        Flower_ChainIterator *chainIterator = flower_getChainIterator(flower);
         while ((chain = flower_getNextChain(chainIterator)) != NULL) {
             Block **blockChain = chain_getBlockChain(chain, &i);
             if (i > 0) {
@@ -789,7 +789,7 @@ int main(int argc, char *argv[]) {
         }
         flower_destructChainIterator(chainIterator);
         st_logInfo(
-                "Constructed the block trees for the non-trivial chains in the net in: %i seconds\n",
+                "Constructed the block trees for the non-trivial chains in the flower in: %i seconds\n",
                 time(NULL) - startTime);
 
         ///////////////////////////////////////////////////////////////////////////
@@ -797,7 +797,7 @@ int main(int argc, char *argv[]) {
         ///////////////////////////////////////////////////////////////////////////
 
         startTime = time(NULL);
-        Flower_BlockIterator *blockIterator = flower_getBlockIterator(net);
+        Flower_BlockIterator *blockIterator = flower_getBlockIterator(flower);
         while ((block = flower_getNextBlock(blockIterator)) != NULL) {
             if (block_getChain(block) == NULL) {
                 listAppend(sortedChainAlignments, chainAlignment_construct(
@@ -817,7 +817,7 @@ int main(int argc, char *argv[]) {
 #endif
 
         st_logInfo(
-                "Constructed the block trees for the trivial chains in the net in: %i seconds\n",
+                "Constructed the block trees for the trivial chains in the flower in: %i seconds\n",
                 time(NULL) - startTime);
 
         ///////////////////////////////////////////////////////////////////////////
@@ -826,14 +826,14 @@ int main(int argc, char *argv[]) {
 
         startTime = time(NULL);
         buildChainTrees((ChainAlignment **) sortedChainAlignments->list,
-                sortedChainAlignments->length, flower_getEventTree(net));
+                sortedChainAlignments->length, flower_getEventTree(flower));
         destructList(sortedChainAlignments);
 
         st_logInfo("Augmented the block trees in: %i seconds\n", time(NULL)
                 - startTime);
 
 #ifdef BEN_DEBUG
-        endIterator = flower_getEndIterator(net);
+        endIterator = flower_getEndIterator(flower);
         while ((end = flower_getNextEnd(endIterator)) != NULL) {
             assert(end_getRootInstance(end) != NULL);
         }
@@ -841,18 +841,18 @@ int main(int argc, char *argv[]) {
 #endif
 
         ///////////////////////////////////////////////////////////////////////////
-        //Pass the end trees and augmented events to the child nets.
+        //Pass the end trees and augmented events to the child flowers.
         ///////////////////////////////////////////////////////////////////////////
 
         startTime = time(NULL);
-        Flower_GroupIterator *groupIterator = flower_getGroupIterator(net);
+        Flower_GroupIterator *groupIterator = flower_getGroupIterator(flower);
         while ((group = flower_getNextGroup(groupIterator)) != NULL) {
-            net2 = group_getNestedFlower(group);
-            if (net2 != NULL) {
+            flower2 = group_getNestedFlower(group);
+            if (flower2 != NULL) {
                 //add in the end trees and augment the event trees.
                 Group_EndIterator *endIterator = group_getEndIterator(group);
                 while ((end = group_getNextEnd(endIterator)) != NULL) {
-                    end2 = flower_getEnd(net2, end_getName(end));
+                    end2 = flower_getEnd(flower2, end_getName(end));
                     assert(end2 != NULL);
                     //copy the caps.
                     End_InstanceIterator *instanceIterator =
@@ -862,13 +862,13 @@ int main(int argc, char *argv[]) {
                             assert(cap_getChildNumber(cap)> 0); //can not be a leaf
                             //make sure the augmented event is in there.
                             event = cap_getEvent(cap);
-                            if (eventTree_getEvent(flower_getEventTree(net2),
+                            if (eventTree_getEvent(flower_getEventTree(flower2),
                                     event_getName(event)) == NULL) {
                                 assert(event_getChildNumber(event) == 1); //must be a unary event
                                 copyConstructUnaryEvent(event,
-                                        flower_getEventTree(net2));
+                                        flower_getEventTree(flower2));
                             }
-                            event = eventTree_getEvent(flower_getEventTree(net2),
+                            event = eventTree_getEvent(flower_getEventTree(flower2),
                                     event_getName(event));
                             assert(event != NULL);
                             cap_copyConstruct(end2, cap);
@@ -898,24 +898,24 @@ int main(int argc, char *argv[]) {
         }
         flower_destructGroupIterator(groupIterator);
         st_logInfo(
-                "Filled in end trees and augmented the event trees for the child nets in: %i seconds\n",
+                "Filled in end trees and augmented the event trees for the child flowers in: %i seconds\n",
                 time(NULL) - startTime);
 
         ///////////////////////////////////////////////////////////////////////////
-        //Set the trees in the net to 'built' status.
+        //Set the trees in the flower to 'built' status.
         ///////////////////////////////////////////////////////////////////////////
 
-        assert(!flower_builtTrees(net));
-        flower_setBuiltTrees(net, 1);
+        assert(!flower_builtTrees(flower));
+        flower_setBuiltTrees(flower, 1);
     }
 
     ///////////////////////////////////////////////////////////////////////////
-    // (9) Write the net to disk.
+    // (9) Write the flower to disk.
     ///////////////////////////////////////////////////////////////////////////
 
     startTime = time(NULL);
-    cactusDisk_write(netDisk);
-    st_logInfo("Updated the net on disk in: %i seconds\n", time(NULL)
+    cactusDisk_write(cactusDisk);
+    st_logInfo("Updated the flower on disk in: %i seconds\n", time(NULL)
             - startTime);
 
     ///////////////////////////////////////////////////////////////////////////
@@ -924,7 +924,7 @@ int main(int argc, char *argv[]) {
 
     //Destruct stuff
     startTime = time(NULL);
-    cactusDisk_destruct(netDisk);
+    cactusDisk_destruct(cactusDisk);
 
     st_logInfo("Cleaned stuff up and am finished in: %i seconds\n", time(NULL)
             - startTime);

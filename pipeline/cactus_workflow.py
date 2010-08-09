@@ -32,8 +32,8 @@ from workflow.jobTree.scriptTree.target import Target
 
 from cactus.shared.common import runCactusSetup
 from cactus.shared.common import runCactusCore
-from cactus.shared.common import runCactusGetNets
-from cactus.shared.common import runCactusExtendNets
+from cactus.shared.common import runCactusGetFlowers
+from cactus.shared.common import runCactusExtendFlowers
 from cactus.shared.common import runCactusPhylogeny
 from cactus.shared.common import runCactusAdjacencies
 from cactus.shared.common import runCactusBaseAligner
@@ -75,7 +75,7 @@ class CactusSetupWrapper(Target):
         
     def run(self, localTempDir, globalTempDir):
         logger.info("Starting cactus setup target")
-        runCactusSetup(self.options.netDisk, self.sequences, 
+        runCactusSetup(self.options.cactusDisk, self.sequences, 
                        self.options.speciesTree, logLevel=getLogLevelString())
         logger.info("Finished the setup phase target")
 
@@ -90,36 +90,36 @@ class CactusSetupWrapper(Target):
 ############################################################
     
 class CactusAlignmentPhase(Target):
-    def __init__(self, netName, options):
+    def __init__(self, flowerName, options):
         Target.__init__(self, time=0)
-        self.netName = netName
+        self.flowerName = flowerName
         self.options = options
         
     def run(self, localTempDir, globalTempDir):
         logger.info("Starting the down pass target")
         #Setup call to cactus aligner wrapper as child
         #Calculate the size of the child.
-        self.addChildTarget(CactusAlignmentWrapper(self.options, self.netName, None, 0))
-        self.setFollowOnTarget(CactusNormalPhase(self.netName, self.options))
+        self.addChildTarget(CactusAlignmentWrapper(self.options, self.flowerName, None, 0))
+        self.setFollowOnTarget(CactusNormalPhase(self.flowerName, self.options))
 
-def getAlignmentIteration(iterations, iterationNumber, netSize):
+def getAlignmentIteration(iterations, iterationNumber, flowerSize):
     assert len(iterations) > 0
     i = len(iterations)-1
     iterations = iterations[:]
     iterations.reverse() #Ensure we navigate backwards
     for iteration in iterations:
         assert int(iteration.attrib["number"]) == i
-        if netSize < float(iteration.attrib["max_sequence_size"]) or iterationNumber >= i:
+        if flowerSize < float(iteration.attrib["max_sequence_size"]) or iterationNumber >= i:
             assert i >= iterationNumber
             return i
         i -= 1
 
 class CactusAlignmentWrapper(Target):
-    def __init__(self, options, netName, alignmentFile, iteration):
+    def __init__(self, options, flowerName, alignmentFile, iteration):
         Target.__init__(self, time=0)
         self.options = options
         self.iteration = iteration
-        self.netName = netName
+        self.flowerName = flowerName
         self.alignmentFile = alignmentFile
     
     def cleanup(self, localTempDir, globalTempDir):
@@ -133,37 +133,37 @@ class CactusAlignmentWrapper(Target):
         iterations = self.options.config.find("alignment").find("iterations").findall("iteration")
         if self.iteration < len(iterations):
             idealJobRuntime = float(self.options.config.attrib["ideal_job_runtime"])
-            #base level nets.
+            #base level flowers.
             baseLevelTime = 0.0
-            baseLevelNets = []
+            baseLevelFlowers = []
             #This loop is properly atomic, because if it is run twice it will return the same
-            #set of netnames
-            for childNetName, childNetSize in runCactusExtendNets(self.options.netDisk, self.netName, 
+            #set of flowernames
+            for childFlowerName, childFlowerSize in runCactusExtendFlowers(self.options.cactusDisk, self.flowerName, 
                                                                   localTempDir):
-                assert childNetSize > 0
-                nextIteration = getAlignmentIteration(iterations, self.iteration, childNetSize)
+                assert childFlowerSize > 0
+                nextIteration = getAlignmentIteration(iterations, self.iteration, childFlowerSize)
                 iterationTime = float(iterations[nextIteration].attrib["time"])
                 if iterations[nextIteration].attrib["type"] == "blast":
-                    self.addChildTarget(CactusBlastWrapper(self.options, childNetName, nextIteration, iterationTime))
+                    self.addChildTarget(CactusBlastWrapper(self.options, childFlowerName, nextIteration, iterationTime))
                 else:
                     assert(iterations[nextIteration].attrib["type"] == "base")
-                    baseLevelNets.append(childNetName)
+                    baseLevelFlowers.append(childFlowerName)
                     baseLevelTime += iterationTime
                     if baseLevelTime >= idealJobRuntime:
-                        self.addChildTarget(CactusBaseLevelAlignerWrapper(self.options, baseLevelNets, baseLevelTime))
-                        baseLevelNets = []
+                        self.addChildTarget(CactusBaseLevelAlignerWrapper(self.options, baseLevelFlowers, baseLevelTime))
+                        baseLevelFlowers = []
                         baseLevelTime = 0.0
-            if len(baseLevelNets) > 0:
-                self.addChildTarget(CactusBaseLevelAlignerWrapper(self.options, baseLevelNets, baseLevelTime))        
+            if len(baseLevelFlowers) > 0:
+                self.addChildTarget(CactusBaseLevelAlignerWrapper(self.options, baseLevelFlowers, baseLevelTime))        
             logger.info("Created child targets for all the recursive reconstruction jobs")
         else:
             logger.info("We've no more iterations to consider")
 
 class CactusBlastWrapper(Target):
-    def __init__(self, options, netName, iteration, time):
+    def __init__(self, options, flowerName, iteration, time):
         Target.__init__(self, time=time)
         self.options = options
-        self.netName = netName
+        self.flowerName = flowerName
         self.iteration = int(iteration)
     
     def run(self, localTempDir, globalTempDir):
@@ -184,19 +184,19 @@ class CactusBlastWrapper(Target):
                                               int(blastMiscNode.attrib["chunksPerJob"]), 
                                               bool(blastMiscNode.attrib["compressFiles"])))
             
-        self.addChildTarget(MakeSequences(self.options.netDisk, 
-                                          self.netName, alignmentFile, blastOptions))
+        self.addChildTarget(MakeSequences(self.options.cactusDisk, 
+                                          self.flowerName, alignmentFile, blastOptions))
         logger.info("Created the cactus_aligner child target")
         
         #Now setup a call to cactus core wrapper as a follow on
-        self.setFollowOnTarget(CactusCoreWrapper(self.options, self.netName, alignmentFile, self.iteration))
+        self.setFollowOnTarget(CactusCoreWrapper(self.options, self.flowerName, alignmentFile, self.iteration))
         logger.info("Setup the follow on cactus_core target")
 
 class CactusCoreWrapper(Target):
-    def __init__(self, options, netName, alignmentFile, iteration):
+    def __init__(self, options, flowerName, alignmentFile, iteration):
         Target.__init__(self, time=0)
         self.options = options
-        self.netName = netName
+        self.flowerName = flowerName
         self.alignmentFile = alignmentFile
         self.iteration = iteration
     
@@ -205,9 +205,9 @@ class CactusCoreWrapper(Target):
     
         coreParameters = self.options.config.find("alignment").find("iterations").findall("iteration")[self.iteration].find("core")
         
-        runCactusCore(netDisk=self.options.netDisk,
+        runCactusCore(cactusDisk=self.options.cactusDisk,
                       alignmentFile=self.alignmentFile, 
-                      netName=self.netName,
+                      flowerName=self.flowerName,
                       logLevel=getLogLevelString(), 
                       annealingRounds=float(coreParameters.attrib["annealingRounds"]),
                       alignRepeatsAtRound=float(coreParameters.attrib["alignRepeatsAtRound"]),
@@ -222,19 +222,19 @@ class CactusCoreWrapper(Target):
         logger.info("Ran the cactus core program okay")
         
         #Setup call to core and aligner recursive as follow on.
-        self.setFollowOnTarget(CactusAlignmentWrapper(self.options, self.netName, self.alignmentFile, self.iteration+1))
+        self.setFollowOnTarget(CactusAlignmentWrapper(self.options, self.flowerName, self.alignmentFile, self.iteration+1))
         logger.info("Issued a the recursive/cleanup wrapper as a follow on job")
      
 class CactusBaseLevelAlignerWrapper(Target):
     #We split, to deal with cleaning up the alignment file
-    def __init__(self, options, netNames, time):
+    def __init__(self, options, flowerNames, time):
         Target.__init__(self, time=time)
         self.options = options
-        self.netNames = netNames
+        self.flowerNames = flowerNames
     
     def run(self, localTempDir, globalTempDir):
         #return
-        runCactusBaseAligner(self.options.netDisk, self.netNames, getLogLevelString())
+        runCactusBaseAligner(self.options.cactusDisk, self.flowerNames, getLogLevelString())
         logger.info("Run the cactus base aligner")
         
 ############################################################
@@ -246,27 +246,27 @@ class CactusBaseLevelAlignerWrapper(Target):
 ############################################################
     
 class CactusNormalPhase(Target):
-    def __init__(self, netName, options):
+    def __init__(self, flowerName, options):
         Target.__init__(self, time=0)
-        self.netName = netName
+        self.flowerName = flowerName
         self.options = options
         
     def run(self, localTempDir, globalTempDir):
         logger.info("Starting the normalisation phase")
         time = float(self.options.config.find("normal").attrib["time"])
-        self.addChildTarget(CactusExtensionWrapper(self.options, [ self.netName ], MAKE_NORMAL, time))
-        self.setFollowOnTarget(CactusPhylogenyPhase(self.netName, self.options))
+        self.addChildTarget(CactusExtensionWrapper(self.options, [ self.flowerName ], MAKE_NORMAL, time))
+        self.setFollowOnTarget(CactusPhylogenyPhase(self.flowerName, self.options))
         
 class CactusNormalRunnable(Target):
     """This targets run the normalisation script.
     """
-    def __init__(self, netNames, options):
+    def __init__(self, flowerNames, options):
         Target.__init__(self, time=0)
-        self.netNames = netNames
+        self.flowerNames = flowerNames
         self.options = options
         
     def run(self, localTempDir, globalTempDir):
-        runCactusMakeNormal(self.options.netDisk, netNames=self.netNames)
+        runCactusMakeNormal(self.options.cactusDisk, flowerNames=self.flowerNames)
 
 ############################################################
 ############################################################
@@ -277,17 +277,17 @@ class CactusNormalRunnable(Target):
 ############################################################
     
 class CactusPhylogenyPhase(Target):
-    def __init__(self, netName, options):
+    def __init__(self, flowerName, options):
         Target.__init__(self, time=0)
-        self.netName = netName
+        self.flowerName = flowerName
         self.options = options
         
     def run(self, localTempDir, globalTempDir):
         logger.info("Starting the phylogeny phase")
         if self.options.buildTrees:
             time = float(self.options.config.find("phylogeny").attrib["time"])
-            self.addChildTarget(CactusExtensionWrapper(self.options, [ self.netName ], BUILD_TREES, time))
-        self.setFollowOnTarget(CactusFacesPhase(self.netName, self.options))
+            self.addChildTarget(CactusExtensionWrapper(self.options, [ self.flowerName ], BUILD_TREES, time))
+        self.setFollowOnTarget(CactusFacesPhase(self.flowerName, self.options))
 
 ############################################################
 ############################################################
@@ -298,17 +298,17 @@ class CactusPhylogenyPhase(Target):
 ############################################################
     
 class CactusFacesPhase(Target):
-    def __init__(self, netName, options):
+    def __init__(self, flowerName, options):
         Target.__init__(self, time=0)
-        self.netName = netName
+        self.flowerName = flowerName
         self.options = options
         
     def run(self, localTempDir, globalTempDir):
         logger.info("Starting the faces phase")
         if self.options.buildFaces:
             time = float(self.options.config.find("faces").attrib["time"])
-            self.addChildTarget(CactusExtensionWrapper(self.options, [ self.netName ], BUILD_FACES, time))
-        self.setFollowOnTarget(CactusReferencePhase(self.netName, self.options))
+            self.addChildTarget(CactusExtensionWrapper(self.options, [ self.flowerName ], BUILD_FACES, time))
+        self.setFollowOnTarget(CactusReferencePhase(self.flowerName, self.options))
 
 ############################################################
 ############################################################
@@ -319,17 +319,17 @@ class CactusFacesPhase(Target):
 ############################################################
     
 class CactusReferencePhase(Target):
-    def __init__(self, netName, options):
+    def __init__(self, flowerName, options):
         Target.__init__(self, time=0)
-        self.netName = netName
+        self.flowerName = flowerName
         self.options = options
         
     def run(self, localTempDir, globalTempDir):
         logger.info("Starting the faces phase")
         if self.options.buildReference:
             time = float(self.options.config.find("reference").attrib["time"])
-            self.addChildTarget(CactusExtensionWrapper(self.options, [ self.netName ], BUILD_REFERENCE, time))
-        self.setFollowOnTarget(CactusCheckPhase(self.netName, self.options))
+            self.addChildTarget(CactusExtensionWrapper(self.options, [ self.flowerName ], BUILD_REFERENCE, time))
+        self.setFollowOnTarget(CactusCheckPhase(self.flowerName, self.options))
             
 ############################################################
 ############################################################
@@ -340,15 +340,15 @@ class CactusReferencePhase(Target):
 ############################################################
     
 class CactusCheckPhase(Target):
-    def __init__(self, netName, options):
+    def __init__(self, flowerName, options):
         Target.__init__(self, time=0)
-        self.netName = netName
+        self.flowerName = flowerName
         self.options = options
         
     def run(self, localTempDir, globalTempDir):
         logger.info("Starting the verification phase")
         time = float(self.options.config.find("check").attrib["time"])
-        self.addChildTarget(CactusExtensionWrapper(self.options, [ self.netName ], CHECK, time))
+        self.addChildTarget(CactusExtensionWrapper(self.options, [ self.flowerName ], CHECK, time))
         
 ############################################################
 ############################################################
@@ -365,10 +365,10 @@ BUILD_REFERENCE = 3
 CHECK = 4
 
 class CactusExtensionWrapper(Target):
-    def __init__(self, options, netNames, switch, unitTime):
-        Target.__init__(self, time=unitTime*len(netNames))
+    def __init__(self, options, flowerNames, switch, unitTime):
+        Target.__init__(self, time=unitTime*len(flowerNames))
         self.options = options
-        self.netNames = netNames
+        self.flowerNames = flowerNames
         self.switch = switch
         self.unitTime = unitTime
     
@@ -376,28 +376,28 @@ class CactusExtensionWrapper(Target):
         #The following are atomic, in that we check if they have already been run successfully.
         #This ensures things end up terminal normal.. which we need for face building.
         if self.switch == MAKE_NORMAL: #We set this as a follow on, as it is run in bottom up order (currently the only one, so it's on its own as a target)
-            self.setFollowOnTarget(CactusNormalRunnable(options=self.options, netNames=self.netNames))
-            #runCactusMakeNormal(self.options.netDisk, netNames=self.netNames)
+            self.setFollowOnTarget(CactusNormalRunnable(options=self.options, flowerNames=self.flowerNames))
+            #runCactusMakeNormal(self.options.cactusDisk, flowerNames=self.flowerNames)
         elif self.switch == BUILD_TREES:
-            runCactusPhylogeny(self.options.netDisk, netNames=self.netNames)
+            runCactusPhylogeny(self.options.cactusDisk, flowerNames=self.flowerNames)
             #Not atomic!
         elif self.switch == BUILD_FACES:
-            runCactusAdjacencies(self.options.netDisk, netNames=self.netNames)
+            runCactusAdjacencies(self.options.cactusDisk, flowerNames=self.flowerNames)
         elif self.switch == BUILD_REFERENCE:
-            runCactusReference(self.options.netDisk, netNames=self.netNames)
+            runCactusReference(self.options.cactusDisk, flowerNames=self.flowerNames)
         elif self.switch == CHECK:
-            runCactusCheck(self.options.netDisk, self.netNames)
+            runCactusCheck(self.options.cactusDisk, self.flowerNames)
         #Make child jobs
-        childNetNames = []
+        childFlowerNames = []
         idealJobRuntime = float(self.options.config.attrib["ideal_job_runtime"])
-        for childNetName, childNetSize in runCactusGetNets(self.options.netDisk, self.netNames, localTempDir):
-            assert(childNetSize) >= 0
-            childNetNames.append(childNetName)
-            if self.unitTime*len(childNetNames) >= idealJobRuntime:
-                self.addChildTarget(CactusExtensionWrapper(self.options, childNetNames, self.switch, self.unitTime))
-                childNetNames = []
-        if len(childNetNames) > 0:
-            self.addChildTarget(CactusExtensionWrapper(self.options, childNetNames, self.switch, self.unitTime))
+        for childFlowerName, childFlowerSize in runCactusGetFlowers(self.options.cactusDisk, self.flowerNames, localTempDir):
+            assert(childFlowerSize) >= 0
+            childFlowerNames.append(childFlowerName)
+            if self.unitTime*len(childFlowerNames) >= idealJobRuntime:
+                self.addChildTarget(CactusExtensionWrapper(self.options, childFlowerNames, self.switch, self.unitTime))
+                childFlowerNames = []
+        if len(childFlowerNames) > 0:
+            self.addChildTarget(CactusExtensionWrapper(self.options, childFlowerNames, self.switch, self.unitTime))
       
 def main():
     ##########################################
@@ -411,7 +411,7 @@ def main():
 
     parser.add_option("--speciesTree", dest="speciesTree", help="The species tree relating the input sequences")
     
-    parser.add_option("--netDisk", dest="netDisk", help="The location of the net disk.", default="netDisk") 
+    parser.add_option("--cactusDisk", dest="cactusDisk", help="The location of the flower disk.", default="cactusDisk") 
     
     parser.add_option("--configFile", dest="config", help="The file XML file containing the parameters for the pipeline", 
                       default=os.path.join(sonTraceRootPath(), "src", "cactus", "pipeline", "cactus_workflow_config.xml"))
@@ -426,7 +426,7 @@ def main():
                       help="Build adjacencies", default=False)
     
     parser.add_option("--buildReference", dest="buildReference", action="store_true",
-                      help="Creates a reference ordering for the nets", default=False)
+                      help="Creates a reference ordering for the flowers", default=False)
     
     options, args = parseBasicOptions(parser)
 

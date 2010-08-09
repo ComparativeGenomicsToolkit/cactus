@@ -23,27 +23,27 @@
 void usage() {
 	fprintf(stderr, "cactus_treeStats, version 0.1\n");
 	fprintf(stderr, "-a --logLevel : Set the log level\n");
-	fprintf(stderr, "-c --netDisk : The location of the net disk directory\n");
-	fprintf(stderr, "-d --netName : The name of the net (the key in the database)\n");
+	fprintf(stderr, "-c --cactusDisk : The location of the flower disk directory\n");
+	fprintf(stderr, "-d --flowerName : The name of the flower (the key in the database)\n");
 	fprintf(stderr, "-e --outputFile : The file to write the stats in, XML formatted.\n");
 	fprintf(stderr, "-h --help : Print this help screen\n");
 }
 
 int main(int argc, char *argv[]) {
 	/*
-	 * The script builds a cactus tree representation of the chains and nets.
+	 * The script builds a cactus tree representation of the chains and flowers.
 	 * The format of the output graph is dot format.
 	 */
-	CactusDisk *netDisk;
-	Flower *net;
+	CactusDisk *cactusDisk;
+	Flower *flower;
 	FILE *fileHandle;
 
 	/*
 	 * Arguments/options
 	 */
 	char * logLevelString = NULL;
-	char * netDiskName = NULL;
-	char * netName = "0";
+	char * cactusDiskName = NULL;
+	char * flowerName = "0";
 	char * outputFile = NULL;
 
 	///////////////////////////////////////////////////////////////////////////
@@ -53,8 +53,8 @@ int main(int argc, char *argv[]) {
 	while(1) {
 		static struct option long_options[] = {
 			{ "logLevel", required_argument, 0, 'a' },
-			{ "netDisk", required_argument, 0, 'c' },
-			{ "netName", required_argument, 0, 'd' },
+			{ "cactusDisk", required_argument, 0, 'c' },
+			{ "flowerName", required_argument, 0, 'd' },
 			{ "outputFile", required_argument, 0, 'e' },
 			{ "help", no_argument, 0, 'h' },
 			{ 0, 0, 0, 0 }
@@ -73,10 +73,10 @@ int main(int argc, char *argv[]) {
 				logLevelString = stString_copy(optarg);
 				break;
 			case 'c':
-				netDiskName = stString_copy(optarg);
+				cactusDiskName = stString_copy(optarg);
 				break;
 			case 'd':
-				netName = stString_copy(optarg);
+				flowerName = stString_copy(optarg);
 				break;
 			case 'e':
 				outputFile = stString_copy(optarg);
@@ -94,8 +94,8 @@ int main(int argc, char *argv[]) {
 	// (0) Check the inputs.
 	///////////////////////////////////////////////////////////////////////////
 
-	assert(netDiskName != NULL);
-	assert(netName != NULL);
+	assert(cactusDiskName != NULL);
+	assert(flowerName != NULL);
 	assert(outputFile != NULL);
 
 	//////////////////////////////////////////////
@@ -113,31 +113,31 @@ int main(int argc, char *argv[]) {
 	//Log (some of) the inputs
 	//////////////////////////////////////////////
 
-	st_logInfo("Net disk name : %s\n", netDiskName);
-	st_logInfo("Net name : %s\n", netName);
+	st_logInfo("Flower disk name : %s\n", cactusDiskName);
+	st_logInfo("Flower name : %s\n", flowerName);
 	st_logInfo("Output graph file : %s\n", outputFile);
 
 	//////////////////////////////////////////////
 	//Load the database
 	//////////////////////////////////////////////
 
-	netDisk = cactusDisk_construct(netDiskName);
-	st_logInfo("Set up the net disk\n");
+	cactusDisk = cactusDisk_construct(cactusDiskName);
+	st_logInfo("Set up the flower disk\n");
 
 	///////////////////////////////////////////////////////////////////////////
 	// Parse the basic reconstruction problem
 	///////////////////////////////////////////////////////////////////////////
 
-	net = cactusDisk_getFlower(netDisk, cactusMisc_stringToName(netName));
-	assert(net != NULL);
-	st_logInfo("Parsed the top level net of the cactus tree to build\n");
+	flower = cactusDisk_getFlower(cactusDisk, cactusMisc_stringToName(flowerName));
+	assert(flower != NULL);
+	st_logInfo("Parsed the top level flower of the cactus tree to build\n");
 
 	///////////////////////////////////////////////////////////////////////////
 	// Calculate and print to file a crap load of numbers.
 	///////////////////////////////////////////////////////////////////////////
 
 	fileHandle = fopen(outputFile, "w");
-	reportNetDiskStats(netDiskName, net, fileHandle);
+	reportCactusDiskStats(cactusDiskName, flower, fileHandle);
 	st_logInfo("Finished writing out the stats.\n");
 	fclose(fileHandle);
 
@@ -145,7 +145,7 @@ int main(int argc, char *argv[]) {
 	// Clean up.
 	///////////////////////////////////////////////////////////////////////////
 
-	cactusDisk_destruct(netDisk);
+	cactusDisk_destruct(cactusDisk);
 
 	return 0;
 }

@@ -4,9 +4,9 @@
 #include <stdlib.h>
 #include <string.h>
 
-//Basic net.
+//Basic flower.
 static CactusDisk *cactusDisk;
-static Flower *net;
+static Flower *flower;
 
 //Event tree...
 static EventTree *eventTree;
@@ -58,36 +58,36 @@ static void teardown() {
 static void setup() {
     teardown();
     cactusDisk = cactusDisk_construct(testCommon_getTemporaryCactusDisk());
-    net = flower_construct(cactusDisk);
+    flower = flower_construct(cactusDisk);
 
     //Event tree
     rootMetaEvent = metaEvent_construct("ROOT", cactusDisk);
     leafMetaEvent = metaEvent_construct("LEAF1", cactusDisk);
-    eventTree = eventTree_construct(rootMetaEvent, net);
+    eventTree = eventTree_construct(rootMetaEvent, flower);
     rootEvent = eventTree_getRootEvent(eventTree);
     leafEvent = event_construct(leafMetaEvent, 0.2, rootEvent, eventTree);
 
     //Sequences
     metaSequence1 = metaSequence_construct(1, 10, "ACTGACTGAC", ">one",
             metaEvent_getName(leafMetaEvent), cactusDisk);
-    sequence1 = sequence_construct(metaSequence1, net);
+    sequence1 = sequence_construct(metaSequence1, flower);
 
     metaSequence2 = metaSequence_construct(1, 8, "AACCGGAA", ">two",
             metaEvent_getName(leafMetaEvent), cactusDisk);
-    sequence2 = sequence_construct(metaSequence2, net);
+    sequence2 = sequence_construct(metaSequence2, flower);
 
     metaSequence3 = metaSequence_construct(1, 4, "CGGG", ">three",
                 metaEvent_getName(leafMetaEvent), cactusDisk);
-    sequence3 = sequence_construct(metaSequence3, net);
+    sequence3 = sequence_construct(metaSequence3, flower);
 
     metaSequence4 = metaSequence_construct(1, 1, "C", ">four",
                     metaEvent_getName(leafMetaEvent), cactusDisk);
-    sequence4 = sequence_construct(metaSequence4, net);
+    sequence4 = sequence_construct(metaSequence4, flower);
 
     //Ends
-    end1 = end_construct2(0, 1, net);
-    end2 = end_construct2(1, 1, net);
-    end3 = end_construct2(1, 1, net);
+    end1 = end_construct2(0, 1, flower);
+    end2 = end_construct2(1, 1, flower);
+    end3 = end_construct2(1, 1, flower);
 
     //Caps
     //ACTG, Seq 1, 1:4 (End 1 to 2)

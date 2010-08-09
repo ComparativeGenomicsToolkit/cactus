@@ -1,5 +1,5 @@
-#include "netsShared.h"
-#include "netAligner.h"
+#include "flowersShared.h"
+#include "flowerAligner.h"
 #include "endAligner.h"
 #include "adjacencySequences.h"
 
@@ -95,30 +95,30 @@ void test_getInducedAlignment(CuTest *testCase) {
 }
 
 /*
- * Just runs the net alignment through, doesn't really check its okay.
+ * Just runs the flower alignment through, doesn't really check its okay.
  */
-void test_netAlignerRandom(CuTest *testCase) {
+void test_flowerAlignerRandom(CuTest *testCase) {
     return;
     setup();
     int32_t maxLength = 5;
-    stSortedSet *netAlignment = makeNetAlignment(net, 5, maxLength, &maxLength);
+    stSortedSet *flowerAlignment = makeFlowerAlignment(flower, 5, maxLength, &maxLength);
     //Check the aligned pairs are all good..
-    stSortedSetIterator *iterator = stSortedSet_getIterator(netAlignment);
+    stSortedSetIterator *iterator = stSortedSet_getIterator(flowerAlignment);
     AlignedPair *alignedPair;
     while((alignedPair = stSortedSet_getNext(iterator)) != NULL) {
         CuAssertTrue(testCase, alignedPair->score > 0); //Check score is valid
         CuAssertTrue(testCase, alignedPair->score <= 1000);
-        CuAssertTrue(testCase, stSortedSet_search(netAlignment, alignedPair->reverse) != NULL); //Check other end is in.
+        CuAssertTrue(testCase, stSortedSet_search(flowerAlignment, alignedPair->reverse) != NULL); //Check other end is in.
     }
     stSortedSet_destructIterator(iterator);
-    stSortedSet_destruct(netAlignment);
+    stSortedSet_destruct(flowerAlignment);
 
     teardown();
 }
 
-CuSuite* netAlignerTestSuite(void) {
+CuSuite* flowerAlignerTestSuite(void) {
     CuSuite* suite = CuSuiteNew();
     SUITE_ADD_TEST(suite, test_getInducedAlignment);
-    SUITE_ADD_TEST(suite, test_netAlignerRandom);
+    SUITE_ADD_TEST(suite, test_flowerAlignerRandom);
     return suite;
 }

@@ -14,7 +14,7 @@
 #include "hashTableC.h"
 #include "cactus.h"
 #include "pairwiseAlignment.h"
-#include "cactusNetFunctions.h"
+#include "cactusFlowerFunctions.h"
 #include "cactus_core.h"
 #include "sonLib.h"
 
@@ -36,8 +36,8 @@ void usage() {
     fprintf(stderr, "cactus_core, version 0.2\n");
     fprintf(stderr, "-a --logLevel : Set the log level\n");
     fprintf(stderr, "-b --alignments : The input alignments file\n");
-    fprintf(stderr, "-c --netDisk : The location of the net disk directory\n");
-    fprintf(stderr, "-d --netName : The name of the net (the key in the database)\n");
+    fprintf(stderr, "-c --cactusDisk : The location of the flower disk directory\n");
+    fprintf(stderr, "-d --flowerName : The name of the flower (the key in the database)\n");
     fprintf(stderr, "-e --writeDebugFiles : Write the debug files\n");
     fprintf(stderr, "-h --help : Print this help screen\n");
 
@@ -63,8 +63,8 @@ int main(int argc, char *argv[]) {
      * Script for adding alignments to cactus tree.
      */
     int32_t startTime;
-    CactusDisk *netDisk;
-    Flower *net;
+    CactusDisk *cactusDisk;
+    Flower *flower;
     int key;
 
     /*
@@ -72,8 +72,8 @@ int main(int argc, char *argv[]) {
      */
     char * logLevelString = NULL;
     char * alignmentsFile = NULL;
-    char * netDiskName = NULL;
-    char * netName = NULL;
+    char * cactusDiskName = NULL;
+    char * flowerName = NULL;
     CactusCoreInputParameters *cCIP = constructCactusCoreInputParameters();
 
     ///////////////////////////////////////////////////////////////////////////
@@ -85,8 +85,8 @@ int main(int argc, char *argv[]) {
                 long_options[] = {
                         { "logLevel", required_argument, 0, 'a' },
                         { "alignments", required_argument, 0, 'b' },
-                        { "netDisk", required_argument, 0, 'c' },
-                        { "netName", required_argument, 0, 'd' },
+                        { "cactusDisk", required_argument, 0, 'c' },
+                        { "flowerName", required_argument, 0, 'd' },
                         { "writeDebugFiles", no_argument, 0, 'e' },
                         { "help", no_argument, 0, 'h' },
                         { "annealingRounds", required_argument, 0, 'i' },
@@ -119,10 +119,10 @@ int main(int argc, char *argv[]) {
             alignmentsFile = stString_copy(optarg);
             break;
         case 'c':
-            netDiskName = stString_copy(optarg);
+            cactusDiskName = stString_copy(optarg);
             break;
         case 'd':
-            netName = stString_copy(optarg);
+            flowerName = stString_copy(optarg);
             break;
         case 'e':
             cCIP->writeDebugFiles = !cCIP->writeDebugFiles;
@@ -173,8 +173,8 @@ int main(int argc, char *argv[]) {
 
     assert(logLevelString == NULL || strcmp(logLevelString, "CRITICAL") == 0 || strcmp(logLevelString, "INFO") == 0 || strcmp(logLevelString, "DEBUG") == 0);
     assert(alignmentsFile != NULL);
-    assert(netDiskName != NULL);
-    assert(netName != NULL);
+    assert(cactusDiskName != NULL);
+    assert(flowerName != NULL);
     assert(cCIP->minimumTreeCoverage >= 0.0);
     assert(cCIP->minimumTreeCoverage <= 1.0);
     assert(cCIP->minimumBlockLength >= 0);
@@ -200,24 +200,24 @@ int main(int argc, char *argv[]) {
     //////////////////////////////////////////////
 
     st_logInfo("Pairwise alignments file : %s\n", alignmentsFile);
-    st_logInfo("Net disk name : %s\n", netDiskName);
-    st_logInfo("Net name : %s\n", netName);
+    st_logInfo("Flower disk name : %s\n", cactusDiskName);
+    st_logInfo("Flower name : %s\n", flowerName);
 
     //////////////////////////////////////////////
     //Load the database
     //////////////////////////////////////////////
 
-    netDisk = cactusDisk_construct(netDiskName);
-    st_logInfo("Set up the net disk\n");
+    cactusDisk = cactusDisk_construct(cactusDiskName);
+    st_logInfo("Set up the flower disk\n");
 
     ///////////////////////////////////////////////////////////////////////////
     // Parse the basic reconstruction problem
     ///////////////////////////////////////////////////////////////////////////
 
-    net = cactusDisk_getFlower(netDisk, cactusMisc_stringToName(netName));
-    st_logInfo("Parsed the net to be refined\n");
+    flower = cactusDisk_getFlower(cactusDisk, cactusMisc_stringToName(flowerName));
+    st_logInfo("Parsed the flower to be refined\n");
 
-    if (!flower_builtBlocks(net)) { // Do nothing if the net already has defined blocks
+    if (!flower_builtBlocks(flower)) { // Do nothing if the flower already has defined blocks
         startTime = time(NULL);
 
         ///////////////////////////////////////////////////////////////////////////
@@ -225,19 +225,19 @@ int main(int argc, char *argv[]) {
         ///////////////////////////////////////////////////////////////////////////
 
         startAlignmentStack_fileString = alignmentsFile;
-        exitOnFailure(cactusCorePipeline(net, cCIP, getNextAlignment,
+        exitOnFailure(cactusCorePipeline(flower, cCIP, getNextAlignment,
                 startAlignmentStack, 0),
                 "Failed to run the cactus core pipeline\n");
         fclose(getNextAlignment_FileHandle);
 
         ///////////////////////////////////////////////////////////////////////////
-        // (9) Write the net to disk.
+        // (9) Write the flower to disk.
         ///////////////////////////////////////////////////////////////////////////
 
-        cactusDisk_write(netDisk);
-        st_logInfo("Updated the net on disk\n");
+        cactusDisk_write(cactusDisk);
+        st_logInfo("Updated the flower on disk\n");
     } else {
-        st_logInfo("We've already built blocks / alignments for this net\n");
+        st_logInfo("We've already built blocks / alignments for this flower\n");
     }
 
     ///////////////////////////////////////////////////////////////////////////
@@ -246,7 +246,7 @@ int main(int argc, char *argv[]) {
 
     //Destruct stuff
     startTime = time(NULL);
-    cactusDisk_destruct(netDisk);
+    cactusDisk_destruct(cactusDisk);
 
     st_logInfo("Cleaned stuff up and am finished in: %i seconds\n", time(NULL)
             - startTime);

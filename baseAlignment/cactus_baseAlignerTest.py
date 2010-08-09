@@ -97,9 +97,9 @@ class TestCase(unittest.TestCase):
         logger.info("Got the temp sequence files")
         
         #Run the workflow
-        netDisk = os.path.join(testDir, "netDisk")
+        cactusDisk = os.path.join(testDir, "cactusDisk")
         jobTree = os.path.join(testDir, "jobTree")
-        runCactusWorkflow(netDisk, tempFastaFiles, newickTreeString, jobTree, 
+        runCactusWorkflow(cactusDisk, tempFastaFiles, newickTreeString, jobTree, 
                           buildTrees=False, buildFaces=False, buildReference=False)
         logger.info("Ran the the workflow")
         
@@ -108,13 +108,13 @@ class TestCase(unittest.TestCase):
         logger.info("Checked the job tree dir")
         
         #Now get mafs for the region.
-        mAFFile = os.path.join(testDir, "net.maf")
-        system("cactus_MAFGenerator --netName 0 --netDisk %s --outputFile %s" % (netDisk, mAFFile))
-        logger.info("Got the MAFs from the net disk")
+        mAFFile = os.path.join(testDir, "flower.maf")
+        system("cactus_MAFGenerator --flowerName 0 --cactusDisk %s --outputFile %s" % (cactusDisk, mAFFile))
+        logger.info("Got the MAFs from the flower disk")
         system("cat %s" % mAFFile)
         
         statsFile = os.path.join(testDir, "stats.xml")
-        system("cactus_treeStats --netDisk %s --netName 0 --outputFile %s" % (netDisk, statsFile))
+        system("cactus_treeStats --cactusDisk %s --flowerName 0 --outputFile %s" % (cactusDisk, statsFile))
         system("cat %s" % statsFile)
         logger.info("Got the cactus tree stats")
         

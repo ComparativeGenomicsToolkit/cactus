@@ -25,9 +25,9 @@ class TestCase(unittest.TestCase):
             tempDir = getTempDirectory(os.getcwd())
             sequenceNumber = random.choice(xrange(100))
             sequences, newickTreeString = getCactusInputs_random(tempDir=tempDir, sequenceNumber=sequenceNumber)
-            netDisk = os.path.join(tempDir, "netDisk")
-            runCactusSetup(netDisk, sequences, newickTreeString, debug=True)
-            runCactusSetup(netDisk, sequences, newickTreeString, debug=True)
+            cactusDisk = os.path.join(tempDir, "cactusDisk")
+            runCactusSetup(cactusDisk, sequences, newickTreeString, debug=True)
+            runCactusSetup(cactusDisk, sequences, newickTreeString, debug=True)
             system("rm -rf %s" % tempDir)
             logger.info("Finished test %i of cactus_setup.py", test) 
  

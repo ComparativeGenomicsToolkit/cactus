@@ -6,7 +6,7 @@
 #include "hashTableC.h"
 #include "pairwiseAlignment.h"
 #include "avl.h"
-//#include "net.h"
+//#include "flower.h"
 #include "cactus.h"
 
 ////////////////////////////////////////////////
@@ -178,7 +178,7 @@ int32_t isAStub(struct PinchEdge *edge);
 
 struct PinchEdge *getContainingBlackEdge(struct PinchGraph *graph, Name contig, int32_t position);
 
-struct PinchEdge *getNextEdge(struct PinchGraph *graph, struct PinchEdge *edge, Flower *net);
+struct PinchEdge *getNextEdge(struct PinchGraph *graph, struct PinchEdge *edge, Flower *flower);
 
 struct PinchVertex *splitEdge(struct PinchGraph *graph, Name contig, int32_t position, int32_t leftOrRight);
 
@@ -282,17 +282,17 @@ void writeOutPinchGraphWithChains(struct PinchGraph *pinchGraph,
 ////////////////////////////////////////////////
 
 void removeOverAlignedEdges(struct PinchGraph *pinchGraph, float minimumTreeCoverage, int32_t maxDegree, struct List *extraEdgesToUndo,
-		int32_t extensionSteps, Flower *net);
+		int32_t extensionSteps, Flower *flower);
 
 struct List *getRecursiveComponents(struct PinchGraph *pinchGraph, int32_t (*excludedEdgesFn)(void *));
 
 struct List *getRecursiveComponents2(struct PinchGraph *pinchGraph, struct List *edgesToExclude);
 
-void linkStubComponentsToTheSinkComponent(struct PinchGraph *pinchGraph, Flower *net);
+void linkStubComponentsToTheSinkComponent(struct PinchGraph *pinchGraph, Flower *flower);
 
-void removeTrivialGreyEdgeComponents(struct PinchGraph *graph, struct List *listOfVertices, Flower *net);
+void removeTrivialGreyEdgeComponents(struct PinchGraph *graph, struct List *listOfVertices, Flower *flower);
 
-float treeCoverage(struct PinchVertex *vertex, Flower *net);
+float treeCoverage(struct PinchVertex *vertex, Flower *flower);
 
 
 #endif

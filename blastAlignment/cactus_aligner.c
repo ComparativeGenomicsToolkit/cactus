@@ -13,13 +13,13 @@
 int main(int argc, char *argv[]) {
 	/*
 	 * Open the database.
-	 * Open the net.
+	 * Open the flower.
 	 * Open a file to write the sequences.
 	 * For each adjacency construct a sequence and put it in a fasta file.
 	 * Finish!
 	 */
-	CactusDisk *netDisk;
-	Flower *net;
+	CactusDisk *cactusDisk;
+	Flower *flower;
 	Flower_EndIterator *endIterator;
 	End_InstanceIterator *instanceIterator;
 	End *end;
@@ -30,14 +30,14 @@ int main(int argc, char *argv[]) {
 	FILE *fileHandle;
 	st_setLogLevel(ST_LOGGING_DEBUG);
 	assert(argc == 4);
-	netDisk = cactusDisk_construct(argv[1]);
-	st_logInfo("Set up the net disk\n");
+	cactusDisk = cactusDisk_construct(argv[1]);
+	st_logInfo("Set up the flower disk\n");
 
-	net = cactusDisk_getFlower(netDisk, cactusMisc_stringToName(argv[2]));
-	st_logInfo("Read the net\n");
+	flower = cactusDisk_getFlower(cactusDisk, cactusMisc_stringToName(argv[2]));
+	st_logInfo("Read the flower\n");
 	fileHandle = fopen(argv[3], "w");
 	st_logInfo("Opened the file %s to write the sub-sequences in\n", argv[3]);
-	endIterator = flower_getEndIterator(net);
+	endIterator = flower_getEndIterator(flower);
 	while((end = flower_getNextEnd(endIterator)) != NULL) {
 		instanceIterator = end_getInstanceIterator(end);
 		while((cap = end_getNext(instanceIterator)) != NULL) {

@@ -84,13 +84,13 @@ def writeLine(columnNumber, rowNumber, entries, fileHandle):
 def writeRow(entries, fileHandle):
     fileHandle.write("\hline\n%s \\\\\n" % " & ".join(entries))
 
-def writeNetTable(stats, fileHandle):
+def writeFlowerTable(stats, fileHandle):
     columnNumber = 15
     writePreliminaries(columnNumber, fileHandle)
-    writeLine(columnNumber, 1, (("Nets", 0, columnNumber-1, 0, 0),), fileHandle)
+    writeLine(columnNumber, 1, (("Flowers", 0, columnNumber-1, 0, 0),), fileHandle)
     writeLine(columnNumber, 2, (("Region", 0, 0, 0, 1), 
                                 ("Bp Size", 1, 1, 0, 1), 
-                                 ("T. Nets", 2, 4, 0, 0), 
+                                 ("T. Flowers", 2, 4, 0, 0), 
                                  ("All", 2, 2, 1, 1), 
                                  ("Links", 3, 3, 1, 1), 
                                  ("Tangles", 4, 4, 1, 1), 
@@ -109,15 +109,15 @@ def writeNetTable(stats, fileHandle):
                                  ("Med.", 14, 14, 1, 1)), fileHandle)
     for statNode, regionName in stats:
         #The nodes we use
-        netsNode = statNode.find("nets")
-        childrenNode = netsNode.find("children")
-        tangleChildrenNode = netsNode.find("tangle_children")
-        linkChildrenNode = netsNode.find("link_children")
-        depthNode = netsNode.find("depths")
+        flowersNode = statNode.find("flowers")
+        childrenNode = flowersNode.find("children")
+        tangleChildrenNode = flowersNode.find("tangle_children")
+        linkChildrenNode = flowersNode.find("link_children")
+        depthNode = flowersNode.find("depths")
         relativeEntropyNode = statNode.find("relative_entropy_stats")
        
-        #Net/group type numbers
-        totalNets = float(childrenNode.attrib["sum"])
+        #Flower/group type numbers
+        totalFlowers = float(childrenNode.attrib["sum"])
         totalTangles = float(tangleChildrenNode.attrib["sum"])
         totalLinks = float(linkChildrenNode.attrib["sum"])
         
@@ -131,7 +131,7 @@ def writeNetTable(stats, fileHandle):
         
         writeRow((regionName, 
                   formatFloat(totalSequenceLength, decimals=0),
-                  formatFloat(1 + totalNets, decimals=0),
+                  formatFloat(1 + totalFlowers, decimals=0),
                   formatFloat(totalLinks, decimals=0),
                   formatFloat(totalTangles, decimals=0),
                   formatFloat(str(p), decimals=2), 
@@ -144,21 +144,21 @@ def writeNetTable(stats, fileHandle):
                   formatFloat(depthNode.attrib["max"], decimals=0),
                   formatFloat(depthNode.attrib["avg"], decimals=2),
                   formatFloat(depthNode.attrib["median"], decimals=0)), fileHandle)
-    writeEnd(fileHandle, "nets_table", "Statistics on the nets of the cactus trees. \
+    writeEnd(fileHandle, "flowers_table", "Statistics on the flowers of the cactus trees. \
     Region: region name. \
     Bp size: total number of basepairs in the input sequences. \
-    T. nets: Total nets in the cactus tree, either 'all', including all nets in tree, 'links', including \
+    T. flowers: Total flowers in the cactus tree, either 'all', including all flowers in tree, 'links', including \
     only links groups or 'tangles', including only tangle groups. Note the sum \
     of link and tangle groups is equal to all minus one (for the root node).\
-    Norm. relative entropy: Let $N$ be a net in the set of all nets $T$ in a cactus tree $X$. Furthermore let $N_0 \ldots N_{n-1}, N_{n}$ \
-    denote the ancestral path of nodes from the root net $N_0$ of the cactus tree to the net $N_n$. Let $P(X) = \sum_{N_n \in T} |b(N_n)| \
+    Norm. relative entropy: Let $N$ be a flower in the set of all flowers $T$ in a cactus tree $X$. Furthermore let $N_0 \ldots N_{n-1}, N_{n}$ \
+    denote the ancestral path of nodes from the root flower $N_0$ of the cactus tree to the flower $N_n$. Let $P(X) = \sum_{N_n \in T} |b(N_n)| \
     (log_2(|b(N_n)|) + \sum_{i=0}^{n-1} log_2(|c(N_i)|))$ and $Q(X) = Z log_2(Z)$, where $Z$ is the total number of basepairs in the input sequences, \
-    $b(N)$ is the set of basepairs contained in blocks of the net $N$, $|b(N)|$ is the the size of $b(N)$, $c(N)$ is the set of child nets (direct descendants) \
+    $b(N)$ is the set of basepairs contained in blocks of the flower $N$, $|b(N)|$ is the the size of $b(N)$, $c(N)$ is the set of child flowers (direct descendants) \
     of $N$ and $| c(N) |$ is the size of $c(N)$. The total relative entropy is $P(X) - Q(X)$ and the normalised relative entropy (NRE) is $ ( P(X) - Q(X) ) / Z $. \
     The measure therefore reflects the balance of the tree.\
-    Children: The children of a net are its direct descendants nets in the subsequent net layer of the (multi layered) cactus tree. Results given for non-terminal nets only. \
-    Depth: The depth of a net is the number of nodes (excluding itself) on the path from it to the root node. Results for terminal nets only. \
-    (A leaf net is a terminal net in the multi-layered cactus tree)")
+    Children: The children of a flower are its direct descendants flowers in the subsequent flower layer of the (multi layered) cactus tree. Results given for non-terminal flowers only. \
+    Depth: The depth of a flower is the number of nodes (excluding itself) on the path from it to the root node. Results for terminal flowers only. \
+    (A leaf flower is a terminal flower in the multi-layered cactus tree)")
 
 def writeBlocksTable(stats, fileHandle):
     columnNumber = 15
@@ -167,7 +167,7 @@ def writeBlocksTable(stats, fileHandle):
     writeLine(columnNumber, 2, (("Region", 0, 0, 0, 1), 
                                 ("Min. Block Degree", 1, 1, 0, 1),
                                  ("Total", 2, 2, 0, 1), 
-                                 ("Per Net", 3, 5, 0, 0),
+                                 ("Per Flower", 3, 5, 0, 0),
                                  ("Max", 3, 3, 1, 1),
                                  ("Avg.", 4, 4, 1, 1),
                                  ("Med.", 5, 5, 1, 1),
@@ -215,7 +215,7 @@ def writeBlocksTable(stats, fileHandle):
     Region: region name. \
     Min. Block Degree: the minimum number of leaf sequences in a block considered this round. \
     Total: total number of blocks in the cactus tree. \
-    Per Net: numbers of blocks in the child chains of each net, excluding terminal nets. \
+    Per Flower: numbers of blocks in the child chains of each flower, excluding terminal flowers. \
     Length: number of basepairs in a block. \
     Degree: number of leaf sequences in a block. \
     Coverage: block's length * degree.")
@@ -229,7 +229,7 @@ def writeChainsTable(stats, fileHandle):
                                 
                                 ("Total", 2, 2, 0, 1),
                                  
-                                 ("Per Net", 3, 5, 0, 0), 
+                                 ("Per Flower", 3, 5, 0, 0), 
                                  ("Max", 3, 3, 1, 1),
                                  ("Avg.", 4, 4, 1, 1),
                                  ("Med.", 5, 5, 1, 1),
@@ -268,7 +268,7 @@ def writeChainsTable(stats, fileHandle):
     Type: categories of chains, either `all', which includes all chains or `$>=2$ B.', \
     which includes only chains containing a minimum of two blocks. \
     Total: total number of chains in the cactus tree. \
-    Per Net: numbers of child chains in each non-terminal net. \
+    Per Flower: numbers of child chains in each non-terminal flower. \
     Link Number: number of links in chain. \
     Block Bp length: number of basepairs in blocks of chain. \
     Instance length: average number of basepairs in an instance of the chain, including both its blocks and intervening links.")
@@ -405,7 +405,7 @@ def writeReferenceTable(stats, fileHandle):
             l.append((formatFloat(referenceNodes[i].find("links_per_chromosome").attrib["median"], decimals=0), 13, 13, i, i))
         writeLine(columnNumber, len(referenceNodes), l, fileHandle)
     
-    writeEnd(fileHandle, "reference_table", "Statistics on the reference of the cactus trees, excluding terminal nets. \
+    writeEnd(fileHandle, "reference_table", "Statistics on the reference of the cactus trees, excluding terminal flowers. \
     Region: region name. \
     Type: reference algorithm. \
     P.C. Number: Number of pseudo-chromosomes in reference. \
@@ -442,7 +442,7 @@ def main():
     ##########################################
     
     writeDocumentPreliminaries(fileHandle)
-    writeNetTable(stats, fileHandle)
+    writeFlowerTable(stats, fileHandle)
     writeBlocksTable(stats, fileHandle)
     writeChainsTable(stats, fileHandle)
     writeEndsTable(stats, fileHandle)

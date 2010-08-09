@@ -16,7 +16,7 @@
 /*
  *Prints to output file all segments of the target sequence that are in blocks that contain both query & target
  *For example, if option 'query' is specified as 'hg19', and 'target' is as 'panTro2'. The program will look for
- *all blocks in the input net and all recursive nets that contain segments of both hg19 and panTro2, and print 
+ *all blocks in the input flower and all recursive flowers that contain segments of both hg19 and panTro2, and print
  *out all panTro2's (the target) BED records.
  *Each BED record is just the Start and End of one segment.
  *
@@ -137,12 +137,12 @@ void getBEDBlock(Block *block, FILE *fileHandle, char *target, int tstart) {
 	block_destructInstanceIterator(instanceIterator);
 }
 
-void getBED(Flower *net, FILE *fileHandle, char *query, char *target, int tstart, int s, int e) {
+void getBED(Flower *flower, FILE *fileHandle, char *query, char *target, int tstart, int s, int e) {
 	/*
-	 * Outputs target BED records of all the blocks in the net and its descendants.
+	 * Outputs target BED records of all the blocks in the flower and its descendants.
 	 */
 
-	Flower_BlockIterator *blockIterator = flower_getBlockIterator(net);
+	Flower_BlockIterator *blockIterator = flower_getBlockIterator(flower);
 	Block *block;
 	while((block = flower_getNextBlock(blockIterator)) != NULL) {
         	//if(block_getChain(block) == NULL){//ONLY print out NON CHAIN blocks
@@ -155,24 +155,24 @@ void getBED(Flower *net, FILE *fileHandle, char *query, char *target, int tstart
 	}
 	flower_destructBlockIterator(blockIterator);
 
-	//Call child nets recursively.
-	Flower_GroupIterator *groupIterator = flower_getGroupIterator(net);
+	//Call child flowers recursively.
+	Flower_GroupIterator *groupIterator = flower_getGroupIterator(flower);
 	Group *group;
 	while((group = flower_getNextGroup(groupIterator)) != NULL) {
-		Flower *nestedNet = group_getNestedFlower(group);
-		if(nestedNet != NULL) {
+		Flower *nestedFlower = group_getNestedFlower(group);
+		if(nestedFlower != NULL) {
 			getBED(group_getNestedFlower(group), fileHandle, query, target, tstart, s, e); //recursive call.
 		}
 	}
 	flower_destructGroupIterator(groupIterator);
 }
 
-void getBEDs(Flower *net, FILE *fileHandle, char *query, char *target, int tstart, int offset, struct psl *refpsl){
+void getBEDs(Flower *flower, FILE *fileHandle, char *query, char *target, int tstart, int offset, struct psl *refpsl){
    int start, end;
    while(refpsl != NULL){
       start = refpsl->tStart - offset +2;
       end = refpsl->tEnd - offset +2;
-      getBED(net, fileHandle, query, target, tstart, start, end);
+      getBED(flower, fileHandle, query, target, tstart, start, end);
       refpsl = refpsl->next;
    }
 }
@@ -181,8 +181,8 @@ void usage() {
 	fprintf(stderr, "cactus_bedGenerator, version 0.2\n");
 	fprintf(stderr, "Prints to output file all segments of the target sequence that are in blocks that contain both query & target\n");
 	fprintf(stderr, "-a --logLevel : Set the log level\n");
-	fprintf(stderr, "-c --netDisk : The location of the net disk directory\n");
-	fprintf(stderr, "-d --netName : The name of the net (the key in the database)\n");
+	fprintf(stderr, "-c --cactusDisk : The location of the flower disk directory\n");
+	fprintf(stderr, "-d --flowerName : The name of the flower (the key in the database)\n");
 	fprintf(stderr, "-e --outputFile : The file to write the BEDs in.\n");
 	fprintf(stderr, "-r --ref : file that contains psl records of reference genes, whose target is the same with query.\n");
 	fprintf(stderr, "-s --tstart : target sequence position on the chromosome\n");
@@ -193,15 +193,15 @@ void usage() {
 }
 
 int main(int argc, char *argv[]) {
-	CactusDisk *netDisk;
-	Flower *net;
+	CactusDisk *cactusDisk;
+	Flower *flower;
 
 	/*
 	 * Arguments/options
 	 */
 	char * logLevelString = NULL;
-	char * netDiskName = NULL;
-	char * netName = NULL;
+	char * cactusDiskName = NULL;
+	char * flowerName = NULL;
 	char * outputFile = NULL;
 	char * query = NULL;
 	char * target = NULL;
@@ -216,8 +216,8 @@ int main(int argc, char *argv[]) {
 	while(1) {
 		static struct option long_options[] = {
 			{ "logLevel", required_argument, 0, 'a' },
-			{ "netDisk", required_argument, 0, 'c' },
-			{ "netName", required_argument, 0, 'd' },
+			{ "cactusDisk", required_argument, 0, 'c' },
+			{ "flowerName", required_argument, 0, 'd' },
 			{ "outputFile", required_argument, 0, 'e' },
 			{ "query", required_argument, 0, 'q' },
 			{ "target", required_argument, 0, 't' },
@@ -241,10 +241,10 @@ int main(int argc, char *argv[]) {
 				logLevelString = stString_copy(optarg);
 				break;
 			case 'c':
-				netDiskName = stString_copy(optarg);
+				cactusDiskName = stString_copy(optarg);
 				break;
 			case 'd':
-				netName = stString_copy(optarg);
+				flowerName = stString_copy(optarg);
 				break;
 			case 'e':
 				outputFile = stString_copy(optarg);
@@ -277,8 +277,8 @@ int main(int argc, char *argv[]) {
 	// (0) Check the inputs.
 	///////////////////////////////////////////////////////////////////////////
 
-	assert(netDiskName != NULL);
-	assert(netName != NULL);
+	assert(cactusDiskName != NULL);
+	assert(flowerName != NULL);
 	assert(outputFile != NULL);
 
 	//////////////////////////////////////////////
@@ -296,35 +296,35 @@ int main(int argc, char *argv[]) {
 	//Log (some of) the inputs
 	//////////////////////////////////////////////
 
-	st_logInfo("Net disk name : %s\n", netDiskName);
-	st_logInfo("Net name : %s\n", netName);
+	st_logInfo("Flower disk name : %s\n", cactusDiskName);
+	st_logInfo("Flower name : %s\n", flowerName);
 	st_logInfo("Output BED file : %s\n", outputFile);
 
 	//////////////////////////////////////////////
 	//Load the database
 	//////////////////////////////////////////////
 
-	netDisk = cactusDisk_construct(netDiskName);
-	st_logInfo("Set up the net disk\n");
+	cactusDisk = cactusDisk_construct(cactusDiskName);
+	st_logInfo("Set up the flower disk\n");
 
 	///////////////////////////////////////////////////////////////////////////
 	// Parse the basic reconstruction problem
 	///////////////////////////////////////////////////////////////////////////
 
-	net = cactusDisk_getFlower(netDisk, cactusMisc_stringToName(netName));
-	st_logInfo("Parsed the top level net of the cactus tree to check\n");
+	flower = cactusDisk_getFlower(cactusDisk, cactusMisc_stringToName(flowerName));
+	st_logInfo("Parsed the top level flower of the cactus tree to check\n");
 
 	///////////////////////////////////////////////////////////////////////////
-	// Recursive check the nets.
+	// Recursive check the flowers.
 	///////////////////////////////////////////////////////////////////////////
 
 	int64_t startTime = time(NULL);
 	FILE *fileHandle = fopen(outputFile, "w");
         if(ref == NULL){//no limit, print all bed records
-           getBED(net, fileHandle, query, target, tstart, -1, -1);
+           getBED(flower, fileHandle, query, target, tstart, -1, -1);
         }else{
            struct psl *refpsl = pslLoadAll(ref);
-	   getBEDs(net, fileHandle, query, target, tstart, qstart, refpsl);
+	   getBEDs(flower, fileHandle, query, target, tstart, qstart, refpsl);
         }
 	fclose(fileHandle);
 	st_logInfo("Got the beds in %i seconds/\n", time(NULL) - startTime);
@@ -333,7 +333,7 @@ int main(int argc, char *argv[]) {
 	// Clean up.
 	///////////////////////////////////////////////////////////////////////////
 
-	cactusDisk_destruct(netDisk);
+	cactusDisk_destruct(cactusDisk);
 
 	return 0;
 }

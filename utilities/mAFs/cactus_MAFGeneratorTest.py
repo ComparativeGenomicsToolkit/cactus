@@ -9,14 +9,14 @@ from cactus.shared.test import runWorkflow_multipleExamples
 
 class TestCase(unittest.TestCase):
     def testCactus_RandomAlignmentsOnly(self):
-        """Build mafs from netDisks containing no trees, faces or reference.
+        """Build mafs from cactusDisks containing no trees, faces or reference.
         """
         runWorkflow_multipleExamples(getCactusInputs_random, #Just for the alignments.
                                      testNumber=TestStatus.getTestSetup(), 
                                      makeMAFs=True,buildTrees=False,buildFaces=False,buildReference=False)
     
     def testCactus_Random(self):
-        """Build mafs from netDisks containing trees, face and an reference.
+        """Build mafs from cactusDisks containing trees, face and an reference.
         """
         runWorkflow_multipleExamples(getCactusInputs_random, 
                                      testNumber=TestStatus.getTestSetup(), 

@@ -584,8 +584,8 @@ static bool fillingIn_partnerConsents(Cap * partner, Cap * cap, AdjacencyVoteTab
 static Event *fillingIn_interpolateEvents(Event* parentEvent, Event* childEvent) {
     float branchLength;
     EventTree * eventTree = event_getEventTree(parentEvent);
-    Flower * net = eventTree_getFlower(eventTree);
-    CactusDisk * netDisk = flower_getCactusDisk(net);
+    Flower * flower = eventTree_getFlower(eventTree);
+    CactusDisk * cactusDisk = flower_getCactusDisk(flower);
     MetaEvent * metaEvent;
     Event * ptr = childEvent;
     Event * result;
@@ -599,7 +599,7 @@ static Event *fillingIn_interpolateEvents(Event* parentEvent, Event* childEvent)
 	branchLength += event_getBranchLength(ptr);
 
     if (branchLength <= 1) {
-	metaEvent = metaEvent_construct("interpolation", netDisk);
+	metaEvent = metaEvent_construct("interpolation", cactusDisk);
 	return event_construct2(metaEvent, 0, event_getParent(childEvent), childEvent, eventTree);
     }
 
@@ -622,7 +622,7 @@ static Event *fillingIn_interpolateEvents(Event* parentEvent, Event* childEvent)
 #endif
     }
 
-    metaEvent = metaEvent_construct("interpolation", netDisk);
+    metaEvent = metaEvent_construct("interpolation", cactusDisk);
     result = event_construct2(metaEvent, event_getBranchLength(ptr) - branchLength, event_getParent(ptr), ptr, eventTree);
 #ifdef BEN_DEBUG
     assert(event_getBranchLength(result) >= 0);
@@ -1081,11 +1081,11 @@ static void fillingIn_testForPullDown(Cap * cap) {
 }
 
 /*
- * Remove all lifted self loops and inconsistent adjacencies from net
+ * Remove all lifted self loops and inconsistent adjacencies from flower
  */
-static void fillingIn_pullDowns(Flower * net)
+static void fillingIn_pullDowns(Flower * flower)
 {
-    Flower_CapIterator *iter = flower_getCapIterator(net);
+    Flower_CapIterator *iter = flower_getCapIterator(flower);
     Cap *cap;
 
     // Iterate through potential top nodes
@@ -1097,14 +1097,14 @@ static void fillingIn_pullDowns(Flower * net)
 }
 
 /*
- * Fill adjacencies in net using descent trees and event tree
+ * Fill adjacencies in flower using descent trees and event tree
  * Correct non-AVG anomalies
  */
-void fillingIn_fillAdjacencies(Flower * net)
+void fillingIn_fillAdjacencies(Flower * flower)
 {
     Cap *cap;
     AdjacencyVoteTable *table = adjacencyVoteTable_construct();
-    Flower_CapIterator *iter = flower_getCapIterator(net);
+    Flower_CapIterator *iter = flower_getCapIterator(flower);
 
     //////////////////////////////////////////////////////////////
     // Define a computation front
@@ -1128,7 +1128,7 @@ void fillingIn_fillAdjacencies(Flower * net)
     // Force decision for higher nodes
     //////////////////////////////////////////////////////////////
     st_logInfo("Force top of tree decisions\n");
-    iter = flower_getCapIterator(net);
+    iter = flower_getCapIterator(flower);
     while ((cap = flower_getNextCap(iter)))
 	if (!cap_getParent(cap))
 	    fillingIn_forceIndecisiveTree(cap, table);
@@ -1138,7 +1138,7 @@ void fillingIn_fillAdjacencies(Flower * net)
     // Remove self loops
     //////////////////////////////////////////////////////////////
     st_logInfo("Pull downs\n");
-    fillingIn_pullDowns(net);
+    fillingIn_pullDowns(flower);
 
     //////////////////////////////////////////////////////////////
     // Clean up
@@ -1151,9 +1151,9 @@ void fillingIn_fillAdjacencies(Flower * net)
  * Prints out information
  */
 static void usage() {
-    fprintf(stderr, "cactus_fillAdjacencies [net-names, ordered by order they should be processed], version 0.2\n");
+    fprintf(stderr, "cactus_fillAdjacencies [flower-names, ordered by order they should be processed], version 0.2\n");
     fprintf(stderr, "-a --logLevel : Set the log level\n");
-    fprintf(stderr, "-c --netDisk : The location of the net disk directory\n");
+    fprintf(stderr, "-c --cactusDisk : The location of the flower disk directory\n");
     fprintf(stderr, "-e --tempDirRoot : The temp file root directory\n");
     fprintf(stderr, "-h --help : Print this help screen\n");
 }
@@ -1165,15 +1165,15 @@ int main(int argc, char ** argv) {
     /*
      * The script builds trees.
      *
-     * (1) It reads the net.
+     * (1) It reads the flower.
      *
      * (2) It fill adjacencies
      *
      * (3) It copies the relevant augmented events into the event trees of its descendants.
      *
      */
-    CactusDisk *netDisk;
-    Flower *net;
+    CactusDisk *cactusDisk;
+    Flower *flower;
     int32_t startTime;
     int32_t j;
 
@@ -1181,7 +1181,7 @@ int main(int argc, char ** argv) {
      * Arguments/options
      */
     char * logLevelString = NULL;
-    char * netDiskName = NULL;
+    char * cactusDiskName = NULL;
 
     ///////////////////////////////////////////////////////////////////////////
     // (0) Parse the inputs handed by genomeCactus.py / setup stuff.
@@ -1190,7 +1190,7 @@ int main(int argc, char ** argv) {
     while(1) {
 	static struct option long_options[] = {
 	    { "logLevel", required_argument, 0, 'a' },
-	    { "netDisk", required_argument, 0, 'c' },
+	    { "cactusDisk", required_argument, 0, 'c' },
 	    { "help", no_argument, 0, 'h' },
 	    { 0, 0, 0, 0 }
 	};
@@ -1208,7 +1208,7 @@ int main(int argc, char ** argv) {
 		logLevelString = stString_copy(optarg);
 		break;
 	    case 'c':
-		netDiskName = stString_copy(optarg);
+		cactusDiskName = stString_copy(optarg);
 		break;
 	    case 'h':
 		usage();
@@ -1224,7 +1224,7 @@ int main(int argc, char ** argv) {
     ///////////////////////////////////////////////////////////////////////////
 
     assert(logLevelString == NULL || strcmp(logLevelString, "INFO") == 0 || strcmp(logLevelString, "DEBUG") == 0);
-    assert(netDiskName != NULL);
+    assert(cactusDiskName != NULL);
     //assert(tempFileRootDirectory != NULL);
 
     //////////////////////////////////////////////
@@ -1242,37 +1242,37 @@ int main(int argc, char ** argv) {
     //Log (some of) the inputs
     //////////////////////////////////////////////
 
-    st_logInfo("Net disk name : %s\n", netDiskName);
+    st_logInfo("Flower disk name : %s\n", cactusDiskName);
 
     //////////////////////////////////////////////
     //Load the database
     //////////////////////////////////////////////
 
-    netDisk = cactusDisk_construct(netDiskName);
-    st_logInfo("Set up the net disk\n");
+    cactusDisk = cactusDisk_construct(cactusDiskName);
+    st_logInfo("Set up the flower disk\n");
 
     //////////////////////////////////////////////
-    //For each net do tree building..
+    //For each flower do tree building..
     //////////////////////////////////////////////
 
     for (j = optind; j < argc; j++) {
-	const char *netName = argv[j];
-	st_logInfo("Processing the net named: %s\n", netName);
+	const char *flowerName = argv[j];
+	st_logInfo("Processing the flower named: %s\n", flowerName);
 
 	///////////////////////////////////////////////////////////////////////////
 	// Parse the basic reconstruction problem
 	///////////////////////////////////////////////////////////////////////////
 
-	net = cactusDisk_getFlower(netDisk, cactusMisc_stringToName(netName));
-	assert(flower_builtTrees(net)); //we must have already built the trees for the problem at this stage
-	st_logInfo("Parsed the net to be refined\n");
+	flower = cactusDisk_getFlower(cactusDisk, cactusMisc_stringToName(flowerName));
+	assert(flower_builtTrees(flower)); //we must have already built the trees for the problem at this stage
+	st_logInfo("Parsed the flower to be refined\n");
 
 	///////////////////////////////////////////////////////////////////////////
 	// Do nothing if we have already built the faces.
 	///////////////////////////////////////////////////////////////////////////
 
-	if(flower_builtFaces(net)) {
-	    st_logInfo("We have already built faces for net %s\n", netName);
+	if(flower_builtFaces(flower)) {
+	    st_logInfo("We have already built faces for flower %s\n", flowerName);
 	    continue;
 	}
 
@@ -1280,38 +1280,38 @@ int main(int argc, char ** argv) {
 	// Do nothing if not a leaf.
 	///////////////////////////////////////////////////////////////////////////
 
-	if(!flower_isLeaf(net)) {
-	    st_logInfo("We currently only build nets for terminal problems: %s\n", netName);
+	if(!flower_isLeaf(flower)) {
+	    st_logInfo("We currently only build flowers for terminal problems: %s\n", flowerName);
 	    continue;
 	}
-	assert(flower_isTerminal(net));
-	assert(flower_getBlockNumber(net) == 0); //this should be true of the terminal problems.
+	assert(flower_isTerminal(flower));
+	assert(flower_getBlockNumber(flower) == 0); //this should be true of the terminal problems.
 
 	///////////////////////////////////////////////////////////////////////////
 	// Fill adjencencies
 	///////////////////////////////////////////////////////////////////////////
 
 	startTime = time(NULL);
-	fillingIn_fillAdjacencies(net);
-	buildFaces_buildAndProcessFaces(net);
-	st_logInfo("Processed the nets in: %i seconds\n", time(NULL) - startTime);
+	fillingIn_fillAdjacencies(flower);
+	buildFaces_buildAndProcessFaces(flower);
+	st_logInfo("Processed the flowers in: %i seconds\n", time(NULL) - startTime);
 
 	///////////////////////////////////////////////////////////////////////////
-	//Set the faces in the net to 'built' status, which triggers the building
-	//of faces for the net.
+	//Set the faces in the flower to 'built' status, which triggers the building
+	//of faces for the flower.
 	///////////////////////////////////////////////////////////////////////////
 
-	assert(!flower_builtFaces(net));
-	flower_setBuildFaces(net, 1);
+	assert(!flower_builtFaces(flower));
+	flower_setBuildFaces(flower, 1);
     }
 
     ///////////////////////////////////////////////////////////////////////////
-    // (9) Write the net to disk.
+    // (9) Write the flower to disk.
     ///////////////////////////////////////////////////////////////////////////
 
     startTime = time(NULL);
-    cactusDisk_write(netDisk);
-    st_logInfo("Updated the net on disk in: %i seconds\n", time(NULL) - startTime);
+    cactusDisk_write(cactusDisk);
+    st_logInfo("Updated the flower on disk in: %i seconds\n", time(NULL) - startTime);
 
     ///////////////////////////////////////////////////////////////////////////
     //(15) Clean up.
@@ -1319,7 +1319,7 @@ int main(int argc, char ** argv) {
 
     //Destruct stuff
     startTime = time(NULL);
-    cactusDisk_destruct(netDisk);
+    cactusDisk_destruct(cactusDisk);
 
     st_logInfo("Cleaned stuff up and am finished in: %i seconds\n", time(NULL) - startTime);
     return 0;

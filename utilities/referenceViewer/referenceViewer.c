@@ -59,11 +59,11 @@ void addTelomereEdges(Reference *reference, void *extraArgument) {
 	reference_destructPseudoChromosomeIterator(pseudoChromosomeIterator);
 }
 
-void addBlocks(Flower *net, void *extraArgument) {
+void addBlocks(Flower *flower, void *extraArgument) {
 	/*
 	 * Adds block edges to the plot.
 	 */
-	Flower_EndIterator *endIterator = flower_getEndIterator(net);
+	Flower_EndIterator *endIterator = flower_getEndIterator(flower);
 	End *end;
 	while((end = flower_getNextEnd(endIterator)) != NULL) {
 		if(end_isBlockEnd(end)) {
@@ -122,12 +122,12 @@ void addTangle(Group *group, stHash *endToPseudoAdjacencyHash, void *extraArgume
 	group_destructEndIterator(endIterator);
 }
 
-void addTangles(Flower *net, Reference *reference, void *extraArgument) {
+void addTangles(Flower *flower, Reference *reference, void *extraArgument) {
 	/*
 	 * Adds adjacency edges representing tangles to the structure.
 	 */
 	stHash *endToPseudoAdjacencyHash = reference_getEndToPseudoAdjacencyHash(reference);
-	Flower_GroupIterator *groupIterator = flower_getGroupIterator(net);
+	Flower_GroupIterator *groupIterator = flower_getGroupIterator(flower);
 	Group *group;
 	while((group = flower_getNextGroup(groupIterator)) != NULL) {
 		if(group_isTangle(group)) { //the group is a tangle (not a link in a chain).
@@ -146,10 +146,10 @@ void makeReferenceGraph(Reference *reference, void *extraArgument) {
 	 * Then it adds edges representing blocks, adjacencies and
 	 * edges between telomeres that are adjacent in the ordering.
 	 */
-	Flower *net = reference_getFlower(reference);
+	Flower *flower = reference_getFlower(reference);
 	addReferenceEnds(reference, extraArgument);
-	addBlocks(net, extraArgument);
-	addTangles(net, reference, extraArgument);
+	addBlocks(flower, extraArgument);
+	addTangles(flower, reference, extraArgument);
 	addTelomereEdges(reference, extraArgument);
 }
 

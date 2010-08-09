@@ -1,5 +1,5 @@
 /*
- * The script builds a cactus tree representation of the chains and nets.
+ * The script builds a cactus tree representation of the chains and flowers.
  * The format of the output graph is dot format.
  */
 #include <assert.h>
@@ -25,15 +25,15 @@ static bool nameLabels = 0;
 static void usage() {
     fprintf(stderr, "cactus_treeViewer, version 0.2\n");
     fprintf(stderr, "-a --logLevel : Set the log level\n");
-    fprintf(stderr, "-c --netDisk : The location of the net disk directory\n");
+    fprintf(stderr, "-c --cactusDisk : The location of the flower disk directory\n");
     fprintf(stderr,
-            "-d --netName : The name of the net (the key in the database)\n");
+            "-d --flowerName : The name of the flower (the key in the database)\n");
     fprintf(stderr,
             "-e --outputFile : The file to write the dot graph file in.\n");
     fprintf(
             stderr,
             "-f --scaleNodeSizes : Scale the node sizes according to the volume of sequence they contained.\n");
-    fprintf(stderr, "-g --nameLabels : Give chain and net nodes name labels.\n");
+    fprintf(stderr, "-g --nameLabels : Give chain and flower nodes name labels.\n");
     fprintf(stderr, "-h --help : Print this help screen\n");
 }
 
@@ -70,12 +70,12 @@ void makeCactusTree_terminalNode(Group *group, FILE *fileHandle,
     free(groupNameString);
 }
 
-void makeCactusTree_net(Flower *net, FILE *fileHandle, const char *parentNodeName,
+void makeCactusTree_flower(Flower *flower, FILE *fileHandle, const char *parentNodeName,
         const char *parentEdgeColour);
 
 void makeCactusTree_chain(Chain *chain, FILE *fileHandle,
         const char *parentNodeName, const char *parentEdgeColour) {
-    //Write the net nodes.
+    //Write the flower nodes.
     char *chainNameString = cactusMisc_nameToString(chain_getName(chain));
     const char *edgeColour = graphViz_getColour();
     addNodeToGraph(chainNameString, fileHandle,
@@ -86,13 +86,13 @@ void makeCactusTree_chain(Chain *chain, FILE *fileHandle,
         graphViz_addEdgeToGraph(parentNodeName, chainNameString, fileHandle,
                 "", parentEdgeColour, 10, 1, "forward");
     }
-    //Create the linkers to the nested nets.
+    //Create the linkers to the nested flowers.
     int32_t i;
     for (i = 0; i < chain_getLength(chain); i++) {
         Group *group = link_getGroup(chain_getLink(chain, i));
         assert(group != NULL);
         if (group_getNestedFlower(group) != NULL) {
-            makeCactusTree_net(group_getNestedFlower(group), fileHandle,
+            makeCactusTree_flower(group_getNestedFlower(group), fileHandle,
                     chainNameString, edgeColour);
         } else {
             makeCactusTree_terminalNode(group, fileHandle, chainNameString,
@@ -102,33 +102,33 @@ void makeCactusTree_chain(Chain *chain, FILE *fileHandle,
     free(chainNameString);
 }
 
-void makeCactusTree_net(Flower *net, FILE *fileHandle, const char *parentNodeName,
+void makeCactusTree_flower(Flower *flower, FILE *fileHandle, const char *parentNodeName,
         const char *parentEdgeColour) {
-    //Write the net nodes.
-    char *netNameString = cactusMisc_nameToString(flower_getName(net));
+    //Write the flower nodes.
+    char *flowerNameString = cactusMisc_nameToString(flower_getName(flower));
     const char *edgeColour = graphViz_getColour();
-    addNodeToGraph(netNameString, fileHandle, flower_getTotalBaseLength(net)
-            / totalProblemSize, "ellipse", netNameString);
+    addNodeToGraph(flowerNameString, fileHandle, flower_getTotalBaseLength(flower)
+            / totalProblemSize, "ellipse", flowerNameString);
     //Write in the parent edge.
     if (parentNodeName != NULL) {
-        graphViz_addEdgeToGraph(parentNodeName, netNameString, fileHandle, "",
+        graphViz_addEdgeToGraph(parentNodeName, flowerNameString, fileHandle, "",
                 parentEdgeColour, 10, 1, "forward");
     }
     //Create the chains.
-    Flower_ChainIterator *chainIterator = flower_getChainIterator(net);
+    Flower_ChainIterator *chainIterator = flower_getChainIterator(flower);
     Chain *chain;
     while ((chain = flower_getNextChain(chainIterator)) != NULL) {
-        makeCactusTree_chain(chain, fileHandle, netNameString, edgeColour);
+        makeCactusTree_chain(chain, fileHandle, flowerNameString, edgeColour);
     }
     flower_destructChainIterator(chainIterator);
 
     //Create the diamond node
     char *diamondNodeNameString = st_malloc(sizeof(char) * (strlen(
-            netNameString) + 2));
-    sprintf(diamondNodeNameString, "z%s", netNameString);
+            flowerNameString) + 2));
+    sprintf(diamondNodeNameString, "z%s", flowerNameString);
     const char *diamondEdgeColour = graphViz_getColour();
     //Create all the groups linked to the diamond.
-    Flower_GroupIterator *groupIterator = flower_getGroupIterator(net);
+    Flower_GroupIterator *groupIterator = flower_getGroupIterator(flower);
     Group *group;
     double size = 0.0; //get the size of the group organising node..
     int32_t nonTrivialGroupCount = 0;
@@ -142,13 +142,13 @@ void makeCactusTree_net(Flower *net, FILE *fileHandle, const char *parentNodeNam
     if (nonTrivialGroupCount) {
         addNodeToGraph(diamondNodeNameString, fileHandle, size
                 / totalProblemSize, "diamond", "");
-        graphViz_addEdgeToGraph(netNameString, diamondNodeNameString,
+        graphViz_addEdgeToGraph(flowerNameString, diamondNodeNameString,
                 fileHandle, "", edgeColour, 10, 1, "forward");
-        groupIterator = flower_getGroupIterator(net);
+        groupIterator = flower_getGroupIterator(flower);
         while ((group = flower_getNextGroup(groupIterator)) != NULL) {
             if (group_getLink(group) == NULL) {
                 if (group_getNestedFlower(group) != NULL) { //linked to the diamond node.
-                    makeCactusTree_net(group_getNestedFlower(group), fileHandle,
+                    makeCactusTree_flower(group_getNestedFlower(group), fileHandle,
                             diamondNodeNameString, diamondEdgeColour);
                 } else {
                     makeCactusTree_terminalNode(group, fileHandle,
@@ -158,21 +158,21 @@ void makeCactusTree_net(Flower *net, FILE *fileHandle, const char *parentNodeNam
         }
         flower_destructGroupIterator(groupIterator);
     }
-    free(netNameString);
+    free(flowerNameString);
     free(diamondNodeNameString);
 }
 
 int main(int argc, char *argv[]) {
-    CactusDisk *netDisk;
-    Flower *net;
+    CactusDisk *cactusDisk;
+    Flower *flower;
     FILE *fileHandle;
 
     /*
      * Arguments/options
      */
     char * logLevelString = NULL;
-    char * netDiskName = NULL;
-    char * netName = NULL;
+    char * cactusDiskName = NULL;
+    char * flowerName = NULL;
     char * outputFile = NULL;
 
     ///////////////////////////////////////////////////////////////////////////
@@ -181,8 +181,8 @@ int main(int argc, char *argv[]) {
 
     while (1) {
         static struct option long_options[] = { { "logLevel",
-                required_argument, 0, 'a' }, { "netDisk", required_argument, 0,
-                'c' }, { "netName", required_argument, 0, 'd' }, {
+                required_argument, 0, 'a' }, { "cactusDisk", required_argument, 0,
+                'c' }, { "flowerName", required_argument, 0, 'd' }, {
                 "outputFile", required_argument, 0, 'e' }, { "scaleNodeSizes",
                 no_argument, 0, 'f' }, { "nameLabels", no_argument, 0, 'g' }, {
                 "help", no_argument, 0, 'h' }, { 0, 0, 0, 0 } };
@@ -201,10 +201,10 @@ int main(int argc, char *argv[]) {
                 logLevelString = stString_copy(optarg);
                 break;
             case 'c':
-                netDiskName = stString_copy(optarg);
+                cactusDiskName = stString_copy(optarg);
                 break;
             case 'd':
-                netName = stString_copy(optarg);
+                flowerName = stString_copy(optarg);
                 break;
             case 'e':
                 outputFile = stString_copy(optarg);
@@ -228,8 +228,8 @@ int main(int argc, char *argv[]) {
     // (0) Check the inputs.
     ///////////////////////////////////////////////////////////////////////////
 
-    assert(netDiskName != NULL);
-    assert(netName != NULL);
+    assert(cactusDiskName != NULL);
+    assert(flowerName != NULL);
     assert(outputFile != NULL);
 
     //////////////////////////////////////////////
@@ -247,32 +247,32 @@ int main(int argc, char *argv[]) {
     //Log (some of) the inputs
     //////////////////////////////////////////////
 
-    st_logInfo("Net disk name : %s\n", netDiskName);
-    st_logInfo("Net name : %s\n", netName);
+    st_logInfo("Flower disk name : %s\n", cactusDiskName);
+    st_logInfo("Flower name : %s\n", flowerName);
     st_logInfo("Output graph file : %s\n", outputFile);
 
     //////////////////////////////////////////////
     //Load the database
     //////////////////////////////////////////////
 
-    netDisk = cactusDisk_construct(netDiskName);
-    st_logInfo("Set up the net disk\n");
+    cactusDisk = cactusDisk_construct(cactusDiskName);
+    st_logInfo("Set up the flower disk\n");
 
     ///////////////////////////////////////////////////////////////////////////
     // Parse the basic reconstruction problem
     ///////////////////////////////////////////////////////////////////////////
 
-    net = cactusDisk_getFlower(netDisk, cactusMisc_stringToName(netName));
-    st_logInfo("Parsed the top level net of the cactus tree to build\n");
+    flower = cactusDisk_getFlower(cactusDisk, cactusMisc_stringToName(flowerName));
+    st_logInfo("Parsed the top level flower of the cactus tree to build\n");
 
     ///////////////////////////////////////////////////////////////////////////
     // Build the graph.
     ///////////////////////////////////////////////////////////////////////////
 
-    totalProblemSize = flower_getTotalBaseLength(net);
+    totalProblemSize = flower_getTotalBaseLength(flower);
     fileHandle = fopen(outputFile, "w");
     graphViz_setupGraphFile(fileHandle);
-    makeCactusTree_net(net, fileHandle, NULL, NULL);
+    makeCactusTree_flower(flower, fileHandle, NULL, NULL);
     graphViz_finishGraphFile(fileHandle);
     fclose(fileHandle);
     st_logInfo("Written the tree to file\n");
@@ -281,7 +281,7 @@ int main(int argc, char *argv[]) {
     // Clean up.
     ///////////////////////////////////////////////////////////////////////////
 
-    cactusDisk_destruct(netDisk);
+    cactusDisk_destruct(cactusDisk);
 
     return 0;
 }

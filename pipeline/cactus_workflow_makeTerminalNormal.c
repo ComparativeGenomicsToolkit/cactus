@@ -7,7 +7,7 @@
 #include "cactus.h"
 
 /*
- * Checks if a net contains terminal groups but is non-terminal itself, it
+ * Checks if a flower contains terminal groups but is non-terminal itself, it
  * then makes these groups non-terminal,
  */
 
@@ -15,21 +15,21 @@ int main(int argc, char *argv[]) {
     /*
      * This code iterates through the leaf groups.
      */
-    CactusDisk *netDisk;
-    Flower *net;
+    CactusDisk *cactusDisk;
+    Flower *flower;
 
     assert(argc >= 2);
-    netDisk = cactusDisk_construct(argv[1]);
-    st_logInfo("Set up the net disk\n");
+    cactusDisk = cactusDisk_construct(argv[1]);
+    st_logInfo("Set up the flower disk\n");
     int32_t i;
     for (i = 2; i < argc; i++) {
-        net = cactusDisk_getFlower(netDisk, cactusMisc_stringToName(argv[i]));
-        assert(net != NULL);
-        st_logInfo("Parsed net %s\n", argv[i]);
-        if (!flower_isTerminal(net)) {
+        flower = cactusDisk_getFlower(cactusDisk, cactusMisc_stringToName(argv[i]));
+        assert(flower != NULL);
+        st_logInfo("Parsed flower %s\n", argv[i]);
+        if (!flower_isTerminal(flower)) {
             Flower_GroupIterator *groupIterator;
             Group *group;
-            groupIterator = flower_getGroupIterator(net);
+            groupIterator = flower_getGroupIterator(flower);
             while ((group = flower_getNextGroup(groupIterator)) != NULL) {
                 if (group_isLeaf(group)) {
                     //assert(group_getTotalBaseLength(group) == 0);
@@ -41,10 +41,10 @@ int main(int argc, char *argv[]) {
         }
     }
 
-    cactusDisk_write(netDisk);
-    st_logInfo("Updated the netdisk\n");
+    cactusDisk_write(cactusDisk);
+    st_logInfo("Updated the cactus disk\n");
 
-    cactusDisk_destruct(netDisk);
+    cactusDisk_destruct(cactusDisk);
 
     st_logInfo("Am finished\n");
     return 0;

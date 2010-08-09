@@ -30,7 +30,7 @@
 //else:
 //create a new vertex and rejoin the edge.
 
-void removeTrivialGreyEdge(struct PinchGraph *graph, struct PinchVertex *vertex1, struct PinchVertex *vertex2, Flower *net) {
+void removeTrivialGreyEdge(struct PinchGraph *graph, struct PinchVertex *vertex1, struct PinchVertex *vertex2, Flower *flower) {
 	assert(lengthBlackEdges(vertex1) == lengthBlackEdges(vertex2));
 	assert(lengthGreyEdges(vertex1) == 1);
 	assert(lengthGreyEdges(vertex2) == 1);
@@ -52,7 +52,7 @@ void removeTrivialGreyEdge(struct PinchGraph *graph, struct PinchVertex *vertex1
 		assert(edge1->to == vertex1);
 		//first find the grey edge to attach to the new vertex we're about to create
 
-		struct PinchEdge *edge2 = getNextEdge(graph, edge1, net);
+		struct PinchEdge *edge2 = getNextEdge(graph, edge1, flower);
 		assert(edge2 != NULL);
 		assert(!isAStub(edge2));
 		assert(edge2->from == vertex2);
@@ -75,7 +75,7 @@ void removeTrivialGreyEdge(struct PinchGraph *graph, struct PinchVertex *vertex1
 	removeVertexFromGraphAndDestruct(graph, vertex2);
 }
 
-void removeTrivialGreyEdgeComponents(struct PinchGraph *graph, struct List *listOfVertices, Flower *net) {
+void removeTrivialGreyEdgeComponents(struct PinchGraph *graph, struct List *listOfVertices, Flower *flower) {
 	/*
 	 * Finds cases where two vertices are linked by adjacency, and have no other adjacencies,
 	 * to remove them from the graph.
@@ -109,7 +109,7 @@ void removeTrivialGreyEdgeComponents(struct PinchGraph *graph, struct List *list
 	for(i=0; i<list->length; i++) {
 		vertex1 = list->list[i];
 		vertex2 = getFirstGreyEdge(vertex1);
-		removeTrivialGreyEdge(graph, vertex1, vertex2, net);
+		removeTrivialGreyEdge(graph, vertex1, vertex2, flower);
 	}
 
 	//cleanup
@@ -117,7 +117,7 @@ void removeTrivialGreyEdgeComponents(struct PinchGraph *graph, struct List *list
 }
 
 void splitMultipleBlackEdgesFromVertex(struct PinchGraph *pinchGraph, struct PinchVertex *vertex,
-		struct List *newVerticesList, Flower *net) {
+		struct List *newVerticesList, Flower *flower) {
 	/*
 	 * Splits multiple black edges from the vertex, so that vertex is incidental with only one black and grey
 	 * edge.
@@ -139,7 +139,7 @@ void splitMultipleBlackEdgesFromVertex(struct PinchGraph *pinchGraph, struct Pin
 	while(lengthBlackEdges(vertex) > 0) {
 		edge = getFirstBlackEdge(vertex);
 		//first find the grey edge to attach to the new vertex we're about to create
-		vertex3 = getNextEdge(pinchGraph, edge->rEdge, net)->from;
+		vertex3 = getNextEdge(pinchGraph, edge->rEdge, flower)->from;
 		listAppend(list, vertex3); //can't detach the old vertices yet
 
 		assert(popBlackEdge(vertex) == edge); //detaches edge from vertex.
@@ -204,7 +204,7 @@ void removeOverAlignedEdges_P(struct PinchVertex *vertex, int32_t extensionSteps
 
 void removeOverAlignedEdges(struct PinchGraph *pinchGraph, float minimumTreeCoverage, int32_t maxDegree,
 		struct List *extraEdgesToUndo,
-		int32_t extensionSteps, Flower *net) {
+		int32_t extensionSteps, Flower *flower) {
 	/*
 	 * Method splits black edges from the graph with degree higher than a given number of sequences.
 	 */
@@ -224,7 +224,7 @@ void removeOverAlignedEdges(struct PinchGraph *pinchGraph, float minimumTreeCove
 		if(lengthBlackEdges(vertex) >= 1 &&
 			!isAStub(getFirstBlackEdge(vertex))) {
 			if (lengthBlackEdges(vertex) > maxDegree ||
-				treeCoverage(vertex, net) < minimumTreeCoverage) { //has a high degree and is not a stub/cap
+				treeCoverage(vertex, flower) < minimumTreeCoverage) { //has a high degree and is not a stub/cap
 				vertex2 = getFirstBlackEdge(vertex)->to;
 				if(vertex->vertexID < vertex2->vertexID) {
 					hashtable_insert(hash, vertex, constructInt(0));
@@ -295,9 +295,9 @@ void removeOverAlignedEdges(struct PinchGraph *pinchGraph, float minimumTreeCove
 		vertex = list->list[i];
 		vertex2 = getFirstBlackEdge(vertex)->to;
 		list2->length = 0;
-		splitMultipleBlackEdgesFromVertex(pinchGraph, vertex, list2, net);
-		splitMultipleBlackEdgesFromVertex(pinchGraph, vertex2, list2, net);
-		removeTrivialGreyEdgeComponents(pinchGraph, list2, net); //now get rid of any trivial components
+		splitMultipleBlackEdgesFromVertex(pinchGraph, vertex, list2, flower);
+		splitMultipleBlackEdgesFromVertex(pinchGraph, vertex2, list2, flower);
+		removeTrivialGreyEdgeComponents(pinchGraph, list2, flower); //now get rid of any trivial components
 	}
 
 	destructList(list);
@@ -480,7 +480,7 @@ int32_t linkStubComponentsToTheSinkComponent_excludedEdgesFn(void *o) {
 	return FALSE;
 }
 
-void linkStubComponentsToTheSinkComponent(struct PinchGraph *pinchGraph, Flower *net) {
+void linkStubComponentsToTheSinkComponent(struct PinchGraph *pinchGraph, Flower *flower) {
 	struct List *components;
 	struct List *component;
 	struct PinchVertex *vertex;
@@ -512,7 +512,7 @@ void linkStubComponentsToTheSinkComponent(struct PinchGraph *pinchGraph, Flower 
 					assert(lengthGreyEdges(vertex) == 0);
 					assert(lengthBlackEdges(vertex) == 1);
 					edge = getFirstBlackEdge(vertex);
-					cap = flower_getCap(net, edge->piece->contig);
+					cap = flower_getCap(flower, edge->piece->contig);
 					assert(cap != NULL);
 					sequence = cap_getSequence(cap);
 					assert(sequence != NULL);
@@ -530,7 +530,7 @@ void linkStubComponentsToTheSinkComponent(struct PinchGraph *pinchGraph, Flower 
 					assert(lengthGreyEdges(vertex) == 0);
 					assert(lengthBlackEdges(vertex) == 1);
 					edge = getFirstBlackEdge(vertex);
-					cap = flower_getCap(net, edge->piece->contig);
+					cap = flower_getCap(flower, edge->piece->contig);
 					assert(cap != NULL);
 					sequence = cap_getSequence(cap);
 					assert(sequence != NULL);
@@ -561,7 +561,7 @@ void linkStubComponentsToTheSinkComponent(struct PinchGraph *pinchGraph, Flower 
 ////////////////////////////////////////////////
 
 
-float treeCoverage(struct PinchVertex *vertex, Flower *net) {
+float treeCoverage(struct PinchVertex *vertex, Flower *flower) {
 	/*
 	 * Returns the proportion of the tree covered by the block.
 	 */
@@ -578,13 +578,13 @@ float treeCoverage(struct PinchVertex *vertex, Flower *net) {
 	assert(!isAStub(getFirstBlackEdge(vertex)));
 #endif
 
-	eventTree = flower_getEventTree(net);
+	eventTree = flower_getEventTree(flower);
 	commonAncestorEvent = NULL;
 	void *blackEdgeIterator = getBlackEdgeIterator(vertex);
 	struct PinchEdge *edge;
 	while((edge = getNextBlackEdge(vertex, blackEdgeIterator)) != NULL) {
 		piece = edge->piece;
-		sequence = flower_getSequence(net, piece->contig);
+		sequence = flower_getSequence(flower, piece->contig);
 		assert(sequence != NULL);
 		event = sequence_getEvent(sequence);
 		assert(event != NULL);
@@ -600,7 +600,7 @@ float treeCoverage(struct PinchVertex *vertex, Flower *net) {
 	blackEdgeIterator = getBlackEdgeIterator(vertex);
 	while((edge = getNextBlackEdge(vertex, blackEdgeIterator)) != NULL) {
 		piece = edge->piece;
-		sequence = flower_getSequence(net, piece->contig);
+		sequence = flower_getSequence(flower, piece->contig);
 		assert(sequence != NULL);
 		event = sequence_getEvent(sequence);
 		assert(event != NULL);

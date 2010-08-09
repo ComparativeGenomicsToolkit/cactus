@@ -22,27 +22,27 @@ from workflow.jobTree.jobTreeTest import runJobTreeStatusAndFailIfNotComplete
 def runCactusSetup(reconstructionRootDir, sequences, 
                    newickTreeString, logLevel="DEBUG", debug=False):
     debugString = nameValue("debug", debug, bool)
-    system("cactus_setup %s --speciesTree '%s' --netDisk %s \
+    system("cactus_setup %s --speciesTree '%s' --cactusDisk %s \
 --logLevel %s %s" \
            % (" ".join(sequences), newickTreeString,
               reconstructionRootDir, logLevel, debugString))
     logger.info("Ran cactus setup okay")
     
-def runCactusAligner(netDisk, alignmentFile, tempDir, useDummy=True, netName="0", logLevel="DEBUG"):        
+def runCactusAligner(cactusDisk, alignmentFile, tempDir, useDummy=True, flowerName="0", logLevel="DEBUG"):        
     """Runs job tree and fails if not complete.
     """
     tempDir = getTempDirectory(tempDir)
     jobTreeDir = os.path.join(tempDir, "jobTree")
     useDummy = nameValue("useDummy", useDummy, bool)
-    command = "cactus_aligner.py --netDisk %s --netName %s \
---resultsFile %s %s --job JOB_FILE" % (netDisk, netName, alignmentFile, useDummy)
+    command = "cactus_aligner.py --cactusDisk %s --flowerName %s \
+--resultsFile %s %s --job JOB_FILE" % (cactusDisk, flowerName, alignmentFile, useDummy)
     runJobTree(command, jobTreeDir, logLevel=logLevel)
     runJobTreeStatusAndFailIfNotComplete(jobTreeDir)
     system("rm -rf %s" % tempDir)
     logger.info("Ran the cactus aligner okay")
             
-def runCactusCore(netDisk, alignmentFile, 
-                  netName=0,
+def runCactusCore(cactusDisk, alignmentFile, 
+                  flowerName=0,
                   logLevel="DEBUG", 
                   writeDebugFiles=False,
                   annealingRounds=False,
@@ -67,97 +67,97 @@ def runCactusCore(netDisk, alignmentFile,
     minimumChainLengthChange = nameValue("minimumChainLengthChange", minimumChainLengthChange, float)
     deannealingRounds = nameValue("deannealingRounds", deannealingRounds, int)
     
-    command = "cactus_core --netDisk %s --netName %s --alignments %s --logLevel %s %s %s %s %s %s %s %s %s %s %s %s" % \
-    (netDisk, netName, alignmentFile, logLevel, writeDebugFiles, annealingRounds, alignRepeatsAtRound,
+    command = "cactus_core --cactusDisk %s --flowerName %s --alignments %s --logLevel %s %s %s %s %s %s %s %s %s %s %s %s" % \
+    (cactusDisk, flowerName, alignmentFile, logLevel, writeDebugFiles, annealingRounds, alignRepeatsAtRound,
      trim, trimChange, minimumTreeCoverage, minimumBlockLength,
      minimumBlockLengthChange, minimumChainLength, minimumChainLengthChange, deannealingRounds)
 
     system(command)
     logger.info("Ran cactus_core okay")
     
-def runCactusPhylogeny(netDisk,
-                  netNames=("0",),
+def runCactusPhylogeny(cactusDisk,
+                  flowerNames=("0",),
                   logLevel="DEBUG"):
-    command = "cactus_phylogeny --netDisk %s --logLevel %s %s" % \
-    (netDisk, logLevel, " ".join(netNames))
+    command = "cactus_phylogeny --cactusDisk %s --logLevel %s %s" % \
+    (cactusDisk, logLevel, " ".join(flowerNames))
     system(command)
     logger.info("Ran cactus_phylogeny okay")
     
-def runCactusAdjacencies(netDisk, netNames=("0",), logLevel="DEBUG"):
-    command = "cactus_fillAdjacencies --netDisk %s --logLevel %s %s" %\
-    (netDisk, logLevel, " ".join(netNames))
+def runCactusAdjacencies(cactusDisk, flowerNames=("0",), logLevel="DEBUG"):
+    command = "cactus_fillAdjacencies --cactusDisk %s --logLevel %s %s" %\
+    (cactusDisk, logLevel, " ".join(flowerNames))
     system(command)
     logger.info("Ran cactus_fillAdjacencies OK")
     
-def readNetNamesFile(netNamesFile):
-    fileHandle = open(netNamesFile, 'r')
+def readFlowerNamesFile(flowerNamesFile):
+    fileHandle = open(flowerNamesFile, 'r')
     line = fileHandle.readline()
     l = []
     while line != '':
-        childNetName = line.split()[0]
-        childNetSize = float(line.split()[1])
-        l.append((childNetName, childNetSize))
+        childFlowerName = line.split()[0]
+        childFlowerSize = float(line.split()[1])
+        l.append((childFlowerName, childFlowerSize))
         line = fileHandle.readline()
     fileHandle.close()
     return l
     
-def runCactusGetNets(netDisk, netNames, tempDir):
-    """Gets a list of nets attached to the given net. 
+def runCactusGetFlowers(cactusDisk, flowerNames, tempDir):
+    """Gets a list of flowers attached to the given flower. 
     """
-    netNamesFile = getTempFile(".txt", tempDir)
-    system("cactus_workflow_getNets %s %s %s" % (netDisk,  netNamesFile, " ".join(netNames)))
-    l = readNetNamesFile(netNamesFile)
-    os.remove(netNamesFile)
+    flowerNamesFile = getTempFile(".txt", tempDir)
+    system("cactus_workflow_getFlowers %s %s %s" % (cactusDisk,  flowerNamesFile, " ".join(flowerNames)))
+    l = readFlowerNamesFile(flowerNamesFile)
+    os.remove(flowerNamesFile)
     return l
 
-def runCactusExtendNets(netDisk, netName, tempDir,
+def runCactusExtendFlowers(cactusDisk, flowerName, tempDir,
                         minSizeToExtend=1):
     """Extends the terminal groups in the cactus and returns the list
-    of their child nets with which to pass to core.
-    The order of the nets is by ascending depth first discovery time.
+    of their child flowers with which to pass to core.
+    The order of the flowers is by ascending depth first discovery time.
     """
-    netNamesFile = getTempFile(".txt", tempDir)
-    system("cactus_workflow_extendNets %s %s %s %i" % (netDisk, netName, netNamesFile, int(minSizeToExtend)))
-    l = readNetNamesFile(netNamesFile)
-    os.remove(netNamesFile)
+    flowerNamesFile = getTempFile(".txt", tempDir)
+    system("cactus_workflow_extendFlowers %s %s %s %i" % (cactusDisk, flowerName, flowerNamesFile, int(minSizeToExtend)))
+    l = readFlowerNamesFile(flowerNamesFile)
+    os.remove(flowerNamesFile)
     return l
 
-def runCactusGetUniqueName(netDisk, tempDir):
+def runCactusGetUniqueName(cactusDisk, tempDir):
     """Gets a globally unique name.
     """
     uniqueNameFile = getTempFile(".txt", tempDir)
-    system("cactus_workflow_getUniqueName %s %s" % (netDisk, uniqueNameFile))
+    system("cactus_workflow_getUniqueName %s %s" % (cactusDisk, uniqueNameFile))
     fileHandle = open(uniqueNameFile, 'r')
     nameString = fileHandle.readline()[:-1]
     os.remove(uniqueNameFile)
     return nameString
 
-def runCactusMakeNormal(netDisk, netNames, logLevel="DEBUG"):
-    """Makes the given nets normal (see normalisation for the various phases)
+def runCactusMakeNormal(cactusDisk, flowerNames, logLevel="DEBUG"):
+    """Makes the given flowers normal (see normalisation for the various phases)
     """
-    system("cactus_normalisation --netDisk %s --logLevel %s %s" % (netDisk, logLevel, " ".join(netNames)))
+    system("cactus_normalisation --cactusDisk %s --logLevel %s %s" % (cactusDisk, logLevel, " ".join(flowerNames)))
 
-def runCactusBaseAligner(netDisk, netNames, logLevel="DEBUG"):
+def runCactusBaseAligner(cactusDisk, flowerNames, logLevel="DEBUG"):
     """Runs cactus base aligner.
     """
-    system("cactus_baseAligner --netDisk %s --logLevel %s %s" % (netDisk, logLevel, " ".join(netNames)))
+    system("cactus_baseAligner --cactusDisk %s --logLevel %s %s" % (cactusDisk, logLevel, " ".join(flowerNames)))
     
-def runCactusReference(netDisk, netNames, logLevel="DEBUG"):
+def runCactusReference(cactusDisk, flowerNames, logLevel="DEBUG"):
     """Runs cactus reference.
     """
-    #print "running", "cactus_reference --netDisk %s --logLevel %s %s" % (netDisk, logLevel, " ".join(netNames))
+    #print "running", "cactus_reference --cactusDisk %s --logLevel %s %s" % (cactusDisk, logLevel, " ".join(flowerNames))
     #assert False
-    system("cactus_reference --netDisk %s --logLevel %s %s" % (netDisk, logLevel, " ".join(netNames)))
+    system("cactus_reference --cactusDisk %s --logLevel %s %s" % (cactusDisk, logLevel, " ".join(flowerNames)))
 
-def runCactusCheck(netDisk, 
-                    netNames=("0",), 
+def runCactusCheck(cactusDisk, 
+                    flowerNames=("0",), 
                     logLevel="DEBUG", 
                     recursive=False):
     recursive = nameValue("recursive", recursive, bool)
-    system("cactus_check --netDisk %s %s --logLevel %s %s"  % (netDisk, " ".join(netNames), logLevel, recursive))
+    system("cactus_check --cactusDisk %s %s --logLevel %s %s"  % (cactusDisk, " ".join(flowerNames), logLevel, recursive))
     logger.info("Ran cactus check")
     
-def runCactusWorkflow(netDisk, sequenceFiles, 
+def runCactusWorkflow(cactusDisk, sequenceFiles, 
                       newickTreeString, 
                       jobTreeDir, 
                       logLevel="DEBUG", retryCount=0, 
@@ -172,13 +172,13 @@ def runCactusWorkflow(netDisk, sequenceFiles,
     buildReference = nameValue("buildReference", buildReference, bool)
     configFile = nameValue("configFile", configFile)
     command = "cactus_workflow.py %s --speciesTree '%s' \
---netDisk %s %s %s %s %s %s --job JOB_FILE" % \
+--cactusDisk %s %s %s %s %s %s --job JOB_FILE" % \
             (" ".join(sequenceFiles), newickTreeString,
-             netDisk, setupAndBuildAlignments, buildTrees, buildFaces, buildReference, configFile)
+             cactusDisk, setupAndBuildAlignments, buildTrees, buildFaces, buildReference, configFile)
     #print "going to run the command:", command
     #assert False
     runJobTree(command, jobTreeDir, logLevel, retryCount, batchSystem, rescueJobFrequency)
-    logger.info("Ran the cactus workflow for %s okay" % netDisk)
+    logger.info("Ran the cactus workflow for %s okay" % cactusDisk)
     
 #############################################
 #############################################
@@ -186,8 +186,8 @@ def runCactusWorkflow(netDisk, sequenceFiles,
 #############################################
 #############################################    
     
-def runCactusTreeStats(outputFile, netDisk, netName='0'):
-    command = "cactus_treeStats --netDisk %s --netName %s --outputFile %s" % (netDisk, netName, outputFile)
+def runCactusTreeStats(outputFile, cactusDisk, flowerName='0'):
+    command = "cactus_treeStats --cactusDisk %s --flowerName %s --outputFile %s" % (cactusDisk, flowerName, outputFile)
     system(command)
     logger.info("Ran the cactus tree stats command apprently okay")
 
@@ -199,31 +199,31 @@ def runCactusTreeStatsToLatexTables(inputFiles, regionNames, outputFile):
     logger.info("Ran cactus_treeStatsToLatexTables okay")
     
 def runCactusTreeViewer(graphFile,
-                        netDisk, 
-                        netName="0", 
+                        cactusDisk, 
+                        flowerName="0", 
                         logLevel="DEBUG"):
-    system("cactus_treeViewer --netDisk %s --netName %s --outputFile %s --logLevel %s" \
-                    % (netDisk, netName, graphFile, logLevel))
+    system("cactus_treeViewer --cactusDisk %s --flowerName %s --outputFile %s --logLevel %s" \
+                    % (cactusDisk, flowerName, graphFile, logLevel))
     logger.info("Created a cactus tree graph")
     
 def runCactusAdjacencyGraphViewer(graphFile,
-                             netDisk, netName="0",
+                             cactusDisk, flowerName="0",
                              logLevel="DEBUG", includeInternalAdjacencies=False):
     includeInternalAdjacencies = nameValue("includeInternalAdjacencies", includeInternalAdjacencies, bool)
-    system("cactus_adjacencyGraphViewer --netDisk %s --netName %s --outputFile %s --logLevel %s" \
-                    % (netDisk, netName, graphFile, logLevel))
+    system("cactus_adjacencyGraphViewer --cactusDisk %s --flowerName %s --outputFile %s --logLevel %s" \
+                    % (cactusDisk, flowerName, graphFile, logLevel))
     logger.info("Created a break point graph of the problem")
     
 def runCactusReferenceGraphViewer(graphFile,
-                                  netDisk, netName="0",
+                                  cactusDisk, flowerName="0",
                                   logLevel="DEBUG"):
-    system("cactus_referenceViewer --netDisk %s --netName %s --outputFile %s --logLevel %s" \
-                    % (netDisk, netName, graphFile, logLevel))
+    system("cactus_referenceViewer --cactusDisk %s --flowerName %s --outputFile %s --logLevel %s" \
+                    % (cactusDisk, flowerName, graphFile, logLevel))
     logger.info("Created a cactus reference graph")
     
 
-def runCactusMAFGenerator(mAFFile, netDisk, netName="0",
+def runCactusMAFGenerator(mAFFile, cactusDisk, flowerName="0",
                           logLevel="DEBUG"):
-    system("cactus_MAFGenerator --netDisk %s --netName %s --outputFile %s --logLevel %s" \
-            % (netDisk, netName, mAFFile, logLevel))
-    logger.info("Created a MAF for the given netDisk")
+    system("cactus_MAFGenerator --cactusDisk %s --flowerName %s --outputFile %s --logLevel %s" \
+            % (cactusDisk, flowerName, mAFFile, logLevel))
+    logger.info("Created a MAF for the given cactusDisk")
