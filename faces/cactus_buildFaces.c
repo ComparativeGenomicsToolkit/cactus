@@ -8,332 +8,12 @@
 #include <getopt.h>
 
 #include "cactus.h"
-#include "cactusGlobalsPrivate.h"
 #include "commonC.h"
 #include "fastCMaths.h"
 #include "bioioC.h"
 #include "hashTableC.h"
 
 #include "cactus_buildFaces.h"
-
-typedef struct _liftedEdge LiftedEdge;
-
-
-
-////////////////////////////////////////////////
-////////////////////////////////////////////////
-////////////////////////////////////////////////
-//Ancestors function
-////////////////////////////////////////////////
-////////////////////////////////////////////////
-////////////////////////////////////////////////
-
-/*
- * Utility function for the lifted edge hashtable
- */
-static uint32_t buildFaces_hashfunction(const void *ptr) {
-    Cap *key = (Cap *) ptr;
-    return (uint32_t) cap_getName(key);
-}
-
-/*
- * Utility function for the lifted edge hashtable
- */
-static int buildFaces_key_eq_fn(const void *ptrA, const void *ptrB) {
-    return ptrA == ptrB;
-}
-
-/*
- * compute hash table of ancestors
- */
-static struct hashtable * buildFaces_computeAncestors(Flower * flower) {
-    struct hashtable *ancestorsTable = create_hashtable(16,
-	    buildFaces_hashfunction, buildFaces_key_eq_fn, NULL, NULL);
-    Flower_CapIterator *iter = flower_getCapIterator(flower);
-    Cap * cap, * tmp;
-
-    st_logInfo("Computing ancestors\n");
-
-    while ((cap = flower_getNextCap(iter))) {
-	// ... check if connected
-	if (cap_getAdjacency(cap) && cap_getParent(cap)) {
-	    // Go up the tree
-	    for (tmp = cap_getParent(cap); tmp; tmp = cap_getParent(tmp)) {
-		if (cap_getAdjacency(tmp) || !cap_getParent(tmp)) {
-		    hashtable_insert(ancestorsTable, cap, tmp);
-		    break;
-		}
-	    }
-	}
-    }
-
-    flower_destructCapIterator(iter);
-    return ancestorsTable;
-
-}
-
-////////////////////////////////////////////////
-////////////////////////////////////////////////
-////////////////////////////////////////////////
-//Lifted edges functions.
-////////////////////////////////////////////////
-////////////////////////////////////////////////
-////////////////////////////////////////////////
-
-struct _liftedEdge {
-    Cap *destination;
-    Cap *bottomNode;
-};
-
-/*
- * Lifted edge destructor
- */
-static void buildFaces_destructLiftedEdge(LiftedEdge * liftedEdge) {
-    free(liftedEdge);
-}
-/*
- * Utility function for the lifted edge hashtable
- */
-static void buildFaces_destructValue(void *ptr) {
-    destructList((struct List *) ptr);
-}
-
-/*
- * Utility function for List struct
- */
-static void buildFaces_destructListElem(void *ptr) {
-    buildFaces_destructLiftedEdge((LiftedEdge *) ptr);
-}
-
-/*
- * Fill in a hashtable which to every node associates
- * a list of lifted edges
- */
-static struct hashtable *buildFaces_computeLiftedEdges(Flower * flower, struct hashtable * ancestorsTable) {
-    struct hashtable *liftedEdgesTable = create_hashtable(16,
-	    buildFaces_hashfunction, buildFaces_key_eq_fn, NULL,
-	    buildFaces_destructValue);
-    Flower_CapIterator *iter = flower_getCapIterator(flower);
-    Cap *cap, *attachedAncestor;
-    Cap *adjacency, *adjacencyAncestor;
-    struct List *liftedEdges;
-    LiftedEdge *liftedEdge;
-
-    st_logInfo("Computing lifted edges\n");
-
-    // Iterate through potential bottom nodes
-    while ((cap = flower_getNextCap(iter))) {
-	// ... check if connected
-	if ((adjacency = cap_getAdjacency(cap))) {
-	    // ... lift
-	    attachedAncestor = hashtable_search(ancestorsTable, cap);
-	    adjacencyAncestor = hashtable_search(ancestorsTable, cap_getPositiveOrientation(adjacency));
-
-#ifdef BEN_DEBUG
-	    assert((attachedAncestor && adjacencyAncestor) || (!attachedAncestor && !adjacencyAncestor));
-#endif
-
-	    // If root node
-	    if (attachedAncestor == NULL)
-		continue;
-
-	    // ... create lifted edge
-	    liftedEdge = st_malloc(sizeof(LiftedEdge));
-	    liftedEdge->destination = adjacencyAncestor;
-	    liftedEdge->bottomNode = cap_getPositiveOrientation(cap);
-
-#ifdef BEN_DEBUG
-	    // Self loop
-	    if (adjacencyAncestor == attachedAncestor)
-		abort();
-#endif
-
-	    // ... add it to the hashtable
-	    if ((liftedEdges = hashtable_search(liftedEdgesTable,
-		    attachedAncestor))) {
-		listAppend(liftedEdges, liftedEdge);
-	    } else {
-		liftedEdges = constructZeroLengthList(2,
-			buildFaces_destructListElem);
-		listAppend(liftedEdges, liftedEdge);
-		hashtable_insert(liftedEdgesTable, attachedAncestor,
-			liftedEdges);
-	    }
-	}
-    }
-
-    flower_destructCapIterator(iter);
-    return liftedEdgesTable;
-}
-
-/*
- * Recursive function which fills a given list with the
- * connected nodes within a module
- */
-static void buildFaces_fillTopNodeList(Cap * cap, struct List *list,
-	struct hashtable *liftedEdgesTable) {
-    struct List *liftedEdges;
-    int32_t index;
-
-    // Limit of recursion
-    if (listContains(list, cap))
-	return;
-
-    // Actual filling
-    st_logInfo("Adding cap %p to face\n", cap);
-    listAppend(list, cap);
-
-    // Recursion through lifted edges
-    if ((liftedEdges = hashtable_search(liftedEdgesTable, cap)))
-	for (index = 0; index < liftedEdges->length; index++)
-	    buildFaces_fillTopNodeList(
-		    ((LiftedEdge *) liftedEdges-> list[index])->destination,
-		    list, liftedEdgesTable);
-
-    // Recursion through adjacency
-    if (cap_getAdjacency(cap))
-	buildFaces_fillTopNodeList(cap_getAdjacency(cap), list,
-		liftedEdgesTable);
-
-    // Remove from lifted edges table to prevent double usage
-    // of end instances
-    hashtable_remove(liftedEdgesTable, cap, 0);
-    if (liftedEdges)
-	destructList(liftedEdges);
-}
-
-/*
- * Produces the end instance which is the destination of the unique lifted edge
- * out of a top node
- */
-static Cap *buildFaces_getMinorLiftedEdgeDestination(Cap * cap,
-	struct List *liftedEdges) {
-    int32_t index;
-    Cap * adjacency = cap_getAdjacency(cap);
-    Cap *ancestralEdgeDestination = NULL;
-    Cap *liftedDestination;
-
-    if (adjacency)
-	ancestralEdgeDestination = cap_getPositiveOrientation(cap_getAdjacency(
-		cap));
-
-#ifndef BEN_DEBUG
-    for (index = 0; index < liftedEdges->length; index++)
-    if ((liftedDestination = ((LiftedEdge *) liftedEdges->list[index])->destination)
-	    && liftedDestination != ancestralEdgeDestination)
-    return liftedDestination;
-
-    return NULL;
-#else
-    Cap * candidate = NULL;
-
-    // Ensure that no more than one derived edge destinations
-    for (index = 0; index < liftedEdges->length; index++) {
-	if ((liftedDestination
-		= ((LiftedEdge *) liftedEdges->list[index])->destination)
-		&& liftedDestination != ancestralEdgeDestination) {
-	    if (!candidate)
-		candidate = liftedDestination;
-	    else
-		abort();
-	}
-    }
-    return candidate;
-#endif
-}
-
-/*
- * Constructs a face from a given Cap
- */
-static void buildFaces_constructFromCap(Cap * startingCap,
-	struct hashtable *liftedEdgesTable, struct hashtable *ancestorsTable, Flower * flower) {
-    Face *face = face_construct(flower);
-    struct List *topNodes = constructZeroLengthList(16, NULL);
-    struct List *liftedEdges;
-    Cap *cap, *bottomNode, *ancestor;
-    int32_t index, index2;
-
-    st_logInfo("Constructing new face\n");
-
-    // Establish list of top nodes
-    buildFaces_fillTopNodeList(startingCap, topNodes, liftedEdgesTable);
-
-#ifdef BEN_DEBUG
-    // What, no top nodes!?
-    if (topNodes->length == 0)
-	abort();
-#endif
-
-    st_logInfo("Cardinal = %i\n", topNodes->length);
-
-    // Initialize data structure
-    face_allocateSpace(face, topNodes->length);
-
-    // For every top node
-    for (index = 0; index < topNodes->length; index++) {
-	cap = topNodes->list[index];
-	face_setTopNode(face, index, cap);
-	liftedEdges = hashtable_search(liftedEdgesTable, cap);
-
-	if (!liftedEdges) {
-	    face_setBottomNodeNumber(face, index, 0);
-	    continue;
-	}
-
-	face_setBottomNodeNumber(face, index, liftedEdges->length);
-	// For every bottom node of that top node
-	for (index2 = 0; index2 < liftedEdges->length; index2++) {
-	    bottomNode = ((LiftedEdge *) liftedEdges-> list[index2])->bottomNode;
-	    face_addBottomNode(face, index, bottomNode);
-
-#if BEN_DEBUG
-	    assert(cap_getAdjacency(bottomNode));
-#endif
-	    ancestor = hashtable_search(ancestorsTable, cap_getPositiveOrientation(cap_getAdjacency(bottomNode)));
-	    if (cap_getAdjacency(cap) != ancestor)
-		face_setDerivedDestination(face, index, index2, ancestor);
-	    else
-		face_setDerivedDestination(face, index, index2, NULL);
-
-#ifdef BEN_DEBUG
-	    // If bottom nodes part of top nodes
-	    if (listContains(topNodes, cap_getPositiveOrientation(
-		    ((LiftedEdge*) liftedEdges->list[index2])->bottomNode)))
-		abort();
-#endif
-	}
-    }
-
-#ifdef BEN_DEBUG_ULTRA
-    if (!face_isSimple(face))
-    abort();
-#endif
-
-    // Clean up
-    destructList(topNodes);
-}
-
-/*
- * Construct faces in flower and add them to the Flower's pointers
- */
-void buildFaces_constructFaces(Flower * flower) {
-    struct hashtable * ancestorsTable = buildFaces_computeAncestors(flower);
-    struct hashtable *liftedEdgesTable = buildFaces_computeLiftedEdges(flower, ancestorsTable);
-    Flower_CapIterator *iter = flower_getCapIterator(flower);
-    struct List *liftedEdges;
-    Cap *current;
-
-    st_logInfo("Constructing faces\n");
-
-    while ((current = flower_getNextCap(iter)))
-	if ((liftedEdges = hashtable_search(liftedEdgesTable, current))
-	    && buildFaces_getMinorLiftedEdgeDestination(current, liftedEdges))
-	    buildFaces_constructFromCap(current, liftedEdgesTable, ancestorsTable, flower);
-
-    hashtable_destroy(liftedEdgesTable, true,false);
-    hashtable_destroy(ancestorsTable, false,false);
-    flower_destructCapIterator(iter);
-}
 
 /*
  * Simplify a given face
@@ -391,28 +71,24 @@ static Event *buildFaces_interpolateEvents(Event* parentEvent,
  */
 static Cap *buildFaces_interpolateTopNode(Face * face, int32_t topIndex) {
     Cap *topNode = face_getTopNode(face, topIndex);
-    Cap *derivedEdgeDestination = face_getDerivedDestination(face, topIndex);
-    int32_t bottomNodeIndex;
-    int32_t bottomNodeNumber = face_getBottomNodeNumber(face, topIndex);
-    Cap *derivedEdgeBottomNode = NULL;
+    FaceEnd * faceEnd = cap_getTopFaceEnd(topNode); 
+    FaceEnd_BottomNodeIterator * bottomNodeIterator = faceEnd_getBottomNodeIterator(faceEnd);
+    Cap * bottomNode;
+    Cap *adjacency = cap_getPositiveOrientation(cap_getAdjacency(topNode));
     Event *topEvent, *bottomEvent, *interpolatedEvent;
-
-    // If no derived edge
-    if (derivedEdgeDestination == NULL)
-	return NULL;
+    Cap * derivedEdgeBottomNode = NULL;
 
     // Search for bottom node which generated the derived edge
-    for (bottomNodeIndex = 0; bottomNodeIndex < bottomNodeNumber; bottomNodeIndex++) {
-	if (face_getDerivedDestinationAtIndex(face, topIndex, bottomNodeIndex)) {
-	    derivedEdgeBottomNode = face_getBottomNode(face, topIndex,
-		    bottomNodeIndex);
+    while ((bottomNode = faceEnd_getNextBottomNode(bottomNodeIterator))) {
+	if (cap_getTopCap(cap_getPositiveOrientation(bottomNode)) != adjacency) {
+	    derivedEdgeBottomNode = bottomNode;
 	    break;
 	}
     }
 
-#ifdef BEN_DEBUG
-    assert(derivedEdgeBottomNode);
-#endif
+    // If none found
+    if (derivedEdgeBottomNode == NULL)
+	return NULL;
 
     // Go to the appropriate descent edge
     while (cap_getParent(derivedEdgeBottomNode) != topNode)
@@ -488,58 +164,22 @@ static void buildFaces_connectInterpolatedNodes(Cap ** interpolations,
 }
 
 /*
- * Fill in interpolated face for a given top node
- */
-static void buildFaces_fillInterpolatedFace(Face * face, Cap ** interpolations,
-	Face * interpolatedFace, int32_t nodeCount, int32_t nodeIndex) {
-    int32_t index, bottomNodeIndex;
-    Cap * derivedDestination = face_getDerivedDestination(face, nodeIndex);
-
-    // Find interpolation of derived destination
-    for (index = 0; index < face_getCardinal(face); index++)
-	if (face_getTopNode(face, index) == derivedDestination)
-	    break;
-
-    // Fill face
-    face_setTopNode(interpolatedFace, nodeCount, interpolations[nodeIndex]);
-    face_setBottomNodeNumber(interpolatedFace, nodeCount, 1);
-    face_setDerivedDestination(interpolatedFace, nodeCount, 0,
-	    interpolations[index]);
-
-    // Search for bottom node which generated the derived edge
-    for (bottomNodeIndex = 0; bottomNodeIndex < face_getBottomNodeNumber(face,
-	    nodeIndex); bottomNodeIndex++) {
-	if (face_getDerivedDestinationAtIndex(face, nodeCount, bottomNodeIndex)) {
-	    face_addBottomNode(interpolatedFace, nodeCount,
-		    face_getBottomNode(face, nodeCount, bottomNodeIndex));
-	    break;
-	}
-    }
-}
-
-/*
  * Create face from interpolated nodes
  */
 static void buildFaces_createInterpolatedFace(Face * face,
 	Cap ** interpolations, Flower * flower) {
-    Face *interpolatedFace = face_construct(flower);
     int32_t nodeIndex;
-    int32_t nodeCount = 0;
 
-    // Count interpolated top nodes in face
+    // Create "lower" canonical face
     for (nodeIndex = 0; nodeIndex < face_getCardinal(face); nodeIndex++)
-	if (interpolations[nodeIndex] != NULL)
-	    nodeCount++;
+	if (interpolations[nodeIndex] != NULL && cap_getTopFace(interpolations[nodeIndex]) == NULL)
+	    buildFaces_reconstructFromCap(interpolations[nodeIndex], flower);
 
-    // Initialize face
-    face_allocateSpace(face, nodeCount);
-
-    // Project face info onto interpolated face
-    nodeCount = 0;
+    // Create "upper" duplication faces
     for (nodeIndex = 0; nodeIndex < face_getCardinal(face); nodeIndex++)
-	if (interpolations[nodeIndex] != NULL)
-	    buildFaces_fillInterpolatedFace(face, interpolations,
-		    interpolatedFace, nodeCount++, nodeIndex);
+	if (cap_getTopFace(face_getTopNode(face, nodeIndex)) == face)
+	    buildFaces_reconstructFromCap(face_getTopNode(face, nodeIndex), flower);
+
 }
 
 /*
@@ -615,36 +255,56 @@ static Cap * buildFaces_constructStub(Cap * adjacentCap) {
 }
 
 /*
+ * Adds a top node with a simgle bottom node
+ */
+/*
  * Engineers a node so that a regular face has an even number of
  * top/bottom node pairs
  */
 static void buildFaces_engineerCaps(Face * face, Flower * flower) {
-    int32_t index;
     Cap *nonAdjacent = NULL;
-    int32_t nonDerived = -1;
+    Cap * nonDerivedBottomNode = NULL;
     Cap *X, *Xprime;
     Cap *parent;
+    Face_FaceEndIterator * faceEndIterator;
+    FaceEnd * faceEnd = NULL;
+    FaceEnd_BottomNodeIterator * bottomNodeIterator;
+    Cap * bottomNode, * adjacency;
 
     // Look for terminal nodes in face according to their nature
-    for (index = 0; index < face_getCardinal(face); index++) {
-	if (!cap_getAdjacency(face_getTopNode(face, index))) {
-	    nonAdjacent = face_getTopNode(face, index);
-	    if (nonDerived > -1)
+    faceEndIterator = face_getFaceEndIterator(face);
+    while ((faceEnd = face_getNextFaceEnd(faceEndIterator))) {
+	if (!cap_getAdjacency(faceEnd_getTopNode(faceEnd))) {
+	    // Found top node that has no adjacency
+	    nonAdjacent = faceEnd_getTopNode(faceEnd);
+	    if (nonDerivedBottomNode)
 		break;
-	} else if (face_getDerivedDestination(face, index) == NULL) {
-	    nonDerived = index;
-	    if (nonAdjacent)
-		break;
+	} else {
+	    // Look for top node with node derived lifted edge
+	    adjacency = cap_getPositiveOrientation(cap_getAdjacency(faceEnd_getTopNode(faceEnd)));
+	    bottomNodeIterator = faceEnd_getBottomNodeIterator(faceEnd);
+	    while((bottomNode = faceEnd_getNextBottomNode(bottomNodeIterator)))
+		if (cap_getTopCap(cap_getPositiveOrientation(cap_getAdjacency(bottomNode))) != adjacency)
+		    break;
+
+	    faceEnd_destructBottomNodeIterator(bottomNodeIterator);
+
+	    if (!bottomNode) {
+		bottomNodeIterator = faceEnd_getBottomNodeIterator(faceEnd);
+		nonDerivedBottomNode = faceEnd_getNextBottomNode(bottomNodeIterator);
+		faceEnd_destructBottomNodeIterator(bottomNodeIterator);
+		if (nonAdjacent)
+		    break;
+	    }
 	}
     }
+    face_destructFaceEndIterator(faceEndIterator);
 
     // Engineer appropriate nodes
     X = buildFaces_constructStub(nonAdjacent);
-
-    Xprime = cap_construct(cap_getEnd(X), cap_getEvent(face_getBottomNode(face,
-	    nonDerived, 0)));
+    Xprime = cap_construct(cap_getEnd(X), cap_getEvent(bottomNode));
+    cap_makeAdjacent(Xprime, nonDerivedBottomNode);
     cap_makeParentAndChild(X, Xprime);
-    cap_makeAdjacent(Xprime, face_getBottomNode(face, nonDerived, 0));
 
     if (cap_getParent(nonAdjacent)) {
 	parent = cap_construct(cap_getEnd(X), cap_getEvent(cap_getParent(
@@ -653,7 +313,8 @@ static void buildFaces_engineerCaps(Face * face, Flower * flower) {
     }
 
     // Correct face:
-    face_engineerArtificialNodes(face, X, Xprime, nonDerived);
+    buildFaces_reconstructFromCap(nonAdjacent, flower);
+    face_destruct(face);
 }
 
 /*
@@ -661,59 +322,65 @@ static void buildFaces_engineerCaps(Face * face, Flower * flower) {
  * a canonical cycle
  */
 static void buildFaces_close(Face * face) {
-    int32_t index;
+    FaceEnd * faceEnd;
+    Face_FaceEndIterator * faceEndIterator;
+    FaceEnd_BottomNodeIterator * bottomNodeIterator;
+    Cap * adjacency, *bottomNode;
     Cap *nonAdjacent1 = NULL;
     Cap *nonAdjacent2 = NULL;
-    int32_t nonDerived1 = -1;
-    int32_t nonDerived2 = -1;
+    Cap *nonDerived1 = NULL;
+    Cap *nonDerived2 = NULL;
 
-    // Look for terminal nodes in face and determine their nature
-    for (index = 0; index < face_getCardinal(face); index++) {
-	if (!cap_getAdjacency(face_getTopNode(face, index))) {
+    // Look for terminal nodes in face according to their nature
+    faceEndIterator = face_getFaceEndIterator(face);
+    while ((faceEnd = face_getNextFaceEnd(faceEndIterator))) {
+	if (!cap_getAdjacency(faceEnd_getTopNode(faceEnd))) {
+	    // Found top node that has no adjacency
 	    if (nonAdjacent1 == NULL)
-		nonAdjacent1 = face_getTopNode(face, index);
+		nonAdjacent1 = faceEnd_getTopNode(faceEnd);
 	    else {
-#ifndef BEN_DEBUG
-		nonAdjacent2 = face_getTopNode(face, index);
-		break;
-#else
-		// What if more than two nodes with no adjacency?
-		if (nonAdjacent2)
-		    abort();
-		else
-		    nonAdjacent2 = face_getTopNode(face, index);
+#ifdef BEN_DEBUG
+		assert(!nonAdjacent2);
 #endif
+		nonAdjacent2 = faceEnd_getTopNode(faceEnd);
 	    }
-	} else if (face_getDerivedDestination(face, index) == NULL) {
-	    if (nonDerived1 == -1)
-		nonDerived1 = index;
-	    else {
-#ifndef BEN_DEBUG
-		nonDerived2 = index;
-		break;
-#else
-		// What if more than two nodes with no derived edge?
-		if (nonDerived2 > -1)
-		    abort();
-		else
-		    nonDerived2 = index;
+	} else {
+	    // Look for top node with node derived lifted edge
+	    adjacency = cap_getPositiveOrientation(cap_getAdjacency(faceEnd_getTopNode(faceEnd)));
+	    bottomNodeIterator = faceEnd_getBottomNodeIterator(faceEnd);
+	    while((bottomNode = faceEnd_getNextBottomNode(bottomNodeIterator)))
+		if (cap_getTopCap(cap_getPositiveOrientation(cap_getAdjacency(bottomNode))) != adjacency)
+		    break;
+
+	    faceEnd_destructBottomNodeIterator(bottomNodeIterator);
+
+	    if (!bottomNode) {
+		bottomNodeIterator = faceEnd_getBottomNodeIterator(faceEnd);
+		if (nonDerived1)
+		    nonDerived1 = faceEnd_getNextBottomNode(bottomNodeIterator);
+		else {
+#ifdef BEN_DEBUG
+		    assert(!nonDerived2);
 #endif
+		    nonDerived2 = faceEnd_getNextBottomNode(bottomNodeIterator);
+
+		}
+		faceEnd_destructBottomNodeIterator(bottomNodeIterator);
 	    }
 	}
     }
+    face_destructFaceEndIterator(faceEndIterator);
 
 #ifdef BEN_DEBUG
     // What if some nodes with no adjacency and others with no derived edge?
-    if (nonAdjacent1 && nonDerived1 > 1)
-	abort();
+    assert(!nonAdjacent1 || !nonDerived1);
 #endif
 
     // If the terminal nodes lack an adjacency edge
     if (nonAdjacent2)
 	cap_makeAdjacent(nonAdjacent1, nonAdjacent2);
-    else if (nonDerived2 > -1)
-	cap_makeAdjacent(face_getBottomNode(face, nonDerived1, 0),
-		face_getBottomNode(face, nonDerived2, 0));
+    else if (nonDerived2)
+	cap_makeAdjacent(nonDerived1, nonDerived2);
 }
 
 /*
@@ -750,7 +417,6 @@ void buildFaces_canonizeFaces(Flower * flower) {
  * The works: create, regularize and canonize faces in flower
  */
 void buildFaces_buildAndProcessFaces(Flower * flower) {
-    buildFaces_constructFaces(flower);
     buildFaces_simplifyFaces(flower);
     buildFaces_isolateFaces(flower);
     buildFaces_canonizeFaces(flower);

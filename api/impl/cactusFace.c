@@ -23,7 +23,8 @@ void face_destruct(Face * face) {
     FaceEnd *faceEnd;
     Face_FaceEndIterator *iterator = face_getFaceEndIterator(face);
     while ((faceEnd = face_getNextFaceEnd(iterator)) != NULL) {
-        cap_setTopFace(faceEnd_getTopNode(faceEnd), NULL);
+	if (cap_getTopFace(faceEnd_getTopNode(faceEnd)) == face)
+	    cap_setTopFace(faceEnd_getTopNode(faceEnd), NULL);
     }
     face_destructFaceEndIterator(iterator);
 
@@ -286,6 +287,226 @@ void face_check(Face *face) {
     face_destructFaceEndIterator(faceEndIterator);
 }
 
+/*
+ * !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+ * The following functions are all in aid of checking that the set of faces we have is well
+ * formed.
+ * !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+ */
+
+static stHash *hashbottomCaps(Flower *flower) {
+    /*
+     * For each top node finds the corresponding set of bottom nodes and returns a
+     * hash of top nodes to sets of bottom nodes.
+     */
+    stHash *bottomCapsHash = stHash_construct2(
+            NULL, (void(*)(void *)) stList_destruct);
+    Event *rootEvent = eventTree_getRootEvent(flower_getEventTree(flower));
+    Cap *cap;
+    Flower_CapIterator *capIterator = flower_getCapIterator(flower);
+
+    while ((cap = flower_getNextCap(capIterator)) != NULL) {
+        assert(cap_getOrientation(cap));
+        if (cap_getEvent(cap) != rootEvent && cap_getAdjacency(cap) != NULL) {
+            Cap *cap2 = cap_getTopCap(cap);
+            assert(cap2 != NULL);
+            assert(cap_getOrientation(cap2));
+            stList *list;
+            if ((list = stHash_search(bottomCapsHash, cap2)) == NULL) {
+               list = stList_construct3(0, NULL);
+                stHash_insert(bottomCapsHash, cap2,list);
+            }
+            stList_append(list, cap);
+        }
+    }
+    flower_destructCapIterator(capIterator);
+
+    return bottomCapsHash;
+}
+
+static stHash *computeLiftedEdges(stHash *bottomCapsHash) {
+    /*
+     * For each top node finds the set of top nodes connected to it by a lifted
+     * edge. Returns a hash of top nodes tolist of other top nodes
+     * connected by lifted edges.
+     */
+    stHash *liftedEdgesHash = stHash_construct2(
+            NULL, (void(*)(void *)) stList_destruct);
+    stHashIterator *iterator = stHash_getIterator(bottomCapsHash);
+    Cap *topCap;
+    while ((topCap = stHash_getNext(iterator)) != NULL) {
+        assert(cap_getOrientation(topCap));
+        stList *bottomCaps = stHash_search(bottomCapsHash, topCap);
+        assert(bottomCapsHash != NULL);
+        assert(stList_length(bottomCaps)> 0);
+        stList *liftedEdges = stList_construct3(0, NULL);
+        assert(stHash_search(liftedEdgesHash, topCap) == NULL);
+        stHash_insert(liftedEdgesHash, topCap, liftedEdges);
+        int32_t i;
+        for (i = 0; i < stList_length(bottomCaps); i++) {
+            Cap *bottomCap = stList_get(bottomCaps, i);
+            Cap *adjacentBottomCap = cap_getAdjacency(bottomCap);
+            assert(adjacentBottomCap != NULL);
+            adjacentBottomCap = cap_getPositiveOrientation(adjacentBottomCap);
+            Cap *adjacentTopCap = cap_getTopCap(adjacentBottomCap);
+            assert(adjacentTopCap != NULL);
+            assert(cap_getOrientation(adjacentTopCap));
+            assert(stHash_search(bottomCapsHash, adjacentTopCap) != NULL);
+            stList_append(liftedEdges, adjacentTopCap);
+        }
+        assert(stList_length(liftedEdges) == stList_length(bottomCaps));
+    }
+    stHash_destructIterator(iterator);
+    return liftedEdgesHash;
+}
+
+static void computeModulesP(Cap *topCap, stHash *liftedEdgesHash,
+        stList *module, stHash *modulesHash) {
+    int32_t i;
+    Cap *adjacentTopCap;
+    assert(cap_getOrientation(topCap));
+    if (stHash_search(modulesHash, topCap) == NULL) {
+        //Add to module
+        stHash_insert(modulesHash, topCap, module);
+        stList_append(module, topCap);
+
+        //Traverse the lifted edges
+        stList *liftedEdges = stHash_search(liftedEdgesHash, topCap);
+        if (liftedEdges != NULL) {
+            assert(stList_length(liftedEdges)> 0);
+            for (i = 0; i < stList_length(liftedEdges); i++) {
+                adjacentTopCap = stList_get(liftedEdges, i);
+                assert(cap_getOrientation(adjacentTopCap));
+                computeModulesP(adjacentTopCap, liftedEdgesHash, module,
+                        modulesHash);
+            }
+        }
+
+        //Traverse the direct adjaceny
+        adjacentTopCap = cap_getAdjacency(topCap);
+        if (adjacentTopCap != NULL) {
+            adjacentTopCap = cap_getPositiveOrientation(adjacentTopCap);
+            assert(adjacentTopCap != topCap);
+            computeModulesP(adjacentTopCap, liftedEdgesHash, module,
+                    modulesHash);
+        }
+    } else {
+        assert(stHash_search(modulesHash, topCap) == module);
+    }
+}
+
+static stList *computeModules(stHash *liftedEdges) {
+    /*
+     * Finds the set of adjacency/lifted edge components, called modules,
+     * and returns them in alist.
+     */
+    stList *modules =
+            stList_construct3(0, (void(*)(void *)) stList_destruct);
+    stHash *modulesHash = stHash_construct();
+
+    stHashIterator *iterator = stHash_getIterator(liftedEdges);
+    Cap *topCap;
+    while ((topCap = stHash_getNext(iterator)) != NULL) {
+        assert(cap_getOrientation(topCap));
+        if (stHash_search(modulesHash, topCap) == NULL) {
+            stList *module = stList_construct3(0, NULL);
+            computeModulesP(topCap, liftedEdges, module, modulesHash);
+            stList_append(modules, module);
+            assert(stList_length(module) >= 1); //with a self loop can have a module of length 1.
+        }
+    }
+    stHash_destructIterator(iterator);
+    stHash_destruct(modulesHash);
+    return modules;
+}
+
+static void checkFace(stList *module, stHash *bottomCapsHash) {
+    /*
+     * Checks a face.
+     */
+    //Checks the top nodes are all in one associated face.
+    //Checks the set of bottom nodes for each face are in agreement.
+    int32_t i, k;
+    assert(stList_length(module)> 0);
+    Cap *topCap = stList_get(module, 0);
+    Face *face = cap_getTopFace(topCap);
+    assert(face != NULL);
+    assert(face_getCardinal(face) == stList_length(module));
+
+    for (i = 0; i < stList_length(module); i++) {
+        topCap = stList_get(module, i);
+        FaceEnd *faceEnd = cap_getTopFaceEnd(topCap);
+        assert(faceEnd != NULL);
+        assert(face == faceEnd_getFace(faceEnd));
+        assert(faceEnd_getTopNode(faceEnd) == topCap);
+        stList *bottomCaps = stHash_search(bottomCapsHash, topCap);
+        if (bottomCaps != NULL) { //could be null if top node has no lifted edges.
+            for (k = 0; k < stList_length(bottomCaps); k++) {
+                Cap *bottomCap = stList_get(bottomCaps, k);
+                assert(cap_getBottomFaceEnd(bottomCap) == faceEnd);
+            }
+            //Temp debug output
+            {
+                st_uglyf(
+                        "Number of caps in D's face end %i, in B's face end %i, topCap %i \n",
+                        faceEnd_getNumberOfBottomNodes(faceEnd),
+                        stList_length(bottomCaps), topCap);
+                FaceEnd_BottomNodeIterator *bottomNodeIterator =
+                        faceEnd_getBottomNodeIterator(faceEnd);
+                Cap *bottomCap;
+                while ((bottomCap = faceEnd_getNextBottomNode(
+                        bottomNodeIterator)) != NULL) {
+                    st_uglyf("Bottom cap in Daniel's face: %i %i\n", bottomCap,
+                            cap_getTopCap(bottomCap));
+                }
+                for (k = 0; k < stList_length(bottomCaps); k++) {
+                    bottomCap = stList_get(bottomCaps, k);
+                    st_uglyf("Bottom cap in Benedict's face: %i %i\n",
+                            bottomCap, cap_getTopCap(bottomCap));
+                }
+            }
+            //assert(faceEnd_getNumberOfBottomNodes(faceEnd) == stList_length(bottomCaps));
+        } else {
+            assert(faceEnd_getNumberOfBottomNodes(faceEnd) == 0);
+        }
+    }
+}
+
+
+void face_checkFaces(Flower *flower) {
+    /*
+     * Checks that the set of faces is as we expect - with a face created
+     * for each non-trivial face.
+     */
+    if (flower_builtFaces(flower)) { //only check the faces if they have been built..
+        stHash *bottomCapsHash = hashbottomCaps(flower);
+
+        //Construct lifted edges
+        stHash *liftedEdgesHash = computeLiftedEdges(bottomCapsHash);
+
+        //Constructs lifted edge/adjacency edge connected components, called modules.
+        //Faces are simply the nodes in the modules (the top nodes) and the set of
+        //bottom nodes.
+        stList *modules = computeModules(liftedEdgesHash);
+
+        //Check all faces we have computed are the same as those computed by Daniel.
+        int32_t i;
+        for (i = 0; i < stList_length(modules); i++) {
+            checkFace(stList_get(modules, i), bottomCapsHash);
+        }
+        assert(stList_length(modules) == flower_getFaceNumber(flower)); //we should have checked exactly the number of faces.
+
+        //Cleanup
+        stHash_destruct(bottomCapsHash);
+        stHash_destruct(liftedEdgesHash);
+        stList_destruct(modules);
+    } else {
+        //We do not like intermediate states.
+        assert(flower_getFaceNumber(flower) == 0);
+    }
+}
+
+
 ////////////////////////////////////////////////
 ////////////////////////////////////////////////
 ////////////////////////////////////////////////
@@ -393,34 +614,4 @@ void face_addBottomNode(Face * face, int32_t topIndex, Cap * bottomNode) {
         bottomNode = cap_getPositiveOrientation(bottomNode);
     face->bottomNodes[topIndex][face->bottomNodeNumbers[topIndex]++]
             = bottomNode;
-}
-
-/*
- * Adds a top node with a simgle bottom node
- */
-void face_engineerArtificialNodes(Face * face, Cap * topNode, Cap * bottomNode,
-        int32_t nonDerived) {
-    int32_t index = face->cardinal++;
-
-    if (topNode)
-        topNode = cap_getPositiveOrientation(topNode);
-
-    face->topNodes = realloc(face->topNodes, face_getCardinal(face)
-            * sizeof(Cap *));
-    face_setTopNode(face, index, topNode);
-
-    face->bottomNodeNumbers = realloc(face->topNodes, face_getCardinal(face)
-            * sizeof(int32_t));
-    face->bottomNodeNumbers[index] = 1;
-
-    face->bottomNodes = realloc(face->topNodes, face_getCardinal(face)
-            * sizeof(Cap **));
-    face->bottomNodes[index] = st_malloc(sizeof(Cap *));
-    face_addBottomNode(face, index, bottomNode);
-
-    face->derivedEdgeDestinations = realloc(face->topNodes, face_getCardinal(
-            face) * sizeof(Cap *));
-    face->derivedEdgeDestinations[index] = st_malloc(sizeof(Cap *));
-    face_setDerivedDestination(face, index, 0, cap_getParent(face_getTopNode(
-            face, nonDerived)));
 }

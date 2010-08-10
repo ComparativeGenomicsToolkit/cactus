@@ -18,6 +18,7 @@
 #include "cactusMisc.h"
 #include "cactusFace.h"
 #include "cactusFaceEnd.h"
+#include "cactusFacesBuilding.h"
 #include "cactusSequence.h"
 #include "cactusReference.h"
 #include "cactusPseudoChromosome.h"

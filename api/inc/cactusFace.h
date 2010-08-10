@@ -12,6 +12,11 @@
 ////////////////////////////////////////////////
 
 /*
+ * Destructor
+ */
+void face_destruct(Face * face);
+
+/*
  * Returns the flower that contains the face.
  */
 Flower *face_getFlower(Face *face);

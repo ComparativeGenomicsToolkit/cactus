@@ -47,11 +47,6 @@ struct _face_FaceEndIterator {
 Face * face_construct(Flower * flower);
 
 /*
- * Simple destructor
- */
-void face_destruct(Face * face);
-
-/*
  * Get selected derived destinations for selected top node
  */
 Cap * face_getDerivedDestinationAtIndex(Face * face, int32_t topIndex, int32_t derivedIndex);
