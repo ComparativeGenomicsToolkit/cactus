@@ -128,7 +128,7 @@ void computeCactusGraph(struct PinchGraph *pinchGraph,
 ////////////////////////////////////////////////
 ////////////////////////////////////////////////
 
-void circulariseStems(struct CactusGraph *cactusGraph, struct PinchGraph *pinchGraph);
+void circulariseStems(struct CactusGraph *cactusGraph, struct PinchGraph *pinchGraph, Flower *flower);
 
 ////////////////////////////////////////////////
 ////////////////////////////////////////////////
@@ -167,10 +167,10 @@ int32_t isAStubCactusEdge(struct CactusEdge *edge,
         struct PinchGraph *pinchGraph);
 
 /*
- * Returns non-zero if edge is stub end which is free (the dead end is not attached to the source vertex).
+ * Returns non-zero if edge is stub end which is free in the flower.
  */
 int32_t isAFreeStubCactusEdge(struct CactusEdge *edge,
-        struct PinchGraph *pinchGraph);
+        struct PinchGraph *pinchGraph, Flower *flower);
 
 struct hashtable *createHashColouringPinchEdgesByChains(
         struct PinchGraph *pinchGraph, struct List *biConnectComponentsList);

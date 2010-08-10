@@ -162,7 +162,7 @@ void chain_check(Chain *chain) {
     //block is not in a link group (otherwise the chain is not maximal).
     assert(link != NULL);
     if (end_isBlockEnd(link_get5End(link))) {
-        assert(group_getLink(end_getGroup(end_getOtherBlockEnd(link_get5End(link)))) == NULL);
+    	assert(group_getLink(end_getGroup(end_getOtherBlockEnd(link_get5End(link)))) == NULL);
     }
 }
 

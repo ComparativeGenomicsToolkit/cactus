@@ -148,6 +148,8 @@ void destructGreyEdgeIterator(void *iterator);
 
 void connectVertices(struct PinchVertex *vertex, struct PinchVertex *vertex2);
 
+void disconnectVertices(struct PinchVertex *vertex, struct PinchVertex *vertex2);
+
 ////////////////////////////////////////////////
 ////////////////////////////////////////////////
 ////////////////////////////////////////////////
@@ -288,7 +290,16 @@ struct List *getRecursiveComponents(struct PinchGraph *pinchGraph, int32_t (*exc
 
 struct List *getRecursiveComponents2(struct PinchGraph *pinchGraph, struct List *edgesToExclude);
 
+/*
+ * Ensure the graph is one connected component by linking components not part of the sink component
+ * by there dead stub ends.
+ */
 void linkStubComponentsToTheSinkComponent(struct PinchGraph *pinchGraph, Flower *flower);
+
+/*
+ * Disconnects the dead ends of free stub ends from the sink component.
+ */
+void unlinkStubComponentsFromTheSinkComponent(struct PinchGraph *pinchGraph, Flower *flower);
 
 void removeTrivialGreyEdgeComponents(struct PinchGraph *graph, struct List *listOfVertices, Flower *flower);
 

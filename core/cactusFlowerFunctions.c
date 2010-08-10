@@ -547,7 +547,7 @@ void fillOutFlowerFromInputs(Flower *parentFlower, struct CactusGraph *cactusGra
     struct CactusEdge *cactusEdge;
     struct CactusEdge *cactusEdge2;
     struct List *biConnectedComponent;
-    struct List *list, *list2;
+    struct List *list; // *list2;
     struct List *biConnectedComponents;
     void **flowers;
     void **parentFlowers;
@@ -649,17 +649,13 @@ void fillOutFlowerFromInputs(Flower *parentFlower, struct CactusGraph *cactusGra
                 = ((struct CactusVertex *) cactusGraph->vertices->list[i])->vertexID;
     }
 
-    list2 = constructEmptyList(0, NULL); //this list will hold un-attached stubs that are removed from the ends of
-    //bi-connected components.
     for (i = 0; i < biConnectedComponents->length; i++) {
         biConnectedComponent = biConnectedComponents->list[i];
         list = constructEmptyList(0, NULL);
         for (j = 0; j < biConnectedComponent->length; j++) {
             cactusEdge = biConnectedComponent->list[j];
             if (isAStubCactusEdge(cactusEdge, pinchGraph)) {
-                if(isAFreeStubCactusEdge(cactusEdge, pinchGraph)) {
-                    assert(biConnectedComponent->length == 1);
-                }
+#ifdef BEN_DEBUG
                 cactusEdge2 = getNonDeadEndOfStubCactusEdge(cactusEdge,
                         pinchGraph);
                 assert(cactusEdge2 != NULL);
@@ -667,15 +663,16 @@ void fillOutFlowerFromInputs(Flower *parentFlower, struct CactusGraph *cactusGra
                         pinchGraph);
                 end = flower_getEnd(parentFlower, name);
                 assert(end != NULL);
+                assert(end_isStubEnd(end));
                 if (end_isFree(end)) { //we don't want free stubs in chains
-                    //merge vertices
-                    mergeCactusVertices(cactusEdge, mergedVertexIDs, j,
-                            biConnectedComponent);
-                    //put it in it's own little component
-                    listAppend(list2, cactusEdge);
+                    assert(isAFreeStubCactusEdge(cactusEdge, pinchGraph, parentFlower));
+                    assert(biConnectedComponent->length == 1);
                 } else {
-                    listAppend(list, cactusEdge);
+                    assert(end_isAttached(end));
+                    assert(!isAFreeStubCactusEdge(cactusEdge, pinchGraph, parentFlower));
                 }
+#endif
+                listAppend(list, cactusEdge);
             } else if (stSortedSet_search(chosenBlocks, cactusEdge) == NULL) { //is a non stub not in the chosen list.
                 assert(cactusEdge->pieces->length == 1);
                 //merge vertices
@@ -688,13 +685,6 @@ void fillOutFlowerFromInputs(Flower *parentFlower, struct CactusGraph *cactusGra
         destructList(biConnectedComponent);
         biConnectedComponents->list[i] = list;
     }
-    //Put the stubs in there own little bi-connected components.
-    for (i = 0; i < list2->length; i++) {
-        list = constructEmptyList(0, NULL);
-        listAppend(list, list2->list[i]);
-        listAppend(biConnectedComponents, list);
-    }
-    destructList(list2);
 
     st_logDebug("Built the chosen blocks hash\n");
 
