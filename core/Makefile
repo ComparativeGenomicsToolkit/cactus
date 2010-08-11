@@ -4,7 +4,7 @@ libPath = ../../../lib
 
 cflags += ${tokyoCabinetIncl}
 
-libSources = cactus_core.c cactusFlowerFunctions.c
+libSources = cactus_core.c cactusFlowerFunctions.c 
 libHeaders = cactus_core.h cactusFlowerFunctions.h
 
 all : ${libPath}/cactusCore.a ${binPath}/cactus_core

@@ -132,10 +132,10 @@ def runCactusGetUniqueName(cactusDisk, tempDir):
     os.remove(uniqueNameFile)
     return nameString
 
-def runCactusMakeNormal(cactusDisk, flowerNames, logLevel="DEBUG"):
+def runCactusMakeNormal(cactusDisk, flowerNames, maxNumberOfChains=0, logLevel="DEBUG"):
     """Makes the given flowers normal (see normalisation for the various phases)
     """
-    system("cactus_normalisation --cactusDisk %s --logLevel %s %s" % (cactusDisk, logLevel, " ".join(flowerNames)))
+    system("cactus_normalisation --cactusDisk %s --maxNumberOfChains %i --logLevel %s %s" % (cactusDisk, maxNumberOfChains, logLevel, " ".join(flowerNames)))
 
 def runCactusBaseAligner(cactusDisk, flowerNames, logLevel="DEBUG"):
     """Runs cactus base aligner.

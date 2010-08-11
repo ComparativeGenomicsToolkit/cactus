@@ -64,14 +64,9 @@ double chain_getAverageInstanceBaseLength(Chain *chain);
 void chain_check(Chain *chain);
 
 /*
- * Ensures that all chains in this flower are not part of a higher level chain, by promoting
- * those chains which are.
- *
- * Let l be a link involving one attached stub-end and one block end. For any l in a
- * flower n, if the attached end in l is in a link in the parent of n (if n has a parent), then this
- * function promotes the chain containing l to the higher level.
+ * Pushes the chain into the higher level flower. Will not work if the chain to be promoted is nested
+ * within a chain of the higher level flower.
  */
-void chain_promoteChainsThatExtendHigherLevelChains(Flower *flower);
-
+void chain_promote(Chain *chain);
 
 #endif

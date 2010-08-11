@@ -294,7 +294,7 @@ struct List *getRecursiveComponents2(struct PinchGraph *pinchGraph, struct List 
  * Ensure the graph is one connected component by linking components not part of the sink component
  * by there dead stub ends.
  */
-void linkStubComponentsToTheSinkComponent(struct PinchGraph *pinchGraph, Flower *flower);
+void linkStubComponentsToTheSinkComponent(struct PinchGraph *pinchGraph, Flower *flower, int32_t attachEnds);
 
 /*
  * Disconnects the dead ends of free stub ends from the sink component.

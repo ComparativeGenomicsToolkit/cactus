@@ -8,8 +8,7 @@
 ////////////////////////////////////////////////
 ////////////////////////////////////////////////
 
-Link *link_construct(End *_3End, End *_5End, Group *group,
-        Chain *parentChain) {
+Link *link_construct(End *_3End, End *_5End, Group *group, Chain *parentChain) {
     Link *link;
     link = st_malloc(sizeof(Link));
 
@@ -143,10 +142,10 @@ Link *link_loadFromBinaryRepresentation(void **binaryString, Chain *chain) {
     link = NULL;
     if (binaryRepresentation_peekNextElementType(*binaryString) == CODE_LINK) {
         binaryRepresentation_popNextElementType(binaryString);
-        group = flower_getGroup(chain_getFlower(chain), binaryRepresentation_getName(
-                binaryString));
-        leftEnd = flower_getEnd(chain_getFlower(chain), binaryRepresentation_getName(
-                binaryString));
+        group = flower_getGroup(chain_getFlower(chain),
+                binaryRepresentation_getName(binaryString));
+        leftEnd = flower_getEnd(chain_getFlower(chain),
+                binaryRepresentation_getName(binaryString));
         rightEnd = flower_getEnd(chain_getFlower(chain),
                 binaryRepresentation_getName(binaryString));
         link = link_construct(leftEnd, rightEnd, group, chain);

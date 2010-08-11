@@ -172,4 +172,9 @@ bool end_isFree(End *end);
  */
 void end_check(End *end);
 
+/*
+ * Makes a free stub end attached. This is dangerous!
+ */
+void end_makeAttached(End *end);
+
 #endif

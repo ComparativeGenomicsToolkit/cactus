@@ -16,7 +16,11 @@
 void usage() {
     fprintf(stderr, "cactus_normalisation [flower names], version 0.1\n");
     fprintf(stderr, "-a --logLevel : Set the log level\n");
-    fprintf(stderr, "-c --cactusDisk : The location of the flower disk directory\n");
+    fprintf(stderr,
+            "-c --cactusDisk : The location of the flower disk directory\n");
+    fprintf(
+            stderr,
+            "-d --maxNumberOfChains : The maximum number of individual chains to promote into a flower.\n");
     fprintf(stderr, "-h --help : Print this help screen\n");
 }
 
@@ -31,6 +35,7 @@ int main(int argc, char *argv[]) {
     char * logLevelString = NULL;
     char * cactusDiskName = NULL;
     int32_t j;
+    int32_t maxNumberOfChains = 0;
 
     ///////////////////////////////////////////////////////////////////////////
     // (0) Parse the inputs handed by genomeCactus.py / setup stuff.
@@ -38,12 +43,13 @@ int main(int argc, char *argv[]) {
 
     while (1) {
         static struct option long_options[] = { { "logLevel",
-                required_argument, 0, 'a' }, { "cactusDisk", required_argument, 0,
-                'c' }, { "help", no_argument, 0, 'h' }, { 0, 0, 0, 0 } };
+                required_argument, 0, 'a' }, { "cactusDisk", required_argument,
+                0, 'c' }, { "maxNumberOfChains", required_argument, 0, 'd' },
+                { "help", no_argument, 0, 'h' }, { 0, 0, 0, 0 } };
 
         int option_index = 0;
 
-        int key = getopt_long(argc, argv, "a:c:h", long_options, &option_index);
+        int key = getopt_long(argc, argv, "a:c:d:h", long_options, &option_index);
 
         if (key == -1) {
             break;
@@ -55,6 +61,10 @@ int main(int argc, char *argv[]) {
                 break;
             case 'c':
                 cactusDiskName = stString_copy(optarg);
+                break;
+            case 'd':
+                j = sscanf(optarg, "%i", &maxNumberOfChains);
+                assert(j == 1);
                 break;
             case 'h':
                 usage();
@@ -106,14 +116,16 @@ int main(int argc, char *argv[]) {
          */
         const char *flowerName = argv[j];
         st_logInfo("Processing the flower named: %s\n", flowerName);
-        Flower *flower = cactusDisk_getFlower(cactusDisk, cactusMisc_stringToName(flowerName));
+        Flower *flower = cactusDisk_getFlower(cactusDisk,
+                cactusMisc_stringToName(flowerName));
         assert(flower != NULL);
         st_logInfo("Parsed the flower to normalise\n");
 
         /*
          * Now run the normalisation functions
          */
-        chain_promoteChainsThatExtendHigherLevelChains(flower);
+        promoteChainsThatExtendHigherLevelChains(flower);
+        promoteChainsToFillParents(flower, maxNumberOfChains);
         if (!flower_deleteIfEmpty(flower)) { //If we delete the flower we need not run the remaining functions..
             makeTerminalNormal(flower);
             flower_removeIfRedundant(flower);

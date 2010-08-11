@@ -70,8 +70,8 @@ static void promoteBlockEnd(End *end, Flower *flower, Flower *parentFlower) {
         assert(event != NULL);
         cap->capContents->event = event;
         if (cap_getSequence(cap) != NULL) {
-            Sequence *sequence = flower_getSequence(parentFlower, sequence_getName(
-                    cap_getSequence(cap)));
+            Sequence *sequence = flower_getSequence(parentFlower,
+                    sequence_getName(cap_getSequence(cap)));
             assert(sequence != NULL);
             cap->capContents->sequence = sequence;
         }
@@ -84,7 +84,8 @@ static void promoteBlockEnd(End *end, Flower *flower, Flower *parentFlower) {
     end->endContents->flower = parentFlower;
 }
 
-static void promoteEndsBlocksAndGroups(Chain *chain, Flower *flower, Flower *parentFlower) {
+static void promoteEndsBlocksAndGroups(Chain *chain, Flower *flower,
+        Flower *parentFlower) {
     /*
      * Promotes all the ends and blocks in the chain..
      */
@@ -128,7 +129,8 @@ static void promoteEndsBlocksAndGroups(Chain *chain, Flower *flower, Flower *par
         }
         //Promote any free stub ends..
         while (stList_length(freeStubEndsToPromote) > 0) {
-            mergeStubEnd(stList_pop(freeStubEndsToPromote), flower, parentFlower);
+            mergeStubEnd(stList_pop(freeStubEndsToPromote), flower,
+                    parentFlower);
         }
         stList_destruct(freeStubEndsToPromote);
     }
@@ -231,10 +233,10 @@ static void addToChainList(Chain *chain, int32_t start, int32_t end,
      */
     for (int32_t i = start; i < end; i++) {
         Link *link = chain_getLink(chain, i);
-        stList_append(chainList, cactusMisc_nameToString(end_getName(link_get3End(
-                link))));
-        stList_append(chainList, cactusMisc_nameToString(end_getName(link_get5End(
-                link))));
+        stList_append(chainList, cactusMisc_nameToString(end_getName(
+                link_get3End(link))));
+        stList_append(chainList, cactusMisc_nameToString(end_getName(
+                link_get5End(link))));
     }
 }
 
@@ -262,7 +264,8 @@ static void getMaximalChain_between(Link *parentLink, Chain *chain,
                     parent5End)));
         }
     } else { //We need to introduce a new link..
-        stList_append(chainList, cactusMisc_nameToString(end_getName(parent3End)));
+        stList_append(chainList, cactusMisc_nameToString(
+                end_getName(parent3End)));
         assert(parent5EndName == _5EndName);
         assert(end_isBlockEnd(_3End));
         stList_append(chainList, cactusMisc_nameToString(end_getName(
@@ -306,7 +309,8 @@ void getMaximalChain_extension(End *parentEnd, End *end, stList *chainList,
     }
 }
 
-static stList *getMaximalChain(Chain *chain, Flower *flower, Flower *parentFlower) {
+static stList *getMaximalChain(Chain *chain, Flower *flower,
+        Flower *parentFlower) {
     /*
      * Calculates the structure of the promoted chain in relation to the existing parent chains.
      * This may result in the merging of the child chain with a parent chain.
@@ -367,7 +371,8 @@ void chain_promote(Chain *chain) {
     stListIterator *endIt = stList_getIterator(finalChainList);
     char *endName;
     while ((endName = stList_getNext(endIt)) != NULL) { //Get chains in the parent which we extend..
-        End *end = flower_getEnd(parentFlower, cactusMisc_stringToName(endName));
+        End *end =
+                flower_getEnd(parentFlower, cactusMisc_stringToName(endName));
         if (end != NULL) {
             Link *link = group_getLink(end_getGroup(end));
             if (link != NULL) {
@@ -397,8 +402,8 @@ void chain_promote(Chain *chain) {
     Chain *newChain = chain_construct(parentFlower);
     for (int32_t i = 0; i < stList_length(finalChainList); i += 2) {
         Name _3EndName = cactusMisc_stringToName(stList_get(finalChainList, i));
-        Name _5EndName =
-                cactusMisc_stringToName(stList_get(finalChainList, i + 1));
+        Name _5EndName = cactusMisc_stringToName(stList_get(finalChainList, i
+                + 1));
         End *_3End = flower_getEnd(parentFlower, _3EndName);
         assert(_3End != NULL);
         End *_5End = flower_getEnd(parentFlower, _5EndName);
@@ -442,27 +447,3 @@ void chain_promote(Chain *chain) {
 #endif
 }
 
-void chain_promoteChainsThatExtendHigherLevelChains(Flower *flower) {
-    Group *parentGroup = flower_getParentGroup(flower);
-    if (parentGroup != NULL) {
-        //Find links which need to be promoted
-        Chain *chain;
-        Flower_ChainIterator *chainIt = flower_getChainIterator(flower);
-        stList *chains = stList_construct();
-        while ((chain = flower_getNextChain(chainIt)) != NULL) {
-            assert(chain_getLength(chain) >= 1);
-            assert(chain_getFlower(chain) == flower);
-            stList_append(chains, chain);
-        }
-        flower_destructChainIterator(chainIt);
-        while (stList_length(chains) > 0) {
-            chain = stList_pop(chains);
-            End *_3End = link_get3End(chain_getLink(chain, 0));
-            End *_5End = link_get5End(chain_getLink(chain, chain_getLength(
-                    chain) - 1));
-            if (end_isStubEnd(_3End) || end_isStubEnd(_5End)) { //Is part of higher chain..
-                chain_promote(chain);
-            }
-        }
-    }
-}

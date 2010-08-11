@@ -130,7 +130,7 @@ void destructCactusCoreInputParameters(CactusCoreInputParameters *cCIP) {
 }
 
 static struct CactusGraph *cactusCorePipeline_2(struct PinchGraph *pinchGraph,
-        Flower *flower, int32_t excludeDegree1Edges) {
+        Flower *flower, int32_t excludeDegree1Edges, int32_t attachEnds) {
     struct CactusGraph *cactusGraph;
     struct List *threeEdgeConnectedComponents;
     int32_t startTime;
@@ -140,7 +140,7 @@ static struct CactusGraph *cactusCorePipeline_2(struct PinchGraph *pinchGraph,
     ///////////////////////////////////////////////////////////////////////////
 
     startTime = time(NULL);
-    linkStubComponentsToTheSinkComponent(pinchGraph, flower);
+    linkStubComponentsToTheSinkComponent(pinchGraph, flower, attachEnds);
     checkPinchGraph(pinchGraph);
     st_logInfo("Linked stub components to the sink component in: %i seconds\n",
             time(NULL) - startTime);
@@ -203,7 +203,24 @@ int32_t cactusCorePipeline(Flower *flower, CactusCoreInputParameters *cCIP,
     struct List *list;
     struct hashtable *vertexAdjacencyComponents;
 
+    ////////////////////////////////////////////////
+    //Check the flower to fill in terminal, and get rid of the group it contains and any terminal chain.
+    ////////////////////////////////////////////////
+
     assert(!flower_builtBlocks(flower)); //We can't do this if we've already built blocks for the flower!.
+#ifdef BEN_DEBUG
+    flower_check(flower);
+    assert(flower_isTerminal(flower));
+    assert(flower_getGroupNumber(flower) == 1);
+    assert(group_isLeaf(flower_getFirstGroup(flower))); //this should be true by the previous assert
+    //Destruct any chain
+    assert(flower_getChainNumber(flower) <= 1);
+#endif
+    if (flower_getChainNumber(flower) == 1) {
+        Chain *chain = flower_getFirstChain(flower);
+        chain_destruct(chain);
+    }
+    group_destruct(flower_getFirstGroup(flower));
 
     ///////////////////////////////////////////////////////////////////////////
     //Setup the basic pinch graph
@@ -321,7 +338,7 @@ int32_t cactusCorePipeline(Flower *flower, CactusCoreInputParameters *cCIP,
         ////////////////////////////////////////////////
 
         cactusGraph = cactusCorePipeline_2(pinchGraph, flower,
-                !terminateRecursion);
+                !terminateRecursion, loop+1 >= cCIP->annealingRounds);
 
         ////////////////////////////////////////////////
         // Get sorted bi-connected components.
@@ -410,7 +427,7 @@ int32_t cactusCorePipeline(Flower *flower, CactusCoreInputParameters *cCIP,
                     ////////////////////////////////////////////////
 
                     cactusGraph = cactusCorePipeline_2(pinchGraph, flower,
-                            !terminateRecursion);
+                            !terminateRecursion, loop+1 >= cCIP->annealingRounds);
 
                     ////////////////////////////////////////////////
                     // Get the sorted bi-connected components, again
@@ -548,7 +565,11 @@ int32_t cactusCorePipeline(Flower *flower, CactusCoreInputParameters *cCIP,
             //assert(stSortedSet_size(chosenBlocks) == cactusGraph_getEdgeNumber(cactusGraph) - flower_getStubEndNumber(flower)); //check that this does slurp up all the block edges in the graph except those representing stub ends.
             fillOutFlowerFromInputs(flower, cactusGraph, pinchGraph,
                     chosenBlocks);
-            //assert(0);
+
+#ifdef BEN_DEBUG
+            flower_checkRecursive(flower);
+#endif
+
             if (cCIP->writeDebugFiles) {
                 ///////////////////////////////////////////////////////////////////////////
                 //Write out the graphs.

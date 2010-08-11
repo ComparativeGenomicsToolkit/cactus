@@ -88,6 +88,16 @@ End *group_getEnd(Group *group, Name name);
 int32_t group_getEndNumber(Group *group);
 
 /*
+ * Returns the number of attached stub ends.
+ */
+int32_t group_getAttachedStubEndNumber(Group *group);
+
+/*
+ * Returns the number of block ends.
+ */
+int32_t group_getBlockEndNumber(Group *group);
+
+/*
  * Gets an iterator to iterate through the ends in the group.
  */
 Group_EndIterator *group_getEndIterator(Group *group);

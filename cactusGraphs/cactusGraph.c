@@ -1018,6 +1018,8 @@ static void circulariseStemsP(struct CactusGraph *cactusGraph,
         assert(hashtable_search(seen, edge->from) != NULL);
         assert(edge->from != edge->to);
         if (isAFreeStubCactusEdge(edge, pinchGraph, flower)) { //is a free stub end, so we circularise it into its own component.
+            assert(hashtable_search(stemHash, edge) == NULL);
+            assert(hashtable_search(stemHash, edge->rEdge) == NULL);
             listAppend(verticesToMerge, edge->from);
             listAppend(verticesToMerge, edge->to);
         } else if (hashtable_search(stemHash, edge) != NULL) { //is a stem

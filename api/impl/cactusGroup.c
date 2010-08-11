@@ -370,6 +370,33 @@ void group_constructChainForLink(Group *group) {
     }
 }
 
+int32_t group_getAttachedStubEndNumber(Group *group) {
+    Group_EndIterator *endIt = group_getEndIterator(group);
+    End *end;
+    int32_t i = 0;
+    while ((end = group_getNextEnd(endIt)) != NULL) {
+        if (end_isAttached(end)) {
+            assert(end_isStubEnd(end));
+            i++;
+        }
+    }
+    group_destructEndIterator(endIt);
+    return i;
+}
+
+int32_t group_getBlockEndNumber(Group *group) {
+    Group_EndIterator *endIt = group_getEndIterator(group);
+    End *end;
+    int32_t i = 0;
+    while ((end = group_getNextEnd(endIt)) != NULL) {
+        if (end_isBlockEnd(end)) {
+            i++;
+        }
+    }
+    group_destructEndIterator(endIt);
+    return i;
+}
+
 /*
  * Private functions.
  */

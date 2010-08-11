@@ -47,7 +47,7 @@
 		</iterations>
 	</alignment>
 
-	<normal time="1">
+	<normal time="1" rounds="2" max_number_of_chains="30">
 	</normal>
 
 	<phylogeny time="1">

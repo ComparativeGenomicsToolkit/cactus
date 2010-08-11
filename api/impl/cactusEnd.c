@@ -247,6 +247,16 @@ void end_setGroup(End *end, Group *group) {
     }
 }
 
+void end_makeAttached(End *end) {
+    assert(end_isStubEnd(end));
+    assert(end_isFree(end));
+    assert(flower_getName(end_getFlower(end)) == 0);
+    if(end_getGroup(end) != NULL) {
+        assert(group_isLeaf(end_getGroup(end)));
+    }
+    end->endContents->isAttached = 1;
+}
+
 void end_check(End *end) {
     //Check is connected to flower properly
     assert(flower_getEnd(end_getFlower(end), end_getName(end)) == end_getPositiveOrientation(end));

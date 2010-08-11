@@ -246,16 +246,23 @@ class CactusBaseLevelAlignerWrapper(Target):
 ############################################################
     
 class CactusNormalPhase(Target):
-    def __init__(self, flowerName, options):
+    def __init__(self, flowerName, options, normalisationRounds=-1):
         Target.__init__(self, time=0)
         self.flowerName = flowerName
         self.options = options
+        if(normalisationRounds < 0):
+            normalisationRounds =  int(self.options.config.find("normal").attrib["rounds"])
+        assert(normalisationRounds > 0)
+        self.normalisationRounds=normalisationRounds
         
     def run(self, localTempDir, globalTempDir):
         logger.info("Starting the normalisation phase")
         time = float(self.options.config.find("normal").attrib["time"])
         self.addChildTarget(CactusExtensionWrapper(self.options, [ self.flowerName ], MAKE_NORMAL, time))
-        self.setFollowOnTarget(CactusPhylogenyPhase(self.flowerName, self.options))
+        if self.normalisationRounds-1 > 0:
+            self.setFollowOnTarget(CactusNormalPhase(self.flowerName, self.options, self.normalisationRounds-1))
+        else:
+            self.setFollowOnTarget(CactusPhylogenyPhase(self.flowerName, self.options))
         
 class CactusNormalRunnable(Target):
     """This targets run the normalisation script.
@@ -266,7 +273,8 @@ class CactusNormalRunnable(Target):
         self.options = options
         
     def run(self, localTempDir, globalTempDir):
-        runCactusMakeNormal(self.options.cactusDisk, flowerNames=self.flowerNames)
+        maxNumberOfChains = int(self.options.config.find("normal").attrib["max_number_of_chains"])
+        runCactusMakeNormal(self.options.cactusDisk, flowerNames=self.flowerNames, maxNumberOfChains=maxNumberOfChains)
 
 ############################################################
 ############################################################
@@ -375,7 +383,7 @@ class CactusExtensionWrapper(Target):
     def run(self, localTempDir, globalTempDir):
         #The following are atomic, in that we check if they have already been run successfully.
         #This ensures things end up terminal normal.. which we need for face building.
-        if self.switch == MAKE_NORMAL: #We set this as a follow on, as it is run in bottom up order (currently the only one, so it's on its own as a target)
+        if self.switch == MAKE_NORMAL: #We set this as a follow on, as it is run in bottom up order (currently the only one, so it's on its own as a target
             self.setFollowOnTarget(CactusNormalRunnable(options=self.options, flowerNames=self.flowerNames))
             #runCactusMakeNormal(self.options.cactusDisk, flowerNames=self.flowerNames)
         elif self.switch == BUILD_TREES:
@@ -439,7 +447,7 @@ def main():
         baseTarget = CactusSetupPhase(options, args)
         logger.info("Going to create alignments and define the cactus tree")
     elif options.buildTrees or options.buildFaces or options.buildReference:
-        baseTarget = CactusNormalPhase('0', options)
+        baseTarget = CactusNormalPhase('0', options, )
         logger.info("Starting from extension phase")
     else:
         logger.info("Nothing to do!")

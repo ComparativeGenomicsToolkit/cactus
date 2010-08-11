@@ -290,13 +290,7 @@ int main(int argc, char *argv[]) {
         group_constructChainForLink(group);
     }
 
-    ///////////////////////////////////////////////////////////////////////////
-    // Set the blocksBuilt flag to true for this top level flower.
-    ///////////////////////////////////////////////////////////////////////////
-
     assert(!flower_builtBlocks(flower));
-    flower_setBuiltBlocks(flower, 1);
-    assert(flower_builtBlocks(flower));
 
     ///////////////////////////////////////////////////////////////////////////
     // Write the flower to disk.

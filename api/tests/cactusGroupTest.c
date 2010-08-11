@@ -169,6 +169,23 @@ void testGroup_getEndNumber(CuTest* testCase) {
     cactusGroupTestTeardown();
 }
 
+void testGroup_getAttachedStubAndBlockEndNumber(CuTest* testCase) {
+    cactusGroupTestSetup();
+    CuAssertTrue(testCase, group_getAttachedStubEndNumber(group) == 0);
+    CuAssertTrue(testCase, group_getBlockEndNumber(group) == 0);
+    end_setGroup(end_construct(1, flower), group);
+    end_setGroup(end_construct(1, flower), group);
+    end_setGroup(end_construct(1, flower), group);
+    CuAssertTrue(testCase, group_getAttachedStubEndNumber(group) == 3);
+    CuAssertTrue(testCase, group_getBlockEndNumber(group) == 0);
+    Block *block = block_construct(1, flower);
+    end_setGroup(block_get5End(block), group);
+    end_setGroup(block_get3End(block), group);
+    CuAssertTrue(testCase, group_getAttachedStubEndNumber(group) == 3);
+    CuAssertTrue(testCase, group_getBlockEndNumber(group) == 2);
+    cactusGroupTestTeardown();
+}
+
 void testGroup_endIterator(CuTest* testCase) {
     cactusGroupTestSetup();
     Group_EndIterator *iterator = group_getEndIterator(group);
@@ -312,6 +329,7 @@ CuSuite* cactusGroupTestSuite(void) {
     SUITE_ADD_TEST(suite, testGroup_getChain);
     SUITE_ADD_TEST(suite, testGroup_getEnd);
     SUITE_ADD_TEST(suite, testGroup_getEndNumber);
+    SUITE_ADD_TEST(suite, testGroup_getAttachedStubAndBlockEndNumber);
     SUITE_ADD_TEST(suite, testGroup_endIterator);
     SUITE_ADD_TEST(suite, testGroup_getTotalBaseLength);
     SUITE_ADD_TEST(suite, testGroup_constructChainForLink);

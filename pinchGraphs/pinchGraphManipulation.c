@@ -498,7 +498,7 @@ int32_t linkStubComponentsToTheSinkComponent_excludedEdgesFn(void *o) {
 }
 
 void linkStubComponentsToTheSinkComponent(struct PinchGraph *pinchGraph,
-        Flower *flower) {
+        Flower *flower, int32_t attachEnds) {
     struct List *components;
     struct List *component;
     struct PinchVertex *vertex;
@@ -551,9 +551,15 @@ void linkStubComponentsToTheSinkComponent(struct PinchGraph *pinchGraph,
                     edge = getFirstBlackEdge(vertex);
                     cap = flower_getCap(flower, edge->piece->contig);
                     assert(cap != NULL);
+                    End *end = cap_getEnd(cap);
+                    assert(end_isStubEnd(end));
+                    assert(end_isFree(end));
                     sequence = cap_getSequence(cap);
                     assert(sequence != NULL);
                     if (sequence == longestSequence) {
+                        if(attachEnds) {
+                            end_makeAttached(end);
+                        }
                         connectVertices(vertex, sinkVertex);
                         k++;
                     }
@@ -582,7 +588,7 @@ void unlinkStubComponentsFromTheSinkComponent(struct PinchGraph *pinchGraph,
             End *end = cap_getEnd(cap);
             assert(end_isStubEnd(end));
             if (end_isStubEnd(end) && end_isFree(end)) {
-                if(lengthGreyEdges(vertex) == 1) {
+                if(lengthGreyEdges(vertex) == 1) { //is attached to the origin node.
                     assert(getFirstGreyEdge(vertex) == pinchGraph->vertices->list[0]);
                     disconnectVertices(vertex, pinchGraph->vertices->list[0]);
                 }

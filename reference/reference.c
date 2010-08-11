@@ -16,6 +16,7 @@
 #include "cactus.h"
 #include "reference.h"
 #include "commonC.h"
+#include "balanceTangles.h"
 
 int32_t getFreeStubEndNumber(Group *group) {
     End *end;
@@ -289,6 +290,9 @@ void addReferenceToFlower(Flower *flower) {
 #ifdef BEN_DEBUG
     flower_check(flower);
 #endif
+    //Ensure the cactus graph is balanced.
+    balanceTangles(flower);
+
     Reference *reference = flower_getReference(flower);
     if (reference != NULL) {
         return; //we've already built it, so no need to do it again!
