@@ -36,8 +36,9 @@ static void balanceTanglesP(Group *oddTangle, stList *ends) {
     assert(i % 2 != 0);
     assert(stList_length(ends) == 1 || stList_length(ends) == 3);
 #endif
+    Flower *flower = group_getFlower(oddTangle);
     if (i == 1 && stList_length(ends) == 1) { //We add an extra block in
-        Block *block = block_construct(1, group_getFlower(oddTangle));
+        Block *block = block_construct(1, flower);
         stList_append(ends, block_get5End(block));
         stList_append(ends, block_get3End(block));
     }
@@ -71,8 +72,11 @@ static void balanceTanglesP(Group *oddTangle, stList *ends) {
                 return;
             }
         }
+        assert(0);
         st_errAbort("We are exiting because we could not find an odd tangle\n");
     }
+    //ensure we have normalised it (but after the recursion on odd tangles)
+    flower_makeTerminalNormal(flower);
 }
 
 void balanceTangles(Flower *flower) {

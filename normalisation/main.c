@@ -127,7 +127,7 @@ int main(int argc, char *argv[]) {
         promoteChainsThatExtendHigherLevelChains(flower);
         promoteChainsToFillParents(flower, maxNumberOfChains);
         if (!flower_deleteIfEmpty(flower)) { //If we delete the flower we need not run the remaining functions..
-            makeTerminalNormal(flower);
+            flower_makeTerminalNormal(flower);
             flower_removeIfRedundant(flower);
         }
     }

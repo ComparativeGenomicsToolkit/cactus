@@ -11,11 +11,6 @@
 #include "cactus.h"
 
 /*
- * Ensures that all terminal groups have an attached leaf flower.
- */
-void makeTerminalNormal(Flower *flower);
-
-/*
  * Ensures that all chains in this flower are not part of a higher level chain, by promoting
  * those chains which are.
  *

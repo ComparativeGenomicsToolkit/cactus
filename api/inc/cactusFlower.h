@@ -459,4 +459,9 @@ Flower *flower_removeIfRedundant(Flower *flower);
  */
 bool flower_deleteIfEmpty(Flower *flower);
 
+/*
+ * Ensures that all terminal groups have an attached leaf flower.
+ */
+void flower_makeTerminalNormal(Flower *flower);
+
 #endif
