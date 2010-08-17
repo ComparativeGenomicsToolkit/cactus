@@ -314,6 +314,7 @@ void cap_check(Cap *cap) {
     //If we've built the trees
     if (flower_builtTrees(end_getFlower(cap_getEnd(cap)))) {
         // checks the cap has a parent which has an ancestral event to the caps event, unless it is the root.
+        assert(end_getRootInstance(end) != NULL);
         if (end_getRootInstance(end) == cap) {
             assert(cap_getParent(cap) == NULL);
         } else {

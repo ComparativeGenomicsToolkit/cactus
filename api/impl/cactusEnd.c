@@ -83,7 +83,7 @@ End *end_copyConstruct(End *end, Flower *newFlower) {
 
     //Copy root.
     if (end_getRootInstance(end) != NULL) {
-        end_setRootInstance(end2, end_getInstance(end, cap_getName(
+        end_setRootInstance(end2, end_getInstance(end2, cap_getName(
                 end_getRootInstance(end))));
     }
     return end2;

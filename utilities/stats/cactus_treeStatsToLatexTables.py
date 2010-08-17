@@ -273,38 +273,24 @@ def writeChainsTable(stats, fileHandle):
     Block Bp length: number of basepairs in blocks of chain. \
     Instance length: average number of basepairs in an instance of the chain, including both its blocks and intervening links.")
 
-def writeEndsTable(stats, fileHandle):
-    columnNumber = 9
+def writeNetsTable(stats, fileHandle):
+    columnNumber = 5
     writePreliminaries(columnNumber, fileHandle)
-    writeLine(columnNumber, 1, (("Ends", 0, columnNumber-1, 0, 0),), fileHandle)
+    writeLine(columnNumber, 1, (("Nets", 0, columnNumber-1, 0, 0),), fileHandle)
     writeLine(columnNumber, 2, (("Region", 0, 0, 0, 1), 
-                                ("Group type", 1, 2, 0, 0), 
-                                ("Terminal", 1, 1, 1, 1), 
-                                ("Type", 2, 2, 1, 1), 
-                                 ("Per Group", 3, 5, 0, 0), 
-                                 ("Max", 3, 3, 1, 1),
-                                 ("Avg.", 4, 4, 1, 1),
-                                 ("Med.", 5, 5, 1, 1),
-                                 ("Connectivity", 6, 8, 0, 0), 
-                                 ("Max", 6, 6, 1, 1),
-                                 ("Avg.", 7, 7, 1, 1),
-                                 ("Med.", 8, 8, 1, 1)), fileHandle)
+                                ("End number", 1, 2, 0, 0), 
+                                ("All", 1, 1, 1, 1), 
+                                ("No Free Stubs", 2, 2, 1, 1), 
+                                 ("End degrees ", 3, 3, 0, 1), 
+                                 ("Groups", 4, 4, 0, 1)), fileHandle)
     for statNode, regionName in stats:
-        endsNodes = statNode.findall("ends")
-        l = [ (regionName, 0, 0, 0, 8) ]
-        i = 0
-        for terminal in ("all", "terminal", "non-terminal"):
-            l.append((terminal, 1, 1, i, i+2))
-            for groupType in ("all", "tangles", "links"):
-                l.append((groupType, 2, 2, i, i))
-                l.append((formatFloat(endsNodes[i].find("counts").attrib["max"], decimals=0), 3, 3, i, i))
-                l.append((formatFloat(endsNodes[i].find("counts").attrib["avg"], decimals=2), 4, 4, i, i))
-                l.append((formatFloat(endsNodes[i].find("counts").attrib["median"], decimals=0), 5, 5, i, i))
-                l.append((formatFloat(endsNodes[i].find("degrees").attrib["max"], decimals=0), 6, 6, i, i))
-                l.append((formatFloat(endsNodes[i].find("degrees").attrib["avg"], decimals=2), 7, 7, i, i))
-                l.append((formatFloat(endsNodes[i].find("degrees").attrib["median"], decimals=0), 8, 8, i, i))
-                i += 1
-        writeLine(columnNumber, 9, l, fileHandle)
+        netNode = statNode.find("nets")
+        l = [ (regionName, 0, 0, 0, 0) ]
+        l.append((formatFloat(netNode.find("end_numbers_per_net").attrib["avg"], decimals=2), 1, 1, 0, 0))
+        l.append((formatFloat(netNode.find("non_free_stub_end_numbers_per_net").attrib["avg"], decimals=2), 2, 2, 0, 0))
+        l.append((formatFloat(netNode.find("end_degrees_per_net").attrib["avg"], decimals=2), 3, 3, 0, 0))
+        l.append((formatFloat(netNode.find("total_groups_per_net").attrib["avg"], decimals=2), 4, 4, 0, 0))
+        writeLine(5, 1, l, fileHandle)
                      
     writeEnd(fileHandle, "ends_table", "Statistics on the ends of the cactus trees. \
     Region: region name. \
@@ -445,7 +431,7 @@ def main():
     writeFlowerTable(stats, fileHandle)
     writeBlocksTable(stats, fileHandle)
     writeChainsTable(stats, fileHandle)
-    writeEndsTable(stats, fileHandle)
+    writeNetsTable(stats, fileHandle)
     writeFacesTable(stats, fileHandle)
     writeReferenceTable(stats, fileHandle)
     writeDocumentEnd(fileHandle)

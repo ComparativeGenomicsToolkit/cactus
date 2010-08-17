@@ -324,6 +324,7 @@ void addReferenceToFlower(Flower *flower) {
      * For each pseudo-chromosome..
      */
     makePseudoAdjacencies(flower, reference);
+
     /*
      * Now check the reference created for goodness.
      */

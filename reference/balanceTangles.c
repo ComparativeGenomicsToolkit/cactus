@@ -80,8 +80,6 @@ static void balanceTanglesP(Group *oddTangle, stList *ends) {
 }
 
 void balanceTangles(Flower *flower) {
-    flower_checkRecursive(flower);
-
     assert(flower_getAttachedStubEndNumber(flower) > 0);
     assert(flower_getAttachedStubEndNumber(flower) % 2 == 0);
     assert(flower_getBlockEndNumber(flower) % 2 == 0);
@@ -126,6 +124,4 @@ void balanceTangles(Flower *flower) {
         }
     }
     flower_destructGroupIterator(groupIt);
-
-    flower_checkRecursive(flower);
 }

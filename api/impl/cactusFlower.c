@@ -14,11 +14,13 @@ static int flower_constructSequencesP(const void *o1, const void *o2) {
 }
 
 static int flower_constructCapsP(const void *o1, const void *o2) {
-    return cactusMisc_nameCompare(cap_getName((Cap *) o1), cap_getName((Cap *) o2));
+    return cactusMisc_nameCompare(cap_getName((Cap *) o1), cap_getName(
+            (Cap *) o2));
 }
 
 static int flower_constructEndsP(const void *o1, const void *o2) {
-    return cactusMisc_nameCompare(end_getName((End *) o1), end_getName((End *) o2));
+    return cactusMisc_nameCompare(end_getName((End *) o1), end_getName(
+            (End *) o2));
 }
 
 static int flower_constructSegmentsP(const void *o1, const void *o2) {
@@ -57,7 +59,8 @@ Flower *flower_construct2(Name name, CactusDisk *cactusDisk) {
 
     flower->name = name;
 
-    flower->sequences = stSortedSet_construct3(flower_constructSequencesP, NULL);
+    flower->sequences
+            = stSortedSet_construct3(flower_constructSequencesP, NULL);
     flower->caps = stSortedSet_construct3(flower_constructCapsP, NULL);
     flower->ends = stSortedSet_construct3(flower_constructEndsP, NULL);
     flower->segments = stSortedSet_construct3(flower_constructSegmentsP, NULL);
@@ -264,7 +267,8 @@ int32_t flower_getFreeStubEndNumber(Flower *flower) {
 }
 
 int32_t flower_getAttachedStubEndNumber(Flower *flower) {
-    return flower_getStubEndNumber(flower) - flower_getFreeStubEndNumber(flower);
+    return flower_getStubEndNumber(flower)
+            - flower_getFreeStubEndNumber(flower);
 }
 
 Flower_EndIterator *flower_getEndIterator(Flower *flower) {
@@ -348,7 +352,8 @@ Block *flower_getPreviousBlock(Flower_BlockIterator *blockIterator) {
     return stSortedSet_getPrevious(blockIterator);
 }
 
-Flower_BlockIterator *flower_copyBlockIterator(Flower_BlockIterator *blockIterator) {
+Flower_BlockIterator *flower_copyBlockIterator(
+        Flower_BlockIterator *blockIterator) {
     return stSortedSet_copyIterator(blockIterator);
 }
 
@@ -381,7 +386,8 @@ Group *flower_getPreviousGroup(Flower_GroupIterator *groupIterator) {
     return stSortedSet_getPrevious(groupIterator);
 }
 
-Flower_GroupIterator *flower_copyGroupIterator(Flower_GroupIterator *groupIterator) {
+Flower_GroupIterator *flower_copyGroupIterator(
+        Flower_GroupIterator *groupIterator) {
     return stSortedSet_copyIterator(groupIterator);
 }
 
@@ -393,7 +399,8 @@ Group *flower_getParentGroup(Flower *flower) {
     if (flower->parentFlowerName == NULL_NAME) {
         return NULL;
     }
-    Flower *flower2 = cactusDisk_getFlower(flower_getCactusDisk(flower), flower->parentFlowerName);
+    Flower *flower2 = cactusDisk_getFlower(flower_getCactusDisk(flower),
+            flower->parentFlowerName);
     assert(flower2 != NULL);
     return flower_getGroup(flower2, flower_getName(flower));
 }
@@ -423,7 +430,8 @@ Chain *flower_getPreviousChain(Flower_ChainIterator *chainIterator) {
     return stSortedSet_getPrevious(chainIterator);
 }
 
-Flower_ChainIterator *flower_copyChainIterator(Flower_ChainIterator *chainIterator) {
+Flower_ChainIterator *flower_copyChainIterator(
+        Flower_ChainIterator *chainIterator) {
     return stSortedSet_copyIterator(chainIterator);
 }
 
@@ -571,7 +579,8 @@ void flower_check(Flower *flower) {
         //contain any blocks.
     }
 
-    Flower_SequenceIterator *sequenceIterator = flower_getSequenceIterator(flower);
+    Flower_SequenceIterator *sequenceIterator = flower_getSequenceIterator(
+            flower);
     Sequence *sequence;
     while ((sequence = flower_getNextSequence(sequenceIterator)) != NULL) {
         sequence_check(sequence);
@@ -583,8 +592,8 @@ void flower_checkRecursive(Flower *flower) {
     flower_check(flower);
     Flower_GroupIterator *groupIt = flower_getGroupIterator(flower);
     Group *group;
-    while((group = flower_getNextGroup(groupIt)) != NULL) {
-        if(!group_isLeaf(group)) {
+    while ((group = flower_getNextGroup(groupIt)) != NULL) {
+        if (!group_isLeaf(group)) {
             flower_checkRecursive(group_getNestedFlower(group));
         }
     }
@@ -636,14 +645,17 @@ bool flower_isTerminal(Flower *flower) {
 }
 
 Flower *flower_removeIfRedundant(Flower *flower) {
-    if (!flower_isLeaf(flower) && flower_getGroupNumber(flower) == 1 && flower_getBlockNumber(
-            flower) == 0) { //We will remove this flower..
-        Flower *nestedFlower = group_getNestedFlower(flower_getFirstGroup(flower));
+    if (!flower_isLeaf(flower) && flower_getGroupNumber(flower) == 1
+            && flower_getBlockNumber(flower) == 0) { //We will remove this flower..
+        Flower *nestedFlower = group_getNestedFlower(flower_getFirstGroup(
+                flower));
 
         //Unload the child flower from its position in the flowers hash..
-        cactusDisk_unloadFlower(flower_getCactusDisk(nestedFlower), nestedFlower);
+        cactusDisk_unloadFlower(flower_getCactusDisk(nestedFlower),
+                nestedFlower);
         //and remove it from the disk (if it has been written there)
-        cactusDisk_deleteFlowerFromDisk(flower_getCactusDisk(flower), flower_getName(nestedFlower));
+        cactusDisk_deleteFlowerFromDisk(flower_getCactusDisk(flower),
+                flower_getName(nestedFlower));
 
         //reassign names
         Name oldName = flower_getName(nestedFlower);
@@ -674,7 +686,8 @@ Flower *flower_removeIfRedundant(Flower *flower) {
 }
 
 bool flower_deleteIfEmpty(Flower *flower) {
-    if (flower_getEndNumber(flower) == 0 && flower_getParentGroup(flower) != NULL) { //contains nothing useful..
+    if (flower_getEndNumber(flower) == 0 && flower_getParentGroup(flower)
+            != NULL) { //contains nothing useful..
         assert(flower_getChainNumber(flower) == 0);
         assert(flower_getBlockNumber(flower) == 0);
         while (flower_getGroupNumber(flower) > 0) {
@@ -686,7 +699,8 @@ bool flower_deleteIfEmpty(Flower *flower) {
         }
         assert(flower_getGroupNumber(flower) == 0);
         //This needs modification so that we don't do this directly..
-        cactusDisk_deleteFlowerFromDisk(flower_getCactusDisk(flower), flower_getName(flower));
+        cactusDisk_deleteFlowerFromDisk(flower_getCactusDisk(flower),
+                flower_getName(flower));
         Group *parentGroup = flower_getParentGroup(flower);
         group_destruct(parentGroup);
         flower_destruct(flower, 0);
@@ -703,8 +717,11 @@ void flower_makeTerminalNormal(Flower *flower) {
         while ((group = flower_getNextGroup(groupIterator)) != NULL) {
             if (group_isLeaf(group)) {
                 //assert(group_getTotalBaseLength(group) == 0);
-                group_makeNestedFlower(group);
-                flower_setBuiltBlocks(group_getNestedFlower(group), 1);
+                Flower *nestedFlower = group_makeNestedFlower(group);
+                flower_setBuiltBlocks(nestedFlower, flower_builtBlocks(flower));
+                flower_setBuiltTrees(nestedFlower, flower_builtTrees(flower));
+                flower_setBuildFaces(nestedFlower, flower_builtFaces(flower));
+                flower_check(nestedFlower);
             }
         }
         flower_destructGroupIterator(groupIterator);
@@ -920,8 +937,8 @@ void flower_removeReference(Flower *flower, Reference *reference) {
  * Serialisation functions.
  */
 
-void flower_writeBinaryRepresentation(Flower *flower, void(*writeFn)(const void * ptr,
-        size_t size, size_t count)) {
+void flower_writeBinaryRepresentation(Flower *flower, void(*writeFn)(
+        const void * ptr, size_t size, size_t count)) {
     Flower_SequenceIterator *sequenceIterator;
     Flower_EndIterator *endIterator;
     Flower_BlockIterator *blockIterator;
@@ -940,7 +957,8 @@ void flower_writeBinaryRepresentation(Flower *flower, void(*writeFn)(const void 
     binaryRepresentation_writeName(flower->parentFlowerName, writeFn);
 
     if (flower_getEventTree(flower) != NULL) {
-        eventTree_writeBinaryRepresentation(flower_getEventTree(flower), writeFn);
+        eventTree_writeBinaryRepresentation(flower_getEventTree(flower),
+                writeFn);
     }
 
     sequenceIterator = flower_getSequenceIterator(flower);
@@ -962,7 +980,8 @@ void flower_writeBinaryRepresentation(Flower *flower, void(*writeFn)(const void 
     flower_destructBlockIterator(blockIterator);
 
     if (flower_getReference(flower) != NULL) {
-        reference_writeBinaryRepresentation(flower_getReference(flower), writeFn);
+        reference_writeBinaryRepresentation(flower_getReference(flower),
+                writeFn);
     }
 
     groupIterator = flower_getGroupIterator(flower);
@@ -981,17 +1000,20 @@ void flower_writeBinaryRepresentation(Flower *flower, void(*writeFn)(const void 
     binaryRepresentation_writeElementType(CODE_FLOWER, writeFn); //this avoids interpretting things wrong.
 }
 
-Flower *flower_loadFromBinaryRepresentation(void **binaryString, CactusDisk *cactusDisk) {
+Flower *flower_loadFromBinaryRepresentation(void **binaryString,
+        CactusDisk *cactusDisk) {
     Flower *flower = NULL;
     if (binaryRepresentation_peekNextElementType(*binaryString) == CODE_FLOWER) {
         binaryRepresentation_popNextElementType(binaryString);
         flower = flower_construct2(binaryRepresentation_getName(binaryString),
                 cactusDisk);
-        flower_setBuiltBlocks(flower, binaryRepresentation_getBool(binaryString));
+        flower_setBuiltBlocks(flower,
+                binaryRepresentation_getBool(binaryString));
         flower_setBuiltTrees(flower, binaryRepresentation_getBool(binaryString));
         flower->parentFlowerName = binaryRepresentation_getName(binaryString);
         eventTree_loadFromBinaryRepresentation(binaryString, flower);
-        while (sequence_loadFromBinaryRepresentation(binaryString, flower) != NULL)
+        while (sequence_loadFromBinaryRepresentation(binaryString, flower)
+                != NULL)
             ;
         while (end_loadFromBinaryRepresentation(binaryString, flower) != NULL)
             ;

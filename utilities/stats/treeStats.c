@@ -12,7 +12,7 @@
 #include "hashTableC.h"
 
 /*
- * Stats for a terminally normalised flower.
+ * Stats for a cactus tree that passes cactus_check.
  */
 
 void tabulateFloatStats(struct List *unsortedValues, double *totalNumber,
@@ -127,6 +127,11 @@ void tabulateAndPrintIntValues(struct IntList *values, const char *tag,
     }
     printClosingTag(tag, fileHandle);
 }
+
+
+/////
+//Now on to the actual stats
+/////
 
 double calculateTreeBits(Flower *flower, double pathBitScore) {
     /*
@@ -416,16 +421,6 @@ void reportTerminalFlowerSizes(Flower *flower, FILE *fileHandle) {
     destructIntList(sizes);
 }
 
-static int32_t isTerminalGroup(Group *group) {
-    /*
-     * Returns non-zero iff the groups nested flower is terminal.
-     */
-    if (group_isLeaf(group)) {
-        return 0;
-    }
-    return flower_isTerminal(group_getNestedFlower(group));
-}
-
 static int32_t endDegree(End *end) {
     /*
      * Returns the number of distint ends and end is connected to.
@@ -448,82 +443,67 @@ static int32_t endDegree(End *end) {
     return i;
 }
 
-void endStats(Flower *flower, struct IntList *counts, struct IntList *degrees,
-        int32_t includeLinkGroups, int32_t includeTangleGroups,
-        int32_t includeTerminalGroups, int32_t includeNonTerminalGroups) {
+void netStats(Flower *flower, struct IntList *totalEndNumbersPerNet,
+        struct IntList *totalNonFreeStubEndNumbersPerNet,
+        struct List *endDegrees,
+        struct IntList *totalGroupsPerNet) {
     /*
-     * Calculates stats on the ends.
-     * Counts is the number of ends per group.
-     * Degrees is the degree of each end, where the degree of an end is the number
-     * of distinct adjacencies an end has to other ends.
+     * Calculates stats on the nets which contain tangle groups, so called 'tangle nets'
+     * Reports ends per tangle net, non-free stub ends per tangle net, avg number of distinct
+     * end an end is connected to in a tangle net and the number of tangle groups per net.
      */
     if (!flower_isTerminal(flower)) { //Do not double count terminal groups when doing the math.
         Flower_GroupIterator *groupIterator = flower_getGroupIterator(flower);
         Group *group;
+        int32_t tangleGroupEndSum = 0;
+        int32_t tangleGroupEndSumExcludingFreeStubs = 0;
+        int32_t endConnectivity = 0;
+        int32_t tangleGroups = 0;
         while ((group = flower_getNextGroup(groupIterator)) != NULL) {
-            //The stats calc.
-            if (((includeLinkGroups && group_getLink(group) != NULL)
-                    || (includeTangleGroups && group_getLink(group) == NULL))
-                    && ((includeTerminalGroups && isTerminalGroup(group))
-                            || (includeNonTerminalGroups && !isTerminalGroup(
-                                    group)))) {
-                intListAppend(counts, group_getEndNumber(group));
-                Group_EndIterator *endIterator = group_getEndIterator(group);
+            if(group_isTangle(group)) {
+                tangleGroups++;
+                tangleGroupEndSum += group_getEndNumber(group);
+                tangleGroupEndSumExcludingFreeStubs += group_getAttachedStubEndNumber(group) + group_getBlockEndNumber(group);
                 End *end;
-                while ((end = group_getNextEnd(endIterator)) != NULL) {
-                    intListAppend(degrees, endDegree(end));
+                Group_EndIterator *groupEndIt = group_getEndIterator(group);
+                while((end = group_getNextEnd(groupEndIt))) {
+                    endConnectivity += endDegree(end);
                 }
-                group_destructEndIterator(endIterator);
+                group_destructEndIterator(groupEndIt);
             }
-
             assert(!group_isLeaf(group));
-            endStats(group_getNestedFlower(group), counts, degrees,
-                    includeLinkGroups, includeTangleGroups,
-                    includeTerminalGroups, includeNonTerminalGroups);
+            netStats(group_getNestedFlower(group), totalEndNumbersPerNet, totalNonFreeStubEndNumbersPerNet, endDegrees, totalGroupsPerNet);
         }
         flower_destructGroupIterator(groupIterator);
+        if(tangleGroups > 0) {
+            intListAppend(totalEndNumbersPerNet, tangleGroupEndSum);
+            intListAppend(totalNonFreeStubEndNumbersPerNet, tangleGroupEndSumExcludingFreeStubs);
+            listAppend(endDegrees, constructFloat((0.0 + endConnectivity)/tangleGroupEndSum));
+            intListAppend(totalGroupsPerNet, tangleGroups);
+        }
     }
 }
 
-void reportEndStats(Flower *flower, int32_t includeLinkGroups,
-        int32_t includeTangleGroups, int32_t includeTerminalGroups,
-        int32_t includeNonTerminalGroups, FILE *fileHandle) {
+void reportNetStats(Flower *flower, FILE *fileHandle) {
     /*
      * Prints the end stats to the XML file.
      */
-    struct IntList *counts = constructEmptyIntList(0);
-    struct IntList *degrees = constructEmptyIntList(0);
-    endStats(flower, counts, degrees, includeLinkGroups, includeTangleGroups,
-            includeTerminalGroups, includeNonTerminalGroups);
+    struct IntList *totalEndNumbersPerNet = constructEmptyIntList(0);
+    struct IntList *totalNonFreeStubEndNumbersPerNet = constructEmptyIntList(0);
+    struct List *endDegrees = constructEmptyList(0, (void (*)(void *))destructFloat);
+    struct IntList *totalGroupsPerNet = constructEmptyIntList(0);
+    netStats(flower, totalEndNumbersPerNet, totalNonFreeStubEndNumbersPerNet, endDegrees, totalGroupsPerNet);
     fprintf(
             fileHandle,
-            "<ends include_link_groups=\"%i\" include_tangle_groups=\"%i\" include_terminal_groups=\"%i\" include_non_terminal_groups=\"%i\">",
-            includeLinkGroups != 0, includeTangleGroups != 0,
-            includeTerminalGroups != 0, includeNonTerminalGroups != 0);
-    tabulateAndPrintIntValues(counts, "counts", fileHandle);
-    tabulateAndPrintIntValues(degrees, "degrees", fileHandle);
-    printClosingTag("ends", fileHandle);
-    destructIntList(counts);
-    destructIntList(degrees);
-}
-
-double nonSimpleFacesPerEnd(End *end) {
-    End_InstanceIterator *capIterator = end_getInstanceIterator(end);
-    Cap *cap;
-    stHash *faceHash = stHash_construct();
-    int32_t i = 0;
-    while ((cap = end_getNext(capIterator)) != NULL) {
-        Face *face = cap_getTopFace(cap);
-        if (face != NULL) {
-            if (stHash_search(faceHash, face) == NULL) {
-                stHash_insert(faceHash, face, face);
-                i++;
-            }
-        }
-    }
-    stHash_destruct(faceHash);
-    end_destructInstanceIterator(capIterator);
-    return i;
+            "<nets>");
+    tabulateAndPrintIntValues(totalEndNumbersPerNet, "end_numbers_per_net", fileHandle);
+    tabulateAndPrintIntValues(totalNonFreeStubEndNumbersPerNet, "non_free_stub_end_numbers_per_net", fileHandle);
+    tabulateAndPrintFloatValues(endDegrees, "end_degrees_per_net", fileHandle);
+    tabulateAndPrintIntValues(totalGroupsPerNet, "total_groups_per_net", fileHandle);
+    printClosingTag("nets", fileHandle);
+    destructIntList(totalEndNumbersPerNet);
+    destructIntList(totalNonFreeStubEndNumbersPerNet);
+    destructList(endDegrees);
 }
 
 void faceStats(Flower *flower, struct IntList *numberPerGroup,
@@ -746,17 +726,9 @@ void reportCactusDiskStats(char *cactusDiskName, Flower *flower, FILE *fileHandl
     reportTerminalFlowerSizes(flower, fileHandle);
 
     /*
-     * Stats on the ends in the problem. We look at tangle and link groups separately and at terminal and non-terminal groups seperately.
+     * Stats on the ends in the problem. Currently just the numbers of ends in each net.
      */
-    reportEndStats(flower, 1, 1, 1, 1, fileHandle);
-    reportEndStats(flower, 0, 1, 1, 1, fileHandle);
-    reportEndStats(flower, 1, 0, 1, 1, fileHandle);
-    reportEndStats(flower, 1, 1, 1, 0, fileHandle);
-    reportEndStats(flower, 0, 1, 1, 0, fileHandle);
-    reportEndStats(flower, 1, 0, 1, 0, fileHandle);
-    reportEndStats(flower, 1, 1, 0, 1, fileHandle);
-    reportEndStats(flower, 0, 1, 0, 1, fileHandle);
-    reportEndStats(flower, 1, 0, 0, 1, fileHandle);
+    reportNetStats(flower, fileHandle);
 
     /*
      * Stats on faces in the reconstruction..

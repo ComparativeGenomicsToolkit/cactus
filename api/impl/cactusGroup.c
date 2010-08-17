@@ -73,7 +73,7 @@ static void copyAdjacencies(Group *group, Flower *nestedFlower) {
     group_destructEndIterator(endIterator);
 }
 
-void group_makeNestedFlower(Group *group) {
+Flower *group_makeNestedFlower(Group *group) {
     assert(group_isLeaf(group));
     group->leafGroup = 0;
     Flower *nestedFlower = flower_construct2(group_getName(group),
@@ -95,6 +95,7 @@ void group_makeNestedFlower(Group *group) {
     //Create the trivial chain for the ends..
     group_constructChainForLink(nestedGroup);
     assert(group_getTotalBaseLength(group) == flower_getTotalBaseLength(nestedFlower));
+    return nestedFlower;
 }
 
 void group_updateContainedEnds(Group *group) {

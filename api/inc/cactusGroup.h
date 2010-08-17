@@ -49,8 +49,9 @@ bool group_isLeaf(Group *group);
  * be set and all the ends will be in one new leaf group.
  *
  * Will fail if the problem is already a non-leaf group.
+ * Returns the nested flower.
  */
-void group_makeNestedFlower(Group *group);
+Flower *group_makeNestedFlower(Group *group);
 
 /*
  * Gets the nested flower the group contains, or NULL if it doesn't contain one.
