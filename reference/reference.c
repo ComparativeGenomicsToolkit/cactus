@@ -215,7 +215,8 @@ static int makeTopLevelPseudoChromosomes_cmpEnds(End **end1, End **end2) {
 }
 
 void makeTopLevelPseudoChromosomes(Flower *flower, Reference *reference) {
-    makePseudoChromosomes(flower, reference, makeTopLevelPseudoChromosomes_cmpEnds);
+    makePseudoChromosomes(flower, reference,
+            makeTopLevelPseudoChromosomes_cmpEnds);
 }
 
 static stHash *makeIntermediateLevelPseudoChromosomes_cmpEndsP = NULL;
@@ -226,10 +227,12 @@ static int makeIntermediateLevelPseudoChromosomes_cmpEnds(End **end1,
     /*
      * Sorts the attached ends according to the pairing in the higher level reference.
      */
-    End *end3 = flower_getEnd(makeIntermediateLevelPseudoChromosomes_parentFlower,
-            end_getName(*end1));
-    End *end4 = flower_getEnd(makeIntermediateLevelPseudoChromosomes_parentFlower,
-            end_getName(*end2));
+    End *end3 = flower_getEnd(
+            makeIntermediateLevelPseudoChromosomes_parentFlower, end_getName(
+                    *end1));
+    End *end4 = flower_getEnd(
+            makeIntermediateLevelPseudoChromosomes_parentFlower, end_getName(
+                    *end2));
     assert(end3 != NULL);
     assert(end4 != NULL);
     assert(end_getOrientation(end3));
@@ -269,7 +272,8 @@ static int makeIntermediateLevelPseudoChromosomes_cmpEnds(End **end1,
     return pseudoAdjacency_get5End(pseudoAdjacency1) == end3 ? -1 : 1;
 }
 
-void makeIntermediateLevelPseudoChromosomes(Flower *flower, Reference *reference) {
+void makeIntermediateLevelPseudoChromosomes(Flower *flower,
+        Reference *reference) {
     Group *parentGroup = flower_getParentGroup(flower);
     assert(parentGroup != NULL);
     Flower *parentFlower = group_getFlower(parentGroup);
@@ -334,3 +338,90 @@ void addReferenceToFlower(Flower *flower) {
 #endif
 }
 
+/*
+void addReferenceToFlower2(Flower *flower) {
+#ifdef BEN_DEBUG
+    flower_check(flower);
+#endif
+
+    Reference *reference = flower_getReference(flower);
+    if (reference != NULL) {
+        return; //we've already built it, so no need to do it again!
+    }
+    reference = reference_construct(flower);
+
+    if (flower_getGroupNumber(flower) == 0) { //In this case we have nothing to add, and no point in continuing.
+        assert(flower_getEndNumber(flower) == 0);
+        return;
+    }
+
+    if (flower_isTerminal(flower)) {
+        //We arbitrarily pair the ends.
+        assert(flower_getAttachedStubEndNumber(flower) % 2 == 0);
+        assert(flower_getGroupNumber(flower) == 1);
+        End *end;
+        Flower_EndIterator *endIt = flower_getEndIterator(flower);
+        stList *list = stList_construct();
+        while ((end = flower_getNextEnd(endIt)) != NULL) {
+            assert(end_isStubEnd(end));
+            if (end_isAttached(end)) {
+                stList_append(list, end);
+            }
+        }
+        assert(stList_length(list) > 0);
+        assert(stList_length(list) % 2 == 0);
+        for (int32_t i = 0; i < stList_length(list); i += 2) {
+            pseudoChromosome_construct(reference, stList_get(list, i), stList_get(list, i + 1));
+        }
+        stList_destruct(list);
+        flower_destructEndIterator(endIt);
+    } else {
+        //We must construct the pseudo chromosomes according to the nested nets.
+        End *end;
+        Flower_EndIterator *endIt = flower_getEndIterator(flower);
+        while ((end = flower_getNextEnd(endIt)) != NULL) {
+            if (end_isAttached(end) && end_isStubEnd(end)
+                    && end_getPseudoAdjacency(end) == NULL) {
+                stList *list = stList_construct();
+                do {
+                    Group *group = end_getGroup(end);
+                    assert(!group_isLeaf(group));
+                    Flower *nestedFlower = group_getNestedFlower(group);
+                    End *nestedEnd = flower_getEnd(nestedFlower, end_getName(
+                            end));
+                    assert(nestedEnd != NULL);
+                    PseudoAdjacency *nestedPseudoAdjacency =
+                            end_getPseudoAdjacency(nestedEnd);
+                    PseudoChromosome
+                            *nestedPseudoChromosome =
+                                    pseudoAdjacency_getPseudoChromosome(
+                                            nestedPseudoAdjacency);
+                    assert(pseudoChromosome_get5End(nestedPseudoChromosome) == nestedEnd || pseudoChromosome_get3End(nestedPseudoChromosome) == nestedEnd);
+                    End *otherNestedEnd =
+                            pseudoChromosome_get5End(nestedPseudoChromosome)
+                                    == nestedEnd ? pseudoChromosome_get3End(
+                                    nestedPseudoChromosome)
+                                    : pseudoChromosome_get5End(
+                                            nestedPseudoChromosome);
+                    End *otherEnd = flower_getEnd(flower, end_getName(
+                            otherNestedEnd));
+                    assert(end_getPseudoAdjacency(otherEnd) == NULL);
+                    assert(otherEnd != NULL);
+                    stList_append(list, end);
+                    stList_append(list, otherEnd);
+                    end = end_getOtherBlockEnd(otherEnd);
+                } while (end != NULL);
+                PseudoChromosome *pseudoChromosome =
+                        pseudoChromosome_construct(reference, stList_get(list,
+                                0), stList_peek(list));
+                for (int32_t i = 0; i < stList_length(list); i += 2) {
+                    pseudoAdjacency_construct(stList_get(list, i), stList_get(
+                            list, i + 1), pseudoChromosome);
+                }
+                stList_destruct(list);
+            }
+        }
+        flower_destructEndIterator(endIt);
+    }
+}
+*/
