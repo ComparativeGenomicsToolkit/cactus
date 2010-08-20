@@ -142,13 +142,13 @@ static char *eventTree_makeNewickStringP(Event *event) {
 			}
 		}
 		cA3 = st_malloc(sizeof(char)*(strlen(cA) + strlen(event_getHeader(event)) + 30));
-		sprintf(cA3, "%s)%s:%g", cA, cactusMisc_nameToStringStatic(event_getName(event)), event_getBranchLength(event));
+		sprintf(cA3, "%s)%s:%g", cA, event_getHeader(event), event_getBranchLength(event));
 		free(cA);
 		cA = cA3;
 	}
 	else {
 		cA = st_malloc(sizeof(char)*(strlen(event_getHeader(event)) + 30));
-		sprintf(cA, "%s:%g", cactusMisc_nameToStringStatic(event_getName(event)), event_getBranchLength(event));
+		sprintf(cA, "%s:%g", event_getHeader(event), event_getBranchLength(event));
 	}
 	return cA;
 }

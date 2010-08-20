@@ -138,6 +138,7 @@ void pseudoChromosome_writeBinaryRepresentation(PseudoChromosome *pseudoChromoso
 		pseudoAdjacency_writeBinaryRepresentation(pseudoAdjacency, writeFn);
 	}
 	pseudoChromosome_destructPseudoAdjacencyIterator(iterator);
+	binaryRepresentation_writeElementType(CODE_PSEUDO_CHROMOSOME, writeFn);
 }
 
 PseudoChromosome *pseudoChromosome_loadFromBinaryRepresentation(void **binaryString, Reference *reference) {
@@ -155,6 +156,8 @@ PseudoChromosome *pseudoChromosome_loadFromBinaryRepresentation(void **binaryStr
 		while(pseudoAdjacencyNumber-- > 0) {
 			pseudoAdjacency_loadFromBinaryRepresentation(binaryString, pseudoChromosome);
 		}
+		assert(binaryRepresentation_peekNextElementType(*binaryString) == CODE_PSEUDO_CHROMOSOME);
+		binaryRepresentation_popNextElementType(binaryString);
 	}
 	return pseudoChromosome;
 }

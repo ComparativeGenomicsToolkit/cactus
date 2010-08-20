@@ -24,6 +24,7 @@ static void extendFlowers(Flower *flower, FILE *fileHandle, int32_t minSizeToExt
             }
             else {
                 int64_t size = group_getTotalBaseLength(group);
+                assert(size >= 0);
                 if(size >= minSizeToExtend) {
                     group_makeNestedFlower(group);
                     fprintf(fileHandle, "%s %" PRIi64 "\n", cactusMisc_nameToStringStatic(group_getName(group)), size);
@@ -35,7 +36,9 @@ static void extendFlowers(Flower *flower, FILE *fileHandle, int32_t minSizeToExt
     else { //something went wrong last time, and the flower hasn't been filled in.. so we'll return it
         //again.
         assert(flower_getBlockNumber(flower) == 0);
-        fprintf(fileHandle, "%s %" PRIi64 "\n", cactusMisc_nameToStringStatic(flower_getName(flower)), flower_getTotalBaseLength(flower));
+        int64_t size = flower_getTotalBaseLength(flower);
+        assert(size >= 0);
+        fprintf(fileHandle, "%s %" PRIi64 "\n", cactusMisc_nameToStringStatic(flower_getName(flower)), size);
     }
 }
 

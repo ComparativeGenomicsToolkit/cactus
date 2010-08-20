@@ -200,6 +200,7 @@ void reference_writeBinaryRepresentation(Reference *reference, void(*writeFn)(
         pseudoChromosome_writeBinaryRepresentation(pseudoChromosome, writeFn);
     }
     pseudoChromosome_destructPseudoAdjacencyIterator(iterator);
+    binaryRepresentation_writeElementType(CODE_REFERENCE, writeFn);
 }
 
 Reference *reference_loadFromBinaryRepresentation(void **binaryString,
@@ -216,6 +217,9 @@ Reference *reference_loadFromBinaryRepresentation(void **binaryString,
             pseudoChromosome_loadFromBinaryRepresentation(binaryString,
                     reference);
         }
+        assert(binaryRepresentation_peekNextElementType(*binaryString)
+            == CODE_REFERENCE);
+        binaryRepresentation_popNextElementType(binaryString);
     }
     return reference;
 }

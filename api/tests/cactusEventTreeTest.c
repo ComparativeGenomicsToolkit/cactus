@@ -151,7 +151,7 @@ void testEventTree_iterator(CuTest* testCase) {
 
 void testEventTree_makeNewickString(CuTest* testCase) {
 	cactusEventTreeTestSetup();
-	CuAssertStrEquals(testCase, "((4:0.2,5:1.3)3:0.5)2:2.14748e+09;", eventTree_makeNewickString(eventTree));
+	CuAssertStrEquals(testCase, "((LEAF1:0.2,LEAF2:1.3)INTERNAL:0.5)ROOT:2.14748e+09;", eventTree_makeNewickString(eventTree));
 	cactusEventTreeTestTeardown();
 }
 

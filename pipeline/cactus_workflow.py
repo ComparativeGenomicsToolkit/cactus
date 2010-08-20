@@ -140,7 +140,7 @@ class CactusAlignmentWrapper(Target):
             #set of flowernames
             for childFlowerName, childFlowerSize in runCactusExtendFlowers(self.options.cactusDisk, self.flowerName, 
                                                                   localTempDir):
-                assert childFlowerSize > 0
+                assert childFlowerSize >= 0
                 nextIteration = getAlignmentIteration(iterations, self.iteration, childFlowerSize)
                 iterationTime = float(iterations[nextIteration].attrib["time"])
                 if iterations[nextIteration].attrib["type"] == "blast":

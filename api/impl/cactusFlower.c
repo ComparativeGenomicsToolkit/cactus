@@ -952,6 +952,7 @@ void flower_writeBinaryRepresentation(Flower *flower, void(*writeFn)(
     binaryRepresentation_writeName(flower_getName(flower), writeFn);
     binaryRepresentation_writeBool(flower_builtBlocks(flower), writeFn);
     binaryRepresentation_writeBool(flower_builtTrees(flower), writeFn);
+    binaryRepresentation_writeBool(flower_builtFaces(flower), writeFn);
     binaryRepresentation_writeName(flower->parentFlowerName, writeFn);
 
     if (flower_getEventTree(flower) != NULL) {
@@ -994,13 +995,13 @@ void flower_writeBinaryRepresentation(Flower *flower, void(*writeFn)(
     }
     flower_destructChainIterator(chainIterator);
 
-    binaryRepresentation_writeBool(flower_builtFaces(flower), writeFn);
     binaryRepresentation_writeElementType(CODE_FLOWER, writeFn); //this avoids interpretting things wrong.
 }
 
 Flower *flower_loadFromBinaryRepresentation(void **binaryString,
         CactusDisk *cactusDisk) {
     Flower *flower = NULL;
+    bool buildFaces;
     if (binaryRepresentation_peekNextElementType(*binaryString) == CODE_FLOWER) {
         binaryRepresentation_popNextElementType(binaryString);
         flower = flower_construct2(binaryRepresentation_getName(binaryString),
@@ -1008,6 +1009,7 @@ Flower *flower_loadFromBinaryRepresentation(void **binaryString,
         flower_setBuiltBlocks(flower,
                 binaryRepresentation_getBool(binaryString));
         flower_setBuiltTrees(flower, binaryRepresentation_getBool(binaryString));
+        buildFaces = binaryRepresentation_getBool(binaryString);
         flower->parentFlowerName = binaryRepresentation_getName(binaryString);
         eventTree_loadFromBinaryRepresentation(binaryString, flower);
         while (sequence_loadFromBinaryRepresentation(binaryString, flower)
@@ -1022,7 +1024,7 @@ Flower *flower_loadFromBinaryRepresentation(void **binaryString,
             ;
         while (chain_loadFromBinaryRepresentation(binaryString, flower) != NULL)
             ;
-        flower_setBuildFaces(flower, binaryRepresentation_getBool(binaryString));
+        flower_setBuildFaces(flower, buildFaces);
         assert(binaryRepresentation_popNextElementType(binaryString) == CODE_FLOWER);
     }
     return flower;

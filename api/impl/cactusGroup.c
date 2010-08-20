@@ -458,6 +458,7 @@ void group_writeBinaryRepresentation(Group *group, void(*writeFn)(
         binaryRepresentation_writeName(end_getName(end), writeFn);
     }
     group_destructEndIterator(iterator);
+    binaryRepresentation_writeElementType(CODE_GROUP, writeFn);
 }
 
 Group *group_loadFromBinaryRepresentation(void **binaryString, Flower *flower) {
@@ -475,6 +476,8 @@ Group *group_loadFromBinaryRepresentation(void **binaryString, Flower *flower) {
             end_setGroup(flower_getEnd(flower, binaryRepresentation_getName(
                     binaryString)), group);
         }
+        assert(binaryRepresentation_peekNextElementType(*binaryString) == CODE_GROUP);
+        binaryRepresentation_popNextElementType(binaryString);
     }
     return group;
 }

@@ -191,7 +191,8 @@ int main(int argc, char *argv[]) {
         st_logInfo("The first flower already exists\n");
         return 0;
     }
-    flower = flower_construct(cactusDisk);
+    flower = flower_construct2(0, cactusDisk);
+    assert(flower_getName(flower) == 0);
     st_logInfo("Constructed the flower\n");
 
     //////////////////////////////////////////////

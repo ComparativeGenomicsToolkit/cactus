@@ -3,9 +3,6 @@
 
 #include "cactusGlobals.h"
 
-#define CACTUSDISK_NAME_INCREMENT 10000
-#define CACTUSDISK_BUCKET_NUMBER 10000
-
 struct _cactusDisk {
     char *stringFile;
     int64_t stringFileLength;

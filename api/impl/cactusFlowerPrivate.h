@@ -33,11 +33,6 @@ struct _flower {
 ////////////////////////////////////////////////
 
 /*
- * Constructs the flower.
- */
-Flower *flower_construct2(Name name, CactusDisk *cactusDisk);
-
-/*
  * Destructs the flower, and all the elements it contains. If recursive the function will destroy all
  * loaded nested flowers.
  */

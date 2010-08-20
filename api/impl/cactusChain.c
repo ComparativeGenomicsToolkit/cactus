@@ -208,6 +208,7 @@ void chain_writeBinaryRepresentation(Chain *chain, void(*writeFn)(
         link_writeBinaryRepresentation(link, writeFn);
         link = link_getNextLink(link);
     }
+    binaryRepresentation_writeElementType(CODE_CHAIN, writeFn);
 }
 
 Chain *chain_loadFromBinaryRepresentation(void **binaryString, Flower *flower) {
@@ -220,6 +221,8 @@ Chain *chain_loadFromBinaryRepresentation(void **binaryString, Flower *flower) {
                 flower);
         while (link_loadFromBinaryRepresentation(binaryString, chain) != NULL)
             ;
+        assert(binaryRepresentation_peekNextElementType(*binaryString) == CODE_CHAIN);
+        binaryRepresentation_popNextElementType(binaryString);
     }
     return chain;
 }

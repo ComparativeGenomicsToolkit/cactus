@@ -17,6 +17,11 @@
 Flower *flower_construct(CactusDisk *cactusDisk);
 
 /*
+ * Constructs the flower.
+ */
+Flower *flower_construct2(Name name, CactusDisk *cactusDisk);
+
+/*
  * Gets the name of the flower.
  */
 Name flower_getName(Flower *flower);

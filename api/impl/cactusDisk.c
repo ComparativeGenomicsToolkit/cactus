@@ -38,6 +38,7 @@ CactusDisk *cactusDisk_construct(const char *cactusDiskURL) {
 
     //initialise the unique ids.
     //cactusDisk_getUniqueID(cactusDisk);
+    st_randomSeed(time(NULL));
     cactusDisk->uniqueNumber = 0;
     cactusDisk->maxUniqueNumber = 0;
 
@@ -235,17 +236,28 @@ char *cactusDisk_getString(CactusDisk *cactusDisk, int64_t offset,
  * Function to get unique ID.
  */
 
+#define CACTUS_DISK_NAME_INCREMENT 16384
+#define CACTUS_DISK_BUCKET_NUMBER 65536
+
 void cactusDisk_getBlockOfUniqueIDs(CactusDisk *cactusDisk) {
     stKVDatabase_startTransaction(cactusDisk->database);
-    Name keyName = -1;
+    Name keyName = st_randomInt(-CACTUS_DISK_BUCKET_NUMBER, 0);
+    assert(keyName >= -CACTUS_DISK_BUCKET_NUMBER);
+    assert(keyName < 0);
     void *vA = stKVDatabase_getRecord(cactusDisk->database, keyName);
+    int64_t bucketSize = INT64_MAX / CACTUS_DISK_BUCKET_NUMBER;
+    int64_t minimumValue = bucketSize * (abs(keyName)-1) + 1; //plus one for the reserved '0' value.
+    int64_t maximumValue = minimumValue + (bucketSize - 1);
     if (vA == NULL) {
-        cactusDisk->uniqueNumber = 0;
+        cactusDisk->uniqueNumber = minimumValue;
     } else {
         cactusDisk->uniqueNumber = *((Name *) vA);
     }
     cactusDisk->maxUniqueNumber = cactusDisk->uniqueNumber
-            + CACTUSDISK_NAME_INCREMENT;
+            + CACTUS_DISK_NAME_INCREMENT;
+    if(cactusDisk->maxUniqueNumber >= maximumValue) {
+        st_errAbort("We have exhausted a bucket, which seems really unlikely\n");
+    }
     stKVDatabase_writeRecord(cactusDisk->database, keyName,
             &cactusDisk->maxUniqueNumber, sizeof(Name));
     stKVDatabase_commitTransaction(cactusDisk->database);

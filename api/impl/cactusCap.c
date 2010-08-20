@@ -9,7 +9,8 @@
 ////////////////////////////////////////////////
 
 Cap *cap_construct(End *end, Event *event) {
-    return cap_construct3(cactusDisk_getUniqueID(flower_getCactusDisk(end_getFlower(end))), event, end);
+    return cap_construct3(cactusDisk_getUniqueID(flower_getCactusDisk(
+            end_getFlower(end))), event, end);
 }
 
 Cap *cap_construct3(Name instance, Event *event, End *end) {
@@ -46,8 +47,8 @@ Cap *cap_construct3(Name instance, Event *event, End *end) {
 
 Cap *cap_construct2(End *end, int32_t coordinate, bool strand,
         Sequence *sequence) {
-    return cap_construct4(cactusDisk_getUniqueID(flower_getCactusDisk(end_getFlower(end))),
-            end, coordinate, strand, sequence);
+    return cap_construct4(cactusDisk_getUniqueID(flower_getCactusDisk(
+            end_getFlower(end))), end, coordinate, strand, sequence);
 }
 
 Cap *cap_construct4(Name instance, End *end, int32_t coordinate,
@@ -61,8 +62,8 @@ Cap *cap_construct4(Name instance, End *end, int32_t coordinate,
 }
 
 Cap *cap_construct5(Event *event, End *end) {
-    return cap_construct3(cactusDisk_getUniqueID(flower_getCactusDisk(end_getFlower(end))),
-            event, end);
+    return cap_construct3(cactusDisk_getUniqueID(flower_getCactusDisk(
+            end_getFlower(end))), event, end);
 }
 
 Cap *cap_copyConstruct(End *end, Cap *cap) {
@@ -486,6 +487,17 @@ int32_t cap_loadFromBinaryRepresentationP(Cap *cap, void **binaryString,
     return 1;
 }
 
+void cap_loadFromBinaryRepresentationP2(void **binaryString, Cap *cap) {
+    if (binaryRepresentation_peekNextElementType(*binaryString)
+            == CODE_ADJACENCY) {
+        cap_loadFromBinaryRepresentationP(cap, binaryString, cap_makeAdjacent);
+    }
+    if (binaryRepresentation_peekNextElementType(*binaryString) == CODE_PARENT) {
+        int32_t i = cap_loadFromBinaryRepresentationP(cap, binaryString, cap_makeParentAndChild);
+        assert(i == 0);
+    }
+}
+
 Cap *cap_loadFromBinaryRepresentation(void **binaryString, End *end) {
     Cap *cap;
     Name name;
@@ -501,6 +513,7 @@ Cap *cap_loadFromBinaryRepresentation(void **binaryString, End *end) {
         event = eventTree_getEvent(flower_getEventTree(end_getFlower(end)),
                 binaryRepresentation_getName(binaryString));
         cap = cap_construct3(name, event, end);
+        cap_loadFromBinaryRepresentationP2(binaryString, cap);
     } else if (binaryRepresentation_peekNextElementType(*binaryString)
             == CODE_CAP_WITH_COORDINATES) {
         binaryRepresentation_popNextElementType(binaryString);
@@ -510,13 +523,7 @@ Cap *cap_loadFromBinaryRepresentation(void **binaryString, End *end) {
         sequence = flower_getSequence(end_getFlower(end),
                 binaryRepresentation_getName(binaryString));
         cap = cap_construct4(name, end, coordinate, strand, sequence);
-    }
-    if (binaryRepresentation_peekNextElementType(*binaryString)
-            == CODE_ADJACENCY) {
-        cap_loadFromBinaryRepresentationP(cap, binaryString, cap_makeAdjacent);
-    }
-    if (binaryRepresentation_peekNextElementType(*binaryString) == CODE_PARENT) {
-        assert(cap_loadFromBinaryRepresentationP(cap, binaryString, cap_makeParentAndChild) == 0);
+        cap_loadFromBinaryRepresentationP2(binaryString, cap);
     }
 
     return cap;

@@ -76,11 +76,45 @@ void testCactusDisk_getMetaSequence(CuTest* testCase) {
     cactusDiskTestTeardown();
 }
 
+void testCactusDisk_getUniqueID(CuTest* testCase) {
+    cactusDiskTestSetup();
+    for (int32_t i = 0; i < 1000000000; i++) { //Gets a billion ids, checks we are good.
+        Name uniqueName = cactusDisk_getUniqueID(cactusDisk);
+        CuAssertTrue(testCase, uniqueName > 0);
+        CuAssertTrue(testCase, uniqueName < INT64_MAX);
+        CuAssertTrue(testCase, uniqueName != NULL_NAME);
+    }
+    cactusDiskTestTeardown();
+}
+
+int testCactusDisk_getUniqueID_UniqueP(const void *a, const void *b) {
+    return cactusMisc_nameCompare(cactusMisc_stringToName(a), cactusMisc_stringToName(b));
+}
+
+void testCactusDisk_getUniqueID_Unique(CuTest* testCase) {
+    cactusDiskTestSetup();
+    stSortedSet *uniqueNames = stSortedSet_construct3(testCactusDisk_getUniqueID_UniqueP, free);
+    for (int32_t i = 0; i < 1000000; i++) { //Gets a billion ids, checks we are good.
+        Name uniqueName = cactusDisk_getUniqueID(cactusDisk);
+        CuAssertTrue(testCase, uniqueName > 0);
+        CuAssertTrue(testCase, uniqueName < INT64_MAX);
+        CuAssertTrue(testCase, uniqueName != NULL_NAME);
+        char *cA = cactusMisc_nameToString(uniqueName);
+        CuAssertTrue(testCase, stSortedSet_search(uniqueNames, cA) == NULL);
+        CuAssertTrue(testCase, cactusMisc_stringToName(cA) == uniqueName);
+        stSortedSet_insert(uniqueNames, cA);
+    }
+    stSortedSet_destruct(uniqueNames);
+    cactusDiskTestTeardown();
+}
+
 CuSuite* cactusDiskTestSuite(void) {
     CuSuite* suite = CuSuiteNew();
     SUITE_ADD_TEST(suite, testCactusDisk_constructAndDestruct);
     SUITE_ADD_TEST(suite, testCactusDisk_write);
     SUITE_ADD_TEST(suite, testCactusDisk_getFlower);
     SUITE_ADD_TEST(suite, testCactusDisk_getMetaSequence);
+    SUITE_ADD_TEST(suite, testCactusDisk_getUniqueID);
+    SUITE_ADD_TEST(suite, testCactusDisk_getUniqueID_Unique);
     return suite;
 }
