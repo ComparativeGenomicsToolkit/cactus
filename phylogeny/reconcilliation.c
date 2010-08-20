@@ -28,8 +28,7 @@ Event *reconcile(struct BinaryTree *blockTree, EventTree *eventTree,
 					Event *parentEvent = event_getParent(commonAncestor);
 					if(event_getChildNumber(parentEvent) != 1 || parentEvent == eventTree_getRootEvent(eventTree)) {
 						//we need to invent a new event before the parent speciation or root of tree
-						MetaEvent *metaEvent = metaEvent_construct(NULL, flower_getCactusDisk(eventTree_getFlower(eventTree)));
-						Event *newEvent = event_construct2(metaEvent, 0.01, parentEvent, commonAncestor, eventTree);
+						Event *newEvent = event_construct4(NULL, 0.01, parentEvent, commonAncestor, eventTree);
 						return labelAndReturnEvent(blockTree, newEvent);
 					}
 					else { //there already exists a valid unary event..

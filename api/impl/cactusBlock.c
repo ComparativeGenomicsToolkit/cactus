@@ -355,6 +355,7 @@ void block_writeBinaryRepresentation(Block *block, void (*writeFn)(const void * 
 		segment_writeBinaryRepresentation(segment, writeFn);
 	}
 	block_destructInstanceIterator(iterator);
+	binaryRepresentation_writeElementType(CODE_BLOCK, writeFn);
 }
 
 Block *block_loadFromBinaryRepresentation(void **binaryString, Flower *flower) {
@@ -371,6 +372,8 @@ Block *block_loadFromBinaryRepresentation(void **binaryString, Flower *flower) {
 		rightEndName = binaryRepresentation_getName(binaryString);
 		block = block_construct2(name, length, flower_getEnd(flower, leftEndName), flower_getEnd(flower, rightEndName), flower);
 		while(segment_loadFromBinaryRepresentation(binaryString, block) != NULL);
+		assert(binaryRepresentation_peekNextElementType(*binaryString) == CODE_BLOCK);
+		binaryRepresentation_popNextElementType(binaryString);
 	}
 	return block;
 }

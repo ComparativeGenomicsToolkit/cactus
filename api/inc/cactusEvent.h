@@ -12,9 +12,10 @@
 ////////////////////////////////////////////////
 
 /*
- * Constructs an event, attached on a branch from the parent event, with the given branch length.
+ * Constructs an event, attached on a branch from the parent event, with the given branch length. The header string
+ * is a string describing the event, it may be null.
  */
-Event *event_construct(MetaEvent *metaEvent, float branchLength, Event *parentEvent, EventTree *eventTree);
+Event *event_construct(Name eventName, const char *header, float branchLength, Event *parentEvent, EventTree *eventTree);
 
 /*
  * Constructs an event, on the branch between the given child and parent events. The branch length is the
@@ -22,8 +23,20 @@ Event *event_construct(MetaEvent *metaEvent, float branchLength, Event *parentEv
  * the pre-existing child event, however if it is not, then the child branch length
  * will be set to 0 and the new branch will extend the total length of the combined branch.
  */
-Event *event_construct2(MetaEvent *metaEvent, float branchLength,
+Event *event_construct2(Name eventName, const char *header, float branchLength,
 		Event *parentEvent, Event *childEvent, EventTree *eventTree);
+
+/*
+ * Constructs an event, attached on a branch from the parent event, with the given branch length. Creates
+ * the name for the event automatically.
+ */
+Event *event_construct3(const char *header, float branchLength, Event *parentEvent, EventTree *eventTree);
+
+/*
+ * Like event_construct2, but automatically gets a name.
+ */
+Event *event_construct4(const char *header, float branchLength, Event *parentEvent,
+        Event *childEvent, EventTree *eventTree);
 
 /*
  * Returns the parent event, or NULL if root.
@@ -36,19 +49,15 @@ Event *event_getParent(Event *event);
 Name event_getName(Event *event);
 
 /*
- * Gets the associated meta event.
- */
-MetaEvent *event_getMetaEvent(Event *event);
-
-/*
- * Gets the header sequence associated with the event.
- */
-const char *event_getHeader(Event *event);
-
-/*
  * Gets the branch length.
  */
 float event_getBranchLength(Event *event);
+
+/*
+ * Gets the header string associated the event, or the empty string "" if the header
+ * argument was NULL.
+ */
+const char *event_getHeader(Event *event);
 
 /*
  * Gets the branch length of the subtree rooted at this event, excluding the branch length of the event

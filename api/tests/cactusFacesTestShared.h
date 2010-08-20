@@ -2,8 +2,6 @@
 
 static CactusDisk * cactusDisk;
 static Flower * flower;
-static MetaEvent *rootMetaEvent;
-static MetaEvent *leafMetaEvent;
 static EventTree * eventTree;
 static Event *rootEvent;
 static Event *leafEvent;
@@ -25,13 +23,10 @@ static void cactusFacesTestSharedSetup() {
 	cactusDisk = cactusDisk_construct(testCommon_getTemporaryCactusDisk());
 	flower = flower_construct(cactusDisk);
 
-	rootMetaEvent = metaEvent_construct("ROOT", cactusDisk);
-	leafMetaEvent = metaEvent_construct("LEAF1", cactusDisk);
-
-	eventTree = eventTree_construct(rootMetaEvent, flower);
+	eventTree = eventTree_construct2(flower);
 
 	rootEvent = eventTree_getRootEvent(eventTree);
-	leafEvent = event_construct(leafMetaEvent, 0.2, rootEvent, eventTree);
+	leafEvent = event_construct3("LEAF1", 0.2, rootEvent, eventTree);
 	
 	end1 = end_construct(1, flower);
 	end2 = end_construct(1, flower);

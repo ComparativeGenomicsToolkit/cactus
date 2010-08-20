@@ -596,7 +596,7 @@ Event *copyConstructUnaryEvent(Event *event, EventTree *eventTree2) {
     assert(event_getParent(childEvent) == parentEvent);
     //assert(event_getBranchLength(childEvent) >= branchLength);
 
-    return event_construct2(event_getMetaEvent(event), branchLength,
+    return event_construct2(event_getName(event), event_getHeader(event), branchLength,
             parentEvent, childEvent, eventTree2);
 }
 

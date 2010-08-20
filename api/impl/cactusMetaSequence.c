@@ -36,7 +36,7 @@ MetaSequence *metaSequence_construct(int32_t start, int32_t length,
 }
 
 void metaSequence_destruct(MetaSequence *metaSequence) {
-	cactusDisk_unloadMetaSequence(metaSequence->cactusDisk, metaSequence);
+	cactusDisk_removeMetaSequence(metaSequence->cactusDisk, metaSequence);
 	free(metaSequence->header);
 	free(metaSequence);
 }

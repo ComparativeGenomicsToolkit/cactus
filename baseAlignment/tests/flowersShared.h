@@ -10,8 +10,6 @@ static Flower *flower;
 
 //Event tree...
 static EventTree *eventTree;
-static MetaEvent *rootMetaEvent;
-static MetaEvent *leafMetaEvent;
 static Event *rootEvent;
 static Event *leafEvent;
 
@@ -61,27 +59,25 @@ static void setup() {
     flower = flower_construct(cactusDisk);
 
     //Event tree
-    rootMetaEvent = metaEvent_construct("ROOT", cactusDisk);
-    leafMetaEvent = metaEvent_construct("LEAF1", cactusDisk);
-    eventTree = eventTree_construct(rootMetaEvent, flower);
+    eventTree = eventTree_construct2(flower);
     rootEvent = eventTree_getRootEvent(eventTree);
-    leafEvent = event_construct(leafMetaEvent, 0.2, rootEvent, eventTree);
+    leafEvent = event_construct3("LEAF1", 0.2, rootEvent, eventTree);
 
     //Sequences
     metaSequence1 = metaSequence_construct(1, 10, "ACTGACTGAC", ">one",
-            metaEvent_getName(leafMetaEvent), cactusDisk);
+            event_getName(leafEvent), cactusDisk);
     sequence1 = sequence_construct(metaSequence1, flower);
 
     metaSequence2 = metaSequence_construct(1, 8, "AACCGGAA", ">two",
-            metaEvent_getName(leafMetaEvent), cactusDisk);
+            event_getName(leafEvent), cactusDisk);
     sequence2 = sequence_construct(metaSequence2, flower);
 
     metaSequence3 = metaSequence_construct(1, 4, "CGGG", ">three",
-                metaEvent_getName(leafMetaEvent), cactusDisk);
+                event_getName(leafEvent), cactusDisk);
     sequence3 = sequence_construct(metaSequence3, flower);
 
     metaSequence4 = metaSequence_construct(1, 1, "C", ">four",
-                    metaEvent_getName(leafMetaEvent), cactusDisk);
+                    event_getName(leafEvent), cactusDisk);
     sequence4 = sequence_construct(metaSequence4, flower);
 
     //Ends

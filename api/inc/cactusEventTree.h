@@ -14,7 +14,7 @@
 /*
  * Constructs an event tree, with given root event.
  */
-EventTree *eventTree_construct(MetaEvent *rootEvent, Flower *flower);
+EventTree *eventTree_construct(Name rootEventName, Flower *flower);
 
 /*
  * Constructs an event tree, with one root event.

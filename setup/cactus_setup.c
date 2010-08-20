@@ -186,7 +186,7 @@ int main(int argc, char *argv[]) {
     //Construct the flower
     //////////////////////////////////////////////
 
-    if (cactusDisk_getFlowerNumberOnDisk(cactusDisk) != 0) {
+    if (cactusDisk_getFlower(cactusDisk, 0) != NULL) {
         cactusDisk_destruct(cactusDisk);
         st_logInfo("The first flower already exists\n");
         return 0;
@@ -217,16 +217,14 @@ int main(int argc, char *argv[]) {
         assert(binaryTree != NULL);
         totalEventNumber++;
         if (binaryTree->internal) {
-            event = event_construct(metaEvent_construct(binaryTree->label,
-                    cactusDisk), binaryTree->distance, event, eventTree);
+            event = event_construct3(binaryTree->label, binaryTree->distance, event, eventTree);
             listAppend(stack, event);
             listAppend(stack, binaryTree->right);
             listAppend(stack, event);
             listAppend(stack, binaryTree->left);
         } else {
             assert(j < argc);
-            event = event_construct(metaEvent_construct(binaryTree->label,
-                    cactusDisk), binaryTree->distance, event, eventTree);
+            event = event_construct3(binaryTree->label, binaryTree->distance, event, eventTree);
 
             struct stat info;//info about the file.
             exitOnFailure(stat(argv[j], &info),

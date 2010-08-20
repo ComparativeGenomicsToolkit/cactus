@@ -7,9 +7,6 @@ static MetaSequence *metaSequence;
 static Sequence *sequence;
 static End *end;
 
-static MetaEvent *rootMetaEvent;
-static MetaEvent *leafMetaEvent;
-
 static Event *rootEvent;
 static Event *leafEvent;
 
@@ -31,16 +28,13 @@ static void cactusEndsTestSharedSetup() {
     cactusDisk = cactusDisk_construct(testCommon_getTemporaryCactusDisk());
     flower = flower_construct(cactusDisk);
 
-    rootMetaEvent = metaEvent_construct("ROOT", cactusDisk);
-    leafMetaEvent = metaEvent_construct("LEAF1", cactusDisk);
-
-    eventTree = eventTree_construct(rootMetaEvent, flower);
+    eventTree = eventTree_construct2(flower);
 
     rootEvent = eventTree_getRootEvent(eventTree);
-    leafEvent = event_construct(leafMetaEvent, 0.2, rootEvent, eventTree);
+    leafEvent = event_construct3("LEAF2", 0.2, rootEvent, eventTree);
 
     metaSequence = metaSequence_construct(0, 10, "ACTGACTGAC", ">one",
-            metaEvent_getName(leafMetaEvent), cactusDisk);
+            event_getName(leafEvent), cactusDisk);
     sequence = sequence_construct(metaSequence, flower);
 
     end = end_construct(1, flower);

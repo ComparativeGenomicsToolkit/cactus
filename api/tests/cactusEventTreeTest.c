@@ -3,11 +3,6 @@
 static CactusDisk *cactusDisk = NULL;
 static Flower *flower;
 
-static MetaEvent *rootMetaEvent;
-static MetaEvent *internalMetaEvent;
-static MetaEvent *leafMetaEvent1;
-static MetaEvent *leafMetaEvent2;
-
 static Event *rootEvent;
 static Event *internalEvent;
 static Event *leafEvent1;
@@ -36,16 +31,11 @@ static void cactusEventTreeTestSetup() {
 		cactusDisk = cactusDisk_construct(testCommon_getTemporaryCactusDisk());
 		flower = flower_construct(cactusDisk);
 
-		rootMetaEvent = metaEvent_construct("ROOT", cactusDisk);
-		internalMetaEvent = metaEvent_construct("INTERNAL", cactusDisk);
-		leafMetaEvent1 = metaEvent_construct("LEAF1", cactusDisk);
-		leafMetaEvent2 = metaEvent_construct("LEAF2", cactusDisk);
-		eventTree = eventTree_construct(rootMetaEvent, flower);
-
-		rootEvent = eventTree_getEvent(eventTree, metaEvent_getName(rootMetaEvent));
-		internalEvent = event_construct(internalMetaEvent, 0.5, rootEvent, eventTree);
-		leafEvent1 = event_construct(leafMetaEvent1, 0.2, internalEvent, eventTree);
-		leafEvent2 = event_construct(leafMetaEvent2, 1.3, internalEvent, eventTree);
+		eventTree = eventTree_construct2(flower);
+		rootEvent = eventTree_getRootEvent(eventTree);
+		internalEvent = event_construct3("INTERNAL", 0.5, rootEvent, eventTree);
+		leafEvent1 = event_construct3("LEAF1", 0.2, internalEvent, eventTree);
+		leafEvent2 = event_construct3("LEAF2", 1.3, internalEvent, eventTree);
 	}
 }
 
@@ -67,10 +57,10 @@ void testEventTree_copyConstruct(CuTest* testCase) {
 	Flower *flower2 = flower_construct(cactusDisk);
 	EventTree *eventTree2 = eventTree_copyConstruct(eventTree, flower2, unaryEventFunction);
 	CuAssertIntEquals(testCase, eventTree_getEventNumber(eventTree), eventTree_getEventNumber(eventTree2));
-	CuAssertTrue(testCase, event_getMetaEvent(eventTree_getEvent(eventTree2, event_getName(rootEvent))) == event_getMetaEvent(rootEvent));
-	CuAssertTrue(testCase, event_getMetaEvent(eventTree_getEvent(eventTree2, event_getName(internalEvent))) == event_getMetaEvent(internalEvent));
-	CuAssertTrue(testCase, event_getMetaEvent(eventTree_getEvent(eventTree2, event_getName(leafEvent1))) == event_getMetaEvent(leafEvent1));
-	CuAssertTrue(testCase, event_getMetaEvent(eventTree_getEvent(eventTree2, event_getName(leafEvent2))) == event_getMetaEvent(leafEvent2));
+	CuAssertTrue(testCase, event_getName(eventTree_getEvent(eventTree2, event_getName(rootEvent))) == event_getName(rootEvent));
+	CuAssertTrue(testCase, event_getName(eventTree_getEvent(eventTree2, event_getName(internalEvent))) == event_getName(internalEvent));
+	CuAssertTrue(testCase, event_getName(eventTree_getEvent(eventTree2, event_getName(leafEvent1))) == event_getName(leafEvent1));
+	CuAssertTrue(testCase, event_getName(eventTree_getEvent(eventTree2, event_getName(leafEvent2))) == event_getName(leafEvent2));
 	cactusEventTreeTestTeardown();
 }
 
@@ -82,10 +72,10 @@ void testEventTree_getRootEvent(CuTest* testCase) {
 
 void testEventTree_getEvent(CuTest* testCase) {
 	cactusEventTreeTestSetup();
-	CuAssertTrue(testCase, eventTree_getEvent(eventTree, metaEvent_getName(rootMetaEvent)) == rootEvent);
-	CuAssertTrue(testCase, eventTree_getEvent(eventTree, metaEvent_getName(internalMetaEvent)) == internalEvent);
-	CuAssertTrue(testCase, eventTree_getEvent(eventTree, metaEvent_getName(leafMetaEvent1)) == leafEvent1);
-	CuAssertTrue(testCase, eventTree_getEvent(eventTree, metaEvent_getName(leafMetaEvent2)) == leafEvent2);
+	CuAssertTrue(testCase, eventTree_getEvent(eventTree, event_getName(rootEvent)) == rootEvent);
+	CuAssertTrue(testCase, eventTree_getEvent(eventTree, event_getName(internalEvent)) == internalEvent);
+	CuAssertTrue(testCase, eventTree_getEvent(eventTree, event_getName(leafEvent1)) == leafEvent1);
+	CuAssertTrue(testCase, eventTree_getEvent(eventTree, event_getName(leafEvent2)) == leafEvent2);
 	cactusEventTreeTestTeardown();
 }
 
@@ -176,24 +166,19 @@ void testEventTree_addSiblingUnaryEvent(CuTest *testCase) {
 	flower_setParentGroup(flower2, group1);
 	flower_setParentGroup(flower3, group2);
 	EventTree *eventTree2 = eventTree_copyConstruct(flower_getEventTree(flower), flower2, NULL);
-	MetaEvent *unaryInternalMetaEvent1 = metaEvent_construct("UNARY1", cactusDisk);
-	MetaEvent *unaryInternalMetaEvent2 = metaEvent_construct("UNARY2", cactusDisk);
-	MetaEvent *unaryInternalMetaEvent3 = metaEvent_construct("UNARY3", cactusDisk);
-	Event *parentUnaryEvent1 = event_construct2(unaryInternalMetaEvent1, 0.1, internalEvent, leafEvent1, eventTree);
-	Event *parentUnaryEvent2 = event_construct2(unaryInternalMetaEvent2, 0.1, parentUnaryEvent1, leafEvent1, eventTree);
-	Event *parentUnaryEvent3 = event_construct2(unaryInternalMetaEvent3, 0.1, internalEvent, leafEvent2, eventTree);
+	Event *parentUnaryEvent1 = event_construct4("UNARY1", 0.1, internalEvent, leafEvent1, eventTree);
+	Event *parentUnaryEvent2 = event_construct4("UNARY2", 0.1, parentUnaryEvent1, leafEvent1, eventTree);
+	Event *parentUnaryEvent3 = event_construct4("UNARY3", 0.1, internalEvent, leafEvent2, eventTree);
 	//now event tree contains the added unary events.
 	EventTree *eventTree3 = eventTree_copyConstruct(flower_getEventTree(flower), flower3, NULL);
 	//add a couple of denovo events into the new event tree
-	MetaEvent *unaryInternalMetaEvent4 = metaEvent_construct("UNARY4", cactusDisk);
-	MetaEvent *unaryInternalMetaEvent5 = metaEvent_construct("UNARY5", cactusDisk);
 	Event *internalEventChild = eventTree_getEvent(eventTree3, event_getName(internalEvent));
 	Event *unaryEvent1 = eventTree_getEvent(eventTree3, event_getName(parentUnaryEvent1));
 	Event *unaryEvent2 = eventTree_getEvent(eventTree3, event_getName(parentUnaryEvent2));
 	Event *unaryEvent3 = eventTree_getEvent(eventTree3, event_getName(parentUnaryEvent3));
-	Event *unaryEvent4 = event_construct2(unaryInternalMetaEvent4, 0.1,
+	Event *unaryEvent4 = event_construct4("UNARY4", 0.1,
 			internalEventChild, unaryEvent3, eventTree3);
-	Event *unaryEvent5 = event_construct2(unaryInternalMetaEvent5, 0.1,
+	Event *unaryEvent5 = event_construct4("UNARY5", 0.1,
 				internalEventChild, unaryEvent4, eventTree3);
 	//Now event-tree 2 does not contain the unary events but event-tree 3 does..
 

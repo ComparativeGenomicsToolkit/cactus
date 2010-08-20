@@ -6,7 +6,6 @@
 
 static CactusDisk *cactusDisk = NULL;
 static Flower *flower;
-static MetaEvent *metaEvent;
 static EventTree *eventTree;
 static MetaSequence *metaSequence;
 static MetaSequence *metaSequence2;
@@ -38,7 +37,6 @@ static void cactusFlowerTestTeardown() {
         testCommon_deleteTemporaryCactusDisk();
         cactusDisk = NULL;
         flower = NULL;
-        metaEvent = NULL;
         eventTree = NULL;
         metaSequence = NULL;
         sequence = NULL;
@@ -50,18 +48,17 @@ static void cactusFlowerTestSetup() {
     cactusFlowerTestTeardown();
     cactusDisk = cactusDisk_construct(testCommon_getTemporaryCactusDisk());
     flower = flower_construct(cactusDisk);
-    metaEvent = metaEvent_construct("ROOT", cactusDisk);
-    eventTree = eventTree_construct(metaEvent, flower);
+    eventTree = eventTree_construct2(flower);
     assert(flower_getReference(flower) == NULL);
     reference = reference_construct(flower);
 }
 
 static void sequenceSetup() {
     metaSequence = metaSequence_construct(0, 10, "ACTGACTGAC", ">one",
-            metaEvent_getName(metaEvent), cactusDisk);
+            event_getName(eventTree_getRootEvent(eventTree)), cactusDisk);
     sequence = sequence_construct(metaSequence, flower);
     metaSequence2 = metaSequence_construct(0, 10, "ACTGACTGAC", ">two",
-            metaEvent_getName(metaEvent), cactusDisk);
+            event_getName(eventTree_getRootEvent(eventTree)), cactusDisk);
     sequence2 = sequence_construct(metaSequence2, flower);
 }
 
@@ -617,9 +614,7 @@ void testFlower_removeIfRedundant(CuTest *testCase) {
     CuAssertTrue(testCase, flower_removeIfRedundant(flower4) == NULL);
 
     //The intermediate node
-    CuAssertIntEquals(testCase, 4, cactusDisk_getFlowerNumberInMemory(cactusDisk));
     CuAssertTrue(testCase, flower_removeIfRedundant(flower2) == flower3);
-    CuAssertIntEquals(testCase, 3, cactusDisk_getFlowerNumberInMemory(cactusDisk));
     CuAssertTrue(testCase, flower_getName(flower3) == flower2Name);
     CuAssertTrue(testCase, flower_getName(flower) == flowerName);
     //Check the group connection (doubly)
@@ -633,7 +628,6 @@ void testFlower_removeIfRedundant(CuTest *testCase) {
 
     //Now check the removal of a root flower
     CuAssertTrue(testCase, flower_removeIfRedundant(flower) == flower3);
-    CuAssertIntEquals(testCase, 2, cactusDisk_getFlowerNumberInMemory(cactusDisk));
     CuAssertTrue(testCase, flower_getName(flower3) == flowerName);
     CuAssertTrue(testCase, flower_getParentGroup(flower3) == NULL);
     CuAssertTrue(testCase, !flower_isLeaf(flower3));

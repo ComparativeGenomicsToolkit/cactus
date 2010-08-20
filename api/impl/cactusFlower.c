@@ -108,7 +108,7 @@ void flower_destruct(Flower *flower, int32_t recursive) {
         flower_destructGroupIterator(iterator);
     }
 
-    cactusDisk_unloadFlower(flower->cactusDisk, flower);
+    cactusDisk_removeFlower(flower->cactusDisk, flower);
 
     flower_destructFaces(flower);
     stSortedSet_destruct(flower->faces);
@@ -651,11 +651,10 @@ Flower *flower_removeIfRedundant(Flower *flower) {
                 flower));
 
         //Unload the child flower from its position in the flowers hash..
-        cactusDisk_unloadFlower(flower_getCactusDisk(nestedFlower),
+        cactusDisk_removeFlower(flower_getCactusDisk(nestedFlower),
                 nestedFlower);
         //and remove it from the disk (if it has been written there)
-        cactusDisk_deleteFlowerFromDisk(flower_getCactusDisk(flower),
-                flower_getName(nestedFlower));
+        cactusDisk_deleteFlowerFromDisk(flower_getCactusDisk(flower), nestedFlower);
 
         //reassign names
         Name oldName = flower_getName(nestedFlower);
@@ -699,8 +698,7 @@ bool flower_deleteIfEmpty(Flower *flower) {
         }
         assert(flower_getGroupNumber(flower) == 0);
         //This needs modification so that we don't do this directly..
-        cactusDisk_deleteFlowerFromDisk(flower_getCactusDisk(flower),
-                flower_getName(flower));
+        cactusDisk_deleteFlowerFromDisk(flower_getCactusDisk(flower), flower);
         Group *parentGroup = flower_getParentGroup(flower);
         group_destruct(parentGroup);
         flower_destruct(flower, 0);

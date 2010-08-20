@@ -371,9 +371,8 @@ void end_writeBinaryRepresentation(End *end, void(*writeFn)(const void * ptr,
 
     assert(end_getOrientation(end));
     cap = end_getRootInstance(end);
-    binaryRepresentation_writeElementType(
-            cap == NULL ? CODE_END_WITHOUT_PHYLOGENY : CODE_END_WITH_PHYLOGENY,
-            writeFn);
+    int32_t endType = cap == NULL ? CODE_END_WITHOUT_PHYLOGENY : CODE_END_WITH_PHYLOGENY;
+    binaryRepresentation_writeElementType(endType, writeFn);
     binaryRepresentation_writeName(end_getName(end), writeFn);
     binaryRepresentation_writeBool(end_isStubEnd(end), writeFn);
     binaryRepresentation_writeBool(end_isAttached(end), writeFn);
@@ -389,6 +388,7 @@ void end_writeBinaryRepresentation(End *end, void(*writeFn)(const void * ptr,
     } else {
         end_writeBinaryRepresentationP(cap, writeFn);
     }
+    binaryRepresentation_writeElementType(endType, writeFn);
 }
 
 End *end_loadFromBinaryRepresentation(void **binaryString, Flower *flower) {
@@ -409,6 +409,8 @@ End *end_loadFromBinaryRepresentation(void **binaryString, Flower *flower) {
         end = end_construct3(name, isStub, isAttached, side, flower);
         while (cap_loadFromBinaryRepresentation(binaryString, end) != NULL)
             ;
+        assert(binaryRepresentation_peekNextElementType(*binaryString)  == CODE_END_WITHOUT_PHYLOGENY);
+        binaryRepresentation_popNextElementType(binaryString);
     } else {
         if (binaryRepresentation_peekNextElementType(*binaryString)
                 == CODE_END_WITH_PHYLOGENY) {
@@ -422,6 +424,8 @@ End *end_loadFromBinaryRepresentation(void **binaryString, Flower *flower) {
                     binaryString, end));
             while (cap_loadFromBinaryRepresentation(binaryString, end) != NULL)
                 ;
+            assert(binaryRepresentation_peekNextElementType(*binaryString)  == CODE_END_WITH_PHYLOGENY);
+            binaryRepresentation_popNextElementType(binaryString);
         }
     }
 

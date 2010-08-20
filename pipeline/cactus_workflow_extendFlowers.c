@@ -52,6 +52,7 @@ int main(int argc, char *argv[]) {
     st_logInfo("Set up the flower disk\n");
 
     flower = cactusDisk_getFlower(cactusDisk, cactusMisc_stringToName(argv[2]));
+    assert(flower != NULL);
     st_logInfo("Parsed the flower\n");
 
     int32_t minSizeToExtend;

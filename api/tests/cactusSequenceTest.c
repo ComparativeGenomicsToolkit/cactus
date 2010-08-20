@@ -2,7 +2,7 @@
 
 static CactusDisk *cactusDisk = NULL;
 static Flower *flower;
-static MetaEvent *metaEvent;
+static Event *event;
 static EventTree *eventTree;
 static MetaSequence *metaSequence;
 static Sequence *sequence;
@@ -17,7 +17,7 @@ void cactusSequenceTestTeardown() {
 		testCommon_deleteTemporaryCactusDisk();
 		cactusDisk = NULL;
 		flower = NULL;
-		metaEvent = NULL;
+		event = NULL;
 		eventTree = NULL;
 		metaSequence = NULL;
 		sequence = NULL;
@@ -29,10 +29,10 @@ void cactusSequenceTestSetup() {
 		cactusSequenceTestTeardown();
 		cactusDisk = cactusDisk_construct(testCommon_getTemporaryCactusDisk());
 		flower = flower_construct(cactusDisk);
-		metaEvent = metaEvent_construct("ROOT", cactusDisk);
-		eventTree = eventTree_construct(metaEvent, flower);
+		eventTree = eventTree_construct2(flower);
+		event = eventTree_getRootEvent(eventTree);
 		metaSequence = metaSequence_construct(1, 10, sequenceString,
-						   headerString, metaEvent_getName(metaEvent), cactusDisk);
+						   headerString, event_getName(event), cactusDisk);
 		sequence = sequence_construct(metaSequence, flower);
 	}
 }
@@ -70,7 +70,7 @@ void testSequence_getName(CuTest* testCase) {
 
 void testSequence_getEvent(CuTest* testCase) {
 	cactusSequenceTestSetup();
-	CuAssertTrue(testCase, sequence_getEvent(sequence) == eventTree_getEvent(eventTree, metaEvent_getName(metaEvent)));
+	CuAssertTrue(testCase, sequence_getEvent(sequence) == event);
 	cactusSequenceTestTeardown();
 }
 

@@ -11,7 +11,6 @@
 #include "cactusEventTree.h"
 #include "cactusGlobals.h"
 #include "cactusLink.h"
-#include "cactusMetaEvent.h"
 #include "cactusMetaSequence.h"
 #include "cactusFlower.h"
 #include "cactusDisk.h"

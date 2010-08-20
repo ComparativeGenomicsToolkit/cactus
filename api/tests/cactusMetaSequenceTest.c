@@ -1,7 +1,7 @@
 #include "cactusGlobalsPrivate.h"
 
 static CactusDisk *cactusDisk;
-static MetaEvent *metaEvent;
+Name eventName = 10;
 static MetaSequence *metaSequence;
 static const char *sequenceString = "ACTGGCACTG";
 static const char *headerString = ">one";
@@ -13,7 +13,6 @@ static void cactusMetaSequenceTestTeardown() {
 		cactusDisk_destruct(cactusDisk);
 		testCommon_deleteTemporaryCactusDisk();
 		cactusDisk = NULL;
-		metaEvent = NULL;
 		metaSequence = NULL;
 	}
 }
@@ -22,9 +21,8 @@ static void cactusMetaSequenceTestSetup() {
 	if(!nestedTest) {
 		cactusMetaSequenceTestTeardown();
 		cactusDisk = cactusDisk_construct(testCommon_getTemporaryCactusDisk());
-		metaEvent = metaEvent_construct("ROOT", cactusDisk);
 		metaSequence = metaSequence_construct(1, 10, sequenceString,
-					   headerString, metaEvent_getName(metaEvent), cactusDisk);
+					   headerString, eventName, cactusDisk);
 	}
 }
 
@@ -49,7 +47,7 @@ void testMetaSequence_getLength(CuTest* testCase) {
 
 void testMetaSequence_getEventName(CuTest* testCase) {
 	cactusMetaSequenceTestSetup();
-	CuAssertTrue(testCase, metaSequence_getEventName(metaSequence) == metaEvent_getName(metaEvent));
+	CuAssertTrue(testCase, metaSequence_getEventName(metaSequence) == eventName);
 	cactusMetaSequenceTestTeardown();
 }
 

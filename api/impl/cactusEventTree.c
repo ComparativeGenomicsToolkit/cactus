@@ -13,15 +13,15 @@ int eventTree_constructP(const void *o1, const void *o2) {
 }
 
 EventTree *eventTree_construct2(Flower *flower) {
-	return eventTree_construct(metaEvent_construct("ROOT", flower_getCactusDisk(flower)), flower);
+	return eventTree_construct(cactusDisk_getUniqueID(flower_getCactusDisk(flower)), flower);
 }
 
-EventTree *eventTree_construct(MetaEvent *rootEvent, Flower *flower) {
+EventTree *eventTree_construct(Name rootEventName, Flower *flower) {
 	EventTree *eventTree;
 	eventTree = st_malloc(sizeof(EventTree));
 	eventTree->events = stSortedSet_construct3(eventTree_constructP, NULL);
 	eventTree->flower = flower;
-	eventTree->rootEvent = event_construct(rootEvent, INT32_MAX, NULL, eventTree); //do this last as reciprocal call made to add the event to the events.
+	eventTree->rootEvent = event_construct(rootEventName, "ROOT", INT32_MAX, NULL, eventTree); //do this last as reciprocal call made to add the event to the events.
 	flower_setEventTree(flower, eventTree);
 	return eventTree;
 }
@@ -36,7 +36,7 @@ void eventTree_copyConstructP(EventTree *eventTree, Event *event,
 			//skip the event
 			event2 = event_getChild(event2, 0);
 		}
-		event_construct(event_getMetaEvent(event2), event_getBranchLength(event2),
+		event_construct(event_getName(event2), event_getHeader(event2), event_getBranchLength(event2),
 						eventTree_getEvent(eventTree, event_getName(event)), eventTree);
 		eventTree_copyConstructP(eventTree, event2, unaryEventFilterFn);
 	}
@@ -45,7 +45,7 @@ void eventTree_copyConstructP(EventTree *eventTree, Event *event,
 EventTree *eventTree_copyConstruct(EventTree *eventTree, Flower *newFlower,
 		int32_t (unaryEventFilterFn)(Event *event)) {
 	EventTree *eventTree2;
-	eventTree2 = eventTree_construct(event_getMetaEvent(eventTree_getRootEvent(eventTree)), newFlower);
+	eventTree2 = eventTree_construct(event_getName(eventTree_getRootEvent(eventTree)), newFlower);
 	eventTree_copyConstructP(eventTree2, eventTree_getRootEvent(eventTree), unaryEventFilterFn);
 	return eventTree2;
 }
@@ -217,7 +217,7 @@ void eventTree_addSiblingUnaryEvent(EventTree *eventTree, Event *event) {
 			event2 = event3;
 			event3 = event_getParent(event2);
 		}
-		event_construct2(event_getMetaEvent(event), event_getBranchLength(event), event3, event2, eventTree);
+		event_construct2(event_getName(event), event_getHeader(event), event_getBranchLength(event), event3, event2, eventTree);
 	}
 }
 
@@ -277,22 +277,23 @@ void eventTree_writeBinaryRepresentation(EventTree *eventTree, void (*writeFn)(c
 	for(i=0; i<event_getChildNumber(event); i++) {
 		eventTree_writeBinaryRepresentationP(event_getChild(event, i), writeFn);
 	}
+	binaryRepresentation_writeElementType(CODE_EVENT_TREE, writeFn);
 }
 
 EventTree *eventTree_loadFromBinaryRepresentation(void **binaryString, Flower *flower) {
 	EventTree *eventTree;
-	MetaEvent *metaEvent;
+	Name name;
 	eventTree = NULL;
 	if(binaryRepresentation_peekNextElementType(*binaryString) == CODE_EVENT_TREE) {
 		binaryRepresentation_popNextElementType(binaryString);
-		metaEvent = cactusDisk_getMetaEvent(flower_getCactusDisk(flower),
-				binaryRepresentation_getName(binaryString));
-		assert(metaEvent != NULL);
-		eventTree = eventTree_construct(metaEvent, flower);
+		name = binaryRepresentation_getName(binaryString);
+		eventTree = eventTree_construct(name, flower);
 		int32_t eventNumber = binaryRepresentation_getInteger(binaryString);
 		while(eventNumber-- > 0) {
 			event_loadFromBinaryRepresentation(binaryString, eventTree);
 		}
+		assert(binaryRepresentation_peekNextElementType(*binaryString) == CODE_EVENT_TREE);
+		binaryRepresentation_popNextElementType(binaryString);
 	}
 	return eventTree;
 }

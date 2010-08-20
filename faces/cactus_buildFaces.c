@@ -62,7 +62,7 @@ static Event *buildFaces_interpolateEvents(Event* parentEvent,
     EventTree * eventTree = event_getEventTree(parentEvent);
     float branchLength = event_getBranchLength(childEvent) / 2;
 
-    return event_construct2(NULL, branchLength, parentEvent, childEvent,
+    return event_construct4(NULL, branchLength, parentEvent, childEvent,
 	    eventTree);
 }
 
