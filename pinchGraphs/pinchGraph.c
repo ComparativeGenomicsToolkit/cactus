@@ -57,8 +57,8 @@ void destructPiece(struct Piece *piece) {
 
 void logPiece(struct Piece *piece) {
     st_logDebug(
-            "Contig : " INT_STRING ", start : " INT_STRING ", end : " INT_STRING "\n",
-            piece->contig, piece->start, piece->end);
+            "Contig : %s, start : " INT_STRING ", end : " INT_STRING "\n",
+            cactusMisc_nameToStringStatic(piece->contig), piece->start, piece->end);
 }
 
 int pieceComparatorPointers(struct Piece **piece1, struct Piece **piece2) {
@@ -71,11 +71,9 @@ int pieceComparator(struct Piece *piece1, struct Piece *piece2) {
      * to be constructued.
      */
     //Compare the contigs
-    if (piece1->contig > piece2->contig) {
-        return 1;
-    }
-    if (piece1->contig < piece2->contig) {
-        return -1;
+    int32_t i = cactusMisc_nameCompare(piece1->contig, piece2->contig);
+    if(i != 0) {
+        return i;
     }
     //Check if overlap.
     if (piece1->start <= piece2->start) {
@@ -872,7 +870,8 @@ void pinchMergePiece(struct PinchGraph *graph, struct Piece *piece1,
      *
      * Pieces have to be of equal length.
      */
-    int32_t i, j, k, contig;
+    int32_t i, j, k;
+    Name contig;
     struct PinchVertex *vertex1;
     struct PinchVertex *vertex2;
     struct PinchVertex *vertex3;

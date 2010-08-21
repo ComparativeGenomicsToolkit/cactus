@@ -50,30 +50,12 @@ void testCactusMisc_nameCompare(CuTest* testCase) {
 void testCactusMisc_stringNameFns(CuTest* testCase) {
 	cactusMiscTestSetup();
 	int32_t i;
-	for(i=0; i<100000; i++) {
+	for(i=0; i<1000000; i++) {
 		Name name = cactusDisk_getUniqueID(cactusDisk);
 		CuAssertTrue(testCase, cactusMisc_nameCompare(cactusMisc_stringToName(cactusMisc_nameToStringStatic(name)), name) == 0);
 		char *cA = cactusMisc_nameToString(name);
 		CuAssertStrEquals(testCase, cA, cactusMisc_nameToStringStatic(name));
 		free(cA);
-	}
-	cactusMiscTestTeardown();
-}
-
-void testCactusMisc_stringNameWithOrientationFns(CuTest* testCase) {
-	cactusMiscTestSetup();
-	int32_t i;
-	for(i=0; i<100000; i++) {
-		Name name = cactusDisk_getUniqueID(cactusDisk);
-		char *cA = cactusMisc_nameToStringWithOrientation(name, 0);
-		char *cA2 = cactusMisc_nameToStringWithOrientation(name, 1);
-		CuAssertStrEquals(testCase, cA, cactusMisc_nameToStringStaticWithOrientiation(name, 0));
-		CuAssertStrEquals(testCase, cA2, cactusMisc_nameToStringStaticWithOrientiation(name, 1));
-		CuAssertStrEquals(testCase, cactusMisc_nameToString(name), cactusMisc_nameToStringStaticWithOrientiation(name, 1));
-		CuAssertStrEquals(testCase, cactusMisc_nameToString(name), &(cactusMisc_nameToStringStaticWithOrientiation(name, 0)[1]));
-		CuAssertTrue(testCase, '-' == cA[0]);
-		free(cA);
-		free(cA2);
 	}
 	cactusMiscTestTeardown();
 }
@@ -84,6 +66,5 @@ CuSuite* cactusMiscTestSuite(void) {
 	SUITE_ADD_TEST(suite, testCactusMisc_reverseComplementString);
 	SUITE_ADD_TEST(suite, testCactusMisc_nameCompare);
 	SUITE_ADD_TEST(suite, testCactusMisc_stringNameFns);
-	SUITE_ADD_TEST(suite, testCactusMisc_stringNameWithOrientationFns);
 	return suite;
 }

@@ -34,6 +34,7 @@ int main(int argc, char *argv[]) {
 	st_logInfo("Set up the flower disk\n");
 
 	flower = cactusDisk_getFlower(cactusDisk, cactusMisc_stringToName(argv[2]));
+	assert(flower != NULL);
 	st_logInfo("Read the flower\n");
 	fileHandle = fopen(argv[3], "w");
 	st_logInfo("Opened the file %s to write the sub-sequences in\n", argv[3]);

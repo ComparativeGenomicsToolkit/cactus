@@ -273,7 +273,6 @@ void eventTree_writeBinaryRepresentation(EventTree *eventTree, void (*writeFn)(c
 	event = eventTree_getRootEvent(eventTree);
 	binaryRepresentation_writeElementType(CODE_EVENT_TREE, writeFn);
 	binaryRepresentation_writeName(event_getName(event), writeFn);
-	binaryRepresentation_writeInteger(eventTree_getEventNumber(eventTree)-1, writeFn);
 	for(i=0; i<event_getChildNumber(event); i++) {
 		eventTree_writeBinaryRepresentationP(event_getChild(event, i), writeFn);
 	}
@@ -288,9 +287,8 @@ EventTree *eventTree_loadFromBinaryRepresentation(void **binaryString, Flower *f
 		binaryRepresentation_popNextElementType(binaryString);
 		name = binaryRepresentation_getName(binaryString);
 		eventTree = eventTree_construct(name, flower);
-		int32_t eventNumber = binaryRepresentation_getInteger(binaryString);
-		while(eventNumber-- > 0) {
-			event_loadFromBinaryRepresentation(binaryString, eventTree);
+		while(event_loadFromBinaryRepresentation(binaryString, eventTree) != NULL) {
+			;
 		}
 		assert(binaryRepresentation_peekNextElementType(*binaryString) == CODE_EVENT_TREE);
 		binaryRepresentation_popNextElementType(binaryString);

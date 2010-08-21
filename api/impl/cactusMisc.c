@@ -73,19 +73,6 @@ const char *cactusMisc_nameToStringStatic(Name name) {
 	return cA;
 }
 
-char *cactusMisc_nameToStringWithOrientation(Name name, int32_t orientation) {
-	char *cA;
-	cA = st_malloc(sizeof(char)*22);
-	sprintf(cA, orientation ? "%s" : "-%s", cactusMisc_nameToStringStatic(name));
-	return cA;
-}
-
-const char *cactusMisc_nameToStringStaticWithOrientiation(Name name, int32_t orientation) {
-	static char cA[100];
-	sprintf(cA, orientation ? "%s" : "-%s", cactusMisc_nameToStringStatic(name));
-	return cA;
-}
-
 
 
 

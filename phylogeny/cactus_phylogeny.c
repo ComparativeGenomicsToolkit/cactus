@@ -749,9 +749,10 @@ int main(int argc, char *argv[]) {
                     assert(end_getInstanceNumber(end) == 1);
                     Event *rootEvent = eventTree_getRootEvent(flower_getEventTree(
                             flower));
+                    Cap *childCap = end_getFirst(end);
                     Cap *rootCap = cap_construct(end, rootEvent);
-                    assert(event_isAncestor(cap_getEvent(end_getFirst(end)), rootEvent));
-                    cap_makeParentAndChild(rootCap, end_getFirst(end));
+                    assert(event_isAncestor(cap_getEvent(childCap), rootEvent));
+                    cap_makeParentAndChild(rootCap, childCap);
                     end_setRootInstance(end, rootCap);
                 } else {
                     assert(!end_isStubEnd(end));

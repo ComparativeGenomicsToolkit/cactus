@@ -226,6 +226,7 @@ int32_t cactusCorePipeline(Flower *flower, CactusCoreInputParameters *cCIP,
     //Setup the basic pinch graph
     ///////////////////////////////////////////////////////////////////////////
 
+    startTime = time(NULL);
     pinchGraph = constructPinchGraph(flower);
 
     if (cCIP->writeDebugFiles) {
