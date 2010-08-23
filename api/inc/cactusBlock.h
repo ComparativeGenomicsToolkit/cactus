@@ -141,4 +141,11 @@ void block_check(Block *block);
  */
 char *block_makeNewickString(Block *block, int32_t includeInternalNames, int32_t includeUnaryEvents);
 
+/*
+ * Pushes the block into the higher level flower. Will not work if the block to be promoted is nested
+ * within a chain of the higher level flower or is contained in a chain at the lower level (i.e. it must
+ * be a trivial chain).
+ */
+void block_promote(Block *block);
+
 #endif
