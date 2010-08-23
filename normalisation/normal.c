@@ -52,7 +52,8 @@ void promoteChainsToFillParents(Flower *flower, int32_t maxNumberOfChains) {
 				(int(*)(const void *, const void *)) promoteChainsFillParentsP);
 		Flower *parentFlower = group_getFlower(parentGroup);
 		int32_t chainLength = INT32_MAX;
-		while (stList_length(chains) > 0 && flower_getChainNumber(parentFlower)
+		while (stList_length(chains) > 0 &&
+				flower_getChainNumber(parentFlower) + flower_getTrivialChainNumber(parentFlower)
 				< maxNumberOfChains) {
 			chain = stList_pop(chains);
 			assert(chainLength >= chain_getLength(chain));
@@ -67,14 +68,17 @@ void promoteChainsToFillParents(Flower *flower, int32_t maxNumberOfChains) {
 		stList *blocks = stList_construct();
 		while ((block = flower_getNextBlock(blockIt)) != NULL) {
 			assert(block_getFlower(block) == flower);
-			stList_append(blocks, block);
+			if(block_isTrivialChain(block)) {
+				stList_append(blocks, block);
+			}
 		}
 		flower_destructBlockIterator(blockIt);
 		stList_sort(blocks,
 				(int(*)(const void *, const void *)) promoteChainsFillParentsP2);
 
 		int32_t blockCoverage = INT32_MAX;
-		while (stList_length(blocks) > 0 && flower_getBlockNumber(parentFlower)
+		while (stList_length(blocks) > 0 &&
+				flower_getChainNumber(parentFlower) + flower_getTrivialChainNumber(parentFlower)
 				< maxNumberOfChains) {
 			block = stList_pop(blocks);
 			assert(blockCoverage >= block_getLength(block) * block_getInstanceNumber(block));

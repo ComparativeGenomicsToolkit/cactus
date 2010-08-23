@@ -273,6 +273,29 @@ void testFlower_chain(CuTest* testCase) {
             (void **) (&chain2));
 }
 
+void testFlower_getTrivialChainNumber(CuTest* testCase) {
+	cactusFlowerTestSetup();
+	CuAssertIntEquals(testCase, 0, flower_getTrivialChainNumber(flower));
+	chain = chain_construct(flower);
+	chain2 = chain_construct(flower);
+	CuAssertIntEquals(testCase, 0, flower_getTrivialChainNumber(flower));
+	group = group_construct2(flower);
+	group2 = group_construct2(flower);
+	block = block_construct(1, flower);
+	end_setGroup(block_get5End(block), group);
+	end_setGroup(block_get3End(block), group2);
+	CuAssertIntEquals(testCase, 1, flower_getTrivialChainNumber(flower));
+	block2 = block_construct(1, flower);
+	end_setGroup(block_get5End(block2), group2);
+	end_setGroup(block_get3End(block2), group);
+	CuAssertIntEquals(testCase, 2, flower_getTrivialChainNumber(flower));
+	link_construct(block_get3End(block), block_get5End(block2), group2, chain);
+	CuAssertIntEquals(testCase, 0, flower_getTrivialChainNumber(flower));
+	link_construct(block_get3End(block2), block_get5End(block), group, chain);
+	CuAssertIntEquals(testCase, 0, flower_getTrivialChainNumber(flower));
+	cactusFlowerTestTeardown();
+}
+
 void testFlower_group(CuTest* testCase) {
     testObjectRetrieval(testCase, groupsSetup,
             (int32_t(*)(Flower *flower)) flower_getGroupNumber,
@@ -649,6 +672,7 @@ CuSuite* cactusFlowerTestSuite(void) {
     SUITE_ADD_TEST(suite, testFlower_block);
     SUITE_ADD_TEST(suite, testFlower_group);
     SUITE_ADD_TEST(suite, testFlower_chain);
+    SUITE_ADD_TEST(suite, testFlower_getTrivialChainNumber);
     SUITE_ADD_TEST(suite, testFlower_face);
     SUITE_ADD_TEST(suite, testFlower_getReference);
     //SUITE_ADD_TEST(suite, testFlower_mergeFlowers);

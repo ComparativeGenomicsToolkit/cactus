@@ -418,6 +418,19 @@ int32_t flower_getChainNumber(Flower *flower) {
     return stSortedSet_size(flower->chains);
 }
 
+int32_t flower_getTrivialChainNumber(Flower *flower) {
+	int32_t i=0;
+	Flower_BlockIterator *blockIt = flower_getBlockIterator(flower);
+	Block *block;
+	while((block = flower_getNextBlock(blockIt)) != NULL) {
+		if(block_isTrivialChain(block)) {
+			i++;
+		}
+	}
+	flower_destructBlockIterator(blockIt);
+	return i;
+}
+
 Flower_ChainIterator *flower_getChainIterator(Flower *flower) {
     return stSortedSet_getIterator(flower->chains);
 }

@@ -218,6 +218,27 @@ void testBlock_makeNewickString(CuTest *testCase) {
     cactusBlockTestTeardown();
 }
 
+void testBlock_isTrivialChain(CuTest *testCase) {
+    cactusBlockTestSetup();
+    Group *group = group_construct2(flower);
+    end_setGroup(block_get5End(block), group);
+    end_setGroup(block_get3End(block), group);
+    Chain *chain = chain_construct(flower);
+    Group *group2 = group_construct2(flower);
+    CuAssertTrue(testCase, block_isTrivialChain(block));
+    Block *block1 = block_construct(1, flower);
+    Block *block2 = block_construct(1, flower);
+    end_setGroup(block_get5End(block2), group2);
+    end_setGroup(block_get3End(block1), group2);
+    link_construct(block_get3End(block1), block_get5End(block2), group2, chain);
+    end_setGroup(block_get5End(block1), group);
+    end_setGroup(block_get3End(block2), group);
+    CuAssertTrue(testCase, block_isTrivialChain(block));
+    CuAssertTrue(testCase, !block_isTrivialChain(block1));
+    CuAssertTrue(testCase, !block_isTrivialChain(block2));
+    cactusBlockTestTeardown();
+}
+
 void testBlock_serialisation(CuTest* testCase) {
     cactusBlockTestSetup();
     Name rootInstanceName = segment_getName(rootSegment);
@@ -277,6 +298,7 @@ CuSuite* cactusBlockTestSuite(void) {
     SUITE_ADD_TEST(suite, testBlock_splitBlock);
     SUITE_ADD_TEST(suite, testBlock_serialisation);
     SUITE_ADD_TEST(suite, testBlock_makeNewickString);
+    SUITE_ADD_TEST(suite, testBlock_isTrivialChain);
     SUITE_ADD_TEST(suite, testBlock_construct);
     return suite;
 }

@@ -318,6 +318,15 @@ char *block_makeNewickString(Block *block, int32_t includeInternalNames, int32_t
 	return NULL;
 }
 
+bool block_isTrivialChain(Block *block) {
+	End *_5End = block_get5End(block);
+	End *_3End = block_get3End(block);
+	assert(end_getGroup(_5End) != NULL);
+	assert(end_getGroup(_3End) != NULL);
+	return group_getLink(end_getGroup(_5End)) == NULL &&
+			group_getLink(end_getGroup(_3End)) == NULL;
+}
+
 /*
  * Private functions.
  */

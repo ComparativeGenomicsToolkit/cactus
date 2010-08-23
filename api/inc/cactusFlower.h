@@ -317,6 +317,11 @@ Chain *flower_getChain(Flower *flower, Name name);
 int32_t flower_getChainNumber(Flower *flower);
 
 /*
+ * Returns the number of non-trivial chains.
+ */
+int32_t flower_getTrivialChainNumber(Flower *flower);
+
+/*
  * Gets an iterator to iterate through the chains in the flower, at this level.
  */
 Flower_ChainIterator *flower_getChainIterator(Flower *flower);

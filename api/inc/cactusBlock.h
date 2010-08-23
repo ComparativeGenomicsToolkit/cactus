@@ -148,4 +148,9 @@ char *block_makeNewickString(Block *block, int32_t includeInternalNames, int32_t
  */
 void block_promote(Block *block);
 
+/*
+ * Returns non-zero if the ends of the block are not in a link.
+ */
+bool block_isTrivialChain(Block *block);
+
 #endif
