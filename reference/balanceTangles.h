@@ -8,9 +8,6 @@
 #ifndef BALANCETANGLES_H_
 #define BALANCETANGLES_H_
 
-#include "sonLib.h"
-#include "pinchGraph.h"
-#include "cactusGraph.h"
 #include "cactus.h"
 
 /*

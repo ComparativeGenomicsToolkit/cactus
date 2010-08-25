@@ -1,18 +1,5 @@
-#include <assert.h>
-#include <limits.h>
-#include <stdio.h>
-#include <string.h>
-#include <stdlib.h>
 
-#include "commonC.h"
-#include "fastCMaths.h"
-#include "bioioC.h"
-#include "hashTableC.h"
-#include "pinchGraph.h"
-#include "cactusGraph.h"
 #include "cactus.h"
-#include "cactusFlowerFunctions.h"
-#include "avl.h"
 #include "sonLib.h"
 
 /*

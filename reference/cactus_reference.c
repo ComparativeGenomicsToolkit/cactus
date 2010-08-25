@@ -7,6 +7,7 @@
 #include <getopt.h>
 
 #include "cactus.h"
+#include "sonLib.h"
 #include "reference.h"
 
 void usage() {
