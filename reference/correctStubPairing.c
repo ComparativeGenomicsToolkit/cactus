@@ -52,49 +52,90 @@ void correctAttachedStubEndPairing(stHash *adjacencies, Flower *flower,
         stList *component2 = stHash_search(stubsToComponents,
                 pseudoChromosome_get3End(pseudoChromosome));
         if (component1 != component2) {
-            AdjacencySwitch *adjacencySwitch =
-                    adjacencySwitch_getStrongestAdjacencySwitch(component1,
+            stList *adjacencySwitches = adjacencySwitch_getAdjacencySwitches(
+                    component1, component2);
+            assert(stList_length(adjacencySwitches) > 0);
+            stList_sort(
+                    adjacencySwitches,
+                    (int(*)(const void *, const void *)) adjacencySwitch_cmpByStrength);
+
+            while (1) {
+                assert(stList_length(adjacencySwitches) > 0);
+                AdjacencySwitch *adjacencySwitch =
+                        stList_pop(adjacencySwitches);
+                //Make the switch
+                adjacencySwitch_switch(adjacencySwitch, adjacencies);
+
+                //Get the the new components..
+                stList *newComponent1 = adjacencyHash_getConnectedComponent(
+                        adjacencies, flower, adjacencyPair_getEnd1(
+                                adjacencySwitch_getAdjacencyPair1(
+                                        adjacencySwitch)));
+                stList *newComponent2 = adjacencyHash_getConnectedComponent(
+                        adjacencies, flower, adjacencyPair_getEnd2(
+                                adjacencySwitch_getAdjacencyPair1(
+                                        adjacencySwitch)));
+                assert(stList_length(component1) + stList_length(component2) ==
+                        stList_length(newComponent1) + stList_length(newComponent2));
+
+                //Update the stubs to components hash
+                stubsToComponents_removeComponent(stubsToComponents, component1);
+                stubsToComponents_removeComponent(stubsToComponents, component2);
+                stubsToComponents_addComponent(stubsToComponents, newComponent1);
+                stubsToComponents_addComponent(stubsToComponents, newComponent2);
+
+                if (stHash_search(stubsToComponents, pseudoChromosome_get5End(
+                        pseudoChromosome)) == stHash_search(stubsToComponents,
+                        pseudoChromosome_get3End(pseudoChromosome))) { //Success!
+                    //Update the list of components
+                    stList_removeItem(components, component1);
+                    stList_removeItem(components, component2);
+                    stList_append(components, newComponent1);
+                    stList_append(components, newComponent2);
+
+                    //Destroy the old components.
+                    stList_destruct(component1);
+                    stList_destruct(component2);
+
+                    //Destroy the switch and adjacency pairs
+                    adjacencyPair_destruct(adjacencySwitch_getAdjacencyPair1(
+                            adjacencySwitch));
+                    adjacencyPair_destruct(adjacencySwitch_getAdjacencyPair2(
+                            adjacencySwitch));
+                    adjacencySwitch_destruct(adjacencySwitch);
+                    break;
+                } else { //Switch back and carry on
+                    stubsToComponents_removeComponent(stubsToComponents,
+                            newComponent1);
+                    stubsToComponents_removeComponent(stubsToComponents,
+                            newComponent2);
+                    stubsToComponents_addComponent(stubsToComponents,
+                            component1);
+                    stubsToComponents_addComponent(stubsToComponents,
                             component2);
-            assert(adjacencySwitch != NULL);
-            //Make the swtich
-            adjacencySwitch_switch(adjacencySwitch, adjacencies);
 
-            //Get the the new components..
-            stList *newComponent1 =
-                    adjacencyHash_getConnectedComponent(adjacencies, flower,
-                            adjacencyPair_getEnd1(
-                                    adjacencySwitch_getAdjacencyPair1(
-                                            adjacencySwitch)));
-            stList *newComponent2 =
-                    adjacencyHash_getConnectedComponent(adjacencies, flower,
-                            adjacencyPair_getEnd1(
-                                    adjacencySwitch_getAdjacencyPair2(
-                                            adjacencySwitch)));
-            assert(stList_length(component1) + stList_length(component2) ==
-                    stList_length(newComponent1) + stList_length(newComponent2));
+                    //Switch back the adjacencies..
+                    AdjacencyPair *adjacencyPair1 = adjacencySwitch_getAdjacencyPair1(adjacencySwitch);
+                    AdjacencyPair *adjacencyPair2 = adjacencySwitch_getAdjacencyPair2(adjacencySwitch);
+                    AdjacencyPair *adjacencyPair3 = stHash_search(adjacencies, adjacencyPair_getEnd1(adjacencyPair1));
+                    AdjacencyPair *adjacencyPair4 = stHash_search(adjacencies, adjacencyPair_getEnd2(adjacencyPair1));
+#ifdef BEN_DEBUG
+                    assert(adjacencyPair3 != NULL);
+                    assert(adjacencyPair4 != NULL);
+                    assert(adjacencyPair3 != adjacencyPair4);
+#endif
+                    adjacencyHash_remove(adjacencies, adjacencyPair3);
+                    adjacencyHash_remove(adjacencies, adjacencyPair4);
+                    adjacencyHash_add(adjacencies, adjacencyPair1);
+                    adjacencyHash_add(adjacencies, adjacencyPair2);
 
-            //Update the list of components
-            stList_removeItem(components, component1);
-            stList_removeItem(components, component2);
-            stList_append(components, newComponent1);
-            stList_append(components, newComponent2);
-
-            //Update the stubs to components hash
-            stubsToComponents_removeComponent(stubsToComponents, component1);
-            stubsToComponents_removeComponent(stubsToComponents, component2);
-            stubsToComponents_addComponent(stubsToComponents, newComponent1);
-            stubsToComponents_addComponent(stubsToComponents, newComponent2);
-
-            //Destroy the old components.
-            stList_destruct(component1);
-            stList_destruct(component2);
-
-            //Destroy the switch and adjacency pairs
-            adjacencyPair_destruct(adjacencySwitch_getAdjacencyPair1(
-                    adjacencySwitch));
-            adjacencyPair_destruct(adjacencySwitch_getAdjacencyPair2(
-                    adjacencySwitch));
-            adjacencySwitch_destruct(adjacencySwitch);
+                    //Destroy the new components and the adjacency switch
+                    stList_destruct(newComponent1);
+                    stList_destruct(newComponent2);
+                    adjacencySwitch_destruct(adjacencySwitch);
+                }
+            }
+            stList_destruct(adjacencySwitches);
         }
     }
     reference_destructPseudoChromosomeIterator(pseudoChromosomeIterator);

@@ -18,9 +18,10 @@ typedef struct _adjacencySwitch AdjacencySwitch;
  * Constructs an adjacencySwitch from two adjacency pairs.
  * Let an adjacency switch be a pair of adjacencies created
  * so that the four ends of the two initial adjacency pairs are paired into two, new and
- * distinct adjacency pairs. There are two possible adjacency switches for any AdjacencySwitch.
+ * distinct adjacency pairs. There are two possible adjacency switches for any AdjacencySwitch, this is configured
+ * by the switch state.
  */
-AdjacencySwitch *adjacencySwitch_construct(AdjacencyPair *adjacencyPair1, AdjacencyPair *adjacencyPair2);
+AdjacencySwitch *adjacencySwitch_construct(AdjacencyPair *adjacencyPair1, AdjacencyPair *adjacencyPair2, bool switchState);
 
 /*
  * Destroys the AdjacencySwitch, but not the two contained adjacency pairs.
@@ -42,10 +43,8 @@ AdjacencyPair *adjacencySwitch_getAdjacencyPair2(AdjacencySwitch *adjacencySwitc
  * Let the initial strength be the sum of the strengths of the two adjacency pairs in the
  * AdjacencySwitch.
  * Let the residual strength of an adjacency switch be the combined strength of the new
- * adjacency pairs. Let the maximum resdidual strength of an AdjacencySwitch be the maximum
- * over the two possible
- * adjacency switches of the AdjacencySwitch. The strength of an AdjacencySwitch
- * is the maximum residual strength minus its initial strength.
+ * adjacency pairs. The strength of an AdjacencySwitch
+ * is the residual strength minus its initial strength.
  */
 double adjacencySwitch_getStrength(AdjacencySwitch *adjacencySwitch);
 
@@ -64,9 +63,8 @@ int32_t adjacencySwitch_cmpByStrength(AdjacencySwitch *adjacencySwitch, Adjacenc
 void adjacencySwitch_switch(AdjacencySwitch *adjacencySwitch, stHash *adjacencyHash);
 
 /*
- * Computes the strongest AdjacencySwitch between two components of adjacency pairs.
- * If no valid adjacency switch is found it returns NULL.
+ * Returns a list of legal adjacency switches between two components of adjacency pairs.
  */
-AdjacencySwitch *adjacencySwitch_getStrongestAdjacencySwitch(stList *component, stList *component2);
+stList *adjacencySwitch_getAdjacencySwitches(stList *component, stList *component2);
 
 #endif /* ADJACENCYSWITCH_H_ */
