@@ -15,7 +15,7 @@
 typedef struct _adjacencySwitch AdjacencySwitch;
 
 /*
- * Constructs an adjacencySwitch from two adjacency pairs.
+ * Constructs an AdjacencySwitch from two adjacency pairs.
  * Let an adjacency switch be a pair of adjacencies created
  * so that the four ends of the two initial adjacency pairs are paired into two, new and
  * distinct adjacency pairs. There are two possible adjacency switches for any AdjacencySwitch, this is configured
@@ -63,8 +63,8 @@ int32_t adjacencySwitch_cmpByStrength(AdjacencySwitch *adjacencySwitch, Adjacenc
 void adjacencySwitch_switch(AdjacencySwitch *adjacencySwitch, stHash *adjacencyHash);
 
 /*
- * Returns a list of legal adjacency switches between two components of adjacency pairs.
+ * Returns the strongest adjacency switch between the two components of adjacency pairs.
  */
-stList *adjacencySwitch_getAdjacencySwitches(stList *component, stList *component2);
+AdjacencySwitch *adjacencySwitch_getStrongestAdjacencySwitch(stList *component, stList *component2, stHash *adjacencies);
 
 #endif /* ADJACENCYSWITCH_H_ */

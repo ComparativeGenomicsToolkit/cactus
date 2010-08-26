@@ -76,6 +76,7 @@ static void checkFlowerIsNotEmpty(Flower *flower) {
      */
     if(flower_getParentGroup(flower) != NULL) {
         assert(flower_getEndNumber(flower) > 0);
+        assert(flower_getAttachedStubEndNumber(flower) + flower_getBlockEndNumber(flower) > 0);
     }
 }
 
@@ -87,10 +88,9 @@ static void checkGroupsNotEmpty(Flower *flower) {
     Flower_GroupIterator *groupIt = flower_getGroupIterator(flower);
     while((group = flower_getNextGroup(groupIt)) != NULL) {
         assert(group_getEndNumber(group) > 0);
+        assert(group_getAttachedStubEndNumber(group) + group_getBlockEndNumber(group) > 0);
     }
 }
-
-
 
 /*
  * Random other checks.

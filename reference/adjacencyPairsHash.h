@@ -24,8 +24,16 @@ void adjacencyHash_remove(stHash *adjacencies,
 		AdjacencyPair *adjacencyPair);
 
 /*
+ * Creates a set of adjacency pairs such that every end
+ * in the terminal flowers of the pressed flowers of the flower
+ * is a member of one adjacency pair. Adjacency pairs are only between ends
+ * in the same group.
+ */
+stHash *adjacencyHash_constructInitialPairs(Flower *flower);
+
+/*
  * Frees the adjacencies pairs in the adjacencies hash safely.
  */
-void adjacencyHash_cleanUp(stHash *adjacencies, Flower *flower);
+void adjacencyHash_destruct(stHash *adjacencies, Flower *flower);
 
 #endif /* ADJACENCYPAIRSHASH_H_ */

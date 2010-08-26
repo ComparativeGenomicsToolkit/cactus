@@ -13,7 +13,11 @@
 void usage() {
     fprintf(stderr, "cactus_reference [flower names], version 0.1\n");
     fprintf(stderr, "-a --logLevel : Set the log level\n");
-    fprintf(stderr, "-c --cactusDisk : The location of the flower disk directory\n");
+    fprintf(stderr,
+            "-c --cactusDisk : The location of the flower disk directory\n");
+    fprintf(
+            stderr,
+            "-d --bottomUp : Run the bottom up algorithm instead of the top down algorithm\n");
     fprintf(stderr, "-h --help : Print this help screen\n");
 }
 
@@ -28,6 +32,7 @@ int main(int argc, char *argv[]) {
     char * logLevelString = NULL;
     char * cactusDiskName = NULL;
     int32_t j;
+    bool topDown = 1;
 
     ///////////////////////////////////////////////////////////////////////////
     // (0) Parse the inputs handed by genomeCactus.py / setup stuff.
@@ -35,12 +40,14 @@ int main(int argc, char *argv[]) {
 
     while (1) {
         static struct option long_options[] = { { "logLevel",
-                required_argument, 0, 'a' }, { "cactusDisk", required_argument, 0,
-                'c' }, { "help", no_argument, 0, 'h' }, { 0, 0, 0, 0 } };
+                required_argument, 0, 'a' }, { "cactusDisk", required_argument,
+                0, 'c' }, { "bottomUp", no_argument, 0, 'd' }, { "help",
+                no_argument, 0, 'h' }, { 0, 0, 0, 0 } };
 
         int option_index = 0;
 
-        int key = getopt_long(argc, argv, "a:c:h", long_options, &option_index);
+        int key =
+                getopt_long(argc, argv, "a:c:dh", long_options, &option_index);
 
         if (key == -1) {
             break;
@@ -52,6 +59,9 @@ int main(int argc, char *argv[]) {
                 break;
             case 'c':
                 cactusDiskName = stString_copy(optarg);
+                break;
+            case 'd':
+                topDown = 0;
                 break;
             case 'h':
                 usage();
@@ -103,15 +113,20 @@ int main(int argc, char *argv[]) {
          */
         const char *flowerName = argv[j];
         st_logInfo("Processing the flower named: %s\n", flowerName);
-        Flower *flower = cactusDisk_getFlower(cactusDisk, cactusMisc_stringToName(
-                flowerName));
+        Flower *flower = cactusDisk_getFlower(cactusDisk,
+                cactusMisc_stringToName(flowerName));
         assert(flower != NULL);
         st_logInfo("Parsed the flower in which to build a reference\n");
 
         /*
          * Now run the reference function.
          */
-        addReferenceToFlower(flower);
+        if(topDown) {
+            constructReference_topDownPhase(flower);
+        }
+        else {
+            constructReference_bottomUpPhase(flower);
+        }
     }
 
     ///////////////////////////////////////////////////////////////////////////

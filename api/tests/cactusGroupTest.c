@@ -173,16 +173,22 @@ void testGroup_getAttachedStubAndBlockEndNumber(CuTest* testCase) {
     cactusGroupTestSetup();
     CuAssertTrue(testCase, group_getAttachedStubEndNumber(group) == 0);
     CuAssertTrue(testCase, group_getBlockEndNumber(group) == 0);
+    CuAssertIntEquals(testCase, 2, group_getStubEndNumber(group));
+    CuAssertIntEquals(testCase, 2, group_getFreeStubEndNumber(group));
     end_setGroup(end_construct(1, flower), group);
+    end_setGroup(end_construct(0, flower), group);
     end_setGroup(end_construct(1, flower), group);
-    end_setGroup(end_construct(1, flower), group);
-    CuAssertTrue(testCase, group_getAttachedStubEndNumber(group) == 3);
+    CuAssertTrue(testCase, group_getAttachedStubEndNumber(group) == 2);
     CuAssertTrue(testCase, group_getBlockEndNumber(group) == 0);
+    CuAssertTrue(testCase, group_getStubEndNumber(group) == 5);
+    CuAssertTrue(testCase, group_getFreeStubEndNumber(group) == 3);
     Block *block = block_construct(1, flower);
     end_setGroup(block_get5End(block), group);
     end_setGroup(block_get3End(block), group);
-    CuAssertTrue(testCase, group_getAttachedStubEndNumber(group) == 3);
+    CuAssertTrue(testCase, group_getAttachedStubEndNumber(group) == 2);
     CuAssertTrue(testCase, group_getBlockEndNumber(group) == 2);
+    CuAssertTrue(testCase, group_getStubEndNumber(group) == 5);
+    CuAssertTrue(testCase, group_getFreeStubEndNumber(group) == 3);
     cactusGroupTestTeardown();
 }
 

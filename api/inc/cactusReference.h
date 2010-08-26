@@ -31,7 +31,7 @@
  *
  * A reference ordering orders all the attached stub ends and block ends in a flower
  * into a set of linear "pseudo chromosomes".
- * Let (a, b) represent a "pseudo-adjacency" between two ends, so called because
+ * Let (a, b) represent a "pseudo-adjacency" between two ends a and b, so called because
  * there may not necessarily exist an actual adjacency between caps representing
  * the two ends.
  *

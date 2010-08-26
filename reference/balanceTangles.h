@@ -25,7 +25,6 @@
  *    and randomly assign it to an odd tangle in that flower (there must be one or more,
  *    as there were previously an odd number of ends). Repeat this process recursively until
  *    you hit a leaf tangle.
- * (3) Calls the procedure recursively for each nested flower.
  */
 void balanceTangles(Flower *flower);
 

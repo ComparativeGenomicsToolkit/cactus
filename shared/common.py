@@ -142,12 +142,13 @@ def runCactusBaseAligner(cactusDisk, flowerNames, logLevel="DEBUG"):
     """
     system("cactus_baseAligner --cactusDisk %s --logLevel %s %s" % (cactusDisk, logLevel, " ".join(flowerNames)))
     
-def runCactusReference(cactusDisk, flowerNames, logLevel="DEBUG"):
+def runCactusReference(cactusDisk, flowerNames, logLevel="DEBUG", bottomUp=False):
     """Runs cactus reference.
     """
     #print "running", "cactus_reference --cactusDisk %s --logLevel %s %s" % (cactusDisk, logLevel, " ".join(flowerNames))
     #assert False
-    system("cactus_reference --cactusDisk %s --logLevel %s %s" % (cactusDisk, logLevel, " ".join(flowerNames)))
+    bottomUp = nameValue("bottomUp", bottomUp, bool)
+    system("cactus_reference --cactusDisk %s --logLevel %s %s" % (cactusDisk, logLevel, bottomUp, " ".join(flowerNames)))
 
 def runCactusCheck(cactusDisk, 
                     flowerNames=("0",), 
@@ -167,7 +168,6 @@ def runCactusWorkflow(cactusDisk, sequenceFiles,
                       buildTrees=True, buildFaces=True, buildReference=True,
                       configFile=None):
     buildFaces=False
-    
     setupAndBuildAlignments = nameValue("setupAndBuildAlignments", setupAndBuildAlignments, bool)
     buildTrees = nameValue("buildTrees", buildTrees, bool)
     buildFaces = nameValue("buildFaces", buildFaces, bool)

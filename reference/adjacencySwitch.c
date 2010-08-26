@@ -90,26 +90,52 @@ void adjacencySwitch_switch(AdjacencySwitch *adjacencySwitch,
     adjacencyHash_add(adjacencies, adjacencyPair4);
 }
 
-stList *adjacencySwitch_getAdjacencySwitches(stList *component, stList *component2) {
-    stList *adjacencySwitches = stList_construct3(0,
-            (void(*)(void *)) adjacencySwitch_destruct);
+static stList *getAdjacencyPairs(stList *component, stHash *adjacencies) {
+    stList *adjacencyPairs = stList_construct();
     for (int32_t i = 0; i < stList_length(component); i++) {
-        AdjacencyPair *adjacencyPair = stList_get(component, i);
+        End *end = stList_get(component, i);
+        AdjacencyPair *adjacencyPair = stHash_search(adjacencies, end);
+        if(adjacencyPair_getEnd1(adjacencyPair) == end) {
+            stList_append(adjacencyPairs, adjacencyPair);
+        }
+    }
+    return adjacencyPairs;
+}
+
+AdjacencySwitch *adjacencySwitch_getStrongestAdjacencySwitch(stList *component,
+        stList *component2, stHash *adjacencies) {
+    AdjacencySwitch *adjacencySwitch = NULL;
+
+    stList *adjacencyPairs1 = getAdjacencyPairs(component, adjacencies);
+    stList *adjacencyPairs2 = getAdjacencyPairs(component2, adjacencies);
+
+    for (int32_t i = 0; i < stList_length(adjacencyPairs1); i++) {
+        AdjacencyPair *adjacencyPair = stList_get(adjacencyPairs1, i);
         Group *group = adjacencyPair_getGroup(adjacencyPair);
-        if (group_isTangle(group)) {
-            for (int32_t j = 0; j < stList_length(component2); j++) {
-                AdjacencyPair *adjacencyPair2 = stList_get(component2, j);
-                Group *group2 = adjacencyPair_getGroup(adjacencyPair2);
-                if (group_isTangle(group2)) {
-                    for (int32_t k = 0; k <= 1; k++) {
-                        AdjacencySwitch *adjacencySwitch2 =
-                                adjacencySwitch_construct(adjacencyPair,
-                                        adjacencyPair2, k);
-                        stList_append(adjacencySwitches, adjacencySwitch2);
+        for (int32_t j = 0; j < stList_length(adjacencyPairs2); j++) {
+            AdjacencyPair *adjacencyPair2 = stList_get(adjacencyPairs2, j);
+            Group *group2 = adjacencyPair_getGroup(adjacencyPair2);
+            if(group == group2) {
+                for (int32_t k = 0; k <= 1; k++) {
+                    AdjacencySwitch *adjacencySwitch2 =
+                            adjacencySwitch_construct(adjacencyPair,
+                                    adjacencyPair2, k);
+                    if(adjacencySwitch == NULL || adjacencySwitch_getStrength(adjacencySwitch2) > adjacencySwitch_getStrength(adjacencySwitch)) {
+                        if(adjacencySwitch != NULL) {
+                            adjacencySwitch_destruct(adjacencySwitch);
+                        }
+                        adjacencySwitch = adjacencySwitch2;
+                    }
+                    else {
+                        adjacencySwitch_destruct(adjacencySwitch2);
                     }
                 }
             }
         }
     }
-    return adjacencySwitches;
+
+    stList_destruct(adjacencyPairs1);
+    stList_destruct(adjacencyPairs2);
+
+    return adjacencySwitch;
 }

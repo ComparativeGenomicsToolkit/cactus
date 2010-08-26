@@ -24,12 +24,14 @@ Group *adjacencyPair_getGroup(AdjacencyPair *adjacencyPair) {
 }
 
 AdjacencyPair *adjacencyPair_construct(End *end1, End *end2) {
-    end1 = end_getPositiveOrientation(end1);
-    end2 = end_getPositiveOrientation(end2);
+#ifdef BEN_DEBUG
+    assert(end_getOrientation(end1));
+    assert(end_getOrientation(end2));
     assert(end1 != end2);
     assert(end_getName(end1) != end_getName(end2));
     assert(end_getFlower(end1) == end_getFlower(end2)); //same flower
     assert(end_getGroup(end1) == end_getGroup(end2));
+#endif
     AdjacencyPair *adjacencyPair = st_malloc(sizeof(AdjacencyPair));
     if (cactusMisc_nameCompare(end_getName(end1), end_getName(end2)) <= 0) {
         adjacencyPair->end2 = end1;

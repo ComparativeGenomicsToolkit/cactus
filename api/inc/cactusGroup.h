@@ -89,9 +89,19 @@ End *group_getEnd(Group *group, Name name);
 int32_t group_getEndNumber(Group *group);
 
 /*
+ * Returns the number of stub ends in the group.
+ */
+int32_t group_getStubEndNumber(Group *group);
+
+/*
  * Returns the number of attached stub ends.
  */
 int32_t group_getAttachedStubEndNumber(Group *group);
+
+/*
+ * Returns the number of free stub ends.
+ */
+int32_t group_getFreeStubEndNumber(Group *group);
 
 /*
  * Returns the number of block ends.

@@ -5,7 +5,7 @@
 #include "adjacencyPairComponents.h"
 #include "adjacencySwitch.h"
 
-static void splitIntoContigsAndCycles(stList *components, stList **contigs,
+static void splitIntoContigsAndCycles(stList *components, stHash *hyperChains, stList **contigs,
         stList **cycles) {
     /*
      * Divides the list of components into rings and components terminated by a pair of stubs.
@@ -16,7 +16,7 @@ static void splitIntoContigsAndCycles(stList *components, stList **contigs,
     stList *component;
     for (int32_t i = 0; i < stList_length(components); i++) {
         component = stList_get(components, i);
-        getAttachedStubEndsInComponent(component, &end1, &end2);
+        getTopStubEndsInComponent(component, hyperChains, &end1, &end2);
         if (end1 != NULL) {
             assert(end2 != NULL);
             stList_append(*contigs, component);
@@ -27,15 +27,14 @@ static void splitIntoContigsAndCycles(stList *components, stList **contigs,
     }
 }
 
-void mergeCycles(stHash *adjacencies, Flower *flower) {
+void mergeCycles(stHash *adjacencies, stHash *hyperChains) {
     stList *contigs, *cycles;
 
     //Get the comopnents to merge.
-    stList *components = adjacencyHash_getConnectedComponents(adjacencies,
-            flower);
+    stList *components = adjacencyHash_getConnectedComponents(adjacencies, hyperChains);
 
     //Get the cycles and contigs
-    splitIntoContigsAndCycles(components, &contigs, &cycles);
+    splitIntoContigsAndCycles(components, hyperChains, &contigs, &cycles);
 
     //Iterate on the cycles merging them until we have none.
     while (stList_length(cycles) > 0) { //Now merge the cycles
@@ -45,11 +44,9 @@ void mergeCycles(stHash *adjacencies, Flower *flower) {
         for (int32_t j = 0; j < stList_length(components); j++) {
             stList *component = stList_get(components, j);
             if (cycle != component) {
-                stList *adjacencySwitches =
-                        adjacencySwitch_getAdjacencySwitches(cycle, component);
-                if (stList_length(adjacencySwitches) > 0) {
-                    stList_sort(adjacencySwitches, (int (*)(const void *, const void *))adjacencySwitch_cmpByStrength);
-                    AdjacencySwitch *adjacencySwitch2 = stList_pop(adjacencySwitches);
+                AdjacencySwitch *adjacencySwitch2  =
+                        adjacencySwitch_getStrongestAdjacencySwitch(cycle, component, adjacencies);
+                if (adjacencySwitch2 != NULL) {
                     if (adjacencySwitch == NULL
                             || adjacencySwitch_cmpByStrength(adjacencySwitch2,
                                     adjacencySwitch) >= 0) {
@@ -60,7 +57,6 @@ void mergeCycles(stHash *adjacencies, Flower *flower) {
                         mergingComponent = component;
                     }
                 }
-                stList_destruct(adjacencySwitches);
             }
         }
         assert(adjacencySwitch != NULL);
@@ -70,7 +66,7 @@ void mergeCycles(stHash *adjacencies, Flower *flower) {
 
         //Component the new component..
         stList *newComponent = adjacencyHash_getConnectedComponent(adjacencies,
-                flower, adjacencyPair_getEnd1(
+                hyperChains, adjacencyPair_getEnd1(
                         adjacencySwitch_getAdjacencyPair1(adjacencySwitch)));
         assert(stList_length(cycle) + stList_length(mergingComponent) == stList_length(newComponent));
 
@@ -100,8 +96,8 @@ void mergeCycles(stHash *adjacencies, Flower *flower) {
     stList_destruct(components);
 
 #ifdef BEN_DEBUG
-    components = adjacencyHash_getConnectedComponents(adjacencies, flower);
-    splitIntoContigsAndCycles(components, &contigs, &cycles);
+    components = adjacencyHash_getConnectedComponents(adjacencies, hyperChains);
+    splitIntoContigsAndCycles(components, hyperChains, &contigs, &cycles);
     assert(stList_length(cycles) == 0);
     assert(stList_length(contigs) > 0);
     assert(stList_length(contigs) == stList_length(components));

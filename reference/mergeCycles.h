@@ -15,6 +15,6 @@
  * Merges cycles not containing an attached stub end into components containing attached stub ends,
  * Updates adjacencies as we go and destroys the list of components.
  */
-void mergeCycles(stHash *adjacencies, Flower *flower);
+void mergeCycles(stHash *adjacencies, stHash *hyperChains);
 
 #endif /* MERGECYCLES_H_ */

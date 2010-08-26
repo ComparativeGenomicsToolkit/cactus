@@ -102,13 +102,4 @@ void balanceTangles(Flower *flower) {
         stList_destruct(ends);
     }
     stList_destruct(oddTangles);
-
-    //Now call recursively
-    groupIt = flower_getGroupIterator(flower);
-    while ((group = flower_getNextGroup(groupIt)) != NULL) {
-        if (!group_isLeaf(group)) {
-            balanceTangles(group_getNestedFlower(group));
-        }
-    }
-    flower_destructGroupIterator(groupIt);
 }
