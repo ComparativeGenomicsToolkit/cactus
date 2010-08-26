@@ -36,19 +36,11 @@ Reference *pseudoChromosome_getReference(PseudoChromosome *pseudoChromosome);
 int32_t pseudoChromosome_getPseudoAdjacencyNumber(PseudoChromosome *pseudoChromosome);
 
 /*
- * Get the first pseudo adjacency in the list.
+ * Get pseudo-adjacency with the given index.
  */
-PseudoAdjacency *pseudoChromosome_getFirst(PseudoChromosome *pseudoChromosome);
+PseudoAdjacency *pseudoChromosome_getPseudoAdjacencyByIndex(PseudoChromosome *pseudoChromosome, int32_t index);
 
-/*
- * Get the last pseudo adjacency in the list.
- */
-PseudoAdjacency *pseudoChromosome_getLast(PseudoChromosome *pseudoChromosome);
-
-/*
- * Get pseudo-adjacency with the given name.
- */
-PseudoAdjacency *pseudoChromosome_getPseudoAdjacency(PseudoChromosome *pseudoChromosome, Name name);
+//Iterator functions
 
 /*
  * Gets an iterator to iterate through the pseudo-adjacencies in the pseudo-chromosomes.

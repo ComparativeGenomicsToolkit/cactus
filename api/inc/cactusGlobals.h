@@ -64,7 +64,7 @@ typedef stSortedSetIterator Flower_ReferenceIterator;
 typedef BDBCUR CactusDisk_FlowerNameIterator;
 typedef stSortedSetIterator CactusDisk_FlowerIterator;
 typedef stSortedSetIterator Reference_PseudoChromosomeIterator;
-typedef stSortedSetIterator PseudoChromsome_PseudoAdjacencyIterator;
+typedef stListIterator PseudoChromsome_PseudoAdjacencyIterator;
 typedef struct _face_FaceEndIterator Face_FaceEndIterator;
 typedef struct _faceEndIterator FaceEnd_BottomNodeIterator;
 

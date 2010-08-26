@@ -80,7 +80,7 @@ void addBlocks(Flower *flower, void *extraArgument) {
 	flower_destructEndIterator(endIterator);
 }
 
-void addTangle(Group *group, stHash *endToPseudoAdjacencyHash, void *extraArgument) {
+void addTangle(Group *group, void *extraArgument) {
 	/*
 	 * Adds a adjacency edge between pairs of ends connected in a tangle. Does not
 	 * add any adjacency edges between ends already connected by a pseudo-adjacency edge,
@@ -92,7 +92,7 @@ void addTangle(Group *group, stHash *endToPseudoAdjacencyHash, void *extraArgume
 	while((end = group_getNextEnd(endIterator)) != NULL) {
 		if(end_isBlockEnd(end) || end_isAttached(end)) {
 			stHash *edgesHash = stHash_construct();
-			PseudoAdjacency *pseudoAdjacency = stHash_search(endToPseudoAdjacencyHash, end);
+			PseudoAdjacency *pseudoAdjacency = end_getPseudoAdjacency(end);
 			assert(pseudoAdjacency != NULL);
 			End *otherEnd = pseudoAdjacency_get5End(pseudoAdjacency) == end ? pseudoAdjacency_get3End(pseudoAdjacency) : pseudoAdjacency_get5End(pseudoAdjacency);
 			assert(otherEnd != end);
@@ -126,16 +126,14 @@ void addTangles(Flower *flower, Reference *reference, void *extraArgument) {
 	/*
 	 * Adds adjacency edges representing tangles to the structure.
 	 */
-	stHash *endToPseudoAdjacencyHash = reference_getEndToPseudoAdjacencyHash(reference);
 	Flower_GroupIterator *groupIterator = flower_getGroupIterator(flower);
 	Group *group;
 	while((group = flower_getNextGroup(groupIterator)) != NULL) {
 		if(group_isTangle(group)) { //the group is a tangle (not a link in a chain).
-			addTangle(group, endToPseudoAdjacencyHash, extraArgument);
+			addTangle(group, extraArgument);
 		}
 	}
 	flower_destructGroupIterator(groupIterator);
-	stHash_destruct(endToPseudoAdjacencyHash);
 }
 
 void makeReferenceGraph(Reference *reference, void *extraArgument) {

@@ -11,7 +11,7 @@
 PseudoAdjacency *pseudoAdjacency_construct(End *_5End, End *_3End,
 		PseudoChromosome *pseudoChromosome) {
 	return pseudoAdjacency_construct2(cactusDisk_getUniqueID(flower_getCactusDisk(reference_getFlower(pseudoChromosome_getReference(pseudoChromosome)))),
-			_5End, _3End, pseudoChromosome);
+			_5End, _3End, pseudoChromosome, pseudoChromosome_getPseudoAdjacencyNumber(pseudoChromosome));
 }
 
 Name pseudoAdjacency_getName(PseudoAdjacency *pseudoAdjacency) {
@@ -30,6 +30,10 @@ PseudoChromosome *pseudoAdjacency_getPseudoChromosome(PseudoAdjacency *pseudoAdj
 	return pseudoAdjacency->pseudoChromosome;
 }
 
+int32_t pseudoAdjacency_getIndex(PseudoAdjacency *pseudoAdjacency) {
+    return pseudoAdjacency->index;
+}
+
 ////////////////////////////////////////////////
 ////////////////////////////////////////////////
 ////////////////////////////////////////////////
@@ -40,7 +44,7 @@ PseudoChromosome *pseudoAdjacency_getPseudoChromosome(PseudoAdjacency *pseudoAdj
 
 PseudoAdjacency *pseudoAdjacency_construct2(Name name,
 		End *_5End, End *_3End,
-		PseudoChromosome *pseudoChromosome) {
+		PseudoChromosome *pseudoChromosome, int32_t index) {
 	PseudoAdjacency *pseudoAdjacency = st_malloc(sizeof(PseudoAdjacency));
 	assert(_5End != NULL);
 	assert(_3End != NULL);
@@ -51,20 +55,17 @@ PseudoAdjacency *pseudoAdjacency_construct2(Name name,
 	pseudoAdjacency->_5End = end_getPositiveOrientation(_5End);
 	pseudoAdjacency->_3End = end_getPositiveOrientation(_3End);
 	pseudoAdjacency->pseudoChromosome = pseudoChromosome;
+	pseudoAdjacency->index = index;
 	pseudoChromosome_addPseudoAdjacency(pseudoChromosome, pseudoAdjacency);
+	end_setPseudoAdjacency(_5End, pseudoAdjacency);
+	end_setPseudoAdjacency(_3End, pseudoAdjacency);
 	return pseudoAdjacency;
 }
 
 void pseudoAdjacency_destruct(PseudoAdjacency *pseudoAdjacency) {
-	pseudoChromosome_removePseudoAdjacency(pseudoAdjacency_getPseudoChromosome(pseudoAdjacency),
-			pseudoAdjacency);
+	end_setPseudoAdjacency(pseudoAdjacency_get3End(pseudoAdjacency), NULL);
+	end_setPseudoAdjacency(pseudoAdjacency_get5End(pseudoAdjacency), NULL);
 	free(pseudoAdjacency);
-}
-
-PseudoAdjacency pseudoAdjacency_getStaticNameWrapperP;
-PseudoAdjacency *pseudoAdjacency_getStaticNameWrapper(Name name) {
-	pseudoAdjacency_getStaticNameWrapperP.name = name;
-	return &pseudoAdjacency_getStaticNameWrapperP;
 }
 
 void pseudoAdjacency_writeBinaryRepresentation(PseudoAdjacency *pseudoAdjacency, void (*writeFn)(const void * ptr, size_t size, size_t count)) {
@@ -83,7 +84,7 @@ PseudoAdjacency *pseudoAdjacency_loadFromBinaryRepresentation(void **binaryStrin
 		name = binaryRepresentation_getName(binaryString);
 		_5End = flower_getEnd(reference_getFlower(pseudoChromosome_getReference(pseudoChromosome)), binaryRepresentation_getName(binaryString));
 		_3End = flower_getEnd(reference_getFlower(pseudoChromosome_getReference(pseudoChromosome)), binaryRepresentation_getName(binaryString));
-		pseudoAdjacency = pseudoAdjacency_construct2(name, _5End, _3End, pseudoChromosome);
+		pseudoAdjacency = pseudoAdjacency_construct2(name, _5End, _3End, pseudoChromosome, pseudoChromosome_getPseudoAdjacencyNumber(pseudoChromosome));
 	}
 	return pseudoAdjacency;
 }

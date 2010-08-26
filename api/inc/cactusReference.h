@@ -63,6 +63,11 @@
 Reference *reference_construct(Flower *flower);
 
 /*
+ * Destructor for reference.
+ */
+void reference_destruct(Reference *reference);
+
+/*
  * Gets flower associated with reference.
  */
 Flower *reference_getFlower(Reference *reference);
@@ -106,12 +111,6 @@ Reference_PseudoChromosomeIterator *reference_copyPseudoChromosomeIterator(Refer
  * Destructs the iterator.
  */
 void reference_destructPseudoChromosomeIterator(Reference_PseudoChromosomeIterator *pseudoChromosomeIterator);
-
-/*
- * Gets hash in which keys are ends and the corresponding psuedo-adjacencies are the
- * values. The hash is yours to cleanup and will be unique for each invocation of the function.
- */
-stHash *reference_getEndToPseudoAdjacencyHash(Reference *reference);
 
 /*
  * The following is checked by this function.. which creates an assert error if it fails.

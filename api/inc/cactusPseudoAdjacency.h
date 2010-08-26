@@ -29,4 +29,9 @@ End *pseudoAdjacency_get3End(PseudoAdjacency *pseudoAdjacency);
  */
 PseudoChromosome *pseudoAdjacency_getPseudoChromosome(PseudoAdjacency *pseudoAdjacency);
 
+/*
+ * Get the index (position) of the pseudo adjacency in its parent pseudo chromosome.
+ */
+int32_t pseudoAdjacency_getIndex(PseudoAdjacency *pseudoAdjacency);
+
 #endif

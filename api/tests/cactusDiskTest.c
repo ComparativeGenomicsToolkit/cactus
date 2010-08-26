@@ -78,7 +78,7 @@ void testCactusDisk_getMetaSequence(CuTest* testCase) {
 
 void testCactusDisk_getUniqueID(CuTest* testCase) {
     cactusDiskTestSetup();
-    for (int32_t i = 0; i < 10000000; i++) { //Gets a billion ids, checks we are good.
+    for (int32_t i = 0; i < 1000000; i++) { //Gets a billion ids, checks we are good.
         Name uniqueName = cactusDisk_getUniqueID(cactusDisk);
         CuAssertTrue(testCase, uniqueName > 0);
         CuAssertTrue(testCase, uniqueName < INT64_MAX);

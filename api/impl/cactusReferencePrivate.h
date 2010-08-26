@@ -9,11 +9,6 @@ struct _reference {
 };
 
 /*
- * Destructor for reference.
- */
-void reference_destruct(Reference *reference);
-
-/*
  * Adds a pseudo-chromosome to the reference structure.
  */
 void reference_addPseudoChromosome(Reference *reference, PseudoChromosome *pseudoChromosome);

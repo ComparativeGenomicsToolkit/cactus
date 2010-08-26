@@ -12,6 +12,7 @@ typedef struct _endContents {
 	stSortedSet *caps;
 	Group *group;
 	Flower *flower;
+	PseudoAdjacency *pseudoAdjacency;
 } EndContents;
 
 struct _end_instanceIterator {
@@ -90,5 +91,10 @@ int end_hashEqualsKey(const void *o, const void *o2);
  * Sets the flower associated with the end.
  */
 void end_setFlower(End *end, Flower *flower);
+
+/*
+ * Set the pseudo adjacency for the end.
+ */
+void end_setPseudoAdjacency(End *end, PseudoAdjacency *pseudoAdjacency);
 
 #endif

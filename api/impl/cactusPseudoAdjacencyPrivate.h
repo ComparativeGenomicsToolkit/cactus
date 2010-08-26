@@ -7,6 +7,7 @@ struct _pseudoAdjacency {
 	Name name;
 	End *_5End, *_3End;
 	PseudoChromosome *pseudoChromosome;
+	int32_t index;
 };
 
 /*
@@ -14,17 +15,12 @@ struct _pseudoAdjacency {
  */
 PseudoAdjacency *pseudoAdjacency_construct2(Name name,
 		End *_5End, End *_3End,
-		PseudoChromosome *pseudoChromosome);
+		PseudoChromosome *pseudoChromosome, int32_t index);
 
 /*
  * Destruct the pseudo-adjacency.
  */
 void pseudoAdjacency_destruct(PseudoAdjacency *pseudoAdjacency);
-
-/*
- * Gets name of pseudo adjacency.
- */
-PseudoAdjacency *pseudoAdjacency_getStaticNameWrapper(Name name);
 
 /*
  * Write a binary representation of the pseudo-adjacency to the write function.

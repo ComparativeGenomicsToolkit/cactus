@@ -31,41 +31,31 @@ Reference *pseudoChromosome_getReference(PseudoChromosome *pseudoChromosome) {
 }
 
 int32_t pseudoChromosome_getPseudoAdjacencyNumber(PseudoChromosome *pseudoChromosome) {
-	return stSortedSet_size(pseudoChromosome->pseudoAdjacencies);
+	return stList_length(pseudoChromosome->pseudoAdjacencies);
 }
 
-PseudoAdjacency *pseudoChromosome_getPseudoAdjacency(PseudoChromosome *pseudoChromosome, Name name) {
-	PseudoAdjacency *pseudoAdjacency;
-	pseudoAdjacency = pseudoAdjacency_getStaticNameWrapper(name);
-	return stSortedSet_search(pseudoChromosome->pseudoAdjacencies, pseudoAdjacency);
-}
-
-PseudoAdjacency *pseudoChromosome_getFirst(PseudoChromosome *pseudoChromosome) {
-	return stSortedSet_getFirst(pseudoChromosome->pseudoAdjacencies);
-}
-
-PseudoAdjacency *pseudoChromosome_getLast(PseudoChromosome *pseudoChromosome) {
-	return stSortedSet_getLast(pseudoChromosome->pseudoAdjacencies);
+PseudoAdjacency *pseudoChromosome_getPseudoAdjacencyByIndex(PseudoChromosome *pseudoChromosome, int32_t i) {
+    return stList_get(pseudoChromosome->pseudoAdjacencies, i);
 }
 
 PseudoChromsome_PseudoAdjacencyIterator *pseudoChromosome_getPseudoAdjacencyIterator(PseudoChromosome *pseudoChromosome) {
-	return stSortedSet_getIterator(pseudoChromosome->pseudoAdjacencies);
+	return stList_getIterator(pseudoChromosome->pseudoAdjacencies);
 }
 
 PseudoAdjacency *pseudoChromosome_getNextPseudoAdjacency(PseudoChromsome_PseudoAdjacencyIterator *pseudoAdjacencyIterator) {
-	return stSortedSet_getNext(pseudoAdjacencyIterator);
+	return stList_getNext(pseudoAdjacencyIterator);
 }
 
 PseudoAdjacency *pseudoChromosome_getPreviousPseudoAdjacency(PseudoChromsome_PseudoAdjacencyIterator *pseudoAdjacencyIterator) {
-	return stSortedSet_getPrevious(pseudoAdjacencyIterator);
+	return stList_getPrevious(pseudoAdjacencyIterator);
 }
 
 PseudoChromsome_PseudoAdjacencyIterator *pseudoChromosome_copyPseudoChromosomeIterator(PseudoChromsome_PseudoAdjacencyIterator *pseudoAdjacencyIterator) {
-	return stSortedSet_copyIterator(pseudoAdjacencyIterator);
+	return stList_copyIterator(pseudoAdjacencyIterator);
 }
 
 void pseudoChromosome_destructPseudoAdjacencyIterator(PseudoChromsome_PseudoAdjacencyIterator *pseudoAdjacencyIterator) {
-	stSortedSet_destructIterator(pseudoAdjacencyIterator);
+	stList_destructIterator(pseudoAdjacencyIterator);
 }
 
 ////////////////////////////////////////////////
@@ -76,11 +66,6 @@ void pseudoChromosome_destructPseudoAdjacencyIterator(PseudoChromsome_PseudoAdja
 ////////////////////////////////////////////////
 ////////////////////////////////////////////////
 
-static int pseudoChromosome_constructP(const void *o1, const void *o2) {
-	return cactusMisc_nameCompare(pseudoAdjacency_getName((PseudoAdjacency *)o1),
-							   pseudoAdjacency_getName((PseudoAdjacency *)o2));
-}
-
 PseudoChromosome *pseudoChromosome_construct2(Name name, Reference *reference,
 		End *_5End, End *_3End) {
 	PseudoChromosome *pseudoChromosome = st_malloc(sizeof(PseudoChromosome));
@@ -89,8 +74,7 @@ PseudoChromosome *pseudoChromosome_construct2(Name name, Reference *reference,
 	assert(_5End != NULL);
 	assert(_3End != NULL);
 
-
-	pseudoChromosome->pseudoAdjacencies = stSortedSet_construct3(pseudoChromosome_constructP, NULL);
+	pseudoChromosome->pseudoAdjacencies = stList_construct3(0, (void (*)(void *))pseudoAdjacency_destruct);
 	pseudoChromosome->_5End = end_getPositiveOrientation(_5End); //everything is on the positive orientation.
 	pseudoChromosome->_3End = end_getPositiveOrientation(_3End);
 	pseudoChromosome->reference = reference;
@@ -101,22 +85,13 @@ PseudoChromosome *pseudoChromosome_construct2(Name name, Reference *reference,
 
 void pseudoChromosome_destruct(PseudoChromosome *pseudoChromosome) {
 	reference_removePseudoChromosome(pseudoChromosome_getReference(pseudoChromosome), pseudoChromosome);
-	PseudoAdjacency *pseudoAdjacency;
-	while((pseudoAdjacency = pseudoChromosome_getFirst(pseudoChromosome)) != NULL) {
-		pseudoAdjacency_destruct(pseudoAdjacency);
-	}
-	stSortedSet_destruct(pseudoChromosome->pseudoAdjacencies);
+	stList_destruct(pseudoChromosome->pseudoAdjacencies);
 	free(pseudoChromosome);
 }
 
 void pseudoChromosome_addPseudoAdjacency(PseudoChromosome *pseudoChromosome, PseudoAdjacency *pseudoAdjacency) {
-	assert(stSortedSet_search(pseudoChromosome->pseudoAdjacencies, pseudoAdjacency) == NULL);
-	stSortedSet_insert(pseudoChromosome->pseudoAdjacencies, pseudoAdjacency);
-}
-
-void pseudoChromosome_removePseudoAdjacency(PseudoChromosome *pseudoChromosome, PseudoAdjacency *pseudoAdjacency) {
-	assert(stSortedSet_search(pseudoChromosome->pseudoAdjacencies, pseudoAdjacency) != NULL);
-	stSortedSet_remove(pseudoChromosome->pseudoAdjacencies, pseudoAdjacency);
+	assert(pseudoChromosome_getPseudoAdjacencyNumber(pseudoChromosome) == pseudoAdjacency_getIndex(pseudoAdjacency));
+	stList_append(pseudoChromosome->pseudoAdjacencies, pseudoAdjacency);
 }
 
 static PseudoChromosome pseudoChromosome_getStaticNameWrapperP;
@@ -132,7 +107,6 @@ void pseudoChromosome_writeBinaryRepresentation(PseudoChromosome *pseudoChromoso
 	binaryRepresentation_writeName(pseudoChromosome_getName(pseudoChromosome), writeFn);
 	binaryRepresentation_writeName(end_getName(pseudoChromosome_get5End(pseudoChromosome)), writeFn);
 	binaryRepresentation_writeName(end_getName(pseudoChromosome_get3End(pseudoChromosome)), writeFn);
-	binaryRepresentation_writeInteger(pseudoChromosome_getPseudoAdjacencyNumber(pseudoChromosome), writeFn);
 	iterator = pseudoChromosome_getPseudoAdjacencyIterator(pseudoChromosome);
 	while((pseudoAdjacency = pseudoChromosome_getNextPseudoAdjacency(iterator)) != NULL) {
 		pseudoAdjacency_writeBinaryRepresentation(pseudoAdjacency, writeFn);
@@ -143,7 +117,6 @@ void pseudoChromosome_writeBinaryRepresentation(PseudoChromosome *pseudoChromoso
 
 PseudoChromosome *pseudoChromosome_loadFromBinaryRepresentation(void **binaryString, Reference *reference) {
 	PseudoChromosome *pseudoChromosome = NULL;
-	int32_t pseudoAdjacencyNumber;
 	End *_5End, *_3End;
 	Name name;
 	if(binaryRepresentation_peekNextElementType(*binaryString) == CODE_PSEUDO_CHROMOSOME) {
@@ -152,10 +125,7 @@ PseudoChromosome *pseudoChromosome_loadFromBinaryRepresentation(void **binaryStr
 		_5End = flower_getEnd(reference_getFlower(reference), binaryRepresentation_getName(binaryString));
 		_3End = flower_getEnd(reference_getFlower(reference), binaryRepresentation_getName(binaryString));
 		pseudoChromosome = pseudoChromosome_construct2(name, reference, _5End, _3End);
-		pseudoAdjacencyNumber = binaryRepresentation_getInteger(binaryString);
-		while(pseudoAdjacencyNumber-- > 0) {
-			pseudoAdjacency_loadFromBinaryRepresentation(binaryString, pseudoChromosome);
-		}
+		while(pseudoAdjacency_loadFromBinaryRepresentation(binaryString, pseudoChromosome));
 		assert(binaryRepresentation_peekNextElementType(*binaryString) == CODE_PSEUDO_CHROMOSOME);
 		binaryRepresentation_popNextElementType(binaryString);
 	}

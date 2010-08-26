@@ -280,6 +280,26 @@ void testEnd_isAttachedOrFree(CuTest* testCase) {
     cactusEndTestTeardown();
 }
 
+void testEnd_getPseudoAdjacency(CuTest *testCase) {
+    cactusEndTestSetup();
+    End *end2 = end_construct(1, flower);
+    End *end3 = end_construct(0, flower);
+    Group *group = group_construct2(flower);
+    end_setGroup(end2, group);
+    end_setGroup(end3, group);
+    CuAssertTrue(testCase, end_getPseudoAdjacency(end2) == NULL);
+    CuAssertTrue(testCase, end_getPseudoAdjacency(end3) == NULL);
+    Reference *reference = reference_construct(flower);
+    PseudoChromosome *pseudoChromosome = pseudoChromosome_construct(reference, end2, end3);
+    PseudoAdjacency *pseudoAdjacency = pseudoAdjacency_construct(end2, end3, pseudoChromosome);
+    CuAssertTrue(testCase, end_getPseudoAdjacency(end2) == pseudoAdjacency);
+    CuAssertTrue(testCase, end_getPseudoAdjacency(end3) == pseudoAdjacency);
+    reference_destruct(reference);
+    CuAssertTrue(testCase, end_getPseudoAdjacency(end2) == NULL);
+    CuAssertTrue(testCase, end_getPseudoAdjacency(end3) == NULL);
+    cactusEndTestTeardown();
+}
+
 void testEnd_serialisation(CuTest* testCase) {
     cactusEndTestSetup();
     Name rootInstanceName = cap_getName(rootCap);
@@ -343,6 +363,7 @@ CuSuite* cactusEndTestSuite(void) {
     SUITE_ADD_TEST(suite, testEnd_instanceIterator);
     SUITE_ADD_TEST(suite, testEnd_isBlockOrStubEnd);
     SUITE_ADD_TEST(suite, testEnd_isAttachedOrFree);
+    SUITE_ADD_TEST(suite, testEnd_getPseudoAdjacency);
     SUITE_ADD_TEST(suite, testEnd_serialisation);
     SUITE_ADD_TEST(suite, testEnd_construct);
     return suite;

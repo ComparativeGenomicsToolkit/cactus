@@ -177,4 +177,10 @@ void end_check(End *end);
  */
 void end_makeAttached(End *end);
 
+/*
+ * Get the pseudo adjacency associated with the end, or NULL if not defined (i.e. if
+ * it is a free stub end or the reference has not been created for the end).
+ */
+PseudoAdjacency *end_getPseudoAdjacency(End *end);
+
 #endif
