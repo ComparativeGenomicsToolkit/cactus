@@ -525,17 +525,6 @@ Reference *flower_getReference(Flower *flower) {
     return flower->reference;
 }
 
-/*Flower *flower_mergeFlowers(Flower *flower1, Flower *flower2) {
- if(flower_getParentGroup(flower1) == NULL) { //We are merging two top level reconstructions!
- assert(flower_getParentGroup(flower2) == NULL);
- flower_mergeFlowersP(flower1, flower2);
- }
- else { //We are merging two sister flowers, merge there parent flowers, which in turn will merge the child flowers.
- group_mergeGroups(flower_getParentGroup(flower1), flower_getParentGroup(flower2));
- }
- return flower2;
- }*/
-
 void flower_check(Flower *flower) {
     eventTree_check(flower_getEventTree(flower));
 
@@ -657,44 +646,49 @@ bool flower_isTerminal(Flower *flower) {
             == flower_getEndNumber(flower);
 }
 
-Flower *flower_removeIfRedundant(Flower *flower) {
-    if (!flower_isLeaf(flower) && flower_getGroupNumber(flower) == 1
+bool flower_removeIfRedundant(Flower *flower) {
+    if (!flower_isLeaf(flower) && flower_getParentGroup(flower) != NULL
             && flower_getBlockNumber(flower) == 0) { //We will remove this flower..
-        Flower *nestedFlower = group_getNestedFlower(flower_getFirstGroup(
-                flower));
+        Group *parentGroup = flower_getParentGroup(flower); //This group will be destructed
+        Flower *parentFlower = group_getFlower(parentGroup); //We will add the groups in the flower to the parent
 
-        //Unload the child flower from its position in the flowers hash..
-        cactusDisk_removeFlower(flower_getCactusDisk(nestedFlower),
-                nestedFlower);
-        //and remove it from the disk (if it has been written there)
-        cactusDisk_deleteFlowerFromDisk(flower_getCactusDisk(flower), nestedFlower);
-
-        //reassign names
-        Name oldName = flower_getName(nestedFlower);
-        nestedFlower->parentFlowerName = flower->parentFlowerName;
-        nestedFlower->name = flower_getName(flower);
-
-        //Get rid of the old flower..
-        flower_destruct(flower, 0);
-
-        //Ensure the nested flower is correctly hashed..
-        cactusDisk_addFlower(flower_getCactusDisk(nestedFlower), nestedFlower);
-
-        //Ensure all the children of the nested flower also have the right pointer.
+        /*
+         * For each group in the flower we take its nested flower and attach it to the parent.
+         */
         Group *group;
-        Flower_GroupIterator *it = flower_getGroupIterator(nestedFlower);
-        while ((group = flower_getNextGroup(it)) != NULL) {
-            if (!group_isLeaf(group)) {
-                Flower *nestedNestedFlower = group_getNestedFlower(group);
-                assert(nestedNestedFlower->parentFlowerName == oldName);
-                nestedNestedFlower->parentFlowerName = nestedFlower->name;
+        Flower_GroupIterator *groupIt = flower_getGroupIterator(flower);
+        while((group = flower_getNextGroup(groupIt)) != NULL) {
+            if(!group_isLeaf(group)) {
+                //Copy the group into the parent..
+                Flower *nestedFlower = group_getNestedFlower(group);
+                assert(nestedFlower != NULL);
+                Group *newParentGroup = group_construct(parentFlower, nestedFlower);
+                flower_setParentGroup(nestedFlower, newParentGroup);
+            }
+            else {
+                Group *newParentGroup = group_construct2(parentFlower);
+                End *end;
+                Group_EndIterator *endIt = group_getEndIterator(group);
+                while((end = group_getNextEnd(endIt)) != NULL) {
+                    End *parentEnd = flower_getEnd(parentFlower, end_getName(end));
+                    assert(parentEnd != NULL);
+                    end_setGroup(parentEnd, newParentGroup);
+                }
+                group_destructEndIterator(endIt);
             }
         }
-        flower_destructGroupIterator(it);
+        flower_destructGroupIterator(groupIt);
 
-        return nestedFlower;
+        //The group attached to the flower should now be empty
+        assert(group_getEndNumber(parentGroup) == 0);
+        group_destruct(parentGroup);
+
+        //Now wipe the flower out..
+        cactusDisk_deleteFlowerFromDisk(flower_getCactusDisk(flower), flower);
+        flower_destruct(flower, 0);
+        return 1;
     }
-    return NULL;
+    return 0;
 }
 
 bool flower_deleteIfEmpty(Flower *flower) {
@@ -859,90 +853,6 @@ void flower_removeReference(Flower *flower, Reference *reference) {
     assert(flower_getReference(flower) == reference);
     flower->reference = NULL;
 }
-
-/*void flower_mergeFlowersP(Flower *flower1, Flower *flower2) {
- //Check the build settings match
- assert(flower_builtBlocks(flower1) == flower_builtBlocks(flower2));
- assert(flower_builtTrees(flower1) == flower_builtTrees(flower2));
- assert(flower_builtFaces(flower1) == flower_builtFaces(flower2));
-
- //Transfers the events not in event tree 1 into event tree 2.
- EventTree *eventTree1 = flower_getEventTree(flower1);
- EventTree *eventTree2 = flower_getEventTree(flower2);
- EventTree_Iterator *eventIterator = eventTree_getIterator(eventTree1);
- Event *event;
- while((event = eventTree_getNext(eventIterator)) != NULL) {
- if(eventTree_getEvent(eventTree2, event_getName(event)) == NULL) {
- eventTree_addSiblingUnaryEvent(eventTree2, event);
- }
- }
- eventTree_destructIterator(eventIterator);
-
- //Transfers the sequences not in flower2 from flower1.
- Sequence *sequence;
- Flower_SequenceIterator *sequenceIterator = flower_getSequenceIterator(flower1);
- while((sequence = flower_getNextSequence(sequenceIterator)) != NULL) {
- if(flower_getSequence(flower2, sequence_getName(sequence)) == NULL) {
- sequence_construct(sequence_getMetaSequence(sequence), flower2);
- }
- }
- flower_destructSequenceIterator(sequenceIterator);
-
- //This is the difficult bit.. we're going to try and replace all the references
- //to the objects left in flower1 to those in flower2.
-
- //Ensure caps and segments have event in the second event tree..
- Flower_CapIterator *capIterator = flower_getCapIterator(flower1);
- Cap *cap;
- while((cap = flower_getNextCap(capIterator)) != NULL) {
- flower_addCap(flower2, cap);
- cap_setEvent(cap, eventTree_getEvent(eventTree2, event_getName(cap_getEvent(cap))));
- if(cap_getSequence(cap) != NULL) {
- cap_setSequence(cap, flower_getSequence(flower2, sequence_getName(cap_getSequence(cap))));
- }
- }
- flower_destructCapIterator(capIterator);
-
- //Segments currently use caps to get events, but we must include them from the
- //flower
- Flower_SegmentIterator *segmentIterator = flower_getSegmentIterator(flower1);
- Segment *segment;
- while((segment = flower_getNextSegment(segmentIterator)) != NULL) {
- flower_addSegment(flower2, segment);
- }
- flower_destructSegmentIterator(segmentIterator);
-
- while(flower_getEndNumber(flower1) > 0) {
- end_setFlower(flower_getFirstEnd(flower1), flower2);
- }
-
- while(flower_getBlockNumber(flower1) > 0) {
- block_setFlower(flower_getFirstBlock(flower1), flower2);
- }
-
- while(flower_getFaceNumber(flower1) > 0) {
- face_setFlower(flower_getFirstFace(flower1), flower2);
- }
-
- while(flower_getGroupNumber(flower1) > 0) {
- group_setFlower(flower_getFirstGroup(flower1), flower2);
- }
-
- while(flower_getChainNumber(flower1) > 0) {
- chain_setFlower(flower_getFirstChain(flower1), flower2);
- }
-
- while(flower_getReferenceNumber(flower1) > 0) {
- reference_setFlower(flower_getFirstReference(flower1), flower2);
- }
-
- //Now destroy the first flower.
- Name flowerName1 = flower_getName(flower1);
- flower_destruct(flower1, 0);
- //ensure flower1 is not in the flowerdisk..
- cactusDisk_deleteFlowerFromDisk(flower_getFlowerDisk(flower2), flowerName1);
- assert(cactusDisk_getFlower(flower_getFlowerDisk(flower2), flowerName1) == NULL);
- }*/
 
 /*
  * Serialisation functions.

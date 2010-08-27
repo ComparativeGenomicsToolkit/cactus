@@ -367,8 +367,6 @@ void block_promote(Block *block) {
 	assert(group_getLink(parentGroup) == NULL);
 	assert(group_getLink(end_getGroup(block_get5End(block))) == NULL);
 	assert(group_getLink(end_getGroup(block_get3End(block))) == NULL);
-	flower_check(flower);
-	flower_check(parentFlower);
 #endif
 
 	//Handling the ends of the chain..
@@ -390,8 +388,6 @@ void block_promote(Block *block) {
 	//We have not removed any ends.. so we're done.
 #ifdef BEN_DEBUG
 	assert(flower_getParentGroup(flower) == parentGroup);
-	flower_check(flower);
-	flower_check(parentFlower);
 #endif
 }
 
@@ -412,8 +408,6 @@ void chain_promote(Chain *chain) {
 				- 1));
 		assert(end_isStubEnd(_3End) || end_isStubEnd(_5End));
 	}
-	flower_check(flower);
-	flower_check(parentFlower);
 #endif
 
 	//Calculate the final chain structure..
@@ -500,8 +494,6 @@ void chain_promote(Chain *chain) {
 	} else {
 		assert(flower_getGroupNumber(flower)> 0);
 	}
-	flower_check(flower);
-	flower_check(parentFlower);
 #endif
 }
 

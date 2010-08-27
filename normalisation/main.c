@@ -124,11 +124,17 @@ int main(int argc, char *argv[]) {
         /*
          * Now run the normalisation functions
          */
+#ifdef BEN_DEBUG
+        flower_check(flower);
+#endif
         promoteChainsThatExtendHigherLevelChains(flower);
         promoteChainsToFillParents(flower, maxNumberOfChains);
+#ifdef BEN_DEBUG
+        flower_check(flower);
+#endif
         if (!flower_deleteIfEmpty(flower)) { //If we delete the flower we need not run the remaining functions..
             flower_makeTerminalNormal(flower);
-            flower_removeIfRedundant(flower);
+            flower_removeIfRedundant(flower); //This may destroy the flower, but nots its children..
         }
     }
 

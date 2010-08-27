@@ -262,7 +262,7 @@ class CactusNormalPhase(Target):
         if self.normalisationRounds-1 > 0:
             self.setFollowOnTarget(CactusNormalPhase(self.flowerName, self.options, self.normalisationRounds-1))
         else:
-            self.setFollowOnTarget(CactusReferencePhase(self.flowerName, self.options))
+            self.setFollowOnTarget(CactusPhylogenyPhase(self.flowerName, self.options))
         
 class CactusNormalRunnable(Target):
     """This targets run the normalisation script.
@@ -275,38 +275,6 @@ class CactusNormalRunnable(Target):
     def run(self, localTempDir, globalTempDir):
         maxNumberOfChains = int(self.options.config.find("normal").attrib["max_number_of_chains"])
         runCactusMakeNormal(self.options.cactusDisk, flowerNames=self.flowerNames, maxNumberOfChains=maxNumberOfChains)
-
-############################################################
-############################################################
-############################################################
-#Reference pass
-############################################################
-############################################################
-############################################################
-    
-class CactusReferencePhase(Target):
-    def __init__(self, flowerName, options):
-        Target.__init__(self, time=0)
-        self.flowerName = flowerName
-        self.options = options
-        
-    def run(self, localTempDir, globalTempDir):
-        logger.info("Starting the reference phase")
-        if self.options.buildReference:
-            time = float(self.options.config.find("reference").attrib["time"])
-            self.addChildTarget(CactusExtensionWrapper(self.options, [ self.flowerName ], BUILD_REFERENCE, time))
-        self.setFollowOnTarget(CactusPhylogenyPhase(self.flowerName, self.options))
-
-class CactusReferenceRunnable(Target):
-    """This target runs the reference script bottom up (second phase).
-    """
-    def __init__(self, flowerNames, options):
-        Target.__init__(self, time=0)
-        self.flowerNames = flowerNames
-        self.options = options
-        
-    def run(self, localTempDir, globalTempDir):
-        runCactusReference(self.options.cactusDisk, flowerNames=self.flowerNames, bottomUp=True)
 
 ############################################################
 ############################################################
@@ -327,7 +295,39 @@ class CactusPhylogenyPhase(Target):
         if self.options.buildTrees:
             time = float(self.options.config.find("phylogeny").attrib["time"])
             self.addChildTarget(CactusExtensionWrapper(self.options, [ self.flowerName ], BUILD_TREES, time))
+        self.setFollowOnTarget(CactusReferencePhase(self.flowerName, self.options))
+
+############################################################
+############################################################
+############################################################
+#Reference pass
+############################################################
+############################################################
+############################################################
+    
+class CactusReferencePhase(Target):
+    def __init__(self, flowerName, options):
+        Target.__init__(self, time=0)
+        self.flowerName = flowerName
+        self.options = options
+        
+    def run(self, localTempDir, globalTempDir):
+        logger.info("Starting the reference phase")
+        if self.options.buildReference:
+            time = float(self.options.config.find("reference").attrib["time"])
+            self.addChildTarget(CactusExtensionWrapper(self.options, [ self.flowerName ], BUILD_REFERENCE, time))
         self.setFollowOnTarget(CactusFacesPhase(self.flowerName, self.options))
+
+class CactusReferenceRunnable(Target):
+    """This target runs the reference script bottom up (second phase).
+    """
+    def __init__(self, flowerNames, options):
+        Target.__init__(self, time=0)
+        self.flowerNames = flowerNames
+        self.options = options
+        
+    def run(self, localTempDir, globalTempDir):
+        runCactusReference(self.options.cactusDisk, flowerNames=self.flowerNames, bottomUp=True)
             
 ############################################################
 ############################################################
@@ -397,12 +397,12 @@ class CactusExtensionWrapper(Target):
         if self.switch == MAKE_NORMAL: #We set this as a follow on, as it is run in bottom up order (currently the only one, so it's on its own as a target
             self.setFollowOnTarget(CactusNormalRunnable(options=self.options, flowerNames=self.flowerNames))
             #runCactusMakeNormal(self.options.cactusDisk, flowerNames=self.flowerNames)
-        elif self.switch == BUILD_REFERENCE:
-            runCactusReference(self.options.cactusDisk, flowerNames=self.flowerNames) #We first run the top down phase
-            self.setFollowOnTarget(CactusReferenceRunnable(options=self.options, flowerNames=self.flowerNames)) #We second run a bottom up phase
         elif self.switch == BUILD_TREES:
             runCactusPhylogeny(self.options.cactusDisk, flowerNames=self.flowerNames)
             #Not atomic!
+        elif self.switch == BUILD_REFERENCE:
+            runCactusReference(self.options.cactusDisk, flowerNames=self.flowerNames) #We first run the top down phase
+            self.setFollowOnTarget(CactusReferenceRunnable(options=self.options, flowerNames=self.flowerNames)) #We second run a bottom up phase
         elif self.switch == BUILD_FACES:
             runCactusAdjacencies(self.options.cactusDisk, flowerNames=self.flowerNames)
         elif self.switch == CHECK:

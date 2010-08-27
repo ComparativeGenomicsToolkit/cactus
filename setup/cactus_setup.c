@@ -61,20 +61,20 @@ void fn(const char *fastaHeader, const char *string, int32_t length) {
 }
 
 void setCompleteStatus(const char *fileName) {
-    isComplete = 1;
+    isComplete = 0;
     int32_t i = strlen(fileName);
-    if (i > 11) {
+    if (i > 9) {
         const char *cA = fileName + i - 11;
-        if (strcmp(cA, ".incomplete") == 0) {
-            isComplete = 0;
+        if (strcmp(cA, ".complete") == 0) {
+            isComplete = 1;
             st_logInfo(
-                    "The file %s is specified incomplete, the sequences will be free\n",
+                    "The file %s is specified complete, the sequences will be attached\n",
                     fileName);
             return;
         }
     }
     st_logInfo(
-            "The file %s is specified complete, the sequences will be attached\n",
+            "The file %s is specified in complete, the sequences will be attached\n",
             fileName);
 }
 

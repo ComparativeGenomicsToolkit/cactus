@@ -74,12 +74,11 @@ static void checkChainsAreMaximal(Flower *flower) {
 
 static void checkFlowerIsNotRedundant(Flower *flower) {
     /*
-     * Checks that if the flower is not a leaf that it contains blocks.
+     * Checks that if the flower is not a leaf or the root that it contains blocks.
      */
     assert(flower_builtBlocks(flower));
-    if (flower_getBlockNumber(flower) == 0 && flower_getGroupNumber(flower)
-            == 1) {
-        assert(flower_isLeaf(flower));
+    if (flower_getParentGroup(flower) != NULL && !flower_isLeaf(flower)) {
+        assert(flower_getBlockNumber(flower) > 0);
     }
 }
 

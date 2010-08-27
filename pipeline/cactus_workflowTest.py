@@ -37,7 +37,7 @@ class TestCase(unittest.TestCase):
                                      testRestrictions=(TestStatus.TEST_MEDIUM,),
                                      batchSystem=self.batchSystem,
                                      buildCactusPDF=True,
-                                     makeCactusTreeStats=True, makeMAFs=True)
+                                     makeCactusTreeStats=True, makeMAFs=True, buildReferencePDF=True)
                 
     def testCactus_Encode(self): 
         outputDir = os.path.join(TestStatus.getPathToDataSets(), "cactus", "encodeRegionsTest")

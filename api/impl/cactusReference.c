@@ -97,6 +97,20 @@ void reference_check(Reference *reference) {
         assert(pseudoChromosome_get5End(pseudoChromosome) == pseudoAdjacency_get5End(pseudoChromosome_getPseudoAdjacencyByIndex(pseudoChromosome, 0))); //check the 5 end matches the 5 end of the first pseudo adjacency.
         assert(pseudoChromosome_get3End(pseudoChromosome) == pseudoAdjacency_get3End(pseudoChromosome_getPseudoAdjacencyByIndex(pseudoChromosome, pseudoChromosome_getPseudoAdjacencyNumber(pseudoChromosome)-1))); //check the 5 end matches the 5 end of the first pseudo adjacency.
 
+        //We check we are consistent with our parent reference
+        if(flower_getParentGroup(flower) != NULL) {
+            Group *parentGroup = flower_getParentGroup(flower);
+            if(flower_getReference(group_getFlower(parentGroup)) != NULL) {
+                End *parent5End = group_getEnd(parentGroup, end_getName(pseudoChromosome_get5End(pseudoChromosome)));
+                End *parent3End = group_getEnd(parentGroup, end_getName(pseudoChromosome_get3End(pseudoChromosome)));
+                assert(parent5End != NULL);
+                assert(parent3End != NULL);
+                PseudoAdjacency *parentPseudoAdjacency = end_getPseudoAdjacency(parent5End);
+                assert(parentPseudoAdjacency != NULL);
+                assert(pseudoAdjacency_get5End(parentPseudoAdjacency) == parent3End || pseudoAdjacency_get5End(parentPseudoAdjacency) == parent5End);
+            }
+        }
+
         PseudoChromsome_PseudoAdjacencyIterator *pseudoAdjacencyIterator =
                 pseudoChromosome_getPseudoAdjacencyIterator(pseudoChromosome);
         PseudoAdjacency *pseudoAdjacency, *previousPseudoAdjacency = NULL;

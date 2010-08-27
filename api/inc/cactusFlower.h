@@ -456,12 +456,10 @@ bool flower_isLeaf(Flower *flower);
 bool flower_isTerminal(Flower *flower);
 
 /*
- * Deletes the flower if it contains no blocks and just one child group
- * (i.e. which are redundant because they do nothing to the decomposition).
- * The child flower is given the name of this flower, so actually the child name disappears.
- * Returns the flower which this flower has been replaced with, or NULL if nothing changes.
+ * Deletes the flower if it is not the root and not a leaf and contains no blocks. Returns
+ * non-zero if deleted.
  */
-Flower *flower_removeIfRedundant(Flower *flower);
+bool flower_removeIfRedundant(Flower *flower);
 
 /*
  * If the flower contains no ends and is not the root flower of the tree the flower is removed, along
