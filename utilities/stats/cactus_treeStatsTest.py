@@ -18,6 +18,7 @@ class TestCase(unittest.TestCase):
                                      outputDir=tempOutputDir,
                                      testNumber=TestStatus.getTestSetup(), 
                                      makeCactusTreeStats=True)
+        #Tests building with multiple inputs
         inputFiles = [ os.path.join(tempOutputDir, str(test), "cactusStats.xml") for test in xrange(TestStatus.getTestSetup()) ]
         regionNames = [ ("region%s" % test) for test in xrange(TestStatus.getTestSetup()) ]
         statsFileTEX = os.path.join(tempOutputDir, "cactusStats.tex")

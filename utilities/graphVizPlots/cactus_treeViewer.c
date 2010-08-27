@@ -1,6 +1,7 @@
 /*
  * The script builds a cactus tree representation of the chains and flowers.
- * The format of the output graph is dot format.
+ * The format of the output graph is dot format. Only works with normalised
+ * cactus databases.
  */
 #include <assert.h>
 #include <limits.h>
@@ -54,10 +55,10 @@ static void addNodeToGraph(const char *nodeName, FILE *graphFileHandle,
             : "", width, height, shape, "black", 14);
 }
 
-void makeCactusTree_terminalNode(Group *group, FILE *fileHandle,
+void makeCactusTree_terminalNode(Flower *flower, FILE *fileHandle,
         const char *parentNodeName, const char *parentEdgeColour) {
-    char *groupNameString = cactusMisc_nameToString(group_getName(group));
-    double scalingFactor = group_getTotalBaseLength(group) / totalProblemSize;
+    char *groupNameString = cactusMisc_nameToString(flower_getName(flower));
+    double scalingFactor = flower_getTotalBaseLength(flower) / totalProblemSize;
     assert(scalingFactor <= 1.001);
     assert(scalingFactor >= -0.001);
     addNodeToGraph(groupNameString, fileHandle, scalingFactor, "triangle",
@@ -91,12 +92,10 @@ void makeCactusTree_chain(Chain *chain, FILE *fileHandle,
     for (i = 0; i < chain_getLength(chain); i++) {
         Group *group = link_getGroup(chain_getLink(chain, i));
         assert(group != NULL);
-        if (group_getNestedFlower(group) != NULL) {
+        assert(!group_isLeaf(group));
+        if (!group_isLeaf(group)) {
             makeCactusTree_flower(group_getNestedFlower(group), fileHandle,
                     chainNameString, edgeColour);
-        } else {
-            makeCactusTree_terminalNode(group, fileHandle, chainNameString,
-                    edgeColour);
         }
     }
     free(chainNameString);
@@ -104,62 +103,69 @@ void makeCactusTree_chain(Chain *chain, FILE *fileHandle,
 
 void makeCactusTree_flower(Flower *flower, FILE *fileHandle, const char *parentNodeName,
         const char *parentEdgeColour) {
-    //Write the flower nodes.
-    char *flowerNameString = cactusMisc_nameToString(flower_getName(flower));
-    const char *edgeColour = graphViz_getColour();
-    addNodeToGraph(flowerNameString, fileHandle, flower_getTotalBaseLength(flower)
-            / totalProblemSize, "ellipse", flowerNameString);
-    //Write in the parent edge.
-    if (parentNodeName != NULL) {
-        graphViz_addEdgeToGraph(parentNodeName, flowerNameString, fileHandle, "",
-                parentEdgeColour, 10, 1, "forward");
+    if(flower_isTerminal(flower)) {
+        makeCactusTree_terminalNode(flower, fileHandle, parentNodeName, parentEdgeColour);
     }
-    //Create the chains.
-    Flower_ChainIterator *chainIterator = flower_getChainIterator(flower);
-    Chain *chain;
-    while ((chain = flower_getNextChain(chainIterator)) != NULL) {
-        makeCactusTree_chain(chain, fileHandle, flowerNameString, edgeColour);
-    }
-    flower_destructChainIterator(chainIterator);
-
-    //Create the diamond node
-    char *diamondNodeNameString = st_malloc(sizeof(char) * (strlen(
-            flowerNameString) + 2));
-    sprintf(diamondNodeNameString, "z%s", flowerNameString);
-    const char *diamondEdgeColour = graphViz_getColour();
-    //Create all the groups linked to the diamond.
-    Flower_GroupIterator *groupIterator = flower_getGroupIterator(flower);
-    Group *group;
-    double size = 0.0; //get the size of the group organising node..
-    int32_t nonTrivialGroupCount = 0;
-    while ((group = flower_getNextGroup(groupIterator)) != NULL) {
-        if (group_getLink(group) == NULL) {
-            size += group_getTotalBaseLength(group);
-            nonTrivialGroupCount++;
+    else {
+        //Write the flower nodes.
+        char *flowerNameString = cactusMisc_nameToString(flower_getName(flower));
+        const char *edgeColour = graphViz_getColour();
+        addNodeToGraph(flowerNameString, fileHandle, flower_getTotalBaseLength(flower)
+                / totalProblemSize, "ellipse", flowerNameString);
+        //Write in the parent edge.
+        if (parentNodeName != NULL) {
+            graphViz_addEdgeToGraph(parentNodeName, flowerNameString, fileHandle, "",
+                    parentEdgeColour, 10, 1, "forward");
         }
-    }
-    flower_destructGroupIterator(groupIterator);
-    if (nonTrivialGroupCount) {
-        addNodeToGraph(diamondNodeNameString, fileHandle, size
-                / totalProblemSize, "diamond", "");
-        graphViz_addEdgeToGraph(flowerNameString, diamondNodeNameString,
-                fileHandle, "", edgeColour, 10, 1, "forward");
-        groupIterator = flower_getGroupIterator(flower);
+        //Create the chains.
+        Flower_ChainIterator *chainIterator = flower_getChainIterator(flower);
+        Chain *chain;
+        while ((chain = flower_getNextChain(chainIterator)) != NULL) {
+            makeCactusTree_chain(chain, fileHandle, flowerNameString, edgeColour);
+        }
+        flower_destructChainIterator(chainIterator);
+
+        //Create the diamond node
+        char *diamondNodeNameString = st_malloc(sizeof(char) * (strlen(
+                flowerNameString) + 2));
+        sprintf(diamondNodeNameString, "z%s", flowerNameString);
+        const char *diamondEdgeColour = graphViz_getColour();
+        //Create all the groups linked to the diamond.
+        Flower_GroupIterator *groupIterator = flower_getGroupIterator(flower);
+        Group *group;
+        double size = 0.0; //get the size of the group organising node..
+        int32_t nonTrivialGroupCount = 0;
         while ((group = flower_getNextGroup(groupIterator)) != NULL) {
-            if (group_getLink(group) == NULL) {
-                if (group_getNestedFlower(group) != NULL) { //linked to the diamond node.
-                    makeCactusTree_flower(group_getNestedFlower(group), fileHandle,
-                            diamondNodeNameString, diamondEdgeColour);
-                } else {
-                    makeCactusTree_terminalNode(group, fileHandle,
-                            diamondNodeNameString, diamondEdgeColour);
-                }
+            assert(!group_isLeaf(group));
+            if (group_isTangle(group)) {
+                size += group_getTotalBaseLength(group);
+                nonTrivialGroupCount++;
             }
         }
         flower_destructGroupIterator(groupIterator);
+        if(nonTrivialGroupCount == 0) {
+            assert(flower_getParentGroup(flower) == 0);
+        }
+        else {
+            //assert(nonTrivialGroupCount > 0);
+            addNodeToGraph(diamondNodeNameString, fileHandle, size
+                    / totalProblemSize, "diamond", "");
+            graphViz_addEdgeToGraph(flowerNameString, diamondNodeNameString,
+                    fileHandle, "", edgeColour, 10, 1, "forward");
+            groupIterator = flower_getGroupIterator(flower);
+            while ((group = flower_getNextGroup(groupIterator)) != NULL) {
+                if (group_isTangle(group)) {
+                    assert(!group_isLeaf(group));
+                    makeCactusTree_flower(group_getNestedFlower(group), fileHandle,
+                                                diamondNodeNameString, diamondEdgeColour);
+                }
+            }
+            flower_destructGroupIterator(groupIterator);
+        }
+
+        free(flowerNameString);
+        free(diamondNodeNameString);
     }
-    free(flowerNameString);
-    free(diamondNodeNameString);
 }
 
 int main(int argc, char *argv[]) {

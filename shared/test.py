@@ -226,7 +226,9 @@ def runWorkflow_TestScript(sequences, newickTreeString,
     if makeCactusTreeStats:
         cactusTreeFile = os.path.join(outputDir, "cactusStats.xml")
         runCactusTreeStats(cactusTreeFile, cactusDisk)
-        #Then run the latex script?
+        #Now run the latex script
+        statsFileTEX = os.path.join(outputDir, "cactusStats.tex")
+        runCactusTreeStatsToLatexTables([ cactusTreeFile ], "region0", statsFileTEX)
         logger.info("Ran the tree stats script")
     else:
         logger.info("Not running cactus tree stats")

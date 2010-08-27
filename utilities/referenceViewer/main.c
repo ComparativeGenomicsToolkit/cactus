@@ -110,11 +110,7 @@ int main(int argc, char *argv[]) {
     ///////////////////////////////////////////////////////////////////////////
 
     flower = cactusDisk_getFlower(cactusDisk, cactusMisc_stringToName(flowerName));
-    Group *group = flower_getFirstGroup(flower);
-    if(group != NULL && !group_isLeaf(group)) {
-    	flower = group_getNestedFlower(group);
-    }
-    st_logInfo("Parsed the top level flower of the cactus tree to build\n");
+    st_logInfo("Parsed the flower of the cactus tree to build\n");
 
     ///////////////////////////////////////////////////////////////////////////
     // Build the graph.
