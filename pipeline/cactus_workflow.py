@@ -437,7 +437,7 @@ def main():
                       default=os.path.join(sonTraceRootPath(), "src", "cactus", "pipeline", "cactus_workflow_config.xml"))
     
     parser.add_option("--setupAndBuildAlignments", dest="setupAndBuildAlignments", action="store_true",
-                      help="Setup and build alignments", default=False)
+                      help="Setup and build alignments then normalise the resulting structure", default=False)
     
     parser.add_option("--buildTrees", dest="buildTrees", action="store_true",
                       help="Build trees", default=False) 
@@ -458,9 +458,15 @@ def main():
     if options.setupAndBuildAlignments:
         baseTarget = CactusSetupPhase(options, args)
         logger.info("Going to create alignments and define the cactus tree")
-    elif options.buildTrees or options.buildFaces or options.buildReference:
-        baseTarget = CactusNormalPhase('0', options, )
-        logger.info("Starting from extension phase")
+    elif options.buildTrees:
+        baseTarget = CactusPhylogenyPhase('0', options)
+        logger.info("Starting from phylogeny phase")
+    elif options.buildReference:
+        baseTarget = CactusReferencePhase('0', options)
+        logger.info("Starting from reference phase")
+    elif options.buildFaces:
+        baseTarget = CactusFacesPhase('0', options)
+        logger.info("Starting from faces phase")
     else:
         logger.info("Nothing to do!")
         return

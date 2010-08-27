@@ -24,6 +24,7 @@ from cactus.shared.common import runCactusReferenceGraphViewer
 from cactus.shared.common import runCactusCheck
 from cactus.shared.common import runCactusTreeStats
 from cactus.shared.common import runCactusMAFGenerator
+from cactus.shared.common import runCactusTreeStatsToLatexTables
 
 from sonLib.bioio import TestStatus
 
@@ -228,7 +229,7 @@ def runWorkflow_TestScript(sequences, newickTreeString,
         runCactusTreeStats(cactusTreeFile, cactusDisk)
         #Now run the latex script
         statsFileTEX = os.path.join(outputDir, "cactusStats.tex")
-        runCactusTreeStatsToLatexTables([ cactusTreeFile ], "region0", statsFileTEX)
+        runCactusTreeStatsToLatexTables([ cactusTreeFile ], [ "region0" ], statsFileTEX)
         logger.info("Ran the tree stats script")
     else:
         logger.info("Not running cactus tree stats")

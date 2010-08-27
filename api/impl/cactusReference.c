@@ -97,19 +97,19 @@ void reference_check(Reference *reference) {
         assert(pseudoChromosome_get5End(pseudoChromosome) == pseudoAdjacency_get5End(pseudoChromosome_getPseudoAdjacencyByIndex(pseudoChromosome, 0))); //check the 5 end matches the 5 end of the first pseudo adjacency.
         assert(pseudoChromosome_get3End(pseudoChromosome) == pseudoAdjacency_get3End(pseudoChromosome_getPseudoAdjacencyByIndex(pseudoChromosome, pseudoChromosome_getPseudoAdjacencyNumber(pseudoChromosome)-1))); //check the 5 end matches the 5 end of the first pseudo adjacency.
 
-        //We check we are consistent with our parent reference
-        if(flower_getParentGroup(flower) != NULL) {
-            Group *parentGroup = flower_getParentGroup(flower);
-            if(flower_getReference(group_getFlower(parentGroup)) != NULL) {
-                End *parent5End = group_getEnd(parentGroup, end_getName(pseudoChromosome_get5End(pseudoChromosome)));
-                End *parent3End = group_getEnd(parentGroup, end_getName(pseudoChromosome_get3End(pseudoChromosome)));
-                assert(parent5End != NULL);
-                assert(parent3End != NULL);
-                PseudoAdjacency *parentPseudoAdjacency = end_getPseudoAdjacency(parent5End);
-                assert(parentPseudoAdjacency != NULL);
-                assert(pseudoAdjacency_get5End(parentPseudoAdjacency) == parent3End || pseudoAdjacency_get5End(parentPseudoAdjacency) == parent5End);
-            }
-        }
+        //We check we are consistent with our parent reference (disabled for when rebuildind the reference
+        /*if(flower_getParentGroup(flower) != NULL) {
+         Group *parentGroup = flower_getParentGroup(flower);
+         if(flower_getReference(group_getFlower(parentGroup)) != NULL) {
+         End *parent5End = group_getEnd(parentGroup, end_getName(pseudoChromosome_get5End(pseudoChromosome)));
+         End *parent3End = group_getEnd(parentGroup, end_getName(pseudoChromosome_get3End(pseudoChromosome)));
+         assert(parent5End != NULL);
+         assert(parent3End != NULL);
+         PseudoAdjacency *parentPseudoAdjacency = end_getPseudoAdjacency(parent5End);
+         assert(parentPseudoAdjacency != NULL);
+         assert(pseudoAdjacency_get5End(parentPseudoAdjacency) == parent3End || pseudoAdjacency_get5End(parentPseudoAdjacency) == parent5End);
+         }
+         }*/
 
         PseudoChromsome_PseudoAdjacencyIterator *pseudoAdjacencyIterator =
                 pseudoChromosome_getPseudoAdjacencyIterator(pseudoChromosome);
@@ -131,6 +131,28 @@ void reference_check(Reference *reference) {
                 assert(_5End == end_getOtherBlockEnd(pseudoAdjacency_get3End(previousPseudoAdjacency))); //do it the other way, just for fun.
             }
             previousPseudoAdjacency = pseudoAdjacency;
+
+            //Check we are consistent with a child reference
+            if (!group_isLeaf(end_getGroup(_5End))) {
+                Flower *nestedFlower = group_getNestedFlower(
+                        end_getGroup(_5End));
+                End *nested5End = flower_getEnd(nestedFlower,
+                        end_getName(_5End));
+                End *nested3End = flower_getEnd(nestedFlower,
+                        end_getName(_3End));
+                assert(nested5End != NULL && nested3End != NULL);
+                PseudoAdjacency *nestedPseudoAdjacency =
+                        end_getPseudoAdjacency(nested5End);
+                assert(nestedPseudoAdjacency != NULL);
+                PseudoChromosome *nestedPseudoChromosome =
+                        pseudoAdjacency_getPseudoChromosome(nestedPseudoAdjacency);
+                assert(nestedPseudoChromosome != NULL);
+                //The following are the important checks!
+                assert(pseudoChromosome_get5End(nestedPseudoChromosome) == nested5End ||
+                                        pseudoChromosome_get3End(nestedPseudoChromosome) == nested5End);
+                assert(pseudoChromosome_get5End(nestedPseudoChromosome) == nested3End ||
+                        pseudoChromosome_get3End(nestedPseudoChromosome) == nested3End);
+            }
         }
         pseudoChromosome_destructPseudoAdjacencyIterator(
                 pseudoAdjacencyIterator);
@@ -201,7 +223,7 @@ Reference *reference_loadFromBinaryRepresentation(void **binaryString,
                     reference);
         }
         assert(binaryRepresentation_peekNextElementType(*binaryString)
-            == CODE_REFERENCE);
+                == CODE_REFERENCE);
         binaryRepresentation_popNextElementType(binaryString);
     }
     return reference;
