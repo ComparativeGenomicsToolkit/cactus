@@ -95,6 +95,7 @@ static stList *getAdjacencyPairs(stList *component, stHash *adjacencies) {
     for (int32_t i = 0; i < stList_length(component); i++) {
         End *end = stList_get(component, i);
         AdjacencyPair *adjacencyPair = stHash_search(adjacencies, end);
+        assert(adjacencyPair != NULL);
         if(adjacencyPair_getEnd1(adjacencyPair) == end) {
             stList_append(adjacencyPairs, adjacencyPair);
         }

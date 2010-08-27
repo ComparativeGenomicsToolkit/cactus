@@ -83,6 +83,7 @@ void reference_check(Reference *reference) {
         }
     }
     flower_destructEndIterator(endIterator);
+    assert(reference_getPseudoChromosomeNumber(reference)*2 == flower_getAttachedStubEndNumber(flower));
 
     //Going pseudo-adjacencies --> ends.
     Reference_PseudoChromosomeIterator *pseudoChromosomeIterator =
@@ -101,6 +102,7 @@ void reference_check(Reference *reference) {
         PseudoAdjacency *pseudoAdjacency, *previousPseudoAdjacency = NULL;
         while ((pseudoAdjacency = pseudoChromosome_getNextPseudoAdjacency(
                 pseudoAdjacencyIterator)) != NULL) {
+            i++;
             End *_5End = pseudoAdjacency_get5End(pseudoAdjacency);
             End *_3End = pseudoAdjacency_get3End(pseudoAdjacency);
             assert(_5End == end_getPositiveOrientation(_5End)); //check they are positive orientation
@@ -109,7 +111,6 @@ void reference_check(Reference *reference) {
             assert(end_getPseudoAdjacency(_3End) == pseudoAdjacency);
             assert(end_getGroup(_5End) != NULL); //check the groups are the same for both sides of the adjacency.
             assert(end_getGroup(_5End) == end_getGroup(_3End));
-            i++;
             assert(group_getLink(end_getGroup(_5End)) == group_getLink(end_getGroup(_3End))); //check if there is a link, they are in the same link.
             if (previousPseudoAdjacency != NULL) { //check the adjacency spans the block...
                 assert(pseudoAdjacency_get3End(previousPseudoAdjacency) == end_getOtherBlockEnd(_5End));

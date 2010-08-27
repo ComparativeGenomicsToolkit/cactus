@@ -44,12 +44,12 @@ void mergeCycles(stHash *adjacencies, stHash *hyperChains) {
         for (int32_t j = 0; j < stList_length(components); j++) {
             stList *component = stList_get(components, j);
             if (cycle != component) {
-                AdjacencySwitch *adjacencySwitch2  =
+                AdjacencySwitch *adjacencySwitch2 =
                         adjacencySwitch_getStrongestAdjacencySwitch(cycle, component, adjacencies);
                 if (adjacencySwitch2 != NULL) {
                     if (adjacencySwitch == NULL
-                            || adjacencySwitch_cmpByStrength(adjacencySwitch2,
-                                    adjacencySwitch) >= 0) {
+                            || adjacencySwitch_getStrength(adjacencySwitch2) >
+                                    adjacencySwitch_getStrength(adjacencySwitch)) {
                         if (adjacencySwitch != NULL) {
                             adjacencySwitch_destruct(adjacencySwitch);
                         }
@@ -64,7 +64,7 @@ void mergeCycles(stHash *adjacencies, stHash *hyperChains) {
         //Do the switch
         adjacencySwitch_switch(adjacencySwitch, adjacencies);
 
-        //Component the new component..
+        //Find the new component..
         stList *newComponent = adjacencyHash_getConnectedComponent(adjacencies,
                 hyperChains, adjacencyPair_getEnd1(
                         adjacencySwitch_getAdjacencyPair1(adjacencySwitch)));
@@ -99,8 +99,8 @@ void mergeCycles(stHash *adjacencies, stHash *hyperChains) {
     components = adjacencyHash_getConnectedComponents(adjacencies, hyperChains);
     splitIntoContigsAndCycles(components, hyperChains, &contigs, &cycles);
     assert(stList_length(cycles) == 0);
-    assert(stList_length(contigs) > 0);
     assert(stList_length(contigs) == stList_length(components));
+    //assert(stList_length(contigs) > 0);
     stList_destruct(contigs);
     stList_destruct(cycles);
     stList_destruct(components);

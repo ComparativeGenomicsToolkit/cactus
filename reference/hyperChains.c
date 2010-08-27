@@ -3,6 +3,13 @@
 #include "cactus.h"
 #include "pressedFlowers.h"
 
+static End *getTerminalEnd(End *end) {
+    /*
+     * Gets the terminal version of the end.
+     */
+    return flower_isTerminal(end_getFlower(end)) ? end : getTerminalEnd(flower_getEnd(group_getNestedFlower(end_getGroup(end)), end_getName(end)));
+}
+
 static void constructHyperChainsP2(Group *group, Name endName, Flower *parentFlower, stHash *hyperChains) {
     if(group == NULL) { //The problem was at the root, so no parent.
         return;
@@ -17,7 +24,7 @@ static void constructHyperChainsP2(Group *group, Name endName, Flower *parentFlo
         if(link != NULL) {
             Chain *chain = link_getChain(link);
             End *end3;
-            if(end_getSide(end)) {
+            if(!end_getSide(end)) {
                 assert(end2 == link_get5End(chain_getLink(chain, chain_getLength(chain)-1)));
                 end3 = link_get3End(chain_getLink(chain, 0));
             }
@@ -27,14 +34,19 @@ static void constructHyperChainsP2(Group *group, Name endName, Flower *parentFlo
             }
             assert(end3 != end);
             assert(end_getOrientation(end3));
-            assert(end_isBlockEnd(end3));
-            End *end4 = end_getOtherBlockEnd(end3);
-            assert(end_getOrientation(end4));
-            assert(end4 != end);
-            stHash_insert(hyperChains, end, end4);
+            if(end_isBlockEnd(end3)) {
+                End *end4 = end_getOtherBlockEnd(end3);
+                assert(end_getOrientation(end4));
+                assert(end4 != end);
+                stHash_insert(hyperChains, getTerminalEnd(end), getTerminalEnd(end4));
+            }
+            else { //We must be in the root flower
+                assert(flower_getParentGroup(flower) == NULL);
+                assert(flower == parentFlower);
+            }
         }
         else { //Is a trivial chain
-            stHash_insert(hyperChains, end, end2);
+            stHash_insert(hyperChains, getTerminalEnd(end), getTerminalEnd(end2));
         }
         return;
     }
@@ -46,6 +58,7 @@ static void constructHyperChainsP2(Group *group, Name endName, Flower *parentFlo
 
 static void constructHyperChainsP(Flower *flower, stHash *hyperChains, Flower *parentFlower) {
     End *end;
+    assert(flower != NULL);
     assert(flower_isTerminal(flower));
     Flower_EndIterator *endIt = flower_getEndIterator(flower);
     while((end = flower_getNextEnd(endIt)) != NULL) {
@@ -62,9 +75,24 @@ static void constructHyperChainsP(Flower *flower, stHash *hyperChains, Flower *p
 stHash *constructHyperChains(Flower *flower) {
     stList *pressedFlowers = getListOfPressedFlowers(flower);
     stHash *hyperChains = stHash_construct();
-    while(stList_length(pressedFlowers)) {
+    while(stList_length(pressedFlowers) > 0) {
         constructHyperChainsP(stList_pop(pressedFlowers), hyperChains, flower);
     }
     stList_destruct(pressedFlowers);
+
+#ifdef BEN_DEBUG
+    assert(stHash_size(hyperChains) % 2 == 0);
+    stHashIterator *endIt = stHash_getIterator(hyperChains);
+    End *end;
+    while((end = stHash_getNext(endIt)) != NULL) {
+        End *end2 = stHash_search(hyperChains, end);
+        assert(end2 != NULL);
+        assert(stHash_search(hyperChains, end2) == end); //The link should be reciprocal
+        assert(flower_isTerminal(end_getFlower(end))); //the ends must be the terminal versions
+        assert(flower_isTerminal(end_getFlower(end2))); //the ends must be the terminal versions
+    }
+    stHash_destructIterator(endIt);
+#endif
+
     return hyperChains;
 }

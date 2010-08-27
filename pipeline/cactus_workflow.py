@@ -298,7 +298,7 @@ class CactusReferencePhase(Target):
         self.setFollowOnTarget(CactusPhylogenyPhase(self.flowerName, self.options))
 
 class CactusReferenceRunnable(Target):
-    """This targets run the reference script bottom up (second phase).
+    """This target runs the reference script bottom up (second phase).
     """
     def __init__(self, flowerNames, options):
         Target.__init__(self, time=0)

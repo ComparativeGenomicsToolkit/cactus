@@ -451,7 +451,7 @@ void flower_setBuildFaces(Flower *flower, bool b);
 bool flower_isLeaf(Flower *flower);
 
 /*
- * Returns non-zero iff the flower is a leaf and it contains only stub ends.
+ * Returns non-zero iff the flower is a leaf, contains zero or one group and contains only stub ends.
  */
 bool flower_isTerminal(Flower *flower);
 

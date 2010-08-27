@@ -139,6 +139,7 @@ static void addPseudoPseudoAdjacenciesP(stHash *adjacenciesHash, Flower *flower)
     End *end1;
     End *end2 = NULL;
     assert(flower_isTerminal(flower));
+    assert(flower_getAttachedStubEndNumber(flower) % 2 == 0);
     assert(flower_getGroupNumber(flower) == 1);
     Flower_EndIterator *endIterator = flower_getEndIterator(flower);
 

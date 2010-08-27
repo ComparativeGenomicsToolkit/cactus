@@ -287,9 +287,11 @@ int main(int argc, char *argv[]) {
 
         // Create a one link chain if there is only one pair of attached ends..
         group_constructChainForLink(group);
+        assert(!flower_builtBlocks(flower));
     }
-
-    assert(!flower_builtBlocks(flower));
+    else {
+        flower_setBuiltBlocks(flower, 1);
+    }
 
     ///////////////////////////////////////////////////////////////////////////
     // Write the flower to disk.

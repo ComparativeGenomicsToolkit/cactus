@@ -121,11 +121,19 @@ int main(int argc, char *argv[]) {
         /*
          * Now run the reference function.
          */
+#ifdef BEN_DEBUG
+        flower_check(flower);
+#endif
+
         if(topDown) {
             constructReference_topDownPhase(flower);
         }
         else {
             constructReference_bottomUpPhase(flower);
+#ifdef BEN_DEBUG
+            assert(flower_getReference(flower) != NULL);
+            flower_check(flower);
+#endif
         }
     }
 

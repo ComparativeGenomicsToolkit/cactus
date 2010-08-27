@@ -26,11 +26,24 @@ static void checkTreeIsTerminalNormalised(Flower *flower) {
     if (flower_isLeaf(flower)) {
         assert(flower_getBlockNumber(flower) == 0);
         assert(flower_isTerminal(flower));
-        //The following are defensive checks.
+        if(flower_getGroupNumber(flower) == 0) {
+            assert(flower_getParentGroup(flower) == NULL);
+        }
+        else {
+            assert(flower_getGroupNumber(flower) == 1);
+        }
+        //The following are defensive checks (in that they are implied by being a leaf)
         Group *group;
         Flower_GroupIterator *iterator = flower_getGroupIterator(flower);
         while ((group = flower_getNextGroup(iterator)) != NULL) {
             assert(group_isLeaf(group));
+        }
+        flower_destructGroupIterator(iterator);
+    } else {
+        Group *group;
+        Flower_GroupIterator *iterator = flower_getGroupIterator(flower);
+        while ((group = flower_getNextGroup(iterator)) != NULL) {
+            assert(!group_isLeaf(group));
         }
         flower_destructGroupIterator(iterator);
     }
@@ -41,14 +54,14 @@ static void checkChainsAreMaximal(Flower *flower) {
      * Checks that each chain is maximal and consistently named..
      */
     Group *parentGroup = flower_getParentGroup(flower);
-    if(parentGroup != NULL) {
+    if (parentGroup != NULL) {
         End *end;
         Flower_EndIterator *endIterator = flower_getEndIterator(flower);
-        while((end = flower_getNextEnd(endIterator)) != NULL) {
+        while ((end = flower_getNextEnd(endIterator)) != NULL) {
             assert(end_getOrientation(end));
-            if(end_isStubEnd(end) && end_isAttached(end)) { //is an attached stub end (inherited from a higher level)
+            if (end_isStubEnd(end) && end_isAttached(end)) { //is an attached stub end (inherited from a higher level)
                 Link *link = group_getLink(end_getGroup(end));
-                if(link != NULL) { //then the flower must be a terminal flower and the link is a copy of the one in the parent..
+                if (link != NULL) { //then the flower must be a terminal flower and the link is a copy of the one in the parent..
                     Chain *chain = link_getChain(link);
                     assert(flower_isLeaf(flower));
                     assert(chain_getLength(chain) == 1);
@@ -64,17 +77,19 @@ static void checkFlowerIsNotRedundant(Flower *flower) {
      * Checks that if the flower is not a leaf that it contains blocks.
      */
     assert(flower_builtBlocks(flower));
-    if(flower_getBlockNumber(flower) == 0 && flower_getGroupNumber(flower) == 1) {
+    if (flower_getBlockNumber(flower) == 0 && flower_getGroupNumber(flower)
+            == 1) {
         assert(flower_isLeaf(flower));
     }
 }
 
 static void checkFlowerIsNotEmpty(Flower *flower) {
     /*
-     * Checks that if the flower contains at least one end, unless it is the parent problem
+     * Checks that the flower contains at least one end, unless it is the parent problem
      * and the whole reconstruction is empty.
      */
-    if(flower_getParentGroup(flower) != NULL) {
+    if (flower_getParentGroup(flower) != NULL) {
+        assert(flower_getGroupNumber(flower) > 0);
         assert(flower_getEndNumber(flower) > 0);
         assert(flower_getAttachedStubEndNumber(flower) + flower_getBlockEndNumber(flower) > 0);
     }
@@ -86,7 +101,7 @@ static void checkGroupsNotEmpty(Flower *flower) {
      */
     Group *group;
     Flower_GroupIterator *groupIt = flower_getGroupIterator(flower);
-    while((group = flower_getNextGroup(groupIt)) != NULL) {
+    while ((group = flower_getNextGroup(groupIt)) != NULL) {
         assert(group_getEndNumber(group) > 0);
         assert(group_getAttachedStubEndNumber(group) + group_getBlockEndNumber(group) > 0);
     }
@@ -165,7 +180,8 @@ static void checkFlowers(Flower *flower, int32_t recursive) {
 void usage() {
     fprintf(stderr, "cactus_tree, version 0.2\n");
     fprintf(stderr, "-a --logLevel : Set the log level\n");
-    fprintf(stderr, "-c --cactusDisk : The location of the flower disk directory\n");
+    fprintf(stderr,
+            "-c --cactusDisk : The location of the flower disk directory\n");
     fprintf(stderr, "-e --recursive : Check all flowers recursively\n");
     fprintf(stderr, "-h --help : Print this help screen\n");
 }
@@ -187,8 +203,8 @@ int main(int argc, char *argv[]) {
 
     while (1) {
         static struct option long_options[] = { { "logLevel",
-                required_argument, 0, 'a' }, { "cactusDisk", required_argument, 0,
-                'c' }, { "recursive", no_argument, 0, 'e' }, { "help",
+                required_argument, 0, 'a' }, { "cactusDisk", required_argument,
+                0, 'c' }, { "recursive", no_argument, 0, 'e' }, { "help",
                 no_argument, 0, 'h' }, { 0, 0, 0, 0 } };
 
         int option_index = 0;
@@ -258,7 +274,8 @@ int main(int argc, char *argv[]) {
         // Parse the basic reconstruction problem
         ///////////////////////////////////////////////////////////////////////////
 
-        flower = cactusDisk_getFlower(cactusDisk, cactusMisc_stringToName(flowerName));
+        flower = cactusDisk_getFlower(cactusDisk, cactusMisc_stringToName(
+                flowerName));
         st_logInfo("Parsed the top level flower of the cactus tree to check\n");
 
         ///////////////////////////////////////////////////////////////////////////

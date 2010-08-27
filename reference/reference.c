@@ -20,10 +20,7 @@ static void makeTerminalReference(Flower *flower, stHash *adjacenciesHash) {
     /*
      * Builds the reference for a terminal flower, given the adjacencies hash.
      */
-#ifdef BEN_DEBUG
-    flower_check(flower);
-#endif
-    assert(flower_isTerminal(flower));
+
     /*
      * For atomicity, if we find we have already built a reference we rebuild it..
      */
@@ -49,12 +46,8 @@ static void makeTerminalReference(Flower *flower, stHash *adjacenciesHash) {
         }
     }
     flower_destructEndIterator(endIt);
-
-#ifdef BEN_DEBUG
     //Check we have paired all the attached stub ends in the terminal flower.
     assert(reference_getPseudoChromosomeNumber(reference)*2 == flower_getAttachedStubEndNumber(flower));
-    flower_check(flower);
-#endif
 }
 
 static void balanceTanglesRecursively(Flower *flower) {
@@ -78,9 +71,6 @@ static void balanceTanglesRecursively(Flower *flower) {
 }
 
 void constructReference_topDownPhase(Flower *flower) {
-#ifdef BEN_DEBUG
-    flower_check(flower);
-#endif
     if(flower_getParentGroup(flower) != NULL && group_isTangle(flower_getParentGroup(flower))) {
         /*
          * In this case we've must have already built the child tangle terminal nets.
@@ -120,10 +110,6 @@ void constructReference_topDownPhase(Flower *flower) {
 }
 
 void constructReference_bottomUpPhase(Flower *flower) {
-#ifdef BEN_DEBUG
-    flower_check(flower);
-#endif
-
     if (flower_isTerminal(flower)) {
         /*
          * We build the reference for the terminal problems in the top down phase,
@@ -159,6 +145,7 @@ void constructReference_bottomUpPhase(Flower *flower) {
                     assert(nestedEnd != NULL);
                     PseudoAdjacency *nestedPseudoAdjacency =
                             end_getPseudoAdjacency(nestedEnd);
+                    assert(nestedPseudoAdjacency != NULL);
                     PseudoChromosome
                             *nestedPseudoChromosome =
                                     pseudoAdjacency_getPseudoChromosome(
@@ -170,10 +157,12 @@ void constructReference_bottomUpPhase(Flower *flower) {
                                     nestedPseudoChromosome)
                                     : pseudoChromosome_get5End(
                                             nestedPseudoChromosome);
+                    assert(otherNestedEnd != NULL);
+                    assert(nestedEnd != otherNestedEnd);
                     End *otherEnd = flower_getEnd(flower, end_getName(
                             otherNestedEnd));
-                    assert(end_getPseudoAdjacency(otherEnd) == NULL);
                     assert(otherEnd != NULL);
+                    assert(end_getPseudoAdjacency(otherEnd) == NULL);
                     stList_append(list, end);
                     stList_append(list, otherEnd);
                     end = end_getOtherBlockEnd(otherEnd);
@@ -192,9 +181,6 @@ void constructReference_bottomUpPhase(Flower *flower) {
             }
         }
         flower_destructEndIterator(endIt);
+        assert(reference_getPseudoChromosomeNumber(reference)*2 == flower_getAttachedStubEndNumber(flower));
     }
-#ifdef BEN_DEBUG
-    reference_check(flower_getReference(flower));
-    flower_check(flower);
-#endif
 }

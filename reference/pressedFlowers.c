@@ -6,7 +6,9 @@ stList *getListOfPressedFlowers(Flower *flower) {
     stList *pressedFlowers = stList_construct();
     stList *stack = stList_construct();
     stList_append(stack, flower);
-    while ((flower = stList_pop(stack)) != NULL) {
+    while (stList_length(stack) > 0) {
+        flower = stList_pop(stack);
+        assert(flower != NULL);
         if (flower_isTerminal(flower)) {
             stList_append(pressedFlowers, flower);
         } else {
@@ -15,7 +17,7 @@ stList *getListOfPressedFlowers(Flower *flower) {
             while ((group = flower_getNextGroup(groupIt)) != NULL) {
                 assert(!group_isLeaf(group));
                 if (group_isTangle(group)) {
-                    stList_append(stack, group);
+                    stList_append(stack, group_getNestedFlower(group));
                 }
             }
             flower_destructGroupIterator(groupIt);

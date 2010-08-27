@@ -148,7 +148,7 @@ def runCactusReference(cactusDisk, flowerNames, logLevel="DEBUG", bottomUp=False
     #print "running", "cactus_reference --cactusDisk %s --logLevel %s %s" % (cactusDisk, logLevel, " ".join(flowerNames))
     #assert False
     bottomUp = nameValue("bottomUp", bottomUp, bool)
-    system("cactus_reference --cactusDisk %s --logLevel %s %s" % (cactusDisk, logLevel, bottomUp, " ".join(flowerNames)))
+    system("cactus_reference --cactusDisk %s --logLevel %s %s %s" % (cactusDisk, logLevel, bottomUp, " ".join(flowerNames)))
 
 def runCactusCheck(cactusDisk, 
                     flowerNames=("0",), 

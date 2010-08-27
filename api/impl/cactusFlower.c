@@ -653,7 +653,7 @@ bool flower_isLeaf(Flower *flower) {
 }
 
 bool flower_isTerminal(Flower *flower) {
-    return flower_isLeaf(flower) && flower_getStubEndNumber(flower)
+    return flower_isLeaf(flower) && flower_getGroupNumber(flower) <= 1 && flower_getStubEndNumber(flower)
             == flower_getEndNumber(flower);
 }
 
