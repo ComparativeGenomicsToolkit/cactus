@@ -1,4 +1,3 @@
-
 #include "sonLib.h"
 #include "cactus.h"
 #include "adjacencyPairs.h"
@@ -20,7 +19,7 @@ End *adjacencyPair_getEnd2(AdjacencyPair *adjacencyPair) {
 }
 
 Group *adjacencyPair_getGroup(AdjacencyPair *adjacencyPair) {
-	return end_getGroup(adjacencyPair_getEnd1(adjacencyPair));
+    return end_getGroup(adjacencyPair_getEnd1(adjacencyPair));
 }
 
 AdjacencyPair *adjacencyPair_construct(End *end1, End *end2) {
@@ -55,16 +54,31 @@ void adjacencyPair_destruct(AdjacencyPair *adjacencyPair) {
     free(adjacencyPair);
 }
 
-double adjacencyPair_getStrengthOfAdjacencyPair(
-        AdjacencyPair *adjacencyPair) {
+static int32_t childInstanceNumber(End *end) {
+    End_InstanceIterator *iterator = end_getInstanceIterator(end);
+    Cap *cap;
+    int32_t i = 0;
+    while ((cap = end_getNext(iterator)) != NULL) {
+        if(cap_getChildNumber(cap) == 0) {
+            i++;
+        }
+    }
+    end_destructInstanceIterator(iterator);
+    return i;
+}
+
+double adjacencyPair_getStrengthOfAdjacencyPair(AdjacencyPair *adjacencyPair) {
     End *end1 = adjacencyPair_getEnd1(adjacencyPair);
     End *end2 = adjacencyPair_getEnd2(adjacencyPair);
-    int32_t i = end_getInstanceNumber(end1) + end_getInstanceNumber(end2);
+    assert(end_getOrientation(end1));
+    assert(end_getOrientation(end2));
+    int32_t i = childInstanceNumber(end1) + childInstanceNumber(end2);
+
     if (i == 0) { //avoid divide by zero.
         return 0;
     }
     int32_t j = 0;
-    //Walk through all the adjacencies and give increment j by 2 if
+    //Walk through all the adjacencies and increment j by 2 if
     //the adjacency is between the two ends.
     End_InstanceIterator *iterator = end_getInstanceIterator(end1);
     Cap *cap;
@@ -76,7 +90,10 @@ double adjacencyPair_getStrengthOfAdjacencyPair(
         }
     }
     end_destructInstanceIterator(iterator);
-    return ((double) j) / i;
+    double strength = ((double) j) / i;
+    assert(strength <= 1.01);
+    assert(strength >= -0.01);
+    return strength;
 }
 
 int adjacencyPair_cmpFnByStrength(AdjacencyPair *adjacencyPair1,

@@ -101,5 +101,7 @@ void balanceTangles(Flower *flower) {
         balanceTanglesP(oddTangle, ends);
         stList_destruct(ends);
     }
+    assert(stList_length(linkEnds) == 0);
+    stList_destruct(linkEnds);
     stList_destruct(oddTangles);
 }

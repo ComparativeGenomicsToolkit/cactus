@@ -49,13 +49,6 @@ AdjacencyPair *adjacencySwitch_getAdjacencyPair2(AdjacencySwitch *adjacencySwitc
 double adjacencySwitch_getStrength(AdjacencySwitch *adjacencySwitch);
 
 /*
- * Comparison function that compares the AdjacencySwitches by the the value of the
- * adjacencySwitch_getStrength
- * function.
- */
-int32_t adjacencySwitch_cmpByStrength(AdjacencySwitch *adjacencySwitch, AdjacencySwitch *adjacencySwitch2);
-
-/*
  * Creates two adjacency pairs for the maximum strength adjacency switch, adds them
  * to the adjacency hash and removes the original adjacency pairs in the adjacency switch
  * from the adjacency hash.

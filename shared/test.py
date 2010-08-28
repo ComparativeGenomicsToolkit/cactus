@@ -219,7 +219,7 @@ def runWorkflow_TestScript(sequences, newickTreeString,
         referenceGraphDotFile = os.path.join(outputDir, "referenceGraph.dot")
         referenceGraphPDFFile = os.path.join(outputDir, "referenceGraph.pdf")
         runCactusReferenceGraphViewer(referenceGraphDotFile, cactusDisk)
-        runGraphViz(referenceGraphDotFile, referenceGraphPDFFile)
+        runGraphViz(referenceGraphDotFile, referenceGraphPDFFile, command="circo")
         logger.info("Ran the reference graph plot script")
     else:
         logger.info("Not building a reference graph plot")

@@ -31,18 +31,18 @@ AdjacencySwitch *adjacencySwitch_construct(AdjacencyPair *adjacencyPair1,
     adjacencySwitch->adjacencyPair2 = adjacencyPair2;
     adjacencySwitch->switchState = switchState;
     //Now calculate the strength and switch state..
-    double initialStrength = adjacencyPair_getStrengthOfAdjacencyPair(
-            adjacencyPair1) + adjacencyPair_getStrengthOfAdjacencyPair(
-            adjacencyPair2);
+    //double initialStrength = adjacencyPair_getStrengthOfAdjacencyPair(
+    //        adjacencyPair1) + adjacencyPair_getStrengthOfAdjacencyPair(
+    //        adjacencyPair2);
 
     AdjacencyPair *adjacencyPair3, *adjacencyPair4;
     adjacencySwitch_getAdjacencyPairs(adjacencyPair1, adjacencyPair2,
             &adjacencyPair3, &adjacencyPair4, switchState);
 
     double residualStrength = adjacencyPair_getStrengthOfAdjacencyPair(
-            adjacencyPair3) + adjacencyPair_getStrengthOfAdjacencyPair(
-            adjacencyPair4);
-    adjacencySwitch->strength = residualStrength - initialStrength;
+           adjacencyPair3) + adjacencyPair_getStrengthOfAdjacencyPair(
+           adjacencyPair4);
+    adjacencySwitch->strength = residualStrength; // - initialStrength;
     adjacencyPair_destruct(adjacencyPair3);
     adjacencyPair_destruct(adjacencyPair4);
     return adjacencySwitch;
@@ -64,14 +64,6 @@ AdjacencyPair *adjacencySwitch_getAdjacencyPair2(
 
 double adjacencySwitch_getStrength(AdjacencySwitch *adjacencySwitch) {
     return adjacencySwitch->strength;
-}
-
-int32_t adjacencySwitch_cmpByStrength(AdjacencySwitch *adjacencySwitch,
-        AdjacencySwitch *adjacencySwitch2) {
-    return adjacencySwitch_getStrength(adjacencySwitch)
-            > adjacencySwitch_getStrength(adjacencySwitch2) ? 1
-            : (adjacencySwitch_getStrength(adjacencySwitch)
-                    < adjacencySwitch_getStrength(adjacencySwitch2) ? -1 : 0);
 }
 
 void adjacencySwitch_switch(AdjacencySwitch *adjacencySwitch,
