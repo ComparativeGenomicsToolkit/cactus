@@ -599,7 +599,7 @@ void referenceStats(Flower *flower, struct IntList *pseudoChromosomeNumber,
         if (!group_isLeaf(group)) {
             referenceStats(group_getNestedFlower(group), pseudoChromosomeNumber,
                     pseudoAdjacencyNumberPerChromosome,
-                    truePseudoAdjacencyNumberPerChromosome, linksPerChromosome, truePseudoEndsPerFlower);
+                    truePseudoAdjacencyNumberPerChromosome, truePseudoEndsPerFlower, linksPerChromosome);
         }
     }
     flower_destructGroupIterator(groupIterator);
@@ -614,6 +614,7 @@ void referenceStats(Flower *flower, struct IntList *pseudoChromosomeNumber,
         PseudoChromosome *pseudoChromosome;
         intListAppend(pseudoChromosomeNumber,
                 reference_getPseudoChromosomeNumber(reference));
+        int32_t totalAdjacenciesSeen = 0;
         while ((pseudoChromosome = reference_getNextPseudoChromosome(
                 pseudoChromosomeIterator)) != NULL) {
             intListAppend(pseudoAdjacencyNumberPerChromosome,
@@ -622,9 +623,11 @@ void referenceStats(Flower *flower, struct IntList *pseudoChromosomeNumber,
                     pseudoChromosome_getPseudoAdjacencyIterator(
                             pseudoChromosome);
             PseudoAdjacency *pseudoAdjacency;
+            int32_t adjacenciesSeen = 0;
             int32_t i = 0, j = 0;
             while ((pseudoAdjacency = pseudoChromosome_getNextPseudoAdjacency(
                     adjacencyIterator)) != NULL) {
+                adjacenciesSeen++;
                 Group *group = end_getGroup(pseudoAdjacency_get5End(
                         pseudoAdjacency));
                 assert(group != NULL);
@@ -648,25 +651,36 @@ void referenceStats(Flower *flower, struct IntList *pseudoChromosomeNumber,
                     }
                 }
                 end_destructInstanceIterator(instanceIterator);
-                if (k) {
+                if (k == 1) {
                     j++;
                 }
             }
             intListAppend(linksPerChromosome, i);
             intListAppend(truePseudoAdjacencyNumberPerChromosome, j);
+            pseudoChromosome_destructPseudoAdjacencyIterator(adjacencyIterator);
+            assert(adjacenciesSeen == pseudoChromosome_getPseudoAdjacencyNumber(pseudoChromosome));
+            totalAdjacenciesSeen += adjacenciesSeen;
         }
         reference_destructPseudoChromosomeIterator(pseudoChromosomeIterator);
         //Calculate the number of pseudo ends
         Flower_EndIterator *endIt = flower_getEndIterator(flower);
         End *end;
         int32_t i = 0;
+        int32_t totalEndsSeen = 0;
         while((end = flower_getNextEnd(endIt)) != NULL) {
-            if(end_getInstanceNumber(end) == 0) {
-                i++;
+            assert(end_isStubEnd(end));
+            if(end_isAttached(end)) {
+                totalEndsSeen++;
+                assert(end_getPseudoAdjacency(end) != NULL);
+                if(end_getInstanceNumber(end) == 0) {
+                    i++;
+                }
             }
         }
         flower_destructEndIterator(endIt);
         intListAppend(truePseudoEndsPerFlower, i);
+        assert(totalEndsSeen == flower_getAttachedStubEndNumber(flower));
+        assert(totalAdjacenciesSeen*2 == flower_getAttachedStubEndNumber(flower));
     }
 }
 
@@ -684,7 +698,7 @@ void reportReferenceStats(Flower *flower, FILE *fileHandle) {
         struct IntList *truePseudoEndsPerFlower = constructEmptyIntList(0);
         referenceStats(flower, pseudoChromosomeNumber,
                 pseudoAdjacencyNumberPerChromosome,
-                truePseudoAdjacencyNumberPerChromosome, linksPerChromosome, truePseudoEndsPerFlower);
+                truePseudoAdjacencyNumberPerChromosome, truePseudoEndsPerFlower, linksPerChromosome);
         fprintf(fileHandle, "<reference method=\"default\">");
         tabulateAndPrintIntValues(pseudoChromosomeNumber,
                 "pseudo_chromosome_number", fileHandle);

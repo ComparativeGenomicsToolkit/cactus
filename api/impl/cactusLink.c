@@ -121,6 +121,127 @@ void link_split(Link *link) {
     link_splitP(list2, flower);
 }
 
+bool link_isTrivial(Link *link) {
+    Flower *flower = chain_getFlower(link_getChain(link));
+    assert(flower_builtBlocks(flower));
+    assert(!flower_builtTrees(flower));
+    assert(!flower_builtFaces(flower));
+
+    End *_3End = link_get3End(link);
+    End *_5End = link_get5End(link);
+    if (end_isBlockEnd(_3End) && end_isBlockEnd(_5End)) { //Must both be block ends
+        if (end_getInstanceNumber(_3End) == end_getInstanceNumber(_5End)) { //Must each be connected to other.
+            Cap *_3Cap;
+            End_InstanceIterator *capIt = end_getInstanceIterator(_3End);
+            while ((_3Cap = end_getNext(capIt)) != NULL) {
+                assert(cap_getOrientation(_3Cap));
+                Cap *_5Cap = cap_getAdjacency(_3Cap);
+                assert(_5Cap != NULL);
+                assert(cap_getEnd(_5Cap) != end_getReverse(_5End));
+                if (cap_getEnd(_5Cap) != _5End) { //The adjacency must be a self adjacency
+                    assert(cap_getEnd(_5Cap) == end_getReverse(_3End));
+                    end_destructInstanceIterator(capIt);
+                    return 0;
+                }
+                if (abs(cap_getCoordinate(_3Cap) - cap_getCoordinate(_5Cap))
+                        != 1) { //There is a nontrivial adjacency
+                    end_destructInstanceIterator(capIt);
+                    return 0;
+                }
+            }
+            end_destructInstanceIterator(capIt);
+            return 1;
+        }
+    }
+    return 0;
+}
+
+bool link_mergeIfTrivial(Link *link) {
+    if (link_isTrivial(link)) {
+        End *_3End = link_get3End(link);
+        End *_5End = link_get5End(link);
+        Group *group = link_getGroup(link);
+        Chain *chain = link_getChain(link);
+        Block *_5Block = end_getBlock(_3End);
+        Block *_3Block = end_getBlock(_5End);
+        Flower *flower = group_getFlower(group);
+        CactusDisk *cactusDisk = flower_getCactusDisk(flower);
+
+        //First eliminate the link
+        if (link->pLink != NULL) {
+            link->pLink->nLink = link->nLink;
+        }
+        if (link->nLink != NULL) {
+            link->nLink->pLink = link->pLink;
+        }
+        if (chain->link == link) {
+            chain->link = link->nLink;
+        }
+        chain->linkNumber--;
+        free(link); //We do our own destruction of the object..
+        assert(chain_getLength(chain) >= 0);
+
+        //Get rid of the block ends by making a new block..
+
+        //First prepare what we need for the new block
+        End *outer5End = block_get5End(_5Block);
+        End *outer3End = block_get3End(_3Block);
+        assert(end_getOrientation(outer5End));
+        assert(end_getOrientation(outer3End));
+        int32_t newBlockLength = block_getLength(_5Block) + block_getLength(
+                _3Block);
+        stHash *newSegments = stHash_construct();
+        //This works out the caps for the new segments..
+        End_InstanceIterator *capIt = end_getInstanceIterator(outer5End);
+        Cap *_5Cap;
+        while ((_5Cap = end_getNext(capIt)) != NULL) {
+            assert(cap_getOrientation(_5Cap));
+            Cap *_3Cap = cap_getOtherSegmentCap(cap_getAdjacency(
+                    cap_getOtherSegmentCap(_5Cap)));
+            assert(cap_getEnd(_3Cap) == outer3End);
+            assert(cap_getOrientation(_3Cap)); //redundant
+            stHash_insert(newSegments, _5Cap, _3Cap);
+        }
+        end_destructInstanceIterator(capIt);
+
+        //Now get rid of the blocks and the segments and outer ends.
+        block_destruct(_5Block);
+        block_destruct(_3Block);
+        end_destruct(_3End);
+        end_destruct(_5End);
+
+        //Construct the merged block
+        Block *mergedBlock = block_construct2(
+                cactusDisk_getUniqueID(cactusDisk), newBlockLength, outer5End,
+                outer3End, flower);
+        capIt = end_getInstanceIterator(outer5End);
+        while ((_5Cap = end_getNext(capIt)) != NULL) {
+            Cap *_3Cap = stHash_remove(newSegments, _5Cap);
+            assert(_3Cap != NULL);
+            assert(cap_getEnd(_3Cap) == outer3End);
+            segment_construct3(cactusDisk_getUniqueID(cactusDisk), mergedBlock,
+                            _5Cap, _3Cap);
+        }
+        end_destructInstanceIterator(capIt);
+        assert(stHash_size(newSegments) == 0);
+        stHash_destruct(newSegments);
+
+        //Finally eliminate the group
+        if (!group_isLeaf(group)) {
+            Flower *nestedFlower = group_getNestedFlower(group);
+            assert(flower_isTerminal(nestedFlower));
+            cactusDisk_deleteFlowerFromDisk(cactusDisk, nestedFlower);
+            flower_destruct(nestedFlower, 0);
+        }
+        assert(group_getEndNumber(group) == 0);
+        group_destruct(group);
+
+        assert(link_getGroup(link));
+        return 1;
+    }
+    return 0;
+}
+
 /*
  * Serialisation functions.
  */

@@ -59,4 +59,16 @@ int32_t link_getIndex(Link *link);
  */
 void link_split(Link *link);
 
+/*
+ * Returns true if and only if the two ends of the link are block ends and they are always adjacent (no self loops), and
+ * all the adjacencies are trivial (empty).
+ */
+bool link_isTrivial(Link *link);
+
+/*
+ * Removes the link from the chain and destroys the ends and any nested problem is the link is trivial.
+ * Only works before trees have been built. Return non zero is the link is removed.
+ */
+bool link_mergeIfTrivial(Link *link);
+
 #endif

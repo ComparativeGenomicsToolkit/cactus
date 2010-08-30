@@ -1,6 +1,23 @@
 #include "normal.h"
 #include "sonLib.h"
 
+void removeTrivialLinks(Flower *flower) {
+    Chain *chain;
+    Flower_ChainIterator *chainIt = flower_getChainIterator(flower);
+    stList *chainsToDelete = stList_construct3(0, (void (*)(void *))chain_destruct);
+    while((chain = flower_getNextChain(chainIt)) != NULL) {
+        for(int32_t i=chain_getLength(chain)-1; i>=0; i--) {
+            Link *link = chain_getLink(chain, i);
+            link_mergeIfTrivial(link);
+        }
+        if(chain_getLength(chain) == 0) {
+            stList_append(chainsToDelete, chain);
+        }
+    }
+    flower_destructChainIterator(chainIt);
+    stList_destruct(chainsToDelete);
+}
+
 void promoteChainsThatExtendHigherLevelChains(Flower *flower) {
 	Group *parentGroup = flower_getParentGroup(flower);
 	if (parentGroup != NULL) {

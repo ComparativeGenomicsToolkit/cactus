@@ -129,6 +129,7 @@ int main(int argc, char *argv[]) {
 #endif
         promoteChainsThatExtendHigherLevelChains(flower);
         promoteChainsToFillParents(flower, maxNumberOfChains);
+        removeTrivialLinks(flower);
 #ifdef BEN_DEBUG
         flower_check(flower);
 #endif

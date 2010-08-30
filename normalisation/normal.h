@@ -26,4 +26,9 @@ void promoteChainsThatExtendHigherLevelChains(Flower *flower);
  */
 void promoteChainsToFillParents(Flower *flower, int32_t maxNumberOfChains);
 
+/*
+ * Removes all links which are trivial from the flower.
+ */
+void removeTrivialLinks(Flower *flower);
+
 #endif /* NORMAL_H_ */
