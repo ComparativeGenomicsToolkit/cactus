@@ -72,6 +72,13 @@ static void checkChainsAreMaximal(Flower *flower) {
     }
 }
 
+static void checkBlocksAreMaximal(Flower *flower) {
+    /*
+     * Checks each block is maximal (this can't be done until we've worked out the AVG connectivity issues).
+     */
+    assert(flower != NULL);
+}
+
 static void checkFlowerIsNotRedundant(Flower *flower) {
     /*
      * Checks that if the flower is not a leaf or the root that it contains blocks.
@@ -161,6 +168,7 @@ static void checkFlowers(Flower *flower, int32_t recursive) {
     //Normalisation checks..
     checkTreeIsTerminalNormalised(flower);
     checkChainsAreMaximal(flower);
+    checkBlocksAreMaximal(flower);
     checkFlowerIsNotRedundant(flower);
 
     //Call problem recursively
