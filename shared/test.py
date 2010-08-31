@@ -4,6 +4,7 @@ cactus workflow and the various utilities.
 
 import random
 import os
+import xml.etree.ElementTree as ET
 
 from sonLib.bioio import logger
 from sonLib.bioio import getTempFile
@@ -31,6 +32,39 @@ from sonLib.bioio import TestStatus
 from sonLib.tree import makeRandomBinaryTree
 
 from workflow.jobTree.jobTreeTest import runJobTreeStatusAndFailIfNotComplete
+
+def getCactusWorkflowExperimentConfig(tempDir, sequences, newickTreeString, configFile=None):
+    """Creates a dummy experiment config.
+    """
+    experiment = ET.Element("cactus_workflow_experiment")
+    experiment.attrib["config"] = "default"
+    database = ET.SubElement(experiment, "cactus_disk")
+    databaseConf = ET.SubElement(database, "st_kv_database_conf")
+    databaseConf.attrib["type"] = "tokyo_cabinet"
+    tokyoCabinet = ET.SubElement(databaseConf, "tokyo_cabinet")
+    tokyoCabinet.attrib["database_dir"] = os.path.join(tempDir, "cactusDisk")
+    #Now add in the user stuff..
+    experiment.attrib["sequences"] = " ".join(sequences)
+    experiment.attrib["species_tree"] = newickTreeString
+    if configFile != None:
+        experiment.attrib["config"] = configFile
+    return experiment
+
+def getCactusDiskDatabaseString(experiment):
+    return ET.tostring(experiment.find("cactus_disk").find("st_kv_database_conf"))
+
+def prepareForCactusWorkflowExperiment(outputDir):
+    if not os.path.isdir(outputDir):
+        os.mkdir(outputDir)
+    system("rm -rf %s" % os.path.join(outputDir, "cactusDisk"))
+    logger.info("Cleaned up any previous flower disk")
+
+def makeCactusWorkflowExperimentFile(outputDir, experiment):
+    experimentFile = os.path.join(outputDir, "experiment.xml")
+    fileHandle = open(experimentFile, 'w')
+    ET.ElementTree(experiment).write(fileHandle)
+    fileHandle.close()
+    return experimentFile
 
 def getCactusInputs_random(regionNumber=0, tempDir=None,
                           sequenceNumber=random.choice(xrange(100)), 
@@ -165,22 +199,20 @@ def runWorkflow_TestScript(sequences, newickTreeString,
     logger.info("Using the output dir: %s" % outputDir)
     
     #Setup the flower disk.
-    if not os.path.isdir(outputDir):
-        os.mkdir(outputDir)
-    cactusDisk = os.path.join(outputDir, "cactusDisk")
-    logger.info("Using the cactusDisk: %s" % cactusDisk)
-    system("rm -rf %s" % cactusDisk)
-    logger.info("Cleaned up any previous flower disk: %s" % cactusDisk)
+    prepareForCactusWorkflowExperiment(outputDir)
+    experiment = getCactusWorkflowExperimentConfig(outputDir, sequences, newickTreeString, configFile)
+    cactusDiskDatabaseString = getCactusDiskDatabaseString(experiment)
+    #Make the experiment file
+    experimentFile = makeCactusWorkflowExperimentFile(outputDir, experiment)
     
     #Setup the job tree dir.
     jobTreeDir = os.path.join(getTempDirectory(tempDir), "jobTree")
     logger.info("Got a job tree dir for the test: %s" % jobTreeDir)
     
     #Run the actual workflow
-    runCactusWorkflow(cactusDisk, sequences, newickTreeString, jobTreeDir, 
+    runCactusWorkflow(experimentFile, jobTreeDir, 
                       batchSystem=batchSystem, buildTrees=buildTrees, 
-                      buildFaces=buildFaces, buildReference=buildReference,
-                      configFile=configFile)
+                      buildFaces=buildFaces, buildReference=buildReference)
     logger.info("Ran the the workflow")
     
     #Check if the jobtree completed sucessively.
@@ -188,7 +220,7 @@ def runWorkflow_TestScript(sequences, newickTreeString,
     logger.info("Checked the job tree dir")
     
     #Check if the cactusDisk is okay..
-    runCactusCheck(cactusDisk, recursive=True) #This should also occur during the workflow, so this
+    runCactusCheck(cactusDiskDatabaseString, recursive=True) #This should also occur during the workflow, so this
     #is redundant, but defensive
     logger.info("Checked the cactus tree")
     
@@ -198,7 +230,7 @@ def runWorkflow_TestScript(sequences, newickTreeString,
     if buildCactusPDF:
         cactusTreeDotFile = os.path.join(outputDir, "cactusTree.dot")
         cactusTreePDFFile = os.path.join(outputDir, "cactusTree.pdf")
-        runCactusTreeViewer(cactusTreeDotFile, cactusDisk)
+        runCactusTreeViewer(cactusTreeDotFile, cactusDiskDatabaseString)
         runGraphViz(cactusTreeDotFile, cactusTreePDFFile)
         logger.info("Ran the cactus tree plot script")
     else:
@@ -208,7 +240,7 @@ def runWorkflow_TestScript(sequences, newickTreeString,
     if buildAdjacencyPDF:
         adjacencyGraphDotFile = os.path.join(outputDir, "adjacencyGraph.dot")
         adjacencyGraphPDFFile = os.path.join(outputDir, "adjacencyGraph.pdf")
-        runCactusAdjacencyGraphViewer(adjacencyGraphDotFile, cactusDisk)
+        runCactusAdjacencyGraphViewer(adjacencyGraphDotFile, cactusDiskDatabaseString)
         runGraphViz(adjacencyGraphDotFile, adjacencyGraphPDFFile)
         logger.info("Ran the adjacency graph plot script")
     else:
@@ -218,7 +250,7 @@ def runWorkflow_TestScript(sequences, newickTreeString,
     if buildReferencePDF:
         referenceGraphDotFile = os.path.join(outputDir, "referenceGraph.dot")
         referenceGraphPDFFile = os.path.join(outputDir, "referenceGraph.pdf")
-        runCactusReferenceGraphViewer(referenceGraphDotFile, cactusDisk)
+        runCactusReferenceGraphViewer(referenceGraphDotFile, cactusDiskDatabaseString)
         runGraphViz(referenceGraphDotFile, referenceGraphPDFFile, command="circo")
         logger.info("Ran the reference graph plot script")
     else:
@@ -226,7 +258,7 @@ def runWorkflow_TestScript(sequences, newickTreeString,
     
     if makeCactusTreeStats:
         cactusTreeFile = os.path.join(outputDir, "cactusStats.xml")
-        runCactusTreeStats(cactusTreeFile, cactusDisk)
+        runCactusTreeStats(cactusTreeFile, cactusDiskDatabaseString)
         #Now run the latex script
         statsFileTEX = os.path.join(outputDir, "cactusStats.tex")
         runCactusTreeStatsToLatexTables([ cactusTreeFile ], [ "region0" ], statsFileTEX)
@@ -236,7 +268,7 @@ def runWorkflow_TestScript(sequences, newickTreeString,
     
     if makeMAFs:
         mAFFile = os.path.join(outputDir, "cactus.maf")
-        runCactusMAFGenerator(mAFFile, cactusDisk)
+        runCactusMAFGenerator(mAFFile, cactusDiskDatabaseString)
         logger.info("Ran the MAF building script")
     else:
         logger.info("Not building the MAFs")

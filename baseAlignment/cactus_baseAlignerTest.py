@@ -14,6 +14,10 @@ from sonLib.bioio import fastaReadHeaders
 
 from cactus.shared.common import runCactusWorkflow
 
+from cactus.shared.test import getCactusWorkflowExperimentConfig
+from cactus.shared.test import getCactusDiskDatabaseString
+from cactus.shared.test import makeCactusWorkflowExperimentFile
+
 from workflow.jobTree.jobTreeTest import runJobTreeStatusAndFailIfNotComplete
 
 """Using this set of tests I have found that:
@@ -96,10 +100,13 @@ class TestCase(unittest.TestCase):
             fileHandle.close()
         logger.info("Got the temp sequence files")
         
-        #Run the workflow
-        cactusDisk = os.path.join(testDir, "cactusDisk")
+        experiment = getCactusWorkflowExperimentConfig(testDir, tempFastaFiles, newickTreeString)
+        experimentFile = makeCactusWorkflowExperimentFile(testDir, experiment)
+        cactusDiskDatabaseString = getCactusDiskDatabaseString(experiment)
+        
         jobTree = os.path.join(testDir, "jobTree")
-        runCactusWorkflow(cactusDisk, tempFastaFiles, newickTreeString, jobTree, 
+        
+        runCactusWorkflow(experimentFile, jobTree, 
                           buildTrees=False, buildFaces=False, buildReference=False)
         logger.info("Ran the the workflow")
         
@@ -109,12 +116,12 @@ class TestCase(unittest.TestCase):
         
         #Now get mafs for the region.
         mAFFile = os.path.join(testDir, "flower.maf")
-        system("cactus_MAFGenerator --flowerName 0 --cactusDisk %s --outputFile %s" % (cactusDisk, mAFFile))
+        system("cactus_MAFGenerator --flowerName 0 --cactusDisk '%s' --outputFile %s" % (cactusDiskDatabaseString, mAFFile))
         logger.info("Got the MAFs from the flower disk")
         system("cat %s" % mAFFile)
         
         statsFile = os.path.join(testDir, "stats.xml")
-        system("cactus_treeStats --cactusDisk %s --flowerName 0 --outputFile %s" % (cactusDisk, statsFile))
+        system("cactus_treeStats --cactusDisk '%s' --flowerName 0 --outputFile %s" % (cactusDiskDatabaseString, statsFile))
         system("cat %s" % statsFile)
         logger.info("Got the cactus tree stats")
         

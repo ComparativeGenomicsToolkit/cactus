@@ -15,15 +15,11 @@ static void usage() {
 }
 
 int main(int argc, char *argv[]) {
-    CactusDisk *cactusDisk;
-    Flower *flower;
-    FILE *fileHandle;
-
     /*
      * Arguments/options
      */
     char * logLevelString = NULL;
-    char * cactusDiskName = NULL;
+    char * cactusDiskDatabaseString = NULL;
     char * flowerName = NULL;
     char * outputFile = NULL;
 
@@ -54,7 +50,7 @@ int main(int argc, char *argv[]) {
                 logLevelString = stString_copy(optarg);
                 break;
             case 'c':
-                cactusDiskName = stString_copy(optarg);
+                cactusDiskDatabaseString = stString_copy(optarg);
                 break;
             case 'd':
                 flowerName = stString_copy(optarg);
@@ -75,7 +71,7 @@ int main(int argc, char *argv[]) {
     // (0) Check the inputs.
     ///////////////////////////////////////////////////////////////////////////
 
-    assert(cactusDiskName != NULL);
+    assert(cactusDiskDatabaseString != NULL);
     assert(flowerName != NULL);
     assert(outputFile != NULL);
 
@@ -94,7 +90,6 @@ int main(int argc, char *argv[]) {
     //Log (some of) the inputs
     //////////////////////////////////////////////
 
-    st_logInfo("Flower disk name : %s\n", cactusDiskName);
     st_logInfo("Flower name : %s\n", flowerName);
     st_logInfo("Output graph file : %s\n", outputFile);
 
@@ -102,21 +97,22 @@ int main(int argc, char *argv[]) {
     //Load the database
     //////////////////////////////////////////////
 
-    cactusDisk = cactusDisk_construct(cactusDiskName);
+    stKVDatabaseConf *kvDatabaseConf = stKVDatabaseConf_constructFromString(cactusDiskDatabaseString);
+    CactusDisk *cactusDisk = cactusDisk_construct(kvDatabaseConf, 0);
     st_logInfo("Set up the flower disk\n");
 
     ///////////////////////////////////////////////////////////////////////////
     // Parse the basic reconstruction problem
     ///////////////////////////////////////////////////////////////////////////
 
-    flower = cactusDisk_getFlower(cactusDisk, cactusMisc_stringToName(flowerName));
+    Flower *flower = cactusDisk_getFlower(cactusDisk, cactusMisc_stringToName(flowerName));
     st_logInfo("Parsed the flower of the cactus tree to build\n");
 
     ///////////////////////////////////////////////////////////////////////////
     // Build the graph.
     ///////////////////////////////////////////////////////////////////////////
 
-    fileHandle = fopen(outputFile, "w");
+    FILE *fileHandle = fopen(outputFile, "w");
     graphViz_setupGraphFile(fileHandle);
     assert(flower_getReference(flower) != NULL);
     makeReferenceGraph(flower_getReference(flower), fileHandle);
@@ -129,6 +125,7 @@ int main(int argc, char *argv[]) {
     ///////////////////////////////////////////////////////////////////////////
 
     cactusDisk_destruct(cactusDisk);
+    stKVDatabaseConf_destruct(kvDatabaseConf);
 
     return 0;
 }

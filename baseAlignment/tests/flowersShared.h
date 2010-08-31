@@ -47,15 +47,14 @@ static Cap *cap12;
 
 static void teardown() {
     if (cactusDisk != NULL) {
-        cactusDisk_destruct(cactusDisk);
-        testCommon_deleteTemporaryCactusDisk();
+        testCommon_deleteTemporaryCactusDisk(cactusDisk);
         cactusDisk = NULL;
     }
 }
 
 static void setup() {
     teardown();
-    cactusDisk = cactusDisk_construct(testCommon_getTemporaryCactusDisk());
+    cactusDisk = testCommon_getTemporaryCactusDisk();
     flower = flower_construct(cactusDisk);
 
     //Event tree

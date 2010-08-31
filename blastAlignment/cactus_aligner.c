@@ -30,7 +30,8 @@ int main(int argc, char *argv[]) {
 	FILE *fileHandle;
 	st_setLogLevel(ST_LOGGING_DEBUG);
 	assert(argc == 4);
-	cactusDisk = cactusDisk_construct(argv[1]);
+	stKVDatabaseConf *kvDatabaseConf = stKVDatabaseConf_constructFromString(argv[1]);
+	cactusDisk = cactusDisk_construct(kvDatabaseConf, 0);
 	st_logInfo("Set up the flower disk\n");
 
 	flower = cactusDisk_getFlower(cactusDisk, cactusMisc_stringToName(argv[2]));
@@ -60,5 +61,9 @@ int main(int argc, char *argv[]) {
 	}
 	st_logInfo("Finished writing the subsequences to the file\n");
 	fclose(fileHandle);
+
+	cactusDisk_destruct(cactusDisk);
+	stKVDatabaseConf_destruct(kvDatabaseConf);
+
 	return 0;
 }

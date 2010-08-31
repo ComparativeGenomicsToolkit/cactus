@@ -13,15 +13,14 @@ static Group *group, *group2;
 
 static void cactusGroupTestTeardown() {
     if (cactusDisk != NULL) {
-        cactusDisk_destruct(cactusDisk);
-        testCommon_deleteTemporaryCactusDisk();
+        testCommon_deleteTemporaryCactusDisk(cactusDisk);
         cactusDisk = NULL;
     }
 }
 
 static void cactusGroupTestSetup() {
     cactusGroupTestTeardown();
-    cactusDisk = cactusDisk_construct(testCommon_getTemporaryCactusDisk());
+    cactusDisk = testCommon_getTemporaryCactusDisk();
     flower = flower_construct(cactusDisk);
     nestedFlower = flower_construct(cactusDisk);
     end1 = end_construct2(0, 0, flower);

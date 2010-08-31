@@ -33,8 +33,7 @@ static Reference *reference;
 
 static void cactusFlowerTestTeardown() {
     if (cactusDisk != NULL) {
-        cactusDisk_destruct(cactusDisk);
-        testCommon_deleteTemporaryCactusDisk();
+        testCommon_deleteTemporaryCactusDisk(cactusDisk);
         cactusDisk = NULL;
         flower = NULL;
         eventTree = NULL;
@@ -46,7 +45,7 @@ static void cactusFlowerTestTeardown() {
 
 static void cactusFlowerTestSetup() {
     cactusFlowerTestTeardown();
-    cactusDisk = cactusDisk_construct(testCommon_getTemporaryCactusDisk());
+    cactusDisk = testCommon_getTemporaryCactusDisk();
     flower = flower_construct(cactusDisk);
     eventTree = eventTree_construct2(flower);
     assert(flower_getReference(flower) == NULL);

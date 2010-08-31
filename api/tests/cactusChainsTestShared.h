@@ -24,15 +24,14 @@ static Segment *segment2;
 
 static void cactusChainsSharedTestTeardown() {
     if (cactusDisk != NULL) {
-        cactusDisk_destruct(cactusDisk);
-        testCommon_deleteTemporaryCactusDisk();
+        testCommon_deleteTemporaryCactusDisk(cactusDisk);
         cactusDisk = NULL;
     }
 }
 
 static void cactusChainsSharedTestSetup() {
     cactusChainsSharedTestTeardown();
-    cactusDisk = cactusDisk_construct(testCommon_getTemporaryCactusDisk());
+    cactusDisk = testCommon_getTemporaryCactusDisk();
     flower = flower_construct(cactusDisk);
     nestedFlower1 = flower_construct(cactusDisk);
     nestedFlower2 = flower_construct(cactusDisk);

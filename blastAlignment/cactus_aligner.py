@@ -42,7 +42,7 @@ class MakeSequences(Target):
         #Construct the sequences file for doing all against all blast.
         ##########################################
         
-        system("cactus_aligner %s %s %s" % (self.cactusDisk, self.flowerName, tempSeqFile))
+        system("cactus_aligner '%s' %s %s" % (self.cactusDisk, self.flowerName, tempSeqFile))
         
         logger.info("Got the sequence files to align")
         

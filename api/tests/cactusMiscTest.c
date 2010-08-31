@@ -4,15 +4,14 @@ static CactusDisk *cactusDisk = NULL;
 
 static void cactusMiscTestTeardown() {
 	if(cactusDisk != NULL) {
-		cactusDisk_destruct(cactusDisk);
-		testCommon_deleteTemporaryCactusDisk();
+		testCommon_deleteTemporaryCactusDisk(cactusDisk);
 		cactusDisk = NULL;
 	}
 }
 
 static void cactusMiscTestSetup() {
 	cactusMiscTestTeardown();
-	cactusDisk = cactusDisk_construct(testCommon_getTemporaryCactusDisk());
+	cactusDisk = testCommon_getTemporaryCactusDisk();
 }
 
 void testCactusMisc_reverseComplementChar(CuTest* testCase) {

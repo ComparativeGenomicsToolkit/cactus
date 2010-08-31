@@ -69,7 +69,7 @@ static void startAlignmentStack() {
 int main(int argc, char *argv[]) {
 
     char * logLevelString = NULL;
-    char * cactusDiskName = NULL;
+    char * cactusDiskDatabaseString = NULL;
     int32_t j;
 
     /*
@@ -93,7 +93,7 @@ int main(int argc, char *argv[]) {
                 logLevelString = stString_copy(optarg);
                 break;
             case 'b':
-                cactusDiskName = stString_copy(optarg);
+                cactusDiskDatabaseString = stString_copy(optarg);
                 break;
             case 'h':
                 usage();
@@ -122,7 +122,8 @@ int main(int argc, char *argv[]) {
     /*
      * Load the flowerdisk
      */
-    CactusDisk *cactusDisk = cactusDisk_construct(cactusDiskName);
+    stKVDatabaseConf *kvDatabaseConf = stKVDatabaseConf_constructFromString(cactusDiskDatabaseString);
+    CactusDisk *cactusDisk = cactusDisk_construct(kvDatabaseConf, 0);
     st_logInfo("Set up the flower disk\n");
 
     /*
@@ -166,6 +167,7 @@ int main(int argc, char *argv[]) {
      */
     cactusDisk_write(cactusDisk);
     cactusDisk_destruct(cactusDisk);
+    stKVDatabaseConf_destruct(kvDatabaseConf);
     destructCactusCoreInputParameters(cCIP);
     st_logInfo("Finished with the flower disk for this flower.\n");
 

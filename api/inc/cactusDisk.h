@@ -14,7 +14,7 @@
 /*
  * Constructs a cactus disk to load flowers.
  */
-CactusDisk *cactusDisk_construct(const char *cactusDiskFile);
+CactusDisk *cactusDisk_construct(stKVDatabaseConf *conf, bool create);
 
 /*
  * Destructs the cactus disk, and all open flowers and sequences.

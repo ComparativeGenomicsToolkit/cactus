@@ -75,7 +75,7 @@ class CactusSetupWrapper(Target):
         
     def run(self, localTempDir, globalTempDir):
         logger.info("Starting cactus setup target")
-        runCactusSetup(self.options.cactusDisk, self.sequences, 
+        runCactusSetup(self.options.cactusDiskDatabaseString, self.sequences, 
                        self.options.speciesTree, logLevel=getLogLevelString())
         logger.info("Finished the setup phase target")
 
@@ -138,7 +138,7 @@ class CactusAlignmentWrapper(Target):
             baseLevelFlowers = []
             #This loop is properly atomic, because if it is run twice it will return the same
             #set of flowernames
-            for childFlowerName, childFlowerSize in runCactusExtendFlowers(self.options.cactusDisk, self.flowerName, 
+            for childFlowerName, childFlowerSize in runCactusExtendFlowers(self.options.cactusDiskDatabaseString, self.flowerName, 
                                                                   localTempDir):
                 assert childFlowerSize >= 0
                 nextIteration = getAlignmentIteration(iterations, self.iteration, childFlowerSize)
@@ -184,7 +184,7 @@ class CactusBlastWrapper(Target):
                                               int(blastMiscNode.attrib["chunksPerJob"]), 
                                               bool(blastMiscNode.attrib["compressFiles"])))
             
-        self.addChildTarget(MakeSequences(self.options.cactusDisk, 
+        self.addChildTarget(MakeSequences(self.options.cactusDiskDatabaseString, 
                                           self.flowerName, alignmentFile, blastOptions))
         logger.info("Created the cactus_aligner child target")
         
@@ -205,7 +205,7 @@ class CactusCoreWrapper(Target):
     
         coreParameters = self.options.config.find("alignment").find("iterations").findall("iteration")[self.iteration].find("core")
         
-        runCactusCore(cactusDisk=self.options.cactusDisk,
+        runCactusCore(cactusDiskDatabaseString=self.options.cactusDiskDatabaseString,
                       alignmentFile=self.alignmentFile, 
                       flowerName=self.flowerName,
                       logLevel=getLogLevelString(), 
@@ -234,7 +234,7 @@ class CactusBaseLevelAlignerWrapper(Target):
     
     def run(self, localTempDir, globalTempDir):
         #return
-        runCactusBaseAligner(self.options.cactusDisk, self.flowerNames, getLogLevelString())
+        runCactusBaseAligner(self.options.cactusDiskDatabaseString, self.flowerNames, getLogLevelString())
         logger.info("Run the cactus base aligner")
         
 ############################################################
@@ -274,7 +274,7 @@ class CactusNormalRunnable(Target):
         
     def run(self, localTempDir, globalTempDir):
         maxNumberOfChains = int(self.options.config.find("normal").attrib["max_number_of_chains"])
-        runCactusMakeNormal(self.options.cactusDisk, flowerNames=self.flowerNames, maxNumberOfChains=maxNumberOfChains)
+        runCactusMakeNormal(self.options.cactusDiskDatabaseString, flowerNames=self.flowerNames, maxNumberOfChains=maxNumberOfChains)
 
 ############################################################
 ############################################################
@@ -327,7 +327,7 @@ class CactusReferenceRunnable(Target):
         self.options = options
         
     def run(self, localTempDir, globalTempDir):
-        runCactusReference(self.options.cactusDisk, flowerNames=self.flowerNames, bottomUp=True)
+        runCactusReference(self.options.cactusDiskDatabaseString, flowerNames=self.flowerNames, bottomUp=True)
             
 ############################################################
 ############################################################
@@ -396,21 +396,21 @@ class CactusExtensionWrapper(Target):
         #This ensures things end up terminal normal.. which we need for face building.
         if self.switch == MAKE_NORMAL: #We set this as a follow on, as it is run in bottom up order (currently the only one, so it's on its own as a target
             self.setFollowOnTarget(CactusNormalRunnable(options=self.options, flowerNames=self.flowerNames))
-            #runCactusMakeNormal(self.options.cactusDisk, flowerNames=self.flowerNames)
+            #runCactusMakeNormal(self.options.cactusDiskDatabaseString, flowerNames=self.flowerNames)
         elif self.switch == BUILD_TREES:
-            runCactusPhylogeny(self.options.cactusDisk, flowerNames=self.flowerNames)
+            runCactusPhylogeny(self.options.cactusDiskDatabaseString, flowerNames=self.flowerNames)
             #Not atomic!
         elif self.switch == BUILD_REFERENCE:
-            runCactusReference(self.options.cactusDisk, flowerNames=self.flowerNames) #We first run the top down phase
+            runCactusReference(self.options.cactusDiskDatabaseString, flowerNames=self.flowerNames) #We first run the top down phase
             self.setFollowOnTarget(CactusReferenceRunnable(options=self.options, flowerNames=self.flowerNames)) #We second run a bottom up phase
         elif self.switch == BUILD_FACES:
-            runCactusAdjacencies(self.options.cactusDisk, flowerNames=self.flowerNames)
+            runCactusAdjacencies(self.options.cactusDiskDatabaseString, flowerNames=self.flowerNames)
         elif self.switch == CHECK:
-            runCactusCheck(self.options.cactusDisk, self.flowerNames)
+            runCactusCheck(self.options.cactusDiskDatabaseString, self.flowerNames)
         #Make child jobs
         childFlowerNames = []
         idealJobRuntime = float(self.options.config.attrib["ideal_job_runtime"])
-        for childFlowerName, childFlowerSize in runCactusGetFlowers(self.options.cactusDisk, self.flowerNames, localTempDir):
+        for childFlowerName, childFlowerSize in runCactusGetFlowers(self.options.cactusDiskDatabaseString, self.flowerNames, localTempDir):
             assert(childFlowerSize) >= 0
             childFlowerNames.append(childFlowerName)
             if self.unitTime*len(childFlowerNames) >= idealJobRuntime:
@@ -428,13 +428,8 @@ def main():
     
     parser.add_option("--job", dest="jobFile", 
                       help="Job file containing command to run")
-
-    parser.add_option("--speciesTree", dest="speciesTree", help="The species tree relating the input sequences")
     
-    parser.add_option("--cactusDisk", dest="cactusDisk", help="The location of the flower disk.", default="cactusDisk") 
-    
-    parser.add_option("--configFile", dest="config", help="The file XML file containing the parameters for the pipeline", 
-                      default=os.path.join(sonTraceRootPath(), "src", "cactus", "pipeline", "cactus_workflow_config.xml"))
+    parser.add_option("--experiment", dest="experimentFile", help="The file containing a link to the experiment parameters")
     
     parser.add_option("--setupAndBuildAlignments", dest="setupAndBuildAlignments", action="store_true",
                       help="Setup and build alignments then normalise the resulting structure", default=False)
@@ -449,14 +444,27 @@ def main():
                       help="Creates a reference ordering for the flowers", default=False)
     
     options, args = parseBasicOptions(parser)
+    assert(len(args) == 0) #Should be empty
 
-    logger.info("Parsed arguments")
+    logger.info("Parsed commandline arguments")
     
-    options.config = ET.parse(options.config).getroot()
+    options.experimentFile = ET.parse(options.experimentFile).getroot()
+    #Get the database string
+    options.cactusDiskDatabaseString = ET.tostring(options.experimentFile.find("cactus_disk").find("st_kv_database_conf"))
+    #Get the species tree
+    options.speciesTree = options.experimentFile.attrib["species_tree"]
+    #Parse the config file which contains all the program options
+    if options.experimentFile.attrib["config"] == "default":
+        options.experimentFile.attrib["config"]=os.path.join(sonTraceRootPath(), "src", "cactus", "pipeline", "cactus_workflow_config.xml")
+    #Get the config file for the experiment
+    options.config = ET.parse(options.experimentFile.attrib["config"]).getroot()
+    #Get the sequences
+    sequences = options.experimentFile.attrib["sequences"].split()
+    
     logger.info("Parsed the XML options file")
     
     if options.setupAndBuildAlignments:
-        baseTarget = CactusSetupPhase(options, args)
+        baseTarget = CactusSetupPhase(options, sequences)
         logger.info("Going to create alignments and define the cactus tree")
     elif options.buildTrees:
         baseTarget = CactusPhylogenyPhase('0', options)
@@ -471,8 +479,6 @@ def main():
         logger.info("Nothing to do!")
         return
     baseTarget.execute(options.jobFile) 
-    
-    
     logger.info("Done with first target")
 
 def _test():

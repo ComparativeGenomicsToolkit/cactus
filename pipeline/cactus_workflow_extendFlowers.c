@@ -48,14 +48,13 @@ int main(int argc, char *argv[]) {
      * This code iterates through the terminal groups and returns
      * a list of the new flowers.
      */
-    CactusDisk *cactusDisk;
-    Flower *flower;
-
     assert(argc == 5);
-    cactusDisk = cactusDisk_construct(argv[1]);
+
+    stKVDatabaseConf *kvDatabaseConf = stKVDatabaseConf_constructFromString(argv[1]);
+    CactusDisk *cactusDisk = cactusDisk_construct(kvDatabaseConf, 0);
     st_logInfo("Set up the flower disk\n");
 
-    flower = cactusDisk_getFlower(cactusDisk, cactusMisc_stringToName(argv[2]));
+    Flower *flower = cactusDisk_getFlower(cactusDisk, cactusMisc_stringToName(argv[2]));
     assert(flower != NULL);
     st_logInfo("Parsed the flower\n");
 
@@ -70,6 +69,7 @@ int main(int argc, char *argv[]) {
     st_logInfo("Updated the flowerdisk\n");
 
     cactusDisk_destruct(cactusDisk);
+    stKVDatabaseConf_destruct(kvDatabaseConf);
 
     st_logInfo("Am finished\n");
     return 0;

@@ -33,7 +33,7 @@ int main(int argc, char *argv[]) {
      * Arguments/options
      */
     char * logLevelString = NULL;
-    char * cactusDiskName = NULL;
+    char * cactusDiskDatabaseString = NULL;
     int32_t j;
     int32_t maxNumberOfChains = 0;
 
@@ -60,7 +60,7 @@ int main(int argc, char *argv[]) {
                 logLevelString = stString_copy(optarg);
                 break;
             case 'c':
-                cactusDiskName = stString_copy(optarg);
+                cactusDiskDatabaseString = stString_copy(optarg);
                 break;
             case 'd':
                 j = sscanf(optarg, "%i", &maxNumberOfChains);
@@ -80,7 +80,7 @@ int main(int argc, char *argv[]) {
     ///////////////////////////////////////////////////////////////////////////
 
     assert(logLevelString == NULL || strcmp(logLevelString, "CRITICAL") == 0 || strcmp(logLevelString, "INFO") == 0 || strcmp(logLevelString, "DEBUG") == 0);
-    assert(cactusDiskName != NULL);
+    assert(cactusDiskDatabaseString != NULL);
 
     //////////////////////////////////////////////
     //Set up logging
@@ -94,16 +94,11 @@ int main(int argc, char *argv[]) {
     }
 
     //////////////////////////////////////////////
-    //Log (some of) the inputs
-    //////////////////////////////////////////////
-
-    st_logInfo("Flowerdisk name : %s\n", cactusDiskName);
-
-    //////////////////////////////////////////////
     //Load the database
     //////////////////////////////////////////////
 
-    CactusDisk *cactusDisk = cactusDisk_construct(cactusDiskName);
+    stKVDatabaseConf *kvDatabaseConf = stKVDatabaseConf_constructFromString(cactusDiskDatabaseString);
+    CactusDisk *cactusDisk = cactusDisk_construct(kvDatabaseConf, 0);
     st_logInfo("Set up the flower disk\n");
 
     ///////////////////////////////////////////////////////////////////////////
@@ -152,6 +147,7 @@ int main(int argc, char *argv[]) {
 
     //Destruct stuff
     cactusDisk_destruct(cactusDisk);
+    stKVDatabaseConf_destruct(kvDatabaseConf);
 
     st_logInfo("Cleaned stuff up and am finished\n");
     return 0;

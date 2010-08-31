@@ -29,7 +29,7 @@ void usage() {
  * Plenty of global variables!
  */
 int32_t isComplete = 1;
-char * cactusDiskName = NULL;
+char * cactusDiskDatabaseString = NULL;
 CactusDisk *cactusDisk;
 Flower *flower;
 EventTree *eventTree;
@@ -129,7 +129,7 @@ int main(int argc, char *argv[]) {
                 logLevelString = optarg;
                 break;
             case 'b':
-                cactusDiskName = optarg;
+                cactusDiskDatabaseString = optarg;
                 break;
             case 'f':
                 speciesTree = optarg;
@@ -151,7 +151,7 @@ int main(int argc, char *argv[]) {
     ///////////////////////////////////////////////////////////////////////////
 
     assert(logLevelString == NULL || strcmp(logLevelString, "CRITICAL") == 0 || strcmp(logLevelString, "INFO") == 0 || strcmp(logLevelString, "DEBUG") == 0);
-    assert(cactusDiskName != NULL);
+    assert(cactusDiskDatabaseString != NULL);
     assert(speciesTree != NULL);
 
     //////////////////////////////////////////////
@@ -169,7 +169,7 @@ int main(int argc, char *argv[]) {
     //Log (some of) the inputs
     //////////////////////////////////////////////
 
-    st_logInfo("Flower disk name : %s\n", cactusDiskName);
+    st_logInfo("Flower disk name : %s\n", cactusDiskDatabaseString);
 
     for (j = optind; j < argc; j++) {
         st_logInfo("Sequence file/directory %s\n", argv[j]);
@@ -179,7 +179,8 @@ int main(int argc, char *argv[]) {
     //Load the database
     //////////////////////////////////////////////
 
-    cactusDisk = cactusDisk_construct(cactusDiskName);
+    stKVDatabaseConf *kvDatabaseConf = kvDatabaseConf = stKVDatabaseConf_constructFromString(cactusDiskDatabaseString);
+    cactusDisk = cactusDisk_construct(kvDatabaseConf, 1);
     st_logInfo("Set up the flower disk\n");
 
     //////////////////////////////////////////////
@@ -308,20 +309,7 @@ int main(int argc, char *argv[]) {
     ///////////////////////////////////////////////////////////////////////////
 
     cactusDisk_destruct(cactusDisk);
-
-    ///////////////////////////////////////////////////////////////////////////
-    // Debug
-    ///////////////////////////////////////////////////////////////////////////
-
-    if (debug) {
-        cactusDisk = cactusDisk_construct(cactusDiskName);
-        flower = cactusDisk_getFlower(cactusDisk, 0);
-        assert(flower != NULL);
-        assert(flower_getSequenceNumber(flower) == totalSequenceNumber);
-        assert(flower_getEndNumber(flower) == 2*totalSequenceNumber);
-        assert(eventTree_getEventNumber(flower_getEventTree(flower)) == totalEventNumber);
-        cactusDisk_destruct(cactusDisk);
-    }
+    stKVDatabaseConf_destruct(kvDatabaseConf);
 
     return 0;
 }

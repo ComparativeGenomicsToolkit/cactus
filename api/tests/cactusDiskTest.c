@@ -1,12 +1,13 @@
 #include "cactusGlobalsPrivate.h"
 
 static CactusDisk *cactusDisk = NULL;
-static const char *cactusDiskFile;
+static stKVDatabaseConf *conf = NULL;
 
 static void cactusDiskTestTeardown() {
     if (cactusDisk != NULL) {
         cactusDisk_destruct(cactusDisk);
-        testCommon_deleteTemporaryCactusDisk(cactusDiskFile);
+        stKVDatabaseConf_destruct(conf);
+        testCommon_deleteTemporaryKVDatabase();
         cactusDisk = NULL;
     }
 }
@@ -14,8 +15,8 @@ static void cactusDiskTestTeardown() {
 static void cactusDiskTestSetup() {
     cactusDiskTestTeardown();
     st_setLogLevel(ST_LOGGING_DEBUG);
-    cactusDiskFile = testCommon_getTemporaryCactusDisk();
-    cactusDisk = cactusDisk_construct(cactusDiskFile);
+    conf = stKVDatabaseConf_constructTokyoCabinet("temporaryCactusDisk");
+    cactusDisk = cactusDisk_construct(conf, 1);
 }
 
 void testCactusDisk_constructAndDestruct(CuTest* testCase) {
@@ -43,7 +44,7 @@ void testCactusDisk_getFlower(CuTest* testCase) {
     Name name2 = flower_getName(flower2);
     cactusDisk_write(cactusDisk);
     cactusDisk_destruct(cactusDisk);
-    cactusDisk = cactusDisk_construct(cactusDiskFile);
+    cactusDisk = cactusDisk_construct(conf, 0);
     flower = cactusDisk_getFlower(cactusDisk, name1);
     flower2 = cactusDisk_getFlower(cactusDisk, name2);
     CuAssertTrue(testCase, flower != NULL);
@@ -66,7 +67,7 @@ void testCactusDisk_getMetaSequence(CuTest* testCase) {
     Name name2 = metaSequence_getName(metaSequence2);
     cactusDisk_write(cactusDisk);
     cactusDisk_destruct(cactusDisk);
-    cactusDisk = cactusDisk_construct(cactusDiskFile);
+    cactusDisk = cactusDisk_construct(conf, 0);
     metaSequence = cactusDisk_getMetaSequence(cactusDisk, name1);
     metaSequence2 = cactusDisk_getMetaSequence(cactusDisk, name2);
     CuAssertTrue(testCase, metaSequence != NULL);

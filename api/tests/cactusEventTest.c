@@ -14,8 +14,7 @@ static bool nestedTest = 0;
 
 static void cactusEventTestTeardown() {
 	if(!nestedTest && cactusDisk != NULL) {
-		cactusDisk_destruct(cactusDisk);
-		testCommon_deleteTemporaryCactusDisk();
+		testCommon_deleteTemporaryCactusDisk(cactusDisk);
 		cactusDisk = NULL;
 		eventTree = NULL;
 		rootEvent = NULL;
@@ -28,7 +27,7 @@ static void cactusEventTestTeardown() {
 static void cactusEventTestSetup() {
 	if(!nestedTest) {
 		cactusEventTestTeardown();
-		cactusDisk = cactusDisk_construct(testCommon_getTemporaryCactusDisk());
+		cactusDisk = testCommon_getTemporaryCactusDisk();
 		flower = flower_construct(cactusDisk);
 		eventTree = flower_getEventTree(flower);
 		rootEvent = eventTree_getRootEvent(eventTree);

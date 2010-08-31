@@ -10,8 +10,7 @@ static bool nestedTest = 0;
 
 static void cactusMetaSequenceTestTeardown() {
 	if(!nestedTest && cactusDisk != NULL) {
-		cactusDisk_destruct(cactusDisk);
-		testCommon_deleteTemporaryCactusDisk();
+		testCommon_deleteTemporaryCactusDisk(cactusDisk);
 		cactusDisk = NULL;
 		metaSequence = NULL;
 	}
@@ -20,7 +19,7 @@ static void cactusMetaSequenceTestTeardown() {
 static void cactusMetaSequenceTestSetup() {
 	if(!nestedTest) {
 		cactusMetaSequenceTestTeardown();
-		cactusDisk = cactusDisk_construct(testCommon_getTemporaryCactusDisk());
+		cactusDisk = testCommon_getTemporaryCactusDisk();
 		metaSequence = metaSequence_construct(1, 10, sequenceString,
 					   headerString, eventName, cactusDisk);
 	}

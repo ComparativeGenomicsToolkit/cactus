@@ -1211,14 +1211,11 @@ void usage() {
 
 //============================== MAIN =========================================
 int main(int argc, char *argv[]) {
-   CactusDisk *cactusDisk;
-   Flower *flower;
-
    /*
     * Arguments/options
     */
    char * logLevelString = NULL;
-   char * cactusDiskName = NULL;
+   char * cactusDiskDatabaseString = NULL;
    char * flowerName = NULL;
    char * outputFile = NULL;
    char * query = NULL;
@@ -1260,7 +1257,7 @@ int main(int argc, char *argv[]) {
             logLevelString = stString_copy(optarg);
             break;
          case 'c':
-            cactusDiskName = stString_copy(optarg);
+            cactusDiskDatabaseString = stString_copy(optarg);
             break;
          case 'e':
             outputFile = stString_copy(optarg);
@@ -1296,7 +1293,7 @@ int main(int argc, char *argv[]) {
    // (0) Check the inputs.
    ///////////////////////////////////////////////////////////////////////////
 
-   assert(cactusDiskName != NULL);
+   assert(cactusDiskDatabaseString != NULL);
    assert(outputFile != NULL);
    assert(query != NULL);
    assert(target != NULL);
@@ -1316,7 +1313,6 @@ int main(int argc, char *argv[]) {
    //Log (some of) the inputs
    //////////////////////////////////////////////
 
-   st_logInfo("Flower disk name : %s\n", cactusDiskName);
    st_logInfo("Flower name : %s\n", flowerName);
    st_logInfo("Output PSL file : %s\n", outputFile);
    st_logInfo("Query: %s\n", query);
@@ -1326,14 +1322,15 @@ int main(int argc, char *argv[]) {
    //Load the database
    //////////////////////////////////////////////
 
-   cactusDisk = cactusDisk_construct(cactusDiskName);
+   stKVDatabaseConf *kvDatabaseConf = stKVDatabaseConf_constructFromString(cactusDiskDatabaseString);
+   CactusDisk *cactusDisk = cactusDisk_construct(kvDatabaseConf, 0);
    st_logInfo("Set up the flower disk\n");
 
    ///////////////////////////////////////////////////////////////////////////
    // Parse the basic reconstruction problem
    ///////////////////////////////////////////////////////////////////////////
    flowerName = stString_copy("0");
-   flower = cactusDisk_getFlower(cactusDisk, cactusMisc_stringToName(flowerName));
+   Flower *flower = cactusDisk_getFlower(cactusDisk, cactusMisc_stringToName(flowerName));
    st_logInfo("Parsed the top level flower of the cactus tree to check\n");
 
    ///////////////////////////////////////////////////////////////////////////
@@ -1356,6 +1353,7 @@ int main(int argc, char *argv[]) {
    ///////////////////////////////////////////////////////////////////////////
 
    cactusDisk_destruct(cactusDisk);
+   stKVDatabase_destruct(kvDatabaseConf);
 
    return 0;
 }

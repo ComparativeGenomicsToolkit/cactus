@@ -63,6 +63,7 @@ int main(int argc, char *argv[]) {
      * Script for adding alignments to cactus tree.
      */
     int32_t startTime;
+    stKVDatabaseConf *kvDatabaseConf;
     CactusDisk *cactusDisk;
     Flower *flower;
     int key;
@@ -72,7 +73,7 @@ int main(int argc, char *argv[]) {
      */
     char * logLevelString = NULL;
     char * alignmentsFile = NULL;
-    char * cactusDiskName = NULL;
+    char * cactusDiskDatabaseString = NULL;
     char * flowerName = NULL;
     CactusCoreInputParameters *cCIP = constructCactusCoreInputParameters();
 
@@ -119,7 +120,7 @@ int main(int argc, char *argv[]) {
             alignmentsFile = stString_copy(optarg);
             break;
         case 'c':
-            cactusDiskName = stString_copy(optarg);
+            cactusDiskDatabaseString = stString_copy(optarg);
             break;
         case 'd':
             flowerName = stString_copy(optarg);
@@ -173,7 +174,7 @@ int main(int argc, char *argv[]) {
 
     assert(logLevelString == NULL || strcmp(logLevelString, "CRITICAL") == 0 || strcmp(logLevelString, "INFO") == 0 || strcmp(logLevelString, "DEBUG") == 0);
     assert(alignmentsFile != NULL);
-    assert(cactusDiskName != NULL);
+    assert(cactusDiskDatabaseString != NULL);
     assert(flowerName != NULL);
     assert(cCIP->minimumTreeCoverage >= 0.0);
     assert(cCIP->minimumTreeCoverage <= 1.0);
@@ -200,14 +201,15 @@ int main(int argc, char *argv[]) {
     //////////////////////////////////////////////
 
     st_logInfo("Pairwise alignments file : %s\n", alignmentsFile);
-    st_logInfo("Flower disk name : %s\n", cactusDiskName);
+    st_logInfo("Flower disk name : %s\n", cactusDiskDatabaseString);
     st_logInfo("Flower name : %s\n", flowerName);
 
     //////////////////////////////////////////////
     //Load the database
     //////////////////////////////////////////////
 
-    cactusDisk = cactusDisk_construct(cactusDiskName);
+    kvDatabaseConf = stKVDatabaseConf_constructFromString(cactusDiskDatabaseString);
+    cactusDisk = cactusDisk_construct(kvDatabaseConf, 0);
     st_logInfo("Set up the flower disk\n");
 
     ///////////////////////////////////////////////////////////////////////////
@@ -247,6 +249,7 @@ int main(int argc, char *argv[]) {
     //Destruct stuff
     startTime = time(NULL);
     cactusDisk_destruct(cactusDisk);
+    stKVDatabaseConf_destruct(kvDatabaseConf);
 
     st_logInfo("Cleaned stuff up and am finished in: %i seconds\n", time(NULL)
             - startTime);

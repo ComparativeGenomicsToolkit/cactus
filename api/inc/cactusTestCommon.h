@@ -12,13 +12,26 @@
 ////////////////////////////////////////////////
 
 /*
- * Get the location of a place to put a temporary cactus disk.
+ * Gets a temporary KV database conf file suitable for building a database in.
  */
-const char *testCommon_getTemporaryCactusDisk();
+stKVDatabaseConf *testCommon_getTemporaryKVDatabaseConf();
 
 /*
- * Removes the temporary cactus disk file from the disk.
+ * Removes from disk and temporary KV database created in the location pointed
+ * to by the testCommon_getTemporaryKVDatabaseConf file.
  */
-void testCommon_deleteTemporaryCactusDisk();
+void testCommon_deleteTemporaryKVDatabase();
+
+/*
+ * Gets a temporary cactus disk, must call testCommon_deleteTemporaryCactusDisk
+ * to destroy it.
+ */
+CactusDisk *testCommon_getTemporaryCactusDisk();
+
+/*
+ * Destroys the object given by testCommon_getTemporaryCactusDisk and removes
+ * all files associated from disk.
+ */
+void testCommon_deleteTemporaryCactusDisk(CactusDisk *cactusDisk);
 
 #endif

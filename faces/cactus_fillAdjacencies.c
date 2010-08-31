@@ -1106,7 +1106,7 @@ int main(int argc, char ** argv) {
      * Arguments/options
      */
     char * logLevelString = NULL;
-    char * cactusDiskName = NULL;
+    char * cactusDiskDatabaseString = NULL;
 
     ///////////////////////////////////////////////////////////////////////////
     // (0) Parse the inputs handed by genomeCactus.py / setup stuff.
@@ -1130,7 +1130,7 @@ int main(int argc, char ** argv) {
                 logLevelString = stString_copy(optarg);
                 break;
             case 'c':
-                cactusDiskName = stString_copy(optarg);
+                cactusDiskDatabaseString = stString_copy(optarg);
                 break;
             case 'h':
                 usage();
@@ -1146,7 +1146,7 @@ int main(int argc, char ** argv) {
     ///////////////////////////////////////////////////////////////////////////
 
     assert(logLevelString == NULL || strcmp(logLevelString, "INFO") == 0 || strcmp(logLevelString, "DEBUG") == 0);
-    assert(cactusDiskName != NULL);
+    assert(cactusDiskDatabaseString != NULL);
     //assert(tempFileRootDirectory != NULL);
 
     //////////////////////////////////////////////
@@ -1161,16 +1161,11 @@ int main(int argc, char ** argv) {
     }
 
     //////////////////////////////////////////////
-    //Log (some of) the inputs
-    //////////////////////////////////////////////
-
-    st_logInfo("Flower disk name : %s\n", cactusDiskName);
-
-    //////////////////////////////////////////////
     //Load the database
     //////////////////////////////////////////////
 
-    cactusDisk = cactusDisk_construct(cactusDiskName);
+    stKVDatabaseConf *kvDatabaseConf = stKVDatabaseConf_constructFromString(cactusDiskDatabaseString);
+    cactusDisk = cactusDisk_construct(kvDatabaseConf, 0);
     st_logInfo("Set up the flower disk\n");
 
     //////////////////////////////////////////////
@@ -1248,6 +1243,7 @@ int main(int argc, char ** argv) {
     //Destruct stuff
     startTime = time(NULL);
     cactusDisk_destruct(cactusDisk);
+    stKVDatabaseConf_destruct(kvDatabaseConf);
 
     st_logInfo("Cleaned stuff up and am finished in: %i seconds\n", time(NULL)
             - startTime);

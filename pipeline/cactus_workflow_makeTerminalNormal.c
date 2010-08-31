@@ -15,15 +15,13 @@ int main(int argc, char *argv[]) {
     /*
      * This code iterates through the leaf groups.
      */
-    CactusDisk *cactusDisk;
-    Flower *flower;
-
     assert(argc >= 2);
-    cactusDisk = cactusDisk_construct(argv[1]);
+    stKVDatabaseConf *kvDatabaseConf = stKVDatabaseConf_constructFromString(argv[1]);
+    CactusDisk *cactusDisk = cactusDisk_construct(kvDatabaseConf, 0);
     st_logInfo("Set up the flower disk\n");
     int32_t i;
     for (i = 2; i < argc; i++) {
-        flower = cactusDisk_getFlower(cactusDisk, cactusMisc_stringToName(argv[i]));
+        Flower *flower = cactusDisk_getFlower(cactusDisk, cactusMisc_stringToName(argv[i]));
         assert(flower != NULL);
         st_logInfo("Parsed flower %s\n", argv[i]);
         if (!flower_isTerminal(flower)) {
@@ -45,6 +43,7 @@ int main(int argc, char *argv[]) {
     st_logInfo("Updated the cactus disk\n");
 
     cactusDisk_destruct(cactusDisk);
+    stKVDatabaseConf_destruct(kvDatabaseConf);
 
     st_logInfo("Am finished\n");
     return 0;

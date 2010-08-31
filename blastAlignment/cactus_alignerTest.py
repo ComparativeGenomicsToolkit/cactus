@@ -9,11 +9,11 @@ from sonLib.bioio import getTempDirectory
 from sonLib.bioio import getTempFile
 
 from cactus.shared.test import getCactusInputs_random
+from cactus.shared.test import getCactusWorkflowExperimentConfig
+from cactus.shared.test import getCactusDiskDatabaseString
 
 from cactus.shared.common import runCactusSetup
 from cactus.shared.common import runCactusAligner
-
-from workflow.jobTree.jobTreeTest import runJobTreeStatusAndFailIfNotComplete 
 
 class TestCase(unittest.TestCase):
 
@@ -52,16 +52,20 @@ def runAligner(tempDir, tempReconstructionDir, tempAlignmentFile, useDummy=True)
     ##########################################
     
     sequenceDirs, newickTreeString = getCactusInputs_random(tempDir=getTempDirectory(tempDir))
-    runCactusSetup(tempReconstructionDir, sequenceDirs, newickTreeString)
+    outputDir = getTempDirectory(tempDir)
+    experiment = getCactusWorkflowExperimentConfig(outputDir, sequenceDirs, newickTreeString)
+    cactusDiskDatabaseString = getCactusDiskDatabaseString(experiment)
+    
+    runCactusSetup(cactusDiskDatabaseString, sequenceDirs, newickTreeString)
     logger.info("Setup the test, running cactus aligner")
     
     ##########################################
     #Do actual run
     ##########################################
     
-    runCactusAligner(tempReconstructionDir, tempAlignmentFile, 
+    runCactusAligner(cactusDiskDatabaseString, tempAlignmentFile, 
                      tempDir=getTempDirectory(tempDir), useDummy=useDummy)
-    runCactusAligner(tempReconstructionDir, tempAlignmentFile, \
+    runCactusAligner(cactusDiskDatabaseString, tempAlignmentFile, \
                      tempDir=getTempDirectory(tempDir), useDummy=useDummy) #Run it twice to check blockicity
     logger.info("Ran cactus aligner")
     

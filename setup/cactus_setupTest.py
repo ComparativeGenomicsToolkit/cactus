@@ -11,6 +11,8 @@ from sonLib.bioio import getTempDirectory
 
 from cactus.shared.common import runCactusSetup
 from cactus.shared.test import getCactusInputs_random
+from cactus.shared.test import getCactusWorkflowExperimentConfig
+from cactus.shared.test import getCactusDiskDatabaseString
 
 class TestCase(unittest.TestCase):
 
@@ -25,9 +27,15 @@ class TestCase(unittest.TestCase):
             tempDir = getTempDirectory(os.getcwd())
             sequenceNumber = random.choice(xrange(100))
             sequences, newickTreeString = getCactusInputs_random(tempDir=tempDir, sequenceNumber=sequenceNumber)
-            cactusDisk = os.path.join(tempDir, "cactusDisk")
-            runCactusSetup(cactusDisk, sequences, newickTreeString, debug=True)
-            runCactusSetup(cactusDisk, sequences, newickTreeString, debug=True)
+            
+            #Setup the flower disk.
+            experiment = getCactusWorkflowExperimentConfig(tempDir, sequences, newickTreeString)
+            cactusDiskDatabaseString = getCactusDiskDatabaseString(experiment)
+            #Make the experiment file
+            #experimentFile = makeCactusWorkflowExperimentFile(tempDir, experiment)
+            
+            runCactusSetup(cactusDiskDatabaseString, sequences, newickTreeString, debug=True)
+            runCactusSetup(cactusDiskDatabaseString, sequences, newickTreeString, debug=True)
             system("rm -rf %s" % tempDir)
             logger.info("Finished test %i of cactus_setup.py", test) 
  

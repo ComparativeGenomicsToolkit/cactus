@@ -15,15 +15,14 @@ static Segment *leaf2Segment;
 
 static void cactusBlocksTestSharedTeardown() {
     if (cactusDisk != NULL) {
-        cactusDisk_destruct(cactusDisk);
-        testCommon_deleteTemporaryCactusDisk();
+        testCommon_deleteTemporaryCactusDisk(cactusDisk);
         cactusDisk = NULL;
     }
 }
 
 static void cactusBlocksTestSharedSetup() {
     cactusBlocksTestSharedTeardown();
-    cactusDisk = cactusDisk_construct(testCommon_getTemporaryCactusDisk());
+    cactusDisk = testCommon_getTemporaryCactusDisk();
     flower = flower_construct(cactusDisk);
 
     eventTree = eventTree_construct2(flower);

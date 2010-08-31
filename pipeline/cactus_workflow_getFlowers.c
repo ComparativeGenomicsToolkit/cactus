@@ -8,18 +8,16 @@
 #include "cactus.h"
 
 int main(int argc, char *argv[]) {
-    CactusDisk *cactusDisk;
-    Flower *flower;
-
     assert(argc >= 3);
-    cactusDisk = cactusDisk_construct(argv[1]);
+    stKVDatabaseConf *kvDatabaseConf = stKVDatabaseConf_constructFromString(argv[1]);
+    CactusDisk *cactusDisk = cactusDisk_construct(kvDatabaseConf, 0);
     st_logInfo("Set up the flower disk\n");
 
     FILE *fileHandle = fopen(argv[2], "w");
 
     int32_t i;
     for (i = 3; i < argc; i++) {
-        flower = cactusDisk_getFlower(cactusDisk, cactusMisc_stringToName(argv[i]));
+        Flower *flower = cactusDisk_getFlower(cactusDisk, cactusMisc_stringToName(argv[i]));
         assert(flower != NULL);
         assert(flower_builtBlocks(flower)); //This recursion depends on the block structure having been properly defined for all nodes.
         st_logInfo("Parsed the flower %s\n", argv[i]);
@@ -37,6 +35,7 @@ int main(int argc, char *argv[]) {
     }
     fclose(fileHandle);
     cactusDisk_destruct(cactusDisk);
+    stKVDatabaseConf_destruct(kvDatabaseConf);
     st_logInfo("Am finished\n");
     return 0;
 }
