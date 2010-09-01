@@ -14,9 +14,7 @@ from sonLib.bioio import fastaReadHeaders
 
 from cactus.shared.common import runCactusWorkflow
 
-from cactus.shared.test import getCactusWorkflowExperimentConfig
-from cactus.shared.test import getCactusDiskDatabaseString
-from cactus.shared.test import makeCactusWorkflowExperimentFile
+from cactus.shared.config import CactusWorkflowExperiment
 
 from workflow.jobTree.jobTreeTest import runJobTreeStatusAndFailIfNotComplete
 
@@ -100,9 +98,10 @@ class TestCase(unittest.TestCase):
             fileHandle.close()
         logger.info("Got the temp sequence files")
         
-        experiment = getCactusWorkflowExperimentConfig(testDir, tempFastaFiles, newickTreeString)
-        experimentFile = makeCactusWorkflowExperimentFile(testDir, experiment)
-        cactusDiskDatabaseString = getCactusDiskDatabaseString(experiment)
+        experiment = CactusWorkflowExperiment(tempFastaFiles, newickTreeString, testDir)
+        experimentFile = os.path.join(testDir, "experiment.xml")
+        experiment.writeExperimentFile(experimentFile)
+        cactusDiskDatabaseString = experiment.getDatabaseString()
         
         jobTree = os.path.join(testDir, "jobTree")
         
@@ -133,12 +132,9 @@ class TestCase(unittest.TestCase):
         system("cat %s" % resultsFile)
         
         #Cleanup
+        experiment.cleanupDatabase()
         system("rm -rf %s" % testDir)
         logger.info("Successfully ran test for the problem")
-        
-        #####
-        #Now cleanup
-        ####
         
         for tempFile in tempFiles:
             os.remove(tempFile)

@@ -4,7 +4,6 @@ cactus workflow and the various utilities.
 
 import random
 import os
-import xml.etree.ElementTree as ET
 
 from sonLib.bioio import logger
 from sonLib.bioio import getTempFile
@@ -27,44 +26,13 @@ from cactus.shared.common import runCactusTreeStats
 from cactus.shared.common import runCactusMAFGenerator
 from cactus.shared.common import runCactusTreeStatsToLatexTables
 
+from cactus.shared.config import CactusWorkflowExperiment
+
 from sonLib.bioio import TestStatus
 
 from sonLib.tree import makeRandomBinaryTree
 
 from workflow.jobTree.jobTreeTest import runJobTreeStatusAndFailIfNotComplete
-
-def getCactusWorkflowExperimentConfig(tempDir, sequences, newickTreeString, configFile=None):
-    """Creates a dummy experiment config.
-    """
-    experiment = ET.Element("cactus_workflow_experiment")
-    experiment.attrib["config"] = "default"
-    database = ET.SubElement(experiment, "cactus_disk")
-    databaseConf = ET.SubElement(database, "st_kv_database_conf")
-    databaseConf.attrib["type"] = "tokyo_cabinet"
-    tokyoCabinet = ET.SubElement(databaseConf, "tokyo_cabinet")
-    tokyoCabinet.attrib["database_dir"] = os.path.join(tempDir, "cactusDisk")
-    #Now add in the user stuff..
-    experiment.attrib["sequences"] = " ".join(sequences)
-    experiment.attrib["species_tree"] = newickTreeString
-    if configFile != None:
-        experiment.attrib["config"] = configFile
-    return experiment
-
-def getCactusDiskDatabaseString(experiment):
-    return ET.tostring(experiment.find("cactus_disk").find("st_kv_database_conf"))
-
-def prepareForCactusWorkflowExperiment(outputDir):
-    if not os.path.isdir(outputDir):
-        os.mkdir(outputDir)
-    system("rm -rf %s" % os.path.join(outputDir, "cactusDisk"))
-    logger.info("Cleaned up any previous flower disk")
-
-def makeCactusWorkflowExperimentFile(outputDir, experiment):
-    experimentFile = os.path.join(outputDir, "experiment.xml")
-    fileHandle = open(experimentFile, 'w')
-    ET.ElementTree(experiment).write(fileHandle)
-    fileHandle.close()
-    return experimentFile
 
 def getCactusInputs_random(regionNumber=0, tempDir=None,
                           sequenceNumber=random.choice(xrange(100)), 
@@ -199,12 +167,11 @@ def runWorkflow_TestScript(sequences, newickTreeString,
     logger.info("Using the output dir: %s" % outputDir)
     
     #Setup the flower disk.
-    prepareForCactusWorkflowExperiment(outputDir)
-    experiment = getCactusWorkflowExperimentConfig(outputDir, sequences, newickTreeString, configFile)
-    cactusDiskDatabaseString = getCactusDiskDatabaseString(experiment)
-    #Make the experiment file
-    experimentFile = makeCactusWorkflowExperimentFile(outputDir, experiment)
-    
+    experiment = CactusWorkflowExperiment(sequences, newickTreeString, outputDir, configFile)
+    cactusDiskDatabaseString = experiment.getDatabaseString()
+    experimentFile = os.path.join(tempDir, "experiment.xml")
+    experiment.writeExperimentFile(experimentFile)
+   
     #Setup the job tree dir.
     jobTreeDir = os.path.join(getTempDirectory(tempDir), "jobTree")
     logger.info("Got a job tree dir for the test: %s" % jobTreeDir)
@@ -275,6 +242,7 @@ def runWorkflow_TestScript(sequences, newickTreeString,
         
     if cleanup:
         #Now remove everything
+        experiment.cleanupDatabase()
         system("rm -rf %s" % tempDir)
         logger.info("Cleaned everything up")
     else:
@@ -303,6 +271,10 @@ def runWorkflow_multipleExamples(inputGenFunction,
             sequences, newickTreeString = inputGenFunction(regionNumber=test, tempDir=tempDir)
             if outputDir != None:
                 out = os.path.join(outputDir, str(test))
+                if os.path.exists(out):
+                    system("rm -rf %s" % out)
+                os.mkdir(out)
+                os.chmod(out, 0777) #Ensure everyone has access to the file.
             else:
                 out = None
             runWorkflow_TestScript(sequences, newickTreeString, tempDir=tempDir,
