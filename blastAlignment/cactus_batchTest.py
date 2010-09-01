@@ -15,7 +15,7 @@ from sonLib.bioio import getTempFile
 from sonLib.bioio import getTempDirectory
 
 from sonLib.bioio import TestStatus
-from sonLib.bioio import parseSuiteTestOptions
+from cactus.shared.test import parseCactusSuiteTestOptions
 
 from sonLib.bioio import cigarRead
 from sonLib.bioio import PairwiseAlignment
@@ -249,7 +249,7 @@ def runCactusBatch(sequenceFiles, outputFile, jobTreeDir,
     logger.info("Ran the cactus_batch command okay")
 
 def main():
-    parseSuiteTestOptions()
+    parseCactusSuiteTestOptions()
     sys.argv = sys.argv[:1]
     unittest.main()
         

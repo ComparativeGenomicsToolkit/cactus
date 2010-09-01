@@ -2,7 +2,7 @@ import unittest
 import sys
 import os
 
-from sonLib.bioio import parseSuiteTestOptions
+from cactus.shared.test import parseCactusSuiteTestOptions
 from sonLib.bioio import TestStatus
 from sonLib.bioio import system
 from sonLib.bioio import getTempDirectory
@@ -27,7 +27,7 @@ class TestCase(unittest.TestCase):
         system("rm -rf %s" % tempOutputDir)
         
 def main():
-    parseSuiteTestOptions()
+    parseCactusSuiteTestOptions()
     sys.argv = sys.argv[:1]
     unittest.main()
         

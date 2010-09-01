@@ -2,13 +2,13 @@ import unittest
 import sys
 import os
 from sonLib.bioio import logger
-from sonLib.bioio import parseSuiteTestOptions
+from cactus.shared.test import parseCactusSuiteTestOptions
 from sonLib.bioio import TestStatus
 from sonLib.bioio import system
 from sonLib.bioio import getTempDirectory
 
 from cactus.shared.test import getCactusInputs_random
-from cactus.shared.config import CactusWorkflowExperiment
+from cactus.shared.test import getCactusWorkflowExperimentForTest
 
 from cactus.shared.common import runCactusSetup
 from cactus.shared.common import runCactusAligner
@@ -42,7 +42,7 @@ def runAligner(useDummy=True):
     sequenceDirs, newickTreeString = getCactusInputs_random(tempDir=getTempDirectory(tempDir))
     outputDir = getTempDirectory(tempDir)
     
-    experiment = CactusWorkflowExperiment(sequenceDirs, newickTreeString, outputDir)
+    experiment = getCactusWorkflowExperimentForTest(sequenceDirs, newickTreeString, outputDir)
     cactusDiskDatabaseString = experiment.getDatabaseString()
     
     runCactusSetup(cactusDiskDatabaseString, sequenceDirs, newickTreeString)
@@ -65,7 +65,7 @@ def runAligner(useDummy=True):
     system("rm -rf %s" % tempDir)
 
 def main():
-    parseSuiteTestOptions()
+    parseCactusSuiteTestOptions()
     sys.argv = sys.argv[:1]
     unittest.main()
         

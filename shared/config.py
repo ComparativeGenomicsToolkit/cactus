@@ -1,27 +1,69 @@
 import xml.etree.ElementTree as ET
 import os
+import sys
 
 from sonLib.bioio import system
+from sonLib.bioio import getRandomAlphaNumericString
 
-MYSQL_DEFINED = 0
-
-def initialiseMysqlConf(host, port, user, password, database):
-    pass
+def checkDatabaseConf(databaseConf):
+    """Function checks the database conf is as expected and creates useful exceptions
+    if not"""
+    dataString = ET.tostring(databaseConf)
+    if databaseConf.tag != "st_kv_database_conf":
+        raise RuntimeError("The database conf string is improperly formatted: %s" % dataString)
+    if not databaseConf.attrib.has_key("type"):
+        raise RuntimeError("The database conf string does not have a type attrib: %s" % dataString)
+    typeString = databaseConf.attrib["type"]
+    if typeString == "mysql":
+        mysql = databaseConf.find("mysql")
+        if mysql == None:
+            raise RuntimeError("Database conf is of type mysql but there is no nested mysql tag: %s" % dataString)
+        if set(mysql.attrib.keys()) != set("host", "port", "password", "user", "database_name"):
+            raise RuntimeError("Mysql tag is improperly formatted: %s" % dataString)
+    elif typeString == "tokyo_cabinet":
+        tokyoCabinet = databaseConf.find("tokyo_cabinet")
+        if tokyoCabinet == None:
+            raise RuntimeError("Database conf is of type tokyo cabinet but there is no nested tokyo cabinet tag: %s" % dataString)
+        if not tokyoCabinet.attrib.has_key("database_dir"):
+            raise RuntimeError("The tokyo cabinet tag has no database_dir tag: %s" % dataString)
+    else:
+        raise RuntimeError("Unrecognised database type in conf string")
 
 class CactusWorkflowExperiment:
-    def __init__(self, sequences, newickTreeString, tempDir='./', configFile=None):
+    """Object used for generating cactus workflow experiment config files,
+    using the inputs to generate valid config strings and files.
+    """
+    def __init__(self, sequences, newickTreeString, databaseName=None, outputDir=None, databaseConf=None, configFile=None):
         self.experiment = ET.Element("cactus_workflow_experiment")
-        self.kvDatabaseName = "cactusDisk" #Needs to be unique
-        assert os.path.exists(tempDir) #Check it exists
+        if databaseName == None:
+            self.databaseName = "cactusDisk_%s_%i" % (getRandomAlphaNumericString(), os.getpid()) #Needs to be unique
+        else:
+            self.databaseName = databaseName
+        self.databaseFile = None
         #Do the database first
         database = ET.SubElement(self.experiment, "cactus_disk")
-        if MYSQL_DEFINED:
-            pass
+        self.mysql = 0
+        if databaseConf != None:
+            checkDatabaseConf(databaseConf)
+            databaseConf = ET.fromstring(ET.tostring(databaseConf))
+            checkDatabaseConf(databaseConf) #This is just a redundant check
+            database.append(databaseConf)
+            if databaseConf.attrib["type"] == "mysql":
+                #Add a table name:
+                databaseConf.find("mysql").attrib["table_name"] = self.databaseName
+            else:
+                assert databaseConf.attrib["type"] == "tokyo_cabinet"
+                tokyoCabinet = databaseConf.find("tokyo_cabinet")
+                tokyoCabinet.attrib["database_dir"] = os.path.join(tokyoCabinet.attrib["database_dir"], self.databaseName)
+                self.databaseFile = tokyoCabinet.attrib["database_dir"]
+                assert not os.path.exists(self.databaseFile)
         else:
             databaseConf = ET.SubElement(database, "st_kv_database_conf")
             databaseConf.attrib["type"] = "tokyo_cabinet"
             tokyoCabinet = ET.SubElement(databaseConf, "tokyo_cabinet")
-            self.databaseFile = os.path.join(tempDir, self.kvDatabaseName)
+            assert outputDir != None
+            assert os.path.exists(outputDir) #Check it exists
+            self.databaseFile = os.path.join(outputDir, self.databaseName)
             assert not os.path.exists(self.databaseFile)
             tokyoCabinet.attrib["database_dir"] = self.databaseFile
         #Now add in the user stuff..
@@ -41,9 +83,12 @@ class CactusWorkflowExperiment:
     def cleanupDatabase(self):
         """Removes the database that was created.
         """
-        if MYSQL_DEFINED:
-            pass
+        if self.mysql:
+            assert self.databaseFile == None
+            #Connect to MYSQL and remove the table..
+            system("hgsql --host --port --user --password -e drop table %s.%s" % (database, tableName))
         else:
+            assert self.databaseFile != None
             system("rm -rf %s" % self.databaseFile)
         
     def getDatabaseString(self):

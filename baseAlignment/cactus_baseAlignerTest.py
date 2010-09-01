@@ -2,7 +2,7 @@ import unittest
 import os
 import sys
 
-from sonLib.bioio import parseSuiteTestOptions
+from cactus.shared.test import parseCactusSuiteTestOptions
 from sonLib.bioio import TestStatus
 from sonLib.bioio import getTempDirectory
 from sonLib.bioio import logger
@@ -14,7 +14,7 @@ from sonLib.bioio import fastaReadHeaders
 
 from cactus.shared.common import runCactusWorkflow
 
-from cactus.shared.config import CactusWorkflowExperiment
+from cactus.shared.test import getCactusWorkflowExperimentForTest
 
 from workflow.jobTree.jobTreeTest import runJobTreeStatusAndFailIfNotComplete
 
@@ -98,7 +98,7 @@ class TestCase(unittest.TestCase):
             fileHandle.close()
         logger.info("Got the temp sequence files")
         
-        experiment = CactusWorkflowExperiment(tempFastaFiles, newickTreeString, testDir)
+        experiment = getCactusWorkflowExperimentForTest(tempFastaFiles, newickTreeString, testDir)
         experimentFile = os.path.join(testDir, "experiment.xml")
         experiment.writeExperimentFile(experimentFile)
         cactusDiskDatabaseString = experiment.getDatabaseString()
@@ -146,7 +146,7 @@ class TestCase(unittest.TestCase):
         system("cactus_baseAlignerTests")
 
 def main():
-    parseSuiteTestOptions()
+    parseCactusSuiteTestOptions()
     sys.argv = sys.argv[:1]
     unittest.main()
         

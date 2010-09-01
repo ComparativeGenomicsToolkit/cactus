@@ -4,6 +4,7 @@ cactus workflow and the various utilities.
 
 import random
 import os
+import xml.etree.ElementTree as ET
 
 from sonLib.bioio import logger
 from sonLib.bioio import getTempFile
@@ -26,13 +27,55 @@ from cactus.shared.common import runCactusTreeStats
 from cactus.shared.common import runCactusMAFGenerator
 from cactus.shared.common import runCactusTreeStatsToLatexTables
 
-from cactus.shared.config import CactusWorkflowExperiment
-
 from sonLib.bioio import TestStatus
 
 from sonLib.tree import makeRandomBinaryTree
 
 from workflow.jobTree.jobTreeTest import runJobTreeStatusAndFailIfNotComplete
+
+from cactus.shared.config import checkDatabaseConf
+from cactus.shared.config import CactusWorkflowExperiment
+
+###########
+#Stuff for setting up the experiment configuration file for a test
+###########
+
+GLOBAL_DATABASE_CONF = None
+
+def initialiseGlobalDatabaseConf(dataString):
+    """Initialises the global database conf string which, if defined,
+    is used as the database for CactusWorkflowExperiments."""
+    global GLOBAL_DATABASE_CONF
+    GLOBAL_DATABASE_CONF = ET.fromstring(dataString)
+    checkDatabaseConf(GLOBAL_DATABASE_CONF)
+    
+def getCactusWorkflowExperimentForTest(sequences, newickTreeString, outputDir, databaseName=None, configFile=None):
+    """Wrapper to constructor of CactusWorkflowExperiment which additionally incorporates
+    any globally set database conf.
+    """
+    return CactusWorkflowExperiment(sequences, newickTreeString, databaseName=databaseName, outputDir=outputDir, databaseConf=GLOBAL_DATABASE_CONF, configFile=configFile)
+
+def parseCactusSuiteTestOptions():
+    """Cactus version of the basic option parser that can additionally parse 
+    a database conf XML string to be used in experiments."""
+    from sonLib.bioio import getBasicOptionParser
+    parser = getBasicOptionParser("usage: %prog [options]", "%prog 0.1")
+    
+    parser.add_option("--databaseConf", dest="databaseConf", type="string",
+                      help="Gives a database conf string which will direct all tests to use the given database (see the readme for instructions on setup)",
+                      default=None)
+    
+    from sonLib.bioio import parseSuiteTestOptions
+    options, args = parseSuiteTestOptions(parser)
+    #This is the key bit
+    if options.databaseConf != None:
+        initialiseGlobalDatabaseConf(options.databaseConf)
+        
+    return options, args
+
+###############
+#Stuff for getting random inputs to a test
+###############
 
 def getCactusInputs_random(regionNumber=0, tempDir=None,
                           sequenceNumber=random.choice(xrange(100)), 
@@ -141,6 +184,7 @@ def getCactusInputs_chromosomeX(regionNumber=0, tempDir=None):
 def runWorkflow_TestScript(sequences, newickTreeString, 
                            tempDir=None,
                            outputDir=None, 
+                           databaseName=None,
                            batchSystem="single_machine",
                            buildTrees=True, buildFaces=True, buildReference=True,
                            buildCactusPDF=False,
@@ -167,7 +211,7 @@ def runWorkflow_TestScript(sequences, newickTreeString,
     logger.info("Using the output dir: %s" % outputDir)
     
     #Setup the flower disk.
-    experiment = CactusWorkflowExperiment(sequences, newickTreeString, outputDir, configFile)
+    experiment = getCactusWorkflowExperimentForTest(sequences, newickTreeString, outputDir=outputDir, databaseName=databaseName, configFile=configFile)
     cactusDiskDatabaseString = experiment.getDatabaseString()
     experimentFile = os.path.join(tempDir, "experiment.xml")
     experiment.writeExperimentFile(experimentFile)
@@ -256,6 +300,7 @@ def runWorkflow_multipleExamples(inputGenFunction,
                                                    TestStatus.TEST_LONG, TestStatus.TEST_VERY_LONG,),
                                inverseTestRestrictions=False,
                                outputDir=None,
+                               databaseName=None,
                                batchSystem="single_machine",
                                buildTrees=True, buildFaces=True, buildReference=True,
                                buildCactusPDF=False, buildAdjacencyPDF=False,
@@ -278,7 +323,7 @@ def runWorkflow_multipleExamples(inputGenFunction,
             else:
                 out = None
             runWorkflow_TestScript(sequences, newickTreeString, tempDir=tempDir,
-                                   outputDir=out, batchSystem=batchSystem,
+                                   outputDir=out, databaseName=databaseName, batchSystem=batchSystem,
                                    buildTrees=buildTrees, buildFaces=buildFaces, buildReference=buildReference, 
                                    buildCactusPDF=buildCactusPDF, buildAdjacencyPDF=buildAdjacencyPDF,
                                    buildReferencePDF=buildReferencePDF,

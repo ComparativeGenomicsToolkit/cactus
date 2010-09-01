@@ -4,7 +4,7 @@ import os
 import xml.etree.ElementTree as ET
 import random
 
-from sonLib.bioio import parseSuiteTestOptions
+from cactus.shared.test import parseCactusSuiteTestOptions
 from sonLib.bioio import TestStatus
 from sonLib.bioio import getTempFile
 from sonLib.bioio import system
@@ -60,7 +60,7 @@ def getRandomConfigFile():
     return tempConfigFile
     
 def main():
-    parseSuiteTestOptions()
+    parseCactusSuiteTestOptions()
     sys.argv = sys.argv[:1]
     unittest.main()
         

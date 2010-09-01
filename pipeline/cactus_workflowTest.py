@@ -5,7 +5,7 @@ import unittest
 import os
 import sys
 
-from sonLib.bioio import parseSuiteTestOptions
+from cactus.shared.test import parseCactusSuiteTestOptions
 from sonLib.bioio import TestStatus
 
 from cactus.shared.test import getCactusInputs_random
@@ -33,6 +33,7 @@ class TestCase(unittest.TestCase):
                                  "blanchettesRegionsTest")
         runWorkflow_multipleExamples(getCactusInputs_blanchette, 
                                      outputDir=outputDir,
+                                     databaseName="cactusDisk",
                                      testNumber=5,
                                      testRestrictions=(TestStatus.TEST_MEDIUM,),
                                      batchSystem=self.batchSystem,
@@ -43,6 +44,7 @@ class TestCase(unittest.TestCase):
         outputDir = os.path.join(TestStatus.getPathToDataSets(), "cactus", "encodeRegionsTest")
         runWorkflow_multipleExamples(getCactusInputs_encode, 
                                      outputDir=outputDir,
+                                     databaseName="cactusDisk",
                                      testNumber=1,
                                      testRestrictions=(TestStatus.TEST_LONG,),
                                      batchSystem=self.batchSystem,
@@ -52,12 +54,13 @@ class TestCase(unittest.TestCase):
         outputDir = os.path.join(TestStatus.getPathToDataSets(), "cactus", "chrX")
         runWorkflow_multipleExamples(getCactusInputs_chromosomeX, 
                                      outputDir=outputDir,
+                                     databaseName="cactusDisk",
                                      testRestrictions=(TestStatus.TEST_VERY_LONG,),
                                      batchSystem=self.batchSystem,
                                      makeCactusTreeStats=True, makeMAFs=True)
     
 def main():
-    parseSuiteTestOptions()
+    parseCactusSuiteTestOptions()
     sys.argv = sys.argv[:1]
     unittest.main()
         

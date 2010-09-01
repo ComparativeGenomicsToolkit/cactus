@@ -4,14 +4,14 @@ import os
 import random
 
 from sonLib.bioio import logger
-from sonLib.bioio import parseSuiteTestOptions
+from cactus.shared.test import parseCactusSuiteTestOptions
 from sonLib.bioio import TestStatus
 from sonLib.bioio import system
 from sonLib.bioio import getTempDirectory
 
 from cactus.shared.common import runCactusSetup
 from cactus.shared.test import getCactusInputs_random
-from cactus.shared.config import CactusWorkflowExperiment
+from cactus.shared.test import getCactusWorkflowExperimentForTest
 
 class TestCase(unittest.TestCase):
 
@@ -28,7 +28,7 @@ class TestCase(unittest.TestCase):
             sequences, newickTreeString = getCactusInputs_random(tempDir=tempDir, sequenceNumber=sequenceNumber)
             
             #Setup the flower disk.
-            experiment = CactusWorkflowExperiment(sequences, newickTreeString, tempDir)
+            experiment = getCactusWorkflowExperimentForTest(sequences, newickTreeString, tempDir)
             cactusDiskDatabaseString = experiment.getDatabaseString()
            
             runCactusSetup(cactusDiskDatabaseString, sequences, newickTreeString, debug=True)
@@ -39,7 +39,7 @@ class TestCase(unittest.TestCase):
             logger.info("Finished test %i of cactus_setup.py", test) 
  
 def main():
-    parseSuiteTestOptions()
+    parseCactusSuiteTestOptions()
     sys.argv = sys.argv[:1]
     unittest.main()
         

@@ -1,7 +1,7 @@
 import unittest
 import sys
 
-from sonLib.bioio import parseSuiteTestOptions
+from cactus.shared.test import parseCactusSuiteTestOptions
 from sonLib.bioio import TestStatus
 
 from cactus.shared.test import getCactusInputs_random
@@ -23,7 +23,7 @@ class TestCase(unittest.TestCase):
                                      makeMAFs=True)
         
 def main():
-    parseSuiteTestOptions()
+    parseCactusSuiteTestOptions()
     sys.argv = sys.argv[:1]
     unittest.main()
         
