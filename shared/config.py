@@ -85,8 +85,10 @@ class CactusWorkflowExperiment:
         """
         if self.mysql:
             assert self.databaseFile == None
+            i = self.experiment.find("st_kv_database_conf").find("mysql").attrib
             #Connect to MYSQL and remove the table..
-            system("hgsql --host --port --user --password -e drop table %s.%s" % (database, tableName))
+            system("hgsql --host %s --port %i --user %s --password %s -e drop table %s.%s" \
+                   % (i["host"], i["port"], i["user"], i["password"], i["database_name"], i["table_name"]))
         else:
             assert self.databaseFile != None
             system("rm -rf %s" % self.databaseFile)
