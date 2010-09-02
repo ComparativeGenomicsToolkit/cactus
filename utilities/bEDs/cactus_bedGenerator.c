@@ -181,7 +181,7 @@ void usage() {
 	fprintf(stderr, "cactus_bedGenerator, version 0.2\n");
 	fprintf(stderr, "Prints to output file all segments of the target sequence that are in blocks that contain both query & target\n");
 	fprintf(stderr, "-a --logLevel : Set the log level\n");
-	fprintf(stderr, "-c --cactusDisk : The location of the flower disk directory\n");
+	fprintf(stderr, "-c --cactusDisk : The cactus database conf string\n");
 	fprintf(stderr, "-d --flowerName : The name of the flower (the key in the database)\n");
 	fprintf(stderr, "-e --outputFile : The file to write the BEDs in.\n");
 	fprintf(stderr, "-r --ref : file that contains psl records of reference genes, whose target is the same with query.\n");
@@ -200,7 +200,7 @@ int main(int argc, char *argv[]) {
 	 * Arguments/options
 	 */
 	char * logLevelString = NULL;
-	char * cactusDiskName = NULL;
+	char * cactusDiskDatabaseString = NULL;
 	char * flowerName = NULL;
 	char * outputFile = NULL;
 	char * query = NULL;
@@ -241,7 +241,7 @@ int main(int argc, char *argv[]) {
 				logLevelString = stString_copy(optarg);
 				break;
 			case 'c':
-				cactusDiskName = stString_copy(optarg);
+				cactusDiskDatabaseString = stString_copy(optarg);
 				break;
 			case 'd':
 				flowerName = stString_copy(optarg);
@@ -277,7 +277,7 @@ int main(int argc, char *argv[]) {
 	// (0) Check the inputs.
 	///////////////////////////////////////////////////////////////////////////
 
-	assert(cactusDiskName != NULL);
+	assert(cactusDiskDatabaseString != NULL);
 	assert(flowerName != NULL);
 	assert(outputFile != NULL);
 
@@ -296,7 +296,6 @@ int main(int argc, char *argv[]) {
 	//Log (some of) the inputs
 	//////////////////////////////////////////////
 
-	st_logInfo("Flower disk name : %s\n", cactusDiskName);
 	st_logInfo("Flower name : %s\n", flowerName);
 	st_logInfo("Output BED file : %s\n", outputFile);
 
@@ -304,7 +303,8 @@ int main(int argc, char *argv[]) {
 	//Load the database
 	//////////////////////////////////////////////
 
-	cactusDisk = cactusDisk_construct(cactusDiskName);
+	stKVDatabaseConf *kvDatabaseConf = stKVDatabaseConf_constructFromString(cactusDiskDatabaseString);
+	cactusDisk = cactusDisk_construct(cactusDiskDatabaseString);
 	st_logInfo("Set up the flower disk\n");
 
 	///////////////////////////////////////////////////////////////////////////
@@ -334,6 +334,7 @@ int main(int argc, char *argv[]) {
 	///////////////////////////////////////////////////////////////////////////
 
 	cactusDisk_destruct(cactusDisk);
+	stKVDatabaseConf_destruct(kvDatabaseConf);
 
 	return 0;
 }
