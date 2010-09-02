@@ -10,7 +10,7 @@ libHeaders = *.h
 all : ${binPath}/cactus_reference 
 
 ${binPath}/cactus_reference : ${libSources} ${libHeaders} ${libPath}/sonLib.a ${libPath}/cactusLib.a 
-	${cxx} ${cflags} -I${libPath} -o ${binPath}/cactus_reference ${libSources} ${libPath}/cactusLib.a ${libPath}/sonLib.a ${tokyoCabinetLib}
+	${cxx} ${cflags} -I${libPath} -o ${binPath}/cactus_reference ${libSources} ${libPath}/cactusLib.a ${libPath}/sonLib.a ${dblibs}
 
 clean : 
 	rm -f *.o

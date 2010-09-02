@@ -13,7 +13,7 @@ from cactus.api.allTests import TestCase as aPITest
 from cactus.normalisation.cactus_normalisationTest import TestCase as normalisationTest
 import cactus.utilities.allTests 
  
-from sonLib.bioio import parseSuiteTestOptions
+from cactus.shared.test import parseCactusSuiteTestOptions
 
 def allSuites(): 
     allTests = unittest.TestSuite((unittest.makeSuite(setupTest, 'test'),
@@ -31,7 +31,7 @@ def allSuites():
     return allTests
         
 def main():
-    parseSuiteTestOptions()
+    parseCactusSuiteTestOptions()
     
     suite = allSuites()
     runner = unittest.TextTestRunner()

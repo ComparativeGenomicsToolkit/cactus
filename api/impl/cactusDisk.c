@@ -32,10 +32,6 @@ CactusDisk *cactusDisk_construct(stKVDatabaseConf *conf, bool create) {
     //Now open the database
     cactusDisk->database = stKVDatabase_construct(conf, create);
 
-    //construct the string file
-    cactusDisk->stringFile = pathJoin(stKVDatabaseConf_getDir(conf), "strings");
-    cactusDisk->stringFileLength = 0;
-
     //initialise the unique ids.
     //cactusDisk_getUniqueID(cactusDisk);
     st_randomSeed(time(NULL));
@@ -65,8 +61,6 @@ void cactusDisk_destruct(CactusDisk *cactusDisk) {
     //close DB
     stKVDatabase_destruct(cactusDisk->database);
 
-    //the strings file
-    free(cactusDisk->stringFile);
     free(cactusDisk);
 }
 
@@ -209,39 +203,24 @@ void cactusDisk_removeMetaSequence(CactusDisk *cactusDisk,
  * Functions on strings stored by the flower disk.
  */
 
-int64_t cactusDisk_addString(CactusDisk *cactusDisk, const char *string,
-        int32_t length) {
-    int64_t fileOffset;
-    FILE *fileHandle;
-
-    assert(length == (int32_t)strlen(string));
-    fileOffset = cactusDisk->stringFileLength;
-    cactusDisk->stringFileLength += length;
-    fileHandle = fopen(cactusDisk->stringFile, "a");
-    fprintf(fileHandle, "%s", string);
-    fclose(fileHandle);
-    return fileOffset;
+Name cactusDisk_addString(CactusDisk *cactusDisk, const char *string) {
+    Name name = cactusDisk_getUniqueID(cactusDisk);
+    stKVDatabase_startTransaction(cactusDisk->database);
+    stKVDatabase_insertRecord(cactusDisk->database, name, string, (strlen(string)+1)*sizeof(char));
+    stKVDatabase_commitTransaction(cactusDisk->database);
+    return name;
 }
 
-char *cactusDisk_getString(CactusDisk *cactusDisk, int64_t offset,
+char *cactusDisk_getString(CactusDisk *cactusDisk, Name name,
         int32_t start, int32_t length, int32_t strand) {
-    FILE *fileHandle;
-    char *cA;
-    char *cA2;
-
-    fileHandle = fopen(cactusDisk->stringFile, "r");
-    fseek(fileHandle, offset + start, SEEK_SET);
-    cA = st_malloc(sizeof(char) * (length + 1));
-    fread(cA, sizeof(char), length, fileHandle);
-    cA[length] = '\0';
-    fclose(fileHandle);
-
+    char *string = stKVDatabase_getPartialRecord(cactusDisk->database, name, start*sizeof(char), (length+1)*sizeof(char));
+    string[length] = '\0';
     if (!strand) {
-        cA2 = cactusMisc_reverseComplementString(cA);
-        free(cA);
-        return cA2;
+        char *string2 = cactusMisc_reverseComplementString(string);
+        free(string);
+        return string2;
     }
-    return cA;
+    return string;
 }
 
 /*

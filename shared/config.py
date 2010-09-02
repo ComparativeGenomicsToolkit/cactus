@@ -18,7 +18,7 @@ def checkDatabaseConf(databaseConf):
         mysql = databaseConf.find("mysql")
         if mysql == None:
             raise RuntimeError("Database conf is of type mysql but there is no nested mysql tag: %s" % dataString)
-        if set(mysql.attrib.keys()) != set("host", "port", "password", "user", "database_name"):
+        if set(mysql.attrib.keys()) != set(("host", "port", "password", "user", "database_name")):
             raise RuntimeError("Mysql tag is improperly formatted: %s" % dataString)
     elif typeString == "tokyo_cabinet":
         tokyoCabinet = databaseConf.find("tokyo_cabinet")

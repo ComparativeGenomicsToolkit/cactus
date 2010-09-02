@@ -7,7 +7,7 @@ cflags += ${tokyoCabinetIncl}
 all : ${binPath}/cactus_aligner.py ${binPath}/cactus_alignerTestAligner.py ${binPath}/cactus_batch.py
 
 ${binPath}/cactus_aligner.py : cactus_aligner.py cactus_aligner.c ${libPath}/cactusLib.a
-	${cxx} ${cflags} -I${libPath} -o ${binPath}/cactus_aligner cactus_aligner.c ${libPath}/cactusLib.a ${libPath}/sonLib.a ${tokyoCabinetLib}
+	${cxx} ${cflags} -I${libPath} -o ${binPath}/cactus_aligner cactus_aligner.c ${libPath}/cactusLib.a ${libPath}/sonLib.a ${dblibs}
 	cp cactus_aligner.py ${binPath}/cactus_aligner.py
 	chmod +x ${binPath}/cactus_aligner.py
 

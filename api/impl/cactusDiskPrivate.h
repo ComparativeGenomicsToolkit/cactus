@@ -4,8 +4,6 @@
 #include "cactusGlobals.h"
 
 struct _cactusDisk {
-    char *stringFile;
-    int64_t stringFileLength;
     stKVDatabase *database;
     stSortedSet *metaSequences;
     stSortedSet *flowers;
@@ -58,17 +56,14 @@ void cactusDisk_removeMetaSequence(CactusDisk *cactusDisk,
  */
 
 /*
- * Adds the sequence string to the bucket of sequence.
- *
- * This function is NOT thread safe.
+ * Adds the sequence string to the database.
  */
-int64_t cactusDisk_addString(CactusDisk *cactusDisk, const char *string,
-        int32_t length);
+Name cactusDisk_addString(CactusDisk *cactusDisk, const char *string);
 
 /*
  * Retrieves a string from the bucket of sequence.
  */
-char *cactusDisk_getString(CactusDisk *cactusDisk, int64_t offset,
+char *cactusDisk_getString(CactusDisk *cactusDisk, Name name,
         int32_t start, int32_t length, int32_t strand);
 
 #endif

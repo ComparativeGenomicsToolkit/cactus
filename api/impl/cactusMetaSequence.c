@@ -9,7 +9,7 @@
 ////////////////////////////////////////////////
 
 MetaSequence *metaSequence_construct2(Name name, int32_t start,
-		int32_t length, int64_t fileOffset, const char *header,
+		int32_t length, Name stringName, const char *header,
 		Name eventName, CactusDisk *cactusDisk) {
 	MetaSequence *metaSequence;
 
@@ -18,7 +18,7 @@ MetaSequence *metaSequence_construct2(Name name, int32_t start,
 	assert(length >= 0);
 	metaSequence->start = start;
 	metaSequence->length = length;
-	metaSequence->fileOffset = fileOffset;
+	metaSequence->stringName = stringName;
 	metaSequence->eventName = eventName;
 	metaSequence->cactusDisk = cactusDisk;
 	metaSequence->header = stString_copy(header != NULL ? header : "");
@@ -29,10 +29,11 @@ MetaSequence *metaSequence_construct2(Name name, int32_t start,
 
 MetaSequence *metaSequence_construct(int32_t start, int32_t length,
 		const char *string, const char *header, Name eventName, CactusDisk *cactusDisk) {
-	int64_t fileOffset;
-	fileOffset = cactusDisk_addString(cactusDisk, string, length);
+	Name name;
+	assert(strlen(string) == length);
+	name = cactusDisk_addString(cactusDisk, string);
 	return metaSequence_construct2(cactusDisk_getUniqueID(cactusDisk), start, length,
-			fileOffset, header, eventName, cactusDisk);
+			name, header, eventName, cactusDisk);
 }
 
 void metaSequence_destruct(MetaSequence *metaSequence) {
@@ -61,19 +62,11 @@ char *metaSequence_getString(MetaSequence *metaSequence, int32_t start, int32_t 
 	assert(start >= metaSequence_getStart(metaSequence));
 	assert(length >= 0);
 	assert(start + length <= metaSequence_getStart(metaSequence) + metaSequence_getLength(metaSequence));
-	return cactusDisk_getString(metaSequence->cactusDisk, metaSequence->fileOffset, start - metaSequence_getStart(metaSequence), length, strand);
+	return cactusDisk_getString(metaSequence->cactusDisk, metaSequence->stringName, start - metaSequence_getStart(metaSequence), length, strand);
 }
 
 const char *metaSequence_getHeader(MetaSequence *metaSequence) {
 	return metaSequence->header;
-}
-
-/*
- * Private functions
- */
-
-int64_t metaSequence_getFileOffset(MetaSequence *metaSequence) {
-	return metaSequence->fileOffset;
 }
 
 /*
@@ -87,7 +80,7 @@ void metaSequence_writeBinaryRepresentation(MetaSequence *metaSequence,
 	binaryRepresentation_writeInteger(metaSequence_getStart(metaSequence), writeFn);
 	binaryRepresentation_writeInteger(metaSequence_getLength(metaSequence), writeFn);
 	binaryRepresentation_writeName(metaSequence_getEventName(metaSequence), writeFn);
-	binaryRepresentation_write64BitInteger(metaSequence_getFileOffset(metaSequence), writeFn);
+	binaryRepresentation_writeName(metaSequence->stringName, writeFn);
 	binaryRepresentation_writeString(metaSequence_getHeader(metaSequence), writeFn);
 }
 
@@ -97,7 +90,7 @@ MetaSequence *metaSequence_loadFromBinaryRepresentation(void **binaryString,
 	Name name;
 	int32_t start;
 	int32_t length;
-	int64_t fileOffset;
+	Name stringName;
 	Name eventName;
 	char *header;
 
@@ -108,10 +101,10 @@ MetaSequence *metaSequence_loadFromBinaryRepresentation(void **binaryString,
 		start = binaryRepresentation_getInteger(binaryString);
 		length = binaryRepresentation_getInteger(binaryString);
 		eventName = binaryRepresentation_getName(binaryString);
-		fileOffset = binaryRepresentation_get64BitInteger(binaryString);
+		stringName = binaryRepresentation_getName(binaryString);
 		header = binaryRepresentation_getString(binaryString);
 		metaSequence = metaSequence_construct2(name, start, length,
-				fileOffset, header, eventName, cactusDisk);
+				stringName, header, eventName, cactusDisk);
 		free(header);
 	}
 	return metaSequence;

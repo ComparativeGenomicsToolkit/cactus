@@ -18,7 +18,7 @@ endif
 all: ${targets}
 
 ${binPath}/cactus_bedGenerator : cactus_bedGenerator.c ${libPath}/sonLib.a ${libPath}/cactusLib.a
-	${cxx} ${cflags} -I ${libPath} -I ${kentInc} -o ${binPath}/cactus_bedGenerator cactus_bedGenerator.c ${jkLibHack} ${kentLibWeb} ${libPath}/cactusLib.a ${libPath}/sonLib.a ${tokyoCabinetLib}
+	${cxx} ${cflags} -I ${libPath} -I ${kentInc} -o ${binPath}/cactus_bedGenerator cactus_bedGenerator.c ${jkLibHack} ${kentLibWeb} ${libPath}/cactusLib.a ${libPath}/sonLib.a ${dblibs}
 
 clean :
 	rm -f *.o

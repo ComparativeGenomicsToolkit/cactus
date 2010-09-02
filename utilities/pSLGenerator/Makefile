@@ -18,7 +18,7 @@ endif
 all: ${targets}
 
 ${binPath}/cactus_pslGenerator : cactus_pslGenerator.c ${libPath}/sonLib.a ${libPath}/cactusLib.a
-	${cxx} ${cflags} -I ${libPath} -I ${kentInc} -o ${binPath}/cactus_pslGenerator cactus_pslGenerator.c ${jkLibHack} ${kentLibWeb} ${libPath}/cactusLib.a ${libPath}/sonLib.a ${tokyoCabinetLib}
+	${cxx} ${cflags} -I ${libPath} -I ${kentInc} -o ${binPath}/cactus_pslGenerator cactus_pslGenerator.c ${jkLibHack} ${kentLibWeb} ${libPath}/cactusLib.a ${libPath}/sonLib.a ${dblibs}
 
 clean :
 	rm -f *.o

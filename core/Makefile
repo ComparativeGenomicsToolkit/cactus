@@ -18,7 +18,7 @@ ${libPath}/cactusCore.a : ${libSources} ${libHeaders} ${libPath}/cactusGraph.a $
 	cp ${libHeaders} ${libPath}/
 
 ${binPath}/cactus_core : cactus_core2.c ${libPath}/cactusCore.a ${libPath}/cactusGraph.a ${libPath}/pinchGraph.a ${libPath}/3EdgeConnected.a ${libPath}/sonLib.a ${libPath}/cactusLib.a
-	${cxx} ${cflags} -I${libPath} -o ${binPath}/cactus_core cactus_core2.c ${libPath}/cactusCore.a ${libPath}/cactusGraph.a ${libPath}/pinchGraph.a ${libPath}/3EdgeConnected.a ${libPath}/sonLib.a ${libPath}/cactusLib.a ${libPath}/sonLib.a ${tokyoCabinetLib}
+	${cxx} ${cflags} -I${libPath} -o ${binPath}/cactus_core cactus_core2.c ${libPath}/cactusCore.a ${libPath}/cactusGraph.a ${libPath}/pinchGraph.a ${libPath}/3EdgeConnected.a ${libPath}/sonLib.a ${libPath}/cactusLib.a ${libPath}/sonLib.a ${dblibs}
 
 clean : 
 	rm -f *.o

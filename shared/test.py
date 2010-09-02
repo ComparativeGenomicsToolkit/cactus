@@ -182,7 +182,6 @@ def getCactusInputs_chromosomeX(regionNumber=0, tempDir=None):
     return sequences, newickTreeString
 
 def runWorkflow_TestScript(sequences, newickTreeString, 
-                           tempDir=None,
                            outputDir=None, 
                            databaseName=None,
                            batchSystem="single_machine",
@@ -192,7 +191,6 @@ def runWorkflow_TestScript(sequences, newickTreeString,
                            buildReferencePDF=False,
                            makeCactusTreeStats=False,
                            makeMAFs=False, 
-                           cleanup=True,
                            configFile=None):
     """Runs the workflow and various downstream utilities.
     """
@@ -201,8 +199,7 @@ def runWorkflow_TestScript(sequences, newickTreeString,
     logger.info("Got the following tree %s" % newickTreeString)
     
     #Setup the temp dir
-    if tempDir == None:
-        tempDir = getTempDirectory(".")
+    tempDir = getTempDirectory(".")
     logger.info("Using the temp dir: %s" % tempDir)
         
     #Setup the output dir
@@ -211,7 +208,9 @@ def runWorkflow_TestScript(sequences, newickTreeString,
     logger.info("Using the output dir: %s" % outputDir)
     
     #Setup the flower disk.
-    experiment = getCactusWorkflowExperimentForTest(sequences, newickTreeString, outputDir=outputDir, databaseName=databaseName, configFile=configFile)
+    experiment = getCactusWorkflowExperimentForTest(sequences, newickTreeString, 
+                                                    outputDir=outputDir, databaseName=databaseName, 
+                                                    configFile=configFile)
     cactusDiskDatabaseString = experiment.getDatabaseString()
     experimentFile = os.path.join(tempDir, "experiment.xml")
     experiment.writeExperimentFile(experimentFile)
@@ -284,13 +283,11 @@ def runWorkflow_TestScript(sequences, newickTreeString,
     else:
         logger.info("Not building the MAFs")
         
-    if cleanup:
-        #Now remove everything
-        experiment.cleanupDatabase()
-        system("rm -rf %s" % tempDir)
-        logger.info("Cleaned everything up")
-    else:
-        logger.info("Not cleaning up")
+    #Now remove everything we generate
+    system("rm -rf %s" % tempDir)    
+    
+    #Return the experiment, so that the caller can decide what todo with the output
+    return experiment
         
 testRestrictions_NotShort = ()
         
@@ -300,7 +297,6 @@ def runWorkflow_multipleExamples(inputGenFunction,
                                                    TestStatus.TEST_LONG, TestStatus.TEST_VERY_LONG,),
                                inverseTestRestrictions=False,
                                outputDir=None,
-                               databaseName=None,
                                batchSystem="single_machine",
                                buildTrees=True, buildFaces=True, buildReference=True,
                                buildCactusPDF=False, buildAdjacencyPDF=False,
@@ -320,14 +316,18 @@ def runWorkflow_multipleExamples(inputGenFunction,
                     system("rm -rf %s" % out)
                 os.mkdir(out)
                 os.chmod(out, 0777) #Ensure everyone has access to the file.
+                databaseName = "cactusDisk_%s" % str(test)
             else:
                 out = None
-            runWorkflow_TestScript(sequences, newickTreeString, tempDir=tempDir,
+                databaseName = None
+            experiment = runWorkflow_TestScript(sequences, newickTreeString,
                                    outputDir=out, databaseName=databaseName, batchSystem=batchSystem,
                                    buildTrees=buildTrees, buildFaces=buildFaces, buildReference=buildReference, 
                                    buildCactusPDF=buildCactusPDF, buildAdjacencyPDF=buildAdjacencyPDF,
                                    buildReferencePDF=buildReferencePDF,
                                    makeCactusTreeStats=makeCactusTreeStats, makeMAFs=makeMAFs, configFile=configFile)
+            if outputDir == None:
+                experiment.cleanupDatabase()
             system("rm -rf %s" % tempDir)
             logger.info("Finished random test %i" % test)
     

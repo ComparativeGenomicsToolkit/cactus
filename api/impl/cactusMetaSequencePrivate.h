@@ -5,7 +5,7 @@
 
 struct _metaSequence {
 	Name name;
-	int64_t fileOffset;
+	Name stringName;
 	int32_t start;
 	int32_t length;
 	Name eventName;
@@ -25,7 +25,7 @@ struct _metaSequence {
 /*
  * Constructs a meta sequence using an existing reference to a sequence in the sequence file.
  */
-MetaSequence *metaSequence_construct2(Name name, int32_t start, int32_t length, int64_t fileOffset, const char *header,
+MetaSequence *metaSequence_construct2(Name name, int32_t start, int32_t length, Name stringName, const char *header,
 		Name eventName, CactusDisk *cactusDisk);
 
 /*

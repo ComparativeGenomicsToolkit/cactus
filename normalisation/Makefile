@@ -10,7 +10,7 @@ libHeaders = normal.h
 all : ${binPath}/cactus_normalisation
 
 ${binPath}/cactus_normalisation : ${libSources} ${libHeaders} ${libPath}/sonLib.a ${libPath}/cactusLib.a
-	${cxx} ${cflags} -I${libPath} -o ${binPath}/cactus_normalisation main.c normal.c ${libPath}/cactusLib.a ${libPath}/sonLib.a ${tokyoCabinetLib}
+	${cxx} ${cflags} -I${libPath} -o ${binPath}/cactus_normalisation main.c normal.c ${libPath}/cactusLib.a ${libPath}/sonLib.a ${dblibs}
 
 clean : 
 	rm -f ${binPath}/cactus_normalisation
