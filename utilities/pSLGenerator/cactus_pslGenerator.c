@@ -1353,7 +1353,7 @@ int main(int argc, char *argv[]) {
    ///////////////////////////////////////////////////////////////////////////
 
    cactusDisk_destruct(cactusDisk);
-   stKVDatabase_destruct(kvDatabaseConf);
+   stKVDatabaseConf_destruct(kvDatabaseConf);
 
    return 0;
 }
