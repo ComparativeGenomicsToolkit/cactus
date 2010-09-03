@@ -236,7 +236,6 @@ bool link_mergeIfTrivial(Link *link) {
         assert(group_getEndNumber(group) == 0);
         group_destruct(group);
 
-        assert(link_getGroup(link));
         return 1;
     }
     return 0;
