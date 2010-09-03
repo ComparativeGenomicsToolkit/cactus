@@ -49,6 +49,7 @@ class CactusWorkflowExperiment:
             checkDatabaseConf(databaseConf) #This is just a redundant check
             database.append(databaseConf)
             if databaseConf.attrib["type"] == "mysql":
+                self.mysql = 1
                 #Add a table name:
                 databaseConf.find("mysql").attrib["table_name"] = self.databaseName
             else:
@@ -85,9 +86,9 @@ class CactusWorkflowExperiment:
         """
         if self.mysql:
             assert self.databaseFile == None
-            i = self.experiment.find("st_kv_database_conf").find("mysql").attrib
+            i = self.experiment.find("cactus_disk").find("st_kv_database_conf").find("mysql").attrib
             #Connect to MYSQL and remove the table..
-            system("hgsql --host %s --port %i --user %s --password %s -e drop table %s.%s" \
+            system("mysql --host=%s --port=%s --user=%s --password='%s' --execute='drop table %s.%s'" \
                    % (i["host"], i["port"], i["user"], i["password"], i["database_name"], i["table_name"]))
         else:
             assert self.databaseFile != None
