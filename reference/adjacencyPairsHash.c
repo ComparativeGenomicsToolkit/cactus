@@ -102,6 +102,97 @@ static stList *makeListOfAdjacencyPairs(Flower *flower) {
     return adjacencies;
 }
 
+/*
+void getNameRedirectionHashP(End *end, stHash *hash, int32_t *counter) {
+    if(stHash_search(hash, end) == NULL) {
+        stHash_insert(hash, end, stIntTuple_construct(1, (*counter)++));
+    }
+}
+
+static stHash *getNameRedirectionHash(stList *adjacencies) {
+    stHash *hash = stHash_construct2(free, (void (*)(void *))stIntTuple_destruct);
+    int32_t counter = 0;
+    for(int32_t i=0; i<adjacencies; i++) {
+        AdjacencyPair *adjacencyPair = stList_get(adjacencies, i);
+        addToHash(adjacencyPair_getEnd1(adjacencyPair), hash, &counter);
+        addToHash(adjacencyPair_getEnd2(adjacencyPair), hash, &counter);
+    }
+    return hash;
+}
+
+static writeGraph(FILE *fileHandle, stList *adjacencies, stHash *redirectionHash) {
+    int32_t nodeNumber = stHash_size(redirectionHash);
+    int32_t edgeNumber = (nodeNumber * nodeNumber - nodeNumber) / 2;
+    fprintf(fileHandle, "%i %i\n", nodeNumber, edgeNumber);
+    stSortedSet *edges = stSortedSet_construct3((int (*)(const void *, const void *))stIntTuple_cmpFn, (void (*)(void *))stIntTuple_destruct);
+    for(int32_t i=0; i<stList_length(adjacencies); i++) {
+        AdjacencyPair *adjacencyPair = stList_get(adjacencies, i);
+        int32_t j = stIntTuple_getPosition(stHash_search(redirectionHash, adjacencyPair_getEnd1(adjacencyPair)), 0);
+        int32_t k = stIntTuple_getPosition(stHash_search(redirectionHash, adjacencyPair_getEnd2(adjacencyPair)), 0);
+        fprintf("%i %i %i\n", j, k, adjacencyPair_getStrengthOfAdjacencyPair(adjacencyPair));
+        stSortedSet_insert(edges, stIntTuple_construct(2, j, k));
+    }
+    for(int32_t i=0; i<nodeNumber; i++) {
+        for(int32_t j=i+1; j<nodeNumber; j++) {
+            stIntTuple *edge = stIntTuple_construct(2, i, j);
+            if(stSortedSet_search(edges, edge) == NULL) {
+                fprintf("%i %i 0\n", i, j);
+            }
+            stIntTuple_destruct(edge);
+        }
+    }
+}
+
+static stHash *readPairs(FILE *fileHandle, stList *adjacencies, stHash *redirectionHash) {
+    char *line = st_getLineFromFile(fileHandle);
+    assert(line != NULL);
+    int32_t nodeNumber, edgeNumber;
+    int32_t i = sscanf(line, "%i %i\n", &nodeNumber, &edgeNumber);
+    assert(i == 2);
+    free(line);
+    for(int32_t j=0; j<edgeNumber; j++) {
+        line = st_getLineFromFile(fileHandle);
+        int32_t node1, node2, weight;
+        i = sscanf(line, "%i %i %i\n", &node1, &node2 &weight);
+        assert(i == 3);
+        assert(node1 >= 0);
+        assert(node1 < nodeNumber);
+        assert(node2 >= 0);
+        assert(node2 < nodeNumber);
+        stIntTuple *edge = stIntTuple_construct(1, node1, node2);
+
+
+        stIntTuple *intTuple2 = stIntTuple_construct(2, node1);
+        End *end1 = stHash_search(redirectionHash, intTuple1);
+        End *end2 = stHash_search(redirectionHash, intTuple2);
+        stIntTuple_destruct(intTuple1);
+        stIntTuple_destruct(intTuple2);
+        assert(end1 != NULL);
+        assert(end2 != NULL);
+    }
+
+}
+
+static stHash *choosePairingBlossum(stList *adjacencies) {
+    stHash *redirectionHash = getNameRedirectionHash(adjacencies);
+    char *tempInputFile = getTempFile(), *tempOutputFile = getTempFile();
+    FILE *fileHandle = fopen(tempInputFile, 'w');
+    writeGraph(fileHandle, adjacencies, redirectionHash);
+    fclose(fileHandle);
+    st_system("blossum5 -e %s -w %s >& /dev/null", tempInputFile, tempOutputFile);
+    fileHandle = fopen(tempOutputFile, 'r');
+    stHash *adjacenciesHash = readPairs(fileHandle, adjacencies, redirectionHash);
+    fclose(fileHandle);
+    //Get rid of the temp files..
+    st_system("rm -rf %s %s", tempInputFile, tempOutputFile);
+    //Cleanup
+    stHash_destruct(redirectionHash);
+    assert(stList_length(adjacencies) == 0);
+    stList_destruct(adjacencies);
+
+    return adjacenciesHash;
+}*/
+
 static stHash *choosePairing(stList *adjacencies) {
     /*
      * Greedily picks the adjacencies from the list such that each end has one adjacency.
