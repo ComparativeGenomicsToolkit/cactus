@@ -64,6 +64,28 @@ void cactusDisk_destruct(CactusDisk *cactusDisk) {
     free(cactusDisk);
 }
 
+/*
+ * The following two functions compress and decompress the data in the cactus disk..
+ */
+
+static void *compress(void *data, int32_t *dataSize) {
+    //Compression
+    int64_t compressedSize;
+    void *data2 = stCompression_compress(data, *dataSize, &compressedSize, -1);
+    free(data);
+    *dataSize = compressedSize;
+    return data2;
+}
+
+static void *decompress(void *data, int64_t *dataSize) {
+    //Decompression
+    int64_t uncompressedSize;
+    void *data2 = stCompression_decompress(data, *dataSize, &uncompressedSize);
+    free(data);
+    *dataSize = uncompressedSize;
+    return data2;
+}
+
 void cactusDisk_write(CactusDisk *cactusDisk) {
     void *vA;
     int32_t recordSize;
@@ -78,6 +100,8 @@ void cactusDisk_write(CactusDisk *cactusDisk) {
                 (void(*)(void *, void(*)(const void * ptr, size_t size,
                         size_t count))) flower_writeBinaryRepresentation,
                 &recordSize);
+        //Compression
+        vA = compress(vA, &recordSize);
         if(stKVDatabase_getRecord(cactusDisk->database, flower_getName(flower)) != NULL) {
             stKVDatabase_updateRecord(cactusDisk->database, flower_getName(flower),
                     vA, recordSize);
@@ -96,6 +120,8 @@ void cactusDisk_write(CactusDisk *cactusDisk) {
                 (void(*)(void *, void(*)(const void * ptr, size_t size,
                         size_t count))) metaSequence_writeBinaryRepresentation,
                 &recordSize);
+        //Compression
+        vA = compress(vA, &recordSize);
         if(stKVDatabase_getRecord(cactusDisk->database, metaSequence_getName(metaSequence)) != NULL) {
             stKVDatabase_updateRecord(cactusDisk->database, metaSequence_getName(metaSequence),
                     vA, recordSize);
@@ -130,10 +156,13 @@ Flower *cactusDisk_getFlower(CactusDisk *cactusDisk, Name flowerName) {
     if ((flower2 = stSortedSet_search(cactusDisk->flowers, &flower)) != NULL) {
         return flower2;
     }
-    void *cA = stKVDatabase_getRecord(cactusDisk->database, flowerName);
+    int64_t recordSize = 0;
+    void *cA = stKVDatabase_getRecord2(cactusDisk->database, flowerName, &recordSize);
     if (cA == NULL) {
         return NULL;
     }
+    //Decompression
+    cA = decompress(cA, &recordSize);
     void *cA2 = cA;
     flower2 = flower_loadFromBinaryRepresentation(&cA2, cactusDisk);
     free(cA);
@@ -149,10 +178,13 @@ MetaSequence *cactusDisk_getMetaSequence(CactusDisk *cactusDisk,
             &metaSequence)) != NULL) {
         return metaSequence2;
     }
-    void *cA = stKVDatabase_getRecord(cactusDisk->database, metaSequenceName);
+    int64_t recordSize = 0;
+    void *cA = stKVDatabase_getRecord2(cactusDisk->database, metaSequenceName, &recordSize);
     if (cA == NULL) {
         return NULL;
     }
+    //Decompression
+    cA = decompress(cA, &recordSize);
     void *cA2 = cA;
     metaSequence2 = metaSequence_loadFromBinaryRepresentation(&cA2, cactusDisk);
     free(cA);
