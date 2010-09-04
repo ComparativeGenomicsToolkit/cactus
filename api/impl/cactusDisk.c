@@ -157,8 +157,8 @@ void cactusDisk_write(CactusDisk *cactusDisk) {
             if(vA != NULL) { //First clean up any memory that was allocated by not freed.
                 free(vA);
             }
-            if(stExcept_getId(except) == ST_KV_DATABASE_DEADLOCK_EXCEPTION_ID) {
-                st_logDebug("We have caught a deadlock exception when updating flowers and metasequences on the cactus disk\n");
+            if(stExcept_getId(except) == ST_KV_DATABASE_RETRY_TRANSACTION_EXCEPTION_ID) {
+                st_logDebug("We have caught a retry transaction exception when updating flowers and metasequences on the cactus disk\n");
                 stExcept_free(except);
                 stKVDatabase_abortTransaction(cactusDisk->database);
             }
@@ -266,8 +266,8 @@ Name cactusDisk_addString(CactusDisk *cactusDisk, const char *string) {
             done = 1;
         }
         stCatch(except) {
-            if(stExcept_getId(except) == ST_KV_DATABASE_DEADLOCK_EXCEPTION_ID) {
-                st_logDebug("We have caught a deadlock exception when adding a string to the database, we will try again\n");
+            if(stExcept_getId(except) == ST_KV_DATABASE_RETRY_TRANSACTION_EXCEPTION_ID) {
+                st_logDebug("We have caught a retry transaction exception when adding a string to the database, we will try again\n");
                 stExcept_free(except);
                 stKVDatabase_abortTransaction(cactusDisk->database);
             }
@@ -335,8 +335,8 @@ void cactusDisk_getBlockOfUniqueIDs(CactusDisk *cactusDisk) {
             done = 1;
         }
         stCatch(except) {
-            if(stExcept_getId(except) == ST_KV_DATABASE_DEADLOCK_EXCEPTION_ID) {
-                st_logDebug("We have caught a deadlock exception when allocating a new id, we will try again\n");
+            if(stExcept_getId(except) == ST_KV_DATABASE_RETRY_TRANSACTION_EXCEPTION_ID) {
+                st_logDebug("We have caught a retry transaction exception when allocating a new id, we will try again\n");
                 stExcept_free(except);
                 stKVDatabase_abortTransaction(cactusDisk->database);
             }
