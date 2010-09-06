@@ -1,4 +1,4 @@
-<cactus_workflow_config ideal_job_runtime="1">
+<cactus_workflow_config ideal_job_runtime="100">
 	<alignment>
 		<blast_misc overlapSize="10000" chunksPerJob="1"
 			compressFiles="True" />
@@ -43,14 +43,14 @@
 			</iteration>
 
 			<iteration number="3" max_sequence_size="2000" type="base"
-				time="1000000000" />
+				time="1" />
 		</iterations>
 	</alignment>
 
-	<normal time="100000000" rounds="2" max_number_of_chains="30">
+	<normal time="1" rounds="2" max_number_of_chains="30">
 	</normal>
 
-	<phylogeny time="100000000">
+	<phylogeny time="1">
 	</phylogeny>
 
 	<faces time="1">
