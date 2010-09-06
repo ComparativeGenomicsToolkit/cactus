@@ -220,11 +220,11 @@ MetaSequence *cactusDisk_getMetaSequence(CactusDisk *cactusDisk,
     }
     stCatch(except) {
         if(stExcept_getId(except) == ST_KV_DATABASE_RETRY_TRANSACTION_EXCEPTION_ID) {
-            stThrowNewCause(except, ST_KV_DATABASE_EXCEPTION_ID, "We have caught a deadlock exception when getting a flower");
+            stThrowNewCause(except, ST_KV_DATABASE_EXCEPTION_ID, "We have caught a deadlock exception when getting a meta-sequence");
         }
         else {
             stThrowNewCause(except, ST_KV_DATABASE_EXCEPTION_ID,
-                    "An unknown database error occurred when getting a flower");
+                    "An unknown database error occurred when getting a meta-sequence");
         }
     } stTryEnd;
 
