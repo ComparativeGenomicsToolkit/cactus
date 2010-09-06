@@ -1,4 +1,4 @@
-<cactus_workflow_config ideal_job_runtime="200">
+<cactus_workflow_config ideal_job_runtime="1">
 	<alignment>
 		<blast_misc overlapSize="10000" chunksPerJob="1"
 			compressFiles="True" />
