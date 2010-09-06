@@ -43,14 +43,14 @@
 			</iteration>
 
 			<iteration number="3" max_sequence_size="2000" type="base"
-				time="1" />
+				time="1000000000" />
 		</iterations>
 	</alignment>
 
-	<normal time="1" rounds="2" max_number_of_chains="30">
+	<normal time="100000000" rounds="2" max_number_of_chains="30">
 	</normal>
 
-	<phylogeny time="1">
+	<phylogeny time="100000000">
 	</phylogeny>
 
 	<faces time="1">
