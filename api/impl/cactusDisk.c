@@ -309,7 +309,19 @@ Name cactusDisk_addString(CactusDisk *cactusDisk, const char *string) {
 
 char *cactusDisk_getString(CactusDisk *cactusDisk, Name name,
         int32_t start, int32_t length, int32_t strand) {
-    char *string = stKVDatabase_getPartialRecord(cactusDisk->database, name, start*sizeof(char), (length+1)*sizeof(char));
+    char *string = NULL;
+    stTry {
+        string = stKVDatabase_getPartialRecord(cactusDisk->database, name, start*sizeof(char), (length+1)*sizeof(char));
+    }
+    stCatch(except) {
+        if(stExcept_getId(except) == ST_KV_DATABASE_RETRY_TRANSACTION_EXCEPTION_ID) {
+            stThrowNewCause(except, ST_KV_DATABASE_EXCEPTION_ID, "We have caught a deadlock exception when getting a sequence string");
+        }
+        else {
+            stThrowNewCause(except, ST_KV_DATABASE_EXCEPTION_ID,
+                    "An unknown database error occurred when getting a sequence string");
+        }
+    } stTryEnd;
     string[length] = '\0';
     if (!strand) {
         char *string2 = cactusMisc_reverseComplementString(string);
