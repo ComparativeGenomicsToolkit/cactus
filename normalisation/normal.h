@@ -11,24 +11,33 @@
 #include "cactus.h"
 
 /*
- * Ensures that all chains in this flower are not part of a higher level chain, by promoting
- * those chains which are.
+ * Ensures that all chains in this flower can not be extended by chains within its nested flowers,
+ * by promoting those chains in the nested flowers which extend chains in the flower.
  *
- * Let l be a link involving one attached stub-end and one block end. For any l in a
- * flower n, if the attached end in l is in a link in the parent of n (if n has a parent), then this
- * function promotes the chain containing l to the higher level.
+ * Let l be a link involving one attached stub-end and one block end. Let m be the
+ * input flower and n be a nested flower of n. For any l in any
+ * n, if the attached end in l is in a link in m, then this
+ * function promotes the chain containing l into m.
  */
-void promoteChainsThatExtendHigherLevelChains(Flower *flower);
+void promoteNestedChainsThatExtendChains(Flower *flower);
 
 /*
- * Promotes chains from the flower into any parent flower while the number of chains in the parent
- * flower is less than maxNumberOfChains.
+ * Promotes chains from the nested flowers of the input flower into the input flower while the number of chains in the input
+ * flower is less than maxNumberOfChains (this includes trivial chains including just one block).
  */
-void promoteChainsToFillParents(Flower *flower, int32_t maxNumberOfChains);
+void promoteNestedChainsToFillFlower(Flower *flower, int32_t maxNumberOfChains);
 
 /*
  * Removes all links which are trivial from the flower.
  */
 void removeTrivialLinks(Flower *flower);
+
+/*
+ * Function which runs the above functions and others to ensure the children
+ * of the given flower are all 'normalised'. When this function is run for each flower
+ * in a cactus graph, bottom up from leaves to the root the resulting cactus tree will be normalised.
+ * Several iterations are needed if we wish to push the maxNumberOfChains up into the parents of the graph.
+ */
+void normalise(Flower *flower, int32_t maxNumberOfChains);
 
 #endif /* NORMAL_H_ */

@@ -44,12 +44,13 @@ int main(int argc, char *argv[]) {
     while (1) {
         static struct option long_options[] = { { "logLevel",
                 required_argument, 0, 'a' }, { "cactusDisk", required_argument,
-                0, 'c' }, { "maxNumberOfChains", required_argument, 0, 'd' },
-                { "help", no_argument, 0, 'h' }, { 0, 0, 0, 0 } };
+                0, 'c' }, { "maxNumberOfChains", required_argument, 0, 'd' }, {
+                "help", no_argument, 0, 'h' }, { 0, 0, 0, 0 } };
 
         int option_index = 0;
 
-        int key = getopt_long(argc, argv, "a:c:d:h", long_options, &option_index);
+        int key = getopt_long(argc, argv, "a:c:d:h", long_options,
+                &option_index);
 
         if (key == -1) {
             break;
@@ -97,7 +98,8 @@ int main(int argc, char *argv[]) {
     //Load the database
     //////////////////////////////////////////////
 
-    stKVDatabaseConf *kvDatabaseConf = stKVDatabaseConf_constructFromString(cactusDiskDatabaseString);
+    stKVDatabaseConf *kvDatabaseConf = stKVDatabaseConf_constructFromString(
+            cactusDiskDatabaseString);
     CactusDisk *cactusDisk = cactusDisk_construct(kvDatabaseConf, 0);
     st_logInfo("Set up the flower disk\n");
 
@@ -116,22 +118,7 @@ int main(int argc, char *argv[]) {
         assert(flower != NULL);
         st_logInfo("Parsed the flower to normalise\n");
 
-        /*
-         * Now run the normalisation functions
-         */
-#ifdef BEN_DEBUG
-        flower_check(flower);
-#endif
-        promoteChainsThatExtendHigherLevelChains(flower);
-        promoteChainsToFillParents(flower, maxNumberOfChains);
-        removeTrivialLinks(flower);
-#ifdef BEN_DEBUG
-        flower_check(flower);
-#endif
-        if (!flower_deleteIfEmpty(flower)) { //If we delete the flower we need not run the remaining functions..
-            flower_makeTerminalNormal(flower);
-            flower_removeIfRedundant(flower); //This may destroy the flower, but nots its children..
-        }
+        normalise(flower, maxNumberOfChains);
     }
 
     ///////////////////////////////////////////////////////////////////////////
