@@ -38,8 +38,8 @@ class TestCase(unittest.TestCase):
                                      testRestrictions=(TestStatus.TEST_MEDIUM,),
                                      batchSystem=self.batchSystem,
                                      buildCactusPDF=True,
-                                     buildTrees=False, buildReference=False, buildFaces=False,
-                                     makeCactusTreeStats=True, makeMAFs=True, buildReferencePDF=True)
+                                     buildTrees=False, buildReference=False, buildFaces=False)
+#makeCactusTreeStats=True, makeMAFs=True, buildReferencePDF=True)
                 
     def testCactus_Encode(self): 
         outputDir = os.path.join(TestStatus.getPathToDataSets(), "cactus", "encodeRegionsTest")
@@ -48,8 +48,8 @@ class TestCase(unittest.TestCase):
                                      testNumber=1,
                                      testRestrictions=(TestStatus.TEST_LONG,),
                                      batchSystem=self.batchSystem,
-                                     buildTrees=False, buildReference=False, buildFaces=False,
-                                     makeCactusTreeStats=True, makeMAFs=True)
+                                     buildTrees=False, buildReference=False, buildFaces=False)
+#makeCactusTreeStats=True, makeMAFs=True)
     
     def testCactus_Chromosomes(self):
         outputDir = os.path.join(TestStatus.getPathToDataSets(), "cactus", "chrX")
