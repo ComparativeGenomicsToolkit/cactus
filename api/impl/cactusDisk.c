@@ -169,6 +169,36 @@ void cactusDisk_write(CactusDisk *cactusDisk) {
     }
 }
 
+static void *getRecord(CactusDisk *cactusDisk, Name objectName, char *type) {
+    bool done = 0;
+    void *cA = NULL;
+    int64_t recordSize = 0;
+    while(!done) {
+        stTry {
+            stKVDatabase_startTransaction(cactusDisk->database);
+            cA = stKVDatabase_getRecord2(cactusDisk->database, objectName, &recordSize);
+            stKVDatabase_commitTransaction(cactusDisk->database);
+            done = 1;
+        }
+        stCatch(except) {
+            if(stExcept_getId(except) == ST_KV_DATABASE_RETRY_TRANSACTION_EXCEPTION_ID) {
+                st_logDebug("We have caught a deadlock exception when getting a %s\n", type);
+                stExcept_free(except);
+                stKVDatabase_abortTransaction(cactusDisk->database);
+            }
+            else {
+                stThrowNewCause(except, ST_KV_DATABASE_EXCEPTION_ID, "An unknown database error occurred when getting a %s", type);
+            }
+        } stTryEnd;
+    }
+    if (cA == NULL) {
+        return NULL;
+    }
+    //Decompression
+    void *cA2 = decompress(cA, &recordSize);
+    return cA2;
+}
+
 Flower *cactusDisk_getFlower(CactusDisk *cactusDisk, Name flowerName) {
     static Flower flower;
     flower.name = flowerName;
@@ -176,27 +206,11 @@ Flower *cactusDisk_getFlower(CactusDisk *cactusDisk, Name flowerName) {
     if ((flower2 = stSortedSet_search(cactusDisk->flowers, &flower)) != NULL) {
         return flower2;
     }
-    int64_t recordSize = 0;
-    void *cA = NULL;
-
-    stTry {
-        cA = stKVDatabase_getRecord2(cactusDisk->database, flowerName, &recordSize);
-    }
-    stCatch(except) {
-        if(stExcept_getId(except) == ST_KV_DATABASE_RETRY_TRANSACTION_EXCEPTION_ID) {
-            stThrowNewCause(except, ST_KV_DATABASE_EXCEPTION_ID, "We have caught a deadlock exception when getting a flower");
-        }
-        else {
-            stThrowNewCause(except, ST_KV_DATABASE_EXCEPTION_ID,
-                    "An unknown database error occurred when getting a flower");
-        }
-    } stTryEnd;
+    void *cA = getRecord(cactusDisk, flowerName, "flower");
 
     if (cA == NULL) {
         return NULL;
     }
-    //Decompression
-    cA = decompress(cA, &recordSize);
     void *cA2 = cA;
     flower2 = flower_loadFromBinaryRepresentation(&cA2, cactusDisk);
     free(cA);
@@ -212,27 +226,11 @@ MetaSequence *cactusDisk_getMetaSequence(CactusDisk *cactusDisk,
             &metaSequence)) != NULL) {
         return metaSequence2;
     }
-    int64_t recordSize = 0;
-    void *cA = NULL;
-
-    stTry {
-        cA = stKVDatabase_getRecord2(cactusDisk->database, metaSequenceName, &recordSize);
-    }
-    stCatch(except) {
-        if(stExcept_getId(except) == ST_KV_DATABASE_RETRY_TRANSACTION_EXCEPTION_ID) {
-            stThrowNewCause(except, ST_KV_DATABASE_EXCEPTION_ID, "We have caught a deadlock exception when getting a meta-sequence");
-        }
-        else {
-            stThrowNewCause(except, ST_KV_DATABASE_EXCEPTION_ID,
-                    "An unknown database error occurred when getting a meta-sequence");
-        }
-    } stTryEnd;
+    void *cA = getRecord(cactusDisk, metaSequenceName, "metaSequence");
 
     if (cA == NULL) {
         return NULL;
     }
-    //Decompression
-    cA = decompress(cA, &recordSize);
     void *cA2 = cA;
     metaSequence2 = metaSequence_loadFromBinaryRepresentation(&cA2, cactusDisk);
     free(cA);
@@ -309,19 +307,27 @@ Name cactusDisk_addString(CactusDisk *cactusDisk, const char *string) {
 
 char *cactusDisk_getString(CactusDisk *cactusDisk, Name name,
         int32_t start, int32_t length, int32_t strand) {
+    bool done = 0;
     char *string = NULL;
-    stTry {
-        string = stKVDatabase_getPartialRecord(cactusDisk->database, name, start*sizeof(char), (length+1)*sizeof(char));
+    while(!done) {
+        stTry {
+            stKVDatabase_startTransaction(cactusDisk->database);
+            string = stKVDatabase_getPartialRecord(cactusDisk->database, name, start*sizeof(char), (length+1)*sizeof(char));
+            stKVDatabase_commitTransaction(cactusDisk->database);
+            done = 1;
+        }
+        stCatch(except) {
+            if(stExcept_getId(except) == ST_KV_DATABASE_RETRY_TRANSACTION_EXCEPTION_ID) {
+                st_logDebug("We have caught a deadlock exception when getting a sequence string");
+                stExcept_free(except);
+                stKVDatabase_abortTransaction(cactusDisk->database);
+            }
+            else {
+                stThrowNewCause(except, ST_KV_DATABASE_EXCEPTION_ID,
+                        "An unknown database error occurred when getting a sequence string");
+            }
+        } stTryEnd;
     }
-    stCatch(except) {
-        if(stExcept_getId(except) == ST_KV_DATABASE_RETRY_TRANSACTION_EXCEPTION_ID) {
-            stThrowNewCause(except, ST_KV_DATABASE_EXCEPTION_ID, "We have caught a deadlock exception when getting a sequence string");
-        }
-        else {
-            stThrowNewCause(except, ST_KV_DATABASE_EXCEPTION_ID,
-                    "An unknown database error occurred when getting a sequence string");
-        }
-    } stTryEnd;
     string[length] = '\0';
     if (!strand) {
         char *string2 = cactusMisc_reverseComplementString(string);
