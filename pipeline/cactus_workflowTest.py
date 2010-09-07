@@ -26,7 +26,7 @@ class TestCase(unittest.TestCase):
     def testCactus_Random(self):
         runWorkflow_multipleExamples(getCactusInputs_random, 
                                      testNumber=TestStatus.getTestSetup(),
-                                     buildTrees=False, buildReference=False, buildFaces=False,
+                                     buildReference=False,
                                      batchSystem=self.batchSystem)
         
     def testCactus_Blanchette(self):
@@ -37,8 +37,8 @@ class TestCase(unittest.TestCase):
                                      testNumber=5,
                                      testRestrictions=(TestStatus.TEST_MEDIUM,),
                                      batchSystem=self.batchSystem,
-                                     buildCactusPDF=True,
-                                     buildTrees=False, buildReference=False, buildFaces=False)
+                                     #buildCactusPDF=True,
+                                     buildReference=False)
 #makeCactusTreeStats=True, makeMAFs=True, buildReferencePDF=True)
                 
     def testCactus_Encode(self): 
@@ -48,7 +48,7 @@ class TestCase(unittest.TestCase):
                                      testNumber=1,
                                      testRestrictions=(TestStatus.TEST_LONG,),
                                      batchSystem=self.batchSystem,
-                                     buildTrees=False, buildReference=False, buildFaces=False)
+                                     buildReference=False)
 #makeCactusTreeStats=True, makeMAFs=True)
     
     def testCactus_Chromosomes(self):
