@@ -25,7 +25,7 @@ class TestCase(unittest.TestCase):
         
     def testCactus_Random(self):
         runWorkflow_multipleExamples(getCactusInputs_random, 
-                                     testNumber=0, #TestStatus.getTestSetup(),
+                                     testNumber=TestStatus.getTestSetup(),
                                      buildReference=False,
                                      batchSystem=self.batchSystem)
         
@@ -37,9 +37,8 @@ class TestCase(unittest.TestCase):
                                      testNumber=5,
                                      testRestrictions=(TestStatus.TEST_MEDIUM,),
                                      batchSystem=self.batchSystem,
-                                     #buildCactusPDF=True,
-                                     buildReference=False)
-#makeCactusTreeStats=True, makeMAFs=True, buildReferencePDF=True)
+                                     buildCactusPDF=True,
+                                     makeCactusTreeStats=True, makeMAFs=True, buildReferencePDF=True)
                 
     def testCactus_Encode(self): 
         outputDir = os.path.join(TestStatus.getPathToDataSets(), "cactus", "encodeRegionsTest")
@@ -48,8 +47,8 @@ class TestCase(unittest.TestCase):
                                      testNumber=1,
                                      testRestrictions=(TestStatus.TEST_LONG,),
                                      batchSystem=self.batchSystem,
-                                     buildReference=False)
-#makeCactusTreeStats=True, makeMAFs=True)
+                                     buildTrees=False,
+                                     makeCactusTreeStats=True, makeMAFs=True)
     
     def testCactus_Chromosomes(self):
         outputDir = os.path.join(TestStatus.getPathToDataSets(), "cactus", "chrX")
