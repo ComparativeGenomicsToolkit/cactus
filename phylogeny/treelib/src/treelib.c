@@ -47,8 +47,11 @@ jcdist(char *seqA, char *seqB)
 struct DistanceMatrix *
 mfa2dist (char **aln, unsigned int num)
 {
-  struct DistanceMatrix *mat;
+  struct DistanceMatrix *mat = NULL;
   mat = empty_DistanceMatrix(num);
+
+//  fprintf(stderr, "Here is the zero matrix:\n");
+//  print_DistanceMatrix(stderr, mat);
 
   unsigned int i, j;
 
@@ -225,7 +228,7 @@ msa2tree (char **mfa, unsigned int num) {
 //  fprintf(stderr, "TREELIB: Here is the msa\n");
 //  unsigned int i = 0;  
 //  for (i=0; i<num; i++) {
-//    fprintf(stderr, "TREELIB:\t%s\n", mfa[i]);
+//    fprintf(stderr, "TREELIB:\t[%s]\n", mfa[i]);
 //  }
 
 //  fprintf(stderr, "TREELIB: Building the distance matrix\n");
@@ -233,7 +236,7 @@ msa2tree (char **mfa, unsigned int num) {
   aln_init(&aln, num);
   group = alignment_to_ClusterGroup(aln, 0);
   group->matrix = mat;
-  //print_DistanceMatrix(stderr, mat);
+//  print_DistanceMatrix(stderr, mat);
 
 //  fprintf(stderr, "TREELIB: Building the NJ tree\n");
   njTree = neighbour_joining_buildtree(group, 0);
@@ -268,7 +271,7 @@ msa2tree (char **mfa, unsigned int num) {
   group = free_ClusterGroup(group);
 
 //  fprintf(stderr, "TREELIB: free njTree\n");
-//  njTree = free_Tree(njTree);
+  njTree = free_Tree(njTree);
 
 //  fprintf(stderr, "TREELIB: Ending msa2tree\n");
 
