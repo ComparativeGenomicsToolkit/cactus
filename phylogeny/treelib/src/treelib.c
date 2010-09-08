@@ -238,7 +238,7 @@ msa2tree (char **mfa, unsigned int num) {
   group->matrix = mat;
 //  print_DistanceMatrix(stderr, mat);
 
-//  fprintf(stderr, "TREELIB: Building the NJ tree\n");
+  fprintf(stderr, "TREELIB: Building the NJ tree\n");
   njTree = neighbour_joining_buildtree(group, 0);
 
   struct Tnode *tmpNode = NULL;
@@ -260,7 +260,7 @@ msa2tree (char **mfa, unsigned int num) {
   njTree->child[0] = rootNode;
   njTree->child[1] = NULL;
 
-//  fprintf(stderr, "TREELIB: Converting tree to string\n");
+  fprintf(stderr, "TREELIB: Converting tree to string\n");
   treestring = tree2string(njTree);
 //  fprintf(stderr, "TREELIB: [[%s]]\n", treestring);
 
@@ -271,7 +271,7 @@ msa2tree (char **mfa, unsigned int num) {
   group = free_ClusterGroup(group);
 
 //  fprintf(stderr, "TREELIB: free njTree\n");
-  njTree = free_Tree(njTree);
+//  njTree = free_Tree(njTree);
 
 //  fprintf(stderr, "TREELIB: Ending msa2tree\n");
 
