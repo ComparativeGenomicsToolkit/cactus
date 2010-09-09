@@ -176,7 +176,7 @@ stList *chooseMatching_blossom(stList *edges, int32_t nodeNumber) {
 }
 
 stList *chooseMatching_edmondsMatching(stList *edges, int32_t nodeNumber) {
-    return chooseAdjacencyPairing_externalProgram(edges, nodeNumber, "matchGraph.py");
+    return chooseAdjacencyPairing_externalProgram(edges, nodeNumber, "matchGraph.py -c");
 }
 
 /*
