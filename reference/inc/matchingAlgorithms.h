@@ -11,8 +11,9 @@
 #include "sonLib.h"
 
 typedef enum {
-    blossom,
-    edmonds,
+    blossom5,
+    maxCardinality,
+    maxWeight,
     greedy
 } MatchingAlgorithm;
 
@@ -24,12 +25,17 @@ typedef enum {
  * greater than or equal to zero and less than the total node number and weight
  * is a positive integer weight.
  */
-stList *chooseMatching_blossom(stList *edges, int32_t nodeNumber);
+stList *chooseMatching_blossom5(stList *edges, int32_t nodeNumber);
 
 /*
- * Uses edmonds maximum matching algorithm. Same form as the blossom algorithm.
+ * Finds maximal matching (maximum cardinality) matching. Same form as the blossom algorithm.
  */
-stList *chooseMatching_edmondsMatching(stList *edges, int32_t nodeNumber);
+stList *chooseMatching_maximumCardinalityMatching(stList *edges, int32_t nodeNumber);
+
+/*
+ * Finds maximum weight matching. Same form as the blossum algorithm.
+ */
+stList *chooseMatching_maximumWeightMatching(stList *edges, int32_t nodeNumber);
 
 /*
  * Uses a greedy algorithm to choose the matching, starting with the highest weight pair

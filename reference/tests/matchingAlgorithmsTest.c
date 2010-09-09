@@ -112,41 +112,47 @@ static void testGreedy(CuTest *testCase) {
     }
 }
 
-static void testBlossum(CuTest *testCase) {
+static void testMaximumWeight(CuTest *testCase) {
     /*
-     * Creates random graphs, constructs matchings with the blossom algorithm
-     * and checks that they have higher or equal weight to the greedy matching
+     * Creates random graphs, constructs matchings with the blossom5 and maximumWeight algorithms
+     * and checks that they have equal weight and higher or equal weight to the greedy matching
      * as well as sanity checking the matchings (the blossom matching is perfect).
      */
     for(int32_t i=0; i<100; i++) {
         setup();
         stList *greedyMatching = chooseMatching_greedy(edgesList, nodeNumber);
-        stList *blossomMatching = chooseMatching_blossom(edgesList, nodeNumber);
+        stList *blossomMatching = chooseMatching_blossom5(edgesList, nodeNumber);
+        stList *maximumWeightMatching = chooseMatching_maximumWeightMatching(edgesList, nodeNumber);
         checkMatching(testCase, greedyMatching, 0);
         checkMatching(testCase, blossomMatching, 0);
+        checkMatching(testCase, maximumWeightMatching, 0);
         int32_t totalGreedyWeight = matchingWeight(greedyMatching);
         int32_t totalBlossumWeight = matchingWeight(blossomMatching);
-        st_uglyf("The total weight of the greedy matching is %i, the total weight of the blossom5 matching is %i\n",
-                totalGreedyWeight, totalBlossumWeight);
-        st_uglyf("The total cardinality of the greedy matching is %i, the total cardinality of the blossom5  matching is %i\n",
-                        stList_length(greedyMatching), stList_length(blossomMatching));
+        int32_t totalMaximumWeightWeight = matchingWeight(maximumWeightMatching);
+        st_uglyf("The total weight of the greedy matching is %i, the total weight of the blossom5 matching is %i, the total weight of the maximum weight matching is %i\n",
+                totalGreedyWeight, totalBlossumWeight, totalMaximumWeightWeight);
+        st_uglyf("The total cardinality of the greedy matching is %i, the total cardinality of the blossom5  matching is %i, the total cardinality of the maximum weight matching is %i\n",
+                        stList_length(greedyMatching), stList_length(blossomMatching), stList_length(maximumWeightMatching));
         CuAssertTrue(testCase, totalGreedyWeight <= totalBlossumWeight);
+        CuAssertTrue(testCase, totalGreedyWeight <= totalMaximumWeightWeight);
+        CuAssertTrue(testCase, totalBlossumWeight == totalMaximumWeightWeight);
         //CuAssertTrue(testCase, stList_length(greedyMatching) <= stList_length(blossomMatching));
         stList_destruct(greedyMatching);
         stList_destruct(blossomMatching);
+        stList_destruct(maximumWeightMatching);
         teardown();
     }
 }
 
-static void testEdmonds(CuTest *testCase) {
+static void testMaximumCardinality(CuTest *testCase) {
     /*
-     * Tests the edmonds matching algorithm, checking it has higher or equal
+     * Tests a maximum (cardinality) matching algorithm, checking that it has higher or equal
      * cardinality to the greedy algorithm.
      */
     for(int32_t i=0; i<100; i++) {
         setup();
         stList *greedyMatching = chooseMatching_greedy(edgesList, nodeNumber);
-        stList *edmondsMatching = chooseMatching_edmondsMatching(edgesList, nodeNumber);
+        stList *edmondsMatching = chooseMatching_maximumCardinalityMatching(edgesList, nodeNumber);
         checkMatching(testCase, greedyMatching, 0);
         checkMatching(testCase, edmondsMatching, 0);
 
@@ -166,8 +172,8 @@ static void testEdmonds(CuTest *testCase) {
 CuSuite* matchingAlgorithmsTestSuite(void) {
     CuSuite* suite = CuSuiteNew();
     SUITE_ADD_TEST(suite, testGreedy);
-    SUITE_ADD_TEST(suite, testBlossum);
-    SUITE_ADD_TEST(suite, testEdmonds);
+    SUITE_ADD_TEST(suite, testMaximumWeight);
+    SUITE_ADD_TEST(suite, testMaximumCardinality);
 
     return suite;
 }

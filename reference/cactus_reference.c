@@ -20,7 +20,7 @@ void usage() {
             stderr,
             "-d --bottomUp : Run the bottom up algorithm instead of the top down algorithm\n");
     fprintf(stderr,
-            "-e --matchingAlgorithm : Name of matching algorithm, either 'greedy', 'edmonds', 'blossom'\n");
+            "-e --matchingAlgorithm : Name of matching algorithm, either 'greedy', 'maxWeight', 'maxCardinality', 'blossom5'\n");
     fprintf(stderr, "-h --help : Print this help screen\n");
 }
 
@@ -73,11 +73,14 @@ int main(int argc, char *argv[]) {
                 if(strcmp("greedy", optarg) == 0) {
                     matchingAlgorithm = greedy;
                 }
-                else if (strcmp("edmonds", optarg) == 0) {
-                    matchingAlgorithm = edmonds;
+                else if (strcmp("maxCardinality", optarg) == 0) {
+                    matchingAlgorithm = maxCardinality;
                 }
-                else if (strcmp("blossom", optarg) == 0) {
-                    matchingAlgorithm = blossom;
+                else if (strcmp("maxWeight", optarg) == 0) {
+                    matchingAlgorithm = maxWeight;
+                }
+                else if (strcmp("blossom5", optarg) == 0) {
+                    matchingAlgorithm = blossom5;
                 }
                 else {
                     stThrowNew(REFERENCE_BUILDING_EXCEPTION, "Input error: unrecognized matching algorithm: %s", optarg);

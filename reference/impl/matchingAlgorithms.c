@@ -25,11 +25,11 @@ static void writeGraph(FILE *fileHandle, stList *edges, int32_t nodeNumber) {
         int32_t to = stIntTuple_getPosition(edge, 1);
         int32_t weight = -stIntTuple_getPosition(edge, 2);
         //All the algorithms are minimisation algorithms, so we invert the sign.
-        fprintf(fileHandle, "%i %i %i\n", from, to, -weight);
+        fprintf(fileHandle, "%i %i %i\n", from, to, weight);
     }
 }
 
-static void writeCliqueGraph(FILE *fileHandle, stList *edges, int32_t nodeNumber) {
+static void writeCliqueGraph(FILE *fileHandle, stList *edges, int32_t nodeNumber, bool negativeWeights) {
     /*
      * Writes out a representation of the adjacencies and ends as a graph readable by blossom.
      * Writes out additional edges so that every pair of nodes is connected.
@@ -48,8 +48,8 @@ static void writeCliqueGraph(FILE *fileHandle, stList *edges, int32_t nodeNumber
         assert(to >= 0);
         assert(from != to);
         int32_t weight = stIntTuple_getPosition(edge, 2);
-        //All the algorithms are minimisation algorithms, so we invert the sign.
-        fprintf(fileHandle, "%i %i %i\n", from, to, -weight);
+        //If is a minimisation algorithms we invert the sign..
+        fprintf(fileHandle, "%i %i %i\n", from, to, negativeWeights ? -weight : weight);
         edgesWritten++;
         stIntTuple *one = stIntTuple_construct(2, from, to);
         stIntTuple *two = stIntTuple_construct(2, to, from);
@@ -136,7 +136,7 @@ static stList *chooseAdjacencyPairing_externalProgram(stList *edges, int32_t nod
     FILE *fileHandle = fopen(tempInputFile, "w");
     if(strcmp(programName, "blossom5") == 0) { //Must be all connected as
         //generates perfect matchings.
-        writeCliqueGraph(fileHandle, edges, nodeNumber);
+        writeCliqueGraph(fileHandle, edges, nodeNumber, 1);
     }
     else {
         writeGraph(fileHandle, edges, nodeNumber);
@@ -171,12 +171,16 @@ static stList *chooseAdjacencyPairing_externalProgram(stList *edges, int32_t nod
     return matching;
 }
 
-stList *chooseMatching_blossom(stList *edges, int32_t nodeNumber) {
+stList *chooseMatching_blossom5(stList *edges, int32_t nodeNumber) {
     return chooseAdjacencyPairing_externalProgram(edges, nodeNumber, "blossom5");
 }
 
-stList *chooseMatching_edmondsMatching(stList *edges, int32_t nodeNumber) {
+stList *chooseMatching_maximumCardinalityMatching(stList *edges, int32_t nodeNumber) {
     return chooseAdjacencyPairing_externalProgram(edges, nodeNumber, "matchGraph.py -c");
+}
+
+stList *chooseMatching_maximumWeightMatching(stList *edges, int32_t nodeNumber) {
+    return chooseAdjacencyPairing_externalProgram(edges, nodeNumber, "matchGraph.py");
 }
 
 /*

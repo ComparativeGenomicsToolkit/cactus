@@ -21,8 +21,11 @@ class TestCase(unittest.TestCase):
     def testCactus_Random_Blossum(self):
         testCactus_Random(self, "blossom")
         
-    def testCactus_Random_Edmonds(self):
-        testCactus_Random(self, "edmonds")
+    def testCactus_Random_MaxCardinality(self):
+        testCactus_Random(self, "maxCardinality")
+    
+    def testCactus_Random_MaxWeight(self):
+        testCactus_Random(self, "maxWeight")
         
     def testCactus_Blanchette_Greedy(self):
         testCactus_Blanchette(self, "greedy")
@@ -30,8 +33,12 @@ class TestCase(unittest.TestCase):
     def testCactus_Blanchette_Blossum(self):
         testCactus_Blanchette(self, "blossom")
         
-    def testCactus_Blanchette_Edmonds(self):
-        testCactus_Blanchette(self, "edmonds")
+    def testCactus_Blanchette_MaxCardinality(self):
+        testCactus_Blanchette(self, "maxCardinality")
+    
+    def testCactus_Blanchette_MaxWeight(self):
+        testCactus_Blanchette(self, "maxWeight")
+    
         
     def testCuTest(self):
         system("referenceTests")

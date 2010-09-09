@@ -252,11 +252,14 @@ stHash *adjacencyHash_constructInitialPairs(Flower *flower, MatchingAlgorithm re
     if(referenceAlgorithm == greedy) {
         matchingTuples = chooseMatching_greedy(tupleEdges, nodeNumber);
     }
-    else if (referenceAlgorithm == blossom) {
-        matchingTuples = chooseMatching_blossom(tupleEdges, nodeNumber);
+    else if (referenceAlgorithm == blossom5) {
+        matchingTuples = chooseMatching_blossom5(tupleEdges, nodeNumber);
     }
-    else if (referenceAlgorithm == edmonds) {
-        matchingTuples = chooseMatching_edmondsMatching(tupleEdges, nodeNumber);
+    else if (referenceAlgorithm == maxCardinality) {
+        matchingTuples = chooseMatching_maximumCardinalityMatching(tupleEdges, nodeNumber);
+    }
+    else if (referenceAlgorithm == maxWeight) {
+            matchingTuples = chooseMatching_maximumWeightMatching(tupleEdges, nodeNumber);
     }
     else {
         stThrowNew(REFERENCE_BUILDING_EXCEPTION, "Unrecognised matching algorithm: %i", referenceAlgorithm);
