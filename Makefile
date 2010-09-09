@@ -1,5 +1,5 @@
 # order is important, libraries first
-modules = api 3EdgeConnected pinchGraphs cactusGraphs core setup blastAlignment baseAlignment normalisation reference phylogeny faces check pipeline utilities 
+modules = api 3EdgeConnected pinchGraphs cactusGraphs core setup blastAlignment baseAlignment normalisation reference phylogeny faces check pipeline utilities pulldown
 .PHONY: all %.all clean %.clean
 #baseAlignment
 #coreModule make file
