@@ -23,7 +23,7 @@ static void writeGraph(FILE *fileHandle, stList *edges, int32_t nodeNumber) {
         stIntTuple *edge = stList_get(edges, i);
         int32_t from =  stIntTuple_getPosition(edge, 0);
         int32_t to = stIntTuple_getPosition(edge, 1);
-        int32_t weight = -stIntTuple_getPosition(edge, 2);
+        int32_t weight = stIntTuple_getPosition(edge, 2);
         //All the algorithms are minimisation algorithms, so we invert the sign.
         fprintf(fileHandle, "%i %i %i\n", from, to, weight);
     }

@@ -56,7 +56,7 @@
 	<faces time="1">
 	</faces>
 
-	<reference time="1" matching_algorithm="greedy">
+	<reference time="1" matching_algorithm="blossom5">
 	</reference>
 
 	<check time="1">
