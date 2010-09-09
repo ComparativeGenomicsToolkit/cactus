@@ -149,7 +149,7 @@ int32_t pulldown_getCapAdjacencyWeight(Cap *cap) {
 
     // Loop through each of the cap's descendants.
     stList *attachedDescendants = pulldown_getMostAncientAttachedDescendants(cap);
-    fprintf(stderr, "got attached %d descendants.\n", stList_length(attachedDescendants));
+    //fprintf(stderr, "got attached %d descendants.\n", stList_length(attachedDescendants));
     Cap *descendant;
     stListIterator *it = stList_getIterator(attachedDescendants);
     for (   descendant = stList_getNext(it);
@@ -164,7 +164,7 @@ int32_t pulldown_getCapAdjacencyWeight(Cap *cap) {
     // Loop through each of the adjacent cap's descendants.
     stList *adjacentAttachedDescendants
         = pulldown_getMostAncientAttachedDescendants(adjacent);
-    fprintf(stderr, "got attached descendants of adjacent.\n");
+    //fprintf(stderr, "got attached descendants of adjacent.\n");
     it = stList_getIterator(adjacentAttachedDescendants);
     for (   descendant = (Cap *)stList_getNext(it);
             descendant != NULL; descendant = (Cap *)stList_getNext(it)) {

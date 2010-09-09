@@ -80,7 +80,7 @@ void pulldown_simpleFlowerTest() {
     for (cap = flower_getNextCap(capIt);
             cap != NULL; cap = flower_getNextCap(capIt)) {
         int32_t capBadness = pulldown_getCapAdjacencyBadness(cap);
-        assert(capBadness = 0);
+        assert(capBadness == 0);
     }
     flower_destructCapIterator(capIt);
 
@@ -99,6 +99,6 @@ int main (int argc, char *argv[]) {
     fprintf(stderr, "Entering pulldown test.\n");
     //Flower *flower = 
     pulldown_simpleFlowerTest();
-    fprintf(stderr, "Exiting test complete.\n");
+    fprintf(stderr, "Exiting pulldown test.\n");
     return 0;
 }
