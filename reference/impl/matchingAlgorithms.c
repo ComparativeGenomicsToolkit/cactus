@@ -1,0 +1,233 @@
+/*
+ * adjacencyPairsHash.c
+ *
+ *  Created on: 24 Aug 2010
+ *      Author: benedictpaten
+ */
+
+#include "sonLib.h"
+#include "cactus.h"
+#include "reference.h"
+
+/*
+ * Code to talk to the blossom5 maximum weight perfect matching algorithm.
+ */
+
+static void writeGraph(FILE *fileHandle, stList *edges, int32_t nodeNumber) {
+    /*
+     * Writes out just the adjacencies in the blossom format.
+     */
+    int32_t edgeNumber = stList_length(edges);
+    fprintf(fileHandle, "%i %i\n", nodeNumber, edgeNumber);
+    for(int32_t i=0; i<stList_length(edges); i++) {
+        stIntTuple *edge = stList_get(edges, i);
+        int32_t from =  stIntTuple_getPosition(edge, 0);
+        int32_t to = stIntTuple_getPosition(edge, 1);
+        int32_t weight = -stIntTuple_getPosition(edge, 2);
+        //All the algorithms are minimisation algorithms, so we invert the sign.
+        fprintf(fileHandle, "%i %i %i\n", from, to, -weight);
+    }
+}
+
+static void writeCliqueGraph(FILE *fileHandle, stList *edges, int32_t nodeNumber) {
+    /*
+     * Writes out a representation of the adjacencies and ends as a graph readable by blossom.
+     * Writes out additional edges so that every pair of nodes is connected.
+     */
+    int32_t edgeNumber = ((nodeNumber * nodeNumber)  - nodeNumber) / 2;
+    fprintf(fileHandle, "%i %i\n", nodeNumber, edgeNumber);
+    stSortedSet *seen = stSortedSet_construct3((int (*)(const void *, const void *))stIntTuple_cmpFn, (void (*)(void *))stIntTuple_destruct);
+    int32_t edgesWritten = 0;
+    for(int32_t i=0; i<stList_length(edges); i++) {
+        stIntTuple *edge = stList_get(edges, i);
+        int32_t from =  stIntTuple_getPosition(edge, 0);
+        int32_t to = stIntTuple_getPosition(edge, 1);
+        assert(from < nodeNumber);
+        assert(to < nodeNumber);
+        assert(from >= 0);
+        assert(to >= 0);
+        assert(from != to);
+        int32_t weight = stIntTuple_getPosition(edge, 2);
+        //All the algorithms are minimisation algorithms, so we invert the sign.
+        fprintf(fileHandle, "%i %i %i\n", from, to, -weight);
+        edgesWritten++;
+        stIntTuple *one = stIntTuple_construct(2, from, to);
+        stIntTuple *two = stIntTuple_construct(2, to, from);
+        assert(stSortedSet_search(seen, one) == NULL);
+        stSortedSet_insert(seen, one);
+        assert(stSortedSet_search(seen, two) == NULL);
+        stSortedSet_insert(seen, two);
+    }
+    for(int32_t i=0; i<nodeNumber; i++) {
+        for(int32_t j=i+1; j<nodeNumber; j++) {
+            stIntTuple *edge = stIntTuple_construct(2, i, j);
+            if(stSortedSet_search(seen, edge) == NULL) {
+                fprintf(fileHandle, "%i %i 0\n", i, j);
+                edgesWritten++;
+            }
+            stIntTuple_destruct(edge);
+        }
+    }
+    //Cleanup
+    stSortedSet_destruct(seen);
+    assert(edgeNumber == edgesWritten);
+}
+
+static stHash *putEdgesInHash(stList *edges) {
+    stHash *intsToEdgesHash = stHash_construct3((uint32_t (*)(const void *))stIntTuple_hashKey, (int (*)(const void *, const void *))stIntTuple_equalsFn, (void (*)(void *))stIntTuple_destruct, NULL);
+    for(int32_t i=0; i<stList_length(edges); i++) {
+        stIntTuple *edge = stList_get(edges, i);
+        int32_t to = stIntTuple_getPosition(edge, 0);
+        int32_t from = stIntTuple_getPosition(edge, 1);
+        stHash_insert(intsToEdgesHash, stIntTuple_construct(2, to, from), edge);
+        stHash_insert(intsToEdgesHash, stIntTuple_construct(2, from, to), edge);
+    }
+
+    return intsToEdgesHash;
+}
+
+static stList *readMatching(FILE *fileHandle, stList *originalEdges) {
+    /*
+     * Reads the matching created by Blossum.
+     */
+    stHash *originalEdgesHash = putEdgesInHash(originalEdges);
+    char *line = stFile_getLineFromFile(fileHandle);
+    assert(line != NULL);
+    int32_t nodeNumber, edgeNumber;
+    int32_t i = sscanf(line, "%i %i\n", &nodeNumber, &edgeNumber);
+    assert(i == 2);
+    free(line);
+    stList *chosenEdges = stList_construct();
+    for(int32_t j=0; j<edgeNumber; j++) {
+        line = stFile_getLineFromFile(fileHandle);
+        int32_t node1, node2;
+        i = sscanf(line, "%i %i", &node1, &node2);
+        assert(i == 2);
+        free(line);
+        assert(node1 >= 0);
+        assert(node1 < nodeNumber);
+        assert(node2 >= 0);
+        assert(node2 < nodeNumber);
+        stIntTuple *edge = stIntTuple_construct(2, node1, node2);
+        stIntTuple *originalEdge = stHash_search(originalEdgesHash, edge);
+        if(originalEdge != NULL) {
+            stList_append(chosenEdges, originalEdge);
+        }
+        stIntTuple_destruct(edge);
+    }
+    stHash_destruct(originalEdgesHash);
+    return chosenEdges;
+}
+
+static stList *chooseAdjacencyPairing_externalProgram(stList *edges, int32_t nodeNumber, const char *programName) {
+    /*
+     * We create temp files to hold stuff.
+     */
+    if(nodeNumber <= 1) {
+        assert(stList_length(edges) == 0);
+        return stList_construct();
+    }
+
+    char *tempInputFile = getTempFile(), *tempOutputFile = getTempFile();
+
+    /*
+     * We write the graph to a temp file.
+     */
+    FILE *fileHandle = fopen(tempInputFile, "w");
+    if(strcmp(programName, "blossom5") == 0) { //Must be all connected as
+        //generates perfect matchings.
+        writeCliqueGraph(fileHandle, edges, nodeNumber);
+    }
+    else {
+        writeGraph(fileHandle, edges, nodeNumber);
+    }
+    fclose(fileHandle);
+
+    /*
+     * We run the external program.
+     */
+    char *command = stString_print("%s -e %s -w %s", programName, tempInputFile, tempOutputFile);
+    int32_t i = st_system(command);
+    if(i != 0) {
+        stThrowNew(REFERENCE_BUILDING_EXCEPTION, "Something went wrong the command %s\n", command);
+    }
+    free(command);
+
+    /*
+     * We get back the matching.
+     */
+    fileHandle = fopen(tempOutputFile, "r");
+    stList *matching = readMatching(fileHandle, edges);
+    fclose(fileHandle);
+    st_logDebug("The adjacency matching for %i nodes with %i initial edges contains %i edges\n", nodeNumber, stList_length(edges), stList_length(matching));
+
+    /*
+     * Get rid of the temp files..
+     */
+    st_system("rm -rf %s %s", tempInputFile, tempOutputFile);
+    free(tempInputFile);
+    free(tempOutputFile);
+
+    return matching;
+}
+
+stList *chooseMatching_blossom(stList *edges, int32_t nodeNumber) {
+    return chooseAdjacencyPairing_externalProgram(edges, nodeNumber, "blossom5");
+}
+
+stList *chooseMatching_edmondsMatching(stList *edges, int32_t nodeNumber) {
+    return chooseAdjacencyPairing_externalProgram(edges, nodeNumber, "matchGraph.py");
+}
+
+/*
+ * Greedy matching algorithm.
+ */
+
+int chooseMatching_greedyP(const void *a, const void *b) {
+    return stIntTuple_getPosition((stIntTuple *)a, 2) - stIntTuple_getPosition((stIntTuple *)b, 2);
+}
+
+stList *chooseMatching_greedy(stList *edges, int32_t nodeNumber) {
+    /*
+     * Greedily picks the edge from the list such that each node has at most one edge.
+     */
+    //First clone the list..
+    edges = stList_copy(edges, NULL);
+
+    stSortedSet *seen = stSortedSet_construct3((int (*)(const void *, const void *))stIntTuple_cmpFn,
+            (void (*)(void *))stIntTuple_destruct);
+    stList *matching = stList_construct();
+
+    //Sort the adjacency pairs..
+    stList_sort(edges, chooseMatching_greedyP);
+
+#ifdef BEN_DEBUG
+    double strength = INT32_MAX;
+#endif
+    while (stList_length(edges) > 0) {
+        stIntTuple *edge = stList_pop(edges);
+#ifdef BEN_DEBUG
+        double d = stIntTuple_getPosition(edge, 2);
+        assert(d <= strength);
+        strength = d;
+#endif
+        stIntTuple *fromTuple = stIntTuple_construct(1, stIntTuple_getPosition(edge, 0));
+        stIntTuple *toTuple = stIntTuple_construct(1, stIntTuple_getPosition(edge, 1));
+        if (stSortedSet_search(seen, fromTuple)
+                == NULL && stSortedSet_search(seen,
+                toTuple) == NULL) {
+            stSortedSet_insert(seen, fromTuple);
+            stSortedSet_insert(seen, toTuple);
+            stList_append(matching,edge);
+        }
+        else {
+            stIntTuple_destruct(fromTuple);
+            stIntTuple_destruct(toTuple);
+        }
+    }
+    assert(stList_length(edges) == 0);
+    stList_destruct(edges);
+    stSortedSet_destruct(seen);
+
+    return matching;
+}

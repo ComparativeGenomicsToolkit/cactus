@@ -142,13 +142,15 @@ def runCactusBaseAligner(cactusDiskDatabaseString, flowerNames, logLevel="DEBUG"
     """
     system("cactus_baseAligner --cactusDisk '%s' --logLevel %s %s" % (cactusDiskDatabaseString, logLevel, " ".join(flowerNames)))
     
-def runCactusReference(cactusDiskDatabaseString, flowerNames, logLevel="DEBUG", bottomUp=False):
+def runCactusReference(cactusDiskDatabaseString, flowerNames, logLevel="DEBUG", bottomUp=False,
+                       matchingAlgorithm=None):
     """Runs cactus reference.
     """
     #print "running", "cactus_reference --cactusDisk '%s' --logLevel %s %s" % (cactusDiskDatabaseString, logLevel, " ".join(flowerNames))
     #assert False
     bottomUp = nameValue("bottomUp", bottomUp, bool)
-    system("cactus_reference --cactusDisk '%s' --logLevel %s %s %s" % (cactusDiskDatabaseString, logLevel, bottomUp, " ".join(flowerNames)))
+    matchingAlgorithm = nameValue("matchingAlgorithm", matchingAlgorithm)
+    system("cactus_reference --cactusDisk '%s' --logLevel %s %s %s %s" % (cactusDiskDatabaseString, logLevel, bottomUp, matchingAlgorithm, " ".join(flowerNames)))
 
 def runCactusCheck(cactusDiskDatabaseString, 
                     flowerNames=("0",), 

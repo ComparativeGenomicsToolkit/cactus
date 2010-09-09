@@ -634,6 +634,7 @@ bool flower_isLeaf(Flower *flower) {
     Flower_GroupIterator *iterator = flower_getGroupIterator(flower);
     while ((group = flower_getNextGroup(iterator)) != NULL) {
         if (!group_isLeaf(group)) {
+            flower_destructGroupIterator(iterator);
             return 0;
         }
     }

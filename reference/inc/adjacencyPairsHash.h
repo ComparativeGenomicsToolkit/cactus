@@ -10,6 +10,7 @@
 
 #include "sonLib.h"
 #include "cactus.h"
+#include "matchingAlgorithms.h"
 
 /*
  * Adds the adjacency pair to the hash.
@@ -29,7 +30,7 @@ void adjacencyHash_remove(stHash *adjacencies,
  * is a member of one adjacency pair. Adjacency pairs are only between ends
  * in the same group.
  */
-stHash *adjacencyHash_constructInitialPairs(Flower *flower);
+stHash *adjacencyHash_constructInitialPairs(Flower *flower, MatchingAlgorithm matchingAlgorithm);
 
 /*
  * Frees the adjacencies pairs in the adjacencies hash safely.

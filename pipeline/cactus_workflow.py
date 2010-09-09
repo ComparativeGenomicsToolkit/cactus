@@ -401,7 +401,8 @@ class CactusExtensionWrapper(Target):
             runCactusPhylogeny(self.options.cactusDiskDatabaseString, flowerNames=self.flowerNames)
             #Not atomic!
         elif self.switch == BUILD_REFERENCE:
-            runCactusReference(self.options.cactusDiskDatabaseString, flowerNames=self.flowerNames) #We first run the top down phase
+            matchingAlgorithm = self.options.config.find("reference").attrib["matching_algorithm"]
+            runCactusReference(self.options.cactusDiskDatabaseString, flowerNames=self.flowerNames, matchingAlgorithm=matchingAlgorithm) #We first run the top down phase
             self.setFollowOnTarget(CactusReferenceRunnable(options=self.options, flowerNames=self.flowerNames)) #We second run a bottom up phase
         elif self.switch == BUILD_FACES:
             runCactusAdjacencies(self.options.cactusDiskDatabaseString, flowerNames=self.flowerNames)

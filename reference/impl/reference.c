@@ -10,11 +10,14 @@
 #include "cactus.h"
 #include "sonLib.h"
 #include "adjacencyPairs.h"
+#include "matchingAlgorithms.h"
 #include "adjacencyPairsHash.h"
 #include "mergeCycles.h"
 #include "hyperChains.h"
 #include "balanceTangles.h"
 #include "pressedFlowers.h"
+
+const char *REFERENCE_BUILDING_EXCEPTION = "REFERENCE_BUILDING_EXCEPTION";
 
 static void makeTerminalReference(Flower *flower, stHash *adjacenciesHash) {
     /*
@@ -70,7 +73,7 @@ static void balanceTanglesRecursively(Flower *flower) {
     }
 }
 
-void constructReference_topDownPhase(Flower *flower) {
+void constructReference_topDownPhase(Flower *flower, MatchingAlgorithm matchingAlgorithm) {
     if(flower_getParentGroup(flower) != NULL && group_isTangle(flower_getParentGroup(flower))) {
         /*
          * In this case we've must have already built the child tangle terminal nets.
@@ -84,7 +87,7 @@ void constructReference_topDownPhase(Flower *flower) {
     /*
      * Construct the initial pairing of the terminal ends.
      */
-    stHash *adjacenciesHash = adjacencyHash_constructInitialPairs(flower);
+    stHash *adjacenciesHash = adjacencyHash_constructInitialPairs(flower, matchingAlgorithm);
     /*
      * Find the set of 'hyper chains' linking the ends in the terminal problems.
      */

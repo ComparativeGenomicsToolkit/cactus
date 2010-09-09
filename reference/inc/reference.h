@@ -11,12 +11,15 @@
 #define REFERENCE_H_
 
 #include "cactus.h"
+#include "matchingAlgorithms.h"
+
+extern const char *REFERENCE_BUILDING_EXCEPTION;
 
 /*
  * The initial top down algorithm, which is run for each flower in the
  * cactus tree breadth first from the root.
  */
-void constructReference_topDownPhase(Flower *flower);
+void constructReference_topDownPhase(Flower *flower, MatchingAlgorithm matchingAlgorithm);
 
 /*
  * The finishing bottom up algorithm, which is run for each flower in the

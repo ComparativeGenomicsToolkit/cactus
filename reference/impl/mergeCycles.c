@@ -56,6 +56,9 @@ void mergeCycles(stHash *adjacencies, stHash *hyperChains) {
                         adjacencySwitch = adjacencySwitch2;
                         mergingComponent = component;
                     }
+                    else {
+                        adjacencySwitch_destruct(adjacencySwitch2);
+                    }
                 }
             }
         }

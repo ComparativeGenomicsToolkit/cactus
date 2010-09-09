@@ -9,6 +9,8 @@
 #include "cactus.h"
 #include "adjacencyPairs.h"
 #include "pressedFlowers.h"
+#include "reference.h"
+#include "matchingAlgorithms.h"
 
 void adjacencyHash_add(stHash *adjacenciesHash, AdjacencyPair *adjacencyPair) {
 #ifdef BEN_DEBUG
@@ -102,124 +104,25 @@ static stList *makeListOfAdjacencyPairs(Flower *flower) {
     return adjacencies;
 }
 
-/*
-void getNameRedirectionHashP(End *end, stHash *hash, int32_t *counter) {
-    if(stHash_search(hash, end) == NULL) {
-        stHash_insert(hash, end, stIntTuple_construct(1, (*counter)++));
-    }
-}
-
-static stHash *getNameRedirectionHash(stList *adjacencies) {
-    stHash *hash = stHash_construct2(free, (void (*)(void *))stIntTuple_destruct);
-    int32_t counter = 0;
-    for(int32_t i=0; i<adjacencies; i++) {
-        AdjacencyPair *adjacencyPair = stList_get(adjacencies, i);
-        addToHash(adjacencyPair_getEnd1(adjacencyPair), hash, &counter);
-        addToHash(adjacencyPair_getEnd2(adjacencyPair), hash, &counter);
-    }
-    return hash;
-}
-
-static writeGraph(FILE *fileHandle, stList *adjacencies, stHash *redirectionHash) {
-    int32_t nodeNumber = stHash_size(redirectionHash);
-    int32_t edgeNumber = (nodeNumber * nodeNumber - nodeNumber) / 2;
-    fprintf(fileHandle, "%i %i\n", nodeNumber, edgeNumber);
-    stSortedSet *edges = stSortedSet_construct3((int (*)(const void *, const void *))stIntTuple_cmpFn, (void (*)(void *))stIntTuple_destruct);
-    for(int32_t i=0; i<stList_length(adjacencies); i++) {
-        AdjacencyPair *adjacencyPair = stList_get(adjacencies, i);
-        int32_t j = stIntTuple_getPosition(stHash_search(redirectionHash, adjacencyPair_getEnd1(adjacencyPair)), 0);
-        int32_t k = stIntTuple_getPosition(stHash_search(redirectionHash, adjacencyPair_getEnd2(adjacencyPair)), 0);
-        fprintf("%i %i %i\n", j, k, adjacencyPair_getStrengthOfAdjacencyPair(adjacencyPair));
-        stSortedSet_insert(edges, stIntTuple_construct(2, j, k));
-    }
-    for(int32_t i=0; i<nodeNumber; i++) {
-        for(int32_t j=i+1; j<nodeNumber; j++) {
-            stIntTuple *edge = stIntTuple_construct(2, i, j);
-            if(stSortedSet_search(edges, edge) == NULL) {
-                fprintf("%i %i 0\n", i, j);
-            }
-            stIntTuple_destruct(edge);
-        }
-    }
-}
-
-static stHash *readPairs(FILE *fileHandle, stList *adjacencies, stHash *redirectionHash) {
-    char *line = st_getLineFromFile(fileHandle);
-    assert(line != NULL);
-    int32_t nodeNumber, edgeNumber;
-    int32_t i = sscanf(line, "%i %i\n", &nodeNumber, &edgeNumber);
-    assert(i == 2);
-    free(line);
-    for(int32_t j=0; j<edgeNumber; j++) {
-        line = st_getLineFromFile(fileHandle);
-        int32_t node1, node2, weight;
-        i = sscanf(line, "%i %i %i\n", &node1, &node2 &weight);
-        assert(i == 3);
-        assert(node1 >= 0);
-        assert(node1 < nodeNumber);
-        assert(node2 >= 0);
-        assert(node2 < nodeNumber);
-        stIntTuple *edge = stIntTuple_construct(1, node1, node2);
-
-
-        stIntTuple *intTuple2 = stIntTuple_construct(2, node1);
-        End *end1 = stHash_search(redirectionHash, intTuple1);
-        End *end2 = stHash_search(redirectionHash, intTuple2);
-        stIntTuple_destruct(intTuple1);
-        stIntTuple_destruct(intTuple2);
-        assert(end1 != NULL);
-        assert(end2 != NULL);
-    }
-
-}
-
-static stHash *choosePairingBlossum(stList *adjacencies) {
-    stHash *redirectionHash = getNameRedirectionHash(adjacencies);
-    char *tempInputFile = getTempFile(), *tempOutputFile = getTempFile();
-    FILE *fileHandle = fopen(tempInputFile, 'w');
-    writeGraph(fileHandle, adjacencies, redirectionHash);
-    fclose(fileHandle);
-    st_system("blossum5 -e %s -w %s >& /dev/null", tempInputFile, tempOutputFile);
-    fileHandle = fopen(tempOutputFile, 'r');
-    stHash *adjacenciesHash = readPairs(fileHandle, adjacencies, redirectionHash);
-    fclose(fileHandle);
-    //Get rid of the temp files..
-    st_system("rm -rf %s %s", tempInputFile, tempOutputFile);
-    //Cleanup
-    stHash_destruct(redirectionHash);
-    assert(stList_length(adjacencies) == 0);
-    stList_destruct(adjacencies);
-
-    return adjacenciesHash;
-}*/
-
-static stHash *choosePairing(stList *adjacencies) {
+static stSortedSet *makeSetOfEnds(Flower *flower) {
     /*
-     * Greedily picks the adjacencies from the list such that each end has one adjacency.
-     * Destroys the input list in the process.
+     * Makes a set of ends.
      */
-    stHash *adjacenciesHash = stHash_construct();
-#ifdef BEN_DEBUG
-    double strength = INT32_MAX;
-#endif
-    while (stList_length(adjacencies) > 0) {
-        AdjacencyPair *adjacencyPair = stList_pop(adjacencies);
-#ifdef BEN_DEBUG
-        double d = adjacencyPair_getStrengthOfAdjacencyPair(adjacencyPair);
-        assert(d <= strength);
-        strength = d;
-#endif
-        if (stHash_search(adjacenciesHash, adjacencyPair_getEnd1(adjacencyPair))
-                == NULL && stHash_search(adjacenciesHash,
-                adjacencyPair_getEnd2(adjacencyPair)) == NULL) {
-            adjacencyHash_add(adjacenciesHash, adjacencyPair);
-        } else {
-            adjacencyPair_destruct(adjacencyPair);
+    stSortedSet *ends = stSortedSet_construct();
+    stList *pressedFlowers = getListOfPressedFlowers(flower);
+    while (stList_length(pressedFlowers) > 0) {
+        End *end;
+        Flower_EndIterator *endIterator = flower_getEndIterator(stList_pop(pressedFlowers));
+        while ((end = flower_getNextEnd(endIterator)) != NULL) {
+            assert(!end_isBlockEnd(end));
+            if (end_isAttached(end)) {
+                stSortedSet_insert(ends, end);
+            }
         }
+        flower_destructEndIterator(endIterator);
     }
-    assert(stList_length(adjacencies) == 0);
-    stList_destruct(adjacencies);
-    return adjacenciesHash;
+    stList_destruct(pressedFlowers);
+    return ends;
 }
 
 static void addPseudoPseudoAdjacenciesP(stHash *adjacenciesHash, Flower *flower) {
@@ -263,11 +166,141 @@ static void addPseudoPseudoAdjacencies(stHash *adjacenciesHash, Flower *flower) 
     stList_destruct(pressedFlowers);
 }
 
-stHash *adjacencyHash_constructInitialPairs(Flower *flower) {
+static stHash *getEndsToIntsHash(stSortedSet *ends) {
+    /*
+     * Creates a hash of ends to integers.
+     */
+    stSortedSetIterator *it = stSortedSet_getIterator(ends);
+    End *end;
+    stHash *endsToInts = stHash_construct2(NULL, (void (*)(void *))stIntTuple_destruct);
+    int32_t counter = 0;
+    while((end = stSortedSet_getNext(it)) != NULL) {
+        stIntTuple *intTuple = stIntTuple_construct(1, counter++);
+        stHash_insert(endsToInts, end, intTuple);
+    }
+    stSortedSet_destructIterator(it);
+    return endsToInts;
+}
+
+static stHash *getTupleEdgesToAdjacencyEdgesHash(stList *adjacencies, stHash *endsToInts) {
+    /*
+     * Creates a hash of tuple edges to adjacency edges.
+     */
+    stHash *tupleEdgesToAdjacencyEdges = stHash_construct3((uint32_t (*)(const void *))stIntTuple_hashKey,
+            (int (*)(const void *, const void *))stIntTuple_equalsFn, (void (*)(void *))stIntTuple_destruct, NULL);
+    for(int32_t i=0; i<stList_length(adjacencies); i++) {
+        AdjacencyPair *adjacencyPair = stList_get(adjacencies, i);
+        assert(adjacencyPair != NULL);
+        int32_t j = stIntTuple_getPosition(stHash_search(endsToInts, adjacencyPair_getEnd1(adjacencyPair)), 0);
+        int32_t k = stIntTuple_getPosition(stHash_search(endsToInts, adjacencyPair_getEnd2(adjacencyPair)), 0);
+        int32_t weight = (int32_t)(1000*adjacencyPair_getStrengthOfAdjacencyPair(adjacencyPair));
+        //We add it in both directions
+        stHash_insert(tupleEdgesToAdjacencyEdges, stIntTuple_construct(3, j, k, weight), adjacencyPair);
+    }
+    return tupleEdgesToAdjacencyEdges;
+}
+
+static stList *convertTupleEdgesToAdjacencies(stList *matching,
+        stHash *tupleEdgesToAdjacencyEdges) {
+    /*
+     * Convert the tuple adjacencies into adjacencies.
+     */
+    stList *chosenAdjacencyPairs = stList_construct();
+    for(int32_t i=0; i<stList_length(matching); i++) {
+        stIntTuple *edge = stList_get(matching, i);
+        AdjacencyPair *adjacencyPair = stHash_search(tupleEdgesToAdjacencyEdges, edge);
+        assert(adjacencyPair != NULL);
+        stList_append(chosenAdjacencyPairs, adjacencyPair);
+    }
+    return chosenAdjacencyPairs;
+}
+
+static stHash *makeAdjacencyHashForMatching(stList *matching) {
+    /*
+     * Makes a hash of ends to adjacencies edges for a matching.
+     */
+    stHash *adjacenciesHash = stHash_construct();
+    for(int32_t i=0; i<stList_length(matching); i++) {
+        AdjacencyPair *adjacencyPair = stList_get(matching, i);
+        adjacencyHash_add(adjacenciesHash, adjacencyPair);
+    }
+    return adjacenciesHash;
+}
+
+stHash *adjacencyHash_constructInitialPairs(Flower *flower, MatchingAlgorithm referenceAlgorithm) {
+    /*
+     * Get the initial list of adjacency pairs.
+     */
+    stSortedSet *ends = makeSetOfEnds(flower);
     stList *adjacencies = makeListOfAdjacencyPairs(flower);
-    stList_sort(adjacencies,
-            (int(*)(const void *, const void *)) adjacencyPair_cmpFnByStrength);
-    stHash *adjacenciesHash = choosePairing(adjacencies);
+
+    /*
+     * Each end is assigned an integer, in random order starting from zero.
+     */
+    stHash *endsToInts = getEndsToIntsHash(ends);
+    int32_t nodeNumber = stSortedSet_size(ends);
+    assert(nodeNumber % 2 == 0);
+    stHash *tupleEdgesToAdjacencies = getTupleEdgesToAdjacencyEdgesHash(adjacencies, endsToInts);
+    assert(stHash_size(tupleEdgesToAdjacencies) == stList_length(adjacencies));
+    stList *tupleEdges = stHash_getKeys(tupleEdgesToAdjacencies);
+    assert(stList_length(tupleEdges) == stHash_size(tupleEdgesToAdjacencies));
+
+    /*
+     * Create the matching.
+     */
+    stList *matchingTuples;
+    if(referenceAlgorithm == greedy) {
+        matchingTuples = chooseMatching_greedy(tupleEdges, nodeNumber);
+    }
+    else if (referenceAlgorithm == blossom) {
+        matchingTuples = chooseMatching_blossom(tupleEdges, nodeNumber);
+    }
+    else if (referenceAlgorithm == edmonds) {
+        matchingTuples = chooseMatching_edmondsMatching(tupleEdges, nodeNumber);
+    }
+    else {
+        stThrowNew(REFERENCE_BUILDING_EXCEPTION, "Unrecognised matching algorithm: %i", referenceAlgorithm);
+    }
+
+    /*
+     * Convert the edges in the tuple back to the adjacency edges.
+     */
+    stList *matchingAdjacencies = convertTupleEdgesToAdjacencies(matchingTuples, tupleEdgesToAdjacencies);
+    assert(stList_length(matchingTuples) == stList_length(matchingAdjacencies));
+
+    /*
+     * We construct the hash for the chosen pairs.
+     */
+    stHash *adjacenciesHash = makeAdjacencyHashForMatching(matchingAdjacencies);
+    assert(stHash_size(adjacenciesHash) == stList_length(matchingAdjacencies)*2);
+
+    /*
+     * Pseudo-pseudo adjacencies
+     */
     addPseudoPseudoAdjacencies(adjacenciesHash, flower);
+    assert(stHash_size(adjacenciesHash) == nodeNumber); //the matching is now perfect
+
+    /*
+     * We cleanup.
+     */
+    //Get rid of the temp files..
+    stSortedSet_destruct(ends);
+    stHash_destruct(endsToInts);
+    stHash_destruct(tupleEdgesToAdjacencies);
+    stList_destruct(tupleEdges);
+    stList_destruct(matchingTuples);
+    stList_destruct(matchingAdjacencies);
+
+    //Cleanup the adjacency pairs we didn't use..
+    while(stList_length(adjacencies) > 0) {
+        AdjacencyPair *adjacencyPair = stList_pop(adjacencies);
+        AdjacencyPair *chosenAdjacencyPair = stHash_search(adjacenciesHash, adjacencyPair_getEnd1(adjacencyPair));
+        assert(chosenAdjacencyPair != NULL);
+        if(adjacencyPair != chosenAdjacencyPair) {
+            adjacencyPair_destruct(adjacencyPair);
+        }
+    }
+    stList_destruct(adjacencies);
+
     return adjacenciesHash;
 }

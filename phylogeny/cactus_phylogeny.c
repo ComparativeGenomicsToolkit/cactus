@@ -712,7 +712,7 @@ int main(int argc, char *argv[]) {
 
     for (j = optind; j < argc; j++) {
         const char *flowerName = argv[j];
-        st_logInfo("Processing the flower named: %s", flowerName);
+        st_logInfo("Processing the flower named: %s\n", flowerName);
 
         ///////////////////////////////////////////////////////////////////////////
         // Parse the basic reconstruction problem
@@ -732,7 +732,7 @@ int main(int argc, char *argv[]) {
         }
 
         ///////////////////////////////////////////////////////////////////////////
-        //Setups the 'trees' for the caps for the top level problem.
+        //Sets up the 'trees' for the caps for the top level problem.
         //In other words, it ensure ends from stubs have there root instance set - only needs doing for
         //the top level flower, after which the stub roots will be set recursively.
         ///////////////////////////////////////////////////////////////////////////
