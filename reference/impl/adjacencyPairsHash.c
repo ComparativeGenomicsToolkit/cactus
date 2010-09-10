@@ -193,7 +193,7 @@ static stHash *getTupleEdgesToAdjacencyEdgesHash(stList *adjacencies, stHash *en
         assert(adjacencyPair != NULL);
         int32_t j = stIntTuple_getPosition(stHash_search(endsToInts, adjacencyPair_getEnd1(adjacencyPair)), 0);
         int32_t k = stIntTuple_getPosition(stHash_search(endsToInts, adjacencyPair_getEnd2(adjacencyPair)), 0);
-        int32_t weight = (int32_t)(1000*adjacencyPair_getStrengthOfAdjacencyPair(adjacencyPair));
+        int32_t weight = adjacencyPair_getStrengthOfAdjacencyPair(adjacencyPair);
         //We add it in both directions
         stHash_insert(tupleEdgesToAdjacencyEdges, stIntTuple_construct(3, j, k, weight), adjacencyPair);
     }

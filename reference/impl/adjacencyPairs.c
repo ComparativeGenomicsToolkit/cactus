@@ -67,7 +67,7 @@ static int32_t childInstanceNumber(End *end) {
     return i;
 }
 
-double adjacencyPair_getStrengthOfAdjacencyPair(AdjacencyPair *adjacencyPair) {
+uint32_t adjacencyPair_getStrengthOfAdjacencyPair(AdjacencyPair *adjacencyPair) {
     End *end1 = adjacencyPair_getEnd1(adjacencyPair);
     End *end2 = adjacencyPair_getEnd2(adjacencyPair);
     assert(end_getOrientation(end1));
@@ -93,14 +93,7 @@ double adjacencyPair_getStrengthOfAdjacencyPair(AdjacencyPair *adjacencyPair) {
     double strength = ((double) j) / i;
     assert(strength <= 1.01);
     assert(strength >= -0.01);
-    return strength;
-}
-
-int adjacencyPair_cmpFnByStrength(AdjacencyPair *adjacencyPair1,
-        AdjacencyPair *adjacencyPair2) {
-    double i = adjacencyPair_getStrengthOfAdjacencyPair(adjacencyPair1);
-    double j = adjacencyPair_getStrengthOfAdjacencyPair(adjacencyPair2);
-    return i > j ? 1 : (i < j ? -1 : 0);
+    return strength > 0 ? strength * 10000 : 0;
 }
 
 uint32_t adjacencyPair_hashKey(AdjacencyPair *adjacencyPair) {

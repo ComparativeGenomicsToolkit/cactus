@@ -8,7 +8,8 @@ struct _adjacencySwitch {
     AdjacencyPair *adjacencyPair1;
     AdjacencyPair *adjacencyPair2;
     bool switchState;
-    double strength;
+    uint32_t strength;
+    int32_t pseudoAdjacencies;
 };
 
 static void adjacencySwitch_getAdjacencyPairs(AdjacencyPair *adjacencyPair1,
@@ -30,19 +31,17 @@ AdjacencySwitch *adjacencySwitch_construct(AdjacencyPair *adjacencyPair1,
     adjacencySwitch->adjacencyPair1 = adjacencyPair1;
     adjacencySwitch->adjacencyPair2 = adjacencyPair2;
     adjacencySwitch->switchState = switchState;
-    //Now calculate the strength and switch state..
-    //double initialStrength = adjacencyPair_getStrengthOfAdjacencyPair(
-    //        adjacencyPair1) + adjacencyPair_getStrengthOfAdjacencyPair(
-    //        adjacencyPair2);
 
+    //Now calculate the strength and switch state..
     AdjacencyPair *adjacencyPair3, *adjacencyPair4;
     adjacencySwitch_getAdjacencyPairs(adjacencyPair1, adjacencyPair2,
             &adjacencyPair3, &adjacencyPair4, switchState);
 
-    double residualStrength = adjacencyPair_getStrengthOfAdjacencyPair(
-           adjacencyPair3) + adjacencyPair_getStrengthOfAdjacencyPair(
-           adjacencyPair4);
-    adjacencySwitch->strength = residualStrength; // - initialStrength;
+    uint32_t i = adjacencyPair_getStrengthOfAdjacencyPair(adjacencyPair3);
+    uint32_t j = adjacencyPair_getStrengthOfAdjacencyPair(adjacencyPair4);
+
+    adjacencySwitch->strength = i + j; //The residualStrength
+    adjacencySwitch->pseudoAdjacencies = (i == 0 ? 1 : 0) + (j == 0 ? 1 : 0);
     adjacencyPair_destruct(adjacencyPair3);
     adjacencyPair_destruct(adjacencyPair4);
     return adjacencySwitch;
@@ -62,9 +61,29 @@ AdjacencyPair *adjacencySwitch_getAdjacencyPair2(
     return adjacencySwitch->adjacencyPair2;
 }
 
-double adjacencySwitch_getStrength(AdjacencySwitch *adjacencySwitch) {
+int32_t adjacencySwitch_getNumberOfPseudoAdjacencies(AdjacencySwitch *adjacencySwitch) {
+    return adjacencySwitch->pseudoAdjacencies;
+}
+
+uint32_t adjacencySwitch_getStrength(AdjacencySwitch *adjacencySwitch) {
     return adjacencySwitch->strength;
 }
+
+int adjacencySwitch_compareStrengthAndPseudoAdjacencies(AdjacencySwitch *adjacencySwitch1, AdjacencySwitch *adjacencySwitch2) {
+    int32_t numberOfPsuedoAdjacencies1 = adjacencySwitch_getNumberOfPseudoAdjacencies(adjacencySwitch1);
+    uint32_t adjacencySwitchStrength1 = adjacencySwitch_getStrength(adjacencySwitch1);
+    int32_t numberOfPsuedoAdjacencies2 = adjacencySwitch_getNumberOfPseudoAdjacencies(adjacencySwitch2);
+    uint32_t adjacencySwitchStrength2 = adjacencySwitch_getStrength(adjacencySwitch2);
+    if(numberOfPsuedoAdjacencies1 < numberOfPsuedoAdjacencies2) {
+        return 1;
+    }
+    if(numberOfPsuedoAdjacencies1 > numberOfPsuedoAdjacencies2) {
+        return -1;
+    }
+    //equal number of pseudo adjacencies
+    return (int32_t)adjacencySwitchStrength1 - adjacencySwitchStrength2;
+}
+
 
 void adjacencySwitch_switch(AdjacencySwitch *adjacencySwitch,
         stHash *adjacencies) {
@@ -113,14 +132,17 @@ AdjacencySwitch *adjacencySwitch_getStrongestAdjacencySwitch(stList *component,
                     AdjacencySwitch *adjacencySwitch2 =
                             adjacencySwitch_construct(adjacencyPair,
                                     adjacencyPair2, k);
-                    if(adjacencySwitch == NULL || adjacencySwitch_getStrength(adjacencySwitch2) > adjacencySwitch_getStrength(adjacencySwitch)) {
-                        if(adjacencySwitch != NULL) {
-                            adjacencySwitch_destruct(adjacencySwitch);
-                        }
+                    if(adjacencySwitch == NULL) {
                         adjacencySwitch = adjacencySwitch2;
                     }
                     else {
-                        adjacencySwitch_destruct(adjacencySwitch2);
+                        if(adjacencySwitch_compareStrengthAndPseudoAdjacencies(adjacencySwitch2, adjacencySwitch) > 0) {
+                            adjacencySwitch_destruct(adjacencySwitch);
+                            adjacencySwitch = adjacencySwitch2;
+                        }
+                        else {
+                            adjacencySwitch_destruct(adjacencySwitch2);
+                        }
                     }
                 }
             }

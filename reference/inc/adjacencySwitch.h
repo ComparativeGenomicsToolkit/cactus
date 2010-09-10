@@ -44,9 +44,22 @@ AdjacencyPair *adjacencySwitch_getAdjacencyPair2(AdjacencySwitch *adjacencySwitc
  * AdjacencySwitch.
  * Let the residual strength of an adjacency switch be the combined strength of the new
  * adjacency pairs. The strength of an AdjacencySwitch
- * is the residual strength minus its initial strength.
+ * is the residual strength.
  */
-double adjacencySwitch_getStrength(AdjacencySwitch *adjacencySwitch);
+uint32_t adjacencySwitch_getStrength(AdjacencySwitch *adjacencySwitch);
+
+/*
+ * The adjacency switch may create zero, one or two pseudo-adjacencies. Returns this number.
+ */
+int32_t adjacencySwitch_getNumberOfPseudoAdjacencies(AdjacencySwitch *adjacencySwitch);
+
+/*
+ * Compares two adjacency switches. Adjacency switch 1 is greater than adjacency switch 2 iff:
+ * if it has fewer pseudo-adjacencies or the same number of pseudo-adjacencies and greather strength.
+ * It is equal in strength in the number of pseudo-adjacencies and strength are the same, otherwise
+ * it is less than.
+ */
+int adjacencySwitch_compareStrengthAndPseudoAdjacencies(AdjacencySwitch *adjacencySwitch1, AdjacencySwitch *adjacencySwitch2);
 
 /*
  * Creates two adjacency pairs for the maximum strength adjacency switch, adds them

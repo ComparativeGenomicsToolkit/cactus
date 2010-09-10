@@ -47,13 +47,7 @@ void adjacencyPair_destruct(AdjacencyPair *adjacencyPair);
 /*
  * Returns the strength of the adjacency between the two ends.
  */
-double adjacencyPair_getStrengthOfAdjacencyPair(AdjacencyPair *adjacencyPair);
-
-/*
- * Compares two adjacencies such that the adjacency with stronger support is greater.
- */
-int adjacencyPair_cmpFnByStrength(AdjacencyPair *adjacencyPair1,
-		AdjacencyPair *adjacencyPair2);
+uint32_t adjacencyPair_getStrengthOfAdjacencyPair(AdjacencyPair *adjacencyPair);
 
 /*
  * Hash function for adjacency pairs.

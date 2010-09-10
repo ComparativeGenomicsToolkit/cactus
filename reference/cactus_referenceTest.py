@@ -19,7 +19,7 @@ class TestCase(unittest.TestCase):
         testCactus_Random(self, "greedy")
         
     def testCactus_Random_Blossum(self):
-        testCactus_Random(self, "blossom")
+        testCactus_Random(self, "blossom5")
         
     def testCactus_Random_MaxCardinality(self):
         testCactus_Random(self, "maxCardinality")
@@ -31,7 +31,7 @@ class TestCase(unittest.TestCase):
         testCactus_Blanchette(self, "greedy")
         
     def testCactus_Blanchette_Blossum(self):
-        testCactus_Blanchette(self, "blossom")
+        testCactus_Blanchette(self, "blossom5")
         
     def testCactus_Blanchette_MaxCardinality(self):
         testCactus_Blanchette(self, "maxCardinality")
@@ -49,6 +49,7 @@ def testCactus_Blanchette(self, matchingAlgorithm):
                                  testRestrictions=(TestStatus.TEST_SHORT,), inverseTestRestrictions=True, 
                                  buildTrees=False, buildFaces=False, buildReference=True,
                                  configFile=configFile)
+    os.remove(configFile)
 
 def testCactus_Random(self, matchingAlgorithm):
     configFile = getConfigFile(matchingAlgorithm)
@@ -56,6 +57,7 @@ def testCactus_Random(self, matchingAlgorithm):
                                  testNumber=TestStatus.getTestSetup(), 
                                  buildTrees=False, buildFaces=False, buildReference=True,
                                  configFile=configFile)
+    os.remove(configFile)
     
 def getConfigFile(matchingAlgorithm="greedy"):
     tempConfigFile = getTempFile(rootDir="./", suffix=".xml")

@@ -47,17 +47,18 @@ void mergeCycles(stHash *adjacencies, stHash *hyperChains) {
                 AdjacencySwitch *adjacencySwitch2 =
                         adjacencySwitch_getStrongestAdjacencySwitch(cycle, component, adjacencies);
                 if (adjacencySwitch2 != NULL) {
-                    if (adjacencySwitch == NULL
-                            || adjacencySwitch_getStrength(adjacencySwitch2) >
-                                    adjacencySwitch_getStrength(adjacencySwitch)) {
-                        if (adjacencySwitch != NULL) {
-                            adjacencySwitch_destruct(adjacencySwitch);
-                        }
+                    if(adjacencySwitch == NULL) {
                         adjacencySwitch = adjacencySwitch2;
                         mergingComponent = component;
-                    }
-                    else {
-                        adjacencySwitch_destruct(adjacencySwitch2);
+                    } else {
+                        if (adjacencySwitch_compareStrengthAndPseudoAdjacencies(
+                                adjacencySwitch2, adjacencySwitch) > 0) {
+                            adjacencySwitch_destruct(adjacencySwitch);
+                            adjacencySwitch = adjacencySwitch2;
+                            mergingComponent = component; 
+                        } else {
+                            adjacencySwitch_destruct(adjacencySwitch2);
+                        }
                     }
                 }
             }
