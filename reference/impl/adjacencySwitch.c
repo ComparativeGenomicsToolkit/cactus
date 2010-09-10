@@ -84,7 +84,6 @@ int adjacencySwitch_compareStrengthAndPseudoAdjacencies(AdjacencySwitch *adjacen
     return (int32_t)adjacencySwitchStrength1 - adjacencySwitchStrength2;
 }
 
-
 void adjacencySwitch_switch(AdjacencySwitch *adjacencySwitch,
         stHash *adjacencies) {
     AdjacencyPair *adjacencyPair3, *adjacencyPair4;
