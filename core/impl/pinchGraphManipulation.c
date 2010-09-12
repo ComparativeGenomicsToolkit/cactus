@@ -10,8 +10,9 @@
 #include "bioioC.h"
 #include "hashTableC.h"
 #include "ctype.h"
-
+#include "adjacencyComponents.h"
 #include "pinchGraph.h"
+#include "pinchGraphManipulation.h"
 
 ////////////////////////////////////////////////
 ////////////////////////////////////////////////
@@ -318,215 +319,44 @@ void removeOverAlignedEdges(struct PinchGraph *pinchGraph,
 ////////////////////////////////////////////////
 ////////////////////////////////////////////////
 ////////////////////////////////////////////////
-//Method for getting graph components
-////////////////////////////////////////////////
-////////////////////////////////////////////////
-////////////////////////////////////////////////
-
-void getRecursiveComponents_P(struct PinchVertex *vertex,
-        int32_t(*excludedEdgesFn)(void *), struct hashtable *seen,
-        struct List *component, struct List *stack) {
-    //now we are going to search from the vertex to find its associated component.
-    struct PinchEdge *edge;
-    struct PinchVertex *vertex2;
-    //add it to the hash
-    assert(hashtable_search(seen, vertex) == NULL);
-    hashtable_insert(seen, vertex, vertex);
-
-    //add it to the component
-    listAppend(component, vertex);
-
-    //search across blackedges.
-    if (lengthBlackEdges(vertex) > 0) {
-        edge = getFirstBlackEdge(vertex);
-        vertex2 = edge->to;
-        if (!excludedEdgesFn(edge)) {
-            if (hashtable_search(seen, vertex2) == NULL) {
-                listAppend(stack, vertex2);
-                //getRecursiveComponents_P(vertex2, excludedEdges, seen, component);
-            }
-#ifdef BEN_ULTRA_DEBUG
-            else {
-                //check vertex2 is already in the component.
-                int32_t k;
-                int32_t l = FALSE;
-                for(k=0; k<component->length; k++) {
-                    if(component->list[k] == vertex2) {
-                        l = TRUE;
-                    }
-                }
-                assert(l == TRUE);
-            }
-#endif
-        }
-    }
-
-    //search across the greyedges.
-    void *greyEdgeIterator = getGreyEdgeIterator(vertex);
-    while ((vertex2 = getNextGreyEdge(vertex, greyEdgeIterator)) != NULL) {
-        if (hashtable_search(seen, vertex2) == NULL) {
-            listAppend(stack, vertex2);
-            //getRecursiveComponents_P(vertex2, excludedEdges, seen, component);
-        }
-#ifdef BEN_ULTRA_DEBUG
-        else {
-            //check vertex2 is already in the component.
-            int32_t k;
-            int32_t l = FALSE;
-            for(k=0; k<component->length; k++) {
-                if(component->list[k] == vertex2) {
-                    l = TRUE;
-                }
-            }
-            assert(l == TRUE);
-        }
-#endif
-    }
-    destructGreyEdgeIterator(greyEdgeIterator);
-}
-
-int32_t getRecursiveComponents_excludedEdgesFn(void *o) {
-    assert(o != NULL);
-    return TRUE;
-}
-
-struct List *getRecursiveComponents(struct PinchGraph *pinchGraph,
-        int32_t(*excludedEdgesFn)(void *)) {
-    /*
-     * find recursive components (each recursive component is represented as a series of vertices)
-     * do as series of DFS on each connected component, not traversing long black edges.
-     */
-    struct hashtable *seen;
-    int32_t i;
-    struct List *components;
-    struct List *component;
-    struct PinchVertex *vertex;
-    struct PinchVertex *vertex2;
-    struct List *stack;
-
-    if (excludedEdgesFn == NULL) {
-        excludedEdgesFn = getRecursiveComponents_excludedEdgesFn;
-    }
-
-    //allocate stuff.
-    seen = create_hashtable(0, hashtable_key, hashtable_equalKey, NULL, NULL);
-    components = constructEmptyList(0, (void(*)(void *)) destructList);
-    stack = constructEmptyList(0, NULL);
-
-    for (i = 0; i < pinchGraph->vertices->length; i++) {
-        vertex = pinchGraph->vertices->list[i];
-
-        //if not seen
-        if (hashtable_search(seen, vertex) == NULL) {
-            //get component
-            component = constructEmptyList(0, NULL);
-            //add to final components
-            listAppend(components, component);
-
-            //now build the component via a (recursive) function -- now changed to have a stack which we edit to maintain the list.
-            stack->length = 0;
-            listAppend(stack, vertex);
-            while (stack->length > 0) {
-                vertex2 = stack->list[--stack->length];
-                if (hashtable_search(seen, vertex2) == NULL) {
-                    getRecursiveComponents_P(vertex2, excludedEdgesFn, seen,
-                            component, stack);
-                }
-            }
-        }
-    }
-    //clean up
-    hashtable_destroy(seen, FALSE, FALSE);
-    destructList(stack);
-
-    return components;
-}
-
-struct hashtable *getRecursiveComponents2_excludedEdgesHash;
-int32_t getRecursiveComponents2_excludedEdgesFn(void *o) {
-    struct PinchEdge *edge;
-    static int32_t iA[2];
-
-    edge = o;
-    iA[0] = edge->from->vertexID;
-    iA[1] = edge->to->vertexID;
-    return hashtable_search(getRecursiveComponents2_excludedEdgesHash, iA)
-            != NULL;
-}
-
-struct List *getRecursiveComponents2(struct PinchGraph *pinchGraph,
-        struct List *edgesToExclude) {
-    /*
-     * Gets the groups, given the list of edges to exlude
-     */
-    struct PinchEdge *edge;
-    struct List *groups;
-    int32_t i;
-    int32_t *iA;
-
-    getRecursiveComponents2_excludedEdgesHash = create_hashtable(0,
-            hashtable_intPairHashKey, hashtable_intPairEqualKey, (void(*)(
-                    void *)) destructIntPair, NULL);
-    for (i = 0; i < edgesToExclude->length; i++) { //build the excluded edges hash.
-        edge = edgesToExclude->list[i];
-        iA = constructIntPair(edge->from->vertexID, edge->to->vertexID);
-        if (hashtable_search(getRecursiveComponents2_excludedEdgesHash, iA)
-                == NULL) {
-            hashtable_insert(getRecursiveComponents2_excludedEdgesHash, iA, iA);
-        } else {
-            destructIntPair(iA);
-        }
-    }
-    groups = getRecursiveComponents(pinchGraph,
-            getRecursiveComponents2_excludedEdgesFn);
-    hashtable_destroy(getRecursiveComponents2_excludedEdgesHash, FALSE, TRUE);
-    return groups;
-}
-
-////////////////////////////////////////////////
-////////////////////////////////////////////////
-////////////////////////////////////////////////
 //Method for linking the stub components to the
 //sink component.
 ////////////////////////////////////////////////
 ////////////////////////////////////////////////
 ////////////////////////////////////////////////
 
-int32_t linkStubComponentsToTheSinkComponent_excludedEdgesFn(void *o) {
-    assert(o != NULL);
-    return FALSE;
+bool linkStubComponentsToTheSinkComponent_passThroughFn(struct PinchEdge *edge) {
+    assert(edge != NULL);
+    return 1;
 }
 
 void linkStubComponentsToTheSinkComponent(struct PinchGraph *pinchGraph,
         Flower *flower, int32_t attachEnds) {
-    struct List *components;
-    struct List *component;
     struct PinchVertex *vertex;
     struct PinchVertex *sinkVertex;
-    int32_t i, j, k, l;
+    int32_t i, k, l;
     struct PinchEdge *edge;
     Sequence *sequence;
     Sequence *longestSequence;
     Cap *cap;
 
     //isolate the separate graph components using the components method
-    components = getRecursiveComponents(pinchGraph,
-            linkStubComponentsToTheSinkComponent_excludedEdgesFn);
+    stList *adjacencyComponents = getAdjacencyComponents2(pinchGraph, linkStubComponentsToTheSinkComponent_passThroughFn);
 
     sinkVertex = pinchGraph->vertices->list[0];
     //for each non-sink component select a random stub to link to the sink vertex.
     k = 0;
     l = 0;
-    for (i = 0; i < components->length; i++) {
-        component = components->list[i];
-        assert(component->length > 0);
-        if (!listContains(component, sinkVertex)) {
+    for (i = 0; i < stList_length(adjacencyComponents); i++) {
+        stSortedSet *adjacencyComponent = stList_get(adjacencyComponents, i);
+        assert(stSortedSet_size(adjacencyComponent) > 0);
+        if (stSortedSet_search(adjacencyComponent, sinkVertex) == NULL) {
             //Get the longest sequence contained in the component and attach
             //its two ends to the source vertex.
             //Make the the two ends attached end_makeAttached(end) / end_makeUnattached(end)
             longestSequence = NULL;
-            for (j = 0; j < component->length; j++) {
-                vertex = component->list[j];
+            stSortedSetIterator *it = stSortedSet_getIterator(adjacencyComponent);
+            while((vertex = stSortedSet_getNext(it)) != NULL) {
                 if (vertex_isDeadEnd(vertex)) {
                     assert(lengthGreyEdges(vertex) == 0);
                     assert(lengthBlackEdges(vertex) == 1);
@@ -541,10 +371,11 @@ void linkStubComponentsToTheSinkComponent(struct PinchGraph *pinchGraph,
                     }
                 }
             }
+            stSortedSet_destructIterator(it);
             //assert(0);
             assert(longestSequence != NULL);
-            for (j = 0; j < component->length; j++) {
-                vertex = component->list[j];
+            it = stSortedSet_getIterator(adjacencyComponent);
+            while((vertex = stSortedSet_getNext(it)) != NULL) {
                 if (vertex_isDeadEnd(vertex)) {
                     assert(lengthGreyEdges(vertex) == 0);
                     assert(lengthBlackEdges(vertex) == 1);
@@ -565,15 +396,16 @@ void linkStubComponentsToTheSinkComponent(struct PinchGraph *pinchGraph,
                     }
                 }
             }
+            stSortedSet_destructIterator(it);
         }
     }
 
 #ifdef BEN_DEBUG
-    assert(k == 2*(components->length-1));
+    assert(k == 2*(stList_length(adjacencyComponents)-1));
 #endif
 
     //clean up
-    destructList(components);
+    stList_destruct(adjacencyComponents);
 }
 
 void unlinkStubComponentsFromTheSinkComponent(struct PinchGraph *pinchGraph,

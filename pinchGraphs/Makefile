@@ -2,7 +2,7 @@ include ../../../include.mk
 binPath = ../../../bin
 libPath = ../../../lib
 
-libSources = pinchGraph.c pinchGraphManipulation.c pinchGraphTest.c
+libSources = pinchGraph.c pinchGraphTest.c
 libHeaders = pinchGraph.h
 cflags += ${tokyoCabinetIncl}
 

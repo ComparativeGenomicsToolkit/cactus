@@ -378,14 +378,14 @@ static void three_edge_connectP(int w, int v, struct Frame *frame, stList *stack
                 //PRINT
                 list2 = stList_construct3(0, (void(*)(void *)) stIntTuple_destruct);
                 stList_append(list, list2);
-                stList_append(list2, stIntTuple_construct(1, u));
+                stList_append(list2, stIntTuple_construct(1, u-1));
                 st_logDebug("\nNew component found: %d", u);
                 //PRINT
                 tmp2 = next_sigma_element[u];
                 while (tmp2 != u) {
                     //PRINT
                     st_logDebug(",%d", tmp2);
-                    stList_append(list2, stIntTuple_construct(1, tmp2)); //constructInt(tmp2));
+                    stList_append(list2, stIntTuple_construct(1, tmp2-1)); //constructInt(tmp2));
                     //PRINT
                     tmp2 = next_sigma_element[tmp2];
                 }
@@ -486,7 +486,7 @@ stList *computeThreeEdgeConnectedComponents(stList *vertices) {
     int Vnum = stList_length(vertices) + 1;
     int edgeNum = 0; /*initilizing the number of edges in G*/
     int r, n, v, indx;
-    int32_t i, j;
+    int32_t i;
     double tsum;
     clock_t first, end;
     st_logInfo(
@@ -525,16 +525,19 @@ stList *computeThreeEdgeConnectedComponents(stList *vertices) {
     indx = 0;
 
     for (i = 0; i < stList_length(vertices); i++) {
-        struct IntList *edges = stList_get(vertices, i);
+        stList *edges = stList_get(vertices, i);
         v = i + 1;
-        for (j = 0; j < edges->length; j++) {
-            n = edges->list[j];
+        stListIterator *it = stList_getIterator(edges);
+        stIntTuple *N;
+        while((N = stList_getNext(it)) != NULL) {
+            n = stIntTuple_getPosition(N, 0)+1;
             edge = adjacencyEdge_construct();
             edge->u = n;
             edge->more = LG[v];
             LG[v] = edge;
             edgeNum = edgeNum + 1;
         }
+        stList_destructIterator(it);
     }
     edgeNum = edgeNum / 2;
 
@@ -558,14 +561,14 @@ stList *computeThreeEdgeConnectedComponents(stList *vertices) {
             //PRINT
             list2 = stList_construct3(0, (void(*)(void *)) stIntTuple_destruct);
             stList_append(list, list2);
-            stList_append(list2, stIntTuple_construct(1, r));
+            stList_append(list2, stIntTuple_construct(1, r-1));
             st_logDebug("\nNew component found: %d", r);
             //PRINT
             tmp2 = next_sigma_element[r];
             while (tmp2 != r) {
                 //PRINT
                 st_logDebug(",%d", tmp2);
-                stList_append(list2, stIntTuple_construct(1, tmp2));
+                stList_append(list2, stIntTuple_construct(1, tmp2-1));
                 //PRINT
                 tmp2 = next_sigma_element[tmp2];
             }

@@ -102,7 +102,7 @@ stList *writeOut3EdgeGraph(struct PinchGraph *pinchGraph,
         struct List *greyEdgeComponents);
 
 struct List *readThreeEdgeComponents(struct PinchGraph *,
-        struct List *greyEdgeComponents, stList *threeEdgeComponents);
+        stList *greyEdgeComponents, stList *threeEdgeComponents);
 
 void writeOutCactusGraph(struct CactusGraph *cactusGraph,
         struct PinchGraph *pinchGraph, FILE *fileHandle);
@@ -115,9 +115,7 @@ void writeOutCactusGraph(struct CactusGraph *cactusGraph,
 ////////////////////////////////////////////////
 ////////////////////////////////////////////////
 
-void computeCactusGraph(struct PinchGraph *pinchGraph,
-        struct CactusGraph **cactusGraph,
-        struct List **threeEdgeConnectedComponents,
+struct CactusGraph *computeCactusGraph(struct PinchGraph *pinchGraph,
         int32_t excludeDegree1Edges);
 
 ////////////////////////////////////////////////

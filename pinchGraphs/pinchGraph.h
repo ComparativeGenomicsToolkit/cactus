@@ -244,12 +244,12 @@ void checkPinchGraphDegree(struct PinchGraph *graph, int32_t maxDegree);
 void pinchMergePiece(struct PinchGraph *graph,
 					   struct Piece *piece1,
 					   struct Piece *piece2,
-					   struct hashtable *vertexAdjacencyComponents);
+					   stHash *vertexToAdjacencyComponentsHash, stList *adjacencyComponentGraph);
 
 void pinchMerge(struct PinchGraph *graph, struct PairwiseAlignment *pairwiseAlignment,
-		void (*addFunction)(struct PinchGraph *pinchGraph, struct Piece *, struct Piece *, struct hashtable *, void *),
+		void (*addFunction)(struct PinchGraph *pinchGraph, struct Piece *, struct Piece *, stHash *, stList *, void *),
 		void *extraParameter,
-		struct hashtable *vertexAdjacencyComponents);
+		stHash *vertexToAdjacencyComponentsHash, stList *adjacencyComponentGraph);
 
 ////////////////////////////////////////////////
 ////////////////////////////////////////////////
@@ -274,36 +274,6 @@ void writeOutPinchGraphWithChains(struct PinchGraph *pinchGraph,
 								  struct hashtable *edgeColours,
 								  struct List *groups,
 								  FILE *fileHandle);
-
-////////////////////////////////////////////////
-////////////////////////////////////////////////
-////////////////////////////////////////////////
-//Methods from pinchGraphManipulation.c
-////////////////////////////////////////////////
-////////////////////////////////////////////////
-////////////////////////////////////////////////
-
-void removeOverAlignedEdges(struct PinchGraph *pinchGraph, float minimumTreeCoverage, int32_t maxDegree, struct List *extraEdgesToUndo,
-		int32_t extensionSteps, Flower *flower);
-
-struct List *getRecursiveComponents(struct PinchGraph *pinchGraph, int32_t (*excludedEdgesFn)(void *));
-
-struct List *getRecursiveComponents2(struct PinchGraph *pinchGraph, struct List *edgesToExclude);
-
-/*
- * Ensure the graph is one connected component by linking components not part of the sink component
- * by there dead stub ends.
- */
-void linkStubComponentsToTheSinkComponent(struct PinchGraph *pinchGraph, Flower *flower, int32_t attachEnds);
-
-/*
- * Disconnects the dead ends of free stub ends from the sink component.
- */
-void unlinkStubComponentsFromTheSinkComponent(struct PinchGraph *pinchGraph, Flower *flower);
-
-void removeTrivialGreyEdgeComponents(struct PinchGraph *graph, struct List *listOfVertices, Flower *flower);
-
-float treeCoverage(struct PinchVertex *vertex, Flower *flower);
 
 
 #endif

@@ -13,6 +13,8 @@
 #include "cactusGraph.h"
 #include "cactus.h"
 #include "3_Absorb3edge2x.h"
+#include "adjacencyComponents.h"
+#include "pinchGraphManipulation.h"
 
 ////////////////////////////////////////////////
 ////////////////////////////////////////////////
@@ -103,10 +105,11 @@ struct CactusGraph *constructCactusGraph(struct PinchGraph *pinchGraph,
             (void(*)(void *)) destructCactusVertex);
 
 #ifdef BEN_DEBUG
+    assert(threeEdgeConnectedComponents->length > 0);
     list = threeEdgeConnectedComponents->list[0];
     j = FALSE;
     for (i = 0; i < list->length; i++) {
-        pinchVertex = list->list[0];
+        pinchVertex = list->list[i];
         if (pinchVertex->vertexID == 0) {
             j = TRUE;
         }
@@ -712,121 +715,53 @@ int32_t *getDFSDiscoveryTimes(struct CactusGraph *cactusGraph) {
 ////////////////////////////////////////////////
 ////////////////////////////////////////////////
 
-stList *writeOut3EdgeGraph(struct PinchGraph *pinchGraph,
-        struct List *greyEdgeComponents) {
-    /*
-     * Writes a format compatible with the 3-edge connected component algorithm.
-     */
-    struct PinchVertex *vertex;
-    struct PinchEdge *edge;
-    int32_t i, j, k;
-    struct List *component;
-    struct hashtable *vertexHash;
-    stList *vertices = stList_construct3(0, (void(*)(void *)) destructIntList);
-
-    //setup vertex to grey edge component hash
-    vertexHash = create_hashtable(pinchGraph->vertices->length * 2,
-            hashtable_key, hashtable_equalKey, NULL,
-            (void(*)(void *)) destructInt);
-
-    for (i = 0; i < greyEdgeComponents->length; i++) {
-        component = greyEdgeComponents->list[i];
-        for (j = 0; j < component->length; j++) {
-            vertex = component->list[j];
-            hashtable_insert(vertexHash, vertex, constructInt(i));
-        }
-    }
-#ifdef BEN_ULTRA_DEBUG
-    assert((int32_t)hashtable_count(vertexHash) == pinchGraph->vertices->length);
-
-    for(i=0; i<pinchGraph->vertices->length; i++) {
-        vertex = pinchGraph->vertices->list[i];
-        j = *((int32_t *)hashtable_search(vertexHash, vertex));
-        void *greyEdgeIterator = getGreyEdgeIterator(vertex);
-        while((vertex2 = getNextGreyEdge(vertex, greyEdgeIterator)) != NULL) {
-            l = *((int32_t *)hashtable_search(vertexHash, vertex2));
-            assert(j == l);
-        }
-        destructGreyEdgeIterator(greyEdgeIterator);
-    }
-#endif
-
-    //Write number of nodes.
-    for (i = 0; i < greyEdgeComponents->length; i++) {
-        component = greyEdgeComponents->list[i];
-        struct IntList *edges = constructEmptyIntList(0);
-        stList_append(vertices, edges);
-        for (j = 0; j < component->length; j++) {
-            vertex = component->list[j];
-
-            //The black edges
-            if (lengthBlackEdges(vertex) > 0) {
-                edge = getFirstBlackEdge(vertex);
-                k = *((int32_t *) hashtable_search(vertexHash, edge->to));
-                intListAppend(edges, k + 1);
-            }
-#ifdef BEN_DEBUG
-            else {
-                assert(vertex->vertexID == 0);
-            }
-#endif
-        }
-    }
-    hashtable_destroy(vertexHash, TRUE, FALSE);
-
-    return vertices;
-}
-
 struct List *readThreeEdgeComponents(struct PinchGraph *pinchGraph,
-        struct List *greyEdgeComponents, stList *threeEdgeComponents) {
+        stList *adjacencyComponents, stList *threeEdgeConnectedAdjacencyComponents) {
     /*
      * Reads in the three edge connected components written out by the three
      * edge script.
      */
     int32_t i, j, k;
-    struct List *list;
-    struct List *list2;
-    stList *list3;
-    struct List *component;
     struct PinchVertex *vertex;
 
 #ifdef BEN_DEBUG
     int32_t l = 0;
 #endif
-    list = constructEmptyList(0, (void(*)(void *)) destructList);
-    for (i = 0; i < stList_length(threeEdgeComponents); i++) {
-        list3 = stList_get(threeEdgeComponents, i);
-        list2 = constructEmptyList(0, NULL);
-        listAppend(list, list2);
-        for (j = 0; j < stList_length(list3); j++) {
-            component = greyEdgeComponents->list[stIntTuple_getPosition(
-                    stList_get(list3, j), 0) - 1];
-            assert(component != NULL);
-            for (k = 0; k < component->length; k++) {
-                vertex = component->list[k];
-                listAppend(list2, vertex);
+    struct List *threeEdgeConnectedComponents = constructEmptyList(0, (void(*)(void *)) destructList);
+    for (i = 0; i < stList_length(threeEdgeConnectedAdjacencyComponents); i++) {
+        stList *threeEdgeConnectedAdjacencyComponent = stList_get(threeEdgeConnectedAdjacencyComponents, i);
+        struct List *threeEdgeConnectedComponent = constructEmptyList(0, NULL);
+        listAppend(threeEdgeConnectedComponents, threeEdgeConnectedComponent);
+        for (j = 0; j < stList_length(threeEdgeConnectedAdjacencyComponent); j++) {
+            stSortedSet *adjacencyComponent = stList_get(adjacencyComponents, stIntTuple_getPosition(
+                    stList_get(threeEdgeConnectedAdjacencyComponent, j), 0));
+            assert(adjacencyComponent != NULL);
+            stSortedSetIterator *it  = stSortedSet_getIterator(adjacencyComponent);
+            while((vertex = stSortedSet_getNext(it)) != NULL) {
+                listAppend(threeEdgeConnectedComponent, vertex);
 #ifdef BEN_DEBUG
                 l++;
 #endif
             }
+            stSortedSet_destructIterator(it);
         }
     }
 #ifdef BEN_DEBUG
     assert(l == pinchGraph->vertices->length);
     k = FALSE;
 #endif
-    for (i = 0; i < list->length; i++) {
-        list2 = list->list[i];
-        for (j = 0; j < list2->length; j++) {
-            vertex = list2->list[j];
+    for (i = 0; i < threeEdgeConnectedComponents->length; i++) {
+        struct List *threeEdgeConnectedComponent = threeEdgeConnectedComponents->list[i];
+        for (j = 0; j < threeEdgeConnectedComponent->length; j++) {
+            vertex = threeEdgeConnectedComponent->list[j];
             if (vertex->vertexID == 0) {
 #ifdef BEN_DEBUG
                 assert(k == FALSE);
                 k = TRUE;
 #endif
-                list3 = list->list[0];
-                list->list[0] = list2;
-                list->list[i] = list3;
+                struct List *list3 = threeEdgeConnectedComponents->list[0];
+                threeEdgeConnectedComponents->list[0] = threeEdgeConnectedComponent;
+                threeEdgeConnectedComponents->list[i] = list3;
             }
         }
     }
@@ -834,8 +769,7 @@ struct List *readThreeEdgeComponents(struct PinchGraph *pinchGraph,
     assert(k == TRUE);
 #endif
 
-    //destroy stuff
-    return list;
+    return threeEdgeConnectedComponents;
 }
 
 void writeOutCactusGraph(struct CactusGraph *cactusGraph,
@@ -848,11 +782,9 @@ void writeOutCactusGraph(struct CactusGraph *cactusGraph,
      * the pieces associated with the black (piece containing) edges
      * of the graph.
      */
-    int32_t i, j; //, k;
+    int32_t i, j;
     struct CactusVertex *vertex;
     struct CactusEdge *edge;
-    //struct PinchEdge *pinchEdge;
-    //struct Piece *piece;
 
     //Write the preliminaries.
     fprintf(fileHandle, "graph G {\n");
@@ -876,18 +808,8 @@ void writeOutCactusGraph(struct CactusGraph *cactusGraph,
             assert(edge != edge->rEdge);
 #endif
             if (edge > edge->rEdge) {
-                /*if(edge->pieces->length > 0) {
-                 for(k=0; k<edge->pieces->length; k++) {
-                 piece = edge->pieces->list[k];
-                 pinchEdge = getContainingBlackEdge(pinchGraph, piece->contig, piece->start);
-                 fprintf(fileHandle, "n" INT_STRING "n -- n" INT_STRING "n [label=\"" INT_STRING ":" INT_STRING ":%s\"];\n",
-                 edge->from->vertexID, edge->to->vertexID, piece->start, piece->end, flowerMisc_nameToStringStatic(piece->contig));
-                 }
-                 }
-                 else {*/
                 fprintf(fileHandle, "n" INT_STRING "n -- n" INT_STRING "n;\n",
                         edge->from->vertexID, edge->to->vertexID);
-                //}
             }
         }
     }
@@ -902,55 +824,37 @@ void writeOutCactusGraph(struct CactusGraph *cactusGraph,
 ////////////////////////////////////////////////
 ////////////////////////////////////////////////
 
-static int32_t computeCactusGraph_excludeDegree1Edges(void *o) {
-    struct PinchEdge *edge = o;
-    return lengthBlackEdges(edge->from) > 1 || isAStub(edge);
+static bool computeCactusGraphP(struct PinchEdge *edge) {
+    assert(edge != NULL);
+    return 0;
 }
 
-void computeCactusGraph(struct PinchGraph *pinchGraph,
-        struct CactusGraph **cactusGraph,
-        struct List **threeEdgeConnectedComponents, int32_t excludeDegree1Edges) {
-    struct PinchVertex *vertex;
-    stList *list;
-    int32_t i, j;
-    struct List *greyEdgeComponents, *list2;
-    stList *vertices;
-
+struct CactusGraph *computeCactusGraph(struct PinchGraph *pinchGraph,
+        int32_t excludeDegree1Edges) {
     ///////////////////////////////////////////////////////////////////////////
     // Run the three-edge connected component algorithm to identify
     // three edge connected components.
     ///////////////////////////////////////////////////////////////////////////
 
-    greyEdgeComponents
-            = getRecursiveComponents(
-                    pinchGraph,
-                    excludeDegree1Edges ? computeCactusGraph_excludeDegree1Edges
-                            : NULL);
+    stList *adjacencyComponents = excludeDegree1Edges ? getAdjacencyComponents(pinchGraph) :
+            getAdjacencyComponents2(pinchGraph, computeCactusGraphP);
+    stHash *vertexToAdjacencyComponentHash = getVertexToAdjacencyComponentHash(pinchGraph, adjacencyComponents);
+    stList *adjacencyComponentGraph = getAdjacencyComponentGraph(pinchGraph, adjacencyComponents, vertexToAdjacencyComponentHash);
 
-    vertices = writeOut3EdgeGraph(pinchGraph, greyEdgeComponents);
-
-    list = computeThreeEdgeConnectedComponents(vertices);
+    stList *threeEdgeConnectedAdjacencyComponents = computeThreeEdgeConnectedComponents(adjacencyComponentGraph);
     st_logInfo("Seems to have successfully run the three edge command: %i\n",
-            stList_length(list));
+            stList_length(threeEdgeConnectedAdjacencyComponents));
 
     //Parse results (the three edge connected components).
-    *threeEdgeConnectedComponents = readThreeEdgeComponents(pinchGraph,
-            greyEdgeComponents, list);
+    struct List *threeEdgeConnectedComponents = readThreeEdgeComponents(pinchGraph,
+            adjacencyComponents, threeEdgeConnectedAdjacencyComponents);
     st_logInfo("Read in the three edge components\n");
-    stList_destruct(list);
 
-    for (i = 0; i < (*threeEdgeConnectedComponents)->length; i++) {
-        list2 = (*threeEdgeConnectedComponents)->list[i];
-        st_logDebug("3 edge component : " INT_STRING " ", i);
-        for (j = 0; j < list2->length; j++) {
-            vertex = list2->list[j];
-            st_logDebug(" vertex, " INT_STRING " ", vertex->vertexID);
-        }
-        st_logDebug("\n");
-    }
-    //Cleanup the three edge input/output fil
-    destructList(greyEdgeComponents);
-    stList_destruct(vertices);
+    //Cleanup
+    stList_destruct(threeEdgeConnectedAdjacencyComponents);
+    stList_destruct(adjacencyComponents);
+    stHash_destruct(vertexToAdjacencyComponentHash);
+    stList_destruct(adjacencyComponentGraph);
 
     ///////////////////////////////////////////////////////////////////////////
     // Merge vertices in each three edge connected component to convert the main graph
@@ -958,9 +862,13 @@ void computeCactusGraph(struct PinchGraph *pinchGraph,
     ///////////////////////////////////////////////////////////////////////////
 
     //Collapse the graph to cactus tree
-    *cactusGraph = constructCactusGraph(pinchGraph,
-            *threeEdgeConnectedComponents);
-    checkCactusGraph(pinchGraph, *threeEdgeConnectedComponents, *cactusGraph);
+    struct CactusGraph *cactusGraph = constructCactusGraph(pinchGraph,
+            threeEdgeConnectedComponents);
+    checkCactusGraph(pinchGraph, threeEdgeConnectedComponents, cactusGraph);
+
+    //Cleanup
+    destructList(threeEdgeConnectedComponents);
+    return cactusGraph;
 }
 
 ////////////////////////////////////////////////
