@@ -36,13 +36,13 @@
 				<blast chunkSize="1000000"
 					blastString="lastz --format=cigar --hspthresh=1800 SEQ_FILE_1[multiple][nameparse=darkspace] SEQ_FILE_2[nameparse=darkspace] > CIGARS_FILE"
 					selfBlastString="lastz --format=cigar --hspthresh=1800 SEQ_FILE[nameparse=darkspace] --self > CIGARS_FILE" />
-				<core annealingRounds="5" alignRepeatsAtRound="0"
+				<core annealingRounds="5" alignRepeatsAtRound="2"
 					trim="5" trimChange="-0.5" 
 					minimumTreeCoverage="0.0" 
 					minimumBlockLength="2" minimumBlockLengthChange="0"
 					minimumChainLength="30" minimumChainLengthChange="-2.5"
-					deannealingRounds="10"
-					adjacencyComponentOverlap="2" />
+					deannealingRounds="5"
+					adjacencyComponentOverlap="5" />
 			</iteration>
 
 			<iteration number="3" max_sequence_size="2000" type="base"
