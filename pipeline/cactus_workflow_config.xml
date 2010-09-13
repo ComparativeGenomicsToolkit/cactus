@@ -42,7 +42,7 @@
 					minimumBlockLength="2" minimumBlockLengthChange="0"
 					minimumChainLength="30" minimumChainLengthChange="-2.5"
 					deannealingRounds="5"
-					adjacencyComponentOverlap="5" />
+					adjacencyComponentOverlap="3" />
 			</iteration>
 
 			<iteration number="3" max_sequence_size="2000" type="base"
