@@ -261,7 +261,5 @@ int main(int argc, char *argv[]) {
     st_logInfo("Cleaned stuff up and am finished in: %i seconds\n", time(NULL)
             - startTime);
 
-    while(1);
-
     return 0;
 }
