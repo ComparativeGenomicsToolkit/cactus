@@ -233,23 +233,6 @@ void checkPinchGraph(struct PinchGraph *graph);
 
 void checkPinchGraphDegree(struct PinchGraph *graph, int32_t maxDegree);
 
-////////////////////////////////////////////////
-////////////////////////////////////////////////
-////////////////////////////////////////////////
-//Methods for 'pinching' the graph.
-////////////////////////////////////////////////
-////////////////////////////////////////////////
-////////////////////////////////////////////////
-
-void pinchMergePiece(struct PinchGraph *graph,
-					   struct Piece *piece1,
-					   struct Piece *piece2,
-					   stHash *vertexToAdjacencyComponentsHash, stList *adjacencyComponentGraph);
-
-void pinchMerge(struct PinchGraph *graph, struct PairwiseAlignment *pairwiseAlignment,
-		void (*addFunction)(struct PinchGraph *pinchGraph, struct Piece *, struct Piece *, stHash *, stList *, void *),
-		void *extraParameter,
-		stHash *vertexToAdjacencyComponentsHash, stList *adjacencyComponentGraph);
 
 ////////////////////////////////////////////////
 ////////////////////////////////////////////////

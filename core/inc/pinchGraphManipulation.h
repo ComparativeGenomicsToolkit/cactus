@@ -8,13 +8,35 @@
 #ifndef PINCHGRAPHMANIPULATION_H_
 #define PINCHGRAPHMANIPULATION_H_
 
+
 ////////////////////////////////////////////////
 ////////////////////////////////////////////////
 ////////////////////////////////////////////////
-//Methods from pinchGraphManipulation.c
+//Methods for 'pinching' the graph.
 ////////////////////////////////////////////////
 ////////////////////////////////////////////////
 ////////////////////////////////////////////////
+
+void pinchMergePiece(struct PinchGraph *graph,
+                       struct Piece *piece1,
+                       struct Piece *piece2,
+                       stHash *vertexToAdjacencyComponentsHash,
+                       stList *adjacencyComponentGraph,
+                       int32_t adjacencyComponentOverlap);
+
+void pinchMerge(struct PinchGraph *graph, struct PairwiseAlignment *pairwiseAlignment,
+        void (*addFunction)(struct PinchGraph *pinchGraph, struct Piece *, struct Piece *, stHash *, stList *, int32_t, void *),
+        void *extraParameter,
+        stHash *vertexToAdjacencyComponentsHash, stList *adjacencyComponentGraph, int32_t adjacencyComponentOverlap);
+
+////////////////////////////////////////////////
+////////////////////////////////////////////////
+////////////////////////////////////////////////
+//Core methods for manipulating graph
+////////////////////////////////////////////////
+////////////////////////////////////////////////
+////////////////////////////////////////////////
+
 
 void removeOverAlignedEdges(struct PinchGraph *pinchGraph, float minimumTreeCoverage, int32_t maxDegree, struct List *extraEdgesToUndo,
         int32_t extensionSteps, Flower *flower);

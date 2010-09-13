@@ -141,10 +141,21 @@ stList *getAdjacencyComponentGraph(struct PinchGraph *pinchGraph, stList *adjace
 
 bool adjacencyComponentsAreWithinNEdges(int32_t adjacencyComponent1, int32_t adjacencyComponent2, stList *adjacencyComponentGraph,
         int32_t n) {
-    assert(n == 1);
-    stSortedSet *edges = stList_get(adjacencyComponentGraph, adjacencyComponent1);
-    stIntTuple *i = stIntTuple_construct(1, adjacencyComponent2);
-    bool j = stSortedSet_search(edges, i) != NULL;
-    stIntTuple_destruct(i);
-    return j;
+    assert(n >= 0);
+    if(adjacencyComponent1 == adjacencyComponent2) {
+        return 1;
+    }
+    if(n > 0) {
+        stSortedSet *edges = stList_get(adjacencyComponentGraph, adjacencyComponent1);
+        stSortedSetIterator *it = stSortedSet_getIterator(edges);
+        stIntTuple *edge;
+        while((edge = stSortedSet_getNext(it)) != NULL) {
+            if(adjacencyComponentsAreWithinNEdges(stIntTuple_getPosition(edge, 0), adjacencyComponent2, adjacencyComponentGraph, n-1)) {
+                stSortedSet_destructIterator(it);
+                return 1;
+            }
+        }
+        stSortedSet_destructIterator(it);
+    }
+    return 0;
 }

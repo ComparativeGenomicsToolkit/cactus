@@ -20,6 +20,7 @@ typedef struct _CactusCoreInputParameters {
     int32_t minimumChainLength;
     float minimumChainLengthChange;
     int32_t deannealingRounds;
+    int32_t adjacencyComponentOverlap;
 } CactusCoreInputParameters;
 
 int32_t cactusCorePipeline(Flower *flower, CactusCoreInputParameters *cCIP,

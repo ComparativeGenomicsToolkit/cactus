@@ -33,7 +33,7 @@ class CactusWorkflowExperiment:
     """Object used for generating cactus workflow experiment config files,
     using the inputs to generate valid config strings and files.
     """
-    def __init__(self, sequences, newickTreeString, databaseName=None, outputDir=None, databaseConf=None, configFile=None):
+    def __init__(self, sequences, newickTreeString, outputDir=None, databaseName=None, databaseConf=None, configFile=None):
         self.experiment = ET.Element("cactus_workflow_experiment")
         if databaseName == None:
             self.databaseName = "cactusDisk_%s_%i" % (getRandomAlphaNumericString(), os.getpid()) #Needs to be unique

@@ -77,6 +77,7 @@ struct FilterAlignmentParameters {
 void filterPieceAndThenAddToGraph(struct PinchGraph *pinchGraph,
         struct Piece *piece, struct Piece *piece2,
         stHash *vertexToAdjacencyComponentsHash, stList *adjacencyComponentGraph,
+        int32_t adjacencyComponentOverlap,
         struct FilterAlignmentParameters *filterParameters) {
     /*
      * Function is used to filter the alignments added to the graph to optionally exclude alignments to repeats and to trim the edges of matches
@@ -98,13 +99,13 @@ void filterPieceAndThenAddToGraph(struct PinchGraph *pinchGraph,
             char *string2 = piece_getString(piece2, filterParameters->flower);
             if (!containsRepeatBases(string1) && !containsRepeatBases(string2)) {
                 pinchMergePiece(pinchGraph, piece, piece2,
-                        vertexToAdjacencyComponentsHash, adjacencyComponentGraph);
+                        vertexToAdjacencyComponentsHash, adjacencyComponentGraph, adjacencyComponentOverlap);
             }
             free(string1);
             free(string2);
         } else {
             pinchMergePiece(pinchGraph, piece, piece2,
-                    vertexToAdjacencyComponentsHash, adjacencyComponentGraph);
+                    vertexToAdjacencyComponentsHash, adjacencyComponentGraph, adjacencyComponentOverlap);
         }
     }
 }
@@ -124,6 +125,7 @@ CactusCoreInputParameters *constructCactusCoreInputParameters() {
     cCIP->minimumChainLength = 0;
     cCIP->minimumChainLengthChange = 0.0;
     cCIP->deannealingRounds = 1.0;
+    cCIP->adjacencyComponentOverlap = 0;
     return cCIP;
 }
 
@@ -267,16 +269,32 @@ int32_t cactusCorePipeline(Flower *flower, CactusCoreInputParameters *cCIP,
 
         stHash *vertexToAdjacencyComponentsHash = getVertexToAdjacencyComponentHash(pinchGraph, adjacencyComponents);
         stList *adjacencyComponentGraph = getAdjacencyComponentGraph(pinchGraph, adjacencyComponents, vertexToAdjacencyComponentsHash);
+        stList *adjacencyComponentGraphWithSets = stList_construct3(0, (void (*)(void *))stSortedSet_destruct);
+        for(int32_t i=0; i<stList_length(adjacencyComponentGraph); i++) {
+            stList *edges = stList_get(adjacencyComponentGraph, i);
+            stList_append(adjacencyComponentGraphWithSets, stList_getSortedSet(edges, (int (*)(const void *, const void *))stIntTuple_cmpFn));
+        }
+
+        stHashIterator *hashIt = stHash_getIterator(vertexToAdjacencyComponentsHash);
+        stHash *vertexToSetOfAdjacencyComponentsHash = stHash_construct2(NULL, (void (*)(void *))stSortedSet_destruct);
+        while((vertex = stHash_getNext(hashIt)) != NULL) {
+            stSortedSet *adjacencyComponents = stSortedSet_construct3((int (*)(const void *, const void *))stIntTuple_cmpFn,
+                    NULL);
+            stSortedSet_insert(adjacencyComponents, stHash_search(vertexToAdjacencyComponentsHash, vertex));
+            stHash_insert(vertexToSetOfAdjacencyComponentsHash, vertex, adjacencyComponents);
+        }
+        stHash_destructIterator(hashIt);
+
 
 #ifdef BEN_DEBUG
         ///////////////////////////////////////////////////////////////////////////
         //  Check the adjacency vertex components.
         ///////////////////////////////////////////////////////////////////////////
 
-        assert((int32_t)stHash_size(vertexToAdjacencyComponentsHash) == pinchGraph->vertices->length);
+        assert((int32_t)stHash_size(vertexToSetOfAdjacencyComponentsHash) == pinchGraph->vertices->length);
         for (i = 0; i < pinchGraph->vertices->length; i++) {
             vertex = pinchGraph->vertices->list[i];
-            assert(stHash_search(vertexToAdjacencyComponentsHash, vertex) != NULL);
+            assert(stHash_search(vertexToSetOfAdjacencyComponentsHash, vertex) != NULL);
         }
 #endif
 
@@ -309,8 +327,8 @@ int32_t cactusCorePipeline(Flower *flower, CactusCoreInputParameters *cCIP,
                     pinchGraph,
                     pairwiseAlignment,
                     (void(*)(struct PinchGraph *pinchGraph, struct Piece *,
-                            struct Piece *, stHash *, stList *, void *)) filterPieceAndThenAddToGraph,
-                    filterParameters, vertexToAdjacencyComponentsHash, adjacencyComponentGraph);
+                            struct Piece *, stHash *, stList *, int32_t, void *)) filterPieceAndThenAddToGraph,
+                    filterParameters, vertexToSetOfAdjacencyComponentsHash, adjacencyComponentGraphWithSets, cCIP->adjacencyComponentOverlap);
             destructPairwiseAlignment(pairwiseAlignment); //cleanup the previous alignment
             pairwiseAlignment = getNextAlignment();
         }
@@ -319,15 +337,17 @@ int32_t cactusCorePipeline(Flower *flower, CactusCoreInputParameters *cCIP,
 
 #ifdef BEN_DEBUG
         for (i = 0; i < pinchGraph->vertices->length; i++) {
-            assert(stHash_search(vertexToAdjacencyComponentsHash, pinchGraph->vertices->list[i]) != NULL);
+            assert(stHash_search(vertexToSetOfAdjacencyComponentsHash, pinchGraph->vertices->list[i]) != NULL);
         }
-        assert(stHash_size(vertexToAdjacencyComponentsHash) == pinchGraph->vertices->length);
+        assert(stHash_size(vertexToSetOfAdjacencyComponentsHash) == pinchGraph->vertices->length);
 #endif
 
         //Cleanup the adjacency component vertex hash.
         stList_destruct(adjacencyComponents);
         stHash_destruct(vertexToAdjacencyComponentsHash);
         stList_destruct(adjacencyComponentGraph);
+        stList_destruct(adjacencyComponentGraphWithSets);
+        stHash_destruct(vertexToSetOfAdjacencyComponentsHash);
 
         checkPinchGraph(pinchGraph); //check the graph is all good.
         st_logInfo("Pinched the graph in: %i seconds\n", time(NULL) - startTime);
@@ -357,7 +377,7 @@ int32_t cactusCorePipeline(Flower *flower, CactusCoreInputParameters *cCIP,
         ////////////////////////////////////////////////
 
         //assert(cCIP->deannealingRounds >= 1.0);
-        if (cCIP->deannealingRounds >= 1) {
+        if (cCIP->deannealingRounds > 0) {
             float deannealingChainLengthStepSize = ((float) minimumChainLength)
                     / cCIP->deannealingRounds;
             /*

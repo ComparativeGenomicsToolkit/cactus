@@ -56,6 +56,8 @@ void usage() {
     fprintf(stderr, "-q --minimumChainLengthChange : (float) The minimum-chain-length increase after each align/undo loop\n");
 
     fprintf(stderr, "-r --deannealingRounds: (float >= 1.0) The amount to increase the minimum chain length after each cactus tree undo loop\n");
+
+    fprintf(stderr, "-s --adjacencyComponentOverlap : (int >= 0) When adding alignmnts back into the graph, the distance between the adjacency components to consider\n");
 }
 
 int main(int argc, char *argv[]) {
@@ -100,12 +102,13 @@ int main(int argc, char *argv[]) {
                         { "minimumChainLength", required_argument, 0, 'p' },
                         { "minimumChainLengthChange", required_argument, 0, 'q', },
                         { "deannealingRounds", required_argument, 0, 'r', },
+                        { "adjacencyComponentOverlap", required_argument, 0, 's', },
                         { 0, 0, 0, 0 } };
 
         int option_index = 0;
 
         key = getopt_long(argc, argv,
-                "a:b:c:d:ehi:j:k:l:m:n:o:p:q:r:", long_options,
+                "a:b:c:d:ehi:j:k:l:m:n:o:p:q:r:s:", long_options,
                 &option_index);
 
         if (key == -1) {
@@ -161,6 +164,9 @@ int main(int argc, char *argv[]) {
         case 'r':
              assert(sscanf(optarg, "%i", &cCIP->deannealingRounds) == 1);
              break;
+        case 's':
+             assert(sscanf(optarg, "%i", &cCIP->adjacencyComponentOverlap) == 1);
+             break;
 
         default:
             usage();
@@ -184,6 +190,7 @@ int main(int argc, char *argv[]) {
     assert(cCIP->annealingRounds >= 0);
     assert(cCIP->deannealingRounds >= 1);
     assert(cCIP->alignRepeatsAtRound >= 0);
+    assert(cCIP->adjacencyComponentOverlap >= 0);
 
     //////////////////////////////////////////////
     //Set up logging

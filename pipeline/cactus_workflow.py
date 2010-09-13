@@ -218,7 +218,8 @@ class CactusCoreWrapper(Target):
                       minimumBlockLengthChange=float(coreParameters.attrib["minimumBlockLengthChange"]),
                       minimumChainLength=float(coreParameters.attrib["minimumChainLength"]),
                       minimumChainLengthChange=float(coreParameters.attrib["minimumChainLengthChange"]),
-                      deannealingRounds=float(coreParameters.attrib["deannealingRounds"]))
+                      deannealingRounds=float(coreParameters.attrib["deannealingRounds"]),
+                      adjacencyComponentOverlap=int(coreParameters.attrib["adjacencyComponentOverlap"]))
         logger.info("Ran the cactus core program okay")
         
         #Setup call to core and aligner recursive as follow on.

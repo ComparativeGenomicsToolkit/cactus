@@ -13,7 +13,8 @@
 					minimumTreeCoverage="0.0" 
 					minimumBlockLength="5" minimumBlockLengthChange="0"
 					minimumChainLength="50" minimumChainLengthChange="-10"
-					deannealingRounds="10" />
+					deannealingRounds="10"
+					adjacencyComponentOverlap="2" />
 			</iteration>
 
 			<iteration number="1" max_sequence_size="30000000" type="blast"
@@ -26,7 +27,8 @@
 					minimumTreeCoverage="0.0" 
 					minimumBlockLength="5" minimumBlockLengthChange="0"
 					minimumChainLength="100" minimumChainLengthChange="-10"
-					deannealingRounds="10" />
+					deannealingRounds="10"
+					adjacencyComponentOverlap="2" />
 			</iteration>
 
 			<iteration number="2" max_sequence_size="1000000" type="blast"
@@ -39,7 +41,8 @@
 					minimumTreeCoverage="0.0" 
 					minimumBlockLength="2" minimumBlockLengthChange="0"
 					minimumChainLength="30" minimumChainLengthChange="-2.5"
-					deannealingRounds="10" />
+					deannealingRounds="10"
+					adjacencyComponentOverlap="2" />
 			</iteration>
 
 			<iteration number="3" max_sequence_size="2000" type="base"

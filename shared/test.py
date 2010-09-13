@@ -53,7 +53,7 @@ def getCactusWorkflowExperimentForTest(sequences, newickTreeString, outputDir, d
     """Wrapper to constructor of CactusWorkflowExperiment which additionally incorporates
     any globally set database conf.
     """
-    return CactusWorkflowExperiment(sequences, newickTreeString, databaseName=databaseName, outputDir=outputDir, databaseConf=GLOBAL_DATABASE_CONF, configFile=configFile)
+    return CactusWorkflowExperiment(sequences, newickTreeString, outputDir=outputDir, databaseName=databaseName, databaseConf=GLOBAL_DATABASE_CONF, configFile=configFile)
 
 def parseCactusSuiteTestOptions():
     """Cactus version of the basic option parser that can additionally parse 
