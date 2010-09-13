@@ -39,9 +39,9 @@
 				<core annealingRounds="5" alignRepeatsAtRound="2"
 					trim="5" trimChange="-0.5" 
 					minimumTreeCoverage="0.0" 
-					minimumBlockLength="2" minimumBlockLengthChange="0"
-					minimumChainLength="30" minimumChainLengthChange="-2.5"
-					deannealingRounds="5"
+					minimumBlockLength="3" minimumBlockLengthChange="0"
+					minimumChainLength="35" minimumChainLengthChange="0"
+					deannealingRounds="10"
 					adjacencyComponentOverlap="3" />
 			</iteration>
 

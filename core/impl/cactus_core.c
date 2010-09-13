@@ -191,6 +191,24 @@ struct List *getChosenBlockPinchEdges(stSortedSet *chosenBlocks,
     return chosenPinchEdges;
 }
 
+static stHash *getVertexToSetOfAdjacencyComponentsHash(stHash *vertexToAdjacencyComponentsHash) {
+    /*
+     * Constructs a has going from vertices to the set of adjacency components they are linked to
+     * (this structure is updated as we go).
+     */
+    stHashIterator *hashIt = stHash_getIterator(vertexToAdjacencyComponentsHash);
+    stHash *vertexToSetOfAdjacencyComponentsHash = stHash_construct2(NULL, (void (*)(void *))stSortedSet_destruct);
+    struct PinchVertex *vertex;
+    while((vertex = stHash_getNext(hashIt)) != NULL) {
+        stSortedSet *adjacencyComponents = stSortedSet_construct3((int (*)(const void *, const void *))stIntTuple_cmpFn,
+                NULL);
+        stSortedSet_insert(adjacencyComponents, stHash_search(vertexToAdjacencyComponentsHash, vertex));
+        stHash_insert(vertexToSetOfAdjacencyComponentsHash, vertex, adjacencyComponents);
+    }
+    stHash_destructIterator(hashIt);
+    return vertexToSetOfAdjacencyComponentsHash;
+}
+
 int32_t cactusCorePipeline(Flower *flower, CactusCoreInputParameters *cCIP,
         struct PairwiseAlignment *(*getNextAlignment)(),
         void(*startAlignmentStack)(), int32_t terminateRecursion) {
@@ -274,17 +292,7 @@ int32_t cactusCorePipeline(Flower *flower, CactusCoreInputParameters *cCIP,
             stList *edges = stList_get(adjacencyComponentGraph, i);
             stList_append(adjacencyComponentGraphWithSets, stList_getSortedSet(edges, (int (*)(const void *, const void *))stIntTuple_cmpFn));
         }
-
-        stHashIterator *hashIt = stHash_getIterator(vertexToAdjacencyComponentsHash);
-        stHash *vertexToSetOfAdjacencyComponentsHash = stHash_construct2(NULL, (void (*)(void *))stSortedSet_destruct);
-        while((vertex = stHash_getNext(hashIt)) != NULL) {
-            stSortedSet *adjacencyComponents = stSortedSet_construct3((int (*)(const void *, const void *))stIntTuple_cmpFn,
-                    NULL);
-            stSortedSet_insert(adjacencyComponents, stHash_search(vertexToAdjacencyComponentsHash, vertex));
-            stHash_insert(vertexToSetOfAdjacencyComponentsHash, vertex, adjacencyComponents);
-        }
-        stHash_destructIterator(hashIt);
-
+        stHash *vertexToSetOfAdjacencyComponentsHash = getVertexToSetOfAdjacencyComponentsHash(vertexToAdjacencyComponentsHash);
 
 #ifdef BEN_DEBUG
         ///////////////////////////////////////////////////////////////////////////

@@ -621,30 +621,30 @@ int32_t pinchMergePiece_P(struct VertexChain *vertexChain1,
 }
 
 void updateVertexAdjacencyComponentLabels(
-        stHash *vertexToAdjacencyComponentsHash, struct PinchVertex *vertex) {
+        stHash *vertexToSetOfAdjacencyComponentsHash, struct PinchVertex *vertex) {
     /*
      * Method establishes which adjacency component the vertex belongs in.
      */
-    //stIntTuple *i = stHash_search(vertexToAdjacencyComponentsHash, vertex);
-    stSortedSet *i = stHash_search(vertexToAdjacencyComponentsHash, vertex);
+    //stIntTuple *i = stHash_search(vertexToSetOfAdjacencyComponentsHash, vertex);
+    stSortedSet *i = stHash_search(vertexToSetOfAdjacencyComponentsHash, vertex);
     if (i == NULL) {
         struct List *list = constructEmptyList(0, NULL);
         while (1) {
             listAppend(list, vertex);
             assert(lengthGreyEdges(vertex) == 1);
             struct PinchVertex *vertex2 = getFirstGreyEdge(vertex);
-            assert(stHash_search(vertexToAdjacencyComponentsHash, vertex2) == NULL);
+            assert(stHash_search(vertexToSetOfAdjacencyComponentsHash, vertex2) == NULL);
             listAppend(list, vertex2);
             assert(lengthBlackEdges(vertex2) > 0);
             vertex = getFirstBlackEdge(vertex2)->to;
-            i = stHash_search(vertexToAdjacencyComponentsHash, vertex);
+            i = stHash_search(vertexToSetOfAdjacencyComponentsHash, vertex);
             if (i != NULL) {
                 break;
             }
         }
         for (int32_t j = 0; j < list->length; j++) {
-            assert(stHash_search(vertexToAdjacencyComponentsHash, list->list[j]) == NULL);
-            stHash_insert(vertexToAdjacencyComponentsHash, list->list[j],
+            assert(stHash_search(vertexToSetOfAdjacencyComponentsHash, list->list[j]) == NULL);
+            stHash_insert(vertexToSetOfAdjacencyComponentsHash, list->list[j],
                     stSortedSet_copyConstruct(i, NULL));
                     //stIntTuple_construct(1, stIntTuple_getPosition(i, 0)));
         }
@@ -653,13 +653,13 @@ void updateVertexAdjacencyComponentLabels(
 }
 
 void updateVertexAdjacencyComponentLabelsForChain(
-        stHash *vertexToAdjacencyComponentsHash,
+        stHash *vertexToSetOfAdjacencyComponentsHash,
         struct VertexChain *vertexChain) {
     /*
      * Method runs through the vertices in the vertex chain and ensures each vertex has a label.
      */
     for (int32_t i = 0; i < vertexChain->listOfVertices->length; i++) {
-        updateVertexAdjacencyComponentLabels(vertexToAdjacencyComponentsHash,
+        updateVertexAdjacencyComponentLabels(vertexToSetOfAdjacencyComponentsHash,
                 vertexChain->listOfVertices->list[i]);
     }
 }
@@ -667,7 +667,7 @@ void updateVertexAdjacencyComponentLabelsForChain(
 void pinchMergePiece_getChainOfVertices(struct PinchGraph *graph,
         struct Piece *piece1, struct Piece *piece2,
         struct VertexChain *vertexChain1, struct VertexChain *vertexChain2,
-        stHash *vertexToAdjacencyComponentsHash, stList *adjacencyComponentGraph) {
+        stHash *vertexToSetOfAdjacencyComponentsHash, stList *adjacencyComponentGraph) {
     int32_t i, j, k;
     getChainOfVertices(vertexChain1, graph, piece1);
     getChainOfVertices(vertexChain2, graph, piece2);
@@ -696,12 +696,11 @@ void pinchMergePiece_getChainOfVertices(struct PinchGraph *graph,
     /*
      * Label the new vertices in the chain with adjacency component labels.
      */
-    updateVertexAdjacencyComponentLabelsForChain(vertexToAdjacencyComponentsHash,
+    updateVertexAdjacencyComponentLabelsForChain(vertexToSetOfAdjacencyComponentsHash,
             vertexChain1);
-    updateVertexAdjacencyComponentLabelsForChain(vertexToAdjacencyComponentsHash,
+    updateVertexAdjacencyComponentLabelsForChain(vertexToSetOfAdjacencyComponentsHash,
             vertexChain2);
 }
-
 
 static bool adjacencyComponentsOverlap(stSortedSet *adjacencyComponents1, stSortedSet *adjacencyComponents2,
         stList *adjacencyComponentGraph, int32_t adjacencyComponentOverlap) {
@@ -733,7 +732,7 @@ struct VertexChain *pMS_vertexChain1 = NULL;
 struct VertexChain *pMS_vertexChain2 = NULL;
 
 void pinchMergePiece(struct PinchGraph *graph, struct Piece *piece1,
-        struct Piece *piece2, stHash *vertexToAdjacencyComponentsHash, stList *adjacencyComponentGraph,
+        struct Piece *piece2, stHash *vertexToSetOfAdjacencyComponentsHash, stList *adjacencyComponentGraph,
         int32_t adjacencyComponentOverlap) {
     /*
      * Pinches the graph (with the minimum number of required pinches, to
@@ -774,7 +773,7 @@ void pinchMergePiece(struct PinchGraph *graph, struct Piece *piece1,
     splitEdge(graph, piece2->contig, piece2->end, RIGHT);
 
     pinchMergePiece_getChainOfVertices(graph, piece1, piece2, pMS_vertexChain1,
-            pMS_vertexChain2, vertexToAdjacencyComponentsHash, adjacencyComponentGraph);
+            pMS_vertexChain2, vertexToSetOfAdjacencyComponentsHash, adjacencyComponentGraph);
 
 #ifdef BEN_ULTRA_DEBUG
     //do some debug checks
@@ -802,19 +801,12 @@ void pinchMergePiece(struct PinchGraph *graph, struct Piece *piece1,
         if(vertex1 == vertex2) {
             continue;
         }
-        stSortedSet *adjacencyComponents1 = stHash_search(vertexToAdjacencyComponentsHash, vertex1);
-        stSortedSet *adjacencyComponents2 = stHash_search(vertexToAdjacencyComponentsHash, vertex2);
+        stSortedSet *adjacencyComponents1 = stHash_search(vertexToSetOfAdjacencyComponentsHash, vertex1);
+        stSortedSet *adjacencyComponents2 = stHash_search(vertexToSetOfAdjacencyComponentsHash, vertex2);
         assert(adjacencyComponents1 != NULL && adjacencyComponents2 != NULL);
         if(!adjacencyComponentsOverlap(adjacencyComponents1, adjacencyComponents2, adjacencyComponentGraph, adjacencyComponentOverlap)) {
             return;
         }
-        /*j = stIntTuple_getPosition(stHash_search(vertexToAdjacencyComponentsHash,
-                pMS_vertexChain1->listOfVertices->list[i]), 0);
-        k = stIntTuple_getPosition(stHash_search(vertexToAdjacencyComponentsHash,
-                pMS_vertexChain2->listOfVertices->list[i]), 0);
-        if (!adjacencyComponentsAreWithinNEdges(j, k, adjacencyComponentGraph, 2)) {
-            return;
-        }*/
     }
 
     /*
@@ -854,7 +846,7 @@ void pinchMergePiece(struct PinchGraph *graph, struct Piece *piece1,
                  */
                 pinchMergePiece_getChainOfVertices(graph, piece1, piece2,
                         pMS_vertexChain1, pMS_vertexChain2,
-                        vertexToAdjacencyComponentsHash, adjacencyComponentGraph);
+                        vertexToSetOfAdjacencyComponentsHash, adjacencyComponentGraph);
 
                 i = 0;
                 continue;
@@ -862,32 +854,25 @@ void pinchMergePiece(struct PinchGraph *graph, struct Piece *piece1,
             // Else we do nothing, as we can't have self black edges and move one.
         } else {
             if(vertex1 != vertex2) {
-                assert(stHash_search(vertexToAdjacencyComponentsHash, vertex1) != NULL);
-                assert(stHash_search(vertexToAdjacencyComponentsHash, vertex2) != NULL);
-                k = stIntTuple_getPosition(stHash_search(vertexToAdjacencyComponentsHash,
+                assert(stHash_search(vertexToSetOfAdjacencyComponentsHash, vertex1) != NULL);
+                assert(stHash_search(vertexToSetOfAdjacencyComponentsHash, vertex2) != NULL);
+                k = stIntTuple_getPosition(stHash_search(vertexToSetOfAdjacencyComponentsHash,
                         vertex1), 0);
                 /*
                  * We have randomly chosen one of the vertex adjacency components..
                  */
-                //assert(k == stIntTuple_getPosition(stHash_search(vertexToAdjacencyComponentsHash, vertex2), 0));
-                //stIntTuple_destruct(stHash_remove(vertexToAdjacencyComponentsHash, vertex1));
-                //stIntTuple_destruct(stHash_remove(vertexToAdjacencyComponentsHash, vertex2));
-                stSortedSet *adjacencyComponents1 = stHash_remove(vertexToAdjacencyComponentsHash, vertex1);
+                stSortedSet *adjacencyComponents1 = stHash_remove(vertexToSetOfAdjacencyComponentsHash, vertex1);
                 assert(adjacencyComponents1 != NULL);
-                stSortedSet *adjacencyComponents2 = stHash_remove(vertexToAdjacencyComponentsHash, vertex2);
+                stSortedSet *adjacencyComponents2 = stHash_remove(vertexToSetOfAdjacencyComponentsHash, vertex2);
                 assert(adjacencyComponents2 != NULL);
-                assert(stHash_search(vertexToAdjacencyComponentsHash, vertex1) == NULL);
-                assert(stHash_search(vertexToAdjacencyComponentsHash, vertex2) == NULL);
+                assert(stHash_search(vertexToSetOfAdjacencyComponentsHash, vertex1) == NULL);
+                assert(stHash_search(vertexToSetOfAdjacencyComponentsHash, vertex2) == NULL);
                 vertex3 = mergeVertices(graph, vertex1, vertex2);
                 stSortedSet *adjacencyComponents = stSortedSet_getUnion(adjacencyComponents1, adjacencyComponents2);
                 stSortedSet_destruct(adjacencyComponents1);
                 stSortedSet_destruct(adjacencyComponents2);
-                stHash_insert(vertexToAdjacencyComponentsHash, vertex3,
+                stHash_insert(vertexToSetOfAdjacencyComponentsHash, vertex3,
                                 adjacencyComponents);
-                //stHash_insert(vertexToAdjacencyComponentsHash, vertex3,
-                //        stIntTuple_construct(1, k));
-                //assert(k == stIntTuple_getPosition(stHash_search(vertexToAdjacencyComponentsHash, vertex3), 0));
-
                 for (j = i + 1; j < pMS_vertexChain1->listOfVertices->length; j++) {
                     if (pMS_vertexChain1->listOfVertices->list[j] == vertex1
                             || pMS_vertexChain1->listOfVertices->list[j] == vertex2) {
@@ -989,7 +974,7 @@ int32_t pinchMerge_getContig(char *contig, int32_t start,
 void pinchMerge(struct PinchGraph *graph, struct PairwiseAlignment *pA,
         void(*addFunction)(struct PinchGraph *pinchGraph, struct Piece *,
                 struct Piece *, stHash *, stList *, int32_t, void *),
-        void *extraParameter, stHash *vertexToAdjacencyComponentsHash, stList *adjacencyComponentGraph,
+        void *extraParameter, stHash *vertexToSetOfAdjacencyComponentsHash, stList *adjacencyComponentGraph,
         int32_t adjacencyComponentOverlap) {
     /*
      * Method to pinch together the graph using all the aligned matches in the
@@ -1032,7 +1017,7 @@ void pinchMerge(struct PinchGraph *graph, struct PairwiseAlignment *pA,
                 } else {
                     piece_recycle(&piece2, contig2, -(k - 1), -(k - op->length));
                 }
-                addFunction(graph, &piece1, &piece2, vertexToAdjacencyComponentsHash, adjacencyComponentGraph,
+                addFunction(graph, &piece1, &piece2, vertexToSetOfAdjacencyComponentsHash, adjacencyComponentGraph,
                         adjacencyComponentOverlap,
                         extraParameter);
             }
