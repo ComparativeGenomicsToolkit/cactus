@@ -44,7 +44,7 @@ stList *makeAlignment(stList *sequences,
         constructSpanningTree(stList_length(sequences), pairwiseAlignments);
     }
 
-    //Construct the alignments (using the Lunter code, output needs to be a set of weighted pairs above threshold)
+    //Construct the alignments
     //and sort them by weight
     stSortedSetIterator *pairwiseAlignmentsIterator = stSortedSet_getIterator(
             pairwiseAlignments);
@@ -96,6 +96,7 @@ stList *makeAlignment(stList *sequences,
     }
     stList_destruct(alignedPairs);
     stPosetAlignment_destruct(posetAlignment);
+    stSortedSet_destruct(pairwiseAlignments);
 
     //Return the accepted pairs
     return acceptedAlignedPairs;

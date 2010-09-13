@@ -2,10 +2,11 @@ include ../../../include.mk
 binPath = ../../../bin
 libPath = ../../../lib
 
-libSources = 3_Absorb3edge2x.c
-libHeaders = 3_Absorb3edge2x.h
+libSources = impl/*.c
+libHeaders = inc/*.h
+libTests = tests/*.c
 
-all : ${libPath}/3EdgeConnected.a 
+all : ${libPath}/3EdgeConnected.a ${binPath}/3EdgeTests
 
 ${libPath}/3EdgeConnected.a : ${libSources} ${libHeaders} ${libPath}/sonLib.a
 	${cxx} ${cflags} -I ${libPath}/ -c ${libSources}
@@ -18,3 +19,5 @@ ${libPath}/3EdgeConnected.a : ${libSources} ${libHeaders} ${libPath}/sonLib.a
 clean : 
 	rm -f ${libPath}/3EdgeConnected.a 
 
+${binPath}/3EdgeTests : ${libTests} ${libSources} ${libHeaders} ${libPath}/3EdgeConnected.a ${libPath}/sonLib.a ${libPath}/cuTest.a 
+	${cxx} ${cflags} -I inc -I${libPath} -o ${binPath}/3EdgeTests ${libTests} ${libPath}/3EdgeConnected.a ${libPath}/sonLib.a ${libPath}/cuTest.a ${dblibs}

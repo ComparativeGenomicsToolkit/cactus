@@ -29,6 +29,7 @@ stList *getInducedAlignment(stSortedSet *endAlignment, AdjacencySequence *adjace
            }
            stSortedSet_destructIterator(it);
         }
+        alignedPair_destruct(alignedPair->reverse);
         alignedPair_destruct(alignedPair);
     }
     else {
@@ -54,6 +55,7 @@ stList *getInducedAlignment(stSortedSet *endAlignment, AdjacencySequence *adjace
             }
             stSortedSet_destructIterator(it);
         }
+        alignedPair_destruct(alignedPair->reverse);
         alignedPair_destruct(alignedPair);
     }
     return inducedAlignment;
@@ -147,6 +149,8 @@ static void pruneAlignments2(stList *inducedAlignment1, stList *inducedAlignment
         assert(stSortedSet_search(endAlignment1, alignedPair->reverse) != NULL);
         stSortedSet_remove(endAlignment1, alignedPair);
         stSortedSet_remove(endAlignment1, alignedPair->reverse);
+        alignedPair_destruct(alignedPair->reverse);
+        alignedPair_destruct(alignedPair);
     }
 
     for(int32_t i=0; i<cutOff2; i++) {
@@ -155,7 +159,13 @@ static void pruneAlignments2(stList *inducedAlignment1, stList *inducedAlignment
         assert(stSortedSet_search(endAlignment2, alignedPair->reverse) != NULL);
         stSortedSet_remove(endAlignment2, alignedPair);
         stSortedSet_remove(endAlignment2, alignedPair->reverse);
+        alignedPair_destruct(alignedPair->reverse);
+        alignedPair_destruct(alignedPair);
     }
+
+    //Cleanup
+    free(cScore1);
+    free(cScore2);
 }
 
 /*

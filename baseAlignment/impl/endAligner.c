@@ -86,6 +86,7 @@ stSortedSet *makeEndAlignment(End *end, int32_t spanningTrees, int32_t maxSequen
         assert(stSortedSet_search(sortedAlignment, alignedPair2->reverse) == NULL);
         stSortedSet_insert(sortedAlignment, alignedPair2);
         stSortedSet_insert(sortedAlignment, alignedPair2->reverse);
+        stIntTuple_destruct(alignedPair);
     }
 
     //Cleanup

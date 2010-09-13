@@ -29,7 +29,7 @@ static struct PairwiseAlignment *getAlignments() {
     if(alignedPair == NULL) {
         return NULL;
     }
-    struct List *opList = constructEmptyList(0, NULL);
+    struct List *opList = constructEmptyList(0, (void (*)(void *))destructAlignmentOperation);
     listAppend(opList, constructAlignmentOperation(PAIRWISE_MATCH, 1, 0.0));
     char *cA = cactusMisc_nameToString(alignedPair->sequence);
     char *cA2 = cactusMisc_nameToString(alignedPair->reverse->sequence);
