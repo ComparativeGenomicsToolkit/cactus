@@ -24,7 +24,7 @@ ${pulldownLib} : ${libSources} ${libHeaders} ${sonLib} ${cactusLib}
 	cp ${libHeaders} ${libPath}/
 
 ${pulldownTest}: ${pulldownLib} ${sonLib} ${cactusLib} ${testSources}
-	${cxx} ${cflags} -I ${libPath}/ -o $@ ${testSources} ${pulldownLib} ${sonLib} ${cactusLib} ${dblibs}
+	${cxx} ${cflags} -I ${libPath}/ -o $@ ${testSources} ${pulldownLib} ${cactusLib} ${sonLib} ${dblibs}
 
 clean : 
 	rm -f ${libPath}/cactus_pulldown.a 
