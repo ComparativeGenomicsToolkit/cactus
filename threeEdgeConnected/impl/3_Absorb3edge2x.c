@@ -379,12 +379,12 @@ static void three_edge_connectP(int w, int v, struct Frame *frame, stList *stack
                 list2 = stList_construct3(0, (void(*)(void *)) stIntTuple_destruct);
                 stList_append(list, list2);
                 stList_append(list2, stIntTuple_construct(1, u-1));
-                st_logDebug("\nNew component found: %d", u);
+                //st_logDebug("\nNew component found: %d", u);
                 //PRINT
                 tmp2 = next_sigma_element[u];
                 while (tmp2 != u) {
                     //PRINT
-                    st_logDebug(",%d", tmp2);
+                    //st_logDebug(",%d", tmp2);
                     stList_append(list2, stIntTuple_construct(1, tmp2-1)); //constructInt(tmp2));
                     //PRINT
                     tmp2 = next_sigma_element[tmp2];
@@ -562,12 +562,12 @@ stList *computeThreeEdgeConnectedComponents(stList *vertices) {
             list2 = stList_construct3(0, (void(*)(void *)) stIntTuple_destruct);
             stList_append(list, list2);
             stList_append(list2, stIntTuple_construct(1, r-1));
-            st_logDebug("\nNew component found: %d", r);
+            //st_logDebug("\nNew component found: %d", r);
             //PRINT
             tmp2 = next_sigma_element[r];
             while (tmp2 != r) {
                 //PRINT
-                st_logDebug(",%d", tmp2);
+                //st_logDebug(",%d", tmp2);
                 stList_append(list2, stIntTuple_construct(1, tmp2-1));
                 //PRINT
                 tmp2 = next_sigma_element[tmp2];

@@ -328,9 +328,9 @@ int32_t cactusCorePipeline(Flower *flower, CactusCoreInputParameters *cCIP,
         filterParameters->flower = flower;
 
         while (pairwiseAlignment != NULL) {
-            st_logDebug("Alignment : %i , score %f\n", i++,
-                    pairwiseAlignment->score);
-            logPairwiseAlignment(pairwiseAlignment);
+            //st_logDebug("Alignment : %i , score %f\n", i++,
+            //        pairwiseAlignment->score);
+            //logPairwiseAlignment(pairwiseAlignment);
             pinchMerge(
                     pinchGraph,
                     pairwiseAlignment,
