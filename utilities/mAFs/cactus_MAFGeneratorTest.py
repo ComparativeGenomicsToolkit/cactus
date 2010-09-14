@@ -16,7 +16,7 @@ class TestCase(unittest.TestCase):
                                      makeMAFs=True,buildTrees=False,buildFaces=False,buildReference=False)
     
     def testCactus_Random(self):
-        """Build mafs from cactusDisks containing trees, face and an reference.
+        """Build mafs from cactusDisks containing trees, face and an reference (the output will include the MAFS ordered by reference)
         """
         runWorkflow_multipleExamples(getCactusInputs_random, 
                                      testNumber=TestStatus.getTestSetup(), 

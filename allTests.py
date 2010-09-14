@@ -10,7 +10,7 @@ from cactus.phylogeny.cactus_phylogenyTest import TestCase as phylogenyTest
 from cactus.faces.cactus_fillAdjacenciesTest import TestCase as adjacenciesTest
 from cactus.reference.cactus_referenceTest import TestCase as referenceTest
 from cactus.api.allTests import TestCase as aPITest
-from cactus.threeEdgeConnected.ThreeEdgeTests import TestCase as threeEdgeTest
+from cactus.threeEdgeConnected.threeEdgeTests import TestCase as threeEdgeTest
 from cactus.normalisation.cactus_normalisationTest import TestCase as normalisationTest
 import cactus.utilities.allTests 
  

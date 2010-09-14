@@ -57,10 +57,29 @@ static void getMAFBlockP(Segment *segment, FILE *fileHandle) {
     getMAFBlockP2(segment, fileHandle);
 }
 
+int32_t getNumberOnPositiveStrand(Block *block) {
+    Block_InstanceIterator *it = block_getInstanceIterator(block);
+    Segment *segment;
+    int32_t i=0;
+    while((segment = block_getNext(it)) != NULL) {
+        if(segment_getChildNumber(segment) == 0) {
+            if(segment_getStrand(segment)) {
+                i++;
+            }
+        }
+    }
+    block_destructInstanceIterator(it);
+    return i;
+}
+
 void getMAFBlock(Block *block, FILE *fileHandle) {
     /*
      * Outputs a MAF representation of the block to the given file handle.
      */
+    //Correct the orientation..
+    if(getNumberOnPositiveStrand(block) == 0) {
+        block = block_getReverse(block);
+    }
     if (block_getInstanceNumber(block) > 0) {
         if(block_getRootInstance(block) != NULL) {
             /* Get newick tree string with internal labels and no unary events */
@@ -74,7 +93,6 @@ void getMAFBlock(Block *block, FILE *fileHandle) {
             fprintf(fileHandle, "\n");
         }
         else {
-            /* Get newick tree string with internal labels and no unary events */
             fprintf(fileHandle, "a score=%i\n", block_getLength(block) * block_getInstanceNumber(block));
             Block_InstanceIterator *iterator = block_getInstanceIterator(block);
             Segment *segment;
@@ -85,6 +103,65 @@ void getMAFBlock(Block *block, FILE *fileHandle) {
             fprintf(fileHandle, "\n");
         }
     }
+}
+
+void getMAFSReferenceOrdered_walkDown(End *end, FILE *fileHandle);
+
+void getMAFSReferenceOrdered_walkUp(End *end, FILE *fileHandle) {
+    assert(end != NULL);
+    if(end_isBlockEnd(end)) {
+        getMAFBlock(end_getBlock(end), fileHandle);
+        getMAFSReferenceOrdered_walkDown(end_getOtherBlockEnd(end), fileHandle);
+    }
+    else {
+        assert(end_isAttached(end));
+        Group *parentGroup = flower_getParentGroup(end_getFlower(end));
+        if(parentGroup != NULL) {
+            getMAFSReferenceOrdered_walkUp(group_getEnd(parentGroup, end_getName(end)), fileHandle);
+        }
+        else { //We reached the end of a pseudo-chromosome!
+            assert(pseudoChromosome_get3End(pseudoAdjacency_getPseudoChromosome(end_getPseudoAdjacency(end))) == end);
+        }
+    }
+}
+
+void getMAFSReferenceOrdered_walkDown(End *end, FILE *fileHandle) {
+    assert(end != NULL);
+    //assert(end_isAttached(end));
+    Group *group = end_getGroup(end);
+    if(group_isLeaf(group)) { //Walk across
+        PseudoAdjacency *pseudoAdjacency = end_getPseudoAdjacency(end);
+        assert(pseudoAdjacency != NULL);
+        assert(pseudoAdjacency_get3End(pseudoAdjacency) == end || pseudoAdjacency_get5End(pseudoAdjacency) == end);
+        if(pseudoAdjacency_get3End(pseudoAdjacency) == end) {
+            end = pseudoAdjacency_get5End(pseudoAdjacency);
+        }
+        else {
+            end = pseudoAdjacency_get3End(pseudoAdjacency);
+        }
+        //Now walk up
+        getMAFSReferenceOrdered_walkUp(end, fileHandle);
+    }
+    else { //Walk down
+        getMAFSReferenceOrdered_walkDown(flower_getEnd(group_getNestedFlower(group), end_getName(end)), fileHandle);
+    }
+}
+
+void getMAFsReferenceOrdered(Flower *flower, FILE *fileHandle) {
+    /*
+     * Outputs MAF representations of all the block in the flower and its descendants, ordered
+     * according to the reference ordering.
+     */
+    Reference *reference = flower_getReference(flower);
+    assert(reference != NULL);
+    Reference_PseudoChromosomeIterator *it = reference_getPseudoChromosomeIterator(reference);
+    PseudoChromosome *pseudoChromosome;
+    while((pseudoChromosome = reference_getNextPseudoChromosome(it)) != NULL) {
+        End *end = pseudoChromosome_get5End(pseudoChromosome);
+        assert(!end_isBlockEnd(end));
+        getMAFSReferenceOrdered_walkDown(end, fileHandle);
+    }
+    reference_destructPseudoChromosomeIterator(it);
 }
 
 void getMAFs(Flower *flower, FILE *fileHandle) {
@@ -124,6 +201,7 @@ void usage() {
     fprintf(stderr, "-c --cactusDisk : The location of the flower disk directory\n");
     fprintf(stderr, "-d --flowerName : The name of the flower (the key in the database)\n");
     fprintf(stderr, "-e --outputFile : The file to write the MAFs in.\n");
+    fprintf(stderr, "-f --orderByReference : Order the blocks by the reference ordering.\n");
     fprintf(stderr, "-h --help : Print this help screen\n");
 }
 
@@ -135,6 +213,7 @@ int main(int argc, char *argv[]) {
     char * cactusDiskDatabaseString = NULL;
     char * flowerName = NULL;
     char * outputFile = NULL;
+    bool orderByReference = 0;
 
     ///////////////////////////////////////////////////////////////////////////
     // (0) Parse the inputs handed by genomeCactus.py / setup stuff.
@@ -144,12 +223,13 @@ int main(int argc, char *argv[]) {
         static struct option long_options[] = { { "logLevel",
                 required_argument, 0, 'a' }, { "cactusDisk", required_argument, 0,
                 'c' }, { "flowerName", required_argument, 0, 'd' }, {
-                "outputFile", required_argument, 0, 'e' }, { "help",
+                "outputFile", required_argument, 0, 'e' },  { "orderByReference",
+                no_argument, 0, 'f' }, { "help",
                 no_argument, 0, 'h' }, { 0, 0, 0, 0 } };
 
         int option_index = 0;
 
-        int key = getopt_long(argc, argv, "a:c:d:e:h", long_options,
+        int key = getopt_long(argc, argv, "a:c:d:e:fh", long_options,
                 &option_index);
 
         if (key == -1) {
@@ -168,6 +248,9 @@ int main(int argc, char *argv[]) {
                 break;
             case 'e':
                 outputFile = stString_copy(optarg);
+                break;
+            case 'f':
+                orderByReference = !orderByReference;
                 break;
             case 'h':
                 usage();
@@ -225,7 +308,13 @@ int main(int argc, char *argv[]) {
     int64_t startTime = time(NULL);
     FILE *fileHandle = fopen(outputFile, "w");
     makeMAFHeader(flower, fileHandle);
-    getMAFs(flower, fileHandle);
+    if(orderByReference) {
+        st_logInfo("Ordering by reference\n");
+        getMAFsReferenceOrdered(flower, fileHandle);
+    }
+    else {
+        getMAFs(flower, fileHandle);
+    }
     fclose(fileHandle);
     st_logInfo("Got the mafs in %i seconds/\n", time(NULL) - startTime);
 

@@ -60,6 +60,14 @@ static void test_3EdgeFunction(CuTest *testCase) {
             while((vertex = stList_getNext(it2)) != NULL) {
                 CuAssertTrue(testCase, stSortedSet_search(seen, vertex) == NULL);
                 stSortedSet_insert(seen, vertex);
+
+                /*
+                 * Now check other vertices in component are 3-edge connected to this vertex.
+                 */
+
+                /*
+                 * And check other vertices are not three edge connected.
+                 */
             }
             stList_destructIterator(it2);
         }
