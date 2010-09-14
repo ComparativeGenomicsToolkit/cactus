@@ -140,6 +140,18 @@ def parseNewickTreeFile(newickTreeFile):
     fileHandle.close()
     return newickTreeString
 
+def getCactusInputs_evolver_primate_small(regionNumber=0, tempDir=None):
+    """Gets the inputs for running cactus_workflow using a blanchette simulated region
+    (0 <= regionNumber < 50).
+    
+    Requires setting SON_TRACE_DATASETS variable and having access to datasets.
+    """
+    seqPath = os.path.join(TestStatus.getPathToDataSets(), "evolver", "primate_small")
+    sequences = [ os.path.join(seqPath, sequence) \
+                 for sequence in ("simChimp.fa", "simGorilla.fa", "simHuman.fa", "simOrang.fa") ] #Same order as tree
+    newickTreeString = parseNewickTreeFile(os.path.join(seqPath, "tree.newick"))
+    return sequences, newickTreeString
+
 def getCactusInputs_blanchette(regionNumber=0, tempDir=None):
     """Gets the inputs for running cactus_workflow using a blanchette simulated region
     (0 <= regionNumber < 50).
