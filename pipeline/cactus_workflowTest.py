@@ -53,6 +53,7 @@ class TestCase(unittest.TestCase):
                                      makeCactusTreeStats=True, makeMAFs=True)
     
     def testCactus_Chromosomes(self):
+        return
         outputDir = os.path.join(TestStatus.getPathToDataSets(), "cactus", "chrX")
         runWorkflow_multipleExamples(getCactusInputs_chromosomeX, 
                                      outputDir=outputDir,
@@ -64,7 +65,7 @@ class TestCase(unittest.TestCase):
         outputDir = os.path.join(TestStatus.getPathToDataSets(), "cactus", "evolver", "primates", "small")
         runWorkflow_multipleExamples(getCactusInputs_evolver_primate_small,
                                      outputDir=outputDir,
-                                     testRestrictions=(TestStatus.TEST_LONG,),
+                                     testRestrictions=(TestStatus.TEST_VERY_LONG,),
                                      batchSystem=self.batchSystem,
                                      makeCactusTreeStats=True, makeMAFs=True)
     
