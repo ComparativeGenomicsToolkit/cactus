@@ -97,7 +97,6 @@ void pulldown_simpleFlowerTest() {
 
 int main (int argc, char *argv[]) {
     fprintf(stderr, "Entering pulldown test.\n");
-    //Flower *flower = 
     pulldown_simpleFlowerTest();
     fprintf(stderr, "Exiting pulldown test.\n");
     return 0;
