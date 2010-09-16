@@ -10,9 +10,7 @@ import os, re, sys, time
 from optparse import OptionParser
 import xml.etree.ElementTree as ET
 
-
-from workflow.jobTree.jobTree import runJobTree
-from workflow.jobTree.jobTreeTest import runJobTreeStatusAndFailIfNotComplete
+from workflow.jobTree.bin.jobTree import runJobTree  
 from workflow.jobTree.scriptTree.target import Target
 
 from sonLib.bioio import logger
@@ -23,7 +21,7 @@ from sonLib.bioio import setLogLevel
 from sonLib.misc import sonTraceRootPath
 
 from cactus.shared.common import runCactusWorkflow
-from cactus.shared.common import runCactusMAFGenerator
+from cactus.shared.common import runCactusMAFGenerator 
 from cactus.shared.common import runCactusTreeStats
 
 class CactusTuningWrapper(Target):

@@ -9,8 +9,8 @@ from sonLib.bioio import getTempDirectory
 from sonLib.bioio import system
 from sonLib.bioio import nameValue
 
-from workflow.jobTree.jobTree import runJobTree 
-from workflow.jobTree.jobTreeTest import runJobTreeStatusAndFailIfNotComplete
+from workflow.jobTree.bin.jobTree import runJobTree  
+from workflow.jobTree.test.jobTreeTest import runJobTreeStatusAndFailIfNotComplete
 
 #############################################
 #############################################

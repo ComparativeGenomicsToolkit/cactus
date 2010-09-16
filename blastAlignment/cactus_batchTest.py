@@ -20,7 +20,7 @@ from cactus.shared.test import parseCactusSuiteTestOptions
 from sonLib.bioio import cigarRead
 from sonLib.bioio import PairwiseAlignment
 
-from workflow.jobTree.jobTreeTest import runJobTreeStatusAndFailIfNotComplete
+from workflow.jobTree.test.jobTreeTest import runJobTreeStatusAndFailIfNotComplete
 
 class TestCase(unittest.TestCase):
     def setUp(self):

@@ -127,5 +127,6 @@ def _test():
     return doctest.testmod()
 
 if __name__ == '__main__':
+    from cactus.blastAlignment.cactus_aligner import *
     _test()
     main()

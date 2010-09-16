@@ -488,5 +488,6 @@ def _test():
     return doctest.testmod()
 
 if __name__ == '__main__':
+    from cactus.pipeline.cactus_workflow import *
     _test()
     main()

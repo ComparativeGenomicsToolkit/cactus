@@ -422,5 +422,6 @@ def _test():
     return doctest.testmod()
 
 if __name__ == '__main__':
+    from cactus.blastAlignment.cactus_batch import *
     _test()
     main()

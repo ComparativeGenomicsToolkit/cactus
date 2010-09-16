@@ -31,7 +31,7 @@ from sonLib.bioio import TestStatus
 
 from sonLib.tree import makeRandomBinaryTree
 
-from workflow.jobTree.jobTreeTest import runJobTreeStatusAndFailIfNotComplete
+from workflow.jobTree.test.jobTreeTest import runJobTreeStatusAndFailIfNotComplete
 
 from cactus.shared.config import checkDatabaseConf
 from cactus.shared.config import CactusWorkflowExperiment

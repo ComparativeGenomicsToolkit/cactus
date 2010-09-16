@@ -16,7 +16,7 @@ from cactus.shared.common import runCactusWorkflow
 
 from cactus.shared.test import getCactusWorkflowExperimentForTest
 
-from workflow.jobTree.jobTreeTest import runJobTreeStatusAndFailIfNotComplete
+from workflow.jobTree.test.jobTreeTest import runJobTreeStatusAndFailIfNotComplete
 
 """Using this set of tests I have found that:
 
