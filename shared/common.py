@@ -9,7 +9,6 @@ from sonLib.bioio import getTempDirectory
 from sonLib.bioio import system
 from sonLib.bioio import nameValue
 
-from workflow.jobTree.bin.jobTree import runJobTree  
 from workflow.jobTree.test.jobTreeTest import runJobTreeStatusAndFailIfNotComplete
 
 #############################################
@@ -35,8 +34,8 @@ def runCactusAligner(cactusDiskDatabaseString, alignmentFile, tempDir, useDummy=
     jobTreeDir = os.path.join(tempDir, "jobTree")
     useDummy = nameValue("useDummy", useDummy, bool)
     command = "cactus_aligner.py --cactusDisk '%s' --flowerName %s \
---resultsFile %s %s --job JOB_FILE" % (cactusDiskDatabaseString, flowerName, alignmentFile, useDummy)
-    runJobTree(command, jobTreeDir, logLevel=logLevel)
+--resultsFile %s %s --jobTree %s --logLevel %s" % (cactusDiskDatabaseString, flowerName, alignmentFile, useDummy, jobTreeDir, logLevel)
+    system(command)
     runJobTreeStatusAndFailIfNotComplete(jobTreeDir)
     system("rm -rf %s" % tempDir)
     logger.info("Ran the cactus aligner okay")
@@ -174,11 +173,16 @@ def runCactusWorkflow(experimentFile,
     buildTrees = nameValue("buildTrees", buildTrees, bool)
     buildFaces = nameValue("buildFaces", buildFaces, bool)
     buildReference = nameValue("buildReference", buildReference, bool)
-    command = "cactus_workflow.py --experiment %s %s %s %s %s --job JOB_FILE" % \
-            (experimentFile, setupAndBuildAlignments, buildTrees, buildFaces, buildReference)
+    #Jobtree args
+    batchSystem = nameValue("batchSystem", batchSystem, str)
+    retryCount = nameValue("retryCount", retryCount, int)
+    rescueJobFrequency = nameValue("rescueJobsFrequency", rescueJobFrequency, int)
+    command = "cactus_workflow.py --experiment %s %s %s %s %s --jobTree %s --logLevel %s %s %s %s" % \
+            (experimentFile, setupAndBuildAlignments, buildTrees, buildFaces, 
+             buildReference, jobTreeDir, logLevel, batchSystem, retryCount, rescueJobFrequency)
     #print "going to run the command:", command
     #assert False
-    runJobTree(command, jobTreeDir, logLevel, retryCount, batchSystem, rescueJobFrequency)
+    system(command)
     logger.info("Ran the cactus workflow okay")
     
 #############################################

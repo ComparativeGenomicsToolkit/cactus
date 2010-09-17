@@ -11,6 +11,7 @@ from sonLib.bioio import getTempFile
 from sonLib.bioio import logger
 from sonLib.bioio import system
 from workflow.jobTree.scriptTree.target import Target
+from workflow.jobTree.scriptTree.target import Stack as ScriptTreeRunner
 
 from cactus.blastAlignment.cactus_batch import makeBlastFromOptions
 from cactus.blastAlignment.cactus_batch import makeStandardBlastOptions
@@ -88,9 +89,7 @@ def main():
     ##########################################    
     
     parser = getBasicOptionParser("usage: %prog [options]", "%prog 0.1")
-    
-    parser.add_option("--job", dest="jobFile", 
-                      help="Job file containing command to run")
+    ScriptTreeRunner.addJobTreeOptions(parser)
     
     parser.add_option("--cactusDisk", dest="cactusDisk", 
                       help="The path to the flower-disk")
@@ -118,9 +117,9 @@ def main():
                                 parsedOptions.flowerName, 
                                 parsedOptions.resultsFile, 
                                 blastOptions)
-    firstTarget.execute(parsedOptions.jobFile)
     
-    logger.info("Ran the first target okay")
+    ScriptTreeRunner(firstTarget).startJobTree(parsedOptions)
+    logger.info("Done with job tree")
 
 def _test():
     import doctest      

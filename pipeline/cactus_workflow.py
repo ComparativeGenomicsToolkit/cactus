@@ -29,6 +29,7 @@ from sonLib.bioio import getLogLevelString
 from sonLib.misc import sonTraceRootPath
 
 from workflow.jobTree.scriptTree.target import Target
+from workflow.jobTree.scriptTree.target import Stack as ScriptTreeRunner
 
 from cactus.shared.common import runCactusSetup
 from cactus.shared.common import runCactusCore
@@ -427,9 +428,7 @@ def main():
     ##########################################
     
     parser = getBasicOptionParser("usage: %prog [options] [sequence files]", "%prog 0.1")
-    
-    parser.add_option("--job", dest="jobFile", 
-                      help="Job file containing command to run")
+    ScriptTreeRunner.addJobTreeOptions(parser)
     
     parser.add_option("--experiment", dest="experimentFile", help="The file containing a link to the experiment parameters")
     
@@ -480,8 +479,9 @@ def main():
     else:
         logger.info("Nothing to do!")
         return
-    baseTarget.execute(options.jobFile) 
-    logger.info("Done with first target")
+    
+    ScriptTreeRunner(baseTarget).startJobTree(options)
+    logger.info("Done with job tree")
 
 def _test():
     import doctest      
