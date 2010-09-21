@@ -18,10 +18,9 @@ In the verification phase the reconstruction tree is checked against the expecte
 
 import os
 import xml.etree.ElementTree as ET
+from optparse import OptionParser
 
 from sonLib.bioio import logger
-from sonLib.bioio import getBasicOptionParser
-from sonLib.bioio import parseBasicOptions
 from sonLib.bioio import getTempFile
 from sonLib.bioio import system
 from sonLib.bioio import getLogLevelString
@@ -426,7 +425,7 @@ def main():
     #Construct the arguments.
     ##########################################
     
-    parser = getBasicOptionParser("usage: %prog [options] [sequence files]", "%prog 0.1")
+    parser = OptionParser()
     Stack.addJobTreeOptions(parser)
     
     parser.add_option("--experiment", dest="experimentFile", help="The file containing a link to the experiment parameters")
@@ -443,11 +442,11 @@ def main():
     parser.add_option("--buildReference", dest="buildReference", action="store_true",
                       help="Creates a reference ordering for the flowers", default=False)
     
-    options, args = parseBasicOptions(parser)
-    assert(len(args) == 0) #Should be empty
-
-    logger.info("Parsed commandline arguments")
+    options, args = parser.parse_args()
     
+    if len(args) != 0:
+        raise RuntimeError("Unrecognised input arguments: %s" % " ".join(args))
+
     options.experimentFile = ET.parse(options.experimentFile).getroot()
     #Get the database string
     options.cactusDiskDatabaseString = ET.tostring(options.experimentFile.find("cactus_disk").find("st_kv_database_conf"))

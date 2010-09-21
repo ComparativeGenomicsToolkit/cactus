@@ -4,9 +4,8 @@
 """
 
 import os
+from optparse import OptionParser
 
-from sonLib.bioio import getBasicOptionParser
-from sonLib.bioio import parseBasicOptions
 from sonLib.bioio import getTempFile
 from sonLib.bioio import logger
 from sonLib.bioio import system
@@ -87,7 +86,7 @@ def main():
     #Construct the arguments.
     ##########################################    
     
-    parser = getBasicOptionParser("usage: %prog [options]", "%prog 0.1")
+    parser = OptionParser()
     Stack.addJobTreeOptions(parser)
     
     parser.add_option("--cactusDisk", dest="cactusDisk", 
@@ -103,10 +102,9 @@ def main():
     parser.add_option("--resultsFile", dest="resultsFile", type="string",
                       help="The file to put the alignments in")
         
-    parsedOptions, args = parseBasicOptions(parser)
+    parsedOptions, args = parser.parse_args()
         
     assert len(args) == 0
-    logger.info("Parsed arguments")
      
     blastOptions = makeBlastFromOptions(makeStandardBlastOptions())
     if parsedOptions.useDummy:
@@ -118,7 +116,6 @@ def main():
                                 blastOptions)
     
     Stack(firstTarget).startJobTree(parsedOptions)
-    logger.info("Done with job tree")
 
 def _test():
     import doctest      

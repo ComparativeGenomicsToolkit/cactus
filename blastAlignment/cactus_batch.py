@@ -4,6 +4,7 @@
 sequences. Uses the jobTree framework to parallelise the blasts.
 """
 import os
+from optparse import OptionParser
 from bz2 import BZ2File
 
 from sonLib.bioio import TempFileTree
@@ -11,8 +12,6 @@ from sonLib.bioio import getTempDirectory
 from sonLib.bioio import getTempFile
 from sonLib.bioio import logger
 from sonLib.bioio import system
-from sonLib.bioio import getBasicOptionParser
-from sonLib.bioio import parseBasicOptions
 from sonLib.bioio import fastaRead
 from sonLib.bioio import fastaWrite
 
@@ -371,7 +370,7 @@ def main():
     #Construct the arguments.
     ##########################################    
     
-    parser = getBasicOptionParser("usage: %prog [options] contigFilexN", "%prog 0.1")
+    parser = OptionParser()
     Stack.addJobTreeOptions(parser)
     options = makeStandardBlastOptions()
     
@@ -408,13 +407,10 @@ this allows each job to more than one chunk comparison per job, which will save 
                       help="Turn of bz2 based file compression of sequences for I/O transfer", 
                       default=options.compressFiles)
     
-    options, args = parseBasicOptions(parser)
-    logger.info("Parsed arguments")
+    options, args = parser.parse_args()
     
     firstTarget = MakeBlasts(options, args, options.cigarFile)
     Stack(firstTarget).startJobTree(options)
-    
-    logger.info("Ran the first target okay")
 
 def _test():
     import doctest 
