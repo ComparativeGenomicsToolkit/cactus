@@ -17,6 +17,7 @@ from sonLib.bioio import fastaRead
 from sonLib.bioio import fastaWrite
 
 from workflow.jobTree.scriptTree.target import Target
+from workflow.jobTree.scriptTree.stack import Stack
 
 class MakeBlastOptions:
     def __init__(self, chunkSize, overlapSize, 
@@ -371,11 +372,9 @@ def main():
     ##########################################    
     
     parser = getBasicOptionParser("usage: %prog [options] contigFilexN", "%prog 0.1")
-    
+    Stack.addJobTreeOptions(parser)
     options = makeStandardBlastOptions()
     
-    parser.add_option("--job", dest="jobFile", 
-                      help="Job file containing command to run")
     #output stuff
     parser.add_option("--cigars", dest="cigarFile", 
                       help="File to write cigars in",
@@ -413,7 +412,7 @@ this allows each job to more than one chunk comparison per job, which will save 
     logger.info("Parsed arguments")
     
     firstTarget = MakeBlasts(options, args, options.cigarFile)
-    firstTarget.execute(options.jobFile)
+    Stack(firstTarget).startJobTree(options)
     
     logger.info("Ran the first target okay")
 

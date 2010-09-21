@@ -11,7 +11,7 @@ from sonLib.bioio import getTempFile
 from sonLib.bioio import logger
 from sonLib.bioio import system
 from workflow.jobTree.scriptTree.target import Target
-from workflow.jobTree.scriptTree.target import Stack as ScriptTreeRunner
+from workflow.jobTree.scriptTree.stack import Stack
 
 from cactus.blastAlignment.cactus_batch import makeBlastFromOptions
 from cactus.blastAlignment.cactus_batch import makeStandardBlastOptions
@@ -70,12 +70,11 @@ class ModifyBlasts(Target):
         self.tempSeqFile = tempSeqFile
         self.tempResultsFile = tempResultsFile
         self.resultsFile = resultsFile    
-        
-    def cleanup(self, localTempDir, globalTempDir):
-        os.remove(self.tempSeqFile)
-        logger.info("Removed the temporary fasta file for the blast step")
     
     def run(self, localTempDir, globalTempDir):
+        os.remove(self.tempSeqFile)
+        logger.info("Removed the temporary fasta file for the blast step")
+        
         ##########################################
         #Translate the coordinates
         ##########################################
@@ -89,7 +88,7 @@ def main():
     ##########################################    
     
     parser = getBasicOptionParser("usage: %prog [options]", "%prog 0.1")
-    ScriptTreeRunner.addJobTreeOptions(parser)
+    Stack.addJobTreeOptions(parser)
     
     parser.add_option("--cactusDisk", dest="cactusDisk", 
                       help="The path to the flower-disk")
@@ -118,7 +117,7 @@ def main():
                                 parsedOptions.resultsFile, 
                                 blastOptions)
     
-    ScriptTreeRunner(firstTarget).startJobTree(parsedOptions)
+    Stack(firstTarget).startJobTree(parsedOptions)
     logger.info("Done with job tree")
 
 def _test():

@@ -20,7 +20,7 @@ from cactus.shared.test import parseCactusSuiteTestOptions
 from sonLib.bioio import cigarRead
 from sonLib.bioio import PairwiseAlignment
 
-from workflow.jobTree.test.jobTreeTest import runJobTreeStatusAndFailIfNotComplete
+from workflow.jobTree.test.jobTree.jobTreeTest import runJobTreeStatusAndFailIfNotComplete
 
 class TestCase(unittest.TestCase):
     def setUp(self):
@@ -239,8 +239,8 @@ def runCactusBatch(sequenceFiles, outputFile, jobTreeDir,
                    logLevel="DEBUG", retryCount=0, batchSystem="single_machine",
                    blastString="lastz --format=cigar SEQ_FILE_1[multiple][nameparse=darkspace] SEQ_FILE_2[nameparse=darkspace] > CIGARS_FILE", 
                    selfBlastString="lastz --format=cigar SEQ_FILE[nameparse=darkspace] --self > CIGARS_FILE"):
-    command = "jobTree.py --command \"cactus_batch.py %s  \
---cigars %s --chunkSize %s --overlapSize %s --chunksPerJob %s --job JOB_FILE --blastString '%s' --selfBlastString '%s' \" --jobTree %s --logLevel %s \
+    command = "cactus_batch.py %s  \
+--cigars %s --chunkSize %s --overlapSize %s --chunksPerJob %s --blastString '%s' --selfBlastString '%s' --jobTree %s --logLevel %s \
 --retryCount %i --batchSystem %s" % \
             (" ".join(sequenceFiles), outputFile,
              chunkSize, overlapSize, chunksPerJob, blastString, selfBlastString, jobTreeDir, logLevel, retryCount, batchSystem)

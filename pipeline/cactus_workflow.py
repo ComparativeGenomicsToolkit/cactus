@@ -29,7 +29,7 @@ from sonLib.bioio import getLogLevelString
 from sonLib.misc import sonTraceRootPath
 
 from workflow.jobTree.scriptTree.target import Target
-from workflow.jobTree.scriptTree.target import Stack as ScriptTreeRunner
+from workflow.jobTree.scriptTree.stack import Stack
 
 from cactus.shared.common import runCactusSetup
 from cactus.shared.common import runCactusCore
@@ -123,12 +123,11 @@ class CactusAlignmentWrapper(Target):
         self.flowerName = flowerName
         self.alignmentFile = alignmentFile
     
-    def cleanup(self, localTempDir, globalTempDir):
+    def run(self, localTempDir, globalTempDir):
         #Cleans up from a round
         if self.alignmentFile != None:
             system("rm -rf %s" % self.alignmentFile) #Clean up the alignments file
-     
-    def run(self, localTempDir, globalTempDir):
+        
         logger.info("Starting the cactus down pass (recursive) target")
         #Traverses leaf jobs and create aligner wrapper targets as children.
         iterations = self.options.config.find("alignment").find("iterations").findall("iteration")
@@ -428,7 +427,7 @@ def main():
     ##########################################
     
     parser = getBasicOptionParser("usage: %prog [options] [sequence files]", "%prog 0.1")
-    ScriptTreeRunner.addJobTreeOptions(parser)
+    Stack.addJobTreeOptions(parser)
     
     parser.add_option("--experiment", dest="experimentFile", help="The file containing a link to the experiment parameters")
     
@@ -480,7 +479,7 @@ def main():
         logger.info("Nothing to do!")
         return
     
-    ScriptTreeRunner(baseTarget).startJobTree(options)
+    Stack(baseTarget).startJobTree(options)
     logger.info("Done with job tree")
 
 def _test():
