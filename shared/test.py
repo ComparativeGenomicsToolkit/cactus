@@ -32,6 +32,7 @@ from sonLib.bioio import TestStatus
 from sonLib.tree import makeRandomBinaryTree
 
 from workflow.jobTree.test.jobTree.jobTreeTest import runJobTreeStatusAndFailIfNotComplete
+from workflow.jobTree.lib.common import runJobTreeStats
 
 from cactus.shared.config import checkDatabaseConf
 from cactus.shared.config import CactusWorkflowExperiment
@@ -201,9 +202,10 @@ def runWorkflow_TestScript(sequences, newickTreeString,
                            buildCactusPDF=False,
                            buildAdjacencyPDF=False,
                            buildReferencePDF=False,
-                           makeCactusTreeStats=False,
+                           makeCactusTreeStats=False, 
                            makeMAFs=False, 
-                           configFile=None):
+                           configFile=None,
+                           buildJobTreeStats=False):
     """Runs the workflow and various downstream utilities.
     """
     logger.info("Running cactus workflow test script")
@@ -234,7 +236,8 @@ def runWorkflow_TestScript(sequences, newickTreeString,
     #Run the actual workflow
     runCactusWorkflow(experimentFile, jobTreeDir, 
                       batchSystem=batchSystem, buildTrees=buildTrees, 
-                      buildFaces=buildFaces, buildReference=buildReference)
+                      buildFaces=buildFaces, buildReference=buildReference,
+                      jobTreeStats=buildJobTreeStats)
     logger.info("Ran the the workflow")
     
     #Check if the jobtree completed sucessively.
@@ -247,6 +250,10 @@ def runWorkflow_TestScript(sequences, newickTreeString,
     logger.info("Checked the cactus tree")
     
     #Now run various utilities..
+    
+    if buildJobTreeStats:
+        jobTreeStatsFile = os.path.join(outputDir, "jobTreeStats.xml")
+        runJobTreeStats(jobTreeDir, jobTreeStatsFile)
     
     #Run the cactus tree graph-viz plot
     if buildCactusPDF:
@@ -314,7 +321,7 @@ def runWorkflow_multipleExamples(inputGenFunction,
                                buildCactusPDF=False, buildAdjacencyPDF=False,
                                buildReferencePDF=False,
                                makeCactusTreeStats=False, makeMAFs=False,
-                               configFile=None):
+                               configFile=None, buildJobTreeStats=False):
     """A wrapper to run a number of examples.
     """
     if (inverseTestRestrictions and TestStatus.getTestStatus() not in testRestrictions) or \
@@ -337,7 +344,8 @@ def runWorkflow_multipleExamples(inputGenFunction,
                                    buildTrees=buildTrees, buildFaces=buildFaces, buildReference=buildReference, 
                                    buildCactusPDF=buildCactusPDF, buildAdjacencyPDF=buildAdjacencyPDF,
                                    buildReferencePDF=buildReferencePDF,
-                                   makeCactusTreeStats=makeCactusTreeStats, makeMAFs=makeMAFs, configFile=configFile)
+                                   makeCactusTreeStats=makeCactusTreeStats, makeMAFs=makeMAFs, configFile=configFile,
+                                   buildJobTreeStats=buildJobTreeStats)
             if outputDir == None:
                 experiment.cleanupDatabase()
             system("rm -rf %s" % tempDir)

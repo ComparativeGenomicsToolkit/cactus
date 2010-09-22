@@ -1,4 +1,4 @@
-"""Setup functions for assisting in running the various programs of the cactus package.
+"""Wrapper functions for assisting in running the various programs of the cactus package.
 """
 
 import os
@@ -167,7 +167,8 @@ def runCactusWorkflow(experimentFile,
                       batchSystem="single_machine", 
                       rescueJobFrequency=None,
                       setupAndBuildAlignments=True,
-                      buildTrees=True, buildFaces=True, buildReference=True):
+                      buildTrees=True, buildFaces=True, buildReference=True,
+                      jobTreeStats=False):
     buildFaces=False
     setupAndBuildAlignments = nameValue("setupAndBuildAlignments", setupAndBuildAlignments, bool)
     buildTrees = nameValue("buildTrees", buildTrees, bool)
@@ -177,9 +178,11 @@ def runCactusWorkflow(experimentFile,
     batchSystem = nameValue("batchSystem", batchSystem, str)
     retryCount = nameValue("retryCount", retryCount, int)
     rescueJobFrequency = nameValue("rescueJobsFrequency", rescueJobFrequency, int)
-    command = "cactus_workflow.py --experiment %s %s %s %s %s --jobTree %s --logLevel %s %s %s %s" % \
+    jobTreeStats = nameValue("stats", jobTreeStats, bool)
+    
+    command = "cactus_workflow.py --experiment %s %s %s %s %s --jobTree %s --logLevel %s %s %s %s %s" % \
             (experimentFile, setupAndBuildAlignments, buildTrees, buildFaces, 
-             buildReference, jobTreeDir, logLevel, batchSystem, retryCount, rescueJobFrequency)
+             buildReference, jobTreeDir, logLevel, batchSystem, retryCount, rescueJobFrequency, jobTreeStats)
     #print "going to run the command:", command
     #assert False
     system(command)

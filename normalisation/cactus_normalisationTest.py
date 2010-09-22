@@ -12,15 +12,15 @@ class TestCase(unittest.TestCase):
     def testCactusNormalisation_Random(self):
         runWorkflow_multipleExamples(getCactusInputs_random,
                                      testNumber=TestStatus.getTestSetup(),
-                                     buildTrees=False, buildFaces=False, buildReference=False)
+                                     buildTrees=False, buildFaces=False, buildReference=False, buildJobTreeStats=True)
         
     def testCactusNormalisation_Blanchette(self):
         runWorkflow_multipleExamples(getCactusInputs_blanchette,
                                      testRestrictions=(TestStatus.TEST_SHORT,), inverseTestRestrictions=True,
-                                     buildTrees=False, buildFaces=False, buildReference=False)
+                                     buildTrees=False, buildFaces=False, buildReference=False, buildJobTreeStats=True)
     
 def main():
-    parseCactusSuiteTestOptions()
+    parseCactusSuiteTestOptions() 
     sys.argv = sys.argv[:1]
     unittest.main()
         
