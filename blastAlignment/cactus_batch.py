@@ -63,12 +63,12 @@ class MakeBlasts(Target):
         self.sequences = sequences
         self.finalResultsFile = finalResultsFile
         
-    def run(self, localTempDir, globalTempDir):
+    def run(self):
         ##########################################
         #Setup the temp file structure.
         ##########################################
         
-        tempFileTreeDir = getTempDirectory(globalTempDir)
+        tempFileTreeDir = getTempDirectory(self.getGlobalTempDir())
         tempFileTree = TempFileTree(tempFileTreeDir)
         
         logger.info("Setup the temporary files")
@@ -81,8 +81,8 @@ class MakeBlasts(Target):
         #Bridging the breaks between chunks (only between adjacency chunks) we create smaller overlapping, call these bridges.
         
         def processSequences(sequenceFiles, tempFilesDir):
-            chunkFiles = getTempFile(suffix=".txt", rootDir=localTempDir)
-            bridgeFiles = getTempFile(suffix=".txt", rootDir=localTempDir)
+            chunkFiles = getTempFile(suffix=".txt", rootDir=self.getLocalTempDir())
+            bridgeFiles = getTempFile(suffix=".txt", rootDir=self.getLocalTempDir())
             system("cactus_batch_chunkSequences %s %s %i %i %s %i %s" % \
                    (chunkFiles, bridgeFiles, 
                     self.options.chunkSize, self.options.overlapSize,
@@ -105,7 +105,7 @@ class MakeBlasts(Target):
             os.remove(bridgeFiles)
             return tempSeqFiles, tempOverlapSeqFiles
         
-        tempSeqFilesDir = getTempDirectory(globalTempDir)
+        tempSeqFilesDir = getTempDirectory(self.getGlobalTempDir())
         tempSeqFiles, tempOverlapSeqFiles = processSequences(self.sequences, tempSeqFilesDir)
         logger.info("Broken up the sequence files into individual contigs files")
     
@@ -263,16 +263,16 @@ class RunBlast(Target):
         self.seqFilesChunks2 = seqFilesChunks2
         self.resultsFile = resultsFile
     
-    def run(self, localTempDir, globalTempDir):
-        self.seqFilesChunks1 = [ readFastaTemporaryFiles(seqFiles, localTempDir, self.options.compressFiles) for seqFiles in self.seqFilesChunks1 ]
-        self.seqFilesChunks2 = [ readFastaTemporaryFiles(seqFiles, localTempDir, self.options.compressFiles) for seqFiles in self.seqFilesChunks2 ]
+    def run(self):
+        self.seqFilesChunks1 = [ readFastaTemporaryFiles(seqFiles, self.getLocalTempDir(), self.options.compressFiles) for seqFiles in self.seqFilesChunks1 ]
+        self.seqFilesChunks2 = [ readFastaTemporaryFiles(seqFiles, self.getLocalTempDir(), self.options.compressFiles) for seqFiles in self.seqFilesChunks2 ]
         
         logger.info("Created the temporary sequence files and copied input files to the local temporary directory")
         
         tempResultsFiles = []
         for tempSeqFile1 in self.seqFilesChunks1:
             for tempSeqFile2 in self.seqFilesChunks2:
-                tempResultsFile = getTempFile(suffix=".cigars", rootDir=localTempDir)
+                tempResultsFile = getTempFile(suffix=".cigars", rootDir=self.getLocalTempDir())
                 tempResultsFiles.append(tempResultsFile)
                 logger.info("Got a temporary results file")
                 executeBlast(tempSeqFile1, tempSeqFile2, tempResultsFile, self.options.blastString)
@@ -296,15 +296,15 @@ class RunSelfBlast(Target):
         self.seqFiles = seqFiles
         self.resultsFile = resultsFile
     
-    def run(self, localTempDir, globalTempDir):
+    def run(self):
         #Get temp file to put sequences and results in locally.
         for i in xrange(len(self.seqFiles)):
-            self.seqFiles[i] = readFastaTemporaryFiles(self.seqFiles[i:i+1], localTempDir, self.options.compressFiles)
+            self.seqFiles[i] = readFastaTemporaryFiles(self.seqFiles[i:i+1], self.getLocalTempDir(), self.options.compressFiles)
         
-        tempResultsFile1 = getTempFile(suffix=".cigars", rootDir=localTempDir)
-        tempResultsFile2 = getTempFile(suffix=".cigars", rootDir=localTempDir)
-        tempSeqFile1 = getTempFile(suffix=".fa", rootDir=localTempDir)
-        tempSeqFile2 = getTempFile(suffix=".fa", rootDir=localTempDir)
+        tempResultsFile1 = getTempFile(suffix=".cigars", rootDir=self.getLocalTempDir())
+        tempResultsFile2 = getTempFile(suffix=".cigars", rootDir=self.getLocalTempDir())
+        tempSeqFile1 = getTempFile(suffix=".fa", rootDir=self.getLocalTempDir())
+        tempSeqFile2 = getTempFile(suffix=".fa", rootDir=self.getLocalTempDir())
         
         logger.info("Created the temporary files")
         
@@ -357,7 +357,7 @@ class CollateBlasts(Target):
         self.tempFileTreeDir = tempFileTreeDir
         self.tempSeqFilesDir = tempSeqFilesDir
     
-    def run(self, localTempDir, globalTempDir):
+    def run(self):
         ##########################################
         #Collate the results.
         ##########################################

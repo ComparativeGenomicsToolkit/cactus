@@ -31,7 +31,7 @@ class CactusTuningWrapper(Target):
       Target.__init__(self)
       self.options = options
 
-   def run(self, localTempDir, globalTempDir):
+   def run(self):
       #--------------------------------------------------------------------------------------
       #Get parameter sets. For each set, issue job to run cactus on different simulation data
       #--------------------------------------------------------------------------------------
@@ -80,7 +80,7 @@ class CactusTuningSimulationsWrapper(Target):
       self.paraFile = paraFile
       self.outDir = outDir
 
-   def run(self, localTempDir, globalTempDir):
+   def run(self):
       #--------------------------------------------
       #Run cactus & evaluations for each simulation
       #--------------------------------------------
@@ -123,7 +123,7 @@ class CactusWorkflowWrapper(Target):
       self.sequenceFiles = sequenceFiles
       self.tree = tree
 
-   def run(self, localTempDir, globalTempDir):
+   def run(self):
       #----------------------------------------
       # Run cactus_workflow.py and report time#
       #----------------------------------------
@@ -171,7 +171,7 @@ class CactusMAFGeneratorWrapper(Target):
       self.simName = simName
       self.cactusRunTime = cactusRunTime
 
-   def run(self, localTempDir, globalTempDir):
+   def run(self):
       flowerdisk = os.path.join(self.resultsDir, "cactusDisk")
       maffile = os.path.join(self.resultsDir, "cactus.maf")
       runCactusMAFGenerator(mAFFile = maffile, cactusDisk = flowerdisk)
@@ -188,7 +188,7 @@ class EvalMafComparatorWrapper(Target):
       self.maf2 = maf2
       self.outputFile = outputFile
       self.time = time
-   def run(self, localTempDir, globalTempDir):
+   def run(self):
       sampleNumber = "1000000"
       runEvalMAFComparator(self.maf1, self.maf2, self.outputFile, sampleNumber)
       #Add the the run time to the results
@@ -203,7 +203,7 @@ class CactusWorkflowWrapperCleanup(Target):
    def __init__(self, dir):
       Target.__init__(self)
       self.dir = dir
-   def run(self, localTempDir, globalTempDir):
+   def run(self):
       system("rm -rf %s" % self.dir)
       logger.info("Clean up tempDir for next run\n")
 
@@ -216,7 +216,7 @@ class CactusMergeResultsAndCleanup(Target):
       self.outDir = outDir
       self.options = options
       
-   def run(self, localTempDir, globalTempDir):
+   def run(self):
       mergedFile = os.path.join(self.outDir, "mafCompare.xml")
       count = 0
       for sim in self.options.sim:
@@ -239,7 +239,7 @@ class CactusTuningSummary(Target):
       Target.__init__(self)
       self.options = options
       
-   def run(self, localTempDir, globalTempDir):
+   def run(self):
       getCactusTuningSummary(self.options.outputDir, self.options.species, self.options.sim)
 
 #============================ Getting parameters =======================================#

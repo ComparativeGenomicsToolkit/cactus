@@ -28,13 +28,13 @@ class MakeSequences(Target):
         self.resultsFile = resultsFile
         self.blastOptions = blastOptions
         
-    def run(self, localTempDir, globalTempDir):
+    def run(self):
         ##########################################
         #Setup the temp files
         ##########################################
         
-        tempSeqFile = getTempFile(rootDir=globalTempDir)
-        tempResultsFile = getTempFile(rootDir=globalTempDir)
+        tempSeqFile = getTempFile(rootDir=self.getGlobalTempDir())
+        tempResultsFile = getTempFile(rootDir=self.getGlobalTempDir())
         
         logger.info("Built temporary files")
         
@@ -70,7 +70,7 @@ class ModifyBlasts(Target):
         self.tempResultsFile = tempResultsFile
         self.resultsFile = resultsFile    
     
-    def run(self, localTempDir, globalTempDir):
+    def run(self):
         os.remove(self.tempSeqFile)
         logger.info("Removed the temporary fasta file for the blast step")
         

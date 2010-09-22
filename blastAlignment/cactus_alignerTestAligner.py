@@ -27,7 +27,7 @@ class MakeBlasts(Target):
         self.sequences = sequences
         self.resultsFile = resultsFile
 
-    def run(self, localTempDir, globalTempDir):
+    def run(self):
         ##########################################
         #Stuff to make random alignments
         ##########################################
