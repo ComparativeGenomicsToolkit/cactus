@@ -223,7 +223,7 @@ class CactusCoreWrapper(Target):
 class CactusBaseLevelAlignerWrapper(Target):
     #We split, to deal with cleaning up the alignment file
     def __init__(self, options, flowerNames):
-        Target.__init__(self, time=47.12) #time)
+        Target.__init__(self, time=23.56) #time)
         self.options = options
         self.flowerNames = flowerNames
     
