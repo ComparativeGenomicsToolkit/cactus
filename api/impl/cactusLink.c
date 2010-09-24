@@ -129,28 +129,33 @@ bool link_isTrivial(Link *link) {
 
     End *_3End = link_get3End(link);
     End *_5End = link_get5End(link);
-    if (end_isBlockEnd(_3End) && end_isBlockEnd(_5End)) { //Must both be block ends
-        if (end_getInstanceNumber(_3End) == end_getInstanceNumber(_5End)) { //Must each be connected to other.
-            Cap *_3Cap;
-            End_InstanceIterator *capIt = end_getInstanceIterator(_3End);
-            while ((_3Cap = end_getNext(capIt)) != NULL) {
-                assert(cap_getOrientation(_3Cap));
-                Cap *_5Cap = cap_getAdjacency(_3Cap);
-                assert(_5Cap != NULL);
-                assert(cap_getEnd(_5Cap) != end_getReverse(_5End));
-                if (cap_getEnd(_5Cap) != _5End) { //The adjacency must be a self adjacency
-                    assert(cap_getEnd(_5Cap) == end_getReverse(_3End));
-                    end_destructInstanceIterator(capIt);
-                    return 0;
+    assert(!end_getSide(_3End));
+    assert(end_getSide(_5End));
+    Group *group = link_getGroup(link);
+    if(group_getEndNumber(group) == 2) {
+        if (end_isBlockEnd(_3End) && end_isBlockEnd(_5End)) { //Must both be block ends
+            if (end_getInstanceNumber(_3End) == end_getInstanceNumber(_5End)) { //Must each be connected to other.
+                Cap *_3Cap;
+                End_InstanceIterator *capIt = end_getInstanceIterator(_3End);
+                while ((_3Cap = end_getNext(capIt)) != NULL) {
+                    assert(cap_getOrientation(_3Cap));
+                    Cap *_5Cap = cap_getAdjacency(_3Cap);
+                    assert(_5Cap != NULL);
+                    assert(cap_getEnd(_5Cap) != end_getReverse(_5End));
+                    if (cap_getEnd(_5Cap) != _5End) { //The adjacency must be a self adjacency as it contains no free stubs.
+                        assert(cap_getEnd(_5Cap) == end_getReverse(_3End));
+                        end_destructInstanceIterator(capIt);
+                        return 0;
+                    }
+                    if (abs(cap_getCoordinate(_3Cap) - cap_getCoordinate(_5Cap))
+                            != 1) { //There is a nontrivial adjacency
+                        end_destructInstanceIterator(capIt);
+                        return 0;
+                    }
                 }
-                if (abs(cap_getCoordinate(_3Cap) - cap_getCoordinate(_5Cap))
-                        != 1) { //There is a nontrivial adjacency
-                    end_destructInstanceIterator(capIt);
-                    return 0;
-                }
+                end_destructInstanceIterator(capIt);
+                return 1;
             }
-            end_destructInstanceIterator(capIt);
-            return 1;
         }
     }
     return 0;
@@ -161,6 +166,7 @@ bool link_mergeIfTrivial(Link *link) {
         End *_3End = link_get3End(link);
         End *_5End = link_get5End(link);
         Group *group = link_getGroup(link);
+        assert(group_getEndNumber(group) == 2); //Can not contain any stubs!
         Chain *chain = link_getChain(link);
         Block *_5Block = end_getBlock(_3End);
         Block *_3Block = end_getBlock(_5End);
