@@ -32,7 +32,7 @@ def getRefSeq():
                 seq += list[6]
                 #count += 1
                 #totalbases += int(list[3])
-    sys.stdout.write(">Reference\n")
+    sys.stdout.write(">reference\n")
     #sys.stderr.write("Count: %d; totalBase: %d; Total bases in the ref: %d\n" %(count, totalbases, len(seq)))
     for i in range(0, len(seq), 50):
         sys.stdout.write(seq[i:i+50] + '\n')
