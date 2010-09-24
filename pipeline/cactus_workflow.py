@@ -188,7 +188,7 @@ class CactusBlastWrapper(Target):
 
 class CactusCoreWrapper(Target):
     def __init__(self, options, flowerName, alignmentFile, iteration):
-        Target.__init__(self, time=88.62)
+        Target.__init__(self, time=88.62, memory=4294967295) #Request 2^32 (4 gigs of ram)
         self.options = options
         self.flowerName = flowerName
         self.alignmentFile = alignmentFile
