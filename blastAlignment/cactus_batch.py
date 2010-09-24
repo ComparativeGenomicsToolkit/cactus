@@ -350,7 +350,7 @@ class CollateBlasts(Target):
     """Collates all the blasts into a single alignments file.
     """
     def __init__(self, options, finalResultsFile, resultsFiles, tempFileTreeDir, tempSeqFilesDir):
-        Target.__init__(self)
+        Target.__init__(self, time=0.05837)
         self.options = options
         self.finalResultsFile = finalResultsFile
         self.resultsFiles = resultsFiles

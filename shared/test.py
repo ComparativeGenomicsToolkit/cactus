@@ -297,7 +297,7 @@ def runWorkflow_TestScript(sequences, newickTreeString,
     
     if makeMAFs:
         mAFFile = os.path.join(outputDir, "cactus.maf")
-        runCactusMAFGenerator(mAFFile, cactusDiskDatabaseString, orderByReference=buildReference)
+        runCactusMAFGenerator(mAFFile, cactusDiskDatabaseString, orderByReference=buildReference, includeReferenceSequence=buildReference)
         logger.info("Ran the MAF building script")
     else:
         logger.info("Not building the MAFs")
