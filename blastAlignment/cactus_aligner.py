@@ -22,7 +22,7 @@ class MakeSequences(Target):
     Then setup the follow on blast targets and collation targets.
     """
     def __init__(self, cactusDisk, flowerName, resultsFile, blastOptions):
-        Target.__init__(self)
+        Target.__init__(self, time=0.0099)
         self.cactusDisk = cactusDisk
         self.flowerName = flowerName
         self.resultsFile = resultsFile
@@ -65,7 +65,7 @@ class ModifyBlasts(Target):
     """
     
     def __init__(self, tempSeqFile, tempResultsFile, resultsFile):
-        Target.__init__(self)
+        Target.__init__(self, time=0.062069)
         self.tempSeqFile = tempSeqFile
         self.tempResultsFile = tempResultsFile
         self.resultsFile = resultsFile    

@@ -1,10 +1,9 @@
-<cactus_workflow_config ideal_job_runtime="300">
+<cactus_workflow_config>
 	<alignment>
 		<blast_misc overlapSize="10000" chunksPerJob="1"
 			compressFiles="True" />
 		<iterations>
-			<iteration number="0" max_sequence_size="10e100" type="blast"
-				time="1000">
+			<iteration number="0" max_sequence_size="10e100" type="blast">
 				<blast chunkSize="100000000"
 					blastString="lastz --format=cigar --notransition --seed=14of22 --step=100 --nogapped --hspthresh=6000 SEQ_FILE_1[multiple][nameparse=darkspace] SEQ_FILE_2[nameparse=darkspace] > CIGARS_FILE"
 					selfBlastString="lastz --format=cigar --notransition --seed=14of22 --step=100 --nogapped --hspthresh=6000 SEQ_FILE[nameparse=darkspace] --self > CIGARS_FILE" />
@@ -17,8 +16,7 @@
 					adjacencyComponentOverlap="2" />
 			</iteration>
 
-			<iteration number="1" max_sequence_size="30000000" type="blast"
-				time="1000">
+			<iteration number="1" max_sequence_size="30000000" type="blast">
 				<blast chunkSize="3000000"
 					blastString="lastz --format=cigar SEQ_FILE_1[multiple][nameparse=darkspace] SEQ_FILE_2[nameparse=darkspace] > CIGARS_FILE"
 					selfBlastString="lastz --format=cigar SEQ_FILE[nameparse=darkspace] --self > CIGARS_FILE" />
@@ -31,8 +29,7 @@
 					adjacencyComponentOverlap="3" />
 			</iteration>
 
-			<iteration number="2" max_sequence_size="1000000" type="blast"
-				time="10">
+			<iteration number="2" max_sequence_size="1000000" type="blast">
 				<blast chunkSize="1000000"
 					blastString="lastz --format=cigar --hspthresh=1800 SEQ_FILE_1[multiple][nameparse=darkspace] SEQ_FILE_2[nameparse=darkspace] > CIGARS_FILE"
 					selfBlastString="lastz --format=cigar --hspthresh=1800 SEQ_FILE[nameparse=darkspace] --self > CIGARS_FILE" />
@@ -45,21 +42,20 @@
 					adjacencyComponentOverlap="3" />
 			</iteration>
 
-			<iteration number="3" max_sequence_size="2000" type="base"
-				time="1" />
+			<iteration number="3" max_sequence_size="2000" type="base" />
 		</iterations>
 	</alignment>
 
-	<normal time="1" rounds="2" max_number_of_chains="30">
+	<normal rounds="2" max_number_of_chains="30">
 	</normal>
 
-	<phylogeny time="1">
+	<phylogeny>
 	</phylogeny>
 
-	<faces time="1">
+	<faces>
 	</faces>
 
-	<reference time="1" matching_algorithm="blossom5">
+	<reference matching_algorithm="blossom5">
 	</reference>
 
 	<check time="1">

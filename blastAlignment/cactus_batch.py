@@ -55,7 +55,7 @@ class MakeBlasts(Target):
     """Breaks up the inputs into bits a builds a bunch of alignment jobs.
     """
     def __init__(self, options, sequences, finalResultsFile):
-        Target.__init__(self)
+        Target.__init__(self, time=0.1380)
         assert options.chunkSize > options.overlapSize
         assert options.overlapSize >= 2
         assert options.chunksPerJob >= 1
@@ -257,7 +257,7 @@ class RunBlast(Target):
     """Runs blast as a job.
     """
     def __init__(self, options, seqFilesChunks1, seqFilesChunks2, resultsFile):
-        Target.__init__(self)
+        Target.__init__(self, time=33.119)
         self.options = options
         self.seqFilesChunks1 = seqFilesChunks1
         self.seqFilesChunks2 = seqFilesChunks2
@@ -291,7 +291,7 @@ class RunSelfBlast(Target):
     """Runs blast as a job.
     """
     def __init__(self, options, seqFiles, resultsFile):
-        Target.__init__(self)
+        Target.__init__(self, time=33.119)
         self.options = options
         self.seqFiles = seqFiles
         self.resultsFile = resultsFile
