@@ -856,8 +856,6 @@ void pinchMergePiece(struct PinchGraph *graph, struct Piece *piece1,
             if(vertex1 != vertex2) {
                 assert(stHash_search(vertexToSetOfAdjacencyComponentsHash, vertex1) != NULL);
                 assert(stHash_search(vertexToSetOfAdjacencyComponentsHash, vertex2) != NULL);
-                k = stIntTuple_getPosition(stHash_search(vertexToSetOfAdjacencyComponentsHash,
-                        vertex1), 0);
                 /*
                  * We have randomly chosen one of the vertex adjacency components..
                  */
