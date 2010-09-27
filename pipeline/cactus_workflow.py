@@ -318,7 +318,7 @@ class CactusPhylogeny(Target):
     """This target does the down pass for the phylogeny phase.
     """
     def __init__(self, options, flowerNames):
-        Target.__init__(self, time=1.0)
+        Target.__init__(self, time=1.0 )
         self.options = options
         self.flowerNames = flowerNames
     
