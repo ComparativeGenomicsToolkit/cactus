@@ -286,7 +286,7 @@ class CactusNormalRunnable(Target):
     """This targets run the normalisation script.
     """
     def __init__(self, flowerNames, options):
-        Target.__init__(self, time=0.5)
+        Target.__init__(self, time=1.0)
         self.flowerNames = flowerNames
         self.options = options
         
@@ -318,7 +318,7 @@ class CactusPhylogeny(Target):
     """This target does the down pass for the phylogeny phase.
     """
     def __init__(self, options, flowerNames):
-        Target.__init__(self, time=0.7)
+        Target.__init__(self, time=1.0)
         self.options = options
         self.flowerNames = flowerNames
     
@@ -336,7 +336,7 @@ class CactusPhylogeny(Target):
     
 class CactusReferencePhase(Target):
     def __init__(self, flowerName, options):
-        Target.__init__(self, time=0.00022)
+        Target.__init__(self, time=0.0002)
         self.flowerName = flowerName
         self.options = options
         
@@ -350,7 +350,7 @@ class CactusReferenceDown(Target):
     """This target does the down pass for the reference phase.
     """
     def __init__(self, options, flowerNames):
-        Target.__init__(self, time=0.5)
+        Target.__init__(self, time=1.0)
         self.options = options
         self.flowerNames = flowerNames
     
@@ -364,7 +364,7 @@ class CactusReferenceRunnable(Target):
     """This target runs the reference script bottom up (second phase).
     """
     def __init__(self, flowerNames, options):
-        Target.__init__(self, time=0.5)
+        Target.__init__(self, time=1.0)
         self.flowerNames = flowerNames
         self.options = options
         
@@ -425,7 +425,7 @@ class CactusCheck(Target):
     """This target does the down pass for the check phase.
     """
     def __init__(self, options, flowerNames):
-        Target.__init__(self, time=0.5)
+        Target.__init__(self, time=1,0)
         self.options = options
         self.flowerNames = flowerNames
     

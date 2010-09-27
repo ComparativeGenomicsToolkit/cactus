@@ -123,16 +123,6 @@ def runCactusExtendFlowers(cactusDiskDatabaseString, flowerName, tempDir,
     os.remove(flowerNamesFile)
     return l
 
-def runCactusGetUniqueName(cactusDiskDatabaseString, tempDir):
-    """Gets a globally unique name.
-    """
-    uniqueNameFile = getTempFile(".txt", tempDir)
-    system("cactus_workflow_getUniqueName '%s' %s" % (cactusDiskDatabaseString, uniqueNameFile))
-    fileHandle = open(uniqueNameFile, 'r')
-    nameString = fileHandle.readline()[:-1]
-    os.remove(uniqueNameFile)
-    return nameString
-
 def runCactusMakeNormal(cactusDiskDatabaseString, flowerNames, maxNumberOfChains=0, logLevel="DEBUG"):
     """Makes the given flowers normal (see normalisation for the various phases)
     """
