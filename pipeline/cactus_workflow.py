@@ -55,7 +55,7 @@ from cactus.blastAlignment.cactus_batch import makeBlastFromOptions
 
 class CactusSetupPhase(Target):
     def __init__(self, options, sequences):
-        Target.__init__(self, time=0.00016)
+        Target.__init__(self, time=0.0002)
         self.options = options 
         self.sequences = sequences 
 
@@ -69,7 +69,7 @@ class CactusSetupPhase(Target):
 
 class CactusSetupWrapper(Target):
     def __init__(self, options, sequences):
-        Target.__init__(self, time=0.1)
+        Target.__init__(self, time=1.0)
         self.options = options
         self.sequences = sequences
         
@@ -91,7 +91,7 @@ class CactusSetupWrapper(Target):
     
 class CactusAlignmentPhase(Target):
     def __init__(self, flowerName, options):
-        Target.__init__(self, time=0.00023)
+        Target.__init__(self, time=0.0002)
         self.flowerName = flowerName
         self.options = options
         
@@ -116,7 +116,7 @@ def getAlignmentIteration(iterations, iterationNumber, flowerSize):
 
 class CactusAlignmentWrapper(Target):
     def __init__(self, options, flowerName, alignmentFile, iteration):
-        Target.__init__(self, time=0.367)
+        Target.__init__(self, time=1.5)
         self.options = options
         self.iteration = iteration
         self.flowerName = flowerName
@@ -155,7 +155,7 @@ class CactusAlignmentWrapper(Target):
 
 class CactusBlastWrapper(Target):
     def __init__(self, options, flowerName, iteration):
-        Target.__init__(self, time=0.00064)
+        Target.__init__(self, time=0.01)
         self.options = options
         self.flowerName = flowerName
         self.iteration = int(iteration)
@@ -188,7 +188,7 @@ class CactusBlastWrapper(Target):
 
 class CactusCoreWrapper(Target):
     def __init__(self, options, flowerName, alignmentFile, iteration):
-        Target.__init__(self, time=88.62, memory=4294967295) #Request 2^32 (4 gigs of ram)
+        Target.__init__(self, time=150, memory=4294967295) #Request 2^32 (4 gigs of ram)
         self.options = options
         self.flowerName = flowerName
         self.alignmentFile = alignmentFile
@@ -223,7 +223,7 @@ class CactusCoreWrapper(Target):
 class CactusBaseLevelAlignerWrapper(Target):
     #We split, to deal with cleaning up the alignment file
     def __init__(self, options, flowerNames):
-        Target.__init__(self, time=23.56) #time)
+        Target.__init__(self, time=30) #time)
         self.options = options
         self.flowerNames = flowerNames
     
@@ -254,7 +254,7 @@ def makeChildTargets(options, flowerNames, target, childTarget, jobNumber=100):
     
 class CactusNormalPhase(Target):
     def __init__(self, flowerName, options, normalisationRounds=-1):
-        Target.__init__(self, time=0.000204)
+        Target.__init__(self, time=0.0002)
         self.flowerName = flowerName
         self.options = options
         if(normalisationRounds < 0):
@@ -286,7 +286,7 @@ class CactusNormalRunnable(Target):
     """This targets run the normalisation script.
     """
     def __init__(self, flowerNames, options):
-        Target.__init__(self, time=0.3)
+        Target.__init__(self, time=0.5)
         self.flowerNames = flowerNames
         self.options = options
         
@@ -304,7 +304,7 @@ class CactusNormalRunnable(Target):
     
 class CactusPhylogenyPhase(Target):
     def __init__(self, flowerName, options):
-        Target.__init__(self, time=0.000205)
+        Target.__init__(self, time=0.0002)
         self.flowerName = flowerName
         self.options = options
         
@@ -318,7 +318,7 @@ class CactusPhylogeny(Target):
     """This target does the down pass for the phylogeny phase.
     """
     def __init__(self, options, flowerNames):
-        Target.__init__(self, time=0.3)
+        Target.__init__(self, time=0.7)
         self.options = options
         self.flowerNames = flowerNames
     
@@ -364,7 +364,7 @@ class CactusReferenceRunnable(Target):
     """This target runs the reference script bottom up (second phase).
     """
     def __init__(self, flowerNames, options):
-        Target.__init__(self, time=0.3)
+        Target.__init__(self, time=0.5)
         self.flowerNames = flowerNames
         self.options = options
         
@@ -381,7 +381,7 @@ class CactusReferenceRunnable(Target):
     
 class CactusFacesPhase(Target):
     def __init__(self, flowerName, options):
-        Target.__init__(self, time=0.000221)
+        Target.__init__(self, time=0.0002)
         self.flowerName = flowerName
         self.options = options
         
@@ -413,7 +413,7 @@ class CactusFaces(Target):
     
 class CactusCheckPhase(Target):
     def __init__(self, flowerName, options):
-        Target.__init__(self, time=0.00019598)
+        Target.__init__(self, time=0.0002)
         self.flowerName = flowerName
         self.options = options
         
@@ -425,7 +425,7 @@ class CactusCheck(Target):
     """This target does the down pass for the check phase.
     """
     def __init__(self, options, flowerNames):
-        Target.__init__(self, time=0.3)
+        Target.__init__(self, time=0.5)
         self.options = options
         self.flowerNames = flowerNames
     
