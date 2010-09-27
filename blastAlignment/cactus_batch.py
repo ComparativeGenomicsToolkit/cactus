@@ -264,14 +264,14 @@ class RunBlast(Target):
         self.resultsFile = resultsFile
     
     def run(self):
-        self.seqFilesChunks1 = [ readFastaTemporaryFiles(seqFiles, self.getLocalTempDir(), self.options.compressFiles) for seqFiles in self.seqFilesChunks1 ]
-        self.seqFilesChunks2 = [ readFastaTemporaryFiles(seqFiles, self.getLocalTempDir(), self.options.compressFiles) for seqFiles in self.seqFilesChunks2 ]
+        tempSeqFiles1 = [ readFastaTemporaryFiles(seqFiles, self.getLocalTempDir(), self.options.compressFiles) for seqFiles in self.seqFilesChunks1 ]
+        tempSeqFiles2 = [ readFastaTemporaryFiles(seqFiles, self.getLocalTempDir(), self.options.compressFiles) for seqFiles in self.seqFilesChunks2 ]
         
         logger.info("Created the temporary sequence files and copied input files to the local temporary directory")
         
         tempResultsFiles = []
-        for tempSeqFile1 in self.seqFilesChunks1:
-            for tempSeqFile2 in self.seqFilesChunks2:
+        for tempSeqFile1 in tempSeqFiles1:
+            for tempSeqFile2 in tempSeqFiles2:
                 tempResultsFile = getTempFile(suffix=".cigars", rootDir=self.getLocalTempDir())
                 tempResultsFiles.append(tempResultsFile)
                 logger.info("Got a temporary results file")
@@ -282,7 +282,7 @@ class RunBlast(Target):
         
         logger.info("Copied back the results files")
         
-        for tempSeqFile in self.seqFilesChunks1 + self.seqFilesChunks2 + tempResultsFiles:
+        for tempSeqFile in tempSeqFiles1 + tempSeqFiles2 + tempResultsFiles:
             os.remove(tempSeqFile)
                 
         logger.info("Removed the temporary sequence files")
@@ -298,8 +298,8 @@ class RunSelfBlast(Target):
     
     def run(self):
         #Get temp file to put sequences and results in locally.
-        for i in xrange(len(self.seqFiles)):
-            self.seqFiles[i] = readFastaTemporaryFiles(self.seqFiles[i:i+1], self.getLocalTempDir(), self.options.compressFiles)
+        
+        tempSeqFiles = [ readFastaTemporaryFiles([ seqFile ], self.getLocalTempDir(), self.options.compressFiles) for seqFile in self.seqFiles ]
         
         tempResultsFile1 = getTempFile(suffix=".cigars", rootDir=self.getLocalTempDir())
         tempResultsFile2 = getTempFile(suffix=".cigars", rootDir=self.getLocalTempDir())
@@ -334,14 +334,14 @@ class RunSelfBlast(Target):
                 system("cat %s >> %s" % (tempResultsFile1, tempResultsFile2))
                 logger.info("Copied input file to the local temporary directory")
         open(tempResultsFile2, 'w').close() #Defensive, to ensue tempResultsFile2 is empty
-        fn(self.seqFiles)
+        fn(tempSeqFiles)
         
         #Write stuff back to the central dirs.
         system("cp %s %s" % (tempResultsFile2, self.resultsFile))
         logger.info("Copied the results back")
             
         #Cleanup
-        for tempFile in self.seqFiles + [ tempSeqFile1, tempSeqFile2, tempResultsFile1, tempResultsFile2 ]:
+        for tempFile in tempSeqFiles + [ tempSeqFile1, tempSeqFile2, tempResultsFile1, tempResultsFile2 ]:
             os.remove(tempFile)
         
         logger.info("Cleaned up")
