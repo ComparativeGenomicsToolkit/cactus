@@ -19,7 +19,7 @@ class TestCase(unittest.TestCase):
         self.testNo = TestStatus.getTestSetup()
         unittest.TestCase.setUp(self)
        
-    def testCactusSetup(self):
+    def testCactusSetup(self): 
         """Creates a bunch of random inputs and then passes them to cactus setup.
         """
         for test in xrange(self.testNo): 
@@ -29,8 +29,8 @@ class TestCase(unittest.TestCase):
             
             #Setup the flower disk.
             experiment = getCactusWorkflowExperimentForTest(sequences, newickTreeString, tempDir)
-            cactusDiskDatabaseString = experiment.getDatabaseString()
-           
+            cactusDiskDatabaseString = experiment.getDatabaseString() 
+            
             runCactusSetup(cactusDiskDatabaseString, sequences, newickTreeString, debug=True)
             runCactusSetup(cactusDiskDatabaseString, sequences, newickTreeString, debug=True)
             

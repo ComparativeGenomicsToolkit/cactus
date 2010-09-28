@@ -240,7 +240,7 @@ class CactusBaseLevelAlignerWrapper(Target):
 ############################################################
 ############################################################
 
-def makeChildTargets(options, flowerNames, target, childTarget, jobNumber=250):
+def makeChildTargets(options, flowerNames, target, childTarget, jobNumber=25):
     #Make child jobs
     childFlowerNames = []
     for childFlowerName, childFlowerSize in runCactusGetFlowers(options.cactusDiskDatabaseString, flowerNames, target.getLocalTempDir()):
