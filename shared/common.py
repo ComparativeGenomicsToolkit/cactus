@@ -2,6 +2,7 @@
 """
 
 import os
+import random
 
 from sonLib.bioio import logger
 from sonLib.bioio import getTempFile
@@ -109,6 +110,7 @@ def runCactusGetFlowers(cactusDiskDatabaseString, flowerNames, tempDir):
     system("cactus_workflow_getFlowers '%s' %s %s" % (cactusDiskDatabaseString,  flowerNamesFile, " ".join(flowerNames)))
     l = readFlowerNamesFile(flowerNamesFile)
     os.remove(flowerNamesFile)
+    random.shuffle(l) #We shuffle the flowers so we don't end up with an ordering that places all the large problems together.
     return l
 
 def runCactusExtendFlowers(cactusDiskDatabaseString, flowerName, tempDir,
@@ -121,6 +123,7 @@ def runCactusExtendFlowers(cactusDiskDatabaseString, flowerName, tempDir,
     system("cactus_workflow_extendFlowers '%s' %s %s %i" % (cactusDiskDatabaseString, flowerName, flowerNamesFile, int(minSizeToExtend)))
     l = readFlowerNamesFile(flowerNamesFile)
     os.remove(flowerNamesFile)
+    random.shuffle(l) #We shuffle the flowers so we don't end up with an ordering that places all the large problems together.
     return l
 
 def runCactusMakeNormal(cactusDiskDatabaseString, flowerNames, maxNumberOfChains=0, logLevel="DEBUG"):
