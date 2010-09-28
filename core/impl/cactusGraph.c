@@ -721,7 +721,7 @@ struct List *readThreeEdgeComponents(struct PinchGraph *pinchGraph,
      * Reads in the three edge connected components written out by the three
      * edge script.
      */
-    int32_t i, j, k;
+    int32_t i, j;
     struct PinchVertex *vertex;
 
 #ifdef BEN_DEBUG
@@ -748,7 +748,7 @@ struct List *readThreeEdgeComponents(struct PinchGraph *pinchGraph,
     }
 #ifdef BEN_DEBUG
     assert(l == pinchGraph->vertices->length);
-    k = FALSE;
+    int32_t k = FALSE;
 #endif
     for (i = 0; i < threeEdgeConnectedComponents->length; i++) {
         struct List *threeEdgeConnectedComponent = threeEdgeConnectedComponents->list[i];

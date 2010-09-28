@@ -532,7 +532,7 @@ static bool fillingIn_partnerConsents(Cap * partner, Cap * cap,
  * Creates an inteprolation half way on the branch between two events
  */
 static Event *fillingIn_interpolateEvents(Event* parentEvent, Event* childEvent) {
-    float branchLength;
+    float branchLength = 0.0;
     EventTree * eventTree = event_getEventTree(parentEvent);
     //Flower * flower = eventTree_getFlower(eventTree);
     Event * ptr = childEvent;
@@ -655,7 +655,7 @@ static void fillingIn_chooseAtRandom(Cap * cap, AdjacencyVote * vote,
 static void fillingIn_processChildrenVote(Cap * cap, AdjacencyVoteTable * table) {
     int32_t childrenNumber = cap_getChildNumber(cap);
     Cap *first_child, *second_child;
-    AdjacencyVote *first_child_vote, *second_child_vote, *merged_vote;
+    AdjacencyVote *first_child_vote, *second_child_vote, *merged_vote = NULL;
     AdjacencyVote *partner_vote = NULL;
     Cap *partner = NULL;
 

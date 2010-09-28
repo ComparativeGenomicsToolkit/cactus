@@ -269,7 +269,7 @@ static void buildFaces_engineerCaps(Face * face, Flower * flower) {
     Face_FaceEndIterator * faceEndIterator;
     FaceEnd * faceEnd = NULL;
     FaceEnd_BottomNodeIterator * bottomNodeIterator;
-    Cap * bottomNode, * adjacency;
+    Cap *bottomNode = NULL, *adjacency = NULL;
 
     // Look for terminal nodes in face according to their nature
     faceEndIterator = face_getFaceEndIterator(face);

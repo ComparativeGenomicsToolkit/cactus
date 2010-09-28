@@ -248,7 +248,7 @@ stHash *adjacencyHash_constructInitialPairs(Flower *flower, MatchingAlgorithm re
     /*
      * Create the matching.
      */
-    stList *matchingTuples;
+    stList *matchingTuples = NULL;
     if(referenceAlgorithm == greedy) {
         matchingTuples = chooseMatching_greedy(tupleEdges, nodeNumber);
     }
@@ -259,7 +259,7 @@ stHash *adjacencyHash_constructInitialPairs(Flower *flower, MatchingAlgorithm re
         matchingTuples = chooseMatching_maximumCardinalityMatching(tupleEdges, nodeNumber);
     }
     else if (referenceAlgorithm == maxWeight) {
-            matchingTuples = chooseMatching_maximumWeightMatching(tupleEdges, nodeNumber);
+        matchingTuples = chooseMatching_maximumWeightMatching(tupleEdges, nodeNumber);
     }
     else {
         stThrowNew(REFERENCE_BUILDING_EXCEPTION, "Unrecognised matching algorithm: %i", referenceAlgorithm);

@@ -58,7 +58,7 @@ struct PinchGraph *constructPinchGraph(Flower *flower) {
     struct PinchVertex *pinchVertex;
     struct PinchVertex *pinchVertex2;
     struct PinchEdge *leftCapEdge;
-    struct PinchEdge *edge;
+    struct PinchEdge *edge = NULL;
     struct PinchEdge *rightCapEdge;
     struct hashtable *hash;
     struct hashtable *hash2;
@@ -562,7 +562,6 @@ void fillOutFlowerFromInputs(Flower *parentFlower,
     struct hashtable *endNamesHash;
     struct PinchEdge *pinchEdge;
     struct Piece *piece;
-    Name name;
 
     ////////////////////////////////////////////////
     //Get sorted bi-connected components (sorted as in ordered from root of vertex)
@@ -641,7 +640,7 @@ void fillOutFlowerFromInputs(Flower *parentFlower,
                 cactusEdge2 = getNonDeadEndOfStubCactusEdge(cactusEdge,
                         pinchGraph);
                 assert(cactusEdge2 != NULL);
-                name = cactusEdgeToEndName(cactusEdge2, endNamesHash,
+                Name name = cactusEdgeToEndName(cactusEdge2, endNamesHash,
                         pinchGraph);
                 end = flower_getEnd(parentFlower, name);
                 assert(end != NULL);

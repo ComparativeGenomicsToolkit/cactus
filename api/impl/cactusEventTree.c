@@ -124,7 +124,7 @@ void eventTree_destructIterator(EventTree_Iterator *iterator) {
 
 static char *eventTree_makeNewickStringP(Event *event) {
 	int32_t i;
-	char *cA;
+	char *cA = NULL;
 	char *cA2;
 	char *cA3;
 	if(event_getChildNumber(event) > 0) {

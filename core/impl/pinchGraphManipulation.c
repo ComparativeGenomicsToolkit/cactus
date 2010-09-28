@@ -31,14 +31,16 @@
 //else:
 //create a new vertex and rejoin the edge.
 
-void removeTrivialGreyEdge(struct PinchGraph *graph,
+inline void removeTrivialGreyEdge(struct PinchGraph *graph,
         struct PinchVertex *vertex1, struct PinchVertex *vertex2,
         Flower *flower) {
+#ifdef BEN_DEBUG
     assert(lengthBlackEdges(vertex1) == lengthBlackEdges(vertex2));
     assert(lengthGreyEdges(vertex1) == 1);
     assert(lengthGreyEdges(vertex2) == 1);
     assert(getFirstGreyEdge(vertex1) == vertex2);
     assert(getFirstGreyEdge(vertex2) == vertex1);
+#endif
 
     //if(lengthBlackEdges(vertex1) > 1) {
     //	assert(FALSE);
@@ -49,16 +51,22 @@ void removeTrivialGreyEdge(struct PinchGraph *graph,
         assert(lengthBlackEdges(vertex1) == lengthBlackEdges(vertex2));
 
         struct PinchEdge *edge1 = getFirstBlackEdge(vertex1);
+#ifdef BEN_DEBUG
         assert(edge1 != NULL);
         assert(!isAStub(edge1));
+#endif
         edge1 = edge1->rEdge;
+#ifdef BEN_DEBUG
         assert(edge1->to == vertex1);
+#endif
         //first find the grey edge to attach to the new vertex we're about to create
 
         struct PinchEdge *edge2 = getNextEdge(graph, edge1, flower);
+#ifdef BEN_DEBUG
         assert(edge2 != NULL);
         assert(!isAStub(edge2));
         assert(edge2->from == vertex2);
+#endif
 
         struct PinchEdge *edge3 = constructPinchEdge(constructPiece(
                 edge1->piece->contig, edge1->piece->start, edge2->piece->end));
@@ -73,8 +81,10 @@ void removeTrivialGreyEdge(struct PinchGraph *graph,
     }
 
     //Destruct the old vertices.
+#ifdef BEN_DEBUG
     assert(lengthBlackEdges(vertex1) == 0);
     assert(lengthBlackEdges(vertex2) == 0);
+#endif
     removeVertexFromGraphAndDestruct(graph, vertex1);
     removeVertexFromGraphAndDestruct(graph, vertex2);
 }
@@ -232,8 +242,8 @@ void removeOverAlignedEdges(struct PinchGraph *pinchGraph,
         vertex = pinchGraph->vertices->list[i];
         if (lengthBlackEdges(vertex) >= 1
                 && !isAStub(getFirstBlackEdge(vertex))) {
-            if (lengthBlackEdges(vertex) > maxDegree || treeCoverage(vertex,
-                    flower) < minimumTreeCoverage) { //has a high degree and is not a stub/cap
+            if (lengthBlackEdges(vertex) > maxDegree || (minimumTreeCoverage > 0.0 && treeCoverage(vertex,
+                    flower) < minimumTreeCoverage)) { //has a high degree and is not a stub/cap
                 vertex2 = getFirstBlackEdge(vertex)->to;
                 if (vertex->vertexID < vertex2->vertexID) {
                     hashtable_insert(hash, vertex, constructInt(0));
@@ -999,7 +1009,7 @@ void pinchMerge(struct PinchGraph *graph, struct PairwiseAlignment *pA,
     contig1 = cactusMisc_stringToName(pA->contig1);
     contig2 = cactusMisc_stringToName(pA->contig2);
 
-    logPairwiseAlignment(pA);
+    //logPairwiseAlignment(pA);
 
     for (i = 0; i < pA->operationList->length; i++) {
         op = pA->operationList->list[i];

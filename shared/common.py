@@ -73,7 +73,6 @@ def runCactusCore(cactusDiskDatabaseString, alignmentFile,
     (cactusDiskDatabaseString, flowerName, alignmentFile, logLevel, writeDebugFiles, annealingRounds, alignRepeatsAtRound,
      trim, trimChange, minimumTreeCoverage, minimumBlockLength,
      minimumBlockLengthChange, minimumChainLength, minimumChainLengthChange, deannealingRounds, adjacencyComponentOverlap)
-
     system(command)
     logger.info("Ran cactus_core okay")
     

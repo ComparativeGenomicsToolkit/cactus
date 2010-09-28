@@ -213,7 +213,7 @@ int32_t cactusCorePipeline(Flower *flower, CactusCoreInputParameters *cCIP,
         struct PairwiseAlignment *(*getNextAlignment)(),
         void(*startAlignmentStack)(), int32_t terminateRecursion) {
     struct PinchGraph *pinchGraph;
-    struct PinchVertex *vertex;
+    //struct PinchVertex *vertex;
     struct CactusGraph *cactusGraph;
     int32_t i, startTime;
     struct List *biConnectedComponents;
@@ -301,7 +301,7 @@ int32_t cactusCorePipeline(Flower *flower, CactusCoreInputParameters *cCIP,
 
         assert((int32_t)stHash_size(vertexToSetOfAdjacencyComponentsHash) == pinchGraph->vertices->length);
         for (i = 0; i < pinchGraph->vertices->length; i++) {
-            vertex = pinchGraph->vertices->list[i];
+            struct PinchVertex *vertex = pinchGraph->vertices->list[i];
             assert(stHash_search(vertexToSetOfAdjacencyComponentsHash, vertex) != NULL);
         }
 #endif
@@ -423,8 +423,8 @@ int32_t cactusCorePipeline(Flower *flower, CactusCoreInputParameters *cCIP,
 
                 if (stSortedSet_size(blocksToUndo) > 0) {
                     //now report the results
-                    logTheChosenBlockSubset(biConnectedComponents,
-                            blocksToUndo, pinchGraph, flower);
+                    //logTheChosenBlockSubset(biConnectedComponents, //We don't call this as it burns compute.
+                    //       blocksToUndo, pinchGraph, flower);
                     st_logInfo(
                             "I have chosen %i blocks which meet the requirements to be undone\n",
                             stSortedSet_size(blocksToUndo));

@@ -7,12 +7,12 @@
 
 #include "adjacencyComponents.h"
 
-static void getAdjacencyComponentsP2(struct PinchVertex *vertex,
-        bool (*passThroughEdgeFn)(struct PinchEdge *), stSortedSet *seen,
+static inline void getAdjacencyComponentsP2(struct PinchVertex *vertex,
+        bool (*passThroughEdgeFn)(struct PinchEdge *), bool *seen,
         stSortedSet *adjacencyComponent, stList *stack) {
     //add it to the hash
-    assert(stSortedSet_search(seen, vertex) == NULL);
-    stSortedSet_insert(seen, vertex);
+    assert(!seen[vertex->vertexID]);
+    seen[vertex->vertexID] = 1;
 
     //add it to the component
     stSortedSet_insert(adjacencyComponent, vertex);
@@ -22,12 +22,14 @@ static void getAdjacencyComponentsP2(struct PinchVertex *vertex,
         struct PinchEdge *edge = getFirstBlackEdge(vertex);
         struct PinchVertex *vertex2 = edge->to;
         if (passThroughEdgeFn(edge)) {
-            if (stSortedSet_search(seen, vertex2) == NULL) {
+            if (!seen[vertex2->vertexID]) {
                 stList_append(stack, vertex2);
             }
+#ifdef BEN_DEBUG
             else {
                 assert(stSortedSet_search(adjacencyComponent, vertex2) != NULL);
             }
+#endif
         }
     }
 
@@ -35,12 +37,14 @@ static void getAdjacencyComponentsP2(struct PinchVertex *vertex,
     void *greyEdgeIterator = getGreyEdgeIterator(vertex);
     struct PinchVertex *vertex2;
     while ((vertex2 = getNextGreyEdge(vertex, greyEdgeIterator)) != NULL) {
-        if (stSortedSet_search(seen, vertex2) == NULL) {
+        if (!seen[vertex2->vertexID]) {
             stList_append(stack, vertex2);
         }
+#ifdef BEN_DEBUG
         else {
             assert(stSortedSet_search(adjacencyComponent, vertex2) != NULL);
         }
+#endif
     }
     destructGreyEdgeIterator(greyEdgeIterator);
 }
@@ -52,7 +56,7 @@ stList *getAdjacencyComponents2(struct PinchGraph *pinchGraph,
      * do as series of DFS on each connected component, not traversing long black edges.
      */
     //allocate stuff.
-    stSortedSet *seen = stSortedSet_construct();
+    bool *seen = st_calloc(pinchGraph->vertices->length, sizeof(bool));
     stList *adjacencyComponents = stList_construct3(0, (void (*)(void *))stSortedSet_destruct);
     stList *stack = stList_construct();
 
@@ -60,7 +64,7 @@ stList *getAdjacencyComponents2(struct PinchGraph *pinchGraph,
         struct PinchVertex *vertex = pinchGraph->vertices->list[i];
 
         //if not seen
-        if (stSortedSet_search(seen, vertex) == NULL) {
+        if (!seen[vertex->vertexID]) {
             //get component
             stSortedSet *adjacencyComponent = stSortedSet_construct();
             //add to final components
@@ -68,23 +72,25 @@ stList *getAdjacencyComponents2(struct PinchGraph *pinchGraph,
 
             //now build the component via a (recursive) function -- now changed to have a stack which we edit to maintain the list.
             assert(stList_length(stack) == 0);
-            stList_append(stack, vertex);
-            while (stList_length(stack) > 0) {
-                struct PinchVertex *vertex2 = stList_pop(stack);
-                if (stSortedSet_search(seen, vertex2) == NULL) {
-                    getAdjacencyComponentsP2(vertex2, passThroughEdgeFn, seen, adjacencyComponent, stack);
+            while(1) {
+                if (!seen[vertex->vertexID]) {
+                    getAdjacencyComponentsP2(vertex, passThroughEdgeFn, seen, adjacencyComponent, stack);
                 }
+                if(stList_length(stack) == 0) {
+                    break;
+                }
+                vertex = stList_pop(stack);
             }
         }
     }
     //clean up
-    stSortedSet_destruct(seen);
+    free(seen);
     stList_destruct(stack);
 
     return adjacencyComponents;
 }
 
-static bool getAdjacencyComponents_passThroughDegree1Edges(struct PinchEdge *edge) {
+static inline bool getAdjacencyComponents_passThroughDegree1Edges(struct PinchEdge *edge) {
     assert(lengthBlackEdges(edge->from) > 0);
     return lengthBlackEdges(edge->from) == 1 && (!isAStub(edge));
 }
