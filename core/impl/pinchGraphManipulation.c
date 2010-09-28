@@ -31,7 +31,7 @@
 //else:
 //create a new vertex and rejoin the edge.
 
-inline void removeTrivialGreyEdge(struct PinchGraph *graph,
+void removeTrivialGreyEdge(struct PinchGraph *graph,
         struct PinchVertex *vertex1, struct PinchVertex *vertex2,
         Flower *flower) {
 #ifdef BEN_DEBUG
