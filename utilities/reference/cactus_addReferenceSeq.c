@@ -12,7 +12,7 @@
 #include "hashTableC.h"
 
 /*
- * Sep 27 2010: nknguyen@soe.ucsc.edu (modifies & extends the reference-parts in Benedict's cactus_MAFGenerator.c)
+ * Sep 27 2010: nknguyen@soe.ucsc.edu (based on the reference-parts in Benedict's cactus_MAFGenerator.c)
  * Adding the reference sequence into cactus structure
  */
 
@@ -31,7 +31,9 @@ static int32_t getTotalBlockLength(Flower *flower) {
     Flower_BlockIterator *blockIt = flower_getBlockIterator(flower);
     Block *block;
     while((block = flower_getNextBlock(blockIt)) != NULL) {
-        length += block_getLength(block);
+        if(block_getInstanceNumber(block) > 0){
+            length += block_getLength(block);
+        }
     }
     flower_destructBlockIterator(blockIt);
     Flower_GroupIterator *groupIt = flower_getGroupIterator(flower);
@@ -154,7 +156,7 @@ void reference_walkUp(End *end, ReferenceSequence *referenceSequence) {
     assert(end != NULL);
     if (end_isBlockEnd(end)) {
         Block *block = end_getBlock(end);
-        st_logInfo("refseqStringLen %d, refseqLength %d\n", strlen(referenceSequence->string), referenceSequence->length);
+        //st_logInfo("refseqStringLen %d, refseqLength %d\n", strlen(referenceSequence->string), referenceSequence->length);
         if(strlen(referenceSequence->string) == referenceSequence->length){
             addReferenceSegmentToBlock(block, referenceSequence);
 	}else{
@@ -212,7 +214,6 @@ MetaSequence *constructReferenceMetaSequence(Flower *flower, CactusDisk *cactusD
         assert(!end_isBlockEnd(end));
         reference_walkDown(end, refseq);
     }
-    st_logInfo("refseq stringLength %d should equal length %d\n", strlen(refseq->string), refseq->length);
     metaSequence = metaSequence_construct(start, refseq->length, refseq->string, refseq->header, eventName, cactusDisk);
     st_logInfo("Got metasequence: name *%s*, start %d, length %d, header *%s*\n", 
                 cactusMisc_nameToString(metaSequence_getName(metaSequence)), metaSequence_getStart(metaSequence),
