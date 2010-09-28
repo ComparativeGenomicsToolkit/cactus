@@ -311,16 +311,16 @@ char *cactusDisk_getString(CactusDisk *cactusDisk, Name name,
     char *string = NULL;
     while(!done) {
         stTry {
-            stKVDatabase_startTransaction(cactusDisk->database);
+            //stKVDatabase_startTransaction(cactusDisk->database);
             string = stKVDatabase_getPartialRecord(cactusDisk->database, name, start*sizeof(char), (length+1)*sizeof(char));
-            stKVDatabase_commitTransaction(cactusDisk->database);
+            //stKVDatabase_commitTransaction(cactusDisk->database);
             done = 1;
         }
         stCatch(except) {
             if(stExcept_getId(except) == ST_KV_DATABASE_RETRY_TRANSACTION_EXCEPTION_ID) {
                 st_logDebug("We have caught a deadlock exception when getting a sequence string");
                 stExcept_free(except);
-                stKVDatabase_abortTransaction(cactusDisk->database);
+                //stKVDatabase_abortTransaction(cactusDisk->database);
             }
             else {
                 stThrowNewCause(except, ST_KV_DATABASE_EXCEPTION_ID,
