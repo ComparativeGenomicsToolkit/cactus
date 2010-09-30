@@ -41,7 +41,7 @@ CactusDisk *cactusDisk_construct2(stKVDatabaseConf *conf, bool create,
 
     //initialise the unique ids.
     //cactusDisk_getUniqueID(cactusDisk);
-    int32_t seed = time(NULL) + getpid();
+    int32_t seed = getpid();
     st_logDebug(
             "The cactus disk is seeding the random number generator with the value %i\n",
             seed);
