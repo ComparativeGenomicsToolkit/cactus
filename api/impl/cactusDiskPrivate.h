@@ -10,6 +10,7 @@ struct _cactusDisk {
     stSortedSet *flowerNamesMarkedForDeletion;
     Name uniqueNumber;
     Name maxUniqueNumber;
+    bool preCacheSequences;
 };
 
 ////////////////////////////////////////////////

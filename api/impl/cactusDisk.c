@@ -30,8 +30,10 @@ CactusDisk *cactusDisk_construct(stKVDatabaseConf *conf, bool create) {
     cactusDisk->flowerNamesMarkedForDeletion = stSortedSet_construct2(free);
 
     //Now open the database
+    bool preCacheSequences = 0;
+    cactusDisk->preCacheSequences = preCacheSequences;
     cactusDisk->database = stKVDatabase_construct(conf, create);
-    stKVDatabase_makeMemCache(cactusDisk->database, 0, 5000);
+    stKVDatabase_makeMemCache(cactusDisk->database, 0, preCacheSequences ? 10 : 5000);
 
     //initialise the unique ids.
     //cactusDisk_getUniqueID(cactusDisk);
@@ -287,9 +289,9 @@ Name cactusDisk_addString(CactusDisk *cactusDisk, const char *string) {
     bool done = 0;
     while(!done) {
         stTry {
-            //stKVDatabase_startTransaction(cactusDisk->database);
+            stKVDatabase_startTransaction(cactusDisk->database);
             stKVDatabase_insertRecord(cactusDisk->database, name, string, (strlen(string)+1)*sizeof(char));
-            //stKVDatabase_commitTransaction(cactusDisk->database);
+            stKVDatabase_commitTransaction(cactusDisk->database);
             done = 1;
         }
         stCatch(except) {
