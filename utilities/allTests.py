@@ -1,7 +1,7 @@
 import unittest
 
 from cactus.utilities.graphVizPlots.cactus_graphVizTest import TestCase as graphVizTest
-from cactus.utilities.mAFs.cactus_MAFGeneratorTest import TestCase as mAFTest
+from cactus.utilities.mafs.cactus_MAFGeneratorTest import TestCase as mAFTest
 from cactus.utilities.stats.cactus_treeStatsTest import TestCase as statsTest
 from cactus.utilities.referenceViewer.cactus_referenceViewerTest import TestCase as referenceViewerTest
 

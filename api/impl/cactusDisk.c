@@ -31,6 +31,7 @@ CactusDisk *cactusDisk_construct(stKVDatabaseConf *conf, bool create) {
 
     //Now open the database
     cactusDisk->database = stKVDatabase_construct(conf, create);
+    stKVDatabase_makeMemCache(cactusDisk->database, 0, 5000);
 
     //initialise the unique ids.
     //cactusDisk_getUniqueID(cactusDisk);
