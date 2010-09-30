@@ -33,7 +33,9 @@ bool isStubCap(Cap *cap){
     /*
      *Return true if cap is of a stubEnd, otherwise return false
      */
+    assert(cap != NULL);
     End *end = cap_getEnd(cap);
+    assert(end != NULL);
     return (end_isStubEnd(end)) ? true : false;
 }
 
@@ -71,18 +73,28 @@ int flower_getThreadStarts(Flower *flower, char *name, Cap ***startCaps){
 
 void moveCapToNextBlock(Cap **cap){
     /*Move cap to the next block that its segment is adjacency to*/
+    assert((*cap) != NULL);
+    st_logInfo("cap %s, %d\t", cactusMisc_nameToString(cap_getName(*cap)), cap_getCoordinate(*cap));
     if(isStubCap(*cap)){
+        st_logInfo("STUB\n");
         return;
     }
-    Cap *adjCap = cap_getAdjacency(*cap);
+    Cap *otherCap = cap_getOtherSegmentCap(*cap);
+    st_logInfo("other cap %s, %d\t", cactusMisc_nameToString(cap_getName(otherCap)), cap_getCoordinate(otherCap));
+    *cap = cap_getAdjacency(otherCap);
+    assert(*cap != NULL);
+    st_logInfo("moved-cap %s, %d\n", cactusMisc_nameToString(cap_getName(*cap)), cap_getCoordinate(*cap));
+    
+    /*Cap *adjCap = cap_getAdjacency(*cap);
+    assert(adjCap != NULL);
     if(cap_getEnd(*cap) == cap_getEnd(adjCap)){//DOUBLE CHECK ... self connected end
         *cap = adjCap;
     }else{
         *cap = cap_getAdjacency(cap_getOtherSegmentCap(*cap));
-    }
+    //}*/
 }
 
-void block_getBED(Block *block, FILE *fileHandle, char *species, char *chr, int chrsize, int start, int level) {
+void block_getBED(Block *block, FILE *fileHandle, char *species, char *chr, int start, int level) {
     /*
      */
     Block_InstanceIterator *instanceIterator = block_getInstanceIterator(block);
@@ -108,9 +120,10 @@ void block_getBED(Block *block, FILE *fileHandle, char *species, char *chr, int 
     block_destructInstanceIterator(instanceIterator);
 }
 
-void chain_getBEDs(Chain *chain, Cap *cap, FILE *fileHandle, char *species, char *chr, int chrsize, int start, int level) {
+void chain_getBEDs(Chain *chain, Cap *cap, FILE *fileHandle, char *species, char *chr, int start, int level) {
     /*
      */
+    st_logInfo("chain_getBEDs\n");
     char *chainName = cactusMisc_nameToString(chain_getName(chain));
     int blockCount = 0;
     int chromStart;
@@ -120,6 +133,8 @@ void chain_getBEDs(Chain *chain, Cap *cap, FILE *fileHandle, char *species, char
     Block *block;
 
     cap = cap_getAdjacency(cap);
+    
+    if(cap == NULL){ return; }
     /*block = end_getBlock(cap_getEnd(cap));
     if(block == NULL){
        moveCapToNextBlock(&cap);
@@ -139,7 +154,10 @@ void chain_getBEDs(Chain *chain, Cap *cap, FILE *fileHandle, char *species, char
             *(blockStarts + blockCount -1) = cap_getCoordinate(cap);
             *(blockSizes + blockCount -1) = cap_getCoordinate(cap_getOtherSegmentCap(cap)) - cap_getCoordinate(cap) + 1;
         }
+        
+        //st_logInfo("cap %s, %d\t", cactusMisc_nameToString(cap_getName(cap)), cap_getCoordinate(cap));
         moveCapToNextBlock(&cap);
+        //st_logInfo("movedTo %s, %d\n", cactusMisc_nameToString(cap_getName(cap)), cap_getCoordinate(cap));
     }
     
     if(blockCount == 0){
@@ -181,21 +199,25 @@ int32_t getSeqLength(Flower *flower, char *header){
     return 0;
 }
 
+
+
 void getBEDs(Flower *flower, FILE *fileHandle, char *species, int level){
     char *chr;
-    int chrsize = 0;
-    int start = 0;
+    char *tok;
+    //int start = 0;
+    int start = 1;
     char sep[] = ".";
 
-    if(strcmp(species, "reference") == 0){
+    assert(species != NULL);
+    strtok(stString_copy(species), sep); //species e.g "hg18"
+    chr = strtok(NULL, sep);
+    if(chr == NULL){
         chr = "";
-        chrsize = getSeqLength(flower, species);
-        st_logInfo("reference chrom size %d\n", chrsize);
     }else{
-        strtok(stString_copy(species), sep); //species e.g "hg18"
-        chr = strtok(NULL, sep);
-        sscanf(strtok(NULL, sep), "%d", &chrsize);
-        sscanf(strtok(NULL, sep), "%d", &start);
+        tok = strtok(NULL, sep);//chromsize
+        if(tok != NULL){
+            sscanf(strtok(NULL, sep), "%d", &start);
+        }
     }
     //sscanf(strtok(NULL, sep), "%d", &len);
     //sscanf(strtok(NULL, sep), "%d", &strand);
@@ -211,7 +233,7 @@ void getBEDs(Flower *flower, FILE *fileHandle, char *species, int level){
         Flower_ChainIterator *chainIterator = flower_getChainIterator(flower);
         Chain *chain;
         while((chain = flower_getNextChain(chainIterator)) != NULL){
-            chain_getBEDs(chain, startcap, fileHandle, species, chr, chrsize, start, level);
+            chain_getBEDs(chain, startcap, fileHandle, species, chr, start, level);
         }
         flower_destructChainIterator(chainIterator);
     }
@@ -221,7 +243,7 @@ void getBEDs(Flower *flower, FILE *fileHandle, char *species, int level){
     Block *block;
     while((block = flower_getNextBlock(blockIterator)) != NULL){
         if(block_getChain(block) == NULL){//non-trivial chain
-            block_getBED(block, fileHandle, species, chr, chrsize, start, level);
+            block_getBED(block, fileHandle, species, chr, start, level);
         }
     }
     flower_destructBlockIterator(blockIterator);
@@ -239,6 +261,30 @@ void getBEDs(Flower *flower, FILE *fileHandle, char *species, int level){
         }
     }
     flower_destructGroupIterator(groupIterator);
+}
+
+int getSequences(Flower *flower, char ***seqs, char *name){
+   //get names of all the sequences in 'flower' that have their names start with 'name'
+   int num = 0;
+   Sequence *sequence;
+   Flower_SequenceIterator * seqIterator = flower_getSequenceIterator(flower);
+   while((sequence = flower_getNextSequence(seqIterator)) != NULL){
+      char *sequenceHeader = formatSequenceHeader(sequence);
+      //if 'sequenceHeader' starts with 'name'
+      //if(strstr(sequenceHeader, name) == sequenceHeader){
+      if(strstr(sequenceHeader, name) != NULL){
+         if(num == 0){
+            (*seqs) = st_malloc(sizeof(char *) + 1);
+         }else{
+            (*seqs) =  (char **)realloc( (*seqs), num*(sizeof(char *) +1));
+         }
+         *((*seqs) + num) = sequenceHeader;
+         num++;
+      }
+      //free(sequenceHeader);
+   }
+   flower_destructSequenceIterator(seqIterator);
+   return num;
 }
 
 void usage() {
@@ -362,11 +408,18 @@ int main(int argc, char *argv[]) {
     int64_t startTime = time(NULL);
     FILE *fileHandle = fopen(outputFile, "w");
     fprintf(fileHandle, "track name=%s\n", species);
-    if(strcmp(species, "reference") == 0){
+    if(strstr(species, "reference") != NULL){
         flower_addReferenceSequence(flower, cactusDisk, species);
     }
     //addReferenceSequenceTest(flower);
-    getBEDs(flower, fileHandle, species, 0);
+    char **seqs;
+    char *seq;
+    int numseqs = getSequences(flower, &seqs, species);    
+    for(int i = 0; i < numseqs; i++){
+        seq = *(seqs + i);
+        st_logInfo("Getting beds for sequence \"%s\"\n", seq);
+        getBEDs(flower, fileHandle, seq, 0);
+    }
     fclose(fileHandle);
     st_logInfo("Got the beds in %i seconds/\n", time(NULL) - startTime);
 

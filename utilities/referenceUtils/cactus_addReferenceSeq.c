@@ -266,6 +266,14 @@ void reference_walkDown(End *end, ReferenceSequence *refseq) {
     }
 }
 
+void addAdj(End *end, End *adjEnd, char *header){
+    Cap *cap = end_getCapByHeader(end, header);
+    Cap *cap2 = end_getCapByHeader(adjEnd, header);
+    if(cap_getSide(cap) == cap_getSide(cap2)){
+        cap2 = cap_getReverse(cap2);
+    }
+    cap_makeAdjacent(cap, cap2); 
+}
 /*
  *1/ Walk along (across) current flower and add adjacencies between caps of the 
  *reference segments. Once reach the end of the pseudochromosome, 
@@ -273,28 +281,27 @@ void reference_walkDown(End *end, ReferenceSequence *refseq) {
  *2/ Recursively add adjs of lower-level flower
  */
 void addReferenceAdjacencies(End *end, char *header){
-    End *adjEnd = getPseudoAdjacentEnd(end);
+    End *adjEnd = getPseudoAdjacentEnd(end);//start of block
     //assert(end_isBlockEnd(adjEnd));    
     if(end_isStubEnd(adjEnd)){
         return;
     }    
 
-    do{
+    while( end_isBlockEnd(adjEnd) ){
         Group *group = end_getGroup(end);
         if(!group_isLeaf(group)){//has lower level
 	    End *inheritedEnd = flower_getEnd(group_getNestedFlower(group), end_getName(end));
             addReferenceAdjacencies(inheritedEnd, header);
         }
-        Cap *cap = end_getCapByHeader(end, header);
-        Cap *cap2 = end_getCapByHeader(adjEnd, header);
-        if(cap_getSide(cap) == cap_getSide(cap2)){
-            cap2 = cap_getReverse(cap2);
-        }
-
-        cap_makeAdjacent(cap, cap2); 
+ 
+        addAdj(end, adjEnd, header);
         end = end_getOtherBlockEnd(adjEnd);
         adjEnd = getPseudoAdjacentEnd(end);
-    }while( end_isBlockEnd(adjEnd) );
+    }
+    //add adjacency to the last stub:
+    addAdj(end, adjEnd, header);
+    
+
 
     return;
 }
@@ -334,7 +341,7 @@ char *getChromName(char *name, int num){
     sprintf(chrom, "%d", num);
     char *chromName = st_malloc(sizeof(char)*(strlen(name) + strlen(chrom) + 1));
     strcpy(chromName, name);
-    strcat(chromName, "_");
+    strcat(chromName, ".chr");
     strcat(chromName, chrom);
     return chromName;
 }
