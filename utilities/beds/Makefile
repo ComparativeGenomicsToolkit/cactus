@@ -6,19 +6,12 @@ cflags += ${tokyoCabinetIncl} -lssl
 
 progs = $(notdir $(wildcard))
 
-targets = ${progs:%=${binPath}/%} 
-ifneq ($(wildcard ${kentLibWeb}),)
-  targets += ${binPath}/cactus_bedGenerator
-  # FIXME: tmp hack, both sonlib commonC and kent libraries have logInfo and logDebug functions
-  # kent ones are not actually used, but get dragged in.  As a tmp work around, we force
-  # the sonlib ones to be brought in first by the linker.
-  jkLibHack = -Wl,-ulogDebug ${libPath}/sonLib.a 
-endif
+targets = ${progs:%=${binPath}/%} ${binPath}/cactus_bedGenerator
 
 all: ${targets}
 
-${binPath}/cactus_bedGenerator : cactus_bedGenerator.c ${libPath}/sonLib.a ${libPath}/cactusLib.a
-	${cxx} ${cflags} -I ${libPath} -I ${kentInc} -o ${binPath}/cactus_bedGenerator cactus_bedGenerator.c ${jkLibHack} ${kentLibWeb} ${libPath}/cactusLib.a ${libPath}/sonLib.a ${dblibs}
+${binPath}/cactus_bedGenerator: ${libPath}/cactus_addReferenceSeq.o cactus_bedGenerator.c ${libPath}/sonLib.a ${libPath}/cactusLib.a
+	${cxx} ${cflags} -I ${libPath} -I ${kentInc} -o ${binPath}/cactus_bedGenerator cactus_bedGenerator.c ${libPath}/cactus_addReferenceSeq.o ${libPath}/cactusLib.a ${libPath}/sonLib.a ${dblibs}
 
 clean :
 	rm -f *.o

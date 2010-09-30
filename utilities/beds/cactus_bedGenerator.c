@@ -10,6 +10,7 @@
 #include "avl.h"
 #include "commonC.h"
 #include "hashTableC.h"
+#include "cactus_addReferenceSeq.h"
 
 /*
  *Sep 08 2010: nknguyen@soe.ucsc.edu
@@ -166,16 +167,36 @@ void chain_getBEDs(Chain *chain, Cap *cap, FILE *fileHandle, char *species, char
     fprintf(fileHandle, "\n");
 }
 
+int32_t getSeqLength(Flower *flower, char *header){
+    Flower_SequenceIterator *it = flower_getSequenceIterator(flower);
+    Sequence *sequence;
+    while((sequence = flower_getNextSequence(it)) != NULL){
+        char *sequenceHeader = formatSequenceHeader(sequence);
+        if(strcmp(sequenceHeader, header) == 0){
+            flower_destructSequenceIterator(it);
+            return sequence_getLength(sequence);
+        }
+    }
+    flower_destructSequenceIterator(it);
+    return 0;
+}
+
 void getBEDs(Flower *flower, FILE *fileHandle, char *species, int level){
     char *chr;
     int chrsize = 0;
     int start = 0;
     char sep[] = ".";
 
-    strtok(stString_copy(species), sep); //species e.g "hg18"
-    chr = strtok(NULL, sep);
-    sscanf(strtok(NULL, sep), "%d", &chrsize);
-    sscanf(strtok(NULL, sep), "%d", &start);
+    if(strcmp(species, "reference") == 0){
+        chr = "";
+        chrsize = getSeqLength(flower, species);
+        st_logInfo("reference chrom size %d\n", chrsize);
+    }else{
+        strtok(stString_copy(species), sep); //species e.g "hg18"
+        chr = strtok(NULL, sep);
+        sscanf(strtok(NULL, sep), "%d", &chrsize);
+        sscanf(strtok(NULL, sep), "%d", &start);
+    }
     //sscanf(strtok(NULL, sep), "%d", &len);
     //sscanf(strtok(NULL, sep), "%d", &strand);
     //fprintf(stderr, "chrom *%s*, chromsize %d, start %d\n", chr, chrsize, start);
@@ -184,6 +205,7 @@ void getBEDs(Flower *flower, FILE *fileHandle, char *species, int level){
     Cap **startCaps;
     int capNum;
     capNum = flower_getThreadStarts(flower, species, &startCaps);
+    st_logInfo("Number of start Caps at flower %s is %d\n", cactusMisc_nameToString(flower_getName(flower)), capNum);
     for(int i=0; i< capNum; i++){
         Cap *startcap = *(startCaps + i);
         Flower_ChainIterator *chainIterator = flower_getChainIterator(flower);
@@ -217,7 +239,6 @@ void getBEDs(Flower *flower, FILE *fileHandle, char *species, int level){
         }
     }
     flower_destructGroupIterator(groupIterator);
-
 }
 
 void usage() {
@@ -341,6 +362,10 @@ int main(int argc, char *argv[]) {
     int64_t startTime = time(NULL);
     FILE *fileHandle = fopen(outputFile, "w");
     fprintf(fileHandle, "track name=%s\n", species);
+    if(strcmp(species, "reference") == 0){
+        flower_addReferenceSequence(flower, cactusDisk, species);
+    }
+    //addReferenceSequenceTest(flower);
     getBEDs(flower, fileHandle, species, 0);
     fclose(fileHandle);
     st_logInfo("Got the beds in %i seconds/\n", time(NULL) - startTime);
