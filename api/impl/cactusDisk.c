@@ -1,4 +1,5 @@
 #include "cactusGlobalsPrivate.h"
+#include <unistd.h>
 
 ////////////////////////////////////////////////
 ////////////////////////////////////////////////
@@ -19,29 +20,40 @@ static int32_t cactusDisk_constructMetaSequencesP(const void *o1,
             metaSequence_getName((MetaSequence *) o2));
 }
 
-CactusDisk *cactusDisk_construct(stKVDatabaseConf *conf, bool create) {
+CactusDisk *cactusDisk_construct2(stKVDatabaseConf *conf, bool create,
+        bool preCacheSequences) {
+    preCacheSequences = 1;
     CactusDisk *cactusDisk;
     cactusDisk = st_malloc(sizeof(CactusDisk));
 
     //construct lists of in memory objects
     cactusDisk->metaSequences = stSortedSet_construct3(
             cactusDisk_constructMetaSequencesP, NULL);
-    cactusDisk->flowers = stSortedSet_construct3(cactusDisk_constructFlowersP, NULL);
+    cactusDisk->flowers = stSortedSet_construct3(cactusDisk_constructFlowersP,
+            NULL);
     cactusDisk->flowerNamesMarkedForDeletion = stSortedSet_construct2(free);
 
     //Now open the database
-    bool preCacheSequences = 0;
     cactusDisk->preCacheSequences = preCacheSequences;
     cactusDisk->database = stKVDatabase_construct(conf, create);
-    stKVDatabase_makeMemCache(cactusDisk->database, 0, preCacheSequences ? 10 : 5000);
+    stKVDatabase_makeMemCache(cactusDisk->database, 0, preCacheSequences ? 0
+            : 5000);
 
     //initialise the unique ids.
     //cactusDisk_getUniqueID(cactusDisk);
-    st_randomSeed(time(NULL));
+    int32_t seed = time(NULL) + getpid();
+    st_logDebug(
+            "The cactus disk is seeding the random number generator with the value %i\n",
+            seed);
+    st_randomSeed(seed);
     cactusDisk->uniqueNumber = 0;
     cactusDisk->maxUniqueNumber = 0;
 
     return cactusDisk;
+}
+
+CactusDisk *cactusDisk_construct(stKVDatabaseConf *conf, bool create) {
+    return cactusDisk_construct2(conf, create, 0);
 }
 
 void cactusDisk_destruct(CactusDisk *cactusDisk) {
@@ -96,110 +108,172 @@ void cactusDisk_write(CactusDisk *cactusDisk) {
     MetaSequence *metaSequence;
 
     bool done = 0;
-    while(!done) {
+    while (!done) {
         stTry {
-            stKVDatabase_startTransaction(cactusDisk->database);
+                stKVDatabase_startTransaction(cactusDisk->database);
 
-            stSortedSetIterator *it = stSortedSet_getIterator(cactusDisk->flowers);
-            while ((flower = stSortedSet_getNext(it)) != NULL) {
-                vA = binaryRepresentation_makeBinaryRepresentation(flower,
-                        (void(*)(void *, void(*)(const void * ptr, size_t size,
-                                size_t count))) flower_writeBinaryRepresentation,
-                        &recordSize);
-                //Compression
-                vA = compress(vA, &recordSize);
-                if(stKVDatabase_containsRecord(cactusDisk->database, flower_getName(flower))) {
-                    stKVDatabase_updateRecord(cactusDisk->database, flower_getName(flower),
-                            vA, recordSize);
-                }
-                else {
-                    stKVDatabase_insertRecord(cactusDisk->database, flower_getName(flower),
-                                        vA, recordSize);
-                }
-                free(vA);
-                vA = NULL; //We set to NULL so that the free in the outer catch does not free an already freed block.
-            }
-            stSortedSet_destructIterator(it);
-
-            it = stSortedSet_getIterator(cactusDisk->metaSequences);
-            while ((metaSequence = stSortedSet_getNext(it)) != NULL) {
-                if(stKVDatabase_containsRecord(cactusDisk->database, metaSequence_getName(metaSequence))) { //We do not edit meta sequences, so we do not update it..
-                    //stKVDatabase_updateRecord(cactusDisk->database, metaSequence_getName(metaSequence),
-                    //        vA, recordSize);
-                }
-                else {
-                    vA = binaryRepresentation_makeBinaryRepresentation(metaSequence,
-                                            (void(*)(void *, void(*)(const void * ptr, size_t size,
-                                                    size_t count))) metaSequence_writeBinaryRepresentation,
-                                            &recordSize);
+                stSortedSetIterator *it = stSortedSet_getIterator(
+                        cactusDisk->flowers);
+                while ((flower = stSortedSet_getNext(it)) != NULL) {
+                    vA
+                            = binaryRepresentation_makeBinaryRepresentation(
+                                    flower,
+                                    (void(*)(void *, void(*)(const void * ptr,
+                                            size_t size, size_t count))) flower_writeBinaryRepresentation,
+                                    &recordSize);
                     //Compression
                     vA = compress(vA, &recordSize);
-                    stKVDatabase_insertRecord(cactusDisk->database, metaSequence_getName(metaSequence),
-                                        vA, recordSize);
+                    if (stKVDatabase_containsRecord(cactusDisk->database,
+                            flower_getName(flower))) {
+                        stKVDatabase_updateRecord(cactusDisk->database,
+                                flower_getName(flower), vA, recordSize);
+                    } else {
+                        stKVDatabase_insertRecord(cactusDisk->database,
+                                flower_getName(flower), vA, recordSize);
+                    }
                     free(vA);
-                    vA = NULL;
+                    vA = NULL; //We set to NULL so that the free in the outer catch does not free an already freed block.
                 }
-            }
-            stSortedSet_destructIterator(it);
+                stSortedSet_destructIterator(it);
 
-            //Remove nets that are marked for deletion..
-            it = stSortedSet_getIterator(cactusDisk->flowerNamesMarkedForDeletion);
-            char *nameString;
-            while ((nameString = stSortedSet_getNext(it)) != NULL) {
-                Name name = cactusMisc_stringToName(nameString);
-                if(stKVDatabase_containsRecord(cactusDisk->database, name)) {
-                    stKVDatabase_removeRecord(cactusDisk->database, name);
+                it = stSortedSet_getIterator(cactusDisk->metaSequences);
+                while ((metaSequence = stSortedSet_getNext(it)) != NULL) {
+                    if (stKVDatabase_containsRecord(cactusDisk->database,
+                            metaSequence_getName(metaSequence))) { //We do not edit meta sequences, so we do not update it..
+                        //stKVDatabase_updateRecord(cactusDisk->database, metaSequence_getName(metaSequence),
+                        //        vA, recordSize);
+                    } else {
+                        vA
+                                = binaryRepresentation_makeBinaryRepresentation(
+                                        metaSequence,
+                                        (void(*)(void *, void(*)(
+                                                const void * ptr, size_t size,
+                                                size_t count))) metaSequence_writeBinaryRepresentation,
+                                        &recordSize);
+                        //Compression
+                        vA = compress(vA, &recordSize);
+                        stKVDatabase_insertRecord(cactusDisk->database,
+                                metaSequence_getName(metaSequence), vA,
+                                recordSize);
+                        free(vA);
+                        vA = NULL;
+                    }
                 }
-            }
-            stSortedSet_destructIterator(it);
+                stSortedSet_destructIterator(it);
 
-            stKVDatabase_commitTransaction(cactusDisk->database);
-            done = 1;
-        }
-        stCatch(except) {
-            if(vA != NULL) { //First clean up any memory that was allocated by not freed.
-                free(vA);
+                //Remove nets that are marked for deletion..
+                it = stSortedSet_getIterator(
+                        cactusDisk->flowerNamesMarkedForDeletion);
+                char *nameString;
+                while ((nameString = stSortedSet_getNext(it)) != NULL) {
+                    Name name = cactusMisc_stringToName(nameString);
+                    if (stKVDatabase_containsRecord(cactusDisk->database, name)) {
+                        stKVDatabase_removeRecord(cactusDisk->database, name);
+                    }
+                }
+                stSortedSet_destructIterator(it);
+
+                stKVDatabase_commitTransaction(cactusDisk->database);
+                done = 1;
             }
-            if(stExcept_getId(except) == ST_KV_DATABASE_RETRY_TRANSACTION_EXCEPTION_ID) {
-                st_logDebug("We have caught a retry transaction exception when updating flowers and metasequences on the cactus disk\n");
-                stExcept_free(except);
-                stKVDatabase_abortTransaction(cactusDisk->database);
-            }
-            else {
-                stThrowNewCause(except, ST_KV_DATABASE_EXCEPTION_ID, "An unknown database error occurred when updating flowers and metasequences on the cactus disk");
-            }
-        } stTryEnd;
+            stCatch(except)
+                {
+                    if (vA != NULL) { //First clean up any memory that was allocated by not freed.
+                        free(vA);
+                    }
+                    if (stExcept_getId(except)
+                            == ST_KV_DATABASE_RETRY_TRANSACTION_EXCEPTION_ID) {
+                        st_logDebug(
+                                "We have caught a retry transaction exception when updating flowers and metasequences on the cactus disk\n");
+                        stExcept_free(except);
+                        stKVDatabase_abortTransaction(cactusDisk->database);
+                    } else {
+                        stThrowNewCause(
+                                except,
+                                ST_KV_DATABASE_EXCEPTION_ID,
+                                "An unknown database error occurred when updating flowers and metasequences on the cactus disk");
+                    }
+                }stTryEnd;
     }
 }
 
 static void *getRecord(CactusDisk *cactusDisk, Name objectName, char *type) {
-    bool done = 0;
+    //bool done = 0;
     void *cA = NULL;
     int64_t recordSize = 0;
-    while(!done) {
-        stTry {
+    //while (!done) {
+    stTry {
             //stKVDatabase_startTransaction(cactusDisk->database);
-            cA = stKVDatabase_getRecord2(cactusDisk->database, objectName, &recordSize);
+            cA = stKVDatabase_getRecord2(cactusDisk->database, objectName,
+                    &recordSize);
             //stKVDatabase_commitTransaction(cactusDisk->database);
-            done = 1;
+            //done = 1;
         }
-        stCatch(except) {
-            if(stExcept_getId(except) == ST_KV_DATABASE_RETRY_TRANSACTION_EXCEPTION_ID) {
-                st_logDebug("We have caught a deadlock exception when getting a %s\n", type);
-                stExcept_free(except);
-                stKVDatabase_abortTransaction(cactusDisk->database);
-            }
-            else {
-                stThrowNewCause(except, ST_KV_DATABASE_EXCEPTION_ID, "An unknown database error occurred when getting a %s", type);
-            }
-        } stTryEnd;
-    }
+        stCatch(except)
+            {
+                /*if (stExcept_getId(except)
+                 == ST_KV_DATABASE_RETRY_TRANSACTION_EXCEPTION_ID) {
+                 st_logDebug(
+                 "We have caught a deadlock exception when getting a %s\n",
+                 type);
+                 stExcept_free(except);
+                 //stKVDatabase_abortTransaction(cactusDisk->database);
+                 } else {*/
+                stThrowNewCause(except, ST_KV_DATABASE_EXCEPTION_ID,
+                        "An unknown database error occurred when getting a %s",
+                        type);
+                //}
+            }stTryEnd;
+    //}
     if (cA == NULL) {
         return NULL;
     }
     //Decompression
     void *cA2 = decompress(cA, &recordSize);
     return cA2;
+}
+
+static Cap *getNextStub(Cap *cap) {
+    Cap *cap2 = cap_getAdjacency(cap);
+    Cap *cap3 = cap_getOtherSegmentCap(cap2);
+    return cap3 == NULL ? cap2 : getNextStub(cap3);
+}
+
+static void preCacheSequences(CactusDisk *cactusDisk, Flower *flower) {
+    /*
+     * Gets all the sequences in the flower up front (works with the c
+     */
+    Flower_EndIterator *endIt = flower_getEndIterator(flower);
+    End *end;
+    while ((end = flower_getNextEnd(endIt)) != NULL) {
+        if (end_isStubEnd(end)) {
+            End_InstanceIterator *instanceIterator = end_getInstanceIterator(
+                    end);
+            Cap *cap, *cap2;
+            while ((cap = end_getNext(instanceIterator)) != NULL) {
+                Sequence *sequence = cap_getSequence(cap);
+                cap = cap_getStrand(cap) ? cap : cap_getReverse(cap);
+                if (sequence != NULL && !cap_getSide(cap)) {
+                    cap2 = getNextStub(cap);
+#ifdef BEN_DEBUG
+                    assert(end_isStubEnd(cap_getEnd(cap2)));
+                    assert(cap2 != NULL);
+                    assert(cap_getStrand(cap2));
+                    assert(sequence == cap_getSequence(cap2));
+                    assert(cap_getSide(cap2));
+#endif
+                    int32_t start = cap_getCoordinate(cap) + 1;
+                    int32_t stop = cap_getCoordinate(cap2);
+                    int32_t length = stop - start;
+#ifdef BEN_DEBUG
+                    assert(length >= 0);
+#endif
+                    char *cA = sequence_getString(sequence, start, length, 1); //Strand doesn't matter as we store and access the strings in the same orientation
+                    free(cA);
+                }
+            }
+        }
+    }
 }
 
 Flower *cactusDisk_getFlower(CactusDisk *cactusDisk, Name flowerName) {
@@ -217,6 +291,9 @@ Flower *cactusDisk_getFlower(CactusDisk *cactusDisk, Name flowerName) {
     void *cA2 = cA;
     flower2 = flower_loadFromBinaryRepresentation(&cA2, cactusDisk);
     free(cA);
+    if (cactusDisk->preCacheSequences) {
+        preCacheSequences(cactusDisk, flower2);
+    }
     return flower2;
 }
 
@@ -256,10 +333,10 @@ void cactusDisk_removeFlower(CactusDisk *cactusDisk, Flower *flower) {
 
 void cactusDisk_deleteFlowerFromDisk(CactusDisk *cactusDisk, Flower *flower) {
     char *nameString = cactusMisc_nameToString(flower_getName(flower));
-    if(stSortedSet_search(cactusDisk->flowerNamesMarkedForDeletion, nameString) == NULL) {
+    if (stSortedSet_search(cactusDisk->flowerNamesMarkedForDeletion, nameString)
+            == NULL) {
         stSortedSet_insert(cactusDisk->flowerNamesMarkedForDeletion, nameString);
-    }
-    else {
+    } else {
         free(nameString);
     }
 }
@@ -287,50 +364,60 @@ void cactusDisk_removeMetaSequence(CactusDisk *cactusDisk,
 Name cactusDisk_addString(CactusDisk *cactusDisk, const char *string) {
     Name name = cactusDisk_getUniqueID(cactusDisk);
     bool done = 0;
-    while(!done) {
+    while (!done) {
         stTry {
-            stKVDatabase_startTransaction(cactusDisk->database);
-            stKVDatabase_insertRecord(cactusDisk->database, name, string, (strlen(string)+1)*sizeof(char));
-            stKVDatabase_commitTransaction(cactusDisk->database);
-            done = 1;
-        }
-        stCatch(except) {
-            if(stExcept_getId(except) == ST_KV_DATABASE_RETRY_TRANSACTION_EXCEPTION_ID) {
-                st_logDebug("We have caught a retry transaction exception when adding a string to the database, we will try again\n");
-                stExcept_free(except);
-                stKVDatabase_abortTransaction(cactusDisk->database);
+                stKVDatabase_startTransaction(cactusDisk->database);
+                stKVDatabase_insertRecord(cactusDisk->database, name, string,
+                        (strlen(string) + 1) * sizeof(char));
+                stKVDatabase_commitTransaction(cactusDisk->database);
+                done = 1;
             }
-            else {
-                stThrowNewCause(except, ST_KV_DATABASE_EXCEPTION_ID, "An unknown database error occurred when we tried to add a string to the cactus disk");
-            }
-        } stTryEnd;
+            stCatch(except)
+                {
+                    if (stExcept_getId(except)
+                            == ST_KV_DATABASE_RETRY_TRANSACTION_EXCEPTION_ID) {
+                        st_logDebug(
+                                "We have caught a retry transaction exception when adding a string to the database, we will try again\n");
+                        stExcept_free(except);
+                        stKVDatabase_abortTransaction(cactusDisk->database);
+                    } else {
+                        stThrowNewCause(
+                                except,
+                                ST_KV_DATABASE_EXCEPTION_ID,
+                                "An unknown database error occurred when we tried to add a string to the cactus disk");
+                    }
+                }stTryEnd;
     }
     return name;
 }
 
-char *cactusDisk_getString(CactusDisk *cactusDisk, Name name,
-        int32_t start, int32_t length, int32_t strand, int32_t totalSequenceLength) {
-    bool done = 0;
+char *cactusDisk_getString(CactusDisk *cactusDisk, Name name, int32_t start,
+        int32_t length, int32_t strand, int32_t totalSequenceLength) {
+    //bool done = 0;
     char *string = NULL;
-    while(!done) {
-        stTry {
+    // while (!done) {
+    stTry {
             //stKVDatabase_startTransaction(cactusDisk->database);
-            string = stKVDatabase_getPartialRecord(cactusDisk->database, name, start*sizeof(char), (length+1)*sizeof(char), totalSequenceLength*sizeof(char)+1);
+            string = stKVDatabase_getPartialRecord(cactusDisk->database, name,
+                    start * sizeof(char), (length + 1) * sizeof(char),
+                    totalSequenceLength * sizeof(char) + 1);
             //stKVDatabase_commitTransaction(cactusDisk->database);
-            done = 1;
+            //done = 1;
         }
-        stCatch(except) {
-            if(stExcept_getId(except) == ST_KV_DATABASE_RETRY_TRANSACTION_EXCEPTION_ID) {
-                st_logDebug("We have caught a deadlock exception when getting a sequence string");
-                stExcept_free(except);
-                //stKVDatabase_abortTransaction(cactusDisk->database);
-            }
-            else {
+        stCatch(except)
+            {
+                /*if (stExcept_getId(except)
+                 == ST_KV_DATABASE_RETRY_TRANSACTION_EXCEPTION_ID) {
+                 st_logDebug(
+                 "We have caught a deadlock exception when getting a sequence string");
+                 stExcept_free(except);
+                 //stKVDatabase_abortTransaction(cactusDisk->database);
+                 } else {*/
                 stThrowNewCause(except, ST_KV_DATABASE_EXCEPTION_ID,
                         "An unknown database error occurred when getting a sequence string");
-            }
-        } stTryEnd;
-    }
+                //}
+            }stTryEnd;
+    //}
     string[length] = '\0';
     if (!strand) {
         char *string2 = cactusMisc_reverseComplementString(string);
@@ -349,50 +436,54 @@ char *cactusDisk_getString(CactusDisk *cactusDisk, Name name,
 
 void cactusDisk_getBlockOfUniqueIDs(CactusDisk *cactusDisk) {
     bool done = 0;
-    while(!done) {
+    while (!done) {
         stTry {
-            stKVDatabase_startTransaction(cactusDisk->database);
-            Name keyName = st_randomInt(-CACTUS_DISK_BUCKET_NUMBER, 0);
-            assert(keyName >= -CACTUS_DISK_BUCKET_NUMBER);
-            assert(keyName < 0);
-            void *vA = stKVDatabase_getRecord(cactusDisk->database, keyName);
-            int64_t bucketSize = INT64_MAX / CACTUS_DISK_BUCKET_NUMBER;
-            int64_t minimumValue = bucketSize * (abs(keyName)-1) + 1; //plus one for the reserved '0' value.
-            int64_t maximumValue = minimumValue + (bucketSize - 1);
-            bool recordExists = 0;
-            if (vA == NULL) {
-                cactusDisk->uniqueNumber = minimumValue;
-            } else {
-                recordExists = 1;
-                cactusDisk->uniqueNumber = *((Name *) vA);
-                free(vA);
+                stKVDatabase_startTransaction(cactusDisk->database);
+                Name keyName = st_randomInt(-CACTUS_DISK_BUCKET_NUMBER, 0);
+                assert(keyName >= -CACTUS_DISK_BUCKET_NUMBER);
+                assert(keyName < 0);
+                void *vA =
+                        stKVDatabase_getRecord(cactusDisk->database, keyName);
+                int64_t bucketSize = INT64_MAX / CACTUS_DISK_BUCKET_NUMBER;
+                int64_t minimumValue = bucketSize * (abs(keyName) - 1) + 1; //plus one for the reserved '0' value.
+                int64_t maximumValue = minimumValue + (bucketSize - 1);
+                bool recordExists = 0;
+                if (vA == NULL) {
+                    cactusDisk->uniqueNumber = minimumValue;
+                } else {
+                    recordExists = 1;
+                    cactusDisk->uniqueNumber = *((Name *) vA);
+                    free(vA);
+                }
+                cactusDisk->maxUniqueNumber = cactusDisk->uniqueNumber
+                        + CACTUS_DISK_NAME_INCREMENT;
+                if (cactusDisk->maxUniqueNumber >= maximumValue) {
+                    st_errAbort(
+                            "We have exhausted a bucket, which seems really unlikely");
+                }
+                if (recordExists) {
+                    stKVDatabase_updateRecord(cactusDisk->database, keyName,
+                            &cactusDisk->maxUniqueNumber, sizeof(Name));
+                } else {
+                    stKVDatabase_insertRecord(cactusDisk->database, keyName,
+                            &cactusDisk->maxUniqueNumber, sizeof(Name));
+                }
+                stKVDatabase_commitTransaction(cactusDisk->database);
+                done = 1;
             }
-            cactusDisk->maxUniqueNumber = cactusDisk->uniqueNumber
-                    + CACTUS_DISK_NAME_INCREMENT;
-            if(cactusDisk->maxUniqueNumber >= maximumValue) {
-                st_errAbort("We have exhausted a bucket, which seems really unlikely");
-            }
-            if(recordExists) {
-                stKVDatabase_updateRecord(cactusDisk->database, keyName,
-                        &cactusDisk->maxUniqueNumber, sizeof(Name));
-            }
-            else {
-                stKVDatabase_insertRecord(cactusDisk->database, keyName,
-                                &cactusDisk->maxUniqueNumber, sizeof(Name));
-            }
-            stKVDatabase_commitTransaction(cactusDisk->database);
-            done = 1;
-        }
-        stCatch(except) {
-            if(stExcept_getId(except) == ST_KV_DATABASE_RETRY_TRANSACTION_EXCEPTION_ID) {
-                st_logDebug("We have caught a retry transaction exception when allocating a new id, we will try again\n");
-                stExcept_free(except);
-                stKVDatabase_abortTransaction(cactusDisk->database);
-            }
-            else {
-                stThrowNewCause(except, ST_KV_DATABASE_EXCEPTION_ID, "An unknown database error occurred when we tried to get a unique ID");
-            }
-        } stTryEnd;
+            stCatch(except)
+                {
+                    if (stExcept_getId(except)
+                            == ST_KV_DATABASE_RETRY_TRANSACTION_EXCEPTION_ID) {
+                        st_logDebug(
+                                "We have caught a retry transaction exception when allocating a new id, we will try again\n");
+                        stExcept_free(except);
+                        stKVDatabase_abortTransaction(cactusDisk->database);
+                    } else {
+                        stThrowNewCause(except, ST_KV_DATABASE_EXCEPTION_ID,
+                                "An unknown database error occurred when we tried to get a unique ID");
+                    }
+                }stTryEnd;
     }
 }
 

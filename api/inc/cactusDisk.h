@@ -17,6 +17,12 @@
 CactusDisk *cactusDisk_construct(stKVDatabaseConf *conf, bool create);
 
 /*
+ * As with the cactusDisk_construct, but with the option to pre-cache all the sequence contained
+ * within a flower when retrieved, to minimise the amount of I/O.
+ */
+CactusDisk *cactusDisk_construct2(stKVDatabaseConf *conf, bool create, bool preCacheSequences);
+
+/*
  * Destructs the cactus disk, and all open flowers and sequences.
  */
 void cactusDisk_destruct(CactusDisk *cactusDisk);
