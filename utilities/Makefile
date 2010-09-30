@@ -1,5 +1,6 @@
 # order is important, libraries first
-modules = graphVizPlots mafs stats referenceViewer pSLGenerator beds tuning
+modules = graphVizPlots mafs stats referenceViewer psls tuning 
+#beds  
 .PHONY: all %.all clean %.clean
 #coreModule make file
 all : ${modules:%=all.%}
