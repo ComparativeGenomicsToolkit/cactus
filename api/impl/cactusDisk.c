@@ -176,9 +176,9 @@ static void *getRecord(CactusDisk *cactusDisk, Name objectName, char *type) {
     int64_t recordSize = 0;
     while(!done) {
         stTry {
-            stKVDatabase_startTransaction(cactusDisk->database);
+            //stKVDatabase_startTransaction(cactusDisk->database);
             cA = stKVDatabase_getRecord2(cactusDisk->database, objectName, &recordSize);
-            stKVDatabase_commitTransaction(cactusDisk->database);
+            //stKVDatabase_commitTransaction(cactusDisk->database);
             done = 1;
         }
         stCatch(except) {
@@ -287,9 +287,9 @@ Name cactusDisk_addString(CactusDisk *cactusDisk, const char *string) {
     bool done = 0;
     while(!done) {
         stTry {
-            stKVDatabase_startTransaction(cactusDisk->database);
+            //stKVDatabase_startTransaction(cactusDisk->database);
             stKVDatabase_insertRecord(cactusDisk->database, name, string, (strlen(string)+1)*sizeof(char));
-            stKVDatabase_commitTransaction(cactusDisk->database);
+            //stKVDatabase_commitTransaction(cactusDisk->database);
             done = 1;
         }
         stCatch(except) {
