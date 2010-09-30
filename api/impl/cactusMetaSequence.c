@@ -62,7 +62,7 @@ char *metaSequence_getString(MetaSequence *metaSequence, int32_t start, int32_t 
 	assert(start >= metaSequence_getStart(metaSequence));
 	assert(length >= 0);
 	assert(start + length <= metaSequence_getStart(metaSequence) + metaSequence_getLength(metaSequence));
-	return cactusDisk_getString(metaSequence->cactusDisk, metaSequence->stringName, start - metaSequence_getStart(metaSequence), length, strand);
+	return cactusDisk_getString(metaSequence->cactusDisk, metaSequence->stringName, start - metaSequence_getStart(metaSequence), length, strand, metaSequence->length);
 }
 
 const char *metaSequence_getHeader(MetaSequence *metaSequence) {

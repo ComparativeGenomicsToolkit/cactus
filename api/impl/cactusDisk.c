@@ -307,13 +307,13 @@ Name cactusDisk_addString(CactusDisk *cactusDisk, const char *string) {
 }
 
 char *cactusDisk_getString(CactusDisk *cactusDisk, Name name,
-        int32_t start, int32_t length, int32_t strand) {
+        int32_t start, int32_t length, int32_t strand, int32_t totalSequenceLength) {
     bool done = 0;
     char *string = NULL;
     while(!done) {
         stTry {
             //stKVDatabase_startTransaction(cactusDisk->database);
-            string = stKVDatabase_getPartialRecord(cactusDisk->database, name, start*sizeof(char), (length+1)*sizeof(char));
+            string = stKVDatabase_getPartialRecord(cactusDisk->database, name, start*sizeof(char), (length+1)*sizeof(char), totalSequenceLength*sizeof(char)+1);
             //stKVDatabase_commitTransaction(cactusDisk->database);
             done = 1;
         }

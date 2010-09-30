@@ -64,6 +64,6 @@ Name cactusDisk_addString(CactusDisk *cactusDisk, const char *string);
  * Retrieves a string from the bucket of sequence.
  */
 char *cactusDisk_getString(CactusDisk *cactusDisk, Name name,
-        int32_t start, int32_t length, int32_t strand);
+        int32_t start, int32_t length, int32_t strand, int32_t totalSequenceLength);
 
 #endif
