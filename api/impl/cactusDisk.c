@@ -22,7 +22,6 @@ static int32_t cactusDisk_constructMetaSequencesP(const void *o1,
 
 CactusDisk *cactusDisk_construct2(stKVDatabaseConf *conf, bool create,
         bool preCacheSequences) {
-    preCacheSequences = 1;
     CactusDisk *cactusDisk;
     cactusDisk = st_malloc(sizeof(CactusDisk));
 
