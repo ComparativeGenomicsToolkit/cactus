@@ -320,13 +320,19 @@ MetaSequence *cactusDisk_getMetaSequence(CactusDisk *cactusDisk,
  * Private functions.
  */
 
+bool cactusDisk_flowerIsLoaded(CactusDisk *cactusDisk, Name flowerName) {
+    static Flower flower;
+    flower.name = flowerName;
+    return stSortedSet_search(cactusDisk->flowers, &flower) != NULL;
+}
+
 void cactusDisk_addFlower(CactusDisk *cactusDisk, Flower *flower) {
     assert(stSortedSet_search(cactusDisk->flowers, flower) == NULL);
     stSortedSet_insert(cactusDisk->flowers, flower);
 }
 
 void cactusDisk_removeFlower(CactusDisk *cactusDisk, Flower *flower) {
-    assert(stSortedSet_search(cactusDisk->flowers, flower) != NULL);
+    assert(cactusDisk_flowerIsLoaded(cactusDisk, flower_getName(flower)));
     stSortedSet_remove(cactusDisk->flowers, flower);
 }
 

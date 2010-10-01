@@ -160,6 +160,7 @@ int main(int argc, char *argv[]) {
         stSortedSet_destructIterator(getAlignment_iterator);
         getAlignment_iterator = NULL;
         st_logInfo("Finished filling in the alignments for the flower\n");
+        flower_unloadParent(flower); //The parent should not have changed.
     }
 
     /*

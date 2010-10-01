@@ -22,6 +22,11 @@ struct _cactusDisk {
 ////////////////////////////////////////////////
 
 /*
+ * Returns non-zero if the given flower is loaded in memory.
+ */
+bool cactusDisk_flowerIsLoaded(CactusDisk *cactusDisk, Name flowerName);
+
+/*
  * Adds a newly constructed flower to the memory of the cactusDisk.
  */
 void cactusDisk_addFlower(CactusDisk *cactusDisk, Flower *flower);

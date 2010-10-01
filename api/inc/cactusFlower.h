@@ -472,4 +472,10 @@ bool flower_deleteIfEmpty(Flower *flower);
  */
 void flower_makeTerminalNormal(Flower *flower);
 
+/*
+ * If the parent of the flower is memory it is unloaded. This should be used with care, as if the parent has not yet
+ * be written to disk then it will not exist after the end of session.
+ */
+void flower_unloadParent(Flower *flower);
+
 #endif
