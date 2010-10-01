@@ -33,6 +33,7 @@ CactusDisk *cactusDisk_construct2(stKVDatabaseConf *conf, bool create,
     cactusDisk->flowerNamesMarkedForDeletion = stSortedSet_construct2(free);
 
     //Now open the database
+    //preCacheSequences = 0;
     cactusDisk->preCacheSequences = preCacheSequences;
     cactusDisk->database = stKVDatabase_construct(conf, create);
     stKVDatabase_makeMemCache(cactusDisk->database, 0, preCacheSequences ? 0
