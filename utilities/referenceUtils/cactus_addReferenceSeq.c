@@ -107,7 +107,7 @@ char *formatSequenceHeader1(Sequence *sequence) {
     }
 }
 
-int32_t getNumberOnPositiveStrand(Block *block) {
+/*int32_t getNumberOnPositiveStrand(Block *block) {
     Block_InstanceIterator *it = block_getInstanceIterator(block);
     Segment *segment;
     int32_t i = 0;
@@ -120,7 +120,7 @@ int32_t getNumberOnPositiveStrand(Block *block) {
     }
     block_destructInstanceIterator(it);
     return i;
-}
+}*/
 
 char *getConsensusString(Block *block) {
     Block_InstanceIterator *it = block_getInstanceIterator(block);

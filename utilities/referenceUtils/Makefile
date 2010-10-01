@@ -2,31 +2,26 @@ include ../../../../include.mk
 binPath = ../../../../bin
 libPath = ../../../../lib
 
-cflags += ${tokyoCabinetIncl}
+cflags += ${tokyoCabinetIncl} -lssl
 
-progs = $(notdir $(wildcard cactus_mafToReferenceSeq.py))
-targets = ${progs:%=${binPath}/%}
+progs = $(notdir $(wildcard))
 
-all :  ${targets} cactus_addReferenceSeq.o ${binPath}/cactus_addReferenceSeqTest ${binPath}/cactus_getReferenceSeq
+targets = ${progs:%=${binPath}/%} ${binPath}/cactus_addReferenceSeqTest ${binPath}/cactus_getReferenceSeq ${libPath}/cactus_addReferenceSeq.o
 
-${binPath}/%: %
-	@mkdir -p $(dir $@)
-	cp -f $< $@
-	chmod 775 $@
+all: ${targets}
 
-cactus_addReferenceSeq.o : cactus_addReferenceSeq.c
-	${cxx} ${cflags} -c cactus_addReferenceSeq.c  -I ${libPath}
-	mv cactus_addReferenceSeq.o ${libPath} 
-	#${cxx} ${cflags} -c cactus_addReferenceSeq.c  -I ${libPath} ${libPath}/cactusLib.a ${libPath}/sonLib.a ${dblibs}
+${libPath}/cactus_addReferenceSeq.o : cactus_addReferenceSeq.h cactus_addReferenceSeq.c
+	cp cactus_addReferenceSeq.h ${libPath}
+	${cxx} ${cflags} -c cactus_addReferenceSeq.c  -I ${libPath} -o ${libPath}/cactus_addReferenceSeq.o
 
-${binPath}/cactus_getReferenceSeq : ${libPath}/cactus_addReferenceSeq.o cactus_getReferenceSeq.c ${libPath}/sonLib.a ${libPath}/cactusLib.a
-	${cxx} ${cflags} -I ${libPath} -o ${binPath}/cactus_getReferenceSeq cactus_getReferenceSeq.c  ${libPath}/cactus_addReferenceSeq.o ${libPath}/sonLib.a ${libPath}/cactusLib.a ${libPath}/sonLib.a ${dblibs}
+${binPath}/cactus_addReferenceSeqTest: ${libPath}/cactus_addReferenceSeq.o cactus_addReferenceSeqTest.c ${libPath}/sonLib.a ${libPath}/cactusLib.a
+	${cxx} ${cflags} -I ${libPath} -I ${kentInc} -o ${binPath}/cactus_addReferenceSeqTest cactus_addReferenceSeqTest.c ${libPath}/cactus_addReferenceSeq.o ${libPath}/cactusLib.a ${libPath}/sonLib.a ${dblibs}
 
-${binPath}/cactus_addReferenceSeqTest : ${libPath}/cactus_addReferenceSeq.o cactus_addReferenceSeqTest.c ${libPath}/sonLib.a ${libPath}/cactusLib.a
-	${cxx} ${cflags} -I ${libPath} -o ${binPath}/cactus_addReferenceSeqTest cactus_addReferenceSeqTest.c  ${libPath}/cactus_addReferenceSeq.o ${libPath}/sonLib.a ${libPath}/cactusLib.a ${libPath}/sonLib.a ${dblibs}
+${binPath}/cactus_getReferenceSeq: ${libPath}/cactus_addReferenceSeq.o cactus_getReferenceSeq.c ${libPath}/sonLib.a ${libPath}/cactusLib.a
+	${cxx} ${cflags} -I ${libPath} -I ${kentInc} -o ${binPath}/cactus_getReferenceSeq cactus_getReferenceSeq.c ${libPath}/cactus_addReferenceSeq.o ${libPath}/cactusLib.a ${libPath}/sonLib.a ${dblibs}
 
 clean :
 	rm -f *.o
-	rm -f ${libPath}/cactus_addReferenceSeq.o
 	rm -f ${binPath}/cactus_addReferenceSeqTest
-	rm -f ${progs:%=${binPath}/%}
+	rm -f ${binPath}/cactus_getReferenceSeq
+	rm -f ${libPath}/cactus_addReferenceSeq.*

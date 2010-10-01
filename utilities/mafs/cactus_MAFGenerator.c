@@ -10,20 +10,19 @@
 #include "avl.h"
 #include "commonC.h"
 #include "hashTableC.h"
+#include "cactus_addReferenceSeq.h"
 
 /*
  * Object for representing the reference sequence.
  */
-typedef struct _referenceSequence {
+/*typedef struct _referenceSequence {
     int32_t length;
     char *header;
     int32_t index;
 } ReferenceSequence;
+*/
 
-static int32_t getTotalBlockLength(Flower *flower) {
-    /*
-     * Gets the sum of all the block lengths in the flower.
-     */
+/*static int32_t getTotalBlockLength(Flower *flower) {
     int32_t length = 0;
     Flower_BlockIterator *blockIt = flower_getBlockIterator(flower);
     Block *block;
@@ -53,7 +52,7 @@ static ReferenceSequence *referenceSequence_construct(Flower *flower) {
 static void referenceSequence_destruct(ReferenceSequence *referenceSequence) {
     free(referenceSequence->header);
     free(referenceSequence);
-}
+}*/
 
 /*
  * The script outputs a maf file containing all the block in a flower and its descendants.
@@ -116,7 +115,7 @@ int32_t getNumberOnPositiveStrand(Block *block) {
     return i;
 }
 
-char *getConsensusString(Block *block) {
+/*char *getConsensusString(Block *block) {
     Block_InstanceIterator *it = block_getInstanceIterator(block);
     Segment *segment;
     while((segment = block_getNext(it)) != NULL) {
@@ -126,9 +125,10 @@ char *getConsensusString(Block *block) {
         }
     }
     assert(0);
-}
+}*/
 
-void getMAFBlock(Block *block, FILE *fileHandle, ReferenceSequence *referenceSequence) {
+void getMAFBlock(Block *block, FILE *fileHandle) {
+//void getMAFBlock(Block *block, FILE *fileHandle, ReferenceSequence *referenceSequence) {
     /*
      * Outputs a MAF representation of the block to the given file handle.
      */
@@ -151,7 +151,7 @@ void getMAFBlock(Block *block, FILE *fileHandle, ReferenceSequence *referenceSeq
                     * block_getInstanceNumber(block));
         }
         //Now for the reference segment
-        if (referenceSequence != NULL) {
+        /*if (referenceSequence != NULL) {
             char *instanceString = getConsensusString(block);
             fprintf(fileHandle, "s\t%s\t%i\t%i\t%s\t%i\t%s\n",
                     referenceSequence->header, referenceSequence->index,
@@ -159,7 +159,7 @@ void getMAFBlock(Block *block, FILE *fileHandle, ReferenceSequence *referenceSeq
                     instanceString);
             free(instanceString);
             referenceSequence->index += block_getLength(block);
-        }
+        }*/
         //Now add the blocks in
         if (block_getRootInstance(block) != NULL) {
             assert(block_getRootInstance(block) != NULL);
@@ -177,26 +177,33 @@ void getMAFBlock(Block *block, FILE *fileHandle, ReferenceSequence *referenceSeq
     }
 }
 
-void getMAFSReferenceOrdered_walkDown(End *end, FILE *fileHandle, ReferenceSequence *referenceSequence);
+//void getMAFSReferenceOrdered_walkDown(End *end, FILE *fileHandle, ReferenceSequence *referenceSequence);
+void getMAFSReferenceOrdered_walkDown(End *end, FILE *fileHandle);
 
-void getMAFSReferenceOrdered_walkUp(End *end, FILE *fileHandle, ReferenceSequence *referenceSequence) {
+//void getMAFSReferenceOrdered_walkUp(End *end, FILE *fileHandle, ReferenceSequence *referenceSequence) {
+void getMAFSReferenceOrdered_walkUp(End *end, FILE *fileHandle) {
     assert(end != NULL);
     if (end_isBlockEnd(end)) {
-        getMAFBlock(end_getBlock(end), fileHandle, referenceSequence);
-        getMAFSReferenceOrdered_walkDown(end_getOtherBlockEnd(end), fileHandle, referenceSequence);
+        getMAFBlock(end_getBlock(end), fileHandle);
+        getMAFSReferenceOrdered_walkDown(end_getOtherBlockEnd(end), fileHandle);
+        //getMAFBlock(end_getBlock(end), fileHandle, referenceSequence);
+        //getMAFSReferenceOrdered_walkDown(end_getOtherBlockEnd(end), fileHandle, referenceSequence);
     } else {
         assert(end_isAttached(end));
         Group *parentGroup = flower_getParentGroup(end_getFlower(end));
         if (parentGroup != NULL) {
+            //getMAFSReferenceOrdered_walkUp(group_getEnd(parentGroup,
+            //        end_getName(end)), fileHandle, referenceSequence);
             getMAFSReferenceOrdered_walkUp(group_getEnd(parentGroup,
-                    end_getName(end)), fileHandle, referenceSequence);
+                    end_getName(end)), fileHandle);
         } else { //We reached the end of a pseudo-chromosome!
             assert(pseudoChromosome_get3End(pseudoAdjacency_getPseudoChromosome(end_getPseudoAdjacency(end))) == end);
         }
     }
 }
 
-void getMAFSReferenceOrdered_walkDown(End *end, FILE *fileHandle, ReferenceSequence *referenceSequence) {
+//void getMAFSReferenceOrdered_walkDown(End *end, FILE *fileHandle, ReferenceSequence *referenceSequence) {
+void getMAFSReferenceOrdered_walkDown(End *end, FILE *fileHandle) {
     assert(end != NULL);
     //assert(end_isAttached(end));
     Group *group = end_getGroup(end);
@@ -210,14 +217,18 @@ void getMAFSReferenceOrdered_walkDown(End *end, FILE *fileHandle, ReferenceSeque
             end = pseudoAdjacency_get3End(pseudoAdjacency);
         }
         //Now walk up
-        getMAFSReferenceOrdered_walkUp(end, fileHandle, referenceSequence);
+        //getMAFSReferenceOrdered_walkUp(end, fileHandle, referenceSequence);
+        getMAFSReferenceOrdered_walkUp(end, fileHandle);
     } else { //Walk down
+        //getMAFSReferenceOrdered_walkDown(flower_getEnd(group_getNestedFlower(
+        //        group), end_getName(end)), fileHandle, referenceSequence);
         getMAFSReferenceOrdered_walkDown(flower_getEnd(group_getNestedFlower(
-                group), end_getName(end)), fileHandle, referenceSequence);
+                group), end_getName(end)), fileHandle);
     }
 }
 
-void getMAFsReferenceOrdered(Flower *flower, FILE *fileHandle, ReferenceSequence *referenceSequence) {
+//void getMAFsReferenceOrdered(Flower *flower, FILE *fileHandle, ReferenceSequence *referenceSequence) {
+void getMAFsReferenceOrdered(Flower *flower, FILE *fileHandle) {
     /*
      * Outputs MAF representations of all the block in the flower and its descendants, ordered
      * according to the reference ordering.
@@ -230,7 +241,8 @@ void getMAFsReferenceOrdered(Flower *flower, FILE *fileHandle, ReferenceSequence
     while ((pseudoChromosome = reference_getNextPseudoChromosome(it)) != NULL) {
         End *end = pseudoChromosome_get5End(pseudoChromosome);
         assert(!end_isBlockEnd(end));
-        getMAFSReferenceOrdered_walkDown(end, fileHandle, referenceSequence);
+        //getMAFSReferenceOrdered_walkDown(end, fileHandle, referenceSequence);
+        getMAFSReferenceOrdered_walkDown(end, fileHandle);
     }
     reference_destructPseudoChromosomeIterator(it);
 }
@@ -244,7 +256,8 @@ void getMAFs(Flower *flower, FILE *fileHandle) {
     Flower_BlockIterator *blockIterator = flower_getBlockIterator(flower);
     Block *block;
     while ((block = flower_getNextBlock(blockIterator)) != NULL) {
-        getMAFBlock(block, fileHandle, NULL);
+        getMAFBlock(block, fileHandle);
+        //getMAFBlock(block, fileHandle, NULL);
     }
     flower_destructBlockIterator(blockIterator);
 
@@ -278,7 +291,7 @@ void usage() {
             "-f --orderByReference : Order the blocks by the reference ordering.\n");
     fprintf(
             stderr,
-            "-g --includeReferenceSequence : Include a reference sequence in the blocks, must be used in conjunction with --orderByReference.\n");
+            "-g --referenceSequence : Name of the reference sequence. This option will include a reference sequence in the blocks.\n");
     fprintf(stderr, "-h --help : Print this help screen\n");
 }
 
@@ -290,8 +303,9 @@ int main(int argc, char *argv[]) {
     char * cactusDiskDatabaseString = NULL;
     char * flowerName = NULL;
     char * outputFile = NULL;
+    char * referenceSequence = NULL;
     bool orderByReference = 0;
-    bool includeReferenceSequence = 0;
+    //bool includeReferenceSequence = 0;
 
     ///////////////////////////////////////////////////////////////////////////
     // (0) Parse the inputs handed by genomeCactus.py / setup stuff.
@@ -303,12 +317,12 @@ int main(int argc, char *argv[]) {
                 0, 'c' }, { "flowerName", required_argument, 0, 'd' }, {
                 "outputFile", required_argument, 0, 'e' }, {
                 "orderByReference", no_argument, 0, 'f' }, {
-                "includeReferenceSequence", no_argument, 0, 'g' }, { "help",
+                "referenceSequence", optional_argument, 0, 'g' }, { "help",
                 no_argument, 0, 'h' }, { 0, 0, 0, 0 } };
 
         int option_index = 0;
 
-        int key = getopt_long(argc, argv, "a:c:d:e:fgh", long_options,
+        int key = getopt_long(argc, argv, "a:c:d:e:g:fh", long_options,
                 &option_index);
 
         if (key == -1) {
@@ -332,7 +346,7 @@ int main(int argc, char *argv[]) {
                 orderByReference = !orderByReference;
                 break;
             case 'g':
-                includeReferenceSequence = !includeReferenceSequence;
+                referenceSequence = stString_copy(optarg);
                 break;
             case 'h':
                 usage();
@@ -349,13 +363,13 @@ int main(int argc, char *argv[]) {
 
     assert(flowerName != NULL);
     assert(outputFile != NULL);
-    if (includeReferenceSequence) {
+    /*(if (includeReferenceSequence) {
         if (!orderByReference) {
             stExcept_new(
                     "MAF_GENERATOR_EXCEPTION",
                     "You have specified to include the reference sequence by not to order by reference, this is not possible currently");
         }
-    }
+    }*/
 
     //////////////////////////////////////////////
     //Set up logging
@@ -381,7 +395,8 @@ int main(int argc, char *argv[]) {
 
     stKVDatabaseConf *kvDatabaseConf = stKVDatabaseConf_constructFromString(
             cactusDiskDatabaseString);
-    CactusDisk *cactusDisk = cactusDisk_construct2(kvDatabaseConf, 0, 1);
+    //CactusDisk *cactusDisk = cactusDisk_construct2(kvDatabaseConf, 0, 1);
+    CactusDisk *cactusDisk = cactusDisk_construct(kvDatabaseConf, 0);
     st_logInfo("Set up the flower disk\n");
 
     ///////////////////////////////////////////////////////////////////////////
@@ -399,16 +414,13 @@ int main(int argc, char *argv[]) {
     int64_t startTime = time(NULL);
     FILE *fileHandle = fopen(outputFile, "w");
     makeMAFHeader(flower, fileHandle);
+    if(referenceSequence) {
+        flower = flower_addReferenceSequence(flower, cactusDisk, referenceSequence);
+    }
     if (orderByReference) {
         st_logInfo("Ordering by reference\n");
-        ReferenceSequence *referenceSequence = NULL;
-        if(includeReferenceSequence) {
-            referenceSequence = referenceSequence_construct(flower);
-        }
-        getMAFsReferenceOrdered(flower, fileHandle, referenceSequence);
-        if(referenceSequence != NULL) {
-            referenceSequence_destruct(referenceSequence);
-        }
+        getMAFsReferenceOrdered(flower, fileHandle);
+        //getMAFsReferenceOrdered(flower, fileHandle, referenceSequence);
     } else {
         getMAFs(flower, fileHandle);
     }
