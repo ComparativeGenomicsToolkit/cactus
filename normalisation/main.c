@@ -119,6 +119,8 @@ int main(int argc, char *argv[]) {
         st_logInfo("Parsed the flower to normalise\n");
 
         normalise(flower, maxNumberOfChains);
+
+        flower_unloadParent(flower); //We have this line just in case we are loading the parent..
     }
 
     ///////////////////////////////////////////////////////////////////////////

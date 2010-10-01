@@ -145,6 +145,8 @@ int main(int argc, char *argv[]) {
         } else {
             constructReference_bottomUpPhase(flower);
         }
+
+        flower_unloadParent(flower); //We have this line just in case we are loading the parent..
     }
 
     ///////////////////////////////////////////////////////////////////////////

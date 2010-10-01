@@ -903,6 +903,7 @@ int main(int argc, char *argv[]) {
 
         assert(!flower_builtTrees(flower));
         flower_setBuiltTrees(flower, 1);
+        flower_unloadParent(flower); //We have this line just in case we are loading the parent..
     }
 
     ///////////////////////////////////////////////////////////////////////////

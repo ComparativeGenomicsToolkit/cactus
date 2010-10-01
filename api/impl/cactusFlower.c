@@ -736,10 +736,12 @@ void flower_makeTerminalNormal(Flower *flower) {
 
 void flower_unloadParent(Flower *flower) {
     Name parentName = flower->parentFlowerName;
-    CactusDisk *cactusDisk = flower_getCactusDisk(flower);
-    if(cactusDisk_flowerIsLoaded(cactusDisk, parentName)) {
-        Flower *parentFlower = cactusDisk_getFlower(cactusDisk, parentName);
-        flower_destruct(parentFlower, 0);
+    if(parentName != NULL_NAME) {
+        CactusDisk *cactusDisk = flower_getCactusDisk(flower);
+        if(cactusDisk_flowerIsLoaded(cactusDisk, parentName)) {
+            Flower *parentFlower = cactusDisk_getFlower(cactusDisk, parentName);
+            flower_destruct(parentFlower, 0);
+        }
     }
 }
 
