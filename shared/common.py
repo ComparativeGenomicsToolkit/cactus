@@ -224,9 +224,9 @@ def runCactusReferenceGraphViewer(graphFile,
     logger.info("Created a cactus reference graph")
     
 def runCactusMAFGenerator(mAFFile, cactusDiskDatabaseString, flowerName="0",
-                          logLevel="DEBUG", orderByReference=False, includeReferenceSequence=False):
+                          logLevel="DEBUG", orderByReference=False, referenceSequenceName=None):
     orderByReference = nameValue("orderByReference", orderByReference, bool)
-    includeReferenceSequence = nameValue("includeReferenceSequence", includeReferenceSequence, bool)
+    referenceSequence = nameValue("referenceSequence", referenceSequenceName, str)
     system("cactus_MAFGenerator --cactusDisk '%s' --flowerName %s --outputFile %s --logLevel %s %s %s" \
-            % (cactusDiskDatabaseString, flowerName, mAFFile, logLevel, orderByReference, includeReferenceSequence))
+            % (cactusDiskDatabaseString, flowerName, mAFFile, logLevel, orderByReference, referenceSequenceName))
     logger.info("Created a MAF for the given cactusDisk")
