@@ -28,7 +28,7 @@ class TestCase(unittest.TestCase):
         
     def testCactus_Random(self):
         runWorkflow_multipleExamples(getCactusInputs_random, 
-                                     testNumber=2, #TestStatus.getTestSetup(),
+                                     testNumber=1, #TestStatus.getTestSetup(),
                                      buildReference=False,
                                      batchSystem=self.batchSystem, buildJobTreeStats=True)
         
