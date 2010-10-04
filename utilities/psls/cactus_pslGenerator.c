@@ -974,7 +974,7 @@ void block_getPSL(Flower *flower, Cap *qcap, Cap *tcap, char *query, char *targe
    /*
     *print PSL for 2 aligned segments (applied for tangle cases)
     */
-   char *pslDesc;
+   char *pslDesc = NULL;
    FILE *err = fopen("dump", "w");
    char sep = '\t';
    char lastStep = '\n';
