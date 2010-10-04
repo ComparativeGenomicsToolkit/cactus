@@ -442,6 +442,7 @@ char *cactusDisk_getString(CactusDisk *cactusDisk, Name name, int32_t start,
 
 void cactusDisk_getBlockOfUniqueIDs(CactusDisk *cactusDisk) {
     bool done = 0;
+    int32_t collisionCount = 0;
     while (!done) {
         stTry {
                 stKVDatabase_startTransaction(cactusDisk->database);
@@ -480,7 +481,7 @@ void cactusDisk_getBlockOfUniqueIDs(CactusDisk *cactusDisk) {
             stCatch(except)
                 {
                     if (stExcept_getId(except)
-                            == ST_KV_DATABASE_RETRY_TRANSACTION_EXCEPTION_ID) {
+                            == ST_KV_DATABASE_RETRY_TRANSACTION_EXCEPTION_ID || collisionCount++ < 50) {
                         st_logDebug(
                                 "We have caught a retry transaction exception when allocating a new id, we will try again\n");
                         stExcept_free(except);
