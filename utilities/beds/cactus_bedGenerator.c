@@ -128,8 +128,8 @@ void chain_getBEDs(Chain *chain, Cap *cap, FILE *fileHandle, char *species, char
     int blockCount = 0;
     int chromStart;
     int chromEnd;
-    int *blockSizes;
-    int *blockStarts;
+    int *blockSizes = NULL;
+    int *blockStarts = NULL;
     Block *block;
 
     cap = cap_getAdjacency(cap);
