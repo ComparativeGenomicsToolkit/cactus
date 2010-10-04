@@ -10,8 +10,10 @@ struct _stPosetAlignment {
 
 static int comparePositions(stIntTuple *position1, stIntTuple *position2) {
     if(stIntTuple_getPosition(position1, 0) == INT32_MAX || stIntTuple_getPosition(position2, 0) == INT32_MAX) { //Indicates we should ignore the first position and compare the second.
+#ifdef BEN_DEBUG
         assert(stIntTuple_getPosition(position1, 1) != INT32_MAX);
         assert(stIntTuple_getPosition(position2, 1) != INT32_MAX);
+#endif
         return stIntTuple_getPosition(position1, 1) - stIntTuple_getPosition(position2, 1);
     }
     return stIntTuple_getPosition(position1, 0) - stIntTuple_getPosition(position2, 0);
@@ -50,9 +52,11 @@ int32_t stPosetAlignment_getSequenceNumber(stPosetAlignment *posetAlignment) {
 }
 
 static stSortedSet *getConstraintList(stPosetAlignment *posetAlignment, int32_t sequence1, int32_t sequence2) {
+#ifdef BEN_DEBUG
     assert(sequence1 >= 0 && sequence1 < posetAlignment->sequenceNumber);
     assert(sequence2 >= 0 && sequence2 < posetAlignment->sequenceNumber);
     assert(sequence1 != sequence2);
+#endif
     return posetAlignment->constraintLists[sequence1 * posetAlignment->sequenceNumber + sequence2];
 }
 
@@ -98,8 +102,10 @@ static bool lessThanConstraintIsPrime(stPosetAlignment *posetAlignment, int32_t 
  */
 void addConstraint_lessThan(stPosetAlignment *posetAlignment, int32_t sequence1, int32_t position1, int32_t sequence2, int32_t position2, int32_t lessThanOrEquals) {
     stSortedSet *constraintList = getConstraintList(posetAlignment, sequence1, sequence2);
+#ifdef BEN_DEBUG
     assert(position1 != INT32_MAX);
     assert(position2 != INT32_MAX);
+#endif
     stIntTuple *constraint1 = stIntTuple_construct(3, position1, position2, lessThanOrEquals);
     stIntTuple *constraint2;
     while((constraint2 = stSortedSet_searchLessThanOrEqual(constraintList, constraint1)) != NULL) {
@@ -115,7 +121,9 @@ void addConstraint_lessThan(stPosetAlignment *posetAlignment, int32_t sequence1,
             stIntTuple_destruct(constraint2);
         }
         else {
+#ifdef BEN_DEBUG
             assert(stIntTuple_getPosition(constraint2, 0) < position1); //Check the constraint does not overshadow our proposed constraint.
+#endif
             break;
         }
     }

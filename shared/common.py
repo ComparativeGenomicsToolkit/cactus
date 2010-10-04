@@ -228,5 +228,5 @@ def runCactusMAFGenerator(mAFFile, cactusDiskDatabaseString, flowerName="0",
     orderByReference = nameValue("orderByReference", orderByReference, bool)
     referenceSequence = nameValue("referenceSequence", referenceSequenceName, str)
     system("cactus_MAFGenerator --cactusDisk '%s' --flowerName %s --outputFile %s --logLevel %s %s %s" \
-            % (cactusDiskDatabaseString, flowerName, mAFFile, logLevel, orderByReference, referenceSequenceName))
+            % (cactusDiskDatabaseString, flowerName, mAFFile, logLevel, orderByReference, referenceSequence))
     logger.info("Created a MAF for the given cactusDisk")

@@ -57,7 +57,9 @@ stList *makeAlignment(stList *sequences,
         stList *alignedPairs2 = getAlignedPairs(stList_get(sequences, sequence1), stList_get(sequences, sequence2), modelParameters);
         while(stList_length(alignedPairs2) > 0) {
             stIntTuple *alignedPair = (stIntTuple *)stList_pop(alignedPairs2);
+#ifdef BEN_DEBUG
             assert(stIntTuple_length(alignedPair) == 3);
+#endif
             stList_append(alignedPairs, stIntTuple_construct(5,
                     /* score */ stIntTuple_getPosition(alignedPair, 0),
                     /*seq 1 */ sequence1, stIntTuple_getPosition(alignedPair, 1),
@@ -78,8 +80,10 @@ stList *makeAlignment(stList *sequences,
     while (stList_length(alignedPairs) > 0) {
         stIntTuple *alignedPair = stList_pop(alignedPairs);
         int32_t score = stIntTuple_getPosition(alignedPair, 0);
+#ifdef BEN_DEBUG
         assert(score > 0);
         assert(score <= pScore);
+#endif
         pScore = score;
         int32_t sequence1 = stIntTuple_getPosition(alignedPair, 1);
         int32_t position1 = stIntTuple_getPosition(alignedPair, 2);

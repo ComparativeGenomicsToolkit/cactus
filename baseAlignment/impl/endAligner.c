@@ -82,8 +82,10 @@ stSortedSet *makeEndAlignment(End *end, int32_t spanningTrees, int32_t maxSequen
                 i->sequenceName, i->start + (i->strand ? offset1 : -offset1), i->strand,
                 j->sequenceName, j->start + (j->strand ? offset2 : -offset2), j->strand,
                 stIntTuple_getPosition(alignedPair, 0));
+#ifdef BEN_DEBUG
         assert(stSortedSet_search(sortedAlignment, alignedPair2) == NULL);
         assert(stSortedSet_search(sortedAlignment, alignedPair2->reverse) == NULL);
+#endif
         stSortedSet_insert(sortedAlignment, alignedPair2);
         stSortedSet_insert(sortedAlignment, alignedPair2->reverse);
         stIntTuple_destruct(alignedPair);

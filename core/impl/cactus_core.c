@@ -90,8 +90,10 @@ void filterPieceAndThenAddToGraph(struct PinchGraph *pinchGraph,
         piece->start += filterParameters->trim;
         piece2->end -= filterParameters->trim;
         piece2->start += filterParameters->trim;
+#ifdef BEN_DEBUG
         assert(piece->end - piece->start == piece2->end - piece2->start);
         assert(piece->end - piece->start >= 0);
+#endif
 
         //Now filter by repeat content.
         if (!filterParameters->alignRepeats) {
@@ -224,8 +226,8 @@ int32_t cactusCorePipeline(Flower *flower, CactusCoreInputParameters *cCIP,
     //Check the flower to fill in terminal, and get rid of the group it contains and any terminal chain.
     ////////////////////////////////////////////////
 
-    assert(!flower_builtBlocks(flower)); //We can't do this if we've already built blocks for the flower!.
 #ifdef BEN_DEBUG
+    assert(!flower_builtBlocks(flower)); //We can't do this if we've already built blocks for the flower!.
     flower_check(flower);
     assert(flower_isTerminal(flower));
     assert(flower_getGroupNumber(flower) == 1);
@@ -322,7 +324,9 @@ int32_t cactusCorePipeline(Flower *flower, CactusCoreInputParameters *cCIP,
         struct FilterAlignmentParameters *filterParameters =
                 (struct FilterAlignmentParameters *) st_malloc(
                         sizeof(struct FilterAlignmentParameters));
+#ifdef BEN_DEBUG
         assert(trim >= 0);
+#endif
         filterParameters->trim = trim;
         filterParameters->alignRepeats = loop >= cCIP->alignRepeatsAtRound; //cCIP->alignRepeats;
         filterParameters->flower = flower;

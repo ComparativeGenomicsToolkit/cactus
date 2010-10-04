@@ -25,27 +25,6 @@
 ////////////////////////////////////////////////
 ////////////////////////////////////////////////
 
-void checkPinchGraphDegree(struct PinchGraph *graph, int32_t maxDegree) {
-	/*
-	 * Checks no black edges have degree higher than given max degree (except those of stubs and caps which
-	 * can not be undone).
-	 */
-#ifdef BEN_DEBUG
-	int32_t i;
-	struct PinchVertex *vertex;
-
-	for(i=0; i<graph->vertices->length; i++) {
-		vertex = graph->vertices->list[i];
-		if(lengthBlackEdges(vertex) > 0) {
-			if(isAStub(getFirstBlackEdge(vertex)) == FALSE) { //we don't check stubs/caps/
-				assert(lengthBlackEdges(vertex) <= maxDegree);
-			}
-		}
-	}
-#endif
-}
-
-
 void checkPinchGraph(struct PinchGraph *graph) {
 	/*
 	 * Checks that the pinch graph is correctly formed. If not throws assertion
@@ -60,6 +39,9 @@ void checkPinchGraph(struct PinchGraph *graph) {
 	struct PinchEdge *edge2;
 	void *greyEdgeIterator;
 	void *blackEdgeIterator;
+	assert(graph->vertices->length > 0);
+	struct PinchVertex *sourceVertex = graph->vertices->list[0];
+	assert(sourceVertex->vertexID == 0);
 
 	for(i=0; i<graph->vertices->length; i++) {
 		vertex = graph->vertices->list[i];
@@ -110,7 +92,9 @@ void checkPinchGraph(struct PinchGraph *graph) {
 				else {
 					assert(lengthGreyEdges(edge->from) > 0); //can not be a cap instance
 					assert(lengthGreyEdges(edge->to) > 0); //can not be a cap instance
-					greyEdgeIterator = getGreyEdgeIterator(edge->from);
+					assert(!containsGreyEdge(edge->from, sourceVertex));
+					assert(!containsGreyEdge(edge->to, sourceVertex));
+					/*greyEdgeIterator = getGreyEdgeIterator(edge->from);
 					while((vertex2 = getNextGreyEdge(edge->from, greyEdgeIterator)) != NULL) {
 						assert(vertex2->vertexID != 0); //can not be connected to the source vertex
 					}
@@ -119,7 +103,7 @@ void checkPinchGraph(struct PinchGraph *graph) {
 					while((vertex2 = getNextGreyEdge(vertex, greyEdgeIterator)) != NULL) {
 						assert(vertex2->vertexID != 0); //can not be connected to the source vertex
 					}
-					destructGreyEdgeIterator(greyEdgeIterator);
+					destructGreyEdgeIterator(greyEdgeIterator);*/
 				}
 			}
 			destructBlackEdgeIterator(blackEdgeIterator);

@@ -51,12 +51,16 @@ char *convertSequence(const char *s, int32_t sL) {
 
 static inline double lookup (double x){
   //return log (exp (x) + 1);
+#ifdef BEN_DEBUG
   assert (x >= 0.00f);
   assert (x <= logUnderflowThreshold);
+#endif
   if (x <= 1.00f) return ((-0.009350833524763f * x + 0.130659527668286f) * x + 0.498799810682272f) * x + 0.693203116424741f;
   if (x <= 2.50f) return ((-0.014532321752540f * x + 0.139942324101744f) * x + 0.495635523139337f) * x + 0.692140569840976f;
   if (x <= 4.50f) return ((-0.004605031767994f * x + 0.063427417320019f) * x + 0.695956496475118f) * x + 0.514272634594009f;
+#ifdef BEN_DEBUG
   assert (x <= logUnderflowThreshold);
+#endif
   return ((-0.000458661602210f * x + 0.009695946122598f) * x + 0.930734667215156f) * x + 0.168037164329057f;
 }
 
@@ -79,13 +83,17 @@ static inline void logAddAndAssign(double *x, double y) {
 static const int32_t cellNo = 5;
 
 static void checkState(int32_t state) {
+#ifdef BEN_DEBUG
     assert(state >= 0);
     assert(state < cellNo);
+#endif
 }
 
 static void checkPosition(int32_t z, int32_t zL) {
+#ifdef BEN_DEBUG
     assert(z >= 1);
     assert(z < zL);
+#endif
 }
 
 #define matchContinueTransition -0.030064059121770816 //0.9703833696510062f
@@ -346,7 +354,9 @@ stList *getAlignedPairs(const char *sX, const char *sY, void *parameters) {
     }
     //Check they are about the same.
     //st_uglyf("This is what I aligned %f %f %f %s %s\n", totalFProb, totalBProb, diff, sX, sY);
+#ifdef BEN_DEBUG
     assert(diff < 0.001);
+#endif
 
     //Get posterior probabilities above 0.01 threshold.
     stList *alignedPairs = stList_construct3(0, (void (*)(void *))stIntTuple_destruct);
