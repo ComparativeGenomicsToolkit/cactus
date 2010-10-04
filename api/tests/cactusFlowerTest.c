@@ -113,7 +113,7 @@ static void testObjectRetrieval(CuTest* testCase, void(*setupFn)(),
         void *(*constructIterator)(Flower *flower), void(*destructIterator)(
                 void *iterator), void *(*getNext)(void *iterator),
         void *(*getPrevious)(void *iterator), void *(*copyIterator)(
-                void *iterator), void **object, void **object2) {
+                void *iterator), void *object, void *object2) {
     cactusFlowerTestSetup();
     /*
      * Test number function
@@ -125,14 +125,14 @@ static void testObjectRetrieval(CuTest* testCase, void(*setupFn)(),
     /*
      * Test get first function.
      */
-    CuAssertTrue(testCase, getFirstObjectFn(flower) == *object);
+    CuAssertTrue(testCase, getFirstObjectFn(flower) == object);
 
     /*
      * Test get function
      */
     if (objectGetNameFn != NULL) {
-        CuAssertTrue(testCase, getObjectFn(flower, objectGetNameFn(*object)) == *object);
-        CuAssertTrue(testCase, getObjectFn(flower, objectGetNameFn(*object2)) == *object2);
+        CuAssertTrue(testCase, getObjectFn(flower, objectGetNameFn(object)) == object);
+        CuAssertTrue(testCase, getObjectFn(flower, objectGetNameFn(object2)) == object2);
     } else {
         assert(getObjectFn == NULL);
     }
@@ -141,16 +141,16 @@ static void testObjectRetrieval(CuTest* testCase, void(*setupFn)(),
      * Test iterator.
      */
     void *iterator = constructIterator(flower);
-    CuAssertTrue(testCase, getNext(iterator) == *object);
-    CuAssertTrue(testCase, getNext(iterator) == *object2);
+    CuAssertTrue(testCase, getNext(iterator) == object);
+    CuAssertTrue(testCase, getNext(iterator) == object2);
     CuAssertTrue(testCase, getNext(iterator) == NULL);
     void *iterator2 = copyIterator(iterator);
-    CuAssertTrue(testCase, getPrevious(iterator) == *object2);
-    CuAssertTrue(testCase, getPrevious(iterator) == *object);
+    CuAssertTrue(testCase, getPrevious(iterator) == object2);
+    CuAssertTrue(testCase, getPrevious(iterator) == object);
     CuAssertTrue(testCase, getPrevious(iterator) == NULL);
     destructIterator(iterator);
-    CuAssertTrue(testCase, getPrevious(iterator2) == *object2);
-    CuAssertTrue(testCase, getPrevious(iterator2) == *object);
+    CuAssertTrue(testCase, getPrevious(iterator2) == object2);
+    CuAssertTrue(testCase, getPrevious(iterator2) == object);
     CuAssertTrue(testCase, getPrevious(iterator2) == NULL);
     destructIterator(iterator2);
     cactusFlowerTestTeardown();
@@ -202,7 +202,7 @@ void testFlower_sequence(CuTest* testCase) {
                     void *)) flower_getNextSequence,
             (void *(*)(void *)) flower_getPreviousSequence,
             (void *(*)(void *)) flower_copySequenceIterator,
-            (void **) (&sequence), (void **) (&sequence2));
+            (void *)sequence, (void *)sequence2);
 }
 
 void testFlower_cap(CuTest* testCase) {
@@ -215,8 +215,8 @@ void testFlower_cap(CuTest* testCase) {
             (void(*)(void *)) flower_destructCapIterator,
             (void *(*)(void *)) flower_getNextCap,
             (void *(*)(void *)) flower_getPreviousCap,
-            (void *(*)(void *)) flower_copyCapIterator, (void **) (&cap),
-            (void **) (&cap2));
+            (void *(*)(void *)) flower_copyCapIterator, (void *)cap,
+            (void *)cap2);
 }
 
 void testFlower_end(CuTest* testCase) {
@@ -229,8 +229,8 @@ void testFlower_end(CuTest* testCase) {
             (void(*)(void *)) flower_destructEndIterator,
             (void *(*)(void *)) flower_getNextEnd,
             (void *(*)(void *)) flower_getPreviousEnd,
-            (void *(*)(void *)) flower_copyEndIterator, (void **) (&end),
-            (void **) (&end2));
+            (void *(*)(void *)) flower_copyEndIterator, (void *)end,
+            (void *)end2);
 }
 
 void testFlower_segment(CuTest* testCase) {
@@ -244,7 +244,7 @@ void testFlower_segment(CuTest* testCase) {
             (void *(*)(void *)) flower_getNextSegment,
             (void *(*)(void *)) flower_getPreviousSegment,
             (void *(*)(void *)) flower_copySegmentIterator,
-            (void **) (&segment), (void **) (&segment2));
+            (void *)segment, (void *)segment2);
 }
 
 void testFlower_block(CuTest* testCase) {
@@ -257,8 +257,8 @@ void testFlower_block(CuTest* testCase) {
             (void(*)(void *)) flower_destructBlockIterator,
             (void *(*)(void *)) flower_getNextBlock,
             (void *(*)(void *)) flower_getPreviousBlock,
-            (void *(*)(void *)) flower_copyBlockIterator, (void **) (&block),
-            (void **) (&block2));
+            (void *(*)(void *)) flower_copyBlockIterator, (void *)block,
+            (void *)block2);
 }
 
 void testFlower_chain(CuTest* testCase) {
@@ -271,8 +271,8 @@ void testFlower_chain(CuTest* testCase) {
             (void(*)(void *)) flower_destructChainIterator,
             (void *(*)(void *)) flower_getNextChain,
             (void *(*)(void *)) flower_getPreviousChain,
-            (void *(*)(void *)) flower_copyChainIterator, (void **) (&chain),
-            (void **) (&chain2));
+            (void *(*)(void *)) flower_copyChainIterator, (void *)chain,
+            (void *)chain2);
 }
 
 void testFlower_getTrivialChainNumber(CuTest* testCase) {
