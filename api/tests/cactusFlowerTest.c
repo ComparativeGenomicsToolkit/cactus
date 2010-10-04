@@ -308,8 +308,8 @@ void testFlower_group(CuTest* testCase) {
             (void(*)(void *)) flower_destructGroupIterator,
             (void *(*)(void *)) flower_getNextGroup,
             (void *(*)(void *)) flower_getPreviousGroup,
-            (void *(*)(void *)) flower_copyGroupIterator, (void **) (&group),
-            (void **) (&group2));
+            (void *(*)(void *)) flower_copyGroupIterator, (void *)group,
+            (void *)group2);
 }
 
 void testFlower_face(CuTest* testCase) {
@@ -320,8 +320,8 @@ void testFlower_face(CuTest* testCase) {
             (void(*)(void *)) flower_destructFaceIterator,
             (void *(*)(void *)) flower_getNextFace,
             (void *(*)(void *)) flower_getPreviousFace,
-            (void *(*)(void *)) flower_copyFaceIterator, (void **) (&face),
-            (void **) (&face2));
+            (void *(*)(void *)) flower_copyFaceIterator, (void *)face,
+            (void *)face2);
 }
 
 void testFlower_getEndNumber(CuTest *testCase) {
