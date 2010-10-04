@@ -512,7 +512,7 @@ struct Align *align_getBest(struct Align **aligns, int num, struct Thread *qthre
    int numbase = 0;
    int max = 0;
    struct Align *align;
-   struct Align *best;
+   struct Align *best = NULL;
    Cap *cap;
    Cap **caps = qthread->caps;
    //fprintf(stderr, "Getting Best alignment\n");
