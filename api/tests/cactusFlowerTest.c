@@ -202,7 +202,7 @@ void testFlower_sequence(CuTest* testCase) {
                     void *)) flower_getNextSequence,
             (void *(*)(void *)) flower_getPreviousSequence,
             (void *(*)(void *)) flower_copySequenceIterator,
-            (void *)sequence, (void *)sequence2);
+            sequence, sequence2);
 }
 
 void testFlower_cap(CuTest* testCase) {
