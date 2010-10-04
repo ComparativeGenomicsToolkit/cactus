@@ -80,7 +80,7 @@ int main(int argc, char *argv[]) {
     // (0) Check the inputs.
     ///////////////////////////////////////////////////////////////////////////
 
-    assert(logLevelString == NULL || strcmp(logLevelString, "CRITICAL") == 0 || strcmp(logLevelString, "INFO") == 0 || strcmp(logLevelString, "DEBUG") == 0);
+    //assert(logLevelString == NULL || strcmp(logLevelString, "CRITICAL") == 0 || strcmp(logLevelString, "INFO") == 0 || strcmp(logLevelString, "DEBUG") == 0);
     assert(cactusDiskDatabaseString != NULL);
 
     //////////////////////////////////////////////
