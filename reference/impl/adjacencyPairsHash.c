@@ -249,7 +249,7 @@ stHash *adjacencyHash_constructInitialPairs(Flower *flower, MatchingAlgorithm re
      * Create the matching.
      */
     stList *matchingTuples = NULL;
-    if(referenceAlgorithm == greedy) {
+    if(referenceAlgorithm == greedy || nodeNumber > 500) { //We use greedy it the problem is too big
         matchingTuples = chooseMatching_greedy(tupleEdges, nodeNumber);
     }
     else if (referenceAlgorithm == blossom5) {

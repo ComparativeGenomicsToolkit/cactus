@@ -212,7 +212,8 @@ void cactusDisk_write(CactusDisk *cactusDisk) {
         }
         stCatch(except)
             {
-                stThrowNewCause(
+            stKVDatabase_abortTransaction(cactusDisk->database);
+            stThrowNewCause(
                         except,
                         ST_KV_DATABASE_EXCEPTION_ID,
                         "An unknown database error occurred when updating flowers and metasequences on the cactus disk");
