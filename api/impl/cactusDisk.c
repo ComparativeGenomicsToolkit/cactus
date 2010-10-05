@@ -30,7 +30,8 @@ CactusDisk *cactusDisk_construct2(stKVDatabaseConf *conf, bool create,
             cactusDisk_constructMetaSequencesP, NULL);
     cactusDisk->flowers = stSortedSet_construct3(cactusDisk_constructFlowersP,
             NULL);
-    cactusDisk->flowerNamesMarkedForDeletion = stSortedSet_construct2(free);
+    cactusDisk->flowerNamesMarkedForDeletion = stSortedSet_construct3((int(*)(
+            const void *, const void *)) strcmp, free);
 
     //Now open the database
     //preCacheSequences = 0;
@@ -101,100 +102,126 @@ static void *decompress(void *data, int64_t *dataSize) {
     return data2;
 }
 
-void cactusDisk_write(CactusDisk *cactusDisk) {
-    void *vA = NULL;
-    int32_t recordSize;
-    Flower *flower;
-    MetaSequence *metaSequence;
-
-    bool done = 0;
-    while (!done) {
-        stTry {
-                stKVDatabase_startTransaction(cactusDisk->database);
-
-                stSortedSetIterator *it = stSortedSet_getIterator(
-                        cactusDisk->flowers);
-                while ((flower = stSortedSet_getNext(it)) != NULL) {
-                    vA
-                            = binaryRepresentation_makeBinaryRepresentation(
-                                    flower,
-                                    (void(*)(void *, void(*)(const void * ptr,
-                                            size_t size, size_t count))) flower_writeBinaryRepresentation,
-                                    &recordSize);
-                    //Compression
-                    vA = compress(vA, &recordSize);
-                    if (stKVDatabase_containsRecord(cactusDisk->database,
-                            flower_getName(flower))) {
-                        stKVDatabase_updateRecord(cactusDisk->database,
-                                flower_getName(flower), vA, recordSize);
-                    } else {
-                        stKVDatabase_insertRecord(cactusDisk->database,
-                                flower_getName(flower), vA, recordSize);
-                    }
-                    free(vA);
-                    vA = NULL; //We set to NULL so that the free in the outer catch does not free an already freed block.
-                }
-                stSortedSet_destructIterator(it);
-
-                it = stSortedSet_getIterator(cactusDisk->metaSequences);
-                while ((metaSequence = stSortedSet_getNext(it)) != NULL) {
-                    if (stKVDatabase_containsRecord(cactusDisk->database,
-                            metaSequence_getName(metaSequence))) { //We do not edit meta sequences, so we do not update it..
-                        //stKVDatabase_updateRecord(cactusDisk->database, metaSequence_getName(metaSequence),
-                        //        vA, recordSize);
-                    } else {
-                        vA
-                                = binaryRepresentation_makeBinaryRepresentation(
-                                        metaSequence,
-                                        (void(*)(void *, void(*)(
-                                                const void * ptr, size_t size,
-                                                size_t count))) metaSequence_writeBinaryRepresentation,
-                                        &recordSize);
-                        //Compression
-                        vA = compress(vA, &recordSize);
-                        stKVDatabase_insertRecord(cactusDisk->database,
-                                metaSequence_getName(metaSequence), vA,
-                                recordSize);
-                        free(vA);
-                        vA = NULL;
-                    }
-                }
-                stSortedSet_destructIterator(it);
-
-                //Remove nets that are marked for deletion..
-                it = stSortedSet_getIterator(
-                        cactusDisk->flowerNamesMarkedForDeletion);
-                char *nameString;
-                while ((nameString = stSortedSet_getNext(it)) != NULL) {
-                    Name name = cactusMisc_stringToName(nameString);
-                    if (stKVDatabase_containsRecord(cactusDisk->database, name)) {
-                        stKVDatabase_removeRecord(cactusDisk->database, name);
-                    }
-                }
-                stSortedSet_destructIterator(it);
-
-                stKVDatabase_commitTransaction(cactusDisk->database);
-                done = 1;
-            }
-            stCatch(except)
-                {
-                    if (vA != NULL) { //First clean up any memory that was allocated by not freed.
-                        free(vA);
-                    }
-                    /*if (stExcept_getId(except)
-                            == ST_KV_DATABASE_RETRY_TRANSACTION_EXCEPTION_ID) {
-                        st_logDebug(
-                                "We have caught a retry transaction exception when updating flowers and metasequences on the cactus disk\n");
-                        stExcept_free(except);
-                        stKVDatabase_abortTransaction(cactusDisk->database);
-                    } else {*/
-                        stThrowNewCause(
-                                except,
-                                ST_KV_DATABASE_EXCEPTION_ID,
-                                "An unknown database error occurred when updating flowers and metasequences on the cactus disk");
-                   // }
-                }stTryEnd;
+static void cactusDisk_writeP(stList *list) {
+    for (int32_t i = 0; i < stList_length(list); i += 3) {
+        free(stList_get(list, i + 1));
+        stIntTuple_destruct(stList_get(list, i + 2));
     }
+    stList_destruct(list);
+}
+
+void cactusDisk_write(CactusDisk *cactusDisk) {
+    stList *flowersToUpdate = stList_construct();
+    stList *flowersToInsert = stList_construct();
+    stList *flowersToRemove = stList_construct();
+    stList *sequencesToInsert = stList_construct();
+
+    stSortedSetIterator *it = stSortedSet_getIterator(cactusDisk->flowers);
+    Flower *flower;
+
+    while ((flower = stSortedSet_getNext(it)) != NULL) {
+        int32_t recordSize;
+        void *vA = binaryRepresentation_makeBinaryRepresentation(flower,
+                (void(*)(void *, void(*)(const void * ptr, size_t size,
+                        size_t count))) flower_writeBinaryRepresentation,
+                &recordSize);
+        //Compression
+        vA = compress(vA, &recordSize);
+        if (stKVDatabase_containsRecord(cactusDisk->database, flower_getName(
+                flower))) {
+            stList_append(flowersToUpdate, flower);
+            stList_append(flowersToUpdate, vA);
+            stList_append(flowersToUpdate, stIntTuple_construct(1, recordSize));
+
+        } else {
+            stList_append(flowersToInsert, flower);
+            stList_append(flowersToInsert, vA);
+            stList_append(flowersToInsert, stIntTuple_construct(1, recordSize));
+        }
+    }
+    stSortedSet_destructIterator(it);
+
+    it = stSortedSet_getIterator(cactusDisk->metaSequences);
+    MetaSequence *metaSequence;
+    while ((metaSequence = stSortedSet_getNext(it)) != NULL) {
+        if (!stKVDatabase_containsRecord(cactusDisk->database,
+                metaSequence_getName(metaSequence))) { //We do not edit meta sequences, so we do not update it..
+            int32_t recordSize;
+            void
+                    *vA =
+                            binaryRepresentation_makeBinaryRepresentation(
+                                    metaSequence,
+                                    (void(*)(void *, void(*)(const void * ptr,
+                                            size_t size, size_t count))) metaSequence_writeBinaryRepresentation,
+                                    &recordSize);
+            //Compression
+            vA = compress(vA, &recordSize);
+            stList_append(sequencesToInsert, metaSequence);
+            stList_append(sequencesToInsert, vA);
+            stList_append(sequencesToInsert,
+                    stIntTuple_construct(1, recordSize));
+        }
+    }
+    stSortedSet_destructIterator(it);
+
+    //Remove nets that are marked for deletion..
+    it = stSortedSet_getIterator(cactusDisk->flowerNamesMarkedForDeletion);
+    char *nameString;
+    while ((nameString = stSortedSet_getNext(it)) != NULL) {
+        Name name = cactusMisc_stringToName(nameString);
+        if (stKVDatabase_containsRecord(cactusDisk->database, name)) {
+            stList_append(flowersToRemove, nameString);
+        }
+    }
+    stSortedSet_destructIterator(it);
+
+    stTry {
+            stKVDatabase_startTransaction(cactusDisk->database);
+
+            for (int32_t i = 0; i < stList_length(flowersToInsert); i += 3) {
+                Flower *flower = stList_get(flowersToInsert, i);
+                void *vA = stList_get(flowersToInsert, i + 1);
+                stIntTuple *recordSize = stList_get(flowersToInsert, i + 2);
+                stKVDatabase_insertRecord(cactusDisk->database, flower_getName(
+                        flower), vA, stIntTuple_getPosition(recordSize, 0));
+            }
+
+            for (int32_t i = 0; i < stList_length(flowersToUpdate); i += 3) {
+                Flower *flower = stList_get(flowersToUpdate, i);
+                void *vA = stList_get(flowersToUpdate, i + 1);
+                stIntTuple *recordSize = stList_get(flowersToUpdate, i + 2);
+                stKVDatabase_updateRecord(cactusDisk->database, flower_getName(
+                        flower), vA, stIntTuple_getPosition(recordSize, 0));
+            }
+
+            for (int32_t i = 0; i < stList_length(flowersToRemove); i++) {
+                Name name = cactusMisc_stringToName(stList_get(flowersToRemove, i));
+                stKVDatabase_removeRecord(cactusDisk->database, name);
+            }
+
+            for (int32_t i = 0; i < stList_length(sequencesToInsert); i += 3) {
+                metaSequence = stList_get(sequencesToInsert, i);
+                void *vA = stList_get(sequencesToInsert, i + 1);
+                stIntTuple *recordSize = stList_get(sequencesToInsert, i + 2);
+                stKVDatabase_insertRecord(cactusDisk->database,
+                        metaSequence_getName(metaSequence), vA,
+                        stIntTuple_getPosition(recordSize, 0));
+            }
+
+            stKVDatabase_commitTransaction(cactusDisk->database);
+        }
+        stCatch(except)
+            {
+                stThrowNewCause(
+                        except,
+                        ST_KV_DATABASE_EXCEPTION_ID,
+                        "An unknown database error occurred when updating flowers and metasequences on the cactus disk");
+            }stTryEnd;
+
+    cactusDisk_writeP(flowersToUpdate);
+    cactusDisk_writeP(flowersToInsert);
+    stList_destruct(flowersToRemove);
+    cactusDisk_writeP(sequencesToInsert);
 }
 
 static void *getRecord(CactusDisk *cactusDisk, Name objectName, char *type) {
@@ -481,7 +508,8 @@ void cactusDisk_getBlockOfUniqueIDs(CactusDisk *cactusDisk) {
             stCatch(except)
                 {
                     if (stExcept_getId(except)
-                            == ST_KV_DATABASE_RETRY_TRANSACTION_EXCEPTION_ID || collisionCount++ < 5) {
+                            == ST_KV_DATABASE_RETRY_TRANSACTION_EXCEPTION_ID
+                            || collisionCount++ < 5) {
                         st_logDebug(
                                 "We have caught a retry transaction exception when allocating a new id, we will try again\n");
                         stExcept_free(except);
