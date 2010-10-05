@@ -42,7 +42,7 @@ CactusDisk *cactusDisk_construct2(stKVDatabaseConf *conf, bool create,
 
     //initialise the unique ids.
     //cactusDisk_getUniqueID(cactusDisk);
-    int32_t seed = time(NULL) % getpid();
+    int32_t seed = (time(NULL) << 5) + getpid(); //Likely to be unique
     st_logDebug(
             "The cactus disk is seeding the random number generator with the value %i\n",
             seed);
@@ -509,14 +509,14 @@ void cactusDisk_getBlockOfUniqueIDs(CactusDisk *cactusDisk) {
                 {
                     if (stExcept_getId(except)
                             == ST_KV_DATABASE_RETRY_TRANSACTION_EXCEPTION_ID
-                            || collisionCount++ < 5) {
+                            || collisionCount++ < 10) {
                         st_logDebug(
                                 "We have caught a retry transaction exception when allocating a new id, we will try again\n");
                         stExcept_free(except);
                         stKVDatabase_abortTransaction(cactusDisk->database);
                     } else {
                         stThrowNewCause(except, ST_KV_DATABASE_EXCEPTION_ID,
-                                "An unknown database error occurred when we tried to get a unique ID");
+                                "An unknown database error occurred when we tried to get a unique ID, collision count %i", collisionCount);
                     }
                 }stTryEnd;
     }
