@@ -188,7 +188,7 @@ class CactusBlastWrapper(Target):
 
 class CactusCoreWrapper(Target):
     def __init__(self, options, flowerName, alignmentFile, iteration):
-        Target.__init__(self, time=150, memory=4294967295) #Request 2^32 (4 gigs of ram)
+        Target.__init__(self, time=100, memory=4294967295) #Request 2^32 (4 gigs of ram)
         self.options = options
         self.flowerName = flowerName
         self.alignmentFile = alignmentFile
@@ -223,7 +223,7 @@ class CactusCoreWrapper(Target):
 class CactusBaseLevelAlignerWrapper(Target):
     #We split, to deal with cleaning up the alignment file
     def __init__(self, options, flowerNames):
-        Target.__init__(self, time=30) #time)
+        Target.__init__(self, time=10) #time)
         self.options = options
         self.flowerNames = flowerNames
     
@@ -350,7 +350,7 @@ class CactusReferenceDown(Target):
     """This target does the down pass for the reference phase.
     """
     def __init__(self, options, flowerNames):
-        Target.__init__(self, time=1.0)
+        Target.__init__(self, time=3.0)
         self.options = options
         self.flowerNames = flowerNames
     
