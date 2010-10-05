@@ -181,18 +181,18 @@ void cactusDisk_write(CactusDisk *cactusDisk) {
                     if (vA != NULL) { //First clean up any memory that was allocated by not freed.
                         free(vA);
                     }
-                    if (stExcept_getId(except)
+                    /*if (stExcept_getId(except)
                             == ST_KV_DATABASE_RETRY_TRANSACTION_EXCEPTION_ID) {
                         st_logDebug(
                                 "We have caught a retry transaction exception when updating flowers and metasequences on the cactus disk\n");
                         stExcept_free(except);
                         stKVDatabase_abortTransaction(cactusDisk->database);
-                    } else {
+                    } else {*/
                         stThrowNewCause(
                                 except,
                                 ST_KV_DATABASE_EXCEPTION_ID,
                                 "An unknown database error occurred when updating flowers and metasequences on the cactus disk");
-                    }
+                   // }
                 }stTryEnd;
     }
 }
@@ -481,7 +481,7 @@ void cactusDisk_getBlockOfUniqueIDs(CactusDisk *cactusDisk) {
             stCatch(except)
                 {
                     if (stExcept_getId(except)
-                            == ST_KV_DATABASE_RETRY_TRANSACTION_EXCEPTION_ID || collisionCount++ < 50) {
+                            == ST_KV_DATABASE_RETRY_TRANSACTION_EXCEPTION_ID || collisionCount++ < 5) {
                         st_logDebug(
                                 "We have caught a retry transaction exception when allocating a new id, we will try again\n");
                         stExcept_free(except);
