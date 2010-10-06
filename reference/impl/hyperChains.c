@@ -25,25 +25,35 @@ static void constructHyperChainsP2(Group *group, Name endName, Flower *parentFlo
             Chain *chain = link_getChain(link);
             End *end3;
             if(!end_getSide(end)) {
+#ifdef BEN_DEBUG
                 assert(end2 == link_get5End(chain_getLink(chain, chain_getLength(chain)-1)));
+#endif
                 end3 = link_get3End(chain_getLink(chain, 0));
             }
             else {
+#ifdef BEN_DEBUG
                 assert(end2 == link_get3End(chain_getLink(chain, 0)));
+#endif
                 end3 = link_get5End(chain_getLink(chain, chain_getLength(chain)-1));
             }
+#ifdef BEN_DEBUG
             assert(end3 != end);
             assert(end_getOrientation(end3));
+#endif
             if(end_isBlockEnd(end3)) {
                 End *end4 = end_getOtherBlockEnd(end3);
+#ifdef BEN_DEBUG
                 assert(end_getOrientation(end4));
                 assert(end4 != end);
+#endif
                 stHash_insert(hyperChains, getTerminalEnd(end), getTerminalEnd(end4));
             }
+#ifdef BEN_DEBUG
             else { //We must be in the root flower
                 assert(flower_getParentGroup(flower) == NULL);
                 assert(flower == parentFlower);
             }
+#endif
         }
         else { //Is a trivial chain
             stHash_insert(hyperChains, getTerminalEnd(end), getTerminalEnd(end2));

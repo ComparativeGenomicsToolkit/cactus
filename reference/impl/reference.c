@@ -50,7 +50,9 @@ static void makeTerminalReference(Flower *flower, stHash *adjacenciesHash) {
     }
     flower_destructEndIterator(endIt);
     //Check we have paired all the attached stub ends in the terminal flower.
+#ifdef BEN_DEBUG
     assert(reference_getPseudoChromosomeNumber(reference)*2 == flower_getAttachedStubEndNumber(flower));
+#endif
 }
 
 static void balanceTanglesRecursively(Flower *flower) {
@@ -184,6 +186,8 @@ void constructReference_bottomUpPhase(Flower *flower) {
             }
         }
         flower_destructEndIterator(endIt);
+#ifdef BEN_DEBUG
         assert(reference_getPseudoChromosomeNumber(reference)*2 == flower_getAttachedStubEndNumber(flower));
+#endif
     }
 }

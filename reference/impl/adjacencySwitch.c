@@ -26,7 +26,9 @@ static void adjacencySwitch_getAdjacencyPairs(AdjacencyPair *adjacencyPair1,
 
 AdjacencySwitch *adjacencySwitch_construct(AdjacencyPair *adjacencyPair1,
         AdjacencyPair *adjacencyPair2, bool switchState) {
+#ifdef BEN_DEBUG
     assert(adjacencyPair_getGroup(adjacencyPair1) == adjacencyPair_getGroup(adjacencyPair2));
+#endif
     AdjacencySwitch *adjacencySwitch = st_malloc(sizeof(AdjacencySwitch));
     adjacencySwitch->adjacencyPair1 = adjacencyPair1;
     adjacencySwitch->adjacencyPair2 = adjacencyPair2;

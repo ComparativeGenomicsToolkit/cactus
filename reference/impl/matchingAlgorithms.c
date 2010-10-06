@@ -42,20 +42,24 @@ static void writeCliqueGraph(FILE *fileHandle, stList *edges, int32_t nodeNumber
         stIntTuple *edge = stList_get(edges, i);
         int32_t from =  stIntTuple_getPosition(edge, 0);
         int32_t to = stIntTuple_getPosition(edge, 1);
+#ifdef BEN_DEBUG
         assert(from < nodeNumber);
         assert(to < nodeNumber);
         assert(from >= 0);
         assert(to >= 0);
         assert(from != to);
+#endif
         int32_t weight = stIntTuple_getPosition(edge, 2);
         //If is a minimisation algorithms we invert the sign..
         fprintf(fileHandle, "%i %i %i\n", from, to, negativeWeights ? -weight : weight);
         edgesWritten++;
         stIntTuple *one = stIntTuple_construct(2, from, to);
         stIntTuple *two = stIntTuple_construct(2, to, from);
+#ifdef BEN_DEBUG
         assert(stSortedSet_search(seen, one) == NULL);
-        stSortedSet_insert(seen, one);
         assert(stSortedSet_search(seen, two) == NULL);
+#endif
+        stSortedSet_insert(seen, one);
         stSortedSet_insert(seen, two);
     }
     for(int32_t i=0; i<nodeNumber; i++) {
@@ -104,10 +108,12 @@ static stList *readMatching(FILE *fileHandle, stList *originalEdges) {
         i = sscanf(line, "%i %i", &node1, &node2);
         assert(i == 2);
         free(line);
+#ifdef BEN_DEBUG
         assert(node1 >= 0);
         assert(node1 < nodeNumber);
         assert(node2 >= 0);
         assert(node2 < nodeNumber);
+#endif
         stIntTuple *edge = stIntTuple_construct(2, node1, node2);
         stIntTuple *originalEdge = stHash_search(originalEdgesHash, edge);
         if(originalEdge != NULL) {

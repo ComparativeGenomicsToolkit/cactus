@@ -38,9 +38,11 @@ stList *adjacencyHash_getConnectedComponents(stHash *adjacencies, stHash *hyperC
     stHashIterator *endIterator = stHash_getIterator(adjacencies);
     End *end;
     while ((end = stHash_getNext(endIterator)) != NULL) { //iterates over the positive oriented ends.
+#ifdef BEN_DEBUG
         assert(end_getOrientation(end));
         assert(end_isAttached(end)); //ignore free stubs
         assert(!end_isBlockEnd(end)); //We are only in terminal problems
+#endif
         stList *component = stHash_search(componentsHash, end);
         if (component == NULL) {
             component = stList_construct();
@@ -63,7 +65,9 @@ void getTopStubEndsInComponent(stList *component, stHash *hyperChains, End **end
     for (i = 0; i < stList_length(component); i++) {
         End *end3 = stList_get(component, i);
         if (stHash_search(hyperChains, end3) == NULL) {
+#ifdef BEN_DEBUG
             assert(*end2 == NULL);
+#endif
             if (*end1 == NULL) {
                 *end1 = end3;
             } else {

@@ -59,7 +59,9 @@ static void makeListOfAdjacencyPairsP(Flower *flower, stList *adjacencies) {
                     const void *, const void *)) adjacencyPair_hashEqual, NULL,
             NULL);
     while ((end1 = flower_getNextEnd(endIterator)) != NULL) {
+#ifdef BEN_DEBUG
         assert(!end_isBlockEnd(end1));
+#endif
         if (end_isAttached(end1)) {
             assert(end_getPositiveOrientation(end1) == end1); //they are always in the positive orientation, right?
             End_InstanceIterator *capIterator = end_getInstanceIterator(end1);
@@ -68,7 +70,9 @@ static void makeListOfAdjacencyPairsP(Flower *flower, stList *adjacencies) {
                 Cap *cap2 = cap_getAdjacency(cap); //we allow both internal inferred and leaf adjacencies.
                 if (cap2 != NULL) {
                     End *end2 = end_getPositiveOrientation(cap_getEnd(cap2));
+#ifdef BEN_DEBUG
                     assert(!end_isBlockEnd(end2));
+#endif
                     if (end1 != end2 && end_isAttached(end2)) { //we don't allow free stubs or adjacency pairs which create self loops, as we can traverse a node twice!
                         AdjacencyPair *adjacencyPair = adjacencyPair_construct(
                                 end1, end2);
@@ -132,9 +136,11 @@ static void addPseudoPseudoAdjacenciesP(stHash *adjacenciesHash, Flower *flower)
      */
     End *end1;
     End *end2 = NULL;
+#ifdef BEN_DEBUG
     assert(flower_isTerminal(flower));
     assert(flower_getAttachedStubEndNumber(flower) % 2 == 0);
     assert(flower_getGroupNumber(flower) == 1);
+#endif
     Flower_EndIterator *endIterator = flower_getEndIterator(flower);
 
     while ((end1 = flower_getNextEnd(endIterator))) {
@@ -190,7 +196,9 @@ static stHash *getTupleEdgesToAdjacencyEdgesHash(stList *adjacencies, stHash *en
             (int (*)(const void *, const void *))stIntTuple_equalsFn, (void (*)(void *))stIntTuple_destruct, NULL);
     for(int32_t i=0; i<stList_length(adjacencies); i++) {
         AdjacencyPair *adjacencyPair = stList_get(adjacencies, i);
+#ifdef BEN_DEBUG
         assert(adjacencyPair != NULL);
+#endif
         int32_t j = stIntTuple_getPosition(stHash_search(endsToInts, adjacencyPair_getEnd1(adjacencyPair)), 0);
         int32_t k = stIntTuple_getPosition(stHash_search(endsToInts, adjacencyPair_getEnd2(adjacencyPair)), 0);
         int32_t weight = adjacencyPair_getStrengthOfAdjacencyPair(adjacencyPair);
@@ -209,7 +217,9 @@ static stList *convertTupleEdgesToAdjacencies(stList *matching,
     for(int32_t i=0; i<stList_length(matching); i++) {
         stIntTuple *edge = stList_get(matching, i);
         AdjacencyPair *adjacencyPair = stHash_search(tupleEdgesToAdjacencyEdges, edge);
+#ifdef BEN_DEBUG
         assert(adjacencyPair != NULL);
+#endif
         stList_append(chosenAdjacencyPairs, adjacencyPair);
     }
     return chosenAdjacencyPairs;
@@ -239,12 +249,17 @@ stHash *adjacencyHash_constructInitialPairs(Flower *flower, MatchingAlgorithm re
      */
     stHash *endsToInts = getEndsToIntsHash(ends);
     int32_t nodeNumber = stSortedSet_size(ends);
+#ifdef BEN_DEBUG
     assert(nodeNumber % 2 == 0);
+#endif
     stHash *tupleEdgesToAdjacencies = getTupleEdgesToAdjacencyEdgesHash(adjacencies, endsToInts);
+#ifdef BEN_DEBUG
     assert(stHash_size(tupleEdgesToAdjacencies) == stList_length(adjacencies));
+#endif
     stList *tupleEdges = stHash_getKeys(tupleEdgesToAdjacencies);
+#ifdef BEN_DEBUG
     assert(stList_length(tupleEdges) == stHash_size(tupleEdgesToAdjacencies));
-
+#endif
     /*
      * Create the matching.
      */

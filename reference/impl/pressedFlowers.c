@@ -15,7 +15,9 @@ stList *getListOfPressedFlowers(Flower *flower) {
             Group *group;
             Flower_GroupIterator *groupIt = flower_getGroupIterator(flower);
             while ((group = flower_getNextGroup(groupIt)) != NULL) {
+#ifdef BEN_DEBUG
                 assert(!group_isLeaf(group));
+#endif
                 if (group_isTangle(group)) {
                     stList_append(stack, group_getNestedFlower(group));
                 }

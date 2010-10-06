@@ -44,8 +44,10 @@ AdjacencyPair *adjacencyPair_construct(End *end1, End *end2) {
 }
 
 End *adjacencyPair_getOtherEnd(AdjacencyPair *adjacencyPair, End *end) {
+#ifdef BEN_DEBUG
     assert(end_getOrientation(end));
     assert(adjacencyPair_getEnd1(adjacencyPair) == end || adjacencyPair_getEnd2(adjacencyPair) == end);
+#endif
     return adjacencyPair_getEnd1(adjacencyPair) == end ? adjacencyPair_getEnd2(
             adjacencyPair) : adjacencyPair_getEnd1(adjacencyPair);
 }
@@ -70,8 +72,10 @@ static int32_t childInstanceNumber(End *end) {
 uint32_t adjacencyPair_getStrengthOfAdjacencyPair(AdjacencyPair *adjacencyPair) {
     End *end1 = adjacencyPair_getEnd1(adjacencyPair);
     End *end2 = adjacencyPair_getEnd2(adjacencyPair);
+#ifdef BEN_DEBUG
     assert(end_getOrientation(end1));
     assert(end_getOrientation(end2));
+#endif
     int32_t i = childInstanceNumber(end1) + childInstanceNumber(end2);
 
     if (i == 0) { //avoid divide by zero.
@@ -91,8 +95,10 @@ uint32_t adjacencyPair_getStrengthOfAdjacencyPair(AdjacencyPair *adjacencyPair) 
     }
     end_destructInstanceIterator(iterator);
     double strength = ((double) j) / i;
+#ifdef BEN_DEBUG
     assert(strength <= 1.01);
     assert(strength >= -0.01);
+#endif
     return strength > 0 ? strength * 10000 : 0;
 }
 

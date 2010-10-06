@@ -31,7 +31,9 @@ static void balanceTanglesP(Group *oddTangle, stList *ends) {
     }
     for (int32_t i = 0; i < stList_length(ends); i++) {
         End *end = stList_get(ends, i);
+#ifdef BEN_DEBUG
         assert(end_getFlower(end) == group_getFlower(oddTangle));
+#endif
         end_setGroup(end, oddTangle);
     }
 #ifdef BEN_DEBUG
@@ -67,10 +69,11 @@ static void balanceTanglesP(Group *oddTangle, stList *ends) {
 }
 
 void balanceTangles(Flower *flower) {
+#ifdef BEN_DEBUG
     assert(flower_getAttachedStubEndNumber(flower) > 0);
     assert(flower_getAttachedStubEndNumber(flower) % 2 == 0);
     assert(flower_getBlockEndNumber(flower) % 2 == 0);
-
+#endif
     stList *oddTangles = stList_construct();
     Flower_GroupIterator *groupIt = flower_getGroupIterator(flower);
     Group *group;
