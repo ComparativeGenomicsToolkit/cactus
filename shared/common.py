@@ -104,11 +104,11 @@ def readFlowerNamesFile(flowerNamesFile):
     fileHandle.close()
     return l
     
-def runCactusGetFlowers(cactusDiskDatabaseString, flowerNames, tempDir):
+def runCactusGetFlowers(cactusDiskDatabaseString, flowerNames, tempDir, includeTerminalFlowers=True):
     """Gets a list of flowers attached to the given flower. 
     """
     flowerNamesFile = getTempFile(".txt", tempDir)
-    system("cactus_workflow_getFlowers '%s' %s %s" % (cactusDiskDatabaseString,  flowerNamesFile, " ".join(flowerNames)))
+    system("cactus_workflow_getFlowers '%s' %s %s %s" % (cactusDiskDatabaseString,  flowerNamesFile, int(includeTerminalFlowers), " ".join(flowerNames)))
     l = readFlowerNamesFile(flowerNamesFile)
     os.remove(flowerNamesFile)
     random.shuffle(l) #We shuffle the flowers so we don't end up with an ordering that places all the large problems together.

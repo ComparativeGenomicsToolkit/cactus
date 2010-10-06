@@ -296,8 +296,10 @@ static void preCacheSequences(CactusDisk *cactusDisk, Flower *flower) {
 #ifdef BEN_DEBUG
                     assert(length >= 0);
 #endif
-                    char *cA = sequence_getString(sequence, start, length, 1); //Strand doesn't matter as we store and access the strings in the same orientation
-                    free(cA);
+                    if(length > 0) {
+                        char *cA = sequence_getString(sequence, start, length, 1); //Strand doesn't matter as we store and access the strings in the same orientation
+                        free(cA);
+                    }
                 }
             }
         }

@@ -8,15 +8,17 @@
 #include "cactus.h"
 
 int main(int argc, char *argv[]) {
-    assert(argc >= 3);
+    assert(argc >= 4);
     stKVDatabaseConf *kvDatabaseConf = stKVDatabaseConf_constructFromString(argv[1]);
     CactusDisk *cactusDisk = cactusDisk_construct(kvDatabaseConf, 0);
     st_logInfo("Set up the flower disk\n");
 
     FILE *fileHandle = fopen(argv[2], "w");
 
-    int32_t i;
-    for (i = 3; i < argc; i++) {
+    int32_t includeTerminalFlowers;
+    int32_t i = sscanf(argv[3], "%i", &includeTerminalFlowers);
+    assert(i == 1);
+    for (i = 4; i < argc; i++) {
         Flower *flower = cactusDisk_getFlower(cactusDisk, cactusMisc_stringToName(argv[i]));
         assert(flower != NULL);
         assert(flower_builtBlocks(flower)); //This recursion depends on the block structure having been properly defined for all nodes.
@@ -28,7 +30,9 @@ int main(int argc, char *argv[]) {
                 Flower *nestedFlower = group_getNestedFlower(group);
                 assert(nestedFlower != NULL);
                 assert(flower_builtBlocks(nestedFlower)); //This recursion depends on the block structure having been properly defined for all nodes.
-                fprintf(fileHandle, "%s %" PRIi64 " \n", cactusMisc_nameToStringStatic(flower_getName(nestedFlower)), flower_getTotalBaseLength(nestedFlower));
+                if(includeTerminalFlowers || !flower_isTerminal(flower)) {
+                    fprintf(fileHandle, "%s %" PRIi64 " \n", cactusMisc_nameToStringStatic(flower_getName(nestedFlower)), flower_getTotalBaseLength(nestedFlower));
+                }
             }
         }
         flower_destructGroupIterator(groupIterator);
