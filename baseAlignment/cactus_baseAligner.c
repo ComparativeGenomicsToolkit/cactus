@@ -160,7 +160,18 @@ int main(int argc, char *argv[]) {
         stSortedSet_destructIterator(getAlignment_iterator);
         getAlignment_iterator = NULL;
         st_logInfo("Finished filling in the alignments for the flower\n");
-        flower_unloadParent(flower); //The parent should not have changed.
+        //flower_unloadParent(flower); //The parent should not have changed.
+    }
+
+    ///////////////////////////////////////////////////////////////////////////
+    // Unload the parent flowers
+    ///////////////////////////////////////////////////////////////////////////
+
+    for (j = optind; j < argc; j++) {
+        const char *flowerName = argv[j];
+        Flower *flower = cactusDisk_getFlower(cactusDisk, cactusMisc_stringToName(flowerName));
+        assert(flower != NULL);
+        flower_unloadParent(flower); //We have this line just in case we are loading the parent..
     }
 
     /*

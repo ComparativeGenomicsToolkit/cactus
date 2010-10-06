@@ -297,6 +297,12 @@ Flower_GroupIterator *flower_copyGroupIterator(Flower_GroupIterator *groupIterat
 void flower_destructGroupIterator(Flower_GroupIterator *groupIterator);
 
 /*
+ * Returns non-zero if the flower has a parent group (only the root should have no parent group once the
+ * structure is finished).
+ */
+bool flower_hasParentGroup(Flower *flower);
+
+/*
  * Gets the parent group of the flower.
  */
 Group *flower_getParentGroup(Flower *flower);

@@ -395,6 +395,10 @@ void flower_destructGroupIterator(Flower_GroupIterator *groupIterator) {
     stSortedSet_destructIterator(groupIterator);
 }
 
+bool flower_hasParentGroup(Flower *flower) {
+    return flower->parentFlowerName != NULL_NAME;
+}
+
 Group *flower_getParentGroup(Flower *flower) {
     if (flower->parentFlowerName == NULL_NAME) {
         return NULL;

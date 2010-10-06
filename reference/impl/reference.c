@@ -76,12 +76,17 @@ static void balanceTanglesRecursively(Flower *flower) {
 }
 
 void constructReference_topDownPhase(Flower *flower, MatchingAlgorithm matchingAlgorithm) {
-    if(flower_getParentGroup(flower) != NULL && group_isTangle(flower_getParentGroup(flower))) {
+    if(flower_hasParentGroup(flower) && flower_getAttachedStubEndNumber(flower) != 2) { //second part should be equivalent to group_isTangle(flower_getParentGroup(flower))) {
         /*
          * In this case we've must have already built the child tangle terminal nets.
          */
         return;
     }
+#ifdef BEN_DEBUG
+    if(flower_hasParentGroup(flower)) {
+        assert(!group_isTangle(flower_getParentGroup(flower)));
+    }
+#endif
     /*
      * Balance the tangle descendants of the flower and the flower itself.
      */
