@@ -145,7 +145,10 @@ def runCactusReference(cactusDiskDatabaseString, flowerNames, logLevel="DEBUG", 
     #assert False
     bottomUp = nameValue("bottomUp", bottomUp, bool)
     matchingAlgorithm = nameValue("matchingAlgorithm", matchingAlgorithm)
-    system("cactus_reference --cactusDisk '%s' --logLevel %s %s %s %s" % (cactusDiskDatabaseString, logLevel, bottomUp, matchingAlgorithm, " ".join(flowerNames)))
+    command = "cactus_reference --cactusDisk '%s' --logLevel %s %s %s %s" % (cactusDiskDatabaseString, logLevel, bottomUp, matchingAlgorithm, " ".join(flowerNames))
+    #print "going to run", command
+    #assert 0
+    system(command)
 
 def runCactusCheck(cactusDiskDatabaseString, 
                     flowerNames=("0",), 

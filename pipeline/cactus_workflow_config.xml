@@ -55,7 +55,7 @@
 	<faces>
 	</faces>
 
-	<reference matching_algorithm="greedy">
+	<reference matching_algorithm="blossom5">
 	</reference>
 
 	<check time="1">
