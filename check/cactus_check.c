@@ -27,7 +27,7 @@ static void checkTreeIsTerminalNormalised(Flower *flower) {
         assert(flower_getBlockNumber(flower) == 0);
         assert(flower_isTerminal(flower));
         if(flower_getGroupNumber(flower) == 0) {
-            assert(flower_getParentGroup(flower) == NULL);
+            assert(!flower_hasParentGroup(flower));
         }
         else {
             assert(flower_getGroupNumber(flower) == 1);
@@ -84,7 +84,7 @@ static void checkFlowerIsNotRedundant(Flower *flower) {
      * Checks that if the flower is not a leaf or the root that it contains blocks.
      */
     assert(flower_builtBlocks(flower));
-    if (flower_getParentGroup(flower) != NULL && !flower_isLeaf(flower)) {
+    if (flower_hasParentGroup(flower) && !flower_isLeaf(flower)) {
         assert(flower_getBlockNumber(flower) > 0);
     }
 }
@@ -94,7 +94,7 @@ static void checkFlowerIsNotEmpty(Flower *flower) {
      * Checks that the flower contains at least one end, unless it is the parent problem
      * and the whole reconstruction is empty.
      */
-    if (flower_getParentGroup(flower) != NULL) {
+    if (flower_hasParentGroup(flower)) {
         assert(flower_getGroupNumber(flower) > 0);
         assert(flower_getEndNumber(flower) > 0);
         assert(flower_getAttachedStubEndNumber(flower) + flower_getBlockEndNumber(flower) > 0);
@@ -160,7 +160,7 @@ static void checkBasesAccountedFor(Flower *flower) {
     assert(blockBases + childBases == totalBases);
 }
 
-static void checkFlowers(Flower *flower, int32_t recursive) {
+static void checkFlower(Flower *flower) {
     flower_check(flower);
     checkFlowerIsNotEmpty(flower);
     checkGroupsNotEmpty(flower);
@@ -170,18 +170,25 @@ static void checkFlowers(Flower *flower, int32_t recursive) {
     checkChainsAreMaximal(flower);
     checkBlocksAreMaximal(flower);
     checkFlowerIsNotRedundant(flower);
+}
 
-    //Call problem recursively
-    if (recursive) {
-        Flower_GroupIterator *iterator = flower_getGroupIterator(flower);
-        Group *group;
-        while ((group = flower_getNextGroup(iterator)) != NULL) {
-            if (!group_isLeaf(group)) {
+static void checkFlowers(Flower *flower, int32_t recursive) {
+    if(!flower_hasParentGroup(flower)) { //Only check if it has no parent
+        checkFlower(flower);
+    }
+
+    Group *group;
+    Flower_GroupIterator *groupIt = flower_getGroupIterator(flower);
+    while ((group = flower_getNextGroup(groupIt)) != NULL) { //We only check the children, to avoid constructing
+        //the parent of the flower.
+        if (!group_isLeaf(group)) {
+            checkFlower(group_getNestedFlower(group));
+            if (recursive) {
                 checkFlowers(group_getNestedFlower(group), 1);
             }
         }
-        flower_destructGroupIterator(iterator);
     }
+    flower_destructGroupIterator(groupIt);
 }
 
 void usage() {
