@@ -240,20 +240,27 @@ class CactusBaseLevelAlignerWrapper(Target):
 ############################################################
 ############################################################
 
-def makeChildTargets(options, flowerNames, target, childTarget, sequenceSize=100000, jobNumber=300, includeTerminalFlowers=True):
+def makeChildTargets(options, flowerNames, target, childTarget, maxSequenceSize=100000, jobNumber=200, includeTerminalFlowers=True):
     #Make child jobs
     childFlowerNames = []
     totalSequenceSize = 0
-    for childFlowerName, childFlowerSize in runCactusGetFlowers(options.cactusDiskDatabaseString, flowerNames, target.getLocalTempDir(), includeTerminalFlowers=includeTerminalFlowers):
-        totalSequenceSize += childFlowerSize
+    
+    minChildSize = max(1, maxSequenceSize/jobNumber)
+    childFlowers = runCactusGetFlowers(options.cactusDiskDatabaseString, flowerNames, target.getLocalTempDir(), includeTerminalFlowers=includeTerminalFlowers)
+    totalChildSize = sum([ max(childFlowerSize, minChildSize) for childFlowerName, childFlowerSize in childFlowers])
+    avgChildSize = totalChildSize / (totalChildSize / maxSequenceSize + 1)
+    
+    for childFlowerName, childFlowerSize in childFlowers:
         assert(childFlowerSize) >= 0
+        totalSequenceSize += max(childFlowerSize, minChildSize)
         childFlowerNames.append(childFlowerName)
-        if len(childFlowerNames) >= jobNumber or totalSequenceSize >= sequenceSize:
+        if totalSequenceSize >= avgChildSize:
             target.addChildTarget(childTarget(options, childFlowerNames))
             childFlowerNames = []
             totalSequenceSize = 0
     if len(childFlowerNames) > 0:
         target.addChildTarget(childTarget(options, childFlowerNames))
+
     
 class CactusNormalPhase(Target):
     def __init__(self, flowerName, options, normalisationRounds=-1):
