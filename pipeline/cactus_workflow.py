@@ -240,17 +240,22 @@ class CactusBaseLevelAlignerWrapper(Target):
 ############################################################
 ############################################################
 
-def makeChildTargets(options, flowerNames, target, childTarget, jobNumber=25, includeTerminalFlowers=True):
+def makeChildTargets(options, flowerNames, target, childTarget, jobNumber=5, smallChildSize=100, smallChildJobNumber=200, includeTerminalFlowers=True):
     #Make child jobs
     childFlowerNames = []
+    smallChildFlowerNames = []
     for childFlowerName, childFlowerSize in runCactusGetFlowers(options.cactusDiskDatabaseString, flowerNames, target.getLocalTempDir(), includeTerminalFlowers=includeTerminalFlowers):
         assert(childFlowerSize) >= 0
-        childFlowerNames.append(childFlowerName)
-        if len(childFlowerNames) >= jobNumber:
-            target.addChildTarget(childTarget(options, childFlowerNames))
+        if childFlowerSize <= smallChildSize:
+            smallChildFlowerNames.append(childFlowerName)
+        else:
+            childFlowerNames.append(childFlowerName)
+        if len(childFlowerNames) >= jobNumber or len(smallChildFlowerNames) >= smallChildJobNumber:
+            target.addChildTarget(childTarget(options, childFlowerNames + smallChildFlowerNames))
             childFlowerNames = []
-    if len(childFlowerNames) > 0:
-        target.addChildTarget(childTarget(options, childFlowerNames))
+            smallChildFlowerNames = []
+    if len(childFlowerNames) > 0 or len(smallChildFlowerNames) > 0:
+        target.addChildTarget(childTarget(options, childFlowerNames + smallChildFlowerNames))
     
 class CactusNormalPhase(Target):
     def __init__(self, flowerName, options, normalisationRounds=-1):
