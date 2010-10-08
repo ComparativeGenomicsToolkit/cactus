@@ -40,8 +40,14 @@ stList *makeAlignment(stList *sequences,
     stSortedSet *pairwiseAlignments = stSortedSet_construct3((int(*)(
             const void *, const void *)) stIntTuple_cmpFn,
             (void(*)(void *)) stIntTuple_destruct);
-    for (int i = 0; i < spanningTrees; i++) {
-        constructSpanningTree(stList_length(sequences), pairwiseAlignments);
+    //for (int i = 0; i < spanningTrees; i++) {
+    //    constructSpanningTree(stList_length(sequences), pairwiseAlignments);
+    //}
+
+    for(int32_t i=0; i<stList_length(sequences); i++) {
+        for(int32_t j=i+1; j<stList_length(sequences); j++) {
+            stSortedSet_insert(pairwiseAlignments, stIntTuple_construct(2, i, j));
+        }
     }
 
     //Construct the alignments

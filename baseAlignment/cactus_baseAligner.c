@@ -10,7 +10,7 @@
 #include "pairwiseAlignment.h"
 
 #define SPANNING_TREES 5
-#define MAXIMUM_LENGTH 1000
+#define MAXIMUM_LENGTH 5000
 
 void usage() {
     fprintf(
