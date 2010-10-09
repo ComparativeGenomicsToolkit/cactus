@@ -47,8 +47,9 @@ static int32_t addDistances(int32_t i, int32_t j) {
     return i == INT32_MAX || j == INT32_MAX ? INT32_MAX : i + j;
 }
 
-static void updatePathDistances(int32_t *distanceMatrix, int32_t *alignedMatrix,
-        int32_t sequenceNo, int32_t i, int32_t j, int32_t distance) {
+static void updatePathDistances(int32_t *distanceMatrix,
+        int32_t *alignedMatrix, int32_t sequenceNo, int32_t i, int32_t j,
+        int32_t distance) {
 #ifdef BEN_DEBUG
     assert(matrix_get(alignedMatrix, i, j) == INT32_MAX);
 #endif
@@ -57,13 +58,27 @@ static void updatePathDistances(int32_t *distanceMatrix, int32_t *alignedMatrix,
         matrix_set(distanceMatrix, sequenceNo, i, j, distance);
         for (int32_t k = 0; k < sequenceNo; k++) {
             if (i != k && j != k) {
-                int32_t l = addDistances(matrix_get(distanceMatrix, sequenceNo, i, k), distance);
+                int32_t l = addDistances(matrix_get(distanceMatrix, sequenceNo,
+                        i, k), distance);
                 if (l < matrix_get(distanceMatrix, sequenceNo, j, k)) {
                     matrix_set(distanceMatrix, sequenceNo, j, k, l);
                 }
-                l = addDistances(matrix_get(distanceMatrix, sequenceNo, j, k), distance);
+                l = addDistances(matrix_get(distanceMatrix, sequenceNo, j, k),
+                        distance);
                 if (l < matrix_get(distanceMatrix, sequenceNo, i, k)) {
                     matrix_set(distanceMatrix, sequenceNo, i, k, l);
+                }
+                for (int32_t m = k + 1; m < sequenceNo; m++) {
+                    if (m != i && m != j && m != k) {
+                        l = addDistances(matrix_get(distanceMatrix, sequenceNo, k, i), matrix_get(distanceMatrix, sequenceNo, i, m));
+                        if (l < matrix_get(distanceMatrix, sequenceNo, k, m)) {
+                            matrix_set(distanceMatrix, sequenceNo, k, m, l);
+                        }
+                        l = addDistances(matrix_get(distanceMatrix, sequenceNo, k, j), matrix_get(distanceMatrix, sequenceNo, j, m));
+                        if (l < matrix_get(distanceMatrix, sequenceNo, k, m)) {
+                            matrix_set(distanceMatrix, sequenceNo, k, m, l);
+                        }
+                    }
                 }
             }
         }
@@ -94,49 +109,52 @@ static stIntTuple *getMostDistanceUnalignedPair(int32_t *distanceMatrix,
 }
 
 /*static int32_t *getIndelProbs(stList *alignedPairs, int32_t sequenceLength, int32_t sequenceIndex) {
-    int32_t *indelProbs = st_malloc(sizeof(int32_t)*sequenceLength);
-    for(int32_t i=0; i<sequenceLength; i++) {
-        indelProbs[i] = 1000;
-    }
-    for(int32_t i=0; i<stList_length(alignedPairs); i++) {
-        stIntTuple *alignedPair = stList_get(alignedPairs, i);
-        int32_t j = stIntTuple_getPosition(alignedPair, sequenceIndex+1);
-        int32_t score = stIntTuple_getPosition(alignedPair, 0);
-        indelProbs[j] -= score;
-        if(indelProbs[j] < 0) {
-            indelProbs[j] = 0;
-        }
-    }
-    return indelProbs;
-}*/
+ int32_t *indelProbs = st_malloc(sizeof(int32_t)*sequenceLength);
+ for(int32_t i=0; i<sequenceLength; i++) {
+ indelProbs[i] = 1000;
+ }
+ for(int32_t i=0; i<stList_length(alignedPairs); i++) {
+ stIntTuple *alignedPair = stList_get(alignedPairs, i);
+ int32_t j = stIntTuple_getPosition(alignedPair, sequenceIndex+1);
+ int32_t score = stIntTuple_getPosition(alignedPair, 0);
+ indelProbs[j] -= score;
+ if(indelProbs[j] < 0) {
+ indelProbs[j] = 0;
+ }
+ }
+ return indelProbs;
+ }*/
 
-static int64_t getMaxMatchProbs(stList *alignedPairs, int32_t sequenceLength, int32_t sequenceIndex) {
-    int32_t *maxMatchProbs = st_malloc(sizeof(int32_t)*sequenceLength);
-    for(int32_t i=0; i<sequenceLength; i++) {
+static int64_t getMaxMatchProbs(stList *alignedPairs, int32_t sequenceLength,
+        int32_t sequenceIndex) {
+    int32_t *maxMatchProbs = st_malloc(sizeof(int32_t) * sequenceLength);
+    for (int32_t i = 0; i < sequenceLength; i++) {
         maxMatchProbs[i] = 0;
     }
-    for(int32_t i=0; i<stList_length(alignedPairs); i++) {
+    for (int32_t i = 0; i < stList_length(alignedPairs); i++) {
         stIntTuple *alignedPair = stList_get(alignedPairs, i);
-        int32_t j = stIntTuple_getPosition(alignedPair, sequenceIndex+1);
+        int32_t j = stIntTuple_getPosition(alignedPair, sequenceIndex + 1);
         int32_t score = stIntTuple_getPosition(alignedPair, 0);
         assert(score >= 0);
         assert(score <= 1000);
-        if(score > maxMatchProbs[j]) {
+        if (score > maxMatchProbs[j]) {
             maxMatchProbs[j] = score;
         }
     }
     int64_t j = 0;
-    for(int32_t i=0; i<sequenceLength; i++) {
+    for (int32_t i = 0; i < sequenceLength; i++) {
         j += maxMatchProbs[i];
     }
     free(maxMatchProbs);
     return j;
 }
 
-
-static int32_t getCertaintyOfAlignmentDistance(stList *alignedPairs, int32_t sequenceLength1, int32_t sequenceLength2) {
-    double maxMatchProbs = getMaxMatchProbs(alignedPairs, sequenceLength1, 0) + getMaxMatchProbs(alignedPairs, sequenceLength2, 1);
-    double alignmentCertainty = sequenceLength1 + sequenceLength2 == 0 ? 1.0 : maxMatchProbs / (sequenceLength1 + sequenceLength2);
+static int32_t getCertaintyOfAlignmentDistance(stList *alignedPairs,
+        int32_t sequenceLength1, int32_t sequenceLength2) {
+    double maxMatchProbs = getMaxMatchProbs(alignedPairs, sequenceLength1, 0)
+            + getMaxMatchProbs(alignedPairs, sequenceLength2, 1);
+    double alignmentCertainty = sequenceLength1 + sequenceLength2 == 0 ? 1.0
+            : maxMatchProbs / (sequenceLength1 + sequenceLength2);
     int32_t i = alignmentCertainty * 1000;
     return 1000 - (i < 0 ? 0 : i > 1000 ? 1000 : i);
 }
@@ -173,18 +191,20 @@ stList *makeAlignment(stList *sequences, int32_t alignmentsPerSequence,
         char *string2 = stList_get(sequences, sequence2);
         int32_t sequence1Length = strlen(string1);
         int32_t sequence2Length = strlen(string2);
-        stList *alignedPairs2 = getAlignedPairs(string1, string2, modelParameters);
+        stList *alignedPairs2 = getAlignedPairs(string1, string2,
+                modelParameters);
         //int32_t *indelProbs1 = getIndelProbs(alignedPairs2, sequence1Length, 0);
         //int32_t *indelProbs2 = getIndelProbs(alignedPairs2, sequence2Length, 1);
-        int32_t distance = getCertaintyOfAlignmentDistance(alignedPairs2, sequence1Length, sequence2Length);
+        int32_t distance = getCertaintyOfAlignmentDistance(alignedPairs2,
+                sequence1Length, sequence2Length);
         //free(indelProbs1);
         //free(indelProbs2);
 
 #ifdef BEN_DEBUG
         assert(distance >= 0);
 #endif
-        updatePathDistances(distanceMatrix, alignedMatrix, sequenceNo, sequence1,
-                sequence2, distance);
+        updatePathDistances(distanceMatrix, alignedMatrix, sequenceNo,
+                sequence1, sequence2, distance);
 
         while (stList_length(alignedPairs2) > 0) {
             stIntTuple *alignedPair = (stIntTuple *) stList_pop(alignedPairs2);
