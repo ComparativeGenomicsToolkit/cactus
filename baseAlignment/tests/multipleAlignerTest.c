@@ -9,7 +9,7 @@
  * Test the spanning tree generator.
  */
 
-void constructSpanningTree(int32_t numberOfSequences, stSortedSet *pairwiseAlignments);
+/*void constructSpanningTree(int32_t numberOfSequences, stSortedSet *pairwiseAlignments);
 
 void test_getSpanningTree(CuTest *testCase) {
     for(int32_t test=0; test<100; test++) {
@@ -66,7 +66,7 @@ void test_getSpanningTree(CuTest *testCase) {
         stList_destruct(tuples);
     }
 }
-
+*/
 /*
  * Test the multiple alignment code with multiple examples.
  */
@@ -130,6 +130,6 @@ void test_multipleAlignerRandom(CuTest *testCase) {
 CuSuite* multipleAlignerTestSuite(void) {
     CuSuite* suite = CuSuiteNew();
     SUITE_ADD_TEST(suite, test_multipleAlignerRandom);
-    SUITE_ADD_TEST(suite, test_getSpanningTree);
+    //SUITE_ADD_TEST(suite, test_getSpanningTree);
     return suite;
 }

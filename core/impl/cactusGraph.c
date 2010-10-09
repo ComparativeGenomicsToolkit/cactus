@@ -716,7 +716,8 @@ int32_t *getDFSDiscoveryTimes(struct CactusGraph *cactusGraph) {
 ////////////////////////////////////////////////
 
 struct List *readThreeEdgeComponents(struct PinchGraph *pinchGraph,
-        stList *adjacencyComponents, stList *threeEdgeConnectedAdjacencyComponents) {
+        stList *adjacencyComponents,
+        stList *threeEdgeConnectedAdjacencyComponents) {
     /*
      * Reads in the three edge connected components written out by the three
      * edge script.
@@ -727,17 +728,21 @@ struct List *readThreeEdgeComponents(struct PinchGraph *pinchGraph,
 #ifdef BEN_DEBUG
     int32_t l = 0;
 #endif
-    struct List *threeEdgeConnectedComponents = constructEmptyList(0, (void(*)(void *)) destructList);
+    struct List *threeEdgeConnectedComponents = constructEmptyList(0, (void(*)(
+            void *)) destructList);
     for (i = 0; i < stList_length(threeEdgeConnectedAdjacencyComponents); i++) {
-        stList *threeEdgeConnectedAdjacencyComponent = stList_get(threeEdgeConnectedAdjacencyComponents, i);
+        stList *threeEdgeConnectedAdjacencyComponent = stList_get(
+                threeEdgeConnectedAdjacencyComponents, i);
         struct List *threeEdgeConnectedComponent = constructEmptyList(0, NULL);
         listAppend(threeEdgeConnectedComponents, threeEdgeConnectedComponent);
         for (j = 0; j < stList_length(threeEdgeConnectedAdjacencyComponent); j++) {
-            stSortedSet *adjacencyComponent = stList_get(adjacencyComponents, stIntTuple_getPosition(
-                    stList_get(threeEdgeConnectedAdjacencyComponent, j), 0));
+            stSortedSet *adjacencyComponent = stList_get(adjacencyComponents,
+                    stIntTuple_getPosition(stList_get(
+                            threeEdgeConnectedAdjacencyComponent, j), 0));
             assert(adjacencyComponent != NULL);
-            stSortedSetIterator *it  = stSortedSet_getIterator(adjacencyComponent);
-            while((vertex = stSortedSet_getNext(it)) != NULL) {
+            stSortedSetIterator *it = stSortedSet_getIterator(
+                    adjacencyComponent);
+            while ((vertex = stSortedSet_getNext(it)) != NULL) {
                 listAppend(threeEdgeConnectedComponent, vertex);
 #ifdef BEN_DEBUG
                 l++;
@@ -751,7 +756,8 @@ struct List *readThreeEdgeComponents(struct PinchGraph *pinchGraph,
     int32_t k = FALSE;
 #endif
     for (i = 0; i < threeEdgeConnectedComponents->length; i++) {
-        struct List *threeEdgeConnectedComponent = threeEdgeConnectedComponents->list[i];
+        struct List *threeEdgeConnectedComponent =
+                threeEdgeConnectedComponents->list[i];
         for (j = 0; j < threeEdgeConnectedComponent->length; j++) {
             vertex = threeEdgeConnectedComponent->list[j];
             if (vertex->vertexID == 0) {
@@ -760,7 +766,8 @@ struct List *readThreeEdgeComponents(struct PinchGraph *pinchGraph,
                 k = TRUE;
 #endif
                 struct List *list3 = threeEdgeConnectedComponents->list[0];
-                threeEdgeConnectedComponents->list[0] = threeEdgeConnectedComponent;
+                threeEdgeConnectedComponents->list[0]
+                        = threeEdgeConnectedComponent;
                 threeEdgeConnectedComponents->list[i] = list3;
             }
         }
@@ -836,18 +843,23 @@ struct CactusGraph *computeCactusGraph(struct PinchGraph *pinchGraph,
     // three edge connected components.
     ///////////////////////////////////////////////////////////////////////////
 
-    stList *adjacencyComponents = excludeDegree1Edges ? getAdjacencyComponents(pinchGraph) :
-            getAdjacencyComponents2(pinchGraph, computeCactusGraphP);
-    stHash *vertexToAdjacencyComponentHash = getVertexToAdjacencyComponentHash(pinchGraph, adjacencyComponents);
-    stList *adjacencyComponentGraph = getAdjacencyComponentGraph(pinchGraph, adjacencyComponents, vertexToAdjacencyComponentHash);
+    stList *adjacencyComponents = excludeDegree1Edges ? getAdjacencyComponents(
+            pinchGraph) : getAdjacencyComponents2(pinchGraph,
+            computeCactusGraphP);
+    stHash *vertexToAdjacencyComponentHash = getVertexToAdjacencyComponentHash(
+            pinchGraph, adjacencyComponents);
+    stList *adjacencyComponentGraph = getAdjacencyComponentGraph(pinchGraph,
+            adjacencyComponents, vertexToAdjacencyComponentHash);
 
-    stList *threeEdgeConnectedAdjacencyComponents = computeThreeEdgeConnectedComponents(adjacencyComponentGraph);
+    stList *threeEdgeConnectedAdjacencyComponents =
+            computeThreeEdgeConnectedComponents(adjacencyComponentGraph);
     st_logInfo("Seems to have successfully run the three edge command: %i\n",
             stList_length(threeEdgeConnectedAdjacencyComponents));
 
     //Parse results (the three edge connected components).
-    struct List *threeEdgeConnectedComponents = readThreeEdgeComponents(pinchGraph,
-            adjacencyComponents, threeEdgeConnectedAdjacencyComponents);
+    struct List *threeEdgeConnectedComponents = readThreeEdgeComponents(
+            pinchGraph, adjacencyComponents,
+            threeEdgeConnectedAdjacencyComponents);
     st_logInfo("Read in the three edge components\n");
 
     //Cleanup
@@ -889,7 +901,7 @@ void cactusVertex_merge(struct CactusGraph *cactusGraph,
     assert(one != two);
     assert(one->vertexID != two->vertexID);
     //redirect all edges to one.
-    while(two->edges->length > 0) { //handles self loops on second because it contains both orientations
+    while (two->edges->length > 0) { //handles self loops on second because it contains both orientations
         struct CactusEdge *edge = two->edges->list[--two->edges->length];
 #if BEN_DEBUG
         assert(edge->from == two);
@@ -903,7 +915,7 @@ void cactusVertex_merge(struct CactusGraph *cactusGraph,
     //switch the vertex id's of the highest cactus vertex and two.
     struct CactusVertex *three =
             cactusGraph->vertices->list[cactusGraph->vertices->length - 1];
-    assert(three->vertexID == cactusGraph->vertices->length-1);
+    assert(three->vertexID == cactusGraph->vertices->length - 1);
     three->vertexID = two->vertexID;
     assert(cactusGraph->vertices->list[two->vertexID] == two);
     cactusGraph->vertices->list[two->vertexID] = three;
@@ -1038,11 +1050,12 @@ void circulariseStems(struct CactusGraph *cactusGraph,
     //(4) Do loop back merges of free stub ends
     ////////////////////////////////////////////////
 
-    for(i=0; i<cactusGraph->vertices->length; i++) {
+    for (i = 0; i < cactusGraph->vertices->length; i++) {
         vertex = cactusGraph->vertices->list[i];
-        for(int32_t j=0; j<vertex->edges->length; j++) {
+        for (int32_t j = 0; j < vertex->edges->length; j++) {
             edge = vertex->edges->list[j];
-            if(edge->from != edge->to && isAFreeStubCactusEdge(edge, pinchGraph, flower)) {
+            if (edge->from != edge->to && isAFreeStubCactusEdge(edge,
+                    pinchGraph, flower)) {
                 cactusVertex_merge(cactusGraph, edge->from, edge->to);
             }
         }
@@ -1115,11 +1128,20 @@ int32_t chainLength(struct List *biConnectedComponent, int32_t includeStubs,
     return i;
 }
 
+int32_t maxChainDegree(struct List *biConnectedComponent,
+        struct PinchGraph *pinchGraph) {
+    int32_t i = 0;
+    for (int32_t j = 0; j < biConnectedComponent->length; j++) {
+        struct CactusEdge *cactusEdge = biConnectedComponent->list[j];
+        if (cactusEdge->pieces->length > i) {
+            i = cactusEdge->pieces->length;
+        }
+    }
+    return i;
+}
+
 int32_t chainBaseLength(struct List *biConnectedComponent,
         struct PinchGraph *pinchGraph) {
-    /*
-     * Get the number of links in the chain.
-     */
     int32_t i, j;
     struct CactusEdge *cactusEdge;
     struct Piece *piece;
@@ -1155,7 +1177,7 @@ stSortedSet *filterBlocksByTreeCoverageAndLength(
             for (int32_t j = 0; j < biConnectedComponent->length; j++) {
                 struct CactusEdge *cactusEdge = biConnectedComponent->list[j];
                 if (!isAStubCactusEdge(cactusEdge, pinchGraph)) {
-                    assert(cactusEdge->pieces->length> 0);
+                    assert(cactusEdge->pieces->length > 0);
                     if (minimumBlockDegree <= 0 || cactusEdge->pieces->length
                             >= minimumBlockDegree) {
                         if (minimumTreeCoverage <= 0.0 || treeCoverage2(
@@ -1260,8 +1282,10 @@ int32_t isAFreeStubCactusEdge(struct CactusEdge *edge,
         assert(edge->pieces->length >= 1);
         pinchEdge = cactusEdgeToFirstPinchEdge(edge, pinchGraph);
         assert(isAStub(pinchEdge));
-        assert(vertex_isDeadEnd(pinchEdge->from) || vertex_isDeadEnd(pinchEdge->to));
-        assert(!(vertex_isDeadEnd(pinchEdge->from) && vertex_isDeadEnd(pinchEdge->to)));
+        assert(vertex_isDeadEnd(pinchEdge->from) || vertex_isDeadEnd(
+                pinchEdge->to));
+        assert(!(vertex_isDeadEnd(pinchEdge->from) && vertex_isDeadEnd(
+                pinchEdge->to)));
         Cap *cap = flower_getCap(flower, pinchEdge->piece->contig);
         assert(cap != NULL);
         End *end = cap_getEnd(cap);

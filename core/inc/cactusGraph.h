@@ -136,6 +136,17 @@ void circulariseStems(struct CactusGraph *cactusGraph, struct PinchGraph *pinchG
 ////////////////////////////////////////////////
 ////////////////////////////////////////////////
 
+/*
+ * Get the length of a chain in bases.
+ */
+int32_t chainBaseLength(struct List *biConnectedComponent, struct PinchGraph *pinchGraph);
+
+/*
+ * Returns the maximum degree of the chain (the maxmimum number of segments a block in the chain contains).
+ */
+int32_t maxChainDegree(struct List *biConnectedComponent,
+        struct PinchGraph *pinchGraph);
+
 stSortedSet *filterBlocksByTreeCoverageAndLength(
         struct List *biConnectedComponents, Flower *flower,
         float minimumTreeCoverage, /*Minimum tree coverage to be included */
