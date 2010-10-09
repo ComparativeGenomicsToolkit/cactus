@@ -168,6 +168,7 @@ stList *makeAlignment(stList *sequences, int32_t alignmentsPerSequence,
         assert(maxPathDistance >= stIntTuple_getPosition(pairwiseAlignment, 2));
         maxPathDistance = stIntTuple_getPosition(pairwiseAlignment, 2);
 #endif
+        stIntTuple_destruct(pairwiseAlignment);
         char *string1 = stList_get(sequences, sequence1);
         char *string2 = stList_get(sequences, sequence2);
         int32_t sequence1Length = strlen(string1);
