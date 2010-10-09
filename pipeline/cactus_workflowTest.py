@@ -27,9 +27,8 @@ class TestCase(unittest.TestCase):
         unittest.TestCase.setUp(self)
         
     def testCactus_Random(self):
-        return
         runWorkflow_multipleExamples(getCactusInputs_random, 
-                                     testNumber=1, #TestStatus.getTestSetup(),
+                                     testNumber=5, #TestStatus.getTestSetup(),
                                      buildReference=False,
                                      batchSystem=self.batchSystem, buildJobTreeStats=True)
         
@@ -38,7 +37,7 @@ class TestCase(unittest.TestCase):
                                  "blanchettesRegionsTest")
         runWorkflow_multipleExamples(getCactusInputs_blanchette, 
                                      outputDir=outputDir,
-                                     testNumber=1,
+                                     testNumber=5,
                                      testRestrictions=(TestStatus.TEST_MEDIUM,),
                                      batchSystem=self.batchSystem,
                                      buildCactusPDF=True,
