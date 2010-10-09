@@ -9,7 +9,7 @@
 #include "commonC.h"
 #include "pairwiseAlignment.h"
 
-#define SPANNING_TREES 3
+#define SPANNING_TREES 10
 #define MAXIMUM_LENGTH 1500
 
 void usage() {
