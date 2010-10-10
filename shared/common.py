@@ -54,7 +54,6 @@ def runCactusCore(cactusDiskDatabaseString, alignmentFile,
                   minimumBlockLengthChange=None,
                   minimumChainLength=None,
                   minimumChainLengthChange=None,
-                  deannealingRounds=None,
                   adjacencyComponentOverlap=None):
     writeDebugFiles = nameValue("writeDebugFiles", writeDebugFiles, bool)
     annealingRounds = nameValue("annealingRounds", annealingRounds, int)
@@ -66,13 +65,12 @@ def runCactusCore(cactusDiskDatabaseString, alignmentFile,
     minimumBlockLengthChange = nameValue("minimumBlockLengthChange", minimumBlockLengthChange, float)
     minimumChainLength = nameValue("minimumChainLength", minimumChainLength, int)
     minimumChainLengthChange = nameValue("minimumChainLengthChange", minimumChainLengthChange, float)
-    deannealingRounds = nameValue("deannealingRounds", deannealingRounds, int)
     adjacencyComponentOverlap = nameValue("adjacencyComponentOverlap", adjacencyComponentOverlap, int)
     
-    command = "cactus_core --cactusDisk '%s' --flowerName %s --alignments %s --logLevel %s %s %s %s %s %s %s %s %s %s %s %s %s" % \
+    command = "cactus_core --cactusDisk '%s' --flowerName %s --alignments %s --logLevel %s %s %s %s %s %s %s %s %s %s %s %s" % \
     (cactusDiskDatabaseString, flowerName, alignmentFile, logLevel, writeDebugFiles, annealingRounds, alignRepeatsAtRound,
      trim, trimChange, minimumTreeCoverage, minimumBlockLength,
-     minimumBlockLengthChange, minimumChainLength, minimumChainLengthChange, deannealingRounds, adjacencyComponentOverlap)
+     minimumBlockLengthChange, minimumChainLength, minimumChainLengthChange,adjacencyComponentOverlap)
     #print "command to run", command
     #xassert 0
     system(command)
@@ -132,10 +130,14 @@ def runCactusMakeNormal(cactusDiskDatabaseString, flowerNames, maxNumberOfChains
     """
     system("cactus_normalisation --cactusDisk '%s' --maxNumberOfChains %i --logLevel %s %s" % (cactusDiskDatabaseString, maxNumberOfChains, logLevel, " ".join(flowerNames)))
 
-def runCactusBaseAligner(cactusDiskDatabaseString, flowerNames, logLevel="DEBUG"):
+def runCactusBaseAligner(cactusDiskDatabaseString, flowerNames, logLevel="DEBUG",
+                         spanningTrees=None, maximumLength=None):
     """Runs cactus base aligner.
     """
-    system("cactus_baseAligner --cactusDisk '%s' --logLevel %s %s" % (cactusDiskDatabaseString, logLevel, " ".join(flowerNames)))
+    maximumLength = nameValue("maximumLength", maximumLength, int)
+    spanningTrees = nameValue("spanningTrees", spanningTrees, int)
+    system("cactus_baseAligner --cactusDisk '%s' --logLevel %s %s %s %s" % 
+           (cactusDiskDatabaseString, logLevel, " ".join(flowerNames), spanningTrees, maximumLength))
     
 def runCactusReference(cactusDiskDatabaseString, flowerNames, logLevel="DEBUG", bottomUp=False,
                        matchingAlgorithm=None):

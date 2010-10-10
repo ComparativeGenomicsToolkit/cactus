@@ -198,7 +198,7 @@ class CactusCoreWrapper(Target):
         logger.info("Starting the core wrapper target")
     
         coreParameters = self.options.config.find("alignment").find("iterations").findall("iteration")[self.iteration].find("core")
-        
+         
         runCactusCore(cactusDiskDatabaseString=self.options.cactusDiskDatabaseString,
                       alignmentFile=self.alignmentFile, 
                       flowerName=self.flowerName,
@@ -212,7 +212,6 @@ class CactusCoreWrapper(Target):
                       minimumBlockLengthChange=float(coreParameters.attrib["minimumBlockLengthChange"]),
                       minimumChainLength=float(coreParameters.attrib["minimumChainLength"]),
                       minimumChainLengthChange=float(coreParameters.attrib["minimumChainLengthChange"]),
-                      deannealingRounds=float(coreParameters.attrib["deannealingRounds"]),
                       adjacencyComponentOverlap=int(coreParameters.attrib["adjacencyComponentOverlap"]))
         logger.info("Ran the cactus core program okay")
         
@@ -229,7 +228,11 @@ class CactusBaseLevelAlignerWrapper(Target):
     
     def run(self):
         #return
-        runCactusBaseAligner(self.options.cactusDiskDatabaseString, self.flowerNames, getLogLevelString())
+        baseParameters = self.options.config.find("alignment").find("iterations").findall("iteration")[-1]
+        assert baseParameters.attrib["type"] =="base"
+        runCactusBaseAligner(self.options.cactusDiskDatabaseString, self.flowerNames, getLogLevelString(),
+                             maximumLength=float(baseParameters.attrib["max_sequence_size"]),
+                             spanningTrees=float(baseParameters.attrib["spanning_trees"]))
         logger.info("Run the cactus base aligner")
         
 ############################################################

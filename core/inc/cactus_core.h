@@ -19,7 +19,6 @@ typedef struct _CactusCoreInputParameters {
     float minimumBlockLengthChange;
     int32_t minimumChainLength;
     float minimumChainLengthChange;
-    int32_t deannealingRounds;
     int32_t adjacencyComponentOverlap;
 } CactusCoreInputParameters;
 

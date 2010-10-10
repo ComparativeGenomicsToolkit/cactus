@@ -9,15 +9,16 @@
 #include "commonC.h"
 #include "pairwiseAlignment.h"
 
-#define SPANNING_TREES 10
-#define MAXIMUM_LENGTH 1500
-
 void usage() {
     fprintf(
             stderr,
             "cactus_baseAligner [flower-names, ordered by order they should be processed], version 0.2\n");
     fprintf(stderr, "-a --logLevel : Set the log level\n");
-    fprintf(stderr, "-b --cactusDisk : The location of the flower disk directory\n");
+    fprintf(stderr,
+            "-b --cactusDisk : The location of the flower disk directory\n");
+    fprintf(stderr, "-i --spanningTrees (int >= 0) : The number of spanning trees construct in forming the set of pairwise alignments to include. If the number of pairwise alignments is less than the product of the total number of sequences and the number of spanning trees then all pairwise alignments will be included.\n");
+    fprintf(stderr, "-j --maximumLength (int  >= 0 ) : The maximum length of a sequence to align, only the prefix and suffix maximum length bases are aligned\n");
+
     fprintf(stderr, "-h --help : Print this help screen\n");
 }
 
@@ -26,33 +27,32 @@ static stSortedSetIterator *getAlignment_iterator = NULL;
 
 static struct PairwiseAlignment *getAlignments() {
     AlignedPair *alignedPair = stSortedSet_getNext(getAlignment_iterator);
-    if(alignedPair == NULL) {
+    if (alignedPair == NULL) {
         return NULL;
     }
-    struct List *opList = constructEmptyList(0, (void (*)(void *))destructAlignmentOperation);
+    struct List *opList = constructEmptyList(0,
+            (void(*)(void *)) destructAlignmentOperation);
     listAppend(opList, constructAlignmentOperation(PAIRWISE_MATCH, 1, 0.0));
     char *cA = cactusMisc_nameToString(alignedPair->sequence);
     char *cA2 = cactusMisc_nameToString(alignedPair->reverse->sequence);
 
     int32_t i = alignedPair->position;
     int32_t j = i + 1;
-    if(!alignedPair->strand) {
+    if (!alignedPair->strand) {
         j = i;
-        i = alignedPair->position+1;
+        i = alignedPair->position + 1;
     }
 
     int32_t k = alignedPair->reverse->position;
     int32_t l = k + 1;
-    if(!alignedPair->reverse->strand) {
+    if (!alignedPair->reverse->strand) {
         l = k;
-        k = alignedPair->reverse->position+1;
+        k = alignedPair->reverse->position + 1;
     }
 
-    struct PairwiseAlignment *pairwiseAlignment =
-            constructPairwiseAlignment(
-                    cA, i, j, alignedPair->strand,
-                    cA2, k, l, alignedPair->reverse->strand,
-                    1.0, opList);
+    struct PairwiseAlignment *pairwiseAlignment = constructPairwiseAlignment(
+            cA, i, j, alignedPair->strand, cA2, k, l,
+            alignedPair->reverse->strand, 1.0, opList);
     free(cA);
     free(cA2);
     return pairwiseAlignment;
@@ -70,19 +70,23 @@ int main(int argc, char *argv[]) {
 
     char * logLevelString = NULL;
     char * cactusDiskDatabaseString = NULL;
-    int32_t j;
+    int32_t i, j;
+    int32_t spanningTrees = 10;
+    int32_t maximumLength = 1500;
 
     /*
      * Parse the options.
      */
     while (1) {
         static struct option long_options[] = { { "logLevel",
-                required_argument, 0, 'a' }, { "cactusDisk", required_argument, 0,
-                'b' }, { "help", no_argument, 0, 'h' }, { 0, 0, 0, 0 } };
+                required_argument, 0, 'a' }, { "cactusDisk", required_argument,
+                0, 'b' }, { "help", no_argument, 0, 'h' },
+                { "spanningTrees", required_argument, 0, 'i' },
+                { "maximumLength", required_argument, 0, 'j' }, { 0, 0, 0, 0 } };
 
         int option_index = 0;
 
-        int key = getopt_long(argc, argv, "a:b:h", long_options, &option_index);
+        int key = getopt_long(argc, argv, "a:b:hi:j:", long_options, &option_index);
 
         if (key == -1) {
             break;
@@ -98,6 +102,14 @@ int main(int argc, char *argv[]) {
             case 'h':
                 usage();
                 return 0;
+            case 'i':
+                i = sscanf(optarg, "%i", &spanningTrees);
+                assert(i == 1);
+                break;
+            case 'j':
+                i = sscanf(optarg, "%i", &maximumLength);
+                assert(i == 1);
+                break;
             default:
                 usage();
                 return 1;
@@ -115,14 +127,15 @@ int main(int argc, char *argv[]) {
      * Setup the input parameters for cactus core.
      */
     CactusCoreInputParameters *cCIP = constructCactusCoreInputParameters();
-    cCIP->deannealingRounds = 0;
+    cCIP->minimumChainLength = 0;
     //--maxEdgeDegree 10000000 --minimumTreeCoverage 0 --minimumTreeCoverageForBlocks 0
     //--minimumBlockLength 0 --minimumChainLength 0 --trim 0 --alignRepeats 1 --extensionSteps 0
 
     /*
      * Load the flowerdisk
      */
-    stKVDatabaseConf *kvDatabaseConf = stKVDatabaseConf_constructFromString(cactusDiskDatabaseString);
+    stKVDatabaseConf *kvDatabaseConf = stKVDatabaseConf_constructFromString(
+            cactusDiskDatabaseString);
     CactusDisk *cactusDisk = cactusDisk_construct2(kvDatabaseConf, 0, 1); //We precache the sequences
     st_logInfo("Set up the flower disk\n");
 
@@ -135,21 +148,22 @@ int main(int argc, char *argv[]) {
          */
         const char *flowerName = argv[j];
         st_logInfo("Processing the flower named: %s\n", flowerName);
-        Flower *flower = cactusDisk_getFlower(cactusDisk, cactusMisc_stringToName(flowerName));
+        Flower *flower = cactusDisk_getFlower(cactusDisk,
+                cactusMisc_stringToName(flowerName));
         assert(flower != NULL);
         st_logInfo("Parsed the flower to be aligned\n");
 
-        getAlignment_alignedPairs = makeFlowerAlignment(flower, SPANNING_TREES,
-                MAXIMUM_LENGTH, &j);
-        st_logInfo("Created the alignment: %i pairs\n", stSortedSet_size(getAlignment_alignedPairs));
+        getAlignment_alignedPairs = makeFlowerAlignment(flower, spanningTrees,
+                maximumLength, &j);
+        st_logInfo("Created the alignment: %i pairs\n", stSortedSet_size(
+                getAlignment_alignedPairs));
         //getAlignment_alignedPairs = stSortedSet_construct();
         //assert(0);
 
         /*
          * Run the cactus core script.
          */
-        cactusCorePipeline(flower, cCIP, getAlignments,
-                startAlignmentStack, 1);
+        cactusCorePipeline(flower, cCIP, getAlignments, startAlignmentStack, 1);
         st_logInfo("Ran the cactus core script.\n");
 
         /*
@@ -169,7 +183,8 @@ int main(int argc, char *argv[]) {
 
     for (j = optind; j < argc; j++) {
         const char *flowerName = argv[j];
-        Flower *flower = cactusDisk_getFlower(cactusDisk, cactusMisc_stringToName(flowerName));
+        Flower *flower = cactusDisk_getFlower(cactusDisk,
+                cactusMisc_stringToName(flowerName));
         assert(flower != NULL);
         flower_unloadParent(flower); //We have this line just in case we are loading the parent..
     }

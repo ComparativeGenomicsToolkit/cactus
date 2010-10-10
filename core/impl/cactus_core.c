@@ -76,8 +76,8 @@ struct FilterAlignmentParameters {
 
 void filterPieceAndThenAddToGraph(struct PinchGraph *pinchGraph,
         struct Piece *piece, struct Piece *piece2,
-        stHash *vertexToAdjacencyComponentsHash, stList *adjacencyComponentGraph,
-        int32_t adjacencyComponentOverlap,
+        stHash *vertexToAdjacencyComponentsHash,
+        stList *adjacencyComponentGraph, int32_t adjacencyComponentOverlap,
         struct FilterAlignmentParameters *filterParameters) {
     /*
      * Function is used to filter the alignments added to the graph to optionally exclude alignments to repeats and to trim the edges of matches
@@ -101,13 +101,15 @@ void filterPieceAndThenAddToGraph(struct PinchGraph *pinchGraph,
             char *string2 = piece_getString(piece2, filterParameters->flower);
             if (!containsRepeatBases(string1) && !containsRepeatBases(string2)) {
                 pinchMergePiece(pinchGraph, piece, piece2,
-                        vertexToAdjacencyComponentsHash, adjacencyComponentGraph, adjacencyComponentOverlap);
+                        vertexToAdjacencyComponentsHash,
+                        adjacencyComponentGraph, adjacencyComponentOverlap);
             }
             free(string1);
             free(string2);
         } else {
             pinchMergePiece(pinchGraph, piece, piece2,
-                    vertexToAdjacencyComponentsHash, adjacencyComponentGraph, adjacencyComponentOverlap);
+                    vertexToAdjacencyComponentsHash, adjacencyComponentGraph,
+                    adjacencyComponentOverlap);
         }
     }
 }
@@ -126,7 +128,6 @@ CactusCoreInputParameters *constructCactusCoreInputParameters() {
     cCIP->minimumBlockLengthChange = 0.0;
     cCIP->minimumChainLength = 0;
     cCIP->minimumChainLengthChange = 0.0;
-    cCIP->deannealingRounds = 1.0;
     cCIP->adjacencyComponentOverlap = 0;
     return cCIP;
 }
@@ -193,22 +194,97 @@ struct List *getChosenBlockPinchEdges(stSortedSet *chosenBlocks,
     return chosenPinchEdges;
 }
 
-static stHash *getVertexToSetOfAdjacencyComponentsHash(stHash *vertexToAdjacencyComponentsHash) {
+static stHash *getVertexToSetOfAdjacencyComponentsHash(
+        stHash *vertexToAdjacencyComponentsHash) {
     /*
      * Constructs a has going from vertices to the set of adjacency components they are linked to
      * (this structure is updated as we go).
      */
-    stHashIterator *hashIt = stHash_getIterator(vertexToAdjacencyComponentsHash);
-    stHash *vertexToSetOfAdjacencyComponentsHash = stHash_construct2(NULL, (void (*)(void *))stSortedSet_destruct);
+    stHashIterator *hashIt =
+            stHash_getIterator(vertexToAdjacencyComponentsHash);
+    stHash *vertexToSetOfAdjacencyComponentsHash = stHash_construct2(NULL,
+            (void(*)(void *)) stSortedSet_destruct);
     struct PinchVertex *vertex;
-    while((vertex = stHash_getNext(hashIt)) != NULL) {
-        stSortedSet *adjacencyComponents = stSortedSet_construct3((int (*)(const void *, const void *))stIntTuple_cmpFn,
-                NULL);
-        stSortedSet_insert(adjacencyComponents, stHash_search(vertexToAdjacencyComponentsHash, vertex));
-        stHash_insert(vertexToSetOfAdjacencyComponentsHash, vertex, adjacencyComponents);
+    while ((vertex = stHash_getNext(hashIt)) != NULL) {
+        stSortedSet *adjacencyComponents = stSortedSet_construct3((int(*)(
+                const void *, const void *)) stIntTuple_cmpFn, NULL);
+        stSortedSet_insert(adjacencyComponents, stHash_search(
+                vertexToAdjacencyComponentsHash, vertex));
+        stHash_insert(vertexToSetOfAdjacencyComponentsHash, vertex,
+                adjacencyComponents);
     }
     stHash_destructIterator(hashIt);
     return vertexToSetOfAdjacencyComponentsHash;
+}
+
+struct CactusGraph *deanneal(Flower *flower, struct PinchGraph *pinchGraph,
+        struct CactusGraph *cactusGraph, struct List **biConnectedComponents,
+        int32_t minimumChainLengthInGraph, int32_t minimumBlockLength,
+        int32_t excludeDegree1Edges, int32_t attachEnds) {
+    ///////////////////////////////////////////////////////////////////////////
+    // Choosing a block subset to undo.
+    ///////////////////////////////////////////////////////////////////////////
+
+    //Get all the blocks.
+    stSortedSet *allBlocksOfDegree2OrHigher =
+            filterBlocksByTreeCoverageAndLength(*biConnectedComponents, flower,
+                    0.0, 2, 0, 0, pinchGraph);
+    //Get the blocks we want to keep
+    stSortedSet *chosenBlocksToKeep = filterBlocksByTreeCoverageAndLength(
+            *biConnectedComponents, flower, 0.0, 0, minimumBlockLength,
+            minimumChainLengthInGraph + 1, pinchGraph);
+    //Now get the blocks to undo by computing the difference.
+    stSortedSet *blocksToUndo = stSortedSet_getDifference(
+            allBlocksOfDegree2OrHigher, chosenBlocksToKeep);
+    stSortedSet_destruct(chosenBlocksToKeep);
+    stSortedSet_destruct(allBlocksOfDegree2OrHigher);
+
+    assert (stSortedSet_size(blocksToUndo) > 0);
+    //now report the results
+    //logTheChosenBlockSubset(biConnectedComponents, //We don't call this as it burns compute.
+    //       blocksToUndo, pinchGraph, flower);
+    st_logInfo(
+            "I have chosen %i blocks which meet the requirements to be undone\n",
+            stSortedSet_size(blocksToUndo));
+
+    ///////////////////////////////////////////////////////////////////////////
+    // Undo the blocks.
+    ///////////////////////////////////////////////////////////////////////////
+
+    struct List *list = getChosenBlockPinchEdges(blocksToUndo, pinchGraph);
+    removeOverAlignedEdges(pinchGraph, 0.0, INT32_MAX, list, 0, flower);
+    destructList(list);
+    st_logInfo(
+            "After removing edges which were not chosen, the graph has %i vertices and %i black edges\n",
+            pinchGraph->vertices->length, avl_count(pinchGraph->edges));
+    removeTrivialGreyEdgeComponents(pinchGraph, pinchGraph->vertices, flower);
+    st_logInfo(
+            "After removing the trivial graph components the graph has %i vertices and %i black edges\n",
+            pinchGraph->vertices->length, avl_count(pinchGraph->edges));
+    stSortedSet_destruct(blocksToUndo);
+
+    ///////////////////////////////////////////////////////////////////////////
+    // Cleanup the old cactus graph (it is now out of sync with the pinch graph,
+    // after undoing the selected edges).
+    ///////////////////////////////////////////////////////////////////////////
+
+    destructList(*biConnectedComponents);
+    destructCactusGraph(cactusGraph);
+
+    ////////////////////////////////////////////////
+    // Re-compute the cactus graph
+    ////////////////////////////////////////////////
+
+    cactusGraph = cactusCorePipeline_2(pinchGraph, flower, excludeDegree1Edges,
+            attachEnds);
+
+    ////////////////////////////////////////////////
+    // Get the sorted bi-connected components, again
+    ////////////////////////////////////////////////
+
+    *biConnectedComponents = computeSortedBiConnectedComponents(cactusGraph);
+
+    return cactusGraph;
 }
 
 int32_t cactusCorePipeline(Flower *flower, CactusCoreInputParameters *cCIP,
@@ -273,7 +349,8 @@ int32_t cactusCorePipeline(Flower *flower, CactusCoreInputParameters *cCIP,
     float minimumBlockLength = cCIP->minimumBlockLength;
 
     //Construct an initial adjacency component containing all the vertices
-    stList *adjacencyComponents = stList_construct3(0, (void (*)(void *))stSortedSet_destruct);
+    stList *adjacencyComponents = stList_construct3(0,
+            (void(*)(void *)) stSortedSet_destruct);
     stSortedSet *adjacencyComponent = stSortedSet_construct();
     stList_append(adjacencyComponents, adjacencyComponent);
     for (i = 0; i < pinchGraph->vertices->length; i++) {
@@ -287,14 +364,23 @@ int32_t cactusCorePipeline(Flower *flower, CactusCoreInputParameters *cCIP,
         //  Construct the extra adjacency components datastructures
         ///////////////////////////////////////////////////////////////////////////
 
-        stHash *vertexToAdjacencyComponentsHash = getVertexToAdjacencyComponentHash(pinchGraph, adjacencyComponents);
-        stList *adjacencyComponentGraph = getAdjacencyComponentGraph(pinchGraph, adjacencyComponents, vertexToAdjacencyComponentsHash);
-        stList *adjacencyComponentGraphWithSets = stList_construct3(0, (void (*)(void *))stSortedSet_destruct);
-        for(int32_t i=0; i<stList_length(adjacencyComponentGraph); i++) {
+        stHash *vertexToAdjacencyComponentsHash =
+                getVertexToAdjacencyComponentHash(pinchGraph,
+                        adjacencyComponents);
+        stList *adjacencyComponentGraph = getAdjacencyComponentGraph(
+                pinchGraph, adjacencyComponents,
+                vertexToAdjacencyComponentsHash);
+        stList *adjacencyComponentGraphWithSets = stList_construct3(0,
+                (void(*)(void *)) stSortedSet_destruct);
+        for (int32_t i = 0; i < stList_length(adjacencyComponentGraph); i++) {
             stList *edges = stList_get(adjacencyComponentGraph, i);
-            stList_append(adjacencyComponentGraphWithSets, stList_getSortedSet(edges, (int (*)(const void *, const void *))stIntTuple_cmpFn));
+            stList_append(adjacencyComponentGraphWithSets, stList_getSortedSet(
+                    edges,
+                    (int(*)(const void *, const void *)) stIntTuple_cmpFn));
         }
-        stHash *vertexToSetOfAdjacencyComponentsHash = getVertexToSetOfAdjacencyComponentsHash(vertexToAdjacencyComponentsHash);
+        stHash *vertexToSetOfAdjacencyComponentsHash =
+                getVertexToSetOfAdjacencyComponentsHash(
+                        vertexToAdjacencyComponentsHash);
 
 #ifdef BEN_DEBUG
         ///////////////////////////////////////////////////////////////////////////
@@ -340,7 +426,9 @@ int32_t cactusCorePipeline(Flower *flower, CactusCoreInputParameters *cCIP,
                     pairwiseAlignment,
                     (void(*)(struct PinchGraph *pinchGraph, struct Piece *,
                             struct Piece *, stHash *, stList *, int32_t, void *)) filterPieceAndThenAddToGraph,
-                    filterParameters, vertexToSetOfAdjacencyComponentsHash, adjacencyComponentGraphWithSets, cCIP->adjacencyComponentOverlap);
+                    filterParameters, vertexToSetOfAdjacencyComponentsHash,
+                    adjacencyComponentGraphWithSets,
+                    cCIP->adjacencyComponentOverlap);
             destructPairwiseAlignment(pairwiseAlignment); //cleanup the previous alignment
             pairwiseAlignment = getNextAlignment();
         }
@@ -376,7 +464,7 @@ int32_t cactusCorePipeline(Flower *flower, CactusCoreInputParameters *cCIP,
         ////////////////////////////////////////////////
 
         cactusGraph = cactusCorePipeline_2(pinchGraph, flower,
-                !terminateRecursion, loop+1 >= cCIP->annealingRounds);
+                !terminateRecursion, loop + 1 >= cCIP->annealingRounds);
 
         ////////////////////////////////////////////////
         // Get sorted bi-connected components.
@@ -388,9 +476,13 @@ int32_t cactusCorePipeline(Flower *flower, CactusCoreInputParameters *cCIP,
         // Loop a bunch of times to progressively remove longer and longer (upto minimum chain length) chains.
         ////////////////////////////////////////////////
 
-        //assert(cCIP->deannealingRounds >= 1.0);
-        if (cCIP->minimumChainLength > 0) {
+        if (cCIP->minimumChainLength <= 1 && cCIP->minimumBlockLength > 1) {
+            cactusGraph = deanneal(flower, pinchGraph, cactusGraph,
+                    &biConnectedComponents, 0, minimumBlockLength,
+                    !terminateRecursion, loop + 1 >= cCIP->annealingRounds);
+        }
 
+        if (cCIP->minimumChainLength > 1) {
             while (1) {
                 ///////////////////////////////////////////////////////////////////////////
                 // Get the minimum chain length
@@ -398,97 +490,39 @@ int32_t cactusCorePipeline(Flower *flower, CactusCoreInputParameters *cCIP,
 
                 int32_t minimumChainLengthInGraph = INT32_MAX;
                 for (int32_t i = 0; i < biConnectedComponents->length; i++) {
-                    struct List *biConnectedComponent = biConnectedComponents->list[i];
-                    int32_t j = chainBaseLength(biConnectedComponent, pinchGraph);
-                    int32_t k = maxChainDegree(biConnectedComponent, pinchGraph);
+                    struct List *biConnectedComponent =
+                            biConnectedComponents->list[i];
+                    int32_t k =
+                            maxChainDegree(biConnectedComponent, pinchGraph);
 #ifdef BEN_DEBUG
                     assert(j >= 0);
 #endif
-                    if(k > 1 && j < minimumChainLengthInGraph) { //The greater than 1 is to avoid trying to undo chains consisting only of stubs or unaligned segments
-                        minimumChainLengthInGraph = j;
+                    if (k > 1) {
+                        int32_t j = chainBaseLength(biConnectedComponent,
+                                pinchGraph);
+                        if (j < minimumChainLengthInGraph) { //The greater than 1 is to avoid trying to undo chains consisting only of stubs or unaligned segments
+                            minimumChainLengthInGraph = j;
+                        }
                     }
                 }
 
-                st_logDebug("The length non-empty chain in the graph is %i bases and the required minimum length chain is %i bases\n", minimumChainLengthInGraph, cCIP->minimumChainLength);
-
                 //Break if the graph does not contain a chain smaller than the minimum length
-                if(minimumChainLengthInGraph >= cCIP->minimumChainLength) {
+                if (minimumChainLengthInGraph >= cCIP->minimumChainLength) {
                     break;
                 }
 
                 ///////////////////////////////////////////////////////////////////////////
-                // Choosing a block subset to undo.
+                // Do the actual deannealing of the blocks.
                 ///////////////////////////////////////////////////////////////////////////
 
-                startTime = time(NULL);
-                //Get all the blocks.
-                stSortedSet *allBlocksOfDegree2OrHigher =
-                        filterBlocksByTreeCoverageAndLength(
-                                biConnectedComponents, flower, 0.0, 2, 0, 0,
-                                pinchGraph);
-                //Get the blocks we want to keep
-                stSortedSet *chosenBlocksToKeep =
-                        filterBlocksByTreeCoverageAndLength(
-                                biConnectedComponents, flower,
-                                0.0, 0,
-                                0, minimumChainLengthInGraph+1,
-                                pinchGraph);
-                //Now get the blocks to undo by computing the difference.
-                stSortedSet *blocksToUndo = stSortedSet_getDifference(
-                        allBlocksOfDegree2OrHigher, chosenBlocksToKeep);
-                stSortedSet_destruct(chosenBlocksToKeep);
-                stSortedSet_destruct(allBlocksOfDegree2OrHigher);
+                cactusGraph = deanneal(flower, pinchGraph, cactusGraph,
+                        &biConnectedComponents, minimumChainLengthInGraph,
+                        minimumBlockLength, !terminateRecursion, loop + 1
+                                >= cCIP->annealingRounds);
 
-                assert (stSortedSet_size(blocksToUndo) > 0);
-                //now report the results
-                //logTheChosenBlockSubset(biConnectedComponents, //We don't call this as it burns compute.
-                //       blocksToUndo, pinchGraph, flower);
-                st_logInfo(
-                        "I have chosen %i blocks which meet the requirements to be undone\n",
-                        stSortedSet_size(blocksToUndo));
-
-                ///////////////////////////////////////////////////////////////////////////
-                // Undo the blocks.
-                ///////////////////////////////////////////////////////////////////////////
-
-                list = getChosenBlockPinchEdges(blocksToUndo, pinchGraph);
-                removeOverAlignedEdges(pinchGraph, 0.0, INT32_MAX, list, 0,
-                        flower);
-                destructList(list);
-                st_logInfo(
-                        "After removing edges which were not chosen, the graph has %i vertices and %i black edges\n",
-                        pinchGraph->vertices->length,
-                        avl_count(pinchGraph->edges));
-                removeTrivialGreyEdgeComponents(pinchGraph,
-                        pinchGraph->vertices, flower);
-                st_logInfo(
-                        "After removing the trivial graph components the graph has %i vertices and %i black edges\n",
-                        pinchGraph->vertices->length,
-                        avl_count(pinchGraph->edges));
-                stSortedSet_destruct(blocksToUndo);
-
-                ///////////////////////////////////////////////////////////////////////////
-                // Cleanup the old cactus graph (it is now out of sync with the pinch graph,
-                // after undoing the selected edges).
-                ///////////////////////////////////////////////////////////////////////////
-
-                destructList(biConnectedComponents);
-                destructCactusGraph(cactusGraph);
-
-                ////////////////////////////////////////////////
-                // Re-compute the cactus graph
-                ////////////////////////////////////////////////
-
-                cactusGraph = cactusCorePipeline_2(pinchGraph, flower,
-                        !terminateRecursion, loop+1 >= cCIP->annealingRounds);
-
-                ////////////////////////////////////////////////
-                // Get the sorted bi-connected components, again
-                ////////////////////////////////////////////////
-
-                biConnectedComponents = computeSortedBiConnectedComponents(
-                        cactusGraph);
-
+                st_logDebug(
+                        "The length non-empty chain in the graph is %i bases and the required minimum length chain is %i bases\n",
+                        minimumChainLengthInGraph, cCIP->minimumChainLength);
             }
         }
 
