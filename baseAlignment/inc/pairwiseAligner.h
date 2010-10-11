@@ -8,6 +8,9 @@
 #ifndef PAIRWISEALIGNER_H_
 #define PAIRWISEALIGNER_H_
 
+//Constant that gives the integer value equal to probability 1. Integer probability zero is always 0.
+#define PAIR_ALIGNMENT_PROB_1 1000
+
 /*
  * Gets the set of posterior match probabilities under a simple HMM model of alignment for two DNA sequences.
  */

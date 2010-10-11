@@ -3,6 +3,8 @@
 #include <inttypes.h>
 #include <math.h>
 
+#include "pairwiseAligner.h"
+
 /*
  * Basic Pecan HMM code used by Cactus base aligner.
  */
@@ -322,7 +324,7 @@ static void getPosteriorProbs(double *fM, double *bM, int32_t lX, int32_t lY,
                 if(f > 1.0) {
                     f = 1.0;
                 }
-                stIntTuple *alignedPair = stIntTuple_construct(3, (int32_t)(f * 1000), x - 1, y - 1);
+                stIntTuple *alignedPair = stIntTuple_construct(3, (int32_t)(f * PAIR_ALIGNMENT_PROB_1), x - 1, y - 1);
                 stList_append(alignedPairs, alignedPair);
             }
         }
