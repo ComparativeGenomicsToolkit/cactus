@@ -411,25 +411,35 @@ stList *getAlignedPairs2(const char *sX, const char *sY, void *parameters) {
     int32_t lY = strlen(sY) + 1;
     int32_t offsetX = 0;
     int32_t offsetY = 0;
+
+    //parameters
     int32_t maxLength = 200;
+    int32_t traceBackDiag = 10;
+    int32_t traceBackCandidateThreshold = 0.8 * PAIR_ALIGNMENT_PROB_1;
 
     stList *alignedPairs = stList_construct3(0,
                 (void(*)(void *)) stIntTuple_destruct);
 
     while (1) {
         //Get the appropriate prefix.
-        char *sX2 = sX;
+        char *sX2;
         int32_t lX2 = lX;
         if (lX2 >= maxLength) {
             sX2 = getPrefixString(sX, maxLength);
             lX2 = maxLength;
         }
+        else {
+            sX2 = stString_copy(sX);
+        }
         //Second prefix
-        char *sY2 = sY;
+        char *sY2;
         int32_t lY2 = lY;
         if (lY2 >= maxLength) {
             sY2 = getPrefixString(sY, maxLength);
             lY2 = maxLength;
+        }
+        else {
+            sY2 = stString_copy(sY);
         }
 
         stList *alignedPairs2 = getAlignedPairs(sX2, sY2, parameters);
@@ -439,11 +449,17 @@ stList *getAlignedPairs2(const char *sX, const char *sY, void *parameters) {
         free(sY2);
 
         if(lX2 < lX || lY2 < lY) { //We still have work to do on another round
+            int32_t traceBackPoint = offsetX + offsetY + sX2 + sY2;
+            int32_t newStartPointX = INT32_MAX, newStartPointY = INT32_MAX;
             while(stList_length(alignedPairs2) > 0) {
                 stIntTuple *i = convertTuple(stList_pop(alignedPairs2), offsetX, offsetY);
-                int32_t diagC = stIntTuple_getPosition(i, 1) + stIntTuple_getPosition(i, 2);
-                if() {
-
+                int32_t diagC = traceBackPoint - stIntTuple_getPosition(i, 1) + stIntTuple_getPosition(i, 2);
+                if(diagC <= traceBackDiag) {
+                    int32_t score = stIntTuple_getPosition(i, 0);
+                    if(score > traceBackCandidateThreshold) {
+                        newStartPointX = stIntTuple_getPosition(i, 1);
+                        newStartPointY = stIntTuple_getPosition(i, 2);
+                    }
                 }
                 else {
                     stList_append(alignedPairs, i);
