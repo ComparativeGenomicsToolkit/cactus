@@ -494,9 +494,6 @@ int32_t cactusCorePipeline(Flower *flower, CactusCoreInputParameters *cCIP,
                             biConnectedComponents->list[i];
                     int32_t k =
                             maxChainDegree(biConnectedComponent, pinchGraph);
-#ifdef BEN_DEBUG
-                    assert(j >= 0);
-#endif
                     if (k > 1) {
                         int32_t j = chainBaseLength(biConnectedComponent,
                                 pinchGraph);

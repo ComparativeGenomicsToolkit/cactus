@@ -145,7 +145,7 @@ stList *makeAlignment(stList *sequences, int32_t spanningTrees,
             pairwiseAlignmentsIterator)) != NULL) {
         int32_t sequence1 = stIntTuple_getPosition(pairwiseAlignment, 0);
         int32_t sequence2 = stIntTuple_getPosition(pairwiseAlignment, 1);
-        stList *alignedPairs2 = getAlignedPairs(
+        stList *alignedPairs2 = getAlignedPairs_Fast(
                 stList_get(sequences, sequence1), stList_get(sequences,
                         sequence2), modelParameters);
 

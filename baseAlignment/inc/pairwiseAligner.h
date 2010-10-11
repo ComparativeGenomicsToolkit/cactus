@@ -16,4 +16,9 @@
  */
 stList *getAlignedPairs(const char *string1, const char *string2, void *parameters);
 
+/*
+ * A heuristic, banded form of getAlignedPairs.
+ */
+stList *getAlignedPairs_Fast(const char *sX, const char *sY, void *parameters);
+
 #endif /* PAIRWISEALIGNER_H_ */

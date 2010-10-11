@@ -398,83 +398,132 @@ stList *getAlignedPairs(const char *sX, const char *sY, void *parameters) {
     return alignedPairs;
 }
 
-stIntTuple *convertTuple(stIntTuple *i, int32_t offsetX, int32_t offsetY) {
-    stIntTuple *j = stIntTuple_construct(3, stIntTuple_getPosition(i, 0), stIntTuple_getPosition(i, 1) + offsetX, stIntTuple_getPosition(i, 2) + offsetY);
-    stIntTuple_destruct(i);
-    return j;
+char *getSubString(const char *cA, int32_t start, int32_t length) {
+    char *cA2 = memcpy(st_malloc(sizeof(char) * (length+1)), cA + start, length);
+    cA2[length] = '\0';
+
+    for(int32_t i=0; i<length; i++) {
+        assert(cA2[i] == cA[i + start]);
+        assert(cA2[i] != '\0');
+    }
+    assert(cA2[length] == '\0');
+
+    return cA2;
 }
 
-stList *getAlignedPairs2(const char *sX, const char *sY, void *parameters) {
+static int getAlignedPairsFast_cmpFn(stIntTuple *i, stIntTuple *j) {
+    assert(stIntTuple_length(i) == 3);
+    assert(stIntTuple_length(i) == stIntTuple_length(j));
+    int32_t k = stIntTuple_getPosition(i, 1) - stIntTuple_getPosition(j, 1);
+    int32_t l = stIntTuple_getPosition(i, 2) - stIntTuple_getPosition(j, 2);
+    return k == 0 ? l : k;
+}
+
+stList *getAlignedPairs_Fast(const char *sX, const char *sY, void *parameters) {
     assert(parameters != NULL);
 
-    int32_t lX = strlen(sX) + 1;
-    int32_t lY = strlen(sY) + 1;
+    int32_t lX = strlen(sX);
+    int32_t lY = strlen(sY);
     int32_t offsetX = 0;
     int32_t offsetY = 0;
 
     //parameters
-    int32_t maxLength = 200;
-    int32_t traceBackDiag = 10;
-    int32_t traceBackCandidateThreshold = 0.8 * PAIR_ALIGNMENT_PROB_1;
+    int32_t maxLength = 300;
+    int32_t minTraceBackDiag = 10;
+    int32_t traceBackCandidateThreshold = 0.95 * PAIR_ALIGNMENT_PROB_1;
 
-    stList *alignedPairs = stList_construct3(0,
-                (void(*)(void *)) stIntTuple_destruct);
+    stSortedSet *alignedPairs = stSortedSet_construct3((int(*)(const void *,
+            const void *)) getAlignedPairsFast_cmpFn, NULL);
 
-    while (1) {
-        //Get the appropriate prefix.
-        char *sX2;
-        int32_t lX2 = lX;
-        if (lX2 >= maxLength) {
-            sX2 = getPrefixString(sX, maxLength);
-            lX2 = maxLength;
-        }
-        else {
-            sX2 = stString_copy(sX);
-        }
-        //Second prefix
-        char *sY2;
-        int32_t lY2 = lY;
-        if (lY2 >= maxLength) {
-            sY2 = getPrefixString(sY, maxLength);
-            lY2 = maxLength;
-        }
-        else {
-            sY2 = stString_copy(sY);
-        }
+    bool done = 0;
+    while (!done) {
+        //Get the appropriate x substring
+        int32_t lX2 = lX < maxLength + offsetX ? lX - offsetX : maxLength;
+        char *sX2 = getSubString(sX, offsetX, lX2);
 
+        //Get the appropriate y substring
+        int32_t lY2 = lY < maxLength + offsetY ? lY - offsetY : maxLength;
+        char *sY2 = getSubString(sY, offsetY, lY2);
+
+        //Do the actual alignment..
         stList *alignedPairs2 = getAlignedPairs(sX2, sY2, parameters);
 
         //Cleanup the temporary sequences
         free(sX2);
         free(sY2);
 
-        if(lX2 < lX || lY2 < lY) { //We still have work to do on another round
-            int32_t traceBackPoint = offsetX + offsetY + sX2 + sY2;
-            int32_t newStartPointX = INT32_MAX, newStartPointY = INT32_MAX;
-            while(stList_length(alignedPairs2) > 0) {
-                stIntTuple *i = convertTuple(stList_pop(alignedPairs2), offsetX, offsetY);
-                int32_t diagC = traceBackPoint - stIntTuple_getPosition(i, 1) + stIntTuple_getPosition(i, 2);
-                if(diagC <= traceBackDiag) {
-                    int32_t score = stIntTuple_getPosition(i, 0);
-                    if(score > traceBackCandidateThreshold) {
-                        newStartPointX = stIntTuple_getPosition(i, 1);
-                        newStartPointY = stIntTuple_getPosition(i, 2);
-                    }
-                }
-                else {
-                    stList_append(alignedPairs, i);
+        //Convert the coordinates of the computed pairs.
+        for(int32_t k=0; k<stList_length(alignedPairs2); k++) {
+            stIntTuple *i = stList_get(alignedPairs2, k);
+            stList_set(alignedPairs2, k, stIntTuple_construct(3, stIntTuple_getPosition(i, 0),
+                    stIntTuple_getPosition(i, 1) + offsetX,
+                    stIntTuple_getPosition(i, 2) + offsetY));
+            stIntTuple_destruct(i);
+        }
+
+        //Now either setup the next job if there is some sequence remaining.
+        if (offsetX + lX2 < lX || offsetY + lY2 < lY) { //We still have work to do on another round
+            int32_t traceBackDiag = offsetX + offsetY + lX2 + lY2 - minTraceBackDiag;
+            int32_t traceForwardDiag = offsetX + offsetY + (lX2 + lY2) / 2; //We require the new alignment to overlap by at most halfway from the old one.
+            int32_t newOffsetX = offsetX, newOffsetY = offsetY;
+            stListIterator *it = stList_getIterator(alignedPairs2);
+            stIntTuple *i;
+            while((i = stList_getNext(it))) {
+                int32_t j = stIntTuple_getPosition(i, 1);
+                int32_t k = stIntTuple_getPosition(i, 2);
+                int32_t diagC = j + k;
+                if (diagC >= traceForwardDiag
+                        && diagC <= traceBackDiag
+                        && stIntTuple_getPosition(i, 0) >= traceBackCandidateThreshold //has the required score to be considered a start point.
+                        && diagC > newOffsetX + newOffsetY) { //is actually further down the matrix than the new point.
+                    newOffsetX = j;
+                    newOffsetY = k;
                 }
             }
-            stList_destruct(alignedPairs2);
-        }
-        else {
-            while(stList_length(alignedPairs2) > 0) {
-                stList_append(alignedPairs, convertTuple(stList_pop(alignedPairs2), offsetX, offsetY));
+            stList_destructIterator(it);
+            if (newOffsetX > offsetX || newOffsetY > offsetY) { //We can start a new alignment
+                //Update the offsets
+                offsetX = newOffsetX;
+                offsetY = newOffsetY;
+                st_uglyf("I have chosen an offset point %i %i\n", offsetX, offsetY);
+            } else { //No candidate start point was found so we just stop the extension
+                st_uglyf("I am exiting having not found a candidate new point\n");
+                done = 1;
             }
-            stList_destruct(alignedPairs2);
-            break;
+        } else {
+            done = 1;
         }
+
+        //Add the pairs to the alignment (merging together any duplicate pairs)
+        while (stList_length(alignedPairs2) > 0) {
+            stIntTuple *i = stList_pop(alignedPairs2);
+            assert(stIntTuple_length(i) == 3);
+            stIntTuple *j;
+            if ((j = stSortedSet_search(alignedPairs, i)) != NULL) {
+                assert(stIntTuple_getPosition(i, 1) == stIntTuple_getPosition(j, 1));
+                assert(stIntTuple_getPosition(i, 2) == stIntTuple_getPosition(j, 2));
+                stIntTuple *k = stIntTuple_construct(3,
+                        (stIntTuple_getPosition(i, 0) + stIntTuple_getPosition(j, 0)) / 2,
+                         stIntTuple_getPosition(i, 1),
+                         stIntTuple_getPosition(i, 2));
+                stSortedSet_insert(alignedPairs, k);
+                assert(stSortedSet_search(alignedPairs, i) == k);
+                assert(stSortedSet_search(alignedPairs, j) == k);
+                stIntTuple_destruct(i);
+                stIntTuple_destruct(j);
+            } else {
+                stSortedSet_insert(alignedPairs, i);
+                assert(stSortedSet_search(alignedPairs, i) == i);
+            }
+        }
+        stList_destruct(alignedPairs2);
     }
 
-    return alignedPairs;
+    //Convert the set to a list.
+    stList *alignedPairs2 = stSortedSet_getList(alignedPairs);
+    assert(stList_length(alignedPairs2) == stSortedSet_size(alignedPairs));
+    stList_setDestructor(alignedPairs2, (void (*)(void *)) stIntTuple_destruct);
+    stSortedSet_destruct(alignedPairs);
+
+    return alignedPairs2;
 }
