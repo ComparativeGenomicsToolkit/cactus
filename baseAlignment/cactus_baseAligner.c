@@ -16,8 +16,15 @@ void usage() {
     fprintf(stderr, "-a --logLevel : Set the log level\n");
     fprintf(stderr,
             "-b --cactusDisk : The location of the flower disk directory\n");
-    fprintf(stderr, "-i --spanningTrees (int >= 0) : The number of spanning trees construct in forming the set of pairwise alignments to include. If the number of pairwise alignments is less than the product of the total number of sequences and the number of spanning trees then all pairwise alignments will be included.\n");
-    fprintf(stderr, "-j --maximumLength (int  >= 0 ) : The maximum length of a sequence to align, only the prefix and suffix maximum length bases are aligned\n");
+    fprintf(
+            stderr,
+            "-i --spanningTrees (int >= 0) : The number of spanning trees construct in forming the set of pairwise alignments to include. If the number of pairwise alignments is less than the product of the total number of sequences and the number of spanning trees then all pairwise alignments will be included.\n");
+    fprintf(
+            stderr,
+            "-j --maximumLength (int  >= 0 ) : The maximum length of a sequence to align, only the prefix and suffix maximum length bases are aligned\n");
+    fprintf(
+                stderr,
+                "-k --useBanding : Use banding to speed up the alignments\n");
 
     fprintf(stderr, "-h --help : Print this help screen\n");
 }
@@ -73,6 +80,7 @@ int main(int argc, char *argv[]) {
     int32_t i, j;
     int32_t spanningTrees = 10;
     int32_t maximumLength = 1500;
+    bool useBanding = 0;
 
     /*
      * Parse the options.
@@ -80,13 +88,15 @@ int main(int argc, char *argv[]) {
     while (1) {
         static struct option long_options[] = { { "logLevel",
                 required_argument, 0, 'a' }, { "cactusDisk", required_argument,
-                0, 'b' }, { "help", no_argument, 0, 'h' },
-                { "spanningTrees", required_argument, 0, 'i' },
-                { "maximumLength", required_argument, 0, 'j' }, { 0, 0, 0, 0 } };
+                0, 'b' }, { "help", no_argument, 0, 'h' }, { "spanningTrees",
+                required_argument, 0, 'i' }, { "maximumLength",
+                required_argument, 0, 'j' }, { "useBanding",
+                        no_argument, 0, 'k' }, { 0, 0, 0, 0 } };
 
         int option_index = 0;
 
-        int key = getopt_long(argc, argv, "a:b:hi:j:", long_options, &option_index);
+        int key = getopt_long(argc, argv, "a:b:hi:j:k", long_options,
+                &option_index);
 
         if (key == -1) {
             break;
@@ -109,6 +119,9 @@ int main(int argc, char *argv[]) {
             case 'j':
                 i = sscanf(optarg, "%i", &maximumLength);
                 assert(i == 1);
+                break;
+            case 'k':
+                useBanding = !useBanding;
                 break;
             default:
                 usage();
@@ -154,7 +167,7 @@ int main(int argc, char *argv[]) {
         st_logInfo("Parsed the flower to be aligned\n");
 
         getAlignment_alignedPairs = makeFlowerAlignment(flower, spanningTrees,
-                maximumLength, &j);
+                maximumLength, useBanding, &j);
         st_logInfo("Created the alignment: %i pairs\n", stSortedSet_size(
                 getAlignment_alignedPairs));
         //getAlignment_alignedPairs = stSortedSet_construct();

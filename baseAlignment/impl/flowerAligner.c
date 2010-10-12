@@ -108,7 +108,8 @@ static void pruneAlignments2(stList *inducedAlignment1, stList *inducedAlignment
 #endif
 
     //Find the score threshold by iterating along each alignment.
-    int32_t cutOff1 = 0, cutOff2 = 0, maxScore = -1;
+    int32_t cutOff1 = 0, cutOff2 = 0;
+    int64_t maxScore = -1;
     if(stList_length(inducedAlignment2) > 0) {
         maxScore = cScore2[0];
     }
@@ -205,14 +206,14 @@ static void pruneAlignments(Cap *cap, stSortedSet *endAlignment1, Cap *adjacentC
 }
 
 stSortedSet *makeFlowerAlignment(Flower *flower, int32_t spanningTrees,
-        int32_t maxSequenceLength, void *modelParameters) {
+        int32_t maxSequenceLength, bool useBanding, void *modelParameters) {
     //Make the end alignments, representing each as an adjacency alignment.
     End *end;
     Flower_EndIterator *endIterator = flower_getEndIterator(flower);
     stHash *endAlignments = stHash_construct2(NULL,
             (void(*)(void *)) stSortedSet_destruct);
     while ((end = flower_getNextEnd(endIterator)) != NULL) {
-        stSortedSet *endAlignment = makeEndAlignment(end, spanningTrees, maxSequenceLength, modelParameters);
+        stSortedSet *endAlignment = makeEndAlignment(end, spanningTrees, maxSequenceLength, useBanding, modelParameters);
         stHash_insert(endAlignments, end, endAlignment);
     }
     flower_destructEndIterator(endIterator);

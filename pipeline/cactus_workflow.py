@@ -232,7 +232,8 @@ class CactusBaseLevelAlignerWrapper(Target):
         assert baseParameters.attrib["type"] =="base"
         runCactusBaseAligner(self.options.cactusDiskDatabaseString, self.flowerNames, getLogLevelString(),
                              maximumLength=float(baseParameters.attrib["max_sequence_size"]),
-                             spanningTrees=float(baseParameters.attrib["spanning_trees"]))
+                             spanningTrees=float(baseParameters.attrib["spanning_trees"]),
+                             useBanding=bool(int(baseParameters.attrib["use_banding"])))
         logger.info("Run the cactus base aligner")
         
 ############################################################

@@ -131,13 +131,14 @@ def runCactusMakeNormal(cactusDiskDatabaseString, flowerNames, maxNumberOfChains
     system("cactus_normalisation --cactusDisk '%s' --maxNumberOfChains %i --logLevel %s %s" % (cactusDiskDatabaseString, maxNumberOfChains, logLevel, " ".join(flowerNames)))
 
 def runCactusBaseAligner(cactusDiskDatabaseString, flowerNames, logLevel="DEBUG",
-                         spanningTrees=None, maximumLength=None):
+                         spanningTrees=None, maximumLength=None, useBanding=True):
     """Runs cactus base aligner.
     """
     maximumLength = nameValue("maximumLength", maximumLength, int)
     spanningTrees = nameValue("spanningTrees", spanningTrees, int)
-    system("cactus_baseAligner --cactusDisk '%s' --logLevel %s %s %s %s" % 
-           (cactusDiskDatabaseString, logLevel, " ".join(flowerNames), spanningTrees, maximumLength))
+    useBanding = nameValue("useBanding", useBanding, bool)
+    system("cactus_baseAligner --cactusDisk '%s' --logLevel %s %s %s %s %s" % 
+           (cactusDiskDatabaseString, logLevel, " ".join(flowerNames), spanningTrees, maximumLength, useBanding))
     
 def runCactusReference(cactusDiskDatabaseString, flowerNames, logLevel="DEBUG", bottomUp=False,
                        matchingAlgorithm=None):

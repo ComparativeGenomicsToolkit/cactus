@@ -96,7 +96,7 @@ void test_multipleAlignerRandom(CuTest *testCase) {
             st_uglyf("Sequence to align: %s\n", stList_get(randomSequences, i));
         }
 
-        stList *alignedPairs = makeAlignment(randomSequences, spanningTrees, &spanningTrees);
+        stList *alignedPairs = makeAlignment(randomSequences, spanningTrees, &spanningTrees, 1);
         //Check the aligned pairs.
         stListIterator *iterator = stList_getIterator(alignedPairs);
         stIntTuple *alignedPair;

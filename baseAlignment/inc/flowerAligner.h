@@ -16,6 +16,6 @@
  * Model parameters is the parameters of the pairwise alignment model.
  */
 stSortedSet *makeFlowerAlignment(Flower *flower, int32_t spanningTrees,
-        int32_t maxSequenceLength, void *modelParameters);
+        int32_t maxSequenceLength, bool useBanding, void *modelParameters);
 
 #endif /* NETALIGNER_H_ */

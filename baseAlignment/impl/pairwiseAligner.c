@@ -402,35 +402,36 @@ char *getSubString(const char *cA, int32_t start, int32_t length) {
     char *cA2 = memcpy(st_malloc(sizeof(char) * (length+1)), cA + start, length);
     cA2[length] = '\0';
 
+#ifdef BEN_DEBUG
     for(int32_t i=0; i<length; i++) {
         assert(cA2[i] == cA[i + start]);
         assert(cA2[i] != '\0');
     }
     assert(cA2[length] == '\0');
-
+#endif
     return cA2;
 }
 
 static int getAlignedPairsFast_cmpFn(stIntTuple *i, stIntTuple *j) {
+#ifdef BEN_DEBUG
     assert(stIntTuple_length(i) == 3);
     assert(stIntTuple_length(i) == stIntTuple_length(j));
+#endif
     int32_t k = stIntTuple_getPosition(i, 1) - stIntTuple_getPosition(j, 1);
     int32_t l = stIntTuple_getPosition(i, 2) - stIntTuple_getPosition(j, 2);
     return k == 0 ? l : k;
 }
 
 stList *getAlignedPairs_Fast(const char *sX, const char *sY, void *parameters) {
-    assert(parameters != NULL);
-
     int32_t lX = strlen(sX);
     int32_t lY = strlen(sY);
     int32_t offsetX = 0;
     int32_t offsetY = 0;
 
     //parameters
-    int32_t maxLength = 300;
+    int32_t maxLength = 500;
     int32_t minTraceBackDiag = 10;
-    int32_t traceBackCandidateThreshold = 0.95 * PAIR_ALIGNMENT_PROB_1;
+    int32_t traceBackCandidateThreshold = 0.7 * PAIR_ALIGNMENT_PROB_1;
 
     stSortedSet *alignedPairs = stSortedSet_construct3((int(*)(const void *,
             const void *)) getAlignedPairsFast_cmpFn, NULL);
@@ -485,9 +486,9 @@ stList *getAlignedPairs_Fast(const char *sX, const char *sY, void *parameters) {
                 //Update the offsets
                 offsetX = newOffsetX;
                 offsetY = newOffsetY;
-                st_uglyf("I have chosen an offset point %i %i\n", offsetX, offsetY);
+                //st_uglyf("I have chosen an offset point %i %i\n", offsetX, offsetY);
             } else { //No candidate start point was found so we just stop the extension
-                st_uglyf("I am exiting having not found a candidate new point\n");
+                //st_uglyf("I am exiting having not found a candidate new point\n");
                 done = 1;
             }
         } else {
@@ -500,20 +501,26 @@ stList *getAlignedPairs_Fast(const char *sX, const char *sY, void *parameters) {
             assert(stIntTuple_length(i) == 3);
             stIntTuple *j;
             if ((j = stSortedSet_search(alignedPairs, i)) != NULL) {
+#ifdef BEN_DEBUG
                 assert(stIntTuple_getPosition(i, 1) == stIntTuple_getPosition(j, 1));
                 assert(stIntTuple_getPosition(i, 2) == stIntTuple_getPosition(j, 2));
+#endif
                 stIntTuple *k = stIntTuple_construct(3,
                         (stIntTuple_getPosition(i, 0) + stIntTuple_getPosition(j, 0)) / 2,
                          stIntTuple_getPosition(i, 1),
                          stIntTuple_getPosition(i, 2));
                 stSortedSet_insert(alignedPairs, k);
+#ifdef BEN_DEBUG
                 assert(stSortedSet_search(alignedPairs, i) == k);
                 assert(stSortedSet_search(alignedPairs, j) == k);
+#endif
                 stIntTuple_destruct(i);
                 stIntTuple_destruct(j);
             } else {
                 stSortedSet_insert(alignedPairs, i);
+#ifdef BEN_DEBUG
                 assert(stSortedSet_search(alignedPairs, i) == i);
+#endif
             }
         }
         stList_destruct(alignedPairs2);
@@ -521,7 +528,9 @@ stList *getAlignedPairs_Fast(const char *sX, const char *sY, void *parameters) {
 
     //Convert the set to a list.
     stList *alignedPairs2 = stSortedSet_getList(alignedPairs);
+#ifdef BEN_DEBUG
     assert(stList_length(alignedPairs2) == stSortedSet_size(alignedPairs));
+#endif
     stList_setDestructor(alignedPairs2, (void (*)(void *)) stIntTuple_destruct);
     stSortedSet_destruct(alignedPairs);
 
