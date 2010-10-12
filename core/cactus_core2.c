@@ -36,26 +36,57 @@ void usage() {
     fprintf(stderr, "cactus_core, version 0.2\n");
     fprintf(stderr, "-a --logLevel : Set the log level\n");
     fprintf(stderr, "-b --alignments : The input alignments file\n");
-    fprintf(stderr, "-c --cactusDisk : The location of the flower disk directory\n");
-    fprintf(stderr, "-d --flowerName : The name of the flower (the key in the database)\n");
+    fprintf(stderr,
+            "-c --cactusDisk : The location of the flower disk directory\n");
+    fprintf(stderr,
+            "-d --flowerName : The name of the flower (the key in the database)\n");
     fprintf(stderr, "-e --writeDebugFiles : Write the debug files\n");
     fprintf(stderr, "-h --help : Print this help screen\n");
 
-    fprintf(stderr, "-i --annealingRounds (int >= 1) : The number of rounds of alignment, undoing of over-aligned edges and recursion into adjacency connected components (groups)\n");
-    fprintf(stderr, "-j --alignRepeatsAtRound (int  [0, alignUndoLoops) ) : Allow bases marked as repeats to be aligned at loop (else alignments to these bases to be excluded)\n");
+    fprintf(
+            stderr,
+            "-i --annealingRounds (array of ints, each greater than or equal to 1) : The rounds of annealing\n");
+    fprintf(
+            stderr,
+            "-o --deannealingRounds (array of ints, each greater than or equal to 1 and each greater than the last) : The rounds of deannealing\n");
 
-    fprintf(stderr, "-k --trim (float >= 0) : The length of bases to remove from the end of each alignment\n");
-    fprintf(stderr, "-l --trimChange : (float) Trim reduction, the amount to reduce the trim after each align/undo loop (to a minimum of zero)\n");
+    fprintf(
+            stderr,
+            "-j --alignRepeatsAtRound (int  [0, alignUndoLoops) ) : Allow bases marked as repeats to be aligned at loop (else alignments to these bases to be excluded)\n");
 
-    fprintf(stderr, "-m --minimumTreeCoverage : (float [0.0, 1.0]) Minimum tree coverage proportion of an block to be included in the graph\n");
+    fprintf(
+            stderr,
+            "-k --trim (float >= 0) : The length of bases to remove from the end of each alignment\n");
+    fprintf(
+            stderr,
+            "-l --trimChange : (float) Trim reduction, the amount to reduce the trim after each align/undo loop (to a minimum of zero)\n");
 
-    fprintf(stderr, "-n --minimumBlockLength : (int >= 0) The minimum length of a block required to be included in the problem\n");
-    fprintf(stderr, "-o --minimumBlockLengthChange : (float) The minimum-block-length increase after each align/undo loop\n");
+    fprintf(
+            stderr,
+            "-m --minimumTreeCoverage : (float [0.0, 1.0]) Minimum tree coverage proportion of an block to be included in the graph\n");
 
-    fprintf(stderr, "-p --minimumChainLength : (int >= 0) The minimum chain length required to be included in the problem\n");
-    fprintf(stderr, "-q --minimumChainLengthChange : (float) The minimum-chain-length increase after each align/undo loop\n");
+    fprintf(
+            stderr,
+            "-n --minimumBlockLength : (int >= 0) The minimum length of a block required to be included in the problem\n");
 
-    fprintf(stderr, "-s --adjacencyComponentOverlap : (int >= 0) When adding alignmnts back into the graph, the distance between the adjacency components to consider\n");
+    fprintf(
+            stderr,
+            "-s --adjacencyComponentOverlap : (int >= 0) When adding alignmnts back into the graph, the distance between the adjacency components to consider\n");
+}
+
+int32_t *getInts(const char *string, int32_t *arrayLength) {
+    int32_t *iA = st_malloc(sizeof(int32_t) * strlen(string));
+    char *cA = stString_copy(string);
+    char **cA2 = &cA;
+    char *cA3;
+    *arrayLength = 0;
+    while((cA3 = stString_getNextWord(cA2)) != NULL) {
+        int32_t i = sscanf("%i", cA3, &iA[(*arrayLength)++]);
+        assert(i == 1);
+        free(cA3);
+    }
+    free(cA);
+    return iA;
 }
 
 int main(int argc, char *argv[]) {
@@ -82,89 +113,80 @@ int main(int argc, char *argv[]) {
     ///////////////////////////////////////////////////////////////////////////
 
     while (1) {
-        static struct option
-                long_options[] = {
-                        { "logLevel", required_argument, 0, 'a' },
-                        { "alignments", required_argument, 0, 'b' },
-                        { "cactusDisk", required_argument, 0, 'c' },
-                        { "flowerName", required_argument, 0, 'd' },
-                        { "writeDebugFiles", no_argument, 0, 'e' },
-                        { "help", no_argument, 0, 'h' },
-                        { "annealingRounds", required_argument, 0, 'i' },
-                        { "alignRepeatsAtRound", required_argument, 0, 'j' },
-                        { "trim", required_argument, 0, 'k' },
-                        { "trimChange", required_argument, 0, 'l', },
-                        { "minimumTreeCoverage", required_argument, 0, 'm' },
-                        { "minimumBlockLength", required_argument, 0, 'n' },
-                        { "minimumBlockLengthChange", required_argument, 0, 'o' },
-                        { "minimumChainLength", required_argument, 0, 'p' },
-                        { "minimumChainLengthChange", required_argument, 0, 'q', },
-                        { "adjacencyComponentOverlap", required_argument, 0, 's', },
-                        { 0, 0, 0, 0 } };
+        static struct option long_options[] = { { "logLevel",
+                required_argument, 0, 'a' }, { "alignments", required_argument,
+                0, 'b' }, { "cactusDisk", required_argument, 0, 'c' }, {
+                "flowerName", required_argument, 0, 'd' }, { "writeDebugFiles",
+                no_argument, 0, 'e' }, { "help", no_argument, 0, 'h' }, {
+                "annealingRounds", required_argument, 0, 'i' }, {
+                "alignRepeatsAtRound", required_argument, 0, 'j' }, { "trim",
+                required_argument, 0, 'k' }, { "trimChange", required_argument,
+                0, 'l', },
+                { "minimumTreeCoverage", required_argument, 0, 'm' }, {
+                        "minimumBlockLength", required_argument, 0, 'n' }, {
+                        "deannealingRounds", required_argument, 0, 'o' },
+                { "adjacencyComponentOverlap", required_argument, 0, 's', }, {
+                        0, 0, 0, 0 } };
 
         int option_index = 0;
 
-        key = getopt_long(argc, argv,
-                "a:b:c:d:ehi:j:k:l:m:n:o:p:q:s:", long_options,
-                &option_index);
+        key = getopt_long(argc, argv, "a:b:c:d:ehi:j:k:l:m:n:o:s:",
+                long_options, &option_index);
 
         if (key == -1) {
             break;
         }
 
         switch (key) {
-        case 'a':
-            logLevelString = stString_copy(optarg);
-            break;
-        case 'b':
-            alignmentsFile = stString_copy(optarg);
-            break;
-        case 'c':
-            cactusDiskDatabaseString = stString_copy(optarg);
-            break;
-        case 'd':
-            flowerName = stString_copy(optarg);
-            break;
-        case 'e':
-            cCIP->writeDebugFiles = !cCIP->writeDebugFiles;
-            break;
-        case 'h':
-            usage();
-            return 0;
-        case 'i':
-            assert(sscanf(optarg, "%i", &cCIP->annealingRounds) == 1);
-            break;
-        case 'j':
-            assert(sscanf(optarg, "%i", &cCIP->alignRepeatsAtRound) == 1);
-            break;
-        case 'k':
-            assert(sscanf(optarg, "%i", &cCIP->trim) == 1);
-            break;
-        case 'l':
-            assert(sscanf(optarg, "%f", &cCIP->trimChange) == 1);
-            break;
-        case 'm':
-            assert(sscanf(optarg, "%f", &cCIP->minimumTreeCoverage) == 1);
-            break;
-        case 'n':
-            assert(sscanf(optarg, "%i", &cCIP->minimumBlockLength) == 1);
-            break;
-        case 'o':
-            assert(sscanf(optarg, "%f", &cCIP->minimumBlockLengthChange) == 1);
-            break;
-        case 'p':
-            assert(sscanf(optarg, "%i", &cCIP->minimumChainLength) == 1);
-            break;
-        case 'q':
-            assert(sscanf(optarg, "%f", &cCIP->minimumChainLengthChange) == 1);
-            break;
-        case 's':
-             assert(sscanf(optarg, "%i", &cCIP->adjacencyComponentOverlap) == 1);
-             break;
+            case 'a':
+                logLevelString = stString_copy(optarg);
+                break;
+            case 'b':
+                alignmentsFile = stString_copy(optarg);
+                break;
+            case 'c':
+                cactusDiskDatabaseString = stString_copy(optarg);
+                break;
+            case 'd':
+                flowerName = stString_copy(optarg);
+                break;
+            case 'e':
+                cCIP->writeDebugFiles = !cCIP->writeDebugFiles;
+                break;
+            case 'h':
+                usage();
+                return 0;
+            case 'i':
+                free(cCIP->annealingRounds);
+                cCIP->annealingRounds = getInts(optarg, &cCIP->annealingRoundsLength);
+                break;
+            case 'o':
+                free(cCIP->deannealingRounds);
+                cCIP->deannealingRounds = getInts(optarg, &cCIP->deannealingRoundsLength);
+                break;
+            case 'j':
+                assert(sscanf(optarg, "%i", &cCIP->alignRepeatsAtRound) == 1);
+                break;
+            case 'k':
+                assert(sscanf(optarg, "%i", &cCIP->trim) == 1);
+                break;
+            case 'l':
+                assert(sscanf(optarg, "%f", &cCIP->trimChange) == 1);
+                break;
+            case 'm':
+                assert(sscanf(optarg, "%f", &cCIP->minimumTreeCoverage) == 1);
+                break;
+            case 'n':
+                assert(sscanf(optarg, "%i", &cCIP->minimumBlockLength) == 1);
+                break;
+            case 's':
+                assert(sscanf(optarg, "%i", &cCIP->adjacencyComponentOverlap)
+                        == 1);
+                break;
 
-        default:
-            usage();
-            return 1;
+            default:
+                usage();
+                return 1;
         }
     }
 
@@ -178,9 +200,16 @@ int main(int argc, char *argv[]) {
     assert(cCIP->minimumTreeCoverage >= 0.0);
     assert(cCIP->minimumTreeCoverage <= 1.0);
     assert(cCIP->minimumBlockLength >= 0);
-    assert(cCIP->minimumChainLength >= 0);
+    assert(cCIP->annealingRoundsLength >= 1);
+    for(int32_t i=0; i<cCIP->annealingRoundsLength; i++) {
+        assert(cCIP->annealingRounds[i] >= 0);
+    }
+    assert(cCIP->deannealingRoundsLength >= 0);
+    for(int32_t i=1; i<cCIP->annealingRoundsLength; i++) {
+       assert(cCIP->deannealingRounds[i-1] < cCIP->deannealingRounds[i]);
+       assert(cCIP->deannealingRounds[i-1] >= 1);
+    }
     assert(cCIP->trim >= 0);
-    assert(cCIP->annealingRounds >= 0);
     assert(cCIP->alignRepeatsAtRound >= 0);
     assert(cCIP->adjacencyComponentOverlap >= 0);
 
@@ -207,7 +236,8 @@ int main(int argc, char *argv[]) {
     //Load the database
     //////////////////////////////////////////////
 
-    kvDatabaseConf = stKVDatabaseConf_constructFromString(cactusDiskDatabaseString);
+    kvDatabaseConf = stKVDatabaseConf_constructFromString(
+            cactusDiskDatabaseString);
     cactusDisk = cactusDisk_construct2(kvDatabaseConf, 0, 1);
     st_logInfo("Set up the flower disk\n");
 
@@ -215,7 +245,8 @@ int main(int argc, char *argv[]) {
     // Parse the basic reconstruction problem
     ///////////////////////////////////////////////////////////////////////////
 
-    flower = cactusDisk_getFlower(cactusDisk, cactusMisc_stringToName(flowerName));
+    flower = cactusDisk_getFlower(cactusDisk, cactusMisc_stringToName(
+            flowerName));
     st_logInfo("Parsed the flower to be refined\n");
 
     if (!flower_builtBlocks(flower)) { // Do nothing if the flower already has defined blocks

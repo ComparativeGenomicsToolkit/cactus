@@ -203,15 +203,13 @@ class CactusCoreWrapper(Target):
                       alignmentFile=self.alignmentFile, 
                       flowerName=self.flowerName,
                       logLevel=getLogLevelString(), 
-                      annealingRounds=float(coreParameters.attrib["annealingRounds"]),
+                      annealingRounds=[ int(i) for i in " ".split(coreParameters.attrib["annealingRounds"]) ],
+                      deannealingRounds=[ int(i) for i in  " ".split(coreParameters.attrib["deannealingRounds"]) ],
                       alignRepeatsAtRound=float(coreParameters.attrib["alignRepeatsAtRound"]),
                       trim=float(coreParameters.attrib["trim"]),
                       trimChange=float(coreParameters.attrib["trimChange"]),
                       minimumTreeCoverage=float(coreParameters.attrib["minimumTreeCoverage"]),
                       minimumBlockLength=float(coreParameters.attrib["minimumBlockLength"]),
-                      minimumBlockLengthChange=float(coreParameters.attrib["minimumBlockLengthChange"]),
-                      minimumChainLength=float(coreParameters.attrib["minimumChainLength"]),
-                      minimumChainLengthChange=float(coreParameters.attrib["minimumChainLengthChange"]),
                       adjacencyComponentOverlap=int(coreParameters.attrib["adjacencyComponentOverlap"]))
         logger.info("Ran the cactus core program okay")
         
@@ -234,8 +232,7 @@ class CactusBaseLevelAlignerWrapper(Target):
                              spanningTrees=float(baseParameters.attrib["spanning_trees"]),
                              gapGamma=float(baseParameters.attrib["gap_gamma"]),
                              useBanding=bool(int(baseParameters.attrib["use_banding"])),
-                             bandingSize=int(baseParameters.attrib["banding_size"]),
-                             bandingThreshold=float(baseParameters.attrib["banding_threshold"]))
+                             bandingSize=int(baseParameters.attrib["banding_size"]))
         logger.info("Run the cactus base aligner")
         
 ############################################################

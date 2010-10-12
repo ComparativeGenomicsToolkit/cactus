@@ -45,32 +45,29 @@ def runCactusCore(cactusDiskDatabaseString, alignmentFile,
                   flowerName=0,
                   logLevel="DEBUG", 
                   writeDebugFiles=False,
-                  annealingRounds=False,
+                  annealingRounds=None,
+                  deannealingRounds=None,
                   alignRepeatsAtRound=False,
                   trim=None,
                   trimChange=None,
                   minimumTreeCoverage=None,
                   minimumBlockLength=None,
-                  minimumBlockLengthChange=None,
-                  minimumChainLength=None,
-                  minimumChainLengthChange=None,
                   adjacencyComponentOverlap=None):
     writeDebugFiles = nameValue("writeDebugFiles", writeDebugFiles, bool)
-    annealingRounds = nameValue("annealingRounds", annealingRounds, int)
+    if annealingRounds != None:
+        annealingRounds = "--annealingRounds '%s'" % " ".join([ str(i) for i in annealingRounds ])
+    if deannealingRounds != None:
+        deannealingRounds = "--deannealingRounds '%s'" % " ".join([ str(i) for i in deannealingRounds ])
     alignRepeatsAtRound = nameValue("alignRepeatsAtRound", alignRepeatsAtRound, int)
     trim = nameValue("trim", trim, int)
     trimChange = nameValue("trimChange", trimChange, float)
     minimumTreeCoverage = nameValue("minimumTreeCoverage", minimumTreeCoverage, float)
     minimumBlockLength = nameValue("minimumBlockLength", minimumBlockLength, int)
-    minimumBlockLengthChange = nameValue("minimumBlockLengthChange", minimumBlockLengthChange, float)
-    minimumChainLength = nameValue("minimumChainLength", minimumChainLength, int)
-    minimumChainLengthChange = nameValue("minimumChainLengthChange", minimumChainLengthChange, float)
     adjacencyComponentOverlap = nameValue("adjacencyComponentOverlap", adjacencyComponentOverlap, int)
     
-    command = "cactus_core --cactusDisk '%s' --flowerName %s --alignments %s --logLevel %s %s %s %s %s %s %s %s %s %s %s %s" % \
-    (cactusDiskDatabaseString, flowerName, alignmentFile, logLevel, writeDebugFiles, annealingRounds, alignRepeatsAtRound,
-     trim, trimChange, minimumTreeCoverage, minimumBlockLength,
-     minimumBlockLengthChange, minimumChainLength, minimumChainLengthChange,adjacencyComponentOverlap)
+    command = "cactus_core --cactusDisk '%s' --flowerName %s --alignments %s --logLevel %s %s %s %s %s %s %s %s %s %s" % \
+    (cactusDiskDatabaseString, flowerName, alignmentFile, logLevel, writeDebugFiles, annealingRounds, deannealingRounds, alignRepeatsAtRound,
+     trim, trimChange, minimumTreeCoverage, minimumBlockLength, adjacencyComponentOverlap)
     #print "command to run", command
     #xassert 0
     system(command)
@@ -134,8 +131,7 @@ def runCactusBaseAligner(cactusDiskDatabaseString, flowerNames, logLevel="DEBUG"
                          spanningTrees=None, maximumLength=None, 
                          gapGamma=None,
                          useBanding=False,
-                         bandingSize=None,
-                         bandingThreshold=None):
+                         bandingSize=None):
     """Runs cactus base aligner.
     """
     maximumLength = nameValue("maximumLength", maximumLength, int)
@@ -143,9 +139,8 @@ def runCactusBaseAligner(cactusDiskDatabaseString, flowerNames, logLevel="DEBUG"
     gapGamma = nameValue("gapGamma", gapGamma, float)
     useBanding = nameValue("useBanding", useBanding, bool)
     bandingSize = nameValue("bandingSize", bandingSize, int)
-    bandingThreshold = nameValue("bandingThreshold", bandingThreshold, float)
-    system("cactus_baseAligner --cactusDisk '%s' --logLevel %s %s %s %s %s %s %s %s" % 
-           (cactusDiskDatabaseString, logLevel, " ".join(flowerNames), spanningTrees, maximumLength, gapGamma, useBanding, bandingSize, bandingThreshold))
+    system("cactus_baseAligner --cactusDisk '%s' --logLevel %s %s %s %s %s %s %s" % 
+           (cactusDiskDatabaseString, logLevel, " ".join(flowerNames), spanningTrees, maximumLength, gapGamma, useBanding, bandingSize))
     
 def runCactusReference(cactusDiskDatabaseString, flowerNames, logLevel="DEBUG", bottomUp=False,
                        matchingAlgorithm=None):

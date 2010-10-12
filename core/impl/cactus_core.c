@@ -119,20 +119,26 @@ CactusCoreInputParameters *constructCactusCoreInputParameters() {
             sizeof(CactusCoreInputParameters));
     //Everything is essentially 'turned off' by default.
     cCIP->writeDebugFiles = 0;
-    cCIP->annealingRounds = 1;
+
+    cCIP->annealingRoundsLength = 1;
+    cCIP->annealingRounds = st_malloc(sizeof(int32_t) * 1);
+    cCIP->annealingRounds[0] = 0;
+
+    cCIP->deannealingRoundsLength = 0;
+    cCIP->deannealingRounds = st_malloc(0);
+
     cCIP->alignRepeatsAtRound = 0;
     cCIP->trim = 0;
     cCIP->trimChange = 0.0;
     cCIP->minimumTreeCoverage = 0.0;
     cCIP->minimumBlockLength = 0;
-    cCIP->minimumBlockLengthChange = 0.0;
-    cCIP->minimumChainLength = 0;
-    cCIP->minimumChainLengthChange = 0.0;
     cCIP->adjacencyComponentOverlap = 0;
     return cCIP;
 }
 
 void destructCactusCoreInputParameters(CactusCoreInputParameters *cCIP) {
+    free(cCIP->annealingRounds);
+    free(cCIP->deannealingRounds);
     free(cCIP);
 }
 
@@ -239,7 +245,7 @@ struct CactusGraph *deanneal(Flower *flower, struct PinchGraph *pinchGraph,
     stSortedSet_destruct(chosenBlocksToKeep);
     stSortedSet_destruct(allBlocksOfDegree2OrHigher);
 
-    assert (stSortedSet_size(blocksToUndo) > 0);
+    assert(stSortedSet_size(blocksToUndo) > 0);
     //now report the results
     //logTheChosenBlockSubset(biConnectedComponents, //We don't call this as it burns compute.
     //       blocksToUndo, pinchGraph, flower);
@@ -285,6 +291,25 @@ struct CactusGraph *deanneal(Flower *flower, struct PinchGraph *pinchGraph,
     *biConnectedComponents = computeSortedBiConnectedComponents(cactusGraph);
 
     return cactusGraph;
+}
+
+int32_t getMinimumChainLengthInGraph(struct List *biConnectedComponents,
+        struct PinchGraph *pinchGraph) {
+    /*
+     * Gets the length of the smallest non-empty chain in the graph (or INT32_MAX if the chain is empty).
+     */
+    int32_t minimumChainLengthInGraph = INT32_MAX;
+    for (int32_t i = 0; i < biConnectedComponents->length; i++) {
+        struct List *biConnectedComponent = biConnectedComponents->list[i];
+        int32_t k = maxChainDegree(biConnectedComponent, pinchGraph);
+        if (k > 1) {
+            int32_t j = chainBaseLength(biConnectedComponent, pinchGraph);
+            if (j < minimumChainLengthInGraph) { //The greater than 1 is to avoid trying to undo chains consisting only of stubs or unaligned segments
+                minimumChainLengthInGraph = j;
+            }
+        }
+    }
+    return minimumChainLengthInGraph;
 }
 
 int32_t cactusCorePipeline(Flower *flower, CactusCoreInputParameters *cCIP,
@@ -345,8 +370,6 @@ int32_t cactusCorePipeline(Flower *flower, CactusCoreInputParameters *cCIP,
      */
 
     float trim = cCIP->trim;
-    float minimumChainLength = cCIP->minimumChainLength;
-    float minimumBlockLength = cCIP->minimumBlockLength;
 
     //Construct an initial adjacency component containing all the vertices
     stList *adjacencyComponents = stList_construct3(0,
@@ -357,8 +380,8 @@ int32_t cactusCorePipeline(Flower *flower, CactusCoreInputParameters *cCIP,
         stSortedSet_insert(adjacencyComponent, pinchGraph->vertices->list[i]);
     }
 
-    int32_t loop = 0;
-    while (1) {
+    int32_t annealingRound = 0;
+    while(1) {
 
         ///////////////////////////////////////////////////////////////////////////
         //  Construct the extra adjacency components datastructures
@@ -414,13 +437,10 @@ int32_t cactusCorePipeline(Flower *flower, CactusCoreInputParameters *cCIP,
         assert(trim >= 0);
 #endif
         filterParameters->trim = trim;
-        filterParameters->alignRepeats = loop >= cCIP->alignRepeatsAtRound; //cCIP->alignRepeats;
+        filterParameters->alignRepeats = annealingRound >= cCIP->alignRepeatsAtRound; //cCIP->alignRepeats;
         filterParameters->flower = flower;
 
         while (pairwiseAlignment != NULL) {
-            //st_logDebug("Alignment : %i , score %f\n", i++,
-            //        pairwiseAlignment->score);
-            //logPairwiseAlignment(pairwiseAlignment);
             pinchMerge(
                     pinchGraph,
                     pairwiseAlignment,
@@ -464,7 +484,7 @@ int32_t cactusCorePipeline(Flower *flower, CactusCoreInputParameters *cCIP,
         ////////////////////////////////////////////////
 
         cactusGraph = cactusCorePipeline_2(pinchGraph, flower,
-                !terminateRecursion, loop + 1 >= cCIP->annealingRounds);
+                !terminateRecursion, annealingRound >= cCIP->annealingRoundsLength);
 
         ////////////////////////////////////////////////
         // Get sorted bi-connected components.
@@ -476,58 +496,66 @@ int32_t cactusCorePipeline(Flower *flower, CactusCoreInputParameters *cCIP,
         // Loop a bunch of times to progressively remove longer and longer (upto minimum chain length) chains.
         ////////////////////////////////////////////////
 
-        if (cCIP->minimumChainLength <= 1 && cCIP->minimumBlockLength > 1) {
+        assert(cCIP->annealingRoundsLength > 0);
+        const int32_t minimumChainLength = cCIP->annealingRounds[annealingRound];
+        if (minimumChainLength <= 1 && cCIP->minimumBlockLength > 1) {
             cactusGraph = deanneal(flower, pinchGraph, cactusGraph,
-                    &biConnectedComponents, 0, minimumBlockLength,
-                    !terminateRecursion, loop + 1 >= cCIP->annealingRounds);
+                    &biConnectedComponents, 0, cCIP->minimumBlockLength,
+                    !terminateRecursion, annealingRound + 1 >= cCIP->annealingRoundsLength);
         }
 
-        if (cCIP->minimumChainLength > 1) {
-            while (1) {
-                ///////////////////////////////////////////////////////////////////////////
-                // Get the minimum chain length
-                ///////////////////////////////////////////////////////////////////////////
+        ///////////////////////////////////////////////////////////////////////////
+        // Setup the deannealing rounds.
+        ///////////////////////////////////////////////////////////////////////////
 
-                int32_t minimumChainLengthInGraph = INT32_MAX;
-                for (int32_t i = 0; i < biConnectedComponents->length; i++) {
-                    struct List *biConnectedComponent =
-                            biConnectedComponents->list[i];
-                    int32_t k =
-                            maxChainDegree(biConnectedComponent, pinchGraph);
-                    if (k > 1) {
-                        int32_t j = chainBaseLength(biConnectedComponent,
-                                pinchGraph);
-                        if (j < minimumChainLengthInGraph) { //The greater than 1 is to avoid trying to undo chains consisting only of stubs or unaligned segments
-                            minimumChainLengthInGraph = j;
-                        }
-                    }
+        int32_t minimumChainLengthInGraph = getMinimumChainLengthInGraph(
+                biConnectedComponents, pinchGraph);
+        int32_t deannealingRound = 0;
+        while (minimumChainLengthInGraph < minimumChainLength) {
+            ///////////////////////////////////////////////////////////////////////////
+            // Get the length of chains to remove in this deannealing round.
+            ///////////////////////////////////////////////////////////////////////////
+
+            int32_t minimumChainLengthToRemove = minimumChainLength;
+            if (deannealingRound < cCIP->deannealingRoundsLength) { //We have deannealing rounds to perform.
+                if (cCIP->deannealingRounds[deannealingRound]
+                        < minimumChainLength) {
+                    minimumChainLengthToRemove
+                            = cCIP->deannealingRounds[deannealingRound++];
                 }
-
-                //Break if the graph does not contain a chain smaller than the minimum length
-                if (minimumChainLengthInGraph >= cCIP->minimumChainLength) {
-                    break;
-                }
-
-                ///////////////////////////////////////////////////////////////////////////
-                // Do the actual deannealing of the blocks.
-                ///////////////////////////////////////////////////////////////////////////
-
-                cactusGraph = deanneal(flower, pinchGraph, cactusGraph,
-                        &biConnectedComponents, minimumChainLengthInGraph,
-                        minimumBlockLength, !terminateRecursion, loop + 1
-                                >= cCIP->annealingRounds);
-
-                st_logDebug(
-                        "The length non-empty chain in the graph is %i bases and the required minimum length chain is %i bases\n",
-                        minimumChainLengthInGraph, cCIP->minimumChainLength);
             }
+
+            //Start another loop if the minimum chain length is greater than the minimum chain length to remove.
+            if (minimumChainLengthInGraph > minimumChainLengthToRemove) {
+                continue;
+            }
+
+            ///////////////////////////////////////////////////////////////////////////
+            // Do the actual deannealing of the blocks.
+            ///////////////////////////////////////////////////////////////////////////
+
+            cactusGraph = deanneal(flower, pinchGraph, cactusGraph,
+                    &biConnectedComponents, minimumChainLengthToRemove,
+                    cCIP->minimumBlockLength, !terminateRecursion, annealingRound + 1
+                            >= cCIP->annealingRoundsLength);
+
+            ///////////////////////////////////////////////////////////////////////////
+            // Recalculate the minimum length of chains in the graph
+            ///////////////////////////////////////////////////////////////////////////
+
+            minimumChainLengthInGraph = getMinimumChainLengthInGraph(
+                                biConnectedComponents, pinchGraph);
+
+            st_logDebug(
+                    "The length non-empty chain in the graph is %i bases and the required minimum length chain is %i bases\n",
+                    minimumChainLengthInGraph, minimumChainLength);
         }
 
         ///////////////////////////////////////////////////////////////////////////
         // Choosing a block subset to keep in the final set of chains.
         ///////////////////////////////////////////////////////////////////////////
 
-        if (++loop < cCIP->annealingRounds) {
+        if (++annealingRound < cCIP->annealingRoundsLength) {
 
             ///////////////////////////////////////////////////////////////////////////
             // Calculate the adjacency components for the next loop.
@@ -539,12 +567,6 @@ int32_t cactusCorePipeline(Flower *flower, CactusCoreInputParameters *cCIP,
             // Modify parameters for next loop
             ///////////////////////////////////////////////////////////////////////////
 
-            minimumBlockLength += cCIP->minimumBlockLengthChange;
-            minimumBlockLength = minimumBlockLength < 0.0 ? 0.0
-                    : minimumBlockLength;
-            minimumChainLength += cCIP->minimumChainLengthChange;
-            minimumChainLength = minimumChainLength < 0.0 ? 0.0
-                    : minimumChainLength;
             trim += cCIP->trimChange;
             trim = trim < 0.0 ? 0.0 : trim;
 

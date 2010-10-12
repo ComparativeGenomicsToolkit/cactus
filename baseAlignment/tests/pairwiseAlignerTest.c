@@ -117,7 +117,7 @@ static void test_pairwiseAligner_FastRandom(CuTest *testCase) {
 
         //Now do alignment
         stList *alignedPairs = getAlignedPairs(seqX, seqY);
-        stList *alignedPairs2 = getAlignedPairs_Fast(seqX, seqY, 300, 0.7);
+        stList *alignedPairs2 = getAlignedPairs_Fast(seqX, seqY, 300);
 
         stSortedSet *alignedPairsSet = stList_getSortedSet(alignedPairs, (int (*)(const void *, const void *))test_pairwiseAligner_FastRandom_cmpFn);
         stSortedSet *alignedPairsSet2 = stList_getSortedSet(alignedPairs2, (int (*)(const void *, const void *))test_pairwiseAligner_FastRandom_cmpFn);

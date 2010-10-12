@@ -343,12 +343,13 @@ static void getPosteriorProbs(double *fM, double *bM, int32_t lX, int32_t lY,
         for (int32_t y = 1; y < lY; y++) {
             double f = posteriorMatchProb(fM, bM, x, y, lX, lY, sX, sY,
                     totalProb);
-            if (f > posteriorMatchThreshold) {
+            if (f >= posteriorMatchThreshold) {
                 if (f > 1.0) {
                     f = 1.0;
                 }
-                stIntTuple *alignedPair = stIntTuple_construct(3, (int32_t)(f
-                        * PAIR_ALIGNMENT_PROB_1), x - 1, y - 1);
+                stIntTuple *alignedPair = stIntTuple_construct(3,
+                        (int32_t) floor(f * PAIR_ALIGNMENT_PROB_1), x - 1, y
+                                - 1);
                 stList_append(alignedPairs, alignedPair);
             }
         }
@@ -398,7 +399,8 @@ stList *getAlignedPairs(const char *sX, const char *sY) {
 }
 
 char *getSubString(const char *cA, int32_t start, int32_t length) {
-    char *cA2 = memcpy(st_malloc(sizeof(char) * (length+1)), cA + start, length);
+    char *cA2 = memcpy(st_malloc(sizeof(char) * (length + 1)), cA + start,
+            length);
     cA2[length] = '\0';
 
 #ifdef BEN_DEBUG
@@ -421,15 +423,18 @@ static int getAlignedPairsFast_cmpFn(stIntTuple *i, stIntTuple *j) {
     return k == 0 ? l : k;
 }
 
-stList *getAlignedPairs_Fast(const char *sX, const char *sY, int32_t bandingSize, float bandingThreshold) {
+stList *getAlignedPairs_Fast(const char *sX, const char *sY,
+        int32_t bandingSize) {
     int32_t lX = strlen(sX);
     int32_t lY = strlen(sY);
     int32_t offsetX = 0;
     int32_t offsetY = 0;
 
     //parameters
-    int32_t minTraceBackDiag = 10;
-    int32_t traceBackCandidateThreshold = bandingThreshold * PAIR_ALIGNMENT_PROB_1;
+    int32_t minTraceBackDiag = 25;
+    int32_t minTraceGapDiags = 10;
+    //int32_t traceBackCandidateThreshold = bandingThreshold
+    //* PAIR_ALIGNMENT_PROB_1;
 
     stSortedSet *alignedPairs = stSortedSet_construct3((int(*)(const void *,
             const void *)) getAlignedPairsFast_cmpFn, NULL);
@@ -452,40 +457,46 @@ stList *getAlignedPairs_Fast(const char *sX, const char *sY, int32_t bandingSize
         free(sY2);
 
         //Convert the coordinates of the computed pairs.
-        for(int32_t k=0; k<stList_length(alignedPairs2); k++) {
+        for (int32_t k = 0; k < stList_length(alignedPairs2); k++) {
             stIntTuple *i = stList_get(alignedPairs2, k);
-            stList_set(alignedPairs2, k, stIntTuple_construct(3, stIntTuple_getPosition(i, 0),
-                    stIntTuple_getPosition(i, 1) + offsetX,
-                    stIntTuple_getPosition(i, 2) + offsetY));
+            stList_set(alignedPairs2, k, stIntTuple_construct(3,
+                    stIntTuple_getPosition(i, 0), stIntTuple_getPosition(i, 1)
+                            + offsetX, stIntTuple_getPosition(i, 2) + offsetY));
             stIntTuple_destruct(i);
         }
 
+        //The diagonal bounds of the banding block
+        int32_t startDiag = offsetX + offsetY;
+        int32_t endDiag = startDiag + lX2 + lY2;
+
         //Now either setup the next job if there is some sequence remaining.
         if (offsetX + lX2 < lX || offsetY + lY2 < lY) { //We still have work to do on another round
-            int32_t traceBackDiag = offsetX + offsetY + lX2 + lY2 - minTraceBackDiag;
-            int32_t traceForwardDiag = offsetX + offsetY + (lX2 + lY2) / 2; //We require the new alignment to overlap by at most halfway from the old one.
-            int32_t newOffsetX = offsetX, newOffsetY = offsetY;
+            int32_t traceBackDiag = endDiag - minTraceBackDiag;
+            int32_t traceForwardDiag = startDiag + (lX2 + lY2) / 2; //We require the new alignment to overlap by at most halfway from the old one.
+            int32_t newOffsetX = offsetX, newOffsetY = offsetY, maxScore = -1;
             stListIterator *it = stList_getIterator(alignedPairs2);
             stIntTuple *i;
-            while((i = stList_getNext(it))) {
+            while ((i = stList_getNext(it))) {
                 int32_t j = stIntTuple_getPosition(i, 1);
                 int32_t k = stIntTuple_getPosition(i, 2);
                 int32_t diagC = j + k;
-                if (diagC >= traceForwardDiag
-                        && diagC <= traceBackDiag
-                        && stIntTuple_getPosition(i, 0) >= traceBackCandidateThreshold //has the required score to be considered a start point.
-                        && diagC > newOffsetX + newOffsetY) { //is actually further down the matrix than the new point.
+                if (diagC >= traceForwardDiag && diagC <= traceBackDiag
+                        && stIntTuple_getPosition(i, 0) > maxScore) { //traceBackCandidateThreshold //has the required score to be considered a start point.
+                    //&& diagC > newOffsetX + newOffsetY) { //is actually further down the matrix than the new point.
+                    maxScore = stIntTuple_getPosition(i, 0);
                     newOffsetX = j;
                     newOffsetY = k;
                 }
             }
             stList_destructIterator(it);
-            if (newOffsetX > offsetX || newOffsetY > offsetY) { //We can start a new alignment
+            if (maxScore != -1) { //We can start a new alignment
+                assert(newOffsetX > offsetX || newOffsetY > offsetY);
                 //Update the offsets
                 offsetX = newOffsetX;
                 offsetY = newOffsetY;
                 //st_uglyf("I have chosen an offset point %i %i\n", offsetX, offsetY);
             } else { //No candidate start point was found so we just stop the extension
+                assert(newOffsetX == offsetX && newOffsetY == offsetY);
                 //st_uglyf("I am exiting having not found a candidate new point\n");
                 done = 1;
             }
@@ -494,31 +505,40 @@ stList *getAlignedPairs_Fast(const char *sX, const char *sY, int32_t bandingSize
         }
 
         //Add the pairs to the alignment (merging together any duplicate pairs)
+        //And skip any pairs within minTraceGapDiags.
         while (stList_length(alignedPairs2) > 0) {
             stIntTuple *i = stList_pop(alignedPairs2);
             assert(stIntTuple_length(i) == 3);
-            stIntTuple *j;
-            if ((j = stSortedSet_search(alignedPairs, i)) != NULL) {
+            int32_t l = stIntTuple_getPosition(i, 1);
+            int32_t m = stIntTuple_getPosition(i, 2);
+            //is not too close the start point (or is allowed because we are at the start of the band)
+            //and is not too close to the end point (or is allowed because we're at the end of the band)
+            if ((startDiag == 0 || l + m >= startDiag + minTraceGapDiags)
+                    && (done || l + m <= endDiag - minTraceGapDiags)) {
+                stIntTuple *j;
+                if ((j = stSortedSet_search(alignedPairs, i)) != NULL) {
 #ifdef BEN_DEBUG
-                assert(stIntTuple_getPosition(i, 1) == stIntTuple_getPosition(j, 1));
-                assert(stIntTuple_getPosition(i, 2) == stIntTuple_getPosition(j, 2));
+                    assert(l == stIntTuple_getPosition(j, 1));
+                    assert(m == stIntTuple_getPosition(j, 2));
 #endif
-                stIntTuple *k = stIntTuple_construct(3,
-                        (stIntTuple_getPosition(i, 0) + stIntTuple_getPosition(j, 0)) / 2,
-                         stIntTuple_getPosition(i, 1),
-                         stIntTuple_getPosition(i, 2));
-                stSortedSet_insert(alignedPairs, k);
+                    stIntTuple *k = stIntTuple_construct(3,
+                            (stIntTuple_getPosition(i, 0)
+                                    + stIntTuple_getPosition(j, 0)) / 2, l, m);
+                    stSortedSet_insert(alignedPairs, k);
 #ifdef BEN_DEBUG
-                assert(stSortedSet_search(alignedPairs, i) == k);
-                assert(stSortedSet_search(alignedPairs, j) == k);
+                    assert(stSortedSet_search(alignedPairs, i) == k);
+                    assert(stSortedSet_search(alignedPairs, j) == k);
 #endif
-                stIntTuple_destruct(i);
-                stIntTuple_destruct(j);
+                    stIntTuple_destruct(i);
+                    stIntTuple_destruct(j);
+                } else {
+                    stSortedSet_insert(alignedPairs, i);
+#ifdef BEN_DEBUG
+                    assert(stSortedSet_search(alignedPairs, i) == i);
+#endif
+                }
             } else {
-                stSortedSet_insert(alignedPairs, i);
-#ifdef BEN_DEBUG
-                assert(stSortedSet_search(alignedPairs, i) == i);
-#endif
+                stIntTuple_destruct(i);
             }
         }
         stList_destruct(alignedPairs2);
@@ -529,7 +549,7 @@ stList *getAlignedPairs_Fast(const char *sX, const char *sY, int32_t bandingSize
 #ifdef BEN_DEBUG
     assert(stList_length(alignedPairs2) == stSortedSet_size(alignedPairs));
 #endif
-    stList_setDestructor(alignedPairs2, (void (*)(void *)) stIntTuple_destruct);
+    stList_setDestructor(alignedPairs2, (void(*)(void *)) stIntTuple_destruct);
     stSortedSet_destruct(alignedPairs);
 
     return alignedPairs2;

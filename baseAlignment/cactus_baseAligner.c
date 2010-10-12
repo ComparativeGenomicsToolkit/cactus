@@ -26,9 +26,6 @@ void usage() {
             "-k --useBanding : Use banding to speed up the alignments\n");
     fprintf(stderr,
             "-l --gapGamma : (float [0, 1]) The gap gamma (as in the AMAP function)\n");
-    fprintf(
-            stderr,
-            "-m --bandingThreshold : (float [0, 1]) The threshold for a point to be considered in banding\n");
     fprintf(stderr,
             "-n --bandingSize : (int >= 0)  The size of the banding block.\n");
 
@@ -88,7 +85,6 @@ int main(int argc, char *argv[]) {
     int32_t maximumLength = 1500;
     float gapGamma = 0.5;
     bool useBanding = 0;
-    float bandingThreshold = 0.8;
     int32_t bandingSize = 1000;
 
     /*
@@ -101,13 +97,12 @@ int main(int argc, char *argv[]) {
                 required_argument, 0, 'i' }, { "maximumLength",
                 required_argument, 0, 'j' }, { "useBanding", no_argument, 0,
                 'k' }, { "gapGamma", required_argument, 0, 'l' },
-                { "bandingThreshold", required_argument, 0, 'm' },
                 { "bandingSize", required_argument, 0, 'n' },
                 { 0, 0, 0, 0 } };
 
         int option_index = 0;
 
-        int key = getopt_long(argc, argv, "a:b:hi:j:kl:m:n:", long_options,
+        int key = getopt_long(argc, argv, "a:b:hi:j:kl:n:", long_options,
                 &option_index);
 
         if (key == -1) {
@@ -142,12 +137,6 @@ int main(int argc, char *argv[]) {
                 assert(i == 1);
                 assert(gapGamma >= 0.0);
                 break;
-            case 'm':
-                i = sscanf(optarg, "%f", &bandingThreshold);
-                assert(i == 1);
-                assert(bandingThreshold >= 0.0);
-                assert(bandingThreshold <= 1.0);
-                break;
             case 'n':
                 i = sscanf(optarg, "%i", &bandingSize);
                 assert(i == 1);
@@ -170,9 +159,6 @@ int main(int argc, char *argv[]) {
      * Setup the input parameters for cactus core.
      */
     CactusCoreInputParameters *cCIP = constructCactusCoreInputParameters();
-    cCIP->minimumChainLength = 0;
-    //--maxEdgeDegree 10000000 --minimumTreeCoverage 0 --minimumTreeCoverageForBlocks 0
-    //--minimumBlockLength 0 --minimumChainLength 0 --trim 0 --alignRepeats 1 --extensionSteps 0
 
     /*
      * Load the flowerdisk
@@ -197,7 +183,7 @@ int main(int argc, char *argv[]) {
         st_logInfo("Parsed the flower to be aligned\n");
 
         getAlignment_alignedPairs = makeFlowerAlignment(flower, spanningTrees,
-                maximumLength, gapGamma, useBanding, bandingSize, bandingThreshold);
+                maximumLength, gapGamma, useBanding, bandingSize);
         st_logInfo("Created the alignment: %i pairs\n", stSortedSet_size(
                 getAlignment_alignedPairs));
         //getAlignment_alignedPairs = stSortedSet_construct();

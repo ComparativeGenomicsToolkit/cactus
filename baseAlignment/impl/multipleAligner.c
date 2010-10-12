@@ -60,7 +60,7 @@ static int32_t *calculateIndelProbs(stList *alignedPairs,
 }
 
 stList *makeAlignment(stList *sequences, int32_t spanningTrees, float gapGamma,
-        bool useBanding, int32_t bandingSize, float bandingThreshold) {
+        bool useBanding, int32_t bandingSize) {
     //Get the set of pairwise alignments (by constructing spanning trees)
     stSortedSet *pairwiseAlignments = stSortedSet_construct3((int(*)(
             const void *, const void *)) stIntTuple_cmpFn,
@@ -94,7 +94,7 @@ stList *makeAlignment(stList *sequences, int32_t spanningTrees, float gapGamma,
         char *string1 = stList_get(sequences, sequence1);
         char *string2 = stList_get(sequences, sequence2);
         stList *alignedPairs2 = useBanding ? getAlignedPairs_Fast(string1,
-                string2, bandingSize, bandingThreshold) : getAlignedPairs(
+                string2, bandingSize) : getAlignedPairs(
                 string1, string2);
 
         //Make indel probs

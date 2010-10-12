@@ -91,7 +91,7 @@ static void testMakeEndAlignments(CuTest *testCase) {
     int32_t maxLength = 4;
     for (int32_t endIndex = 0; endIndex < 3; endIndex++) {
         End *end = ends[endIndex];
-        stSortedSet *endAlignment = makeEndAlignment(end, 5, maxLength, 0.5, 1, 100, 0.7);
+        stSortedSet *endAlignment = makeEndAlignment(end, 5, maxLength, 0.5, 1, 100);
 
         stSortedSetIterator *iterator = stSortedSet_getIterator(endAlignment);
         AlignedPair *alignedPair;

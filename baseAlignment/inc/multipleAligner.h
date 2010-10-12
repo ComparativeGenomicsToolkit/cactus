@@ -18,6 +18,6 @@
  * Positions and sequence indices are zero based, scores are between 1 and 1000.
  */
 stList *makeAlignment(stList *sequences,
-        int32_t spanningTrees, float gapGamma, bool useBanding, int32_t bandingSize, float bandingThreshold);
+        int32_t spanningTrees, float gapGamma, bool useBanding, int32_t bandingSize);
 
 #endif /* ALIGNER_H_ */
