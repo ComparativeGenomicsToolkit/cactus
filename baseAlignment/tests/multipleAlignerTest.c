@@ -2,6 +2,8 @@
 #include "sonLib.h"
 #include "multipleAligner.h"
 #include "stPosetAlignment.h"
+#include "pairwiseAligner.h"
+
 #include <stdlib.h>
 #include <string.h>
 
@@ -96,7 +98,7 @@ void test_multipleAlignerRandom(CuTest *testCase) {
             st_uglyf("Sequence to align: %s\n", stList_get(randomSequences, i));
         }
 
-        stList *alignedPairs = makeAlignment(randomSequences, spanningTrees, &spanningTrees, 1);
+        stList *alignedPairs = makeAlignment(randomSequences, spanningTrees, 0.5, 1, 100, 0.7);
         //Check the aligned pairs.
         stListIterator *iterator = stList_getIterator(alignedPairs);
         stIntTuple *alignedPair;
@@ -109,7 +111,7 @@ void test_multipleAlignerRandom(CuTest *testCase) {
             int32_t y = stIntTuple_getPosition(alignedPair, 4);
             st_uglyf("Got aligned pair, score: %i x seq: %i x pos: %i x seq: %i y pos: %i\n", score, seqX, x, seqY, y);
             CuAssertTrue(testCase, score > 0);
-            CuAssertTrue(testCase, score <= 1000);
+            CuAssertTrue(testCase, score <= PAIR_ALIGNMENT_PROB_1);
             CuAssertTrue(testCase, seqX >= 0);
             CuAssertTrue(testCase, seqX < stList_length(randomSequences));
             CuAssertTrue(testCase, x >= 0);

@@ -59,56 +59,8 @@ static int32_t *calculateIndelProbs(stList *alignedPairs,
     return indelProbs;
 }
 
-static void calculateIndelProbsAndAddToHash(stList *alignedPairs,
-        int32_t sequence1Length, int32_t sequence1, int32_t sequence2,
-        stHash *indelProbsHash, int32_t sequenceIndex) {
-    stIntTuple *i = stIntTuple_construct(2, sequence1, sequence2);
-    assert(stHash_search(indelProbsHash, i) == NULL);
-    stHash_insert(indelProbsHash, i, calculateIndelProbs(alignedPairs,
-            sequence1Length, sequenceIndex));
-}
-
-static int32_t getIndelProb(int32_t sequence1, int32_t position1,
-        int32_t sequence2, stHash *indelProbsHash) {
-    stIntTuple *i = stIntTuple_construct(2, sequence1, sequence2);
-    int32_t *indelProbs = stHash_search(indelProbsHash, i);
-    assert(indelProbs != NULL);
-    int32_t sequenceLength = indelProbs[0];
-    assert(position1 >= 0);
-    assert(position1 <= sequenceLength);
-    stIntTuple_destruct(i);
-    int32_t j = indelProbs[position1 + 1];
-    assert(j >= 0);
-    assert(j <= PAIR_ALIGNMENT_PROB_1);
-    return j;
-}
-
-/*static int64_t getMaxMatchProbs(stList *alignedPairs, int32_t sequenceLength,
- int32_t sequenceIndex) {
- int32_t *maxMatchProbs = st_malloc(sizeof(int32_t) * sequenceLength);
- for (int32_t i = 0; i < sequenceLength; i++) {
- maxMatchProbs[i] = 0;
- }
- for (int32_t i = 0; i < stList_length(alignedPairs); i++) {
- stIntTuple *alignedPair = stList_get(alignedPairs, i);
- int32_t j = stIntTuple_getPosition(alignedPair, sequenceIndex + 1);
- int32_t score = stIntTuple_getPosition(alignedPair, 0);
- assert(score >= 0);
- assert(score <= PAIR_ALIGNMENT_PROB_1);
- if (score > maxMatchProbs[j]) {
- maxMatchProbs[j] = score;
- }
- }
- int64_t j = 0;
- for (int32_t i = 0; i < sequenceLength; i++) {
- j += maxMatchProbs[i];
- }
- free(maxMatchProbs);
- return j;
- }*/
-
-stList *makeAlignment(stList *sequences, int32_t spanningTrees,
-        void *modelParameters, bool useBanding) {
+stList *makeAlignment(stList *sequences, int32_t spanningTrees, float gapGamma,
+        bool useBanding, int32_t bandingSize, float bandingThreshold) {
     //Get the set of pairwise alignments (by constructing spanning trees)
     stSortedSet *pairwiseAlignments = stSortedSet_construct3((int(*)(
             const void *, const void *)) stIntTuple_cmpFn,
@@ -129,12 +81,6 @@ stList *makeAlignment(stList *sequences, int32_t spanningTrees,
         }
     }
 
-    //Indel probs hash
-    stHash *indelProbsHash = stHash_construct3(
-            (uint32_t(*)(const void *)) stIntTuple_hashKey, (int(*)(
-                    const void *, const void *)) stIntTuple_equalsFn, (void(*)(
-                    void *)) stIntTuple_destruct, free);
-
     //Construct the alignments
     //and sort them by weight
     stSortedSetIterator *pairwiseAlignmentsIterator = stSortedSet_getIterator(
@@ -147,14 +93,15 @@ stList *makeAlignment(stList *sequences, int32_t spanningTrees,
         int32_t sequence2 = stIntTuple_getPosition(pairwiseAlignment, 1);
         char *string1 = stList_get(sequences, sequence1);
         char *string2 = stList_get(sequences, sequence2);
-        stList *alignedPairs2 = useBanding ? getAlignedPairs_Fast(string1, string2, modelParameters) :
-                getAlignedPairs(string1, string2, modelParameters);
+        stList *alignedPairs2 = useBanding ? getAlignedPairs_Fast(string1,
+                string2, bandingSize, bandingThreshold) : getAlignedPairs(
+                string1, string2);
 
         //Make indel probs
-        calculateIndelProbsAndAddToHash(alignedPairs2, strlen(stList_get(
-                sequences, sequence1)), sequence1, sequence2, indelProbsHash, 0);
-        calculateIndelProbsAndAddToHash(alignedPairs2, strlen(stList_get(
-                sequences, sequence2)), sequence2, sequence1, indelProbsHash, 1);
+        int32_t *indelProbs1 = calculateIndelProbs(alignedPairs2, strlen(
+                stList_get(sequences, sequence1)), 0);
+        int32_t *indelProbs2 = calculateIndelProbs(alignedPairs2, strlen(
+                stList_get(sequences, sequence2)), 1);
 
         //Now deal with the match probs..
         while (stList_length(alignedPairs2) > 0) {
@@ -162,13 +109,21 @@ stList *makeAlignment(stList *sequences, int32_t spanningTrees,
 #ifdef BEN_DEBUG
             assert(stIntTuple_length(alignedPair) == 3);
 #endif
-            stList_append(alignedPairs, stIntTuple_construct(5,
-            /* score */stIntTuple_getPosition(alignedPair, 0),
-            /*seq 1 */sequence1, stIntTuple_getPosition(alignedPair, 1),
-            /*seq 2 */sequence2, stIntTuple_getPosition(alignedPair, 2)));
+            int32_t score = stIntTuple_getPosition(alignedPair, 0);
+            int32_t position1 = stIntTuple_getPosition(alignedPair, 1);
+            int32_t position2 = stIntTuple_getPosition(alignedPair, 2);
+            if (score >= gapGamma * indelProbs1[position1] && score >= gapGamma
+                    * indelProbs2[position2]) {
+                stList_append(alignedPairs, stIntTuple_construct(5,
+                /* score */score,
+                /*seq 1 */sequence1, position1,
+                /*seq 2 */sequence2, position2));
+            }
             stIntTuple_destruct(alignedPair);
         }
         stList_destruct(alignedPairs2);
+        free(indelProbs1);
+        free(indelProbs2);
     }
     stSortedSet_destructIterator(pairwiseAlignmentsIterator);
 
@@ -195,27 +150,12 @@ stList *makeAlignment(stList *sequences, int32_t spanningTrees,
         int32_t sequence2 = stIntTuple_getPosition(alignedPair, 3);
         int32_t position2 = stIntTuple_getPosition(alignedPair, 4);
 
-        //score >= 0.1 * indelProb1 && score >= 0.1 * indelProb2 &&
         if (stPosetAlignment_isPossible(posetAlignment, sequence1, position1,
                 sequence2, position2)) {
-            int32_t indelProb1 = getIndelProb(sequence1, position1, sequence2,
-                    indelProbsHash);
-            int32_t indelProb2 = getIndelProb(sequence2, position2, sequence1,
-                    indelProbsHash);
-            int32_t gamma = 0.5;
-            if (score >= gamma * indelProb1 && score >= gamma * indelProb2) {
-                stPosetAlignment_add(posetAlignment, sequence1, position1,
-                        sequence2, position2);
-                //Add a converted version to the accepted aligned pairs.
-                stList_append(acceptedAlignedPairs, alignedPair);
-            } else {
-                //stPosetAlignment_add(posetAlignment, sequence1, position1,
-                //        sequence2, position2);
-                //Add a converted version to the accepted aligned pairs.
-                //stList_append(acceptedAlignedPairs, alignedPair);
-
-                stIntTuple_destruct(alignedPair);
-            }
+            stPosetAlignment_add(posetAlignment, sequence1, position1,
+                    sequence2, position2);
+            //Add a converted version to the accepted aligned pairs.
+            stList_append(acceptedAlignedPairs, alignedPair);
         } else {
             stIntTuple_destruct(alignedPair);
         }
@@ -223,7 +163,6 @@ stList *makeAlignment(stList *sequences, int32_t spanningTrees,
     stList_destruct(alignedPairs);
     stPosetAlignment_destruct(posetAlignment);
     stSortedSet_destruct(pairwiseAlignments);
-    stHash_destruct(indelProbsHash);
 
     //Return the accepted pairs
     return acceptedAlignedPairs;

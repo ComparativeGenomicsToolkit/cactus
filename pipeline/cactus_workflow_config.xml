@@ -41,7 +41,7 @@
 					adjacencyComponentOverlap="0" />
 			</iteration>
 
-			<iteration number="3" max_sequence_size="100000" spanning_trees="10" use_banding="1" type="base" />
+			<iteration number="3" spanning_trees="10" max_sequence_size="2000" gap_gamma="0.5" use_banding="1" banding_limit="1000000" banding_size="1000" banding_threshold="0.7" type="base" />
 		</iterations>
 	</alignment>
 

@@ -222,18 +222,20 @@ class CactusCoreWrapper(Target):
 class CactusBaseLevelAlignerWrapper(Target):
     #We split, to deal with cleaning up the alignment file
     def __init__(self, options, flowerNames):
-        Target.__init__(self, time=10) #time)
+        Target.__init__(self, time=10)
         self.options = options
         self.flowerNames = flowerNames
     
     def run(self):
-        #return
         baseParameters = self.options.config.find("alignment").find("iterations").findall("iteration")[-1]
         assert baseParameters.attrib["type"] =="base"
         runCactusBaseAligner(self.options.cactusDiskDatabaseString, self.flowerNames, getLogLevelString(),
-                             maximumLength=float(baseParameters.attrib["max_sequence_size"]),
+                             maximumLength=float(baseParameters.attrib["banding_limit"]),
                              spanningTrees=float(baseParameters.attrib["spanning_trees"]),
-                             useBanding=bool(int(baseParameters.attrib["use_banding"])))
+                             gapGamma=float(baseParameters.attrib["gap_gamma"]),
+                             useBanding=bool(int(baseParameters.attrib["use_banding"])),
+                             bandingSize=int(baseParameters.attrib["banding_size"]),
+                             bandingThreshold=float(baseParameters.attrib["banding_threshold"]))
         logger.info("Run the cactus base aligner")
         
 ############################################################

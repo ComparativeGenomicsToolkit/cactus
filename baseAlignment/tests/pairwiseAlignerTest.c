@@ -61,7 +61,7 @@ static void test_pairwiseAlignerRandom(CuTest *testCase) {
         st_uglyf("Sequence Y to align: %s END\n", seqY);
 
         //Now do alignment
-        stList *alignedPairs = getAlignedPairs(seqX, seqY, &test);
+        stList *alignedPairs = getAlignedPairs(seqX, seqY);
         //Check the aligned pairs.
         stListIterator *iterator = stList_getIterator(alignedPairs);
         stIntTuple *alignedPair;
@@ -116,8 +116,8 @@ static void test_pairwiseAligner_FastRandom(CuTest *testCase) {
         st_uglyf("Sequence Y to align: %s END, seq length %i\n", seqY, seqYLength);
 
         //Now do alignment
-        stList *alignedPairs = getAlignedPairs(seqX, seqY, &test);
-        stList *alignedPairs2 = getAlignedPairs_Fast(seqX, seqY, &test);
+        stList *alignedPairs = getAlignedPairs(seqX, seqY);
+        stList *alignedPairs2 = getAlignedPairs_Fast(seqX, seqY, 300, 0.7);
 
         stSortedSet *alignedPairsSet = stList_getSortedSet(alignedPairs, (int (*)(const void *, const void *))test_pairwiseAligner_FastRandom_cmpFn);
         stSortedSet *alignedPairsSet2 = stList_getSortedSet(alignedPairs2, (int (*)(const void *, const void *))test_pairwiseAligner_FastRandom_cmpFn);

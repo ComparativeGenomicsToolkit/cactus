@@ -6,7 +6,7 @@ libSources = impl/*.c
 libHeaders = inc/*.h
 libTests = tests/*.c
 
-all : ${binPath}/cactus_baseAlignerTests ${binPath}/cactus_baseAligner  
+all : ${binPath}/cactus_baseAligner ${binPath}/cactus_baseAlignerTests 
  
 clean : 
 	rm -f ${binPath}/cactus_baseAligner ${binPath}/cactus_baseAlignerTests 

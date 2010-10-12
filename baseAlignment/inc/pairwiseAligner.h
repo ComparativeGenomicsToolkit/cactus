@@ -14,11 +14,11 @@
 /*
  * Gets the set of posterior match probabilities under a simple HMM model of alignment for two DNA sequences.
  */
-stList *getAlignedPairs(const char *string1, const char *string2, void *parameters);
+stList *getAlignedPairs(const char *string1, const char *string2);
 
 /*
  * A heuristic, banded form of getAlignedPairs.
  */
-stList *getAlignedPairs_Fast(const char *sX, const char *sY, void *parameters);
+stList *getAlignedPairs_Fast(const char *sX, const char *sY, int32_t bandingSize, float bandingThreshold);
 
 #endif /* PAIRWISEALIGNER_H_ */

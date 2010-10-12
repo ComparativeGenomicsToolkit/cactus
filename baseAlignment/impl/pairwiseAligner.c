@@ -359,8 +359,7 @@ static void getPosteriorProbs(double *fM, double *bM, int32_t lX, int32_t lY,
 //Maximal expected accuracy alignment
 ///////
 
-stList *getAlignedPairs(const char *sX, const char *sY, void *parameters) {
-    assert(parameters != NULL);
+stList *getAlignedPairs(const char *sX, const char *sY) {
     //Allocate the matrices.
     int32_t lX = strlen(sX) + 1;
     int32_t lY = strlen(sY) + 1;
@@ -422,16 +421,15 @@ static int getAlignedPairsFast_cmpFn(stIntTuple *i, stIntTuple *j) {
     return k == 0 ? l : k;
 }
 
-stList *getAlignedPairs_Fast(const char *sX, const char *sY, void *parameters) {
+stList *getAlignedPairs_Fast(const char *sX, const char *sY, int32_t bandingSize, float bandingThreshold) {
     int32_t lX = strlen(sX);
     int32_t lY = strlen(sY);
     int32_t offsetX = 0;
     int32_t offsetY = 0;
 
     //parameters
-    int32_t maxLength = 500;
     int32_t minTraceBackDiag = 10;
-    int32_t traceBackCandidateThreshold = 0.7 * PAIR_ALIGNMENT_PROB_1;
+    int32_t traceBackCandidateThreshold = bandingThreshold * PAIR_ALIGNMENT_PROB_1;
 
     stSortedSet *alignedPairs = stSortedSet_construct3((int(*)(const void *,
             const void *)) getAlignedPairsFast_cmpFn, NULL);
@@ -439,15 +437,15 @@ stList *getAlignedPairs_Fast(const char *sX, const char *sY, void *parameters) {
     bool done = 0;
     while (!done) {
         //Get the appropriate x substring
-        int32_t lX2 = lX < maxLength + offsetX ? lX - offsetX : maxLength;
+        int32_t lX2 = lX < bandingSize + offsetX ? lX - offsetX : bandingSize;
         char *sX2 = getSubString(sX, offsetX, lX2);
 
         //Get the appropriate y substring
-        int32_t lY2 = lY < maxLength + offsetY ? lY - offsetY : maxLength;
+        int32_t lY2 = lY < bandingSize + offsetY ? lY - offsetY : bandingSize;
         char *sY2 = getSubString(sY, offsetY, lY2);
 
         //Do the actual alignment..
-        stList *alignedPairs2 = getAlignedPairs(sX2, sY2, parameters);
+        stList *alignedPairs2 = getAlignedPairs(sX2, sY2);
 
         //Cleanup the temporary sequences
         free(sX2);

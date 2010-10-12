@@ -1,6 +1,7 @@
 #include "flowersShared.h"
 #include "endAligner.h"
 #include "adjacencySequences.h"
+#include "pairwiseAligner.h"
 
 void test_alignedPair_cmpFn(CuTest *testCase) {
     stList *list = stList_construct3(0, (void (*)(void *))alignedPair_destruct);
@@ -90,8 +91,7 @@ static void testMakeEndAlignments(CuTest *testCase) {
     int32_t maxLength = 4;
     for (int32_t endIndex = 0; endIndex < 3; endIndex++) {
         End *end = ends[endIndex];
-        stSortedSet *endAlignment = makeEndAlignment(end, 5, maxLength, 1,
-                &endIndex);
+        stSortedSet *endAlignment = makeEndAlignment(end, 5, maxLength, 0.5, 1, 100, 0.7);
 
         stSortedSetIterator *iterator = stSortedSet_getIterator(endAlignment);
         AlignedPair *alignedPair;
@@ -99,7 +99,7 @@ static void testMakeEndAlignments(CuTest *testCase) {
 
         while ((alignedPair = stSortedSet_getNext(iterator)) != NULL) {
             CuAssertTrue(testCase, alignedPair->score > 0); //Check score is valid.
-            CuAssertTrue(testCase, alignedPair->score <= 1000);
+            CuAssertTrue(testCase, alignedPair->score <= PAIR_ALIGNMENT_PROB_1);
             CuAssertTrue(testCase, stSortedSet_search(endAlignment, alignedPair->reverse) != NULL); //Check other end is in.
             //Check coordinates are in sequence..
             CuAssertTrue(testCase, isInAdjacency(alignedPair, end, maxLength));

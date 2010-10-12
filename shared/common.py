@@ -131,14 +131,21 @@ def runCactusMakeNormal(cactusDiskDatabaseString, flowerNames, maxNumberOfChains
     system("cactus_normalisation --cactusDisk '%s' --maxNumberOfChains %i --logLevel %s %s" % (cactusDiskDatabaseString, maxNumberOfChains, logLevel, " ".join(flowerNames)))
 
 def runCactusBaseAligner(cactusDiskDatabaseString, flowerNames, logLevel="DEBUG",
-                         spanningTrees=None, maximumLength=None, useBanding=True):
+                         spanningTrees=None, maximumLength=None, 
+                         gapGamma=None,
+                         useBanding=False,
+                         bandingSize=None,
+                         bandingThreshold=None):
     """Runs cactus base aligner.
     """
     maximumLength = nameValue("maximumLength", maximumLength, int)
     spanningTrees = nameValue("spanningTrees", spanningTrees, int)
+    gapGamma = nameValue("gapGamma", gapGamma, float)
     useBanding = nameValue("useBanding", useBanding, bool)
-    system("cactus_baseAligner --cactusDisk '%s' --logLevel %s %s %s %s %s" % 
-           (cactusDiskDatabaseString, logLevel, " ".join(flowerNames), spanningTrees, maximumLength, useBanding))
+    bandingSize = nameValue("bandingSize", bandingSize, int)
+    bandingThreshold = nameValue("bandingThreshold", bandingThreshold, float)
+    system("cactus_baseAligner --cactusDisk '%s' --logLevel %s %s %s %s %s %s %s %s" % 
+           (cactusDiskDatabaseString, logLevel, " ".join(flowerNames), spanningTrees, maximumLength, gapGamma, useBanding, bandingSize, bandingThreshold))
     
 def runCactusReference(cactusDiskDatabaseString, flowerNames, logLevel="DEBUG", bottomUp=False,
                        matchingAlgorithm=None):

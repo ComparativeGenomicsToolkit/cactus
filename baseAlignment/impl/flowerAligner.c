@@ -206,14 +206,16 @@ static void pruneAlignments(Cap *cap, stSortedSet *endAlignment1, Cap *adjacentC
 }
 
 stSortedSet *makeFlowerAlignment(Flower *flower, int32_t spanningTrees,
-        int32_t maxSequenceLength, bool useBanding, void *modelParameters) {
+        int32_t maxSequenceLength, float gapGamma, bool useBanding,
+        int32_t bandingSize, float bandingThreshold) {
     //Make the end alignments, representing each as an adjacency alignment.
     End *end;
     Flower_EndIterator *endIterator = flower_getEndIterator(flower);
     stHash *endAlignments = stHash_construct2(NULL,
             (void(*)(void *)) stSortedSet_destruct);
     while ((end = flower_getNextEnd(endIterator)) != NULL) {
-        stSortedSet *endAlignment = makeEndAlignment(end, spanningTrees, maxSequenceLength, useBanding, modelParameters);
+        stSortedSet *endAlignment = makeEndAlignment(end, spanningTrees, maxSequenceLength, gapGamma, useBanding,
+                bandingSize, bandingThreshold);
         stHash_insert(endAlignments, end, endAlignment);
     }
     flower_destructEndIterator(endIterator);

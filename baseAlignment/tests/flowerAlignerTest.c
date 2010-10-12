@@ -2,6 +2,7 @@
 #include "flowerAligner.h"
 #include "endAligner.h"
 #include "adjacencySequences.h"
+#include "pairwiseAligner.h"
 
 stList *getInducedAlignment(stSortedSet *endAlignment, AdjacencySequence *adjacencySequence);
 
@@ -56,7 +57,7 @@ void test_getInducedAlignment(CuTest *testCase) {
             AlignedPair *alignedPair =
                     alignedPair_construct(aS1->sequenceName, getRandomPosition(aS1), st_randomInt(0, 2),
                                           aS2->sequenceName, getRandomPosition(aS2), st_randomInt(0, 2),
-                                          st_randomInt(0, 1000));
+                                          st_randomInt(0, PAIR_ALIGNMENT_PROB_1));
             stSortedSet_insert(sortedAlignment, alignedPair);
             stSortedSet_insert(sortedAlignment, alignedPair->reverse);
         }
@@ -100,13 +101,13 @@ void test_getInducedAlignment(CuTest *testCase) {
 void test_flowerAlignerRandom(CuTest *testCase) {
     setup();
     int32_t maxLength = 5;
-    stSortedSet *flowerAlignment = makeFlowerAlignment(flower, 5, maxLength, 1, &maxLength);
+    stSortedSet *flowerAlignment = makeFlowerAlignment(flower, 5, maxLength,  0.5, 1, 100, 0.7);
     //Check the aligned pairs are all good..
     stSortedSetIterator *iterator = stSortedSet_getIterator(flowerAlignment);
     AlignedPair *alignedPair;
     while((alignedPair = stSortedSet_getNext(iterator)) != NULL) {
         CuAssertTrue(testCase, alignedPair->score > 0); //Check score is valid
-        CuAssertTrue(testCase, alignedPair->score <= 1000);
+        CuAssertTrue(testCase, alignedPair->score <= PAIR_ALIGNMENT_PROB_1);
         CuAssertTrue(testCase, stSortedSet_search(flowerAlignment, alignedPair->reverse) != NULL); //Check other end is in.
     }
     stSortedSet_destructIterator(iterator);
