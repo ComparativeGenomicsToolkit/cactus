@@ -380,8 +380,8 @@ int32_t cactusCorePipeline(Flower *flower, CactusCoreInputParameters *cCIP,
         stSortedSet_insert(adjacencyComponent, pinchGraph->vertices->list[i]);
     }
 
-    int32_t annealingRound = 0;
-    while(1) {
+    for(int32_t annealingRound = 0; annealingRound < cCIP->annealingRoundsLength; annealingRound++) {
+        bool lastRound = annealingRound+1 == cCIP->annealingRoundsLength; //boolean used a few times
 
         ///////////////////////////////////////////////////////////////////////////
         //  Construct the extra adjacency components datastructures
@@ -484,7 +484,7 @@ int32_t cactusCorePipeline(Flower *flower, CactusCoreInputParameters *cCIP,
         ////////////////////////////////////////////////
 
         cactusGraph = cactusCorePipeline_2(pinchGraph, flower,
-                !terminateRecursion, annealingRound >= cCIP->annealingRoundsLength);
+                !terminateRecursion, lastRound);
 
         ////////////////////////////////////////////////
         // Get sorted bi-connected components.
@@ -493,15 +493,15 @@ int32_t cactusCorePipeline(Flower *flower, CactusCoreInputParameters *cCIP,
         biConnectedComponents = computeSortedBiConnectedComponents(cactusGraph);
 
         ////////////////////////////////////////////////
-        // Loop a bunch of times to progressively remove longer and longer (upto minimum chain length) chains.
+        // Remove any blocks less than the minimum block length
         ////////////////////////////////////////////////
 
-        assert(cCIP->annealingRoundsLength > 0);
+        assert(annealingRound < cCIP->annealingRoundsLength);
         const int32_t minimumChainLength = cCIP->annealingRounds[annealingRound];
-        if (minimumChainLength <= 1 && cCIP->minimumBlockLength > 1) {
+        if (minimumChainLength <= 1 && cCIP->minimumBlockLength > 1) { //only needed if we are going to do no deannealing
             cactusGraph = deanneal(flower, pinchGraph, cactusGraph,
                     &biConnectedComponents, 0, cCIP->minimumBlockLength,
-                    !terminateRecursion, annealingRound + 1 >= cCIP->annealingRoundsLength);
+                    !terminateRecursion, lastRound);
         }
 
         ///////////////////////////////////////////////////////////////////////////
@@ -516,16 +516,15 @@ int32_t cactusCorePipeline(Flower *flower, CactusCoreInputParameters *cCIP,
             // Get the length of chains to remove in this deannealing round.
             ///////////////////////////////////////////////////////////////////////////
 
-            int32_t minimumChainLengthToRemove = minimumChainLength;
+            int32_t minimumChainLengthToRemove = minimumChainLength-1; //We will remove all chains less the minimum chain length
             if (deannealingRound < cCIP->deannealingRoundsLength) { //We have deannealing rounds to perform.
-                if (cCIP->deannealingRounds[deannealingRound]
-                        < minimumChainLength) {
+                if (cCIP->deannealingRounds[deannealingRound] < minimumChainLength) { //We can deanneal with a smaller value first
                     minimumChainLengthToRemove
                             = cCIP->deannealingRounds[deannealingRound++];
                 }
             }
 
-            //Start another loop if the minimum chain length is greater than the minimum chain length to remove.
+            //Start another loop if the minimum chain length in the graph is greater than the minimum chain length to remove.
             if (minimumChainLengthInGraph > minimumChainLengthToRemove) {
                 continue;
             }
@@ -536,8 +535,7 @@ int32_t cactusCorePipeline(Flower *flower, CactusCoreInputParameters *cCIP,
 
             cactusGraph = deanneal(flower, pinchGraph, cactusGraph,
                     &biConnectedComponents, minimumChainLengthToRemove,
-                    cCIP->minimumBlockLength, !terminateRecursion, annealingRound + 1
-                            >= cCIP->annealingRoundsLength);
+                    cCIP->minimumBlockLength, !terminateRecursion, lastRound);
 
             ///////////////////////////////////////////////////////////////////////////
             // Recalculate the minimum length of chains in the graph
@@ -547,15 +545,11 @@ int32_t cactusCorePipeline(Flower *flower, CactusCoreInputParameters *cCIP,
                                 biConnectedComponents, pinchGraph);
 
             st_logDebug(
-                    "The length non-empty chain in the graph is %i bases and the required minimum length chain is %i bases\n",
-                    minimumChainLengthInGraph, minimumChainLength);
+                    "The longest non-empty chain in the graph is %i bases, we removed chains less than or equal to %i bases and the required minimum length chain is %i bases\n",
+                    minimumChainLengthInGraph, minimumChainLengthToRemove, minimumChainLength);
         }
 
-        ///////////////////////////////////////////////////////////////////////////
-        // Choosing a block subset to keep in the final set of chains.
-        ///////////////////////////////////////////////////////////////////////////
-
-        if (++annealingRound < cCIP->annealingRoundsLength) {
+        if (!lastRound) { //We will loop around again.
 
             ///////////////////////////////////////////////////////////////////////////
             // Calculate the adjacency components for the next loop.
@@ -633,19 +627,16 @@ int32_t cactusCorePipeline(Flower *flower, CactusCoreInputParameters *cCIP,
                         "Finished writing out dot formatted version of cactus graph\n");
             }
 
+            ///////////////////////////////////////////////////////////////////////////
+            //Clean up remaining stuff.
+            ///////////////////////////////////////////////////////////////////////////
+
             stSortedSet_destruct(chosenBlocks);
-            break;
+            destructCactusGraph(cactusGraph);
+            destructList(biConnectedComponents);
+            destructPinchGraph(pinchGraph);
         }
-
     }
-
-    ///////////////////////////////////////////////////////////////////////////
-    //Clean up remaining stuff.
-    ///////////////////////////////////////////////////////////////////////////
-
-    destructCactusGraph(cactusGraph);
-    destructList(biConnectedComponents);
-    destructPinchGraph(pinchGraph);
 
     st_logInfo("Ran the core pipeline script\n");
     return 0;

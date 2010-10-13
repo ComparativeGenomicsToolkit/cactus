@@ -77,15 +77,15 @@ void usage() {
 int32_t *getInts(const char *string, int32_t *arrayLength) {
     int32_t *iA = st_malloc(sizeof(int32_t) * strlen(string));
     char *cA = stString_copy(string);
-    char **cA2 = &cA;
+    char *cA2 = cA;
     char *cA3;
     *arrayLength = 0;
-    while((cA3 = stString_getNextWord(cA2)) != NULL) {
-        int32_t i = sscanf("%i", cA3, &iA[(*arrayLength)++]);
+    while((cA3 = stString_getNextWord(&cA)) != NULL) {
+        int32_t i = sscanf(cA3, "%i", &iA[(*arrayLength)++]);
         assert(i == 1);
         free(cA3);
     }
-    free(cA);
+    free(cA2);
     return iA;
 }
 
