@@ -34,8 +34,8 @@
 					blastString="lastz --format=cigar --hspthresh=1800 SEQ_FILE_1[multiple][nameparse=darkspace] SEQ_FILE_2[nameparse=darkspace] > CIGARS_FILE"
 					selfBlastString="lastz --format=cigar --hspthresh=1800 SEQ_FILE[nameparse=darkspace] --self > CIGARS_FILE" />
 				<core 
-					annealingRounds="2 4 8 16 32 64" 
-					deannealingRounds="1 2 3 4 8 16 32 64"
+					annealingRounds="100 100 100" 
+					deannealingRounds="1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26 27 28 29 30 31 32 33 34 35 36 37 38 39 40 41 42 43 44 45 46 47 48 49 50 51 52 53 54 55 56 57 58 59 60 61 62 63 64 65 66 67 68 69 70 71 72 73 74 75 76 77 78 79 80 81 82 83 84 85 86 87 88 89 90 91 92 93 94 95 96 97 98 99"
 					alignRepeatsAtRound="0"
 					trim="0" trimChange="0"
 					minimumTreeCoverage="0.0" 
@@ -43,7 +43,7 @@
 					adjacencyComponentOverlap="0" />
 			</iteration>
 
-			<iteration number="3" spanning_trees="10" max_sequence_size="2000" gap_gamma="0.5" use_banding="1" banding_limit="100000" banding_size="1000" type="base" />
+			<iteration number="3" spanning_trees="10" max_sequence_size="2000" gap_gamma="0.25" use_banding="1" banding_limit="100000" banding_size="1000" type="base" />
 			
 		</iterations>
 	</alignment>
