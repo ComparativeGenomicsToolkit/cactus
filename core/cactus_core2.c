@@ -200,7 +200,7 @@ int main(int argc, char *argv[]) {
     assert(cCIP->minimumTreeCoverage >= 0.0);
     assert(cCIP->minimumTreeCoverage <= 1.0);
     assert(cCIP->minimumBlockLength >= 0);
-    assert(cCIP->annealingRoundsLength >= 1);
+    assert(cCIP->annealingRoundsLength >= 0);
     for(int32_t i=0; i<cCIP->annealingRoundsLength; i++) {
         assert(cCIP->annealingRounds[i] >= 0);
     }
