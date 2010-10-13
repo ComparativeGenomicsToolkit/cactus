@@ -296,7 +296,7 @@ struct CactusGraph *deanneal(Flower *flower, struct PinchGraph *pinchGraph,
 int32_t getMinimumChainLengthInGraph(struct List *biConnectedComponents,
         struct PinchGraph *pinchGraph) {
     /*
-     * Gets the length of the smallest non-empty chain in the graph (or INT32_MAX if the chain is empty).
+     * Gets the length of the smallest non-zero length chain in the graph (or INT32_MAX if the chain is empty).
      */
     int32_t minimumChainLengthInGraph = INT32_MAX;
     for (int32_t i = 0; i < biConnectedComponents->length; i++) {
@@ -304,7 +304,7 @@ int32_t getMinimumChainLengthInGraph(struct List *biConnectedComponents,
         int32_t k = maxChainDegree(biConnectedComponent, pinchGraph);
         if (k > 1) {
             int32_t j = chainBaseLength(biConnectedComponent, pinchGraph);
-            if (j < minimumChainLengthInGraph) { //The greater than 1 is to avoid trying to undo chains consisting only of stubs or unaligned segments
+            if (j >= 1 && j < minimumChainLengthInGraph) { //The greater than 1 is to avoid trying to undo chains consisting only of stubs or unaligned segments
                 minimumChainLengthInGraph = j;
             }
         }
