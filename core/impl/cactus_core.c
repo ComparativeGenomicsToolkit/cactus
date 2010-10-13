@@ -510,6 +510,7 @@ int32_t cactusCorePipeline(Flower *flower, CactusCoreInputParameters *cCIP,
 
         int32_t minimumChainLengthInGraph = getMinimumChainLengthInGraph(
                 biConnectedComponents, pinchGraph);
+        assert(minimumChainLengthInGraph > 0);
         int32_t deannealingRound = 0;
         while (minimumChainLengthInGraph < minimumChainLength) {
             ///////////////////////////////////////////////////////////////////////////

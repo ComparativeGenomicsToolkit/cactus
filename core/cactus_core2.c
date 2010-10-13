@@ -205,7 +205,7 @@ int main(int argc, char *argv[]) {
         assert(cCIP->annealingRounds[i] >= 0);
     }
     assert(cCIP->deannealingRoundsLength >= 0);
-    for(int32_t i=1; i<cCIP->annealingRoundsLength; i++) {
+    for(int32_t i=1; i<cCIP->deannealingRoundsLength; i++) {
        assert(cCIP->deannealingRounds[i-1] < cCIP->deannealingRounds[i]);
        assert(cCIP->deannealingRounds[i-1] >= 1);
     }
