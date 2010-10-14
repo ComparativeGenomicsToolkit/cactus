@@ -13,9 +13,9 @@ typedef struct _CactusCoreInputParameters {
     int32_t *deannealingRounds;
     int32_t deannealingRoundsLength;
     int32_t alignRepeatsAtRound;
-    /* Stuff for adding more homologies to graph progressively */
-    int32_t trim;
-    float trimChange;
+    int32_t * trim;
+    int32_t trimLength;
+
     /* Stuff for selecting chains to keep */
     float minimumTreeCoverage;
     int32_t minimumBlockLength;

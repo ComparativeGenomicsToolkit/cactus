@@ -128,8 +128,10 @@ CactusCoreInputParameters *constructCactusCoreInputParameters() {
     cCIP->deannealingRounds = st_malloc(0);
 
     cCIP->alignRepeatsAtRound = 0;
-    cCIP->trim = 0;
-    cCIP->trimChange = 0.0;
+
+    cCIP->trim = st_malloc(0); //Array is the same length as the the annealing rounds.
+    cCIP->trimLength = 0;
+
     cCIP->minimumTreeCoverage = 0.0;
     cCIP->minimumBlockLength = 0;
     cCIP->adjacencyComponentOverlap = 0;
@@ -139,6 +141,7 @@ CactusCoreInputParameters *constructCactusCoreInputParameters() {
 void destructCactusCoreInputParameters(CactusCoreInputParameters *cCIP) {
     free(cCIP->annealingRounds);
     free(cCIP->deannealingRounds);
+    free(cCIP->trim);
     free(cCIP);
 }
 
@@ -369,8 +372,6 @@ int32_t cactusCorePipeline(Flower *flower, CactusCoreInputParameters *cCIP,
      * These parameters are altered during the loops to push/pull the sequences together/apart.
      */
 
-    float trim = cCIP->trim;
-
     //Construct an initial adjacency component containing all the vertices
     stList *adjacencyComponents = stList_construct3(0,
             (void(*)(void *)) stSortedSet_destruct);
@@ -382,6 +383,11 @@ int32_t cactusCorePipeline(Flower *flower, CactusCoreInputParameters *cCIP,
 
     for(int32_t annealingRound = 0; annealingRound < cCIP->annealingRoundsLength; annealingRound++) {
         bool lastRound = annealingRound+1 == cCIP->annealingRoundsLength; //boolean used a few times
+        int32_t trim = 0;
+        if(annealingRound < cCIP->trimLength) {
+            trim = cCIP->trim[0];
+            assert(trim >= 0);
+        }
 
         ///////////////////////////////////////////////////////////////////////////
         //  Construct the extra adjacency components datastructures
@@ -559,13 +565,6 @@ int32_t cactusCorePipeline(Flower *flower, CactusCoreInputParameters *cCIP,
             adjacencyComponents = getAdjacencyComponents(pinchGraph);
 
             ///////////////////////////////////////////////////////////////////////////
-            // Modify parameters for next loop
-            ///////////////////////////////////////////////////////////////////////////
-
-            trim += cCIP->trimChange;
-            trim = trim < 0.0 ? 0.0 : trim;
-
-            ///////////////////////////////////////////////////////////////////////////
             // Cleanup the loop.
             ///////////////////////////////////////////////////////////////////////////
 
@@ -589,7 +588,7 @@ int32_t cactusCorePipeline(Flower *flower, CactusCoreInputParameters *cCIP,
             ///////////////////////////////////////////////////////////////////////////
 
             stSortedSet *chosenBlocks = filterBlocksByTreeCoverageAndLength(
-                    biConnectedComponents, flower, 0.0, terminateRecursion ? 0
+                    biConnectedComponents, flower, cCIP->minimumTreeCoverage, terminateRecursion ? 0
                             : 2, 0, 0, pinchGraph);
             logTheChosenBlockSubset(biConnectedComponents, chosenBlocks,
                     pinchGraph, flower);

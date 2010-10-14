@@ -206,8 +206,7 @@ class CactusCoreWrapper(Target):
                       annealingRounds=[ int(i) for i in coreParameters.attrib["annealingRounds"].split() ],
                       deannealingRounds=[ int(i) for i in coreParameters.attrib["deannealingRounds"].split() ],
                       alignRepeatsAtRound=float(coreParameters.attrib["alignRepeatsAtRound"]),
-                      trim=float(coreParameters.attrib["trim"]),
-                      trimChange=float(coreParameters.attrib["trimChange"]),
+                      trim=[ int(i) for i in coreParameters.attrib["trim"].split() ],
                       minimumTreeCoverage=float(coreParameters.attrib["minimumTreeCoverage"]),
                       minimumBlockLength=float(coreParameters.attrib["minimumBlockLength"]),
                       adjacencyComponentOverlap=int(coreParameters.attrib["adjacencyComponentOverlap"]))

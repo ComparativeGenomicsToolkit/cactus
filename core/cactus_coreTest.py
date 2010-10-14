@@ -42,16 +42,20 @@ def getRandomConfigFile():
     #Now make random parameters..
     iteration.attrib["number"] = "0"
     core = iteration.find("core")
-    alignUndoLoops = 1 + int(random.random() * 10)
-    core.attrib["alignUndoLoops"] = str(alignUndoLoops)
+    annealingRounds = 1 + int(random.random() * 10)
+    
+    core.attrib["annealingRounds"] = " ".join([ str(1 + int(random.random() * 10)) for i in annealingRounds ])
+    deannealingRounds = list(set([ 1 + int(random.random() * 10) for i in xrange(int(random.random() * 10)) ]))
+    deannealingRounds.sort()
+    core.attrib["deannealingRounds"] = " ".join([ str(i) for i in deannealingRounds ])
+    core.attrib["trim"] = " ".join([ str(1 + int(random.random() * 5)) for i in annealingRounds ])
+    
+    core.attrib["alignRepeatsAtLoop"] = str(random.random() * annealingRounds)
+    
     core.attrib["minimumTreeCoverage"] = str(random.random())
     core.attrib["minimumBlockLength"] = str(int(random.random() * 5))
-    core.attrib["minimumChainLength"] = str(int(random.random() * 10))
-    core.attrib["minimumBlockLengthIncrease"] = str(int(random.random() * 5))
-    core.attrib["minimumChainLengthIncrease"] = str(int(random.random() * 5))
-    core.attrib["minimumChainLengthCactusUndoLoopStepSize"] = str(int(1 + random.random() * 5))
-    core.attrib["trim"] = str(1 + int(random.random() * 5))
-    core.attrib["alignRepeatsAtLoop"] = str(random.random() * alignUndoLoops)
+    core.attrib["adjacencyComponentOverlap"] = str(int(random.random() * 5))
+    
     #Now print the file..
     fileHandle = open(tempConfigFile, 'w')
     ET.ElementTree(config).write(fileHandle)

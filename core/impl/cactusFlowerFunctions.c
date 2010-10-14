@@ -14,6 +14,7 @@
 #include "cactusFlowerFunctions.h"
 #include "avl.h"
 #include "sonLib.h"
+#include "adjacencyComponents.h"
 
 ////////////////////////////////////////////////
 ////////////////////////////////////////////////
@@ -379,50 +380,164 @@ bool groupIsZeroLength(struct List *endNames, Flower *flower) {
     return 1;
 }
 
-void addGroupsP(End *end, Group *group) {
-    End_InstanceIterator *capIt = end_getInstanceIterator(end);
-    Cap *cap;
-    assert(end_getGroup(end) == NULL);
-    end_setGroup(end, group);
-    assert(end_getGroup(end) == group);
-    while ((cap = end_getNext(capIt)) != NULL) {
-        Cap *adjacentCap = cap_getAdjacency(cap);
-        assert(adjacentCap != NULL);
-        End *adjacentEnd = cap_getEnd(adjacentCap);
-        if (end_getGroup(adjacentEnd) == NULL) {
-            addGroupsP(adjacentEnd, group);
-        } else {
-            assert(end_getGroup(adjacentEnd) == group);
-        }
-    }
-    end_destructInstanceIterator(capIt);
-}
+void addGroupsP(Flower *flower, struct hashtable *groups) {
+	/*
+	 * Adds the non chain groups to each net.
+	 */
 
-void addGroups(Flower *flower) {
-    Flower_EndIterator *endIt = flower_getEndIterator(flower);
-    End *end;
-    while ((end = flower_getNextEnd(endIt)) != NULL) {
-        Group *group = end_getGroup(end);
-        if (group == NULL) {
-            group = group_construct2(flower);
-            addGroupsP(end, group);
-        }
-    }
-    flower_destructEndIterator(endIt);
-
-    //Now call recursively and make any little chains
+	//Now call recursively and make any little chains
     Flower_GroupIterator *groupIt = flower_getGroupIterator(flower);
     Group *group;
     while ((group = flower_getNextGroup(groupIt)) != NULL) {
+        assert(group_getLink(group) != NULL);
         //Call recursively, if necessary
         if (!group_isLeaf(group)) {
-            addGroups(group_getNestedFlower(group));
+            addGroupsP(group_getNestedFlower(group), groups);
+        }
+        else { //Ends are already in an terminal group!
+            Group_EndIterator *endIterator2 = group_getEndIterator(group);
+            struct List *endNames = NULL;
+            End *end;
+            while ((end = group_getNextEnd(endIterator2)) != NULL) {
+                endNames
+                        = hashtable_remove(groups,
+                                (void *) cactusMisc_nameToStringStatic(
+                                        end_getName(end)), 0);
+                assert(endNames != NULL);
+            }
+            group_destructEndIterator(endIterator2);
+            assert(endNames != NULL);
+            destructList(endNames);
         }
         //Make a little chain for the ends, if the group is empty.
-        group_constructChainForLink(group);
+        //group_constructChainForLink(group);
     }
     flower_destructGroupIterator(groupIt);
+
+	Flower_EndIterator *endIterator = flower_getEndIterator(flower);
+	End *end, *end2;
+	while((end = flower_getNextEnd(endIterator)) != NULL) {
+		group = end_getGroup(end);
+		if(group == NULL) {
+		    struct List *endNames = hashtable_search(groups, (void *)cactusMisc_nameToStringStatic(end_getName(end)));
+			assert(endNames != NULL);
+#ifdef BEN_DEBUG
+			for(int32_t i=0; i<endNames->length; i++) {
+				end2 = flower_getEnd(flower, cactusMisc_stringToName(endNames->list[i]));
+				assert(end2 != NULL);
+				assert(end_getGroup(end2) == NULL);
+			}
+#endif
+			group = group_construct2(flower);
+			for(int32_t i=0; i<endNames->length; i++) {
+				end2 = flower_getEnd(flower, cactusMisc_stringToName(endNames->list[i]));
+				end_setGroup(end2, group);
+			}
+#ifdef BEN_DEBUG
+			for(int32_t i=0; i<endNames->length; i++) {
+				end2 = flower_getEnd(flower, cactusMisc_stringToName(endNames->list[i]));
+				assert(end_getGroup(end2) == group);
+			}
+#endif
+			for(int32_t i=0; i<endNames->length; i++) {
+				assert(hashtable_remove(groups, endNames->list[i], 0) == endNames);
+			}
+			destructList(endNames);
+			group_constructChainForLink(group);
+		}
+	}
+	flower_destructEndIterator(endIterator);
+
+#ifdef BEN_DEBUG
+	if(flower_getGroupNumber(flower) > 0 || flower_getBlockNumber(flower) > 0) {
+		endIterator = flower_getEndIterator(flower);
+		while((end = flower_getNextEnd(endIterator)) != NULL) {
+			assert(end_getGroup(end) != NULL);
+		}
+		flower_destructEndIterator(endIterator);
+	}
+#endif
 }
+
+stSortedSet *addGroups_chosenPinchEdges = NULL;
+
+bool addGroups_passThroughEdge(struct PinchEdge *edge) {
+    if(isAStub(edge)) {
+        return 0;
+    }
+    bool i = stSortedSet_search(addGroups_chosenPinchEdges, edge->from) == NULL;
+#ifdef BEN_DEBUG
+    if(i) {
+        assert(stSortedSet_search(addGroups_chosenPinchEdges, edge->to) == NULL);
+    }
+    else {
+        assert(stSortedSet_search(addGroups_chosenPinchEdges, edge->to) != NULL);
+    }
+#endif
+    return i;
+}
+
+void addGroups(Flower *flower, struct PinchGraph *pinchGraph,
+		stSortedSet *chosenBlocks, struct hashtable *endNamesHash) {
+	addGroups_chosenPinchEdges = stSortedSet_construct();
+	stSortedSetIterator *it = stSortedSet_getIterator(chosenBlocks);
+	struct CactusEdge *edge;
+	while((edge = stSortedSet_getNext(it)) != NULL) {
+	    struct PinchEdge *pinchEdge = cactusEdgeToFirstPinchEdge(edge, pinchGraph);
+#ifdef BEN_DEBUG
+	    assert(stSortedSet_search(addGroups_chosenPinchEdges, pinchEdge->from) == NULL);
+	    assert(stSortedSet_search(addGroups_chosenPinchEdges, pinchEdge->to) == NULL);
+#endif
+	    stSortedSet_insert(addGroups_chosenPinchEdges, pinchEdge->to);
+	    stSortedSet_insert(addGroups_chosenPinchEdges, pinchEdge->from);
+	}
+	stSortedSet_destructIterator(it);
+	stList *groupsList = getAdjacencyComponents2(pinchGraph, addGroups_passThroughEdge);
+	stSortedSet_destruct(addGroups_chosenPinchEdges);
+
+	struct hashtable *groupsHash =
+			create_hashtable(stList_length(groupsList) * 2,
+							 hashtable_stringHashKey, hashtable_stringEqualKey, NULL, NULL);
+	for(int32_t i=0; i<stList_length(groupsList); i++) {
+		stSortedSet *vertices = stList_get(groupsList, i);
+		struct List *endNames = constructEmptyList(0, NULL);
+		assert(stSortedSet_size(vertices) > 0);
+		struct PinchVertex *vertex = stSortedSet_getFirst(vertices);
+		if(!vertex_isDeadEnd(vertex) && vertex->vertexID != 0) {
+			it = stSortedSet_getIterator(vertices);
+			while((vertex = stSortedSet_getNext(it)) != NULL) {
+#ifdef BEN_DEBUG
+				assert(!vertex_isDeadEnd(vertex));
+				assert(vertex->vertexID != 0);
+#endif
+				const char *endNameString = hashtable_search(endNamesHash, vertex);
+				//assert(endNameString != NULL);
+				if(endNameString != NULL) {
+					listAppend(endNames, (void *)endNameString);
+					hashtable_insert(groupsHash, (void *)endNameString, endNames);
+				}
+			}
+			stSortedSet_destructIterator(it);
+			assert(endNames->length >= 1);
+		}
+#ifdef BEN_DEBUG
+		else {
+		    it = stSortedSet_getIterator(vertices);
+		    while((vertex = stSortedSet_getNext(it)) != NULL) {
+				assert(vertex_isDeadEnd(vertex) || vertex->vertexID == 0);
+			}
+		    stSortedSet_destructIterator(it);
+		}
+#endif
+	}
+	stList_destruct(groupsList);
+	addGroupsP(flower, groupsHash);
+#ifdef BEN_DEBUG
+	assert(hashtable_count(groupsHash) == 0);
+#endif
+	hashtable_destroy(groupsHash, FALSE, FALSE);
+}
+
 
 static int32_t *vertexDiscoveryTimes;
 
@@ -655,7 +770,7 @@ void fillOutFlowerFromInputs(Flower *parentFlower,
 #endif
                 listAppend(list, cactusEdge);
             } else if (stSortedSet_search(chosenBlocks, cactusEdge) == NULL) { //is a non stub not in the chosen list.
-                assert(cactusEdge->pieces->length == 1);
+                //assert(cactusEdge->pieces->length == 1);
                 //merge vertices
                 mergeCactusVertices(cactusEdge, mergedVertexIDs, j,
                         biConnectedComponent);
@@ -825,7 +940,8 @@ void fillOutFlowerFromInputs(Flower *parentFlower,
     //Add groups.
     ////////////////////////////////////////////////
 
-    addGroups(flower);
+    addGroups(flower, pinchGraph, chosenBlocks, endNamesHash);
+    //addGroups(flower);
     st_logDebug("Added the tangle groups\n");
 
     ////////////////////////////////////////////////

@@ -56,10 +56,7 @@ void usage() {
 
     fprintf(
             stderr,
-            "-k --trim (float >= 0) : The length of bases to remove from the end of each alignment\n");
-    fprintf(
-            stderr,
-            "-l --trimChange : (float) Trim reduction, the amount to reduce the trim after each align/undo loop (to a minimum of zero)\n");
+            "-k --trim (array of integers, each greater or equal to zero) : An array giving the trim for each annealing round. If the array is shorter than the annealing rounds then a trim value of 0 is assumed for annealing rounds greater than the length of the trim array\n");
 
     fprintf(
             stderr,
@@ -130,7 +127,7 @@ int main(int argc, char *argv[]) {
 
         int option_index = 0;
 
-        key = getopt_long(argc, argv, "a:b:c:d:ehi:j:k:l:m:n:o:s:",
+        key = getopt_long(argc, argv, "a:b:c:d:ehi:j:k:m:n:o:s:",
                 long_options, &option_index);
 
         if (key == -1) {
@@ -168,10 +165,8 @@ int main(int argc, char *argv[]) {
                 assert(sscanf(optarg, "%i", &cCIP->alignRepeatsAtRound) == 1);
                 break;
             case 'k':
-                assert(sscanf(optarg, "%i", &cCIP->trim) == 1);
-                break;
-            case 'l':
-                assert(sscanf(optarg, "%f", &cCIP->trimChange) == 1);
+                free(cCIP->trim);
+                cCIP->trim = getInts(optarg, &cCIP->trimLength);
                 break;
             case 'm':
                 assert(sscanf(optarg, "%f", &cCIP->minimumTreeCoverage) == 1);
@@ -209,7 +204,10 @@ int main(int argc, char *argv[]) {
        assert(cCIP->deannealingRounds[i-1] < cCIP->deannealingRounds[i]);
        assert(cCIP->deannealingRounds[i-1] >= 1);
     }
-    assert(cCIP->trim >= 0);
+    assert(cCIP->trimLength >= 0);
+    for(int32_t i=0; i<cCIP->trimLength; i++) {
+        assert(cCIP->trim[i] >= 0);
+    }
     assert(cCIP->alignRepeatsAtRound >= 0);
     assert(cCIP->adjacencyComponentOverlap >= 0);
 
