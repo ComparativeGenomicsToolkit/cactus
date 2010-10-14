@@ -26,9 +26,9 @@ from sonLib.bioio import system
 from sonLib.bioio import getLogLevelString
 
 from sonLib.misc import sonTraceRootPath
-
-from workflow.jobTree.scriptTree.target import Target
-from workflow.jobTree.scriptTree.stack import Stack
+  
+from workflow.jobTree.scriptTree.target import Target 
+from workflow.jobTree.scriptTree.stack import Stack 
 
 from cactus.shared.common import runCactusSetup
 from cactus.shared.common import runCactusCore
