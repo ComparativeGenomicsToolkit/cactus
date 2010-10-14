@@ -16,14 +16,14 @@ from cactus.shared.test import getCactusInputs_chromosomeX
 from cactus.shared.test import getCactusInputs_evolver_primate_small
 
 from cactus.shared.test import runWorkflow_multipleExamples
+from cactus.shared.test import BATCH_SYSTEM
 
 class TestCase(unittest.TestCase):
     
     def setUp(self):
-        if os.system("parasol status") == 0:
-            self.batchSystem = "parasol"
-        else:
-            self.batchSystem = "single_machine"
+        self.batchSystem = "singleMachine"
+        if BATCH_SYSTEM != None:
+            self.batchSystem = BATCH_SYSTEM
         unittest.TestCase.setUp(self)
         
     def testCactus_Random(self):

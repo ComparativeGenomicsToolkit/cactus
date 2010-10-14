@@ -42,6 +42,7 @@ from cactus.shared.config import CactusWorkflowExperiment
 ###########
 
 GLOBAL_DATABASE_CONF = None
+BATCH_SYSTEM = None
 
 def initialiseGlobalDatabaseConf(dataString):
     """Initialises the global database conf string which, if defined,
@@ -49,6 +50,13 @@ def initialiseGlobalDatabaseConf(dataString):
     global GLOBAL_DATABASE_CONF
     GLOBAL_DATABASE_CONF = ET.fromstring(dataString)
     checkDatabaseConf(GLOBAL_DATABASE_CONF)
+    
+def initialiseGlobalBatchSystem(batchSystem):
+    """Initialise the global batch system variable.
+    """
+    global BATCH_SYSTEM
+    assert batchSystem in ("singleMachine", "parasol", "gridEngine")
+    BATCH_SYSTEM = batchSystem
     
 def getCactusWorkflowExperimentForTest(sequences, newickTreeString, outputDir, databaseName=None, configFile=None):
     """Wrapper to constructor of CactusWorkflowExperiment which additionally incorporates
@@ -66,11 +74,18 @@ def parseCactusSuiteTestOptions():
                       help="Gives a database conf string which will direct all tests to use the given database (see the readme for instructions on setup)",
                       default=None)
     
+    parser.add_option("--batchSystem", dest="batchSystem", type="string",
+                      help="Set the batch system for the tests to be run under",
+                      default=None)
+    
     from sonLib.bioio import parseSuiteTestOptions
     options, args = parseSuiteTestOptions(parser)
     #This is the key bit
     if options.databaseConf != None:
         initialiseGlobalDatabaseConf(options.databaseConf)
+    
+    if options.batchSystem != None:
+        initialiseGlobalBatchSystem(options.batchSystem)
         
     return options, args
 
