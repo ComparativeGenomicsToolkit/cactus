@@ -398,8 +398,12 @@ void linkStubComponentsToTheSinkComponent(struct PinchGraph *pinchGraph,
                     sequence = cap_getSequence(cap);
                     assert(sequence != NULL);
                     if (sequence == longestSequence) {
-                        if(!flower_hasParentGroup(flower) && attachEnds) {
+                        if(attachEnds) { //if(!flower_hasParentGroup(flower) && attachEnds) {
+                            st_uglyf("I am attaching an end %s\n", cactusMisc_nameToString(end_getName(end)));
                             end_makeAttached(end);
+                        }
+                        else {
+                            st_uglyf("I am not attaching an end %s\n", cactusMisc_nameToString(end_getName(end)));
                         }
                         connectVertices(vertex, sinkVertex);
                         k++;

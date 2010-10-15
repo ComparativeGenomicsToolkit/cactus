@@ -402,12 +402,32 @@ void addGroupsP2(Flower *flower, Group *group, stSortedSet *groupsSet, struct ha
         }
         destructList(endNames);
     }
+
+    st_uglyf("I have %i %i %i %i %i %i\n", group_getEndNumber(group),
+                                group_getAttachedStubEndNumber(group), group_getBlockEndNumber(group),
+                                group_getFreeStubEndNumber(group), flower_hasParentGroup(flower),
+                                group_isLeaf(group));
+
+    Group_EndIterator *endITT = group_getEndIterator(group);
+    End *end;
+    while((end = group_getNextEnd(endITT)) != NULL) {
+        if(end_isFree(end) && !end_isBlockEnd(end)) {
+            st_uglyf("I have %s\n", cactusMisc_nameToString(end_getName(end)));
+        }
+    }
+    group_destructEndIterator(endITT);
+
 #ifdef BEN_DEBUG
-    if(group_getAttachedStubEndNumber(group) + group_getBlockEndNumber(group) == 2 && flower_hasParentGroup(flower)) {
-        assert(group_getLink(flower_getParentGroup(flower)) != NULL);
+    assert(group_getBlockEndNumber(group) + group_getAttachedStubEndNumber(group) > 0);
+    if(group_getBlockEndNumber(group) + group_getAttachedStubEndNumber(group) == 2) {
+        assert(group_isLeaf(group));
+        assert(group_getBlockEndNumber(group) == 0);
+        assert(group_getAttachedStubEndNumber(group) == 2);
+        assert(flower_hasParentGroup(flower));
+        assert(group_isLink(flower_getParentGroup(flower)));
     }
 #endif
-    group_constructChainForLink(group);
+    group_constructChainForLink(group); //this is needed because we may have created flowers containing only free ends and two inherited
 }
 
 void addGroupsP(Flower *flower, struct hashtable *groups) {
@@ -466,11 +486,19 @@ void addGroupsP(Flower *flower, struct hashtable *groups) {
                     if (end_isBlockEnd(end2) || end_isAttached(end2)) {
                         empty = 0;
                     }
+#ifdef BEN_DEBUG
+                    else {
+                        assert(end_isFree(end2));
+                    }
+#endif
                 }
                 stSortedSet_insert(groupsSet, endNames);
                 if (!empty) {
                     addGroupsP2(flower, group_construct2(flower), groupsSet, groups);
                     assert(stSortedSet_size(groupsSet) == 0);
+                }
+                else {
+                    assert(0);
                 }
             }
         }
@@ -532,6 +560,7 @@ void addGroups(Flower *flower, struct PinchGraph *pinchGraph,
     stList *groupsList = getAdjacencyComponents2(pinchGraph,
             addGroups_passThroughEdge);
     stSortedSet_destruct(addGroups_chosenPinchEdges);
+    addGroups_chosenPinchEdges = NULL; //not needed
 
     struct hashtable *groupsHash = create_hashtable(stList_length(groupsList)
             * 2, hashtable_stringHashKey, hashtable_stringEqualKey, NULL, NULL);
@@ -552,6 +581,7 @@ void addGroups(Flower *flower, struct PinchGraph *pinchGraph,
                 //assert(endNameString != NULL);
                 if (endNameString != NULL) {
                     listAppend(endNames, (void *) endNameString);
+                    assert(hashtable_search(groupsHash, (void *)endNameString) == NULL);
                     hashtable_insert(groupsHash, (void *) endNameString,
                             endNames);
                 }
