@@ -17,7 +17,7 @@ from cactus.shared.test import runWorkflow_multipleExamples
 
 class TestCase(unittest.TestCase):
     def testCactusCore_Random(self):
-        for test in xrange(TestStatus.getTestSetup()):
+        for test in xrange(1000): #TestStatus.getTestSetup()):
             randomConfigFile=getRandomConfigFile()
             runWorkflow_multipleExamples(getCactusInputs_random, 
                                          buildTrees=False, buildFaces=False, buildReference=False, configFile=randomConfigFile)
@@ -44,11 +44,11 @@ def getRandomConfigFile():
     core = iteration.find("core")
     annealingRounds = 1 + int(random.random() * 10)
     
-    core.attrib["annealingRounds"] = " ".join([ str(1 + int(random.random() * 10)) for i in annealingRounds ])
+    core.attrib["annealingRounds"] = " ".join([ str(1 + int(random.random() * 10)) for i in xrange(annealingRounds) ])
     deannealingRounds = list(set([ 1 + int(random.random() * 10) for i in xrange(int(random.random() * 10)) ]))
     deannealingRounds.sort()
     core.attrib["deannealingRounds"] = " ".join([ str(i) for i in deannealingRounds ])
-    core.attrib["trim"] = " ".join([ str(1 + int(random.random() * 5)) for i in annealingRounds ])
+    core.attrib["trim"] = " ".join([ str(1 + int(random.random() * 5)) for i in xrange(annealingRounds) ])
     
     core.attrib["alignRepeatsAtLoop"] = str(random.random() * annealingRounds)
     

@@ -380,12 +380,43 @@ bool groupIsZeroLength(struct List *endNames, Flower *flower) {
     return 1;
 }
 
-void addGroupsP(Flower *flower, struct hashtable *groups) {
-	/*
-	 * Adds the non chain groups to each net.
-	 */
+void addGroupsP2(Flower *flower, Group *group, stSortedSet *groupsSet, struct hashtable *groups) {
+    while (stSortedSet_size(groupsSet) > 0) {
+        struct List *endNames = stSortedSet_getFirst(groupsSet);
+        stSortedSet_remove(groupsSet, endNames);
+        for (int32_t i = 0; i < endNames->length; i++) {
+            End *end2 = flower_getEnd(flower, cactusMisc_stringToName(
+                    endNames->list[i]));
+            assert(end_getGroup(end2) == NULL);
+            end_setGroup(end2, group);
+        }
+#ifdef BEN_DEBUG
+        for (int32_t i = 0; i < endNames->length; i++) {
+            End *end2 = flower_getEnd(flower, cactusMisc_stringToName(
+                    endNames->list[i]));
+            assert(end_getGroup(end2) == group);
+        }
+#endif
+        for (int32_t i = 0; i < endNames->length; i++) {
+            assert(hashtable_remove(groups, endNames->list[i], 0) == endNames);
+        }
+        destructList(endNames);
+    }
+#ifdef BEN_DEBUG
+    if(group_getAttachedStubEndNumber(group) + group_getBlockEndNumber(group) == 2 && flower_hasParentGroup(flower)) {
+        assert(group_getLink(flower_getParentGroup(flower)) != NULL);
+    }
+#endif
+    group_constructChainForLink(group);
+}
 
-	//Now call recursively and make any little chains
+void addGroupsP(Flower *flower, struct hashtable *groups) {
+    /*
+     * Adds the non chain groups to each net. Crazy code,
+     * hacks groups with only free ends into groups containing
+     * at least one attached of block end.
+     */
+    //Now call recursively and make any little chains
     Flower_GroupIterator *groupIt = flower_getGroupIterator(flower);
     Group *group;
     while ((group = flower_getNextGroup(groupIt)) != NULL) {
@@ -393,8 +424,7 @@ void addGroupsP(Flower *flower, struct hashtable *groups) {
         //Call recursively, if necessary
         if (!group_isLeaf(group)) {
             addGroupsP(group_getNestedFlower(group), groups);
-        }
-        else { //Ends are already in an terminal group!
+        } else { //Ends are already in an terminal group!
             Group_EndIterator *endIterator2 = group_getEndIterator(group);
             struct List *endNames = NULL;
             End *end;
@@ -414,63 +444,69 @@ void addGroupsP(Flower *flower, struct hashtable *groups) {
     }
     flower_destructGroupIterator(groupIt);
 
-	Flower_EndIterator *endIterator = flower_getEndIterator(flower);
-	End *end, *end2;
-	while((end = flower_getNextEnd(endIterator)) != NULL) {
-		group = end_getGroup(end);
-		if(group == NULL) {
-		    struct List *endNames = hashtable_search(groups, (void *)cactusMisc_nameToStringStatic(end_getName(end)));
-			assert(endNames != NULL);
+    Flower_EndIterator *endIterator = flower_getEndIterator(flower);
+    End *end, *end2;
+    stSortedSet *groupsSet = stSortedSet_construct();
+    while ((end = flower_getNextEnd(endIterator)) != NULL) {
+        group = end_getGroup(end);
+        if (group == NULL) {
+            struct List *endNames = hashtable_search(groups,
+                    (void *) cactusMisc_nameToStringStatic(end_getName(end)));
+            assert(endNames != NULL);
+
+            if(stSortedSet_search(groupsSet, endNames) == NULL) {
+                bool empty = 1; //If the group is empty we will wait to add it.
+                for (int32_t i = 0; i < endNames->length; i++) {
+                    end2 = flower_getEnd(flower, cactusMisc_stringToName(
+                            endNames->list[i]));
 #ifdef BEN_DEBUG
-			for(int32_t i=0; i<endNames->length; i++) {
-				end2 = flower_getEnd(flower, cactusMisc_stringToName(endNames->list[i]));
-				assert(end2 != NULL);
-				assert(end_getGroup(end2) == NULL);
-			}
+                    assert(end2 != NULL);
+                    assert(end_getGroup(end2) == NULL);
 #endif
-			group = group_construct2(flower);
-			for(int32_t i=0; i<endNames->length; i++) {
-				end2 = flower_getEnd(flower, cactusMisc_stringToName(endNames->list[i]));
-				end_setGroup(end2, group);
-			}
-#ifdef BEN_DEBUG
-			for(int32_t i=0; i<endNames->length; i++) {
-				end2 = flower_getEnd(flower, cactusMisc_stringToName(endNames->list[i]));
-				assert(end_getGroup(end2) == group);
-			}
-#endif
-			for(int32_t i=0; i<endNames->length; i++) {
-				assert(hashtable_remove(groups, endNames->list[i], 0) == endNames);
-			}
-			destructList(endNames);
-			group_constructChainForLink(group);
-		}
-	}
-	flower_destructEndIterator(endIterator);
+                    if (end_isBlockEnd(end2) || end_isAttached(end2)) {
+                        empty = 0;
+                    }
+                }
+                stSortedSet_insert(groupsSet, endNames);
+                if (!empty) {
+                    addGroupsP2(flower, group_construct2(flower), groupsSet, groups);
+                    assert(stSortedSet_size(groupsSet) == 0);
+                }
+            }
+        }
+    }
+    flower_destructEndIterator(endIterator);
+    if(stSortedSet_size(groupsSet) > 0) {
+        assert(flower_getGroupNumber(flower) > 0);
+        addGroupsP2(flower, flower_getFirstGroup(flower), groupsSet, groups);
+    }
 
 #ifdef BEN_DEBUG
-	if(flower_getGroupNumber(flower) > 0 || flower_getBlockNumber(flower) > 0) {
-		endIterator = flower_getEndIterator(flower);
-		while((end = flower_getNextEnd(endIterator)) != NULL) {
-			assert(end_getGroup(end) != NULL);
-		}
-		flower_destructEndIterator(endIterator);
-	}
+    endIterator = flower_getEndIterator(flower);
+    while ((end = flower_getNextEnd(endIterator)) != NULL) {
+        assert(end_getGroup(end) != NULL);
+    }
+    flower_destructEndIterator(endIterator);
+
+    groupIt = flower_getGroupIterator(flower);
+    while ((group = flower_getNextGroup(groupIt)) != NULL) {
+        assert(group_getBlockEndNumber(group) + group_getAttachedStubEndNumber(group) > 0);
+    }
+    flower_destructGroupIterator(groupIt);
 #endif
 }
 
 stSortedSet *addGroups_chosenPinchEdges = NULL;
 
 bool addGroups_passThroughEdge(struct PinchEdge *edge) {
-    if(isAStub(edge)) {
+    if (isAStub(edge)) {
         return 0;
     }
     bool i = stSortedSet_search(addGroups_chosenPinchEdges, edge->from) == NULL;
 #ifdef BEN_DEBUG
-    if(i) {
+    if (i) {
         assert(stSortedSet_search(addGroups_chosenPinchEdges, edge->to) == NULL);
-    }
-    else {
+    } else {
         assert(stSortedSet_search(addGroups_chosenPinchEdges, edge->to) != NULL);
     }
 #endif
@@ -478,66 +514,68 @@ bool addGroups_passThroughEdge(struct PinchEdge *edge) {
 }
 
 void addGroups(Flower *flower, struct PinchGraph *pinchGraph,
-		stSortedSet *chosenBlocks, struct hashtable *endNamesHash) {
-	addGroups_chosenPinchEdges = stSortedSet_construct();
-	stSortedSetIterator *it = stSortedSet_getIterator(chosenBlocks);
-	struct CactusEdge *edge;
-	while((edge = stSortedSet_getNext(it)) != NULL) {
-	    struct PinchEdge *pinchEdge = cactusEdgeToFirstPinchEdge(edge, pinchGraph);
+        stSortedSet *chosenBlocks, struct hashtable *endNamesHash) {
+    addGroups_chosenPinchEdges = stSortedSet_construct();
+    stSortedSetIterator *it = stSortedSet_getIterator(chosenBlocks);
+    struct CactusEdge *edge;
+    while ((edge = stSortedSet_getNext(it)) != NULL) {
+        struct PinchEdge *pinchEdge = cactusEdgeToFirstPinchEdge(edge,
+                pinchGraph);
 #ifdef BEN_DEBUG
-	    assert(stSortedSet_search(addGroups_chosenPinchEdges, pinchEdge->from) == NULL);
-	    assert(stSortedSet_search(addGroups_chosenPinchEdges, pinchEdge->to) == NULL);
+        assert(stSortedSet_search(addGroups_chosenPinchEdges, pinchEdge->from) == NULL);
+        assert(stSortedSet_search(addGroups_chosenPinchEdges, pinchEdge->to) == NULL);
 #endif
-	    stSortedSet_insert(addGroups_chosenPinchEdges, pinchEdge->to);
-	    stSortedSet_insert(addGroups_chosenPinchEdges, pinchEdge->from);
-	}
-	stSortedSet_destructIterator(it);
-	stList *groupsList = getAdjacencyComponents2(pinchGraph, addGroups_passThroughEdge);
-	stSortedSet_destruct(addGroups_chosenPinchEdges);
+        stSortedSet_insert(addGroups_chosenPinchEdges, pinchEdge->to);
+        stSortedSet_insert(addGroups_chosenPinchEdges, pinchEdge->from);
+    }
+    stSortedSet_destructIterator(it);
+    stList *groupsList = getAdjacencyComponents2(pinchGraph,
+            addGroups_passThroughEdge);
+    stSortedSet_destruct(addGroups_chosenPinchEdges);
 
-	struct hashtable *groupsHash =
-			create_hashtable(stList_length(groupsList) * 2,
-							 hashtable_stringHashKey, hashtable_stringEqualKey, NULL, NULL);
-	for(int32_t i=0; i<stList_length(groupsList); i++) {
-		stSortedSet *vertices = stList_get(groupsList, i);
-		struct List *endNames = constructEmptyList(0, NULL);
-		assert(stSortedSet_size(vertices) > 0);
-		struct PinchVertex *vertex = stSortedSet_getFirst(vertices);
-		if(!vertex_isDeadEnd(vertex) && vertex->vertexID != 0) {
-			it = stSortedSet_getIterator(vertices);
-			while((vertex = stSortedSet_getNext(it)) != NULL) {
+    struct hashtable *groupsHash = create_hashtable(stList_length(groupsList)
+            * 2, hashtable_stringHashKey, hashtable_stringEqualKey, NULL, NULL);
+    for (int32_t i = 0; i < stList_length(groupsList); i++) {
+        stSortedSet *vertices = stList_get(groupsList, i);
+        struct List *endNames = constructEmptyList(0, NULL);
+        assert(stSortedSet_size(vertices) > 0);
+        struct PinchVertex *vertex = stSortedSet_getFirst(vertices);
+        if (!vertex_isDeadEnd(vertex) && vertex->vertexID != 0) {
+            it = stSortedSet_getIterator(vertices);
+            while ((vertex = stSortedSet_getNext(it)) != NULL) {
 #ifdef BEN_DEBUG
-				assert(!vertex_isDeadEnd(vertex));
-				assert(vertex->vertexID != 0);
+                assert(!vertex_isDeadEnd(vertex));
+                assert(vertex->vertexID != 0);
 #endif
-				const char *endNameString = hashtable_search(endNamesHash, vertex);
-				//assert(endNameString != NULL);
-				if(endNameString != NULL) {
-					listAppend(endNames, (void *)endNameString);
-					hashtable_insert(groupsHash, (void *)endNameString, endNames);
-				}
-			}
-			stSortedSet_destructIterator(it);
-			assert(endNames->length >= 1);
-		}
+                const char *endNameString = hashtable_search(endNamesHash,
+                        vertex);
+                //assert(endNameString != NULL);
+                if (endNameString != NULL) {
+                    listAppend(endNames, (void *) endNameString);
+                    hashtable_insert(groupsHash, (void *) endNameString,
+                            endNames);
+                }
+            }
+            stSortedSet_destructIterator(it);
+            assert(endNames->length >= 1);
+        }
 #ifdef BEN_DEBUG
-		else {
-		    it = stSortedSet_getIterator(vertices);
-		    while((vertex = stSortedSet_getNext(it)) != NULL) {
-				assert(vertex_isDeadEnd(vertex) || vertex->vertexID == 0);
-			}
-		    stSortedSet_destructIterator(it);
-		}
+        else {
+            it = stSortedSet_getIterator(vertices);
+            while ((vertex = stSortedSet_getNext(it)) != NULL) {
+                assert(vertex_isDeadEnd(vertex) || vertex->vertexID == 0);
+            }
+            stSortedSet_destructIterator(it);
+        }
 #endif
-	}
-	stList_destruct(groupsList);
-	addGroupsP(flower, groupsHash);
+    }
+    stList_destruct(groupsList);
+    addGroupsP(flower, groupsHash);
 #ifdef BEN_DEBUG
-	assert(hashtable_count(groupsHash) == 0);
+    assert(hashtable_count(groupsHash) == 0);
 #endif
-	hashtable_destroy(groupsHash, FALSE, FALSE);
+    hashtable_destroy(groupsHash, FALSE, FALSE);
 }
-
 
 static int32_t *vertexDiscoveryTimes;
 
