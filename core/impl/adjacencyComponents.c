@@ -90,14 +90,14 @@ stList *getAdjacencyComponents2(struct PinchGraph *pinchGraph,
     return adjacencyComponents;
 }
 
-static inline bool getAdjacencyComponents_passThroughDegree1Edges(struct PinchEdge *edge) {
+bool passThroughDegree1EdgesFn(struct PinchEdge *edge) {
     assert(lengthBlackEdges(edge->from) > 0);
     return lengthBlackEdges(edge->from) == 1 && (!isAStub(edge));
 }
 
 stList *getAdjacencyComponents(struct PinchGraph *pinchGraph) {
     return getAdjacencyComponents2(pinchGraph,
-        getAdjacencyComponents_passThroughDegree1Edges);
+        passThroughDegree1EdgesFn);
 }
 
 stHash *getVertexToAdjacencyComponentHash(struct PinchGraph *pinchGraph, stList *adjacencyComponents) {

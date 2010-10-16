@@ -50,7 +50,8 @@ struct CactusGraph {
 };
 
 struct CactusGraph *constructCactusGraph(struct PinchGraph *pinchGraph,
-        struct List *threeEdgeConnectedComponents);
+        struct List *threeEdgeConnectedComponents,
+        bool (*passThroughEdgeFn)(struct PinchEdge *));
 
 void destructCactusGraph(struct CactusGraph *cactusGraph);
 
@@ -116,7 +117,7 @@ void writeOutCactusGraph(struct CactusGraph *cactusGraph,
 ////////////////////////////////////////////////
 
 struct CactusGraph *computeCactusGraph(struct PinchGraph *pinchGraph,
-        int32_t excludeDegree1Edges);
+        bool (*passThroughEdgeFn)(struct PinchEdge *));
 
 ////////////////////////////////////////////////
 ////////////////////////////////////////////////
@@ -146,6 +147,8 @@ int32_t chainBaseLength(struct List *biConnectedComponent, struct PinchGraph *pi
  */
 int32_t maxChainDegree(struct List *biConnectedComponent,
         struct PinchGraph *pinchGraph);
+
+stSortedSet *getPinchVerticesSet(stSortedSet *chosenBlocks, struct PinchGraph *pinchGraph);
 
 stSortedSet *filterBlocksByTreeCoverageAndLength(
         struct List *biConnectedComponents, Flower *flower,

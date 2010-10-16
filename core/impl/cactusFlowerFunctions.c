@@ -403,20 +403,6 @@ void addGroupsP2(Flower *flower, Group *group, stSortedSet *groupsSet, struct ha
         destructList(endNames);
     }
 
-    st_uglyf("I have %i %i %i %i %i %i\n", group_getEndNumber(group),
-                                group_getAttachedStubEndNumber(group), group_getBlockEndNumber(group),
-                                group_getFreeStubEndNumber(group), flower_hasParentGroup(flower),
-                                group_isLeaf(group));
-
-    Group_EndIterator *endITT = group_getEndIterator(group);
-    End *end;
-    while((end = group_getNextEnd(endITT)) != NULL) {
-        if(end_isFree(end) && !end_isBlockEnd(end)) {
-            st_uglyf("I have %s\n", cactusMisc_nameToString(end_getName(end)));
-        }
-    }
-    group_destructEndIterator(endITT);
-
 #ifdef BEN_DEBUG
     assert(group_getBlockEndNumber(group) + group_getAttachedStubEndNumber(group) > 0);
     if(group_getBlockEndNumber(group) + group_getAttachedStubEndNumber(group) == 2) {
@@ -497,9 +483,6 @@ void addGroupsP(Flower *flower, struct hashtable *groups) {
                     addGroupsP2(flower, group_construct2(flower), groupsSet, groups);
                     assert(stSortedSet_size(groupsSet) == 0);
                 }
-                else {
-                    assert(0);
-                }
             }
         }
     }
@@ -524,53 +507,16 @@ void addGroupsP(Flower *flower, struct hashtable *groups) {
 #endif
 }
 
-stSortedSet *addGroups_chosenPinchEdges = NULL;
-
-bool addGroups_passThroughEdge(struct PinchEdge *edge) {
-    if (isAStub(edge)) {
-        return 0;
-    }
-    bool i = stSortedSet_search(addGroups_chosenPinchEdges, edge->from) == NULL;
-#ifdef BEN_DEBUG
-    if (i) {
-        assert(stSortedSet_search(addGroups_chosenPinchEdges, edge->to) == NULL);
-    } else {
-        assert(stSortedSet_search(addGroups_chosenPinchEdges, edge->to) != NULL);
-    }
-#endif
-    return i;
-}
-
-void addGroups(Flower *flower, struct PinchGraph *pinchGraph,
-        stSortedSet *chosenBlocks, struct hashtable *endNamesHash) {
-    addGroups_chosenPinchEdges = stSortedSet_construct();
-    stSortedSetIterator *it = stSortedSet_getIterator(chosenBlocks);
-    struct CactusEdge *edge;
-    while ((edge = stSortedSet_getNext(it)) != NULL) {
-        struct PinchEdge *pinchEdge = cactusEdgeToFirstPinchEdge(edge,
-                pinchGraph);
-#ifdef BEN_DEBUG
-        assert(stSortedSet_search(addGroups_chosenPinchEdges, pinchEdge->from) == NULL);
-        assert(stSortedSet_search(addGroups_chosenPinchEdges, pinchEdge->to) == NULL);
-#endif
-        stSortedSet_insert(addGroups_chosenPinchEdges, pinchEdge->to);
-        stSortedSet_insert(addGroups_chosenPinchEdges, pinchEdge->from);
-    }
-    stSortedSet_destructIterator(it);
-    stList *groupsList = getAdjacencyComponents2(pinchGraph,
-            addGroups_passThroughEdge);
-    stSortedSet_destruct(addGroups_chosenPinchEdges);
-    addGroups_chosenPinchEdges = NULL; //not needed
-
-    struct hashtable *groupsHash = create_hashtable(stList_length(groupsList)
+void addGroups(Flower *flower, struct PinchGraph *pinchGraph, stList *adjacencyComponents, struct hashtable *endNamesHash) {
+    struct hashtable *groupsHash = create_hashtable(stList_length(adjacencyComponents)
             * 2, hashtable_stringHashKey, hashtable_stringEqualKey, NULL, NULL);
-    for (int32_t i = 0; i < stList_length(groupsList); i++) {
-        stSortedSet *vertices = stList_get(groupsList, i);
+    for (int32_t i = 0; i < stList_length(adjacencyComponents); i++) {
+        stSortedSet *vertices = stList_get(adjacencyComponents, i);
         struct List *endNames = constructEmptyList(0, NULL);
         assert(stSortedSet_size(vertices) > 0);
         struct PinchVertex *vertex = stSortedSet_getFirst(vertices);
         if (!vertex_isDeadEnd(vertex) && vertex->vertexID != 0) {
-            it = stSortedSet_getIterator(vertices);
+            stSortedSetIterator *it = stSortedSet_getIterator(vertices);
             while ((vertex = stSortedSet_getNext(it)) != NULL) {
 #ifdef BEN_DEBUG
                 assert(!vertex_isDeadEnd(vertex));
@@ -591,7 +537,7 @@ void addGroups(Flower *flower, struct PinchGraph *pinchGraph,
         }
 #ifdef BEN_DEBUG
         else {
-            it = stSortedSet_getIterator(vertices);
+            stSortedSetIterator *it = stSortedSet_getIterator(vertices);
             while ((vertex = stSortedSet_getNext(it)) != NULL) {
                 assert(vertex_isDeadEnd(vertex) || vertex->vertexID == 0);
             }
@@ -599,7 +545,6 @@ void addGroups(Flower *flower, struct PinchGraph *pinchGraph,
         }
 #endif
     }
-    stList_destruct(groupsList);
     addGroupsP(flower, groupsHash);
 #ifdef BEN_DEBUG
     assert(hashtable_count(groupsHash) == 0);
@@ -721,8 +666,9 @@ void getOrientation(struct List *biConnectedComponent,
 }
 
 void fillOutFlowerFromInputs(Flower *parentFlower,
-        struct CactusGraph *cactusGraph, struct PinchGraph *pinchGraph,
-        stSortedSet *chosenBlocks) {
+        struct CactusGraph *cactusGraph,
+        struct PinchGraph *pinchGraph,
+        stList *adjacencyComponents) {
     Flower *flower;
     Flower *nestedFlower;
     End *end;
@@ -780,7 +726,7 @@ void fillOutFlowerFromInputs(Flower *parentFlower,
     //Build end names hash
     ////////////////////////////////////////////////
 
-    endNamesHash = create_hashtable(stSortedSet_size(chosenBlocks),
+    endNamesHash = create_hashtable(pinchGraph->vertices->length*2,
             hashtable_key, hashtable_equalKey, NULL, free);
     endIterator = flower_getEndIterator(parentFlower);
     while ((end = flower_getNextEnd(endIterator)) != NULL) {
@@ -837,11 +783,6 @@ void fillOutFlowerFromInputs(Flower *parentFlower,
                 }
 #endif
                 listAppend(list, cactusEdge);
-            } else if (stSortedSet_search(chosenBlocks, cactusEdge) == NULL) { //is a non stub not in the chosen list.
-                //assert(cactusEdge->pieces->length == 1);
-                //merge vertices
-                mergeCactusVertices(cactusEdge, mergedVertexIDs, j,
-                        biConnectedComponent);
             } else { //is a non stub in the chosen list, so we'll add it.
                 listAppend(list, cactusEdge);
             }
@@ -1008,8 +949,7 @@ void fillOutFlowerFromInputs(Flower *parentFlower,
     //Add groups.
     ////////////////////////////////////////////////
 
-    addGroups(flower, pinchGraph, chosenBlocks, endNamesHash);
-    //addGroups(flower);
+    addGroups(flower, pinchGraph, adjacencyComponents, endNamesHash);
     st_logDebug("Added the tangle groups\n");
 
     ////////////////////////////////////////////////

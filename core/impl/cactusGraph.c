@@ -85,7 +85,8 @@ void destructCactusEdge(struct CactusEdge *edge) {
 }
 
 struct CactusGraph *constructCactusGraph(struct PinchGraph *pinchGraph,
-        struct List *threeEdgeConnectedComponents) {
+        struct List *threeEdgeConnectedComponents,
+        bool (*passThroughEdgeFn)(struct PinchEdge *)) {
     struct CactusGraph *cactusGraph;
     struct CactusEdge *cactusEdge;
     struct CactusVertex *cactusVertex;
@@ -164,23 +165,25 @@ struct CactusGraph *constructCactusGraph(struct PinchGraph *pinchGraph,
             //black edges
             if (lengthBlackEdges(pinchVertex) > 0) {
                 pinchEdge = getFirstBlackEdge(pinchVertex);
-                pinchVertex2 = pinchEdge->to;
-                cactusVertex2
-                        = pinchVertexToCactusVertex->list[pinchVertex2->vertexID];
+                if(!passThroughEdgeFn(pinchEdge)) {
+                    pinchVertex2 = pinchEdge->to;
+                    cactusVertex2
+                            = pinchVertexToCactusVertex->list[pinchVertex2->vertexID];
 
-                if (pinchVertex->vertexID < pinchVertex2->vertexID) {
-                    //getting the ordered pieces.
-                    list2 = constructEmptyList(0, NULL);
-                    void *blackEdgeIterator = getBlackEdgeIterator(pinchVertex);
-                    while ((pinchEdge = getNextBlackEdge(pinchVertex,
-                            blackEdgeIterator)) != NULL) {
-                        listAppend(list2, pinchEdge->piece);
+                    if (pinchVertex->vertexID < pinchVertex2->vertexID) {
+                        //getting the ordered pieces.
+                        list2 = constructEmptyList(0, NULL);
+                        void *blackEdgeIterator = getBlackEdgeIterator(pinchVertex);
+                        while ((pinchEdge = getNextBlackEdge(pinchVertex,
+                                blackEdgeIterator)) != NULL) {
+                            listAppend(list2, pinchEdge->piece);
+                        }
+                        destructBlackEdgeIterator(blackEdgeIterator);
+
+                        cactusEdge = constructCactusEdge2(list2, cactusVertex,
+                                cactusVertex2);
+                        destructList(list2);
                     }
-                    destructBlackEdgeIterator(blackEdgeIterator);
-
-                    cactusEdge = constructCactusEdge2(list2, cactusVertex,
-                            cactusVertex2);
-                    destructList(list2);
                 }
             }
 #ifdef BEN_DEBUG
@@ -189,6 +192,7 @@ struct CactusGraph *constructCactusGraph(struct PinchGraph *pinchGraph,
             }
 #endif
 
+#ifdef BEN_DEBUG
             //grey edges
             greyEdgeIterator = getGreyEdgeIterator(pinchVertex);
             while ((pinchVertex2 = getNextGreyEdge(pinchVertex,
@@ -198,12 +202,14 @@ struct CactusGraph *constructCactusGraph(struct PinchGraph *pinchGraph,
 
                 if (cactusVertex != cactusVertex2 && cactusVertex
                         < cactusVertex2) {
+                    assert(0); //We always merge adjacency components, so this should never happen!
                     cactusEdge = constructCactusEdge2(emptyList, cactusVertex,
                             cactusVertex2);
                 }
             }
             destructGreyEdgeIterator(greyEdgeIterator);
         }
+#endif
     }
 
     //cleanup
@@ -831,21 +837,16 @@ void writeOutCactusGraph(struct CactusGraph *cactusGraph,
 ////////////////////////////////////////////////
 ////////////////////////////////////////////////
 
-static bool computeCactusGraphP(struct PinchEdge *edge) {
-    assert(edge != NULL);
-    return 0;
-}
 
 struct CactusGraph *computeCactusGraph(struct PinchGraph *pinchGraph,
-        int32_t excludeDegree1Edges) {
+        bool (*passThroughEdgeFn)(struct PinchEdge *)) {
     ///////////////////////////////////////////////////////////////////////////
     // Run the three-edge connected component algorithm to identify
     // three edge connected components.
     ///////////////////////////////////////////////////////////////////////////
 
-    stList *adjacencyComponents = excludeDegree1Edges ? getAdjacencyComponents(
-            pinchGraph) : getAdjacencyComponents2(pinchGraph,
-            computeCactusGraphP);
+    stList *adjacencyComponents = getAdjacencyComponents2(pinchGraph,
+                    passThroughEdgeFn);
     stHash *vertexToAdjacencyComponentHash = getVertexToAdjacencyComponentHash(
             pinchGraph, adjacencyComponents);
     stList *adjacencyComponentGraph = getAdjacencyComponentGraph(pinchGraph,
@@ -875,7 +876,7 @@ struct CactusGraph *computeCactusGraph(struct PinchGraph *pinchGraph,
 
     //Collapse the graph to cactus tree
     struct CactusGraph *cactusGraph = constructCactusGraph(pinchGraph,
-            threeEdgeConnectedComponents);
+            threeEdgeConnectedComponents, passThroughEdgeFn);
     checkCactusGraph(pinchGraph, threeEdgeConnectedComponents, cactusGraph);
 
     //Cleanup
@@ -1155,6 +1156,24 @@ int32_t chainBaseLength(struct List *biConnectedComponent,
         }
     }
     return i;
+}
+
+stSortedSet *getPinchVerticesSet(stSortedSet *cactusEdges, struct PinchGraph *pinchGraph) {
+    stSortedSet *pinchVerticesSet = stSortedSet_construct();
+    stSortedSetIterator *it = stSortedSet_getIterator(cactusEdges);
+    struct CactusEdge *edge;
+    while ((edge = stSortedSet_getNext(it)) != NULL) {
+        struct PinchEdge *pinchEdge = cactusEdgeToFirstPinchEdge(edge,
+                pinchGraph);
+#ifdef BEN_DEBUG
+        assert(stSortedSet_search(pinchVerticesSet, pinchEdge->from) == NULL);
+        assert(stSortedSet_search(pinchVerticesSet, pinchEdge->to) == NULL);
+#endif
+        stSortedSet_insert(pinchVerticesSet, pinchEdge->to);
+        stSortedSet_insert(pinchVerticesSet, pinchEdge->from);
+    }
+    stSortedSet_destructIterator(it);
+    return pinchVerticesSet;
 }
 
 stSortedSet *filterBlocksByTreeCoverageAndLength(

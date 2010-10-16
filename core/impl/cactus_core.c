@@ -145,8 +145,14 @@ void destructCactusCoreInputParameters(CactusCoreInputParameters *cCIP) {
     free(cCIP);
 }
 
+/*static bool computeCactusGraphP(struct PinchEdge *edge) {
+ assert(edge != NULL);
+ return 0;
+ }*/
+
 static struct CactusGraph *cactusCorePipeline_2(struct PinchGraph *pinchGraph,
-        Flower *flower, int32_t excludeDegree1Edges, int32_t attachEnds) {
+        Flower *flower, bool(*passThroughEdgeFn)(struct PinchEdge *),
+        int32_t attachEnds) {
     ///////////////////////////////////////////////////////////////////////////
     // Linking stub components to the sink component (if they haven't been already been).
     ///////////////////////////////////////////////////////////////////////////
@@ -163,7 +169,7 @@ static struct CactusGraph *cactusCorePipeline_2(struct PinchGraph *pinchGraph,
 
     startTime = time(NULL);
     struct CactusGraph *cactusGraph = computeCactusGraph(pinchGraph,
-            excludeDegree1Edges);
+            passThroughEdgeFn);
     st_logInfo("Constructed the initial cactus graph in: %i seconds\n", time(
             NULL) - startTime);
 
@@ -282,7 +288,8 @@ struct CactusGraph *deanneal(Flower *flower, struct PinchGraph *pinchGraph,
     // Re-compute the cactus graph
     ////////////////////////////////////////////////
 
-    cactusGraph = cactusCorePipeline_2(pinchGraph, flower, 1, 0);
+    cactusGraph = cactusCorePipeline_2(pinchGraph, flower,
+            passThroughDegree1EdgesFn, 0);
 
     ////////////////////////////////////////////////
     // Get the sorted bi-connected components, again
@@ -291,6 +298,23 @@ struct CactusGraph *deanneal(Flower *flower, struct PinchGraph *pinchGraph,
     *biConnectedComponents = computeSortedBiConnectedComponents(cactusGraph);
 
     return cactusGraph;
+}
+
+static stSortedSet *cactusCore_chosenPinchVertices = NULL;
+
+static bool cactusCore_passThroughEdge(struct PinchEdge *edge) {
+    if (isAStub(edge)) {
+        return 0;
+    }
+    bool i = stSortedSet_search(cactusCore_chosenPinchVertices, edge->from) == NULL;
+#ifdef BEN_DEBUG
+    if (i) {
+        assert(stSortedSet_search(cactusCore_chosenPinchVertices, edge->to) == NULL);
+    } else {
+        assert(stSortedSet_search(cactusCore_chosenPinchVertices, edge->to) != NULL);
+    }
+#endif
+    return i;
 }
 
 int32_t getMinimumChainLengthInGraph(struct List *biConnectedComponents,
@@ -321,7 +345,6 @@ int32_t cactusCorePipeline(Flower *flower, CactusCoreInputParameters *cCIP,
     int32_t i, startTime;
     struct List *biConnectedComponents;
     struct PairwiseAlignment *pairwiseAlignment;
-    struct List *list;
 
     ////////////////////////////////////////////////
     //Check the flower to fill in terminal, and get rid of the group it contains and any terminal chain.
@@ -378,9 +401,10 @@ int32_t cactusCorePipeline(Flower *flower, CactusCoreInputParameters *cCIP,
         stSortedSet_insert(adjacencyComponent, pinchGraph->vertices->list[i]);
     }
 
-    for(int32_t annealingRound = 0; annealingRound < cCIP->annealingRoundsLength; annealingRound++) {
+    for (int32_t annealingRound = 0; annealingRound
+            < cCIP->annealingRoundsLength; annealingRound++) {
         int32_t trim = 0;
-        if(annealingRound < cCIP->trimLength) {
+        if (annealingRound < cCIP->trimLength) {
             trim = cCIP->trim[0];
             assert(trim >= 0);
         }
@@ -439,7 +463,8 @@ int32_t cactusCorePipeline(Flower *flower, CactusCoreInputParameters *cCIP,
         assert(trim >= 0);
 #endif
         filterParameters->trim = trim;
-        filterParameters->alignRepeats = annealingRound >= cCIP->alignRepeatsAtRound; //cCIP->alignRepeats;
+        filterParameters->alignRepeats = annealingRound
+                >= cCIP->alignRepeatsAtRound; //cCIP->alignRepeats;
         filterParameters->flower = flower;
 
         while (pairwiseAlignment != NULL) {
@@ -486,7 +511,7 @@ int32_t cactusCorePipeline(Flower *flower, CactusCoreInputParameters *cCIP,
         ////////////////////////////////////////////////
 
         cactusGraph = cactusCorePipeline_2(pinchGraph, flower,
-                1, 0);
+                passThroughDegree1EdgesFn, 0);
 
         ////////////////////////////////////////////////
         // Get sorted bi-connected components.
@@ -499,7 +524,8 @@ int32_t cactusCorePipeline(Flower *flower, CactusCoreInputParameters *cCIP,
         ////////////////////////////////////////////////
 
         assert(annealingRound < cCIP->annealingRoundsLength);
-        const int32_t minimumChainLength = cCIP->annealingRounds[annealingRound];
+        const int32_t minimumChainLength =
+                cCIP->annealingRounds[annealingRound];
         if (minimumChainLength <= 1 && cCIP->minimumBlockLength > 1) { //only needed if we are going to do no deannealing
             cactusGraph = deanneal(flower, pinchGraph, cactusGraph,
                     &biConnectedComponents, 0, cCIP->minimumBlockLength);
@@ -518,9 +544,10 @@ int32_t cactusCorePipeline(Flower *flower, CactusCoreInputParameters *cCIP,
             // Get the length of chains to remove in this deannealing round.
             ///////////////////////////////////////////////////////////////////////////
 
-            int32_t minimumChainLengthToRemove = minimumChainLength-1; //We will remove all chains less the minimum chain length
+            int32_t minimumChainLengthToRemove = minimumChainLength - 1; //We will remove all chains less the minimum chain length
             if (deannealingRound < cCIP->deannealingRoundsLength) { //We have deannealing rounds to perform.
-                if (cCIP->deannealingRounds[deannealingRound] < minimumChainLength) { //We can deanneal with a smaller value first
+                if (cCIP->deannealingRounds[deannealingRound]
+                        < minimumChainLength) { //We can deanneal with a smaller value first
                     minimumChainLengthToRemove
                             = cCIP->deannealingRounds[deannealingRound++];
                 }
@@ -544,28 +571,28 @@ int32_t cactusCorePipeline(Flower *flower, CactusCoreInputParameters *cCIP,
             ///////////////////////////////////////////////////////////////////////////
 
             minimumChainLengthInGraph = getMinimumChainLengthInGraph(
-                                biConnectedComponents, pinchGraph);
+                    biConnectedComponents, pinchGraph);
 
             st_logDebug(
                     "The longest non-empty chain in the graph is %i bases, we removed chains less than or equal to %i bases and the required minimum length chain is %i bases\n",
-                    minimumChainLengthInGraph, minimumChainLengthToRemove, minimumChainLength);
+                    minimumChainLengthInGraph, minimumChainLengthToRemove,
+                    minimumChainLength);
         }
 
         ///////////////////////////////////////////////////////////////////////////
-        // Cleanup the cactus graph for the loop.
-        ///////////////////////////////////////////////////////////////////////////
-
-        destructCactusGraph(cactusGraph);
-        destructList(biConnectedComponents);
-
-        ///////////////////////////////////////////////////////////////////////////
-        // Un-link stub components from the sink component (because the alignments we add may
-        // eliminate the need for these links later).
+        // Un-link stub components from the sink component
         ///////////////////////////////////////////////////////////////////////////
 
         unlinkStubComponentsFromTheSinkComponent(pinchGraph, flower);
 
-        if (annealingRound+1 < cCIP->annealingRoundsLength) { //We will loop around again.
+        if (annealingRound + 1 < cCIP->annealingRoundsLength) { //We will loop around again.
+            ///////////////////////////////////////////////////////////////////////////
+            // Cleanup the cactus graph for the loop.
+            ///////////////////////////////////////////////////////////////////////////
+
+            destructCactusGraph(cactusGraph);
+            destructList(biConnectedComponents);
+
             ///////////////////////////////////////////////////////////////////////////
             // Calculate the adjacency components for the next loop.
             ///////////////////////////////////////////////////////////////////////////
@@ -574,73 +601,56 @@ int32_t cactusCorePipeline(Flower *flower, CactusCoreInputParameters *cCIP,
 
         } else {
             ///////////////////////////////////////////////////////////////////////////
+            // Choose the blocks to go in the cactus graph.
+            ///////////////////////////////////////////////////////////////////////////
+
+            stSortedSet *chosenBlocks = filterBlocksByTreeCoverageAndLength(
+                    biConnectedComponents, flower, cCIP->minimumTreeCoverage,
+                    terminateRecursion ? 0 : 2, 0, 0, pinchGraph);
+
+            stSortedSet *chosenPinchVertices = getPinchVerticesSet(chosenBlocks, pinchGraph);
+
+            ///////////////////////////////////////////////////////////////////////////
+            // Cleanup the old cactus graph (and associated datastructures)
+            ///////////////////////////////////////////////////////////////////////////
+
+            destructCactusGraph(cactusGraph);
+            destructList(biConnectedComponents);
+            stSortedSet_destruct(chosenBlocks);
+
+            ///////////////////////////////////////////////////////////////////////////
             // Construct the final cactus (with the ends attached, if necessary and
             //including the single sequence block edges if at the termination of the recursion.
             ///////////////////////////////////////////////////////////////////////////
 
-            st_uglyf("I am at the end of the recursion!!!!!!!!\n");
-
+            cactusCore_chosenPinchVertices = chosenPinchVertices;
             cactusGraph = cactusCorePipeline_2(pinchGraph, flower,
-                    !terminateRecursion, 1);
+                    cactusCore_passThroughEdge, 1); //Here we attach ends (if in the top level flower)
 
-            ////////////////////////////////////////////////
-            // Get sorted bi-connected components.
-            ////////////////////////////////////////////////
+            ///////////////////////////////////////////////////////////////////////////
+            // Construct adjacency components
+            ///////////////////////////////////////////////////////////////////////////
 
-            biConnectedComponents = computeSortedBiConnectedComponents(cactusGraph);
+            adjacencyComponents = getAdjacencyComponents2(pinchGraph,
+                                cactusCore_passThroughEdge);
 
             ///////////////////////////////////////////////////////////////////////////
             // Constructing the flower.
             ///////////////////////////////////////////////////////////////////////////
 
-            stSortedSet *chosenBlocks = filterBlocksByTreeCoverageAndLength(
-                    biConnectedComponents, flower, cCIP->minimumTreeCoverage, terminateRecursion ? 0
-                            : 2, 0, 0, pinchGraph);
-            logTheChosenBlockSubset(biConnectedComponents, chosenBlocks,
-                    pinchGraph, flower);
-            //assert(stSortedSet_size(chosenBlocks) == cactusGraph_getEdgeNumber(cactusGraph) - flower_getStubEndNumber(flower)); //check that this does slurp up all the block edges in the graph except those representing stub ends.
-            fillOutFlowerFromInputs(flower, cactusGraph, pinchGraph,
-                    chosenBlocks);
+            fillOutFlowerFromInputs(flower, cactusGraph, pinchGraph, adjacencyComponents);
 
 #ifdef BEN_DEBUG
             flower_checkRecursive(flower);
 #endif
 
-            assert(0);
-            if (cCIP->writeDebugFiles) {
-                ///////////////////////////////////////////////////////////////////////////
-                //Write out the graphs.
-                ///////////////////////////////////////////////////////////////////////////
-
-                st_logDebug(
-                        "Writing out dot formatted final pinch graph showing all chains\n");
-                writePinchGraph("pinchGraph2.dot", pinchGraph,
-                        biConnectedComponents, NULL);
-                st_logDebug(
-                        "Finished writing out final pinch graph showing all chains\n");
-
-                st_logDebug(
-                        "Writing out dot formatted final pinch graph showing chosen blocks\n");
-                list = constructEmptyList(0, NULL);
-                listAppend(list, chosenBlocks);
-                writePinchGraph("pinchGraph3.dot", pinchGraph, list, NULL);
-                destructList(list);
-                st_logDebug("Finished writing out final pinch graph\n");
-
-                st_logDebug(
-                        "Writing out dot formatted version of final cactus graph\n");
-                writeCactusGraph("cactusGraph.dot", pinchGraph, cactusGraph);
-                st_logDebug(
-                        "Finished writing out dot formatted version of cactus graph\n");
-            }
-
             ///////////////////////////////////////////////////////////////////////////
             //Clean up remaining stuff.
             ///////////////////////////////////////////////////////////////////////////
 
-            stSortedSet_destruct(chosenBlocks);
             destructCactusGraph(cactusGraph);
-            destructList(biConnectedComponents);
+            stSortedSet_destruct(chosenPinchVertices);
+            stList_destruct(adjacencyComponents);
             destructPinchGraph(pinchGraph);
         }
     }

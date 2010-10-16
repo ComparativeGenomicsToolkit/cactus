@@ -12,6 +12,11 @@
 #include "pinchGraph.h"
 
 /*
+ * Returns non-zero if edge is a degree one edge that is not a stub.
+ */
+bool passThroughDegree1EdgesFn(struct PinchEdge *edge);
+
+/*
  * Gets a list of adjacency components from the pinch graph. Adjacency components are components of adjacency 1-degree
  * edges. Each adjacency component is represented as a sorted set of pinch-vertices.
  */

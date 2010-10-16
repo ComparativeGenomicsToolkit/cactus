@@ -17,7 +17,7 @@ from cactus.shared.test import runWorkflow_multipleExamples
 
 class TestCase(unittest.TestCase):
     def testCactusCore_Random(self):
-        for test in xrange(1000): #TestStatus.getTestSetup()):
+        for test in xrange(TestStatus.getTestSetup()):
             randomConfigFile=getRandomConfigFile()
             runWorkflow_multipleExamples(getCactusInputs_random, 
                                          buildTrees=False, buildFaces=False, buildReference=False, configFile=randomConfigFile)

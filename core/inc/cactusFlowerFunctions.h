@@ -10,7 +10,7 @@
 #include "cactus.h"
 
 void fillOutFlowerFromInputs(Flower *parentFlower, struct CactusGraph *cactusGraph,
-        struct PinchGraph *pinchGraph, stSortedSet *chosenBlocks);
+        struct PinchGraph *pinchGraph, stList *adjacencyComponents);
 
 struct PinchGraph *constructPinchGraph(Flower *flower);
 
