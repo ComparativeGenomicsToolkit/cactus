@@ -92,7 +92,6 @@ struct CactusGraph *constructCactusGraph(struct PinchGraph *pinchGraph,
     struct CactusVertex *cactusVertex;
     struct CactusVertex *cactusVertex2;
     int32_t i, j;
-    void *greyEdgeIterator;
     struct List *list;
     struct PinchVertex *pinchVertex;
     struct PinchVertex *pinchVertex2;
@@ -194,7 +193,7 @@ struct CactusGraph *constructCactusGraph(struct PinchGraph *pinchGraph,
 
 #ifdef BEN_DEBUG
             //grey edges
-            greyEdgeIterator = getGreyEdgeIterator(pinchVertex);
+            void *greyEdgeIterator = getGreyEdgeIterator(pinchVertex);
             while ((pinchVertex2 = getNextGreyEdge(pinchVertex,
                     greyEdgeIterator)) != NULL) {
                 cactusVertex2
@@ -203,13 +202,13 @@ struct CactusGraph *constructCactusGraph(struct PinchGraph *pinchGraph,
                 if (cactusVertex != cactusVertex2 && cactusVertex
                         < cactusVertex2) {
                     assert(0); //We always merge adjacency components, so this should never happen!
-                    cactusEdge = constructCactusEdge2(emptyList, cactusVertex,
-                            cactusVertex2);
+                    //cactusEdge = constructCactusEdge2(emptyList, cactusVertex,
+                    //        cactusVertex2);
                 }
             }
             destructGreyEdgeIterator(greyEdgeIterator);
-        }
 #endif
+        }
     }
 
     //cleanup
