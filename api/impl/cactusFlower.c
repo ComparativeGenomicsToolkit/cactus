@@ -423,16 +423,16 @@ int32_t flower_getChainNumber(Flower *flower) {
 }
 
 int32_t flower_getTrivialChainNumber(Flower *flower) {
-	int32_t i=0;
-	Flower_BlockIterator *blockIt = flower_getBlockIterator(flower);
-	Block *block;
-	while((block = flower_getNextBlock(blockIt)) != NULL) {
-		if(block_isTrivialChain(block)) {
-			i++;
-		}
-	}
-	flower_destructBlockIterator(blockIt);
-	return i;
+    int32_t i = 0;
+    Flower_BlockIterator *blockIt = flower_getBlockIterator(flower);
+    Block *block;
+    while ((block = flower_getNextBlock(blockIt)) != NULL) {
+        if (block_isTrivialChain(block)) {
+            i++;
+        }
+    }
+    flower_destructBlockIterator(blockIt);
+    return i;
 }
 
 Flower_ChainIterator *flower_getChainIterator(Flower *flower) {
@@ -527,6 +527,26 @@ int64_t flower_getTotalBaseLength(Flower *flower) {
 
 Reference *flower_getReference(Flower *flower) {
     return flower->reference;
+}
+
+void flower_checkNotEmpty(Flower *flower, bool recursive) {
+    //First check the flower is not empty, unless it is the parent group.
+    if (flower_hasParentGroup(flower)) {
+        assert(flower_getGroupNumber(flower) > 0);
+        assert(flower_getEndNumber(flower) > 0);
+        assert(flower_getAttachedStubEndNumber(flower) + flower_getBlockEndNumber(flower) > 0);
+    }
+    //Now Checks that each group contains at least one end and call recursive.
+    Group *group;
+    Flower_GroupIterator *groupIt = flower_getGroupIterator(flower);
+    while ((group = flower_getNextGroup(groupIt)) != NULL) {
+        assert(group_getEndNumber(group) > 0);
+        assert(group_getAttachedStubEndNumber(group) + group_getBlockEndNumber(group) > 0);
+        if (recursive && !group_isLeaf(group)) {
+            flower_checkNotEmpty(group_getNestedFlower(group), 1);
+        }
+    }
+    flower_destructGroupIterator(groupIt);
 }
 
 void flower_check(Flower *flower) {
@@ -647,8 +667,8 @@ bool flower_isLeaf(Flower *flower) {
 }
 
 bool flower_isTerminal(Flower *flower) {
-    return flower_isLeaf(flower) && flower_getGroupNumber(flower) <= 1 && flower_getStubEndNumber(flower)
-            == flower_getEndNumber(flower);
+    return flower_isLeaf(flower) && flower_getGroupNumber(flower) <= 1
+            && flower_getStubEndNumber(flower) == flower_getEndNumber(flower);
 }
 
 bool flower_removeIfRedundant(Flower *flower) {
@@ -662,20 +682,21 @@ bool flower_removeIfRedundant(Flower *flower) {
          */
         Group *group;
         Flower_GroupIterator *groupIt = flower_getGroupIterator(flower);
-        while((group = flower_getNextGroup(groupIt)) != NULL) {
-            if(!group_isLeaf(group)) {
+        while ((group = flower_getNextGroup(groupIt)) != NULL) {
+            if (!group_isLeaf(group)) {
                 //Copy the group into the parent..
                 Flower *nestedFlower = group_getNestedFlower(group);
                 assert(nestedFlower != NULL);
-                Group *newParentGroup = group_construct(parentFlower, nestedFlower);
+                Group *newParentGroup = group_construct(parentFlower,
+                        nestedFlower);
                 flower_setParentGroup(nestedFlower, newParentGroup);
-            }
-            else {
+            } else {
                 Group *newParentGroup = group_construct2(parentFlower);
                 End *end;
                 Group_EndIterator *endIt = group_getEndIterator(group);
-                while((end = group_getNextEnd(endIt)) != NULL) {
-                    End *parentEnd = flower_getEnd(parentFlower, end_getName(end));
+                while ((end = group_getNextEnd(endIt)) != NULL) {
+                    End *parentEnd = flower_getEnd(parentFlower, end_getName(
+                            end));
                     assert(parentEnd != NULL);
                     end_setGroup(parentEnd, newParentGroup);
                 }
@@ -740,9 +761,9 @@ void flower_makeTerminalNormal(Flower *flower) {
 
 void flower_unloadParent(Flower *flower) {
     Name parentName = flower->parentFlowerName;
-    if(parentName != NULL_NAME) {
+    if (parentName != NULL_NAME) {
         CactusDisk *cactusDisk = flower_getCactusDisk(flower);
-        if(cactusDisk_flowerIsLoaded(cactusDisk, parentName)) {
+        if (cactusDisk_flowerIsLoaded(cactusDisk, parentName)) {
             Flower *parentFlower = cactusDisk_getFlower(cactusDisk, parentName);
             flower_destruct(parentFlower, 0);
         }

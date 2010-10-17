@@ -642,6 +642,7 @@ int32_t cactusCorePipeline(Flower *flower, CactusCoreInputParameters *cCIP,
 
 #ifdef BEN_DEBUG
             flower_checkRecursive(flower);
+            flower_checkNotEmpty(flower, 1);
 #endif
 
             ///////////////////////////////////////////////////////////////////////////

@@ -491,6 +491,7 @@ void addGroupsP(Flower *flower, struct hashtable *groups) {
         assert(flower_getGroupNumber(flower) > 0);
         addGroupsP2(flower, flower_getFirstGroup(flower), groupsSet, groups);
     }
+    stSortedSet_destruct(groupsSet);
 
 #ifdef BEN_DEBUG
     endIterator = flower_getEndIterator(flower);
@@ -535,15 +536,16 @@ void addGroups(Flower *flower, struct PinchGraph *pinchGraph, stList *adjacencyC
             stSortedSet_destructIterator(it);
             assert(endNames->length >= 1);
         }
-#ifdef BEN_DEBUG
         else {
+            destructList(endNames);
+#ifdef BEN_DEBUG
             stSortedSetIterator *it = stSortedSet_getIterator(vertices);
             while ((vertex = stSortedSet_getNext(it)) != NULL) {
                 assert(vertex_isDeadEnd(vertex) || vertex->vertexID == 0);
             }
             stSortedSet_destructIterator(it);
-        }
 #endif
+        }
     }
     addGroupsP(flower, groupsHash);
 #ifdef BEN_DEBUG

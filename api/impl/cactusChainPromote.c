@@ -395,10 +395,13 @@ void chain_promote(Chain *chain) {
 	/*
 	 * Pushes the chain into the higher level flower.
 	 */
-	assert(chain_getLength(chain)> 0);
+
 	Flower *flower = chain_getFlower(chain);
 	Group *parentGroup = flower_getParentGroup(flower);
+#ifdef BEN_DEBUG
+	assert(chain_getLength(chain)> 0);
 	assert(parentGroup != NULL);
+#endif
 	Flower *parentFlower = group_getFlower(parentGroup);
 
 #ifdef BEN_DEBUG

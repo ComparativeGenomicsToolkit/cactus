@@ -148,5 +148,8 @@ int main(int argc, char *argv[]) {
     stKVDatabaseConf_destruct(kvDatabaseConf);
 
     st_logInfo("Cleaned stuff up and am finished\n");
+
+    //while(1);
+
     return 0;
 }

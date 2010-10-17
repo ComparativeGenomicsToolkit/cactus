@@ -89,30 +89,6 @@ static void checkFlowerIsNotRedundant(Flower *flower) {
     }
 }
 
-static void checkFlowerIsNotEmpty(Flower *flower) {
-    /*
-     * Checks that the flower contains at least one end, unless it is the parent problem
-     * and the whole reconstruction is empty.
-     */
-    if (flower_hasParentGroup(flower)) {
-        assert(flower_getGroupNumber(flower) > 0);
-        assert(flower_getEndNumber(flower) > 0);
-        assert(flower_getAttachedStubEndNumber(flower) + flower_getBlockEndNumber(flower) > 0);
-    }
-}
-
-static void checkGroupsNotEmpty(Flower *flower) {
-    /*
-     * Checks that each group contains at least one end.
-     */
-    Group *group;
-    Flower_GroupIterator *groupIt = flower_getGroupIterator(flower);
-    while ((group = flower_getNextGroup(groupIt)) != NULL) {
-        assert(group_getEndNumber(group) > 0);
-        assert(group_getAttachedStubEndNumber(group) + group_getBlockEndNumber(group) > 0);
-    }
-}
-
 /*
  * Random other checks.
  */
@@ -162,8 +138,7 @@ static void checkBasesAccountedFor(Flower *flower) {
 
 static void checkFlower(Flower *flower) {
     flower_check(flower);
-    checkFlowerIsNotEmpty(flower);
-    checkGroupsNotEmpty(flower);
+    flower_checkNotEmpty(flower, 0);
     checkBasesAccountedFor(flower);
     //Normalisation checks..
     checkTreeIsTerminalNormalised(flower);

@@ -69,7 +69,8 @@ Sequence *flower_getPreviousSequence(Flower_SequenceIterator *sequenceIterator);
 /*
  * Duplicates the iterator.
  */
-Flower_SequenceIterator *flower_copySequenceIterator(Flower_SequenceIterator *sequenceIterator);
+Flower_SequenceIterator *flower_copySequenceIterator(
+        Flower_SequenceIterator *sequenceIterator);
 
 /*
  * Destructs the iterator.
@@ -219,7 +220,8 @@ Segment *flower_getPreviousSegment(Flower_SegmentIterator *segmentIterator);
 /*
  * Duplicates the iterator.
  */
-Flower_SegmentIterator *flower_copySegmentIterator(Flower_SegmentIterator *segmentIterator);
+Flower_SegmentIterator *flower_copySegmentIterator(
+        Flower_SegmentIterator *segmentIterator);
 
 /*
  * Destructs the iterator.
@@ -249,7 +251,8 @@ Block *flower_getPreviousBlock(Flower_BlockIterator *blockIterator);
 /*
  * Duplicates the iterator
  */
-Flower_BlockIterator *flower_copyBlockIterator(Flower_BlockIterator *blockIterator);
+Flower_BlockIterator *flower_copyBlockIterator(
+        Flower_BlockIterator *blockIterator);
 
 /*
  * Destructs the iterator.
@@ -289,7 +292,8 @@ Group *flower_getPreviousGroup(Flower_GroupIterator *groupIterator);
 /*
  * Duplicates the iterator.
  */
-Flower_GroupIterator *flower_copyGroupIterator(Flower_GroupIterator *groupIterator);
+Flower_GroupIterator *flower_copyGroupIterator(
+        Flower_GroupIterator *groupIterator);
 
 /*
  * Destructs the iterator.
@@ -345,7 +349,8 @@ Chain *flower_getPreviousChain(Flower_ChainIterator *chainIterator);
 /*
  * Duplicates the iterator.
  */
-Flower_ChainIterator *flower_copyChainIterator(Flower_ChainIterator *chainIterator);
+Flower_ChainIterator *flower_copyChainIterator(
+        Flower_ChainIterator *chainIterator);
 
 /*
  * Destructs the iterator.
@@ -410,6 +415,12 @@ Reference *flower_getReference(Flower *flower);
  * Checks that flower_builtTrees and flower_builtFaces are correctly set.
  */
 void flower_check(Flower *flower);
+
+/*
+ * Checks that the flower contains at least one end, unless it is the parent problem
+ * and the whole reconstruction is empty. Also checks that each group contains at least one attached/block end.
+ */
+void flower_checkNotEmpty(Flower *flower, bool recursive);
 
 /*
  * Runs flower_check for the given flower and all nested flowers.

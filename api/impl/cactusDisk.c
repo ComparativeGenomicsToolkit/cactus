@@ -302,8 +302,10 @@ static void preCacheSequences(CactusDisk *cactusDisk, Flower *flower) {
                     }
                 }
             }
+            end_destructInstanceIterator(instanceIterator);
         }
     }
+    flower_destructEndIterator(endIt);
 }
 
 Flower *cactusDisk_getFlower(CactusDisk *cactusDisk, Name flowerName) {
