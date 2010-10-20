@@ -252,7 +252,7 @@ struct CactusGraph *deanneal(Flower *flower, struct PinchGraph *pinchGraph,
     stSortedSet_destruct(chosenBlocksToKeep);
     stSortedSet_destruct(allBlocksOfDegree2OrHigher);
 
-    assert(stSortedSet_size(blocksToUndo) > 0);
+    //assert(stSortedSet_size(blocksToUndo) > 0);
     //now report the results
     //logTheChosenBlockSubset(biConnectedComponents, //We don't call this as it burns compute.
     //       blocksToUndo, pinchGraph, flower);

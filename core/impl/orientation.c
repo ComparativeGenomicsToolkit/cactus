@@ -61,7 +61,7 @@ static stSortedSet *getAdjacentVertices(struct PinchVertex *vertex,
         assert(edge->rEdge->to == vertex);
         struct PinchEdge *edge2 = getNextEdge(pinchGraph, edge->rEdge, flower);
         assert(edge2 != NULL);
-        while (stSortedSet_search(includedVertices, edge2->from) == NULL && stHash_search(orientationHash, edge2->from)) {
+        while (stSortedSet_search(includedVertices, edge2->from) == NULL && stHash_search(orientationHash, edge2->from) == NULL) {
             if(vertex_isEnd(edge2->from)) {
                 assert(vertex_isDeadEnd(edge2->to));
                 assert(stSortedSet_search(includedVertices, edge2->to) != NULL);

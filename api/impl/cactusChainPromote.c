@@ -50,6 +50,7 @@ static void mergeStubEnd(End *end, Flower *flower, Flower *parentFlower) {
 			cap_makeAdjacent(parentCap, parentAdjacentCap);
 		}
 	}
+	end_destructInstanceIterator(it);
 	end_destruct(end); //Destruct the old end
 	assert(group_getFlower(group) == parentFlower); //the group should already have been promoted
 	end_setGroup(parentEnd, group); //ensures the parent end is in the group of the lower level flower..
