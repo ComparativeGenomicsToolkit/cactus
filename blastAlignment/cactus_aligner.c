@@ -58,10 +58,11 @@ int main(int argc, char *argv[]) {
 				free(string);
 			}
 		}
+		end_destructInstanceIterator(instanceIterator);
 	}
 	st_logInfo("Finished writing the subsequences to the file\n");
 	fclose(fileHandle);
-
+	flower_destructEndIterator(endIterator);
 	cactusDisk_destruct(cactusDisk);
 	stKVDatabaseConf_destruct(kvDatabaseConf);
 

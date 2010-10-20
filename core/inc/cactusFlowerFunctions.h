@@ -16,4 +16,8 @@ struct PinchGraph *constructPinchGraph(Flower *flower);
 
 void copyEndTreePhylogenies(Flower *parentFlower, Flower *flower);
 
+stHash *buildOrientationHash(struct List *biConnectedComponents,
+        struct PinchGraph *pinchGraph, Flower *parentFlower,
+        struct hashtable *endNamesHash);
+
 #endif

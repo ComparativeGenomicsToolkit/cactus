@@ -169,8 +169,8 @@ struct PinchGraph *constructPinchGraph(Flower *flower) {
 ////////////////////////////////////////////////
 
 
-static struct CactusEdge *getNonDeadEndOfStubCactusEdge(struct CactusEdge *edge,
-        struct PinchGraph *pinchGraph) {
+static struct CactusEdge *getNonDeadEndOfStubCactusEdge(
+        struct CactusEdge *edge, struct PinchGraph *pinchGraph) {
     struct PinchEdge *pinchEdge;
     pinchEdge = cactusEdgeToFirstPinchEdge(edge, pinchGraph);
     assert(isAStubCactusEdge(edge, pinchGraph));
@@ -358,7 +358,8 @@ static int32_t returnsTrue(Event *event) {
     return 1;
 }
 
-static void addGroupsP2(Flower *flower, Group *group, stSortedSet *groupsSet, struct hashtable *groups) {
+static void addGroupsP2(Flower *flower, Group *group, stSortedSet *groupsSet,
+        struct hashtable *groups) {
     while (stSortedSet_size(groupsSet) > 0) {
         struct List *endNames = stSortedSet_getFirst(groupsSet);
         stSortedSet_remove(groupsSet, endNames);
@@ -371,7 +372,7 @@ static void addGroupsP2(Flower *flower, Group *group, stSortedSet *groupsSet, st
 #ifdef BEN_DEBUG
         for (int32_t i = 0; i < endNames->length; i++) {
             End *end2 = flower_getEnd(flower, cactusMisc_stringToName(
-                    endNames->list[i]));
+                            endNames->list[i]));
             assert(end_getGroup(end2) == group);
         }
 #endif
@@ -438,7 +439,7 @@ static void addGroupsP(Flower *flower, struct hashtable *groups) {
                     (void *) cactusMisc_nameToStringStatic(end_getName(end)));
             assert(endNames != NULL);
 
-            if(stSortedSet_search(groupsSet, endNames) == NULL) {
+            if (stSortedSet_search(groupsSet, endNames) == NULL) {
                 bool empty = 1; //If the group is empty we will wait to add it.
                 for (int32_t i = 0; i < endNames->length; i++) {
                     end2 = flower_getEnd(flower, cactusMisc_stringToName(
@@ -458,14 +459,15 @@ static void addGroupsP(Flower *flower, struct hashtable *groups) {
                 }
                 stSortedSet_insert(groupsSet, endNames);
                 if (!empty) {
-                    addGroupsP2(flower, group_construct2(flower), groupsSet, groups);
+                    addGroupsP2(flower, group_construct2(flower), groupsSet,
+                            groups);
                     assert(stSortedSet_size(groupsSet) == 0);
                 }
             }
         }
     }
     flower_destructEndIterator(endIterator);
-    if(stSortedSet_size(groupsSet) > 0) {
+    if (stSortedSet_size(groupsSet) > 0) {
         assert(flower_getGroupNumber(flower) > 0);
         addGroupsP2(flower, flower_getFirstGroup(flower), groupsSet, groups);
     }
@@ -486,9 +488,11 @@ static void addGroupsP(Flower *flower, struct hashtable *groups) {
 #endif
 }
 
-void addGroups(Flower *flower, struct PinchGraph *pinchGraph, stList *adjacencyComponents, struct hashtable *endNamesHash) {
-    struct hashtable *groupsHash = create_hashtable(stList_length(adjacencyComponents)
-            * 2, hashtable_stringHashKey, hashtable_stringEqualKey, NULL, NULL);
+void addGroups(Flower *flower, struct PinchGraph *pinchGraph,
+        stList *adjacencyComponents, struct hashtable *endNamesHash) {
+    struct hashtable *groupsHash = create_hashtable(stList_length(
+            adjacencyComponents) * 2, hashtable_stringHashKey,
+            hashtable_stringEqualKey, NULL, NULL);
     for (int32_t i = 0; i < stList_length(adjacencyComponents); i++) {
         stSortedSet *vertices = stList_get(adjacencyComponents, i);
         struct List *endNames = constructEmptyList(0, NULL);
@@ -506,15 +510,15 @@ void addGroups(Flower *flower, struct PinchGraph *pinchGraph, stList *adjacencyC
                 //assert(endNameString != NULL);
                 if (endNameString != NULL) {
                     listAppend(endNames, (void *) endNameString);
-                    assert(hashtable_search(groupsHash, (void *)endNameString) == NULL);
+                    assert(hashtable_search(groupsHash, (void *) endNameString)
+                            == NULL);
                     hashtable_insert(groupsHash, (void *) endNameString,
                             endNames);
                 }
             }
             stSortedSet_destructIterator(it);
             assert(endNames->length >= 1);
-        }
-        else {
+        } else {
             destructList(endNames);
 #ifdef BEN_DEBUG
             stSortedSetIterator *it = stSortedSet_getIterator(vertices);
@@ -548,7 +552,7 @@ void checkBiConnectedComponent(struct List *biConnnectedComponent) {
     }
     cactusEdge = biConnnectedComponent->list[0];
     cactusEdge2
-            = biConnnectedComponent->list[biConnnectedComponent->length - 1];
+    = biConnnectedComponent->list[biConnnectedComponent->length - 1];
     assert(vertexDiscoveryTimes[cactusEdge->from->vertexID] == vertexDiscoveryTimes[cactusEdge2->to->vertexID]);
 }
 #endif
@@ -569,9 +573,13 @@ static void setBlocksBuilt(Flower *flower) {
     /*
      * Sets the 'built-blocks flag' for all the flowers in the subtree, including the given flower.
      */
+#ifdef BEN_DEBUG
     assert(!flower_builtBlocks(flower));
+#endif
     flower_setBuiltBlocks(flower, 1);
+#ifdef BEN_DEBUG
     assert(flower_builtBlocks(flower));
+#endif
     Flower_GroupIterator *iterator = flower_getGroupIterator(flower);
     Group *group;
     while ((group = flower_getNextGroup(iterator)) != NULL) {
@@ -580,63 +588,6 @@ static void setBlocksBuilt(Flower *flower) {
         }
     }
     flower_destructGroupIterator(iterator);
-}
-
-static void buildOrientationHashP(struct PinchVertex *vertex, bool orientation, struct PinchGraph *pinchGraph,
-        stHash *orientationHash) {
-    assert(stHash_search(orientationHash, vertex) == NULL);
-    //Add the orientation of the vertex to the hash..
-    stHash_insert(orientationHash, vertex, stIntTuple_construct(1, orientation));
-    //Get next adjacent end..
-    void *greyEdgeIt = getGreyEdgeIterator(vertex);
-    struct PinchVertex *vertex2;
-    while((vertex2 = getNextGreyEdge(vertex, greyEdgeIt)) != NULL) {
-        assert(!vertex_isDeadEnd(vertex2));
-        if(!vertex_isEnd(vertex2)) {
-            if(stHash_search(orientationHash, vertex2) == NULL) {
-                stHash_insert(orientationHash, vertex2, stIntTuple_construct(1, !orientation));
-                assert(lengthBlackEdges(vertex2) > 0);
-                struct PinchVertex *vertex3 = getFirstBlackEdge(vertex2)->to;
-                assert(!vertex_isDeadEnd(vertex3));
-                assert(stHash_search(orientationHash, vertex3) == NULL);
-                buildOrientationHashP(vertex3, orientation, pinchGraph, orientationHash);
-            }
-        }
-    }
-    destructGreyEdgeIterator(greyEdgeIt);
-}
-
-static stHash *buildOrientationHash(struct PinchGraph *pinchGraph, Flower *parentFlower, struct hashtable *endNamesHash) {
-    /*
-     * Creates a hash of each pinch vertex to a boolean (stored as an int tuple), positive boolean is 5' else is 3'.
-     */
-    stHash *orientationHash = stHash_construct2(NULL, (void (*)(void *))stIntTuple_destruct);
-    //For each stub end in parent flower iterate along thread labelling with orientation.
-    for(int32_t i=0; i<pinchGraph->vertices->length; i++) {
-        struct PinchVertex *vertex = pinchGraph->vertices->list[i];
-        if(vertex_isEnd(vertex)) {
-            assert(stHash_search(orientationHash, vertex) == NULL);
-            char *nameString = hashtable_search(endNamesHash, vertex);
-            assert(nameString != NULL);
-            End *end = flower_getEnd(parentFlower, cactusMisc_stringToName(nameString));
-            assert(end != NULL);
-            bool orientation =  end_getSide(end);
-            buildOrientationHashP(vertex, orientation, pinchGraph, orientationHash);
-            //Handle the dead end vertex
-            assert(lengthBlackEdges(vertex) >= 1);
-            struct PinchVertex *vertex2 = getFirstBlackEdge(vertex)->to;
-            assert(vertex_isDeadEnd(vertex2));
-            assert(stHash_search(orientationHash, vertex2) == NULL);
-            stHash_insert(orientationHash, vertex2, stIntTuple_construct(1, !orientation));
-        }
-#ifdef BEN_DEBUG
-        else {
-            assert(hashtable_search(endNamesHash, vertex) == NULL);
-        }
-#endif
-    }
-    assert(stHash_size(orientationHash) == pinchGraph->vertices->length - 1);
-    return orientationHash;
 }
 
 static void reverseComponent(struct List *biConnectedComponent) {
@@ -648,8 +599,7 @@ static void reverseComponent(struct List *biConnectedComponent) {
 }
 
 void fillOutFlowerFromInputs(Flower *parentFlower,
-        struct CactusGraph *cactusGraph,
-        struct PinchGraph *pinchGraph,
+        struct CactusGraph *cactusGraph, struct PinchGraph *pinchGraph,
         stList *adjacencyComponents) {
     Flower *flower;
     Flower *nestedFlower;
@@ -675,7 +625,8 @@ void fillOutFlowerFromInputs(Flower *parentFlower,
     //Get the biconnected components
     ////////////////////////////////////////////////
 
-    struct List *biConnectedComponents = computeSortedBiConnectedComponents(cactusGraph);
+    struct List *biConnectedComponents = computeSortedBiConnectedComponents(
+            cactusGraph);
 
     ////////////////////////////////////////////////
     //Get DFS numbering on cactus vertices
@@ -702,7 +653,7 @@ void fillOutFlowerFromInputs(Flower *parentFlower,
     //Build end names hash
     ////////////////////////////////////////////////
 
-    endNamesHash = create_hashtable(pinchGraph->vertices->length*2,
+    endNamesHash = create_hashtable(pinchGraph->vertices->length * 2,
             hashtable_key, hashtable_equalKey, NULL, free);
     endIterator = flower_getEndIterator(parentFlower);
     while ((end = flower_getNextEnd(endIterator)) != NULL) {
@@ -728,16 +679,18 @@ void fillOutFlowerFromInputs(Flower *parentFlower,
     //Orient all the chains in the correct 5-3 orientation.
     ////////////////////////////////////////////////
 
-    stHash *orientationHash = buildOrientationHash(pinchGraph, parentFlower, endNamesHash);
-    st_uglyf("The number of vertices %i %i\n", stHash_size(orientationHash), pinchGraph->vertices->length);
+    stHash *orientationHash = buildOrientationHash(biConnectedComponents, pinchGraph, parentFlower,
+            endNamesHash);
     for (i = 0; i < biConnectedComponents->length; i++) {
         biConnectedComponent = biConnectedComponents->list[i];
         assert(biConnectedComponent->length > 0);
         //Make the blocks and ends
-        stIntTuple *orientationTuple = stHash_search(orientationHash, cactusEdgeToFirstPinchEdge(biConnectedComponent->list[0], pinchGraph)->from);
+        stIntTuple *orientationTuple = stHash_search(orientationHash,
+                cactusEdgeToFirstPinchEdge(biConnectedComponent->list[0],
+                        pinchGraph)->from);
         assert(orientationTuple != NULL);
         int32_t orientation = stIntTuple_getPosition(orientationTuple, 0);
-        if(!orientation) {
+        if (!orientation) {
             reverseComponent(biConnectedComponent);
         }
     }
@@ -762,8 +715,8 @@ void fillOutFlowerFromInputs(Flower *parentFlower,
         flower = flowers[cactusEdge->from->vertexID];
         if (flower == NULL) {
             flower = flower_construct(flower_getCactusDisk(parentFlower));
-            eventTree_copyConstruct(flower_getEventTree(parentFlower),
-                    flower, returnsTrue);
+            eventTree_copyConstruct(flower_getEventTree(parentFlower), flower,
+                    returnsTrue);
             flowers[cactusEdge->from->vertexID] = flower;
         }
         parentFlowers[i] = flower;
@@ -772,18 +725,21 @@ void fillOutFlowerFromInputs(Flower *parentFlower,
             piece = cactusEdge->pieces->list[0];
             if (!isAStubCactusEdge(cactusEdge, pinchGraph)) {
                 block = constructBlockFromCactusEdge(cactusEdge, flower);
-                pinchEdge = cactusEdgeToFirstPinchEdge(cactusEdge,
-                        pinchGraph);
+                pinchEdge = cactusEdgeToFirstPinchEdge(cactusEdge, pinchGraph);
                 hashtable_insert(endNamesHash, pinchEdge->from,
-                        cactusMisc_nameToString(end_getName(block_get5End(
-                                block))));
+                        cactusMisc_nameToString(end_getName(
+                                block_get5End(block))));
                 hashtable_insert(endNamesHash, pinchEdge->to,
-                        cactusMisc_nameToString(end_getName(block_get3End(
-                                block))));
-                assert(cactusEdgeToEndName(cactusEdge, endNamesHash, pinchGraph) == end_getName(block_get5End(block)));
-                assert(cactusEdgeToEndName(cactusEdge->rEdge, endNamesHash, pinchGraph) == end_getName(block_get3End(block)));
+                        cactusMisc_nameToString(end_getName(
+                                block_get3End(block))));
+                assert(
+                        cactusEdgeToEndName(cactusEdge, endNamesHash,
+                                pinchGraph)
+                                == end_getName(block_get5End(block)));
+                assert(cactusEdgeToEndName(cactusEdge->rEdge, endNamesHash,
+                        pinchGraph) == end_getName(block_get3End(block)));
             } else {
-                assert(j == 0 || j == biConnectedComponent->length-1);
+                assert(j == 0 || j == biConnectedComponent->length - 1);
                 cactusEdge2 = getNonDeadEndOfStubCactusEdge(cactusEdge,
                         pinchGraph);
                 end = flower_getEnd(parentFlower, cactusEdgeToEndName(
@@ -810,8 +766,7 @@ void fillOutFlowerFromInputs(Flower *parentFlower,
             for (j = 1; j < biConnectedComponent->length; j++) {
                 cactusEdge = biConnectedComponent->list[j - 1];
                 cactusEdge2 = biConnectedComponent->list[j];
-                nestedFlower
-                        = flowers[cactusEdge->to->vertexID];
+                nestedFlower = flowers[cactusEdge->to->vertexID];
                 assert(cactusEdge->to->vertexID != 0);
                 if (nestedFlower == NULL) { //construct a terminal group.
                     group = group_construct2(flower);
@@ -839,7 +794,7 @@ void fillOutFlowerFromInputs(Flower *parentFlower,
                     assert(end2 != NULL);
                     end_setGroup(end2, group);
                 } else { //construct a link between two existing chains.
-                    assert(flower_getEndNumber(nestedFlower)> 0);
+                    assert(flower_getEndNumber(nestedFlower) > 0);
                     end
                             = flower_getEnd(
                                     flower,
@@ -865,8 +820,8 @@ void fillOutFlowerFromInputs(Flower *parentFlower,
                     group = group_construct(flower, nestedFlower);
                     flowers[cactusEdge->to->vertexID] = NULL;
                 }
-            	//Make link chain
-            	link_construct(end, end2, group, chain);
+                //Make link chain
+                link_construct(end, end2, group, chain);
             }
         }
     }

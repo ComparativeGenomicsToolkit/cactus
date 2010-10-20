@@ -56,9 +56,9 @@ void destructPiece(struct Piece *piece) {
 }
 
 void logPiece(struct Piece *piece) {
-    st_logDebug(
-            "Contig : %s, start : " INT_STRING ", end : " INT_STRING "\n",
-            cactusMisc_nameToStringStatic(piece->contig), piece->start, piece->end);
+    st_logDebug("Contig : %s, start : " INT_STRING ", end : " INT_STRING "\n",
+            cactusMisc_nameToStringStatic(piece->contig), piece->start,
+            piece->end);
 }
 
 int pieceComparatorPointers(struct Piece **piece1, struct Piece **piece2) {
@@ -72,7 +72,7 @@ int pieceComparator(struct Piece *piece1, struct Piece *piece2) {
      */
     //Compare the contigs
     int32_t i = cactusMisc_nameCompare(piece1->contig, piece2->contig);
-    if(i != 0) {
+    if (i != 0) {
         return i;
     }
     //Check if overlap.
@@ -114,7 +114,8 @@ struct PinchVertex *constructPinchVertex(struct PinchGraph *graph,
     } else {
         pinchVertex->vertexID = vertexID;
     }
-    assert((!isEnd && !isDeadEnd) || (isEnd && !isDeadEnd) || (!isEnd && isDeadEnd));
+    assert((!isEnd && !isDeadEnd) || (isEnd && !isDeadEnd) || (!isEnd
+            && isDeadEnd));
     pinchVertex->isEnd = isEnd;
     pinchVertex->isDeadEnd = isDeadEnd;
 
@@ -144,7 +145,7 @@ void removeVertexFromGraphAndDestruct(struct PinchGraph *graph,
     struct PinchVertex *highestVertex;
 
     highestVertex = graph->vertices->list[graph->vertices->length - 1];
-    assert(highestVertex->vertexID == graph->vertices->length-1);
+    assert(highestVertex->vertexID == graph->vertices->length - 1);
 
     highestVertex->vertexID = vertex->vertexID;
     graph->vertices->list[highestVertex->vertexID] = highestVertex;
@@ -488,7 +489,17 @@ struct PinchEdge *getNextEdge(struct PinchGraph *graph, struct PinchEdge *edge,
     struct PinchVertex *vertex2;
     Cap *cap;
 
-    edge2 = getContainingBlackEdge(graph, edge->piece->contig, edge->piece->end
+    Name contig = edge->piece->contig;
+
+    assert(!vertex_isDeadEnd(edge->to));
+    if (vertex_isDeadEnd(edge->from)) { //We're starting from a dead end
+        assert(vertex_isEnd(edge->to));
+        cap = flower_getCap(flower, edge->piece->contig);
+        assert(cap != NULL);
+        contig = sequence_getName(cap_getSequence(cap));
+    }
+
+    edge2 = getContainingBlackEdge(graph, contig, edge->piece->end
             + 1);
     if (edge2 != NULL) {
         return edge2;
@@ -502,7 +513,7 @@ struct PinchEdge *getNextEdge(struct PinchGraph *graph, struct PinchEdge *edge,
                     cap = flower_getCap(flower, edge2->piece->contig);
                     assert(cap != NULL);
                     if (sequence_getName(cap_getSequence(cap))
-                            == edge->piece->contig) {
+                            == contig) {
                         destructGreyEdgeIterator(iterator);
                         destructBlackEdgeIterator(iterator2);
                         return edge2;
@@ -513,7 +524,7 @@ struct PinchEdge *getNextEdge(struct PinchGraph *graph, struct PinchEdge *edge,
         }
     }
     destructGreyEdgeIterator(iterator);
-    exitOnFailure(0, "Failed to find correct edge\n");
+    assert(0);
     return NULL;
 }
 

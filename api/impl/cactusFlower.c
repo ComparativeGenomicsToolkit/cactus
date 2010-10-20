@@ -534,7 +534,7 @@ void flower_checkNotEmpty(Flower *flower, bool recursive) {
     if (flower_hasParentGroup(flower)) {
         assert(flower_getGroupNumber(flower) > 0);
         assert(flower_getEndNumber(flower) > 0);
-        assert(flower_getAttachedStubEndNumber(flower) + flower_getBlockEndNumber(flower) > 0);
+        assert(flower_getAttachedStubEndNumber(flower)); //We must have some ends to tie us into the parent problem + flower_getBlockEndNumber(flower) > 0);
     }
     //Now Checks that each group contains at least one end and call recursive.
     Group *group;
