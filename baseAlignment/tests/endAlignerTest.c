@@ -79,9 +79,11 @@ int32_t isInAdjacency(AlignedPair *alignedPair, End *end, int32_t maxLength) {
         int32_t i = isInAdjacencySequence(alignedPair, adjacencySequence);
         adjacencySequence_destruct(adjacencySequence);
         if(i) {
+            end_destructInstanceIterator(it);
             return 1;
         }
     }
+    end_destructInstanceIterator(it);
     return 0;
 }
 

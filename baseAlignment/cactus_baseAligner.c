@@ -180,14 +180,13 @@ int main(int argc, char *argv[]) {
         Flower *flower = cactusDisk_getFlower(cactusDisk,
                 cactusMisc_stringToName(flowerName));
         assert(flower != NULL);
-        st_logInfo("Parsed the flower to be aligned\n");
+        st_logInfo("Parsed the flower to be aligned: %s\n", flowerName);
 
         getAlignment_alignedPairs = makeFlowerAlignment(flower, spanningTrees,
                 maximumLength, gapGamma, useBanding, bandingSize);
         st_logInfo("Created the alignment: %i pairs\n", stSortedSet_size(
                 getAlignment_alignedPairs));
         //getAlignment_alignedPairs = stSortedSet_construct();
-        //assert(0);
 
         /*
          * Run the cactus core script.

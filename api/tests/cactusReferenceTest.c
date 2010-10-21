@@ -66,6 +66,7 @@ void testReference_pseudoChromosomeIterator(CuTest* testCase) {
 	CuAssertTrue(testCase, reference_getPreviousPseudoChromosome(iterator2) == NULL);
 
 	reference_destructPseudoChromosomeIterator(iterator);
+	reference_destructPseudoChromosomeIterator(iterator2);
 	testTeardown();
 }
 

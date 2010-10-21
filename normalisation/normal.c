@@ -159,7 +159,7 @@ void normalise(Flower *flower, int32_t maxNumberOfChains) {
     flower_checkNotEmpty(flower, 0);
 #endif
     promoteNestedChainsThatExtendChains(flower);
-    promoteNestedChainsToFillFlower(flower, maxNumberOfChains);
+    //promoteNestedChainsToFillFlower(flower, maxNumberOfChains);
     removeTrivialLinks(flower);
 
     //Now we normalise the children of the flower..
@@ -176,7 +176,7 @@ void normalise(Flower *flower, int32_t maxNumberOfChains) {
     flower_makeTerminalNormal(flower);
 
 #ifdef BEN_DEBUG
-    flower_check(flower);
     flower_checkNotEmpty(flower, 0);
+    flower_check(flower);
 #endif
 }

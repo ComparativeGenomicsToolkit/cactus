@@ -17,7 +17,7 @@
 				<core adjacencyComponentOverlap="0" alignRepeatsAtRound="0" annealingRounds="3 6 12 25 50 100 200" deannealingRounds="1 3 6 12 25 50 100 200" minimumBlockLength="1" minimumTreeCoverage="0.95" trim="0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0" />
 			</iteration>
 
-			<iteration banding_limit="100000" banding_size="1000" gap_gamma="0.0" max_sequence_size="2000" number="3" spanning_trees="10" type="base" use_banding="1" />
+			<iteration banding_limit="100000" banding_size="1000" gap_gamma="0.0" max_sequence_size="0" number="3" spanning_trees="10" type="base" use_banding="1" />
 			
 		</iterations>
 	</alignment>

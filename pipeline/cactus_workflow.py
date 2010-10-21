@@ -20,10 +20,12 @@ import os
 import xml.etree.ElementTree as ET
 from optparse import OptionParser
 
-from sonLib.bioio import logger
 from sonLib.bioio import getTempFile
 from sonLib.bioio import system
-from sonLib.bioio import getLogLevelString
+
+from workflow.jobTree.lib.bioio import getLogLevelString
+from workflow.jobTree.lib.bioio import logger
+from workflow.jobTree.lib.bioio import setLoggingFromOptions
 
 from sonLib.misc import sonTraceRootPath
   
@@ -138,7 +140,7 @@ class CactusAlignmentWrapper(Target):
             for childFlowerName, childFlowerSize in runCactusExtendFlowers(self.options.cactusDiskDatabaseString, self.flowerName, 
                                                                   self.getLocalTempDir()):
                 assert childFlowerSize >= 0
-                nextIteration = getAlignmentIteration(iterations, self.iteration, childFlowerSize)
+                nextIteration = getAlignmentIteration(iterations, self.iteration, childFlowerSize)   
                 if iterations[nextIteration].attrib["type"] == "blast":
                     self.addChildTarget(CactusBlastWrapper(self.options, childFlowerName, nextIteration))
                 else:
@@ -468,6 +470,7 @@ def main():
                       help="Creates a reference ordering for the flowers", default=False)
     
     options, args = parser.parse_args()
+    setLoggingFromOptions(options)
     
     if len(args) != 0:
         raise RuntimeError("Unrecognised input arguments: %s" % " ".join(args))
