@@ -37,7 +37,16 @@ static void promoteChainsThatExtendHigherLevelChainsP(Flower *flower,
         End *_5End = link_get5End(chain_getLink(chain, chain_getLength(chain)
                 - 1));
         if (end_isStubEnd(_3End) || end_isStubEnd(_5End)) { //Is part of higher chain..
+#ifdef BEN_DEBUG
+    flower_checkNotEmpty(group_getFlower(parentGroup), 1);
+    flower_check(group_getFlower(parentGroup));
+#endif
+    st_uglyf("The chains are %i\n", chain_getLength(chain));
             chain_promote(chain);
+#ifdef BEN_DEBUG
+    flower_checkNotEmpty(group_getFlower(parentGroup), 1);
+    flower_check(group_getFlower(parentGroup));
+#endif
         }
     }
 }
@@ -159,7 +168,7 @@ void normalise(Flower *flower, int32_t maxNumberOfChains) {
     flower_checkNotEmpty(flower, 0);
 #endif
     promoteNestedChainsThatExtendChains(flower);
-    //promoteNestedChainsToFillFlower(flower, maxNumberOfChains);
+    promoteNestedChainsToFillFlower(flower, maxNumberOfChains);
     removeTrivialLinks(flower);
 
     //Now we normalise the children of the flower..
