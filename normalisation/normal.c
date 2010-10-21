@@ -38,13 +38,17 @@ static void promoteChainsThatExtendHigherLevelChainsP(Flower *flower,
                 - 1));
         if (end_isStubEnd(_3End) || end_isStubEnd(_5End)) { //Is part of higher chain..
 #ifdef BEN_DEBUG
-    flower_checkNotEmpty(group_getFlower(parentGroup), 1);
+    //flower_checkNotEmpty(group_getFlower(parentGroup), 1);
     flower_check(group_getFlower(parentGroup));
 #endif
-    st_uglyf("The chains are %i\n", chain_getLength(chain));
-            chain_promote(chain);
+    st_uglyf("The chains are length %i $ attached ends %i free %i block %i $ child attached %i child free %i child block %i child chain number $ %i $ terminal %i link %i \n", chain_getLength(chain),
+            group_getAttachedStubEndNumber(parentGroup), group_getFreeStubEndNumber(parentGroup), group_getBlockEndNumber(parentGroup),
+            flower_getAttachedStubEndNumber(flower), flower_getFreeStubEndNumber(flower), flower_getBlockEndNumber(flower), flower_getChainNumber(flower), flower_isTerminal(flower), group_isLink(parentGroup));
+    chain_promote(chain);
+    st_uglyf("The chains are attached %i free %i block %i link %i \n",
+                group_getAttachedStubEndNumber(parentGroup), group_getFreeStubEndNumber(parentGroup), group_getBlockEndNumber(parentGroup), group_isLink(parentGroup));
 #ifdef BEN_DEBUG
-    flower_checkNotEmpty(group_getFlower(parentGroup), 1);
+    //flower_checkNotEmpty(group_getFlower(parentGroup), 1);
     flower_check(group_getFlower(parentGroup));
 #endif
         }
