@@ -103,18 +103,18 @@ static void promoteChainsToFillParentsP(Flower *flower, Group *parentGroup, int3
 #ifdef BEN_DEBUG
     assert(group_isTangle(parentGroup)); //Completely redundant check for old bug
     assert(group_getLink(parentGroup) == NULL);
-#endif
     int32_t chainLength = INT32_MAX;
-    while (stList_length(chains) > 0 && flower_getChainNumber(parentFlower)
-            + flower_getTrivialChainNumber(parentFlower) < maxNumberOfChains) {
+#endif
+    while (stList_length(chains) > 0 && (flower_getChainNumber(parentFlower)
+            + flower_getTrivialChainNumber(parentFlower) < maxNumberOfChains || flower_getAttachedStubEndNumber(flower) == 0)) {
         chain = stList_pop(chains);
 #ifdef BEN_DEBUG
         assert(chainLength >= chain_getLength(chain));
         assert(chain_getFlower(chain) == flower);
         assert(flower_getParentGroup(flower) == parentGroup);
         assert(group_getLink(parentGroup) == NULL); //Should never become a chain as if tangle it should stay a tangle as all chains are already maximal.
-#endif
         chainLength = chain_getLength(chain);
+#endif
         chain_promote(chain);
     }
     stList_destruct(chains);
@@ -131,13 +131,19 @@ static void promoteChainsToFillParentsP(Flower *flower, Group *parentGroup, int3
     }
     flower_destructBlockIterator(blockIt);
     stList_sort(blocks, (int(*)(const void *, const void *)) promoteChainsFillParentsP2);
-
+#ifdef BEN_DEBUG
     int32_t blockCoverage = INT32_MAX;
-    while (stList_length(blocks) > 0 && flower_getChainNumber(parentFlower)
-            + flower_getTrivialChainNumber(parentFlower) < maxNumberOfChains) {
+#endif
+    while (stList_length(blocks) > 0 && (flower_getChainNumber(parentFlower)
+            + flower_getTrivialChainNumber(parentFlower) < maxNumberOfChains || flower_getAttachedStubEndNumber(flower) == 0)) {
         block = stList_pop(blocks);
+#ifdef BEN_DEBUG
+        assert(block_getFlower(block) == flower);
+        assert(flower_getParentGroup(flower) == parentGroup);
+        assert(group_getLink(parentGroup) == NULL); //Should never become a chain as if tangle it should stay a tangle as all chains are already maximal.
         assert(blockCoverage >= block_getLength(block) * block_getInstanceNumber(block));
         blockCoverage = block_getLength(block) * block_getInstanceNumber(block);
+#endif
         block_promote(block);
     }
     stList_destruct(blocks);
