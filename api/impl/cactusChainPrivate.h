@@ -49,4 +49,9 @@ Chain *chain_getStaticNameWrapper(Name name);
  */
 void chain_setFlower(Chain *chain, Flower *flower);
 
+/*
+ * Joins two chains together where the _5Chain abuts at the 3' end with the _3Chain.
+ */
+void chain_join(Chain *_5Chain, Chain *_3Chain);
+
 #endif

@@ -523,18 +523,19 @@ void faceStats(Flower *flower, struct IntList *numberPerGroup,
      */
     if (flower_isTerminal(flower)) {
         Group *group = flower_getParentGroup(flower);
-        assert(group != NULL);
-        if ((includeLinkGroups && group_getLink(group) != NULL)
-                || (includeTangleGroups && group_getLink(group) == NULL)) {
-            Flower_FaceIterator *faceIterator = flower_getFaceIterator(flower);
-            Face *face;
-            while ((face = flower_getNextFace(faceIterator)) != NULL) {
-                intListAppend(cardinality, face_getCardinal(face));
-                intListAppend(isSimple, face_isSimple(face));
-                intListAppend(isRegular, face_isRegular(face));
-                intListAppend(isCanonical, face_isCanonical(face));
+        if(group != NULL) { //Only works when parent is not empty.
+            if ((includeLinkGroups && group_getLink(group) != NULL)
+                    || (includeTangleGroups && group_getLink(group) == NULL)) {
+                Flower_FaceIterator *faceIterator = flower_getFaceIterator(flower);
+                Face *face;
+                while ((face = flower_getNextFace(faceIterator)) != NULL) {
+                    intListAppend(cardinality, face_getCardinal(face));
+                    intListAppend(isSimple, face_isSimple(face));
+                    intListAppend(isRegular, face_isRegular(face));
+                    intListAppend(isCanonical, face_isCanonical(face));
+                }
+                flower_destructFaceIterator(faceIterator);
             }
-            flower_destructFaceIterator(faceIterator);
         }
     } else {
         Flower_GroupIterator *groupIterator = flower_getGroupIterator(flower);

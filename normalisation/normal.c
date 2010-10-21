@@ -4,8 +4,7 @@
 void removeTrivialLinks(Flower *flower) {
     Chain *chain;
     Flower_ChainIterator *chainIt = flower_getChainIterator(flower);
-    stList *chainsToDelete = stList_construct3(0,
-            (void(*)(void *)) chain_destruct);
+    stList *chainsToDelete = stList_construct3(0, (void(*)(void *)) chain_destruct);
     while ((chain = flower_getNextChain(chainIt)) != NULL) {
         for (int32_t i = chain_getLength(chain) - 1; i >= 0; i--) {
             Link *link = chain_getLink(chain, i);
@@ -19,8 +18,7 @@ void removeTrivialLinks(Flower *flower) {
     stList_destruct(chainsToDelete);
 }
 
-static void promoteChainsThatExtendHigherLevelChainsP(Flower *flower,
-        Group *parentGroup) {
+static void promoteChainsThatExtendHigherLevelChainsP(Flower *flower, Group *parentGroup) {
     //Find links which need to be promoted
     Chain *chain;
     Flower_ChainIterator *chainIt = flower_getChainIterator(flower);
@@ -34,23 +32,22 @@ static void promoteChainsThatExtendHigherLevelChainsP(Flower *flower,
     while (stList_length(chains) > 0) {
         chain = stList_pop(chains);
         End *_3End = link_get3End(chain_getLink(chain, 0));
-        End *_5End = link_get5End(chain_getLink(chain, chain_getLength(chain)
-                - 1));
+        End *_5End = link_get5End(chain_getLink(chain, chain_getLength(chain) - 1));
         if (end_isStubEnd(_3End) || end_isStubEnd(_5End)) { //Is part of higher chain..
-#ifdef BEN_DEBUG
-    //flower_checkNotEmpty(group_getFlower(parentGroup), 1);
-    flower_check(group_getFlower(parentGroup));
-#endif
-    st_uglyf("The chains are length %i $ attached ends %i free %i block %i $ child attached %i child free %i child block %i child chain number $ %i $ terminal %i link %i \n", chain_getLength(chain),
-            group_getAttachedStubEndNumber(parentGroup), group_getFreeStubEndNumber(parentGroup), group_getBlockEndNumber(parentGroup),
-            flower_getAttachedStubEndNumber(flower), flower_getFreeStubEndNumber(flower), flower_getBlockEndNumber(flower), flower_getChainNumber(flower), flower_isTerminal(flower), group_isLink(parentGroup));
-    chain_promote(chain);
-    st_uglyf("The chains are attached %i free %i block %i link %i \n",
-                group_getAttachedStubEndNumber(parentGroup), group_getFreeStubEndNumber(parentGroup), group_getBlockEndNumber(parentGroup), group_isLink(parentGroup));
-#ifdef BEN_DEBUG
-    //flower_checkNotEmpty(group_getFlower(parentGroup), 1);
-    flower_check(group_getFlower(parentGroup));
-#endif
+        /*#ifdef BEN_DEBUG
+         //flower_checkNotEmpty(group_getFlower(parentGroup), 1);
+         flower_check(group_getFlower(parentGroup));
+         #endif
+         st_uglyf("The chains are length %i $ attached ends %i free %i block %i $ child attached %i child free %i child block %i child chain number $ %i $ terminal %i link %i \n", chain_getLength(chain),
+         group_getAttachedStubEndNumber(parentGroup), group_getFreeStubEndNumber(parentGroup), group_getBlockEndNumber(parentGroup),
+         flower_getAttachedStubEndNumber(flower), flower_getFreeStubEndNumber(flower), flower_getBlockEndNumber(flower), flower_getChainNumber(flower), flower_isTerminal(flower), group_isLink(parentGroup));*/
+            chain_promote(chain);
+            /*    st_uglyf("The chains are attached %i free %i block %i link %i \n",
+             group_getAttachedStubEndNumber(parentGroup), group_getFreeStubEndNumber(parentGroup), group_getBlockEndNumber(parentGroup), group_isLink(parentGroup));
+             #ifdef BEN_DEBUG
+             //flower_checkNotEmpty(group_getFlower(parentGroup), 1);
+             flower_check(group_getFlower(parentGroup));
+             #endif*/
         }
     }
 }
@@ -85,12 +82,11 @@ static int promoteChainsFillParentsP(Chain *chain1, Chain *chain2) {
 }
 
 static int promoteChainsFillParentsP2(Block *block1, Block *block2) {
-    return block_getLength(block1) * block_getInstanceNumber(block1)
-            - block_getLength(block2) * block_getInstanceNumber(block2);
+    return block_getLength(block1) * block_getInstanceNumber(block1) - block_getLength(block2)
+            * block_getInstanceNumber(block2);
 }
 
-static void promoteChainsToFillParentsP(Flower *flower, Group *parentGroup,
-        int32_t maxNumberOfChains) {
+static void promoteChainsToFillParentsP(Flower *flower, Group *parentGroup, int32_t maxNumberOfChains) {
     Chain *chain;
     Flower_ChainIterator *chainIt = flower_getChainIterator(flower);
     stList *chains = stList_construct();
@@ -102,8 +98,7 @@ static void promoteChainsToFillParentsP(Flower *flower, Group *parentGroup,
         stList_append(chains, chain);
     }
     flower_destructChainIterator(chainIt);
-    stList_sort(chains,
-            (int(*)(const void *, const void *)) promoteChainsFillParentsP);
+    stList_sort(chains, (int(*)(const void *, const void *)) promoteChainsFillParentsP);
     Flower *parentFlower = group_getFlower(parentGroup);
 #ifdef BEN_DEBUG
     assert(group_isTangle(parentGroup)); //Completely redundant check for old bug
@@ -117,7 +112,7 @@ static void promoteChainsToFillParentsP(Flower *flower, Group *parentGroup,
         assert(chainLength >= chain_getLength(chain));
         assert(chain_getFlower(chain) == flower);
         assert(flower_getParentGroup(flower) == parentGroup);
-        assert(group_getLink(parentGroup) == NULL); //Should never become a chain..
+        assert(group_getLink(parentGroup) == NULL); //Should never become a chain as if tangle it should stay a tangle as all chains are already maximal.
 #endif
         chainLength = chain_getLength(chain);
         chain_promote(chain);
@@ -135,8 +130,7 @@ static void promoteChainsToFillParentsP(Flower *flower, Group *parentGroup,
         }
     }
     flower_destructBlockIterator(blockIt);
-    stList_sort(blocks,
-            (int(*)(const void *, const void *)) promoteChainsFillParentsP2);
+    stList_sort(blocks, (int(*)(const void *, const void *)) promoteChainsFillParentsP2);
 
     int32_t blockCoverage = INT32_MAX;
     while (stList_length(blocks) > 0 && flower_getChainNumber(parentFlower)

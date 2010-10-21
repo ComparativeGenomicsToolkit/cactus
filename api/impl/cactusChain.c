@@ -194,6 +194,47 @@ void chain_setFlower(Chain *chain, Flower *flower) {
     flower_addChain(flower, chain);
 }
 
+void chain_joinP(Chain *chain, stList *list) {
+    for(int32_t i=0; i<chain_getLength(chain); i++) {
+        Link *link = chain_getLink(chain, i);
+        stList_append(list, link_get3End(link));
+        stList_append(list, link_get5End(link));
+    }
+    chain_destruct(chain);
+}
+
+void chain_join(Chain *_5Chain, Chain *_3Chain) {
+#ifdef BEN_DEBUG
+    assert(chain_getLength(_5Chain) > 0);
+    assert(chain_getLength(_3Chain) > 0);
+    Link *_5Link = chain_getLink(_5Chain, chain_getLength(_5Chain)-1);
+    Link *_3Link = chain_getLink(_3Chain, 0);
+    End *_5End = link_get5End(_5Link);
+    End *_3End = link_get3End(_3Link);
+    assert(end_isBlockEnd(_5End));
+    assert(end_isBlockEnd(_3End));
+    assert(end_getOtherBlockEnd(_5End) == _3End);
+    assert(end_getOtherBlockEnd(_3End) == _5End);
+    assert(_5Chain != _3Chain); //If this is false and the others are all true then your trying to merge a circular chain with itself.
+#endif
+    Chain *newChain = chain_construct(chain_getFlower(_5Chain));
+    stList *list = stList_construct();
+    chain_joinP(_5Chain, list);
+    chain_joinP(_3Chain, list);
+    for(int32_t i=0; i<stList_length(list); i+=2) {
+        End *end1 = stList_get(list, i);
+        End *end2 = stList_get(list, i+1);
+        Group *group = end_getGroup(end1);
+#ifdef BEN_DEBUG
+        assert(end_getGroup(end2) == group);
+        assert(!end_getSide(end1));
+        assert(end_getSide(end2));
+        assert(group_getLink(group) == NULL);
+#endif
+        link_construct(end1, end2, group, newChain);
+    }
+}
+
 /*
  * Serialisation functions.
  */

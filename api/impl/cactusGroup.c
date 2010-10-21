@@ -9,8 +9,7 @@
 ////////////////////////////////////////////////
 
 int group_constructP(const void *o1, const void *o2) {
-    return cactusMisc_nameCompare(end_getName((End *) o1), end_getName(
-            (End *) o2));
+    return cactusMisc_nameCompare(end_getName((End *) o1), end_getName((End *) o2));
 }
 
 Group *group_construct(Flower *flower, Flower *nestedFlower) {
@@ -25,8 +24,7 @@ Group *group_construct(Flower *flower, Flower *nestedFlower) {
 Group *group_construct2(Flower *flower) {
     Group *group;
 
-    group = group_construct3(flower, cactusDisk_getUniqueID(
-            flower_getCactusDisk(flower)), 1);
+    group = group_construct3(flower, cactusDisk_getUniqueID(flower_getCactusDisk(flower)), 1);
     return group;
 }
 
@@ -52,13 +50,11 @@ static void copyAdjacencies(Group *group, Flower *nestedFlower) {
             adjacentCap = cap_getAdjacency(cap);
             if (adjacentCap != NULL) {
                 nestedCap = end_getInstance(nestedEnd, cap_getName(cap));
-                nestedAdjacentCap = flower_getCap(nestedFlower, cap_getName(
-                        adjacentCap));
+                nestedAdjacentCap = flower_getCap(nestedFlower, cap_getName(adjacentCap));
                 assert(nestedCap != NULL);
                 assert(nestedAdjacentCap != NULL);
                 nestedAdjacentCap
-                        = cap_getOrientation(adjacentCap)
-                                == cap_getOrientation(nestedAdjacentCap) ? nestedAdjacentCap
+                        = cap_getOrientation(adjacentCap) == cap_getOrientation(nestedAdjacentCap) ? nestedAdjacentCap
                                 : cap_getReverse(nestedAdjacentCap);
                 assert(cap_getOrientation(cap));
                 assert(cap_getOrientation(cap) == cap_getOrientation(nestedCap));
@@ -76,11 +72,9 @@ static void copyAdjacencies(Group *group, Flower *nestedFlower) {
 Flower *group_makeNestedFlower(Group *group) {
     assert(group_isLeaf(group));
     group->leafGroup = 0;
-    Flower *nestedFlower = flower_construct2(group_getName(group),
-            flower_getCactusDisk(group_getFlower(group)));
+    Flower *nestedFlower = flower_construct2(group_getName(group), flower_getCactusDisk(group_getFlower(group)));
     flower_setParentGroup(nestedFlower, group);
-    eventTree_copyConstruct(flower_getEventTree(group_getFlower(group)),
-            nestedFlower, returnsTrue);
+    eventTree_copyConstruct(flower_getEventTree(group_getFlower(group)), nestedFlower, returnsTrue);
     Group *nestedGroup = group_construct2(nestedFlower);
     //Add the ends to the nested flower.
     Group_EndIterator *endIterator = group_getEndIterator(group);
@@ -146,8 +140,7 @@ Name group_getName(Group *group) {
 }
 
 Flower *group_getNestedFlower(Group *group) {
-    return group_isLeaf(group) ? NULL : cactusDisk_getFlower(
-            flower_getCactusDisk(group_getFlower(group)), group->name);
+    return group_isLeaf(group) ? NULL : cactusDisk_getFlower(flower_getCactusDisk(group_getFlower(group)), group->name);
 }
 
 Link *group_getLink(Group *group) {
@@ -213,8 +206,7 @@ int64_t group_getTotalBaseLength(Group *group) {
                 assert(cap_getStrand(cap2));
                 assert(cap_getSide(cap2));
                 assert(end_getGroup(cap_getEnd(cap2)) == group);
-                int32_t length = cap_getCoordinate(cap2) - cap_getCoordinate(
-                        cap) - 1;
+                int32_t length = cap_getCoordinate(cap2) - cap_getCoordinate(cap) - 1;
                 assert(length >= 0);
                 totalLength += length;
             }
@@ -334,7 +326,7 @@ void group_check(Group *group) {
 }
 
 void group_constructChainForLink(Group *group) {
-    //The following constructs a trivial chain, if necessary.
+    //The following constructs a chain, if necessary.
     if (group_getLink(group) == NULL) {
         Group_EndIterator *endIt = group_getEndIterator(group);
         End *end;
@@ -346,25 +338,45 @@ void group_constructChainForLink(Group *group) {
         }
         group_destructEndIterator(endIt);
         if (i == 2) {
-            Chain *chain = chain_construct(group_getFlower(group));
             End *_3End = NULL, *_5End = NULL;
             endIt = group_getEndIterator(group);
             while ((end = group_getNextEnd(endIt)) != NULL) {
                 if (end_isAttached(end) || end_isBlockEnd(end)) {
-                    if (_3End == NULL) {
-                        _3End = end;
-                    } else {
+                    if (end_getSide(end)) {
                         assert(_5End == NULL);
                         _5End = end;
+                    } else {
+                        assert(_3End == NULL);
+                        _3End = end;
                     }
                 }
             }
             assert(_3End != NULL && _5End != NULL);
+            assert(!end_getSide(_3End) && end_getSide(_5End));
             group_destructEndIterator(endIt);
-            if (end_getSide(_5End)) {
-                link_construct(_3End, _5End, group, chain);
-            } else {
-                link_construct(_5End, _3End, group, chain);
+            Link *_3Link = NULL;
+            if (end_isBlockEnd(_3End)) {
+                _3Link = group_getLink(end_getGroup(end_getOtherBlockEnd(_3End)));
+            }
+            Chain *chain;
+            if (_3Link != NULL) {
+                chain = link_getChain(_3Link);
+                assert(link_getIndex(_3Link) == chain_getLength(chain)-1);
+            }
+            else {
+                chain = chain_construct(group_getFlower(group));
+            }
+            link_construct(_3End, _5End, group, chain);
+
+            //Now see if we must join the chain
+            if (end_isBlockEnd(_5End)) {
+                Link *_5Link = group_getLink(end_getGroup(end_getOtherBlockEnd(_5End)));
+                if(_5Link != NULL) {
+                    Chain *_5Chain = link_getChain(_5Link);
+                    assert(_5Chain != NULL);
+                    assert(link_getIndex(_5Link) == 0);
+                    chain_join(chain, _5Chain);
+                }
             }
             assert(group_isLink(group));
         }
@@ -390,9 +402,9 @@ int32_t group_getAttachedStubEndNumber(Group *group) {
 }
 
 int32_t group_getFreeStubEndNumber(Group *group) {
-	int32_t i = group_getStubEndNumber(group) - group_getAttachedStubEndNumber(group);
-	assert(i >= 0);
-	return i;
+    int32_t i = group_getStubEndNumber(group) - group_getAttachedStubEndNumber(group);
+    assert(i >= 0);
+    return i;
 }
 
 int32_t group_getBlockEndNumber(Group *group) {
@@ -454,8 +466,7 @@ void group_setFlower(Group *group, Flower *flower) {
  * Serialisation functions
  */
 
-void group_writeBinaryRepresentation(Group *group, void(*writeFn)(
-        const void * ptr, size_t size, size_t count)) {
+void group_writeBinaryRepresentation(Group *group, void(*writeFn)(const void * ptr, size_t size, size_t count)) {
     End *end;
     Group_EndIterator *iterator;
 
@@ -480,11 +491,9 @@ Group *group_loadFromBinaryRepresentation(void **binaryString, Flower *flower) {
         bool terminalGroup = binaryRepresentation_getBool(binaryString);
         Name name = binaryRepresentation_getName(binaryString);
         group = group_construct3(flower, name, terminalGroup);
-        while (binaryRepresentation_peekNextElementType(*binaryString)
-                == CODE_GROUP_END) {
+        while (binaryRepresentation_peekNextElementType(*binaryString) == CODE_GROUP_END) {
             binaryRepresentation_popNextElementType(binaryString);
-            end_setGroup(flower_getEnd(flower, binaryRepresentation_getName(
-                    binaryString)), group);
+            end_setGroup(flower_getEnd(flower, binaryRepresentation_getName(binaryString)), group);
         }
         assert(binaryRepresentation_peekNextElementType(*binaryString) == CODE_GROUP);
         binaryRepresentation_popNextElementType(binaryString);
