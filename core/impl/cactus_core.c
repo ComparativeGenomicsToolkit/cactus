@@ -233,7 +233,7 @@ static stHash *getVertexToSetOfAdjacencyComponentsHash(
 
 struct CactusGraph *deanneal(Flower *flower, struct PinchGraph *pinchGraph,
         struct CactusGraph *cactusGraph, struct List **biConnectedComponents,
-        int32_t minimumChainLengthInGraph, int32_t minimumBlockLength) {
+        int32_t minimumChainLengthInGraph, int32_t minimumBlockLength, int32_t terminateRecursion) {
     ///////////////////////////////////////////////////////////////////////////
     // Choosing a block subset to undo.
     ///////////////////////////////////////////////////////////////////////////
@@ -289,7 +289,7 @@ struct CactusGraph *deanneal(Flower *flower, struct PinchGraph *pinchGraph,
     ////////////////////////////////////////////////
 
     cactusGraph = cactusCorePipeline_2(pinchGraph, flower,
-            passThroughDegree1EdgesFn, 0);
+            terminateRecursion ? doNotPassThroughDegree1EdgesFn : passThroughDegree1EdgesFn, 0);
 
     ////////////////////////////////////////////////
     // Get the sorted bi-connected components, again
@@ -511,7 +511,7 @@ int32_t cactusCorePipeline(Flower *flower, CactusCoreInputParameters *cCIP,
         ////////////////////////////////////////////////
 
         cactusGraph = cactusCorePipeline_2(pinchGraph, flower,
-                passThroughDegree1EdgesFn, 0);
+                terminateRecursion ? doNotPassThroughDegree1EdgesFn : passThroughDegree1EdgesFn, 0);
 
         ////////////////////////////////////////////////
         // Get sorted bi-connected components.
@@ -528,7 +528,7 @@ int32_t cactusCorePipeline(Flower *flower, CactusCoreInputParameters *cCIP,
                 cCIP->annealingRounds[annealingRound];
         if (minimumChainLength <= 1 && cCIP->minimumBlockLength > 1) { //only needed if we are going to do no deannealing
             cactusGraph = deanneal(flower, pinchGraph, cactusGraph,
-                    &biConnectedComponents, 0, cCIP->minimumBlockLength);
+                    &biConnectedComponents, 0, cCIP->minimumBlockLength, terminateRecursion);
         }
 
         ///////////////////////////////////////////////////////////////////////////
@@ -564,7 +564,7 @@ int32_t cactusCorePipeline(Flower *flower, CactusCoreInputParameters *cCIP,
 
             cactusGraph = deanneal(flower, pinchGraph, cactusGraph,
                     &biConnectedComponents, minimumChainLengthToRemove,
-                    cCIP->minimumBlockLength);
+                    cCIP->minimumBlockLength, terminateRecursion);
 
             ///////////////////////////////////////////////////////////////////////////
             // Recalculate the minimum length of chains in the graph

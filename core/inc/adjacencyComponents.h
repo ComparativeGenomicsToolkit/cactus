@@ -17,6 +17,11 @@
 bool passThroughDegree1EdgesFn(struct PinchEdge *edge);
 
 /*
+ * Returns zero for all pinch edges.
+ */
+bool doNotPassThroughDegree1EdgesFn(struct PinchEdge *edge);
+
+/*
  * Gets a list of adjacency components from the pinch graph. Adjacency components are components of adjacency 1-degree
  * edges. Each adjacency component is represented as a sorted set of pinch-vertices.
  */

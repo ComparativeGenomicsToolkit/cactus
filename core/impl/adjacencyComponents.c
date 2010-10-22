@@ -95,6 +95,11 @@ bool passThroughDegree1EdgesFn(struct PinchEdge *edge) {
     return lengthBlackEdges(edge->from) == 1 && (!isAStub(edge));
 }
 
+bool doNotPassThroughDegree1EdgesFn(struct PinchEdge *edge) {
+    assert(lengthBlackEdges(edge->from) > 0);
+    return 0;
+}
+
 stList *getAdjacencyComponents(struct PinchGraph *pinchGraph) {
     return getAdjacencyComponents2(pinchGraph,
         passThroughDegree1EdgesFn);

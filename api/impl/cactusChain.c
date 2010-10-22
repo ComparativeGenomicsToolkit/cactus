@@ -233,6 +233,7 @@ void chain_join(Chain *_5Chain, Chain *_3Chain) {
 #endif
         link_construct(end1, end2, group, newChain);
     }
+    stList_destruct(list);
 }
 
 /*
