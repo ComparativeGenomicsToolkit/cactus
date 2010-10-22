@@ -591,6 +591,7 @@ static void setBlocksBuilt(Flower *flower) {
 }
 
 static void reverseComponent(struct List *biConnectedComponent) {
+    //return;
     listReverse(biConnectedComponent);
     for (int32_t i = 0; i < biConnectedComponent->length; i++) {
         struct CactusEdge *cactusEdge = biConnectedComponent->list[i];

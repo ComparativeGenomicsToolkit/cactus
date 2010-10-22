@@ -176,6 +176,9 @@ def getCactusInputs_blanchette(regionNumber=0, tempDir=None):
     """
     assert regionNumber >= 0
     assert regionNumber < 50
+    
+    regionNumber = 1
+    
     blanchettePath = os.path.join(TestStatus.getPathToDataSets(), "blanchettesSimulation")
     sequences = [ os.path.join(blanchettePath, ("%.2i.job" % regionNumber), species) \
                  for species in ("HUMAN", "CHIMP", "BABOON", "MOUSE", "RAT", "DOG", "CAT", "PIG", "COW") ] #Same order as tree

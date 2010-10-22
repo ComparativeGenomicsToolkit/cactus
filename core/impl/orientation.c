@@ -61,8 +61,9 @@ static stSortedSet *getAdjacentVertices(struct PinchVertex *vertex,
         assert(edge->rEdge->to == vertex);
         struct PinchEdge *edge2 = getNextEdge(pinchGraph, edge->rEdge, flower);
         assert(edge2 != NULL);
-        while (stSortedSet_search(includedVertices, edge2->from) == NULL && stHash_search(orientationHash, edge2->from) == NULL) {
-            if(vertex_isEnd(edge2->from)) {
+        while (stSortedSet_search(includedVertices, edge2->from) == NULL
+                && stHash_search(orientationHash, edge2->from) == NULL) {
+            if (vertex_isEnd(edge2->from)) {
                 assert(vertex_isDeadEnd(edge2->to));
                 assert(stSortedSet_search(includedVertices, edge2->to) != NULL);
                 break;
@@ -72,6 +73,7 @@ static stSortedSet *getAdjacentVertices(struct PinchVertex *vertex,
             assert(edge2 != NULL);
         }
         if (vertex_isEnd(edge2->from)) {
+            assert(vertex_isDeadEnd(edge2->to));
             End *end = getStubEnd(edge2->from, flower, endNamesHash);
             assert(end != NULL);
             assert(!end_isBlockEnd(end));
@@ -116,13 +118,15 @@ static stList *getPetals(struct List *biConnectedComponents, int32_t *i) {
 #ifdef BEN_DEBUG
     assert(biConnectedComponent->length > 0);
 #endif
-    struct CactusVertex *vertex = ((struct CactusEdge *)biConnectedComponent->list[0])->from;
+    struct CactusVertex *vertex =
+            ((struct CactusEdge *) biConnectedComponent->list[0])->from;
 #ifdef BEN_DEBUG
     assert(vertex = ((struct CactusEdge *)biConnectedComponent->list[biConnectedComponent->length-1])->to);
 #endif
     while (++(*i) < biConnectedComponents->length) {
         biConnectedComponent = biConnectedComponents->list[(*i)];
-        struct CactusVertex *vertex2 = ((struct CactusEdge *)biConnectedComponent->list[0])->from;
+        struct CactusVertex *vertex2 =
+                ((struct CactusEdge *) biConnectedComponent->list[0])->from;
 #ifdef BEN_DEBUG
         assert(vertex2 = ((struct CactusEdge *)biConnectedComponent->list[biConnectedComponent->length-1])->to);
 #endif
@@ -134,8 +138,7 @@ static stList *getPetals(struct List *biConnectedComponents, int32_t *i) {
     return petals;
 }
 
-static stList *getEndVertices(stList *chains,
-        struct PinchGraph *pinchGraph) {
+static stList *getEndVertices(stList *chains, struct PinchGraph *pinchGraph) {
     /*
      * Gets the vertices in the pinch graph representing the ends of the given set of chains.
      */
@@ -151,7 +154,8 @@ static stList *getEndVertices(stList *chains,
         stList_append(endVertices, cactusEdgeToFirstPinchEdge(
                 biConnectedComponent->list[0], pinchGraph)->from);
         stList_append(endVertices, cactusEdgeToFirstPinchEdge(
-                biConnectedComponent->list[biConnectedComponent->length-1], pinchGraph)->to);
+                biConnectedComponent->list[biConnectedComponent->length - 1],
+                pinchGraph)->to);
     }
     return endVertices;
 }
@@ -192,6 +196,24 @@ static bool orient(struct PinchVertex *vertex1, struct PinchVertex *vertex2,
         End *end = getStubEnd(vertex3, flower, endNamesHash);
 #ifdef BEN_DEBUG
         assert(end != NULL);
+        if (vertex3 != vertex2) {
+            assert(end_isAttached(end));
+            assert(!vertex_isEnd(vertex2));
+            if (vertex_isDeadEnd(vertex2)) {
+                struct PinchVertex *vertex4 = getFirstBlackEdge(vertex2)->from;
+                assert(vertex_isEnd(vertex4));
+                End *end2 = getStubEnd(vertex4, flower, endNamesHash);
+                assert(end_getSide(end) == !end_getSide(end2));
+            } else {
+                if (stList_length(adjacentVertices2) == 1) { //Is in a pseudo chain
+                    stIntTuple *i = stHash_search(orientationHash, stList_get(
+                            adjacentVertices2, 0));
+                    if (i != NULL) {
+                        assert(!stIntTuple_getPosition(i, 0) == end_getSide(end));
+                    }
+                }
+            }
+        }
 #endif
         orientP(vertex1, vertex2, orientationHash, !end_getSide(end));
         return 1;
@@ -207,15 +229,34 @@ static bool orient(struct PinchVertex *vertex1, struct PinchVertex *vertex2,
         orientP(vertex1, vertex2, orientationHash, end_getSide(end));
         return 1;
     }
+#ifdef BEN_DEBUG
+    assert(!vertex_isEnd(vertex2));
+#endif
     if (stList_length(adjacentVertices1) == 1) { //Is in a pseudo chain
         stIntTuple *i = stHash_search(orientationHash, stList_get(
                 adjacentVertices1, 0));
         if (i != NULL) {
+#ifdef BEN_DEBUG
+            if(vertex_isDeadEnd(vertex2)) {
+                struct PinchVertex *vertex3 = getFirstBlackEdge(vertex2)->from;
+                assert(vertex_isEnd(vertex3));
+                End *end = getStubEnd(vertex3, flower, endNamesHash);
+                assert(end != NULL);
+                assert(end_getSide(end) == !stIntTuple_getPosition(i, 0));
+            } else if(stList_length(adjacentVertices2) == 1) {
+                stIntTuple *j = stHash_search(orientationHash, stList_get(
+                                adjacentVertices2, 0));
+                if(j != NULL) {
+                    assert(stIntTuple_getPosition(i, 0) == !stIntTuple_getPosition(j, 0));
+                }
+            }
+#endif
             orientP(vertex1, vertex2, orientationHash, !stIntTuple_getPosition(
                     i, 0));
             return 1;
         }
-    } else if (stList_length(adjacentVertices2) != 1 && !vertex_isEnd(vertex2) && !vertex_isDeadEnd(vertex2)) { //Does not have an end or a pseudo chain at either end, so we are free to choose
+    } else if (stList_length(adjacentVertices2) != 1 && !vertex_isEnd(vertex2)
+            && !vertex_isDeadEnd(vertex2)) { //Does not have an end or a pseudo chain at either end, so we are free to choose
         orientP(vertex1, vertex2, orientationHash, 1);
         return 1;
     }
@@ -230,8 +271,10 @@ void propagateOrientation(struct List *chain, stHash *orientationHash,
     assert(i != NULL);
     bool orientation = stIntTuple_getPosition(i, 0);
 #ifdef BEN_DEBUG
-    i = stHash_search(orientationHash, cactusEdgeToFirstPinchEdge(
-                    ((struct CactusEdge *) chain->list[chain->length-1]), pinchGraph)->to);
+    i = stHash_search(orientationHash,
+            cactusEdgeToFirstPinchEdge(
+                    ((struct CactusEdge *) chain->list[chain->length - 1]),
+                    pinchGraph)->to);
     assert(i != NULL);
     assert(stIntTuple_getPosition(i, 0) == !orientation);
 #endif
@@ -274,9 +317,9 @@ stHash *buildOrientationHash(struct List *biConnectedComponents,
         //Now fill in the orientations
         while (stList_length(endVertices) > 0) {
             stList *endVertices2 = stList_construct();
-            for(int32_t j=0; j<stList_length(endVertices); j+=2) {
+            for (int32_t j = 0; j < stList_length(endVertices); j += 2) {
                 struct PinchVertex *vertex1 = stList_get(endVertices, j);
-                struct PinchVertex *vertex2 = stList_get(endVertices, j+1);
+                struct PinchVertex *vertex2 = stList_get(endVertices, j + 1);
                 if (!orient(vertex1, vertex2, orientationHash,
                         adjacentVertices, flower, endNamesHash) && !orient(
                         vertex2, vertex1, orientationHash, adjacentVertices,
