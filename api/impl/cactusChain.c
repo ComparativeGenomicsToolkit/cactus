@@ -113,6 +113,7 @@ double chain_getAverageInstanceBaseLength(Chain *chain) {
 }
 
 void chain_check(Chain *chain) {
+    st_uglyf("The chain is %i %i\n", chain, chain_getLength(chain));
     Link *link = NULL, *pLink = NULL;
     int32_t i;
     assert(chain_getLength(chain) > 0);
@@ -153,7 +154,8 @@ void chain_check(Chain *chain) {
             if (end_isBlockEnd(_5End)) {
                 //If a block end is at the 5 prime end of a chain the other end of the
                 //block is not in a link group (otherwise the chain is not maximal).
-                assert(group_getLink(end_getGroup(end_getOtherBlockEnd(_5End))) == NULL);
+                Link *nextLink = group_getLink(end_getGroup(end_getOtherBlockEnd(_5End)));
+                assert(nextLink == NULL || link == chain_getLink(chain, 0));
             }
         }
         pLink = link;
@@ -162,7 +164,8 @@ void chain_check(Chain *chain) {
     //block is not in a link group (otherwise the chain is not maximal).
     assert(link != NULL);
     if (end_isBlockEnd(link_get5End(link))) {
-    	assert(group_getLink(end_getGroup(end_getOtherBlockEnd(link_get5End(link)))) == NULL);
+        Link *nextLink = group_getLink(end_getGroup(end_getOtherBlockEnd(link_get5End(link))));
+        assert(nextLink == NULL || link == chain_getLink(chain, chain_getLength(chain)-1));
     }
 }
 

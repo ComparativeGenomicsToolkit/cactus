@@ -105,7 +105,7 @@ static void promoteChainsToFillParentsP(Flower *flower, Group *parentGroup, int3
     assert(group_getLink(parentGroup) == NULL);
     int32_t chainLength = INT32_MAX;
 #endif
-    while (stList_length(chains) > 0 && (flower_getChainNumber(parentFlower)
+    while (group_isTangle(parentGroup) && stList_length(chains) > 0 && (flower_getChainNumber(parentFlower)
             + flower_getTrivialChainNumber(parentFlower) < maxNumberOfChains || flower_getAttachedStubEndNumber(flower) == 0)) {
         chain = stList_pop(chains);
 #ifdef BEN_DEBUG
@@ -115,6 +115,12 @@ static void promoteChainsToFillParentsP(Flower *flower, Group *parentGroup, int3
         assert(group_getLink(parentGroup) == NULL); //Should never become a chain as if tangle it should stay a tangle as all chains are already maximal.
         chainLength = chain_getLength(chain);
 #endif
+        st_uglyf("The chain to promote %i %i\n", chain_getLength(chain), chain);
+        Link *firstLink = chain_getLink(chain, 0);
+        End *first3End = link_get3End(firstLink);
+        End *first5End = link_get5End(firstLink);
+        st_uglyf(" Block ends %i %i %i %i\n", end_isBlockEnd(first3End), end_isBlockEnd(first5End), end_getBlock(first3End), end_getBlock(first5End));
+
         chain_promote(chain);
     }
     stList_destruct(chains);
@@ -134,8 +140,9 @@ static void promoteChainsToFillParentsP(Flower *flower, Group *parentGroup, int3
 #ifdef BEN_DEBUG
     int32_t blockCoverage = INT32_MAX;
 #endif
-    while (stList_length(blocks) > 0 && (flower_getChainNumber(parentFlower)
+    while (group_isTangle(parentGroup) && stList_length(blocks) > 0 && (flower_getChainNumber(parentFlower)
             + flower_getTrivialChainNumber(parentFlower) < maxNumberOfChains || flower_getAttachedStubEndNumber(flower) == 0)) {
+        st_uglyf("The number of ends %i %i %i %i \n", group_getAttachedStubEndNumber(parentGroup), group_getBlockEndNumber(parentGroup), group_getFreeStubEndNumber(parentGroup), group_isLink(parentGroup));
         block = stList_pop(blocks);
 #ifdef BEN_DEBUG
         assert(block_getFlower(block) == flower);
@@ -173,6 +180,7 @@ void normalise(Flower *flower, int32_t maxNumberOfChains) {
 #endif
     promoteNestedChainsThatExtendChains(flower);
     promoteNestedChainsToFillFlower(flower, maxNumberOfChains);
+    flower_checkRecursive(flower);
     removeTrivialLinks(flower);
 
     //Now we normalise the children of the flower..
@@ -189,7 +197,8 @@ void normalise(Flower *flower, int32_t maxNumberOfChains) {
     flower_makeTerminalNormal(flower);
 
 #ifdef BEN_DEBUG
-    flower_checkNotEmpty(flower, 0);
+    flower_checkRecursive(flower);
     flower_check(flower);
+    flower_checkNotEmpty(flower, 0);
 #endif
 }

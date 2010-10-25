@@ -675,6 +675,10 @@ bool flower_removeIfRedundant(Flower *flower) {
     if (!flower_isLeaf(flower) && flower_getParentGroup(flower) != NULL
             && flower_getBlockNumber(flower) == 0) { //We will remove this flower..
         Group *parentGroup = flower_getParentGroup(flower); //This group will be destructed
+        //Deal with any parent chain..
+        if(group_isLink(parentGroup)) {
+            link_split(group_getLink(parentGroup));
+        }
         Flower *parentFlower = group_getFlower(parentGroup); //We will add the groups in the flower to the parent
 
         /*
@@ -690,6 +694,7 @@ bool flower_removeIfRedundant(Flower *flower) {
                 Group *newParentGroup = group_construct(parentFlower,
                         nestedFlower);
                 flower_setParentGroup(nestedFlower, newParentGroup);
+                group_constructChainForLink(newParentGroup);
             } else {
                 Group *newParentGroup = group_construct2(parentFlower);
                 End *end;
@@ -701,6 +706,7 @@ bool flower_removeIfRedundant(Flower *flower) {
                     end_setGroup(parentEnd, newParentGroup);
                 }
                 group_destructEndIterator(endIt);
+                group_constructChainForLink(newParentGroup);
             }
         }
         flower_destructGroupIterator(groupIt);

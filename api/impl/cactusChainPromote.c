@@ -61,6 +61,8 @@ static void promoteBlockEnd(End *end, Flower *flower, Flower *parentFlower) {
 	 * Redirects all the pointers in the block end to the higher level flower.
 	 */
 	assert(end_isBlockEnd(end));
+	assert(end_getFlower(end) == flower);
+	assert(flower != parentFlower);
 	assert(flower_getEnd(parentFlower, end_getName(end)) == NULL);
 	Cap *cap;
 	End_InstanceIterator *it = end_getInstanceIterator(end);
@@ -90,18 +92,23 @@ static void promoteEndsBlocksAndGroups(Chain *chain, Flower *flower,
 	/*
 	 * Promotes all the ends and blocks in the chain..
 	 */
+    assert(chain_getFlower(chain) == flower);
+    bool circular = 0;
 	for (int32_t i = 0; i < chain_getLength(chain); i++) {
 		Link *link = chain_getLink(chain, i);
 		End *_3End = link_get3End(link);
 		End *_5End = link_get5End(link);
 		if (end_isBlockEnd(_3End)) {
+		    if(chain_getLength(chain) == 1 && end_getOtherBlockEnd(_3End) == _5End) { //Decide if circular or not
+		        circular = 1;
+		    }
 			promoteBlock(end_getBlock(_3End), flower, parentFlower);
 			promoteBlockEnd(_3End, flower, parentFlower);
 		} else {
 			assert(i == 0);
 		}
 		if (end_isBlockEnd(_5End)) {
-			if (i + 1 == chain_getLength(chain)) {
+			if (i + 1 == chain_getLength(chain) && !circular) {
 				promoteBlock(end_getBlock(_5End), flower, parentFlower);
 			}
 			promoteBlockEnd(_5End, flower, parentFlower);
@@ -386,6 +393,9 @@ void block_promote(Block *block) {
 	//Now finally promote the block.
 	promoteBlock(block, flower, parentFlower);
 
+	//We've inadvertantly created a length one chain involving just the ends of the flower
+	group_constructChainForLink(parentGroup);
+
 	//We have not removed any ends.. so we're done.
 #ifdef BEN_DEBUG
 	assert(flower_getParentGroup(flower) == parentGroup);
@@ -436,17 +446,25 @@ void chain_promote(Chain *chain) {
 	stSortedSet_insert(chainsToExpunge, chain);
 
 	//Handling the ends of the chain
-	stList *chainEnds = stList_construct();
 	End *_3End = link_get3End(chain_getLink(chain, 0));
-	if (end_isBlockEnd(_3End)) {
-		stList_append(chainEnds, end_getOtherBlockEnd(_3End));
-	}
 	End *_5End = link_get5End(chain_getLink(chain, chain_getLength(chain) - 1));
-	if (end_isBlockEnd(_5End)) {
-		stList_append(chainEnds, end_getOtherBlockEnd(_5End));
+	if(chain_getLength(chain) == 1 && end_isBlockEnd(_3End) && end_getOtherBlockEnd(_3End) == _5End) { //Is a circle
+	    assert(end_isBlockEnd(_5End));
+	    assert(end_getOtherBlockEnd(_5End) == _3End);
 	}
-	promoteChainEnds(chainEnds, flower, parentFlower);
-	stList_destruct(chainEnds);
+	else {
+	    stList *chainEnds = stList_construct();
+        if (end_isBlockEnd(_3End)) { //Is not a circle
+            assert(end_getOtherBlockEnd(_3End) != _5End);
+            stList_append(chainEnds, end_getOtherBlockEnd(_3End));
+        }
+        if (end_isBlockEnd(_5End)) { //Is not a circle
+            assert(end_getOtherBlockEnd(_5End) != _3End);
+            stList_append(chainEnds, end_getOtherBlockEnd(_5End));
+        }
+        promoteChainEnds(chainEnds, flower, parentFlower);
+        stList_destruct(chainEnds);
+	}
 
 	//Redirect and reorganise all the ends, blocks and groups in the chain
 	promoteEndsBlocksAndGroups(chain, flower, parentFlower);
