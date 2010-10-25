@@ -117,7 +117,6 @@ void addConstraint_lessThan(stPosetAlignment *posetAlignment, int32_t sequence1,
             }
 #endif
             stSortedSet_remove(constraintList, constraint2);
-            //st_uglyf("I am removing: %i %i %i %i %i\n", sequence1, stIntTuple_getPosition(constraint2, 0), sequence2, stIntTuple_getPosition(constraint2, 1), stIntTuple_getPosition(constraint2, 2));
             stIntTuple_destruct(constraint2);
         }
         else {
@@ -127,7 +126,6 @@ void addConstraint_lessThan(stPosetAlignment *posetAlignment, int32_t sequence1,
             break;
         }
     }
-    //st_uglyf("I am adding: %i %i %i %i %i\n", sequence1, position1, sequence2, position2, lessThanOrEquals);
     stSortedSet_insert(constraintList, constraint1);
 }
 
@@ -176,7 +174,6 @@ static void stPosetAlignment_addP(stPosetAlignment *posetAlignment, int32_t sequ
                         int32_t position3 = stIntTuple_getPosition(constraint, 0); //its reversed
                         int32_t lessThanOrEqual = stIntTuple_getPosition(constraint, 2) && stIntTuple_getPosition(constraint, 1) == position1;
                         if(lessThanConstraintIsPrime(posetAlignment, sequence3, position3, sequence2, position2, lessThanOrEqual)) { //new constraint found, so add it to the set..
-                            //st_uglyf("This is 137 %i %i %i %i\n", sequence3, position3, sequence2, position2);
                             addConstraint_lessThan(posetAlignment, sequence3, position3, sequence2, position2, lessThanOrEqual);
                             stPosetAlignment_addP2(posetAlignment, sequence1, sequence3, position3, sequence2, position2, lessThanOrEqual);
                         }

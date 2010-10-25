@@ -22,6 +22,14 @@ static Link *link4;
 static Segment *segment1;
 static Segment *segment2;
 
+//Circular chain
+static Block *block4;
+static Group *group5;
+static Chain *chain3;
+static Link *link5;
+static Segment *segment3;
+
+
 static void cactusChainsSharedTestTeardown() {
     if (cactusDisk != NULL) {
         testCommon_deleteTemporaryCactusDisk(cactusDisk);
@@ -68,4 +76,14 @@ static void cactusChainsSharedTestSetup() {
     cap_makeAdjacent(segment_get3Cap(segment1), segment_get5Cap(segment2));
     group_makeNestedFlower(group4);
     flower_setBuiltBlocks(flower, 1);
+    //Circular chain
+    block4 = block_construct(2, flower);
+    group5 = group_construct2(flower);
+    chain3 = chain_construct(flower);
+    end_setGroup(block_get3End(block4), group5);
+    end_setGroup(block_get5End(block4), group5);
+    link5 = link_construct(block_get3End(block4), block_get5End(block4), group5, chain3);
+    MetaSequence *metaSequence2 = metaSequence_construct(1, 2, "CT", NULL, event_getName(event), cactusDisk);
+    Sequence *sequence2 = sequence_construct(metaSequence2, flower);
+    segment3 = segment_construct2(block4, 1, 1, sequence2);
 }

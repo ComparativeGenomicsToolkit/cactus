@@ -53,6 +53,11 @@ Flower *chain_getFlower(Chain *chain);
 double chain_getAverageInstanceBaseLength(Chain *chain);
 
 /*
+ * Returns non-zero if the chain is circular.
+ */
+bool chain_isCircular(Chain *chain);
+
+/*
  * Checks (amongst other things) the following:
  * That each link is properly contained in the chain.
  * Links and the contained ends are properly connected.

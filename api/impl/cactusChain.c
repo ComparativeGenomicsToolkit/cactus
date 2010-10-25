@@ -57,6 +57,7 @@ Block **chain_getBlockChain(Chain *chain, int32_t *blockNumber) {
     Link *link;
     End *end;
     Block *block;
+    bool circular = 0;
     struct List *blocks = constructEmptyList(0, NULL);
     for (i = 0; i < chain_getLength(chain); i++) {
         link = chain_getLink(chain, i);
@@ -65,9 +66,12 @@ Block **chain_getBlockChain(Chain *chain, int32_t *blockNumber) {
         if (block != NULL) {
             assert(block_getOrientation(block));
             listAppend(blocks, block);
+            if(chain_getLength(chain) == 1 && link_get5End(link) == end_getOtherBlockEnd(end)) {
+                circular = 1;
+            }
         }
     }
-    if (chain_getLength(chain) > 0) {
+    if (chain_getLength(chain) > 0 && !circular) {
         link = chain_getLink(chain, chain_getLength(chain) - 1);
         end = link_get5End(link);
         block = end_getBlock(end);
@@ -112,8 +116,14 @@ double chain_getAverageInstanceBaseLength(Chain *chain) {
     return k;
 }
 
+bool chain_isCircular(Chain *chain) {
+    assert(chain_getLength(chain) > 0);
+    End *_3End = link_get3End(chain_getLink(chain, 0));
+    End *_5End = link_get5End(chain_getLink(chain, chain_getLength(chain)-1));
+    return end_isBlockEnd(_3End) && end_getOtherBlockEnd(_3End) == _5End;
+}
+
 void chain_check(Chain *chain) {
-    st_uglyf("The chain is %i %i\n", chain, chain_getLength(chain));
     Link *link = NULL, *pLink = NULL;
     int32_t i;
     assert(chain_getLength(chain) > 0);

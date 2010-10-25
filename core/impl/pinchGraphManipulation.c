@@ -514,10 +514,6 @@ float treeCoverage(struct PinchVertex *vertex, Flower *flower) {
         return 0.0;
     }
     treeCoverage /= wholeTreeCoverage;
-    if (treeCoverage <= -0.001 || treeCoverage >= 1.001) {
-        st_uglyf("The tree coverage for this case is: %f, %f \n", treeCoverage,
-                wholeTreeCoverage);
-    }
     assert(treeCoverage >= -0.001);
     assert(treeCoverage <= 1.0001);
     return treeCoverage;

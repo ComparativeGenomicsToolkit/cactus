@@ -73,15 +73,15 @@ void testLink_getIndex(CuTest* testCase) {
 
 void testLink_split(CuTest *testCase) {
     cactusLinkTestSetup();
-    CuAssertTrue(testCase, flower_getChainNumber(flower) == 2);
+    CuAssertTrue(testCase, flower_getChainNumber(flower) == 3);
     CuAssertTrue(testCase, chain_getLength(chain) == 2);
     CuAssertTrue(testCase, group_getLink(group1) == link1);
     link_split(link1);
     CuAssertTrue(testCase, group_getLink(group1) == NULL);
-    CuAssertTrue(testCase, flower_getChainNumber(flower) == 2);
+    CuAssertTrue(testCase, flower_getChainNumber(flower) == 3);
     chain = flower_getFirstChain(flower);
     Flower_ChainIterator *chainIt = flower_getChainIterator(flower);
-    while((chain = flower_getNextChain(chainIt)) != NULL && chain == chain2);
+    while((chain = flower_getNextChain(chainIt)) != NULL && (chain == chain2 || chain == chain3));
     flower_destructChainIterator(chainIt);
     assert(chain != NULL);
     CuAssertTrue(testCase, chain_getLength(chain) == 1);
@@ -90,7 +90,7 @@ void testLink_split(CuTest *testCase) {
     CuAssertTrue(testCase, link_get5End(link3) == end2);
     CuAssertTrue(testCase, group_getLink(group2) == link3);
     link_split(chain_getLink(chain, 0));
-    CuAssertTrue(testCase, flower_getChainNumber(flower) == 1);
+    CuAssertTrue(testCase, flower_getChainNumber(flower) == 2);
     CuAssertTrue(testCase, group_getLink(group1) == NULL);
     CuAssertTrue(testCase, group_getLink(group2) == NULL);
     cactusLinkTestTeardown();
@@ -127,6 +127,7 @@ void testLink_isTrivial(CuTest *testCase) {
     CuAssertTrue(testCase, !link_isTrivial(link1));
     CuAssertTrue(testCase, !link_isTrivial(link2));
     CuAssertTrue(testCase, link_isTrivial(link4));
+    //CuAssertTrue(testCase, !link_isTrivial(link5));
     cactusLinkTestTeardown();
 }
 
@@ -134,25 +135,31 @@ void testLink_mergeIfTrivial(CuTest *testCase) {
     cactusLinkTestSetup();
     CuAssertTrue(testCase, !link_mergeIfTrivial(link1));
     CuAssertTrue(testCase, !link_mergeIfTrivial(link2));
+    //CuAssertTrue(testCase, !link_mergeIfTrivial(link5));
 
     CuAssertTrue(testCase, chain_getLength(chain2) == 1);
+    CuAssertTrue(testCase, flower_getBlockNumber(flower) == 4);
+    CuAssertTrue(testCase, flower_getBlockEndNumber(flower) == 8);
+    CuAssertTrue(testCase, flower_getStubEndNumber(flower) == 2);
+    CuAssertTrue(testCase, flower_getGroupNumber(flower) == 5);
+    CuAssertTrue(testCase, flower_getSegmentNumber(flower) == 3);
+    CuAssertTrue(testCase, flower_getCapNumber(flower) == 6);
+
+    CuAssertTrue(testCase, link_mergeIfTrivial(link4));
+
+    CuAssertTrue(testCase, chain_getLength(chain2) == 0);
     CuAssertTrue(testCase, flower_getBlockNumber(flower) == 3);
     CuAssertTrue(testCase, flower_getBlockEndNumber(flower) == 6);
     CuAssertTrue(testCase, flower_getStubEndNumber(flower) == 2);
     CuAssertTrue(testCase, flower_getGroupNumber(flower) == 4);
     CuAssertTrue(testCase, flower_getSegmentNumber(flower) == 2);
     CuAssertTrue(testCase, flower_getCapNumber(flower) == 4);
-
-    CuAssertTrue(testCase, link_mergeIfTrivial(link4));
-
-    CuAssertTrue(testCase, chain_getLength(chain2) == 0);
-    CuAssertTrue(testCase, flower_getBlockNumber(flower) == 2);
-    CuAssertTrue(testCase, flower_getBlockEndNumber(flower) == 4);
-    CuAssertTrue(testCase, flower_getStubEndNumber(flower) == 2);
-    CuAssertTrue(testCase, flower_getGroupNumber(flower) == 3);
-    CuAssertTrue(testCase, flower_getSegmentNumber(flower) == 1);
-    CuAssertTrue(testCase, flower_getCapNumber(flower) == 2);
-    Segment *mergedSegment = flower_getFirstSegment(flower);
+    Segment *mergedSegment;
+    Flower_SegmentIterator *it = flower_getSegmentIterator(flower);
+    while((mergedSegment = flower_getNextSegment(it)) != NULL && (mergedSegment == segment3));
+    flower_destructSegmentIterator(it);
+    CuAssertTrue(testCase, mergedSegment != NULL);
+    CuAssertTrue(testCase, mergedSegment != segment3);
     Block *mergedBlock = segment_getBlock(mergedSegment);
     CuAssertTrue(testCase, segment_getLength(mergedSegment) == 2);
     CuAssertTrue(testCase, block_getLength(mergedBlock) == 2);

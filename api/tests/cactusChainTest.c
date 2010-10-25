@@ -20,6 +20,7 @@ void testChain_construct(CuTest* testCase) {
     CuAssertTrue(testCase, chain != NULL);
     CuAssertTrue(testCase, link1 != NULL);
     CuAssertTrue(testCase, link2 != NULL);
+    CuAssertTrue(testCase, link5 != NULL);
     cactusChainTestTeardown();
 }
 
@@ -27,6 +28,7 @@ void testChain_getLink(CuTest* testCase) {
     cactusChainTestSetup();
     CuAssertTrue(testCase, chain_getLink(chain, 0) == link1);
     CuAssertTrue(testCase, chain_getLink(chain, 1) == link2);
+    CuAssertTrue(testCase, chain_getLink(chain3, 0) == link5);
     //CuAssertTrue(testCase, 0);
     cactusChainTestTeardown();
 }
@@ -34,6 +36,7 @@ void testChain_getLink(CuTest* testCase) {
 void testChain_getLength(CuTest* testCase) {
     cactusChainTestSetup();
     CuAssertTrue(testCase, chain_getLength(chain) == 2);
+    CuAssertTrue(testCase, chain_getLength(chain3) == 1);
     cactusChainTestTeardown();
 }
 
@@ -44,6 +47,13 @@ void testChain_getBlockChain(CuTest* testCase) {
     CuAssertTrue(testCase, i == 1);
     CuAssertTrue(testCase, blockChain[0] == block);
     free(blockChain);
+
+    //Now test the circular version
+    blockChain = chain_getBlockChain(chain3, &i);
+    CuAssertTrue(testCase, i == 1);
+    CuAssertTrue(testCase, blockChain[0] == block4);
+    free(blockChain);
+
     cactusChainTestTeardown();
 }
 
@@ -57,6 +67,14 @@ void testChain_getName(CuTest* testCase) {
 void testChain_getFlower(CuTest* testCase) {
     cactusChainTestSetup();
     CuAssertTrue(testCase, chain_getFlower(chain) == flower);
+    cactusChainTestTeardown();
+}
+
+void testChain_isCircular(CuTest* testCase) {
+    cactusChainTestSetup();
+    CuAssertTrue(testCase, !chain_isCircular(chain));
+    CuAssertTrue(testCase, !chain_isCircular(chain2));
+    CuAssertTrue(testCase, chain_isCircular(chain3));
     cactusChainTestTeardown();
 }
 
@@ -93,6 +111,7 @@ CuSuite* cactusChainTestSuite(void) {
     SUITE_ADD_TEST(suite, testChain_getName);
     SUITE_ADD_TEST(suite, testChain_getFlower);
     SUITE_ADD_TEST(suite, testChain_serialisation);
+    SUITE_ADD_TEST(suite, testChain_isCircular);
     SUITE_ADD_TEST(suite, testChain_construct);
     return suite;
 }

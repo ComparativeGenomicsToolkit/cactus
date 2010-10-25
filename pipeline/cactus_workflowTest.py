@@ -30,7 +30,6 @@ class TestCase(unittest.TestCase):
         runWorkflow_multipleExamples(getCactusInputs_random, 
                                      testNumber=10,
                                      testRestrictions=(TestStatus.TEST_SHORT,),
-                                     buildReference=False,
                                      batchSystem=self.batchSystem, buildJobTreeStats=True)
         
     def testCactus_Blanchette(self):

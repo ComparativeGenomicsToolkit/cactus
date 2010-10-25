@@ -367,14 +367,17 @@ stHash *buildOrientationHash(struct List *biConnectedComponents, struct PinchGra
         while((vertex = stSortedSet_getNext(it)) != NULL) {
             stIntTuple *j = stHash_search(orientationHash, vertex);
             assert(j != NULL);
+            bool isFreeStub = 0;
             if(vertex_isEnd(vertex)) {
                 End *end = getStubEnd(vertex, flower, endNamesHash);
                 assert(end != NULL);
                 assert(end_getSide(end) == stIntTuple_getPosition(j, 0));
+                assert(!end_isBlockEnd(end));
+                isFreeStub = end_isFree(end);
             }
             stSortedSet *adjacentVertices = stHash_search(adjacentVerticesHash, vertex);
             assert(adjacentVertices != NULL);
-            if(!vertex_isDeadEnd(vertex) && stSortedSet_size(adjacentVertices) == 1) {
+            if(!vertex_isDeadEnd(vertex) && stSortedSet_size(adjacentVertices) == 1 && !isFreeStub) {
                 stIntTuple *k = stHash_search(orientationHash, stSortedSet_getFirst(adjacentVertices));
                 assert(k != NULL);
                 assert(stIntTuple_getPosition(j, 0) == !stIntTuple_getPosition(k, 0));
@@ -404,12 +407,6 @@ stHash *buildOrientationHash(struct List *biConnectedComponents, struct PinchGra
         }
     }
     assert(l == stHash_size(orientationHash));
-    //st_uglyf("The sizes are %i %i\n", stHash_size(orientationHash), pinchGraph->vertices->length-1);
-    //for(int32_t j=0; j<pinchGraph->vertices->length; j++) {
-    //    struct PinchVertex *vertex = pinchGraph->vertices->list[j];
-    //    st_uglyf("This is %i %i %i %i %i %i \n", vertex_isDeadEnd(vertex), vertex_isEnd(vertex), lengthBlackEdges(vertex), lengthGreyEdges(vertex), vertex->vertexID, stHash_search(orientationHash, vertex));
-    //}
-    //assert(stHash_size(orientationHash) == pinchGraph->vertices->length-1);
 #endif
     return orientationHash;
 }

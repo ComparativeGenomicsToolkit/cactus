@@ -379,7 +379,6 @@ stList *getAlignedPairs(const char *sX, const char *sY) {
         diff = -diff;
     }
     //Check they are about the same.
-    //st_uglyf("This is what I aligned %f %f %f %s %s\n", totalFProb, totalBProb, diff, sX, sY);
 #ifdef BEN_DEBUG
     assert(diff < 0.001);
 #endif
@@ -494,10 +493,8 @@ stList *getAlignedPairs_Fast(const char *sX, const char *sY,
                 //Update the offsets
                 offsetX = newOffsetX;
                 offsetY = newOffsetY;
-                //st_uglyf("I have chosen an offset point %i %i\n", offsetX, offsetY);
             } else { //No candidate start point was found so we just stop the extension
                 assert(newOffsetX == offsetX && newOffsetY == offsetY);
-                //st_uglyf("I am exiting having not found a candidate new point\n");
                 done = 1;
             }
         } else {

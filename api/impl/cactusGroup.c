@@ -378,10 +378,6 @@ void group_constructChainForLink(Group *group) {
                     if(chain != _5Chain) { //We don't want to merge a circle
                         chain_join(chain, _5Chain);
                     }
-                    else {
-                        st_uglyf("!!!!!!!The chain is %i %i\n", chain, chain_getLength(chain));
-                        chain_check(chain);
-                    }
                 }
             }
             assert(group_isLink(group));
