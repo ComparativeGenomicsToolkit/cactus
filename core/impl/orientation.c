@@ -104,7 +104,7 @@ static stSortedSet *getAdjacentVertices(struct PinchVertex *vertex, stSortedSet 
 
     getAdjacentVerticesP(vertex, includedVertices, pinchGraph, flower, endNamesHash, orientationHash, adjacentVertices);
     //No need to consider itself again.
-    if(stSortedSet_search(adjacentVertices, vertex) != NULL) {
+    if (stSortedSet_search(adjacentVertices, vertex) != NULL) {
         stSortedSet_remove(adjacentVertices, vertex);
     }
 
@@ -115,7 +115,7 @@ static stSortedSet *getAdjacentVertices(struct PinchVertex *vertex, stSortedSet 
     }
     stList_destruct(list);
 
-    if(stSortedSet_search(adjacentVertices, vertex) != NULL) {
+    if (stSortedSet_search(adjacentVertices, vertex) != NULL) {
         stSortedSet_remove(adjacentVertices, vertex);
     }
 
@@ -201,7 +201,7 @@ static void orientP(struct PinchVertex *vertex1, struct PinchVertex *vertex2, st
 }
 
 static bool orient(struct PinchVertex *vertex1, struct PinchVertex *vertex2, stHash *orientationHash,
-        stHash *adjacentVertices, Flower *flower, struct hashtable *endNamesHash) {
+        stHash *adjacentVertices, Flower *flower, struct hashtable *endNamesHash, bool deadLock) {
     /*
      * Orients the ends.
      */
@@ -284,7 +284,7 @@ static bool orient(struct PinchVertex *vertex1, struct PinchVertex *vertex2, stH
             orientP(vertex1, vertex2, orientationHash, !stIntTuple_getPosition(i, 0));
             return 1;
         }
-    } else if (stSortedSet_size(adjacentVertices2) != 1 && !vertex_isEnd(vertex2) && !vertex_isDeadEnd(vertex2)) { //Does not have an end or a pseudo chain at either end, so we are free to choose
+    } else if ((deadLock || stSortedSet_size(adjacentVertices2) != 1) && !vertex_isDeadEnd(vertex2)) { //Does not have an end or a pseudo chain at either end, so we are free to choose
         orientP(vertex1, vertex2, orientationHash, 1);
         return 1;
     }
@@ -346,17 +346,22 @@ stHash *buildOrientationHash(struct List *biConnectedComponents, struct PinchGra
         stHash *adjacentVerticesHash = getAdjacentVerticesHash(endVerticesSet, pinchGraph, flower, endNamesHash,
                 orientationHash);
         //Now fill in the orientations
+        bool deadLock = 0;
         while (stList_length(endVertices) > 0) {
             stList *endVertices2 = stList_construct();
             for (int32_t j = 0; j < stList_length(endVertices); j += 2) {
                 struct PinchVertex *vertex1 = stList_get(endVertices, j);
                 struct PinchVertex *vertex2 = stList_get(endVertices, j + 1);
-                if (!orient(vertex1, vertex2, orientationHash, adjacentVerticesHash, flower, endNamesHash) && !orient(
-                        vertex2, vertex1, orientationHash, adjacentVerticesHash, flower, endNamesHash)) {
+                if (!orient(vertex1, vertex2, orientationHash, adjacentVerticesHash, flower, endNamesHash, deadLock) && !orient(
+                        vertex2, vertex1, orientationHash, adjacentVerticesHash, flower, endNamesHash, deadLock)) {
                     stList_append(endVertices2, vertex1);
                     stList_append(endVertices2, vertex2);
                 }
+                else {
+                    deadLock = 0;
+                }
             }
+            deadLock = stList_length(endVertices) == stList_length(endVertices2);
             stList_destruct(endVertices);
             endVertices = endVertices2;
         }

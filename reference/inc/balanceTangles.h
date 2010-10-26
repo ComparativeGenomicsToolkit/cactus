@@ -29,10 +29,4 @@
 void balanceTangles(Flower *flower);
 
 
-/*
- * Breaks circles.
- */
-void breakCircles(Flower *flower);
-
-
 #endif /* BALANCETANGLES_H_ */
