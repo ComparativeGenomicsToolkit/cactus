@@ -28,9 +28,8 @@ class TestCase(unittest.TestCase):
         
     def testCactus_Random(self):
         runWorkflow_multipleExamples(getCactusInputs_random, 
-                                     testNumber=10000,
+                                     testNumber=10,
                                      testRestrictions=(TestStatus.TEST_SHORT,),
-                                     buildReference=False,
                                      batchSystem=self.batchSystem, buildJobTreeStats=True)
         
     def testCactus_Blanchette(self):
