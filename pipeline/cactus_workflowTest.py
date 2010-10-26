@@ -13,8 +13,6 @@ from cactus.shared.test import getCactusInputs_blanchette
 from cactus.shared.test import getCactusInputs_encode
 from cactus.shared.test import getCactusInputs_chromosomeX
 
-from cactus.shared.test import getCactusInputs_evolver_primate_small
-
 from cactus.shared.test import runWorkflow_multipleExamples
 from cactus.shared.test import BATCH_SYSTEM
 
@@ -56,14 +54,6 @@ class TestCase(unittest.TestCase):
         return
         outputDir = os.path.join(TestStatus.getPathToDataSets(), "cactus", "chrX")
         runWorkflow_multipleExamples(getCactusInputs_chromosomeX, 
-                                     outputDir=outputDir,
-                                     testRestrictions=(TestStatus.TEST_VERY_LONG,),
-                                     batchSystem=self.batchSystem,
-                                     makeCactusTreeStats=True, makeMAFs=True)
-    
-    def testCactus_EvolverPrimatesSmall(self):
-        outputDir = os.path.join(TestStatus.getPathToDataSets(), "cactus", "evolver", "primates", "small")
-        runWorkflow_multipleExamples(getCactusInputs_evolver_primate_small,
                                      outputDir=outputDir,
                                      testRestrictions=(TestStatus.TEST_VERY_LONG,),
                                      batchSystem=self.batchSystem,

@@ -1,0 +1,70 @@
+"""Tests the core pipeline.
+"""
+
+import unittest
+import os
+import sys
+
+from cactus.shared.test import parseCactusSuiteTestOptions
+from sonLib.bioio import TestStatus
+
+from cactus.shared.test import parseNewickTreeFile
+
+from cactus.shared.test import runWorkflow_multipleExamples
+from cactus.shared.test import BATCH_SYSTEM
+
+primateSequences = ("simChimp.fa", "simGorilla.fa", "simHuman.fa", "simOrang.fa")
+mammalSequences = ("simCow.fa", "simDog.fa", "simHuman.fa", "simMouse.fa", "simRat.fa")
+
+class TestCase(unittest.TestCase):
+    
+    def setUp(self):
+        self.batchSystem = "singleMachine"
+        if BATCH_SYSTEM != None:
+            self.batchSystem = BATCH_SYSTEM
+        unittest.TestCase.setUp(self)
+    
+    def testEvolver_Primates_Loci1(self):
+        inputDir = os.path.join(TestStatus.getPathToDataSets(), "evolver", "primates", "loci1")
+        outputDir = os.path.join(TestStatus.getPathToDataSets(), "cactus", "evolver", "primates", "loci1")
+        runWorkflow_multipleExamples(lambda testDir : getInputs(inputDir, primateSequences),
+                                     outputDir=outputDir,
+                                     testRestrictions=(TestStatus.TEST_MEDIUM,),
+                                     batchSystem=self.batchSystem,
+                                     makeCactusTreeStats=True, makeMAFs=True)
+    
+    def testEvolver_Mammals_Loci1(self):
+        inputDir = os.path.join(TestStatus.getPathToDataSets(), "evolver", "mammals", "loci1")
+        outputDir = os.path.join(TestStatus.getPathToDataSets(), "cactus", "evolver", "mammals", "loci1")
+        runWorkflow_multipleExamples(lambda testDir : getInputs(inputDir, mammalSequences),
+                                     outputDir=outputDir,
+                                     testRestrictions=(TestStatus.TEST_LONG,),
+                                     batchSystem=self.batchSystem,
+                                     makeCactusTreeStats=True, makeMAFs=True)
+    
+    
+    def testEvolver_Primates_Small(self):
+        inputDir = os.path.join(TestStatus.getPathToDataSets(), "evolver", "primates", "small")
+        outputDir = os.path.join(TestStatus.getPathToDataSets(), "cactus", "evolver", "primates", "small")
+        runWorkflow_multipleExamples(lambda testDir : getInputs(inputDir, primateSequences),
+                                     outputDir=outputDir,
+                                     testRestrictions=(TestStatus.TEST_VERY_LONG,),
+                                     batchSystem=self.batchSystem,
+                                     makeCactusTreeStats=True, makeMAFs=True)
+    
+
+def getInputs(path, sequenceNames):
+    """Requires setting SON_TRACE_DATASETS variable and having access to datasets.
+    """
+    seqPath = os.path.join(TestStatus.getPathToDataSets(), path)
+    sequences = [ os.path.join(seqPath, sequence) for sequence in sequenceNames ] #Same order as tree
+    newickTreeString = parseNewickTreeFile(os.path.join(path, "tree.newick"))
+    return sequences, newickTreeString    
+
+def main():
+    parseCactusSuiteTestOptions()
+    sys.argv = sys.argv[:1]
+    unittest.main()
+        
+if __name__ == '__main__':
+    main()
