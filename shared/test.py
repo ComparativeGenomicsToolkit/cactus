@@ -44,6 +44,12 @@ from cactus.shared.config import CactusWorkflowExperiment
 GLOBAL_DATABASE_CONF = None
 BATCH_SYSTEM = None
 
+def getBatchSystem():
+    return BATCH_SYSTEM
+
+def getGlobalDatabaseConf():
+    return GLOBAL_DATABASE_CONF
+
 def initialiseGlobalDatabaseConf(dataString):
     """Initialises the global database conf string which, if defined,
     is used as the database for CactusWorkflowExperiments."""

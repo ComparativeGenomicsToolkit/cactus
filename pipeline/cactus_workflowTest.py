@@ -14,14 +14,15 @@ from cactus.shared.test import getCactusInputs_encode
 from cactus.shared.test import getCactusInputs_chromosomeX
 
 from cactus.shared.test import runWorkflow_multipleExamples
-from cactus.shared.test import BATCH_SYSTEM
+
+from cactus.shared.test import getBatchSystem
 
 class TestCase(unittest.TestCase):
     
     def setUp(self):
         self.batchSystem = "singleMachine"
-        if BATCH_SYSTEM != None:
-            self.batchSystem = BATCH_SYSTEM
+        if getBatchSystem() != None:
+            self.batchSystem = getBatchSystem()
         unittest.TestCase.setUp(self)
         
     def testCactus_Random(self):
