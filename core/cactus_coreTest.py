@@ -35,10 +35,13 @@ def getRandomConfigFile():
     iterations = config.find("alignment").find("iterations")
     i = iterations.findall("iteration")
     #Remove all the iterations bar one..
-    iterations.remove(i[0])
-    iterations.remove(i[1])
-    iterations.remove(i[-1])
-    iteration = i[2]
+    i.reverse()
+    for iteration in i:
+        if iteration.attrib["type"] == "blast":
+            for iteration2 in i:
+                if iteration2 != iteration:
+                    iterations.remove(iteration2)
+            break
     #Now make random parameters..
     iteration.attrib["number"] = "0"
     core = iteration.find("core")
