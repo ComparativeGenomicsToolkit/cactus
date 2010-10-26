@@ -146,7 +146,7 @@ class CactusAlignmentWrapper(Target):
                 else:
                     assert(iterations[nextIteration].attrib["type"] == "base")
                     baseLevelFlowers.append(childFlowerName)
-                    if len(baseLevelFlowers) > 10:
+                    if len(baseLevelFlowers) > 25:
                         self.addChildTarget(CactusBaseLevelAlignerWrapper(self.options, baseLevelFlowers))
                         baseLevelFlowers = []
             if len(baseLevelFlowers) > 0:
