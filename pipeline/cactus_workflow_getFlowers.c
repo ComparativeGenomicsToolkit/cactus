@@ -8,7 +8,15 @@
 #include "cactus.h"
 
 int main(int argc, char *argv[]) {
-    assert(argc >= 4);
+    assert(argc >= 5);
+
+    if (strcmp(argv[4], "INFO") == 0) {
+        st_setLogLevel(ST_LOGGING_INFO);
+    }
+    else if (strcmp(argv[4], "DEBUG") == 0) {
+        st_setLogLevel(ST_LOGGING_DEBUG);
+    }
+
     stKVDatabaseConf *kvDatabaseConf = stKVDatabaseConf_constructFromString(argv[1]);
     CactusDisk *cactusDisk = cactusDisk_construct(kvDatabaseConf, 0);
     st_logInfo("Set up the flower disk\n");
@@ -18,7 +26,7 @@ int main(int argc, char *argv[]) {
     int32_t includeTerminalFlowers;
     int32_t i = sscanf(argv[3], "%i", &includeTerminalFlowers);
     assert(i == 1);
-    for (i = 4; i < argc; i++) {
+    for (i = 5; i < argc; i++) {
         Flower *flower = cactusDisk_getFlower(cactusDisk, cactusMisc_stringToName(argv[i]));
         assert(flower != NULL);
         assert(flower_builtBlocks(flower)); //This recursion depends on the block structure having been properly defined for all nodes.

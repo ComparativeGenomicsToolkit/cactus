@@ -98,24 +98,24 @@ def readFlowerNamesFile(flowerNamesFile):
     fileHandle.close()
     return l
     
-def runCactusGetFlowers(cactusDiskDatabaseString, flowerNames, tempDir, includeTerminalFlowers=True):
+def runCactusGetFlowers(cactusDiskDatabaseString, flowerNames, tempDir, includeTerminalFlowers=True, logLevel="DEBUG"):
     """Gets a list of flowers attached to the given flower. 
     """
     flowerNamesFile = getTempFile(".txt", tempDir)
-    system("cactus_workflow_getFlowers '%s' %s %s %s" % (cactusDiskDatabaseString,  flowerNamesFile, int(includeTerminalFlowers), " ".join(flowerNames)))
+    system("cactus_workflow_getFlowers '%s' %s %s %s %s" % (cactusDiskDatabaseString,  flowerNamesFile, int(includeTerminalFlowers), logLevel, " ".join(flowerNames)))
     l = readFlowerNamesFile(flowerNamesFile)
     os.remove(flowerNamesFile)
     random.shuffle(l) #We shuffle the flowers so we don't end up with an ordering that places all the large problems together.
     return l
 
 def runCactusExtendFlowers(cactusDiskDatabaseString, flowerName, tempDir,
-                        minSizeToExtend=1):
+                        minSizeToExtend=1, logLevel="DEBUG"):
     """Extends the terminal groups in the cactus and returns the list
     of their child flowers with which to pass to core.
     The order of the flowers is by ascending depth first discovery time.
     """
     flowerNamesFile = getTempFile(".txt", tempDir)
-    system("cactus_workflow_extendFlowers '%s' %s %s %i" % (cactusDiskDatabaseString, flowerName, flowerNamesFile, int(minSizeToExtend)))
+    system("cactus_workflow_extendFlowers '%s' %s %s %i %s" % (cactusDiskDatabaseString, flowerName, flowerNamesFile, int(minSizeToExtend), logLevel))
     l = readFlowerNamesFile(flowerNamesFile)
     os.remove(flowerNamesFile)
     random.shuffle(l) #We shuffle the flowers so we don't end up with an ordering that places all the large problems together.

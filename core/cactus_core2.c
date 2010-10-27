@@ -285,6 +285,7 @@ int main(int argc, char *argv[]) {
     if(logLevelString != NULL) {
         free(logLevelString);
     }
+    destructCactusCoreInputParameters(cCIP);
 
     st_logInfo("Cleaned stuff up and am finished in: %i seconds\n", time(NULL)
             - startTime);

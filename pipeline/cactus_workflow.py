@@ -138,7 +138,7 @@ class CactusAlignmentWrapper(Target):
             #This loop is properly atomic, because if it is run twice it will return the same
             #set of flowernames
             for childFlowerName, childFlowerSize in runCactusExtendFlowers(self.options.cactusDiskDatabaseString, self.flowerName, 
-                                                                  self.getLocalTempDir()):
+                                                                  self.getLocalTempDir(),  logLevel=getLogLevelString()):
                 assert childFlowerSize >= 0
                 nextIteration = getAlignmentIteration(iterations, self.iteration, childFlowerSize)   
                 if iterations[nextIteration].attrib["type"] == "blast":
@@ -250,7 +250,7 @@ def makeChildTargets(options, flowerNames, target, childTarget, maxSequenceSize=
     totalSequenceSize = 0
     
     minChildSize = max(1, maxSequenceSize/jobNumber)
-    childFlowers = runCactusGetFlowers(options.cactusDiskDatabaseString, flowerNames, target.getLocalTempDir(), includeTerminalFlowers=includeTerminalFlowers)
+    childFlowers = runCactusGetFlowers(options.cactusDiskDatabaseString, flowerNames, target.getLocalTempDir(), includeTerminalFlowers=includeTerminalFlowers, logLevel=getLogLevelString())
     totalChildSize = sum([ max(childFlowerSize, minChildSize) for childFlowerName, childFlowerSize in childFlowers])
     avgChildSize = totalChildSize / (totalChildSize / maxSequenceSize + 1)
     
