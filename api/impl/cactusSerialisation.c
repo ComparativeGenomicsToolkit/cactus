@@ -101,7 +101,7 @@ bool binaryRepresentation_getBool(void **binaryString) {
 	return *i;
 }
 
-int32_t binaryRepresentation_makeBinaryRepresentationP_i = 0;
+int64_t binaryRepresentation_makeBinaryRepresentationP_i = 0;
 void binaryRepresentation_makeBinaryRepresentationP(const void * ptr, size_t size, size_t count) {
 	/*
 	 * Records the cummulative size of the substrings written out in creating the flower.
@@ -123,6 +123,7 @@ void *binaryRepresentation_makeBinaryRepresentation(void *object, void (*writeBi
 	void *vA;
 	binaryRepresentation_makeBinaryRepresentationP_i = 0;
 	writeBinaryRepresentation(object, binaryRepresentation_makeBinaryRepresentationP);
+	assert(binaryRepresentation_makeBinaryRepresentationP_i < INT32_MAX);
 	vA = st_malloc(binaryRepresentation_makeBinaryRepresentationP_i);
 	binaryRepresentation_makeBinaryRepresentationP2_vA = vA;
 	writeBinaryRepresentation(object, binaryRepresentation_makeBinaryRepresentationP2);

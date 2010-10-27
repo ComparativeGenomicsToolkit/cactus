@@ -200,8 +200,10 @@ int main(int argc, char *argv[]) {
         assert(getAlignment_iterator != NULL);
         stSortedSet_destructIterator(getAlignment_iterator);
         getAlignment_iterator = NULL;
+
         //Clean up the sorted set after cleaning up the iterator
         stSortedSet_destruct(getAlignment_alignedPairs);
+
         st_logInfo("Finished filling in the alignments for the flower\n");
         //flower_unloadParent(flower); //The parent should not have changed.
     }
@@ -217,6 +219,8 @@ int main(int argc, char *argv[]) {
         assert(flower != NULL);
         flower_unloadParent(flower); //We have this line just in case we are loading the parent..
     }
+
+    //assert(0);
 
     /*
      * Write and close the cactusdisk.

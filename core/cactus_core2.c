@@ -279,6 +279,12 @@ int main(int argc, char *argv[]) {
     startTime = time(NULL);
     cactusDisk_destruct(cactusDisk);
     stKVDatabaseConf_destruct(kvDatabaseConf);
+    free(cactusDiskDatabaseString);
+    free(alignmentsFile);
+    free(flowerName);
+    if(logLevelString != NULL) {
+        free(logLevelString);
+    }
 
     st_logInfo("Cleaned stuff up and am finished in: %i seconds\n", time(NULL)
             - startTime);

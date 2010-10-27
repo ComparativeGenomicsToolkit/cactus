@@ -125,7 +125,7 @@ static stSortedSet *getAdjacentVertices(struct PinchVertex *vertex, stSortedSet 
 static stHash *getAdjacentVerticesHash(stSortedSet *endVertices, struct PinchGraph *pinchGraph, Flower *flower,
         struct hashtable *endNamesHash, stHash *orientationHash) {
     //Get the adjacent vertices to each vertex
-    stHash *adjacentVertices = stHash_construct2(NULL, (void(*)(void *)) stList_destruct);
+    stHash *adjacentVertices = stHash_construct2(NULL, (void(*)(void *)) stSortedSet_destruct);
     stSortedSetIterator *it = stSortedSet_getIterator(endVertices);
     struct PinchVertex *vertex;
     while ((vertex = stSortedSet_getNext(it)) != NULL) {
