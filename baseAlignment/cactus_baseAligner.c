@@ -229,6 +229,10 @@ int main(int argc, char *argv[]) {
     cactusDisk_destruct(cactusDisk);
     stKVDatabaseConf_destruct(kvDatabaseConf);
     destructCactusCoreInputParameters(cCIP);
+    free(cactusDiskDatabaseString);
+    if(logLevelString != NULL) {
+        free(logLevelString);
+    }
     st_logInfo("Finished with the flower disk for this flower.\n");
 
     //while(1);
