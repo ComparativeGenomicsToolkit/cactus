@@ -146,6 +146,10 @@ int main(int argc, char *argv[]) {
     //Destruct stuff
     cactusDisk_destruct(cactusDisk);
     stKVDatabaseConf_destruct(kvDatabaseConf);
+    if(logLevelString != NULL) {
+        free(logLevelString);
+    }
+    free(cactusDiskDatabaseString);
 
     st_logInfo("Cleaned stuff up and am finished\n");
 

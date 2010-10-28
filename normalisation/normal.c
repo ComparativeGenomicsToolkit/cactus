@@ -37,6 +37,7 @@ static void promoteChainsThatExtendHigherLevelChainsP(Flower *flower, Group *par
             chain_promote(chain);
         }
     }
+    stList_destruct(chains);
 }
 
 static stList *getNestedFlowers(Flower *flower) {
