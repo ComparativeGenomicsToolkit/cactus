@@ -125,11 +125,10 @@ void eventTree_destructIterator(EventTree_Iterator *iterator) {
 static char *eventTree_makeNewickStringP(Event *event) {
 	int32_t i;
 	char *cA = NULL;
-	char *cA2;
 	char *cA3;
 	if(event_getChildNumber(event) > 0) {
 		for(i=0;i<event_getChildNumber(event); i++) {
-			cA2 = eventTree_makeNewickStringP(event_getChild(event, i));
+			char *cA2 = eventTree_makeNewickStringP(event_getChild(event, i));
 			if(i > 0) {
 				cA3 = st_malloc(sizeof(char)*(strlen(cA)+strlen(cA2)+2));
 				sprintf(cA3, "%s,%s", cA, cA2);
@@ -140,6 +139,7 @@ static char *eventTree_makeNewickStringP(Event *event) {
 				cA = st_malloc(sizeof(char)*(strlen(cA2)+2));
 				sprintf(cA, "(%s", cA2);
 			}
+			free(cA2);
 		}
 		cA3 = st_malloc(sizeof(char)*(strlen(cA) + strlen(event_getHeader(event)) + 30));
 		sprintf(cA3, "%s)%s:%g", cA, event_getHeader(event), event_getBranchLength(event));
