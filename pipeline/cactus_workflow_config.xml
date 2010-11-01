@@ -9,7 +9,7 @@
 
 			<iteration max_sequence_size="30000000" number="1" type="blast">
 				<blast blastString="lastz --format=cigar SEQ_FILE_1[multiple][nameparse=darkspace] SEQ_FILE_2[nameparse=darkspace] &gt; CIGARS_FILE" chunkSize="3000000" selfBlastString="lastz --format=cigar SEQ_FILE[nameparse=darkspace] --self &gt; CIGARS_FILE" />
-				<core adjacencyComponentOverlap="0" alignRepeatsAtRound="0" annealingRounds="2 4 9 18 37 75 150" deannealingRounds="1 2 4 9 18 37 75 150" minimumBlockLength="0" minimumTreeCoverage="0.8" trim="0" trimChange="0" />
+				<core adjacencyComponentOverlap="0" alignRepeatsAtRound="1000" annealingRounds="2 4 9 18 37 75 150" deannealingRounds="1 2 4 9 18 37 75 150" minimumBlockLength="0" minimumTreeCoverage="0.8" trim="0 0 0 0 0 0 0 0 0" />
 			</iteration>
 
 			<iteration max_sequence_size="1000000" number="2" type="blast">
