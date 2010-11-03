@@ -31,6 +31,7 @@ class TestCase(unittest.TestCase):
                                      outputDir=outputDir,
                                      testRestrictions=(TestStatus.TEST_MEDIUM,),
                                      batchSystem=self.batchSystem,
+                                     buildTrees=False, buildReference=False,
                                      makeCactusTreeStats=True, makeMAFs=True)
     
     def testEvolver_Mammals_Loci1(self):
@@ -40,8 +41,8 @@ class TestCase(unittest.TestCase):
                                      outputDir=outputDir,
                                      testRestrictions=(TestStatus.TEST_LONG,),
                                      batchSystem=self.batchSystem,
+                                     buildTrees=False, buildReference=False,
                                      makeCactusTreeStats=True, makeMAFs=True)
-    
     
     def testEvolver_Primates_Small(self):
         inputDir = os.path.join(TestStatus.getPathToDataSets(), "evolver", "primates", "small")
@@ -50,7 +51,8 @@ class TestCase(unittest.TestCase):
                                      outputDir=outputDir,
                                      testRestrictions=(TestStatus.TEST_VERY_LONG,),
                                      batchSystem=self.batchSystem,
-                                     makeCactusTreeStats=True, makeMAFs=True)
+                                     buildTrees=False, buildReference=False,
+                                     makeCactusTreeStats=True)
     
 
 def getInputs(path, sequenceNames):
