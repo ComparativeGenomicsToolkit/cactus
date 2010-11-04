@@ -562,7 +562,7 @@ void splitEdge_P(struct PinchGraph *graph, struct PinchEdge *edge,
 struct List *sE_list = NULL;
 
 struct PinchVertex *splitEdge(struct PinchGraph *graph, Name contig,
-        int32_t position, int32_t leftOrRight) {
+        int32_t position, int32_t leftOrRight, stHash *vertexToAdjacencyComponent, stList *adjacencyComponents) {
     /*
      * This function splits the edges (including all those in the same aligned edge).
      *
@@ -603,6 +603,19 @@ struct PinchVertex *splitEdge(struct PinchGraph *graph, Name contig,
     }
     sE_list->length = 0;
 
+    void *adjacencyComponent1 = stHash_search(vertexToAdjacencyComponent, edge->from);
+    void *adjacencyComponent2 = stHash_search(vertexToAdjacencyComponent, edge->to);
+    void *adjacencyComponent3;
+    assert(adjacencyComponent1 != NULL);
+    assert(adjacencyComponent2 != NULL);
+    if(adjacencyComponent1 == adjacencyComponent2) {
+        adjacencyComponent3 = adjacencyComponent1;
+    }
+    else {
+        adjacencyComponent3 = stSortedSet_construct();
+        stList_append(adjacencyComponents, adjacencyComponent3);
+    }
+
     //For each of the aligned edges, do the split.
     blackEdgeIterator = getBlackEdgeIterator(edge->from);
     while ((edge2 = getNextBlackEdge(edge->from, blackEdgeIterator)) != NULL) {
@@ -634,6 +647,10 @@ struct PinchVertex *splitEdge(struct PinchGraph *graph, Name contig,
 #endif
         splitEdge_P(graph, edge2, j + edge2->piece->start, vertex1, vertex2);
     }
+
+    //Add to adjacency component hash
+    stHash_insert(vertexToAdjacencyComponent, vertex1, adjacencyComponent3);
+    stHash_insert(vertexToAdjacencyComponent, vertex2, adjacencyComponent3);
 
     //Return either left or right new vertex, dependent on which was made.
     return leftOrRight == LEFT ? vertex2 : vertex1;

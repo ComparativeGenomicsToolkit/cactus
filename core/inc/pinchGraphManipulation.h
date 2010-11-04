@@ -20,12 +20,12 @@
 void pinchMergePiece(struct PinchGraph *graph,
                        struct Piece *piece1,
                        struct Piece *piece2,
-                       stHash *vertexToAdjacencyComponents);
+                       stHash *vertexToAdjacencyComponents, stList *adjacencyComponents);
 
 void pinchMerge(struct PinchGraph *graph, struct PairwiseAlignment *pairwiseAlignment,
-        void (*addFunction)(struct PinchGraph *pinchGraph, struct Piece *, struct Piece *, stHash *, void *),
+        void (*addFunction)(struct PinchGraph *pinchGraph, struct Piece *, struct Piece *, stHash *, void *, stList *adjacencyComponents),
         void *extraParameter,
-        stHash *vertexToAdjacencyComponents);
+        stHash *vertexToAdjacencyComponents, stList *adjacencyComponents);
 
 ////////////////////////////////////////////////
 ////////////////////////////////////////////////
