@@ -43,11 +43,5 @@ stHash *getVertexToAdjacencyComponentHash(struct PinchGraph *pinchGraph, stList 
  */
 stList *getAdjacencyComponentGraph(struct PinchGraph *pinchGraph, stList *adjacencyComponents, stHash *vertexToAdjacencyComponentsHash);
 
-/*
- * Returns non-zero if the two adjacency components are within a path of max length n edges of one another.
- */
-bool adjacencyComponentsAreWithinNEdges(int32_t adjacencyComponent1, int32_t adjacencyComponent2, stList *adjacencyComponentGraph,
-        int32_t n);
-
 
 #endif /* ADJACENCYCOMPONENTS_H_ */
