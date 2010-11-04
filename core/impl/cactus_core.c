@@ -382,12 +382,14 @@ int32_t cactusCorePipeline(Flower *flower, CactusCoreInputParameters *cCIP,
             trim = cCIP->trim[0];
             assert(trim >= 0);
         }
+        st_logInfo("Starting %i annealing round with max chain length %i\n", annealingRound, cCIP->annealingRounds[annealingRound]);
 
         ///////////////////////////////////////////////////////////////////////////
         //  Construct the extra adjacency components hash
         ///////////////////////////////////////////////////////////////////////////
 
         stHash *vertexToAdjacencyComponents = stHash_construct();
+        int32_t maxAdjacencyComponentSize = 0;
         for(i=0; i<stList_length(adjacencyComponents); i++) {
             stSortedSet *adjacencyComponent = stList_get(adjacencyComponents, i);
             stSortedSetIterator *it = stSortedSet_getIterator(adjacencyComponent);
@@ -396,7 +398,11 @@ int32_t cactusCorePipeline(Flower *flower, CactusCoreInputParameters *cCIP,
                 stHash_insert(vertexToAdjacencyComponents, vertex, adjacencyComponent);
             }
             stSortedSet_destructIterator(it);
+            if(stSortedSet_size(adjacencyComponent) > maxAdjacencyComponentSize) {
+                maxAdjacencyComponentSize = stSortedSet_size(adjacencyComponent);
+            }
         }
+        st_logInfo("For max chain length %i we have %i adjacency components, the largest is %i vertices and the total vertices is %i\n", cCIP->annealingRounds[annealingRound], stList_length(adjacencyComponents), maxAdjacencyComponentSize, pinchGraph->vertices->length);
 
 #ifdef BEN_DEBUG
         ///////////////////////////////////////////////////////////////////////////
@@ -615,6 +621,8 @@ int32_t cactusCorePipeline(Flower *flower, CactusCoreInputParameters *cCIP,
             stSortedSet_destruct(chosenPinchVertices);
             stList_destruct(adjacencyComponents);
             destructPinchGraph(pinchGraph);
+
+            assert(0);
         }
     }
 

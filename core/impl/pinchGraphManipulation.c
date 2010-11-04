@@ -634,6 +634,10 @@ void updateVertexAdjacencyComponentLabels(
     //stIntTuple *i = stHash_search(vertexToSetOfAdjacencyComponentsHash, vertex);
     void *i = stHash_search(vertexToAdjacencyComponents, vertex);
     if (i == NULL) {
+        if(lengthBlackEdges(vertex) > 1) {
+            stHash_insert(vertexToAdjacencyComponents, vertex, stIntTuple_construct(0));
+            return;
+        }
         struct List *list = constructEmptyList(0, NULL);
         while (1) {
             listAppend(list, vertex);
