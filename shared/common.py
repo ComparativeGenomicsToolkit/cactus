@@ -67,8 +67,8 @@ def runCactusCore(cactusDiskDatabaseString, alignmentFile,
     command = "cactus_core --cactusDisk '%s' --flowerName %s --alignments %s --logLevel %s %s %s %s %s %s %s %s %s" % \
     (cactusDiskDatabaseString, flowerName, alignmentFile, logLevel, writeDebugFiles, annealingRounds, deannealingRounds, alignRepeatsAtRound,
      trim, minimumTreeCoverage, minimumBlockLength, adjacencyComponentOverlap)
-    print "command to run", command
-    assert 0
+    #print "command to run", command
+    #assert 0
     system(command)
     logger.info("Ran cactus_core okay")
     

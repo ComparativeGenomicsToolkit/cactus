@@ -622,7 +622,7 @@ int32_t cactusCorePipeline(Flower *flower, CactusCoreInputParameters *cCIP,
             stList_destruct(adjacencyComponents);
             destructPinchGraph(pinchGraph);
 
-            assert(0);
+            //assert(0);
         }
     }
 
