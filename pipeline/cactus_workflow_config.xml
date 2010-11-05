@@ -14,7 +14,7 @@
 
 			<iteration max_sequence_size="1000000" number="2" type="blast">
 				<blast blastString="lastz --format=cigar --hspthresh=1800 SEQ_FILE_1[multiple][nameparse=darkspace] SEQ_FILE_2[nameparse=darkspace] &gt; CIGARS_FILE" chunkSize="1000000" selfBlastString="lastz --format=cigar --hspthresh=1800 SEQ_FILE[nameparse=darkspace] --self --nomirror &gt; CIGARS_FILE" />
-				<core adjacencyComponentOverlap="1" alignRepeatsAtRound="0" annealingRounds="1 2 3 4 5 6 7 8 9 10 15 20 40 60 80 100 140 180 220 260 300 260 220 180 140 100 80 60 40 20 15 10 9 8 7 6 5 4 3 2 1" deannealingRounds="1 2 3 4 5 6 7 8 9 10 15 20 40 60 80 100 140 180 220 260 300" minimumBlockLength="0" minimumTreeCoverage="0.0" trim="0 0 0 0 0 0 0 0 0 0 0 0 0 0" />
+				<core adjacencyComponentOverlap="1" alignRepeatsAtRound="0" annealingRounds="2 3 4 7 9 18 37 75 150" deannealingRounds="1 2 3 4 7 9 18 37 75 150" minimumBlockLength="0" minimumTreeCoverage="0.0" trim="0 0 0 0 0 0 0 0 0 0 0 0 0 0" />
 			</iteration>
 			
 			</iterations>
