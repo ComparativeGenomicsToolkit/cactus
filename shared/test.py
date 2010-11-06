@@ -177,7 +177,6 @@ def getCactusInputs_blanchette(regionNumber=0, tempDir=None):
     newickTreeString = parseNewickTreeFile(os.path.join(blanchettePath, "tree.newick"))
     return sequences, newickTreeString
     
-    
 def getCactusInputs_encode(regionNumber=0, tempDir=None):
     """Gets the inputs for running cactus_workflow using an Encode pilot project region.
      (0 <= regionNumber < 15).
