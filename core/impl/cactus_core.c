@@ -77,7 +77,7 @@ struct FilterAlignmentParameters {
 void filterPieceAndThenAddToGraph(struct PinchGraph *pinchGraph,
         struct Piece *piece, struct Piece *piece2,
         stHash *vertexToAdjacencyComponent,
-        struct FilterAlignmentParameters *filterParameters, stList *adjacencyComponents) {
+        struct FilterAlignmentParameters *filterParameters) {
     /*
      * Function is used to filter the alignments added to the graph to optionally exclude alignments to repeats and to trim the edges of matches
      * to avoid misalignments due to edge wander effects.
@@ -100,13 +100,13 @@ void filterPieceAndThenAddToGraph(struct PinchGraph *pinchGraph,
             char *string2 = piece_getString(piece2, filterParameters->flower);
             if (!containsRepeatBases(string1) && !containsRepeatBases(string2)) {
                 pinchMergePiece(pinchGraph, piece, piece2,
-                        vertexToAdjacencyComponent, adjacencyComponents);
+                        vertexToAdjacencyComponent);
             }
             free(string1);
             free(string2);
         } else {
             pinchMergePiece(pinchGraph, piece, piece2,
-                    vertexToAdjacencyComponent, adjacencyComponents);
+                    vertexToAdjacencyComponent);
         }
     }
 }
@@ -445,20 +445,13 @@ int32_t cactusCorePipeline(Flower *flower, CactusCoreInputParameters *cCIP,
                     pinchGraph,
                     pairwiseAlignment,
                     (void(*)(struct PinchGraph *pinchGraph, struct Piece *,
-                            struct Piece *, stHash *, void *, stList *)) filterPieceAndThenAddToGraph,
-                    filterParameters, vertexToAdjacencyComponents, adjacencyComponents);
+                            struct Piece *, stHash *, void *)) filterPieceAndThenAddToGraph,
+                    filterParameters, vertexToAdjacencyComponents);
             destructPairwiseAlignment(pairwiseAlignment); //cleanup the previous alignment
             pairwiseAlignment = getNextAlignment();
         }
         free(filterParameters);
         st_logInfo("Finished pinch merges\n");
-
-#ifdef BEN_DEBUG
-        for (i = 0; i < pinchGraph->vertices->length; i++) {
-            assert(stHash_search(vertexToAdjacencyComponents, pinchGraph->vertices->list[i]) != NULL);
-        }
-        assert(stHash_size(vertexToAdjacencyComponents) == pinchGraph->vertices->length);
-#endif
 
         //Cleanup the adjacency component vertex hash.
         stList_destruct(adjacencyComponents);

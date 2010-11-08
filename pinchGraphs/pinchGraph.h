@@ -182,7 +182,7 @@ struct PinchEdge *getContainingBlackEdge(struct PinchGraph *graph, Name contig, 
 
 struct PinchEdge *getNextEdge(struct PinchGraph *graph, struct PinchEdge *edge, Flower *flower);
 
-struct PinchVertex *splitEdge(struct PinchGraph *graph, Name contig, int32_t position, int32_t leftOrRight, stHash *vertexToAdjacencyComponent, stList *adjacencyComponents);
+struct PinchVertex *splitEdge(struct PinchGraph *graph, Name contig, int32_t position, int32_t leftOrRight, stHash *vertexToAdjacencyComponent);
 
 ////////////////////////////////////////////////
 ////////////////////////////////////////////////

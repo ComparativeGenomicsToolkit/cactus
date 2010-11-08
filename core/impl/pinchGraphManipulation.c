@@ -555,18 +555,17 @@ void resetVertexChain(struct VertexChain *vertexChain) {
 }
 
 void getChainOfVertices(struct VertexChain *vertexChain,
-        struct PinchGraph *graph, struct Piece *piece, stHash *vertexToAdjacencyComponents,
-        stList *adjacencyComponents) {
+        struct PinchGraph *graph, struct Piece *piece, stHash *vertexToAdjacencyComponents) {
     struct PinchVertex *vertex;
     struct PinchEdge *edge;
 
     resetVertexChain(vertexChain);
 
     //do any adjustments off the bat
-    splitEdge(graph, piece->contig, piece->start, LEFT, vertexToAdjacencyComponents, adjacencyComponents);
-    splitEdge(graph, piece->contig, piece->end, RIGHT, vertexToAdjacencyComponents, adjacencyComponents);
+    splitEdge(graph, piece->contig, piece->start, LEFT, vertexToAdjacencyComponents);
+    splitEdge(graph, piece->contig, piece->end, RIGHT, vertexToAdjacencyComponents);
 
-    vertex = splitEdge(graph, piece->contig, piece->start, LEFT, vertexToAdjacencyComponents, adjacencyComponents);
+    vertex = splitEdge(graph, piece->contig, piece->start, LEFT, vertexToAdjacencyComponents);
     intListAppend(vertexChain->coordinates, 0);
     intListAppend(vertexChain->leftsOrRights, LEFT);
     listAppend(vertexChain->listOfVertices, vertex);
@@ -587,7 +586,7 @@ void getChainOfVertices(struct VertexChain *vertexChain,
     }
 
     //add the second vertex.
-    vertex = splitEdge(graph, piece->contig, piece->end, RIGHT, vertexToAdjacencyComponents, adjacencyComponents);
+    vertex = splitEdge(graph, piece->contig, piece->end, RIGHT, vertexToAdjacencyComponents);
     intListAppend(vertexChain->coordinates, piece->end - piece->start);
     intListAppend(vertexChain->leftsOrRights, RIGHT);
     listAppend(vertexChain->listOfVertices, vertex);
@@ -627,57 +626,13 @@ int32_t pinchMergePiece_P(struct VertexChain *vertexChain1,
     return TRUE;
 }
 
-void updateVertexAdjacencyComponentLabels(
-        stHash *vertexToAdjacencyComponents, struct PinchVertex *vertex) {
-    /*
-     * Method establishes which adjacency component the vertex belongs in.
-     */
-    //stIntTuple *i = stHash_search(vertexToSetOfAdjacencyComponentsHash, vertex);
-    void *i = stHash_search(vertexToAdjacencyComponents, vertex);
-    assert(i != NULL);
-    if (i == NULL) {
-        struct List *list = constructEmptyList(0, NULL);
-        while (1) {
-            listAppend(list, vertex);
-            assert(lengthGreyEdges(vertex) == 1);
-            struct PinchVertex *vertex2 = getFirstGreyEdge(vertex);
-            assert(stHash_search(vertexToAdjacencyComponents, vertex2) == NULL);
-            listAppend(list, vertex2);
-            assert(lengthBlackEdges(vertex2) > 0);
-            vertex = getFirstBlackEdge(vertex2)->to;
-            i = stHash_search(vertexToAdjacencyComponents, vertex);
-            if (i != NULL) {
-                break;
-            }
-        }
-        for (int32_t j = 0; j < list->length; j++) {
-            assert(stHash_search(vertexToAdjacencyComponents, list->list[j]) == NULL);
-            stHash_insert(vertexToAdjacencyComponents, list->list[j], i);
-                    //stIntTuple_construct(1, stIntTuple_getPosition(i, 0)));
-        }
-        destructList(list);
-    }
-}
-
-void updateVertexAdjacencyComponentLabelsForChain(
-        stHash *vertexToAdjacencyComponents,
-        struct VertexChain *vertexChain) {
-    /*
-     * Method runs through the vertices in the vertex chain and ensures each vertex has a label.
-     */
-    for (int32_t i = 0; i < vertexChain->listOfVertices->length; i++) {
-        updateVertexAdjacencyComponentLabels(vertexToAdjacencyComponents,
-                vertexChain->listOfVertices->list[i]);
-    }
-}
-
 void pinchMergePiece_getChainOfVertices(struct PinchGraph *graph,
         struct Piece *piece1, struct Piece *piece2,
         struct VertexChain *vertexChain1, struct VertexChain *vertexChain2,
-        stHash *vertexToAdjacencyComponents, stList *adjacencyComponents) {
+        stHash *vertexToAdjacencyComponents) {
     int32_t i, j, k;
-    getChainOfVertices(vertexChain1, graph, piece1, vertexToAdjacencyComponents, adjacencyComponents);
-    getChainOfVertices(vertexChain2, graph, piece2, vertexToAdjacencyComponents, adjacencyComponents);
+    getChainOfVertices(vertexChain1, graph, piece1, vertexToAdjacencyComponents);
+    getChainOfVertices(vertexChain2, graph, piece2, vertexToAdjacencyComponents);
 
     while (pinchMergePiece_P(vertexChain1, vertexChain2) == FALSE) {
         /*
@@ -687,33 +642,26 @@ void pinchMergePiece_getChainOfVertices(struct PinchGraph *graph,
             j = vertexChain1->coordinates->list[i];
             k = vertexChain1->leftsOrRights->list[i];
             //now search if there is an equivalent vertex.
-            splitEdge(graph, piece2->contig, piece2->start + j, k, vertexToAdjacencyComponents, adjacencyComponents);
+            splitEdge(graph, piece2->contig, piece2->start + j, k, vertexToAdjacencyComponents);
         }
         for (i = 0; i < vertexChain2->coordinates->length; i++) {
             j = vertexChain2->coordinates->list[i];
             k = vertexChain2->leftsOrRights->list[i];
             //now search if there is an equivalent vertex.
-            splitEdge(graph, piece1->contig, piece1->start + j, k, vertexToAdjacencyComponents, adjacencyComponents);
+            splitEdge(graph, piece1->contig, piece1->start + j, k, vertexToAdjacencyComponents);
         }
 
-        getChainOfVertices(vertexChain1, graph, piece1, vertexToAdjacencyComponents, adjacencyComponents);
-        getChainOfVertices(vertexChain2, graph, piece2, vertexToAdjacencyComponents, adjacencyComponents);
+        getChainOfVertices(vertexChain1, graph, piece1, vertexToAdjacencyComponents);
+        getChainOfVertices(vertexChain2, graph, piece2, vertexToAdjacencyComponents);
     }
 
-    /*
-     * Label the new vertices in the chain with adjacency component labels.
-     */
-    updateVertexAdjacencyComponentLabelsForChain(vertexToAdjacencyComponents,
-            vertexChain1);
-    updateVertexAdjacencyComponentLabelsForChain(vertexToAdjacencyComponents,
-            vertexChain2);
 }
 
 struct VertexChain *pMS_vertexChain1 = NULL;
 struct VertexChain *pMS_vertexChain2 = NULL;
 
 void pinchMergePiece(struct PinchGraph *graph, struct Piece *piece1,
-        struct Piece *piece2, stHash *vertexToAdjacencyComponents, stList *adjacencyComponents) {
+        struct Piece *piece2, stHash *vertexToAdjacencyComponents) {
     /*
      * Pinches the graph (with the minimum number of required pinches, to
      * represent the contiguous alignment of the two pieces.
@@ -747,13 +695,13 @@ void pinchMergePiece(struct PinchGraph *graph, struct Piece *piece1,
     /*
      * run through each chain finding the list of vertices.
      */
-    splitEdge(graph, piece1->contig, piece1->start, LEFT, vertexToAdjacencyComponents, adjacencyComponents);
-    splitEdge(graph, piece1->contig, piece1->end, RIGHT, vertexToAdjacencyComponents, adjacencyComponents);
-    splitEdge(graph, piece2->contig, piece2->start, LEFT, vertexToAdjacencyComponents, adjacencyComponents);
-    splitEdge(graph, piece2->contig, piece2->end, RIGHT, vertexToAdjacencyComponents, adjacencyComponents);
+    splitEdge(graph, piece1->contig, piece1->start, LEFT, vertexToAdjacencyComponents);
+    splitEdge(graph, piece1->contig, piece1->end, RIGHT, vertexToAdjacencyComponents);
+    splitEdge(graph, piece2->contig, piece2->start, LEFT, vertexToAdjacencyComponents);
+    splitEdge(graph, piece2->contig, piece2->end, RIGHT, vertexToAdjacencyComponents);
 
     pinchMergePiece_getChainOfVertices(graph, piece1, piece2, pMS_vertexChain1,
-            pMS_vertexChain2, vertexToAdjacencyComponents, adjacencyComponents);
+            pMS_vertexChain2, vertexToAdjacencyComponents);
 
 #ifdef BEN_ULTRA_DEBUG
     //do some debug checks
@@ -783,8 +731,7 @@ void pinchMergePiece(struct PinchGraph *graph, struct Piece *piece1,
         }
         void *adjacencyComponent1 = stHash_search(vertexToAdjacencyComponents, vertex1);
         void *adjacencyComponent2 = stHash_search(vertexToAdjacencyComponents, vertex2);
-        assert(adjacencyComponent1 != NULL && adjacencyComponent2 != NULL);
-        if(adjacencyComponent1 != adjacencyComponent2) {
+        if(adjacencyComponent1 == NULL || adjacencyComponent2 == NULL || adjacencyComponent1 != adjacencyComponent2) {
             return;
         }
     }
@@ -809,8 +756,8 @@ void pinchMergePiece(struct PinchGraph *graph, struct Piece *piece1,
                 k = 1 + ((edge->piece->end - edge->piece->start + 1) % 2);
 
                 contig = edge->piece->contig;
-                vertex4 = splitEdge(graph, contig, j, RIGHT, vertexToAdjacencyComponents, adjacencyComponents);
-                vertex5 = splitEdge(graph, contig, j + k, LEFT, vertexToAdjacencyComponents, adjacencyComponents);
+                vertex4 = splitEdge(graph, contig, j, RIGHT, vertexToAdjacencyComponents);
+                vertex5 = splitEdge(graph, contig, j + k, LEFT, vertexToAdjacencyComponents);
 
 #ifdef BEN_DEBUG
                 //debug checks
@@ -826,7 +773,7 @@ void pinchMergePiece(struct PinchGraph *graph, struct Piece *piece1,
                  */
                 pinchMergePiece_getChainOfVertices(graph, piece1, piece2,
                         pMS_vertexChain1, pMS_vertexChain2,
-                        vertexToAdjacencyComponents, adjacencyComponents);
+                        vertexToAdjacencyComponents);
 
                 i = 0;
                 continue;
@@ -947,8 +894,8 @@ int32_t pinchMerge_getContig(char *contig, int32_t start,
 
 void pinchMerge(struct PinchGraph *graph, struct PairwiseAlignment *pA,
         void(*addFunction)(struct PinchGraph *pinchGraph, struct Piece *,
-                struct Piece *, stHash *, void *, stList *),
-        void *extraParameter, stHash *vertexToAdjacencyComponents, stList *adjacencyComponents) {
+                struct Piece *, stHash *, void *),
+        void *extraParameter, stHash *vertexToAdjacencyComponents) {
     /*
      * Method to pinch together the graph using all the aligned matches in the
      * input alignment.
@@ -991,7 +938,7 @@ void pinchMerge(struct PinchGraph *graph, struct PairwiseAlignment *pA,
                     piece_recycle(&piece2, contig2, -(k - 1), -(k - op->length));
                 }
                 addFunction(graph, &piece1, &piece2, vertexToAdjacencyComponents,
-                        extraParameter, adjacencyComponents);
+                        extraParameter);
             }
         }
         if (op->opType != PAIRWISE_INDEL_Y) {

@@ -562,7 +562,7 @@ void splitEdge_P(struct PinchGraph *graph, struct PinchEdge *edge,
 struct List *sE_list = NULL;
 
 struct PinchVertex *splitEdge(struct PinchGraph *graph, Name contig,
-        int32_t position, int32_t leftOrRight, stHash *vertexToAdjacencyComponent, stList *adjacencyComponents) {
+        int32_t position, int32_t leftOrRight, stHash *vertexToAdjacencyComponent) {
     /*
      * This function splits the edges (including all those in the same aligned edge).
      *
@@ -606,14 +606,11 @@ struct PinchVertex *splitEdge(struct PinchGraph *graph, Name contig,
     void *adjacencyComponent1 = stHash_search(vertexToAdjacencyComponent, edge->from);
     void *adjacencyComponent2 = stHash_search(vertexToAdjacencyComponent, edge->to);
     void *adjacencyComponent3;
-    assert(adjacencyComponent1 != NULL);
-    assert(adjacencyComponent2 != NULL);
     if(adjacencyComponent1 == adjacencyComponent2) {
         adjacencyComponent3 = adjacencyComponent1;
     }
     else {
-        adjacencyComponent3 = stSortedSet_construct();
-        stList_append(adjacencyComponents, adjacencyComponent3);
+        adjacencyComponent3 = NULL;
     }
 
     //For each of the aligned edges, do the split.
