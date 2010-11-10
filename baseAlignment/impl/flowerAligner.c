@@ -205,6 +205,24 @@ static void pruneAlignments(Cap *cap, stSortedSet *endAlignment1, Cap *adjacentC
     stList_destruct(inducedAlignment2);
 }
 
+static stHash *capScoresFn_Hash = NULL;
+static int sortCapsFn(const void *cap1, const void *cap2) {
+#ifdef BEN_DEBUG
+    assert(stHash_search(capScoresFn_Hash, cap1) != NULL);
+    assert(stHash_search(capScoresFn_Hash, cap2) != NULL);
+#endif
+    return stIntTuple_getPosition(stHash_search(capScoresFn_Hash, (void *)cap1), 0) - stIntTuple_getPosition(stHash_search(capScoresFn_Hash, (void *)cap2), 0);
+}
+
+int getScore(Cap *cap) {
+    assert(!cap_getSide(cap));
+    assert(cap_getStrand(cap));
+    Cap *adjacentCap = cap_getAdjacency(cap);
+    int32_t i = cap_getCoordinate(adjacentCap) - cap_getCoordinate(cap);
+    assert(i > 0);
+    return i;
+}
+
 stSortedSet *makeFlowerAlignment(Flower *flower, int32_t spanningTrees,
         int32_t maxSequenceLength, float gapGamma, bool useBanding,
         int32_t bandingSize) {
@@ -222,9 +240,9 @@ stSortedSet *makeFlowerAlignment(Flower *flower, int32_t spanningTrees,
 
     //Prune end alignments
     endIterator = flower_getEndIterator(flower);
+    stHash *capScores = stHash_construct2(NULL, (void (*)(void *))stIntTuple_destruct);
+    stList *caps = stList_construct();
     while ((end = flower_getNextEnd(endIterator)) != NULL) {
-        stSortedSet *endAlignment1 = stHash_search(endAlignments, end);
-        assert(endAlignment1 != NULL);
         Cap *cap;
         End_InstanceIterator *capIterator = end_getInstanceIterator(end);
         while ((cap = end_getNext(capIterator)) != NULL) {
@@ -232,27 +250,44 @@ stSortedSet *makeFlowerAlignment(Flower *flower, int32_t spanningTrees,
                 cap = cap_getReverse(cap);
             }
             if(cap_getStrand(cap)) {
-                Cap *adjacentCap = cap_getAdjacency(cap);
-#ifdef BEN_DEBUG
-                assert(adjacentCap != NULL);
-                assert(cap_getSide(adjacentCap));
-                assert(cap_getStrand(adjacentCap));
-#endif
-                adjacentCap = cap_getReverse(adjacentCap);
-                stSortedSet *endAlignment2 = stHash_search(endAlignments, cap_getEnd(adjacentCap));
-                if(endAlignment2 == NULL) {
-                    endAlignment2 = stHash_search(endAlignments, cap_getEnd(cap_getReverse(adjacentCap)));
-                }
-#ifdef BEN_DEBUG
-                assert(endAlignment2 != NULL);
-#endif
-                //Now traverse the alignments, pruning stuff
-                pruneAlignments(cap, endAlignment1, adjacentCap, endAlignment2);
+                stHash_insert(capScores, cap, stIntTuple_construct(1, getScore(cap)));
+                stList_append(caps, cap);
             }
         }
         end_destructInstanceIterator(capIterator);
     }
     flower_destructEndIterator(endIterator);
+    capScoresFn_Hash = capScores;
+    stList_sort(caps, sortCapsFn);
+    int32_t score = INT32_MAX;
+    while(stList_length(caps) > 0) {
+        Cap *cap = stList_pop(caps);
+        int32_t score2 = stIntTuple_getPosition(stHash_search(capScores, cap), 0);
+        assert(score2 <= score);
+        score = score2;
+
+        stSortedSet *endAlignment1 = stHash_search(endAlignments, end_getPositiveOrientation(cap_getEnd(cap)));
+        assert(endAlignment1 != NULL);
+
+        Cap *adjacentCap = cap_getAdjacency(cap);
+#ifdef BEN_DEBUG
+        assert(adjacentCap != NULL);
+        assert(cap_getSide(adjacentCap));
+        assert(cap_getStrand(adjacentCap));
+#endif
+        adjacentCap = cap_getReverse(adjacentCap);
+        stSortedSet *endAlignment2 = stHash_search(endAlignments, cap_getEnd(adjacentCap));
+        if(endAlignment2 == NULL) {
+            endAlignment2 = stHash_search(endAlignments, cap_getEnd(cap_getReverse(adjacentCap)));
+        }
+#ifdef BEN_DEBUG
+        assert(endAlignment2 != NULL);
+#endif
+        //Now traverse the alignments, pruning stuff
+        pruneAlignments(cap, endAlignment1, adjacentCap, endAlignment2);
+    }
+    stList_destruct(caps);
+    stHash_destruct(capScores);
 
     //Now convert to set of final aligned pairs to return.
     stSortedSet *sortedAlignment = stSortedSet_construct3((int (*)(const void *, const void *))alignedPair_cmpFn,
