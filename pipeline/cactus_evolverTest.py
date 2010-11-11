@@ -8,7 +8,7 @@ import sys
 from cactus.shared.test import parseCactusSuiteTestOptions
 from sonLib.bioio import TestStatus
 
-from cactus.shared.test import parseNewickTreeFile
+from cactus.shared.test import getInputs
 
 from cactus.shared.test import runWorkflow_multipleExamples
 from cactus.shared.test import getBatchSystem
@@ -53,15 +53,7 @@ class TestCase(unittest.TestCase):
                                      batchSystem=self.batchSystem,
                                      buildTrees=False, buildReference=False,
                                      makeCactusTreeStats=True)
-    
-
-def getInputs(path, sequenceNames):
-    """Requires setting SON_TRACE_DATASETS variable and having access to datasets.
-    """
-    seqPath = os.path.join(TestStatus.getPathToDataSets(), path)
-    sequences = [ os.path.join(seqPath, sequence) for sequence in sequenceNames ] #Same order as tree
-    newickTreeString = parseNewickTreeFile(os.path.join(path, "tree.newick"))
-    return sequences, newickTreeString    
+      
 
 def main():
     parseCactusSuiteTestOptions()

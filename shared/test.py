@@ -207,7 +207,7 @@ def getCactusInputs_chromosomeX(regionNumber=0, tempDir=None):
     Requires setting SON_TRACE_DATASETS variable and having access to datasets.
     """
     chrXPath = os.path.join(TestStatus.getPathToDataSets(), "chr_x")
-    sequences = [ os.path.join(chrXPath, seqFile) for seqFile in ("hg18.fa", "panTro2.fa", "mouse_chrX.fa", "dog_chrX.fa") ]
+    sequences = [ os.path.join(chrXPath, seqFile) for seqFile in ("cow.fa", "dog.fa", "human.fa", "mouse.fa", "rat.fa") ]
     newickTreeString = parseNewickTreeFile(os.path.join(chrXPath, "newickTree.txt"))
     return sequences, newickTreeString
 

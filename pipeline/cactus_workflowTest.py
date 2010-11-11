@@ -52,7 +52,6 @@ class TestCase(unittest.TestCase):
                                      makeCactusTreeStats=True, makeMAFs=True, buildJobTreeStats=True)
     
     def testCactus_Chromosomes(self):
-        return
         outputDir = os.path.join(TestStatus.getPathToDataSets(), "cactus", "chrX")
         runWorkflow_multipleExamples(getCactusInputs_chromosomeX, 
                                      outputDir=outputDir,

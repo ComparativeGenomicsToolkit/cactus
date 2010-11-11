@@ -430,8 +430,8 @@ stList *getAlignedPairs_Fast(const char *sX, const char *sY,
     int32_t offsetY = 0;
 
     //parameters
-    int32_t minTraceBackDiag = 25;
-    int32_t minTraceGapDiags = 10;
+    int32_t minTraceBackDiag = 50;
+    int32_t minTraceGapDiags = 5;
     //int32_t traceBackCandidateThreshold = bandingThreshold
     //* PAIR_ALIGNMENT_PROB_1;
 
@@ -514,9 +514,11 @@ stList *getAlignedPairs_Fast(const char *sX, const char *sY,
                     && (done || l + m <= endDiag - minTraceGapDiags)) {
                 stIntTuple *j;
                 if ((j = stSortedSet_search(alignedPairs, i)) != NULL) {
+                    stSortedSet_remove(alignedPairs, i);
 #ifdef BEN_DEBUG
                     assert(l == stIntTuple_getPosition(j, 1));
                     assert(m == stIntTuple_getPosition(j, 2));
+                    assert(stSortedSet_search(alignedPairs, i) == NULL);
 #endif
                     stIntTuple *k = stIntTuple_construct(3,
                             (stIntTuple_getPosition(i, 0)
