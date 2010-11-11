@@ -197,8 +197,9 @@ static int sortCapsFn(const void *cap1, const void *cap2) {
     assert(stHash_search(capScoresFn_Hash, (void *)cap1) != NULL);
     assert(stHash_search(capScoresFn_Hash, (void *)cap2) != NULL);
 #endif
-    return ((int64_t *)stHash_search(capScoresFn_Hash, (void *) cap1))[0] - ((int64_t *)
+    int64_t i = ((int64_t *)stHash_search(capScoresFn_Hash, (void *) cap1))[0] - ((int64_t *)
             stHash_search(capScoresFn_Hash, (void *) cap2))[0];
+    return (i > 0) ? 1 : ((i < 0) ? -1 : 0);
 }
 
 static int makeFlowerAlignmentP(Cap *cap, stHash *endAlignments, void (*fn)(Cap *, stList *, stList *, stSortedSet *, stSortedSet *)) {
