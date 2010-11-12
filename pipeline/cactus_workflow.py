@@ -92,17 +92,22 @@ class CactusSetupWrapper(Target):
 ############################################################
     
 class CactusAlignmentPhase(Target):
-    def __init__(self, flowerName, options):
+    def __init__(self, flowerName, options, iteration=0):
         Target.__init__(self, time=0.0002)
         self.flowerName = flowerName
         self.options = options
+        self.iteration = iteration
         
     def run(self):
         logger.info("Starting the down pass target")
         #Setup call to cactus aligner wrapper as child
         #Calculate the size of the child.
-        self.addChildTarget(CactusAlignmentWrapper(self.options, self.flowerName, None, 0))
-        self.setFollowOnTarget(CactusNormalPhase(self.flowerName, self.options))
+        iterations = self.options.config.find("alignment").find("iterations").findall("iteration")
+        if self.iteration < len(iterations):
+            self.addChildTarget(CactusAlignmentWrapper(self.options, self.flowerName, None, self.iteration))
+            self.setFollowOnTarget(CactusAlignmentPhase(self.flowerName, self.options, self.iteration+1))
+        else:
+            self.setFollowOnTarget(CactusNormalPhase(self.flowerName, self.options))
 
 def getAlignmentIteration(iterations, iterationNumber, flowerSize):
     assert len(iterations) > 0
@@ -132,15 +137,16 @@ class CactusAlignmentWrapper(Target):
         logger.info("Starting the cactus down pass (recursive) target")
         #Traverses leaf jobs and create aligner wrapper targets as children.
         iterations = self.options.config.find("alignment").find("iterations").findall("iteration")
-        if self.iteration < len(iterations):
-            #base level flowers.
-            baseLevelFlowers = []
-            #This loop is properly atomic, because if it is run twice it will return the same
-            #set of flowernames
-            for childFlowerName, childFlowerSize in runCactusExtendFlowers(self.options.cactusDiskDatabaseString, self.flowerName, 
-                                                                  self.getLocalTempDir(),  logLevel=getLogLevelString()):
-                assert childFlowerSize >= 0
-                nextIteration = getAlignmentIteration(iterations, self.iteration, childFlowerSize)   
+        assert self.iteration < len(iterations)
+        #base level flowers.
+        baseLevelFlowers = []
+        #This loop is properly atomic, because if it is run twice it will return the same
+        #set of flowernames
+        for childFlowerName, childFlowerSize in runCactusExtendFlowers(self.options.cactusDiskDatabaseString, self.flowerName, 
+                                                              self.getLocalTempDir(),  logLevel=getLogLevelString()):
+            assert childFlowerSize >= 0
+            nextIteration = getAlignmentIteration(iterations, self.iteration, childFlowerSize)
+            if nextIteration == self.iteration: #We make a pass of the tree for each iteration
                 if iterations[nextIteration].attrib["type"] == "blast":
                     self.addChildTarget(CactusBlastWrapper(self.options, childFlowerName, nextIteration))
                 else:
@@ -149,11 +155,9 @@ class CactusAlignmentWrapper(Target):
                     if len(baseLevelFlowers) > 50:
                         self.addChildTarget(CactusBaseLevelAlignerWrapper(self.options, baseLevelFlowers))
                         baseLevelFlowers = []
-            if len(baseLevelFlowers) > 0:
-                self.addChildTarget(CactusBaseLevelAlignerWrapper(self.options, baseLevelFlowers))        
-            logger.info("Created child targets for all the recursive reconstruction jobs")
-        else:
-            logger.info("We've no more iterations to consider")
+        if len(baseLevelFlowers) > 0:
+            self.addChildTarget(CactusBaseLevelAlignerWrapper(self.options, baseLevelFlowers))        
+        logger.info("Created child targets for all the recursive reconstruction jobs")
 
 class CactusBlastWrapper(Target):
     def __init__(self, options, flowerName, iteration):
