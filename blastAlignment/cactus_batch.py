@@ -362,7 +362,11 @@ class CollateBlasts(Target):
         #Collate the results.
         ##########################################
         
-        system("cactus_batch_convertCoordinates %s %s" % (" ".join(self.resultsFiles), self.finalResultsFile))
+        tempFile = os.path.join(self.getGlobalTempDir(), "temp.txt")
+        fileHandle = open(tempFile, 'w')
+        fileHandle.write("\n".join(self.resultsFiles))
+        fileHandle.close()
+        system("cactus_batch_convertCoordinates %s %s" % (tempFile, self.finalResultsFile))
         logger.info("Collated the alignments to the file: %s",  self.finalResultsFile)
 
 def main():

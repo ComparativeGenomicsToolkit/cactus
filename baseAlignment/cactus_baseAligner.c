@@ -205,7 +205,6 @@ int main(int argc, char *argv[]) {
         stSortedSet_destruct(getAlignment_alignedPairs);
 
         st_logInfo("Finished filling in the alignments for the flower\n");
-        //flower_unloadParent(flower); //The parent should not have changed.
     }
 
     ///////////////////////////////////////////////////////////////////////////

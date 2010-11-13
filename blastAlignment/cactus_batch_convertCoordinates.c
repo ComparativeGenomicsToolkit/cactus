@@ -64,13 +64,18 @@ int main(int argc, char *argv[]) {
 	/*
 	 * For each cigar in file, update the coordinates and write to the second file.
 	 */
-	assert(argc >= 2);
-	FILE *fileHandle = fopen(argv[argc-1], "w");
-	int32_t i;
-	for(i=1; i<argc-1; i++) {
-		convertCoordinates(argv[i], fileHandle);
+	assert(argc == 3);
+	FILE *fileHandleIn = fopen(argv[0], "r");
+	FILE *fileHandleOut = fopen(argv[1], "w");
+	int32_t size = 100;
+	char *cA = st_malloc(sizeof(char) * size);
+	while(benLine(&cA, &size, fileHandleIn) != -1) {
+	    st_uglyf("I got the file ::%s::\n", cA);
+	    convertCoordinates(cA, fileHandleOut);
 	}
-	fclose(fileHandle);
+	fclose(fileHandleIn);
+	fclose(fileHandleOut);
+	free(cA);
 
 	//return 1;
 
