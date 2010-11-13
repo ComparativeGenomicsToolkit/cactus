@@ -21,7 +21,6 @@ import xml.etree.ElementTree as ET
 from optparse import OptionParser
 
 from sonLib.bioio import getTempFile
-from sonLib.bioio import system
 
 from workflow.jobTree.lib.bioio import getLogLevelString
 from workflow.jobTree.lib.bioio import logger

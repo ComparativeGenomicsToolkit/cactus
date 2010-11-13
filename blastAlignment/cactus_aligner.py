@@ -78,7 +78,11 @@ class ModifyBlasts(Target):
         #Translate the coordinates
         ##########################################
         
-        system("cactus_batch_convertCoordinates %s %s" % (self.tempResultsFile, self.resultsFile))
+        tempFile = os.path.join(self.getLocalTempDir(), "temp.txt")
+        fileHandle = open(tempFile, 'w')
+        fileHandle.write(self.tempResultsFile)
+        fileHandle.close()
+        system("cactus_batch_convertCoordinates %s %s" % (tempFile, self.resultsFile))
         logger.info("Translated the coordinates of the alignments to the final file: %s", self.resultsFile)
 
 def main():

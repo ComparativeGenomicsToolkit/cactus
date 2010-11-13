@@ -52,7 +52,7 @@ class makeBlastFromOptions:
         return MakeBlasts(self.blastOptions, sequenceFiles, resultsFile)
 
 class MakeBlasts(Target):
-    """Breaks up the inputs into bits a builds a bunch of alignment jobs.
+    """Breaks up the inputs into bits and builds a bunch of alignment jobs.
     """
     def __init__(self, options, sequences, finalResultsFile):
         Target.__init__(self, time=0.1380)
@@ -83,10 +83,16 @@ class MakeBlasts(Target):
         def processSequences(sequenceFiles, tempFilesDir):
             chunkFiles = getTempFile(suffix=".txt", rootDir=self.getLocalTempDir())
             bridgeFiles = getTempFile(suffix=".txt", rootDir=self.getLocalTempDir())
+            
+            tempFile = os.path.join(self.getLocalTempDir(), "tempSeqPaths.txt")
+            fileHandle = open(tempFile, 'w')
+            fileHandle.write("\n".join(sequenceFiles))
+            fileHandle.close()
+            
             system("cactus_batch_chunkSequences %s %s %i %i %s %i %s" % \
                    (chunkFiles, bridgeFiles, 
                     self.options.chunkSize, self.options.overlapSize,
-                    tempFilesDir, self.options.compressFiles, " ".join(sequenceFiles)))
+                    tempFilesDir, self.options.compressFiles, tempFile))
             
             def readSequenceData(sequenceDataFile):
                 l = []
@@ -362,7 +368,7 @@ class CollateBlasts(Target):
         #Collate the results.
         ##########################################
         
-        tempFile = os.path.join(self.getGlobalTempDir(), "temp.txt")
+        tempFile = os.path.join(self.getLocalTempDir(), "temp.txt")
         fileHandle = open(tempFile, 'w')
         fileHandle.write("\n".join(self.resultsFiles))
         fileHandle.close()
