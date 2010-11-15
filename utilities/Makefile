@@ -1,5 +1,5 @@
 # order is important, libraries first
-modules = graphVizPlots mafs stats referenceViewer psls tuning beds referenceUtils 
+modules = genemap graphVizPlots mafs stats referenceViewer psls tuning beds referenceUtils 
 #beds  
 .PHONY: all %.all clean %.clean
 #coreModule make file
