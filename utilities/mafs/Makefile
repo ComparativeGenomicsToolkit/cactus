@@ -8,7 +8,8 @@ cflags += ${tokyoCabinetIncl}
 progs = $(notdir $(wildcard cactus_mafToReferenceSeq.py))
 targets = ${progs:%=${binPath}/%}
 
-all :  ${targets} ${binPath}/cactus_MAFGenerator ${binPath}/cactus_augmentedMaf 
+#all :  ${targets} ${binPath}/cactus_MAFGenerator ${binPath}/cactus_augmentedMaf 
+all :  ${targets} ${binPath}/cactus_MAFGenerator 
 
 ${binPath}/%: %
 	@mkdir -p $(dir $@)
@@ -24,12 +25,12 @@ ${libPath}/cactus_addReferenceSeq.o : ${refDir}/cactus_addReferenceSeq.c
 ${binPath}/cactus_MAFGenerator : ${libPath}/cactus_addReferenceSeq.h ${libPath}/cactus_addReferenceSeq.o cactus_MAFGenerator.c ${libPath}/sonLib.a ${libPath}/cactusLib.a
 	${cxx} ${cflags} -I ${libPath} -o ${binPath}/cactus_MAFGenerator cactus_MAFGenerator.c  ${libPath}/cactus_addReferenceSeq.o ${libPath}/sonLib.a ${libPath}/cactusLib.a ${libPath}/sonLib.a ${dblibs}
 
-mycommon.o : mycommon.h mycommon.c
+#mycommon.o : mycommon.h mycommon.c
 	#cp mycommon.h ${libPath}
-	${cxx} ${cflags} -c mycommon.c  -I ${libPath} -o mycommon.o
+	#${cxx} ${cflags} -c mycommon.c  -I ${libPath} -o mycommon.o
 
-${binPath}/cactus_augmentedMaf : mycommon.h mycommon.o cactus_augmentedMaf.c ${libPath}/sonLib.a ${libPath}/cactusLib.a
-	${cxx} ${cflags} -I ${libPath} -o ${binPath}/cactus_augmentedMaf cactus_augmentedMaf.c  mycommon.o ${libPath}/sonLib.a ${libPath}/cactusLib.a ${libPath}/sonLib.a ${dblibs}
+#${binPath}/cactus_augmentedMaf : mycommon.h mycommon.o cactus_augmentedMaf.c ${libPath}/sonLib.a ${libPath}/cactusLib.a
+#	${cxx} ${cflags} -I ${libPath} -o ${binPath}/cactus_augmentedMaf cactus_augmentedMaf.c  mycommon.o ${libPath}/sonLib.a ${libPath}/cactusLib.a ${libPath}/sonLib.a ${dblibs}
 
 clean :
 	rm -f *.o
