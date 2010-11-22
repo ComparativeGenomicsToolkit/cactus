@@ -13,8 +13,8 @@ from cactus.shared.test import getInputs
 from cactus.shared.test import runWorkflow_multipleExamples
 from cactus.shared.test import getBatchSystem
 
-primateSequences = ("simChimp.fa", "simGorilla.fa", "simHuman.fa", "simOrang.fa")
-mammalSequences = ("simCow.fa", "simDog.fa", "simHuman.fa", "simMouse.fa", "simRat.fa")
+primateSequences = ("simChimp.chr6", "simGorilla.chr6", "simHuman.chr6", "simOrang.chr6")
+mammalSequences = ("simCow.chr6", "simDog.chr6", "simHuman.chr6", "simMouse.chr6", "simRat.chr6")
 
 class TestCase(unittest.TestCase):
     
