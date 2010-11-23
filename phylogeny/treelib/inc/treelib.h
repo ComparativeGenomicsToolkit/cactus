@@ -15,7 +15,7 @@
 #include "tree.h"
 #include "util.h"
 
-#include "strings.h"
+#include "treelib_strings.h"
 
 char * msa2tree(char **mfa, unsigned int num_species);
 
