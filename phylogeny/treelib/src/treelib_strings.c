@@ -23,7 +23,7 @@
   #include "lists.h"
 #endif /* not NDEBUG */
 
-#include "strings.h"
+#include "treelib_strings.h"
 
 /****************** Conditional compilation switches *******************/
 #define HALT_ON_INSUFFICIENT_MEMORY
