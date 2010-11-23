@@ -97,7 +97,7 @@ Flower *chain_getFlower(Chain *chain) {
 
 double chain_getAverageInstanceBaseLength(Chain *chain) {
     Block **blocks;
-    int32_t i, j, l;
+    int32_t i, j, l = 0;
     double k = 0.0;
     blocks = chain_getBlockChain(chain, &i);
     l = 0;
