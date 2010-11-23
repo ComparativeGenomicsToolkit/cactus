@@ -138,6 +138,7 @@ char *getConsensusString(Block *block) {
         }
     }
     assert(0);
+    return NULL;
 }
 
 Sequence *getSequenceByHeader(Flower *flower, char *header){

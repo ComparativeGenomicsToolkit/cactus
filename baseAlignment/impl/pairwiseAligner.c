@@ -179,6 +179,7 @@ static inline double emissionProb(int32_t x, int32_t y, int32_t lX, int32_t lY,
             return gapM[(int32_t) sY[y - 1]];
         default:
             assert(0);
+            return 0.0;
     }
 }
 
