@@ -15,10 +15,10 @@ ${libPath}/cactus_addReferenceSeq.o : cactus_addReferenceSeq.h cactus_addReferen
 	${cxx} ${cflags} -c cactus_addReferenceSeq.c  -I ${libPath} -o ${libPath}/cactus_addReferenceSeq.o
 
 ${binPath}/cactus_addReferenceSeqTest: ${libPath}/cactus_addReferenceSeq.o cactus_addReferenceSeqTest.c ${libPath}/sonLib.a ${libPath}/cactusLib.a
-	${cxx} ${cflags} -I ${libPath} -I ${kentInc} -o ${binPath}/cactus_addReferenceSeqTest cactus_addReferenceSeqTest.c ${libPath}/cactus_addReferenceSeq.o ${libPath}/cactusLib.a ${libPath}/sonLib.a ${dblibs}
+	${cxx} ${cflags} -I ${libPath} -o ${binPath}/cactus_addReferenceSeqTest cactus_addReferenceSeqTest.c ${libPath}/cactus_addReferenceSeq.o ${libPath}/cactusLib.a ${libPath}/sonLib.a ${dblibs}
 
 ${binPath}/cactus_getReferenceSeq: ${libPath}/cactus_addReferenceSeq.o cactus_getReferenceSeq.c ${libPath}/sonLib.a ${libPath}/cactusLib.a
-	${cxx} ${cflags} -I ${libPath} -I ${kentInc} -o ${binPath}/cactus_getReferenceSeq cactus_getReferenceSeq.c ${libPath}/cactus_addReferenceSeq.o ${libPath}/cactusLib.a ${libPath}/sonLib.a ${dblibs}
+	${cxx} ${cflags} -I ${libPath} -o ${binPath}/cactus_getReferenceSeq cactus_getReferenceSeq.c ${libPath}/cactus_addReferenceSeq.o ${libPath}/cactusLib.a ${libPath}/sonLib.a ${dblibs}
 
 clean :
 	rm -f *.o

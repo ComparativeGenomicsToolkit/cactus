@@ -887,12 +887,12 @@ static void fillingIn_testForPullDown(Cap * cap);
  */
 static void fillingIn_pullDown(Cap * A) {
     Cap * B = cap_getAdjacency(A);
-    Cap * childA, *childB;
-    Cap * interpolA, *interpolB;
-    Event * interpolEvent;
+    Cap * childA = NULL, *childB =NULL;
+    Cap * interpolA = NULL, *interpolB = NULL;
+    Event * interpolEvent = NULL;
     int32_t indexA, indexB;
-    Event * eventChildA, *eventChildB, *childEvent;
-    bool result;
+    Event * eventChildA = NULL, *eventChildB = NULL, *childEvent = NULL;
+    bool result = false;
 
 #if BEN_DEBUG
     assert(B);
