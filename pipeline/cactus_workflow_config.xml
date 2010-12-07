@@ -2,17 +2,17 @@
         <alignment>
                 <blast_misc chunksPerJob="1" compressFiles="True" overlapSize="10000" />
                 <iterations>
-                        <iteration min_sequence_size="1000000" number="1" type="blast">
+                        <iteration min_sequence_size="1000000" number="0" type="blast">
                                 <blast blastString="lastz --format=cigar --hspthresh=3000 SEQ_FILE_1[multiple][nameparse=darkspace] SEQ_FILE_2[nameparse=darkspace] &gt; CIGARS_FILE" chunkSize="3000000" selfBlastString="lastz --format=cigar --hspthresh=3000 SEQ_FILE[nameparse=darkspace] --self &gt; CIGARS_FILE" />
                                 <core adjacencyComponentOverlap="1" alignRepeatsAtRound="0" annealingRounds="1 2 3 4 8 16 32" deannealingRounds="1 2 3 4 8 16 32" minimumBlockLength="0" minimumTreeCoverage="0.8" trim="0 0 0 0 0 0 0" />
                         </iteration>
 
-                        <iteration min_sequence_size="1000" number="2" type="blast">
+                        <iteration min_sequence_size="1000" number="1" type="blast">
                                 <blast blastString="lastz --format=cigar --hspthresh=1800 SEQ_FILE_1[multiple][nameparse=darkspace] SEQ_FILE_2[nameparse=darkspace] &gt; CIGARS_FILE" chunkSize="1000000" selfBlastString="lastz --format=cigar --hspthresh=1800 SEQ_FILE[nameparse=darkspace] --self --nomirror &gt; CIGARS_FILE" />
                                 <core adjacencyComponentOverlap="1" alignRepeatsAtRound="0" annealingRounds="2 3 4 7 9 18 37 75 150" deannealingRounds="1 2 3 4 7 9 18 37 75 150" minimumBlockLength="0" minimumTreeCoverage="0.0" trim="0 0 0 0 0 0 0 0 0 0 0 0 0 0" />
                         </iteration>
 
-                        <iteration banding_limit="100000" banding_size="1000" gap_gamma="0.0" min_sequence_size="0" number="3" spanning_trees="10" type="base" use_banding="1" />
+                        <iteration banding_limit="100000" banding_size="1000" gap_gamma="0.0" min_sequence_size="0" number="2" spanning_trees="10" type="base" use_banding="1" />
 
                 </iterations>
         </alignment>
