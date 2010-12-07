@@ -4,12 +4,12 @@
 		<iterations>
 			<iteration min_sequence_size="30000000" number="0" type="blast">
 				<blast blastString="lastz --format=cigar --notransition --step=20 --nogapped SEQ_FILE_1[multiple][nameparse=darkspace] SEQ_FILE_2[nameparse=darkspace] &gt; CIGARS_FILE" chunkSize="100000000" selfBlastString="lastz --notransition --step=20 --nogapped SEQ_FILE[nameparse=darkspace] --self --nomirror &gt; CIGARS_FILE" />
-				<core adjacencyComponentOverlap="1" alignRepeatsAtRound="1000" annealingRounds="2 3 4 8 16 32 64 128 256 512 1024 2048 4098 2048 1024 512" deannealingRounds="1 2 3 4 8 16 32 64 128 256 512 1024 2048 4098" minimumBlockLength="5" minimumTreeCoverage="0.8" trim="10 10 10 10 10 10 10 10 10 10 10 10 10 10 10" />
+				<core adjacencyComponentOverlap="1" alignRepeatsAtRound="0" annealingRounds="2 3 4 8 16 32 64 128 256 512 1024 2048 4098 2048 1024 512" deannealingRounds="1 2 3 4 8 16 32 64 128 256 512 1024 2048 4098" minimumBlockLength="5" minimumTreeCoverage="0.8" trim="10 10 10 10 10 10 10 10 10 10 10 10 10 10 10" />
 			</iteration>
 
 			<iteration min_sequence_size="1000000" number="1" type="blast">
 				<blast blastString="lastz --format=cigar SEQ_FILE_1[multiple][nameparse=darkspace] SEQ_FILE_2[nameparse=darkspace] &gt; CIGARS_FILE" chunkSize="3000000" selfBlastString="lastz --format=cigar SEQ_FILE[nameparse=darkspace] --self --nomirror &gt; CIGARS_FILE" />
-				<core adjacencyComponentOverlap="1" alignRepeatsAtRound="1000" annealingRounds="2 3 4 8 16 32 64 128 256 512 256" deannealingRounds="1 2 3 4 8 16 32 64 128 256 512" minimumBlockLength="0" minimumTreeCoverage="0.8" trim="0 0 0 0 0 0 0 0 0 0 0 0 0 0" />
+				<core adjacencyComponentOverlap="1" alignRepeatsAtRound="0" annealingRounds="2 3 4 8 16 32 64 128 256 512 256" deannealingRounds="1 2 3 4 8 16 32 64 128 256 512" minimumBlockLength="0" minimumTreeCoverage="0.8" trim="0 0 0 0 0 0 0 0 0 0 0 0 0 0" />
 			</iteration>
 
 			<iteration min_sequence_size="1000" number="2" type="blast">
