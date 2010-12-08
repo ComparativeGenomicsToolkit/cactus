@@ -24,7 +24,7 @@ def checkDatabaseConf(databaseConf):
         postgresql = databaseConf.find("postgresql")
         if postgresql == None:
             raise RuntimeError("Database conf is of type postgresql but there is no nested postgresql tag: %s" % dataString)
-        if set(mysql.attrib.keys()) != set(("host", "password", "user", "database_name")):
+        if set(postgresql.attrib.keys()) != set(("host", "password", "user", "database_name")):
             raise RuntimeError("Postgresql tag is improperly formatted: %s" % dataString)
     elif typeString == "tokyo_cabinet":
         tokyoCabinet = databaseConf.find("tokyo_cabinet")
