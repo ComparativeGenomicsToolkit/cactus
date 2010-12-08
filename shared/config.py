@@ -43,6 +43,7 @@ class CactusWorkflowExperiment:
         #Do the database first
         database = ET.SubElement(self.experiment, "cactus_disk")
         self.mysql = 0
+        self.postgresql = 0
         if databaseConf != None:
             checkDatabaseConf(databaseConf)
             databaseConf = ET.fromstring(ET.tostring(databaseConf))
@@ -50,6 +51,10 @@ class CactusWorkflowExperiment:
             database.append(databaseConf)
             if databaseConf.attrib["type"] == "mysql":
                 self.mysql = 1
+                #Add a table name:
+                databaseConf.find("mysql").attrib["table_name"] = self.databaseName
+            elif databaseConf.attrib["type"] == "postgresql":
+                self.postgresql = 1
                 #Add a table name:
                 databaseConf.find("mysql").attrib["table_name"] = self.databaseName
             else:
@@ -90,6 +95,12 @@ class CactusWorkflowExperiment:
             #Connect to MYSQL and remove the table..
             system("mysql --host=%s --port=%s --user=%s --password='%s' --execute='drop table %s.%s'" \
                    % (i["host"], i["port"], i["user"], i["password"], i["database_name"], i["table_name"]))
+        elif self.postgresql:
+            assert self.databaseFile == None
+            i = self.experiment.find("cactus_disk").find("st_kv_database_conf").find("mysql").attrib
+            #Connect to MYSQL and remove the table..
+            system("psql --host=%s --user=%s --dbname=%s --command='drop table %s'" \
+                   % (i["host"], i["user"], i["database_name"], i["table_name"]))
         else:
             assert self.databaseFile != None
             system("rm -rf %s" % self.databaseFile)
