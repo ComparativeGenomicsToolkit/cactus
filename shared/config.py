@@ -33,7 +33,7 @@ def checkDatabaseConf(databaseConf):
         if not tokyoCabinet.attrib.has_key("database_dir"):
             raise RuntimeError("The tokyo cabinet tag has no database_dir tag: %s" % dataString)
     else:
-        raise RuntimeError("Unrecognised database type in conf string")
+        raise RuntimeError("Unrecognised database type in conf string: %s" % typeString)
 
 class CactusWorkflowExperiment:
     """Object used for generating cactus workflow experiment config files,
