@@ -20,6 +20,12 @@ def checkDatabaseConf(databaseConf):
             raise RuntimeError("Database conf is of type mysql but there is no nested mysql tag: %s" % dataString)
         if set(mysql.attrib.keys()) != set(("host", "port", "password", "user", "database_name")):
             raise RuntimeError("Mysql tag is improperly formatted: %s" % dataString)
+    if typeString == "postgresql":
+        postgresql = databaseConf.find("postgresql")
+        if postgresql == None:
+            raise RuntimeError("Database conf is of type postgresql but there is no nested postgresql tag: %s" % dataString)
+        if set(mysql.attrib.keys()) != set(("host", "password", "user", "database_name")):
+            raise RuntimeError("Postgresql tag is improperly formatted: %s" % dataString)
     elif typeString == "tokyo_cabinet":
         tokyoCabinet = databaseConf.find("tokyo_cabinet")
         if tokyoCabinet == None:
@@ -56,7 +62,7 @@ class CactusWorkflowExperiment:
             elif databaseConf.attrib["type"] == "postgresql":
                 self.postgresql = 1
                 #Add a table name:
-                databaseConf.find("mysql").attrib["table_name"] = self.databaseName
+                databaseConf.find("postgresql").attrib["table_name"] = self.databaseName
             else:
                 assert databaseConf.attrib["type"] == "tokyo_cabinet"
                 tokyoCabinet = databaseConf.find("tokyo_cabinet")
