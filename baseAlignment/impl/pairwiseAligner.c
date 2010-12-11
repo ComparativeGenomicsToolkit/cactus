@@ -476,7 +476,7 @@ stList *getAlignedPairs_Fast(const char *sX, const char *sY,
             int32_t newOffsetX = offsetX, newOffsetY = offsetY, maxScore = -1;
             stListIterator *it = stList_getIterator(alignedPairs2);
             stIntTuple *i;
-            while ((i = stList_getNext(it))) {
+            while ((i = stList_getNext(it)) != NULL) {
                 int32_t j = stIntTuple_getPosition(i, 1);
                 int32_t k = stIntTuple_getPosition(i, 2);
                 int32_t diagC = j + k;

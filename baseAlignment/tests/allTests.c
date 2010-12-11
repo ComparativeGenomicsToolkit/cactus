@@ -9,10 +9,12 @@ CuSuite* multipleAlignerTestSuite(void);
 CuSuite* adjacencySequenceTestSuite(void);
 CuSuite* endAlignerTestSuite(void);
 CuSuite* flowerAlignerTestSuite(void);
+CuSuite* pairwiseAlignmentLongTestSuite(void);
 
 int stBaseAlignerRunAllTests(void) {
 	CuString *output = CuStringNew();
 	CuSuite* suite = CuSuiteNew();
+	CuSuiteAddSuite(suite, pairwiseAlignmentLongTestSuite());
 	CuSuiteAddSuite(suite, stPosetAlignmentTestSuite());
 	CuSuiteAddSuite(suite, pairwiseAlignmentTestSuite());
 	CuSuiteAddSuite(suite, multipleAlignerTestSuite());

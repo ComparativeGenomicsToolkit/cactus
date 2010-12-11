@@ -43,10 +43,10 @@ void test_getInducedAlignment(CuTest *testCase) {
 
 
         stList *adjacencySequences = stList_construct3(0, (void (*)(void *))adjacencySequence_destruct);
-        Cap *caps[] = { cap1, cap_getReverse(cap2), cap3, cap_getReverse(cap4),
-                cap5, cap_getReverse(cap6), cap7, cap_getReverse(cap8),
-                cap9, cap_getReverse(cap10) };
-        for(int32_t i=0; i<10; i++) {
+        Cap *caps[] = { cap1, cap_getReverse(cap4),
+                cap5, cap_getReverse(cap8),
+                cap9 };
+        for(int32_t i=0; i<5; i++) {
             stList_append(adjacencySequences, adjacencySequence_construct(caps[i], INT32_MAX));
         }
 
@@ -54,12 +54,14 @@ void test_getInducedAlignment(CuTest *testCase) {
         while(st_random() > 0.001) {
             AdjacencySequence *aS1 = st_randomChoice(adjacencySequences);
             AdjacencySequence *aS2 = st_randomChoice(adjacencySequences);
-            AlignedPair *alignedPair =
-                    alignedPair_construct(aS1->sequenceName, getRandomPosition(aS1), st_randomInt(0, 2),
-                                          aS2->sequenceName, getRandomPosition(aS2), st_randomInt(0, 2),
-                                          st_randomInt(0, PAIR_ALIGNMENT_PROB_1));
-            stSortedSet_insert(sortedAlignment, alignedPair);
-            stSortedSet_insert(sortedAlignment, alignedPair->reverse);
+            if(aS1 != aS2) {
+                AlignedPair *alignedPair =
+                        alignedPair_construct(aS1->sequenceName, getRandomPosition(aS1), aS1->strand,
+                                              aS2->sequenceName, getRandomPosition(aS2), aS2->strand,
+                                              st_randomInt(0, PAIR_ALIGNMENT_PROB_1));
+                stSortedSet_insert(sortedAlignment, alignedPair);
+                stSortedSet_insert(sortedAlignment, alignedPair->reverse);
+            }
         }
 
         for(int32_t i=0; i<stList_length(adjacencySequences); i++) {
