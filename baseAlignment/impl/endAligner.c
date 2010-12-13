@@ -29,9 +29,9 @@ void alignedPair_destruct(AlignedPair *alignedPair) {
 static int alignedPair_cmpFnP(const AlignedPair *alignedPair1, const AlignedPair *alignedPair2) {
     int i = cactusMisc_nameCompare(alignedPair1->sequence, alignedPair2->sequence);
     if(i == 0) {
-        i = alignedPair1->position - alignedPair2->position;
+        i = alignedPair1->position > alignedPair2->position ? 1 : (alignedPair1->position < alignedPair2->position ? -1 : 0);
         if(i == 0) {
-            i = alignedPair1->strand - alignedPair2->strand;
+            i = alignedPair1->strand == alignedPair2->strand ? 0 : (alignedPair1->strand ? 1 : -1);
         }
     }
     return i;

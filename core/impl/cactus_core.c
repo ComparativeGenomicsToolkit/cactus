@@ -126,7 +126,7 @@ CactusCoreInputParameters *constructCactusCoreInputParameters() {
 
     cCIP->alignRepeatsAtRound = 0;
 
-    cCIP->trim = st_malloc(0); //Array is the same length as the the annealing rounds.
+    cCIP->trim = st_malloc(0);
     cCIP->trimLength = 0;
 
     cCIP->minimumTreeCoverage = 0.0;

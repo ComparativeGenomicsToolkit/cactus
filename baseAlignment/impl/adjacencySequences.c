@@ -19,17 +19,17 @@ static char *getAdjacencySequenceP(Cap *cap, int32_t maxLength) {
 
     if (cap_getStrand(cap)) {
         int32_t length = cap_getCoordinate(cap2) - cap_getCoordinate(cap) - 1;
-#ifdef BEN_DEBUG
+//#ifdef BEN_DEBUG
         assert(length >= 0);
         assert(maxLength >= 0);
-#endif
+//#endif
         return sequence_getString(sequence, cap_getCoordinate(cap) + 1, length
                 > maxLength ? maxLength : length, 1);
     } else {
         int32_t length = cap_getCoordinate(cap) - cap_getCoordinate(cap2) - 1;
-#ifdef BEN_DEBUG
+//#ifdef BEN_DEBUG
         assert(length >= 0);
-#endif
+//#endif
         return sequence_getString(sequence,
                 length > maxLength ? cap_getCoordinate(cap) - maxLength
                         : cap_getCoordinate(cap2) + 1,

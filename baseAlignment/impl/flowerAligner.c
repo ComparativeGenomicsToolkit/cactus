@@ -55,6 +55,24 @@ stList *getInducedAlignment(stSortedSet *endAlignment, AdjacencySequence *adjace
         alignedPair_destruct(alignedPair->reverse);
         alignedPair_destruct(alignedPair);
     }
+    /*
+     * Check the induced alignment
+     */
+//#ifdef BEN_DEBUG //Check the induced array
+    for(int32_t i=0; i<stList_length(inducedAlignment); i++) {
+        AlignedPair *alignedPair = stList_get(inducedAlignment, i);
+        assert(alignedPair->sequence == adjacencySequence->sequenceName);
+        assert(alignedPair->strand == adjacencySequence->strand);
+        if(adjacencySequence->strand) {
+            assert(alignedPair->position >= adjacencySequence->start);
+            assert(alignedPair->position < adjacencySequence->start + adjacencySequence->length);
+        }
+        else {
+            assert(alignedPair->position <= adjacencySequence->start);
+            assert(alignedPair->position > adjacencySequence->start - adjacencySequence->length);
+        }
+    }
+//#endif
     return inducedAlignment;
 }
 
@@ -137,6 +155,8 @@ static int64_t getCutOff(stList *inducedAlignment1, stList *inducedAlignment2, i
             if (cScore1[i] >= maxScore) {
                 *cutOff1 = stList_length(inducedAlignment1);
                 *cutOff2 = j;
+                assert(cScore1[stList_length(inducedAlignment1)-1] >= maxScore);
+                maxScore = cScore1[stList_length(inducedAlignment1)-1];
                 break;
             }
         }
@@ -146,6 +166,20 @@ static int64_t getCutOff(stList *inducedAlignment1, stList *inducedAlignment2, i
     free(cScore2);
 
     return maxScore;
+}
+
+static void pruneAlignmentsP(stList *inducedAlignment, stSortedSet *endAlignment, int32_t start, int32_t end) {
+    for (int32_t i = start; i < end; i++) {
+        AlignedPair *alignedPair = stList_get(inducedAlignment, i);
+//#ifdef BEN_DEBUG
+        assert(stSortedSet_search(endAlignment, alignedPair) != NULL);
+        assert(stSortedSet_search(endAlignment, alignedPair->reverse) != NULL);
+//#endif
+        stSortedSet_remove(endAlignment, alignedPair);
+        stSortedSet_remove(endAlignment, alignedPair->reverse);
+        alignedPair_destruct(alignedPair->reverse);
+        alignedPair_destruct(alignedPair);
+    }
 }
 
 /*
@@ -158,29 +192,8 @@ static void pruneAlignments(Cap *cap, stList *inducedAlignment1, stList *induced
     getCutOff(inducedAlignment1, inducedAlignment2, &cutOff1, &cutOff2);
 
     //Now do the actual filtering of the alignments.
-    for (int32_t i = cutOff1; i < stList_length(inducedAlignment1); i++) {
-        AlignedPair *alignedPair = stList_get(inducedAlignment1, i);
-//#ifdef BEN_DEBUG
-        assert(stSortedSet_search(endAlignment1, alignedPair) != NULL);
-        assert(stSortedSet_search(endAlignment1, alignedPair->reverse) != NULL);
-//#endif
-        stSortedSet_remove(endAlignment1, alignedPair);
-        stSortedSet_remove(endAlignment1, alignedPair->reverse);
-        alignedPair_destruct(alignedPair->reverse);
-        alignedPair_destruct(alignedPair);
-    }
-
-    for (int32_t i = 0; i < cutOff2; i++) {
-        AlignedPair *alignedPair = stList_get(inducedAlignment2, i);
-//#ifdef BEN_DEBUG
-        assert(stSortedSet_search(endAlignment2, alignedPair) != NULL);
-        assert(stSortedSet_search(endAlignment2, alignedPair->reverse) != NULL);
-//#endif
-        stSortedSet_remove(endAlignment2, alignedPair);
-        stSortedSet_remove(endAlignment2, alignedPair->reverse);
-        alignedPair_destruct(alignedPair->reverse);
-        alignedPair_destruct(alignedPair);
-    }
+    pruneAlignmentsP(inducedAlignment1, endAlignment1, cutOff1, stList_length(inducedAlignment1));
+    pruneAlignmentsP(inducedAlignment2, endAlignment2, 0, cutOff2);
 }
 
 static stHash *capScoresFn_Hash = NULL;
