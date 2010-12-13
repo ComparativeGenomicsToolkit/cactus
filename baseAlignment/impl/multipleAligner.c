@@ -258,7 +258,10 @@ static void updatePairwiseColumnWeights(stSortedSet *columnWeightsSortedByWeight
         if(k != NULL) { //we have a valid merge
 //#ifdef BEN_DEBUG
             //Check weight to merge is as we expect
+            assert(k != i);
+            assert(k != i->reverse);
             assert(k != pairwiseColumnWeight);
+            assert(k != pairwiseColumnWeight->reverse);
             assert(k->sequence == pairwiseColumnWeight->sequence);
             assert(k->position == pairwiseColumnWeight->position);
             assert(k->columnDepth == pairwiseColumnWeight->columnDepth);
@@ -291,7 +294,7 @@ static void updatePairwiseColumnWeights(stSortedSet *columnWeightsSortedByWeight
         assert(i->columnDepth == pairwiseColumnWeight->columnDepth);
 //#endif
         removeWeights(columnWeightsSortedByWeight, columnWeightsSortedByPosition, i);
-        i->columnDepth = i->columnDepth + pairwiseColumnWeight->reverse->columnDepth;
+        i->columnDepth = pairwiseColumnWeight->columnDepth + pairwiseColumnWeight->reverse->columnDepth;
         addWeights(columnWeightsSortedByWeight, columnWeightsSortedByPosition, i);
     }
 //#ifdef BEN_DEBUG
