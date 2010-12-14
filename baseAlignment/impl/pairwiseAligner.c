@@ -52,7 +52,7 @@ char *convertSequence(const char *s, int32_t sL) {
 #define posteriorMatchThreshold 0.01
 
 static inline double lookup(double x) {
-    //return log (exp (x) + 1);
+    return log (exp (x) + 1);
 #ifdef BEN_DEBUG
     assert (x >= 0.00f);
     assert (x <= logUnderflowThreshold);
