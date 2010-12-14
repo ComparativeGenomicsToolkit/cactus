@@ -8,15 +8,19 @@ struct _stPosetAlignment {
     stSortedSet **constraintLists;
 };
 
+static int cmpFn(int32_t i, int32_t j) {
+    return i > j ? 1 : (i < j ? -1 : 0);
+}
+
 static int comparePositions(stIntTuple *position1, stIntTuple *position2) {
     if(stIntTuple_getPosition(position1, 0) == INT32_MAX || stIntTuple_getPosition(position2, 0) == INT32_MAX) { //Indicates we should ignore the first position and compare the second.
 #ifdef BEN_DEBUG
         assert(stIntTuple_getPosition(position1, 1) != INT32_MAX);
         assert(stIntTuple_getPosition(position2, 1) != INT32_MAX);
 #endif
-        return stIntTuple_getPosition(position1, 1) - stIntTuple_getPosition(position2, 1);
+        return cmpFn(stIntTuple_getPosition(position1, 1), stIntTuple_getPosition(position2, 1));
     }
-    return stIntTuple_getPosition(position1, 0) - stIntTuple_getPosition(position2, 0);
+    return cmpFn(stIntTuple_getPosition(position1, 0), stIntTuple_getPosition(position2, 0));
 }
 
 stPosetAlignment *stPosetAlignment_construct(int32_t sequenceNumber) {
@@ -68,6 +72,11 @@ static stIntTuple *getConstraint_lessThan(stPosetAlignment *posetAlignment, int3
     //Get less than or equal
     stIntTuple *constraint = stSortedSet_searchGreaterThanOrEqual(getConstraintList(posetAlignment, sequence1, sequence2), pos);
     stIntTuple_destruct(pos);
+#ifdef BEN_DEBUG
+    if(constraint != NULL) {
+        assert(position1 <= stIntTuple_getPosition(constraint, 0));
+    }
+#endif
     return constraint;
 }
 
@@ -79,6 +88,11 @@ static stIntTuple *getConstraint_greaterThan(stPosetAlignment *posetAlignment, i
     //Get less than or equal
     stIntTuple *constraint = stSortedSet_searchLessThanOrEqual(getConstraintList(posetAlignment, sequence2, sequence1), pos);
     stIntTuple_destruct(pos);
+#ifdef BEN_DEBUG
+    if(constraint != NULL) {
+        assert(position1 >= stIntTuple_getPosition(constraint, 1));
+    }
+#endif
     return constraint;
 }
 
@@ -90,10 +104,16 @@ static bool lessThanConstraintIsPrime(stPosetAlignment *posetAlignment, int32_t 
     if(constraint == NULL) {
         return 1;
     }
-    if(stIntTuple_getPosition(constraint, 2)) { //less than or equals
-        return position2 < stIntTuple_getPosition(constraint, 1) + (lessThanOrEquals ? 0 : 1);
+    if(position2 < stIntTuple_getPosition(constraint, 1)) { //new constraint is tighter
+        return 1;
     }
-    return position2 < stIntTuple_getPosition(constraint, 1); //just less than
+    if(position2 > stIntTuple_getPosition(constraint, 1)) { //new constraint is looser
+        return 0;
+    }
+    if(position1 == stIntTuple_getPosition(constraint, 0) && stIntTuple_getPosition(constraint, 2) && !lessThanOrEquals) { //converts a less than or equals constraint to a less than constraint
+        return 1;
+    }
+    return 0;
 }
 
 /*

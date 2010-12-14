@@ -271,6 +271,9 @@ static void updatePairwiseColumnWeights(stSortedSet *columnWeightsSortedByWeight
             if(k->reverse->sequence == pairwiseColumnWeight->sequence) {
                 assert(k->reverse->position != pairwiseColumnWeight->position);
             }
+            if(i->reverse->sequence == pairwiseColumnWeight->reverse->sequence) {
+                assert(i->reverse->position != pairwiseColumnWeight->reverse->position);
+            }
             assert(k->columnDepth == pairwiseColumnWeight->columnDepth);
             assert(stList_contains(list2, k));
 //#endif
@@ -301,6 +304,9 @@ static void updatePairwiseColumnWeights(stSortedSet *columnWeightsSortedByWeight
         assert(i->columnDepth == pairwiseColumnWeight->columnDepth);
         if(i->reverse->sequence == pairwiseColumnWeight->sequence) {
             assert(i->reverse->position != pairwiseColumnWeight->position);
+        }
+        if(i->reverse->sequence == pairwiseColumnWeight->reverse->sequence) {
+            assert(i->reverse->position != pairwiseColumnWeight->reverse->position);
         }
 //#endif
         removeWeights(columnWeightsSortedByWeight, columnWeightsSortedByPosition, i);
@@ -370,22 +376,19 @@ stList *makeAlignment(stList *sequences, int32_t spanningTrees, float gapGamma,
 //#ifdef BEN_DEBUG
             assert(stIntTuple_length(alignedPair) == 3);
 //#endif
-            int32_t score = stIntTuple_getPosition(alignedPair, 0);
             int32_t position1 = stIntTuple_getPosition(alignedPair, 1);
             int32_t position2 = stIntTuple_getPosition(alignedPair, 2);
-            if (score >= gapGamma * indelProbs1[position1] && score >= gapGamma
-                    * indelProbs2[position2]) {
-                stIntTuple *alignedPair = stIntTuple_construct(5,
-                /* score */score,
-                /* seq 1 */sequence1, position1,
-                /* seq 2 */sequence2, position2);
-                stSortedSet *sortedSet = stSortedSet_construct3((int (*)(const void *, const void *))stIntTuple_cmpFn, NULL);
-                stSortedSet_insert(sortedSet, alignedPair);
-                addWeights(columnWeightsSortedByWeight,
-                        columnWeightsSortedByPosition,
-                        pairwiseColumnWeight_construct(sequence1, position1, 1,
-                        sequence2, position2, 1, score, sortedSet));
-            }
+            int32_t score = stIntTuple_getPosition(alignedPair, 0) - gapGamma * (indelProbs1[position1] + indelProbs2[position2]);
+            stIntTuple *alignedPair2 = stIntTuple_construct(5,
+            /* score */score,
+            /* seq 1 */sequence1, position1,
+            /* seq 2 */sequence2, position2);
+            stSortedSet *sortedSet = stSortedSet_construct3((int (*)(const void *, const void *))stIntTuple_cmpFn, NULL);
+            stSortedSet_insert(sortedSet, alignedPair2);
+            addWeights(columnWeightsSortedByWeight,
+                    columnWeightsSortedByPosition,
+                    pairwiseColumnWeight_construct(sequence1, position1, 1,
+                    sequence2, position2, 1, score, sortedSet));
             stIntTuple_destruct(alignedPair);
         }
         stList_destruct(alignedPairs2);
@@ -407,7 +410,7 @@ stList *makeAlignment(stList *sequences, int32_t spanningTrees, float gapGamma,
         assert(stSortedSet_size(columnWeightsSortedByWeight) % 2 == 0);
 //#endif
         PairwiseColumnWeight *pairwiseColumnWeight = stSortedSet_getLast(columnWeightsSortedByWeight);
-        double score = pairwiseColumnWeight->weight / (pairwiseColumnWeight->columnDepth * pairwiseColumnWeight->reverse->columnDepth);
+        double score = pairwiseColumnWeight_getNormalisedWeight(pairwiseColumnWeight);
 //#ifdef BEN_DEBUG
         assert(score >= 0.0);
         assert(score <= pScore);
@@ -423,24 +426,17 @@ stList *makeAlignment(stList *sequences, int32_t spanningTrees, float gapGamma,
             //We check it is possible to align all the pairs in the column weight
             stSortedSetIterator *it = stSortedSet_getIterator(pairwiseColumnWeight->alignedPairs);
             while((alignedPair = stSortedSet_getNext(it)) != NULL) {
-                if(!stPosetAlignment_isPossible(posetAlignment, stIntTuple_getPosition(alignedPair, 1), stIntTuple_getPosition(alignedPair, 2),
-                                stIntTuple_getPosition(alignedPair, 3), stIntTuple_getPosition(alignedPair, 4))) {
-                st_uglyf("This should be possible %i %i %i %i %i %i %i\n", sequenceNo, pairwiseColumnWeight->columnDepth, pairwiseColumnWeight->reverse->columnDepth, stIntTuple_getPosition(alignedPair, 1), stIntTuple_getPosition(alignedPair, 2),
-                                                            stIntTuple_getPosition(alignedPair, 3), stIntTuple_getPosition(alignedPair, 4));
-                //assert(0);
-                }
-                stPosetAlignment_add(posetAlignment, stIntTuple_getPosition(alignedPair, 1), stIntTuple_getPosition(alignedPair, 2),
-                                    stIntTuple_getPosition(alignedPair, 3), stIntTuple_getPosition(alignedPair, 4));
+                assert(stPosetAlignment_isPossible(posetAlignment, stIntTuple_getPosition(alignedPair, 1), stIntTuple_getPosition(alignedPair, 2),
+                                stIntTuple_getPosition(alignedPair, 3), stIntTuple_getPosition(alignedPair, 4)));
             }
             stSortedSet_destructIterator(it);
             stIntTuple *alignedPair = stSortedSet_getFirst(pairwiseColumnWeight->alignedPairs);
-            st_uglyf("This is possible %i %i %i %i %i %i %i\n", sequenceNo, pairwiseColumnWeight->columnDepth, pairwiseColumnWeight->reverse->columnDepth, stIntTuple_getPosition(alignedPair, 1), stIntTuple_getPosition(alignedPair, 2),
-                                                                        stIntTuple_getPosition(alignedPair, 3), stIntTuple_getPosition(alignedPair, 4));
-
 //#endif
             bool i = stPosetAlignment_add(posetAlignment, stIntTuple_getPosition(alignedPair, 1), stIntTuple_getPosition(alignedPair, 2),
                     stIntTuple_getPosition(alignedPair, 3), stIntTuple_getPosition(alignedPair, 4));
+//#ifdef BEN_DEBUG
             assert(i);
+//#endif
             //Add to the output
             stList *list = stSortedSet_getList(pairwiseColumnWeight->alignedPairs);
             stList_appendAll(acceptedAlignedPairs, list);
@@ -451,12 +447,12 @@ stList *makeAlignment(stList *sequences, int32_t spanningTrees, float gapGamma,
         else {
             while(stSortedSet_size(pairwiseColumnWeight->alignedPairs) > 0) {
                 alignedPair = stSortedSet_getFirst(pairwiseColumnWeight->alignedPairs);
-                st_uglyf("This is not possible %i %i %i %i %i %i %i\n", sequenceNo, pairwiseColumnWeight->columnDepth, pairwiseColumnWeight->reverse->columnDepth, stIntTuple_getPosition(alignedPair, 1), stIntTuple_getPosition(alignedPair, 2),
-                stIntTuple_getPosition(alignedPair, 3), stIntTuple_getPosition(alignedPair, 4));
                 stSortedSet_remove(pairwiseColumnWeight->alignedPairs, alignedPair);
-                //assert(!stPosetAlignment_isPossible(posetAlignment,
-                //stIntTuple_getPosition(alignedPair, 1), stIntTuple_getPosition(alignedPair, 2),
-                //stIntTuple_getPosition(alignedPair, 3), stIntTuple_getPosition(alignedPair, 4)));
+//#ifdef BEN_DEBUG
+                assert(!stPosetAlignment_isPossible(posetAlignment,
+                stIntTuple_getPosition(alignedPair, 1), stIntTuple_getPosition(alignedPair, 2),
+                stIntTuple_getPosition(alignedPair, 3), stIntTuple_getPosition(alignedPair, 4)));
+//#endif
                 stIntTuple_destruct(alignedPair);
             }
         }
