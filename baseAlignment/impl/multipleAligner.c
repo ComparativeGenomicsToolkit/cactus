@@ -375,6 +375,7 @@ stList *makeAlignment(stList *sequences, int32_t spanningTrees, float gapGamma,
         int32_t *indelProbs2 = calculateIndelProbs(alignedPairs2, seqLength2, 1);
         //Calculate the expected accuracy scores.
         stHash *expectedAccuracyScores = getExpectedAlignmentAccuracyScores(alignedPairs2, indelProbs1, indelProbs2, seqLength1, seqLength2);
+        //Do consistency transform..
 
         //Now deal with the match probs..
         while (stList_length(alignedPairs2) > 0) {
