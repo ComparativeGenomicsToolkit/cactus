@@ -20,7 +20,7 @@ def checkDatabaseConf(databaseConf):
             raise RuntimeError("Database conf is of type mysql but there is no nested mysql tag: %s" % dataString)
         if set(mysql.attrib.keys()) != set(("host", "port", "password", "user", "database_name")):
             raise RuntimeError("Mysql tag is improperly formatted: %s" % dataString)
-    if typeString == "postgresql":
+    elif typeString == "postgresql":
         postgresql = databaseConf.find("postgresql")
         if postgresql == None:
             raise RuntimeError("Database conf is of type postgresql but there is no nested postgresql tag: %s" % dataString)
