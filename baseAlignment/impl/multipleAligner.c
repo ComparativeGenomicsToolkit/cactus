@@ -2,6 +2,7 @@
 #include "sonLib.h"
 #include "stPosetAlignment.h"
 #include "pairwiseAligner.h"
+#include "pairwiseExpectedAlignmentAccuracy.h"
 #include <stdlib.h>
 
 /*
@@ -36,12 +37,11 @@ void constructSpanningTree(int32_t numberOfSequences,
     stList_destruct(list);
 }
 
-static int32_t *calculateIndelProbs(stList *alignedPairs,
+int32_t *calculateIndelProbs(stList *alignedPairs,
         int32_t sequenceLength, int32_t sequenceIndex) {
-    int32_t *indelProbs = st_malloc(sizeof(int32_t) * (sequenceLength + 1));
-    indelProbs[0] = sequenceLength;
+    int32_t *indelProbs = st_malloc(sizeof(int32_t) * sequenceLength);
     for (int32_t i = 0; i < sequenceLength; i++) {
-        indelProbs[i + 1] = PAIR_ALIGNMENT_PROB_1;
+        indelProbs[i] = PAIR_ALIGNMENT_PROB_1;
     }
     for (int32_t i = 0; i < stList_length(alignedPairs); i++) {
         stIntTuple *alignedPair = stList_get(alignedPairs, i);
@@ -51,9 +51,9 @@ static int32_t *calculateIndelProbs(stList *alignedPairs,
         int32_t score = stIntTuple_getPosition(alignedPair, 0);
         assert(score >= 0);
         assert(score <= PAIR_ALIGNMENT_PROB_1);
-        indelProbs[j + 1] -= score;
-        if (indelProbs[j + 1] < 0) {
-            indelProbs[j + 1] = 0;
+        indelProbs[j] -= score;
+        if (indelProbs[j] < 0) {
+            indelProbs[j] = 0;
         }
     }
     return indelProbs;
@@ -70,16 +70,14 @@ typedef struct _pairwiseColumnWeight {
         int32_t sequence;
         int32_t position;
         int32_t columnDepth;
-        double matchWeight; //this is mirrored
-        double gapWeight; //this is mirrored also
-        double alignmentScore;
+        double weight; //this is mirrored
         stSortedSet *alignedPairs; //this is mirrored
         struct _pairwiseColumnWeight *reverse;
 } PairwiseColumnWeight;
 
 static PairwiseColumnWeight *pairwiseColumnWeight_construct(int32_t sequence1, int32_t position1, int32_t columnDepth1,
         int32_t sequence2, int32_t position2, int32_t columnDepth2,
-        double matchWeight, double gapWeight, double alignmentScore, stSortedSet *alignedPairs) {
+        double weight, stSortedSet *alignedPairs) {
     PairwiseColumnWeight *i = st_malloc(sizeof(PairwiseColumnWeight));
 #ifdef BEN_DEBUG
     assert(columnDepth1 > 0);
@@ -96,17 +94,13 @@ static PairwiseColumnWeight *pairwiseColumnWeight_construct(int32_t sequence1, i
     i->sequence = sequence1;
     i->position = position1;
     i->columnDepth = columnDepth1;
-    i->matchWeight = matchWeight;
-    i->gapWeight = gapWeight;
-    i->alignmentScore = alignmentScore;
+    i->weight = weight;
     i->alignedPairs = alignedPairs;
 
     i->reverse->sequence = sequence2;
     i->reverse->position = position2;
     i->reverse->columnDepth = columnDepth2;
-    i->reverse->matchWeight = matchWeight;
-    i->reverse->gapWeight = gapWeight;
-    i->reverse->alignmentScore = alignmentScore;
+    i->reverse->weight = weight;
     i->reverse->alignedPairs = alignedPairs;
 
     return i;
@@ -119,25 +113,12 @@ static void pairwiseColumnWeight_destruct(PairwiseColumnWeight *pairwiseColumnWe
 }
 
 double pairwiseColumnWeight_getNormalisedWeight(const PairwiseColumnWeight *a) {
-    double d = (a->matchWeight) / ((float)a->columnDepth * a->reverse->columnDepth); // + (a->alignmentScore / stSortedSet_size(a->alignedPairs));
-    //double d = (a->matchWeight / (a->gapWeight + 0.01));
+    double d = a->weight / ((float)a->columnDepth * a->reverse->columnDepth);
 #ifdef BEN_DEBUG
-    //assert(d >= -1.000001);
-    //assert(d <= 1.000001);
+    assert(d >= -0.000001);
+    assert(d <= 1.000001);
 #endif
     return d;
-}
-
-static double getAlignmentScore(stList *alignedPairs, int32_t *indelProbs1, int32_t *indelProbs2, int32_t seqLength1, int32_t seqLength2) {
-	double alignmentScore = 0.0;
-	for(int32_t i=0; i<stList_length(alignedPairs); i++) {
-		stIntTuple *alignedPair = stList_get(alignedPairs, i);
-#ifdef BEN_DEBUG
-		assert(stIntTuple_length(alignedPair) == 3);
-#endif
-		alignmentScore += ((float)stIntTuple_getPosition(alignedPair, 0)) / PAIR_ALIGNMENT_PROB_1;
-	}
-	return alignmentScore / (seqLength1 < seqLength2 ? seqLength1 : seqLength2);
 }
 
 static int pairwiseColumnWeight_compareByPositionFn(const PairwiseColumnWeight *a, const PairwiseColumnWeight *b) {
@@ -160,11 +141,6 @@ static int pairwiseColumnWeight_compareByPositionFn(const PairwiseColumnWeight *
 static int pairwiseColumnWeight_compareByWeightFn(const PairwiseColumnWeight *a, const PairwiseColumnWeight *b) {
     double d = pairwiseColumnWeight_getNormalisedWeight(a);
     double e = pairwiseColumnWeight_getNormalisedWeight(b);
-    /*if(d != e) {
-    	return d > e ? 1 : -1;
-    }
-    d = a->alignmentScore / stSortedSet_size(a->alignedPairs);
-    e = b->alignmentScore / stSortedSet_size(b->alignedPairs);*/
     return d > e ? 1 : (d < e ? - 1 : pairwiseColumnWeight_compareByPositionFn(a, b));
 }
 
@@ -185,7 +161,7 @@ static PairwiseColumnWeight *pairwiseColumnWeight_merge(const PairwiseColumnWeig
 #endif
     return pairwiseColumnWeight_construct(a->sequence, a->position, a->columnDepth + b->columnDepth,
             a->reverse->sequence, a->reverse->position, a->reverse->columnDepth,
-            a->matchWeight + b->matchWeight, a->gapWeight + b->gapWeight, a->alignmentScore + b->alignmentScore, alignedPairs);
+            a->weight + b->weight, alignedPairs);
 }
 
 static void removeWeights(stSortedSet *columnWeightsSortedByWeight,
@@ -394,31 +370,27 @@ stList *makeAlignment(stList *sequences, int32_t spanningTrees, float gapGamma,
         stList *alignedPairs2 = useBanding ? getAlignedPairs_Fast(string1,
                 string2, bandingSize) : getAlignedPairs(
                 string1, string2);
-
         //Make indel probs
         int32_t *indelProbs1 = calculateIndelProbs(alignedPairs2, seqLength1, 0);
         int32_t *indelProbs2 = calculateIndelProbs(alignedPairs2, seqLength2, 1);
-        double alignmentScore = getAlignmentScore(alignedPairs2, indelProbs1, indelProbs2, seqLength1, seqLength2);
+        //Calculate the expected accuracy scores.
+        stHash *expectedAccuracyScores = getExpectedAlignmentAccuracyScores(alignedPairs2, indelProbs1, indelProbs2, seqLength1, seqLength2);
 
         //Now deal with the match probs..
         while (stList_length(alignedPairs2) > 0) {
             stIntTuple *alignedPair = (stIntTuple *) stList_pop(alignedPairs2);
 #ifdef BEN_DEBUG
             assert(stIntTuple_length(alignedPair) == 3);
+            assert(stHash_search(expectedAccuracyScores, alignedPair) != NULL);
 #endif
             int32_t position1 = stIntTuple_getPosition(alignedPair, 1);
             int32_t position2 = stIntTuple_getPosition(alignedPair, 2);
             //Work out the scores
-            double matchWeight = stIntTuple_getPosition(alignedPair, 0) / (double)PAIR_ALIGNMENT_PROB_1;
-            double gapWeight = 0.5 * (indelProbs1[position1] + indelProbs2[position2]) / (double)PAIR_ALIGNMENT_PROB_1;
+            double accuracyWeight = *(double *)stHash_search(expectedAccuracyScores, alignedPair);
 #ifdef BEN_DEBUG
-            assert(matchWeight >= -0.0001);
-            assert(matchWeight <= 1.00001);
-            assert(gapWeight >= -0.0001);
-            assert(gapWeight <= 1.000001);
+            assert(accuracyWeight >= -0.0001);
+            assert(accuracyWeight <= 1.00001);
 #endif
-            matchWeight = matchWeight < 0.0 ? 0.0 : matchWeight;
-            gapWeight = gapWeight < 0.0 ? 0.0 : gapWeight;
             //Construct the aligned pair structures.
             stIntTuple *alignedPair2 = stIntTuple_construct(5,
             /* score */stIntTuple_getPosition(alignedPair, 0),
@@ -429,12 +401,13 @@ stList *makeAlignment(stList *sequences, int32_t spanningTrees, float gapGamma,
             addWeights(columnWeightsSortedByWeight,
                     columnWeightsSortedByPosition,
                     pairwiseColumnWeight_construct(sequence1, position1, 1,
-                    sequence2, position2, 1, matchWeight * alignmentScore, gapWeight, alignmentScore, sortedSet));
+                    sequence2, position2, 1, accuracyWeight, sortedSet));
             stIntTuple_destruct(alignedPair);
         }
         stList_destruct(alignedPairs2);
         free(indelProbs1);
         free(indelProbs2);
+        stHash_destruct(expectedAccuracyScores);
     }
     stSortedSet_destructIterator(pairwiseAlignmentsIterator);
 
@@ -453,8 +426,7 @@ stList *makeAlignment(stList *sequences, int32_t spanningTrees, float gapGamma,
         PairwiseColumnWeight *pairwiseColumnWeight = stSortedSet_getLast(columnWeightsSortedByWeight);
         double score = pairwiseColumnWeight_getNormalisedWeight(pairwiseColumnWeight);
 #ifdef BEN_DEBUG
-        //st_uglyf("I have %f %f\n", score, pScore);
-        //assert(score <= pScore + 0.0001);
+        assert(score <= pScore + 0.0001);
 #endif
         pScore = score;
 #ifdef BEN_DEBUG
