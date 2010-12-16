@@ -389,6 +389,8 @@ stList *makeAlignment(stList *sequences, int32_t spanningTrees, float gapGamma,
             //Work out the scores
             double accuracyWeight = *(double *)stHash_search(expectedAccuracyScores, alignedPair);
             double pairwiseWeight = (double)stIntTuple_getPosition(alignedPair, 0) / PAIR_ALIGNMENT_PROB_1;
+            double indelWeight1 = (double)indelProbs1[position1] / PAIR_ALIGNMENT_PROB_1;
+            double indelWeight2 = (double)indelProbs2[position2] / PAIR_ALIGNMENT_PROB_1;
 #ifdef BEN_DEBUG
             assert(accuracyWeight >= -0.0001);
             assert(accuracyWeight <= 1.00001);
@@ -405,7 +407,7 @@ stList *makeAlignment(stList *sequences, int32_t spanningTrees, float gapGamma,
             addWeights(columnWeightsSortedByWeight,
                     columnWeightsSortedByPosition,
                     pairwiseColumnWeight_construct(sequence1, position1, 1,
-                    sequence2, position2, 1, accuracyWeight * pairwiseWeight, sortedSet));
+                    sequence2, position2, 1, accuracyWeight + pairwiseWeight - 0.5*(indelWeight1+indelWeight2), sortedSet));
             stIntTuple_destruct(alignedPair);
         }
         stList_destruct(alignedPairs2);
