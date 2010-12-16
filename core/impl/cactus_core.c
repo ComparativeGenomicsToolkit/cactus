@@ -130,6 +130,7 @@ CactusCoreInputParameters *constructCactusCoreInputParameters() {
     cCIP->trimLength = 0;
 
     cCIP->minimumTreeCoverage = 0.0;
+    cCIP->ignoreAllChainsLessThanMinimumTreeCoverage = 0;
     cCIP->minimumBlockLength = 0;
     cCIP->adjacencyComponentOverlap = 0;
     return cCIP;
@@ -207,7 +208,7 @@ struct List *getChosenBlockPinchEdges(stSortedSet *chosenBlocks,
 
 struct CactusGraph *deanneal(Flower *flower, struct PinchGraph *pinchGraph,
         struct CactusGraph *cactusGraph, struct List **biConnectedComponents,
-        int32_t minimumChainLengthInGraph, int32_t minimumBlockLength, int32_t terminateRecursion) {
+        int32_t minimumChainLengthInGraph, int32_t minimumBlockLength, double minimumTreeCoverage, int32_t terminateRecursion) {
     ///////////////////////////////////////////////////////////////////////////
     // Choosing a block subset to undo.
     ///////////////////////////////////////////////////////////////////////////
@@ -218,7 +219,7 @@ struct CactusGraph *deanneal(Flower *flower, struct PinchGraph *pinchGraph,
                     0.0, 2, 0, 0, pinchGraph);
     //Get the blocks we want to keep
     stSortedSet *chosenBlocksToKeep = filterBlocksByTreeCoverageAndLength(
-            *biConnectedComponents, flower, 0.0, 0, minimumBlockLength,
+            *biConnectedComponents, flower, minimumTreeCoverage, 0, minimumBlockLength,
             minimumChainLengthInGraph + 1, pinchGraph);
     //Now get the blocks to undo by computing the difference.
     stSortedSet *blocksToUndo = stSortedSet_getDifference(
@@ -489,7 +490,7 @@ int32_t cactusCorePipeline(Flower *flower, CactusCoreInputParameters *cCIP,
                 cCIP->annealingRounds[annealingRound];
         if (minimumChainLength <= 1 && cCIP->minimumBlockLength > 1) { //only needed if we are going to do no deannealing
             cactusGraph = deanneal(flower, pinchGraph, cactusGraph,
-                    &biConnectedComponents, 0, cCIP->minimumBlockLength, terminateRecursion);
+                    &biConnectedComponents, 0, cCIP->minimumBlockLength, cCIP->minimumTreeCoverage, terminateRecursion);
         }
 
         ///////////////////////////////////////////////////////////////////////////
@@ -525,7 +526,7 @@ int32_t cactusCorePipeline(Flower *flower, CactusCoreInputParameters *cCIP,
 
             cactusGraph = deanneal(flower, pinchGraph, cactusGraph,
                     &biConnectedComponents, minimumChainLengthToRemove,
-                    cCIP->minimumBlockLength, terminateRecursion);
+                    cCIP->minimumBlockLength, cCIP->minimumTreeCoverage, terminateRecursion);
 
             ///////////////////////////////////////////////////////////////////////////
             // Recalculate the minimum length of chains in the graph

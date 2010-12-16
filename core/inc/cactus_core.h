@@ -18,6 +18,7 @@ typedef struct _CactusCoreInputParameters {
 
     /* Stuff for selecting chains to keep */
     float minimumTreeCoverage;
+    bool ignoreAllChainsLessThanMinimumTreeCoverage;
     int32_t minimumBlockLength;
     int32_t adjacencyComponentOverlap;
 } CactusCoreInputParameters;
