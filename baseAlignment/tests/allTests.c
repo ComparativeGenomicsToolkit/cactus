@@ -16,13 +16,13 @@ int stBaseAlignerRunAllTests(void) {
 	CuString *output = CuStringNew();
 	CuSuite* suite = CuSuiteNew();
 	CuSuiteAddSuite(suite, pairwiseExpectedAlignmentAccuracyTestSuite());
-	CuSuiteAddSuite(suite, stPosetAlignmentTestSuite());
+	/*CuSuiteAddSuite(suite, stPosetAlignmentTestSuite());
 	CuSuiteAddSuite(suite, pairwiseAlignmentTestSuite());
 	CuSuiteAddSuite(suite, multipleAlignerTestSuite());
 	CuSuiteAddSuite(suite, adjacencySequenceTestSuite());
 	CuSuiteAddSuite(suite, endAlignerTestSuite());
 	CuSuiteAddSuite(suite, flowerAlignerTestSuite());
-	CuSuiteAddSuite(suite, pairwiseAlignmentLongTestSuite());
+	CuSuiteAddSuite(suite, pairwiseAlignmentLongTestSuite());*/
 	CuSuiteRun(suite);
 	CuSuiteSummary(suite, output);
 	CuSuiteDetails(suite, output);
