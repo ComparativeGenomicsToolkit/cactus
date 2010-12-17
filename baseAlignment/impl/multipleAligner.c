@@ -174,7 +174,7 @@ static double roundFn(double a, int32_t i) {
 }
 
 static double pairwiseColumnWeight_getNormalisedWeight(const PairwiseColumnWeight *a) {
-    return roundFn(getNormalisedWeight(a->shared->weight, a->columnDepth, a->reverse->columnDepth) - getNormalisedWeight(a->shared->gapWeight, a->columnDepth, a->reverse->columnDepth), 100);
+    return roundFn(getNormalisedWeight(a->shared->weight, a->columnDepth, a->reverse->columnDepth) - getNormalisedWeight(a->shared->gapWeight, a->columnDepth, a->reverse->columnDepth), 50);
 }
 
 static double pairwiseColumnWeight_getNormalisedAlignmentScore(const PairwiseColumnWeight *a) {
