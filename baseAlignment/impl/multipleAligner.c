@@ -144,11 +144,8 @@ static void pairwiseColumnWeight_destruct(PairwiseColumnWeight *pairwiseColumnWe
 double getNormalisedWeight(double weight, int32_t columnDepth1, int32_t columnDepth2) {
     double d = weight / (columnDepth1 * columnDepth2);
 #ifdef BEN_DEBUG
-    if(d >= 1.00001) {
-        st_uglyf("Boo %f\n", d);
-    }
-    assert(d >= -0.000001);
-    assert(d <= 1.000001);
+    assert(d >= -0.001);
+    assert(d <= 1.001);
 #endif
     return d;
 }
