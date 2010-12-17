@@ -179,9 +179,6 @@ static int pairwiseColumnWeight_compareByPositionFn(const PairwiseColumnWeight *
 static int pairwiseColumnWeight_compareByWeightFn(const PairwiseColumnWeight *a, const PairwiseColumnWeight *b) {
     double d = pairwiseColumnWeight_getNormalisedWeight(a);
     double e = pairwiseColumnWeight_getNormalisedWeight(b);
-    if(d != e) {
-        return d > e ? 1 : -1;
-    }
     d = pairwiseColumnWeight_getNormalisedAlignmentScore(a);
     e = pairwiseColumnWeight_getNormalisedAlignmentScore(b);
     return d > e ? 1 : (d < e ? - 1 : pairwiseColumnWeight_compareByPositionFn(a, b));
@@ -446,7 +443,7 @@ stList *makeAlignment(stList *sequences, int32_t spanningTrees, float gapGamma,
             addWeights(columnWeightsSortedByWeight,
                     columnWeightsSortedByPosition,
                     pairwiseColumnWeight_construct(sequence1, position1, 1,
-                    sequence2, position2, 1, alignmentScore * pairwiseWeight, gapGamma*(indelWeight1 + indelWeight2), alignmentScore, sortedSet));
+                    sequence2, position2, 1, pairwiseWeight, gapGamma*(indelWeight1 + indelWeight2), alignmentScore, sortedSet));
             stIntTuple_destruct(alignedPair);
         }
         stList_destruct(alignedPairs2);
@@ -470,6 +467,7 @@ stList *makeAlignment(stList *sequences, int32_t spanningTrees, float gapGamma,
         PairwiseColumnWeight *pairwiseColumnWeight = stSortedSet_getLast(columnWeightsSortedByWeight);
         double score = pairwiseColumnWeight_getNormalisedWeight(pairwiseColumnWeight);
 #ifdef BEN_DEBUG
+        //st_uglyf("The pscore is %f %f\n", score, pScore);
         assert(score <= pScore + 0.0001);
 #endif
         pScore = score;
@@ -477,38 +475,40 @@ stList *makeAlignment(stList *sequences, int32_t spanningTrees, float gapGamma,
         assert(stSortedSet_size(pairwiseColumnWeight->shared->alignedPairs) > 0);
 #endif
         stIntTuple *alignedPair = stSortedSet_getFirst(pairwiseColumnWeight->shared->alignedPairs);
-        if (score > 0.0 && stPosetAlignment_isPossible(posetAlignment, stIntTuple_getPosition(alignedPair, 1), stIntTuple_getPosition(alignedPair, 2),
+        if (score > 0.0) {
+            if(stPosetAlignment_isPossible(posetAlignment, stIntTuple_getPosition(alignedPair, 1), stIntTuple_getPosition(alignedPair, 2),
                 stIntTuple_getPosition(alignedPair, 3), stIntTuple_getPosition(alignedPair, 4))) {
 #ifdef BEN_DEBUG
-            //We check it is possible to align all the pairs in the column weight
-            stSortedSetIterator *it = stSortedSet_getIterator(pairwiseColumnWeight->shared->alignedPairs);
-            while((alignedPair = stSortedSet_getNext(it)) != NULL) {
-                assert(stPosetAlignment_isPossible(posetAlignment, stIntTuple_getPosition(alignedPair, 1), stIntTuple_getPosition(alignedPair, 2),
-                                stIntTuple_getPosition(alignedPair, 3), stIntTuple_getPosition(alignedPair, 4)));
+                //We check it is possible to align all the pairs in the column weight
+                stSortedSetIterator *it = stSortedSet_getIterator(pairwiseColumnWeight->shared->alignedPairs);
+                while((alignedPair = stSortedSet_getNext(it)) != NULL) {
+                    assert(stPosetAlignment_isPossible(posetAlignment, stIntTuple_getPosition(alignedPair, 1), stIntTuple_getPosition(alignedPair, 2),
+                                    stIntTuple_getPosition(alignedPair, 3), stIntTuple_getPosition(alignedPair, 4)));
+                }
+                stSortedSet_destructIterator(it);
+                stIntTuple *alignedPair = stSortedSet_getFirst(pairwiseColumnWeight->shared->alignedPairs);
+#endif
+                bool i = stPosetAlignment_add(posetAlignment, stIntTuple_getPosition(alignedPair, 1), stIntTuple_getPosition(alignedPair, 2),
+                        stIntTuple_getPosition(alignedPair, 3), stIntTuple_getPosition(alignedPair, 4));
+                assert(i);
+                //Add to the output
+                stList *list = stSortedSet_getList(pairwiseColumnWeight->shared->alignedPairs);
+                stList_appendAll(acceptedAlignedPairs, list);
+                stList_destruct(list);
+                //Now update the weights..
+                updatePairwiseColumnWeights(columnWeightsSortedByWeight, columnWeightsSortedByPosition, pairwiseColumnWeight);
             }
-            stSortedSet_destructIterator(it);
-            stIntTuple *alignedPair = stSortedSet_getFirst(pairwiseColumnWeight->shared->alignedPairs);
-#endif
-            bool i = stPosetAlignment_add(posetAlignment, stIntTuple_getPosition(alignedPair, 1), stIntTuple_getPosition(alignedPair, 2),
-                    stIntTuple_getPosition(alignedPair, 3), stIntTuple_getPosition(alignedPair, 4));
-            assert(i);
-            //Add to the output
-            stList *list = stSortedSet_getList(pairwiseColumnWeight->shared->alignedPairs);
-            stList_appendAll(acceptedAlignedPairs, list);
-            stList_destruct(list);
-            //Now update the weights..
-            updatePairwiseColumnWeights(columnWeightsSortedByWeight, columnWeightsSortedByPosition, pairwiseColumnWeight);
-        }
-        else {
-            while(stSortedSet_size(pairwiseColumnWeight->shared->alignedPairs) > 0) {
-                alignedPair = stSortedSet_getFirst(pairwiseColumnWeight->shared->alignedPairs);
-                stSortedSet_remove(pairwiseColumnWeight->shared->alignedPairs, alignedPair);
+            else {
+                while(stSortedSet_size(pairwiseColumnWeight->shared->alignedPairs) > 0) {
+                    alignedPair = stSortedSet_getFirst(pairwiseColumnWeight->shared->alignedPairs);
+                    stSortedSet_remove(pairwiseColumnWeight->shared->alignedPairs, alignedPair);
 #ifdef BEN_DEBUG
-                assert(!stPosetAlignment_isPossible(posetAlignment,
-                stIntTuple_getPosition(alignedPair, 1), stIntTuple_getPosition(alignedPair, 2),
-                stIntTuple_getPosition(alignedPair, 3), stIntTuple_getPosition(alignedPair, 4)));
+                    assert(!stPosetAlignment_isPossible(posetAlignment,
+                    stIntTuple_getPosition(alignedPair, 1), stIntTuple_getPosition(alignedPair, 2),
+                    stIntTuple_getPosition(alignedPair, 3), stIntTuple_getPosition(alignedPair, 4)));
 #endif
-                stIntTuple_destruct(alignedPair);
+                    stIntTuple_destruct(alignedPair);
+                }
             }
         }
         //Now clean up loop by destroying the column weight and removing it from the sorts.
