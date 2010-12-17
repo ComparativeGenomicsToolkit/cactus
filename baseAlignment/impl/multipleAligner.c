@@ -84,7 +84,6 @@ typedef struct _pairwiseColumnWeightShared {
     double weight; //this is mirrored
     double alignmentScore;
     double gapWeight;
-    double adaptedWeight;
     stSortedSet *alignedPairs; //this is mirrored
 } PairwiseColumnWeightShared;
 
@@ -130,7 +129,6 @@ void pairwiseColumnWeight_fillOut(PairwiseColumnWeight *i, int32_t sequence1, in
 
     PairwiseColumnWeightShared *j = i->shared;
     j->weight = weight;
-    j->adaptedWeight = weight;
     j->gapWeight = gapWeight;
     j->alignmentScore = alignmentScore;
     j->alignedPairs = alignedPairs;
@@ -168,14 +166,14 @@ double getNormalisedWeight(double weight, int32_t columnDepth1, int32_t columnDe
     return d;
 }
 
-static double roundFn(double a, int32_t i) {
+/*static double roundFn(double a, int32_t i) {
     return a;
     int32_t j = round(a * i);
     return (double)j/i;
-}
+}*/
 
 static double pairwiseColumnWeight_getNormalisedWeight(const PairwiseColumnWeight *a) {
-    return roundFn(getNormalisedWeight(a->shared->weight, a->columnDepth, a->reverse->columnDepth) - getNormalisedWeight(a->shared->gapWeight, a->columnDepth, a->reverse->columnDepth), 50);
+    return getNormalisedWeight(a->shared->weight, a->columnDepth, a->reverse->columnDepth) - getNormalisedWeight(a->shared->gapWeight, a->columnDepth, a->reverse->columnDepth);
 }
 
 static double pairwiseColumnWeight_getNormalisedAlignmentScore(const PairwiseColumnWeight *a) {

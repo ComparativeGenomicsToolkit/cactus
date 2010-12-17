@@ -52,7 +52,7 @@ char *convertSequence(const char *s, int32_t sL) {
 #define posteriorMatchThreshold 0.01
 
 static inline double lookup(double x) {
-    return log (exp (x) + 1);
+    //return log (exp (x) + 1);
 #ifdef BEN_DEBUG
     assert (x >= 0.00f);
     assert (x <= logUnderflowThreshold);
@@ -66,9 +66,6 @@ static inline double lookup(double x) {
     if (x <= 4.50f)
         return ((-0.004605031767994f * x + 0.063427417320019f) * x
                 + 0.695956496475118f) * x + 0.514272634594009f;
-#ifdef BEN_DEBUG
-    assert (x <= logUnderflowThreshold);
-#endif
     return ((-0.000458661602210f * x + 0.009695946122598f) * x
             + 0.930734667215156f) * x + 0.168037164329057f;
 }
@@ -115,7 +112,7 @@ static void checkPosition(int32_t z, int32_t zL) {
 #define gapShortSwitchTransition -4.910694825551255 //0.0073673675173412815f;
 #define matchFromShortGapTransition -1.272871422049609 //1.0 - gapExtend - gapSwitch = 0.280026392297485
 #define gapLongExtendTransition -0.003442492794189331 //0.99656342579062f;
-#define matchFromLongGapTransition -5.673280173170473 //1.0 - gapExtend - gapSwitch = 0.00343657420938
+#define matchFromLongGapTransition -5.673280173170473 //1.0 - gapExtend = 0.00343657420938
 static inline double transitionProb(int32_t from, int32_t to) {
     checkState(from);
     checkState(to);
@@ -334,7 +331,9 @@ static inline double posteriorMatchProb(double *fM, double *bM, int32_t x,
                 + cell[to]);
     }
     double p = exp(f - totalProb);
-    //assert(p >= -0.01 && p < 1.01);
+#ifdef BEN_DEBUG
+    assert(p >= -0.01 && p < 1.01);
+#endif
     return p;
 }
 
@@ -423,6 +422,10 @@ static int getAlignedPairsFast_cmpFn(stIntTuple *i, stIntTuple *j) {
     return k == 0 ? l : k;
 }
 
+//stList *getBlastPairs(const char *sX, const char *sY);
+
+//stList *filterPairsToGetAnchorPoints(stList *alignedPairs);
+
 stList *getAlignedPairs_Fast(const char *sX, const char *sY,
         int32_t bandingSize) {
     int32_t lX = strlen(sX);
@@ -432,9 +435,7 @@ stList *getAlignedPairs_Fast(const char *sX, const char *sY,
 
     //parameters
     int32_t minTraceBackDiag = 50;
-    int32_t minTraceGapDiags = 5;
-    //int32_t traceBackCandidateThreshold = bandingThreshold
-    //* PAIR_ALIGNMENT_PROB_1;
+    int32_t minTraceGapDiags = 20;
 
     stSortedSet *alignedPairs = stSortedSet_construct3((int(*)(const void *,
             const void *)) getAlignedPairsFast_cmpFn, NULL);
@@ -482,7 +483,6 @@ stList *getAlignedPairs_Fast(const char *sX, const char *sY,
                 int32_t diagC = j + k;
                 if (diagC >= traceForwardDiag && diagC <= traceBackDiag
                         && stIntTuple_getPosition(i, 0) > maxScore) { //traceBackCandidateThreshold //has the required score to be considered a start point.
-                    //&& diagC > newOffsetX + newOffsetY) { //is actually further down the matrix than the new point.
                     maxScore = stIntTuple_getPosition(i, 0);
                     newOffsetX = j;
                     newOffsetY = k;

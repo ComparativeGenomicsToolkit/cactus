@@ -17,7 +17,7 @@
 				<core ignoreAllChainsLessThanMinimumTreeCoverage="1" alignRepeatsAtRound="0" annealingRounds="2 3 4 8 16 32 64 128" deannealingRounds="1 2 3 4 8 16 32 64 128" minimumBlockLength="0" minimumTreeCoverage="0.8" trim="0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0" />
 			</iteration>
 			
-			<iteration banding_limit="100000" banding_size="1000" gap_gamma="0.3" min_sequence_size="0" number="3" spanning_trees="10" type="base" use_banding="1" />
+			<iteration banding_limit="100000" banding_size="1500" gap_gamma="0.3" min_sequence_size="0" number="3" spanning_trees="10" type="base" use_banding="1" />
 		</iterations>
 	</alignment>
 
