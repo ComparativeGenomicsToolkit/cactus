@@ -59,17 +59,20 @@ int32_t *calculateIndelProbs(stList *alignedPairs,
 }
 
 static double getAlignmentScore(stList *alignedPairs, int32_t seqLength1, int32_t seqLength2) {
-    double alignmentScore = 0.0;
+    int64_t alignmentScore = 0;
     for(int32_t i=0; i<stList_length(alignedPairs); i++) {
         stIntTuple *alignedPair = stList_get(alignedPairs, i);
 #ifdef BEN_DEBUG
         assert(stIntTuple_length(alignedPair) == 3);
 #endif
-        alignmentScore += ((float)stIntTuple_getPosition(alignedPair, 0)) / PAIR_ALIGNMENT_PROB_1;
+        alignmentScore += stIntTuple_getPosition(alignedPair, 0);
     }
-    int32_t j = seqLength1 < seqLength2 ? seqLength1 : seqLength2;
-    j = j == 0 ? 1 : j;
-    return alignmentScore / j;
+    int64_t j = seqLength1 < seqLength2 ? seqLength1 : seqLength2;
+    j = j == 0 ? 1.0 : j;
+    double d = (double)alignmentScore / (j * PAIR_ALIGNMENT_PROB_1);
+    d = d > 1.0 ? 1.0 : d;
+    d = d < 0.0 ? 0.0 : d;
+    return d;
 }
 
 static int cmpFn(int32_t i, int32_t j) {
@@ -141,6 +144,9 @@ static void pairwiseColumnWeight_destruct(PairwiseColumnWeight *pairwiseColumnWe
 double getNormalisedWeight(double weight, int32_t columnDepth1, int32_t columnDepth2) {
     double d = weight / (columnDepth1 * columnDepth2);
 #ifdef BEN_DEBUG
+    if(d >= 1.00001) {
+        st_uglyf("Boo %f\n", d);
+    }
     assert(d >= -0.000001);
     assert(d <= 1.000001);
 #endif
@@ -179,6 +185,9 @@ static int pairwiseColumnWeight_compareByPositionFn(const PairwiseColumnWeight *
 static int pairwiseColumnWeight_compareByWeightFn(const PairwiseColumnWeight *a, const PairwiseColumnWeight *b) {
     double d = pairwiseColumnWeight_getNormalisedWeight(a);
     double e = pairwiseColumnWeight_getNormalisedWeight(b);
+    if(d != e) {
+        return d > e ? 1 : -1;
+    }
     d = pairwiseColumnWeight_getNormalisedAlignmentScore(a);
     e = pairwiseColumnWeight_getNormalisedAlignmentScore(b);
     return d > e ? 1 : (d < e ? - 1 : pairwiseColumnWeight_compareByPositionFn(a, b));
@@ -415,7 +424,11 @@ stList *makeAlignment(stList *sequences, int32_t spanningTrees, float gapGamma,
         int32_t *indelProbs2 = calculateIndelProbs(alignedPairs2, seqLength2, 1);
         double alignmentScore = getAlignmentScore(alignedPairs2, seqLength1, seqLength2);
 
-        assert(alignmentScore >= 0);
+#ifdef BEN_DEBUG
+        st_uglyf("Alignment score %f\n", alignmentScore);
+        assert(alignmentScore >= -0.00001);
+        assert(alignmentScore <= 1.00001);
+#endif
 
         //Now deal with the match probs..
         while (stList_length(alignedPairs2) > 0) {
@@ -467,7 +480,7 @@ stList *makeAlignment(stList *sequences, int32_t spanningTrees, float gapGamma,
         PairwiseColumnWeight *pairwiseColumnWeight = stSortedSet_getLast(columnWeightsSortedByWeight);
         double score = pairwiseColumnWeight_getNormalisedWeight(pairwiseColumnWeight);
 #ifdef BEN_DEBUG
-        //st_uglyf("The pscore is %f %f\n", score, pScore);
+        st_uglyf("The pscore is %f %f\n", score, pScore);
         assert(score <= pScore + 0.0001);
 #endif
         pScore = score;
