@@ -3,6 +3,7 @@
 #include "stPosetAlignment.h"
 #include "pairwiseAligner.h"
 #include <stdlib.h>
+#include <math.h>
 
 /*
  * Functions to align a bunch of sequences, creating a global alignment.
@@ -168,7 +169,7 @@ double getNormalisedWeight(double weight, int32_t columnDepth1, int32_t columnDe
 }
 
 static double roundFn(double a, int32_t i) {
-    int32_t j = a * i;
+    int32_t j = round(a * i);
     return (double)j/i;
 }
 
