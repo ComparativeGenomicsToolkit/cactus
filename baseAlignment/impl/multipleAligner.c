@@ -167,17 +167,22 @@ double getNormalisedWeight(double weight, int32_t columnDepth1, int32_t columnDe
     return d;
 }
 
-double pairwiseColumnWeight_getNormalisedWeight(const PairwiseColumnWeight *a) {
-    return getNormalisedWeight(a->shared->weight, a->columnDepth, a->reverse->columnDepth) - getNormalisedWeight(a->shared->gapWeight, a->columnDepth, a->reverse->columnDepth);
+static double roundFn(double a, int32_t i) {
+    int32_t j = a * i;
+    return (double)j/i;
 }
 
-double pairwiseColumnWeight_getNormalisedAlignmentScore(const PairwiseColumnWeight *a) {
+static double pairwiseColumnWeight_getNormalisedWeight(const PairwiseColumnWeight *a) {
+    return roundFn(getNormalisedWeight(a->shared->weight, a->columnDepth, a->reverse->columnDepth) - getNormalisedWeight(a->shared->gapWeight, a->columnDepth, a->reverse->columnDepth), 100);
+}
+
+static double pairwiseColumnWeight_getNormalisedAlignmentScore(const PairwiseColumnWeight *a) {
     return getNormalisedWeight(a->shared->alignmentScore, a->columnDepth, a->reverse->columnDepth);
 }
 
-double pairwiseColumnWeight_getGapWeight(const PairwiseColumnWeight *a) {
+/*static double pairwiseColumnWeight_getGapWeight(const PairwiseColumnWeight *a) {
     return getNormalisedWeight(a->shared->gapWeight, a->columnDepth, a->reverse->columnDepth);
-}
+}*/
 
 static int pairwiseColumnWeight_compareByPositionFn(const PairwiseColumnWeight *a, const PairwiseColumnWeight *b) {
     /*
