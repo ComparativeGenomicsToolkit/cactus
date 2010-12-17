@@ -168,7 +168,7 @@ double getNormalisedWeight(double weight, int32_t columnDepth1, int32_t columnDe
 }
 
 double pairwiseColumnWeight_getNormalisedWeight(const PairwiseColumnWeight *a) {
-    return getNormalisedWeight(a->shared->weight, a->columnDepth, a->reverse->columnDepth); // - getNormalisedWeight(a->shared->gapWeight, a->columnDepth, a->reverse->columnDepth);
+    return getNormalisedWeight(a->shared->weight, a->columnDepth, a->reverse->columnDepth) - getNormalisedWeight(a->shared->gapWeight, a->columnDepth, a->reverse->columnDepth);
 }
 
 double pairwiseColumnWeight_getNormalisedAlignmentScore(const PairwiseColumnWeight *a) {
@@ -393,60 +393,6 @@ static void updatePairwiseColumnWeights(stSortedSet *columnWeightsSortedByWeight
     stList_destruct(list2);
 }
 
-void consistencyTransform(stSortedSet *columnWeightsSortedByPosition, stSortedSet *columnWeightsSortedByWeight, int32_t seqNumber) {
-    stSortedSetIterator *it = stSortedSet_getIterator(columnWeightsSortedByPosition);
-    PairwiseColumnWeight *pCW;
-    int32_t seq = -1, position = -1;
-    stList *list = stList_construct();
-    PairwiseColumnWeight *pCW4 = pairwiseColumnWeight_constructEmpty();
-    pCW4->shared->alignedPairs = NULL;
-    while((pCW = stSortedSet_getNext(it)) != NULL) {
-        stSortedSet_remove(columnWeightsSortedByWeight, pCW);
-        if(pCW->sequence != seq || pCW->position != position) {
-            for(int32_t i=0; i<stList_length(list); i++) {
-                PairwiseColumnWeight *pCW2 = stList_get(list, i);
-                for(int32_t j=i+1; j<stList_length(list); j++) {
-                    PairwiseColumnWeight *pCW3 = stList_get(list, j);
-                    assert(pCW2->sequence == pCW3->sequence);
-                    assert(pCW2->position == pCW3->position);
-                    if(pCW2->reverse->sequence != pCW3->reverse->sequence) {
-                        pairwiseColumnWeight_fillOut(pCW4,
-                                pCW2->reverse->sequence, pCW2->reverse->position, 1,
-                                pCW3->reverse->sequence, pCW3->reverse->position, 1, 0.0, 0.0, 0.0, NULL);
-                        PairwiseColumnWeight *pCW5 = stSortedSet_search(columnWeightsSortedByPosition, pCW4);
-                        if(pCW5 != NULL) {
-                            pCW5->shared->adaptedWeight += pCW2->shared->weight * pCW3->shared->weight;
-                        }
-                    }
-                }
-            }
-            while(stList_length(list) > 0) { //empty the list
-                stList_pop(list);
-            }
-        }
-        stList_append(list, pCW);
-    }
-    pairwiseColumnWeight_destruct(pCW4);
-    assert(stSortedSet_size(columnWeightsSortedByWeight) == 0);
-    if(stSortedSet_size(columnWeightsSortedByPosition) > 0) {
-        pCW = stSortedSet_getPrevious(it);
-        assert(pCW != NULL);
-        do {
-            assert(pCW->sequence != pCW->reverse->sequence);
-            if(pCW->sequence > pCW->reverse->sequence) {
-                pCW->shared->weight = pCW->shared->adaptedWeight/seqNumber;
-                pCW->shared->adaptedWeight = pCW->shared->weight;
-                assert(pCW->shared->weight >= -0.0001);
-                assert(pCW->shared->weight <= 1.0001);
-                stSortedSet_insert(columnWeightsSortedByWeight, pCW);
-                stSortedSet_insert(columnWeightsSortedByWeight, pCW->reverse);
-            }
-        } while((pCW = stSortedSet_getPrevious(it)) != NULL);
-    }
-    stSortedSet_destructIterator(it);
-    assert(stSortedSet_size(columnWeightsSortedByWeight) == stSortedSet_size(columnWeightsSortedByPosition));
-}
-
 stList *makeAlignment(stList *sequences, int32_t spanningTrees, float gapGamma,
         bool useBanding, int32_t bandingSize) {
     //Get the set of pairwise alignments (by constructing spanning trees)
@@ -531,8 +477,6 @@ stList *makeAlignment(stList *sequences, int32_t spanningTrees, float gapGamma,
         free(indelProbs2);
     }
     stSortedSet_destructIterator(pairwiseAlignmentsIterator);
-
-    consistencyTransform(columnWeightsSortedByPosition, columnWeightsSortedByWeight, sequenceNo);
 
     //Greedily construct poset and filter pairs..
     stPosetAlignment *posetAlignment = stPosetAlignment_construct(
