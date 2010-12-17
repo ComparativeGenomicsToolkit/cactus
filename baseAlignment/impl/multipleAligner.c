@@ -169,6 +169,7 @@ double getNormalisedWeight(double weight, int32_t columnDepth1, int32_t columnDe
 }
 
 static double roundFn(double a, int32_t i) {
+    return a;
     int32_t j = round(a * i);
     return (double)j/i;
 }
