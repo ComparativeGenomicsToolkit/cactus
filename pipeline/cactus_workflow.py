@@ -218,7 +218,7 @@ class CactusCoreWrapper(Target):
                       trim=[ int(i) for i in coreParameters.attrib["trim"].split() ],
                       minimumTreeCoverage=float(coreParameters.attrib["minimumTreeCoverage"]),
                       minimumBlockLength=float(coreParameters.attrib["minimumBlockLength"]),
-                      adjacencyComponentOverlap=int(coreParameters.attrib["adjacencyComponentOverlap"]))
+                      ignoreAllChainsLessThanMinimumTreeCoverage=bool(coreParameters.attrib["ignoreAllChainsLessThanMinimumTreeCoverage"]))
         logger.info("Ran the cactus core program okay")
         
 ############################################################
@@ -247,7 +247,7 @@ class CactusBarDown(Target):
                                                               self.getLocalTempDir(),  logLevel=getLogLevelString()):
             assert childFlowerSize >= 0
             children.append(childFlowerName)
-            if len(children) > 50:
+            if len(children) > 10:
                 self.addChildTarget(CactusBaseLevelAlignerWrapper(self.options, self.iteration, children)) 
                 children = []
         if len(children) > 0:
@@ -258,7 +258,7 @@ class CactusBaseLevelAlignerWrapper(Target):
     """
     #We split, to deal with cleaning up the alignment file
     def __init__(self, options, iteration, flowerNames):
-        Target.__init__(self, time=10)
+        Target.__init__(self, time=5)
         self.options = options
         self.iteration = iteration
         self.flowerNames = flowerNames

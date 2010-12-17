@@ -68,7 +68,7 @@ void usage() {
 
     fprintf(
             stderr,
-            "-s --adjacencyComponentOverlap : (int >= 0) When adding alignmnts back into the graph, the distance between the adjacency components to consider\n");
+            "-s --ignoreAllChainsLessThanMinimumTreeCoverage : (int >= 0) When adding alignmnts back into the graph, ignore chains that don't meet the minimum tree coverage (instead of allowing them to be formed and therefore to define the group structure, but not keeping them in the output)\n");
 }
 
 int32_t *getInts(const char *string, int32_t *arrayLength) {
@@ -122,12 +122,12 @@ int main(int argc, char *argv[]) {
                 { "minimumTreeCoverage", required_argument, 0, 'm' }, {
                         "minimumBlockLength", required_argument, 0, 'n' }, {
                         "deannealingRounds", required_argument, 0, 'o' },
-                { "adjacencyComponentOverlap", required_argument, 0, 's', }, {
+                { "ignoreAllChainsLessThanMinimumTreeCoverage", no_argument, 0, 's', }, {
                         0, 0, 0, 0 } };
 
         int option_index = 0;
 
-        key = getopt_long(argc, argv, "a:b:c:d:ehi:j:k:m:n:o:s:",
+        key = getopt_long(argc, argv, "a:b:c:d:ehi:j:k:m:n:o:s",
                 long_options, &option_index);
 
         if (key == -1) {
@@ -175,8 +175,7 @@ int main(int argc, char *argv[]) {
                 assert(sscanf(optarg, "%i", &cCIP->minimumBlockLength) == 1);
                 break;
             case 's':
-                assert(sscanf(optarg, "%i", &cCIP->adjacencyComponentOverlap)
-                        == 1);
+                cCIP->ignoreAllChainsLessThanMinimumTreeCoverage = 1;
                 break;
 
             default:
@@ -209,7 +208,6 @@ int main(int argc, char *argv[]) {
         assert(cCIP->trim[i] >= 0);
     }
     assert(cCIP->alignRepeatsAtRound >= 0);
-    assert(cCIP->adjacencyComponentOverlap >= 0);
 
     //////////////////////////////////////////////
     //Set up logging

@@ -132,7 +132,6 @@ CactusCoreInputParameters *constructCactusCoreInputParameters() {
     cCIP->minimumTreeCoverage = 0.0;
     cCIP->ignoreAllChainsLessThanMinimumTreeCoverage = 0;
     cCIP->minimumBlockLength = 0;
-    cCIP->adjacencyComponentOverlap = 0;
     return cCIP;
 }
 
@@ -490,7 +489,8 @@ int32_t cactusCorePipeline(Flower *flower, CactusCoreInputParameters *cCIP,
                 cCIP->annealingRounds[annealingRound];
         if (minimumChainLength <= 1 && cCIP->minimumBlockLength > 1) { //only needed if we are going to do no deannealing
             cactusGraph = deanneal(flower, pinchGraph, cactusGraph,
-                    &biConnectedComponents, 0, cCIP->minimumBlockLength, cCIP->minimumTreeCoverage, terminateRecursion);
+                    &biConnectedComponents, 0, cCIP->minimumBlockLength, cCIP->ignoreAllChainsLessThanMinimumTreeCoverage ? cCIP->minimumTreeCoverage : 0.0,
+                            terminateRecursion);
         }
 
         ///////////////////////////////////////////////////////////////////////////
@@ -526,7 +526,8 @@ int32_t cactusCorePipeline(Flower *flower, CactusCoreInputParameters *cCIP,
 
             cactusGraph = deanneal(flower, pinchGraph, cactusGraph,
                     &biConnectedComponents, minimumChainLengthToRemove,
-                    cCIP->minimumBlockLength, cCIP->minimumTreeCoverage, terminateRecursion);
+                    cCIP->minimumBlockLength, cCIP->ignoreAllChainsLessThanMinimumTreeCoverage ? cCIP->minimumTreeCoverage : 0.0,
+                            terminateRecursion);
 
             ///////////////////////////////////////////////////////////////////////////
             // Recalculate the minimum length of chains in the graph

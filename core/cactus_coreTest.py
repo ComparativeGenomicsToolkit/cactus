@@ -57,7 +57,7 @@ def getRandomConfigFile():
     
     core.attrib["minimumTreeCoverage"] = str(random.random())
     core.attrib["minimumBlockLength"] = str(int(random.random() * 5))
-    core.attrib["adjacencyComponentOverlap"] = str(int(random.random() * 5))
+    core.attrib["ignoreAllChainsLessThanMinimumTreeCoverage"] = str(random.choice([0, 1]))
     
     #Now print the file..
     fileHandle = open(tempConfigFile, 'w')

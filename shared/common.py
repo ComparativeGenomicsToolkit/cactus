@@ -51,7 +51,7 @@ def runCactusCore(cactusDiskDatabaseString, alignmentFile,
                   trim=None,
                   minimumTreeCoverage=None,
                   minimumBlockLength=None,
-                  adjacencyComponentOverlap=None):
+                  ignoreAllChainsLessThanMinimumTreeCoverage=False):
     writeDebugFiles = nameValue("writeDebugFiles", writeDebugFiles, bool)
     if annealingRounds != None:
         annealingRounds = "--annealingRounds '%s'" % " ".join([ str(i) for i in annealingRounds ])
@@ -62,11 +62,11 @@ def runCactusCore(cactusDiskDatabaseString, alignmentFile,
         trim = "--trim '%s'" % " ".join([ str(i) for i in trim ])
     minimumTreeCoverage = nameValue("minimumTreeCoverage", minimumTreeCoverage, float)
     minimumBlockLength = nameValue("minimumBlockLength", minimumBlockLength, int)
-    adjacencyComponentOverlap = nameValue("adjacencyComponentOverlap", adjacencyComponentOverlap, int)
+    ignoreAllChainsLessThanMinimumTreeCoverage = nameValue("ignoreAllChainsLessThanMinimumTreeCoverage", ignoreAllChainsLessThanMinimumTreeCoverage, bool)
     
     command = "cactus_core --cactusDisk '%s' --flowerName %s --alignments %s --logLevel %s %s %s %s %s %s %s %s %s" % \
     (cactusDiskDatabaseString, flowerName, alignmentFile, logLevel, writeDebugFiles, annealingRounds, deannealingRounds, alignRepeatsAtRound,
-     trim, minimumTreeCoverage, minimumBlockLength, adjacencyComponentOverlap)
+     trim, minimumTreeCoverage, minimumBlockLength, ignoreAllChainsLessThanMinimumTreeCoverage)
     #print "command to run", command
     #assert 0
     system(command)

@@ -20,7 +20,6 @@ typedef struct _CactusCoreInputParameters {
     float minimumTreeCoverage;
     bool ignoreAllChainsLessThanMinimumTreeCoverage;
     int32_t minimumBlockLength;
-    int32_t adjacencyComponentOverlap;
 } CactusCoreInputParameters;
 
 int32_t cactusCorePipeline(Flower *flower, CactusCoreInputParameters *cCIP,
