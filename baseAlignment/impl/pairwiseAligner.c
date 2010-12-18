@@ -422,9 +422,30 @@ static int getAlignedPairsFast_cmpFn(stIntTuple *i, stIntTuple *j) {
     return k == 0 ? l : k;
 }
 
-//stList *getBlastPairs(const char *sX, const char *sY);
 
-//stList *filterPairsToGetAnchorPoints(stList *alignedPairs);
+stList *getBlastPairs(const char *sX, const char *sY, int32_t lX, int32_t lY) {
+    return NULL;
+}
+
+stList *filterPairsToGetAnchorPoints(stList *alignedPairs, int32_t minRectangleSize, int32_t lX, int32_t lY) {
+    int32_t x = 0;
+    int32_t y = 0;
+    stList *filteredPairs = stList_construct();
+    for(int32_t i=0; i<stList_length(alignedPairs); i++) {
+        stIntTuple *alignedPair = stList_get(alignedPairs, i);
+        int32_t x2 = stIntTuple_getPosition(alignedPair, 0);
+        int32_t y2 = stIntTuple_getPosition(alignedPair, 1);
+        if((x2 - x) * (y2 - y) >= minSize) {
+            stList_append(filteredPairs, alignedPair);
+            x = x2;
+            y = y2;
+        }
+    }
+    assert(x < lX);
+    assert(y < lY);
+    return filteredPairs;
+}
+
 
 stList *getAlignedPairs_Fast(const char *sX, const char *sY,
         int32_t bandingSize) {
@@ -437,11 +458,16 @@ stList *getAlignedPairs_Fast(const char *sX, const char *sY,
     int32_t minTraceBackDiag = 50;
     int32_t minTraceGapDiags = 20;
 
+    stList *blastPairs = getBlastPairs(sX, sY, lX, lY);
+    stList *bandPairs = filterPairsToGetAnchorPoints(blastPairs, 200*200, lX, lY);
+    stList_append(bandPairs, stIntTuple_construct(2, lX-1, lY-1));
+    stListIterator *bandIt = stList_getIterator(bandPairs);
+    stIntTuple *bandPair;
+
     stSortedSet *alignedPairs = stSortedSet_construct3((int(*)(const void *,
             const void *)) getAlignedPairsFast_cmpFn, NULL);
 
-    bool done = 0;
-    while (!done) {
+    while ((bandPair = stList_getNext(bandIt)) != NULL) {
         //Get the appropriate x substring
         int32_t lX2 = lX < bandingSize + offsetX ? lX - offsetX : bandingSize;
         char *sX2 = getSubString(sX, offsetX, lX2);
