@@ -6,7 +6,7 @@
 #include <math.h>
 
 char getRandomChar() {
-    char *positions = "ACGT"; //AaCcGgTt";
+    char *positions = "AaCcGgTtAaCcGgTtAaCcGgTtAaCcGgTtAaCcGgTtAaCcGgTtAaCcGgTtAaCcGgTtAaCcGgTtAaCcGgTtAaCcGgTtN";
     return positions[st_randomInt(0, strlen(positions))];
 }
 
@@ -38,7 +38,7 @@ char *evolveSequence(const char *startSequence) {
 
     //Do indels
     while (st_random() > 0.2) {
-        char *toReplace = getRandomSequence(st_randomInt(1, 4));
+        char *toReplace = getRandomSequence(st_randomInt(2, 4));
         char *replacement = getRandomSequence(st_randomInt(0, 10));
         char *seq2 = stString_replace(seq, toReplace, replacement);
         free(seq);
