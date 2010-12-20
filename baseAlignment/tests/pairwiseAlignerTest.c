@@ -6,7 +6,7 @@
 #include <math.h>
 
 char getRandomChar() {
-    char *positions = "AaCcGgTtN";
+    char *positions = "ACGT"; //AaCcGgTt";
     return positions[st_randomInt(0, strlen(positions))];
 }
 
@@ -131,6 +131,81 @@ static void test_pairwiseAligner_FastRandom(CuTest *testCase) {
 }
 
 /*
+ * Test the blast heuristic to get the different pairs.
+ */
+
+stList *getBlastPairs(const char *sX, const char *sY, int32_t lX, int32_t lY, int32_t trim);
+
+
+static void test_getBlastPairs(CuTest *testCase) {
+    for (int32_t test = 0; test < 10; test++) {
+        //Make a pair of sequences
+        char *seqX = getRandomSequence(st_randomInt(0, 10000));
+        char *seqY = evolveSequence(seqX); //stString_copy(seqX);
+        int32_t seqXLength = strlen(seqX);
+        int32_t seqYLength = strlen(seqY);
+        st_uglyf("Sequence X to align: %s END, seq length %i\n", seqX, seqXLength);
+        st_uglyf("Sequence Y to align: %s END, seq length %i\n", seqY, seqYLength);
+
+        int32_t trim = st_randomInt(0, 5);
+        st_uglyf("Using random trim %i\n", trim);
+
+        stList *blastPairs = getBlastPairs(seqX, seqY, seqXLength, seqYLength, trim);
+
+        st_uglyf("I got %i blast pairs\n", stList_length(blastPairs));
+        int32_t pX = -1;
+        int32_t pY = -1;
+        for(int32_t i=0; i<stList_length(blastPairs); i++) {
+            stIntTuple  *j = stList_get(blastPairs, i);
+            CuAssertTrue(testCase, stIntTuple_length(j) == 2);
+            int32_t x = stIntTuple_getPosition(j, 0);
+            int32_t y = stIntTuple_getPosition(j, 1);
+            CuAssertTrue(testCase, x >= 0);
+            CuAssertTrue(testCase, y >= 0);
+            CuAssertTrue(testCase, x < seqXLength);
+            CuAssertTrue(testCase, y < seqYLength);
+            CuAssertTrue(testCase, x > pX);
+            CuAssertTrue(testCase, y > pY);
+            pX = x;
+            pY = y;
+        }
+
+        stList_destruct(blastPairs);
+    }
+}
+
+stList *filterPairsToGetAnchorPoints(stList *alignedPairs, int32_t minRectangleSize, int32_t lX, int32_t lY);
+
+static void test_filterPairsToGetAnchorPoints(CuTest *testCase) {
+    for (int32_t test = 0; test < 10; test++) {
+        //Make a pair of sequences
+        char *seqX = getRandomSequence(st_randomInt(0, 10000));
+        char *seqY = evolveSequence(seqX); //stString_copy(seqX);
+        int32_t seqXLength = strlen(seqX);
+        int32_t seqYLength = strlen(seqY);
+
+        stList *blastPairs = getBlastPairs(seqX, seqY, seqXLength, seqYLength, 0);
+        int32_t minRectangleSize = st_randomInt(0, 20);
+        stList *filteredPairs = filterPairsToGetAnchorPoints(blastPairs, minRectangleSize, seqXLength, seqYLength);
+        int32_t pX = -1;
+        int32_t pY = -1;
+        for(int32_t i=0; i<stList_length(filteredPairs); i++) {
+            stIntTuple *pair = stList_get(filteredPairs, i);
+            assert(stList_contains(blastPairs, pair));
+            int32_t x = stIntTuple_getPosition(pair, 0);
+            int32_t y = stIntTuple_getPosition(pair, 1);
+            CuAssertTrue(testCase, x > pX);
+            CuAssertTrue(testCase, y > pY);
+            CuAssertTrue(testCase, (x - pX) * (y - pY) >= minRectangleSize);
+            pX = x;
+            pY = y;
+        }
+        st_uglyf("I got %i filtered pairs from %i pairs\n", stList_length(filteredPairs), stList_length(blastPairs));
+    }
+}
+
+
+/*
  * Test the math functions.
  */
 
@@ -208,5 +283,7 @@ CuSuite* pairwiseAlignmentTestSuite(void) {
     SUITE_ADD_TEST(suite, test_convertSequence);
     SUITE_ADD_TEST(suite, test_forwardMatrixCalculation);
     SUITE_ADD_TEST(suite, test_backwardMatrixCalculation);
+    SUITE_ADD_TEST(suite, test_getBlastPairs);
+    SUITE_ADD_TEST(suite, test_filterPairsToGetAnchorPoints);
     return suite;
 }

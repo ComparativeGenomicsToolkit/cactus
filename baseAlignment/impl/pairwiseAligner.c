@@ -426,8 +426,7 @@ static int getAlignedPairsFast_cmpFn(stIntTuple *i, stIntTuple *j) {
     return k == 0 ? l : k;
 }
 
-
-static stList *getBlastPairs(const char *sX, const char *sY, int32_t lX, int32_t lY, int32_t trim) {
+stList *getBlastPairs(const char *sX, const char *sY, int32_t lX, int32_t lY, int32_t trim) {
     //Write to file..
     char *tempFile1 = getTempFile();
     char *tempFile2 = getTempFile();
@@ -437,43 +436,44 @@ static stList *getBlastPairs(const char *sX, const char *sY, int32_t lX, int32_t
     fprintf(fileHandle, ">a\n%s\n", sX);
     fclose(fileHandle);
 
-    fileHandle = fopen(tempFile1, "w");
+    fileHandle = fopen(tempFile2, "w");
     fprintf(fileHandle, ">b\n%s\n", sY);
     fclose(fileHandle);
 
     //Run lastz
-    st_system("lastz --format=cigar %s %s > %s", tempFile1, tempFile2, tempFile3);
+    int32_t exitValue = st_system("lastz --chain --strand=plus --format=cigar %s %s > %s", tempFile1, tempFile2, tempFile3);
+    assert(exitValue == 0);
 
     //Read from file..
     stList *alignedPairs = stList_construct3(0, (void (*)(void *))stIntTuple_destruct);
-    fileHandle = fopen(tempFile2, "r");
+    fileHandle = fopen(tempFile3, "r");
     struct PairwiseAlignment *pA;
     while((pA = cigarRead(fileHandle)) != NULL) {
-            int32_t j = pA->start1;
-            int32_t k = pA->start2;
+        int32_t j = pA->start1;
+        int32_t k = pA->start2;
 
-            assert(strcmp(pA->contig1, "a") == 0);
-            assert(strcmp(pA->contig2, "b") == 0);
-            assert(pA->strand1);
-            assert(pA->strand2);
+        assert(strcmp(pA->contig1, "a") == 0);
+        assert(strcmp(pA->contig2, "b") == 0);
+        assert(pA->strand1);
+        assert(pA->strand2);
 
-            for (int32_t i = 0; i < pA->operationList->length; i++) {
-                struct AlignmentOperation *op = pA->operationList->list[i];
-                if (op->opType == PAIRWISE_MATCH) {
-                    for(int32_t l=trim; l<op->length-trim; i++) {
-                        stList_append(alignedPairs, stIntTuple_construct(2, j + l, k+l));
-                    }
-                }
-                if (op->opType != PAIRWISE_INDEL_Y) {
-                    j += op->length;
-                }
-                if (op->opType != PAIRWISE_INDEL_X) {
-                    k += op->length;
+        for (int32_t i = 0; i < pA->operationList->length; i++) {
+            struct AlignmentOperation *op = pA->operationList->list[i];
+            if (op->opType == PAIRWISE_MATCH) {
+                for(int32_t l=trim; l<op->length-trim; l++) {
+                    stList_append(alignedPairs, stIntTuple_construct(2, j+l, k+l));
                 }
             }
+            if (op->opType != PAIRWISE_INDEL_Y) {
+                j += op->length;
+            }
+            if (op->opType != PAIRWISE_INDEL_X) {
+                k += op->length;
+            }
+        }
 
-            assert(j == pA->end1);
-            assert(k == pA->end2);
+        assert(j == pA->end1);
+        assert(k == pA->end2);
     }
     fclose(fileHandle);
 
@@ -486,15 +486,15 @@ static stList *getBlastPairs(const char *sX, const char *sY, int32_t lX, int32_t
     return alignedPairs;
 }
 
-static stList *filterPairsToGetAnchorPoints(stList *alignedPairs, int32_t minRectangleSize, int32_t lX, int32_t lY) {
-    int32_t x = 0;
-    int32_t y = 0;
+stList *filterPairsToGetAnchorPoints(stList *alignedPairs, int32_t minRectangleSize, int32_t lX, int32_t lY) {
+    int32_t x = -1;
+    int32_t y = -1;
     stList *filteredPairs = stList_construct();
     for(int32_t i=0; i<stList_length(alignedPairs); i++) {
         stIntTuple *alignedPair = stList_get(alignedPairs, i);
         int32_t x2 = stIntTuple_getPosition(alignedPair, 0);
         int32_t y2 = stIntTuple_getPosition(alignedPair, 1);
-        if((1 + x2 - x) * (1 + y2 - y) >= minRectangleSize && (1 + lX - x2) * (1 + lY - y2) >= minRectangleSize) {
+        if((x2 - x - 1) * (y2 - y - 1) >= minRectangleSize && (lX - x2 - 1) * (lY - y2 - 1) >= minRectangleSize) {
             stList_append(filteredPairs, alignedPair);
             x = x2;
             y = y2;
@@ -558,7 +558,14 @@ stList *getAlignedPairs_Fast(const char *sX, const char *sY,
     int32_t minRectangleSize = 200 * 200;
     int32_t trim = 5;
 
-    stList *blastPairs = getBlastPairs(sX, sY, lX, lY, trim);
+
+    stList *blastPairs;
+    if(lX * lY >= bandingSize * bandingSize) {
+        blastPairs = getBlastPairs(sX, sY, lX, lY, trim);
+    }
+    else {
+        blastPairs = stList_construct(); //We don't bother getting anchors if the sequences are sufficiently small.
+    }
     stList *bandPairs = filterPairsToGetAnchorPoints(blastPairs, minRectangleSize, lX, lY);
     stListIterator *bandIt = stList_getIterator(bandPairs);
     stIntTuple *bandPair;
