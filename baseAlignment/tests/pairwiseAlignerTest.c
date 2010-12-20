@@ -138,7 +138,7 @@ stList *getBlastPairs(const char *sX, const char *sY, int32_t lX, int32_t lY, in
 
 
 static void test_getBlastPairs(CuTest *testCase) {
-    for (int32_t test = 0; test < 10; test++) {
+    /*for (int32_t test = 0; test < 10; test++) {
         //Make a pair of sequences
         char *seqX = getRandomSequence(st_randomInt(0, 10000));
         char *seqY = evolveSequence(seqX); //stString_copy(seqX);
@@ -171,13 +171,13 @@ static void test_getBlastPairs(CuTest *testCase) {
         }
 
         stList_destruct(blastPairs);
-    }
+    }*/
 }
 
 stList *filterPairsToGetAnchorPoints(stList *alignedPairs, int32_t minRectangleSize, int32_t lX, int32_t lY);
 
 static void test_filterPairsToGetAnchorPoints(CuTest *testCase) {
-    for (int32_t test = 0; test < 10; test++) {
+    /*for (int32_t test = 0; test < 10; test++) {
         //Make a pair of sequences
         char *seqX = getRandomSequence(st_randomInt(0, 10000));
         char *seqY = evolveSequence(seqX); //stString_copy(seqX);
@@ -201,7 +201,7 @@ static void test_filterPairsToGetAnchorPoints(CuTest *testCase) {
             pY = y;
         }
         st_uglyf("I got %i filtered pairs from %i pairs\n", stList_length(filteredPairs), stList_length(blastPairs));
-    }
+    }*/
 }
 
 
