@@ -200,11 +200,24 @@ int mapGene(Cap *cap, int level, int exon, struct bed *gene, FILE *fileHandle){
     *exons of input gene. Report chain relations of these regions with the exons.
     *cap: current cap. Level = chain level. exon = exon number. gene = bed record of gene
     */
+   int32_t exonStart, exonEnd;
+   if(isStubCap(cap)){
+      Group *group = end_getGroup(cap_getEnd(cap));
+      Flower *nestedFlower = group_getNestedFlower(group);
+      if(nestedFlower != NULL){//recursive call
+         Cap *childCap = flower_getCap(nestedFlower, cap_getName(cap));
+         assert(childCap != NULL);
+         exon = mapGene(childCap, level + 1, exon, gene, fileHandle);
+         exonStart = gene->chromStarts->list[exon] + gene->chromStart;
+         exonEnd = exonStart + gene->blockSizes->list[exon];
+      }
+   }
+
    cap = cap_getAdjacency(cap);
    Cap *nextcap;
-   int capCoor;
-   int exonStart = gene->chromStarts->list[exon] + gene->chromStart;
-   int exonEnd = exonStart + gene->blockSizes->list[exon];
+   int32_t capCoor;
+   exonStart = gene->chromStarts->list[exon] + gene->chromStart;
+   exonEnd = exonStart + gene->blockSizes->list[exon];
    Block *block = end_getBlock(cap_getEnd(cap));  
  
    if(block == NULL){
@@ -319,8 +332,8 @@ void mapGenes(Flower *flower, FILE *fileHandle, struct bed *gene, char *species)
 	  fprintf(fileHandle, "\t\t<exon id=\"0\" start=\"%d\" end=\"%d\">\n", gene->chromStart, gene->chromStart + gene->blockSizes->list[0]);
 	  mapGene(startCap, level, 0, gene, fileHandle);
 	  fprintf(fileHandle, "\t</gene>\n");
-	  gene = gene->next;
       }
+      gene = gene->next;
    }
    printClosingTag("geneMap", fileHandle);
    return;
