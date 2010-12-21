@@ -8,6 +8,8 @@
 #ifndef FLOWER_ALIGNER_H_
 #define FLOWER_ALIGNER_H_
 
+#include "pairwiseAligner.h"
+
 /*
  * Constructs an alignment for the flower by constructing an alignment for each end
  * then filtering the alignments against each other so each position is a member of only one
@@ -17,6 +19,6 @@
  */
 stSortedSet *makeFlowerAlignment(Flower *flower, int32_t spanningTrees,
         int32_t maxSequenceLength, float gapGamma, bool useBanding,
-        int32_t bandingSize);
+        PairwiseAlignmentBandingParameters *pairwiseAlignmentBandingParameters);
 
 #endif /* NETALIGNER_H_ */

@@ -11,6 +11,7 @@
 //#include "pairwiseAlignmentModel.h"
 //#include "pairwiseAlignmentModelInterface.h"
 #include "sonLib.h"
+#include "pairwiseAligner.h"
 
 /*
  * Takes a list of DNA strings (char arrays), aligns them and returns a global alignment,
@@ -18,6 +19,6 @@
  * Positions and sequence indices are zero based, scores are between 1 and 1000.
  */
 stList *makeAlignment(stList *sequences,
-        int32_t spanningTrees, float gapGamma, bool useBanding, int32_t bandingSize);
+        int32_t spanningTrees, float gapGamma, bool useBanding, PairwiseAlignmentBandingParameters *pairwiseAlignmentBandingParameters);
 
 #endif /* ALIGNER_H_ */

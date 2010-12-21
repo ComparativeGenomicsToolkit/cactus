@@ -270,7 +270,12 @@ class CactusBaseLevelAlignerWrapper(Target):
                              spanningTrees=float(self.iteration.attrib["spanning_trees"]),
                              gapGamma=float(self.iteration.attrib["gap_gamma"]),
                              useBanding=bool(int(self.iteration.attrib["use_banding"])),
-                             bandingSize=int(self.iteration.attrib["banding_size"]))
+                             maxBandingSize=int(self.iteration.attrib["max_banding_size"]),
+                             minBandingSize=int(self.iteration.attrib["min_banding_size"]),
+                             minBandingConstraintDistance=int(self.iteration.attrib["min_banding_constraint_distance"]),
+                             minTraceBackDiag=int(self.iteration.attrib["min_trace_back_diag"]),
+                             minTraceGapDiags=int(self.iteration.attrib["min_trace_gap_diags"]),
+                             constraintDiagonalTrim=int(self.iteration.attrib["constraint_diagonal_trim"]))
         
 ############################################################
 ############################################################

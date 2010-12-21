@@ -16,9 +16,22 @@
  */
 stList *getAlignedPairs(const char *string1, const char *string2);
 
+typedef  struct _pairwiseAlignmentBandingParameters {
+    int32_t maxBandingSize; //No matrix biggger than this number squared will be computed
+    int32_t minBandingSize; //Any matrix bigger than this number squared will be broken apart with banding
+    int32_t minBandingConstraintDistance; //The minimum size of a dp matrix between banding constraints.
+    int32_t minTraceBackDiag; //The x+y diagonal to leave between the cut point and the place we choose new cutpoints.
+    int32_t minTraceGapDiags; //The distance to leave between a cutpoint and the traceback
+    int32_t constraintDiagonalTrim; //Amount to remove from a diagonal to be considered for a banding constraint
+} PairwiseAlignmentBandingParameters;
+
+PairwiseAlignmentBandingParameters *pairwiseAlignmentBandingParameters_construct();
+
+void pairwiseAlignmentBandingParameters_destruct(PairwiseAlignmentBandingParameters *p);
+
 /*
  * A heuristic, banded form of getAlignedPairs.
  */
-stList *getAlignedPairs_Fast(const char *sX, const char *sY, int32_t bandingSize);
+stList *getAlignedPairs_Fast(const char *sX, const char *sY, PairwiseAlignmentBandingParameters *p);
 
 #endif /* PAIRWISEALIGNER_H_ */

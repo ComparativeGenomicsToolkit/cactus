@@ -130,16 +130,29 @@ def runCactusBaseAligner(cactusDiskDatabaseString, flowerNames, logLevel="DEBUG"
                          spanningTrees=None, maximumLength=None, 
                          gapGamma=None,
                          useBanding=False,
-                         bandingSize=None):
+                         maxBandingSize=None,
+                         minBandingSize=None,
+                         minBandingConstraintDistance=None,
+                         minTraceBackDiag=None,
+                         minTraceGapDiags=None,
+                         constraintDiagonalTrim=None):
     """Runs cactus base aligner.
     """
     maximumLength = nameValue("maximumLength", maximumLength, int)
     spanningTrees = nameValue("spanningTrees", spanningTrees, int)
     gapGamma = nameValue("gapGamma", gapGamma, float)
     useBanding = nameValue("useBanding", useBanding, bool)
-    bandingSize = nameValue("bandingSize", bandingSize, int)
-    system("cactus_baseAligner --cactusDisk '%s' --logLevel %s %s %s %s %s %s %s" % 
-           (cactusDiskDatabaseString, logLevel, " ".join(flowerNames), spanningTrees, maximumLength, gapGamma, useBanding, bandingSize))
+    maxBandingSize = nameValue("maxBandingSize", maxBandingSize, int)
+    minBandingSize = nameValue("minBandingSize", minBandingSize, int)
+    minBandingConstraintDistance = nameValue("minBandingConstraintDistance", minBandingConstraintDistance, int)
+    minTraceBackDiag = nameValue("minTraceBackDiag", minTraceBackDiag, int)
+    minTraceGapDiags = nameValue("minTraceGapDiags", minTraceGapDiags, int)
+    constraintDiagonalTrim = nameValue("constraintDiagonalTrim", constraintDiagonalTrim, int)
+    
+    system("cactus_baseAligner --cactusDisk '%s' --logLevel %s %s %s %s %s %s %s %s %s %s %s %s" % 
+           (cactusDiskDatabaseString, logLevel, " ".join(flowerNames), spanningTrees, maximumLength, gapGamma, 
+            useBanding, maxBandingSize, minBandingSize, minBandingConstraintDistance, minTraceBackDiag, minTraceGapDiags, 
+            constraintDiagonalTrim))
     
 def runCactusReference(cactusDiskDatabaseString, flowerNames, logLevel="DEBUG", bottomUp=False,
                        matchingAlgorithm=None):

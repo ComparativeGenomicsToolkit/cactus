@@ -1,6 +1,7 @@
 #include "endAligner.h"
 #include "multipleAligner.h"
 #include "adjacencySequences.h"
+#include "pairwiseAligner.h"
 
 AlignedPair *alignedPair_construct(Name sequence1, int32_t position1, bool strand1,
                                    Name sequence2, int32_t position2, bool strand2, int32_t score) {
@@ -47,7 +48,7 @@ int alignedPair_cmpFn(const AlignedPair *alignedPair1, const AlignedPair *aligne
 
 stSortedSet *makeEndAlignment(End *end, int32_t spanningTrees, int32_t maxSequenceLength,
         float gapGamma, bool useBanding,
-        int32_t bandingSize) {
+        PairwiseAlignmentBandingParameters *pairwiseAlignmentBandingParameters) {
     //Make an alignment of the sequences in the ends
 
     //Get the adjacency sequences to be aligned.
@@ -66,7 +67,7 @@ stSortedSet *makeEndAlignment(End *end, int32_t spanningTrees, int32_t maxSequen
     end_destructInstanceIterator(it);
 
     //Convert the alignment pairs to an alignment of the caps..
-    stList *alignment = makeAlignment(strings, spanningTrees, gapGamma, useBanding, bandingSize);
+    stList *alignment = makeAlignment(strings, spanningTrees, gapGamma, useBanding, pairwiseAlignmentBandingParameters);
     stSortedSet *sortedAlignment =
             stSortedSet_construct3((int (*)(const void *, const void *))alignedPair_cmpFn,
             (void (*)(void *))alignedPair_destruct);

@@ -3,6 +3,7 @@
 #include "cactus.h"
 #include <stdlib.h>
 #include <string.h>
+#include "pairwiseAligner.h"
 
 //Basic flower.
 static CactusDisk *cactusDisk;
@@ -45,10 +46,13 @@ static Cap *cap10;
 static Cap *cap11;
 static Cap *cap12;
 
+static PairwiseAlignmentBandingParameters *pairwiseParameters;
+
 static void teardown() {
     if (cactusDisk != NULL) {
         testCommon_deleteTemporaryCactusDisk(cactusDisk);
         cactusDisk = NULL;
+        pairwiseAlignmentBandingParameters_destruct(pairwiseParameters);
     }
 }
 
@@ -114,5 +118,7 @@ static void setup() {
     cap11 = cap_construct2(end_getReverse(end2), 1, 1, sequence4);
     cap12 = cap_construct2(end3, 2, 1, sequence4);
     cap_makeAdjacent(cap11, cap12);
+
+    pairwiseParameters = pairwiseAlignmentBandingParameters_construct();
 }
 

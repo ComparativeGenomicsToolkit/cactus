@@ -98,7 +98,9 @@ void test_multipleAlignerRandom(CuTest *testCase) {
             st_uglyf("Sequence to align: %s\n", stList_get(randomSequences, i));
         }
 
-        stList *alignedPairs = makeAlignment(randomSequences, spanningTrees, 0.5, 1, 100);
+        PairwiseAlignmentBandingParameters *pairwiseParameters = pairwiseAlignmentBandingParameters_construct();
+        stList *alignedPairs = makeAlignment(randomSequences, spanningTrees, 0.5, 1, pairwiseParameters);
+        pairwiseAlignmentBandingParameters_destruct(pairwiseParameters);
         //Check the aligned pairs.
         stListIterator *iterator = stList_getIterator(alignedPairs);
         stIntTuple *alignedPair;

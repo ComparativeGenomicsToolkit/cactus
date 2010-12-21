@@ -453,7 +453,7 @@ stList *getBlastPairs(const char *sX, const char *sY, int32_t lX, int32_t lY, in
     fclose(fileHandle);
 
     //Run lastz
-    int32_t exitValue = st_system("lastz --gfextend --hspthresh=1000 --chain --strand=plus --gapped --format=cigar %s %s > %s", tempFile1, tempFile2, tempFile3);
+    int32_t exitValue = st_system("lastz --gfextend --hspthresh=800 --chain --strand=plus --gapped --format=cigar %s %s > %s", tempFile1, tempFile2, tempFile3);
     assert(exitValue == 0);
 
     //Read from file..
@@ -575,30 +575,36 @@ static int getAlignedPairs_FastP(const void *i, const void *j) {
     return k > l ? 1 : (k < l ? -1 : 0);
 }
 
+PairwiseAlignmentBandingParameters *pairwiseAlignmentBandingParameters_construct() {
+    PairwiseAlignmentBandingParameters *p = st_malloc(sizeof(PairwiseAlignmentBandingParameters));
+    p->maxBandingSize = 2000;
+    p->minBandingSize = 1000;
+    p->minBandingConstraintDistance = 250;
+    p->minTraceBackDiag = 50;
+    p->minTraceGapDiags = 20;
+    p->constraintDiagonalTrim = 4;
+    return p;
+}
+
+void pairwiseAlignmentBandingParameters_destruct(PairwiseAlignmentBandingParameters *p) {
+    free(p);
+}
+
 stList *getAlignedPairs_Fast(const char *sX, const char *sY,
-        int32_t bandingSize) {
+        PairwiseAlignmentBandingParameters *p) {
     int32_t lX = strlen(sX);
     int32_t lY = strlen(sY);
     int32_t offsetX = 0;
     int32_t offsetY = 0;
 
-    //parameters
-    const int32_t maxBandingSize = 2000; //No matrix biggger than this number squared will be computed
-    const int32_t minBandingSize = 1000; //Any matrix bigger than this number squared will be broken apart with banding
-    const int32_t minTraceBackDiag = 50; //The x+y diagonal to leave between the cut point and the place we choose new cutpoints.
-    const int32_t minTraceGapDiags = 20; //The distance to leave between a cutpoint and the traceback
-    const int32_t minRectangleSize = 250 * 250; //The minimum matrix to allow when doing banding
-    const int32_t trim = 5; //Amount to remove from a diagonal..
-
-
     stList *blastPairs;
-    if((int64_t)lX * lY > (int64_t)minBandingSize * minBandingSize) {
-        blastPairs = getBlastPairs(sX, sY, lX, lY, trim);
+    if((int64_t)lX * lY > (int64_t)p->minBandingSize * p->minBandingSize) {
+        blastPairs = getBlastPairs(sX, sY, lX, lY, p->constraintDiagonalTrim);
     }
     else {
         blastPairs = stList_construct(); //We don't bother getting anchors if the sequences are sufficiently small.
     }
-    stList *bandPairs = filterPairsToGetAnchorPoints(blastPairs, minRectangleSize, lX, lY);
+    stList *bandPairs = filterPairsToGetAnchorPoints(blastPairs, p->minBandingConstraintDistance * p->minBandingConstraintDistance, lX, lY);
     stListIterator *bandIt = stList_getIterator(bandPairs);
     stIntTuple *bandPair;
 
@@ -630,7 +636,7 @@ stList *getAlignedPairs_Fast(const char *sX, const char *sY,
         char *sY2 = getSubString(sY, offsetY, lY2);
 
         //Do the actual alignment..
-        stList *alignedPairs2 = getAlignedPairs_Split(sX2, sY2, lX2, lY2, maxBandingSize);
+        stList *alignedPairs2 = getAlignedPairs_Split(sX2, sY2, lX2, lY2, p->maxBandingSize);
 
         //Cleanup the temporary sequences
         free(sX2);
@@ -647,8 +653,8 @@ stList *getAlignedPairs_Fast(const char *sX, const char *sY,
         if (offsetX + lX2 < lX || offsetY + lY2 < lY) { //We still have work to do on another round
             //Sort so that the coordinates are in increasing x+y coordinate order
             stList_sort(alignedPairs2, getAlignedPairs_FastP);
-            int32_t traceBackDiag = endDiag - minTraceBackDiag;
-            int32_t traceForwardDiag = startDiag + minTraceBackDiag; //(lX2 + lY2) / 2; //We require the new alignment to overlap by at most halfway from the old one.
+            int32_t traceBackDiag = endDiag - p->minTraceBackDiag;
+            int32_t traceForwardDiag = startDiag + (lX2 + lY2) / 2; //We require the new alignment to overlap by at most halfway from the old one.
             int32_t newOffsetX = offsetX, newOffsetY = offsetY, maxScore = -1;
             stListIterator *it = stList_getIterator(alignedPairs2);
             stIntTuple *i;
@@ -685,8 +691,8 @@ stList *getAlignedPairs_Fast(const char *sX, const char *sY,
             int32_t m = stIntTuple_getPosition(i, 2);
             //is not too close the start point (or is allowed because we are at the start of the band)
             //and is not too close to the end point (or is allowed because we're at the end of the band)
-            if ((startDiag == 0 || l + m >= startDiag + minTraceGapDiags)
-                    && (done || l + m <= endDiag - minTraceGapDiags)) {
+            if ((startDiag == 0 || l + m >= startDiag + p->minTraceGapDiags)
+                    && (done || l + m <= endDiag - p->minTraceGapDiags)) {
                 stIntTuple *j;
                 if ((j = stSortedSet_search(alignedPairs, i)) != NULL) {
                     stSortedSet_remove(alignedPairs, i);

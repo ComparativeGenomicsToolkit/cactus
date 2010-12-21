@@ -29,7 +29,7 @@ static void test_pairwiseAligner(CuTest *testCase, char *seq1, char *seq2, char 
     stList_append(seqs, seq1);
     stList_append(seqs, seq2);
     st_uglyf("I am starting to align the %s and %s sequences\n", seqName1, seqName2);
-    stList *alignedPairs = makeAlignment(seqs, 10, 0.0, 1, 1000);
+    stList *alignedPairs = makeAlignment(seqs, 10, 0.0, 1, pairwiseAlignmentBandingParameters_construct());
 
     st_uglyf("I have completed the alignment\n");
     stSortedSet *pairs = stSortedSet_construct3((int(*)(const void *, const void *)) stIntTuple_cmpFn,

@@ -2,6 +2,7 @@
 #include "cactus.h"
 #include "sonLib.h"
 #include "adjacencySequences.h"
+#include "pairwiseAligner.h"
 
 /*
  * Gets an ordered list of pairs from the end alignment for the given adjacency sequence.
@@ -260,14 +261,14 @@ static int makeFlowerAlignmentP(Cap *cap, stHash *endAlignments, void (*fn)(Cap 
 }
 
 stSortedSet *makeFlowerAlignment(Flower *flower, int32_t spanningTrees, int32_t maxSequenceLength, float gapGamma,
-        bool useBanding, int32_t bandingSize) {
+        bool useBanding, PairwiseAlignmentBandingParameters *pairwiseAlignmentBandingParameters) {
     //Make the end alignments, representing each as an adjacency alignment.
     End *end;
     Flower_EndIterator *endIterator = flower_getEndIterator(flower);
     stHash *endAlignments = stHash_construct2(NULL, (void(*)(void *)) stSortedSet_destruct);
     while ((end = flower_getNextEnd(endIterator)) != NULL) {
         stSortedSet *endAlignment = makeEndAlignment(end, spanningTrees, maxSequenceLength, gapGamma, useBanding,
-                bandingSize);
+                pairwiseAlignmentBandingParameters);
         assert(stHash_search(endAlignments, end) == NULL);
         stHash_insert(endAlignments, end, endAlignment);
     }

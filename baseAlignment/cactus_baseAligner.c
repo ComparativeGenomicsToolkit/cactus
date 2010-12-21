@@ -26,8 +26,25 @@ void usage() {
             "-k --useBanding : Use banding to speed up the alignments\n");
     fprintf(stderr,
             "-l --gapGamma : (float [0, 1]) The gap gamma (as in the AMAP function)\n");
-    fprintf(stderr,
-            "-n --bandingSize : (int >= 0)  The size of the banding block.\n");
+
+    fprintf(
+            stderr,
+            "-o --maxBandingSize : (int >= 0)  No dp matrix biggger than this number squared will be computed.\n");
+    fprintf(
+            stderr,
+            "-p --minBandingSize : (int >= 0)  Any matrix bigger than this number squared will be broken apart with banding.\n");
+    fprintf(
+            stderr,
+            "-q --minBandingConstraintDistance : (int >= 0)  The minimum size of a dp matrix between banding constraints.\n");
+    fprintf(
+            stderr,
+            "-r --minTraceBackDiag : (int >= 0)  The x+y diagonal to leave between the cut point and the place we choose new cutpoints.\n");
+    fprintf(
+            stderr,
+            "-s --minTraceGapDiags : (int >= 0)  The x+y diagonal distance to leave between a cutpoint and the traceback.\n");
+    fprintf(
+            stderr,
+            "-t --constraintDiagonalTrim : (int >= 0)  The amount to be removed from each end of a diagonal to be considered a banding constraint.\n");
 
     fprintf(stderr, "-h --help : Print this help screen\n");
 }
@@ -85,7 +102,9 @@ int main(int argc, char *argv[]) {
     int32_t maximumLength = 1500;
     float gapGamma = 0.5;
     bool useBanding = 0;
-    int32_t bandingSize = 1000;
+
+    PairwiseAlignmentBandingParameters *pairwiseAlignmentBandingParameters =
+            pairwiseAlignmentBandingParameters_construct();
 
     /*
      * Parse the options.
@@ -96,14 +115,19 @@ int main(int argc, char *argv[]) {
                 0, 'b' }, { "help", no_argument, 0, 'h' }, { "spanningTrees",
                 required_argument, 0, 'i' }, { "maximumLength",
                 required_argument, 0, 'j' }, { "useBanding", no_argument, 0,
-                'k' }, { "gapGamma", required_argument, 0, 'l' },
-                { "bandingSize", required_argument, 0, 'n' },
-                { 0, 0, 0, 0 } };
+                'k' }, { "gapGamma", required_argument, 0, 'l' }, {
+                "maxBandingSize", required_argument, 0, 'o' }, {
+                "minBandingSize", required_argument, 0, 'p' }, {
+                "minBandingConstraintDistance", required_argument, 0, 'q' }, {
+                "minTraceBackDiag", required_argument, 0, 'r' }, {
+                "minTraceGapDiags", required_argument, 0, 's' }, {
+                "constraintDiagonalTrim", required_argument, 0, 't' }, { 0, 0,
+                0, 0 } };
 
         int option_index = 0;
 
-        int key = getopt_long(argc, argv, "a:b:hi:j:kl:n:", long_options,
-                &option_index);
+        int key = getopt_long(argc, argv, "a:b:hi:j:kl:o:p:q:r:s:t:",
+                long_options, &option_index);
 
         if (key == -1) {
             break;
@@ -137,10 +161,41 @@ int main(int argc, char *argv[]) {
                 assert(i == 1);
                 assert(gapGamma >= 0.0);
                 break;
-            case 'n':
-                i = sscanf(optarg, "%i", &bandingSize);
+            case 'o':
+                i = sscanf(optarg, "%i",
+                        &(pairwiseAlignmentBandingParameters->maxBandingSize));
                 assert(i == 1);
-                assert(bandingSize >= 0.0);
+                assert(pairwiseAlignmentBandingParameters->maxBandingSize >= 0);
+                break;
+            case 'p':
+                i = sscanf(optarg, "%i",
+                        &pairwiseAlignmentBandingParameters->minBandingSize);
+                assert(i == 1);
+                assert(pairwiseAlignmentBandingParameters->minBandingSize >= 0);
+                break;
+            case 'q':
+                i = sscanf(optarg, "%i",
+                        &pairwiseAlignmentBandingParameters->minBandingConstraintDistance);
+                assert(i == 1);
+                assert(pairwiseAlignmentBandingParameters->minBandingConstraintDistance >= 0);
+                break;
+            case 'r':
+                i = sscanf(optarg, "%i",
+                        &pairwiseAlignmentBandingParameters->minTraceBackDiag);
+                assert(i == 1);
+                assert(pairwiseAlignmentBandingParameters->minTraceBackDiag >= 0);
+                break;
+            case 's':
+                i = sscanf(optarg, "%i",
+                        &pairwiseAlignmentBandingParameters->minTraceGapDiags);
+                assert(i == 1);
+                assert(pairwiseAlignmentBandingParameters->minTraceGapDiags >= 0);
+                break;
+            case 't':
+                i = sscanf(optarg, "%i",
+                        &pairwiseAlignmentBandingParameters->constraintDiagonalTrim);
+                assert(i == 1);
+                assert(pairwiseAlignmentBandingParameters->constraintDiagonalTrim >= 0);
                 break;
             default:
                 usage();
@@ -183,7 +238,8 @@ int main(int argc, char *argv[]) {
         st_logInfo("Parsed the flower to be aligned: %s\n", flowerName);
 
         getAlignment_alignedPairs = makeFlowerAlignment(flower, spanningTrees,
-                maximumLength, gapGamma, useBanding, bandingSize);
+                maximumLength, gapGamma, useBanding,
+                pairwiseAlignmentBandingParameters);
         st_logInfo("Created the alignment: %i pairs\n", stSortedSet_size(
                 getAlignment_alignedPairs));
         //getAlignment_alignedPairs = stSortedSet_construct();
@@ -229,7 +285,7 @@ int main(int argc, char *argv[]) {
     stKVDatabaseConf_destruct(kvDatabaseConf);
     destructCactusCoreInputParameters(cCIP);
     free(cactusDiskDatabaseString);
-    if(logLevelString != NULL) {
+    if (logLevelString != NULL) {
         free(logLevelString);
     }
     st_logInfo("Finished with the flower disk for this flower.\n");

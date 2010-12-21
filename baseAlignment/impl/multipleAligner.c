@@ -399,7 +399,7 @@ static void updatePairwiseColumnWeights(stSortedSet *columnWeightsSortedByWeight
 }
 
 stList *makeAlignment(stList *sequences, int32_t spanningTrees, float gapGamma,
-        bool useBanding, int32_t bandingSize) {
+        bool useBanding, PairwiseAlignmentBandingParameters *pairwiseAlignmentBandingParameters) {
     //Get the set of pairwise alignments (by constructing spanning trees)
     stSortedSet *pairwiseAlignments = stSortedSet_construct3((int(*)(
             const void *, const void *)) stIntTuple_cmpFn,
@@ -436,7 +436,7 @@ stList *makeAlignment(stList *sequences, int32_t spanningTrees, float gapGamma,
         int32_t seqLength1 = strlen(string1);
         int32_t seqLength2 = strlen(string2);
         stList *alignedPairs2 = useBanding ? getAlignedPairs_Fast(string1,
-                string2, bandingSize) : getAlignedPairs(
+                string2, pairwiseAlignmentBandingParameters) : getAlignedPairs(
                 string1, string2);
         //Make indel probs
         int32_t *indelProbs1 = calculateIndelProbs(alignedPairs2, seqLength1, 0);
