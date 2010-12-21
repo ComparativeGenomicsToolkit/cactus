@@ -3,6 +3,7 @@
 #include "pairwiseAligner.h"
 #include "multipleAligner.h"
 #include "stPosetAlignment.h"
+#include <time.h>
 
 char
         *chimpSeq =
@@ -29,7 +30,15 @@ static void test_pairwiseAligner(CuTest *testCase, char *seq1, char *seq2, char 
     stList_append(seqs, seq1);
     stList_append(seqs, seq2);
     st_uglyf("I am starting to align the %s and %s sequences\n", seqName1, seqName2);
-    stList *alignedPairs = makeAlignment(seqs, 10, 0.0, 1, pairwiseAlignmentBandingParameters_construct());
+
+    clock_t start = clock();
+
+    stList *alignedPairs = makeAlignment(seqs, 10, 0.3, 1, pairwiseAlignmentBandingParameters_construct());
+
+    clock_t end = clock();
+
+    double elapsed = ((double)(end - start)) / CLOCKS_PER_SEC;
+    st_uglyf("It took %f seconds\n", elapsed);
 
     st_uglyf("I have completed the alignment\n");
     stSortedSet *pairs = stSortedSet_construct3((int(*)(const void *, const void *)) stIntTuple_cmpFn,
@@ -47,7 +56,7 @@ static void test_pairwiseAligner(CuTest *testCase, char *seq1, char *seq2, char 
         int32_t seqY = stIntTuple_getPosition(alignedPair, 3);
         int32_t y = stIntTuple_getPosition(alignedPair, 4);
         if(score < 0.9 * PAIR_ALIGNMENT_PROB_1) {
-            st_uglyf("I have a pair with less than 0.1 prob: %i %i %f\n", x, y, (float)score / PAIR_ALIGNMENT_PROB_1);
+            //st_uglyf("I have a pair with less than 0.1 prob: %i %i %f\n", x, y, (float)score / PAIR_ALIGNMENT_PROB_1);
         }
         assert(seqX == 0);
         assert(seqY == 1);
@@ -85,13 +94,13 @@ static void test_pairwiseAligner(CuTest *testCase, char *seq1, char *seq2, char 
     stSortedSetIterator *it = stSortedSet_getIterator(stSortedSet_getDifference(pairs2, pairs));
     stIntTuple *pair;
     while ((pair = stSortedSet_getNext(it)) != NULL) {
-        st_uglyf("The pair %s %i %s %i is missing\n", seqName1, stIntTuple_getPosition(pair, 0), seqName2, stIntTuple_getPosition(pair, 1));
+        //st_uglyf("The pair %s %i %s %i is missing\n", seqName1, stIntTuple_getPosition(pair, 0), seqName2, stIntTuple_getPosition(pair, 1));
     }
     stSortedSet_destructIterator(it);
 
     it = stSortedSet_getIterator(stSortedSet_getDifference(pairs, pairs2));
     while ((pair = stSortedSet_getNext(it)) != NULL) {
-        st_uglyf("The pair %s %i %s %i is added\n", seqName1, stIntTuple_getPosition(pair, 0), seqName2, stIntTuple_getPosition(pair, 1));
+        //st_uglyf("The pair %s %i %s %i is added\n", seqName1, stIntTuple_getPosition(pair, 0), seqName2, stIntTuple_getPosition(pair, 1));
     }
     stSortedSet_destructIterator(it);
 }

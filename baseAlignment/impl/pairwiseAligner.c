@@ -433,6 +433,10 @@ static int sortByXPlusYCoordinate(const void *i, const void *j) {
 }
 
 stList *getBlastPairs(const char *sX, const char *sY, int32_t lX, int32_t lY, int32_t trim) {
+    /*
+     * Uses lastz to compute a bunch of monotonically increasing pairs such that for any pair of consecutive pairs in the list
+     * (x1, y1) (x2, y2) in the set of aligned pairs x1 appears before x2 in X and y1 appears before y2 in Y.
+     */
     stList *alignedPairs = stList_construct3(0, (void (*)(void *))stIntTuple_destruct); //the list to put the output in
 
     if(lX == 0 || lY == 0) {
@@ -453,7 +457,7 @@ stList *getBlastPairs(const char *sX, const char *sY, int32_t lX, int32_t lY, in
     fclose(fileHandle);
 
     //Run lastz
-    int32_t exitValue = st_system("lastz --gfextend --hspthresh=800 --chain --strand=plus --gapped --format=cigar %s %s > %s", tempFile1, tempFile2, tempFile3);
+    int32_t exitValue = st_system("lastz --hspthresh=800 --chain --strand=plus --gapped --format=cigar %s %s > %s", tempFile1, tempFile2, tempFile3);
     assert(exitValue == 0);
 
     //Read from file..
@@ -500,6 +504,9 @@ stList *getBlastPairs(const char *sX, const char *sY, int32_t lX, int32_t lY, in
 }
 
 stList *filterPairsToGetAnchorPoints(stList *alignedPairs, int32_t minRectangleSize, int32_t lX, int32_t lY) {
+    /*
+     * Filters the blast pairs so that the are spaced with dp matrices of at least minRectangle size between them.
+     */
     int32_t x = -1;
     int32_t y = -1;
     stList *filteredPairs = stList_construct();
@@ -508,8 +515,6 @@ stList *filterPairsToGetAnchorPoints(stList *alignedPairs, int32_t minRectangleS
         int32_t x2 = stIntTuple_getPosition(alignedPair, 0);
         int32_t y2 = stIntTuple_getPosition(alignedPair, 1);
         if(x2 > x && y2 > y) { //This should never occur but deals with an error in lastz, I think....
-            assert(x2 > x);
-            assert(y2 > y);
             if(((int64_t)x2 - x - 1) * (y2 - y - 1) >= minRectangleSize && ((int64_t)lX - x2 - 1) * (lY - y2 - 1) >= minRectangleSize) {
                 stList_append(filteredPairs, alignedPair);
                 x = x2;
@@ -523,7 +528,9 @@ stList *filterPairsToGetAnchorPoints(stList *alignedPairs, int32_t minRectangleS
 }
 
 static void convertPairs(stList *alignedPairs2, int32_t offsetX, int32_t offsetY) {
-    //Convert the coordinates of the computed pairs.
+    /*
+     * Convert the coordinates of the computed pairs.
+     */
     for (int32_t k = 0; k < stList_length(alignedPairs2); k++) {
         stIntTuple *i = stList_get(alignedPairs2, k);
         assert(stIntTuple_length(i) == 3);
@@ -535,9 +542,15 @@ static void convertPairs(stList *alignedPairs2, int32_t offsetX, int32_t offsetY
 }
 
 static stList *getAlignedPairs_Split(char *sX, char *sY, int32_t lX, int32_t lY, int32_t bandSize) {
+    /*
+     * Aligns the sequences, but if the product of there sequence lengths is greater than bandSize squared
+     * then a dp matrix of bandsize squared if computed in the top left part of the entire dp matrix, and a
+     * corresponding square in the bottom right part of the matrix.
+     */
     if((int64_t)lX * lY <= (int64_t)bandSize * bandSize) { //products can be > 2^31
         return getAlignedPairs(sX, sY);
     }
+    st_logDebug("We found an overlarge matrix to compute: %i %i \n", lX, lY);
     if(lX > bandSize) {
         char *sX2 = getSubString(sX, 0, bandSize);
         stList *alignedPairs = getAlignedPairs_Split(sX2, sY, bandSize, lY, bandSize);
@@ -577,10 +590,10 @@ static int getAlignedPairs_FastP(const void *i, const void *j) {
 
 PairwiseAlignmentBandingParameters *pairwiseAlignmentBandingParameters_construct() {
     PairwiseAlignmentBandingParameters *p = st_malloc(sizeof(PairwiseAlignmentBandingParameters));
-    p->maxBandingSize = 2000;
+    p->maxBandingSize = 3000;
     p->minBandingSize = 1000;
-    p->minBandingConstraintDistance = 250;
-    p->minTraceBackDiag = 50;
+    p->minBandingConstraintDistance = 300;
+    p->minTraceBackDiag = 42;
     p->minTraceGapDiags = 20;
     p->constraintDiagonalTrim = 4;
     return p;
@@ -592,6 +605,9 @@ void pairwiseAlignmentBandingParameters_destruct(PairwiseAlignmentBandingParamet
 
 stList *getAlignedPairs_Fast(const char *sX, const char *sY,
         PairwiseAlignmentBandingParameters *p) {
+    /*
+     * Aligns the pair of sequences using banding constraints.
+     */
     int32_t lX = strlen(sX);
     int32_t lY = strlen(sY);
     int32_t offsetX = 0;
@@ -625,7 +641,7 @@ stList *getAlignedPairs_Fast(const char *sX, const char *sY,
             endsetX = lX-1;
             endsetY = lY-1;
         }
-        st_logDebug("The next blast square, min x: %i, min y: %i, max x: %i, max y: %i\n", offsetX, offsetY, endsetX, endsetY);
+        st_logDebug("The next blast square, min x: %i, min y: %i, max x: %i, max y: %i, size x: %i, size y: %i\n", offsetX, offsetY, endsetX, endsetY, endsetX - offsetX, endsetY - offsetY);
 
         //Get the appropriate x substring
         int32_t lX2 = endsetX - offsetX + 1;
@@ -654,19 +670,23 @@ stList *getAlignedPairs_Fast(const char *sX, const char *sY,
             //Sort so that the coordinates are in increasing x+y coordinate order
             stList_sort(alignedPairs2, getAlignedPairs_FastP);
             int32_t traceBackDiag = endDiag - p->minTraceBackDiag;
-            int32_t traceForwardDiag = startDiag + (lX2 + lY2) / 2; //We require the new alignment to overlap by at most halfway from the old one.
+            int32_t traceForwardDiag = startDiag + p->minTraceBackDiag; //(lX2 + lY2) / 2; //We require the new alignment to overlap by at most halfway from the old one.
             int32_t newOffsetX = offsetX, newOffsetY = offsetY, maxScore = -1;
             stListIterator *it = stList_getIterator(alignedPairs2);
             stIntTuple *i;
             while ((i = stList_getNext(it)) != NULL) {
                 int32_t j = stIntTuple_getPosition(i, 1);
                 int32_t k = stIntTuple_getPosition(i, 2);
+                int32_t score = stIntTuple_getPosition(i, 0);
                 int32_t diagC = j + k;
                 if (diagC >= traceForwardDiag && diagC <= traceBackDiag
-                        && stIntTuple_getPosition(i, 0) >= maxScore) { //traceBackCandidateThreshold //has the required score to be considered a start point.
-                    maxScore = stIntTuple_getPosition(i, 0);
-                    newOffsetX = j;
-                    newOffsetY = k;
+                     && score >= 0.6 * PAIR_ALIGNMENT_PROB_1) { //traceBackCandidateThreshold //has the required score to be considered a start point.
+                    assert(j + k > newOffsetX + newOffsetY);
+                    if(score >= maxScore * 0.995) {
+                        maxScore = score;
+                        newOffsetX = j;
+                        newOffsetY = k;
+                    }
                 }
             }
             stList_destructIterator(it);
@@ -679,6 +699,7 @@ stList *getAlignedPairs_Fast(const char *sX, const char *sY,
                 offsetY = newOffsetY;
             } else { //No candidate start point was found so we just stop the extension
                 assert(newOffsetX == offsetX && newOffsetY == offsetY);
+                st_logDebug("We failed to find an interim point, x: %i y: %i\n", newOffsetX, newOffsetY);
             }
         }
 
