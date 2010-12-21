@@ -681,11 +681,12 @@ stList *getAlignedPairs_Fast(const char *sX, const char *sY,
                 int32_t diagC = j + k;
                 if (diagC >= traceForwardDiag && diagC <= traceBackDiag
                      && score >= 0.6 * PAIR_ALIGNMENT_PROB_1) { //traceBackCandidateThreshold //has the required score to be considered a start point.
-                    assert(j + k > newOffsetX + newOffsetY);
-                    if(score >= maxScore * 0.995) {
-                        maxScore = score;
-                        newOffsetX = j;
-                        newOffsetY = k;
+                    if(j + k > newOffsetX + newOffsetY) { //Should not be needed, but numerical accuracy is not perfect.
+                        if(score >= maxScore * 0.99) {
+                            maxScore = score;
+                            newOffsetX = j;
+                            newOffsetY = k;
+                        }
                     }
                 }
             }
