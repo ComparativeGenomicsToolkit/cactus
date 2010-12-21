@@ -584,11 +584,11 @@ stList *getAlignedPairs_Fast(const char *sX, const char *sY,
 
     //parameters
     const int32_t maxBandingSize = 2000; //No matrix biggger than this number squared will be computed
-    const int32_t minBandingSize = 500; //Any matrix bigger than this number squared will be broken apart with banding
+    const int32_t minBandingSize = 1000; //Any matrix bigger than this number squared will be broken apart with banding
     const int32_t minTraceBackDiag = 50; //The x+y diagonal to leave between the cut point and the place we choose new cutpoints.
     const int32_t minTraceGapDiags = 20; //The distance to leave between a cutpoint and the traceback
     const int32_t minRectangleSize = 250 * 250; //The minimum matrix to allow when doing banding
-    const int32_t trim = 4;
+    const int32_t trim = 4; //Amount to remove from a diagonal..
 
 
     stList *blastPairs;
