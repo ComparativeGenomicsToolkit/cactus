@@ -453,7 +453,7 @@ stList *getBlastPairs(const char *sX, const char *sY, int32_t lX, int32_t lY, in
     fclose(fileHandle);
 
     //Run lastz
-    int32_t exitValue = st_system("lastz --gfextend --hspthresh=1400 --chain --strand=plus --gapped --format=cigar %s %s > %s", tempFile1, tempFile2, tempFile3);
+    int32_t exitValue = st_system("lastz --gfextend --hspthresh=1000 --chain --strand=plus --gapped --format=cigar %s %s > %s", tempFile1, tempFile2, tempFile3);
     assert(exitValue == 0);
 
     //Read from file..
@@ -648,7 +648,7 @@ stList *getAlignedPairs_Fast(const char *sX, const char *sY,
             //Sort so that the coordinates are in increasing x+y coordinate order
             stList_sort(alignedPairs2, getAlignedPairs_FastP);
             int32_t traceBackDiag = endDiag - minTraceBackDiag;
-            int32_t traceForwardDiag = startDiag + (lX2 + lY2) / 2; //We require the new alignment to overlap by at most halfway from the old one.
+            int32_t traceForwardDiag = startDiag + minTraceBackDiag; //(lX2 + lY2) / 2; //We require the new alignment to overlap by at most halfway from the old one.
             int32_t newOffsetX = offsetX, newOffsetY = offsetY, maxScore = -1;
             stListIterator *it = stList_getIterator(alignedPairs2);
             stIntTuple *i;
