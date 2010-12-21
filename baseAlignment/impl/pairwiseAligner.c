@@ -453,7 +453,7 @@ stList *getBlastPairs(const char *sX, const char *sY, int32_t lX, int32_t lY, in
     fclose(fileHandle);
 
     //Run lastz
-    int32_t exitValue = st_system("lastz --gfextend --hspthresh=1800 --chain --strand=plus --gapped --format=cigar %s %s > %s", tempFile1, tempFile2, tempFile3);
+    int32_t exitValue = st_system("lastz --gfextend --hspthresh=1400 --chain --strand=plus --gapped --format=cigar %s %s > %s", tempFile1, tempFile2, tempFile3);
     assert(exitValue == 0);
 
     //Read from file..
@@ -588,7 +588,7 @@ stList *getAlignedPairs_Fast(const char *sX, const char *sY,
     const int32_t minTraceBackDiag = 50; //The x+y diagonal to leave between the cut point and the place we choose new cutpoints.
     const int32_t minTraceGapDiags = 20; //The distance to leave between a cutpoint and the traceback
     const int32_t minRectangleSize = 250 * 250; //The minimum matrix to allow when doing banding
-    const int32_t trim = 4; //Amount to remove from a diagonal..
+    const int32_t trim = 5; //Amount to remove from a diagonal..
 
 
     stList *blastPairs;
