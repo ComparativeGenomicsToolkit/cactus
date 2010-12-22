@@ -15,5 +15,5 @@ ${binPath}/cactus_baseAligner : cactus_baseAligner.c ${libTests} ${libSources} $
 	${cxx} ${cflags} -I inc -I${libPath} -o ${binPath}/cactus_baseAligner cactus_baseAligner.c ${libSources} ${libPath}/cactusCore.a ${libPath}/pinchGraph.a ${libPath}/3EdgeConnected.a ${libPath}/cactusLib.a ${libPath}/sonLib.a ${dblibs}
 
 ${binPath}/cactus_baseAlignerTests : ${libTests} ${libSources} ${libHeaders} tests/*.h ${libPath}/cactusLib.a ${libPath}/cactusLib.a ${libPath}/sonLib.a ${libPath}/cuTest.a ${libPath}/cactusCore.a ${libPath}/pinchGraph.a ${libPath}/3EdgeConnected.a
-	${cxx} ${tokyoCabinetIncl} -Wall --pedantic -g -fno-inline -DBEN_DEBUG -lm -I inc -I${libPath}  -o ${binPath}/cactus_baseAlignerTests ${libTests} ${libSources} ${libPath}/cactusLib.a ${libPath}/sonLib.a ${libPath}/cuTest.a ${dblibs}
+	${cxx} ${tokyoCabinetIncl} -Wall --pedantic -g -O3 -ffast-math -DBEN_DEBUG -lm -I inc -I${libPath}  -o ${binPath}/cactus_baseAlignerTests ${libTests} ${libSources} ${libPath}/cactusLib.a ${libPath}/sonLib.a ${libPath}/cuTest.a ${dblibs}
 #${cflags}

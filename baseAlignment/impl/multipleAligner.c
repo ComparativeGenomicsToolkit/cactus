@@ -83,7 +83,6 @@ static int cmpFn(int32_t i, int32_t j) {
 typedef struct _pairwiseColumnWeightShared {
     double weight; //this is mirrored
     double alignmentScore;
-    double gapWeight;
     stSortedSet *alignedPairs; //this is mirrored
 } PairwiseColumnWeightShared;
 
@@ -111,7 +110,7 @@ static PairwiseColumnWeight *pairwiseColumnWeight_constructEmpty() {
 
 void pairwiseColumnWeight_fillOut(PairwiseColumnWeight *i, int32_t sequence1, int32_t position1, int32_t columnDepth1,
         int32_t sequence2, int32_t position2, int32_t columnDepth2,
-        double weight, double gapWeight, double alignmentScore, stSortedSet *alignedPairs) {
+        double weight, double alignmentScore, stSortedSet *alignedPairs) {
 #ifdef BEN_DEBUG
     assert(columnDepth1 > 0);
     assert(columnDepth2 > 0);
@@ -129,7 +128,6 @@ void pairwiseColumnWeight_fillOut(PairwiseColumnWeight *i, int32_t sequence1, in
 
     PairwiseColumnWeightShared *j = i->shared;
     j->weight = weight;
-    j->gapWeight = gapWeight;
     j->alignmentScore = alignmentScore;
     j->alignedPairs = alignedPairs;
 
@@ -140,11 +138,11 @@ void pairwiseColumnWeight_fillOut(PairwiseColumnWeight *i, int32_t sequence1, in
 
 static PairwiseColumnWeight *pairwiseColumnWeight_construct(int32_t sequence1, int32_t position1, int32_t columnDepth1,
         int32_t sequence2, int32_t position2, int32_t columnDepth2,
-        double weight, double gapWeight, double alignmentScore, stSortedSet *alignedPairs) {
+        double weight, double alignmentScore, stSortedSet *alignedPairs) {
     PairwiseColumnWeight *i = pairwiseColumnWeight_constructEmpty();
     pairwiseColumnWeight_fillOut(i, sequence1, position1, columnDepth1,
                 sequence2, position2, columnDepth2,
-                weight, gapWeight, alignmentScore, alignedPairs);
+                weight, alignmentScore, alignedPairs);
     return i;
 }
 
@@ -159,30 +157,16 @@ static void pairwiseColumnWeight_destruct(PairwiseColumnWeight *pairwiseColumnWe
 
 double getNormalisedWeight(double weight, int32_t columnDepth1, int32_t columnDepth2) {
     double d = weight / (columnDepth1 * columnDepth2);
-#ifdef BEN_DEBUG
-    assert(d >= -0.001);
-    assert(d <= 1.001);
-#endif
     return d;
 }
 
-/*static double roundFn(double a, int32_t i) {
-    return a;
-    int32_t j = round(a * i);
-    return (double)j/i;
-}*/
-
 static double pairwiseColumnWeight_getNormalisedWeight(const PairwiseColumnWeight *a) {
-    return getNormalisedWeight(a->shared->weight, a->columnDepth, a->reverse->columnDepth) - getNormalisedWeight(a->shared->gapWeight, a->columnDepth, a->reverse->columnDepth);
+    return getNormalisedWeight(a->shared->weight, a->columnDepth, a->reverse->columnDepth);
 }
 
 static double pairwiseColumnWeight_getNormalisedAlignmentScore(const PairwiseColumnWeight *a) {
     return getNormalisedWeight(a->shared->alignmentScore, a->columnDepth, a->reverse->columnDepth);
 }
-
-/*static double pairwiseColumnWeight_getGapWeight(const PairwiseColumnWeight *a) {
-    return getNormalisedWeight(a->shared->gapWeight, a->columnDepth, a->reverse->columnDepth);
-}*/
 
 static int pairwiseColumnWeight_compareByPositionFn(const PairwiseColumnWeight *a, const PairwiseColumnWeight *b) {
     /*
@@ -229,7 +213,7 @@ static PairwiseColumnWeight *pairwiseColumnWeight_merge(const PairwiseColumnWeig
 #endif
     return pairwiseColumnWeight_construct(a->sequence, a->position, a->columnDepth + b->columnDepth,
             a->reverse->sequence, a->reverse->position, a->reverse->columnDepth,
-            a->shared->weight + b->shared->weight, a->shared->gapWeight + b->shared->gapWeight, a->shared->alignmentScore + b->shared->alignmentScore, alignedPairs);
+            a->shared->weight + b->shared->weight, a->shared->alignmentScore + b->shared->alignmentScore, alignedPairs);
 }
 
 static void removeWeights(stSortedSet *columnWeightsSortedByWeight,
@@ -474,7 +458,7 @@ stList *makeAlignment(stList *sequences, int32_t spanningTrees, float gapGamma,
             addWeights(columnWeightsSortedByWeight,
                     columnWeightsSortedByPosition,
                     pairwiseColumnWeight_construct(sequence1, position1, 1,
-                    sequence2, position2, 1, pairwiseWeight * alignmentScore, alignmentScore*gapGamma*(indelWeight1 + indelWeight2), alignmentScore, sortedSet));
+                    sequence2, position2, 1, (pairwiseWeight - gapGamma*(indelWeight1 + indelWeight2)) * alignmentScore, alignmentScore, sortedSet));
             stIntTuple_destruct(alignedPair);
         }
         stList_destruct(alignedPairs2);
@@ -498,7 +482,7 @@ stList *makeAlignment(stList *sequences, int32_t spanningTrees, float gapGamma,
         PairwiseColumnWeight *pairwiseColumnWeight = stSortedSet_getLast(columnWeightsSortedByWeight);
         double score = pairwiseColumnWeight_getNormalisedWeight(pairwiseColumnWeight);
 #ifdef BEN_DEBUG
-        assert(score <= pScore + 0.0001);
+        assert(score <= pScore + 0.01);
 #endif
         pScore = score;
 #ifdef BEN_DEBUG

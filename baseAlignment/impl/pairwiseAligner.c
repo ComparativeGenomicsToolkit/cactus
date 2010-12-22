@@ -7,8 +7,6 @@
 #include "sonLib.h"
 #include "pairwiseAlignment.h"
 
-
-
 /*
  * Basic Pecan HMM code used by Cactus base aligner.
  */
@@ -336,6 +334,9 @@ static inline double posteriorMatchProb(double *fM, double *bM, int32_t x,
     }
     double p = exp(f - totalProb);
 #ifdef BEN_DEBUG
+    /*if(p < -0.01 || p > 1.01) {
+        st_uglyf("I got a bad position, %i %i %f\n", x, y, p);
+    }*/
     //assert(p >= -0.01 && p < 1.01);
 #endif
     return p;
