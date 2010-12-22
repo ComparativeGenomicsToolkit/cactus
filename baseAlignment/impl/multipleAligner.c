@@ -474,7 +474,7 @@ stList *makeAlignment(stList *sequences, int32_t spanningTrees, float gapGamma,
             addWeights(columnWeightsSortedByWeight,
                     columnWeightsSortedByPosition,
                     pairwiseColumnWeight_construct(sequence1, position1, 1,
-                    sequence2, position2, 1, pairwiseWeight * alignmentScore, 0.0*gapGamma*(indelWeight1 + indelWeight2), alignmentScore, sortedSet));
+                    sequence2, position2, 1, pairwiseWeight * alignmentScore, alignmentScore*gapGamma*(indelWeight1 + indelWeight2), alignmentScore, sortedSet));
             stIntTuple_destruct(alignedPair);
         }
         stList_destruct(alignedPairs2);
