@@ -9,16 +9,6 @@
  * Functions to align a bunch of sequences, creating a global alignment.
  */
 
-double _gapGamma = 0.0;
-
-double gapGamma_get() {
-    return _gapGamma;
-}
-
-void gapGamma_set(double gapGamma) {
-    _gapGamma = gapGamma;
-}
-
 /*
  * Constructs a random spanning tree linking all the nodes in items into one component.
  */
@@ -431,9 +421,6 @@ static void destroyWeights(PairwiseColumnWeight *pairwiseColumnWeight) {
 stList *makeAlignment(stList *sequences, int32_t spanningTrees, float gapGamma,
         bool useBanding,
         PairwiseAlignmentBandingParameters *pairwiseAlignmentBandingParameters) {
-    //Set the gap gamma
-    gapGamma_set(gapGamma);
-
     //Get the set of pairwise alignments (by constructing spanning trees)
     stSortedSet *pairwiseAlignments = stSortedSet_construct3((int(*)(
             const void *, const void *)) stIntTuple_cmpFn,
@@ -552,7 +539,7 @@ stList *makeAlignment(stList *sequences, int32_t spanningTrees, float gapGamma,
 #ifdef BEN_DEBUG
         assert(stSortedSet_size(pairwiseColumnWeight->shared->alignedPairs) > 0);
 #endif
-        if (1) {
+        if (score >= gapGamma) {
             stIntTuple *alignedPair = stSortedSet_getFirst(
                     pairwiseColumnWeight->shared->alignedPairs);
             if (stPosetAlignment_isPossible(posetAlignment,
