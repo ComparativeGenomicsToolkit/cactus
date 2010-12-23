@@ -170,7 +170,8 @@ static double pairwiseColumnWeight_getNormalisedWeight(
         const PairwiseColumnWeight *a) {
     int32_t i = a->columnDepth * a->reverse->columnDepth - stSortedSet_size(a->shared->alignedPairs);
     assert(i >= 0);
-    return (a->shared->weight - i) / (a->columnDepth * a->reverse->columnDepth);
+    return 0.5 * (a->shared->alignmentScore / (a->columnDepth
+            * a->reverse->columnDepth)) + ((a->shared->weight - i) / (a->columnDepth * a->reverse->columnDepth));
 }
 
 static double pairwiseColumnWeight_getNormalisedAlignmentScore(
