@@ -168,9 +168,7 @@ static void pairwiseColumnWeight_destruct(
 
 static double pairwiseColumnWeight_getNormalisedWeight(
         const PairwiseColumnWeight *a) {
-    int32_t i = a->columnDepth * a->reverse->columnDepth - stSortedSet_size(a->shared->alignedPairs);
-    assert(i >= 0);
-    return (a->shared->weight - i) / (a->columnDepth * a->reverse->columnDepth);
+    return a->shared->weight / (a->columnDepth * a->reverse->columnDepth);
 }
 
 static double pairwiseColumnWeight_getNormalisedAlignmentScore(
@@ -521,7 +519,7 @@ stList *makeAlignment(stList *sequences, int32_t spanningTrees, float gapGamma,
             addWeights(columnWeightsSortedByWeight,
                     columnWeightsSortedByPosition,
                     pairwiseColumnWeight_construct(sequence1, position1, 1,
-                            sequence2, position2, 1, alignmentScore * 2 * pairwiseWeight - 1.0, //pairwiseWeight - gapGamma * (indelWeight1 + indelWeight2),
+                            sequence2, position2, 1, alignmentScore * pairwiseWeight, //pairwiseWeight - gapGamma * (indelWeight1 + indelWeight2),
                             alignmentScore, sortedSet));
             stIntTuple_destruct(alignedPair);
         }
