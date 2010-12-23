@@ -506,8 +506,8 @@ stList *makeAlignment(stList *sequences, int32_t spanningTrees, float gapGamma,
             addWeights(columnWeightsSortedByWeight,
                     columnWeightsSortedByPosition,
                     pairwiseColumnWeight_construct(sequence1, position1, 1,
-                            sequence2, position2, 1, pairwiseWeight, //pairwiseWeight - gapGamma * (indelWeight1 + indelWeight2),
-                            alignmentScore, sortedSet));
+                            sequence2, position2, 1, pairwiseWeight * alignmentScore, //pairwiseWeight - gapGamma * (indelWeight1 + indelWeight2),
+                            pairwiseWeight, sortedSet));
             stIntTuple_destruct(alignedPair);
         }
         stList_destruct(alignedPairs2);
@@ -530,7 +530,8 @@ stList *makeAlignment(stList *sequences, int32_t spanningTrees, float gapGamma,
 #endif
         PairwiseColumnWeight *pairwiseColumnWeight = stSortedSet_getLast(
                 columnWeightsSortedByWeight);
-        double score = pairwiseColumnWeight_getNormalisedWeight(pairwiseColumnWeight);
+        double score = pairwiseColumnWeight_getNormalisedAlignmentScore(pairwiseColumnWeight);
+                //NormalisedWeight(pairwiseColumnWeight);
 #ifdef BEN_DEBUG
         //st_uglyf("Booo %f %f \n", score, pScore);
         //assert(score <= pScore + 0.01);
