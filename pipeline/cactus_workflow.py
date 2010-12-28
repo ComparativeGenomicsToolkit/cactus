@@ -18,9 +18,11 @@ In the verification phase the reconstruction tree is checked against the expecte
 
 import os
 import xml.etree.ElementTree as ET
+import math
 from optparse import OptionParser
 
 from sonLib.bioio import getTempFile
+from sonLib.bioio import newickTreeParser
 
 from workflow.jobTree.lib.bioio import getLogLevelString
 from workflow.jobTree.lib.bioio import logger
@@ -46,6 +48,7 @@ from cactus.blastAlignment.cactus_aligner import MakeSequences
 from cactus.blastAlignment.cactus_batch import MakeBlastOptions
 from cactus.blastAlignment.cactus_batch import makeBlastFromOptions
 
+
 ############################################################
 ############################################################
 ############################################################
@@ -54,14 +57,65 @@ from cactus.blastAlignment.cactus_batch import makeBlastFromOptions
 ############################################################
 ############################################################
 
+def getLongestPath(node, distance=0.0):
+    """Identify the longest path from root to leaves of the species tree
+    and add the min-distance.
+    """
+    i, j = distance, distance
+    if node.left != None:
+        i = getLongestPath(node.left, node.left.distance) + distance
+    if node.right != None:  
+        j = getLongestPath(node.right, node.right.distance) + distance
+    return max(i, j)
+
+def inverseJukesCantor(d):
+    """Takes a substitution distance and calculates the number of expected changes per site (inverse jukes cantor)
+    
+    d = -3/4 * log(1 - 4/3 * p)
+    exp(-4/3 * d) = 1 - 4/3 * p
+    4/3 * p = 1 - exp(-4/3 * d)
+    p = 3/4 * (1 - exp(-4/3 * d))
+    
+    >>> inverseJukesCantor(0.5)
+    0.36493716072555599
+    >>> inverseJukesCantor(1.0)
+    0.55230214641320496
+    >>> inverseJukesCantor(10.0)
+    0.74999878530240571
+    >>> inverseJukesCantor(100000.0)
+    0.75
+    """
+    assert d >= 0.0
+    return 0.75 * (1 - math.exp(-d * 4.0/3.0))
+
 class CactusSetupPhase(Target):
     def __init__(self, options, sequences):
         Target.__init__(self, time=0.0002)
         self.options = options 
         self.sequences = sequences 
+            
+    def modifyConfig(self):
+        #Add the identity clause into the blast strings
+        alignmentNode = self.options.config.find("alignment")
+        if alignmentNode.find("blast_misc").attrib.has_key("filterByIdentity"):
+            longestPath = 2.0 * getLongestPath(newickTreeParser(self.options.speciesTree)) #Two factor for twice distance
+            minDistance = float(alignmentNode.find("blast_misc").attrib["filterByIdentity"])
+            matchCount = str(100 - int(100 * inverseJukesCantor(longestPath + minDistance)))
+            logger.info("The blast stage will filter by identity, the calculate match count is %s from a min distance of %s and a longest path of %s" % (matchCount, minDistance, longestPath))
+            for iterationNode in alignmentNode.find("iterations").findall("iteration"):
+                if iterationNode.attrib["type"] == "blast":
+                    blastNode = iterationNode.find("blast")
+                    assert "MATCH_COUNT" in blastNode.attrib["blastString"]
+                    blastNode.attrib["blastString"] = blastNode.attrib["blastString"].replace("MATCH_COUNT", matchCount)
+                    assert "MATCH_COUNT" in blastNode.attrib["selfBlastString"]
+                    blastNode.attrib["selfBlastString"] = blastNode.attrib["selfBlastString"].replace("MATCH_COUNT", matchCount)
+                else:
+                    assert iterationNode.attrib["type"] == "base"
 
     def run(self):
         logger.info("Starting setup phase target")
+        #Modify the config options
+        self.modifyConfig()
         #Make the child setup job.
         self.addChildTarget(CactusSetupWrapper(self.options, self.sequences))
         #initialise the down pass as the follow on.. using special '0'
