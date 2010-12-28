@@ -1,6 +1,6 @@
 <cactus_workflow_config>
 	<alignment>
-		<blast_misc chunksPerJob="1" compressFiles="True" overlapSize="10000" filterByIdentity="0.01"/>
+		<blast_misc chunksPerJob="1" compressFiles="True" overlapSize="10000" filterByIdentity="1" identityRatio="4" minimumDistance="0.01"/>
 		<iterations>
 			<iteration min_sequence_size="50000000" number="0" type="blast">
 				<blast blastString="lastz --format=cigar --matchcount=MATCH_COUNT --notransition --step=20 --nogapped SEQ_FILE_1[multiple][nameparse=darkspace] SEQ_FILE_2[nameparse=darkspace] &gt; CIGARS_FILE" chunkSize="100000000" selfBlastString="lastz --matchcount=MATCH_COUNT --notransition --step=20 --nogapped SEQ_FILE[nameparse=darkspace] --self --nomirror &gt; CIGARS_FILE" />

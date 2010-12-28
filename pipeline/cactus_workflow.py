@@ -97,11 +97,11 @@ class CactusSetupPhase(Target):
     def modifyConfig(self):
         #Add the identity clause into the blast strings
         alignmentNode = self.options.config.find("alignment")
-        if alignmentNode.find("blast_misc").attrib.has_key("filterByIdentity"):
-            longestPath = 2.0 * getLongestPath(newickTreeParser(self.options.speciesTree)) #Two factor for twice distance
-            minDistance = float(alignmentNode.find("blast_misc").attrib["filterByIdentity"])
-            matchCount = str(100 - int(100 * inverseJukesCantor(longestPath + minDistance)))
-            logger.info("The blast stage will filter by identity, the calculate match count is %s from a min distance of %s and a longest path of %s" % (matchCount, minDistance, longestPath))
+        if int(alignmentNode.find("blast_misc").attrib["filterByIdentity"]):
+            longestPath = getLongestPath(newickTreeParser(self.options.speciesTree))
+            adjustedPath = float(alignmentNode.find("blast_misc").attrib["identityRatio"]) * longestPath + float(alignmentNode.find("blast_misc").attrib["minimumDistance"])
+            matchCount = str(100 - int(100 * inverseJukesCantor(adjustedPath)))
+            logger.info("The blast stage will filter by identity, the calculate match count is %s from a longest path of %s and an adjusted path of %s" % (matchCount, longestPath, adjustedPath))
             for iterationNode in alignmentNode.find("iterations").findall("iteration"):
                 if iterationNode.attrib["type"] == "blast":
                     blastNode = iterationNode.find("blast")
