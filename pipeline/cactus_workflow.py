@@ -561,7 +561,11 @@ def main():
     options.speciesTree = options.experimentFile.attrib["species_tree"]
     #Parse the config file which contains all the program options
     if options.experimentFile.attrib["config"] == "default":
-        options.experimentFile.attrib["config"]=os.path.join(sonTraceRootPath(), "src", "cactus", "pipeline", "cactus_workflow_config.xml")
+        options.experimentFile.attrib["config"] = os.path.join(sonTraceRootPath(), "src", "cactus", "pipeline", "cactus_workflow_config.xml")
+    elif options.experimentFile.attrib["config"] == "highSensitivity":
+        options.experimentFile.attrib["config"] = os.path.join(sonTraceRootPath(), "src", "cactus", "pipeline", "cactus_workflow_highSensitivityConfig.xml")
+    elif options.experimentFile.attrib["config"] == "highSpecificity":
+        options.experimentFile.attrib["config"] = os.path.join(sonTraceRootPath(), "src", "cactus", "pipeline", "cactus_workflow_highSpecificityConfig.xml")
     #Get the config file for the experiment
     options.config = ET.parse(options.experimentFile.attrib["config"]).getroot()
     #Get the sequences
