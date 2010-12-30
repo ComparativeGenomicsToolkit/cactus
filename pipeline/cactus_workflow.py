@@ -102,6 +102,7 @@ class CactusSetupPhase(Target):
             adjustedPath = float(alignmentNode.find("blast_misc").attrib["identityRatio"]) * longestPath + float(alignmentNode.find("blast_misc").attrib["minimumDistance"])
             matchCount = str(100 - int(100 * inverseJukesCantor(adjustedPath)))
             logger.info("The blast stage will filter by identity, the calculate match count is %s from a longest path of %s and an adjusted path of %s" % (matchCount, longestPath, adjustedPath))
+            assert 0
             for iterationNode in alignmentNode.find("iterations").findall("iteration"):
                 if iterationNode.attrib["type"] == "blast":
                     blastNode = iterationNode.find("blast")
