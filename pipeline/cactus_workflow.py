@@ -100,16 +100,15 @@ class CactusSetupPhase(Target):
         if int(alignmentNode.find("blast_misc").attrib["filterByIdentity"]):
             longestPath = getLongestPath(newickTreeParser(self.options.speciesTree))
             adjustedPath = float(alignmentNode.find("blast_misc").attrib["identityRatio"]) * longestPath + float(alignmentNode.find("blast_misc").attrib["minimumDistance"])
-            matchCount = str(100 - int(100 * inverseJukesCantor(adjustedPath)))
-            logger.info("The blast stage will filter by identity, the calculate match count is %s from a longest path of %s and an adjusted path of %s" % (matchCount, longestPath, adjustedPath))
-            assert 0
+            identity = str(100 - int(100 * inverseJukesCantor(adjustedPath)))
+            logger.info("The blast stage will filter by identity, the calculated minimum identity is %s from a longest path of %s and an adjusted path of %s" % (identity, longestPath, adjustedPath))
             for iterationNode in alignmentNode.find("iterations").findall("iteration"):
                 if iterationNode.attrib["type"] == "blast":
                     blastNode = iterationNode.find("blast")
-                    assert "MATCH_COUNT" in blastNode.attrib["blastString"]
-                    blastNode.attrib["blastString"] = blastNode.attrib["blastString"].replace("MATCH_COUNT", matchCount)
-                    assert "MATCH_COUNT" in blastNode.attrib["selfBlastString"]
-                    blastNode.attrib["selfBlastString"] = blastNode.attrib["selfBlastString"].replace("MATCH_COUNT", matchCount)
+                    assert "IDENTITY" in blastNode.attrib["blastString"]
+                    blastNode.attrib["blastString"] = blastNode.attrib["blastString"].replace("IDENTITY", identity)
+                    assert "IDENTITY" in blastNode.attrib["selfBlastString"]
+                    blastNode.attrib["selfBlastString"] = blastNode.attrib["selfBlastString"].replace("IDENTITY", identity)
                 else:
                     assert iterationNode.attrib["type"] == "base"
 
