@@ -566,6 +566,10 @@ def main():
         options.experimentFile.attrib["config"] = os.path.join(sonTraceRootPath(), "src", "cactus", "pipeline", "cactus_workflow_highSensitivityConfig.xml")
     elif options.experimentFile.attrib["config"] == "highSpecificity":
         options.experimentFile.attrib["config"] = os.path.join(sonTraceRootPath(), "src", "cactus", "pipeline", "cactus_workflow_highSpecificityConfig.xml")
+    elif options.experimentFile.attrib["config"] == "noTransposons":
+        options.experimentFile.attrib["config"] = os.path.join(sonTraceRootPath(), "src", "cactus", "pipeline", "cactus_workflow_noTransposonsConfig.xml")
+    else:
+        raise RuntimeError("No parameter file was provided in the experiemnt file")
     #Get the config file for the experiment
     options.config = ET.parse(options.experimentFile.attrib["config"]).getroot()
     #Get the sequences
