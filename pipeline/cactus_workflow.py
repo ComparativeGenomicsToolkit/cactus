@@ -568,6 +568,10 @@ def main():
         options.experimentFile.attrib["config"] = os.path.join(sonTraceRootPath(), "src", "cactus", "pipeline", "cactus_workflow_highSpecificityConfig.xml")
     elif options.experimentFile.attrib["config"] == "noTransposons":
         options.experimentFile.attrib["config"] = os.path.join(sonTraceRootPath(), "src", "cactus", "pipeline", "cactus_workflow_noTransposonsConfig.xml")
+    elif options.experimentFile.attrib["config"] == "noTransposonsHighSpecificity":
+        options.experimentFile.attrib["config"] = os.path.join(sonTraceRootPath(), "src", "cactus", "pipeline", "cactus_workflow_noTransposonsConfigHighSpecificity.xml")
+    elif options.experimentFile.attrib["config"] == "noTransposonsHighSensitivity":
+        options.experimentFile.attrib["config"] = os.path.join(sonTraceRootPath(), "src", "cactus", "pipeline", "cactus_workflow_noTransposonsConfigHighSensitivity.xml")
     else:
         raise RuntimeError("No parameter file was provided in the experiemnt file")
     #Get the config file for the experiment

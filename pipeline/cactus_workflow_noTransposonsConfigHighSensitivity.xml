@@ -1,0 +1,38 @@
+<cactus_workflow_config>
+	<alignment>
+		<blast_misc chunksPerJob="1" compressFiles="True" overlapSize="10000" filterByIdentity="1" identityRatio="6" minimumDistance="0.01"/>
+		<iterations>
+			<iteration min_sequence_size="50000000" number="0" type="blast">
+				<blast blastString="lastz --format=cigar --identity=IDENTITY --notransition --step=20 --nogapped SEQ_FILE_1[multiple][nameparse=darkspace] SEQ_FILE_2[nameparse=darkspace] &gt; CIGARS_FILE" chunkSize="100000000" selfBlastString="lastz --identity=IDENTITY --notransition --step=20 --nogapped SEQ_FILE[nameparse=darkspace] --self --nomirror &gt; CIGARS_FILE" />
+				<core ignoreAllChainsLessThanMinimumTreeCoverage="0" alignRepeatsAtRound="0" annealingRounds="2 3 4 8 16 32 64 128 256 512 1024 2048 4098 2048 1024 512" deannealingRounds="1 2 3 4 8 16 32 64 128 256 512 1024 2048 4098" minimumBlockLength="5" minimumTreeCoverage="0.8" trim="10 10 10 10 10 10 10 10 10 10 10 10 10 10 10" />
+			</iteration>
+
+			<iteration min_sequence_size="5000000" number="1" type="blast">
+				<blast blastString="lastz --format=cigar --identity=IDENTITY SEQ_FILE_1[multiple][nameparse=darkspace] SEQ_FILE_2[nameparse=darkspace] &gt; CIGARS_FILE" chunkSize="3000000" selfBlastString="lastz --format=cigar --identity=IDENTITY SEQ_FILE[nameparse=darkspace] --self --nomirror &gt; CIGARS_FILE" />
+				<core ignoreAllChainsLessThanMinimumTreeCoverage="0" alignRepeatsAtRound="0" annealingRounds="2 3 4 8 16 32 64 128 256 512 256" deannealingRounds="1 2 3 4 8 16 32 64 128 256 512" minimumBlockLength="0" minimumTreeCoverage="0.8" trim="0 0 0 0 0 0 0 0 0 0 0 0 0 0" />
+			</iteration>
+
+			<iteration min_sequence_size="1000" number="2" type="blast">
+				<blast blastString="lastz --format=cigar --hspthresh=1800 --identity=IDENTITY SEQ_FILE_1[multiple][nameparse=darkspace] SEQ_FILE_2[nameparse=darkspace] &gt; CIGARS_FILE" chunkSize="1000000" selfBlastString="lastz --format=cigar --hspthresh=1800 --identity=IDENTITY SEQ_FILE[nameparse=darkspace] --self --nomirror &gt; CIGARS_FILE" />
+				<core ignoreAllChainsLessThanMinimumTreeCoverage="1" alignRepeatsAtRound="0" annealingRounds="2 3 4 8 16 32 64 128 256 512 1024 512 256" deannealingRounds="1 2 3 4 8 16 32 64 128 256 512 1024" minimumBlockLength="0" minimumTreeCoverage="0.8" trim="0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0" />
+			</iteration>
+			
+			<iteration type="base" number="3" min_sequence_size="0" spanning_trees="10" gap_gamma="0.0" use_banding="1" banding_limit="100000" max_banding_size="3000" min_banding_size="1000" min_banding_constraint_distance="300" min_trace_back_diag="42" min_trace_gap_diags="10" constraint_diagonal_trim="4"/>
+		</iterations>
+	</alignment>
+
+	<normal max_number_of_chains="30" rounds="2">
+	</normal>
+
+	<phylogeny>
+	</phylogeny>
+
+	<faces>
+	</faces>
+
+	<reference matching_algorithm="blossom5">
+	</reference>
+
+	<check>
+	</check>
+</cactus_workflow_config>
