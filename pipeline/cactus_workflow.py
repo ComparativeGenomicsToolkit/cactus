@@ -572,6 +572,8 @@ def main():
         options.experimentFile.attrib["config"] = os.path.join(sonTraceRootPath(), "src", "cactus", "pipeline", "cactus_workflow_noTransposonsConfigHighSpecificity.xml")
     elif options.experimentFile.attrib["config"] == "noTransposonsHighSensitivity":
         options.experimentFile.attrib["config"] = os.path.join(sonTraceRootPath(), "src", "cactus", "pipeline", "cactus_workflow_noTransposonsConfigHighSensitivity.xml")
+    elif options.experimentFile.attrib["config"] == "noBaseLevel":
+        options.experimentFile.attrib["config"] = os.path.join(sonTraceRootPath(), "src", "cactus", "pipeline", "cactus_workflow_noBaseLevelConfig.xml")
     else:
         logger.info("Using user specified experiment file")
     #Get the config file for the experiment
