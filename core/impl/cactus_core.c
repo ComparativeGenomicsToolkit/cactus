@@ -536,37 +536,25 @@ int32_t cactusCorePipeline(Flower *flower, CactusCoreInputParameters *cCIP,
         }
 
         ////////////////////////////////////////////////
+        // Destruct the cactus graph for the loop
+        ////////////////////////////////////////////////
+
+        destructCactusGraph(cactusGraph);
+        destructList(biConnectedComponents);
+
+        ////////////////////////////////////////////////
         // Trim the edges of the pinch graph.
         ////////////////////////////////////////////////
 
         trimEdges(pinchGraph, cCIP->blockTrim, flower);
         st_logInfo("Trimmed %i from the end of edges\n", cCIP->trim);
 
-        ////////////////////////////////////////////////
-        // Recompute the cactus graph
-        ////////////////////////////////////////////////
-
-        destructCactusGraph(cactusGraph);
-        destructList(biConnectedComponents);
-
-        cactusGraph = cactusCorePipeline_2(pinchGraph, flower,
-                terminateRecursion ? doNotPassThroughDegree1EdgesFn : passThroughDegree1EdgesFn, 0);
-
-        biConnectedComponents = computeSortedBiConnectedComponents(cactusGraph);
-
-        ///////////////////////////////////////////////////////////////////////////
-        // Un-link stub components from the sink component
-        ///////////////////////////////////////////////////////////////////////////
-
-        unlinkStubComponentsFromTheSinkComponent(pinchGraph, flower);
-
         if (annealingRound + 1 < cCIP->annealingRoundsLength) { //We will loop around again.
             ///////////////////////////////////////////////////////////////////////////
-            // Cleanup the cactus graph for the loop.
+            // Un-link stub components from the sink component
             ///////////////////////////////////////////////////////////////////////////
 
-            destructCactusGraph(cactusGraph);
-            destructList(biConnectedComponents);
+            unlinkStubComponentsFromTheSinkComponent(pinchGraph, flower);
 
             ///////////////////////////////////////////////////////////////////////////
             // Calculate the adjacency components for the next loop.
@@ -575,6 +563,21 @@ int32_t cactusCorePipeline(Flower *flower, CactusCoreInputParameters *cCIP,
             adjacencyComponents = getAdjacencyComponents(pinchGraph);
 
         } else {
+            ////////////////////////////////////////////////
+            // Recompute the cactus graph after the trim
+            ////////////////////////////////////////////////
+
+            cactusGraph = cactusCorePipeline_2(pinchGraph, flower,
+                    terminateRecursion ? doNotPassThroughDegree1EdgesFn : passThroughDegree1EdgesFn, 0);
+
+            biConnectedComponents = computeSortedBiConnectedComponents(cactusGraph);
+
+            ///////////////////////////////////////////////////////////////////////////
+            // Un-link stub components from the sink component
+            ///////////////////////////////////////////////////////////////////////////
+
+            unlinkStubComponentsFromTheSinkComponent(pinchGraph, flower);
+
             ///////////////////////////////////////////////////////////////////////////
             // Choose the blocks to go in the cactus graph.
             ///////////////////////////////////////////////////////////////////////////
