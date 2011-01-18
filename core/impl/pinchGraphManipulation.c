@@ -237,13 +237,17 @@ void removeOverAlignedEdges(struct PinchGraph *pinchGraph,
 
     list = constructEmptyList(0, NULL);
 
+    /*
+     * Finds the list of edges to undo (those which meet the criteria).
+     */
     hash = create_hashtable(0, hashtable_key, hashtable_equalKey, NULL, free);
     for (i = 0; i < pinchGraph->vertices->length; i++) {
         vertex = pinchGraph->vertices->list[i];
         if (lengthBlackEdges(vertex) >= 1
                 && !isAStub(getFirstBlackEdge(vertex))) {
-            if (lengthBlackEdges(vertex) > maxDegree || (minimumTreeCoverage > 0.0 && treeCoverage(vertex,
-                    flower) < minimumTreeCoverage)) { //has a high degree and is not a stub/cap
+            if (lengthBlackEdges(vertex) > maxDegree
+                    || (minimumTreeCoverage > 0.0 && treeCoverage(vertex,
+                            flower) < minimumTreeCoverage)) { //has a high degree and is not a stub/cap
                 vertex2 = getFirstBlackEdge(vertex)->to;
                 if (vertex->vertexID < vertex2->vertexID) {
                     hashtable_insert(hash, vertex, constructInt(0));
@@ -255,7 +259,7 @@ void removeOverAlignedEdges(struct PinchGraph *pinchGraph,
     }
 
     /*
-     * This adds a bunch of extra edges to the list which should be undone. It ignored stub edges
+     * This adds a bunch of extra edges to the list which should be undone. It ignores stub edges
      * and duplicates.
      */
     if (extraEdgesToUndo != NULL) {
@@ -326,6 +330,115 @@ void removeOverAlignedEdges(struct PinchGraph *pinchGraph,
     hashtable_destroy(hash, 1, 0);
 }
 
+void trimEdges(struct PinchGraph *pinchGraph, int32_t trim, Flower *flower) {
+    assert(trim >= 0);
+
+    if (trim == 0) {
+        return;
+    }
+
+    /*
+     * Get the list of edges to be trimmed.
+     */
+    stList *listOfEdges = stList_construct();
+    for (int32_t i = 0; i < pinchGraph->vertices->length; i++) {
+        struct PinchVertex *vertex = pinchGraph->vertices->list[i];
+        if (lengthBlackEdges(vertex) >= 1
+                && !isAStub(getFirstBlackEdge(vertex))) {
+            struct PinchEdge *edge = getFirstBlackEdge(vertex);
+            assert(edge->piece->end - edge->piece->start >= 0);
+            struct PinchVertex *vertex2 = edge->to;
+            if (vertex->vertexID < vertex2->vertexID) {
+                if (edge->piece->end - edge->piece->start + 1 > 2 * trim) { //When trimmed there will be a block left of length 1 or greater.
+                    stList_append(listOfEdges, edge);
+                }
+            }
+        }
+    }
+
+    /*
+     * Now trim the edges.
+     */
+    stHash *vertexToAdjacencyComponent = stHash_construct();
+    for (int32_t i = 0; i < stList_length(listOfEdges); i++) {
+        struct PinchEdge *edge = stList_get(listOfEdges, i);
+        int32_t position1 = edge->piece->start + trim;
+        int32_t position2 = edge->piece->end - trim;
+        assert(position1 <= position2); //This must be the case as there must be a block of length 1 or greater in between the two trimmed regions.
+        Name contig = edge->piece->contig;
+        splitEdge(pinchGraph, contig, position1, LEFT,
+                vertexToAdjacencyComponent);
+        splitEdge(pinchGraph, contig, position2, RIGHT,
+                vertexToAdjacencyComponent);
+        edge = getContainingBlackEdge(pinchGraph, contig, position1);
+//#ifdef BEN_DEBUG
+        assert(edge != NULL);
+        assert(edge->piece->contig == contig);
+        assert(edge->piece->start == position1);
+        assert(edge->piece->end == position2);
+//#endif
+        stList_set(listOfEdges, i, edge); //We keep just the middle bit of the edge.
+    }
+    stHash_destruct(vertexToAdjacencyComponent);
+
+    /*
+     * Get the list of vertices incident with black edges we won't remove.
+     */
+    stSortedSet *vertices = stSortedSet_construct();
+    for (int32_t i = 0; i < stList_length(listOfEdges); i++) {
+        struct PinchEdge *edge = stList_get(listOfEdges, i);
+//#ifdef BEN_DEBUG
+        assert(stSortedSet_search(vertices, edge->from) == NULL);
+        assert(stSortedSet_search(vertices, edge->to) == NULL);
+        assert(edge->from != edge->to);
+//#endif
+        stSortedSet_insert(vertices, edge->from);
+        stSortedSet_insert(vertices, edge->to);
+    }
+
+    /*
+     * Convert the list of vertices that
+     */
+    struct List *listOfEdgesToRemove = constructEmptyList(0, NULL);
+    for (int32_t i = 0; i < pinchGraph->vertices->length; i++) {
+        struct PinchVertex *vertex = pinchGraph->vertices->list[i];
+        if (lengthBlackEdges(vertex) >= 1
+                && !isAStub(getFirstBlackEdge(vertex)) && stSortedSet_search(
+                vertices, vertex) == NULL) {//is not a stub, is of degree greater than 1 and is not the middle of one of the trimmed edges (so it must be removed)
+//#ifdef BEN_DEBUG
+            struct PinchEdge *edge = getFirstBlackEdge(vertex);
+            //st_uglyf("I got %i %i %i %i\n", edge->piece->end, edge->piece->start, edge->piece->end - edge->piece->start + 1, trim);
+            assert(edge->piece->end - edge->piece->start + 1 <= 2 * trim);
+//#endif
+            listAppend(listOfEdgesToRemove, getFirstBlackEdge(vertex));
+        }
+    }
+
+    /*
+     * Finally remove all the trimmed edges.
+     */
+    st_logInfo(
+            "Before trimming the graph, the graph has %i vertices and %i black edges\n",
+            pinchGraph->vertices->length, avl_count(pinchGraph->edges));
+    removeOverAlignedEdges(pinchGraph, 0.0, INT32_MAX, listOfEdgesToRemove, 0,
+            flower);
+    st_logInfo(
+            "After trimming the graph, the graph has %i vertices and %i black edges\n",
+            pinchGraph->vertices->length, avl_count(pinchGraph->edges));
+
+    removeTrivialGreyEdgeComponents(pinchGraph, pinchGraph->vertices, flower); //remove any pointless adjacencies.
+    st_logInfo(
+            "After removing the trivial graph components the graph has %i vertices and %i black edges\n",
+            pinchGraph->vertices->length, avl_count(pinchGraph->edges));
+    checkPinchGraph(pinchGraph);
+
+    /*
+     * Cleanup remaining
+     */
+    stList_destruct(listOfEdges);
+    destructList(listOfEdgesToRemove);
+}
+
 ////////////////////////////////////////////////
 ////////////////////////////////////////////////
 ////////////////////////////////////////////////
@@ -351,7 +464,8 @@ void linkStubComponentsToTheSinkComponent(struct PinchGraph *pinchGraph,
     Cap *cap;
 
     //isolate the separate graph components using the components method
-    stList *adjacencyComponents = getAdjacencyComponents2(pinchGraph, linkStubComponentsToTheSinkComponent_passThroughFn);
+    stList *adjacencyComponents = getAdjacencyComponents2(pinchGraph,
+            linkStubComponentsToTheSinkComponent_passThroughFn);
 
     sinkVertex = pinchGraph->vertices->list[0];
     //for each non-sink component select a random stub to link to the sink vertex.
@@ -365,8 +479,9 @@ void linkStubComponentsToTheSinkComponent(struct PinchGraph *pinchGraph,
             //its two ends to the source vertex.
             //Make the the two ends attached end_makeAttached(end) / end_makeUnattached(end)
             longestSequence = NULL;
-            stSortedSetIterator *it = stSortedSet_getIterator(adjacencyComponent);
-            while((vertex = stSortedSet_getNext(it)) != NULL) {
+            stSortedSetIterator *it = stSortedSet_getIterator(
+                    adjacencyComponent);
+            while ((vertex = stSortedSet_getNext(it)) != NULL) {
                 if (vertex_isDeadEnd(vertex)) {
                     assert(lengthGreyEdges(vertex) == 0);
                     assert(lengthBlackEdges(vertex) == 1);
@@ -385,7 +500,7 @@ void linkStubComponentsToTheSinkComponent(struct PinchGraph *pinchGraph,
             //assert(0);
             assert(longestSequence != NULL);
             it = stSortedSet_getIterator(adjacencyComponent);
-            while((vertex = stSortedSet_getNext(it)) != NULL) {
+            while ((vertex = stSortedSet_getNext(it)) != NULL) {
                 if (vertex_isDeadEnd(vertex)) {
                     assert(lengthGreyEdges(vertex) == 0);
                     assert(lengthBlackEdges(vertex) == 1);
@@ -398,7 +513,7 @@ void linkStubComponentsToTheSinkComponent(struct PinchGraph *pinchGraph,
                     sequence = cap_getSequence(cap);
                     assert(sequence != NULL);
                     if (sequence == longestSequence) {
-                        if(!flower_hasParentGroup(flower) && attachEnds) {
+                        if (!flower_hasParentGroup(flower) && attachEnds) {
                             end_makeAttached(end);
                         }
                         connectVertices(vertex, sinkVertex);
@@ -430,11 +545,11 @@ void unlinkStubComponentsFromTheSinkComponent(struct PinchGraph *pinchGraph,
             End *end = cap_getEnd(cap);
             assert(end_isStubEnd(end));
             if (end_isStubEnd(end) && end_isFree(end)) {
-                if(lengthGreyEdges(vertex) == 1) { //is attached to the origin node.
-                    assert(getFirstGreyEdge(vertex) == pinchGraph->vertices->list[0]);
+                if (lengthGreyEdges(vertex) == 1) { //is attached to the origin node.
+                    assert(getFirstGreyEdge(vertex)
+                            == pinchGraph->vertices->list[0]);
                     disconnectVertices(vertex, pinchGraph->vertices->list[0]);
-                }
-                else {
+                } else {
                     assert(lengthGreyEdges(vertex) == 0);
                 }
             }
@@ -519,7 +634,6 @@ float treeCoverage(struct PinchVertex *vertex, Flower *flower) {
     return treeCoverage;
 }
 
-
 ////////////////////////////////////////////////
 ////////////////////////////////////////////////
 ////////////////////////////////////////////////
@@ -555,17 +669,21 @@ void resetVertexChain(struct VertexChain *vertexChain) {
 }
 
 void getChainOfVertices(struct VertexChain *vertexChain,
-        struct PinchGraph *graph, struct Piece *piece, stHash *vertexToAdjacencyComponents) {
+        struct PinchGraph *graph, struct Piece *piece,
+        stHash *vertexToAdjacencyComponents) {
     struct PinchVertex *vertex;
     struct PinchEdge *edge;
 
     resetVertexChain(vertexChain);
 
     //do any adjustments off the bat
-    splitEdge(graph, piece->contig, piece->start, LEFT, vertexToAdjacencyComponents);
-    splitEdge(graph, piece->contig, piece->end, RIGHT, vertexToAdjacencyComponents);
+    splitEdge(graph, piece->contig, piece->start, LEFT,
+            vertexToAdjacencyComponents);
+    splitEdge(graph, piece->contig, piece->end, RIGHT,
+            vertexToAdjacencyComponents);
 
-    vertex = splitEdge(graph, piece->contig, piece->start, LEFT, vertexToAdjacencyComponents);
+    vertex = splitEdge(graph, piece->contig, piece->start, LEFT,
+            vertexToAdjacencyComponents);
     intListAppend(vertexChain->coordinates, 0);
     intListAppend(vertexChain->leftsOrRights, LEFT);
     listAppend(vertexChain->listOfVertices, vertex);
@@ -586,7 +704,8 @@ void getChainOfVertices(struct VertexChain *vertexChain,
     }
 
     //add the second vertex.
-    vertex = splitEdge(graph, piece->contig, piece->end, RIGHT, vertexToAdjacencyComponents);
+    vertex = splitEdge(graph, piece->contig, piece->end, RIGHT,
+            vertexToAdjacencyComponents);
     intListAppend(vertexChain->coordinates, piece->end - piece->start);
     intListAppend(vertexChain->leftsOrRights, RIGHT);
     listAppend(vertexChain->listOfVertices, vertex);
@@ -642,17 +761,21 @@ void pinchMergePiece_getChainOfVertices(struct PinchGraph *graph,
             j = vertexChain1->coordinates->list[i];
             k = vertexChain1->leftsOrRights->list[i];
             //now search if there is an equivalent vertex.
-            splitEdge(graph, piece2->contig, piece2->start + j, k, vertexToAdjacencyComponents);
+            splitEdge(graph, piece2->contig, piece2->start + j, k,
+                    vertexToAdjacencyComponents);
         }
         for (i = 0; i < vertexChain2->coordinates->length; i++) {
             j = vertexChain2->coordinates->list[i];
             k = vertexChain2->leftsOrRights->list[i];
             //now search if there is an equivalent vertex.
-            splitEdge(graph, piece1->contig, piece1->start + j, k, vertexToAdjacencyComponents);
+            splitEdge(graph, piece1->contig, piece1->start + j, k,
+                    vertexToAdjacencyComponents);
         }
 
-        getChainOfVertices(vertexChain1, graph, piece1, vertexToAdjacencyComponents);
-        getChainOfVertices(vertexChain2, graph, piece2, vertexToAdjacencyComponents);
+        getChainOfVertices(vertexChain1, graph, piece1,
+                vertexToAdjacencyComponents);
+        getChainOfVertices(vertexChain2, graph, piece2,
+                vertexToAdjacencyComponents);
     }
 
 }
@@ -695,10 +818,14 @@ void pinchMergePiece(struct PinchGraph *graph, struct Piece *piece1,
     /*
      * run through each chain finding the list of vertices.
      */
-    splitEdge(graph, piece1->contig, piece1->start, LEFT, vertexToAdjacencyComponents);
-    splitEdge(graph, piece1->contig, piece1->end, RIGHT, vertexToAdjacencyComponents);
-    splitEdge(graph, piece2->contig, piece2->start, LEFT, vertexToAdjacencyComponents);
-    splitEdge(graph, piece2->contig, piece2->end, RIGHT, vertexToAdjacencyComponents);
+    splitEdge(graph, piece1->contig, piece1->start, LEFT,
+            vertexToAdjacencyComponents);
+    splitEdge(graph, piece1->contig, piece1->end, RIGHT,
+            vertexToAdjacencyComponents);
+    splitEdge(graph, piece2->contig, piece2->start, LEFT,
+            vertexToAdjacencyComponents);
+    splitEdge(graph, piece2->contig, piece2->end, RIGHT,
+            vertexToAdjacencyComponents);
 
     pinchMergePiece_getChainOfVertices(graph, piece1, piece2, pMS_vertexChain1,
             pMS_vertexChain2, vertexToAdjacencyComponents);
@@ -726,12 +853,15 @@ void pinchMergePiece(struct PinchGraph *graph, struct Piece *piece1,
     for (i = 0; i < pMS_vertexChain1->listOfVertices->length; i++) {
         vertex1 = pMS_vertexChain1->listOfVertices->list[i];
         vertex2 = pMS_vertexChain2->listOfVertices->list[i];
-        if(vertex1 == vertex2) {
+        if (vertex1 == vertex2) {
             continue;
         }
-        void *adjacencyComponent1 = stHash_search(vertexToAdjacencyComponents, vertex1);
-        void *adjacencyComponent2 = stHash_search(vertexToAdjacencyComponents, vertex2);
-        if(adjacencyComponent1 == NULL || adjacencyComponent2 == NULL || adjacencyComponent1 != adjacencyComponent2) {
+        void *adjacencyComponent1 = stHash_search(vertexToAdjacencyComponents,
+                vertex1);
+        void *adjacencyComponent2 = stHash_search(vertexToAdjacencyComponents,
+                vertex2);
+        if (adjacencyComponent1 == NULL || adjacencyComponent2 == NULL
+                || adjacencyComponent1 != adjacencyComponent2) {
             return;
         }
     }
@@ -756,8 +886,10 @@ void pinchMergePiece(struct PinchGraph *graph, struct Piece *piece1,
                 k = 1 + ((edge->piece->end - edge->piece->start + 1) % 2);
 
                 contig = edge->piece->contig;
-                vertex4 = splitEdge(graph, contig, j, RIGHT, vertexToAdjacencyComponents);
-                vertex5 = splitEdge(graph, contig, j + k, LEFT, vertexToAdjacencyComponents);
+                vertex4 = splitEdge(graph, contig, j, RIGHT,
+                        vertexToAdjacencyComponents);
+                vertex5 = splitEdge(graph, contig, j + k, LEFT,
+                        vertexToAdjacencyComponents);
 
 #ifdef BEN_DEBUG
                 //debug checks
@@ -780,27 +912,35 @@ void pinchMergePiece(struct PinchGraph *graph, struct Piece *piece1,
             }
             // Else we do nothing, as we can't have self black edges and move one.
         } else {
-            if(vertex1 != vertex2) {
-                assert(stHash_search(vertexToAdjacencyComponents, vertex1) != NULL);
-                assert(stHash_search(vertexToAdjacencyComponents, vertex2) != NULL);
+            if (vertex1 != vertex2) {
+                assert(stHash_search(vertexToAdjacencyComponents, vertex1)
+                        != NULL);
+                assert(stHash_search(vertexToAdjacencyComponents, vertex2)
+                        != NULL);
                 /*
                  * We have randomly chosen one of the vertex adjacency components..
                  */
-                void *adjacencyComponent = stHash_remove(vertexToAdjacencyComponents, vertex1);
+                void *adjacencyComponent = stHash_remove(
+                        vertexToAdjacencyComponents, vertex1);
                 assert(adjacencyComponent != NULL);
-                assert(adjacencyComponent == stHash_remove(vertexToAdjacencyComponents, vertex2));
-                assert(stHash_search(vertexToAdjacencyComponents, vertex1) == NULL);
-                assert(stHash_search(vertexToAdjacencyComponents, vertex2) == NULL);
+                assert(adjacencyComponent == stHash_remove(
+                        vertexToAdjacencyComponents, vertex2));
+                assert(stHash_search(vertexToAdjacencyComponents, vertex1)
+                        == NULL);
+                assert(stHash_search(vertexToAdjacencyComponents, vertex2)
+                        == NULL);
                 vertex3 = mergeVertices(graph, vertex1, vertex2);
                 stHash_insert(vertexToAdjacencyComponents, vertex3,
-                                adjacencyComponent);
+                        adjacencyComponent);
                 for (j = i + 1; j < pMS_vertexChain1->listOfVertices->length; j++) {
                     if (pMS_vertexChain1->listOfVertices->list[j] == vertex1
-                            || pMS_vertexChain1->listOfVertices->list[j] == vertex2) {
+                            || pMS_vertexChain1->listOfVertices->list[j]
+                                    == vertex2) {
                         pMS_vertexChain1->listOfVertices->list[j] = vertex3;
                     }
                     if (pMS_vertexChain2->listOfVertices->list[j] == vertex1
-                            || pMS_vertexChain2->listOfVertices->list[j] == vertex2) {
+                            || pMS_vertexChain2->listOfVertices->list[j]
+                                    == vertex2) {
                         pMS_vertexChain2->listOfVertices->list[j] = vertex3;
                     }
                 }
@@ -894,8 +1034,8 @@ int32_t pinchMerge_getContig(char *contig, int32_t start,
 
 void pinchMerge(struct PinchGraph *graph, struct PairwiseAlignment *pA,
         void(*addFunction)(struct PinchGraph *pinchGraph, struct Piece *,
-                struct Piece *, stHash *, void *),
-        void *extraParameter, stHash *vertexToAdjacencyComponents) {
+                struct Piece *, stHash *, void *), void *extraParameter,
+        stHash *vertexToAdjacencyComponents) {
     /*
      * Method to pinch together the graph using all the aligned matches in the
      * input alignment.
@@ -937,8 +1077,8 @@ void pinchMerge(struct PinchGraph *graph, struct PairwiseAlignment *pA,
                 } else {
                     piece_recycle(&piece2, contig2, -(k - 1), -(k - op->length));
                 }
-                addFunction(graph, &piece1, &piece2, vertexToAdjacencyComponents,
-                        extraParameter);
+                addFunction(graph, &piece1, &piece2,
+                        vertexToAdjacencyComponents, extraParameter);
             }
         }
         if (op->opType != PAIRWISE_INDEL_Y) {

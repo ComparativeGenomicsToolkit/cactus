@@ -271,7 +271,7 @@ class CactusCoreWrapper(Target):
                       alignRepeatsAtRound=float(coreParameters.attrib["alignRepeatsAtRound"]),
                       trim=[ int(i) for i in coreParameters.attrib["trim"].split() ],
                       minimumTreeCoverage=float(coreParameters.attrib["minimumTreeCoverage"]),
-                      minimumBlockLength=float(coreParameters.attrib["minimumBlockLength"]),
+                      blockTrim=float(coreParameters.attrib["blockTrim"]),
                       ignoreAllChainsLessThanMinimumTreeCoverage=bool(coreParameters.attrib["ignoreAllChainsLessThanMinimumTreeCoverage"]))
         logger.info("Ran the cactus core program okay")
         

@@ -56,7 +56,7 @@ def getRandomConfigFile():
     core.attrib["alignRepeatsAtLoop"] = str(random.random() * annealingRounds)
     
     core.attrib["minimumTreeCoverage"] = str(random.random())
-    core.attrib["minimumBlockLength"] = str(int(random.random() * 5))
+    core.attrib["blockTrim"] = str(int(random.random() * 5))
     core.attrib["ignoreAllChainsLessThanMinimumTreeCoverage"] = str(random.choice([0, 1]))
     
     #Now print the file..

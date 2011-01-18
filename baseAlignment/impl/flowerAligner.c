@@ -21,8 +21,9 @@ stList *getInducedAlignment(stSortedSet *endAlignment, AdjacencySequence *adjace
                         break;
                     }
                     assert(alignedPair2->position >= adjacencySequence->start);
-                    assert(alignedPair2->strand == adjacencySequence->strand);
-                    stList_append(inducedAlignment, alignedPair2);
+                    if(alignedPair2->strand == adjacencySequence->strand) {
+                        stList_append(inducedAlignment, alignedPair2);
+                    }
                 } else {
                     break;
                 }
@@ -45,8 +46,9 @@ stList *getInducedAlignment(stSortedSet *endAlignment, AdjacencySequence *adjace
                         break;
                     }
                     assert(alignedPair2->position <= adjacencySequence->start);
-                    assert(alignedPair2->strand == adjacencySequence->strand);
-                    stList_append(inducedAlignment, alignedPair2);
+                    if(alignedPair2->strand == adjacencySequence->strand) {
+                        stList_append(inducedAlignment, alignedPair2);
+                    }
                 } else {
                     break;
                 }
@@ -172,14 +174,15 @@ static int64_t getCutOff(stList *inducedAlignment1, stList *inducedAlignment2, i
 static void pruneAlignmentsP(stList *inducedAlignment, stSortedSet *endAlignment, int32_t start, int32_t end) {
     for (int32_t i = start; i < end; i++) {
         AlignedPair *alignedPair = stList_get(inducedAlignment, i);
+        if(stSortedSet_search(endAlignment, alignedPair) != NULL) { //can be missing if we are pruning the reverse strand alignment at the same time
 //#ifdef BEN_DEBUG
-        assert(stSortedSet_search(endAlignment, alignedPair) != NULL);
-        assert(stSortedSet_search(endAlignment, alignedPair->reverse) != NULL);
+            assert(stSortedSet_search(endAlignment, alignedPair->reverse) != NULL);
 //#endif
-        stSortedSet_remove(endAlignment, alignedPair);
-        stSortedSet_remove(endAlignment, alignedPair->reverse);
-        alignedPair_destruct(alignedPair->reverse);
-        alignedPair_destruct(alignedPair);
+            stSortedSet_remove(endAlignment, alignedPair);
+            stSortedSet_remove(endAlignment, alignedPair->reverse);
+            alignedPair_destruct(alignedPair->reverse);
+            alignedPair_destruct(alignedPair);
+        }
     }
 }
 
@@ -233,10 +236,10 @@ static int makeFlowerAlignmentP(Cap *cap, stHash *endAlignments, void (*fn)(Cap 
     stSortedSet *endAlignment2 = stHash_search(endAlignments, end_getPositiveOrientation(cap_getEnd(adjacentCap)));
     assert(endAlignment2 != NULL);
 
-    if (endAlignment1 == endAlignment2) {
-        return 0; //We ignore self loops, which have been dealt with already by the
-        //poset aligner.
-    }
+    //if (endAlignment1 == endAlignment2) {
+    //    return 0; //We ignore self loops, which have been dealt with already by the
+    //    //poset aligner.
+    //}
     AdjacencySequence *adjacencySequence1 = adjacencySequence_construct(cap, INT32_MAX);
     AdjacencySequence *adjacencySequence2 = adjacencySequence_construct(adjacentCap, INT32_MAX);
 //#ifdef BEN_DEBUG

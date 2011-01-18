@@ -56,6 +56,13 @@ void unlinkStubComponentsFromTheSinkComponent(struct PinchGraph *pinchGraph, Flo
 
 void removeTrivialGreyEdgeComponents(struct PinchGraph *graph, struct List *listOfVertices, Flower *flower);
 
+/*
+ * Remove 'trim' (integer) from the end of each edge with degree greater than 1. Edges with degree less than or equal to 2*trim
+ * are undone.
+ */
+void trimEdges(struct PinchGraph *pinchGraph, int32_t trim, Flower *flower);
+
 float treeCoverage(struct PinchVertex *vertex, Flower *flower);
+
 
 #endif /* PINCHGRAPHMANIPULATION_H_ */

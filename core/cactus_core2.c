@@ -64,7 +64,7 @@ void usage() {
 
     fprintf(
             stderr,
-            "-n --minimumBlockLength : (int >= 0) The minimum length of a block required to be included in the problem\n");
+            "-n --blockTrim : (int >= 0) The number of bases to trim from the ends of each block in a chain before accepting, this filtering is done after choosing the length of chains\n");
 
     fprintf(
             stderr,
@@ -120,7 +120,7 @@ int main(int argc, char *argv[]) {
                 required_argument, 0, 'k' }, { "trimChange", required_argument,
                 0, 'l', },
                 { "minimumTreeCoverage", required_argument, 0, 'm' }, {
-                        "minimumBlockLength", required_argument, 0, 'n' }, {
+                        "blockTrim", required_argument, 0, 'n' }, {
                         "deannealingRounds", required_argument, 0, 'o' },
                 { "ignoreAllChainsLessThanMinimumTreeCoverage", no_argument, 0, 's', }, {
                         0, 0, 0, 0 } };
@@ -172,7 +172,7 @@ int main(int argc, char *argv[]) {
                 assert(sscanf(optarg, "%f", &cCIP->minimumTreeCoverage) == 1);
                 break;
             case 'n':
-                assert(sscanf(optarg, "%i", &cCIP->minimumBlockLength) == 1);
+                assert(sscanf(optarg, "%i", &cCIP->blockTrim) == 1);
                 break;
             case 's':
                 cCIP->ignoreAllChainsLessThanMinimumTreeCoverage = 1;
@@ -193,7 +193,7 @@ int main(int argc, char *argv[]) {
     assert(flowerName != NULL);
     assert(cCIP->minimumTreeCoverage >= 0.0);
     assert(cCIP->minimumTreeCoverage <= 1.0);
-    assert(cCIP->minimumBlockLength >= 0);
+    assert(cCIP->blockTrim >= 0);
     assert(cCIP->annealingRoundsLength >= 0);
     for(int32_t i=0; i<cCIP->annealingRoundsLength; i++) {
         assert(cCIP->annealingRounds[i] >= 0);

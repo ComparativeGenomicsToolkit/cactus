@@ -50,7 +50,7 @@ def runCactusCore(cactusDiskDatabaseString, alignmentFile,
                   alignRepeatsAtRound=False,
                   trim=None,
                   minimumTreeCoverage=None,
-                  minimumBlockLength=None,
+                  blockTrim=None,
                   ignoreAllChainsLessThanMinimumTreeCoverage=False):
     writeDebugFiles = nameValue("writeDebugFiles", writeDebugFiles, bool)
     if annealingRounds != None:
@@ -61,12 +61,12 @@ def runCactusCore(cactusDiskDatabaseString, alignmentFile,
     if trim != None:
         trim = "--trim '%s'" % " ".join([ str(i) for i in trim ])
     minimumTreeCoverage = nameValue("minimumTreeCoverage", minimumTreeCoverage, float)
-    minimumBlockLength = nameValue("minimumBlockLength", minimumBlockLength, int)
+    blockTrim = nameValue("blockTrim", blockTrim, int)
     ignoreAllChainsLessThanMinimumTreeCoverage = nameValue("ignoreAllChainsLessThanMinimumTreeCoverage", ignoreAllChainsLessThanMinimumTreeCoverage, bool)
     
     command = "cactus_core --cactusDisk '%s' --flowerName %s --alignments %s --logLevel %s %s %s %s %s %s %s %s %s" % \
     (cactusDiskDatabaseString, flowerName, alignmentFile, logLevel, writeDebugFiles, annealingRounds, deannealingRounds, alignRepeatsAtRound,
-     trim, minimumTreeCoverage, minimumBlockLength, ignoreAllChainsLessThanMinimumTreeCoverage)
+     trim, minimumTreeCoverage, blockTrim, ignoreAllChainsLessThanMinimumTreeCoverage)
     #print "command to run", command
     #assert 0
     system(command)
