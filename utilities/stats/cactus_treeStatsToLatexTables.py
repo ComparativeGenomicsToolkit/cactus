@@ -1,5 +1,10 @@
 #!/usr/bin/env python
 
+#Copyright (C) 2006-2011 by Benedict Paten (benedictpaten@gmail.com)
+#
+#Released under the MIT license, see LICENSE.txt
+#!/usr/bin/env python
+
 """Script for generating latex tables from a cactus tree stats file.
 """
 

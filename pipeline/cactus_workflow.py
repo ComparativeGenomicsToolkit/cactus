@@ -1,5 +1,10 @@
 #!/usr/bin/env python
 
+#Copyright (C) 2006-2011 by Benedict Paten (benedictpaten@gmail.com)
+#
+#Released under the MIT license, see LICENSE.txt
+#!/usr/bin/env python
+
 """Script strings together all the components to make the basic pipeline for reconstruction.
 
 The script uses the the jobTree.scriptTree target framework so structure all the related wrappers.

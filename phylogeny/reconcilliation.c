@@ -1,4 +1,10 @@
 /*
+ * Copyright (C) 2006-2011 by Benedict Paten (benedictpaten@gmail.com)
+ *
+ * Released under the MIT license, see LICENSE.txt
+ */
+
+/*
  * reconcilliation.c
  *
  *  Created on: 31-Mar-2010

@@ -1,4 +1,10 @@
 /*
+ * Copyright (C) 2006-2011 by Benedict Paten (benedictpaten@gmail.com)
+ *
+ * Released under the MIT license, see LICENSE.txt
+ */
+
+/*
  * referenceViewer.h
  *
  *  Created on: 27-Apr-2010

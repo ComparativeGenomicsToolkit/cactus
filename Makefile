@@ -1,5 +1,5 @@
 # order is important, libraries first
-modules = api threeEdgeConnected pinchGraphs core setup blastAlignment baseAlignment normalisation reference phylogeny faces check pipeline utilities 
+modules = api threeEdgeConnected pinchGraphs core setup blastAlignment baseAlignment normalisation reference phylogeny faces check pipeline utilities externalTools 
 #pulldown
 .PHONY: all %.all clean %.clean
 

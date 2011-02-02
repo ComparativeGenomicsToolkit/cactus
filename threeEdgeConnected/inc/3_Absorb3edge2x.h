@@ -1,3 +1,9 @@
+/*
+ * Copyright (C) 2006-2011 by Benedict Paten (benedictpaten@gmail.com)
+ *
+ * Released under the MIT license, see LICENSE.txt
+ */
+
 #ifndef ABSORB_3_EDGE_2X_H_
 #define ABSORB_3_EDGE_2X_H_
 

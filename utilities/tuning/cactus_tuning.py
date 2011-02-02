@@ -1,5 +1,10 @@
 #!/usr/bin/env python
 
+#Copyright (C) 2006-2011 by Benedict Paten (benedictpaten@gmail.com)
+#
+#Released under the MIT license, see LICENSE.txt
+#!/usr/bin/env python
+
 """Wrapper to run cactus on different combinations of cactus_workflow_config.xml (cactus
 parameters) and simulations, followed by evaluations steps.
 """

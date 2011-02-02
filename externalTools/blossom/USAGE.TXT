@@ -1,0 +1,31 @@
+USAGE: ./blossom5 [options]
+
+At least one of the two flags below must be provided. 
+If both are provided, then edges in <f1> are added to the initial subset of edges for the geometric problem.
+
+  -e <f1> read problem (list of edges) from file <f1> in DIMACS or blossom4 format
+          (see GRAPH1.TXT and GRAPH2.TXT for examples)
+  -g <f2> read geometric problem (list of 2D points) from file <f2> in TSPLIB format 
+
+perfect matching parameters:
+
+  -j     do not use fractional jumpstart
+  -m#    update duals by solving LP if the number of trees is smaller than # times node_num. 
+         (# should belong to [0,1], default is 0.)
+  -d1    use SCC dual updates instead of CC
+  -d2    use dual updates with fixed delta instead of CC
+  -b     update duals before processing a tree
+  -a     update duals after processing a tree
+
+geometric matching parameters:
+
+  -D     do NOT add Delaunay triangulation to the initial subset of edges
+  -K#    for each point, add # nearest neighbors to the initial subset of edges
+  -I     do NOT add edges greedily to the initial subset of edges to make sure that a perfect matching exists
+  -T#    use at most # iterations (or run until convergence, if #=0 - default)
+
+other options:
+
+  -w <f> save result to file <f>
+  -c     check complementary slackness conditions for non-geometric problem
+  -V     no verbose

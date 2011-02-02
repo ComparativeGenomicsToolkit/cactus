@@ -1,0 +1,32 @@
+Changes from version 1.0 to 2.0:
+
+- Replaced Fibonacci heaps with pairing heaps 
+  (M. Fredman, R. Sedgewick, D. Sleator, R. Tarjan, Algorithmica 1(1):111-129, 1986).
+  Pairing heaps take less memory (namely, 2 pointers per edge less) compared to Fibonacci heaps,
+  and seem to be marginally faster.
+
+  Finonacci heaps are still available - replace PQ.h with PQ-Fibonacci.h .
+
+- Changed data structures so that the time in SHRINK operations
+  is O(m log n) per augmentation (I believe). This was not the case
+  in version 1.0 (see footnote 5 in the MPC paper).
+
+I re-ran experiments corresponding to tables 1,3,4,5,9 in the paper.
+The new version was marginally faster (e.g. up to 10% faster) on all examples
+except for lrb744710, where it was about 3 times faster.
+
+Changes from version 2.0 to 2.01 (thanks to Nic Schraudolph and Dmitry Kamenetsky for useful suggestions):
+
+- Fixed bug in block.h (replaced "new char[] ... delete ..." with "new char[] ... delete[] ...";
+in the first case the behavious is not specified, though most compilers would compile it correctly.)
+
+- Removed PQ-Fibonacci.h
+
+- Added disclaimer about using floating point numbers
+
+Changes from version 2.01 to 2.02
+
+- Tweaks to stop compiler warnings,
+  changed "delete rev_mapping" to "delete [] rev_mapping" in misc.cpp (thanks to Nic Schraudolph for suggestions)
+
+- Added a statement to license conditions
