@@ -1,0 +1,13 @@
+Installing Cactus.
+
+(1) Download and install sonLib
+
+(2) Place the directory containing Cactus on your python path, i.e.
+PYTHONPATH=${PYTHONPATH}:FOO
+where FOO/sonLib is the path to the base directory of Cactus. 
+
+(3) Compile the C code:
+Modify the include.mk file to point at where you installed sonLib.
+In cactus type 'make all' 
+
+(4) Run python allTests.py to run the set of tests to check the installation
