@@ -16,5 +16,5 @@ ${libPath}/pinchGraph.a : ${libSources} ${libHeaders} ${basicLibsDependencies}
 	cp ${libHeaders} ${libPath}/
 
 clean : 
-	rm -f ${libPath}/pinchGraph.a 
+	rm -f ${libPath}/pinchGraph.a
 

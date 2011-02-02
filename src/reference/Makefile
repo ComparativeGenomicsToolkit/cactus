@@ -17,4 +17,4 @@ ${binPath}/referenceTests : ${libTests} ${libSources} ${libHeaders} ${libPath}/c
 
 clean : 
 	rm -f *.o
-	rm -f ${binPath}/cactus_reference
+	rm -f ${binPath}/cactus_reference ${binPath}/referenceTests

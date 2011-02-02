@@ -16,7 +16,7 @@ ${libPath}/3EdgeConnected.a : ${libSources} ${libHeaders} ${basicLibsDependencie
 	cp ${libHeaders} ${libPath}/
 
 clean : 
-	rm -f ${libPath}/3EdgeConnected.a 
+	rm -f ${libPath}/3EdgeConnected.a ${binPath}/3EdgeTests
 
 ${binPath}/3EdgeTests : ${libTests} ${libSources} ${libHeaders} ${libPath}/3EdgeConnected.a ${basicLibsDependencies}
 	${cxx} ${cflags} -I inc -I${libPath} -o ${binPath}/3EdgeTests ${libTests} ${libPath}/3EdgeConnected.a ${basicLibs}
