@@ -11,3 +11,7 @@ Modify the include.mk file to point at where you installed sonLib.
 In cactus type 'make all' 
 
 (4) Run python allTests.py to run the set of tests to check the installation
+
+See https://github.com/benedictpaten/ for different projects.
+
+
