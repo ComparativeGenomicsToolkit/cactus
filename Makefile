@@ -1,9 +1,15 @@
-all :
-	cd src && make all
+# order is important, libraries first
+modules = api threeEdgeConnected pinchGraphs core setup blastAlignment baseAlignment normalisation reference phylogeny faces check pipeline utilities 
+#pulldown
+.PHONY: all %.all clean %.clean
 
-clean : clean.src
-	rm -rf lib/*.h bin/*.dSYM 
-	
-clean.src :
-	cd src && make clean
+all : ${modules:%=all.%}
 
+all.%:
+	cd $* && make all
+
+clean:  ${modules:%=clean.%}
+	rm -rf lib/*.h bin/*.dSYM
+
+clean.%:
+	cd $* && make clean
