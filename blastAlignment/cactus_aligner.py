@@ -14,8 +14,8 @@ from optparse import OptionParser
 from sonLib.bioio import getTempFile
 from sonLib.bioio import logger
 from sonLib.bioio import system
-from workflow.jobTree.scriptTree.target import Target
-from workflow.jobTree.scriptTree.stack import Stack
+from jobTree.scriptTree.target import Target
+from jobTree.scriptTree.stack import Stack
 
 from cactus.blastAlignment.cactus_batch import makeBlastFromOptions
 from cactus.blastAlignment.cactus_batch import makeStandardBlastOptions

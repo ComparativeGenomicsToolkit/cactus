@@ -15,7 +15,7 @@ from sonLib.bioio import getTempDirectory
 from sonLib.bioio import system
 from sonLib.bioio import nameValue
 
-from workflow.jobTree.test.jobTree.jobTreeTest import runJobTreeStatusAndFailIfNotComplete
+from jobTree.test.jobTree.jobTreeTest import runJobTreeStatusAndFailIfNotComplete
 
 
 def cactusRootPath():

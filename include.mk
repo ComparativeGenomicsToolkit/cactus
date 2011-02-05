@@ -2,7 +2,7 @@
 binPath=${rootPath}bin
 libPath=${rootPath}lib
 #Modify this variable to set the location of sonLib
-sonLibRootPath=${rootPath}../sonLib 
+sonLibRootPath=${rootPath}../sonLib
 sonLibPath=${sonLibRootPath}/lib
 
 include  ${sonLibRootPath}/include.mk

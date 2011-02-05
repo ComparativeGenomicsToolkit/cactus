@@ -20,8 +20,8 @@ from sonLib.bioio import system
 from sonLib.bioio import fastaRead
 from sonLib.bioio import fastaWrite
 
-from workflow.jobTree.scriptTree.target import Target
-from workflow.jobTree.scriptTree.stack import Stack
+from jobTree.scriptTree.target import Target
+from jobTree.scriptTree.stack import Stack
 
 class MakeBlastOptions:
     def __init__(self, chunkSize, overlapSize, 

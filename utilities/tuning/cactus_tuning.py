@@ -15,8 +15,8 @@ import os, re, sys, time
 from optparse import OptionParser
 import xml.etree.ElementTree as ET
 
-from workflow.jobTree.bin.jobTree import runJobTree  
-from workflow.jobTree.scriptTree.target import Target
+from jobTree.src.jobTree import runJobTree  
+from jobTree.scriptTree.target import Target
 
 from sonLib.bioio import logger
 from sonLib.bioio import system

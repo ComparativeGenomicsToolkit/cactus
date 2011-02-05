@@ -29,14 +29,14 @@ from optparse import OptionParser
 from sonLib.bioio import getTempFile
 from sonLib.bioio import newickTreeParser
 
-from workflow.jobTree.lib.bioio import getLogLevelString
-from workflow.jobTree.lib.bioio import logger
-from workflow.jobTree.lib.bioio import setLoggingFromOptions
+from jobTree.src.bioio import getLogLevelString
+from jobTree.src.bioio import logger
+from jobTree.src.bioio import setLoggingFromOptions
 
 from cactus.shared.common import cactusRootPath
   
-from workflow.jobTree.scriptTree.target import Target 
-from workflow.jobTree.scriptTree.stack import Stack 
+from jobTree.scriptTree.target import Target 
+from jobTree.scriptTree.stack import Stack 
 
 from cactus.shared.common import runCactusSetup
 from cactus.shared.common import runCactusCore

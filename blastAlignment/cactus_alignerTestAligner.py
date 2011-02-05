@@ -16,7 +16,7 @@ from sonLib.bioio import cigarWrite
 from sonLib.bioio import getRandomOperationList
 from sonLib.bioio import fastaRead
 
-from workflow.jobTree.scriptTree.target import Target
+from jobTree.scriptTree.target import Target
 
 class MakeBlastsLoader:
     """Used to get around strange pickling behavious todo with being unable to pickle functions.
