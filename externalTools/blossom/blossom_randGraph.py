@@ -61,7 +61,7 @@ def main():
     for i in xrange(N):
         for j in xrange(i+1,N):
             if p == 1.0 or random.uniform(0, 1.0) <= p:
-                weight = random.randint(-w, w)
+                weight = random.randint(0, w)
                 string = "%d %d %d" % (i, j, weight)
                 edges.append(string)
 

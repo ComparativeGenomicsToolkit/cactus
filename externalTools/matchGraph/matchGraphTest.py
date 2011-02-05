@@ -56,7 +56,7 @@ class TestCase(unittest.TestCase):
             system("blossom_randGraph.py > %s" % tempInputFile)
 
             # Run matchGraph.py
-            system("python matchGraph.py -e %s -w %s" % (tempInputFile, tempOutputFile))
+            system("matchGraph.py -e %s -w %s" % (tempInputFile, tempOutputFile))
 
             # Now check if output is valid
             f = open(tempOutputFile, 'r')
