@@ -1,3 +1,7 @@
+#Copyright (C) 2006-2011 by Joris van Rantwijk (jvrantwijk (AT) xs4all.nl)
+#
+#Released under the MIT license, see LICENSE.txt
+
 """Weighted maximum matching in general graphs.
 
 The algorithm is taken from "Efficient Algorithms for Finding Maximum
