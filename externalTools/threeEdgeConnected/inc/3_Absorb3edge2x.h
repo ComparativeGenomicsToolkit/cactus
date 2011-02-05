@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2006-2011 by Benedict Paten (benedictpaten@gmail.com)
+ * Copyright (C) 2011 by Yung H Tsin and Nima Norouzi
  *
  * Released under the MIT license, see LICENSE.txt
  */

@@ -1,3 +1,9 @@
+#!/usr/bin/env python
+
+#Copyright (C) 2011 by Benedict Paten (benedictpaten@gmail.com)
+#
+#Released under the MIT license, see LICENSE.txt
+
 """Tests the matchGraph.py program using matchGraphTest.py
 
 Type python matchGraphTest.py --help to see options to the script.

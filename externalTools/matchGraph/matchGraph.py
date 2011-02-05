@@ -1,5 +1,9 @@
 #!/usr/bin/env python
 
+#Copyright (C) 2011 by Benedict Paten (benedictpaten@gmail.com)
+#
+#Released under the MIT license, see LICENSE.txt
+
 """matchGraph.py reports the maximum weight matching for a graph.
 The default is to report the max weight matching. Alternatively the user can
 request that the max cardinality matching be reported.

@@ -1,3 +1,9 @@
+/*
+ * Copyright (C) 2011 by Yung H Tsin and Nima Norouzi
+ *
+ * Released under the MIT license, see LICENSE.txt
+ */
+
 /*Implementation of
  A Simple Linear 3-Edge-Connected Components Algorithm with reduction
  (Standard Version)

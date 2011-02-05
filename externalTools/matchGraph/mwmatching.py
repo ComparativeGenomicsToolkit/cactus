@@ -1,3 +1,5 @@
+#!/usr/bin/env python
+
 #Copyright (C) 2011 by Joris van Rantwijk (jvrantwijk (AT) xs4all.nl)
 #
 #Released under the MIT license, see LICENSE.txt

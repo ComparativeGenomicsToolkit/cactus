@@ -1,17 +1,16 @@
+# order is important, libraries first
+modules = threeEdgeConnected blossom matchGraph
+#pulldown
+.PHONY: all %.all clean %.clean
 
-all : blossomM matchGraphM
+all : ${modules:%=all.%}
 
-clean : blossomM.clean matchGraphM.clean
+all.%:
+	cd $* && make all
 
-blossomM :
-	cd blossom && make all
+clean:  ${modules:%=clean.%}
+	rm -rf lib/*.h bin/*.dSYM
 
-blossomM.clean :
-	cd blossom && make clean
-
-matchGraphM :
-	cd matchGraph && make all
-
-matchGraphM.clean :
-	cd matchGraph && make clean
+clean.%:
+	cd $* && make clean
 	
