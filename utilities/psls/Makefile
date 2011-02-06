@@ -9,7 +9,7 @@ ifneq ($(wildcard ${kentLibWeb}),)
   # FIXME: tmp hack, both sonlib commonC and kent libraries have logInfo and logDebug functions
   # kent ones are not actually used, but get dragged in.  As a tmp work around, we force
   # the sonlib ones to be brought in first by the linker.
-  jkLibHack = -Wl,-ulogDebug ${libPath}/sonLib.a 
+  jkLibHack = -Wl,-ulogDebug ${basicLibs}
 endif
 
 all: ${targets}
