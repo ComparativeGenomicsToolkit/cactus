@@ -11,7 +11,7 @@ dataSetsPath=/Users/benedictpaten/Dropbox/Documents/work/myPapers/genomeCactusPa
 
 cflags += -I ${sonLibPath}
 dblibs = ${tokyoCabinetLib} ${mysqlLibs} ${pgsqlLibs}
-basicLibs = ${sonLibPath}/sonLib.a ${sonLibPath}/cutest.a ${dblibs}
+basicLibs = ${sonLibPath}/sonLib.a ${sonLibPath}/cuTest.a ${dblibs}
 basicLibsDependencies = ${sonLibPath}/sonLib.a ${sonLibPath}/cuTest.a 
 
 # optional kent library stuff
