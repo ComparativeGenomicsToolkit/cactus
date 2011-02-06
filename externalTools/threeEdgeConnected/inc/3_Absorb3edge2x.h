@@ -1,7 +1,11 @@
 /*
  * Copyright (C) 2011 by Yung H Tsin and Nima Norouzi
  *
- * Released under the MIT license, see LICENSE.txt
+ * The authors of this code have given their permission
+ * to distribute and redistribute this code within this software product,
+ * however they require that any further incorporation or copying
+ * be permitted by request only, hence the BSD/MIT license which
+ * applies to much of the other code in this software product does not apply to this file.
  */
 
 #ifndef ABSORB_3_EDGE_2X_H_
