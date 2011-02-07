@@ -618,14 +618,14 @@ bool isTruePseudoAdjacency(PseudoAdjacency *pseudoAdjacency) {
     End *_5End = pseudoAdjacency_get5End(pseudoAdjacency);
     End *_3End = pseudoAdjacency_get3End(pseudoAdjacency);
     Cap *cap;
-    bool k = 0;
+    bool k = 1;
     End_InstanceIterator *instanceIterator = end_getInstanceIterator(_5End);
     while ((cap = end_getNext(instanceIterator)) != NULL) {
         Cap *adjacentCap = cap_getAdjacency(cap);
         if (adjacentCap != NULL) {
             assert(end_getOrientation(_3End));
             if (end_getPositiveOrientation(cap_getEnd(adjacentCap)) == _3End) {
-                k = 1;
+                k = 0;
             }
         }
     }
