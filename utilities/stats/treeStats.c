@@ -318,8 +318,8 @@ void reportBlockStats(Flower *flower, FILE *fileHandle, int32_t minLeafDegree) {
     tabulateAndPrintIntValues(leafDegrees, "leaf_degrees", fileHandle);
     tabulateAndPrintIntValues(coverage, "coverage", fileHandle);
     tabulateAndPrintIntValues(leafCoverage, "leaf_coverage", fileHandle);
-    tabulateAndPrintIntValues(coverage, "column_degrees", fileHandle);
-    tabulateAndPrintIntValues(leafCoverage, "column_leaf_degrees", fileHandle);
+    tabulateAndPrintIntValues(columnDegrees, "column_degrees", fileHandle);
+    tabulateAndPrintIntValues(columnLeafDegrees, "column_leaf_degrees", fileHandle);
     printClosingTag("blocks", fileHandle);
     destructIntList(counts);
     destructIntList(lengths);
@@ -766,6 +766,8 @@ int64_t reportReferenceStats2P(PseudoAdjacency *pseudoAdjacency,
     if ((nestedFlower = group_getNestedFlower(group)) != NULL) {
         End *nested5End = flower_getEnd(nestedFlower, end_getName(_5End));
         End *nested3End = flower_getEnd(nestedFlower, end_getName(_3End));
+        assert(end_isAttached(nested5End));
+        assert(end_isAttached(nested3End));
         assert(nested5End != NULL);
         assert(nested3End != NULL);
         PseudoAdjacency *nestedPseudoAdjacency = end_getPseudoAdjacency(
@@ -778,6 +780,8 @@ int64_t reportReferenceStats2P(PseudoAdjacency *pseudoAdjacency,
             assert(pseudoAdjacency_getIndex(nestedPseudoAdjacency) == 0);
             assert(pseudoChromosome_get5End(nestedPseudoChromosome)
                     == nested5End);
+            assert(pseudoChromosome_get3End(nestedPseudoChromosome)
+                                == nested3End);
             for (int32_t i = 0; i < pseudoChromosome_getPseudoAdjacencyNumber(
                     nestedPseudoChromosome); i++) {
                 nestedPseudoAdjacency
@@ -786,9 +790,11 @@ int64_t reportReferenceStats2P(PseudoAdjacency *pseudoAdjacency,
                 length = reportReferenceStats2P(nestedPseudoAdjacency, length,
                         locationsOfTruePseudoAdjacencies);
                 //Add the length of the intervening block
-                End *otherEnd = pseudoAdjacency_get3End(pseudoAdjacency);
+                End *otherEnd = pseudoAdjacency_get3End(nestedPseudoAdjacency);
                 if (end_isBlockEnd(otherEnd)) {
                     length += block_getLength(end_getBlock(otherEnd));
+                    assert(i != pseudoChromosome_getPseudoAdjacencyNumber(
+                                                nestedPseudoChromosome)-1);
                 } else {
                     assert(i == pseudoChromosome_getPseudoAdjacencyNumber(
                             nestedPseudoChromosome)-1);
@@ -796,6 +802,7 @@ int64_t reportReferenceStats2P(PseudoAdjacency *pseudoAdjacency,
             }
         } else {
             assert(pseudoAdjacency_get3End(nestedPseudoAdjacency) == nested5End);
+            assert(pseudoChromosome_get5End(nestedPseudoChromosome) == nested3End);
             assert(pseudoAdjacency_getIndex(nestedPseudoAdjacency)
                     == pseudoChromosome_getPseudoAdjacencyNumber(
                             nestedPseudoChromosome) - 1);
@@ -807,9 +814,10 @@ int64_t reportReferenceStats2P(PseudoAdjacency *pseudoAdjacency,
                 length = reportReferenceStats2P(nestedPseudoAdjacency, length,
                         locationsOfTruePseudoAdjacencies);
                 //Add the length of the intervening block
-                End *otherEnd = pseudoAdjacency_get5End(pseudoAdjacency);
+                End *otherEnd = pseudoAdjacency_get5End(nestedPseudoAdjacency);
                 if (end_isBlockEnd(otherEnd)) {
                     length += block_getLength(end_getBlock(otherEnd));
+                    assert(i != 0);
                 } else {
                     assert(i == 0);
                 }
@@ -843,15 +851,12 @@ void reportReferenceStats2(Flower *flower, FILE *fileHandle) {
     while ((pseudoChromosome = reference_getNextPseudoChromosome(
             pseudoChromosomeIterator)) != NULL) {
         //Calculate the lengths of each pseudo chromosome
-        PseudoAdjacency *pseudoAdjacency;
-        PseudoChromsome_PseudoAdjacencyIterator *pseudoAdjacencyIterator =
-                pseudoChromosome_getPseudoAdjacencyIterator(pseudoChromosome);
         stList *locationsOfTruePseudoAdjacencies = stList_construct3(0,
                 (void(*)(void *)) stIntTuple_destruct);
         int64_t length = 0;
         //Collate the lengths of the stuff in the lower level nets.
-        while ((pseudoAdjacency = pseudoChromosome_getNextPseudoAdjacency(
-                pseudoAdjacencyIterator)) != NULL) {
+        for(int32_t i=0; i<pseudoChromosome_getPseudoAdjacencyNumber(pseudoChromosome); i++) {
+            PseudoAdjacency *pseudoAdjacency = pseudoChromosome_getPseudoAdjacencyByIndex(pseudoChromosome, i);
             length = reportReferenceStats2P(pseudoAdjacency, length,
                     locationsOfTruePseudoAdjacencies);
             //Add the length of the intervening block
@@ -859,9 +864,10 @@ void reportReferenceStats2(Flower *flower, FILE *fileHandle) {
             if (end_isBlockEnd(otherEnd)) {
                 length += block_getLength(end_getBlock(otherEnd));
             }
+            else {
+                assert(i == pseudoChromosome_getPseudoAdjacencyNumber(pseudoChromosome)-1);
+            }
         }
-        pseudoChromosome_destructPseudoAdjacencyIterator(
-                pseudoAdjacencyIterator);
         stList_append(topLevelPseudoChromosomeLengths, stIntTuple_construct(1,
                 length));
         //Now convert locations of true pseudo adjacencies into lengths of contigs
@@ -885,7 +891,7 @@ void reportReferenceStats2(Flower *flower, FILE *fileHandle) {
         j += stIntTuple_getPosition(stList_get(sortedContigLengths, i), 0);
     }
     int64_t k=0;
-    int32_t n50= 0;
+    int32_t n50=0;
     for(int32_t i=0; i<stList_length(sortedContigLengths); i++) {
         k += stIntTuple_getPosition(stList_get(sortedContigLengths, i), 0);
         if(k > j/2) {
