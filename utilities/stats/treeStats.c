@@ -864,8 +864,9 @@ int32_t calculateN50(stList *list) {
     int32_t n50 = 0;
     for (int32_t i = 0; i < stList_length(sortedList); i++) {
         k += stIntTuple_getPosition(stList_get(sortedList, i), 0);
-        if (k > j / 2) {
+        if (k >= j / 2) {
             n50 = stIntTuple_getPosition(stList_get(sortedList, i), 0);
+            break;
         }
     }
     stList_destruct(sortedList);
