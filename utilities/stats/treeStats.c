@@ -144,10 +144,8 @@ struct IntList *convertToIntList(stList *list) {
 
 void tabulateAndPrintIntTupleValues(stList *list, const char *name,
         FILE *fileHandle) {
-    struct IntList *tempList =
-            convertToIntList(list);
-    tabulateAndPrintIntValues(tempList, name,
-            fileHandle);
+    struct IntList *tempList = convertToIntList(list);
+    tabulateAndPrintIntValues(tempList, name, fileHandle);
     destructIntList(tempList);
 }
 
@@ -809,7 +807,11 @@ int64_t reportReferenceStats2P(PseudoAdjacency *pseudoAdjacency,
                 //Add the length of the intervening block
                 End *otherEnd = pseudoAdjacency_get3End(nestedPseudoAdjacency);
                 if (end_isBlockEnd(otherEnd)) {
-                    length += block_getLength(end_getBlock(otherEnd));
+                    if (block_getInstanceNumber(end_getBlock(otherEnd)) > 0) {
+                        length += block_getLength(end_getBlock(otherEnd));
+                    } else {
+                        assert(block_getLength(end_getBlock(otherEnd)) == 1);
+                    }
                     assert(i != pseudoChromosome_getPseudoAdjacencyNumber(
                             nestedPseudoChromosome) - 1);
                 } else {
@@ -836,6 +838,8 @@ int64_t reportReferenceStats2P(PseudoAdjacency *pseudoAdjacency,
                 if (end_isBlockEnd(otherEnd)) {
                     if (block_getInstanceNumber(end_getBlock(otherEnd)) > 0) {
                         length += block_getLength(end_getBlock(otherEnd));
+                    } else {
+                        assert(block_getLength(end_getBlock(otherEnd)) == 1);
                     }
                     assert(i != 0);
                 } else {
@@ -875,9 +879,9 @@ int32_t calculateN50(stList *list) {
 
 stList *filterZeroValues(stList *values) {
     stList *filteredValues = stList_construct();
-    for(int32_t i=0; i<stList_length(values); i++) {
+    for (int32_t i = 0; i < stList_length(values); i++) {
         stIntTuple *intTuple = stList_get(values, i);
-        if(stIntTuple_getPosition(intTuple, 0) > 0) {
+        if (stIntTuple_getPosition(intTuple, 0) > 0) {
             stList_append(filteredValues, intTuple);
         }
     }
@@ -908,9 +912,14 @@ void reportReferenceStats2(Flower *flower, FILE *fileHandle) {
                     locationsOfTruePseudoAdjacencies);
             //Add the length of the intervening block
             End *otherEnd = pseudoAdjacency_get3End(pseudoAdjacency);
-            if (end_isBlockEnd(otherEnd) && block_getInstanceNumber(
-                    end_getBlock(otherEnd)) > 0) {
-                length += block_getLength(end_getBlock(otherEnd));
+            if (end_isBlockEnd(otherEnd)) {
+                if (block_getInstanceNumber(end_getBlock(otherEnd)) > 0) {
+                    length += block_getLength(end_getBlock(otherEnd));
+                } else {
+                    assert(block_getLength(end_getBlock(otherEnd)) == 1);
+                }
+                assert(i < pseudoChromosome_getPseudoAdjacencyNumber(
+                        pseudoChromosome) - 1);
             } else {
                 assert(i == pseudoChromosome_getPseudoAdjacencyNumber(
                         pseudoChromosome) - 1);
@@ -926,6 +935,8 @@ void reportReferenceStats2(Flower *flower, FILE *fileHandle) {
             stList_append(contigLengths, stIntTuple_construct(1, j - k));
             k = j;
         }
+        assert(k < length);
+        stList_append(contigLengths, stIntTuple_construct(1, length - k)); //Account for the last contig
         stList_destruct(locationsOfTruePseudoAdjacencies);
     }
     reference_destructPseudoChromosomeIterator(pseudoChromosomeIterator);
@@ -940,12 +951,15 @@ void reportReferenceStats2(Flower *flower, FILE *fileHandle) {
     int32_t n50 = calculateN50(contigLengths);
     int32_t n50Filtered = calculateN50(contigLengthsFiltered);
 
-    fprintf(fileHandle, "<reference2 method=\"default\" n50=\"%i\" n50Filtered=\"%i\">", n50, n50Filtered);
+    fprintf(fileHandle,
+            "<reference2 method=\"default\" n50=\"%i\" n50Filtered=\"%i\">",
+            n50, n50Filtered);
 
-    tabulateAndPrintIntTupleValues(topLevelPseudoChromosomeLengths, "top_level_pseudo_chromosome_lengths",
-            fileHandle);
+    tabulateAndPrintIntTupleValues(topLevelPseudoChromosomeLengths,
+            "top_level_pseudo_chromosome_lengths", fileHandle);
     tabulateAndPrintIntTupleValues(contigLengths, "contig_lengths", fileHandle);
-    tabulateAndPrintIntTupleValues(contigLengthsFiltered, "contig_lengths_filtered", fileHandle);
+    tabulateAndPrintIntTupleValues(contigLengthsFiltered,
+            "contig_lengths_filtered", fileHandle);
 
     printClosingTag("reference2", fileHandle);
     //Clean up
