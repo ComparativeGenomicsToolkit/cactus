@@ -935,7 +935,7 @@ void reportReferenceStats2(Flower *flower, FILE *fileHandle) {
             stList_append(contigLengths, stIntTuple_construct(1, j - k));
             k = j;
         }
-        assert(k < length);
+        assert(k <= length);
         stList_append(contigLengths, stIntTuple_construct(1, length - k)); //Account for the last contig
         stList_destruct(locationsOfTruePseudoAdjacencies);
     }
