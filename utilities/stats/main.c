@@ -88,7 +88,7 @@ int main(int argc, char *argv[]) {
             case 'e':
                 outputFile = stString_copy(optarg);
                 break;
-            case 'e':
+            case 'f':
                 perColumnStats = 0;
                 break;
             case 'h':
