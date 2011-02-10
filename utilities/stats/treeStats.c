@@ -311,7 +311,7 @@ void blockStats(Flower *flower, struct IntList *counts,
     }
 }
 
-void reportBlockStats(Flower *flower, FILE *fileHandle, int32_t minLeafDegree) {
+void reportBlockStats(Flower *flower, FILE *fileHandle, int32_t minLeafDegree, bool perColumnStats) {
     /*
      * Prints the block stats to the XML file.
      */
@@ -332,9 +332,11 @@ void reportBlockStats(Flower *flower, FILE *fileHandle, int32_t minLeafDegree) {
     tabulateAndPrintIntValues(leafDegrees, "leaf_degrees", fileHandle);
     tabulateAndPrintIntValues(coverage, "coverage", fileHandle);
     tabulateAndPrintIntValues(leafCoverage, "leaf_coverage", fileHandle);
-    tabulateAndPrintIntValues(columnDegrees, "column_degrees", fileHandle);
-    tabulateAndPrintIntValues(columnLeafDegrees, "column_leaf_degrees",
-            fileHandle);
+    if(perColumnStats) {
+        tabulateAndPrintIntValues(columnDegrees, "column_degrees", fileHandle);
+        tabulateAndPrintIntValues(columnLeafDegrees, "column_leaf_degrees",
+                fileHandle);
+    }
     printClosingTag("blocks", fileHandle);
     destructIntList(counts);
     destructIntList(lengths);
@@ -948,7 +950,7 @@ void reportReferenceStats2(Flower *flower, FILE *fileHandle) {
 }
 
 void reportCactusDiskStats(char *cactusDiskName, Flower *flower,
-        FILE *fileHandle) {
+        FILE *fileHandle, bool perColumnStats) {
 
     double totalSeqSize = flower_getTotalBaseLength(flower);
     fprintf(
@@ -970,8 +972,8 @@ void reportCactusDiskStats(char *cactusDiskName, Flower *flower,
     /*
      * Numbers on the blocks.
      */
-    reportBlockStats(flower, fileHandle, 0);
-    reportBlockStats(flower, fileHandle, 2);
+    reportBlockStats(flower, fileHandle, 0, perColumnStats);
+    reportBlockStats(flower, fileHandle, 2, perColumnStats);
 
     /*
      * Chain statistics.
