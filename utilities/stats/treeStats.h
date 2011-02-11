@@ -17,7 +17,7 @@
 /*
  * Writes a lot
  */
-void reportCactusDiskStats(char *cactusDiskName, Flower *flower, FILE *fileHandle, bool perColumnStats);
+void reportCactusDiskStats(char *cactusDiskName, Flower *flower, FILE *fileHandle, bool perColumnStats, stSortedSet *includeSpecies, stSortedSet *excludeSpecies);
 
 
 #endif /* TREESTATS_H_ */

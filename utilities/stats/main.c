@@ -35,8 +35,24 @@ void usage() {
             "-d --flowerName : The name of the flower (the key in the database)\n");
     fprintf(stderr,
             "-e --outputFile : The file to write the stats in, XML formatted.\n");
-    fprintf(stderr, "-f --noPerColumnStats : Do not print out per column stats.\n");
+    fprintf(stderr,
+            "-f --noPerColumnStats : Do not print out per column stats.\n");
+    fprintf(stderr, "-g --includeSpecies : Species to require included\n");
+    fprintf(stderr, "-i --excludedSpecies : Species to require excluded\n");
     fprintf(stderr, "-h --help : Print this help screen\n");
+}
+
+static void buildSet(const char *string, stSortedSet *set) {
+    /*
+     * Breaks a string by white space into a bunch of tokens which are then added to the given set.
+     */
+    char *cA = stString_copy(string);
+    char **cA2 = &cA;
+    char *cA3;
+    while((cA3 = stString_getNextWord(cA2)) != NULL) {
+        stSortedSet_insert(set, cA3);
+    }
+    free(cA);
 }
 
 int main(int argc, char *argv[]) {
@@ -53,6 +69,8 @@ int main(int argc, char *argv[]) {
     char * flowerName = "0";
     char * outputFile = NULL;
     bool perColumnStats = 1;
+    stSortedSet *includeSpecies = stSortedSet_construct3((int (*)(const void *, const void *))strcmp, free);
+    stSortedSet *excludeSpecies = stSortedSet_construct3((int (*)(const void *, const void *))strcmp, free);
 
     ///////////////////////////////////////////////////////////////////////////
     // (0) Parse the inputs handed by genomeCactus.py / setup stuff.
@@ -62,13 +80,15 @@ int main(int argc, char *argv[]) {
         static struct option long_options[] = { { "logLevel",
                 required_argument, 0, 'a' }, { "cactusDisk", required_argument,
                 0, 'c' }, { "flowerName", required_argument, 0, 'd' }, {
-                "outputFile", required_argument, 0, 'e' }, { "noPerColumnStats",
-                no_argument, 0, 'f' }, { "help", no_argument, 0, 'h' }, { 0, 0,
-                0, 0 } };
+                "outputFile", required_argument, 0, 'e' }, {
+                "noPerColumnStats", no_argument, 0, 'f' },
+                { "includeSpecies", required_argument, 0, 'g' },
+                { "help", no_argument, 0, 'h' },
+                { "excludeSpecies", required_argument, 0, 'i' },{ 0, 0, 0, 0 } };
 
         int option_index = 0;
 
-        int key = getopt_long(argc, argv, "a:c:d:e:fh", long_options,
+        int key = getopt_long(argc, argv, "a:c:d:e:fg:hi:", long_options,
                 &option_index);
 
         if (key == -1) {
@@ -94,6 +114,12 @@ int main(int argc, char *argv[]) {
             case 'h':
                 usage();
                 return 0;
+            case 'g':
+                buildSet(optarg, includeSpecies);
+                break;
+            case 'i':
+                buildSet(optarg, excludeSpecies);
+                break;
             default:
                 usage();
                 return 1;
@@ -149,7 +175,7 @@ int main(int argc, char *argv[]) {
     ///////////////////////////////////////////////////////////////////////////
 
     FILE *fileHandle = fopen(outputFile, "w");
-    reportCactusDiskStats("EMPTY", flower, fileHandle, perColumnStats);
+    reportCactusDiskStats("EMPTY", flower, fileHandle, perColumnStats, includeSpecies, excludeSpecies);
     st_logInfo("Finished writing out the stats.\n");
     fclose(fileHandle);
 

@@ -259,7 +259,7 @@ void reportFlowerStats(Flower *flower, FILE *fileHandle) {
 void blockStats(Flower *flower, struct IntList *counts,
         struct IntList *lengths, struct IntList *degrees,
         struct IntList *leafDegrees, struct IntList *coverage,
-        struct IntList *leafCoverage, int32_t minLeafDegree,
+        struct IntList *leafCoverage, bool(*includeBlock)(Block *),
         struct IntList *columnDegrees, struct IntList *columnLeafDegrees) {
     /*
      * Calculates stats on the blocks outside of terminal flowers.
@@ -276,28 +276,28 @@ void blockStats(Flower *flower, struct IntList *counts,
         while ((group = flower_getNextGroup(groupIterator)) != NULL) {
             assert(!group_isLeaf(group));
             blockStats(group_getNestedFlower(group), counts, lengths, degrees,
-                    leafDegrees, coverage, leafCoverage, minLeafDegree,
+                    leafDegrees, coverage, leafCoverage, includeBlock,
                     columnDegrees, columnLeafDegrees);
         }
         flower_destructGroupIterator(groupIterator);
         Flower_BlockIterator *blockIterator = flower_getBlockIterator(flower);
         Block *block;
         while ((block = flower_getNextBlock(blockIterator)) != NULL) {
-            Segment *segment;
-            Block_InstanceIterator *segmentIterator =
-                    block_getInstanceIterator(block);
-            int32_t i = 0;
-            while ((segment = block_getNext(segmentIterator)) != NULL) {
-                if (segment_getChildNumber(segment) == 0) {
-                    i++;
-                }
-            }
-            block_destructInstanceIterator(segmentIterator);
-            if (i >= minLeafDegree) {
+            if (includeBlock(block)) {
                 intListAppend(lengths, block_getLength(block));
                 intListAppend(degrees, block_getInstanceNumber(block));
                 intListAppend(coverage, block_getLength(block)
                         * block_getInstanceNumber(block));
+                Segment *segment;
+                Block_InstanceIterator *segmentIterator =
+                        block_getInstanceIterator(block);
+                int32_t i = 0;
+                while ((segment = block_getNext(segmentIterator)) != NULL) {
+                    if (segment_getChildNumber(segment) == 0) {
+                        i++;
+                    }
+                }
+                block_destructInstanceIterator(segmentIterator);
                 intListAppend(leafDegrees, i);
                 intListAppend(leafCoverage, block_getLength(block) * i);
                 for (int32_t j = 0; j < block_getLength(block); j++) {
@@ -311,7 +311,8 @@ void blockStats(Flower *flower, struct IntList *counts,
     }
 }
 
-void reportBlockStats(Flower *flower, FILE *fileHandle, int32_t minLeafDegree, bool perColumnStats) {
+void reportBlockStatsP(Flower *flower, FILE *fileHandle, bool(*includeBlock)(
+        Block *), const char *attribString, bool perColumnStats) {
     /*
      * Prints the block stats to the XML file.
      */
@@ -324,15 +325,15 @@ void reportBlockStats(Flower *flower, FILE *fileHandle, int32_t minLeafDegree, b
     struct IntList *columnDegrees = constructEmptyIntList(0);
     struct IntList *columnLeafDegrees = constructEmptyIntList(0);
     blockStats(flower, counts, lengths, degrees, leafDegrees, coverage,
-            leafCoverage, minLeafDegree, columnDegrees, columnLeafDegrees);
-    fprintf(fileHandle, "<blocks minimum_leaf_degree=\"%i\">", minLeafDegree);
+            leafCoverage, includeBlock, columnDegrees, columnLeafDegrees);
+    fprintf(fileHandle, "<blocks %s>", attribString);
     tabulateAndPrintIntValues(counts, "counts", fileHandle);
     tabulateAndPrintIntValues(lengths, "lengths", fileHandle);
     tabulateAndPrintIntValues(degrees, "degrees", fileHandle);
     tabulateAndPrintIntValues(leafDegrees, "leaf_degrees", fileHandle);
     tabulateAndPrintIntValues(coverage, "coverage", fileHandle);
     tabulateAndPrintIntValues(leafCoverage, "leaf_coverage", fileHandle);
-    if(perColumnStats) {
+    if (perColumnStats) {
         tabulateAndPrintIntValues(columnDegrees, "column_degrees", fileHandle);
         tabulateAndPrintIntValues(columnLeafDegrees, "column_leaf_degrees",
                 fileHandle);
@@ -346,6 +347,100 @@ void reportBlockStats(Flower *flower, FILE *fileHandle, int32_t minLeafDegree, b
     destructIntList(leafCoverage);
     destructIntList(columnDegrees);
     destructIntList(columnLeafDegrees);
+}
+
+int32_t reportBlockStats_minBlockDegree;
+bool reportBlockStatsP2(Block *block) {
+    Segment *segment;
+    Block_InstanceIterator *segmentIterator = block_getInstanceIterator(block);
+    int32_t i = 0;
+    while ((segment = block_getNext(segmentIterator)) != NULL) {
+        if (segment_getChildNumber(segment) == 0) {
+            i++;
+        }
+    }
+    block_destructInstanceIterator(segmentIterator);
+    return i >= reportBlockStats_minBlockDegree;
+}
+
+void reportBlockStats(Flower *flower, FILE *fileHandle, int32_t minBlockDegree, bool perColumnStats) {
+    reportBlockStats_minBlockDegree = minBlockDegree;
+    char *cA = stString_print("minimum_leaf_degree=\"%i\"", minBlockDegree);
+    reportBlockStatsP(flower, fileHandle, reportBlockStatsP2, cA,
+            perColumnStats);
+}
+
+stSortedSet *reportBlockStats_speciesToInclude;
+stSortedSet *reportBlockStats_speciesToExclude;
+bool reportBlockStatsP3(Block *block) {
+    stSortedSet *species = stSortedSet_construct3((int (*)(const void *, const void *))strcmp, NULL);
+    Segment *segment;
+    Block_InstanceIterator *segmentIterator = block_getInstanceIterator(block);
+    while ((segment = block_getNext(segmentIterator)) != NULL) {
+        Event *event = segment_getEvent(segment);
+        const char *eventHeader = event_getHeader(event);
+        stSortedSet_insert(species, (void *)eventHeader);
+    }
+    bool b = 0;
+    block_destructInstanceIterator(segmentIterator);
+    stSortedSet *intersectionOfInclusion = stSortedSet_getIntersection(reportBlockStats_speciesToInclude, species);
+    if(stSortedSet_size(intersectionOfInclusion) == stSortedSet_size(reportBlockStats_speciesToInclude)) {
+        //Meets the inclusion criteria.
+        stSortedSet *intersectionOfExclusion = stSortedSet_getIntersection(reportBlockStats_speciesToExclude, species);
+        if(stSortedSet_size(intersectionOfExclusion) == stSortedSet_size(reportBlockStats_speciesToExclude)) {
+            //Meets the exclusion criteria.
+            b = 1;
+        }
+        stSortedSet_destruct(intersectionOfExclusion);
+    }
+    stSortedSet_destruct(species);
+    stSortedSet_destruct(intersectionOfInclusion);
+    return b;
+}
+
+char *getSequenceString(stSortedSet *strings, const char *attribName) {
+    stSortedSetIterator *it = stSortedSet_getIterator(strings);
+    char *cA;
+    char *cA2 = stString_print("%s=\"", attribName);
+    while((cA = stSortedSet_getNext(it)) != NULL) {
+        char *cA3 = stString_print("%s%s|", cA2, cA);
+        free(cA2);
+        cA2 = cA3;
+    }
+    stSortedSet_destructIterator(it);
+    cA = stString_print("%s\"", cA2);
+    free(cA2);
+    return cA;
+}
+
+void reportBlockStats2(Flower *flower, FILE *fileHandle,
+        stSortedSet *speciesToInclude,
+    stSortedSet *speciesToExclude, bool perColumnStats) {
+    reportBlockStats_speciesToInclude = speciesToInclude;
+    reportBlockStats_speciesToExclude = speciesToExclude;
+
+    Event *event;
+    stSortedSet *allSpecies = stSortedSet_construct3((int (*)(const void *, const void *))strcmp, NULL);
+    EventTree_Iterator *eventIt = eventTree_getIterator(flower_getEventTree(flower));
+    while((event = eventTree_getNext(eventIt)) != NULL) {
+        const char *eventHeader = event_getHeader(event);
+        stSortedSet_insert(allSpecies, (void *)eventHeader);
+    }
+    eventTree_destructIterator(eventIt);
+
+    stSortedSetIterator *it = stSortedSet_getIterator(speciesToInclude);
+    char *cA = getSequenceString(speciesToInclude, "species_included");
+    char *cA2 = getSequenceString(speciesToExclude, "species_excluded");
+    char *cA3 = getSequenceString(speciesToExclude, "all_species");
+    char *cA4 = stString_print("%s %s %s", cA, cA2, cA3);
+    free(cA);
+    free(cA2);
+    free(cA3);
+    reportBlockStatsP(flower, fileHandle, reportBlockStatsP3, cA4,
+            perColumnStats);
+    stSortedSet_destructIterator(it);
+    stSortedSet_destruct(allSpecies);
+    free(cA4);
 }
 
 static void chainStats(Flower *flower, struct IntList *counts,
@@ -487,8 +582,8 @@ int32_t netStats(Flower *flower, stList *totalEndNumbersPerTerminalGroup,
      * end an end is connected to in a tangle net and the number of tangle groups per net.
      */
     if (flower_isTerminal(flower)) {
-        stList_append(totalEndNumbersPerTerminalGroup,
-                stIntTuple_construct(1, flower_getEndNumber(flower)));
+        stList_append(totalEndNumbersPerTerminalGroup, stIntTuple_construct(1,
+                flower_getEndNumber(flower)));
         stList_append(totalNonFreeStubEndNumbersPerTerminalGroup,
                 stIntTuple_construct(1, flower_getEndNumber(flower)
                         - flower_getFreeStubEndNumber(flower)));
@@ -511,8 +606,8 @@ int32_t netStats(Flower *flower, stList *totalEndNumbersPerTerminalGroup,
             assert(group_getNestedFlower(group) != NULL);
             totalGroups += netStats(group_getNestedFlower(group),
                     totalEndNumbersPerTerminalGroup,
-                    totalNonFreeStubEndNumbersPerTerminalGroup,
-                    endDegrees, totalGroupsPerNet);
+                    totalNonFreeStubEndNumbersPerTerminalGroup, endDegrees,
+                    totalGroupsPerNet);
         }
         flower_destructGroupIterator(groupIterator);
         if (flower_getParentGroup(flower) != NULL) {
@@ -530,10 +625,10 @@ void reportNetStats(Flower *flower, FILE *fileHandle) {
     /*
      * Prints the end stats to the XML file.
      */
-    stList *totalEndNumbersPerTerminalGroup = stList_construct3(0,
+    stList *totalEndNumbersPerTerminalGroup = stList_construct3(0, (void(*)(
+            void *)) stIntTuple_destruct);
+    stList *totalNonFreeStubEndNumbersPerTerminalGroup = stList_construct3(0,
             (void(*)(void *)) stIntTuple_destruct);
-    stList *totalNonFreeStubEndNumbersPerTerminalGroup =
-            stList_construct3(0, (void(*)(void *)) stIntTuple_destruct);
     struct List *endDegrees = constructEmptyList(0, free);
     stList *totalGroupsPerNet = stList_construct3(0,
             (void(*)(void *)) stIntTuple_destruct);
@@ -545,10 +640,8 @@ void reportNetStats(Flower *flower, FILE *fileHandle) {
     fprintf(fileHandle, "<nets>");
     tabulateAndPrintIntTupleValues(totalEndNumbersPerTerminalGroup,
             "total_end_numbers_per_terminal_group", fileHandle);
-    tabulateAndPrintIntTupleValues(
-            totalNonFreeStubEndNumbersPerTerminalGroup,
-            "total_non_free_stub_end_numbers_per_terminal_group",
-            fileHandle);
+    tabulateAndPrintIntTupleValues(totalNonFreeStubEndNumbersPerTerminalGroup,
+            "total_non_free_stub_end_numbers_per_terminal_group", fileHandle);
     tabulateAndPrintIntTupleValues(totalGroupsPerNet, "total_groups_per_net",
             fileHandle);
     tabulateAndPrintFloatValues(endDegrees, "end_degrees_per_terminal_group",
@@ -708,8 +801,8 @@ void referenceStats(Flower *flower,
         reference_destructPseudoChromosomeIterator(pseudoChromosomeIt);
         stList_append(truePseudoAdjacencyPerTerminalGroup,
                 stIntTuple_construct(1, i));
-        stList_append(pseudoAdjacencyPerTerminalGroup,
-                stIntTuple_construct(1, j));
+        stList_append(pseudoAdjacencyPerTerminalGroup, stIntTuple_construct(1,
+                j));
     }
 }
 
@@ -718,15 +811,14 @@ void reportReferenceStats(Flower *flower, FILE *fileHandle) {
      * Prints the reference stats to the XML file.
      */
     if (flower_getReference(flower) != NULL) {
-        stList *truePseudoAdjacencyPerTerminalGroup = stList_construct3(
-                0, (void(*)(void *)) stIntTuple_destruct);
+        stList *truePseudoAdjacencyPerTerminalGroup = stList_construct3(0,
+                (void(*)(void *)) stIntTuple_destruct);
         stList *pseudoAdjacencyPerTerminalGroup = stList_construct3(0,
                 (void(*)(void *)) stIntTuple_destruct);
         referenceStats(flower, truePseudoAdjacencyPerTerminalGroup,
                 pseudoAdjacencyPerTerminalGroup);
         fprintf(fileHandle, "<reference method=\"default\">");
-        tabulateAndPrintIntTupleValues(
-                truePseudoAdjacencyPerTerminalGroup,
+        tabulateAndPrintIntTupleValues(truePseudoAdjacencyPerTerminalGroup,
                 "true_pseudo_adjacencies_per_terminal_group", fileHandle);
         tabulateAndPrintIntTupleValues(pseudoAdjacencyPerTerminalGroup,
                 "pseudo_adjacencies_per_terminal_group", fileHandle);
@@ -950,7 +1042,7 @@ void reportReferenceStats2(Flower *flower, FILE *fileHandle) {
 }
 
 void reportCactusDiskStats(char *cactusDiskName, Flower *flower,
-        FILE *fileHandle, bool perColumnStats) {
+        FILE *fileHandle, bool perColumnStats, stSortedSet *includeSpecies, stSortedSet *excludeSpecies) {
 
     double totalSeqSize = flower_getTotalBaseLength(flower);
     fprintf(
@@ -974,6 +1066,7 @@ void reportCactusDiskStats(char *cactusDiskName, Flower *flower,
      */
     reportBlockStats(flower, fileHandle, 0, perColumnStats);
     reportBlockStats(flower, fileHandle, 2, perColumnStats);
+    reportBlockStats2(flower, fileHandle, includeSpecies, excludeSpecies, perColumnStats);
 
     /*
      * Chain statistics.
