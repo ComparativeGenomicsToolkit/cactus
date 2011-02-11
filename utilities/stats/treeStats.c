@@ -1064,9 +1064,9 @@ void reportCactusDiskStats(char *cactusDiskName, Flower *flower,
     /*
      * Numbers on the blocks.
      */
+    reportBlockStats2(flower, fileHandle, includeSpecies, excludeSpecies, perColumnStats);
     reportBlockStats(flower, fileHandle, 0, perColumnStats);
     reportBlockStats(flower, fileHandle, 2, perColumnStats);
-    reportBlockStats2(flower, fileHandle, includeSpecies, excludeSpecies, perColumnStats);
 
     /*
      * Chain statistics.
