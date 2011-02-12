@@ -80,7 +80,7 @@ void setCompleteStatus(const char *fileName) {
         }
     }
     st_logInfo(
-            "The file %s is specified in complete, the sequences will be attached\n",
+            "The file %s is specified incomplete, the sequences will not be attached\n",
             fileName);
 }
 

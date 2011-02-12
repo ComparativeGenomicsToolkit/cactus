@@ -196,7 +196,8 @@ def runCactusWorkflow(experimentFile,
                       rescueJobFrequency=None,
                       setupAndBuildAlignments=True,
                       buildTrees=True, buildFaces=True, buildReference=True,
-                      jobTreeStats=False):
+                      jobTreeStats=False,
+                      maxThreads=None):
     buildFaces=False
     setupAndBuildAlignments = nameValue("setupAndBuildAlignments", setupAndBuildAlignments, bool)
     buildTrees = nameValue("buildTrees", buildTrees, bool)
@@ -207,10 +208,11 @@ def runCactusWorkflow(experimentFile,
     retryCount = nameValue("retryCount", retryCount, int)
     rescueJobFrequency = nameValue("rescueJobsFrequency", rescueJobFrequency, int)
     jobTreeStats = nameValue("stats", jobTreeStats, bool)
+    maxThreads = nameValue("maxThreads", maxThreads, int)
     
-    command = "cactus_workflow.py --experiment %s %s %s %s %s --jobTree %s --logLevel %s %s %s %s %s" % \
+    command = "cactus_workflow.py --experiment %s %s %s %s %s --jobTree %s --logLevel %s %s %s %s %s %s" % \
             (experimentFile, setupAndBuildAlignments, buildTrees, buildFaces, 
-             buildReference, jobTreeDir, logLevel, batchSystem, retryCount, rescueJobFrequency, jobTreeStats)
+             buildReference, jobTreeDir, logLevel, batchSystem, retryCount, rescueJobFrequency, jobTreeStats, maxThreads)
     #print "going to run the command:", command
     #assert False
     system(command)
