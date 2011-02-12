@@ -9,6 +9,7 @@
 
 #include "cactusGlobals.h"
 
+
 typedef struct _blockContents {
 	Name name;
 	stSortedSet *segments;
