@@ -260,7 +260,7 @@ void blockStats(Flower *flower, struct IntList *counts,
         struct IntList *lengths, struct IntList *degrees,
         struct IntList *leafDegrees, struct IntList *coverage,
         struct IntList *leafCoverage, bool(*includeBlock)(Block *),
-        struct IntList *columnDegrees, struct IntList *columnLeafDegrees) {
+        struct IntList *columnDegrees, struct IntList *columnLeafDegrees, bool perColumnStats) {
     /*
      * Calculates stats on the blocks outside of terminal flowers.
      * Counts is numbers of blocks per non-terminal flower.
@@ -277,7 +277,7 @@ void blockStats(Flower *flower, struct IntList *counts,
             assert(!group_isLeaf(group));
             blockStats(group_getNestedFlower(group), counts, lengths, degrees,
                     leafDegrees, coverage, leafCoverage, includeBlock,
-                    columnDegrees, columnLeafDegrees);
+                    columnDegrees, columnLeafDegrees, perColumnStats);
         }
         flower_destructGroupIterator(groupIterator);
         Flower_BlockIterator *blockIterator = flower_getBlockIterator(flower);
@@ -300,9 +300,11 @@ void blockStats(Flower *flower, struct IntList *counts,
                 block_destructInstanceIterator(segmentIterator);
                 intListAppend(leafDegrees, i);
                 intListAppend(leafCoverage, block_getLength(block) * i);
-                for (int32_t j = 0; j < block_getLength(block); j++) {
-                    intListAppend(columnDegrees, block_getInstanceNumber(block));
-                    intListAppend(columnLeafDegrees, i);
+                if(perColumnStats) {
+                    for (int32_t j = 0; j < block_getLength(block); j++) {
+                        intListAppend(columnDegrees, block_getInstanceNumber(block));
+                        intListAppend(columnLeafDegrees, i);
+                    }
                 }
             }
         }
@@ -325,7 +327,7 @@ void reportBlockStatsP(Flower *flower, FILE *fileHandle, bool(*includeBlock)(
     struct IntList *columnDegrees = constructEmptyIntList(0);
     struct IntList *columnLeafDegrees = constructEmptyIntList(0);
     blockStats(flower, counts, lengths, degrees, leafDegrees, coverage,
-            leafCoverage, includeBlock, columnDegrees, columnLeafDegrees);
+            leafCoverage, includeBlock, columnDegrees, columnLeafDegrees, perColumnStats);
     fprintf(fileHandle, "<blocks %s>", attribString);
     tabulateAndPrintIntValues(counts, "counts", fileHandle);
     tabulateAndPrintIntValues(lengths, "lengths", fileHandle);
