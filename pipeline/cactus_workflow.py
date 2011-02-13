@@ -267,8 +267,8 @@ class CactusCoreWrapper(Target):
     def run(self):
         logger.info("Starting the core wrapper target")
         coreParameters = self.iteration.find("core")
-        from sonLib.bioio import system
-        system("cp %s %s" % (self.alignmentFile, "alignments.txt"))
+        #from sonLib.bioio import system
+        #system("cp %s %s" % (self.alignmentFile, "alignments.txt"))
         runCactusCore(cactusDiskDatabaseString=self.options.cactusDiskDatabaseString,
                       alignmentFile=self.alignmentFile, 
                       flowerName=self.flowerName,
