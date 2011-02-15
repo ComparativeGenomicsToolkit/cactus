@@ -365,84 +365,11 @@ bool reportBlockStatsP2(Block *block) {
     return i >= reportBlockStats_minBlockDegree;
 }
 
-void reportBlockStats(Flower *flower, FILE *fileHandle, int32_t minBlockDegree, bool perColumnStats) {
+static void reportBlockStats(Flower *flower, FILE *fileHandle, int32_t minBlockDegree, bool perColumnStats) {
     reportBlockStats_minBlockDegree = minBlockDegree;
     char *cA = stString_print("minimum_leaf_degree=\"%i\"", minBlockDegree);
     reportBlockStatsP(flower, fileHandle, reportBlockStatsP2, cA,
             perColumnStats);
-}
-
-stSortedSet *reportBlockStats_speciesToInclude;
-stSortedSet *reportBlockStats_speciesToExclude;
-bool reportBlockStatsP3(Block *block) {
-    stSortedSet *species = stSortedSet_construct3((int (*)(const void *, const void *))strcmp, NULL);
-    Segment *segment;
-    Block_InstanceIterator *segmentIterator = block_getInstanceIterator(block);
-    while ((segment = block_getNext(segmentIterator)) != NULL) {
-        Event *event = segment_getEvent(segment);
-        const char *eventHeader = event_getHeader(event);
-        stSortedSet_insert(species, (void *)eventHeader);
-    }
-    bool b = 0;
-    block_destructInstanceIterator(segmentIterator);
-    stSortedSet *intersectionOfInclusion = stSortedSet_getIntersection(reportBlockStats_speciesToInclude, species);
-    if(stSortedSet_size(intersectionOfInclusion) == stSortedSet_size(reportBlockStats_speciesToInclude)) {
-        //Meets the inclusion criteria.
-        stSortedSet *intersectionOfExclusion = stSortedSet_getIntersection(reportBlockStats_speciesToExclude, species);
-        if(stSortedSet_size(intersectionOfExclusion) == stSortedSet_size(reportBlockStats_speciesToExclude)) {
-            //Meets the exclusion criteria.
-            b = 1;
-        }
-        stSortedSet_destruct(intersectionOfExclusion);
-    }
-    stSortedSet_destruct(species);
-    stSortedSet_destruct(intersectionOfInclusion);
-    return b;
-}
-
-char *getSequenceString(stSortedSet *strings, const char *attribName) {
-    stSortedSetIterator *it = stSortedSet_getIterator(strings);
-    char *cA;
-    char *cA2 = stString_print("%s=\"", attribName);
-    while((cA = stSortedSet_getNext(it)) != NULL) {
-        char *cA3 = stString_print("%s%s|", cA2, cA);
-        free(cA2);
-        cA2 = cA3;
-    }
-    stSortedSet_destructIterator(it);
-    cA = stString_print("%s\"", cA2);
-    free(cA2);
-    return cA;
-}
-
-void reportBlockStats2(Flower *flower, FILE *fileHandle,
-        stSortedSet *speciesToInclude,
-    stSortedSet *speciesToExclude, bool perColumnStats) {
-    reportBlockStats_speciesToInclude = speciesToInclude;
-    reportBlockStats_speciesToExclude = speciesToExclude;
-
-    Event *event;
-    stSortedSet *allSpecies = stSortedSet_construct3((int (*)(const void *, const void *))strcmp, NULL);
-    EventTree_Iterator *eventIt = eventTree_getIterator(flower_getEventTree(flower));
-    while((event = eventTree_getNext(eventIt)) != NULL) {
-        const char *eventHeader = event_getHeader(event);
-        stSortedSet_insert(allSpecies, (void *)eventHeader);
-    }
-    eventTree_destructIterator(eventIt);
-
-    stSortedSetIterator *it = stSortedSet_getIterator(speciesToInclude);
-    char *cA = getSequenceString(speciesToInclude, "species_included");
-    char *cA2 = getSequenceString(speciesToExclude, "species_excluded");
-    char *cA3 = getSequenceString(speciesToExclude, "all_species");
-    char *cA4 = stString_print("%s %s %s", cA, cA2, cA3);
-    free(cA);
-    free(cA2);
-    free(cA3);
-    reportBlockStatsP(flower, fileHandle, reportBlockStatsP3, cA4,
-            perColumnStats);
-    stSortedSet_destructIterator(it);
-    stSortedSet_destruct(allSpecies);
-    free(cA4);
 }
 
 static void chainStats(Flower *flower, struct IntList *counts,
@@ -495,7 +422,7 @@ static void chainStats(Flower *flower, struct IntList *counts,
     }
 }
 
-void reportChainStats(Flower *flower, int32_t minNumberOfBlocksInChain,
+static void reportChainStats(Flower *flower, int32_t minNumberOfBlocksInChain,
         FILE *fileHandle) {
     /*
      * Prints the chain stats to the XML file.
@@ -1044,7 +971,8 @@ void reportReferenceStats2(Flower *flower, FILE *fileHandle) {
 }
 
 void reportCactusDiskStats(char *cactusDiskName, Flower *flower,
-        FILE *fileHandle, bool perColumnStats, stSortedSet *includeSpecies, stSortedSet *excludeSpecies) {
+        FILE *fileHandle, bool perColumnStats,
+        stSortedSet *includeSpecies, stSortedSet *excludeSpecies) {
 
     double totalSeqSize = flower_getTotalBaseLength(flower);
     fprintf(
@@ -1066,7 +994,6 @@ void reportCactusDiskStats(char *cactusDiskName, Flower *flower,
     /*
      * Numbers on the blocks.
      */
-    reportBlockStats2(flower, fileHandle, includeSpecies, excludeSpecies, perColumnStats);
     reportBlockStats(flower, fileHandle, 0, perColumnStats);
     reportBlockStats(flower, fileHandle, 2, perColumnStats);
 
