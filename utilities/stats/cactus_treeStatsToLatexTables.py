@@ -278,32 +278,30 @@ def writeChainsTable(stats, fileHandle):
     Block Bp length: number of basepairs in blocks of chain. \
     Instance length: average number of basepairs in an instance of the chain, including both its blocks and intervening links.")
 
-def writeNetsTable(stats, fileHandle):
-    columnNumber = 5
+def writeTerminalGroupsTable(stats, fileHandle):
+    columnNumber = 4
     writePreliminaries(columnNumber, fileHandle)
-    writeLine(columnNumber, 1, (("Nets", 0, columnNumber-1, 0, 0),), fileHandle)
+    writeLine(columnNumber, 1, (("Terminal Groups", 0, columnNumber-1, 0, 0),), fileHandle)
     writeLine(columnNumber, 2, (("Region", 0, 0, 0, 1), 
                                 ("End number", 1, 2, 0, 0), 
                                 ("All", 1, 1, 1, 1), 
                                 ("No Free Stubs", 2, 2, 1, 1), 
-                                 ("End degrees ", 3, 3, 0, 1), 
-                                 ("Groups", 4, 4, 0, 1)), fileHandle)
+                                 ("End degrees ", 3, 3, 0, 1),), fileHandle)
     for statNode, regionName in stats:
         netNode = statNode.find("nets")
+        assert(netNode != None)
         l = [ (regionName, 0, 0, 0, 0) ]
-        l.append((formatFloat(netNode.find("end_numbers_per_net").attrib["avg"], decimals=2), 1, 1, 0, 0))
-        l.append((formatFloat(netNode.find("non_free_stub_end_numbers_per_net").attrib["avg"], decimals=2), 2, 2, 0, 0))
-        l.append((formatFloat(netNode.find("end_degrees_per_net").attrib["avg"], decimals=2), 3, 3, 0, 0))
-        l.append((formatFloat(netNode.find("total_groups_per_net").attrib["avg"], decimals=2), 4, 4, 0, 0))
-        writeLine(5, 1, l, fileHandle)
+        l.append((formatFloat(netNode.find("total_end_numbers_per_terminal_group").attrib["avg"], decimals=2), 1, 1, 0, 0))
+        l.append((formatFloat(netNode.find("total_non_free_stub_end_numbers_per_terminal_group").attrib["avg"], decimals=2), 2, 2, 0, 0))
+        l.append((formatFloat(netNode.find("end_degrees_per_terminal_group").attrib["avg"], decimals=2), 3, 3, 0, 0))
+        #l.append((formatFloat(netNode.find("total_groups_per_net").attrib["avg"], decimals=2), 4, 4, 0, 0))
+        writeLine(4, 1, l, fileHandle)
                      
-    writeEnd(fileHandle, "ends_table", "Statistics on the ends of the cactus trees. \
+    writeEnd(fileHandle, "nets_table", "Statistics on the terminal groups of the cactus tree. \
     Region: region name. \
-    Group: ends categorised by group. \
-    Terminal: either `terminal', `non-terminal' or both (`all') groups. \
-    Type: either `links', `tangles' or both (`all') groups. \
-    Per Group: numbers of ends in a group. \
-    Connectivity: the number of distinct ends an end is adjacent to.")
+    End number: ends per terminal group. \
+    End degrees: the number of distinct ends an end in a terminal group is adjacent to.\
+    Groups/net: the number of terminal groups per net")
     
 def writeFacesTable(stats, fileHandle):
     columnNumber = 13
@@ -356,53 +354,46 @@ def writeFacesTable(stats, fileHandle):
     Prop. Can.: Proportion of non-trivial faces which are canononical.")
 
 def writeReferenceTable(stats, fileHandle):
-    columnNumber = 14
+    columnNumber = 10
     writePreliminaries(columnNumber, fileHandle)
     writeLine(columnNumber, 1, (("Reference", 0, columnNumber-1, 0, 0),), fileHandle)
     writeLine(columnNumber, 2, (("Region", 0, 0, 0, 1), 
                                 ("Type", 1, 1, 0, 1), 
-                                 ("P.C. Number", 2, 4, 0, 0), 
-                                 ("Max", 2, 2, 1, 1),
+                                
+                                 ("P.chr.", 2, 5, 0, 0), 
+                                 ("Total", 2, 2, 1, 1),
                                  ("Avg.", 3, 3, 1, 1),
                                  ("Med.", 4, 4, 1, 1),
-                                 ("P.A./P.C.", 5, 7, 0, 0), 
                                  ("Max", 5, 5, 1, 1),
-                                 ("Avg.", 6, 6, 1, 1),
-                                 ("Med.", 7, 7, 1, 1),
-                                 ("T.P.A./P.C.", 8, 10, 0, 0), 
-                                 ("Max", 8, 8, 1, 1),
-                                 ("Avg.", 9, 9, 1, 1),
-                                 ("Med.", 10, 10, 1, 1),
-                                 ("Links/P.C.", 11, 13, 0, 0), 
-                                 ("Max", 11, 11, 1, 1),
-                                 ("Avg.", 12, 12, 1, 1),
-                                 ("Med.", 13, 13, 1, 1)), fileHandle)
+                                 
+                                 ("Contigs", 6, 9, 0, 0), 
+                                 ("Total", 6, 6, 1, 1),
+                                 ("Avg.", 7, 7, 1, 1),
+                                 ("Med.", 8, 8, 1, 1),
+                                 ("Max", 9, 9, 1, 1),), fileHandle)
     for statNode, regionName in stats:
-        referenceNodes = statNode.findall("reference")
+        referenceNodes = statNode.findall("reference2")
         l = [ (regionName, 0, 0, 0, len(referenceNodes)-1) ]
         for i in xrange(len(referenceNodes)):
             l.append((referenceNodes[i].attrib["method"], 1, 1, i, i))
-            l.append((formatFloat(referenceNodes[i].find("pseudo_chromosome_number").attrib["max"], decimals=0), 2, 2, i, i))
-            l.append((formatFloat(referenceNodes[i].find("pseudo_chromosome_number").attrib["avg"], decimals=2), 3, 3, i, i))
-            l.append((formatFloat(referenceNodes[i].find("pseudo_chromosome_number").attrib["median"], decimals=0), 4, 4, i, i))
-            l.append((formatFloat(referenceNodes[i].find("pseudo_adjacency_number_per_pseudo_chromosome").attrib["max"], decimals=0), 5, 5, i, i))
-            l.append((formatFloat(referenceNodes[i].find("pseudo_adjacency_number_per_pseudo_chromosome").attrib["avg"], decimals=2), 6, 6, i, i))
-            l.append((formatFloat(referenceNodes[i].find("pseudo_adjacency_number_per_pseudo_chromosome").attrib["median"], decimals=0), 7, 7, i, i))
-            l.append((formatFloat(referenceNodes[i].find("true_pseudo_adjacency_number_per_pseudo_chromosome").attrib["max"], decimals=0), 8, 8, i, i))
-            l.append((formatFloat(referenceNodes[i].find("true_pseudo_adjacency_number_per_pseudo_chromosome").attrib["avg"], decimals=2), 9, 9, i, i))
-            l.append((formatFloat(referenceNodes[i].find("true_pseudo_adjacency_number_per_pseudo_chromosome").attrib["median"], decimals=0), 10, 10, i, i))
-            l.append((formatFloat(referenceNodes[i].find("links_per_chromosome").attrib["max"], decimals=0), 11, 11, i, i))
-            l.append((formatFloat(referenceNodes[i].find("links_per_chromosome").attrib["avg"], decimals=2), 12, 12, i, i))
-            l.append((formatFloat(referenceNodes[i].find("links_per_chromosome").attrib["median"], decimals=0), 13, 13, i, i))
+            
+            l.append((formatFloat(referenceNodes[i].find("top_level_pseudo_chromosome_lengths").attrib["total"], decimals=0), 2, 2, i, i))
+            l.append((formatFloat(referenceNodes[i].find("top_level_pseudo_chromosome_lengths").attrib["avg"], decimals=2), 3, 3, i, i))
+            l.append((formatFloat(referenceNodes[i].find("top_level_pseudo_chromosome_lengths").attrib["median"], decimals=0), 4, 4, i, i))
+            l.append((formatFloat(referenceNodes[i].find("top_level_pseudo_chromosome_lengths").attrib["max"], decimals=0), 5, 5, i, i))
+            
+            l.append((formatFloat(referenceNodes[i].find("contig_lengths_filtered").attrib["total"], decimals=2), 6, 6, i, i))
+            l.append((formatFloat(referenceNodes[i].find("contig_lengths_filtered").attrib["avg"], decimals=0), 7, 7, i, i))
+            l.append((formatFloat(referenceNodes[i].find("contig_lengths_filtered").attrib["median"], decimals=0), 8, 8, i, i))
+            l.append((formatFloat(referenceNodes[i].find("contig_lengths_filtered").attrib["max"], decimals=2), 9, 9, i, i))
+            
         writeLine(columnNumber, len(referenceNodes), l, fileHandle)
     
-    writeEnd(fileHandle, "reference_table", "Statistics on the reference of the cactus trees, excluding terminal flowers. \
+    writeEnd(fileHandle, "reference_table", "Statistics on the reference lengths of pseudo-chromosomes and contigs.\
     Region: region name. \
     Type: reference algorithm. \
-    P.C. Number: Number of pseudo-chromosomes in reference. \
-    P.A./P.C.: Number of pseudo-adjacencies per pseudo-chromosome. \
-    T.P.A/P.C.: Number of true-pseudo adjacencies per pseudo-chromosome. \
-    Links/P.C.: Number of links per pseudo-chromosome.")
+    Columns (abbreviated 'P.chr'.):base lengths of pseudo chromosomes.\
+    Contigs: base lengths of contigs.")
 
 def main():
     ##########################################
@@ -436,7 +427,7 @@ def main():
     writeFlowerTable(stats, fileHandle)
     writeBlocksTable(stats, fileHandle)
     writeChainsTable(stats, fileHandle)
-    writeNetsTable(stats, fileHandle)
+    writeTerminalGroupsTable(stats, fileHandle)
     writeFacesTable(stats, fileHandle)
     writeReferenceTable(stats, fileHandle)
     writeDocumentEnd(fileHandle)
