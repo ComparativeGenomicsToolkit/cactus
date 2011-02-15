@@ -28,6 +28,7 @@ void tabulateFloatStats(struct List *unsortedValues, double *totalNumber,
      */
     if (unsortedValues->length == 0) {
         *totalNumber = 0;
+        *totalSum = 0;
         *min = INT32_MAX;
         *max = INT32_MAX;
         *avg = INT32_MAX;
@@ -60,6 +61,7 @@ void tabulateStats(struct IntList *unsortedValues, double *totalNumber,
      */
     if (unsortedValues->length == 0) {
         *totalNumber = 0;
+        *totalSum = 0;
         *min = INT32_MAX;
         *max = INT32_MAX;
         *avg = INT32_MAX;
