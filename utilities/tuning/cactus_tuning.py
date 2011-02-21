@@ -231,7 +231,7 @@ class CactusMergeResultsAndCleanup(Target):
             system("mv %s %s" % (currentFile, mergedFile))
             logger.info("Moved %s to %s\n" %(currentFile, mergedFile))
          else:
-	    system("eval_mergeMAFComparatorResults.py --logLevel DEBUG --results1 %s --results2 %s --outputFile %s" % (mergedFile, currentFile, mergedFile))
+	    system("mergeMafComparatorResults.py --logLevel DEBUG --results1 %s --results2 %s --outputFile %s" % (mergedFile, currentFile, mergedFile))
             logger.info("Merged %s to %s\n" %(currentFile, mergedFile))
          count += 1
          #system("rm -f %s" % currentFile)
@@ -450,12 +450,12 @@ def getStats(statsDir):
 
 #============================ Utilities functions ======================================#
 def runEvalMAFComparator(mafFile1, mafFile2, outputFile, sampleNumber):
-   command = "eval_MAFComparator -b %s -c %s -d %s -e %s" %(mafFile1, mafFile2, outputFile, sampleNumber)
+   command = "mafComparator -b %s -c %s -d %s -e %s" %(mafFile1, mafFile2, outputFile, sampleNumber)
    system(command)
    logger.info("Compared MAF %s with MAF %s\n" %(mafFile1, mafFile2))
 
 def runEvalMFAToMAF(mfa, maf):
-   command = "eval_MFAToMAF -b %s -d %s --logLevel DEBUG" %(mfa, maf)
+   command = "mfaToMaf -b %s -d %s --logLevel DEBUG" %(mfa, maf)
    system(command)
    logger.info("Converted MFA %s to MAF %s\n" %(mfa, maf))
 

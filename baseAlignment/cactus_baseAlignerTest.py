@@ -88,7 +88,7 @@ class TestCase(unittest.TestCase):
             trueMFAFile = os.path.join(testDir, "true.mfa")
             fastaAlignmentWrite(subAlignment, fastaHeaders, len(fastaHeaders), trueMFAFile)
             trueMAFFile = os.path.join(testDir, "true.maf")
-            system("eval_MFAToMAF --mFAFile %s --outputFile %s" % (trueMFAFile, trueMAFFile))
+            system("mfaToMaf --mFAFile %s --outputFile %s" % (trueMFAFile, trueMAFFile))
             system("cat %s" % trueMAFFile)
             
             #Get sequences
@@ -135,7 +135,7 @@ class TestCase(unittest.TestCase):
             
             #Now compare the mafs to the output.
             resultsFile = os.path.join(testDir, "results.xml")
-            system("eval_MAFComparator --mAFFile1 %s --mAFFile2 %s --outputFile %s" % (trueMAFFile, mAFFile, resultsFile))
+            system("mafComparator --mafFile1 %s --mafFile2 %s --outputFile %s" % (trueMAFFile, mAFFile, resultsFile))
             logger.info("Ran the maf comparator")
             
             system("cat %s" % resultsFile)
