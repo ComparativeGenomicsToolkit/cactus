@@ -569,18 +569,6 @@ def main():
     #Parse the config file which contains all the program options
     if options.experimentFile.attrib["config"] == "default":
         options.experimentFile.attrib["config"] = os.path.join(cactusRootPath(), "pipeline", "cactus_workflow_config.xml")
-    elif options.experimentFile.attrib["config"] == "highSensitivity":
-        options.experimentFile.attrib["config"] = os.path.join(cactusRootPath(), "pipeline", "cactus_workflow_highSensitivityConfig.xml")
-    elif options.experimentFile.attrib["config"] == "highSpecificity":
-        options.experimentFile.attrib["config"] = os.path.join(cactusRootPath(), "pipeline", "cactus_workflow_highSpecificityConfig.xml")
-    elif options.experimentFile.attrib["config"] == "noTransposons":
-        options.experimentFile.attrib["config"] = os.path.join(cactusRootPath(), "pipeline", "cactus_workflow_noTransposonsConfig.xml")
-    elif options.experimentFile.attrib["config"] == "noTransposonsHighSpecificity":
-        options.experimentFile.attrib["config"] = os.path.join(cactusRootPath(), "pipeline", "cactus_workflow_noTransposonsConfigHighSpecificity.xml")
-    elif options.experimentFile.attrib["config"] == "noTransposonsHighSensitivity":
-        options.experimentFile.attrib["config"] = os.path.join(cactusRootPath(), "pipeline", "cactus_workflow_noTransposonsConfigHighSensitivity.xml")
-    elif options.experimentFile.attrib["config"] == "noBaseLevel":
-        options.experimentFile.attrib["config"] = os.path.join(cactusRootPath(), "pipeline", "cactus_workflow_noBaseLevelConfig.xml")
     else:
         logger.info("Using user specified experiment file")
     #Get the config file for the experiment
