@@ -88,7 +88,7 @@ class TestCase(unittest.TestCase):
             trueMFAFile = os.path.join(testDir, "true.mfa")
             fastaAlignmentWrite(subAlignment, fastaHeaders, len(fastaHeaders), trueMFAFile)
             trueMAFFile = os.path.join(testDir, "true.maf")
-            system("mfaToMaf --mFAFile %s --outputFile %s" % (trueMFAFile, trueMAFFile))
+            system("mfaToMaf --mfaFile %s --outputFile %s" % (trueMFAFile, trueMAFFile))
             system("cat %s" % trueMAFFile)
             
             #Get sequences
