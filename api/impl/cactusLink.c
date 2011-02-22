@@ -94,8 +94,7 @@ static void link_splitP(struct List *list, Flower *flower) {
         int32_t i;
         assert(list->length % 2 == 0);
         for (i = 0; i < list->length; i += 2) {
-            link_construct(list->list[i], list->list[i + 1], end_getGroup(
-                    list->list[i]), chain);
+            link_construct(list->list[i], list->list[i + 1], end_getGroup(list->list[i]), chain);
         }
     }
     destructList(list);
@@ -103,8 +102,7 @@ static void link_splitP(struct List *list, Flower *flower) {
 
 void link_split(Link *link) {
     Chain *chain = link_getChain(link);
-    struct List *list1 = constructEmptyList(0, NULL), *list2 =
-            constructEmptyList(0, NULL);
+    struct List *list1 = constructEmptyList(0, NULL), *list2 = constructEmptyList(0, NULL);
     int32_t i = 0;
     while (i < chain_getLength(chain)) {
         Link *link2 = chain_getLink(chain, i++);
@@ -127,35 +125,39 @@ void link_split(Link *link) {
     link_splitP(list2, flower);
 }
 
+bool link_isTrivialP(End *_3End, End *_5End) {
+    Cap *_3Cap;
+    End_InstanceIterator *capIt = end_getInstanceIterator(_3End);
+    while ((_3Cap = end_getNext(capIt)) != NULL) {
+        assert(cap_getOrientation(_3Cap));
+        Cap *_5Cap = cap_getAdjacency(_3Cap);
+        if (_5Cap != NULL) {
+            assert(cap_getEnd(_5Cap) != end_getReverse(_5End));
+            if (cap_getEnd(_5Cap) != _5End) { //The adjacency must be a self adjacency as it contains no free stubs.
+                assert(cap_getEnd(_5Cap) == end_getReverse(_3End));
+                end_destructInstanceIterator(capIt);
+                return 0;
+            }
+            if (abs(cap_getCoordinate(_3Cap) - cap_getCoordinate(_5Cap)) != 1) { //There is a nontrivial adjacency
+                end_destructInstanceIterator(capIt);
+                return 0;
+            }
+        }
+    }
+    end_destructInstanceIterator(capIt);
+    return 1;
+}
+
 bool link_isTrivial(Link *link) {
     End *_3End = link_get3End(link);
     End *_5End = link_get5End(link);
     assert(!end_getSide(_3End));
     assert(end_getSide(_5End));
     Group *group = link_getGroup(link);
-    if(group_getEndNumber(group) == 2) {
+    if (group_getEndNumber(group) == 2) {
         if (end_isBlockEnd(_3End) && end_isBlockEnd(_5End)) { //Must both be block ends
             if (end_getInstanceNumber(_3End) == end_getInstanceNumber(_5End)) { //Must each be connected to other.
-                Cap *_3Cap;
-                End_InstanceIterator *capIt = end_getInstanceIterator(_3End);
-                while ((_3Cap = end_getNext(capIt)) != NULL) {
-                    assert(cap_getOrientation(_3Cap));
-                    Cap *_5Cap = cap_getAdjacency(_3Cap);
-                    assert(_5Cap != NULL);
-                    assert(cap_getEnd(_5Cap) != end_getReverse(_5End));
-                    if (cap_getEnd(_5Cap) != _5End) { //The adjacency must be a self adjacency as it contains no free stubs.
-                        assert(cap_getEnd(_5Cap) == end_getReverse(_3End));
-                        end_destructInstanceIterator(capIt);
-                        return 0;
-                    }
-                    if (abs(cap_getCoordinate(_3Cap) - cap_getCoordinate(_5Cap))
-                            != 1) { //There is a nontrivial adjacency
-                        end_destructInstanceIterator(capIt);
-                        return 0;
-                    }
-                }
-                end_destructInstanceIterator(capIt);
-                return 1;
+                return link_isTrivialP(_3End, _5End) && link_isTrivialP(_5End, _3End);
             }
         }
     }
@@ -199,16 +201,14 @@ bool link_mergeIfTrivial(Link *link) {
         End *outer3End = block_get3End(_3Block);
         assert(end_getOrientation(outer5End));
         assert(end_getOrientation(outer3End));
-        int32_t newBlockLength = block_getLength(_5Block) + block_getLength(
-                _3Block);
+        int32_t newBlockLength = block_getLength(_5Block) + block_getLength(_3Block);
         stHash *newSegments = stHash_construct();
         //This works out the caps for the new segments..
         End_InstanceIterator *capIt = end_getInstanceIterator(outer5End);
         Cap *_5Cap;
         while ((_5Cap = end_getNext(capIt)) != NULL) {
             assert(cap_getOrientation(_5Cap));
-            Cap *_3Cap = cap_getOtherSegmentCap(cap_getAdjacency(
-                    cap_getOtherSegmentCap(_5Cap)));
+            Cap *_3Cap = cap_getOtherSegmentCap(cap_getAdjacency(cap_getOtherSegmentCap(_5Cap)));
             assert(cap_getEnd(_3Cap) == outer3End);
             assert(cap_getOrientation(_3Cap)); //redundant
             stHash_insert(newSegments, _5Cap, _3Cap);
@@ -222,16 +222,14 @@ bool link_mergeIfTrivial(Link *link) {
         end_destruct(_5End);
 
         //Construct the merged block
-        Block *mergedBlock = block_construct2(
-                cactusDisk_getUniqueID(cactusDisk), newBlockLength, outer5End,
-                outer3End, flower);
+        Block *mergedBlock = block_construct2(cactusDisk_getUniqueID(cactusDisk), newBlockLength, outer5End, outer3End,
+                flower);
         capIt = end_getInstanceIterator(outer5End);
         while ((_5Cap = end_getNext(capIt)) != NULL) {
             Cap *_3Cap = stHash_remove(newSegments, _5Cap);
             assert(_3Cap != NULL);
             assert(cap_getEnd(_3Cap) == outer3End);
-            segment_construct3(cactusDisk_getUniqueID(cactusDisk), mergedBlock,
-                            _5Cap, _3Cap);
+            segment_construct3(cactusDisk_getUniqueID(cactusDisk), mergedBlock, _5Cap, _3Cap);
         }
         end_destructInstanceIterator(capIt);
         assert(stHash_size(newSegments) == 0);
@@ -256,8 +254,7 @@ bool link_mergeIfTrivial(Link *link) {
  * Serialisation functions.
  */
 
-void link_writeBinaryRepresentation(Link *link, void(*writeFn)(
-        const void * ptr, size_t size, size_t count)) {
+void link_writeBinaryRepresentation(Link *link, void(*writeFn)(const void * ptr, size_t size, size_t count)) {
     binaryRepresentation_writeElementType(CODE_LINK, writeFn);
     binaryRepresentation_writeName(group_getName(link_getGroup(link)), writeFn);
     binaryRepresentation_writeName(end_getName(link_get3End(link)), writeFn);
@@ -273,12 +270,9 @@ Link *link_loadFromBinaryRepresentation(void **binaryString, Chain *chain) {
     link = NULL;
     if (binaryRepresentation_peekNextElementType(*binaryString) == CODE_LINK) {
         binaryRepresentation_popNextElementType(binaryString);
-        group = flower_getGroup(chain_getFlower(chain),
-                binaryRepresentation_getName(binaryString));
-        leftEnd = flower_getEnd(chain_getFlower(chain),
-                binaryRepresentation_getName(binaryString));
-        rightEnd = flower_getEnd(chain_getFlower(chain),
-                binaryRepresentation_getName(binaryString));
+        group = flower_getGroup(chain_getFlower(chain), binaryRepresentation_getName(binaryString));
+        leftEnd = flower_getEnd(chain_getFlower(chain), binaryRepresentation_getName(binaryString));
+        rightEnd = flower_getEnd(chain_getFlower(chain), binaryRepresentation_getName(binaryString));
         link = link_construct(leftEnd, rightEnd, group, chain);
     }
     return link;
