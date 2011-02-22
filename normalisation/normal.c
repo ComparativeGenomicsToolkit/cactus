@@ -180,6 +180,8 @@ void normalise(Flower *flower, int32_t maxNumberOfChains) {
         }
     }
     stList_destruct(childFlowers);
+    //Remove any trivial links.
+    removeTrivialLinks(flower);
     //Finally we make the flower itself terminal normal (this is to handle the case for the root).
     flower_makeTerminalNormal(flower);
 

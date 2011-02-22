@@ -80,9 +80,21 @@ static void checkChainsAreMaximal(Flower *flower) {
 
 static void checkBlocksAreMaximal(Flower *flower) {
     /*
-     * Checks each block is maximal (this can't be done until we've worked out the AVG connectivity issues).
+     * Checks each block is maximal.
      */
     assert(flower != NULL);
+    End *end;
+    Flower_EndIterator *endIterator = flower_getEndIterator(flower);
+    while ((end = flower_getNextEnd(endIterator)) != NULL) {
+        assert(end_getOrientation(end));
+        if (end_isBlockEnd(end)) { //is an attached stub end (inherited from a higher level)
+            Link *link = group_getLink(end_getGroup(end));
+            if (link != NULL) { //then the flower must be a terminal flower and the link is a copy of the one in the parent..
+                assert(!link_isTrivial(link));
+            }
+        }
+    }
+    flower_destructEndIterator(endIterator);
 }
 
 static void checkFlowerIsNotRedundant(Flower *flower) {
