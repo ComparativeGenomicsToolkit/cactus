@@ -128,11 +128,6 @@ void link_split(Link *link) {
 }
 
 bool link_isTrivial(Link *link) {
-    Flower *flower = chain_getFlower(link_getChain(link));
-    assert(flower_builtBlocks(flower));
-    assert(!flower_builtTrees(flower));
-    assert(!flower_builtFaces(flower));
-
     End *_3End = link_get3End(link);
     End *_5End = link_get5End(link);
     assert(!end_getSide(_3End));
@@ -168,6 +163,10 @@ bool link_isTrivial(Link *link) {
 }
 
 bool link_mergeIfTrivial(Link *link) {
+    Flower *flower = chain_getFlower(link_getChain(link));
+    assert(flower_builtBlocks(flower));
+    assert(!flower_builtTrees(flower));
+    assert(!flower_builtFaces(flower));
     if (link_isTrivial(link)) {
         End *_3End = link_get3End(link);
         End *_5End = link_get5End(link);
