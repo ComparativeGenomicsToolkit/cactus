@@ -43,7 +43,7 @@ void constructSpanningTree(int32_t numberOfSequences,
     stList_destruct(list);
 }
 
-int32_t *calculateIndelProbs(stList *alignedPairs, int32_t sequenceLength,
+/*int32_t *calculateIndelProbs(stList *alignedPairs, int32_t sequenceLength,
         int32_t sequenceIndex) {
     int32_t *indelProbs = st_malloc(sizeof(int32_t) * sequenceLength);
     for (int32_t i = 0; i < sequenceLength; i++) {
@@ -63,7 +63,7 @@ int32_t *calculateIndelProbs(stList *alignedPairs, int32_t sequenceLength,
         }
     }
     return indelProbs;
-}
+}*/
 
 static double getAlignmentScore(stList *alignedPairs, int32_t seqLength1,
         int32_t seqLength2) {
@@ -162,17 +162,6 @@ static void pairwiseColumnWeight_destruct(
     free(pairwiseColumnWeight);
 }
 
-static double pairwiseColumnWeight_getNormalisedWeight(
-        const PairwiseColumnWeight *a) {
-    return a->shared->weight / (a->columnDepth * a->reverse->columnDepth);
-}
-
-static double pairwiseColumnWeight_getNormalisedAlignmentScore(
-        const PairwiseColumnWeight *a) {
-    return a->shared->alignmentScore / (a->columnDepth
-            * a->reverse->columnDepth);
-}
-
 static int pairwiseColumnWeight_compareByPositionFn(
         const PairwiseColumnWeight *a, const PairwiseColumnWeight *b) {
     /*
@@ -191,17 +180,42 @@ static int pairwiseColumnWeight_compareByPositionFn(
     return i;
 }
 
-static int pairwiseColumnWeight_compareByWeightFn(
-        const PairwiseColumnWeight *a, const PairwiseColumnWeight *b) {
-    double d = pairwiseColumnWeight_getNormalisedWeight(a);
-    double e = pairwiseColumnWeight_getNormalisedWeight(b);
+static int getPairNumber(const PairwiseColumnWeight *a, bool divideByObservedPairs) {
+    return divideByObservedPairs ? stSortedSet_size(a->shared->alignedPairs) :
+            (a->columnDepth * a->reverse->columnDepth);
+}
+
+static double pairwiseColumnWeight_getNormalisedWeight(
+        const PairwiseColumnWeight *a, bool divideByObservedPairs) {
+    return a->shared->weight / getPairNumber(a, divideByObservedPairs);
+}
+
+static double pairwiseColumnWeight_getNormalisedAlignmentScore(
+        const PairwiseColumnWeight *a, bool divideByObservedPairs) {
+    return a->shared->alignmentScore / getPairNumber(a, divideByObservedPairs);
+    //(a->columnDepth
+   //         * a->reverse->columnDepth);
+}
+
+static int pairwiseColumnWeight_compareByWeightFnP(
+        const PairwiseColumnWeight *a, const PairwiseColumnWeight *b, bool divideByObservedPairs) {
+    double d = pairwiseColumnWeight_getNormalisedWeight(a, divideByObservedPairs);
+    double e = pairwiseColumnWeight_getNormalisedWeight(b, divideByObservedPairs);
     if (d != e) {
         return d > e ? 1 : -1;
     }
-    d = pairwiseColumnWeight_getNormalisedAlignmentScore(a);
-    e = pairwiseColumnWeight_getNormalisedAlignmentScore(b);
+    d = pairwiseColumnWeight_getNormalisedAlignmentScore(a, divideByObservedPairs);
+    e = pairwiseColumnWeight_getNormalisedAlignmentScore(b, divideByObservedPairs);
     return d > e ? 1 : (d < e ? -1 : pairwiseColumnWeight_compareByPositionFn(
             a, b));
+}
+
+static int pairwiseColumnWeight_compareByWeightFn_divideByAllPairs(const PairwiseColumnWeight *a, const PairwiseColumnWeight *b) {
+    return pairwiseColumnWeight_compareByWeightFnP(a, b, 0);
+}
+
+static int pairwiseColumnWeight_compareByWeightFn_divideByObservedPairs(const PairwiseColumnWeight *a, const PairwiseColumnWeight *b) {
+    return pairwiseColumnWeight_compareByWeightFnP(a, b, 1);
 }
 
 static PairwiseColumnWeight *pairwiseColumnWeight_merge(
@@ -434,7 +448,9 @@ stList *makeAlignment(stList *sequences, int32_t spanningTrees, float gapGamma,
 
     int32_t sequenceNo = stList_length(sequences);
     int32_t maxAlignmentPairs = (sequenceNo * sequenceNo - sequenceNo) / 2;
+    bool divideByObservedPairs = 0;
     if (spanningTrees * sequenceNo < maxAlignmentPairs) {
+        divideByObservedPairs = 1;
         for (int32_t i = 0; i < spanningTrees; i++) {
             constructSpanningTree(sequenceNo, pairwiseAlignments);
         }
@@ -455,7 +471,9 @@ stList *makeAlignment(stList *sequences, int32_t spanningTrees, float gapGamma,
     stSortedSet
             *columnWeightsSortedByWeight =
                     stSortedSet_construct3(
-                            (int(*)(const void *, const void *)) pairwiseColumnWeight_compareByWeightFn,
+                            (int(*)(const void *, const void *)) (divideByObservedPairs ?
+                                    pairwiseColumnWeight_compareByWeightFn_divideByObservedPairs :
+                                    pairwiseColumnWeight_compareByWeightFn_divideByAllPairs),
                             NULL); //destructor not set as will be empty when destroyed.
     stSortedSet
             *columnWeightsSortedByPosition =
@@ -474,10 +492,10 @@ stList *makeAlignment(stList *sequences, int32_t spanningTrees, float gapGamma,
                 string2, pairwiseAlignmentBandingParameters) : getAlignedPairs(
                 string1, string2);
         //Make indel probs
-        int32_t *indelProbs1 =
+        /*int32_t *indelProbs1 =
                 calculateIndelProbs(alignedPairs2, seqLength1, 0);
         int32_t *indelProbs2 =
-                calculateIndelProbs(alignedPairs2, seqLength2, 1);
+                calculateIndelProbs(alignedPairs2, seqLength2, 1);*/
         double alignmentScore = getAlignmentScore(alignedPairs2, seqLength1,
                 seqLength2);
 
@@ -517,8 +535,8 @@ stList *makeAlignment(stList *sequences, int32_t spanningTrees, float gapGamma,
             stIntTuple_destruct(alignedPair);
         }
         stList_destruct(alignedPairs2);
-        free(indelProbs1);
-        free(indelProbs2);
+        //free(indelProbs1);
+        //free(indelProbs2);
     }
     stSortedSet_destructIterator(pairwiseAlignmentsIterator);
 
@@ -527,7 +545,7 @@ stList *makeAlignment(stList *sequences, int32_t spanningTrees, float gapGamma,
             stList_length(sequences));
     stList *acceptedAlignedPairs = stList_construct3(0,
             (void(*)(void *)) stIntTuple_destruct);
-    double pScore = INT64_MAX;
+    //double pScore = INT64_MAX;
     while (stSortedSet_size(columnWeightsSortedByWeight) > 0) {
 #ifdef BEN_DEBUG
         //The two trees of weights should have identical cardinality and should be of even parity (as we have reverses)
@@ -536,13 +554,13 @@ stList *makeAlignment(stList *sequences, int32_t spanningTrees, float gapGamma,
 #endif
         PairwiseColumnWeight *pairwiseColumnWeight = stSortedSet_getLast(
                 columnWeightsSortedByWeight);
-        double score = pairwiseColumnWeight_getNormalisedAlignmentScore(pairwiseColumnWeight);
+        double score = pairwiseColumnWeight_getNormalisedAlignmentScore(pairwiseColumnWeight, divideByObservedPairs);
                 //NormalisedWeight(pairwiseColumnWeight);
 #ifdef BEN_DEBUG
         //st_uglyf("Booo %f %f \n", score, pScore);
         //assert(score <= pScore + 0.01);
 #endif
-        pScore = score;
+        //pScore = score;
 #ifdef BEN_DEBUG
         assert(stSortedSet_size(pairwiseColumnWeight->shared->alignedPairs) > 0);
 #endif
