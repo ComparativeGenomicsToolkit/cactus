@@ -34,13 +34,14 @@ void constructSpanningTree(int32_t numberOfSequences,
         assert(l != j);
         stIntTuple *m = j < l ? stIntTuple_construct(2, j, l)
                 : stIntTuple_construct(2, l, j);
-        if (!stSortedSet_search(pairwiseAlignments, m)) {
+        if (stSortedSet_search(pairwiseAlignments, m) == NULL) {
             stSortedSet_insert(pairwiseAlignments, m);
         } else {
             stIntTuple_destruct(m);
         }
     }
     stList_destruct(list);
+    assert(stSortedSet_size(pairwiseAlignments) >= numberOfSequences/2);
 }
 
 /*int32_t *calculateIndelProbs(stList *alignedPairs, int32_t sequenceLength,
@@ -513,11 +514,11 @@ stList *makeAlignment(stList *sequences, int32_t spanningTrees, float gapGamma,
             int32_t position1 = stIntTuple_getPosition(alignedPair, 1);
             int32_t position2 = stIntTuple_getPosition(alignedPair, 2);
             //Work out the scores
-            double pairwiseWeight = (double) stIntTuple_getPosition(
+            double pairwiseProbability = (double) stIntTuple_getPosition(
                     alignedPair, 0) / PAIR_ALIGNMENT_PROB_1;
 #ifdef BEN_DEBUG
-            assert(pairwiseWeight >= -0.0001);
-            assert(pairwiseWeight <= 1.00001);
+            assert(pairwiseProbability >= -0.0001);
+            assert(pairwiseProbability <= 1.00001);
 #endif
             //Construct the aligned pair structures.
             stIntTuple *alignedPair2 = stIntTuple_construct(5,
@@ -530,8 +531,8 @@ stList *makeAlignment(stList *sequences, int32_t spanningTrees, float gapGamma,
             addWeights(columnWeightsSortedByWeight,
                     columnWeightsSortedByPosition,
                     pairwiseColumnWeight_construct(sequence1, position1, 1,
-                            sequence2, position2, 1, pairwiseWeight * alignmentScore, //pairwiseWeight - gapGamma * (indelWeight1 + indelWeight2),
-                            pairwiseWeight, sortedSet));
+                            sequence2, position2, 1, pairwiseProbability * alignmentScore, //pairwiseWeight - gapGamma * (indelWeight1 + indelWeight2),
+                            pairwiseProbability, sortedSet));
             stIntTuple_destruct(alignedPair);
         }
         stList_destruct(alignedPairs2);
@@ -545,7 +546,7 @@ stList *makeAlignment(stList *sequences, int32_t spanningTrees, float gapGamma,
             stList_length(sequences));
     stList *acceptedAlignedPairs = stList_construct3(0,
             (void(*)(void *)) stIntTuple_destruct);
-    //double pScore = INT64_MAX;
+    double pWeight = INT64_MAX;
     while (stSortedSet_size(columnWeightsSortedByWeight) > 0) {
 #ifdef BEN_DEBUG
         //The two trees of weights should have identical cardinality and should be of even parity (as we have reverses)
@@ -555,12 +556,12 @@ stList *makeAlignment(stList *sequences, int32_t spanningTrees, float gapGamma,
         PairwiseColumnWeight *pairwiseColumnWeight = stSortedSet_getLast(
                 columnWeightsSortedByWeight);
         double score = pairwiseColumnWeight_getNormalisedAlignmentScore(pairwiseColumnWeight, divideByObservedPairs);
+        double weight = pairwiseColumnWeight_getNormalisedWeight(pairwiseColumnWeight, divideByObservedPairs);
                 //NormalisedWeight(pairwiseColumnWeight);
 #ifdef BEN_DEBUG
-        //st_uglyf("Booo %f %f \n", score, pScore);
-        //assert(score <= pScore + 0.01);
+        assert(weight <= pWeight + 0.0001);
 #endif
-        //pScore = score;
+        pWeight = weight;
 #ifdef BEN_DEBUG
         assert(stSortedSet_size(pairwiseColumnWeight->shared->alignedPairs) > 0);
 #endif
