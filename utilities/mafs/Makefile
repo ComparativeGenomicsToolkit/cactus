@@ -6,7 +6,7 @@ progs = $(notdir $(wildcard cactus_mafToReferenceSeq.py))
 targets = ${progs:%=${binPath}/%}
 
 #all :  ${targets} ${binPath}/cactus_MAFGenerator ${binPath}/cactus_augmentedMaf 
-all :  ${targets} ${binPath}/cactus_MAFGenerator 
+all :  ${targets} ${binPath}/cactus_MAFGenerator ${libPath}/cactusMafs.a
 
 ${binPath}/%: %
 	@mkdir -p $(dir $@)
@@ -19,8 +19,8 @@ ${libPath}/cactus_addReferenceSeq.h: ${refDir}/cactus_addReferenceSeq.h
 ${libPath}/cactus_addReferenceSeq.o : ${refDir}/cactus_addReferenceSeq.c
 	${cxx} ${cflags} -c ${refDir}/cactus_addReferenceSeq.c  -I ${libPath} -o ${libPath}/cactus_addReferenceSeq.o
 
-${binPath}/cactus_MAFGenerator : ${libPath}/cactus_addReferenceSeq.h ${libPath}/cactus_addReferenceSeq.o cactus_MAFGenerator.c ${libPath}/cactusLib.a ${basicLibsDependencies}
-	${cxx} ${cflags} -I ${libPath} -o ${binPath}/cactus_MAFGenerator cactus_MAFGenerator.c  ${libPath}/cactus_addReferenceSeq.o ${libPath}/cactusLib.a ${basicLibs}
+${binPath}/cactus_MAFGenerator : ${libPath}/cactus_addReferenceSeq.h ${libPath}/cactus_addReferenceSeq.o cactus_MAFGenerator.c mafs.c ${libPath}/cactusLib.a ${basicLibsDependencies}
+	${cxx} ${cflags} -I ${libPath} -o ${binPath}/cactus_MAFGenerator cactus_MAFGenerator.c mafs.c  ${libPath}/cactus_addReferenceSeq.o ${libPath}/cactusLib.a ${basicLibs}
 
 #mycommon.o : mycommon.h mycommon.c
 	#cp mycommon.h ${libPath}
@@ -31,5 +31,13 @@ ${binPath}/cactus_MAFGenerator : ${libPath}/cactus_addReferenceSeq.h ${libPath}/
 
 clean :
 	rm -f *.o
-	rm -f ${binPath}/cactus_MAFGenerator
+	rm -f ${binPath}/cactus_MAFGenerator ${libPath}/cactusMafs.a
 	rm -f ${progs:%=${binPath}/%}
+	
+${libPath}/cactusMafs.a : mafs.c cactusMafs.h ${basicLibsDependencies}
+	${cxx} ${cflags} -I ${libPath}/ -c mafs.c
+	ar rc cactusMafs.a *.o 
+	ranlib cactusMafs.a 
+	rm *.o
+	mv cactusMafs.a ${libPath}/
+	cp cactusMafs.h ${libPath}/ 
