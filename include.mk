@@ -9,7 +9,7 @@ include  ${sonLibRootPath}/include.mk
 
 dataSetsPath=/Users/benedictpaten/Dropbox/Documents/work/myPapers/genomeCactusPaper/dataSets
 
-cflags += -I ${sonLibPath}
+cflags += -I ${sonLibPath} ${tokyoCabinetIncl} ${mysqlIncl} ${pgsqlIncl}
 dblibs = ${tokyoCabinetLib} ${mysqlLibs} ${pgsqlLibs}
 basicLibs = ${sonLibPath}/sonLib.a ${sonLibPath}/cuTest.a ${dblibs}
 basicLibsDependencies = ${sonLibPath}/sonLib.a ${sonLibPath}/cuTest.a 
