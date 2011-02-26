@@ -131,14 +131,14 @@ void getMAFBlock(Block *block, FILE *fileHandle) {
 }
 
 //void getMAFSReferenceOrdered_walkDown(End *end, FILE *fileHandle, ReferenceSequence *referenceSequence);
-static void getMAFSReferenceOrdered_walkDown(End *end, FILE *fileHandle, void (*getMafBlock)(Block *, FILE *));
+static void getMAFSReferenceOrdered_walkDown(End *end, FILE *fileHandle, void (*getMafBlockFn)(Block *, FILE *));
 
 //void getMAFSReferenceOrdered_walkUp(End *end, FILE *fileHandle, ReferenceSequence *referenceSequence) {
-static void getMAFSReferenceOrdered_walkUp(End *end, FILE *fileHandle, void (*getMafBlock)(Block *, FILE *)) {
+static void getMAFSReferenceOrdered_walkUp(End *end, FILE *fileHandle, void (*getMafBlockFn)(Block *, FILE *)) {
     assert(end != NULL);
     if (end_isBlockEnd(end)) {
-        getMAFBlock(end_getBlock(end), fileHandle);
-        getMAFSReferenceOrdered_walkDown(end_getOtherBlockEnd(end), fileHandle, getMafBlock);
+        getMafBlockFn(end_getBlock(end), fileHandle);
+        getMAFSReferenceOrdered_walkDown(end_getOtherBlockEnd(end), fileHandle, getMafBlockFn);
         //getMAFBlock(end_getBlock(end), fileHandle, referenceSequence);
         //getMAFSReferenceOrdered_walkDown(end_getOtherBlockEnd(end), fileHandle, referenceSequence);
     } else {
@@ -148,7 +148,7 @@ static void getMAFSReferenceOrdered_walkUp(End *end, FILE *fileHandle, void (*ge
             //getMAFSReferenceOrdered_walkUp(group_getEnd(parentGroup,
             //        end_getName(end)), fileHandle, referenceSequence);
             getMAFSReferenceOrdered_walkUp(group_getEnd(parentGroup,
-                    end_getName(end)), fileHandle, getMafBlock);
+                    end_getName(end)), fileHandle, getMafBlockFn);
         } else { //We reached the end of a pseudo-chromosome!
             assert(pseudoChromosome_get3End(pseudoAdjacency_getPseudoChromosome(end_getPseudoAdjacency(end))) == end);
         }
@@ -156,7 +156,7 @@ static void getMAFSReferenceOrdered_walkUp(End *end, FILE *fileHandle, void (*ge
 }
 
 //void getMAFSReferenceOrdered_walkDown(End *end, FILE *fileHandle, ReferenceSequence *referenceSequence) {
-static void getMAFSReferenceOrdered_walkDown(End *end, FILE *fileHandle, void (*getMafBlock)(Block *, FILE *)) {
+static void getMAFSReferenceOrdered_walkDown(End *end, FILE *fileHandle, void (*getMafBlockFn)(Block *, FILE *)) {
     assert(end != NULL);
     //assert(end_isAttached(end));
     Group *group = end_getGroup(end);
@@ -171,17 +171,17 @@ static void getMAFSReferenceOrdered_walkDown(End *end, FILE *fileHandle, void (*
         }
         //Now walk up
         //getMAFSReferenceOrdered_walkUp(end, fileHandle, referenceSequence);
-        getMAFSReferenceOrdered_walkUp(end, fileHandle, getMafBlock);
+        getMAFSReferenceOrdered_walkUp(end, fileHandle, getMafBlockFn);
     } else { //Walk down
         //getMAFSReferenceOrdered_walkDown(flower_getEnd(group_getNestedFlower(
         //        group), end_getName(end)), fileHandle, referenceSequence);
         getMAFSReferenceOrdered_walkDown(flower_getEnd(group_getNestedFlower(
-                group), end_getName(end)), fileHandle, getMafBlock);
+                group), end_getName(end)), fileHandle, getMafBlockFn);
     }
 }
 
 //void getMAFsReferenceOrdered(Flower *flower, FILE *fileHandle, ReferenceSequence *referenceSequence) {
-void getMAFsReferenceOrdered(Flower *flower, FILE *fileHandle, void (*getMafBlock)(Block *, FILE *)) {
+void getMAFsReferenceOrdered(Flower *flower, FILE *fileHandle, void (*getMafBlockFn)(Block *, FILE *)) {
     /*
      * Outputs MAF representations of all the block in the flower and its descendants, ordered
      * according to the reference ordering.
@@ -195,7 +195,7 @@ void getMAFsReferenceOrdered(Flower *flower, FILE *fileHandle, void (*getMafBloc
         End *end = pseudoChromosome_get5End(pseudoChromosome);
         assert(!end_isBlockEnd(end));
         //getMAFSReferenceOrdered_walkDown(end, fileHandle, referenceSequence);
-        getMAFSReferenceOrdered_walkDown(end, fileHandle, getMafBlock);
+        getMAFSReferenceOrdered_walkDown(end, fileHandle, getMafBlockFn);
     }
     reference_destructPseudoChromosomeIterator(it);
 }
