@@ -3,17 +3,17 @@
 		<blast_misc chunksPerJob="1" compressFiles="True" overlapSize="10000" filterByIdentity="1" identityRatio="6" minimumDistance="0.01"/>
 		<iterations>
 			<iteration min_sequence_size="1000000000" number="0" type="blast">
-				<blast blastString="lastz --format=cigar --identity=IDENTITY --ambiguous=iupac --notransition --step=20 --nogapped SEQ_FILE_1[multiple][nameparse=darkspace] SEQ_FILE_2[nameparse=darkspace] &gt; CIGARS_FILE" chunkSize="100000000" selfBlastString="lastz --identity=IDENTITY --ambiguous=iupac --notransition --step=20 --nogapped SEQ_FILE[nameparse=darkspace] --self --nomirror &gt; CIGARS_FILE" />
+				<blast blastString="lastz --format=cigar --identity=IDENTITY --ambiguous=iupac --notransition --step=20 --nogapped SEQ_FILE_1[multiple][nameparse=darkspace] SEQ_FILE_2[nameparse=darkspace] &gt; CIGARS_FILE" chunkSize="100000000" selfBlastString="lastz --identity=IDENTITY --ambiguous=iupac --notransition --step=20 --nogapped SEQ_FILE[multiple][nameparse=darkspace] SEQ_FILE[nameparse=darkspace] --notrivial --nomirror &gt; CIGARS_FILE" />
 				<core ignoreAllChainsLessThanMinimumTreeCoverage="0" alignRepeatsAtRound="0" annealingRounds="2 3 4 8 16 32 64 128 256 512 1024 2048 4098 2048 1024 512" deannealingRounds="1 2 3 4 8 16 32 64 128 256 512 1024 2048 4098" blockTrim="5" minimumTreeCoverage="0.8" trim="10 10 10 10 10 10 10 10 10 10 10 10 10 10 10" />
 			</iteration>
 
 			<iteration min_sequence_size="100000000" number="1" type="blast">
-				<blast blastString="lastz --format=cigar --identity=IDENTITY --ambiguous=iupac SEQ_FILE_1[multiple][nameparse=darkspace] SEQ_FILE_2[nameparse=darkspace] &gt; CIGARS_FILE" chunkSize="3000000" selfBlastString="lastz --format=cigar --identity=IDENTITY --ambiguous=iupac SEQ_FILE[nameparse=darkspace] --self --nomirror &gt; CIGARS_FILE" />
+				<blast blastString="lastz --format=cigar --identity=IDENTITY --ambiguous=iupac SEQ_FILE_1[multiple][nameparse=darkspace] SEQ_FILE_2[nameparse=darkspace] &gt; CIGARS_FILE" chunkSize="3000000" selfBlastString="lastz --format=cigar --identity=IDENTITY --ambiguous=iupac SEQ_FILE[multiple][nameparse=darkspace] SEQ_FILE[nameparse=darkspace] --notrivial --nomirror &gt; CIGARS_FILE" />
 				<core ignoreAllChainsLessThanMinimumTreeCoverage="0" alignRepeatsAtRound="0" annealingRounds="2 3 4 8 16 32 64 128 256 512 256" deannealingRounds="1 2 3 4 8 16 32 64 128 256 512" blockTrim="2" minimumTreeCoverage="0.8" trim="0 0 0 0 0 0 0 0 0 0 0 0 0 0" />
 			</iteration>
 
 			<iteration min_sequence_size="1000" number="2" type="blast">
-				<blast blastString="lastz --format=cigar --hspthresh=1800 --identity=IDENTITY --ambiguous=iupac SEQ_FILE_1[multiple][nameparse=darkspace] SEQ_FILE_2[nameparse=darkspace] &gt; CIGARS_FILE" chunkSize="1000000" selfBlastString="lastz --format=cigar --hspthresh=1800 --identity=IDENTITY --ambiguous=iupac SEQ_FILE[nameparse=darkspace] --self --nomirror &gt; CIGARS_FILE" />
+				<blast blastString="lastz --format=cigar --hspthresh=1800 --identity=IDENTITY --ambiguous=iupac SEQ_FILE_1[multiple][nameparse=darkspace] SEQ_FILE_2[nameparse=darkspace] &gt; CIGARS_FILE" chunkSize="1000000" selfBlastString="lastz --format=cigar --hspthresh=1800 --identity=IDENTITY --ambiguous=iupac SEQ_FILE[multiple][nameparse=darkspace] SEQ_FILE[nameparse=darkspace] --notrivial --nomirror &gt; CIGARS_FILE" />
 				<core ignoreAllChainsLessThanMinimumTreeCoverage="1" alignRepeatsAtRound="0" annealingRounds="2 3 4 8 16 32 64" deannealingRounds="1 2 3 4 8 16 32 64" blockTrim="2" minimumTreeCoverage="0.8" trim="0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0" />
 			</iteration>
 			

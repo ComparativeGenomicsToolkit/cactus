@@ -17,119 +17,127 @@
  */
 
 int32_t chunkRemaining;
-FILE *fileHandleForChunks;
-FILE *fileHandleForBridges;
+FILE *fileHandle = NULL;
+FILE *fileHandle2 = NULL;
+char *tempSeqFile = NULL;
 int32_t chunkSize;
 int32_t overlapSize;
 int32_t useCompression;
 
-int32_t fn(char *fastaHeader, int32_t start, char *sequence, int32_t seqLength, int32_t length, FILE *fileHandle) {
-	FILE *fileHandle2;
-	char *tempSeqFile;
-	char c;
-	int32_t i;
-	//Make a chunk file.
-	tempSeqFile = getTempFile();
-	fileHandle2 = fopen(tempSeqFile, "w");
-	i = 0;
-	fastaHeader = stString_copy(fastaHeader);
-	while(fastaHeader[i] != '\0') {
-		if(fastaHeader[i] == ' ' || fastaHeader[i] == '\t') {
-			fastaHeader[i] = '\0';
-			break;
-		}
-		i++;
-	}
-	fprintf(fileHandle2, ">%s|1|%i\n", fastaHeader, start);
-	free(fastaHeader);
-	assert(length <= chunkSize);
-	assert(start >= 0);
-	if(start+length > seqLength) {
-		length = seqLength - start;
-	}
-	assert(length > 0);
-	c = sequence[start+length];
-	sequence[start+length] = '\0';
-	fprintf(fileHandle2, "%s\n", &sequence[start]);
-	sequence[start+length] = c;
-	fclose(fileHandle2);
+int32_t fn(char *fastaHeader, int32_t start, char *sequence, int32_t seqLength, int32_t length) {
+    if(fileHandle == NULL) {
+        tempSeqFile = getTempFile();
+        fileHandle = fopen(tempSeqFile, "w");
+    }
 
-	//Do compression if asked for
-	if(useCompression) {
-		i = st_system("bzip2 %s", tempSeqFile);
-		if(i != 0) {
-			st_logInfo("Failed to compress file\n");
-			return i;
-		}
-		i = st_system("mv %s.bz2 %s", tempSeqFile, tempSeqFile);
-		if(i != 0) {
-			st_logInfo("Failed to move file\n");
-			return i;
-		}
-	}
+    int32_t i = 0;
+    fastaHeader = stString_copy(fastaHeader);
+    while (fastaHeader[i] != '\0') {
+        if (fastaHeader[i] == ' ' || fastaHeader[i] == '\t') {
+            fastaHeader[i] = '\0';
+            break;
+        }
+        i++;
+    }
+    fprintf(fileHandle, ">%s|1|%i\n", fastaHeader, start);
+    free(fastaHeader);
+    assert(length <= chunkSize);
+    assert(start >= 0);
+    if (start + length > seqLength) {
+        length = seqLength - start;
+    }
+    assert(length > 0);
+    char c = sequence[start + length];
+    sequence[start + length] = '\0';
+    fprintf(fileHandle, "%s\n", &sequence[start]);
+    sequence[start + length] = c;
 
-	fprintf(fileHandle, "%s %i\n", tempSeqFile, length);
-	return length;
+    return length;
+}
+
+void fn4() {
+    if(fileHandle != NULL) {
+        fclose(fileHandle);
+        fprintf(fileHandle2, "%s\n", tempSeqFile);
+
+        //Do compression if asked for
+        if (useCompression) {
+            int32_t i = st_system("bzip2 %s", tempSeqFile);
+            if (i != 0) {
+                st_logInfo("Failed to compress file\n");
+                stThrowNew("CACTUS_BATCH_CHUNK_EXCEPTION", "Failed to compress file");
+            }
+            i = st_system("mv %s.bz2 %s", tempSeqFile, tempSeqFile);
+            if (i != 0) {
+                stThrowNew("CACTUS_BATCH_CHUNK_EXCEPTION", "Failed to move file");
+            }
+        }
+
+        //free(tempSeqFile);
+        tempSeqFile = NULL;
+        fileHandle = NULL;
+    }
 }
 
 int32_t fn2(int32_t i, int32_t seqLength) {
-	//Update remaining portion of the chunk.
-	assert(seqLength >= 0);
-	i -= seqLength;
-	assert(i >= 0);
-	if(i == 0) {
-		return chunkSize;
-	}
-	return i;
+    //Update remaining portion of the chunk.
+    assert(seqLength >= 0);
+    i -= seqLength;
+    if (i <= 0) {
+        fn4();
+        return chunkSize;
+    }
+    return i;
 }
 
 void fn3(const char *fastaHeader, const char *sequence, int32_t length) {
-	int32_t j, k, l;
+    int32_t j, k, l;
 
-	if(length > 0) {
-		j = fn((char *)fastaHeader, 0, (char *)sequence, length, chunkRemaining, fileHandleForChunks);
-	    chunkRemaining = fn2(chunkRemaining, j);
-	    while(length - j > 0) {
-	    	//Make the non overlap file
-			k = fn((char *)fastaHeader, j, (char *)sequence, length, chunkRemaining, fileHandleForChunks);
-			chunkRemaining = fn2(chunkRemaining, k);
+    if (length > 0) {
+        j = fn((char *) fastaHeader, 0, (char *) sequence, length, chunkRemaining);
+        chunkRemaining = fn2(chunkRemaining, j);
+        while (length - j > 0) {
+            //Make the non overlap file
+            k = fn((char *) fastaHeader, j, (char *) sequence, length, chunkRemaining);
+            chunkRemaining = fn2(chunkRemaining, k);
 
-			//Make the overlap file
-			l = j - overlapSize/2;
-			if(l < 0) {
+            //Make the overlap file
+            l = j - overlapSize / 2;
+            if(l < 0) {
 				l = 0;
 			}
-			fn((char *)fastaHeader, l, (char *)sequence, length, overlapSize, fileHandleForBridges);
-			j += k;
-	    }
-	}
+            chunkRemaining = fn2(chunkRemaining, fn((char *) fastaHeader, l, (char *) sequence, length, overlapSize));
+            j += k;
+        }
+    }
 }
 
 int main(int argc, char *argv[]) {
-	assert(argc == 8);
-	fileHandleForChunks = fopen(argv[1], "w");
-	fileHandleForBridges = fopen(argv[2], "w");
-	assert(sscanf(argv[3], "%i", &chunkSize) == 1);
-	assert(sscanf(argv[4], "%i", &overlapSize) == 1);
-	initialiseTempFileTree(argv[5], 100, 4);
-	assert(sscanf(argv[6], "%i", &useCompression) == 1);
-	chunkRemaining = chunkSize;
+    assert(argc == 7);
+    fileHandle2 = fopen(argv[1], "w");
+    int32_t i = sscanf(argv[2], "%i", &chunkSize);
+    assert(i == 1);
+    i = sscanf(argv[3], "%i", &overlapSize);
+    assert(i == 1);
+    initialiseTempFileTree(argv[4], 100, 4);
+    i = sscanf(argv[5], "%i", &useCompression);
+    assert(i == 1);
+    chunkRemaining = chunkSize;
 
-	FILE *fileHandle = fopen(argv[7], "r");
-	int size = 100;
-    char *cA = st_calloc(size+1, sizeof(char));
-    int32_t i;
+    FILE *fileHandle3 = fopen(argv[6], "r");
+    int size = 100;
+    char *cA = st_calloc(size + 1, sizeof(char));
     do {
-        i = benLine(&cA, &size, fileHandle);
-        if(strlen(cA) > 0) {
-            FILE *fileHandle2 = fopen(cA, "r");
-            fastaReadToFunction(fileHandle2, fn3);
-            fclose(fileHandle2);
+        i = benLine(&cA, &size, fileHandle3);
+        if (strlen(cA) > 0) {
+            FILE *fileHandle4 = fopen(cA, "r");
+            fastaReadToFunction(fileHandle4, fn3);
+            fclose(fileHandle4);
         }
-    } while(i != -1);
-    fclose(fileHandle);
+    } while (i != -1);
+    fclose(fileHandle3);
     free(cA);
-	fclose(fileHandleForBridges);
-	fclose(fileHandleForChunks);
-	return 0;
+    fn4();
+    fclose(fileHandle2);
+    return 0;
 }

@@ -44,7 +44,7 @@ def makeStandardBlastOptions():
     chunksPerJob = 1
     compressFiles = True
     blastString="lastz --format=cigar SEQ_FILE_1[multiple][nameparse=darkspace] SEQ_FILE_2[nameparse=darkspace] > CIGARS_FILE"
-    selfBlastString="lastz --format=cigar SEQ_FILE[nameparse=darkspace] --self > CIGARS_FILE"
+    selfBlastString="lastz --format=cigar SEQ_FILE[multiple][nameparse=darkspace] SEQ_FILE[nameparse=darkspace] --notrivial --nomirror > CIGARS_FILE"
     return MakeBlastOptions(chunkSize=chunkSize, overlapSize=overlapSize,
                                 blastString=blastString, selfBlastString=selfBlastString,
                                 chunksPerJob=chunksPerJob, compressFiles=compressFiles)
@@ -87,16 +87,14 @@ class MakeBlasts(Target):
         
         def processSequences(sequenceFiles, tempFilesDir):
             chunkFiles = getTempFile(suffix=".txt", rootDir=self.getLocalTempDir())
-            bridgeFiles = getTempFile(suffix=".txt", rootDir=self.getLocalTempDir())
             
             tempFile = os.path.join(self.getLocalTempDir(), "tempSeqPaths.txt")
             fileHandle = open(tempFile, 'w')
             fileHandle.write("\n".join(sequenceFiles))
             fileHandle.close()
             
-            system("cactus_batch_chunkSequences %s %s %i %i %s %i %s" % \
-                   (chunkFiles, bridgeFiles, 
-                    self.options.chunkSize, self.options.overlapSize,
+            system("cactus_batch_chunkSequences %s %i %i %s %i %s" % \
+                   (chunkFiles, self.options.chunkSize, self.options.overlapSize,
                     tempFilesDir, self.options.compressFiles, tempFile))
             
             def readSequenceData(sequenceDataFile):
@@ -104,21 +102,18 @@ class MakeBlasts(Target):
                 fileHandle = open(sequenceDataFile, 'r')
                 line = fileHandle.readline()
                 while line != '':
-                    seqFile, length = line.split()
-                    length = int(length)
-                    l.append((length, seqFile))
+                    seqFile = line.split()[0]
+                    l.append(seqFile)
                     line = fileHandle.readline()
                 fileHandle.close()
                 return l
             tempSeqFiles = readSequenceData(chunkFiles)
-            tempOverlapSeqFiles = readSequenceData(bridgeFiles)
             os.remove(chunkFiles)
-            os.remove(bridgeFiles)
-            return tempSeqFiles, tempOverlapSeqFiles
+            return tempSeqFiles
         
         tempSeqFilesDir = getTempDirectory(self.getGlobalTempDir())
-        tempSeqFiles, tempOverlapSeqFiles = processSequences(self.sequences, tempSeqFilesDir)
-        logger.info("Broken up the sequence files into individual contigs files")
+        chunks = processSequences(self.sequences, tempSeqFilesDir)
+        logger.info("Broken up the sequence files into individual 'chunk' files")
     
         ##########################################
         #Make all against all blast jobs lists for non overlapping files.
@@ -165,23 +160,7 @@ class MakeBlasts(Target):
         #x = y = 948.5 MB
         #alpha = 1,897,366 MB
         
-        ##Bzip2 compresses fasta to approx 2bits per base.. so reduce above alpha number by factor of 4 to get bits.
-        def getChunks(tempSeqFiles):
-            """Gets all seq files until their combined length exceeds the chunk size, or the list is exhausted.
-            """
-            l = []
-            while len(tempSeqFiles) > 0 and sum([ i[0] for i in l ]) < self.options.chunkSize:
-                l.append(tempSeqFiles.pop())
-            assert sum([ i[0] for i in l ]) <= self.options.chunkSize + self.options.overlapSize
-            return [ i[1] for i in l ]
-        
-        #Get the list of chunks
-        l = tempSeqFiles + tempOverlapSeqFiles
-        l.reverse() #This line ensures the list of sequences is added biggest to smallest. 
-        chunks = []
-        while len(l) > 0:
-            chunks.append(getChunks(l))
-               
+        ##Bzip2 compresses fasta to approx 2bits per base.. so reduce above alpha number by factor of 4 to get bits.       
         resultsFiles = []
     
         def makeBlastJobs(chunks1, chunks2):
@@ -202,8 +181,8 @@ class MakeBlasts(Target):
             self.addChildTarget(RunSelfBlast(self.options, seqFiles, resultsFile))
         
         #Make the list of self blast jobs.
-        for chunk in chunks:
-            makeSelfBlastJobs(chunk)
+        for chunkFile in chunks:
+            makeSelfBlastJobs(chunkFile)
         
         #Make the list of blast jobs.
         while len(chunks) > 0:
@@ -237,21 +216,19 @@ def executeSelfBlast(seqFile, resultsFile, selfBlastString):
     system(command)
     logger.info("Ran the self blast command okay")
     
-def readFastaTemporaryFiles(fileNames, tempDir, compressFiles):
+def decompressFastaFile(fileName, tempDir, compressFiles):
     """Copies the file from the central dir to a temporary file, returning the temp file name.
     """
-    tempFileName = getTempFile(suffix=".fa", rootDir=tempDir)
-    fileHandle = open(tempFileName, 'w')
-    for fileName in fileNames:
-        if compressFiles:
-            fileHandle2 = BZ2File(fileName, 'r')
-        else:
-            fileHandle2 = open(fileName, 'r')
+    if compressFiles:
+        tempFileName = getTempFile(suffix=".fa", rootDir=tempDir)
+        fileHandle = open(tempFileName, 'w')
+        fileHandle2 = BZ2File(fileName, 'r')
         for fastaHeader, seq in fastaRead(fileHandle2):
             fastaWrite(fileHandle, fastaHeader, seq)
         fileHandle2.close()
-    fileHandle.close()
-    return tempFileName
+        fileHandle.close()
+        return tempFileName
+    return fileName
 
 def catFiles(filesToCat, catFile):
     """Cats a bunch of files into one file. Ensures a no more than MAX_CAT files
@@ -267,95 +244,47 @@ def catFiles(filesToCat, catFile):
 class RunBlast(Target):
     """Runs blast as a job.
     """
-    def __init__(self, options, seqFilesChunks1, seqFilesChunks2, resultsFile):
+    def __init__(self, options, seqFiles1, seqFiles2, resultsFile):
         Target.__init__(self, time=33.119)
         self.options = options
-        self.seqFilesChunks1 = seqFilesChunks1
-        self.seqFilesChunks2 = seqFilesChunks2
+        self.seqFiles1 = seqFiles1
+        self.seqFiles2 = seqFiles2
         self.resultsFile = resultsFile
     
     def run(self):
-        tempSeqFiles1 = [ readFastaTemporaryFiles(seqFiles, self.getLocalTempDir(), self.options.compressFiles) for seqFiles in self.seqFilesChunks1 ]
-        tempSeqFiles2 = [ readFastaTemporaryFiles(seqFiles, self.getLocalTempDir(), self.options.compressFiles) for seqFiles in self.seqFilesChunks2 ]
+        seqFiles1 = [ decompressFastaFile(seqFile, self.getLocalTempDir(), self.options.compressFiles) for seqFile in self.seqFiles1 ]
+        seqFiles2 = [ decompressFastaFile(seqFile, self.getLocalTempDir(), self.options.compressFiles) for seqFile in self.seqFiles2 ]
         
         logger.info("Created the temporary sequence files and copied input files to the local temporary directory")
         
         tempResultsFiles = []
-        for tempSeqFile1 in tempSeqFiles1:
-            for tempSeqFile2 in tempSeqFiles2:
+        for seqFile1 in seqFiles1:
+            for seqFile2 in seqFiles2:
                 tempResultsFile = getTempFile(suffix=".cigars", rootDir=self.getLocalTempDir())
                 tempResultsFiles.append(tempResultsFile)
                 logger.info("Got a temporary results file")
-                executeBlast(tempSeqFile1, tempSeqFile2, tempResultsFile, self.options.blastString)
+                executeBlast(seqFile1, seqFile2, tempResultsFile, self.options.blastString)
                 
         #Write stuff back to the central dirs.
         catFiles(tempResultsFiles, self.resultsFile)
         
         logger.info("Copied back the results files")
-        
-        for tempSeqFile in tempSeqFiles1 + tempSeqFiles2 + tempResultsFiles:
-            os.remove(tempSeqFile)
-                
-        logger.info("Removed the temporary sequence files")
     
 class RunSelfBlast(Target):
     """Runs blast as a job.
     """
-    def __init__(self, options, seqFiles, resultsFile):
+    def __init__(self, options, seqFile, resultsFile):
         Target.__init__(self, time=33.119)
         self.options = options
-        self.seqFiles = seqFiles
+        self.seqFile = seqFile
         self.resultsFile = resultsFile
     
-    def run(self):
-        #Get temp file to put sequences and results in locally.
-        
-        tempSeqFiles = [ readFastaTemporaryFiles([ seqFile ], self.getLocalTempDir(), self.options.compressFiles) for seqFile in self.seqFiles ]
-        
-        tempResultsFile1 = getTempFile(suffix=".cigars", rootDir=self.getLocalTempDir())
-        tempResultsFile2 = getTempFile(suffix=".cigars", rootDir=self.getLocalTempDir())
-        tempSeqFile1 = getTempFile(suffix=".fa", rootDir=self.getLocalTempDir())
-        tempSeqFile2 = getTempFile(suffix=".fa", rootDir=self.getLocalTempDir())
-        
+    def run(self):   
+        seqFile = decompressFastaFile(self.seqFile, self.getLocalTempDir(), self.options.compressFiles)
         logger.info("Created the temporary files")
         
-        def fn(seqFiles):
-            """If there are 2 or more seq files, the function divides the input into two and aligns one against the other,
-            then recurses on the two subdivisions.
-            If there is only on seq file it does a self alignment of the seq file against itself.
-            """
-            if len(seqFiles) >= 2:
-                seqFiles1 = seqFiles[:len(seqFiles)/2]
-                seqFiles2 = seqFiles[len(seqFiles)/2:]
-                #Do blast job
-                catFiles(seqFiles1, tempSeqFile1)
-                catFiles(seqFiles2, tempSeqFile2)
-                
-                executeBlast(tempSeqFile1, tempSeqFile2, tempResultsFile1, self.options.blastString)
-                system("cat %s >> %s" % (tempResultsFile1, tempResultsFile2))
-                logger.info("Copied input file to the local temporary directory")
-                #Now recurse
-                fn(seqFiles1)
-                fn(seqFiles2)
-                logger.info("Recursed on split sequences successfully")
-            else:
-                assert len(seqFiles) == 1
-                #Do self blast
-                executeSelfBlast(seqFiles[0], tempResultsFile1, self.options.selfBlastString)
-                system("cat %s >> %s" % (tempResultsFile1, tempResultsFile2))
-                logger.info("Copied input file to the local temporary directory")
-        open(tempResultsFile2, 'w').close() #Defensive, to ensue tempResultsFile2 is empty
-        fn(tempSeqFiles)
-        
-        #Write stuff back to the central dirs.
-        system("cp %s %s" % (tempResultsFile2, self.resultsFile))
-        logger.info("Copied the results back")
-            
-        #Cleanup
-        for tempFile in tempSeqFiles + [ tempSeqFile1, tempSeqFile2, tempResultsFile1, tempResultsFile2 ]:
-            os.remove(tempFile)
-        
-        logger.info("Cleaned up")
+        executeSelfBlast(seqFile, self.resultsFile, self.options.selfBlastString)
+        logger.info("Ran the self blast okay")
     
 class CollateBlasts(Target):
     """Collates all the blasts into a single alignments file.

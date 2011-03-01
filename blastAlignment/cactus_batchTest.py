@@ -220,7 +220,7 @@ def loadResults(resultsFile):
 
 def runNaiveBlast(sequenceFiles, outputFile, tempDir,
                   blastString="lastz --format=cigar SEQ_FILE_1[multiple][nameparse=darkspace] SEQ_FILE_2[nameparse=darkspace] > CIGARS_FILE", 
-                  selfBlastString="lastz --format=cigar SEQ_FILE[nameparse=darkspace] --self > CIGARS_FILE"):
+                  selfBlastString="lastz --format=cigar SEQ_FILE[multiple][nameparse=darkspace] SEQ_FILE[nameparse=darkspace] --notrivial --nomirror > CIGARS_FILE"):
     """Runs the blast command in a very naive way (not splitting things up).
     """
     open(outputFile, 'w').close() #Ensure is empty of results
@@ -243,7 +243,7 @@ def runCactusBatch(sequenceFiles, outputFile, jobTreeDir,
                    chunkSize=1000000, overlapSize=1000, chunksPerJob=1,
                    logLevel="DEBUG", retryCount=0, batchSystem="single_machine",
                    blastString="lastz --format=cigar SEQ_FILE_1[multiple][nameparse=darkspace] SEQ_FILE_2[nameparse=darkspace] > CIGARS_FILE", 
-                   selfBlastString="lastz --format=cigar SEQ_FILE[nameparse=darkspace] --self > CIGARS_FILE"):
+                   selfBlastString="lastz --format=cigar SEQ_FILE[multiple][nameparse=darkspace] SEQ_FILE[nameparse=darkspace] --notrivial --nomirror > CIGARS_FILE"):
     command = "cactus_batch.py %s  \
 --cigars %s --chunkSize %s --overlapSize %s --chunksPerJob %s --blastString '%s' --selfBlastString '%s' --jobTree %s --logLevel %s \
 --retryCount %i --batchSystem %s" % \
