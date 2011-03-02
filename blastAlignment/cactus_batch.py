@@ -44,7 +44,7 @@ def makeStandardBlastOptions():
     chunksPerJob = 1
     compressFiles = True
     blastString="lastz --format=cigar SEQ_FILE_1[multiple][nameparse=darkspace] SEQ_FILE_2[nameparse=darkspace] > CIGARS_FILE"
-    selfBlastString="lastz --format=cigar SEQ_FILE[multiple][nameparse=darkspace] SEQ_FILE[nameparse=darkspace] --notrivial --nomirror > CIGARS_FILE"
+    selfBlastString="lastz --format=cigar SEQ_FILE[multiple][nameparse=darkspace] SEQ_FILE[nameparse=darkspace] --notrivial  > CIGARS_FILE"
     return MakeBlastOptions(chunkSize=chunkSize, overlapSize=overlapSize,
                                 blastString=blastString, selfBlastString=selfBlastString,
                                 chunksPerJob=chunksPerJob, compressFiles=compressFiles)
