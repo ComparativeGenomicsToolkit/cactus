@@ -24,6 +24,7 @@ Chain *chain_construct2(Name name, Flower *flower) {
     chain->name = name;
     chain->flower = flower;
     chain->link = NULL;
+    chain->endLink = NULL;
     chain->linkNumber = 0;
     flower_addChain(flower, chain);
     return chain;
@@ -37,21 +38,12 @@ void chain_destruct(Chain *chain) {
     free(chain);
 }
 
-Link *chain_getLink(Chain *chain, int32_t linkIndex) {
-    int32_t i;
-    Link *link;
+Link *chain_getFirst(Chain *chain) {
+    return chain->link;
+}
 
-#ifdef BEN_DEBUG
-    assert(linkIndex >= 0);
-    assert(linkIndex < chain->linkNumber);
-#endif
-
-    i = 0;
-    link = chain->link;
-    while (i++ < linkIndex) {
-        link = link->nLink;
-    }
-    return link;
+Link *chain_getLast(Chain *chain) {
+    return chain->endLink;
 }
 
 int32_t chain_getLength(Chain *chain) {
@@ -60,13 +52,12 @@ int32_t chain_getLength(Chain *chain) {
 
 Block **chain_getBlockChain(Chain *chain, int32_t *blockNumber) {
     int32_t i;
-    Link *link;
     End *end;
     Block *block;
     bool circular = 0;
     struct List *blocks = constructEmptyList(0, NULL);
-    for (i = 0; i < chain_getLength(chain); i++) {
-        link = chain_getLink(chain, i);
+    Link *link = chain_getFirst(chain);
+    while(link != NULL) {
         end = link_get3End(link);
         block = end_getBlock(end);
         if (block != NULL) {
@@ -76,9 +67,10 @@ Block **chain_getBlockChain(Chain *chain, int32_t *blockNumber) {
                 circular = 1;
             }
         }
+        link = link_getNextLink(link);
     }
-    if (chain_getLength(chain) > 0 && !circular) {
-        link = chain_getLink(chain, chain_getLength(chain) - 1);
+    link = chain_getLast(chain);
+    if (link != NULL && !circular) {
         end = link_get5End(link);
         block = end_getBlock(end);
         if (block != NULL) {
@@ -111,30 +103,29 @@ double chain_getAverageInstanceBaseLength(Chain *chain) {
         k += block_getLength(blocks[j]);
     }
     free(blocks);
-    for (i = 0; i < chain_getLength(chain); i++) {
-        Flower *nestedFlower = group_getNestedFlower(link_getGroup(chain_getLink(chain,
-                i)));
+    Link *link = chain_getFirst(chain);
+    while(link != NULL) {
+        Flower *nestedFlower = group_getNestedFlower(link_getGroup(link));
         if (nestedFlower != NULL) {
             k += (flower_getTotalBaseLength(nestedFlower) / flower_getSequenceNumber(
                     nestedFlower));
         }
+        link = link_getNextLink(link);
     }
     return k;
 }
 
 bool chain_isCircular(Chain *chain) {
     assert(chain_getLength(chain) > 0);
-    End *_3End = link_get3End(chain_getLink(chain, 0));
-    End *_5End = link_get5End(chain_getLink(chain, chain_getLength(chain)-1));
+    End *_3End = link_get3End(chain_getFirst(chain));
+    End *_5End = link_get5End(chain_getLast(chain));
     return end_isBlockEnd(_3End) && end_getOtherBlockEnd(_3End) == _5End;
 }
 
 void chain_check(Chain *chain) {
-    Link *link = NULL, *pLink = NULL;
-    int32_t i;
     assert(chain_getLength(chain) > 0);
-    for (i = 0; i < chain_getLength(chain); i++) {
-        link = chain_getLink(chain, i);
+    Link *link = chain_getFirst(chain), *pLink = NULL;
+    while(link != NULL) {
         //That each link is properly contained in the chain.
         assert(chain == link_getChain(link));
         End *_5End = link_get3End(link);
@@ -171,17 +162,18 @@ void chain_check(Chain *chain) {
                 //If a block end is at the 5 prime end of a chain the other end of the
                 //block is not in a link group (otherwise the chain is not maximal).
                 Link *nextLink = group_getLink(end_getGroup(end_getOtherBlockEnd(_5End)));
-                assert(nextLink == NULL || link == chain_getLink(chain, 0));
+                assert(nextLink == NULL || link == chain_getFirst(chain));
             }
         }
         pLink = link;
+        link = link_getNextLink(link);
     }
     //If a block end is at the 3 prime end of a chain the other end of the
     //block is not in a link group (otherwise the chain is not maximal).
-    assert(link != NULL);
+    link = chain_getLast(chain);
     if (end_isBlockEnd(link_get5End(link))) {
         Link *nextLink = group_getLink(end_getGroup(end_getOtherBlockEnd(link_get5End(link))));
-        assert(nextLink == NULL || link == chain_getLink(chain, chain_getLength(chain)-1));
+        assert(nextLink == NULL || link == chain_getLast(chain));
     }
 }
 
@@ -191,8 +183,10 @@ void chain_check(Chain *chain) {
 
 void chain_addLink(Chain *chain, Link *childLink) {
     Link *pLink;
+    assert(chain->linkNumber >= 0);
     if (chain->linkNumber != 0) {
-        pLink = chain_getLink(chain, chain->linkNumber - 1);
+        pLink = chain_getLast(chain);
+        assert(pLink != NULL);
         pLink->nLink = childLink;
         childLink->pLink = pLink;
         assert(link_get5End(pLink) != link_get3End(childLink));
@@ -204,7 +198,8 @@ void chain_addLink(Chain *chain, Link *childLink) {
         chain->link = childLink;
     }
     childLink->nLink = NULL;
-    childLink->linkIndex = chain->linkNumber++;
+    chain->endLink = childLink;
+    chain->linkNumber++;
 }
 
 void chain_setFlower(Chain *chain, Flower *flower) {
@@ -214,10 +209,11 @@ void chain_setFlower(Chain *chain, Flower *flower) {
 }
 
 void chain_joinP(Chain *chain, stList *list) {
-    for(int32_t i=0; i<chain_getLength(chain); i++) {
-        Link *link = chain_getLink(chain, i);
+    Link *link = chain_getFirst(chain);
+    while(link != NULL) {
         stList_append(list, link_get3End(link));
         stList_append(list, link_get5End(link));
+        link = link_getNextLink(link);
     }
     chain_destruct(chain);
 }
@@ -226,8 +222,8 @@ void chain_join(Chain *_5Chain, Chain *_3Chain) {
 #ifdef BEN_DEBUG
     assert(chain_getLength(_5Chain) > 0);
     assert(chain_getLength(_3Chain) > 0);
-    Link *_5Link = chain_getLink(_5Chain, chain_getLength(_5Chain)-1);
-    Link *_3Link = chain_getLink(_3Chain, 0);
+    Link *_5Link = chain_getLast(_5Chain);
+    Link *_3Link = chain_getFirst(_3Chain);
     End *_5End = link_get5End(_5Link);
     End *_3End = link_get3End(_3Link);
     assert(end_isBlockEnd(_5End));
@@ -264,7 +260,7 @@ void chain_writeBinaryRepresentation(Chain *chain, void(*writeFn)(
     Link *link;
     binaryRepresentation_writeElementType(CODE_CHAIN, writeFn);
     binaryRepresentation_writeName(chain_getName(chain), writeFn);
-    link = chain_getLink(chain, 0);
+    link = chain_getFirst(chain);
     while (link != NULL) {
         link_writeBinaryRepresentation(link, writeFn);
         link = link_getNextLink(link);

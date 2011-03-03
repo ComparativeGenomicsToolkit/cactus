@@ -55,11 +55,6 @@ End *link_get5End(Link *link);
 Chain *link_getChain(Link *link);
 
 /*
- * Gets the index of the link in the chain..
- */
-int32_t link_getIndex(Link *link);
-
-/*
  * Destroys the link and splits any containing chain into two chains, before and after,
  * unless they have zero length.
  */

@@ -367,7 +367,7 @@ void group_constructChainForLink(Group *group) {
             Chain *chain;
             if (_3Link != NULL) {
                 chain = link_getChain(_3Link);
-                assert(link_getIndex(_3Link) == chain_getLength(chain)-1);
+                assert(_3Link == chain_getLast(chain));
             }
             else {
                 chain = chain_construct(group_getFlower(group));
@@ -380,7 +380,7 @@ void group_constructChainForLink(Group *group) {
                 if(_5Link != NULL) {
                     Chain *_5Chain = link_getChain(_5Link);
                     assert(_5Chain != NULL);
-                    assert(link_getIndex(_5Link) == 0);
+                    assert(_5Link == chain_getFirst(chain));
                     if(chain != _5Chain) { //We don't want to merge a circle
                         chain_join(chain, _5Chain);
                     }

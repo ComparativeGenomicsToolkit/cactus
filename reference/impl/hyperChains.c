@@ -32,15 +32,15 @@ static void constructHyperChainsP2(Group *group, Name endName, Flower *parentFlo
             End *end3;
             if(!end_getSide(end)) {
 #ifdef BEN_DEBUG
-                assert(end2 == link_get5End(chain_getLink(chain, chain_getLength(chain)-1)));
+                assert(end2 == link_get5End(chain_getLast(chain)));
 #endif
-                end3 = link_get3End(chain_getLink(chain, 0));
+                end3 = link_get3End(chain_getFirst(chain));
             }
             else {
 #ifdef BEN_DEBUG
-                assert(end2 == link_get3End(chain_getLink(chain, 0)));
+                assert(end2 == link_get3End(chain_getFirst(chain)));
 #endif
-                end3 = link_get5End(chain_getLink(chain, chain_getLength(chain)-1));
+                end3 = link_get5End(chain_getLast(chain));
             }
 #ifdef BEN_DEBUG
             assert(end3 != end);

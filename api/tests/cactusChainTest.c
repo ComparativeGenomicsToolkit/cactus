@@ -30,14 +30,28 @@ void testChain_construct(CuTest* testCase) {
     cactusChainTestTeardown();
 }
 
-void testChain_getLink(CuTest* testCase) {
+void testChain_getFirst(CuTest* testCase) {
     cactusChainTestSetup();
-    CuAssertTrue(testCase, chain_getLink(chain, 0) == link1);
-    CuAssertTrue(testCase, chain_getLink(chain, 1) == link2);
-    CuAssertTrue(testCase, chain_getLink(chain3, 0) == link5);
+    CuAssertTrue(testCase, chain_getFirst(chain) == link1);
+    CuAssertTrue(testCase, chain_getFirst(chain3) == link5);
+    Chain *chain6 = chain_construct(flower);
+    CuAssertTrue(testCase, chain_getFirst(chain6) == NULL);
     //CuAssertTrue(testCase, 0);
     cactusChainTestTeardown();
 }
+
+void testChain_getLast(CuTest* testCase) {
+    cactusChainTestSetup();
+    CuAssertTrue(testCase, chain_getLast(chain) == link2);
+    CuAssertTrue(testCase, chain_getLast(chain2) == link4);
+    CuAssertTrue(testCase, chain_getLast(chain3) == link5);
+    Chain *chain6 = chain_construct(flower);
+    CuAssertTrue(testCase, chain_getLast(chain6) == NULL);
+    //CuAssertTrue(testCase, 0);
+    cactusChainTestTeardown();
+}
+
+
 
 void testChain_getLength(CuTest* testCase) {
     cactusChainTestSetup();
@@ -98,10 +112,9 @@ void testChain_serialisation(CuTest* testCase) {
     void *vA2 = vA;
     chain = chain_loadFromBinaryRepresentation(&vA2, flower);
     CuAssertTrue(testCase, chain_getLength(chain) == 2);
-    link1 = chain_getLink(chain, 0);
-    link2 = chain_getLink(chain, 1);
+    link1 = chain_getFirst(chain);
+    link2 = link_getNextLink(link1);
     nestedTest = 1;
-    testChain_getLink(testCase);
     testChain_getLength(testCase);
     testChain_getName(testCase);
     testChain_getFlower(testCase);
@@ -111,7 +124,8 @@ void testChain_serialisation(CuTest* testCase) {
 
 CuSuite* cactusChainTestSuite(void) {
     CuSuite* suite = CuSuiteNew();
-    SUITE_ADD_TEST(suite, testChain_getLink);
+    SUITE_ADD_TEST(suite, testChain_getFirst);
+    SUITE_ADD_TEST(suite, testChain_getLast);
     SUITE_ADD_TEST(suite, testChain_getLength);
     SUITE_ADD_TEST(suite, testChain_getBlockChain);
     SUITE_ADD_TEST(suite, testChain_getName);

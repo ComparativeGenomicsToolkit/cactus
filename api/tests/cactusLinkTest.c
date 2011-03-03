@@ -70,13 +70,6 @@ void testLink_getChain(CuTest* testCase) {
     cactusLinkTestTeardown();
 }
 
-void testLink_getIndex(CuTest* testCase) {
-    cactusLinkTestSetup();
-    CuAssertIntEquals(testCase, 0, link_getIndex(link1));
-    CuAssertIntEquals(testCase, 1, link_getIndex(link2));
-    cactusLinkTestTeardown();
-}
-
 void testLink_split(CuTest *testCase) {
     cactusLinkTestSetup();
     CuAssertTrue(testCase, flower_getChainNumber(flower) == 3);
@@ -91,11 +84,11 @@ void testLink_split(CuTest *testCase) {
     flower_destructChainIterator(chainIt);
     assert(chain != NULL);
     CuAssertTrue(testCase, chain_getLength(chain) == 1);
-    Link *link3 = chain_getLink(chain, 0);
+    Link *link3 = chain_getFirst(chain);
     CuAssertTrue(testCase, link_get3End(link3) == block_get3End(block));
     CuAssertTrue(testCase, link_get5End(link3) == end2);
     CuAssertTrue(testCase, group_getLink(group2) == link3);
-    link_split(chain_getLink(chain, 0));
+    link_split(chain_getFirst(chain));
     CuAssertTrue(testCase, flower_getChainNumber(flower) == 2);
     CuAssertTrue(testCase, group_getLink(group1) == NULL);
     CuAssertTrue(testCase, group_getLink(group2) == NULL);
@@ -122,7 +115,6 @@ void testLink_serialisation(CuTest* testCase) {
     testLink_getLeft(testCase);
     testLink_getRight(testCase);
     testLink_getChain(testCase);
-    testLink_getIndex(testCase);
     //testLink_split(testCase); //can't do that test, because it disrupts stuff..
     nestedTest = 0;
     cactusLinkTestTeardown();
@@ -182,7 +174,6 @@ CuSuite* cactusLinkTestSuite(void) {
     SUITE_ADD_TEST(suite, testLink_getLeft);
     SUITE_ADD_TEST(suite, testLink_getRight);
     SUITE_ADD_TEST(suite, testLink_getChain);
-    SUITE_ADD_TEST(suite, testLink_getIndex);
     SUITE_ADD_TEST(suite, testLink_serialisation);
     SUITE_ADD_TEST(suite, testLink_split);
     SUITE_ADD_TEST(suite, testLink_isTrivial);

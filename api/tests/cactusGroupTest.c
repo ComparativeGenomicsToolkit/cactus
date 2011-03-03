@@ -108,7 +108,7 @@ void testGroup_getLink(CuTest *testCase) {
     cactusGroupTestSetup();
     CuAssertTrue(testCase, group_getLink(group2) == NULL);
     Chain *chain = setupChain();
-    CuAssertTrue(testCase, group_getLink(group2) == chain_getLink(chain, 0));
+    CuAssertTrue(testCase, group_getLink(group2) == chain_getFirst(chain));
     chain_destruct(chain);
     CuAssertTrue(testCase, group_getLink(group2) == NULL);
     cactusGroupTestTeardown();
@@ -157,7 +157,7 @@ void testGroup_getChain(CuTest* testCase) {
     CuAssertTrue(testCase, group_getLink(group) == NULL);
     Chain *chain = chain_construct(flower);
     link_construct(end1, end2, group, chain);
-    CuAssertTrue(testCase, group_getLink(group) == chain_getLink(chain, 0));
+    CuAssertTrue(testCase, group_getLink(group) == chain_getFirst(chain));
     cactusGroupTestTeardown();
 }
 

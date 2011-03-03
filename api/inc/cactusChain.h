@@ -28,9 +28,14 @@ Chain *chain_construct(Flower *flower);
 void chain_destruct(Chain *chain);
 
 /*
- * Gets a link in the chain.
+ * Gets the first link in the chain.
  */
-Link *chain_getLink(Chain *chain, int32_t linkIndex);
+Link *chain_getFirst(Chain *chain);
+
+/*
+ * Gets the last link in the chain.
+ */
+Link *chain_getLast(Chain *chain);
 
 /*
  * Returns the number of links in the chain.

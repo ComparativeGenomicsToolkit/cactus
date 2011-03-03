@@ -13,6 +13,7 @@ struct _chain {
 	Name name;
 	Flower *flower;
 	Link *link;
+	Link *endLink;
 	int32_t linkNumber;
 	int32_t chainIndex;
 };

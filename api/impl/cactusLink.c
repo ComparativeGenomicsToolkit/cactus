@@ -64,28 +64,32 @@ Chain *link_getChain(Link *link) {
     return link->chain;
 }
 
-int32_t link_getIndex(Link *link) {
-    return link->linkIndex;
-}
-
 /*
  * Private functions.
  */
 
 void link_destruct(Link *link) {
-    Link *link2;
-    link_getChain(link)->linkNumber = link->linkIndex;
+	group_setLink(link_getGroup(link), NULL);
+    int32_t i = 1;
+    Link *link2 = link->nLink;
+    while (link2 != NULL) {
+        group_setLink(link_getGroup(link2), NULL);
+        Link *link3 = link2;
+        link2 = link2->nLink;
+        free(link3);
+        i++;
+    }
+    Chain *chain = link_getChain(link);
+    chain->linkNumber -= i;
+    assert(chain->linkNumber >= 0);
     if (link->pLink == NULL) {
-        link_getChain(link)->link = NULL;
+        chain->link = NULL;
+        chain->endLink = NULL;
     } else {
         link->pLink->nLink = NULL;
+        chain->endLink = link->pLink;
     }
-    while (link != NULL) {
-        group_setLink(link_getGroup(link), NULL);
-        link2 = link;
-        link = link->nLink;
-        free(link2);
-    }
+    free(link);
 }
 
 static void link_splitP(struct List *list, Flower *flower) {
@@ -94,7 +98,8 @@ static void link_splitP(struct List *list, Flower *flower) {
         int32_t i;
         assert(list->length % 2 == 0);
         for (i = 0; i < list->length; i += 2) {
-            link_construct(list->list[i], list->list[i + 1], end_getGroup(list->list[i]), chain);
+            link_construct(list->list[i], list->list[i + 1], end_getGroup(
+                    list->list[i]), chain);
         }
     }
     destructList(list);
@@ -102,23 +107,25 @@ static void link_splitP(struct List *list, Flower *flower) {
 
 void link_split(Link *link) {
     Chain *chain = link_getChain(link);
-    struct List *list1 = constructEmptyList(0, NULL), *list2 = constructEmptyList(0, NULL);
-    int32_t i = 0;
-    while (i < chain_getLength(chain)) {
-        Link *link2 = chain_getLink(chain, i++);
+    struct List *list1 = constructEmptyList(0, NULL), *list2 =
+            constructEmptyList(0, NULL);
+    Link *link2 = chain_getFirst(chain);
+    while (link2 != NULL) {
         if (link2 == link) {
+            link2 = link_getNextLink(link2);
             break;
         }
         listAppend(list1, link_get3End(link2));
         listAppend(list1, link_get5End(link2));
+        link2 = link_getNextLink(link2);
     }
-    while (i < chain_getLength(chain)) {
-        Link *link2 = chain_getLink(chain, i++);
+    while (link2 != NULL) {
         assert(link2 != link);
         listAppend(list2, link_get3End(link2));
         listAppend(list2, link_get5End(link2));
+        link2 = link_getNextLink(link2);
     }
-    assert(list1->length + list2->length + 2 == chain_getLength(chain)*2);
+    assert(list1->length + list2->length + 2 == chain_getLength(chain) * 2);
     Flower *flower = chain_getFlower(chain);
     chain_destruct(chain);
     link_splitP(list1, flower);
@@ -157,7 +164,8 @@ bool link_isTrivial(Link *link) {
     if (group_getEndNumber(group) == 2) {
         if (end_isBlockEnd(_3End) && end_isBlockEnd(_5End)) { //Must both be block ends
             if (end_getInstanceNumber(_3End) == end_getInstanceNumber(_5End)) { //Must each be connected to other.
-                return link_isTrivialP(_3End, _5End) && link_isTrivialP(_5End, _3End);
+                return link_isTrivialP(_3End, _5End) && link_isTrivialP(_5End,
+                        _3End);
             }
         }
     }
@@ -190,6 +198,9 @@ bool link_mergeIfTrivial(Link *link) {
         if (chain->link == link) {
             chain->link = link->nLink;
         }
+        if(chain->endLink == link) {
+            chain->endLink = link->pLink;
+        }
         chain->linkNumber--;
         free(link); //We do our own destruction of the object..
         assert(chain_getLength(chain) >= 0);
@@ -201,14 +212,16 @@ bool link_mergeIfTrivial(Link *link) {
         End *outer3End = block_get3End(_3Block);
         assert(end_getOrientation(outer5End));
         assert(end_getOrientation(outer3End));
-        int32_t newBlockLength = block_getLength(_5Block) + block_getLength(_3Block);
+        int32_t newBlockLength = block_getLength(_5Block) + block_getLength(
+                _3Block);
         stHash *newSegments = stHash_construct();
         //This works out the caps for the new segments..
         End_InstanceIterator *capIt = end_getInstanceIterator(outer5End);
         Cap *_5Cap;
         while ((_5Cap = end_getNext(capIt)) != NULL) {
             assert(cap_getOrientation(_5Cap));
-            Cap *_3Cap = cap_getOtherSegmentCap(cap_getAdjacency(cap_getOtherSegmentCap(_5Cap)));
+            Cap *_3Cap = cap_getOtherSegmentCap(cap_getAdjacency(
+                    cap_getOtherSegmentCap(_5Cap)));
             assert(cap_getEnd(_3Cap) == outer3End);
             assert(cap_getOrientation(_3Cap)); //redundant
             stHash_insert(newSegments, _5Cap, _3Cap);
@@ -222,14 +235,16 @@ bool link_mergeIfTrivial(Link *link) {
         end_destruct(_5End);
 
         //Construct the merged block
-        Block *mergedBlock = block_construct2(cactusDisk_getUniqueID(cactusDisk), newBlockLength, outer5End, outer3End,
-                flower);
+        Block *mergedBlock = block_construct2(
+                cactusDisk_getUniqueID(cactusDisk), newBlockLength, outer5End,
+                outer3End, flower);
         capIt = end_getInstanceIterator(outer5End);
         while ((_5Cap = end_getNext(capIt)) != NULL) {
             Cap *_3Cap = stHash_remove(newSegments, _5Cap);
             assert(_3Cap != NULL);
             assert(cap_getEnd(_3Cap) == outer3End);
-            segment_construct3(cactusDisk_getUniqueID(cactusDisk), mergedBlock, _5Cap, _3Cap);
+            segment_construct3(cactusDisk_getUniqueID(cactusDisk), mergedBlock,
+                    _5Cap, _3Cap);
         }
         end_destructInstanceIterator(capIt);
         assert(stHash_size(newSegments) == 0);
@@ -254,7 +269,8 @@ bool link_mergeIfTrivial(Link *link) {
  * Serialisation functions.
  */
 
-void link_writeBinaryRepresentation(Link *link, void(*writeFn)(const void * ptr, size_t size, size_t count)) {
+void link_writeBinaryRepresentation(Link *link, void(*writeFn)(
+        const void * ptr, size_t size, size_t count)) {
     binaryRepresentation_writeElementType(CODE_LINK, writeFn);
     binaryRepresentation_writeName(group_getName(link_getGroup(link)), writeFn);
     binaryRepresentation_writeName(end_getName(link_get3End(link)), writeFn);
@@ -270,9 +286,12 @@ Link *link_loadFromBinaryRepresentation(void **binaryString, Chain *chain) {
     link = NULL;
     if (binaryRepresentation_peekNextElementType(*binaryString) == CODE_LINK) {
         binaryRepresentation_popNextElementType(binaryString);
-        group = flower_getGroup(chain_getFlower(chain), binaryRepresentation_getName(binaryString));
-        leftEnd = flower_getEnd(chain_getFlower(chain), binaryRepresentation_getName(binaryString));
-        rightEnd = flower_getEnd(chain_getFlower(chain), binaryRepresentation_getName(binaryString));
+        group = flower_getGroup(chain_getFlower(chain),
+                binaryRepresentation_getName(binaryString));
+        leftEnd = flower_getEnd(chain_getFlower(chain),
+                binaryRepresentation_getName(binaryString));
+        rightEnd = flower_getEnd(chain_getFlower(chain),
+                binaryRepresentation_getName(binaryString));
         link = link_construct(leftEnd, rightEnd, group, chain);
     }
     return link;

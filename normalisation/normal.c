@@ -12,9 +12,11 @@ void removeTrivialLinks(Flower *flower) {
     Flower_ChainIterator *chainIt = flower_getChainIterator(flower);
     stList *chainsToDelete = stList_construct3(0, (void(*)(void *)) chain_destruct);
     while ((chain = flower_getNextChain(chainIt)) != NULL) {
-        for (int32_t i = chain_getLength(chain) - 1; i >= 0; i--) {
-            Link *link = chain_getLink(chain, i);
-            link_mergeIfTrivial(link);
+        Link *link = chain_getLast(chain);
+        while(link != NULL) {
+        	Link *link2 = link;
+        	link = link_getPreviousLink(link);
+            link_mergeIfTrivial(link2);
         }
         if (chain_getLength(chain) == 0) {
             stList_append(chainsToDelete, chain);
@@ -37,8 +39,8 @@ static void promoteChainsThatExtendHigherLevelChainsP(Flower *flower, Group *par
     flower_destructChainIterator(chainIt);
     while (stList_length(chains) > 0) {
         chain = stList_pop(chains);
-        End *_3End = link_get3End(chain_getLink(chain, 0));
-        End *_5End = link_get5End(chain_getLink(chain, chain_getLength(chain) - 1));
+        End *_3End = link_get3End(chain_getFirst(chain));
+        End *_5End = link_get5End(chain_getLast(chain));
         if (end_isStubEnd(_3End) || end_isStubEnd(_5End)) { //Is part of higher chain..
             chain_promote(chain);
         }

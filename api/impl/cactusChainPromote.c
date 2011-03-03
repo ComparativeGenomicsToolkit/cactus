@@ -100,8 +100,8 @@ static void promoteEndsBlocksAndGroups(Chain *chain, Flower *flower,
 	 */
     assert(chain_getFlower(chain) == flower);
     bool circular = 0;
-	for (int32_t i = 0; i < chain_getLength(chain); i++) {
-		Link *link = chain_getLink(chain, i);
+    Link *link = chain_getFirst(chain);
+	while(link != NULL) {
 		End *_3End = link_get3End(link);
 		End *_5End = link_get5End(link);
 		if (end_isBlockEnd(_3End)) {
@@ -111,15 +111,15 @@ static void promoteEndsBlocksAndGroups(Chain *chain, Flower *flower,
 			promoteBlock(end_getBlock(_3End), flower, parentFlower);
 			promoteBlockEnd(_3End, flower, parentFlower);
 		} else {
-			assert(i == 0);
+			assert(link == chain_getFirst(chain));
 		}
 		if (end_isBlockEnd(_5End)) {
-			if (i + 1 == chain_getLength(chain) && !circular) {
+			if (link == chain_getLast(chain) && !circular) {
 				promoteBlock(end_getBlock(_5End), flower, parentFlower);
 			}
 			promoteBlockEnd(_5End, flower, parentFlower);
 		} else {
-			assert(i == chain_getLength(chain)-1);
+		    assert(link == chain_getLast(chain));
 		}
 		Group *group = link_getGroup(link);
 		//Get the list of free stub ends to promote (we make a list as
@@ -147,15 +147,16 @@ static void promoteEndsBlocksAndGroups(Chain *chain, Flower *flower,
 					parentFlower);
 		}
 		stList_destruct(freeStubEndsToPromote);
+		link = link_getNextLink(link);
 	}
 	//Now do the stub ends of the chain..
-	End *_3End = link_get3End(chain_getLink(chain, 0));
+	End *_3End = link_get3End(chain_getFirst(chain));
 	if (end_isStubEnd(_3End)) {
 		assert(end_isAttached(_3End));
 		assert(end_getFlower(_3End) == flower);
 		mergeStubEnd(_3End, flower, parentFlower);
 	}
-	End *_5End = link_get5End(chain_getLink(chain, chain_getLength(chain) - 1));
+	End *_5End = link_get5End(chain_getLast(chain));
 	if (end_isStubEnd(_5End)) {
 		assert(end_isAttached(_5End));
 		assert(end_getFlower(_5End) == flower);
@@ -255,37 +256,38 @@ static void promoteChainEnds(stList *ends, Flower *flower, Flower *parentFlower)
 //Functions which calculate the chain structure after the promotion of a chain.
 ////////
 
-static void addToChainList(Chain *chain, int32_t start, int32_t end,
+static void addToChainList(Chain *chain, Link *linkFirst, Link *linkEnd,
 		stList *chainList) {
 	/*
 	 * Adds the links in the chain between the specified start (inc) and end (exc) indices to the list
 	 * chainList.
 	 */
-	for (int32_t i = start; i < end; i++) {
-		Link *link = chain_getLink(chain, i);
+    Link *link = linkFirst;
+	while(link != linkEnd) {
 		stList_append(chainList, cactusMisc_nameToString(end_getName(
 				link_get3End(link))));
 		stList_append(chainList, cactusMisc_nameToString(end_getName(
 				link_get5End(link))));
+		link = link_getNextLink(link);
 	}
 }
 
 static void getMaximalChain_between(Link *parentLink, Chain *chain,
 		stList *chainList) {
 	Chain *parentChain = link_getChain(parentLink);
-	addToChainList(parentChain, 0, link_getIndex(parentLink), chainList);
+	addToChainList(parentChain, chain_getFirst(parentChain), parentLink, chainList);
 	//Get the ends..
 	End *parent3End = link_get3End(parentLink);
 	End *parent5End = link_get5End(parentLink);
-	End *_3End = link_get3End(chain_getLink(chain, 0));
-	End *_5End = link_get5End(chain_getLink(chain, chain_getLength(chain) - 1));
+	End *_3End = link_get3End(chain_getFirst(chain));
+	End *_5End = link_get5End(chain_getLast(chain));
 	Name parent3EndName = end_getName(parent3End);
 	Name parent5EndName = end_getName(parent5End);
 	Name _3EndName = end_getName(_3End);
 	Name _5EndName = end_getName(_5End);
 	assert(parent3EndName != _5EndName);
 	if (parent3EndName == _3EndName) {
-		addToChainList(chain, 0, chain_getLength(chain), chainList);
+		addToChainList(chain, chain_getFirst(chain), NULL, chainList);
 		if (parent5EndName != _5EndName) { //We need to introduce a link between the other block end and this link..
 			assert(end_isBlockEnd(_5End));
 			stList_append(chainList, cactusMisc_nameToString(end_getName(
@@ -300,10 +302,9 @@ static void getMaximalChain_between(Link *parentLink, Chain *chain,
 		assert(end_isBlockEnd(_3End));
 		stList_append(chainList, cactusMisc_nameToString(end_getName(
 				end_getOtherBlockEnd(_3End))));
-		addToChainList(chain, 0, chain_getLength(chain), chainList);
+		addToChainList(chain, chain_getFirst(chain), NULL, chainList);
 	}
-	addToChainList(parentChain, link_getIndex(parentLink) + 1, chain_getLength(
-			parentChain), chainList);
+	addToChainList(parentChain, link_getNextLink(parentLink), NULL, chainList);
 }
 
 void getMaximalChain_extension(End *parentEnd, End *end, stList *chainList,
@@ -318,9 +319,9 @@ void getMaximalChain_extension(End *parentEnd, End *end, stList *chainList,
 #ifdef BEN_DEBUG
 				assert(link_get3End(parentOtherLink) == parentOtherBlockEnd || link_get5End(parentOtherLink) == parentOtherBlockEnd);
 				if (link_get3End(parentOtherLink) == parentOtherBlockEnd) {
-					assert(link_getIndex(parentOtherLink) == 0);
+					assert(chain_getFirst(parentChain) == parentOtherLink);
 				} else {
-					assert(link_getIndex(parentOtherLink) == chain_getLength(parentChain)-1);
+					assert(chain_getLast(parentChain) == parentOtherLink);
 				}
 				if (orientation) {
 					assert(link_get5End(parentOtherLink) == parentOtherBlockEnd);
@@ -328,8 +329,7 @@ void getMaximalChain_extension(End *parentEnd, End *end, stList *chainList,
 					assert(link_get3End(parentOtherLink) == parentOtherBlockEnd);
 				}
 #endif
-				addToChainList(parentChain, 0, chain_getLength(parentChain),
-						chainList);
+				addToChainList(parentChain, chain_getFirst(parentChain), NULL, chainList);
 			}
 		} else {
 			assert(end_isStubEnd(parentEnd) && end_isAttached(parentEnd));
@@ -349,8 +349,8 @@ static stList *getMaximalChain(Chain *chain, Flower *flower,
 	stList *chainList = stList_construct3(0, free);
 
 	//Get the ends of the chain..
-	Link *_5Link = chain_getLink(chain, 0);
-	Link *_3Link = chain_getLink(chain, chain_getLength(chain) - 1);
+	Link *_5Link = chain_getFirst(chain);
+	Link *_3Link = chain_getLast(chain);
 	End *_3End = link_get3End(_5Link);
 	End *_5End = link_get5End(_3Link);
 	End *parent3End = flower_getEnd(parentFlower, end_getName(_3End));
@@ -364,7 +364,7 @@ static stList *getMaximalChain(Chain *chain, Flower *flower,
 		getMaximalChain_between(parentLink, chain, chainList);
 	} else { //The chain lies within a flower, and may extend one chain or join two seperate chains..
 		getMaximalChain_extension(parent3End, _3End, chainList, 1);
-		addToChainList(chain, 0, chain_getLength(chain), chainList);
+		addToChainList(chain, chain_getFirst(chain), NULL, chainList);
 		getMaximalChain_extension(parent5End, _5End, chainList, 0);
 	}
 	assert(stList_length(chainList) % 2 == 0);
@@ -423,9 +423,8 @@ void chain_promote(Chain *chain) {
 
 #ifdef BEN_DEBUG
 	if (group_getLink(parentGroup) != NULL) { //Check we will be merging it into a higher level chain..
-		End *_3End = link_get3End(chain_getLink(chain, 0));
-		End *_5End = link_get5End(chain_getLink(chain, chain_getLength(chain)
-				- 1));
+		End *_3End = link_get3End(chain_getFirst(chain));
+		End *_5End = link_get5End(chain_getLast(chain));
 		assert(end_isStubEnd(_3End) || end_isStubEnd(_5End));
 	}
 #endif
@@ -452,8 +451,8 @@ void chain_promote(Chain *chain) {
 	stSortedSet_insert(chainsToExpunge, chain);
 
 	//Handling the ends of the chain
-	End *_3End = link_get3End(chain_getLink(chain, 0));
-	End *_5End = link_get5End(chain_getLink(chain, chain_getLength(chain) - 1));
+	End *_3End = link_get3End(chain_getFirst(chain));
+	End *_5End = link_get5End(chain_getLast(chain));
 	if(chain_getLength(chain) == 1 && end_isBlockEnd(_3End) && end_getOtherBlockEnd(_3End) == _5End) { //Is a circle
 	    assert(end_isBlockEnd(_5End));
 	    assert(end_getOtherBlockEnd(_5End) == _3End);

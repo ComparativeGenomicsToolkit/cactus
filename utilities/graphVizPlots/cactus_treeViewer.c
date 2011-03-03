@@ -94,15 +94,16 @@ void makeCactusTree_chain(Chain *chain, FILE *fileHandle,
                 "", parentEdgeColour, 10, 1, "forward");
     }
     //Create the linkers to the nested flowers.
-    int32_t i;
-    for (i = 0; i < chain_getLength(chain); i++) {
-        Group *group = link_getGroup(chain_getLink(chain, i));
+    Link *link = chain_getFirst(chain);
+    while(link != NULL) {
+        Group *group = link_getGroup(link);
         assert(group != NULL);
         assert(!group_isLeaf(group));
         if (!group_isLeaf(group)) {
             makeCactusTree_flower(group_getNestedFlower(group), fileHandle,
                     chainNameString, edgeColour);
         }
+        link = link_getNextLink(link);
     }
     free(chainNameString);
 }

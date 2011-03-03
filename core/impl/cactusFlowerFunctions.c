@@ -770,6 +770,7 @@ void fillOutFlowerFromInputs(Flower *parentFlower,
         if (biConnectedComponent->length > 1) {
             assert(flower != NULL);
             chain = chain_construct(flower);
+            assert(chain_getLength(chain) == 0);
             for (j = 1; j < biConnectedComponent->length; j++) {
                 cactusEdge = biConnectedComponent->list[j - 1];
                 cactusEdge2 = biConnectedComponent->list[j];
@@ -829,7 +830,9 @@ void fillOutFlowerFromInputs(Flower *parentFlower,
                 }
                 //Make link chain
                 link_construct(end, end2, group, chain);
+                assert(chain_getLength(chain) > 0);
             }
+            assert(chain_getLength(chain) > 0);
         }
     }
     flower = flowers[0];

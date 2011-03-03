@@ -18,8 +18,6 @@ struct _link {
     Link *pLink;
     //next link in the chain.
     Link *nLink;
-    //index of the link in the chain.
-    int32_t linkIndex;
 };
 
 ////////////////////////////////////////////////

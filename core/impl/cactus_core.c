@@ -438,9 +438,6 @@ int32_t cactusCorePipeline(Flower *flower, CactusCoreInputParameters *cCIP,
         struct FilterAlignmentParameters *filterParameters =
                 (struct FilterAlignmentParameters *) st_malloc(
                         sizeof(struct FilterAlignmentParameters));
-#ifdef BEN_DEBUG
-        assert(constraintDiagonalTrim >= 0);
-#endif
         filterParameters->trim = trim;
         filterParameters->alignRepeats = annealingRound
                 >= cCIP->alignRepeatsAtRound; //cCIP->alignRepeats;
