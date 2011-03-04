@@ -18,15 +18,21 @@
 ////////////////////////////////////////////////
 
 /*
+ * Create a cactus disk, with the option to store the sequences in a file.
+ */
+CactusDisk *cactusDisk_create(stKVDatabaseConf *conf,
+        bool preCacheSequences, const char *sequencesFileName);
+
+/*
  * Constructs a cactus disk to load flowers.
  */
-CactusDisk *cactusDisk_construct(stKVDatabaseConf *conf, bool create);
+CactusDisk *cactusDisk_construct(stKVDatabaseConf *conf);
 
 /*
  * As with the cactusDisk_construct, but with the option to pre-cache all the sequence contained
  * within a flower when retrieved, to minimise the amount of I/O.
  */
-CactusDisk *cactusDisk_construct2(stKVDatabaseConf *conf, bool create, bool preCacheSequences);
+CactusDisk *cactusDisk_construct2(stKVDatabaseConf *conf, bool preCacheSequences);
 
 /*
  * Destructs the cactus disk, and all open flowers and sequences.

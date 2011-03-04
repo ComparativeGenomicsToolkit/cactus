@@ -40,11 +40,6 @@ MetaSequence *metaSequence_construct2(Name name, int32_t start, int32_t length, 
 void metaSequence_destruct(MetaSequence *metaSequence);
 
 /*
- * Gets the file offset location of the string backing the metasequence.
- */
-int64_t metaSequence_getFileOffset(MetaSequence *metaSequence);
-
-/*
  * Creates a binary representation of the eventTree, returned as a char string.
  */
 void metaSequence_writeBinaryRepresentation(MetaSequence *metaSequence, void (*writeFn)(const void * ptr, size_t size, size_t count));

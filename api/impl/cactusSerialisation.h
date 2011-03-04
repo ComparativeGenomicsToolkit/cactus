@@ -44,6 +44,7 @@
 #define CODE_REFERENCE 21
 #define CODE_PSEUDO_CHROMOSOME 22
 #define CODE_PSEUDO_ADJACENCY 23
+#define CODE_CACTUS_DISK 24
 
 /*
  * Writes a code for the element type.

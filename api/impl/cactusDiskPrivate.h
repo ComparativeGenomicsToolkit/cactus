@@ -17,6 +17,9 @@ struct _cactusDisk {
     Name uniqueNumber;
     Name maxUniqueNumber;
     bool preCacheSequences;
+    bool storeSequencesInAFile;
+    char *sequencesFileName;
+    FILE *sequencesFileHandle;
 };
 
 ////////////////////////////////////////////////
@@ -62,6 +65,10 @@ void cactusDisk_addMetaSequence(CactusDisk *cactusDisk,
  */
 void cactusDisk_removeMetaSequence(CactusDisk *cactusDisk,
         MetaSequence *metaSequence);
+
+bool cactusDisk_storedInFile(CactusDisk *cactusDisk);
+
+
 
 /*
  * Functions on strings stored by the cactus disk.
