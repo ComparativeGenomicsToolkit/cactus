@@ -186,7 +186,13 @@ int main(int argc, char *argv[]) {
     //////////////////////////////////////////////
 
     stKVDatabaseConf *kvDatabaseConf = kvDatabaseConf = stKVDatabaseConf_constructFromString(cactusDiskDatabaseString);
-    cactusDisk = cactusDisk_construct(kvDatabaseConf, 1);
+    if(stKVDatabaseConf_getType(kvDatabaseConf) == stKVDatabaseTypeTokyoCabinet) {
+        assert(stKVDatabaseConf_getDir(kvDatabaseConf) != NULL);
+        cactusDisk = cactusDisk_construct3(kvDatabaseConf, 0, "cactusSequences");
+    }
+    else {
+        cactusDisk = cactusDisk_construct(kvDatabaseConf, 1);
+    }
     st_logInfo("Set up the flower disk\n");
 
     //////////////////////////////////////////////

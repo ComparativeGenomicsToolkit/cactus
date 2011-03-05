@@ -21,8 +21,8 @@ static void cactusDiskTestTeardown() {
 static void cactusDiskTestSetup() {
     cactusDiskTestTeardown();
     st_setLogLevel(ST_LOGGING_DEBUG);
-    conf = stKVDatabaseConf_constructTokyoCabinet("temporaryCactusDisk");
-    cactusDisk = cactusDisk_construct(conf, 1);
+    conf = testCommon_getTemporaryKVDatabaseConf();
+    cactusDisk = testCommon_getTemporaryCactusDisk();
 }
 
 void testCactusDisk_constructAndDestruct(CuTest* testCase) {
@@ -117,11 +117,11 @@ void testCactusDisk_getUniqueID_Unique(CuTest* testCase) {
 
 CuSuite* cactusDiskTestSuite(void) {
     CuSuite* suite = CuSuiteNew();
-    SUITE_ADD_TEST(suite, testCactusDisk_constructAndDestruct);
     SUITE_ADD_TEST(suite, testCactusDisk_write);
     SUITE_ADD_TEST(suite, testCactusDisk_getFlower);
     SUITE_ADD_TEST(suite, testCactusDisk_getMetaSequence);
     SUITE_ADD_TEST(suite, testCactusDisk_getUniqueID);
     SUITE_ADD_TEST(suite, testCactusDisk_getUniqueID_Unique);
+    SUITE_ADD_TEST(suite, testCactusDisk_constructAndDestruct);
     return suite;
 }

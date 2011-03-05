@@ -57,15 +57,17 @@ void testMetaSequence_getEventName(CuTest* testCase) {
 }
 
 void testMetaSequence_getString(CuTest* testCase) {
-	cactusMetaSequenceTestSetup();
-	//String is ACTGGCACTG
-	CuAssertStrEquals(testCase, sequenceString, metaSequence_getString(metaSequence, 1, 10, 1)); //complete sequence
-	CuAssertStrEquals(testCase, "TGGC", metaSequence_getString(metaSequence, 3, 4, 1)); //sub range
-	CuAssertStrEquals(testCase, "", metaSequence_getString(metaSequence, 3, 0, 1)); //zero length sub range
-	CuAssertStrEquals(testCase, "CAGTGCCAGT", metaSequence_getString(metaSequence, 1, 10, 0)); //reverse complement
-	CuAssertStrEquals(testCase, "GCCA", metaSequence_getString(metaSequence, 3, 4, 0)); //sub range, reverse complement
-	CuAssertStrEquals(testCase, "", metaSequence_getString(metaSequence, 3, 0, 0)); //zero length sub range on reverse strand
-	cactusMetaSequenceTestTeardown();
+    for(int32_t i=0; i<10; i++) {
+        cactusMetaSequenceTestSetup();
+        //String is ACTGGCACTG
+        CuAssertStrEquals(testCase, sequenceString, metaSequence_getString(metaSequence, 1, 10, 1)); //complete sequence
+        CuAssertStrEquals(testCase, "TGGC", metaSequence_getString(metaSequence, 3, 4, 1)); //sub range
+        CuAssertStrEquals(testCase, "", metaSequence_getString(metaSequence, 3, 0, 1)); //zero length sub range
+        CuAssertStrEquals(testCase, "CAGTGCCAGT", metaSequence_getString(metaSequence, 1, 10, 0)); //reverse complement
+        CuAssertStrEquals(testCase, "GCCA", metaSequence_getString(metaSequence, 3, 4, 0)); //sub range, reverse complement
+        CuAssertStrEquals(testCase, "", metaSequence_getString(metaSequence, 3, 0, 0)); //zero length sub range on reverse strand
+        cactusMetaSequenceTestTeardown();
+    }
 }
 
 void testMetaSequence_getHeader(CuTest* testCase) {

@@ -19,6 +19,7 @@ struct _cactusDisk {
     bool preCacheSequences;
     bool storeSequencesInAFile;
     char *sequencesFileName;
+    char *absSequencesFileName;
     FILE *sequencesFileHandle;
 };
 

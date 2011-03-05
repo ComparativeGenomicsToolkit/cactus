@@ -9,6 +9,9 @@
 
 #include "cactusGlobals.h"
 
+// General database exception id
+extern const char *CACTUS_DISK_EXCEPTION_ID;
+
 ////////////////////////////////////////////////
 ////////////////////////////////////////////////
 ////////////////////////////////////////////////
@@ -18,21 +21,23 @@
 ////////////////////////////////////////////////
 
 /*
- * Create a cactus disk, with the option to store the sequences in a file.
+ * Constructs a cactus disk to load flowers. If 'create' is non-zero the cactus disk is
+ * to be created. An exception will be thrown if the 'create' is non-zero and the cactus
+ * disk already exists.
  */
-CactusDisk *cactusDisk_create(stKVDatabaseConf *conf,
-        bool preCacheSequences, const char *sequencesFileName);
-
-/*
- * Constructs a cactus disk to load flowers.
- */
-CactusDisk *cactusDisk_construct(stKVDatabaseConf *conf);
+CactusDisk *cactusDisk_construct(stKVDatabaseConf *conf, bool create);
 
 /*
  * As with the cactusDisk_construct, but with the option to pre-cache all the sequence contained
  * within a flower when retrieved, to minimise the amount of I/O.
  */
-CactusDisk *cactusDisk_construct2(stKVDatabaseConf *conf, bool preCacheSequences);
+CactusDisk *cactusDisk_construct2(stKVDatabaseConf *conf, bool create, bool preCacheSequences);
+
+/*
+ * Create a cactus disk, with the option to store the sequences in a file.
+ */
+CactusDisk *cactusDisk_construct3(stKVDatabaseConf *conf,
+        bool preCacheSequences, const char *sequencesFileName);
 
 /*
  * Destructs the cactus disk, and all open flowers and sequences.
