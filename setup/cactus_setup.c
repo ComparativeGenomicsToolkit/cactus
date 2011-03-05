@@ -23,7 +23,8 @@
 void usage() {
     fprintf(stderr, "cactus_setup [fastaFile]xN, version 0.2\n");
     fprintf(stderr, "-a --logLevel : Set the log level\n");
-    fprintf(stderr, "-b --cactusDisk : The location of the flower disk directory\n");
+    fprintf(stderr,
+            "-b --cactusDisk : The location of the flower disk directory\n");
     fprintf(
             stderr,
             "-f --speciesTree : The species tree, which will form the skeleton of the event tree\n");
@@ -98,7 +99,7 @@ int main(int argc, char *argv[]) {
     int32_t key, j;
     struct List *stack;
     struct BinaryTree *binaryTree;
-    FILE *fileHandle;
+    FILE * fileHandle;
     bool debug = 0;
     int32_t totalEventNumber;
     Group *group;
@@ -117,14 +118,15 @@ int main(int argc, char *argv[]) {
 
     while (1) {
         static struct option long_options[] = { { "logLevel",
-                required_argument, 0, 'a' }, { "cactusDisk", required_argument, 0,
-                'b' }, { "speciesTree", required_argument, 0, 'f' }, { "help",
-                no_argument, 0, 'h' }, { "debug", no_argument, 0, 'd' }, { 0,
-                0, 0, 0 } };
+                required_argument, 0, 'a' }, { "cactusDisk", required_argument,
+                0, 'b' }, { "speciesTree", required_argument, 0, 'f' }, {
+                "help", no_argument, 0, 'h' },
+                { "debug", no_argument, 0, 'd' },
+                { 0, 0, 0, 0 } };
 
         int option_index = 0;
 
-        key = getopt_long(argc, argv, "a:b:f:h:d", long_options, &option_index);
+        key = getopt_long(argc, argv, "a:b:f:hd", long_options, &option_index);
 
         if (key == -1) {
             break;
@@ -185,12 +187,14 @@ int main(int argc, char *argv[]) {
     //Load the database
     //////////////////////////////////////////////
 
-    stKVDatabaseConf *kvDatabaseConf = kvDatabaseConf = stKVDatabaseConf_constructFromString(cactusDiskDatabaseString);
-    if(stKVDatabaseConf_getType(kvDatabaseConf) == stKVDatabaseTypeTokyoCabinet) {
+    stKVDatabaseConf *kvDatabaseConf = kvDatabaseConf
+            = stKVDatabaseConf_constructFromString(cactusDiskDatabaseString);
+    if (stKVDatabaseConf_getType(kvDatabaseConf)
+            == stKVDatabaseTypeTokyoCabinet) {
         assert(stKVDatabaseConf_getDir(kvDatabaseConf) != NULL);
-        cactusDisk = cactusDisk_construct3(kvDatabaseConf, 0, "cactusSequences");
-    }
-    else {
+        cactusDisk
+                = cactusDisk_construct3(kvDatabaseConf, 0, "cactusSequences");
+    } else {
         cactusDisk = cactusDisk_construct(kvDatabaseConf, 1);
     }
     st_logInfo("Set up the flower disk\n");
@@ -231,14 +235,16 @@ int main(int argc, char *argv[]) {
         assert(binaryTree != NULL);
         totalEventNumber++;
         if (binaryTree->internal) {
-            event = event_construct3(binaryTree->label, binaryTree->distance, event, eventTree);
+            event = event_construct3(binaryTree->label, binaryTree->distance,
+                    event, eventTree);
             listAppend(stack, event);
             listAppend(stack, binaryTree->right);
             listAppend(stack, event);
             listAppend(stack, binaryTree->left);
         } else {
             assert(j < argc);
-            event = event_construct3(binaryTree->label, binaryTree->distance, event, eventTree);
+            event = event_construct3(binaryTree->label, binaryTree->distance,
+                    event, eventTree);
 
             struct stat info;//info about the file.
             exitOnFailure(stat(argv[j], &info),
@@ -281,7 +287,8 @@ int main(int argc, char *argv[]) {
     st_logInfo(
             "Constructed the initial flower with %i sequences and %i events with string: %s\n",
             totalSequenceNumber, totalEventNumber, eventTreeString);
-    assert(event_getSubTreeBranchLength(eventTree_getRootEvent(eventTree)) >= 0.0);
+    assert(event_getSubTreeBranchLength(eventTree_getRootEvent(eventTree))
+            >= 0.0);
     free(eventTreeString);
     //assert(0);
 
@@ -289,7 +296,7 @@ int main(int argc, char *argv[]) {
     //Construct the terminal group.
     //////////////////////////////////////////////
 
-    if(flower_getEndNumber(flower) > 0) {
+    if (flower_getEndNumber(flower) > 0) {
         group = group_construct2(flower);
         endIterator = flower_getEndIterator(flower);
         while ((end = flower_getNextEnd(endIterator)) != NULL) {
@@ -301,8 +308,7 @@ int main(int argc, char *argv[]) {
         // Create a one link chain if there is only one pair of attached ends..
         group_constructChainForLink(group);
         assert(!flower_builtBlocks(flower));
-    }
-    else {
+    } else {
         flower_setBuiltBlocks(flower, 1);
     }
 
