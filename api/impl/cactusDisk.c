@@ -198,7 +198,8 @@ static CactusDisk *cactusDisk_constructPrivate(stKVDatabaseConf *conf,
             cactusDisk->absSequencesFileName = stString_print("%s/%s",
                     stKVDatabaseConf_getDir(conf),
                     cactusDisk->sequencesFileName);
-            cactusDisk->sequencesFileHandle = fopen(cactusDisk->absSequencesFileName, "w");
+            cactusDisk->sequencesFileHandle = fopen(
+                    cactusDisk->absSequencesFileName, "w");
             assert(cactusDisk->sequencesFileHandle != NULL);
             fclose(cactusDisk->sequencesFileHandle); //Flush it first time.
             cactusDisk->sequencesFileHandle = fopen(
@@ -546,12 +547,14 @@ Name cactusDisk_addString(CactusDisk *cactusDisk, const char *string) {
     bool done = 0;
     if (cactusDisk->storeSequencesInAFile) {
         fclose(cactusDisk->sequencesFileHandle);
-        cactusDisk->sequencesFileHandle = fopen(cactusDisk->absSequencesFileName, "a");
+        cactusDisk->sequencesFileHandle = fopen(
+                cactusDisk->absSequencesFileName, "a");
         assert(cactusDisk->sequencesFileHandle != NULL);
         name = ftell(cactusDisk->sequencesFileHandle) + 1;
         fprintf(cactusDisk->sequencesFileHandle, ">%s", string);
         fclose(cactusDisk->sequencesFileHandle);
-        cactusDisk->sequencesFileHandle = fopen(cactusDisk->absSequencesFileName, "r");
+        cactusDisk->sequencesFileHandle = fopen(
+                cactusDisk->absSequencesFileName, "r");
         assert(cactusDisk->sequencesFileHandle != NULL);
         return name;
     } else {
@@ -684,3 +687,91 @@ int64_t cactusDisk_getUniqueID(CactusDisk *cactusDisk) {
     }
     return cactusDisk->uniqueNumber++;
 }
+
+static void flowerIterator(Flower *flower, void(*fn)(Flower *, void *),
+        void *extra) {
+    fn(flower, extra);
+    Group *group;
+    Flower_GroupIterator *groupIt = flower_getGroupIterator(flower);
+    while ((group = flower_getNextGroup(groupIt)) != NULL) {
+        if (group_getNestedFlower(group) != NULL) {
+            flowerIterator(group_getNestedFlower(group), fn, extra);
+        }
+    }
+    flower_destructGroupIterator(groupIt);
+}
+
+void copyAcrossFlowersP(Flower *flower, CactusDisk *newCactusDisk) {
+    //Find the meta sequences associated with the flower..
+    Flower_SequenceIterator *sequenceIt = flower_getSequenceIterator(flower);
+    Sequence *sequence;
+    int32_t recordSize;
+    while ((sequence = flower_getNextSequence(sequenceIt)) != NULL) {
+        MetaSequence *metaSequence = sequence_getMetaSequence(sequence);
+        if (cactusDisk_getMetaSequence(newCactusDisk, metaSequence_getName(
+                metaSequence)) == NULL) {
+            //We need to add it..
+            //Now copy across the actual flower.
+            void
+                    *vA =
+                            binaryRepresentation_makeBinaryRepresentation(
+                                    flower,
+                                    (void(*)(void *, void(*)(const void * ptr,
+                                            size_t size, size_t count))) metaSequence_writeBinaryRepresentation,
+                                    &recordSize);
+            //Compression
+            vA = compress(vA, &recordSize);
+            stKVDatabase_insertRecord(newCactusDisk->database,
+                    metaSequence_getName(metaSequence), vA, recordSize);
+        }
+    }
+    flower_destructSequenceIterator(sequenceIt);
+    //Now copy across the actual flower.
+    void *vA = binaryRepresentation_makeBinaryRepresentation(flower,
+            (void(*)(void *, void(*)(const void * ptr, size_t size,
+                    size_t count))) flower_writeBinaryRepresentation,
+            &recordSize);
+    //Compression
+    vA = compress(vA, &recordSize);
+    stKVDatabase_insertRecord(newCactusDisk->database, flower_getName(flower),
+            vA, recordSize);
+}
+
+void copyAcrossFlowers(Flower *flower, CactusDisk *newCactusDisk) {
+    stTry {
+        stKVDatabase_startTransaction(newCactusDisk->database);
+        flowerIterator(flower, (void(*)(Flower *, void *))copyAcrossFlowersP,
+                newCactusDisk);
+        stKVDatabase_commitTransaction(newCactusDisk->database);
+    }
+    stCatch(except)
+    {
+        stKVDatabase_abortTransaction(newCactusDisk->database);
+        stThrowNewCause(
+                except,
+                ST_KV_DATABASE_EXCEPTION_ID,
+                "An unknown database error occurred when we tried to copy out a flower subtree\n");
+    }
+    stTryEnd;
+}
+
+void splitFlowers(Flower *flower, CactusDisk *newCactusDisk) {
+    Group *parentGroup = flower_getParentGroup(flower);
+    flower_setParentGroup(flower, NULL);
+    copyAcrossFlowers(flower, newCactusDisk);
+    flower_setParentGroup(flower, parentGroup);
+}
+
+void mergeFlowers(Flower *flower, CactusDisk *oldCactusDisk) {
+    Flower *oldFlower = cactusDisk_getFlower(oldCactusDisk, flower_getName(flower));
+    assert(oldFlower != NULL);
+    assert(flower_getParentGroup(flower) == NULL);
+    flower_setParentGroup(flower, flower_getParentGroup(oldFlower));
+    copyAcrossFlowers(flower, oldCactusDisk);
+}
+
+void relabelIDs(CactusDisk *cactusDisk) {
+
+
+}
+

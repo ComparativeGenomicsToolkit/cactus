@@ -69,4 +69,17 @@ Flower *cactusDisk_getFlower(CactusDisk *cactusDisk, Name flowerName);
  */
 MetaSequence *cactusDisk_getMetaSequence(CactusDisk *cactusDisk, Name metaSequenceName);
 
+
+void splitFlowers(Flower *flower, CactusDisk *newCactusDisk);
+
+/*
+ * Copy the flower and its descendants and associated stuff into the given cactus disk.
+ */
+void splitFlowers(Flower *flower, CactusDisk *newCactusDisk);
+
+/*
+ * Merge the flower and its descendants and associated
+ */
+void mergeFlowers(Flower *flower, CactusDisk *oldCactusDisk);
+
 #endif
