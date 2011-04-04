@@ -42,16 +42,12 @@ void usage() {
     fprintf(stderr, "cactus_core, version 0.2\n");
     fprintf(stderr, "-a --logLevel : Set the log level\n");
     fprintf(stderr, "-b --alignments : The input alignments file\n");
-    fprintf(stderr,
-            "-c --cactusDisk : The location of the flower disk directory\n");
-    fprintf(stderr,
-            "-d --flowerName : The name of the flower (the key in the database)\n");
+    fprintf(stderr, "-c --cactusDisk : The location of the flower disk directory\n");
+    fprintf(stderr, "-d --flowerName : The name of the flower (the key in the database)\n");
     fprintf(stderr, "-e --writeDebugFiles : Write the debug files\n");
     fprintf(stderr, "-h --help : Print this help screen\n");
 
-    fprintf(
-            stderr,
-            "-i --annealingRounds (array of ints, each greater than or equal to 1) : The rounds of annealing\n");
+    fprintf(stderr, "-i --annealingRounds (array of ints, each greater than or equal to 1) : The rounds of annealing\n");
     fprintf(
             stderr,
             "-o --deannealingRounds (array of ints, each greater than or equal to 1 and each greater than the last) : The rounds of deannealing\n");
@@ -75,6 +71,14 @@ void usage() {
     fprintf(
             stderr,
             "-s --ignoreAllChainsLessThanMinimumTreeCoverage : (int >= 0) When adding alignmnts back into the graph, ignore chains that don't meet the minimum tree coverage (instead of allowing them to be formed and therefore to define the group structure, but not keeping them in the output)\n");
+
+    fprintf(stderr,
+            "-p --minimumDegree : (int >= 0) Minimum number of sequences in a block to be included in the output graph\n");
+
+    fprintf(
+            stderr,
+            "-q --requiredSpecies : (array of event names) At least one of these events must be in a block for it to be included in the final graph\n");
+
 }
 
 int32_t *getInts(const char *string, int32_t *arrayLength) {
@@ -83,7 +87,7 @@ int32_t *getInts(const char *string, int32_t *arrayLength) {
     char *cA2 = cA;
     char *cA3;
     *arrayLength = 0;
-    while((cA3 = stString_getNextWord(&cA)) != NULL) {
+    while ((cA3 = stString_getNextWord(&cA)) != NULL) {
         int32_t i = sscanf(cA3, "%i", &iA[(*arrayLength)++]);
         assert(i == 1);
         free(cA3);
@@ -100,7 +104,7 @@ int main(int argc, char *argv[]) {
     stKVDatabaseConf *kvDatabaseConf;
     CactusDisk *cactusDisk;
     Flower *flower;
-    int key;
+    int key, k;
 
     /*
      * Arguments/options
@@ -110,31 +114,27 @@ int main(int argc, char *argv[]) {
     char * cactusDiskDatabaseString = NULL;
     char * flowerName = NULL;
     CactusCoreInputParameters *cCIP = constructCactusCoreInputParameters();
+    stList *requiredSpecies;
 
     ///////////////////////////////////////////////////////////////////////////
     // (0) Parse the inputs handed by genomeCactus.py / setup stuff.
     ///////////////////////////////////////////////////////////////////////////
 
     while (1) {
-        static struct option long_options[] = { { "logLevel",
-                required_argument, 0, 'a' }, { "alignments", required_argument,
-                0, 'b' }, { "cactusDisk", required_argument, 0, 'c' }, {
-                "flowerName", required_argument, 0, 'd' }, { "writeDebugFiles",
-                no_argument, 0, 'e' }, { "help", no_argument, 0, 'h' }, {
-                "annealingRounds", required_argument, 0, 'i' }, {
-                "alignRepeatsAtRound", required_argument, 0, 'j' }, { "trim",
-                required_argument, 0, 'k' }, { "trimChange", required_argument,
-                0, 'l', },
-                { "minimumTreeCoverage", required_argument, 0, 'm' }, {
-                        "blockTrim", required_argument, 0, 'n' }, {
-                        "deannealingRounds", required_argument, 0, 'o' },
-                { "ignoreAllChainsLessThanMinimumTreeCoverage", no_argument, 0, 's', }, {
-                        0, 0, 0, 0 } };
+        static struct option long_options[] = { { "logLevel", required_argument, 0, 'a' }, { "alignments",
+                required_argument, 0, 'b' }, { "cactusDisk", required_argument, 0, 'c' }, { "flowerName",
+                required_argument, 0, 'd' }, { "writeDebugFiles", no_argument, 0, 'e' },
+                { "help", no_argument, 0, 'h' }, { "annealingRounds", required_argument, 0, 'i' }, {
+                        "alignRepeatsAtRound", required_argument, 0, 'j' }, { "trim", required_argument, 0, 'k' }, {
+                        "trimChange", required_argument, 0, 'l', },
+                { "minimumTreeCoverage", required_argument, 0, 'm' }, { "blockTrim", required_argument, 0, 'n' }, {
+                        "deannealingRounds", required_argument, 0, 'o' }, {
+                        "ignoreAllChainsLessThanMinimumTreeCoverage", no_argument, 0, 's', }, { "minimumDegree",
+                        required_argument, 0, 'p' }, { "requiredSpecies", required_argument, 0, 'q' }, { 0, 0, 0, 0 } };
 
         int option_index = 0;
 
-        key = getopt_long(argc, argv, "a:b:c:d:ehi:j:k:m:n:o:s",
-                long_options, &option_index);
+        key = getopt_long(argc, argv, "a:b:c:d:ehi:j:k:m:n:o:sp:q:", long_options, &option_index);
 
         if (key == -1) {
             break;
@@ -168,22 +168,36 @@ int main(int argc, char *argv[]) {
                 cCIP->deannealingRounds = getInts(optarg, &cCIP->deannealingRoundsLength);
                 break;
             case 'j':
-                assert(sscanf(optarg, "%i", &cCIP->alignRepeatsAtRound) == 1);
+                k = sscanf(optarg, "%i", &cCIP->alignRepeatsAtRound);
+                assert(k == 1);
                 break;
             case 'k':
                 free(cCIP->trim);
                 cCIP->trim = getInts(optarg, &cCIP->trimLength);
                 break;
             case 'm':
-                assert(sscanf(optarg, "%f", &cCIP->minimumTreeCoverage) == 1);
+                k = sscanf(optarg, "%f", &cCIP->minimumTreeCoverage);
+                assert(k == 1);
                 break;
             case 'n':
-                assert(sscanf(optarg, "%i", &cCIP->blockTrim) == 1);
+                k = sscanf(optarg, "%i", &cCIP->blockTrim);
+                assert(k == 1);
                 break;
             case 's':
                 cCIP->ignoreAllChainsLessThanMinimumTreeCoverage = 1;
                 break;
-
+            case 'p':
+                k = sscanf(optarg, "%i", &cCIP->minimumDegree);
+                assert(k == 1);
+                break;
+            case 'q':
+                requiredSpecies = stString_split(optarg);
+                cCIP->requiredSpecies = stSortedSet_construct3((int (*)(const void *, const void *))strcmp, free);
+                for(int32_t i=0; i<stList_length(requiredSpecies); i++) {
+                    stSortedSet_insert(cCIP->requiredSpecies, stString_copy(stList_get(requiredSpecies, i)));
+                }
+                stList_destruct(requiredSpecies);
+                break;
             default:
                 usage();
                 return 1;
@@ -201,16 +215,16 @@ int main(int argc, char *argv[]) {
     assert(cCIP->minimumTreeCoverage <= 1.0);
     assert(cCIP->blockTrim >= 0);
     assert(cCIP->annealingRoundsLength >= 0);
-    for(int32_t i=0; i<cCIP->annealingRoundsLength; i++) {
+    for (int32_t i = 0; i < cCIP->annealingRoundsLength; i++) {
         assert(cCIP->annealingRounds[i] >= 0);
     }
     assert(cCIP->deannealingRoundsLength >= 0);
-    for(int32_t i=1; i<cCIP->deannealingRoundsLength; i++) {
-       assert(cCIP->deannealingRounds[i-1] < cCIP->deannealingRounds[i]);
-       assert(cCIP->deannealingRounds[i-1] >= 1);
+    for (int32_t i = 1; i < cCIP->deannealingRoundsLength; i++) {
+        assert(cCIP->deannealingRounds[i-1] < cCIP->deannealingRounds[i]);
+        assert(cCIP->deannealingRounds[i-1] >= 1);
     }
     assert(cCIP->trimLength >= 0);
-    for(int32_t i=0; i<cCIP->trimLength; i++) {
+    for (int32_t i = 0; i < cCIP->trimLength; i++) {
         assert(cCIP->trim[i] >= 0);
     }
     assert(cCIP->alignRepeatsAtRound >= 0);
@@ -238,8 +252,7 @@ int main(int argc, char *argv[]) {
     //Load the database
     //////////////////////////////////////////////
 
-    kvDatabaseConf = stKVDatabaseConf_constructFromString(
-            cactusDiskDatabaseString);
+    kvDatabaseConf = stKVDatabaseConf_constructFromString(cactusDiskDatabaseString);
     cactusDisk = cactusDisk_construct2(kvDatabaseConf, 0, 1);
     st_logInfo("Set up the flower disk\n");
 
@@ -247,8 +260,7 @@ int main(int argc, char *argv[]) {
     // Parse the basic reconstruction problem
     ///////////////////////////////////////////////////////////////////////////
 
-    flower = cactusDisk_getFlower(cactusDisk, cactusMisc_stringToName(
-            flowerName));
+    flower = cactusDisk_getFlower(cactusDisk, cactusMisc_stringToName(flowerName));
     st_logInfo("Parsed the flower to be refined\n");
 
     if (!flower_builtBlocks(flower)) { // Do nothing if the flower already has defined blocks
@@ -259,8 +271,7 @@ int main(int argc, char *argv[]) {
         ///////////////////////////////////////////////////////////////////////////
 
         startAlignmentStack_fileString = alignmentsFile;
-        exitOnFailure(cactusCorePipeline(flower, cCIP, getNextAlignment,
-                startAlignmentStack, 0),
+        exitOnFailure(cactusCorePipeline(flower, cCIP, getNextAlignment, startAlignmentStack),
                 "Failed to run the cactus core pipeline\n");
         fclose(getNextAlignment_FileHandle);
 
@@ -286,13 +297,12 @@ int main(int argc, char *argv[]) {
     free(cactusDiskDatabaseString);
     free(alignmentsFile);
     free(flowerName);
-    if(logLevelString != NULL) {
+    if (logLevelString != NULL) {
         free(logLevelString);
     }
     destructCactusCoreInputParameters(cCIP);
 
-    st_logInfo("Cleaned stuff up and am finished in: %i seconds\n", time(NULL)
-            - startTime);
+    st_logInfo("Cleaned stuff up and am finished in: %i seconds\n", time(NULL) - startTime);
 
     //while(1);
 

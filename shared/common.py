@@ -65,7 +65,9 @@ def runCactusCore(cactusDiskDatabaseString, alignmentFile,
                   trim=None,
                   minimumTreeCoverage=None,
                   blockTrim=None,
-                  ignoreAllChainsLessThanMinimumTreeCoverage=False):
+                  ignoreAllChainsLessThanMinimumTreeCoverage=False,
+                  minimumBlockDegree=None,
+                  requiredSpecies=None):
     writeDebugFiles = nameValue("writeDebugFiles", writeDebugFiles, bool)
     if annealingRounds != None:
         annealingRounds = "--annealingRounds '%s'" % " ".join([ str(i) for i in annealingRounds ])
@@ -77,10 +79,13 @@ def runCactusCore(cactusDiskDatabaseString, alignmentFile,
     minimumTreeCoverage = nameValue("minimumTreeCoverage", minimumTreeCoverage, float)
     blockTrim = nameValue("blockTrim", blockTrim, int)
     ignoreAllChainsLessThanMinimumTreeCoverage = nameValue("ignoreAllChainsLessThanMinimumTreeCoverage", ignoreAllChainsLessThanMinimumTreeCoverage, bool)
+    minimumBlockDegree = nameValue("minimumDegree", minimumBlockDegree, int)
+    requiredSpecies = nameValue("requiredSpecies", requiredSpecies, str)
     
-    command = "cactus_core --cactusDisk '%s' --flowerName %s --alignments %s --logLevel %s %s %s %s %s %s %s %s %s" % \
+    command = "cactus_core --cactusDisk '%s' --flowerName %s --alignments %s --logLevel %s %s %s %s %s %s %s %s %s %s %s" % \
     (cactusDiskDatabaseString, flowerName, alignmentFile, logLevel, writeDebugFiles, annealingRounds, deannealingRounds, alignRepeatsAtRound,
-     trim, minimumTreeCoverage, blockTrim, ignoreAllChainsLessThanMinimumTreeCoverage)
+     trim, minimumTreeCoverage, blockTrim, ignoreAllChainsLessThanMinimumTreeCoverage,
+     minimumBlockDegree, requiredSpecies)
     #print "command to run", command
     #assert 0
     system(command)
@@ -149,7 +154,9 @@ def runCactusBaseAligner(cactusDiskDatabaseString, flowerNames, logLevel="DEBUG"
                          minBandingConstraintDistance=None,
                          minTraceBackDiag=None,
                          minTraceGapDiags=None,
-                         constraintDiagonalTrim=None):
+                         constraintDiagonalTrim=None,
+                         minimumBlockDegree=None,
+                         requiredSpecies=None):
     """Runs cactus base aligner.
     """
     maximumLength = nameValue("maximumLength", maximumLength, int)
@@ -162,11 +169,13 @@ def runCactusBaseAligner(cactusDiskDatabaseString, flowerNames, logLevel="DEBUG"
     minTraceBackDiag = nameValue("minTraceBackDiag", minTraceBackDiag, int)
     minTraceGapDiags = nameValue("minTraceGapDiags", minTraceGapDiags, int)
     constraintDiagonalTrim = nameValue("constraintDiagonalTrim", constraintDiagonalTrim, int)
+    minimumBlockDegree = nameValue("minimumDegree", minimumBlockDegree, int)
+    requiredSpecies = nameValue("requiredSpecies", requiredSpecies, str)
     
-    system("cactus_baseAligner --cactusDisk '%s' --logLevel %s %s %s %s %s %s %s %s %s %s %s %s" % 
+    system("cactus_baseAligner --cactusDisk '%s' --logLevel %s %s %s %s %s %s %s %s %s %s %s %s %s %s" % 
            (cactusDiskDatabaseString, logLevel, " ".join(flowerNames), spanningTrees, maximumLength, gapGamma, 
             useBanding, maxBandingSize, minBandingSize, minBandingConstraintDistance, minTraceBackDiag, minTraceGapDiags, 
-            constraintDiagonalTrim))
+            constraintDiagonalTrim, minimumBlockDegree, requiredSpecies))
     
 def runCactusReference(cactusDiskDatabaseString, flowerNames, logLevel="DEBUG", bottomUp=False,
                        matchingAlgorithm=None):

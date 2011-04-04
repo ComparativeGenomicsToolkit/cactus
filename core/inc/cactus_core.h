@@ -26,11 +26,13 @@ typedef struct _CactusCoreInputParameters {
     float minimumTreeCoverage;
     bool ignoreAllChainsLessThanMinimumTreeCoverage;
     int32_t blockTrim;
+    int32_t minimumDegree;
+    stSortedSet *requiredSpecies;
 } CactusCoreInputParameters;
 
 int32_t cactusCorePipeline(Flower *flower, CactusCoreInputParameters *cCIP,
         struct PairwiseAlignment *(*getNextAlignment)(),
-        void(*startAlignmentStack)(), int32_t terminateRecursion);
+        void(*startAlignmentStack)());
 
 void destructCactusCoreInputParameters(CactusCoreInputParameters *cCIP);
 

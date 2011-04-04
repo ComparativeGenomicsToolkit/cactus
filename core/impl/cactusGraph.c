@@ -1117,6 +1117,41 @@ float treeCoverage2(struct CactusEdge *cactusEdge, Flower *flower,
             cactusEdgeToFirstPinchEdge(cactusEdge, pinchGraph)->from, flower);
 }
 
+stSortedSet *getEventStrings(struct PinchVertex *vertex, Flower *flower) {
+    void *blackEdgeIterator = getBlackEdgeIterator(vertex);
+    struct PinchEdge *edge;
+    stSortedSet *eventStrings = stSortedSet_construct3((int (*)(const void *, const void *))strcmp, free);
+    while ((edge = getNextBlackEdge(vertex, blackEdgeIterator)) != NULL) {
+        struct Piece *piece = edge->piece;
+        Sequence *sequence = flower_getSequence(flower, piece->contig);
+        assert(sequence != NULL);
+        Event *event = sequence_getEvent(sequence);
+        assert(event != NULL);
+        if(stSortedSet_search(eventStrings, (void *)event_getHeader(event)) == NULL) {
+            stSortedSet_insert(eventStrings, stString_copy(event_getHeader(event)));
+        }
+    }
+    destructBlackEdgeIterator(blackEdgeIterator);
+    return eventStrings;
+}
+
+static bool containsRequiredSpecies(struct CactusEdge *cactusEdge, Flower *flower,
+        struct PinchGraph *pinchGraph, stSortedSet *requiredSpecies) {
+    /*
+     * Returns the proportion of the tree covered by the block.
+     */
+#ifdef BEN_DEBUG
+    assert(!isAStubCactusEdge(cactusEdge, pinchGraph));
+#endif
+    stSortedSet *eventStrings = getEventStrings(
+            cactusEdgeToFirstPinchEdge(cactusEdge, pinchGraph)->from, flower);
+    stSortedSet *commonEvents = stSortedSet_getIntersection(requiredSpecies, eventStrings);
+    bool b = stSortedSet_size(commonEvents) > 0;
+    stSortedSet_destruct(eventStrings);
+    stSortedSet_destruct(commonEvents);
+    return b;
+}
+
 int32_t chainLength(struct List *biConnectedComponent, int32_t includeStubs,
         struct PinchGraph *pinchGraph) {
     /*
@@ -1187,6 +1222,7 @@ stSortedSet *filterBlocksByTreeCoverageAndLength(
         int32_t minimumBlockDegree, /*The minimum number of segments in a block to be included (>=)*/
         int32_t minimumBlockLength, /*The minimum length of an block to be included (>=)*/
         int32_t minimumChainLength, /* Minimum chain length to be included (>=)*/
+        stSortedSet *requiredSpecies, /* A block's segments must have an event with at least one member of this set (unless it is NULL) */
         struct PinchGraph *pinchGraph) {
     /*
      * Filters blocks in chains by base length and tree coverage.
@@ -1210,7 +1246,9 @@ stSortedSet *filterBlocksByTreeCoverageAndLength(
                             struct Piece *piece = cactusEdge->pieces->list[0];
                             if (minimumBlockLength <= 0 || piece->end
                                     - piece->start + 1 >= minimumBlockLength) {
-                                stSortedSet_insert(chosenBlocks, cactusEdge);
+                                if(requiredSpecies == NULL || containsRequiredSpecies(cactusEdge, flower, pinchGraph, requiredSpecies)) {
+                                    stSortedSet_insert(chosenBlocks, cactusEdge);
+                                }
                             }
                         }
                     }

@@ -279,7 +279,9 @@ class CactusCoreWrapper(Target):
                       trim=[ int(i) for i in coreParameters.attrib["trim"].split() ],
                       minimumTreeCoverage=float(coreParameters.attrib["minimumTreeCoverage"]),
                       blockTrim=float(coreParameters.attrib["blockTrim"]),
-                      ignoreAllChainsLessThanMinimumTreeCoverage=bool(coreParameters.attrib["ignoreAllChainsLessThanMinimumTreeCoverage"]))
+                      ignoreAllChainsLessThanMinimumTreeCoverage=bool(coreParameters.attrib["ignoreAllChainsLessThanMinimumTreeCoverage"]),
+                      minimumBlockDegree=int(coreParameters.attrib["minimumBlockDegreee"]),
+                      requiredSpecies=self.options.requiredSpecies)
         logger.info("Ran the cactus core program okay")
         
 ############################################################
@@ -325,7 +327,9 @@ class CactusBaseLevelAlignerWrapper(Target):
         self.flowerNames = flowerNames
     
     def run(self):
-        assert self.iteration.attrib["type"] =="base"
+        assert self.iteration.attrib["type"] == "base"
+        
+        
         runCactusBaseAligner(self.options.cactusDiskDatabaseString, self.flowerNames, getLogLevelString(),
                              maximumLength=float(self.iteration.attrib["banding_limit"]),
                              spanningTrees=float(self.iteration.attrib["spanning_trees"]),
@@ -336,7 +340,9 @@ class CactusBaseLevelAlignerWrapper(Target):
                              minBandingConstraintDistance=int(self.iteration.attrib["min_banding_constraint_distance"]),
                              minTraceBackDiag=int(self.iteration.attrib["min_trace_back_diag"]),
                              minTraceGapDiags=int(self.iteration.attrib["min_trace_gap_diags"]),
-                             constraintDiagonalTrim=int(self.iteration.attrib["constraint_diagonal_trim"]))
+                             constraintDiagonalTrim=int(self.iteration.attrib["constraint_diagonal_trim"]),
+                             minimumBlockDegree=int(coreParameters.attrib["minimumBlockDegreee"]),
+                             requiredSpecies=self.options.requiredSpecies)
         
 ############################################################
 ############################################################
@@ -575,6 +581,10 @@ def main():
     options.config = ET.parse(options.experimentFile.attrib["config"]).getroot()
     #Get the sequences
     sequences = options.experimentFile.attrib["sequences"].split()
+    #Get any list of 'required species' for the blocks of the cactus.
+    options.requiredSpecies = None
+    if options.experimentFile.attrib.has_key("required_species"):
+        options.requiredSpecies = options.experimentFile.attrib["required_species"]
     
     logger.info("Parsed the XML options file")
     

@@ -701,7 +701,7 @@ static void flowerIterator(Flower *flower, void(*fn)(Flower *, void *),
     flower_destructGroupIterator(groupIt);
 }
 
-void copyAcrossFlowersP(Flower *flower, CactusDisk *newCactusDisk) {
+static void copyAcrossFlowersP(Flower *flower, CactusDisk *newCactusDisk) {
     //Find the meta sequences associated with the flower..
     Flower_SequenceIterator *sequenceIt = flower_getSequenceIterator(flower);
     Sequence *sequence;
@@ -737,7 +737,7 @@ void copyAcrossFlowersP(Flower *flower, CactusDisk *newCactusDisk) {
             vA, recordSize);
 }
 
-void copyAcrossFlowers(Flower *flower, CactusDisk *newCactusDisk) {
+static void copyAcrossFlowers(Flower *flower, CactusDisk *newCactusDisk) {
     stTry {
         stKVDatabase_startTransaction(newCactusDisk->database);
         flowerIterator(flower, (void(*)(Flower *, void *))copyAcrossFlowersP,
@@ -755,14 +755,14 @@ void copyAcrossFlowers(Flower *flower, CactusDisk *newCactusDisk) {
     stTryEnd;
 }
 
-void splitFlowers(Flower *flower, CactusDisk *newCactusDisk) {
+void cactusDisk_splitFlowers(Flower *flower, CactusDisk *newCactusDisk) {
     Group *parentGroup = flower_getParentGroup(flower);
     flower_setParentGroup(flower, NULL);
     copyAcrossFlowers(flower, newCactusDisk);
     flower_setParentGroup(flower, parentGroup);
 }
 
-void mergeFlowers(Flower *flower, CactusDisk *oldCactusDisk) {
+void cactusDisk_mergeFlowers(Flower *flower, CactusDisk *oldCactusDisk) {
     Flower *oldFlower = cactusDisk_getFlower(oldCactusDisk, flower_getName(flower));
     assert(oldFlower != NULL);
     assert(flower_getParentGroup(flower) == NULL);
@@ -770,7 +770,7 @@ void mergeFlowers(Flower *flower, CactusDisk *oldCactusDisk) {
     copyAcrossFlowers(flower, oldCactusDisk);
 }
 
-void relabelIDs(CactusDisk *cactusDisk) {
+void cactusDisk_relabelIDs(CactusDisk *cactusDisk) {
 
 
 }
