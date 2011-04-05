@@ -50,6 +50,10 @@ void usage() {
             stderr,
             "-v --requiredSpecies : (array of event names) At least one of these events must be in a block for it to be included in the final graph\n");
 
+    fprintf(
+               stderr,
+               "-w --alignAmbiguityCharacters : Align ambiguity characters (anything not ACTGactg) as a wildcard\n");
+
     fprintf(stderr, "-h --help : Print this help screen\n");
 }
 
@@ -127,12 +131,13 @@ int main(int argc, char *argv[]) {
                 'q' }, { "minTraceBackDiag", required_argument, 0, 'r' }, { "minTraceGapDiags", required_argument, 0,
                 's' }, { "constraintDiagonalTrim", required_argument, 0, 't' }, { "minimumDegree", required_argument,
                 0, 'u' }, { "requiredSpecies", required_argument, 0, 'v' },
+                { "alignAmbiguityCharacters", required_argument, 0, 'w' },
 
         { 0, 0, 0, 0 } };
 
         int option_index = 0;
 
-        int key = getopt_long(argc, argv, "a:b:hi:j:kl:o:p:q:r:s:t:u:v:", long_options, &option_index);
+        int key = getopt_long(argc, argv, "a:b:hi:j:kl:o:p:q:r:s:t:u:v:w:", long_options, &option_index);
 
         if (key == -1) {
             break;
@@ -207,6 +212,9 @@ int main(int argc, char *argv[]) {
                     stSortedSet_insert(cCIP->requiredSpecies, stString_copy(stList_get(requiredSpecies, i)));
                 }
                 stList_destruct(requiredSpecies);
+                break;
+            case 'w':
+                pairwiseAlignmentBandingParameters->alignAmbiguityCharacters = 1;
                 break;
             default:
                 usage();

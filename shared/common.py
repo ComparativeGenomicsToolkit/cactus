@@ -148,7 +148,7 @@ def runCactusMakeNormal(cactusDiskDatabaseString, flowerNames, maxNumberOfChains
 def runCactusBaseAligner(cactusDiskDatabaseString, flowerNames, logLevel="DEBUG",
                          spanningTrees=None, maximumLength=None, 
                          gapGamma=None,
-                         useBanding=False,
+                         useBanding=None,
                          maxBandingSize=None,
                          minBandingSize=None,
                          minBandingConstraintDistance=None,
@@ -156,6 +156,7 @@ def runCactusBaseAligner(cactusDiskDatabaseString, flowerNames, logLevel="DEBUG"
                          minTraceGapDiags=None,
                          constraintDiagonalTrim=None,
                          minimumBlockDegree=None,
+                         alignAmbiguityCharacters=None,
                          requiredSpecies=None):
     """Runs cactus base aligner.
     """
@@ -171,11 +172,12 @@ def runCactusBaseAligner(cactusDiskDatabaseString, flowerNames, logLevel="DEBUG"
     constraintDiagonalTrim = nameValue("constraintDiagonalTrim", constraintDiagonalTrim, int)
     minimumBlockDegree = nameValue("minimumDegree", minimumBlockDegree, int)
     requiredSpecies = nameValue("requiredSpecies", requiredSpecies, str)
+    alignAmbiguityCharacters = nameValue("alignAmbiguityCharacters", alignAmbiguityCharacters, bool)
     
-    system("cactus_baseAligner --cactusDisk '%s' --logLevel %s %s %s %s %s %s %s %s %s %s %s %s %s %s" % 
+    system("cactus_baseAligner --cactusDisk '%s' --logLevel %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s" % 
            (cactusDiskDatabaseString, logLevel, " ".join(flowerNames), spanningTrees, maximumLength, gapGamma, 
             useBanding, maxBandingSize, minBandingSize, minBandingConstraintDistance, minTraceBackDiag, minTraceGapDiags, 
-            constraintDiagonalTrim, minimumBlockDegree, requiredSpecies))
+            constraintDiagonalTrim, minimumBlockDegree, requiredSpecies, alignAmbiguityCharacters))
     
 def runCactusReference(cactusDiskDatabaseString, flowerNames, logLevel="DEBUG", bottomUp=False,
                        matchingAlgorithm=None):
