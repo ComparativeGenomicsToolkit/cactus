@@ -67,7 +67,7 @@ static void test_pairwiseAlignerRandom(CuTest *testCase) {
         st_uglyf("Sequence Y to align: %s END\n", seqY);
 
         //Now do alignment
-        PairwiseAlignmentBandingParameters *p = pairwiseAlignmentBandingParameters_construct();
+        PairwiseAlignmentParameters *p = pairwiseAlignmentBandingParameters_construct();
         p->alignAmbiguityCharacters = st_random() > 0.5; //Do this stochastically.
         stList *alignedPairs = getAlignedPairs(seqX, seqY, p);
         //Check the aligned pairs.
@@ -124,7 +124,7 @@ static void test_pairwiseAligner_FastRandom(CuTest *testCase) {
         st_uglyf("Sequence Y to align: %s END, seq length %i\n", seqY, seqYLength);
 
         //Now do alignment
-        PairwiseAlignmentBandingParameters *p = pairwiseAlignmentBandingParameters_construct();
+        PairwiseAlignmentParameters *p = pairwiseAlignmentBandingParameters_construct();
         p->alignAmbiguityCharacters = st_random() > 0.5; //Do this stochastically.
         stList *alignedPairs = getAlignedPairs(seqX, seqY, p);
         stList *alignedPairs2 = getAlignedPairs_Fast(seqX, seqY, p);

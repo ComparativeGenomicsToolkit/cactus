@@ -110,7 +110,7 @@ int main(int argc, char *argv[]) {
     bool useBanding = 0;
     stList *requiredSpecies;
 
-    PairwiseAlignmentBandingParameters *pairwiseAlignmentBandingParameters =
+    PairwiseAlignmentParameters *pairwiseAlignmentBandingParameters =
             pairwiseAlignmentBandingParameters_construct();
 
     /*

@@ -270,7 +270,7 @@ static int makeFlowerAlignmentP(Cap *cap, stHash *endAlignments, void (*fn)(Cap 
 }
 
 stSortedSet *makeFlowerAlignment(Flower *flower, int32_t spanningTrees, int32_t maxSequenceLength, float gapGamma,
-        bool useBanding, PairwiseAlignmentBandingParameters *pairwiseAlignmentBandingParameters) {
+        bool useBanding, PairwiseAlignmentParameters *pairwiseAlignmentBandingParameters) {
     //Make the end alignments, representing each as an adjacency alignment.
     End *end;
     Flower_EndIterator *endIterator = flower_getEndIterator(flower);

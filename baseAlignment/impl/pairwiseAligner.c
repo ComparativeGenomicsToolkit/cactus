@@ -349,7 +349,7 @@ static inline double posteriorMatchProb(double *fM, double *bM, int32_t x,
 }
 
 static void getPosteriorProbs(double *fM, double *bM, int32_t lX, int32_t lY,
-        const char *sX, const char *sY, stList *alignedPairs, double totalProb, PairwiseAlignmentBandingParameters *p) {
+        const char *sX, const char *sY, stList *alignedPairs, double totalProb, PairwiseAlignmentParameters *p) {
     for (int32_t x = 1; x < lX; x++) {
         for (int32_t y = 1; y < lY; y++) {
             double f = posteriorMatchProb(fM, bM, x, y, lX, lY, sX, sY,
@@ -377,7 +377,7 @@ static void getPosteriorProbs(double *fM, double *bM, int32_t lX, int32_t lY,
 //Maximal expected accuracy alignment
 ///////
 
-stList *getAlignedPairs(const char *sX, const char *sY, PairwiseAlignmentBandingParameters *p) {
+stList *getAlignedPairs(const char *sX, const char *sY, PairwiseAlignmentParameters *p) {
     //Allocate the matrices.
     int32_t lX = strlen(sX) + 1;
     int32_t lY = strlen(sY) + 1;
@@ -554,7 +554,7 @@ static void convertPairs(stList *alignedPairs2, int32_t offsetX, int32_t offsetY
     }
 }
 
-static stList *getAlignedPairs_Split(char *sX, char *sY, int32_t lX, int32_t lY, int32_t bandSize, PairwiseAlignmentBandingParameters *p) {
+static stList *getAlignedPairs_Split(char *sX, char *sY, int32_t lX, int32_t lY, int32_t bandSize, PairwiseAlignmentParameters *p) {
     /*
      * Aligns the sequences, but if the product of there sequence lengths is greater than bandSize squared
      * then a dp matrix of bandsize squared if computed in the top left part of the entire dp matrix, and a
@@ -601,8 +601,8 @@ static int getAlignedPairs_FastP(const void *i, const void *j) {
     return k > l ? 1 : (k < l ? -1 : 0);
 }
 
-PairwiseAlignmentBandingParameters *pairwiseAlignmentBandingParameters_construct() {
-    PairwiseAlignmentBandingParameters *p = st_malloc(sizeof(PairwiseAlignmentBandingParameters));
+PairwiseAlignmentParameters *pairwiseAlignmentBandingParameters_construct() {
+    PairwiseAlignmentParameters *p = st_malloc(sizeof(PairwiseAlignmentParameters));
     p->maxBandingSize = 3000;
     p->minBandingSize = 1000;
     p->minBandingConstraintDistance = 300;
@@ -613,12 +613,12 @@ PairwiseAlignmentBandingParameters *pairwiseAlignmentBandingParameters_construct
     return p;
 }
 
-void pairwiseAlignmentBandingParameters_destruct(PairwiseAlignmentBandingParameters *p) {
+void pairwiseAlignmentBandingParameters_destruct(PairwiseAlignmentParameters *p) {
     free(p);
 }
 
 stList *getAlignedPairs_Fast(const char *sX, const char *sY,
-        PairwiseAlignmentBandingParameters *p) {
+        PairwiseAlignmentParameters *p) {
     /*
      * Aligns the pair of sequences using banding constraints.
      */
