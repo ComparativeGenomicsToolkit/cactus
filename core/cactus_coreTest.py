@@ -63,6 +63,7 @@ def getRandomConfigFile():
     core.attrib["minimumTreeCoverage"] = str(random.random())
     core.attrib["blockTrim"] = str(int(random.random() * 5))
     core.attrib["ignoreAllChainsLessThanMinimumTreeCoverage"] = str(random.choice([0, 1]))
+    core.attrib["minimumBlockDegree"] = str(random.choice([0, 5]))
     
     #Now print the file..
     fileHandle = open(tempConfigFile, 'w')

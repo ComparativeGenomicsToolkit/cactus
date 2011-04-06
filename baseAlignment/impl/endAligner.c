@@ -54,7 +54,7 @@ int alignedPair_cmpFn(const AlignedPair *alignedPair1, const AlignedPair *aligne
 
 stSortedSet *makeEndAlignment(End *end, int32_t spanningTrees, int32_t maxSequenceLength,
         float gapGamma, bool useBanding,
-        PairwiseAlignmentBandingParameters *pairwiseAlignmentBandingParameters) {
+        PairwiseAlignmentParameters *pairwiseAlignmentBandingParameters) {
     //Make an alignment of the sequences in the ends
 
     //Get the adjacency sequences to be aligned.

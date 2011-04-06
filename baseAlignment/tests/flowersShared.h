@@ -52,7 +52,7 @@ static Cap *cap10;
 static Cap *cap11;
 static Cap *cap12;
 
-static PairwiseAlignmentBandingParameters *pairwiseParameters;
+static PairwiseAlignmentParameters *pairwiseParameters;
 
 static void teardown() {
     if (cactusDisk != NULL) {

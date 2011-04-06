@@ -17,11 +17,6 @@
 //Constant that gives the integer value equal to probability 1. Integer probability zero is always 0.
 #define PAIR_ALIGNMENT_PROB_1 10000000
 
-/*
- * Gets the set of posterior match probabilities under a simple HMM model of alignment for two DNA sequences.
- */
-stList *getAlignedPairs(const char *string1, const char *string2);
-
 typedef  struct _pairwiseAlignmentBandingParameters {
     int32_t maxBandingSize; //No matrix biggger than this number squared will be computed
     int32_t minBandingSize; //Any matrix bigger than this number squared will be broken apart with banding
@@ -29,15 +24,22 @@ typedef  struct _pairwiseAlignmentBandingParameters {
     int32_t minTraceBackDiag; //The x+y diagonal to leave between the cut point and the place we choose new cutpoints.
     int32_t minTraceGapDiags; //The distance to leave between a cutpoint and the traceback
     int32_t constraintDiagonalTrim; //Amount to remove from a diagonal to be considered for a banding constraint
-} PairwiseAlignmentBandingParameters;
+    bool alignAmbiguityCharacters; //Align sequences that are not 'actgACTG' as ambiguity characters, else force them to be unaligned.
+} PairwiseAlignmentParameters;
 
-PairwiseAlignmentBandingParameters *pairwiseAlignmentBandingParameters_construct();
+PairwiseAlignmentParameters *pairwiseAlignmentBandingParameters_construct();
 
-void pairwiseAlignmentBandingParameters_destruct(PairwiseAlignmentBandingParameters *p);
+void pairwiseAlignmentBandingParameters_destruct(PairwiseAlignmentParameters *p);
+
+/*
+ * Gets the set of posterior match probabilities under a simple HMM model of alignment for two DNA sequences.
+ */
+stList *getAlignedPairs(const char *string1, const char *string2, PairwiseAlignmentParameters *p);
+
 
 /*
  * A heuristic, banded form of getAlignedPairs.
  */
-stList *getAlignedPairs_Fast(const char *sX, const char *sY, PairwiseAlignmentBandingParameters *p);
+stList *getAlignedPairs_Fast(const char *sX, const char *sY, PairwiseAlignmentParameters *p);
 
 #endif /* PAIRWISEALIGNER_H_ */

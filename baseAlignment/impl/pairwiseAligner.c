@@ -349,7 +349,7 @@ static inline double posteriorMatchProb(double *fM, double *bM, int32_t x,
 }
 
 static void getPosteriorProbs(double *fM, double *bM, int32_t lX, int32_t lY,
-        const char *sX, const char *sY, stList *alignedPairs, double totalProb) {
+        const char *sX, const char *sY, stList *alignedPairs, double totalProb, PairwiseAlignmentParameters *p) {
     for (int32_t x = 1; x < lX; x++) {
         for (int32_t y = 1; y < lY; y++) {
             double f = posteriorMatchProb(fM, bM, x, y, lX, lY, sX, sY,
@@ -358,10 +358,16 @@ static void getPosteriorProbs(double *fM, double *bM, int32_t lX, int32_t lY,
                 if (f > 1.0) {
                     f = 1.0;
                 }
-                stIntTuple *alignedPair = stIntTuple_construct(3,
-                        (int32_t) floor(f * PAIR_ALIGNMENT_PROB_1), x - 1, y
-                                - 1);
-                stList_append(alignedPairs, alignedPair);
+#ifdef BEN_DEBUG
+                assert(sX[x-1] >= 0 && sX[x-1] <= 4);
+                assert(sY[y-1] >= 0 && sY[y-1] <= 4);
+#endif
+                if(p->alignAmbiguityCharacters || (sX[x-1] < 4 && sY[y-1] < 4)) {
+                    stIntTuple *alignedPair = stIntTuple_construct(3,
+                            (int32_t) floor(f * PAIR_ALIGNMENT_PROB_1), x - 1, y
+                                    - 1);
+                    stList_append(alignedPairs, alignedPair);
+                }
             }
         }
     }
@@ -371,7 +377,7 @@ static void getPosteriorProbs(double *fM, double *bM, int32_t lX, int32_t lY,
 //Maximal expected accuracy alignment
 ///////
 
-stList *getAlignedPairs(const char *sX, const char *sY) {
+stList *getAlignedPairs(const char *sX, const char *sY, PairwiseAlignmentParameters *p) {
     //Allocate the matrices.
     int32_t lX = strlen(sX) + 1;
     int32_t lY = strlen(sY) + 1;
@@ -397,7 +403,7 @@ stList *getAlignedPairs(const char *sX, const char *sY) {
     //Get posterior probabilities above 0.01 threshold.
     stList *alignedPairs = stList_construct3(0,
             (void(*)(void *)) stIntTuple_destruct);
-    getPosteriorProbs(fM, bM, lX, lY, cSX, cSY, alignedPairs, totalProb);
+    getPosteriorProbs(fM, bM, lX, lY, cSX, cSY, alignedPairs, totalProb, p);
 
     //Cleanup
     free(fM);
@@ -548,22 +554,22 @@ static void convertPairs(stList *alignedPairs2, int32_t offsetX, int32_t offsetY
     }
 }
 
-static stList *getAlignedPairs_Split(char *sX, char *sY, int32_t lX, int32_t lY, int32_t bandSize) {
+static stList *getAlignedPairs_Split(char *sX, char *sY, int32_t lX, int32_t lY, int32_t bandSize, PairwiseAlignmentParameters *p) {
     /*
      * Aligns the sequences, but if the product of there sequence lengths is greater than bandSize squared
      * then a dp matrix of bandsize squared if computed in the top left part of the entire dp matrix, and a
      * corresponding square in the bottom right part of the matrix.
      */
     if((int64_t)lX * lY <= (int64_t)bandSize * bandSize) { //products can be > 2^31
-        return getAlignedPairs(sX, sY);
+        return getAlignedPairs(sX, sY, p);
     }
     st_logDebug("We found an overlarge matrix to compute: %i %i \n", lX, lY);
     if(lX > bandSize) {
         char *sX2 = getSubString(sX, 0, bandSize);
-        stList *alignedPairs = getAlignedPairs_Split(sX2, sY, bandSize, lY, bandSize);
+        stList *alignedPairs = getAlignedPairs_Split(sX2, sY, bandSize, lY, bandSize, p);
         free(sX2);
         sX2 = getSubString(sX, lX-bandSize, bandSize);
-        stList *alignedPairs2 = getAlignedPairs_Split(sX2, sY, bandSize, lY, bandSize);
+        stList *alignedPairs2 = getAlignedPairs_Split(sX2, sY, bandSize, lY, bandSize, p);
         free(sX2);
         convertPairs(alignedPairs2, lX-bandSize, 0);
         stList_appendAll(alignedPairs, alignedPairs2);
@@ -575,10 +581,10 @@ static stList *getAlignedPairs_Split(char *sX, char *sY, int32_t lX, int32_t lY,
     }
     assert(lY > bandSize);
     char *sY2 = getSubString(sY, 0, bandSize);
-    stList *alignedPairs = getAlignedPairs(sX, sY2);
+    stList *alignedPairs = getAlignedPairs(sX, sY2, p);
     free(sY2);
     sY2 = getSubString(sY, lY-bandSize, bandSize);
-    stList *alignedPairs2 = getAlignedPairs(sX, sY2);
+    stList *alignedPairs2 = getAlignedPairs(sX, sY2, p);
     free(sY2);
     convertPairs(alignedPairs2, 0, lY-bandSize);
     stList_appendAll(alignedPairs, alignedPairs2);
@@ -595,23 +601,24 @@ static int getAlignedPairs_FastP(const void *i, const void *j) {
     return k > l ? 1 : (k < l ? -1 : 0);
 }
 
-PairwiseAlignmentBandingParameters *pairwiseAlignmentBandingParameters_construct() {
-    PairwiseAlignmentBandingParameters *p = st_malloc(sizeof(PairwiseAlignmentBandingParameters));
+PairwiseAlignmentParameters *pairwiseAlignmentBandingParameters_construct() {
+    PairwiseAlignmentParameters *p = st_malloc(sizeof(PairwiseAlignmentParameters));
     p->maxBandingSize = 3000;
     p->minBandingSize = 1000;
     p->minBandingConstraintDistance = 300;
     p->minTraceBackDiag = 42;
     p->minTraceGapDiags = 20;
     p->constraintDiagonalTrim = 4;
+    p->alignAmbiguityCharacters = 0;
     return p;
 }
 
-void pairwiseAlignmentBandingParameters_destruct(PairwiseAlignmentBandingParameters *p) {
+void pairwiseAlignmentBandingParameters_destruct(PairwiseAlignmentParameters *p) {
     free(p);
 }
 
 stList *getAlignedPairs_Fast(const char *sX, const char *sY,
-        PairwiseAlignmentBandingParameters *p) {
+        PairwiseAlignmentParameters *p) {
     /*
      * Aligns the pair of sequences using banding constraints.
      */
@@ -659,7 +666,7 @@ stList *getAlignedPairs_Fast(const char *sX, const char *sY,
         char *sY2 = getSubString(sY, offsetY, lY2);
 
         //Do the actual alignment..
-        stList *alignedPairs2 = getAlignedPairs_Split(sX2, sY2, lX2, lY2, p->maxBandingSize);
+        stList *alignedPairs2 = getAlignedPairs_Split(sX2, sY2, lX2, lY2, p->maxBandingSize, p);
 
         //Cleanup the temporary sequences
         free(sX2);
