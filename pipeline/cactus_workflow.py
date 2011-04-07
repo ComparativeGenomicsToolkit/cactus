@@ -280,7 +280,7 @@ class CactusCoreWrapper(Target):
                       minimumTreeCoverage=float(coreParameters.attrib["minimumTreeCoverage"]),
                       blockTrim=float(coreParameters.attrib["blockTrim"]),
                       ignoreAllChainsLessThanMinimumTreeCoverage=bool(coreParameters.attrib["ignoreAllChainsLessThanMinimumTreeCoverage"]),
-                      minimumBlockDegree=int(coreParameters.attrib["minimumBlockDegreee"]),
+                      minimumBlockDegree=int(coreParameters.attrib["minimumBlockDegree"]),
                       requiredSpecies=self.options.requiredSpecies)
         logger.info("Ran the cactus core program okay")
         
@@ -341,7 +341,7 @@ class CactusBaseLevelAlignerWrapper(Target):
                              minTraceBackDiag=int(self.iteration.attrib["min_trace_back_diag"]),
                              minTraceGapDiags=int(self.iteration.attrib["min_trace_gap_diags"]),
                              constraintDiagonalTrim=int(self.iteration.attrib["constraint_diagonal_trim"]),
-                             minimumBlockDegree=int(coreParameters.attrib["minimumBlockDegreee"]),
+                             minimumBlockDegree=int(self.iteration.attrib["minimumBlockDegree"]),
                              requiredSpecies=self.options.requiredSpecies)
         
 ############################################################
