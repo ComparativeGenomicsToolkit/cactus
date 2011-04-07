@@ -312,7 +312,8 @@ void addReferenceAdjacencies(End *end, char *header){
         return;
     }*/    
 
-    while( end_isBlockEnd(adjEnd) ){
+    //while( end_isBlockEnd(adjEnd) ){
+    while(true){
         Group *group = end_getGroup(end);
         if(!group_isLeaf(group)){//has lower level
 	    End *inheritedEnd = flower_getEnd(group_getNestedFlower(group), end_getName(end));
@@ -320,11 +321,15 @@ void addReferenceAdjacencies(End *end, char *header){
         }
  
         addAdj(end, adjEnd, header);
-        end = end_getOtherBlockEnd(adjEnd);
-        adjEnd = getPseudoAdjacentEnd(end);
+        if(end_isStubEnd(adjEnd)){
+            break;
+        }else{
+            end = end_getOtherBlockEnd(adjEnd);
+            adjEnd = getPseudoAdjacentEnd(end);
+        }
     }
     //add adjacency to the last stub:
-    addAdj(end, adjEnd, header);
+    //addAdj(end, adjEnd, header);
 
     return;
 }
@@ -397,6 +402,7 @@ Flower *flower_addReferenceSequence(Flower *flower, CactusDisk *cactusDisk, char
         assert(!end_isBlockEnd(end));
 
         int len = pseudoChromosome_getLength(end);
+        if(len == 0){continue;}
         ReferenceSequence *refseq = referenceSequence_construct(flower, chromHeader, len);
     
         st_logInfo("\nInitialize refseq: index %d, length %d, header *%s*, string *%s*\n", 
@@ -436,37 +442,33 @@ Flower *flower_addReferenceSequence(Flower *flower, CactusDisk *cactusDisk, char
     return flower;
 }
 
-/*void usage() {
+void usage() {
     fprintf(stderr, "cactus_addReferenceSeq, version 0.0\n");
     fprintf(stderr, "-a --logLevel : Set the log level\n");
     fprintf(stderr,
-            "-c --cactusDisk : The location of the flower disk directory\n");
-    fprintf(stderr,
-            "-d --flowerName : The name of the flower (the key in the database)\n");
+            "-c --cactusDisk : The location of the flower disk directory (the databaseString)\n");
     fprintf(stderr, "-h --help : Print this help screen\n");
-}*/
+    //fprintf(stderr,
+    //        "-d --flowerName : The name of the flower (the key in the database)\n");
+}
 
-
-/*
 int main(int argc, char *argv[]) {
     char * logLevelString = NULL;
     char * cactusDiskDatabaseString = NULL;
-    char * flowerName = NULL;
-
-    ///////////////////////////////////////////////////////////////////////////
-    // (0) Parse the inputs handed by genomeCactus.py / setup stuff.
-    ///////////////////////////////////////////////////////////////////////////
+    char * flowerName = "0";
+    char * name = "0";
 
     while (1) {
         static struct option long_options[] = { 
                 { "logLevel", required_argument, 0, 'a' }, 
+                { "name", required_argument, 0, 'b' }, 
                 { "cactusDisk", required_argument, 0, 'c' }, 
-		{ "flowerName", required_argument, 0, 'd' },
+		//{ "flowerName", required_argument, 0, 'd' },
                 { "help", no_argument, 0, 'h' }, { 0, 0, 0, 0 } };
 
         int option_index = 0;
 
-        int key = getopt_long(argc, argv, "a:c:d:h", long_options,
+        int key = getopt_long(argc, argv, "a:b:c:h", long_options,
                 &option_index);
 
         if (key == -1) {
@@ -477,12 +479,15 @@ int main(int argc, char *argv[]) {
             case 'a':
                 logLevelString = stString_copy(optarg);
                 break;
+            case 'b':
+                name = stString_copy(optarg);
+                break;
             case 'c':
                 cactusDiskDatabaseString = stString_copy(optarg);
                 break;
-            case 'd':
-                flowerName = stString_copy(optarg);
-                break;
+            //case 'd':
+            //    flowerName = stString_copy(optarg);
+            //    break;
             case 'h':
                 usage();
                 return 0;
@@ -492,11 +497,7 @@ int main(int argc, char *argv[]) {
         }
     }
 
-    ///////////////////////////////////////////////////////////////////////////
-    // (0) Check the inputs.
-    ///////////////////////////////////////////////////////////////////////////
-
-    assert(flowerName != NULL);
+    //assert(flowerName != NULL);
 
     //////////////////////////////////////////////
     //Set up logging
@@ -537,7 +538,8 @@ int main(int argc, char *argv[]) {
     ///////////////////////////////////////////////////////////////////////////
 
     int64_t startTime = time(NULL);
-    flower = flower_addReferenceSequence(flower, cactusDisk);
+    flower = flower_addReferenceSequence(flower, cactusDisk, name);
+    //Flower *flower_addReferenceSequence(Flower *flower, CactusDisk *cactusDisk, char *header){
 
     //test(flower);
     st_logInfo("Added the reference sequence in %i seconds/\n", time(NULL) - startTime);
@@ -550,4 +552,4 @@ int main(int argc, char *argv[]) {
     stKVDatabaseConf_destruct(kvDatabaseConf);
 
     return 0;
-}*/
+}
