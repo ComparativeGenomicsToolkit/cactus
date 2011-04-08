@@ -171,6 +171,8 @@ def runCactusBaseAligner(cactusDiskDatabaseString, flowerNames, logLevel="DEBUG"
     minTraceGapDiags = nameValue("minTraceGapDiags", minTraceGapDiags, int)
     constraintDiagonalTrim = nameValue("constraintDiagonalTrim", constraintDiagonalTrim, int)
     minimumBlockDegree = nameValue("minimumDegree", minimumBlockDegree, int)
+    if requiredSpecies != None:
+        requiredSpecies = "'%s'" % requiredSpecies
     requiredSpecies = nameValue("requiredSpecies", requiredSpecies, str)
     alignAmbiguityCharacters = nameValue("alignAmbiguityCharacters", alignAmbiguityCharacters, bool)
     
