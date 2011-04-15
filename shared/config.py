@@ -37,6 +37,12 @@ def checkDatabaseConf(databaseConf):
             raise RuntimeError("Database conf is of type tokyo cabinet but there is no nested tokyo cabinet tag: %s" % dataString)
         if not tokyoCabinet.attrib.has_key("database_dir"):
             raise RuntimeError("The tokyo cabinet tag has no database_dir tag: %s" % dataString)
+    elif typeString == "tokyo_tyrant":
+        tokyoCabinet = databaseConf.find("tokyo_tyrant")
+        if tokyoCabinet == None:
+            raise RuntimeError("Database conf is of type tyrant cabinet but there is no nested tokyo tyrant tag: %s" % dataString)
+        if not tokyoCabinet.attrib.has_key("database_dir"):
+            raise RuntimeError("The tokyo tyrant tag has no database_dir tag: %s" % dataString)
     else:
         raise RuntimeError("Unrecognised database type in conf string: %s" % typeString)
 
@@ -68,11 +74,16 @@ class CactusWorkflowExperiment:
                 self.postgresql = 1
                 #Add a table name:
                 databaseConf.find("postgresql").attrib["table_name"] = self.databaseName
-            else:
-                assert databaseConf.attrib["type"] == "tokyo_cabinet"
+            elif databaseConf.attrib["type"] == "tokyo_cabinet":
                 tokyoCabinet = databaseConf.find("tokyo_cabinet")
                 tokyoCabinet.attrib["database_dir"] = os.path.join(tokyoCabinet.attrib["database_dir"], self.databaseName)
                 self.databaseFile = tokyoCabinet.attrib["database_dir"]
+                assert not os.path.exists(self.databaseFile)
+            else:
+                assert databaseConf.attrib["type"] == "tokyo_tyrant"
+                tokyoTyrant = databaseConf.find("tokyo_tyrant")
+                tokyoTyrant.attrib["database_dir"] = os.path.join(tokyoTyrant.attrib["database_dir"], self.databaseName)
+                self.databaseFile = tokyoTyrant.attrib["database_dir"]
                 assert not os.path.exists(self.databaseFile)
         else:
             databaseConf = ET.SubElement(database, "st_kv_database_conf")
