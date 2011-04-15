@@ -89,6 +89,7 @@ static ReferenceSequence *referenceSequence_construct(Flower *flower, char *head
 }
 
 static void referenceSequence_destruct(ReferenceSequence *refseq) {
+    free(refseq->string);
     free(refseq->header);
     free(refseq);
 }
@@ -154,6 +155,7 @@ Sequence *getSequenceByHeader(Flower *flower, char *header){
         char *sequenceHeader = formatSequenceHeader1(sequence);
         if(strcmp(sequenceHeader, header) == 0){
             flower_destructSequenceIterator(it);
+            free(sequenceHeader);
             return sequence;
 	}
     }
@@ -174,6 +176,7 @@ Cap *end_getCapByHeader(End *end, char *header){
 	    char *sequenceHeader = formatSequenceHeader1(sequence);
 	    if(strcmp(sequenceHeader, header) == 0){
                 end_destructInstanceIterator(it);
+                free(sequenceHeader);
 		return cap;
 	    }
         }
@@ -402,7 +405,8 @@ Flower *flower_addReferenceSequence(Flower *flower, CactusDisk *cactusDisk, char
         assert(!end_isBlockEnd(end));
 
         int len = pseudoChromosome_getLength(end);
-        if(len == 0){continue;}
+        //if(len == 0){continue;}
+        assert(len != 0);
         ReferenceSequence *refseq = referenceSequence_construct(flower, chromHeader, len);
     
         st_logInfo("\nInitialize refseq: index %d, length %d, header *%s*, string *%s*\n", 
@@ -430,12 +434,18 @@ Flower *flower_addReferenceSequence(Flower *flower, CactusDisk *cactusDisk, char
         st_logInfo("Adding reference segments...\n");
         reference_walkDown(end, refseq); 
         st_logInfo("Added reference segments successfully.\n");
-        referenceSequence_destruct(refseq);
         
         //adding adjacencies to the reference caps 
         st_logInfo("Adding adjacencies to the reference caps...\n");
         addReferenceAdjacencies(end, chromHeader);
         st_logInfo("Added adjacencies to the reference caps successfully.\n");
+
+        //write to Disk:
+        cactusDisk_write(cactusDisk);
+        
+        //free memory:
+        referenceSequence_destruct(refseq);
+        free(chromHeader);
     }
     reference_destructPseudoChromosomeIterator(it);
     
@@ -445,6 +455,7 @@ Flower *flower_addReferenceSequence(Flower *flower, CactusDisk *cactusDisk, char
 void usage() {
     fprintf(stderr, "cactus_addReferenceSeq, version 0.0\n");
     fprintf(stderr, "-a --logLevel : Set the log level\n");
+    fprintf(stderr, "-b --name : Name of the reference sequence\n");
     fprintf(stderr,
             "-c --cactusDisk : The location of the flower disk directory (the databaseString)\n");
     fprintf(stderr, "-h --help : Print this help screen\n");
@@ -456,7 +467,7 @@ int main(int argc, char *argv[]) {
     char * logLevelString = NULL;
     char * cactusDiskDatabaseString = NULL;
     char * flowerName = "0";
-    char * name = "0";
+    char * name = NULL;
 
     while (1) {
         static struct option long_options[] = { 

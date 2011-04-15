@@ -16,7 +16,7 @@
 #include "avl.h"
 #include "commonC.h"
 #include "hashTableC.h"
-#include "cactus_addReferenceSeq.h"
+//#include "cactus_addReferenceSeq.h"
 
 
 /*

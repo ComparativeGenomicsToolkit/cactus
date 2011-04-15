@@ -16,7 +16,8 @@
 #include "avl.h"
 #include "commonC.h"
 #include "hashTableC.h"
-#include "cactus_addReferenceSeq.h"
+#include "cactusUtils.h"
+//#include "cactus_addReferenceSeq.h"
 
 /*
  *Feb 7 2011: modify to include the referene sequence in the flower
@@ -28,28 +29,6 @@
  *Sep 08 2010: nknguyen@soe.ucsc.edu
  *Print to outputFile bed record of each chain of the interested/inputed species.
  */
-
-char *formatSequenceHeader(Sequence *sequence) {
-    const char *sequenceHeader = sequence_getHeader(sequence);
-    if(strlen(sequenceHeader) > 0) {
-        char *cA = st_malloc(sizeof(char) *(1 + strlen(sequenceHeader)));
-        sscanf(sequenceHeader, "%s", cA);
-        return cA;
-    }
-    else {
-        return cactusMisc_nameToString(sequence_getName(sequence));
-    }
-}
-
-bool isStubCap(Cap *cap){
-    /*
-     *Return true if cap is of a stubEnd, otherwise return false
-     */
-    assert(cap != NULL);
-    End *end = cap_getEnd(cap);
-    assert(end != NULL);
-    return (end_isStubEnd(end)) ? true : false;
-}
 
 bool isLinked(End *end1, End *end2){
     //Return true if there is a link between end1 and end2, otherwise return false
@@ -64,55 +43,6 @@ bool isLinked(End *end1, End *end2){
         }
     }
     return false;
-}
-
-struct List *flower_getThreadStarts(Flower *flower, char *name){
-    /*
-     *Get 3' end Stubs of the sequence by its name
-     */
-    Cap *cap;
-    struct List *startCaps = constructEmptyList(0, free); 
-    Flower_CapIterator *capIterator = flower_getCapIterator(flower);
-    while((cap= flower_getNextCap(capIterator)) != NULL){
-        if(isStubCap(cap)){//dead end or inherited end
-            Sequence *sequence = cap_getSequence(cap);
-            if(sequence == NULL){continue;}
-            char *sequenceHeader = formatSequenceHeader(sequence);
-            if(strcmp(sequenceHeader, name) == 0){//cap matched with name
-                if(!cap_getStrand(cap)){//if cap is on negative strand - reverse it
-                    cap = cap_getReverse(cap);
-                }
-                if(cap_getSide(cap)){ continue; }//if cap is the 5' end, ignore
-                listAppend(startCaps, cap);
-            }
-            free(sequenceHeader);
-        }
-    }
-    flower_destructCapIterator(capIterator);
-    return startCaps;
-}
-
-void moveCapToNextBlock(Cap **cap){
-    /*Move cap to the next block that its segment is adjacency to*/
-    assert((*cap) != NULL);
-    st_logInfo("cap %s, %d\t", cactusMisc_nameToString(cap_getName(*cap)), cap_getCoordinate(*cap));
-    if(isStubCap(*cap)){
-        st_logInfo("STUB\n");
-        return;
-    }
-    Cap *otherCap = cap_getOtherSegmentCap(*cap);
-    st_logInfo("other cap %s, %d\t", cactusMisc_nameToString(cap_getName(otherCap)), cap_getCoordinate(otherCap));
-    *cap = cap_getAdjacency(otherCap);
-    assert(*cap != NULL);
-    st_logInfo("moved-cap %s, %d\n", cactusMisc_nameToString(cap_getName(*cap)), cap_getCoordinate(*cap));
-    
-    /*Cap *adjCap = cap_getAdjacency(*cap);
-    assert(adjCap != NULL);
-    if(cap_getEnd(*cap) == cap_getEnd(adjCap)){//DOUBLE CHECK ... self connected end
-        *cap = adjCap;
-    }else{
-        *cap = cap_getAdjacency(cap_getOtherSegmentCap(*cap));
-    //}*/
 }
 
 void block_getBED(Block *block, FILE *fileHandle, char *species, char *chr, int start, int level) {
@@ -209,22 +139,6 @@ void chain_getBEDs(Chain *chain, Cap *cap, FILE *fileHandle, char *species, char
     fprintf(fileHandle, "\n");
 }
 
-int32_t getSeqLength(Flower *flower, char *header){
-    Flower_SequenceIterator *it = flower_getSequenceIterator(flower);
-    Sequence *sequence;
-    while((sequence = flower_getNextSequence(it)) != NULL){
-        char *sequenceHeader = formatSequenceHeader(sequence);
-        if(strcmp(sequenceHeader, header) == 0){
-            flower_destructSequenceIterator(it);
-            return sequence_getLength(sequence);
-        }
-    }
-    flower_destructSequenceIterator(it);
-    return 0;
-}
-
-
-
 void getBEDs(Flower *flower, FILE *fileHandle, char *species, int level){
     char *chr;
     char *tok;
@@ -287,7 +201,7 @@ void getBEDs(Flower *flower, FILE *fileHandle, char *species, int level){
     flower_destructGroupIterator(groupIterator);
 }
 
-struct List *getSequences(Flower *flower, char *name){
+/*struct List *getSequences(Flower *flower, char *name){
    //get names of all the sequences in 'flower' that have their names start with 'name'
    Sequence *sequence;
    struct List *seqs = constructEmptyList(0, free);
@@ -303,7 +217,7 @@ struct List *getSequences(Flower *flower, char *name){
    }
    flower_destructSequenceIterator(seqIterator);
    return seqs;
-}
+}*/
 
 void usage() {
     fprintf(stderr, "cactus_bedGenerator, version 0.2\n");
@@ -426,8 +340,10 @@ int main(int argc, char *argv[]) {
     int64_t startTime = time(NULL);
     FILE *fileHandle = fopen(outputFile, "w");
     //fprintf(fileHandle, "track name=%s\n", species);
-    if(strstr(species, "reference") != NULL){
-        flower_addReferenceSequence(flower, cactusDisk, species);
+    if(strstr(species, "reference") != NULL && getSequenceMatchesHeader(flower, "reference") == NULL){
+        //flower_addReferenceSequence(flower, cactusDisk, species);
+        fprintf(stderr, "No reference sequence found in cactusDisk\n");
+        exit(EXIT_FAILURE);
     }
     //addReferenceSequenceTest(flower);
     char *seq;

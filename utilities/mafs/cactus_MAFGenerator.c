@@ -16,8 +16,9 @@
 #include "avl.h"
 #include "commonC.h"
 #include "hashTableC.h"
-#include "cactus_addReferenceSeq.h"
 #include "cactusMafs.h"
+#include "cactusUtils.h"
+//#include "cactus_addReferenceSeq.h"
 
 static void usage() {
     fprintf(stderr, "cactus_mafGenerator, version 0.2\n");
@@ -154,8 +155,10 @@ int main(int argc, char *argv[]) {
     int64_t startTime = time(NULL);
     FILE *fileHandle = fopen(outputFile, "w");
     makeMAFHeader(flower, fileHandle);
-    if(referenceSequence) {
-        flower = flower_addReferenceSequence(flower, cactusDisk, referenceSequence);
+    if(referenceSequence && getSequenceMatchesHeader(flower, referenceSequence) == NULL) {
+        fprintf(stderr, "No reference sequence found in cactusDisk\n");
+        exit(EXIT_FAILURE);
+        //flower = flower_addReferenceSequence(flower, cactusDisk, referenceSequence);
     }
     if (orderByReference) {
         st_logInfo("Ordering by reference\n");

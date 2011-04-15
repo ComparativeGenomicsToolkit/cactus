@@ -54,6 +54,23 @@ char *getChromName1(char *name, int num){
     return chromName;
 }
 
+Sequence *getSequenceMatchesHeader(Flower *flower, char *header){
+    //Returns the first Sequence whose name matches 'header'
+    Flower_SequenceIterator *it = flower_getSequenceIterator(flower);
+    Sequence *sequence;
+    while((sequence = flower_getNextSequence(it)) != NULL){
+        char *sequenceHeader = formatSequenceHeader(sequence);
+        //if(strcmp(sequenceHeader, header) == 0){
+        if(strstr(sequenceHeader, header) != NULL){
+            flower_destructSequenceIterator(it);
+            free(sequenceHeader);
+            return sequence;
+        }
+    }
+    flower_destructSequenceIterator(it);
+    return NULL;
+}
+
 int32_t test(Flower *flower, char *name){
     //Test see if every block has 'reference' segment
     Flower_BlockIterator *blockIterator = flower_getBlockIterator(flower);
@@ -99,7 +116,8 @@ int32_t test(Flower *flower, char *name){
 int main(int argc, char *argv[]) {
     char * logLevelString = NULL;
     char * cactusDiskDatabaseString = NULL;
-    char * flowerName = NULL;
+    //char * flowerName = NULL;
+    char * flowerName = "0";
     char *name = NULL;
 
     ///////////////////////////////////////////////////////////////////////////
@@ -111,12 +129,12 @@ int main(int argc, char *argv[]) {
                 { "logLevel", required_argument, 0, 'a' }, 
                 { "name", required_argument, 0, 'b' }, 
                 { "cactusDisk", required_argument, 0, 'c' }, 
-		{ "flowerName", required_argument, 0, 'd' },
+		//{ "flowerName", required_argument, 0, 'd' },
                 { "help", no_argument, 0, 'h' }, { 0, 0, 0, 0 } };
 
         int option_index = 0;
 
-        int key = getopt_long(argc, argv, "a:b:c:d:h", long_options,
+        int key = getopt_long(argc, argv, "a:b:c:h", long_options,
                 &option_index);
 
         if (key == -1) {
@@ -133,9 +151,9 @@ int main(int argc, char *argv[]) {
             case 'c':
                 cactusDiskDatabaseString = stString_copy(optarg);
                 break;
-            case 'd':
+            /*case 'd':
                 flowerName = stString_copy(optarg);
-                break;
+                break;*/
             case 'h':
                 usage();
                 return 0;
@@ -193,8 +211,15 @@ int main(int argc, char *argv[]) {
     ///////////////////////////////////////////////////////////////////////////
 
     int64_t startTime = time(NULL);
-    flower = flower_addReferenceSequence(flower, cactusDisk, name);
-    fprintf(stdout, "\n\nDONE adding reference sequence to flower *%s*\n\n", cactusMisc_nameToString(flower_getName(flower)));
+    //flower = flower_addReferenceSequence(flower, cactusDisk, name);
+    //fprintf(stdout, "\n\nDONE adding reference sequence to flower *%s*\n\n", cactusMisc_nameToString(flower_getName(flower)));
+    
+    //Make sure that reference sequence has already been added to cactusDisk:
+    if(getSequenceMatchesHeader(flower, name) == NULL){
+        fprintf(stderr, "No reference sequence found in cactusDisk\n");
+        exit(EXIT_FAILURE);
+    }
+
     char *name1 = getChromName1(name, 1);
     int ref1 = test(flower, name1);
     fprintf(stdout, "*%s*: %d\n",name1, ref1);
