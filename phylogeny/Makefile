@@ -10,7 +10,7 @@ ${binPath}/cactus_phylogeny : cactus_phylogeny.c reconcilliation.c phylogeny.h $
 	${cxx} ${cflags} -I${libPath} -I${treeIncPath} -o ${binPath}/cactus_phylogeny cactus_phylogeny.c reconcilliation.c treelib/libtree.a ${libPath}/cactusLib.a  ${basicLibs}
 
 treelib/libtree.a: ${treeSrc} ${treeIncPath}/*.h
-	cd treelib && make
+	cd treelib && ${MAKE}
 
 clean : 
 	rm -f *.o

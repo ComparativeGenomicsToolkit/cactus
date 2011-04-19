@@ -6,9 +6,9 @@ modules = genemap graphVizPlots mafs stats referenceViewer psls tuning beds refe
 all : ${modules:%=all.%}
 
 all.%:
-	cd $* && make all
+	cd $* && ${MAKE} all
 
 clean:  ${modules:%=clean.%}
 
 clean.%:
-	cd $* && make clean
+	cd $* && ${MAKE} clean
