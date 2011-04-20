@@ -14,6 +14,7 @@ import xml.etree.ElementTree as ET
 #from jobTree.src.jobTree import runJobTree
 from jobTree.scriptTree.target import Target
 from jobTree.scriptTree.stack import Stack
+from jobTree.src.bioio import getTempFile
 
 from sonLib.bioio import logger
 from sonLib.bioio import system
@@ -51,11 +52,7 @@ class RunRegion(Target):
         Target.__init__(self, time=18000)
         self.region = region
         self.options = options
-        seqdir = "%s/%s" %(options.seqDir, region) #data/ENm001
-        if os.path.isabs(seqdir):
-            self.seqdir = seqdir
-        else:
-            self.seqdir = os.path.join(os.getcwd(), seqdir)
+        self.seqdir = os.path.join(os.getcwd(), options.seqDir, region)
         
         self.config = options.config
         if re.search(".xml", options.config) and not os.path.isabs(options.config):
@@ -63,27 +60,44 @@ class RunRegion(Target):
 
         self.species = getFirstLine(options.species)
         self.tree = getFirstLine(options.tree)
-        self.genedir = "%s/%s" %(options.geneDir, region)
         self.dbStr = getDatabaseString(options.db, options.dbTabBase + self.region)
 
+        self.genedir = os.path.join(options.geneDir, region)
+
     def run(self):
+        #localTempDir = getTempFile(rootDir=self.getGlobalTempDir())
+        localTempDir = self.getLocalTempDir()
+        config = os.path.join(localTempDir, "cactus_workflow_config.xml")
+        system("cp %s %s" %(self.config, config)) #Copy the config file to local disk
+        
+        #Copy sequences to localTempDir:
+        localSeqdir = os.path.join(localTempDir, "data")
+        system("mkdir -p %s" %localSeqdir)
+        for spc in self.species.split():
+            currseqdir = os.path.join(self.seqdir, spc)
+            system("cp -r %s %s" %(currseqdir, localSeqdir))
+            
+
         #Make dir for this region if not already existed
         #system("rm -fR %s" %self.region)
-        system("mkdir -p %s" %self.region)
+        system("mkdir -p %s" % os.path.join(os.getcwd(), self.region))
 
         #Write experiment.xml for this region:
-        experimentFile = "%s/experiment.xml" %self.region
-        writeExpCommand = "cactus_writeExperimentXml.py --species \"%s\" --tree \"%s\" --output %s --sequenceDir %s --config %s --databaseString %s" %(self.species, self.tree, experimentFile, self.seqdir, self.config, self.dbStr)
+        experimentFile = os.path.join(localTempDir, "experiment.xml")
+        writeExpCommand = "cactus_writeExperimentXml.py --species \"%s\" --tree \"%s\" --output %s --sequenceDir %s --config %s --databaseString %s"\
+                          %(self.species, self.tree, experimentFile, localSeqdir, config, self.dbStr)
         system("%s" %writeExpCommand )
+        system("cp %s %s" %( experimentFile, os.path.join(os.getcwd(), self.region, "experiment.xml") ))
         logger.info("Got experiment.xml file for %s with command: %s\n" %(self.region, writeExpCommand))
         
         #Now ready to runCactus:
-        batchSystem = "parasol"
-        #batchSystem = "parasol"
-        jobTree = "%s/jobTree" %self.region
-        cactusCommand = "cactus_workflow.py --batchSystem %s --experiment %s --buildReference --setupAndBuildAlignments --logDebug --jobTree %s" %(batchSystem, experimentFile, jobTree)
+        batchSystem = "singleMachine"
+        jobTree = os.path.join(localTempDir, "jobTree")
+        cactusCommand = "cactus_workflow.py --batchSystem %s --experiment %s --buildReference --setupAndBuildAlignments --logDebug --jobTree %s" \
+                        %(batchSystem, experimentFile, jobTree)
         logger.info("Going to run cactus now, the command is %s" %cactusCommand)
         system("%s" %cactusCommand)
+        system("cp -r %s %s" %(jobTree, os.path.join(os.getcwd(), self.region, "jobTree")) )
         logger.info("Done cactusRun for %s\n" %self.region)
         
         #Run genemapChain:
@@ -97,13 +111,17 @@ class RunGenemapChain(Target):
         Target.__init__(self, time=120)
         self.region = region
         self.dbStr = databaseString
-        self.outputFile = "%s/%s-%s.xml" % (outputDir, "genemapChain", region)
         self.refSpecies = refSpecies
-        self.geneFile = "%s/%s" %(geneDir, "refGeneConverted.bed")
+        self.outputFile = os.path.join(outputDir, "%s-%s.xml"%("genemapChain", region) )
+        
+        self.geneFile = os.path.join(geneDir, "refGeneConverted.bed")
 
     def run(self):
+        geneFile = os.path.join(self.getLocalTempDir(), "refgene.bed")
+        system("cp %s %s" %(self.geneFile, geneFile))
+
         system("cactus_genemapChain -c %s -o \"%s\" -s \"%s\" -g \"%s\"" \
-                %(self.dbStr, self.outputFile, self.refSpecies, self.geneFile))
+                %(self.dbStr, self.outputFile, self.refSpecies, geneFile))
         logger.info("Done genemapChain for %s\n" %self.region)
 
 class RunGenemapHomolog(Target):
@@ -113,14 +131,18 @@ class RunGenemapHomolog(Target):
         Target.__init__(self, time=120)
         self.region = region
         self.dbStr = databaseString
-        self.output1 = "%s/%s-%s.txt" % (outputDir, "genemapHomolog", region)
-        self.output2 = "%s/%s-%s.xml" % (outputDir, "genemapHomolog", region)
+        self.output1 = os.path.join(outputDir, "%s-%s.txt" %("genemapHomolog", region))
+        self.output2 = os.path.join(outputDir, "%s-%s.xml" %("genemapHomolog", region))
         self.refSpecies = refSpecies
-        self.geneFile = "%s/%s" %(geneDir, "refGeneSorted.bed")
+
+        self.geneFile = os.path.join(geneDir, "refGeneSorted.bed")
 
     def run(self):
+        geneFile = os.path.join(self.getLocalTempDir(), "refgene.bed")
+        system("cp %s %s" %(self.geneFile, geneFile))
+        
         command = "cactus_genemapHomolog -c %s -o \"%s\" -s \"%s\" -g \"%s\" > %s" \
-                  %(self.dbStr, self.output1, self.refSpecies, self.geneFile, self.output2)
+                  %(self.dbStr, self.output1, self.refSpecies, geneFile, self.output2)
         system("%s" %command)
         logger.info("Done genemapHomolog for %s, command: %s\n" %(self.region, command))
 
@@ -136,11 +158,11 @@ class AggregateResults(Target):
         genemapChainXmls = [] #list of all genemapChain output Xmls
         genemapHomologXmls = [] #list of all genemapHomology output Xmls
         for r in regions:
-            genemapChainXmls.append("%s/%s-%s.xml" %(self.output, "genemapChain", r))
-            genemapHomologXmls.append("%s/%s-%s.xml" % (self.output, "genemapHomolog", r))
-        
+            genemapChainXmls.append( os.path.join(self.output, "%s-%s.xml" %("genemapChain", r)) )
+            genemapHomologXmls.append( os.path.join(self.output, "%s-%s.xml" %("genemapHomolog", r)) )
+            
         #Directory of more details information if interested
-        extraInfoDir = "%s/%s" %(self.output, "extraInfo")
+        extraInfoDir = os.path.join(self.output, "extraInfo")
         system("mkdir -p %s" %extraInfoDir)
         system("chmod ug+xrw %s" %extraInfoDir)
 
