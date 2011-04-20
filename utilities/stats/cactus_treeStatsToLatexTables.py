@@ -188,8 +188,8 @@ def writeBlocksTable(stats, fileHandle):
                                  ("Max", 12, 12, 1, 1),
                                  ("Avg.", 13, 13, 1, 1),
                                  ("Med.", 14, 14, 1, 1)), fileHandle)
-    l = []
     for statNode, regionName in stats:
+        l = []
         l.append((regionName, 0, 0, 0, 1))
         i = 0
         for blocksNode in statNode.findall("blocks"):
@@ -215,7 +215,7 @@ def writeBlocksTable(stats, fileHandle):
                 l.append((formatFloat(field, decimals=decimals), j, j, i, i))
                 j+=1
             i+=1
-    writeLine(columnNumber, 2, l, fileHandle)
+        writeLine(columnNumber, 2, l, fileHandle)
     writeEnd(fileHandle, "blocks_table", "Statistics on the blocks of the cactus trees. \
     Region: region name. \
     Min. Block Degree: the minimum number of leaf sequences in a block considered this round. \
