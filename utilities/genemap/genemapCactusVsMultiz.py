@@ -874,22 +874,22 @@ def main():
     setMultizGeneStatus(multizGenes)
 
     cactusTree = ET.parse(args[2])
-    #(exonTab, geneTab) = cactusVSmultiz(multizGenes, cactusTree, name2id, options.dup)
-    #f = open(args[3], "w")
+    (exonTab, geneTab) = cactusVSmultiz(multizGenes, cactusTree, name2id, options.dup)
+    f = open(args[3], "w")
     
-    #printTab(f, "exonTab", exonTab, True)
-    #printTab(f, "geneTab", geneTab, True)
+    printTab(f, "exonTab", exonTab, True)
+    printTab(f, "geneTab", geneTab, True)
     
-    #printTab(f, "exonTabSupplement", exonTab, False)
-    #printTab(f, "geneTabSupplement", geneTab, False)
+    printTab(f, "exonTabSupplement", exonTab, False)
+    printTab(f, "geneTabSupplement", geneTab, False)
 
-    #species2genes(f, multizGenes, cactusTree, options.dup)
-    #f.close()
+    species2genes(f, multizGenes, cactusTree, options.dup)
+    f.close()
 
     #====== print out the difference in gene conservation status per species =========
-    #fh = open(options.perSpcOut, "w")
-    #cactusVSmultiz_perSpecies(multizGenes, cactusTree, name2id, options.dup, fh)
-    #fh.close()
+    fh = open(options.perSpcOut, "w")
+    cactusVSmultiz_perSpecies(multizGenes, cactusTree, name2id, options.dup, fh)
+    fh.close()
     
     #
     dupStats(cactusTree)

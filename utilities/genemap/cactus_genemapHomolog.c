@@ -11,19 +11,56 @@
 #include "commonC.h"
 #include "hashTableC.h"
 #include "cactusUtils.h"
-//#include "common.h"
-//#include "basicBed.h"
 
 #define LINEMAXSIZE 3000
 
 /*
  * nknguyen@soe.ucsc.edu
- * Jan 25 2011 - 
- * Edit: Sep 14 2010 - transcripts or CDS inputed in BED format instead of PSL
- * Edit: Nov 09 2010 - clean up unnecessary functions
+ * Jan 25 2011  
  ************************
- * This script sees how genes (or transcripts) map to cactus graph.
- * We want to compare the gene structure with the chain structure of cactus
+ * This script finds homologs of each inputing species and return an xml tree
+ * with found information. The steps involved are:
+ *
+ * 1/ Reads in a list of genes (bed format) and sorts them by chromosome,
+ * then start coordinate, all relatively to the positive (forward) strand.
+ * (This sorting helps to reduce the time traversing cactus graph to get to
+ * the region that ovelaps with each gene).
+ *
+ * For each gene:
+ * 2/ Maps exons of that gene to the sequence thread of the ref-species in cactus graph.
+ * (Traversing the refspc's thread and recording the ends of blocks that ovelap with each Exon.
+ * After mapping, each Gene contains a list of Exons; each Exon contains a list of Ends;
+ * each End is the start of the block that overlaps with that Exon. 
+ * Call these Genes ref-Genes, Exons ref-Exons, Ends ref-Ends
+ *
+ * 3/ Then, for each species (called currSpc): construct a list of MappedExons, in which
+ * each MappedExon is the local maximal thread of currSpc that maps to ref-species with no gaps
+ * or short (< 10% of the ref-exon's length) indels of multiple of three. Whenever there is a 
+ * non-triplet gap, long gap, or other breaks (repeated segment (duplication), new exon, rearrangement...), 
+ * start a new MappedExon. The final MappedExons are in the coorinate order of currSpc.
+ *
+ * The procedure to construct the MappedExon list is as followed:
+ * Intialized mappedExonList = empty
+ * 3.1/ For each ref-Exon:
+ *        For each ref-End, find all the currSpc's threads in the corresponding Block.
+ *          For each currSpcThread, go through the current mappedExonList and try to merge it with
+ *          some existing mappedExon in the list. The requirement for merging is that there is NO
+ *          insertion / deletion between the two segments (one of the mappedExon, and one is
+ *          the currSpcThread). If cannot merge to any element of the list, then just append it to end of the 
+ *          list as a new element.
+ * 3.2/ After step 3.1, we now have a list of scrambled (unsorted) local maximal threads of currSpc that map to
+ *      current gene's exons. We then sort these mappedExons in the order of the currSpc coordinates.
+ * 3.3/ Now go through the list again and merge any two neighboring exons that has short indels of multiple of three.
+ * 3.4/ Now look at all the mappedExons of each Exon, and merge them if the total indel size is of multiple of three.
+ *
+ * 4/CheckCompleteHomologyForward
+ *   CheckCompleteHomologyBackward
+ *   CheckPartialHomologyForward
+ *   CheckPartialHomologyBackward
+ *
+ * Notes: 
+ * Sequences of the reference species must have name that matches to:
+ * "species.chr#". For example: "hg19.chr8"
  */
 
 //============================ BED =====================================
@@ -109,7 +146,10 @@ struct bed *bedLoadAll(char *fileName){
 		prevbed = currbed;
 	    }
 	}
-        st_logInfo("Gene: %s\t%d\t%d\t%s\t%d\t%s\t%d\t%d\t%d\t%d\n", currbed->chrom, currbed->chromStart, currbed->chromEnd, currbed->name, currbed->score, currbed->strand, currbed->thickStart, currbed->thickEnd, currbed->itemRgb, currbed->blockCount);
+        st_logInfo("Gene: %s\t%d\t%d\t%s\t%d\t%s\t%d\t%d\t%d\t%d\n", 
+                    currbed->chrom, currbed->chromStart, currbed->chromEnd, currbed->name, 
+                    currbed->score, currbed->strand, currbed->thickStart, currbed->thickEnd, 
+                    currbed->itemRgb, currbed->blockCount);
     }
 
     fclose(fp);
@@ -121,7 +161,6 @@ struct bed *bedLoadAll(char *fileName){
 struct MappedExon{
     int exon;
     int blockIndex;
-    //int lastExonBlockIndex;
     int status; //status = 1 if complete, 0 if incomplete, 3 if incomplete because of missing data
     char *chr;
     int32_t start;
@@ -149,7 +188,6 @@ struct Gene{
     struct IntList *introns;//list of boolean indicating whether each intron has duplication or not
 };
 
-//struct Thread{
 struct Exon{
     int id;
     int32_t start;
@@ -172,10 +210,11 @@ struct CapList{
     struct CapList *prev;
 };
 
-//============= CONSTRUCTOR
-struct MappedExon *constructMappedExon(int exon, int32_t exonStart, char *chr, int32_t start, int32_t length, 
-                                       char strand, int blockIndex, char *seq, int32_t exonEnd, int32_t exonLength, int32_t exonTotalLength){
-                                       //char strand, int blockIndex, char *seq, int lastExonBlockIndex, int32_t exonEnd){
+//============= CONSTRUCTOR ==============
+struct MappedExon *constructMappedExon(int exon, int32_t exonStart, char *chr, 
+    int32_t start, int32_t length, char strand, int blockIndex, char *seq, 
+    int32_t exonEnd, int32_t exonLength, int32_t exonTotalLength){
+    
     struct MappedExon *mexon = st_malloc(sizeof(struct MappedExon));
     mexon->exon = exon;
     mexon->exonStart = exonStart;
@@ -192,7 +231,6 @@ struct MappedExon *constructMappedExon(int exon, int32_t exonStart, char *chr, i
     mexon->delBases = 0;
     mexon->isLeftStub = false;
     mexon->isRightStub = false;
-    //mexon->lastExonBlockIndex = lastExonBlockIndex;
     mexon->next = NULL;
     mexon->prev = NULL;
     return mexon;
@@ -220,7 +258,6 @@ struct MappedEnd *constructMappedEnd(Cap *cap, End *end, int32_t exonStart, int3
     struct MappedEnd *me = st_malloc(sizeof(struct MappedEnd));
     me->end = end;
     me->cap = cap;
-    //me->exon = exon;
     me->exonStart = exonStart;
     me->exonEnd = exonEnd;
     return me;
@@ -390,7 +427,6 @@ struct CapList *flower_getThreadStart(Flower *flower, char *name){// from Flower
     /*
      *Get 3' end Stub (the start) of the sequence by its name
      */
-    //struct List *list = constructEmptyList(0, free);
     struct CapList *caplist = constructCapList();
     Cap *cap;
     Flower_CapIterator *capIterator = flower_getCapIterator(flower);
@@ -404,10 +440,10 @@ struct CapList *flower_getThreadStart(Flower *flower, char *name){// from Flower
                 if(sequence == NULL){continue;}
                 char *sequenceHeader = formatSequenceHeader(sequence);
                 if(strstr(sequenceHeader, name) != NULL){
-                    char *strand = cap_getStrand(cap) ? "+" : "-";
-                    char *side = cap_getSide(cap) ? "5" : "3";
-                    st_logInfo("Found a thread start: %d, %s, %s\n", mapCapCoor(cap), strand, side);
                     caplist = insertCapList(caplist, cap);
+                    /*char *strand = cap_getStrand(cap) ? "+" : "-";
+                    char *side = cap_getSide(cap) ? "5" : "3";
+                    st_logInfo("Found a thread start: %d, %s, %s\n", mapCapCoor(cap), strand, side);*/
                 }
                 free(sequenceHeader);
             }
@@ -522,7 +558,6 @@ bool intListContains(struct IntList *list, int32_t num){
 
 void extendMappedExon(struct List *mappedExons, Cap *cap, char *chr, int currBlockIndex, 
                       int exon, int32_t exonStart, char *seqname, int exonEnd, int32_t exonTotalLength){
-                      //int exon, int32_t exonStart, char *seqname, int lastExonBlockIndex){
     char strand = cap_getStrand(cap) ? '+' : '-';
     struct MappedExon *mexon = NULL;
     int32_t start = mapCapCoor(cap);
@@ -577,13 +612,11 @@ void getCoverageStatus(struct List *mappedExons){
     return;
 }
 
-//struct List *exon_getCoverage(struct Exon *exon, int exonNumber, char *species){
 struct List *exon_getCoverage(struct Exon *exon, char *species){
     /*
      * Finding maximal non-gap concatenated segments in 'chrom' that mapped to 'exon'
      */
     if (exon->ends == NULL || exon->ends->length == 0){return NULL;}
-    //struct MappedEnd *mend = exon->ends->list[0];
     struct List *mappedExons = constructEmptyList(0, free);
     int32_t exonTotalLength = exon->end - exon->start;
     for(int i=0; i< exon->ends->length; i++){//each cactusBlock that overlap with the exon, from left to right
@@ -595,7 +628,6 @@ struct List *exon_getCoverage(struct Exon *exon, char *species){
             if(seqname != NULL && strstr(seqname, species) != NULL){//found segment of interested species
                 extendMappedExon(mappedExons, cap, getChrom(seqname), i, exon->id, 
                                  mend->exonStart, seqname, mend->exonEnd, exonTotalLength);
-                //extendMappedExon(mappedExons, cap, getChrom(seqname), i, exonNumber, mend->exonStart, seqname, exon->ends->length -1);
             }
         }
         end_destructInstanceIterator(it);
@@ -1458,7 +1490,6 @@ bool mapGene(FILE *fileHandle, struct Gene *refgene, struct List *spcList){
         st_logInfo("Getting exon coverage...\n");
         for(int j=0; j< refgene->exons->length; j++){//each exon
             struct Exon *exon = refgene->exons->list[j];
-            //struct List *meList = exon_getCoverage(exon, j, species);
             struct List *meList = exon_getCoverage(exon, species);
             if(meList->length == 0){
                 intListAppend(missingExons, j);
@@ -1578,12 +1609,13 @@ bool mapGene(FILE *fileHandle, struct Gene *refgene, struct List *spcList){
 //================ MAP GENE TO REFERENCE SEQUENCE ================
 //overlap_walkUp and overlap_walkDown traverse cactus thread and find blocks that are overlapped
 //with the 'start' and 'end' coordinates. If inputed 'exon' is not NULL, record the list of 5'caps
-//of overlapped blocks. If hasDup is not NULL, return as soon as find any duplication within [start, end)
+//of overlapped blocks. 
+//If hasDup is specified (not NULL), overlap_walkUp/Down only checks for and return
+//as soon as find any duplication within [start, end)
 Cap *overlap_walkDown(Cap *cap, int32_t start, int32_t end, struct Exon *exon, int *hasDup);
 
 Cap *overlap_walkUp(Cap *cap, int32_t start, int32_t end, struct Exon *exon, int *hasDup){
     assert((exon != NULL && hasDup == NULL) || (exon == NULL && hasDup != NULL));
-    //int32_t coor = cap_getCoordinate(cap);
     int32_t coor = mapCapCoor(cap);
     //st_logInfo("overlap_walkUp: cap %d, start %d, end %d\n", coor, start, end);
     if(end <= coor){//cases of missing data
@@ -1596,13 +1628,10 @@ Cap *overlap_walkUp(Cap *cap, int32_t start, int32_t end, struct Exon *exon, int
         Cap *otherCap = cap_getOtherSegmentCap(cap);
         int checkDup = block_checkDuplication(segment_getBlock(segment));
         if(hasDup != NULL){
-            //(*hasDup) = block_checkDuplication(segment_getBlock(segment));
             *hasDup = checkDup;
             if((*hasDup) == 1){ 
-                //fprintf(stderr, "FOUND DUPS IN CURRENT INTRON!!\n");
                 return cap; 
             }//the whole region has some duplication, return
-            //else{ fprintf(stderr, "NO dup\n"); }
         }else{
             if(checkDup == 1){exon->hasDup = 1;}
             int32_t exonStart = mapCapCoor(cap) - start; 
@@ -1610,7 +1639,6 @@ Cap *overlap_walkUp(Cap *cap, int32_t start, int32_t end, struct Exon *exon, int
             struct MappedEnd *mappedEnd = constructMappedEnd(cap, cap_getEnd(cap), exonStart, exonEnd);
             listAppend(exon->ends, mappedEnd);
         }
-        //if(cap_getCoordinate(otherCap) < end -1){//NOT YET end of exon(/intron/region), keep walking
         if(mapCapCoor(otherCap) < end -1){//NOT YET end of exon(/intron/region), keep walking
             cap = overlap_walkDown(otherCap, start, end, exon, hasDup);
         }//else: end of exon
@@ -1656,7 +1684,6 @@ void mapGeneToRef(struct Gene *mg, Cap *cap, struct bed *gene){
     struct Exon *exon;
 
     for(int i=0; i< gene->blockCount; i++){//each exon
-        //int exonid = (strcmp(gene->strand, "+") == 0) ? i : gene->blockCount - 1 - i ;
         int exonid = i;
         eStart = gene->chromStart + gene->chromStarts->list[i];
         eEnd = eStart + gene->blockSizes->list[i];
@@ -1713,18 +1740,6 @@ struct List *flower_getSpecies(Flower *flower){
     return list;
 }
 
-/*struct IntList *getSeqEndCoors(Flower *flower, struct List *list){
-    struct IntList *endCoors = constructEmptyIntList(0);
-    Cap *cap;
-    for(int i=0; i< list->length; i++){
-        cap = list->list[i];
-        int32_t seqLen = getSeqLength(flower, cap_getSequenceName(cap));
-        //intListAppend(endCoors, cap_getCoordinate(cap) + seqLen);
-        intListAppend(endCoors, mapCapCoor(cap) + seqLen);
-    }
-    return endCoors;
-}*/
-
 //============================ MAP ALL GENES =========================
 void mapGenes(Flower *flower, FILE *fileHandle, struct bed *gene, char *refspecies){
     st_logInfo("Flower %s\n", cactusMisc_nameToString(flower_getName(flower)));
@@ -1739,6 +1754,7 @@ void mapGenes(Flower *flower, FILE *fileHandle, struct bed *gene, char *refspeci
         //Get the start of the target sequence: 
         st_logInfo("\nGene %s:\n", gene->name);
         
+        //The sequence name of the refspecies must matches the pattern "spc.chr#", for ex: hg19.chr19
         if(geneChrom == NULL || strcmp(geneChrom, gene->chrom) != 0){//new chromosome 
             geneChrom = gene->chrom;
             st_logInfo("New chromosome: %s\n", geneChrom);
@@ -1752,14 +1768,14 @@ void mapGenes(Flower *flower, FILE *fileHandle, struct bed *gene, char *refspeci
         }
         
         //DEBUG
-        st_logInfo("Printing current refStartCapList:\n");
+        /*st_logInfo("Printing current refStartCapList:\n");
         capNode = refStartCapList;
         while(capNode != NULL){
             char *currStrand = cap_getStrand(capNode->cap) ? "+": "-";
             char *currSide = cap_getSide(capNode->cap) ? "5" : "3";
             st_logInfo("cap: %d, %s, %s\n", mapCapCoor(capNode->cap), currStrand, currSide);
             capNode = capNode->next;
-        }
+        }*/
         //END DEBUG
 
         char refstrand = strcmp(gene->strand, "+") == 0 ? '+' : '-';
@@ -1771,8 +1787,6 @@ void mapGenes(Flower *flower, FILE *fileHandle, struct bed *gene, char *refspeci
         while(capNode != NULL){
             startCap = capNode->cap;
             st_logInfo("Current startCap is at: %d\n", mapCapCoor(startCap));
-            //if( (gene->chromEnd <= cap_getCoordinate(startCap)) ||
-            //    (refEndCoors->list[i] <= gene->chromStart) ){
             if( (gene->chromEnd <= mapCapCoor(startCap)) ||
                 (capNode->endSeqCoor <= gene->chromStart) ){//if not overlap, move to next sequence
                 st_logInfo("current sequence does not overlap with gene, move to next Start\n");
@@ -1786,15 +1800,16 @@ void mapGenes(Flower *flower, FILE *fileHandle, struct bed *gene, char *refspeci
                 startCap = walkDown(startCap, gene->chromStart);
             }
             capNode->cap = startCap;
-            char *strand = cap_getStrand(startCap) ? "+" : "-";
+            
+            /*char *strand = cap_getStrand(startCap) ? "+" : "-";
             char *side = cap_getSide(startCap)? "5" : "3";
-            st_logInfo("startCap now is at: %d, %s, %s\n", mapCapCoor(startCap), strand, side);
+            st_logInfo("startCap now is at: %d, %s, %s\n", mapCapCoor(startCap), strand, side);*/
             
             //Traverse the reference seq 
             mapGeneToRef(refGene, startCap, gene);
 
             //DEBUG
-            st_logInfo("\nmapGeneToRef: %s, %s\n", refGene->name, refGene->species);
+            /*st_logInfo("\nmapGeneToRef: %s, %s\n", refGene->name, refGene->species);
             for(int e = 0; e< refGene->exons->length; e++){
                 st_logInfo("Exon %d: ", e);
                 struct Exon *exon = refGene->exons->list[e];
@@ -1802,7 +1817,7 @@ void mapGenes(Flower *flower, FILE *fileHandle, struct bed *gene, char *refspeci
                     struct MappedEnd *myend = exon->ends->list[f];
                     st_logInfo("\tEnd %s, index%d\n", cactusMisc_nameToString(end_getName(myend->end)), f);
                 }
-            }
+            }*/
             //END DEBUG
             
             capNode = capNode->next;
@@ -1820,7 +1835,7 @@ void mapGenes(Flower *flower, FILE *fileHandle, struct bed *gene, char *refspeci
 }
 
 void usage() {
-   fprintf(stderr, "cactus_geneMap, version 0.2\n");
+   fprintf(stderr, "cactus_genemapHomolog, version 0.2\n");
    fprintf(stderr, "-a --st_logLevel : Set the st_log level\n");
    fprintf(stderr, "-c --cactusDisk : The location of the flower disk directory\n");
    fprintf(stderr, "-o --outputFile : output file, in xml format.\n");
@@ -1940,7 +1955,6 @@ int main(int argc, char *argv[]) {
 
    int64_t startTime = time(NULL);
    FILE *fileHandle = fopen(outputFile, "w");
-   //bedLoadAll(geneFile);
    struct bed *gene = bedLoadAll(geneFile);
    mapGenes(flower, fileHandle, gene, species);
    fclose(fileHandle);

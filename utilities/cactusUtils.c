@@ -34,7 +34,8 @@ char *formatSequenceHeader(Sequence *sequence) {
 
 Sequence *getSequenceByHeader(Flower *flower, char *header){
     /*
-     *Iterates through the Sequences in 'flower' and return the first Sequence whose name is 'header'
+     *Iterates through the Sequences in 'flower' and return 
+     *the first Sequence whose name is 'header'
      */
     Flower_SequenceIterator *it = flower_getSequenceIterator(flower);
     Sequence *sequence = NULL;

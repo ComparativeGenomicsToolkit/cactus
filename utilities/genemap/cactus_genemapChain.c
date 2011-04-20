@@ -17,8 +17,6 @@
 #include "commonC.h"
 #include "hashTableC.h"
 #include "cactusUtils.h"
-//#include "common.h"
-//#include "basicBed.h"
 
 #define LINEMAXSIZE 3000
 
@@ -117,7 +115,10 @@ struct bed *bedLoadAll(char *fileName){
 		prevbed = currbed;
 	    }
 	}
-        st_logInfo("Gene: %s\t%d\t%d\t%s\t%d\t%s\t%d\t%d\t%d\t%d\n", currbed->chrom, currbed->chromStart, currbed->chromEnd, currbed->name, currbed->score, currbed->strand, currbed->thickStart, currbed->thickEnd, currbed->itemRgb, currbed->blockCount);
+        st_logInfo("Gene: %s\t%d\t%d\t%s\t%d\t%s\t%d\t%d\t%d\t%d\n", 
+                    currbed->chrom, currbed->chromStart, currbed->chromEnd, currbed->name, 
+                    currbed->score, currbed->strand, currbed->thickStart, currbed->thickEnd, 
+                    currbed->itemRgb, currbed->blockCount);
     }
 
     fclose(fp);
@@ -192,7 +193,8 @@ int mapGene(Cap *cap, int level, int exon, struct bed *gene, FILE *fileHandle){
       End *cend = cap_getEnd(cap);
       capCoor = cap_getCoordinate(cap);//Cap coordinate is always the coordinate on + strand
       nextcap = cap_getAdjacency(cap_getOtherSegmentCap(cap));
-      st_logInfo("capCoor: %d, nextCap: %d, eStart: %d, eEnd: %d. Exon: %d\n", capCoor, cap_getCoordinate(nextcap), exonStart, exonEnd, exon);
+      st_logInfo("capCoor: %d, nextCap: %d, eStart: %d, eEnd: %d. Exon: %d\n", 
+                  capCoor, cap_getCoordinate(nextcap), exonStart, exonEnd, exon);
 
       //keep moving if nextBlock Start is still upstream of current exon
       if(cap_getCoordinate(nextcap) <= exonStart){
@@ -281,7 +283,8 @@ void mapGenes(Flower *flower, FILE *fileHandle, struct bed *gene, char *species)
    st_logInfo("Flower %s\n", cactusMisc_nameToString(flower_getName(flower)));
    printOpeningTag("geneMap", fileHandle);
    fprintf(fileHandle, "\n");
-   int level = 0;
+   
+   int level = 0;//Flower level
    while(gene != NULL){
       //Get the start of the target sequence: 
       st_logInfo("Gene %s:\n", gene->name);
@@ -291,10 +294,14 @@ void mapGenes(Flower *flower, FILE *fileHandle, struct bed *gene, char *species)
           startCap = capList->list[i];
           st_logInfo("Cap %d, %s\n", i, cactusMisc_nameToString(cap_getName(startCap)));
 	  //Traverse cactus and get regions that overlap with exons of the gene, report the involved chains relations
-	  fprintf(fileHandle, "\t<gene name=\"%s\" target=\"%s\" start=\"%d\" end=\"%d\" exonCount=\"%d\" strand=\"%c\">\n", gene->name, species, gene->chromStart, gene->chromEnd, gene->blockCount, gene->strand[0]);
-	  fprintf(fileHandle, "\t\t<exon id=\"0\" start=\"%d\" end=\"%d\">\n", gene->chromStart, gene->chromStart + gene->blockSizes->list[0]);
-	  mapGene(startCap, level, 0, gene, fileHandle);
-	  fprintf(fileHandle, "\t</gene>\n");
+	  fprintf(fileHandle, "\t<gene name=\"%s\" target=\"%s\" start=\"%d\" end=\"%d\" exonCount=\"%d\" strand=\"%c\">\n", 
+                                 gene->name, species, gene->chromStart, gene->chromEnd, gene->blockCount, gene->strand[0]);
+	  fprintf(fileHandle, "\t\t<exon id=\"0\" start=\"%d\" end=\"%d\">\n", 
+                                 gene->chromStart, gene->chromStart + gene->blockSizes->list[0]);
+	  
+          mapGene(startCap, level, 0, gene, fileHandle);
+	  
+          fprintf(fileHandle, "\t</gene>\n");
       }
       gene = gene->next;
    }
