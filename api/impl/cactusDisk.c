@@ -91,24 +91,12 @@ static void *getRecord(CactusDisk *cactusDisk, Name objectName, char *type) {
     int64_t recordSize = 0;
     //while (!done) {
     stTry {
-        //stKVDatabase_startTransaction(cactusDisk->database);
         cA = stKVDatabase_getRecord2(cactusDisk->database, objectName, &recordSize);
-        //stKVDatabase_commitTransaction(cactusDisk->database);
-        //done = 1;
     }
     stCatch(except)
     {
-        /*if (stExcept_getId(except)
-         == ST_KV_DATABASE_RETRY_TRANSACTION_EXCEPTION_ID) {
-         st_logDebug(
-         "We have caught a deadlock exception when getting a %s\n",
-         type);
-         stExcept_free(except);
-         //stKVDatabase_abortTransaction(cactusDisk->database);
-         } else {*/
         stThrowNewCause(except, ST_KV_DATABASE_EXCEPTION_ID,
                 "An unknown database error occurred when getting a %s", type);
-        //}
     }
     stTryEnd;
     //}
