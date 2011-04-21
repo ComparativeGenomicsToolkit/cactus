@@ -46,6 +46,25 @@ char *formatSequenceHeader(Sequence *sequence) {
     }
 }
 
+Sequence *getSequenceMatchesHeader(Flower *flower, char *header){
+    //Returns the first Sequence whose name matches 'header'
+    Flower_SequenceIterator *it = flower_getSequenceIterator(flower);
+    Sequence *sequence;
+    while((sequence = flower_getNextSequence(it)) != NULL){
+        char *sequenceHeader = formatSequenceHeader(sequence);
+        //if(strcmp(sequenceHeader, header) == 0){
+        if(strstr(sequenceHeader, header) != NULL){
+            flower_destructSequenceIterator(it);
+            free(sequenceHeader);
+            return sequence;
+        }
+    }
+    flower_destructSequenceIterator(it);
+    return NULL;
+}
+
+
+
 void getReferenceSequences(FILE *fileHandle, Flower *flower, char *name){
    //get names of all the sequences in 'flower' that have their names start with 'name'
    Sequence *sequence;
@@ -175,9 +194,15 @@ int main(int argc, char *argv[]) {
     // Recursive check the flowers.
     ///////////////////////////////////////////////////////////////////////////
 
-    int64_t startTime = time(NULL);
-    flower = flower_addReferenceSequence(flower, cactusDisk, name);
-    st_logInfo("Added the reference sequence in %i seconds/\n", time(NULL) - startTime);
+    //int64_t startTime = time(NULL);
+    //flower = flower_addReferenceSequence(flower, cactusDisk, name);
+    //st_logInfo("Added the reference sequence in %i seconds/\n", time(NULL) - startTime);
+
+    //Make sure that referenceSequence has already been added:
+    if(getSequenceMatchesHeader(flower, name) == NULL){
+        fprintf(stderr, "No reference sequence found in cactusDisk\n");
+        exit(EXIT_FAILURE); 
+    }
 
     FILE *fileHandle = fopen(outputFile, "w");
     getReferenceSequences(fileHandle, flower, name);

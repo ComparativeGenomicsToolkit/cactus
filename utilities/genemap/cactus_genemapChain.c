@@ -16,8 +16,7 @@
 #include "avl.h"
 #include "commonC.h"
 #include "hashTableC.h"
-//#include "common.h"
-//#include "basicBed.h"
+#include "cactusUtils.h"
 
 #define LINEMAXSIZE 3000
 
@@ -29,6 +28,8 @@
  ************************
  * This script sees how genes (or transcripts) map to cactus graph.
  * We want to compare the gene structure with the chain structure of cactus
+ * Input a list of reference genes, and returns an XML tree how these genes
+ * mapped with the chain/block structure
  */
 
 //============================ BED =====================================
@@ -54,30 +55,6 @@ struct bed *constructbed(){
     struct bed *bed = st_malloc(sizeof(struct bed));
     bed->next = NULL;
     return bed;
-}
-
-struct List *splitString(char *str, char *delim){
-    struct List *list = constructEmptyList(0, free);
-    char *tok;
-    tok = strtok(stString_copy(str), delim);
-    while (tok != NULL){
-        listAppend(list, tok);
-        tok = strtok(NULL, delim);
-    }
-    return list;
-}
-
-struct IntList *splitIntString(char *str, char *delim){
-    struct IntList *list = constructEmptyIntList(0);
-    char *tok;
-    int32_t i;
-    tok = strtok(stString_copy(str), delim);
-    while (tok != NULL){
-        assert( sscanf(tok, "%d", &i) == 1);
-        intListAppend(list, i);
-        tok = strtok(NULL, delim);
-    }
-    return list;
 }
 
 struct bed *bedLoadAll(char *fileName){
@@ -138,7 +115,10 @@ struct bed *bedLoadAll(char *fileName){
 		prevbed = currbed;
 	    }
 	}
-        st_logInfo("Gene: %s\t%d\t%d\t%s\t%d\t%s\t%d\t%d\t%d\t%d\n", currbed->chrom, currbed->chromStart, currbed->chromEnd, currbed->name, currbed->score, currbed->strand, currbed->thickStart, currbed->thickEnd, currbed->itemRgb, currbed->blockCount);
+        st_logInfo("Gene: %s\t%d\t%d\t%s\t%d\t%s\t%d\t%d\t%d\t%d\n", 
+                    currbed->chrom, currbed->chromStart, currbed->chromEnd, currbed->name, 
+                    currbed->score, currbed->strand, currbed->thickStart, currbed->thickEnd, 
+                    currbed->itemRgb, currbed->blockCount);
     }
 
     fclose(fp);
@@ -147,29 +127,9 @@ struct bed *bedLoadAll(char *fileName){
 
 
 //============================= UTILS FUNCTIONS ========================
-char *formatSequenceHeader(Sequence *sequence) {
-   const char *sequenceHeader = sequence_getHeader(sequence);
-   if(strlen(sequenceHeader) > 0) {
-      char *cA = st_malloc(sizeof(char) *(1 + strlen(sequenceHeader)));
-      sscanf(sequenceHeader, "%s", cA);
-      return cA;
-   }
-   else {
-      return cactusMisc_nameToString(sequence_getName(sequence));
-   }
-}
 
-bool isStubCap(Cap *cap){
-   /*
-    *Return true if cap is of a stubEnd, otherwise return false
-    */
-   End *end = cap_getEnd(cap);
-   return (end_isStubEnd(end)) ? true : false;
-}
-
-
-void moveCapToNextBlock(Cap **cap){
-   /*Move cap to the next block that its segment is adjacency to*/
+/*void moveCapToNextBlock(Cap **cap){
+   //Move cap to the next block that its segment is adjacency to
    if(isStubCap(*cap)){
       return;
    }
@@ -179,7 +139,7 @@ void moveCapToNextBlock(Cap **cap){
    }else{
       *cap = cap_getAdjacency(cap_getOtherSegmentCap(*cap));
    }
-}
+}*/
 
 void mapBlockToExon(Cap *cap, int level, FILE *fileHandle){
    fprintf(fileHandle, "\t\t\t<block>\n");
@@ -233,7 +193,8 @@ int mapGene(Cap *cap, int level, int exon, struct bed *gene, FILE *fileHandle){
       End *cend = cap_getEnd(cap);
       capCoor = cap_getCoordinate(cap);//Cap coordinate is always the coordinate on + strand
       nextcap = cap_getAdjacency(cap_getOtherSegmentCap(cap));
-      st_logInfo("capCoor: %d, nextCap: %d, eStart: %d, eEnd: %d. Exon: %d\n", capCoor, cap_getCoordinate(nextcap), exonStart, exonEnd, exon);
+      st_logInfo("capCoor: %d, nextCap: %d, eStart: %d, eEnd: %d. Exon: %d\n", 
+                  capCoor, cap_getCoordinate(nextcap), exonStart, exonEnd, exon);
 
       //keep moving if nextBlock Start is still upstream of current exon
       if(cap_getCoordinate(nextcap) <= exonStart){
@@ -282,10 +243,8 @@ int mapGene(Cap *cap, int level, int exon, struct bed *gene, FILE *fileHandle){
 }
 
 //=================== GET START OF THREAD (3' STUB) ====================================
-struct List *flower_getThreadStart(Flower *flower, char *name){// from Flower = 0
-   /*
-    *Get 3' end Stub (the start) of the sequence by its name
-    */
+/*struct List *flower_getThreadStart(Flower *flower, char *name){// from Flower = 0
+    //Get 3' end Stub (the start) of the sequence by its name
    struct List *list = constructEmptyList(0, free);
    Cap *cap;
    Flower_CapIterator *capIterator = flower_getCapIterator(flower);
@@ -302,7 +261,7 @@ struct List *flower_getThreadStart(Flower *flower, char *name){// from Flower = 
    }
    flower_destructCapIterator(capIterator);
    return list;
-}
+}*/
 
 
 //============================ MAP ALL GENES =========================
@@ -324,20 +283,25 @@ void mapGenes(Flower *flower, FILE *fileHandle, struct bed *gene, char *species)
    st_logInfo("Flower %s\n", cactusMisc_nameToString(flower_getName(flower)));
    printOpeningTag("geneMap", fileHandle);
    fprintf(fileHandle, "\n");
-   int level = 0;
+   
+   int level = 0;//Flower level
    while(gene != NULL){
       //Get the start of the target sequence: 
       st_logInfo("Gene %s:\n", gene->name);
       Cap *startCap;
-      struct List *capList = flower_getThreadStart(flower, species);
+      struct List *capList = flower_getThreadStarts(flower, species);
       for(int i=0; i < capList->length; i++){
           startCap = capList->list[i];
           st_logInfo("Cap %d, %s\n", i, cactusMisc_nameToString(cap_getName(startCap)));
 	  //Traverse cactus and get regions that overlap with exons of the gene, report the involved chains relations
-	  fprintf(fileHandle, "\t<gene name=\"%s\" target=\"%s\" start=\"%d\" end=\"%d\" exonCount=\"%d\" strand=\"%c\">\n", gene->name, species, gene->chromStart, gene->chromEnd, gene->blockCount, gene->strand[0]);
-	  fprintf(fileHandle, "\t\t<exon id=\"0\" start=\"%d\" end=\"%d\">\n", gene->chromStart, gene->chromStart + gene->blockSizes->list[0]);
-	  mapGene(startCap, level, 0, gene, fileHandle);
-	  fprintf(fileHandle, "\t</gene>\n");
+	  fprintf(fileHandle, "\t<gene name=\"%s\" target=\"%s\" start=\"%d\" end=\"%d\" exonCount=\"%d\" strand=\"%c\">\n", 
+                                 gene->name, species, gene->chromStart, gene->chromEnd, gene->blockCount, gene->strand[0]);
+	  fprintf(fileHandle, "\t\t<exon id=\"0\" start=\"%d\" end=\"%d\">\n", 
+                                 gene->chromStart, gene->chromStart + gene->blockSizes->list[0]);
+	  
+          mapGene(startCap, level, 0, gene, fileHandle);
+	  
+          fprintf(fileHandle, "\t</gene>\n");
       }
       gene = gene->next;
    }
@@ -350,7 +314,7 @@ void usage() {
    fprintf(stderr, "-a --st_logLevel : Set the st_log level\n");
    fprintf(stderr, "-c --cactusDisk : The location of the flower disk directory\n");
    fprintf(stderr, "-e --outputFile : output file, in xml format.\n");
-   fprintf(stderr, "-s --species : Name of species of interest, e.g 'hg18.chr11.134452384.116118685.50084.1'\n");
+   fprintf(stderr, "-s --species : Name of species of interest, e.g 'hg18' or 'hg18.chr11.134452384.116118685.50084.1'\n");
    fprintf(stderr, "-g --geneFile : File that contains Beds of transcripts/genes/CDS.\n");
    fprintf(stderr, "-h --help : Print this help screen\n");
 }
@@ -466,7 +430,6 @@ int main(int argc, char *argv[]) {
 
    int64_t startTime = time(NULL);
    FILE *fileHandle = fopen(outputFile, "w");
-   //bedLoadAll(geneFile);
    struct bed *gene = bedLoadAll(geneFile);
    mapGenes(flower, fileHandle, gene, species);
    fclose(fileHandle);

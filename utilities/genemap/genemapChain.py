@@ -3,10 +3,10 @@
 #Copyright (C) 2009-2011 by Benedict Paten (benedictpaten@gmail.com)
 #
 #Released under the MIT license, see LICENSE.txt
-#!/usr/bin/env python
 
 """
 nknguyen@soe.ucsc.edu
+Jan 13 2011: Edit so that the script can combine genemap results from separate cactus runs
 Dec 13 2010: 
 Revised: Sep 14 2010
 June 01 2010
@@ -23,6 +23,17 @@ from sonLib.bioio import system
 def usage():
     sys.stderr.write("Usage: geneMap.py <config.xml>\n")
     sys.exit(2)
+
+#returns aggregated elements of multiple trees:
+def getAggElements(trees, elemTag):
+    if len(trees) == 0:
+        return None
+    root = trees[0].getroot()
+    list = root.getiterator(elemTag)
+    for i in range(1, len(trees)):
+        root = trees[i].getroot()
+        list.extend(root.getiterator(elemTag))
+    return list
 
 def getOverlap(s1, e1, s2, e2):
     s = s1
@@ -110,6 +121,17 @@ def getNonTripleBreaks(exon):
             numNtb += breakLenDist[len]
     return numNtb
 
+def mult3totalIndels(exon):
+    breakLenDist = getBreakLenDist(exon)
+    sumBreakLen = 0
+    for len in breakLenDist:
+        sumBreakLen += len
+    
+    if sumBreakLen%3 == 0:
+        return "true"
+    else:
+        return "false"
+
 def writeDocumentStart(f):
     f.write("\\documentclass[11pt]{article}\n") 
     f.write("\\usepackage{epsfig}\n")
@@ -187,6 +209,11 @@ def score(gene, f, max):
 def getkey(elem):
      return elem.get("name")
 
+
+def getCombinedGeneStructureTab(trees, f, max):
+    for tree in trees:
+        getGeneStructureTab(tree, f, max)
+
 def getGeneStructureTab(tree, f, max):
     root = tree.getroot()
 
@@ -227,14 +254,20 @@ def tableCloser(f, captionStr):
     f.write("\\caption{%s}\n" %captionStr)
     f.write("\\end{table}\n")
 
-def printGeneStructure(outdir, file, tree):
+def printGeneStructure(outdir, file, trees):
     file = os.path.join(outdir, file)
     f = open(file, "w")
-    maxExonNum = getMaxExonNum(tree)
+
+    maxExonNum = 0
+    for tree in trees:
+        currMax = getMaxExonNum(tree)
+        if maxExonNum < currMax:
+            maxExonNum = currMax
+
     writeDocumentStart(f)
 
     geneStrucTableHeader(maxExonNum, f)
-    getGeneStructureTab(tree, f, maxExonNum)
+    getCombinedGeneStructureTab(trees, f, maxExonNum)
     captionStr = "Mapping cactus chain structure to RefSeq genes. CLevel is the chain level. The number corresponding to a CLevel i and an exon j is the number of different chains at level i within exon j. NTB is the number of Non-Triplet Breaks within an exon. TNumDiffChains of CLevel i is the number of different chains with level i across the whole gene."
     tableCloser(f, captionStr)
     
@@ -322,7 +355,7 @@ def writeRscript(outdir, name, titles, xlabels, ylabels, numPlots, numHistsPerPl
         
     for i in range(0, numPlots):
         f.write("breaks%d = (min(x%d0)-0.5):(max(x%d0)+0.5)\n" %(i, i, i))
-        f.write("if ( length(breaks%d) > 36 ) breaks%d = 10\n" %(i, i))
+        f.write("if ( length(breaks%d) > 36 ) {step = max(x%d0)/20; breaks%d = step*0:20}\n" %(i, i, i))
         f.write("hist(x%d0, breaks=breaks%d, col=mycols[1], main='%s', xlab='%s',ylab='%s')\n" %(i, i, titles[i], xlabels[i], ylabels[i]))
 
         if numHistsPerPlot > 1:
@@ -355,11 +388,13 @@ def runRscript(outdir, name, numPlots, numHistsPerPlot, cleanUp):
 #============= END OF HISTOGRAM =================
 
 #======= GET DISTRIBUTION OF EXONS ACROSS DIFFERENT NUMBER OF NonTripletBreaks
-def getNtbDist(outdir, file, tree):
-    root = tree.getroot()
+def getNtbDist(outdir, file, trees):
+    #root = tree.getroot()
     #allExonNtb = []
     brokenExonNtb = []
-    exons = root.getiterator("exon")
+    
+    #exons = root.getiterator("exon")
+    exons = getAggElements(trees, "exon")
     for exon in exons:
         ntb = getNonTripleBreaks(exon)
         #allExonNtb.append(ntb)
@@ -369,7 +404,7 @@ def getNtbDist(outdir, file, tree):
             brokenExonNtb.append(ntb)
     #writeData(file + "0", "ntb", allExonNtb)
     writeData(outdir, file + "00", "ntb", brokenExonNtb)
-    titles = [""]
+    titles = ["Distribution of non-triplet breaks"]
     xlabels = ["Number of non-triplet breaks"]
     ylabels = ["Number of exons"]
     numPlots = 1
@@ -378,10 +413,11 @@ def getNtbDist(outdir, file, tree):
     runRscript(outdir, file, numPlots, numHistsPerPlot, None)
 
 #======= GET BREAKS LENGTH DISTRIBUTION ================
-def getBreakLenHist(outdir, file, tree):
-    root = tree.getroot()
+def getBreakLenHist(outdir, file, trees):
+    #root = tree.getroot()
     breakLens = []
-    exons = root.getiterator("exon")
+    #exons = root.getiterator("exon")
+    exons = getAggElements(trees, "exon")
     for exon in exons:
         lenDist = getBreakLenDist(exon)
         if len(lenDist) == 0:
@@ -412,13 +448,14 @@ def getGeneInfo(gene):
         exonicLen += int(exon.get("end")) - int(exon.get("start"))
     return (exonCount, exonicLen, range) 
 
-def  getConservedGeneDist(outdir, file, tree):
+def  getConservedGeneDist(outdir, file, trees):
     """Looks at the distributions of genes that have no broken exon.\
     This is to check how much of a bias these 'conserved genes' are toward\
     whether they are with small number of exons, or with\
     small number of exonic bases, or span smaller regions of the genome."""
-    root = tree.getroot()
-    genes = root.findall("gene")
+    #root = tree.getroot()
+    #genes = root.findall("gene")
+    genes = getAggElements(trees, "gene")
 
     numExons = [] #list of total number of exons each conserved gene has
     exonicLens = [] #list of total number of exonic bases each conserved gene has
@@ -567,21 +604,23 @@ def getMaxMinAvg(list):
     avg = sum(list)*1.0/len(list)
     return (max(list), min(list), avg)
 
-def printStats(outdir, file, tree):
+def printStats(outdir, file, trees):
     file2 = os.path.join(outdir, file + ".tex")
     f = open(file2, "w")
     writeDocumentStart(f)
     statsTableHeader(f)
     
-    root = tree.getroot()
+    #root = tree.getroot()
 
     #Number of chain-levels/gene
-    genes = root.findall("gene")
+    #genes = root.findall("gene")
+    genes = getAggElements(trees, "gene")
     geneNumCLs = getNumChainLevelList(genes)
     (maxGeneCL, minGeneCL, avgGeneCL) = getMaxMinAvg(geneNumCLs)
 
     #Number of chain-levels/exon
-    exons = root.getiterator("exon")
+    #exons = root.getiterator("exon")
+    exons = getAggElements(trees, "exon")
     eNumCLs = getNumChainLevelList(exons)
     (maxExonCL, minExonCL, avgExonCL) = getMaxMinAvg(eNumCLs)
     
@@ -648,13 +687,35 @@ def hasNTB(gene):
             return "true"
     return "false"
 
+def hasNTB2(gene):
+    exons = gene.findall("exon")
+    for exon in exons:
+        if mult3totalIndels(exon) == "false":
+            return "true"
+    return "false"
+
+def allExonsHaveSameTopChain(gene):
+    #return true if all exons have the same top-level chain. Otherwise return false
+    exons = gene.findall("exon")
+    toplevel = -1
+
+    for exon in exons:
+        levelToChains = countChains2(exon)
+        levels = sorted(levelToChains.keys())
+        if toplevel == -1:
+            toplevel = levels[0]
+        elif toplevel != levels[0]:
+            return "false"
+    return "true"
+
 def getCategory(gene):
-    #Catagory is represented as the binary ABCD, based on 4 aspects (each X
+    #Catagory is represented as the binary ABCDE, based on 4 aspects (each X
     #corresponds to one aspect: 
     #1/ Number of chain-level: A = 0 if has 1 level, otherwise A = 1
     #2/ Number of top-level chains. B = 0 if has 1 top-chain, otherwise B = 1
     #3/ If the gene has NO exon that has more than one top-chains, C = 0, else C = 1
     #4/ If the gene has NO non-triplet break, D = 0, else D = 1
+    #5/ If some exon(s) stay in lower level compared with other exons, E = 1, else E = 0
 
     levelToChains = countChains2(gene)
     levels = sorted(levelToChains.keys())
@@ -663,70 +724,91 @@ def getCategory(gene):
         sys.exit(1)
 
     topChains = levelToChains[levels[0]]
+    hasNtb = hasNTB2(gene)
+    #hasNtb = hasNTB(gene)
+    hasMulTCexon = hasMulTopChainsExon(gene)
+    sameExonTopLevel = allExonsHaveSameTopChain(gene)
+    
     if len(levels) == 1:
-        if len(topChains) == 1:
-            cat = "0000"
-        else:#has multiple top-level chains
-            if hasMulTopChainsExon(gene) == "true":#has mul-top-chain exons
-                cat = "0110"
-            else:
-                cat = "0100"
-    else:#has multiple chain-levels
-        hasNtb = hasNTB(gene)
-        if len(topChains) == 1:
-            if hasNtb == "false":
-                cat = "1000"
-            else:
-                cat = "1001"
-        else:#has multiple top-level chains
-            if hasMulTopChainsExon(gene) == "true":#has mul-top-chain exons
-                if hasNtb == "false":
-                    cat = "1110"
-                else:
-                    cat = "1111"
-            else:
-                if hasNtb == "false":
-                    cat = "1100"
-                else:
-                    cat = "1101"
+        A = "0"
+    else: 
+        A = "1"
+
+    if len(topChains) == 1:
+        B = "0"
+    else:
+        B = "1"
+   
+    if hasMulTCexon == "true":
+        C = "1"
+    else:
+        C = "0"
+    
+    if hasNtb == "true":
+        D = "1"
+    else:
+        D = "0"
+
+    if sameExonTopLevel == "true":
+        E = "0"
+    else:
+        E = "1"
+
+    
+    cat = [A , B , C ,D ,E]
     return cat
 
-def printCategories(outdir, file, tree):
+def printCategories(outdir, file, trees):
     file = os.path.join(outdir, file + ".tex")
     f = open(file, "w")
     writeDocumentStart(f)
     categoriesTableHeader(f)
     
-    root = tree.getroot()
+    #root = tree.getroot()
+    #genes = root.findall("gene")
+    genes = getAggElements(trees, "gene")
 
-    genes = root.findall("gene")
     #key=category, val = count
-    counts = {"0000":0, "0100":0, "0110":0,\
-              "1000":0, "1100":0, "1110":0,\
-              "1001":0, "1101":0, "1111":0}
+    counts = {"00000":0, "10000":0, "10010":0,\
+              "100*1":0, "*10**":0, "*11**":0}
 
     #Get the category distribution
+    sys.stdout.write("Category\tGene\n")
     for gene in genes:
-        catg = getCategory(gene)
-        if catg not in counts:
-            sys.stderr.write("Wrong category found in 'printCategories': %s\n"%catg)
-            sys.exit(1)
-        sys.stdout.write("%s\t%s\n" %(catg, gene.get("name")))
-        counts[catg] += 1 
+        cat = getCategory(gene)
+        catStr = "".join(cat)
+        if catStr == "00000":
+            counts[catStr] +=1
+        elif catStr == "10000":
+            counts[catStr] +=1
+        elif catStr == "10010":
+            counts[catStr] +=1
+        elif cat[0] == 1 and cat[1] == 0 and cat[2] == 0 and cat[4] ==1:
+            counts["100*1"] +=1
+        elif cat[1] == 1 and cat[2] == 0:
+            counts["*10**"] +=1
+        elif cat[1] == 1 and cat[2] == 1:
+            counts["*11**"] +=1
+        sys.stdout.write("%s\t%s\n" %(gene.get("name"), catStr))
+        #counts[catg] += 1 
+    
+    #sys.stdout.write("\nFREQ\n")
+    #for key in counts:
+    #    sys.stdout.write("%s\t%d\n" %(key, counts[key]))
     
     #Print the latex table
-    f.write("\\multicolumn{2}{|c|}{1} & %d & %d & %d\\\\\n" \
-             %(counts["0000"],counts["0100"], counts["0110"]))
-    f.write("\\hline\n")
-    f.write("\\multirow{2}{*}{$>=2$} & no NTB & %d & %d & %d\\\\\n" \
-             %(counts["1000"],counts["1100"], counts["1110"]))
-    f.write("\\cline{2-5}\n")
-    f.write("& with NTB & %d & %d & %d\\\\\n" \
-             %(counts["1001"],counts["1101"], counts["1111"]))
-    f.write("\\hline\n")
+    #f.write("\\multicolumn{2}{|c|}{1} & %d & %d & %d\\\\\n" \
+    #         %(counts["0000"],counts["0100"], counts["0110"]))
+    #f.write("\\hline\n")
+    #f.write("\\multirow{2}{*}{$>=2$} & no NTB & %d & %d & %d\\\\\n" \
+    #         %(counts["1000"],counts["1100"], counts["1110"]))
+    #f.write("\\cline{2-5}\n")
+    #f.write("& with NTB & %d & %d & %d\\\\\n" \
+    #         %(counts["1001"],counts["1101"], counts["1111"]))
+    #f.write("\\hline\n")
 
-    captionStr = ""
-    tableCloser(f, captionStr)
+    #captionStr = ""
+    #tableCloser(f, captionStr)
     writeDocumentEnd(f)
     f.close()
 
@@ -736,7 +818,8 @@ def main():
     #    sys.stderr.write("Too few input arguments.\n")
     #    usage()
     #
-    usg = "usage: %prog [options] < inputGenemap.xml"
+    #usg = "usage: %prog <list of inputing xmls> [options] > geneCategories"
+    usg = "usage: %prog [options] > geneCategories"
     parser = OptionParser(usage=usg)
     parser.add_option("-a", "--geneStructure", dest="geneStructure",\
            help="If specified, outputs to specified file a general table\
@@ -754,11 +837,19 @@ def main():
     parser.add_option("-f", "--breakLenDist", dest="breakLenDist", help="Generates to specified file\
                       distribution of breaks' length\n")
     parser.add_option("-o", "--outputDir", dest="outdir", help="Output directory\n")
+    parser.add_option("-i", "--inputFiles", dest="inFiles", help="(Required argument) List of inputing genemap.xml files. E.g \"run1.xml run2.xml\"\n")
     (options, args) = parser.parse_args()
 
-    #Parsing the input XML
+    #Parsing the input XMLs
     #tree = ET.parse(sys.argv[1])
-    tree = ET.parse(sys.stdin)
+    if options.inFiles == None:
+        sys.stderr.write("Option --inputFiles is required. Please list the list of inputing XMLs\n")
+        sys.exit(2)
+
+    infiles = options.inFiles.split()
+    trees = []
+    for file in infiles:
+        trees.append(ET.parse(file))
 
     if options.outdir:
         outdir = options.outdir
@@ -767,17 +858,17 @@ def main():
     else:
         outdir = os.getcwd()
     if options.geneStructure:
-        printGeneStructure(outdir, options.geneStructure, tree)
+        printGeneStructure(outdir, options.geneStructure, trees)
     if options.stats:
-        printStats(outdir, options.stats, tree)
+        printStats(outdir, options.stats, trees)
     if options.categories:
-        printCategories(outdir, options.categories, tree)
+        printCategories(outdir, options.categories, trees)
     if options.ntb:
-        getNtbDist(outdir, options.ntb, tree)
+        getNtbDist(outdir, options.ntb, trees)
     if options.conservedGeneDist:
-        getConservedGeneDist(outdir, options.conservedGeneDist, tree)
+        getConservedGeneDist(outdir, options.conservedGeneDist, trees)
     if options.breakLenDist:
-        getBreakLenHist(outdir, options.breakLenDist, tree)
+        getBreakLenHist(outdir, options.breakLenDist, trees)
 
 if __name__ == "__main__":
     main()

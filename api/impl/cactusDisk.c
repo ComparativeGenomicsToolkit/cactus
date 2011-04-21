@@ -198,8 +198,7 @@ static CactusDisk *cactusDisk_constructPrivate(stKVDatabaseConf *conf,
             cactusDisk->absSequencesFileName = stString_print("%s/%s",
                     stKVDatabaseConf_getDir(conf),
                     cactusDisk->sequencesFileName);
-            cactusDisk->sequencesFileHandle = fopen(
-                    cactusDisk->absSequencesFileName, "w");
+            cactusDisk->sequencesFileHandle = fopen(cactusDisk->absSequencesFileName, "w");
             assert(cactusDisk->sequencesFileHandle != NULL);
             fclose(cactusDisk->sequencesFileHandle); //Flush it first time.
             cactusDisk->sequencesFileHandle = fopen(
@@ -547,14 +546,12 @@ Name cactusDisk_addString(CactusDisk *cactusDisk, const char *string) {
     bool done = 0;
     if (cactusDisk->storeSequencesInAFile) {
         fclose(cactusDisk->sequencesFileHandle);
-        cactusDisk->sequencesFileHandle = fopen(
-                cactusDisk->absSequencesFileName, "a");
+        cactusDisk->sequencesFileHandle = fopen(cactusDisk->absSequencesFileName, "a");
         assert(cactusDisk->sequencesFileHandle != NULL);
         name = ftell(cactusDisk->sequencesFileHandle) + 1;
         fprintf(cactusDisk->sequencesFileHandle, ">%s", string);
         fclose(cactusDisk->sequencesFileHandle);
-        cactusDisk->sequencesFileHandle = fopen(
-                cactusDisk->absSequencesFileName, "r");
+        cactusDisk->sequencesFileHandle = fopen(cactusDisk->absSequencesFileName, "r");
         assert(cactusDisk->sequencesFileHandle != NULL);
         return name;
     } else {
