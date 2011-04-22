@@ -24,31 +24,7 @@ from cactus.shared.test import getCactusWorkflowExperimentForTest
 
 from jobTree.test.jobTree.jobTreeTest import runJobTreeStatusAndFailIfNotComplete
 
-"""Using this set of tests I have found that:
-
-Spanning tree no / Cut off / Sens / Spec
-
-1    0.9    0.5     0.95
-2    0.9    0.666394687629 0.959811182484
-2    0.85   0.695476098788 0.936469685867  
-2    0.8    0.714650750468 0.901942148024 
-2    0.75   0.731373533136 0.857005520637
-2    0.7    0.747936598984 0.820758253164
-2    0.65    0.76194419572 0.77428747256
-3    0.9    0.71    0.89
-10    0.9    0.84    0.86
-
-2 0.5 MaxEdge 0.638431294206 0.959093882956
-2 0.6 MaxEdge 0.667422055278 0.966186684277
-2 0.65 MaxEdge 0.671937292932 0.971078624611
-2 0.7 MaxEdge 0.679474200144 0.975266205164
-2 0.75 MaxEdge 0.676702897492 0.978594642833
-2 0.8 MaxEdge 0.675537396377 0.98162754782
-
-All pairs 0.9 0.87 0.81
-
-By default we us 2/0.85
-
+"""Tests cactus_baseAligner. Requires the installation of cactusTools and mafTools.
 """
 
 class TestCase(unittest.TestCase):
@@ -84,13 +60,6 @@ class TestCase(unittest.TestCase):
             subAlignment = columnAlignment[randomStart:randomStart+alignmentLength]
             logger.info("Got a sub alignment, it is %i columns long" % len(subAlignment))
             
-            #Output the 'TRUE' alignment file
-            trueMFAFile = os.path.join(testDir, "true.mfa")
-            fastaAlignmentWrite(subAlignment, fastaHeaders, len(fastaHeaders), trueMFAFile)
-            trueMAFFile = os.path.join(testDir, "true.maf")
-            system("mfaToMaf --mfaFile %s --outputFile %s" % (trueMFAFile, trueMAFFile))
-            system("cat %s" % trueMAFFile)
-            
             #Get sequences
             sequences = [ (fastaHeaders[seqNo], "".join([ column[seqNo] for column in subAlignment if column[seqNo] != '-' ])) for seqNo in xrange(sequenceNumber) ]
             logger.info("Got the sequences")
@@ -122,29 +91,37 @@ class TestCase(unittest.TestCase):
             runJobTreeStatusAndFailIfNotComplete(jobTree)
             logger.info("Checked the job tree dir")
             
-            #Now get mafs for the region.
-            mAFFile = os.path.join(testDir, "flower.maf")
-            system("cactus_MAFGenerator --flowerName 0 --cactusDisk '%s' --outputFile %s" % (cactusDiskDatabaseString, mAFFile))
-            logger.info("Got the MAFs from the flower disk")
-            system("cat %s" % mAFFile)
-            
-            statsFile = os.path.join(testDir, "stats.xml")
-            system("cactus_treeStats --cactusDisk '%s' --flowerName 0 --outputFile %s" % (cactusDiskDatabaseString, statsFile))
-            system("cat %s" % statsFile)
-            logger.info("Got the cactus tree stats")
-            
-            #Now compare the mafs to the output.
-            resultsFile = os.path.join(testDir, "results.xml")
-            system("mafComparator --mafFile1 %s --mafFile2 %s --outputFile %s" % (trueMAFFile, mAFFile, resultsFile))
-            logger.info("Ran the maf comparator")
-            
-            system("cat %s" % resultsFile)
-            
-            #Cleanup
-            experiment.cleanupDatabase()
-            system("rm -rf %s" % testDir)
-            logger.info("Successfully ran test for the problem")
-            
+            #Output the 'TRUE' alignment file
+            if os.system("mfaToMaf --help >& /dev/null") and os.system("cactus_MAFGenerator --help >& /dev/null"):
+                trueMFAFile = os.path.join(testDir, "true.mfa")
+                fastaAlignmentWrite(subAlignment, fastaHeaders, len(fastaHeaders), trueMFAFile)
+                trueMAFFile = os.path.join(testDir, "true.maf")
+                system("mfaToMaf --mfaFile %s --outputFile %s" % (trueMFAFile, trueMAFFile))
+                system("cat %s" % trueMAFFile)
+                
+                #Now get mafs for the region.
+                mAFFile = os.path.join(testDir, "flower.maf")
+                system("cactus_MAFGenerator --flowerName 0 --cactusDisk '%s' --outputFile %s" % (cactusDiskDatabaseString, mAFFile))
+                logger.info("Got the MAFs from the flower disk")
+                system("cat %s" % mAFFile)
+                
+                statsFile = os.path.join(testDir, "stats.xml")
+                system("cactus_treeStats --cactusDisk '%s' --flowerName 0 --outputFile %s" % (cactusDiskDatabaseString, statsFile))
+                system("cat %s" % statsFile)
+                logger.info("Got the cactus tree stats")
+                
+                #Now compare the mafs to the output.
+                resultsFile = os.path.join(testDir, "results.xml")
+                system("mafComparator --mafFile1 %s --mafFile2 %s --outputFile %s" % (trueMAFFile, mAFFile, resultsFile))
+                logger.info("Ran the maf comparator")
+                
+                system("cat %s" % resultsFile)
+                
+                #Cleanup
+                experiment.cleanupDatabase()
+                system("rm -rf %s" % testDir)
+                logger.info("Successfully ran test for the problem")
+                
             for tempFile in tempFiles:
                 os.remove(tempFile)
             system("rm -rf %s" % tempDir)

@@ -270,7 +270,7 @@ int main(int argc, char *argv[]) {
     int32_t j;
     for (j = optind; j < argc; j++) {
         const char *flowerName = argv[j];
-        st_logInfo("Processing the flower named: %s", flowerName);
+        st_logInfo("Processing the flower named: %s\n", flowerName);
 
         ///////////////////////////////////////////////////////////////////////////
         // Parse the basic reconstruction problem
@@ -285,7 +285,7 @@ int main(int argc, char *argv[]) {
         ///////////////////////////////////////////////////////////////////////////
 
         checkFlowers(flower, recursive);
-        st_logInfo("Checked the flowers/\n");
+        st_logInfo("Checked the flower/\n");
     }
 
     ///////////////////////////////////////////////////////////////////////////

@@ -334,9 +334,8 @@ void cactusDisk_write(CactusDisk *cactusDisk) {
     bool containsCactusDiskParameters = stKVDatabase_containsRecord(
             cactusDisk->database, CACTUS_DISK_PARAMETER_KEY);
 
+    stKVDatabase_startTransaction(cactusDisk->database);
     stTry {
-        stKVDatabase_startTransaction(cactusDisk->database);
-
         if(containsCactusDiskParameters) {
             stKVDatabase_updateRecord(cactusDisk->database, CACTUS_DISK_PARAMETER_KEY, cactusDiskParameters, cactusDiskParametersRecordSize);
         }
@@ -545,8 +544,8 @@ Name cactusDisk_addString(CactusDisk *cactusDisk, const char *string) {
     } else {
         name = cactusDisk_getUniqueID(cactusDisk);
         while (!done) {
+            stKVDatabase_startTransaction(cactusDisk->database);
             stTry {
-                stKVDatabase_startTransaction(cactusDisk->database);
                 stKVDatabase_insertRecord(cactusDisk->database, name, string, (strlen(string) + 1) * sizeof(char));
                 stKVDatabase_commitTransaction(cactusDisk->database);
                 done = 1;
@@ -588,16 +587,8 @@ char *cactusDisk_getString(CactusDisk *cactusDisk, Name name, int32_t start,
         }
         stCatch(except)
         {
-            /*if (stExcept_getId(except)
-             == ST_KV_DATABASE_RETRY_TRANSACTION_EXCEPTION_ID) {
-             st_logDebug(
-             "We have caught a deadlock exception when getting a sequence string");
-             stExcept_free(except);
-             //stKVDatabase_abortTransaction(cactusDisk->database);
-             } else {*/
             stThrowNewCause(except, ST_KV_DATABASE_EXCEPTION_ID,
                     "An unknown database error occurred when getting a sequence string");
-            //}
         }stTryEnd;
     }
     string[length] = '\0';
@@ -617,8 +608,8 @@ void cactusDisk_getBlockOfUniqueIDs(CactusDisk *cactusDisk) {
     bool done = 0;
     int32_t collisionCount = 0;
     while (!done) {
+        stKVDatabase_startTransaction(cactusDisk->database);
         stTry {
-            stKVDatabase_startTransaction(cactusDisk->database);
             Name keyName = st_randomInt(-CACTUS_DISK_BUCKET_NUMBER, 0);
             assert(keyName >= -CACTUS_DISK_BUCKET_NUMBER);
             assert(keyName < 0);
@@ -723,8 +714,8 @@ static void copyAcrossFlowersP(Flower *flower, CactusDisk *newCactusDisk) {
 }
 
 static void copyAcrossFlowers(Flower *flower, CactusDisk *newCactusDisk) {
+    stKVDatabase_startTransaction(newCactusDisk->database);
     stTry {
-        stKVDatabase_startTransaction(newCactusDisk->database);
         flowerIterator(flower, (void(*)(Flower *, void *))copyAcrossFlowersP,
                 newCactusDisk);
         stKVDatabase_commitTransaction(newCactusDisk->database);
