@@ -131,13 +131,13 @@ int main(int argc, char *argv[]) {
                 'q' }, { "minTraceBackDiag", required_argument, 0, 'r' }, { "minTraceGapDiags", required_argument, 0,
                 's' }, { "constraintDiagonalTrim", required_argument, 0, 't' }, { "minimumDegree", required_argument,
                 0, 'u' }, { "requiredSpecies", required_argument, 0, 'v' },
-                { "alignAmbiguityCharacters", required_argument, 0, 'w' },
+                { "alignAmbiguityCharacters", no_argument, 0, 'w' },
 
         { 0, 0, 0, 0 } };
 
         int option_index = 0;
 
-        int key = getopt_long(argc, argv, "a:b:hi:j:kl:o:p:q:r:s:t:u:v:w:", long_options, &option_index);
+        int key = getopt_long(argc, argv, "a:b:hi:j:kl:o:p:q:r:s:t:u:v:w", long_options, &option_index);
 
         if (key == -1) {
             break;
