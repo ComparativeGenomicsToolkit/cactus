@@ -22,6 +22,17 @@ class TestCase(unittest.TestCase):
         if getBatchSystem() != None:
             self.batchSystem = getBatchSystem()
         unittest.TestCase.setUp(self)
+        
+    def testEvolver_Primates_Small(self):
+        inputDir = os.path.join(TestStatus.getPathToDataSets(), "evolver", "primates", "small")
+        outputDir = os.path.join(TestStatus.getPathToDataSets(), "cactus", "evolver", "primates", "small")
+        primateSequences = ("simChimp.fa", "simGorilla.fa", "simHuman.fa", "simOrang.fa")
+        runWorkflow_multipleExamples(lambda regionNumber=0, tempDir=None : getInputs(inputDir, primateSequences),
+                                     outputDir=outputDir,
+                                     testRestrictions=(TestStatus.TEST_MEDIUM,),
+                                     batchSystem=self.batchSystem,
+                                     buildTrees=False, buildReference=False,
+                                     buildJobTreeStats=True)
     
     def testEvolver_Primates_Loci1(self):
         inputDir = os.path.join(TestStatus.getPathToDataSets(), "evolver", "primates", "loci1")
@@ -29,7 +40,7 @@ class TestCase(unittest.TestCase):
         primateSequences = ("simChimp.chr6", "simGorilla.chr6", "simHuman.chr6", "simOrang.chr6")
         runWorkflow_multipleExamples(lambda regionNumber=0, tempDir=None : getInputs(inputDir, primateSequences),
                                      outputDir=outputDir,
-                                     testRestrictions=(TestStatus.TEST_MEDIUM,),
+                                     testRestrictions=(TestStatus.TEST_LONG,),
                                      batchSystem=self.batchSystem,
                                      buildTrees=False, buildReference=False,
                                      buildJobTreeStats=True)
@@ -39,17 +50,6 @@ class TestCase(unittest.TestCase):
         outputDir = os.path.join(TestStatus.getPathToDataSets(), "cactus", "evolver", "mammals", "loci1")
         mammalSequences = ("simCow.chr6", "simDog.chr6", "simHuman.chr6", "simMouse.chr6", "simRat.chr6")
         runWorkflow_multipleExamples(lambda regionNumber=0, tempDir=None : getInputs(inputDir, mammalSequences),
-                                     outputDir=outputDir,
-                                     testRestrictions=(TestStatus.TEST_LONG,),
-                                     batchSystem=self.batchSystem,
-                                     buildTrees=False, buildReference=False,
-                                     buildJobTreeStats=True)
-    
-    def testEvolver_Primates_Small(self):
-        inputDir = os.path.join(TestStatus.getPathToDataSets(), "evolver", "primates", "small")
-        outputDir = os.path.join(TestStatus.getPathToDataSets(), "cactus", "evolver", "primates", "small")
-        primateSequences = ("simChimp.fa", "simGorilla.fa", "simHuman.fa", "simOrang.fa")
-        runWorkflow_multipleExamples(lambda regionNumber=0, tempDir=None : getInputs(inputDir, primateSequences),
                                      outputDir=outputDir,
                                      testRestrictions=(TestStatus.TEST_VERY_LONG,),
                                      batchSystem=self.batchSystem,
