@@ -76,11 +76,16 @@ def runCactusCore(cactusDiskDatabaseString, alignmentFile,
     alignRepeatsAtRound = nameValue("alignRepeatsAtRound", alignRepeatsAtRound, int)
     if trim != None:
         trim = "--trim '%s'" % " ".join([ str(i) for i in trim ])
+    else:
+        trim = ""
     minimumTreeCoverage = nameValue("minimumTreeCoverage", minimumTreeCoverage, float)
     blockTrim = nameValue("blockTrim", blockTrim, int)
     ignoreAllChainsLessThanMinimumTreeCoverage = nameValue("ignoreAllChainsLessThanMinimumTreeCoverage", ignoreAllChainsLessThanMinimumTreeCoverage, bool)
     minimumBlockDegree = nameValue("minimumDegree", minimumBlockDegree, int)
-    requiredSpecies = nameValue("requiredSpecies", requiredSpecies, str)
+    if requiredSpecies != None:
+        requiredSpecies = "--requiredSpecies '%s'" % requiredSpecies
+    else:
+        requiredSpecies = ""
     
     command = "cactus_core --cactusDisk '%s' --flowerName %s --alignments %s --logLevel %s %s %s %s %s %s %s %s %s %s %s" % \
     (cactusDiskDatabaseString, flowerName, alignmentFile, logLevel, writeDebugFiles, annealingRounds, deannealingRounds, alignRepeatsAtRound,

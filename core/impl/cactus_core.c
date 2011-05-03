@@ -593,7 +593,7 @@ int32_t cactusCorePipeline(Flower *flower, CactusCoreInputParameters *cCIP,
 
             stSortedSet *chosenBlocks = filterBlocksByTreeCoverageAndLength(
                     biConnectedComponents, flower, cCIP->minimumTreeCoverage,
-                    cCIP->minimumDegree, 0, 0, NULL, pinchGraph);
+                    cCIP->minimumDegree, 0, 0, cCIP->requiredSpecies, pinchGraph);
 
             stSortedSet *chosenPinchVertices = getPinchVerticesSet(chosenBlocks, pinchGraph);
 
