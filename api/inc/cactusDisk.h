@@ -69,20 +69,4 @@ Flower *cactusDisk_getFlower(CactusDisk *cactusDisk, Name flowerName);
  */
 MetaSequence *cactusDisk_getMetaSequence(CactusDisk *cactusDisk, Name metaSequenceName);
 
-/*
- * Relabel the names in the cactus disk.
- */
-void cactusDisk_relabelIDs(CactusDisk *cactusDisk);
-
-/*
- * Copy the flower and its descendants and associated stuff into the given cactus disk.
- */
-void cactus_splitFlowers(Flower *flower, CactusDisk *newCactusDisk);
-
-/*
- * Merge the flower and its descendants into the cactus disk which
- * already contains the flower in a stub state.
- */
-void cactus_mergeFlowers(Flower *flower, CactusDisk *oldCactusDisk);
-
 #endif
