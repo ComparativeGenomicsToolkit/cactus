@@ -443,6 +443,7 @@ void trimEdges(struct PinchGraph *pinchGraph, int32_t trim, Flower *flower) {
      */
     stList_destruct(listOfEdges);
     destructList(listOfEdgesToRemove);
+    stSortedSet_destruct(vertices);
 }
 
 ////////////////////////////////////////////////
