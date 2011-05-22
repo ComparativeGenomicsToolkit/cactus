@@ -696,9 +696,8 @@ void cactusDisk_getBlockOfUniqueIDs(CactusDisk *cactusDisk) {
                     cactusDisk->uniqueNumber = cactusDisk->maxUniqueNumber - CACTUS_DISK_NAME_INCREMENT; 
                 } else {
                     stTry {
-                            stKVDatabase_insertRecord(cactusDisk->database,
-                                    keyName, &minimumValue,
-                                    sizeof(Name));
+                            stKVDatabase_insertInt64(cactusDisk->database,
+                                    keyName, minimumValue);
                         }
                         stCatch(except)
                             {
