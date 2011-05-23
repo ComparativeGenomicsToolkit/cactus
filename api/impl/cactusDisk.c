@@ -404,7 +404,7 @@ void cactusDisk_write(CactusDisk *cactusDisk) {
         stList_append(
                 updateRequests,
                 stKVDatabaseBulkRequest_constructUpdateRequest(
-                        name, NULL, 0)); //We set it to null in the first atomic operation.
+                        name, &i, 0)); //We set it to null in the first atomic operation.
         stList_append(removeRequests, stInt64Tuple_construct(1, name));
         //stKVDatabase_removeRecord(cactusDisk->database, name);
     }
