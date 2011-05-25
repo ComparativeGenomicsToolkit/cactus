@@ -75,6 +75,106 @@ void test_getSpanningTree(CuTest *testCase) {
     }
 }
 
+void constructCyclicPermuations(int32_t numberOfSequences,
+        stSortedSet *pairwiseAlignments, int32_t multiple);
+
+void test_getRandomCyclicPermutations(CuTest *testCase) {
+    for(int32_t test=0; test<1000; test++) {
+        int32_t numberOfSequences = st_randomInt(0, 15);
+        int32_t spanningTrees = st_randomInt(1, 5);
+        stSortedSet *pairwiseAlignments = stSortedSet_construct3((int(*)(
+                    const void *, const void *)) stIntTuple_cmpFn,
+                    (void(*)(void *)) stIntTuple_destruct);
+        constructCyclicPermuations(numberOfSequences, pairwiseAlignments, spanningTrees);
+        stSortedSetIterator *it = stSortedSet_getIterator(pairwiseAlignments);
+        stIntTuple *i;
+        while((i = stSortedSet_getNext(it)) != NULL) {
+            CuAssertTrue(testCase, stIntTuple_getPosition(i, 0) < stIntTuple_getPosition(i, 1));
+            CuAssertTrue(testCase, stIntTuple_getPosition(i, 0) >= 0);
+            CuAssertTrue(testCase, stIntTuple_getPosition(i, 1) < numberOfSequences);
+        }
+        stSortedSet_destructIterator(it);
+    }
+}
+
+void test_getCyclicPermutations(CuTest *testCase) {
+    stSortedSet *expectedPairwiseAlignments = stSortedSet_construct3((int(*)(
+                            const void *, const void *)) stIntTuple_cmpFn,
+                            (void(*)(void *)) stIntTuple_destruct);
+
+    stSortedSet_insert(expectedPairwiseAlignments, stIntTuple_construct(2, 0, 1));
+    stSortedSet_insert(expectedPairwiseAlignments, stIntTuple_construct(2, 1, 2));
+    stSortedSet_insert(expectedPairwiseAlignments, stIntTuple_construct(2, 2, 3));
+    stSortedSet_insert(expectedPairwiseAlignments, stIntTuple_construct(2, 3, 4));
+    stSortedSet_insert(expectedPairwiseAlignments, stIntTuple_construct(2, 4, 5));
+    stSortedSet_insert(expectedPairwiseAlignments, stIntTuple_construct(2, 5, 6));
+    stSortedSet_insert(expectedPairwiseAlignments, stIntTuple_construct(2, 6, 7));
+    stSortedSet_insert(expectedPairwiseAlignments, stIntTuple_construct(2, 7, 8));
+    stSortedSet_insert(expectedPairwiseAlignments, stIntTuple_construct(2, 0, 8));
+
+    stSortedSet_insert(expectedPairwiseAlignments, stIntTuple_construct(2, 0, 4));
+    stSortedSet_insert(expectedPairwiseAlignments, stIntTuple_construct(2, 4, 8));
+    stSortedSet_insert(expectedPairwiseAlignments, stIntTuple_construct(2, 3, 8));
+    stSortedSet_insert(expectedPairwiseAlignments, stIntTuple_construct(2, 3, 7));
+    stSortedSet_insert(expectedPairwiseAlignments, stIntTuple_construct(2, 2, 7));
+    stSortedSet_insert(expectedPairwiseAlignments, stIntTuple_construct(2, 2, 6));
+    stSortedSet_insert(expectedPairwiseAlignments, stIntTuple_construct(2, 1, 6));
+    stSortedSet_insert(expectedPairwiseAlignments, stIntTuple_construct(2, 1, 5));
+    stSortedSet_insert(expectedPairwiseAlignments, stIntTuple_construct(2, 0, 5));
+
+    stSortedSet *pairwiseAlignments = stSortedSet_construct3((int(*)(
+                        const void *, const void *)) stIntTuple_cmpFn,
+                        (void(*)(void *)) stIntTuple_destruct);
+    constructCyclicPermuations(9, pairwiseAlignments, 2);
+    stSortedSetIterator *it = stSortedSet_getIterator(pairwiseAlignments);
+    stIntTuple *i;
+    while((i = stSortedSet_getNext(it)) != NULL) {
+        st_uglyf("I got %i %i\n", stIntTuple_getPosition(i, 0), stIntTuple_getPosition(i, 1));
+        CuAssertTrue(testCase, stSortedSet_search(expectedPairwiseAlignments, i) != NULL);
+    }
+    CuAssertTrue(testCase, stSortedSet_size(pairwiseAlignments) == stSortedSet_size(expectedPairwiseAlignments));
+    stSortedSet_destructIterator(it);
+    //assert(0);
+}
+
+void test_getCyclicPermutationsComplete(CuTest *testCase) {
+    for(int32_t i=0; i<10; i++) {
+        stSortedSet *pairwiseAlignments = stSortedSet_construct3((int(*)(
+                                const void *, const void *)) stIntTuple_cmpFn,
+                                (void(*)(void *)) stIntTuple_destruct);
+        constructCyclicPermuations(i, pairwiseAlignments, 4);
+        CuAssertTrue(testCase, stSortedSet_size(pairwiseAlignments) == (i*i - i)/2);
+        stSortedSet_destruct(pairwiseAlignments);
+    }
+}
+
+
+void constructRandomAlignments(int32_t numberOfSequences,
+        stSortedSet *pairwiseAlignments, int32_t multiple);
+
+void test_getRandomAlignments(CuTest *testCase) {
+    for(int32_t test=0; test<1000; test++) {
+        int32_t numberOfSequences = st_randomInt(0, 15);
+        int32_t spanningTrees = st_randomInt(1, 5);
+        stSortedSet *pairwiseAlignments = stSortedSet_construct3((int(*)(
+                    const void *, const void *)) stIntTuple_cmpFn,
+                    (void(*)(void *)) stIntTuple_destruct);
+        constructRandomAlignments(numberOfSequences, pairwiseAlignments, spanningTrees);
+        stSortedSetIterator *it = stSortedSet_getIterator(pairwiseAlignments);
+        stIntTuple *i;
+        while((i = stSortedSet_getNext(it)) != NULL) {
+            CuAssertTrue(testCase, stIntTuple_getPosition(i, 0) < stIntTuple_getPosition(i, 1));
+            CuAssertTrue(testCase, stIntTuple_getPosition(i, 0) >= 0);
+            CuAssertTrue(testCase, stIntTuple_getPosition(i, 1) < numberOfSequences);
+        }
+        stSortedSet_destructIterator(it);
+        int32_t maxComparisons = numberOfSequences * spanningTrees;
+        int32_t maxPairs = (numberOfSequences * numberOfSequences - numberOfSequences)/2;
+        maxComparisons = maxComparisons > maxPairs ? maxPairs : maxComparisons;
+        CuAssertTrue(testCase, stSortedSet_size(pairwiseAlignments) == maxComparisons);
+    }
+}
+
 /*
  * Test the multiple alignment code with multiple examples.
  */
@@ -139,7 +239,12 @@ void test_multipleAlignerRandom(CuTest *testCase) {
 
 CuSuite* multipleAlignerTestSuite(void) {
     CuSuite* suite = CuSuiteNew();
+    SUITE_ADD_TEST(suite, test_getCyclicPermutations);
+    SUITE_ADD_TEST(suite, test_getRandomCyclicPermutations);
+    SUITE_ADD_TEST(suite, test_getCyclicPermutationsComplete);
+    SUITE_ADD_TEST(suite, test_getRandomAlignments);
     SUITE_ADD_TEST(suite, test_multipleAlignerRandom);
     SUITE_ADD_TEST(suite, test_getSpanningTree);
+
     return suite;
 }
