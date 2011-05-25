@@ -239,6 +239,8 @@ def runWorkflow_TestScript(sequences, newickTreeString,
     experimentFile = os.path.join(tempDir, "experiment.xml")
     experiment.writeExperimentFile(experimentFile)
    
+    system("cat %s" % experimentFile)
+   
     #Setup the job tree dir.
     jobTreeDir = os.path.join(getTempDirectory(tempDir), "jobTree")
     logger.info("Got a job tree dir for the test: %s" % jobTreeDir)
