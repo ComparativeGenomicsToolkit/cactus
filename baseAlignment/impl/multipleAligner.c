@@ -531,24 +531,10 @@ stList *makeAlignment(stList *sequences, int32_t spanningTrees, float gapGamma,
     int32_t sequenceNo = stList_length(sequences);
     //int32_t maxAlignmentPairs = (sequenceNo * sequenceNo - sequenceNo) / 2;
     bool divideByObservedPairs = 1; //0;
-
-    //constructRandomAlignments(sequenceNo, pairwiseAlignments, spanningTrees);
     constructCyclicPermuations(sequenceNo, pairwiseAlignments, spanningTrees);
-    //stSortedSet *pairwiseAlignments, int32_t multiple)
-
-    /*if (spanningTrees * sequenceNo < maxAlignmentPairs) {
-     divideByObservedPairs = 1;
-     for (int32_t i = 0; i < spanningTrees; i++) {
-     constructSpanningTree(sequenceNo, pairwiseAlignments);
-     }
-     } else {
-     for (int32_t i = 0; i < stList_length(sequences); i++) {
-     for (int32_t j = i + 1; j < stList_length(sequences); j++) {
-     stSortedSet_insert(pairwiseAlignments, stIntTuple_construct(2,
-     i, j));
-     }
-     }
-     }*/
+    if(stSortedSet_size(pairwiseAlignments) == (sequenceNo*sequenceNo - sequenceNo)/2) {
+        divideByObservedPairs = 0; //We can use the proper divisor.
+    }
 
     //Construct the alignments
     //and sort them by weight
