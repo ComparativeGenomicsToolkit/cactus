@@ -1,6 +1,6 @@
 # order is important, libraries first
-modules = externalTools api pinchGraphs core setup blastAlignment baseAlignment normalisation reference phylogeny faces check pipeline utilities 
-#pulldown
+modules = externalTools api pinchGraphs core setup blastAlignment baseAlignment normalisation reference phylogeny faces check pipeline 
+
 .PHONY: all %.all clean %.clean
 
 all : ${modules:%=all.%}
@@ -13,3 +13,7 @@ clean:  ${modules:%=clean.%}
 
 clean.%:
 	cd $* && ${MAKE} clean
+	
+test: all
+	python allTests.py
+

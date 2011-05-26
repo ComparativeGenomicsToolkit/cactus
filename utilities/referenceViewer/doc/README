@@ -1,9 +1,0 @@
-The reference viewer is a little prototype viewer for a net
-meant which can be easily modified to run with any underlying
-plotting framework. Here we use graphviz, but I think
-we could use Zack Sanborns circos plots or Ted Goldstein could 
-use this layout code for his browser.
-
-The functions for the plotter interface in referenceViewer.h are 
-implemented in graphViz.c, replacing this code should allow
-a different plotting framework to be used.

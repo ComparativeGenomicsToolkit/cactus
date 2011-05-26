@@ -76,11 +76,16 @@ def runCactusCore(cactusDiskDatabaseString, alignmentFile,
     alignRepeatsAtRound = nameValue("alignRepeatsAtRound", alignRepeatsAtRound, int)
     if trim != None:
         trim = "--trim '%s'" % " ".join([ str(i) for i in trim ])
+    else:
+        trim = ""
     minimumTreeCoverage = nameValue("minimumTreeCoverage", minimumTreeCoverage, float)
     blockTrim = nameValue("blockTrim", blockTrim, int)
     ignoreAllChainsLessThanMinimumTreeCoverage = nameValue("ignoreAllChainsLessThanMinimumTreeCoverage", ignoreAllChainsLessThanMinimumTreeCoverage, bool)
     minimumBlockDegree = nameValue("minimumDegree", minimumBlockDegree, int)
-    requiredSpecies = nameValue("requiredSpecies", requiredSpecies, str)
+    if requiredSpecies != None:
+        requiredSpecies = "--requiredSpecies '%s'" % requiredSpecies
+    else:
+        requiredSpecies = ""
     
     command = "cactus_core --cactusDisk '%s' --flowerName %s --alignments %s --logLevel %s %s %s %s %s %s %s %s %s %s %s" % \
     (cactusDiskDatabaseString, flowerName, alignmentFile, logLevel, writeDebugFiles, annealingRounds, deannealingRounds, alignRepeatsAtRound,
@@ -230,52 +235,3 @@ def runCactusWorkflow(experimentFile,
     #assert False
     system(command)
     logger.info("Ran the cactus workflow okay")
-    
-#############################################
-#############################################
-#Runs cactus utilities.
-#############################################
-#############################################    
-    
-def runCactusTreeStats(outputFile, cactusDiskDatabaseString, flowerName='0'):
-    command = "cactus_treeStats --cactusDisk '%s' --flowerName %s --outputFile %s" % (cactusDiskDatabaseString, flowerName, outputFile)
-    system(command)
-    logger.info("Ran the cactus tree stats command apprently okay")
-
-def runCactusTreeStatsToLatexTables(inputFiles, regionNames, outputFile):
-    assert len(regionNames) == len(inputFiles)
-    k = " ".join([ "%s %s" % (i, j) for i, j in zip(inputFiles, regionNames) ])
-    command = "cactus_treeStatsToLatexTables.py --outputFile %s %s" % (outputFile, k)
-    system(command)
-    logger.info("Ran cactus_treeStatsToLatexTables okay")
-    
-def runCactusTreeViewer(graphFile,
-                        cactusDiskDatabaseString, 
-                        flowerName="0", 
-                        logLevel="DEBUG"):
-    system("cactus_treeViewer --cactusDisk '%s' --flowerName %s --outputFile %s --logLevel %s" \
-                    % (cactusDiskDatabaseString, flowerName, graphFile, logLevel))
-    logger.info("Created a cactus tree graph")
-    
-def runCactusAdjacencyGraphViewer(graphFile,
-                             cactusDiskDatabaseString, flowerName="0",
-                             logLevel="DEBUG", includeInternalAdjacencies=False):
-    includeInternalAdjacencies = nameValue("includeInternalAdjacencies", includeInternalAdjacencies, bool)
-    system("cactus_adjacencyGraphViewer --cactusDisk '%s' --flowerName %s --outputFile %s --logLevel %s" \
-                    % (cactusDiskDatabaseString, flowerName, graphFile, logLevel))
-    logger.info("Created a break point graph of the problem")
-    
-def runCactusReferenceGraphViewer(graphFile,
-                                  cactusDiskDatabaseString, flowerName="0",
-                                  logLevel="DEBUG"):
-    system("cactus_referenceViewer --cactusDisk '%s' --flowerName %s --outputFile %s --logLevel %s" \
-                    % (cactusDiskDatabaseString, flowerName, graphFile, logLevel))
-    logger.info("Created a cactus reference graph")
-    
-def runCactusMAFGenerator(mAFFile, cactusDiskDatabaseString, flowerName="0",
-                          logLevel="DEBUG", orderByReference=False, referenceSequenceName=None):
-    orderByReference = nameValue("orderByReference", orderByReference, bool)
-    referenceSequence = nameValue("referenceSequence", referenceSequenceName, str)
-    system("cactus_MAFGenerator --cactusDisk '%s' --flowerName %s --outputFile %s --logLevel %s %s %s" \
-            % (cactusDiskDatabaseString, flowerName, mAFFile, logLevel, orderByReference, referenceSequence))
-    logger.info("Created a MAF for the given cactusDisk")

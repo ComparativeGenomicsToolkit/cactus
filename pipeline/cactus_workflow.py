@@ -340,6 +340,7 @@ class CactusBaseLevelAlignerWrapper(Target):
                              minTraceGapDiags=int(self.iteration.attrib["min_trace_gap_diags"]),
                              constraintDiagonalTrim=int(self.iteration.attrib["constraint_diagonal_trim"]),
                              minimumBlockDegree=int(self.iteration.attrib["minimumBlockDegree"]),
+                             alignAmbiguityCharacters=bool(int(self.iteration.attrib["alignAmbiguityCharacters"])),
                              requiredSpecies=self.options.requiredSpecies)
         
 ############################################################

@@ -37,6 +37,12 @@ def checkDatabaseConf(databaseConf):
             raise RuntimeError("Database conf is of type tokyo cabinet but there is no nested tokyo cabinet tag: %s" % dataString)
         if not tokyoCabinet.attrib.has_key("database_dir"):
             raise RuntimeError("The tokyo cabinet tag has no database_dir tag: %s" % dataString)
+    elif typeString == "kyoto_tycoon":
+        kyotoTycoon = databaseConf.find("kyoto_tycoon")
+        if kyotoTycoon == None:
+            raise RuntimeError("Database conf is of kyoto tycoon but there is no nested kyoto tycoon tag: %s" % dataString)
+        if not kyotoTycoon.attrib.has_key("database_dir"):
+            raise RuntimeError("The kyoto tycoon tag has no database_dir tag: %s" % dataString)
     elif typeString == "tokyo_tyrant":
         tokyoCabinet = databaseConf.find("tokyo_tyrant")
         if tokyoCabinet == None:
@@ -78,6 +84,11 @@ class CactusWorkflowExperiment:
                 tokyoCabinet = databaseConf.find("tokyo_cabinet")
                 tokyoCabinet.attrib["database_dir"] = os.path.join(tokyoCabinet.attrib["database_dir"], self.databaseName)
                 self.databaseFile = tokyoCabinet.attrib["database_dir"]
+                assert not os.path.exists(self.databaseFile)
+            elif databaseConf.attrib["type"] == "kyoto_tycoon":
+                kyotoTycoon = databaseConf.find("kyoto_tycoon")
+                kyotoTycoon.attrib["database_dir"] = os.path.join(kyotoTycoon.attrib["database_dir"], self.databaseName)
+                self.databaseFile = kyotoTycoon.attrib["database_dir"]
                 assert not os.path.exists(self.databaseFile)
             else:
                 assert databaseConf.attrib["type"] == "tokyo_tyrant"
