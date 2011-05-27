@@ -25,12 +25,6 @@ def checkDatabaseConf(databaseConf):
             raise RuntimeError("Database conf is of type mysql but there is no nested mysql tag: %s" % dataString)
         if set(mysql.attrib.keys()) != set(("host", "port", "password", "user", "database_name")):
             raise RuntimeError("Mysql tag is improperly formatted: %s" % dataString)
-    elif typeString == "postgresql":
-        postgresql = databaseConf.find("postgresql")
-        if postgresql == None:
-            raise RuntimeError("Database conf is of type postgresql but there is no nested postgresql tag: %s" % dataString)
-        if set(postgresql.attrib.keys()) != set(("host", "password", "user", "database_name")):
-            raise RuntimeError("Postgresql tag is improperly formatted: %s" % dataString)
     elif typeString == "tokyo_cabinet":
         tokyoCabinet = databaseConf.find("tokyo_cabinet")
         if tokyoCabinet == None:
@@ -41,14 +35,8 @@ def checkDatabaseConf(databaseConf):
         kyotoTycoon = databaseConf.find("kyoto_tycoon")
         if kyotoTycoon == None:
             raise RuntimeError("Database conf is of kyoto tycoon but there is no nested kyoto tycoon tag: %s" % dataString)
-        if not kyotoTycoon.attrib.has_key("database_dir"):
-            raise RuntimeError("The kyoto tycoon tag has no database_dir tag: %s" % dataString)
-    elif typeString == "tokyo_tyrant":
-        tokyoCabinet = databaseConf.find("tokyo_tyrant")
-        if tokyoCabinet == None:
-            raise RuntimeError("Database conf is of type tyrant cabinet but there is no nested tokyo tyrant tag: %s" % dataString)
-        if not tokyoCabinet.attrib.has_key("database_dir"):
-            raise RuntimeError("The tokyo tyrant tag has no database_dir tag: %s" % dataString)
+        if set(kyotoTycoon.attrib.keys()) != set(("host", "port", "database_dir")):
+            raise RuntimeError("The kyoto tycoon tag has a missing attribute: %s" % dataString)
     else:
         raise RuntimeError("Unrecognised database type in conf string: %s" % typeString)
 
@@ -66,7 +54,7 @@ class CactusWorkflowExperiment:
         #Do the database first
         database = ET.SubElement(self.experiment, "cactus_disk")
         self.mysql = 0
-        self.postgresql = 0
+        self.kyotoTycoon = 0
         if databaseConf != None:
             checkDatabaseConf(databaseConf)
             databaseConf = ET.fromstring(ET.tostring(databaseConf))
@@ -76,25 +64,17 @@ class CactusWorkflowExperiment:
                 self.mysql = 1
                 #Add a table name:
                 databaseConf.find("mysql").attrib["table_name"] = self.databaseName
-            elif databaseConf.attrib["type"] == "postgresql":
-                self.postgresql = 1
-                #Add a table name:
-                databaseConf.find("postgresql").attrib["table_name"] = self.databaseName
             elif databaseConf.attrib["type"] == "tokyo_cabinet":
                 tokyoCabinet = databaseConf.find("tokyo_cabinet")
                 tokyoCabinet.attrib["database_dir"] = os.path.join(tokyoCabinet.attrib["database_dir"], self.databaseName)
                 self.databaseFile = tokyoCabinet.attrib["database_dir"]
                 assert not os.path.exists(self.databaseFile)
-            elif databaseConf.attrib["type"] == "kyoto_tycoon":
+            else:
+                self.kyotoTycoon = 1
+                assert databaseConf.attrib["type"] == "kyoto_tycoon"
                 kyotoTycoon = databaseConf.find("kyoto_tycoon")
                 kyotoTycoon.attrib["database_dir"] = os.path.join(kyotoTycoon.attrib["database_dir"], self.databaseName)
                 self.databaseFile = kyotoTycoon.attrib["database_dir"]
-                assert not os.path.exists(self.databaseFile)
-            else:
-                assert databaseConf.attrib["type"] == "tokyo_tyrant"
-                tokyoTyrant = databaseConf.find("tokyo_tyrant")
-                tokyoTyrant.attrib["database_dir"] = os.path.join(tokyoTyrant.attrib["database_dir"], self.databaseName)
-                self.databaseFile = tokyoTyrant.attrib["database_dir"]
                 assert not os.path.exists(self.databaseFile)
         else:
             databaseConf = ET.SubElement(database, "st_kv_database_conf")
@@ -130,12 +110,10 @@ class CactusWorkflowExperiment:
             #Connect to MYSQL and remove the table..
             system("mysql --host=%s --port=%s --user=%s --password='%s' --execute='drop table %s.%s'" \
                    % (i["host"], i["port"], i["user"], i["password"], i["database_name"], i["table_name"]))
-        elif self.postgresql:
-            assert self.databaseFile == None
-            i = self.experiment.find("cactus_disk").find("st_kv_database_conf").find("mysql").attrib
-            #Connect to MYSQL and remove the table..
-            system("psql --host=%s --user=%s --dbname=%s --command='drop table %s'" \
-                   % (i["host"], i["user"], i["database_name"], i["table_name"]))
+        elif self.kyotoTycoon:
+            i = self.experiment.find("cactus_disk").find("st_kv_database_conf").find("kyoto_tycoon").attrib
+            system("ktremotemgr clear -port %s -host %s" % (i["port"], i["host"]))
+            system("rm -rf %s" % self.databaseFile)
         else:
             assert self.databaseFile != None
             system("rm -rf %s" % self.databaseFile)
