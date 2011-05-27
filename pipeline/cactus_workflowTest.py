@@ -37,26 +37,19 @@ class TestCase(unittest.TestCase):
                                      batchSystem=self.batchSystem, buildJobTreeStats=True)
         
     def testCactus_Blanchette(self):
-        outputDir = os.path.join(TestStatus.getPathToDataSets(), "cactus", 
-                                 "blanchettesRegionsTest")
         runWorkflow_multipleExamples(getCactusInputs_blanchette, 
-                                     outputDir=outputDir,
                                      testNumber=1,
                                      testRestrictions=(TestStatus.TEST_MEDIUM,),
                                      batchSystem=self.batchSystem, buildJobTreeStats=True)
                 
     def testCactus_Encode(self): 
-        outputDir = os.path.join(TestStatus.getPathToDataSets(), "cactus", "encodeRegionsTest")
         runWorkflow_multipleExamples(getCactusInputs_encode, 
-                                     outputDir=outputDir,
                                      testNumber=1,
                                      testRestrictions=(TestStatus.TEST_LONG,),
                                      batchSystem=self.batchSystem, buildJobTreeStats=True)
     
     def testCactus_Chromosomes(self):
-        outputDir = os.path.join(TestStatus.getPathToDataSets(), "cactus", "chrX")
         runWorkflow_multipleExamples(getCactusInputs_chromosomeX, 
-                                     outputDir=outputDir,
                                      testRestrictions=(TestStatus.TEST_VERY_LONG,),
                                      batchSystem=self.batchSystem, buildJobTreeStats=True)
     
