@@ -27,7 +27,7 @@ class TestCase(unittest.TestCase):
         inputDir = os.path.join(TestStatus.getPathToDataSets(), "evolver", "primates", "loci1")
         primateSequences = ("simChimp.chr6", "simGorilla.chr6", "simHuman.chr6", "simOrang.chr6")
         runWorkflow_multipleExamples(lambda regionNumber=0, tempDir=None : getInputs(inputDir, primateSequences),
-                                     testRestrictions=(TestStatus.TEST_SMALL,),
+                                     testRestrictions=(TestStatus.TEST_SHORT,),
                                      batchSystem=self.batchSystem,
                                      buildTrees=False, buildReference=False,
                                      buildJobTreeStats=True)
