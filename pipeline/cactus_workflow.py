@@ -180,26 +180,32 @@ class CactusAlignmentPhase(Target):
 ############################################################
 ############################################################
 
-def makeChildTargets(options, extraArgs, flowerNames, target, childTarget, maxSequenceSize=500000, jobNumber=20000):
+def makeTargets(options, extraArgs, flowersAndSizes, parentTarget, target, maxSequenceSize=1000000, jobNumber=1000):
+    """Make a set of targets for a given set of flowers.
+    """
     #Make child jobs
-    childFlowerNames = []
+    flowerNames = []
     totalSequenceSize = 0
     
     minChildSize = max(1, maxSequenceSize/jobNumber)
-    childFlowers = runCactusGetFlowers(options.cactusDiskDatabaseString, flowerNames, target.getLocalTempDir(), logLevel=getLogLevelString())
-    totalChildSize = sum([ max(childFlowerSize, minChildSize) for childFlowerName, childFlowerSize in childFlowers])
-    avgChildSize = totalChildSize / (totalChildSize / maxSequenceSize + 1)
+    totalChildSize = sum([ max(flowerSize, minChildSize) for flowerName, flowerSize in flowersAndSizes ])
     
-    for childFlowerName, childFlowerSize, in childFlowers:
-        assert(childFlowerSize) >= 0
-        totalSequenceSize += max(childFlowerSize, minChildSize)
-        childFlowerNames.append(childFlowerName)
-        if totalSequenceSize >= avgChildSize:
-            target.addChildTarget(childTarget(options, extraArgs, childFlowerNames))
-            childFlowerNames = []
+    for flowerName, flowerSize, in flowersAndSizes:
+        assert(flowerSize) >= 0
+        totalSequenceSize += max(flowerSize, minChildSize)
+        flowerNames.append(flowerName)
+        if totalSequenceSize >= maxSequenceSize: 
+            parentTarget.addChildTarget(target(options, extraArgs, flowerNames))
+            flowerNames = []
             totalSequenceSize = 0
-    if len(childFlowerNames) > 0:
-        target.addChildTarget(childTarget(options, extraArgs, childFlowerNames))
+    if len(flowerNames) > 0:
+        parentTarget.addChildTarget(target(options, extraArgs, flowerNames))
+
+def makeChildTargets(options, extraArgs, flowerNames, target, childTarget, maxSequenceSize=500000, jobNumber=20000):
+    """Make a set of child targets for a given set of parent flowers.
+    """
+    childFlowers = runCactusGetFlowers(options.cactusDiskDatabaseString, flowerNames, target.getLocalTempDir(), logLevel=getLogLevelString())
+    makeTargets(options, extraArgs, childFlowers, target, childTarget, maxSequenceSize, jobNumber)
 
 class CactusCafDown(Target):
     """This target does the down pass for the CAF alignment phase.
@@ -217,7 +223,7 @@ class CactusCafDown(Target):
         for childFlowerName, childFlowerSize in runCactusExtendFlowers(self.options.cactusDiskDatabaseString, self.flowerNames, 
                                                                        self.getLocalTempDir(),  logLevel=getLogLevelString()):
             if childFlowerSize > minSize:
-                self.addChildTarget(CactusBlastWrapper(self.options, self.iteration, childFlowerName)) 
+                self.addChildTarget(CactusBlastWrapper(self.options, self.iteration, childFlowerName))
         
 class CactusBlastWrapper(Target):
     """Runs blast on the given flower and passes the resulting alignment to cactus core.
@@ -298,7 +304,7 @@ class CactusBarDown(Target):
     """This target does the down pass for the BAR alignment phase.
     """
     def __init__(self, options, iteration, flowerNames):
-        Target.__init__(self, time=0.2)
+        Target.__init__(self, time=1.0)
         self.options = options
         self.flowerNames = flowerNames
         self.iteration = iteration
@@ -306,22 +312,16 @@ class CactusBarDown(Target):
     def run(self):
         children = []
         makeChildTargets(self.options, self.iteration, self.flowerNames, self, CactusBarDown)
-        for childFlowerName, childFlowerSize in runCactusExtendFlowers(self.options.cactusDiskDatabaseString, self.flowerNames, 
-                                                              self.getLocalTempDir(),  logLevel=getLogLevelString()):
-            assert childFlowerSize >= 0
-            children.append(childFlowerName)
-            if len(children) > 10:
-                self.addChildTarget(CactusBaseLevelAlignerWrapper(self.options, self.iteration, children)) 
-                children = []
-        if len(children) > 0:
-            self.addChildTarget(CactusBaseLevelAlignerWrapper(self.options, self.iteration, children)) 
+        childFlowersAndSizes = runCactusExtendFlowers(self.options.cactusDiskDatabaseString, self.flowerNames, 
+                                                              self.getLocalTempDir(),  logLevel=getLogLevelString())
+        makeTargets(self.options, self.iteration, childFlowersAndSizes, self, CactusBaseLevelAlignerWrapper, maxSequenceSize=10000)
      
 class CactusBaseLevelAlignerWrapper(Target):
     """Runs cactus_baseAligner (the BAR algorithm implementation.
     """
     #We split, to deal with cleaning up the alignment file
     def __init__(self, options, iteration, flowerNames):
-        Target.__init__(self, time=5)
+        Target.__init__(self, time=20)
         self.options = options
         self.iteration = iteration
         self.flowerNames = flowerNames
@@ -374,7 +374,7 @@ class CactusNormalDown(Target):
     """This target does the down pass for the normal phase.
     """
     def __init__(self, options, extras, flowerNames):
-        Target.__init__(self, time=0.2)
+        Target.__init__(self, time=1.0)
         assert extras == None #We currently don't use this argument
         self.options = options
         self.flowerNames = flowerNames
@@ -419,7 +419,7 @@ class CactusPhylogeny(Target):
     """This target does the down pass for the phylogeny phase.
     """
     def __init__(self, options, extras, flowerNames):
-        Target.__init__(self, time=1.0)
+        Target.__init__(self, time=2.0)
         assert extras == None #We currently don't use this argument
         self.options = options
         self.flowerNames = flowerNames
@@ -529,7 +529,7 @@ class CactusCheck(Target):
     """This target does the down pass for the check phase.
     """
     def __init__(self, options, extras, flowerNames):
-        Target.__init__(self, time=1.0)
+        Target.__init__(self, time=2.0)
         assert extras == None #We currently don't use this argument
         self.options = options
         self.flowerNames = flowerNames

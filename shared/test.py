@@ -210,8 +210,6 @@ def getCactusInputs_chromosomeX(regionNumber=0, tempDir=None):
     return sequences, newickTreeString
 
 def runWorkflow_TestScript(sequences, newickTreeString, 
-                           outputDir=None, 
-                           databaseName=None,
                            batchSystem="single_machine",
                            buildTrees=True, buildFaces=True, buildReference=True,
                            configFile=None,
@@ -227,14 +225,14 @@ def runWorkflow_TestScript(sequences, newickTreeString,
     logger.info("Using the temp dir: %s" % tempDir)
         
     #Setup the output dir
-    if outputDir == None: 
-        outputDir = getTempDirectory(tempDir)
+    outputDir = getTempDirectory(tempDir)
     logger.info("Using the output dir: %s" % outputDir)
     
     #Setup the flower disk.
     experiment = getCactusWorkflowExperimentForTest(sequences, newickTreeString, 
-                                                    outputDir=outputDir, databaseName=databaseName, 
+                                                    outputDir=outputDir, databaseName=None, 
                                                     configFile=configFile)
+    experiment.cleanupDatabase()
     cactusDiskDatabaseString = experiment.getDatabaseString()
     experimentFile = os.path.join(tempDir, "experiment.xml")
     experiment.writeExperimentFile(experimentFile)
@@ -270,8 +268,8 @@ def runWorkflow_TestScript(sequences, newickTreeString,
     #Now remove everything we generate
     system("rm -rf %s" % tempDir)    
     
-    #Return the experiment, so that the caller can decide what todo with the output
-    return experiment
+    #Cleanup the experiment
+    experiment.cleanupDatabase()
         
 testRestrictions_NotShort = ()
         
@@ -280,7 +278,6 @@ def runWorkflow_multipleExamples(inputGenFunction,
                                  testRestrictions=(TestStatus.TEST_SHORT, TestStatus.TEST_MEDIUM, \
                                                    TestStatus.TEST_LONG, TestStatus.TEST_VERY_LONG,),
                                inverseTestRestrictions=False,
-                               outputDir=None,
                                batchSystem="single_machine",
                                buildTrees=True, buildFaces=True, buildReference=True,
                                configFile=None, buildJobTreeStats=False):
@@ -291,23 +288,11 @@ def runWorkflow_multipleExamples(inputGenFunction,
         for test in xrange(testNumber): 
             tempDir = getTempDirectory(os.getcwd())
             sequences, newickTreeString = inputGenFunction(regionNumber=test, tempDir=tempDir)
-            if outputDir != None:
-                out = os.path.join(outputDir, str(test))
-                if os.path.exists(out):
-                    system("rm -rf %s" % out)
-                os.mkdir(out)
-                os.chmod(out, 0777) #Ensure everyone has access to the file.
-                databaseName = "cactusDisk_%s" % str(test)
-            else:
-                out = None
-                databaseName = None
-            experiment = runWorkflow_TestScript(sequences, newickTreeString,
-                                   outputDir=out, databaseName=databaseName, batchSystem=batchSystem,
+            runWorkflow_TestScript(sequences, newickTreeString,
+                                   batchSystem=batchSystem,
                                    buildTrees=buildTrees, buildFaces=buildFaces, buildReference=buildReference, 
                                    configFile=configFile,
                                    buildJobTreeStats=buildJobTreeStats)
-            if outputDir == None:
-                experiment.cleanupDatabase()
             system("rm -rf %s" % tempDir)
             logger.info("Finished random test %i" % test)
     
