@@ -180,7 +180,7 @@ class CactusAlignmentPhase(Target):
 ############################################################
 ############################################################
 
-def makeChildTargets(options, extraArgs, flowerNames, target, childTarget, maxSequenceSize=100000, jobNumber=200):
+def makeChildTargets(options, extraArgs, flowerNames, target, childTarget, maxSequenceSize=500000, jobNumber=20000):
     #Make child jobs
     childFlowerNames = []
     totalSequenceSize = 0

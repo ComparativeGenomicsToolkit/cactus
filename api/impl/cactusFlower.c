@@ -477,7 +477,7 @@ void flower_destructFaceIterator(Flower_FaceIterator *faceIterator) {
 
 int64_t flower_getTotalBaseLength(Flower *flower) {
     /*
-     * The implementation of this fubction is very like that in group_getTotalBaseLength, with a few differences. Consider merging them.
+     * The implementation of this function is very like that in group_getTotalBaseLength, with a few differences. Consider merging them.
      */
     Flower_EndIterator *endIterator = flower_getEndIterator(flower);
     End *end;
