@@ -42,6 +42,7 @@ class TestCase(unittest.TestCase):
                                      buildJobTreeStats=True)
         
     def testEvolver_Primates_Small(self):
+        return
         inputDir = os.path.join(TestStatus.getPathToDataSets(), "evolver", "primates", "small")
         primateSequences = ("simChimp.fa", "simGorilla.fa", "simHuman.fa", "simOrang.fa")
         runWorkflow_multipleExamples(lambda regionNumber=0, tempDir=None : getInputs(inputDir, primateSequences),
