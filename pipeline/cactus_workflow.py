@@ -321,7 +321,7 @@ class CactusBaseLevelAlignerWrapper(Target):
     """
     #We split, to deal with cleaning up the alignment file
     def __init__(self, options, iteration, flowerNames):
-        Target.__init__(self, time=20)
+        Target.__init__(self, time=30)
         self.options = options
         self.iteration = iteration
         self.flowerNames = flowerNames
@@ -374,7 +374,7 @@ class CactusNormalDown(Target):
     """This target does the down pass for the normal phase.
     """
     def __init__(self, options, extras, flowerNames):
-        Target.__init__(self, time=1.0)
+        Target.__init__(self, time=2.0)
         assert extras == None #We currently don't use this argument
         self.options = options
         self.flowerNames = flowerNames
@@ -387,7 +387,7 @@ class CactusNormalRunnable(Target):
     """This targets run the normalisation script.
     """
     def __init__(self, flowerNames, options):
-        Target.__init__(self, time=1.0)
+        Target.__init__(self, time=3.0)
         self.flowerNames = flowerNames
         self.options = options
         
@@ -419,7 +419,7 @@ class CactusPhylogeny(Target):
     """This target does the down pass for the phylogeny phase.
     """
     def __init__(self, options, extras, flowerNames):
-        Target.__init__(self, time=2.0)
+        Target.__init__(self, time=5.0)
         assert extras == None #We currently don't use this argument
         self.options = options
         self.flowerNames = flowerNames
@@ -452,7 +452,7 @@ class CactusReferenceDown(Target):
     """This target does the down pass for the reference phase.
     """
     def __init__(self, options, extras, flowerNames):
-        Target.__init__(self, time=1.0)
+        Target.__init__(self, time=2.0)
         assert extras == None #We currently don't use this argument
         self.options = options
         self.flowerNames = flowerNames
@@ -467,7 +467,7 @@ class CactusReferenceRunnable(Target):
     """This target runs the reference script bottom up (second phase).
     """
     def __init__(self, flowerNames, options):
-        Target.__init__(self, time=1.0)
+        Target.__init__(self, time=3.0)
         self.flowerNames = flowerNames
         self.options = options
         
@@ -529,7 +529,7 @@ class CactusCheck(Target):
     """This target does the down pass for the check phase.
     """
     def __init__(self, options, extras, flowerNames):
-        Target.__init__(self, time=2.0)
+        Target.__init__(self, time=5.0)
         assert extras == None #We currently don't use this argument
         self.options = options
         self.flowerNames = flowerNames
