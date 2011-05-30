@@ -180,14 +180,17 @@ class CactusAlignmentPhase(Target):
 ############################################################
 ############################################################
 
-def makeTargets(options, extraArgs, flowersAndSizes, parentTarget, target, maxSequenceSize=1000000, jobNumber=1000):
+MAX_SEQUENCE_SIZE=1000000
+MAX_JOB_NUMBER=1000
+
+def makeTargets(options, extraArgs, flowersAndSizes, parentTarget, target, maxSequenceSize=MAX_SEQUENCE_SIZE, jobNumber=MAX_JOB_NUMBER):
     """Make a set of targets for a given set of flowers.
     """
     #Make child jobs
     flowerNames = []
-    totalSequenceSize = 0
+    totalSequenceSize = 0.0
     
-    minChildSize = max(1, maxSequenceSize/jobNumber)
+    minChildSize = max(1, float(maxSequenceSize)/jobNumber)
     totalChildSize = sum([ max(flowerSize, minChildSize) for flowerName, flowerSize in flowersAndSizes ])
     
     for flowerName, flowerSize, in flowersAndSizes:
@@ -197,11 +200,11 @@ def makeTargets(options, extraArgs, flowersAndSizes, parentTarget, target, maxSe
         if totalSequenceSize >= maxSequenceSize: 
             parentTarget.addChildTarget(target(options, extraArgs, flowerNames))
             flowerNames = []
-            totalSequenceSize = 0
+            totalSequenceSize = 0.0
     if len(flowerNames) > 0:
         parentTarget.addChildTarget(target(options, extraArgs, flowerNames))
 
-def makeChildTargets(options, extraArgs, flowerNames, target, childTarget, maxSequenceSize=500000, jobNumber=20000):
+def makeChildTargets(options, extraArgs, flowerNames, target, childTarget, maxSequenceSize=MAX_SEQUENCE_SIZE, jobNumber=MAX_JOB_NUMBER):
     """Make a set of child targets for a given set of parent flowers.
     """
     childFlowers = runCactusGetFlowers(options.cactusDiskDatabaseString, flowerNames, target.getLocalTempDir(), logLevel=getLogLevelString())
