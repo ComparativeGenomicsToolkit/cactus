@@ -255,7 +255,6 @@ void cactusDisk_destruct(CactusDisk *cactusDisk) {
 }
 
 void cactusDisk_write(CactusDisk *cactusDisk) {
-    stSortedSetIterator *it = stSortedSet_getIterator(cactusDisk->flowers);
     Flower *flower;
     int32_t recordSize;
 
@@ -264,6 +263,7 @@ void cactusDisk_write(CactusDisk *cactusDisk) {
     stList *removeRequests = stList_construct3(0,
             (void(*)(void *)) stInt64Tuple_destruct);
 
+    stSortedSetIterator *it = stSortedSet_getIterator(cactusDisk->flowers);
     //Sort flowers to update.
     while ((flower = stSortedSet_getNext(it)) != NULL) {
         void
@@ -334,29 +334,26 @@ void cactusDisk_write(CactusDisk *cactusDisk) {
     }
     stSortedSet_destructIterator(it);
 
-    //Finally the database info.
-    int32_t cactusDiskParametersRecordSize;
-    void
-            *cactusDiskParameters =
-                    binaryRepresentation_makeBinaryRepresentation(
-                            cactusDisk,
-                            (void(*)(
-                                    void *,
-                                    void(*)(const void * ptr, size_t size,
-                                            size_t count))) cactusDisk_writeBinaryRepresentation,
-                            &cactusDiskParametersRecordSize);
-    //Compression
-    cactusDiskParameters = compress(cactusDiskParameters,
-            &cactusDiskParametersRecordSize);
-    bool containsCactusDiskParameters = stKVDatabase_containsRecord(
-            cactusDisk->database, CACTUS_DISK_PARAMETER_KEY);
-
-    if (!containsCactusDiskParameters) { //We only write the parameters once.
+    if (!stKVDatabase_containsRecord(
+            cactusDisk->database, CACTUS_DISK_PARAMETER_KEY)) { //We only write the parameters once.
+        //Finally the database info.
+        void
+                *cactusDiskParameters =
+                        binaryRepresentation_makeBinaryRepresentation(
+                                cactusDisk,
+                                (void(*)(
+                                        void *,
+                                        void(*)(const void * ptr, size_t size,
+                                                size_t count))) cactusDisk_writeBinaryRepresentation,
+                                &recordSize);
+        //Compression
+        cactusDiskParameters = compress(cactusDiskParameters, &recordSize);
         stList_append(
                 updateRequests,
                 stKVDatabaseBulkRequest_constructInsertRequest(
                         CACTUS_DISK_PARAMETER_KEY, cactusDiskParameters,
-                        cactusDiskParametersRecordSize));
+                        recordSize));
+        free(cactusDiskParameters);
     }
 
     stTry {
@@ -379,7 +376,6 @@ void cactusDisk_write(CactusDisk *cactusDisk) {
 
     stList_destruct(updateRequests);
     stList_destruct(removeRequests);
-    free(cactusDiskParameters);
 }
 
 static Cap *getNextStub(Cap *cap) {
