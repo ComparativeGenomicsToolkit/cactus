@@ -99,7 +99,6 @@ int main(int argc, char *argv[]) {
     int32_t key, j;
     struct List *stack;
     struct BinaryTree *binaryTree;
-    FILE * fileHandle;
     bool debug = 0;
     int32_t totalEventNumber;
     Group *group;
@@ -190,7 +189,8 @@ int main(int argc, char *argv[]) {
     stKVDatabaseConf *kvDatabaseConf = kvDatabaseConf
             = stKVDatabaseConf_constructFromString(cactusDiskDatabaseString);
     if (stKVDatabaseConf_getType(kvDatabaseConf)
-            == stKVDatabaseTypeTokyoCabinet) {
+            == stKVDatabaseTypeTokyoCabinet || stKVDatabaseConf_getType(kvDatabaseConf)
+            == stKVDatabaseTypeKyotoTycoon) {
         assert(stKVDatabaseConf_getDir(kvDatabaseConf) != NULL);
         cactusDisk
                 = cactusDisk_construct3(kvDatabaseConf, 0, "cactusSequences");
