@@ -90,17 +90,19 @@ static void *decompress(void *data, int64_t *dataSize) {
 static void *getRecord(CactusDisk *cactusDisk, Name objectName, char *type) {
     void *cA = NULL;
     int64_t recordSize = 0;
-    if(stCache_containsRecord(cactusDisk->cache, objectName, 0, INT64_MAX)) {
-        cA = stCache_getRecord(cactusDisk->cache, objectName, 0, INT64_MAX, &recordSize);
-    }
-    else {
+    if (stCache_containsRecord(cactusDisk->cache, objectName, 0, INT64_MAX)) { //If we already have the record, we won't update it.
+        cA = stCache_getRecord(cactusDisk->cache, objectName, 0, INT64_MAX,
+                &recordSize);
+    } else {
         stTry {
                 cA = stKVDatabase_getRecord2(cactusDisk->database, objectName,
                         &recordSize);
             }
             stCatch(except)
                 {
-                    stThrowNewCause(except, ST_KV_DATABASE_EXCEPTION_ID,
+                    stThrowNewCause(
+                            except,
+                            ST_KV_DATABASE_EXCEPTION_ID,
                             "An unknown database error occurred when getting a %s",
                             type);
                 }stTryEnd;
@@ -115,11 +117,12 @@ static void *getRecord(CactusDisk *cactusDisk, Name objectName, char *type) {
 }
 
 static bool containsRecord(CactusDisk *cactusDisk, Name objectName) {
-    return stCache_containsRecord(cactusDisk->cache, objectName, 0, INT64_MAX) || stKVDatabase_containsRecord(cactusDisk->database, objectName);
+    return stCache_containsRecord(cactusDisk->cache, objectName, 0, INT64_MAX)
+            || stKVDatabase_containsRecord(cactusDisk->database, objectName);
 }
 
 static CactusDisk *cactusDisk_constructPrivate(stKVDatabaseConf *conf,
-        bool create, bool preCacheSequences, const char *sequencesFileName) {
+        bool create, const char *sequencesFileName) {
     CactusDisk *cactusDisk;
     cactusDisk = st_malloc(sizeof(CactusDisk));
 
@@ -133,7 +136,6 @@ static CactusDisk *cactusDisk_constructPrivate(stKVDatabaseConf *conf,
 
     //Now open the database
     //preCacheSequences = 0;
-    cactusDisk->preCacheSequences = preCacheSequences;
     cactusDisk->database = stKVDatabase_construct(conf, create);
     cactusDisk->cache = stCache_construct();
 
@@ -147,8 +149,7 @@ static CactusDisk *cactusDisk_constructPrivate(stKVDatabaseConf *conf,
     cactusDisk->maxUniqueNumber = 0;
 
     //Now load any stuff..
-    if (containsRecord(cactusDisk,
-            CACTUS_DISK_PARAMETER_KEY)) {
+    if (containsRecord(cactusDisk, CACTUS_DISK_PARAMETER_KEY)) {
         if (create) {
             stThrowNew(CACTUS_DISK_EXCEPTION_ID,
                     "Tried to create a cactus disk, but the cactus disk already exists");
@@ -207,19 +208,13 @@ static CactusDisk *cactusDisk_constructPrivate(stKVDatabaseConf *conf,
     return cactusDisk;
 }
 
-CactusDisk *cactusDisk_construct2(stKVDatabaseConf *conf, bool create,
-        bool preCacheSequences) {
-    return cactusDisk_constructPrivate(conf, create, preCacheSequences, NULL);
-}
-
 CactusDisk *cactusDisk_construct(stKVDatabaseConf *conf, bool create) {
-    return cactusDisk_constructPrivate(conf, create, 0, NULL);
+    return cactusDisk_constructPrivate(conf, create, NULL);
 }
 
-CactusDisk *cactusDisk_construct3(stKVDatabaseConf *conf,
-        bool preCacheSequences, const char *sequencesFileName) {
-    return cactusDisk_constructPrivate(conf, 1, preCacheSequences,
-            sequencesFileName);
+CactusDisk *cactusDisk_construct2(stKVDatabaseConf *conf,
+        const char *sequencesFileName) {
+    return cactusDisk_constructPrivate(conf, 1, sequencesFileName);
 }
 
 void cactusDisk_destruct(CactusDisk *cactusDisk) {
@@ -283,11 +278,11 @@ void cactusDisk_write(CactusDisk *cactusDisk) {
                                 &recordSize);
         //Compression
         vA = compress(vA, &recordSize);
-        if (containsRecord(cactusDisk,
-                flower_getName(flower))) {
+        if (containsRecord(cactusDisk, flower_getName(flower))) {
             int64_t recordSize2;
-            void *vA2 = stCache_getRecord(cactusDisk->cache, flower_getName(flower), 0, INT64_MAX, &recordSize2);
-            if(!stCache_recordsIdentical(vA, recordSize, vA2, recordSize2)) { //Only rewrite if we actually did something
+            void *vA2 = stCache_getRecord(cactusDisk->cache,
+                    flower_getName(flower), 0, INT64_MAX, &recordSize2);
+            if (!stCache_recordsIdentical(vA, recordSize, vA2, recordSize2)) { //Only rewrite if we actually did something
                 stList_append(
                         updateRequests,
                         stKVDatabaseBulkRequest_constructUpdateRequest(
@@ -323,8 +318,7 @@ void cactusDisk_write(CactusDisk *cactusDisk) {
     it = stSortedSet_getIterator(cactusDisk->metaSequences);
     MetaSequence *metaSequence;
     while ((metaSequence = stSortedSet_getNext(it)) != NULL) {
-        if (!containsRecord(cactusDisk,
-                metaSequence_getName(metaSequence))) { //We do not edit meta sequences, so we do not update it..
+        if (!containsRecord(cactusDisk, metaSequence_getName(metaSequence))) { //We do not edit meta sequences, so we do not update it..
             void
                     *vA =
                             binaryRepresentation_makeBinaryRepresentation(
@@ -366,18 +360,21 @@ void cactusDisk_write(CactusDisk *cactusDisk) {
         free(cactusDiskParameters);
     }
 
-    if(stList_length(updateRequests) > 0) {
+    if (stList_length(updateRequests) > 0) {
         stTry {
-                stKVDatabase_bulkSetRecords(cactusDisk->database, updateRequests);
+                stKVDatabase_bulkSetRecords(cactusDisk->database,
+                        updateRequests);
             }
             stCatch(except)
                 {
                     stThrowNewCause(except, ST_KV_DATABASE_EXCEPTION_ID,
                             "Failed when trying to set records in updating the cactus disk");
                 }stTryEnd;
-
+    }
+    if (stList_length(removeRequests) > 0) {
         stTry {
-                stKVDatabase_bulkRemoveRecords(cactusDisk->database, removeRequests);
+                stKVDatabase_bulkRemoveRecords(cactusDisk->database,
+                        removeRequests);
             }
             stCatch(except)
                 {
@@ -396,48 +393,6 @@ static Cap *getNextStub(Cap *cap) {
     return cap3 == NULL ? cap2 : getNextStub(cap3);
 }
 
-static void preCacheSequences(CactusDisk *cactusDisk, Flower *flower) {
-    /*
-     * Gets all the sequences in the flower up front (works with the c
-     */
-    Flower_EndIterator *endIt = flower_getEndIterator(flower);
-    End *end;
-    while ((end = flower_getNextEnd(endIt)) != NULL) {
-        if (end_isStubEnd(end)) {
-            End_InstanceIterator *instanceIterator = end_getInstanceIterator(
-                    end);
-            Cap *cap, *cap2;
-            while ((cap = end_getNext(instanceIterator)) != NULL) {
-                Sequence *sequence = cap_getSequence(cap);
-                cap = cap_getStrand(cap) ? cap : cap_getReverse(cap);
-                if (sequence != NULL && !cap_getSide(cap)) {
-                    cap2 = getNextStub(cap);
-#ifdef BEN_DEBUG
-                    assert(end_isStubEnd(cap_getEnd(cap2)));
-                    assert(cap2 != NULL);
-                    assert(cap_getStrand(cap2));
-                    assert(sequence == cap_getSequence(cap2));
-                    assert(cap_getSide(cap2));
-#endif
-                    int32_t start = cap_getCoordinate(cap) + 1;
-                    int32_t stop = cap_getCoordinate(cap2);
-                    int32_t length = stop - start;
-#ifdef BEN_DEBUG
-                    assert(length >= 0);
-#endif
-                    if (length > 0) {
-                        char *cA = sequence_getString(sequence, start, length,
-                                1); //Strand doesn't matter as we store and access the strings in the same orientation
-                        free(cA);
-                    }
-                }
-            }
-            end_destructInstanceIterator(instanceIterator);
-        }
-    }
-    flower_destructEndIterator(endIt);
-}
-
 Flower *cactusDisk_getFlower(CactusDisk *cactusDisk, Name flowerName) {
     static Flower flower;
     flower.name = flowerName;
@@ -453,9 +408,6 @@ Flower *cactusDisk_getFlower(CactusDisk *cactusDisk, Name flowerName) {
     void *cA2 = cA;
     flower2 = flower_loadFromBinaryRepresentation(&cA2, cactusDisk);
     free(cA);
-    if (cactusDisk->preCacheSequences) {
-        preCacheSequences(cactusDisk, flower2);
-    }
     return flower2;
 }
 
@@ -563,21 +515,21 @@ Name cactusDisk_addString(CactusDisk *cactusDisk, const char *string) {
 
 char *cactusDisk_getString(CactusDisk *cactusDisk, Name name, int32_t start,
         int32_t length, int32_t strand, int32_t totalSequenceLength) {
-    if(length == 0) {
+    if (length == 0) {
         return stString_copy("");
     }
     //bool done = 0;
     char *string = NULL;
 
     //First try getting it from the cache
-    if(stCache_containsRecord(cactusDisk->cache, name, start, length)) {
+    if (stCache_containsRecord(cactusDisk->cache, name, start, length)) {
         int64_t recordSize;
-        string = stCache_getRecord(cactusDisk->cache, name, start, length, &recordSize);
+        string = stCache_getRecord(cactusDisk->cache, name, start, length,
+                &recordSize);
         assert(string != NULL);
         assert(recordSize == length);
-        string = realloc(string, length+1); //Make it big enough to have a terminating character.
-    }
-    else {
+        string = realloc(string, length + 1); //Make it big enough to have a terminating character.
+    } else {
         if (cactusDisk->storeSequencesInAFile) {
             fseek(cactusDisk->sequencesFileHandle, name + start, SEEK_SET);
             string = st_malloc(sizeof(char) * (length + 1));
@@ -589,8 +541,8 @@ char *cactusDisk_getString(CactusDisk *cactusDisk, Name name, int32_t start,
 #endif
         } else {
             stTry {
-                    string = stKVDatabase_getPartialRecord(cactusDisk->database,
-                            name, start * sizeof(char),
+                    string = stKVDatabase_getPartialRecord(
+                            cactusDisk->database, name, start * sizeof(char),
                             (length + 1) * sizeof(char),
                             (totalSequenceLength + 1) * sizeof(char));
                 }

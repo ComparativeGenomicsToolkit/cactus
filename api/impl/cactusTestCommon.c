@@ -33,7 +33,7 @@ CactusDisk *testCommon_getTemporaryCactusDisk() {
     if (st_random() > 0.5) {
         cactusDisk = cactusDisk_construct(conf, 1);
     } else {
-        cactusDisk = cactusDisk_construct3(conf, 1,
+        cactusDisk = cactusDisk_construct2(conf,
                 "cactusSequences");
     }
     return cactusDisk;

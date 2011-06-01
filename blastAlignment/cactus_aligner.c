@@ -37,7 +37,7 @@ int main(int argc, char *argv[]) {
 	st_setLogLevel(ST_LOGGING_DEBUG);
 	assert(argc == 4);
 	stKVDatabaseConf *kvDatabaseConf = stKVDatabaseConf_constructFromString(argv[1]);
-	cactusDisk = cactusDisk_construct2(kvDatabaseConf, 0, 1);
+	cactusDisk = cactusDisk_construct(kvDatabaseConf, 0);
 	st_logInfo("Set up the flower disk\n");
 
 	flower = cactusDisk_getFlower(cactusDisk, cactusMisc_stringToName(argv[2]));

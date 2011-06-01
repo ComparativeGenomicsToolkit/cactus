@@ -253,7 +253,7 @@ int main(int argc, char *argv[]) {
     //////////////////////////////////////////////
 
     kvDatabaseConf = stKVDatabaseConf_constructFromString(cactusDiskDatabaseString);
-    cactusDisk = cactusDisk_construct2(kvDatabaseConf, 0, 1);
+    cactusDisk = cactusDisk_construct(kvDatabaseConf, 0);
     st_logInfo("Set up the flower disk\n");
 
     ///////////////////////////////////////////////////////////////////////////

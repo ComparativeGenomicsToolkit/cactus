@@ -194,7 +194,7 @@ int main(int argc, char *argv[]) {
             == stKVDatabaseTypeKyotoTycoon) {
         assert(stKVDatabaseConf_getDir(kvDatabaseConf) != NULL);
         cactusDisk
-                = cactusDisk_construct3(kvDatabaseConf, 0, "cactusSequences");
+                = cactusDisk_construct2(kvDatabaseConf, "cactusSequences");
     } else {
         cactusDisk = cactusDisk_construct(kvDatabaseConf, 1);
     }
