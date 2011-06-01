@@ -99,6 +99,7 @@ int main(int argc, char *argv[]) {
     int32_t key, j;
     struct List *stack;
     struct BinaryTree *binaryTree;
+    FILE *fileHandle = NULL;
     bool debug = 0;
     int32_t totalEventNumber;
     Group *group;
