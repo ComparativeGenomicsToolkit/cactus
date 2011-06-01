@@ -88,27 +88,34 @@ static void *decompress(void *data, int64_t *dataSize) {
 }
 
 static void *getRecord(CactusDisk *cactusDisk, Name objectName, char *type) {
-    //bool done = 0;
     void *cA = NULL;
     int64_t recordSize = 0;
-    //while (!done) {
-    stTry {
-            cA = stKVDatabase_getRecord2(cactusDisk->database, objectName,
-                    &recordSize);
+    if(stCache_containsRecord(cactusDisk->cache, objectName, 0, INT64_MAX)) {
+        cA = stCache_getRecord(cactusDisk->cache, objectName, 0, INT64_MAX, &recordSize);
+    }
+    else {
+        stTry {
+                cA = stKVDatabase_getRecord2(cactusDisk->database, objectName,
+                        &recordSize);
+            }
+            stCatch(except)
+                {
+                    stThrowNewCause(except, ST_KV_DATABASE_EXCEPTION_ID,
+                            "An unknown database error occurred when getting a %s",
+                            type);
+                }stTryEnd;
+        if (cA == NULL) {
+            return NULL;
         }
-        stCatch(except)
-            {
-                stThrowNewCause(except, ST_KV_DATABASE_EXCEPTION_ID,
-                        "An unknown database error occurred when getting a %s",
-                        type);
-            }stTryEnd;
-    //}
-    if (cA == NULL) {
-        return NULL;
+        stCache_setRecord(cactusDisk->cache, objectName, 0, recordSize, cA); //Add the compressed record to the cache.
     }
     //Decompression
     void *cA2 = decompress(cA, &recordSize);
     return cA2;
+}
+
+static bool containsRecord(CactusDisk *cactusDisk, Name objectName) {
+    return stCache_containsRecord(cactusDisk->cache, objectName, 0, INT64_MAX) || stKVDatabase_containsRecord(cactusDisk->database, objectName);
 }
 
 static CactusDisk *cactusDisk_constructPrivate(stKVDatabaseConf *conf,
@@ -128,8 +135,7 @@ static CactusDisk *cactusDisk_constructPrivate(stKVDatabaseConf *conf,
     //preCacheSequences = 0;
     cactusDisk->preCacheSequences = preCacheSequences;
     cactusDisk->database = stKVDatabase_construct(conf, create);
-    stKVDatabase_makeMemCache(cactusDisk->database, 0,
-                preCacheSequences ? 0 : 5000);
+    cactusDisk->cache = stCache_construct();
 
     //initialise the unique ids.
     int32_t seed = (time(NULL) << 16) | (getpid() & 65535); //Likely to be unique
@@ -141,7 +147,7 @@ static CactusDisk *cactusDisk_constructPrivate(stKVDatabaseConf *conf,
     cactusDisk->maxUniqueNumber = 0;
 
     //Now load any stuff..
-    if (stKVDatabase_containsRecord(cactusDisk->database,
+    if (containsRecord(cactusDisk,
             CACTUS_DISK_PARAMETER_KEY)) {
         if (create) {
             stThrowNew(CACTUS_DISK_EXCEPTION_ID,
@@ -250,6 +256,7 @@ void cactusDisk_destruct(CactusDisk *cactusDisk) {
     }
 #endif
 
+    stCache_destruct(cactusDisk->cache); //Get rid of the cache
     free(cactusDisk);
 }
 
@@ -276,12 +283,17 @@ void cactusDisk_write(CactusDisk *cactusDisk) {
                                 &recordSize);
         //Compression
         vA = compress(vA, &recordSize);
-        if (stKVDatabase_containsRecord(cactusDisk->database,
+        if (containsRecord(cactusDisk,
                 flower_getName(flower))) {
-            stList_append(
-                    updateRequests,
-                    stKVDatabaseBulkRequest_constructUpdateRequest(
-                            flower_getName(flower), vA, recordSize));
+            int64_t recordSize2;
+            void *vA2 = stCache_getRecord(cactusDisk->cache, flower_getName(flower), 0, INT64_MAX, &recordSize2);
+            if(!stCache_recordsIdentical(vA, recordSize, vA2, recordSize2)) { //Only rewrite if we actually did something
+                stList_append(
+                        updateRequests,
+                        stKVDatabaseBulkRequest_constructUpdateRequest(
+                                flower_getName(flower), vA, recordSize));
+            }
+            free(vA2);
         } else {
             stList_append(
                     updateRequests,
@@ -297,7 +309,7 @@ void cactusDisk_write(CactusDisk *cactusDisk) {
     char *nameString;
     while ((nameString = stSortedSet_getNext(it)) != NULL) {
         Name name = cactusMisc_stringToName(nameString);
-        if (stKVDatabase_containsRecord(cactusDisk->database, name)) {
+        if (containsRecord(cactusDisk, name)) {
             stList_append(
                     updateRequests,
                     stKVDatabaseBulkRequest_constructUpdateRequest(name, &name,
@@ -311,7 +323,7 @@ void cactusDisk_write(CactusDisk *cactusDisk) {
     it = stSortedSet_getIterator(cactusDisk->metaSequences);
     MetaSequence *metaSequence;
     while ((metaSequence = stSortedSet_getNext(it)) != NULL) {
-        if (!stKVDatabase_containsRecord(cactusDisk->database,
+        if (!containsRecord(cactusDisk,
                 metaSequence_getName(metaSequence))) { //We do not edit meta sequences, so we do not update it..
             void
                     *vA =
@@ -333,8 +345,7 @@ void cactusDisk_write(CactusDisk *cactusDisk) {
     }
     stSortedSet_destructIterator(it);
 
-    if (!stKVDatabase_containsRecord(
-            cactusDisk->database, CACTUS_DISK_PARAMETER_KEY)) { //We only write the parameters once.
+    if (!containsRecord(cactusDisk, CACTUS_DISK_PARAMETER_KEY)) { //We only write the parameters once.
         //Finally the database info.
         void
                 *cactusDiskParameters =
@@ -355,23 +366,25 @@ void cactusDisk_write(CactusDisk *cactusDisk) {
         free(cactusDiskParameters);
     }
 
-    stTry {
-            stKVDatabase_bulkSetRecords(cactusDisk->database, updateRequests);
-        }
-        stCatch(except)
-            {
-                stThrowNewCause(except, ST_KV_DATABASE_EXCEPTION_ID,
-                        "Failed when trying to set records in updating the cactus disk");
-            }stTryEnd;
+    if(stList_length(updateRequests) > 0) {
+        stTry {
+                stKVDatabase_bulkSetRecords(cactusDisk->database, updateRequests);
+            }
+            stCatch(except)
+                {
+                    stThrowNewCause(except, ST_KV_DATABASE_EXCEPTION_ID,
+                            "Failed when trying to set records in updating the cactus disk");
+                }stTryEnd;
 
-    stTry {
-            stKVDatabase_bulkRemoveRecords(cactusDisk->database, removeRequests);
-        }
-        stCatch(except)
-            {
-                stThrowNewCause(except, ST_KV_DATABASE_EXCEPTION_ID,
-                        "Failed when trying to remove records in updating the cactus disk");
-            }stTryEnd;
+        stTry {
+                stKVDatabase_bulkRemoveRecords(cactusDisk->database, removeRequests);
+            }
+            stCatch(except)
+                {
+                    stThrowNewCause(except, ST_KV_DATABASE_EXCEPTION_ID,
+                            "Failed when trying to remove records in updating the cactus disk");
+                }stTryEnd;
+    }
 
     stList_destruct(updateRequests);
     stList_destruct(removeRequests);
@@ -533,59 +546,61 @@ Name cactusDisk_addString(CactusDisk *cactusDisk, const char *string) {
         return name;
     } else {
         name = cactusDisk_getUniqueID(cactusDisk);
-        //while (!done) {
-        //stKVDatabase_startTransaction(cactusDisk->database);
         stTry {
                 stKVDatabase_insertRecord(cactusDisk->database, name, string,
                         (strlen(string) + 1) * sizeof(char));
-                //stKVDatabase_commitTransaction(cactusDisk->database);
-                //done = 1;
             }
             stCatch(except)
                 {
-                    /*if (stExcept_getId(except)
-                     == ST_KV_DATABASE_RETRY_TRANSACTION_EXCEPTION_ID) {
-                     st_logDebug(
-                     "We have caught a retry transaction exception when adding a string to the database, we will try again\n");
-                     stExcept_free(except);
-                     stKVDatabase_abortTransaction(cactusDisk->database);
-                     } else {*/
                     stThrowNewCause(
                             except,
                             ST_KV_DATABASE_EXCEPTION_ID,
                             "An unknown database error occurred when we tried to add a string to the cactus disk");
-                    //}
                 }stTryEnd;
-        //}
     }
     return name;
 }
 
 char *cactusDisk_getString(CactusDisk *cactusDisk, Name name, int32_t start,
         int32_t length, int32_t strand, int32_t totalSequenceLength) {
+    if(length == 0) {
+        return stString_copy("");
+    }
     //bool done = 0;
     char *string = NULL;
-    if (cactusDisk->storeSequencesInAFile) {
-        fseek(cactusDisk->sequencesFileHandle, name + start, SEEK_SET);
-        string = st_malloc(sizeof(char) * (length + 1));
-        fread(string, sizeof(char), length, cactusDisk->sequencesFileHandle);
+
+    //First try getting it from the cache
+    if(stCache_containsRecord(cactusDisk->cache, name, start, length)) {
+        int64_t recordSize;
+        string = stCache_getRecord(cactusDisk->cache, name, start, length, &recordSize);
+        assert(string != NULL);
+        assert(recordSize == length);
+        string = realloc(string, length+1); //Make it big enough to have a terminating character.
+    }
+    else {
+        if (cactusDisk->storeSequencesInAFile) {
+            fseek(cactusDisk->sequencesFileHandle, name + start, SEEK_SET);
+            string = st_malloc(sizeof(char) * (length + 1));
+            fread(string, sizeof(char), length, cactusDisk->sequencesFileHandle);
 #ifdef BEN_DEBUG
-        for (int32_t i = 0; i < length; i++) {
-            assert(string[i] != '>');
-        }
-#endif
-    } else {
-        stTry {
-                string = stKVDatabase_getPartialRecord(cactusDisk->database,
-                        name, start * sizeof(char),
-                        (length + 1) * sizeof(char),
-                        (totalSequenceLength + 1) * sizeof(char));
+            for (int32_t i = 0; i < length; i++) {
+                assert(string[i] != '>');
             }
-            stCatch(except)
-                {
-                    stThrowNewCause(except, ST_KV_DATABASE_EXCEPTION_ID,
-                            "An unknown database error occurred when getting a sequence string");
-                }stTryEnd;
+#endif
+        } else {
+            stTry {
+                    string = stKVDatabase_getPartialRecord(cactusDisk->database,
+                            name, start * sizeof(char),
+                            (length + 1) * sizeof(char),
+                            (totalSequenceLength + 1) * sizeof(char));
+                }
+                stCatch(except)
+                    {
+                        stThrowNewCause(except, ST_KV_DATABASE_EXCEPTION_ID,
+                                "An unknown database error occurred when getting a sequence string");
+                    }stTryEnd;
+        }
+        stCache_setRecord(cactusDisk->cache, name, start, length, string);
     }
     string[length] = '\0';
     if (!strand) {
@@ -604,7 +619,6 @@ void cactusDisk_getBlockOfUniqueIDs(CactusDisk *cactusDisk) {
     bool done = 0;
     int32_t collisionCount = 0;
     while (!done) {
-        //stKVDatabase_startTransaction(cactusDisk->database);
         stTry {
                 Name keyName = st_randomInt(-CACTUS_DISK_BUCKET_NUMBER, 0);
                 assert(keyName >= -CACTUS_DISK_BUCKET_NUMBER);
