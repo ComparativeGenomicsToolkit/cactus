@@ -128,6 +128,8 @@ static CactusDisk *cactusDisk_constructPrivate(stKVDatabaseConf *conf,
     //preCacheSequences = 0;
     cactusDisk->preCacheSequences = preCacheSequences;
     cactusDisk->database = stKVDatabase_construct(conf, create);
+    stKVDatabase_makeMemCache(cactusDisk->database, 0,
+                preCacheSequences ? 0 : 5000);
 
     //initialise the unique ids.
     int32_t seed = (time(NULL) << 16) | (getpid() & 65535); //Likely to be unique
