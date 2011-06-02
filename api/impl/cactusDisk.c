@@ -135,7 +135,6 @@ static CactusDisk *cactusDisk_constructPrivate(stKVDatabaseConf *conf,
             (int(*)(const void *, const void *)) strcmp, free);
 
     //Now open the database
-    //preCacheSequences = 0;
     cactusDisk->database = stKVDatabase_construct(conf, create);
     cactusDisk->cache = stCache_construct();
 
@@ -421,7 +420,6 @@ MetaSequence *cactusDisk_getMetaSequence(CactusDisk *cactusDisk,
         return metaSequence2;
     }
     void *cA = getRecord(cactusDisk, metaSequenceName, "metaSequence");
-
     if (cA == NULL) {
         return NULL;
     }
@@ -522,13 +520,12 @@ char *cactusDisk_getString(CactusDisk *cactusDisk, Name name, int32_t start,
     char *string = NULL;
 
     //First try getting it from the cache
-    if (stCache_containsRecord(cactusDisk->cache, name, start, length)) {
+    if (stCache_containsRecord(cactusDisk->cache, name, start, length+1)) {
         int64_t recordSize;
-        string = stCache_getRecord(cactusDisk->cache, name, start, length,
+        string = stCache_getRecord(cactusDisk->cache, name, start, length+1,
                 &recordSize);
         assert(string != NULL);
-        assert(recordSize == length);
-        string = realloc(string, length + 1); //Make it big enough to have a terminating character.
+        assert(recordSize == length+1);
     } else {
         if (cactusDisk->storeSequencesInAFile) {
             fseek(cactusDisk->sequencesFileHandle, name + start, SEEK_SET);
@@ -552,7 +549,7 @@ char *cactusDisk_getString(CactusDisk *cactusDisk, Name name, int32_t start,
                                 "An unknown database error occurred when getting a sequence string");
                     }stTryEnd;
         }
-        stCache_setRecord(cactusDisk->cache, name, start, length, string);
+        stCache_setRecord(cactusDisk->cache, name, start, length+1, string);
     }
     string[length] = '\0';
     if (!strand) {

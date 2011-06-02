@@ -177,7 +177,7 @@ static int64_t getCutOff(stList *inducedAlignment1, stList *inducedAlignment2, i
     return maxScore;
 }
 
-static void pruneAlignmentsP(stList *inducedAlignment, stSortedSet *endAlignment, int32_t start, int32_t end) {
+static void pruneAlignmentsP(stList *inducedAlignment, stSortedSet *endAlignment, int32_t start, int32_t end, stSortedSet *pairsToDelete) {
     for (int32_t i = start; i < end; i++) {
         AlignedPair *alignedPair = stList_get(inducedAlignment, i);
         if(stSortedSet_search(endAlignment, alignedPair) != NULL) { //can be missing if we are pruning the reverse strand alignment at the same time
@@ -186,8 +186,9 @@ static void pruneAlignmentsP(stList *inducedAlignment, stSortedSet *endAlignment
 //#endif
             stSortedSet_remove(endAlignment, alignedPair);
             stSortedSet_remove(endAlignment, alignedPair->reverse);
-            alignedPair_destruct(alignedPair->reverse);
-            alignedPair_destruct(alignedPair);
+            if(stSortedSet_search(pairsToDelete, alignedPair) == NULL && stSortedSet_search(pairsToDelete, alignedPair->reverse) == NULL) {
+                stSortedSet_insert(pairsToDelete, alignedPair);
+            }
         }
     }
 }
@@ -200,10 +201,11 @@ static void pruneAlignments(Cap *cap, stList *inducedAlignment1, stList *induced
         stSortedSet *endAlignment2) {
     int32_t cutOff1 = 0, cutOff2 = 0;
     getCutOff(inducedAlignment1, inducedAlignment2, &cutOff1, &cutOff2);
-
+    stSortedSet *pairsToDelete = stSortedSet_construct2((void (*)(void *))alignedPair_destruct);
     //Now do the actual filtering of the alignments.
-    pruneAlignmentsP(inducedAlignment1, endAlignment1, cutOff1, stList_length(inducedAlignment1));
-    pruneAlignmentsP(inducedAlignment2, endAlignment2, 0, cutOff2);
+    pruneAlignmentsP(inducedAlignment1, endAlignment1, cutOff1, stList_length(inducedAlignment1), pairsToDelete);
+    pruneAlignmentsP(inducedAlignment2, endAlignment2, 0, cutOff2, pairsToDelete);
+    stSortedSet_destruct(pairsToDelete);
 }
 
 static stHash *capScoresFn_Hash = NULL;

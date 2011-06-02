@@ -90,7 +90,7 @@ char *cactusMisc_reverseComplementString(const char *string) {
 }
 
 int32_t cactusMisc_nameCompare(Name name1, Name name2) {
-    return name1 - name2 > 0 ? 1 : (name1 < name2 ? -1 : 0); //cautious, to avoid 32bit overflows.
+    return name1 > name2 ? 1 : (name1 < name2 ? -1 : 0);
 }
 
 Name cactusMisc_stringToName(const char *stringName) {
