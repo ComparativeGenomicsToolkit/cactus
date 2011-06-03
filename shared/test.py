@@ -210,6 +210,7 @@ def getCactusInputs_chromosomeX(regionNumber=0, tempDir=None):
     return sequences, newickTreeString
 
 def runWorkflow_TestScript(sequences, newickTreeString, 
+                           outputDir=None,
                            batchSystem="single_machine",
                            buildTrees=True, buildFaces=True, buildReference=True,
                            configFile=None,
@@ -220,13 +221,13 @@ def runWorkflow_TestScript(sequences, newickTreeString,
     logger.info("Got the following sequence dirs/files: %s" % " ".join(sequences))
     logger.info("Got the following tree %s" % newickTreeString)
     
-    #Setup the temp dir
-    tempDir = getTempDirectory(".")
-    logger.info("Using the temp dir: %s" % tempDir)
-        
     #Setup the output dir
-    outputDir = getTempDirectory(tempDir)
+    assert outputDir != None
     logger.info("Using the output dir: %s" % outputDir)
+    
+    #Setup the temp dir
+    tempDir = getTempDirectory(outputDir)
+    logger.info("Using the temp dir: %s" % tempDir)
     
     #Setup the flower disk.
     experiment = getCactusWorkflowExperimentForTest(sequences, newickTreeString, 
@@ -269,7 +270,7 @@ def runWorkflow_TestScript(sequences, newickTreeString,
     system("rm -rf %s" % tempDir)    
     
     #Cleanup the experiment
-    experiment.cleanupDatabase()
+    return experiment
         
 testRestrictions_NotShort = ()
         
@@ -288,11 +289,13 @@ def runWorkflow_multipleExamples(inputGenFunction,
         for test in xrange(testNumber): 
             tempDir = getTempDirectory(os.getcwd())
             sequences, newickTreeString = inputGenFunction(regionNumber=test, tempDir=tempDir)
-            runWorkflow_TestScript(sequences, newickTreeString,
+            experiment = runWorkflow_TestScript(sequences, newickTreeString,
+                                                outputDir=tempDir,
                                    batchSystem=batchSystem,
                                    buildTrees=buildTrees, buildFaces=buildFaces, buildReference=buildReference, 
                                    configFile=configFile,
                                    buildJobTreeStats=buildJobTreeStats)
+            experiment.cleanupDatabase()
             system("rm -rf %s" % tempDir)
             logger.info("Finished random test %i" % test)
     

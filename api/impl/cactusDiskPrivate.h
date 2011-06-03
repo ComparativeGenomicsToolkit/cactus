@@ -15,6 +15,7 @@ struct _cactusDisk {
     stSortedSet *flowers;
     stSortedSet *flowerNamesMarkedForDeletion;
     stCache *cache;
+    stCache *stringCache;
     Name uniqueNumber;
     Name maxUniqueNumber;
     bool storeSequencesInAFile;
