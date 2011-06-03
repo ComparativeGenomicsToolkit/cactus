@@ -48,11 +48,7 @@ static int flower_constructFacesP(const void *o1, const void *o2) {
     return o1 == o2 ? 0 : o1 > o2 ? 1 : -1;
 }
 
-Flower *flower_construct(CactusDisk *cactusDisk) {
-    return flower_construct2(cactusDisk_getUniqueID(cactusDisk), cactusDisk);
-}
-
-Flower *flower_construct2(Name name, CactusDisk *cactusDisk) {
+static Flower *flower_construct3(Name name, CactusDisk *cactusDisk) {
     Flower *flower;
     flower = st_malloc(sizeof(Flower));
 
@@ -79,11 +75,19 @@ Flower *flower_construct2(Name name, CactusDisk *cactusDisk) {
 
     cactusDisk_addFlower(flower->cactusDisk, flower);
 
-    //Do this bit last.. so the flowerdisk relationship is established
     flower->eventTree = NULL;
-    eventTree_construct2(flower);
 
     return flower;
+}
+
+Flower *flower_construct2(Name name, CactusDisk *cactusDisk) {
+    Flower *flower = flower_construct3(name, cactusDisk);
+    flower->eventTree = eventTree_construct2(flower);
+    return flower;
+}
+
+Flower *flower_construct(CactusDisk *cactusDisk) {
+    return flower_construct2(cactusDisk_getUniqueID(cactusDisk), cactusDisk);
 }
 
 void flower_destruct(Flower *flower, int32_t recursive) {
@@ -959,7 +963,7 @@ Flower *flower_loadFromBinaryRepresentation(void **binaryString, CactusDisk *cac
     bool buildFaces;
     if (binaryRepresentation_peekNextElementType(*binaryString) == CODE_FLOWER) {
         binaryRepresentation_popNextElementType(binaryString);
-        flower = flower_construct2(binaryRepresentation_getName(binaryString), cactusDisk);
+        flower = flower_construct3(binaryRepresentation_getName(binaryString), cactusDisk); //Constructed without an event tree.
         flower_setBuiltBlocks(flower, binaryRepresentation_getBool(binaryString));
         flower_setBuiltTrees(flower, binaryRepresentation_getBool(binaryString));
         buildFaces = binaryRepresentation_getBool(binaryString);

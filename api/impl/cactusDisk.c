@@ -184,6 +184,7 @@ static CactusDisk *cactusDisk_constructPrivate(stKVDatabaseConf *conf,
             cactusDisk->storeSequencesInAFile = 0;
             cactusDisk->sequencesFileName = NULL;
             cactusDisk->sequencesFileHandle = NULL;
+            cactusDisk->absSequencesFileName = NULL;
         } else {
             if (stKVDatabaseConf_getDir(conf) == NULL) {
                 stThrowNew(

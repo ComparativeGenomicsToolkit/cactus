@@ -281,6 +281,7 @@ int main(int argc, char *argv[]) {
         const char *flowerName = argv[j];
         Flower *flower = cactusDisk_getFlower(cactusDisk, cactusMisc_stringToName(flowerName));
         assert(flower != NULL);
+        assert(!flower_isParentLoaded(flower));
         flower_unloadParent(flower); //We have this line just in case we are loading the parent..
     }
 

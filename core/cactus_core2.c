@@ -279,6 +279,7 @@ int main(int argc, char *argv[]) {
         // (9) Write the flower to disk.
         ///////////////////////////////////////////////////////////////////////////
 
+        assert(!flower_isParentLoaded(flower));
         flower_unloadParent(flower); //The parent should not have changed.
         cactusDisk_write(cactusDisk);
         st_logInfo("Updated the flower on disk\n");
