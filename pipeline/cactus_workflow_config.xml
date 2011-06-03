@@ -9,7 +9,7 @@
 
 			<iteration min_sequence_size="5000000" number="1" type="blast">
 				<blast blastString="lastz --format=cigar --identity=IDENTITY --ambiguous=iupac SEQ_FILE_1[multiple][nameparse=darkspace] SEQ_FILE_2[nameparse=darkspace] &gt; CIGARS_FILE" chunkSize="3000000" selfBlastString="lastz --format=cigar --identity=IDENTITY --ambiguous=iupac SEQ_FILE[multiple][nameparse=darkspace] SEQ_FILE[nameparse=darkspace] --notrivial  &gt; CIGARS_FILE" />
-				<core ignoreAllChainsLessThanMinimumTreeCoverage="0" alignRepeatsAtRound="0" annealingRounds="2 3 4 8 16 32 64 128 256" deannealingRounds="" blockTrim="2" minimumTreeCoverage="0.8" trim="0 0 0 0 0 0 0 0 0 0 0 0 0 0" minimumBlockDegree="2" />
+				<core ignoreAllChainsLessThanMinimumTreeCoverage="0" alignRepeatsAtRound="0" annealingRounds="256" deannealingRounds="2 3 4 8 16 32 64 128 256" blockTrim="2" minimumTreeCoverage="0.8" trim="0 0 0 0 0 0 0 0 0 0 0 0 0 0" minimumBlockDegree="2" />
 			</iteration>
 
 			<iteration min_sequence_size="1000" number="2" type="blast">
