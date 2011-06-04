@@ -56,12 +56,15 @@ int main(int argc, char *argv[]) {
 
 			if(!cap_getSide(cap)) {
 				assert(cap_getSide(cap2));
-				assert(cap_getCoordinate(cap2)-cap_getCoordinate(cap)-1 >= 0);
-				sequence = cap_getSequence(cap);
-				assert(sequence != NULL);
-				string = sequence_getString(sequence, cap_getCoordinate(cap)+1, cap_getCoordinate(cap2)-cap_getCoordinate(cap)-1, TRUE);
-				fprintf(fileHandle, ">%s|1|%i\n%s\n", cactusMisc_nameToStringStatic(sequence_getName(sequence)), cap_getCoordinate(cap)+1, string);
-				free(string);
+				int32_t length = cap_getCoordinate(cap2)-cap_getCoordinate(cap)-1;
+				assert(length >= 0);
+				if(length >= 30) {
+                    sequence = cap_getSequence(cap);
+                    assert(sequence != NULL);
+                    string = sequence_getString(sequence, cap_getCoordinate(cap)+1, cap_getCoordinate(cap2)-cap_getCoordinate(cap)-1, TRUE);
+                    fprintf(fileHandle, ">%s|1|%i\n%s\n", cactusMisc_nameToStringStatic(sequence_getName(sequence)), cap_getCoordinate(cap)+1, string);
+                    free(string);
+				}
 			}
 		}
 		end_destructInstanceIterator(instanceIterator);

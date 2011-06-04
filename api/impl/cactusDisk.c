@@ -524,7 +524,7 @@ void cactusDisk_getBlockOfUniqueIDs(CactusDisk *cactusDisk) {
             int64_t bucketSize = INT64_MAX / CACTUS_DISK_BUCKET_NUMBER;
             int64_t minimumValue = bucketSize * (abs(keyName) - 1) + 1; //plus one for the reserved '0' value.
             int64_t maximumValue = minimumValue + (bucketSize - 1);
-            assert(minimumValue > 1);
+            assert(minimumValue >= 1);
             assert(maximumValue <= INT64_MAX);
             assert(minimumValue < maximumValue);
             if (stKVDatabase_containsRecord(cactusDisk->database, keyName)) {
