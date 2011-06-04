@@ -427,14 +427,15 @@ Name cactusDisk_addString(CactusDisk *cactusDisk, const char *string) {
     Name name;
     //bool done = 0;
     if (cactusDisk->storeSequencesInAFile) {
-        fclose(cactusDisk->sequencesFileHandle);
+        if(cactusDisk->sequencesFileHandle != NULL) {
+            fclose(cactusDisk->sequencesFileHandle);
+        }
         cactusDisk->sequencesFileHandle = fopen(cactusDisk->absSequencesFileName, "a");
         assert(cactusDisk->sequencesFileHandle != NULL);
         name = ftell(cactusDisk->sequencesFileHandle) + 1;
         fprintf(cactusDisk->sequencesFileHandle, ">%s", string);
         fclose(cactusDisk->sequencesFileHandle);
-        cactusDisk->sequencesFileHandle = fopen(cactusDisk->absSequencesFileName, "r");
-        assert(cactusDisk->sequencesFileHandle != NULL);
+        cactusDisk->sequencesFileHandle = NULL;
         return name;
     } else {
         name = cactusDisk_getUniqueID(cactusDisk);
