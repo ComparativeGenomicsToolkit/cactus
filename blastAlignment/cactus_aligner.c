@@ -33,9 +33,9 @@ int main(int argc, char *argv[]) {
 	Cap *cap2;
 	Sequence *sequence;
 	char *string;
-	FILE *fileHandle;
+	FILE *fileHandle = NULL;
 	st_setLogLevel(ST_LOGGING_DEBUG);
-	assert(argc == 4);
+	assert(argc == 5);
 	stKVDatabaseConf *kvDatabaseConf = stKVDatabaseConf_constructFromString(argv[1]);
 	cactusDisk = cactusDisk_construct(kvDatabaseConf, 0);
 	st_logInfo("Set up the flower disk\n");
@@ -45,6 +45,9 @@ int main(int argc, char *argv[]) {
 	st_logInfo("Read the flower\n");
 	fileHandle = fopen(argv[3], "w");
 	st_logInfo("Opened the file %s to write the sub-sequences in\n", argv[3]);
+	int32_t minimumSequenceLength;
+	int i = sscanf(argv[4], "%i", &minimumSequenceLength);
+	assert(i == 1);
 	endIterator = flower_getEndIterator(flower);
 	while((end = flower_getNextEnd(endIterator)) != NULL) {
 		instanceIterator = end_getInstanceIterator(end);
@@ -58,7 +61,7 @@ int main(int argc, char *argv[]) {
 				assert(cap_getSide(cap2));
 				int32_t length = cap_getCoordinate(cap2)-cap_getCoordinate(cap)-1;
 				assert(length >= 0);
-				if(length >= 30) {
+				if(length >= minimumSequenceLength) {
                     sequence = cap_getSequence(cap);
                     assert(sequence != NULL);
                     string = sequence_getString(sequence, cap_getCoordinate(cap)+1, cap_getCoordinate(cap2)-cap_getCoordinate(cap)-1, TRUE);

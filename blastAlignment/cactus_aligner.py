@@ -26,12 +26,13 @@ class MakeSequences(Target):
     """Take a reconstruction problem and generate the sequences to be blasted.
     Then setup the follow on blast targets and collation targets.
     """
-    def __init__(self, cactusDisk, flowerName, resultsFile, blastOptions):
+    def __init__(self, cactusDisk, flowerName, resultsFile, blastOptions, minimumSequenceLength=1):
         Target.__init__(self, time=0.0099)
         self.cactusDisk = cactusDisk
         self.flowerName = flowerName
         self.resultsFile = resultsFile
         self.blastOptions = blastOptions
+        self.minimumSequenceLength = minimumSequenceLength
         
     def run(self):
         ##########################################
@@ -47,7 +48,7 @@ class MakeSequences(Target):
         #Construct the sequences file for doing all against all blast.
         ##########################################
         
-        system("cactus_aligner '%s' %s %s" % (self.cactusDisk, self.flowerName, tempSeqFile))
+        system("cactus_aligner '%s' %s %s %s" % (self.cactusDisk, self.flowerName, tempSeqFile, self.minimumSequenceLength))
         
         logger.info("Got the sequence files to align")
         

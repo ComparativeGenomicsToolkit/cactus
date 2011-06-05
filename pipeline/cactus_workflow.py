@@ -227,6 +227,11 @@ class CactusCafDown(Target):
                                                                        self.getLocalTempDir(),  logLevel=getLogLevelString()):
             if childFlowerSize > minSize:
                 self.addChildTarget(CactusBlastWrapper(self.options, self.iteration, childFlowerName))
+
+def getOption(node, attribName, default):
+    if node.attrib.has_key(attribName):
+        return node.attrib[attribName]
+    return default
         
 class CactusBlastWrapper(Target):
     """Runs blast on the given flower and passes the resulting alignment to cactus core.
@@ -254,9 +259,9 @@ class CactusBlastWrapper(Target):
                                               blastNode.attrib["selfBlastString"], 
                                               int(blastMiscNode.attrib["chunksPerJob"]), 
                                               bool(blastMiscNode.attrib["compressFiles"])))
-            
         self.addChildTarget(MakeSequences(self.options.cactusDiskDatabaseString, 
-                                          self.flowerName, alignmentFile, blastOptions))
+                                          self.flowerName, alignmentFile, blastOptions,
+                                          minimumSequenceLength=int(getOption(blastMiscNode, "minimumSequenceLength", 0))))
         logger.info("Created the cactus_aligner child target")
         
         #Now setup a call to cactus core wrapper as a follow on
