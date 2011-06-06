@@ -10,9 +10,13 @@ ${binPath}/cactus_aligner.py : cactus_aligner.py cactus_aligner.c ${libPath}/cac
 	cp cactus_aligner.py ${binPath}/cactus_aligner.py
 	chmod +x ${binPath}/cactus_aligner.py
 
-${binPath}/cactus_batch.py : cactus_batch* ${libPath}/cactusLib.a ${basicLibsDependencies}
+${binPath}/cactus_batch_chunkSequences : ${libPath}/cactusLib.a ${basicLibsDependencies}
 	${cxx} ${cflags} -I${libPath} -o ${binPath}/cactus_batch_chunkSequences cactus_batch_chunkSequences.c ${libPath}/cactusLib.a ${basicLibs}
+
+${binPath}/cactus_batch_convertCoordinates : ${libPath}/cactusLib.a ${basicLibsDependencies}
 	${cxx} ${cflags} -I${libPath} -o ${binPath}/cactus_batch_convertCoordinates cactus_batch_convertCoordinates.c ${libPath}/cactusLib.a ${basicLibs}
+
+${binPath}/cactus_batch.py : ${binPath}/cactus_batch_convertCoordinates ${binPath}/cactus_batch_chunkSequences
 	cp cactus_batch.py ${binPath}/cactus_batch.py
 	chmod +x ${binPath}/cactus_batch.py
 
