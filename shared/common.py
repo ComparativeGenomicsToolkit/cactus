@@ -209,7 +209,7 @@ def runCactusCheck(cactusDiskDatabaseString,
     
 def runCactusWorkflow(experimentFile,
                       jobTreeDir, 
-                      logLevel="DEBUG", retryCount=0, 
+                      logLevel="INFO", retryCount=0, 
                       batchSystem="single_machine", 
                       rescueJobFrequency=None,
                       setupAndBuildAlignments=True,
