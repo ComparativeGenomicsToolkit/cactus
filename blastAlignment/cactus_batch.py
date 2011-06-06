@@ -127,7 +127,7 @@ class MakeBlasts(Target):
         #G is size of total input sequences.
         #x and y are the sizes of the query and target sequences.
         #N = G/x * G/y
-        #The amount of data to be moved to to the nodes (alpha) is proportional to
+        #The amount of data to be moved to the nodes (alpha) is proportional to
         #alpha = N * (x + y)
         #As
         #y = G^2/N*x

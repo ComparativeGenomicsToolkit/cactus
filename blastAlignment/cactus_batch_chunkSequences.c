@@ -43,6 +43,7 @@ int32_t fn(char *fastaHeader, int32_t start, char *sequence, int32_t seqLength, 
     free(fastaHeader);
     assert(length <= chunkSize);
     assert(start >= 0);
+    assert(length - start > 0);
     if (start + length > seqLength) {
         length = seqLength - start;
     }
