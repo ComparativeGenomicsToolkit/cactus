@@ -43,7 +43,6 @@ int32_t fn(char *fastaHeader, int32_t start, char *sequence, int32_t seqLength, 
     free(fastaHeader);
     assert(length <= chunkSize);
     assert(start >= 0);
-    assert(length - start > 0);
     if (start + length > seqLength) {
         length = seqLength - start;
     }
@@ -117,6 +116,7 @@ int main(int argc, char *argv[]) {
     assert(argc == 7);
     fileHandle2 = fopen(argv[1], "w");
     int32_t i = sscanf(argv[2], "%i", &chunkSize);
+    assert(chunkSize > 0);
     assert(i == 1);
     i = sscanf(argv[3], "%i", &overlapSize);
     assert(i == 1);
