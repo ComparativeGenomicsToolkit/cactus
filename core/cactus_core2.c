@@ -247,8 +247,6 @@ int main(int argc, char *argv[]) {
 
     st_uglyf("Hello we're going 1\n");
 
-    assert(0);
-
     //////////////////////////////////////////////
     //Load the database
     //////////////////////////////////////////////
@@ -311,6 +309,8 @@ int main(int argc, char *argv[]) {
     st_logInfo("Cleaned stuff up and am finished in: %i seconds\n", time(NULL) - startTime);
 
     st_uglyf("Hello we're going 4\n");
+
+    assert(0);
 
     //while(1);
 
