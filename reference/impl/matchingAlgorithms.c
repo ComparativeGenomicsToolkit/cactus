@@ -158,7 +158,7 @@ static stList *chooseAdjacencyPairing_externalProgram(stList *edges, int32_t nod
     /*
      * We run the external program.
      */
-    char *command = stString_print("%s -e %s -w %s", programName, tempInputFile, tempOutputFile);
+    char *command = stString_print("%s -e %s -w %s >& /dev/null", programName, tempInputFile, tempOutputFile);
     int32_t i = st_system(command);
     if(i != 0) {
         stThrowNew(REFERENCE_BUILDING_EXCEPTION, "Something went wrong the command %s\n", command);

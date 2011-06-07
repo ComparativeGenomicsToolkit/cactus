@@ -21,7 +21,6 @@ CuSuite* pairwiseAlignmentLongTestSuite(void);
 int stBaseAlignerRunAllTests(void) {
 	CuString *output = CuStringNew();
 	CuSuite* suite = CuSuiteNew();
-	st_setLogLevel(ST_LOGGING_DEBUG);
 
 	CuSuiteAddSuite(suite, pairwiseAlignmentTestSuite());
 	CuSuiteAddSuite(suite, stPosetAlignmentTestSuite());
@@ -37,6 +36,9 @@ int stBaseAlignerRunAllTests(void) {
 	return suite->failCount > 0;
 }
 
-int main(void) {
+int main(int argc, char *argv[]) {
+    if(argc == 2) {
+        st_setLogLevelFromString(argv[1]);
+    }
 	return stBaseAlignerRunAllTests();
 }

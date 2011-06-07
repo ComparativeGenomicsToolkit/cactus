@@ -11,6 +11,7 @@ import xml.etree.ElementTree as ET
 from cactus.shared.test import parseCactusSuiteTestOptions
 from sonLib.bioio import TestStatus
 from sonLib.bioio import system
+from sonLib.bioio import getLogLevelString
 
 from cactus.shared.test import getCactusInputs_random
 from cactus.shared.test import getCactusInputs_blanchette
@@ -46,7 +47,7 @@ class TestCase(unittest.TestCase):
     
         
     def testCuTest(self):
-        system("referenceTests")
+        system("referenceTests %s" % getLogLevelString())
             
 def testCactus_Blanchette(self, matchingAlgorithm):
     configFile = getConfigFile(matchingAlgorithm)

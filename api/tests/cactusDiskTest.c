@@ -20,7 +20,6 @@ static void cactusDiskTestTeardown() {
 
 static void cactusDiskTestSetup() {
     cactusDiskTestTeardown();
-    st_setLogLevel(ST_LOGGING_DEBUG);
     conf = testCommon_getTemporaryKVDatabaseConf();
     cactusDisk = testCommon_getTemporaryCactusDisk();
 }

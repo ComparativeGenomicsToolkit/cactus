@@ -36,8 +36,8 @@ class TestCase(unittest.TestCase):
             experiment = getCactusWorkflowExperimentForTest(sequences, newickTreeString, tempDir)
             cactusDiskDatabaseString = experiment.getDatabaseString() 
             
-            runCactusSetup(cactusDiskDatabaseString, sequences, newickTreeString, debug=True)
-            runCactusSetup(cactusDiskDatabaseString, sequences, newickTreeString, debug=True)
+            runCactusSetup(cactusDiskDatabaseString, sequences, newickTreeString)
+            runCactusSetup(cactusDiskDatabaseString, sequences, newickTreeString)
             
             experiment.cleanupDatabase()
             system("rm -rf %s" % tempDir)

@@ -21,6 +21,7 @@ from sonLib.bioio import getTempDirectory
 
 from sonLib.bioio import TestStatus
 from cactus.shared.test import parseCactusSuiteTestOptions
+from cactus.shared.common import runCactusBatch
 
 from sonLib.bioio import cigarRead
 from sonLib.bioio import PairwiseAlignment
@@ -239,19 +240,6 @@ def runNaiveBlast(sequenceFiles, outputFile, tempDir,
             system("cat %s >> %s" % (tempResultsFile, outputFile))
     os.remove(tempResultsFile)
 
-def runCactusBatch(sequenceFiles, outputFile, jobTreeDir,
-                   chunkSize=1000000, overlapSize=1000, chunksPerJob=1,
-                   logLevel="DEBUG", retryCount=0, batchSystem="single_machine",
-                   blastString="lastz --format=cigar SEQ_FILE_1[multiple][nameparse=darkspace] SEQ_FILE_2[nameparse=darkspace] > CIGARS_FILE", 
-                   selfBlastString="lastz --format=cigar SEQ_FILE[multiple][nameparse=darkspace] SEQ_FILE[nameparse=darkspace] --notrivial  > CIGARS_FILE"):
-    command = "cactus_batch.py %s  \
---cigars %s --chunkSize %s --overlapSize %s --chunksPerJob %s --blastString '%s' --selfBlastString '%s' --jobTree %s --logLevel %s \
---retryCount %i --batchSystem %s" % \
-            (" ".join(sequenceFiles), outputFile,
-             chunkSize, overlapSize, chunksPerJob, blastString, selfBlastString, jobTreeDir, logLevel, retryCount, batchSystem)
-    logger.info("Running command : %s" % command)
-    system(command)
-    logger.info("Ran the cactus_batch command okay")
 
 def main():
     parseCactusSuiteTestOptions()

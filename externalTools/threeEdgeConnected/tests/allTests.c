@@ -8,6 +8,7 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
+#include "cactus.h"
 
 CuSuite* threeEdgeTestSuite(void);
 
@@ -24,6 +25,9 @@ int threeEdgeRunAllTests(void) {
     return suite->failCount > 0;
 }
 
-int main(void) {
+int main(int argc, char *argv[]) {
+    if(argc == 2) {
+        st_setLogLevelFromString(argv[1]);
+    }
     return threeEdgeRunAllTests();
 }

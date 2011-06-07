@@ -59,11 +59,7 @@ int main(int argc, char *argv[]) {
      */
     assert(argc >= 5);
 
-    if (strcmp(argv[1], "INFO") == 0) {
-        st_setLogLevel(ST_LOGGING_INFO);
-    } else if (strcmp(argv[1], "DEBUG") == 0) {
-        st_setLogLevel(ST_LOGGING_DEBUG);
-    }
+    st_setLogLevelFromString(argv[1]);
     st_logInfo("Set up logging\n");
 
     stKVDatabaseConf *kvDatabaseConf = stKVDatabaseConf_constructFromString(argv[2]);

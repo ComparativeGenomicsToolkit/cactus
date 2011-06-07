@@ -14,6 +14,7 @@ from optparse import OptionParser
 from sonLib.bioio import getTempFile
 from sonLib.bioio import logger
 from sonLib.bioio import system
+from sonLib.bioio import getLogLevelString
 from jobTree.scriptTree.target import Target
 from jobTree.scriptTree.stack import Stack
 
@@ -48,7 +49,7 @@ class MakeSequences(Target):
         #Construct the sequences file for doing all against all blast.
         ##########################################
         
-        system("cactus_aligner '%s' %s %s %s" % (self.cactusDisk, self.flowerName, tempSeqFile, self.minimumSequenceLength))
+        system("cactus_aligner '%s' %s %s %s %s" % (self.cactusDisk, self.flowerName, tempSeqFile, self.minimumSequenceLength, getLogLevelString()))
         
         logger.info("Got the sequence files to align")
         

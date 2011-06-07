@@ -100,7 +100,6 @@ int main(int argc, char *argv[]) {
     struct List *stack;
     struct BinaryTree *binaryTree;
     FILE *fileHandle = NULL;
-    bool debug = 0;
     int32_t totalEventNumber;
     Group *group;
     Flower_EndIterator *endIterator;
@@ -121,12 +120,11 @@ int main(int argc, char *argv[]) {
                 required_argument, 0, 'a' }, { "cactusDisk", required_argument,
                 0, 'b' }, { "speciesTree", required_argument, 0, 'f' }, {
                 "help", no_argument, 0, 'h' },
-                { "debug", no_argument, 0, 'd' },
                 { 0, 0, 0, 0 } };
 
         int option_index = 0;
 
-        key = getopt_long(argc, argv, "a:b:f:hd", long_options, &option_index);
+        key = getopt_long(argc, argv, "a:b:f:h", long_options, &option_index);
 
         if (key == -1) {
             break;
@@ -145,9 +143,6 @@ int main(int argc, char *argv[]) {
             case 'h':
                 usage();
                 return 0;
-            case 'd':
-                debug = 1;
-                break;
             default:
                 usage();
                 return 1;
@@ -166,12 +161,7 @@ int main(int argc, char *argv[]) {
     //Set up logging
     //////////////////////////////////////////////
 
-    if (strcmp(logLevelString, "INFO") == 0) {
-        st_setLogLevel(ST_LOGGING_INFO);
-    }
-    if (strcmp(logLevelString, "DEBUG") == 0) {
-        st_setLogLevel(ST_LOGGING_DEBUG);
-    }
+    st_setLogLevelFromString(logLevelString);
 
     //////////////////////////////////////////////
     //Log (some of) the inputs

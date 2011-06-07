@@ -16,12 +16,7 @@
 int main(int argc, char *argv[]) {
     assert(argc >= 5);
 
-    if (strcmp(argv[4], "INFO") == 0) {
-        st_setLogLevel(ST_LOGGING_INFO);
-    }
-    else if (strcmp(argv[4], "DEBUG") == 0) {
-        st_setLogLevel(ST_LOGGING_DEBUG);
-    }
+    st_setLogLevelFromString(argv[4]);
 
     stKVDatabaseConf *kvDatabaseConf = stKVDatabaseConf_constructFromString(argv[1]);
     CactusDisk *cactusDisk = cactusDisk_construct(kvDatabaseConf, 0);

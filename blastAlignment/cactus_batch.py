@@ -19,6 +19,7 @@ from sonLib.bioio import logger
 from sonLib.bioio import system
 from sonLib.bioio import fastaRead
 from sonLib.bioio import fastaWrite
+from sonLib.bioio import getLogLevelString
 
 from jobTree.scriptTree.target import Target
 from jobTree.scriptTree.stack import Stack

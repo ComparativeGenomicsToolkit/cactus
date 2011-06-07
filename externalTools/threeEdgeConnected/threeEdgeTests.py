@@ -8,12 +8,13 @@ import sys
 
 from cactus.shared.test import parseCactusSuiteTestOptions
 from sonLib.bioio import system
+from sonLib.bioio import getLogLevelString
 
 class TestCase(unittest.TestCase):
     def test3Edge(self):
         """Run the 3-edge connected CuTests, fail if any of them fail.
         """
-        system("3EdgeTests")
+        system("3EdgeTests %s" % getLogLevelString())
 
 def main():
     parseCactusSuiteTestOptions()

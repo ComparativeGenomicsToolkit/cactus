@@ -17,6 +17,7 @@ from sonLib.bioio import fastaAlignmentRead
 from sonLib.bioio import fastaWrite
 from sonLib.bioio import fastaAlignmentWrite
 from sonLib.bioio import fastaReadHeaders
+from sonLib.bioio import getLogLevelString
 
 from cactus.shared.common import runCactusWorkflow
 
@@ -96,23 +97,23 @@ class TestCase(unittest.TestCase):
                 trueMFAFile = os.path.join(testDir, "true.mfa")
                 fastaAlignmentWrite(subAlignment, fastaHeaders, len(fastaHeaders), trueMFAFile)
                 trueMAFFile = os.path.join(testDir, "true.maf")
-                system("mfaToMaf --mfaFile %s --outputFile %s" % (trueMFAFile, trueMAFFile))
+                system("mfaToMaf --mfaFile %s --outputFile %s --logLevel %s" % (trueMFAFile, trueMAFFile, getLogLevelString()))
                 system("cat %s" % trueMAFFile)
                 
                 #Now get mafs for the region.
                 mAFFile = os.path.join(testDir, "flower.maf")
-                system("cactus_MAFGenerator --flowerName 0 --cactusDisk '%s' --outputFile %s" % (cactusDiskDatabaseString, mAFFile))
+                system("cactus_MAFGenerator --flowerName 0 --cactusDisk '%s' --outputFile %s --logLevel %s" % (cactusDiskDatabaseString, mAFFile, getLogLevelString()))
                 logger.info("Got the MAFs from the flower disk")
                 system("cat %s" % mAFFile)
                 
                 statsFile = os.path.join(testDir, "stats.xml")
-                system("cactus_treeStats --cactusDisk '%s' --flowerName 0 --outputFile %s" % (cactusDiskDatabaseString, statsFile))
+                system("cactus_treeStats --cactusDisk '%s' --flowerName 0 --outputFile %s --logLevel %s" % (cactusDiskDatabaseString, statsFile, getLogLevelString()))
                 system("cat %s" % statsFile)
                 logger.info("Got the cactus tree stats")
                 
                 #Now compare the mafs to the output.
                 resultsFile = os.path.join(testDir, "results.xml")
-                system("mafComparator --mafFile1 %s --mafFile2 %s --outputFile %s" % (trueMAFFile, mAFFile, resultsFile))
+                system("mafComparator --mafFile1 %s --mafFile2 %s --outputFile %s --logLevel" % (trueMAFFile, mAFFile, resultsFile, getLogLevelString()))
                 logger.info("Ran the maf comparator")
                 
                 system("cat %s" % resultsFile)
@@ -129,7 +130,7 @@ class TestCase(unittest.TestCase):
     def testPosetAlignerAPI(self):
         """Run all the cactus base aligner CuTests, fail if any of them fail.
         """
-        system("cactus_baseAlignerTests")
+        system("cactus_baseAlignerTests %s" % getLogLevelString())
 
 def main():
     parseCactusSuiteTestOptions()

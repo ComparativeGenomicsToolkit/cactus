@@ -112,7 +112,7 @@ static void testGreedy(CuTest *testCase) {
         stList *matching = chooseMatching_greedy(edgesList, nodeNumber);
         checkMatching(testCase, matching, 0);
         int32_t totalWeight = matchingWeight(matching);
-        st_uglyf("The total weight of the greedy matching is %i\n", totalWeight);
+        st_logInfo("The total weight of the greedy matching is %i\n", totalWeight);
         stList_destruct(matching);
         teardown();
     }
@@ -135,9 +135,9 @@ static void testMaximumWeight(CuTest *testCase) {
         int32_t totalGreedyWeight = matchingWeight(greedyMatching);
         int32_t totalBlossumWeight = matchingWeight(blossomMatching);
         int32_t totalMaximumWeightWeight = matchingWeight(maximumWeightMatching);
-        st_uglyf("The total weight of the greedy matching is %i, the total weight of the blossom5 matching is %i, the total weight of the maximum weight matching is %i\n",
+        st_logInfo("The total weight of the greedy matching is %i, the total weight of the blossom5 matching is %i, the total weight of the maximum weight matching is %i\n",
                 totalGreedyWeight, totalBlossumWeight, totalMaximumWeightWeight);
-        st_uglyf("The total cardinality of the greedy matching is %i, the total cardinality of the blossom5  matching is %i, the total cardinality of the maximum weight matching is %i\n",
+        st_logInfo("The total cardinality of the greedy matching is %i, the total cardinality of the blossom5  matching is %i, the total cardinality of the maximum weight matching is %i\n",
                         stList_length(greedyMatching), stList_length(blossomMatching), stList_length(maximumWeightMatching));
         CuAssertTrue(testCase, totalGreedyWeight <= totalBlossumWeight);
         CuAssertTrue(testCase, totalGreedyWeight <= totalMaximumWeightWeight);
@@ -164,9 +164,9 @@ static void testMaximumCardinality(CuTest *testCase) {
 
         int32_t totalGreedyWeight = matchingWeight(greedyMatching);
         int32_t totalEdmondsWeight = matchingWeight(edmondsMatching);
-        st_uglyf("The total weight of the greedy matching is %i, the total weight of the edmonds matching is %i\n",
+        st_logInfo("The total weight of the greedy matching is %i, the total weight of the edmonds matching is %i\n",
                 totalGreedyWeight, totalEdmondsWeight);
-        st_uglyf("The total cardinality of the greedy matching is %i, the total cardinality of the edmonds matching is %i\n",
+        st_logInfo("The total cardinality of the greedy matching is %i, the total cardinality of the edmonds matching is %i\n",
                 stList_length(greedyMatching), stList_length(edmondsMatching));
         CuAssertTrue(testCase, stList_length(greedyMatching) <= stList_length(edmondsMatching));
         stList_destruct(greedyMatching);

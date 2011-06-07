@@ -21,7 +21,10 @@ int referenceRunAllTests(void) {
     return suite->failCount > 0;
 }
 
-int main(void) {
+int main(int argc, char *argv[]) {
+    if(argc == 2) {
+        st_setLogLevelFromString(argv[1]);
+    }
     int i = referenceRunAllTests();
     //while(1);
     return i;

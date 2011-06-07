@@ -29,9 +29,8 @@ from optparse import OptionParser
 from sonLib.bioio import getTempFile
 from sonLib.bioio import newickTreeParser
 
-from jobTree.src.bioio import getLogLevelString
-from jobTree.src.bioio import logger
-from jobTree.src.bioio import setLoggingFromOptions
+from sonLib.bioio import logger
+from sonLib.bioio import setLoggingFromOptions
 
 from cactus.shared.common import cactusRootPath
   
@@ -136,7 +135,7 @@ class CactusSetupWrapper(Target):
     def run(self):
         logger.info("Starting cactus setup target")
         runCactusSetup(self.options.cactusDiskDatabaseString, self.sequences, 
-                       self.options.speciesTree, logLevel=getLogLevelString())
+                       self.options.speciesTree)
         logger.info("Finished the setup phase target")
 
 ############################################################
@@ -207,7 +206,7 @@ def makeTargets(options, extraArgs, flowersAndSizes, parentTarget, target, maxSe
 def makeChildTargets(options, extraArgs, flowerNames, target, childTarget, maxSequenceSize=MAX_SEQUENCE_SIZE, jobNumber=MAX_JOB_NUMBER):
     """Make a set of child targets for a given set of parent flowers.
     """
-    childFlowers = runCactusGetFlowers(options.cactusDiskDatabaseString, flowerNames, target.getLocalTempDir(), logLevel=getLogLevelString())
+    childFlowers = runCactusGetFlowers(options.cactusDiskDatabaseString, flowerNames, target.getLocalTempDir())
     makeTargets(options, extraArgs, childFlowers, target, childTarget, maxSequenceSize, jobNumber)
 
 class CactusCafDown(Target):
@@ -224,7 +223,7 @@ class CactusCafDown(Target):
         makeChildTargets(self.options, self.iteration, self.flowerNames, self, CactusCafDown)
         minSize = int(self.iteration.attrib["min_sequence_size"])
         for childFlowerName, childFlowerSize in runCactusExtendFlowers(self.options.cactusDiskDatabaseString, self.flowerNames, 
-                                                                       self.getLocalTempDir(),  logLevel=getLogLevelString()):
+                                                                       self.getLocalTempDir()):
             if childFlowerSize > minSize:
                 self.addChildTarget(CactusBlastWrapper(self.options, self.iteration, childFlowerName))
 
@@ -286,7 +285,6 @@ class CactusCoreWrapper(Target):
         runCactusCore(cactusDiskDatabaseString=self.options.cactusDiskDatabaseString,
                       alignmentFile=self.alignmentFile, 
                       flowerName=self.flowerName,
-                      logLevel=getLogLevelString(), 
                       annealingRounds=[ int(i) for i in coreParameters.attrib["annealingRounds"].split() ],
                       deannealingRounds=[ int(i) for i in coreParameters.attrib["deannealingRounds"].split() ],
                       alignRepeatsAtRound=float(coreParameters.attrib["alignRepeatsAtRound"]),
@@ -321,7 +319,7 @@ class CactusBarDown(Target):
         children = []
         makeChildTargets(self.options, self.iteration, self.flowerNames, self, CactusBarDown)
         childFlowersAndSizes = runCactusExtendFlowers(self.options.cactusDiskDatabaseString, self.flowerNames, 
-                                                              self.getLocalTempDir(),  logLevel=getLogLevelString())
+                                                              self.getLocalTempDir())
         makeTargets(self.options, self.iteration, childFlowersAndSizes, self, CactusBaseLevelAlignerWrapper, maxSequenceSize=10000)
      
 class CactusBaseLevelAlignerWrapper(Target):
@@ -336,7 +334,7 @@ class CactusBaseLevelAlignerWrapper(Target):
     
     def run(self):
         assert self.iteration.attrib["type"] == "base"
-        runCactusBaseAligner(self.options.cactusDiskDatabaseString, self.flowerNames, getLogLevelString(),
+        runCactusBaseAligner(self.options.cactusDiskDatabaseString, self.flowerNames, 
                              maximumLength=float(self.iteration.attrib["banding_limit"]),
                              spanningTrees=float(self.iteration.attrib["spanning_trees"]),
                              gapGamma=float(self.iteration.attrib["gap_gamma"]),

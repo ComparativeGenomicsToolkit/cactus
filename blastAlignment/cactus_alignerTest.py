@@ -11,12 +11,14 @@ from cactus.shared.test import parseCactusSuiteTestOptions
 from sonLib.bioio import TestStatus
 from sonLib.bioio import system
 from sonLib.bioio import getTempDirectory
+from sonLib.bioio import getLogLevelString
 
 from cactus.shared.test import getCactusInputs_random
 from cactus.shared.test import getCactusWorkflowExperimentForTest
 
 from cactus.shared.common import runCactusSetup
 from cactus.shared.common import runCactusAligner
+
 
 class TestCase(unittest.TestCase):
 
@@ -63,7 +65,8 @@ def runAligner(useDummy=True):
                      tempDir=getTempDirectory(tempDir), useDummy=useDummy) #Run it twice to check blockicity
     logger.info("Ran cactus aligner")
     
-    system("cat %s" % tempAlignmentFile)
+    if getLogLevelString() == "DEBUG":
+        system("cat %s" % tempAlignmentFile)
     
     #Cleanup
     experiment.cleanupDatabase()
