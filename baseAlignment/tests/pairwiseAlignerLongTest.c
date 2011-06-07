@@ -41,7 +41,7 @@ static void test_pairwiseAligner(CuTest *testCase, char *seq1, char *seq2, char 
     stList *seqs = stList_construct();
     stList_append(seqs, seq1);
     stList_append(seqs, seq2);
-    st_uglyf("I am starting to align the %s and %s sequences\n", seqName1, seqName2);
+    st_logInfo("I am starting to align the %s and %s sequences\n", seqName1, seqName2);
 
     clock_t start = clock();
 
@@ -50,15 +50,15 @@ static void test_pairwiseAligner(CuTest *testCase, char *seq1, char *seq2, char 
     clock_t end = clock();
 
     double elapsed = ((double)(end - start)) / CLOCKS_PER_SEC;
-    st_uglyf("It took %f seconds\n", elapsed);
+    st_logInfo("It took %f seconds\n", elapsed);
 
-    st_uglyf("I have completed the alignment\n");
+    st_logInfo("I have completed the alignment\n");
     stSortedSet *pairs = stSortedSet_construct3((int(*)(const void *, const void *)) stIntTuple_cmpFn,
             (void(*)(void *)) stIntTuple_destruct);
     stSortedSet *pairs2 = stSortedSet_construct3((int(*)(const void *, const void *)) stIntTuple_cmpFn,
             (void(*)(void *)) stIntTuple_destruct);
 
-    st_uglyf("I am adding the pairs to the predicted set\n");
+    st_logInfo("I am adding the pairs to the predicted set\n");
     for (int32_t i = 0; i < stList_length(alignedPairs); i++) {
         stIntTuple *alignedPair = stList_get(alignedPairs, i);
         CuAssertTrue(testCase, stIntTuple_length(alignedPair) == 5);
@@ -68,7 +68,7 @@ static void test_pairwiseAligner(CuTest *testCase, char *seq1, char *seq2, char 
         int32_t seqY = stIntTuple_getPosition(alignedPair, 3);
         int32_t y = stIntTuple_getPosition(alignedPair, 4);
         if(score < 0.9 * PAIR_ALIGNMENT_PROB_1) {
-            //st_uglyf("I have a pair with less than 0.1 prob: %i %i %f\n", x, y, (float)score / PAIR_ALIGNMENT_PROB_1);
+            //st_logInfo("I have a pair with less than 0.1 prob: %i %i %f\n", x, y, (float)score / PAIR_ALIGNMENT_PROB_1);
         }
         assert(seqX == 0);
         assert(seqY == 1);
@@ -77,7 +77,7 @@ static void test_pairwiseAligner(CuTest *testCase, char *seq1, char *seq2, char 
         stSortedSet_insert(pairs, k);
     }
 
-    st_uglyf("I am adding the true pairs to the true set\n");
+    st_logInfo("I am adding the true pairs to the true set\n");
     int32_t i = strlen(align1), j = 0, k = 0;
     for (int32_t l = 0; l < i; l++) {
         if (align1[l] != '-' && align2[l] != '-') {
@@ -93,26 +93,26 @@ static void test_pairwiseAligner(CuTest *testCase, char *seq1, char *seq2, char 
         }
     }
 
-    st_uglyf("I have done the grunt work\n");
+    st_logInfo("I have done the grunt work\n");
     stSortedSet *intersection = stSortedSet_getIntersection(pairs, pairs2);
     i = stSortedSet_size(pairs);
     j = stSortedSet_size(pairs2);
     k = stSortedSet_size(intersection);
 
-    st_uglyf(
+    st_logInfo(
             "I got %i predicted pairs, %i true pairs, an intersection of %i and a sensitivity of %f and specificity of %f\n",
             i, j, k, (float) k / j, (float) k / i);
 
     stSortedSetIterator *it = stSortedSet_getIterator(stSortedSet_getDifference(pairs2, pairs));
     stIntTuple *pair;
     while ((pair = stSortedSet_getNext(it)) != NULL) {
-        //st_uglyf("The pair %s %i %s %i is missing\n", seqName1, stIntTuple_getPosition(pair, 0), seqName2, stIntTuple_getPosition(pair, 1));
+        //st_logInfo("The pair %s %i %s %i is missing\n", seqName1, stIntTuple_getPosition(pair, 0), seqName2, stIntTuple_getPosition(pair, 1));
     }
     stSortedSet_destructIterator(it);
 
     it = stSortedSet_getIterator(stSortedSet_getDifference(pairs, pairs2));
     while ((pair = stSortedSet_getNext(it)) != NULL) {
-        //st_uglyf("The pair %s %i %s %i is added\n", seqName1, stIntTuple_getPosition(pair, 0), seqName2, stIntTuple_getPosition(pair, 1));
+        //st_logInfo("The pair %s %i %s %i is added\n", seqName1, stIntTuple_getPosition(pair, 0), seqName2, stIntTuple_getPosition(pair, 1));
     }
     stSortedSet_destructIterator(it);
 }

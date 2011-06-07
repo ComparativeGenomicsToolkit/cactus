@@ -31,7 +31,7 @@ void test_alignedPair_cmpFn(CuTest *testCase) {
     AlignedPair *ordering[5] = { aP2, aP1, aP4, aP5, aP3 };
     for(int32_t i=0; i<5; i++) {
         AlignedPair *aP = ordering[i];
-        st_uglyf("I got %i %i\n", aP, aP->reverse);
+        st_logInfo("I got %i %i\n", aP, aP->reverse);
         stList_append(list, aP);
         stList_append(list, aP->reverse);
     }
@@ -40,7 +40,7 @@ void test_alignedPair_cmpFn(CuTest *testCase) {
 
     AlignedPair *correctOrdering[10] = { aP1, aP2, aP3, aP4, aP5, aP1->reverse, aP2->reverse, aP4->reverse, aP3->reverse, aP5->reverse };
     for(int32_t i=0; i<10; i++) {
-        st_uglyf("Checking %i %i\n", correctOrdering[i], stList_get(list, i));
+        st_logInfo("Checking %i %i\n", correctOrdering[i], stList_get(list, i));
         CuAssertTrue(testCase, correctOrdering[i] == stList_get(list, i));
     }
 

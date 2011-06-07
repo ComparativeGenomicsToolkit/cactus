@@ -129,7 +129,7 @@ void test_getCyclicPermutations(CuTest *testCase) {
     stSortedSetIterator *it = stSortedSet_getIterator(pairwiseAlignments);
     stIntTuple *i;
     while((i = stSortedSet_getNext(it)) != NULL) {
-        st_uglyf("I got %i %i\n", stIntTuple_getPosition(i, 0), stIntTuple_getPosition(i, 1));
+        st_logDebug("I got %i %i\n", stIntTuple_getPosition(i, 0), stIntTuple_getPosition(i, 1));
         CuAssertTrue(testCase, stSortedSet_search(expectedPairwiseAlignments, i) != NULL);
     }
     CuAssertTrue(testCase, stSortedSet_size(pairwiseAlignments) == stSortedSet_size(expectedPairwiseAlignments));
@@ -201,7 +201,7 @@ void test_multipleAlignerRandom(CuTest *testCase) {
         stPosetAlignment *posetAlignment = stPosetAlignment_construct(stList_length(randomSequences));
 
         for(int32_t i=0; i<stList_length(randomSequences); i++) {
-            st_uglyf("Sequence to align: %s\n", stList_get(randomSequences, i));
+            st_logInfo("Sequence to align: %s\n", stList_get(randomSequences, i));
         }
 
         PairwiseAlignmentParameters *pairwiseParameters = pairwiseAlignmentBandingParameters_construct();
@@ -217,7 +217,7 @@ void test_multipleAlignerRandom(CuTest *testCase) {
             int32_t x = stIntTuple_getPosition(alignedPair, 2);
             int32_t seqY = stIntTuple_getPosition(alignedPair, 3);
             int32_t y = stIntTuple_getPosition(alignedPair, 4);
-            st_uglyf("Got aligned pair, score: %i x seq: %i x pos: %i x seq: %i y pos: %i\n", score, seqX, x, seqY, y);
+            st_logInfo("Got aligned pair, score: %i x seq: %i x pos: %i x seq: %i y pos: %i\n", score, seqX, x, seqY, y);
             CuAssertTrue(testCase, score > 0);
             CuAssertTrue(testCase, score <= PAIR_ALIGNMENT_PROB_1);
             CuAssertTrue(testCase, seqX >= 0);

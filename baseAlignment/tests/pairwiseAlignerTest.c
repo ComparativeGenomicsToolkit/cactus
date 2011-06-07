@@ -63,8 +63,8 @@ static void test_pairwiseAlignerRandom(CuTest *testCase) {
         char *seqY = evolveSequence(seqX); //stString_copy(seqX);
         int32_t seqXLength = strlen(seqX);
         int32_t seqYLength = strlen(seqY);
-        st_uglyf("Sequence X to align: %s END\n", seqX);
-        st_uglyf("Sequence Y to align: %s END\n", seqY);
+        st_logInfo("Sequence X to align: %s END\n", seqX);
+        st_logInfo("Sequence Y to align: %s END\n", seqY);
 
         //Now do alignment
         PairwiseAlignmentParameters *p = pairwiseAlignmentBandingParameters_construct();
@@ -78,7 +78,7 @@ static void test_pairwiseAlignerRandom(CuTest *testCase) {
             int32_t score = stIntTuple_getPosition(alignedPair, 0);
             int32_t x = stIntTuple_getPosition(alignedPair, 1);
             int32_t y = stIntTuple_getPosition(alignedPair, 2);
-            //st_uglyf("Got aligned pair, score: %i x pos: %i y pos: %i\n", score, x, y);
+            //st_logInfo("Got aligned pair, score: %i x pos: %i y pos: %i\n", score, x, y);
             CuAssertTrue(testCase, score > 0);
             CuAssertTrue(testCase, score <= PAIR_ALIGNMENT_PROB_1);
             CuAssertTrue(testCase, x >= 0);
@@ -120,8 +120,8 @@ static void test_pairwiseAligner_FastRandom(CuTest *testCase) {
         char *seqY = evolveSequence(seqX); //stString_copy(seqX);
         int32_t seqXLength = strlen(seqX);
         int32_t seqYLength = strlen(seqY);
-        st_uglyf("Sequence X to align: %s END, seq length %i\n", seqX, seqXLength);
-        st_uglyf("Sequence Y to align: %s END, seq length %i\n", seqY, seqYLength);
+        st_logInfo("Sequence X to align: %s END, seq length %i\n", seqX, seqXLength);
+        st_logInfo("Sequence Y to align: %s END, seq length %i\n", seqY, seqYLength);
 
         //Now do alignment
         PairwiseAlignmentParameters *p = pairwiseAlignmentBandingParameters_construct();
@@ -134,9 +134,9 @@ static void test_pairwiseAligner_FastRandom(CuTest *testCase) {
         stSortedSet *intersectionOfAlignedPairs = stSortedSet_getIntersection(alignedPairsSet, alignedPairsSet2);
         stSortedSet *unionOfAlignedPairs = stSortedSet_getUnion(alignedPairsSet, alignedPairsSet2);
 
-        st_uglyf("Slow size %i, fast size %i, intersection %i, union %i\n", stSortedSet_size(alignedPairsSet), stSortedSet_size(alignedPairsSet2), stSortedSet_size(intersectionOfAlignedPairs), stSortedSet_size(unionOfAlignedPairs));
+        st_logInfo("Slow size %i, fast size %i, intersection %i, union %i\n", stSortedSet_size(alignedPairsSet), stSortedSet_size(alignedPairsSet2), stSortedSet_size(intersectionOfAlignedPairs), stSortedSet_size(unionOfAlignedPairs));
 
-        st_uglyf("Slow weight %f, fast weight %f, intersection weight %f, union weight %f\n", weight(alignedPairsSet), weight(alignedPairsSet2), weight(intersectionOfAlignedPairs), weight(unionOfAlignedPairs));
+        st_logInfo("Slow weight %f, fast weight %f, intersection weight %f, union weight %f\n", weight(alignedPairsSet), weight(alignedPairsSet2), weight(intersectionOfAlignedPairs), weight(unionOfAlignedPairs));
     }
 }
 
@@ -154,15 +154,15 @@ static void test_getBlastPairs(CuTest *testCase) {
         char *seqY = evolveSequence(seqX); //stString_copy(seqX);
         int32_t seqXLength = strlen(seqX);
         int32_t seqYLength = strlen(seqY);
-        st_uglyf("Sequence X to align: %s END, seq length %i\n", seqX, seqXLength);
-        st_uglyf("Sequence Y to align: %s END, seq length %i\n", seqY, seqYLength);
+        st_logInfo("Sequence X to align: %s END, seq length %i\n", seqX, seqXLength);
+        st_logInfo("Sequence Y to align: %s END, seq length %i\n", seqY, seqYLength);
 
         int32_t trim = st_randomInt(0, 5);
-        st_uglyf("Using random trim %i\n", trim);
+        st_logInfo("Using random trim %i\n", trim);
 
         stList *blastPairs = getBlastPairs(seqX, seqY, seqXLength, seqYLength, trim);
 
-        st_uglyf("I got %i blast pairs\n", stList_length(blastPairs));
+        st_logInfo("I got %i blast pairs\n", stList_length(blastPairs));
         int32_t pX = -1;
         int32_t pY = -1;
         for(int32_t i=0; i<stList_length(blastPairs); i++) {
@@ -210,7 +210,7 @@ static void test_filterPairsToGetAnchorPoints(CuTest *testCase) {
             pX = x;
             pY = y;
         }
-        st_uglyf("I got %i filtered pairs from %i pairs\n", stList_length(filteredPairs), stList_length(blastPairs));
+        st_logInfo("I got %i filtered pairs from %i pairs\n", stList_length(filteredPairs), stList_length(blastPairs));
     }
 }
 
@@ -227,7 +227,7 @@ static void test_logAdd(CuTest *testCase) {
         double j = st_random();
         double k = i + j;
         double l = exp(logAdd(log(i), log(j)));
-        //st_uglyf("I got %f %f\n", k, l);
+        //st_logInfo("I got %f %f\n", k, l);
         CuAssertTrue(testCase, l < k + 0.001);
         CuAssertTrue(testCase, l > k - 0.001);
     }

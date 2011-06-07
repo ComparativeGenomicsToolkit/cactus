@@ -75,17 +75,17 @@ void test_getInducedAlignment(CuTest *testCase) {
             stList *inducedAlignment = getInducedAlignment(sortedAlignment, adjacencySequence);
             stList *inducedAlignment2 = getinducedAlignment2(sortedAlignment, adjacencySequence);
 
-            /*st_uglyf("The lengths are %i %i\n", stList_length(inducedAlignment), stList_length(inducedAlignment2));
-            st_uglyf("Adj %i %i %i %i\n", adjacencySequence->sequenceName, adjacencySequence->start, adjacencySequence->length, adjacencySequence->strand);
+            /*st_logInfo("The lengths are %i %i\n", stList_length(inducedAlignment), stList_length(inducedAlignment2));
+            st_logInfo("Adj %i %i %i %i\n", adjacencySequence->sequenceName, adjacencySequence->start, adjacencySequence->length, adjacencySequence->strand);
 
             for(int32_t j=0; j<stList_length(inducedAlignment); j++) {
                 AlignedPair *aP = stList_get(inducedAlignment, j);
-                st_uglyf("Hello %i %i %i\n", aP->sequence, aP->position, aP->strand);
+                st_logInfo("Hello %i %i %i\n", aP->sequence, aP->position, aP->strand);
             }
 
             for(int32_t j=0; j<stList_length(inducedAlignment2); j++) {
                 AlignedPair *aP = stList_get(inducedAlignment2, j);
-                st_uglyf("Goodbye %i %i %i\n", aP->sequence, aP->position, aP->strand);
+                st_logInfo("Goodbye %i %i %i\n", aP->sequence, aP->position, aP->strand);
             }*/
 
             CuAssertTrue(testCase, stList_length(inducedAlignment) == stList_length(inducedAlignment2));
