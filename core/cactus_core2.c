@@ -229,8 +229,6 @@ int main(int argc, char *argv[]) {
     }
     assert(cCIP->alignRepeatsAtRound >= 0);
 
-    st_uglyf("Hello we're starting up\n");
-
     //////////////////////////////////////////////
     //Set up logging
     //////////////////////////////////////////////
@@ -245,8 +243,6 @@ int main(int argc, char *argv[]) {
     st_logInfo("Flower disk name : %s\n", cactusDiskDatabaseString);
     st_logInfo("Flower name : %s\n", flowerName);
 
-    st_uglyf("Hello we're going 1\n");
-
     //////////////////////////////////////////////
     //Load the database
     //////////////////////////////////////////////
@@ -254,8 +250,6 @@ int main(int argc, char *argv[]) {
     kvDatabaseConf = stKVDatabaseConf_constructFromString(cactusDiskDatabaseString);
     cactusDisk = cactusDisk_construct(kvDatabaseConf, 0);
     st_logInfo("Set up the flower disk\n");
-
-    st_uglyf("Hello we're going 2\n");
 
     ///////////////////////////////////////////////////////////////////////////
     // Parse the basic reconstruction problem
@@ -288,8 +282,6 @@ int main(int argc, char *argv[]) {
         st_logInfo("We've already built blocks / alignments for this flower\n");
     }
 
-    st_uglyf("Hello we're going 3\n");
-
     ///////////////////////////////////////////////////////////////////////////
     //(10) Clean up.
     ///////////////////////////////////////////////////////////////////////////
@@ -307,10 +299,6 @@ int main(int argc, char *argv[]) {
     destructCactusCoreInputParameters(cCIP);
 
     st_logInfo("Cleaned stuff up and am finished in: %i seconds\n", time(NULL) - startTime);
-
-    st_uglyf("Hello we're going 4\n");
-
-    assert(0);
 
     //while(1);
 
