@@ -13,6 +13,7 @@ from cactus.shared.test import parseCactusSuiteTestOptions
 from sonLib.bioio import TestStatus
 from sonLib.bioio import getTempFile
 from sonLib.bioio import system
+from sonLib.bioio import getLogLevelString
 
 from cactus.shared.common import cactusRootPath
 
@@ -69,7 +70,8 @@ def getRandomConfigFile():
     fileHandle = open(tempConfigFile, 'w')
     ET.ElementTree(config).write(fileHandle)
     fileHandle.close()
-    system("cat %s" % tempConfigFile)
+    if getLogLevelString() == "DEBUG":
+        system("cat %s" % tempConfigFile)
     return tempConfigFile
     
 def main():

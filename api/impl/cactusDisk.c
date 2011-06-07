@@ -554,7 +554,7 @@ void cactusDisk_getBlockOfUniqueIDs(CactusDisk *cactusDisk) {
                                 "Repeated unknown database errors occurred when we tried to get a unique ID, collision count %i",
                                 collisionCount);
                     } else {
-                        st_uglyf(
+                        st_logDebug(
                                 "Got an exception when trying to insert a record: %s",
                                 except);
                     }
@@ -576,7 +576,7 @@ void cactusDisk_getBlockOfUniqueIDs(CactusDisk *cactusDisk) {
                         "Repeated unknown database errors occurred when we tried to get a unique ID, collision count %i",
                         collisionCount);
             } else {
-                st_uglyf(
+                st_logDebug(
                         "Got an exception when trying to insert a record: %s",
                         except);
             }

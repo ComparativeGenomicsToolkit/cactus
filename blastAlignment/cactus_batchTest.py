@@ -9,22 +9,19 @@ import sys
 import random
 
 from sonLib.bioio import system
-
 from sonLib.bioio import logger
 from sonLib.bioio import fastaWrite
 from sonLib.bioio import getRandomSequence
 from sonLib.bioio import mutateSequence
 from sonLib.bioio import reverseComplement
-
 from sonLib.bioio import getTempFile
 from sonLib.bioio import getTempDirectory
-
+from sonLib.bioio import cigarRead
+from sonLib.bioio import PairwiseAlignment
+from sonLib.bioio import getLogLevelString
 from sonLib.bioio import TestStatus
 from cactus.shared.test import parseCactusSuiteTestOptions
 from cactus.shared.common import runCactusBatch
-
-from sonLib.bioio import cigarRead
-from sonLib.bioio import PairwiseAlignment
 
 from jobTree.test.jobTree.jobTreeTest import runJobTreeStatusAndFailIfNotComplete
 
@@ -128,7 +125,8 @@ class TestCase(unittest.TestCase):
             jobTreeDir = os.path.join(getTempDirectory(self.tempDir), "jobTree")
             runCactusBatch([ tempSeqFile ], tempOutputFile, jobTreeDir, chunkSize, overlapSize, chunksPerJob)
             runJobTreeStatusAndFailIfNotComplete(jobTreeDir)
-            system("cat %s" % tempOutputFile)
+            if getLogLevelString() == "DEBUG":
+                system("cat %s" % tempOutputFile)
             system("rm -rf %s " % jobTreeDir)
 
 def checkResultsAreApproximatelyEqual(resultsComparator):
@@ -239,7 +237,6 @@ def runNaiveBlast(sequenceFiles, outputFile, tempDir,
             logger.info("Ran the blast okay for sequences: %s %s" % (seqFile1, seqFile2))
             system("cat %s >> %s" % (tempResultsFile, outputFile))
     os.remove(tempResultsFile)
-
 
 def main():
     parseCactusSuiteTestOptions()
