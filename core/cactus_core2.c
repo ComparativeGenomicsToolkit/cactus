@@ -247,6 +247,8 @@ int main(int argc, char *argv[]) {
 
     st_uglyf("Hello we're going 1\n");
 
+    assert(0);
+
     //////////////////////////////////////////////
     //Load the database
     //////////////////////////////////////////////
