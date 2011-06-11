@@ -197,13 +197,16 @@ def makeTargets(options, extraArgs, flowersAndSizes, parentTarget, target,
     
     for flowerName, flowerSize, in flowersAndSizes:
         assert(flowerSize) >= 0
-        if flowerSize >= ignoreFlowersLessThanThisSize and flowerSize <= ignoreFlowersGreaterThanThisSize:
-            totalSequenceSize += max(flowerSize, minChildSize)
-            flowerNames.append(flowerName)
-            if totalSequenceSize >= maxSequenceSize: 
-                parentTarget.addChildTarget(target(options, extraArgs, flowerNames))
-                flowerNames = []
-                totalSequenceSize = 0.0
+        if flowerSize >= ignoreFlowersLessThanThisSize:
+            if flowerSize <= ignoreFlowersGreaterThanThisSize:
+                totalSequenceSize += max(flowerSize, minChildSize)
+                flowerNames.append(flowerName)
+                if totalSequenceSize >= maxSequenceSize: 
+                    parentTarget.addChildTarget(target(options, extraArgs, flowerNames))
+                    flowerNames = []
+                    totalSequenceSize = 0.0
+            else:
+                logger.critical("Ignoring a flower %s of size %s" % (childFlowerName, childFlowerSize))
     if len(flowerNames) > 0:
         parentTarget.addChildTarget(target(options, extraArgs, flowerNames))
 
@@ -235,8 +238,11 @@ class CactusCafDown(Target):
                          ignoreFlowersLessThanThisSize=ignoreFlowersLessThanThisSize)
         for childFlowerName, childFlowerSize in runCactusExtendFlowers(self.options.cactusDiskDatabaseString, self.flowerNames, 
                                                                        self.getLocalTempDir()):
-            if childFlowerSize >= ignoreFlowersLessThanThisSize and childFlowerSize <= ignoreFlowersGreaterThanThisSize:
-                self.addChildTarget(CactusBlastWrapper(self.options, self.iteration, childFlowerName))
+            if childFlowerSize >= ignoreFlowersLessThanThisSize:
+                if childFlowerSize <= ignoreFlowersGreaterThanThisSize:
+                    self.addChildTarget(CactusBlastWrapper(self.options, self.iteration, childFlowerName))
+                else:
+                    logger.critical("Ignoring a flower from CAF alignment %s of size %s" % (childFlowerName, childFlowerSize))
 
 def getOption(node, attribName, default):
     if node.attrib.has_key(attribName):
