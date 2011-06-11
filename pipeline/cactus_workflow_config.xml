@@ -3,7 +3,7 @@
 		<blast_misc chunksPerJob="1" compressFiles="True" overlapSize="10000" filterByIdentity="1" identityRatio="6" minimumDistance="0.01" minimumSequenceLength="30"/>
 		<iterations>
 			<iteration min_sequence_size="5000000" number="0" type="blast">
-				<blast blastString="lastz --format=cigar --identity=IDENTITY --ambiguous=iupac --nogapped SEQ_FILE_1[multiple][nameparse=darkspace] SEQ_FILE_2[nameparse=darkspace] &gt; CIGARS_FILE" chunkSize="100000000" selfBlastString="lastz --format=cigar --identity=IDENTITY -nogapped --ambiguous=iupac SEQ_FILE[multiple][nameparse=darkspace] SEQ_FILE[nameparse=darkspace] --notrivial  &gt; CIGARS_FILE" />
+				<blast blastString="lastz --format=cigar --identity=IDENTITY --ambiguous=iupac --nogapped SEQ_FILE_1[multiple][nameparse=darkspace] SEQ_FILE_2[nameparse=darkspace] &gt; CIGARS_FILE" chunkSize="100000000" selfBlastString="lastz --format=cigar --identity=IDENTITY --nogapped --ambiguous=iupac SEQ_FILE[multiple][nameparse=darkspace] SEQ_FILE[nameparse=darkspace] --notrivial  &gt; CIGARS_FILE" />
 				<core ignoreAllChainsLessThanMinimumTreeCoverage="0" alignRepeatsAtRound="0" annealingRounds="8 512" deannealingRounds="2 3 4 8 16 32 64 128 256 512" blockTrim="2" minimumTreeCoverage="0.8" trim="0 0 0 0 0 0 0 0 0 0 0 0 0 0" minimumBlockDegree="2" />
 			</iteration>
 
