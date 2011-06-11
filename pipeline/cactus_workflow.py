@@ -22,6 +22,7 @@ In the verification phase the reconstruction tree is checked against the expecte
 """
 
 import os
+import sys
 import xml.etree.ElementTree as ET
 import math
 from optparse import OptionParser
@@ -182,7 +183,9 @@ class CactusAlignmentPhase(Target):
 MAX_SEQUENCE_SIZE=1000000
 MAX_JOB_NUMBER=1000
 
-def makeTargets(options, extraArgs, flowersAndSizes, parentTarget, target, maxSequenceSize=MAX_SEQUENCE_SIZE, jobNumber=MAX_JOB_NUMBER):
+def makeTargets(options, extraArgs, flowersAndSizes, parentTarget, target, 
+                maxSequenceSize=MAX_SEQUENCE_SIZE, jobNumber=MAX_JOB_NUMBER,
+                ignoreFlowersLessThanThisSize=0, ignoreFlowersGreaterThanThisSize=sys.maxint):
     """Make a set of targets for a given set of flowers.
     """
     #Make child jobs
@@ -194,20 +197,23 @@ def makeTargets(options, extraArgs, flowersAndSizes, parentTarget, target, maxSe
     
     for flowerName, flowerSize, in flowersAndSizes:
         assert(flowerSize) >= 0
-        totalSequenceSize += max(flowerSize, minChildSize)
-        flowerNames.append(flowerName)
-        if totalSequenceSize >= maxSequenceSize: 
-            parentTarget.addChildTarget(target(options, extraArgs, flowerNames))
-            flowerNames = []
-            totalSequenceSize = 0.0
+        if flowerSize >= ignoreFlowersLessThanThisSize and flowerSize <= ignoreFlowersGreaterThanThisSize:
+            totalSequenceSize += max(flowerSize, minChildSize)
+            flowerNames.append(flowerName)
+            if totalSequenceSize >= maxSequenceSize: 
+                parentTarget.addChildTarget(target(options, extraArgs, flowerNames))
+                flowerNames = []
+                totalSequenceSize = 0.0
     if len(flowerNames) > 0:
         parentTarget.addChildTarget(target(options, extraArgs, flowerNames))
 
-def makeChildTargets(options, extraArgs, flowerNames, target, childTarget, maxSequenceSize=MAX_SEQUENCE_SIZE, jobNumber=MAX_JOB_NUMBER):
+def makeChildTargets(options, extraArgs, flowerNames, target, childTarget, maxSequenceSize=MAX_SEQUENCE_SIZE, jobNumber=MAX_JOB_NUMBER,
+                     ignoreFlowersLessThanThisSize=0, ignoreFlowersGreaterThanThisSize=sys.maxint):
     """Make a set of child targets for a given set of parent flowers.
     """
     childFlowers = runCactusGetFlowers(options.cactusDiskDatabaseString, flowerNames, target.getLocalTempDir())
-    makeTargets(options, extraArgs, childFlowers, target, childTarget, maxSequenceSize, jobNumber)
+    makeTargets(options, extraArgs, childFlowers, target, childTarget, maxSequenceSize, jobNumber,
+                ignoreFlowersLessThanThisSize, ignoreFlowersGreaterThanThisSize)
 
 class CactusCafDown(Target):
     """This target does the down pass for the CAF alignment phase.
@@ -220,11 +226,16 @@ class CactusCafDown(Target):
         self.flowerNames = flowerNames
     
     def run(self):
-        makeChildTargets(self.options, self.iteration, self.flowerNames, self, CactusCafDown)
-        minSize = int(self.iteration.attrib["min_sequence_size"])
+        ignoreFlowersLessThanThisSize = int(self.iteration.attrib["min_sequence_size"])
+        if self.iteration.attrib.has_key("max_sequence_size"):
+            ignoreFlowersGreaterThanThisSize = int(self.iteration.attrib["max_sequence_size"])
+        else:
+            ignoreFlowersGreaterThanThisSize = sys.maxint
+        makeChildTargets(self.options, self.iteration, self.flowerNames, self, CactusCafDown, 
+                         ignoreFlowersLessThanThisSize=ignoreFlowersLessThanThisSize)
         for childFlowerName, childFlowerSize in runCactusExtendFlowers(self.options.cactusDiskDatabaseString, self.flowerNames, 
                                                                        self.getLocalTempDir()):
-            if childFlowerSize > minSize:
+            if childFlowerSize >= ignoreFlowersLessThanThisSize and childFlowerSize <= ignoreFlowersGreaterThanThisSize:
                 self.addChildTarget(CactusBlastWrapper(self.options, self.iteration, childFlowerName))
 
 def getOption(node, attribName, default):
@@ -280,8 +291,6 @@ class CactusCoreWrapper(Target):
     def run(self):
         logger.info("Starting the core wrapper target")
         coreParameters = self.iteration.find("core")
-        #from sonLib.bioio import system
-        #system("cp %s %s" % (self.alignmentFile, "alignments.txt"))
         runCactusCore(cactusDiskDatabaseString=self.options.cactusDiskDatabaseString,
                       alignmentFile=self.alignmentFile, 
                       flowerName=self.flowerName,
@@ -318,9 +327,14 @@ class CactusBarDown(Target):
     def run(self):
         children = []
         makeChildTargets(self.options, self.iteration, self.flowerNames, self, CactusBarDown)
+        if self.iteration.attrib.has_key("max_sequence_size"):
+            ignoreFlowersGreaterThanThisSize = int(self.iteration.attrib["max_sequence_size"])
+        else:
+            ignoreFlowersGreaterThanThisSize = sys.maxint
         childFlowersAndSizes = runCactusExtendFlowers(self.options.cactusDiskDatabaseString, self.flowerNames, 
                                                               self.getLocalTempDir())
-        makeTargets(self.options, self.iteration, childFlowersAndSizes, self, CactusBaseLevelAlignerWrapper, maxSequenceSize=10000)
+        makeTargets(self.options, self.iteration, childFlowersAndSizes, self, CactusBaseLevelAlignerWrapper, maxSequenceSize=10000, 
+                    ignoreFlowersGreaterThanThisSize=ignoreFlowersGreaterThanThisSize)
      
 class CactusBaseLevelAlignerWrapper(Target):
     """Runs cactus_baseAligner (the BAR algorithm implementation.

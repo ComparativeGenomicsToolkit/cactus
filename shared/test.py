@@ -225,21 +225,17 @@ def runWorkflow_TestScript(sequences, newickTreeString,
     assert outputDir != None
     logger.info("Using the output dir: %s" % outputDir)
     
-    #Setup the temp dir
-    tempDir = getTempDirectory(outputDir)
-    logger.info("Using the temp dir: %s" % tempDir)
-    
     #Setup the flower disk.
     experiment = getCactusWorkflowExperimentForTest(sequences, newickTreeString, 
                                                     outputDir=outputDir, databaseName=None, 
                                                     configFile=configFile)
     experiment.cleanupDatabase()
     cactusDiskDatabaseString = experiment.getDatabaseString()
-    experimentFile = os.path.join(tempDir, "experiment.xml")
+    experimentFile = os.path.join(outputDir, "experiment.xml")
     experiment.writeExperimentFile(experimentFile)
    
     #Setup the job tree dir.
-    jobTreeDir = os.path.join(getTempDirectory(tempDir), "jobTree")
+    jobTreeDir = os.path.join(outputDir, "jobTree")
     logger.info("Got a job tree dir for the test: %s" % jobTreeDir)
     
     #Run the actual workflow
@@ -264,7 +260,7 @@ def runWorkflow_TestScript(sequences, newickTreeString,
         runJobTreeStats(jobTreeDir, jobTreeStatsFile)
         
     #Now remove everything we generate
-    system("rm -rf %s" % tempDir)    
+    system("rm -rf %s %s" % (jobTreeDir, experimentFile))   
     
     #Cleanup the experiment
     return experiment
