@@ -206,7 +206,7 @@ def makeTargets(options, extraArgs, flowersAndSizes, parentTarget, target,
                     flowerNames = []
                     totalSequenceSize = 0.0
             else:
-                logger.critical("Ignoring a flower %s of size %s" % (childFlowerName, childFlowerSize))
+                self.logToMaster("Ignoring a flower %s of size %s" % (childFlowerName, childFlowerSize))
     if len(flowerNames) > 0:
         parentTarget.addChildTarget(target(options, extraArgs, flowerNames))
 
@@ -242,7 +242,7 @@ class CactusCafDown(Target):
                 if childFlowerSize <= ignoreFlowersGreaterThanThisSize:
                     self.addChildTarget(CactusBlastWrapper(self.options, self.iteration, childFlowerName))
                 else:
-                    logger.critical("Ignoring a flower from CAF alignment %s of size %s" % (childFlowerName, childFlowerSize))
+                    self.logToMaster("Ignoring a flower from CAF alignment %s of size %s" % (childFlowerName, childFlowerSize))
 
 def getOption(node, attribName, default):
     if node.attrib.has_key(attribName):
