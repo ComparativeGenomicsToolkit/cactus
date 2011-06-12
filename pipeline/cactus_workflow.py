@@ -206,7 +206,7 @@ def makeTargets(options, extraArgs, flowersAndSizes, parentTarget, target,
                     flowerNames = []
                     totalSequenceSize = 0.0
             else:
-                self.logToMaster("Ignoring a flower %s of size %s" % (childFlowerName, childFlowerSize))
+                parentTarget.logToMaster("Ignoring a flower %s of size %s" % (childFlowerName, childFlowerSize))
     if len(flowerNames) > 0:
         parentTarget.addChildTarget(target(options, extraArgs, flowerNames))
 
