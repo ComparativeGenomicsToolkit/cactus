@@ -326,7 +326,17 @@ static void assignGroups(stList *newEnds) {
     /*
      * Put ends into groups.
      */
-
+    for(int32_t i=0; i<stList_length(newEnds); i++) {
+        End *end = stList_get(newEnds, i);
+        assert(end_getInstanceNumber(end) == 1);
+        Cap *cap = end_getFirst(end);
+        Cap *adjacentCap = cap_getAdjacency(cap);
+        assert(adjacentCap != NULL);
+        End *adjacentEnd = cap_getEnd(adjacentCap);
+        Group *group = end_getGroup(adjacentEnd);
+        assert(group != NULL);
+        end_setGroup(end, group);
+    }
 }
 
 void topDown(Flower *flower, Name eventName, stList *(*matchingAlgorithm)(stList *edges, int32_t nodeNumber)) {
