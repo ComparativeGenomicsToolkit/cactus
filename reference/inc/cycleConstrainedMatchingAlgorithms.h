@@ -18,12 +18,12 @@
 #include "sonLib.h"
 
 /*
- * There are three types of edge, adjacency edges, stub edges and block edges.
- * Each node is incident with either a single block or stub edge. There are therefore an even number of nodes.
+ * There are three types of edge, adjacency edges, stub edges and chain edges.
+ * Each node is incident with either a single chain or stub edge. There are therefore an even number of nodes.
  * The adjacency edges have an associated integer valued weight >= 0.
  * The algorithm finds a perfect matching of the nodes, such that the weight of the adjacency edges in
- * the matching is maximal and, including both the adjacency edges in the matching and the block/stub edges,
- * there are (1) no cycles including only block edges, and, if make stub cycles disjoint is true, 1 stub
+ * the matching is maximal and, including both the adjacency edges in the matching and the chain/stub edges,
+ * there are (1) no cycles including only chain edges, and, if make stub cycles disjoint is true, 1 stub
  * edge per cycle.
  *
  * The algorithm first computes an maximum weight / cardinality perfect matching (see matching algorithm parameter),
@@ -36,7 +36,7 @@
  * greater than or equal to zero and less than the total node number and weight
  * is a positive integer weight.
  *
- * Stub and block edges are stIntTuple's of
+ * Stub and chain edges are stIntTuple's of
  * length 2 of the form (node1, node2).
  *
  * The matching algorithm is one used to construct an initial matching.
@@ -46,7 +46,7 @@
 stList *chooseMatching(uint32_t nodeNumber,
         stList *adjacencyEdges,
         stList *stubEdges,
-        stList *blockEdges,
+        stList *chainEdges,
         bool makeStubCyclesDisjoint,
         stList *(*matchingAlgorithm)(stList *edges, int32_t nodeNumber));
 

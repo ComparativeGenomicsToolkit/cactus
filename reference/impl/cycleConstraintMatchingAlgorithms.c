@@ -98,7 +98,7 @@ static stSortedSet *getSetOfMergedIntTupleLists(stList *list1, stList *list2) {
     return set;
 }
 
-static stList *getStubAndBlockEdgeFreeComponents(stList *listOfLists, stList *list1, stList *list2) {
+static stList *getStubAndChainEdgeFreeComponents(stList *listOfLists, stList *list1, stList *list2) {
     /*
      * Returns a new list of lists, with each sub list filtered to exclude members of list1 and list2.
      */
@@ -183,20 +183,20 @@ static stList *getComponents(stList *edges) {
     return components;
 }
 
-static stList *getComponents2(stList *adjacencyEdges, stList *stubEdges, stList *blockEdges) {
+static stList *getComponents2(stList *adjacencyEdges, stList *stubEdges, stList *chainEdges) {
     /*
-     * Gets a list of connected components for a set of adjacency, stub and block edges.
-     * If adjacencyEdges, stubEdges or blockEdges are NULL then they are ignored.
+     * Gets a list of connected components for a set of adjacency, stub and chain edges.
+     * If adjacencyEdges, stubEdges or chainEdges are NULL then they are ignored.
      */
-    stList *allEdges = stList_construct(); //Build a concatenated list of all the block, stub and adjacency edges.
+    stList *allEdges = stList_construct(); //Build a concatenated list of all the chain, stub and adjacency edges.
     if (stubEdges != NULL) {
         stList_appendAll(allEdges, adjacencyEdges);
     }
     if (stubEdges != NULL) {
         stList_appendAll(allEdges, stubEdges);
     }
-    if (blockEdges != NULL) {
-        stList_appendAll(allEdges, blockEdges);
+    if (chainEdges != NULL) {
+        stList_appendAll(allEdges, chainEdges);
     }
     stList *components = getComponents(allEdges); //Gets the graph components.
     stList_destruct(allEdges); //Cleanup the all edges.
@@ -579,7 +579,7 @@ stList *mergeCycles(stList *components, stList *adjacencyEdges) {
     return mergedComponent;
 }
 
-static stList *mergeCycles2(stList *chosenEdges, stList *adjacencyEdges, stList *stubEdges, stList *blockEdges) {
+static stList *mergeCycles2(stList *chosenEdges, stList *adjacencyEdges, stList *stubEdges, stList *chainEdges) {
     /*
      * Returns a new set of chosen edges, modified by adjacency switches such that every component
      * contains at least one stub edge.
@@ -588,7 +588,7 @@ static stList *mergeCycles2(stList *chosenEdges, stList *adjacencyEdges, stList 
     /*
      * Calculate components.
      */
-    stList *components = getComponents2(chosenEdges, stubEdges, blockEdges);
+    stList *components = getComponents2(chosenEdges, stubEdges, chainEdges);
 
     /*
      * Divide the components by the presence of one or more stub edges.
@@ -613,10 +613,10 @@ static stList *mergeCycles2(stList *chosenEdges, stList *adjacencyEdges, stList 
     stList_destruct(stubContainingComponents);
 
     /*
-     * Remove the stub/block edges from the components.
+     * Remove the stub/chain edges from the components.
      */
     stList_append(stubFreeComponents, globalComponent);
-    stList *adjacencyOnlyComponents = getStubAndBlockEdgeFreeComponents(stubFreeComponents, stubEdges, blockEdges);
+    stList *adjacencyOnlyComponents = getStubAndChainEdgeFreeComponents(stubFreeComponents, stubEdges, chainEdges);
 
     stList_destruct(stubFreeComponents);
     stList_destruct(globalComponent);
@@ -644,14 +644,14 @@ static stList *mergeCycles2(stList *chosenEdges, stList *adjacencyEdges, stList 
 ////////////////////////////////////
 
 static stList *splitMultipleStubComponent(stList *component, stList *adjacencyEdges, stList *stubEdges,
-        stList *blockEdges, stSortedSet *stubAndBlockEdgesSet, stHash *nodesToAdjacencyEdges) {
+        stList *chainEdges, stSortedSet *stubAndChainEdgesSet, stHash *nodesToAdjacencyEdges) {
     /*
-     * Get sub-components containing only adjacency and block edges.
+     * Get sub-components containing only adjacency and chain edges.
      */
     //Filter out the the non-adjacency edges
-    stList *adjacencyOnlyComponent = filterToExclude(component, stubAndBlockEdgesSet);
-    //Make it only the block edges present in the original component
-    stList *stubFreeComponents = getComponents2(adjacencyOnlyComponent, NULL, blockEdges);
+    stList *adjacencyOnlyComponent = filterToExclude(component, stubAndChainEdgesSet);
+    //Make it only the chain edges present in the original component
+    stList *stubFreeComponents = getComponents2(adjacencyOnlyComponent, NULL, chainEdges);
     stList_destruct(adjacencyOnlyComponent);
     assert(stList_length(stubFreeComponents) >= 1);
 
@@ -661,19 +661,19 @@ static stList *splitMultipleStubComponent(stList *component, stList *adjacencyEd
         /*
          * Merge together the best two components.
          */
-        stList *l = filterListsToExclude(stubFreeComponents, stubAndBlockEdgesSet);
+        stList *l = filterListsToExclude(stubFreeComponents, stubAndChainEdgesSet);
         doBestMergeOfTwoCycles(l, nodesToAdjacencyEdges); //This is inplace.
         stList *l2 = joinLists(l);
         stList_destruct(l);
-        l = getComponents2(l2, stubEdges, blockEdges);
+        l = getComponents2(l2, stubEdges, chainEdges);
         stList_destruct(l2);
 
         /*
          * Call procedure recursively.
          */
         for (int32_t i = 0; i < stList_length(l); i++) {
-            l2 = splitMultipleStubComponent(stList_get(l, i), adjacencyEdges, stubEdges, blockEdges,
-                    stubAndBlockEdgesSet, nodesToAdjacencyEdges);
+            l2 = splitMultipleStubComponent(stList_get(l, i), adjacencyEdges, stubEdges, chainEdges,
+                    stubAndChainEdgesSet, nodesToAdjacencyEdges);
             stList_appendAll(splitComponents, l2);
             stList_setDestructor(l2, NULL);
             stList_destruct(l2);
@@ -689,7 +689,7 @@ static stList *splitMultipleStubComponent(stList *component, stList *adjacencyEd
 }
 
 static stList *splitMultipleStubCycles(stList *chosenEdges, stList *adjacencyEdges, stList *stubEdges,
-        stList *blockEdges) {
+        stList *chainEdges) {
     /*
      *  Returns an updated list of adjacency edges, such that each stub edge is a member of exactly one cycle.
      */
@@ -697,12 +697,12 @@ static stList *splitMultipleStubCycles(stList *chosenEdges, stList *adjacencyEdg
     /*
      * Calculate components.
      */
-    stList *components = getComponents2(chosenEdges, stubEdges, blockEdges);
+    stList *components = getComponents2(chosenEdges, stubEdges, chainEdges);
 
     /*
      * Build basic datastructures.
      */
-    stSortedSet *stubAndBlockEdgesSet = getSetOfMergedIntTupleLists(stubEdges, blockEdges);
+    stSortedSet *stubAndChainEdgesSet = getSetOfMergedIntTupleLists(stubEdges, chainEdges);
     stHash *nodesToAdjacencyEdges = getNodesToEdgesHash(adjacencyEdges);
 
     /*
@@ -711,8 +711,8 @@ static stList *splitMultipleStubCycles(stList *chosenEdges, stList *adjacencyEdg
     stList *singleStubEdgeComponents = stList_construct3(0, (void(*)(void *)) stList_destruct);
     for (int32_t i = 0; i < stList_length(components); i++) {
         stList *component = stList_get(components, i);
-        stList *splitComponents = splitMultipleStubComponent(component, adjacencyEdges, blockEdges, stubEdges,
-                stubAndBlockEdgesSet, nodesToAdjacencyEdges);
+        stList *splitComponents = splitMultipleStubComponent(component, adjacencyEdges, chainEdges, stubEdges,
+                stubAndChainEdgesSet, nodesToAdjacencyEdges);
         stList_appendAll(singleStubEdgeComponents, splitComponents);
         stList_setDestructor(splitComponents, NULL); //Do this to avoid destroying the underlying lists
         stList_destruct(splitComponents);
@@ -721,11 +721,11 @@ static stList *splitMultipleStubCycles(stList *chosenEdges, stList *adjacencyEdg
     stHash_destruct(nodesToAdjacencyEdges);
 
     /*
-     * Remove the stub/block edges from the components.
+     * Remove the stub/chain edges from the components.
      */
-    stList *adjacencyOnlyComponents = filterListsToExclude(singleStubEdgeComponents, stubAndBlockEdgesSet);
+    stList *adjacencyOnlyComponents = filterListsToExclude(singleStubEdgeComponents, stubAndChainEdgesSet);
     stList_destruct(singleStubEdgeComponents);
-    stSortedSet_destruct(stubAndBlockEdgesSet);
+    stSortedSet_destruct(stubAndChainEdgesSet);
 
     /*
      * Merge the adjacency edges in the components into a single list.
@@ -761,16 +761,16 @@ static void checkEdges(stList *edges, int32_t nodeNumber) {
     }
 }
 
-stList *chooseMatching(uint32_t nodeNumber, stList *adjacencyEdges, stList *stubEdges, stList *blockEdges,
+stList *chooseMatching(uint32_t nodeNumber, stList *adjacencyEdges, stList *stubEdges, stList *chainEdges,
         bool makeStubCyclesDisjoint, stList *(*matchingAlgorithm)(stList *edges, int32_t nodeNumber)) {
     /*
      * Check the inputs.
      */
     assert(nodeNumber % 2 == 0);
     assert(stList_length(stubEdges) > 0);
-    assert(stList_length(stubEdges) + stList_length(blockEdges) == nodeNumber / 2);
+    assert(stList_length(stubEdges) + stList_length(chainEdges) == nodeNumber / 2);
     checkEdges(stubEdges, nodeNumber);
-    checkEdges(blockEdges, nodeNumber);
+    checkEdges(chainEdges, nodeNumber);
     checkEdges(adjacencyEdges, nodeNumber);
 
     /*
@@ -781,7 +781,7 @@ stList *chooseMatching(uint32_t nodeNumber, stList *adjacencyEdges, stList *stub
     /*
      * Merge in the stub free components.
      */
-    stList *updatedChosenEdges = mergeCycles2(chosenEdges, adjacencyEdges, stubEdges, blockEdges);
+    stList *updatedChosenEdges = mergeCycles2(chosenEdges, adjacencyEdges, stubEdges, chainEdges);
     stList_destruct(chosenEdges);
     chosenEdges = updatedChosenEdges;
 
@@ -789,7 +789,7 @@ stList *chooseMatching(uint32_t nodeNumber, stList *adjacencyEdges, stList *stub
      * Split stub components.
      */
     if (makeStubCyclesDisjoint) {
-        updatedChosenEdges = splitMultipleStubCycles(chosenEdges, adjacencyEdges, stubEdges, blockEdges);
+        updatedChosenEdges = splitMultipleStubCycles(chosenEdges, adjacencyEdges, stubEdges, chainEdges);
         stList_destruct(chosenEdges);
         chosenEdges = updatedChosenEdges;
     }
