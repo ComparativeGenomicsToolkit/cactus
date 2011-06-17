@@ -22,15 +22,10 @@
 extern const char *REFERENCE_BUILDING_EXCEPTION;
 
 /*
- * The initial top down algorithm, which is run for each flower in the
- * cactus tree breadth first from the root.
+ * Construct a reference for the flower, top down.
  */
-void constructReference_topDownPhase(Flower *flower, MatchingAlgorithm matchingAlgorithm);
+void buildReferenceTopDown(Flower *flower, const char *referenceEventHeader,
+        stList *(*matchingAlgorithm)(stList *edges, int32_t nodeNumber));
 
-/*
- * The finishing bottom up algorithm, which is run for each flower in the
- * cactus tree bottom up from the leaves.
- */
-void constructReference_bottomUpPhase(Flower *flower);
 
 #endif /* REFERENCE_H_ */

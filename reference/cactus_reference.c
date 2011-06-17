@@ -123,39 +123,26 @@ int main(int argc, char *argv[]) {
     st_logInfo("Set up the flower disk\n");
 
     ///////////////////////////////////////////////////////////////////////////
-    // Loop on the flowers, doing the reference genome.
+    // Build the reference
     ///////////////////////////////////////////////////////////////////////////
 
     for (j = optind; j < argc; j++) {
-        /*
-         * Read the flower.
-         */
         const char *flowerName = argv[j];
         st_logInfo("Processing the flower named: %s\n", flowerName);
-        Flower *flower = cactusDisk_getFlower(cactusDisk,
-                cactusMisc_stringToName(flowerName));
-        assert(flower != NULL);
-        st_logInfo("Parsed the flower in which to build a reference\n");
-
-        /*
-         * Now run the reference function.
-         */
-
-        if (topDown) {
-            constructReference_topDownPhase(flower, matchingAlgorithm);
-        } else {
-            constructReference_bottomUpPhase(flower);
-        }
-    }
-
-    ///////////////////////////////////////////////////////////////////////////
-    // Unload the parent flowers
-    ///////////////////////////////////////////////////////////////////////////
-
-    for (j = optind; j < argc; j++) {
-        const char *flowerName = argv[j];
         Flower *flower = cactusDisk_getFlower(cactusDisk, cactusMisc_stringToName(flowerName));
         assert(flower != NULL);
+        st_logInfo("Parsed the flower in which to build a reference\n");
+        if(!flower_hasParentGroup(flower)) {
+            buildReferenceTopDown(flower, referenceEventHeader, matchingAlgorithm);
+        }
+        Flower_GroupIterator *groupIt = flower_getGroupIterator(flower);
+        Group *group;
+        while((group = flower_getNextGroup(groupIt)) != NULL) {
+            if(group_getNestedFlower(group) != NULL) {
+                buildReferenceTopDown(group_getNestedFlower(group), referenceEventHeader, matchingAlgorithm);
+            }
+        }
+        flower_destructGroupIterator(groupIt);
         flower_unloadParent(flower); //We have this line just in case we are loading the parent..
     }
 
