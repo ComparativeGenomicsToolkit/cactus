@@ -2,6 +2,8 @@
 #include "sonLib.h"
 #include "cycleConstrainedMatchingAlgorithms.h"
 
+const char *REFERENCE_BUILDING_EXCEPTION = "REFERENCE_BUILDING_EXCEPTION";
+
 static stList *getExtraAttachedStubsFromParent(Flower *flower) {
     /*
      * Copy any stubs not present in the flower from the parent group.

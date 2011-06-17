@@ -22,9 +22,6 @@ void usage() {
     fprintf(stderr, "-a --logLevel : Set the log level\n");
     fprintf(stderr,
             "-c --cactusDisk : The location of the flower disk directory\n");
-    fprintf(
-            stderr,
-            "-d --bottomUp : Run the bottom up algorithm instead of the top down algorithm\n");
     fprintf(stderr,
             "-e --matchingAlgorithm : Name of matching algorithm, either 'greedy', 'maxWeight', 'maxCardinality', 'blossom5'\n");
     fprintf(stderr, "-h --help : Print this help screen\n");
@@ -41,8 +38,8 @@ int main(int argc, char *argv[]) {
     char * logLevelString = NULL;
     char * cactusDiskDatabaseString = NULL;
     int32_t j;
-    bool topDown = 1;
-    MatchingAlgorithm matchingAlgorithm = greedy;
+    stList *(*matchingAlgorithm)(stList *edges, int32_t nodeNumber) = chooseMatching_greedy;
+    char *referenceEventHeader = "reference";
 
     ///////////////////////////////////////////////////////////////////////////
     // (0) Parse the inputs handed by genomeCactus.py / setup stuff.
@@ -51,7 +48,7 @@ int main(int argc, char *argv[]) {
     while (1) {
         static struct option long_options[] = { { "logLevel",
                 required_argument, 0, 'a' }, { "cactusDisk", required_argument,
-                0, 'c' }, { "bottomUp", no_argument, 0, 'd' },
+                0, 'c' },
                 { "matchingAlgorithm", required_argument, 0, 'e' },
                 { "help",
                 no_argument, 0, 'h' }, { 0, 0, 0, 0 } };
@@ -59,7 +56,7 @@ int main(int argc, char *argv[]) {
         int option_index = 0;
 
         int key =
-                getopt_long(argc, argv, "a:c:de:h", long_options, &option_index);
+                getopt_long(argc, argv, "a:c:e:h", long_options, &option_index);
 
         if (key == -1) {
             break;
@@ -72,21 +69,18 @@ int main(int argc, char *argv[]) {
             case 'c':
                 cactusDiskDatabaseString = stString_copy(optarg);
                 break;
-            case 'd':
-                topDown = 0;
-                break;
             case 'e':
                 if(strcmp("greedy", optarg) == 0) {
-                    matchingAlgorithm = greedy;
+                    matchingAlgorithm = chooseMatching_greedy;
                 }
                 else if (strcmp("maxCardinality", optarg) == 0) {
-                    matchingAlgorithm = maxCardinality;
+                    matchingAlgorithm = chooseMatching_maximumCardinalityMatching;
                 }
                 else if (strcmp("maxWeight", optarg) == 0) {
-                    matchingAlgorithm = maxWeight;
+                    matchingAlgorithm = chooseMatching_maximumWeightMatching;
                 }
                 else if (strcmp("blossom5", optarg) == 0) {
-                    matchingAlgorithm = blossom5;
+                    matchingAlgorithm = chooseMatching_blossom5;
                 }
                 else {
                     stThrowNew(REFERENCE_BUILDING_EXCEPTION, "Input error: unrecognized matching algorithm: %s", optarg);
@@ -105,7 +99,6 @@ int main(int argc, char *argv[]) {
     // (0) Check the inputs.
     ///////////////////////////////////////////////////////////////////////////
 
-    //assert(logLevelString == NULL || strcmp(logLevelString, "CRITICAL") == 0 || strcmp(logLevelString, "INFO") == 0 || strcmp(logLevelString, "DEBUG") == 0);
     assert(cactusDiskDatabaseString != NULL);
 
     //////////////////////////////////////////////
@@ -157,7 +150,6 @@ int main(int argc, char *argv[]) {
     //Clean up.
     ///////////////////////////////////////////////////////////////////////////
 
-    //Destruct stuff
     cactusDisk_destruct(cactusDisk);
     stKVDatabaseConf_destruct(kvDatabaseConf);
 

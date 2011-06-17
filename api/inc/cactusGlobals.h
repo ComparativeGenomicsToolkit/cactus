@@ -50,9 +50,6 @@ typedef struct _face Face;
 typedef struct _faceEnd FaceEnd;
 typedef struct _flower Flower;
 typedef struct _cactusDisk CactusDisk;
-typedef struct _pseudoChromosome PseudoChromosome;
-typedef struct _pseudoAdjacency PseudoAdjacency;
-typedef struct _reference Reference;
 
 typedef stSortedSetIterator EventTree_Iterator;
 typedef struct _end_instanceIterator End_InstanceIterator;
@@ -66,7 +63,6 @@ typedef stSortedSetIterator Flower_BlockIterator;
 typedef stSortedSetIterator Flower_GroupIterator;
 typedef stSortedSetIterator Flower_ChainIterator;
 typedef stSortedSetIterator Flower_FaceIterator;
-typedef stSortedSetIterator Flower_ReferenceIterator;
 typedef BDBCUR CactusDisk_FlowerNameIterator;
 typedef stSortedSetIterator CactusDisk_FlowerIterator;
 typedef stSortedSetIterator Reference_PseudoChromosomeIterator;

@@ -56,7 +56,6 @@ End *end_construct3(Name name, int32_t isStub, int32_t isAttached,
     end->endContents->attachedBlock = NULL;
     end->endContents->group = NULL;
     end->endContents->flower = flower;
-    end->endContents->pseudoAdjacency = NULL;
     flower_addEnd(flower, end);
     return end;
 }
@@ -338,14 +337,6 @@ void end_check(End *end) {
         cap_check(cap);
     }
     end_destructInstanceIterator(iterator);
-}
-
-PseudoAdjacency *end_getPseudoAdjacency(End *end) {
-    return end->endContents->pseudoAdjacency;
-}
-
-void end_setPseudoAdjacency(End *end, PseudoAdjacency *pseudoAdjacency) {
-    end->endContents->pseudoAdjacency = pseudoAdjacency;
 }
 
 /*

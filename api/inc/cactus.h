@@ -25,9 +25,6 @@
 #include "cactusFaceEnd.h"
 #include "cactusFacesBuilding.h"
 #include "cactusSequence.h"
-#include "cactusReference.h"
-#include "cactusPseudoChromosome.h"
-#include "cactusPseudoAdjacency.h"
 #include "cactusTestCommon.h"
 
 #endif

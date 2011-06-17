@@ -16,13 +16,6 @@
 
 #include "sonLib.h"
 
-typedef enum {
-    blossom5,
-    maxCardinality,
-    maxWeight,
-    greedy
-} MatchingAlgorithm;
-
 /*
  * Uses the blossom5 maximum weight perfect matching algorithm to choose a matching
  * between the edges. The returned matching is not necessarily perfect, rather extra edges are

@@ -486,20 +486,8 @@ class CactusReferenceDown(Target):
     def run(self):
         matchingAlgorithm = self.options.config.find("reference").attrib["matching_algorithm"]
         runCactusReference(self.options.cactusDiskDatabaseString, flowerNames=self.flowerNames, matchingAlgorithm=matchingAlgorithm) #We first run the top down phase
-        self.setFollowOnTarget(CactusReferenceRunnable(options=self.options, flowerNames=self.flowerNames)) #We second run a bottom up phase
         makeChildTargets(self.options, None, self.flowerNames, self, CactusReferenceDown)
 
-class CactusReferenceRunnable(Target):
-    """This target runs the reference script bottom up (second phase).
-    """
-    def __init__(self, flowerNames, options):
-        Target.__init__(self, time=3.0)
-        self.flowerNames = flowerNames
-        self.options = options
-        
-    def run(self):
-        runCactusReference(self.options.cactusDiskDatabaseString, flowerNames=self.flowerNames, bottomUp=True)
-            
 ############################################################
 ############################################################
 ############################################################
