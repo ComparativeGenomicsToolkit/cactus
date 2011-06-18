@@ -4,6 +4,60 @@
 
 const char *REFERENCE_BUILDING_EXCEPTION = "REFERENCE_BUILDING_EXCEPTION";
 
+////////////////////////////////////
+////////////////////////////////////
+//Get the reference event
+////////////////////////////////////
+////////////////////////////////////
+
+static Event *getEventByHeader(EventTree *eventTree, const char *eventHeader) {
+    /*
+     * Finds an event in the given event tree with the given header string.
+     */
+    EventTree_Iterator *it = eventTree_getIterator(eventTree);
+    Event *event;
+    while ((event = eventTree_getNext(it)) != NULL) {
+        if (strcmp(event_getHeader(event), eventHeader) == 0) {
+            eventTree_destructIterator(it);
+            return event;
+        }
+    }
+    eventTree_destructIterator(it);
+    return NULL;
+}
+
+static Event *getReferenceEvent(Flower *flower,
+        const char *referenceEventHeader) {
+    /*
+     * Create the reference event, with the given header, for the flower.
+     */
+    EventTree *eventTree = flower_getEventTree(flower);
+    Event *referenceEvent = getEventByHeader(eventTree, referenceEventHeader);
+    if (referenceEvent == NULL) {
+        Group *parentGroup = flower_getParentGroup(flower);
+        if (parentGroup == NULL) {
+            //We are the root, so make a new event..
+            return event_construct3(referenceEventHeader, INT32_MAX,
+                    eventTree_getRootEvent(eventTree), eventTree);
+        } else {
+            Event *parentEvent = getEventByHeader(
+                    flower_getEventTree(group_getFlower(parentGroup)),
+                    referenceEventHeader);
+            assert(parentEvent != NULL);
+            return event_construct(event_getName(parentEvent),
+                    referenceEventHeader, INT32_MAX,
+                    eventTree_getRootEvent(eventTree), eventTree);
+        }
+    }
+    return referenceEvent;
+}
+
+////////////////////////////////////
+////////////////////////////////////
+//Get ends from parent
+////////////////////////////////////
+////////////////////////////////////
+
 static stList *getExtraAttachedStubsFromParent(Flower *flower) {
     /*
      * Copy any stubs not present in the flower from the parent group.
@@ -29,6 +83,36 @@ static stList *getExtraAttachedStubsFromParent(Flower *flower) {
     assert(flower_getAttachedStubEndNumber(flower) > 0);
     return newEnds;
 }
+
+////////////////////////////////////
+////////////////////////////////////
+//Add extra links breaking blocks
+////////////////////////////////////
+////////////////////////////////////
+
+static void addLinkBreakingBlocks(Flower *flower) {
+    /*
+     * Adds two block ends to groups with just one end in them, to avoid
+     * creating new links when creating the reference.
+     */
+    Flower_GroupIterator *groupIt = flower_getGroupIterator(flower);
+    Group *group;
+    while ((group = flower_getNextGroup(groupIt)) != NULL) {
+        if (group_isTangle(group) && group_getEndNumber(group) == 1) { //If we don't add an extra block to the group we're going to be in trouble!
+            Block *block = block_construct(1, flower);
+            end_setGroup(block_get5End(block), group);
+            end_setGroup(block_get3End(block), group);
+        }
+    }
+    flower_destructGroupIterator(groupIt);
+}
+
+////////////////////////////////////
+////////////////////////////////////
+//Functions for creating a map between integers representing the nodes of the graph and
+//the ends in the flower
+////////////////////////////////////
+////////////////////////////////////
 
 static void iterateOverTangleEnds(Flower *flower,
         void(*fn)(End *end, void *extraArg), void *extraArg) {
@@ -86,6 +170,83 @@ static stHash *getMapOfNodesToTangleEnds(stHash *endsToNodes) {
     return nodesToEnds;
 }
 
+////////////////////////////////////
+////////////////////////////////////
+//Chain edges
+////////////////////////////////////
+////////////////////////////////////
+
+static stIntTuple *getEdge2(int32_t node1, int32_t node2) {
+    return node1 < node2 ? stIntTuple_construct(2, node1, node2)
+            : stIntTuple_construct(2, node2, node1);
+}
+
+static stIntTuple *getEdge(End *end1, End *end2, stHash *endsToNodes) {
+    return getEdge2(
+            stIntTuple_getPosition(stHash_search(endsToNodes, end1), 0),
+            stIntTuple_getPosition(stHash_search(endsToNodes, end2), 0));
+}
+
+static void getNonTrivialChainEdges(Flower *flower, stHash *endsToNodes,
+        stList *chainEdges) {
+    /*
+     * Get the non-trivial chain edges for the flower.
+     */
+    Flower_ChainIterator *chainIt = flower_getChainIterator(flower);
+    Chain *chain;
+    while ((chain = flower_getNextChain(chainIt)) != NULL) {
+        End *_5End = link_get5End(chain_getFirst(chain));
+        End *_3End = link_get3End(chain_getLast(chain));
+        if (end_isBlockEnd(_5End) && end_isBlockEnd(_3End)) {
+            End *end1 = end_getOtherBlockEnd(_5End);
+            End *end2 = end_getOtherBlockEnd(_3End);
+
+            assert(stHash_search(endsToNodes, end1) != NULL);
+            assert(stHash_search(endsToNodes, end2) != NULL);
+
+            stList_append(chainEdges, getEdge(end1, end2, endsToNodes));
+        }
+    }
+    flower_destructChainIterator(chainIt);
+}
+
+static void getTrivialChainEdges(Flower *flower, stHash *endsToNodes,
+        stList *chainEdges) {
+    /*
+     * Get the trivial chain edges for the flower.
+     */
+    Flower_BlockIterator *blockIt = flower_getBlockIterator(flower);
+    Block *block;
+    while ((block = flower_getNextBlock(blockIt)) != NULL) {
+        End *_5End = block_get5End(block);
+        End *_3End = block_get3End(block);
+        if (group_isTangle(end_getGroup(_5End))) {
+            assert(group_isTangle(end_getGroup(_3End)));
+            stList_append(chainEdges, getEdge(_5End, _3End, endsToNodes));
+        } else {
+            assert(group_isLink(end_getGroup(_3End)));
+        }
+    }
+    flower_destructBlockIterator(blockIt);
+}
+
+static stList *getChainEdges(Flower *flower, stHash *endsToNodes) {
+    /*
+     * Get the trivial chain edges for the flower.
+     */
+    stList *chainEdges = stList_construct3(0,
+            (void(*)(void *)) stIntTuple_destruct);
+    getNonTrivialChainEdges(flower, endsToNodes, chainEdges);
+    getTrivialChainEdges(flower, endsToNodes, chainEdges);
+    return chainEdges;
+}
+
+////////////////////////////////////
+////////////////////////////////////
+//Stub edges
+////////////////////////////////////
+////////////////////////////////////
+
 static Cap *getCapWithEvent(End *end, Event *event) {
     /*
      * Get the first encountered cap in the end with the given event.
@@ -120,17 +281,6 @@ static End *getAdjacentEndFromParent(End *end, Event *referenceEvent) {
     End *adjacentEnd = flower_getEnd(flower, end_getName(adjacentParentEnd));
     assert(adjacentEnd != NULL);
     return adjacentEnd;
-}
-
-static stIntTuple *getEdge2(int32_t node1, int32_t node2) {
-    return node1 < node2 ? stIntTuple_construct(2, node1, node2)
-            : stIntTuple_construct(2, node2, node1);
-}
-
-static stIntTuple *getEdge(End *end1, End *end2, stHash *endsToNodes) {
-    return getEdge2(
-            stIntTuple_getPosition(stHash_search(endsToNodes, end1), 0),
-            stIntTuple_getPosition(stHash_search(endsToNodes, end2), 0));
 }
 
 static stList *getStubEdgesFromParent(Flower *flower, stHash *endsToNodes,
@@ -216,59 +366,11 @@ static stList *getArbitraryStubEdges(stHash *endsToNodes, stList *chainEdges) {
     return stubEdges;
 }
 
-static void getNonTrivialChainEdges(Flower *flower, stHash *endsToNodes,
-        stList *chainEdges) {
-    /*
-     * Get the non-trivial chain edges for the flower.
-     */
-    Flower_ChainIterator *chainIt = flower_getChainIterator(flower);
-    Chain *chain;
-    while ((chain = flower_getNextChain(chainIt)) != NULL) {
-        End *_5End = link_get5End(chain_getFirst(chain));
-        End *_3End = link_get3End(chain_getLast(chain));
-        if (end_isBlockEnd(_5End) && end_isBlockEnd(_3End)) {
-            End *end1 = end_getOtherBlockEnd(_5End);
-            End *end2 = end_getOtherBlockEnd(_3End);
-
-            assert(stHash_search(endsToNodes, end1) != NULL);
-            assert(stHash_search(endsToNodes, end2) != NULL);
-
-            stList_append(chainEdges, getEdge(end1, end2, endsToNodes));
-        }
-    }
-    flower_destructChainIterator(chainIt);
-}
-
-static void getTrivialChainEdges(Flower *flower, stHash *endsToNodes,
-        stList *chainEdges) {
-    /*
-     * Get the trivial chain edges for the flower.
-     */
-    Flower_BlockIterator *blockIt = flower_getBlockIterator(flower);
-    Block *block;
-    while ((block = flower_getNextBlock(blockIt)) != NULL) {
-        End *_5End = block_get5End(block);
-        End *_3End = block_get3End(block);
-        if (group_isTangle(end_getGroup(_5End))) {
-            assert(group_isTangle(end_getGroup(_3End)));
-            stList_append(chainEdges, getEdge(_5End, _3End, endsToNodes));
-        } else {
-            assert(group_isLink(end_getGroup(_3End)));
-        }
-    }
-    flower_destructBlockIterator(blockIt);
-}
-
-static stList *getChainEdges(Flower *flower, stHash *endsToNodes) {
-    /*
-     * Get the trivial chain edges for the flower.
-     */
-    stList *chainEdges = stList_construct3(0,
-            (void(*)(void *)) stIntTuple_destruct);
-    getNonTrivialChainEdges(flower, endsToNodes, chainEdges);
-    getTrivialChainEdges(flower, endsToNodes, chainEdges);
-    return chainEdges;
-}
+////////////////////////////////////
+////////////////////////////////////
+//Adjacency edges
+////////////////////////////////////
+////////////////////////////////////
 
 static void getAdjacencyEdgesP(End *end, void **args) {
     /*
@@ -342,6 +444,12 @@ static stList *getAdjacencyEdges(Flower *flower, stHash *endsToNodes) {
     return adjacencyEdges;
 }
 
+////////////////////////////////////
+////////////////////////////////////
+//Bridge blocks
+////////////////////////////////////
+////////////////////////////////////
+
 End *getEndFromNode(stHash *nodesToEnds, int32_t node) {
     /*
      * Get the end for the given node.
@@ -371,6 +479,40 @@ static void addBridgeBlocks(Flower *flower, stList *chosenAdjacencyEdges,
         }
     }
 }
+
+////////////////////////////////////
+////////////////////////////////////
+//Link edges
+////////////////////////////////////
+////////////////////////////////////
+
+static stList *getLinkEdges(Flower *flower, stHash *endsToNodes) {
+    /*
+     * Get edges that represent all the links.
+     */
+    stList *linkEdges = stList_construct3(0,
+            (void(*)(void *)) stIntTuple_destruct);
+
+    Flower_GroupIterator *groupIt = flower_getGroupIterator(flower);
+    Group *group;
+    while ((group = flower_getNextGroup(groupIt)) != NULL) {
+        if (group_isLink(group)) {
+            Link *link = group_getLink(group);
+            stList_append(
+                    linkEdges,
+                    getEdge(link_get5End(link), link_get3End(link), endsToNodes));
+        }
+    }
+    flower_destructGroupIterator(groupIt);
+
+    return linkEdges;
+}
+
+////////////////////////////////////
+////////////////////////////////////
+//Functions to add adjacencies and segments, given the chosen edges
+////////////////////////////////////
+////////////////////////////////////
 
 static Cap *makeCapWithEvent(End *end, Event *referenceEvent) {
     /*
@@ -411,27 +553,11 @@ static void addAdjacenciesAndSegments(Flower *flower,
     }
 }
 
-static stList *getLinkEdges(Flower *flower, stHash *endsToNodes) {
-    /*
-     * Get edges that represent all the links.
-     */
-    stList *linkEdges = stList_construct3(0,
-            (void(*)(void *)) stIntTuple_destruct);
-
-    Flower_GroupIterator *groupIt = flower_getGroupIterator(flower);
-    Group *group;
-    while ((group = flower_getNextGroup(groupIt)) != NULL) {
-        if (group_isLink(group)) {
-            Link *link = group_getLink(group);
-            stList_append(
-                    linkEdges,
-                    getEdge(link_get5End(link), link_get3End(link), endsToNodes));
-        }
-    }
-    flower_destructGroupIterator(groupIt);
-
-    return linkEdges;
-}
+////////////////////////////////////
+////////////////////////////////////
+//Put the new ends into groups.
+////////////////////////////////////
+////////////////////////////////////
 
 static void assignGroups(stList *newEnds) {
     /*
@@ -450,64 +576,11 @@ static void assignGroups(stList *newEnds) {
     }
 }
 
-static Event *getEventByHeader(EventTree *eventTree, const char *eventHeader) {
-    /*
-     * Finds an event in the given event tree with the given header string.
-     */
-    EventTree_Iterator *it = eventTree_getIterator(eventTree);
-    Event *event;
-    while ((event = eventTree_getNext(it)) != NULL) {
-        if (strcmp(event_getHeader(event), eventHeader) == 0) {
-            eventTree_destructIterator(it);
-            return event;
-        }
-    }
-    eventTree_destructIterator(it);
-    return NULL;
-}
-
-static Event *getReferenceEvent(Flower *flower,
-        const char *referenceEventHeader) {
-    /*
-     * Create the reference event, with the given header, for the flower.
-     */
-    EventTree *eventTree = flower_getEventTree(flower);
-    Event *referenceEvent = getEventByHeader(eventTree, referenceEventHeader);
-    if (referenceEvent == NULL) {
-        Group *parentGroup = flower_getParentGroup(flower);
-        if (parentGroup == NULL) {
-            //We are the root, so make a new event..
-            return event_construct3(referenceEventHeader, INT32_MAX,
-                    eventTree_getRootEvent(eventTree), eventTree);
-        } else {
-            Event *parentEvent = getEventByHeader(
-                    flower_getEventTree(group_getFlower(parentGroup)),
-                    referenceEventHeader);
-            assert(parentEvent != NULL);
-            return event_construct(event_getName(parentEvent),
-                    referenceEventHeader, INT32_MAX,
-                    eventTree_getRootEvent(eventTree), eventTree);
-        }
-    }
-    return referenceEvent;
-}
-
-static void addLinkBreakingBlocks(Flower *flower) {
-    /*
-     * Adds two block ends to groups with just one end in them, to avoid
-     * creating new links when creating the reference.
-     */
-    Flower_GroupIterator *groupIt = flower_getGroupIterator(flower);
-    Group *group;
-    while ((group = flower_getNextGroup(groupIt)) != NULL) {
-        if (group_isTangle(group) && group_getEndNumber(group) == 1) { //If we don't add an extra block to the group we're going to be in trouble!
-            Block *block = block_construct(1, flower);
-            end_setGroup(block_get5End(block), group);
-            end_setGroup(block_get3End(block), group);
-        }
-    }
-    flower_destructGroupIterator(groupIt);
-}
+////////////////////////////////////
+////////////////////////////////////
+//Main function
+////////////////////////////////////
+////////////////////////////////////
 
 void buildReferenceTopDown(Flower *flower, const char *referenceEventHeader,
         stList *(*matchingAlgorithm)(stList *edges, int32_t nodeNumber)) {
@@ -555,7 +628,7 @@ void buildReferenceTopDown(Flower *flower, const char *referenceEventHeader,
     /*
      * Calculate the matching
      */
-    stList *chosenAdjacencyEdges = chooseMatching(nodeNumber, adjacencyEdges,
+    stList *chosenAdjacencyEdges = getMatchingWithCyclicConstraints(nodeNumber, adjacencyEdges,
             stubEdges, chainEdges, !hasParent, matchingAlgorithm);
 
     /*

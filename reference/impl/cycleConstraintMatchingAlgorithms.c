@@ -42,7 +42,7 @@ static stList *filterToExclude(stList *list, stSortedSet *set) {
     return filter(list, set, 0);
 }
 
-static stList *filterToInclude(stList *list, stSortedSet *set) {
+stList *filterToInclude(stList *list, stSortedSet *set) {
     return filter(list, set, 1);
 }
 
@@ -183,7 +183,7 @@ static stList *getComponents(stList *edges) {
     return components;
 }
 
-static stList *getComponents2(stList *adjacencyEdges, stList *stubEdges, stList *chainEdges) {
+stList *getComponents2(stList *adjacencyEdges, stList *stubEdges, stList *chainEdges) {
     /*
      * Gets a list of connected components for a set of adjacency, stub and chain edges.
      * If adjacencyEdges, stubEdges or chainEdges are NULL then they are ignored.
@@ -761,7 +761,7 @@ static void checkEdges(stList *edges, int32_t nodeNumber) {
     }
 }
 
-stList *chooseMatching(uint32_t nodeNumber, stList *adjacencyEdges, stList *stubEdges, stList *chainEdges,
+stList *getMatchingWithCyclicConstraints(uint32_t nodeNumber, stList *adjacencyEdges, stList *stubEdges, stList *chainEdges,
         bool makeStubCyclesDisjoint, stList *(*matchingAlgorithm)(stList *edges, int32_t nodeNumber)) {
     /*
      * Check the inputs.

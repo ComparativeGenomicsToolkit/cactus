@@ -53,7 +53,6 @@ from cactus.blastAlignment.cactus_aligner import MakeSequences
 from cactus.blastAlignment.cactus_batch import MakeBlastOptions
 from cactus.blastAlignment.cactus_batch import makeBlastFromOptions
 
-
 ############################################################
 ############################################################
 ############################################################

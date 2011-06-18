@@ -43,14 +43,17 @@
  *
  * The return is the matching, as a list of node pairs, of the same form as the stub end adjacency edges.
  */
-stList *chooseMatching(uint32_t nodeNumber,
-        stList *adjacencyEdges,
-        stList *stubEdges,
-        stList *chainEdges,
+stList *getMatchingWithCyclicConstraints(uint32_t nodeNumber,
+        stList *adjacencyEdges, stList *stubEdges, stList *chainEdges,
         bool makeStubCyclesDisjoint,
         stList *(*matchingAlgorithm)(stList *edges, int32_t nodeNumber));
 
+/*
+ * Gets a list of connected components for a set of adjacency, stub and chain edges.
+ * If adjacencyEdges, stubEdges or chainEdges are NULL then they are ignored.
+ */
+stList *getComponents2(stList *adjacencyEdges, stList *stubEdges,
+        stList *chainEdges);
 
 #endif /* CYCLE_CONSTRAINED_MATCHING_ALGORITHMS_H_ */
-
 
