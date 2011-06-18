@@ -97,7 +97,7 @@ static void checkMatching(CuTest *testCase, stList *matching, bool perfectMatchi
     stSortedSet_destruct(seen);
 }
 
-static int32_t matchingWeight(stList *matching) {
+int32_t matchingWeight(stList *matching) {
     int32_t totalWeight = 0;
     for(int32_t i=0; i<stList_length(matching); i++) {
         stIntTuple *edge = stList_get(matching, i);

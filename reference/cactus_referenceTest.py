@@ -44,7 +44,6 @@ class TestCase(unittest.TestCase):
     
     def testCactus_Blanchette_MaxWeight(self):
         testCactus_Blanchette(self, "maxWeight")
-    
         
     def testCuTest(self):
         system("referenceTests %s" % getLogLevelString())

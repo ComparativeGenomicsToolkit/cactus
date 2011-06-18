@@ -144,7 +144,7 @@ static void getComponentsP(stHash *nodesToEdges, int32_t node, stSortedSet *comp
     stIntTuple_destruct(key);
 }
 
-static stList *getComponents(stList *edges) {
+stList *getComponents(stList *edges) {
     /*
      * Gets a list of connected components, each connected component
      * being represented as a list of the edges, such that each edge is in exactly one
@@ -688,7 +688,7 @@ static stList *splitMultipleStubComponent(stList *component, stList *adjacencyEd
     return splitComponents;
 }
 
-static stList *splitMultipleStubCycles(stList *chosenEdges, stList *adjacencyEdges, stList *stubEdges,
+stList *splitMultipleStubCycles(stList *chosenEdges, stList *adjacencyEdges, stList *stubEdges,
         stList *chainEdges) {
     /*
      *  Returns an updated list of adjacency edges, such that each stub edge is a member of exactly one cycle.
