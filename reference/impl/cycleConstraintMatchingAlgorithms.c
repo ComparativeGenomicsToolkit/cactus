@@ -510,9 +510,9 @@ static AdjacencySwitch *getBestAdjacencySwitch(stList *components, stHash *nodes
 ////////////////////////////////////
 ////////////////////////////////////
 
-static void doBestMergeOfTwoCycles(stList *components, stHash *nodesToAdjacencyEdges) {
+static void doBestMergeOfTwoSimpleCycles(stList *components, stHash *nodesToAdjacencyEdges) {
     /*
-     * Merge two cycles, using the best possible adjacency switch. Modifies components list in place,
+     * Merge two simple cycles, using the best possible adjacency switch. Modifies components list in place,
      * destroying two old components and adding a new one.
      */
 
@@ -554,10 +554,10 @@ static void doBestMergeOfTwoCycles(stList *components, stHash *nodesToAdjacencyE
     stList_append(components, newComponent);
 }
 
-stList *mergeCycles(stList *components, stList *adjacencyEdges) {
+stList *mergeSimpleCycles(stList *components, stList *adjacencyEdges) {
     /*
-     * Returns a single component, as a list of edges, by doing length(components)-1
-     * calls to doBestMergeOfTwoCycles.
+     * Returns a single simple cycle, as a list of edges, by doing length(components)-1
+     * calls to doBestMergeOfTwoSimpleCycles.
      */
 
     /*
@@ -570,7 +570,7 @@ stList *mergeCycles(stList *components, stList *adjacencyEdges) {
         stList_set(components, i, stList_copy(stList_get(components, i), NULL));
     }
     while (stList_length(components) > 1) {
-        doBestMergeOfTwoCycles(components, nodesToAdjacencyEdges);
+        doBestMergeOfTwoSimpleCycles(components, nodesToAdjacencyEdges);
     }
     assert(stList_length(components) == 1);
     stList *mergedComponent = stList_get(components, 0);
@@ -579,9 +579,9 @@ stList *mergeCycles(stList *components, stList *adjacencyEdges) {
     return mergedComponent;
 }
 
-static stList *mergeCycles2(stList *chosenEdges, stList *adjacencyEdges, stList *stubEdges, stList *chainEdges) {
+static stList *mergeSimpleCycles2(stList *chosenEdges, stList *adjacencyEdges, stList *stubEdges, stList *chainEdges) {
     /*
-     * Returns a new set of chosen edges, modified by adjacency switches such that every component
+     * Returns a new set of chosen edges, modified by adjacency switches such that every simple cycle
      * contains at least one stub edge.
      */
 
@@ -625,7 +625,7 @@ static stList *mergeCycles2(stList *chosenEdges, stList *adjacencyEdges, stList 
     /*
      * Merge stub free components into the others.
      */
-    stList *mergedComponents = mergeCycles(adjacencyOnlyComponents, adjacencyEdges);
+    stList *mergedComponents = mergeSimpleCycles(adjacencyOnlyComponents, adjacencyEdges);
     stList_destruct(adjacencyOnlyComponents);
 
     /*
@@ -662,7 +662,7 @@ static stList *splitMultipleStubComponent(stList *component, stList *adjacencyEd
          * Merge together the best two components.
          */
         stList *l = filterListsToExclude(stubFreeComponents, stubAndChainEdgesSet);
-        doBestMergeOfTwoCycles(l, nodesToAdjacencyEdges); //This is inplace.
+        doBestMergeOfTwoSimpleCycles(l, nodesToAdjacencyEdges); //This is inplace.
         stList *l2 = joinLists(l);
         stList_destruct(l);
         l = getComponents2(l2, stubEdges, chainEdges);
@@ -781,7 +781,7 @@ stList *getMatchingWithCyclicConstraints(uint32_t nodeNumber, stList *adjacencyE
     /*
      * Merge in the stub free components.
      */
-    stList *updatedChosenEdges = mergeCycles2(chosenEdges, adjacencyEdges, stubEdges, chainEdges);
+    stList *updatedChosenEdges = mergeSimpleCycles2(chosenEdges, adjacencyEdges, stubEdges, chainEdges);
     stList_destruct(chosenEdges);
     chosenEdges = updatedChosenEdges;
 
