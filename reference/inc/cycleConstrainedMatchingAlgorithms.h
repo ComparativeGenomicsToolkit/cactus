@@ -42,6 +42,7 @@
  * The matching algorithm is one used to construct an initial matching.
  *
  * The return is the matching, as a list of node pairs, of the same form as the stub end adjacency edges.
+ * The list of adjacency edges may be added to with new 'pseudo' adjacency edges, if necessary.
  */
 stList *getMatchingWithCyclicConstraints(uint32_t nodeNumber,
         stList *adjacencyEdges, stList *stubEdges, stList *chainEdges,

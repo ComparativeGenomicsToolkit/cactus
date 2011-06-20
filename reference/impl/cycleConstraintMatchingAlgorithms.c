@@ -362,7 +362,7 @@ static void getNodeSetOfEdgesP(stSortedSet *nodes, int32_t node) {
     }
 }
 
-static stSortedSet *getNodeSetOfEdges(stList *edges) {
+stSortedSet *getNodeSetOfEdges(stList *edges) {
     /*
      * Returns a sorted set of the nodes in the given list of edges.
      */
@@ -553,6 +553,8 @@ static void doBestMergeOfTwoSimpleCycles(stList *components, stHash *nodesToAdja
     //Now remove the old edges and add the new ones
     stList_removeItem(newComponent, adjacencySwitch->oldEdge1);
     stList_removeItem(newComponent, adjacencySwitch->oldEdge2);
+    if(st)
+
     stList_append(newComponent, adjacencySwitch->newEdge1);
     stList_append(newComponent, adjacencySwitch->newEdge2);
     adjacencySwitch_destruct(adjacencySwitch); //Clean the adjacency switch.
@@ -576,7 +578,7 @@ stList *mergeSimpleCycles(stList *components, stList *adjacencyEdges) {
         stList_set(components, i, stList_copy(stList_get(components, i), NULL));
     }
     while (stList_length(components) > 1) {
-        doBestMergeOfTwoSimpleCycles(components, nodesToAdjacencyEdges);
+        doBestMergeOfTwoSimpleCycles(components, nodesToAdjacencyEdges, adjacencyEdges);
     }
     assert(stList_length(components) == 1);
     stList *mergedComponent = stList_get(components, 0);

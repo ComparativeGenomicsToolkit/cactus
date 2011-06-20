@@ -23,6 +23,8 @@ stList *mergeSimpleCycles(stList *components, stList *adjacencyEdges);
 
 int32_t matchingWeight(stList *matching);
 
+stSortedSet *getNodeSetOfEdges(stList *edges);
+
 /*
  * The edges and nodes for the test.
  */
@@ -70,7 +72,7 @@ static void addNodeToSet(stSortedSet *nodes, int32_t node) {
     stSortedSet_insert(nodes, i);
 }
 
-static stSortedSet *getEmptyNodeSet() {
+static stSortedSet *getEmptyNodeOrEdgeSet() {
     return stSortedSet_construct3((int(*)(const void *, const void *)) stIntTuple_cmpFn,
             (void(*)(void *)) stIntTuple_destruct);
 }
@@ -81,7 +83,7 @@ static int32_t getRandomNodeWithReplacement(int32_t nodeNumber) {
 
 static int32_t getRandomNodeWithoutReplacement(stSortedSet *nodes, int32_t nodeNumber) {
     if (stSortedSet_size(nodes) == nodeNumber) {
-       assert(0);
+        assert(0);
     }
     int32_t node = getRandomNodeWithReplacement(nodeNumber);
     while (nodeInSet(nodes, node)) {
@@ -94,7 +96,7 @@ static int32_t getRandomNodeWithoutReplacement(stSortedSet *nodes, int32_t nodeN
 static void logEdges(stList *edges, const char *edgesName) {
     for (int32_t i = 0; i < stList_length(edges); i++) {
         stIntTuple *edge = stList_get(edges, i);
-        st_logDebug("Edge, type: %s, node1: %i, node2: %i\n", edgesName, stIntTuple_getPosition(edge, 0),
+        st_logDebug("Edge, type: %s, node1: %i, node2: %i, weight: %i\n", edgesName, stIntTuple_getPosition(edge, 0),
                 stIntTuple_getPosition(edge, 1),
                 (stIntTuple_length(edge) == 3 ? stIntTuple_getPosition(edge, 2) : INT32_MAX));
     }
@@ -102,20 +104,6 @@ static void logEdges(stList *edges, const char *edgesName) {
 
 static stSortedSet *getEdgeSet(stList *edges) {
     return stList_getSortedSet(edges, (int(*)(const void *, const void *)) stIntTuple_cmpFn);
-}
-
-stSortedSet *getNodeSet(stList *edges) {
-    stSortedSet *nodeSet = getEmptyNodeSet();
-    for (int32_t i = 0; i < stList_length(edges); i++) {
-        stIntTuple *edge = stList_get(edges, i);
-        if (!nodeInSet(nodeSet, stIntTuple_getPosition(edge, 0))) {
-            addNodeToSet(nodeSet, stIntTuple_getPosition(edge, 0));
-        }
-        if (!nodeInSet(nodeSet, stIntTuple_getPosition(edge, 1))) {
-            addNodeToSet(nodeSet, stIntTuple_getPosition(edge, 1));
-        }
-    }
-    return nodeSet;
 }
 
 static void setup() {
@@ -130,7 +118,7 @@ static void setup() {
     stubEdges = stList_construct3(0, (void(*)(void *)) stIntTuple_destruct);
     chainEdges = stList_construct3(0, (void(*)(void *)) stIntTuple_destruct);
     //Add first stub edge
-    stSortedSet *nodeSet = getEmptyNodeSet();
+    stSortedSet *nodeSet = getEmptyNodeOrEdgeSet();
     addEdge(getRandomNodeWithoutReplacement(nodeSet, nodeNumber), getRandomNodeWithoutReplacement(nodeSet, nodeNumber),
             stubEdges);
     //While there are nodes not paired in the set..
@@ -159,7 +147,7 @@ static void checkMatching(CuTest *testCase, stList *chosenEdges, bool makeStubsD
     /*
      * Check every node has one adjacency.
      */
-    stSortedSet *nodeSet = getEmptyNodeSet();
+    stSortedSet *nodeSet = getEmptyNodeOrEdgeSet();
     for (int32_t i = 0; i < stList_length(chosenEdges); i++) {
         stIntTuple *edge = stList_get(chosenEdges, i);
         CuAssertTrue(testCase, !nodeInSet(nodeSet, stIntTuple_getPosition(edge, 0)));
@@ -203,7 +191,7 @@ static void testGetComponentsSimple(CuTest *testCase) {
         CuAssertTrue(testCase, stList_length(components) == 1);
         stSortedSet *componentSet = getEdgeSet(stList_get(components, 0));
         stSortedSet_equals(stubAndChainEdgesSet, componentSet);
-
+        //Cleanup
         stSortedSet_destruct(componentSet);
         stSortedSet_destruct(stubAndChainEdgesSet);
         stList_destruct(stubAndChainEdges);
@@ -234,10 +222,26 @@ static void testGetComponentsP(stList *component, stSortedSet *seenEdges, int32_
 }
 
 static void testComponentIsNotDisjoint(CuTest *testCase, stList *component) {
-    stSortedSet *edgeSet = getEmptyNodeSet();
+    /*
+     * Check that the edges form one connected component.
+     */
+    stSortedSet *edgeSet = getEmptyNodeOrEdgeSet();
     testGetComponentsP(component, edgeSet, 0);
     CuAssertTrue(testCase, stSortedSet_size(edgeSet) == stList_length(component));
     stSortedSet_destruct(edgeSet);
+}
+
+static bool itemInLists(stList *listOfLists, void *o) {
+    /*
+     * Returns non-zero iff o is in one if the lists.
+     */
+    for (int32_t j = 0; j < stList_length(listOfLists); j++) {
+        stList *list = stList_get(listOfLists, j);
+        if (stList_contains(list, o)) {
+            return 1;
+        }
+    }
+    return 0;
 }
 
 static void testGetComponents(CuTest *testCase) {
@@ -252,23 +256,16 @@ static void testGetComponents(CuTest *testCase) {
 
         //Check every edge is in one component
         for (int32_t i = 0; i < stList_length(adjacencyEdges); i++) {
-            stIntTuple *edge = stList_get(adjacencyEdges, i);
-            int32_t seen = 0;
-            for (int32_t j = 0; j < stList_length(components); i++) {
-                stList *component = stList_get(components, i);
-                if (stList_contains(component, edge)) {
-                    seen++;
-                }
-            }
-            CuAssertTrue(testCase, seen == 1);
+            CuAssertTrue(testCase, itemInLists(components, stList_get(adjacencyEdges, i)));
         }
 
         //Check the components are disjoint (share no nodes).
-        stSortedSet *allNodes = getEmptyNodeSet();
+        stSortedSet *allNodes = getEmptyNodeOrEdgeSet();
         for (int32_t j = 0; j < stList_length(components); i++) {
-            stSortedSet *nodesSet = getNodeSet(stList_get(components, i));
+            stSortedSet *nodesSet = getNodeSetOfEdges(stList_get(components, i));
             stSortedSet *intersection = stSortedSet_getIntersection(nodesSet, allNodes);
             CuAssertTrue(testCase, stSortedSet_size(intersection) == 0);
+            //Update all nodes.
             stSortedSet *allNodes2 = stSortedSet_getUnion(nodesSet, allNodes);
             stSortedSet_destruct(allNodes);
             stSortedSet_destruct(intersection);
@@ -306,7 +303,7 @@ static void testMergeSimpleCycles(CuTest *testCase) {
         //Get merged simple cycles
         stList *simpleCycle = mergeSimpleCycles(simpleCycles, adjacencyEdges);
         testComponentIsNotDisjoint(testCase, simpleCycle);
-        stSortedSet *nodeSet = getNodeSet(simpleCycle);
+        stSortedSet *nodeSet = getNodeSetOfEdges(simpleCycle);
         CuAssertTrue(testCase, stSortedSet_size(nodeSet) == nodeNumber);
 
         //Cleanup
@@ -326,10 +323,10 @@ static void testGetMatchingWithCyclicConstraints(CuTest *testCase, bool makeStub
      */
     for (int32_t i = 0; i < 100; i++) {
         setup();
-        stList *cyclicMatching = getMatchingWithCyclicConstraints(nodeNumber, adjacencyEdges, stubEdges, chainEdges,
-                makeStubsDisjoint, matchingAlgorithm);
         stList *matching = matchingAlgorithm(adjacencyEdges, nodeNumber);
         stList *greedyMatching = chooseMatching_greedy(adjacencyEdges, nodeNumber);
+        stList *cyclicMatching = getMatchingWithCyclicConstraints(nodeNumber, adjacencyEdges, stubEdges, chainEdges,
+                makeStubsDisjoint, matchingAlgorithm); //Do this last, as may add to adjacencies.
         checkMatching(testCase, cyclicMatching, makeStubsDisjoint);
 
         int32_t totalCyclicMatchingWeight = matchingWeight(cyclicMatching);
