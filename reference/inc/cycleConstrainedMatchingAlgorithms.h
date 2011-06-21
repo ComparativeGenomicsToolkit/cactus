@@ -43,6 +43,9 @@
  *
  * The return is the matching, as a list of node pairs, of the same form as the stub end adjacency edges.
  * The list of adjacency edges may be added to with new 'pseudo' adjacency edges, if necessary.
+ *
+ * As the new matching may involve edges that are not present in the original set of adjacency edges, new edges are
+ * added to the adjacency edges list as needed, when included in the returned list.
  */
 stList *getMatchingWithCyclicConstraints(uint32_t nodeNumber,
         stList *adjacencyEdges, stList *stubEdges, stList *chainEdges,
