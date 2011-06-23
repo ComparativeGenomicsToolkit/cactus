@@ -20,7 +20,7 @@
 /*
  * There are three types of edge, adjacency edges, stub edges and chain edges.
  * Each node is incident with either a single chain or stub edge. There are therefore an even number of nodes.
- * The adjacency edges have an associated integer valued weight >= 0.
+ * The adjacency edges have an associated integer valued weight >= 0, and the adjacency edges form a clique.
  * The algorithm finds a perfect matching of the nodes, such that the weight of the adjacency edges in
  * the matching is maximal and, including both the adjacency edges in the matching and the chain/stub edges,
  * there are (1) no cycles including only chain edges, and, if make stub cycles disjoint is true, 1 stub
@@ -43,9 +43,6 @@
  *
  * The return is the matching, as a list of node pairs, of the same form as the stub end adjacency edges.
  * The list of adjacency edges may be added to with new 'pseudo' adjacency edges, if necessary.
- *
- * As the new matching may involve edges that are not present in the original set of adjacency edges, new edges are
- * added to the adjacency edges list as needed, when included in the returned list.
  */
 stList *getMatchingWithCyclicConstraints(uint32_t nodeNumber,
         stList *adjacencyEdges, stList *stubEdges, stList *chainEdges,

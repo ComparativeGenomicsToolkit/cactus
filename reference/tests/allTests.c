@@ -13,7 +13,7 @@ CuSuite* cyclesConstrainedMatchingAlgorithmsTestSuite(void);
 int referenceRunAllTests(void) {
     CuString *output = CuStringNew();
     CuSuite* suite = CuSuiteNew();
-    //CuSuiteAddSuite(suite, matchingAlgorithmsTestSuite());
+    CuSuiteAddSuite(suite, matchingAlgorithmsTestSuite());
     CuSuiteAddSuite(suite, cyclesConstrainedMatchingAlgorithmsTestSuite());
 
     CuSuiteRun(suite);
