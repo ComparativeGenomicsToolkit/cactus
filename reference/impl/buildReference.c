@@ -66,6 +66,7 @@ static stList *getExtraAttachedStubsFromParent(Flower *flower) {
      * At the end there will be an even number of attached stubs in the problem.
      * Returns the list of new ends, which need to be assigned a group.
      */
+    st_uglyf("attached stub end number before %i\n", flower_getAttachedStubEndNumber(flower));
     Group *parentGroup = flower_getParentGroup(flower);
     stList *newEnds = stList_construct();
     if (parentGroup != NULL) {
@@ -75,12 +76,16 @@ static stList *getExtraAttachedStubsFromParent(Flower *flower) {
             if (end_isAttached(parentEnd) || end_isBlockEnd(parentEnd)) {
                 End *end = flower_getEnd(flower, end_getName(parentEnd));
                 if (end == NULL) { //We have found an end that needs to be pushed into the child.
+                    st_uglyf("Added end %i %i\n", end_isAttached(parentEnd), end_isBlockEnd(parentEnd));
+                    st_uglyf("I got %i instances\n", end_getInstanceNumber(parentEnd));
+                    st_uglyf("The header %s\n", event_getHeader(cap_getEvent(end_getFirst(parentEnd))));
                     stList_append(newEnds, end_copyConstruct(parentEnd, flower)); //At this point it has no associated group;
                 }
             }
         }
         group_destructEndIterator(parentEndIt);
     }
+    st_uglyf("attached stub end number after %i\n", flower_getAttachedStubEndNumber(flower));
     assert(flower_getAttachedStubEndNumber(flower) % 2 == 0);
     assert(flower_getAttachedStubEndNumber(flower) > 0);
     return newEnds;
@@ -100,10 +105,12 @@ static void addLinkBreakingBlocks(Flower *flower) {
     Flower_GroupIterator *groupIt = flower_getGroupIterator(flower);
     Group *group;
     while ((group = flower_getNextGroup(groupIt)) != NULL) {
-        if (group_isTangle(group) && group_getEndNumber(group) == 1) { //If we don't add an extra block to the group we're going to be in trouble!
+        if (group_isTangle(group) && group_getAttachedStubEndNumber(group) + group_getBlockEndNumber(group) == 1) { //If we don't add an extra block to the group we're going to be in trouble!
             Block *block = block_construct(1, flower);
+            //assert(0);
             end_setGroup(block_get5End(block), group);
             end_setGroup(block_get3End(block), group);
+            st_uglyf("Creating new balancing block\n");
         }
     }
     flower_destructGroupIterator(groupIt);
@@ -138,6 +145,7 @@ static stHash *getMapOfTangleEndsToNodes(Flower *flower) {
             }
         } else {
             assert(end_isStubEnd(end));
+            assert(end_isAttached(end));
             stHash_insert(endsToNodes, end, stIntTuple_construct(1, endCount++));
         }
     }
@@ -151,13 +159,14 @@ static stHash *getMapOfNodesToTangleEnds(stHash *endsToNodes) {
      */
     stHash *nodesToEnds = stHash_construct3(
             (uint32_t(*)(const void *)) stIntTuple_hashKey,
-            (int(*)(const void *, const void *)) stIntTuple_cmpFn, NULL, NULL);
+            (int(*)(const void *, const void *)) stIntTuple_equalsFn, NULL, NULL);
     stHashIterator *hashIt = stHash_getIterator(endsToNodes);
     End *end;
     while ((end = stHash_getNext(hashIt)) != NULL) {
         stHash_insert(nodesToEnds, stHash_search(endsToNodes, end), end);
     }
     stHash_destructIterator(hashIt);
+    assert(stHash_size(endsToNodes) == stHash_size(nodesToEnds));
     return nodesToEnds;
 }
 
@@ -219,11 +228,8 @@ static void getTrivialChainEdges(Flower *flower, stHash *endsToNodes,
         End *_3End = block_get3End(block);
         assert(end_getGroup(_5End) != NULL);
         assert(end_getGroup(_3End) != NULL);
-        if (group_isTangle(end_getGroup(_5End))) {
-            assert(group_isTangle(end_getGroup(_3End)));
+        if (group_isTangle(end_getGroup(_5End)) && group_isTangle(end_getGroup(_3End))) {
             stList_append(chainEdges, getEdge(_5End, _3End, endsToNodes));
-        } else {
-            assert(group_isLink(end_getGroup(_3End)));
         }
     }
     flower_destructBlockIterator(blockIt);
@@ -294,17 +300,10 @@ static stList *getStubEdgesFromParent(Flower *flower, stHash *endsToNodes,
     stSortedSet *endsSeen = stSortedSet_construct();
     for(int32_t i=0; i<stList_length(ends); i++) {
         End *end = stList_get(ends, i);
+        assert(end_getOrientation(end));
         if (end_isStubEnd(end) && stSortedSet_search(endsSeen, end) == NULL) {
             End *adjacentEnd = getAdjacentEndFromParent(end, referenceEvent);
-
-            //Do lots of checks!
-            assert(end_getGroup(end) != NULL);
-            assert(group_isTangle(end_getGroup(end)));
-            assert(adjacentEnd != NULL);
-            assert(end_getGroup(adjacentEnd) != NULL);
-            assert(group_isTangle(end_getGroup(adjacentEnd)));
-            assert(stSortedSet_search(endsSeen, adjacentEnd) == NULL);
-            assert(adjacentEnd != end);
+            assert(end_getOrientation(adjacentEnd));
 
             stSortedSet_insert(endsSeen, end);
             stSortedSet_insert(endsSeen, adjacentEnd);
@@ -376,11 +375,20 @@ static void getAdjacencyEdgesP(End *end, stHash *endsToNodes,
      */
     End_InstanceIterator *instanceIt = end_getInstanceIterator(end);
     Cap *cap;
+    assert(stHash_search(endsToNodes, end) != NULL);
+    assert(end_isAttached(end) || end_isBlockEnd(end));
     while ((cap = end_getNext(instanceIt)) != NULL) {
         cap = cap_getStrand(cap) ? cap : cap_getReverse(cap);
         if (cap_getSide(cap) && cap_getAdjacency(cap) != NULL) { //Use this side property to avoid adding edges twice.
-            stList_append(adjacencyEdges,
-                    getEdge(end, cap_getEnd(cap_getAdjacency(cap)), endsToNodes));
+            End *adjacentEnd = end_getPositiveOrientation(cap_getEnd(cap_getAdjacency(cap)));
+            if(adjacentEnd != end && (end_isAttached(adjacentEnd) || end_isBlockEnd(adjacentEnd))) {
+                assert(end_getGroup(end) != NULL);
+                assert(group_isTangle(end_getGroup(end)));
+                assert(end_getGroup(end) == end_getGroup(adjacentEnd));
+                assert(stHash_search(endsToNodes, adjacentEnd) != NULL);
+                stList_append(adjacencyEdges,
+                        getEdge(end, adjacentEnd, endsToNodes));
+            }
         }
     }
     end_destructInstanceIterator(instanceIt);
@@ -518,17 +526,23 @@ static void addTangleAdjacenciesAndSegments(Flower *flower,
                 getEndFromNode(nodesToEnds, stIntTuple_getPosition(edge, 0));
         End *end2 =
                 getEndFromNode(nodesToEnds, stIntTuple_getPosition(edge, 1));
-        if (end_getGroup(end1) != end_getGroup(end2)) {
+        assert(end_getPositiveOrientation(end1) != end_getPositiveOrientation(end2));
+        if (end_getGroup(end1) != NULL && end_getGroup(end2) != NULL &&
+                end_getGroup(end1) != end_getGroup(end2)) {
             /*
              * We build a 'bridging block'.
              */
             Block *block = block_construct(1, flower);
 
             end_setGroup(block_get5End(block), end_getGroup(end1));
+            assert(group_isTangle(end_getGroup(end1)));
+            assert(group_getAttachedStubEndNumber(end_getGroup(end1)) + group_getBlockEndNumber(end_getGroup(end1)) > 2);
             addAdjacenciesAndSegmentsP(end1, block_get5End(block),
                     referenceEvent);
 
             end_setGroup(block_get3End(block), end_getGroup(end2));
+            assert(group_isTangle(end_getGroup(end2)));
+            assert(group_getAttachedStubEndNumber(end_getGroup(end2)) + group_getBlockEndNumber(end_getGroup(end2)) > 2);
             addAdjacenciesAndSegmentsP(end2, block_get3End(block),
                     referenceEvent);
         } else {
@@ -543,20 +557,34 @@ static void addTangleAdjacenciesAndSegments(Flower *flower,
 ////////////////////////////////////
 ////////////////////////////////////
 
-static void assignGroups(stList *newEnds) {
+static void assignGroups(stList *newEnds, Flower *flower) {
     /*
      * Put ends into groups.
      */
     for (int32_t i = 0; i < stList_length(newEnds); i++) {
         End *end = stList_get(newEnds, i);
-        assert(end_getInstanceNumber(end) == 1);
-        Cap *cap = end_getFirst(end);
-        Cap *adjacentCap = cap_getAdjacency(cap);
-        assert(adjacentCap != NULL);
-        End *adjacentEnd = cap_getEnd(adjacentCap);
-        Group *group = end_getGroup(adjacentEnd);
-        assert(group != NULL);
-        end_setGroup(end, group);
+        if(end_getGroup(end) == NULL) {
+            assert(end_getInstanceNumber(end) == 1);
+            Cap *cap = end_getFirst(end);
+            Cap *adjacentCap = cap_getAdjacency(cap);
+            assert(adjacentCap != NULL);
+            End *adjacentEnd = cap_getEnd(adjacentCap);
+            Group *group = end_getGroup(adjacentEnd);
+            if(group == NULL) {
+                //We have to find a tangle.
+                Flower_GroupIterator *groupIt = flower_getGroupIterator(flower);
+                while((group = flower_getNextGroup(groupIt)) != NULL) {
+                    if(group_isTangle(group)) {
+                        break;
+                    }
+                }
+                assert(group_isTangle(group));
+                flower_destructGroupIterator(groupIt);
+                end_setGroup(adjacentEnd, group);
+            }
+            end_setGroup(end, group);
+            assert(group_getAttachedStubEndNumber(group) + group_getBlockEndNumber(group) > 2);
+        }
     }
 }
 
@@ -598,6 +626,8 @@ void buildReferenceTopDown(Flower *flower, const char *referenceEventHeader,
      * Get any extra ends to balance the group from the parent problem.
      */
     stList *newEnds = getExtraAttachedStubsFromParent(flower);
+    //assert(stList_length(newEnds) == 0 || stList_length(newEnds) == 1 || stList_length(newEnds) == 3);
+    st_uglyf("I got %i new ends\n", stList_length(newEnds));
 
     /*
      * Add extra link breaking block (hack!)
@@ -653,7 +683,7 @@ void buildReferenceTopDown(Flower *flower, const char *referenceEventHeader,
     /*
      * Ensure the newly created ends have a group.
      */
-    assignGroups(newEnds);
+    assignGroups(newEnds, flower);
 
     /*
      * Cleanup
@@ -665,12 +695,5 @@ void buildReferenceTopDown(Flower *flower, const char *referenceEventHeader,
     stList_destruct(stubEdges);
     stList_destruct(adjacencyEdges);
     stList_destruct(chosenAdjacencyEdges);
-
-    /*
-     * Check
-     */
-//#ifdef BEN_DEBUG
-    flower_check(flower);
-//#endif
 }
 

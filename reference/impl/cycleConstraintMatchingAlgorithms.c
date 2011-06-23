@@ -977,6 +977,7 @@ static void checkEdges(stList *edges, int32_t nodeNumber, bool coversAllNodes,
         assert(stIntTuple_getPosition(edge, 0) < nodeNumber);
         assert(stIntTuple_getPosition(edge, 1) >= 0);
         assert(stIntTuple_getPosition(edge, 1) < nodeNumber);
+        assert(stIntTuple_getPosition(edge, 1) != stIntTuple_getPosition(edge, 0)); //No self edges!
         /*
          * Check is not a multi-graph.
          */
