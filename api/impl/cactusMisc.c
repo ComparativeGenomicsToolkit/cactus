@@ -118,3 +118,9 @@ const char *cactusMisc_nameToStringStatic(Name name) {
     return cA;
 }
 
+const char *cactusMisc_getDefaultReferenceEventHeader() {
+    static char cA[10];
+    sprintf(cA, "reference");
+    return cA;
+}
+

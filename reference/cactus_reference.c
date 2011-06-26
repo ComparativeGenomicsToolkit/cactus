@@ -42,7 +42,7 @@ int main(int argc, char *argv[]) {
     char * cactusDiskDatabaseString = NULL;
     int32_t j;
     stList *(*matchingAlgorithm)(stList *edges, int32_t nodeNumber) = chooseMatching_greedy;
-    char *referenceEventString = "reference";
+    char *referenceEventString = (char *)cactusMisc_getDefaultReferenceEventHeader();
 
     ///////////////////////////////////////////////////////////////////////////
     // (0) Parse the inputs handed by genomeCactus.py / setup stuff.

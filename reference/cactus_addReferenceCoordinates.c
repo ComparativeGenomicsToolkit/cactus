@@ -37,7 +37,7 @@ int main(int argc, char *argv[]) {
      */
     char * logLevelString = NULL;
     char * cactusDiskDatabaseString = NULL;
-    char *referenceEventHeader = "reference";
+    char *referenceEventString = (char *)cactusMisc_getDefaultReferenceEventHeader();
 
     ///////////////////////////////////////////////////////////////////////////
     // (0) Parse the inputs handed by genomeCactus.py / setup stuff.
@@ -104,7 +104,7 @@ int main(int argc, char *argv[]) {
     ///////////////////////////////////////////////////////////////////////////
 
     Flower *flower = cactusDisk_getFlower(cactusDisk, 0);
-    Event *referenceEvent = eventTree_getEventByHeader(flower_getEventTree(flower), referenceEventHeader);
+    Event *referenceEvent = eventTree_getEventByHeader(flower_getEventTree(flower), referenceEventString);
     assert(referenceEvent != NULL);
     addReferenceSequences(flower, event_getName(referenceEvent));
 
