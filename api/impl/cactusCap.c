@@ -72,6 +72,12 @@ Cap *cap_construct5(Event *event, End *end) {
             end_getFlower(end))), event, end);
 }
 
+void cap_setCoordinates(Cap *cap, int32_t coordinate, int32_t strand, Sequence *sequence) {
+    cap->capContents->coordinate = coordinate;
+    cap->capContents->strand = cap_getOrientation(cap) ? strand : !strand;
+    cap->capContents->sequence = sequence;
+}
+
 Cap *cap_copyConstruct(End *end, Cap *cap) {
     assert(end_getName(cap_getEnd(cap)) == end_getName(end));
     assert(end_getSide(end) == cap_getSide(cap));
@@ -357,8 +363,8 @@ void cap_check(Cap *cap) {
         assert(end_getGroup(cap_getEnd(cap2)) == end_getGroup(end)); //check they have the same group.
         assert(cap_getAdjacency(cap2) == cap); //reciprocal connection
         assert(cap_getEvent(cap) == cap_getEvent(cap2)); //common event
-        assert(cap_getSequence(cap) == cap_getSequence(cap2)); //common sequence (which may be null)
         assert(cap_getStrand(cap) == cap_getStrand(cap2)); //common strand
+        assert(cap_getSequence(cap) == cap_getSequence(cap2)); //common sequence (which may be null)
 
         if (cap_getCoordinate(cap) != INT32_MAX) { //if they have a coordinate
             assert(cap_getSide(cap) != cap_getSide(cap2)); //they have to represent an interval
@@ -375,6 +381,9 @@ void cap_check(Cap *cap) {
                     assert(cap_getCoordinate(cap) > cap_getCoordinate(cap2));
                 }
             }
+        }
+        else {
+            assert(cap_getCoordinate(cap2) == INT32_MAX);
         }
     }
 

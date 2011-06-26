@@ -27,5 +27,9 @@ extern const char *REFERENCE_BUILDING_EXCEPTION;
 void buildReferenceTopDown(Flower *flower, const char *referenceEventHeader,
         stList *(*matchingAlgorithm)(stList *edges, int32_t nodeNumber));
 
+/*
+ * Adds sequence objects and coordinates for each reference.
+ */
+void addReferenceSequences(Flower *flower, Event *referenceEvent);
 
 #endif /* REFERENCE_H_ */

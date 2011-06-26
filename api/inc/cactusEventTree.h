@@ -44,6 +44,11 @@ Event *eventTree_getRootEvent(EventTree *eventTree);
 Event *eventTree_getEvent(EventTree *eventTree, Name eventName);
 
 /*
+ * Finds an event in the given event tree with the given header string.
+ */
+Event *eventTree_getEventByHeader(EventTree *eventTree, const char *eventHeader);
+
+/*
  * Gets the common ancestor of two events.
  */
 Event *eventTree_getCommonAncestor(Event *event, Event *event2);

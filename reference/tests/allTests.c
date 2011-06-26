@@ -9,12 +9,14 @@
 
 CuSuite *matchingAlgorithmsTestSuite(void);
 CuSuite* cyclesConstrainedMatchingAlgorithmsTestSuite(void);
+CuSuite* addReferenceCoordinatesTestSuite(void);
 
 int referenceRunAllTests(void) {
     CuString *output = CuStringNew();
     CuSuite* suite = CuSuiteNew();
     CuSuiteAddSuite(suite, matchingAlgorithmsTestSuite());
     CuSuiteAddSuite(suite, cyclesConstrainedMatchingAlgorithmsTestSuite());
+    CuSuiteAddSuite(suite, addReferenceCoordinatesTestSuite());
 
     CuSuiteRun(suite);
     CuSuiteSummary(suite, output);

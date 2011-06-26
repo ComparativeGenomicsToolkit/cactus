@@ -47,6 +47,7 @@ from cactus.shared.common import runCactusAdjacencies
 from cactus.shared.common import runCactusBaseAligner
 from cactus.shared.common import runCactusMakeNormal 
 from cactus.shared.common import runCactusReference
+from cactus.shared.common import runCactusAddReferenceCoordinates
 from cactus.shared.common import runCactusCheck
 
 from cactus.blastAlignment.cactus_aligner import MakeSequences
@@ -471,7 +472,9 @@ class CactusReferencePhase(Target):
         logger.info("Starting the reference phase")
         if self.options.buildReference:
             self.addChildTarget(CactusReferenceDown(self.options, None, [ self.flowerName ]))
-        self.setFollowOnTarget(CactusFacesPhase(self.flowerName, self.options))
+            self.setFollowOnTarget(CactusSetReferenceCoordinates(self.flowerName, self.options))
+        else:
+            self.setFollowOnTarget(CactusFacesPhase(self.flowerName, self.options))
         
 class CactusReferenceDown(Target):
     """This target does the down pass for the reference phase.
@@ -486,6 +489,18 @@ class CactusReferenceDown(Target):
         matchingAlgorithm = self.options.config.find("reference").attrib["matching_algorithm"]
         runCactusReference(self.options.cactusDiskDatabaseString, flowerNames=self.flowerNames, matchingAlgorithm=matchingAlgorithm) #We first run the top down phase
         makeChildTargets(self.options, None, self.flowerNames, self, CactusReferenceDown)
+
+class CactusSetReferenceCoordinates(Target):
+    """Fills in the coordinates, once a reference is added.
+    """
+    def __init__(self, flowerName, options):
+        Target.__init__(self, time=100.0)
+        self.flowerName = flowerName
+        self.options = options
+        
+    def run(self):
+        runCactusAddReferenceCoordinates(self.options.cactusDiskDatabaseString)
+        self.setFollowOnTarget(CactusFacesPhase(self.flowerName, self.options))
 
 ############################################################
 ############################################################
