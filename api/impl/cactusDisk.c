@@ -310,6 +310,17 @@ void cactusDisk_write(CactusDisk *cactusDisk) {
 
     if (stList_length(updateRequests) > 0) {
         stTry {
+            int maxRecords = 100000;
+            while(stList_length(updateRequests) > maxRecords) {
+                    stList *list = stList_construct3(0, (void(*)(void *)) stKVDatabaseBulkRequest_destruct);
+                    while(stList_length(list) < maxRecords) {
+                        stList_append(list, stList_pop(updateRequests));
+                    }
+                    stKVDatabase_bulkSetRecords(cactusDisk->database,
+                                        list);
+                    stList_destruct(list);
+                }
+
             stKVDatabase_bulkSetRecords(cactusDisk->database,
                     updateRequests);
         }
