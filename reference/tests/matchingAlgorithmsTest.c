@@ -6,7 +6,7 @@
 
 #include "CuTest.h"
 #include "sonLib.h"
-#include "matchingAlgorithms.h"
+#include "cactusMatchingAlgorithms.h"
 
 static int32_t nodeNumber = 0;
 static stSortedSet *edges = NULL;

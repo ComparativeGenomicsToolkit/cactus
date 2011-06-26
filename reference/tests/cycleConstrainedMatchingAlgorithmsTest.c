@@ -6,8 +6,8 @@
 
 #include "CuTest.h"
 #include "sonLib.h"
-#include "matchingAlgorithms.h"
-#include "cycleConstrainedMatchingAlgorithms.h"
+#include "cactusMatchingAlgorithms.h"
+#include "cactusCycleConstrainedMatchingAlgorithms.h"
 
 /*
  * Declarations of support functions defined elsewhere reference/src

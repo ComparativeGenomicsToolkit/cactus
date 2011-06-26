@@ -461,6 +461,12 @@ class CactusPhylogeny(Target):
 ############################################################
 ############################################################
 ############################################################
+
+def getReferenceEventString(config):
+    referenceNode = config.find("reference")
+    if referenceNode.attrib.has_key("reference"):
+        return referenceNode.attrib["reference"]
+    return None
     
 class CactusReferencePhase(Target):
     def __init__(self, flowerName, options):
@@ -471,7 +477,7 @@ class CactusReferencePhase(Target):
     def run(self):
         logger.info("Starting the reference phase")
         if self.options.buildReference:
-            self.addChildTarget(CactusReferenceDown(self.options, None, [ self.flowerName ]))
+            self.addChildTarget(CactusReferenceDown(self.options, [ self.flowerName ]))
             self.setFollowOnTarget(CactusSetReferenceCoordinates(self.flowerName, self.options))
         else:
             self.setFollowOnTarget(CactusFacesPhase(self.flowerName, self.options))
@@ -481,13 +487,13 @@ class CactusReferenceDown(Target):
     """
     def __init__(self, options, extras, flowerNames):
         Target.__init__(self, time=2.0)
-        assert extras == None #We currently don't use this argument
         self.options = options
         self.flowerNames = flowerNames
     
     def run(self):
         matchingAlgorithm = self.options.config.find("reference").attrib["matching_algorithm"]
-        runCactusReference(self.options.cactusDiskDatabaseString, flowerNames=self.flowerNames, matchingAlgorithm=matchingAlgorithm) #We first run the top down phase
+        referenceEventString = getReferenceEventString(self.options.config)
+        runCactusReference(self.options.cactusDiskDatabaseString, flowerNames=self.flowerNames, matchingAlgorithm=matchingAlgorithm, referenceEventString=referenceEventString) #We first run the top down phase
         makeChildTargets(self.options, None, self.flowerNames, self, CactusReferenceDown)
 
 class CactusSetReferenceCoordinates(Target):
@@ -499,7 +505,8 @@ class CactusSetReferenceCoordinates(Target):
         self.options = options
         
     def run(self):
-        runCactusAddReferenceCoordinates(self.options.cactusDiskDatabaseString)
+        referenceEventString = getReferenceEventString(self.options.config)
+        runCactusAddReferenceCoordinates(self.options.cactusDiskDatabaseString, referenceEventString=referenceEventString)
         self.setFollowOnTarget(CactusFacesPhase(self.flowerName, self.options))
 
 ############################################################

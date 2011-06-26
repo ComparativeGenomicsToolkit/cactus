@@ -303,9 +303,9 @@ void group_check(Group *group) {
     group_destructEndIterator(endIterator);
 
     Link *link = group_getLink(group);
-    if (nonFree == 2) {
-        assert(link != NULL); // has only two non-free ends, is a link therefore
-        assert(group_isLink(group));
+    if (nonFree == 2) { //We get rid of this now, as the reference can create new links, which we do not want to count as chains.
+        //assert(link != NULL); // has only two non-free ends, is a link therefore
+        //assert(group_isLink(group));
     } else {
         assert(group_isTangle(group));
         assert(link == NULL); // can not be a link!

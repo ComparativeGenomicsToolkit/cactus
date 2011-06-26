@@ -14,14 +14,16 @@
 
 #include "cactus.h"
 #include "sonLib.h"
-#include "reference.h"
-#include "matchingAlgorithms.h"
+#include "cactusReference.h"
+#include "cactusMatchingAlgorithms.h"
 
 void usage() {
     fprintf(stderr, "cactus_addReferenceCoordinates [flower names], version 0.1\n");
     fprintf(stderr, "-a --logLevel : Set the log level\n");
     fprintf(stderr,
             "-c --cactusDisk : The location of the flower disk directory\n");
+    fprintf(stderr,
+                    "-g --referenceEventString : String identifying the reference event.\n");
     fprintf(stderr, "-h --help : Print this help screen\n");
 }
 
@@ -45,13 +47,14 @@ int main(int argc, char *argv[]) {
         static struct option long_options[] = { { "logLevel",
                 required_argument, 0, 'a' }, { "cactusDisk", required_argument,
                 0, 'c' },
+                { "referenceEventString", optional_argument, 0, 'g' },
                 { "help",
                 no_argument, 0, 'h' }, { 0, 0, 0, 0 } };
 
         int option_index = 0;
 
         int key =
-                getopt_long(argc, argv, "a:c:e:h", long_options, &option_index);
+                getopt_long(argc, argv, "a:c:e:g:h", long_options, &option_index);
 
         if (key == -1) {
             break;
@@ -63,6 +66,9 @@ int main(int argc, char *argv[]) {
                 break;
             case 'c':
                 cactusDiskDatabaseString = stString_copy(optarg);
+                break;
+            case 'g':
+                referenceEventString = stString_copy(optarg);
                 break;
             case 'h':
                 usage();
@@ -100,7 +106,7 @@ int main(int argc, char *argv[]) {
     Flower *flower = cactusDisk_getFlower(cactusDisk, 0);
     Event *referenceEvent = eventTree_getEventByHeader(flower_getEventTree(flower), referenceEventHeader);
     assert(referenceEvent != NULL);
-    addReferenceSequences(flower, referenceEvent);
+    addReferenceSequences(flower, event_getName(referenceEvent));
 
     ///////////////////////////////////////////////////////////////////////////
     // Write the flower(s) back to disk.

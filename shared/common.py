@@ -224,19 +224,21 @@ def runCactusBaseAligner(cactusDiskDatabaseString, flowerNames, logLevel=None,
             constraintDiagonalTrim, minimumBlockDegree, requiredSpecies, alignAmbiguityCharacters))
     
 def runCactusReference(cactusDiskDatabaseString, flowerNames, logLevel=None,
-                       matchingAlgorithm=None):
+                       matchingAlgorithm=None, referenceEventString=None):
     """Runs cactus reference.
     """
     #print "running", "cactus_reference --cactusDisk '%s' --logLevel %s %s" % (cactusDiskDatabaseString, logLevel, " ".join(flowerNames))
     #assert False
     logLevel = getLogLevelString2(logLevel)
     matchingAlgorithm = nameValue("matchingAlgorithm", matchingAlgorithm)
-    command = "cactus_reference --cactusDisk '%s' --logLevel %s %s %s" % (cactusDiskDatabaseString, logLevel, matchingAlgorithm, " ".join(flowerNames))
+    referenceEventString = nameValue("referenceEventString", referenceEventString)
+    command = "cactus_reference --cactusDisk '%s' --logLevel %s %s %s %s" % (cactusDiskDatabaseString, logLevel, matchingAlgorithm, referenceEventString, " ".join(flowerNames))
     system(command)
     
-def runCactusAddReferenceCoordinates(cactusDiskDatabaseString, logLevel=None):   
+def runCactusAddReferenceCoordinates(cactusDiskDatabaseString, logLevel=None, referenceEventString=None):   
     logLevel = getLogLevelString2(logLevel)
-    command = "cactus_addReferenceCoordinates --cactusDisk '%s' --logLevel %s" % (cactusDiskDatabaseString, logLevel)
+    referenceEventString = nameValue("referenceEventString", referenceEventString)
+    command = "cactus_addReferenceCoordinates --cactusDisk '%s' --logLevel %s %s" % (cactusDiskDatabaseString, logLevel, referenceEventString)
     system(command)
 
 def runCactusCheck(cactusDiskDatabaseString, 

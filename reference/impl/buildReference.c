@@ -1,6 +1,6 @@
 #include "cactus.h"
 #include "sonLib.h"
-#include "cycleConstrainedMatchingAlgorithms.h"
+#include "cactusCycleConstrainedMatchingAlgorithms.h"
 
 const char *REFERENCE_BUILDING_EXCEPTION = "REFERENCE_BUILDING_EXCEPTION";
 
@@ -395,6 +395,7 @@ End *getEndFromNode(stHash *nodesToEnds, int32_t node) {
     stIntTuple *i = stIntTuple_construct(1, node);
     End *end = stHash_search(nodesToEnds, i);
     assert(end != NULL);
+    assert(end_getOrientation(end));
     stIntTuple_destruct(i);
     return end;
 }
@@ -418,15 +419,9 @@ static Cap *makeCapWithEvent(End *end, Event *referenceEvent) {
             if (parentGroup != NULL) {
                 End *parentEnd = group_getEnd(parentGroup, end_getName(end));
                 assert(parentEnd != NULL);
-                if (end_getSide(parentEnd) != end_getSide(end)) {
-                    parentEnd = end_getReverse(parentEnd);
-                }
-                assert(end_getSide(parentEnd) == end_getSide(end));
                 Cap *parentCap = getCapWithEvent(parentEnd, event_getName(referenceEvent));
                 assert(parentCap != NULL);
                 cap = cap_copyConstruct(end, parentCap);
-                assert(cap_getSide(cap) == cap_getSide(parentCap));
-                assert(cap_getStrand(cap) == cap_getStrand(parentCap));
             } else {
                 cap = cap_construct(end, referenceEvent);
             }
@@ -471,7 +466,7 @@ static void addTangleAdjacenciesAndSegments(Flower *flower, stList *chosenAdjace
         stIntTuple *edge = stList_get(chosenAdjacencyEdges, i);
         End *end1 = getEndFromNode(nodesToEnds, stIntTuple_getPosition(edge, 0));
         End *end2 = getEndFromNode(nodesToEnds, stIntTuple_getPosition(edge, 1));
-        assert(end_getPositiveOrientation(end1) != end_getPositiveOrientation(end2));
+        assert(end1 != end2);
         if (end_getGroup(end1) != NULL && end_getGroup(end2) != NULL && end_getGroup(end1) != end_getGroup(end2)) {
             /*
              * We build a 'bridging block'.
@@ -530,7 +525,6 @@ static void assignGroups(stList *newEnds, Flower *flower, Event *referenceEvent)
                 end_setGroup(adjacentEnd, group);
             }
             end_setGroup(end, group);
-            assert(group_getAttachedStubEndNumber(group) + group_getBlockEndNumber(group) > 2);
         }
     }
 }
@@ -598,6 +592,10 @@ void buildReferenceTopDown(Flower *flower, const char *referenceEventHeader,
     stList *adjacencyEdges = getAdjacencyEdges(flower, endsToNodes);
     makeEdgesAClique(adjacencyEdges, nodeNumber, 0);
 
+    st_logDebug("Going to build a reference matching for the flower %lli with %i nodes, %i adjacencies, %i stub edges and %i chain edges, %i attached stubs, %i free stubs and %i block ends,  %i ends total and %i chains\n",
+            flower_getName(flower), nodeNumber, stList_length(adjacencyEdges), stList_length(stubEdges),
+            stList_length(chainEdges), flower_getAttachedStubEndNumber(flower), flower_getFreeStubEndNumber(flower), flower_getBlockEndNumber(flower), flower_getEndNumber(flower), flower_getChainNumber(flower));
+
     /*
      * Calculate the matching
      */
@@ -614,6 +612,14 @@ void buildReferenceTopDown(Flower *flower, const char *referenceEventHeader,
      * Ensure the newly created ends have a group.
      */
     assignGroups(newEnds, flower, referenceEvent);
+
+    /*
+     * Ensure any new chains that have been created are sorted out..
+     */
+
+    /*
+     * Now re-normalise (do join links that might have been created).
+     */
 
     /*
      * Cleanup

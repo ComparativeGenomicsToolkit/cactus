@@ -13,7 +13,7 @@
 
 #include "sonLib.h"
 #include "cactus.h"
-#include "reference.h"
+#include "cactusReference.h"
 
 /*
  * Code to talk to the blossom5 maximum weight perfect matching algorithm.

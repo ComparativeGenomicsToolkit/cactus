@@ -6,7 +6,7 @@
 
 #include "CuTest.h"
 #include "sonLib.h"
-#include "reference.h"
+#include "cactusReference.h"
 
 char *getConsensusStringP(stList *strings, int32_t blockLength);
 
