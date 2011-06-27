@@ -21,6 +21,21 @@ static int32_t intersectionSize(stSortedSet *set, stList *list) {
     return count;
 }
 
+static stList *filter2(stList *list, bool (*fn)(void *)) {
+    /*
+     * Returns a new list, either containing the intersection with set if include is non-zero,
+     * or containing the set difference if include is zero.
+     */
+    stList *list2 = stList_construct();
+    for (int32_t i = 0; i < stList_length(list); i++) {
+        void *o = stList_get(list, i);
+        if (fn(o)) {
+            stList_append(list2, o);
+        }
+    }
+    return list2;
+}
+
 static stList *filter(stList *list, stSortedSet *set, bool include) {
     /*
      * Returns a new list, either containing the intersection with set if include is non-zero,
@@ -1062,6 +1077,10 @@ void checkInputs(uint32_t nodeNumber, stList *adjacencyEdges,
     checkEdges(adjacencyEdges, nodeNumber, 1, 1);
 }
 
+bool hasGreaterThan0Weight(stIntTuple *edge) {
+    return stIntTuple_getPosition(edge, 2) > 0;
+}
+
 stList *getMatchingWithCyclicConstraints(uint32_t nodeNumber,
         stList *adjacencyEdges, stList *stubEdges, stList *chainEdges,
         bool makeStubCyclesDisjoint,
@@ -1070,6 +1089,7 @@ stList *getMatchingWithCyclicConstraints(uint32_t nodeNumber,
      * Check the inputs.
      */
     checkInputs(nodeNumber, adjacencyEdges, stubEdges, chainEdges);
+    st_logDebug("Checked the inputs\n");
 
     if(nodeNumber == 0) { //Some of the following functions assume there are at least 2 nodes.
         return stList_construct();
@@ -1078,7 +1098,8 @@ stList *getMatchingWithCyclicConstraints(uint32_t nodeNumber,
     /*
      * First calculate the optimal matching.
      */
-    stList *chosenEdges = matchingAlgorithm(adjacencyEdges, nodeNumber);
+    stList *adjacencyEdgesWithout0WeightEdges = filter2(adjacencyEdges, (bool (*)(void *))hasGreaterThan0Weight);
+    stList *chosenEdges = matchingAlgorithm(adjacencyEdgesWithout0WeightEdges, nodeNumber);
     st_logDebug("Chosen an initial matching with %i edges, %i cardinality and %i weight\n", stList_length(chosenEdges), matchingCardinality(chosenEdges), matchingWeight(chosenEdges));
     makeMatchingPerfect(chosenEdges, adjacencyEdges, nodeNumber);
 
@@ -1105,6 +1126,8 @@ stList *getMatchingWithCyclicConstraints(uint32_t nodeNumber,
     else {
         st_logDebug("Not making stub cycles disjoint\n");
     }
+
+    stList_destruct(adjacencyEdgesWithout0WeightEdges);
 
     return chosenEdges;
 }

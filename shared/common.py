@@ -259,7 +259,6 @@ def runCactusWorkflow(experimentFile,
                       buildTrees=True, buildFaces=True, buildReference=True,
                       jobTreeStats=False,
                       maxThreads=None):
-    maxThreads=50
     logLevel = getLogLevelString2(logLevel)
     buildFaces=False
     setupAndBuildAlignments = nameValue("setupAndBuildAlignments", setupAndBuildAlignments, bool)
