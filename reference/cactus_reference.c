@@ -53,7 +53,7 @@ int main(int argc, char *argv[]) {
                 required_argument, 0, 'a' }, { "cactusDisk", required_argument,
                 0, 'c' },
                 { "matchingAlgorithm", required_argument, 0, 'e' },
-                { "referenceEventString", optional_argument, 0, 'g' },
+                { "referenceEventString", required_argument, 0, 'g' },
                 { "help",
                 no_argument, 0, 'h' }, { 0, 0, 0, 0 } };
 

@@ -1,6 +1,7 @@
 #include "cactus.h"
 #include "sonLib.h"
 #include "cactusCycleConstrainedMatchingAlgorithms.h"
+#include "cactusMatchingAlgorithms.h"
 
 const char *REFERENCE_BUILDING_EXCEPTION = "REFERENCE_BUILDING_EXCEPTION";
 
@@ -124,6 +125,10 @@ static stHash *getMapOfNodesToTangleEnds(stHash *endsToNodes) {
 ////////////////////////////////////
 
 static stIntTuple *getEdge2(int32_t node1, int32_t node2) {
+    assert(node1 != node2);
+    if(node1 > node2) {
+        return getEdge2(node2, node1);
+    }
     return stIntTuple_construct(2, node1, node2);
 }
 
@@ -316,15 +321,17 @@ static void getAdjacencyEdgesP(End *end, stHash *endsToNodes, stList *adjacencyE
     assert(stHash_search(endsToNodes, end) != NULL);
     assert(end_isAttached(end) || end_isBlockEnd(end));
     while ((cap = end_getNext(instanceIt)) != NULL) {
-        cap = cap_getStrand(cap) ? cap : cap_getReverse(cap);
-        if (cap_getSide(cap) && cap_getAdjacency(cap) != NULL) { //Use this side property to avoid adding edges twice.
-            End *adjacentEnd = end_getPositiveOrientation(cap_getEnd(cap_getAdjacency(cap)));
-            if (adjacentEnd != end && (end_isAttached(adjacentEnd) || end_isBlockEnd(adjacentEnd))) {
-                assert(end_getGroup(end) != NULL);
-                assert(group_isTangle(end_getGroup(end)));
-                assert(end_getGroup(end) == end_getGroup(adjacentEnd));
-                assert(stHash_search(endsToNodes, adjacentEnd) != NULL);
-                stList_append(adjacencyEdges, getEdge(end, adjacentEnd, endsToNodes));
+        if(cap_getSequence(cap) != NULL) {
+            cap = cap_getStrand(cap) ? cap : cap_getReverse(cap);
+            if (cap_getSide(cap) && cap_getAdjacency(cap) != NULL) { //Use this side property to avoid adding edges twice.
+                End *adjacentEnd = end_getPositiveOrientation(cap_getEnd(cap_getAdjacency(cap)));
+                if (adjacentEnd != end && (end_isAttached(adjacentEnd) || end_isBlockEnd(adjacentEnd))) {
+                    assert(end_getGroup(end) != NULL);
+                    assert(group_isTangle(end_getGroup(end)));
+                    assert(end_getGroup(end) == end_getGroup(adjacentEnd));
+                    assert(stHash_search(endsToNodes, adjacentEnd) != NULL);
+                    stList_append(adjacencyEdges, getEdge(end, adjacentEnd, endsToNodes));
+                }
             }
         }
     }
@@ -347,7 +354,7 @@ static stList *getAdjacencyEdges(Flower *flower, stHash *endsToNodes) {
     stList_destruct(ends);
 
     /*
-     * Sort them in ascending order.
+     * Sort them.
      */
     stList_sort(adjacencyEdges, (int(*)(const void *, const void *)) stIntTuple_cmpFn);
 
@@ -355,19 +362,21 @@ static stList *getAdjacencyEdges(Flower *flower, stHash *endsToNodes) {
      * Iterate over the list, building weighted edges according to the number of duplicates.
      */
     stList *weightedAdjacencyEdges = stList_construct3(0, (void(*)(void *)) stIntTuple_destruct);
-
     int32_t weight = 0;
     stIntTuple *edge = NULL;
     while (stList_length(adjacencyEdges) > 0) {
         stIntTuple *edge2 = stList_pop(adjacencyEdges);
         if (edge != NULL && stIntTuple_cmpFn(edge, edge2) == 0) {
             weight++;
+            stIntTuple_destruct(edge2);
         } else {
             if (edge != NULL) {
+                assert(weight >= 1);
                 stList_append(
                         weightedAdjacencyEdges,
                         stIntTuple_construct(3, stIntTuple_getPosition(edge, 0), stIntTuple_getPosition(edge, 1),
                                 weight));
+                stIntTuple_destruct(edge);
             }
             edge = edge2;
             weight = 1;
@@ -377,9 +386,11 @@ static stList *getAdjacencyEdges(Flower *flower, stHash *endsToNodes) {
         assert(weight >= 1);
         stList_append(weightedAdjacencyEdges,
                 stIntTuple_construct(3, stIntTuple_getPosition(edge, 0), stIntTuple_getPosition(edge, 1), weight));
+        stIntTuple_destruct(edge);
     }
+    stList_destruct(adjacencyEdges);
 
-    return adjacencyEdges;
+    return weightedAdjacencyEdges;
 }
 
 ////////////////////////////////////
@@ -592,8 +603,8 @@ void buildReferenceTopDown(Flower *flower, const char *referenceEventHeader,
     stList *adjacencyEdges = getAdjacencyEdges(flower, endsToNodes);
     makeEdgesAClique(adjacencyEdges, nodeNumber, 0);
 
-    st_logDebug("Going to build a reference matching for the flower %lli with %i nodes, %i adjacencies, %i stub edges and %i chain edges, %i attached stubs, %i free stubs and %i block ends,  %i ends total and %i chains\n",
-            flower_getName(flower), nodeNumber, stList_length(adjacencyEdges), stList_length(stubEdges),
+    st_logDebug("Going to build a reference matching for the flower %lli with %i nodes, %i adjacencies with cardinality %i and weight %i,  %i stub edges and %i chain edges, %i attached stubs, %i free stubs and %i block ends,  %i ends total and %i chains\n",
+            flower_getName(flower), nodeNumber, stList_length(adjacencyEdges), matchingCardinality(adjacencyEdges), matchingWeight(adjacencyEdges), stList_length(stubEdges),
             stList_length(chainEdges), flower_getAttachedStubEndNumber(flower), flower_getFreeStubEndNumber(flower), flower_getBlockEndNumber(flower), flower_getEndNumber(flower), flower_getChainNumber(flower));
 
     /*
@@ -612,14 +623,6 @@ void buildReferenceTopDown(Flower *flower, const char *referenceEventHeader,
      * Ensure the newly created ends have a group.
      */
     assignGroups(newEnds, flower, referenceEvent);
-
-    /*
-     * Ensure any new chains that have been created are sorted out..
-     */
-
-    /*
-     * Now re-normalise (do join links that might have been created).
-     */
 
     /*
      * Cleanup

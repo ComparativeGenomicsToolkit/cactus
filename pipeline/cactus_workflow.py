@@ -477,7 +477,7 @@ class CactusReferencePhase(Target):
     def run(self):
         logger.info("Starting the reference phase")
         if self.options.buildReference:
-            self.addChildTarget(CactusReferenceDown(self.options, [ self.flowerName ]))
+            self.addChildTarget(CactusReferenceDown(self.options, None, [ self.flowerName ]))
             self.setFollowOnTarget(CactusSetReferenceCoordinates(self.flowerName, self.options))
         else:
             self.setFollowOnTarget(CactusFacesPhase(self.flowerName, self.options))
@@ -487,6 +487,7 @@ class CactusReferenceDown(Target):
     """
     def __init__(self, options, extras, flowerNames):
         Target.__init__(self, time=2.0)
+        assert extras == None #We currently don't use this argument
         self.options = options
         self.flowerNames = flowerNames
     

@@ -1,5 +1,6 @@
 #include "cactus.h"
 #include "sonLib.h"
+#include "cactusMatchingAlgorithms.h"
 
 ////////////////////////////////////
 ////////////////////////////////////
@@ -953,6 +954,7 @@ static void addEdgeToSet(stSortedSet *edges, int32_t node1, int32_t node2) {
         return;
     }
     assert(!edgeInSet(edges, node1, node2));
+    assert(!edgeInSet(edges, node2, node1));
     stIntTuple *edge = stIntTuple_construct(2, node1, node2);
     stSortedSet_insert(edges, edge);
     assert(edgeInSet(edges, node1, node2));
@@ -1077,6 +1079,7 @@ stList *getMatchingWithCyclicConstraints(uint32_t nodeNumber,
      * First calculate the optimal matching.
      */
     stList *chosenEdges = matchingAlgorithm(adjacencyEdges, nodeNumber);
+    st_logDebug("Chosen an initial matching with %i edges, %i cardinality and %i weight\n", stList_length(chosenEdges), matchingCardinality(chosenEdges), matchingWeight(chosenEdges));
     makeMatchingPerfect(chosenEdges, adjacencyEdges, nodeNumber);
 
     /*
@@ -1087,6 +1090,8 @@ stList *getMatchingWithCyclicConstraints(uint32_t nodeNumber,
     stList_destruct(chosenEdges);
     chosenEdges = updatedChosenEdges;
 
+    st_logDebug("After merging in chain only cycles the matching has %i edges, %i cardinality and %i weight\n", stList_length(chosenEdges), matchingCardinality(chosenEdges), matchingWeight(chosenEdges));
+
     /*
      * Split stub components.
      */
@@ -1095,6 +1100,10 @@ stList *getMatchingWithCyclicConstraints(uint32_t nodeNumber,
                 adjacencyEdges, stubEdges, chainEdges);
         stList_destruct(chosenEdges);
         chosenEdges = updatedChosenEdges;
+        st_logDebug("After making stub cycles disjoint the matching has %i edges, %i cardinality and %i weight\n", stList_length(chosenEdges), matchingCardinality(chosenEdges), matchingWeight(chosenEdges));
+    }
+    else {
+        st_logDebug("Not making stub cycles disjoint\n");
     }
 
     return chosenEdges;

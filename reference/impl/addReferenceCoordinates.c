@@ -281,7 +281,7 @@ void traverseCapsInSequenceOrderFrom3PrimeCap(Cap *cap, void *extraArg,
 ////////////////////////////////////
 ////////////////////////////////////
 
-static void addReferenceSequence(Cap *cap) {
+static void addReferenceSequence(Cap *cap, int32_t *index) {
     /*
      * Add a sequence for the given cap.
      */
@@ -309,9 +309,11 @@ static void addReferenceSequence(Cap *cap) {
      * Make the meta sequence.
      */
     Event *event = cap_getEvent(cap);
+    char *sequenceName = stString_print("%s_%i", event_getHeader(event), (*index)++);
     MetaSequence *metaSequence = metaSequence_construct(1, length, string,
-            event_getHeader(event), event_getName(event),
+            sequenceName, event_getName(event),
             flower_getCactusDisk(end_getFlower(cap_getEnd(cap))));
+    free(sequenceName);
 
     /*
      * Now fill in the actual sequence;
@@ -352,6 +354,7 @@ void addReferenceSequences(Flower *flower, Name referenceEventName) {
     flower_checkRecursive(flower);
 #endif
 
+    int32_t index = 0;
     assert(flower_getParentGroup(flower) == NULL);
     Flower_EndIterator *endIt = flower_getEndIterator(flower);
     End *end;
@@ -362,7 +365,7 @@ void addReferenceSequences(Flower *flower, Name referenceEventName) {
             if (cap_getSequence(cap) == NULL) {
                 st_logDebug("Adding the coordinates for cap %s\n",
                         cactusMisc_nameToStringStatic(cap_getName(cap)));
-                addReferenceSequence(cap);
+                addReferenceSequence(cap, &index);
             }
         }
     }

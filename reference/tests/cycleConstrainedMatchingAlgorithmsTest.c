@@ -22,8 +22,6 @@ stList *getComponents(stList *edges);
 
 stList *mergeSimpleCycles(stList *components, stList *adjacencyEdges);
 
-int32_t matchingWeight(stList *matching);
-
 stSortedSet *getNodeSetOfEdges(stList *edges);
 
 void checkInputs(uint32_t nodeNumber, stList *adjacencyEdges,
@@ -380,18 +378,6 @@ static void checkMatching(CuTest *testCase, stList *chosenEdges,
     }
     stSortedSet_destruct(stubEdgeSet);
     stList_destruct(components);
-}
-
-int32_t matchingCardinality(stList *matching) {
-    /*
-     * Returns number of edges with weight > 0.
-     */
-    int32_t totalCardinality = 0;
-    for (int32_t i = 0; i < stList_length(matching); i++) {
-        stIntTuple *edge = stList_get(matching, i);
-        totalCardinality += stIntTuple_getPosition(edge, 2) > 0 ? 1 : 0;
-    }
-    return totalCardinality;
 }
 
 static void testEmptyCase(CuTest *testCase) {

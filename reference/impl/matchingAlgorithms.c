@@ -16,6 +16,34 @@
 #include "cactusReference.h"
 
 /*
+ * Functions to assess matching
+ */
+
+int32_t matchingCardinality(stList *matching) {
+    /*
+     * Returns number of edges with weight > 0.
+     */
+    int32_t totalCardinality = 0;
+    for (int32_t i = 0; i < stList_length(matching); i++) {
+        stIntTuple *edge = stList_get(matching, i);
+        totalCardinality += stIntTuple_getPosition(edge, 2) > 0 ? 1 : 0;
+    }
+    return totalCardinality;
+}
+
+int32_t matchingWeight(stList *matching) {
+    /*
+     * Returns sum of weights.
+     */
+    int32_t totalWeight = 0;
+    for(int32_t i=0; i<stList_length(matching); i++) {
+        stIntTuple *edge = stList_get(matching, i);
+        totalWeight += stIntTuple_getPosition(edge, 2);
+    }
+    return totalWeight;
+}
+
+/*
  * Code to talk to the blossom5 maximum weight perfect matching algorithm.
  */
 
