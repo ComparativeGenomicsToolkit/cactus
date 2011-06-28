@@ -21,7 +21,7 @@ static int32_t intersectionSize(stSortedSet *set, stList *list) {
     return count;
 }
 
-static stList *filter2(stList *list, bool (*fn)(void *)) {
+static stList *filter2(stList *list, bool(*fn)(void *)) {
     /*
      * Returns a new list, either containing the intersection with set if include is non-zero,
      * or containing the set difference if include is zero.
@@ -142,7 +142,7 @@ stIntTuple *getEdgeForNodes(int32_t node1, int32_t node2,
      * Searches for any edge present in nodesToAdjacencyEdges that links node and node2.
      */
     stList *edges = getEdgesForNode(node1, nodesToAdjacencyEdges);
-    if(edges == NULL) {
+    if (edges == NULL) {
         return NULL;
     }
     for (int32_t i = 0; i < stList_length(edges); i++) {
@@ -186,6 +186,30 @@ static stList *joinLists(stList *listOfLists) {
         stList_appendAll(joinedList, stList_get(listOfLists, i));
     }
     return joinedList;
+}
+
+static stIntTuple *getWeightedEdgeFromSetP(int32_t node1, int32_t node2,
+        stSortedSet *allAdjacencyEdges) {
+    stIntTuple *edge = stIntTuple_construct(3, node1, node2, 0);
+    stIntTuple *edge2 = stSortedSet_searchGreaterThanOrEqual(allAdjacencyEdges,
+            edge);
+    stIntTuple_destruct(edge);
+    return edge2 != NULL && stIntTuple_getPosition(edge2, 0) == node1
+            && stIntTuple_getPosition(edge2, 1) == node2 ? edge2 : NULL;
+}
+
+static stIntTuple *getWeightedEdgeFromSet(int32_t node1, int32_t node2,
+        stSortedSet *allAdjacencyEdges) {
+    /*
+     * Gets the edge in the set connecting node1 and node2. Returns NULL if doesn't exist.
+     */
+    assert(node1 != node2);
+    stIntTuple *edge1 =
+            getWeightedEdgeFromSetP(node1, node2, allAdjacencyEdges);
+    stIntTuple *edge2 =
+            getWeightedEdgeFromSetP(node2, node1, allAdjacencyEdges);
+    assert(edge1 == NULL || edge2 == NULL);
+    return edge1 != NULL ? edge1 : edge2;
 }
 
 ////////////////////////////////////
@@ -337,36 +361,28 @@ static AdjacencySwitch *adjacencySwitch_update(
     return adjacencySwitch;
 }
 
-static stList *getValidEdges(int32_t node, stHash *nodesToAdjacencyEdges,
-        stSortedSet *validEdges) {
-    /*
-     * Iterates through the edges for a node and returns those in the set of the valid edges.
-     */
-    stList *edges = getEdgesForNode(node, nodesToAdjacencyEdges);
-    return filterToInclude(edges, validEdges);
-}
-
 static AdjacencySwitch *getBest4EdgeAdjacencySwitchP(stIntTuple *oldEdge1,
-        int32_t node1, stHash *nodesToAdjacencyEdges,
-        stSortedSet *allCurrentEdgesSet, stSortedSet *bridgingAdjacencyEdges) {
+        int32_t node1, stSortedSet *allAdjacencyEdges,
+        stHash *nodesToAllCurrentEdges, stHash *nodesToBridgingAdjacencyEdges) {
     /*
      * Returns the best adjacency switch for the given node and edge that
      * contains 4 existing edges.
      */
     int32_t node4 = getOtherPosition(oldEdge1, node1);
     AdjacencySwitch *minimumCostAdjacencySwitch = NULL;
-    stList *validEdges = getValidEdges(node1, nodesToAdjacencyEdges,
-            bridgingAdjacencyEdges);
-    for (int32_t i = 0; i < stList_length(validEdges); i++) {
-        stIntTuple *newEdge1 = stList_get(validEdges, i);
-        int32_t node2 = getOtherPosition(newEdge1, node1);
-        stList *validEdges2 = getValidEdges(node2, nodesToAdjacencyEdges,
-                allCurrentEdgesSet);
-        for (int32_t j = 0; j < stList_length(validEdges2); j++) {
-            stIntTuple *oldEdge2 = stList_get(validEdges2, j);
+    stList *validEdges = getEdgesForNode(node1, nodesToBridgingAdjacencyEdges);
+    if (validEdges != NULL) {
+        for (int32_t i = 0; i < stList_length(validEdges); i++) {
+            stIntTuple *newEdge1 = stList_get(validEdges, i);
+            int32_t node2 = getOtherPosition(newEdge1, node1);
+            stList *validEdges2 =
+                    getEdgesForNode(node2, nodesToAllCurrentEdges);
+            assert(validEdges2 != NULL);
+            assert(stList_length(validEdges2) == 1);
+            stIntTuple *oldEdge2 = stList_peek(validEdges2);
             int32_t node3 = getOtherPosition(oldEdge2, node2);
-            stIntTuple *newEdge2 = getEdgeForNodes(node3, node4,
-                    nodesToAdjacencyEdges);
+            stIntTuple *newEdge2 = getWeightedEdgeFromSet(node3, node4,
+                    allAdjacencyEdges);
             assert(newEdge2 != NULL);
             int32_t cost = stIntTuple_getPosition(oldEdge1, 2)
                     + stIntTuple_getPosition(oldEdge2, 2)
@@ -376,10 +392,7 @@ static AdjacencySwitch *getBest4EdgeAdjacencySwitchP(stIntTuple *oldEdge1,
                     minimumCostAdjacencySwitch, oldEdge1, oldEdge2, newEdge1,
                     newEdge2, cost);
         }
-        stList_destruct(validEdges2);
     }
-    stList_destruct(validEdges);
-    assert(minimumCostAdjacencySwitch != NULL);
     return minimumCostAdjacencySwitch;
 }
 
@@ -405,18 +418,18 @@ static AdjacencySwitch *getMinimumCostAdjacencySwitch(
 }
 
 static AdjacencySwitch *getBest4EdgeAdjacencySwitch2(stIntTuple *oldEdge1,
-        stHash *nodesToAdjacencyEdges, stSortedSet *allCurrentEdgesSet,
-        stSortedSet *bridgingAdjacencyEdges) {
+        stSortedSet *allAdjacencyEdges, stHash *nodesToAllCurrentEdgesSet,
+        stHash *nodesToBridgingAdjacencyEdges) {
     /*
      * Returns the best 3 or 4 edge switch (one including 3 or 4 edges) for the given existing edge, if they exist, or else NULL.
      */
     return getMinimumCostAdjacencySwitch(
             getBest4EdgeAdjacencySwitchP(oldEdge1,
-                    stIntTuple_getPosition(oldEdge1, 0), nodesToAdjacencyEdges,
-                    allCurrentEdgesSet, bridgingAdjacencyEdges),
+                    stIntTuple_getPosition(oldEdge1, 0), allAdjacencyEdges,
+                    nodesToAllCurrentEdgesSet, nodesToBridgingAdjacencyEdges),
             getBest4EdgeAdjacencySwitchP(oldEdge1,
-                    stIntTuple_getPosition(oldEdge1, 1), nodesToAdjacencyEdges,
-                    allCurrentEdgesSet, bridgingAdjacencyEdges));
+                    stIntTuple_getPosition(oldEdge1, 1), allAdjacencyEdges,
+                    nodesToAllCurrentEdgesSet, nodesToBridgingAdjacencyEdges));
 }
 
 static void getNodeSetOfEdgesP(stSortedSet *nodes, int32_t node) {
@@ -462,13 +475,13 @@ void addNodeToSet(stSortedSet *nodes, int32_t node) {
     stSortedSet_insert(nodes, i);
 }
 
-static stSortedSet *getEdgesThatBridgeComponents(stList *components,
-        stHash *nodesToAdjacencyEdges) {
+static stList *getEdgesThatBridgeComponents(stList *components,
+        stHash *nodesToNonZeroWeightedAdjacencyEdges) {
     /*
      * Get set of adjacency edges that bridge between (have a node in two) components.
      */
 
-    stSortedSet *bridgingAdjacencyEdges = stSortedSet_construct();
+    stList *bridgingAdjacencyEdges = stList_construct();
 
     for (int32_t i = 0; i < stList_length(components); i++) {
         stSortedSet *componentNodes = getNodeSetOfEdges(
@@ -476,24 +489,27 @@ static stSortedSet *getEdgesThatBridgeComponents(stList *components,
         stSortedSetIterator *it = stSortedSet_getIterator(componentNodes);
         stIntTuple *node;
         while ((node = stSortedSet_getNext(it)) != NULL) {
-            stList *edges = stHash_search(nodesToAdjacencyEdges, node);
-            assert(edges != NULL);
-            for (int32_t j = 0; j < stList_length(edges); j++) {
-                stIntTuple *edge = stList_get(edges, j);
-                stIntTuple *node1 = stIntTuple_construct(1,
-                        stIntTuple_getPosition(edge, 0));
-                stIntTuple *node2 = stIntTuple_construct(1,
-                        stIntTuple_getPosition(edge, 1));
-                assert(
-                        stSortedSet_search(componentNodes, node1) != NULL
-                                || stSortedSet_search(componentNodes, node2)
-                                        != NULL);
-                if (stSortedSet_search(componentNodes, node1) == NULL
-                        || stSortedSet_search(componentNodes, node2) == NULL) {
-                    stSortedSet_insert(bridgingAdjacencyEdges, edge);
+            stList *edges = stHash_search(nodesToNonZeroWeightedAdjacencyEdges,
+                    node);
+            if (edges != NULL) {
+                for (int32_t j = 0; j < stList_length(edges); j++) {
+                    stIntTuple *edge = stList_get(edges, j);
+                    stIntTuple *node1 = stIntTuple_construct(1,
+                            stIntTuple_getPosition(edge, 0));
+                    stIntTuple *node2 = stIntTuple_construct(1,
+                            stIntTuple_getPosition(edge, 1));
+                    assert(
+                            stSortedSet_search(componentNodes, node1) != NULL
+                                    || stSortedSet_search(componentNodes, node2)
+                                            != NULL);
+                    if (stSortedSet_search(componentNodes, node1) == NULL
+                            || stSortedSet_search(componentNodes, node2)
+                                    == NULL) {
+                        stList_append(bridgingAdjacencyEdges, edge);
+                    }
+                    stIntTuple_destruct(node1);
+                    stIntTuple_destruct(node2);
                 }
-                stIntTuple_destruct(node1);
-                stIntTuple_destruct(node2);
             }
         }
         stSortedSet_destructIterator(it);
@@ -503,38 +519,123 @@ static stSortedSet *getEdgesThatBridgeComponents(stList *components,
     return bridgingAdjacencyEdges;
 }
 
+stIntTuple *getLowestScoringEdge(stList *edges) {
+    /*
+     * Returns edge with lowest weight.
+     */
+    assert(stList_length(edges) > 0);
+    stIntTuple *lowestScoringEdge = stList_get(edges, 0);
+    int32_t lowestScore = stIntTuple_getPosition(lowestScoringEdge, 2);
+    for (int32_t j = 1; j < stList_length(edges); j++) {
+        stIntTuple *edge = stList_get(edges, j);
+        int32_t k = stIntTuple_getPosition(edge, 2);
+        if (k < lowestScore) {
+            lowestScore = k;
+            lowestScoringEdge = edge;
+        }
+    }
+    return lowestScoringEdge;
+}
+
+static int getBest2EdgeAdjacencySwitchP(const void *o, const void *o2) {
+    int32_t i = stIntTuple_getPosition((void *) o, 2);
+    int32_t j = stIntTuple_getPosition((void *) o2, 2);
+    return i > j ? 1 : (i < j ? -1 : 0);
+}
+
+static AdjacencySwitch *getBest2EdgeAdjacencySwitch(stList *components,
+        stSortedSet *allAdjacencyEdges) {
+    /*
+     * Look for the two lowest value adjacency edges in all current edges that are in a separate component and returns them as an adjacency switch
+     * with now new adjacency edges.
+     */
+
+    /*
+     * Get lowest scoring edge for each component.
+     */
+    stList *lowestScoringEdgeFromEachComponent = stList_construct();
+    for (int32_t i = 0; i < stList_length(components); i++) {
+        stList_append(lowestScoringEdgeFromEachComponent,
+                getLowestScoringEdge(stList_get(components, i)));
+    }
+
+    /*
+     * Get two lowest scoring edges.
+     */
+    stList_sort(lowestScoringEdgeFromEachComponent,
+            getBest2EdgeAdjacencySwitchP);
+    stIntTuple *lowestScoreEdge1 = stList_get(
+            lowestScoringEdgeFromEachComponent, 0);
+    stIntTuple *lowestScoreEdge2 = stList_get(
+            lowestScoringEdgeFromEachComponent, 1);
+    assert(lowestScoreEdge1 != lowestScoreEdge2);
+
+    stList_destruct(lowestScoringEdgeFromEachComponent); //Cleanup
+
+    stIntTuple *newEdge1 = getWeightedEdgeFromSet(
+            stIntTuple_getPosition(lowestScoreEdge1, 0),
+            stIntTuple_getPosition(lowestScoreEdge2, 0), allAdjacencyEdges);
+    stIntTuple *newEdge2 = getWeightedEdgeFromSet(
+            stIntTuple_getPosition(lowestScoreEdge1, 1),
+            stIntTuple_getPosition(lowestScoreEdge2, 1), allAdjacencyEdges);
+    if (newEdge1 == NULL) {
+        assert(newEdge2 == NULL);
+        newEdge1 = getWeightedEdgeFromSet(
+                stIntTuple_getPosition(lowestScoreEdge1, 0),
+                stIntTuple_getPosition(lowestScoreEdge2, 1), allAdjacencyEdges);
+        newEdge2 = getWeightedEdgeFromSet(
+                stIntTuple_getPosition(lowestScoreEdge1, 1),
+                stIntTuple_getPosition(lowestScoreEdge2, 0), allAdjacencyEdges);
+    }
+    assert(newEdge1 != NULL);
+    assert(newEdge2 != NULL);
+
+    return adjacencySwitch_construct(
+            lowestScoreEdge1,
+            lowestScoreEdge2,
+            newEdge1,
+            newEdge2,
+            stIntTuple_getPosition(lowestScoreEdge1, 2)
+                    + stIntTuple_getPosition(lowestScoreEdge2, 2));
+}
+
 static AdjacencySwitch *getBestAdjacencySwitch(stList *cycles,
-        stHash *nodesToAdjacencyEdges) {
+        stList *nonZeroWeightAdjacencyEdges, stSortedSet *allAdjacencyEdges) {
     /*
      * Returns the best 3 or 4 edge switch (one including 3 or 4 edges) for the given existing edge, if they exist, or else NULL.
      */
     assert(stList_length(cycles) > 0);
 
+    stHash *nodesToNonZeroWeightedAdjacencyEdges = getNodesToEdgesHash(
+            nonZeroWeightAdjacencyEdges);
+
     stList *allComponentEdges = joinLists(cycles);
     assert(stList_length(allComponentEdges) > 0);
-    stSortedSet *allComponentEdgesSet = stList_getSortedSet(allComponentEdges,
-            NULL);
-    assert(
-            stList_length(allComponentEdges) == stSortedSet_size(
-                    allComponentEdgesSet));
+    stHash *nodesToAllCurrentEdgesSet = getNodesToEdgesHash(allComponentEdges);
 
     /*
      * Get list of adjacency edges that bridge between (have a node in two) components.
      */
-    stSortedSet *bridgingAdjacencyEdges = getEdgesThatBridgeComponents(cycles,
-            nodesToAdjacencyEdges);
-    assert(stList_length(allComponentEdges) > 0);
+    stList *bridgingAdjacencyEdges = getEdgesThatBridgeComponents(cycles,
+            nodesToNonZeroWeightedAdjacencyEdges);
+    stHash *nodesToBridgingAdjacencyEdges = getNodesToEdgesHash(
+            bridgingAdjacencyEdges);
+
+    /*
+     * For the best 2 edge switch.
+     */
+    AdjacencySwitch *minimumCostAdjacencySwitch = getBest2EdgeAdjacencySwitch(
+            cycles, allAdjacencyEdges);
 
     /*
      * Look for the best 3 or 4 edge switch.
      */
-    AdjacencySwitch *minimumCostAdjacencySwitch = NULL;
     for (int32_t i = 0; i < stList_length(allComponentEdges); i++) {
         minimumCostAdjacencySwitch = getMinimumCostAdjacencySwitch(
                 minimumCostAdjacencySwitch,
                 getBest4EdgeAdjacencySwitch2(stList_get(allComponentEdges, i),
-                        nodesToAdjacencyEdges, allComponentEdgesSet,
-                        bridgingAdjacencyEdges));
+                        allAdjacencyEdges, nodesToAllCurrentEdgesSet,
+                        nodesToBridgingAdjacencyEdges));
     }
     assert(minimumCostAdjacencySwitch != NULL);
 
@@ -542,8 +643,10 @@ static AdjacencySwitch *getBestAdjacencySwitch(stList *cycles,
      * Cleanup
      */
     stList_destruct(allComponentEdges);
-    stSortedSet_destruct(allComponentEdgesSet);
-    stSortedSet_destruct(bridgingAdjacencyEdges);
+    stList_destruct(bridgingAdjacencyEdges);
+    stHash_destruct(nodesToAllCurrentEdgesSet);
+    stHash_destruct(nodesToBridgingAdjacencyEdges);
+    stHash_destruct(nodesToNonZeroWeightedAdjacencyEdges);
 
     return minimumCostAdjacencySwitch;
 }
@@ -555,7 +658,7 @@ static AdjacencySwitch *getBestAdjacencySwitch(stList *cycles,
 ////////////////////////////////////
 
 static void doBestMergeOfTwoSimpleCycles(stList *cycles,
-        stHash *nodesToAdjacencyEdges, stList *adjacencyEdges) {
+        stList *nonZeroWeightAdjacencyEdges, stSortedSet *allAdjacencyEdges) {
     /*
      * Merge two simple cycles, using the best possible adjacency switch. Modifies components list in place,
      * destroying two old components and adding a new one. If new adjacency edges are needed then they are
@@ -567,7 +670,7 @@ static void doBestMergeOfTwoSimpleCycles(stList *cycles,
      * Get the best adjacency switch.
      */
     AdjacencySwitch *adjacencySwitch = getBestAdjacencySwitch(cycles,
-            nodesToAdjacencyEdges);
+            nonZeroWeightAdjacencyEdges, allAdjacencyEdges);
     assert(adjacencySwitch != NULL);
 
     /*
@@ -609,9 +712,11 @@ static void doBestMergeOfTwoSimpleCycles(stList *cycles,
     adjacencySwitch_destruct(adjacencySwitch); //Clean the adjacency switch.
     //Finally add the component to the list of components
     stList_append(cycles, newComponent);
+
 }
 
-stList *mergeSimpleCycles(stList *cycles, stList *adjacencyEdges) {
+stList *mergeSimpleCycles(stList *cycles, stList *nonZeroWeightAdjacencyEdges,
+        stSortedSet *allAdjacencyEdges) {
     /*
      * Takes a set of simple cycles (containing only the adjacency edges).
      * Returns a single simple cycle, as a list of edges, by doing length(components)-1
@@ -621,7 +726,6 @@ stList *mergeSimpleCycles(stList *cycles, stList *adjacencyEdges) {
     /*
      * Build a hash of nodes to adjacency edges.
      */
-    stHash *nodesToAdjacencyEdges = getNodesToEdgesHash(adjacencyEdges);
 
     cycles = stList_copy(cycles, NULL);
     for (int32_t i = 0; i < stList_length(cycles); i++) { //Clone the complete list
@@ -630,17 +734,17 @@ stList *mergeSimpleCycles(stList *cycles, stList *adjacencyEdges) {
         stList_set(cycles, i, stList_copy(stList_get(cycles, i), NULL));
     }
     while (stList_length(cycles) > 1) {
-        doBestMergeOfTwoSimpleCycles(cycles, nodesToAdjacencyEdges,
-                adjacencyEdges);
+        doBestMergeOfTwoSimpleCycles(cycles, nonZeroWeightAdjacencyEdges,
+                allAdjacencyEdges);
     }
     assert(stList_length(cycles) == 1);
     stList *mergedComponent = stList_get(cycles, 0);
     stList_destruct(cycles);
-    stHash_destruct(nodesToAdjacencyEdges);
     return mergedComponent;
 }
 
-static stList *mergeSimpleCycles2(stList *chosenEdges, stList *adjacencyEdges,
+static stList *mergeSimpleCycles2(stList *chosenEdges,
+        stList *nonZeroWeightAdjacencyEdges, stSortedSet *allAdjacencyEdges,
         stList *stubEdges, stList *chainEdges) {
     /*
      * Returns a new set of chosen edges, modified by adjacency switches such that every simple cycle
@@ -691,7 +795,7 @@ static stList *mergeSimpleCycles2(stList *chosenEdges, stList *adjacencyEdges,
      * Merge stub free components into the others.
      */
     stList *updatedChosenEdges = mergeSimpleCycles(adjacencyOnlyComponents,
-            adjacencyEdges);
+            nonZeroWeightAdjacencyEdges, allAdjacencyEdges);
     stList_destruct(adjacencyOnlyComponents);
 
     return updatedChosenEdges;
@@ -764,6 +868,22 @@ static stList *getOddToEvenAdjacencyEdges(stSortedSet *oddNodes,
     return oddToEvenAdjacencyEdges;
 }
 
+static stSortedSet *getOddToEvenAdjacencyEdges2(stSortedSet *oddNodes,
+        stSortedSet *adjacencyEdges) {
+    /*
+     * Like getOddToEvenAdjacencyEdges, but with a set instead.
+     */
+    stList *adjacencyEdgesList = stSortedSet_getList(adjacencyEdges);
+    stList *oddToEvenAdjacencyEdgesList = getOddToEvenAdjacencyEdges(oddNodes,
+            adjacencyEdgesList);
+    stSortedSet *oddToEvenAdjacencyEdges = stList_getSortedSet(
+            oddToEvenAdjacencyEdgesList,
+            (int(*)(const void *, const void *)) stIntTuple_cmpFn);
+    stList_destruct(adjacencyEdgesList);
+    stList_destruct(oddToEvenAdjacencyEdgesList);
+    return oddToEvenAdjacencyEdges;
+}
+
 static void splitIntoAdjacenciesStubsAndChains(stList *subCycle,
         stList *adjacencyEdges, stList *stubEdges, stList *chainEdges,
         stList **subAdjacencyEdges, stList **subStubEdges,
@@ -793,7 +913,8 @@ static void splitIntoAdjacenciesStubsAndChains(stList *subCycle,
     stSortedSet_destruct(nodes);
 }
 
-static stList *splitMultipleStubCycle(stList *cycle, stList *adjacencyEdges,
+static stList *splitMultipleStubCycle(stList *cycle,
+        stList *nonZeroWeightAdjacencyEdges, stSortedSet *allAdjacencyEdges,
         stList *stubEdges, stList *chainEdges) {
     /*
      *  Takes a simple cycle containing k stub edges and splits into k cycles, each containing 1 stub edge.
@@ -822,17 +943,17 @@ static stList *splitMultipleStubCycle(stList *cycle, stList *adjacencyEdges,
          * Build the list of adjacency edges acceptable in the merge
          */
         stSortedSet *oddNodes = getOddNodes(cycle);
-        stList *oddToEvenAdjacencyEdges = getOddToEvenAdjacencyEdges(oddNodes,
-                adjacencyEdges);
-        stHash *nodesToOddToEvenAdjacencyEdges = getNodesToEdgesHash(
-                oddToEvenAdjacencyEdges);
+        stList *oddToEvenNonZeroWeightAdjacencyEdges =
+                getOddToEvenAdjacencyEdges(oddNodes,
+                        nonZeroWeightAdjacencyEdges);
+        stSortedSet *oddToEvenAllAdjacencyEdges = getOddToEvenAdjacencyEdges2(oddNodes, allAdjacencyEdges);
 
         /*
          * Merge together the best two components.
          */
         stList *l = filterListsToExclude(stubFreePaths, stubAndChainEdgesSet);
-        doBestMergeOfTwoSimpleCycles(l, nodesToOddToEvenAdjacencyEdges,
-                oddToEvenAdjacencyEdges); //This is inplace.
+        doBestMergeOfTwoSimpleCycles(l, oddToEvenNonZeroWeightAdjacencyEdges,
+                oddToEvenAllAdjacencyEdges); //This is inplace.
         stList *l2 = joinLists(l);
         stList_destruct(l);
         l = getComponents2(l2, stubEdges, chainEdges);
@@ -843,8 +964,8 @@ static stList *splitMultipleStubCycle(stList *cycle, stList *adjacencyEdges,
          * Cleanup
          */
         stSortedSet_destruct(oddNodes);
-        stHash_destruct(nodesToOddToEvenAdjacencyEdges);
-        stList_destruct(oddToEvenAdjacencyEdges);
+        stList_destruct(oddToEvenNonZeroWeightAdjacencyEdges);
+        stSortedSet_destruct(oddToEvenAllAdjacencyEdges);
 
         /*
          * Call procedure recursively.
@@ -857,15 +978,15 @@ static stList *splitMultipleStubCycle(stList *cycle, stList *adjacencyEdges,
             stList *subAdjacencyEdges;
             stList *subStubEdges;
             stList *subChainEdges;
-            splitIntoAdjacenciesStubsAndChains(subCycle, adjacencyEdges,
-                    stubEdges, chainEdges, &subAdjacencyEdges, &subStubEdges,
-                    &subChainEdges);
+            splitIntoAdjacenciesStubsAndChains(subCycle,
+                    nonZeroWeightAdjacencyEdges, stubEdges, chainEdges,
+                    &subAdjacencyEdges, &subStubEdges, &subChainEdges);
 
             /*
              * Call recursively.
              */
             l2 = splitMultipleStubCycle(subCycle, subAdjacencyEdges,
-                    subStubEdges, subChainEdges);
+                    allAdjacencyEdges, subStubEdges, subChainEdges);
             stList_appendAll(splitCycles, l2);
 
             /*
@@ -888,7 +1009,8 @@ static stList *splitMultipleStubCycle(stList *cycle, stList *adjacencyEdges,
     return splitCycles;
 }
 
-stList *splitMultipleStubCycles(stList *chosenEdges, stList *adjacencyEdges,
+stList *splitMultipleStubCycles(stList *chosenEdges,
+        stList *nonZeroWeightAdjacencyEdges, stSortedSet *allAdjacencyEdges,
         stList *stubEdges, stList *chainEdges) {
     /*
      *  Returns an updated list of adjacency edges, such that each stub edge is a member of exactly one cycle.
@@ -909,10 +1031,12 @@ stList *splitMultipleStubCycles(stList *chosenEdges, stList *adjacencyEdges,
         stList *subAdjacencyEdges;
         stList *subStubEdges;
         stList *subChainEdges;
-        splitIntoAdjacenciesStubsAndChains(subCycle, adjacencyEdges, stubEdges,
-                chainEdges, &subAdjacencyEdges, &subStubEdges, &subChainEdges);
+        splitIntoAdjacenciesStubsAndChains(subCycle,
+                nonZeroWeightAdjacencyEdges, stubEdges, chainEdges,
+                &subAdjacencyEdges, &subStubEdges, &subChainEdges);
         stList *splitCycles = splitMultipleStubCycle(subCycle,
-                subAdjacencyEdges, subStubEdges, subChainEdges);
+                subAdjacencyEdges, allAdjacencyEdges, subStubEdges,
+                subChainEdges);
         stList_appendAll(singleStubEdgeCycles, splitCycles);
         stList_setDestructor(splitCycles, NULL); //Do this to avoid destroying the underlying lists
         stList_destruct(splitCycles);
@@ -994,7 +1118,9 @@ static void checkEdges(stList *edges, int32_t nodeNumber, bool coversAllNodes,
         assert(stIntTuple_getPosition(edge, 0) < nodeNumber);
         assert(stIntTuple_getPosition(edge, 1) >= 0);
         assert(stIntTuple_getPosition(edge, 1) < nodeNumber);
-        assert(stIntTuple_getPosition(edge, 1) != stIntTuple_getPosition(edge, 0)); //No self edges!
+        assert(
+                stIntTuple_getPosition(edge, 1) != stIntTuple_getPosition(edge,
+                        0)); //No self edges!
         /*
          * Check is not a multi-graph.
          */
@@ -1062,7 +1188,7 @@ void checkInputs(uint32_t nodeNumber, stList *adjacencyEdges,
      * Checks the inputs to the algorithm are as expected.
      */
     assert(nodeNumber % 2 == 0);
-    if(nodeNumber > 0) {
+    if (nodeNumber > 0) {
         assert(stList_length(stubEdges) > 0);
     }
     assert(
@@ -1081,6 +1207,13 @@ bool hasGreaterThan0Weight(stIntTuple *edge) {
     return stIntTuple_getPosition(edge, 2) > 0;
 }
 
+stList *getEdgesWithGreaterThanZeroWeight(stList *adjacencyEdges) {
+    /*
+     * Gets all edges with weight greater than 0.
+     */
+    return filter2(adjacencyEdges, (bool(*)(void *)) hasGreaterThan0Weight);
+}
+
 stList *getMatchingWithCyclicConstraints(uint32_t nodeNumber,
         stList *adjacencyEdges, stList *stubEdges, stList *chainEdges,
         bool makeStubCyclesDisjoint,
@@ -1091,43 +1224,59 @@ stList *getMatchingWithCyclicConstraints(uint32_t nodeNumber,
     checkInputs(nodeNumber, adjacencyEdges, stubEdges, chainEdges);
     st_logDebug("Checked the inputs\n");
 
-    if(nodeNumber == 0) { //Some of the following functions assume there are at least 2 nodes.
+    if (nodeNumber == 0) { //Some of the following functions assume there are at least 2 nodes.
         return stList_construct();
     }
 
     /*
      * First calculate the optimal matching.
      */
-    stList *adjacencyEdgesWithout0WeightEdges = filter2(adjacencyEdges, (bool (*)(void *))hasGreaterThan0Weight);
-    stList *chosenEdges = matchingAlgorithm(adjacencyEdgesWithout0WeightEdges, nodeNumber);
-    st_logDebug("Chosen an initial matching with %i edges, %i cardinality and %i weight\n", stList_length(chosenEdges), matchingCardinality(chosenEdges), matchingWeight(chosenEdges));
+    stList *nonZeroWeightAdjacencyEdges = getEdgesWithGreaterThanZeroWeight(
+            adjacencyEdges);
+
+    stList *chosenEdges = matchingAlgorithm(nonZeroWeightAdjacencyEdges,
+            nodeNumber);
+    st_logDebug(
+            "Chosen an initial matching with %i edges, %i cardinality and %i weight\n",
+            stList_length(chosenEdges), matchingCardinality(chosenEdges),
+            matchingWeight(chosenEdges));
     makeMatchingPerfect(chosenEdges, adjacencyEdges, nodeNumber);
 
     /*
      * Merge in the stub free components.
      */
+    stSortedSet *allAdjacencyEdges = stList_getSortedSet(adjacencyEdges,
+            (int(*)(const void *, const void *)) stIntTuple_cmpFn);
     stList *updatedChosenEdges = mergeSimpleCycles2(chosenEdges,
-            adjacencyEdges, stubEdges, chainEdges);
+            nonZeroWeightAdjacencyEdges, allAdjacencyEdges, stubEdges,
+            chainEdges);
     stList_destruct(chosenEdges);
     chosenEdges = updatedChosenEdges;
 
-    st_logDebug("After merging in chain only cycles the matching has %i edges, %i cardinality and %i weight\n", stList_length(chosenEdges), matchingCardinality(chosenEdges), matchingWeight(chosenEdges));
+    st_logDebug(
+            "After merging in chain only cycles the matching has %i edges, %i cardinality and %i weight\n",
+            stList_length(chosenEdges), matchingCardinality(chosenEdges),
+            matchingWeight(chosenEdges));
 
     /*
      * Split stub components.
      */
     if (makeStubCyclesDisjoint) {
         updatedChosenEdges = splitMultipleStubCycles(chosenEdges,
-                adjacencyEdges, stubEdges, chainEdges);
+                nonZeroWeightAdjacencyEdges, allAdjacencyEdges, stubEdges,
+                chainEdges);
         stList_destruct(chosenEdges);
         chosenEdges = updatedChosenEdges;
-        st_logDebug("After making stub cycles disjoint the matching has %i edges, %i cardinality and %i weight\n", stList_length(chosenEdges), matchingCardinality(chosenEdges), matchingWeight(chosenEdges));
-    }
-    else {
+        st_logDebug(
+                "After making stub cycles disjoint the matching has %i edges, %i cardinality and %i weight\n",
+                stList_length(chosenEdges), matchingCardinality(chosenEdges),
+                matchingWeight(chosenEdges));
+    } else {
         st_logDebug("Not making stub cycles disjoint\n");
     }
 
-    stList_destruct(adjacencyEdgesWithout0WeightEdges);
+    stList_destruct(nonZeroWeightAdjacencyEdges);
+    stSortedSet_destruct(allAdjacencyEdges);
 
     return chosenEdges;
 }

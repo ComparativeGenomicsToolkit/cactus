@@ -17,13 +17,13 @@ ${libPath}/cactusReference.a : ${libSources} ${libHeaders} ${libPath}/cactusLib.
 	mv cactusReference.a ${libPath}/
 	cp ${libHeaders} ${libPath}/
 
-${binPath}/cactus_reference : cactus_reference.c  ${libPath}/cactusReference.a ${libPath}/cactusLib.a  ${basicLibsDependencies}
+${binPath}/cactus_reference : cactus_reference.c ${libSources} ${libHeaders} ${libPath}/cactusReference.a ${libPath}/cactusLib.a  ${basicLibsDependencies}
 	${cxx} ${cflags} -I inc -I${libPath} -o ${binPath}/cactus_reference cactus_reference.c ${libPath}/cactusReference.a ${libPath}/cactusLib.a ${basicLibs}
 
-${binPath}/cactus_addReferenceCoordinates : cactus_addReferenceCoordinates.c ${libPath}/cactusReference.a ${libSources} ${libPath}/cactusLib.a  ${basicLibsDependencies}
+${binPath}/cactus_addReferenceCoordinates : ${libSources} ${libHeaders} cactus_addReferenceCoordinates.c ${libPath}/cactusReference.a ${libSources} ${libPath}/cactusLib.a  ${basicLibsDependencies}
 	${cxx} ${cflags} -I inc -I${libPath} -o ${binPath}/cactus_addReferenceCoordinates cactus_addReferenceCoordinates.c ${libPath}/cactusReference.a ${libPath}/cactusLib.a ${basicLibs}
 
-${binPath}/referenceTests : ${libTests} ${libPath}/cactusReference.a ${libPath}/cactusLib.a ${basicLibsDependencies}
+${binPath}/referenceTests : ${libTests} ${libSources} ${libHeaders} ${libPath}/cactusReference.a ${libPath}/cactusLib.a ${basicLibsDependencies}
 	${cxx} ${cflags} -I inc -I${libPath} -o ${binPath}/referenceTests ${libTests} ${libPath}/cactusReference.a ${libPath}/cactusLib.a ${basicLibs}
 
 clean : 

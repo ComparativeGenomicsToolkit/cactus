@@ -20,7 +20,9 @@ stList *filterToInclude(stList *list, stSortedSet *set);
 
 stList *getComponents(stList *edges);
 
-stList *mergeSimpleCycles(stList *components, stList *adjacencyEdges);
+stList *getEdgesWithGreaterThanZeroWeight(stList *adjacencyEdges);
+
+stList *mergeSimpleCycles(stList *cycles, stList *nonZeroWeightAdjacencyEdges, stSortedSet *allAdjacencyEdges);
 
 stSortedSet *getNodeSetOfEdges(stList *edges);
 
@@ -324,8 +326,10 @@ static void testMergeSimpleCycles(CuTest *testCase) {
         }
 
         //Get merged simple cycles
+        stList *nonZeroWeightAdjacencyEdges = getEdgesWithGreaterThanZeroWeight(adjacencyEdges);
+        stSortedSet *allAdjacencyEdges = stList_getSortedSet(adjacencyEdges, (int (*)(const void *, const void *))stIntTuple_cmpFn);
         stList *simpleCycle = mergeSimpleCycles(adjacencyOnlySimpleCycles,
-                adjacencyEdges);
+                nonZeroWeightAdjacencyEdges, allAdjacencyEdges);
         stList_appendAll(simpleCycle, stubEdges);
         stList_appendAll(simpleCycle, chainEdges);
         testComponentIsNotDisjoint(testCase, simpleCycle);
@@ -338,6 +342,8 @@ static void testMergeSimpleCycles(CuTest *testCase) {
         stList_destruct(simpleCycle);
         stSortedSet_destruct(nodeSet);
         stList_destruct(allEdges);
+        stList_destruct(nonZeroWeightAdjacencyEdges);
+        stSortedSet_destruct(allAdjacencyEdges);
 
         teardown();
     }
