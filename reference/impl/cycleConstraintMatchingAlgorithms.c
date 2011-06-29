@@ -1,6 +1,7 @@
 #include "cactus.h"
 #include "sonLib.h"
 #include "cactusMatchingAlgorithms.h"
+#include "shared.h"
 
 ////////////////////////////////////
 ////////////////////////////////////
