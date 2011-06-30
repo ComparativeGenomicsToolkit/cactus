@@ -26,6 +26,8 @@ void usage() {
             "-e --matchingAlgorithm : Name of matching algorithm, either 'greedy', 'maxWeight', 'maxCardinality', 'blossom5'\n");
     fprintf(stderr,
                 "-g --referenceEventString : String identifying the reference event.\n");
+    fprintf(stderr,
+                    "-i --maxNumberOfChainsToSolvePerRound : Integer Max number of chains to solve per roun.\n");
 
     fprintf(stderr, "-h --help : Print this help screen\n");
 }
@@ -43,6 +45,7 @@ int main(int argc, char *argv[]) {
     int32_t j;
     stList *(*matchingAlgorithm)(stList *edges, int32_t nodeNumber) = chooseMatching_greedy;
     char *referenceEventString = (char *)cactusMisc_getDefaultReferenceEventHeader();
+    int32_t maxNumberOfChainsToSolvePerRound = 10;
 
     ///////////////////////////////////////////////////////////////////////////
     // (0) Parse the inputs handed by genomeCactus.py / setup stuff.
@@ -54,13 +57,14 @@ int main(int argc, char *argv[]) {
                 0, 'c' },
                 { "matchingAlgorithm", required_argument, 0, 'e' },
                 { "referenceEventString", required_argument, 0, 'g' },
+                { "maxNumberOfChainsToSolvePerRound", required_argument, 0, 'i' },
                 { "help",
                 no_argument, 0, 'h' }, { 0, 0, 0, 0 } };
 
         int option_index = 0;
 
         int key =
-                getopt_long(argc, argv, "a:c:e:g:h", long_options, &option_index);
+                getopt_long(argc, argv, "a:c:e:g:i:h", long_options, &option_index);
 
         if (key == -1) {
             break;
@@ -96,6 +100,13 @@ int main(int argc, char *argv[]) {
             case 'h':
                 usage();
                 return 0;
+            case 'i':
+                j = sscanf(optarg, "%i", &maxNumberOfChainsToSolvePerRound);
+                assert(j == 1);
+                if(maxNumberOfChainsToSolvePerRound <= 0) {
+                    stThrowNew(REFERENCE_BUILDING_EXCEPTION, "Max number of chains to solve per round is not valid %i", maxNumberOfChainsToSolvePerRound);
+                }
+                break;
             default:
                 usage();
                 return 1;
@@ -133,13 +144,13 @@ int main(int argc, char *argv[]) {
         assert(flower != NULL);
         st_logInfo("Parsed the flower in which to build a reference\n");
         if(!flower_hasParentGroup(flower)) {
-            buildReferenceTopDown(flower, referenceEventString, matchingAlgorithm);
+            buildReferenceTopDown(flower, referenceEventString, maxNumberOfChainsToSolvePerRound, matchingAlgorithm);
         }
         Flower_GroupIterator *groupIt = flower_getGroupIterator(flower);
         Group *group;
         while((group = flower_getNextGroup(groupIt)) != NULL) {
             if(group_getNestedFlower(group) != NULL) {
-                buildReferenceTopDown(group_getNestedFlower(group), referenceEventString, matchingAlgorithm);
+                buildReferenceTopDown(group_getNestedFlower(group), referenceEventString, maxNumberOfChainsToSolvePerRound, matchingAlgorithm);
             }
         }
         flower_destructGroupIterator(groupIt);

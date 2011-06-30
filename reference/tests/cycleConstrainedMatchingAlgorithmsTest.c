@@ -26,7 +26,7 @@ stList *mergeSimpleCycles(stList *cycles, stList *nonZeroWeightAdjacencyEdges, s
 
 stSortedSet *getNodeSetOfEdges(stList *edges);
 
-void checkInputs(uint32_t nodeNumber, stList *adjacencyEdges,
+void checkInputs(stSortedSet *nodes, stList *adjacencyEdges,
         stList *stubEdges, stList *chainEdges);
 
 stList *getStubAndChainEdgeFreeComponents(stList *listOfLists, stList *list1,
@@ -44,6 +44,7 @@ static int32_t nodeNumber = 0;
 static stList *adjacencyEdges = NULL;
 static stList *stubEdges = NULL;
 static stList *chainEdges = NULL;
+static stSortedSet *nodes = NULL;
 
 static void teardown() {
     //Gets rid of the random flower.
@@ -51,10 +52,12 @@ static void teardown() {
         stList_destruct(adjacencyEdges);
         stList_destruct(stubEdges);
         stList_destruct(chainEdges);
+        stSortedSet_destruct(nodes);
         adjacencyEdges = NULL;
         stubEdges = NULL;
         chainEdges = NULL;
         nodeNumber = 0;
+        nodes = NULL;
     }
 }
 
@@ -125,6 +128,10 @@ static void setup(int32_t maxNodeNumber) {
     do {
         nodeNumber = st_randomInt(0, maxNodeNumber) + 2;
     } while (nodeNumber % 2 != 0);
+    nodes = stSortedSet_construct3((int (*)(const void *, const void *))stIntTuple_cmpFn, (void (*)(void *))stIntTuple_destruct);
+    for(int32_t i=0; i<nodeNumber; i++) {
+        stSortedSet_insert(nodes, stIntTuple_construct(1, i));
+    }
     stubEdges = stList_construct3(0, (void(*)(void *)) stIntTuple_destruct);
     chainEdges = stList_construct3(0, (void(*)(void *)) stIntTuple_destruct);
     //Add first stub edge
@@ -148,7 +155,7 @@ static void setup(int32_t maxNodeNumber) {
         }
     }
     //Check the inputs.
-    checkInputs(nodeNumber, adjacencyEdges, stubEdges, chainEdges);
+    checkInputs(nodes, adjacencyEdges, stubEdges, chainEdges);
     st_logInfo(
             "We've created a random graph with %i nodes, %i stub edges, %i chain edges, %i adjacency edges",
             nodeNumber, stList_length(stubEdges), stList_length(chainEdges),
@@ -391,7 +398,8 @@ static void testEmptyCase(CuTest *testCase) {
      * First test the empty case..
      */
     stList *list = stList_construct();
-    getMatchingWithCyclicConstraints(nodeNumber,
+    stSortedSet *set = stSortedSet_construct();
+    getMatchingWithCyclicConstraints(set,
                     list, list, list, 1,
                     chooseMatching_greedy);
     stList_destruct(list);
@@ -409,7 +417,7 @@ static void testGetMatchingWithCyclicConstraints(CuTest *testCase,
         stList *matching = matchingAlgorithm(adjacencyEdges, nodeNumber);
         stList *greedyMatching = chooseMatching_greedy(adjacencyEdges,
                 nodeNumber);
-        stList *cyclicMatching = getMatchingWithCyclicConstraints(nodeNumber,
+        stList *cyclicMatching = getMatchingWithCyclicConstraints(nodes,
                 adjacencyEdges, stubEdges, chainEdges, makeStubsDisjoint,
                 matchingAlgorithm); //Do this last, as may add to adjacencies.
         checkMatching(testCase, cyclicMatching, makeStubsDisjoint);
@@ -427,7 +435,7 @@ static void testGetMatchingWithCyclicConstraints(CuTest *testCase,
                 totalCyclicMatchingWeight, totalMatchingWeight,
                 totalGreedyWeight);
         st_logInfo(
-                "The total Cardinality of the cyclic matching is %i, the total Cardinality of the standard matching is %i, the total greedy Cardinality is %i\n",
+                "The total cardinality of the cyclic matching is %i, the total Cardinality of the standard matching is %i, the total greedy Cardinality is %i\n",
                 totalCyclicMatchingCardinality, totalMatchingCardinality,
                 totalGreedyCardinality);
 

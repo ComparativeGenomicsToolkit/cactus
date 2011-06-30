@@ -44,7 +44,7 @@
  * The return is the matching, as a list of node pairs, of the same form as the stub end adjacency edges.
  * The list of adjacency edges may be added to with new 'pseudo' adjacency edges, if necessary.
  */
-stList *getMatchingWithCyclicConstraints(uint32_t nodeNumber,
+stList *getMatchingWithCyclicConstraints(stSortedSet *nodes,
         stList *adjacencyEdges, stList *stubEdges, stList *chainEdges,
         bool makeStubCyclesDisjoint,
         stList *(*matchingAlgorithm)(stList *edges, int32_t nodeNumber));

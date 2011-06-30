@@ -25,6 +25,7 @@ extern const char *REFERENCE_BUILDING_EXCEPTION;
  * Construct a reference for the flower, top down.
  */
 void buildReferenceTopDown(Flower *flower, const char *referenceEventHeader,
+        int32_t maxNumberOfChainsToSolvePerRound,
         stList *(*matchingAlgorithm)(stList *edges, int32_t nodeNumber));
 
 /*

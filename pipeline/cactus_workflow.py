@@ -93,6 +93,13 @@ def inverseJukesCantor(d):
     assert d >= 0.0
     return 0.75 * (1 - math.exp(-d * 4.0/3.0))
 
+def getOptionalAttrib(node, attribName, default=None):
+    """Get an optional attrib, or None, if not set.
+    """
+    if node.attrib.has_key(attribName):
+        return node.attrib[attribName]
+    return default
+
 class CactusSetupPhase(Target):
     def __init__(self, options, sequences):
         Target.__init__(self, time=0.0002)
@@ -230,10 +237,7 @@ class CactusCafDown(Target):
     
     def run(self):
         ignoreFlowersLessThanThisSize = int(self.iteration.attrib["min_sequence_size"])
-        if self.iteration.attrib.has_key("max_sequence_size"):
-            ignoreFlowersGreaterThanThisSize = int(self.iteration.attrib["max_sequence_size"])
-        else:
-            ignoreFlowersGreaterThanThisSize = sys.maxint
+        ignoreFlowersGreaterThanThisSize = int(getOptionalAttrib(self.iteration, "max_sequence_size", sys.maxint))
         makeChildTargets(self.options, self.iteration, self.flowerNames, self, CactusCafDown, 
                          ignoreFlowersLessThanThisSize=ignoreFlowersLessThanThisSize)
         for childFlowerName, childFlowerSize in runCactusExtendFlowers(self.options.cactusDiskDatabaseString, self.flowerNames, 
@@ -333,10 +337,7 @@ class CactusBarDown(Target):
     def run(self):
         children = []
         makeChildTargets(self.options, self.iteration, self.flowerNames, self, CactusBarDown)
-        if self.iteration.attrib.has_key("max_sequence_size"):
-            ignoreFlowersGreaterThanThisSize = int(self.iteration.attrib["max_sequence_size"])
-        else:
-            ignoreFlowersGreaterThanThisSize = sys.maxint
+        ignoreFlowersGreaterThanThisSize = int(getOptionalAttrib(self.iteration, "max_sequence_size", sys.maxint))
         childFlowersAndSizes = runCactusExtendFlowers(self.options.cactusDiskDatabaseString, self.flowerNames, 
                                                               self.getLocalTempDir())
         makeTargets(self.options, self.iteration, childFlowersAndSizes, self, CactusBaseLevelAlignerWrapper, maxSequenceSize=10000, 
@@ -494,7 +495,9 @@ class CactusReferenceDown(Target):
     def run(self):
         matchingAlgorithm = self.options.config.find("reference").attrib["matching_algorithm"]
         referenceEventString = getReferenceEventString(self.options.config)
-        runCactusReference(self.options.cactusDiskDatabaseString, flowerNames=self.flowerNames, matchingAlgorithm=matchingAlgorithm, referenceEventString=referenceEventString) #We first run the top down phase
+        runCactusReference(self.options.cactusDiskDatabaseString, flowerNames=self.flowerNames, matchingAlgorithm=matchingAlgorithm, 
+                           maxNumberOfChainsToSolvePerRound=getOptionalAttrib(self.options.config.find("reference"), "maxNumberOfChainsToSolvePerRound"),
+                           referenceEventString=referenceEventString)
         makeChildTargets(self.options, None, self.flowerNames, self, CactusReferenceDown)
 
 class CactusSetReferenceCoordinates(Target):
