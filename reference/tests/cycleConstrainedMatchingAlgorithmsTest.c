@@ -8,6 +8,7 @@
 #include "sonLib.h"
 #include "cactusMatchingAlgorithms.h"
 #include "cactusCycleConstrainedMatchingAlgorithms.h"
+#include "shared.h"
 
 /*
  * Declarations of support functions defined elsewhere reference/src
@@ -16,7 +17,7 @@
 stList *getComponents2(stList *adjacencyEdges, stList *stubEdges,
         stList *chainEdges);
 
-stList *filterToInclude(stList *list, stSortedSet *set);
+stList *stList_filterToInclude(stList *list, stSortedSet *set);
 
 stList *getComponents(stList *edges);
 
@@ -24,17 +25,11 @@ stList *getEdgesWithGreaterThanZeroWeight(stList *adjacencyEdges);
 
 stList *mergeSimpleCycles(stList *cycles, stList *nonZeroWeightAdjacencyEdges, stSortedSet *allAdjacencyEdges);
 
-stSortedSet *getNodeSetOfEdges(stList *edges);
-
 void checkInputs(stSortedSet *nodes, stList *adjacencyEdges,
         stList *stubEdges, stList *chainEdges);
 
 stList *getStubAndChainEdgeFreeComponents(stList *listOfLists, stList *list1,
         stList *list2);
-
-bool nodeInSet(stSortedSet *nodes, int32_t node);
-
-void addNodeToSet(stSortedSet *nodes, int32_t node);
 
 /*
  * The edges and nodes for the test.
@@ -382,7 +377,7 @@ static void checkMatching(CuTest *testCase, stList *chosenEdges,
     stSortedSet *stubEdgeSet = getEdgeSet(stubEdges);
     for (int32_t i = 0; i < stList_length(components); i++) {
         stList *component = stList_get(components, i);
-        stList *stubComponent = filterToInclude(component, stubEdgeSet);
+        stList *stubComponent = stList_filterToInclude(component, stubEdgeSet);
         CuAssertTrue(testCase, stList_length(stubComponent) > 0);
         if (makeStubsDisjoint) {
             CuAssertTrue(testCase, stList_length(stubComponent) == 1);

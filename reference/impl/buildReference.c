@@ -116,34 +116,18 @@ static stHash *getMapOfTangleEndsToNodes(Flower *flower) {
 ////////////////////////////////////
 ////////////////////////////////////
 
-static stIntTuple *getEdge2(int32_t node1, int32_t node2) {
-    assert(node1 != node2);
-    if (node1 > node2) {
-        return getEdge2(node2, node1);
-    }
-    return stIntTuple_construct(2, node1, node2);
-}
-
-static stIntTuple *getEdge(End *end1, End *end2, stHash *endsToNodes) {
+static stIntTuple *getEdge2(End *end1, End *end2, stHash *endsToNodes) {
     assert(stHash_search(endsToNodes, end1) != NULL);
     assert(stHash_search(endsToNodes, end2) != NULL);
-    return getEdge2(
+    return constructEdge(
             stIntTuple_getPosition(stHash_search(endsToNodes, end1), 0),
             stIntTuple_getPosition(stHash_search(endsToNodes, end2), 0));
 }
 
-static stIntTuple *getWeightedEdge2(int32_t node1, int32_t node2, int32_t weight) {
-    assert(node1 != node2);
-    if (node1 > node2) {
-        return getWeightedEdge2(node2, node1, weight);
-    }
-    return stIntTuple_construct(3, node1, node2, weight);
-}
-
-static stIntTuple *getWeightedEdge(End *end1, End *end2, int32_t weight, stHash *endsToNodes) {
+static stIntTuple *getWeightedEdge2(End *end1, End *end2, int32_t weight, stHash *endsToNodes) {
     assert(stHash_search(endsToNodes, end1) != NULL);
     assert(stHash_search(endsToNodes, end2) != NULL);
-    return getWeightedEdge2(
+    return constructWeightedEdge(
             stIntTuple_getPosition(stHash_search(endsToNodes, end1), 0),
             stIntTuple_getPosition(stHash_search(endsToNodes, end2), 0), weight);
 }
@@ -170,7 +154,7 @@ static void getNonTrivialChainEdges(Flower *flower, stHash *endsToNodes,
             assert(stHash_search(endsToNodes, end1) != NULL);
             assert(stHash_search(endsToNodes, end2) != NULL);
 
-            stList_append(chainEdges, getWeightedEdge(end1, end2, chain_getAverageInstanceBaseLength(chain), endsToNodes));
+            stList_append(chainEdges, getWeightedEdge2(end1, end2, chain_getAverageInstanceBaseLength(chain), endsToNodes));
         }
     }
     flower_destructChainIterator(chainIt);
@@ -190,7 +174,7 @@ static void getTrivialChainEdges(Flower *flower, stHash *endsToNodes,
         assert(end_getGroup(_3End) != NULL);
         if (group_isTangle(end_getGroup(_5End)) && group_isTangle(
                 end_getGroup(_3End))) {
-            stList_append(chainEdges, getWeightedEdge(_5End, _3End, block_getLength(block), endsToNodes));
+            stList_append(chainEdges, getWeightedEdge2(_5End, _3End, block_getLength(block), endsToNodes));
         }
     }
     flower_destructBlockIterator(blockIt);
@@ -268,7 +252,7 @@ static stList *getStubEdgesFromParent(Flower *flower, stHash *endsToNodes,
 
             stSortedSet_insert(endsSeen, end);
             stSortedSet_insert(endsSeen, adjacentEnd);
-            stList_append(stubEdges, getEdge(end, adjacentEnd, endsToNodes));
+            stList_append(stubEdges, getEdge2(end, adjacentEnd, endsToNodes));
         }
     }
     stSortedSet_destruct(endsSeen);
@@ -313,7 +297,7 @@ static stList *getArbitraryStubEdges(stHash *endsToNodes, stList *chainEdges) {
     for (int32_t i = 0; i < stList_length(nodes); i += 2) {
         stList_append(
                 stubEdges,
-                getEdge2(stIntTuple_getPosition(stList_get(nodes, i), 0),
+                constructEdge(stIntTuple_getPosition(stList_get(nodes, i), 0),
                         stIntTuple_getPosition(stList_get(nodes, i + 1), 0)));
     }
 
@@ -370,7 +354,7 @@ static void getAdjacencyEdgesP(End *end, stSortedSet *activeEnds,
                     assert(group_isTangle(end_getGroup(adjacentEnd)));
                     assert(stHash_search(endsToNodes, adjacentEnd) != NULL);
                     stList_append(adjacencyEdges,
-                            getEdge(end, adjacentEnd, endsToNodes));
+                            getEdge2(end, adjacentEnd, endsToNodes));
                 }
             }
         }
@@ -605,10 +589,18 @@ static void assignGroups(stList *newEnds, Flower *flower, Event *referenceEvent)
 ////////////////////////////////////
 ////////////////////////////////////
 
-stHash *getNodesToEdgesHash(stList *edges);
-
-stIntTuple *getEdgeForNodes(int32_t node1, int32_t node2,
-        stHash *nodesToAdjacencyEdges);
+stSortedSet *getEndsFromNodes(stSortedSet *nodes, stHash *nodesToEnds) {
+    stSortedSet *ends = stSortedSet_construct();
+    stSortedSetIterator *it = stSortedSet_getIterator(nodes);
+    stIntTuple *node;
+    while ((node = stSortedSet_getNext(it)) != NULL) {
+        End *end = stHash_search(nodesToEnds, node);
+        assert(end != NULL);
+        stSortedSet_insert(ends, end);
+    }
+    stSortedSet_destructIterator(it);
+    return ends;
+}
 
 void makeEdgesAClique(stList *edges, stSortedSet *nodes, int32_t defaultWeight) {
     /*
@@ -635,25 +627,6 @@ void makeEdgesAClique(stList *edges, stSortedSet *nodes, int32_t defaultWeight) 
     }
     stSortedSet_destructIterator(nodeIt);
     stHash_destruct(nodesToEdges);
-}
-
-static int compareEdgesByWeight(const void *edge, const void *edge2) {
-    int32_t i = stIntTuple_getPosition((stIntTuple *) edge, 2);
-    int32_t j = stIntTuple_getPosition((stIntTuple *) edge2, 2);
-    return i > j ? 1 : (i < j ? -1 : 0);
-}
-
-stSortedSet *getEndsFromNodes(stSortedSet *nodes, stHash *nodesToEnds) {
-    stSortedSet *ends = stSortedSet_construct();
-    stSortedSetIterator *it = stSortedSet_getIterator(nodes);
-    stIntTuple *node;
-    while ((node = stSortedSet_getNext(it)) != NULL) {
-        End *end = stHash_search(nodesToEnds, node);
-        assert(end != NULL);
-        stSortedSet_insert(ends, end);
-    }
-    stSortedSet_destructIterator(it);
-    return ends;
 }
 
 void buildReferenceTopDown(Flower *flower, const char *referenceEventHeader, int32_t maxNumberOfChainsToSolvePerRound,
@@ -769,7 +742,7 @@ void buildReferenceTopDown(Flower *flower, const char *referenceEventHeader, int
             stIntTuple *edge = stList_pop(chosenAdjacencyEdges);
             stList_append(
                     stubEdges,
-                    getEdge2(stIntTuple_getPosition(edge, 0),
+                    constructEdge(stIntTuple_getPosition(edge, 0),
                             stIntTuple_getPosition(edge, 1)));
         }
 
