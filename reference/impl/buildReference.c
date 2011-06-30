@@ -708,7 +708,6 @@ void buildReferenceTopDown(Flower *flower, const char *referenceEventHeader, int
     bool hasParent = flower_getParentGroup(flower) != NULL;
     stList *stubEdges = hasParent ? getStubEdgesFromParent(flower, endsToNodes,
             referenceEvent) : getArbitraryStubEdges(endsToNodes, chainEdges);
-    int32_t X = 10;
     bool makeStubCyclesDisjoint = hasParent;
 
     while (stList_length(chainEdges) > 0) {
@@ -716,9 +715,13 @@ void buildReferenceTopDown(Flower *flower, const char *referenceEventHeader, int
          * Get the chain edges to add to the matching..
          */
         stList *activeChainEdges = stList_construct();
+        int32_t pChainLength = INT32_MAX;
         while (stList_length(chainEdges) > 0 && stList_length(activeChainEdges)
-                < X) {
+                < maxNumberOfChainsToSolvePerRound) {
             stList_append(activeChainEdges, stList_pop(chainEdges));
+            int32_t i = stIntTuple_getPosition(stList_peek(activeChainEdges), 2);
+            assert(i <= pChainLength);
+            pChainLength = i;
         }
 
         /*
