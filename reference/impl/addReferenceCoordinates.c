@@ -309,7 +309,7 @@ static void addReferenceSequence(Cap *cap, int32_t *index) {
      * Make the meta sequence.
      */
     Event *event = cap_getEvent(cap);
-    char *sequenceName = stString_print("%s_%i", event_getHeader(event), (*index)++);
+    char *sequenceName = stString_print("%s.%i", event_getHeader(event), (*index)++);
     MetaSequence *metaSequence = metaSequence_construct(1, length, string,
             sequenceName, event_getName(event),
             flower_getCactusDisk(end_getFlower(cap_getEnd(cap))));
