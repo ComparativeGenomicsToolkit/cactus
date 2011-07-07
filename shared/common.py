@@ -224,7 +224,8 @@ def runCactusBaseAligner(cactusDiskDatabaseString, flowerNames, logLevel=None,
             constraintDiagonalTrim, minimumBlockDegree, requiredSpecies, alignAmbiguityCharacters))
     
 def runCactusReference(cactusDiskDatabaseString, flowerNames, logLevel=None,
-                       matchingAlgorithm=None, referenceEventString=None, maxNumberOfChainsToSolvePerRound=None):
+                       matchingAlgorithm=None, referenceEventString=None, maxNumberOfChainsToSolvePerRound=None,
+                       recalculateMatchingEachCycle=None):
     """Runs cactus reference.
     """
     #print "running", "cactus_reference --cactusDisk '%s' --logLevel %s %s" % (cactusDiskDatabaseString, logLevel, " ".join(flowerNames))
@@ -233,7 +234,8 @@ def runCactusReference(cactusDiskDatabaseString, flowerNames, logLevel=None,
     matchingAlgorithm = nameValue("matchingAlgorithm", matchingAlgorithm)
     referenceEventString = nameValue("referenceEventString", referenceEventString)
     maxNumberOfChainsToSolvePerRound = nameValue("maxNumberOfChainsToSolvePerRound", maxNumberOfChainsToSolvePerRound)
-    command = "cactus_reference --cactusDisk '%s' --logLevel %s %s %s %s %s" % (cactusDiskDatabaseString, logLevel, matchingAlgorithm, referenceEventString, maxNumberOfChainsToSolvePerRound, " ".join(flowerNames))
+    recalculateMatchingEachCycle = nameValue("recalculateMatchingEachCycle", recalculateMatchingEachCycle, bool)
+    command = "cactus_reference --cactusDisk '%s' --logLevel %s %s %s %s %s %s" % (cactusDiskDatabaseString, logLevel, matchingAlgorithm, referenceEventString, maxNumberOfChainsToSolvePerRound, recalculateMatchingEachCycle, " ".join(flowerNames))
     system(command)
     
 def runCactusAddReferenceCoordinates(cactusDiskDatabaseString, logLevel=None, referenceEventString=None):   

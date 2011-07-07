@@ -1,7 +1,9 @@
 #include "cactus.h"
 #include "sonLib.h"
-#include "cactusMatchingAlgorithms.h"
+#include "checkEdges.h"
+#include "perfectMatching.h"
 #include "shared.h"
+#include "cactusMatchingAlgorithms.h"
 
 ////////////////////////////////////
 ////////////////////////////////////
@@ -871,158 +873,9 @@ stList *splitMultipleStubCycles(stList *chosenEdges,
 
 ////////////////////////////////////
 ////////////////////////////////////
-//Functions to renumber the nodes as a set of nodes along a scale from zero.
-////////////////////////////////////
-////////////////////////////////////
-
-stHash *rebaseNodes(stSortedSet *nodes) {
-    /*
-     * Renumber the nodes from 0 contiguously.
-     */
-    stHash *nodesToRebasedNodes = stHash_construct3(
-            (uint32_t(*)(const void *)) stIntTuple_hashKey,
-            (int(*)(const void *, const void *)) stIntTuple_equalsFn,
-            NULL,
-            (void(*)(void *)) stIntTuple_destruct);
-    int32_t i=0;
-    stSortedSetIterator *it = stSortedSet_getIterator(nodes);
-    stIntTuple *node;
-    while((node = stSortedSet_getNext(it)) != NULL) {
-        stHash_insert(nodesToRebasedNodes, node, stIntTuple_construct(1, i++));
-    }
-    stSortedSet_destructIterator(it);
-    return nodesToRebasedNodes;
-}
-
-stList *translateEdges(stList *edges, stHash *nodesToRebasedNodes) {
-    /*
-     * Translate the edges.
-     */
-    stList *rebasedEdges = stList_construct3(0, (void (*)(void *))stIntTuple_destruct);
-    for(int32_t i=0; i<stList_length(edges); i++) {
-        stIntTuple *edge = stList_get(edges, i);
-        stIntTuple *node1 = getItemForNode(stIntTuple_getPosition(edge, 0), nodesToRebasedNodes);
-        stIntTuple *node2 = getItemForNode(stIntTuple_getPosition(edge, 1), nodesToRebasedNodes);
-        assert(node1 != NULL);
-        assert(node2 != NULL);
-        stList_append(rebasedEdges, stIntTuple_construct(3, stIntTuple_getPosition(node1, 0), stIntTuple_getPosition(node2, 0), stIntTuple_getPosition(edge, 2)));
-    }
-    return rebasedEdges;
-}
-
-stList *translateEdges2(stList *rebasedEdges, stHash *rebasedNodesToNodes, stList *originalEdges) {
-    /*
-     * Translate the edges.
-     */
-    stSortedSet *originalEdgesSet = stList_getSortedSet(originalEdges, (int (*)(const void *, const void *))stIntTuple_cmpFn);
-    stList *edges = stList_construct();
-    for(int32_t i=0; i<stList_length(rebasedEdges); i++) {
-        stIntTuple *rebasedEdge = stList_get(rebasedEdges, i);
-        stIntTuple *node1 = getItemForNode(stIntTuple_getPosition(rebasedEdge, 0), rebasedNodesToNodes);
-        stIntTuple *node2 = getItemForNode(stIntTuple_getPosition(rebasedEdge, 1), rebasedNodesToNodes);
-        assert(node1 != NULL);
-        assert(node2 != NULL);
-        stIntTuple *edge = getWeightedEdgeFromSet(stIntTuple_getPosition(node1, 0), stIntTuple_getPosition(node2, 0), originalEdgesSet);
-        assert(edge != NULL);
-        stList_append(edges, edge);
-    }
-    stSortedSet_destruct(originalEdgesSet);
-    return edges;
-}
-
-////////////////////////////////////
-////////////////////////////////////
 //Top level function
 ////////////////////////////////////
 ////////////////////////////////////
-
-static void checkEdges(stList *edges, stSortedSet * nodes, bool coversAllNodes,
-        bool isClique) {
-    /*
-     * Check the edges all refer to nodes between 0 and node number. If length three, check final argument
-     * (which is a weight), is greater than or equal to zero. Check that if coversAllNodes is non-zero, all nodes are
-     * covered. Checks edges from clique if isClique is non-zero.
-     */
-    int32_t nodeNumber = stSortedSet_size(nodes);
-    int32_t maxNode = nodeNumber == 0 ? 0 : stIntTuple_getPosition(stSortedSet_getLast(nodes), 0);
-    stSortedSet *edgesSeen = stSortedSet_construct3(
-            (int(*)(const void *, const void *)) stIntTuple_cmpFn,
-            (void(*)(void *)) stIntTuple_destruct);
-    for (int32_t i = 0; i < stList_length(edges); i++) {
-        stIntTuple *edge = stList_get(edges, i);
-        /*
-         * Check edges connect actual nodes.
-         */
-        assert(stIntTuple_getPosition(edge, 0) >= 0);
-        assert(stIntTuple_getPosition(edge, 0) <= maxNode);
-        assert(stIntTuple_getPosition(edge, 1) >= 0);
-        assert(stIntTuple_getPosition(edge, 1) <= maxNode);
-        assert(
-                stIntTuple_getPosition(edge, 1) != stIntTuple_getPosition(edge,
-                        0)); //No self edges!
-        /*
-         * Check is not a multi-graph.
-         */
-        assert(
-                !edgeInSet(edgesSeen, stIntTuple_getPosition(edge, 0),
-                        stIntTuple_getPosition(edge, 1)));
-        addEdgeToSet(edgesSeen, stIntTuple_getPosition(edge, 0),
-                stIntTuple_getPosition(edge, 1));
-        /*
-         * Check weight, if weighted.
-         */
-        if (stIntTuple_length(edge) == 3) {
-            assert(stIntTuple_getPosition(edge, 2) >= 0);
-        } else {
-            assert(stIntTuple_length(edge) == 2);
-        }
-    }
-    stSortedSet_destruct(edgesSeen);
-    /*
-     * Check edges connect all nodes.
-     */
-    if (coversAllNodes) {
-        stSortedSet *nodes = getNodeSetOfEdges(edges);
-        assert(stSortedSet_size(nodes) == nodeNumber);
-        stSortedSet_destruct(nodes);
-    }
-    /*
-     * Check is clique.
-     */
-    if (isClique) {
-        assert(
-                stList_length(edges) == (nodeNumber * nodeNumber - nodeNumber)
-                        / 2);
-    }
-}
-
-static void makeMatchingPerfect(stList *chosenEdges, stList *adjacencyEdges,
-        stSortedSet *nodes) {
-    /*
-     * While the the number of edges is less than a perfect matching add random edges.
-     */
-    stSortedSet *attachedNodes = getNodeSetOfEdges(chosenEdges);
-    stHash *nodesToAdjacencyEdges = getNodesToEdgesHash(adjacencyEdges);
-    stIntTuple *pNode = NULL;
-    stSortedSetIterator *it = stSortedSet_getIterator(nodes);
-    stIntTuple *node;
-    while((node = stSortedSet_getNext(it)) != NULL) {
-        if (stSortedSet_search(attachedNodes, node) == NULL) {
-            if (pNode == NULL) {
-                pNode = node;
-            } else {
-                stList_append(chosenEdges,
-                        getEdgeForNodes(stIntTuple_getPosition(pNode, 0), stIntTuple_getPosition(node, 0), nodesToAdjacencyEdges));
-                pNode = NULL;
-            }
-        }
-    }
-    stSortedSet_destructIterator(it);
-    assert(pNode == NULL);
-    stSortedSet_destruct(attachedNodes);
-    assert(stList_length(chosenEdges) * 2 == stSortedSet_size(nodes));
-    stHash_destruct(nodesToAdjacencyEdges);
-}
 
 void checkInputs(stSortedSet *nodes, stList *adjacencyEdges,
         stList *stubEdges, stList *chainEdges) {
@@ -1046,15 +899,45 @@ void checkInputs(stSortedSet *nodes, stList *adjacencyEdges,
     checkEdges(adjacencyEdges, nodes, 1, 1);
 }
 
-bool hasGreaterThan0Weight(stIntTuple *edge) {
-    return stIntTuple_getPosition(edge, 2) > 0;
-}
+stList *makeMatchingObeyCyclicConstraints(stSortedSet *nodes,
+        stList *chosenEdges,
+        stSortedSet *allAdjacencyEdges, stList *nonZeroWeightAdjacencyEdges,
+        stList *stubEdges, stList *chainEdges,
+        bool makeStubCyclesDisjoint) {
+    if (stSortedSet_size(nodes) == 0) { //Some of the following functions assume there are at least 2 nodes.
+        return stList_construct();
+    }
 
-stList *getEdgesWithGreaterThanZeroWeight(stList *adjacencyEdges) {
     /*
-     * Gets all edges with weight greater than 0.
+     * Merge in the stub free components.
      */
-    return stList_filter(adjacencyEdges, (bool(*)(void *)) hasGreaterThan0Weight);
+    chosenEdges = mergeSimpleCycles2(chosenEdges,
+            nonZeroWeightAdjacencyEdges, allAdjacencyEdges, stubEdges,
+            chainEdges);
+
+    st_logDebug(
+            "After merging in chain only cycles the matching has %i edges, %i cardinality and %i weight\n",
+            stList_length(chosenEdges), matchingCardinality(chosenEdges),
+            matchingWeight(chosenEdges));
+
+    /*
+     * Split stub components.
+     */
+    if (makeStubCyclesDisjoint) {
+        stList *updatedChosenEdges = splitMultipleStubCycles(chosenEdges,
+                nonZeroWeightAdjacencyEdges, allAdjacencyEdges, stubEdges,
+                chainEdges);
+        stList_destruct(chosenEdges);
+        chosenEdges = updatedChosenEdges;
+        st_logDebug(
+                "After making stub cycles disjoint the matching has %i edges, %i cardinality and %i weight\n",
+                stList_length(chosenEdges), matchingCardinality(chosenEdges),
+                matchingWeight(chosenEdges));
+    } else {
+        st_logDebug("Not making stub cycles disjoint\n");
+    }
+
+    return chosenEdges;
 }
 
 stList *getMatchingWithCyclicConstraints(stSortedSet *nodes,
@@ -1071,60 +954,16 @@ stList *getMatchingWithCyclicConstraints(stSortedSet *nodes,
         return stList_construct();
     }
 
-    /*
-     * First calculate the optimal matching.
-     */
-    stList *nonZeroWeightAdjacencyEdges = getEdgesWithGreaterThanZeroWeight(
-            adjacencyEdges);
-    stHash *nodesToRebasedNodes = rebaseNodes(nodes);
-    stHash *rebasedNodesToNodes = stHash_invert(nodesToRebasedNodes, (uint32_t(*)(const void *)) stIntTuple_hashKey,
-            (int(*)(const void *, const void *)) stIntTuple_equalsFn, NULL, NULL);
-    stList *rebasedEdges = translateEdges(nonZeroWeightAdjacencyEdges, nodesToRebasedNodes);
-    stList *chosenRebasedEdges = matchingAlgorithm(rebasedEdges, stSortedSet_size(nodes));
-    stList *chosenEdges = translateEdges2(chosenRebasedEdges, rebasedNodesToNodes, nonZeroWeightAdjacencyEdges);
-    stList_destruct(chosenRebasedEdges);
-    stList_destruct(rebasedEdges);
-    stHash_destruct(nodesToRebasedNodes);
-    stHash_destruct(rebasedNodesToNodes);
+    stList *chosenEdges = getPerfectMatching(nodes, adjacencyEdges, matchingAlgorithm);
 
-    st_logDebug(
-            "Chosen an initial matching with %i edges, %i cardinality and %i weight\n",
-            stList_length(chosenEdges), matchingCardinality(chosenEdges),
-            matchingWeight(chosenEdges));
-    makeMatchingPerfect(chosenEdges, adjacencyEdges, nodes);
-
-    /*
-     * Merge in the stub free components.
-     */
     stSortedSet *allAdjacencyEdges = stList_getSortedSet(adjacencyEdges,
-            (int(*)(const void *, const void *)) stIntTuple_cmpFn);
-    stList *updatedChosenEdges = mergeSimpleCycles2(chosenEdges,
-            nonZeroWeightAdjacencyEdges, allAdjacencyEdges, stubEdges,
-            chainEdges);
+                (int(*)(const void *, const void *)) stIntTuple_cmpFn);
+    stList *nonZeroWeightAdjacencyEdges = getEdgesWithGreaterThanZeroWeight(
+                    adjacencyEdges);
+
+    stList *updatedChosenEdges = makeMatchingObeyCyclicConstraints(nodes, chosenEdges, allAdjacencyEdges, nonZeroWeightAdjacencyEdges, stubEdges, chainEdges, makeStubCyclesDisjoint);
     stList_destruct(chosenEdges);
     chosenEdges = updatedChosenEdges;
-
-    st_logDebug(
-            "After merging in chain only cycles the matching has %i edges, %i cardinality and %i weight\n",
-            stList_length(chosenEdges), matchingCardinality(chosenEdges),
-            matchingWeight(chosenEdges));
-
-    /*
-     * Split stub components.
-     */
-    if (makeStubCyclesDisjoint) {
-        updatedChosenEdges = splitMultipleStubCycles(chosenEdges,
-                nonZeroWeightAdjacencyEdges, allAdjacencyEdges, stubEdges,
-                chainEdges);
-        stList_destruct(chosenEdges);
-        chosenEdges = updatedChosenEdges;
-        st_logDebug(
-                "After making stub cycles disjoint the matching has %i edges, %i cardinality and %i weight\n",
-                stList_length(chosenEdges), matchingCardinality(chosenEdges),
-                matchingWeight(chosenEdges));
-    } else {
-        st_logDebug("Not making stub cycles disjoint\n");
-    }
 
     stList_destruct(nonZeroWeightAdjacencyEdges);
     stSortedSet_destruct(allAdjacencyEdges);

@@ -497,7 +497,8 @@ class CactusReferenceDown(Target):
         referenceEventString = getReferenceEventString(self.options.config)
         runCactusReference(self.options.cactusDiskDatabaseString, flowerNames=self.flowerNames, matchingAlgorithm=matchingAlgorithm, 
                            maxNumberOfChainsToSolvePerRound=getOptionalAttrib(self.options.config.find("reference"), "maxNumberOfChainsToSolvePerRound"),
-                           referenceEventString=referenceEventString)
+                           referenceEventString=referenceEventString,
+                           recalculateMatchingEachCycle=getOptionalAttrib(self.options.config.find("reference"), "recalculateMatchingEachCycle", None))
         makeChildTargets(self.options, None, self.flowerNames, self, CactusReferenceDown)
 
 class CactusSetReferenceCoordinates(Target):

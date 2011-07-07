@@ -2,6 +2,7 @@
 #include "sonLib.h"
 #include "cactusCycleConstrainedMatchingAlgorithms.h"
 #include "cactusMatchingAlgorithms.h"
+#include "perfectMatching.h"
 #include "shared.h"
 
 const char *REFERENCE_BUILDING_EXCEPTION = "REFERENCE_BUILDING_EXCEPTION";
@@ -124,7 +125,8 @@ static stIntTuple *getEdge2(End *end1, End *end2, stHash *endsToNodes) {
             stIntTuple_getPosition(stHash_search(endsToNodes, end2), 0));
 }
 
-static stIntTuple *getWeightedEdge2(End *end1, End *end2, int32_t weight, stHash *endsToNodes) {
+static stIntTuple *getWeightedEdge2(End *end1, End *end2, int32_t weight,
+        stHash *endsToNodes) {
     assert(stHash_search(endsToNodes, end1) != NULL);
     assert(stHash_search(endsToNodes, end2) != NULL);
     return constructWeightedEdge(
@@ -154,7 +156,11 @@ static void getNonTrivialChainEdges(Flower *flower, stHash *endsToNodes,
             assert(stHash_search(endsToNodes, end1) != NULL);
             assert(stHash_search(endsToNodes, end2) != NULL);
 
-            stList_append(chainEdges, getWeightedEdge2(end1, end2, chain_getAverageInstanceBaseLength(chain), endsToNodes));
+            stList_append(
+                    chainEdges,
+                    getWeightedEdge2(end1, end2,
+                            chain_getAverageInstanceBaseLength(chain),
+                            endsToNodes));
         }
     }
     flower_destructChainIterator(chainIt);
@@ -174,7 +180,10 @@ static void getTrivialChainEdges(Flower *flower, stHash *endsToNodes,
         assert(end_getGroup(_3End) != NULL);
         if (group_isTangle(end_getGroup(_5End)) && group_isTangle(
                 end_getGroup(_3End))) {
-            stList_append(chainEdges, getWeightedEdge2(_5End, _3End, block_getLength(block), endsToNodes));
+            stList_append(
+                    chainEdges,
+                    getWeightedEdge2(_5End, _3End, block_getLength(block),
+                            endsToNodes));
         }
     }
     flower_destructBlockIterator(blockIt);
@@ -260,53 +269,6 @@ static stList *getStubEdgesFromParent(Flower *flower, stHash *endsToNodes,
     return stubEdges;
 }
 
-static void getArbitraryStubEdgesP(stSortedSet *nodesSet, int32_t node) {
-    stIntTuple *i = stIntTuple_construct(1, node);
-    if (stSortedSet_search(nodesSet, i) != NULL) {
-        stSortedSet_remove(nodesSet, i);
-    }
-    stIntTuple_destruct(i);
-}
-
-static stList *getArbitraryStubEdges(stHash *endsToNodes, stList *chainEdges) {
-    /*
-     * Make a set of stub edges, pairing the 'stub ends' arbitrarily.
-     */
-    stList *nodes = stHash_getValues(endsToNodes);
-    stSortedSet *nodesSet = stList_getSortedSet(nodes,
-            (int(*)(const void *, const void *)) stIntTuple_cmpFn);
-    stList_destruct(nodes);
-
-    /*
-     * Filter the set of nodes for those that are part of chain edges.
-     */
-    for (int32_t i = 0; i < stList_length(chainEdges); i++) {
-        stIntTuple *edge = stList_get(chainEdges, i);
-        getArbitraryStubEdgesP(nodesSet, stIntTuple_getPosition(edge, 0));
-        getArbitraryStubEdgesP(nodesSet, stIntTuple_getPosition(edge, 1));
-    }
-
-    assert(stSortedSet_size(nodesSet) % 2 == 0);
-
-    /*
-     * The remaining set of edges are 'stubs', create an arbitrary pairing and return it.
-     */
-    nodes = stSortedSet_getList(nodesSet);
-    stList *stubEdges = stList_construct3(0,
-            (void(*)(void *)) stIntTuple_destruct);
-    for (int32_t i = 0; i < stList_length(nodes); i += 2) {
-        stList_append(
-                stubEdges,
-                constructEdge(stIntTuple_getPosition(stList_get(nodes, i), 0),
-                        stIntTuple_getPosition(stList_get(nodes, i + 1), 0)));
-    }
-
-    stSortedSet_destruct(nodesSet);
-    stList_destruct(nodes);
-
-    return stubEdges;
-}
-
 ////////////////////////////////////
 ////////////////////////////////////
 //Adjacency edges
@@ -362,33 +324,16 @@ static void getAdjacencyEdgesP(End *end, stSortedSet *activeEnds,
     end_destructInstanceIterator(instanceIt);
 }
 
-static stList *getAdjacencyEdges(Flower *flower, stSortedSet *activeEnds,
-        stHash *endsToNodes) {
-    /*
-     * Get the adjacency edges for the flower.
-     */
-
-    /*
-     * First build a list of adjacencies from the tangle ends.
-     */
-    stList *adjacencyEdges = stList_construct3(0,
-            (void(*)(void *)) stIntTuple_destruct);
-    stSortedSetIterator *endIt = stSortedSet_getIterator(activeEnds);
-    End *end;
-    while ((end = stSortedSet_getNext(endIt)) != NULL) {
-        getAdjacencyEdgesP(end, activeEnds, endsToNodes, adjacencyEdges);
-    }
-    stSortedSet_destructIterator(endIt);
-
-    /*
-     * Sort them.
-     */
-    stList_sort(adjacencyEdges,
-            (int(*)(const void *, const void *)) stIntTuple_cmpFn);
-
+static stList *getWeightedAdjacencyEdges(stList *adjacencyEdges) {
     /*
      * Iterate over the list, building weighted edges according to the number of duplicates.
      */
+
+    /*
+     * Sort the original adjacencies.
+     */
+    stList_sort(adjacencyEdges,
+            (int(*)(const void *, const void *)) stIntTuple_cmpFn);
     stList *weightedAdjacencyEdges = stList_construct3(0,
             (void(*)(void *)) stIntTuple_destruct);
     int32_t weight = 0;
@@ -420,6 +365,31 @@ static stList *getAdjacencyEdges(Flower *flower, stSortedSet *activeEnds,
                         stIntTuple_getPosition(edge, 1), weight));
         stIntTuple_destruct(edge);
     }
+    return weightedAdjacencyEdges;
+}
+
+static stList *getAdjacencyEdges(Flower *flower, stSortedSet *activeEnds,
+        stHash *endsToNodes) {
+    /*
+     * Get the adjacency edges for the flower.
+     */
+
+    /*
+     * First build a list of adjacencies from the tangle ends.
+     */
+    stList *adjacencyEdges = stList_construct3(0,
+            (void(*)(void *)) stIntTuple_destruct);
+    stSortedSetIterator *endIt = stSortedSet_getIterator(activeEnds);
+    End *end;
+    while ((end = stSortedSet_getNext(endIt)) != NULL) {
+        getAdjacencyEdgesP(end, activeEnds, endsToNodes, adjacencyEdges);
+    }
+    stSortedSet_destructIterator(endIt);
+
+    /*
+     * Convert to weighted adjacency edges.
+     */
+    stList *weightedAdjacencyEdges = getWeightedAdjacencyEdges(adjacencyEdges);
     stList_destruct(adjacencyEdges);
 
     return weightedAdjacencyEdges;
@@ -629,8 +599,36 @@ void makeEdgesAClique(stList *edges, stSortedSet *nodes, int32_t defaultWeight) 
     stHash_destruct(nodesToEdges);
 }
 
-void buildReferenceTopDown(Flower *flower, const char *referenceEventHeader, int32_t maxNumberOfChainsToSolvePerRound,
-        stList *(*matchingAlgorithm)(stList *edges, int32_t nodeNumber)) {
+stSortedSet *getActiveNodes(stList *chainEdges, stHash *nodesToEnds) {
+    stList *nodes = stHash_getKeys(nodesToEnds);
+    stSortedSet *nodeSet = stList_getSortedSet(nodes,
+            (int(*)(const void *, const void *)) stIntTuple_cmpFn);
+    stSortedSet *chainNodes = getNodeSetOfEdges(chainEdges);
+    stSortedSet *activeNodes = stSortedSet_getDifference(nodeSet, chainNodes);
+    stSortedSet_destruct(chainNodes);
+    stList_destruct(nodes);
+    stSortedSet_destruct(nodeSet);
+    return activeNodes;
+}
+
+stSortedSet *getActiveEnds(stSortedSet *activeNodes, stHash *nodesToEnds) {
+    stSortedSetIterator *it = stSortedSet_getIterator(activeNodes);
+    stSortedSet *activeEnds = stSortedSet_construct();
+    stIntTuple *node;
+    while ((node = stSortedSet_getNext(it)) != NULL) {
+        End *end = stHash_search(nodesToEnds, node);
+        assert(end != NULL);
+        assert(stSortedSet_search(activeEnds, end) == NULL);
+        stSortedSet_insert(activeEnds, end);
+    }
+    stSortedSet_destructIterator(it);
+    return activeEnds;
+}
+
+void buildReferenceTopDown(Flower *flower, const char *referenceEventHeader,
+        int32_t maxNumberOfChainsToSolvePerRound,
+        stList *(*matchingAlgorithm)(stList *edges, int32_t nodeNumber),
+        bool recalculateMatchingEachCycle) {
     /*
      * Implements the following pseudo code.
      *
@@ -676,49 +674,131 @@ void buildReferenceTopDown(Flower *flower, const char *referenceEventHeader, int
     stList_sort(chainEdges, compareEdgesByWeight); //Sort them add them to the matching progressively
 
     /*
-     * Get the stub edges.
+     * Get the active nodes..
      */
-    bool hasParent = flower_getParentGroup(flower) != NULL;
-    stList *stubEdges = hasParent ? getStubEdgesFromParent(flower, endsToNodes,
-            referenceEvent) : getArbitraryStubEdges(endsToNodes, chainEdges);
-    bool makeStubCyclesDisjoint = hasParent;
+    stSortedSet *activeNodes = getActiveNodes(chainEdges, nodesToEnds);
+    stSortedSet *activeEnds = getActiveEnds(activeNodes, nodesToEnds);
+
+    /*
+     * Get the list of adjacency edges between the stubs
+     */
+
+    /*
+     * Get the stub edges and chosen edges.
+     */
+    stList * stubEdges;
+    if (flower_getParentGroup(flower)) {
+        stubEdges = getStubEdgesFromParent(flower, endsToNodes, referenceEvent);
+    } else {
+        stList *allAdjacencyEdges = getAdjacencyEdges(flower,
+                activeEnds, endsToNodes);
+        makeEdgesAClique(allAdjacencyEdges, activeNodes, 0);
+        stList *chosenAdjacencyEdges = getPerfectMatching(activeNodes,
+                allAdjacencyEdges, matchingAlgorithm);
+        stubEdges = stList_construct3(0, (void(*)(void *)) stIntTuple_destruct);
+        for (int32_t i = 0; i < stList_length(chosenAdjacencyEdges); i++) {
+            stIntTuple *adjacencyEdge = stList_get(chosenAdjacencyEdges, i);
+            stList_append(
+                    stubEdges,
+                    constructEdge(stIntTuple_getPosition(adjacencyEdge, 0),
+                            stIntTuple_getPosition(adjacencyEdge, 1)));
+        }
+        stList_destruct(chosenAdjacencyEdges);
+        stList_destruct(allAdjacencyEdges);
+    }
+
+    st_logDebug(
+            "Starting to build the reference for flower %lli with %i stubs and %i ends\n",
+            flower_getName(flower), stSortedSet_size(activeNodes),
+            stHash_size(nodesToEnds));
+    assert(stSortedSet_size(activeEnds) == stSortedSet_size(activeNodes));
+    assert(stList_length(stubEdges) * 2 == stSortedSet_size(activeNodes));
+    for (int32_t i = 0; i < stList_length(stubEdges); i++) {
+        stIntTuple *edge = stList_get(stubEdges, i);
+        assert(nodeInSet(activeNodes, stIntTuple_getPosition(edge, 0)));
+        assert(nodeInSet(activeNodes, stIntTuple_getPosition(edge, 1)));
+    }
 
     while (stList_length(chainEdges) > 0) {
         /*
-         * Get the chain edges to add to the matching..
+         * Get the chain edges and update the adjacency edges and active nodes as we go.
          */
         stList *activeChainEdges = stList_construct();
         int32_t pChainLength = INT32_MAX;
         while (stList_length(chainEdges) > 0 && stList_length(activeChainEdges)
                 < maxNumberOfChainsToSolvePerRound) {
-            stList_append(activeChainEdges, stList_pop(chainEdges));
-            int32_t i = stIntTuple_getPosition(stList_peek(activeChainEdges), 2);
+            stIntTuple *chainEdge = stList_pop(chainEdges);
+            stList_append(activeChainEdges, chainEdge);
+
+            /*
+             * Update the set of active nodes and ends.
+             */
+            int32_t node1 = stIntTuple_getPosition(chainEdge, 0);
+            int32_t node2 = stIntTuple_getPosition(chainEdge, 1);
+            addNodeToSet(activeNodes, node1);
+            addNodeToSet(activeNodes, node2);
+            End *end1 = getEndFromNode(nodesToEnds, node1);
+            assert(end1 != NULL);
+            End *end2 = getEndFromNode(nodesToEnds, node2);
+            assert(end2 != NULL);
+            assert(stSortedSet_search(activeEnds, end1) == NULL);
+            assert(stSortedSet_search(activeEnds, end2) == NULL);
+            stSortedSet_insert(activeEnds, end1);
+            stSortedSet_insert(activeEnds, end2);
+
+            int32_t i =
+                    stIntTuple_getPosition(stList_peek(activeChainEdges), 2);
             assert(i <= pChainLength);
             pChainLength = i;
         }
 
         /*
-         * Get the working set of nodes.
+         * Get the adjacency edges
          */
-        stList *chainAndStubEdges = stList_copy(activeChainEdges, NULL);
-        stList_appendAll(chainAndStubEdges, stubEdges);
-        stSortedSet *activeNodes = getNodeSetOfEdges(chainAndStubEdges);
-        stSortedSet *activeEnds = getEndsFromNodes(activeNodes, nodesToEnds);
-        stList_destruct(chainAndStubEdges);
+        stList *nonZeroWeightAdjacencyEdges = getAdjacencyEdges(flower,
+                activeEnds, endsToNodes);
+        stList_setDestructor(nonZeroWeightAdjacencyEdges, NULL);
+        stList *allAdjacencyEdges = stList_copy(nonZeroWeightAdjacencyEdges,
+                (void(*)(void *)) stIntTuple_destruct);
+        makeEdgesAClique(allAdjacencyEdges, activeNodes, 0);
+        stSortedSet *allAdjacencyEdgesSet = stList_getSortedSet(
+                allAdjacencyEdges,
+                (int(*)(const void *, const void *)) stIntTuple_cmpFn);
 
-        /*
-         * Get the adjacency edges.
-         */
-        stList *adjacencyEdges = getAdjacencyEdges(flower, activeEnds,
-                endsToNodes);
-        makeEdgesAClique(adjacencyEdges, activeNodes, 0);
+        stList *chosenAdjacencyEdges;
+        if (recalculateMatchingEachCycle) {
+            /*
+             * Recalculate the matching
+             */
+            chosenAdjacencyEdges = getPerfectMatching(activeNodes,
+                    allAdjacencyEdges, matchingAlgorithm);
+        } else {
+            /*
+             * Add the chain edges to the matching
+             */
+            chosenAdjacencyEdges = stList_construct();
+            stList *stubAndChainEdges = stList_copy(stubEdges, NULL);
+            stList_appendAll(stubAndChainEdges, activeChainEdges);
+            for (int32_t i = 0; i < stList_length(stubAndChainEdges); i++) {
+                stIntTuple *edge = stList_get(stubAndChainEdges, i);
+                stIntTuple *adjacencyEdge = getWeightedEdgeFromSet(
+                        stIntTuple_getPosition(edge, 0),
+                        stIntTuple_getPosition(edge, 1), allAdjacencyEdgesSet);
+                assert(adjacencyEdge != NULL);
+                stList_append(chosenAdjacencyEdges, adjacencyEdge);
+            }
+            stList_destruct(stubAndChainEdges);
+        }
+        assert(
+                stList_length(chosenAdjacencyEdges) * 2 == stSortedSet_size(
+                        activeNodes));
 
         st_logDebug(
                 "Going to build a reference matching for the flower %lli with %i nodes, %i adjacencies with cardinality %i and weight %i,  %i stub edges and %i chain edges, %i attached stubs, %i free stubs and %i block ends,  %i ends total and %i chains\n",
                 flower_getName(flower), stSortedSet_size(activeNodes),
-                stList_length(adjacencyEdges),
-                matchingCardinality(adjacencyEdges),
-                matchingWeight(adjacencyEdges), stList_length(stubEdges),
+                stList_length(allAdjacencyEdges),
+                matchingCardinality(allAdjacencyEdges),
+                matchingWeight(allAdjacencyEdges), stList_length(stubEdges),
                 stList_length(chainEdges),
                 flower_getAttachedStubEndNumber(flower),
                 flower_getFreeStubEndNumber(flower),
@@ -726,15 +806,18 @@ void buildReferenceTopDown(Flower *flower, const char *referenceEventHeader, int
                 flower_getChainNumber(flower));
 
         /*
-         * Calculate the matching
+         * Make it obey the cyclic constraints..
          */
-        stList *chosenAdjacencyEdges = getMatchingWithCyclicConstraints(
-                activeNodes, adjacencyEdges, stubEdges, activeChainEdges,
-                makeStubCyclesDisjoint, matchingAlgorithm);
-        makeStubCyclesDisjoint = 1;
+        stList *updatedChosenAdjacencyEdges =
+                makeMatchingObeyCyclicConstraints(activeNodes,
+                        chosenAdjacencyEdges, allAdjacencyEdgesSet,
+                        nonZeroWeightAdjacencyEdges, stubEdges,
+                        activeChainEdges, recalculateMatchingEachCycle);
+        stList_destruct(chosenAdjacencyEdges);
+        chosenAdjacencyEdges = updatedChosenAdjacencyEdges;
 
         /*
-         * Now update the set of stub edges..
+         * Update the stub edges.
          */
         stList_destruct(stubEdges);
         stubEdges = stList_construct3(0, (void(*)(void *)) stIntTuple_destruct);
@@ -747,12 +830,12 @@ void buildReferenceTopDown(Flower *flower, const char *referenceEventHeader, int
         }
 
         /*
-         * Cleanup the loop
+         * Cleanup
          */
         stList_destruct(chosenAdjacencyEdges);
-        stList_destruct(adjacencyEdges);
-        stSortedSet_destruct(activeNodes);
-        stSortedSet_destruct(activeEnds);
+        stList_destruct(nonZeroWeightAdjacencyEdges);
+        stSortedSet_destruct(allAdjacencyEdgesSet);
+        stList_destruct(allAdjacencyEdges);
     }
 
     /*

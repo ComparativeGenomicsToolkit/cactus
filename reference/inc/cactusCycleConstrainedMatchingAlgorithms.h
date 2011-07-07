@@ -49,5 +49,11 @@ stList *getMatchingWithCyclicConstraints(stSortedSet *nodes,
         bool makeStubCyclesDisjoint,
         stList *(*matchingAlgorithm)(stList *edges, int32_t nodeNumber));
 
+stList *makeMatchingObeyCyclicConstraints(stSortedSet *nodes,
+        stList *chosenEdges,
+        stSortedSet *allAdjacencyEdges, stList *nonZeroWeightAdjacencyEdges,
+        stList *stubEdges, stList *chainEdges,
+        bool makeStubCyclesDisjoint);
+
 #endif /* CYCLE_CONSTRAINED_MATCHING_ALGORITHMS_H_ */
 

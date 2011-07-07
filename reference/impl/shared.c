@@ -214,3 +214,14 @@ void addEdgeToSet(stSortedSet *edges, int32_t node1, int32_t node2) {
     stSortedSet_insert(edges, edge);
     assert(edgeInSet(edges, node1, node2));
 }
+
+static bool hasGreaterThan0Weight(stIntTuple *edge) {
+    return stIntTuple_getPosition(edge, 2) > 0;
+}
+
+stList *getEdgesWithGreaterThanZeroWeight(stList *adjacencyEdges) {
+    /*
+     * Gets all edges with weight greater than 0.
+     */
+    return stList_filter(adjacencyEdges, (bool(*)(void *)) hasGreaterThan0Weight);
+}

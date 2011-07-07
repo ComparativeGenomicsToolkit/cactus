@@ -46,4 +46,6 @@ bool edgeInSet(stSortedSet *edges, int32_t node1, int32_t node2);
 
 void addEdgeToSet(stSortedSet *edges, int32_t node1, int32_t node2);
 
+stList *getEdgesWithGreaterThanZeroWeight(stList *adjacencyEdges);
+
 #endif /* REFERENCE_H_ */
