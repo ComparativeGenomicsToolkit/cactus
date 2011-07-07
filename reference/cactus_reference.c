@@ -180,5 +180,7 @@ int main(int argc, char *argv[]) {
 
     st_logInfo("Cleaned stuff up and am finished\n");
 
+    //while(1);
+
     return 0;
 }
