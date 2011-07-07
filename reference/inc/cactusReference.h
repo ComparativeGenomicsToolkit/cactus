@@ -26,7 +26,9 @@ extern const char *REFERENCE_BUILDING_EXCEPTION;
  */
 void buildReferenceTopDown(Flower *flower, const char *referenceEventHeader,
         int32_t maxNumberOfChainsToSolvePerRound,
-        stList *(*matchingAlgorithm)(stList *edges, int32_t nodeNumber), bool recalculateMatchingEachCycle);
+        stList *(*matchingAlgorithm)(stList *edges, int32_t nodeNumber),
+        int32_t chainWeightCode,
+        bool recalculateMatchingEachCycle);
 
 /*
  * Adds sequence objects and coordinates for each reference.

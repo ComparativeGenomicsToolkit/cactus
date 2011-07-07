@@ -22,14 +22,17 @@ void usage() {
     fprintf(stderr, "-a --logLevel : Set the log level\n");
     fprintf(stderr,
             "-c --cactusDisk : The location of the flower disk directory\n");
-    fprintf(stderr,
+    fprintf(
+            stderr,
             "-e --matchingAlgorithm : Name of matching algorithm, either 'greedy', 'maxWeight', 'maxCardinality', 'blossom5'\n");
     fprintf(stderr,
-                "-g --referenceEventString : String identifying the reference event.\n");
-    fprintf(stderr,
-                    "-i --maxNumberOfChainsToSolvePerRound : Integer Max number of chains to solve per round.\n");
-    fprintf(stderr,
-                        "-j --recalculateMatchingEachCycle : Recalculate the matching between the stubs and chains at each level.\n");
+            "-g --referenceEventString : String identifying the reference event.\n");
+    fprintf(
+            stderr,
+            "-i --maxNumberOfChainsToSolvePerRound : Integer Max number of chains to solve per round.\n");
+    fprintf(
+            stderr,
+            "-j --recalculateMatchingEachCycle : Recalculate the matching between the stubs and chains at each level.\n");
 
     fprintf(stderr, "-h --help : Print this help screen\n");
 }
@@ -45,30 +48,34 @@ int main(int argc, char *argv[]) {
     char * logLevelString = NULL;
     char * cactusDiskDatabaseString = NULL;
     int32_t j;
-    stList *(*matchingAlgorithm)(stList *edges, int32_t nodeNumber) = chooseMatching_greedy;
-    char *referenceEventString = (char *)cactusMisc_getDefaultReferenceEventHeader();
+    stList *(*matchingAlgorithm)(stList *edges, int32_t nodeNumber) =
+            chooseMatching_greedy;
+    char *referenceEventString =
+            (char *) cactusMisc_getDefaultReferenceEventHeader();
     int32_t maxNumberOfChainsToSolvePerRound = 10;
     bool recalculateMatchingEachCycle = 0;
+    int32_t chainWeightCode = 2;
 
     ///////////////////////////////////////////////////////////////////////////
     // (0) Parse the inputs handed by genomeCactus.py / setup stuff.
     ///////////////////////////////////////////////////////////////////////////
 
     while (1) {
-        static struct option long_options[] = { { "logLevel",
-                required_argument, 0, 'a' }, { "cactusDisk", required_argument,
-                0, 'c' },
-                { "matchingAlgorithm", required_argument, 0, 'e' },
-                { "referenceEventString", required_argument, 0, 'g' },
-                { "maxNumberOfChainsToSolvePerRound", required_argument, 0, 'i' },
-                { "recalculateMatchingEachCycle", no_argument, 0, 'j' },
-                { "help",
-                no_argument, 0, 'h' }, { 0, 0, 0, 0 } };
+        static struct option long_options[] =
+                { { "logLevel", required_argument, 0, 'a' }, { "cactusDisk",
+                        required_argument, 0, 'c' }, { "matchingAlgorithm",
+                        required_argument, 0, 'e' }, { "referenceEventString",
+                        required_argument, 0, 'g' }, {
+                        "maxNumberOfChainsToSolvePerRound", required_argument,
+                        0, 'i' }, { "recalculateMatchingEachCycle",
+                        no_argument, 0, 'j' }, { "chainWeightCode",
+                        required_argument, 0, 'k' }, { "help", no_argument, 0,
+                        'h' }, { 0, 0, 0, 0 } };
 
         int option_index = 0;
 
-        int key =
-                getopt_long(argc, argv, "a:c:e:g:i:jh", long_options, &option_index);
+        int key = getopt_long(argc, argv, "a:c:e:g:i:jk:h", long_options,
+                &option_index);
 
         if (key == -1) {
             break;
@@ -82,20 +89,19 @@ int main(int argc, char *argv[]) {
                 cactusDiskDatabaseString = stString_copy(optarg);
                 break;
             case 'e':
-                if(strcmp("greedy", optarg) == 0) {
+                if (strcmp("greedy", optarg) == 0) {
                     matchingAlgorithm = chooseMatching_greedy;
-                }
-                else if (strcmp("maxCardinality", optarg) == 0) {
-                    matchingAlgorithm = chooseMatching_maximumCardinalityMatching;
-                }
-                else if (strcmp("maxWeight", optarg) == 0) {
+                } else if (strcmp("maxCardinality", optarg) == 0) {
+                    matchingAlgorithm
+                            = chooseMatching_maximumCardinalityMatching;
+                } else if (strcmp("maxWeight", optarg) == 0) {
                     matchingAlgorithm = chooseMatching_maximumWeightMatching;
-                }
-                else if (strcmp("blossom5", optarg) == 0) {
+                } else if (strcmp("blossom5", optarg) == 0) {
                     matchingAlgorithm = chooseMatching_blossom5;
-                }
-                else {
-                    stThrowNew(REFERENCE_BUILDING_EXCEPTION, "Input error: unrecognized matching algorithm: %s", optarg);
+                } else {
+                    stThrowNew(REFERENCE_BUILDING_EXCEPTION,
+                            "Input error: unrecognized matching algorithm: %s",
+                            optarg);
                 }
                 break;
             case 'g':
@@ -107,12 +113,24 @@ int main(int argc, char *argv[]) {
             case 'i':
                 j = sscanf(optarg, "%i", &maxNumberOfChainsToSolvePerRound);
                 assert(j == 1);
-                if(maxNumberOfChainsToSolvePerRound <= 0) {
-                    stThrowNew(REFERENCE_BUILDING_EXCEPTION, "Max number of chains to solve per round is not valid %i", maxNumberOfChainsToSolvePerRound);
+                if (maxNumberOfChainsToSolvePerRound <= 0) {
+                    stThrowNew(
+                            REFERENCE_BUILDING_EXCEPTION,
+                            "Max number of chains to solve per round is not valid %i",
+                            maxNumberOfChainsToSolvePerRound);
                 }
                 break;
             case 'j':
                 recalculateMatchingEachCycle = 1;
+                break;
+            case 'k':
+                j = sscanf(optarg, "%i", &chainWeightCode);
+                assert(j == 1);
+                if (chainWeightCode < 0 || chainWeightCode > 7) {
+                    stThrowNew(REFERENCE_BUILDING_EXCEPTION,
+                            "The chain weight code is not valid %i",
+                            chainWeightCode);
+                }
                 break;
             default:
                 usage();
@@ -136,7 +154,8 @@ int main(int argc, char *argv[]) {
     //Load the database
     //////////////////////////////////////////////
 
-    stKVDatabaseConf *kvDatabaseConf = stKVDatabaseConf_constructFromString(cactusDiskDatabaseString);
+    stKVDatabaseConf *kvDatabaseConf = stKVDatabaseConf_constructFromString(
+            cactusDiskDatabaseString);
     CactusDisk *cactusDisk = cactusDisk_construct(kvDatabaseConf, 0);
     st_logInfo("Set up the flower disk\n");
 
@@ -147,17 +166,23 @@ int main(int argc, char *argv[]) {
     for (j = optind; j < argc; j++) {
         const char *flowerName = argv[j];
         st_logInfo("Processing the flower named: %s\n", flowerName);
-        Flower *flower = cactusDisk_getFlower(cactusDisk, cactusMisc_stringToName(flowerName));
+        Flower *flower = cactusDisk_getFlower(cactusDisk,
+                cactusMisc_stringToName(flowerName));
         assert(flower != NULL);
         st_logInfo("Parsed the flower in which to build a reference\n");
-        if(!flower_hasParentGroup(flower)) {
-            buildReferenceTopDown(flower, referenceEventString, maxNumberOfChainsToSolvePerRound, matchingAlgorithm, recalculateMatchingEachCycle);
+        if (!flower_hasParentGroup(flower)) {
+            buildReferenceTopDown(flower, referenceEventString,
+                    maxNumberOfChainsToSolvePerRound, matchingAlgorithm,
+                    chainWeightCode, recalculateMatchingEachCycle);
         }
         Flower_GroupIterator *groupIt = flower_getGroupIterator(flower);
         Group *group;
-        while((group = flower_getNextGroup(groupIt)) != NULL) {
-            if(group_getNestedFlower(group) != NULL) {
-                buildReferenceTopDown(group_getNestedFlower(group), referenceEventString, maxNumberOfChainsToSolvePerRound, matchingAlgorithm, recalculateMatchingEachCycle);
+        while ((group = flower_getNextGroup(groupIt)) != NULL) {
+            if (group_getNestedFlower(group) != NULL) {
+                buildReferenceTopDown(group_getNestedFlower(group),
+                        referenceEventString, maxNumberOfChainsToSolvePerRound,
+                        matchingAlgorithm, chainWeightCode,
+                        recalculateMatchingEachCycle);
             }
         }
         flower_destructGroupIterator(groupIt);
