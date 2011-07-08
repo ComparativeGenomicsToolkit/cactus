@@ -5,7 +5,9 @@
 #Released under the MIT license, see LICENSE.txt
 #!/usr/bin/env python
 
-"""Test the progressive workflow (completeley out of date right now)
+"""Test the progressive workflow.  Not very thorough and does not use the giant existing cactus 
+
+test framework.  It does use the sonlib data so SON_TRACE_DATASETS is required. 
 
 """
 import unittest
@@ -15,6 +17,7 @@ import sys
 import random
 import math
 import copy
+import filecmp
 
 from optparse import OptionParser
 
@@ -26,93 +29,117 @@ from sonLib.bioio import printBinaryTree
 from sonLib.bioio import newickTreeParser
 from sonLib.bioio import system
 
-from cladeDecomp import CladeDecomp
-from cladeDecomp import getAllChildren
-from cladeDecomp import subtree
-from cladeDecomp import renameDbString
 
 class TestCase(unittest.TestCase):
     def setUp(self):
+        unittest.TestCase.setUp(self)
         self.tempDir = getTempDirectory(os.getcwd())
         self.tempFiles = []
-        self.fullTreeString = "(((A,B),(C,D)),((E,F),(G,H)))Root;"
-        self.catTreeString = "(A,(B,(C,(D,(E,(F,(G,(H))))))));"
-        self.sequences = ["A.fa", "B.fa", "C.fa", "D.fa", "E.fa", "F.fa", "G.fa", "H.fa"]
-        self.optionsFull, args = OptionParser().parse_args()
-        self.optionsFull.progWorkDir = self.tempDir
-        self.optionsFull.speciesTree = self.fullTreeString
-        self.optionsFull.cladeSize = 4
-        self.optionsFull.cactusDiskDatabaseString = "<tokyo_cabinet database_dir=\"FOO\" />"
-        self.optionsCat = copy.deepcopy(self.optionsFull)
-        self.optionsCat.speciesTree = self.catTreeString
-        self.optionsCat.cladeSize = 3
+        self.host = "localhost"
+        self.port = "2645"
+        self.normalTokyoDB = self.tempDir + "/NORMALTOKYODB"
+        self.progressiveTokyoDB = self.tempDir + "/PROGRESSIVETOKYODB"
+        self.progressiveKyotoDB = self.tempDir + "/PROGRESSIVETOKYDB"
+        self.jt = self.tempDir + "/JT"
+        self.exp = self.tempDir + "/EXP.xml"
+        self.ref = self.tempDir + "/REF.fa"
+        self.tree = "(((HUMAN:0.006969,CHIMP:0.009727):0.025291,BABOON:0.044568):0.11,(MOUSE:0.072818,RAT:0.081244):0.260342);"
+        self.mrtree = "(MOUSE:0.072818, RAT:0.081244):0.260342;"
         unittest.TestCase.setUp(self)
-        
-        
+            
     def tearDown(self):
         unittest.TestCase.tearDown(self)
         system("rm -rf %s" % self.tempDir)
         for tempFile in self.tempFiles:
             os.remove(tempFile)
-            
-    def testNameInternalNodes(self):
-        cdFull = CladeDecomp(self.optionsFull, self.sequences)
-        namedFullTree = "(((A,B)Anc2,(C,D)Anc3)Anc0,((E,F)Anc4,(G,H)Anc5)Anc1)Root;"
-        assert printBinaryTree(cdFull.tree, False) == namedFullTree
-        cdCat = CladeDecomp(self.optionsCat, self.sequences)
-        namedCatTree = "(A,(B,(C,(D,(E,(F,(G,H)Anc6)Anc5)Anc4)Anc3)Anc2)Anc1)Anc0;"
-        assert printBinaryTree(cdCat.tree, False) == namedCatTree
     
-    def testBuildSequenceIDLookup(self):
-
-        cd = CladeDecomp(self.optionsFull, self.sequences)
-        for i in ["A", "B", "C", "D", "E", "F", "G", "H"]:
-            assert cd.lookup[i] == i + ".fa"
-        for i in ["Anc0", "Anc1", "Anc2", "Anc3", "Anc4", "Anc5", "Root"]:
-            assert cd.lookup[i] == cd.options.progWorkDir + "/" + i + ".fa"
+    def getBlanchetteSequencePath(self, name, number = "00"):
+        seqPath = os.getenv("SON_TRACE_DATASETS") + "/"
+        seqPath += "blanchettesSimulation" + "/" + number + ".job/" + name
+        return seqPath 
     
-    def testGetAllChildren(self):
-        fullTree = newickTreeParser(self.fullTreeString)
-        fullChildren = getAllChildren([fullTree.left, fullTree.right])
-        assert fullTree.left.left in fullChildren
-        assert fullTree.left.right in fullChildren
-        assert fullTree.right.left in fullChildren
-        assert fullTree.right.right in fullChildren
-        assert len(fullChildren) is 4
-        catTree = newickTreeParser(self.catTreeString)
-        catChildren = getAllChildren([catTree])
-        assert catTree.left in catChildren
-        assert catTree.right in catChildren
-        assert len(catChildren) is 2
+    def getTokyoDBString(self, progressive=False):
+        dbString = "<st_kv_database_conf type=\"tokyo_cabinet\"> <tokyo_cabinet database_dir="
+        if progressive:
+            dbString += "\""  + self.progressiveTokyoDB + "\""
+        else:
+            dbString += "\""  + self.normalTokyoDB + "\""
+        dbString += " /> </st_kv_database_conf>"
+        return dbString
     
-    def testSubTree(self):
-        cdFull = CladeDecomp(self.optionsFull, self.sequences)
-        fullTree = cdFull.tree
-        anc1 = fullTree.left
-        anc2 = fullTree.right
-        fullCladeTree = subtree(fullTree, [anc1, anc2])
-        assert not fullCladeTree == fullTree
-        assert fullCladeTree is not None
-        assert printBinaryTree(fullCladeTree, False) == "(Anc0,Anc1)Root;"
+    def getKyotoDBString(self):
+        dbstring = "<st_kv_database_conf type=\"kyoto_tycoon\"> <kyoto_tycoon database_dir="
+        dbString += "\"" + self.progressiveKyotoDB + "\""
+        dbstring += " host=" + "\"" + self.host + "/"
+        dbString += " port=" + "\"" + self.port + "/"
+        dbString += " /> </st_kv_database_conf>"
+        return dbString
         
-        cdCat = CladeDecomp(self.optionsCat, self.sequences)
-        catTree = cdCat.tree
-        anc5 = catTree.right.right.right.right.right
-        assert anc5.iD == "Anc5"
-        catCladeTree = subtree(anc5, [anc5.left, anc5.right.left, anc5.right.right]) 
-        assert not catCladeTree == anc5
-        assert printBinaryTree(catCladeTree, False) == "(F,(G,H)Anc6)Anc5;"
+    def getExperiment(self, sequences, tree, progressive=False, kyoto=False):
+        dbstring = ""
+        if kyoto:
+            dbstring = self.getKyotoDBString()
+        else:
+            dbstring = self.getTokyoDBString(progressive)    
+        expString = "<cactus_workflow_experiment config=\"default\" sequences="
+        expString += "\"" + sequences + "\" species_tree=\"" + tree +"\"> <cactus_disk> " + dbstring
+        expString += "</cactus_disk> </cactus_workflow_experiment>"
+        return expString
     
-    def testGetClade(self):
-        cdFull = CladeDecomp(self.optionsFull, self.sequences)
-        fullOptions, fullSequences, fullNodes = cdFull.getClade(cdFull.tree)
-        ancList = ["Anc2", "Anc3", "Anc4", "Anc5"]
-        ancList = map(lambda x: cdFull.options.progWorkDir + "/" + x +".fa", ancList)
-        assert fullSequences == ancList
-        treeNoDist = printBinaryTree(newickTreeParser(fullOptions.speciesTree), False)
-        assert treeNoDist == "((Anc2,Anc3)Anc0,(Anc4,Anc5)Anc1)Root;" 
-        assert fullOptions.cladeSize is self.optionsFull.cladeSize
-        assert len(fullNodes) == cdFull.options.cladeSize
+    def getCmdLine(self, progressive):
+        name = ""
+        if progressive:
+            name = "progressive"
+        else:
+            name = "workflow"
+        cmdString = "cactus_" + name + ".py"
+        cmdString += " --experiment " + self.exp
+        cmdString += " --setupAndBuildAlignments --buildReference"
+        cmdString += " --jobTree " + self.jt
+        return cmdString
+    
+    def runExperiment(self, sequences, tree, progressive, kyoto):
+        expString = self.getExperiment(sequences, tree, progressive, kyoto)        
+        expFile = open(self.exp, "w")
+        expFile.write(expString)
+        expFile.close()
+        os.system("rm -rf " + self.jt)
+        assert os.system(self.getCmdLine(progressive)) == 0
+    
+    def getReference(self):
+        cmdLine = "cactus_getReferenceSeq --flowerName 0"
+        cmdLine += " --cactusDisk " + "'" + self.getTokyoDBString(False) + "'"
+        cmdLine += " --referenceEventString reference"
+        cmdLine += " --outputFile " + self.ref
+        assert os.system(cmdLine) == 0
+    
+    def testProgressiveTokyo(self):
+        sequences = self.getBlanchetteSequencePath("MOUSE") + " " + self.getBlanchetteSequencePath("RAT")
+        os.system("rm -rf " + self.normalTokyoDB)
+        self.runExperiment(sequences, self.mrtree, False, False)
+        self.getReference()
+         
+        os.system("rm -rf " + self.progressiveTokyoDB)
+        sequences = " ".join(map(lambda x: self.getBlanchetteSequencePath(x),
+                           ["HUMAN", "CHIMP", "BABOON", "MOUSE", "RAT"]))
+        self.runExperiment(sequences, self.tree, True, False)
+    
+        return filecmp.cmp(self.ref, self.progressiveTokyoDB + "/Anc2/Anc2_reference.fa")
+ 
+ # too lazy to write code to automatically set up server and verify file structure in automated test right now   
+    '''def testProgressiveKyoto(self):
+        sequences = self.getBlanchetteSequencePath("MOUSE") + " " + self.getBlanchetteSequencePath("RAT")
+        os.system("rm -rf " + self.normalTokyoDB)
+        self.runExperiment(sequences, self.mrtree, False, False)
+        self.getReference()
+        
+        os.system("rm -rf " + self.progressiveKyotoDB)
+        sequences = " ".join(map(lambda x: self.getBlanchetteSequencePath(x),
+                           ["HUMAN", "CHIMP", "BABOON", "MOUSE", "RAT"]))
+        self.runExperiment(sequences, self.tree, True, True)
+    
+        return filecmp.cmp(self.ref, self.progressiveKyotoDB + "/Anc2/Anc2_reference.fa")'''
+        
     
 if __name__ == '__main__':
     unittest.main()
