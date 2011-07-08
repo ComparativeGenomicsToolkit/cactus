@@ -232,8 +232,8 @@ def main():
     parser.add_option("--buildFaces", dest="buildFaces", action="store_true",
                       help="Build adjacencies", default=False)
     
-    #parser.add_option("--buildReference", dest="buildReference", action="store_true",
-    #                  help="Creates a reference ordering for the flowers", default=False)
+    parser.add_option("--buildReference", dest="buildReference", action="store_true",
+                      help="Deprecated", default=False)
     
     parser.add_option("--buildMAF", dest="buildMAF", action="store_true",
                      help="Create a MAF file from the cactus and reference", default=False)
@@ -283,6 +283,6 @@ def _test():
     return doctest.testmod()
 
 if __name__ == '__main__':
-    from cactusTools.progressive.cactus_progressive import *
+    from cactus.progressive.cactus_progressive import *
     _test()
     main()
