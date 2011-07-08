@@ -47,19 +47,19 @@ from cactus.pipeline.cactus_workflow import CactusPhylogenyPhase
 from cactus.pipeline.cactus_workflow import CactusReferencePhase
 from cactus.pipeline.cactus_workflow import CactusFacesPhase
 
-from progressiveSplitUtils import getCladeLeaves
-from progressiveSplitUtils import nameUnlabeledInternalNodes
-from progressiveSplitUtils import createSeqeunceMap
-from progressiveSplitUtils import getCladeSequences
-from progressiveSplitUtils import createCladeOptions
-from progressiveSplitUtils import createCladeFileStructure
-from progressiveSplitUtils import getMAFGeneratorOptions
-from progressiveSplitUtils import getMAFJoinOptions
-from progressiveSplitUtils import getReferenceSeqOptions
-from progressiveSplitUtils import createProgWorkDir
-from progressiveSplitUtils import addDotsToMAF
-from progressiveSplitUtils import getCladeMAFJoinTempPath
-from progressiveSplitUtils import getCladeMAFPath
+from cactus.progressive.progressiveSplitUtils import getCladeLeaves
+from cactus.progressive.progressiveSplitUtils import nameUnlabeledInternalNodes
+from cactus.progressive.progressiveSplitUtils import createSeqeunceMap
+from cactus.progressive.progressiveSplitUtils import getCladeSequences
+from cactus.progressive.progressiveSplitUtils import createCladeOptions
+from cactus.progressive.progressiveSplitUtils import createCladeFileStructure
+from cactus.progressive.progressiveSplitUtils import getMAFGeneratorOptions
+from cactus.progressive.progressiveSplitUtils import getMAFJoinOptions
+from cactus.progressive.progressiveSplitUtils import getReferenceSeqOptions
+from cactus.progressive.progressiveSplitUtils import createProgWorkDir
+from cactus.progressive.progressiveSplitUtils import addDotsToMAF
+from cactus.progressive.progressiveSplitUtils import getCladeMAFJoinTempPath
+from cactus.progressive.progressiveSplitUtils import getCladeMAFPath
 
 
 class ProgressiveSetup(Target):
