@@ -20,6 +20,7 @@ from cactus.externalTools.threeEdgeConnected.threeEdgeTests import TestCase as t
 from cactus.externalTools.matchGraph.matchGraphTest import TestCase as matchGraphTest
 from cactus.externalTools.blossom.blossomTest import TestCase as blossomTest
 from cactus.normalisation.cactus_normalisationTest import TestCase as normalisationTest
+from cactus.progressive.cactus_progressiveTest import TestCase as progressiveTest
  
 from cactus.shared.test import parseCactusSuiteTestOptions
 
@@ -38,7 +39,8 @@ def allSuites():
                                    unittest.makeSuite(adjacenciesTest, 'test'),
                                    unittest.makeSuite(referenceTest, 'test'),
                                    unittest.makeSuite(aPITest, 'test'),
-                                   unittest.makeSuite(normalisationTest, 'test')))
+                                   unittest.makeSuite(normalisationTest, 'test'),
+                                   unittest.makeSuite(progressiveTest, 'test')))
     return allTests
         
 def main():
