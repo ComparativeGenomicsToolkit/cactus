@@ -49,6 +49,12 @@ def recurseClades(root, options, cladeNodes):
 def getDbPaths(cladeNodes, options):
     paths = ""
     for node in cladeNodes:
+        paths += "\"" + getCladeDatabaseDir(node, options) + "/" + getCladeDatabaseName(node, options) + " "        
+    return paths
+
+def getDbPathsWithOptions(cladeNodes, options):
+    paths = ""
+    for node in cladeNodes:
         paths += "\"" + getCladeDatabaseDir(node, options) + "/" + getCladeDatabaseName(node, options)
         paths += "#opts=ls#bnum=30m#msiz=50g#ktopts=p" + "\"" + " " 
         
@@ -102,7 +108,7 @@ def main():
     if testServerExists(options):
         print "WARNING: ktserver already running on specified port and host\n"
     print "ktserver" + " -port " + getPort(options) + " -host " + getHost(options) \
-    + " -ls -tout 200000 -th 64 " + getDbPaths(clades, options) + "\n"
+    + " -ls -tout 200000 -th 64 " + getDbPathsWithOptions(clades, options) + "\n"
     
 
 if __name__ == '__main__':    
