@@ -29,10 +29,10 @@ from jobTree.src.bioio import getLogLevelString
 from jobTree.src.bioio import logger
 from jobTree.src.bioio import setLoggingFromOptions
 
-from progressiveSplitUtils import nameUnlabeledInternalNodes
-from progressiveSplitUtils import getCladeLeaves
-from progressiveSplitUtils import getCladeDatabaseDir
-from progressiveSplitUtils import getCladeDatabaseName
+from cactus.progressive.progressiveSplitUtils import nameUnlabeledInternalNodes
+from cactus.progressive.progressiveSplitUtils import getCladeLeaves
+from cactus.progressive.progressiveSplitUtils import getCladeDatabaseDir
+from cactus.progressive.progressiveSplitUtils import getCladeDatabaseName
 
 def recurseClades(root, options, cladeNodes):
     if root.left is not None and root.right is not None:
