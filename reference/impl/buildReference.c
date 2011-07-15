@@ -812,7 +812,7 @@ void buildReferenceTopDown(Flower *flower, const char *referenceEventHeader,
      * Get the stub edges and chosen edges.
      */
     stList * stubEdges;
-    if (flower_getParentGroup(flower)) {
+    if (flower_getParentGroup(flower) != NULL) {
         stubEdges = getStubEdgesFromParent(flower, endsToNodes, referenceEvent);
     } else {
         stList *allAdjacencyEdges = getAdjacencyEdges(flower, activeEnds,

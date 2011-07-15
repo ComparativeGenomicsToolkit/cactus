@@ -70,9 +70,19 @@ void fn(const char *fastaHeader, const char *string, int32_t length) {
 void setCompleteStatus(const char *fileName) {
     isComplete = 0;
     int32_t i = strlen(fileName);
-    if (i > 9) {
-        const char *cA = fileName + i - 11;
+    if (i >= 9) {
+        const char *cA = fileName + i - 9;
         if (strcmp(cA, ".complete") == 0) {
+            isComplete = 1;
+            st_logInfo(
+                    "The file %s is specified complete, the sequences will be attached\n",
+                    fileName);
+            return;
+        }
+    }
+    if (i >= 11) {
+        const char *cA = fileName + i - 11;
+        if (strcmp(cA, ".complete.fa") == 0) {
             isComplete = 1;
             st_logInfo(
                     "The file %s is specified complete, the sequences will be attached\n",

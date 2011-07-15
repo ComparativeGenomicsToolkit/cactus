@@ -532,9 +532,9 @@ void linkStubComponentsToTheSinkComponent(struct PinchGraph *pinchGraph,
         }
     }
 
-#ifdef BEN_DEBUG
+//#ifdef BEN_DEBUG
     assert(k == 2*(stList_length(adjacencyComponents)-1));
-#endif
+//#endif
 
     //clean up
     stList_destruct(adjacencyComponents);
