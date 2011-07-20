@@ -83,9 +83,6 @@ class MakeBlasts(Target):
         #Break up the fasta sequences into overlapping chunks.
         ##########################################
         
-        #We break up a sequence into a series of chunks
-        #Bridging the breaks between chunks (only between adjacency chunks) we create smaller overlapping, call these bridges.
-        
         def processSequences(sequenceFiles, tempFilesDir):
             chunkFiles = getTempFile(suffix=".txt", rootDir=self.getLocalTempDir())
             

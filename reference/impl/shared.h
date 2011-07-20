@@ -18,6 +18,10 @@
 
 #include "sonLib.h"
 
+stSortedSet *getEmptyNodeOrEdgeSetWithCleanup();
+
+stSortedSet *getEmptyNodeOrEdgeSetWithoutCleanup();
+
 stIntTuple *constructEdge(int32_t node1, int32_t node2);
 
 stIntTuple *constructWeightedEdge(int32_t node1, int32_t node2, int32_t weight);
@@ -31,6 +35,11 @@ stSortedSet *getNodeSetOfEdges(stList *edges);
 void addNodeToSet(stSortedSet *nodes, int32_t node);
 
 bool nodeInSet(stSortedSet *nodes, int32_t node);
+
+void addEdgeToList(int32_t node1, int32_t node2, stList *edges);
+
+void addWeightedEdgeToList(int32_t node1, int32_t node2, int32_t weight,
+        stList *edges);
 
 stIntTuple *getWeightedEdgeFromSet(int32_t node1, int32_t node2,
         stSortedSet *allAdjacencyEdges);
@@ -47,5 +56,7 @@ bool edgeInSet(stSortedSet *edges, int32_t node1, int32_t node2);
 void addEdgeToSet(stSortedSet *edges, int32_t node1, int32_t node2);
 
 stList *getEdgesWithGreaterThanZeroWeight(stList *adjacencyEdges);
+
+void logEdges(stList *edges, const char *edgesName);
 
 #endif /* REFERENCE_H_ */

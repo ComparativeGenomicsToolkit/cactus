@@ -52,7 +52,7 @@ int main(int argc, char *argv[]) {
             chooseMatching_greedy;
     char *referenceEventString =
             (char *) cactusMisc_getDefaultReferenceEventHeader();
-    int32_t maxNumberOfChainsToSolvePerRound = 10;
+    int32_t maxNumberOfChainsToSolvePerRound = 1;
     bool recalculateMatchingEachCycle = 0;
     int32_t chainWeightCode = 2;
 

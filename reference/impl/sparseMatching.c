@@ -33,7 +33,7 @@ static stList *translateEdges(stList *edges, stHash *nodesToRebasedNodes) {
         stIntTuple *node2 = getItemForNode(stIntTuple_getPosition(edge, 1), nodesToRebasedNodes);
         assert(node1 != NULL);
         assert(node2 != NULL);
-        stList_append(rebasedEdges, stIntTuple_construct(3, stIntTuple_getPosition(node1, 0), stIntTuple_getPosition(node2, 0), stIntTuple_getPosition(edge, 2)));
+        stList_append(rebasedEdges, constructWeightedEdge(stIntTuple_getPosition(node1, 0), stIntTuple_getPosition(node2, 0), stIntTuple_getPosition(edge, 2)));
     }
     return rebasedEdges;
 }

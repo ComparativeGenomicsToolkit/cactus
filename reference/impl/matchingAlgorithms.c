@@ -14,6 +14,7 @@
 #include "sonLib.h"
 #include "cactus.h"
 #include "cactusReference.h"
+#include "shared.h"
 
 /*
  * Functions to assess matching
@@ -87,23 +88,14 @@ static void writeCliqueGraph(FILE *fileHandle, stList *edges, int32_t nodeNumber
         //If is a minimisation algorithms we invert the sign..
         fprintf(fileHandle, "%i %i %i\n", from, to, negativeWeights ? -weight : weight);
         edgesWritten++;
-        stIntTuple *one = stIntTuple_construct(2, from, to);
-        stIntTuple *two = stIntTuple_construct(2, to, from);
-#ifdef BEN_DEBUG
-        assert(stSortedSet_search(seen, one) == NULL);
-        assert(stSortedSet_search(seen, two) == NULL);
-#endif
-        stSortedSet_insert(seen, one);
-        stSortedSet_insert(seen, two);
+        addEdgeToSet(seen, from, to);
     }
     for(int32_t i=0; i<nodeNumber; i++) {
         for(int32_t j=i+1; j<nodeNumber; j++) {
-            stIntTuple *edge = stIntTuple_construct(2, i, j);
-            if(stSortedSet_search(seen, edge) == NULL) {
+            if(!edgeInSet(seen, i, j)) {
                 fprintf(fileHandle, "%i %i 0\n", i, j);
                 edgesWritten++;
             }
-            stIntTuple_destruct(edge);
         }
     }
     //Cleanup
@@ -115,12 +107,8 @@ static stHash *putEdgesInHash(stList *edges) {
     stHash *intsToEdgesHash = stHash_construct3((uint32_t (*)(const void *))stIntTuple_hashKey, (int (*)(const void *, const void *))stIntTuple_equalsFn, (void (*)(void *))stIntTuple_destruct, NULL);
     for(int32_t i=0; i<stList_length(edges); i++) {
         stIntTuple *edge = stList_get(edges, i);
-        int32_t to = stIntTuple_getPosition(edge, 0);
-        int32_t from = stIntTuple_getPosition(edge, 1);
-        stHash_insert(intsToEdgesHash, stIntTuple_construct(2, to, from), edge);
-        stHash_insert(intsToEdgesHash, stIntTuple_construct(2, from, to), edge);
+        stHash_insert(intsToEdgesHash, constructEdge(stIntTuple_getPosition(edge, 0), stIntTuple_getPosition(edge, 1)), edge);
     }
-
     return intsToEdgesHash;
 }
 
@@ -148,7 +136,7 @@ static stList *readMatching(FILE *fileHandle, stList *originalEdges) {
         assert(node2 >= 0);
         assert(node2 < nodeNumber);
 #endif
-        stIntTuple *edge = stIntTuple_construct(2, node1, node2);
+        stIntTuple *edge = constructEdge(node1, node2);
         stIntTuple *originalEdge = stHash_search(originalEdgesHash, edge);
         if(originalEdge != NULL) {
             stList_append(chosenEdges, originalEdge);
@@ -238,8 +226,7 @@ stList *chooseMatching_greedy(stList *edges, int32_t nodeNumber) {
     //First clone the list..
     edges = stList_copy(edges, NULL);
 
-    stSortedSet *seen = stSortedSet_construct3((int (*)(const void *, const void *))stIntTuple_cmpFn,
-            (void (*)(void *))stIntTuple_destruct);
+    stSortedSet *seen = getEmptyNodeOrEdgeSetWithCleanup();
     stList *matching = stList_construct();
 
     //Sort the adjacency pairs..
@@ -255,18 +242,10 @@ stList *chooseMatching_greedy(stList *edges, int32_t nodeNumber) {
         assert(d <= strength);
         strength = d;
 #endif
-        stIntTuple *fromTuple = stIntTuple_construct(1, stIntTuple_getPosition(edge, 0));
-        stIntTuple *toTuple = stIntTuple_construct(1, stIntTuple_getPosition(edge, 1));
-        if (stSortedSet_search(seen, fromTuple)
-                == NULL && stSortedSet_search(seen,
-                toTuple) == NULL) {
-            stSortedSet_insert(seen, fromTuple);
-            stSortedSet_insert(seen, toTuple);
+        if(!nodeInSet(seen, stIntTuple_getPosition(edge, 0)) && !nodeInSet(seen, stIntTuple_getPosition(edge, 1))) {
+            addNodeToSet(seen, stIntTuple_getPosition(edge, 0));
+            addNodeToSet(seen, stIntTuple_getPosition(edge, 1));
             stList_append(matching,edge);
-        }
-        else {
-            stIntTuple_destruct(fromTuple);
-            stIntTuple_destruct(toTuple);
         }
     }
     assert(stList_length(edges) == 0);
