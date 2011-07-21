@@ -238,11 +238,20 @@ static void readFastaCallback(const char *fastaHeader, const char *sequence, int
 
 int main(int argc, char *argv[])
 {
-	if (argc != 3)
+	if (argc != 3 && argc != 4)
 	{
-		fprintf(stderr, "USAGE: %s <file containining list of fasta chunks> \
+		fprintf(stderr, "USAGE: %s <input> <output> [compress]\n \
+				<input>: chunks file list\n \
+				<output>: target fasta file\n \
+				[compress]: 1 if chunks were compressed \
 				<output fasta file>\n\n", argv[0]);
 		return -1;
+	}
+
+	bool compress = false;
+	if (argc == 4 && strcmp(argv[3], "1") == 0)
+	{
+		compress = true;
 	}
 
 	FILE* chunkListFile = fopen(argv[1], "r");
@@ -267,6 +276,14 @@ int main(int argc, char *argv[])
 	while (fscanf(chunkListFile, "%s", chunkFileName) == 1)
 	{
 		/* Read a sequence from the fasta file into the global "cur" variables */
+		if (compress)
+		{
+			int32_t sysReturn = st_system("mv %s %s.bz2", chunkFileName, chunkFileName);
+			assert(sysReturn == 0);
+			sysReturn = st_system("bunzip2 %s.bz2", chunkFileName);
+			assert(sysReturn == 0);
+		}
+
 		FILE* chunkFile = fopen(chunkFileName, "r");
 		fastaReadToFunction(chunkFile, readFastaCallback);
 		fclose(chunkFile);
