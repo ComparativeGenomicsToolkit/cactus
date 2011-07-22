@@ -65,7 +65,7 @@ class PreprocessChunks(Target):
     """ locally preprocess some fasta chunks, output then copied back to input
     """
     def __init__(self, prepOptions, seqPath, chunkList):
-        Target.__init__(self, time=0.0002)
+        Target.__init__(self, time=33.119)
         self.prepOptions = prepOptions 
         self.seqPath = seqPath
         self.chunkList = chunkList
@@ -82,9 +82,7 @@ class PreprocessChunks(Target):
             cmdline = self.prepOptions.cmdLine.replace("QUERY_FILE", "\"" + localSequencePath + "\"")
             cmdline = cmdline.replace("TARGET_FILE", "\"" + localChunkPath + "\"")
             cmdline = cmdline.replace("OUT_FILE", "\"" + prepChunkPath + "\"")
-            os.system("cp %s ~/Desktop/q.fa; cp %s ~/Desktop/t.fa; cp %s ~/Desktop/o.fa" % (localSequencePath, 
-                                                                                            localChunkPath,
-                                                                                            prepChunkPath))
+            
             logger.info("Preprocessor exec " + cmdline)
             assert os.system(cmdline) == 0
             
@@ -97,7 +95,7 @@ class MergeChunks(Target):
     """ merge a list of chunks into a fasta file
     """
     def __init__(self, prepOptions, chunkListPath, outSequencePath):
-        Target.__init__(self, time=0.0002)
+        Target.__init__(self, time=0.1380)
         self.prepOptions = prepOptions 
         self.chunkListPath = chunkListPath
         self.outSequencePath = outSequencePath
@@ -115,7 +113,7 @@ class PreprocessSequence(Target):
     """ cut a sequence into chunks, process, then merge
     """
     def __init__(self, prepOptions, inSequencePath, outSequencePath):
-        Target.__init__(self, time=0.0002)
+        Target.__init__(self, time=0.1380)
         self.prepOptions = prepOptions 
         self.inSequencePath = inSequencePath
         self.outSequencePath = outSequencePath
