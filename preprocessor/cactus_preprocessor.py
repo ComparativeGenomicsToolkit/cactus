@@ -86,13 +86,12 @@ class PreprocessChunks(Target):
                                                                                             localChunkPath,
                                                                                             prepChunkPath))
             logger.info("Preprocessor exec " + cmdline)
-            sysRet = os.system(cmdline)
-            assert sysRet == 0
+            assert os.system(cmdline) == 0
             
             compressedChunk = compressFastaFile(prepChunkPath, self.getLocalTempDir(),
                                                 self.prepOptions.compressFiles)
             
-            os.rename(compressedChunk, chunk)
+            assert os.system("mv %s %s" % (compressedChunk, chunk)) == 0
 
 class MergeChunks(Target):
     """ merge a list of chunks into a fasta file
