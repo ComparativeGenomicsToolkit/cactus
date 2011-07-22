@@ -32,6 +32,7 @@ from sonLib.bioio import newickTreeParser
 
 from sonLib.bioio import logger
 from sonLib.bioio import setLoggingFromOptions
+from sonLib.bioio import getTempDirectory
 
 from cactus.shared.common import cactusRootPath
   
@@ -53,6 +54,8 @@ from cactus.shared.common import runCactusCheck
 from cactus.blastAlignment.cactus_aligner import MakeSequences
 from cactus.blastAlignment.cactus_batch import MakeBlastOptions
 from cactus.blastAlignment.cactus_batch import makeBlastFromOptions
+
+from cactus.preprocessor.cactus_preprocessor import BatchPreprocessor
 
 ############################################################
 ############################################################
@@ -99,7 +102,7 @@ def getOptionalAttrib(node, attribName, default=None):
     if node.attrib.has_key(attribName):
         return node.attrib[attribName]
     return default
-
+        
 class CactusSetupPhase(Target):
     def __init__(self, options, sequences):
         Target.__init__(self, time=0.0002)
@@ -129,11 +132,32 @@ class CactusSetupPhase(Target):
         #Modify the config options
         self.modifyConfig()
         #Make the child setup job.
-        self.addChildTarget(CactusSetupWrapper(self.options, self.sequences))
+        self.addChildTarget(CactusPreprocessorPhase(self.options, self.sequences))
         #initialise the down pass as the follow on.. using special '0'
         self.setFollowOnTarget(CactusAlignmentPhase('0', self.options))
-        logger.info("Created child target cactus_setup job, and follow on down pass job")
+        logger.info("Created child target preprocessor job, and follow on down pass job")
 
+class CactusPreprocessorPhase(Target):
+    def __init__(self, options, sequences):
+        Target.__init__(self, time=0.0002)
+        self.options = options 
+        self.sequences = sequences
+
+    def run(self):
+        logger.info("Starting preprocessor phase target")
+        
+        processedSequences = self.sequences
+       
+        prepNode = self.options.config.find("preprocessor")
+        if prepNode is not None:
+            tempDir = getTempDirectory(self.getGlobalTempDir())
+            processedSequences = map(lambda x: tempDir + "/" + x, self.sequences)
+            logger.info("Adding child batch_preprocessor target")
+            self.addChildTarget(BatchPreprocessor(self.options, self.sequences, processedSequences))
+                                  
+        self.setFollowOnTarget(CactusSetupWrapper(self.options, processedSequences))
+        logger.info("Created followOn target cactus_setup job, and follow on down pass job")
+        
 class CactusSetupWrapper(Target):
     def __init__(self, options, sequences):
         Target.__init__(self, time=1.0)
