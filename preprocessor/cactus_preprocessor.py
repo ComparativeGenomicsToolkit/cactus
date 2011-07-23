@@ -47,8 +47,10 @@ def fileList(path):
         contents = os.listdir(path)
         files = []
         for i in contents:
-            if os.path.isfile(i):
-                files.append(i)
+            if i[0] != '.':
+                fpath = os.path.join(path, i)
+                if os.path.isfile(fpath):
+                    files.append(fpath)
         return files
     else:
         return [path]
@@ -107,6 +109,7 @@ class MergeChunks(Target):
         
         sysRet = system("cactus_batch_mergeChunks %s %s %i" % \
                         (self.chunkListPath, self.outSequencePath, self.prepOptions.compressFiles))
+        
         assert sysRet == 0
  
 class PreprocessSequence(Target):
@@ -155,11 +158,11 @@ class PreprocessSequence(Target):
         self.setFollowOnTarget(MergeChunks(self.prepOptions, chunkListPath, self.outSequencePath))
 
 class BatchPreprocessor(Target):
-    def __init__(self, options, inSequences, outSequences):
+    def __init__(self, options, inSequences, outDirBase):
         Target.__init__(self, time=0.0002)
         self.options = options 
         self.inSequences = inSequences
-        self.outSequences = outSequences
+        self.outDirBase = outDirBase
         self.prepOptions = None
        
     def run(self):
@@ -174,9 +177,12 @@ class BatchPreprocessor(Target):
         #iterate over each input fasta file
         inSeqFiles = []
         map(inSeqFiles.extend, map(fileList, self.inSequences))
-        outSeqFiles = []
-        map(outSeqFiles.extend, map(fileList, self.outSequences))
+        assert len(inSeqFiles) >= len(self.inSequences)
+        
+        outSeqFiles = map(lambda x: self.outDirBase  + "/" + x, inSeqFiles)
         outSeq = iter(outSeqFiles)
+        assert len(outSeqFiles) == len(inSeqFiles)
+        
         for inSeq in inSeqFiles:
             self.addChildTarget(PreprocessSequence(self.prepOptions, inSeq, outSeq.next()))
         

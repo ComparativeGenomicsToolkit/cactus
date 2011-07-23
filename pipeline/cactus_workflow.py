@@ -153,8 +153,8 @@ class CactusPreprocessorPhase(Target):
             tempDir = getTempDirectory(self.getGlobalTempDir())
             processedSequences = map(lambda x: tempDir + "/" + x, self.sequences)
             logger.info("Adding child batch_preprocessor target")
-            self.addChildTarget(BatchPreprocessor(self.options, self.sequences, processedSequences))
-                                  
+            self.addChildTarget(BatchPreprocessor(self.options, self.sequences, tempDir))
+
         self.setFollowOnTarget(CactusSetupWrapper(self.options, processedSequences))
         logger.info("Created followOn target cactus_setup job, and follow on down pass job")
         
