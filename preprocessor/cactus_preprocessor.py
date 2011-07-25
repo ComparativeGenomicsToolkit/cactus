@@ -104,7 +104,7 @@ class MergeChunks(Target):
     
     def run(self):
         baseDir = os.path.dirname(self.outSequencePath)
-        if not os.path.exists(baseDir):
+        if not os.path.isdir(baseDir):
             os.makedirs(baseDir)
         
         sysRet = system("cactus_batch_mergeChunks %s %s %i" % \

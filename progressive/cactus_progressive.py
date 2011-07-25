@@ -168,7 +168,7 @@ class ProgressiveBuildMAF(Target):
     
     def run(self):
         
-        assert(self.root.left is not None or self.root.right is not Note)
+        assert(self.root.left is not None or self.root.right is not None)
         
         if self.options.buildMAF:
             logger.info("Starting MAF Build phase")
