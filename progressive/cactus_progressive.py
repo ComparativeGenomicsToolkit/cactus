@@ -84,7 +84,7 @@ class ProgressiveSetup(Target):
         
 class ProgressiveAlignmentDown(Target):
     def __init__(self, root, options, sequences):
-        Target.__init__(self, time=0.0002)
+        Target.__init__(self)
         self.root = root
         self.options = options
         self.sequences = sequences
@@ -104,7 +104,7 @@ class ProgressiveAlignmentDown(Target):
         
 class ProgressiveAlignmentUp(Target):
     def __init__(self, root, leaves, options, sequences):
-        Target.__init__(self, time=0.0002)
+        Target.__init__(self)
         self.root = root
         self.leaves = leaves
         self.options = options
@@ -137,7 +137,7 @@ class ProgressiveAlignmentUp(Target):
         
 class ProgressiveExtractReference(Target):
     def __init__(self, root, leaves, options, cladeOptions, sequences):
-        Target.__init__(self, time=0.0002)
+        Target.__init__(self)
         self.root = root
         self.leaves = leaves
         self.options = options
@@ -159,7 +159,7 @@ class ProgressiveExtractReference(Target):
                 
 class ProgressiveBuildMAF(Target):
     def __init__(self, root, leaves, options, cladeOptions, sequences):
-        Target.__init__(self, time=0.0002)
+        Target.__init__(self)
         self.root = root
         self.leaves = leaves
         self.options = options
@@ -185,7 +185,7 @@ class ProgressiveBuildMAF(Target):
 
 class ProgressiveJoinMAF(Target):
     def __init__(self, root, leaves, options, cladeOptions, sequences):
-        Target.__init__(self, time=0.0002)
+        Target.__init__(self)
         self.root = root
         self.leaves = leaves
         self.options = options
