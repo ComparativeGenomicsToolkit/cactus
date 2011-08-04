@@ -187,7 +187,7 @@ def createCladeOptions(root, leaves, options):
     #modifiy sequences attribute in new XML
     assert options.lookup is not None
     sequences = map(lambda x: options.lookup[x.iD], leaves)
-    sequences = reduce(lambda x,y: x + ", " + y, sequences)
+    sequences = reduce(lambda x,y: x + " " + y, sequences)
     
     cladeOptions.experimentFile.attrib["sequences"] = sequences
     cladeOptions.experimentFile.attrib["species_tree"] = cladeOptions.speciesTree    
