@@ -56,7 +56,7 @@ def getDbPathsWithOptions(cladeNodes, options):
     paths = ""
     for node in cladeNodes:
         paths += "\"" + getCladeDatabaseDir(node, options) + "/" + getCladeDatabaseName(node, options) + \
-                "#opts=ls#bnum=30"
+                "#opts=ls#bnum=30m"
         if options.memSize > 0:
             paths += "#msiz=" + str(options.memSize) + "g"
         paths += "#ktopts=p" + "\"" + " " 
