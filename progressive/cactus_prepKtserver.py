@@ -55,8 +55,11 @@ def getDbPaths(cladeNodes, options):
 def getDbPathsWithOptions(cladeNodes, options):
     paths = ""
     for node in cladeNodes:
-        paths += "\"" + getCladeDatabaseDir(node, options) + "/" + getCladeDatabaseName(node, options)
-        paths += "#opts=ls#bnum=30m#msiz=50g#ktopts=p" + "\"" + " " 
+        paths += "\"" + getCladeDatabaseDir(node, options) + "/" + getCladeDatabaseName(node, options) + \
+                "#opts=ls#bnum=30"
+        if options.memSize > 0:
+            paths += "#msiz=" + str(options.memSize) + "g"
+        paths += "#ktopts=p" + "\"" + " " 
         
     return paths
 
@@ -87,7 +90,10 @@ def main():
                        help="The file containing a link to the experiment parameters")
     
     parser.add_option("--cladeSize", dest="cladeSize", type="int", 
-                      help="Max number of sequences to align at a time", default=2)
+                      help="Max number of sequences to align at a time [default=2]", default=2)
+    
+    parser.add_option("--memSize", dest="memSize", type="int",
+                      help="Ktserver #memsiz (map size) in G [default=unspecified]", default=0)
     
     options, args = parser.parse_args()
     #setLoggingFromOptions(options)
