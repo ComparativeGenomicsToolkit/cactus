@@ -61,6 +61,9 @@ from cactus.progressive.progressiveSplitUtils import addDotsToMAF
 from cactus.progressive.progressiveSplitUtils import getCladeMAFJoinTempPath
 from cactus.progressive.progressiveSplitUtils import getCladeMAFPath
 
+from cactus.progressive.progressiveKtserver import isKyotoTycoon
+from cactus.progressive.progressiveKtserver import spawnLocalKtserver
+from cactus.progressive.progressiveKtserver import killLocalKtserver
 
 class ProgressiveSetup(Target):
     def __init__(self, options, sequences):
@@ -115,6 +118,10 @@ class ProgressiveAlignmentUp(Target):
         
         # create options object for clade alignment
         cladeOptions = createCladeOptions(self.root, self.leaves, self.options)
+       
+        # spawn ktserver and update cladeOptions 
+        if isKyotoTycoon(cladeOptions) and cladeOptions.autoKtserver:
+            spawnLocalKtserver(cladeOptions)
         
         if self.options.setupAndBuildAlignments:
             createCladeFileStructure(self.root, self.leaves, self.options, cladeOptions)       
@@ -194,6 +201,10 @@ class ProgressiveJoinMAF(Target):
     
     def run(self):
         
+        # don't need the ktserver anymore, so we kill it
+        if isKyotoTycoon(cladeOptions) and options.autoKtserver:
+            killLocalKtserver(cladeOptions)
+        
         if self.options.joinMAF:
             assert(self.root.left is not None or self.root.right is not Note)
             assert(len(self.leaves) == len(self.sequences))
@@ -243,6 +254,10 @@ def main():
     
     parser.add_option("--cladeSize", dest="cladeSize", type="int", 
                       help="Max number of sequences to align at a time", default=2)
+    
+    parser.add_option("--autoKtserver", dest="autoKtserver", action="store_true",
+                      help="Autmatically manage ktservers (if cactus disk is KT) [default=True]",
+                      default=True)
     
     options, args = parser.parse_args()
     setLoggingFromOptions(options)

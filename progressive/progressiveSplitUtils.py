@@ -203,6 +203,9 @@ def createCladeOptions(root, leaves, options):
     cladeOptions.experimentFile.attrib["config"]  = getCladeConfigPath(root, options)
     cladeOptions.config.find("reference").attrib["reference"] = getCladeReferenceName(root)     
     
+    #add field for server process for auto ktserver spawning
+    cladeOptions.serverProcess = None
+    
     return cladeOptions 
     
 # Create the directory and xml for cactus on clade   
