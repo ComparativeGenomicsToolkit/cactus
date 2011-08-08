@@ -58,6 +58,7 @@ def setPort(options, port):
     dbConfElem = options.experimentFile.find("cactus_disk").find("st_kv_database_conf")
     dbTypeElem = dbConfElem.find(dbConfElem.attrib["type"])
     dbTypeElem.attrib["port"] = str(port)
+    options.cactusDiskDatabaseString = ET.tostring(dbConfElem)
 
 def getHost(options):
     dbConfElem = options.experimentFile.find("cactus_disk").find("st_kv_database_conf")
@@ -126,7 +127,7 @@ def spawnLocalKtserver(node, cladeOptions):
             if not os.path.isdir(getDatabaseDir(cladeOptions)):
                 os.makedirs(getDatabaseDir(cladeOptions))
             
-            setPort(cladeOptions, str(port))
+            setPort(cladeOptions, str(port))          
             procHandle = subprocess.Popen(ktServerCommandLine(cladeOptions).split(), shell=False)
             sleep(2)
             
