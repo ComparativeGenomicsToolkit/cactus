@@ -202,8 +202,8 @@ class ProgressiveJoinMAF(Target):
     def run(self):
         
         # don't need the ktserver anymore, so we kill it
-        if isKyotoTycoon(cladeOptions) and options.autoKtserver:
-            killLocalKtserver(cladeOptions)
+        if isKyotoTycoon(self.cladeOptions) and self.options.autoKtserver:
+            killLocalKtserver(self.cladeOptions)
         
         if self.options.joinMAF:
             assert(self.root.left is not None or self.root.right is not Note)
