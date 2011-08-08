@@ -64,6 +64,7 @@ from cactus.progressive.progressiveSplitUtils import getCladeMAFPath
 from cactus.progressive.progressiveKtserver import isKyotoTycoon
 from cactus.progressive.progressiveKtserver import spawnLocalKtserver
 from cactus.progressive.progressiveKtserver import killLocalKtserver
+from cactus.progressive.progressiveKtserver import creatKTPortMap
 
 class ProgressiveSetup(Target):
     def __init__(self, options, sequences):
@@ -82,6 +83,10 @@ class ProgressiveSetup(Target):
         # create map between node names and fasta file paths
         self.options.lookup = createSeqeunceMap(root, self.options, self.sequences)
         
+        # create kt port map (kind of a hack) 
+        if isKyotoTycoon(self.options) and self.options.autoKtserver:
+            self.options.portMap = creatKTPortMap(root, self.options)
+            
         # start recursive alignment at root
         self.setFollowOnTarget(ProgressiveAlignmentDown(root, self.options, self.sequences))
         
@@ -121,7 +126,7 @@ class ProgressiveAlignmentUp(Target):
        
         # spawn ktserver and update cladeOptions 
         if isKyotoTycoon(cladeOptions) and cladeOptions.autoKtserver:
-            spawnLocalKtserver(cladeOptions)
+            spawnLocalKtserver(self.root, cladeOptions)
         
         if self.options.setupAndBuildAlignments:
             createCladeFileStructure(self.root, self.leaves, self.options, cladeOptions)       

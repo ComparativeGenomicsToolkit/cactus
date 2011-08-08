@@ -36,6 +36,8 @@ from jobTree.src.bioio import getLogLevelString
 from jobTree.src.bioio import logger
 from jobTree.src.bioio import setLoggingFromOptions
 
+from cactus.progressive.progressiveSplitUtils import getCladeLeaves
+
 # we just hardcode these for now.  it's possible that they may
 # need to be dynamically set (msiz in particular) or at least specified
 # in the xml in the future.
@@ -77,6 +79,19 @@ def testServerExists(host, port):
                   "> /dev/null 2>&1")
     return r == 0
 
+# Create a mapping between node IDs and port numbers
+def creatKTPortMap(tree, options):
+    basePort = int(getPort(options))
+    dfStack = [tree]
+    lookup = dict()
+    while dfStack:
+        node = dfStack.pop(len(dfStack)-1)
+        if node is not None and node.internal:
+            lookup[node.iD] = basePort
+            basePort += 1
+            dfStack.extend(getCladeLeaves(node, options))
+    return lookup
+
 def ktServerCommandLine(cladeOptions):
     return "ktserver -port %s %s %s/%s%s" % (getPort(cladeOptions),
                                                             serverOptions,
@@ -98,11 +113,11 @@ def updateKillScript(cladeOptions):
     
 # Spawn a server process on the next available port in range   
 # Note: cladeOptions are updated with the successful port
-def spawnLocalKtserver(cladeOptions):
+def spawnLocalKtserver(node, cladeOptions):
     assert cladeOptions.autoKtserver
     assert isKyotoTycoon(cladeOptions)
     
-    basePort = int(getPort(cladeOptions))
+    basePort = cladeOptions.portMap[node.iD]
     procHandle = None
     host = getHost(cladeOptions)
     for port in range(basePort, basePort + portRangeSize):
