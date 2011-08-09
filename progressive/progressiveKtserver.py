@@ -41,7 +41,7 @@ from cactus.progressive.progressiveSplitUtils import getCladeLeaves
 # we just hardcode these for now.  it's possible that they may
 # need to be dynamically set (msiz in particular) or at least specified
 # in the xml in the future.
-tuningOptions = "#opts=ls#bnum=30m#msiz=30g#ktopts=p"
+tuningOptions = "#opts=ls#bnum=30m#msiz=50g#ktopts=p"
 serverOptions = "-ls -tout 200000 -th 64"
 portRangeSize = 100
 
@@ -121,12 +121,13 @@ def spawnLocalKtserver(node, cladeOptions):
     basePort = cladeOptions.portMap[node.iD]
     procHandle = None
     host = getHost(cladeOptions)
+    
+    if not os.path.isdir(getDatabaseDir(cladeOptions)):
+        os.makedirs(getDatabaseDir(cladeOptions))
+                
     for port in range(basePort, basePort + portRangeSize):
         
         if testServerExists(host, port) == False:
-            if not os.path.isdir(getDatabaseDir(cladeOptions)):
-                os.makedirs(getDatabaseDir(cladeOptions))
-            
             setPort(cladeOptions, str(port))          
             procHandle = subprocess.Popen(ktServerCommandLine(cladeOptions).split(), shell=False)
             sleep(2)
@@ -136,6 +137,7 @@ def spawnLocalKtserver(node, cladeOptions):
                 break
             else:
                 logger.info("ktserver failed on port %i... retrying" % port)
+                sleep(2)
                 
     if procHandle is None:
         logger.critical("Could not open server in port range [%i, %i]" % (basePort, 
