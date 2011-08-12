@@ -31,7 +31,6 @@ static Segment *segment;
 static Segment *segment2;
 static Cap *cap;
 static Cap *cap2;
-static Reference *reference;
 
 /*
  * Setup/teardown functions.
@@ -45,7 +44,6 @@ static void cactusFlowerTestTeardown() {
         eventTree = NULL;
         metaSequence = NULL;
         sequence = NULL;
-        reference = NULL;
     }
 }
 
@@ -54,8 +52,6 @@ static void cactusFlowerTestSetup() {
     cactusDisk = testCommon_getTemporaryCactusDisk();
     flower = flower_construct(cactusDisk);
     eventTree = eventTree_construct2(flower);
-    assert(flower_getReference(flower) == NULL);
-    reference = reference_construct(flower);
 }
 
 static void sequenceSetup() {
@@ -184,12 +180,6 @@ void testFlower_getCactusDisk(CuTest* testCase) {
 void testFlower_getEventTree(CuTest* testCase) {
     cactusFlowerTestSetup();
     CuAssertTrue(testCase, flower_getEventTree(flower) == eventTree);
-    cactusFlowerTestTeardown();
-}
-
-void testFlower_getReference(CuTest* testCase) {
-    cactusFlowerTestSetup();
-    CuAssertTrue(testCase, flower_getReference(flower) == reference);
     cactusFlowerTestTeardown();
 }
 
@@ -381,182 +371,6 @@ void testFlower_getEndNumber(CuTest *testCase) {
     cactusFlowerTestTeardown();
 }
 
-/*void testFlower_mergeFlowers(CuTest *testCase) {
- cactusFlowerTestSetup();
- //construct the flowers to merge...
- Flower *flower1 = flower_construct(cactusDisk);
- Flower *flower2 = flower_construct(cactusDisk);
-
- //construct flowers that are children of the flowers to merge.
- Flower *flower3 = flower_construct(cactusDisk);
- Flower *flower4 = flower_construct(cactusDisk);
- Flower *flower5 = flower_construct(cactusDisk);
-
- //Make event tree
- MetaEvent *internalMetaEvent = metaEvent_construct("INTERNAL", cactusDisk);
- MetaEvent *leafMetaEvent1 = metaEvent_construct("LEAF1", cactusDisk);
- MetaEvent *leafMetaEvent2 = metaEvent_construct("LEAF2", cactusDisk);
- Event *internalEvent = event_construct(internalMetaEvent, 0.5, eventTree_getRootEvent(eventTree), eventTree);
- Event *leafEvent1 = event_construct(leafMetaEvent1, 0.2, internalEvent, eventTree);
- event_construct(leafMetaEvent2, 1.3, internalEvent, eventTree);
-
- //Copy the event tree into the children (this is tested by the merge event function)..
- EventTree *eventTree1 = eventTree_copyConstruct(eventTree, flower1, NULL);
- eventTree_copyConstruct(eventTree, flower2, NULL);
- MetaEvent *unaryInternalMetaEvent1 = metaEvent_construct("UNARY1", cactusDisk);
- MetaEvent *unaryInternalMetaEvent2 = metaEvent_construct("UNARY2", cactusDisk);
- MetaEvent *unaryInternalMetaEvent3 = metaEvent_construct("UNARY3", cactusDisk);
-
- Event *internalEventChild = eventTree_getEvent(eventTree1, event_getName(internalEvent));
- Event *unaryEvent1 = event_construct2(unaryInternalMetaEvent1, 0.1,
- internalEventChild, eventTree_getEvent(eventTree1, event_getName(leafEvent1)), eventTree1);
- Event *unaryEvent2 = event_construct2(unaryInternalMetaEvent2, 0.1,
- internalEventChild, unaryEvent1, eventTree1);
- event_construct2(unaryInternalMetaEvent3, 0.1,
- internalEventChild, unaryEvent2, eventTree1);
- CuAssertTrue(testCase, eventTree_getEventNumber(eventTree1) == 7);
-
- //Make some sequences
- MetaSequence *metaSequence1 = metaSequence_construct(0, 5, "ACTGG", "one", event_getName(unaryEvent1), cactusDisk);
- MetaSequence *metaSequence2 = metaSequence_construct(0, 5, "CCCCC", "two", event_getName(unaryEvent2), cactusDisk);
- MetaSequence *metaSequence3 = metaSequence_construct(0, 5, "TTTTT", "three", event_getName(leafEvent1), cactusDisk);
- Sequence *sequence1 = sequence_construct(metaSequence1, flower1);
- Sequence *sequence2 = sequence_construct(metaSequence2, flower1);
- Sequence *sequence3 = sequence_construct(metaSequence3, flower2);
-
- //Make children and parent flowers and some groups..
- Group *group3 = group_construct(flower1, flower3);
- Group *group4 = group_construct(flower2, flower4);
- Group *group5 = group_construct(flower2, flower5);
- Group *group6 = group_construct2(flower1);
- Group *group7 = group_construct2(flower2);
-
- //Make some stubs to put in the ends..
- End *end1 = end_construct(0, flower1);
- End *end2 = end_construct(0, flower1);
- End *end3 = end_construct(0, flower2);
- end_setGroup(end1, group6);
- end_setGroup(end2, group6);
- end_setGroup(end3, group7);
-
- //Make a few caps
- Cap *cap1 = cap_construct2(end1, 0, 1, 1, sequence1);
- Cap *cap2 = cap_construct2(end1, 0, 1, 1, sequence2);
- cap_makeParentAndChild(cap2, cap1);
- Cap *cap3 = cap_construct2(end3, 0, 1, 1, sequence3);
-
- //Make some blocks..
- Block *block1 = block_construct(0, flower1);
- Block *block2 = block_construct(0, flower2);
- Block *block3 = block_construct(0, flower2);
- end_setGroup(block_get5End(block3), group7);
-
- //Make a segment
- Segment *segment1 = segment_construct(block1, eventTree_getEvent(eventTree1, metaEvent_getName(leafMetaEvent1)));
-
- //Make some chains...
- Chain *chain1 = chain_construct(flower1);
- Chain *chain2 = chain_construct(flower2);
-
- //Make a couple of links in the chain
- Link *link1 = link_construct(end1, end2, group6, chain1);
- Link *link2 = link_construct(end3, block_get5End(block3), group7, chain2);
-
- Name flowerName1 = flower_getName(flower1);
- Flower *flower6 = flower_mergeFlowers(flower1, flower2);
-
- //Check the events
- EventTree *eventTree3 = flower_getEventTree(flower6);
- CuAssertTrue(testCase, eventTree_getEventNumber(eventTree3) == 7);
- CuAssertTrue(testCase, eventTree_getEvent(eventTree3, metaEvent_getName(unaryInternalMetaEvent1)) != NULL);
- CuAssertTrue(testCase, eventTree_getEvent(eventTree3, metaEvent_getName(unaryInternalMetaEvent2)) != NULL);
- CuAssertTrue(testCase, eventTree_getEvent(eventTree3, metaEvent_getName(unaryInternalMetaEvent3)) != NULL);
-
- CuAssertTrue(testCase, event_getName(event_getParent(eventTree_getEvent(eventTree3, metaEvent_getName(unaryInternalMetaEvent1)))) == metaEvent_getName(unaryInternalMetaEvent2));
- CuAssertTrue(testCase, event_getName(event_getParent(eventTree_getEvent(eventTree3, metaEvent_getName(unaryInternalMetaEvent2)))) == metaEvent_getName(unaryInternalMetaEvent3));
- CuAssertTrue(testCase, event_getName(event_getParent(eventTree_getEvent(eventTree3, metaEvent_getName(unaryInternalMetaEvent3)))) == metaEvent_getName(internalMetaEvent));
- CuAssertTrue(testCase, event_getName(event_getParent(eventTree_getEvent(eventTree3, metaEvent_getName(leafMetaEvent1)))) == metaEvent_getName(unaryInternalMetaEvent1));
-
- //Check the sequences
- CuAssertTrue(testCase, flower_getSequence(flower6, metaSequence_getName(metaSequence2)) != NULL);
- CuAssertTrue(testCase, flower_getSequence(flower6, metaSequence_getName(metaSequence3)) != NULL);
- CuAssertTrue(testCase, flower_getSequence(flower6, metaSequence_getName(metaSequence1)) != NULL);
-
- CuAssertTrue(testCase, sequence_getEvent(flower_getSequence(flower6, metaSequence_getName(metaSequence1))) == eventTree_getEvent(eventTree3, metaEvent_getName(unaryInternalMetaEvent1)));
- CuAssertTrue(testCase, sequence_getEvent(flower_getSequence(flower6, metaSequence_getName(metaSequence2))) == eventTree_getEvent(eventTree3, metaEvent_getName(unaryInternalMetaEvent2)));
- CuAssertTrue(testCase, sequence_getEvent(flower_getSequence(flower6, metaSequence_getName(metaSequence3))) == eventTree_getEvent(eventTree3, metaEvent_getName(leafMetaEvent1)));
-
- //Check the groups..
- CuAssertTrue(testCase, flower_getGroupNumber(flower6) == 5);
- CuAssertTrue(testCase, flower_getGroup(flower6, group_getName(group3)) != NULL);
- CuAssertTrue(testCase, flower_getGroup(flower6, group_getName(group4)) != NULL);
- CuAssertTrue(testCase, flower_getGroup(flower6, group_getName(group5)) != NULL);
- CuAssertTrue(testCase, flower_getGroup(flower6, group_getName(group6)) != NULL);
- CuAssertTrue(testCase, flower_getGroup(flower6, group_getName(group7)) != NULL);
- CuAssertTrue(testCase, flower_getGroup(flower6, group_getName(group3)) == flower_getParentGroup(flower3));
- CuAssertTrue(testCase, flower_getGroup(flower6, group_getName(group4)) == flower_getParentGroup(flower4));
- CuAssertTrue(testCase, flower_getGroup(flower6, group_getName(group5)) == flower_getParentGroup(flower5));
-
- //Check the ends
- CuAssertTrue(testCase, flower_getEndNumber(flower6) == 9);
- CuAssertTrue(testCase, flower_getEnd(flower6, end_getName(end1)) == end1);
- CuAssertTrue(testCase, flower_getEnd(flower6, end_getName(end2)) == end2);
- CuAssertTrue(testCase, flower_getEnd(flower6, end_getName(end3)) == end3);
- CuAssertTrue(testCase, flower_getEnd(flower6, end_getName(block_get5End(block1))) == block_get5End(block1));
- CuAssertTrue(testCase, flower_getEnd(flower6, end_getName(block_get5End(block2))) == block_get5End(block2));
- CuAssertTrue(testCase, flower_getEnd(flower6, end_getName(block_get5End(block3))) == block_get5End(block3));
- CuAssertTrue(testCase, flower_getEnd(flower6, end_getName(block_get3End(block1))) == block_get3End(block1));
- CuAssertTrue(testCase, flower_getEnd(flower6, end_getName(block_get3End(block2))) == block_get3End(block2));
- CuAssertTrue(testCase, flower_getEnd(flower6, end_getName(block_get3End(block3))) == block_get3End(block3));
-
- //Check we have the right index of caps.
- CuAssertTrue(testCase, flower_getCapNumber(flower6) == 5);
- CuAssertTrue(testCase, flower_getCap(flower6, cap_getName(cap1)) == cap1);
- CuAssertTrue(testCase, flower_getCap(flower6, cap_getName(cap2)) == cap2);
- CuAssertTrue(testCase, flower_getCap(flower6, cap_getName(cap3)) == cap3);
-
- //Check the the events have been reassigned for the caps
- CuAssertTrue(testCase, cap_getEvent(cap1) == eventTree_getEvent(eventTree3, metaEvent_getName(unaryInternalMetaEvent1)));
- CuAssertTrue(testCase, cap_getEvent(cap2) == eventTree_getEvent(eventTree3, metaEvent_getName(unaryInternalMetaEvent2)));
- CuAssertTrue(testCase, cap_getEvent(cap3) == eventTree_getEvent(eventTree3, metaEvent_getName(leafMetaEvent1)));
-
- //Check the caps have the right sequences.
- CuAssertTrue(testCase, cap_getSequence(cap1) == flower_getSequence(flower6, metaSequence_getName(metaSequence1)));
- CuAssertTrue(testCase, cap_getSequence(cap2) == flower_getSequence(flower6, metaSequence_getName(metaSequence2)));
- CuAssertTrue(testCase, cap_getSequence(cap3) == flower_getSequence(flower6, metaSequence_getName(metaSequence3)));
-
- //Check the blocks
- CuAssertTrue(testCase, flower_getBlockNumber(flower6) == 3);
- CuAssertTrue(testCase, flower_getBlock(flower6, block_getName(block1)) == block1);
- CuAssertTrue(testCase, flower_getBlock(flower6, block_getName(block2)) == block2);
- CuAssertTrue(testCase, flower_getBlock(flower6, block_getName(block3)) == block3);
-
- //Check the segments
- CuAssertTrue(testCase, flower_getSegmentNumber(flower6) == 1);
- CuAssertTrue(testCase, flower_getSegment(flower6, segment_getName(segment1)) == segment1);
- CuAssertTrue(testCase, segment_getSequence(segment1) == NULL);
- CuAssertTrue(testCase, segment_getEvent(segment1) == eventTree_getEvent(eventTree3, event_getName(leafEvent1)));
-
- //Check the chains
- CuAssertTrue(testCase, flower_getChainNumber(flower6) == 2);
- CuAssertTrue(testCase, flower_getChain(flower6, chain_getName(chain1)) == chain1);
- CuAssertTrue(testCase, flower_getChain(flower6, chain_getName(chain2)) == chain2);
- CuAssertTrue(testCase, link_getChain(link1) == chain1);
- CuAssertTrue(testCase, link_getChain(link2) == chain2);
- CuAssertTrue(testCase, link_get5End(link1) == end1);
- CuAssertTrue(testCase, link_get3End(link1) == end2);
- CuAssertTrue(testCase, link_get5End(link2) == end3);
- CuAssertTrue(testCase, link_get3End(link2) == block_get5End(block3));
-
- //Check flower1 is no longer in the database anywhere...
- CuAssertTrue(testCase, cactusDisk_getFlower(cactusDisk, flowerName1) == NULL);
-
- //Check the merged flower is in the database.
- CuAssertTrue(testCase, cactusDisk_getFlower(cactusDisk, flower_getName(flower6)) == flower6);
-
- cactusFlowerTestTeardown();
- }*/
-
 void testFlower_builtBlocks(CuTest *testCase) {
     cactusFlowerTestSetup();
 
@@ -724,7 +538,6 @@ CuSuite* cactusFlowerTestSuite(void) {
     SUITE_ADD_TEST(suite, testFlower_chain);
     SUITE_ADD_TEST(suite, testFlower_getTrivialChainNumber);
     SUITE_ADD_TEST(suite, testFlower_face);
-    SUITE_ADD_TEST(suite, testFlower_getReference);
     //SUITE_ADD_TEST(suite, testFlower_mergeFlowers);
     SUITE_ADD_TEST(suite, testFlower_builtBlocks);
     SUITE_ADD_TEST(suite, testFlower_builtTrees);

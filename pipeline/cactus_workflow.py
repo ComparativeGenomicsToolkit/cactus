@@ -47,12 +47,12 @@ from cactus.shared.common import runCactusAdjacencies
 from cactus.shared.common import runCactusBaseAligner
 from cactus.shared.common import runCactusMakeNormal 
 from cactus.shared.common import runCactusReference
+from cactus.shared.common import runCactusAddReferenceCoordinates
 from cactus.shared.common import runCactusCheck
 
 from cactus.blastAlignment.cactus_aligner import MakeSequences
 from cactus.blastAlignment.cactus_batch import MakeBlastOptions
 from cactus.blastAlignment.cactus_batch import makeBlastFromOptions
-
 
 ############################################################
 ############################################################
@@ -92,6 +92,13 @@ def inverseJukesCantor(d):
     """
     assert d >= 0.0
     return 0.75 * (1 - math.exp(-d * 4.0/3.0))
+
+def getOptionalAttrib(node, attribName, default=None):
+    """Get an optional attrib, or None, if not set.
+    """
+    if node.attrib.has_key(attribName):
+        return node.attrib[attribName]
+    return default
 
 class CactusSetupPhase(Target):
     def __init__(self, options, sequences):
@@ -230,10 +237,7 @@ class CactusCafDown(Target):
     
     def run(self):
         ignoreFlowersLessThanThisSize = int(self.iteration.attrib["min_sequence_size"])
-        if self.iteration.attrib.has_key("max_sequence_size"):
-            ignoreFlowersGreaterThanThisSize = int(self.iteration.attrib["max_sequence_size"])
-        else:
-            ignoreFlowersGreaterThanThisSize = sys.maxint
+        ignoreFlowersGreaterThanThisSize = int(getOptionalAttrib(self.iteration, "max_sequence_size", sys.maxint))
         makeChildTargets(self.options, self.iteration, self.flowerNames, self, CactusCafDown, 
                          ignoreFlowersLessThanThisSize=ignoreFlowersLessThanThisSize)
         for childFlowerName, childFlowerSize in runCactusExtendFlowers(self.options.cactusDiskDatabaseString, self.flowerNames, 
@@ -333,10 +337,7 @@ class CactusBarDown(Target):
     def run(self):
         children = []
         makeChildTargets(self.options, self.iteration, self.flowerNames, self, CactusBarDown)
-        if self.iteration.attrib.has_key("max_sequence_size"):
-            ignoreFlowersGreaterThanThisSize = int(self.iteration.attrib["max_sequence_size"])
-        else:
-            ignoreFlowersGreaterThanThisSize = sys.maxint
+        ignoreFlowersGreaterThanThisSize = int(getOptionalAttrib(self.iteration, "max_sequence_size", sys.maxint))
         childFlowersAndSizes = runCactusExtendFlowers(self.options.cactusDiskDatabaseString, self.flowerNames, 
                                                               self.getLocalTempDir())
         makeTargets(self.options, self.iteration, childFlowersAndSizes, self, CactusBaseLevelAlignerWrapper, maxSequenceSize=10000, 
@@ -472,7 +473,9 @@ class CactusReferencePhase(Target):
         logger.info("Starting the reference phase")
         if self.options.buildReference:
             self.addChildTarget(CactusReferenceDown(self.options, None, [ self.flowerName ]))
-        self.setFollowOnTarget(CactusFacesPhase(self.flowerName, self.options))
+            self.setFollowOnTarget(CactusSetReferenceCoordinates(self.flowerName, self.options))
+        else:
+            self.setFollowOnTarget(CactusFacesPhase(self.flowerName, self.options))
         
 class CactusReferenceDown(Target):
     """This target does the down pass for the reference phase.
@@ -484,22 +487,28 @@ class CactusReferenceDown(Target):
         self.flowerNames = flowerNames
     
     def run(self):
-        matchingAlgorithm = self.options.config.find("reference").attrib["matching_algorithm"]
-        runCactusReference(self.options.cactusDiskDatabaseString, flowerNames=self.flowerNames, matchingAlgorithm=matchingAlgorithm) #We first run the top down phase
-        self.setFollowOnTarget(CactusReferenceRunnable(options=self.options, flowerNames=self.flowerNames)) #We second run a bottom up phase
+        referenceNode=self.options.config.find("reference")
+        runCactusReference(self.options.cactusDiskDatabaseString, flowerNames=self.flowerNames, 
+                           matchingAlgorithm=getOptionalAttrib(referenceNode, "matching_algorithm"), 
+                           maxNumberOfChainsToSolvePerRound=getOptionalAttrib(referenceNode, "maxNumberOfChainsToSolvePerRound"),
+                           referenceEventString=getOptionalAttrib(referenceNode, "reference"), 
+                           chainWeightCode=getOptionalAttrib(referenceNode, "chainWeightCode"),
+                           recalculateMatchingEachCycle=getOptionalAttrib(referenceNode, "recalculateMatchingEachCycle"))
         makeChildTargets(self.options, None, self.flowerNames, self, CactusReferenceDown)
 
-class CactusReferenceRunnable(Target):
-    """This target runs the reference script bottom up (second phase).
+class CactusSetReferenceCoordinates(Target):
+    """Fills in the coordinates, once a reference is added.
     """
-    def __init__(self, flowerNames, options):
-        Target.__init__(self, time=3.0)
-        self.flowerNames = flowerNames
+    def __init__(self, flowerName, options):
+        Target.__init__(self, time=100.0)
+        self.flowerName = flowerName
         self.options = options
         
     def run(self):
-        runCactusReference(self.options.cactusDiskDatabaseString, flowerNames=self.flowerNames, bottomUp=True)
-            
+        referenceNode=self.options.config.find("reference")
+        runCactusAddReferenceCoordinates(self.options.cactusDiskDatabaseString, referenceEventString=getOptionalAttrib(referenceNode, "reference"))
+        self.setFollowOnTarget(CactusFacesPhase(self.flowerName, self.options))
+
 ############################################################
 ############################################################
 ############################################################

@@ -12,7 +12,6 @@
 struct _flower {
     Name name;
     EventTree *eventTree;
-    Reference *reference;
     stSortedSet *sequences;
     stSortedSet *ends;
     stSortedSet *caps;
@@ -141,19 +140,6 @@ void flower_addFace(Flower *flower, Face *face);
  * Remove the face from the flower.
  */
 void flower_removeFace(Flower *flower, Face *face);
-
-/*
- * Adds the event tree for the flower to the flower.
- * If an previous event tree exists for the flower
- * it will call Reference_destruct for the existing tree
- * (which should not exist without the flower).
- */
-void flower_setReference(Flower *flower, Reference *reference);
-
-/*
- * This function is called by Reference_destruct and cleans up the reference.
- */
-void flower_removeReference(Flower *flower, Reference *reference);
 
 /*
  * This function constructs faces for the flower. If faces are already created then

@@ -239,6 +239,19 @@ void eventTree_check(EventTree *eventTree) {
 	eventTree_destructIterator(eventIterator);
 }
 
+Event *eventTree_getEventByHeader(EventTree *eventTree, const char *eventHeader) {
+    EventTree_Iterator *it = eventTree_getIterator(eventTree);
+    Event *event;
+    while ((event = eventTree_getNext(it)) != NULL) {
+        if (strcmp(event_getHeader(event), eventHeader) == 0) {
+            eventTree_destructIterator(it);
+            return event;
+        }
+    }
+    eventTree_destructIterator(it);
+    return NULL;
+}
+
 /*
  * Private functions.
  */

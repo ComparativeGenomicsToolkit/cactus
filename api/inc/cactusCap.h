@@ -28,6 +28,11 @@ Cap *cap_construct(End *end, Event *event);
 Cap *cap_construct2(End *end, int32_t startCoordinate, bool strand, Sequence *sequence);
 
 /*
+ * Adds coordinates to a given cap.
+ */
+void cap_setCoordinates(Cap *cap, int32_t coordinate, int32_t strand, Sequence *sequence);
+
+/*
  * Adds the given cap into the end - will fail if the given cap is not a member of
  * an end with the same name as end.
  */

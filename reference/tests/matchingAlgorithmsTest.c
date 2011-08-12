@@ -6,7 +6,8 @@
 
 #include "CuTest.h"
 #include "sonLib.h"
-#include "matchingAlgorithms.h"
+#include "cactusMatchingAlgorithms.h"
+#include "shared.h"
 
 static int32_t nodeNumber = 0;
 static stSortedSet *edges = NULL;
@@ -29,30 +30,24 @@ static void setup() {
     do {
         nodeNumber = st_randomInt(0, 100);
     } while(nodeNumber % 2 != 0);
+    edgesList = stList_construct3(0, (void (*)(void *))stIntTuple_destruct);
     if(nodeNumber > 0) {
         int32_t edgeNumber = st_randomInt(0, nodeNumber * 10);
-        edges = stSortedSet_construct3((int (*)(const void *, const void *))stIntTuple_cmpFn, (void (*)(void *))stIntTuple_destruct);
-        stSortedSet *seen = stSortedSet_construct3((int (*)(const void *, const void *))stIntTuple_cmpFn, (void (*)(void *))stIntTuple_destruct);
+        stSortedSet *seen = getEmptyNodeOrEdgeSetWithCleanup();
         for(int32_t i=0; i<edgeNumber; i++) {
             int32_t from = st_randomInt(0, nodeNumber);
             int32_t to = st_randomInt(0, nodeNumber);
             if(from != to) {
-                stIntTuple *edge1 = stIntTuple_construct(2, from, to);
-                if(stSortedSet_search(seen, edge1) == NULL) {
-                    stSortedSet_insert(seen, edge1);
-                    stSortedSet_insert(seen, stIntTuple_construct(2, to, from));
-                    stSortedSet_insert(edges, stIntTuple_construct(3, from, to, st_randomInt(0, 100)));
-                }
-                else {
-                    stIntTuple_destruct(edge1);
+                if(!edgeInSet(seen, from, to)) {
+                    addEdgeToSet(seen, from, to);
+                    addWeightedEdgeToList(from, to, st_randomInt(0, 100), edgesList);
                 }
             }
         }
         stSortedSet_destruct(seen);
-        edgesList = stSortedSet_getList(edges);
     }
+    edges = stList_getSortedSet(edgesList, (int (*)(const void *, const void *))stIntTuple_cmpFn);
 }
-
 
 static void checkMatching(CuTest *testCase, stList *matching, bool perfectMatching) {
     /*
@@ -95,15 +90,6 @@ static void checkMatching(CuTest *testCase, stList *matching, bool perfectMatchi
         CuAssertTrue(testCase, stSortedSet_size(seen) == nodeNumber);
     }
     stSortedSet_destruct(seen);
-}
-
-static int32_t matchingWeight(stList *matching) {
-    int32_t totalWeight = 0;
-    for(int32_t i=0; i<stList_length(matching); i++) {
-        stIntTuple *edge = stList_get(matching, i);
-        totalWeight += stIntTuple_getPosition(edge, 2);
-    }
-    return totalWeight;
 }
 
 static void testGreedy(CuTest *testCase) {

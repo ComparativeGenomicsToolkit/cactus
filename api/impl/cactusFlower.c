@@ -62,7 +62,6 @@ static Flower *flower_construct3(Name name, CactusDisk *cactusDisk) {
     flower->groups = stSortedSet_construct3(flower_constructGroupsP, NULL);
     flower->chains = stSortedSet_construct3(flower_constructChainsP, NULL);
     flower->faces = stSortedSet_construct3(flower_constructFacesP, NULL);
-    flower->reference = NULL;
 
     flower->parentFlowerName = NULL_NAME;
     flower->cactusDisk = cactusDisk;
@@ -122,10 +121,6 @@ void flower_destruct(Flower *flower, int32_t recursive) {
         sequence_destruct(sequence);
     }
     stSortedSet_destruct(flower->sequences);
-
-    if (flower_getReference(flower) != NULL) {
-        reference_destruct(flower_getReference(flower));
-    }
 
     while ((chain = flower_getFirstChain(flower)) != NULL) {
         chain_destruct(chain);
@@ -518,10 +513,6 @@ int64_t flower_getTotalBaseLength(Flower *flower) {
     return totalLength;
 }
 
-Reference *flower_getReference(Flower *flower) {
-    return flower->reference;
-}
-
 void flower_checkNotEmpty(Flower *flower, bool recursive) {
     //First check the flower is not empty, unless it is the parent group.
     if (flower_hasParentGroup(flower)) {
@@ -558,10 +549,6 @@ void flower_check(Flower *flower) {
         chain_check(chain);
     }
     flower_destructCapIterator(chainIterator);
-
-    if (flower_getReference(flower) != NULL) {
-        reference_check(flower_getReference(flower));
-    }
 
     //We check built trees in here.
     Flower_EndIterator *endIterator = flower_getEndIterator(flower);
@@ -882,18 +869,6 @@ void flower_removeFace(Flower *flower, Face *face) {
     stSortedSet_remove(flower->faces, face);
 }
 
-void flower_setReference(Flower *flower, Reference *reference) {
-    if (flower_getReference(flower) != NULL) {
-        reference_destruct(flower_getReference(flower));
-    }
-    flower->reference = reference;
-}
-
-void flower_removeReference(Flower *flower, Reference *reference) {
-    assert(flower_getReference(flower) == reference);
-    flower->reference = NULL;
-}
-
 /*
  * Serialisation functions.
  */
@@ -939,10 +914,6 @@ void flower_writeBinaryRepresentation(Flower *flower, void(*writeFn)(const void 
     }
     flower_destructBlockIterator(blockIterator);
 
-    if (flower_getReference(flower) != NULL) {
-        reference_writeBinaryRepresentation(flower_getReference(flower), writeFn);
-    }
-
     groupIterator = flower_getGroupIterator(flower);
     while ((group = flower_getNextGroup(groupIterator)) != NULL) {
         group_writeBinaryRepresentation(group, writeFn);
@@ -975,7 +946,6 @@ Flower *flower_loadFromBinaryRepresentation(void **binaryString, CactusDisk *cac
             ;
         while (block_loadFromBinaryRepresentation(binaryString, flower) != NULL)
             ;
-        reference_loadFromBinaryRepresentation(binaryString, flower);
         while (group_loadFromBinaryRepresentation(binaryString, flower) != NULL)
             ;
         while (chain_loadFromBinaryRepresentation(binaryString, flower) != NULL)

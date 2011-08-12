@@ -57,4 +57,9 @@ char *cactusMisc_nameToStringWithOrientation(Name name, int32_t orientation);
  */
 const char *cactusMisc_nameToStringStaticWithOrientiation(Name name, int32_t orientation);
 
+/*
+ * Gets the default name of the reference event string.
+ */
+const char *cactusMisc_getDefaultReferenceEventHeader();
+
 #endif

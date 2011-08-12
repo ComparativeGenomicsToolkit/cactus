@@ -404,11 +404,6 @@ void flower_destructFaceIterator(Flower_FaceIterator *faceIterator);
 int64_t flower_getTotalBaseLength(Flower *flower);
 
 /*
- * Gets the reference defined for this flower, or NULL if not set.
- */
-Reference *flower_getReference(Flower *flower);
-
-/*
  * Merges together the two flowers and there parent groups.
  *
  * Only works if both parent groups do not have links. Merging together groups that
