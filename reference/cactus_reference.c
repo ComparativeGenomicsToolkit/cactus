@@ -16,6 +16,7 @@
 #include "sonLib.h"
 #include "cactusReference.h"
 #include "cactusMatchingAlgorithms.h"
+#include "adjacencyProblem.h"
 
 void usage() {
     fprintf(stderr, "cactus_reference [flower names], version 0.1\n");
@@ -29,10 +30,13 @@ void usage() {
             "-g --referenceEventString : String identifying the reference event.\n");
     fprintf(
             stderr,
-            "-i --maxNumberOfChainsToSolvePerRound : Integer Max number of chains to solve per round.\n");
+            "-i --permutations : Number of permutations of gibss sampling, integer >= 0\n");
     fprintf(
             stderr,
-            "-j --recalculateMatchingEachCycle : Recalculate the matching between the stubs and chains at each level.\n");
+            "-j --useSimulatedAnnealing : Use a cooling schedule\n");
+    fprintf(
+                stderr,
+                "-k --theta : The value of theta\n");
 
     fprintf(stderr, "-h --help : Print this help screen\n");
 }
@@ -52,9 +56,9 @@ int main(int argc, char *argv[]) {
             chooseMatching_greedy;
     char *referenceEventString =
             (char *) cactusMisc_getDefaultReferenceEventHeader();
-    int32_t maxNumberOfChainsToSolvePerRound = 1;
-    bool recalculateMatchingEachCycle = 0;
-    int32_t chainWeightCode = 2;
+    int32_t permutations = 10;
+    double theta = 0.99;
+    bool useSimulatedAnnealing = 0;
 
     ///////////////////////////////////////////////////////////////////////////
     // (0) Parse the inputs handed by genomeCactus.py / setup stuff.
@@ -66,9 +70,9 @@ int main(int argc, char *argv[]) {
                         required_argument, 0, 'c' }, { "matchingAlgorithm",
                         required_argument, 0, 'e' }, { "referenceEventString",
                         required_argument, 0, 'g' }, {
-                        "maxNumberOfChainsToSolvePerRound", required_argument,
-                        0, 'i' }, { "recalculateMatchingEachCycle",
-                        no_argument, 0, 'j' }, { "chainWeightCode",
+                        "permutations", required_argument,
+                        0, 'i' }, { "useSimulatedAnnealing",
+                        no_argument, 0, 'j' }, { "theta",
                         required_argument, 0, 'k' }, { "help", no_argument, 0,
                         'h' }, { 0, 0, 0, 0 } };
 
@@ -111,25 +115,25 @@ int main(int argc, char *argv[]) {
                 usage();
                 return 0;
             case 'i':
-                j = sscanf(optarg, "%i", &maxNumberOfChainsToSolvePerRound);
+                j = sscanf(optarg, "%i", &permutations);
                 assert(j == 1);
-                if (maxNumberOfChainsToSolvePerRound <= 0) {
+                if (permutations < 0) {
                     stThrowNew(
                             REFERENCE_BUILDING_EXCEPTION,
-                            "Max number of chains to solve per round is not valid %i",
-                            maxNumberOfChainsToSolvePerRound);
+                            "Permutations is not valid %i",
+                            permutations);
                 }
                 break;
             case 'j':
-                recalculateMatchingEachCycle = 1;
+                useSimulatedAnnealing = 1;
                 break;
             case 'k':
-                j = sscanf(optarg, "%i", &chainWeightCode);
+                j = sscanf(optarg, "%lf", &theta);
                 assert(j == 1);
-                if (chainWeightCode < 0 || chainWeightCode > 7) {
+                if (theta < 0 || theta > 1.0) {
                     stThrowNew(REFERENCE_BUILDING_EXCEPTION,
-                            "The chain weight code is not valid %i",
-                            chainWeightCode);
+                            "The theta parameter is not valid %f",
+                            theta);
                 }
                 break;
             default:
@@ -163,6 +167,8 @@ int main(int argc, char *argv[]) {
     // Build the reference
     ///////////////////////////////////////////////////////////////////////////
 
+    double (*temperatureFn)(double) = useSimulatedAnnealing ? exponentiallyDecreasingTemperatureFn : constantTemperatureFn;
+
     for (j = optind; j < argc; j++) {
         const char *flowerName = argv[j];
         st_logInfo("Processing the flower named: %s\n", flowerName);
@@ -172,17 +178,16 @@ int main(int argc, char *argv[]) {
         st_logInfo("Parsed the flower in which to build a reference\n");
         if (!flower_hasParentGroup(flower)) {
             buildReferenceTopDown(flower, referenceEventString,
-                    maxNumberOfChainsToSolvePerRound, matchingAlgorithm,
-                    chainWeightCode, recalculateMatchingEachCycle);
+                    permutations, matchingAlgorithm,
+                    temperatureFn, theta);
         }
         Flower_GroupIterator *groupIt = flower_getGroupIterator(flower);
         Group *group;
         while ((group = flower_getNextGroup(groupIt)) != NULL) {
             if (group_getNestedFlower(group) != NULL) {
                 buildReferenceTopDown(group_getNestedFlower(group),
-                        referenceEventString, maxNumberOfChainsToSolvePerRound,
-                        matchingAlgorithm, chainWeightCode,
-                        recalculateMatchingEachCycle);
+                        referenceEventString, permutations,
+                        matchingAlgorithm, temperatureFn, theta);
             }
         }
         flower_destructGroupIterator(groupIt);

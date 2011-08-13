@@ -25,10 +25,10 @@ extern const char *REFERENCE_BUILDING_EXCEPTION;
  * Construct a reference for the flower, top down.
  */
 void buildReferenceTopDown(Flower *flower, const char *referenceEventHeader,
-        int32_t maxNumberOfChainsToSolvePerRound,
+        int32_t permutations,
         stList *(*matchingAlgorithm)(stList *edges, int32_t nodeNumber),
-        int32_t chainWeightCode,
-        bool recalculateMatchingEachCycle);
+        double (*temperature)(double),
+        double theta);
 
 /*
  * Adds sequence objects and coordinates for each reference.
@@ -48,5 +48,7 @@ void traverseCapsInSequenceOrderFrom3PrimeCap(Cap *cap, void *extraArg,
  * Gets a cap for a given event string.
  */
 Cap *getCapForReferenceEvent(End *end, Name referenceEventName);
+
+double *calculateZ(Flower *flower, stHash *endsToNodes, double theta);
 
 #endif /* REFERENCE_H_ */
