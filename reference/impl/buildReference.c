@@ -363,7 +363,7 @@ static void calculateZP(Cap *cap, stHash *endsToNodes,
     assert(!cap_getSide(cap));
     End *end = end_getPositiveOrientation(cap_getEnd(cap));
     assert(end_isStubEnd(end));
-    bool b;
+    bool b = 0;
     while (1) {
         if (stHash_search(endsToNodes, end) != NULL) {
             assert(!cap_getSide(cap));
