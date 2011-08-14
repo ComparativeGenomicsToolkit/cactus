@@ -490,10 +490,10 @@ class CactusReferenceDown(Target):
         referenceNode=self.options.config.find("reference")
         runCactusReference(self.options.cactusDiskDatabaseString, flowerNames=self.flowerNames, 
                            matchingAlgorithm=getOptionalAttrib(referenceNode, "matching_algorithm"), 
-                           maxNumberOfChainsToSolvePerRound=getOptionalAttrib(referenceNode, "maxNumberOfChainsToSolvePerRound"),
+                           permutations=getOptionalAttrib(referenceNode, "permutations"),
                            referenceEventString=getOptionalAttrib(referenceNode, "reference"), 
-                           chainWeightCode=getOptionalAttrib(referenceNode, "chainWeightCode"),
-                           recalculateMatchingEachCycle=getOptionalAttrib(referenceNode, "recalculateMatchingEachCycle"))
+                           useSimulatedAnnealing=getOptionalAttrib(referenceNode, "useSimulatedAnnealing"),
+                           theta=getOptionalAttrib(referenceNode, "theta"))
         makeChildTargets(self.options, None, self.flowerNames, self, CactusReferenceDown)
 
 class CactusSetReferenceCoordinates(Target):

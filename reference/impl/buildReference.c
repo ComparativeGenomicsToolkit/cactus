@@ -298,16 +298,15 @@ static stList *getStubEdges(Flower *flower, stHash *endsToNodes,
     /*
      * Create a matching for the parent stub edges.
      */
-    stList *adjacencyEdges = stList_construct3(0, (void (*)(void *))stList_destruct);
+    stList *adjacencyEdges = stList_construct3(0, (void (*)(void *))stIntTuple_destruct);
     for(int32_t i=0; i<stList_length(stubNodes); i++) {
         int32_t node1 = stIntTuple_getPosition(stList_get(stubNodes, i), 0);
         for(int32_t j=i+1; j<stList_length(stubNodes); j++) {
             int32_t node2 = stIntTuple_getPosition(stList_get(stubNodes, j), 0);
             stList_append(adjacencyEdges, constructWeightedEdge(node1, node2, z[node1 * nodeNumber + node2]));
-
         }
     }
-    stSortedSet *stubNodesSet = stList_getSortedSet(stubNodes, NULL);
+    stSortedSet *stubNodesSet = stList_getSortedSet(stubNodes, (int (*)(const void *, const void *))stIntTuple_cmpFn);
 
     checkEdges(adjacencyEdges, stubNodesSet, 1, 0);
 
@@ -318,6 +317,7 @@ static stList *getStubEdges(Flower *flower, stHash *endsToNodes,
             (void(*)(void *)) stIntTuple_destruct);
     for (int32_t i = 0; i < stList_length(chosenAdjacencyEdges); i++) {
         stIntTuple *adjacencyEdge = stList_get(chosenAdjacencyEdges, i);
+        assert(stIntTuple_length(adjacencyEdge) == 3);
         stList_append(
                 stubEdges,
                 constructEdge(stIntTuple_getPosition(adjacencyEdge, 0),
@@ -355,46 +355,79 @@ static Cap *traceAdjacency(Cap *cap, stHash *endsToNodes) {
     }
 }
 
-static void calculateZP(Cap *cap, stHash *endsToNodes, stList *_5Caps,
-        stList *_3Caps) {
+static void calculateZP(Cap *cap, stHash *endsToNodes,
+        stList *caps) {
+    /*
+     * Get the list of caps that represent the ends of the chains and stubs within a sequence.
+     */
+    assert(!cap_getSide(cap));
+    End *end = end_getPositiveOrientation(cap_getEnd(cap));
+    assert(end_isStubEnd(end));
+    bool b;
     while (1) {
-        End *end = end_getPositiveOrientation(cap_getEnd(cap));
         if (stHash_search(endsToNodes, end) != NULL) {
-            stList_append(_5Caps, end);
+            assert(!cap_getSide(cap));
+            if(stList_length(caps) > 0) {
+                assert(b);
+            }
+            b = 0;
+            stList_append(caps, cap);
         }
         cap = cap_getAdjacency(cap);
         assert(cap != NULL);
         end = end_getPositiveOrientation(cap_getEnd(cap));
         if (stHash_search(endsToNodes, end) != NULL) {
-            stList_append(_3Caps, end);
+            assert(cap_getSide(cap));
+            if(stList_length(caps) > 0) {
+                assert(!b);
+            }
+            b = 1;
+            stList_append(caps, cap);
         }
-        if (end_isStubEnd(cap_getEnd(cap))) {
+        if (end_isStubEnd(end)) {
             return;
         }
         cap = cap_getOtherSegmentCap(cap);
         assert(cap != NULL);
+        end = end_getPositiveOrientation(cap_getEnd(cap));
     }
 }
 
 static int32_t calculateZP2(Cap *cap, stHash *endsToNodes) {
+    /*
+     * Calculate the length of a segment that can be traversed from a cap,
+     * before hitting the end of the sequence of one of the other ends in the set
+     * endsToNodes.
+     */
     assert(cap_getStrand(cap));
     Sequence *sequence = cap_getSequence(cap);
     assert(sequence != NULL);
     Cap *otherCap = cap_getOtherSegmentCap(cap) == NULL ? NULL
             : traceAdjacency(cap_getOtherSegmentCap(cap), endsToNodes);
+    int32_t capLength;
     if (otherCap == NULL) {
-        return cap_getSide(cap) ? sequence_getLength(sequence)
+        capLength = cap_getSide(cap) ? sequence_getLength(sequence) + sequence_getStart(sequence)
                 - cap_getCoordinate(cap) : cap_getCoordinate(cap)
-                - sequence_getStart(sequence);
+                - sequence_getStart(sequence) + 1;
     } else {
-        return cap_getSide(cap) ? cap_getCoordinate(otherCap)
-                - cap_getCoordinate(cap) : cap_getCoordinate(cap)
-                - cap_getCoordinate(otherCap);
+        capLength = cap_getSide(cap) ? cap_getCoordinate(otherCap)
+                - cap_getCoordinate(cap) + 1 : cap_getCoordinate(cap)
+                - cap_getCoordinate(otherCap) + 1;
     }
+    assert(capLength >= 0);
+    if(capLength == 0) { //Give stubs at the end of sequences some weight.
+        assert(end_isStubEnd(cap_getEnd(cap)));
+        capLength = 1;
+    }
+    return capLength;
 }
 
 double *calculateZ(Flower *flower, stHash *endsToNodes, double theta) {
+    /*
+     * Calculate the zScores between all ends.
+     */
     int32_t nodeNumber = stHash_size(endsToNodes);
+    assert(nodeNumber % 2 == 0);
     double *z = st_calloc(nodeNumber * nodeNumber, sizeof(double));
     Flower_EndIterator *endIt = flower_getEndIterator(flower);
     End *end;
@@ -404,55 +437,58 @@ double *calculateZ(Flower *flower, stHash *endsToNodes, double theta) {
             Cap *cap;
             while ((cap = end_getNext(capIt)) != NULL) {
                 cap = cap_getStrand(cap) ? cap : cap_getReverse(cap);
-                if (!cap_getSide(cap)) {
-                    stList *_5Caps = stList_construct();
-                    stList *_3Caps = stList_construct();
-                    calculateZP(cap, endsToNodes, _5Caps, _3Caps);
+                if (!cap_getSide(cap) && cap_getSequence(cap) != NULL) {
+                    stList *caps = stList_construct();
+                    calculateZP(cap, endsToNodes, caps);
 
                     /*
-                     * Calculate the lengths of the sequences following the 3 caps.
+                     * Calculate the lengths of the sequences following the 3 caps, for efficiency.
                      */
-                    int32_t *_3CapSizes = st_malloc(
-                            sizeof(int32_t) * stList_length(_3Caps));
-                    for (int32_t i = 0; i < stList_length(_3Caps); i++) {
-                        Cap *_3Cap = stList_get(_3Caps, i);
-                        _3CapSizes[i] = calculateZP2(_3Cap, endsToNodes);
+                    int32_t *capSizes = st_malloc(
+                            sizeof(int32_t) * stList_length(caps));
+                    for (int32_t i = 0; i < stList_length(caps); i++) {
+                        Cap *cap = stList_get(caps, i);
+                        capSizes[i] = calculateZP2(cap, endsToNodes);
                     }
 
                     /*
-                     *
+                     * Iterate through all pairs of 5' and 3' caps to calculate additions to scores.
                      */
-                    for (int32_t i = 0; i < stList_length(_5Caps); i++) {
-                        Cap *_5Cap = stList_get(_5Caps, i);
-                        int32_t _5CapSize = calculateZP2(_5Cap, endsToNodes);
-                        int32_t _5Node = stIntTuple_getPosition(
+                    for (int32_t i = (stList_length(caps) > 0 && cap_getSide(stList_get(caps, 0))) ? 1 : 0;
+                            i < stList_length(caps); i+=2) {
+                        Cap *_3Cap = stList_get(caps, i);
+                        assert(!cap_getSide(_3Cap));
+                        int32_t _3CapSize = capSizes[i];
+                        int32_t _3Node = stIntTuple_getPosition(
                                 stHash_search(
                                         endsToNodes,
                                         end_getPositiveOrientation(
-                                                cap_getEnd(_5Cap))), 0);
-                        assert(_5Node >= 0);
-                        assert(_5Node < nodeNumber);
-                        for (int32_t j = 0; j < stList_length(_3Caps); j++) {
-                            Cap *_3Cap = stList_get(_3Caps, j);
-                            int32_t _3Node = stIntTuple_getPosition(
+                                                cap_getEnd(_3Cap))), 0);
+                        assert(_3Node >= 0);
+                        assert(_3Node < nodeNumber);
+                        for (int32_t j = i+1; j < stList_length(caps); j+=2) {
+                            Cap *_5Cap = stList_get(caps, j);
+                            assert(cap_getSide(_5Cap));
+                            int32_t _5Node = stIntTuple_getPosition(
                                     stHash_search(
                                             endsToNodes,
                                             end_getPositiveOrientation(
-                                                    cap_getEnd(_3Cap))), 0);
-                            int32_t _3CapSize = _3CapSizes[j];
-                            assert(_3Node >= 0);
-                            assert(_3Node < nodeNumber);
+                                                    cap_getEnd(_5Cap))), 0);
+                            int32_t _5CapSize = capSizes[j];
+                            assert(_5Node >= 0);
+                            assert(_5Node < nodeNumber);
                             int32_t diff = cap_getCoordinate(_5Cap)
                                     - cap_getCoordinate(_3Cap);
                             assert(diff >= 1);
                             double score = calculateZScore(_5CapSize, _3CapSize, diff, theta);
+                            assert(score >= 0.0);
                             z[_5Node * nodeNumber + _3Node] += score;
                             z[_3Node * nodeNumber + _5Node] += score;
+                            assert(z[_5Node * nodeNumber + _3Node] == z[_3Node * nodeNumber + _5Node]);
                         }
                     }
-
-                    stList_destruct(_5Caps);
-                    stList_destruct(_3Caps);
+                    stList_destruct(caps);
+                    free(capSizes);
                 }
             }
             end_destructInstanceIterator(capIt);
@@ -673,33 +709,35 @@ void buildReferenceTopDown(Flower *flower, const char *referenceEventHeader,
                     == nodeNumber);
 
     double maxPossibleScore = calculateMaxZ(nodeNumber, z);
-    double totalScore = 0.0;
-    stList *reference = makeReferenceGreedily(stubEdges, chainEdges, z, nodeNumber, &totalScore);
+    double totalScoreAfterGreedy = 0.0;
+    stList *reference = makeReferenceGreedily(stubEdges, chainEdges, z, nodeNumber, &totalScoreAfterGreedy);
+    double totalScoreAfterGreedy2 = calculateZScoreOfReference(reference, nodeNumber, z);
+    assert(totalScoreAfterGreedy <= totalScoreAfterGreedy2 + 0.001);
+    assert(totalScoreAfterGreedy2 <= totalScoreAfterGreedy + 0.001);
+    st_logDebug("The score of the initial solution is %f (recalculated %f) out of a max possible %f\n", totalScoreAfterGreedy, totalScoreAfterGreedy2, maxPossibleScore);
 
-    st_logDebug("The score of the initial solution is %f out of a max possible %f\n", totalScore, maxPossibleScore);
-
-    gibbsSamplingWithSimulatedAnnealing(reference, chainEdges, z, permutations, temperature, 0);
-    totalScore = calculateZScoreOfReference(reference, nodeNumber, z);
-
-    st_logDebug("The score of the sampled solution is %f after %i rounds of permutation out of a max possible %f", totalScore, permutations, maxPossibleScore);
+    //gibbsSamplingWithSimulatedAnnealing(reference, chainEdges, z, permutations, temperature, 0);
+    //double totalScoreAfterSimulatedAnnealing = calculateZScoreOfReference(reference, nodeNumber, z);
+    //st_logDebug("The score of the sampled solution is %f after %i rounds of permutation out of a max possible %f\n", totalScoreAfterSimulatedAnnealing, permutations, maxPossibleScore);
 
     gibbsSamplingWithSimulatedAnnealing(reference, chainEdges, z, permutations, NULL, 1);
-    totalScore = calculateZScoreOfReference(reference, nodeNumber, z);
-
-    st_logDebug("The score of the final solution is %f after %i rounds of greedy permutation out of a max possible %f", totalScore, permutations, maxPossibleScore);
-
+    double totalScoreAfterGreedySampling = calculateZScoreOfReference(reference, nodeNumber, z);
+    st_logDebug("The score of the final solution is %f after %i rounds of greedy permutation out of a max possible %f\n", totalScoreAfterGreedySampling, permutations, maxPossibleScore);
+    assert(totalScoreAfterGreedySampling + 0.001 >= totalScoreAfterGreedy); //totalScoreAfterSimulatedAnnealing);
 
     stList *chosenEdges = convertReferenceToAdjacencyEdges(reference);
 
     /*
      * Check the matching we have.
      */
-    stList *activeNodes = stHash_getValues(endsToNodes);
-    stSortedSet *activeNodesSet = stList_getSortedSet(activeNodes, NULL);
-    checkEdges(chosenEdges, activeNodesSet, 1, 0);
-    stSortedSet_destruct(activeNodesSet);
-    stList_destruct(activeNodes);
     assert(stList_length(chosenEdges) * 2 == nodeNumber);
+    stList *nodes = stHash_getValues(endsToNodes);
+    assert(nodeNumber == stList_length(nodes));
+    stSortedSet *nodesSet = stList_getSortedSet(nodes, (int (*)(const void *, const void *))stIntTuple_cmpFn);
+    assert(nodeNumber == stSortedSet_size(nodesSet));
+    checkEdges(chosenEdges, nodesSet, 1, 0);
+    stSortedSet_destruct(nodesSet);
+    stList_destruct(nodes);
 
     /*
      * Add the reference genome into flower
@@ -716,6 +754,7 @@ void buildReferenceTopDown(Flower *flower, const char *referenceEventHeader,
     /*
      * Cleanup
      */
+    free(z);
     stList_destruct(newEnds);
     stHash_destruct(endsToNodes);
     stHash_destruct(nodesToEnds);

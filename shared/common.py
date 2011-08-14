@@ -226,20 +226,18 @@ def runCactusBaseAligner(cactusDiskDatabaseString, flowerNames, logLevel=None,
 def runCactusReference(cactusDiskDatabaseString, flowerNames, logLevel=None,
                        matchingAlgorithm=None, 
                        referenceEventString=None, 
-                       maxNumberOfChainsToSolvePerRound=None,
-                       chainWeightCode=None,
-                       recalculateMatchingEachCycle=None):
+                       permutations=None,
+                       useSimulatedAnnealing=None,
+                       theta=None):
     """Runs cactus reference.
     """
-    #print "running", "cactus_reference --cactusDisk '%s' --logLevel %s %s" % (cactusDiskDatabaseString, logLevel, " ".join(flowerNames))
-    #assert False
     logLevel = getLogLevelString2(logLevel)
     matchingAlgorithm = nameValue("matchingAlgorithm", matchingAlgorithm)
     referenceEventString = nameValue("referenceEventString", referenceEventString)
-    maxNumberOfChainsToSolvePerRound = nameValue("maxNumberOfChainsToSolvePerRound", maxNumberOfChainsToSolvePerRound)
-    chainWeightcode = nameValue("chainWeightCode", chainWeightCode, int)
-    recalculateMatchingEachCycle = nameValue("recalculateMatchingEachCycle", recalculateMatchingEachCycle, bool)
-    command = "cactus_reference --cactusDisk '%s' --logLevel %s %s %s %s %s %s %s" % (cactusDiskDatabaseString, logLevel, matchingAlgorithm, referenceEventString, maxNumberOfChainsToSolvePerRound, chainWeightcode, recalculateMatchingEachCycle, " ".join(flowerNames))
+    permutations = nameValue("permutations", permutations, int)
+    useSimulatedAnnealing = nameValue("useSimulatedAnnealing", useSimulatedAnnealing, bool)
+    theta = nameValue("theta", theta, float)
+    command = "cactus_reference --cactusDisk '%s' --logLevel %s %s %s %s %s %s %s" % (cactusDiskDatabaseString, logLevel, matchingAlgorithm, referenceEventString, permutations, useSimulatedAnnealing, theta, " ".join(flowerNames))
     system(command)
     
 def runCactusAddReferenceCoordinates(cactusDiskDatabaseString, logLevel=None, referenceEventString=None):   

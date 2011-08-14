@@ -218,21 +218,19 @@ void gibbsSamplingWithSimulatedAnnealing(stList *reference, stList *chains,
     /*
      * Update a reference by sampling.
      */
-    int32_t nodeNumber = stList_length(reference) + stList_length(chains);
+    int32_t nodeNumber = (stList_length(reference) + stList_length(chains)) * 2;
+    chains = stList_copy(chains, NULL);
     for (int32_t k = 0; k < permutations; k++) {
-        chains = stList_copy(chains, NULL);
         stList_shuffle(chains);
         for (int32_t i = 0; i < stList_length(chains); i++) {
             stIntTuple *chain = stList_get(chains, i);
             removeChainFromReference(chain, reference);
-
             /*
              * Now find a new place to insert it.
              */
             stList *referenceIntervalInsertions =
                     getReferenceIntervalInsertions(reference, chain, z,
                             nodeNumber);
-
             const int32_t l = stList_length(referenceIntervalInsertions);
             double conditionalSum = 0.0;
             double expConditionalSum = 0.0;
@@ -241,9 +239,9 @@ void gibbsSamplingWithSimulatedAnnealing(stList *reference, stList *chains,
                 ReferenceIntervalInsertion *referenceIntervalInsertion =
                         stList_get(referenceIntervalInsertions, j);
                 normalScores[j] = referenceIntervalInsertion->score;
+                assert(normalScores[j] >= -0.001);
                 conditionalSum += normalScores[j];
             }
-
             if (pureGreedy) {
                 double maxScore = -1;
                 int32_t insertPoint = -1;
@@ -266,22 +264,19 @@ void gibbsSamplingWithSimulatedAnnealing(stList *reference, stList *chains,
                     expConditionalSum += normalScores[j];
                 }
                 double chosenScore = st_random() * expConditionalSum;
-                bool b = 0;
                 for (int32_t j = 0; j < l; j++) {
                     chosenScore -= normalScores[j];
-                    if (chosenScore < 0) {
+                    if (chosenScore < 0 || j == l-1) {
                         insert(stList_get(referenceIntervalInsertions, j));
-                        b = 1;
                         break;
                     }
                 }
-                assert(b);
             }
             free(normalScores);
             stList_destruct(referenceIntervalInsertions);
         }
-        stList_destruct(chains);
     }
+    stList_destruct(chains);
 }
 
 stList *convertReferenceToAdjacencyEdges(stList *reference) {
@@ -322,12 +317,16 @@ double calculateZScoreOfReference(stList *reference, int32_t nodeNumber, double 
     double totalScore = 0.0;
     for (int32_t i = 0; i < stList_length(reference); i++) {
         ReferenceInterval *referenceInterval = stList_get(reference, i);
-        while(referenceInterval->nReferenceInterval != NULL) {
-            totalScore += zMatrix[referenceInterval->_3Node * nodeNumber + referenceInterval->nReferenceInterval->_5Node];
+        int32_t j = referenceInterval->_5Node;
+        while(referenceInterval != NULL) {
+            totalScore += zMatrix[referenceInterval->_3Node * nodeNumber + j];
+            ReferenceInterval *referenceInterval2 = referenceInterval->nReferenceInterval;
+            while(referenceInterval2 != NULL) {
+                totalScore += zMatrix[referenceInterval->_3Node * nodeNumber + referenceInterval2->_5Node];
+                referenceInterval2 = referenceInterval2->nReferenceInterval;
+            }
             referenceInterval = referenceInterval->nReferenceInterval;
         }
-        ReferenceInterval *referenceInterval2 = stList_get(reference, i);
-        totalScore += zMatrix[referenceInterval->_3Node * nodeNumber + referenceInterval2->_5Node];
     }
     return totalScore;
 }
@@ -356,7 +355,7 @@ void logReference(stList *reference, int32_t nodeNumber, double *zMatrix,
         st_logDebug(
                 "(%i %i %lf) \n",
                 referenceInterval2->_5Node,
-                referenceInterval->_5Node,
+                referenceInterval->_3Node,
                 zMatrix[referenceInterval2->_5Node * nodeNumber
                         + referenceInterval->_3Node]);
     }

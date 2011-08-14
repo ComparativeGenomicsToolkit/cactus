@@ -25,7 +25,8 @@
 	<faces>
 	</faces>
 
-	<reference matching_algorithm="blossom5" reference="reference" maxNumberOfChainsToSolvePerRound="1">
+	<reference matching_algorithm="blossom5" reference="reference" permutations="100" useSimulatedAnnealing="1" theta="0.99">
+	
 	</reference>
 
 	<check>

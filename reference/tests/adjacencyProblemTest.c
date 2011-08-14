@@ -71,40 +71,16 @@ static void checkIsValidReference(CuTest *testCase, stList *reference,
     double totalScore2 = calculateZScoreOfReference(reference, nodeNumber, zMatrix);
     CuAssertDblEquals(testCase, totalScore2, totalScore, 0.000001);
     //Check that the stubs are properly connected.
-    stList *components = getComponents(chosenEdges);
-    CuAssertIntEquals(testCase, stList_length(stubs), stList_length(components));
+    stList *allEdges = stList_copy(chosenEdges, NULL);
+    stList_appendAll(allEdges, stubs);
+    stList_appendAll(allEdges, chains);
+    stList *components = getComponents(allEdges);
     CuAssertIntEquals(testCase, stList_length(stubs), stList_length(reference));
-    for (int32_t i = 0; i < stList_length(stubs); i++) {
-        stIntTuple *stub = stList_get(stubs, i);
-        int32_t node1 = stIntTuple_getPosition(stub, 0);
-        int32_t node2 = stIntTuple_getPosition(stub, 1);
-        bool b = 0;
-        for (int32_t j = 0; j < stList_length(components); j++) {
-            stList *component = stList_get(components, j);
-            stSortedSet *componentSet = stList_getSortedSet(component, (int(*)(const void *, const void *)) stIntTuple_cmpFn);
-            stIntTuple *node1A = stIntTuple_construct(1, node1);
-            stIntTuple *node2A = stIntTuple_construct(1, node2);
-            if(stSortedSet_search(componentSet, node1A) != NULL) {
-                CuAssertTrue(testCase, stSortedSet_search(componentSet, node2A) != NULL);
-                CuAssertTrue(testCase, !b);
-                b = 1;
-                stList_removeItem(components, component);
-                stSortedSet_destruct(componentSet);
-                stList_destruct(component);
-            }
-            else {
-                CuAssertTrue(testCase, stSortedSet_search(componentSet, node2A) == NULL);
-                stSortedSet_destruct(componentSet);
-            }
-            stIntTuple_destruct(node1A);
-            stIntTuple_destruct(node2A);
-        }
-        CuAssertTrue(testCase, b);
-    }
-    CuAssertTrue(testCase, stList_length(components) == 0);
+    CuAssertIntEquals(testCase, stList_length(stubs), stList_length(components));
     //Cleanup
     stList_destruct(components);
     stSortedSet_destruct(nodes);
+    stList_destruct(allEdges);
     stList_destruct(chosenEdges);
 }
 
@@ -133,10 +109,13 @@ static void testGibbsSamplingWithSimulatedAnnealing(CuTest *testCase,
         int32_t permutations = st_randomInt(0, 100);
         gibbsSamplingWithSimulatedAnnealing(reference, chains, zMatrix,
                 permutations, temperatureFn, pureGreedy);
-        totalScore = calculateZScoreOfReference(reference, nodeNumber, zMatrix);
-        checkIsValidReference(testCase, reference, totalScore);
-        logReference(reference, nodeNumber, zMatrix, totalScore,
+        double totalScoreAfterAnnealing = calculateZScoreOfReference(reference, nodeNumber, zMatrix);
+        checkIsValidReference(testCase, reference, totalScoreAfterAnnealing);
+        logReference(reference, nodeNumber, zMatrix, totalScoreAfterAnnealing,
                 "post-annealing");
+        if(pureGreedy) {
+            CuAssertTrue(testCase, totalScoreAfterAnnealing + 0.001 >= totalScore);
+        }
         teardown();
     }
 }
