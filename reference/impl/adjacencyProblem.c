@@ -133,6 +133,9 @@ stList *makeReferenceGreedily(stList *stubs, stList *chainsList, double *z,
     while (stSortedSet_size(chains) > 0) {
         ReferenceIntervalInsertion maxReferenceIntervalInsertion;
         maxReferenceIntervalInsertion.score = -1;
+        maxReferenceIntervalInsertion.chain = NULL;
+        maxReferenceIntervalInsertion.orientation = 0;
+        maxReferenceIntervalInsertion.referenceInterval = NULL;
         stSortedSetIterator *it2 = stSortedSet_getIterator(chains);
         stIntTuple *chain;
         /*
