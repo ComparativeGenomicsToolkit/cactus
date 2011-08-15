@@ -721,9 +721,10 @@ void buildReferenceTopDown(Flower *flower, const char *referenceEventHeader,
     double totalScoreAfterGreedy = 0.0;
     stList *reference = makeReferenceGreedily(stubEdges, chainEdges, z, nodeNumber, &totalScoreAfterGreedy);
     double totalScoreAfterGreedy2 = calculateZScoreOfReference(reference, nodeNumber, z);
-    assert(totalScoreAfterGreedy <= totalScoreAfterGreedy2 + 0.001);
-    assert(totalScoreAfterGreedy2 <= totalScoreAfterGreedy + 0.001);
     st_logDebug("The score of the initial solution is %f (recalculated %f) out of a max possible %f\n", totalScoreAfterGreedy, totalScoreAfterGreedy2, maxPossibleScore);
+    assert(totalScoreAfterGreedy <= totalScoreAfterGreedy2 + 0.01);
+    assert(totalScoreAfterGreedy2 <= totalScoreAfterGreedy + 0.01);
+
 
     //gibbsSamplingWithSimulatedAnnealing(reference, chainEdges, z, permutations, temperature, 0);
     //double totalScoreAfterSimulatedAnnealing = calculateZScoreOfReference(reference, nodeNumber, z);
@@ -732,7 +733,7 @@ void buildReferenceTopDown(Flower *flower, const char *referenceEventHeader,
     gibbsSamplingWithSimulatedAnnealing(reference, chainEdges, z, permutations, NULL, 1);
     double totalScoreAfterGreedySampling = calculateZScoreOfReference(reference, nodeNumber, z);
     st_logDebug("The score of the final solution is %f after %i rounds of greedy permutation out of a max possible %f\n", totalScoreAfterGreedySampling, permutations, maxPossibleScore);
-    assert(totalScoreAfterGreedySampling + 0.001 >= totalScoreAfterGreedy); //totalScoreAfterSimulatedAnnealing);
+    assert(totalScoreAfterGreedySampling + 0.01 >= totalScoreAfterGreedy); //totalScoreAfterSimulatedAnnealing);
 
     stList *chosenEdges = convertReferenceToAdjacencyEdges(reference);
 
