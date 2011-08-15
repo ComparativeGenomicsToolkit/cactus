@@ -153,7 +153,7 @@ class CactusPreprocessorPhase(Target):
             tempDir = getTempDirectory(self.getGlobalTempDir())
             processedSequences = map(lambda x: tempDir + "/" + x, self.sequences)
             logger.info("Adding child batch_preprocessor target")
-            self.addChildTarget(BatchPreprocessor(self.options, self.sequences, tempDir))
+            self.addChildTarget(BatchPreprocessor(self.options, self.sequences, self.sequences, tempDir, 0))
 
         self.setFollowOnTarget(CactusSetupWrapper(self.options, processedSequences))
         logger.info("Created followOn target cactus_setup job, and follow on down pass job")
@@ -302,7 +302,7 @@ class CactusBlastWrapper(Target):
                                               blastNode.attrib["blastString"], 
                                               blastNode.attrib["selfBlastString"], 
                                               int(blastMiscNode.attrib["chunksPerJob"]), 
-                                              bool(blastMiscNode.attrib["compressFiles"])))
+                                              blastMiscNode.attrib["compressFiles"].lower() == "true"))
         self.addChildTarget(MakeSequences(self.options.cactusDiskDatabaseString, 
                                           self.flowerName, alignmentFile, blastOptions,
                                           minimumSequenceLength=int(getOption(blastMiscNode, "minimumSequenceLength", 0))))

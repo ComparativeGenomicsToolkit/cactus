@@ -33,7 +33,7 @@ def main():
     #Construct the arguments.
     ##########################################    
     
-    usage = "usage: %prog [options] <fasta file>\n\n" + \
+    usage = "usage: %prog [options] <fasta input file> <fasta output file>\n\n" + \
             "    <fasta file>:  fasta sequence to annotate\n"
     description = "Ensure sequence names are in name.x format by\n" + \
                     "adding .0's as necessary"
@@ -45,31 +45,21 @@ def main():
     
     options, args = parser.parse_args()
     
-    if len(args) != 1:
+    if len(args) != 2:
         parser.print_help()
         return 1
     
     inputName = args[0]
-    print (inputName)
     inputFile = open(inputName, "r")
-    
-    # output to temporary file, which gets moved to input file at end
-    currentDir = os.path.dirname(inputName)
-    tempFileName = getTempFile(suffix=".fa", rootDir=currentDir)
-    tempFile = open(tempFileName, "w")
-    
-    try:
-        for header, seq in fastaRead(inputFile):
-            fastaWrite(tempFile, fixHeader(header, options.suffix), seq)
-        
-        tempFile.close()
-        inputFile.close()
-        
-    except Exception as e:
-        os.remove(tempFileName)
-        raise e
-
-    os.rename(tempFileName, inputName)
+    outputName = args[1]
+    outputFile = open(outputName, "w")
+     
+    for header, seq in fastaRead(inputFile):
+        fastaWrite(outputFile, fixHeader(header, options.suffix), seq)
+            
+    outputFile.close()
+    inputFile.close()
+    return 0
     
 if __name__ == '__main__':
-    main()
+    exit(main())

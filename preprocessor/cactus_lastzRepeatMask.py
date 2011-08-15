@@ -128,4 +128,4 @@ def main():
     shutil.rmtree(tempDir)
         
 if __name__ == '__main__':
-    main()
+    exit(main())

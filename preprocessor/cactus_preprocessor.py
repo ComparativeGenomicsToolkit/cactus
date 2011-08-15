@@ -9,6 +9,7 @@
 sequences. Uses the jobTree framework to parallelise the blasts.
 """
 import os
+import errno
 from optparse import OptionParser
 from bz2 import BZ2File
 
@@ -80,14 +81,16 @@ class PreprocessChunks(Target):
             localChunkPath = decompressFastaFile(chunk, self.getLocalTempDir(),
                                                  self.prepOptions.compressFiles)
             prepChunkPath = getTempFile(rootDir=self.getLocalTempDir())
+            tempPath = getTempFile(rootDir=self.getLocalTempDir())
             
             cmdline = self.prepOptions.cmdLine.replace("QUERY_FILE", "\"" + localSequencePath + "\"")
             cmdline = cmdline.replace("TARGET_FILE", "\"" + localChunkPath + "\"")
             cmdline = cmdline.replace("OUT_FILE", "\"" + prepChunkPath + "\"")
+            cmdline = cmdline.replace("TEMP_FILE", "\"" + tempPath + "\"")
             
             logger.info("Preprocessor exec " + cmdline)
             assert os.system(cmdline) == 0
-            
+           
             compressedChunk = compressFastaFile(prepChunkPath, self.getLocalTempDir(),
                                                 self.prepOptions.compressFiles)
             
@@ -104,9 +107,14 @@ class MergeChunks(Target):
     
     def run(self):
         baseDir = os.path.dirname(self.outSequencePath)
-        if not os.path.isdir(baseDir):
-            os.makedirs(baseDir)
         
+        #somewhat threadsafe 
+        try:
+            os.makedirs(baseDir)
+        except OSError, e:
+            if e.errno != errno.EEXIST:
+                raise e
+
         sysRet = system("cactus_batch_mergeChunks %s %s %i" % \
                         (self.chunkListPath, self.outSequencePath, self.prepOptions.compressFiles))
         
@@ -158,20 +166,27 @@ class PreprocessSequence(Target):
         self.setFollowOnTarget(MergeChunks(self.prepOptions, chunkListPath, self.outSequencePath))
 
 class BatchPreprocessor(Target):
-    def __init__(self, options, inSequences, outDirBase):
+    def __init__(self, options, globalInSequences, inSequences, outDirBase, iteration = 0):
         Target.__init__(self, time=0.0002)
         self.options = options 
+        self.globalInSequences = globalInSequences
         self.inSequences = inSequences
         self.outDirBase = outDirBase
         self.prepOptions = None
+        self.iteration = iteration
        
     def run(self):
         # Parse the "preprocessor" config xml element
-        prepNode = self.options.config.find("preprocessor")
-        self.prepOptions = PreprocessorOptions(int(prepNode.attrib["chunkSize"]),
-                                          int(prepNode.attrib["chunksPerJob"]),
-                                          int(prepNode.attrib["overlapSize"]),
-                                          bool(prepNode.attrib["compressFiles"]),
+        prepNodes = self.options.config.findall("preprocessor")
+        
+        assert self.iteration < len(prepNodes)
+        
+        prepNode = prepNodes[self.iteration]
+    
+        self.prepOptions = PreprocessorOptions(int(prepNode.get("chunkSize", default="2147483647")),
+                                          int(prepNode.get("chunksPerJob", default="1")),
+                                          int(prepNode.get("overlapSize", default="0")),
+                                          prepNode.get("compressFiles", default="True").lower() == "true",
                                           prepNode.attrib["preprocessorString"])
         
         #iterate over each input fasta file
@@ -179,10 +194,28 @@ class BatchPreprocessor(Target):
         map(inSeqFiles.extend, map(fileList, self.inSequences))
         assert len(inSeqFiles) >= len(self.inSequences)
         
-        outSeqFiles = map(lambda x: self.outDirBase  + "/" + x, inSeqFiles)
+        globalInSeqFiles = []
+        map(globalInSeqFiles.extend, map(fileList, self.globalInSequences))
+        assert len(globalInSeqFiles) == len(inSeqFiles)
+        
+        #output to temporary directory unless we are on the last iteration
+        lastIteration = self.iteration == len(prepNodes) - 1
+        outDir = self.outDirBase
+        if lastIteration == False:
+            outDir = getTempDirectory(self.getGlobalTempDir())
+            
+        outSeqFiles = map(lambda x: outDir  + "/" + x, globalInSeqFiles)
         outSeq = iter(outSeqFiles)
         assert len(outSeqFiles) == len(inSeqFiles)
         
+        os.system("echo %d %s --^^-- %s --vv-- %s >> ~/blin1.txt" % (self.iteration, 
+                                                                     str(inSeqFiles[0]), 
+                                                                     str(outSeqFiles[0]), 
+                                                                     self.outDirBase))
         for inSeq in inSeqFiles:
             self.addChildTarget(PreprocessSequence(self.prepOptions, inSeq, outSeq.next()))
         
+        if lastIteration == False:
+            self.setFollowOnTarget(BatchPreprocessor(self.options, self.globalInSequences, outSeqFiles, 
+                                                     self.outDirBase, self.iteration + 1))
+            
