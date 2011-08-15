@@ -262,7 +262,10 @@ double *calculateZ(Flower *flower, stHash *endsToNodes, double theta) {
                                     - cap_getCoordinate(_3Cap);
                             assert(diff >= 1);
                             double score = calculateZScore(_5CapSize, _3CapSize, diff, theta);
-                            assert(score >= 0.0);
+                            assert(score >= -0.0001);
+                            if(score < 0) {
+                                score = 0.0;
+                            }
                             z[_5Node * nodeNumber + _3Node] += score;
                             z[_3Node * nodeNumber + _5Node] += score;
                             assert(z[_5Node * nodeNumber + _3Node] == z[_3Node * nodeNumber + _5Node]);

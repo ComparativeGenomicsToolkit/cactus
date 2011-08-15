@@ -368,7 +368,7 @@ double calculateZScore(int32_t n, int32_t m, int32_t k, double theta) {
     assert(theta <= 1.0);
     assert(theta >= 0.0);
     if (theta == 0.0) {
-        return n * m;
+        return ((double)n) * m;
     }
     double beta = 1.0 - theta;
     return ((1 - pow(beta, n)) * pow(beta, k) * (1 - pow(beta, m))) / (theta
