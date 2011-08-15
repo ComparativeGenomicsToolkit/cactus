@@ -57,7 +57,7 @@ int main(int argc, char *argv[]) {
     char *referenceEventString =
             (char *) cactusMisc_getDefaultReferenceEventHeader();
     int32_t permutations = 10;
-    double theta = 0.99;
+    double theta = 0.00001;
     bool useSimulatedAnnealing = 0;
 
     ///////////////////////////////////////////////////////////////////////////

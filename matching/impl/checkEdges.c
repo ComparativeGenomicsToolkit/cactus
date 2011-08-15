@@ -29,7 +29,7 @@ void checkEdges(stList *edges, stSortedSet * nodes, bool coversAllNodes,
         addEdgeToSet(edgesSeen, stIntTuple_getPosition(edge, 0),
                 stIntTuple_getPosition(edge, 1));
         /*
-         * Check weight, if weighted.
+         * Check weight, if  weighted.
          */
         if (stIntTuple_length(edge) == 3) {
             assert(stIntTuple_getPosition(edge, 2) >= 0);
