@@ -95,16 +95,10 @@ def creatKTPortMap(tree, options):
 
 def ktServerCommandLine(cladeOptions):
     return "ktserver -port %s %s %s/%s%s" % (getPort(cladeOptions),
-                                                            serverOptions,
-                                                            getDatabaseDir(cladeOptions),
-                                                            getDatabaseName(cladeOptions),
-                                                            tuningOptions)
-                                                 
-    return "ktserver -port %s %s \"%s/%s%s\"" % (getPort(cladeOptions),
-                                                 serverOptions,
-                                                 getDatabaseDir(cladeOptions),
-                                                 getDatabaseName(cladeOptions),
-                                                 tuningOptions)
+                                                    serverOptions,
+                                                    getDatabaseDir(cladeOptions),
+                                                    getDatabaseName(cladeOptions),
+                                                    tuningOptions)
 
 # leave this in the working directory to help kill trailing servers
 def updateKillScript(cladeOptions):
