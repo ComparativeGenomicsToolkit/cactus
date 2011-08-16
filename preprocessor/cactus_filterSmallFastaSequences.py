@@ -11,8 +11,48 @@ from sonLib.bioio import fastaRead
 from sonLib.bioio import fastaWrite
 from sonLib.bioio import getTempFile
 
-def doFilter(header, seq, options):
-    return header.find(options.prefix) == 0 and len(seq) < options.length
+
+# for every sequence, determine if its contained in the file
+# (starts with |1|0; and there is a differently named sequence after it),
+# and its length (defined as the max offset + length) found for the name
+# assumption: sequences with same name are contiguous (which is true for 
+# cactus_batchChunk output, which this is tailored for)
+# **only bother if names seem to be in chunk format (None returned otherwise)
+def containedSequences(inputFile):
+    lookup = dict()
+    prev = ""
+    for header, seq in fastaRead(inputFile):
+        if '|1|' not in header:
+            assert len(lookup) == 0
+            return None
+        else:
+            idx = header.find('|1|') 
+            name = header[:idx]
+            offset = header[idx+3:]
+            if offset.isdigit() == False:
+                assert len(lookup) == 0
+                return None
+            if int(offset) == 0:
+                assert lookup.has_key(name) == False
+                lookup[name] = (len(seq), False)
+            elif lookup.has_key(name) == True:
+                lookup[name] = (max(lookup[name][0], int(offset) + len(seq)), lookup[name][1])
+            if name != prev and lookup.has_key(prev):
+                lookup[prev] = (lookup[prev][0], True)
+            prev = name
+    return lookup
+
+def tooShort(header, seq, options, contTable):
+    isTooShort = False
+    if contTable is not None:
+        key = header[:header.find('|1|')]
+        if contTable.has_key(key):
+            length, flag = contTable[key]
+            isTooShort = flag and length < options.length
+    else:
+        isTooShort = len(seq) < options.length
+
+    return isTooShort
     
 def main():
     ##########################################
@@ -42,10 +82,12 @@ def main():
     inputFile = open(inputName, "r")
     outputName = args[1]
     outputFile = open(outputName, "w")
-     
+  
+    contTable = containedSequences(inputFile)
+    inputFile.seek(0)
   
     for header, seq in fastaRead(inputFile):
-        if doFilter(header, seq, options) == False:
+        if tooShort(header, seq, options, contTable) == False:
             fastaWrite(outputFile, header, seq)
       
     outputFile.close()

@@ -185,7 +185,7 @@ class BatchPreprocessor(Target):
     
         self.prepOptions = PreprocessorOptions(int(prepNode.get("chunkSize", default="2147483647")),
                                           int(prepNode.get("chunksPerJob", default="1")),
-                                          int(prepNode.get("overlapSize", default="0")),
+                                          int(prepNode.get("overlapSize", default="10")),
                                           prepNode.get("compressFiles", default="True").lower() == "true",
                                           prepNode.attrib["preprocessorString"])
         
