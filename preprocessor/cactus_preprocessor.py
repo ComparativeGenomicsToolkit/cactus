@@ -74,9 +74,13 @@ class PreprocessChunks(Target):
         self.chunkList = chunkList
     
     def run(self):
-        localSequencePath = decompressFastaFile(self.seqPath,
-                                                self.getLocalTempDir(), 
-                                                self.prepOptions.compressFiles)
+        #Full sequence file can be quite big: only decompress it into the local
+        #path if it's actually used by the preprocessor
+        localSequencePath = ""
+        if self.prepOptions.cmdLine.find("QUERY_FILE") >= 0:            
+            localSequencePath = decompressFastaFile(self.seqPath,
+                                                    self.getLocalTempDir(), 
+                                                    self.prepOptions.compressFiles)
         for chunk in self.chunkList:
             localChunkPath = decompressFastaFile(chunk, self.getLocalTempDir(),
                                                  self.prepOptions.compressFiles)
@@ -147,8 +151,12 @@ class PreprocessSequence(Target):
         return chunkListPath
     
     def run(self):
-        # make compressed version of the sequence
-        seqPath = compressFastaFile(self.inSequencePath, self.getGlobalTempDir(), 
+        #make compressed version of the sequence
+        #Full sequence file can be quite big: only compress it into the local
+        #path if it's actually used by the preprocessor
+        seqPath = ""
+        if self.prepOptions.cmdLine.find("QUERY_FILE") >= 0:        
+            seqPath = compressFastaFile(self.inSequencePath, self.getGlobalTempDir(), 
                                     self.prepOptions.compressFiles)
         
         logger.info("Preparing sequence for preprocessing")
