@@ -5,7 +5,7 @@
 #include "perfectMatching.h"
 #include "checkEdges.h"
 #include "cactusMatchingAlgorithms.h"
-#include  <math.h>
+#include <math.h>
 
 const char *REFERENCE_BUILDING_EXCEPTION = "REFERENCE_BUILDING_EXCEPTION";
 
@@ -267,7 +267,7 @@ double *calculateZ(Flower *flower, stHash *endsToNodes, double theta) {
                                 score = 0.0;
                             }
                             z[_5Node * nodeNumber + _3Node] += score;
-                            z[_3Node * nodeNumber + _5Node] += score;
+                            z[_3Node * nodeNumber + _5Node] = z[_5Node * nodeNumber + _3Node];
                             assert(z[_5Node * nodeNumber + _3Node] == z[_3Node * nodeNumber + _5Node]);
                         }
                     }

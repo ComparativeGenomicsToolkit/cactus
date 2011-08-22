@@ -161,8 +161,8 @@ static void testCalculateZScore(CuTest *testCase) {
     for(int32_t i=0; i<100; i++) {
         int32_t n = st_randomInt(0, 100);
         int32_t m = st_randomInt(0, 100);
-        int32_t k = st_randomInt(1, 10);
-        double theta = st_random() > 0.1 ? st_random() : 0.0;
+        int32_t k = st_randomInt(1, 10000);
+        double theta = st_random() > 0.05 ? st_random() : 0.0;
         double zScore = calculateZScore(n, m, k, theta);
         double zScoreSlow = calculateZScoreSlow(n, m, k, theta);
         st_logDebug("The slow computed score: %f the fast computed score: %f, n: %i m: %i k: %i, theta: %lf\n", zScoreSlow, zScore, n, m, k, theta);

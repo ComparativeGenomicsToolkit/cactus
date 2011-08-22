@@ -10,6 +10,7 @@
 CuSuite *buildReferenceTestSuite(void);
 CuSuite* adjacencyProblemTestSuite(void);
 CuSuite* addReferenceCoordinatesTestSuite(void);
+CuSuite* adjacencyProblemExamplesTestSuite(void);
 
 int referenceRunAllTests(void) {
     CuString *output = CuStringNew();
@@ -17,6 +18,7 @@ int referenceRunAllTests(void) {
     CuSuiteAddSuite(suite, adjacencyProblemTestSuite());
     CuSuiteAddSuite(suite, buildReferenceTestSuite());
     CuSuiteAddSuite(suite, addReferenceCoordinatesTestSuite());
+    CuSuiteAddSuite(suite, adjacencyProblemExamplesTestSuite());
 
     CuSuiteRun(suite);
     CuSuiteSummary(suite, output);

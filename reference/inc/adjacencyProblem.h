@@ -25,6 +25,8 @@ void logReference(stList *reference, int32_t nodeNumber, double *zMatrix, double
 
 double calculateZScoreOfReference(stList *reference, int32_t nodeNumber, double *zMatrix);
 
+void logZScoreOfReference(stList *reference, int32_t nodeNumber, double *zMatrix);
+
 double calculateMaxZ(int32_t nodeNumber, double *zMatrix);
 
 double calculateZScore(int32_t n, int32_t m, int32_t k, double theta);

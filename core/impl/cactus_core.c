@@ -137,6 +137,7 @@ CactusCoreInputParameters *constructCactusCoreInputParameters() {
     cCIP->ignoreAllChainsLessThanMinimumTreeCoverage = 0;
     cCIP->blockTrim = 0;
     cCIP->requiredSpecies = NULL;
+    cCIP->singleCopySpecies = NULL;
     cCIP->minimumDegree = 2;
     return cCIP;
 }
@@ -217,7 +218,7 @@ struct List *getChosenBlockPinchEdges(stSortedSet *chosenBlocks,
 struct CactusGraph *deanneal(Flower *flower, struct PinchGraph *pinchGraph,
         struct CactusGraph *cactusGraph, struct List **biConnectedComponents,
         int32_t minimumChainLengthInGraph, double minimumTreeCoverage, int32_t minimumBlockDegree,
-        stSortedSet *requiredSpecies) {
+        stSortedSet *requiredSpecies, stSortedSet *singleCopySpecies) {
     ///////////////////////////////////////////////////////////////////////////
     // Choosing a block subset to undo.
     ///////////////////////////////////////////////////////////////////////////
@@ -225,11 +226,11 @@ struct CactusGraph *deanneal(Flower *flower, struct PinchGraph *pinchGraph,
     //Get all the blocks.
     stSortedSet *allBlocksOfDegree2OrHigher =
             filterBlocksByTreeCoverageAndLength(*biConnectedComponents, flower,
-                    0.0, 2, 0, 0, NULL, pinchGraph);
+                    0.0, 2, 0, 0, NULL, NULL, pinchGraph);
     //Get the blocks we want to keep
     stSortedSet *chosenBlocksToKeep = filterBlocksByTreeCoverageAndLength(
             *biConnectedComponents, flower, minimumTreeCoverage, minimumBlockDegree, 0,
-            minimumChainLengthInGraph + 1, requiredSpecies, pinchGraph);
+            minimumChainLengthInGraph + 1, requiredSpecies, singleCopySpecies, pinchGraph);
     //Now get the blocks to undo by computing the difference.
     stSortedSet *blocksToUndo = stSortedSet_getDifference(
             allBlocksOfDegree2OrHigher, chosenBlocksToKeep);
@@ -527,7 +528,7 @@ int32_t cactusCorePipeline(Flower *flower, CactusCoreInputParameters *cCIP,
             cactusGraph = deanneal(flower, pinchGraph, cactusGraph,
                     &biConnectedComponents, minimumChainLengthToRemove,
                     cCIP->ignoreAllChainsLessThanMinimumTreeCoverage ? cCIP->minimumTreeCoverage : 0.0,
-                            cCIP->minimumDegree, cCIP->requiredSpecies);
+                            cCIP->minimumDegree, cCIP->requiredSpecies, cCIP->singleCopySpecies);
 
             ///////////////////////////////////////////////////////////////////////////
             // Recalculate the minimum length of chains in the graph
@@ -591,7 +592,7 @@ int32_t cactusCorePipeline(Flower *flower, CactusCoreInputParameters *cCIP,
 
             stSortedSet *chosenBlocks = filterBlocksByTreeCoverageAndLength(
                     biConnectedComponents, flower, cCIP->minimumTreeCoverage,
-                    cCIP->minimumDegree, 0, 0, cCIP->requiredSpecies, pinchGraph);
+                    cCIP->minimumDegree, 0, 0, cCIP->requiredSpecies, cCIP->singleCopySpecies, pinchGraph);
 
             stSortedSet *chosenPinchVertices = getPinchVerticesSet(chosenBlocks, pinchGraph);
 

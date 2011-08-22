@@ -97,7 +97,8 @@ def runCactusCore(cactusDiskDatabaseString, alignmentFile,
                   blockTrim=None,
                   ignoreAllChainsLessThanMinimumTreeCoverage=False,
                   minimumBlockDegree=None,
-                  requiredSpecies=None):
+                  requiredSpecies=None,
+                  singleCopySpecies=None):
     logLevel = getLogLevelString2(logLevel)
     writeDebugFiles = nameValue("writeDebugFiles", writeDebugFiles, bool)
     if annealingRounds != None:
@@ -117,11 +118,14 @@ def runCactusCore(cactusDiskDatabaseString, alignmentFile,
         requiredSpecies = "--requiredSpecies '%s'" % requiredSpecies
     else:
         requiredSpecies = ""
-    
-    command = "cactus_core --cactusDisk '%s' --flowerName %s --alignments %s --logLevel %s %s %s %s %s %s %s %s %s %s %s" % \
+    if singleCopySpecies != None:
+        singleCopySpecies = "--singleCopySpecies '%s'" % singleCopySpecies
+    else:
+        singleCopySpecies = ""
+    command = "cactus_core --cactusDisk '%s' --flowerName %s --alignments %s --logLevel %s %s %s %s %s %s %s %s %s %s %s %s" % \
     (cactusDiskDatabaseString, flowerName, alignmentFile, logLevel, writeDebugFiles, annealingRounds, deannealingRounds, alignRepeatsAtRound,
      trim, minimumTreeCoverage, blockTrim, ignoreAllChainsLessThanMinimumTreeCoverage,
-     minimumBlockDegree, requiredSpecies)
+     minimumBlockDegree, requiredSpecies, singleCopySpecies)
     #print "command to run", command
     #assert 0
     system(command)

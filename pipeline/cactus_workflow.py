@@ -312,7 +312,8 @@ class CactusCoreWrapper(Target):
                       blockTrim=float(coreParameters.attrib["blockTrim"]),
                       ignoreAllChainsLessThanMinimumTreeCoverage=bool(coreParameters.attrib["ignoreAllChainsLessThanMinimumTreeCoverage"]),
                       minimumBlockDegree=int(coreParameters.attrib["minimumBlockDegree"]),
-                      requiredSpecies=self.options.requiredSpecies)
+                      requiredSpecies=self.options.requiredSpecies,
+                      singleCopySpecies=self.options.singleCopySpecies)
         logger.info("Ran the cactus core program okay")
         
 ############################################################
@@ -616,10 +617,8 @@ def main():
     #Get the sequences
     sequences = options.experimentFile.attrib["sequences"].split()
     #Get any list of 'required species' for the blocks of the cactus.
-    options.requiredSpecies = None
-    if options.experimentFile.attrib.has_key("required_species"):
-        options.requiredSpecies = options.experimentFile.attrib["required_species"]
-    
+    options.requiredSpecies = getOptionalAttrib(options.experimentFile, "required_species")
+    options.singleCopySpecies = getOptionalAttrib(options.experimentFile, "single_copy_species")
     logger.info("Parsed the XML options file")
     
     if options.setupAndBuildAlignments:
