@@ -50,11 +50,20 @@ class TestCase(unittest.TestCase):
                                      buildTrees=False, buildReference=False,
                                      buildJobTreeStats=True)
     
+    def testEvolver_Mammals_Medium(self):
+        inputDir = os.path.join(TestStatus.getPathToDataSets(), "evolver", "mammals", "medium")
+        mammalSequences = ("simCow.masked.fa", "simDog.masked.fa", "simHuman.masked.fa", "simMouse.masked.fa", "simRat.masked.fa")
+        runWorkflow_multipleExamples(lambda regionNumber=0, tempDir=None : getInputs(inputDir, mammalSequences),
+                                     testRestrictions=(TestStatus.TEST_LONG,),
+                                     batchSystem=self.batchSystem,
+                                     buildTrees=False, buildReference=False,
+                                     buildJobTreeStats=True)
+    
     def testEvolver_Primates_Large(self):
         inputDir = os.path.join(TestStatus.getPathToDataSets(), "evolver", "primates", "large")
         primateSequences = ("simChimp.masked.fa", "simGorilla.masked.fa", "simHuman.masked.fa", "simOrang.masked.fa")
         runWorkflow_multipleExamples(lambda regionNumber=0, tempDir=None : getInputs(inputDir, primateSequences),
-                                     testRestrictions=(TestStatus.TEST_LONG,),
+                                     testRestrictions=(TestStatus.TEST_VERY_LONG,),
                                      batchSystem=self.batchSystem,
                                      buildTrees=False, buildReference=False,
                                      buildJobTreeStats=True)
