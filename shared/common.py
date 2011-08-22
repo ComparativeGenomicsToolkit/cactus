@@ -97,7 +97,8 @@ def runCactusCore(cactusDiskDatabaseString, alignmentFile,
                   blockTrim=None,
                   ignoreAllChainsLessThanMinimumTreeCoverage=False,
                   minimumBlockDegree=None,
-                  requiredSpecies=None):
+                  requiredSpecies=None,
+                  singleCopySpecies=None):
     logLevel = getLogLevelString2(logLevel)
     writeDebugFiles = nameValue("writeDebugFiles", writeDebugFiles, bool)
     if annealingRounds != None:
@@ -117,11 +118,14 @@ def runCactusCore(cactusDiskDatabaseString, alignmentFile,
         requiredSpecies = "--requiredSpecies '%s'" % requiredSpecies
     else:
         requiredSpecies = ""
-    
-    command = "cactus_core --cactusDisk '%s' --flowerName %s --alignments %s --logLevel %s %s %s %s %s %s %s %s %s %s %s" % \
+    if singleCopySpecies != None:
+        singleCopySpecies = "--singleCopySpecies '%s'" % singleCopySpecies
+    else:
+        singleCopySpecies = ""
+    command = "cactus_core --cactusDisk '%s' --flowerName %s --alignments %s --logLevel %s %s %s %s %s %s %s %s %s %s %s %s" % \
     (cactusDiskDatabaseString, flowerName, alignmentFile, logLevel, writeDebugFiles, annealingRounds, deannealingRounds, alignRepeatsAtRound,
      trim, minimumTreeCoverage, blockTrim, ignoreAllChainsLessThanMinimumTreeCoverage,
-     minimumBlockDegree, requiredSpecies)
+     minimumBlockDegree, requiredSpecies, singleCopySpecies)
     #print "command to run", command
     #assert 0
     system(command)
@@ -224,16 +228,20 @@ def runCactusBaseAligner(cactusDiskDatabaseString, flowerNames, logLevel=None,
             constraintDiagonalTrim, minimumBlockDegree, requiredSpecies, alignAmbiguityCharacters))
     
 def runCactusReference(cactusDiskDatabaseString, flowerNames, logLevel=None,
-                       matchingAlgorithm=None, referenceEventString=None, maxNumberOfChainsToSolvePerRound=None):
+                       matchingAlgorithm=None, 
+                       referenceEventString=None, 
+                       permutations=None,
+                       useSimulatedAnnealing=None,
+                       theta=None):
     """Runs cactus reference.
     """
-    #print "running", "cactus_reference --cactusDisk '%s' --logLevel %s %s" % (cactusDiskDatabaseString, logLevel, " ".join(flowerNames))
-    #assert False
     logLevel = getLogLevelString2(logLevel)
     matchingAlgorithm = nameValue("matchingAlgorithm", matchingAlgorithm)
     referenceEventString = nameValue("referenceEventString", referenceEventString)
-    maxNumberOfChainsToSolvePerRound = nameValue("maxNumberOfChainsToSolvePerRound", maxNumberOfChainsToSolvePerRound)
-    command = "cactus_reference --cactusDisk '%s' --logLevel %s %s %s %s %s" % (cactusDiskDatabaseString, logLevel, matchingAlgorithm, referenceEventString, maxNumberOfChainsToSolvePerRound, " ".join(flowerNames))
+    permutations = nameValue("permutations", permutations, int)
+    useSimulatedAnnealing = nameValue("useSimulatedAnnealing", useSimulatedAnnealing, bool)
+    theta = nameValue("theta", theta, float)
+    command = "cactus_reference --cactusDisk '%s' --logLevel %s %s %s %s %s %s %s" % (cactusDiskDatabaseString, logLevel, matchingAlgorithm, referenceEventString, permutations, useSimulatedAnnealing, theta, " ".join(flowerNames))
     system(command)
     
 def runCactusAddReferenceCoordinates(cactusDiskDatabaseString, logLevel=None, referenceEventString=None):   

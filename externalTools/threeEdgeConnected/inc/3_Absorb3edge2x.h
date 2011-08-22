@@ -15,7 +15,8 @@
  * Function takes an graph represented as an adjacency list. Each vertex is represented
  * by a list in the argument "vertices", it's index in the list is its identifier.
  * Each vertice's list contain 1 length stIntTuples that indicate what the vertex is
- * connected to.
+ * connected to. The return value is a list of lists of nodes,
+ * also represented using stLists and stIntTuples.
  */
 stList *computeThreeEdgeConnectedComponents(stList *vertices);
 

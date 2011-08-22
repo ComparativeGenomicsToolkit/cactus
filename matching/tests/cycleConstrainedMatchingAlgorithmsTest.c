@@ -17,12 +17,6 @@
 stList *getComponents2(stList *adjacencyEdges, stList *stubEdges,
         stList *chainEdges);
 
-stList *stList_filterToInclude(stList *list, stSortedSet *set);
-
-stList *getComponents(stList *edges);
-
-stList *getEdgesWithGreaterThanZeroWeight(stList *adjacencyEdges);
-
 stList *mergeSimpleCycles(stList *cycles, stList *nonZeroWeightAdjacencyEdges, stSortedSet *allAdjacencyEdges);
 
 void checkInputs(stSortedSet *nodes, stList *adjacencyEdges,
@@ -60,26 +54,6 @@ static void teardown() {
  * Functions for fiddling with the random graphs generated.
  */
 
-static void addWeightedEdge(int32_t node1, int32_t node2, int32_t weight,
-        stList *edges) {
-    stList_append(edges, stIntTuple_construct(3, node1, node2, weight));
-}
-
-static void addEdge(int32_t node1, int32_t node2, stList *edges) {
-    stList_append(edges, stIntTuple_construct(2, node1, node2));
-}
-
-static stSortedSet *getEmptyNodeOrEdgeSetWithEdgeCleanup() {
-    return stSortedSet_construct3(
-            (int(*)(const void *, const void *)) stIntTuple_cmpFn,
-            (void(*)(void *)) stIntTuple_destruct);
-}
-
-static stSortedSet *getEmptyNodeOrEdgeSetWithoutEdgeCleanup() {
-    return stSortedSet_construct3(
-            (int(*)(const void *, const void *)) stIntTuple_cmpFn, NULL);
-}
-
 static int32_t getRandomNodeWithReplacement(int32_t nodeNumber) {
     return st_randomInt(0, nodeNumber);
 }
@@ -97,19 +71,6 @@ static int32_t getRandomNodeWithoutReplacement(stSortedSet *nodes,
     return node;
 }
 
-static void logEdges(stList *edges, const char *edgesName) {
-    for (int32_t i = 0; i < stList_length(edges); i++) {
-        stIntTuple *edge = stList_get(edges, i);
-        st_logDebug(
-                "Edge, type: %s, node1: %i, node2: %i, weight: %i\n",
-                edgesName,
-                stIntTuple_getPosition(edge, 0),
-                stIntTuple_getPosition(edge, 1),
-                (stIntTuple_length(edge) == 3 ? stIntTuple_getPosition(edge, 2)
-                        : INT32_MAX));
-    }
-}
-
 static stSortedSet *getEdgeSet(stList *edges) {
     return stList_getSortedSet(edges,
             (int(*)(const void *, const void *)) stIntTuple_cmpFn);
@@ -123,19 +84,19 @@ static void setup(int32_t maxNodeNumber) {
     do {
         nodeNumber = st_randomInt(0, maxNodeNumber) + 2;
     } while (nodeNumber % 2 != 0);
-    nodes = stSortedSet_construct3((int (*)(const void *, const void *))stIntTuple_cmpFn, (void (*)(void *))stIntTuple_destruct);
+    nodes = getEmptyNodeOrEdgeSetWithCleanup();
     for(int32_t i=0; i<nodeNumber; i++) {
-        stSortedSet_insert(nodes, stIntTuple_construct(1, i));
+        addNodeToSet(nodes, i);
     }
     stubEdges = stList_construct3(0, (void(*)(void *)) stIntTuple_destruct);
     chainEdges = stList_construct3(0, (void(*)(void *)) stIntTuple_destruct);
     //Add first stub edge
-    stSortedSet *nodeSet = getEmptyNodeOrEdgeSetWithEdgeCleanup();
-    addEdge(getRandomNodeWithoutReplacement(nodeSet, nodeNumber),
+    stSortedSet *nodeSet = getEmptyNodeOrEdgeSetWithCleanup();
+    addEdgeToList(getRandomNodeWithoutReplacement(nodeSet, nodeNumber),
             getRandomNodeWithoutReplacement(nodeSet, nodeNumber), stubEdges);
     //While there are nodes not paired in the set..
     while (stSortedSet_size(nodeSet) < nodeNumber) {
-        addEdge(getRandomNodeWithoutReplacement(nodeSet, nodeNumber),
+        addEdgeToList(getRandomNodeWithoutReplacement(nodeSet, nodeNumber),
                 getRandomNodeWithoutReplacement(nodeSet, nodeNumber),
                 st_random() > 0.5 ? stubEdges : chainEdges);
     }
@@ -145,7 +106,7 @@ static void setup(int32_t maxNodeNumber) {
             = stList_construct3(0, (void(*)(void *)) stIntTuple_destruct);
     for (int32_t i = 0; i < nodeNumber; i++) {
         for (int32_t j = i + 1; j < nodeNumber; j++) {
-            addWeightedEdge(i, j, st_random() > 0.8 ? st_randomInt(0, 100) : 0,
+            addWeightedEdgeToList(i, j, st_random() > 0.8 ? st_randomInt(0, 100) : 0,
                     adjacencyEdges);
         }
     }
@@ -218,7 +179,7 @@ static void testComponentIsNotDisjoint(CuTest *testCase, stList *component) {
     /*
      * Check that the edges form one connected component.
      */
-    stSortedSet *edgeSet = getEmptyNodeOrEdgeSetWithoutEdgeCleanup();
+    stSortedSet *edgeSet = getEmptyNodeOrEdgeSetWithoutCleanup();
     testGetComponentsP(component, edgeSet, 0);
     CuAssertTrue(testCase,
             stSortedSet_size(edgeSet) == stList_length(component));
@@ -270,7 +231,7 @@ static void testGetComponents(CuTest *testCase) {
         st_logDebug("We got %i components\n", stList_length(components));
 
         //Check the components are disjoint (share no nodes).
-        stSortedSet *allNodes = getEmptyNodeOrEdgeSetWithoutEdgeCleanup();
+        stSortedSet *allNodes = getEmptyNodeOrEdgeSetWithoutCleanup();
         stList *nodeSets = stList_construct3(0,
                 (void(*)(void *)) stSortedSet_destruct);
         for (int32_t j = 0; j < stList_length(components); j++) {
@@ -356,7 +317,7 @@ static void checkMatching(CuTest *testCase, stList *chosenEdges,
     /*
      * Check every node has one adjacency.
      */
-    stSortedSet *nodeSet = getEmptyNodeOrEdgeSetWithEdgeCleanup();
+    stSortedSet *nodeSet = getEmptyNodeOrEdgeSetWithCleanup();
     for (int32_t i = 0; i < stList_length(chosenEdges); i++) {
         stIntTuple *edge = stList_get(chosenEdges, i);
         CuAssertTrue(testCase,

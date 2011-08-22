@@ -376,11 +376,13 @@ void group_constructChainForLink(Group *group) {
 
             //Now see if we must join the chain
             if (end_isBlockEnd(_5End)) {
+                assert(end_getSide(_5End));
+                assert(!end_getSide(end_getOtherBlockEnd(_5End)));
                 Link *_5Link = group_getLink(end_getGroup(end_getOtherBlockEnd(_5End)));
                 if(_5Link != NULL) {
                     Chain *_5Chain = link_getChain(_5Link);
                     assert(_5Chain != NULL);
-                    assert(_5Link == chain_getFirst(chain));
+                    assert(_5Link == chain_getFirst(_5Chain));
                     if(chain != _5Chain) { //We don't want to merge a circle
                         chain_join(chain, _5Chain);
                     }

@@ -15,7 +15,7 @@
 #include "CuTest.h"
 #include "3_Absorb3edge2x.h"
 
-void addEdge(stList *vertices, int32_t vertex1, int32_t vertex2) {
+void addEdgeToList(stList *vertices, int32_t vertex1, int32_t vertex2) {
     stList *edges = stList_get(vertices, vertex1);
     stList_append(edges, stIntTuple_construct(1, vertex2));
 }
@@ -30,8 +30,8 @@ stList *getRandomGraph(int32_t vertexNumber, int32_t edgeNumber) {
     while(edgeNumber-- > 0) {
         int32_t vertex1 = st_randomInt(0, vertexNumber);
         int32_t vertex2 = st_randomInt(0, vertexNumber);
-        addEdge(vertices, vertex1, vertex2);
-        addEdge(vertices, vertex2, vertex1);
+        addEdgeToList(vertices, vertex1, vertex2);
+        addEdgeToList(vertices, vertex2, vertex1);
     }
     return vertices;
 }

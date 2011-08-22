@@ -17,10 +17,11 @@
 #define SHARED_H_
 
 #include "sonLib.h"
+#include "cactusMatchingAlgorithms.h"
 
-stIntTuple *constructEdge(int32_t node1, int32_t node2);
+stSortedSet *getEmptyNodeOrEdgeSetWithCleanup();
 
-stIntTuple *constructWeightedEdge(int32_t node1, int32_t node2, int32_t weight);
+stSortedSet *getEmptyNodeOrEdgeSetWithoutCleanup();
 
 int compareEdgesByWeight(const void *edge, const void *edge2);
 
@@ -31,6 +32,11 @@ stSortedSet *getNodeSetOfEdges(stList *edges);
 void addNodeToSet(stSortedSet *nodes, int32_t node);
 
 bool nodeInSet(stSortedSet *nodes, int32_t node);
+
+void addEdgeToList(int32_t node1, int32_t node2, stList *edges);
+
+void addWeightedEdgeToList(int32_t node1, int32_t node2, int32_t weight,
+        stList *edges);
 
 stIntTuple *getWeightedEdgeFromSet(int32_t node1, int32_t node2,
         stSortedSet *allAdjacencyEdges);
@@ -45,5 +51,9 @@ void *getItemForNode(int32_t node, stHash *nodesToItems);
 bool edgeInSet(stSortedSet *edges, int32_t node1, int32_t node2);
 
 void addEdgeToSet(stSortedSet *edges, int32_t node1, int32_t node2);
+
+stList *getEdgesWithGreaterThanZeroWeight(stList *adjacencyEdges);
+
+void logEdges(stList *edges, const char *edgesName);
 
 #endif /* REFERENCE_H_ */

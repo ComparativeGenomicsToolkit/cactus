@@ -46,6 +46,7 @@ from cactus.pipeline.cactus_workflow import CactusSetupPhase
 from cactus.pipeline.cactus_workflow import CactusPhylogenyPhase
 from cactus.pipeline.cactus_workflow import CactusReferencePhase
 from cactus.pipeline.cactus_workflow import CactusFacesPhase
+from cactus.pipeline.cactus_workflow import getOptionalAttrib
 
 from cactus.progressive.progressiveSplitUtils import getCladeLeaves
 from cactus.progressive.progressiveSplitUtils import nameUnlabeledInternalNodes
@@ -288,10 +289,9 @@ def main():
     #Get the sequences
     sequences = options.experimentFile.attrib["sequences"].split()
     #Get any list of 'required species' for the blocks of the cactus.
-    options.requiredSpecies = None
-    if options.experimentFile.attrib.has_key("required_species"):
-        options.requiredSpecies = options.experimentFile.attrib["required_species"]
-    
+    options.requiredSpecies = getOptionalAttrib(options.experimentFile, "required_species")
+    options.singleCopySpecies = getOptionalAttrib(options.experimentFile, "single_copy_species")
+
     logger.info("Parsed the XML options file")
     
     baseTarget = ProgressiveSetup(options, sequences)

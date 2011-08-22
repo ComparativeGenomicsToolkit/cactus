@@ -28,6 +28,7 @@ typedef struct _CactusCoreInputParameters {
     int32_t blockTrim;
     int32_t minimumDegree;
     stSortedSet *requiredSpecies;
+    stSortedSet *singleCopySpecies;
 } CactusCoreInputParameters;
 
 int32_t cactusCorePipeline(Flower *flower, CactusCoreInputParameters *cCIP,

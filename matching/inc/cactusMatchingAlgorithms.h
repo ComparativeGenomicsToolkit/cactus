@@ -16,6 +16,12 @@
 
 #include "sonLib.h"
 
+extern const char *MATCHING_EXCEPTION;
+
+stIntTuple *constructEdge(int32_t node1, int32_t node2);
+
+stIntTuple *constructWeightedEdge(int32_t node1, int32_t node2, int32_t weight);
+
 /*
  * Uses the blossom5 maximum weight perfect matching algorithm to choose a matching
  * between the edges. The returned matching is not necessarily perfect, rather extra edges are
@@ -53,5 +59,7 @@ int32_t matchingCardinality(stList *matching);
  * Returns sum of weights.
  */
 int32_t matchingWeight(stList *matching);
+
+stList *getComponents(stList *edges);
 
 #endif /* EXTERNALALGORITHMS_H_ */

@@ -16,15 +16,15 @@ ${libPath}/cactusReference.a : ${libSources} ${libHeaders} ${libPath}/cactusLib.
 	rm *.o
 	mv cactusReference.a ${libPath}/
 	cp ${libHeaders} ${libPath}/
+	
+${binPath}/cactus_reference : cactus_reference.c ${libSources} ${libHeaders} ${libPath}/cactusReference.a ${libPath}/cactusMatching.a ${libPath}/cactusLib.a  ${basicLibsDependencies}
+	${cxx} ${cflags} -I inc -I${libPath} -o ${binPath}/cactus_reference cactus_reference.c ${libPath}/cactusReference.a ${libPath}/cactusMatching.a ${libPath}/cactusLib.a ${basicLibs}
 
-${binPath}/cactus_reference : cactus_reference.c ${libSources} ${libHeaders} ${libPath}/cactusReference.a ${libPath}/cactusLib.a  ${basicLibsDependencies}
-	${cxx} ${cflags} -I inc -I${libPath} -o ${binPath}/cactus_reference cactus_reference.c ${libPath}/cactusReference.a ${libPath}/cactusLib.a ${basicLibs}
+${binPath}/cactus_addReferenceCoordinates : ${libSources} ${libHeaders} cactus_addReferenceCoordinates.c ${libPath}/cactusReference.a ${libPath}/cactusMatching.a ${libSources} ${libPath}/cactusLib.a  ${basicLibsDependencies}
+	${cxx} ${cflags} -I inc -I${libPath} -o ${binPath}/cactus_addReferenceCoordinates cactus_addReferenceCoordinates.c ${libPath}/cactusReference.a ${libPath}/cactusMatching.a ${libPath}/cactusLib.a ${basicLibs}
 
-${binPath}/cactus_addReferenceCoordinates : ${libSources} ${libHeaders} cactus_addReferenceCoordinates.c ${libPath}/cactusReference.a ${libSources} ${libPath}/cactusLib.a  ${basicLibsDependencies}
-	${cxx} ${cflags} -I inc -I${libPath} -o ${binPath}/cactus_addReferenceCoordinates cactus_addReferenceCoordinates.c ${libPath}/cactusReference.a ${libPath}/cactusLib.a ${basicLibs}
-
-${binPath}/referenceTests : ${libTests} ${libSources} ${libHeaders} ${libPath}/cactusReference.a ${libPath}/cactusLib.a ${basicLibsDependencies}
-	${cxx} ${cflags} -I inc -I impl -I${libPath} -o ${binPath}/referenceTests ${libTests} ${libPath}/cactusReference.a ${libPath}/cactusLib.a ${basicLibs}
+${binPath}/referenceTests : ${libTests} ${libSources} ${libHeaders} ${libPath}/cactusReference.a ${libPath}/cactusMatching.a ${libPath}/cactusLib.a ${basicLibsDependencies}
+	${cxx} ${cflags} -I inc -I impl -I${libPath} -o ${binPath}/referenceTests ${libTests} ${libPath}/cactusReference.a ${libPath}/cactusMatching.a ${libPath}/cactusLib.a ${basicLibs}
 
 clean : 
 	rm -f *.o

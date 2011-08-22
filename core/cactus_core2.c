@@ -79,6 +79,20 @@ void usage() {
             stderr,
             "-q --requiredSpecies : (array of event names) At least one of these events must be in a block for it to be included in the final graph\n");
 
+    fprintf(
+            stderr,
+            "-t --singleCopySpecies : (array of event names) If any of the following events contribute multiple instances to a block it will be broken up\n");
+
+}
+
+stSortedSet *getStringSet(const char *string) {
+    stList *list = stString_split(string);
+    stSortedSet *strings = stSortedSet_construct3((int(*)(const void *, const void *)) strcmp, free);
+    for (int32_t i = 0; i < stList_length(list); i++) {
+        stSortedSet_insert(strings, stString_copy(stList_get(list, i)));
+    }
+    stList_destruct(list);
+    return strings;
 }
 
 int32_t *getInts(const char *string, int32_t *arrayLength) {
@@ -114,7 +128,6 @@ int main(int argc, char *argv[]) {
     char * cactusDiskDatabaseString = NULL;
     char * flowerName = NULL;
     CactusCoreInputParameters *cCIP = constructCactusCoreInputParameters();
-    stList *requiredSpecies;
 
     ///////////////////////////////////////////////////////////////////////////
     // (0) Parse the inputs handed by genomeCactus.py / setup stuff.
@@ -130,11 +143,12 @@ int main(int argc, char *argv[]) {
                 { "minimumTreeCoverage", required_argument, 0, 'm' }, { "blockTrim", required_argument, 0, 'n' }, {
                         "deannealingRounds", required_argument, 0, 'o' }, {
                         "ignoreAllChainsLessThanMinimumTreeCoverage", no_argument, 0, 's', }, { "minimumDegree",
-                        required_argument, 0, 'p' }, { "requiredSpecies", required_argument, 0, 'q' }, { 0, 0, 0, 0 } };
+                        required_argument, 0, 'p' }, { "requiredSpecies", required_argument, 0, 'q' }, {
+                        "singleCopySpecies", required_argument, 0, 't' }, { 0, 0, 0, 0 } };
 
         int option_index = 0;
 
-        key = getopt_long(argc, argv, "a:b:c:d:ehi:j:k:m:n:o:sp:q:", long_options, &option_index);
+        key = getopt_long(argc, argv, "a:b:c:d:ehi:j:k:m:n:o:sp:q:t:", long_options, &option_index);
 
         if (key == -1) {
             break;
@@ -191,12 +205,10 @@ int main(int argc, char *argv[]) {
                 assert(k == 1);
                 break;
             case 'q':
-                requiredSpecies = stString_split(optarg);
-                cCIP->requiredSpecies = stSortedSet_construct3((int (*)(const void *, const void *))strcmp, free);
-                for(int32_t i=0; i<stList_length(requiredSpecies); i++) {
-                    stSortedSet_insert(cCIP->requiredSpecies, stString_copy(stList_get(requiredSpecies, i)));
-                }
-                stList_destruct(requiredSpecies);
+                cCIP->requiredSpecies = getStringSet(optarg);
+                break;
+            case 't':
+                cCIP->singleCopySpecies = getStringSet(optarg);
                 break;
             default:
                 usage();
@@ -220,8 +232,8 @@ int main(int argc, char *argv[]) {
     }
     assert(cCIP->deannealingRoundsLength >= 0);
     for (int32_t i = 1; i < cCIP->deannealingRoundsLength; i++) {
-        assert(cCIP->deannealingRounds[i-1] < cCIP->deannealingRounds[i]);
-        assert(cCIP->deannealingRounds[i-1] >= 1);
+        assert(cCIP->deannealingRounds[i - 1] < cCIP->deannealingRounds[i]);
+        assert(cCIP->deannealingRounds[i - 1] >= 1);
     }
     assert(cCIP->trimLength >= 0);
     for (int32_t i = 0; i < cCIP->trimLength; i++) {

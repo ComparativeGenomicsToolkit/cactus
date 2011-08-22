@@ -336,7 +336,8 @@ class CactusCoreWrapper(Target):
                       blockTrim=float(coreParameters.attrib["blockTrim"]),
                       ignoreAllChainsLessThanMinimumTreeCoverage=bool(coreParameters.attrib["ignoreAllChainsLessThanMinimumTreeCoverage"]),
                       minimumBlockDegree=int(coreParameters.attrib["minimumBlockDegree"]),
-                      requiredSpecies=self.options.requiredSpecies)
+                      requiredSpecies=self.options.requiredSpecies,
+                      singleCopySpecies=self.options.singleCopySpecies)
         logger.info("Ran the cactus core program okay")
         
 ############################################################
@@ -486,12 +487,6 @@ class CactusPhylogeny(Target):
 ############################################################
 ############################################################
 ############################################################
-
-def getReferenceEventString(config):
-    referenceNode = config.find("reference")
-    if referenceNode.attrib.has_key("reference"):
-        return referenceNode.attrib["reference"]
-    return None
     
 class CactusReferencePhase(Target):
     def __init__(self, flowerName, options):
@@ -517,11 +512,13 @@ class CactusReferenceDown(Target):
         self.flowerNames = flowerNames
     
     def run(self):
-        matchingAlgorithm = self.options.config.find("reference").attrib["matching_algorithm"]
-        referenceEventString = getReferenceEventString(self.options.config)
-        runCactusReference(self.options.cactusDiskDatabaseString, flowerNames=self.flowerNames, matchingAlgorithm=matchingAlgorithm, 
-                           maxNumberOfChainsToSolvePerRound=getOptionalAttrib(self.options.config.find("reference"), "maxNumberOfChainsToSolvePerRound"),
-                           referenceEventString=referenceEventString)
+        referenceNode=self.options.config.find("reference")
+        runCactusReference(self.options.cactusDiskDatabaseString, flowerNames=self.flowerNames, 
+                           matchingAlgorithm=getOptionalAttrib(referenceNode, "matching_algorithm"), 
+                           permutations=getOptionalAttrib(referenceNode, "permutations"),
+                           referenceEventString=getOptionalAttrib(referenceNode, "reference"), 
+                           useSimulatedAnnealing=getOptionalAttrib(referenceNode, "useSimulatedAnnealing"),
+                           theta=getOptionalAttrib(referenceNode, "theta"))
         makeChildTargets(self.options, None, self.flowerNames, self, CactusReferenceDown)
 
 class CactusSetReferenceCoordinates(Target):
@@ -533,8 +530,8 @@ class CactusSetReferenceCoordinates(Target):
         self.options = options
         
     def run(self):
-        referenceEventString = getReferenceEventString(self.options.config)
-        runCactusAddReferenceCoordinates(self.options.cactusDiskDatabaseString, referenceEventString=referenceEventString)
+        referenceNode=self.options.config.find("reference")
+        runCactusAddReferenceCoordinates(self.options.cactusDiskDatabaseString, referenceEventString=getOptionalAttrib(referenceNode, "reference"))
         self.setFollowOnTarget(CactusFacesPhase(self.flowerName, self.options))
 
 ############################################################
@@ -644,10 +641,8 @@ def main():
     #Get the sequences
     sequences = options.experimentFile.attrib["sequences"].split()
     #Get any list of 'required species' for the blocks of the cactus.
-    options.requiredSpecies = None
-    if options.experimentFile.attrib.has_key("required_species"):
-        options.requiredSpecies = options.experimentFile.attrib["required_species"]
-    
+    options.requiredSpecies = getOptionalAttrib(options.experimentFile, "required_species")
+    options.singleCopySpecies = getOptionalAttrib(options.experimentFile, "single_copy_species")
     logger.info("Parsed the XML options file")
     
     if options.setupAndBuildAlignments:
