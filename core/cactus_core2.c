@@ -83,6 +83,10 @@ void usage() {
             stderr,
             "-t --singleCopySpecies : (array of event names) If any of the following events contribute multiple instances to a block it will be broken up\n");
 
+    fprintf(stderr, "-u --minimumChainLength : (int >= 0) The minimum acceptable length of a chain\n");
+
+    fprintf(stderr, "-v --maximumGroupSize : (int >= 0) The maximum acceptable size for a group\n");
+
 }
 
 stSortedSet *getStringSet(const char *string) {
@@ -128,6 +132,7 @@ int main(int argc, char *argv[]) {
     char * cactusDiskDatabaseString = NULL;
     char * flowerName = NULL;
     CactusCoreInputParameters *cCIP = constructCactusCoreInputParameters();
+    cCIP->minimumChainLength = -1;
 
     ///////////////////////////////////////////////////////////////////////////
     // (0) Parse the inputs handed by genomeCactus.py / setup stuff.
@@ -144,7 +149,8 @@ int main(int argc, char *argv[]) {
                         "deannealingRounds", required_argument, 0, 'o' }, {
                         "ignoreAllChainsLessThanMinimumTreeCoverage", no_argument, 0, 's', }, { "minimumDegree",
                         required_argument, 0, 'p' }, { "requiredSpecies", required_argument, 0, 'q' }, {
-                        "singleCopySpecies", required_argument, 0, 't' }, { 0, 0, 0, 0 } };
+                        "singleCopySpecies", required_argument, 0, 't' }, { "minimumChainLength", required_argument, 0,
+                        'u' }, { "maximumGroupSize", required_argument, 0, 'v' }, { 0, 0, 0, 0 } };
 
         int option_index = 0;
 
@@ -210,6 +216,16 @@ int main(int argc, char *argv[]) {
             case 't':
                 cCIP->singleCopySpecies = getStringSet(optarg);
                 break;
+            case 'u':
+                k = sscanf(optarg, "%i", &cCIP->minimumChainLength);
+                assert(k == 1);
+                assert(cCIP->minimumChainLength >= 0);
+                break;
+            case 'v':
+                k = sscanf(optarg, "%lli", &cCIP->maximumAdjacencyComponentSize);
+                assert(k == 1);
+                assert(cCIP->maximumAdjacencyComponentSize >= 0);
+                break;
             default:
                 usage();
                 return 1;
@@ -226,7 +242,7 @@ int main(int argc, char *argv[]) {
     assert(cCIP->minimumTreeCoverage >= 0.0);
     assert(cCIP->minimumTreeCoverage <= 1.0);
     assert(cCIP->blockTrim >= 0);
-    assert(cCIP->annealingRoundsLength >= 0);
+    assert(cCIP->annealingRoundsLength >= 1);
     for (int32_t i = 0; i < cCIP->annealingRoundsLength; i++) {
         assert(cCIP->annealingRounds[i] >= 0);
     }
@@ -240,6 +256,15 @@ int main(int argc, char *argv[]) {
         assert(cCIP->trim[i] >= 0);
     }
     assert(cCIP->alignRepeatsAtRound >= 0);
+    assert(cCIP->maximumAdjacencyComponentSize >= 0);
+
+    if (cCIP->minimumChainLength == -1) {
+        cCIP->minimumChainLength = cCIP->annealingRounds[cCIP->annealingRoundsLength - 1];
+        st_logDebug("Setting the maximum chain length to %i from the last value in the annealing rounds array\n",
+                cCIP->minimumChainLength);
+    }
+    assert(cCIP->minimumChainLength >= 0);
+    assert(cCIP->minimumChainLength <= cCIP->annealingRounds[cCIP->annealingRoundsLength - 1]);
 
     //////////////////////////////////////////////
     //Set up logging

@@ -483,11 +483,11 @@ struct PinchEdge *getContainingBlackEdge(struct PinchGraph *graph, Name contig,
     //Now get the edge.
     edge2 = avl_find(graph->edges, &edge);
     //assert(edge2 != NULL);
-    if(edge2 == NULL) {
-        st_uglyf("The edge is null\n");
-        st_uglyf("The number of elements in the set %i\n", avl_count(graph->edges));
-        st_uglyf("The name %lli the position %i\n", contig, position);
-    }
+    //if(edge2 == NULL) {
+        //st_uglyf("The edge is null\n");
+        //st_uglyf("The number of elements in the set %i\n", avl_count(graph->edges));
+        //st_uglyf("The name %lli the position %i\n", contig, position);
+    //}
     return edge2;
 }
 

@@ -13,9 +13,8 @@
 
 #include "adjacencyComponents.h"
 
-static inline void getAdjacencyComponentsP2(struct PinchVertex *vertex,
-        bool (*passThroughEdgeFn)(struct PinchEdge *), bool *seen,
-        stSortedSet *adjacencyComponent, stList *stack) {
+static inline void getAdjacencyComponentsP2(struct PinchVertex *vertex, bool(*passThroughEdgeFn)(struct PinchEdge *),
+        bool *seen, stSortedSet *adjacencyComponent, stList *stack) {
     //add it to the hash
     assert(!seen[vertex->vertexID]);
     seen[vertex->vertexID] = 1;
@@ -55,15 +54,14 @@ static inline void getAdjacencyComponentsP2(struct PinchVertex *vertex,
     destructGreyEdgeIterator(greyEdgeIterator);
 }
 
-stList *getAdjacencyComponents2(struct PinchGraph *pinchGraph,
-        bool (*passThroughEdgeFn)(struct PinchEdge *)) {
+stList *getAdjacencyComponents2(struct PinchGraph *pinchGraph, bool(*passThroughEdgeFn)(struct PinchEdge *)) {
     /*
      * find recursive components (each recursive component is represented as a series of vertices)
      * do as series of DFS on each connected component, not traversing long black edges.
      */
     //allocate stuff.
     bool *seen = st_calloc(pinchGraph->vertices->length, sizeof(bool));
-    stList *adjacencyComponents = stList_construct3(0, (void (*)(void *))stSortedSet_destruct);
+    stList *adjacencyComponents = stList_construct3(0, (void(*)(void *)) stSortedSet_destruct);
     stList *stack = stList_construct();
 
     for (int32_t i = 0; i < pinchGraph->vertices->length; i++) {
@@ -78,11 +76,11 @@ stList *getAdjacencyComponents2(struct PinchGraph *pinchGraph,
 
             //now build the component via a (recursive) function -- now changed to have a stack which we edit to maintain the list.
             assert(stList_length(stack) == 0);
-            while(1) {
+            while (1) {
                 if (!seen[vertex->vertexID]) {
                     getAdjacencyComponentsP2(vertex, passThroughEdgeFn, seen, adjacencyComponent, stack);
                 }
-                if(stList_length(stack) == 0) {
+                if (stList_length(stack) == 0) {
                     break;
                 }
                 vertex = stList_pop(stack);
@@ -107,17 +105,16 @@ bool doNotPassThroughDegree1EdgesFn(struct PinchEdge *edge) {
 }
 
 stList *getAdjacencyComponents(struct PinchGraph *pinchGraph) {
-    return getAdjacencyComponents2(pinchGraph,
-        passThroughDegree1EdgesFn);
+    return getAdjacencyComponents2(pinchGraph, passThroughDegree1EdgesFn);
 }
 
 stHash *getVertexToAdjacencyComponentHash(struct PinchGraph *pinchGraph, stList *adjacencyComponents) {
-    stHash *vertexToAdjacencyComponentHash = stHash_construct2(NULL, (void (*)(void *))stIntTuple_destruct);
-    for(int32_t i=0; i<stList_length(adjacencyComponents); i++) {
+    stHash *vertexToAdjacencyComponentHash = stHash_construct2(NULL, (void(*)(void *)) stIntTuple_destruct);
+    for (int32_t i = 0; i < stList_length(adjacencyComponents); i++) {
         stSortedSet *adjacencyComponent = stList_get(adjacencyComponents, i);
         stSortedSetIterator *it = stSortedSet_getIterator(adjacencyComponent);
         struct PinchVertex *vertex;
-        while((vertex = stSortedSet_getNext(it)) != NULL) {
+        while ((vertex = stSortedSet_getNext(it)) != NULL) {
             stHash_insert(vertexToAdjacencyComponentHash, vertex, stIntTuple_construct(1, i));
         }
         stSortedSet_destructIterator(it);
@@ -137,7 +134,7 @@ stList *getAdjacencyComponentGraph(struct PinchGraph *pinchGraph, stList *adjace
         stList_append(vertices, edges);
         stSortedSetIterator *it = stSortedSet_getIterator(adjacencyComponent);
         struct PinchVertex *vertex;
-        while((vertex = stSortedSet_getNext(it)) != NULL) {
+        while ((vertex = stSortedSet_getNext(it)) != NULL) {
             vertexCounter++;
             //The black edges
             if (lengthBlackEdges(vertex) > 0) {
@@ -145,8 +142,7 @@ stList *getAdjacencyComponentGraph(struct PinchGraph *pinchGraph, stList *adjace
                 assert(stIntTuple_getPosition(stHash_search(vertexToAdjacencyComponentsHash, edge->from), 0) == i);
                 int32_t k = stIntTuple_getPosition(stHash_search(vertexToAdjacencyComponentsHash, edge->to), 0);
                 stList_append(edges, stIntTuple_construct(1, k));
-            }
-            else {
+            } else {
                 assert(vertex->vertexID == 0);
             }
         }
@@ -154,5 +150,39 @@ stList *getAdjacencyComponentGraph(struct PinchGraph *pinchGraph, stList *adjace
     }
     assert(vertexCounter == pinchGraph->vertices->length);
     return vertices;
+}
+
+int64_t getAdjacencyComponentSize(stSortedSet *adjacencyComponent) {
+    /*
+     * Gets the length of an adjacency component, assuming the edges of the adjacency component consists only
+     * of grey edges and black edges with degree 1.
+     */
+    int64_t totalSize = 0;
+    stSortedSetIterator *vertexIt = stSortedSet_getIterator(adjacencyComponent);
+    struct PinchVertex *vertex;
+    while ((vertex = stSortedSet_getNext(vertexIt)) != NULL) {
+        //search across the greyedges.
+        void *greyEdgeIterator = getGreyEdgeIterator(vertex);
+        struct PinchVertex *vertex2;
+        while ((vertex2 = getNextGreyEdge(vertex, greyEdgeIterator)) != NULL) {
+            if (lengthBlackEdges(vertex2) > 0) {
+                struct PinchEdge *edge = getFirstBlackEdge(vertex2);
+                if (passThroughDegree1EdgesFn(edge)) {
+                    int32_t j = edge->piece->end - edge->piece->start + 1;
+                    assert(j >= 1);
+                    assert(lengthBlackEdges(vertex2) == 1);
+                    totalSize += j;
+                }
+                else {
+                    assert(stSortedSet_search(adjacencyComponent, vertex2) != NULL);
+                }
+            }
+        }
+        destructGreyEdgeIterator(greyEdgeIterator);
+    }
+    stSortedSet_destructIterator(vertexIt);
+    assert(totalSize >= 0);
+    assert(totalSize % 2 == 0);
+    return totalSize / 2;
 }
 
