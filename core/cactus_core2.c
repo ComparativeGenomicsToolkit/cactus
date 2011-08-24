@@ -122,7 +122,7 @@ int main(int argc, char *argv[]) {
     stKVDatabaseConf *kvDatabaseConf;
     CactusDisk *cactusDisk;
     Flower *flower;
-    int key, k;
+    int key, k, tempValue; //Bad hack
 
     /*
      * Arguments/options
@@ -222,8 +222,9 @@ int main(int argc, char *argv[]) {
                 assert(cCIP->minimumChainLength >= 0);
                 break;
             case 'v':
-                k = sscanf(optarg, "%lli", &cCIP->maximumAdjacencyComponentSize);
+                k = sscanf(optarg, "%i", &tempValue);
                 assert(k == 1);
+                cCIP->maximumAdjacencyComponentSize = tempValue;
                 assert(cCIP->maximumAdjacencyComponentSize >= 0);
                 break;
             default:
