@@ -163,15 +163,12 @@ static void removeChainFromReference(stIntTuple *chain, stList *reference) {
             assert(referenceInterval->_3Node != referenceInterval->_5Node);
             if (referenceInterval->_5Node == _5Node || referenceInterval->_5Node == _3Node) {
                 assert(referenceInterval->_3Node == _5Node || referenceInterval->_3Node == _3Node);
-                if (pReferenceInterval == NULL) {
-                    stList_set(reference, i, referenceInterval->nReferenceInterval);
-                } else {
-                    pReferenceInterval->nReferenceInterval = referenceInterval->nReferenceInterval;
-                }
+                assert(pReferenceInterval != NULL);
+                pReferenceInterval->nReferenceInterval = referenceInterval->nReferenceInterval;
                 free(referenceInterval);
                 return;
             } else {
-                assert(referenceInterval->_3Node != _5Node && referenceInterval->_3Node != _3Node);
+                assert(referenceInterval->_3Node != _3Node && referenceInterval->_3Node != _3Node);
             }
             pReferenceInterval = referenceInterval;
             referenceInterval = referenceInterval->nReferenceInterval;

@@ -119,33 +119,16 @@ static stHash *getMapOfTangleEndsToNodes(Flower *flower) {
 ////////////////////////////////////
 ////////////////////////////////////
 
-static Cap *traceAdjacency(Cap *cap, stHash *endsToNodes) {
-    while (1) {
-        cap = cap_getAdjacency(cap);
-        assert(cap != NULL);
-        End *end = end_getPositiveOrientation(cap_getEnd(cap));
-        if (stHash_search(endsToNodes, end) != NULL) {
-            return cap;
-        }
-        if (end_isStubEnd(cap_getEnd(cap))) {
-            assert(end_isFree(cap_getEnd(cap)));
-            return NULL;
-        }
-        cap = cap_getOtherSegmentCap(cap);
-        assert(cap != NULL);
-    }
-}
-
-static void calculateZP(Cap *cap, stHash *endsToNodes,
-        stList *caps) {
+static stList *calculateZP(Cap *cap, stHash *endsToNodes) {
     /*
      * Get the list of caps that represent the ends of the chains and stubs within a sequence.
      */
     assert(!cap_getSide(cap));
-    End *end = end_getPositiveOrientation(cap_getEnd(cap));
-    assert(end_isStubEnd(end));
+    assert(end_isStubEnd(end_getPositiveOrientation(cap_getEnd(cap))));
+    stList *caps = stList_construct();
     bool b = 0;
     while (1) {
+        End *end = end_getPositiveOrientation(cap_getEnd(cap));
         if (stHash_search(endsToNodes, end) != NULL) {
             assert(!cap_getSide(cap));
             if(stList_length(caps) > 0) {
@@ -166,11 +149,33 @@ static void calculateZP(Cap *cap, stHash *endsToNodes,
             stList_append(caps, cap);
         }
         if (end_isStubEnd(end)) {
-            return;
+            return caps;
         }
+        assert(cap != cap_getOtherSegmentCap(cap));
         cap = cap_getOtherSegmentCap(cap);
         assert(cap != NULL);
+    }
+}
+
+static Cap *calculateZP4(Cap *cap, stHash *endsToNodes) {
+    if(cap_getOtherSegmentCap(cap) == NULL) {
+        return NULL;
+    }
+    while (1) {
+        cap = cap_getOtherSegmentCap(cap);
+        assert(cap != NULL);
+        End *end = end_getPositiveOrientation(cap_getEnd(cap));
+        if (stHash_search(endsToNodes, end) != NULL) {
+            return cap;
+        }
+        cap = cap_getAdjacency(cap);
+        assert(cap != NULL);
         end = end_getPositiveOrientation(cap_getEnd(cap));
+        assert(stHash_search(endsToNodes, end) == NULL);
+        if (end_isStubEnd(end)) {
+            assert(end_isFree(end));
+            return NULL;
+        }
     }
 }
 
@@ -183,8 +188,7 @@ static int32_t calculateZP2(Cap *cap, stHash *endsToNodes) {
     assert(cap_getStrand(cap));
     Sequence *sequence = cap_getSequence(cap);
     assert(sequence != NULL);
-    Cap *otherCap = cap_getOtherSegmentCap(cap) == NULL ? NULL
-            : traceAdjacency(cap_getOtherSegmentCap(cap), endsToNodes);
+    Cap *otherCap = calculateZP4(cap, endsToNodes);
     int32_t capLength;
     if (otherCap == NULL) {
         capLength = cap_getSide(cap) ? sequence_getLength(sequence) + sequence_getStart(sequence)
@@ -219,8 +223,7 @@ double *calculateZ(Flower *flower, stHash *endsToNodes, double theta) {
             while ((cap = end_getNext(capIt)) != NULL) {
                 cap = cap_getStrand(cap) ? cap : cap_getReverse(cap);
                 if (!cap_getSide(cap) && cap_getSequence(cap) != NULL) {
-                    stList *caps = stList_construct();
-                    calculateZP(cap, endsToNodes, caps);
+                    stList *caps = calculateZP(cap, endsToNodes);
 
                     /*
                      * Calculate the lengths of the sequences following the 3 caps, for efficiency.
@@ -269,6 +272,7 @@ double *calculateZ(Flower *flower, stHash *endsToNodes, double theta) {
                             z[_5Node * nodeNumber + _3Node] += score;
                             z[_3Node * nodeNumber + _5Node] = z[_5Node * nodeNumber + _3Node];
                             assert(z[_5Node * nodeNumber + _3Node] == z[_3Node * nodeNumber + _5Node]);
+                            assert(z[_5Node * nodeNumber + _3Node] >= 0.0);
                         }
                     }
                     stList_destruct(caps);
