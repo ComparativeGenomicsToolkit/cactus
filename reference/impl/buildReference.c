@@ -443,7 +443,7 @@ static stList *getStubEdgesFromParent(Flower *flower, stHash *endsToNodes,
 
 static stList *getStubEdges(Flower *flower, stHash *endsToNodes,
         Event *referenceEvent,
-        stList *(*matchingAlgorithm)(stList *edges, int32_t nodeNumber)) {
+        stList *(*matchingAlgorithm)(stList *edges, int32_t nodeNumber), stList *chainEdges) {
     int32_t nodeNumber = stHash_size(endsToNodes);
 
     /*
@@ -459,15 +459,28 @@ static stList *getStubEdges(Flower *flower, stHash *endsToNodes,
     /*
      * Get stub nodes
      */
+    stSortedSet *chainNodeSet = stSortedSet_construct3((int (*)(const void *, const void *))stIntTuple_cmpFn, (void (*)(void *))stIntTuple_destruct);
     stList *stubNodes = stList_construct();
+    for(int32_t i=0; i<stList_length(chainEdges); i++) {
+        stIntTuple *chainEdge = stList_get(chainEdges, i);
+        assert(stIntTuple_length(chainEdge) == 2);
+        stIntTuple *node1 = stIntTuple_construct(1, stIntTuple_getPosition(chainEdge, 0));
+        stIntTuple *node2 = stIntTuple_construct(1, stIntTuple_getPosition(chainEdge, 1));
+        assert(stSortedSet_search(chainNodeSet, node1) == NULL);
+        stSortedSet_insert(chainNodeSet, node1);
+        assert(stSortedSet_search(chainNodeSet, node2) == NULL);
+        stSortedSet_insert(chainNodeSet, node2);
+    }
     stHashIterator *it = stHash_getIterator(endsToNodes);
     End *end;
     while((end = stHash_getNext(it)) != NULL) {
-        if(end_isStubEnd(end)) {
+        stIntTuple *node = stHash_search(endsToNodes, end);
+        if(stSortedSet_search(chainNodeSet, node) == NULL) {
             stList_append(stubNodes, stHash_search(endsToNodes, end));
         }
     }
     stHash_destructIterator(it);
+    stSortedSet_destruct(chainNodeSet);
 
     /*
      * Make Z for the stubs using a theta of 0.0
@@ -708,7 +721,7 @@ void buildReferenceTopDown(Flower *flower, const char *referenceEventHeader,
      * Get the stub edges and chosen edges.
      */
     stList * stubEdges = getStubEdges(flower, endsToNodes,
-            referenceEvent, matchingAlgorithm);
+            referenceEvent, matchingAlgorithm, chainEdges);
 
     /*
      * Check the edges and nodes before starting to calculate the matching.
