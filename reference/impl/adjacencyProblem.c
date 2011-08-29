@@ -19,6 +19,13 @@ static ReferenceInterval *referenceInterval_construct(int32_t _5Node, int32_t _3
     return referenceInterval;
 }
 
+static void referenceInterval_destruct(ReferenceInterval *referenceInterval) {
+    if(referenceInterval->nReferenceInterval != NULL) {
+        referenceInterval_destruct(referenceInterval->nReferenceInterval);
+    }
+    free(referenceInterval);
+}
+
 typedef struct _ReferenceIntervalInsertion {
     stIntTuple *chain;
     bool orientation;
@@ -90,7 +97,7 @@ stList *makeReferenceGreedily(stList *stubs, stList *chainsList, double *z, int3
      * Constructs a reference greedily, by picking a best possible insertion
      * at each of the |R| steps.
      */
-    stList *reference = stList_construct3(0, free);
+    stList *reference = stList_construct3(0, (void (*)(void *))referenceInterval_destruct);
 
     /*
      * Make the stubs.

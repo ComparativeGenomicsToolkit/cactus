@@ -476,7 +476,7 @@ static stList *getStubEdges(Flower *flower, stHash *endsToNodes,
     while((end = stHash_getNext(it)) != NULL) {
         stIntTuple *node = stHash_search(endsToNodes, end);
         if(stSortedSet_search(chainNodeSet, node) == NULL) {
-            stList_append(stubNodes, stHash_search(endsToNodes, end));
+            stList_append(stubNodes, node);
         }
     }
     stHash_destructIterator(it);
@@ -783,8 +783,10 @@ void buildReferenceTopDown(Flower *flower, const char *referenceEventHeader,
      */
     free(z);
     stList_destruct(newEnds);
+    stList_destruct(stubEdges);
     stHash_destruct(endsToNodes);
     stHash_destruct(nodesToEnds);
     stList_destruct(chainEdges);
     stList_destruct(chosenEdges);
+    stList_destruct(reference);
 }
