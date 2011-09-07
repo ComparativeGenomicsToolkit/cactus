@@ -34,9 +34,15 @@ bool doNotPassThroughDegree1EdgesFn(struct PinchEdge *edge);
 stList *getAdjacencyComponents(struct PinchGraph *pinchGraph);
 
 /*
+ * Gets the length of an adjacency component, currently assuming the edges of the adjacency component consists only
+ * of grey edges and black edges with degree 1.
+ */
+int64_t getAdjacencyComponentSize(stSortedSet *adjacencyComponent);
+
+/*
  * Like getAdjacencyComponents. A pinch edge is counted as an adjacency edge if passThroughEdge returns non-zero.
  */
-stList *getAdjacencyComponents2(struct PinchGraph *pinchGraph, bool (*passThroughEdge)(struct PinchEdge *));
+stList *getAdjacencyComponents2(struct PinchGraph *pinchGraph, bool(*passThroughEdge)(struct PinchEdge *));
 
 /*
  * Creates a hash of nodes to adjacency components, each node being a member of one adjacency component.
@@ -47,7 +53,7 @@ stHash *getVertexToAdjacencyComponentHash(struct PinchGraph *pinchGraph, stList 
  * Constructs a graph in which the adjacency components are nodes and the
  * edges are blocks. The graph is represented as a set of adjacency lists, one for adjacency component.
  */
-stList *getAdjacencyComponentGraph(struct PinchGraph *pinchGraph, stList *adjacencyComponents, stHash *vertexToAdjacencyComponentsHash);
-
+stList *getAdjacencyComponentGraph(struct PinchGraph *pinchGraph, stList *adjacencyComponents,
+        stHash *vertexToAdjacencyComponentsHash);
 
 #endif /* ADJACENCYCOMPONENTS_H_ */

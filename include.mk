@@ -8,7 +8,7 @@ sonLibPath=${sonLibRootPath}/lib
 
 include  ${sonLibRootPath}/include.mk
 
-dataSetsPath=/Users/benedictpaten/Dropbox/Documents/work/myPapers/genomeCactusPaper/dataSets
+dataSetsPath=/Users/hickey/Documesnts/Devel/genomes/datasets
 
 cflags += -I ${sonLibPath} ${tokyoCabinetIncl} ${kyotoTycoonIncl} ${mysqlIncl} ${pgsqlIncl}
 basicLibs = ${sonLibPath}/sonLib.a ${sonLibPath}/cuTest.a ${dblibs}

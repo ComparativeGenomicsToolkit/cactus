@@ -14,6 +14,8 @@ typedef struct _CactusCoreInputParameters {
      * Arguments/options
      */
     bool writeDebugFiles;
+    int32_t minimumChainLength;
+    int64_t maximumAdjacencyComponentSize;
     int32_t *annealingRounds;
     int32_t annealingRoundsLength;
     int32_t *deannealingRounds;

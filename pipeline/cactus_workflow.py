@@ -337,7 +337,9 @@ class CactusCoreWrapper(Target):
                       ignoreAllChainsLessThanMinimumTreeCoverage=bool(coreParameters.attrib["ignoreAllChainsLessThanMinimumTreeCoverage"]),
                       minimumBlockDegree=int(coreParameters.attrib["minimumBlockDegree"]),
                       requiredSpecies=self.options.requiredSpecies,
-                      singleCopySpecies=self.options.singleCopySpecies)
+                      singleCopySpecies=self.options.singleCopySpecies,
+                      minimumChainLength=getOptionalAttrib(coreParameters, "minimumChainLength"),
+                      maximumGroupSize=getOptionalAttrib(coreParameters, "maximumGroupSize"))
         logger.info("Ran the cactus core program okay")
         
 ############################################################

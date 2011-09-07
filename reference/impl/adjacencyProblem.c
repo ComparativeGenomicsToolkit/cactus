@@ -19,6 +19,13 @@ static ReferenceInterval *referenceInterval_construct(int32_t _5Node, int32_t _3
     return referenceInterval;
 }
 
+static void referenceInterval_destruct(ReferenceInterval *referenceInterval) {
+    if(referenceInterval->nReferenceInterval != NULL) {
+        referenceInterval_destruct(referenceInterval->nReferenceInterval);
+    }
+    free(referenceInterval);
+}
+
 typedef struct _ReferenceIntervalInsertion {
     stIntTuple *chain;
     bool orientation;
@@ -90,7 +97,7 @@ stList *makeReferenceGreedily(stList *stubs, stList *chainsList, double *z, int3
      * Constructs a reference greedily, by picking a best possible insertion
      * at each of the |R| steps.
      */
-    stList *reference = stList_construct3(0, free);
+    stList *reference = stList_construct3(0, (void (*)(void *))referenceInterval_destruct);
 
     /*
      * Make the stubs.
@@ -163,15 +170,12 @@ static void removeChainFromReference(stIntTuple *chain, stList *reference) {
             assert(referenceInterval->_3Node != referenceInterval->_5Node);
             if (referenceInterval->_5Node == _5Node || referenceInterval->_5Node == _3Node) {
                 assert(referenceInterval->_3Node == _5Node || referenceInterval->_3Node == _3Node);
-                if (pReferenceInterval == NULL) {
-                    stList_set(reference, i, referenceInterval->nReferenceInterval);
-                } else {
-                    pReferenceInterval->nReferenceInterval = referenceInterval->nReferenceInterval;
-                }
+                assert(pReferenceInterval != NULL);
+                pReferenceInterval->nReferenceInterval = referenceInterval->nReferenceInterval;
                 free(referenceInterval);
                 return;
             } else {
-                assert(referenceInterval->_3Node != _5Node && referenceInterval->_3Node != _3Node);
+                assert(referenceInterval->_3Node != _3Node && referenceInterval->_3Node != _3Node);
             }
             pReferenceInterval = referenceInterval;
             referenceInterval = referenceInterval->nReferenceInterval;

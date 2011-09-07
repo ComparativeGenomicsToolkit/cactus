@@ -118,6 +118,8 @@ int main(int argc, char *argv[]) {
      */
     CactusCoreInputParameters *cCIP = constructCactusCoreInputParameters();
     cCIP->minimumDegree = 0;
+    cCIP->minimumChainLength = 0;
+    cCIP->maximumAdjacencyComponentSize = INT64_MAX;
 
     /*
      * Parse the options.
