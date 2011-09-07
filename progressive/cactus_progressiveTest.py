@@ -1,13 +1,12 @@
 #!/usr/bin/env python
 
-#Copyright (C) 2009-2011 by Benedict Paten (benedictpaten@gmail.com)
+#Copyright (C) 2011 by Glenn Hickey
 #
 #Released under the MIT license, see LICENSE.txt
 #!/usr/bin/env python
 
-"""Test the progressive workflow.  Not very thorough and does not use the giant existing cactus 
-
-test framework.  It does use the sonlib data so SON_TRACE_DATASETS is required. 
+"""Test the progressive workflow.  Hacked to work after progressive
+rewrite, but should be completely redone as well! 
 
 """
 import unittest
@@ -39,9 +38,10 @@ class TestCase(unittest.TestCase):
         self.port = "2645"
         self.normalTokyoDB = self.tempDir + "/NORMALTOKYODB"
         self.progressiveTokyoDB = self.tempDir + "/PROGRESSIVETOKYODB"
-        self.progressiveKyotoDB = self.tempDir + "/PROGRESSIVETOKYDB"
+        self.progressiveKyotoDB = self.tempDir + "/PROGRESSIVEKYOTODB"
         self.jt = self.tempDir + "/JT"
         self.exp = self.tempDir + "/EXP.xml"
+        self.proj = self.progressiveTokyoDB
         self.ref = self.tempDir + "/REF.fa"
         self.tree = "(((HUMAN:0.006969,CHIMP:0.009727):0.025291,BABOON:0.044568):0.11,(MOUSE:0.072818,RAT:0.081244):0.260342);"
         self.mrtree = "(MOUSE:0.072818, RAT:0.081244):0.260342;"
@@ -88,13 +88,18 @@ class TestCase(unittest.TestCase):
     
     def getCmdLine(self, progressive):
         name = ""
+        cmdString = ""
         if progressive:
             name = "progressive"
+            cmdString = "cactus_createMultiCactusProject.py %s %s; " % (self.exp, self.proj)
         else:
             name = "workflow"
-        cmdString = "cactus_" + name + ".py"
-        cmdString += " --experiment " + self.exp
-        cmdString += " --setupAndBuildAlignments --buildReference"
+        cmdString += "cactus_" + name + ".py"
+        if not progressive:
+            cmdString += " --buildReference --experiment " + self.exp
+        else:
+            cmdString += " %s/PROGRESSIVETOKYODB_project.xml " % (self.proj)
+        cmdString += " --setupAndBuildAlignments"
         cmdString += " --jobTree " + self.jt
         return cmdString
     

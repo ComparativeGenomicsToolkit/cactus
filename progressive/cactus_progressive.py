@@ -1,17 +1,13 @@
 #!/usr/bin/env python
 
-#Copyright (C) 2009-2011 by Benedict Paten (benedictpaten@gmail.com)
+#Copyright (C) 2011 by Glenn Hickey
 #
 #Released under the MIT license, see LICENSE.txt
 #!/usr/bin/env python
 
 """Wrapper to run the cactus_workflow progressively, using the input species tree as a guide
 
-tree.  The input and options are the same as cactus_worklfow, with a few addtions:  The --cladeSize
-
-option (which should get moved to config.xml?), specifies the maximum number of sequences to 
-
-align at once;  The --buildMAF and --joinMAF options can be used to create and merge MAFs from the
+tree.   The --buildMAF and --joinMAF options can be used to create and merge MAFs from the
 
 cacti.   The --buildReference option is removed, as references *are always* built when 
 
@@ -28,6 +24,7 @@ from collections import deque
 import random
 from itertools import izip
 from shutil import move
+import copy
 
 from sonLib.bioio import getTempFile
 from sonLib.bioio import newickTreeParser
@@ -48,233 +45,163 @@ from cactus.pipeline.cactus_workflow import CactusReferencePhase
 from cactus.pipeline.cactus_workflow import CactusFacesPhase
 from cactus.pipeline.cactus_workflow import getOptionalAttrib
 
-from cactus.progressive.progressiveSplitUtils import getCladeLeaves
-from cactus.progressive.progressiveSplitUtils import nameUnlabeledInternalNodes
-from cactus.progressive.progressiveSplitUtils import createSeqeunceMap
-from cactus.progressive.progressiveSplitUtils import getCladeSequences
-from cactus.progressive.progressiveSplitUtils import createCladeOptions
-from cactus.progressive.progressiveSplitUtils import createCladeFileStructure
-from cactus.progressive.progressiveSplitUtils import getMAFGeneratorOptions
-from cactus.progressive.progressiveSplitUtils import getMAFJoinOptions
-from cactus.progressive.progressiveSplitUtils import getReferenceSeqOptions
-from cactus.progressive.progressiveSplitUtils import createProgWorkDir
-from cactus.progressive.progressiveSplitUtils import addDotsToMAF
-from cactus.progressive.progressiveSplitUtils import getCladeMAFJoinTempPath
-from cactus.progressive.progressiveSplitUtils import getCladeMAFPath
-
-from cactus.progressive.progressiveKtserver import isKyotoTycoon
-from cactus.progressive.progressiveKtserver import spawnLocalKtserver
-from cactus.progressive.progressiveKtserver import killLocalKtserver
-from cactus.progressive.progressiveKtserver import creatKTPortMap
-
-class ProgressiveSetup(Target):
-    def __init__(self, options, sequences):
-        Target.__init__(self, time=0.0002)
-        self.options = options
-        self.sequences = sequences
-       
-    def run(self):
-        logger.info("Starting Progressive setup phase target")
+from cactus.progressive.multiCactusProject import MultiCactusProject
+from cactus.progressive.multiCactusTree import MultiCactusTree
+from cactus.progressive.experimentWrapper import ExperimentWrapper
+from cactus.progressive.ktserverLauncher import KtserverLauncher
         
-        # get the full phylogeny and label internal nodes (default: Anc0,Anc1....)
-        root = newickTreeParser(self.options.speciesTree)
-        nameUnlabeledInternalNodes(root)
-        createProgWorkDir(self.options, root)
-              
-        # create map between node names and fasta file paths
-        self.options.lookup = createSeqeunceMap(root, self.options, self.sequences)
-        
-        # create kt port map (kind of a hack) 
-        if isKyotoTycoon(self.options) and self.options.autoKtserver:
-            self.options.portMap = creatKTPortMap(root, self.options)
-            
-        # start recursive alignment at root
-        self.setFollowOnTarget(ProgressiveAlignmentDown(root, self.options, self.sequences))
-        
-class ProgressiveAlignmentDown(Target):
-    def __init__(self, root, options, sequences):
+class ProgressiveDown(Target):
+    def __init__(self, options, project, event):
         Target.__init__(self)
-        self.root = root
         self.options = options
-        self.sequences = sequences
+        self.project = project
+        self.event = event
     
     def run(self):
-        logger.info("Progressive Down: " + self.root.iD)
+        logger.info("Progressive Down: " + self.event)
         
-        # get the bottom nodes of the clade
-        leaves = getCladeLeaves(self.root, self.options)
-        cladeSequences = getCladeSequences(leaves, self.options)
+        expXml = ET.parse(self.project.expMap[self.event]).getroot()
+        experiment = ExperimentWrapper(expXml)
         
-        # NOTE TO SELF:  CONSIDER CASE OF INTERNAL NODE WITH DEGREE 2
-        if len(leaves) > 1:
-            for leaf in leaves:
-                self.addChildTarget(ProgressiveAlignmentDown(leaf, self.options, cladeSequences))
-            self.setFollowOnTarget(ProgressiveAlignmentUp(self.root, leaves, self.options, cladeSequences))
+        if self.options.recursive:
+            for child, path in experiment.seqMap.items():
+                if child in self.project.expMap:
+                    self.addChildTarget(ProgressiveDown(self.options, 
+                                                        self.project, child))
         
-class ProgressiveAlignmentUp(Target):
-    def __init__(self, root, leaves, options, sequences):
+        self.setFollowOnTarget(ProgressiveUp(self.options, self.project, 
+                               experiment, self.event))
+        
+class ProgressiveUp(Target):
+    def __init__(self, options, project, experiment, event):
         Target.__init__(self)
-        self.root = root
-        self.leaves = leaves
         self.options = options
-        self.sequences = sequences
+        self.project = project
+        self.experiment = experiment
+        self.event = event
     
     def run(self):
-        logger.info("Doing progressive Up on " + self.root.iD)
-        
-        # create options object for clade alignment
-        cladeOptions = createCladeOptions(self.root, self.leaves, self.options)
-       
-        # spawn ktserver and update cladeOptions 
-        if isKyotoTycoon(cladeOptions) and cladeOptions.autoKtserver:
-            spawnLocalKtserver(self.root, cladeOptions)
+        logger.info("Progressive Up: " + self.event)
         
         if self.options.setupAndBuildAlignments:
-            createCladeFileStructure(self.root, self.leaves, self.options, cladeOptions)       
-            self.addChildTarget(CactusSetupPhase(cladeOptions, self.sequences))
+            dbPath = os.path.join(self.experiment.getDbDir(), 
+                                  self.experiment.getDbName())
+            seqPath = os.path.join(self.experiment.getDbDir(), "sequences")
+            if os.path.isfile(dbPath):
+                os.remove(dbPath)
+            if os.path.isfile(seqPath):
+                os.remove(seqPath)
+            
+        ktserver = None
+        if self.experiment.getDbType() == "kyoto_tycoon":
+            ktserver = KtserverLauncher()
+            ktserver.spawnServer(self.experiment)
+        
+        # get parameters that cactus_workflow stuff wants 
+        wfOpts, sequences = getWorkflowParams(self.options, self.experiment)
+         
+        if self.options.setupAndBuildAlignments:       
+            self.addChildTarget(CactusSetupPhase(wfOpts, sequences))
             logger.info("Going to create alignments and define the cactus tree")
-        elif self.options.buildTrees:
-            self.addChildTarget(CactusPhylogenyPhase('0', cladeOptions))
-            logger.info("Starting from phylogeny phase")
-        #elif self.options.buildReference:
-        #    self.addChildTarget(CactusReferencePhase('0', cladeOptions))
-        #    logger.info("Starting from reference phase")
-        elif self.options.buildFaces:
-            self.addChildTarget(CactusFacesPhase('0', cladeOptions))
-            logger.info("Starting from faces phase")
-        else:
-            logger.info("Nothing to do!")
         
-        self.setFollowOnTarget(ProgressiveExtractReference(self.root, self.leaves, self.options,
-                                                           cladeOptions, self.sequences))
+        self.setFollowOnTarget(ExtractReference(self.options,
+                                                self.project,
+                                                self.experiment,
+                                                self.event,
+                                                ktserver))
         
-class ProgressiveExtractReference(Target):
-    def __init__(self, root, leaves, options, cladeOptions, sequences):
+class ExtractReference(Target):
+    def __init__(self, options, project, experiment, event, ktserver):
         Target.__init__(self)
-        self.root = root
-        self.leaves = leaves
         self.options = options
-        self.cladeOptions = cladeOptions
-        self.sequences = sequences
+        self.project = project
+        self.experiment = experiment
+        self.event = event
+        self.ktserver = ktserver
 
-    def run(self):        
-        assert(self.root.left is not None or self.root.right is not None)
-        
+    def run(self):                
         if self.options.buildReference:
             logger.info("Starting Reference Extract Phase")
-            refOptions = getReferenceSeqOptions(self.root, self.options, self.cladeOptions)
-            refStatus = os.system("cactus_getReferenceSeq " + refOptions)
-            assert refStatus == 0
             
-        self.setFollowOnTarget(ProgressiveBuildMAF(self.root, self.leaves, self.options,
-                                                      self.cladeOptions, self.sequences))
-        
+            cmdLine = "cactus_getReferenceSeq --cactusDisk \'%s\' \
+             --flowerName 0 \
+            --referenceEventString %s --outputFile %s --logLevel %s" % \
+            (self.experiment.getDiskDatabaseString(), self.event,
+             self.experiment.getReferencePath(), getLogLevelString())            
+            
+            assert os.system(cmdLine) == 0
+            
+        self.setFollowOnTarget(BuildMAF(self.options, self.project,
+                                        self.experiment,
+                                        self.event, self.ktserver))
                 
-class ProgressiveBuildMAF(Target):
-    def __init__(self, root, leaves, options, cladeOptions, sequences):
+class BuildMAF(Target):
+    def __init__(self, options, project, experiment, event, ktserver):
         Target.__init__(self)
-        self.root = root
-        self.leaves = leaves
         self.options = options
-        self.cladeOptions = cladeOptions
-        self.sequences = sequences
+        self.project = project
+        self.experiment = experiment
+        self.event = event
+        self.ktserver = ktserver
     
     def run(self):
-        
-        assert(self.root.left is not None or self.root.right is not None)
-        
         if self.options.buildMAF:
             logger.info("Starting MAF Build phase")
-            mafOptions = getMAFGeneratorOptions(self.root, self.options, self.cladeOptions)
-            mafStatus = os.system("cactus_MAFGenerator " + mafOptions)
-            assert mafStatus == 0
-            # mafJoin requires periods. add a .1 to all sequence names without a period
-            # addDotsToMAF(self.root, self.options)
-             
+            
+            cmdLine = "cactus_MAFGenerator --cactusDisk \'%s\' --flowerName 0 \
+            --outputFile %s --logLevel %s" % \
+            (self.experiment.getDiskDatabaseString(),
+             self.experiment.getMAFPath(), getLogLevelString())            
+           
+            assert os.system(cmdLine) == 0
         
-        self.setFollowOnTarget(ProgressiveJoinMAF(self.root, self.leaves, self.options,
-                                                  self.cladeOptions, self.sequences))
+        self.setFollowOnTarget(JoinMAF(self.options, self.project,
+                                       self.experiment,
+                                       self.event, self.ktserver))
 
-
-class ProgressiveJoinMAF(Target):
-    def __init__(self, root, leaves, options, cladeOptions, sequences):
+class JoinMAF(Target):
+    def __init__(self, options, project, experiment, event, ktserver):
         Target.__init__(self)
-        self.root = root
-        self.leaves = leaves
         self.options = options
-        self.cladeOptions = cladeOptions
-        self.sequences = sequences
+        self.project = project
+        self.experiment = experiment
+        self.event = event
+        self.ktserver = ktserver
     
     def run(self):
-        
         # don't need the ktserver anymore, so we kill it
-        if isKyotoTycoon(self.cladeOptions) and self.options.autoKtserver:
-            killLocalKtserver(self.cladeOptions)
+        if self.ktserver:
+            self.ktserver.killServer()
         
         if self.options.joinMAF:
-            assert(self.root.left is not None or self.root.right is not Note)
-            assert(len(self.leaves) == len(self.sequences))
             logger.info("Starting MAF Join phase")
             
+            rootRefName = self.experiment.getReferenceNameFromConfig()
             rootIsTreeMAF = False
-            for leaf in self.leaves:
-                if leaf.left is not None or leaf.right is not None:
-                    mafOptions = getMAFJoinOptions(self.root, leaf, 
-                                                   self.options, self.cladeOptions,
-                                                   rootIsTreeMAF)
-                                 
-                    mafStatus = os.system("mafJoin " + mafOptions)
-                    assert mafStatus == 0
-                    move(getCladeMAFJoinTempPath(self.root, leaf, self.options), 
-                         getCladeMAFPath(self.root, self.options, True))
+            for child, path in self.experiment.seqMap.items():
+                if child in self.project.expMap:
+                    childExpPath = self.project.expMap[child]
+                    childExpXML = ET.parse(childExpPath).getroot()
+                    childExp = ExperimentWrapper(childExpXML)
+                    childRefName = childExp.getReferenceNameFromConfig()
+                    cmdline = "mafJoin -maxBlkWidth=128 -maxInputBlkWidth=1000 "
+                    if not rootIsTreeMAF:
+                        cmdline += "-treelessRoot1=%s " % rootRefName
+                    cmdline += "-treelessRoot2=%s " % childRefName
+                    cmdline = "%s %s %s %s %s_tmp.maf" % (cmdline, childRefName, 
+                                                  self.experiment.getMAFPath(),
+                                                  childExp.getMAFPath(),
+                                                  self.experiment.getMAFPath())
+                    assert os.system(cmdline) == 0
+                    
+                    move("%s_tmp.maf" % self.experiment.getMAFPath(), 
+                         self.experiment.getMAFPath())
                     rootIsTreeMAF = True    
                     
-                            
-def main():
-    ##########################################
-    #Construct the arguments.
-    ##########################################
-    
-    parser = OptionParser()
-    Stack.addJobTreeOptions(parser)
-    
-    parser.add_option("--experiment", dest="experimentFile", help="The file containing a link to the experiment parameters")
-    
-    parser.add_option("--setupAndBuildAlignments", dest="setupAndBuildAlignments", action="store_true",
-                      help="Setup and build alignments then normalise the resulting structure", default=False)
-    
-    parser.add_option("--buildTrees", dest="buildTrees", action="store_true",
-                      help="Build trees", default=False) 
-    
-    parser.add_option("--buildFaces", dest="buildFaces", action="store_true",
-                      help="Build adjacencies", default=False)
-    
-    parser.add_option("--buildReference", dest="buildReference", action="store_true",
-                      help="Deprecated", default=False)
-    
-    parser.add_option("--buildMAF", dest="buildMAF", action="store_true",
-                     help="Create a MAF file from the cactus and reference", default=False)
-    
-    parser.add_option("--joinMAF", dest="joinMAF", action="store_true",
-                     help="Progressively join all cactus MAFs", default=False)
-    
-    parser.add_option("--cladeSize", dest="cladeSize", type="int", 
-                      help="Max number of sequences to align at a time", default=2)
-    
-    parser.add_option("--autoKtserver", dest="autoKtserver", action="store_true",
-                      help="Autmatically manage ktservers (if cactus disk is KT) [default=True]",
-                      default=True)
-    
-    options, args = parser.parse_args()
-    setLoggingFromOptions(options)
-    
-    # cannot align without building reference and vice versa in progressive mode
-    options.buildReference = options.setupAndBuildAlignments
-    
-    if len(args) != 0:
-        raise RuntimeError("Unrecognised input arguments: %s" % " ".join(args))
-
-    options.experimentFile = ET.parse(options.experimentFile).getroot()
+# copy and pasted from cactus_workflow.py
+def getWorkflowParams(baseOptions, experiment):
+    options = copy.deepcopy(baseOptions)
+    options.experimentFile = experiment.xmlRoot
     #Get the database string
     options.cactusDiskDatabaseString = ET.tostring(options.experimentFile.find("cactus_disk").find("st_kv_database_conf"))
     #Get the species tree
@@ -291,10 +218,54 @@ def main():
     #Get any list of 'required species' for the blocks of the cactus.
     options.requiredSpecies = getOptionalAttrib(options.experimentFile, "required_species")
     options.singleCopySpecies = getOptionalAttrib(options.experimentFile, "single_copy_species")
-
     logger.info("Parsed the XML options file")
+    return options, sequences
+                           
+def main():    
+    usage = "usage: %prog [options] <multicactus project>"
+    description = "Progressive version of cactus_workflow"
+    parser = OptionParser(usage=usage, description=description)
+    Stack.addJobTreeOptions(parser)
     
-    baseTarget = ProgressiveSetup(options, sequences)
+    parser.add_option("--setupAndBuildAlignments", dest="setupAndBuildAlignments", action="store_true",
+                      help="Setup and build alignments then normalise the resulting structure", default=False)
+    
+    parser.add_option("--buildMAF", dest="buildMAF", action="store_true",
+                     help="Create a MAF file from the cactus [default=false]", default=False)
+    
+    parser.add_option("--joinMAF", dest="joinMAF", action="store_true",
+                     help="Progressively join all cactus MAFs[default=false]", default=False)
+    
+    parser.add_option("--recursive", dest="recursive",
+                      help="Recursively process subjobs [default=True]", default="True")
+    
+    parser.add_option("--event", dest="event", 
+                      help="Target event to process [default=root]", default=None)
+    
+
+    options, args = parser.parse_args()
+    setLoggingFromOptions(options)
+    
+    # cannot align without building reference and vice versa in progressive mode
+    options.buildReference = options.setupAndBuildAlignments
+    # forget about this stuff for now
+    options.buildTrees = False
+    options.buildFaces = False
+
+    options.recursive = not options.recursive.lower() == "false"
+
+    if len(args) != 1:
+        parser.print_help()
+        raise RuntimeError("Unrecognised input arguments: %s" % " ".join(args))
+
+    project = MultiCactusProject()
+    project.readXML(args[0])
+    project.check()
+    if options.event == None:
+        options.event = project.mcTree.tree.iD
+    assert options.event in project.expMap
+    
+    baseTarget = ProgressiveDown(options, project, options.event)
     Stack(baseTarget).startJobTree(options)
     
    
