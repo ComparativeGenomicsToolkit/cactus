@@ -216,10 +216,6 @@ class BatchPreprocessor(Target):
         outSeq = iter(outSeqFiles)
         assert len(outSeqFiles) == len(inSeqFiles)
         
-        os.system("echo %d %s --^^-- %s --vv-- %s >> ~/blin1.txt" % (self.iteration, 
-                                                                     str(inSeqFiles[0]), 
-                                                                     str(outSeqFiles[0]), 
-                                                                     self.outDirBase))
         for inSeq in inSeqFiles:
             self.addChildTarget(PreprocessSequence(self.prepOptions, inSeq, outSeq.next()))
         

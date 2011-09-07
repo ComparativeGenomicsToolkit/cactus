@@ -143,7 +143,5 @@ class MultiCactusTree:
         
         assert treeComp(subtree, tree)    
 
-def blin(intstring):
-    instring = "gonzon"
 
     
