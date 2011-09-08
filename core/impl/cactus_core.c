@@ -456,7 +456,7 @@ void buildOutPinchGraph(struct PinchGraph *pinchGraph, stList *adjacencyComponen
     ////////////////////////////////////////////////
 
     trimEdges(pinchGraph, cCIP->blockTrim, flower);
-    st_logInfo("Trimmed %i from the end of edges\n", cCIP->trim);
+    st_logInfo("Trimmed %i from the end of edges\n", cCIP->blockTrim);
 }
 
 int64_t getMaximumAdjacencyComponentSize(struct PinchGraph *pinchGraph) {
@@ -577,7 +577,7 @@ int32_t cactusCorePipelineP(Flower *flower, CactusCoreInputParameters *cCIP,
                     destructPinchGraph(pinchGraph);
                     assert(j < annealingRound);
                     return cactusCorePipelineP(flower, cCIP,
-                            getNextAlignment, startAlignmentStack, j, 0);
+                            getNextAlignment, startAlignmentStack, j+1, 0);
                 }
             }
             st_logDebug("We have finished iterating and will now fill out the net.\n");
