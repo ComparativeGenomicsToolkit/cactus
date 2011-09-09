@@ -72,7 +72,9 @@ static stList *getExtraAttachedStubsFromParent(Flower *flower) {
         group_destructEndIterator(parentEndIt);
     }
     assert(flower_getAttachedStubEndNumber(flower) % 2 == 0);
-    assert(flower_getAttachedStubEndNumber(flower) > 0);
+    if(flower_getBlockEndNumber(flower) > 0) {
+        assert(flower_getAttachedStubEndNumber(flower) > 0);
+    }
     return newEnds;
 }
 
