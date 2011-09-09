@@ -173,7 +173,9 @@ static Cap *calculateZP4(Cap *cap, stHash *endsToNodes) {
         end = end_getPositiveOrientation(cap_getEnd(cap));
         assert(stHash_search(endsToNodes, end) == NULL);
         if (end_isStubEnd(end)) {
-            assert(end_isFree(end));
+            if(!end_isFree(end)) {
+                assert(!flower_hasParentGroup(end_getFlower(end)));
+            }
             return NULL;
         }
     }
