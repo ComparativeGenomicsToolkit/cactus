@@ -24,7 +24,10 @@ class MultiCactusTree:
     def __init__(self, tree, subtreeSize = 2):
         self.tree = tree
         self.subtreeSize = subtreeSize
+        # maps node id to node for all subtree roots
         self.subtreeRoots = dict()
+        # maps node to the subtree root that contains it
+        self.nearestRoots = dict()
     
     # fill in unlabeled node ids with a breadth-first
     # traversal numbering from the root
@@ -53,6 +56,18 @@ class MultiCactusTree:
         self.subtreeRoots = dict()
         computeSubtreeRootsRecursive(self.tree)
     
+    # map a node to the closest subtree root that contains it
+    def computeNearestRoots(self):
+        def computeNearestRootsRecursive(node, root):
+            if node:
+                self.nerestRoots[node] = root
+                if node in self.subtreeRoots:
+                    root = node
+                computeNearestRootsRecursive(node.left, root)
+                computeNearesetRootsRecursive(node.right, root)
+        self.nearestRoots = dict()
+        computeSubtreeRootsRecursive(self.tree, None)
+        
     # blindly read in the roots from a given map or set 
     def assignSubtreeRoots(self, roots):
         def assignSubtreeRootsRecursive(roots, node):

@@ -101,6 +101,17 @@ class ExperimentWrapper:
             mafElem = ET.Element("maf")
             self.xmlRoot.append(mafElem)
         mafElem.attrib["path"] = path
+        
+    def getOutgroupPath(self):
+        outgroupElem = self.xmlRoot.find("outgroup")
+        return outgroupElem.attrib["path"]
+    
+    def setOutgroupPath(self, path):
+        outgroupElem = self.xmlRoot.find("outgroup")
+        if outgroupElem is None:
+            outgroupElem = ET.Element("outgroup")
+            self.xmlRoot.append(outgroupElem)
+        outgroupElem.attrib["path"] = path
     
     def getConfigPath(self):
         config = self.xmlRoot.attrib["config"]

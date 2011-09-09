@@ -17,6 +17,8 @@ from sonLib.bioio import printBinaryTree
 from cactus.progressive.multiCactusProject import MultiCactusProject
 from cactus.progressive.multiCactusTree import MultiCactusTree
 from cactus.progressive.experimentWrapper import ExperimentWrapper
+from cactus.progressive.outgroup import OutgroupFinder
+
 
 def createMCProject(tree, options):
     mcTree = MultiCactusTree(tree, options.subtreeSize)
@@ -27,6 +29,9 @@ def createMCProject(tree, options):
     for name, node in mcProj.mcTree.subtreeRoots.items():
         expPath = "%s/%s/%s_experiment.xml" % (options.path, name, name)
         mcProj.expMap[name] = os.path.abspath(expPath)
+    if options.outgroup:
+        mcProj.outgroup = OutgroupFinder(mcTree)
+        mcProj.outgroup.findAllNearestBelow()
     return mcProj
 
 # Make the subdirs for each subproblem:  name/ and name/name_DB
@@ -59,6 +64,14 @@ def createFileStructure(mcProj, expTemplate, options):
         exp.setMAFPath(os.path.join(path, "%s.maf" % name))
         exp.updateTree(subtree, seqMap)
         exp.setConfigPath(os.path.join(path, "%s_config.xml" % name))
+        if options.outgroup and name != mcProj.mcTree.tree.iD:
+            og = mcProj.outgroup.ogMap[name]
+            if og in expTemplate.seqMap:
+                ogPath = expTemplate.seqMap[og]
+            else:
+                ogPath = os.path.join(options.path, og)
+                ogPath = os.path.join(ogPath, "%s_reference.fa" % og)
+            exp.setOutgroupPath(ogPath)
         os.makedirs(exp.getDbDir())
         exp.writeXML(expPath)
         configElem = copy.deepcopy(baseConfigXML)
@@ -74,8 +87,10 @@ def main():
                       help="Max number of sequences to align at a time [default=2]", 
                       default=2)
     parser.add_option("--ancestorPrefix", dest="prefix", type="string",
-                      help="Name to assign unlabeled tree nodes default=[Anc]",
+                      help="Name to assign unlabeled tree nodes [default=\"Anc\"]",
                       default="Anc")
+    parser.add_option("--outgroup", dest="outgroup", action="store_true", 
+                      default = False, help="Assign outgroups")
     
     options, args = parser.parse_args()
     
