@@ -491,6 +491,9 @@ static stList *getStubEdges(Flower *flower, stHash *endsToNodes,
      */
     double *z = calculateZ(flower, endsToNodes, 0.0);
 
+    st_logDebug("Building a matching for %i stub nodes in the top level problem\n", nodeNumber);
+
+
     /*
      * Create a matching for the parent stub edges.
      */
@@ -499,7 +502,9 @@ static stList *getStubEdges(Flower *flower, stHash *endsToNodes,
         int32_t node1 = stIntTuple_getPosition(stList_get(stubNodes, i), 0);
         for(int32_t j=i+1; j<stList_length(stubNodes); j++) {
             int32_t node2 = stIntTuple_getPosition(stList_get(stubNodes, j), 0);
-            stList_append(adjacencyEdges, constructWeightedEdge(node1, node2, z[node1 * nodeNumber + node2]));
+            assert(z[node1 * nodeNumber + node2] >= 0);
+            assert(z[node1 * nodeNumber + node2] <= 1.1);
+            stList_append(adjacencyEdges, constructWeightedEdge(node1, node2, 100*z[node1 * nodeNumber + node2]));
         }
     }
     stSortedSet *stubNodesSet = stList_getSortedSet(stubNodes, (int (*)(const void *, const void *))stIntTuple_cmpFn);
