@@ -12,6 +12,7 @@ import os
 import errno
 from optparse import OptionParser
 from bz2 import BZ2File
+import copy
 
 from sonLib.bioio import TempFileTree
 from sonLib.bioio import getTempDirectory
@@ -21,6 +22,8 @@ from sonLib.bioio import system
 from sonLib.bioio import fastaRead
 from sonLib.bioio import fastaWrite
 from sonLib.bioio import getLogLevelString
+from sonLib.bioio import newickTreeParser
+
 
 from jobTree.scriptTree.target import Target
 from jobTree.scriptTree.stack import Stack
@@ -67,11 +70,12 @@ class PreprocessorOptions:
 class PreprocessChunks(Target):
     """ locally preprocess some fasta chunks, output then copied back to input
     """
-    def __init__(self, prepOptions, seqPath, chunkList):
+    def __init__(self, prepOptions, seqPath, chunkList, event):
         Target.__init__(self)
         self.prepOptions = prepOptions 
         self.seqPath = seqPath
         self.chunkList = chunkList
+        self.event = event
     
     def run(self):
         #Full sequence file can be quite big: only decompress it into the local
@@ -91,6 +95,7 @@ class PreprocessChunks(Target):
             cmdline = cmdline.replace("TARGET_FILE", "\"" + localChunkPath + "\"")
             cmdline = cmdline.replace("OUT_FILE", "\"" + prepChunkPath + "\"")
             cmdline = cmdline.replace("TEMP_FILE", "\"" + tempPath + "\"")
+            cmdline = cmdline.replace("EVENT_STRING", self.event)
             
             logger.info("Preprocessor exec " + cmdline)
             assert os.system(cmdline) == 0
@@ -127,11 +132,12 @@ class MergeChunks(Target):
 class PreprocessSequence(Target):
     """ cut a sequence into chunks, process, then merge
     """
-    def __init__(self, prepOptions, inSequencePath, outSequencePath):
+    def __init__(self, prepOptions, inSequencePath, outSequencePath, event):
         Target.__init__(self)
         self.prepOptions = prepOptions 
         self.inSequencePath = inSequencePath
         self.outSequencePath = outSequencePath
+        self.event = event
     
     # Chunk the input path (inSequencePath).  return a path containing a list of
     # input sequence chunks (chunkListPath)
@@ -168,7 +174,7 @@ class PreprocessSequence(Target):
         # for every chunksPerJob chunks in list
         for i in range(0, len(chunkList), self.prepOptions.chunksPerJob):
             chunkSubList = chunkList[i : i + self.prepOptions.chunksPerJob]
-            self.addChildTarget(PreprocessChunks(self.prepOptions, seqPath, chunkSubList))
+            self.addChildTarget(PreprocessChunks(self.prepOptions, seqPath, chunkSubList, self.event))
 
         # follow on to merge chunks
         self.setFollowOnTarget(MergeChunks(self.prepOptions, chunkListPath, self.outSequencePath))
@@ -182,7 +188,27 @@ class BatchPreprocessor(Target):
         self.outDirBase = outDirBase
         self.prepOptions = None
         self.iteration = iteration
-       
+  
+    # link each fasta file to an event name and store 
+    def constructFileEventMap(self):
+        seqIterator = iter(self.inSequences)
+        eventMap = dict()
+        tree = newickTreeParser(self.options.speciesTree)
+        dfStack = [tree]
+        while dfStack:
+            node = dfStack.pop(len(dfStack)-1)
+            if node is not None and not node.internal:
+                eventMap[seqIterator.next()] = node.iD 
+            else:
+                dfStack.append(node.right)
+                dfStack.append(node.left)
+        fileMap = dict()
+        for seq in self.inSequences:
+            event = eventMap[seq]
+            for file in fileList(seq):
+                fileMap[file] = event
+        return fileMap
+            
     def run(self):
         # Parse the "preprocessor" config xml element
         prepNodes = self.options.config.findall("preprocessor")
@@ -202,6 +228,8 @@ class BatchPreprocessor(Target):
         map(inSeqFiles.extend, map(fileList, self.inSequences))
         assert len(inSeqFiles) >= len(self.inSequences)
         
+        fileEventMap = self.constructFileEventMap()
+        
         globalInSeqFiles = []
         map(globalInSeqFiles.extend, map(fileList, self.globalInSequences))
         assert len(globalInSeqFiles) == len(inSeqFiles)
@@ -217,7 +245,8 @@ class BatchPreprocessor(Target):
         assert len(outSeqFiles) == len(inSeqFiles)
         
         for inSeq in inSeqFiles:
-            self.addChildTarget(PreprocessSequence(self.prepOptions, inSeq, outSeq.next()))
+            event = fileEventMap[inSeq] 
+            self.addChildTarget(PreprocessSequence(self.prepOptions, inSeq, outSeq.next(), event))
         
         if lastIteration == False:
             self.setFollowOnTarget(BatchPreprocessor(self.options, self.globalInSequences, outSeqFiles, 
