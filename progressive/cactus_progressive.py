@@ -25,6 +25,7 @@ import random
 from itertools import izip
 from shutil import move
 import copy
+from time import sleep
 
 from sonLib.bioio import getTempFile
 from sonLib.bioio import newickTreeParser
@@ -49,6 +50,7 @@ from cactus.progressive.multiCactusProject import MultiCactusProject
 from cactus.progressive.multiCactusTree import MultiCactusTree
 from cactus.progressive.experimentWrapper import ExperimentWrapper
 from cactus.progressive.ktserverLauncher import KtserverLauncher
+from cactus.progressive.mafFilter import removeOutgroupFromMaf
         
 class ProgressiveDown(Target):
     def __init__(self, options, project, event):
@@ -83,6 +85,7 @@ class ProgressiveUp(Target):
     def run(self):
         logger.info("Progressive Up: " + self.event)
         
+        # delete database files if --setupAndBuildAlignments
         if self.options.setupAndBuildAlignments:
             dbPath = os.path.join(self.experiment.getDbDir(), 
                                   self.experiment.getDbName())
@@ -152,8 +155,12 @@ class BuildMAF(Target):
             --outputFile %s --logLevel %s" % \
             (self.experiment.getDiskDatabaseString(),
              self.experiment.getMAFPath(), getLogLevelString())            
-           
+            
             assert os.system(cmdLine) == 0
+ 
+            
+        removeOutgroupFromMaf(self.experiment.getMAFPath(), 
+                              self.experiment.getOutgroupName()) 
         
         self.setFollowOnTarget(JoinMAF(self.options, self.project,
                                        self.experiment,
@@ -260,7 +267,8 @@ def main():
 
     project = MultiCactusProject()
     project.readXML(args[0])
-    project.check()
+#    check no longer works, thanks to outgroup
+#    project.check()
     if options.event == None:
         options.event = project.mcTree.tree.iD
     assert options.event in project.expMap

@@ -22,6 +22,7 @@ from optparse import OptionParser
 
 from sonLib.bioio import newickTreeParser
 from sonLib.bioio import printBinaryTree
+from sonLib.bioio import BinaryTree
 from cactus.progressive.multiCactusTree import MultiCactusTree
 from cactus.shared.common import cactusRootPath
 
@@ -102,16 +103,27 @@ class ExperimentWrapper:
             self.xmlRoot.append(mafElem)
         mafElem.attrib["path"] = path
         
-    def getOutgroupPath(self):
-        outgroupElem = self.xmlRoot.find("outgroup")
-        return outgroupElem.attrib["path"]
+    def getOutgroupName(self):
+        if self.xmlRoot.attrib.has_key("single_copy_species"):
+            return self.xmlRoot.attrib["single_copy_species"]
+        return None
     
-    def setOutgroupPath(self, path):
-        outgroupElem = self.xmlRoot.find("outgroup")
-        if outgroupElem is None:
-            outgroupElem = ET.Element("outgroup")
-            self.xmlRoot.append(outgroupElem)
-        outgroupElem.attrib["path"] = path
+    def addOutgroup(self, name, path, distance):
+        # don't support updates until there's a reason to
+        assert self.getOutgroupName() is None
+        treeString = self.xmlRoot.attrib["species_tree"]
+        tree = newickTreeParser(treeString)
+        ogNode = BinaryTree(distance / 2, False, None, None, name)
+        newRoot = BinaryTree(distance / 2, True, tree, ogNode, "")
+        self.xmlRoot.attrib["species_tree"] = printBinaryTree(newRoot, True)
+        rs = []
+        for leafName, leafPath in self.seqMap.items():
+            rs.append(leafName)
+        self.xmlRoot.attrib["required_speciies"] = ' '.join(rs)
+        self.xmlRoot.attrib["single_copy_species"] = name
+        seqs = "%s %s"  % (self.xmlRoot.attrib["sequences"], path)
+        self.xmlRoot.attrib["sequences"] = seqs
+        self.seqMap[name] = path
     
     def getConfigPath(self):
         config = self.xmlRoot.attrib["config"]
@@ -157,6 +169,7 @@ class ExperimentWrapper:
     def updateTree(self, tree, seqMap = None):
         if seqMap is not None:
             self.seqMap = seqMap
+        newMap = dict()
         treeString = printBinaryTree(tree, True)
         self.xmlRoot.attrib["species_tree"] = treeString
         sequences = "" 
@@ -168,11 +181,13 @@ class ExperimentWrapper:
                     assert node.iD in seqMap  
                     if len(sequences) > 0:
                         sequences += " "                  
-                    sequences += seqMap[node.iD] 
+                    sequences += seqMap[node.iD]
+                    newMap[node.iD] = seqMap[node.iD] 
                 else:
                     dfStack.append(node.right)
                     dfStack.append(node.left)
         self.xmlRoot.attrib["sequences"] = sequences
+        self.seqMap = newMap
         
         
     

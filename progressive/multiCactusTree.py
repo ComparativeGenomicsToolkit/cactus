@@ -146,17 +146,17 @@ class MultiCactusTree:
         assert tree.iD is not None
         subtree = self.extractSubTree(tree.iD)
         
-        def treeComp(node1, node2):
+        def treeComp(node1, node2, outgroup):
             if node1 is None and node2 is None:
                 return True
             elif node1 is not None and node2 is not None:
                 return node1.iD == node2.iD and\
                      treeComp(node1.left, node2.left) and\
-                     treeComp(node1.right, node2.right)
+                     treeComp(node1.right, node2.right)    
             else:
                 return False
         
-        assert treeComp(subtree, tree)    
+        assert treeComp(subtree, tree, outgroup)    
 
 
     

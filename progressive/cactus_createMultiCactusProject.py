@@ -65,13 +65,14 @@ def createFileStructure(mcProj, expTemplate, options):
         exp.updateTree(subtree, seqMap)
         exp.setConfigPath(os.path.join(path, "%s_config.xml" % name))
         if options.outgroup and name != mcProj.mcTree.tree.iD:
-            og = mcProj.outgroup.ogMap[name]
+            og, ogDist = mcProj.outgroup.ogMap[name]
             if og in expTemplate.seqMap:
                 ogPath = expTemplate.seqMap[og]
             else:
                 ogPath = os.path.join(options.path, og)
                 ogPath = os.path.join(ogPath, "%s_reference.fa" % og)
-            exp.setOutgroupPath(ogPath)
+            print ("adding og %s to job %s with dist %f\n" % (og, name, ogDist))
+            exp.addOutgroup(og, ogPath, ogDist)
         os.makedirs(exp.getDbDir())
         exp.writeXML(expPath)
         configElem = copy.deepcopy(baseConfigXML)

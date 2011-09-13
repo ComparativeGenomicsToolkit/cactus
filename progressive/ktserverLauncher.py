@@ -34,7 +34,13 @@ class KtserverLauncher:
         self.waitFromMax = 10
         self.rangeSize = 100
         self.rangeWait = 2
+        self.waitToKill = 2
+        self.listenWaitIntervals = 100
+        self.listenWait = 1
         self.tuningOptions = "#opts=ls#bnum=30m#msiz=50g#ktopts=p"
+        # it seems that using msiz to open an existing db can 
+        # cause an error sometimes, especially on kolossus
+        self.readTuningOptions = "#opts=ls#ktopts=p"
         self.serverOptions = "-ls -tout 200000 -th 64"
     
     def countRunningServers(self, keyword = None):
@@ -64,6 +70,8 @@ class KtserverLauncher:
         assert self.countRunningServers(experiment.getDbDir()) == 0
         assert os.path.splitext(experiment.getDbName())[1] == ".kch"
 
+        exists = os.path.isfile(os.path.join(experiment.getDbDir(), 
+                                             experiment.getDbName()))
         block = True
         while block:
             sleep(random.uniform(0, self.rangeWait))
@@ -73,28 +81,53 @@ class KtserverLauncher:
             else:
                 sleep(self.waitFromMax)
         basePort = experiment.getDbPort()
-
+        
+        # hangs unless i use an actual file !?
+        listenFilePath = os.path.join(experiment.getDbDir(), "listen.txt")
+        if os.path.isfile(listenFilePath):
+            os.remove(listenFilePath)
+        listenFile = open(listenFilePath, "w+")
+        
         for port in range(basePort, basePort + self.rangeSize):
             sleep(random.uniform(0, self.rangeWait))
             if not self.isServerOnPort(port):
                 experiment.setDbPort(port)
-                cmdLine = self.ktserverCmd(experiment)
-                self.proc = subprocess.Popen(cmdLine.split(), shell=False)
+                cmdLine = self.ktserverCmd(experiment, exists)
+                self.proc = subprocess.Popen(cmdLine.split(), shell=False,
+                                             stdout=listenFile)
                 sleep(self.rangeWait)
                 if self.proc.poll() is None:
                     break
         assert self.proc.poll() is None
+        
+        success = False
+        for i in range(0, self.listenWaitIntervals):
+            if not success:
+                listenRead = open(listenFilePath, "r")
+                for line in listenRead.readlines():
+                    if line.find("listening") >= 0:
+                        success = True
+                        break
+                listenRead.close()
+                sleep(self.listenWait)
+        os.remove(listenFilePath)
+        assert success
+        
                         
-    def ktserverCmd(self, experiment):
-         return "ktserver -port %s %s %s/%s%s" % (experiment.getDbPort(),
+    def ktserverCmd(self, experiment, exists):
+        tuning = self.tuningOptions
+        if exists:
+            tuning = self.readTuningOptions
+        return "ktserver -port %s %s %s/%s%s" % (experiment.getDbPort(),
                                                   self.serverOptions,
                                                   experiment.getDbDir(),
                                                   experiment.getDbName(),
-                                                  self.tuningOptions)
+                                                  tuning)
     
     def killServer(self):
         assert self.proc is not None
         assert self.proc.poll() is None
+        sleep(self.waitToKill)
         self.proc.kill()
 
     
