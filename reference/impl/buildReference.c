@@ -72,7 +72,9 @@ static stList *getExtraAttachedStubsFromParent(Flower *flower) {
         group_destructEndIterator(parentEndIt);
     }
     assert(flower_getAttachedStubEndNumber(flower) % 2 == 0);
-    assert(flower_getAttachedStubEndNumber(flower) > 0);
+    if(flower_getBlockEndNumber(flower) > 0) {
+        assert(flower_getAttachedStubEndNumber(flower) > 0);
+    }
     return newEnds;
 }
 
@@ -173,7 +175,9 @@ static Cap *calculateZP4(Cap *cap, stHash *endsToNodes) {
         end = end_getPositiveOrientation(cap_getEnd(cap));
         assert(stHash_search(endsToNodes, end) == NULL);
         if (end_isStubEnd(end)) {
-            assert(end_isFree(end));
+            if(!end_isFree(end)) {
+                assert(!flower_hasParentGroup(end_getFlower(end)));
+            }
             return NULL;
         }
     }
@@ -487,6 +491,8 @@ static stList *getStubEdges(Flower *flower, stHash *endsToNodes,
      */
     double *z = calculateZ(flower, endsToNodes, 0.0);
 
+    st_logDebug("Building a matching for %i stub nodes in the top level problem\n", stList_length(stubNodes));
+
     /*
      * Create a matching for the parent stub edges.
      */
@@ -495,7 +501,12 @@ static stList *getStubEdges(Flower *flower, stHash *endsToNodes,
         int32_t node1 = stIntTuple_getPosition(stList_get(stubNodes, i), 0);
         for(int32_t j=i+1; j<stList_length(stubNodes); j++) {
             int32_t node2 = stIntTuple_getPosition(stList_get(stubNodes, j), 0);
-            stList_append(adjacencyEdges, constructWeightedEdge(node1, node2, z[node1 * nodeNumber + node2]));
+            assert(z[node1 * nodeNumber + node2] >= 0);
+            double score = round(z[node1 * nodeNumber + node2]);
+            assert(score >= 0);
+            int32_t score2 = score > INT32_MAX ? INT32_MAX : score;
+            assert(score2 >= 0);
+            stList_append(adjacencyEdges, constructWeightedEdge(node1, node2, score2));
         }
     }
     stSortedSet *stubNodesSet = stList_getSortedSet(stubNodes, (int (*)(const void *, const void *))stIntTuple_cmpFn);
@@ -564,7 +575,7 @@ static Cap *makeCapWithEvent(End *end, Event *referenceEvent) {
         }
     }
     assert(cap != NULL);
-    assert(getCapWithEvent(end, event_getName(referenceEvent)) != NULL);
+    assert(getCapWithEvent(end, event_getName(referenceEvent)) == cap);
     return cap;
 }
 
@@ -574,6 +585,8 @@ static void addAdjacenciesAndSegmentsP(End *end1, End *end2,
     Cap *cap2 = makeCapWithEvent(end2, referenceEvent);
     assert(cap_getAdjacency(cap1) == NULL);
     assert(cap_getAdjacency(cap2) == NULL);
+    assert(cap1 != cap2);
+    assert(cap_getPositiveOrientation(cap1) != cap_getPositiveOrientation(cap2));
     cap_makeAdjacent(cap1, cap2);
 }
 
