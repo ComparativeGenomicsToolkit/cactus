@@ -46,6 +46,8 @@ static ReferenceIntervalInsertion *referenceIntervalInsertion_construct(stIntTup
 static stList *getReferenceIntervalInsertions(stList *reference, stIntTuple *chain, double *z, int32_t nodeNumber) {
     /*
      * Calculates the scores of the inserting the chain at each possible position in the reference.
+     *
+     * Now modified to avoid numerical bug derivied from doing running sum which involved subtraction.
      */
     stList *referenceIntervalInsertions = stList_construct3(0, free);
 
@@ -53,29 +55,39 @@ static stList *getReferenceIntervalInsertions(stList *reference, stIntTuple *cha
     int32_t _3Node = stIntTuple_getPosition(chain, 1);
     for (int32_t i = 0; i < stList_length(reference); i++) {
         ReferenceInterval *referenceInterval = stList_get(reference, i);
-        double positiveScore = z[referenceInterval->_3Node * nodeNumber + _5Node];
-        double negativeScore = z[referenceInterval->_3Node * nodeNumber + _3Node];
+        stList *intervals = stList_construct();
         while (referenceInterval != NULL) {
-            positiveScore += z[referenceInterval->_5Node * nodeNumber + _3Node];
-            negativeScore += z[referenceInterval->_5Node * nodeNumber + _5Node];
+            stList_append(intervals, referenceInterval);
             referenceInterval = referenceInterval->nReferenceInterval;
         }
+        double *positiveScores = st_calloc(stList_length(intervals), sizeof(double));
+        double *negativeScores = st_calloc(stList_length(intervals), sizeof(double));
         referenceInterval = stList_get(reference, i);
-        stList_append(referenceIntervalInsertions,
-                referenceIntervalInsertion_construct(chain, 1, positiveScore, referenceInterval));
-        stList_append(referenceIntervalInsertions,
-                referenceIntervalInsertion_construct(chain, 0, negativeScore, referenceInterval));
-        while (referenceInterval->nReferenceInterval != NULL) {
-            referenceInterval = referenceInterval->nReferenceInterval;
-            positiveScore = positiveScore + z[referenceInterval->_3Node * nodeNumber + _5Node]
-                    - z[referenceInterval->_5Node * nodeNumber + _3Node];
-            negativeScore = negativeScore + z[referenceInterval->_3Node * nodeNumber + _3Node]
-                    - z[referenceInterval->_5Node * nodeNumber + _5Node];
-            stList_append(referenceIntervalInsertions,
-                    referenceIntervalInsertion_construct(chain, 1, positiveScore, referenceInterval));
-            stList_append(referenceIntervalInsertions,
-                    referenceIntervalInsertion_construct(chain, 0, negativeScore, referenceInterval));
+        int32_t j=stList_length(intervals)-1;
+        assert(j >= 0);
+        positiveScores[j] = z[referenceInterval->_5Node * nodeNumber + _3Node]; //Add the score of the 3 prime end of the interval to the 3 prime most insertion point
+        negativeScores[j] = z[referenceInterval->_5Node * nodeNumber + _5Node];
+        for(; j > 0; j--) {
+            referenceInterval = stList_get(intervals, j);
+            positiveScores[j-1] = z[referenceInterval->_5Node * nodeNumber + _3Node] + positiveScores[j];
+            negativeScores[j-1] = z[referenceInterval->_5Node * nodeNumber + _5Node] + negativeScores[j];
         }
+        double positiveScore = 0.0;
+        double negativeScore = 0.0;
+        for(j=0; j<stList_length(intervals); j++) {
+            referenceInterval = stList_get(intervals, j);
+            positiveScore += z[referenceInterval->_3Node * nodeNumber + _5Node];
+            negativeScore += z[referenceInterval->_3Node * nodeNumber + _3Node];
+            positiveScores[j] += positiveScore;
+            negativeScores[j] += negativeScore;
+            stList_append(referenceIntervalInsertions,
+                                referenceIntervalInsertion_construct(chain, 1, positiveScores[j], referenceInterval));
+            stList_append(referenceIntervalInsertions,
+                                referenceIntervalInsertion_construct(chain, 0, negativeScores[j], referenceInterval));
+        }
+        free(positiveScores);
+        free(negativeScores);
+        stList_destruct(intervals);
     }
 
     return referenceIntervalInsertions;
@@ -334,7 +346,7 @@ double calculateZScore(int32_t n, int32_t m, int32_t k, double theta) {
         return ((double) n) * m;
     }
     double beta = 1.0 - theta;
-    return ((1.0 - pow(beta, n)) * pow(beta, k) * (1.0 - pow(beta, m))) / (theta * theta);
+    return ((1.0 - pow(beta, n)) / theta) * pow(beta, k) * ((1.0 - pow(beta, m)) / theta);
 }
 
 double exponentiallyDecreasingTemperatureFn(double d) {

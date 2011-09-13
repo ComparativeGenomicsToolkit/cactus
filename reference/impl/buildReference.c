@@ -575,7 +575,7 @@ static Cap *makeCapWithEvent(End *end, Event *referenceEvent) {
         }
     }
     assert(cap != NULL);
-    assert(getCapWithEvent(end, event_getName(referenceEvent)) != NULL);
+    assert(getCapWithEvent(end, event_getName(referenceEvent)) == cap);
     return cap;
 }
 
@@ -585,6 +585,8 @@ static void addAdjacenciesAndSegmentsP(End *end1, End *end2,
     Cap *cap2 = makeCapWithEvent(end2, referenceEvent);
     assert(cap_getAdjacency(cap1) == NULL);
     assert(cap_getAdjacency(cap2) == NULL);
+    assert(cap1 != cap2);
+    assert(cap_getPositiveOrientation(cap1) != cap_getPositiveOrientation(cap2));
     cap_makeAdjacent(cap1, cap2);
 }
 
