@@ -62,11 +62,12 @@ def initialiseGlobalBatchSystem(batchSystem):
     assert batchSystem in ("singleMachine", "parasol", "gridEngine")
     BATCH_SYSTEM = batchSystem
     
-def getCactusWorkflowExperimentForTest(sequences, newickTreeString, outputDir, databaseName=None, configFile=None):
+def getCactusWorkflowExperimentForTest(sequences, newickTreeString, outputDir, databaseName=None, configFile=None, singleCopySpecies=None):
     """Wrapper to constructor of CactusWorkflowExperiment which additionally incorporates
     any globally set database conf.
     """
-    return CactusWorkflowExperiment(sequences, newickTreeString, outputDir=outputDir, databaseName=databaseName, databaseConf=GLOBAL_DATABASE_CONF, configFile=configFile)
+    return CactusWorkflowExperiment(sequences, newickTreeString, outputDir=outputDir, databaseName=databaseName, databaseConf=GLOBAL_DATABASE_CONF, configFile=configFile,
+                                    singleCopySpecies=singleCopySpecies)
 
 def parseCactusSuiteTestOptions():
     """Cactus version of the basic option parser that can additionally parse 
@@ -214,7 +215,8 @@ def runWorkflow_TestScript(sequences, newickTreeString,
                            batchSystem="single_machine",
                            buildTrees=True, buildFaces=True, buildReference=True,
                            configFile=None,
-                           buildJobTreeStats=False):
+                           buildJobTreeStats=False,
+                           singleCopySpecies=None):
     """Runs the workflow and various downstream utilities.
     """
     logger.info("Running cactus workflow test script")
@@ -228,7 +230,8 @@ def runWorkflow_TestScript(sequences, newickTreeString,
     #Setup the flower disk.
     experiment = getCactusWorkflowExperimentForTest(sequences, newickTreeString, 
                                                     outputDir=outputDir, databaseName=None, 
-                                                    configFile=configFile)
+                                                    configFile=configFile,
+                                                    singleCopySpecies=singleCopySpecies)
     experiment.cleanupDatabase()
     cactusDiskDatabaseString = experiment.getDatabaseString()
     experimentFile = os.path.join(outputDir, "experiment.xml")
@@ -274,7 +277,7 @@ def runWorkflow_multipleExamples(inputGenFunction,
                                inverseTestRestrictions=False,
                                batchSystem="single_machine",
                                buildTrees=True, buildFaces=True, buildReference=True,
-                               configFile=None, buildJobTreeStats=False):
+                               configFile=None, buildJobTreeStats=False, singleCopySpecies=None):
     """A wrapper to run a number of examples.
     """
     if (inverseTestRestrictions and TestStatus.getTestStatus() not in testRestrictions) or \
@@ -287,7 +290,8 @@ def runWorkflow_multipleExamples(inputGenFunction,
                                    batchSystem=batchSystem,
                                    buildTrees=buildTrees, buildFaces=buildFaces, buildReference=buildReference, 
                                    configFile=configFile,
-                                   buildJobTreeStats=buildJobTreeStats)
+                                   buildJobTreeStats=buildJobTreeStats,
+                                   singleCopySpecies=singleCopySpecies)
             experiment.cleanupDatabase()
             system("rm -rf %s" % tempDir)
             logger.info("Finished random test %i" % test)
