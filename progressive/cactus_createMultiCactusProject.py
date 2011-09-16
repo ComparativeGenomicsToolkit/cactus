@@ -71,7 +71,6 @@ def createFileStructure(mcProj, expTemplate, options):
             else:
                 ogPath = os.path.join(options.path, og)
                 ogPath = os.path.join(ogPath, "%s_reference.fa" % og)
-            print ("adding og %s to job %s with dist %f\n" % (og, name, ogDist))
             exp.addOutgroup(og, ogPath, ogDist)
         os.makedirs(exp.getDbDir())
         exp.writeXML(expPath)

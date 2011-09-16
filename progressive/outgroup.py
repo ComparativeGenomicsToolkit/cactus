@@ -85,9 +85,7 @@ class OutgroupFinder:
         
         for name, node in self.mcTree.subtreeRoots.items():
             h = self.heights[node]
-            #maxOh = max(0, h-1)
-            # FORCE OUTGROUPS TO BE LEAVES FOR NOW
-            maxOh = 0
+            maxOh = max(0, h-1)
             minD = sys.maxint
             outgroup = None
             id = node.traversalID.mid
