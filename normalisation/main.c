@@ -122,6 +122,8 @@ int main(int argc, char *argv[]) {
         normalise(flower, maxNumberOfChains);
     }
 
+    st_logInfo("Finished normalising the flowers\n");
+
     ///////////////////////////////////////////////////////////////////////////
     // Unload the parent flowers
     ///////////////////////////////////////////////////////////////////////////
@@ -132,6 +134,8 @@ int main(int argc, char *argv[]) {
         assert(flower != NULL);
         flower_unloadParent(flower); //We have this line just in case we are loading the parent..
     }
+
+    st_logInfo("Unloaded the parent flowers\n");
 
     ///////////////////////////////////////////////////////////////////////////
     // Write the flower(s) back to disk.
