@@ -18,6 +18,7 @@ from cactus.progressive.multiCactusTree import MultiCactusTree
 from cactus.progressive.experimentWrapper import ExperimentWrapper
 from cactus.progressive.outgroup import OutgroupFinder
 
+prepCmdLine = 'cactus_addFastaHeaderDots.py TARGET_FILE OUT_FILE --event EVENT_STRING'
 
 def createMCProject(tree, options):
     mcTree = MultiCactusTree(tree, options.subtreeSize)
@@ -34,6 +35,23 @@ def createMCProject(tree, options):
         mcProj.outgroup = OutgroupFinder(mcTree)
         mcProj.outgroup.findAllNearestBelow()
     return mcProj
+
+# progressive alignment relies on input sequences having dots and being 
+# unique.  This can be enforced using the preprocessor
+def addPreprocessor(configElem):
+    found = False
+    prepNodes = configElem.findall("preprocessor")
+    for prep in prepNodes:
+        if "preprocessorString" in prep.attrib:
+            pString = prep.attrib["preprocessorString"]
+            if pString.find(prepCmdLine) >= 0:
+                found = True
+                break
+    if found == False:
+        prep = ET.SubElement(configElem, "preprocessor")
+        prep.attrib["chunkSize"] = "10000"
+        prep.attrib["preprocessorString"] = prepCmdLine
+    print found
 
 # Make the subdirs for each subproblem:  name/ and name/name_DB
 # and write the experiment files
@@ -78,6 +96,7 @@ def createFileStructure(mcProj, expTemplate, options):
         configElem = copy.deepcopy(baseConfigXML)
         refElem = configElem.find("reference")
         refElem.attrib["reference"] = name
+        addPreprocessor(configElem)
         ET.ElementTree(configElem).write(exp.getConfigPath()) 
 
 def main():
