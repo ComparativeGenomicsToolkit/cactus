@@ -28,7 +28,6 @@ import copy
 from time import sleep
 
 from sonLib.bioio import getTempFile
-from sonLib.bioio import newickTreeParser
 from sonLib.bioio import printBinaryTree
 
 from jobTree.src.bioio import getLogLevelString

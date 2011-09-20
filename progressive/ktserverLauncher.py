@@ -21,6 +21,7 @@ import copy
 import filecmp
 import subprocess
 from time import sleep
+from optparse import OptionParser
 
 
 from cactus.progressive.multiCactusTree import MultiCactusTree
@@ -130,4 +131,23 @@ class KtserverLauncher:
         sleep(self.waitToKill)
         self.proc.kill()
 
+def main():
+    usage = "usage: %prog <experiment file>"
+    description = "Open ktserver of a given experiment"
+    parser = OptionParser(usage=usage, description=description)
+    
+    options, args = parser.parse_args()
+    
+    if len(args) != 1:
+        parser.print_help()
+        raise RuntimeError("Wrong number of arguments")
+    
+    exp = ExperimentWrapper(ET.parse(args[0]).getroot())
+    kts = KtserverLauncher()
+    kts.spawnServer(exp)
+    print exp.getDiskDatabaseString()
+    return 0    
+
+if __name__ == '__main__':    
+    main()
     

@@ -20,18 +20,23 @@ import copy
 from optparse import OptionParser
 
 from sonLib.bioio import printBinaryTree
-from sonLib.bioio import newickTreeParser
 from sonLib.tree import binaryTree_depthFirstNumbers
 from sonLib.tree import getDistanceMatrix
+from sonLib.tree import BinaryTree
 
 class OutgroupFinder:
     def __init__(self, mcTree):
         self.mcTree = mcTree
         self.ogMap = dict()
+        self.skipList = set()
     
     def computeDistances(self):
+        assert self.mcTree and self.mcTree.tree
+        killSet = set()
+        self.binarize(self.mcTree.tree, killSet)
         binaryTree_depthFirstNumbers(self.mcTree.tree)
         self.dm = getDistanceMatrix(self.mcTree.tree)
+        self.removeNodes(self.mcTree.tree, killSet)
         # throw in some topological sort information 
         def fn(node, idx):
             if node:
@@ -44,9 +49,10 @@ class OutgroupFinder:
         self.heights = dict()
         def fn(node):
             height = 0
-            if node.internal:
-               height = 1 + max(fn(node.left), fn(node.right))
-            self.heights[node] = height
+            if node:
+                if node.internal:
+                    height = 1 + max(fn(node.left), fn(node.right))
+                self.heights[node] = height
             return height
         fn(self.mcTree.tree)
     
@@ -61,7 +67,20 @@ class OutgroupFinder:
                 aboveStack.pop()
         self.below = set()
         computeBelowRecursive(self.mcTree.tree, [])
-        
+    
+    # skip nodes whose parents have degree one
+    def computeSkipList(self):
+        def computeSkipListRecursive(node):
+            if node:
+                if node.left is None and node.right is not None:
+                    self.skipList.add(node.right)
+                elif node.right is None and node.left is not None:
+                    self.skipList.add(node.left)
+                computeSkipListRecursive(node.right)
+                computeSkipListRecursive(node.left)
+        self.skipList = set()
+        computeSkipListRecursive(self.mcTree.tree)
+               
     # really naive inefficient placeholder function
     # assigns outgroup as closest node that is at least one 
     # level lower in the tree (or the same for leaf).
@@ -69,6 +88,7 @@ class OutgroupFinder:
         self.computeHeights()
         self.computeDistances()
         self.computeBelow()
+        self.computeSkipList()
         byHeight = dict()
         
         # sort nodes by height
@@ -84,6 +104,8 @@ class OutgroupFinder:
                 byHeight[0].append(node)
         
         for name, node in self.mcTree.subtreeRoots.items():
+            if node in self.skipList:
+                continue
             h = self.heights[node]
             maxOh = max(0, h-1)
             minD = sys.maxint
@@ -101,9 +123,29 @@ class OutgroupFinder:
             if outgroup:
                 distance = self.dm[(outgroup.traversalID.mid, id)]
                 self.ogMap[name] = (outgroup.iD, distance)
-            else:
-                assert node == self.mcTree.tree 
-        
-        
+            
     
-        
+    # hack since sonlib doesn't support degree-1 nodes.  
+    # should probably eventually modify sonlib but for now
+    # we just put dummy nodes
+    def binarize(self, node, killSet):
+        if node and node.internal:
+            if node.left is None:
+                newNode = BinaryTree(0, False, None, None, "hack-alert")
+                node.left = newNode
+                killSet.add(newNode)
+            if node.right is None:
+                newNode = BinaryTree(0, False, None, None, "hack-alert")
+                node.right = newNode
+                killSet.add(newNode)
+            self.binarize(node.left, killSet)
+            self.binarize(node.right, killSet)
+    
+    def removeNodes(self, node, killSet):
+        if node:
+            if node.left and node.left in killSet:
+                node.left = None
+            if node.right and node.right in killSet:
+                node.right = None
+            self.removeNodes(node.left, killSet)
+            self.removeNodes(node.right, killSet)

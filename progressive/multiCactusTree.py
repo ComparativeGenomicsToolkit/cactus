@@ -17,7 +17,7 @@ import copy
 from optparse import OptionParser
 
 from sonLib.bioio import printBinaryTree
-from sonLib.bioio import newickTreeParser
+from sonLib.tree import BinaryTree
 
 
 class MultiCactusTree:
@@ -58,6 +58,9 @@ class MultiCactusTree:
     
     # map a node to the closest subtree root that contains it
     def computeNearestRoots(self):
+        # think this function is buggy, but don't want to delete
+        # until i remember why i wrote it
+        assert False
         def computeNearestRootsRecursive(node, root):
             if node:
                 self.nerestRoots[node] = root
@@ -158,5 +161,30 @@ class MultiCactusTree:
         
         assert treeComp(subtree, tree, outgroup)    
 
-
+    # insert a node with id (name_self) directly above 
+    # every node in the tree
+    # should be run after subtreeroots are computed (otherwise
+    # won't work
+    def addSelfEdges(self, suffix = "_self"):
+        def addSelfEdgesRecursive(node):
+            if node and (not node.internal or node.iD in self.subtreeRoots):
+                if node != self.tree:
+                    newNode = BinaryTree(0, node.internal, node.left, node.right, 
+                                     node.iD)
+                node.internal = True
+                node.left = newNode
+                node.right = None
+                node.iD += suffix
+                addSelfEdgesRecursive(newNode.left)
+                addSelfEdgesRecursive(newNode.right)
+                self.subtreeRoots[node.iD] = node
+                if newNode.iD in self.subtreeRoots:
+                    self.subtreeRoots[newNode.iD] = newNode
+        assert len(self.subtreeRoots) > 0
+        addSelfEdgesRecursive(self.tree.left)
+        addSelfEdgesRecursive(self.tree.right)
+            
+            
+            
+            
     

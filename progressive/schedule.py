@@ -94,6 +94,7 @@ class Schedule:
         # tree root (don't think we need)
         root = tree
         og = None
+        
         if root.iD != rootName:
             assert tree.left.iD == rootName or tree.right.iD == rootName
             if tree.left.iD == rootName:
@@ -154,10 +155,8 @@ class Schedule:
             keeper = parents[0]
             for inEdge in inEdges:
                 if inEdge[0] != keeper:
-                    print "remove %s %s" % (inEdge[0], inEdge[1])
                     self.depTree.remove_edge(inEdge[0], inEdge[1])
                     if not self.depTree.has_edge(inEdge[0], keeper):
-                        print "add %s %s" % (inEdge[0], keeper)
                         self.depTree.add_edge(inEdge[0], keeper)
                         if self.depTree.in_degree(keeper) > 1:
                             self.dirty = True

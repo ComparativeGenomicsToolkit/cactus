@@ -12,7 +12,6 @@ from optparse import OptionParser
 import xml.etree.ElementTree as ET
 import copy
 
-from sonLib.bioio import newickTreeParser
 from sonLib.bioio import printBinaryTree
 from cactus.progressive.multiCactusProject import MultiCactusProject
 from cactus.progressive.multiCactusTree import MultiCactusTree
@@ -24,6 +23,8 @@ def createMCProject(tree, options):
     mcTree = MultiCactusTree(tree, options.subtreeSize)
     mcTree.nameUnlabeledInternalNodes(options.prefix)
     mcTree.computeSubtreeRoots()
+    if options.selfAlign:
+        mcTree.addSelfEdges()
     mcProj = MultiCactusProject()
     mcProj.mcTree = mcTree
     for name, node in mcProj.mcTree.subtreeRoots.items():
@@ -64,7 +65,7 @@ def createFileStructure(mcProj, expTemplate, options):
         exp.setMAFPath(os.path.join(path, "%s.maf" % name))
         exp.updateTree(subtree, seqMap)
         exp.setConfigPath(os.path.join(path, "%s_config.xml" % name))
-        if options.outgroup and name != mcProj.mcTree.tree.iD:
+        if options.outgroup and name in mcProj.outgroup.ogMap:
             og, ogDist = mcProj.outgroup.ogMap[name]
             if og in expTemplate.seqMap:
                 ogPath = expTemplate.seqMap[og]
@@ -91,6 +92,8 @@ def main():
                       default="Anc")
     parser.add_option("--outgroup", dest="outgroup", action="store_true", 
                       default = False, help="Assign outgroups")
+    parser.add_option("--self", dest="selfAlign", action="store_true", 
+                      default = False, help="Align each sequence to itself")
     
     options, args = parser.parse_args()
     
@@ -101,6 +104,7 @@ def main():
     options.expFile = args[0]    
     options.path = os.path.abspath(args[1])
     options.name = os.path.basename(options.path)
+    assert options.subtreeSize > 1
 
     if os.path.isdir(options.path) or os.path.isfile(options.path):
         raise RuntimeError("Output project path %s exists\n" % options.path)
