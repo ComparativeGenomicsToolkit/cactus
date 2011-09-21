@@ -232,6 +232,8 @@ void cactusDisk_write(CactusDisk *cactusDisk) {
     stList *updateRequests = stList_construct3(0, (void(*)(void *)) stKVDatabaseBulkRequest_destruct);
     stList *removeRequests = stList_construct3(0, (void(*)(void *)) stInt64Tuple_destruct);
 
+    st_logDebug("Starting to write the cactus to disk\n");
+
     stSortedSetIterator *it = stSortedSet_getIterator(cactusDisk->flowers);
     //Sort flowers to update.
     while ((flower = stSortedSet_getNext(it)) != NULL) {
@@ -259,6 +261,8 @@ void cactusDisk_write(CactusDisk *cactusDisk) {
     }
     stSortedSet_destructIterator(it);
 
+    st_logDebug("Got the flowers to update\n");
+
     //Remove nets that are marked for deletion..
     it = stSortedSet_getIterator(cactusDisk->flowerNamesMarkedForDeletion);
     char *nameString;
@@ -270,6 +274,8 @@ void cactusDisk_write(CactusDisk *cactusDisk) {
         }
     }
     stSortedSet_destructIterator(it);
+
+    st_logDebug("Avoided updating nets marked for deletion\n");
 
     //Sort sequences to insert
     it = stSortedSet_getIterator(cactusDisk->metaSequences);
@@ -291,6 +297,8 @@ void cactusDisk_write(CactusDisk *cactusDisk) {
     }
     stSortedSet_destructIterator(it);
 
+    st_logDebug("Got the sequences we are going to add to the database.\n");
+
     if (!containsRecord(cactusDisk, CACTUS_DISK_PARAMETER_KEY)) { //We only write the parameters once.
         //Finally the database info.
         void
@@ -308,7 +316,10 @@ void cactusDisk_write(CactusDisk *cactusDisk) {
         free(cactusDiskParameters);
     }
 
+    st_logDebug("Checked if need to write the initial parameters\n");
+
     if (stList_length(updateRequests) > 0) {
+        st_logDebug("Going to write %i updates\n", stList_length(updateRequests));
         stTry {
             int maxRecords = 100000;
             while(stList_length(updateRequests) > maxRecords) {
@@ -316,11 +327,12 @@ void cactusDisk_write(CactusDisk *cactusDisk) {
                     while(stList_length(list) < maxRecords) {
                         stList_append(list, stList_pop(updateRequests));
                     }
+                    st_logDebug("Writing %i updates\n", stList_length(list));
                     stKVDatabase_bulkSetRecords(cactusDisk->database,
                                         list);
                     stList_destruct(list);
                 }
-
+            st_logDebug("Writing %i updates\n", stList_length(updateRequests));
             stKVDatabase_bulkSetRecords(cactusDisk->database,
                     updateRequests);
         }
@@ -330,6 +342,9 @@ void cactusDisk_write(CactusDisk *cactusDisk) {
                     "Failed when trying to set records in updating the cactus disk");
         }stTryEnd;
     }
+
+    st_logDebug("Updated the database with inserts\n");
+
     if (stList_length(removeRequests) > 0) {
         stTry {
             stKVDatabase_bulkRemoveRecords(cactusDisk->database,
@@ -342,8 +357,12 @@ void cactusDisk_write(CactusDisk *cactusDisk) {
         }stTryEnd;
     }
 
+    st_logDebug("Now removed flowers we don't need\n");
+
     stList_destruct(updateRequests);
     stList_destruct(removeRequests);
+
+    st_logDebug("Finished writing to the database\n");
 }
 
 static Cap *getNextStub(Cap *cap) {

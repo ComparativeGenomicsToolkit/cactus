@@ -118,9 +118,10 @@ int main(int argc, char *argv[]) {
                 cactusMisc_stringToName(flowerName));
         assert(flower != NULL);
         st_logInfo("Parsed the flower to normalise\n");
-
         normalise(flower, maxNumberOfChains);
     }
+
+    st_logInfo("Finished normalising the flowers\n");
 
     ///////////////////////////////////////////////////////////////////////////
     // Unload the parent flowers
@@ -130,8 +131,11 @@ int main(int argc, char *argv[]) {
         const char *flowerName = argv[j];
         Flower *flower = cactusDisk_getFlower(cactusDisk, cactusMisc_stringToName(flowerName));
         assert(flower != NULL);
+        //flower_check(flower);
         flower_unloadParent(flower); //We have this line just in case we are loading the parent..
     }
+
+    st_logInfo("Unloaded the parent flowers\n");
 
     ///////////////////////////////////////////////////////////////////////////
     // Write the flower(s) back to disk.
