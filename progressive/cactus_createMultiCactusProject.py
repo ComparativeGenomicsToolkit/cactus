@@ -16,7 +16,7 @@ from sonLib.bioio import printBinaryTree
 from cactus.progressive.multiCactusProject import MultiCactusProject
 from cactus.progressive.multiCactusTree import MultiCactusTree
 from cactus.progressive.experimentWrapper import ExperimentWrapper
-from cactus.progressive.outgroup import OutgroupFinder
+from cactus.progressive.outgroup import GreedyOutgroup
 
 prepCmdLine = 'cactus_addFastaHeaderDots.py TARGET_FILE OUT_FILE --event EVENT_STRING'
 
@@ -32,8 +32,9 @@ def createMCProject(tree, options):
         expPath = "%s/%s/%s_experiment.xml" % (options.path, name, name)
         mcProj.expMap[name] = os.path.abspath(expPath)
     if options.outgroup:
-        mcProj.outgroup = OutgroupFinder(mcTree)
-        mcProj.outgroup.findAllNearestBelow()
+        mcProj.outgroup = GreedyOutgroup()
+        mcProj.outgroup.importTree(mcProj.mcTree)
+        mcProj.outgroup.greedy()
     return mcProj
 
 # progressive alignment relies on input sequences having dots and being 
@@ -51,7 +52,6 @@ def addPreprocessor(configElem):
         prep = ET.SubElement(configElem, "preprocessor")
         prep.attrib["chunkSize"] = "10000"
         prep.attrib["preprocessorString"] = prepCmdLine
-    print found
 
 # Make the subdirs for each subproblem:  name/ and name/name_DB
 # and write the experiment files

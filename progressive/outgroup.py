@@ -16,6 +16,7 @@ import xml.etree.ElementTree as ET
 import sys
 import math
 import copy
+import networkx as NX
 
 from optparse import OptionParser
 
@@ -24,128 +25,114 @@ from sonLib.tree import binaryTree_depthFirstNumbers
 from sonLib.tree import getDistanceMatrix
 from sonLib.tree import BinaryTree
 
-class OutgroupFinder:
-    def __init__(self, mcTree):
-        self.mcTree = mcTree
+from cactus.progressive.multiCactusProject import MultiCactusProject
+from cactus.progressive.multiCactusTree import MultiCactusTree
+
+class GreedyOutgroup:
+    def __init__(self):
+        self.dag = None
+        self.dm = None
+        self.dmDirected = None
+        self.rootName = None
+        self.ogMap = None
+        
+    # add edges from sonlib tree to self.dag
+    # compute self.dm: an undirected distance matrix
+    def importTree(self, mcTree):
+        def importNode(node):        
+            if node and node.left:
+                w = node.left.distance
+                self.dag.add_edge(node.iD, node.left.iD, weight=w)
+                importNode(node.left)
+            if node and node.right:
+                w = node.right.distance
+                self.dag.add_edge(node.iD, node.right.iD, weight=w)
+                importNode(node.right)
+        self.dag = NX.DiGraph()
+        importNode(mcTree.tree)
+        self.rootName = mcTree.tree.iD
+        self.stripNonEvents(self.rootName, mcTree.subtreeRoots)
+        self.dmDirected = NX.algorithms.shortest_paths.weighted.\
+        all_pairs_dijkstra_path_length(self.dag)
+        graph = NX.Graph(self.dag)
+        self.dm = NX.algorithms.shortest_paths.weighted.\
+        all_pairs_dijkstra_path_length(graph)
+ 
+    # get rid of any node that's not an event
+    def stripNonEvents(self, name, subtreeRoots):
+        children = []
+        for outEdge in self.dag.out_edges(name):
+            children.append(outEdge[1])
+        parentCount = len(self.dag.in_edges(name))
+        assert parentCount <= 1
+        parent = None
+        if parentCount == 1:
+            parent = self.dag.in_edges[0][0]
+        if name not in subtreeRoots and len(children) >= 1:
+            assert parentCount == 1
+            self.dag.remove_node(name)
+            for child in children:
+                self.dag.add_edge(parent, child)
+                self.stripNonEvents(child, subtreeRoots)
+    
+    # is sink below source in the dag?            
+    def below(self, source, sink):
+        if source in self.dmDirected:
+            if sink in self.dmDirected[source]:
+                return True
+        return False
+    
+    def leafEdge(self, source, sink):
+        return len(self.dag.out_edges(node)) == 0 and len(self.dag.out_edges(sink)) == 0
+    
+    # greedily assign closest possible valid outgroup
+    # all outgroups are stored in self.ogMap
+    # edges between leaves ARE NOT kept in the dag         
+    def greedy(self):
+        orderedPairs = []
+        for source, sinks in self.dm.items():
+            for sink, dist in sinks.items():
+                if source != self.rootName and sink != self.rootName:
+                    orderedPairs.append((dist, (source, sink)))
+        orderedPairs.sort(key = lambda x: x[0])
+        finished = set()
         self.ogMap = dict()
-        self.skipList = set()
-    
-    def computeDistances(self):
-        assert self.mcTree and self.mcTree.tree
-        killSet = set()
-        self.binarize(self.mcTree.tree, killSet)
-        binaryTree_depthFirstNumbers(self.mcTree.tree)
-        self.dm = getDistanceMatrix(self.mcTree.tree)
-        self.removeNodes(self.mcTree.tree, killSet)
-        # throw in some topological sort information 
-        def fn(node, idx):
-            if node:
-                node.traversalID.sort = idx
-                fn(node.left, idx + 1)
-                fn(node.right, idx + 1)
-        fn(self.mcTree.tree, 0) 
-    
-    def computeHeights(self):
-        self.heights = dict()
-        def fn(node):
-            height = 0
-            if node:
-                if node.internal:
-                    height = 1 + max(fn(node.left), fn(node.right))
-                self.heights[node] = height
-            return height
-        fn(self.mcTree.tree)
-    
-    def computeBelow(self):
-        def computeBelowRecursive(node, aboveStack):
-            if node:
-                for aboveNode in aboveStack:
-                    self.below.add((node, aboveNode))
-                aboveStack.append(node)
-                computeBelowRecursive(node.left, aboveStack)
-                computeBelowRecursive(node.right, aboveStack)
-                aboveStack.pop()
-        self.below = set()
-        computeBelowRecursive(self.mcTree.tree, [])
-    
-    # skip nodes whose parents have degree one
-    def computeSkipList(self):
-        def computeSkipListRecursive(node):
-            if node:
-                if node.left is None and node.right is not None:
-                    self.skipList.add(node.right)
-                elif node.right is None and node.left is not None:
-                    self.skipList.add(node.left)
-                computeSkipListRecursive(node.right)
-                computeSkipListRecursive(node.left)
-        self.skipList = set()
-        computeSkipListRecursive(self.mcTree.tree)
-               
-    # really naive inefficient placeholder function
-    # assigns outgroup as closest node that is at least one 
-    # level lower in the tree (or the same for leaf).
-    def findAllNearestBelow(self):
-        self.computeHeights()
-        self.computeDistances()
-        self.computeBelow()
-        self.computeSkipList()
-        byHeight = dict()
         
-        # sort nodes by height
-        for name, node in self.mcTree.subtreeRoots.items():
-            h = self.heights[node]
-            if h in byHeight:
-                byHeight[h].append(node)
-            else:
-                byHeight[h] = [node]
-        byHeight[0] = []
-        for node, height in self.heights.items():
-            if height == 0:
-                byHeight[0].append(node)
-        
-        for name, node in self.mcTree.subtreeRoots.items():
-            if node in self.skipList:
-                continue
-            h = self.heights[node]
-            maxOh = max(0, h-1)
-            minD = sys.maxint
-            outgroup = None
-            id = node.traversalID.mid
-            for oh in range(maxOh, -1, -1):                
-                for otherNode in byHeight[oh]:
-                    if otherNode != node and \
-                    (otherNode, node) not in self.below:
-                        d = self.dm[(otherNode.traversalID.mid, id)]                     
-                        if d < minD:
-                            minD = d
-                            outgroup = otherNode
-            assert name not in self.ogMap
-            if outgroup:
-                distance = self.dm[(outgroup.traversalID.mid, id)]
-                self.ogMap[name] = (outgroup.iD, distance)
-            
+        for candidate in orderedPairs:
+            source = candidate[1][0]
+            sink = candidate[1][1]
+            dist = candidate[0]
+            if source not in finished and \
+            not self.below(source, sink):
+                if len(self.dag.out_edges(source)) > 0 or\
+                    len(self.dag.out_edges(sink)) > 0:
+                    self.dag.add_edge(source, sink, weight=dist, og='yes')
+                if NX.is_directed_acyclic_graph(self.dag):
+                    finished.add(source)
+                    self.ogMap[source] = (sink, dist)                    
+                else:
+                    self.dag.remove_edge(source, sink)
     
-    # hack since sonlib doesn't support degree-1 nodes.  
-    # should probably eventually modify sonlib but for now
-    # we just put dummy nodes
-    def binarize(self, node, killSet):
-        if node and node.internal:
-            if node.left is None:
-                newNode = BinaryTree(0, False, None, None, "hack-alert")
-                node.left = newNode
-                killSet.add(newNode)
-            if node.right is None:
-                newNode = BinaryTree(0, False, None, None, "hack-alert")
-                node.right = newNode
-                killSet.add(newNode)
-            self.binarize(node.left, killSet)
-            self.binarize(node.right, killSet)
+             
+
+def main():
+    usage = "usage: %prog <project> <output graphviz .dot file>"
+    description = "TEST: draw the outgroup DAG"
+    parser = OptionParser(usage=usage, description=description)
     
-    def removeNodes(self, node, killSet):
-        if node:
-            if node.left and node.left in killSet:
-                node.left = None
-            if node.right and node.right in killSet:
-                node.right = None
-            self.removeNodes(node.left, killSet)
-            self.removeNodes(node.right, killSet)
+    options, args = parser.parse_args()
+    
+    if len(args) != 2:
+        parser.print_help()
+        raise RuntimeError("Wrong number of arguments")
+
+    proj = MultiCactusProject()
+    proj.readXML(args[0])
+    outgroup = GreedyOutgroup()
+    outgroup.importTree(proj.mcTree)
+    outgroup.greedy()
+    NX.drawing.nx_agraph.write_dot(outgroup.dag, args[1])
+    return 0
+
+if __name__ == '__main__':    
+    main()
