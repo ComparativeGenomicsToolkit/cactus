@@ -102,6 +102,7 @@ class MultiCactusTree:
         root = self.subtreeRoots[name]
         cpy = copyRecursive(root, root)
         assert cpy is not None
+        cpy.distance = 0
         return cpy
         
     # find the root of the subtree containing the given node

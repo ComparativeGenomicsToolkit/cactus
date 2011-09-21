@@ -24,10 +24,10 @@ def createMCProject(tree, options):
     mcTree = MultiCactusTree(tree, options.subtreeSize)
     mcTree.nameUnlabeledInternalNodes(options.prefix)
     mcTree.computeSubtreeRoots()
-    if options.selfAlign:
-        mcTree.addSelfEdges()
     mcProj = MultiCactusProject()
     mcProj.mcTree = mcTree
+    if options.selfAlign:
+        mcTree.addSelfEdges()
     for name, node in mcProj.mcTree.subtreeRoots.items():
         expPath = "%s/%s/%s_experiment.xml" % (options.path, name, name)
         mcProj.expMap[name] = os.path.abspath(expPath)

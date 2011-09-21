@@ -82,9 +82,6 @@ class GreedyOutgroup:
                 return True
         return False
     
-    def leafEdge(self, source, sink):
-        return len(self.dag.out_edges(node)) == 0 and len(self.dag.out_edges(sink)) == 0
-    
     # greedily assign closest possible valid outgroup
     # all outgroups are stored in self.ogMap
     # edges between leaves ARE NOT kept in the dag         
@@ -106,7 +103,7 @@ class GreedyOutgroup:
             not self.below(source, sink):
                 if len(self.dag.out_edges(source)) > 0 or\
                     len(self.dag.out_edges(sink)) > 0:
-                    self.dag.add_edge(source, sink, weight=dist, og='yes')
+                    self.dag.add_edge(source, sink, weight=dist, info='outgroup')
                 if NX.is_directed_acyclic_graph(self.dag):
                     finished.add(source)
                     self.ogMap[source] = (sink, dist)                    
