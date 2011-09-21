@@ -297,7 +297,7 @@ void cactusDisk_write(CactusDisk *cactusDisk) {
     }
     stSortedSet_destructIterator(it);
 
-    st_logDebug("Got the sequences we are going to add to the database.");
+    st_logDebug("Got the sequences we are going to add to the database.\n");
 
     if (!containsRecord(cactusDisk, CACTUS_DISK_PARAMETER_KEY)) { //We only write the parameters once.
         //Finally the database info.
@@ -319,6 +319,7 @@ void cactusDisk_write(CactusDisk *cactusDisk) {
     st_logDebug("Checked if need to write the initial parameters\n");
 
     if (stList_length(updateRequests) > 0) {
+        st_logDebug("Going to write %i updates\n", stList_length(updateRequests));
         stTry {
             int maxRecords = 100000;
             while(stList_length(updateRequests) > maxRecords) {
@@ -326,11 +327,12 @@ void cactusDisk_write(CactusDisk *cactusDisk) {
                     while(stList_length(list) < maxRecords) {
                         stList_append(list, stList_pop(updateRequests));
                     }
+                    st_logDebug("Writing %i updates\n", stList_length(list));
                     stKVDatabase_bulkSetRecords(cactusDisk->database,
                                         list);
                     stList_destruct(list);
                 }
-
+            st_logDebug("Writing %i updates\n", stList_length(updateRequests));
             stKVDatabase_bulkSetRecords(cactusDisk->database,
                     updateRequests);
         }
