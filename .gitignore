@@ -1,10 +1,9 @@
+.pydevproject
+.project
+.cproject
 bin/*
 lib/*
 *.o
 *.pyc
 /bin
 /lib
-<<<<<<< HEAD
-
-=======
->>>>>>> refs/heads/master
