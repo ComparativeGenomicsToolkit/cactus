@@ -16,7 +16,11 @@ where FOO/sonLib is the path to the base directory of Cactus.
 Modify the include.mk file to point at where you installed sonLib.
 In cactus type 'make all' 
 
-(7) Run python allTests.py to run the set of tests to check the installation
+(7) [optional, but required if you want all tests to pass] Download the dataset 
+http://dl.dropbox.com/u/156669/datasets.tar.bz2 and create an environment variable
+SON_TRACE_DATASETS to point at it.
+
+(8) Run python allTests.py to run the set of tests to check the installation
 
 See https://github.com/benedictpaten/ for links to the dependencies mentioned.
 
