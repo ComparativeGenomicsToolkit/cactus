@@ -6,11 +6,11 @@ modules = threeEdgeConnected blossom matchGraph
 all : ${modules:%=all.%}
 
 all.%:
-	cd $* && make all
+	cd $* && ${MAKE} all
 
 clean:  ${modules:%=clean.%}
 	rm -rf lib/*.h bin/*.dSYM
 
 clean.%:
-	cd $* && make clean
-	
+	cd $* && ${MAKE} clean
+

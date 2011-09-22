@@ -4,4 +4,7 @@ lib/*
 *.pyc
 /bin
 /lib
+<<<<<<< HEAD
 
+=======
+>>>>>>> refs/heads/master
