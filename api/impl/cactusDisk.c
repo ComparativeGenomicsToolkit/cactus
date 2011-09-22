@@ -333,6 +333,7 @@ void cactusDisk_write(CactusDisk *cactusDisk) {
                     stList_destruct(list);
                 }
             st_logDebug("Writing %i updates\n", stList_length(updateRequests));
+            assert(stList_length(updateRequests) > 0);
             stKVDatabase_bulkSetRecords(cactusDisk->database,
                     updateRequests);
         }
