@@ -98,7 +98,12 @@ def createFileStructure(mcProj, expTemplate, options):
         refElem.attrib["reference"] = name
         addPreprocessor(configElem)
         ET.ElementTree(configElem).write(exp.getConfigPath()) 
-
+        
+def checkInputSequencePaths(exp):
+    for event, seq in exp.seqMap.items():
+        if not os.path.exists(seq):
+            print "WARNING: %s does not exist" % seq
+            
 def main():
     usage = "usage: %prog [options] <experiment> <output project path>"
     description = "Setup a multi-cactus project using an experiment xml as template"
@@ -128,7 +133,8 @@ def main():
     if os.path.isdir(options.path) or os.path.isfile(options.path):
         raise RuntimeError("Output project path %s exists\n" % options.path)
     
-    expTemplate = ExperimentWrapper(ET.parse(options.expFile).getroot()) 
+    expTemplate = ExperimentWrapper(ET.parse(options.expFile).getroot())
+    checkInputSequencePaths(expTemplate) 
     mcProj = createMCProject(expTemplate.getTree(), options)
     createFileStructure(mcProj, expTemplate, options)
    # mcProj.check()
