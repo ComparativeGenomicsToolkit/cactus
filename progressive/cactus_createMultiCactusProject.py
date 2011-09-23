@@ -31,10 +31,10 @@ def createMCProject(tree, options):
     for name, node in mcProj.mcTree.subtreeRoots.items():
         expPath = "%s/%s/%s_experiment.xml" % (options.path, name, name)
         mcProj.expMap[name] = os.path.abspath(expPath)
-    if options.outgroup:
+    if options.outgroup or options.outgroupLeaves:
         mcProj.outgroup = GreedyOutgroup()
         mcProj.outgroup.importTree(mcProj.mcTree)
-        mcProj.outgroup.greedy()
+        mcProj.outgroup.greedy(options.outgroupLeaves)
     return mcProj
 
 # progressive alignment relies on input sequences having dots and being 
@@ -116,6 +116,8 @@ def main():
                       default="Anc")
     parser.add_option("--outgroup", dest="outgroup", action="store_true", 
                       default = False, help="Assign outgroups")
+    parser.add_option("--outgroupLeaves", dest="outgroupLeaves", action="store_true",
+                      default = False, help="Assign (only leaves as) outgroups")
     parser.add_option("--self", dest="selfAlign", action="store_true", 
                       default = False, help="Align each sequence to itself")
     

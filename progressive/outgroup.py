@@ -4,10 +4,9 @@
 #
 #Released under the MIT license, see LICENSE.txt
 
-""" Compute outgroups for subtrees. Currently uses simple heuristic:
-for a leaf: use the nearest other leaf
-otherwise node x: find nearest node at height lower than x that
-is not in a subtree of x.  
+""" Compute outgroups for subtrees by greedily finding
+the nearest valid candidate.  has option to only assign
+leaves as outgroups
 
 """
 
@@ -89,7 +88,7 @@ class GreedyOutgroup:
     # greedily assign closest possible valid outgroup
     # all outgroups are stored in self.ogMap
     # edges between leaves ARE NOT kept in the dag         
-    def greedy(self):
+    def greedy(self, justLeaves = False):
         orderedPairs = []
         for source, sinks in self.dm.items():
             for sink, dist in sinks.items():
@@ -107,6 +106,10 @@ class GreedyOutgroup:
             # skip leaves (as sources)
             if len(self.dag.out_edges(source)) == 0:
                 finished.add(source)
+                
+            # skip internal as source if param specified
+            if justLeaves == True and len(self.dag.out_edges(sink)) > 0:
+                continue
     
             if source not in finished and \
             not self.onSamePath(source, sink):
@@ -116,14 +119,13 @@ class GreedyOutgroup:
                     self.ogMap[source] = (sink, dist)                    
                 else:
                     self.dag.remove_edge(source, sink)
-    
-             
 
 def main():
     usage = "usage: %prog <project> <output graphviz .dot file>"
     description = "TEST: draw the outgroup DAG"
     parser = OptionParser(usage=usage, description=description)
-    
+    parser.add_option("--justLeaves", dest="justLeaves", action="store_true", 
+                      default = False, help="Assign only leaves as outgroups")
     options, args = parser.parse_args()
     
     if len(args) != 2:
@@ -134,7 +136,7 @@ def main():
     proj.readXML(args[0])
     outgroup = GreedyOutgroup()
     outgroup.importTree(proj.mcTree)
-    outgroup.greedy()
+    outgroup.greedy(options.justLeaves)
     NX.drawing.nx_agraph.write_dot(outgroup.dag, args[1])
     return 0
 
