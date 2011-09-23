@@ -75,11 +75,15 @@ class GreedyOutgroup:
                 self.dag.add_edge(parent, child)
                 self.stripNonEvents(child, subtreeRoots)
     
-    # is sink below source in the dag?            
-    def below(self, source, sink):
+    # are source and sink son same path to to root? if so,
+    # they shouldn't be outgroups of each other.             
+    def onSamePath(self, source, sink):
         if source in self.dmDirected:
             if sink in self.dmDirected[source]:
                 return True
+        if sink in self.dmDirected:
+            if source in self.dmDirected[sink]:
+                return True 
         return False
     
     # greedily assign closest possible valid outgroup
@@ -99,11 +103,14 @@ class GreedyOutgroup:
             source = candidate[1][0]
             sink = candidate[1][1]
             dist = candidate[0]
+            
+            # skip leaves (as sources)
+            if len(self.dag.out_edges(source)) == 0:
+                finished.add(source)
+    
             if source not in finished and \
-            not self.below(source, sink):
-                if len(self.dag.out_edges(source)) > 0 or\
-                    len(self.dag.out_edges(sink)) > 0:
-                    self.dag.add_edge(source, sink, weight=dist, info='outgroup')
+            not self.onSamePath(source, sink):
+                self.dag.add_edge(source, sink, weight=dist, info='outgroup')
                 if NX.is_directed_acyclic_graph(self.dag):
                     finished.add(source)
                     self.ogMap[source] = (sink, dist)                    
