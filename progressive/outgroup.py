@@ -107,7 +107,7 @@ class GreedyOutgroup:
             if len(self.dag.out_edges(source)) == 0:
                 finished.add(source)
                 
-            # skip internal as source if param specified
+            # skip internal as sink if param specified
             if justLeaves == True and len(self.dag.out_edges(sink)) > 0:
                 continue
     
