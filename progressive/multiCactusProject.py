@@ -33,8 +33,7 @@ class MultiCactusProject:
     def readXML(self, path):
         xmlRoot = ET.parse(path).getroot()
         treeElem = xmlRoot.find("tree")
-        tree = newickTreeParser(treeElem.text, sortNonBinaryNodes=True, 
-                                reportUnaryNodes=True)
+        tree = newickTreeParser(treeElem.text, reportUnaryNodes=True)
         self.mcTree = MultiCactusTree(tree)
         self.expMap = dict()
         cactusPathElemList = xmlRoot.findall("cactus")
@@ -83,8 +82,7 @@ class MultiCactusProject:
         for name, path in self.expMap.items():
             expRoot = ET.parse(path).getroot()
             tree = expRoot.attrib["species_tree"]
-            expTree = newickTreeParser(treeElem.text, sortNonBinaryNodes=True, 
-                                       reportUnaryNodes=True)
+            expTree = newickTreeParser(treeElem.text, reportUnaryNodes=True)
             self.mcTree.checkSubtree(expTree)
             
 if __name__ == '__main__':

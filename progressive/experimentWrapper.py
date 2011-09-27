@@ -71,8 +71,7 @@ class ExperimentWrapper:
     
     def getTree(self):
         treeString = self.xmlRoot.attrib["species_tree"]
-        return newickTreeParser(treeString, sortNonBinaryNodes=True, 
-                                reportUnaryNodes=True)
+        return newickTreeParser(treeString, reportUnaryNodes=True)
     
     def getSequence(self, event):
         return self.seqMap[event]
@@ -113,8 +112,7 @@ class ExperimentWrapper:
         # don't support updates until there's a reason to
         assert self.getOutgroupName() is None
         treeString = self.xmlRoot.attrib["species_tree"]
-        tree = newickTreeParser(treeString, sortNonBinaryNodes=True, 
-                                reportUnaryNodes=True)
+        tree = newickTreeParser(treeString, reportUnaryNodes=True)
         if tree.left is not None and tree.right is not None:
             ogNode = BinaryTree(distance / 2, False, None, None, name)
             newRoot = BinaryTree(distance / 2, True, tree, ogNode, "")
@@ -154,8 +152,7 @@ class ExperimentWrapper:
     # map event names to sequence paths
     def buildSequenceMap(self):
         treeString = self.xmlRoot.attrib["species_tree"]
-        tree = newickTreeParser(treeString, sortNonBinaryNodes=True, 
-                                reportUnaryNodes=True)
+        tree = newickTreeParser(treeString, reportUnaryNodes=True)
         sequenceString = self.xmlRoot.attrib["sequences"]
         sequences = sequenceString.split()
         nameIterator = iter(sequences)
