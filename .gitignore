@@ -1,7 +1,9 @@
+.pydevproject
+.project
+.cproject
 bin/*
 lib/*
 *.o
 *.pyc
 /bin
 /lib
-
