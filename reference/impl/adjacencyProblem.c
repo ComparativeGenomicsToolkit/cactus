@@ -124,6 +124,8 @@ stList *makeReferenceGreedily(stList *stubs, stList *chainsList, double *z, int3
         stList_append(reference, referenceInterval_construct(_5Node, _3Node, NULL));
     }
     stList_destructIterator(it);
+    assert(stList_length(stubs) > 0);
+    assert(stList_length(reference) > 0);
 
     /*
      * Now greedily insert the chains.
@@ -136,15 +138,17 @@ stList *makeReferenceGreedily(stList *stubs, stList *chainsList, double *z, int3
         maxReferenceIntervalInsertion.orientation = 0;
         maxReferenceIntervalInsertion.referenceInterval = NULL;
         stSortedSetIterator *it2 = stSortedSet_getIterator(chains);
+        assert(stList_length(chainsList) > 0);
         stIntTuple *chain;
         /*
-         * Fine the best possible insertion.
+         * Find the best possible insertion.
          */
         while ((chain = stSortedSet_getNext(it2)) != NULL) {
             stList *referenceIntervalInsertions = getReferenceIntervalInsertions(reference, chain, z, nodeNumber);
+            assert(stList_length(referenceIntervalInsertions) > 0);
             for (int32_t i = 0; i < stList_length(referenceIntervalInsertions); i++) {
                 ReferenceIntervalInsertion *referenceIntervalInsertion = stList_get(referenceIntervalInsertions, i);
-                if (maxReferenceIntervalInsertion.score < referenceIntervalInsertion->score) {
+                if (maxReferenceIntervalInsertion.score < referenceIntervalInsertion->score || maxReferenceIntervalInsertion.chain == NULL) {
                     maxReferenceIntervalInsertion.score = referenceIntervalInsertion->score;
                     maxReferenceIntervalInsertion.chain = referenceIntervalInsertion->chain;
                     maxReferenceIntervalInsertion.orientation = referenceIntervalInsertion->orientation;
