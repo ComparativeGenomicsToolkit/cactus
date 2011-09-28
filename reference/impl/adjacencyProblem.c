@@ -124,8 +124,8 @@ stList *makeReferenceGreedily(stList *stubs, stList *chainsList, double *z, int3
         stList_append(reference, referenceInterval_construct(_5Node, _3Node, NULL));
     }
     stList_destructIterator(it);
-    assert(stList_length(stubs) > 0);
-    assert(stList_length(reference) > 0);
+    //assert(stList_length(stubs) > 0);
+    //assert(stList_length(reference) > 0);
 
     /*
      * Now greedily insert the chains.
