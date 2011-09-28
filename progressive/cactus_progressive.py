@@ -29,6 +29,7 @@ from time import sleep
 
 from sonLib.bioio import getTempFile
 from sonLib.bioio import printBinaryTree
+from sonLib.bioio import system
 
 from jobTree.src.bioio import getLogLevelString
 from jobTree.src.bioio import logger
@@ -135,7 +136,7 @@ class ExtractReference(Target):
             (self.experiment.getDiskDatabaseString(), self.event,
              self.experiment.getReferencePath(), getLogLevelString())            
             
-            assert os.system(cmdLine) == 0
+            system(cmdLine)
             
         self.setFollowOnTarget(BuildMAF(self.options, self.project,
                                         self.experiment,
@@ -159,7 +160,7 @@ class BuildMAF(Target):
             (self.experiment.getDiskDatabaseString(),
              self.experiment.getMAFPath(), getLogLevelString())            
 
-            assert os.system(cmdLine) == 0 
+            system(cmdLine) 
             removeOutgroupFromMaf(self.experiment.getMAFPath(), 
                                   self.experiment.getOutgroupName()) 
         
