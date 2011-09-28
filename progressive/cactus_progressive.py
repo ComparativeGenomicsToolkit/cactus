@@ -202,7 +202,7 @@ class JoinMAF(Target):
                                                   self.experiment.getMAFPath(),
                                                   childExp.getMAFPath(),
                                                   self.experiment.getMAFPath())
-                    assert os.system(cmdline) == 0
+                    system(cmdline)
                     
                     move("%s_tmp.maf" % self.experiment.getMAFPath(), 
                          self.experiment.getMAFPath())
