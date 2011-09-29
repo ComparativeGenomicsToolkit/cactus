@@ -96,7 +96,6 @@ def runCactusCore(cactusDiskDatabaseString, alignmentFile,
                   trim=None,
                   minimumTreeCoverage=None,
                   blockTrim=None,
-                  ignoreAllChainsLessThanMinimumTreeCoverage=False,
                   minimumBlockDegree=None,
                   requiredSpecies=None,
                   singleCopySpecies=None):
@@ -113,7 +112,6 @@ def runCactusCore(cactusDiskDatabaseString, alignmentFile,
         trim = ""
     minimumTreeCoverage = nameValue("minimumTreeCoverage", minimumTreeCoverage, float)
     blockTrim = nameValue("blockTrim", blockTrim, int)
-    ignoreAllChainsLessThanMinimumTreeCoverage = nameValue("ignoreAllChainsLessThanMinimumTreeCoverage", ignoreAllChainsLessThanMinimumTreeCoverage, bool)
     minimumBlockDegree = nameValue("minimumDegree", minimumBlockDegree, int)
     minimumChainLength = nameValue("minimumChainLength", minimumChainLength, int)
     maximumGroupSize = nameValue("maximumGroupSize", maximumGroupSize, int)
@@ -125,9 +123,9 @@ def runCactusCore(cactusDiskDatabaseString, alignmentFile,
         singleCopySpecies = "--singleCopySpecies '%s'" % singleCopySpecies
     else:
         singleCopySpecies = ""
-    command = "cactus_core --cactusDisk '%s' --flowerName %s --alignments %s --logLevel %s %s %s %s %s %s %s %s %s %s %s %s %s %s" % \
+    command = "cactus_core --cactusDisk '%s' --flowerName %s --alignments %s --logLevel %s %s %s %s %s %s %s %s %s %s %s %s %s" % \
     (cactusDiskDatabaseString, flowerName, alignmentFile, logLevel, writeDebugFiles, annealingRounds, deannealingRounds, alignRepeatsAtRound,
-     trim, minimumTreeCoverage, blockTrim, ignoreAllChainsLessThanMinimumTreeCoverage,
+     trim, minimumTreeCoverage, blockTrim, 
      minimumBlockDegree, requiredSpecies, singleCopySpecies, minimumChainLength, maximumGroupSize)
     #print "command to run", command
     #assert 0
