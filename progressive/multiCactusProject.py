@@ -20,10 +20,9 @@ import filecmp
 
 from optparse import OptionParser
 
-from sonLib.bioio import printBinaryTree
-from sonLib.bioio import newickTreeParser
 from cactus.progressive.multiCactusTree import MultiCactusTree
 from cactus.progressive.experimentWrapper import ExperimentWrapper
+from sonLib.nxnewick import NXNewick
 
 class MultiCactusProject:
     def __init__(self):
@@ -33,20 +32,19 @@ class MultiCactusProject:
     def readXML(self, path):
         xmlRoot = ET.parse(path).getroot()
         treeElem = xmlRoot.find("tree")
-        tree = newickTreeParser(treeElem.text, reportUnaryNodes=True)
-        self.mcTree = MultiCactusTree(tree)
+        self.mcTree = MultiCactusTree(NXNewick().parseString(treeElem.text))
         self.expMap = dict()
         cactusPathElemList = xmlRoot.findall("cactus")
         for cactusPathElem in cactusPathElemList:
             nameElem = cactusPathElem.attrib["name"]
             pathElem = cactusPathElem.attrib["experiment_path"]
             self.expMap[nameElem] = pathElem
-        self.mcTree.assignSubtreeRoots(self.expMap)
+        self.mcTree.assignSubtreeRootNames(self.expMap)
         
     def writeXML(self, path):
         xmlRoot = ET.Element("multi_cactus")
         treeElem = ET.Element("tree")
-        treeElem.text = printBinaryTree(self.mcTree.tree, True)
+        treeElem.text = NXNewick().writeString(self.mcTree)
         xmlRoot.append(treeElem)
         for name, expPath in self.expMap.items():
             cactusPathElem = ET.Element("cactus")
@@ -64,26 +62,11 @@ class MultiCactusProject:
     # doesn't work for the rooot!!!!
     def sequencePath(self, eventName):
         assert eventName in self.expMap
-        node = self.mcTree.subtreeRoots[eventName]
-        root = self.mcTree.getSubtreeRoot(node)
-        parentEvent = root.iD            
+        parentEvent = self.mcTree.getSubtreeRoot(eventName)           
         expPath = self.expMap[parentEvent]
         expElem = ET.parse(expPath).getroot()
         exp = ExperimentWrapper(expElem)
         return exp.getSequence(eventName)
-        
-    # verify that every workflow experiment tree is a subtree of 
-    # the global tree
-    def check(self):
-        # make sure the maps are consistent
-        for name, path in self.expMap.items():
-            assert name in self.mcTree.subtreeRoots
-        # make sure subtrees are consistent
-        for name, path in self.expMap.items():
-            expRoot = ET.parse(path).getroot()
-            tree = expRoot.attrib["species_tree"]
-            expTree = newickTreeParser(treeElem.text, reportUnaryNodes=True)
-            self.mcTree.checkSubtree(expTree)
             
 if __name__ == '__main__':
     main()

@@ -7,33 +7,19 @@
 """ Remove outgroup from a maf file. 
 
 """
-import unittest
 
 import os
-import xml.etree.ElementTree as ET
-from xml.dom import minidom
 import sys
-import random
-import math
-import copy
-import filecmp
 
-from optparse import OptionParser
-
-from sonLib.bioio import printBinaryTree
-from sonLib.bioio import newickTreeParser
-from cactus.progressive.multiCactusTree import MultiCactusTree
-from cactus.progressive.experimentWrapper import ExperimentWrapper
+from sonLib.nxtree import NXTree
+from sonLib.nxnewick import NXNewick
 
 def removeOutgroupLeafFromTree(tree, event):
-    if tree:
-        if tree.left and tree.left.iD == event and not tree.left.internal:
-            tree.left = None            
-        elif tree.right and tree.right.iD == event and not tree.right.internal:
-            tree.right = None
-        else:
-            removeOutgroupLeafFromTree(tree.left, event)
-            removeOutgroupLeafFromTree(tree.right, event)
+    for leaf in tree.getLeaves():
+        if tree.getName(leaf) == event:
+            tree.nxDg.remove_node(leaf)
+            return
+    assert False
     
 # quick and dirty friday afternoon! 
 def removeOutgroupFromMaf(mafPath, event):
@@ -42,13 +28,14 @@ def removeOutgroupFromMaf(mafPath, event):
     tempPath = "%s.og" % mafPath
     inFile = open(mafPath)
     outFile = open(tempPath, 'w')
-    num = 1 
+    num = 1
+    newick = NXNewick() 
     for line in inFile:
         if num == 2:
             treeString = line.split()[2]
-            tree = newickTreeParser(treeString, reportUnaryNodes=True)
+            tree = newick.parseString(treeString)
             removeOutgroupLeafFromTree(tree, event)
-            line = line.replace(treeString, printBinaryTree(tree, True))            
+            line = line.replace(treeString, newick.writeString(tree))            
         if line[0] == '#' or line.find(event) < 0:
             outFile.write(line)
         num += 1

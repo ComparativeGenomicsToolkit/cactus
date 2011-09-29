@@ -27,7 +27,6 @@ from cactus.shared.test import getBatchSystem
 
 from cactus.shared.common import runCactusProgressive
 from cactus.shared.common import runCactusCreateMultiCactusProject
-from jobTree.test.jobTree.jobTreeTest import runJobTreeStatusAndFailIfNotComplete
 
 class TestCase(unittest.TestCase):
     
@@ -41,7 +40,7 @@ class TestCase(unittest.TestCase):
         
     def testCactus_Random(self):
         runWorkflow_multipleExamples(getCactusInputs_random, 
-                                     testNumber=2,
+                                     testNumber=5,
                                      testRestrictions=(TestStatus.TEST_SHORT,),
                                      batchSystem=self.batchSystem, buildJobTreeStats=True,
                                      cactusWorkflowFunction=self.progressiveFunction)
@@ -49,7 +48,7 @@ class TestCase(unittest.TestCase):
     def testCactus_Random_UseOutgroup(self):
         self.useOutgroup = True
         runWorkflow_multipleExamples(getCactusInputs_random, 
-                                     testNumber=2,
+                                     testNumber=5,
                                      testRestrictions=(TestStatus.TEST_SHORT,),
                                      batchSystem=self.batchSystem, buildJobTreeStats=True,
                                      cactusWorkflowFunction=self.progressiveFunction)
@@ -57,7 +56,7 @@ class TestCase(unittest.TestCase):
     def testCactus_Random_DoSelfAlignment(self):
         self.doSelfAlignment = True
         runWorkflow_multipleExamples(getCactusInputs_random, 
-                                     testNumber=2,
+                                     testNumber=5,
                                      testRestrictions=(TestStatus.TEST_SHORT,),
                                      batchSystem=self.batchSystem, buildJobTreeStats=True,
                                      cactusWorkflowFunction=self.progressiveFunction)
@@ -66,7 +65,7 @@ class TestCase(unittest.TestCase):
         self.useOutgroup = True
         self.doSelfAlignment = True
         runWorkflow_multipleExamples(getCactusInputs_random, 
-                                     testNumber=2,
+                                     testNumber=5,
                                      testRestrictions=(TestStatus.TEST_SHORT,),
                                      batchSystem=self.batchSystem, buildJobTreeStats=True,
                                      cactusWorkflowFunction=self.progressiveFunction)
@@ -116,7 +115,6 @@ class TestCase(unittest.TestCase):
                              batchSystem=batchSystem, 
                              #buildTrees=buildTrees, buildFaces=buildFaces, buildReference=buildReference,
                              jobTreeStats=jobTreeStats)
-        runJobTreeStatusAndFailIfNotComplete(jobTreeDir)
         system("rm -rf %s" % tempDir)
     
 def main():

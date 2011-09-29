@@ -12,11 +12,11 @@ from optparse import OptionParser
 import xml.etree.ElementTree as ET
 import copy
 
-from sonLib.bioio import printBinaryTree
 from cactus.progressive.multiCactusProject import MultiCactusProject
 from cactus.progressive.multiCactusTree import MultiCactusTree
 from cactus.progressive.experimentWrapper import ExperimentWrapper
 from cactus.progressive.outgroup import GreedyOutgroup
+from sonLib.nxnewick import NXNewick
 
 prepCmdLine = 'cactus_addFastaHeaderDots.py TARGET_FILE OUT_FILE --event EVENT_STRING'
 
@@ -28,7 +28,7 @@ def createMCProject(tree, options):
     mcProj.mcTree = mcTree
     if options.selfAlign:
         mcTree.addSelfEdges()
-    for name, node in mcProj.mcTree.subtreeRoots.items():
+    for name in mcProj.mcTree.getSubtreeRootNames():
         expPath = "%s/%s/%s_experiment.xml" % (options.path, name, name)
         mcProj.expMap[name] = os.path.abspath(expPath)
     if options.outgroup or options.outgroupLeaves:

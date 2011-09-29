@@ -20,10 +20,8 @@ import copy
 import filecmp
 from optparse import OptionParser
 
-from sonLib.bioio import newickTreeParser
-from sonLib.bioio import printBinaryTree
-from sonLib.bioio import BinaryTree
 from cactus.progressive.multiCactusTree import MultiCactusTree
+from sonLib.nxnewick import NXNewick
 from cactus.shared.common import cactusRootPath
 
 class ExperimentWrapper:
@@ -71,7 +69,7 @@ class ExperimentWrapper:
     
     def getTree(self):
         treeString = self.xmlRoot.attrib["species_tree"]
-        return newickTreeParser(treeString, reportUnaryNodes=True)
+        return NXNewick().parseString(treeString)
     
     def getSequence(self, event):
         return self.seqMap[event]
@@ -109,27 +107,13 @@ class ExperimentWrapper:
         return None
     
     def addOutgroup(self, name, path, distance):
-        # don't support updates until there's a reason to
         assert self.getOutgroupName() is None
-        treeString = self.xmlRoot.attrib["species_tree"]
-        tree = newickTreeParser(treeString, reportUnaryNodes=True)
-        if tree.left is not None and tree.right is not None:
-            ogNode = BinaryTree(distance / 2, False, None, None, name)
-            newRoot = BinaryTree(distance / 2, True, tree, ogNode, "")
-            self.xmlRoot.attrib["species_tree"] = printBinaryTree(newRoot, True)
-        else:
-            ogNode = BinaryTree(distance, False, None, None, name)
-            if tree.left is None:
-                tree.left = ogNode
-                assert tree.right
-            else:
-                tree.right = ogNode
-                assert tree.left
-            self.xmlRoot.attrib["species_tree"] = printBinaryTree(tree, True)
-        rs = []
-        for leafName, leafPath in self.seqMap.items():
-            rs.append(leafName)
-        self.xmlRoot.attrib["required_species"] = ' '.join(rs)
+        tree = MultiCactusTree(self.getTree())
+        tree.addOutgroup(name, distance)
+        self.xmlRoot.attrib["species_tree"] = NXNewick().writeString(tree)   
+        leaves = [tree.getName(i) for i in tree.getLeaves()]
+        leaves.remove(name)     
+        self.xmlRoot.attrib["required_species"] = ' '.join(leaves)
         self.xmlRoot.attrib["single_copy_species"] = name
         seqs = "%s %s"  % (self.xmlRoot.attrib["sequences"], path)
         self.xmlRoot.attrib["sequences"] = seqs
@@ -151,21 +135,14 @@ class ExperimentWrapper:
     
     # map event names to sequence paths
     def buildSequenceMap(self):
-        treeString = self.xmlRoot.attrib["species_tree"]
-        tree = newickTreeParser(treeString, reportUnaryNodes=True)
+        tree = self.getTree()
         sequenceString = self.xmlRoot.attrib["sequences"]
         sequences = sequenceString.split()
         nameIterator = iter(sequences)
         seqMap = dict()
-        dfStack = [tree]
-        while dfStack:
-            node = dfStack.pop(len(dfStack)-1)
-            if node is not None:
-                if node.left is None and node.right is None:
-                    seqMap[node.iD] = nameIterator.next()
-                else:
-                    dfStack.append(node.right)
-                    dfStack.append(node.left)
+        for node in tree.postOrderTraversal():
+            if tree.isLeaf(node):
+                seqMap[tree.getName(node)] = nameIterator.next()
         return seqMap
     
     def getDbElem(self):
@@ -180,22 +157,16 @@ class ExperimentWrapper:
         if seqMap is not None:
             self.seqMap = seqMap
         newMap = dict()
-        treeString = printBinaryTree(tree, True)
+        treeString = NXNewick().writeString(tree)
         self.xmlRoot.attrib["species_tree"] = treeString
         sequences = "" 
-        dfStack = [tree]
-        while dfStack:
-            node = dfStack.pop(len(dfStack)-1)
-            if node is not None:
-                if node.left is None and node.right is None:
-                    assert node.iD in seqMap  
-                    if len(sequences) > 0:
-                        sequences += " "                  
-                    sequences += seqMap[node.iD]
-                    newMap[node.iD] = seqMap[node.iD] 
-                else:
-                    dfStack.append(node.right)
-                    dfStack.append(node.left)
+        for node in tree.postOrderTraversal():
+            if tree.isLeaf(node):
+                nodeName = tree.getName(node)
+                if len(sequences) > 0:
+                    sequences += " "                  
+                sequences += seqMap[nodeName]
+                newMap[nodeName] = seqMap[nodeName]
         self.xmlRoot.attrib["sequences"] = sequences
         self.seqMap = newMap
         
