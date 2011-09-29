@@ -19,11 +19,6 @@ import networkx as NX
 
 from optparse import OptionParser
 
-from sonLib.bioio import printBinaryTree
-from sonLib.tree import binaryTree_depthFirstNumbers
-from sonLib.tree import getDistanceMatrix
-from sonLib.tree import BinaryTree
-
 from cactus.progressive.multiCactusProject import MultiCactusProject
 from cactus.progressive.multiCactusTree import MultiCactusTree
 
@@ -32,25 +27,17 @@ class GreedyOutgroup:
         self.dag = None
         self.dm = None
         self.dmDirected = None
-        self.rootName = None
+        self.root = None
         self.ogMap = None
+        self.mcTree = None
         
     # add edges from sonlib tree to self.dag
     # compute self.dm: an undirected distance matrix
     def importTree(self, mcTree):
-        def importNode(node):        
-            if node and node.left:
-                w = node.left.distance
-                self.dag.add_edge(node.iD, node.left.iD, weight=w)
-                importNode(node.left)
-            if node and node.right:
-                w = node.right.distance
-                self.dag.add_edge(node.iD, node.right.iD, weight=w)
-                importNode(node.right)
-        self.dag = NX.DiGraph()
-        importNode(mcTree.tree)
-        self.rootName = mcTree.tree.iD
-        self.stripNonEvents(self.rootName, mcTree.subtreeRoots)
+        self.mcTree = mcTree
+        self.dag = mcTree.nxDg.copy()
+        self.root = mcTree.rootId
+        self.stripNonEvents(self.root, mcTree.subtreeRoots)
         self.dmDirected = NX.algorithms.shortest_paths.weighted.\
         all_pairs_dijkstra_path_length(self.dag)
         graph = NX.Graph(self.dag)
@@ -58,18 +45,18 @@ class GreedyOutgroup:
         all_pairs_dijkstra_path_length(graph)
  
     # get rid of any node that's not an event
-    def stripNonEvents(self, name, subtreeRoots):
+    def stripNonEvents(self, id, subtreeRoots):
         children = []
-        for outEdge in self.dag.out_edges(name):
+        for outEdge in self.dag.out_edges(id):
             children.append(outEdge[1])
-        parentCount = len(self.dag.in_edges(name))
+        parentCount = len(self.dag.in_edges(id))
         assert parentCount <= 1
         parent = None
         if parentCount == 1:
             parent = self.dag.in_edges[0][0]
-        if name not in subtreeRoots and len(children) >= 1:
+        if id not in subtreeRoots and len(children) >= 1:
             assert parentCount == 1
-            self.dag.remove_node(name)
+            self.dag.remove_node(id)
             for child in children:
                 self.dag.add_edge(parent, child)
                 self.stripNonEvents(child, subtreeRoots)
@@ -92,7 +79,7 @@ class GreedyOutgroup:
         orderedPairs = []
         for source, sinks in self.dm.items():
             for sink, dist in sinks.items():
-                if source != self.rootName and sink != self.rootName:
+                if source != self.root and sink != self.root:
                     orderedPairs.append((dist, (source, sink)))
         orderedPairs.sort(key = lambda x: x[0])
         finished = set()
@@ -116,7 +103,9 @@ class GreedyOutgroup:
                 self.dag.add_edge(source, sink, weight=dist, info='outgroup')
                 if NX.is_directed_acyclic_graph(self.dag):
                     finished.add(source)
-                    self.ogMap[source] = (sink, dist)                    
+                    sourceName = self.mcTree.getName(source)
+                    sinkName = self.mcTree.getName(sink)
+                    self.ogMap[sourceName] = (sinkName, dist)                    
                 else:
                     self.dag.remove_edge(source, sink)
 
