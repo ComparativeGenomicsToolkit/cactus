@@ -150,9 +150,18 @@ class MultiCactusTree(NXTree):
                 weight = None
                 if parent:
                     weight = self.getWeight(parent, node)
-                self.insertAbove(node, newNode, self.getName(node) + suffix, weight)
+                newName = self.makeSelfName(self.getName(node), suffix)
+                self.insertAbove(node, newNode, newName, weight)
                 self.subtreeRoots.add(newNode)
-                
+    
+    # make a self name, adding the suffix BEFORE the dot
+    def makeSelfName(self, name, suffix):
+        tokens = name.split('.')
+        newName = tokens[0] + suffix
+        for i in range(1, len(tokens)):
+            newName += ".%s" % tokens[i]
+        return newName 
+    
     # tack an outgroup onto the root
     # if root is a leaf, we make a new root above. 
     def addOutgroup(self, ogName, distance):
