@@ -640,6 +640,8 @@ float treeCoverage(struct PinchVertex *vertex, Flower *flower) {
         assert(lengthBlackEdges(vertex) > 0);
         st_uglyf("I got %i %f %f %i %i %s\n", lengthBlackEdges(vertex), treeCoverage, wholeTreeCoverage, getFirstBlackEdge(vertex)->piece->end, getFirstBlackEdge(vertex)->piece->start,
                 eventTree_makeNewickString(flower_getEventTree(flower)));
+        st_logDebug("I got %i %f %f %i %i %s\n", lengthBlackEdges(vertex), treeCoverage, wholeTreeCoverage, getFirstBlackEdge(vertex)->piece->end, getFirstBlackEdge(vertex)->piece->start,
+                eventTree_makeNewickString(flower_getEventTree(flower)));
     }
     assert(treeCoverage >= -0.001);
     assert(treeCoverage <= 1.0001);
