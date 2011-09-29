@@ -142,10 +142,15 @@ class MultiCactusTree(NXTree):
         nextIndex = self.getNextIndex()
         traversal = [i for i in self.breadthFirstTraversal()]
         for node in traversal:
-            if node in self.subtreeRoots or self.isLeaf(node):
+            if (node in self.subtreeRoots or self.isLeaf(node)) and\
+            node != self.rootId:
                 newNode = nextIndex
                 nextIndex += 1
-                self.insertAbove(node, newNode, self.getName(node) + suffix)
+                parent = self.getParent(node)
+                weight = None
+                if parent:
+                    weight = self.getWeight(parent, node)
+                self.insertAbove(node, newNode, self.getName(node) + suffix, weight)
                 self.subtreeRoots.add(newNode)
                 
     # tack an outgroup onto the root

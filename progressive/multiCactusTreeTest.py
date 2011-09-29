@@ -58,7 +58,7 @@ class TestCase(unittest.TestCase):
             assert subtree == trueSubtrees[i]        
     
     def testAddSelf(self):
-        trueSelf = '(((((((COW)COW_self:0.06,(PIG)PIG_self:0.06)Anc2)Anc2_self:0.104728,(((CAT)CAT_self:0.07,(DOG)DOG_self:0.07)Anc3)Anc3_self:0.087381)Anc1)Anc1_self:0.04,(((((RAT)RAT_self:0.081244,(MOUSE)MOUSE_self:0.072818)Anc5)Anc5_self:0.260342,(((BABOON)BABOON_self:0.044568,(((CHIMP)CHIMP_self:0.009727,(HUMAN)HUMAN_self:0.006969)Anc7)Anc7_self:0.025291)Anc6)Anc6_self:0.11)Anc4)Anc4_self:0.02326)Anc0)Anc0_self;'
+        trueSelf = '((((((COW:0.06)COW_self:0.06,(PIG:0.06)PIG_self:0.06)Anc2:0.104728)Anc2_self:0.104728,(((CAT:0.07)CAT_self:0.07,(DOG:0.07)DOG_self:0.07)Anc3:0.087381)Anc3_self:0.087381)Anc1)Anc1_self:0.04,(((((RAT:0.081244)RAT_self:0.081244,(MOUSE:0.072818)MOUSE_self:0.072818)Anc5:0.260342)Anc5_self:0.260342,(((BABOON:0.044568)BABOON_self:0.044568,(((CHIMP:0.009727)CHIMP_self:0.009727,(HUMAN:0.006969)HUMAN_self:0.006969)Anc7:0.025291)Anc7_self:0.025291)Anc6:0.11)Anc6_self:0.11)Anc4)Anc4_self:0.02326)Anc0;'
         tree = MultiCactusTree(self.mcTree1)
         tree.nameUnlabeledInternalNodes()
         tree.computeSubtreeRoots()
