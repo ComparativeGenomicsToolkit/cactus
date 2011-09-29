@@ -223,6 +223,13 @@ class BatchPreprocessor(Target):
                                           prepNode.get("compressFiles", default="True").lower() == "true",
                                           prepNode.attrib["preprocessorString"])
         
+        #take a quick look at the input
+        for i in self.inSequences:
+            if not os.path.exists(i):
+                raise IOError("Cannot find input sequence path %s" % i)
+            if len(fileList(i)) == 0:
+                raise IOError("Input sequence path is empty dir %s" % i)
+        
         #iterate over each input fasta file
         inSeqFiles = []
         map(inSeqFiles.extend, map(fileList, self.inSequences))
