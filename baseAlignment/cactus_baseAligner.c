@@ -120,6 +120,7 @@ int main(int argc, char *argv[]) {
     cCIP->minimumDegree = 0;
     cCIP->minimumChainLength = 0;
     cCIP->maximumAdjacencyComponentSize = INT64_MAX;
+    cCIP->minimumTreeCoverage = 0;
 
     /*
      * Parse the options.

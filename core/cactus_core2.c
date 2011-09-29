@@ -68,10 +68,6 @@ void usage() {
             stderr,
             "-n --blockTrim : (int >= 0) The number of bases to trim from the ends of each block in a chain before accepting, this filtering is done after choosing the length of chains\n");
 
-    fprintf(
-            stderr,
-            "-s --ignoreAllChainsLessThanMinimumTreeCoverage : (int >= 0) When adding alignmnts back into the graph, ignore chains that don't meet the minimum tree coverage (instead of allowing them to be formed and therefore to define the group structure, but not keeping them in the output)\n");
-
     fprintf(stderr,
             "-p --minimumDegree : (int >= 0) Minimum number of sequences in a block to be included in the output graph\n");
 
@@ -146,15 +142,14 @@ int main(int argc, char *argv[]) {
                         "alignRepeatsAtRound", required_argument, 0, 'j' }, { "trim", required_argument, 0, 'k' }, {
                         "trimChange", required_argument, 0, 'l', },
                 { "minimumTreeCoverage", required_argument, 0, 'm' }, { "blockTrim", required_argument, 0, 'n' }, {
-                        "deannealingRounds", required_argument, 0, 'o' }, {
-                        "ignoreAllChainsLessThanMinimumTreeCoverage", no_argument, 0, 's', }, { "minimumDegree",
+                        "deannealingRounds", required_argument, 0, 'o' }, { "minimumDegree",
                         required_argument, 0, 'p' }, { "requiredSpecies", required_argument, 0, 'q' }, {
                         "singleCopySpecies", required_argument, 0, 't' }, { "minimumChainLength", required_argument, 0,
                         'u' }, { "maximumGroupSize", required_argument, 0, 'v' }, { 0, 0, 0, 0 } };
 
         int option_index = 0;
 
-        key = getopt_long(argc, argv, "a:b:c:d:ehi:j:k:m:n:o:sp:q:t:", long_options, &option_index);
+        key = getopt_long(argc, argv, "a:b:c:d:ehi:j:k:m:n:o:p:q:t:", long_options, &option_index);
 
         if (key == -1) {
             break;
@@ -202,9 +197,6 @@ int main(int argc, char *argv[]) {
             case 'n':
                 k = sscanf(optarg, "%i", &cCIP->blockTrim);
                 assert(k == 1);
-                break;
-            case 's':
-                cCIP->ignoreAllChainsLessThanMinimumTreeCoverage = 1;
                 break;
             case 'p':
                 k = sscanf(optarg, "%i", &cCIP->minimumDegree);

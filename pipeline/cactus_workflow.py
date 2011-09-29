@@ -334,7 +334,6 @@ class CactusCoreWrapper(Target):
                       trim=[ int(i) for i in coreParameters.attrib["trim"].split() ],
                       minimumTreeCoverage=float(coreParameters.attrib["minimumTreeCoverage"]),
                       blockTrim=float(coreParameters.attrib["blockTrim"]),
-                      ignoreAllChainsLessThanMinimumTreeCoverage=bool(coreParameters.attrib["ignoreAllChainsLessThanMinimumTreeCoverage"]),
                       minimumBlockDegree=int(coreParameters.attrib["minimumBlockDegree"]),
                       requiredSpecies=self.options.requiredSpecies,
                       singleCopySpecies=self.options.singleCopySpecies,
