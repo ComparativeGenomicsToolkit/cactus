@@ -270,12 +270,11 @@ def main():
 
     project = MultiCactusProject()
     project.readXML(args[0])
-#    check no longer works, thanks to outgroup
-#    project.check()
     schedule = Schedule()
-    schedule.compute(project)
+    schedule.loadProject(project)
+    schedule.compute()
     if options.event == None:
-        options.event = project.mcTree.tree.iD
+        options.event = project.mcTree.getRootName()
     assert options.event in project.expMap
     
     baseTarget = ProgressiveDown(options, project, options.event, schedule)
