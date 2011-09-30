@@ -31,6 +31,7 @@ def fixHeader(header, num = "0", event=""):
         pref = pref + '.' + num
     
     event = event.split('.')[0]
+    event = event.split('_')[0]
     if pref.lower().find(event.lower()) != 0:
         pref = "%s_%s" % (event, pref)
     
