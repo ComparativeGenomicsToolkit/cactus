@@ -27,6 +27,7 @@ from cactus.shared.test import getBatchSystem
 
 from cactus.shared.common import runCactusProgressive
 from cactus.shared.common import runCactusCreateMultiCactusProject
+from jobTree.test.jobTree.jobTreeTest import runJobTreeStatusAndFailIfNotComplete
 
 class TestCase(unittest.TestCase):
     
