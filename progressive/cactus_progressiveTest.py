@@ -115,6 +115,7 @@ class TestCase(unittest.TestCase):
                              batchSystem=batchSystem, 
                              #buildTrees=buildTrees, buildFaces=buildFaces, buildReference=buildReference,
                              jobTreeStats=jobTreeStats)
+        runJobTreeStatusAndFailIfNotComplete(jobTreeDir)
         system("rm -rf %s" % tempDir)
     
 def main():
