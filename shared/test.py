@@ -237,6 +237,7 @@ def runWorkflow_TestScript(sequences, newickTreeString,
     cactusDiskDatabaseString = experiment.getDatabaseString()
     experimentFile = os.path.join(outputDir, "experiment.xml")
     experiment.writeExperimentFile(experimentFile)
+    logger.info("The experiment file %s\n" % experimentFile)
    
     #Setup the job tree dir.
     jobTreeDir = os.path.join(outputDir, "jobTree")
