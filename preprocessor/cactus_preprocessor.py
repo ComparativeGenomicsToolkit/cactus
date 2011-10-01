@@ -45,7 +45,8 @@ def compressFastaFile(fileName, tempDir, compressFiles):
     return fileName
 
 def fileList(path):
-    """ return a list of files in the directory
+    """ return a list of files in the directory, or just the
+        directory name if its empty
     """
     if os.path.isdir(path):
         contents = os.listdir(path)
@@ -55,9 +56,9 @@ def fileList(path):
                 fpath = os.path.join(path, i)
                 if os.path.isfile(fpath):
                     files.append(fpath)
-        return files
-    else:
-        return [path]
+        if len(files) > 0:
+            return files
+    return [path]
 
 class PreprocessorOptions:
     def __init__(self, chunkSize, chunksPerJob, overlapSize, compressFiles, cmdLine):
@@ -223,17 +224,10 @@ class BatchPreprocessor(Target):
                                           prepNode.get("compressFiles", default="True").lower() == "true",
                                           prepNode.attrib["preprocessorString"])
         
-        #take a quick look at the input
-        for i in self.inSequences:
-            if not os.path.exists(i):
-                raise IOError("Cannot find input sequence path %s" % i)
-            if len(fileList(i)) == 0:
-                raise IOError("Input sequence path is empty dir %s" % i)
         
         #iterate over each input fasta file
         inSeqFiles = []
         map(inSeqFiles.extend, map(fileList, self.inSequences))
-        assert len(inSeqFiles) >= len(self.inSequences)
         
         fileEventMap = self.constructFileEventMap()
         
@@ -251,10 +245,14 @@ class BatchPreprocessor(Target):
         outSeq = iter(outSeqFiles)
         assert len(outSeqFiles) == len(inSeqFiles)
         
+        # either process a sequence, or propagate an empty directory
         for inSeq in inSeqFiles:
-            event = fileEventMap[inSeq] 
-            self.addChildTarget(PreprocessSequence(self.prepOptions, inSeq, outSeq.next(), event))
-        
+            if not os.path.isdir(inSeq):
+                event = fileEventMap[inSeq] 
+                self.addChildTarget(PreprocessSequence(self.prepOptions, inSeq, outSeq.next(), event))
+            else:
+                os.makedirs(outSeq.next())
+
         if lastIteration == False:
             self.setFollowOnTarget(BatchPreprocessor(self.options, self.globalInSequences, outSeqFiles, 
                                                      self.outDirBase, self.iteration + 1))

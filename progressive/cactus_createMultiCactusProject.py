@@ -8,6 +8,7 @@
 """Create the multi_cactus xml and directory structure from a workflow template
 """ 
 import os
+import sys
 from optparse import OptionParser
 import xml.etree.ElementTree as ET
 import copy
@@ -53,6 +54,29 @@ def addPreprocessor(configElem):
         prep.attrib["chunkSize"] = "10000"
         prep.attrib["preprocessorString"] = prepCmdLine
 
+# go through the tree (located in the template experimet)
+# and hack to replace dots 
+def cleanEventTree(experiment):
+    tree = experiment.getTree()
+    for node in tree.breadthFirstTraversal():
+        if tree.hasName(node):
+            name = tree.getName(node)
+            if '.' in name:
+                newName = name.replace('.', '_')
+                sys.stderr.write('WARNING renaming event %s to %s\n' %(name, newName))
+                tree.setName(node, newName)
+        parent = tree.getParent(node)
+        if parent is not None:
+            weight = tree.getWeight(parent, node)
+            if weight is None:
+                raise RuntimeException('Missing branch length in species_tree tree')
+    experiment.xmlRoot.attrib["species_tree"] = NXNewick().writeString(tree)
+    experiment.seqMap = experiment.buildSequenceMap()
+
+def refName(name):
+    assert '.' not in name
+    return name + "_reference"
+
 # Make the subdirs for each subproblem:  name/ and name/name_DB
 # and write the experiment files
 # and copy over a config with updated reference field
@@ -65,7 +89,7 @@ def createFileStructure(mcProj, expTemplate, options):
     portOffset = 0
     for name, expPath in mcProj.expMap.items():
         path = os.path.join(options.path, name)
-        seqMap[name] = os.path.join(path, "%s_reference.fa" % name)
+        seqMap[name] = os.path.join(path, refName(name) + '.fa')
     for name, expPath in mcProj.expMap.items():
         path = os.path.join(options.path, name)
         subtree = mcProj.mcTree.extractSubTree(name)
@@ -79,7 +103,7 @@ def createFileStructure(mcProj, expTemplate, options):
         if expTemplate.getDbType() == "kyoto_tycoon":
             exp.setDbPort(expTemplate.getDbPort() + portOffset)
             portOffset += 1
-        exp.setReferencePath(os.path.join(path, "%s_reference.fa" % name))
+        exp.setReferencePath(os.path.join(path, refName(name) + '.fa'))
         exp.setMAFPath(os.path.join(path, "%s.maf" % name))
         exp.updateTree(subtree, seqMap)
         exp.setConfigPath(os.path.join(path, "%s_config.xml" % name))
@@ -89,20 +113,29 @@ def createFileStructure(mcProj, expTemplate, options):
                 ogPath = expTemplate.seqMap[og]
             else:
                 ogPath = os.path.join(options.path, og)
-                ogPath = os.path.join(ogPath, "%s_reference.fa" % og)
+                ogPath = os.path.join(ogPath, refFileName(og))
             exp.addOutgroup(og, ogPath, ogDist)
         os.makedirs(exp.getDbDir())
         exp.writeXML(expPath)
         configElem = copy.deepcopy(baseConfigXML)
         refElem = configElem.find("reference")
-        refElem.attrib["reference"] = name
-        addPreprocessor(configElem)
+        refElem.attrib["reference"] = refName(name)
+        if options.fixNames:
+            addPreprocessor(configElem)
         ET.ElementTree(configElem).write(exp.getConfigPath()) 
         
 def checkInputSequencePaths(exp):
     for event, seq in exp.seqMap.items():
         if not os.path.exists(seq):
-            print "WARNING: %s does not exist" % seq
+            sys.stderr.write("WARNING: sequence path %s does not exist\n" % seq)
+        elif os.path.isdir(seq):
+            contents = os.listdir(seq)
+            size = 0
+            for i in contents:
+                if i[0] != '.':
+                    size += 1
+            if size == 0:
+                sys.stderr.write("WARNING: sequence path %s is an empty directory\n" % seq)
             
 def main():
     usage = "usage: %prog [options] <experiment> <output project path>"
@@ -120,6 +153,8 @@ def main():
                       default = False, help="Assign (only leaves as) outgroups")
     parser.add_option("--self", dest="selfAlign", action="store_true", 
                       default = False, help="Align each sequence to itself")
+    parser.add_option("--fixNames", dest="fixNames",  default = "True", 
+                      help="try to make sequence and event names MAF-compliant [default=true]")
     
     options, args = parser.parse_args()
     
@@ -130,12 +165,15 @@ def main():
     options.expFile = args[0]    
     options.path = os.path.abspath(args[1])
     options.name = os.path.basename(options.path)
+    options.fixNames = not options.fixNames.lower() == "false"
     assert options.subtreeSize > 1
 
     if os.path.isdir(options.path) or os.path.isfile(options.path):
         raise RuntimeError("Output project path %s exists\n" % options.path)
     
     expTemplate = ExperimentWrapper(ET.parse(options.expFile).getroot())
+    if options.fixNames:
+        cleanEventTree(expTemplate)
     checkInputSequencePaths(expTemplate) 
     mcProj = createMCProject(expTemplate.getTree(), options)
     createFileStructure(mcProj, expTemplate, options)

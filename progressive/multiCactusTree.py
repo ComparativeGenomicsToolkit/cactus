@@ -148,8 +148,9 @@ class MultiCactusTree(NXTree):
                 nextIndex += 1
                 parent = self.getParent(node)
                 weight = None
-                if parent:
+                if parent is not None:
                     weight = self.getWeight(parent, node)
+                    assert weight is not None
                 newName = self.makeSelfName(self.getName(node), suffix)
                 self.insertAbove(node, newNode, newName, weight)
                 self.subtreeRoots.add(newNode)
