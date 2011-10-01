@@ -55,27 +55,21 @@ def addPreprocessor(configElem):
         prep.attrib["preprocessorString"] = prepCmdLine
 
 # go through the tree (located in the template experimet)
-# and hack to replace dots 
+# and make sure event names are unique up unitil first dot
 def cleanEventTree(experiment):
     tree = experiment.getTree()
+    eventIds = set()
     for node in tree.breadthFirstTraversal():
         if tree.hasName(node):
             name = tree.getName(node)
-            if '.' in name:
-                newName = name.replace('.', '_')
-                sys.stderr.write('WARNING renaming event %s to %s\n' %(name, newName))
-                tree.setName(node, newName)
-        parent = tree.getParent(node)
-        if parent is not None:
-            weight = tree.getWeight(parent, node)
+            if name.split('.')[0] in eventIds:
+                raise RuntimeException('Duplicate event in tree: %s' % name)
+            eventIds.add(name.split('.')[0])
+            parent = tree.getParent(node)
+            if parent is not None:
+                weight = tree.getWeight(parent, node)
             if weight is None:
                 raise RuntimeException('Missing branch length in species_tree tree')
-    experiment.xmlRoot.attrib["species_tree"] = NXNewick().writeString(tree)
-    experiment.seqMap = experiment.buildSequenceMap()
-
-def refName(name):
-    assert '.' not in name
-    return name + "_reference"
 
 # Make the subdirs for each subproblem:  name/ and name/name_DB
 # and write the experiment files
@@ -89,7 +83,7 @@ def createFileStructure(mcProj, expTemplate, options):
     portOffset = 0
     for name, expPath in mcProj.expMap.items():
         path = os.path.join(options.path, name)
-        seqMap[name] = os.path.join(path, refName(name) + '.fa')
+        seqMap[name] = os.path.join(path, name + '.fa')
     for name, expPath in mcProj.expMap.items():
         path = os.path.join(options.path, name)
         subtree = mcProj.mcTree.extractSubTree(name)
@@ -103,7 +97,7 @@ def createFileStructure(mcProj, expTemplate, options):
         if expTemplate.getDbType() == "kyoto_tycoon":
             exp.setDbPort(expTemplate.getDbPort() + portOffset)
             portOffset += 1
-        exp.setReferencePath(os.path.join(path, refName(name) + '.fa'))
+        exp.setReferencePath(os.path.join(path, name + '.fa'))
         exp.setMAFPath(os.path.join(path, "%s.maf" % name))
         exp.updateTree(subtree, seqMap)
         exp.setConfigPath(os.path.join(path, "%s_config.xml" % name))
@@ -119,7 +113,7 @@ def createFileStructure(mcProj, expTemplate, options):
         exp.writeXML(expPath)
         configElem = copy.deepcopy(baseConfigXML)
         refElem = configElem.find("reference")
-        refElem.attrib["reference"] = refName(name)
+        refElem.attrib["reference"] = name
         if options.fixNames:
             addPreprocessor(configElem)
         ET.ElementTree(configElem).write(exp.getConfigPath()) 

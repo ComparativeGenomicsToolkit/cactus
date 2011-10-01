@@ -26,12 +26,10 @@ def fixHeader(header, num = "0", event=""):
         dotIdx = pref.rfind('.')
         if dotIdx == len(pref) - 1:
             pref = pref + num
-        pref = pref[:dotIdx].replace(".", "_") + pref[dotIdx:]
     else:
         pref = pref + '.' + num
     
     event = event.split('.')[0]
-    event = event.split('_')[0]
     if pref.lower().find(event.lower()) != 0:
         pref = "%s_%s" % (event, pref)
     

@@ -16,7 +16,7 @@ from sonLib.nxnewick import NXNewick
 
 def removeOutgroupLeafFromTree(tree, event):
     for leaf in tree.getLeaves():
-        if tree.getName(leaf) == event:
+        if tree.getName(leaf).find(event) == 0:
             tree.nxDg.remove_node(leaf)
             return
     assert False
@@ -25,6 +25,7 @@ def removeOutgroupLeafFromTree(tree, event):
 def removeOutgroupFromMaf(mafPath, event):
     if event is None or event == "":
         return
+    event = event.split('.')[0]
     tempPath = "%s.og" % mafPath
     inFile = open(mafPath)
     outFile = open(tempPath, 'w')
