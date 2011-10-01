@@ -62,14 +62,21 @@ def cleanEventTree(experiment):
     for node in tree.breadthFirstTraversal():
         if tree.hasName(node):
             name = tree.getName(node)
-            if name.split('.')[0] in eventIds:
-                raise RuntimeException('Duplicate event in tree: %s' % name)
-            eventIds.add(name.split('.')[0])
+            if '.' in name:
+                newName = name.replace('.', '_')
+                sys.stderr.write('WARNING renaming event %s to %s\n' %(name, newName))
+                tree.setName(node, newName)
+                name = newName
+            if name in eventIds:
+                 raise RuntimeException('Duplicate event in tree: %s' % name)
+            eventIds.add(name)
             parent = tree.getParent(node)
             if parent is not None:
                 weight = tree.getWeight(parent, node)
             if weight is None:
                 raise RuntimeException('Missing branch length in species_tree tree')
+    experiment.xmlRoot.attrib["species_tree"] = NXNewick().writeString(tree)
+    experiment.seqMap = experiment.buildSequenceMap()
 
 # Make the subdirs for each subproblem:  name/ and name/name_DB
 # and write the experiment files
