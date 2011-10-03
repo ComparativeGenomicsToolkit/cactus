@@ -108,7 +108,6 @@ int main(int argc, char *argv[]) {
     int32_t maximumLength = 1500;
     float gapGamma = 0.5;
     bool useBanding = 0;
-    stList *requiredSpecies;
 
     PairwiseAlignmentParameters *pairwiseAlignmentBandingParameters =
             pairwiseAlignmentBandingParameters_construct();
@@ -209,12 +208,7 @@ int main(int argc, char *argv[]) {
                 assert(i == 1);
                 break;
             case 'v':
-                requiredSpecies = stString_split(optarg);
-                cCIP->requiredSpecies = stSortedSet_construct3((int(*)(const void *, const void *)) strcmp, free);
-                for (i = 0; i < stList_length(requiredSpecies); i++) {
-                    stSortedSet_insert(cCIP->requiredSpecies, stString_copy(stList_get(requiredSpecies, i)));
-                }
-                stList_destruct(requiredSpecies);
+                parseRequiredSpeciesTree(optarg, cCIP);
                 break;
             case 'w':
                 pairwiseAlignmentBandingParameters->alignAmbiguityCharacters = 1;

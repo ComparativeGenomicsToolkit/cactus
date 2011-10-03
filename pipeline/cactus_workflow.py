@@ -325,6 +325,8 @@ class CactusCoreWrapper(Target):
     def run(self):
         logger.info("Starting the core wrapper target")
         coreParameters = self.iteration.find("core")
+        if self.options.requiredSpecies != None:
+            assert "(" in self.options.requiredSpecies
         runCactusCore(cactusDiskDatabaseString=self.options.cactusDiskDatabaseString,
                       alignmentFile=self.alignmentFile, 
                       flowerName=self.flowerName,
@@ -642,7 +644,16 @@ def main():
     #Get the sequences
     sequences = options.experimentFile.attrib["sequences"].split()
     #Get any list of 'required species' for the blocks of the cactus.
-    options.requiredSpecies = getOptionalAttrib(options.experimentFile, "required_species")
+    def parseRequiredSpecies(experiment):
+        requiredSpeciesNodes = experiment.findall("required_species")
+        if len(requiredSpeciesNodes) == 0:
+            return None
+        s = "(" + ",".join([ "(" + str(int(requiredSpeciesNode.attrib["coverage"])) + "," +  \
+                               ",".join(requiredSpeciesNode.text.split()) + ")" \
+                               for requiredSpeciesNode in requiredSpeciesNodes ]) + ");"
+        logger.debug("Got the following required species tree structure: %s" % s)
+        return s
+    options.requiredSpecies = parseRequiredSpecies(options.experimentFile)
     options.singleCopySpecies = getOptionalAttrib(options.experimentFile, "single_copy_species")
     logger.info("Parsed the XML options file")
     

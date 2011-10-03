@@ -91,7 +91,9 @@ class CactusWorkflowExperiment:
         self.experiment.attrib["sequences"] = " ".join(sequences)
         self.experiment.attrib["species_tree"] = newickTreeString
         if requiredSpecies != None:
-            self.experiment.attrib["required_species"] = requiredSpecies
+            for coverage, species in requiredSpecies:
+                node = ET.SubElement(self.experiment, "required_species", attrib={ "coverage": str(int(coverage)) })
+                node.text = " ".join(species)
         if singleCopySpecies != None:
             self.experiment.attrib["single_copy_species"] = singleCopySpecies
         self.experiment.attrib["config"] = "default"

@@ -1079,18 +1079,28 @@ stSortedSet *getEventStrings(struct PinchVertex *vertex, Flower *flower) {
 }
 
 static bool containsRequiredSpecies(struct CactusEdge *cactusEdge, Flower *flower, struct PinchGraph *pinchGraph,
-        stSortedSet *requiredSpecies) {
+        stList *listOfSetsOfRequiredSpecies, /* A block's segments must have an event with at least coverage (given for each set individually) number of elements in each of these set (unless it is NULL) */
+        stList *listOfRequiredSpeciesCoverages) {
     /*
      * Returns the proportion of the tree covered by the block.
      */
 #ifdef BEN_DEBUG
     assert(!isAStubCactusEdge(cactusEdge, pinchGraph));
 #endif
+    bool b = 1;
     stSortedSet *eventStrings = getEventStrings(cactusEdgeToFirstPinchEdge(cactusEdge, pinchGraph)->from, flower);
-    stSortedSet *commonEvents = stSortedSet_getIntersection(requiredSpecies, eventStrings);
-    bool b = stSortedSet_size(commonEvents) > 0;
+    for(int32_t i=0; i<stList_length(listOfRequiredSpeciesCoverages); i++) {
+        int32_t coverage = stIntTuple_getPosition(stList_get(listOfRequiredSpeciesCoverages, i), 0);
+        assert(coverage >= 0);
+        stSortedSet *requiredSpecies = stList_get(listOfSetsOfRequiredSpecies, i);
+        stSortedSet *commonEvents = stSortedSet_getIntersection(requiredSpecies, eventStrings);
+        b = b && stSortedSet_size(commonEvents) >= coverage;
+        stSortedSet_destruct(commonEvents);
+        if(b == 0) {
+            break;
+        }
+    }
     stSortedSet_destruct(eventStrings);
-    stSortedSet_destruct(commonEvents);
     return b;
 }
 
@@ -1189,7 +1199,8 @@ stSortedSet *filterBlocksByTreeCoverageAndLength(struct List *biConnectedCompone
         int32_t minimumBlockDegree, /*The minimum number of segments in a block to be included (>=)*/
         int32_t minimumBlockLength, /*The minimum length of an block to be included (>=)*/
         int32_t minimumChainLength, /* Minimum chain length to be included (>=)*/
-        stSortedSet *requiredSpecies, /* A block's segments must have an event with at least one member of this set (unless it is NULL) */
+        stList *listOfSetsOfRequiredSpecies, /* A block's segments must have an event with at least coverage (given for each set individually) number of elements in each of these set (unless it is NULL) */
+        stList *listOfRequiredSpeciesCoverages,
         stSortedSet *singleCopySpecies, /* A block must not have multiple (more than one) segments from any of the following species (unless it is NULL)*/
         struct PinchGraph *pinchGraph) {
     /*
@@ -1210,8 +1221,8 @@ stSortedSet *filterBlocksByTreeCoverageAndLength(struct List *biConnectedCompone
                                 >= minimumTreeCoverage) {
                             struct Piece *piece = cactusEdge->pieces->list[0];
                             if (minimumBlockLength <= 0 || piece->end - piece->start + 1 >= minimumBlockLength) {
-                                if (requiredSpecies == NULL || containsRequiredSpecies(cactusEdge, flower, pinchGraph,
-                                        requiredSpecies)) {
+                                if (listOfSetsOfRequiredSpecies == NULL || containsRequiredSpecies(cactusEdge, flower, pinchGraph,
+                                        listOfSetsOfRequiredSpecies, listOfRequiredSpeciesCoverages)) {
                                     if (singleCopySpecies == NULL || !containsMultipleCopiesOfSpecies(cactusEdge,
                                             flower, pinchGraph, singleCopySpecies)) {
                                         stSortedSet_insert(chosenBlocks, cactusEdge);
