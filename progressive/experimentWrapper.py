@@ -21,6 +21,7 @@ import filecmp
 from optparse import OptionParser
 
 from cactus.progressive.multiCactusTree import MultiCactusTree
+from cactus.progressive.configWrapper import ConfigWrapper
 from sonLib.nxnewick import NXNewick
 from cactus.shared.common import cactusRootPath
 
@@ -102,23 +103,10 @@ class ExperimentWrapper:
         mafElem.attrib["path"] = path
         
     def getOutgroupName(self):
-        if self.xmlRoot.attrib.has_key("single_copy_species"):
-            return self.xmlRoot.attrib["single_copy_species"]
+        if self.xmlRoot.attrib.has_key("outgroup"):
+            return self.xmlRoot.attrib["outgroup"]
         return None
-    
-    def addOutgroup(self, name, path, distance):
-        assert self.getOutgroupName() is None
-        tree = MultiCactusTree(self.getTree())
-        tree.addOutgroup(name, distance)
-        self.xmlRoot.attrib["species_tree"] = NXNewick().writeString(tree)   
-        leaves = [tree.getName(i) for i in tree.getLeaves()]
-        leaves.remove(name)     
-        self.xmlRoot.attrib["required_species"] = ' '.join(leaves)
-        self.xmlRoot.attrib["single_copy_species"] = name
-        seqs = "%s %s"  % (self.xmlRoot.attrib["sequences"], path)
-        self.xmlRoot.attrib["sequences"] = seqs
-        self.seqMap[name] = path
-    
+        
     def getConfigPath(self):
         config = self.xmlRoot.attrib["config"]
         if config == 'default':
@@ -172,6 +160,62 @@ class ExperimentWrapper:
                 newMap[nodeName] = seqMap[nodeName]
         self.xmlRoot.attrib["sequences"] = sequences
         self.seqMap = newMap
-        
-        
     
+    # generate single_copy and required_species attributes based
+    # on the template config xml
+    # 1) set the single copy species
+    # 2) set the outgroup (add it to tree and sequences)
+    # 3) set the required species
+    def setCoverageAndOutgroup(self, config, ogName, ogDist, ogPath):
+        tree = MultiCactusTree(self.getTree())
+        leaves = [tree.getName(i) for i in tree.getLeaves()]
+        scs = config.getSingleCopyStrategy()
+        if scs != 'none':
+            if ogName is not None and scs == 'outgroup':
+                scElem = self.createSingleCopyElem()
+                scElem.text = ogName
+            elif scs == 'all':
+                scElem = self.createSingleCopyElem()
+                species = ' '.join(leaves)
+                if ogName is not None:
+                    species = "%s %s" % (species, ogName)
+                scElem.text = species
+        
+        for i in self.xmlRoot.findall("required_species"):
+            self.xmlRoot.remove(i)
+        
+        if ogName is not None:
+            tree.addOutgroup(ogName, ogDist)
+            self.xmlRoot.attrib["species_tree"] = NXNewick().writeString(tree)   
+            seqs = "%s %s"  % (self.xmlRoot.attrib["sequences"], ogPath)
+            self.xmlRoot.attrib["sequences"] = seqs
+            self.seqMap[ogName] = ogPath
+            self.xmlRoot.attrib["outgroup"] = ogName
+            reqElem = ET.Element("required_species")
+            reqElem.text = ' '.join(leaves)
+            reqElem.attrib["coverage"] = "1"
+            self.xmlRoot.append(reqElem)
+        
+        reqFrac = config.getRequiredFraction()
+        if reqFrac > 0:
+            reqElem = ET.Element("required_species")
+            species = ' '.join(leaves)
+            count = len(leaves)
+            if ogName is not None:
+                species = "%s %s" % (species, ogName)
+                count += 1
+            reqElem.text = species
+            reqElem.attrib["coverage"] = str(int(reqFrac * count))
+            self.xmlRoot.append(reqElem)    
+      
+    
+    def createSingleCopyElem(self):
+        scElem = self.xmlRoot.find("single_copy_species")
+        if scElem is not None:
+            return scElem
+        else:
+            scElem = ET.Element("single_copy_species")
+            self.xmlRoot.append(scElem)
+            return scElem
+
+        
