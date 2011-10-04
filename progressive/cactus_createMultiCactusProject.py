@@ -42,8 +42,8 @@ def createMCProject(tree, config, options):
 # go through the tree (located in the template experimet)
 # and make sure event names are unique up unitil first dot
 def cleanEventTree(experiment):
-    tree = experiment.getTree()
-    eventIds = set()
+    tree = MultiCactusTree(experiment.getTree())
+    tree.nameUnlabeledInternalNodes()
     for node in tree.breadthFirstTraversal():
         if tree.hasName(node):
             name = tree.getName(node)
@@ -52,14 +52,18 @@ def cleanEventTree(experiment):
                 sys.stderr.write('WARNING renaming event %s to %s\n' %(name, newName))
                 tree.setName(node, newName)
                 name = newName
-            if name in eventIds:
-                 raise RuntimeException('Duplicate event in tree: %s' % name)
-            eventIds.add(name)
             parent = tree.getParent(node)
             if parent is not None:
                 weight = tree.getWeight(parent, node)
-            if weight is None:
-                raise RuntimeException('Missing branch length in species_tree tree')
+                if weight is None:
+                    raise RuntimeError('Missing branch length in species_tree tree')
+    for node1 in tree.breadthFirstTraversal():
+        name1 = tree.getName(node1)
+        for node2 in tree.breadthFirstTraversal():
+            name2 = tree.getName(node2)
+            if node1 != node2 and name1.find(name2) == 0 and\
+             name1 != name2 + tree.self_suffix:
+                raise RuntimeError('Error: %s is a prefix of %s' % (name2, name1))
     experiment.xmlRoot.attrib["species_tree"] = NXNewick().writeString(tree)
     experiment.seqMap = experiment.buildSequenceMap()
 

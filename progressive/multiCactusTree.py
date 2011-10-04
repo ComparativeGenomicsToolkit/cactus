@@ -21,7 +21,8 @@ from optparse import OptionParser
 from sonLib.nxtree import NXTree
 from sonLib.nxnewick import NXNewick
 
-class MultiCactusTree(NXTree):    
+class MultiCactusTree(NXTree):
+    self_suffix = "_self"
     def __init__(self, tree = None, subtreeSize = 2):
         if isinstance(tree, NXTree):
             NXTree.__init__(self, tree.nxDg)
@@ -138,7 +139,7 @@ class MultiCactusTree(NXTree):
     # every node in the tree
     # should be run after subtreeroots are computed (otherwise
     # won't work
-    def addSelfEdges(self, suffix = "_self"):
+    def addSelfEdges(self):
         nextIndex = self.getNextIndex()
         traversal = [i for i in self.breadthFirstTraversal()]
         for node in traversal:
@@ -151,17 +152,10 @@ class MultiCactusTree(NXTree):
                 if parent is not None:
                     weight = self.getWeight(parent, node)
                     assert weight is not None
-                newName = self.makeSelfName(self.getName(node), suffix)
+                assert self.self_suffix not in self.getName(node)
+                newName = self.getName(node) + self.self_suffix
                 self.insertAbove(node, newNode, newName, weight)
-                self.subtreeRoots.add(newNode)
-    
-    # make a self name, adding the suffix BEFORE the dot
-    def makeSelfName(self, name, suffix):
-        tokens = name.split('.')
-        newName = tokens[0] + suffix
-        for i in range(1, len(tokens)):
-            newName += ".%s" % tokens[i]
-        return newName 
+                self.subtreeRoots.add(newNode) 
     
     # tack an outgroup onto the root
     # if root is a leaf, we make a new root above. 
