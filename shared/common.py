@@ -299,20 +299,9 @@ def runCactusWorkflow(experimentFile,
     logger.info("Ran the cactus workflow okay")
     
 def runCactusCreateMultiCactusProject(experimentFile, outputDir, 
-                                      logLevel=None, 
-                                      subtreeSize=None,
-                                      ancestorPrefix=None,
-                                      useOutgroup=None,
-                                      doSelfAlignment=None):
+                                      logLevel=None):
     logLevel = getLogLevelString2(logLevel)
-    subtreeSize = nameValue("subtreeSize", subtreeSize, int)
-    ancestorPrefix = nameValue("ancestorPrefix", ancestorPrefix, str)
-    useOutgroup = nameValue("outgroup", useOutgroup, bool)
-    doSelfAlignment = nameValue("self", doSelfAlignment, bool)
-    command = "cactus_createMultiCactusProject.py %s %s %s %s %s %s" % (experimentFile, outputDir,
-                                                                        #logLevel,
-                                                                        subtreeSize, ancestorPrefix,
-                                                                        useOutgroup, doSelfAlignment)
+    command = "cactus_createMultiCactusProject.py %s %s" % (experimentFile, outputDir)
     system(command)
     logger.info("Ran the cactus create multi project")
     
