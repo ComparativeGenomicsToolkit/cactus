@@ -92,7 +92,7 @@ class MultiCactusTree(NXTree):
         node = self.nameToId[name]
         if node == self.rootId:
             return node
-        parent = self.getParent(parent)
+        parent = self.getParent(node)
         while parent is not None:
             if parent in self.subtreeRoots:
                 return self.getName(parent)
