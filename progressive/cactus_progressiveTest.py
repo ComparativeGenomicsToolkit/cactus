@@ -107,7 +107,8 @@ class TestCase(unittest.TestCase):
         tempDir = getTempDirectory(os.getcwd())
         tempExperimentDir = os.path.join(tempDir, "exp")
         runCactusCreateMultiCactusProject(experimentFile, 
-                                          tempExperimentDir)
+                                          tempExperimentDir,
+                                          fixNames = False)
         logger.info("Put the temporary files in %s" % tempExperimentDir)
         runCactusProgressive(os.path.join(tempExperimentDir, "exp_project.xml"), 
                              jobTreeDir, 

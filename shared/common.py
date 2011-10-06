@@ -299,9 +299,9 @@ def runCactusWorkflow(experimentFile,
     logger.info("Ran the cactus workflow okay")
     
 def runCactusCreateMultiCactusProject(experimentFile, outputDir, 
-                                      logLevel=None):
+                                      logLevel=None, fixNames=True):
     logLevel = getLogLevelString2(logLevel)
-    command = "cactus_createMultiCactusProject.py %s %s" % (experimentFile, outputDir)
+    command = "cactus_createMultiCactusProject.py %s %s --fixNames=%s" % (experimentFile, outputDir, str(fixNames))
     system(command)
     logger.info("Ran the cactus create multi project")
     
