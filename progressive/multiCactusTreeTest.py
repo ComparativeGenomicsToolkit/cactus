@@ -84,13 +84,6 @@ class TestCase(unittest.TestCase):
         leafTree.addOutgroup("outgroup", 2.2)
         leafTreeOutString = NXNewick().writeString(leafTree)
         assert leafTreeOutString == trueLeafOg
-
-    def testMakeSelfName(self):
-        tree = MultiCactusTree()
-        name = "chimp.chr6"
-        selfname = "chimp_self.chr6"
-        outname = tree.makeSelfName(name, "_self")
-        assert outname == selfname
                    
     def __generateTrees(self):
         self.tree1 = '((((HUMAN:0.006969,CHIMP:0.009727):0.025291,BABOON:0.044568):0.11,(MOUSE:0.072818,RAT:0.081244):0.260342):0.02326,((DOG:0.07,CAT:0.07):0.087381,(PIG:0.06,COW:0.06):0.104728):0.04);'
