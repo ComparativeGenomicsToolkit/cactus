@@ -39,9 +39,16 @@ class MultiCactusTree(NXTree):
     # traversal numbering from the root
     def nameUnlabeledInternalNodes(self, prefix = "Anc", startIdx = 0):
         count = startIdx
+        numInternal = 0
+        width = 0
+        for node in self.breadthFirstTraversal():
+            if self.isLeaf(node) is False:
+                numInternal += 1
+        if numInternal > 0:
+            width = int(math.log10(numInternal)) + 1
         for node in self.breadthFirstTraversal():
             if not self.isLeaf(node) and not self.hasName(node):
-                self.setName(node, "%s%d" % (prefix, count))
+                self.setName(node, "%s%s" % (prefix, str(count).zfill(width)))
                 count += 1
             self.nameToId[self.getName(node)] = node
     
