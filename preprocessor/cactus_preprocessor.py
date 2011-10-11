@@ -191,23 +191,25 @@ class BatchPreprocessor(Target):
         self.iteration = iteration
   
     # link each fasta file to an event name and store 
+    # relies on sequences aways being read in same order
     def constructFileEventMap(self):
-        seqIterator = iter(self.inSequences)
+        seqIterator = iter(self.globalInSequences)
         eventMap = dict()
         tree = newickTreeParser(self.options.speciesTree)
         dfStack = [tree]
         while dfStack:
-            node = dfStack.pop(len(dfStack)-1)
+            node = dfStack.pop(-1)
             if node is not None and not node.internal:
                 eventMap[seqIterator.next()] = node.iD 
             else:
                 dfStack.append(node.right)
-                dfStack.append(node.left)
-        fileMap = dict()
-        for seq in self.inSequences:
+                dfStack.append(node.left) 
+        assert len(eventMap) == len(self.globalInSequences)
+        fileMap = []
+        for seq in self.globalInSequences:
             event = eventMap[seq]
             for file in fileList(seq):
-                fileMap[file] = event
+                fileMap.append(event)
         return fileMap
             
     def run(self):
@@ -246,9 +248,10 @@ class BatchPreprocessor(Target):
         assert len(outSeqFiles) == len(inSeqFiles)
         
         # either process a sequence, or propagate an empty directory
+        eventIterator = iter(fileEventMap)
         for inSeq in inSeqFiles:
             if not os.path.isdir(inSeq):
-                event = fileEventMap[inSeq] 
+                event = eventIterator.next() 
                 self.addChildTarget(PreprocessSequence(self.prepOptions, inSeq, outSeq.next(), event))
             else:
                 os.makedirs(outSeq.next())
