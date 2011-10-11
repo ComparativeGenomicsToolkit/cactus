@@ -172,15 +172,15 @@ class ExperimentWrapper:
         scs = config.getSingleCopyStrategy()
         if scs != 'none':
             if ogName is not None and scs == 'outgroup':
-                scElem = self.createSingleCopyElem()
-                scElem.text = ogName
+                self.xmlRoot.attrib["single_copy_species"] = ogName
             elif scs == 'all':
-                scElem = self.createSingleCopyElem()
                 species = ' '.join(leaves)
                 if ogName is not None:
                     species = "%s %s" % (species, ogName)
-                scElem.text = species
-        
+                self.xmlRoot.attrib["single_copy_species"] = species
+        elif "single_copy_species" in self.xmlRoot.attrib:
+            self.xmlRoot.attrib.remove("single_copy_species")
+              
         for i in self.xmlRoot.findall("required_species"):
             self.xmlRoot.remove(i)
         
@@ -208,14 +208,3 @@ class ExperimentWrapper:
             reqElem.attrib["coverage"] = str(int(reqFrac * count))
             self.xmlRoot.append(reqElem)    
       
-    
-    def createSingleCopyElem(self):
-        scElem = self.xmlRoot.find("single_copy_species")
-        if scElem is not None:
-            return scElem
-        else:
-            scElem = ET.Element("single_copy_species")
-            self.xmlRoot.append(scElem)
-            return scElem
-
-        
