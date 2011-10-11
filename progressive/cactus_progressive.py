@@ -44,7 +44,7 @@ from cactus.pipeline.cactus_workflow import CactusSetupPhase
 from cactus.pipeline.cactus_workflow import CactusPhylogenyPhase
 from cactus.pipeline.cactus_workflow import CactusReferencePhase
 from cactus.pipeline.cactus_workflow import CactusFacesPhase
-from cactus.pipeline.cactus_workflow import getOptionalAttrib
+from cactus.pipeline.cactus_workflow import expandWorkflowOptions
 
 from cactus.progressive.multiCactusProject import MultiCactusProject
 from cactus.progressive.multiCactusTree import MultiCactusTree
@@ -208,27 +208,11 @@ class JoinMAF(Target):
                          self.experiment.getMAFPath())
                     rootIsTreeMAF = True    
                     
-# copy and pasted from cactus_workflow.py
 def getWorkflowParams(baseOptions, experiment):
     options = copy.deepcopy(baseOptions)
-    options.experimentFile = experiment.xmlRoot
-    #Get the database string
-    options.cactusDiskDatabaseString = ET.tostring(options.experimentFile.find("cactus_disk").find("st_kv_database_conf"))
-    #Get the species tree
-    options.speciesTree = options.experimentFile.attrib["species_tree"]
-    #Parse the config file which contains all the program options
-    if options.experimentFile.attrib["config"] == "default":
-        options.experimentFile.attrib["config"] = os.path.join(cactusRootPath(), "pipeline", "cactus_workflow_config.xml")
-    else:
-        logger.info("Using user specified experiment file")
-    #Get the config file for the experiment
-    options.config = ET.parse(options.experimentFile.attrib["config"]).getroot()
+    expandWorkflowOptions(options, experiment.xmlRoot)
     #Get the sequences
     sequences = options.experimentFile.attrib["sequences"].split()
-    #Get any list of 'required species' for the blocks of the cactus.
-    options.requiredSpecies = getOptionalAttrib(options.experimentFile, "required_species")
-    options.singleCopySpecies = getOptionalAttrib(options.experimentFile, "single_copy_species")
-    logger.info("Parsed the XML options file")
     return options, sequences
                            
 def main():    

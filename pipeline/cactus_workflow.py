@@ -600,7 +600,40 @@ class CactusCheck(Target):
     def run(self):
         runCactusCheck(self.options.cactusDiskDatabaseString, self.flowerNames)
         makeChildTargets(self.options, None, self.flowerNames, self, CactusCheck)   
-      
+
+# add stuff to the options object 
+# (code extracted from the main() method so it can be reused by progressive)
+def expandWorkflowOptions(options, experimentFile = None):
+    if experimentFile is not None:
+        options.experimentFile = experimentFile
+    else:
+        options.experimentFile = ET.parse(options.experimentFile).getroot()
+    #Get the database string
+    options.cactusDiskDatabaseString = ET.tostring(options.experimentFile.find("cactus_disk").find("st_kv_database_conf"))
+    #Get the species tree
+    options.speciesTree = options.experimentFile.attrib["species_tree"]
+    #Parse the config file which contains all the program options
+    if options.experimentFile.attrib["config"] == "default":
+        options.experimentFile.attrib["config"] = os.path.join(cactusRootPath(), "pipeline", "cactus_workflow_config.xml")
+    else:
+        logger.info("Using user specified experiment file")
+    #Get the config file for the experiment
+    options.config = ET.parse(options.experimentFile.attrib["config"]).getroot()
+    #Get any list of 'required species' for the blocks of the cactus.
+    def parseRequiredSpecies(experiment):
+        requiredSpeciesNodes = experiment.findall("required_species")
+        if len(requiredSpeciesNodes) == 0:
+            return None
+        s = "(" + ",".join([ "(" + str(int(requiredSpeciesNode.attrib["coverage"])) + "," +  \
+                               ",".join(requiredSpeciesNode.text.split()) + ")" \
+                               for requiredSpeciesNode in requiredSpeciesNodes ]) + ");"
+        logger.debug("Got the following required species tree structure: %s" % s)
+        return s
+    options.requiredSpecies = parseRequiredSpecies(options.experimentFile)
+    options.singleCopySpecies = getOptionalAttrib(options.experimentFile, "single_copy_species")
+    logger.info("Parsed the XML options file")
+    
+   
 def main():
     ##########################################
     #Construct the arguments.
@@ -629,33 +662,10 @@ def main():
     if len(args) != 0:
         raise RuntimeError("Unrecognised input arguments: %s" % " ".join(args))
 
-    options.experimentFile = ET.parse(options.experimentFile).getroot()
-    #Get the database string
-    options.cactusDiskDatabaseString = ET.tostring(options.experimentFile.find("cactus_disk").find("st_kv_database_conf"))
-    #Get the species tree
-    options.speciesTree = options.experimentFile.attrib["species_tree"]
-    #Parse the config file which contains all the program options
-    if options.experimentFile.attrib["config"] == "default":
-        options.experimentFile.attrib["config"] = os.path.join(cactusRootPath(), "pipeline", "cactus_workflow_config.xml")
-    else:
-        logger.info("Using user specified experiment file")
-    #Get the config file for the experiment
-    options.config = ET.parse(options.experimentFile.attrib["config"]).getroot()
+    # process the options
+    expandWorkflowOptions(options)
     #Get the sequences
     sequences = options.experimentFile.attrib["sequences"].split()
-    #Get any list of 'required species' for the blocks of the cactus.
-    def parseRequiredSpecies(experiment):
-        requiredSpeciesNodes = experiment.findall("required_species")
-        if len(requiredSpeciesNodes) == 0:
-            return None
-        s = "(" + ",".join([ "(" + str(int(requiredSpeciesNode.attrib["coverage"])) + "," +  \
-                               ",".join(requiredSpeciesNode.text.split()) + ")" \
-                               for requiredSpeciesNode in requiredSpeciesNodes ]) + ");"
-        logger.debug("Got the following required species tree structure: %s" % s)
-        return s
-    options.requiredSpecies = parseRequiredSpecies(options.experimentFile)
-    options.singleCopySpecies = getOptionalAttrib(options.experimentFile, "single_copy_species")
-    logger.info("Parsed the XML options file")
     
     if options.setupAndBuildAlignments:
         baseTarget = CactusSetupPhase(options, sequences)
