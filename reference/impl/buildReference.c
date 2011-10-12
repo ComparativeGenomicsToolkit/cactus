@@ -491,7 +491,7 @@ static stList *getStubEdges(Flower *flower, stHash *endsToNodes,
      */
     double *z = calculateZ(flower, endsToNodes, 0.0);
 
-    st_logDebug("Building a matching for %i stub nodes in the top level problem\n", stList_length(stubNodes));
+    st_logDebug("Building a matching for %i stub nodes in the top level problem from %i total stubs of which %i attached , %i total ends, %i chains, %i blocks %i groups and %i sequences\n", stList_length(stubNodes), flower_getStubEndNumber(flower), flower_getAttachedStubEndNumber(flower), flower_getEndNumber(flower), flower_getChainNumber(flower), flower_getBlockNumber(flower), flower_getGroupNumber(flower), flower_getSequenceNumber(flower));
 
     /*
      * Create a matching for the parent stub edges.

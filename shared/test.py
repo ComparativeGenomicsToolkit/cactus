@@ -216,7 +216,8 @@ def runWorkflow_TestScript(sequences, newickTreeString,
                            buildTrees=True, buildFaces=True, buildReference=True,
                            configFile=None,
                            buildJobTreeStats=False,
-                           singleCopySpecies=None):
+                           singleCopySpecies=None,
+                           cactusWorkflowFunction=runCactusWorkflow):
     """Runs the workflow and various downstream utilities.
     """
     logger.info("Running cactus workflow test script")
@@ -242,7 +243,7 @@ def runWorkflow_TestScript(sequences, newickTreeString,
     logger.info("Got a job tree dir for the test: %s" % jobTreeDir)
     
     #Run the actual workflow
-    runCactusWorkflow(experimentFile, jobTreeDir, 
+    cactusWorkflowFunction(experimentFile, jobTreeDir, 
                       batchSystem=batchSystem, buildTrees=buildTrees, 
                       buildFaces=buildFaces, buildReference=buildReference,
                       jobTreeStats=buildJobTreeStats)
@@ -253,9 +254,9 @@ def runWorkflow_TestScript(sequences, newickTreeString,
     logger.info("Checked the job tree dir")
     
     #Check if the cactusDisk is okay..
-    runCactusCheck(cactusDiskDatabaseString, recursive=True) #This should also occur during the workflow, so this
+    #runCactusCheck(cactusDiskDatabaseString, recursive=True) #This should also occur during the workflow, so this
     #is redundant, but defensive
-    logger.info("Checked the cactus tree")
+    #logger.info("Checked the cactus tree")
     
     #Now run various utilities..
     if buildJobTreeStats:
@@ -277,7 +278,8 @@ def runWorkflow_multipleExamples(inputGenFunction,
                                inverseTestRestrictions=False,
                                batchSystem="single_machine",
                                buildTrees=True, buildFaces=True, buildReference=True,
-                               configFile=None, buildJobTreeStats=False, singleCopySpecies=None):
+                               configFile=None, buildJobTreeStats=False, singleCopySpecies=None,
+                               cactusWorkflowFunction=runCactusWorkflow):
     """A wrapper to run a number of examples.
     """
     if (inverseTestRestrictions and TestStatus.getTestStatus() not in testRestrictions) or \
@@ -291,8 +293,8 @@ def runWorkflow_multipleExamples(inputGenFunction,
                                    buildTrees=buildTrees, buildFaces=buildFaces, buildReference=buildReference, 
                                    configFile=configFile,
                                    buildJobTreeStats=buildJobTreeStats,
-                                   singleCopySpecies=singleCopySpecies)
+                                   singleCopySpecies=singleCopySpecies,
+                                   cactusWorkflowFunction=cactusWorkflowFunction)
             experiment.cleanupDatabase()
             system("rm -rf %s" % tempDir)
             logger.info("Finished random test %i" % test)
-    

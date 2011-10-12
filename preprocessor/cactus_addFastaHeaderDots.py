@@ -4,6 +4,9 @@
 ## to work.  This script adds .0 to all sequence names in a FASTA
 ## file if they are not already in this format
 
+## Add option (hack) to prepend the event name to sequence names to 
+## try to keep them unique for MAF processing.
+
 import os
 from optparse import OptionParser
 
@@ -11,7 +14,7 @@ from sonLib.bioio import fastaRead
 from sonLib.bioio import fastaWrite
 from sonLib.bioio import getTempFile
 
-def fixHeader(header, num = "0"):
+def fixHeader(header, num = "0", event=""):
     suf = ""
     pref = header
     if '|1|' in header:
@@ -25,6 +28,9 @@ def fixHeader(header, num = "0"):
             pref = pref + num
     else:
         pref = pref + '.' + num
+    
+    if pref.lower().find(event.lower()) != 0:
+        pref = "%s_%s" % (event, pref)
     
     return pref + suf
     
@@ -43,6 +49,10 @@ def main():
                       help="string to append after dot (default=0)",
                       default="0")
     
+    parser.add_option("--event", dest="event", type="string",
+                      help="ensure sequence names have event as prefix",
+                      default="")
+    
     options, args = parser.parse_args()
     
     if len(args) != 2:
@@ -55,7 +65,8 @@ def main():
     outputFile = open(outputName, "w")
      
     for header, seq in fastaRead(inputFile):
-        fastaWrite(outputFile, fixHeader(header, options.suffix), seq)
+        fastaWrite(outputFile, 
+                   fixHeader(header, options.suffix, options.event), seq)
             
     outputFile.close()
     inputFile.close()

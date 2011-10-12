@@ -25,9 +25,9 @@ import random
 from itertools import izip
 from shutil import move
 import copy
+from time import sleep
 
 from sonLib.bioio import getTempFile
-from sonLib.bioio import newickTreeParser
 from sonLib.bioio import printBinaryTree
 
 from jobTree.src.bioio import getLogLevelString
@@ -49,13 +49,16 @@ from cactus.progressive.multiCactusProject import MultiCactusProject
 from cactus.progressive.multiCactusTree import MultiCactusTree
 from cactus.progressive.experimentWrapper import ExperimentWrapper
 from cactus.progressive.ktserverLauncher import KtserverLauncher
+from cactus.progressive.mafFilter import removeOutgroupFromMaf
+from cactus.progressive.schedule import Schedule
         
 class ProgressiveDown(Target):
-    def __init__(self, options, project, event):
+    def __init__(self, options, project, event, schedule):
         Target.__init__(self)
         self.options = options
         self.project = project
         self.event = event
+        self.schedule = schedule
     
     def run(self):
         logger.info("Progressive Down: " + self.event)
@@ -64,10 +67,12 @@ class ProgressiveDown(Target):
         experiment = ExperimentWrapper(expXml)
         
         if self.options.recursive:
-            for child, path in experiment.seqMap.items():
+            deps = self.schedule.deps(self.event)
+            for child in deps:
                 if child in self.project.expMap:
-                    self.addChildTarget(ProgressiveDown(self.options, 
-                                                        self.project, child))
+                    self.addChildTarget(ProgressiveDown(self.options,
+                                                        self.project, child, 
+                                                        self.schedule))
         
         self.setFollowOnTarget(ProgressiveUp(self.options, self.project, 
                                experiment, self.event))
@@ -83,6 +88,7 @@ class ProgressiveUp(Target):
     def run(self):
         logger.info("Progressive Up: " + self.event)
         
+        # delete database files if --setupAndBuildAlignments
         if self.options.setupAndBuildAlignments:
             dbPath = os.path.join(self.experiment.getDbDir(), 
                                   self.experiment.getDbName())
@@ -152,8 +158,10 @@ class BuildMAF(Target):
             --outputFile %s --logLevel %s" % \
             (self.experiment.getDiskDatabaseString(),
              self.experiment.getMAFPath(), getLogLevelString())            
-           
-            assert os.system(cmdLine) == 0
+
+            assert os.system(cmdLine) == 0 
+            removeOutgroupFromMaf(self.experiment.getMAFPath(), 
+                                  self.experiment.getOutgroupName()) 
         
         self.setFollowOnTarget(JoinMAF(self.options, self.project,
                                        self.experiment,
@@ -179,7 +187,8 @@ class JoinMAF(Target):
             rootRefName = self.experiment.getReferenceNameFromConfig()
             rootIsTreeMAF = False
             for child, path in self.experiment.seqMap.items():
-                if child in self.project.expMap:
+                if child in self.project.expMap and\
+                child != self.experiment.getOutgroupName():
                     childExpPath = self.project.expMap[child]
                     childExpXML = ET.parse(childExpPath).getroot()
                     childExp = ExperimentWrapper(childExpXML)
@@ -260,12 +269,15 @@ def main():
 
     project = MultiCactusProject()
     project.readXML(args[0])
-    project.check()
+#    check no longer works, thanks to outgroup
+#    project.check()
+    schedule = Schedule()
+    schedule.compute(project)
     if options.event == None:
         options.event = project.mcTree.tree.iD
     assert options.event in project.expMap
     
-    baseTarget = ProgressiveDown(options, project, options.event)
+    baseTarget = ProgressiveDown(options, project, options.event, schedule)
     Stack(baseTarget).startJobTree(options)
     
    

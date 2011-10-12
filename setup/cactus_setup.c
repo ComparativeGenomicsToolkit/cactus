@@ -108,7 +108,6 @@ int main(int argc, char *argv[]) {
 
     int32_t key, j;
     struct List *stack;
-    struct BinaryTree *binaryTree;
     FILE *fileHandle = NULL;
     int32_t totalEventNumber;
     Group *group;
@@ -219,8 +218,8 @@ int main(int argc, char *argv[]) {
 
     st_logInfo("Going to build the event tree with newick string: %s\n",
             speciesTree);
-    binaryTree = newickTreeParser(speciesTree, 0.0, 0);
-    binaryTree->distance = INT32_MAX;
+    stTree *tree = stTree_parseNewickString(speciesTree);
+    stTree_setBranchLength(tree, INT32_MAX);
     eventTree = eventTree_construct2(flower); //creates the event tree and the root even
     totalEventNumber = 1;
     st_logInfo("Constructed the basic event tree\n");
@@ -228,23 +227,25 @@ int main(int argc, char *argv[]) {
     //now traverse the tree
     stack = constructEmptyList(0, NULL);
     listAppend(stack, eventTree_getRootEvent(eventTree));
-    listAppend(stack, binaryTree);
+    listAppend(stack, tree);
     j = optind;
     while (stack->length > 0) {
-        binaryTree = stack->list[--stack->length];
+        tree = stack->list[--stack->length];
         event = stack->list[--stack->length];
-        assert(binaryTree != NULL);
+        assert(tree != NULL);
         totalEventNumber++;
-        if (binaryTree->internal) {
-            event = event_construct3(binaryTree->label, binaryTree->distance,
+        if (stTree_getChildNumber(tree) > 0) {
+            event = event_construct3(stTree_getLabel(tree), stTree_getBranchLength(tree),
                     event, eventTree);
-            listAppend(stack, event);
-            listAppend(stack, binaryTree->right);
-            listAppend(stack, event);
-            listAppend(stack, binaryTree->left);
+            for(int32_t i=stTree_getChildNumber(tree)-1; i>=0; i--) {
+                listAppend(stack, event);
+                listAppend(stack, stTree_getChild(tree, i));
+            }
         } else {
             assert(j < argc);
-            event = event_construct3(binaryTree->label, binaryTree->distance,
+            assert(stTree_getLabel(tree) != NULL);
+
+            event = event_construct3(stTree_getLabel(tree), stTree_getBranchLength(tree),
                     event, eventTree);
 
             struct stat info;//info about the file.
@@ -327,6 +328,7 @@ int main(int argc, char *argv[]) {
     // Cleanup.
     ///////////////////////////////////////////////////////////////////////////
 
+    stTree_destruct(tree);
     cactusDisk_destruct(cactusDisk);
     stKVDatabaseConf_destruct(kvDatabaseConf);
 

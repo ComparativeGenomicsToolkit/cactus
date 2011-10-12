@@ -17,14 +17,17 @@ import copy
 from optparse import OptionParser
 
 from sonLib.bioio import printBinaryTree
-from sonLib.bioio import newickTreeParser
+from sonLib.tree import BinaryTree
 
 
 class MultiCactusTree:
     def __init__(self, tree, subtreeSize = 2):
         self.tree = tree
         self.subtreeSize = subtreeSize
+        # maps node id to node for all subtree roots
         self.subtreeRoots = dict()
+        # maps node to the subtree root that contains it
+        self.nearestRoots = dict()
     
     # fill in unlabeled node ids with a breadth-first
     # traversal numbering from the root
@@ -53,6 +56,21 @@ class MultiCactusTree:
         self.subtreeRoots = dict()
         computeSubtreeRootsRecursive(self.tree)
     
+    # map a node to the closest subtree root that contains it
+    def computeNearestRoots(self):
+        # think this function is buggy, but don't want to delete
+        # until i remember why i wrote it
+        assert False
+        def computeNearestRootsRecursive(node, root):
+            if node:
+                self.nerestRoots[node] = root
+                if node in self.subtreeRoots:
+                    root = node
+                computeNearestRootsRecursive(node.left, root)
+                computeNearesetRootsRecursive(node.right, root)
+        self.nearestRoots = dict()
+        computeSubtreeRootsRecursive(self.tree, None)
+        
     # blindly read in the roots from a given map or set 
     def assignSubtreeRoots(self, roots):
         def assignSubtreeRootsRecursive(roots, node):
@@ -84,6 +102,7 @@ class MultiCactusTree:
         root = self.subtreeRoots[name]
         cpy = copyRecursive(root, root)
         assert cpy is not None
+        cpy.distance = 0
         return cpy
         
     # find the root of the subtree containing the given node
@@ -131,17 +150,42 @@ class MultiCactusTree:
         assert tree.iD is not None
         subtree = self.extractSubTree(tree.iD)
         
-        def treeComp(node1, node2):
+        def treeComp(node1, node2, outgroup):
             if node1 is None and node2 is None:
                 return True
             elif node1 is not None and node2 is not None:
                 return node1.iD == node2.iD and\
                      treeComp(node1.left, node2.left) and\
-                     treeComp(node1.right, node2.right)
+                     treeComp(node1.right, node2.right)    
             else:
                 return False
         
-        assert treeComp(subtree, tree)    
+        assert treeComp(subtree, tree, outgroup)    
 
-
+    # insert a node with id (name_self) directly above 
+    # every node in the tree
+    # should be run after subtreeroots are computed (otherwise
+    # won't work
+    def addSelfEdges(self, suffix = "_self"):
+        def addSelfEdgesRecursive(node):
+            if node and (not node.internal or node.iD in self.subtreeRoots):
+                if node != self.tree:
+                    newNode = BinaryTree(0, node.internal, node.left, node.right, 
+                                     node.iD)
+                node.internal = True
+                node.left = newNode
+                node.right = None
+                node.iD += suffix
+                addSelfEdgesRecursive(newNode.left)
+                addSelfEdgesRecursive(newNode.right)
+                self.subtreeRoots[node.iD] = node
+                if newNode.iD in self.subtreeRoots:
+                    self.subtreeRoots[newNode.iD] = newNode
+        assert len(self.subtreeRoots) > 0
+        addSelfEdgesRecursive(self.tree.left)
+        addSelfEdgesRecursive(self.tree.right)
+            
+            
+            
+            
     
