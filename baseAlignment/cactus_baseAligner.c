@@ -148,6 +148,7 @@ int main(int argc, char *argv[]) {
         switch (key) {
             case 'a':
                 logLevelString = stString_copy(optarg);
+                st_setLogLevelFromString(logLevelString);
                 break;
             case 'b':
                 cactusDiskDatabaseString = stString_copy(optarg);

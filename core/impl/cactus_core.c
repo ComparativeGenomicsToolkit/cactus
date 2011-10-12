@@ -63,6 +63,16 @@ void parseRequiredSpeciesTree(const char *string, CactusCoreInputParameters *cCI
     stTree_destruct(tree);
     assert(stList_length(cCIP->listOfRequiredSpeciesCoverages) == stList_length(cCIP->listOfSetsOfRequiredSpecies));
     st_logDebug("Parsed %i required species sets\n", stList_length(cCIP->listOfRequiredSpeciesCoverages));
+    for(int32_t i=0; i<stList_length(cCIP->listOfRequiredSpeciesCoverages); i++) {
+        int32_t coverage = stIntTuple_getPosition(stList_get(cCIP->listOfRequiredSpeciesCoverages, i), 0);
+        st_logDebug("Got coverage %i for required species:\n", coverage);
+        stSortedSet *requiredSpecies = stList_get(cCIP->listOfSetsOfRequiredSpecies, i);
+        stSortedSetIterator *it = stSortedSet_getIterator(requiredSpecies);
+        const char *cA;
+        while((cA = stSortedSet_getNext(it)) != NULL) {
+            st_logDebug("Species to be covered: %s\n", cA);
+        }
+    }
 }
 
 void writePinchGraph(char *name, struct PinchGraph *pinchGraph, struct List *biConnectedComponents, struct List *groups) {

@@ -175,6 +175,7 @@ int main(int argc, char *argv[]) {
         switch (key) {
             case 'a':
                 logLevelString = stString_copy(optarg);
+                st_setLogLevelFromString(logLevelString);
                 break;
             case 'b':
                 alignmentsFile = stString_copy(optarg);

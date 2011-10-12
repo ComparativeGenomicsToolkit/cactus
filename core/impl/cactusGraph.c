@@ -1087,21 +1087,21 @@ static bool containsRequiredSpecies(struct CactusEdge *cactusEdge, Flower *flowe
 #ifdef BEN_DEBUG
     assert(!isAStubCactusEdge(cactusEdge, pinchGraph));
 #endif
-    bool b = 1;
     stSortedSet *eventStrings = getEventStrings(cactusEdgeToFirstPinchEdge(cactusEdge, pinchGraph)->from, flower);
     for(int32_t i=0; i<stList_length(listOfRequiredSpeciesCoverages); i++) {
         int32_t coverage = stIntTuple_getPosition(stList_get(listOfRequiredSpeciesCoverages, i), 0);
-        assert(coverage >= 0);
+        assert(coverage > 0);
         stSortedSet *requiredSpecies = stList_get(listOfSetsOfRequiredSpecies, i);
         stSortedSet *commonEvents = stSortedSet_getIntersection(requiredSpecies, eventStrings);
-        b = b && stSortedSet_size(commonEvents) >= coverage;
-        stSortedSet_destruct(commonEvents);
-        if(b == 0) {
-            break;
+        if(stSortedSet_size(commonEvents) < coverage) {
+            stSortedSet_destruct(commonEvents);
+            stSortedSet_destruct(eventStrings);
+            return 0;
         }
+        stSortedSet_destruct(commonEvents);
     }
     stSortedSet_destruct(eventStrings);
-    return b;
+    return 1;
 }
 
 static bool containsMultipleCopiesOfSpecies(struct CactusEdge *cactusEdge, Flower *flower,
