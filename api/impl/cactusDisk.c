@@ -366,12 +366,6 @@ void cactusDisk_write(CactusDisk *cactusDisk) {
     st_logDebug("Finished writing to the database\n");
 }
 
-static Cap *getNextStub(Cap *cap) {
-    Cap *cap2 = cap_getAdjacency(cap);
-    Cap *cap3 = cap_getOtherSegmentCap(cap2);
-    return cap3 == NULL ? cap2 : getNextStub(cap3);
-}
-
 Flower *cactusDisk_getFlower(CactusDisk *cactusDisk, Name flowerName) {
     static Flower flower;
     flower.name = flowerName;
