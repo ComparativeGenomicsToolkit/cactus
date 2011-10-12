@@ -45,7 +45,8 @@ def compressFastaFile(fileName, tempDir, compressFiles):
     return fileName
 
 def fileList(path):
-    """ return a list of files in the directory
+    """ return a list of files in the directory, or just the
+        directory name if its empty
     """
     if os.path.isdir(path):
         contents = os.listdir(path)
@@ -55,9 +56,9 @@ def fileList(path):
                 fpath = os.path.join(path, i)
                 if os.path.isfile(fpath):
                     files.append(fpath)
-        return files
-    else:
-        return [path]
+        if len(files) > 0:
+            return files
+    return [path]
 
 class PreprocessorOptions:
     def __init__(self, chunkSize, chunksPerJob, overlapSize, compressFiles, cmdLine):
@@ -190,23 +191,25 @@ class BatchPreprocessor(Target):
         self.iteration = iteration
   
     # link each fasta file to an event name and store 
+    # relies on sequences aways being read in same order
     def constructFileEventMap(self):
-        seqIterator = iter(self.inSequences)
+        seqIterator = iter(self.globalInSequences)
         eventMap = dict()
         tree = newickTreeParser(self.options.speciesTree)
         dfStack = [tree]
         while dfStack:
-            node = dfStack.pop(len(dfStack)-1)
+            node = dfStack.pop(-1)
             if node is not None and not node.internal:
                 eventMap[seqIterator.next()] = node.iD 
             else:
                 dfStack.append(node.right)
-                dfStack.append(node.left)
-        fileMap = dict()
-        for seq in self.inSequences:
+                dfStack.append(node.left) 
+        assert len(eventMap) == len(self.globalInSequences)
+        fileMap = []
+        for seq in self.globalInSequences:
             event = eventMap[seq]
             for file in fileList(seq):
-                fileMap[file] = event
+                fileMap.append(event)
         return fileMap
             
     def run(self):
@@ -223,10 +226,10 @@ class BatchPreprocessor(Target):
                                           prepNode.get("compressFiles", default="True").lower() == "true",
                                           prepNode.attrib["preprocessorString"])
         
+        
         #iterate over each input fasta file
         inSeqFiles = []
         map(inSeqFiles.extend, map(fileList, self.inSequences))
-        assert len(inSeqFiles) >= len(self.inSequences)
         
         fileEventMap = self.constructFileEventMap()
         
@@ -244,10 +247,15 @@ class BatchPreprocessor(Target):
         outSeq = iter(outSeqFiles)
         assert len(outSeqFiles) == len(inSeqFiles)
         
+        # either process a sequence, or propagate an empty directory
+        eventIterator = iter(fileEventMap)
         for inSeq in inSeqFiles:
-            event = fileEventMap[inSeq] 
-            self.addChildTarget(PreprocessSequence(self.prepOptions, inSeq, outSeq.next(), event))
-        
+            if not os.path.isdir(inSeq):
+                event = eventIterator.next() 
+                self.addChildTarget(PreprocessSequence(self.prepOptions, inSeq, outSeq.next(), event))
+            else:
+                os.makedirs(outSeq.next())
+
         if lastIteration == False:
             self.setFollowOnTarget(BatchPreprocessor(self.options, self.globalInSequences, outSeqFiles, 
                                                      self.outDirBase, self.iteration + 1))

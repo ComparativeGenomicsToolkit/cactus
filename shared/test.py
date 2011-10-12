@@ -129,13 +129,19 @@ def getCactusInputs_random(regionNumber=0, tempDir=None,
     sequenceFile = None
     fileHandle = None
     parentSequence = getRandomSequence(length=random.choice(xrange(1, 2*avgSequenceLength)))[1]
-    for i in xrange(sequenceNumber):
+    emptySequenceDirs = set(sequenceDirs)
+    i = 0
+    while i < sequenceNumber or len(emptySequenceDirs) > 0:
+        #for i in xrange(sequenceNumber):
         if sequenceFile == None:
             if random.random() > 0.5: #Randomly choose the files to be attached or not
                 suffix = ".fa.complete"
             else:
                 suffix = ".fa"
-            sequenceFile = getTempFile(rootDir=random.choice(sequenceDirs), suffix=suffix)
+            sequenceDir = random.choice(sequenceDirs)
+            if sequenceDir in emptySequenceDirs:
+                emptySequenceDirs.remove(sequenceDir)
+            sequenceFile = getTempFile(rootDir=sequenceDir, suffix=suffix)
             fileHandle = open(sequenceFile, 'w')
         if random.random() > 0.8: #Get a new root sequence
             parentSequence = getRandomSequence(length=random.choice(xrange(1, 2*avgSequenceLength)))[1]
@@ -148,6 +154,7 @@ def getCactusInputs_random(regionNumber=0, tempDir=None,
             fileHandle.close()
             fileHandle = None
             sequenceFile = None
+        i += 1
     if fileHandle != None:
         fileHandle.close()
         
@@ -237,6 +244,7 @@ def runWorkflow_TestScript(sequences, newickTreeString,
     cactusDiskDatabaseString = experiment.getDatabaseString()
     experimentFile = os.path.join(outputDir, "experiment.xml")
     experiment.writeExperimentFile(experimentFile)
+    logger.info("The experiment file %s\n" % experimentFile)
    
     #Setup the job tree dir.
     jobTreeDir = os.path.join(outputDir, "jobTree")

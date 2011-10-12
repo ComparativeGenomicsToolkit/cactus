@@ -4,7 +4,9 @@
 #
 #Released under the MIT license, see LICENSE.txt
 
-""" Wrap a tree and add some simple partitioning functionality 
+""" Wrap a tree and add some simple partitioning functionality.  note
+that nameUnlabeledInternalNodes() and computeSubtreeRoots() need to be
+called (in that order) for anything to work...  
 
 """
 
@@ -16,176 +18,163 @@ import copy
 
 from optparse import OptionParser
 
-from sonLib.bioio import printBinaryTree
-from sonLib.tree import BinaryTree
+from sonLib.nxtree import NXTree
+from sonLib.nxnewick import NXNewick
 
-
-class MultiCactusTree:
-    def __init__(self, tree, subtreeSize = 2):
-        self.tree = tree
+class MultiCactusTree(NXTree):
+    self_suffix = "_self"
+    def __init__(self, tree = None, subtreeSize = 2):
+        if isinstance(tree, NXTree):
+            NXTree.__init__(self, tree.nxDg)
+        else:   
+            NXTree.__init__(self, tree)
+        # ids of all subtree roots for fast checking
+        self.subtreeRoots = set()
+        # map of names to node ids
+        self.nameToId = dict()
+        # size a subtree (in number of leaves)
         self.subtreeSize = subtreeSize
-        # maps node id to node for all subtree roots
-        self.subtreeRoots = dict()
-        # maps node to the subtree root that contains it
-        self.nearestRoots = dict()
-    
+        
     # fill in unlabeled node ids with a breadth-first
     # traversal numbering from the root
     def nameUnlabeledInternalNodes(self, prefix = "Anc", startIdx = 0):
-        bfQueue = [self.tree]
         count = startIdx
-        while bfQueue:
-            node = bfQueue.pop(0)
-            if node is not None and node.iD is None:
-                if node.internal:
-                    node.iD = prefix + str(count)
-                    bfQueue.append(node.left)
-                    bfQueue.append(node.right)
+        numInternal = 0
+        width = 0
+        for node in self.breadthFirstTraversal():
+            if self.isLeaf(node) is False:
+                numInternal += 1
+        if numInternal > 0:
+            width = int(math.log10(numInternal)) + 1
+        for node in self.breadthFirstTraversal():
+            if not self.isLeaf(node) and not self.hasName(node):
+                self.setName(node, "%s%s" % (prefix, str(count).zfill(width)))
                 count += 1
+            self.nameToId[self.getName(node)] = node
     
     # identify roots of subclades in the tree and 
     # add them to the self.claderoots dicitonary
-    def computeSubtreeRoots(self):
-        def computeSubtreeRootsRecursive(node):
-            assert node.iD is not None
-            self.subtreeRoots[node.iD] = node
-            leaves = self.getSubtreeLeaves(node)
-            for subtreeLeaf in leaves:
-                if subtreeLeaf.internal:
-                    computeSubtreeRootsRecursive(subtreeLeaf)
-        self.subtreeRoots = dict()
-        computeSubtreeRootsRecursive(self.tree)
-    
-    # map a node to the closest subtree root that contains it
-    def computeNearestRoots(self):
-        # think this function is buggy, but don't want to delete
-        # until i remember why i wrote it
-        assert False
-        def computeNearestRootsRecursive(node, root):
-            if node:
-                self.nerestRoots[node] = root
-                if node in self.subtreeRoots:
-                    root = node
-                computeNearestRootsRecursive(node.left, root)
-                computeNearesetRootsRecursive(node.right, root)
-        self.nearestRoots = dict()
-        computeSubtreeRootsRecursive(self.tree, None)
+    def computeSubtreeRoots(self, root = None):
+        if root is None:
+            root = self.rootId
+            self.subtreeRoots = set()
+        assert root not in self.subtreeRoots
+        self.subtreeRoots.add(root)
+        leaves = self.getSubtreeLeaves(root)    
+        for subtreeLeaf in leaves:
+            if not self.isLeaf(subtreeLeaf):
+                self.computeSubtreeRoots(subtreeLeaf)
         
-    # blindly read in the roots from a given map or set 
-    def assignSubtreeRoots(self, roots):
-        def assignSubtreeRootsRecursive(roots, node):
-            if node is None:
-                return
-            if node == self.tree:
-                self.subtreeRoots = dict()
-            if node.iD and node.iD in roots:
-                self.subtreeRoots[node.iD] = node
-            assignSubtreeRootsRecursive(roots, node.left)
-            assignSubtreeRootsRecursive(roots, node.right)
-        assignSubtreeRootsRecursive(roots, self.tree)
-          
+    # blindly read in the roots from given list of names 
+    def assignSubtreeRootNames(self, rootNames):
+        self.subtreeRoots = set()
+        for node in self.breadthFirstTraversal():
+            if self.getName(node) in rootNames:
+                self.subtreeRoots.add(node)
+                
+    def getSubtreeRootNames(self):
+        return [self.getName(x) for x in self.subtreeRoots]
+    
+    # generate eall nodes beneath (and including) given
+    # root
+    def traverseSubtree(self, root, node):
+        yield node
+        if node == root or node not in self.subtreeRoots:
+            for child in self.getChildren(node):
+                for i in self.traverseSubtree(root, child):
+                    yield i
+            
     # copy a subtree rooted at node with given name
     def extractSubTree(self, name):
-        def copyRecursive(root, node):
-            if node is None:
-                return None
-            cpy = copy.deepcopy(node)
-            if (node != root and node.iD in self.subtreeRoots) \
-                or not node.internal:
-                cpy.left = None
-                cpy.right = None
-                cpy.internal = False
-            else:
-                cpy.left = copyRecursive(root, node.left)
-                cpy.right = copyRecursive(root, node.right)
-            return cpy
-        root = self.subtreeRoots[name]
-        cpy = copyRecursive(root, root)
-        assert cpy is not None
-        cpy.distance = 0
-        return cpy
+        root = self.nameToId[name]
+        subtree = [i for i in self.traverseSubtree(root, root)]
+        cpy = self.nxDg.subgraph(subtree).copy()
+        mcCpy = MultiCactusTree(cpy, 2)
+        mcCpy.assignSubtreeRootNames(self.getSubtreeRootNames())
+        return mcCpy
         
     # find the root of the subtree containing the given node
     # as leaf (slowly.. for nwo)
-    def getSubtreeRoot(self, node):
-        def getSubtreeRootRecursive(node, cur):
-            assert node != self.tree
-            if cur is None:
-                return None
-            leaves = getSubtreeLeaves(cur)
-            for leaf in leaves:
-                if leaf.iD == node.iD:
-                    return cur
-                par = getSubtreeRootRecursive(node, leaf)
-                if par is not None:
-                    return par
-            return None
-        return getSubtreeRootRecursive(node, self.tree)
+    def getSubtreeRoot(self, name):
+        node = self.nameToId[name]
+        if node == self.rootId:
+            return node
+        parent = self.getParent(node)
+        while parent is not None:
+            if parent in self.subtreeRoots:
+                return self.getName(parent)
+            parent = self.getParent(parent)
+        return None
         
     # find the leaves of af subtree, subject to 
     # 1) number of leaves maximal but less than self.subtreeSize
     # 2) if a node is returned, its sibling must me as well
     def getSubtreeLeaves(self, node):
-        # Get children of a set of nodes
-        def allChildren(nodes):
-            children = []
-            for i in nodes:
-                if i.left is not None:
-                    children.append(i.left)
-                if i.right is not None:    
-                    children.append(i.right)
-                elif i.left is None:
-                    children.append(i)
-            return children
-        
+        assert len(self.getChildren(node)) <= self.subtreeSize
         curLevel = []
-        nextLevel = allChildren([node])
+        nextLevel = self.getChildren(node)
         while (len(nextLevel) <= self.subtreeSize and len(nextLevel) > len(curLevel)):
             curLevel = nextLevel
-            nextLevel = allChildren(curLevel)    
+            nextLevel = sum([self.getChildren(i) for i in curLevel], [])
         return curLevel
     
-    # check if given tree is a subtree of self.tree        
-    def checkSubtree(self, tree):
-        assert tree.iD is not None
-        subtree = self.extractSubTree(tree.iD)
-        
-        def treeComp(node1, node2, outgroup):
-            if node1 is None and node2 is None:
-                return True
-            elif node1 is not None and node2 is not None:
-                return node1.iD == node2.iD and\
-                     treeComp(node1.left, node2.left) and\
-                     treeComp(node1.right, node2.right)    
-            else:
-                return False
-        
-        assert treeComp(subtree, tree, outgroup)    
-
+    # safe id to insert is current max + 1
+    def getNextIndex(self):
+        return sorted([i for i in self.breadthFirstTraversal()])[-1] + 1
+    
+    # insert a new node above a specified node in the tree
+    def insertAbove(self, node, newNode, newName = "", newWeight= None):
+        parent = self.getParent(node)
+        if parent is not None:
+            oldWeight = self.getWeight(parent, node)
+            self.nxDg.remove_edge(parent, node)
+            self.nxDg.add_edge(parent, newNode)
+            if oldWeight is not None:
+                self.setWeight(parent, newNode, oldWeight)
+        else:
+            assert node == self.rootId
+            self.rootId = newNode
+        self.nxDg.add_node(newNode)
+        self.setName(newNode, newName)
+        self.nxDg.add_edge(newNode, node)
+        if newWeight is not None:
+            self.setWeight(newNode, node, newWeight)
+        if len(newName) > 0:
+            self.nameToId[newName] = newNode
+            
     # insert a node with id (name_self) directly above 
     # every node in the tree
     # should be run after subtreeroots are computed (otherwise
     # won't work
-    def addSelfEdges(self, suffix = "_self"):
-        def addSelfEdgesRecursive(node):
-            if node and (not node.internal or node.iD in self.subtreeRoots):
-                if node != self.tree:
-                    newNode = BinaryTree(0, node.internal, node.left, node.right, 
-                                     node.iD)
-                node.internal = True
-                node.left = newNode
-                node.right = None
-                node.iD += suffix
-                addSelfEdgesRecursive(newNode.left)
-                addSelfEdgesRecursive(newNode.right)
-                self.subtreeRoots[node.iD] = node
-                if newNode.iD in self.subtreeRoots:
-                    self.subtreeRoots[newNode.iD] = newNode
-        assert len(self.subtreeRoots) > 0
-        addSelfEdgesRecursive(self.tree.left)
-        addSelfEdgesRecursive(self.tree.right)
-            
-            
-            
-            
+    def addSelfEdges(self):
+        nextIndex = self.getNextIndex()
+        traversal = [i for i in self.breadthFirstTraversal()]
+        for node in traversal:
+            if (node in self.subtreeRoots or self.isLeaf(node)) and\
+            node != self.rootId:
+                newNode = nextIndex
+                nextIndex += 1
+                parent = self.getParent(node)
+                weight = None
+                if parent is not None:
+                    weight = self.getWeight(parent, node)
+                    assert weight is not None
+                assert self.self_suffix not in self.getName(node)
+                newName = self.getName(node) + self.self_suffix
+                self.insertAbove(node, newNode, newName, weight)
+                self.subtreeRoots.add(newNode) 
     
+    # tack an outgroup onto the root
+    # if root is a leaf, we make a new root above. 
+    def addOutgroup(self, ogName, distance):
+        assert ogName not in self.nameToId
+        if self.isLeaf(self.rootId):
+            newNode = self.getNextIndex()
+            self.insertAbove(self.rootId, newNode, "", distance / 2)
+            distance = distance / 2
+        newNode = self.getNextIndex()
+        self.nxDg.add_edge(self.rootId, newNode )
+        self.setName(newNode, ogName)
+        self.nameToId[ogName] = newNode
+        self.setWeight(self.rootId, newNode, distance)
+        

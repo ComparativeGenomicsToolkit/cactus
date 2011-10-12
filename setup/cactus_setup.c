@@ -17,6 +17,8 @@
 #include <sys/stat.h>
 #include <dirent.h>
 
+const char *CACTUS_SETUP_EXCEPTION = "CACTUS_SETUP_EXCEPTION";
+
 #include "bioioC.h"
 #include "cactus.h"
 
@@ -42,6 +44,15 @@ Flower *flower;
 EventTree *eventTree;
 Event *event;
 int32_t totalSequenceNumber = 0;
+
+void checkBranchLengthsAreDefined(stTree *tree) {
+    if(stTree_getBranchLength(tree) == INFINITY) {
+        stThrowNew(CACTUS_SETUP_EXCEPTION, "Got a non defined branch length in the input tree: %s\n", stTree_getNewickTreeString(tree));
+    }
+    for(int32_t i=0; i<stTree_getChildNumber(tree); i++) {
+        checkBranchLengthsAreDefined(stTree_getChild(tree, i));
+    }
+}
 
 void fn(const char *fastaHeader, const char *string, int32_t length) {
     /*
@@ -220,6 +231,7 @@ int main(int argc, char *argv[]) {
             speciesTree);
     stTree *tree = stTree_parseNewickString(speciesTree);
     stTree_setBranchLength(tree, INT32_MAX);
+    checkBranchLengthsAreDefined(tree);
     eventTree = eventTree_construct2(flower); //creates the event tree and the root even
     totalEventNumber = 1;
     st_logInfo("Constructed the basic event tree\n");
@@ -245,6 +257,7 @@ int main(int argc, char *argv[]) {
             assert(j < argc);
             assert(stTree_getLabel(tree) != NULL);
 
+            assert(stTree_getBranchLength(tree) != INFINITY);
             event = event_construct3(stTree_getLabel(tree), stTree_getBranchLength(tree),
                     event, eventTree);
 

@@ -96,7 +96,6 @@ def runCactusCore(cactusDiskDatabaseString, alignmentFile,
                   trim=None,
                   minimumTreeCoverage=None,
                   blockTrim=None,
-                  ignoreAllChainsLessThanMinimumTreeCoverage=False,
                   minimumBlockDegree=None,
                   requiredSpecies=None,
                   singleCopySpecies=None):
@@ -113,7 +112,6 @@ def runCactusCore(cactusDiskDatabaseString, alignmentFile,
         trim = ""
     minimumTreeCoverage = nameValue("minimumTreeCoverage", minimumTreeCoverage, float)
     blockTrim = nameValue("blockTrim", blockTrim, int)
-    ignoreAllChainsLessThanMinimumTreeCoverage = nameValue("ignoreAllChainsLessThanMinimumTreeCoverage", ignoreAllChainsLessThanMinimumTreeCoverage, bool)
     minimumBlockDegree = nameValue("minimumDegree", minimumBlockDegree, int)
     minimumChainLength = nameValue("minimumChainLength", minimumChainLength, int)
     maximumGroupSize = nameValue("maximumGroupSize", maximumGroupSize, int)
@@ -125,9 +123,9 @@ def runCactusCore(cactusDiskDatabaseString, alignmentFile,
         singleCopySpecies = "--singleCopySpecies '%s'" % singleCopySpecies
     else:
         singleCopySpecies = ""
-    command = "cactus_core --cactusDisk '%s' --flowerName %s --alignments %s --logLevel %s %s %s %s %s %s %s %s %s %s %s %s %s %s" % \
+    command = "cactus_core --cactusDisk '%s' --flowerName %s --alignments %s --logLevel %s %s %s %s %s %s %s %s %s %s %s %s %s" % \
     (cactusDiskDatabaseString, flowerName, alignmentFile, logLevel, writeDebugFiles, annealingRounds, deannealingRounds, alignRepeatsAtRound,
-     trim, minimumTreeCoverage, blockTrim, ignoreAllChainsLessThanMinimumTreeCoverage,
+     trim, minimumTreeCoverage, blockTrim, 
      minimumBlockDegree, requiredSpecies, singleCopySpecies, minimumChainLength, maximumGroupSize)
     #print "command to run", command
     #assert 0
@@ -301,20 +299,9 @@ def runCactusWorkflow(experimentFile,
     logger.info("Ran the cactus workflow okay")
     
 def runCactusCreateMultiCactusProject(experimentFile, outputDir, 
-                                      logLevel=None, 
-                                      subtreeSize=None,
-                                      ancestorPrefix=None,
-                                      useOutgroup=None,
-                                      doSelfAlignment=None):
+                                      logLevel=None, fixNames=True):
     logLevel = getLogLevelString2(logLevel)
-    subtreeSize = nameValue("subtreeSize", subtreeSize, int)
-    ancestorPrefix = nameValue("ancestorPrefix", ancestorPrefix, str)
-    useOutgroup = nameValue("outgroup", useOutgroup, bool)
-    doSelfAlignment = nameValue("self", doSelfAlignment, bool)
-    command = "cactus_createMultiCactusProject.py %s %s %s %s %s %s" % (experimentFile, outputDir,
-                                                                        #logLevel,
-                                                                        subtreeSize, ancestorPrefix,
-                                                                        useOutgroup, doSelfAlignment)
+    command = "cactus_createMultiCactusProject.py %s %s --fixNames=%s" % (experimentFile, outputDir, str(fixNames))
     system(command)
     logger.info("Ran the cactus create multi project")
     

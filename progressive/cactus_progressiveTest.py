@@ -41,7 +41,7 @@ class TestCase(unittest.TestCase):
         
     def testCactus_Random(self):
         runWorkflow_multipleExamples(getCactusInputs_random, 
-                                     testNumber=2,
+                                     testNumber=5,
                                      testRestrictions=(TestStatus.TEST_SHORT,),
                                      batchSystem=self.batchSystem, buildJobTreeStats=True,
                                      cactusWorkflowFunction=self.progressiveFunction)
@@ -49,7 +49,7 @@ class TestCase(unittest.TestCase):
     def testCactus_Random_UseOutgroup(self):
         self.useOutgroup = True
         runWorkflow_multipleExamples(getCactusInputs_random, 
-                                     testNumber=2,
+                                     testNumber=5,
                                      testRestrictions=(TestStatus.TEST_SHORT,),
                                      batchSystem=self.batchSystem, buildJobTreeStats=True,
                                      cactusWorkflowFunction=self.progressiveFunction)
@@ -57,7 +57,7 @@ class TestCase(unittest.TestCase):
     def testCactus_Random_DoSelfAlignment(self):
         self.doSelfAlignment = True
         runWorkflow_multipleExamples(getCactusInputs_random, 
-                                     testNumber=2,
+                                     testNumber=5,
                                      testRestrictions=(TestStatus.TEST_SHORT,),
                                      batchSystem=self.batchSystem, buildJobTreeStats=True,
                                      cactusWorkflowFunction=self.progressiveFunction)
@@ -66,7 +66,7 @@ class TestCase(unittest.TestCase):
         self.useOutgroup = True
         self.doSelfAlignment = True
         runWorkflow_multipleExamples(getCactusInputs_random, 
-                                     testNumber=2,
+                                     testNumber=5,
                                      testRestrictions=(TestStatus.TEST_SHORT,),
                                      batchSystem=self.batchSystem, buildJobTreeStats=True,
                                      cactusWorkflowFunction=self.progressiveFunction)
@@ -108,8 +108,7 @@ class TestCase(unittest.TestCase):
         tempExperimentDir = os.path.join(tempDir, "exp")
         runCactusCreateMultiCactusProject(experimentFile, 
                                           tempExperimentDir,
-                                          useOutgroup=self.useOutgroup,
-                                          doSelfAlignment=self.doSelfAlignment)
+                                          fixNames = False)
         logger.info("Put the temporary files in %s" % tempExperimentDir)
         runCactusProgressive(os.path.join(tempExperimentDir, "exp_project.xml"), 
                              jobTreeDir, 

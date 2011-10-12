@@ -162,7 +162,8 @@ stSortedSet *filterBlocksByTreeCoverageAndLength(
         int32_t minimumBlockDegree, /*The minimum number of segments in a block to be included (>=)*/
         int32_t minimumBlockLength, /*The minimum length of an block to be included */
         int32_t minimumChainLength, /* Minimum chain length to be included */
-        stSortedSet *requiredSpecies, /* A block's segments must have an event with at least one member of this set (unless it is NULL) */
+        stList *listOfSetsOfRequiredSpecies, /* A block's segments must have an event with at least coverage (given for each set individually) number of elements in each of these set (unless it is NULL) */
+        stList *listOfRequiredSpeciesCoverages,
         stSortedSet *singleCopySpecies, /* A block must not have multiple (more than one) segments from any of the following species (unless it is NULL)*/
         struct PinchGraph *pinchGraph);
 

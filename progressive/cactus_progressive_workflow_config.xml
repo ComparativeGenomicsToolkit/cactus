@@ -32,4 +32,10 @@
 
 	<check>
 	</check>
+	 <preprocessor chunkSize="100000000" preprocessorString='cactus_addFastaHeaderDots.py TARGET_FILE OUT_FILE --event EVENT_STRING'/>
+  <multi_cactus>
+	 <outgroup strategy="none"/>
+	 <coverage required_fraction="0" single_copy_strategy="none"/>
+	 <decomposition subtree_size="2" self_alignment="false" default_internal_node_prefix="Anc"/>
+  </multi_cactus>
 </cactus_workflow_config>

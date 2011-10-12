@@ -7,49 +7,52 @@
 """ Remove outgroup from a maf file. 
 
 """
-import unittest
 
 import os
-import xml.etree.ElementTree as ET
-from xml.dom import minidom
 import sys
-import random
-import math
-import copy
-import filecmp
 
-from optparse import OptionParser
-
-from sonLib.bioio import printBinaryTree
-from sonLib.bioio import newickTreeParser
+from sonLib.nxtree import NXTree
+from sonLib.nxnewick import NXNewick
 from cactus.progressive.multiCactusTree import MultiCactusTree
-from cactus.progressive.experimentWrapper import ExperimentWrapper
 
 def removeOutgroupLeafFromTree(tree, event):
-    if tree:
-        if tree.left and tree.left.iD == event and not tree.left.internal:
-            tree.left = None            
-        elif tree.right and tree.right.iD == event and not tree.right.internal:
-            tree.right = None
-        else:
-            removeOutgroupLeafFromTree(tree.left, event)
-            removeOutgroupLeafFromTree(tree.right, event)
+    for leaf in tree.getLeaves():
+        if tree.getName(leaf).find(event) == 0:
+            tree.nxDg.remove_node(leaf)
+            return
+    assert False
+
+# cactus_createMulti.... guarantees one event name is never
+# a prefix of another EXCEPT in the case of the _self. 
+# so any sequence with the given outgroup name as a prefix
+# except those with outgroup_self as the prefix belong
+# to the outgroup and need to be filtered
+def eventInLine(name, line):
+    tokens = line.split()
+    if line[0] == 's' and len(line) >= 2:
+        word = tokens[1]
+        if word.find(name) == 0 and \
+        word.find(name + MultiCactusTree.self_suffix) != 0:
+            return True
+    return False
     
 # quick and dirty friday afternoon! 
 def removeOutgroupFromMaf(mafPath, event):
     if event is None or event == "":
         return
+    event = event.split('.')[0]
     tempPath = "%s.og" % mafPath
     inFile = open(mafPath)
     outFile = open(tempPath, 'w')
-    num = 1 
+    num = 1
+    newick = NXNewick() 
     for line in inFile:
         if num == 2:
             treeString = line.split()[2]
-            tree = newickTreeParser(treeString, reportUnaryNodes=True)
+            tree = MultiCactusTree(newick.parseString(treeString))
             removeOutgroupLeafFromTree(tree, event)
-            line = line.replace(treeString, printBinaryTree(tree, True))            
-        if line[0] == '#' or line.find(event) < 0:
+            line = line.replace(treeString, newick.writeString(tree))            
+        if line[0] == '#' or not eventInLine(event, line):
             outFile.write(line)
         num += 1
     inFile.close()
