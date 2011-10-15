@@ -33,7 +33,7 @@ void buildReferenceTopDown(Flower *flower, const char *referenceEventHeader,
 /*
  * Adds sequence objects and coordinates for each reference.
  */
-void addReferenceSequences(Flower *flower, Name referenceEventName);
+void addReferenceSequences(Flower *flower, Name referenceEventName, Event *outgroupEvent);
 
 /*
  * Traverses caps in order, along a sequence, starting from a 3 prime cap.

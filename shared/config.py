@@ -45,7 +45,7 @@ class CactusWorkflowExperiment:
     using the inputs to generate valid config strings and files.
     """
     def __init__(self, sequences, newickTreeString, requiredSpecies=None, 
-                 singleCopySpecies=None, outputDir=None, databaseName=None, 
+                 singleCopySpecies=None, outgroupEvent=None, outputDir=None, databaseName=None, 
                  databaseConf=None, configFile=None):
         self.experiment = ET.Element("cactus_workflow_experiment")
         if databaseName == None:
@@ -96,6 +96,8 @@ class CactusWorkflowExperiment:
                 node.text = " ".join(species)
         if singleCopySpecies != None:
             self.experiment.attrib["single_copy_species"] = singleCopySpecies
+        if outgroupEvent != None:
+            self.experiment.attrib["outgroup_event"] = outgroupEvent
         self.experiment.attrib["config"] = "default"
         if configFile != None:
             self.experiment.attrib["config"] = configFile
