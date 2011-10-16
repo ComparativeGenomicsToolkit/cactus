@@ -118,7 +118,7 @@ int main(int argc, char *argv[]) {
 
     Event *outgroupEvent = NULL;
     if(outgroupEventString != NULL) {
-        Event *outgroupEvent = eventTree_getEventByHeader(flower_getEventTree(flower), outgroupEventString);
+        outgroupEvent = eventTree_getEventByHeader(flower_getEventTree(flower), outgroupEventString);
         assert(outgroupEvent != NULL);
     }
 
