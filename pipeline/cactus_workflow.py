@@ -534,7 +534,9 @@ class CactusSetReferenceCoordinates(Target):
         
     def run(self):
         referenceNode=self.options.config.find("reference")
-        runCactusAddReferenceCoordinates(self.options.cactusDiskDatabaseString, referenceEventString=getOptionalAttrib(referenceNode, "reference"))
+        runCactusAddReferenceCoordinates(self.options.cactusDiskDatabaseString, 
+                                         referenceEventString=getOptionalAttrib(referenceNode, "reference"),
+                                         outgroupEventString=self.options.outgroupEventName)
         self.setFollowOnTarget(CactusFacesPhase(self.flowerName, self.options))
 
 ############################################################
@@ -631,6 +633,7 @@ def expandWorkflowOptions(options, experimentFile = None):
         return s
     options.requiredSpecies = parseRequiredSpecies(options.experimentFile)
     options.singleCopySpecies = getOptionalAttrib(options.experimentFile, "single_copy_species")
+    options.outgroupEventName = getOptionalAttrib(options.experimentFile, "outgroup_event")
     logger.info("Parsed the XML options file")
     
    

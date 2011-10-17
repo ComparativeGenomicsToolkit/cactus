@@ -24,16 +24,17 @@ static void getSequenceLength(stList *caps, int32_t *coordinate) {
 ////////////////////////////////////
 ////////////////////////////////////
 
-char *getConsensusStringP(stList *strings, int32_t blockLength) {
+
+int32_t *collateCounts(stList *strings, int32_t blockLength,
+        int32_t **upperCounts) {
     //Matrix to store the number of occurrences of each base type, for each column in the block
     int32_t *baseCounts = st_calloc(blockLength * 5, sizeof(int32_t));
     //Array storing number of bases that are upper case letters (non repetitive)..
-    int32_t *upperCounts = st_calloc(blockLength, sizeof(int32_t));
-
+    *upperCounts = st_calloc(blockLength, sizeof(int32_t));
     for (int32_t j = 0; j < stList_length(strings); j++) {
         char *string = stList_get(strings, j);
         for (int32_t i = 0; i < blockLength; i++) {
-            upperCounts[i] += toupper(string[i]) == string[i] ? 1 : 0;
+            (*upperCounts)[i] += toupper(string[i]) == string[i] ? 1 : 0;
             switch (toupper(string[i])) {
                 case 'A':
                     baseCounts[i * 5]++;
@@ -52,42 +53,65 @@ char *getConsensusStringP(stList *strings, int32_t blockLength) {
             }
         }
     }
+    return baseCounts;
+}
+
+const char *getMajorityBases(int32_t *baseCounts) {
+    static char seq[5];
+    static const char bases[5] = { 'a', 'c', 'g', 't' };
+
+    int32_t maxBaseCount = 0;
+    for (int32_t j = 0; j < 4; j++) {
+        int32_t k = baseCounts[j];
+        if (maxBaseCount < k) {
+            maxBaseCount = k;
+        }
+    }
+    //st_uglyf("max base count %i\n", maxBaseCount);
+    if (maxBaseCount == 0) {
+        seq[0] = 'n';
+        seq[1] = '\0';
+    } else {
+        int32_t k = 0;
+        for (int32_t j = 0; j < 4; j++) {
+            if (baseCounts[j] == maxBaseCount) {
+                seq[k++] = bases[j];
+            }
+        }
+        seq[k] = '\0';
+    }
+    return seq;
+}
+
+char *getConsensusStringP(stList *strings, stList *outgroupStrings,
+        int32_t blockLength) {
+    int32_t *upperCounts = NULL;
+    int32_t *baseCounts = collateCounts(strings, blockLength, &upperCounts);
+    int32_t *upperCountsOutgroup = NULL;
+    int32_t *baseCountsOutgroup = collateCounts(outgroupStrings, blockLength,
+            &upperCountsOutgroup);
 
     char *string = st_malloc(sizeof(char) * (blockLength + 1));
     string[blockLength] = '\0';
-    for (int32_t i = 0; i < blockLength; i++) {
-        int32_t base = 4;
-        int32_t baseCount = baseCounts[i * 5 + 4];
-        for (int32_t j = 0; j < 4; j++) {
-            int32_t k = baseCounts[i * 5 + j];
-            if (k > baseCount || (base != 4 && k == baseCount && st_random()
-                    > 0.5)) {
-                base = j;
-                baseCount = k;
-            }
-        }
-        switch (base) {
-            case 0:
-                base = 'a';
-                break;
-            case 1:
-                base = 'c';
-                break;
-            case 2:
-                base = 'g';
-                break;
-            case 3:
-                base = 't';
-                break;
-            case 4:
-                base = 'n';
-                break;
-            default:
-                assert(0);
 
+    for (int32_t i = 0; i < blockLength; i++) {
+        /*
+         * Logic to choose base..
+         */
+        const char *majorityBases = getMajorityBases(&(baseCounts[i * 5]));
+        assert(strlen(majorityBases) > 0);
+        if(strlen(majorityBases) > 1) {
+            for(int32_t j=0; j<4; j++) {
+                baseCounts[i * 5 + j] += baseCountsOutgroup[i * 5 + j];
+            }
+            majorityBases = getMajorityBases(&(baseCounts[i * 5]));
         }
+        char base = majorityBases[st_randomInt(0, strlen(majorityBases))];
+        /*
+         * Now choose if it should be upper case.
+         */
         string[i]
-                = upperCounts[i] >= ((double) stList_length(strings)) / 2 ? toupper(
+                = (upperCounts[i] + upperCountsOutgroup[i]) >= ((double) stList_length(strings) + stList_length(outgroupStrings)) / 2 ? toupper(
                         base)
                         : base;
     }
@@ -97,7 +121,7 @@ char *getConsensusStringP(stList *strings, int32_t blockLength) {
     return string;
 }
 
-static char *getConsensusString(Block *block) {
+static char *getConsensusString(Block *block, Name outgroupEventName) {
     /*
      * Returns a consensus string for a block.
      */
@@ -106,26 +130,39 @@ static char *getConsensusString(Block *block) {
     Segment *segment;
     Block_InstanceIterator *instanceIt = block_getInstanceIterator(block);
     stList *strings = stList_construct3(0, free);
+    stList *outgroupStrings = stList_construct3(0, free);
     while ((segment = block_getNext(instanceIt)) != NULL) {
         if (segment_getSequence(segment) != NULL) {
-            stList_append(strings, segment_getString(segment));
+            if (event_getName(segment_getEvent(segment)) == outgroupEventName) {
+                stList_append(outgroupStrings, segment_getString(segment));
+            } else {
+                stList_append(strings, segment_getString(segment));
+            }
         }
     }
     block_destructInstanceIterator(instanceIt);
 
-    char *string = getConsensusStringP(strings, block_getLength(block));
+    char *string = getConsensusStringP(strings, outgroupStrings,
+            block_getLength(block));
     stList_destruct(strings);
+    stList_destruct(outgroupStrings);
     return string;
 }
 
 static void getString(stList *caps, void **extraArgs) {
     int32_t *coordinate = extraArgs[0];
     char *string = extraArgs[1];
+    Event *outgroupEvent = extraArgs[2];
+    Name outgroupEventName = NULL_NAME;
+    if (outgroupEvent != NULL) {
+        outgroupEventName = event_getName(outgroupEvent);
+    }
     Cap *cap = stList_get(caps, 0);
     assert(cap_getSide(cap));
     Segment *segment = cap_getSegment(cap);
     if (segment != NULL) {
-        char *segmentString = getConsensusString(segment_getBlock(segment));
+        char *segmentString = getConsensusString(segment_getBlock(segment),
+                outgroupEventName);
         for (int32_t i = 0; i < segment_getLength(segment); i++) {
             string[(*coordinate)++] = segmentString[i];
         }
@@ -281,7 +318,7 @@ void traverseCapsInSequenceOrderFrom3PrimeCap(Cap *cap, void *extraArg,
 ////////////////////////////////////
 ////////////////////////////////////
 
-static void addReferenceSequence(Cap *cap, int32_t *index) {
+static void addReferenceSequence(Cap *cap, int32_t *index, Event *outgroupEvent) {
     /*
      * Add a sequence for the given cap.
      */
@@ -300,7 +337,7 @@ static void addReferenceSequence(Cap *cap, int32_t *index) {
     char *string = st_malloc(sizeof(char) * (length + 1));
     string[length] = '\0';
     int32_t coordinate = 0;
-    void *extraArgs[] = { &coordinate, string };
+    void *extraArgs[] = { &coordinate, string, outgroupEvent };
     traverseCapsInSequenceOrderFrom3PrimeCap(cap, extraArgs, NULL,
             (void(*)(stList *, void *)) getString);
     st_logDebug("Built the string for the sequence\n");
@@ -309,7 +346,8 @@ static void addReferenceSequence(Cap *cap, int32_t *index) {
      * Make the meta sequence.
      */
     Event *event = cap_getEvent(cap);
-    char *sequenceName = stString_print("%s.%i", event_getHeader(event), (*index)++);
+    char *sequenceName = stString_print("%s.%i", event_getHeader(event),
+            (*index)++);
     MetaSequence *metaSequence = metaSequence_construct(1, length, string,
             sequenceName, event_getName(event),
             flower_getCactusDisk(end_getFlower(cap_getEnd(cap))));
@@ -349,7 +387,8 @@ Cap *getCapForReferenceEvent(End *end, Name referenceEventName) {
     return NULL;
 }
 
-void addReferenceSequences(Flower *flower, Name referenceEventName) {
+void addReferenceSequences(Flower *flower, Name referenceEventName,
+        Event *outgroupEvent) {
 #ifdef BEN_DEBUG
     flower_checkRecursive(flower);
 #endif
@@ -365,7 +404,7 @@ void addReferenceSequences(Flower *flower, Name referenceEventName) {
             if (cap_getSequence(cap) == NULL) {
                 st_logDebug("Adding the coordinates for cap %s\n",
                         cactusMisc_nameToStringStatic(cap_getName(cap)));
-                addReferenceSequence(cap, &index);
+                addReferenceSequence(cap, &index, outgroupEvent);
             }
         }
     }
