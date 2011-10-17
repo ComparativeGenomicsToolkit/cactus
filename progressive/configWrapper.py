@@ -115,5 +115,23 @@ class ConfigWrapper:
         assert singleCopy == 'none' or singleCopy == 'outgroup' \
         or singleCopy == 'all'
         return singleCopy
-        
+    
+    # the minBlockDegree, when specified in the final, "base" 
+    # iteration, does not play nicely with the required fraction
+    # option
+    def verifyMinBlockDegree(self, experiment):  
+        itElem = None
+        maxIt = -1
+        iterations = self.xmlRoot.find("alignment").find("iterations")
+        for it in iterations.findall("iteration"):
+            if it.attrib["type"] == "base" and int(it.attrib["number"]) > maxIt:
+                itElem = it
+                maxIt = int(it.attrib["number"])
+        minBlockDegree = int(itElem.attrib["minimumBlockDegree"])
+        reqSpecies = experiment.xmlRoot.find("required_species")
+        if reqSpecies is not None and minBlockDegree != 2:
+            sys.stderr.write("WARNING: reverting minBlockDegree from %i to 2 because of required_species\n" % 
+                             minBlockDegree)
+            itElem.attrib["minBlockDegree"] = "2"
+            
         

@@ -111,6 +111,7 @@ def createFileStructure(mcProj, expTemplate, configTemplate, options):
         exp.writeXML(expPath)
         config = ConfigWrapper(copy.deepcopy(configTemplate.xmlRoot))
         config.setReferenceName(name)
+        config.verifyMinBlockDegree(exp)
         config.writeXML(exp.getConfigPath())
         
 def checkInputSequencePaths(exp):
