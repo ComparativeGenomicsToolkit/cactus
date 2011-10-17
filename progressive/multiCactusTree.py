@@ -71,6 +71,7 @@ class MultiCactusTree(NXTree):
         for node in self.breadthFirstTraversal():
             if self.getName(node) in rootNames:
                 self.subtreeRoots.add(node)
+            self.nameToId[self.getName(node)] = node
                 
     def getSubtreeRootNames(self):
         return [self.getName(x) for x in self.subtreeRoots]
@@ -96,6 +97,7 @@ class MultiCactusTree(NXTree):
     # find the root of the subtree containing the given node
     # as leaf (slowly.. for nwo)
     def getSubtreeRoot(self, name):
+        assert len(self.nameToId) > 0
         node = self.nameToId[name]
         if node == self.rootId:
             return node

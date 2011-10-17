@@ -61,7 +61,6 @@ class MultiCactusProject:
     # by digging out the appropriate experiment file
     # doesn't work for the rooot!!!!
     def sequencePath(self, eventName):
-        assert eventName in self.expMap
         parentEvent = self.mcTree.getSubtreeRoot(eventName)           
         expPath = self.expMap[parentEvent]
         expElem = ET.parse(expPath).getroot()
