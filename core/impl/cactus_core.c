@@ -284,7 +284,7 @@ struct CactusGraph *deanneal(Flower *flower, struct PinchGraph *pinchGraph, stru
     struct List *list = getChosenBlockPinchEdges(blocksToUndo, pinchGraph);
     removeOverAlignedEdges(pinchGraph, 0.0, INT32_MAX, list, 0, flower);
     destructList(list);
-    st_logInfo("After removing edges which were not chosen, the graph has %i vertices and %i black edges\n",
+    st_logInfo("After removing edges that were not chosen, the graph has %i vertices and %i black edges\n",
             pinchGraph->vertices->length, avl_count(pinchGraph->edges));
     removeTrivialGreyEdgeComponents(pinchGraph, pinchGraph->vertices, flower);
     st_logInfo("After removing the trivial graph components the graph has %i vertices and %i black edges\n",
@@ -484,6 +484,10 @@ void buildOutPinchGraph(struct PinchGraph *pinchGraph, stList *adjacencyComponen
         ///////////////////////////////////////////////////////////////////////////
 
         minimumChainLengthInGraph = getMinimumChainLengthInGraph(biConnectedComponents, pinchGraph);
+        if(minimumChainLengthInGraph <= minimumChainLengthToRemove) {
+            st_uglyf("The minimum chain length in the graph is still less than or equal to that which we wanted to remove:  %i, %i\n", minimumChainLengthInGraph, minimumChainLengthToRemove);
+        }
+        assert(minimumChainLengthInGraph > minimumChainLengthToRemove);
 
         st_logDebug(
                 "The longest non-empty chain in the graph is %i bases, we removed chains less than or equal to %i bases and the required minimum length chain is %i bases\n",
