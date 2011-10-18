@@ -303,8 +303,8 @@ struct CactusGraph *deanneal(Flower *flower, struct PinchGraph *pinchGraph, stru
     // Re-compute the cactus graph
     ////////////////////////////////////////////////
 
-    cactusGraph = cactusCorePipeline_2(pinchGraph, flower,
-            minimumBlockDegree == 0 ? doNotPassThroughDegree1EdgesFn : passThroughDegree1EdgesFn, 0);
+    cactusGraph = cactusCorePipeline_2(pinchGraph, flower, passThroughDegree1EdgesFn, 0);
+            //minimumBlockDegree == 0 ? doNotPassThroughDegree1EdgesFn : passThroughDegree1EdgesFn, 0);
 
     ////////////////////////////////////////////////
     // Get the sorted bi-connected components, again
@@ -486,7 +486,7 @@ void buildOutPinchGraph(struct PinchGraph *pinchGraph, stList *adjacencyComponen
         minimumChainLengthInGraph = getMinimumChainLengthInGraph(biConnectedComponents, pinchGraph);
 
         st_logDebug(
-                "The longest non-empty chain in the graph is %i bases, we removed chains less than or equal to %i bases and the required minimum length chain is %i bases\n",
+                "The shortest non-empty chain in the graph is %i bases, we removed chains less than or equal to %i bases and the required minimum length chain is %i bases\n",
                 minimumChainLengthInGraph, minimumChainLengthToRemove, minimumChainLength);
         assert(minimumChainLengthInGraph > minimumChainLengthToRemove);
     }
