@@ -151,7 +151,7 @@ int32_t chainBaseLength(struct List *biConnectedComponent, struct PinchGraph *pi
 /*
  * Returns the maximum degree of the chain (the maxmimum number of segments a block in the chain contains).
  */
-int32_t maxChainDegree(struct List *biConnectedComponent,
+int32_t maxChainDegreeOfNonStubBlocks(struct List *biConnectedComponent,
         struct PinchGraph *pinchGraph);
 
 stSortedSet *getPinchVerticesSet(stSortedSet *chosenBlocks, struct PinchGraph *pinchGraph);

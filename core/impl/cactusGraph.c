@@ -1150,11 +1150,11 @@ int32_t chainLength(struct List *biConnectedComponent, int32_t includeStubs, str
     return i;
 }
 
-int32_t maxChainDegree(struct List *biConnectedComponent, struct PinchGraph *pinchGraph) {
+int32_t maxChainDegreeOfNonStubBlocks(struct List *biConnectedComponent, struct PinchGraph *pinchGraph) {
     int32_t i = 0;
     for (int32_t j = 0; j < biConnectedComponent->length; j++) {
         struct CactusEdge *cactusEdge = biConnectedComponent->list[j];
-        if (cactusEdge->pieces->length > i) {
+        if (!isAStubCactusEdge(cactusEdge, pinchGraph) && cactusEdge->pieces->length > i) {
             i = cactusEdge->pieces->length;
         }
     }
@@ -1162,7 +1162,7 @@ int32_t maxChainDegree(struct List *biConnectedComponent, struct PinchGraph *pin
 }
 
 int32_t chainBaseLength(struct List *biConnectedComponent, struct PinchGraph *pinchGraph) {
-    int32_t i, j;
+    int64_t i, j;
     struct CactusEdge *cactusEdge;
     struct Piece *piece;
 
@@ -1171,10 +1171,11 @@ int32_t chainBaseLength(struct List *biConnectedComponent, struct PinchGraph *pi
         cactusEdge = biConnectedComponent->list[j];
         if (!isAStubCactusEdge(cactusEdge, pinchGraph)) {
             piece = cactusEdge->pieces->list[0];
-            i += piece->end - piece->start + 1;
+            i += ((int64_t)piece->end) - ((int64_t)piece->start + 1);
         }
     }
-    return i;
+    assert(i <= INT32_MAX);
+    return (int32_t)i;
 }
 
 stSortedSet *getPinchVerticesSet(stSortedSet *cactusEdges, struct PinchGraph *pinchGraph) {

@@ -322,7 +322,7 @@ int32_t getMinimumChainLengthInGraph(struct List *biConnectedComponents, struct 
     int32_t minimumChainLengthInGraph = INT32_MAX;
     for (int32_t i = 0; i < biConnectedComponents->length; i++) {
         struct List *biConnectedComponent = biConnectedComponents->list[i];
-        int32_t k = maxChainDegree(biConnectedComponent, pinchGraph);
+        int32_t k = maxChainDegreeOfNonStubBlocks(biConnectedComponent, pinchGraph);
         if (k > 1) {
             int32_t j = chainBaseLength(biConnectedComponent, pinchGraph);
             if (j >= 1 && j < minimumChainLengthInGraph) { //The greater than 1 is to avoid trying to undo chains consisting only of stubs or unaligned segments
@@ -484,14 +484,11 @@ void buildOutPinchGraph(struct PinchGraph *pinchGraph, stList *adjacencyComponen
         ///////////////////////////////////////////////////////////////////////////
 
         minimumChainLengthInGraph = getMinimumChainLengthInGraph(biConnectedComponents, pinchGraph);
-        if(minimumChainLengthInGraph <= minimumChainLengthToRemove) {
-            st_uglyf("The minimum chain length in the graph is still less than or equal to that which we wanted to remove:  %i, %i\n", minimumChainLengthInGraph, minimumChainLengthToRemove);
-        }
-        assert(minimumChainLengthInGraph > minimumChainLengthToRemove);
 
         st_logDebug(
                 "The longest non-empty chain in the graph is %i bases, we removed chains less than or equal to %i bases and the required minimum length chain is %i bases\n",
                 minimumChainLengthInGraph, minimumChainLengthToRemove, minimumChainLength);
+        assert(minimumChainLengthInGraph > minimumChainLengthToRemove);
     }
 
     ////////////////////////////////////////////////
