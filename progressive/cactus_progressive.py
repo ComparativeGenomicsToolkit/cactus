@@ -130,9 +130,7 @@ class ExtractReference(Target):
         if self.options.buildReference:
             logger.info("Starting Reference Extract Phase")
             
-            cmdLine = "cactus_getReferenceSeq --cactusDisk \'%s\' \
-             --flowerName 0 \
-            --referenceEventString %s --outputFile %s --logLevel %s" % \
+            cmdLine = "cactus_getReferenceSeq --cactusDisk \'%s\' --flowerName 0 --referenceEventString %s --outputFile %s --logLevel %s" % \
             (self.experiment.getDiskDatabaseString(), self.event,
              self.experiment.getReferencePath(), getLogLevelString())            
             
@@ -155,8 +153,7 @@ class BuildMAF(Target):
         if self.options.buildMAF:
             logger.info("Starting MAF Build phase")
             
-            cmdLine = "cactus_MAFGenerator --cactusDisk \'%s\' --flowerName 0 \
-            --outputFile %s --logLevel %s" % \
+            cmdLine = "cactus_MAFGenerator --cactusDisk \'%s\' --flowerName 0 --outputFile %s --logLevel %s" % \
             (self.experiment.getDiskDatabaseString(),
              self.experiment.getMAFPath(), getLogLevelString())            
 
