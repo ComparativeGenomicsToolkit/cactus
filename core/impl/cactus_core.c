@@ -429,7 +429,8 @@ void buildOutPinchGraph(struct PinchGraph *pinchGraph, stList *adjacencyComponen
     ////////////////////////////////////////////////
 
     cactusGraph = cactusCorePipeline_2(pinchGraph, flower,
-            cCIP->minimumDegree <= 1 ? doNotPassThroughDegree1EdgesFn : passThroughDegree1EdgesFn, 0);
+            passThroughDegree1EdgesFn, 0);
+            //cCIP->minimumDegree <= 1 ? doNotPassThroughDegree1EdgesFn : passThroughDegree1EdgesFn, 0);
 
     ////////////////////////////////////////////////
     // Get sorted bi-connected components.
