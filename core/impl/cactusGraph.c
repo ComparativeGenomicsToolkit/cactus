@@ -1182,9 +1182,11 @@ int32_t chainBaseLength(struct List *biConnectedComponent, struct PinchGraph *pi
         cactusEdge = biConnectedComponent->list[j];
         if (!isAStubCactusEdge(cactusEdge, pinchGraph)) {
             piece = cactusEdge->pieces->list[0];
+            assert(((int64_t)piece->end) - ((int64_t)piece->start) + 1 > 0);
             i += ((int64_t)piece->end) - ((int64_t)piece->start) + 1;
         }
     }
+    assert(i >= 0);
     assert(i <= INT32_MAX);
     return (int32_t)i;
 }

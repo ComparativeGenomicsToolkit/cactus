@@ -456,7 +456,7 @@ void buildOutPinchGraph(struct PinchGraph *pinchGraph, stList *adjacencyComponen
     int32_t minimumChainLengthInGraph = getMinimumChainLengthInGraph(biConnectedComponents, pinchGraph);
     assert(minimumChainLengthInGraph > 0);
     int32_t deannealingRound = 0;
-    while (minimumChainLengthInGraph < minimumChainLength) {
+    while (minimumChainLengthInGraph < minimumChainLength && deannealingRound <= cCIP->deannealingRoundsLength+2) {
         ///////////////////////////////////////////////////////////////////////////
         // Get the length of chains to remove in this deannealing round.
         ///////////////////////////////////////////////////////////////////////////
@@ -464,9 +464,10 @@ void buildOutPinchGraph(struct PinchGraph *pinchGraph, stList *adjacencyComponen
         int32_t minimumChainLengthToRemove = minimumChainLength - 1; //We will remove all chains less the minimum chain length
         if (deannealingRound < cCIP->deannealingRoundsLength) { //We have deannealing rounds to perform.
             if (cCIP->deannealingRounds[deannealingRound] < minimumChainLength) { //We can deanneal with a smaller value first
-                minimumChainLengthToRemove = cCIP->deannealingRounds[deannealingRound++];
+                minimumChainLengthToRemove = cCIP->deannealingRounds[deannealingRound];
             }
         }
+        deannealingRound++;
 
         //Start another loop if the minimum chain length in the graph is greater than the minimum chain length to remove.
         if (minimumChainLengthInGraph > minimumChainLengthToRemove) {
