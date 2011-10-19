@@ -456,7 +456,7 @@ void buildOutPinchGraph(struct PinchGraph *pinchGraph, stList *adjacencyComponen
     int32_t minimumChainLengthInGraph = getMinimumChainLengthInGraph(biConnectedComponents, pinchGraph);
     assert(minimumChainLengthInGraph > 0);
     int32_t deannealingRound = 0;
-    while (minimumChainLengthInGraph < minimumChainLength && deannealingRound <= cCIP->deannealingRoundsLength+2) {
+    while (minimumChainLengthInGraph < minimumChainLength && deannealingRound <= cCIP->deannealingRoundsLength+10) {
         ///////////////////////////////////////////////////////////////////////////
         // Get the length of chains to remove in this deannealing round.
         ///////////////////////////////////////////////////////////////////////////
@@ -491,7 +491,12 @@ void buildOutPinchGraph(struct PinchGraph *pinchGraph, stList *adjacencyComponen
         st_logDebug(
                 "The shortest non-empty chain in the graph is %i bases, we removed chains less than or equal to %i bases and the required minimum length chain is %i bases\n",
                 minimumChainLengthInGraph, minimumChainLengthToRemove, minimumChainLength);
+
+        /////////////////////////
+        //This assert is not necessarily true, as the attachment of the stubs of components to the source vertex can shrink chains, hence the
+        //baroque logic for this iteration
         //assert(minimumChainLengthInGraph > minimumChainLengthToRemove);
+        ////////////////////////
     }
 
     ////////////////////////////////////////////////
