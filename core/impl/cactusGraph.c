@@ -1161,6 +1161,17 @@ int32_t maxChainDegreeOfNonStubBlocks(struct List *biConnectedComponent, struct 
     return i;
 }
 
+int32_t minChainDegreeOfNonStubBlocks(struct List *biConnectedComponent, struct PinchGraph *pinchGraph) {
+    int32_t i = INT32_MAX;
+    for (int32_t j = 0; j < biConnectedComponent->length; j++) {
+        struct CactusEdge *cactusEdge = biConnectedComponent->list[j];
+        if (!isAStubCactusEdge(cactusEdge, pinchGraph) && cactusEdge->pieces->length < i) {
+            i = cactusEdge->pieces->length;
+        }
+    }
+    return i;
+}
+
 int32_t chainBaseLength(struct List *biConnectedComponent, struct PinchGraph *pinchGraph) {
     int64_t i, j;
     struct CactusEdge *cactusEdge;
@@ -1171,7 +1182,7 @@ int32_t chainBaseLength(struct List *biConnectedComponent, struct PinchGraph *pi
         cactusEdge = biConnectedComponent->list[j];
         if (!isAStubCactusEdge(cactusEdge, pinchGraph)) {
             piece = cactusEdge->pieces->list[0];
-            i += ((int64_t)piece->end) - ((int64_t)piece->start + 1);
+            i += ((int64_t)piece->end) - ((int64_t)piece->start) + 1;
         }
     }
     assert(i <= INT32_MAX);

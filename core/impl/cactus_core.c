@@ -324,6 +324,7 @@ int32_t getMinimumChainLengthInGraph(struct List *biConnectedComponents, struct 
         struct List *biConnectedComponent = biConnectedComponents->list[i];
         int32_t k = maxChainDegreeOfNonStubBlocks(biConnectedComponent, pinchGraph);
         if (k > 1) {
+            assert(minChainDegreeOfNonStubBlocks(biConnectedComponent, pinchGraph) > 1);
             int32_t j = chainBaseLength(biConnectedComponent, pinchGraph);
             if (j >= 1 && j < minimumChainLengthInGraph) { //The greater than 1 is to avoid trying to undo chains consisting only of stubs or unaligned segments
                 minimumChainLengthInGraph = j;
@@ -442,7 +443,7 @@ void buildOutPinchGraph(struct PinchGraph *pinchGraph, stList *adjacencyComponen
     // Do the first deanneal of bad blocks, not worrying about minimum chain length.
     ////////////////////////////////////////////////
 
-    if(cCIP->minimumTreeCoverage > 0.0 || cCIP->minimumDegree > 1 || cCIP->listOfRequiredSpeciesCoverages != NULL || cCIP->singleCopySpecies != NULL) {
+    if(cCIP->minimumTreeCoverage > 0.0 || cCIP->minimumDegree > 2 || cCIP->listOfRequiredSpeciesCoverages != NULL || cCIP->singleCopySpecies != NULL) {
         cactusGraph = deanneal(flower, pinchGraph, cactusGraph, &biConnectedComponents, 0,
                         cCIP->minimumTreeCoverage,
                         cCIP->minimumDegree, cCIP->listOfSetsOfRequiredSpecies, cCIP->listOfRequiredSpeciesCoverages, cCIP->singleCopySpecies);

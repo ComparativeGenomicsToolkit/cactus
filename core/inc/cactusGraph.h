@@ -154,6 +154,9 @@ int32_t chainBaseLength(struct List *biConnectedComponent, struct PinchGraph *pi
 int32_t maxChainDegreeOfNonStubBlocks(struct List *biConnectedComponent,
         struct PinchGraph *pinchGraph);
 
+int32_t minChainDegreeOfNonStubBlocks(struct List *biConnectedComponent,
+        struct PinchGraph *pinchGraph);
+
 stSortedSet *getPinchVerticesSet(stSortedSet *chosenBlocks, struct PinchGraph *pinchGraph);
 
 stSortedSet *filterBlocksByTreeCoverageAndLength(
