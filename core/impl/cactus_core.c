@@ -491,7 +491,7 @@ void buildOutPinchGraph(struct PinchGraph *pinchGraph, stList *adjacencyComponen
         st_logDebug(
                 "The shortest non-empty chain in the graph is %i bases, we removed chains less than or equal to %i bases and the required minimum length chain is %i bases\n",
                 minimumChainLengthInGraph, minimumChainLengthToRemove, minimumChainLength);
-        assert(minimumChainLengthInGraph > minimumChainLengthToRemove);
+        //assert(minimumChainLengthInGraph > minimumChainLengthToRemove);
     }
 
     ////////////////////////////////////////////////
