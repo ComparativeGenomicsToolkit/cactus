@@ -197,10 +197,30 @@ static void pruneAlignmentsP(stList *inducedAlignment, stSortedSet *endAlignment
  * Chooses a point along the adjacency sequence at which to filter the two alignments,
  * then filters the aligned pairs by this point.
  */
+static bool pruneAlignments_pruneOutStubAlignments = 0;
 static void pruneAlignments(Cap *cap, stList *inducedAlignment1, stList *inducedAlignment2, stSortedSet *endAlignment1,
         stSortedSet *endAlignment2) {
     int32_t cutOff1 = 0, cutOff2 = 0;
-    getCutOff(inducedAlignment1, inducedAlignment2, &cutOff1, &cutOff2);
+
+    assert(cap != NULL);
+    End *end = cap_getEnd(cap);
+    assert(cap_getAdjacency(cap) != NULL);
+    End *adjacentEnd = cap_getEnd(cap_getAdjacency(cap));
+    assert(end != NULL);
+    assert(adjacentEnd != NULL);
+    if(pruneAlignments_pruneOutStubAlignments && end_isStubEnd(end) && end_isFree(end)) {
+        cutOff1 = stList_length(inducedAlignment1);
+        cutOff2 = stList_length(inducedAlignment2);
+    }
+    else if(pruneAlignments_pruneOutStubAlignments && end_isStubEnd(adjacentEnd) && end_isFree(adjacentEnd)) {
+        cutOff1 = 0;
+        cutOff2 = 0;
+    }
+    else {
+        getCutOff(inducedAlignment1, inducedAlignment2, &cutOff1, &cutOff2);
+    }
+    //getCutOff(inducedAlignment1, inducedAlignment2, &cutOff1, &cutOff2);
+
     stSortedSet *pairsToDelete = stSortedSet_construct2((void (*)(void *))alignedPair_destruct);
     //Now do the actual filtering of the alignments.
     pruneAlignmentsP(inducedAlignment1, endAlignment1, cutOff1, stList_length(inducedAlignment1), pairsToDelete);
@@ -272,7 +292,7 @@ static int makeFlowerAlignmentP(Cap *cap, stHash *endAlignments, void (*fn)(Cap 
 }
 
 stSortedSet *makeFlowerAlignment(Flower *flower, int32_t spanningTrees, int32_t maxSequenceLength, float gapGamma,
-        bool useBanding, PairwiseAlignmentParameters *pairwiseAlignmentBandingParameters) {
+        bool useBanding, PairwiseAlignmentParameters *pairwiseAlignmentBandingParameters, bool pruneOutStubAlignments) {
     //Make the end alignments, representing each as an adjacency alignment.
     End *end;
     Flower_EndIterator *endIterator = flower_getEndIterator(flower);
@@ -308,6 +328,7 @@ stSortedSet *makeFlowerAlignment(Flower *flower, int32_t spanningTrees, int32_t 
     assert(stHash_size(capScoresFn_Hash) == stList_length(caps));
     stList_sort(caps, sortCapsFn);
     int64_t score = INT64_MAX;
+    pruneAlignments_pruneOutStubAlignments = pruneOutStubAlignments;
     while (stList_length(caps) > 0) {
         Cap *cap = stList_pop(caps);
         int64_t score2 = ((int64_t *)stHash_search(capScoresFn_Hash, cap))[0];

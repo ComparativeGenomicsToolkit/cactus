@@ -396,7 +396,8 @@ class CactusBaseLevelAlignerWrapper(Target):
                              constraintDiagonalTrim=int(self.iteration.attrib["constraint_diagonal_trim"]),
                              minimumBlockDegree=int(self.iteration.attrib["minimumBlockDegree"]),
                              alignAmbiguityCharacters=bool(int(self.iteration.attrib["alignAmbiguityCharacters"])),
-                             requiredSpecies=self.options.requiredSpecies)
+                             requiredSpecies=self.options.requiredSpecies,
+                             pruneOutStubAlignments=getOptionalAttrib(self.iteration, "prune_out_stub_alignments", None))
         
 ############################################################
 ############################################################

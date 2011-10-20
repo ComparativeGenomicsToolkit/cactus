@@ -203,7 +203,8 @@ def runCactusBaseAligner(cactusDiskDatabaseString, flowerNames, logLevel=None,
                          constraintDiagonalTrim=None,
                          minimumBlockDegree=None,
                          alignAmbiguityCharacters=None,
-                         requiredSpecies=None):
+                         requiredSpecies=None,
+                         pruneOutStubAlignments=None):
     """Runs cactus base aligner.
     """
     logLevel = getLogLevelString2(logLevel)
@@ -218,15 +219,16 @@ def runCactusBaseAligner(cactusDiskDatabaseString, flowerNames, logLevel=None,
     minTraceGapDiags = nameValue("minTraceGapDiags", minTraceGapDiags, int)
     constraintDiagonalTrim = nameValue("constraintDiagonalTrim", constraintDiagonalTrim, int)
     minimumBlockDegree = nameValue("minimumDegree", minimumBlockDegree, int)
+    pruneOutStubAlignments = nameValue("pruneOutStubAlignments", pruneOutStubAlignments, bool)
     if requiredSpecies != None:
         requiredSpecies = "'%s'" % requiredSpecies
     requiredSpecies = nameValue("requiredSpecies", requiredSpecies, str)
     alignAmbiguityCharacters = nameValue("alignAmbiguityCharacters", alignAmbiguityCharacters, bool)
     
-    system("cactus_baseAligner --cactusDisk '%s' --logLevel %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s" % 
+    system("cactus_baseAligner --cactusDisk '%s' --logLevel %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s" % 
            (cactusDiskDatabaseString, logLevel, " ".join(flowerNames), spanningTrees, maximumLength, gapGamma, 
             useBanding, maxBandingSize, minBandingSize, minBandingConstraintDistance, minTraceBackDiag, minTraceGapDiags, 
-            constraintDiagonalTrim, minimumBlockDegree, requiredSpecies, alignAmbiguityCharacters))
+            constraintDiagonalTrim, minimumBlockDegree, requiredSpecies, alignAmbiguityCharacters, pruneOutStubAlignments))
     
 def runCactusReference(cactusDiskDatabaseString, flowerNames, logLevel=None,
                        matchingAlgorithm=None, 

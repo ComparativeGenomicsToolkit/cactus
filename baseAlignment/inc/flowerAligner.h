@@ -25,6 +25,6 @@
  */
 stSortedSet *makeFlowerAlignment(Flower *flower, int32_t spanningTrees,
         int32_t maxSequenceLength, float gapGamma, bool useBanding,
-        PairwiseAlignmentParameters *pairwiseAlignmentBandingParameters);
+        PairwiseAlignmentParameters *pairwiseAlignmentBandingParameters, bool pruneOutStubAlignments);
 
 #endif /* NETALIGNER_H_ */
