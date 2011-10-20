@@ -7,15 +7,17 @@ typedef struct _ReferenceInterval {
     int32_t _5Node;
     int32_t _3Node;
     struct _ReferenceInterval *nReferenceInterval;
+    struct _ReferenceInterval *pReferenceInterval;
 } ReferenceInterval;
 
 static ReferenceInterval *referenceInterval_construct(int32_t _5Node, int32_t _3Node,
-        ReferenceInterval *nReferenceInterval) {
+        ReferenceInterval *nReferenceInterval, ReferenceInterval *pReferenceInterval) {
     ReferenceInterval *referenceInterval = st_malloc(sizeof(ReferenceInterval));
     assert(_5Node != _3Node);
     referenceInterval->_5Node = _5Node;
     referenceInterval->_3Node = _3Node;
     referenceInterval->nReferenceInterval = nReferenceInterval;
+    referenceInterval->pReferenceInterval = pReferenceInterval;
     return referenceInterval;
 }
 
@@ -41,6 +43,31 @@ static ReferenceIntervalInsertion *referenceIntervalInsertion_construct(stIntTup
     referenceIntervalInsertion->score = score;
     referenceIntervalInsertion->referenceInterval = referenceInterval;
     return referenceIntervalInsertion;
+}
+
+static double referenceIntervalInsertion_isConnectedLeft(ReferenceIntervalInsertion *referenceIntervalInsertion, double *z, int32_t nodeNumber) {
+    int32_t _5Node = stIntTuple_getPosition(referenceIntervalInsertion->chain, referenceIntervalInsertion->orientation ? 0 : 1);
+    assert(referenceIntervalInsertion->referenceInterval != NULL);
+    return z[referenceIntervalInsertion->referenceInterval->_3Node * nodeNumber + _5Node];
+}
+
+static double referenceIntervalInsertion_isConnectedRight(ReferenceIntervalInsertion *referenceIntervalInsertion, double *z, int32_t nodeNumber) {
+    int32_t _3Node = stIntTuple_getPosition(referenceIntervalInsertion->chain, referenceIntervalInsertion->orientation ? 1 : 0);
+    int32_t _5Node;
+    assert(referenceIntervalInsertion->referenceInterval != NULL);
+    if(referenceIntervalInsertion->referenceInterval->nReferenceInterval != NULL) {
+        _5Node = referenceIntervalInsertion->referenceInterval->nReferenceInterval->_5Node;
+    }
+    else {
+        ReferenceInterval *referenceInterval = referenceIntervalInsertion->referenceInterval;
+        assert(referenceInterval != NULL);
+        while(referenceInterval->pReferenceInterval != NULL) {
+            referenceInterval = referenceInterval->pReferenceInterval;
+        }
+        assert(referenceInterval != NULL);
+        _5Node = referenceInterval->_5Node;
+    }
+    return z[_5Node * nodeNumber + _3Node];
 }
 
 static stList *getReferenceIntervalInsertions(stList *reference, stIntTuple *chain, double *z, int32_t nodeNumber) {
@@ -100,7 +127,12 @@ static void insert(ReferenceIntervalInsertion *referenceIntervalInsertion) {
     ReferenceInterval *newInterval = referenceInterval_construct(
             stIntTuple_getPosition(referenceIntervalInsertion->chain, referenceIntervalInsertion->orientation ? 0 : 1),
             stIntTuple_getPosition(referenceIntervalInsertion->chain, referenceIntervalInsertion->orientation ? 1 : 0),
-            referenceIntervalInsertion->referenceInterval->nReferenceInterval);
+            referenceIntervalInsertion->referenceInterval->nReferenceInterval,
+            referenceIntervalInsertion->referenceInterval);
+    assert(referenceIntervalInsertion->referenceInterval != NULL);
+    if(referenceIntervalInsertion->referenceInterval->nReferenceInterval != NULL) {
+        referenceIntervalInsertion->referenceInterval->nReferenceInterval->pReferenceInterval = newInterval;
+    }
     referenceIntervalInsertion->referenceInterval->nReferenceInterval = newInterval;
 }
 
@@ -121,7 +153,7 @@ stList *makeReferenceGreedily(stList *stubs, stList *chainsList, double *z, int3
         int32_t _5Node = stIntTuple_getPosition(stub, 0);
         int32_t _3Node = stIntTuple_getPosition(stub, 1);
         *totalScore += z[_5Node * nodeNumber + _3Node];
-        stList_append(reference, referenceInterval_construct(_5Node, _3Node, NULL));
+        stList_append(reference, referenceInterval_construct(_5Node, _3Node, NULL, NULL));
     }
     stList_destructIterator(it);
     //assert(stList_length(stubs) > 0);
@@ -188,6 +220,9 @@ static void removeChainFromReference(stIntTuple *chain, stList *reference) {
                 assert(referenceInterval->_3Node == _5Node || referenceInterval->_3Node == _3Node);
                 assert(pReferenceInterval != NULL);
                 pReferenceInterval->nReferenceInterval = referenceInterval->nReferenceInterval;
+                if(referenceInterval->nReferenceInterval) {
+                    referenceInterval->nReferenceInterval->pReferenceInterval = pReferenceInterval;
+                }
                 free(referenceInterval);
                 return;
             } else {
@@ -220,18 +255,23 @@ void gibbsSamplingWithSimulatedAnnealing(stList *reference, stList *chains, doub
             double conditionalSum = 0.0;
             double expConditionalSum = 0.0;
             double *normalScores = st_malloc(sizeof(double) * l);
+            double *connectionScores = st_malloc(sizeof(double) * l);
             for (int32_t j = 0; j < l; j++) {
                 ReferenceIntervalInsertion *referenceIntervalInsertion = stList_get(referenceIntervalInsertions, j);
                 normalScores[j] = referenceIntervalInsertion->score;
+                connectionScores[j] = referenceIntervalInsertion_isConnectedLeft(referenceIntervalInsertion, z, nodeNumber) + referenceIntervalInsertion_isConnectedRight(referenceIntervalInsertion, z, nodeNumber);
                 assert(normalScores[j] >= -0.001);
+                assert(connectionScores[j] >= -0.001);
                 conditionalSum += normalScores[j];
             }
             if (pureGreedy) {
                 double maxScore = -1;
+                double maxConnectionScore = -1;
                 int32_t insertPoint = -1;
                 for (int32_t j = 0; j < l; j++) {
-                    if (normalScores[j] > maxScore) {
+                    if (normalScores[j] > maxScore || (normalScores[j] == maxScore && connectionScores[j] > maxConnectionScore)) {
                         maxScore = normalScores[j];
+                        maxConnectionScore = connectionScores[j];
                         insertPoint = j;
                     }
                 }
@@ -255,6 +295,7 @@ void gibbsSamplingWithSimulatedAnnealing(stList *reference, stList *chains, doub
                 }
             }
             free(normalScores);
+            free(connectionScores);
             stList_destruct(referenceIntervalInsertions);
         }
     }
