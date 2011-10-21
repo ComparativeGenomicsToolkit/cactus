@@ -105,7 +105,7 @@ void testSequence_getFlower(CuTest* testCase) {
 
 void testSequence_serialisation(CuTest* testCase) {
 	cactusSequenceTestSetup();
-	int32_t i;
+	int64_t i;
 	void *vA = binaryRepresentation_makeBinaryRepresentation(sequence,
 			(void (*)(void *, void (*)(const void *, size_t, size_t)))sequence_writeBinaryRepresentation, &i);
 	CuAssertTrue(testCase, i > 0);

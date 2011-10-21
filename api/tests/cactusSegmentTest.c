@@ -248,7 +248,7 @@ void testSegment_getChild(CuTest* testCase) {
 
 void testSegment_serialisation(CuTest* testCase) {
 	cactusSegmentTestSetup();
-	int32_t i;
+	int64_t i;
 	void *vA = binaryRepresentation_makeBinaryRepresentation(leaf1Segment,
 			(void (*)(void *, void (*)(const void *, size_t, size_t)))segment_writeBinaryRepresentation, &i);
 	CuAssertTrue(testCase, i > 0);

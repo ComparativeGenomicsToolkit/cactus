@@ -78,7 +78,7 @@ void testMetaSequence_getHeader(CuTest* testCase) {
 
 void testMetaSequence_serialisation(CuTest* testCase) {
 	cactusMetaSequenceTestSetup();
-	int32_t i;
+	int64_t i;
 	Name name = metaSequence_getName(metaSequence);
 	CuAssertTrue(testCase, cactusDisk_getMetaSequence(cactusDisk, name) == metaSequence);
 	void *vA = binaryRepresentation_makeBinaryRepresentation(metaSequence,

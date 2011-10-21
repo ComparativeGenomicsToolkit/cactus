@@ -300,7 +300,7 @@ void testGroup_constructChainForLink(CuTest *testCase) {
 
 void testGroup_serialisation(CuTest* testCase) {
     cactusGroupTestSetup();
-    int32_t i;
+    int64_t i;
     Name name = group_getName(group);
     void
             *vA =

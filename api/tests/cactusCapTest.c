@@ -369,7 +369,7 @@ void testCap_isInternal(CuTest* testCase) {
 
 void testCap_serialisation(CuTest* testCase) {
     cactusCapTestSetup();
-    int32_t i;
+    int64_t i;
     void
             *vA =
                     binaryRepresentation_makeBinaryRepresentation(leaf2Cap,

@@ -131,7 +131,7 @@ bool binaryRepresentation_getBool(void **binaryString);
  * Makes a binary representation of an object, using a passed function which writes
  * out the representation of the considered object.
  */
-void *binaryRepresentation_makeBinaryRepresentation(void *object, void (*writeBinaryRepresentation)(void *, void (*writeFn)(const void * ptr, size_t size, size_t count)), int32_t *recordSize);
+void *binaryRepresentation_makeBinaryRepresentation(void *object, void (*writeBinaryRepresentation)(void *, void (*writeFn)(const void * ptr, size_t size, size_t count)), int64_t *recordSize);
 
 
 #endif

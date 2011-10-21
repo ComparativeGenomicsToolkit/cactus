@@ -292,7 +292,7 @@ void testEnd_serialisation(CuTest* testCase) {
     Name leaf1InstanceName = cap_getName(leaf1Cap);
     Name leaf2InstanceName = cap_getName(leaf2Cap);
     Name leaf3InstanceName = cap_getName(leaf3Cap);
-    int32_t i;
+    int64_t i;
     void
             *vA =
                     binaryRepresentation_makeBinaryRepresentation(end,

@@ -213,7 +213,7 @@ void testEvent_isSibling(CuTest* testCase) {
 
 void testEvent_serialisation(CuTest* testCase) {
 	cactusEventTestSetup();
-	int32_t i;
+	int64_t i;
 	void *vA = binaryRepresentation_makeBinaryRepresentation(leafEvent1,
 			(void (*)(void *, void (*)(const void *, size_t, size_t)))event_writeBinaryRepresentation, &i);
 	CuAssertTrue(testCase, i > 0);

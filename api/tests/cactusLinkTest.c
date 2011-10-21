@@ -97,7 +97,7 @@ void testLink_split(CuTest *testCase) {
 
 void testLink_serialisation(CuTest* testCase) {
     cactusLinkTestSetup();
-    int32_t i;
+    int64_t i;
     void
             *vA =
                     binaryRepresentation_makeBinaryRepresentation(link2,

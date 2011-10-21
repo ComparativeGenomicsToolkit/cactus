@@ -100,7 +100,7 @@ void testChain_isCircular(CuTest* testCase) {
 
 void testChain_serialisation(CuTest* testCase) {
     cactusChainTestSetup();
-    int32_t i;
+    int64_t i;
     void
             *vA =
                     binaryRepresentation_makeBinaryRepresentation(chain,

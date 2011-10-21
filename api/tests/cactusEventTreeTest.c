@@ -237,7 +237,7 @@ void testEventTree_addSiblingUnaryEvent(CuTest *testCase) {
 
 void testEventTree_serialisation(CuTest* testCase) {
 	cactusEventTreeTestSetup();
-	int32_t i;
+	int64_t i;
 	void *vA = binaryRepresentation_makeBinaryRepresentation(eventTree,
 			(void (*)(void *, void (*)(const void *, size_t, size_t)))eventTree_writeBinaryRepresentation, &i);
 	CuAssertTrue(testCase, i > 0);

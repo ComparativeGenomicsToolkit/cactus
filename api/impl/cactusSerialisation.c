@@ -125,11 +125,11 @@ void binaryRepresentation_makeBinaryRepresentationP2(const void * ptr, size_t si
 	binaryRepresentation_makeBinaryRepresentationP2_vA += size * count;
 }
 
-void *binaryRepresentation_makeBinaryRepresentation(void *object, void (*writeBinaryRepresentation)(void *, void (*writeFn)(const void * ptr, size_t size, size_t count)), int32_t *recordSize) {
+void *binaryRepresentation_makeBinaryRepresentation(void *object, void (*writeBinaryRepresentation)(void *, void (*writeFn)(const void * ptr, size_t size, size_t count)), int64_t *recordSize) {
 	void *vA;
 	binaryRepresentation_makeBinaryRepresentationP_i = 0;
 	writeBinaryRepresentation(object, binaryRepresentation_makeBinaryRepresentationP);
-	assert(binaryRepresentation_makeBinaryRepresentationP_i < INT32_MAX);
+	assert(binaryRepresentation_makeBinaryRepresentationP_i < INT64_MAX);
 	vA = st_malloc(binaryRepresentation_makeBinaryRepresentationP_i);
 	binaryRepresentation_makeBinaryRepresentationP2_vA = vA;
 	writeBinaryRepresentation(object, binaryRepresentation_makeBinaryRepresentationP2);

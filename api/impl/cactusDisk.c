@@ -64,7 +64,7 @@ static void cactusDisk_loadFromBinaryRepresentation(void **binaryString, CactusD
  * The following two functions compress and decompress the data in the cactus disk..
  */
 
-static void *compress(void *data, int32_t *dataSize) {
+static void *compress(void *data, int64_t *dataSize) {
     //Compression
     int64_t compressedSize;
     void *data2 = stCompression_compress(data, *dataSize, &compressedSize, -1);
@@ -227,7 +227,7 @@ void cactusDisk_destruct(CactusDisk *cactusDisk) {
 
 void cactusDisk_write(CactusDisk *cactusDisk) {
     Flower *flower;
-    int32_t recordSize;
+    int64_t recordSize;
 
     stList *updateRequests = stList_construct3(0, (void(*)(void *)) stKVDatabaseBulkRequest_destruct);
     stList *removeRequests = stList_construct3(0, (void(*)(void *)) stInt64Tuple_destruct);
@@ -321,7 +321,7 @@ void cactusDisk_write(CactusDisk *cactusDisk) {
     if (stList_length(updateRequests) > 0) {
         st_logDebug("Going to write %i updates\n", stList_length(updateRequests));
         stTry {
-            int maxRecords = 100000;
+            int32_t maxRecords = 100000;
             while(stList_length(updateRequests) > maxRecords) {
                     stList *list = stList_construct3(0, (void(*)(void *)) stKVDatabaseBulkRequest_destruct);
                     while(stList_length(list) < maxRecords) {

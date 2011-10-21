@@ -107,7 +107,7 @@ static void testBinaryRepresentation_fn(void *object, void (*writeFn)(const void
 
 void testBinaryRepresentation_makeBinaryRepresentation(CuTest* testCase) {
 	cactusSerialisationTestSetup();
-	int32_t i, j;
+	int64_t i, j;
 	i = 14314;
 	void *vA = binaryRepresentation_makeBinaryRepresentation(&i, testBinaryRepresentation_fn, &j);
 	void *vA2 = vA;

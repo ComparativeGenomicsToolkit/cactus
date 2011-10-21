@@ -250,7 +250,7 @@ void testBlock_serialisation(CuTest* testCase) {
     Name rootInstanceName = segment_getName(rootSegment);
     Name leaf1InstanceName = segment_getName(leaf1Segment);
     Name leaf2InstanceName = segment_getName(leaf2Segment);
-    int32_t i;
+    int64_t i;
     void
             *vA =
                     binaryRepresentation_makeBinaryRepresentation(block,
