@@ -260,7 +260,7 @@ static int32_t findFirstNonStubAlignment(stList *inducedAlignment, bool reverse,
             pAlignedPair = alignedPair;
             j = i;
         }
-        stInt64Tuple *k = stInt64Tuple_construct(2, alignedPair->reverse->sequence, alignedPair->reverse->position);
+        stInt64Tuple *k = stInt64Tuple_construct(3, alignedPair->reverse->sequence, (int64_t)alignedPair->reverse->position, INT64_MAX);
         stInt64Tuple *l = stSortedSet_searchLessThanOrEqual(freeStubAdjacencySequences, k);
         stInt64Tuple_destruct(k);
         if (l != NULL && alignedPair->reverse->sequence == stInt64Tuple_getPosition(l, 0) &&
@@ -287,9 +287,11 @@ static void pruneStubAlignments(Cap *cap, stList *inducedAlignment1, stList *ind
     int32_t cutOff2 = 0;
     if (end_isStubEnd(adjacentEnd) && end_isFree(adjacentEnd)) {
         cutOff1 = findFirstNonStubAlignment(inducedAlignment1, 1, pruneStubAlignments_freeStubAdjacencySequences);
+        assert(stList_length(inducedAlignment2) == 0);
         cutOff2 = stList_length(inducedAlignment2);
     }
-    else if (end_isStubEnd(end) && end_isFree(end)) {
+    if (end_isStubEnd(end) && end_isFree(end)) {
+        assert(stList_length(inducedAlignment1) == 0);
         cutOff1 = -1;
         cutOff2 = findFirstNonStubAlignment(inducedAlignment2, 0, pruneStubAlignments_freeStubAdjacencySequences);
     }
