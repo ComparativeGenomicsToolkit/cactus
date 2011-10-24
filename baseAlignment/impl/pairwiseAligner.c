@@ -502,6 +502,7 @@ stList *getBlastPairs(const char *sX, const char *sY, int32_t lX, int32_t lY, in
 
         assert(j == pA->end1);
         assert(k == pA->end2);
+        destructPairwiseAlignment(pA);
     }
     fclose(fileHandle);
 
@@ -759,7 +760,7 @@ stList *getAlignedPairs_Fast(const char *sX, const char *sY,
         }
         stList_destruct(alignedPairs2);
     }
-
+    stList_destructIterator(bandIt);
     //Convert the set to a list.
     stList *alignedPairs2 = stSortedSet_getList(alignedPairs);
 #ifdef BEN_DEBUG

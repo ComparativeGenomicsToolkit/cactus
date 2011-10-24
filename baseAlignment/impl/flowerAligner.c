@@ -186,9 +186,13 @@ static void pruneAlignmentsP(stList *inducedAlignment, stSortedSet *endAlignment
             //#endif
             stSortedSet_remove(endAlignment, alignedPair);
             stSortedSet_remove(endAlignment, alignedPair->reverse);
-            if (stSortedSet_search(pairsToDelete, alignedPair) == NULL && stSortedSet_search(pairsToDelete,
-                    alignedPair->reverse) == NULL) {
+            if (stSortedSet_search(pairsToDelete, alignedPair) == NULL) { // &&
+                assert(stSortedSet_search(pairsToDelete, alignedPair->reverse) == NULL);
                 stSortedSet_insert(pairsToDelete, alignedPair);
+                stSortedSet_insert(pairsToDelete, alignedPair->reverse);
+            }
+            else {
+                assert(stSortedSet_search(pairsToDelete, alignedPair->reverse) != NULL);
             }
         }
     }

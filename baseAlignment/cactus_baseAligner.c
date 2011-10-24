@@ -345,8 +345,6 @@ int main(int argc, char *argv[]) {
     }
     st_logInfo("Finished with the flower disk for this flower.\n");
 
-    //while(1);
-
     return 0;
 }
 
