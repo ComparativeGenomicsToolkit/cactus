@@ -96,11 +96,16 @@ class ProgressiveUp(Target):
             seqPath = os.path.join(self.experiment.getDbDir(), "sequences")
             if os.path.isfile(dbPath):
                 os.remove(dbPath)
+            system("rm -f %s/*BIG__RECORD__FILE__*" % self.experiment.getDbDir())
             if os.path.isfile(seqPath):
                 os.remove(seqPath)
+                
             
         ktserver = None
-        if self.experiment.getDbType() == "kyoto_tycoon":
+        if self.experiment.getDbType() == "kyoto_tycoon" and \
+        (self.options.setupAndBuildAlignments is True or \
+         self.options.buildReference is True or \
+         self.options.buildMAF is True):
             ktserver = KtserverLauncher()
             ktserver.spawnServer(self.experiment)
         
