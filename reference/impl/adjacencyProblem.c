@@ -54,6 +54,8 @@ static double referenceIntervalInsertion_isConnectedLeft(
     int32_t _5Node = stIntTuple_getPosition(referenceIntervalInsertion->chain,
             referenceIntervalInsertion->orientation ? 0 : 1);
     assert(referenceIntervalInsertion->referenceInterval != NULL);
+    assert(z[referenceIntervalInsertion->referenceInterval->_3Node * nodeNumber
+            + _5Node] >= 0.0);
     return z[referenceIntervalInsertion->referenceInterval->_3Node * nodeNumber
             + _5Node] > 0.0 ? 1 : 0;
 }
@@ -77,6 +79,7 @@ static double referenceIntervalInsertion_isConnectedRight(
     int32_t _3Node = stIntTuple_getPosition(referenceIntervalInsertion->chain,
             referenceIntervalInsertion->orientation ? 1 : 0);
     int32_t _5Node = referenceInterval_get5Node(referenceIntervalInsertion->referenceInterval);
+    assert(z[_5Node * nodeNumber + _3Node] >= 0.0);
     return z[_5Node * nodeNumber + _3Node] > 0.0 ? 1 : 0;
 }
 
@@ -86,6 +89,7 @@ static double referenceIntervalInsertion_isCurrentlyConnected(
     assert(referenceIntervalInsertion->referenceInterval != NULL);
     int32_t _3Node = referenceIntervalInsertion->referenceInterval->_3Node;
     int32_t _5Node = referenceInterval_get5Node(referenceIntervalInsertion->referenceInterval);
+    assert(z[_5Node * nodeNumber + _3Node] >= 0.0);
     return z[_5Node * nodeNumber + _3Node] > 0.0 ? 1 : 0;
 }
 
@@ -118,8 +122,14 @@ static stList *getReferenceIntervalInsertions(stList *reference,
         negativeScores[j] = z[referenceInterval->_5Node * nodeNumber + _5Node];
         for (; j > 0; j--) {
             referenceInterval = stList_get(intervals, j);
+
+            assert(z[referenceInterval->_5Node * nodeNumber
+                    + _3Node] >= 0);
             positiveScores[j - 1] = z[referenceInterval->_5Node * nodeNumber
                     + _3Node] + positiveScores[j];
+
+            assert(z[referenceInterval->_5Node * nodeNumber
+                     + _5Node] >= 0);
             negativeScores[j - 1] = z[referenceInterval->_5Node * nodeNumber
                     + _5Node] + negativeScores[j];
         }
@@ -127,10 +137,18 @@ static stList *getReferenceIntervalInsertions(stList *reference,
         double negativeScore = 0.0;
         for (j = 0; j < stList_length(intervals); j++) {
             referenceInterval = stList_get(intervals, j);
+
+            assert(z[referenceInterval->_3Node * nodeNumber + _5Node] >= 0.0);
+            assert(positiveScore + 0.0 == positiveScore);
             positiveScore += z[referenceInterval->_3Node * nodeNumber + _5Node];
+
+            assert(z[referenceInterval->_3Node * nodeNumber + _3Node] >= 0.0);
+            assert(negativeScore + 0.0 == negativeScore);
             negativeScore += z[referenceInterval->_3Node * nodeNumber + _3Node];
+
             positiveScores[j] += positiveScore;
             negativeScores[j] += negativeScore;
+
             stList_append(
                     referenceIntervalInsertions,
                     referenceIntervalInsertion_construct(chain, 1,
