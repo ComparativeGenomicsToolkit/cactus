@@ -54,15 +54,14 @@ static double referenceIntervalInsertion_isConnectedLeft(
     int32_t _5Node = stIntTuple_getPosition(referenceIntervalInsertion->chain,
             referenceIntervalInsertion->orientation ? 0 : 1);
     assert(referenceIntervalInsertion->referenceInterval != NULL);
-    assert(z[referenceIntervalInsertion->referenceInterval->_3Node * nodeNumber
-            + _5Node] >= 0.0);
+    assert(z[referenceIntervalInsertion->referenceInterval->_3Node
+                    * nodeNumber + _5Node] >= 0.0);
     return z[referenceIntervalInsertion->referenceInterval->_3Node * nodeNumber
             + _5Node] > 0.0 ? 1 : 0;
 }
 
 static int32_t referenceInterval_get5Node(ReferenceInterval *referenceInterval) {
-    if (referenceInterval->nReferenceInterval
-            != NULL) {
+    if (referenceInterval->nReferenceInterval != NULL) {
         return referenceInterval->nReferenceInterval->_5Node;
     }
     while (referenceInterval->pReferenceInterval != NULL) {
@@ -78,7 +77,8 @@ static double referenceIntervalInsertion_isConnectedRight(
         int32_t nodeNumber) {
     int32_t _3Node = stIntTuple_getPosition(referenceIntervalInsertion->chain,
             referenceIntervalInsertion->orientation ? 1 : 0);
-    int32_t _5Node = referenceInterval_get5Node(referenceIntervalInsertion->referenceInterval);
+    int32_t _5Node = referenceInterval_get5Node(
+            referenceIntervalInsertion->referenceInterval);
     assert(z[_5Node * nodeNumber + _3Node] >= 0.0);
     return z[_5Node * nodeNumber + _3Node] > 0.0 ? 1 : 0;
 }
@@ -88,9 +88,21 @@ static double referenceIntervalInsertion_isCurrentlyConnected(
         int32_t nodeNumber) {
     assert(referenceIntervalInsertion->referenceInterval != NULL);
     int32_t _3Node = referenceIntervalInsertion->referenceInterval->_3Node;
-    int32_t _5Node = referenceInterval_get5Node(referenceIntervalInsertion->referenceInterval);
+    int32_t _5Node = referenceInterval_get5Node(
+            referenceIntervalInsertion->referenceInterval);
     assert(z[_5Node * nodeNumber + _3Node] >= 0.0);
     return z[_5Node * nodeNumber + _3Node] > 0.0 ? 1 : 0;
+}
+
+static double referenceIntervalInsertion_connectionScore(
+        ReferenceIntervalInsertion *referenceIntervalInsertion, double *z,
+        int32_t nodeNumber) {
+    return referenceIntervalInsertion_isConnectedLeft(
+            referenceIntervalInsertion, z, nodeNumber)
+            + referenceIntervalInsertion_isConnectedRight(
+                    referenceIntervalInsertion, z, nodeNumber)
+            - referenceIntervalInsertion_isCurrentlyConnected(
+                    referenceIntervalInsertion, z, nodeNumber);
 }
 
 static stList *getReferenceIntervalInsertions(stList *reference,
@@ -111,10 +123,10 @@ static stList *getReferenceIntervalInsertions(stList *reference,
             stList_append(intervals, referenceInterval);
             referenceInterval = referenceInterval->nReferenceInterval;
         }
-        double *positiveScores = st_calloc(stList_length(intervals),
-                sizeof(double));
-        double *negativeScores = st_calloc(stList_length(intervals),
-                sizeof(double));
+        double *positiveScores = st_malloc(
+                stList_length(intervals) * sizeof(double));
+        double *negativeScores = st_malloc(
+                stList_length(intervals) * sizeof(double));
         referenceInterval = stList_get(reference, i);
         int32_t j = stList_length(intervals) - 1;
         assert(j >= 0);
@@ -123,13 +135,11 @@ static stList *getReferenceIntervalInsertions(stList *reference,
         for (; j > 0; j--) {
             referenceInterval = stList_get(intervals, j);
 
-            assert(z[referenceInterval->_5Node * nodeNumber
-                    + _3Node] >= 0);
+            assert(z[referenceInterval->_5Node * nodeNumber + _3Node] >= 0);
             positiveScores[j - 1] = z[referenceInterval->_5Node * nodeNumber
                     + _3Node] + positiveScores[j];
 
-            assert(z[referenceInterval->_5Node * nodeNumber
-                     + _5Node] >= 0);
+            assert(z[referenceInterval->_5Node * nodeNumber + _5Node] >= 0);
             negativeScores[j - 1] = z[referenceInterval->_5Node * nodeNumber
                     + _5Node] + negativeScores[j];
         }
@@ -141,10 +151,12 @@ static stList *getReferenceIntervalInsertions(stList *reference,
             assert(z[referenceInterval->_3Node * nodeNumber + _5Node] >= 0.0);
             assert(positiveScore + 0.0 == positiveScore);
             positiveScore += z[referenceInterval->_3Node * nodeNumber + _5Node];
+            assert(positiveScore >= 0.0);
 
             assert(z[referenceInterval->_3Node * nodeNumber + _3Node] >= 0.0);
             assert(negativeScore + 0.0 == negativeScore);
             negativeScore += z[referenceInterval->_3Node * nodeNumber + _3Node];
+            assert(negativeScore >= 0.0);
 
             positiveScores[j] += positiveScore;
             negativeScores[j] += negativeScore;
@@ -237,9 +249,17 @@ stList *makeReferenceGreedily(stList *stubs, stList *chainsList, double *z,
             for (int32_t i = 0; i < stList_length(referenceIntervalInsertions); i++) {
                 ReferenceIntervalInsertion *referenceIntervalInsertion =
                         stList_get(referenceIntervalInsertions, i);
-                if (maxReferenceIntervalInsertion.score
-                        < referenceIntervalInsertion->score
-                        || maxReferenceIntervalInsertion.chain == NULL) {
+                if (maxReferenceIntervalInsertion.chain == NULL
+                        || maxReferenceIntervalInsertion.score
+                                < referenceIntervalInsertion->score
+                        || (maxReferenceIntervalInsertion.score
+                                == referenceIntervalInsertion->score
+                                && referenceIntervalInsertion_connectionScore(
+                                        referenceIntervalInsertion, z,
+                                        nodeNumber)
+                                        > referenceIntervalInsertion_connectionScore(
+                                                &maxReferenceIntervalInsertion,
+                                                z, nodeNumber))) {
                     maxReferenceIntervalInsertion.score
                             = referenceIntervalInsertion->score;
                     maxReferenceIntervalInsertion.chain
@@ -334,16 +354,9 @@ void gibbsSamplingWithSimulatedAnnealing(stList *reference, stList *chains,
                         stList_get(referenceIntervalInsertions, j);
                 normalScores[j] = referenceIntervalInsertion->score;
                 connectionScores[j]
-                        = referenceIntervalInsertion_isConnectedLeft(
-                                referenceIntervalInsertion, z, nodeNumber)
-                                + referenceIntervalInsertion_isConnectedRight(
-                                        referenceIntervalInsertion, z,
-                                        nodeNumber)
-                                - referenceIntervalInsertion_isCurrentlyConnected(
-                                        referenceIntervalInsertion, z,
-                                        nodeNumber);
-                assert(normalScores[j] >= -0.001);
-                //assert(connectionScores[j] >= -0.001); //this value may be less than 0
+                        = referenceIntervalInsertion_connectionScore(
+                                referenceIntervalInsertion, z, nodeNumber);
+                assert(normalScores[j] >= 0.0);
                 conditionalSum += normalScores[j];
             }
             if (pureGreedy) {

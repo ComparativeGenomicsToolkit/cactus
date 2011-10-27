@@ -218,7 +218,7 @@ double *calculateZ(Flower *flower, stHash *endsToNodes, double theta) {
     int32_t nodeNumber = stHash_size(endsToNodes);
     assert(nodeNumber % 2 == 0);
     double *z = st_calloc(nodeNumber * nodeNumber, sizeof(double));
-    for(int32_t i=0; i<nodeNumber*nodeNumber; i++) { //Setting to zero for paranoids reasons.
+    for(int32_t i=0; i<nodeNumber*nodeNumber; i++) { //Setting to zero for paranoid reasons.
         z[i] = 0.0;
     }
     Flower_EndIterator *endIt = flower_getEndIterator(flower);
@@ -274,7 +274,7 @@ double *calculateZ(Flower *flower, stHash *endsToNodes, double theta) {
                             double score = calculateZScore(_5CapSize, _3CapSize, diff, theta);
                             assert(score >= -0.0001);
                             if(score <= 0.0) {
-                                score = 0.000000001;
+                                score = 1e-10; //Make slightly non-zero.
                             }
                             assert(score > 0.0);
                             z[_5Node * nodeNumber + _3Node] += score;
@@ -291,6 +291,9 @@ double *calculateZ(Flower *flower, stHash *endsToNodes, double theta) {
         }
     }
     flower_destructEndIterator(endIt);
+    for(int32_t i=0; i<nodeNumber*nodeNumber; i++) {
+        assert(z[i] >= 0.0);
+    }
 
     return z;
 }
