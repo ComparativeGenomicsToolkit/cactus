@@ -110,6 +110,9 @@ class ProgressiveUp(Target):
                                           self.experiment,
                                           self.event,
                                           ktserver))
+        
+        if ktserver is not None:
+            self.setFollowOnTarget(EndWorkflow(self.event, ktserver))
 
 class StartWorkflow(Target):
     def __init__(self, options, project, experiment, event, ktserver):
@@ -136,7 +139,20 @@ class StartWorkflow(Target):
                                                 self.experiment,
                                                 self.event,
                                                 self.ktserver))
+
+class EndWorkflow(Target):
+    def __init__(self, event, ktserver):
+        Target.__init__(self)
+        self.event = event
+        self.ktserver = ktserver
+    
+    def run(self):
+        logger.info("EndWorkflow: " + self.event)
         
+        # don't need the ktserver anymore, so we kill it
+        if self.ktserver is not None:
+            self.ktserver.killServer()   
+                         
 class ExtractReference(Target):
     def __init__(self, options, project, experiment, event, ktserver):
         Target.__init__(self)
@@ -211,10 +227,6 @@ class JoinMAF(Target):
         return isCactus
             
     def run(self):
-        # don't need the ktserver anymore, so we kill it
-        if self.ktserver:
-            self.ktserver.killServer()
-        
         if self.options.joinMAF and\
         (self.options.overwrite or not os.path.exists(self.experiment.getMAFPath())
          or self.isMafFromCactus(self.experiment.getMAFPath())):
@@ -241,7 +253,8 @@ class JoinMAF(Target):
                     
                     move("%s_tmp.maf" % self.experiment.getMAFPath(), 
                          self.experiment.getMAFPath())
-                    rootIsTreeMAF = True    
+                    rootIsTreeMAF = True
+    
                     
 def getWorkflowParams(baseOptions, experiment):
     options = copy.deepcopy(baseOptions)
