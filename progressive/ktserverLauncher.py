@@ -5,37 +5,28 @@
 #Released under the MIT license, see LICENSE.txt
 
 """ Help with spawning ktservers.  Something more sophisticated
-may well be necessary down the road... for now, everything is 
-based on subprocess and ps x
-
+may well be necessary down the road (multiple hostnames?)... 
+for now, everything is based on os.system and grepping ps x
 """
-import unittest
 
 import os
-import xml.etree.ElementTree as ET
-from xml.dom import minidom
 import sys
 import random
 import math
-import copy
-import filecmp
 import subprocess
+import signal
 from time import sleep
 from optparse import OptionParser
+import xml.etree.ElementTree as ET
 
-
-from cactus.progressive.multiCactusTree import MultiCactusTree
 from cactus.progressive.experimentWrapper import ExperimentWrapper
-from cactus.progressive.multiCactusProject import MultiCactusProject
 
 class KtserverLauncher:
     def __init__(self):
-        self.proc = None 
-        self.max = 8
-        self.waitFromMax = 10
+        self.pid = -1  
+        self.maxRunningServers = 8
+        self.waitFromMax = 30
         self.rangeSize = 100
-        self.rangeWait = 2
-        self.waitToKill = 2
         self.listenWaitIntervals = 100
         self.listenWait = 1
         self.tuningOptions = "#opts=ls#bnum=30m#msiz=50g#ktopts=p"
@@ -44,109 +35,142 @@ class KtserverLauncher:
         self.readTuningOptions = "#opts=ls#ktopts=p"
         self.serverOptions = "-ls -tout 200000 -th 64"
     
-    def countRunningServers(self, keyword = None):
-        gstring = ""
-        if keyword:
-            gstring = "| grep \"%s\"" % keyword
-        cmdline = "ps x | grep ktserver %s | grep -v grep | wc -l" % gstring
+    # return list of pids for ktservers with given keywords
+    # in command line.  pids are stored in strings, and
+    # empty list return if nothing found.
+    def scrapePids(self, keywordList = []):
+        gstring = "| grep ktserver"
+        for keyword in keywordList:
+            gstring += "| grep \"%s\"" % keyword
+        gstring += "| grep -v grep"
+        cmdline = "ps x %s | awk \'{print $1}\' | xargs" % gstring
         outPipe = subprocess.Popen(cmdline, shell=True, 
                                    stdout=subprocess.PIPE).stdout
         pString = outPipe.read()
-        numServers = int(pString)
-        assert numServers >= 0
-        return numServers
+        return pString.split()
     
+    # use ps to determine if there is a ktserver process running
+    # on a given port
     def isServerOnPort(self, port):
-        numServers = self.countRunningServers('port %d' % port)
+        serverPids = self.scrapePids(['port %d' % port])
+        numServers = len(serverPids)
         assert numServers == 0 or numServers == 1
         return numServers == 1
     
-    # if there are already too many servers running, wait...
-    # otherwise, cycle through ports, beginning at the one 
-    # specified in the experiment parameter, until a 
-    # server is successfully launched.  experiment
-    # is updated with the new port (and i guess should
-    # be saved
-    def spawnServer(self, experiment):
-        assert self.countRunningServers(experiment.getDbDir()) == 0
-        assert os.path.splitext(experiment.getDbName())[1] == ".kch"
-
-        exists = os.path.isfile(os.path.join(experiment.getDbDir(), 
-                                             experiment.getDbName()))
+    # hang until fewer than self.maxRunningServers are running
+    def waitOnTotalNumberOfServers(self):
         block = True
         while block:
-            sleep(random.uniform(0, self.rangeWait))
-            numServers = self.countRunningServers()
-            if numServers < self.max:
+            numServers = len(self.scrapePids())
+            if numServers < self.maxRunningServers:
                 block = False
             else:
                 sleep(self.waitFromMax)
-        basePort = experiment.getDbPort()
+    
+    # a valid server is a) running and b) listening 
+    # we check for listening by looking into the output file 
+    # return pid if running or -1 if fail       
+    def validateServer(self, dbPath, outPath, port):
+        pids = self.scrapePids(['port %d' % port, dbPath])
+        assert len(pids) < 2
+        if len(pids) == 0:
+            # server not running
+            return -1
+        pid = int(pids[0])
         
-        # hangs unless i use an actual file !?
-        listenFilePath = os.path.join(experiment.getDbDir(), "listen.txt")
-        if os.path.isfile(listenFilePath):
-            os.remove(listenFilePath)
-        listenFile = open(listenFilePath, "w+")
-        
-        for port in range(basePort, basePort + self.rangeSize):
-            sleep(random.uniform(0, self.rangeWait))
-            if not self.isServerOnPort(port):
-                experiment.setDbPort(port)
-                cmdLine = self.ktserverCmd(experiment, exists)
-                self.proc = subprocess.Popen(cmdLine.split(), shell=False,
-                                             stdout=listenFile)
-                sleep(self.rangeWait)
-                if self.proc.poll() is None:
-                    break
-        assert self.proc.poll() is None
-        
+        # sometimes a server can be slow to start up
+        # so we poll the file where stdout was piped for a
+        # few seconds waiting to hear that it's "listening"
+        assert os.path.exists(outPath)
         success = False
         for i in range(0, self.listenWaitIntervals):
-            if not success:
-                listenRead = open(listenFilePath, "r")
-                for line in listenRead.readlines():
+            if success == False:
+                sleep(self.listenWait)
+                outFile = open(outPath, "r")
+                for line in outFile.readlines():
                     if line.find("listening") >= 0:
                         success = True
                         break
-                listenRead.close()
-                sleep(self.listenWait)
-        os.remove(listenFilePath)
-        assert success
-        
-                        
-    def ktserverCmd(self, experiment, exists):
+                outFile.close()
+        if success == True:
+            return pid
+        else:
+            self.killServer()
+            return -1
+    
+    def ktserverCmd(self, dbPath, port, exists):
         tuning = self.tuningOptions
         if exists:
             tuning = self.readTuningOptions
-        return "ktserver -port %s %s %s/%s%s" % (experiment.getDbPort(),
-                                                  self.serverOptions,
-                                                  experiment.getDbDir(),
-                                                  experiment.getDbName(),
-                                                  tuning)
+        return "ktserver -port %d %s %s%s" % (port, self.serverOptions, 
+                                              dbPath, tuning)
     
+    # launch the ktserver as a new process. The process is 
+    # orphaned using disown so that it can live beyond (and doesn't
+    # deadlock) its parent jobTree job's process. the pid is
+    # remembered in self.pid and the port is written back to the
+    # input experiment object         
+    def spawnServer(self, experiment):
+        dbPath = os.path.join(experiment.getDbDir(), experiment.getDbName())
+        assert os.path.splitext(experiment.getDbName())[1] == ".kch"
+        if (len(self.scrapePids([dbPath])) != 0):
+            raise RuntimeError("ktserver already running on %s" % dbPath)
+        
+        # shouldn't be necessary but try to reduce the occurrence of
+        # freak concurrency issues by taking a quick nap
+        sleep(random.uniform(0, 1))
+        
+        self.waitOnTotalNumberOfServers()        
+        basePort = experiment.getDbPort()
+        outputPath = "%s.stdout" % dbPath
+        if os.path.exists(outputPath):
+            os.remove(outputPath)
+        dbPathExists = os.path.exists(dbPath)
+        
+        for port in range(basePort, basePort + self.rangeSize):
+            if self.isServerOnPort(port) == False:
+                # "%s > %s & disown" seems to work
+                # NOTE
+                # "nohup %s > %s 2>&1 & disown" seems to work too
+                # "%s > %s 2>&1 & disown" causes deadlock
+                # "nohup %s > %s & disown" causes deadlock
+                os.system("%s > %s & disown" % 
+                          (self.ktserverCmd(dbPath, port, dbPathExists),
+                           outputPath))
+                self.pid = self.validateServer(dbPath, outputPath, port)
+            if self.pid >= 0:
+                experiment.setDbPort(port)
+                break
+        
+        if self.pid < 0:
+            raise RuntimeError("Failed to launch ktserver for %d" % dbPath)
+ 
     def killServer(self):
-        assert self.proc is not None
-        assert self.proc.poll() is None
-        sleep(self.waitToKill)
-        self.proc.kill()
-
+        assert self.pid is not None
+        assert self.pid > -1
+        os.kill(self.pid, signal.SIGKILL)
+        
 def main():
-    usage = "usage: %prog <experiment file>"
-    description = "Open ktserver of a given experiment"
-    parser = OptionParser(usage=usage, description=description)
-    
-    options, args = parser.parse_args()
-    
-    if len(args) != 1:
-        parser.print_help()
-        raise RuntimeError("Wrong number of arguments")
-    
-    exp = ExperimentWrapper(ET.parse(args[0]).getroot())
-    kts = KtserverLauncher()
-    kts.spawnServer(exp)
-    print exp.getDiskDatabaseString()
-    return 0    
+    try:
+        usage = "usage: %prog <experiment file>"
+        description = "Open ktserver of a given experiment"
+        parser = OptionParser(usage=usage, description=description)
+        
+        options, args = parser.parse_args()
+        
+        if len(args) != 1:
+            parser.print_help()
+            raise RuntimeError("Wrong number of arguments")
+        
+        exp = ExperimentWrapper(ET.parse(args[0]).getroot())
+        kts = KtserverLauncher()
+        kts.spawnServer(exp)
+        print exp.getDiskDatabaseString()
+        print "PID: %d" % kts.pid
+        return 0    
+    except RuntimeError, e:
+        print "ERROR " + str(e)
+        return 1
 
 if __name__ == '__main__':    
     main()
