@@ -129,7 +129,7 @@ class KtserverLauncher:
         
         for port in range(basePort, basePort + self.rangeSize):
             if self.isServerOnPort(port) == False:
-                os.system("nohup %s > %s 2>&1 < /dev/null & disown" % 
+                os.system("%s > %s 2>&1 < /dev/null & disown -h" % 
                           (self.ktserverCmd(dbPath, port, dbPathExists),
                            outputPath))
                 self.pid = self.validateServer(dbPath, outputPath, port)
