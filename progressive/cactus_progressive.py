@@ -94,13 +94,8 @@ class ProgressiveUp(Target):
             dbPath = os.path.join(self.experiment.getDbDir(), 
                                   self.experiment.getDbName())
             seqPath = os.path.join(self.experiment.getDbDir(), "sequences")
-            if os.path.isfile(dbPath):
-                os.remove(dbPath)
-            system("rm -f %s/*BIG__RECORD__FILE__*" % self.experiment.getDbDir())
-            if os.path.isfile(seqPath):
-                os.remove(seqPath)
-                
-            
+            system("rm -f %s* %s" % (dbPath, seqPath))
+                        
         ktserver = None
         if self.experiment.getDbType() == "kyoto_tycoon" and \
         (self.options.setupAndBuildAlignments is True or \
@@ -108,6 +103,24 @@ class ProgressiveUp(Target):
          self.options.buildMAF is True):
             ktserver = KtserverLauncher()
             ktserver.spawnServer(self.experiment)
+            
+        self.addChildTarget(StartWorkflow(self.options,
+                                          self.project,
+                                          self.experiment,
+                                          self.event,
+                                          ktserver))
+
+class StartWorkflow(Target):
+    def __init__(self, options, project, experiment, event, ktserver):
+        Target.__init__(self)
+        self.options = options
+        self.project = project
+        self.experiment = experiment
+        self.event = event
+        self.ktserver = ktserver
+    
+    def run(self):
+        logger.info("StartWorkflow: " + self.event)
         
         # get parameters that cactus_workflow stuff wants 
         wfOpts, sequences = getWorkflowParams(self.options, self.experiment)
@@ -120,7 +133,7 @@ class ProgressiveUp(Target):
                                                 self.project,
                                                 self.experiment,
                                                 self.event,
-                                                ktserver))
+                                                self.ktserver))
         
 class ExtractReference(Target):
     def __init__(self, options, project, experiment, event, ktserver):
