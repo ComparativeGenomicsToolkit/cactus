@@ -13,6 +13,7 @@ from optparse import OptionParser
 import tempfile
 import shutil
 import random
+from sonLib.bioio import system
 
 def testExec(exeName):
     for dir in os.getenv("PATH").split(':'):                                           
@@ -86,7 +87,7 @@ def main():
     
     # strip out the |1| strings from header or they will be eaten by lastz!!
     pipeCode = "__#%x__" % random.randint(0, 16777215)
-    assert os.system("sed -e \"s/|1|/%s/g\" %s > %s" % (pipeCode, targetFile, cleanTargetFile)) == 0
+    system("sed -e \"s/|1|/%s/g\" %s > %s" % (pipeCode, targetFile, cleanTargetFile))
 
     try:
         # chop up input fasta file into into fragments of specified size.  fragments overlap by 
@@ -94,7 +95,7 @@ def main():
         fragCmdLine = 'cat ' + queryFile + ' | fasta_fragments.py ' + '--fragment=' + \
                         str(options.fragment) + ' --step=' + str(options.fragment / 2) + ' > ' + fragFile
         
-        assert os.system(fragCmdLine) == 0
+        system(fragCmdLine)
         
         # lastz each fragment against the entire input sequence.  Each time a fragment aligns to a base
         # in the sequence, that base's match count is incremented.  base's whose match count exceeds the 
@@ -107,17 +108,17 @@ def main():
                         ' --masking=' + str(options.period * 2) + ' --outputmasking+:soft=' + maskInfoFile + \
                         ' --format=none' 
 
-        assert os.system(lastzCmdLine) == 0
+        system(lastzCmdLine)
         
         # reinsert the |1|'s
-        assert os.system("sed -i -e \"s/%s/|1|/g\" %s" % (pipeCode, maskInfoFile)) == 0
+        system("sed -i -e \"s/%s/|1|/g\" %s" % (pipeCode, maskInfoFile))
         
         # the previous lastz command outputs a file of intervals (denoted with indices) to softmask.
         # we finish by applying these intervals to the input file, to produce the final, softmasked output. 
         softMaskCmdLine = 'cat ' + targetFile + ' | fasta_softmask_intervals.py --origin=1 ' + maskInfoFile + \
                             ' > ' + outputFile
     
-        assert os.system(softMaskCmdLine) == 0
+        system(softMaskCmdLine)
     
     except Exception, e:
         # delete the temporary files

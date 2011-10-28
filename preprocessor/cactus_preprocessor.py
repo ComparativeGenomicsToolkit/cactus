@@ -99,12 +99,12 @@ class PreprocessChunks(Target):
             cmdline = cmdline.replace("EVENT_STRING", self.event)
             
             logger.info("Preprocessor exec " + cmdline)
-            assert os.system(cmdline) == 0
+            system(cmdline)
            
             compressedChunk = compressFastaFile(prepChunkPath, self.getLocalTempDir(),
                                                 self.prepOptions.compressFiles)
             
-            assert os.system("mv %s %s" % (compressedChunk, chunk)) == 0
+            system("mv %s %s" % (compressedChunk, chunk))
 
 class MergeChunks(Target):
     """ merge a list of chunks into a fasta file
@@ -125,10 +125,9 @@ class MergeChunks(Target):
             if e.errno != errno.EEXIST:
                 raise e
 
-        sysRet = system("cactus_batch_mergeChunks %s %s %i" % \
-                        (self.chunkListPath, self.outSequencePath, self.prepOptions.compressFiles))
+        system("cactus_batch_mergeChunks %s %s %i" % \
+               (self.chunkListPath, self.outSequencePath, self.prepOptions.compressFiles))
         
-        assert sysRet == 0
  
 class PreprocessSequence(Target):
     """ cut a sequence into chunks, process, then merge
@@ -150,10 +149,9 @@ class PreprocessSequence(Target):
         inSeqListHandle.close()
         chunkDirectory = getTempDirectory(self.getGlobalTempDir())
         
-        sysRet = system("cactus_batch_chunkSequences %s %i %i %s %i %s" % \
-                        (chunkListPath, self.prepOptions.chunkSize, self.prepOptions.overlapSize,
-                         chunkDirectory, self.prepOptions.compressFiles, inSeqListPath))   
-        assert sysRet == 0
+        system("cactus_batch_chunkSequences %s %i %i %s %i %s" % \
+               (chunkListPath, self.prepOptions.chunkSize, self.prepOptions.overlapSize,
+                chunkDirectory, self.prepOptions.compressFiles, inSeqListPath))   
         
         return chunkListPath
     
