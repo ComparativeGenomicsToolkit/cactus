@@ -90,12 +90,13 @@ class ProgressiveUp(Target):
         logger.info("Progressive Up: " + self.event)
         
         # delete database files if --setupAndBuildAlignments
-        if self.options.setupAndBuildAlignments:
+        if self.options.setupAndBuildAlignments and self.options.overwrite:
             dbPath = os.path.join(self.experiment.getDbDir(), 
                                   self.experiment.getDbName())
             seqPath = os.path.join(self.experiment.getDbDir(), "sequences")
-            system("rm -f %s* %s" % (dbPath, seqPath))
-                        
+            system("rm -f %s* %s %s" % (dbPath, seqPath, 
+                                        self.experiment.getReferencePath()))
+            
         ktserver = None
         if self.experiment.getDbType() == "kyoto_tycoon" and \
         (self.options.setupAndBuildAlignments is True or \
@@ -125,7 +126,8 @@ class StartWorkflow(Target):
         # get parameters that cactus_workflow stuff wants 
         wfOpts, sequences = getWorkflowParams(self.options, self.experiment)
          
-        if self.options.setupAndBuildAlignments:       
+        if self.options.setupAndBuildAlignments and \
+        not os.path.exists(self.experiment.getReferencePath()):       
             self.addChildTarget(CactusSetupPhase(wfOpts, sequences))
             logger.info("Going to create alignments and define the cactus tree")
         
@@ -168,7 +170,8 @@ class BuildMAF(Target):
         self.ktserver = ktserver
     
     def run(self):
-        if self.options.buildMAF:
+        if self.options.buildMAF and\
+        (self.options.overwrite or not os.path.exists(self.experiment.getMAFPath())):             
             logger.info("Starting MAF Build phase")
             
             cmdLine = "cactus_MAFGenerator --cactusDisk \'%s\' --flowerName 0 --outputFile %s --logLevel %s" % \
@@ -192,12 +195,29 @@ class JoinMAF(Target):
         self.event = event
         self.ktserver = ktserver
     
+    # hack to see if a maf file was created by cactus
+    # (by searching for the word cactus in the first few comments).
+    # used to know if we rerun mafjoin when overwrite is false.
+    # if it's cactus we do, otherwise we assume it's been 
+    # made by a succesfsul mafjoin in the past and we don't.
+    def isMafFromCactus(self, path):
+        file = open(path, "r")
+        isCactus = False
+        for line in file.readlines()[:10]:
+            if lines.lstrip().find('cactus') >= 0:
+                isCactus = True
+                break
+        file.close()
+        return isCactus
+            
     def run(self):
         # don't need the ktserver anymore, so we kill it
         if self.ktserver:
             self.ktserver.killServer()
         
-        if self.options.joinMAF:
+        if self.options.joinMAF and\
+        (self.options.overwrite or not os.path.exists(self.experiment.getMAFPath())
+         or self.isMafFromCactus(self.experiment.getMAFPath())):
             logger.info("Starting MAF Join phase")
             
             rootRefName = self.experiment.getReferenceNameFromConfig()
@@ -251,7 +271,10 @@ def main():
     parser.add_option("--event", dest="event", 
                       help="Target event to process [default=root]", default=None)
     
-
+    parser.add_option("--overwrite", dest="overwrite", action="store_true",
+                      help="Recompute and overwrite output files if they exist [default=False]",
+                      default=False)
+    
     options, args = parser.parse_args()
     setLoggingFromOptions(options)
     
