@@ -67,7 +67,7 @@ class ProgressiveDown(Target):
         expXml = ET.parse(self.project.expMap[self.event]).getroot()
         experiment = ExperimentWrapper(expXml)
         
-        if self.options.recursive:
+        if not self.options.nonRecursive:
             deps = self.schedule.deps(self.event)
             for child in deps:
                 if child in self.project.expMap:
@@ -265,8 +265,9 @@ def main():
     parser.add_option("--joinMAF", dest="joinMAF", action="store_true",
                      help="Progressively join all cactus MAFs[default=false]", default=False)
     
-    parser.add_option("--recursive", dest="recursive",
-                      help="Recursively process subjobs [default=True]", default="True")
+    parser.add_option("--nonRecursive", dest="nonRecursive", action="store_true",
+                      help="Only process given event (not children) [default=False]", 
+                      default=False)
     
     parser.add_option("--event", dest="event", 
                       help="Target event to process [default=root]", default=None)
@@ -283,8 +284,6 @@ def main():
     # forget about this stuff for now
     options.buildTrees = False
     options.buildFaces = False
-
-    options.recursive = not options.recursive.lower() == "false"
 
     if len(args) != 1:
         parser.print_help()
