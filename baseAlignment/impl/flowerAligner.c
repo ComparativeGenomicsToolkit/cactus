@@ -226,6 +226,7 @@ static stSortedSet *getFreeStubAdjacencySequences(Flower *flower) {
             End_InstanceIterator *capIterator = end_getInstanceIterator(end);
             while ((cap = end_getNext(capIterator)) != NULL) {
                 if (cap_getAdjacency(cap) != NULL) {
+                    cap = cap_getStrand(cap) ? cap : cap_getReverse(cap);
                     Cap *adjacentCap = cap_getAdjacency(cap);
                     assert(cap_getCoordinate(cap) != cap_getCoordinate(adjacentCap));
                     if (cap_getCoordinate(cap) > cap_getCoordinate(adjacentCap)) {
@@ -235,6 +236,8 @@ static stSortedSet *getFreeStubAdjacencySequences(Flower *flower) {
                     }
                     assert(cap_getCoordinate(cap) < cap_getCoordinate(adjacentCap));
                     assert(cap_getSequence(cap) != NULL);
+                    assert(!cap_getSide(cap));
+                    assert(cap_getSide(adjacentCap));
                     Sequence *sequence = cap_getSequence(cap);
                     stSortedSet_insert(
                             freeStubAdjacencySequences,

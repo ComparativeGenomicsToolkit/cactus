@@ -218,6 +218,9 @@ double *calculateZ(Flower *flower, stHash *endsToNodes, double theta) {
     int32_t nodeNumber = stHash_size(endsToNodes);
     assert(nodeNumber % 2 == 0);
     double *z = st_calloc(nodeNumber * nodeNumber, sizeof(double));
+    for(int32_t i=0; i<nodeNumber*nodeNumber; i++) { //Setting to zero for paranoid reasons.
+        z[i] = 0.0;
+    }
     Flower_EndIterator *endIt = flower_getEndIterator(flower);
     End *end;
     while ((end = flower_getNextEnd(endIt)) != NULL) {
@@ -270,13 +273,14 @@ double *calculateZ(Flower *flower, stHash *endsToNodes, double theta) {
                             assert(diff >= 1);
                             double score = calculateZScore(_5CapSize, _3CapSize, diff, theta);
                             assert(score >= -0.0001);
-                            if(score < 0) {
-                                score = 0.0;
+                            if(score <= 0.0) {
+                                score = 1e-10; //Make slightly non-zero.
                             }
+                            assert(score > 0.0);
                             z[_5Node * nodeNumber + _3Node] += score;
                             z[_3Node * nodeNumber + _5Node] = z[_5Node * nodeNumber + _3Node];
                             assert(z[_5Node * nodeNumber + _3Node] == z[_3Node * nodeNumber + _5Node]);
-                            assert(z[_5Node * nodeNumber + _3Node] >= 0.0);
+                            assert(z[_5Node * nodeNumber + _3Node] > 0.0);
                         }
                     }
                     stList_destruct(caps);
@@ -287,6 +291,9 @@ double *calculateZ(Flower *flower, stHash *endsToNodes, double theta) {
         }
     }
     flower_destructEndIterator(endIt);
+    for(int32_t i=0; i<nodeNumber*nodeNumber; i++) {
+        assert(z[i] >= 0.0);
+    }
 
     return z;
 }
