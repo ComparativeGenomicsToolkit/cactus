@@ -204,7 +204,7 @@ class JoinMAF(Target):
         file = open(path, "r")
         isCactus = False
         for line in file.readlines()[:10]:
-            if lines.lstrip().find('cactus') >= 0:
+            if line.lstrip().find('cactus') >= 0:
                 isCactus = True
                 break
         file.close()
