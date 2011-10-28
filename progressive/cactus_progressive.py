@@ -265,6 +265,9 @@ def main():
     parser.add_option("--joinMAF", dest="joinMAF", action="store_true",
                      help="Progressively join all cactus MAFs[default=false]", default=False)
     
+    parser.add_option("--skipCheck", dest="skipCheck", action="store_true",
+                      help="Don't run cactus_check", default=False)
+    
     parser.add_option("--nonRecursive", dest="nonRecursive", action="store_true",
                       help="Only process given event (not children) [default=False]", 
                       default=False)

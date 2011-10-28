@@ -588,8 +588,9 @@ class CactusCheckPhase(Target):
         self.options = options
         
     def run(self):
-        logger.info("Starting the verification phase")
-        self.addChildTarget(CactusCheck(self.options, None, [ self.flowerName ]))
+        if not self.options.skipCheck:
+            logger.info("Starting the verification phase")
+            self.addChildTarget(CactusCheck(self.options, None, [ self.flowerName ]))
         
 class CactusCheck(Target):
     """This target does the down pass for the check phase.
@@ -659,6 +660,9 @@ def main():
     
     parser.add_option("--buildReference", dest="buildReference", action="store_true",
                       help="Creates a reference ordering for the flowers", default=False)
+    
+    parser.add_option("--skipCheck", dest="skipCheck", action="store_true",
+                      help="Don't run cactus_check", default=False)
     
     options, args = parser.parse_args()
     setLoggingFromOptions(options)
