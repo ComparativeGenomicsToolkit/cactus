@@ -129,12 +129,7 @@ class KtserverLauncher:
         
         for port in range(basePort, basePort + self.rangeSize):
             if self.isServerOnPort(port) == False:
-                # "%s > %s & disown" seems to work
-                # NOTE
-                # "nohup %s > %s 2>&1 & disown" seems to work too
-                # "%s > %s 2>&1 & disown" causes deadlock
-                # "nohup %s > %s & disown" causes deadlock
-                os.system("%s > %s & disown" % 
+                os.system("nohup %s > %s 2>&1 < /dev/null & disown" % 
                           (self.ktserverCmd(dbPath, port, dbPathExists),
                            outputPath))
                 self.pid = self.validateServer(dbPath, outputPath, port)
