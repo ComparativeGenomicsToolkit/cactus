@@ -93,9 +93,11 @@ class KtserverLauncher:
         
         if success == True:
             pids = self.scrapePids(['port %d' % port, dbPath])
-            assert len(pids) < 2
             if len(pids) == 1:
                 return int(pids[0])
+            else:
+                raise RuntimeError("failed to open ktserver on %s" % dbPath)
+                
         else:
             for i in range(0, self.listenWaitIntervals):
                 sleep(self.listenWait)
