@@ -18,7 +18,7 @@ import signal
 from time import sleep
 from optparse import OptionParser
 import xml.etree.ElementTree as ET
-
+from sonLib.bioio import popenCatch
 from cactus.progressive.experimentWrapper import ExperimentWrapper
 
 class KtserverLauncher:
@@ -36,18 +36,21 @@ class KtserverLauncher:
         self.serverOptions = "-ls -tout 200000 -th 64"
     
     # return list of pids for ktservers with given keywords
-    # in command line.  pids are stored in strings, and
-    # empty list return if nothing found.
+    # in command line.  
     def scrapePids(self, keywordList = []):
-        gstring = "| grep ktserver"
-        for keyword in keywordList:
-            gstring += "| grep \"%s\"" % keyword
-        gstring += "| grep -v grep"
-        cmdline = "ps x %s | awk \'{print $1}\' | xargs" % gstring
-        outPipe = subprocess.Popen(cmdline, shell=True, 
-                                   stdout=subprocess.PIPE).stdout
-        pString = outPipe.read()
-        return pString.split()
+        searchTerms = ['ktserver']
+        searchTerms.extend(keywordList)
+        psList = popenCatch("ps x")
+        pidList = []
+        for line in psList.split("\n")[1:]:
+            foundTerms = True
+            for keyWord in searchTerms:
+                if line.find(keyWord) < 0:
+                    foundTerms = False
+                    break
+            if foundTerms == True and line != "":
+                pidList.append(int(line.split()[0]))
+        return pidList
     
     # use ps to determine if there is a ktserver process running
     # on a given port
@@ -70,33 +73,36 @@ class KtserverLauncher:
     # a valid server is a) running and b) listening 
     # we check for listening by looking into the output file 
     # return pid if running or -1 if fail       
-    def validateServer(self, dbPath, outPath, port):
-        pids = self.scrapePids(['port %d' % port, dbPath])
-        assert len(pids) < 2
-        if len(pids) == 0:
-            # server not running
-            return -1
-        pid = int(pids[0])
-        
+    def validateServer(self, dbPath, outPath, port):     
         # sometimes a server can be slow to start up
         # so we poll the file where stdout was piped for a
         # few seconds waiting to hear that it's "listening"
-        assert os.path.exists(outPath)
         success = False
         for i in range(0, self.listenWaitIntervals):
+            sleep(self.listenWait)
             if success == False:
-                sleep(self.listenWait)
-                outFile = open(outPath, "r")
-                for line in outFile.readlines():
-                    if line.find("listening") >= 0:
-                        success = True
-                        break
-                outFile.close()
+                if os.path.exists(outPath):                    
+                    outFile = open(outPath, "r")
+                    for line in outFile.readlines():
+                        if line.find("listening") >= 0:
+                            success = True
+                            break
+                    outFile.close()
+            else:
+                break
+        
         if success == True:
-            return pid
+            pids = self.scrapePids(['port %d' % port, dbPath])
+            assert len(pids) < 2
+            if len(pids) == 1:
+                return int(pids[0])
         else:
-            self.killServer()
-            return -1
+            for i in range(0, self.listenWaitIntervals):
+                sleep(self.listenWait)
+                pids = self.scrapePids(['port %d' % port, dbPath])
+                if len(pids) == 0:
+                    return -1               
+            raise RuntimeError("failed ktserver stuck on %s" % dbPath)
     
     def ktserverCmd(self, dbPath, port, exists):
         tuning = self.tuningOptions
@@ -135,10 +141,13 @@ class KtserverLauncher:
                 self.pid = self.validateServer(dbPath, outputPath, port)
             if self.pid >= 0:
                 experiment.setDbPort(port)
-                break
+                break                
         
         if self.pid < 0:
-            raise RuntimeError("Failed to launch ktserver for %d" % dbPath)
+            raise RuntimeError("Failed to launch ktserver for %s" % dbPath)
+        
+        if (len(self.scrapePids([dbPath])) > 1):
+            raise RuntimeError("Multiple ktservers running on %s" % dbPath)
  
     def killServer(self):
         assert self.pid is not None
