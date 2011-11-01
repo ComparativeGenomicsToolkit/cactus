@@ -5,29 +5,31 @@ Installing Cactus.
 (2) Download and install jobTree. See https://github.com/benedictpaten/jobTree
 
 (3) Download and install tokyo cabinet. See http://fallabs.com/tokyocabinet/
+	
+(4)	[optional] Download and install kyoto tycoon. See http://fallabs.com/kyototycoon/
 
-(4) Download and install lastz. See http://www.bx.psu.edu/~rsharris/lastz/
+(5) Download and install lastz. See http://www.bx.psu.edu/~rsharris/lastz/
 	NOTE, to use cactus_lastzRepeatMaxk.py preprocessor, you must instead:
 	Download and install LATEST lastz. See http://www.bx.psu.edu/~rsharris/lastz/newer/
 	Add lastz's /tools directory to your path (only required for repeatmasking)
 
-(5) Install networkx and psutil python packages:
+(6) Install networkx and psutil python packages:
 	easy_install networkx
 	easy_install psutil
 	
-(6) Place the directory containing Cactus on your python path, i.e.
+(7) Place the directory containing Cactus on your python path, i.e.
 PYTHONPATH=${PYTHONPATH}:FOO
 where FOO/sonLib is the path to the base directory of Cactus. 
 
-(7) Compile the C code:
+(8) Compile the C code:
 Modify the include.mk file to point at where you installed sonLib.
 In cactus type 'make all' 
 
-(8) [optional, but required if you want all tests to pass] Download the dataset 
+(9) [optional, but required if you want all tests to pass] Download the dataset 
 http://dl.dropbox.com/u/156669/datasets.tar.bz2 and create an environment variable
 SON_TRACE_DATASETS to point at it.
 
-(9) Run python allTests.py to run the set of tests to check the installation
+(10) Run python allTests.py to run the set of tests to check the installation
 
 See https://github.com/benedictpaten/ for links to the dependencies mentioned.
 
