@@ -264,9 +264,9 @@ static void addToChainList(Chain *chain, Link *linkFirst, Link *linkEnd,
 	 */
     Link *link = linkFirst;
 	while(link != linkEnd) {
-		stList_append(chainList, cactusMisc_nameToString(end_getName(
+		stList_append(chainList, stInt64Tuple_construct(1, end_getName(
 				link_get3End(link))));
-		stList_append(chainList, cactusMisc_nameToString(end_getName(
+		stList_append(chainList, stInt64Tuple_construct(1, end_getName(
 				link_get5End(link))));
 		link = link_getNextLink(link);
 	}
@@ -290,17 +290,17 @@ static void getMaximalChain_between(Link *parentLink, Chain *chain,
 		addToChainList(chain, chain_getFirst(chain), NULL, chainList);
 		if (parent5EndName != _5EndName) { //We need to introduce a link between the other block end and this link..
 			assert(end_isBlockEnd(_5End));
-			stList_append(chainList, cactusMisc_nameToString(end_getName(
+			stList_append(chainList, stInt64Tuple_construct(1, end_getName(
 					end_getOtherBlockEnd(_5End))));
-			stList_append(chainList, cactusMisc_nameToString(end_getName(
+			stList_append(chainList, stInt64Tuple_construct(1, end_getName(
 					parent5End)));
 		}
 	} else { //We need to introduce a new link..
-		stList_append(chainList, cactusMisc_nameToString(
+		stList_append(chainList, stInt64Tuple_construct(1,
 				end_getName(parent3End)));
 		assert(parent5EndName == _5EndName);
 		assert(end_isBlockEnd(_3End));
-		stList_append(chainList, cactusMisc_nameToString(end_getName(
+		stList_append(chainList, stInt64Tuple_construct(1, end_getName(
 				end_getOtherBlockEnd(_3End))));
 		addToChainList(chain, chain_getFirst(chain), NULL, chainList);
 	}
@@ -362,7 +362,7 @@ static stList *getMaximalChain(Chain *chain, Flower *flower,
 	} else if (parent5End != NULL && (parentLink = group_getLink(end_getGroup(
 			parent5End))) != NULL) {
 		getMaximalChain_between(parentLink, chain, chainList);
-	} else { //The chain lies within a flower, and may extend one chain or join two seperate chains..
+	} else { //The chain lies within a flower, and may extend one chain or join two separate chains..
 		getMaximalChain_extension(parent3End, _3End, chainList, 1);
 		addToChainList(chain, chain_getFirst(chain), NULL, chainList);
 		getMaximalChain_extension(parent5End, _5End, chainList, 0);
@@ -436,10 +436,10 @@ void chain_promote(Chain *chain) {
 	stSortedSet *chainsToExpunge = stSortedSet_construct2(
 			(void(*)(void *)) chain_destruct);
 	stListIterator *endIt = stList_getIterator(finalChainList);
-	char *endName;
+	stInt64Tuple *endName;
 	while ((endName = stList_getNext(endIt)) != NULL) { //Get chains in the parent which we extend..
 		End *end =
-				flower_getEnd(parentFlower, cactusMisc_stringToName(endName));
+				flower_getEnd(parentFlower, stInt64Tuple_getPosition(endName, 0));
 		if (end != NULL) {
 			Link *link = group_getLink(end_getGroup(end));
 			if (link != NULL) {
@@ -480,9 +480,9 @@ void chain_promote(Chain *chain) {
 	//Make the final chain..
 	Chain *newChain = chain_construct(parentFlower);
 	for (int32_t i = 0; i < stList_length(finalChainList); i += 2) {
-		Name _3EndName = cactusMisc_stringToName(stList_get(finalChainList, i));
-		Name _5EndName = cactusMisc_stringToName(stList_get(finalChainList, i
-				+ 1));
+		Name _3EndName = stInt64Tuple_getPosition(stList_get(finalChainList, i), 0);
+		Name _5EndName = stInt64Tuple_getPosition(stList_get(finalChainList, i
+				+ 1), 0);
 		End *_3End = flower_getEnd(parentFlower, _3EndName);
 		assert(_3End != NULL);
 		End *_5End = flower_getEnd(parentFlower, _5EndName);
