@@ -6,7 +6,7 @@
 
 """ Help with spawning ktservers.  Something more sophisticated
 may well be necessary down the road (multiple hostnames?)... 
-for now, everything is based on os.system and grepping ps x
+dependent on psutil package
 """
 
 import os
@@ -24,7 +24,7 @@ from cactus.progressive.experimentWrapper import ExperimentWrapper
 
 class KtserverLauncher:
     def __init__(self):
-        self.maxRunningServers = 10
+        self.maxRunningServers = 20
         self.waitFromMax = 30
         self.rangeSize = 100
         self.listenWaitIntervals = 100
@@ -56,13 +56,22 @@ class KtserverLauncher:
                 pass
         return pidList
                         
-    # use ps to determine if there is a ktserver process running
-    # on a given port
+    # determine if there is a ktserver process running
+    # on a given port.  if there are too many, wait a bit
+    # before aborting because maybe one is in process of
+    # closing
     def isServerOnPort(self, port):
         serverPids = self.scrapePids(['port %d' % port])
         numServers = len(serverPids)
-        assert numServers == 0 or numServers == 1
-        return numServers == 1
+        for i in xrange(self.listenWaitIntervals):
+            if numServers == 0 or numServers == 1:
+                return numServers == 1
+            else:
+                sleep(self.listenWaitIntervals)
+                numServers = len(serverPids)
+       
+        raise RuntimeError("%d servers found open on port %s" % (numServers, 
+                                                                 port))
     
     # hang until fewer than self.maxRunningServers are running
     def waitOnTotalNumberOfServers(self):
@@ -117,9 +126,7 @@ class KtserverLauncher:
         return "ktserver -log %s -port %d %s %s%s" % (outputPath, port, self.serverOptions, 
                                               dbPath, tuning)
     
-    # launch the ktserver as a new process. The process is 
-    # orphaned using disown so that it can live beyond (and doesn't
-    # deadlock) its parent jobTree job's process.  
+    # launch the ktserver as a new daemon process.  
     def spawnServer(self, experiment):
         dbPath = os.path.join(experiment.getDbDir(), experiment.getDbName())
         assert os.path.splitext(experiment.getDbName())[1] == ".kch"
