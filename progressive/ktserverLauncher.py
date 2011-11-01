@@ -19,8 +19,7 @@ import psutil
 from time import sleep
 from optparse import OptionParser
 import xml.etree.ElementTree as ET
-from sonLib.bioio import popenCatch
-from sonLib.bioio import system
+from sonLib.bioio import spawnDaemon
 from cactus.progressive.experimentWrapper import ExperimentWrapper
 
 class KtserverLauncher:
@@ -36,7 +35,9 @@ class KtserverLauncher:
         self.readTuningOptions = "#opts=ls#ktopts=p"
         self.serverOptions = "-ls -tout 200000 -th 64"
     
-    
+    # use psutil to find all the running ktserver processes
+    # todo: check user matches current user (though exceptions
+    # seem to be working for now)
     def scrapePids(self, keywordList = []):
         pidList = []
         for proc in psutil.process_iter():
@@ -55,24 +56,6 @@ class KtserverLauncher:
                 pass
         return pidList
                         
-    # return list of pids for ktservers with given keywords
-    # in command line.  
-    #def scrapePids(self, keywordList = []):
-    #    psList = popenCatch("ps x")
-    #    pidList = []
-    #    for line in psList.split("\n")[1:]:
-    #        tokens = line.split()
-    #        assert len(tokens) >=5
-    #        if tokens[4].find("ktserver") == 0: 
-    #            foundTerms = True
-    #            for keyWord in keywordList:
-    #                if line.find(keyWord) < 0:
-    #                    foundTerms = False
-    #                    break
-    #            if foundTerms == True and line != "":
-    #                pidList.append(int(line.split()[0]))
-    #    return pidList
-    
     # use ps to determine if there is a ktserver process running
     # on a given port
     def isServerOnPort(self, port):
@@ -156,8 +139,7 @@ class KtserverLauncher:
             
         for port in range(basePort, basePort + self.rangeSize):
             if self.isServerOnPort(port) == False:
-                system("/Users/hickey/genomes/cactus/progressive/daemonize.py \'%s\'" % 
-                          self.ktserverCmd(dbPath, outputPath, port, dbPathExists))
+                spawnDaemon(self.ktserverCmd(dbPath, outputPath, port, dbPathExists))
                 pid = self.validateServer(dbPath, outputPath, port)
                 if pid >= 0:
                     experiment.setDbPort(port)
