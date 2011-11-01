@@ -429,6 +429,36 @@ void chain_promote(Chain *chain) {
 	}
 #endif
 
+	if(chain_getLength(chain) == 1) {
+	    Link *link = chain_getFirst(chain);
+	    assert(link != NULL);
+	    if(end_isStubEnd(link_get5End(link)) && end_isStubEnd(link_get3End(link))) {
+	        End *_5End = flower_getEnd(parentFlower, end_getName(link_get5End(link)));
+	        End *_3End = flower_getEnd(parentFlower, end_getName(link_get3End(link)));
+	        assert(_5End != NULL);
+	        assert(_3End != NULL);
+	        if(end_getGroup(_5End) == end_getGroup(_3End) && group_isLink(end_getGroup(_5End))) { //We have a trivial promotion
+	            assert(end_getGroup(_5End) == parentGroup);
+	            Group *childGroup = link_getGroup(link);
+	            Link *parentLink = group_getLink(parentGroup);
+	            promoteEndsBlocksAndGroups(chain, flower, parentFlower);
+	            parentLink->group = childGroup;
+	            childGroup->link = parentLink;
+	            //Now cleanup parent group
+	            parentGroup->link = NULL;
+	            assert(link_getGroup(parentLink) == childGroup);
+	            assert(group_getLink(childGroup) == parentLink);
+	            assert(group_getFlower(childGroup) == parentFlower);
+	            assert(group_getEndNumber(parentGroup) == 0);
+	            assert(flower_getGroupNumber(flower) == 0);
+	            assert(flower_getEndNumber(flower) == 0);
+	            chain_destruct(chain);
+	            assert(flower_getChainNumber(flower) == 0);
+	            return;
+	        }
+	    }
+	}
+
 	//Calculate the final chain structure..
 	stList *finalChainList = getMaximalChain(chain, flower, parentFlower);
 
