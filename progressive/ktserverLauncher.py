@@ -15,16 +15,17 @@ import random
 import math
 import subprocess
 import signal
+import psutil
 from time import sleep
 from optparse import OptionParser
 import xml.etree.ElementTree as ET
 from sonLib.bioio import popenCatch
+from sonLib.bioio import system
 from cactus.progressive.experimentWrapper import ExperimentWrapper
 
 class KtserverLauncher:
     def __init__(self):
-        self.pid = -1  
-        self.maxRunningServers = 8
+        self.maxRunningServers = 10
         self.waitFromMax = 30
         self.rangeSize = 100
         self.listenWaitIntervals = 100
@@ -35,22 +36,42 @@ class KtserverLauncher:
         self.readTuningOptions = "#opts=ls#ktopts=p"
         self.serverOptions = "-ls -tout 200000 -th 64"
     
+    
+    def scrapePids(self, keywordList = []):
+        pidList = []
+        for proc in psutil.process_iter():
+            try:
+                if proc.cmdline[0].find("ktserver") >= 0:
+                    cmd = ' '.join(proc.cmdline)
+                    foundTerms = True
+                    for word in keywordList:
+                        if cmd.find(word) < 0:
+                            foundTerms = False
+                            break
+                    if foundTerms:
+                        pidList.append(proc.pid)
+            except Exception:
+                # probably somebody else's process we can't access
+                pass
+        return pidList
+                        
     # return list of pids for ktservers with given keywords
     # in command line.  
-    def scrapePids(self, keywordList = []):
-        searchTerms = ['ktserver']
-        searchTerms.extend(keywordList)
-        psList = popenCatch("ps x")
-        pidList = []
-        for line in psList.split("\n")[1:]:
-            foundTerms = True
-            for keyWord in searchTerms:
-                if line.find(keyWord) < 0:
-                    foundTerms = False
-                    break
-            if foundTerms == True and line != "":
-                pidList.append(int(line.split()[0]))
-        return pidList
+    #def scrapePids(self, keywordList = []):
+    #    psList = popenCatch("ps x")
+    #    pidList = []
+    #    for line in psList.split("\n")[1:]:
+    #        tokens = line.split()
+    #        assert len(tokens) >=5
+    #        if tokens[4].find("ktserver") == 0: 
+    #            foundTerms = True
+    #            for keyWord in keywordList:
+    #                if line.find(keyWord) < 0:
+    #                    foundTerms = False
+    #                    break
+    #            if foundTerms == True and line != "":
+    #                pidList.append(int(line.split()[0]))
+    #    return pidList
     
     # use ps to determine if there is a ktserver process running
     # on a given port
@@ -106,18 +127,16 @@ class KtserverLauncher:
                     return -1               
             raise RuntimeError("failed ktserver stuck on %s" % dbPath)
     
-    def ktserverCmd(self, dbPath, port, exists):
+    def ktserverCmd(self, dbPath, outputPath, port, exists):
         tuning = self.tuningOptions
         if exists:
             tuning = self.readTuningOptions
-        return "ktserver -port %d %s %s%s" % (port, self.serverOptions, 
+        return "ktserver -log %s -port %d %s %s%s" % (outputPath, port, self.serverOptions, 
                                               dbPath, tuning)
     
     # launch the ktserver as a new process. The process is 
     # orphaned using disown so that it can live beyond (and doesn't
-    # deadlock) its parent jobTree job's process. the pid is
-    # remembered in self.pid and the port is written back to the
-    # input experiment object         
+    # deadlock) its parent jobTree job's process.  
     def spawnServer(self, experiment):
         dbPath = os.path.join(experiment.getDbDir(), experiment.getDbName())
         assert os.path.splitext(experiment.getDbName())[1] == ".kch"
@@ -130,31 +149,40 @@ class KtserverLauncher:
         
         self.waitOnTotalNumberOfServers()        
         basePort = experiment.getDbPort()
-        outputPath = "%s.stdout" % dbPath
+        outputPath = "%s.log" % dbPath
         if os.path.exists(outputPath):
             os.remove(outputPath)
         dbPathExists = os.path.exists(dbPath)
-        
+            
         for port in range(basePort, basePort + self.rangeSize):
             if self.isServerOnPort(port) == False:
-                os.system("%s > %s 2>&1 < /dev/null & disown -h" % 
-                          (self.ktserverCmd(dbPath, port, dbPathExists),
-                           outputPath))
-                self.pid = self.validateServer(dbPath, outputPath, port)
-            if self.pid >= 0:
-                experiment.setDbPort(port)
-                break                
+                system("/Users/hickey/genomes/cactus/progressive/daemonize.py \'%s\'" % 
+                          self.ktserverCmd(dbPath, outputPath, port, dbPathExists))
+                pid = self.validateServer(dbPath, outputPath, port)
+                if pid >= 0:
+                    experiment.setDbPort(port)
+                    break                
         
-        if self.pid < 0:
+        if pid < 0:
             raise RuntimeError("Failed to launch ktserver for %s" % dbPath)
         
         if (len(self.scrapePids([dbPath])) > 1):
             raise RuntimeError("Multiple ktservers running on %s" % dbPath)
- 
-    def killServer(self):
-        assert self.pid is not None
-        assert self.pid > -1
-        os.kill(self.pid, signal.SIGKILL)
+                 
+    def killServer(self, experiment):
+        dbPath = os.path.join(experiment.getDbDir(), experiment.getDbName())
+        port = experiment.getDbPort()
+        pids = self.scrapePids(['port %d' % port, dbPath])
+        if len(pids) == 0:
+            raise RuntimeError("Can't find ktserver to kill for %s on port %d" \
+                               % (dbPath, port))
+        elif len(pids) > 1:
+            raise RuntimeError("Multiple ktservers running on %s" % dbPath)
+        else:
+            pid = pids[0]
+            assert pid is not None
+            assert pid > -1
+        os.kill(pid, signal.SIGKILL)
         
 def main():
     try:
@@ -172,12 +200,11 @@ def main():
         kts = KtserverLauncher()
         kts.spawnServer(exp)
         print exp.getDiskDatabaseString()
-        print "PID: %d" % kts.pid
         return 0    
     except RuntimeError, e:
         print "ERROR " + str(e)
         return 1
-
+    
 if __name__ == '__main__':    
     main()
     
