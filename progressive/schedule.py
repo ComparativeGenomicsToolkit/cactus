@@ -34,11 +34,20 @@ class Schedule:
     # read the experiments, compute the dependency dag
     def loadProject(self, mcProject):
         self.inGraph = NX.DiGraph()
+        globTree = mcProject.mcTree
+        leafEvents = [globTree.getName(i) for i in globTree.getLeaves()]
         for name, expPath in mcProject.expMap.items():
             exp = ExperimentWrapper(ET.parse(expPath).getroot())
             tree = exp.getTree()
             for leaf in tree.getLeaves():
-                self.inGraph.add_edge(name, tree.getName(leaf))
+                # we don't add edges for leaves (in the global tree)
+                # as they are input sequences and do not form dependencies
+                # (it would be clever to maybe do the same with existing
+                # references when --overwrite is not specified but for now
+                # we just do the leaves)
+                leafName = tree.getName(leaf)
+                if leafName not in leafEvents:
+                    self.inGraph.add_edge(name, leafName)
         assert NX.is_directed_acyclic_graph(self.inGraph)
     
     # break all the cycles in reverse topological order

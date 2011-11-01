@@ -112,7 +112,8 @@ class ProgressiveUp(Target):
                                           ktserver))
         
         if ktserver is not None:
-            self.setFollowOnTarget(EndWorkflow(self.event, ktserver))
+            self.setFollowOnTarget(EndWorkflow(self.experiment, self.event, 
+                                               ktserver))
 
 class StartWorkflow(Target):
     def __init__(self, options, project, experiment, event, ktserver):
@@ -141,8 +142,9 @@ class StartWorkflow(Target):
                                                 self.ktserver))
 
 class EndWorkflow(Target):
-    def __init__(self, event, ktserver):
+    def __init__(self, experiment, event, ktserver):
         Target.__init__(self)
+        self.experiment = experiment
         self.event = event
         self.ktserver = ktserver
     
@@ -151,7 +153,7 @@ class EndWorkflow(Target):
         
         # don't need the ktserver anymore, so we kill it
         if self.ktserver is not None:
-            self.ktserver.killServer()   
+            self.ktserver.killServer(self.experiment)   
                          
 class ExtractReference(Target):
     def __init__(self, options, project, experiment, event, ktserver):
