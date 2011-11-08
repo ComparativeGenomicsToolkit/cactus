@@ -27,7 +27,7 @@ class KtserverLauncher:
         self.maxRunningServers = 20
         self.waitFromMax = 30
         self.rangeSize = 100
-        self.listenWaitIntervals = 100
+        self.listenWaitIntervals = 1000
         self.listenWait = 1
         self.tuningOptions = "#opts=ls#bnum=30m#msiz=50g#ktopts=p"
         # it seems that using msiz to open an existing db can 
