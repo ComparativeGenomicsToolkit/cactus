@@ -90,7 +90,10 @@ class ProgressiveUp(Target):
         logger.info("Progressive Up: " + self.event)
         
         # delete database files if --setupAndBuildAlignments
-        if self.options.setupAndBuildAlignments and self.options.overwrite:
+        # and overwrite specified (or if reference not present)
+        if self.options.setupAndBuildAlignments and\
+         (self.options.overwrite or\
+          not os.path.exists(self.experiment.getReferencePath())):
             dbPath = os.path.join(self.experiment.getDbDir(), 
                                   self.experiment.getDbName())
             seqPath = os.path.join(self.experiment.getDbDir(), "sequences")
