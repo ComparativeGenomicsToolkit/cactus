@@ -29,6 +29,8 @@ class KtserverLauncher:
         self.rangeSize = 100
         self.listenWaitIntervals = 1000
         self.listenWait = 1
+        self.checkWaitIntervals = 30
+        self.checkWait = 1
         self.tuningOptions = "#opts=ls#bnum=30m#msiz=50g#ktopts=p"
         # it seems that using msiz to open an existing db can 
         # cause an error sometimes, especially on kolossus
@@ -63,13 +65,14 @@ class KtserverLauncher:
     def isServerOnPort(self, port):
         serverPids = self.scrapePids(['port %d' % port])
         numServers = len(serverPids)
-        for i in xrange(self.listenWaitIntervals):
+        for i in xrange(self.checkWaitIntervals):
             if numServers == 0 or numServers == 1:
                 return numServers == 1
             else:
-                sleep(self.listenWaitIntervals)
+                sleep(self.checkWait)
+                serverPids = self.scrapePids(['port %d' % port])
                 numServers = len(serverPids)
-       
+                
         raise RuntimeError("%d servers found open on port %s" % (numServers, 
                                                                  port))
     
@@ -90,15 +93,18 @@ class KtserverLauncher:
         # sometimes a server can be slow to start up
         # so we poll the file where stdout was piped for a
         # few seconds waiting to hear that it's "listening"
-        success = False
+        success = None
         for i in range(0, self.listenWaitIntervals):
             sleep(self.listenWait)
-            if success == False:
+            if success == None:
                 if os.path.exists(outPath):                    
                     outFile = open(outPath, "r")
                     for line in outFile.readlines():
                         if line.find("listening") >= 0:
                             success = True
+                            break
+                        if line.find("ERROR") >= 0 or line.find("error") >= 0:
+                            success = False
                             break
                     outFile.close()
             else:
@@ -112,13 +118,13 @@ class KtserverLauncher:
                 raise RuntimeError("failed to open ktserver on %s" % dbPath)
                 
         else:
-            for i in range(0, self.listenWaitIntervals):
-                sleep(self.listenWait)
+            for i in range(0, self.checkWaitIntervals):
+                sleep(self.checkWait)
                 pids = self.scrapePids(['port %d' % port, dbPath])
                 if len(pids) == 0:
                     return -1               
             raise RuntimeError("failed ktserver stuck on %s" % dbPath)
-    
+        
     def ktserverCmd(self, dbPath, outputPath, port, exists):
         tuning = self.tuningOptions
         if exists:
@@ -130,22 +136,22 @@ class KtserverLauncher:
     def spawnServer(self, experiment):
         dbPath = os.path.join(experiment.getDbDir(), experiment.getDbName())
         assert os.path.splitext(experiment.getDbName())[1] == ".kch"
+        
         if (len(self.scrapePids([dbPath])) != 0):
             raise RuntimeError("ktserver already running on %s" % dbPath)
-        
-        # shouldn't be necessary but try to reduce the occurrence of
-        # freak concurrency issues by taking a quick nap
-        sleep(random.uniform(0, 1))
         
         self.waitOnTotalNumberOfServers()        
         basePort = experiment.getDbPort()
         outputPath = "%s.log" % dbPath
-        if os.path.exists(outputPath):
-            os.remove(outputPath)
         dbPathExists = os.path.exists(dbPath)
             
         for port in range(basePort, basePort + self.rangeSize):
             if self.isServerOnPort(port) == False:
+                if os.path.exists(outputPath):
+                    os.remove(outputPath)
+                # shouldn't be necessary but try to reduce the occurrence of
+                # freak concurrency issues by taking a quick nap
+                sleep(random.uniform(0, 1))
                 spawnDaemon(self.ktserverCmd(dbPath, outputPath, port, dbPathExists))
                 pid = self.validateServer(dbPath, outputPath, port)
                 if pid >= 0:
