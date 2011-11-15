@@ -7,6 +7,7 @@
 
 import os
 import random
+import sys
 
 from sonLib.bioio import logger
 from sonLib.bioio import getTempFile
@@ -90,8 +91,6 @@ def runCactusCore(cactusDiskDatabaseString, alignmentFile,
                   writeDebugFiles=False,
                   annealingRounds=None,
                   deannealingRounds=None,
-                  minimumChainLength=None,
-                  maximumGroupSize=None,
                   alignRepeatsAtRound=False,
                   trim=None,
                   minimumTreeCoverage=None,
@@ -113,8 +112,6 @@ def runCactusCore(cactusDiskDatabaseString, alignmentFile,
     minimumTreeCoverage = nameValue("minimumTreeCoverage", minimumTreeCoverage, float)
     blockTrim = nameValue("blockTrim", blockTrim, int)
     minimumBlockDegree = nameValue("minimumDegree", minimumBlockDegree, int)
-    minimumChainLength = nameValue("minimumChainLength", minimumChainLength, int)
-    maximumGroupSize = nameValue("maximumGroupSize", maximumGroupSize, int)
     if requiredSpecies != None:
         requiredSpecies = "--requiredSpecies '%s'" % requiredSpecies
     else:
@@ -123,10 +120,10 @@ def runCactusCore(cactusDiskDatabaseString, alignmentFile,
         singleCopySpecies = "--singleCopySpecies '%s'" % singleCopySpecies
     else:
         singleCopySpecies = ""
-    command = "cactus_core --cactusDisk '%s' --flowerName %s --alignments %s --logLevel %s %s %s %s %s %s %s %s %s %s %s %s %s" % \
+    command = "cactus_core --cactusDisk '%s' --flowerName %s --alignments %s --logLevel %s %s %s %s %s %s %s %s %s %s %s" % \
     (cactusDiskDatabaseString, flowerName, alignmentFile, logLevel, writeDebugFiles, annealingRounds, deannealingRounds, alignRepeatsAtRound,
      trim, minimumTreeCoverage, blockTrim, 
-     minimumBlockDegree, requiredSpecies, singleCopySpecies, minimumChainLength, maximumGroupSize)
+     minimumBlockDegree, requiredSpecies, singleCopySpecies)
     #print "command to run", command
     #assert 0
     system(command)
@@ -172,14 +169,14 @@ def runCactusGetFlowers(cactusDiskDatabaseString, flowerNames, tempDir, includeT
     return l
 
 def runCactusExtendFlowers(cactusDiskDatabaseString, flowerNames, tempDir,
-                        minSizeToExtend=1, logLevel=None):
+                        minSizeToExtend=1, maxSizeToExtend=sys.maxint, logLevel=None):
     """Extends the terminal groups in the cactus and returns the list
     of their child flowers with which to pass to core.
     The order of the flowers is by ascending depth first discovery time.
     """
     logLevel = getLogLevelString2(logLevel)
     flowerNamesFile = getTempFile(".txt", tempDir)
-    system("cactus_workflow_extendFlowers %s '%s' %s %i %s" % (logLevel, cactusDiskDatabaseString, flowerNamesFile, int(minSizeToExtend), " ".join(flowerNames)))
+    system("cactus_workflow_extendFlowers %s '%s' %s %i %i %s" % (logLevel, cactusDiskDatabaseString, flowerNamesFile, int(minSizeToExtend), int(maxSizeToExtend), " ".join(flowerNames)))
     l = readFlowerNamesFile(flowerNamesFile)
     os.remove(flowerNamesFile)
     random.shuffle(l) #We shuffle the flowers so we don't end up with an ordering that places all the large problems together.

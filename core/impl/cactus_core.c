@@ -72,6 +72,7 @@ void parseRequiredSpeciesTree(const char *string, CactusCoreInputParameters *cCI
         while((cA = stSortedSet_getNext(it)) != NULL) {
             st_logDebug("Species to be covered: %s\n", cA);
         }
+        stSortedSet_destructIterator(it);
     }
 }
 
@@ -160,12 +161,8 @@ CactusCoreInputParameters *constructCactusCoreInputParameters() {
     //Everything is essentially 'turned off' by default.
     cCIP->writeDebugFiles = 0;
 
-    cCIP->annealingRoundsLength = 1;
-    cCIP->annealingRounds = st_malloc(sizeof(int32_t) * 1);
-    cCIP->annealingRounds[0] = 0;
-    cCIP->minimumChainLength = 0;
-    cCIP->maximumAdjacencyComponentSize = INT64_MAX;
-
+    cCIP->annealingRoundsLength = 0;
+    cCIP->annealingRounds = st_malloc(0);
     cCIP->deannealingRoundsLength = 0;
     cCIP->deannealingRounds = st_malloc(0);
 
@@ -194,11 +191,6 @@ void destructCactusCoreInputParameters(CactusCoreInputParameters *cCIP) {
     }
     free(cCIP);
 }
-
-/*static bool computeCactusGraphP(struct PinchEdge *edge) {
- assert(edge != NULL);
- return 0;
- }*/
 
 static struct CactusGraph *cactusCorePipeline_2(struct PinchGraph *pinchGraph, Flower *flower,
         bool(*passThroughEdgeFn)(struct PinchEdge *), int32_t attachEnds) {
@@ -527,154 +519,6 @@ int64_t getMaximumAdjacencyComponentSize(struct PinchGraph *pinchGraph) {
     return maxAdjacencyComponentSize;
 }
 
-int32_t cactusCorePipelineP(Flower *flower, CactusCoreInputParameters *cCIP,
-        struct PairwiseAlignment *(*getNextAlignment)(), void(*startAlignmentStack)(),
-        int32_t maxAnnealingRounds, bool recurse) {
-    ///////////////////////////////////////////////////////////////////////////
-    //Setup the basic pinch graph
-    ///////////////////////////////////////////////////////////////////////////
-
-    int32_t startTime = time(NULL);
-    struct PinchGraph *pinchGraph = constructPinchGraph(flower);
-
-    if (cCIP->writeDebugFiles) {
-        writePinchGraph("pinchGraph1.dot", pinchGraph, NULL, NULL);
-        st_logDebug("Finished writing out dot formatted version of initial pinch graph\n");
-    }
-
-    //check the graph is consistent
-    checkPinchGraph(pinchGraph);
-
-    st_logInfo("Constructed the graph in: %i seconds\n", time(NULL) - startTime);
-    st_logInfo("Vertex number %i \n", pinchGraph->vertices->length);
-
-    ///////////////////////////////////////////////////////////////////////////
-    //  Loop between adding and undoing pairwise alignments
-    ///////////////////////////////////////////////////////////////////////////
-
-    /*
-     * These parameters are altered during the loops to push/pull the sequences together/apart.
-     */
-
-    //Construct an initial adjacency component containing all the vertices
-    stList *adjacencyComponents = stList_construct3(0, (void(*)(void *)) stSortedSet_destruct);
-    stSortedSet *adjacencyComponent = stSortedSet_construct();
-    stList_append(adjacencyComponents, adjacencyComponent);
-    for (int32_t i = 0; i < pinchGraph->vertices->length; i++) {
-        stSortedSet_insert(adjacencyComponent, pinchGraph->vertices->list[i]);
-    }
-
-    int64_t maxComponentSizes[cCIP->annealingRoundsLength]; // = st_malloc(sizeof(int64_t) * cCIP->annealingRoundsLength);
-
-    for (int32_t annealingRound = 0; annealingRound < maxAnnealingRounds; annealingRound++) {
-        /*
-         * Need to record max adjacency component size.
-         * If less than min and chain size is less than min then break.
-         * Else record the max adjacency component size and continue up to max.
-         * Repeat with best value.
-         */
-
-        int32_t trim = 0;
-        bool alignRepeats = annealingRound >= cCIP->alignRepeatsAtRound;
-        assert(annealingRound < cCIP->annealingRoundsLength);
-        int32_t minimumChainLength = cCIP->annealingRounds[annealingRound];
-        if (annealingRound < cCIP->trimLength) {
-            trim = cCIP->trim[0];
-            assert(trim >= 0);
-        }
-        st_logInfo("Starting annealing round %i, with minimum chain length %i, aiming at at overall minimum chain length of %i and maximum group size of %lli\n", annealingRound,
-                minimumChainLength, cCIP->minimumChainLength, cCIP->maximumAdjacencyComponentSize);
-
-        buildOutPinchGraph(pinchGraph, adjacencyComponents, flower, cCIP, getNextAlignment,
-                startAlignmentStack, cCIP->annealingRounds[annealingRound], trim, alignRepeats);
-
-        int64_t maxAdjacencyComponentSize = getMaximumAdjacencyComponentSize(pinchGraph);
-        maxComponentSizes[annealingRound] = maxAdjacencyComponentSize;
-
-        st_logInfo("The group size is %lli, the max group size allowed is %lli\n", maxAdjacencyComponentSize, cCIP->maximumAdjacencyComponentSize);
-
-        ///////////////////////////////////////////////////////////////////////////
-        // Un-link stub components from the sink component
-        ///////////////////////////////////////////////////////////////////////////
-
-        unlinkStubComponentsFromTheSinkComponent(pinchGraph, flower);
-
-        if (minimumChainLength < cCIP->minimumChainLength || (maxAdjacencyComponentSize
-                > cCIP->maximumAdjacencyComponentSize && annealingRound + 1 < maxAnnealingRounds)) { //We will loop around again.
-            assert(annealingRound+1 < maxAnnealingRounds);
-            st_logDebug("We will loop again\n");
-
-            ///////////////////////////////////////////////////////////////////////////
-            // Calculate the adjacency components for the next loop.
-            ///////////////////////////////////////////////////////////////////////////
-
-            adjacencyComponents = getAdjacencyComponents(pinchGraph);
-
-        } else {
-            if(recurse && maxAdjacencyComponentSize
-                > cCIP->maximumAdjacencyComponentSize) {
-                st_logInfo("The maximum size group is too big %lli, should be: %i\n", maxAdjacencyComponentSize, cCIP->maximumAdjacencyComponentSize);
-                int32_t j=annealingRound;
-                for(int32_t i=0; i<cCIP->annealingRoundsLength; i++) {
-                    if(cCIP->annealingRounds[i] >= cCIP->minimumChainLength) {
-                        if(maxComponentSizes[i] < maxAdjacencyComponentSize) {
-                            maxAdjacencyComponentSize = maxComponentSizes[i];
-                            j=i;
-                        }
-                    }
-                }
-                assert(j <= annealingRound);
-                assert(j >= 0);
-                if(j != annealingRound) {
-                    /*
-                     * Recurse to get back to the cCIP->annealingRounds[j] as the minimum chain length
-                     */
-                    st_logInfo("Recursing to get the optimal annealing round of %i with group size of %lli\n", j, maxAdjacencyComponentSize);
-                    destructPinchGraph(pinchGraph);
-                    assert(j < annealingRound);
-                    return cactusCorePipelineP(flower, cCIP,
-                            getNextAlignment, startAlignmentStack, j+1, 0);
-                }
-            }
-            st_logDebug("We have finished iterating and will now fill out the net.\n");
-
-            ////////////////////////////////////////////////
-            // Recompute the cactus graph
-            ////////////////////////////////////////////////
-
-            struct CactusGraph *cactusGraph = cactusCorePipeline_2(pinchGraph, flower,
-                    cCIP->minimumDegree <= 1 ? doNotPassThroughDegree1EdgesFn : passThroughDegree1EdgesFn, 1);
-
-            adjacencyComponents = getAdjacencyComponents2(pinchGraph, cCIP->minimumDegree <= 1 ? doNotPassThroughDegree1EdgesFn : passThroughDegree1EdgesFn);
-
-            ///////////////////////////////////////////////////////////////////////////
-            // Constructing the flower.
-            ///////////////////////////////////////////////////////////////////////////
-
-            fillOutFlowerFromInputs(flower, cactusGraph, pinchGraph, adjacencyComponents);
-
-#ifdef BEN_DEBUG
-            flower_checkRecursive(flower);
-            flower_checkNotEmpty(flower, 1);
-#endif
-
-            ///////////////////////////////////////////////////////////////////////////
-            //Clean up remaining stuff.
-            ///////////////////////////////////////////////////////////////////////////
-
-            destructCactusGraph(cactusGraph);
-            stList_destruct(adjacencyComponents);
-            destructPinchGraph(pinchGraph);
-
-            //assert(0);
-            st_logInfo("Ran the core pipeline script\n");
-            return 0;
-        }
-    }
-    st_logCritical("We've run out of iterations of annealing before finishing!\n");
-    assert(0);
-}
-
 int32_t cactusCorePipeline(Flower *flower, CactusCoreInputParameters *cCIP,
         struct PairwiseAlignment *(*getNextAlignment)(), void(*startAlignmentStack)()) {
     ////////////////////////////////////////////////
@@ -696,5 +540,100 @@ int32_t cactusCorePipeline(Flower *flower, CactusCoreInputParameters *cCIP,
     }
     group_destruct(flower_getFirstGroup(flower));
 
-    return cactusCorePipelineP(flower, cCIP, getNextAlignment, startAlignmentStack, cCIP->annealingRoundsLength, 1);
+    ///////////////////////////////////////////////////////////////////////////
+    //Setup the basic pinch graph
+    ///////////////////////////////////////////////////////////////////////////
+
+    int32_t startTime = time(NULL);
+    struct PinchGraph *pinchGraph = constructPinchGraph(flower);
+
+    //check the graph is consistent
+    checkPinchGraph(pinchGraph);
+
+    st_logInfo("Constructed the graph in: %i seconds\n", time(NULL) - startTime);
+    st_logInfo("Vertex number %i \n", pinchGraph->vertices->length);
+
+    ///////////////////////////////////////////////////////////////////////////
+    //  Loop between adding and undoing pairwise alignments
+    ///////////////////////////////////////////////////////////////////////////
+
+    /*
+     * These parameters are altered during the loops to push/pull the sequences together/apart.
+     */
+    st_logInfo("We will iterate for %i iterations\n", cCIP->annealingRoundsLength);
+    if(cCIP->annealingRoundsLength > 0) {
+        //Construct an initial adjacency component containing all the vertices
+        stList *adjacencyComponents = stList_construct3(0, (void(*)(void *)) stSortedSet_destruct);
+        stSortedSet *adjacencyComponent = stSortedSet_construct();
+        stList_append(adjacencyComponents, adjacencyComponent);
+        for (int32_t i = 0; i < pinchGraph->vertices->length; i++) {
+            stSortedSet_insert(adjacencyComponent, pinchGraph->vertices->list[i]);
+        }
+
+        ///////////////////////////////////////////////////////////////////////////
+        // The annealing rounds loop
+        ///////////////////////////////////////////////////////////////////////////
+
+        int32_t annealingRound = 0;
+        while(1) {
+            int32_t trim = 0;
+            bool alignRepeats = annealingRound >= cCIP->alignRepeatsAtRound;
+            assert(annealingRound < cCIP->annealingRoundsLength);
+            if (annealingRound < cCIP->trimLength) {
+                trim = cCIP->trim[0];
+                assert(trim >= 0);
+            }
+            st_logInfo("Starting annealing round %i, with minimum chain length %i, aiming at overall minimum chain length of %i\n", annealingRound,
+                    cCIP->annealingRounds[annealingRound], cCIP->annealingRounds[cCIP->annealingRoundsLength-1]);
+
+            buildOutPinchGraph(pinchGraph, adjacencyComponents, flower, cCIP, getNextAlignment,
+                    startAlignmentStack, cCIP->annealingRounds[annealingRound], trim, alignRepeats);
+
+            st_logInfo("The max group size is %lli for min chain length %i aiming at overall minimum chain length of %i \n", getMaximumAdjacencyComponentSize(pinchGraph), cCIP->annealingRounds[annealingRound], cCIP->annealingRounds[cCIP->annealingRoundsLength-1]);
+
+            ///////////////////////////////////////////////////////////////////////////
+            // Un-link stub components from the sink component
+            ///////////////////////////////////////////////////////////////////////////
+
+            unlinkStubComponentsFromTheSinkComponent(pinchGraph, flower);
+
+            if(++annealingRound >= cCIP->annealingRoundsLength) {
+                break;
+            }
+            adjacencyComponents = getAdjacencyComponents(pinchGraph);
+        }
+    }
+
+    st_logDebug("We have finished iterating and will now fill out the net.\n");
+
+    ////////////////////////////////////////////////
+    // Recompute the cactus graph
+    ////////////////////////////////////////////////
+
+    struct CactusGraph *cactusGraph = cactusCorePipeline_2(pinchGraph, flower,
+            cCIP->minimumDegree <= 1 ? doNotPassThroughDegree1EdgesFn : passThroughDegree1EdgesFn, 1);
+
+    stList *adjacencyComponents = getAdjacencyComponents2(pinchGraph, cCIP->minimumDegree <= 1 ? doNotPassThroughDegree1EdgesFn : passThroughDegree1EdgesFn);
+
+    ///////////////////////////////////////////////////////////////////////////
+    // Constructing the flower.
+    ///////////////////////////////////////////////////////////////////////////
+
+    fillOutFlowerFromInputs(flower, cactusGraph, pinchGraph, adjacencyComponents);
+
+#ifdef BEN_DEBUG
+    flower_checkRecursive(flower);
+    flower_checkNotEmpty(flower, 1);
+#endif
+
+    ///////////////////////////////////////////////////////////////////////////
+    //Clean up remaining stuff.
+    ///////////////////////////////////////////////////////////////////////////
+
+    destructCactusGraph(cactusGraph);
+    stList_destruct(adjacencyComponents);
+    destructPinchGraph(pinchGraph);
+
+    st_logInfo("Ran the core pipeline script\n");
+    return 0;
 }

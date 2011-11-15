@@ -101,7 +101,7 @@ static void checkFlowerIsNotRedundant(Flower *flower) {
     /*
      * Checks that if the flower is not a leaf or the root that it contains blocks.
      */
-    //assert(flower_builtBlocks(flower));
+    assert(flower_builtBlocks(flower));
     if (flower_hasParentGroup(flower) && !flower_isLeaf(flower)) {
         assert(flower_getBlockNumber(flower) > 0);
     }

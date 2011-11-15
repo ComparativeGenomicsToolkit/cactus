@@ -130,9 +130,11 @@ int main(int argc, char *argv[]) {
      * Setup the input parameters for cactus core.
      */
     CactusCoreInputParameters *cCIP = constructCactusCoreInputParameters();
+    free(cCIP->annealingRounds);
+    cCIP->annealingRounds = st_malloc(sizeof(int32_t) * 1); //Set to one annealing round.
+    cCIP->annealingRounds[0] = 0;
+    cCIP->annealingRoundsLength = 1;
     cCIP->minimumDegree = 0;
-    cCIP->minimumChainLength = 0;
-    cCIP->maximumAdjacencyComponentSize = INT64_MAX;
     cCIP->minimumTreeCoverage = 0;
     bool pruneOutStubAlignments = 0;
 

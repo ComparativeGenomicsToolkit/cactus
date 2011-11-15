@@ -55,8 +55,6 @@ def getRandomConfigFile():
     
     
     core.attrib["annealingRounds"] = " ".join([ str(1 + int(random.random() * 10)) for i in xrange(annealingRounds) ])
-    core.attrib["minimumChainLength"] = str(random.choice(xrange(0, [ int(i) for i in core.attrib["annealingRounds"].split() ][-1])))
-    core.attrib["maximumGroupSize"] = str(random.choice(xrange(10000)))
     deannealingRounds = list(set([ 1 + int(random.random() * 10) for i in xrange(int(random.random() * 10)) ]))
     deannealingRounds.sort()
     core.attrib["deannealingRounds"] = " ".join([ str(i) for i in deannealingRounds ])

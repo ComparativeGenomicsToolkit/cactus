@@ -39,7 +39,7 @@ int main(int argc, char *argv[]) {
                 if (!group_isLeaf(group)) {
                     Flower *nestedFlower = group_getNestedFlower(group);
                     assert(nestedFlower != NULL);
-                    //assert(flower_builtBlocks(nestedFlower)); //This recursion depends on the block structure having been properly defined for all nodes.
+                    assert(flower_builtBlocks(nestedFlower)); //This recursion depends on the block structure having been properly defined for all nodes.
                     if(includeTerminalFlowers || !flower_isTerminal(flower)) {
                         fprintf(fileHandle, "%s %" PRIi64 " \n", cactusMisc_nameToStringStatic(flower_getName(nestedFlower)), flower_getTotalBaseLength(nestedFlower));
                     }

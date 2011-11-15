@@ -29,7 +29,7 @@ static void addFlower(FILE *fileHandle, Flower *flower) {
     fprintf(fileHandle, "%s %" PRIi64 "\n", cactusMisc_nameToStringStatic(flower_getName(flower)), size);
 }
 
-static void extendFlowers(Flower *flower, FILE *fileHandle, int32_t minSizeToExtend, int32_t *flowersMade) {
+static void extendFlowers(Flower *flower, FILE *fileHandle, int32_t minSizeToExtend, int64_t maxSizeToExtend, int32_t *flowersMade) {
     Flower_GroupIterator *groupIterator;
     Group *group;
     if (flower_builtBlocks(flower)) {
@@ -38,7 +38,7 @@ static void extendFlowers(Flower *flower, FILE *fileHandle, int32_t minSizeToExt
             if (group_isLeaf(group)) {
                 int64_t size = group_getTotalBaseLength(group);
                 assert(size >= 0);
-                if (size >= minSizeToExtend) {
+                if (size >= minSizeToExtend && size < maxSizeToExtend) {
                     group_makeNestedFlower(group);
                     addFlower(fileHandle, group_getNestedFlower(group));
                     (*flowersMade)++;
@@ -57,7 +57,7 @@ int main(int argc, char *argv[]) {
      * This code iterates through the terminal groups and returns
      * a list of the new flowers.
      */
-    assert(argc >= 5);
+    assert(argc >= 6);
 
     st_setLogLevelFromString(argv[1]);
     st_logInfo("Set up logging\n");
@@ -74,11 +74,17 @@ int main(int argc, char *argv[]) {
     assert(i == 1); //We should parse one in correctly.
     st_logInfo("Min size to extend %i\n", minSizeToExtend);
 
-    for (i = 5; i < argc; i++) {
+    int64_t maxSizeToExtend;
+    i = sscanf(argv[5], "%lli", &maxSizeToExtend);
+    assert(i == 1); //We should parse one in correctly.
+    st_logInfo("Max size to extend %lli\n", maxSizeToExtend);
+    assert(maxSizeToExtend >= 0);
+
+    for (i = 6; i < argc; i++) {
         Flower *flower = cactusDisk_getFlower(cactusDisk, cactusMisc_stringToName(argv[i]));
         assert(flower != NULL);
         st_logInfo("Parsed the flower: %s\n", argv[i]);
-        extendFlowers(flower, fileHandle, minSizeToExtend, &flowersMade);
+        extendFlowers(flower, fileHandle, minSizeToExtend, maxSizeToExtend, &flowersMade);
         assert(!flower_isParentLoaded(flower)); //The parent should not be loaded.
     }
     fclose(fileHandle);
