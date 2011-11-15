@@ -39,6 +39,7 @@ class Schedule:
         for name, expPath in mcProject.expMap.items():
             exp = ExperimentWrapper(ET.parse(expPath).getroot())
             tree = exp.getTree()
+            self.inGraph.add_node(name)
             for leaf in tree.getLeaves():
                 # we don't add edges for leaves (in the global tree)
                 # as they are input sequences and do not form dependencies
