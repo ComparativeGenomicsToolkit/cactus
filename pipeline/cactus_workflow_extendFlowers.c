@@ -75,8 +75,11 @@ int main(int argc, char *argv[]) {
     st_logInfo("Min size to extend %i\n", minSizeToExtend);
 
     int64_t maxSizeToExtend;
-    i = sscanf(argv[5], "%lli", &maxSizeToExtend);
+    i = sscanf(argv[5], "%" PRId64 "", &maxSizeToExtend);
     assert(i == 1); //We should parse one in correctly.
+    if(maxSizeToExtend == -1) {
+        maxSizeToExtend = INT64_MAX;
+    }
     st_logInfo("Max size to extend %lli\n", maxSizeToExtend);
     assert(maxSizeToExtend >= 0);
 

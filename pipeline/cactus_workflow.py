@@ -258,7 +258,7 @@ class CactusCafDown(Target):
     
     def run(self):
         ignoreFlowersLessThanThisSize = int(self.iteration.attrib["min_sequence_size"])
-        ignoreFlowersGreaterThanThisSize = int(getOptionalAttrib(self.iteration, "max_sequence_size", sys.maxint))
+        ignoreFlowersGreaterThanThisSize = int(getOptionalAttrib(self.iteration, "max_sequence_size", -1))
         makeChildTargets(self.options, self.iteration, self.flowerNames, self, CactusCafDown, 
                          ignoreFlowersLessThanThisSize=ignoreFlowersLessThanThisSize)
         for childFlowerName, childFlowerSize in runCactusExtendFlowers(self.options.cactusDiskDatabaseString, self.flowerNames, 
