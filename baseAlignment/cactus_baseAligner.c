@@ -67,6 +67,8 @@ void usage() {
 
     fprintf(stderr, "-y --pruneOutStubAlignments : Prune out alignments of sequences that terminates in free stubs stubs\n");
 
+    fprintf(stderr, "-n --numThreads : (int > 0) Maximum number of threads to use (OpenMP compilation required)\n");
+
     fprintf(stderr, "-h --help : Print this help screen\n");
 }
 
@@ -160,7 +162,7 @@ int main(int argc, char *argv[]) {
                 "requiredSpecies", required_argument, 0, 'v' }, {
                 "alignAmbiguityCharacters", no_argument, 0, 'w' }, {
                 "pruneOutStubAlignments", no_argument, 0, 'y' }, {
-                "numThreads", optional_argument, 0, 'n' },
+                "numThreads", required_argument, 0, 'n' },
 
         { 0, 0, 0, 0 } };
 
@@ -267,7 +269,9 @@ int main(int argc, char *argv[]) {
                 pruneOutStubAlignments = 1;
                 break;
             case 'n':
-            	numThreads = atoi(optarg);
+            	i = sscanf(optarg, "%i", &numThreads);
+				assert(i == 1);
+				assert(numThreads > 0);
             	break;
             default:
                 usage();
@@ -278,7 +282,7 @@ int main(int argc, char *argv[]) {
     st_setLogLevelFromString(logLevelString);
 
 #ifdef _OPENMP
-    omp_set_nested(1);
+    omp_set_nested(0);
     omp_set_num_threads(numThreads);
 #else
     if (numThreads > 1)
