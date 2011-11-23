@@ -6,6 +6,7 @@
 
 #include <assert.h>
 #include <getopt.h>
+#include <omp.h>
 
 #include "cactus.h"
 #include "sonLib.h"
@@ -122,6 +123,7 @@ int main(int argc, char *argv[]) {
     int32_t maximumLength = 1500;
     float gapGamma = 0.5;
     bool useBanding = 0;
+    int32_t numThreads = 1;
 
     PairwiseAlignmentParameters *pairwiseAlignmentBandingParameters =
             pairwiseAlignmentBandingParameters_construct();
@@ -157,13 +159,14 @@ int main(int argc, char *argv[]) {
                 "minimumDegree", required_argument, 0, 'u' }, {
                 "requiredSpecies", required_argument, 0, 'v' }, {
                 "alignAmbiguityCharacters", no_argument, 0, 'w' }, {
-                "pruneOutStubAlignments", no_argument, 0, 'y' },
+                "pruneOutStubAlignments", no_argument, 0, 'y' }, {
+                "numThreads", optional_argument, 0, 'n' },
 
         { 0, 0, 0, 0 } };
 
         int option_index = 0;
 
-        int key = getopt_long(argc, argv, "a:b:hi:j:kl:o:p:q:r:s:t:u:v:wy",
+        int key = getopt_long(argc, argv, "a:b:hi:j:kl:o:p:q:r:s:t:u:v:wy:n",
                 long_options, &option_index);
 
         if (key == -1) {
@@ -263,6 +266,9 @@ int main(int argc, char *argv[]) {
             case 'y':
                 pruneOutStubAlignments = 1;
                 break;
+            case 'n':
+            	numThreads = atoi(optarg);
+            	break;
             default:
                 usage();
                 return 1;
@@ -270,6 +276,16 @@ int main(int argc, char *argv[]) {
     }
 
     st_setLogLevelFromString(logLevelString);
+
+#ifdef _OPENMP
+    omp_set_nested(1);
+    omp_set_num_threads(numThreads);
+#else
+    if (numThreads > 1)
+    {
+    	st_logCritical("numThreads option ignored because not compiled with -fopenmp");
+    }
+#endif
 
     /*
      * Load the flowerdisk

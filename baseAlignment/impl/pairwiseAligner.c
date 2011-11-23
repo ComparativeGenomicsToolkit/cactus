@@ -8,7 +8,6 @@
 #include <stdlib.h>
 #include <inttypes.h>
 #include <math.h>
-
 #include "pairwiseAligner.h"
 #include "sonLib.h"
 #include "pairwiseAlignment.h"
@@ -253,11 +252,34 @@ static inline void forwardCell(double *fM, int32_t x, int32_t y, int32_t lX,
 double *forwardMatrix(int32_t lX, int32_t lY, const char *sX, const char *sY) {
     double *fM = initialiseForwardMatrix(lX, lY);
 
-    for (int32_t x = 0; x < lX; x++) {
-        for (int32_t y = 0; y < lY; y++) {
-            forwardCell(fM, x, y, lX, lY, sX, sY);
-        }
+    // all '/' diagonals intersectinog x = 0 axis
+    for (int32_t x = 0; x < lX; ++x)
+    {
+		int32_t diagLen = (lY < x + 1) ? lY : x + 1;
+		#pragma omp parallel default(shared)
+		{
+			#pragma omp for schedule(dynamic)
+			for (int32_t y = 0; y < diagLen; ++y)
+			{
+				forwardCell(fM, x - y, y, lX, lY, sX, sY);
+			}
+		}
     }
+
+    // all '/' diagonals intersecting y = lY - 1 axis
+    for (int32_t y = 1; y < lY; ++y)
+    {
+    	int32_t diagLen = (lX < lY - y) ? lX : lY - y;
+		#pragma omp parallel default(shared)
+		{
+			#pragma omp for schedule(dynamic)
+			for (int32_t i = 0; i < diagLen; ++i)
+			{
+				forwardCell(fM, lX - 1 - i, y + i, lX, lY, sX, sY);
+			}
+		}
+    }
+
     return fM;
 }
 
@@ -286,28 +308,53 @@ static double *initialiseBackwardMatrix(int32_t lX, int32_t lY) {
 }
 
 static inline void backwardCell(double *bM, int32_t x, int32_t y, int32_t lX,
-        int32_t lY, const char *sX, const char *sY) {
-    double *cell = getCell(bM, x, y, lX);
-    for (int32_t to = 0; to < cellNo; to++) {
-        double *pCell = getCell(bM, x - getTransitionOffSetX(to), y
-                - getTransitionOffSetY(to), lX);
-        if (pCell != NULL) {
-            double eP = emissionProb(x, y, lX, lY, sX, sY, to);
-            for (int32_t from = 0; from < cellNo; from++) {
-                logAddAndAssign(&pCell[from], cell[to] + transitionProb(from,
-                        to) + eP);
-            }
-        }
-    }
+	    int32_t lY, const char *sX, const char *sY) {
+	double *cell = getCell(bM, x, y, lX);
+	for (int32_t to = 0; to < cellNo; to++) {
+		int32_t x2 = x + getTransitionOffSetX(to);
+		int32_t y2 = y + getTransitionOffSetY(to);
+		if (x2 < lX && y2 < lY) {
+			double *pCell = getCell(bM, x2, y2, lX);
+			double eP = emissionProb(x2, y2, lX, lY, sX, sY, to);
+			for (int32_t from = 0; from < cellNo; from++) {
+				logAddAndAssign(&cell[from], pCell[to] + transitionProb(from,
+						to) + eP);
+			}
+		}
+	}
 }
 
 double *backwardMatrix(int32_t lX, int32_t lY, const char *sX, const char *sY) {
     double *bM = initialiseBackwardMatrix(lX, lY);
-    for (int32_t x = lX - 1; x >= 0; x--) {
-        for (int32_t y = lY - 1; y >= 0; y--) {
-            backwardCell(bM, x, y, lX, lY, sX, sY);
-        }
+
+    // all '/' diagonals intersecting y = lY - 1 axis
+	for (int32_t y = lY - 1; y >= 1; --y)
+	{
+		int32_t diagLen = (lX < lY - y) ? lX : lY - y;
+		#pragma omp parallel default(shared)
+		{
+			#pragma omp for schedule(dynamic)
+			for (int32_t i = 0; i < diagLen; ++i)
+			{
+				backwardCell(bM, lX - 1 - i, y + i, lX, lY, sX, sY);
+			}
+		}
+	}
+
+	// all '/' diagonals intersecting x = 0 axis
+	for (int32_t x = lX - 1; x >= 0; --x)
+    {
+		int32_t diagLen = (lY < x + 1) ? lY : x + 1;
+		#pragma omp parallel default(shared)
+		{
+			#pragma omp for schedule(dynamic)
+			for (int32_t y = 0; y < diagLen; ++y)
+			{
+				backwardCell(bM, x - y, y, lX, lY, sX, sY);
+			}
+		}
     }
+
     return bM;
 }
 
@@ -350,27 +397,39 @@ static inline double posteriorMatchProb(double *fM, double *bM, int32_t x,
 
 static void getPosteriorProbs(double *fM, double *bM, int32_t lX, int32_t lY,
         const char *sX, const char *sY, stList *alignedPairs, double totalProb, PairwiseAlignmentParameters *p) {
-    for (int32_t x = 1; x < lX; x++) {
-        for (int32_t y = 1; y < lY; y++) {
-            double f = posteriorMatchProb(fM, bM, x, y, lX, lY, sX, sY,
-                    totalProb);
-            if (f >= posteriorMatchThreshold) {
-                if (f > 1.0) {
-                    f = 1.0;
-                }
+    stList** alignedPairMatrix = (stList**)st_malloc(lX * lY * sizeof(stList*));
+	#pragma omp parallel default(shared)
+	{
+		#pragma omp for schedule(dynamic)
+		for (int32_t x = 1; x < lX; x++) {
+			alignedPairMatrix[x] = stList_construct();
+			for (int32_t y = 1; y < lY; y++) {
+				double f = posteriorMatchProb(fM, bM, x, y, lX, lY, sX, sY,
+						totalProb);
+				if (f >= posteriorMatchThreshold) {
+					if (f > 1.0) {
+						f = 1.0;
+					}
 #ifdef BEN_DEBUG
-                assert(sX[x-1] >= 0 && sX[x-1] <= 4);
-                assert(sY[y-1] >= 0 && sY[y-1] <= 4);
+					assert(sX[x-1] >= 0 && sX[x-1] <= 4);
+					assert(sY[y-1] >= 0 && sY[y-1] <= 4);
 #endif
-                if(p->alignAmbiguityCharacters || (sX[x-1] < 4 && sY[y-1] < 4)) {
-                    stIntTuple *alignedPair = stIntTuple_construct(3,
-                            (int32_t) floor(f * PAIR_ALIGNMENT_PROB_1), x - 1, y
-                                    - 1);
-                    stList_append(alignedPairs, alignedPair);
-                }
-            }
-        }
-    }
+					if(p->alignAmbiguityCharacters || (sX[x-1] < 4 && sY[y-1] < 4)) {
+						stIntTuple *alignedPair = stIntTuple_construct(3,
+								(int32_t) floor(f * PAIR_ALIGNMENT_PROB_1), x - 1, y
+										- 1);
+						stList_append(alignedPairMatrix[x], alignedPair);
+					}
+				}
+			}
+		}
+	}
+	for (int32_t x = 1; x < lX; x++)
+	{
+		stList_appendAll(alignedPairs, alignedPairMatrix[x]);
+		stList_destruct(alignedPairMatrix[x]);
+	}
+	free(alignedPairMatrix);
 }
 
 ///////
@@ -385,8 +444,23 @@ stList *getAlignedPairs(const char *sX, const char *sY, PairwiseAlignmentParamet
     char *cSX = convertSequence(sX, lX - 1);
     char *cSY = convertSequence(sY, lY - 1);
 
-    double *fM = forwardMatrix(lX, lY, cSX, cSY);
-    double *bM = backwardMatrix(lX, lY, cSX, cSY);
+    double *fM;
+    double *bM;
+
+#pragma omp parallel default(shared)
+{
+	#pragma omp sections
+    {
+		#pragma omp section
+    	{
+			bM = backwardMatrix(lX, lY, cSX, cSY);
+    	}
+		#pragma omp section
+    	{
+    		fM = forwardMatrix(lX, lY, cSX, cSY);
+    	}
+    }
+}
 
     double totalFProb = totalForwardProb(fM, lX, lY);
     double totalBProb = totalBackwardProb(bM, lX);
@@ -397,7 +471,7 @@ stList *getAlignedPairs(const char *sX, const char *sY, PairwiseAlignmentParamet
     }
     //Check they are about the same.
 #ifdef BEN_DEBUG
-    assert(diff < 0.001);
+    assert(diff < 0.0001);
 #endif
 
     //Get posterior probabilities above 0.01 threshold.
