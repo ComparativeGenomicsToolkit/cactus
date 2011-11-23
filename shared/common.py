@@ -201,7 +201,8 @@ def runCactusBaseAligner(cactusDiskDatabaseString, flowerNames, logLevel=None,
                          minimumBlockDegree=None,
                          alignAmbiguityCharacters=None,
                          requiredSpecies=None,
-                         pruneOutStubAlignments=None):
+                         pruneOutStubAlignments=None,
+                         numThreads=None):
     """Runs cactus base aligner.
     """
     logLevel = getLogLevelString2(logLevel)
@@ -221,11 +222,16 @@ def runCactusBaseAligner(cactusDiskDatabaseString, flowerNames, logLevel=None,
         requiredSpecies = "'%s'" % requiredSpecies
     requiredSpecies = nameValue("requiredSpecies", requiredSpecies, str)
     alignAmbiguityCharacters = nameValue("alignAmbiguityCharacters", alignAmbiguityCharacters, bool)
+    if numThreads != None:
+        numThreads = nameValue("numThreads", int(numThreads), int)
+    else:
+        numThreads = ""
     
-    system("cactus_baseAligner --cactusDisk '%s' --logLevel %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s" % 
+    system("cactus_baseAligner --cactusDisk '%s' --logLevel %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s" % 
            (cactusDiskDatabaseString, logLevel, " ".join(flowerNames), spanningTrees, maximumLength, gapGamma, 
             useBanding, maxBandingSize, minBandingSize, minBandingConstraintDistance, minTraceBackDiag, minTraceGapDiags, 
-            constraintDiagonalTrim, minimumBlockDegree, requiredSpecies, alignAmbiguityCharacters, pruneOutStubAlignments))
+            constraintDiagonalTrim, minimumBlockDegree, requiredSpecies, alignAmbiguityCharacters, pruneOutStubAlignments,
+            numThreads))
     
 def runCactusReference(cactusDiskDatabaseString, flowerNames, logLevel=None,
                        matchingAlgorithm=None, 
