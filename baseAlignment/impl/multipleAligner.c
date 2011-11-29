@@ -552,17 +552,26 @@ stList *makeAlignment(stList *sequences, int32_t spanningTrees, float gapGamma,
                     stSortedSet_construct3(
                             (int(*)(const void *, const void *)) pairwiseColumnWeight_compareByPositionFn,
                             NULL);
+    stList *pairwiseAlignmentsStack = stList_construct();
     while ((pairwiseAlignment = (stIntTuple *) stSortedSet_getNext(
-            pairwiseAlignmentsIterator)) != NULL) {
+            pairwiseAlignmentsIterator)) != NULL) { //Splitting loop into two whiles, so first loop can be open-mp'd.
+        int32_t sequence1 = stIntTuple_getPosition(pairwiseAlignment, 0);
+        int32_t sequence2 = stIntTuple_getPosition(pairwiseAlignment, 1);
+        char *string1 = stList_get(sequences, sequence1);
+        char *string2 = stList_get(sequences, sequence2);
+        stList_append(pairwiseAlignmentsStack, useBanding ? getAlignedPairs_Fast(string1,
+                string2, pairwiseAlignmentBandingParameters) : getAlignedPairs(
+                string1, string2, pairwiseAlignmentBandingParameters));
+    }
+    while ((pairwiseAlignment = (stIntTuple *) stSortedSet_getPrevious(
+                pairwiseAlignmentsIterator)) != NULL) {
         int32_t sequence1 = stIntTuple_getPosition(pairwiseAlignment, 0);
         int32_t sequence2 = stIntTuple_getPosition(pairwiseAlignment, 1);
         char *string1 = stList_get(sequences, sequence1);
         char *string2 = stList_get(sequences, sequence2);
         int32_t seqLength1 = strlen(string1);
         int32_t seqLength2 = strlen(string2);
-        stList *alignedPairs2 = useBanding ? getAlignedPairs_Fast(string1,
-                string2, pairwiseAlignmentBandingParameters) : getAlignedPairs(
-                string1, string2, pairwiseAlignmentBandingParameters);
+        stList *alignedPairs2 = stList_pop(pairwiseAlignmentsStack);
         //Make indel probs
         /*int32_t *indelProbs1 =
          calculateIndelProbs(alignedPairs2, seqLength1, 0);
@@ -615,6 +624,7 @@ stList *makeAlignment(stList *sequences, int32_t spanningTrees, float gapGamma,
         //free(indelProbs1);
         //free(indelProbs2);
     }
+    stList_destruct(pairwiseAlignmentsStack);
     stSortedSet_destructIterator(pairwiseAlignmentsIterator);
 
     //Greedily construct poset and filter pairs..
