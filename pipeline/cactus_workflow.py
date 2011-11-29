@@ -374,6 +374,7 @@ class CactusBaseLevelAlignerWrapper(Target):
     
     def run(self):
         assert self.iteration.attrib["type"] == "base"
+        
         runCactusBaseAligner(self.options.cactusDiskDatabaseString, self.flowerNames, 
                              maximumLength=float(self.iteration.attrib["banding_limit"]),
                              spanningTrees=float(self.iteration.attrib["spanning_trees"]),
@@ -388,7 +389,8 @@ class CactusBaseLevelAlignerWrapper(Target):
                              minimumBlockDegree=int(self.iteration.attrib["minimumBlockDegree"]),
                              alignAmbiguityCharacters=bool(int(self.iteration.attrib["alignAmbiguityCharacters"])),
                              requiredSpecies=self.options.requiredSpecies,
-                             pruneOutStubAlignments=bool(int(getOptionalAttrib(self.iteration, "prune_out_stub_alignments", "0"))))
+                             pruneOutStubAlignments=bool(int(getOptionalAttrib(self.iteration, "prune_out_stub_alignments", "0"))),
+                             numThreads=getOptionalAttrib(self.iteration, "num_threads"))
         
 ############################################################
 ############################################################
