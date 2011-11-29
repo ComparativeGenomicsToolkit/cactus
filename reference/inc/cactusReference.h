@@ -28,7 +28,7 @@ void buildReferenceTopDown(Flower *flower, const char *referenceEventHeader,
         int32_t permutations,
         stList *(*matchingAlgorithm)(stList *edges, int32_t nodeNumber),
         double (*temperature)(double),
-        double theta);
+        double theta, bool maxNumberOfChainsBeforeSwitchingToFast);
 
 /*
  * Adds sequence objects and coordinates for each reference.

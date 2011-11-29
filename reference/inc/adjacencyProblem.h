@@ -9,7 +9,7 @@
 #define ADJACENCYPROBLEM_H_
 
 stList *makeReferenceGreedily(stList *stubs, stList *chains,
-        double *z, int32_t nodeNumber, double *totalScore);
+        double *z, int32_t nodeNumber, double *totalScore, bool fast);
 
 void gibbsSamplingWithSimulatedAnnealing(stList *reference,
         stList *chains, double *z, int32_t permutations,

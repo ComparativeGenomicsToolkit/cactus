@@ -200,10 +200,14 @@ static void insert(ReferenceIntervalInsertion *referenceIntervalInsertion) {
 }
 
 stList *makeReferenceGreedily(stList *stubs, stList *chainsList, double *z,
-        int32_t nodeNumber, double *totalScore) {
+        int32_t nodeNumber, double *totalScore, bool fast) {
     /*
      * Constructs a reference greedily, by picking a best possible insertion
      * at each of the |R| steps.
+     *
+     * If fast=1 then it picks the best possible insertion for a single randomly selected
+     * chain at each step.
+     *
      */
     stList *reference = stList_construct3(0,
             (void(*)(void *)) referenceInterval_destruct);
@@ -271,6 +275,9 @@ stList *makeReferenceGreedily(stList *stubs, stList *chainsList, double *z,
                 }
             }
             stList_destruct(referenceIntervalInsertions);
+            if(fast) {
+                break;
+            }
         }
         stSortedSet_destructIterator(it2);
 

@@ -701,7 +701,7 @@ void buildReferenceTopDown(Flower *flower, const char *referenceEventHeader,
         int32_t permutations,
         stList *(*matchingAlgorithm)(stList *edges, int32_t nodeNumber),
         double (*temperature)(double),
-        double theta) {
+        double theta, int32_t maxNumberOfChainsBeforeSwitchingToFast) {
     /*
      * Implements a greedy algorithm and gibbs sampler to find a solution to the adjacency problem for a net.
      */
@@ -756,7 +756,8 @@ void buildReferenceTopDown(Flower *flower, const char *referenceEventHeader,
 
     double maxPossibleScore = calculateMaxZ(nodeNumber, z);
     double totalScoreAfterGreedy = 0.0;
-    stList *reference = makeReferenceGreedily(stubEdges, chainEdges, z, nodeNumber, &totalScoreAfterGreedy);
+    bool fast = stList_length(chainEdges) > maxNumberOfChainsBeforeSwitchingToFast;
+    stList *reference = makeReferenceGreedily(stubEdges, chainEdges, z, nodeNumber, &totalScoreAfterGreedy, fast);
     double totalScoreAfterGreedy2 = calculateZScoreOfReference(reference, nodeNumber, z);
     st_logDebug("The score of the initial solution is %f (recalculated %f) out of a max possible %f\n", totalScoreAfterGreedy, totalScoreAfterGreedy2, maxPossibleScore);
     //assert(totalScoreAfterGreedy <= totalScoreAfterGreedy2 + 0.01);

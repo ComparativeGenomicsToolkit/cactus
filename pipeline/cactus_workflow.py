@@ -512,7 +512,8 @@ class CactusReferenceDown(Target):
                            permutations=getOptionalAttrib(referenceNode, "permutations"),
                            referenceEventString=getOptionalAttrib(referenceNode, "reference"), 
                            useSimulatedAnnealing=getOptionalAttrib(referenceNode, "useSimulatedAnnealing"),
-                           theta=getOptionalAttrib(referenceNode, "theta"))
+                           theta=getOptionalAttrib(referenceNode, "theta"),
+                           maxNumberOfChainsBeforeSwitchingToFast=getOptionalAttrib(referenceNode, "maxNumberOfChainsBeforeSwitchingToFast"))
         makeChildTargets(self.options, None, self.flowerNames, self, CactusReferenceDown)
 
 class CactusSetReferenceCoordinates(Target):

@@ -89,7 +89,7 @@ static void testMakeReferenceGreedily(CuTest *testCase) {
         setup();
         double totalScore;
         stList *reference = makeReferenceGreedily(stubs, chains, zMatrix,
-                nodeNumber, &totalScore);
+                nodeNumber, &totalScore, INT32_MAX);
         checkIsValidReference(testCase, reference, totalScore);
         logReference(reference, nodeNumber, zMatrix, totalScore, "just greedy");
         teardown();
@@ -97,12 +97,12 @@ static void testMakeReferenceGreedily(CuTest *testCase) {
 }
 
 static void testGibbsSamplingWithSimulatedAnnealing(CuTest *testCase,
-        double(*temperatureFn)(double), bool pureGreedy) {
+        double(*temperatureFn)(double), bool pureGreedy, int32_t maxNumberOfChainsBeforeSwitchingToFast) {
     for (int32_t i = 0; i < 100; i++) {
         setup();
         double totalScore;
         stList *reference = makeReferenceGreedily(stubs, chains, zMatrix,
-                nodeNumber, &totalScore);
+                nodeNumber, &totalScore, maxNumberOfChainsBeforeSwitchingToFast);
         checkIsValidReference(testCase, reference, totalScore);
         logReference(reference, nodeNumber, zMatrix, totalScore,
                 "pre-annealing");
@@ -120,31 +120,38 @@ static void testGibbsSamplingWithSimulatedAnnealing(CuTest *testCase,
     }
 }
 
+static void testGibbsSamplingWithSimulatedAnnealing_NoExponentiation_Greedy_Fast(
+        CuTest *testCase) {
+    st_logDebug("Running adjacency problem tests using gibbs sampling, but greedy sampling\n");
+    testGibbsSamplingWithSimulatedAnnealing(testCase,
+            NULL, 1, 0);
+}
+
 static void testGibbsSamplingWithSimulatedAnnealing_NoExponentiation_Greedy(
         CuTest *testCase) {
     st_logDebug("Running adjacency problem tests using gibbs sampling, but greedy sampling\n");
     testGibbsSamplingWithSimulatedAnnealing(testCase,
-            NULL, 1);
+            NULL, 1, INT32_MAX);
 }
 
 static void testGibbsSamplingWithSimulatedAnnealing_NoExponentiation(
         CuTest *testCase) {
     st_logDebug("Running adjacency problem tests using gibbs sampling, but no exponentiation\n");
     testGibbsSamplingWithSimulatedAnnealing(testCase,
-            NULL, 0);
+            NULL, 0, INT32_MAX);
 }
 
 static void testGibbsSamplingWithSimulatedAnnealing_ConstantTemperature(
         CuTest *testCase) {
     st_logDebug("Running adjacency problem tests using gibbs sampling, but with constant temperature\n");
-    testGibbsSamplingWithSimulatedAnnealing(testCase, constantTemperatureFn, 0);
+    testGibbsSamplingWithSimulatedAnnealing(testCase, constantTemperatureFn, 0, INT32_MAX);
 }
 
 static void testGibbsSamplingWithSimulatedAnnealing_WithCooling(
         CuTest *testCase) {
     st_logDebug("Running adjacency problem tests using gibbs sampling, with exponentially decreasing temperature function\n");
     testGibbsSamplingWithSimulatedAnnealing(testCase,
-            exponentiallyDecreasingTemperatureFn, 0);
+            exponentiallyDecreasingTemperatureFn, 0, INT32_MAX);
 }
 
 static double calculateZScoreSlow(int32_t n, int32_t m, int32_t k, double theta) {
@@ -173,6 +180,8 @@ static void testCalculateZScore(CuTest *testCase) {
 CuSuite* adjacencyProblemTestSuite(void) {
     CuSuite* suite = CuSuiteNew();
     SUITE_ADD_TEST(suite, testMakeReferenceGreedily);
+    SUITE_ADD_TEST(suite,
+                        testGibbsSamplingWithSimulatedAnnealing_NoExponentiation_Greedy_Fast);
     SUITE_ADD_TEST(suite,
                     testGibbsSamplingWithSimulatedAnnealing_NoExponentiation_Greedy);
     SUITE_ADD_TEST(suite,

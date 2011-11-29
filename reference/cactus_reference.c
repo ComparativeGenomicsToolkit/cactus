@@ -28,15 +28,13 @@ void usage() {
             "-e --matchingAlgorithm : Name of matching algorithm, either 'greedy', 'maxWeight', 'maxCardinality', 'blossom5'\n");
     fprintf(stderr,
             "-g --referenceEventString : String identifying the reference event.\n");
-    fprintf(
-            stderr,
+    fprintf(stderr,
             "-i --permutations : Number of permutations of gibss sampling, integer >= 0\n");
+    fprintf(stderr, "-j --useSimulatedAnnealing : Use a cooling schedule\n");
+    fprintf(stderr, "-k --theta : The value of theta\n");
     fprintf(
             stderr,
-            "-j --useSimulatedAnnealing : Use a cooling schedule\n");
-    fprintf(
-                stderr,
-                "-k --theta : The value of theta\n");
+            "-l --maxNumberOfChainsBeforeSwitchingToFast : The max number of chains before switching to fast reference building mode (default INT32_MAX)\n");
 
     fprintf(stderr, "-h --help : Print this help screen\n");
 }
@@ -59,26 +57,25 @@ int main(int argc, char *argv[]) {
     int32_t permutations = 10;
     double theta = 0.00001;
     bool useSimulatedAnnealing = 0;
+    int32_t maxNumberOfChainsBeforeSwitchingToFast = INT32_MAX;
 
     ///////////////////////////////////////////////////////////////////////////
     // (0) Parse the inputs handed by genomeCactus.py / setup stuff.
     ///////////////////////////////////////////////////////////////////////////
 
     while (1) {
-        static struct option long_options[] =
-                { { "logLevel", required_argument, 0, 'a' }, { "cactusDisk",
-                        required_argument, 0, 'c' }, { "matchingAlgorithm",
-                        required_argument, 0, 'e' }, { "referenceEventString",
-                        required_argument, 0, 'g' }, {
-                        "permutations", required_argument,
-                        0, 'i' }, { "useSimulatedAnnealing",
-                        no_argument, 0, 'j' }, { "theta",
-                        required_argument, 0, 'k' }, { "help", no_argument, 0,
-                        'h' }, { 0, 0, 0, 0 } };
+        static struct option long_options[] = { { "logLevel",
+                required_argument, 0, 'a' }, { "cactusDisk", required_argument,
+                0, 'c' }, { "matchingAlgorithm", required_argument, 0, 'e' }, {
+                "referenceEventString", required_argument, 0, 'g' }, {
+                "permutations", required_argument, 0, 'i' }, {
+                "useSimulatedAnnealing", no_argument, 0, 'j' }, { "theta",
+                required_argument, 0, 'k' }, { "maxNumberOfChainsBeforeSwitchingToFast", required_argument, 0,
+                'l' }, { "help", no_argument, 0, 'h' }, { 0, 0, 0, 0 } };
 
         int option_index = 0;
 
-        int key = getopt_long(argc, argv, "a:c:e:g:i:jk:h", long_options,
+        int key = getopt_long(argc, argv, "a:c:e:g:i:jk:hl:", long_options,
                 &option_index);
 
         if (key == -1) {
@@ -118,10 +115,8 @@ int main(int argc, char *argv[]) {
                 j = sscanf(optarg, "%i", &permutations);
                 assert(j == 1);
                 if (permutations < 0) {
-                    stThrowNew(
-                            REFERENCE_BUILDING_EXCEPTION,
-                            "Permutations is not valid %i",
-                            permutations);
+                    stThrowNew(REFERENCE_BUILDING_EXCEPTION,
+                            "Permutations is not valid %i", permutations);
                 }
                 break;
             case 'j':
@@ -132,9 +127,12 @@ int main(int argc, char *argv[]) {
                 assert(j == 1);
                 if (theta < 0 || theta > 1.0) {
                     stThrowNew(REFERENCE_BUILDING_EXCEPTION,
-                            "The theta parameter is not valid %f",
-                            theta);
+                            "The theta parameter is not valid %f", theta);
                 }
+                break;
+            case 'l':
+                j = sscanf(optarg, "%i", &maxNumberOfChainsBeforeSwitchingToFast);
+                assert(j == 1);
                 break;
             default:
                 usage();
@@ -171,7 +169,9 @@ int main(int argc, char *argv[]) {
     // Build the reference
     ///////////////////////////////////////////////////////////////////////////
 
-    double (*temperatureFn)(double) = useSimulatedAnnealing ? exponentiallyDecreasingTemperatureFn : constantTemperatureFn;
+    double (*temperatureFn)(double) =
+            useSimulatedAnnealing ? exponentiallyDecreasingTemperatureFn
+                    : constantTemperatureFn;
 
     for (j = optind; j < argc; j++) {
         const char *flowerName = argv[j];
@@ -181,17 +181,16 @@ int main(int argc, char *argv[]) {
         assert(flower != NULL);
         st_logInfo("Parsed the flower in which to build a reference\n");
         if (!flower_hasParentGroup(flower)) {
-            buildReferenceTopDown(flower, referenceEventString,
-                    permutations, matchingAlgorithm,
-                    temperatureFn, theta);
+            buildReferenceTopDown(flower, referenceEventString, permutations,
+                    matchingAlgorithm, temperatureFn, theta, maxNumberOfChainsBeforeSwitchingToFast);
         }
         Flower_GroupIterator *groupIt = flower_getGroupIterator(flower);
         Group *group;
         while ((group = flower_getNextGroup(groupIt)) != NULL) {
             if (group_getNestedFlower(group) != NULL) {
                 buildReferenceTopDown(group_getNestedFlower(group),
-                        referenceEventString, permutations,
-                        matchingAlgorithm, temperatureFn, theta);
+                        referenceEventString, permutations, matchingAlgorithm,
+                        temperatureFn, theta, maxNumberOfChainsBeforeSwitchingToFast);
             }
         }
         flower_destructGroupIterator(groupIt);
@@ -212,7 +211,7 @@ int main(int argc, char *argv[]) {
     cactusDisk_destruct(cactusDisk);
     stKVDatabaseConf_destruct(kvDatabaseConf);
     free(cactusDiskDatabaseString);
-    if(logLevelString != NULL) {
+    if (logLevelString != NULL) {
         free(logLevelString);
     }
 

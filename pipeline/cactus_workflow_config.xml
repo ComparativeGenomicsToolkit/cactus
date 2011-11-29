@@ -31,7 +31,7 @@
 	<faces>
 	</faces>
 
-	<reference matching_algorithm="blossom5" reference="reference" permutations="100" useSimulatedAnnealing="1" theta="0.000001">
+	<reference matching_algorithm="blossom5" reference="reference" useSimulatedAnnealing="1" theta="0.000001" maxNumberOfChainsBeforeSwitchingToFast="1000" permutations="10">
 	
 	</reference>
 
