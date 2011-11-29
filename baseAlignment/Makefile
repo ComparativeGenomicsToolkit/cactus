@@ -14,5 +14,4 @@ ${binPath}/cactus_baseAligner : cactus_baseAligner.c ${libTests} ${libSources} $
 	${cxx} ${cflags} -I inc -I${libPath} -o ${binPath}/cactus_baseAligner cactus_baseAligner.c ${libSources} ${libPath}/cactusCore.a ${libPath}/pinchGraph.a ${libPath}/3EdgeConnected.a ${libPath}/cactusLib.a ${basicLibs}
 
 ${binPath}/cactus_baseAlignerTests : ${libTests} ${libSources} ${libHeaders} tests/*.h ${libPath}/cactusLib.a ${libPath}/cactusCore.a ${libPath}/pinchGraph.a ${libPath}/3EdgeConnected.a ${basicLibsDependencies}
-	${cxx} ${tokyoCabinetIncl} -Wall -fopenmp --pedantic -g -O3 -ffast-math -DBEN_DEBUG -lm -I ${sonLibPath} -I inc -I${libPath}  -o ${binPath}/cactus_baseAlignerTests ${libTests} ${libSources} ${libPath}/cactusLib.a ${basicLibs}
-#${cflags}
+	${cxx} ${cflags} -I inc -I${libPath} -wno-error -o ${binPath}/cactus_baseAlignerTests ${libTests} ${libSources} ${libPath}/cactusLib.a ${basicLibs}
