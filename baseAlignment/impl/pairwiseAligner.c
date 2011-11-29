@@ -8,10 +8,22 @@
 #include <stdlib.h>
 #include <inttypes.h>
 #include <math.h>
+#include <omp.h>
 #include "pairwiseAligner.h"
 #include "sonLib.h"
 #include "pairwiseAlignment.h"
 
+#ifdef _OPENMP
+static const int32_t ThreadChunkSize = 150;
+static inline int32_t getNumThreads(int32_t arraySize)
+{
+	int32_t numThreads = omp_get_max_threads();
+	int32_t maxThreads = arraySize / ThreadChunkSize;
+	if (maxThreads < numThreads && maxThreads > 0)
+		return maxThreads;
+	return numThreads;
+}
+#endif
 /*
  * Basic Pecan HMM code used by Cactus base aligner.
  */
@@ -256,9 +268,9 @@ double *forwardMatrix(int32_t lX, int32_t lY, const char *sX, const char *sY) {
     for (int32_t x = 0; x < lX; ++x)
     {
 		int32_t diagLen = (lY < x + 1) ? lY : x + 1;
-		#pragma omp parallel default(shared)
+		#pragma omp parallel default(shared) if(diagLen >= ThreadChunkSize) num_threads(getNumThreads(diagLen))
 		{
-			#pragma omp for schedule(dynamic)
+			#pragma omp for schedule(static)
 			for (int32_t y = 0; y < diagLen; ++y)
 			{
 				forwardCell(fM, x - y, y, lX, lY, sX, sY);
@@ -270,9 +282,9 @@ double *forwardMatrix(int32_t lX, int32_t lY, const char *sX, const char *sY) {
     for (int32_t y = 1; y < lY; ++y)
     {
     	int32_t diagLen = (lX < lY - y) ? lX : lY - y;
-		#pragma omp parallel default(shared)
+		#pragma omp parallel default(shared) if(diagLen >= ThreadChunkSize) num_threads(getNumThreads(diagLen))
 		{
-			#pragma omp for schedule(dynamic)
+			#pragma omp for schedule(static)
 			for (int32_t i = 0; i < diagLen; ++i)
 			{
 				forwardCell(fM, lX - 1 - i, y + i, lX, lY, sX, sY);
@@ -331,9 +343,9 @@ double *backwardMatrix(int32_t lX, int32_t lY, const char *sX, const char *sY) {
 	for (int32_t y = lY - 1; y >= 1; --y)
 	{
 		int32_t diagLen = (lX < lY - y) ? lX : lY - y;
-		#pragma omp parallel default(shared)
+		#pragma omp parallel default(shared) if(diagLen >= ThreadChunkSize) num_threads(getNumThreads(diagLen))
 		{
-			#pragma omp for schedule(dynamic)
+			#pragma omp for schedule(static)
 			for (int32_t i = 0; i < diagLen; ++i)
 			{
 				backwardCell(bM, lX - 1 - i, y + i, lX, lY, sX, sY);
@@ -345,9 +357,9 @@ double *backwardMatrix(int32_t lX, int32_t lY, const char *sX, const char *sY) {
 	for (int32_t x = lX - 1; x >= 0; --x)
     {
 		int32_t diagLen = (lY < x + 1) ? lY : x + 1;
-		#pragma omp parallel default(shared)
+		#pragma omp parallel default(shared) if(diagLen >= ThreadChunkSize) num_threads(getNumThreads(diagLen))
 		{
-			#pragma omp for schedule(dynamic)
+			#pragma omp for schedule(static)
 			for (int32_t y = 0; y < diagLen; ++y)
 			{
 				backwardCell(bM, x - y, y, lX, lY, sX, sY);
@@ -398,9 +410,9 @@ static inline double posteriorMatchProb(double *fM, double *bM, int32_t x,
 static void getPosteriorProbs(double *fM, double *bM, int32_t lX, int32_t lY,
         const char *sX, const char *sY, stList *alignedPairs, double totalProb, PairwiseAlignmentParameters *p) {
     stList** alignedPairMatrix = (stList**)st_malloc(lX * lY * sizeof(stList*));
-	#pragma omp parallel default(shared)
+	#pragma omp parallel default(shared) if(lX >= ThreadChunkSize) num_threads(getNumThreads(lX))
 	{
-		#pragma omp for schedule(dynamic)
+		#pragma omp for schedule(static)
 		for (int32_t x = 1; x < lX; x++) {
 			alignedPairMatrix[x] = stList_construct();
 			for (int32_t y = 1; y < lY; y++) {
@@ -447,15 +459,15 @@ stList *getAlignedPairs(const char *sX, const char *sY, PairwiseAlignmentParamet
     double *fM;
     double *bM;
 
-#pragma omp parallel default(shared)
+//#pragma omp parallel default(shared)
 {
-	#pragma omp sections
+	//#pragma omp sections
     {
-		#pragma omp section
+		//#pragma omp section
     	{
 			bM = backwardMatrix(lX, lY, cSX, cSY);
     	}
-		#pragma omp section
+		//#pragma omp section
     	{
     		fM = forwardMatrix(lX, lY, cSX, cSY);
     	}
