@@ -556,7 +556,8 @@ stList *getBlastPairs(const char *sX, const char *sY, int32_t lX, int32_t lY, in
     fclose(fileHandle);
 
     //Run lastz
-    int32_t exitValue = st_system("lastz --hspthresh=800 --chain --strand=plus --gapped --format=cigar --ambiguous=iupac %s %s > %s", tempFile1, tempFile2, tempFile3);
+    //int32_t exitValue = st_system("lastz --hspthresh=800 --chain --strand=plus --gapped --format=cigar --ambiguous=iupac %s %s > %s", tempFile1, tempFile2, tempFile3);
+    int32_t exitValue = st_system("lastz --hspthresh=800 --maxwordcount=90%% --chain --strand=plus --gapped --format=cigar --ambiguous=iupac %s[unmask] %s[unmask] > %s", tempFile1, tempFile2, tempFile3);
     assert(exitValue == 0);
 
     //Read from file..
@@ -651,6 +652,7 @@ static stList *getAlignedPairs_Split(char *sX, char *sY, int32_t lX, int32_t lY,
         return getAlignedPairs(sX, sY, p);
     }
     st_logDebug("We found an overlarge matrix to compute: %i %i \n", lX, lY);
+    assert(0);
     if(lX > bandSize) {
         char *sX2 = getSubString(sX, 0, bandSize);
         stList *alignedPairs = getAlignedPairs_Split(sX2, sY, bandSize, lY, bandSize, p);

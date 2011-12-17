@@ -190,7 +190,7 @@ class CactusAlignmentPhase(Target):
         iterations = self.options.config.find("alignment").find("iterations").findall("iteration")
         if self.iteration < len(iterations):
             iterationNode = iterations[self.iteration]
-            assert int(iterationNode.attrib["number"]) == self.iteration
+            #assert int(iterationNode.attrib["number"]) == self.iteration
             if iterationNode.attrib["type"] == "blast":
                 self.addChildTarget(CactusCafDown(self.options, iterationNode, [ self.flowerName ]))
             else:

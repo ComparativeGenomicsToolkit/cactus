@@ -1191,6 +1191,18 @@ int32_t chainBaseLength(struct List *biConnectedComponent, struct PinchGraph *pi
     return (int32_t)i;
 }
 
+bool chainExtendsParentChain(struct List *biConnectedComponent, struct PinchGraph *pinchGraph, Flower *flower) {
+    assert(biConnectedComponent->length > 0);
+    /*
+     * Returns true if the biconnected component is extending a parent chain.
+     */
+    bool b = isAStubCactusEdge(biConnectedComponent->list[0], pinchGraph) &&
+            !isAFreeStubCactusEdge(biConnectedComponent->list[0], pinchGraph, flower) &&
+            isAStubCactusEdge(biConnectedComponent->list[biConnectedComponent->length-1], pinchGraph) &&
+            !isAFreeStubCactusEdge(biConnectedComponent->list[biConnectedComponent->length-1], pinchGraph, flower);
+    return b && flower_hasParentGroup(flower);
+}
+
 stSortedSet *getPinchVerticesSet(stSortedSet *cactusEdges, struct PinchGraph *pinchGraph) {
     stSortedSet *pinchVerticesSet = stSortedSet_construct();
     stSortedSetIterator *it = stSortedSet_getIterator(cactusEdges);
@@ -1225,7 +1237,7 @@ stSortedSet *filterBlocksByTreeCoverageAndLength(struct List *biConnectedCompone
     stSortedSet *chosenBlocks = stSortedSet_construct();
     for (int32_t i = 0; i < biConnectedComponents->length; i++) {
         struct List *biConnectedComponent = biConnectedComponents->list[i];
-        if (minimumChainLength <= 0 || chainBaseLength(biConnectedComponent, pinchGraph) >= minimumChainLength) {
+        if (minimumChainLength <= 0 || chainBaseLength(biConnectedComponent, pinchGraph) >= minimumChainLength || chainExtendsParentChain(biConnectedComponent, pinchGraph, flower)) {
             for (int32_t j = 0; j < biConnectedComponent->length; j++) {
                 struct CactusEdge *cactusEdge = biConnectedComponent->list[j];
                 if (!isAStubCactusEdge(cactusEdge, pinchGraph)) {

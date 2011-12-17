@@ -17,7 +17,7 @@
 				minimumBlockDegree="2"/>
 			</iteration>
 		
-			<iteration type="base" number="2" min_sequence_size="1" spanning_trees="10" gap_gamma="0.2" use_banding="1" banding_limit="100000" max_banding_size="3000" min_banding_size="1000" min_banding_constraint_distance="300" min_trace_back_diag="42" min_trace_gap_diags="10" constraint_diagonal_trim="4" minimumBlockDegree="0" alignAmbiguityCharacters="1"/>
+			<iteration type="base" number="2" num_threads="5" min_sequence_size="1" spanning_trees="10" gap_gamma="0.2" use_banding="1" banding_limit="100000" max_banding_size="3000" min_banding_size="1000" min_banding_constraint_distance="300" min_trace_back_diag="42" min_trace_gap_diags="10" constraint_diagonal_trim="4" minimumBlockDegree="0" alignAmbiguityCharacters="1"/>
 
 		</iterations>
 	</alignment>
