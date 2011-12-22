@@ -405,7 +405,7 @@ static void addGroupsP(Flower *flower, struct hashtable *groups) {
     /*
      * Adds the non chain groups to each net. Crazy code,
      * hacks groups with only free ends into groups containing
-     * at least one attached of block end.
+     * at least one attached block end.
      */
     //Now call recursively and make any little chains
     Flower_GroupIterator *groupIt = flower_getGroupIterator(flower);

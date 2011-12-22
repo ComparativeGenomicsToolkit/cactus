@@ -18,6 +18,58 @@
  * non-terminal groups. Used during the core stage.
  */
 
+static bool isOneAdjacencyComponent(Group *group) {
+    /*
+     * Checks a group is one adjacency component.
+     */
+    /*
+     * Get the ends in a set.
+     */
+    stSortedSet *ends = stSortedSet_construct();
+    Group_EndIterator *endIt = group_getEndIterator(group);
+    End *end;
+    while((end = group_getNextEnd(endIt)) != NULL) {
+        assert(end_getPositiveOrientation(end) == end);
+        stSortedSet_insert(ends, end);
+    }
+    group_destructEndIterator(endIt);
+
+    /*
+     * Now iterate through connections.
+     */
+    assert(stSortedSet_size(ends) > 0);
+    end = stSortedSet_getFirst(ends);
+    stList *stack = stList_construct();
+    stSortedSet_remove(ends, end);
+    stList_append(stack, end);
+
+
+    while(stList_length(stack) > 0) {
+        end = stList_pop(stack);
+        Cap *cap;
+        End_InstanceIterator *capIt = end_getInstanceIterator(end);
+        while((cap = end_getNext(capIt)) != NULL) {
+            Cap *adjacentCap = cap_getAdjacency(cap);
+            assert(adjacentCap != NULL);
+            End *adjacentEnd = end_getPositiveOrientation(cap_getEnd(adjacentCap));
+            assert(adjacentEnd != NULL);
+            if(stSortedSet_search(ends, adjacentEnd) != NULL) {
+                stSortedSet_remove(ends, adjacentEnd);
+                stList_append(stack, adjacentEnd);
+            }
+        }
+        end_destructInstanceIterator(capIt);
+    }
+    bool b = stSortedSet_size(ends) == 0;
+
+    /*
+     * Cleanup
+     */
+    stSortedSet_destruct(ends);
+    stList_destruct(stack);
+    return b;
+}
+
 static void addFlower(FILE *fileHandle, Flower *flower) {
     assert(!flower_builtBlocks(flower));
     assert(flower_isLeaf(flower));
@@ -26,7 +78,7 @@ static void addFlower(FILE *fileHandle, Flower *flower) {
     assert(flower_isTerminal(flower));
     int64_t size = flower_getTotalBaseLength(flower);
     assert(size >= 0);
-    fprintf(fileHandle, "%s %" PRIi64 "\n", cactusMisc_nameToStringStatic(flower_getName(flower)), size);
+    fprintf(fileHandle, "%s %" PRIi64 " %i\n", cactusMisc_nameToStringStatic(flower_getName(flower)), size, flower_getEndNumber(flower));
 }
 
 static void extendFlowers(Flower *flower, FILE *fileHandle, int32_t minSizeToExtend, int64_t maxSizeToExtend, int32_t *flowersMade) {
@@ -40,7 +92,9 @@ static void extendFlowers(Flower *flower, FILE *fileHandle, int32_t minSizeToExt
                 assert(size >= 0);
                 if (size >= minSizeToExtend && size < maxSizeToExtend) {
                     group_makeNestedFlower(group);
-                    addFlower(fileHandle, group_getNestedFlower(group));
+                    Flower *nestedFlower = group_getNestedFlower(group);
+                    addFlower(fileHandle, nestedFlower);
+                    assert(isOneAdjacencyComponent(flower_getFirstGroup(nestedFlower)));
                     (*flowersMade)++;
                 }
             }

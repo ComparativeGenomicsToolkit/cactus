@@ -224,17 +224,21 @@ def makeTargets(options, extraArgs, flowersAndSizes, parentTarget, target,
     totalSequenceSize = 0.0
     
     minChildSize = max(1, float(maxSequenceSize)/jobNumber)
-    totalChildSize = sum([ max(flowerSize, minChildSize) for flowerName, flowerSize in flowersAndSizes ])
+    totalChildSize = sum([ max(flowerSize, minChildSize) for flowerName, flowerSize, flowerEndNumber in flowersAndSizes ])
     
-    for flowerName, flowerSize, in flowersAndSizes:
+    for flowerName, flowerSize, flowerEndNumber in flowersAndSizes:
         assert(flowerSize) >= 0
         if flowerSize >= ignoreFlowersLessThanThisSize:
-            totalSequenceSize += max(flowerSize, minChildSize)
-            flowerNames.append(flowerName)
-            if totalSequenceSize >= maxSequenceSize: 
-                parentTarget.addChildTarget(target(options, extraArgs, flowerNames))
-                flowerNames = []
-                totalSequenceSize = 0.0
+            if flowerSize >= maxSequenceSize: #Make sure large flowers are on there own, in their own job
+                parentTarget.logToMaster("Adding an oversize flower: %s on its own, with %s bases and %s ends for target class %s" % (flowerName, flowerSize, flowerEndNumber, target))
+                parentTarget.addChildTarget(target(options, extraArgs, [ flowerName ]))
+            else:
+                totalSequenceSize += max(flowerSize, minChildSize)
+                flowerNames.append(flowerName)
+                if totalSequenceSize >= maxSequenceSize: 
+                    parentTarget.addChildTarget(target(options, extraArgs, flowerNames))
+                    flowerNames = []
+                    totalSequenceSize = 0.0
     if len(flowerNames) > 0:
         parentTarget.addChildTarget(target(options, extraArgs, flowerNames))
 
@@ -261,7 +265,7 @@ class CactusCafDown(Target):
         ignoreFlowersGreaterThanThisSize = int(getOptionalAttrib(self.iteration, "max_sequence_size", -1))
         makeChildTargets(self.options, self.iteration, self.flowerNames, self, CactusCafDown, 
                          ignoreFlowersLessThanThisSize=ignoreFlowersLessThanThisSize)
-        for childFlowerName, childFlowerSize in runCactusExtendFlowers(self.options.cactusDiskDatabaseString, self.flowerNames, 
+        for childFlowerName, childFlowerSize, childFlowerEndNumber in runCactusExtendFlowers(self.options.cactusDiskDatabaseString, self.flowerNames, 
                                                                        self.getLocalTempDir(), 
                                                                        ignoreFlowersLessThanThisSize, 
                                                                        ignoreFlowersGreaterThanThisSize):
@@ -356,10 +360,9 @@ class CactusBarDown(Target):
         self.iteration = iteration
     
     def run(self):
-        children = []
         makeChildTargets(self.options, self.iteration, self.flowerNames, self, CactusBarDown)
         childFlowersAndSizes = runCactusExtendFlowers(self.options.cactusDiskDatabaseString, self.flowerNames, 
-                                                              self.getLocalTempDir(), minSizeToExtend=1)
+                                                      self.getLocalTempDir(), minSizeToExtend=1)
         makeTargets(self.options, self.iteration, childFlowersAndSizes, self, CactusBaseLevelAlignerWrapper, maxSequenceSize=10000)
      
 class CactusBaseLevelAlignerWrapper(Target):
@@ -367,7 +370,7 @@ class CactusBaseLevelAlignerWrapper(Target):
     """
     #We split, to deal with cleaning up the alignment file
     def __init__(self, options, iteration, flowerNames):
-        Target.__init__(self, time=30)
+        Target.__init__(self, time=100)
         self.options = options
         self.iteration = iteration
         self.flowerNames = flowerNames

@@ -150,9 +150,11 @@ def readFlowerNamesFile(flowerNamesFile):
     line = fileHandle.readline()
     l = []
     while line != '':
-        childFlowerName = line.split()[0]
-        childFlowerSize = float(line.split()[1])
-        l.append((childFlowerName, childFlowerSize))
+        line = line.split()
+        childFlowerName = line[0]
+        childFlowerSize = float(line[1])
+        childEndNumber = int(line[2])
+        l.append((childFlowerName, childFlowerSize, childEndNumber))
         line = fileHandle.readline()
     fileHandle.close()
     return l

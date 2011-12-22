@@ -41,7 +41,7 @@ int main(int argc, char *argv[]) {
                     assert(nestedFlower != NULL);
                     assert(flower_builtBlocks(nestedFlower)); //This recursion depends on the block structure having been properly defined for all nodes.
                     if(includeTerminalFlowers || !flower_isTerminal(flower)) {
-                        fprintf(fileHandle, "%s %" PRIi64 " \n", cactusMisc_nameToStringStatic(flower_getName(nestedFlower)), flower_getTotalBaseLength(nestedFlower));
+                        fprintf(fileHandle, "%s %" PRIi64 " %i \n", cactusMisc_nameToStringStatic(flower_getName(nestedFlower)), flower_getTotalBaseLength(nestedFlower), flower_getEndNumber(nestedFlower));
                     }
                 }
             }
