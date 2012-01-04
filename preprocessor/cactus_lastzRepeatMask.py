@@ -68,10 +68,9 @@ def main():
     assert options.fragment > 1
     
     if testExec("fasta_fragments.py") == False or testExec("fasta_softmask_intervals.py") == False:
-        print "ERROR: fasta_fragments.py or fasta_softmask_intervals.py" + \
+        raise RuntimeError("ERROR: fasta_fragments.py or fasta_softmask_intervals.py" + \
                " not in PATH.\n Ensure that the latest lastz is installed" + \
-               " and lastz/tools is in path\n\n"
-        raise
+               " and lastz/tools is in path\n\n")
     
     # make sure fragment size is even so they can overlap by exactly one half. 
     if options.fragment % 2:
