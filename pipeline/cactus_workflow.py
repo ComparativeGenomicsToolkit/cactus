@@ -367,7 +367,12 @@ class CactusBaseLevelAlignerWrapper(Target):
     """
     #We split, to deal with cleaning up the alignment file
     def __init__(self, options, iteration, flowerNames):
-        Target.__init__(self, time=30)
+        self.numThreads = getOptionalAttrib(iteration, "num_threads")
+        if self.numThreads is None:
+            self.numThreads = 1
+        if options.maxJobs is not None:
+            self.numThreads = min(int(self.numThreads), int(options.maxJobs))
+        Target.__init__(self, time=30, cpu=self.numThreads)
         self.options = options
         self.iteration = iteration
         self.flowerNames = flowerNames
@@ -390,7 +395,7 @@ class CactusBaseLevelAlignerWrapper(Target):
                              alignAmbiguityCharacters=bool(int(self.iteration.attrib["alignAmbiguityCharacters"])),
                              requiredSpecies=self.options.requiredSpecies,
                              pruneOutStubAlignments=bool(int(getOptionalAttrib(self.iteration, "prune_out_stub_alignments", "0"))),
-                             numThreads=getOptionalAttrib(self.iteration, "num_threads"))
+                             numThreads=self.numThreads)
         
 ############################################################
 ############################################################
