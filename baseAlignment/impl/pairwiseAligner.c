@@ -268,9 +268,13 @@ double *forwardMatrix(int32_t lX, int32_t lY, const char *sX, const char *sY) {
     for (int32_t x = 0; x < lX; ++x)
     {
 		int32_t diagLen = (lY < x + 1) ? lY : x + 1;
+#ifdef _OPENMP
 		#pragma omp parallel default(shared) if(diagLen >= ThreadChunkSize) num_threads(getNumThreads(diagLen))
+#endif
 		{
+#ifdef _OPENMP
 			#pragma omp for schedule(static)
+#endif
 			for (int32_t y = 0; y < diagLen; ++y)
 			{
 				forwardCell(fM, x - y, y, lX, lY, sX, sY);
@@ -282,9 +286,13 @@ double *forwardMatrix(int32_t lX, int32_t lY, const char *sX, const char *sY) {
     for (int32_t y = 1; y < lY; ++y)
     {
     	int32_t diagLen = (lX < lY - y) ? lX : lY - y;
+#ifdef _OPENMP
 		#pragma omp parallel default(shared) if(diagLen >= ThreadChunkSize) num_threads(getNumThreads(diagLen))
+#endif
 		{
+#ifdef _OPENMP
 			#pragma omp for schedule(static)
+#endif
 			for (int32_t i = 0; i < diagLen; ++i)
 			{
 				forwardCell(fM, lX - 1 - i, y + i, lX, lY, sX, sY);
@@ -343,9 +351,13 @@ double *backwardMatrix(int32_t lX, int32_t lY, const char *sX, const char *sY) {
 	for (int32_t y = lY - 1; y >= 1; --y)
 	{
 		int32_t diagLen = (lX < lY - y) ? lX : lY - y;
+#ifdef _OPENMP
 		#pragma omp parallel default(shared) if(diagLen >= ThreadChunkSize) num_threads(getNumThreads(diagLen))
+#endif
 		{
+#ifdef _OPENMP
 			#pragma omp for schedule(static)
+#endif
 			for (int32_t i = 0; i < diagLen; ++i)
 			{
 				backwardCell(bM, lX - 1 - i, y + i, lX, lY, sX, sY);
@@ -357,9 +369,13 @@ double *backwardMatrix(int32_t lX, int32_t lY, const char *sX, const char *sY) {
 	for (int32_t x = lX - 1; x >= 0; --x)
     {
 		int32_t diagLen = (lY < x + 1) ? lY : x + 1;
+#ifdef _OPENMP
 		#pragma omp parallel default(shared) if(diagLen >= ThreadChunkSize) num_threads(getNumThreads(diagLen))
+#endif
 		{
+#ifdef _OPENMP
 			#pragma omp for schedule(static)
+#endif
 			for (int32_t y = 0; y < diagLen; ++y)
 			{
 				backwardCell(bM, x - y, y, lX, lY, sX, sY);
@@ -410,9 +426,13 @@ static inline double posteriorMatchProb(double *fM, double *bM, int32_t x,
 static void getPosteriorProbs(double *fM, double *bM, int32_t lX, int32_t lY,
         const char *sX, const char *sY, stList *alignedPairs, double totalProb, PairwiseAlignmentParameters *p) {
     stList** alignedPairMatrix = (stList**)st_malloc(lX * lY * sizeof(stList*));
+#ifdef _OPENMP
 	#pragma omp parallel default(shared) if(lX >= ThreadChunkSize) num_threads(getNumThreads(lX))
+#endif
 	{
+#ifdef _OPENMP
 		#pragma omp for schedule(static)
+#endif
 		for (int32_t x = 1; x < lX; x++) {
 			alignedPairMatrix[x] = stList_construct();
 			for (int32_t y = 1; y < lY; y++) {
