@@ -25,6 +25,7 @@ import os
 import sys
 import xml.etree.ElementTree as ET
 import math
+import time
 from optparse import OptionParser
 
 from sonLib.bioio import getTempFile
@@ -128,7 +129,7 @@ class CactusSetupPhase(Target):
                     assert iterationNode.attrib["type"] == "base"
 
     def run(self):
-        logger.info("Starting setup phase target")
+        self.logToMaster("Starting setup phase target at %s seconds" % time.time())
         #Modify the config options
         self.modifyConfig()
         #Make the child setup job.
@@ -144,7 +145,7 @@ class CactusPreprocessorPhase(Target):
         self.sequences = sequences
 
     def run(self):
-        logger.info("Starting preprocessor phase target")
+        self.logToMaster("Starting preprocessor phase target at %s seconds" % time.time())
         
         processedSequences = self.sequences
        
@@ -186,7 +187,7 @@ class CactusAlignmentPhase(Target):
         self.iteration = iteration
         
     def run(self):
-        logger.info("Starting the alignment phase for iteration %i", self.iteration)
+        self.logToMaster("Starting the alignment phase for iteration %i at %i seconds" % (self.iteration, time.time()))
         iterations = self.options.config.find("alignment").find("iterations").findall("iteration")
         if self.iteration < len(iterations):
             iterationNode = iterations[self.iteration]
@@ -415,7 +416,7 @@ class CactusNormalPhase(Target):
         self.normalisationRounds=normalisationRounds
         
     def run(self):
-        logger.info("Starting the normalisation phase")
+        self.logToMaster("Starting the normalisation phase at %s seconds" % time.time())
         self.addChildTarget(CactusNormalDown(self.options, None, [ self.flowerName ]))
         if self.normalisationRounds-1 > 0:
             self.setFollowOnTarget(CactusNormalPhase(self.flowerName, self.options, self.normalisationRounds-1))
@@ -462,7 +463,7 @@ class CactusPhylogenyPhase(Target):
         self.options = options
         
     def run(self):
-        logger.info("Starting the phylogeny phase")
+        self.logToMaster("Starting the phylogeny phase at %s seconds" % time.time())
         if self.options.buildTrees:
             self.addChildTarget(CactusPhylogeny(self.options, None, [ self.flowerName ]))
         self.setFollowOnTarget(CactusReferencePhase(self.flowerName, self.options))
@@ -495,7 +496,7 @@ class CactusReferencePhase(Target):
         self.options = options
         
     def run(self):
-        logger.info("Starting the reference phase")
+        self.logToMaster("Starting the reference phase at %s seconds" % time.time())
         if self.options.buildReference:
             self.addChildTarget(CactusReferenceDown(self.options, None, [ self.flowerName ]))
             self.setFollowOnTarget(CactusSetReferenceCoordinates(self.flowerName, self.options))
@@ -586,7 +587,7 @@ class CactusCheckPhase(Target):
         
     def run(self):
         if not self.options.skipCheck:
-            logger.info("Starting the verification phase")
+            self.logToMaster("Starting the verification phase at %s seconds" % time.time())
             self.addChildTarget(CactusCheck(self.options, None, [ self.flowerName ]))
         
 class CactusCheck(Target):
