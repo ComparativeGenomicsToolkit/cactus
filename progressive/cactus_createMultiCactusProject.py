@@ -36,7 +36,9 @@ def createMCProject(tree, config, options):
     config.getOutgroupStrategy() == 'greedyLeaves':
         mcProj.outgroup = GreedyOutgroup()
         mcProj.outgroup.importTree(mcProj.mcTree)
-        mcProj.outgroup.greedy(config.getOutgroupStrategy() == 'greedyLeaves')
+        mcProj.outgroup.greedy(justLeaves=config.getOutgroupStrategy() == \
+                               'greedyLeaves',
+                               threshold=config.getOutgroupThreshold())
     return mcProj
 
 # go through the tree (located in the template experimet)

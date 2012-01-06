@@ -28,6 +28,7 @@ class ConfigWrapper:
     defaultCoverageFraction = 0
     defaultSingleCopyStrategy = 'none'
     defaultInternalNodePrefix = 'Anc'
+    defaultOutgroupThreshold = None
     
     def __init__(self, xmlRoot):
         self.xmlRoot = xmlRoot
@@ -71,6 +72,17 @@ class ConfigWrapper:
         assert strategy == "none" or strategy == "greedy" or \
             strategy == "greedyLeaves"
         return strategy
+    
+    def getOutgroupThreshold(self):
+        ogElem = self.getOutgroupElem()
+        threshold = self.defaultOutgroupThreshold
+        if (ogElem is not None and\
+            "strategy" in ogElem.attrib and\
+            ogElem.attrib["strategy"] == "greedy" and\
+            "threshold" in ogElem.attrib and\
+            ogElem.attrib["threshold"].lower() != 'none'):
+                threshold = int(ogElem.attrib["threshold"])
+        return threshold
     
     def getSubtreeSize(self):
         decompElem = self.getDecompositionElem()
