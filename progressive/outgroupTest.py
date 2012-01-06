@@ -67,6 +67,21 @@ class TestCase(unittest.TestCase):
                 dist1 = og1.ogMap[i][1]
                 dist2 = og2.ogMap[i][1]
                 assert dist2 <= dist1
+                
+    def testGeneralConstrainedBetterThanLeaves(self):
+        for tree in self.mcTrees:
+            og1 = GreedyOutgroup()
+            og1.importTree(tree)
+            og1.greedy(justLeaves=True)
+            og2 = GreedyOutgroup()
+            og2.importTree(tree)
+            og2.greedy(justLeaves=False, threshold=2)
+            
+            for i in og1.ogMap:
+                assert i in og2.ogMap
+                dist1 = og1.ogMap[i][1]
+                dist2 = og2.ogMap[i][1]
+                assert dist2 <= dist1
     
 def main():
     unittest.main()

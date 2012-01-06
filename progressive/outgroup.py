@@ -72,10 +72,26 @@ class GreedyOutgroup:
                 return True 
         return False
     
+    # fill up a dictionary of node id -> height in tree where
+    # leaves have height = 0
+    def heightTable(self, node, htable):
+        children = [x[1] for x in self.dag.out_edges(node)]
+        if len(children) == 0:
+            htable[node] = 0
+        else:            
+            for i in children:
+                self.heightTable(i, htable)
+            htable[node] = max([htable[i] for i in children]) + 1
+         
     # greedily assign closest possible valid outgroup
     # all outgroups are stored in self.ogMap
-    # edges between leaves ARE NOT kept in the dag         
-    def greedy(self, justLeaves = False):
+    # edges between leaves ARE NOT kept in the dag    
+    # the threshold parameter specifies how much parallelism can
+    # be sacrificed by the selection of an outgroup
+    # threshold = None : just greedy with now constraints
+    # threshold = 0 : depth of schedule guaranteed to be unaffected by outgroup
+    # threshold = k : depth increases by at most k per outgroup
+    def greedy(self, justLeaves = False, threshold = None):
         orderedPairs = []
         for source, sinks in self.dm.items():
             for sink, dist in sinks.items():
@@ -84,6 +100,9 @@ class GreedyOutgroup:
         orderedPairs.sort(key = lambda x: x[0])
         finished = set()
         self.ogMap = dict()
+        
+        htable = dict()
+        self.heightTable(self.root, htable)
         
         for candidate in orderedPairs:
             source = candidate[1][0]
@@ -97,6 +116,11 @@ class GreedyOutgroup:
             # skip internal as sink if param specified
             if justLeaves == True and len(self.dag.out_edges(sink)) > 0:
                 continue
+            
+            # canditate pair exceeds given threshold, so we skip
+            if threshold is not None and \
+            htable[sink] - htable[source] + 1 > threshold:
+                continue
     
             if source not in finished and \
             not self.onSamePath(source, sink):
@@ -105,7 +129,8 @@ class GreedyOutgroup:
                     finished.add(source)
                     sourceName = self.mcTree.getName(source)
                     sinkName = self.mcTree.getName(sink)
-                    self.ogMap[sourceName] = (sinkName, dist)                    
+                    self.ogMap[sourceName] = (sinkName, dist)
+                    htable[source] = max(htable[source], htable[sink] + 1)                 
                 else:
                     self.dag.remove_edge(source, sink)
 
@@ -115,6 +140,8 @@ def main():
     parser = OptionParser(usage=usage, description=description)
     parser.add_option("--justLeaves", dest="justLeaves", action="store_true", 
                       default = False, help="Assign only leaves as outgroups")
+    parser.add_option("--threshold", dest="threshold", type='int',
+                      default = None, help="greedy threshold")
     options, args = parser.parse_args()
     
     if len(args) != 2:
@@ -125,7 +152,7 @@ def main():
     proj.readXML(args[0])
     outgroup = GreedyOutgroup()
     outgroup.importTree(proj.mcTree)
-    outgroup.greedy(options.justLeaves)
+    outgroup.greedy(justLeaves=options.justLeaves, threshold=options.threshold)
     NX.drawing.nx_agraph.write_dot(outgroup.dag, args[1])
     return 0
 
