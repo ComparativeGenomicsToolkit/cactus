@@ -26,55 +26,6 @@
 #include "sonLib.h"
 #include "adjacencyComponents.h"
 
-void parseRequiredSpeciesTree(const char *string, CactusCoreInputParameters *cCIP) {
-    cCIP->listOfSetsOfRequiredSpecies = stList_construct3(0, (void (*)(void *))stSortedSet_destruct);
-    cCIP->listOfRequiredSpeciesCoverages = stList_construct3(0, (void (*)(void *))stIntTuple_destruct);
-    stTree *tree = stTree_parseNewickString(string);
-    for (int32_t i = 0; i < stTree_getChildNumber(tree); i++) {
-        stTree *child = stTree_getChild(tree, i);
-        int32_t j;
-        assert(stTree_getChildNumber(child) > 0);
-        assert(stTree_getLabel(stTree_getChild(child, 0)) != NULL);
-        int32_t k =
-                sscanf(stTree_getLabel(stTree_getChild(child, 0)), "%i", &j);
-        assert(k == 1);
-        assert(j >= 1);
-        stIntTuple *coverage = stIntTuple_construct(1, j);
-        stSortedSet *requiredSpeciesSet = stSortedSet_construct3(
-                (int(*)(const void *, const void *)) strcmp, free);
-        for (j = 1; j < stTree_getChildNumber(child); j++) {
-            stTree *grandChild = stTree_getChild(child, j);
-            assert(stTree_getLabel(grandChild) != NULL);
-            assert(
-                    stSortedSet_search(requiredSpeciesSet,
-                            (void *)stTree_getLabel(grandChild)) == NULL);
-            stSortedSet_insert(requiredSpeciesSet,
-                    stString_copy(stTree_getLabel(grandChild)));
-            assert(
-                                stSortedSet_search(requiredSpeciesSet,
-                                        (void *)stTree_getLabel(grandChild)) != NULL);
-        }
-        assert(
-                stIntTuple_getPosition(coverage, 0) <= stSortedSet_size(
-                        requiredSpeciesSet));
-        stList_append(cCIP->listOfSetsOfRequiredSpecies, requiredSpeciesSet);
-        stList_append(cCIP->listOfRequiredSpeciesCoverages, coverage);
-    }
-    stTree_destruct(tree);
-    assert(stList_length(cCIP->listOfRequiredSpeciesCoverages) == stList_length(cCIP->listOfSetsOfRequiredSpecies));
-    st_logDebug("Parsed %i required species sets\n", stList_length(cCIP->listOfRequiredSpeciesCoverages));
-    for(int32_t i=0; i<stList_length(cCIP->listOfRequiredSpeciesCoverages); i++) {
-        int32_t coverage = stIntTuple_getPosition(stList_get(cCIP->listOfRequiredSpeciesCoverages, i), 0);
-        st_logDebug("Got coverage %i for required species:\n", coverage);
-        stSortedSet *requiredSpecies = stList_get(cCIP->listOfSetsOfRequiredSpecies, i);
-        stSortedSetIterator *it = stSortedSet_getIterator(requiredSpecies);
-        const char *cA;
-        while((cA = stSortedSet_getNext(it)) != NULL) {
-            st_logDebug("Species to be covered: %s\n", cA);
-        }
-        stSortedSet_destructIterator(it);
-    }
-}
 
 void writePinchGraph(char *name, struct PinchGraph *pinchGraph, struct List *biConnectedComponents, struct List *groups) {
     FILE *fileHandle = fopen(name, "w");
@@ -173,10 +124,19 @@ CactusCoreInputParameters *constructCactusCoreInputParameters() {
 
     cCIP->minimumTreeCoverage = 0.0;
     cCIP->blockTrim = 0;
-    cCIP->listOfSetsOfRequiredSpecies = NULL;
-    cCIP->listOfRequiredSpeciesCoverages = NULL;
-    cCIP->singleCopySpecies = NULL;
     cCIP->minimumDegree = 2;
+
+    cCIP->requiredIngroupFraction = 0.0;
+    cCIP->requiredOutgroupFraction = 0.0;
+    cCIP->requiredAllFraction = 0.0;
+
+    cCIP->requiredIngroups = 0;
+    cCIP->requiredOutgroups = 0;
+    cCIP->requiredAll = 0;
+
+    cCIP->singleCopyIngroup = 0;
+    cCIP->singleCopyOutgroup = 0;
+
     return cCIP;
 }
 
@@ -184,11 +144,6 @@ void destructCactusCoreInputParameters(CactusCoreInputParameters *cCIP) {
     free(cCIP->annealingRounds);
     free(cCIP->deannealingRounds);
     free(cCIP->trim);
-    stList_destruct(cCIP->listOfRequiredSpeciesCoverages);
-    stList_destruct(cCIP->listOfSetsOfRequiredSpecies);
-    if(cCIP->singleCopySpecies != NULL) {
-        stSortedSet_destruct(cCIP->singleCopySpecies);
-    }
     free(cCIP);
 }
 
@@ -244,20 +199,21 @@ struct List *getChosenBlockPinchEdges(stSortedSet *chosenBlocks, struct PinchGra
 
 struct CactusGraph *deanneal(Flower *flower, struct PinchGraph *pinchGraph, struct CactusGraph *cactusGraph,
         struct List **biConnectedComponents, int32_t minimumChainLengthInGraph, double minimumTreeCoverage,
-        int32_t minimumBlockDegree, stList *listOfSetsOfRequiredSpecies, stList *listOfRequiredSpeciesCoverages,
-        stSortedSet *singleCopySpecies) {
+        int32_t minimumBlockDegree,
+        int32_t requiredIngroupSpecies, int32_t requiredOutgroupSpecies, int32_t requiredAllSpecies,
+        bool singleCopyIngroupSpecies, bool singleCopyOutgroupSpecies) {
     ///////////////////////////////////////////////////////////////////////////
     // Choosing a block subset to undo.
     ///////////////////////////////////////////////////////////////////////////
 
     //Get all the blocks.
     stSortedSet *allBlocksOfDegree2OrHigher = filterBlocksByTreeCoverageAndLength(*biConnectedComponents, flower, 0.0,
-            2, 0, 0, NULL, NULL, NULL, pinchGraph);
+            2, 0, 0, 0, 0, 0, 0, 0, pinchGraph);
     //Get the blocks we want to keep
     stSortedSet *chosenBlocksToKeep = filterBlocksByTreeCoverageAndLength(*biConnectedComponents, flower,
-            minimumTreeCoverage, minimumBlockDegree, 0, minimumChainLengthInGraph + 1, listOfSetsOfRequiredSpecies,
-            listOfRequiredSpeciesCoverages,
-            singleCopySpecies, pinchGraph);
+            minimumTreeCoverage, minimumBlockDegree, 0, minimumChainLengthInGraph + 1,
+            requiredIngroupSpecies, requiredOutgroupSpecies, requiredAllSpecies,
+            singleCopyIngroupSpecies, singleCopyOutgroupSpecies, pinchGraph);
     //Now get the blocks to undo by computing the difference.
     stSortedSet *blocksToUndo = stSortedSet_getDifference(allBlocksOfDegree2OrHigher, chosenBlocksToKeep);
     stSortedSet_destruct(chosenBlocksToKeep);
@@ -435,10 +391,17 @@ void buildOutPinchGraph(struct PinchGraph *pinchGraph, stList *adjacencyComponen
     // Do the first deanneal of bad blocks, not worrying about minimum chain length.
     ////////////////////////////////////////////////
 
-    if(cCIP->minimumTreeCoverage > 0.0 || cCIP->minimumDegree > 2 || cCIP->listOfRequiredSpeciesCoverages != NULL || cCIP->singleCopySpecies != NULL) {
+    if(cCIP->minimumTreeCoverage > 0.0 ||
+            cCIP->minimumDegree > 2 ||
+            cCIP->requiredIngroups != 0 ||
+            cCIP->requiredOutgroups != 0 ||
+            cCIP->requiredAll != 0 ||
+            cCIP->singleCopyIngroup || cCIP->singleCopyOutgroup) {
         cactusGraph = deanneal(flower, pinchGraph, cactusGraph, &biConnectedComponents, 0,
                         cCIP->minimumTreeCoverage,
-                        cCIP->minimumDegree, cCIP->listOfSetsOfRequiredSpecies, cCIP->listOfRequiredSpeciesCoverages, cCIP->singleCopySpecies);
+                        cCIP->minimumDegree, cCIP->requiredIngroups, cCIP->requiredOutgroups,
+                        cCIP->requiredAll,
+                        cCIP->singleCopyIngroup, cCIP->singleCopyOutgroup);
     }
 
     ///////////////////////////////////////////////////////////////////////////
@@ -472,7 +435,7 @@ void buildOutPinchGraph(struct PinchGraph *pinchGraph, stList *adjacencyComponen
 
         cactusGraph = deanneal(flower, pinchGraph, cactusGraph, &biConnectedComponents, minimumChainLengthToRemove,
                 0.0,
-                0, NULL, NULL, NULL);
+                0, 0, 0, 0, 0, 0);
 
         ///////////////////////////////////////////////////////////////////////////
         // Recalculate the minimum length of chains in the graph
@@ -552,6 +515,38 @@ int32_t cactusCorePipeline(Flower *flower, CactusCoreInputParameters *cCIP,
 
     st_logInfo("Constructed the graph in: %i seconds\n", time(NULL) - startTime);
     st_logInfo("Vertex number %i \n", pinchGraph->vertices->length);
+
+    ///////////////////////////////////////////////////////////////////////////
+    // Set required ingroup/outgroup fractions
+    ///////////////////////////////////////////////////////////////////////////
+
+    EventTree *eventTree = flower_getEventTree(flower);
+    Event *event;
+    int32_t outgroupEventNumber = 0;
+    int32_t ingroupEventNumber = 0;
+    EventTree_Iterator *eventIt = eventTree_getIterator(eventTree);
+    while((event = eventTree_getNext(eventIt)) != NULL) {
+        if(event_getChildNumber(event) == 0) {
+            if(event_isOutgroup(event)) {
+                outgroupEventNumber++;
+            }
+            else {
+                ingroupEventNumber++;
+            }
+        }
+    }
+    eventTree_destructIterator(eventIt);
+    cCIP->requiredOutgroups = outgroupEventNumber * cCIP->requiredOutgroupFraction;
+    cCIP->requiredIngroups = ingroupEventNumber * cCIP->requiredIngroupFraction;
+    cCIP->requiredAll = (ingroupEventNumber + outgroupEventNumber) * cCIP->requiredAllFraction;
+
+    st_logInfo("The number of all required sequences is %i from a fraction %i of %i\n", cCIP->requiredAll, cCIP->requiredAllFraction, outgroupEventNumber + ingroupEventNumber);
+    st_logInfo("The number of ingroup required sequences is %i from a fraction %i of %i\n", cCIP->requiredIngroups, cCIP->requiredIngroupFraction, ingroupEventNumber);
+    st_logInfo("The number of outgroup required sequences is %i from a fraction %i of %i\n", cCIP->requiredOutgroups, cCIP->requiredOutgroupFraction, outgroupEventNumber);
+
+	assert(cCIP->requiredAll >= 0 && cCIP->requiredAllFraction >= 0.0);
+	assert(cCIP->requiredIngroups >= 0 && cCIP->requiredIngroupFraction >= 0.0);
+	assert(cCIP->requiredOutgroups >= 0 && cCIP->requiredOutgroupFraction >= 0.0);
 
     ///////////////////////////////////////////////////////////////////////////
     //  Loop between adding and undoing pairwise alignments

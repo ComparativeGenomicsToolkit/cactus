@@ -59,15 +59,26 @@ void usage() {
 
     fprintf(
             stderr,
-            "-v --requiredSpecies : (array of event names) At least one of these events must be in a block for it to be included in the final graph\n");
+            "-w --alignAmbiguityCharacters : Align ambiguity characters (anything not ACTGactg) as a wildcard\n");
 
     fprintf(
             stderr,
-            "-w --alignAmbiguityCharacters : Align ambiguity characters (anything not ACTGactg) as a wildcard\n");
+            "-y --pruneOutStubAlignments : Prune out alignments of sequences that terminates in free stubs stubs\n");
 
-    fprintf(stderr, "-y --pruneOutStubAlignments : Prune out alignments of sequences that terminates in free stubs stubs\n");
+    fprintf(
+            stderr,
+            "-n --numThreads : (int > 0) Maximum number of threads to use (OpenMP compilation required)\n");
 
-    fprintf(stderr, "-n --numThreads : (int > 0) Maximum number of threads to use (OpenMP compilation required)\n");
+    fprintf(
+            stderr,
+            "-A --requiredIngroupFraction : Fraction of ingroup events required in a block.\n");
+
+    fprintf(
+            stderr,
+            "-B --requiredOutgroupFraction : Fraction of outgroup events required in a block.\n");
+
+    fprintf(stderr,
+            "-C --requiredAllFraction : Fraction of all events required in a block.\n");
 
     fprintf(stderr, "-h --help : Print this help screen\n");
 }
@@ -159,17 +170,20 @@ int main(int argc, char *argv[]) {
                 "minTraceGapDiags", required_argument, 0, 's' }, {
                 "constraintDiagonalTrim", required_argument, 0, 't' }, {
                 "minimumDegree", required_argument, 0, 'u' }, {
-                "requiredSpecies", required_argument, 0, 'v' }, {
                 "alignAmbiguityCharacters", no_argument, 0, 'w' }, {
                 "pruneOutStubAlignments", no_argument, 0, 'y' }, {
-                "numThreads", required_argument, 0, 'n' },
+                "numThreads", required_argument, 0, 'n' }, {
+                "requiredIngroupFraction", required_argument, 0, 'A' }, {
+                "requiredOutgroupFraction", required_argument, 0, 'B' }, {
+                "requiredAllFraction", required_argument, 0, 'C' },
 
         { 0, 0, 0, 0 } };
 
         int option_index = 0;
 
-        int key = getopt_long(argc, argv, "a:b:hi:j:kl:o:p:q:r:s:t:u:v:wy:n",
-                long_options, &option_index);
+        int key = getopt_long(argc, argv,
+                "a:b:hi:j:kl:o:p:q:r:s:t:u:wy:n:A:B:C:", long_options,
+                &option_index);
 
         if (key == -1) {
             break;
@@ -258,9 +272,6 @@ int main(int argc, char *argv[]) {
                 i = sscanf(optarg, "%i", &cCIP->minimumDegree);
                 assert(i == 1);
                 break;
-            case 'v':
-                parseRequiredSpeciesTree(optarg, cCIP);
-                break;
             case 'w':
                 pairwiseAlignmentBandingParameters->alignAmbiguityCharacters
                         = 1;
@@ -269,10 +280,22 @@ int main(int argc, char *argv[]) {
                 pruneOutStubAlignments = 1;
                 break;
             case 'n':
-            	i = sscanf(optarg, "%i", &numThreads);
-				assert(i == 1);
-				assert(numThreads > 0);
-            	break;
+                i = sscanf(optarg, "%i", &numThreads);
+                assert(i == 1);
+                assert(numThreads > 0);
+                break;
+            case 'A':
+                i = sscanf(optarg, "%f", &cCIP->requiredIngroupFraction);
+                assert(i == 1);
+                break;
+            case 'B':
+                i = sscanf(optarg, "%f", &cCIP->requiredOutgroupFraction);
+                assert(i == 1);
+                break;
+            case 'C':
+                i = sscanf(optarg, "%f", &cCIP->requiredAllFraction);
+                assert(i == 1);
+                break;
             default:
                 usage();
                 return 1;
@@ -285,9 +308,9 @@ int main(int argc, char *argv[]) {
     omp_set_nested(0);
     omp_set_num_threads(numThreads);
 #else
-    if (numThreads > 1)
-    {
-    	st_logCritical("numThreads option ignored because not compiled with -fopenmp");
+    if (numThreads > 1) {
+        st_logCritical(
+                "numThreads option ignored because not compiled with -fopenmp");
     }
 #endif
 

@@ -26,9 +26,16 @@ typedef struct _CactusCoreInputParameters {
     float minimumTreeCoverage;
     int32_t blockTrim;
     int32_t minimumDegree;
-    stList *listOfSetsOfRequiredSpecies; //List of sorted sets, each containing a list of required species.
-    stList *listOfRequiredSpeciesCoverages; //List of ints (as integer tuples), giving the required coverage (number of individuals) for required coverage.
-    stSortedSet *singleCopySpecies;
+
+    float requiredIngroupFraction;
+    float requiredOutgroupFraction;
+    float requiredAllFraction;
+    int32_t requiredIngroups;
+    int32_t requiredOutgroups;
+    int32_t requiredAll;
+
+    bool singleCopyIngroup;
+    bool singleCopyOutgroup;
 } CactusCoreInputParameters;
 
 int32_t cactusCorePipeline(Flower *flower, CactusCoreInputParameters *cCIP,
@@ -39,9 +46,5 @@ void destructCactusCoreInputParameters(CactusCoreInputParameters *cCIP);
 
 CactusCoreInputParameters *constructCactusCoreInputParameters();
 
-/*
- * Parse the required species argument.
- */
-void parseRequiredSpeciesTree(const char *string, CactusCoreInputParameters *cCIP);
 
 #endif

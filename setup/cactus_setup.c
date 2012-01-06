@@ -30,6 +30,9 @@ void usage() {
     fprintf(
             stderr,
             "-f --speciesTree : The species tree, which will form the skeleton of the event tree\n");
+    fprintf(
+                stderr,
+                "-g --outgroupEvents : Leaf events in the species tree identified as outgroups\n");
     fprintf(stderr, "-h --help : Print this help screen\n");
     fprintf(stderr, "-d --debug : Run some extra debug checks at the end\n");
 }
@@ -130,6 +133,7 @@ int main(int argc, char *argv[]) {
      */
     char * logLevelString = NULL;
     char * speciesTree = NULL;
+    char * outgroupEvents = NULL;
 
     ///////////////////////////////////////////////////////////////////////////
     // (0) Parse the inputs handed by genomeCactus.py / setup stuff.
@@ -144,7 +148,7 @@ int main(int argc, char *argv[]) {
 
         int option_index = 0;
 
-        key = getopt_long(argc, argv, "a:b:f:h", long_options, &option_index);
+        key = getopt_long(argc, argv, "a:b:f:hg:", long_options, &option_index);
 
         if (key == -1) {
             break;
@@ -159,6 +163,9 @@ int main(int argc, char *argv[]) {
                 break;
             case 'f':
                 speciesTree = optarg;
+                break;
+            case 'g':
+                outgroupEvents = optarg;
                 break;
             case 'h':
                 usage();
@@ -306,6 +313,28 @@ int main(int argc, char *argv[]) {
             >= 0.0);
     free(eventTreeString);
     //assert(0);
+
+    //////////////////////////////////////////////
+    //Label any outgroup events.
+    //////////////////////////////////////////////
+
+    if(outgroupEvents != NULL) {
+        stList *outgroupEventsList = stString_split(outgroupEvents);
+        for(int32_t i=0; i<stList_length(outgroupEventsList); i++) {
+            char *outgroupEvent = stList_get(outgroupEventsList, i);
+            Event *event = eventTree_getEventByHeader(eventTree, outgroupEvent);
+            if(event == NULL) {
+                st_errAbort("Got an outgroup string that does not match an event, outgroup string %s", outgroupEvent);
+            }
+            if(event_getChildNumber(event) != 0) {
+                st_errAbort("Attempting to label an internal node as an outgroup, outgroup string %s", outgroupEvent);
+            }
+            assert(!event_isOutgroup(event));
+            event_setOutgroupStatus(event, 1);
+            assert(event_isOutgroup(event));
+        }
+        stList_destruct(outgroupEventsList);
+    }
 
     //////////////////////////////////////////////
     //Construct the terminal group.

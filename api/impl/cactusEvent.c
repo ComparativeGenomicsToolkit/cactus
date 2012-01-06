@@ -24,6 +24,7 @@ Event *event_construct(Name name, const char *header, float branchLength, Event 
     event->children = constructEmptyList(0, NULL);
     event->header = stString_copy(header == NULL ? "" : header);
     event->branchLength = branchLength < 0.0 ? 0.0 : branchLength;
+    event->isOutgroup = 0;
     if (parentEvent != NULL) {
         listAppend(parentEvent->children, event);
     }
@@ -142,6 +143,14 @@ int32_t event_isDescendant(Event *event, Event *otherEvent) {
             && eventTree_getCommonAncestor(event, otherEvent) == event;
 }
 
+bool event_isOutgroup(Event *event) {
+    return event->isOutgroup;
+}
+
+void event_setOutgroupStatus(Event *event, bool isOutgroup) {
+    event->isOutgroup = isOutgroup;
+}
+
 int32_t event_isSibling(Event *event, Event *otherEvent) {
     Event *ancestorEvent;
     ancestorEvent = eventTree_getCommonAncestor(event, otherEvent);
@@ -240,6 +249,7 @@ void event_writeBinaryRepresentation(Event *event, void(*writeFn)(
     binaryRepresentation_writeName(event_getName(event), writeFn);
     binaryRepresentation_writeFloat(event_getBranchLength(event), writeFn);
     binaryRepresentation_writeString(event_getHeader(event), writeFn);
+    binaryRepresentation_writeBool(event_isOutgroup(event), writeFn);
 }
 
 Event *event_loadFromBinaryRepresentation(void **binaryString,
@@ -261,6 +271,7 @@ Event *event_loadFromBinaryRepresentation(void **binaryString,
         event
                 = event_construct(name, header, branchLength, parentEvent,
                         eventTree);
+        event_setOutgroupStatus(event, binaryRepresentation_getBool(binaryString));
         free(header);
     }
     return event;

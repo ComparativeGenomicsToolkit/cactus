@@ -66,7 +66,7 @@ void usage() {
 
     fprintf(
             stderr,
-            "-m --minimumTreeCoverage : (float [0.0, 1.0]) Minimum tree coverage proportion of an block to be included in the graph\n");
+            "-m --minimumTreeCoverage : (float [0.0, 1.0]) Minimum tree coverage proportion of a block to be included in the graph\n");
 
     fprintf(
             stderr,
@@ -78,11 +78,22 @@ void usage() {
 
     fprintf(
             stderr,
-            "-q --requiredSpecies : (array of event names) At least one of these events must be in a block for it to be included in the final graph\n");
+            "-q --requiredIngroupFraction : Fraction of ingroup events required in a block.\n");
 
     fprintf(
             stderr,
-            "-t --singleCopySpecies : (array of event names) If any of the following events contribute multiple instances to a block it will be broken up\n");
+            "-r --requiredOutgroupFraction : Fraction of outgroup events required in a block.\n");
+
+    fprintf(stderr,
+            "-u --requiredAllFraction : Fraction of all events required in a block.\n");
+
+    fprintf(
+            stderr,
+            "-s --singleCopyIngroup : Require that in-group sequences have only single coverage\n");
+
+    fprintf(
+            stderr,
+            "-t --singleCopyOutgroup : Require that out-group sequences have only single coverage\n");
 
 }
 
@@ -149,13 +160,16 @@ int main(int argc, char *argv[]) {
                         "blockTrim", required_argument, 0, 'n' }, {
                         "deannealingRounds", required_argument, 0, 'o' }, {
                         "minimumDegree", required_argument, 0, 'p' }, {
-                        "requiredSpecies", required_argument, 0, 'q' }, {
-                        "singleCopySpecies", required_argument, 0, 't' }, { 0,
-                        0, 0, 0 } };
+                        "requiredIngroupFraction", required_argument, 0, 'q' },
+                { "requiredOutgroupFraction", required_argument, 0, 'r' }, {
+                        "requiredAllFraction", required_argument, 0, 'u' }, {
+                        "singleCopyIngroup", no_argument, 0, 's' }, {
+                        "singleCopyOutgroup", no_argument, 0, 't' }, { 0, 0, 0,
+                        0 } };
 
         int option_index = 0;
 
-        key = getopt_long(argc, argv, "a:b:c:d:ehi:j:k:m:n:o:p:q:t:",
+        key = getopt_long(argc, argv, "a:b:c:d:ehi:j:k:m:n:o:p:q:r:s:t:u:",
                 long_options, &option_index);
 
         if (key == -1) {
@@ -213,10 +227,22 @@ int main(int argc, char *argv[]) {
                 assert(k == 1);
                 break;
             case 'q':
-                parseRequiredSpeciesTree(optarg, cCIP);
+                k = sscanf(optarg, "%f", &cCIP->requiredIngroupFraction);
+                assert(k == 1);
+                break;
+            case 'r':
+                k = sscanf(optarg, "%f", &cCIP->requiredOutgroupFraction);
+                assert(k == 1);
+                break;
+            case 'u':
+                k = sscanf(optarg, "%f", &cCIP->requiredAllFraction);
+                assert(k == 1);
+                break;
+            case 's':
+                cCIP->singleCopyIngroup = 1;
                 break;
             case 't':
-                cCIP->singleCopySpecies = getStringSet(optarg);
+                cCIP->singleCopyOutgroup = 1;
                 break;
             default:
                 usage();
@@ -279,6 +305,10 @@ int main(int argc, char *argv[]) {
     flower = cactusDisk_getFlower(cactusDisk,
             cactusMisc_stringToName(flowerName));
     st_logInfo("Parsed the flower to be refined\n");
+
+    ///////////////////////////////////////////////////////////////////////////
+    // Do the alignment
+    ///////////////////////////////////////////////////////////////////////////
 
     if (!flower_builtBlocks(flower)) { // Do nothing if the flower already has defined blocks
         startTime = time(NULL);

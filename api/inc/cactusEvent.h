@@ -107,6 +107,16 @@ int32_t event_isDescendant(Event *event, Event *otherEvent);
 int32_t event_isSibling(Event *event, Event *otherEvent);
 
 /*
+ * Sets if event is an outgroup.
+ */
+void event_setOutgroupStatus(Event *event, bool isOutgroup);
+
+/*
+ * Returns non-zero iff event is outgroup.
+ */
+bool event_isOutgroup(Event *event);
+
+/*
  * Checks the following:
  * Event has parent, unless it is root.
  * Each child event has event as parent.

@@ -35,7 +35,8 @@ struct CactusVertex *constructCactusVertex() {
     struct CactusVertex *cactusVertex;
 
     cactusVertex = st_malloc(sizeof(struct CactusVertex));
-    cactusVertex->edges = constructEmptyList(0, (void(*)(void *)) destructCactusEdge);
+    cactusVertex->edges = constructEmptyList(0,
+            (void(*)(void *)) destructCactusEdge);
 
     return cactusVertex;
 }
@@ -68,7 +69,8 @@ struct CactusEdge *constructCactusEdge(struct List *pieces) {
     return edge;
 }
 
-struct CactusEdge *constructCactusEdge2(struct List *pieces, struct CactusVertex *from, struct CactusVertex *to) {
+struct CactusEdge *constructCactusEdge2(struct List *pieces,
+        struct CactusVertex *from, struct CactusVertex *to) {
     struct CactusEdge *cactusEdge = constructCactusEdge(pieces);
 
     listAppend(from->edges, cactusEdge);
@@ -88,7 +90,8 @@ void destructCactusEdge(struct CactusEdge *edge) {
     free(edge);
 }
 
-struct CactusGraph *constructCactusGraph(struct PinchGraph *pinchGraph, struct List *threeEdgeConnectedComponents,
+struct CactusGraph *constructCactusGraph(struct PinchGraph *pinchGraph,
+        struct List *threeEdgeConnectedComponents,
         bool(*passThroughEdgeFn)(struct PinchEdge *)) {
     struct CactusGraph *cactusGraph;
     struct CactusEdge *cactusEdge;
@@ -104,7 +107,8 @@ struct CactusGraph *constructCactusGraph(struct PinchGraph *pinchGraph, struct L
     struct List *list2;
 
     cactusGraph = st_malloc(sizeof(struct CactusGraph));
-    cactusGraph->vertices = constructEmptyList(0, (void(*)(void *)) destructCactusVertex);
+    cactusGraph->vertices = constructEmptyList(0,
+            (void(*)(void *)) destructCactusVertex);
 
 #ifdef BEN_DEBUG
     assert(threeEdgeConnectedComponents->length > 0);
@@ -119,7 +123,8 @@ struct CactusGraph *constructCactusGraph(struct PinchGraph *pinchGraph, struct L
     assert(j == TRUE);
 #endif
 
-    pinchVertexToCactusVertex = constructEmptyList(pinchGraph->vertices->length, NULL);
+    pinchVertexToCactusVertex = constructEmptyList(
+            pinchGraph->vertices->length, NULL);
     assert(pinchVertexToCactusVertex->length == pinchGraph->vertices->length);
     for (i = 0; i < pinchVertexToCactusVertex->length; i++) {
         pinchVertexToCactusVertex->list[i] = NULL;
@@ -142,7 +147,8 @@ struct CactusGraph *constructCactusGraph(struct PinchGraph *pinchGraph, struct L
             //checks that there is only one reference to the pinch vertex in the list of vertices.
             assert(pinchVertexToCactusVertex->list[pinchVertex->vertexID] == NULL);
 #endif
-            pinchVertexToCactusVertex->list[pinchVertex->vertexID] = cactusVertex;
+            pinchVertexToCactusVertex->list[pinchVertex->vertexID]
+                    = cactusVertex;
         }
     }
 
@@ -166,18 +172,22 @@ struct CactusGraph *constructCactusGraph(struct PinchGraph *pinchGraph, struct L
                 pinchEdge = getFirstBlackEdge(pinchVertex);
                 if (!passThroughEdgeFn(pinchEdge)) {
                     pinchVertex2 = pinchEdge->to;
-                    cactusVertex2 = pinchVertexToCactusVertex->list[pinchVertex2->vertexID];
+                    cactusVertex2
+                            = pinchVertexToCactusVertex->list[pinchVertex2->vertexID];
 
                     if (pinchVertex->vertexID < pinchVertex2->vertexID) {
                         //getting the ordered pieces.
                         list2 = constructEmptyList(0, NULL);
-                        void *blackEdgeIterator = getBlackEdgeIterator(pinchVertex);
-                        while ((pinchEdge = getNextBlackEdge(pinchVertex, blackEdgeIterator)) != NULL) {
+                        void *blackEdgeIterator = getBlackEdgeIterator(
+                                pinchVertex);
+                        while ((pinchEdge = getNextBlackEdge(pinchVertex,
+                                blackEdgeIterator)) != NULL) {
                             listAppend(list2, pinchEdge->piece);
                         }
                         destructBlackEdgeIterator(blackEdgeIterator);
 
-                        cactusEdge = constructCactusEdge2(list2, cactusVertex, cactusVertex2);
+                        cactusEdge = constructCactusEdge2(list2, cactusVertex,
+                                cactusVertex2);
                         destructList(list2);
                     }
                 }
@@ -236,7 +246,8 @@ int32_t cactusGraph_getEdgeNumber(struct CactusGraph *cactusGraph) {
     return k / 2;
 }
 
-void checkCactusGraph(struct PinchGraph *pinchGraph, struct List *threeEdgeConnectedComponents,
+void checkCactusGraph(struct PinchGraph *pinchGraph,
+        struct List *threeEdgeConnectedComponents,
         struct CactusGraph *cactusGraph) {
     assert(pinchGraph != NULL);
     assert(threeEdgeConnectedComponents != NULL);
@@ -422,7 +433,8 @@ void checkCactusGraph(struct PinchGraph *pinchGraph, struct List *threeEdgeConne
 #endif
 }
 
-void checkCactusContainsOnly2EdgeConnectedComponents(struct CactusGraph *cactusGraph) {
+void checkCactusContainsOnly2EdgeConnectedComponents(
+        struct CactusGraph *cactusGraph) {
     assert(cactusGraph != NULL);
 #ifdef BEN_ULTRA_DEBUG
     struct CactusEdge *edge;
@@ -488,8 +500,9 @@ void checkCactusContainsOnly2EdgeConnectedComponents(struct CactusGraph *cactusG
 ////////////////////////////////////////////////
 ////////////////////////////////////////////////
 
-void computeBiConnectedComponents_P(struct hashtable *flag, int32_t count, int32_t *dFN, int32_t *low,
-        struct List *stack, int32_t *father, struct List *biConnnectedComponents, struct CactusVertex *v) {
+void computeBiConnectedComponents_P(struct hashtable *flag, int32_t count,
+        int32_t *dFN, int32_t *low, struct List *stack, int32_t *father,
+        struct List *biConnnectedComponents, struct CactusVertex *v) {
     int32_t i;
     struct CactusVertex *w;
     struct CactusEdge *edge;
@@ -524,7 +537,8 @@ void computeBiConnectedComponents_P(struct hashtable *flag, int32_t count, int32
 
         if (hashtable_search(flag, w) == NULL) {
             father[w->vertexID] = v->vertexID;
-            computeBiConnectedComponents_P(flag, count, dFN, low, stack, father, biConnnectedComponents, w);
+            computeBiConnectedComponents_P(flag, count, dFN, low, stack,
+                    father, biConnnectedComponents, w);
             if (low[w->vertexID] >= dFN[v->vertexID]) { //is articulation point
                 list = constructEmptyList(0, NULL);
                 while (stack->length > 0) {
@@ -535,10 +549,14 @@ void computeBiConnectedComponents_P(struct hashtable *flag, int32_t count, int32
                 }
                 listAppend(biConnnectedComponents, list);
             }
-            low[v->vertexID] = low[v->vertexID] < low[w->vertexID] ? low[v->vertexID] : low[w->vertexID];
+            low[v->vertexID]
+                    = low[v->vertexID] < low[w->vertexID] ? low[v->vertexID]
+                            : low[w->vertexID];
         } else {
             if (w->vertexID != father[v->vertexID]) {
-                low[v->vertexID] = low[v->vertexID] < dFN[w->vertexID] ? low[v->vertexID] : dFN[w->vertexID];
+                low[v->vertexID]
+                        = low[v->vertexID] < dFN[w->vertexID] ? low[v->vertexID]
+                                : dFN[w->vertexID];
             }
         }
     }
@@ -560,7 +578,8 @@ struct List *computeBiConnectedComponents(struct CactusGraph *cactusGraph) {
     struct List *biConnectedComponents;
     int32_t i;
 
-    flag = create_hashtable(cactusGraph->vertices->length * 10, hashtable_key, hashtable_equalKey, NULL, NULL);
+    flag = create_hashtable(cactusGraph->vertices->length * 10, hashtable_key,
+            hashtable_equalKey, NULL, NULL);
     count = 0;
     dFN = st_malloc(sizeof(int32_t) * cactusGraph->vertices->length);
     low = st_malloc(sizeof(int32_t) * cactusGraph->vertices->length);
@@ -571,10 +590,11 @@ struct List *computeBiConnectedComponents(struct CactusGraph *cactusGraph) {
         father[i] = -1;
     }
     stack = constructEmptyList(0, NULL);
-    biConnectedComponents = constructEmptyList(0, (void(*)(void *)) destructList);
+    biConnectedComponents = constructEmptyList(0,
+            (void(*)(void *)) destructList);
 
-    computeBiConnectedComponents_P(flag, count, dFN, low, stack, father, biConnectedComponents,
-            cactusGraph->vertices->list[0]);
+    computeBiConnectedComponents_P(flag, count, dFN, low, stack, father,
+            biConnectedComponents, cactusGraph->vertices->list[0]);
 
     hashtable_destroy(flag, FALSE, FALSE);
     free(dFN);
@@ -586,7 +606,8 @@ struct List *computeBiConnectedComponents(struct CactusGraph *cactusGraph) {
 
 int32_t *sortBiConnectedComponents_vertexOrdering;
 
-int sortBiConnectedComponentsP(struct CactusEdge **edge, struct CactusEdge **edge2) {
+int sortBiConnectedComponentsP(struct CactusEdge **edge,
+        struct CactusEdge **edge2) {
     return sortBiConnectedComponents_vertexOrdering[(*edge)->from->vertexID]
             - sortBiConnectedComponents_vertexOrdering[(*edge2)->from->vertexID];
 }
@@ -607,12 +628,14 @@ struct List *computeSortedBiConnectedComponents(struct CactusGraph *cactusGraph)
     //(1) Get bi-connected components.
     ////////////////////////////////////////////////
     biConnectedComponents = computeBiConnectedComponents(cactusGraph);
-    st_logDebug("Constructed the biconnected components for making the flower\n");
+    st_logDebug(
+            "Constructed the biconnected components for making the flower\n");
 
     ////////////////////////////////////////////////
     //(1) Get DFS ordering on nodes
     ////////////////////////////////////////////////
-    sortBiConnectedComponents_vertexOrdering = getDFSDiscoveryTimes(cactusGraph);
+    sortBiConnectedComponents_vertexOrdering
+            = getDFSDiscoveryTimes(cactusGraph);
     st_logDebug("Got the DFS discovery times\n");
 
     ////////////////////////////////////////////////
@@ -620,7 +643,10 @@ struct List *computeSortedBiConnectedComponents(struct CactusGraph *cactusGraph)
     ////////////////////////////////////////////////
     for (i = 0; i < biConnectedComponents->length; i++) {
         biConnectedComponent = biConnectedComponents->list[i];
-        qsort(biConnectedComponent->list, biConnectedComponent->length, sizeof(void *),
+        qsort(
+                biConnectedComponent->list,
+                biConnectedComponent->length,
+                sizeof(void *),
                 (int(*)(const void *v, const void *)) sortBiConnectedComponentsP);
 #ifdef BEN_ULTRA_DEBUG
         edge = biConnectedComponent->list[0];
@@ -655,8 +681,8 @@ struct List *computeSortedBiConnectedComponents(struct CactusGraph *cactusGraph)
 ////////////////////////////////////////////////
 ////////////////////////////////////////////////
 
-int32_t getDFSDiscoveryTimesP(struct CactusGraph *cactusGraph, struct CactusVertex *vertex, int32_t counter,
-        int32_t *vertexOrdering) {
+int32_t getDFSDiscoveryTimesP(struct CactusGraph *cactusGraph,
+        struct CactusVertex *vertex, int32_t counter, int32_t *vertexOrdering) {
     int32_t i;
     struct CactusEdge *edge;
 
@@ -665,7 +691,8 @@ int32_t getDFSDiscoveryTimesP(struct CactusGraph *cactusGraph, struct CactusVert
     for (i = 0; i < vertex->edges->length; i++) {
         edge = vertex->edges->list[i];
         if (vertexOrdering[edge->to->vertexID] == -1) {
-            counter = getDFSDiscoveryTimesP(cactusGraph, edge->to, counter, vertexOrdering);
+            counter = getDFSDiscoveryTimesP(cactusGraph, edge->to, counter,
+                    vertexOrdering);
         }
     }
     return counter;
@@ -680,7 +707,8 @@ int32_t *getDFSDiscoveryTimes(struct CactusGraph *cactusGraph) {
         vertexOrdering[i] = -1;
     }
 
-    getDFSDiscoveryTimesP(cactusGraph, cactusGraph->vertices->list[0], 0, vertexOrdering);
+    getDFSDiscoveryTimesP(cactusGraph, cactusGraph->vertices->list[0], 0,
+            vertexOrdering);
 
     for (i = 0; i < cactusGraph->vertices->length; i++) {
         assert(vertexOrdering[i] >= 0);
@@ -699,7 +727,8 @@ int32_t *getDFSDiscoveryTimes(struct CactusGraph *cactusGraph) {
 ////////////////////////////////////////////////
 ////////////////////////////////////////////////
 
-struct List *readThreeEdgeComponents(struct PinchGraph *pinchGraph, stList *adjacencyComponents,
+struct List *readThreeEdgeComponents(struct PinchGraph *pinchGraph,
+        stList *adjacencyComponents,
         stList *threeEdgeConnectedAdjacencyComponents) {
     /*
      * Reads in the three edge connected components written out by the three
@@ -711,16 +740,25 @@ struct List *readThreeEdgeComponents(struct PinchGraph *pinchGraph, stList *adja
 #ifdef BEN_DEBUG
     int32_t l = 0;
 #endif
-    struct List *threeEdgeConnectedComponents = constructEmptyList(0, (void(*)(void *)) destructList);
+    struct List *threeEdgeConnectedComponents = constructEmptyList(0,
+            (void(*)(void *)) destructList);
     for (i = 0; i < stList_length(threeEdgeConnectedAdjacencyComponents); i++) {
-        stList *threeEdgeConnectedAdjacencyComponent = stList_get(threeEdgeConnectedAdjacencyComponents, i);
+        stList *threeEdgeConnectedAdjacencyComponent = stList_get(
+                threeEdgeConnectedAdjacencyComponents, i);
         struct List *threeEdgeConnectedComponent = constructEmptyList(0, NULL);
         listAppend(threeEdgeConnectedComponents, threeEdgeConnectedComponent);
         for (j = 0; j < stList_length(threeEdgeConnectedAdjacencyComponent); j++) {
-            stSortedSet *adjacencyComponent = stList_get(adjacencyComponents,
-                    stIntTuple_getPosition(stList_get(threeEdgeConnectedAdjacencyComponent, j), 0));
+            stSortedSet
+                    *adjacencyComponent =
+                            stList_get(
+                                    adjacencyComponents,
+                                    stIntTuple_getPosition(
+                                            stList_get(
+                                                    threeEdgeConnectedAdjacencyComponent,
+                                                    j), 0));
             assert(adjacencyComponent != NULL);
-            stSortedSetIterator *it = stSortedSet_getIterator(adjacencyComponent);
+            stSortedSetIterator *it = stSortedSet_getIterator(
+                    adjacencyComponent);
             while ((vertex = stSortedSet_getNext(it)) != NULL) {
                 listAppend(threeEdgeConnectedComponent, vertex);
 #ifdef BEN_DEBUG
@@ -735,7 +773,8 @@ struct List *readThreeEdgeComponents(struct PinchGraph *pinchGraph, stList *adja
     int32_t k = FALSE;
 #endif
     for (i = 0; i < threeEdgeConnectedComponents->length; i++) {
-        struct List *threeEdgeConnectedComponent = threeEdgeConnectedComponents->list[i];
+        struct List *threeEdgeConnectedComponent =
+                threeEdgeConnectedComponents->list[i];
         for (j = 0; j < threeEdgeConnectedComponent->length; j++) {
             vertex = threeEdgeConnectedComponent->list[j];
             if (vertex->vertexID == 0) {
@@ -744,7 +783,8 @@ struct List *readThreeEdgeComponents(struct PinchGraph *pinchGraph, stList *adja
                 k = TRUE;
 #endif
                 struct List *list3 = threeEdgeConnectedComponents->list[0];
-                threeEdgeConnectedComponents->list[0] = threeEdgeConnectedComponent;
+                threeEdgeConnectedComponents->list[0]
+                        = threeEdgeConnectedComponent;
                 threeEdgeConnectedComponents->list[i] = list3;
             }
         }
@@ -756,7 +796,8 @@ struct List *readThreeEdgeComponents(struct PinchGraph *pinchGraph, stList *adja
     return threeEdgeConnectedComponents;
 }
 
-void writeOutCactusGraph(struct CactusGraph *cactusGraph, struct PinchGraph *pinchGraph, FILE *fileHandle) {
+void writeOutCactusGraph(struct CactusGraph *cactusGraph,
+        struct PinchGraph *pinchGraph, FILE *fileHandle) {
     assert(pinchGraph != NULL);
     /*
      * Writes out a graph in 'dot' format, compatible with graphviz.
@@ -778,7 +819,8 @@ void writeOutCactusGraph(struct CactusGraph *cactusGraph, struct PinchGraph *pin
 #ifdef BEN_DEBUG
         assert(vertex->vertexID == i);
 #endif
-        fprintf(fileHandle, "n" INT_STRING "n [label=\"" INT_STRING "\"];\n", vertex->vertexID, vertex->vertexID);
+        fprintf(fileHandle, "n" INT_STRING "n [label=\"" INT_STRING "\"];\n",
+                vertex->vertexID, vertex->vertexID);
     }
 
     fprintf(fileHandle, "edge[color=black,len=2.5,weight=100,dir=forward];\n");
@@ -790,7 +832,8 @@ void writeOutCactusGraph(struct CactusGraph *cactusGraph, struct PinchGraph *pin
             assert(edge != edge->rEdge);
 #endif
             if (edge > edge->rEdge) {
-                fprintf(fileHandle, "n" INT_STRING "n -- n" INT_STRING "n;\n", edge->from->vertexID, edge->to->vertexID);
+                fprintf(fileHandle, "n" INT_STRING "n -- n" INT_STRING "n;\n",
+                        edge->from->vertexID, edge->to->vertexID);
             }
         }
     }
@@ -806,23 +849,28 @@ void writeOutCactusGraph(struct CactusGraph *cactusGraph, struct PinchGraph *pin
 ////////////////////////////////////////////////
 
 
-struct CactusGraph *computeCactusGraph(struct PinchGraph *pinchGraph, bool(*passThroughEdgeFn)(struct PinchEdge *)) {
+struct CactusGraph *computeCactusGraph(struct PinchGraph *pinchGraph,
+        bool(*passThroughEdgeFn)(struct PinchEdge *)) {
     ///////////////////////////////////////////////////////////////////////////
     // Run the three-edge connected component algorithm to identify
     // three edge connected components.
     ///////////////////////////////////////////////////////////////////////////
 
-    stList *adjacencyComponents = getAdjacencyComponents2(pinchGraph, passThroughEdgeFn);
-    stHash *vertexToAdjacencyComponentHash = getVertexToAdjacencyComponentHash(pinchGraph, adjacencyComponents);
-    stList *adjacencyComponentGraph = getAdjacencyComponentGraph(pinchGraph, adjacencyComponents,
-            vertexToAdjacencyComponentHash);
+    stList *adjacencyComponents = getAdjacencyComponents2(pinchGraph,
+            passThroughEdgeFn);
+    stHash *vertexToAdjacencyComponentHash = getVertexToAdjacencyComponentHash(
+            pinchGraph, adjacencyComponents);
+    stList *adjacencyComponentGraph = getAdjacencyComponentGraph(pinchGraph,
+            adjacencyComponents, vertexToAdjacencyComponentHash);
 
-    stList *threeEdgeConnectedAdjacencyComponents = computeThreeEdgeConnectedComponents(adjacencyComponentGraph);
+    stList *threeEdgeConnectedAdjacencyComponents =
+            computeThreeEdgeConnectedComponents(adjacencyComponentGraph);
     st_logInfo("Seems to have successfully run the three edge command: %i\n",
             stList_length(threeEdgeConnectedAdjacencyComponents));
 
     //Parse results (the three edge connected components).
-    struct List *threeEdgeConnectedComponents = readThreeEdgeComponents(pinchGraph, adjacencyComponents,
+    struct List *threeEdgeConnectedComponents = readThreeEdgeComponents(
+            pinchGraph, adjacencyComponents,
             threeEdgeConnectedAdjacencyComponents);
     st_logInfo("Read in the three edge components\n");
 
@@ -838,7 +886,8 @@ struct CactusGraph *computeCactusGraph(struct PinchGraph *pinchGraph, bool(*pass
     ///////////////////////////////////////////////////////////////////////////
 
     //Collapse the graph to cactus tree
-    struct CactusGraph *cactusGraph = constructCactusGraph(pinchGraph, threeEdgeConnectedComponents, passThroughEdgeFn);
+    struct CactusGraph *cactusGraph = constructCactusGraph(pinchGraph,
+            threeEdgeConnectedComponents, passThroughEdgeFn);
     checkCactusGraph(pinchGraph, threeEdgeConnectedComponents, cactusGraph);
 
     //Cleanup
@@ -856,7 +905,8 @@ struct CactusGraph *computeCactusGraph(struct PinchGraph *pinchGraph, bool(*pass
 ////////////////////////////////////////////////
 ////////////////////////////////////////////////
 
-void cactusVertex_merge(struct CactusGraph *cactusGraph, struct CactusVertex *one, struct CactusVertex *two) {
+void cactusVertex_merge(struct CactusGraph *cactusGraph,
+        struct CactusVertex *one, struct CactusVertex *two) {
     /*
      * Merges two into one, destroying two and adding to one.
      */
@@ -875,7 +925,8 @@ void cactusVertex_merge(struct CactusGraph *cactusGraph, struct CactusVertex *on
         listAppend(one->edges, edge);
     }
     //switch the vertex id's of the highest cactus vertex and two.
-    struct CactusVertex *three = cactusGraph->vertices->list[cactusGraph->vertices->length - 1];
+    struct CactusVertex *three =
+            cactusGraph->vertices->list[cactusGraph->vertices->length - 1];
     assert(three->vertexID == cactusGraph->vertices->length - 1);
     three->vertexID = two->vertexID;
     assert(cactusGraph->vertices->list[two->vertexID] == two);
@@ -886,9 +937,11 @@ void cactusVertex_merge(struct CactusGraph *cactusGraph, struct CactusVertex *on
     destructCactusVertex(two);
 }
 
-static void circulariseStemsP(struct CactusGraph *cactusGraph, struct CactusEdge *edge,
-        struct CactusVertex *sourceVertex, struct hashtable *stemHash, struct hashtable *seen,
-        struct List *verticesToMerge, struct PinchGraph *pinchGraph, Flower *flower) {
+static void circulariseStemsP(struct CactusGraph *cactusGraph,
+        struct CactusEdge *edge, struct CactusVertex *sourceVertex,
+        struct hashtable *stemHash, struct hashtable *seen,
+        struct List *verticesToMerge, struct PinchGraph *pinchGraph,
+        Flower *flower) {
     int32_t i, j;
     struct CactusEdge *edge2;
 
@@ -923,12 +976,14 @@ static void circulariseStemsP(struct CactusGraph *cactusGraph, struct CactusEdge
         }
         for (i = 0; i < edge->to->edges->length; i++) { //call recursively.
             edge2 = edge->to->edges->list[i];
-            circulariseStemsP(cactusGraph, edge2, sourceVertex, stemHash, seen, verticesToMerge, pinchGraph, flower);
+            circulariseStemsP(cactusGraph, edge2, sourceVertex, stemHash, seen,
+                    verticesToMerge, pinchGraph, flower);
         }
     }
 }
 
-void circulariseStems(struct CactusGraph *cactusGraph, struct PinchGraph *pinchGraph, Flower *flower) {
+void circulariseStems(struct CactusGraph *cactusGraph,
+        struct PinchGraph *pinchGraph, Flower *flower) {
     struct List *biConnectedComponent;
     struct List *biConnectedComponents;
     struct hashtable *stemHash;
@@ -944,13 +999,15 @@ void circulariseStems(struct CactusGraph *cactusGraph, struct PinchGraph *pinchG
     //(1) Get bi-connected components.
     ////////////////////////////////////////////////
     biConnectedComponents = computeBiConnectedComponents(cactusGraph);
-    st_logDebug("Constructed the biconnected components for making the flower\n");
+    st_logDebug(
+            "Constructed the biconnected components for making the flower\n");
 
     ////////////////////////////////////////////////
     //(2) Put stems in a hash
     ////////////////////////////////////////////////
 
-    stemHash = create_hashtable(cactusGraph->vertices->length * 2, hashtable_key, hashtable_equalKey, NULL, NULL);
+    stemHash = create_hashtable(cactusGraph->vertices->length * 2,
+            hashtable_key, hashtable_equalKey, NULL, NULL);
     for (i = 0; i < biConnectedComponents->length; i++) {
         biConnectedComponent = biConnectedComponents->list[i];
         if (biConnectedComponent->length == 1) {
@@ -969,13 +1026,14 @@ void circulariseStems(struct CactusGraph *cactusGraph, struct PinchGraph *pinchG
     //(3) Do DFS on graph to find vertex merges that we wish to make
     ////////////////////////////////////////////////
 
-    seen = create_hashtable(cactusGraph->vertices->length * 2, hashtable_key, hashtable_equalKey, NULL, NULL);
+    seen = create_hashtable(cactusGraph->vertices->length * 2, hashtable_key,
+            hashtable_equalKey, NULL, NULL);
     vertex = cactusGraph->vertices->list[0];
     hashtable_insert(seen, vertex, vertex);
     cactusGraphMerges = constructEmptyList(0, NULL);
     for (i = 0; i < vertex->edges->length; i++) {
-        circulariseStemsP(cactusGraph, vertex->edges->list[i], vertex, stemHash, seen, cactusGraphMerges, pinchGraph,
-                flower);
+        circulariseStemsP(cactusGraph, vertex->edges->list[i], vertex,
+                stemHash, seen, cactusGraphMerges, pinchGraph, flower);
     }
     st_logDebug("Done the DFS\n");
 
@@ -986,9 +1044,11 @@ void circulariseStems(struct CactusGraph *cactusGraph, struct PinchGraph *pinchG
     assert(hashtable_count(seen) == cactusGraph->vertices->length);
     assert((cactusGraphMerges->length % 2) == 0);
     while (cactusGraphMerges->length > 0) {
-        struct CactusVertex *stemVertex = cactusGraphMerges->list[--cactusGraphMerges->length];
+        struct CactusVertex *stemVertex =
+                cactusGraphMerges->list[--cactusGraphMerges->length];
         assert(cactusGraphMerges->length > 0);
-        struct CactusVertex *sourceVertex = cactusGraphMerges->list[--cactusGraphMerges->length];
+        struct CactusVertex *sourceVertex =
+                cactusGraphMerges->list[--cactusGraphMerges->length];
 #ifdef BEN_DEBUG
         assert(cactusGraph->vertices->list[sourceVertex->vertexID] == sourceVertex);
         assert(cactusGraph->vertices->list[stemVertex->vertexID] == stemVertex);
@@ -1006,7 +1066,8 @@ void circulariseStems(struct CactusGraph *cactusGraph, struct PinchGraph *pinchG
         vertex = cactusGraph->vertices->list[i];
         for (int32_t j = 0; j < vertex->edges->length; j++) {
             edge = vertex->edges->list[j];
-            if (edge->from != edge->to && isAFreeStubCactusEdge(edge, pinchGraph, flower)) {
+            if (edge->from != edge->to && isAFreeStubCactusEdge(edge,
+                    pinchGraph, flower)) {
                 cactusVertex_merge(cactusGraph, edge->from, edge->to);
             }
         }
@@ -1050,91 +1111,100 @@ void circulariseStems(struct CactusGraph *cactusGraph, struct PinchGraph *pinchG
 ////////////////////////////////////////////////
 
 
-float treeCoverage2(struct CactusEdge *cactusEdge, Flower *flower, struct PinchGraph *pinchGraph) {
+float treeCoverage2(struct CactusEdge *cactusEdge, Flower *flower,
+        struct PinchGraph *pinchGraph) {
     /*
      * Returns the proportion of the tree covered by the block.
      */
 #ifdef BEN_DEBUG
     assert(!isAStubCactusEdge(cactusEdge, pinchGraph));
 #endif
-    return treeCoverage(cactusEdgeToFirstPinchEdge(cactusEdge, pinchGraph)->from, flower);
+    return treeCoverage(
+            cactusEdgeToFirstPinchEdge(cactusEdge, pinchGraph)->from, flower);
 }
 
-stSortedSet *getEventStrings(struct PinchVertex *vertex, Flower *flower) {
+stList *getEvents(struct CactusEdge *cactusEdge, Flower *flower,
+        struct PinchGraph *pinchGraph) {
+#ifdef BEN_DEBUG
+    assert(!isAStubCactusEdge(cactusEdge, pinchGraph));
+#endif
+    struct PinchVertex *vertex = cactusEdgeToFirstPinchEdge(cactusEdge,
+            pinchGraph)->from;
+    stList *events = stList_construct();
     void *blackEdgeIterator = getBlackEdgeIterator(vertex);
     struct PinchEdge *edge;
-    stSortedSet *eventStrings = stSortedSet_construct3((int(*)(const void *, const void *)) strcmp, free);
     while ((edge = getNextBlackEdge(vertex, blackEdgeIterator)) != NULL) {
         struct Piece *piece = edge->piece;
         Sequence *sequence = flower_getSequence(flower, piece->contig);
         assert(sequence != NULL);
         Event *event = sequence_getEvent(sequence);
         assert(event != NULL);
-        if (stSortedSet_search(eventStrings, (void *) event_getHeader(event)) == NULL) {
-            stSortedSet_insert(eventStrings, stString_copy(event_getHeader(event)));
-        }
+        stList_append(events, event);
     }
     destructBlackEdgeIterator(blackEdgeIterator);
-    return eventStrings;
+    return events;
 }
 
-static bool containsRequiredSpecies(struct CactusEdge *cactusEdge, Flower *flower, struct PinchGraph *pinchGraph,
-        stList *listOfSetsOfRequiredSpecies, /* A block's segments must have an event with at least coverage (given for each set individually) number of elements in each of these set (unless it is NULL) */
-        stList *listOfRequiredSpeciesCoverages) {
+static bool containsRequiredSpecies(struct CactusEdge *cactusEdge,
+        Flower *flower, struct PinchGraph *pinchGraph,
+        int32_t requiredIngroupSpecies, int32_t requiredOutgroupSpecies, int32_t requiredAllSpecies) {
     /*
-     * Returns the proportion of the tree covered by the block.
+     * Returns non-zero iff the block contains at least minimum proportions of in and outgroup species.
      */
-#ifdef BEN_DEBUG
-    assert(!isAStubCactusEdge(cactusEdge, pinchGraph));
-#endif
-    stSortedSet *eventStrings = getEventStrings(cactusEdgeToFirstPinchEdge(cactusEdge, pinchGraph)->from, flower);
-    for(int32_t i=0; i<stList_length(listOfRequiredSpeciesCoverages); i++) {
-        int32_t coverage = stIntTuple_getPosition(stList_get(listOfRequiredSpeciesCoverages, i), 0);
-        assert(coverage > 0);
-        stSortedSet *requiredSpecies = stList_get(listOfSetsOfRequiredSpecies, i);
-        stSortedSet *commonEvents = stSortedSet_getIntersection(requiredSpecies, eventStrings);
-        if(stSortedSet_size(commonEvents) < coverage) {
-            stSortedSet_destruct(commonEvents);
-            stSortedSet_destruct(eventStrings);
-            return 0;
+    stList *events = getEvents(cactusEdge, flower, pinchGraph);
+    int32_t outgroupSequences = 0;
+    int32_t ingroupSequences = 0;
+    while (stList_length(events) > 0) {
+        Event *event = stList_pop(events);
+        if (event_isOutgroup(event)) {
+            outgroupSequences++;
+        } else {
+            ingroupSequences++;
         }
-        stSortedSet_destruct(commonEvents);
     }
-    stSortedSet_destruct(eventStrings);
-    return 1;
+    stList_destruct(events);
+    return ingroupSequences >= requiredIngroupSpecies && outgroupSequences
+            >= requiredOutgroupSpecies && outgroupSequences + ingroupSequences >= requiredAllSpecies;
 }
 
-static bool containsMultipleCopiesOfSpecies(struct CactusEdge *cactusEdge, Flower *flower,
-        struct PinchGraph *pinchGraph, stSortedSet *singleCopySpecies) {
+static bool containsMultipleCopiesOfSpecies(struct CactusEdge *cactusEdge,
+        Flower *flower, struct PinchGraph *pinchGraph,
+        bool singleCopyIngroupSpecies, bool singleCopyOutgroupSpecies) {
     /*
      * Returns 1 iff the edge contains more than copy of any of the given sequences.
      */
-    struct PinchVertex *vertex = cactusEdgeToFirstPinchEdge(cactusEdge, pinchGraph)->from;
-    void *blackEdgeIterator = getBlackEdgeIterator(vertex);
-    struct PinchEdge *edge;
-    stSortedSet *eventStrings = stSortedSet_construct3((int(*)(const void *, const void *)) strcmp, free);
+    stList *events = getEvents(cactusEdge, flower, pinchGraph);
+    stSortedSet *ingroupEvents = stSortedSet_construct();
+    stSortedSet *outgroupEvents = stSortedSet_construct();
     bool b = 0;
-    while ((edge = getNextBlackEdge(vertex, blackEdgeIterator)) != NULL) {
-        struct Piece *piece = edge->piece;
-        Sequence *sequence = flower_getSequence(flower, piece->contig);
-        assert(sequence != NULL);
-        Event *event = sequence_getEvent(sequence);
-        assert(event != NULL);
-        if (stSortedSet_search(singleCopySpecies, (void *) event_getHeader(event)) != NULL) {
-            if (stSortedSet_search(eventStrings, (void *) event_getHeader(event)) == NULL) {
-                stSortedSet_insert(eventStrings, stString_copy(event_getHeader(event)));
-            } else {
-               b = 1;
-               break;
+    while (stList_length(events) > 0) {
+        Event *event = stList_pop(events);
+        if (event_isOutgroup(event)) {
+            if (singleCopyOutgroupSpecies) {
+                if (stSortedSet_search(outgroupEvents, event) != NULL) {
+                    b = 1;
+                    break;
+                }
+                stSortedSet_insert(outgroupEvents, event);
+            }
+        } else {
+            if (singleCopyIngroupSpecies) {
+                if (stSortedSet_search(ingroupEvents, event) != NULL) {
+                    b = 1;
+                    break;
+                }
+                stSortedSet_insert(ingroupEvents, event);
             }
         }
     }
-    destructBlackEdgeIterator(blackEdgeIterator);
-    stSortedSet_destruct(eventStrings);
+    stList_destruct(events);
+    stSortedSet_destruct(ingroupEvents);
+    stSortedSet_destruct(outgroupEvents);
     return b;
 }
 
-int32_t chainLength(struct List *biConnectedComponent, int32_t includeStubs, struct PinchGraph *pinchGraph) {
+int32_t chainLength(struct List *biConnectedComponent, int32_t includeStubs,
+        struct PinchGraph *pinchGraph) {
     /*
      * Get the number of links in the chain.
      */
@@ -1150,29 +1220,34 @@ int32_t chainLength(struct List *biConnectedComponent, int32_t includeStubs, str
     return i;
 }
 
-int32_t maxChainDegreeOfNonStubBlocks(struct List *biConnectedComponent, struct PinchGraph *pinchGraph) {
+int32_t maxChainDegreeOfNonStubBlocks(struct List *biConnectedComponent,
+        struct PinchGraph *pinchGraph) {
     int32_t i = 0;
     for (int32_t j = 0; j < biConnectedComponent->length; j++) {
         struct CactusEdge *cactusEdge = biConnectedComponent->list[j];
-        if (!isAStubCactusEdge(cactusEdge, pinchGraph) && cactusEdge->pieces->length > i) {
+        if (!isAStubCactusEdge(cactusEdge, pinchGraph)
+                && cactusEdge->pieces->length > i) {
             i = cactusEdge->pieces->length;
         }
     }
     return i;
 }
 
-int32_t minChainDegreeOfNonStubBlocks(struct List *biConnectedComponent, struct PinchGraph *pinchGraph) {
+int32_t minChainDegreeOfNonStubBlocks(struct List *biConnectedComponent,
+        struct PinchGraph *pinchGraph) {
     int32_t i = INT32_MAX;
     for (int32_t j = 0; j < biConnectedComponent->length; j++) {
         struct CactusEdge *cactusEdge = biConnectedComponent->list[j];
-        if (!isAStubCactusEdge(cactusEdge, pinchGraph) && cactusEdge->pieces->length < i) {
+        if (!isAStubCactusEdge(cactusEdge, pinchGraph)
+                && cactusEdge->pieces->length < i) {
             i = cactusEdge->pieces->length;
         }
     }
     return i;
 }
 
-int32_t chainBaseLength(struct List *biConnectedComponent, struct PinchGraph *pinchGraph) {
+int32_t chainBaseLength(struct List *biConnectedComponent,
+        struct PinchGraph *pinchGraph) {
     int64_t i, j;
     struct CactusEdge *cactusEdge;
     struct Piece *piece;
@@ -1182,33 +1257,39 @@ int32_t chainBaseLength(struct List *biConnectedComponent, struct PinchGraph *pi
         cactusEdge = biConnectedComponent->list[j];
         if (!isAStubCactusEdge(cactusEdge, pinchGraph)) {
             piece = cactusEdge->pieces->list[0];
-            assert(((int64_t)piece->end) - ((int64_t)piece->start) + 1 > 0);
-            i += ((int64_t)piece->end) - ((int64_t)piece->start) + 1;
+            assert(((int64_t) piece->end) - ((int64_t) piece->start) + 1 > 0);
+            i += ((int64_t) piece->end) - ((int64_t) piece->start) + 1;
         }
     }
     assert(i >= 0);
     assert(i <= INT32_MAX);
-    return (int32_t)i;
+    return (int32_t) i;
 }
 
-bool chainExtendsParentChain(struct List *biConnectedComponent, struct PinchGraph *pinchGraph, Flower *flower) {
+bool chainExtendsParentChain(struct List *biConnectedComponent,
+        struct PinchGraph *pinchGraph, Flower *flower) {
     assert(biConnectedComponent->length > 0);
     /*
      * Returns true if the biconnected component is extending a parent chain.
      */
-    bool b = isAStubCactusEdge(biConnectedComponent->list[0], pinchGraph) &&
-            !isAFreeStubCactusEdge(biConnectedComponent->list[0], pinchGraph, flower) &&
-            isAStubCactusEdge(biConnectedComponent->list[biConnectedComponent->length-1], pinchGraph) &&
-            !isAFreeStubCactusEdge(biConnectedComponent->list[biConnectedComponent->length-1], pinchGraph, flower);
+    bool b = isAStubCactusEdge(biConnectedComponent->list[0], pinchGraph)
+            && !isAFreeStubCactusEdge(biConnectedComponent->list[0],
+                    pinchGraph, flower) && isAStubCactusEdge(
+            biConnectedComponent->list[biConnectedComponent->length - 1],
+            pinchGraph) && !isAFreeStubCactusEdge(
+            biConnectedComponent->list[biConnectedComponent->length - 1],
+            pinchGraph, flower);
     return b && flower_hasParentGroup(flower);
 }
 
-stSortedSet *getPinchVerticesSet(stSortedSet *cactusEdges, struct PinchGraph *pinchGraph) {
+stSortedSet *getPinchVerticesSet(stSortedSet *cactusEdges,
+        struct PinchGraph *pinchGraph) {
     stSortedSet *pinchVerticesSet = stSortedSet_construct();
     stSortedSetIterator *it = stSortedSet_getIterator(cactusEdges);
     struct CactusEdge *edge;
     while ((edge = stSortedSet_getNext(it)) != NULL) {
-        struct PinchEdge *pinchEdge = cactusEdgeToFirstPinchEdge(edge, pinchGraph);
+        struct PinchEdge *pinchEdge = cactusEdgeToFirstPinchEdge(edge,
+                pinchGraph);
 #ifdef BEN_DEBUG
         assert(stSortedSet_search(pinchVerticesSet, pinchEdge->from) == NULL);
         assert(stSortedSet_search(pinchVerticesSet, pinchEdge->to) == NULL);
@@ -1220,14 +1301,14 @@ stSortedSet *getPinchVerticesSet(stSortedSet *cactusEdges, struct PinchGraph *pi
     return pinchVerticesSet;
 }
 
-stSortedSet *filterBlocksByTreeCoverageAndLength(struct List *biConnectedComponents, Flower *flower,
+stSortedSet *filterBlocksByTreeCoverageAndLength(
+        struct List *biConnectedComponents, Flower *flower,
         float minimumTreeCoverage, /*Minimum tree coverage to be included (>=) */
         int32_t minimumBlockDegree, /*The minimum number of segments in a block to be included (>=)*/
         int32_t minimumBlockLength, /*The minimum length of an block to be included (>=)*/
         int32_t minimumChainLength, /* Minimum chain length to be included (>=)*/
-        stList *listOfSetsOfRequiredSpecies, /* A block's segments must have an event with at least coverage (given for each set individually) number of elements in each of these set (unless it is NULL) */
-        stList *listOfRequiredSpeciesCoverages,
-        stSortedSet *singleCopySpecies, /* A block must not have multiple (more than one) segments from any of the following species (unless it is NULL)*/
+        int32_t requiredIngroupSpecies, int32_t requiredOutgroupSpecies, int32_t requiredAllSpecies,
+        bool singleCopyIngroupSpecies, bool singleCopyOutgroupSpecies,
         struct PinchGraph *pinchGraph) {
     /*
      * Filters blocks in chains by base length and tree coverage.
@@ -1237,21 +1318,32 @@ stSortedSet *filterBlocksByTreeCoverageAndLength(struct List *biConnectedCompone
     stSortedSet *chosenBlocks = stSortedSet_construct();
     for (int32_t i = 0; i < biConnectedComponents->length; i++) {
         struct List *biConnectedComponent = biConnectedComponents->list[i];
-        if (minimumChainLength <= 0 || chainBaseLength(biConnectedComponent, pinchGraph) >= minimumChainLength || chainExtendsParentChain(biConnectedComponent, pinchGraph, flower)) {
+        if (minimumChainLength <= 0 || chainBaseLength(biConnectedComponent,
+                pinchGraph) >= minimumChainLength || chainExtendsParentChain(
+                biConnectedComponent, pinchGraph, flower)) {
             for (int32_t j = 0; j < biConnectedComponent->length; j++) {
                 struct CactusEdge *cactusEdge = biConnectedComponent->list[j];
                 if (!isAStubCactusEdge(cactusEdge, pinchGraph)) {
                     assert(cactusEdge->pieces->length > 0);
-                    if (minimumBlockDegree <= 0 || cactusEdge->pieces->length >= minimumBlockDegree) {
-                        if (minimumTreeCoverage <= 0.0 || treeCoverage2(cactusEdge, flower, pinchGraph)
+                    if (minimumBlockDegree <= 0 || cactusEdge->pieces->length
+                            >= minimumBlockDegree) {
+                        if (minimumTreeCoverage <= 0.0 || treeCoverage2(
+                                cactusEdge, flower, pinchGraph)
                                 >= minimumTreeCoverage) {
                             struct Piece *piece = cactusEdge->pieces->list[0];
-                            if (minimumBlockLength <= 0 || piece->end - piece->start + 1 >= minimumBlockLength) {
-                                if (listOfSetsOfRequiredSpecies == NULL || containsRequiredSpecies(cactusEdge, flower, pinchGraph,
-                                        listOfSetsOfRequiredSpecies, listOfRequiredSpeciesCoverages)) {
-                                    if (singleCopySpecies == NULL || !containsMultipleCopiesOfSpecies(cactusEdge,
-                                            flower, pinchGraph, singleCopySpecies)) {
-                                        stSortedSet_insert(chosenBlocks, cactusEdge);
+                            if (minimumBlockLength <= 0 || piece->end
+                                    - piece->start + 1 >= minimumBlockLength) {
+                                if ((requiredIngroupSpecies == 0 && requiredOutgroupSpecies == 0 && requiredAllSpecies == 0)
+                                        || containsRequiredSpecies(cactusEdge,
+                                                flower, pinchGraph,
+                                                requiredIngroupSpecies, requiredOutgroupSpecies, requiredAllSpecies)) {
+                                    if ((!singleCopyIngroupSpecies && !singleCopyOutgroupSpecies)
+                                            || !containsMultipleCopiesOfSpecies(
+                                                    cactusEdge, flower,
+                                                    pinchGraph,
+                                                    singleCopyIngroupSpecies, singleCopyOutgroupSpecies)) {
+                                        stSortedSet_insert(chosenBlocks,
+                                                cactusEdge);
                                     }
                                 }
                             }
@@ -1264,8 +1356,9 @@ stSortedSet *filterBlocksByTreeCoverageAndLength(struct List *biConnectedCompone
     return chosenBlocks;
 }
 
-void logTheChosenBlockSubset(struct List *biConnectedComponents, stSortedSet *chosenBlocks,
-        struct PinchGraph *pinchGraph, Flower *flower) {
+void logTheChosenBlockSubset(struct List *biConnectedComponents,
+        stSortedSet *chosenBlocks, struct PinchGraph *pinchGraph,
+        Flower *flower) {
     /*
      * Produces logging information about the chosen blocks.
      */
@@ -1282,10 +1375,13 @@ void logTheChosenBlockSubset(struct List *biConnectedComponents, stSortedSet *ch
     float averagePieceNumberOfAllBlocks = 0.0;
     for (i = 0; i < biConnectedComponents->length; i++) {
         biConnectedComponent = biConnectedComponents->list[i];
-        totalBaseLengthOfAllBlocks += chainBaseLength(biConnectedComponent, pinchGraph);
-        totalNumberOfAllBlocks += chainLength(biConnectedComponent, FALSE, pinchGraph);
-        totalNumberOfStubBlocks += chainLength(biConnectedComponent, TRUE, pinchGraph) - chainLength(
-                biConnectedComponent, FALSE, pinchGraph);
+        totalBaseLengthOfAllBlocks += chainBaseLength(biConnectedComponent,
+                pinchGraph);
+        totalNumberOfAllBlocks += chainLength(biConnectedComponent, FALSE,
+                pinchGraph);
+        totalNumberOfStubBlocks += chainLength(biConnectedComponent, TRUE,
+                pinchGraph) - chainLength(biConnectedComponent, FALSE,
+                pinchGraph);
         for (j = 0; j < biConnectedComponent->length; j++) {
             cactusEdge = biConnectedComponent->list[j];
             if (!isAStubCactusEdge(cactusEdge, pinchGraph)) {
@@ -1307,9 +1403,12 @@ void logTheChosenBlockSubset(struct List *biConnectedComponents, stSortedSet *ch
     stSortedSet_destructIterator(it);
     st_logInfo(
             "Chosen block subset composed of %i blocks, of average length %f and average tree coverage %f, total base length of all blocks: %f, total number of all blocks %f, average length of all blocks: %f, total number of stub blocks: %f, average piece number of chosen blocks: %f, average piece number of all blocks: %f\n",
-            stSortedSet_size(chosenBlocks), totalBlockLength / j, totalBlockScore / j, totalBaseLengthOfAllBlocks,
-            totalNumberOfAllBlocks, totalBaseLengthOfAllBlocks / totalNumberOfAllBlocks, totalNumberOfStubBlocks,
-            averagePieceNumber / j, averagePieceNumberOfAllBlocks / totalNumberOfAllBlocks);
+            stSortedSet_size(chosenBlocks), totalBlockLength / j,
+            totalBlockScore / j, totalBaseLengthOfAllBlocks,
+            totalNumberOfAllBlocks,
+            totalBaseLengthOfAllBlocks / totalNumberOfAllBlocks,
+            totalNumberOfStubBlocks, averagePieceNumber / j,
+            averagePieceNumberOfAllBlocks / totalNumberOfAllBlocks);
 }
 
 ////////////////////////////////////////////////
@@ -1320,7 +1419,8 @@ void logTheChosenBlockSubset(struct List *biConnectedComponents, stSortedSet *ch
 ////////////////////////////////////////////////
 ////////////////////////////////////////////////
 
-struct PinchEdge *cactusEdgeToFirstPinchEdge(struct CactusEdge *edge, struct PinchGraph *pinchGraph) {
+struct PinchEdge *cactusEdgeToFirstPinchEdge(struct CactusEdge *edge,
+        struct PinchGraph *pinchGraph) {
     struct Piece *piece;
 #ifdef BEN_DEBUG
     assert(edge->pieces->length> 0);
@@ -1329,18 +1429,24 @@ struct PinchEdge *cactusEdgeToFirstPinchEdge(struct CactusEdge *edge, struct Pin
     return getContainingBlackEdge(pinchGraph, piece->contig, piece->start);
 }
 
-int32_t isAStubCactusEdge(struct CactusEdge *edge, struct PinchGraph *pinchGraph) {
+int32_t isAStubCactusEdge(struct CactusEdge *edge,
+        struct PinchGraph *pinchGraph) {
     return isAStub(cactusEdgeToFirstPinchEdge(edge, pinchGraph));
 }
 
-int32_t isAFreeStubCactusEdge(struct CactusEdge *edge, struct PinchGraph *pinchGraph, Flower *flower) {
+int32_t isAFreeStubCactusEdge(struct CactusEdge *edge,
+        struct PinchGraph *pinchGraph, Flower *flower) {
     if (isAStubCactusEdge(edge, pinchGraph)) {
         struct PinchEdge *pinchEdge;
         assert(edge->pieces->length >= 1);
         pinchEdge = cactusEdgeToFirstPinchEdge(edge, pinchGraph);
         assert(isAStub(pinchEdge));
-        assert(vertex_isDeadEnd(pinchEdge->from) || vertex_isDeadEnd(pinchEdge->to));
-        assert(!(vertex_isDeadEnd(pinchEdge->from) && vertex_isDeadEnd(pinchEdge->to)));
+        assert(
+                vertex_isDeadEnd(pinchEdge->from) || vertex_isDeadEnd(
+                        pinchEdge->to));
+        assert(
+                !(vertex_isDeadEnd(pinchEdge->from) && vertex_isDeadEnd(
+                        pinchEdge->to)));
         Cap *cap = flower_getCap(flower, pinchEdge->piece->contig);
         assert(cap != NULL);
         End *end = cap_getEnd(cap);
@@ -1349,16 +1455,17 @@ int32_t isAFreeStubCactusEdge(struct CactusEdge *edge, struct PinchGraph *pinchG
     return 0;
 }
 
-struct hashtable *createHashColouringPinchEdgesByChains(struct PinchGraph *pinchGraph,
-        struct List *biConnectComponentsList) {
+struct hashtable *createHashColouringPinchEdgesByChains(
+        struct PinchGraph *pinchGraph, struct List *biConnectComponentsList) {
     struct List *biConnectedComponent;
     struct CactusEdge *cactusEdge;
     struct Piece *piece;
     int32_t i, j, k;
 
     //Put the chain pieces in a hash to colour the black edges of the pinch graph.
-    struct hashtable *hash = create_hashtable(pinchGraph->vertices->length * 10, hashtable_key, hashtable_equalKey,
-            NULL, (void(*)(void *)) destructInt);
+    struct hashtable *hash = create_hashtable(
+            pinchGraph->vertices->length * 10, hashtable_key,
+            hashtable_equalKey, NULL, (void(*)(void *)) destructInt);
 
     if (biConnectComponentsList != NULL) {
         for (i = 0; i < biConnectComponentsList->length; i++) {

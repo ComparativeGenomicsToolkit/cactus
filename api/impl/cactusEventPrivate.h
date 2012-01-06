@@ -16,6 +16,7 @@ struct _event {
     float branchLength;
     Event *parent;
     EventTree *eventTree;
+    bool isOutgroup;
 };
 
 ////////////////////////////////////////////////

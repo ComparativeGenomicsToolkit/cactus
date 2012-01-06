@@ -42,12 +42,13 @@ def getLogLevelString2(logLevelString):
 #############################################  
 
 def runCactusSetup(cactusDiskDatabaseString, sequences, 
-                   newickTreeString, logLevel=None):
+                   newickTreeString, logLevel=None, outgroupEvents=None):
     logLevel = getLogLevelString2(logLevel)
+    outgroupEvents = nameValue("outgroupEvents", outgroupEvents, str)
     system("cactus_setup %s --speciesTree '%s' --cactusDisk '%s' \
---logLevel %s" \
+--logLevel %s %s" \
            % (" ".join(sequences), newickTreeString,
-              cactusDiskDatabaseString, logLevel))
+              cactusDiskDatabaseString, logLevel, outgroupEvents))
     logger.info("Ran cactus setup okay")
     
 def runCactusAligner(cactusDiskDatabaseString, alignmentFile, tempDir, useDummy=True, flowerName="0", logLevel=None):        
@@ -96,8 +97,11 @@ def runCactusCore(cactusDiskDatabaseString, alignmentFile,
                   minimumTreeCoverage=None,
                   blockTrim=None,
                   minimumBlockDegree=None,
-                  requiredSpecies=None,
-                  singleCopySpecies=None):
+                  requiredIngroupFraction=None,
+                  requiredOutgroupFraction=None,
+                  requiredAllFraction=None,
+                  singleCopyIngroup = None,
+                  singleCopyOutgroup = None):
     logLevel = getLogLevelString2(logLevel)
     writeDebugFiles = nameValue("writeDebugFiles", writeDebugFiles, bool)
     if annealingRounds != None:
@@ -112,18 +116,17 @@ def runCactusCore(cactusDiskDatabaseString, alignmentFile,
     minimumTreeCoverage = nameValue("minimumTreeCoverage", minimumTreeCoverage, float)
     blockTrim = nameValue("blockTrim", blockTrim, int)
     minimumBlockDegree = nameValue("minimumDegree", minimumBlockDegree, int)
-    if requiredSpecies != None:
-        requiredSpecies = "--requiredSpecies '%s'" % requiredSpecies
-    else:
-        requiredSpecies = ""
-    if singleCopySpecies != None:
-        singleCopySpecies = "--singleCopySpecies '%s'" % singleCopySpecies
-    else:
-        singleCopySpecies = ""
-    command = "cactus_core --cactusDisk '%s' --flowerName %s --alignments %s --logLevel %s %s %s %s %s %s %s %s %s %s %s" % \
+    
+    requiredIngroupFraction = nameValue("requiredIngroupFraction", requiredIngroupFraction, float)
+    requiredOutgroupFraction = nameValue("requiredOutgroupFraction", requiredOutgroupFraction, float)
+    requiredAllFraction = nameValue("requiredAllFraction", requiredAllFraction, float)
+    singleCopyIngroup = nameValue("singleCopyIngroup", singleCopyIngroup, bool)
+    singleCopyOutgroup = nameValue("singleCopyOutgroup", singleCopyOutgroup, bool)
+    
+    command = "cactus_core --cactusDisk '%s' --flowerName %s --alignments %s --logLevel %s %s %s %s %s %s %s %s %s %s %s %s %s %s" % \
     (cactusDiskDatabaseString, flowerName, alignmentFile, logLevel, writeDebugFiles, annealingRounds, deannealingRounds, alignRepeatsAtRound,
      trim, minimumTreeCoverage, blockTrim, 
-     minimumBlockDegree, requiredSpecies, singleCopySpecies)
+     minimumBlockDegree, requiredIngroupFraction, requiredOutgroupFraction, requiredAllFraction, singleCopyIngroup, singleCopyOutgroup)
     #print "command to run", command
     #assert 0
     system(command)
@@ -202,7 +205,9 @@ def runCactusBaseAligner(cactusDiskDatabaseString, flowerNames, logLevel=None,
                          constraintDiagonalTrim=None,
                          minimumBlockDegree=None,
                          alignAmbiguityCharacters=None,
-                         requiredSpecies=None,
+                         requiredIngroupFraction=None,
+                         requiredOutgroupFraction=None,
+                         requiredAllFraction=None,
                          pruneOutStubAlignments=None,
                          numThreads=None):
     """Runs cactus base aligner.
@@ -220,20 +225,17 @@ def runCactusBaseAligner(cactusDiskDatabaseString, flowerNames, logLevel=None,
     constraintDiagonalTrim = nameValue("constraintDiagonalTrim", constraintDiagonalTrim, int)
     minimumBlockDegree = nameValue("minimumDegree", minimumBlockDegree, int)
     pruneOutStubAlignments = nameValue("pruneOutStubAlignments", pruneOutStubAlignments, bool)
-    if requiredSpecies != None:
-        requiredSpecies = "'%s'" % requiredSpecies
-    requiredSpecies = nameValue("requiredSpecies", requiredSpecies, str)
     alignAmbiguityCharacters = nameValue("alignAmbiguityCharacters", alignAmbiguityCharacters, bool)
-    if numThreads != None:
-        numThreads = nameValue("numThreads", int(numThreads), int)
-    else:
-        numThreads = ""
+    numThreads = nameValue("numThreads", numThreads, int)
+    requiredIngroupFraction = nameValue("requiredIngroupFraction", requiredIngroupFraction, float)
+    requiredOutgroupFraction = nameValue("requiredOutgroupFraction", requiredOutgroupFraction, float)
+    requiredAllFraction = nameValue("requiredAllFraction", requiredAllFraction, float)
     
-    system("cactus_baseAligner --cactusDisk '%s' --logLevel %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s" % 
+    system("cactus_baseAligner --cactusDisk '%s' --logLevel %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s" % 
            (cactusDiskDatabaseString, logLevel, " ".join(flowerNames), spanningTrees, maximumLength, gapGamma, 
             useBanding, maxBandingSize, minBandingSize, minBandingConstraintDistance, minTraceBackDiag, minTraceGapDiags, 
-            constraintDiagonalTrim, minimumBlockDegree, requiredSpecies, alignAmbiguityCharacters, pruneOutStubAlignments,
-            numThreads))
+            constraintDiagonalTrim, minimumBlockDegree, alignAmbiguityCharacters, pruneOutStubAlignments,
+            numThreads, requiredIngroupFraction, requiredOutgroupFraction, requiredAllFraction))
     
 def runCactusReference(cactusDiskDatabaseString, flowerNames, logLevel=None,
                        matchingAlgorithm=None, 

@@ -7,17 +7,33 @@
 				<core alignRepeatsAtRound="0" annealingRounds="8 128 512" 
 				deannealingRounds="2 3 4 8 16 32 64" blockTrim="0" 
 				minimumTreeCoverage="0.0" trim="5 5 5" 
-				minimumBlockDegree="2" />
+				minimumBlockDegree="2"
+				requiredInGroupFraction="1.0"
+				requiredOutGroupFraction="1.0"
+				requiredAllFraction="1.0"
+				singleCopyIngroup="0"
+				singleCopyOutgroup="1" />
 			</iteration>
 
 			<iteration min_sequence_size="10000" max_sequence_size="50000000" number="1" type="blast">
 				<blast blastString="lastz --format=cigar --hspthresh=1800 --identity=IDENTITY --ambiguous=iupac SEQ_FILE_1[multiple][nameparse=darkspace] SEQ_FILE_2[nameparse=darkspace] &gt; CIGARS_FILE" chunkSize="1000000" selfBlastString="lastz --format=cigar --hspthresh=1800 --identity=IDENTITY --ambiguous=iupac SEQ_FILE[multiple][nameparse=darkspace] SEQ_FILE[nameparse=darkspace] --notrivial  &gt; CIGARS_FILE" />
 				<core alignRepeatsAtRound="0" annealingRounds="2 3 4 8 16 32 64" 
 				deannealingRounds="1 2 3 4 8 16 32 64" blockTrim="2" 
-				minimumTreeCoverage="0.0" trim="0 0 0 0 0 0 0" minimumBlockDegree="2"/>
+				minimumTreeCoverage="0.0" trim="0 0 0 0 0 0 0" minimumBlockDegree="2"
+				requiredInGroupFraction="1.0"
+				requiredOutGroupFraction="1.0"
+				requiredAllFraction="1.0"
+				singleCopyIngroup="0"
+				singleCopyOutgroup="1"/>
 			</iteration>
 		
-			<iteration type="base" number="2" num_threads="5" min_sequence_size="1" max_sequence_size="10000000" spanning_trees="10" gap_gamma="0.2" use_banding="1" banding_limit="100000" max_banding_size="3000" min_banding_size="1000" min_banding_constraint_distance="300" min_trace_back_diag="42" min_trace_gap_diags="10" constraint_diagonal_trim="4" minimumBlockDegree="2" alignAmbiguityCharacters="1"/>
+			<iteration type="base" number="2" num_threads="5" min_sequence_size="1" max_sequence_size="10000000" 
+			spanning_trees="10" gap_gamma="0.2" use_banding="1" banding_limit="100000" max_banding_size="3000" 
+			min_banding_size="1000" min_banding_constraint_distance="300" min_trace_back_diag="42" 
+			min_trace_gap_diags="10" constraint_diagonal_trim="4" minimumBlockDegree="2" alignAmbiguityCharacters="1"
+			requiredInGroupFraction="0.0"
+		    requiredOutGroupFraction="0.0"
+			requiredAllFraction="0.67"/>
 
 		</iterations>
 	</alignment>

@@ -168,7 +168,7 @@ class CactusSetupWrapper(Target):
     def run(self):
         logger.info("Starting cactus setup target")
         runCactusSetup(self.options.cactusDiskDatabaseString, self.sequences, 
-                       self.options.speciesTree)
+                       self.options.speciesTree, outgroupEvents=self.options.outgroupEventNames)
         logger.info("Finished the setup phase target")
 
 ############################################################
@@ -325,8 +325,6 @@ class CactusCoreWrapper(Target):
     def run(self):
         logger.info("Starting the core wrapper target")
         coreParameters = self.iteration.find("core")
-        if self.options.requiredSpecies != None:
-            assert "(" in self.options.requiredSpecies
         runCactusCore(cactusDiskDatabaseString=self.options.cactusDiskDatabaseString,
                       alignmentFile=self.alignmentFile, 
                       flowerName=self.flowerName,
@@ -337,8 +335,10 @@ class CactusCoreWrapper(Target):
                       minimumTreeCoverage=float(coreParameters.attrib["minimumTreeCoverage"]),
                       blockTrim=float(coreParameters.attrib["blockTrim"]),
                       minimumBlockDegree=int(coreParameters.attrib["minimumBlockDegree"]),
-                      requiredSpecies=self.options.requiredSpecies,
-                      singleCopySpecies=self.options.singleCopySpecies)
+                      requiredIngroupFraction=getOptionalAttrib(self.iteration, "requiredIngroupFraction"),
+                      requiredOutgroupFraction=getOptionalAttrib(self.iteration, "requiredOutgroupFraction"),
+                      singleCopyIngroup=getOptionalAttrib(self.iteration, "singleCopyIngroup"),
+                      singleCopyOutgroup=getOptionalAttrib(self.iteration, "singleCopyOutgroup"))
         logger.info("Ran the cactus core program okay")
         
 ############################################################
@@ -393,8 +393,9 @@ class CactusBaseLevelAlignerWrapper(Target):
                              constraintDiagonalTrim=int(self.iteration.attrib["constraint_diagonal_trim"]),
                              minimumBlockDegree=int(self.iteration.attrib["minimumBlockDegree"]),
                              alignAmbiguityCharacters=bool(int(self.iteration.attrib["alignAmbiguityCharacters"])),
-                             requiredSpecies=self.options.requiredSpecies,
                              pruneOutStubAlignments=bool(int(getOptionalAttrib(self.iteration, "prune_out_stub_alignments", "0"))),
+                             requiredIngroupFraction=getOptionalAttrib(self.iteration, "requiredIngroupFraction"),
+                             requiredOutgroupFraction=getOptionalAttrib(self.iteration, "requiredOutgroupFraction"),
                              numThreads=self.numThreads)
         
 ############################################################
@@ -535,7 +536,7 @@ class CactusSetReferenceCoordinates(Target):
         referenceNode=self.options.config.find("reference")
         runCactusAddReferenceCoordinates(self.options.cactusDiskDatabaseString, 
                                          referenceEventString=getOptionalAttrib(referenceNode, "reference"),
-                                         outgroupEventString=self.options.outgroupEventName)
+                                         outgroupEventString=self.options.outgroupEventNames)
         self.setFollowOnTarget(CactusFacesPhase(self.flowerName, self.options))
 
 ############################################################
@@ -622,18 +623,7 @@ def expandWorkflowOptions(options, experimentFile = None):
     #Get the config file for the experiment
     options.config = ET.parse(options.experimentFile.attrib["config"]).getroot()
     #Get any list of 'required species' for the blocks of the cactus.
-    def parseRequiredSpecies(experiment):
-        requiredSpeciesNodes = experiment.findall("required_species")
-        if len(requiredSpeciesNodes) == 0:
-            return None
-        s = "(" + ",".join([ "(" + str(int(requiredSpeciesNode.attrib["coverage"])) + "," +  \
-                               ",".join(requiredSpeciesNode.text.split()) + ")" \
-                               for requiredSpeciesNode in requiredSpeciesNodes ]) + ");"
-        logger.debug("Got the following required species tree structure: %s" % s)
-        return s
-    options.requiredSpecies = parseRequiredSpecies(options.experimentFile)
-    options.singleCopySpecies = getOptionalAttrib(options.experimentFile, "single_copy_species")
-    options.outgroupEventName = getOptionalAttrib(options.experimentFile, "outgroup_event")
+    options.outgroupEventNames = getOptionalAttrib(options.experimentFile, "outgroup_events")
     logger.info("Parsed the XML options file")
     
    

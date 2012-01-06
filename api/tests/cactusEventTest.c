@@ -41,6 +41,8 @@ static void cactusEventTestSetup() {
 		internalEvent = event_construct3("INTERNAL", 0.5, rootEvent, eventTree);
 		leafEvent1 = event_construct3("LEAF1", 0.2, internalEvent, eventTree);
 		leafEvent2 = event_construct3(NULL, 1.3, internalEvent, eventTree);
+		event_setOutgroupStatus(leafEvent1, 1);
+		event_setOutgroupStatus(leafEvent2, 0);
 	}
 }
 
@@ -211,6 +213,17 @@ void testEvent_isSibling(CuTest* testCase) {
 	cactusEventTestTeardown();
 }
 
+void testEvent_isOutgroup(CuTest *testCase) {
+    cactusEventTestSetup();
+    CuAssertTrue(testCase, event_isOutgroup(leafEvent1));
+    CuAssertTrue(testCase, !event_isOutgroup(leafEvent2));
+    event_setOutgroupStatus(leafEvent1, 0);
+    event_setOutgroupStatus(leafEvent2, 1);
+    CuAssertTrue(testCase, !event_isOutgroup(leafEvent1));
+    CuAssertTrue(testCase, event_isOutgroup(leafEvent2));
+    cactusEventTestTeardown();
+}
+
 void testEvent_serialisation(CuTest* testCase) {
 	cactusEventTestSetup();
 	int64_t i;
@@ -238,6 +251,7 @@ void testEvent_serialisation(CuTest* testCase) {
 	testEvent_isAncestor(testCase);
 	testEvent_isDescendant(testCase);
 	testEvent_isSibling(testCase);
+	testEvent_isOutgroup(testCase);
 	nestedTest = 0;
 	cactusEventTestTeardown();
 }
@@ -256,6 +270,7 @@ CuSuite* cactusEventTestSuite(void) {
 	SUITE_ADD_TEST(suite, testEvent_isAncestor);
 	SUITE_ADD_TEST(suite, testEvent_isDescendant);
 	SUITE_ADD_TEST(suite, testEvent_isSibling);
+	SUITE_ADD_TEST(suite, testEvent_isOutgroup);
 	SUITE_ADD_TEST(suite, testEvent_serialisation);
 	SUITE_ADD_TEST(suite, testEvent_construct); //put this last to ensure cleanup.
 	return suite;
