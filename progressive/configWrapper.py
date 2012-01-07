@@ -54,11 +54,6 @@ class ConfigWrapper:
         if mcElem is not None:
             return mcElem.find("outgroup")
     
-    def getCoverageElem(self):
-        mcElem = self.getMCElem()
-        if mcElem is not None:
-            return mcElem.find("coverage")
-    
     def getDecompositionElem(self):
         mcElem = self.getMCElem()
         if mcElem is not None:
@@ -108,25 +103,6 @@ class ConfigWrapper:
             prefix = decompElem.attrib["default_internal_node_prefix"]
         assert len(prefix) > 0
         return prefix
-    
-    def getRequiredFraction(self):
-        coverageElem = self.getCoverageElem()
-        frac = self.defaultCoverageFraction
-        if coverageElem is not None \
-        and "required_fraction" in coverageElem.attrib:
-            frac = float(coverageElem.attrib["required_fraction"])
-        assert frac >= 0 and frac <= 1
-        return frac
-    
-    def getSingleCopyStrategy(self):
-        coverageElem = self.getCoverageElem()
-        singleCopy = self.defaultSingleCopyStrategy
-        if coverageElem is not None \
-        and "single_copy_strategy" in coverageElem.attrib:
-            singleCopy = coverageElem.attrib["single_copy_strategy"]
-        assert singleCopy == 'none' or singleCopy == 'outgroup' \
-        or singleCopy == 'all'
-        return singleCopy
     
     # the minBlockDegree, when specified in the final, "base" 
     # iteration, does not play nicely with the required fraction

@@ -201,7 +201,7 @@ class BuildMAF(Target):
 
             system(cmdLine) 
             removeOutgroupFromMaf(self.experiment.getMAFPath(), 
-                                  self.experiment.getOutgroupName()) 
+                                  self.experiment.getOutgroupEvents()) 
         
         self.setFollowOnTarget(JoinMAF(self.options, self.project,
                                        self.experiment,

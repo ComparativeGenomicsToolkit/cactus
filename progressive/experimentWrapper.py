@@ -102,9 +102,9 @@ class ExperimentWrapper:
             self.xmlRoot.append(mafElem)
         mafElem.attrib["path"] = path
         
-    def getOutgroupName(self):
-        if self.xmlRoot.attrib.has_key("outgroup"):
-            return self.xmlRoot.attrib["outgroup"]
+    def getOutgroupEvents(self):
+        if self.xmlRoot.attrib.has_key("outgroup_events"):
+            return self.xmlRoot.attrib["outgroup_events"].split()
         return None
         
     def getConfigPath(self):
@@ -161,28 +161,10 @@ class ExperimentWrapper:
         self.xmlRoot.attrib["sequences"] = sequences
         self.seqMap = newMap
     
-    # generate single_copy and required_species attributes based
-    # on the template config xml
-    # 1) set the single copy species
-    # 2) set the outgroup (add it to tree and sequences)
-    # 3) set the required species
-    def setCoverageAndOutgroup(self, config, ogName, ogDist, ogPath):
+    # sets the outgroup.
+    def setOutgroup(self, ogName, ogDist, ogPath):
         tree = MultiCactusTree(self.getTree())
         leaves = [tree.getName(i) for i in tree.getLeaves()]
-        scs = config.getSingleCopyStrategy()
-        if scs != 'none':
-            if ogName is not None and scs == 'outgroup':
-                self.xmlRoot.attrib["single_copy_species"] = ogName
-            elif scs == 'all':
-                species = ' '.join(leaves)
-                if ogName is not None:
-                    species = "%s %s" % (species, ogName)
-                self.xmlRoot.attrib["single_copy_species"] = species
-        elif "single_copy_species" in self.xmlRoot.attrib:
-            self.xmlRoot.attrib.remove("single_copy_species")
-              
-        for i in self.xmlRoot.findall("required_species"):
-            self.xmlRoot.remove(i)
         
         if ogName is not None:
             tree.addOutgroup(ogName, ogDist)
@@ -190,21 +172,5 @@ class ExperimentWrapper:
             seqs = "%s %s"  % (self.xmlRoot.attrib["sequences"], ogPath)
             self.xmlRoot.attrib["sequences"] = seqs
             self.seqMap[ogName] = ogPath
-            self.xmlRoot.attrib["outgroup"] = ogName
-            reqElem = ET.Element("required_species")
-            reqElem.text = ' '.join(leaves)
-            reqElem.attrib["coverage"] = "1"
-            self.xmlRoot.append(reqElem)
-        
-        reqFrac = config.getRequiredFraction()
-        if reqFrac > 0:
-            reqElem = ET.Element("required_species")
-            species = ' '.join(leaves)
-            count = len(leaves)
-            if ogName is not None:
-                species = "%s %s" % (species, ogName)
-                count += 1
-            reqElem.text = species
-            reqElem.attrib["coverage"] = str(int(reqFrac * count))
-            self.xmlRoot.append(reqElem)    
+            self.xmlRoot.attrib["outgroup_events"] = ogName
       

@@ -56,7 +56,6 @@
 	 <preprocessor chunkSize="100000000" preprocessorString='cactus_addFastaHeaderDots.py TARGET_FILE OUT_FILE --event EVENT_STRING'/>
   <multi_cactus>
 	 <outgroup strategy="greedy" threshold="0"/>
-	 <coverage required_fraction="0.67" single_copy_strategy="outgroup"/>
 	 <decomposition subtree_size="2" self_alignment="false" default_internal_node_prefix="Anc"/>
   </multi_cactus>
 </cactus_workflow_config>

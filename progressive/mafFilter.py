@@ -37,10 +37,12 @@ def eventInLine(name, line):
     return False
     
 # quick and dirty friday afternoon! 
-def removeOutgroupFromMaf(mafPath, event):
-    if event is None or event == "":
+def removeOutgroupFromMaf(mafPath, events):
+    if event is None or len(events) == 0:
         return
-    event = event.split('.')[0]
+    # only support 1 outgroup for now
+    assert len(events) == 1
+    event = events[0].split('.')[0]
     tempPath = "%s.og" % mafPath
     inFile = open(mafPath)
     outFile = open(tempPath, 'w')

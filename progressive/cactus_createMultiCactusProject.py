@@ -108,7 +108,7 @@ def createFileStructure(mcProj, expTemplate, configTemplate, options):
             else:
                 ogPath = os.path.join(options.path, og)
                 ogPath = os.path.join(ogPath, refFileName(og))
-        exp.setCoverageAndOutgroup(configTemplate, og, ogDist, ogPath)
+        exp.setOutgroup(og, ogDist, ogPath)
         os.makedirs(exp.getDbDir())
         exp.writeXML(expPath)
         config = ConfigWrapper(copy.deepcopy(configTemplate.xmlRoot))
