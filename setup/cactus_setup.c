@@ -143,6 +143,7 @@ int main(int argc, char *argv[]) {
         static struct option long_options[] = { { "logLevel",
                 required_argument, 0, 'a' }, { "cactusDisk", required_argument,
                 0, 'b' }, { "speciesTree", required_argument, 0, 'f' }, {
+                "outgroupEvents", required_argument, 0, 'g' }, {
                 "help", no_argument, 0, 'h' },
                 { 0, 0, 0, 0 } };
 
