@@ -97,10 +97,12 @@ def inverseJukesCantor(d):
     assert d >= 0.0
     return 0.75 * (1 - math.exp(-d * 4.0/3.0))
 
-def getOptionalAttrib(node, attribName, default=None):
+def getOptionalAttrib(node, attribName, default=None, isBool=False):
     """Get an optional attrib, or None, if not set.
     """
     if node.attrib.has_key(attribName):
+        if isBool:
+            return bool(int(node.attrib[attribName]))
         return node.attrib[attribName]
     return default
         
@@ -337,8 +339,8 @@ class CactusCoreWrapper(Target):
                       minimumBlockDegree=int(coreParameters.attrib["minimumBlockDegree"]),
                       requiredIngroupFraction=getOptionalAttrib(self.iteration, "requiredIngroupFraction"),
                       requiredOutgroupFraction=getOptionalAttrib(self.iteration, "requiredOutgroupFraction"),
-                      singleCopyIngroup=getOptionalAttrib(self.iteration, "singleCopyIngroup"),
-                      singleCopyOutgroup=getOptionalAttrib(self.iteration, "singleCopyOutgroup"))
+                      singleCopyIngroup=getOptionalAttrib(self.iteration, "singleCopyIngroup", isBool=True),
+                      singleCopyOutgroup=getOptionalAttrib(self.iteration, "singleCopyOutgroup", isBool=True))
         logger.info("Ran the cactus core program okay")
         
 ############################################################
