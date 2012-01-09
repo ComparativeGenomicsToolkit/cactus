@@ -105,7 +105,7 @@ class ExperimentWrapper:
     def getOutgroupEvents(self):
         if self.xmlRoot.attrib.has_key("outgroup_events"):
             return self.xmlRoot.attrib["outgroup_events"].split()
-        return None
+        return []
         
     def getConfigPath(self):
         config = self.xmlRoot.attrib["config"]

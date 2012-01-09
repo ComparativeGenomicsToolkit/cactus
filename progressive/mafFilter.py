@@ -38,7 +38,7 @@ def eventInLine(name, line):
     
 # quick and dirty friday afternoon! 
 def removeOutgroupFromMaf(mafPath, events):
-    if event is None or len(events) == 0:
+    if events is None or len(events) == 0:
         return
     # only support 1 outgroup for now
     assert len(events) == 1

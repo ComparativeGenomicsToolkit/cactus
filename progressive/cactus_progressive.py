@@ -241,7 +241,7 @@ class JoinMAF(Target):
             rootIsTreeMAF = False
             for child, path in self.experiment.seqMap.items():
                 if child in self.project.expMap and\
-                child != self.experiment.getOutgroupName():
+                child not in self.experiment.getOutgroupEvents():
                     childExpPath = self.project.expMap[child]
                     childExpXML = ET.parse(childExpPath).getroot()
                     childExp = ExperimentWrapper(childExpXML)
