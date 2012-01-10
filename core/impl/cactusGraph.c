@@ -1152,16 +1152,20 @@ static bool containsRequiredSpecies(struct CactusEdge *cactusEdge,
      * Returns non-zero iff the block contains at least minimum proportions of in and outgroup species.
      */
     stList *events = getEvents(cactusEdge, flower, pinchGraph);
+    stSortedSet *eventSet = stList_getSortedSet(events, NULL);
     int32_t outgroupSequences = 0;
     int32_t ingroupSequences = 0;
-    while (stList_length(events) > 0) {
-        Event *event = stList_pop(events);
+    stSortedSetIterator *eventIt = stSortedSet_getIterator(eventSet);
+    Event *event;
+    while ((event = stSortedSet_getNext(eventIt)) != NULL) {
         if (event_isOutgroup(event)) {
             outgroupSequences++;
         } else {
             ingroupSequences++;
         }
     }
+    stSortedSet_destructIterator(eventIt);
+    stSortedSet_destruct(eventSet);
     stList_destruct(events);
     return ingroupSequences >= requiredIngroupSpecies && outgroupSequences
             >= requiredOutgroupSpecies && outgroupSequences + ingroupSequences >= requiredAllSpecies;
@@ -1333,7 +1337,7 @@ stSortedSet *filterBlocksByTreeCoverageAndLength(
                             struct Piece *piece = cactusEdge->pieces->list[0];
                             if (minimumBlockLength <= 0 || piece->end
                                     - piece->start + 1 >= minimumBlockLength) {
-                                if ((requiredIngroupSpecies == 0 && requiredOutgroupSpecies == 0 && requiredAllSpecies == 0)
+                                if ((requiredIngroupSpecies <= 0 && requiredOutgroupSpecies <= 0 && requiredAllSpecies <= 0)
                                         || containsRequiredSpecies(cactusEdge,
                                                 flower, pinchGraph,
                                                 requiredIngroupSpecies, requiredOutgroupSpecies, requiredAllSpecies)) {

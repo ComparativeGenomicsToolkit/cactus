@@ -218,6 +218,7 @@ struct CactusGraph *deanneal(Flower *flower, struct PinchGraph *pinchGraph, stru
     stSortedSet *blocksToUndo = stSortedSet_getDifference(allBlocksOfDegree2OrHigher, chosenBlocksToKeep);
     stSortedSet_destruct(chosenBlocksToKeep);
     stSortedSet_destruct(allBlocksOfDegree2OrHigher);
+    //assert(0);
 
     //assert(stSortedSet_size(blocksToUndo) > 0);
     //now report the results
@@ -393,9 +394,9 @@ void buildOutPinchGraph(struct PinchGraph *pinchGraph, stList *adjacencyComponen
 
     if(cCIP->minimumTreeCoverage > 0.0 ||
             cCIP->minimumDegree > 2 ||
-            cCIP->requiredIngroups != 0 ||
-            cCIP->requiredOutgroups != 0 ||
-            cCIP->requiredAll != 0 ||
+            cCIP->requiredIngroups > 0 ||
+            cCIP->requiredOutgroups > 0 ||
+            cCIP->requiredAll > 0 ||
             cCIP->singleCopyIngroup || cCIP->singleCopyOutgroup) {
         cactusGraph = deanneal(flower, pinchGraph, cactusGraph, &biConnectedComponents, 0,
                         cCIP->minimumTreeCoverage,
@@ -540,9 +541,9 @@ int32_t cactusCorePipeline(Flower *flower, CactusCoreInputParameters *cCIP,
     cCIP->requiredIngroups = ingroupEventNumber * cCIP->requiredIngroupFraction;
     cCIP->requiredAll = (ingroupEventNumber + outgroupEventNumber) * cCIP->requiredAllFraction;
 
-    st_logInfo("The number of all required sequences is %i from a fraction %i of %i\n", cCIP->requiredAll, cCIP->requiredAllFraction, outgroupEventNumber + ingroupEventNumber);
-    st_logInfo("The number of ingroup required sequences is %i from a fraction %i of %i\n", cCIP->requiredIngroups, cCIP->requiredIngroupFraction, ingroupEventNumber);
-    st_logInfo("The number of outgroup required sequences is %i from a fraction %i of %i\n", cCIP->requiredOutgroups, cCIP->requiredOutgroupFraction, outgroupEventNumber);
+    st_logInfo("The number of all required sequences is %i from a fraction %f of %i\n", cCIP->requiredAll, cCIP->requiredAllFraction, outgroupEventNumber + ingroupEventNumber);
+    st_logInfo("The number of ingroup required sequences is %i from a fraction %f of %i\n", cCIP->requiredIngroups, cCIP->requiredIngroupFraction, ingroupEventNumber);
+    st_logInfo("The number of outgroup required sequences is %i from a fraction %f of %i\n", cCIP->requiredOutgroups, cCIP->requiredOutgroupFraction, outgroupEventNumber);
 
 	assert(cCIP->requiredAll >= 0 && cCIP->requiredAllFraction >= 0.0);
 	assert(cCIP->requiredIngroups >= 0 && cCIP->requiredIngroupFraction >= 0.0);

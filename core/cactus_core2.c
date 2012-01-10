@@ -169,7 +169,7 @@ int main(int argc, char *argv[]) {
 
         int option_index = 0;
 
-        key = getopt_long(argc, argv, "a:b:c:d:ehi:j:k:m:n:o:p:q:r:s:t:u:",
+        key = getopt_long(argc, argv, "a:b:c:d:ehi:j:k:m:n:o:p:q:r:stu:",
                 long_options, &option_index);
 
         if (key == -1) {
@@ -274,6 +274,9 @@ int main(int argc, char *argv[]) {
         assert(cCIP->trim[i] >= 0);
     }
     assert(cCIP->alignRepeatsAtRound >= 0);
+    assert(cCIP->requiredAllFraction >= 0);
+    assert(cCIP->requiredOutgroupFraction >= 0);
+    assert(cCIP->requiredIngroupFraction >= 0);
 
     //////////////////////////////////////////////
     //Set up logging

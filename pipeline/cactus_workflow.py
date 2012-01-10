@@ -337,10 +337,11 @@ class CactusCoreWrapper(Target):
                       minimumTreeCoverage=float(coreParameters.attrib["minimumTreeCoverage"]),
                       blockTrim=float(coreParameters.attrib["blockTrim"]),
                       minimumBlockDegree=int(coreParameters.attrib["minimumBlockDegree"]),
-                      requiredIngroupFraction=getOptionalAttrib(self.iteration, "requiredIngroupFraction"),
-                      requiredOutgroupFraction=getOptionalAttrib(self.iteration, "requiredOutgroupFraction"),
-                      singleCopyIngroup=getOptionalAttrib(self.iteration, "singleCopyIngroup", isBool=True),
-                      singleCopyOutgroup=getOptionalAttrib(self.iteration, "singleCopyOutgroup", isBool=True))
+                      requiredIngroupFraction=getOptionalAttrib(coreParameters, "requiredIngroupFraction"),
+                      requiredOutgroupFraction=getOptionalAttrib(coreParameters, "requiredOutgroupFraction"),
+                      requiredAllFraction=getOptionalAttrib(coreParameters, "requiredAllFraction"),
+                      singleCopyIngroup=getOptionalAttrib(coreParameters, "singleCopyIngroup", isBool=True),
+                      singleCopyOutgroup=getOptionalAttrib(coreParameters, "singleCopyOutgroup", isBool=True))
         logger.info("Ran the cactus core program okay")
         
 ############################################################
@@ -398,6 +399,7 @@ class CactusBaseLevelAlignerWrapper(Target):
                              pruneOutStubAlignments=bool(int(getOptionalAttrib(self.iteration, "prune_out_stub_alignments", "0"))),
                              requiredIngroupFraction=getOptionalAttrib(self.iteration, "requiredIngroupFraction"),
                              requiredOutgroupFraction=getOptionalAttrib(self.iteration, "requiredOutgroupFraction"),
+                             requiredAllFraction=getOptionalAttrib(self.iteration, "requiredAllFraction"),
                              numThreads=self.numThreads)
         
 ############################################################

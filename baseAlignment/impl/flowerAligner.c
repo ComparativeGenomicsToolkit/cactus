@@ -382,11 +382,25 @@ stSortedSet *makeFlowerAlignment(Flower *flower, int32_t spanningTrees, int32_t 
     End *end;
     Flower_EndIterator *endIterator = flower_getEndIterator(flower);
     stHash *endAlignments = stHash_construct2(NULL, (void(*)(void *)) stSortedSet_destruct);
-    while ((end = flower_getNextEnd(endIterator)) != NULL) {
-        stSortedSet *endAlignment = makeEndAlignment(end, spanningTrees, maxSequenceLength, gapGamma, useBanding,
-                pairwiseAlignmentBandingParameters);
-        assert(stHash_search(endAlignments, end) == NULL);
-        stHash_insert(endAlignments, end, endAlignment);
+    if(flower_getEndNumber(flower) == 2) {
+        End *end1 = flower_getNextEnd(endIterator);
+        End *end2 = flower_getNextEnd(endIterator);
+        assert(end1 != NULL);
+        assert(end2 != NULL);
+        assert(flower_getNextEnd(endIterator) == NULL);
+        assert(stHash_search(endAlignments, end1) == NULL);
+        stHash_insert(endAlignments, end1, makeEndAlignment(end1, spanningTrees, maxSequenceLength, gapGamma, useBanding,
+                pairwiseAlignmentBandingParameters));
+        assert(stHash_search(endAlignments, end2) == NULL);
+        stHash_insert(endAlignments, end2, end_getInstanceNumber(end1) == end_getInstanceNumber(end2) ? stSortedSet_construct() : makeEndAlignment(end2, spanningTrees, maxSequenceLength, gapGamma, useBanding,
+                        pairwiseAlignmentBandingParameters));
+    }
+    else {
+        while ((end = flower_getNextEnd(endIterator)) != NULL) {
+            assert(stHash_search(endAlignments, end) == NULL);
+            stHash_insert(endAlignments, end,  makeEndAlignment(end, spanningTrees, maxSequenceLength, gapGamma, useBanding,
+                    pairwiseAlignmentBandingParameters));
+        }
     }
     flower_destructEndIterator(endIterator);
 
