@@ -64,6 +64,30 @@ class ExperimentWrapper:
     def setDbPort(self, port):
         assert self.getDbType() == "kyoto_tycoon"
         self.dbElem.attrib["port"] = str(port)
+        
+    def getDbServerOptions(self):
+        assert self.getDbType() == "kyoto_tycoon"
+        if "server_options" in self.dbElem.attrib:
+            return self.dbElem.attrib["server_options"]
+        return None
+    
+    def getDbTuningOptions(self):
+        assert self.getDbType() == "kyoto_tycoon"
+        if "tuning_options" in self.dbElem.attrib:
+            return self.dbElem.attrib["tuning_options"]
+        return None
+
+    def getDbCreateTuningOptions(self):
+        assert self.getDbType() == "kyoto_tycoon"
+        if "create_tuning_options" in self.dbElem.attrib:
+            return self.dbElem.attrib["create_tuning_options"]
+        return None
+
+    def getDbReadTuningOptions(self):
+        assert self.getDbType() == "kyoto_tycoon"
+        if "read_tuning_options" in self.dbElem.attrib:
+            return self.dbElem.attrib["read_tuning_options"]
+        return None
     
     def getConfig(self):
         return self.xmlRoot.attrib["config"]
