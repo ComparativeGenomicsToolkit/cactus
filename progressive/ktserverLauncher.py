@@ -189,7 +189,7 @@ class KtserverLauncher:
             pid = pids[0]
             assert pid is not None
             assert pid > -1
-        os.kill(pid, signal.SIGKILL)
+        os.kill(pid, signal.SIGTERM)
         
 def main():
     try:
