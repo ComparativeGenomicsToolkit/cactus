@@ -31,7 +31,7 @@ class KtserverLauncher:
         self.listenWait = 1
         self.checkWaitIntervals = 30
         self.checkWait = 1
-        self.tuningOptions = "#opts=ls#bnum=30m#msiz=50g#ktopts=p"
+        self.createTuningOptions = "#opts=ls#bnum=30m#msiz=50g#ktopts=p"
         # it seems that using msiz to open an existing db can 
         # cause an error sometimes, especially on kolossus
         self.readTuningOptions = "#opts=ls#ktopts=p"
@@ -126,7 +126,7 @@ class KtserverLauncher:
             raise RuntimeError("failed ktserver stuck on %s" % dbPath)
         
     def ktserverCmd(self, dbPath, outputPath, port, exists):
-        tuning = self.tuningOptions
+        tuning = self.createTuningOptions
         if exists:
             tuning = self.readTuningOptions
         return "ktserver -log %s -port %d %s %s%s" % (outputPath, port, self.serverOptions, 
@@ -139,6 +139,18 @@ class KtserverLauncher:
         
         if (len(self.scrapePids([dbPath])) != 0):
             raise RuntimeError("ktserver already running on %s" % dbPath)
+        
+        # override default ktserver settings if they are present in the
+        # epxeriment xml file. 
+        if experiment.getDbServerOptions() is not None:
+            self.serverOptions = experiment.getDbServerOptions()
+        if experiment.getDbTuningOptions() is not None:
+            self.createTuningOptions = experiment.getDbTuningOptions()
+            self.readTuningOptions = experiment.getDbTuningOptions()
+        if experiment.getDbCreateTuningOptions() is not None:
+            self.createTuningOptions = experiment.getDbCreateTuningOptions()
+        if experiment.getDbReadTuningOptions() is not None:
+            self.readTuningOptions = experiment.getDbReadTuningOptions()
         
         self.waitOnTotalNumberOfServers()        
         basePort = experiment.getDbPort()
@@ -177,7 +189,7 @@ class KtserverLauncher:
             pid = pids[0]
             assert pid is not None
             assert pid > -1
-        os.kill(pid, signal.SIGKILL)
+        os.kill(pid, signal.SIGTERM)
         
 def main():
     try:
