@@ -1,3 +1,12 @@
+#include <assert.h>
+#include <limits.h>
+#include <stdio.h>
+#include <string.h>
+#include <stdlib.h>
+#include <inttypes.h>
+#include "cactus.h"
+#include "flowerWriter.h"
+
 int64_t minFlowerSize;
 int64_t maxFlowerSize;
 FlowerWriter *flowerWriter;

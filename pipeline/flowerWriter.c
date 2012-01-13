@@ -69,4 +69,3 @@ void flowerWriter_destruct(FlowerWriter *flowerWriter) {
     stList_destruct(flowerWriter->flowers);
     free(flowerWriter);
 }
-

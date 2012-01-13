@@ -4,15 +4,6 @@
  * Released under the MIT license, see LICENSE.txt
  */
 
-#include <assert.h>
-#include <limits.h>
-#include <stdio.h>
-#include <string.h>
-#include <stdlib.h>
-#include <inttypes.h>
-
-#include "cactus.h"
-#include "flowerWriter.h"
 #include "cactus_workflow_shared.h"
 
 int main(int argc, char *argv[]) {
