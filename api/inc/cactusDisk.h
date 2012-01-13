@@ -55,6 +55,11 @@ void cactusDisk_write(CactusDisk *cactusDisk);
 Flower *cactusDisk_getFlower(CactusDisk *cactusDisk, Name flowerName);
 
 /*
+ * Gets a list of flowers for the given list of flower names.
+ */
+stList *cactusDisk_getFlowers(CactusDisk *cactusDisk, stList *flowerNames);
+
+/*
  * Functions on meta sequences.
  */
 

@@ -125,7 +125,25 @@ const char *cactusMisc_getDefaultReferenceEventHeader() {
 }
 
 stList *parseFlowers(char **flowerNames, int32_t flowerNamesLength, CactusDisk *cactusDisk) {
-    stList *flowers = stList_construct();
+    stList *flowerNamesList = stList_construct3(0, free);
+    assert(flowerNamesLength % 2 == 0);
+    for(int32_t i=0; i<flowerNamesLength; i+=2) {
+        Name firstFlowerName = cactusMisc_stringToName(flowerNames[i]);
+        int32_t flowerNumber;
+        int32_t j = sscanf(flowerNames[i+1], "%i", &flowerNumber);
+        assert(j == 1);
+        assert(flowerNumber >= 1);
+        for(j=0; j<flowerNumber; j++) {
+            int64_t *iA = st_malloc(sizeof(int64_t));
+            iA[0] = firstFlowerName + j;
+            //cactusDisk_getFlower(cactusDisk, iA[0]);
+            stList_append(flowerNamesList, iA);
+        }
+    }
+    stList *flowers = cactusDisk_getFlowers(cactusDisk, flowerNamesList);
+    stList_destruct(flowerNamesList);
+    return flowers;
+    /*stList *flowers = stList_construct();
     assert(flowerNamesLength % 2 == 0);
     for(int32_t i=0; i<flowerNamesLength; i+=2) {
         Name firstFlowerName = cactusMisc_stringToName(flowerNames[i]);
@@ -138,6 +156,6 @@ stList *parseFlowers(char **flowerNames, int32_t flowerNamesLength, CactusDisk *
             stList_append(flowers, flower);
         }
     }
-    return flowers;
+    return flowers;*/
 }
 

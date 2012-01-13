@@ -157,7 +157,8 @@ def readFlowerNamesFile(flowerStrings):
             totalFlowers = int(line[1])
             totalFlowerSizes = int(line[2])
             l.append((totalFlowerSizes, firstFlowerName, totalFlowers))
-    #l.sort()
+    l.sort()
+    l.reverse()
     return l
     
 def runCactusGetFlowers(cactusDiskDatabaseString, flowerNames, 

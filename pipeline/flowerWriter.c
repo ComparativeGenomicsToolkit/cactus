@@ -57,7 +57,7 @@ static void flowerWriter_flush(FlowerWriter *flowerWriter) {
             totalSize = flowerSize;
         }
         else {
-            flowerSize += totalSize;
+            totalSize += flowerSize;
             lastFlowerName = flower_getName(flower);
         }
     }

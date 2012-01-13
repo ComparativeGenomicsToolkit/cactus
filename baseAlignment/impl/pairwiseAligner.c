@@ -3,6 +3,8 @@
  *
  * Released under the MIT license, see LICENSE.txt
  */
+//This is being included to make popen work!
+#define _XOPEN_SOURCE 500
 
 #include "sonLib.h"
 #include <stdlib.h>

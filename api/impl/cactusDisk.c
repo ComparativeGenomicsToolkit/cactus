@@ -77,9 +77,50 @@ static void *decompress(void *data, int64_t *dataSize) {
     //Decompression
     int64_t uncompressedSize;
     void *data2 = stCompression_decompress(data, *dataSize, &uncompressedSize);
-    free(data);
     *dataSize = uncompressedSize;
     return data2;
+}
+
+static stList *getRecords(CactusDisk *cactusDisk, stList *objectNames, char *type) {
+    stList *records = NULL;
+    stTry {
+        records = stKVDatabase_bulkGetRecords(cactusDisk->database, objectNames);
+    }
+    stCatch(except)
+    {
+        stThrowNewCause(
+                except,
+                ST_KV_DATABASE_EXCEPTION_ID,
+                "An unknown database error occurred when getting a bulk set of %s",
+                type);
+    }
+    stTryEnd;
+    assert(records != NULL);
+    assert(stList_length(objectNames) == stList_length(records));
+    stList_setDestructor(records, free);
+    for(int32_t i=0; i<stList_length(objectNames); i++) {
+        Name objectName = *((int64_t *)stList_get(objectNames, i));
+        int64_t recordSize;
+        void *record;
+        stKVDatabaseBulkResult *result = stList_get(records, i);
+        assert(result != NULL);
+        if(!stCache_containsRecord(cactusDisk->cache, objectName, 0, INT64_MAX)) {
+            record = stKVDatabaseBulkResult_getRecord(result, &recordSize);
+            assert(recordSize >= 0);
+            assert(record != NULL);
+            record = decompress(record, &recordSize);
+            stCache_setRecord(cactusDisk->cache, objectName, 0, recordSize, record);
+        }
+        else {
+            record = stCache_getRecord(cactusDisk->cache,
+                                objectName, 0, INT64_MAX, &recordSize);
+            assert(recordSize >= 0);
+            assert(record != NULL);
+        }
+        stKVDatabaseBulkResult_destruct(result);
+        stList_set(records, i, record);
+    }
+    return records;
 }
 
 static void *getRecord(CactusDisk *cactusDisk, Name objectName, char *type) {
@@ -108,6 +149,7 @@ static void *getRecord(CactusDisk *cactusDisk, Name objectName, char *type) {
     }
     //Decompression
     void *cA2 = decompress(cA, &recordSize);
+    free(cA);
     return cA2;
 }
 
@@ -352,6 +394,28 @@ void cactusDisk_write(CactusDisk *cactusDisk) {
     stList_destruct(removeRequests);
 
     st_logDebug("Finished writing to the database\n");
+}
+
+stList *cactusDisk_getFlowers(CactusDisk *cactusDisk, stList *flowerNames) {
+    stList *records = getRecords(cactusDisk, flowerNames, "flowers");
+    assert(stList_length(flowerNames) == stList_length(records));
+    stList *flowers = stList_construct();
+    for(int32_t i=0; i<stList_length(flowerNames); i++) {
+        Name flowerName = *((int64_t *)stList_get(flowerNames, i));
+        static Flower flower;
+        flower.name = flowerName;
+        Flower *flower2;
+        if ((flower2 = stSortedSet_search(cactusDisk->flowers, &flower)) == NULL) {
+            void *record = stList_get(records, i);
+            assert(record != NULL);
+            void *cA = record;
+            flower2 = flower_loadFromBinaryRepresentation(&cA, cactusDisk);
+            assert(flower2 != NULL);
+        }
+        stList_append(flowers, flower2);
+    }
+    stList_destruct(records);
+    return flowers;
 }
 
 Flower *cactusDisk_getFlower(CactusDisk *cactusDisk, Name flowerName) {
