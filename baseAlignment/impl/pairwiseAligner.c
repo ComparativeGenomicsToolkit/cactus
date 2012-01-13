@@ -562,26 +562,20 @@ stList *getBlastPairs(const char *sX, const char *sY, int32_t lX, int32_t lY, in
         return alignedPairs;
     }
 
-    //Write to file..
+    //Write one sequence to file..
     char *tempFile1 = getTempFile();
-    char *tempFile2 = getTempFile();
-    char *tempFile3 = getTempFile();
 
     FILE *fileHandle = fopen(tempFile1, "w");
     fprintf(fileHandle, ">a\n%s\n", sX);
     fclose(fileHandle);
 
-    fileHandle = fopen(tempFile2, "w");
-    fprintf(fileHandle, ">b\n%s\n", sY);
-    fclose(fileHandle);
-
-    //Run lastz
-    int32_t exitValue = st_system("lastz --hspthresh=800 --chain --strand=plus --gapped --format=cigar --ambiguous=iupac %s %s > %s", tempFile1, tempFile2, tempFile3);
-    //int32_t exitValue = st_system("lastz --hspthresh=800 --maxwordcount=90%% --chain --strand=plus --gapped --format=cigar --ambiguous=iupac %s[unmask] %s[unmask] > %s", tempFile1, tempFile2, tempFile3);
-    assert(exitValue == 0);
-
-    //Read from file..
-    fileHandle = fopen(tempFile3, "r");
+    char *command = stString_print("echo '>b\n%s\n' | lastz --hspthresh=800 --chain --strand=plus --gapped --format=cigar --ambiguous=iupac %s", sY, tempFile1);
+    fileHandle = popen(command, "r");
+    free(command);
+    if(fileHandle == NULL) {
+        st_errAbort("Problems with lastz pipe");
+    }
+    //Read from stream
     struct PairwiseAlignment *pA;
     while((pA = cigarRead(fileHandle)) != NULL) {
         int32_t j = pA->start1;
@@ -611,15 +605,16 @@ stList *getBlastPairs(const char *sX, const char *sY, int32_t lX, int32_t lY, in
         assert(k == pA->end2);
         destructPairwiseAlignment(pA);
     }
-    fclose(fileHandle);
+    int32_t status = pclose(fileHandle);
+    if(status != 0) {
+        st_errnoAbort("pclose failed when getting rid of lastz pipe with value %i", status);
+    }
 
     stList_sort(alignedPairs, sortByXPlusYCoordinate); //Ensure the coordinates are increasing
 
     //Remove old files
-    st_system("rm %s %s %s", tempFile1, tempFile2, tempFile3);
+    st_system("rm %s", tempFile1);
     free(tempFile1);
-    free(tempFile2);
-    free(tempFile3);
 
     return alignedPairs;
 }

@@ -325,16 +325,10 @@ int main(int argc, char *argv[]) {
     /*
      * For each flower.
      */
-    for (j = optind; j < argc; j++) {
-        /*
-         * Read the flower.
-         */
-        const char *flowerName = argv[j];
-        st_logInfo("Processing the flower named: %s\n", flowerName);
-        Flower *flower = cactusDisk_getFlower(cactusDisk,
-                cactusMisc_stringToName(flowerName));
-        assert(flower != NULL);
-        st_logInfo("Parsed the flower to be aligned: %s\n", flowerName);
+    stList *flowers = parseFlowers(argv + optind, argc - optind, cactusDisk);
+    for(j = 0; j < stList_length(flowers); j++) {
+        Flower *flower = stList_get(flowers, j);
+        st_logInfo("Processing a flower\n");
 
         getAlignment_alignedPairs = makeFlowerAlignment(flower, spanningTrees,
                 maximumLength, gapGamma, useBanding,
@@ -366,14 +360,13 @@ int main(int argc, char *argv[]) {
     // Unload the parent flowers
     ///////////////////////////////////////////////////////////////////////////
 
-    for (j = optind; j < argc; j++) {
-        const char *flowerName = argv[j];
-        Flower *flower = cactusDisk_getFlower(cactusDisk,
-                cactusMisc_stringToName(flowerName));
+    for(j = 0; j < stList_length(flowers); j++) {
+        Flower *flower = stList_get(flowers, j);
         assert(flower != NULL);
         //assert(!flower_isParentLoaded(flower));
         flower_unloadParent(flower); //We have this line just in case we are loading the parent..
     }
+    stList_destruct(flowers);
 
     //assert(0);
 

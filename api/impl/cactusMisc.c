@@ -124,3 +124,20 @@ const char *cactusMisc_getDefaultReferenceEventHeader() {
     return cA;
 }
 
+stList *parseFlowers(char **flowerNames, int32_t flowerNamesLength, CactusDisk *cactusDisk) {
+    stList *flowers = stList_construct();
+    assert(flowerNamesLength % 2 == 0);
+    for(int32_t i=0; i<flowerNamesLength; i+=2) {
+        Name firstFlowerName = cactusMisc_stringToName(flowerNames[i]);
+        int32_t flowerNumber;
+        int32_t j = sscanf(flowerNames[i+1], "%i", &flowerNumber);
+        assert(j == 1);
+        for(j=0; j<flowerNumber; j++) {
+            Flower *flower = cactusDisk_getFlower(cactusDisk, firstFlowerName + j);
+            assert(flower != NULL);
+            stList_append(flowers, flower);
+        }
+    }
+    return flowers;
+}
+

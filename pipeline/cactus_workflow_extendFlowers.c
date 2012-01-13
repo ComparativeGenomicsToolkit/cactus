@@ -12,12 +12,15 @@
 #include <inttypes.h>
 
 #include "cactus.h"
+#include "flowerWriter.h"
+#include "cactus_workflow_shared.h"
 
 /*
  * Iterates through a tree an extends the cactus by creating new flowers for
  * non-terminal groups. Used during the core stage.
  */
 
+#ifdef BEN_DEBUG
 static bool isOneAdjacencyComponent(Group *group) {
     /*
      * Checks a group is one adjacency component.
@@ -69,19 +72,10 @@ static bool isOneAdjacencyComponent(Group *group) {
     stList_destruct(stack);
     return b;
 }
+#endif
 
-static void addFlower(FILE *fileHandle, Flower *flower) {
-    assert(!flower_builtBlocks(flower));
-    assert(flower_isLeaf(flower));
-    assert(flower_getBlockNumber(flower) == 0);
-    assert(flower_getGroupNumber(flower) == 1);
-    assert(flower_isTerminal(flower));
-    int64_t size = flower_getTotalBaseLength(flower);
-    assert(size >= 0);
-    fprintf(fileHandle, "%s %" PRIi64 " %i\n", cactusMisc_nameToStringStatic(flower_getName(flower)), size, flower_getEndNumber(flower));
-}
 
-static void extendFlowers(Flower *flower, FILE *fileHandle, int32_t minSizeToExtend, int64_t maxSizeToExtend, int32_t *flowersMade) {
+static void extendFlowers(Flower *flower) {
     Flower_GroupIterator *groupIterator;
     Group *group;
     if (flower_builtBlocks(flower)) {
@@ -90,19 +84,25 @@ static void extendFlowers(Flower *flower, FILE *fileHandle, int32_t minSizeToExt
             if (group_isLeaf(group)) {
                 int64_t size = group_getTotalBaseLength(group);
                 assert(size >= 0);
-                if (size >= minSizeToExtend && size < maxSizeToExtend) {
+                if (size >= minFlowerSize && size < maxFlowerSize) {
                     group_makeNestedFlower(group);
                     Flower *nestedFlower = group_getNestedFlower(group);
-                    addFlower(fileHandle, nestedFlower);
+                    flowerWriter_add(flowerWriter, nestedFlower);
+#ifdef BEN_DEBUG
                     assert(isOneAdjacencyComponent(flower_getFirstGroup(nestedFlower)));
-                    (*flowersMade)++;
+                    assert(!flower_builtBlocks(flower));
+                    assert(flower_isLeaf(flower));
+                    assert(flower_getBlockNumber(flower) == 0);
+                    assert(flower_getGroupNumber(flower) == 1);
+                    assert(flower_isTerminal(flower));
+#endif
                 }
             }
         }
         flower_destructGroupIterator(groupIterator);
     } else { //something went wrong last time, and the flower hasn't been filled in.. so we'll return it
         //again.
-        addFlower(fileHandle, flower);
+        flowerWriter_add(flowerWriter, flower);
     }
 }
 
@@ -111,48 +111,25 @@ int main(int argc, char *argv[]) {
      * This code iterates through the terminal groups and returns
      * a list of the new flowers.
      */
-    assert(argc >= 6);
+    parseArgs(argc, argv);
 
-    st_setLogLevelFromString(argv[1]);
-    st_logInfo("Set up logging\n");
-
-    stKVDatabaseConf *kvDatabaseConf = stKVDatabaseConf_constructFromString(argv[2]);
-    CactusDisk *cactusDisk = cactusDisk_construct(kvDatabaseConf, 0);
-    st_logInfo("Set up the flower disk\n");
-
-    FILE *fileHandle = fopen(argv[3], "w");
-    int32_t flowersMade = 0;
-
-    int32_t minSizeToExtend;
-    int32_t i = sscanf(argv[4], "%i", &minSizeToExtend);
-    assert(i == 1); //We should parse one in correctly.
-    st_logInfo("Min size to extend %i\n", minSizeToExtend);
-
-    int64_t maxSizeToExtend;
-    i = sscanf(argv[5], "%" PRId64 "", &maxSizeToExtend);
-    assert(i == 1); //We should parse one in correctly.
-    if(maxSizeToExtend == -1) {
-        maxSizeToExtend = INT64_MAX;
-    }
-    st_logInfo("Max size to extend %lli\n", maxSizeToExtend);
-    assert(maxSizeToExtend >= 0);
-
-    for (i = 6; i < argc; i++) {
-        Flower *flower = cactusDisk_getFlower(cactusDisk, cactusMisc_stringToName(argv[i]));
-        assert(flower != NULL);
-        st_logInfo("Parsed the flower: %s\n", argv[i]);
-        extendFlowers(flower, fileHandle, minSizeToExtend, maxSizeToExtend, &flowersMade);
+    st_logDebug("Starting extending flowers\n");
+    stList *flowers = parseFlowers(argv + 6, argc - 6, cactusDisk);
+    for (int32_t i = 0; i < stList_length(flowers); i++) {
+        Flower *flower = stList_get(flowers, i);
+        extendFlowers(flower);
         assert(!flower_isParentLoaded(flower)); //The parent should not be loaded.
     }
-    fclose(fileHandle);
-    st_logInfo("We extended %i flowers\n", flowersMade);
+    stList_destruct(flowers);
+    st_logDebug("Finish extending flowers\n");
+
+    flowerWriter_destruct(flowerWriter);
 
     cactusDisk_write(cactusDisk);
-    st_logInfo("Updated the flowerdisk\n");
+    st_logDebug("Updated the cactus disk\n");
 
     cactusDisk_destruct(cactusDisk);
-    stKVDatabaseConf_destruct(kvDatabaseConf);
 
-    st_logInfo("Am finished\n");
+    st_logDebug("Am finished\n");
     return 0;
 }

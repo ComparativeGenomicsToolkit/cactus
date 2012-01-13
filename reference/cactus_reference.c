@@ -173,13 +173,10 @@ int main(int argc, char *argv[]) {
             useSimulatedAnnealing ? exponentiallyDecreasingTemperatureFn
                     : constantTemperatureFn;
 
-    for (j = optind; j < argc; j++) {
-        const char *flowerName = argv[j];
-        st_logInfo("Processing the flower named: %s\n", flowerName);
-        Flower *flower = cactusDisk_getFlower(cactusDisk,
-                cactusMisc_stringToName(flowerName));
-        assert(flower != NULL);
-        st_logInfo("Parsed the flower in which to build a reference\n");
+    stList *flowers = parseFlowers(argv + optind, argc - optind, cactusDisk);
+    for(j = 0; j < stList_length(flowers); j++) {
+        Flower *flower = stList_get(flowers, j);
+        st_logInfo("Processing a flower\n");
         if (!flower_hasParentGroup(flower)) {
             buildReferenceTopDown(flower, referenceEventString, permutations,
                     matchingAlgorithm, temperatureFn, theta, maxNumberOfChainsBeforeSwitchingToFast);
@@ -196,6 +193,7 @@ int main(int argc, char *argv[]) {
         flower_destructGroupIterator(groupIt);
         flower_unloadParent(flower); //We have this line just in case we are loading the parent..
     }
+    stList_destruct(flowers);
 
     ///////////////////////////////////////////////////////////////////////////
     // Write the flower(s) back to disk.

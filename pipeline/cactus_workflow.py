@@ -195,10 +195,10 @@ class CactusAlignmentPhase(Target):
             iterationNode = iterations[self.iteration]
             #assert int(iterationNode.attrib["number"]) == self.iteration
             if iterationNode.attrib["type"] == "blast":
-                self.addChildTarget(CactusCafDown(self.options, iterationNode, [ self.flowerName ]))
+                self.addChildTarget(CactusCafDown(self.options, iterationNode, [ self.flowerName, 1 ]))
             else:
                 assert iterationNode.attrib["type"] == "base"
-                self.addChildTarget(CactusBarDown(self.options, iterationNode, [ self.flowerName ]))
+                self.addChildTarget(CactusBarDown(self.options, iterationNode, [ self.flowerName, 1 ]))
             self.setFollowOnTarget(CactusAlignmentPhase(self.flowerName, self.options, self.iteration+1))
         else:
             self.setFollowOnTarget(CactusNormalPhase(self.flowerName, self.options))
@@ -214,44 +214,44 @@ class CactusAlignmentPhase(Target):
 ############################################################
 ############################################################
 
-MAX_SEQUENCE_SIZE=1000000
-MAX_JOB_NUMBER=1000
-
-def makeTargets(options, extraArgs, flowersAndSizes, parentTarget, target, 
-                maxSequenceSize=MAX_SEQUENCE_SIZE, jobNumber=MAX_JOB_NUMBER,
-                ignoreFlowersLessThanThisSize=0):
+def makeTargets(options, extraArgs, flowersAndSizes, 
+                parentTarget, target, oversizeTarget,
+                maxSequenceSizeOfFlowerGrouping):
     """Make a set of targets for a given set of flowers.
     """
-    #Make child jobs
     flowerNames = []
     totalSequenceSize = 0.0
     
-    minChildSize = max(1, float(maxSequenceSize)/jobNumber)
-    totalChildSize = sum([ max(flowerSize, minChildSize) for flowerName, flowerSize, flowerEndNumber in flowersAndSizes ])
-    
-    for flowerName, flowerSize, flowerEndNumber in flowersAndSizes:
-        assert(flowerSize) >= 0
-        if flowerSize >= ignoreFlowersLessThanThisSize:
-            if flowerSize >= maxSequenceSize: #Make sure large flowers are on there own, in their own job
-                parentTarget.logToMaster("Adding an oversize flower: %s on its own, with %s bases and %s ends for target class %s" % (flowerName, flowerSize, flowerEndNumber, target))
-                parentTarget.addChildTarget(target(options, extraArgs, [ flowerName ]))
-            else:
-                totalSequenceSize += max(flowerSize, minChildSize)
-                flowerNames.append(flowerName)
-                if totalSequenceSize >= maxSequenceSize: 
-                    parentTarget.addChildTarget(target(options, extraArgs, flowerNames))
-                    flowerNames = []
-                    totalSequenceSize = 0.0
+    for totalFlowerSize, firstFlowerName, flowerNumber in flowersAndSizes:
+        if totalFlowerSize >= maxSequenceSizeOfFlowerGrouping: #Make sure large flowers are on there own, in their own job
+            assert flowerNumber == 1
+            parentTarget.logToMaster("Adding an oversize flower: %s on its own, with %s bases for target class %s" \
+                                     % (firstFlowerName, totalFlowerSize, target))
+            parentTarget.addChildTarget(oversizeTarget(options, extraArgs, [ firstFlowerName, 1 ]))
+        else:
+            totalSequenceSize += totalFlowerSize
+            flowerNames.append(firstFlowerName)
+            flowerNames.append(flowerNumber)
+            if totalSequenceSize >= maxSequenceSizeOfFlowerGrouping: 
+                parentTarget.addChildTarget(target(options, extraArgs, flowerNames))
+                flowerNames = []
+                totalSequenceSize = 0.0
     if len(flowerNames) > 0:
         parentTarget.addChildTarget(target(options, extraArgs, flowerNames))
 
-def makeChildTargets(options, extraArgs, flowerNames, target, childTarget, maxSequenceSize=MAX_SEQUENCE_SIZE, jobNumber=MAX_JOB_NUMBER,
-                     ignoreFlowersLessThanThisSize=0):
+MAX_SEQUENCE_SIZE_OF_FLOWER_GROUPING=1000000           
+
+def makeChildTargets(options, extraArgs, flowerNames, target, childTarget, 
+                     maxSequenceSizeOfFlowerGrouping=MAX_SEQUENCE_SIZE_OF_FLOWER_GROUPING, 
+                     minFlowerSize=0):
     """Make a set of child targets for a given set of parent flowers.
     """
-    childFlowers = runCactusGetFlowers(options.cactusDiskDatabaseString, flowerNames, target.getLocalTempDir())
-    makeTargets(options, extraArgs, childFlowers, target, childTarget, maxSequenceSize, jobNumber,
-                ignoreFlowersLessThanThisSize)
+    childFlowers = runCactusGetFlowers(options.cactusDiskDatabaseString, flowerNames, 
+                                       minFlowerSize=minFlowerSize,
+                                       maxSequenceSizeOfFlowerGrouping=maxSequenceSizeOfFlowerGrouping)
+    makeTargets(options, extraArgs, flowersAndSizes=childFlowers, parentTarget=target, 
+                target=childTarget, oversizeTarget=childTarget, 
+                maxSequenceSizeOfFlowerGrouping=maxSequenceSizeOfFlowerGrouping)
 
 class CactusCafDown(Target):
     """This target does the down pass for the CAF alignment phase.
@@ -264,15 +264,16 @@ class CactusCafDown(Target):
         self.flowerNames = flowerNames
     
     def run(self):
-        ignoreFlowersLessThanThisSize = int(self.iteration.attrib["min_sequence_size"])
-        ignoreFlowersGreaterThanThisSize = int(getOptionalAttrib(self.iteration, "max_sequence_size", -1))
+        minFlowerSize = int(self.iteration.attrib["min_sequence_size"])
+        maxFlowerSize = int(getOptionalAttrib(self.iteration, "max_sequence_size", -1))
         makeChildTargets(self.options, self.iteration, self.flowerNames, self, CactusCafDown, 
-                         ignoreFlowersLessThanThisSize=ignoreFlowersLessThanThisSize)
-        for childFlowerName, childFlowerSize, childFlowerEndNumber in runCactusExtendFlowers(self.options.cactusDiskDatabaseString, self.flowerNames, 
-                                                                       self.getLocalTempDir(), 
-                                                                       ignoreFlowersLessThanThisSize, 
-                                                                       ignoreFlowersGreaterThanThisSize):
-            self.addChildTarget(CactusBlastWrapper(self.options, self.iteration, childFlowerName))
+                         minFlowerSize=minFlowerSize)
+        for totalFlowerSize, firstChildName, flowerNumber in runCactusExtendFlowers(self.options.cactusDiskDatabaseString, 
+                                                                                    self.flowerNames, 
+                                                                       minFlowerSize=minFlowerSize, 
+                                                                       maxFlowerSize=maxFlowerSize):
+            for i in xrange(flowerNumber):
+                self.addChildTarget(CactusBlastWrapper(self.options, self.iteration, str(firstChildName + i)))
 
 def getOption(node, attribName, default):
     if node.attrib.has_key(attribName):
@@ -365,17 +366,22 @@ class CactusBarDown(Target):
     
     def run(self):
         makeChildTargets(self.options, self.iteration, self.flowerNames, self, CactusBarDown)
-        childFlowersAndSizes = runCactusExtendFlowers(self.options.cactusDiskDatabaseString, self.flowerNames, 
-                                                      self.getLocalTempDir(), minSizeToExtend=1)
-        makeTargets(self.options, self.iteration, childFlowersAndSizes, self, CactusBaseLevelAlignerWrapper, maxSequenceSize=10000)
+        maxSequenceSizeOfFlowerGrouping=10000
+        childFlowers = runCactusExtendFlowers(self.options.cactusDiskDatabaseString, self.flowerNames, 
+                                                      minFlowerSize=1, 
+                                                      maxSequenceSizeOfFlowerGrouping=maxSequenceSizeOfFlowerGrouping)
+        def fn(options, iteration, flowerNames):
+            return CactusBaseLevelAlignerWrapper(options, iteration, flowerNames, time=30, numThreads=int(getOptionalAttrib(iteration, "num_threads", 1)))
+        makeTargets(self.options, self.iteration, childFlowers, parentTarget=self, target=CactusBaseLevelAlignerWrapper, 
+                    oversizeTarget=fn, maxSequenceSizeOfFlowerGrouping=maxSequenceSizeOfFlowerGrouping)
      
 class CactusBaseLevelAlignerWrapper(Target):
     """Runs cactus_baseAligner (the BAR algorithm implementation.
     """
     #We split, to deal with cleaning up the alignment file
-    def __init__(self, options, iteration, flowerNames):
-        self.numThreads = int(getOptionalAttrib(iteration, "num_threads", 1))
-        Target.__init__(self, time=30, cpu=self.numThreads)
+    def __init__(self, options, iteration, flowerNames, time=2, numThreads=1):
+        self.numThreads = numThreads
+        Target.__init__(self, time=time, cpu=self.numThreads)
         self.options = options
         self.iteration = iteration
         self.flowerNames = flowerNames
@@ -422,7 +428,7 @@ class CactusNormalPhase(Target):
         
     def run(self):
         self.logToMaster("Starting the normalisation phase at %s seconds" % time.time())
-        self.addChildTarget(CactusNormalDown(self.options, None, [ self.flowerName ]))
+        self.addChildTarget(CactusNormalDown(self.options, None, [ self.flowerName, 1 ]))
         if self.normalisationRounds-1 > 0:
             self.setFollowOnTarget(CactusNormalPhase(self.flowerName, self.options, self.normalisationRounds-1))
         else:
@@ -470,7 +476,7 @@ class CactusPhylogenyPhase(Target):
     def run(self):
         self.logToMaster("Starting the phylogeny phase at %s seconds" % time.time())
         if self.options.buildTrees:
-            self.addChildTarget(CactusPhylogeny(self.options, None, [ self.flowerName ]))
+            self.addChildTarget(CactusPhylogeny(self.options, None, [ self.flowerName, 1 ]))
         self.setFollowOnTarget(CactusReferencePhase(self.flowerName, self.options))
 
 class CactusPhylogeny(Target):
@@ -503,7 +509,7 @@ class CactusReferencePhase(Target):
     def run(self):
         self.logToMaster("Starting the reference phase at %s seconds" % time.time())
         if self.options.buildReference:
-            self.addChildTarget(CactusReferenceDown(self.options, None, [ self.flowerName ]))
+            self.addChildTarget(CactusReferenceDown(self.options, None, [ self.flowerName, 1 ]))
             self.setFollowOnTarget(CactusSetReferenceCoordinates(self.flowerName, self.options))
         else:
             self.setFollowOnTarget(CactusFacesPhase(self.flowerName, self.options))
@@ -560,7 +566,7 @@ class CactusFacesPhase(Target):
     def run(self):
         logger.info("Starting the faces phase")
         if self.options.buildFaces:
-            self.addChildTarget(CactusFaces(self.options, None, [ self.flowerName ]))
+            self.addChildTarget(CactusFaces(self.options, None, [ self.flowerName, 1 ]))
         self.setFollowOnTarget(CactusCheckPhase(self.flowerName, self.options))
         
 class CactusFaces(Target):
@@ -593,7 +599,7 @@ class CactusCheckPhase(Target):
     def run(self):
         if not self.options.skipCheck:
             self.logToMaster("Starting the verification phase at %s seconds" % time.time())
-            self.addChildTarget(CactusCheck(self.options, None, [ self.flowerName ]))
+            self.addChildTarget(CactusCheck(self.options, None, [ self.flowerName, 1 ]))
         
 class CactusCheck(Target):
     """This target does the down pass for the check phase.

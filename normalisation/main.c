@@ -108,16 +108,10 @@ int main(int argc, char *argv[]) {
     // Loop on the flowers, doing the reference genome (this process must be run bottom up)
     ///////////////////////////////////////////////////////////////////////////
 
-    for (j = optind; j < argc; j++) {
-        /*
-         * Read the flower.
-         */
-        const char *flowerName = argv[j];
-        st_logInfo("Processing the flower named: %s\n", flowerName);
-        Flower *flower = cactusDisk_getFlower(cactusDisk,
-                cactusMisc_stringToName(flowerName));
-        assert(flower != NULL);
-        st_logInfo("Parsed the flower to normalise\n");
+    stList *flowers = parseFlowers(argv + optind, argc - optind, cactusDisk);
+    for(j = 0; j < stList_length(flowers); j++) {
+        Flower *flower = stList_get(flowers, j);
+        st_logInfo("Processing a flower\n");
         normalise(flower, maxNumberOfChains);
     }
 
@@ -127,13 +121,13 @@ int main(int argc, char *argv[]) {
     // Unload the parent flowers
     ///////////////////////////////////////////////////////////////////////////
 
-    for (j = optind; j < argc; j++) {
-        const char *flowerName = argv[j];
-        Flower *flower = cactusDisk_getFlower(cactusDisk, cactusMisc_stringToName(flowerName));
+    for(j = 0; j < stList_length(flowers); j++) {
+        Flower *flower = stList_get(flowers, j);
         assert(flower != NULL);
         //flower_check(flower);
         flower_unloadParent(flower); //We have this line just in case we are loading the parent..
     }
+    stList_destruct(flowers);
 
     st_logInfo("Unloaded the parent flowers\n");
 

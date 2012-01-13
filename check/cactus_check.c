@@ -195,7 +195,6 @@ void usage() {
 
 int main(int argc, char *argv[]) {
     CactusDisk *cactusDisk;
-    Flower *flower;
 
     /*
      * Arguments/options
@@ -262,18 +261,10 @@ int main(int argc, char *argv[]) {
     cactusDisk = cactusDisk_construct(kvDatabaseConf, 0);
     st_logInfo("Set up the flower disk\n");
 
-    int32_t j;
-    for (j = optind; j < argc; j++) {
-        const char *flowerName = argv[j];
-        st_logInfo("Processing the flower named: %s\n", flowerName);
-
-        ///////////////////////////////////////////////////////////////////////////
-        // Parse the basic reconstruction problem
-        ///////////////////////////////////////////////////////////////////////////
-
-        flower = cactusDisk_getFlower(cactusDisk, cactusMisc_stringToName(
-                flowerName));
-        st_logInfo("Parsed the top level flower of the cactus tree to check\n");
+    stList *flowers = parseFlowers(argv + optind, argc - optind, cactusDisk);
+    for(int32_t j = 0; j < stList_length(flowers); j++) {
+        Flower *flower = stList_get(flowers, j);
+        st_logInfo("Processing a flower\n");
 
         ///////////////////////////////////////////////////////////////////////////
         // Recursive check the flowers.
@@ -287,6 +278,7 @@ int main(int argc, char *argv[]) {
     // Clean up.
     ///////////////////////////////////////////////////////////////////////////
 
+    stList_destruct(flowers);
     cactusDisk_destruct(cactusDisk);
     stKVDatabaseConf_destruct(kvDatabaseConf);
 

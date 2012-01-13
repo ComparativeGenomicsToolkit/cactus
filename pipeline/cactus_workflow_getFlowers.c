@@ -12,27 +12,20 @@
 #include <inttypes.h>
 
 #include "cactus.h"
+#include "flowerWriter.h"
+#include "cactus_workflow_shared.h"
 
 int main(int argc, char *argv[]) {
-    assert(argc >= 5);
-
-    st_setLogLevelFromString(argv[4]);
-
-    stKVDatabaseConf *kvDatabaseConf = stKVDatabaseConf_constructFromString(argv[1]);
-    CactusDisk *cactusDisk = cactusDisk_construct(kvDatabaseConf, 0);
-    st_logInfo("Set up the flower disk\n");
-
-    FILE *fileHandle = fopen(argv[2], "w");
-
+    parseArgs(argc, argv);
     int32_t includeTerminalFlowers;
-    int32_t i = sscanf(argv[3], "%i", &includeTerminalFlowers);
+    int32_t i = sscanf(argv[6], "%i", &includeTerminalFlowers);
     assert(i == 1);
-    for (i = 5; i < argc; i++) {
-        Flower *flower = cactusDisk_getFlower(cactusDisk, cactusMisc_stringToName(argv[i]));
-        assert(flower != NULL);
+    st_logDebug("Keeping the terminal flowers: %i\n", includeTerminalFlowers);
+    stList *flowers = parseFlowers(argv + 7, argc - 7, cactusDisk);
+    for (int32_t i = 0; i < stList_length(flowers); i++) {
+        Flower *flower = stList_get(flowers, i);
         if(!flower_isLeaf(flower)) {
             assert(flower_builtBlocks(flower)); //This recursion depends on the block structure having been properly defined for all nodes.
-            st_logInfo("Parsed the flower %s\n", argv[i]);
             Flower_GroupIterator *groupIterator = flower_getGroupIterator(flower);
             Group *group;
             while ((group = flower_getNextGroup(groupIterator)) != NULL) {
@@ -40,17 +33,18 @@ int main(int argc, char *argv[]) {
                     Flower *nestedFlower = group_getNestedFlower(group);
                     assert(nestedFlower != NULL);
                     assert(flower_builtBlocks(nestedFlower)); //This recursion depends on the block structure having been properly defined for all nodes.
-                    if(includeTerminalFlowers || !flower_isTerminal(flower)) {
-                        fprintf(fileHandle, "%s %" PRIi64 " %i \n", cactusMisc_nameToStringStatic(flower_getName(nestedFlower)), flower_getTotalBaseLength(nestedFlower), flower_getEndNumber(nestedFlower));
+                    int64_t flowerSize = flower_getTotalBaseLength(nestedFlower);
+                    if((includeTerminalFlowers || !flower_isTerminal(nestedFlower)) && flowerSize <= maxFlowerSize && flowerSize >= minFlowerSize) {
+                        flowerWriter_add(flowerWriter, nestedFlower);
                     }
                 }
             }
             flower_destructGroupIterator(groupIterator);
         }
     }
-    fclose(fileHandle);
+    stList_destruct(flowers);
+    flowerWriter_destruct(flowerWriter);
     cactusDisk_destruct(cactusDisk);
-    stKVDatabaseConf_destruct(kvDatabaseConf);
-    st_logInfo("Am finished\n");
+    st_logDebug("Am finished\n");
     return 0;
 }
