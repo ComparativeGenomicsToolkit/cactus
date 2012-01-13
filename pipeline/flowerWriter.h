@@ -24,4 +24,4 @@ void flowerWriter_destruct(FlowerWriter *flowerWriter);
  */
 void flowerWriter_add(FlowerWriter *flowerWriter, Flower *flower);
 
-#endif FLOWER_WRITER_H_
+#endif
