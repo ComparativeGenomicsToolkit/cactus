@@ -6,6 +6,7 @@
 
 #include "sonLib.h"
 #include <stdlib.h>
+#include <stdio.h>
 #include <inttypes.h>
 #include <math.h>
 #include <omp.h>
