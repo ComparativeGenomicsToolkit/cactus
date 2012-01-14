@@ -224,6 +224,8 @@ def makeTargets(options, extraArgs, flowersAndSizes,
     
     for totalFlowerSize, firstFlowerName, flowerNumber in flowersAndSizes:
         if totalFlowerSize >= maxSequenceSizeOfFlowerGrouping: #Make sure large flowers are on there own, in their own job
+            if flowerNumber != 1:
+                logger.critical("Got more than one flower: %s %s" % (firstFlowerName, flowerNumber))
             assert flowerNumber == 1
             parentTarget.logToMaster("Adding an oversize flower: %s on its own, with %s bases for target class %s" \
                                      % (firstFlowerName, totalFlowerSize, target))
@@ -232,7 +234,7 @@ def makeTargets(options, extraArgs, flowersAndSizes,
             totalSequenceSize += totalFlowerSize
             flowerNames.append(firstFlowerName)
             flowerNames.append(flowerNumber)
-            if totalSequenceSize >= maxSequenceSizeOfFlowerGrouping: 
+            if totalSequenceSize >= maxSequenceSizeOfFlowerGrouping or len(flowerNames) > 200: 
                 parentTarget.addChildTarget(target(options, extraArgs, flowerNames))
                 flowerNames = []
                 totalSequenceSize = 0.0
