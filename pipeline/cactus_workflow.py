@@ -223,7 +223,7 @@ def makeTargets(options, extraArgs, flowersAndSizes,
     totalSequenceSize = 0.0
     
     for totalFlowerSize, firstFlowerName, flowerNumber in flowersAndSizes:
-        if totalFlowerSize >= maxSequenceSizeOfFlowerGrouping: #Make sure large flowers are on there own, in their own job
+        if totalFlowerSize > maxSequenceSizeOfFlowerGrouping: #Make sure large flowers are on there own, in their own job
             if flowerNumber != 1:
                 logger.critical("Got more than one flower: %s %s %s %s %s" % (firstFlowerName, flowerNumber, totalFlowerSize, len(flowersAndSizes), flowersAndSizes))
             assert flowerNumber == 1
@@ -241,7 +241,7 @@ def makeTargets(options, extraArgs, flowersAndSizes,
     if len(flowerNames) > 0:
         parentTarget.addChildTarget(target(options, extraArgs, flowerNames))
 
-MAX_SEQUENCE_SIZE_OF_FLOWER_GROUPING=1000000           
+MAX_SEQUENCE_SIZE_OF_FLOWER_GROUPING=100000           
 
 def makeChildTargets(options, extraArgs, flowerNames, target, childTarget, 
                      maxSequenceSizeOfFlowerGrouping=MAX_SEQUENCE_SIZE_OF_FLOWER_GROUPING, 

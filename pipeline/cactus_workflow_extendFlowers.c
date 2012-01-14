@@ -75,7 +75,7 @@ static void extendFlowers(Flower *flower) {
             if (group_isLeaf(group)) {
                 int64_t size = group_getTotalBaseLength(group);
                 assert(size >= 0);
-                if (size >= minFlowerSize && size < maxFlowerSize) {
+                if (size >= minFlowerSize && size <= maxFlowerSize) {
                     group_makeNestedFlower(group);
                     Flower *nestedFlower = group_getNestedFlower(group);
                     flowerWriter_add(flowerWriter, nestedFlower);
