@@ -72,7 +72,7 @@ static stList *getExtraAttachedStubsFromParent(Flower *flower) {
         group_destructEndIterator(parentEndIt);
     }
     assert(flower_getAttachedStubEndNumber(flower) % 2 == 0);
-    if(flower_getBlockEndNumber(flower) > 0) {
+    if (flower_getBlockEndNumber(flower) > 0) {
         assert(flower_getAttachedStubEndNumber(flower) > 0);
     }
     return newEnds;
@@ -133,7 +133,7 @@ static stList *calculateZP(Cap *cap, stHash *endsToNodes) {
         End *end = end_getPositiveOrientation(cap_getEnd(cap));
         if (stHash_search(endsToNodes, end) != NULL) {
             assert(!cap_getSide(cap));
-            if(stList_length(caps) > 0) {
+            if (stList_length(caps) > 0) {
                 assert(b);
             }
             b = 0;
@@ -144,7 +144,7 @@ static stList *calculateZP(Cap *cap, stHash *endsToNodes) {
         end = end_getPositiveOrientation(cap_getEnd(cap));
         if (stHash_search(endsToNodes, end) != NULL) {
             assert(cap_getSide(cap));
-            if(stList_length(caps) > 0) {
+            if (stList_length(caps) > 0) {
                 assert(!b);
             }
             b = 1;
@@ -160,7 +160,7 @@ static stList *calculateZP(Cap *cap, stHash *endsToNodes) {
 }
 
 static Cap *calculateZP4(Cap *cap, stHash *endsToNodes) {
-    if(cap_getOtherSegmentCap(cap) == NULL) {
+    if (cap_getOtherSegmentCap(cap) == NULL) {
         return NULL;
     }
     while (1) {
@@ -175,9 +175,9 @@ static Cap *calculateZP4(Cap *cap, stHash *endsToNodes) {
         end = end_getPositiveOrientation(cap_getEnd(cap));
         assert(stHash_search(endsToNodes, end) == NULL);
         if (end_isStubEnd(end)) {
-            if(!end_isFree(end)) {
-                assert(!flower_hasParentGroup(end_getFlower(end)));
-            }
+            //if(!end_isFree(end)) { //Not true is normalisation is disabled
+            //    assert(!flower_hasParentGroup(end_getFlower(end)));
+            //}
             return NULL;
         }
     }
@@ -195,16 +195,16 @@ static int32_t calculateZP2(Cap *cap, stHash *endsToNodes) {
     Cap *otherCap = calculateZP4(cap, endsToNodes);
     int32_t capLength;
     if (otherCap == NULL) {
-        capLength = cap_getSide(cap) ? sequence_getLength(sequence) + sequence_getStart(sequence)
-                - cap_getCoordinate(cap) : cap_getCoordinate(cap)
-                - sequence_getStart(sequence) + 1;
+        capLength = cap_getSide(cap) ? sequence_getLength(sequence)
+                + sequence_getStart(sequence) - cap_getCoordinate(cap)
+                : cap_getCoordinate(cap) - sequence_getStart(sequence) + 1;
     } else {
         capLength = cap_getSide(cap) ? cap_getCoordinate(otherCap)
                 - cap_getCoordinate(cap) + 1 : cap_getCoordinate(cap)
                 - cap_getCoordinate(otherCap) + 1;
     }
     assert(capLength >= 0);
-    if(capLength == 0) { //Give stubs at the end of sequences some weight.
+    if (capLength == 0) { //Give stubs at the end of sequences some weight.
         assert(end_isStubEnd(cap_getEnd(cap)));
         capLength = 1;
     }
@@ -218,7 +218,7 @@ double *calculateZ(Flower *flower, stHash *endsToNodes, double theta) {
     int32_t nodeNumber = stHash_size(endsToNodes);
     assert(nodeNumber % 2 == 0);
     double *z = st_calloc(nodeNumber * nodeNumber, sizeof(double));
-    for(int32_t i=0; i<nodeNumber*nodeNumber; i++) { //Setting to zero for paranoid reasons.
+    for (int32_t i = 0; i < nodeNumber * nodeNumber; i++) { //Setting to zero for paranoid reasons.
         z[i] = 0.0;
     }
     Flower_EndIterator *endIt = flower_getEndIterator(flower);
@@ -245,8 +245,9 @@ double *calculateZ(Flower *flower, stHash *endsToNodes, double theta) {
                     /*
                      * Iterate through all pairs of 5' and 3' caps to calculate additions to scores.
                      */
-                    for (int32_t i = (stList_length(caps) > 0 && cap_getSide(stList_get(caps, 0))) ? 1 : 0;
-                            i < stList_length(caps); i+=2) {
+                    for (int32_t i = (stList_length(caps) > 0 && cap_getSide(
+                            stList_get(caps, 0))) ? 1 : 0; i < stList_length(
+                            caps); i += 2) {
                         Cap *_3Cap = stList_get(caps, i);
                         assert(!cap_getSide(_3Cap));
                         int32_t _3CapSize = capSizes[i];
@@ -257,7 +258,7 @@ double *calculateZ(Flower *flower, stHash *endsToNodes, double theta) {
                                                 cap_getEnd(_3Cap))), 0);
                         assert(_3Node >= 0);
                         assert(_3Node < nodeNumber);
-                        for (int32_t j = i+1; j < stList_length(caps); j+=2) {
+                        for (int32_t j = i + 1; j < stList_length(caps); j += 2) {
                             Cap *_5Cap = stList_get(caps, j);
                             assert(cap_getSide(_5Cap));
                             int32_t _5Node = stIntTuple_getPosition(
@@ -271,15 +272,19 @@ double *calculateZ(Flower *flower, stHash *endsToNodes, double theta) {
                             int32_t diff = cap_getCoordinate(_5Cap)
                                     - cap_getCoordinate(_3Cap);
                             assert(diff >= 1);
-                            double score = calculateZScore(_5CapSize, _3CapSize, diff, theta);
+                            double score = calculateZScore(_5CapSize,
+                                    _3CapSize, diff, theta);
                             assert(score >= -0.0001);
-                            if(score <= 0.0) {
+                            if (score <= 0.0) {
                                 score = 1e-10; //Make slightly non-zero.
                             }
                             assert(score > 0.0);
                             z[_5Node * nodeNumber + _3Node] += score;
-                            z[_3Node * nodeNumber + _5Node] = z[_5Node * nodeNumber + _3Node];
-                            assert(z[_5Node * nodeNumber + _3Node] == z[_3Node * nodeNumber + _5Node]);
+                            z[_3Node * nodeNumber + _5Node] = z[_5Node
+                                    * nodeNumber + _3Node];
+                            assert(
+                                    z[_5Node * nodeNumber + _3Node] == z[_3Node
+                                            * nodeNumber + _5Node]);
                             assert(z[_5Node * nodeNumber + _3Node] > 0.0);
                         }
                     }
@@ -291,7 +296,7 @@ double *calculateZ(Flower *flower, stHash *endsToNodes, double theta) {
         }
     }
     flower_destructEndIterator(endIt);
-    for(int32_t i=0; i<nodeNumber*nodeNumber; i++) {
+    for (int32_t i = 0; i < nodeNumber * nodeNumber; i++) {
         assert(z[i] >= 0.0);
     }
 
@@ -405,6 +410,37 @@ static Cap *getCapWithEvent(End *end, Name eventName) {
     return NULL;
 }
 
+static stList *getStubNodesOrEnds(Flower *flower, stHash *endsToNodes,
+        stList *chainEdges, bool endsNotNodes) {
+    stSortedSet *chainNodeSet = stSortedSet_construct3(
+            (int(*)(const void *, const void *)) stIntTuple_cmpFn,
+            (void(*)(void *)) stIntTuple_destruct);
+    stList *stubObjects = stList_construct();
+    for (int32_t i = 0; i < stList_length(chainEdges); i++) {
+        stIntTuple *chainEdge = stList_get(chainEdges, i);
+        assert(stIntTuple_length(chainEdge) == 2);
+        stIntTuple *node1 = stIntTuple_construct(1,
+                stIntTuple_getPosition(chainEdge, 0));
+        stIntTuple *node2 = stIntTuple_construct(1,
+                stIntTuple_getPosition(chainEdge, 1));
+        assert(stSortedSet_search(chainNodeSet, node1) == NULL);
+        stSortedSet_insert(chainNodeSet, node1);
+        assert(stSortedSet_search(chainNodeSet, node2) == NULL);
+        stSortedSet_insert(chainNodeSet, node2);
+    }
+    stHashIterator *it = stHash_getIterator(endsToNodes);
+    End *end;
+    while ((end = stHash_getNext(it)) != NULL) {
+        stIntTuple *node = stHash_search(endsToNodes, end);
+        if (stSortedSet_search(chainNodeSet, node) == NULL) {
+            stList_append(stubObjects, endsNotNodes ? (void *)end : (void *)node);
+        }
+    }
+    stHash_destructIterator(it);
+    stSortedSet_destruct(chainNodeSet);
+    return stubObjects;
+}
+
 static End *getAdjacentEndFromParent(End *end, Event *referenceEvent) {
     /*
      * Get the adjacent stub end by looking at the reference adjacency in the parent.
@@ -425,98 +461,97 @@ static End *getAdjacentEndFromParent(End *end, Event *referenceEvent) {
     return adjacentEnd;
 }
 
-static stList *getStubEdgesFromParent(Flower *flower, stHash *endsToNodes,
-        Event *referenceEvent) {
+static End *getStubEdgesFromParent2(End *end) {
+    assert(end_getOrientation(end));
+    assert(end_getGroup(end) != NULL);
+    Link *link = group_getLink(end_getGroup(end));
+    assert(link != NULL);
+    Chain *chain = link_getChain(link);
+    assert(chain_getFirst(chain) == link || chain_getLast(chain) == link);
+    assert(link_get3End(link) == end || link_get5End(link) == end);
+    if(chain_getFirst(chain) == chain_getLast(chain)) {
+        return link_get3End(link) == end ? link_get5End(link) : link_get3End(link);
+    }
+    if (chain_getFirst(chain) == link) {
+        assert(link_get3End(link) == end);
+        return link_get5End(chain_getLast(chain));
+    } else {
+        assert(link_get5End(link) == end);
+        return link_get3End(chain_getFirst(chain));
+    }
+}
+
+static stList *getStubEdgesFromParent(Flower *flower, Event *referenceEvent,
+        stHash *endsToNodes, stList *chainEdges) {
     /*
      * For each attached stub in the flower, get the end in the parent group, and add its
      * adjacency to the group.
      */
+    stList *stubEnds = getStubNodesOrEnds(flower, endsToNodes, chainEdges, 1);
     stList *stubEdges = stList_construct3(0,
             (void(*)(void *)) stIntTuple_destruct);
-    stList *ends = stHash_getKeys(endsToNodes);
     stSortedSet *endsSeen = stSortedSet_construct();
-    for (int32_t i = 0; i < stList_length(ends); i++) {
-        End *end = stList_get(ends, i);
+    for (int32_t i = 0; i < stList_length(stubEnds); i++) {
+        End *end = stList_get(stubEnds, i);
         assert(end_getOrientation(end));
-        if (end_isStubEnd(end) && stSortedSet_search(endsSeen, end) == NULL) {
+        if (stSortedSet_search(endsSeen, end) == NULL) {
+            end = end_isBlockEnd(end) ? getStubEdgesFromParent2(
+                    end_getOtherBlockEnd(end)) : end;
+            assert(end_isStubEnd(end));
             End *adjacentEnd = getAdjacentEndFromParent(end, referenceEvent);
+            if(stHash_search(endsToNodes, adjacentEnd) == NULL) {
+                adjacentEnd = getStubEdgesFromParent2(adjacentEnd);
+                assert(end_isBlockEnd(adjacentEnd));
+                adjacentEnd = end_getOtherBlockEnd(adjacentEnd);
+                assert(stHash_search(endsToNodes, adjacentEnd) != NULL);
+            }
             assert(end_getOrientation(adjacentEnd));
-
             stSortedSet_insert(endsSeen, end);
             stSortedSet_insert(endsSeen, adjacentEnd);
             stList_append(stubEdges, getEdge2(end, adjacentEnd, endsToNodes));
         }
     }
     stSortedSet_destruct(endsSeen);
-    stList_destruct(ends);
+    stList_destruct(stubEnds);
     return stubEdges;
 }
 
-static stList *getStubEdges(Flower *flower, stHash *endsToNodes,
+static stList *getStubEdgesInTopLevelFlower(Flower *flower, stHash *endsToNodes,
         Event *referenceEvent,
-        stList *(*matchingAlgorithm)(stList *edges, int32_t nodeNumber), stList *chainEdges) {
-    int32_t nodeNumber = stHash_size(endsToNodes);
-
-    /*
-     * Gets the stub edges for a problem
-     */
-    if (flower_getParentGroup(flower) != NULL) {
-        /*
-         * Copy them from the parent.
-         */
-        return getStubEdgesFromParent(flower, endsToNodes, referenceEvent);
-    }
-
-    /*
-     * Get stub nodes
-     */
-    stSortedSet *chainNodeSet = stSortedSet_construct3((int (*)(const void *, const void *))stIntTuple_cmpFn, (void (*)(void *))stIntTuple_destruct);
-    stList *stubNodes = stList_construct();
-    for(int32_t i=0; i<stList_length(chainEdges); i++) {
-        stIntTuple *chainEdge = stList_get(chainEdges, i);
-        assert(stIntTuple_length(chainEdge) == 2);
-        stIntTuple *node1 = stIntTuple_construct(1, stIntTuple_getPosition(chainEdge, 0));
-        stIntTuple *node2 = stIntTuple_construct(1, stIntTuple_getPosition(chainEdge, 1));
-        assert(stSortedSet_search(chainNodeSet, node1) == NULL);
-        stSortedSet_insert(chainNodeSet, node1);
-        assert(stSortedSet_search(chainNodeSet, node2) == NULL);
-        stSortedSet_insert(chainNodeSet, node2);
-    }
-    stHashIterator *it = stHash_getIterator(endsToNodes);
-    End *end;
-    while((end = stHash_getNext(it)) != NULL) {
-        stIntTuple *node = stHash_search(endsToNodes, end);
-        if(stSortedSet_search(chainNodeSet, node) == NULL) {
-            stList_append(stubNodes, node);
-        }
-    }
-    stHash_destructIterator(it);
-    stSortedSet_destruct(chainNodeSet);
-
-    /*
-     * Make Z for the stubs using a theta of 0.0
-     */
+        stList *(*matchingAlgorithm)(stList *edges, int32_t nodeNumber),
+        stList *chainEdges) {
     double *z = calculateZ(flower, endsToNodes, 0.0);
 
-    st_logDebug("Building a matching for %i stub nodes in the top level problem from %i total stubs of which %i attached , %i total ends, %i chains, %i blocks %i groups and %i sequences\n", stList_length(stubNodes), flower_getStubEndNumber(flower), flower_getAttachedStubEndNumber(flower), flower_getEndNumber(flower), flower_getChainNumber(flower), flower_getBlockNumber(flower), flower_getGroupNumber(flower), flower_getSequenceNumber(flower));
+    stList *stubNodes = getStubNodesOrEnds(flower, endsToNodes, chainEdges, 0);
+    st_logDebug(
+            "Building a matching for %i stub nodes in the top level problem from %i total stubs of which %i attached , %i total ends, %i chains, %i blocks %i groups and %i sequences\n",
+            stList_length(stubNodes), flower_getStubEndNumber(flower),
+            flower_getAttachedStubEndNumber(flower),
+            flower_getEndNumber(flower), flower_getChainNumber(flower),
+            flower_getBlockNumber(flower), flower_getGroupNumber(flower),
+            flower_getSequenceNumber(flower));
 
     /*
      * Create a matching for the parent stub edges.
      */
-    stList *adjacencyEdges = stList_construct3(0, (void (*)(void *))stIntTuple_destruct);
-    for(int32_t i=0; i<stList_length(stubNodes); i++) {
+    stList *adjacencyEdges = stList_construct3(0,
+            (void(*)(void *)) stIntTuple_destruct);
+    int32_t nodeNumber = stHash_size(endsToNodes);
+    for (int32_t i = 0; i < stList_length(stubNodes); i++) {
         int32_t node1 = stIntTuple_getPosition(stList_get(stubNodes, i), 0);
-        for(int32_t j=i+1; j<stList_length(stubNodes); j++) {
+        for (int32_t j = i + 1; j < stList_length(stubNodes); j++) {
             int32_t node2 = stIntTuple_getPosition(stList_get(stubNodes, j), 0);
             assert(z[node1 * nodeNumber + node2] >= 0);
             double score = round(z[node1 * nodeNumber + node2]);
             assert(score >= 0);
             int32_t score2 = score > INT32_MAX ? INT32_MAX : score;
             assert(score2 >= 0);
-            stList_append(adjacencyEdges, constructWeightedEdge(node1, node2, score2));
+            stList_append(adjacencyEdges,
+                    constructWeightedEdge(node1, node2, score2));
         }
     }
-    stSortedSet *stubNodesSet = stList_getSortedSet(stubNodes, (int (*)(const void *, const void *))stIntTuple_cmpFn);
+    stSortedSet *stubNodesSet = stList_getSortedSet(stubNodes,
+            (int(*)(const void *, const void *)) stIntTuple_cmpFn);
 
     checkEdges(adjacencyEdges, stubNodesSet, 1, 0);
 
@@ -537,10 +572,18 @@ static stList *getStubEdges(Flower *flower, stHash *endsToNodes,
     stList_destruct(chosenAdjacencyEdges);
     stList_destruct(adjacencyEdges);
     stSortedSet_destruct(stubNodesSet);
-    stList_destruct(stubNodes);
     free(z);
+    stList_destruct(stubNodes);
 
     return stubEdges;
+}
+
+static stList *getStubEdges(Flower *flower, stHash *endsToNodes,
+        Event *referenceEvent,
+        stList *(*matchingAlgorithm)(stList *edges, int32_t nodeNumber),
+        stList *chainEdges) {
+    return flower_getParentGroup(flower) != NULL ? getStubEdgesFromParent(flower, referenceEvent, endsToNodes,
+            chainEdges) : getStubEdgesInTopLevelFlower(flower, endsToNodes, referenceEvent, matchingAlgorithm, chainEdges);
 }
 
 ////////////////////////////////////
@@ -700,8 +743,8 @@ static void assignGroups(stList *newEnds, Flower *flower, Event *referenceEvent)
 void buildReferenceTopDown(Flower *flower, const char *referenceEventHeader,
         int32_t permutations,
         stList *(*matchingAlgorithm)(stList *edges, int32_t nodeNumber),
-        double (*temperature)(double),
-        double theta, int32_t maxNumberOfChainsBeforeSwitchingToFast) {
+        double(*temperature)(double), double theta,
+        int32_t maxNumberOfChainsBeforeSwitchingToFast) {
     /*
      * Implements a greedy algorithm and gibbs sampler to find a solution to the adjacency problem for a net.
      */
@@ -715,6 +758,7 @@ void buildReferenceTopDown(Flower *flower, const char *referenceEventHeader,
      * Get any extra ends to balance the group from the parent problem.
      */
     stList *newEnds = getExtraAttachedStubsFromParent(flower);
+    st_logDebug("Got %i new ends\n", stList_length(newEnds));
 
     /*
      * Create a map to identify the ends by integers.
@@ -740,15 +784,16 @@ void buildReferenceTopDown(Flower *flower, const char *referenceEventHeader,
     /*
      * Get the stub edges and chosen edges.
      */
-    stList * stubEdges = getStubEdges(flower, endsToNodes,
-            referenceEvent, matchingAlgorithm, chainEdges);
+    stList * stubEdges = getStubEdges(flower, endsToNodes, referenceEvent,
+            matchingAlgorithm, chainEdges);
 
     /*
      * Check the edges and nodes before starting to calculate the matching.
      */
     st_logDebug(
-            "Starting to build the reference for flower %lli with %i stubs and %i ends\n",
-            flower_getName(flower), stList_length(stubEdges), stList_length(chainEdges));
+            "Starting to build the reference for flower %lli with %i stubs and %i chains and %i nodes\n",
+            flower_getName(flower), stList_length(stubEdges),
+            stList_length(chainEdges), nodeNumber);
 
     assert(
             2 * (stList_length(stubEdges) + stList_length(chainEdges))
@@ -756,10 +801,15 @@ void buildReferenceTopDown(Flower *flower, const char *referenceEventHeader,
 
     double maxPossibleScore = calculateMaxZ(nodeNumber, z);
     double totalScoreAfterGreedy = 0.0;
-    bool fast = stList_length(chainEdges) > maxNumberOfChainsBeforeSwitchingToFast;
-    stList *reference = makeReferenceGreedily(stubEdges, chainEdges, z, nodeNumber, &totalScoreAfterGreedy, fast);
-    double totalScoreAfterGreedy2 = calculateZScoreOfReference(reference, nodeNumber, z);
-    st_logDebug("The score of the initial solution is %f (recalculated %f) out of a max possible %f\n", totalScoreAfterGreedy, totalScoreAfterGreedy2, maxPossibleScore);
+    bool fast = stList_length(chainEdges)
+            > maxNumberOfChainsBeforeSwitchingToFast;
+    stList *reference = makeReferenceGreedily(stubEdges, chainEdges, z,
+            nodeNumber, &totalScoreAfterGreedy, fast);
+    double totalScoreAfterGreedy2 = calculateZScoreOfReference(reference,
+            nodeNumber, z);
+    st_logDebug(
+            "The score of the initial solution is %f (recalculated %f) out of a max possible %f\n",
+            totalScoreAfterGreedy, totalScoreAfterGreedy2, maxPossibleScore);
     //assert(totalScoreAfterGreedy <= totalScoreAfterGreedy2 + 0.01);
     //assert(totalScoreAfterGreedy2 <= totalScoreAfterGreedy + 0.01);
 
@@ -768,9 +818,13 @@ void buildReferenceTopDown(Flower *flower, const char *referenceEventHeader,
     //double totalScoreAfterSimulatedAnnealing = calculateZScoreOfReference(reference, nodeNumber, z);
     //st_logDebug("The score of the sampled solution is %f after %i rounds of permutation out of a max possible %f\n", totalScoreAfterSimulatedAnnealing, permutations, maxPossibleScore);
 
-    gibbsSamplingWithSimulatedAnnealing(reference, chainEdges, z, permutations, NULL, 1);
-    double totalScoreAfterGreedySampling = calculateZScoreOfReference(reference, nodeNumber, z);
-    st_logDebug("The score of the final solution is %f after %i rounds of greedy permutation out of a max possible %f\n", totalScoreAfterGreedySampling, permutations, maxPossibleScore);
+    gibbsSamplingWithSimulatedAnnealing(reference, chainEdges, z, permutations,
+            NULL, 1);
+    double totalScoreAfterGreedySampling = calculateZScoreOfReference(
+            reference, nodeNumber, z);
+    st_logDebug(
+            "The score of the final solution is %f after %i rounds of greedy permutation out of a max possible %f\n",
+            totalScoreAfterGreedySampling, permutations, maxPossibleScore);
     //assert(totalScoreAfterGreedySampling + 0.01 >= totalScoreAfterGreedy); //totalScoreAfterSimulatedAnnealing);
 
     stList *chosenEdges = convertReferenceToAdjacencyEdges(reference);
@@ -781,7 +835,8 @@ void buildReferenceTopDown(Flower *flower, const char *referenceEventHeader,
     assert(stList_length(chosenEdges) * 2 == nodeNumber);
     stList *nodes = stHash_getValues(endsToNodes);
     assert(nodeNumber == stList_length(nodes));
-    stSortedSet *nodesSet = stList_getSortedSet(nodes, (int (*)(const void *, const void *))stIntTuple_cmpFn);
+    stSortedSet *nodesSet = stList_getSortedSet(nodes,
+            (int(*)(const void *, const void *)) stIntTuple_cmpFn);
     assert(nodeNumber == stSortedSet_size(nodesSet));
     checkEdges(chosenEdges, nodesSet, 1, 0);
     stSortedSet_destruct(nodesSet);

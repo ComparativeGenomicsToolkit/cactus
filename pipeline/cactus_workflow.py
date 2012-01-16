@@ -425,12 +425,13 @@ class CactusNormalPhase(Target):
         self.options = options
         if(normalisationRounds < 0):
             normalisationRounds =  int(self.options.config.find("normal").attrib["rounds"])
-        assert(normalisationRounds > 0)
+        #assert(normalisationRounds > 0)
         self.normalisationRounds=normalisationRounds
         
     def run(self):
         self.logToMaster("Starting the normalisation phase at %s seconds" % time.time())
-        self.addChildTarget(CactusNormalDown(self.options, None, [ self.flowerName, 1 ]))
+        if self.normalisationRounds > 0:
+            self.addChildTarget(CactusNormalDown(self.options, None, [ self.flowerName, 1 ]))
         if self.normalisationRounds-1 > 0:
             self.setFollowOnTarget(CactusNormalPhase(self.flowerName, self.options, self.normalisationRounds-1))
         else:
@@ -599,7 +600,7 @@ class CactusCheckPhase(Target):
         self.options = options
         
     def run(self):
-        if not self.options.skipCheck:
+        if not self.options.skipCheck and 0:
             self.logToMaster("Starting the verification phase at %s seconds" % time.time())
             self.addChildTarget(CactusCheck(self.options, None, [ self.flowerName, 1 ]))
         
