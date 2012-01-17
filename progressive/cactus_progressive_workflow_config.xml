@@ -56,11 +56,11 @@
 	</faces>
 
 	<reference matching_algorithm="blossom5" reference="reference" useSimulatedAnnealing="1" theta="0.000001" maxNumberOfChainsBeforeSwitchingToFast="1000" permutations="10">
-	
 	</reference>
 
-	<check>
+	<check runCheck="1">
 	</check>
+	
 	 <preprocessor chunkSize="100000000" preprocessorString='cactus_addFastaHeaderDots.py TARGET_FILE OUT_FILE --event EVENT_STRING'/>
   <multi_cactus>
 	 <outgroup strategy="greedy" threshold="0"/>

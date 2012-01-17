@@ -35,6 +35,6 @@
 	
 	</reference>
 
-	<check>
+	<check runCheck="0">
 	</check>
 </cactus_workflow_config>

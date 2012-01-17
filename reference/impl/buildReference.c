@@ -495,10 +495,10 @@ static stList *getStubEdgesFromParent(Flower *flower, Event *referenceEvent,
         End *end = stList_get(stubEnds, i);
         assert(end_getOrientation(end));
         if (stSortedSet_search(endsSeen, end) == NULL) {
-            end = end_isBlockEnd(end) ? getStubEdgesFromParent2(
+            End *end2 = end_isBlockEnd(end) ? getStubEdgesFromParent2(
                     end_getOtherBlockEnd(end)) : end;
-            assert(end_isStubEnd(end));
-            End *adjacentEnd = getAdjacentEndFromParent(end, referenceEvent);
+            assert(end_isStubEnd(end2));
+            End *adjacentEnd = getAdjacentEndFromParent(end2, referenceEvent);
             if(stHash_search(endsToNodes, adjacentEnd) == NULL) {
                 adjacentEnd = getStubEdgesFromParent2(adjacentEnd);
                 assert(end_isBlockEnd(adjacentEnd));

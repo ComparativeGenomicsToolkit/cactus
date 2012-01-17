@@ -600,8 +600,10 @@ class CactusCheckPhase(Target):
         self.options = options
         
     def run(self):
-        if not self.options.skipCheck and 0:
-            self.logToMaster("Starting the verification phase at %s seconds" % time.time())
+        checkNode=self.options.config.find("check")
+        if bool(int(getOptionalAttrib(checkNode, "runCheck", "1"))): #self.options.skipCheck and 0:
+            checkNormalised = int(self.options.config.find("normal").attrib["rounds"]) > 0
+            self.logToMaster("Starting the verification phase at %s seconds, check normalised: %s" % (time.time(), checkNormalised))
             self.addChildTarget(CactusCheck(self.options, None, [ self.flowerName, 1 ]))
         
 class CactusCheck(Target):
@@ -614,7 +616,8 @@ class CactusCheck(Target):
         self.flowerNames = flowerNames
     
     def run(self):
-        runCactusCheck(self.options.cactusDiskDatabaseString, self.flowerNames)
+        checkNormalised = int(self.options.config.find("normal").attrib["rounds"]) > 0
+        runCactusCheck(self.options.cactusDiskDatabaseString, self.flowerNames, checkNormalised=checkNormalised)
         makeChildTargets(self.options, None, self.flowerNames, self, CactusCheck)   
 
 # add stuff to the options object 
@@ -661,9 +664,6 @@ def main():
     
     parser.add_option("--buildReference", dest="buildReference", action="store_true",
                       help="Creates a reference ordering for the flowers", default=False)
-    
-    parser.add_option("--skipCheck", dest="skipCheck", action="store_true",
-                      help="Don't run cactus_check", default=False)
     
     options, args = parser.parse_args()
     setLoggingFromOptions(options)

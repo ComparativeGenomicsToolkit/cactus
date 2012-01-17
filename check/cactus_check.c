@@ -154,20 +154,22 @@ static void checkBasesAccountedFor(Flower *flower) {
     assert(blockBases + childBases == totalBases);
 }
 
-static void checkFlower(Flower *flower) {
+static void checkFlower(Flower *flower, bool checkNormalised) {
     flower_check(flower);
     flower_checkNotEmpty(flower, 0);
     checkBasesAccountedFor(flower);
     //Normalisation checks..
-    checkTreeIsTerminalNormalised(flower);
-    checkChainsAreMaximal(flower);
-    checkBlocksAreMaximal(flower);
-    checkFlowerIsNotRedundant(flower);
+    if(checkNormalised) {
+        checkTreeIsTerminalNormalised(flower);
+        checkChainsAreMaximal(flower);
+        checkBlocksAreMaximal(flower);
+        checkFlowerIsNotRedundant(flower);
+    }
 }
 
-static void checkFlowers(Flower *flower, int32_t recursive) {
+static void checkFlowers(Flower *flower, int32_t recursive, bool checkNormalised) {
     if(!flower_hasParentGroup(flower)) { //Only check if it has no parent
-        checkFlower(flower);
+        checkFlower(flower, checkNormalised);
     }
 
     Group *group;
@@ -175,9 +177,9 @@ static void checkFlowers(Flower *flower, int32_t recursive) {
     while ((group = flower_getNextGroup(groupIt)) != NULL) { //We only check the children, to avoid constructing
         //the parent of the flower.
         if (!group_isLeaf(group)) {
-            checkFlower(group_getNestedFlower(group));
+            checkFlower(group_getNestedFlower(group), checkNormalised);
             if (recursive) {
-                checkFlowers(group_getNestedFlower(group), 1);
+                checkFlowers(group_getNestedFlower(group), 1, checkNormalised);
             }
         }
     }
@@ -190,6 +192,7 @@ void usage() {
     fprintf(stderr,
             "-c --cactusDisk : The location of the flower disk directory\n");
     fprintf(stderr, "-e --recursive : Check all flowers recursively\n");
+    fprintf(stderr, "-f --checkNormalised : Check cactus is normalised\n");
     fprintf(stderr, "-h --help : Print this help screen\n");
 }
 
@@ -202,6 +205,7 @@ int main(int argc, char *argv[]) {
     char * logLevelString = NULL;
     char * cactusDiskDatabaseString = NULL;
     int32_t recursive = 0;
+    bool checkNormalised = 0;
 
     ///////////////////////////////////////////////////////////////////////////
     // (0) Parse the inputs handed by genomeCactus.py / setup stuff.
@@ -210,13 +214,15 @@ int main(int argc, char *argv[]) {
     while (1) {
         static struct option long_options[] = { { "logLevel",
                 required_argument, 0, 'a' }, { "cactusDisk", required_argument,
-                0, 'c' }, { "recursive", no_argument, 0, 'e' }, { "help",
+                0, 'c' }, { "recursive", no_argument, 0, 'e' },
+                { "checkNormalised", no_argument, 0, 'f' },
+                { "help",
                 no_argument, 0, 'h' }, { 0, 0, 0, 0 } };
 
         int option_index = 0;
 
         int key =
-                getopt_long(argc, argv, "a:c:eh", long_options, &option_index);
+                getopt_long(argc, argv, "a:c:ef:h", long_options, &option_index);
 
         if (key == -1) {
             break;
@@ -231,6 +237,9 @@ int main(int argc, char *argv[]) {
                 break;
             case 'e':
                 recursive = 1;
+                break;
+            case 'f':
+                checkNormalised = 1;
                 break;
             case 'h':
                 usage();
@@ -270,7 +279,7 @@ int main(int argc, char *argv[]) {
         // Recursive check the flowers.
         ///////////////////////////////////////////////////////////////////////////
 
-        checkFlowers(flower, recursive);
+        checkFlowers(flower, recursive, checkNormalised);
         st_logInfo("Checked the flower/\n");
     }
 

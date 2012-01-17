@@ -268,10 +268,12 @@ def runCactusAddReferenceCoordinates(cactusDiskDatabaseString, logLevel=None, re
 def runCactusCheck(cactusDiskDatabaseString, 
                     flowerNames=(0, 1), 
                     logLevel=None, 
-                    recursive=False):
+                    recursive=None,
+                    checkNormalised=None):
     logLevel = getLogLevelString2(logLevel)
     recursive = nameValue("recursive", recursive, bool)
-    system("cactus_check --cactusDisk '%s' %s --logLevel %s %s"  % (cactusDiskDatabaseString, formatFlowerNames(flowerNames), logLevel, recursive))
+    checkNormalised = nameValue("checkNormalised", checkNormalised, bool)
+    system("cactus_check --cactusDisk '%s' %s --logLevel %s %s %s"  % (cactusDiskDatabaseString, formatFlowerNames(flowerNames), logLevel, recursive, checkNormalised))
     logger.info("Ran cactus check")
     
 def _fn(jobTreeDir, 
