@@ -35,7 +35,7 @@ def checkDatabaseConf(databaseConf):
         kyotoTycoon = databaseConf.find("kyoto_tycoon")
         if kyotoTycoon == None:
             raise RuntimeError("Database conf is of kyoto tycoon but there is no nested kyoto tycoon tag: %s" % dataString)
-        if set(kyotoTycoon.attrib.keys()) != set(("host", "port", "database_dir")):
+        if not set(("host", "port", "database_dir")).issubset(set(kyotoTycoon.attrib.keys())):
             raise RuntimeError("The kyoto tycoon tag has a missing attribute: %s" % dataString)
     else:
         raise RuntimeError("Unrecognised database type in conf string: %s" % typeString)

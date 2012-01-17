@@ -47,11 +47,17 @@ class ExperimentWrapper:
         self.dbElem.attrib["database_dir"] = path
         
     def getDbName(self):
+        if self.getDbType() == "kyoto_tycoon" and self.getDbInMemory() == True:
+            return ""
         return self.dbElem.attrib["database_name"]
     
     def setDbName(self, name):
         if self.getDbType() == "kyoto_tycoon":
-            assert os.path.splitext(name)[1] == ".kch"
+            if self.getDbInMemory() == True:
+                if "database_name" in self.dbElem.attrib:
+                    del self.dbElem.attrib["database_name"]
+                return
+            assert os.path.splitext(name)[1] == ".kch"            
         self.dbElem.attrib["database_name"] = name
     
     def getDbType(self):
@@ -88,6 +94,22 @@ class ExperimentWrapper:
         if "read_tuning_options" in self.dbElem.attrib:
             return self.dbElem.attrib["read_tuning_options"]
         return None
+    
+    def getDbInMemory(self):
+        assert self.getDbType() == "kyoto_tycoon"
+        if "in_memory" in self.dbElem.attrib:
+            val = self.dbElem.attrib["in_memory"]
+            retVal = val.lower() == "true" or val == "1"
+            assert (not retVal or "database_name" not in self.dbElem.attrib)
+            return retVal
+        return False
+    
+    def getDbSnapshot(self):
+        assert self.getDbType() == "kyoto_tycoon"
+        if "snapshot" in self.dbElem.attrib:
+            val = self.dbElem.attrib["snapshot"]
+            return val.lower() == "true" or val == "1"
+        return self.getDbInMemory()
     
     def getConfig(self):
         return self.xmlRoot.attrib["config"]
