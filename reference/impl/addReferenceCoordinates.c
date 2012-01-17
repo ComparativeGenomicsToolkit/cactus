@@ -1,374 +1,13 @@
-#include <stdio.h>
-#include <ctype.h>
+/*
+ * Copyright (C) 2009-2011 by Benedict Paten (benedictpaten@gmail.com)
+ *
+ * Released under the MIT license, see LICENSE.txt
+ */
+
+#include <assert.h>
 #include "cactus.h"
 #include "sonLib.h"
-
-////////////////////////////////////
-////////////////////////////////////
-//Calculate the length of a reference sequence.
-////////////////////////////////////
-////////////////////////////////////
-
-static void getSequenceLength(stList *caps, int32_t *coordinate) {
-    Cap *cap = stList_get(caps, 0);
-    assert(cap_getSide(cap));
-    Segment *segment = cap_getSegment(cap);
-    if (segment != NULL) {
-        *coordinate += segment_getLength(segment);
-    }
-}
-
-////////////////////////////////////
-////////////////////////////////////
-//Calculate the bases of a reference sequence.
-////////////////////////////////////
-////////////////////////////////////
-
-
-int32_t *collateCounts(stList *strings, int32_t blockLength,
-        int32_t **upperCounts) {
-    //Matrix to store the number of occurrences of each base type, for each column in the block
-    int32_t *baseCounts = st_calloc(blockLength * 5, sizeof(int32_t));
-    //Array storing number of bases that are upper case letters (non repetitive)..
-    *upperCounts = st_calloc(blockLength, sizeof(int32_t));
-    for (int32_t j = 0; j < stList_length(strings); j++) {
-        char *string = stList_get(strings, j);
-        for (int32_t i = 0; i < blockLength; i++) {
-            (*upperCounts)[i] += toupper(string[i]) == string[i] ? 1 : 0;
-            switch (toupper(string[i])) {
-                case 'A':
-                    baseCounts[i * 5]++;
-                    break;
-                case 'C':
-                    baseCounts[i * 5 + 1]++;
-                    break;
-                case 'G':
-                    baseCounts[i * 5 + 2]++;
-                    break;
-                case 'T':
-                    baseCounts[i * 5 + 3]++;
-                    break;
-                default:
-                    baseCounts[i * 5 + 4]++;
-            }
-        }
-    }
-    return baseCounts;
-}
-
-const char *getMajorityBases(int32_t *baseCounts) {
-    static char seq[5];
-    static const char bases[5] = { 'a', 'c', 'g', 't' };
-
-    int32_t maxBaseCount = 0;
-    for (int32_t j = 0; j < 4; j++) {
-        int32_t k = baseCounts[j];
-        if (maxBaseCount < k) {
-            maxBaseCount = k;
-        }
-    }
-    //st_uglyf("max base count %i\n", maxBaseCount);
-    if (maxBaseCount == 0) {
-        seq[0] = 'n';
-        seq[1] = '\0';
-    } else {
-        int32_t k = 0;
-        for (int32_t j = 0; j < 4; j++) {
-            if (baseCounts[j] == maxBaseCount) {
-                seq[k++] = bases[j];
-            }
-        }
-        seq[k] = '\0';
-    }
-    return seq;
-}
-
-char *getConsensusStringP(stList *strings, stList *outgroupStrings,
-        int32_t blockLength) {
-    int32_t *upperCounts = NULL;
-    int32_t *baseCounts = collateCounts(strings, blockLength, &upperCounts);
-    int32_t *upperCountsOutgroup = NULL;
-    int32_t *baseCountsOutgroup = collateCounts(outgroupStrings, blockLength,
-            &upperCountsOutgroup);
-
-    char *string = st_malloc(sizeof(char) * (blockLength + 1));
-    string[blockLength] = '\0';
-
-    for (int32_t i = 0; i < blockLength; i++) {
-        /*
-         * Logic to choose base..
-         */
-        const char *majorityBases = getMajorityBases(&(baseCounts[i * 5]));
-        assert(strlen(majorityBases) > 0);
-        if(strlen(majorityBases) > 1) {
-            for(int32_t j=0; j<4; j++) {
-                baseCounts[i * 5 + j] += baseCountsOutgroup[i * 5 + j];
-            }
-            majorityBases = getMajorityBases(&(baseCounts[i * 5]));
-        }
-        char base = majorityBases[st_randomInt(0, strlen(majorityBases))];
-        /*
-         * Now choose if it should be upper case.
-         */
-        string[i]
-                = (upperCounts[i] + upperCountsOutgroup[i]) >= ((double) stList_length(strings) + stList_length(outgroupStrings)) / 2 ? toupper(
-                        base)
-                        : base;
-    }
-    free(baseCounts);
-    free(upperCounts);
-
-    return string;
-}
-
-static char *getConsensusString(Block *block, Name outgroupEventName) {
-    /*
-     * Returns a consensus string for a block.
-     */
-
-    //Get the strings.
-    Segment *segment;
-    Block_InstanceIterator *instanceIt = block_getInstanceIterator(block);
-    stList *strings = stList_construct3(0, free);
-    stList *outgroupStrings = stList_construct3(0, free);
-    while ((segment = block_getNext(instanceIt)) != NULL) {
-        if (segment_getSequence(segment) != NULL) {
-            if (event_getName(segment_getEvent(segment)) == outgroupEventName) {
-                stList_append(outgroupStrings, segment_getString(segment));
-            } else {
-                stList_append(strings, segment_getString(segment));
-            }
-        }
-    }
-    block_destructInstanceIterator(instanceIt);
-
-    char *string = getConsensusStringP(strings, outgroupStrings,
-            block_getLength(block));
-    stList_destruct(strings);
-    stList_destruct(outgroupStrings);
-    return string;
-}
-
-static void getString(stList *caps, void **extraArgs) {
-    int32_t *coordinate = extraArgs[0];
-    char *string = extraArgs[1];
-    Event *outgroupEvent = extraArgs[2];
-    Name outgroupEventName = NULL_NAME;
-    if (outgroupEvent != NULL) {
-        outgroupEventName = event_getName(outgroupEvent);
-    }
-    Cap *cap = stList_get(caps, 0);
-    assert(cap_getSide(cap));
-    Segment *segment = cap_getSegment(cap);
-    if (segment != NULL) {
-        char *segmentString = getConsensusString(segment_getBlock(segment),
-                outgroupEventName);
-        for (int32_t i = 0; i < segment_getLength(segment); i++) {
-            string[(*coordinate)++] = segmentString[i];
-        }
-        free(segmentString);
-    }
-}
-
-////////////////////////////////////
-////////////////////////////////////
-//Fill in the bases of a reference sequence
-////////////////////////////////////
-////////////////////////////////////
-
-static void setCoordinates1(stList *caps, void **extraArgs) {
-    int32_t *coordinate = extraArgs[0];
-    MetaSequence *metaSequence = extraArgs[1];
-    for (int32_t i = 0; i < stList_length(caps); i++) {
-        Cap *cap = stList_get(caps, i);
-        //Add the metasequence to the flower if it isn't already present.
-        Flower *flower = end_getFlower(cap_getEnd(cap));
-        Sequence *sequence;
-        if ((sequence = flower_getSequence(flower,
-                metaSequence_getName(metaSequence))) == NULL) {
-            sequence = sequence_construct(metaSequence, flower);
-        }
-        //Now set the coordinates
-        assert(cap_getSequence(cap) == NULL);
-        assert(cap_getCoordinate(cap) == INT32_MAX);
-        cap_setCoordinates(cap, *coordinate, 1, sequence);
-        //Check its all set okay..
-        assert(cap_getCoordinate(cap) == *coordinate);
-        assert(cap_getSequence(cap) == sequence);
-        assert(cap_getStrand(cap));
-        assert(cap_getCoordinate(cap_getReverse(cap)) == *coordinate);
-        assert(cap_getSequence(cap_getReverse(cap)) == sequence);
-        assert(!cap_getStrand(cap_getReverse(cap)));
-    }
-    *coordinate += 1;
-}
-
-static void setCoordinates2(stList *caps, void **extraArgs) {
-    int32_t *coordinate = extraArgs[0];
-    setCoordinates1(caps, extraArgs);
-    for (int32_t i = 0; i < stList_length(caps); i++) {
-        Cap *cap = stList_get(caps, i);
-        assert(cap_getAdjacency(cap) != NULL);
-        assert(cap_getSequence(cap_getAdjacency(cap)) != NULL);
-        cap_makeAdjacent(cap, cap_getAdjacency(cap)); //This corrects the adjacency if we have modified the strand..
-    }
-    Cap *cap = stList_get(caps, 0);
-    assert(cap_getSide(cap));
-    assert(cap_getStrand(cap));
-    Segment *segment = cap_getSegment(cap);
-    if (segment != NULL) {
-        *coordinate += segment_getLength(segment) - 2;
-    }
-}
-
-////////////////////////////////////
-////////////////////////////////////
-//Functions to traverse the caps of a sequence
-////////////////////////////////////
-////////////////////////////////////
-
-static Cap *getCapUp(Cap *cap) {
-    /*
-     * Gets the highest level version of a cap.
-     */
-    while (1) {
-        assert(cap != NULL);
-        cap = cap_getSide(cap) ? cap : cap_getReverse(cap);
-        if (end_isBlockEnd(cap_getEnd(cap))) {
-            return cap;
-        }
-        Group *parentGroup = flower_getParentGroup(
-                end_getFlower(cap_getEnd(cap)));
-        if (parentGroup == NULL) {
-            return cap;
-        }
-        cap = flower_getCap(group_getFlower(parentGroup), cap_getName(cap));
-    }
-}
-
-static stList *getCapsDown(Cap *cap, bool side) {
-    /*
-     * Gets a list of a cap in progressively lower level problems, such that
-     * the first member of the return list will be the given cap, and the last member
-     * will be the lowest level version of the cap.
-     */
-    stList *caps = stList_construct();
-    assert(end_isAttached(cap_getEnd(cap)) || end_isBlockEnd(cap_getEnd(cap)));
-    if (end_isStubEnd(cap_getEnd(cap))) {
-        assert(flower_getParentGroup(end_getFlower(cap_getEnd(cap))) == NULL);
-    }
-    while (1) {
-        stList_append(caps,
-                cap_getSide(cap) == side ? cap : cap_getReverse(cap));
-        assert(end_getGroup(cap_getEnd(cap)) != NULL);
-        Flower *nestedFlower = group_getNestedFlower(
-                end_getGroup(cap_getEnd(cap)));
-        if (nestedFlower != NULL) {
-            assert(
-                    flower_getEnd(nestedFlower, end_getName(cap_getEnd(cap)))
-                            != NULL);
-            cap = flower_getCap(nestedFlower, cap_getName(cap));
-            assert(cap != NULL);
-        } else {
-            break;
-        }
-    }
-    return caps;
-}
-
-void traverseCapsInSequenceOrderFrom3PrimeCap(Cap *cap, void *extraArg,
-        void(*_3PrimeFn)(stList *caps, void *extraArg),
-        void(*_5PrimeFn)(stList *caps, void *extraArg)) {
-    assert(end_isStubEnd(cap_getEnd(cap)));
-    assert(end_isAttached(cap_getEnd(cap)));
-    assert(flower_getParentGroup(end_getFlower(cap_getEnd(cap))) == NULL);
-    while (1) {
-        //Call 3' function
-        stList *caps = getCapsDown(cap, 0);
-        if (_3PrimeFn != NULL) {
-            _3PrimeFn(caps, extraArg);
-        }
-        //Get the adjacent 5 prime cap
-        assert(group_isLeaf(end_getGroup(cap_getEnd(stList_peek(caps)))));
-        cap = getCapUp(cap_getAdjacency(stList_peek(caps)));
-        stList_destruct(caps);
-        //Now call 5' function
-        caps = getCapsDown(cap, 1);
-        if (_5PrimeFn != NULL) {
-            _5PrimeFn(caps, extraArg);
-        }
-        stList_destruct(caps);
-        if (cap_getSegment(cap) != NULL) { //Get the opposite 3 prime cap.
-            cap = cap_getOtherSegmentCap(cap);
-            assert(cap != NULL);
-        } else {
-            assert(end_isStubEnd(cap_getEnd(cap)));
-            assert(end_isAttached(cap_getEnd(cap)));
-            assert(
-                    flower_getParentGroup(end_getFlower(cap_getEnd(cap)))
-                            == NULL);
-            break;
-        }
-    }
-}
-
-////////////////////////////////////
-////////////////////////////////////
-//Function to fill in the coordinates of a reference sequence.
-////////////////////////////////////
-////////////////////////////////////
-
-static void addReferenceSequence(Cap *cap, int32_t *index, Event *outgroupEvent) {
-    /*
-     * Add a sequence for the given cap.
-     */
-
-    /*
-     * Get the sequence length required.
-     */
-    int32_t length = 0;
-    traverseCapsInSequenceOrderFrom3PrimeCap(cap, &length, NULL,
-            (void(*)(stList *, void *)) getSequenceLength);
-    st_logDebug("Calculated the length of the sequence: %i\n", length);
-
-    /*
-     * Build the string for the sequence.
-     */
-    char *string = st_malloc(sizeof(char) * (length + 1));
-    string[length] = '\0';
-    int32_t coordinate = 0;
-    void *extraArgs[] = { &coordinate, string, outgroupEvent };
-    traverseCapsInSequenceOrderFrom3PrimeCap(cap, extraArgs, NULL,
-            (void(*)(stList *, void *)) getString);
-    st_logDebug("Built the string for the sequence\n");
-
-    /*
-     * Make the meta sequence.
-     */
-    Event *event = cap_getEvent(cap);
-    char *sequenceName = stString_print("%s.%i", event_getHeader(event),
-            (*index)++);
-    MetaSequence *metaSequence = metaSequence_construct(1, length, string,
-            sequenceName, event_getName(event),
-            flower_getCactusDisk(end_getFlower(cap_getEnd(cap))));
-    free(sequenceName);
-
-    /*
-     * Now fill in the actual sequence;
-     */
-    coordinate = 0;
-    void *extraArgs2[] = { &coordinate, metaSequence };
-    traverseCapsInSequenceOrderFrom3PrimeCap(cap, extraArgs2,
-            (void(*)(stList *, void *)) setCoordinates1,
-            (void(*)(stList *, void *)) setCoordinates2);
-    assert(coordinate == length + 2);
-    st_logDebug("Set the coordinates for the new sequence\n");
-
-    /*
-     * Cleanup
-     */
-    free(string);
-}
+#include "blockConsensusString.h"
 
 Cap *getCapForReferenceEvent(End *end, Name referenceEventName) {
     /*
@@ -387,29 +26,181 @@ Cap *getCapForReferenceEvent(End *end, Name referenceEventName) {
     return NULL;
 }
 
-void addReferenceSequences(Flower *flower, Name referenceEventName,
-        Event *outgroupEvent) {
-#ifdef BEN_DEBUG
-    flower_checkRecursive(flower);
-#endif
+static bool sequenceIsInverted(Cap *cap, Cap *adjacentCap) {
+    assert(cactusMisc_nameCompare(cap_getName(cap), cap_getName(adjacentCap)) != 0);
+    return cactusMisc_nameCompare(cap_getName(cap), cap_getName(adjacentCap)) > 0;
+}
 
-    int32_t index = 0;
-    assert(flower_getParentGroup(flower) == NULL);
+static char *getSequenceName(const char *sequenceDir, Name flowerName, Cap *cap, Cap *adjacentCap) {
+    if(sequenceIsInverted(cap, adjacentCap)) {
+        Cap *cap2 = adjacentCap;
+        adjacentCap = cap;
+        cap = cap2;
+    }
+    return stString_print("%s/%lli_%lli_%lli", sequenceDir, flowerName, cap_getName(cap), cap_getName(adjacentCap));
+}
+
+static char *readSequence(const char *sequenceFile) {
+    return NULL;
+}
+
+static Cap *traceAdjacency(Cap *cap) {
+    while(1) {
+        Cap *adjacentCap = cap_getAdjacency(cap);
+        assert(adjacentCap != NULL);
+        //Traverse any block..
+        if(cap_getSegment(adjacentCap) != NULL) {
+            cap = cap_getOtherSegmentCap(adjacentCap);
+            assert(cap != NULL);
+        }
+        else {
+            assert(end_isStubEnd(cap_getEnd(adjacentCap)));
+            assert(end_isAttached(cap_getEnd(adjacentCap)));
+            return adjacentCap;
+        }
+    }
+}
+
+static void addReferenceSequence(Cap *cap, const char *childSequenceDir,
+        FILE *sequenceHandle, Name outgroupEventName) {
+    while(1) {
+        Cap *adjacentCap = cap_getAdjacency(cap);
+        assert(adjacentCap != NULL);
+        Group *group = end_getGroup(cap_getEnd(cap));
+        assert(group != NULL);
+        int32_t adjacencySize = 0;
+        if(!group_isLeaf(group)) { //Adjacency is not terminal, so establish its sequence.
+            char *childSequenceName = getSequenceName(childSequenceDir, group_getName(group), cap, adjacentCap);
+            char *childSequence = readSequence(childSequenceName);
+            if(sequenceIsInverted(cap, adjacentCap)) {
+                reverseComplementString(childSequence);
+            }
+            adjacencySize = strlen(childSequence);
+            fprintf(sequenceHandle, "%s", childSequence);
+            free(childSequence);
+            free(childSequenceName);
+        }
+        //Set the coordinates of the caps to the adjacency size
+        //cap_setCoordinate(cap, adjacencySize);
+        //cap_setCoordinate(adjacentCap, adjacencySize);
+        //Traverse any block..
+        if(cap_getSegment(adjacentCap) != NULL) {
+            char *blockString = getConsensusString(segment_getBlock(cap_getSegment(cap)), outgroupEventName);
+            fprintf(sequenceHandle, "%s", blockString);
+            free(blockString);
+            cap = cap_getOtherSegmentCap(adjacentCap);
+            assert(cap != NULL);
+        }
+        else {
+            assert(end_isStubEnd(cap_getEnd(adjacentCap)));
+            assert(end_isAttached(cap_getEnd(adjacentCap)));
+            break;
+        }
+    }
+}
+
+void bottomUp(Flower *flower, const char *childSequenceDir, const char *sequenceDir,
+        Name referenceEventName, Name outgroupEventName) {
     Flower_EndIterator *endIt = flower_getEndIterator(flower);
     End *end;
     while ((end = flower_getNextEnd(endIt)) != NULL) {
         if (end_isStubEnd(end) && end_isAttached(end)) {
             Cap *cap = getCapForReferenceEvent(end, referenceEventName); //The cap in the reference
             assert(cap != NULL);
-            if (cap_getSequence(cap) == NULL) {
-                st_logDebug("Adding the coordinates for cap %s\n",
-                        cactusMisc_nameToStringStatic(cap_getName(cap)));
-                addReferenceSequence(cap, &index, outgroupEvent);
+            if (cap_getCoordinate(cap) == INT32_MAX) {
+                Cap *adjacentCap = traceAdjacency(cap);
+                char *sequenceFileName = getSequenceName(sequenceDir, flower_getName(flower), cap, adjacentCap);
+                st_logDebug("Adding the coordinates for cap %s and building a sequence in %s\n",
+                        cactusMisc_nameToStringStatic(cap_getName(cap)), sequenceFileName);
+                FILE *sequenceHandle = fopen(sequenceFileName, "w");
+                addReferenceSequence(cap, childSequenceDir, sequenceHandle, outgroupEventName);
+                fclose(sequenceHandle);
+                free(sequenceFileName);
             }
         }
     }
     flower_destructEndIterator(endIt);
-#ifdef BEN_DEBUG
-    flower_checkRecursive(flower);
-#endif
 }
+
+static void setCoordinates(Flower *flower, MetaSequence *metaSequence, Cap *cap, int32_t coordinate) {
+    Sequence *sequence = sequence_construct(metaSequence, flower);
+    while(1) {
+        Cap *adjacentCap = cap_getAdjacency(cap);
+        assert(adjacentCap != NULL);
+        //Set the coordinates of the caps to the adjacency size
+        assert(cap_getCoordinate(cap) == cap_getCoordinate(adjacentCap));
+        assert(cap_getCoordinate(cap) != INT32_MAX);
+        assert(cap_getCoordinate(cap) >= 1);
+        cap_setCoordinates(cap, coordinate, 1, sequence);
+        coordinate += cap_getCoordinate(adjacentCap);
+        cap_setCoordinates(adjacentCap, coordinate, 1, sequence);
+        //Traverse any block..
+        Segment *segment;
+        if((segment = cap_getSegment(adjacentCap)) != NULL) {
+            coordinate += segment_getLength(segment);
+            cap = cap_getOtherSegmentCap(adjacentCap);
+            assert(cap != NULL);
+        }
+        else {
+           break;
+        }
+    }
+}
+
+void addSequences(Flower *flower, const char *sequenceDir, Name referenceEventName) {
+    Flower_EndIterator *endIt = flower_getEndIterator(flower);
+    End *end;
+    int32_t index = 0;
+    while ((end = flower_getNextEnd(endIt)) != NULL) {
+        if (end_isStubEnd(end) && end_isAttached(end)) {
+            Cap *cap = getCapForReferenceEvent(end, referenceEventName); //The cap in the reference
+            assert(cap != NULL);
+            if (cap_getSequence(cap) == NULL) {
+                Cap *adjacentCap = traceAdjacency(cap);
+                if(sequenceIsInverted(cap, adjacentCap)) {
+                    Cap *cap2 = adjacentCap;
+                    adjacentCap = cap;
+                    cap = cap2;
+                }
+                char *sequenceFileName = getSequenceName(sequenceDir, flower_getName(flower), cap, adjacentCap);
+                char *sequence = readSequence(sequenceFileName);
+                //Create the sequence
+                Event *event = cap_getEvent(cap);
+                char *sequenceName = stString_print("%s.%i", event_getHeader(event),
+                            index++);
+                MetaSequence *metaSequence = metaSequence_construct(1, strlen(sequence), sequence,
+                            sequenceName, event_getName(event),
+                            flower_getCactusDisk(end_getFlower(cap_getEnd(cap))));
+                //Now do a traversal to fill in the coordinates
+                setCoordinates(flower, metaSequence, cap, 1);
+                free(sequence);
+                free(sequenceFileName);
+                free(sequenceName);
+            }
+        }
+    }
+    flower_destructEndIterator(endIt);
+}
+
+void topDown(Flower *flower, Name referenceEventName) {
+    Flower_EndIterator *endIt = flower_getEndIterator(flower);
+    End *end;
+    while ((end = flower_getNextEnd(endIt)) != NULL) {
+        Cap *cap = getCapForReferenceEvent(end, referenceEventName); //The cap in the reference
+        cap = cap_getStrand(cap) ? cap : cap_getReverse(cap);
+        if(!cap_getSide(cap)) {
+            assert(cap != NULL);
+            Sequence *sequence = cap_getSequence(cap);
+            assert(sequence != NULL);
+            Group *group = end_getGroup(end);
+            if(!group_isLeaf(group)) {
+                Flower *nestedFlower = group_getNestedFlower(group);
+                Cap *nestedCap = flower_getCap(nestedFlower, cap_getName(cap));
+                assert(nestedCap != NULL);
+                setCoordinates(nestedFlower, sequence_getMetaSequence(sequence), nestedCap, cap_getCoordinate(cap));
+            }
+        }
+    }
+    flower_destructEndIterator(endIt);
+}
+

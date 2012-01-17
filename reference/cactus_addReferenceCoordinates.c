@@ -14,8 +14,7 @@
 
 #include "cactus.h"
 #include "sonLib.h"
-#include "cactusReference.h"
-#include "cactusMatchingAlgorithms.h"
+#include "addReferenceCoordinates.h"
 
 void usage() {
     fprintf(stderr,
@@ -25,6 +24,7 @@ void usage() {
             "-c --cactusDisk : The location of the flower disk directory\n");
     fprintf(stderr,
             "-g --referenceEventString : String identifying the reference event.\n");
+    fprintf(stderr, "-i --topDown : Do top down stage instead of bottom up.\n");
     fprintf(stderr, "-h --help : Print this help screen\n");
 }
 
@@ -41,6 +41,7 @@ int main(int argc, char *argv[]) {
     char *referenceEventString =
             (char *) cactusMisc_getDefaultReferenceEventHeader();
     char *outgroupEventString = NULL;
+    bool bottomUp;
 
     ///////////////////////////////////////////////////////////////////////////
     // (0) Parse the inputs handed by genomeCactus.py / setup stuff.
@@ -111,18 +112,20 @@ int main(int argc, char *argv[]) {
     // Build the reference coordinates
     ///////////////////////////////////////////////////////////////////////////
 
-    Flower *flower = cactusDisk_getFlower(cactusDisk, 0);
-    Event *referenceEvent = eventTree_getEventByHeader(
-            flower_getEventTree(flower), referenceEventString);
-    assert(referenceEvent != NULL);
-
-    Event *outgroupEvent = NULL;
-    if(outgroupEventString != NULL) {
-        outgroupEvent = eventTree_getEventByHeader(flower_getEventTree(flower), outgroupEventString);
-        assert(outgroupEvent != NULL);
+    stList *flowers = parseFlowers(argv + optind, argc - optind, cactusDisk);
+    for(int32_t j = 0; j < stList_length(flowers); j++) {
+        Flower *flower = stList_get(flowers, j);
+        st_logInfo("Processing a flower\n");
+        if(bottomUp) {
+            bottomUp(flower, childSequenceDir, sequenceDir, outgroupEventName);
+        }
+        else {
+            if(!flower_hasParentGroup(flower)) {
+                addSequences(flower, sequenceDir);
+            }
+            topDown(flower);
+        }
     }
-
-    addReferenceSequences(flower, event_getName(referenceEvent), outgroupEvent);
 
     ///////////////////////////////////////////////////////////////////////////
     // Write the flower(s) back to disk.
