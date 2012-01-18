@@ -478,7 +478,7 @@ void cap_writeBinaryRepresentation(Cap *cap, void(*writeFn)(const void * ptr,
         binaryRepresentation_writeName(cap_getName(cap), writeFn);
         binaryRepresentation_writeInteger(cap_getCoordinate(cap), writeFn);
         binaryRepresentation_writeBool(cap_getStrand(cap), writeFn);
-        binaryRepresentation_writeName(sequence_getName(cap_getSequence(cap)),
+        binaryRepresentation_writeName(cap_getSequence(cap) == NULL ? NULL_NAME : sequence_getName(cap_getSequence(cap)),
                 writeFn);
     }
     if ((cap2 = cap_getAdjacency(cap)) != NULL) {

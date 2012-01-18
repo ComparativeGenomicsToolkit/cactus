@@ -10,10 +10,9 @@
 
 Cap *getCapForReferenceEvent(End *end, Name referenceEventName);
 
-void bottomUp(Flower *flower, const char *childSequenceDir, const char *sequenceDir,
-        Name referenceEventName, Name outgroupEventName);
+void bottomUp(Flower *flower, Name referenceEventName);
 
-void addSequences(Flower *flower, const char *sequenceDir, Name referenceEventName);
+void addSequencesAndReferenceCoordinatesToTopLevelFlower(Flower *flower, Name referenceEventName);
 
 void topDown(Flower *flower, Name referenceEventName);
 

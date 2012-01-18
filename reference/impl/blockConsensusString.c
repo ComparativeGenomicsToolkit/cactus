@@ -68,7 +68,7 @@ static const char *getMajorityBases(int32_t *baseCounts) {
     return seq;
 }
 
-static char *getConsensusStringP(stList *strings, stList *outgroupStrings,
+char *getConsensusStringP(stList *strings, stList *outgroupStrings,
         int32_t blockLength) {
     int32_t *upperCounts = NULL;
     int32_t *baseCounts = collateCounts(strings, blockLength, &upperCounts);
