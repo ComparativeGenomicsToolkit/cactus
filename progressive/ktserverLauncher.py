@@ -207,10 +207,10 @@ class KtserverLauncher:
             if numServers == 0:
                 return
             elif numServers > 1:
-                RuntimeError("Multiple ktservers running on %s" % dbPath)
+                raise RuntimeError("Multiple ktservers running on %s" % dbPath)
             else:
                 sleep(self.checkWait)
-        RuntimeError("Failed to kill ktserver on port %d and path %s" % (port, dbPath))
+        raise RuntimeError("Failed to kill ktserver on port %d and path %s" % (port, dbPath))
             
         
 def main():
