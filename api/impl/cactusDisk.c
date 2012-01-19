@@ -554,7 +554,6 @@ void cactusDisk_removeMetaSequence(CactusDisk *cactusDisk,
 /*
  * Functions on strings stored by the flower disk.
  */
-
 Name cactusDisk_addString(CactusDisk *cactusDisk, const char *string) {
     Name name;
     //bool done = 0;
@@ -658,26 +657,13 @@ void cactusDisk_setString(CactusDisk *cactusDisk, Name name, int32_t start,
             : cactusMisc_reverseComplementString(string);
 
     if (cactusDisk->storeSequencesInAFile) {
-
-        ///To replace
-        if (cactusDisk->sequencesFileHandle != NULL) {
-            fclose(cactusDisk->sequencesFileHandle);
-            cactusDisk->sequencesFileHandle = NULL;
-        }
-        ///
-
-        if (cactusDisk->sequencesFileHandle == NULL) {
-            cactusDisk->sequencesFileHandle = fopen(
-                    cactusDisk->absSequencesFileName, "w");
-            assert(cactusDisk->sequencesFileHandle != NULL);
-        }
-        fseek(cactusDisk->sequencesFileHandle, name + start, SEEK_SET);
-        fwrite(string, sizeof(char), length, cactusDisk->sequencesFileHandle);
-
-        //To replace
-        fclose(cactusDisk->sequencesFileHandle);
-        cactusDisk->sequencesFileHandle = NULL;
-        //to replace
+        FILE *fileHandle = fopen(
+                cactusDisk->absSequencesFileName, "r+");
+        assert(fileHandle != NULL);
+        fseek(fileHandle, name + start, SEEK_SET);
+        int32_t i = fwrite(string, sizeof(char), length, fileHandle);
+        assert(i == length);
+        fclose(fileHandle);
     } else {
         char *record = stKVDatabase_getRecord(cactusDisk->database, name);
         memcpy(record + start, string, strlen(string));

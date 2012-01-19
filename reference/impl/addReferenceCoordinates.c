@@ -120,13 +120,7 @@ static MetaSequence *addMetaSequence(Flower *flower, Cap *cap, int32_t *index) {
 
 static stList *setCoordinates2(MetaSequence *metaSequence, stList *strings, int32_t coordinate) {
     if(stList_length(strings) > 0) {
-        char **cAA = st_malloc(sizeof(char *)*stList_length(strings));
-        for(int32_t i=0; i<stList_length(strings); i++) {
-            cAA[i] = stList_get(strings, i);
-        }
-        char *singleString = stString_join("", (const char **)cAA, stList_length(strings));
-        free(cAA);
-        //char *singleString = stString_join2("", strings);
+        char *singleString = stString_join2("", strings);
         int32_t stringLength = strlen(singleString);
         stList_destruct(strings);
         metaSequence_setString(metaSequence, coordinate - stringLength + 1, stringLength, 1, singleString);
