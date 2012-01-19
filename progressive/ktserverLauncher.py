@@ -125,18 +125,21 @@ class KtserverLauncher:
                     return -1               
             raise RuntimeError("failed ktserver stuck on %s" % dbPath)
         
-    def ktserverCmd(self, dbPath, outputPath, port, exists):
+    def ktserverCmd(self, experiment, outputPath, port, exists):
         tuning = self.createTuningOptions
         if exists:
             tuning = self.readTuningOptions
-        return "ktserver -log %s -port %d %s %s%s" % (outputPath, port, self.serverOptions, 
-                                              dbPath, tuning)
+        cmd = "ktserver -log %s -port %d %s" % (outputPath, port, self.serverOptions)
+        if experiment.getDbSnapshot() == True:
+            cmd += " -bgs %s -bgsi 100000000" % experiment.getDbDir()
+        if experiment.getDbInMemory() == False:
+            cmd += " %s%s" % (os.path.join(experiment.getDbDir(), 
+                                           experiment.getDbName()), tuning)
+        return cmd
     
     # launch the ktserver as a new daemon process.  
-    def spawnServer(self, experiment):
+    def spawnServer(self, experiment):        
         dbPath = os.path.join(experiment.getDbDir(), experiment.getDbName())
-        assert os.path.splitext(experiment.getDbName())[1] == ".kch"
-        
         if (len(self.scrapePids([dbPath])) != 0):
             raise RuntimeError("ktserver already running on %s" % dbPath)
         
@@ -154,8 +157,12 @@ class KtserverLauncher:
         
         self.waitOnTotalNumberOfServers()        
         basePort = experiment.getDbPort()
-        outputPath = "%s.log" % dbPath
-        dbPathExists = os.path.exists(dbPath)
+        outputPath = os.path.join(experiment.getDbDir(), "ktout.log")
+        
+        dbPathExists = False
+        if experiment.getDbInMemory() == False:
+            assert os.path.splitext(experiment.getDbName())[1] == ".kch"
+            dbPathExists = os.path.exists(dbPath)
             
         for port in range(basePort, basePort + self.rangeSize):
             if self.isServerOnPort(port) == False:
@@ -164,7 +171,8 @@ class KtserverLauncher:
                 # shouldn't be necessary but try to reduce the occurrence of
                 # freak concurrency issues by taking a quick nap
                 sleep(random.uniform(0, 1))
-                spawnDaemon(self.ktserverCmd(dbPath, outputPath, port, dbPathExists))
+                spawnDaemon(self.ktserverCmd(experiment, outputPath, port, 
+                                             dbPathExists))                                             
                 pid = self.validateServer(dbPath, outputPath, port)
                 if pid >= 0:
                     experiment.setDbPort(port)
@@ -189,8 +197,21 @@ class KtserverLauncher:
             pid = pids[0]
             assert pid is not None
             assert pid > -1
-        os.kill(pid, signal.SIGKILL)
-        #os.kill(pid, signal.SIGTERM)
+        os.kill(pid, signal.SIGTERM)
+        
+        # wait until it's really dead (can take a while for larger dbs since 
+        # they have to get serialized at this point
+        for i in xrange(self.checkWaitIntervals):
+            serverPids = self.scrapePids(['port %d' % port, dbPath])
+            numServers = len(serverPids)
+            if numServers == 0:
+                return
+            elif numServers > 1:
+                raise RuntimeError("Multiple ktservers running on %s" % dbPath)
+            else:
+                sleep(self.checkWait)
+        raise RuntimeError("Failed to kill ktserver on port %d and path %s" % (port, dbPath))
+            
         
 def main():
     try:
