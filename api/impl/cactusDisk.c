@@ -7,6 +7,204 @@
 #include "cactusGlobalsPrivate.h"
 #include <unistd.h>
 
+/*
+ * Functions on meta sequences.
+ */
+
+void cactusDisk_addMetaSequence(CactusDisk *cactusDisk,
+        MetaSequence *metaSequence) {
+    assert(stSortedSet_search(cactusDisk->metaSequences, metaSequence) == NULL);
+    stSortedSet_insert(cactusDisk->metaSequences, metaSequence);
+}
+
+void cactusDisk_removeMetaSequence(CactusDisk *cactusDisk,
+        MetaSequence *metaSequence) {
+    assert(stSortedSet_search(cactusDisk->metaSequences, metaSequence) != NULL);
+    stSortedSet_remove(cactusDisk->metaSequences, metaSequence);
+}
+
+/*
+ * Functions on strings stored by the flower disk.
+ */
+Name cactusDisk_addString(CactusDisk *cactusDisk, const char *string) {
+    Name name;
+    //bool done = 0;
+    if (cactusDisk->storeSequencesInAFile) {
+        if (cactusDisk->sequencesFileHandle != NULL) {
+            fclose(cactusDisk->sequencesFileHandle);
+        }
+        cactusDisk->sequencesFileHandle = fopen(
+                cactusDisk->absSequencesFileName, "a");
+        assert(cactusDisk->sequencesFileHandle != NULL);
+        name = ftell(cactusDisk->sequencesFileHandle) + 1;
+        fprintf(cactusDisk->sequencesFileHandle, ">%s", string);
+        fclose(cactusDisk->sequencesFileHandle);
+        cactusDisk->sequencesFileHandle = NULL;
+        return name;
+    } else {
+        name = cactusDisk_getUniqueID(cactusDisk);
+        stTry {
+                stKVDatabase_insertRecord(cactusDisk->database, name, string,
+                        (strlen(string) + 1) * sizeof(char));
+            }
+            stCatch(except)
+                {
+                    stThrowNewCause(
+                            except,
+                            ST_KV_DATABASE_EXCEPTION_ID,
+                            "An unknown database error occurred when we tried to add a string to the cactus disk");
+                }stTryEnd;
+    }
+    return name;
+}
+
+char *cactusDisk_getString(CactusDisk *cactusDisk, Name name, int32_t start,
+        int32_t length, int32_t strand, int32_t totalSequenceLength) {
+    assert(length >= 0);
+    if (length == 0) {
+        return stString_copy("");
+    }
+    //bool done = 0;
+    char *string = NULL;
+
+    //First try getting it from the cache
+    if (stCache_containsRecord(cactusDisk->stringCache, name, start,
+            sizeof(char) * length)) {
+        int64_t recordSize;
+        string = stCache_getRecord(cactusDisk->stringCache, name, start,
+                sizeof(char) * length, &recordSize);
+        assert(string != NULL);
+        assert(recordSize == length);
+        string = realloc(string, length + 1);
+        assert(string != NULL);
+    } else {
+        if (cactusDisk->storeSequencesInAFile) {
+            if (cactusDisk->sequencesFileHandle == NULL) {
+                cactusDisk->sequencesFileHandle = fopen(
+                        cactusDisk->absSequencesFileName, "r");
+                assert(cactusDisk->sequencesFileHandle != NULL);
+            }
+            fseek(cactusDisk->sequencesFileHandle, name + start, SEEK_SET);
+            string = st_malloc(sizeof(char) * (length + 1));
+            fread(string, sizeof(char), length, cactusDisk->sequencesFileHandle);
+#ifdef BEN_DEBUG
+            for (int32_t i = 0; i < length; i++) {
+                assert(string[i] != '>');
+            }
+#endif
+        } else {
+            stTry {
+                    string = stKVDatabase_getPartialRecord(
+                            cactusDisk->database, name, start * sizeof(char),
+                            (length + 1) * sizeof(char),
+                            (totalSequenceLength + 1) * sizeof(char));
+                }
+                stCatch(except)
+                    {
+                        stThrowNewCause(except, ST_KV_DATABASE_EXCEPTION_ID,
+                                "An unknown database error occurred when getting a sequence string");
+                    }stTryEnd;
+        }
+        stCache_setRecord(cactusDisk->stringCache, name, start,
+                sizeof(char) * length, string);
+    }
+    string[length] = '\0';
+    if (!strand) {
+        char *string2 = cactusMisc_reverseComplementString(string);
+        free(string);
+        return string2;
+    }
+    return string;
+}
+
+typedef struct _cactusDiskSetStringUpdate {
+    Name name;
+    int32_t start;
+    int32_t length;
+    int32_t totalSequenceLength;
+    char *string;
+} CactusDiskSetStringUpdate;
+
+static CactusDiskSetStringUpdate *cactusDiskSetStringUpdate_construct(Name name,
+        int32_t start, int32_t length, int32_t totalSequenceLength,
+        char *string) {
+    CactusDiskSetStringUpdate *update = st_malloc(sizeof(CactusDiskSetStringUpdate));
+    update->name = name;
+    update->start = start;
+    update->length = length;
+    update->totalSequenceLength = totalSequenceLength;
+    update->string = string;
+    return update;
+}
+
+static void cactusDiskSetStringUpdate_destruct(CactusDiskSetStringUpdate *update) {
+    free(update->string);
+    free(update);
+}
+
+static void cactusDisk_setStrings(CactusDisk *cactusDisk) {
+    if(stList_length(cactusDisk->stringUpdates) > 0) {
+        if (cactusDisk->storeSequencesInAFile) {
+            FILE *fileHandle = fopen(cactusDisk->absSequencesFileName, "r+");
+            assert(fileHandle != NULL);
+            while(stList_length(cactusDisk->stringUpdates) > 0) {
+                CactusDiskSetStringUpdate *update = stList_pop(cactusDisk->stringUpdates);
+                fseek(fileHandle, update->name + update->start, SEEK_SET);
+                int32_t i = fwrite(update->string, sizeof(char), update->length,
+                        fileHandle);
+                assert(i == update->length);
+                cactusDiskSetStringUpdate_destruct(update);
+            }
+            fclose(fileHandle);
+        } else {
+            while(stList_length(cactusDisk->stringUpdates) > 0) {
+                CactusDiskSetStringUpdate *update = stList_pop(cactusDisk->stringUpdates);
+                char *record = stKVDatabase_getRecord(cactusDisk->database,
+                        update->name);
+                memcpy(record + update->start, update->string,
+                        strlen(update->string));
+                stTry {
+                        stKVDatabase_setRecord(cactusDisk->database, update->name,
+                                record, (update->totalSequenceLength + 1) * sizeof(char));
+                    }
+                    stCatch(except)
+                        {
+                            stThrowNewCause(except, ST_KV_DATABASE_EXCEPTION_ID,
+                                    "An unknown database error occurred when setting a sequence string");
+                        }stTryEnd;
+                free(record);
+                cactusDiskSetStringUpdate_destruct(update);
+            }
+        }
+    }
+}
+
+void cactusDisk_setString(CactusDisk *cactusDisk, Name name, int32_t start,
+        int32_t length, int32_t strand, int32_t totalSequenceLength,
+        const char *string) {
+    assert(length >= 0);
+    if (length == 0) {
+        return;
+    }
+
+    string = strand ? stString_copy(string)
+            : cactusMisc_reverseComplementString(string);
+
+    //Update the cache
+    stCache_setRecord(cactusDisk->stringCache, name, start,
+            sizeof(char) * length, string);
+
+    stList_append(cactusDisk->stringUpdates, cactusDiskSetStringUpdate_construct(name, start, length, totalSequenceLength, (char *)string));
+
+#ifdef BEN_DEBUG
+    char *string2 = cactusDisk_getString(cactusDisk, name, start, length,
+            strand, totalSequenceLength);
+    assert(strcmp(string, string2) == 0);
+    free(string2);
+#endif
+}
+
+
 ////////////////////////////////////////////////
 ////////////////////////////////////////////////
 ////////////////////////////////////////////////
@@ -237,6 +435,7 @@ static CactusDisk *cactusDisk_constructPrivate(stKVDatabaseConf *conf,
             cactusDisk->sequencesFileHandle = NULL;
         }
     }
+    cactusDisk->stringUpdates = stList_construct3(0, (void (*)(void *))cactusDiskSetStringUpdate_destruct);
 
     return cactusDisk;
 }
@@ -288,6 +487,7 @@ void cactusDisk_destruct(CactusDisk *cactusDisk) {
 
     stCache_destruct(cactusDisk->cache); //Get rid of the cache
     stCache_destruct(cactusDisk->stringCache);
+    stList_destruct(cactusDisk->stringUpdates);
     free(cactusDisk);
 }
 
@@ -442,6 +642,10 @@ void cactusDisk_write(CactusDisk *cactusDisk) {
     stList_destruct(updateRequests);
     stList_destruct(removeRequests);
 
+    st_logDebug("Updating any strings that we have changes for\n");
+
+    cactusDisk_setStrings(cactusDisk);
+
     st_logDebug("Finished writing to the database\n");
 }
 
@@ -533,162 +737,6 @@ void cactusDisk_deleteFlowerFromDisk(CactusDisk *cactusDisk, Flower *flower) {
     } else {
         free(nameString);
     }
-}
-
-/*
- * Functions on meta sequences.
- */
-
-void cactusDisk_addMetaSequence(CactusDisk *cactusDisk,
-        MetaSequence *metaSequence) {
-    assert(stSortedSet_search(cactusDisk->metaSequences, metaSequence) == NULL);
-    stSortedSet_insert(cactusDisk->metaSequences, metaSequence);
-}
-
-void cactusDisk_removeMetaSequence(CactusDisk *cactusDisk,
-        MetaSequence *metaSequence) {
-    assert(stSortedSet_search(cactusDisk->metaSequences, metaSequence) != NULL);
-    stSortedSet_remove(cactusDisk->metaSequences, metaSequence);
-}
-
-/*
- * Functions on strings stored by the flower disk.
- */
-Name cactusDisk_addString(CactusDisk *cactusDisk, const char *string) {
-    Name name;
-    //bool done = 0;
-    if (cactusDisk->storeSequencesInAFile) {
-        if (cactusDisk->sequencesFileHandle != NULL) {
-            fclose(cactusDisk->sequencesFileHandle);
-        }
-        cactusDisk->sequencesFileHandle = fopen(
-                cactusDisk->absSequencesFileName, "a");
-        assert(cactusDisk->sequencesFileHandle != NULL);
-        name = ftell(cactusDisk->sequencesFileHandle) + 1;
-        fprintf(cactusDisk->sequencesFileHandle, ">%s", string);
-        fclose(cactusDisk->sequencesFileHandle);
-        cactusDisk->sequencesFileHandle = NULL;
-        return name;
-    } else {
-        name = cactusDisk_getUniqueID(cactusDisk);
-        stTry {
-                stKVDatabase_insertRecord(cactusDisk->database, name, string,
-                        (strlen(string) + 1) * sizeof(char));
-            }
-            stCatch(except)
-                {
-                    stThrowNewCause(
-                            except,
-                            ST_KV_DATABASE_EXCEPTION_ID,
-                            "An unknown database error occurred when we tried to add a string to the cactus disk");
-                }stTryEnd;
-    }
-    return name;
-}
-
-char *cactusDisk_getString(CactusDisk *cactusDisk, Name name, int32_t start,
-        int32_t length, int32_t strand, int32_t totalSequenceLength) {
-    assert(length >= 0);
-    if (length == 0) {
-        return stString_copy("");
-    }
-    //bool done = 0;
-    char *string = NULL;
-
-    //First try getting it from the cache
-    if (stCache_containsRecord(cactusDisk->stringCache, name, start,
-            sizeof(char) * length)) {
-        int64_t recordSize;
-        string = stCache_getRecord(cactusDisk->stringCache, name, start,
-                sizeof(char) * length, &recordSize);
-        assert(string != NULL);
-        assert(recordSize == length);
-        string = realloc(string, length + 1);
-        assert(string != NULL);
-    } else {
-        if (cactusDisk->storeSequencesInAFile) {
-            if (cactusDisk->sequencesFileHandle == NULL) {
-                cactusDisk->sequencesFileHandle = fopen(
-                        cactusDisk->absSequencesFileName, "r");
-                assert(cactusDisk->sequencesFileHandle != NULL);
-            }
-            fseek(cactusDisk->sequencesFileHandle, name + start, SEEK_SET);
-            string = st_malloc(sizeof(char) * (length + 1));
-            fread(string, sizeof(char), length, cactusDisk->sequencesFileHandle);
-#ifdef BEN_DEBUG
-            for (int32_t i = 0; i < length; i++) {
-                assert(string[i] != '>');
-            }
-#endif
-        } else {
-            stTry {
-                    string = stKVDatabase_getPartialRecord(
-                            cactusDisk->database, name, start * sizeof(char),
-                            (length + 1) * sizeof(char),
-                            (totalSequenceLength + 1) * sizeof(char));
-                }
-                stCatch(except)
-                    {
-                        stThrowNewCause(except, ST_KV_DATABASE_EXCEPTION_ID,
-                                "An unknown database error occurred when getting a sequence string");
-                    }stTryEnd;
-        }
-        stCache_setRecord(cactusDisk->stringCache, name, start,
-                sizeof(char) * length, string);
-    }
-    string[length] = '\0';
-    if (!strand) {
-        char *string2 = cactusMisc_reverseComplementString(string);
-        free(string);
-        return string2;
-    }
-    return string;
-}
-
-void cactusDisk_setString(CactusDisk *cactusDisk, Name name, int32_t start,
-        int32_t length, int32_t strand, int32_t totalSequenceLength,
-        const char *string) {
-    assert(length >= 0);
-    if (length == 0) {
-        return;
-    }
-
-    string = strand ? stString_copy(string)
-            : cactusMisc_reverseComplementString(string);
-
-    if (cactusDisk->storeSequencesInAFile) {
-        FILE *fileHandle = fopen(
-                cactusDisk->absSequencesFileName, "r+");
-        assert(fileHandle != NULL);
-        fseek(fileHandle, name + start, SEEK_SET);
-        int32_t i = fwrite(string, sizeof(char), length, fileHandle);
-        assert(i == length);
-        fclose(fileHandle);
-    } else {
-        char *record = stKVDatabase_getRecord(cactusDisk->database, name);
-        memcpy(record + start, string, strlen(string));
-        stTry {
-            stKVDatabase_setRecord(cactusDisk->database, name, record,
-                    (totalSequenceLength + 1) * sizeof(char));
-            }
-            stCatch(except)
-                {
-                    stThrowNewCause(except, ST_KV_DATABASE_EXCEPTION_ID,
-                            "An unknown database error occurred when setting a sequence string");
-                }stTryEnd;
-       free(record);
-    }
-    //Update the cache
-    stCache_setRecord(cactusDisk->stringCache, name, start,
-            sizeof(char) * length, string);
-
-#ifdef BEN_DEBUG
-    char *string2 = cactusDisk_getString(cactusDisk, name, start, length,
-            strand, totalSequenceLength);
-    assert(strcmp(string, string2) == 0);
-    free(string2);
-#endif
-    free((char *)string);
 }
 
 /*

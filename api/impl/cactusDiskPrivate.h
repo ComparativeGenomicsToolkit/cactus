@@ -22,6 +22,7 @@ struct _cactusDisk {
     char *sequencesFileName;
     char *absSequencesFileName;
     FILE *sequencesFileHandle;
+    stList *stringUpdates;
 };
 
 ////////////////////////////////////////////////
