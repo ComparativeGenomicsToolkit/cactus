@@ -513,7 +513,7 @@ class CactusReferencePhase(Target):
         self.logToMaster("Starting the reference phase at %s seconds" % time.time())
         if self.options.buildReference:
             self.addChildTarget(CactusReferenceDown(self.options, None, [ self.flowerName, 1 ]))
-            self.setFollowOnTarget(CactusSetReferenceCoordinates(self.flowerName, self.options))
+            self.setFollowOnTarget(CactusReferenceSetCoordinatesUpPhase(self.flowerName, self.options))
         else:
             self.setFollowOnTarget(CactusFacesPhase(self.flowerName, self.options))
         
@@ -537,21 +537,53 @@ class CactusReferenceDown(Target):
                            maxNumberOfChainsBeforeSwitchingToFast=getOptionalAttrib(referenceNode, "maxNumberOfChainsBeforeSwitchingToFast"))
         makeChildTargets(self.options, None, self.flowerNames, self, CactusReferenceDown)
 
-class CactusSetReferenceCoordinates(Target):
-    """Fills in the coordinates, once a reference is added.
-    """
-    def __init__(self, flowerName, options):
-        Target.__init__(self, time=100.0)
-        self.flowerName = flowerName
-        self.options = options
-        
+############################################################
+############################################################
+############################################################
+#Reference coordinates pass, in which coordinates and bases are added to the reference thread
+############################################################
+############################################################
+############################################################
+
+class CactusReferenceSetCoordinatesUpPhase(CactusReferencePhase):
+    def run(self):
+        self.logToMaster("Starting the reference coordinate up phase at %s seconds" % time.time())
+        self.addChildTarget(CactusSetReferenceCoordinatesUp(self.options, None, [ self.flowerName, 1 ]))
+        self.setFollowOnTarget(CactusSetReferenceCoordinatesDownPhase(self.flowerName, self.options))
+
+class CactusSetReferenceCoordinatesUp(CactusReferenceDown):
+    """Does the up pass for filling Fills in the coordinates, once a reference is added.
+    """ 
     def run(self):
         referenceNode=self.options.config.find("reference")
-        runCactusAddReferenceCoordinates(self.options.cactusDiskDatabaseString, 
+        makeChildTargets(self.options, None, self.flowerNames, self, CactusSetReferenceCoordinatesUp)
+        self.setFollowOnTarget(CactusSetReferenceCoordinatesUpRunnable(self.options, None, self.flowerNames))
+        
+class CactusSetReferenceCoordinatesUpRunnable(CactusSetReferenceCoordinatesUp):
+    """Does the up pass for filling Fills in the coordinates, once a reference is added.
+    """ 
+    def run(self):
+        referenceNode=self.options.config.find("reference")
+        runCactusAddReferenceCoordinates(self.options.cactusDiskDatabaseString, self.flowerNames,
                                          referenceEventString=getOptionalAttrib(referenceNode, "reference"),
-                                         outgroupEventString=self.options.outgroupEventNames)
+                                         outgroupEventString=self.options.outgroupEventNames, bottomUpPhase=True)
+        
+class CactusSetReferenceCoordinatesDownPhase(CactusReferencePhase):
+    def run(self):
+        self.logToMaster("Starting the reference coordinate down phase at %s seconds" % time.time())
+        self.addChildTarget(CactusSetReferenceCoordinatesDown(self.options, None, [ self.flowerName, 1 ]))
         self.setFollowOnTarget(CactusFacesPhase(self.flowerName, self.options))
-
+        
+class CactusSetReferenceCoordinatesDown(CactusReferenceDown):
+    """Does the down pass for filling Fills in the coordinates, once a reference is added.
+    """        
+    def run(self):
+        referenceNode=self.options.config.find("reference")
+        makeChildTargets(self.options, None, self.flowerNames, self, CactusSetReferenceCoordinatesDown)
+        runCactusAddReferenceCoordinates(self.options.cactusDiskDatabaseString, self.flowerNames,
+                                         referenceEventString=getOptionalAttrib(referenceNode, "reference"),
+                                         outgroupEventString=self.options.outgroupEventNames, bottomUpPhase=False)
+        
 ############################################################
 ############################################################
 ############################################################

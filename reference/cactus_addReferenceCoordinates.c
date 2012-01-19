@@ -48,7 +48,7 @@ int main(int argc, char *argv[]) {
         static struct option long_options[] = { { "logLevel", required_argument, 0, 'a' }, { "cactusDisk",
                 required_argument, 0, 'c' }, { "referenceEventString", required_argument, 0, 'g' }, { "help",
                 no_argument, 0, 'h' }, { "outgroupEventString", required_argument, 0, 'i' },
-                { "bottomUpPhase", required_argument, 0, 'j' },
+                { "bottomUpPhase", no_argument, 0, 'j' },
                 { 0, 0, 0, 0 } };
 
         int option_index = 0;

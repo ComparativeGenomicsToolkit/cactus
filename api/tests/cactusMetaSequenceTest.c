@@ -70,6 +70,30 @@ void testMetaSequence_getString(CuTest* testCase) {
     }
 }
 
+void testMetaSequence_setString(CuTest* testCase) {
+    for(int32_t i=0; i<10; i++) {
+        cactusMetaSequenceTestSetup();
+        //String is ACTGGCACTG
+        CuAssertStrEquals(testCase, sequenceString, metaSequence_getString(metaSequence, 1, 10, 1)); //complete sequence
+        metaSequence_setString(metaSequence, 4, 2, 1, "AA");
+        CuAssertStrEquals(testCase, "TAAC", metaSequence_getString(metaSequence, 3, 4, 1)); //sub range
+        metaSequence_setString(metaSequence, 4, 2, 0, "AA");
+        CuAssertStrEquals(testCase, "TTTC", metaSequence_getString(metaSequence, 3, 4, 1)); //sub range
+        CuAssertStrEquals(testCase, "CAGTGAAAGT", metaSequence_getString(metaSequence, 1, 10, 0)); //reverse complement
+        metaSequence_setString(metaSequence, 1, 10, 1, "GTTGATGCAC");
+        CuAssertStrEquals(testCase, "GTTGATGCAC", metaSequence_getString(metaSequence, 1, 10, 1));
+        metaSequence_setString(metaSequence, 1, 0, 1, ""); //Zero length set
+        CuAssertStrEquals(testCase, "GTTGATGCAC", metaSequence_getString(metaSequence, 1, 10, 1));
+        metaSequence_setString(metaSequence, 1, 1, 1, "A"); //Set first base
+        metaSequence_setString(metaSequence, 10, 1, 1, "A"); //Set last base
+        CuAssertStrEquals(testCase, "ATTGATGCAA", metaSequence_getString(metaSequence, 1, 10, 1));
+        //Reset sequence back to original format
+        metaSequence_setString(metaSequence, 1, 10, 1, sequenceString);
+        CuAssertStrEquals(testCase, sequenceString, metaSequence_getString(metaSequence, 1, 10, 1)); //complete sequence
+        cactusMetaSequenceTestTeardown();
+    }
+}
+
 void testMetaSequence_getHeader(CuTest* testCase) {
 	cactusMetaSequenceTestSetup();
 	CuAssertStrEquals(testCase, headerString, metaSequence_getHeader(metaSequence));
@@ -101,6 +125,7 @@ void testMetaSequence_serialisation(CuTest* testCase) {
 	testMetaSequence_getLength(testCase);
 	testMetaSequence_getEventName(testCase);
 	testMetaSequence_getString(testCase);
+	testMetaSequence_setString(testCase);
 	testMetaSequence_getHeader(testCase);
 	nestedTest = 0;
 	cactusMetaSequenceTestTeardown();
@@ -113,6 +138,7 @@ CuSuite* cactusMetaSequenceTestSuite(void) {
 	SUITE_ADD_TEST(suite, testMetaSequence_getLength);
 	SUITE_ADD_TEST(suite, testMetaSequence_getEventName);
 	SUITE_ADD_TEST(suite, testMetaSequence_getString);
+	SUITE_ADD_TEST(suite, testMetaSequence_setString);
 	SUITE_ADD_TEST(suite, testMetaSequence_serialisation);
 	SUITE_ADD_TEST(suite, testMetaSequence_getHeader);
 	return suite;

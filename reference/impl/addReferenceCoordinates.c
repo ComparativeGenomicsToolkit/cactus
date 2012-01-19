@@ -60,25 +60,20 @@ static void setAdjacencyLength(Cap *cap) {
      */
     Cap *adjacentCap = cap_getAdjacency(cap);
     assert(adjacentCap != NULL);
-    assert(cap_getStrand(cap));
-    assert(cap_getStrand(adjacentCap));
-    assert(!cap_getSide(cap));
-    assert(cap_getSide(adjacentCap));
     assert(cap_getCoordinate(adjacentCap) == INT32_MAX);
+    assert(cap_getStrand(cap) == cap_getStrand(adjacentCap));
     Group *group = end_getGroup(cap_getEnd(cap));
     assert(group != NULL);
     int32_t adjacencyLength = 0;
     if (!group_isLeaf(group)) { //Adjacency is not terminal, so establish its sequence.
         Flower *nestedFlower = group_getNestedFlower(group);
         Cap *nestedCap = flower_getCap(nestedFlower, cap_getName(cap));
-        Cap *nestedAdjacentCap = flower_getCap(nestedFlower, cap_getName(adjacentCap));
         assert(nestedCap != NULL);
-        assert(nestedAdjacentCap != NULL);
         adjacencyLength = traceThreadLength(nestedCap);
     }
     //Set the coordinates of the caps to the adjacency size
-    cap_setCoordinates(cap, adjacencyLength, 1, NULL);
-    cap_setCoordinates(adjacentCap, adjacencyLength, 1, NULL);
+    cap_setCoordinates(cap, adjacencyLength, cap_getStrand(cap), NULL);
+    cap_setCoordinates(adjacentCap, adjacencyLength, cap_getStrand(adjacentCap), NULL);
 }
 
 void bottomUp(Flower *flower, Name referenceEventName) {
@@ -89,10 +84,12 @@ void bottomUp(Flower *flower, Name referenceEventName) {
     Flower_EndIterator *endIt = flower_getEndIterator(flower);
     End *end;
     while ((end = flower_getNextEnd(endIt)) != NULL) {
-        Cap *cap = getCapForReferenceEvent(end, referenceEventName); //The cap in the reference
-        assert(cap != NULL);
-        if (cap_getCoordinate(cap) == INT32_MAX) {
-            setAdjacencyLength(cap);
+        if(end_isBlockEnd(end) || end_isAttached(end)) {
+            Cap *cap = getCapForReferenceEvent(end, referenceEventName); //The cap in the reference
+            assert(cap != NULL);
+            if (cap_getCoordinate(cap) == INT32_MAX) {
+                setAdjacencyLength(cap);
+            }
         }
     }
     flower_destructEndIterator(endIt);
@@ -123,10 +120,10 @@ static MetaSequence *addMetaSequence(Flower *flower, Cap *cap, int32_t *index) {
 
 static stList *setCoordinates2(MetaSequence *metaSequence, stList *strings, int32_t coordinate) {
     if(stList_length(strings) > 0) {
-        char *singleString = stString_join2(strings, "");
+        char *singleString = stString_join2("", strings);
         stList_destruct(strings);
         int32_t stringLength = strlen(singleString);
-        metaSequence_setString(metaSequence, coordinate - stringLength, ssingleString);
+        metaSequence_setString(metaSequence, coordinate - stringLength, stringLength, 1, singleString);
         free(singleString);
         strings = stList_construct3(0, free);
     }

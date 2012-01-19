@@ -258,11 +258,12 @@ def runCactusReference(cactusDiskDatabaseString, flowerNames, logLevel=None,
     command = "cactus_reference --cactusDisk '%s' --logLevel %s %s %s %s %s %s %s" % (cactusDiskDatabaseString, logLevel, matchingAlgorithm, referenceEventString, permutations, useSimulatedAnnealing, theta, formatFlowerNames(flowerNames))
     system(command)
     
-def runCactusAddReferenceCoordinates(cactusDiskDatabaseString, logLevel=None, referenceEventString=None, outgroupEventString=None):   
+def runCactusAddReferenceCoordinates(cactusDiskDatabaseString, flowerNames, logLevel=None, referenceEventString=None, outgroupEventString=None, bottomUpPhase=None):   
     logLevel = getLogLevelString2(logLevel)
+    bottomUpPhase = nameValue("bottomUpPhase", bottomUpPhase, bool)
     referenceEventString = nameValue("referenceEventString", referenceEventString)
     outgroupEventString = nameValue("outgroupEventString", outgroupEventString)
-    command = "cactus_addReferenceCoordinates --cactusDisk '%s' --logLevel %s %s %s" % (cactusDiskDatabaseString, logLevel, referenceEventString, outgroupEventString)
+    command = "cactus_addReferenceCoordinates --cactusDisk '%s' --logLevel %s %s %s %s %s" % (cactusDiskDatabaseString, logLevel, referenceEventString, outgroupEventString, bottomUpPhase, formatFlowerNames(flowerNames))
     system(command)
 
 def runCactusCheck(cactusDiskDatabaseString, 

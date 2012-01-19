@@ -52,6 +52,11 @@ Name metaSequence_getEventName(MetaSequence *metaSequence);
 char *metaSequence_getString(MetaSequence *metaSequence, int32_t start, int32_t length, int32_t strand);
 
 /*
+ * Sets the string representing a subsequence of the meta sequence.
+ */
+void metaSequence_setString(MetaSequence *metaSequence, int32_t start, int32_t length, int32_t strand, const char *string);
+
+/*
  * Gets the header line associated with the meta sequence.
  */
 const char *metaSequence_getHeader(MetaSequence *metaSequence);

@@ -186,6 +186,22 @@ void testCap_getCoordinate(CuTest* testCase) {
     cactusCapTestTeardown();
 }
 
+void testCap_setCoordinate(CuTest* testCase) {
+    cactusCapTestSetup();
+    CuAssertTrue(testCase, cap_getCoordinate(rootCap) == INT32_MAX);
+    CuAssertTrue(testCase, cap_getStrand(rootCap));
+    CuAssertTrue(testCase, cap_getSequence(rootCap) == NULL);
+    cap_setCoordinates(rootCap, 5, 0, NULL);
+    CuAssertTrue(testCase, cap_getCoordinate(rootCap) == 5);
+    CuAssertTrue(testCase, !cap_getStrand(rootCap));
+    CuAssertTrue(testCase, cap_getSequence(rootCap) == NULL);
+    cap_setCoordinates(rootCap, INT32_MAX, 1, NULL);
+    CuAssertTrue(testCase, cap_getCoordinate(rootCap) == INT32_MAX);
+    CuAssertTrue(testCase, cap_getStrand(rootCap));
+    CuAssertTrue(testCase, cap_getSequence(rootCap) == NULL);
+    cactusCapTestTeardown();
+}
+
 void testCap_getStrand(CuTest* testCase) {
     cactusCapTestSetup();
     CuAssertTrue(testCase, cap_getStrand(rootCap));
@@ -391,6 +407,7 @@ void testCap_serialisation(CuTest* testCase) {
     testCap_segmentCoordinates(testCase);
     testCap_segmentCoordinatesReverseStrand(testCase);
     testCap_getCoordinate(testCase);
+    testCap_setCoordinate(testCase);
     testCap_getStrand(testCase);
     testCap_getSide(testCase);
     testCap_getSequence(testCase);
@@ -418,6 +435,7 @@ CuSuite* cactusCapTestSuite(void) {
     SUITE_ADD_TEST(suite, testCap_segmentCoordinates);
     SUITE_ADD_TEST(suite, testCap_segmentCoordinatesReverseStrand);
     SUITE_ADD_TEST(suite, testCap_getCoordinate);
+    SUITE_ADD_TEST(suite, testCap_setCoordinate);
     SUITE_ADD_TEST(suite, testCap_getStrand);
     SUITE_ADD_TEST(suite, testCap_getSide);
     SUITE_ADD_TEST(suite, testCap_getSequence);
