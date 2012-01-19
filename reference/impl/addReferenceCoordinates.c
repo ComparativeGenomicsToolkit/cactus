@@ -120,39 +120,52 @@ static MetaSequence *addMetaSequence(Flower *flower, Cap *cap, int32_t *index) {
 
 static stList *setCoordinates2(MetaSequence *metaSequence, stList *strings, int32_t coordinate) {
     if(stList_length(strings) > 0) {
-        char *singleString = stString_join2("", strings);
-        stList_destruct(strings);
+        char **cAA = st_malloc(sizeof(char *)*stList_length(strings));
+        for(int32_t i=0; i<stList_length(strings); i++) {
+            cAA[i] = stList_get(strings, i);
+        }
+        char *singleString = stString_join("", (const char **)cAA, stList_length(strings));
+        free(cAA);
+        //char *singleString = stString_join2("", strings);
         int32_t stringLength = strlen(singleString);
-        metaSequence_setString(metaSequence, coordinate - stringLength, stringLength, 1, singleString);
+        stList_destruct(strings);
+        metaSequence_setString(metaSequence, coordinate - stringLength + 1, stringLength, 1, singleString);
         free(singleString);
         strings = stList_construct3(0, free);
     }
     return strings;
 }
 
-static void setCoordinates(Flower *flower, MetaSequence *metaSequence, Cap *cap, int32_t coordinate,
+static int32_t setCoordinates(Flower *flower, MetaSequence *metaSequence, Cap *cap, int32_t coordinate,
         Name outgroupEventName) {
     /*
      * Sets the coordinates of the reference thread and sets the bases of the actual sequence
      * that of the consensus.
      */
-    Sequence *sequence = sequence_construct(metaSequence, flower);
+    Sequence *sequence = flower_getSequence(flower, metaSequence_getName(metaSequence));
+    if(sequence == NULL) {
+        sequence = sequence_construct(metaSequence, flower);
+    }
     stList *strings = stList_construct3(0, free);
     while (1) {
+        assert(!cap_getSide(cap));
         Cap *adjacentCap = cap_getAdjacency(cap);
         assert(adjacentCap != NULL);
+        if(!cap_getSide(adjacentCap)) {
+            adjacentCap = cap_getReverse(adjacentCap);
+        }
+        assert(cap_getSide(adjacentCap));
         int32_t adjacencyLength = cap_getCoordinate(cap);
         assert(adjacencyLength == cap_getCoordinate(adjacentCap));
         assert(adjacencyLength != INT32_MAX);
         assert(adjacencyLength >= 0);
-        assert(!cap_getSide(cap));
         cap_setCoordinates(cap, coordinate, 1, sequence);
         if(adjacencyLength > 0) {
             strings = setCoordinates2(metaSequence, strings, coordinate);
         }
         coordinate += adjacencyLength + 1;
-        assert(cap_getSide(adjacentCap));
         cap_setCoordinates(adjacentCap, coordinate, 1, sequence);
+        cap_makeAdjacent(cap, adjacentCap); //This corrects the adjacency so side and strand are consistent.
         //Traverse any block..
         Segment *segment;
         if ((segment = cap_getSegment(adjacentCap)) != NULL) {
@@ -167,10 +180,11 @@ static void setCoordinates(Flower *flower, MetaSequence *metaSequence, Cap *cap,
             break;
         }
     }
-    stList_destruct(setCoordinates2(metaSequence, strings, coordinate));
+    stList_destruct(setCoordinates2(metaSequence, strings, coordinate-1));
+    return coordinate;
 }
 
-void addSequencesAndReferenceCoordinatesToTopLevelFlower(Flower *flower, const char *sequenceDir, Name referenceEventName, Name outgroupEventName) {
+void addSequencesAndReferenceCoordinatesToTopLevelFlower(Flower *flower, Name referenceEventName, Name outgroupEventName) {
     /*
      * Adds reference (meta)sequences and then sets coordinates of the top level reference threads.
      */
@@ -181,12 +195,11 @@ void addSequencesAndReferenceCoordinatesToTopLevelFlower(Flower *flower, const c
     while ((end = flower_getNextEnd(endIt)) != NULL) {
         if (end_isStubEnd(end) && end_isAttached(end)) {
             Cap *cap = getCapForReferenceEvent(end, referenceEventName); //The cap in the reference
-            cap = cap_getStrand(cap) ? cap : cap_getReverse(cap);
-            if (!cap_getSide(cap)) {
-                assert(cap != NULL);
-                assert(cap_getSequence(cap) == NULL);
+            if (cap_getSequence(cap) == NULL) {
+                cap = cap_getSide(cap) ? cap_getReverse(cap) : cap;
                 MetaSequence *metaSequence = addMetaSequence(flower, cap, &index);
-                setCoordinates(flower, metaSequence, cap, metaSequence_getStart(metaSequence), outgroupEventName);
+                int32_t endCoordinate = setCoordinates(flower, metaSequence, cap, metaSequence_getStart(metaSequence)-1, outgroupEventName);
+                assert(endCoordinate == metaSequence_getLength(metaSequence) + metaSequence_getStart(metaSequence));
             }
         }
     }
@@ -201,18 +214,24 @@ void topDown(Flower *flower, Name referenceEventName, Name outgroupEventName) {
     Flower_EndIterator *endIt = flower_getEndIterator(flower);
     End *end;
     while ((end = flower_getNextEnd(endIt)) != NULL) {
-        Cap *cap = getCapForReferenceEvent(end, referenceEventName); //The cap in the reference
-        cap = cap_getStrand(cap) ? cap : cap_getReverse(cap);
-        if (!cap_getSide(cap)) {
-            assert(cap != NULL);
-            Sequence *sequence = cap_getSequence(cap);
-            assert(sequence != NULL);
-            Group *group = end_getGroup(end);
-            if (!group_isLeaf(group)) {
-                Flower *nestedFlower = group_getNestedFlower(group);
-                Cap *nestedCap = flower_getCap(nestedFlower, cap_getName(cap));
-                assert(nestedCap != NULL);
-                setCoordinates(nestedFlower, sequence_getMetaSequence(sequence), nestedCap, cap_getCoordinate(cap), outgroupEventName);
+        if(end_isBlockEnd(end) || end_isAttached(end)) {
+            Cap *cap = getCapForReferenceEvent(end, referenceEventName); //The cap in the reference
+            cap = cap_getStrand(cap) ? cap : cap_getReverse(cap);
+            if (!cap_getSide(cap)) {
+                assert(cap != NULL);
+                Sequence *sequence = cap_getSequence(cap);
+                assert(sequence != NULL);
+                Group *group = end_getGroup(end);
+                if (!group_isLeaf(group)) {
+                    Flower *nestedFlower = group_getNestedFlower(group);
+                    Cap *nestedCap = flower_getCap(nestedFlower, cap_getName(cap));
+                    assert(nestedCap != NULL);
+                    nestedCap = cap_getSide(nestedCap) ? cap_getReverse(nestedCap) : nestedCap;
+                    assert(!cap_getSide(nestedCap));
+                    int32_t endCoordinate = setCoordinates(nestedFlower, sequence_getMetaSequence(sequence), nestedCap, cap_getCoordinate(cap), outgroupEventName);
+                    assert(endCoordinate == cap_getCoordinate(cap_getAdjacency(cap)));
+                    assert(endCoordinate == cap_getCoordinate(flower_getCap(nestedFlower, cap_getName(cap_getAdjacency(cap)))));
+                }
             }
         }
     }

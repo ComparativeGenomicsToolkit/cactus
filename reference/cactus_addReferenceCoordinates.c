@@ -137,9 +137,9 @@ int main(int argc, char *argv[]) {
             bottomUp(flower, referenceEventName);
         } else {
             if (!flower_hasParentGroup(flower)) {
-                addSequencesAndReferenceCoordinatesToTopLevelFlower(flower, referenceEventName);
+                addSequencesAndReferenceCoordinatesToTopLevelFlower(flower, referenceEventName, outgroupEventName);
             }
-            topDown(flower, referenceEventName);
+            topDown(flower, referenceEventName, outgroupEventName);
         }
     }
 
