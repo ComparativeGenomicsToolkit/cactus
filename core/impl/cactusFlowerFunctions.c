@@ -708,10 +708,14 @@ void fillOutFlowerFromInputs(Flower *parentFlower,
     //Blocks and ends for each flower.
     ////////////////////////////////////////////////
 
+    CactusDisk *cactusDisk = flower_getCactusDisk(parentFlower);
     flowers = st_malloc(sizeof(void *) * cactusGraph->vertices->length);
-    for (i = 1; i < cactusGraph->vertices->length; i++) {
+    Name *flowerNames = st_malloc(sizeof(Name) * cactusGraph->vertices->length);
+    for (i = 0; i < cactusGraph->vertices->length; i++) {
         flowers[i] = NULL;
+        flowerNames[i] = cactusDisk_getUniqueID(cactusDisk);
     }
+    int32_t flowerNameIndex = 0;
     flowers[0] = parentFlower;
     parentFlowers = st_malloc(sizeof(void *) * biConnectedComponents->length);
     for (i = 0; i < biConnectedComponents->length; i++) {
@@ -721,7 +725,8 @@ void fillOutFlowerFromInputs(Flower *parentFlower,
         //Get the flower.
         flower = flowers[cactusEdge->from->vertexID];
         if (flower == NULL) {
-            flower = flower_construct(flower_getCactusDisk(parentFlower));
+            assert(flowerNameIndex < cactusGraph->vertices->length);
+            flower = flower_construct2(flowerNames[flowerNameIndex++], cactusDisk);
             eventTree_copyConstruct(flower_getEventTree(parentFlower), flower,
                     returnsTrue);
             flowers[cactusEdge->from->vertexID] = flower;
@@ -876,6 +881,7 @@ void fillOutFlowerFromInputs(Flower *parentFlower,
     ////////////////////////////////////////////////
 
     free(flowers);
+    free(flowerNames);
     free(vertexDiscoveryTimes);
     free(parentFlowers);
     hashtable_destroy(endNamesHash, TRUE, FALSE);
