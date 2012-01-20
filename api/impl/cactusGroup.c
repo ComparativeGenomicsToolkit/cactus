@@ -21,17 +21,18 @@ int group_constructP(const void *o1, const void *o2) {
 Group *group_construct(Flower *flower, Flower *nestedFlower) {
     Group *group;
 
-    group = group_construct3(flower, flower_getName(nestedFlower), 0);
+    group = group_construct4(flower, flower_getName(nestedFlower), 0);
     group_updateContainedEnds(group);
     flower_setParentGroup(nestedFlower, group);
     return group;
 }
 
-Group *group_construct2(Flower *flower) {
-    Group *group;
+Group *group_construct3(Flower *flower, Name name) {
+    return group_construct4(flower, name, 1);
+}
 
-    group = group_construct3(flower, cactusDisk_getUniqueID(flower_getCactusDisk(flower)), 1);
-    return group;
+Group *group_construct2(Flower *flower) {
+    return group_construct3(flower, cactusDisk_getUniqueID(flower_getCactusDisk(flower)));
 }
 
 bool group_isLeaf(Group *group) {
@@ -435,7 +436,7 @@ int32_t group_getBlockEndNumber(Group *group) {
  * Private functions.
  */
 
-Group *group_construct3(Flower *flower, Name name, bool terminalGroup) {
+Group *group_construct4(Flower *flower, Name name, bool terminalGroup) {
     Group *group;
     group = st_malloc(sizeof(Group));
 
@@ -501,7 +502,7 @@ Group *group_loadFromBinaryRepresentation(void **binaryString, Flower *flower) {
         binaryRepresentation_popNextElementType(binaryString);
         bool terminalGroup = binaryRepresentation_getBool(binaryString);
         Name name = binaryRepresentation_getName(binaryString);
-        group = group_construct3(flower, name, terminalGroup);
+        group = group_construct4(flower, name, terminalGroup);
         while (binaryRepresentation_peekNextElementType(*binaryString) == CODE_GROUP_END) {
             binaryRepresentation_popNextElementType(binaryString);
             end_setGroup(flower_getEnd(flower, binaryRepresentation_getName(binaryString)), group);

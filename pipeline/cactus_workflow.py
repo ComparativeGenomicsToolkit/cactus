@@ -235,10 +235,14 @@ def makeTargets(options, extraArgs, flowersAndSizes,
             flowerNames.append(firstFlowerName)
             flowerNames.append(flowerNumber)
             if totalSequenceSize >= maxSequenceSizeOfFlowerGrouping or len(flowerNames) > 200: 
+                #parentTarget.logToMaster("Adding %i flowers, with flower names %s for target class %s" \
+                #                     % (totalSequenceSize, flowerNames, target))
                 parentTarget.addChildTarget(target(options, extraArgs, flowerNames))
                 flowerNames = []
                 totalSequenceSize = 0.0
     if len(flowerNames) > 0:
+        #parentTarget.logToMaster("Adding %i flowers, with flower names %s for target class %s" \
+        #                             % (totalSequenceSize, flowerNames, target))
         parentTarget.addChildTarget(target(options, extraArgs, flowerNames))
 
 MAX_SEQUENCE_SIZE_OF_FLOWER_GROUPING=100000           

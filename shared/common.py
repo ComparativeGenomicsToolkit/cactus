@@ -149,7 +149,7 @@ def runCactusAdjacencies(cactusDiskDatabaseString, flowerNames=(0, 1), logLevel=
     logger.info("Ran cactus_fillAdjacencies OK")
     
 def readFlowerNamesFile(flowerStrings):
-    l = []
+    l = []    
     for line in flowerStrings.split("\n"):
         if line != '':
             line = line.split()
@@ -157,8 +157,8 @@ def readFlowerNamesFile(flowerStrings):
             totalFlowers = int(line[1])
             totalFlowerSizes = int(line[2])
             l.append((totalFlowerSizes, firstFlowerName, totalFlowers))
-    l.sort()
-    l.reverse()
+    #l.sort()
+    #l.reverse()
     return l
     
 def runCactusGetFlowers(cactusDiskDatabaseString, flowerNames, 

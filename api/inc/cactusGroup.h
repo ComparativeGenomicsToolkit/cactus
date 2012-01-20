@@ -29,6 +29,11 @@ Group *group_construct(Flower *flower, Flower *nestedFlower);
 Group *group_construct2(Flower *flower);
 
 /*
+ * As group_construct2, but allowing the name to be specified.
+ */
+Group *group_construct3(Flower *flower, Name name);
+
+/*
  * Destructs a group.
  */
 void group_destruct(Group *group);

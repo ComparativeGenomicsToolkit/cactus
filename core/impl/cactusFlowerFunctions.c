@@ -30,6 +30,21 @@
 ////////////////////////////////////////////////
 ////////////////////////////////////////////////
 
+#define FLOWER_NAMES_TO_CACHE 5000
+static Name flowerNameFunction(CactusDisk *cactusDisk) {
+    static int32_t flowerNameIndex = FLOWER_NAMES_TO_CACHE;
+    static Name flowerNames[FLOWER_NAMES_TO_CACHE];
+    if(flowerNameIndex >= FLOWER_NAMES_TO_CACHE) {
+        assert(cactusDisk != NULL);
+        for(int32_t i=0; i<FLOWER_NAMES_TO_CACHE; i++) {
+            flowerNames[i] = cactusDisk_getUniqueID(cactusDisk);
+        }
+        flowerNameIndex=0;
+    }
+    return flowerNames[flowerNameIndex++];
+}
+
+
 static struct PinchEdge *hookUpEdge(struct Piece *piece,
         struct PinchGraph *pinchGraph, struct PinchVertex *vertex2,
         struct PinchVertex *vertex3) {
@@ -437,6 +452,7 @@ static void addGroupsP(Flower *flower, struct hashtable *groups) {
 
     Flower_EndIterator *endIterator = flower_getEndIterator(flower);
     End *end, *end2;
+    CactusDisk *cactusDisk = flower_getCactusDisk(flower);
     stSortedSet *groupsSet = stSortedSet_construct();
     while ((end = flower_getNextEnd(endIterator)) != NULL) {
         group = end_getGroup(end);
@@ -465,8 +481,10 @@ static void addGroupsP(Flower *flower, struct hashtable *groups) {
                 }
                 stSortedSet_insert(groupsSet, endNames);
                 if (!empty) {
-                    addGroupsP2(flower, group_construct2(flower), groupsSet,
-                            groups);
+                    addGroupsP2(flower, group_construct3(flower, flowerNameFunction(cactusDisk)), groupsSet,
+                                                groups);
+                    //addGroupsP2(flower, group_construct2(flower), groupsSet,
+                    //        groups);
                     assert(stSortedSet_size(groupsSet) == 0);
                 }
             }
@@ -710,12 +728,9 @@ void fillOutFlowerFromInputs(Flower *parentFlower,
 
     CactusDisk *cactusDisk = flower_getCactusDisk(parentFlower);
     flowers = st_malloc(sizeof(void *) * cactusGraph->vertices->length);
-    Name *flowerNames = st_malloc(sizeof(Name) * cactusGraph->vertices->length);
     for (i = 0; i < cactusGraph->vertices->length; i++) {
         flowers[i] = NULL;
-        flowerNames[i] = cactusDisk_getUniqueID(cactusDisk);
     }
-    int32_t flowerNameIndex = 0;
     flowers[0] = parentFlower;
     parentFlowers = st_malloc(sizeof(void *) * biConnectedComponents->length);
     for (i = 0; i < biConnectedComponents->length; i++) {
@@ -725,8 +740,8 @@ void fillOutFlowerFromInputs(Flower *parentFlower,
         //Get the flower.
         flower = flowers[cactusEdge->from->vertexID];
         if (flower == NULL) {
-            assert(flowerNameIndex < cactusGraph->vertices->length);
-            flower = flower_construct2(flowerNames[flowerNameIndex++], cactusDisk);
+            flower = flower_construct2(flowerNameFunction(cactusDisk), cactusDisk);
+            //flower = flower_construct(cactusDisk);
             eventTree_copyConstruct(flower_getEventTree(parentFlower), flower,
                     returnsTrue);
             flowers[cactusEdge->from->vertexID] = flower;
@@ -782,7 +797,7 @@ void fillOutFlowerFromInputs(Flower *parentFlower,
                 nestedFlower = flowers[cactusEdge->to->vertexID];
                 assert(cactusEdge->to->vertexID != 0);
                 if (nestedFlower == NULL) { //construct a terminal group.
-                    group = group_construct2(flower);
+                    group = group_construct3(flower, flowerNameFunction(cactusDisk));
                     end
                             = flower_getEnd(
                                     flower,
@@ -881,7 +896,6 @@ void fillOutFlowerFromInputs(Flower *parentFlower,
     ////////////////////////////////////////////////
 
     free(flowers);
-    free(flowerNames);
     free(vertexDiscoveryTimes);
     free(parentFlowers);
     hashtable_destroy(endNamesHash, TRUE, FALSE);

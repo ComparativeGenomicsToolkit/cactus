@@ -28,7 +28,7 @@ struct _group {
 /*
  * Constructs a nested flower without having the nested flower loaded in memory.
  */
-Group *group_construct3(Flower *flower, Name nestedFlowerName, bool terminalGroup);
+Group *group_construct4(Flower *flower, Name nestedFlowerName, bool terminalGroup);
 
 /*
  * Updates the group's set of ends to contain the intersection of ends
