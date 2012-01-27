@@ -1,40 +1,99 @@
-<cactus_workflow_config>
+<cactusWorkflowConfig>
 	<alignment>
-		<blast_misc chunksPerJob="1" compressFiles="True" overlapSize="10000" filterByIdentity="1" identityRatio="6" minimumDistance="0.01" minimumSequenceLength="30"/>
 		<iterations>
-			<iteration min_sequence_size="5000000" number="0" type="blast">
-				<blast blastString="lastz --format=cigar --step=20 --notransition --ambiguous=iupac --nogapped --identity=IDENTITY SEQ_FILE_1[multiple][nameparse=darkspace] SEQ_FILE_2[nameparse=darkspace] &gt; CIGARS_FILE" chunkSize="100000000" selfBlastString="lastz --format=cigar --step=20 --notransition --ambiguous=iupac --nogapped --identity=IDENTITY SEQ_FILE[multiple][nameparse=darkspace] SEQ_FILE[nameparse=darkspace] --notrivial  &gt; CIGARS_FILE" />
-				<core alignRepeatsAtRound="0" annealingRounds="8 128 512" 
-				deannealingRounds="2 3 4 8 16 32 64" blockTrim="0" minimumTreeCoverage="0.8" 
-				trim="5 5 5" minimumBlockDegree="2"/>
+			<iteration 
+				maxFlowerGroupSize="10000"
+				minFlowerSize="5000000"
+				type="blast"
+			>
+				<blast 
+					blastString="lastz --format=cigar --step=20 --notransition --ambiguous=iupac --nogapped --identity=IDENTITY SEQ_FILE_1[multiple][nameparse=darkspace] SEQ_FILE_2[nameparse=darkspace] &gt; CIGARS_FILE" 
+					selfBlastString="lastz --format=cigar --step=20 --notransition --ambiguous=iupac --nogapped --identity=IDENTITY SEQ_FILE[multiple][nameparse=darkspace] SEQ_FILE[nameparse=darkspace] --notrivial  &gt; CIGARS_FILE" 
+					chunkSize="100000000" 
+					chunksPerJob="1" 
+					compressFiles="1" 
+					overlapSize="10000" 
+					filterByIdentity="1" 
+					identityRatio="6" 
+					minimumDistance="0.01" 
+					minimumSequenceLength="30"
+				/>
+				<core 
+					alignRepeatsAtRound="0" 
+					annealingRounds="8 128 512" 
+					deannealingRounds="2 3 4 8 16 32 64" 
+					blockTrim="0" 
+					minimumTreeCoverage="0.8" 
+					trim="5 5 5" 
+					minimumBlockDegree="2"	
+				/>
 			</iteration>
-
-			<iteration min_sequence_size="10000" max_sequence_size="50000000" number="1" type="blast">
-				<blast blastString="lastz --format=cigar --hspthresh=1800 --identity=IDENTITY --ambiguous=iupac SEQ_FILE_1[multiple][nameparse=darkspace] SEQ_FILE_2[nameparse=darkspace] &gt; CIGARS_FILE" chunkSize="1000000" selfBlastString="lastz --format=cigar --hspthresh=1800 --identity=IDENTITY --ambiguous=iupac SEQ_FILE[multiple][nameparse=darkspace] SEQ_FILE[nameparse=darkspace] --notrivial  &gt; CIGARS_FILE" />
-				<core alignRepeatsAtRound="0" annealingRounds="2 3 4 8 16 32 64" 
-				deannealingRounds="1 2 3 4 8 16 32 64" blockTrim="2" 
-				minimumTreeCoverage="0.8" trim="0 0 0 0 0 0 0"
-				minimumBlockDegree="2"/>
+			<iteration 
+				maxFlowerGroupSize="10000"
+				minFlowerSize="5000000"
+				type="blast"
+			>
+				<blast 
+					blastString="lastz --format=cigar --hspthresh=1800 --identity=IDENTITY --ambiguous=iupac SEQ_FILE_1[multiple][nameparse=darkspace] SEQ_FILE_2[nameparse=darkspace] &gt; CIGARS_FILE" 
+					selfBlastString="lastz --format=cigar --hspthresh=1800 --identity=IDENTITY --ambiguous=iupac SEQ_FILE[multiple][nameparse=darkspace] SEQ_FILE[nameparse=darkspace] --notrivial  &gt; CIGARS_FILE" 
+					chunkSize="100000000" 
+					chunksPerJob="1" 
+					compressFiles="1" 
+					overlapSize="10000" 
+					filterByIdentity="1" 
+					identityRatio="6" 
+					minimumDistance="0.01" 
+					minimumSequenceLength="30"
+				/>
+				<core 
+					alignRepeatsAtRound="0" 
+					annealingRounds="2 3 4 8 16 32 64" 
+					deannealingRounds="1 2 3 4 8 16 32 64" 
+					blockTrim="2" 
+					minimumTreeCoverage="0.8" 
+					trim="0 0 0 0 0 0 0"
+					minimumBlockDegree="2"
+				/>
 			</iteration>
-		
-			<iteration type="base" number="2" num_threads="5" min_sequence_size="1" spanning_trees="10" gap_gamma="0.2" use_banding="1" banding_limit="100000" max_banding_size="3000" min_banding_size="1000" min_banding_constraint_distance="300" min_trace_back_diag="42" min_trace_gap_diags="10" constraint_diagonal_trim="4" minimumBlockDegree="0" alignAmbiguityCharacters="1"/>
-
+			<iteration 
+				maxFlowerGroupSize="10000"
+				type="base" 
+			>
+				<base
+					numThreads="5" 
+					spanningTrees="10" 
+					gapGamma="0.2" 
+					useBanding="1" 
+					bandingLimit="100000" 
+					maxBandingSize="3000" 
+					minBandingSize="1000" 
+					minBandingConstraintDistance="300" 
+					minTraceBackDiag="42" 
+					minTraceGapDiags="10" 
+					constraintDiagonalTrim="4" 
+					minimumBlockDegree="0" 
+					alignAmbiguityCharacters="1"
+				/>
+			</iteration>
 		</iterations>
 	</alignment>
-
-	<normal max_number_of_chains="30" rounds="2">
-	</normal>
-
-	<phylogeny>
-	</phylogeny>
-
-	<faces>
-	</faces>
-
-	<reference matching_algorithm="blossom5" reference="reference" useSimulatedAnnealing="1" theta="0.000001" maxNumberOfChainsBeforeSwitchingToFast="1000" permutations="10">
-	
-	</reference>
-
-	<check runCheck="0">
-	</check>
-</cactus_workflow_config>
+	<normal 
+		maxNumberOfChains="30" 
+		iterations="2"
+	/>
+	<phylogeny
+	/>
+	<faces
+	/>
+	<reference 
+		matchingAlgorithm="blossom5" 
+		reference="reference" 
+		useSimulatedAnnealing="1" 
+		theta="0.000001" 
+		maxNumberOfChainsBeforeSwitchingToFast="1000" 
+		permutations="10"
+	/>
+	<check 
+		runCheck="0"
+	/>
+</cactusWorkflowConfig>

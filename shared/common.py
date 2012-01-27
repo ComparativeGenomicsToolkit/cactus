@@ -107,9 +107,9 @@ def runCactusCore(cactusDiskDatabaseString, alignmentFile,
     logLevel = getLogLevelString2(logLevel)
     writeDebugFiles = nameValue("writeDebugFiles", writeDebugFiles, bool)
     if annealingRounds != None:
-        annealingRounds = "--annealingRounds '%s'" % " ".join([ str(i) for i in annealingRounds ])
+        annealingRounds = "--annealingRounds '%s'" % annealingRounds
     if deannealingRounds != None:
-        deannealingRounds = "--deannealingRounds '%s'" % " ".join([ str(i) for i in deannealingRounds ])
+        deannealingRounds = "--deannealingRounds '%s'" % deannealingRounds
     alignRepeatsAtRound = nameValue("alignRepeatsAtRound", alignRepeatsAtRound, int)
     if trim != None:
         trim = "--trim '%s'" % " ".join([ str(i) for i in trim ])
@@ -162,21 +162,21 @@ def readFlowerNamesFile(flowerStrings):
     return l
     
 def runCactusGetFlowers(cactusDiskDatabaseString, flowerNames, 
-                        minFlowerSize=1, maxFlowerSize=-1, 
+                        minSequenceSizeOfFlower=1,
                         maxSequenceSizeOfFlowerGrouping=-1,
                         includeTerminalFlowers=True, logLevel=None):
     """Gets a list of flowers attached to the given flower. 
     """
     logLevel = getLogLevelString2(logLevel)
     flowerStrings = popenCatch("cactus_workflow_getFlowers %s '%s' %i %i %i %i %s" % \
-                               (logLevel, cactusDiskDatabaseString, int(minFlowerSize), int(maxFlowerSize), 
+                               (logLevel, cactusDiskDatabaseString, int(minSequenceSizeOfFlower), -1, 
                                 int(maxSequenceSizeOfFlowerGrouping),
                                 int(includeTerminalFlowers), formatFlowerNames(flowerNames)))
     l = readFlowerNamesFile(flowerStrings)
     return l
 
 def runCactusExtendFlowers(cactusDiskDatabaseString, flowerNames, 
-                        minFlowerSize=1, maxFlowerSize=-1,
+                        minSequenceSizeOfFlower=1,
                         maxSequenceSizeOfFlowerGrouping=-1, logLevel=None):
     """Extends the terminal groups in the cactus and returns the list
     of their child flowers with which to pass to core.
@@ -184,8 +184,8 @@ def runCactusExtendFlowers(cactusDiskDatabaseString, flowerNames,
     """
     logLevel = getLogLevelString2(logLevel)
     flowerStrings = popenCatch("cactus_workflow_extendFlowers %s '%s' %i %i %i %s" % \
-                               (logLevel, cactusDiskDatabaseString, int(minFlowerSize), \
-                                int(maxFlowerSize), int(maxSequenceSizeOfFlowerGrouping), formatFlowerNames(flowerNames)))
+                               (logLevel, cactusDiskDatabaseString, int(minSequenceSizeOfFlower), \
+                                -1, int(maxSequenceSizeOfFlowerGrouping), formatFlowerNames(flowerNames)))
     l = readFlowerNamesFile(flowerStrings)
     return l
 

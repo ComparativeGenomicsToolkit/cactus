@@ -109,12 +109,10 @@ class ConfigWrapper:
     # option
     def verifyMinBlockDegree(self, experiment):  
         itElem = None
-        maxIt = -1
         iterations = self.xmlRoot.find("alignment").find("iterations")
         for it in iterations.findall("iteration"):
-            if it.attrib["type"] == "base" and int(it.attrib["number"]) > maxIt:
-                itElem = it
-                maxIt = int(it.attrib["number"])
+            if it.attrib["type"] == "base":
+                itElem = it.find("base")
         minBlockDegree = int(itElem.attrib["minimumBlockDegree"])
         reqSpecies = experiment.xmlRoot.find("required_species")
         if reqSpecies is not None and minBlockDegree != 2:
