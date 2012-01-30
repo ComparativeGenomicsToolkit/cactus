@@ -108,7 +108,7 @@ int main(int argc, char *argv[]) {
     // Get the set of flowers to manipulate
     ///////////////////////////////////////////////////////////////////////////
 
-    stList *flowers = parseFlowers(argv + optind, argc - optind, cactusDisk);
+    stList *flowers = parseFlowersFromStdin(cactusDisk);
 
     ///////////////////////////////////////////////////////////////////////////
     // Get the appropriate event names

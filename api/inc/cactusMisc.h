@@ -66,6 +66,11 @@ const char *cactusMisc_getDefaultReferenceEventHeader();
  * Parses the list of flowers into memory, returning a list of flowers. The format of the flower names
  * string is [ flowerName (name), n (int) ] x N, where flowerName is the first flower name is a sequence of n contiguous flower names.
  */
-stList *parseFlowers(char **flowerNames, int32_t flowerNamesLength, CactusDisk *cactusDisk);
+//stList *parseFlowers(char **flowerNames, int32_t flowerNamesLength, CactusDisk *cactusDisk);
+
+/*
+ *  As parseFlowers, but reads the list from stdin.
+ */
+stList *parseFlowersFromStdin(CactusDisk *cactusDisk);
 
 #endif

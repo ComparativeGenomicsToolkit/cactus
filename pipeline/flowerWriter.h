@@ -10,7 +10,7 @@
 #include "cactus.h"
 
 typedef struct _flowerWriter {
-        stList *flowers;
+        stList *flowerNamesAndSizes;
         int64_t maxFlowerGroupSize;
         FILE *fileHandle;
 } FlowerWriter;
@@ -22,6 +22,6 @@ void flowerWriter_destruct(FlowerWriter *flowerWriter);
 /*
  * Adds a given flower to the list to output.
  */
-void flowerWriter_add(FlowerWriter *flowerWriter, Flower *flower);
+void flowerWriter_add(FlowerWriter *flowerWriter, Name flowerName, int64_t flowerSize);
 
 #endif

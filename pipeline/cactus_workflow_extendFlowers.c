@@ -77,10 +77,9 @@ static void extendFlowers(Flower *flower) {
                 assert(size >= 0);
                 if (size >= minFlowerSize && size <= maxFlowerSize) {
                     group_makeNestedFlower(group);
-                    Flower *nestedFlower = group_getNestedFlower(group);
-                    flowerWriter_add(flowerWriter, nestedFlower);
+                    flowerWriter_add(flowerWriter, group_getName(group), size);
 #ifdef BEN_DEBUG
-                    assert(isOneAdjacencyComponent(flower_getFirstGroup(nestedFlower)));
+                    assert(isOneAdjacencyComponent(flower_getFirstGroup(group_getNestedFlower(group))));
                     assert(!flower_builtBlocks(flower));
                     assert(flower_isLeaf(flower));
                     assert(flower_getBlockNumber(flower) == 0);
@@ -93,7 +92,7 @@ static void extendFlowers(Flower *flower) {
         flower_destructGroupIterator(groupIterator);
     } else { //something went wrong last time, and the flower hasn't been filled in.. so we'll return it
         //again.
-        flowerWriter_add(flowerWriter, flower);
+        flowerWriter_add(flowerWriter, flower_getName(flower), flower_getTotalBaseLength(flower));
     }
 }
 
@@ -105,7 +104,8 @@ int main(int argc, char *argv[]) {
     parseArgs(argc, argv);
 
     st_logDebug("Starting extending flowers\n");
-    stList *flowers = parseFlowers(argv + 6, argc - 6, cactusDisk);
+    stList *flowers = parseFlowersFromStdin(cactusDisk);
+    //stList *flowers = parseFlowers(argv + 6, argc - 6, cactusDisk);
     for (int32_t i = 0; i < stList_length(flowers); i++) {
         Flower *flower = stList_get(flowers, i);
         extendFlowers(flower);

@@ -213,7 +213,7 @@ class CactusAlignmentPhase(CactusPhasesTarget):
                                                   [ self.flowerName, 1 ]))
             self.setFollowOnTarget(CactusAlignmentPhase(self.options, self.flowerName, self.iteration+1))
         else:
-            self.setFollowOnTarget(CactusNormalPhase(self.options, self.flowerName, ))
+            self.setFollowOnTarget(CactusNormalPhase(self.options, self.flowerName))
 
 ############################################################
 ############################################################
@@ -238,7 +238,7 @@ class CactusRecursionTarget(Target):
         self.configNode = configNode
         self.flowerNames = flowerNames
   
-MAX_SEQUENCE_SIZE_OF_FLOWER_GROUPING=10000        
+MAX_SEQUENCE_SIZE_OF_FLOWER_GROUPING=1000000        
 
 def makeTargets(cactusDiskDatabaseString, configNode, flowersAndSizes, 
                 parentTarget, target):
@@ -247,27 +247,36 @@ def makeTargets(cactusDiskDatabaseString, configNode, flowersAndSizes,
     flowerNames = []
     totalSequenceSize = 0.0
     maxSequenceSizeOfFlowerGrouping=getOptionalAttrib(configNode, "maxFlowerGroupSize", int, default=MAX_SEQUENCE_SIZE_OF_FLOWER_GROUPING)
-    
+    flowerGrouping = []
     for totalFlowerSize, firstFlowerName, flowerNumber in flowersAndSizes:
         if totalFlowerSize > maxSequenceSizeOfFlowerGrouping: #Make sure large flowers are on there own, in their own job
-            if flowerNumber != 1:
-                logger.critical("Got more than one flower: %s %s %s %s %s" % (firstFlowerName, flowerNumber, totalFlowerSize, len(flowersAndSizes), flowersAndSizes))
             assert flowerNumber == 1
             parentTarget.logToMaster("Adding an oversize flower: %s on its own, with %s bases for target class %s" \
                                      % (firstFlowerName, totalFlowerSize, target))
-            parentTarget.addChildTarget(target(cactusDiskDatabaseString=cactusDiskDatabaseString, configNode=configNode, 
-                                                       flowerNames=[ firstFlowerName, 1 ]))
+            flowerGrouping.append([ firstFlowerName, 1 ])
         else:
             totalSequenceSize += totalFlowerSize
             flowerNames.append(firstFlowerName)
             flowerNames.append(flowerNumber)
             if totalSequenceSize >= maxSequenceSizeOfFlowerGrouping: 
-                parentTarget.addChildTarget(target(cactusDiskDatabaseString=cactusDiskDatabaseString, configNode=configNode, 
-                                                   flowerNames=flowerNames))
+                flowerGrouping.append(flowerNames)
                 flowerNames = []
                 totalSequenceSize = 0.0
     if len(flowerNames) > 0:
-        parentTarget.addChildTarget(target(cactusDiskDatabaseString, configNode, flowerNames))
+        if len(flowerGrouping) > 0: #Avoid small targets if multiple targets exist
+            k = 0
+            l = len(flowerGrouping)
+            while len(flowerNames) > 0:
+                i = flowerNames.pop()
+                j = flowerNames.pop()
+                flowerGrouping[k % l].append(j)
+                flowerGrouping[k % l].append(i)
+                k += 1
+        else:
+            flowerGrouping.append(flowerNames)
+    for flowerNames in flowerGrouping:
+        parentTarget.addChildTarget(target(cactusDiskDatabaseString=cactusDiskDatabaseString, configNode=configNode, 
+                                                   flowerNames=flowerNames))
      
 def makeChildTargets(cactusDiskDatabaseString, configNode, flowerNames, target, childTarget):
     """Make a set of child targets for a given set of parent flowers.
@@ -359,38 +368,36 @@ class CactusBarDown(CactusRecursionTarget):
     """
     def run(self):
         makeChildTargets(self.cactusDiskDatabaseString, self.configNode, self.flowerNames, self, CactusBarDown)
-        maxSequenceSizeOfFlowerGrouping=getOptionalAttrib(self.configNode, "maxFlowerGroupSize", int, default=MAX_SEQUENCE_SIZE_OF_FLOWER_GROUPING)
+        baseNode = self.configNode.find("base")
+        maxSequenceSizeOfFlowerGrouping=getOptionalAttrib(baseNode, "maxFlowerGroupSize", int, default=MAX_SEQUENCE_SIZE_OF_FLOWER_GROUPING)
         childFlowers = runCactusExtendFlowers(self.cactusDiskDatabaseString, self.flowerNames, 
                                               minSequenceSizeOfFlower=1, 
                                               maxSequenceSizeOfFlowerGrouping=maxSequenceSizeOfFlowerGrouping)
-        makeTargets(self.cactusDiskDatabaseString, self.configNode, childFlowers, parentTarget=self, target=CactusBaseLevelAlignerWrapper)
+        makeTargets(self.cactusDiskDatabaseString, baseNode, childFlowers, parentTarget=self, target=CactusBaseLevelAlignerWrapper)
 
 class CactusBaseLevelAlignerWrapper(CactusRecursionTarget):
     """Runs cactus_baseAligner (the BAR algorithm implementation.
     """
     def run(self):
-        assert self.configNode.attrib["type"] == "base"
-        baseNode = self.configNode.find("base")
-        assert baseNode != None
         runCactusBaseAligner(cactusDiskDatabaseString=self.cactusDiskDatabaseString, 
                              flowerNames=self.flowerNames, 
-                             maximumLength=getOptionalAttrib(baseNode, "bandingLimit", float),
-                             spanningTrees=getOptionalAttrib(baseNode, "spanningTrees", int), 
-                             gapGamma=getOptionalAttrib(baseNode, "gapGamma", float), 
-                             useBanding=getOptionalAttrib(baseNode, "useBanding", bool),
-                             maxBandingSize=getOptionalAttrib(baseNode, "maxBandingSize", int),
-                             minBandingSize=getOptionalAttrib(baseNode, "minBandingSize", int), 
-                             minBandingConstraintDistance=getOptionalAttrib(baseNode, "minBandingConstraintDistance", int), 
-                             minTraceBackDiag=getOptionalAttrib(baseNode, "minTraceBackDiag", int), 
-                             minTraceGapDiags=getOptionalAttrib(baseNode, "minTraceGapDiags", int), 
-                             constraintDiagonalTrim=getOptionalAttrib(baseNode, "constaintDiagonalTrim", int), 
-                             minimumBlockDegree=getOptionalAttrib(baseNode, "minimumBlockDegree", int),
-                             alignAmbiguityCharacters=getOptionalAttrib(baseNode, "alignAmbiguityCharacters", bool),
-                             pruneOutStubAlignments=getOptionalAttrib(baseNode, "pruneOutStrubAlignments", bool),
-                             requiredIngroupFraction=getOptionalAttrib(baseNode, "requiredIngroupFraction", float),
-                             requiredOutgroupFraction=getOptionalAttrib(baseNode, "requiredOutgroupFraction", float),
-                             requiredAllFraction=getOptionalAttrib(baseNode, "requiredAllFraction", float),
-                             numThreads=getOptionalAttrib(baseNode, "numThreads", int))
+                             maximumLength=getOptionalAttrib(self.configNode, "bandingLimit", float),
+                             spanningTrees=getOptionalAttrib(self.configNode, "spanningTrees", int), 
+                             gapGamma=getOptionalAttrib(self.configNode, "gapGamma", float), 
+                             useBanding=getOptionalAttrib(self.configNode, "useBanding", bool),
+                             maxBandingSize=getOptionalAttrib(self.configNode, "maxBandingSize", int),
+                             minBandingSize=getOptionalAttrib(self.configNode, "minBandingSize", int), 
+                             minBandingConstraintDistance=getOptionalAttrib(self.configNode, "minBandingConstraintDistance", int), 
+                             minTraceBackDiag=getOptionalAttrib(self.configNode, "minTraceBackDiag", int), 
+                             minTraceGapDiags=getOptionalAttrib(self.configNode, "minTraceGapDiags", int), 
+                             constraintDiagonalTrim=getOptionalAttrib(self.configNode, "constaintDiagonalTrim", int), 
+                             minimumBlockDegree=getOptionalAttrib(self.configNode, "minimumBlockDegree", int),
+                             alignAmbiguityCharacters=getOptionalAttrib(self.configNode, "alignAmbiguityCharacters", bool),
+                             pruneOutStubAlignments=getOptionalAttrib(self.configNode, "pruneOutStrubAlignments", bool),
+                             requiredIngroupFraction=getOptionalAttrib(self.configNode, "requiredIngroupFraction", float),
+                             requiredOutgroupFraction=getOptionalAttrib(self.configNode, "requiredOutgroupFraction", float),
+                             requiredAllFraction=getOptionalAttrib(self.configNode, "requiredAllFraction", float),
+                             numThreads=getOptionalAttrib(self.configNode, "numThreads", int))
         
 ############################################################
 ############################################################
@@ -407,7 +414,7 @@ class CactusNormalPhase(CactusPhasesTarget):
         assert normalisationNode != None
         normalisationIterations = getOptionalAttrib(normalisationNode, "iterations", int, default=1)
         if self.iteration < normalisationIterations:
-            self.addChildTarget(CactusNormalDown(self.options.cactusDiskDatabaseString, normalisationNode, [ self.flowerName, 1 ]))
+            self.addChildTarget(CactusNormalDown(self.options.cactusDiskDatabaseString, extractNode(normalisationNode), [ self.flowerName, 1 ]))
         if self.iteration-1 > 0:
             self.setFollowOnTarget(CactusNormalPhase(self.options, self.flowerName, self.iteration+1))
         else:
@@ -441,7 +448,7 @@ class CactusPhylogenyPhase(CactusPhasesTarget):
         phylogenyNode = self.options.config.find("phylogeny")
         buildTrees = getOptionalAttrib(phylogenyNode, "buildTrees", bool, default=False) or self.options.buildTrees
         if buildTrees:
-            self.addChildTarget(CactusPhylogeny(self.options.cactusDiskDatabaseString, phylogenyNode, [ self.flowerName, 1 ]))
+            self.addChildTarget(CactusPhylogeny(self.options.cactusDiskDatabaseString, extractNode(phylogenyNode), [ self.flowerName, 1 ]))
         self.setFollowOnTarget(CactusReferencePhase(self.options, self.flowerName))
 
 class CactusPhylogeny(CactusRecursionTarget):
@@ -465,7 +472,7 @@ class CactusReferencePhase(CactusPhasesTarget):
         referenceNode = self.options.config.find("reference")
         buildReference = getOptionalAttrib(referenceNode, "buildReference", bool, default=False) or self.options.buildReference
         if buildReference:
-            self.addChildTarget(CactusReferenceDown(self.options.cactusDiskDatabaseString, referenceNode, 
+            self.addChildTarget(CactusReferenceDown(self.options.cactusDiskDatabaseString, extractNode(referenceNode), 
                                                     [ self.flowerName, 1 ]))
             self.setFollowOnTarget(CactusReferenceSetCoordinatesUpPhase(self.options, self.flowerName))
         else:
@@ -498,7 +505,7 @@ class CactusReferenceSetCoordinatesUpPhase(CactusPhasesTarget):
         self.logToMaster("Starting the reference coordinate up phase at %s seconds" % time.time())
         referenceNode = self.options.config.find("reference")
         assert referenceNode != None
-        self.addChildTarget(CactusSetReferenceCoordinatesUp(self.options.cactusDiskDatabaseString, referenceNode, [ self.flowerName, 1 ]))
+        self.addChildTarget(CactusSetReferenceCoordinatesUp(self.options.cactusDiskDatabaseString, extractNode(referenceNode), [ self.flowerName, 1 ]))
         self.setFollowOnTarget(CactusSetReferenceCoordinatesDownPhase(self.options, self.flowerName))
 
 class CactusSetReferenceCoordinatesUp(CactusRecursionTarget):
@@ -520,7 +527,7 @@ class CactusSetReferenceCoordinatesDownPhase(CactusPhasesTarget):
         self.logToMaster("Starting the reference coordinate down phase at %s seconds" % time.time())
         referenceNode = self.options.config.find("reference")
         assert referenceNode != None
-        self.addChildTarget(CactusSetReferenceCoordinatesDown(self.options.cactusDiskDatabaseString, referenceNode, 
+        self.addChildTarget(CactusSetReferenceCoordinatesDown(self.options.cactusDiskDatabaseString, extractNode(referenceNode), 
                                                               [ self.flowerName, 1 ]))
         self.setFollowOnTarget(CactusFacesPhase(self.options, self.flowerName))
         
@@ -547,7 +554,7 @@ class CactusFacesPhase(CactusPhasesTarget):
         facesNode = self.options.config.find("faces")
         buildFaces = getOptionalAttrib(facesNode, "buildFaces", bool, default=False) or self.options.buildFaces
         if buildFaces:
-            self.addChildTarget(CactusFaces(self.options.cactusDatabaseString, facesNodes, 
+            self.addChildTarget(CactusFaces(self.options.cactusDatabaseString, extractNode(facesNodes), 
                                             [ self.flowerName, 1 ]))
         self.setFollowOnTarget(CactusCheckPhase(self.options, self.flowerName))
         
@@ -572,7 +579,7 @@ class CactusCheckPhase(CactusPhasesTarget):
         assert checkNode != None
         if getOptionalAttrib(checkNode, "runCheck", bool, default=False): #self.options.skipCheck and 0:
             self.logToMaster("Starting the verification phase at %s seconds" % (time.time()))
-            self.addChildTarget(CactusCheck(self.options.cactusDiskDatabaseString, checkNode, 
+            self.addChildTarget(CactusCheck(self.options.cactusDiskDatabaseString, extractNode(checkNode), 
                                             [ self.flowerName, 1 ]))
         
 class CactusCheck(CactusRecursionTarget):
