@@ -7,8 +7,7 @@
 				type="blast"
 			>
 				<blast 
-					blastString="lastz --format=cigar --step=20 --notransition --ambiguous=iupac --nogapped --identity=IDENTITY SEQ_FILE_1[multiple][nameparse=darkspace] SEQ_FILE_2[nameparse=darkspace] &gt; CIGARS_FILE" 
-					selfBlastString="lastz --format=cigar --step=20 --notransition --ambiguous=iupac --nogapped --identity=IDENTITY SEQ_FILE[multiple][nameparse=darkspace] SEQ_FILE[nameparse=darkspace] --notrivial  &gt; CIGARS_FILE" 
+					lastzArguments="--step=20 --notransition --nogapped --ambiguous=iupac --identity=IDENTITY"
 					chunkSize="100000000" 
 					chunksPerJob="1" 
 					compressFiles="1" 
@@ -34,8 +33,7 @@
 				type="blast"
 			>
 				<blast 
-					blastString="lastz --format=cigar --hspthresh=1800 --identity=IDENTITY --ambiguous=iupac SEQ_FILE_1[multiple][nameparse=darkspace] SEQ_FILE_2[nameparse=darkspace] &gt; CIGARS_FILE" 
-					selfBlastString="lastz --format=cigar --hspthresh=1800 --identity=IDENTITY --ambiguous=iupac SEQ_FILE[multiple][nameparse=darkspace] SEQ_FILE[nameparse=darkspace] --notrivial  &gt; CIGARS_FILE" 
+					lastzArguments="--hspthresh=1800 --identity=IDENTITY --ambiguous=iupac"
 					chunkSize="100000000" 
 					chunksPerJob="1" 
 					compressFiles="1" 

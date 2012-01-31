@@ -26,13 +26,13 @@ from jobTree.scriptTree.stack import Stack
 
 class MakeBlastOptions:
     def __init__(self, chunkSize, overlapSize, 
-                 blastString, selfBlastString, chunksPerJob, compressFiles):
+                 lastzArguments, chunksPerJob, compressFiles):
         """Method makes options which can be passed to the to the make blasts target.
         """
         self.chunkSize = chunkSize
         self.overlapSize = overlapSize
-        self.blastString = blastString
-        self.selfBlastString = selfBlastString
+        self.blastString = "lastz --format=cigar %s SEQ_FILE_1[multiple][nameparse=darkspace] SEQ_FILE_2[nameparse=darkspace] > CIGARS_FILE"  % lastzArguments 
+        self.selfBlastString = "lastz --format=cigar %s SEQ_FILE[multiple][nameparse=darkspace] SEQ_FILE[nameparse=darkspace] --notrivial  > CIGARS_FILE" % lastzArguments
         self.chunksPerJob = 1
         self.compressFiles = compressFiles
 
@@ -44,10 +44,9 @@ def makeStandardBlastOptions():
     overlapSize = 10000
     chunksPerJob = 1
     compressFiles = True
-    blastString="lastz --format=cigar SEQ_FILE_1[multiple][nameparse=darkspace] SEQ_FILE_2[nameparse=darkspace] > CIGARS_FILE"
-    selfBlastString="lastz --format=cigar SEQ_FILE[multiple][nameparse=darkspace] SEQ_FILE[nameparse=darkspace] --notrivial  > CIGARS_FILE"
+    lastzArguments=""
     return MakeBlastOptions(chunkSize=chunkSize, overlapSize=overlapSize,
-                                blastString=blastString, selfBlastString=selfBlastString,
+                                lastzArguments=lastzArguments,
                                 chunksPerJob=chunksPerJob, compressFiles=compressFiles)
 
 class makeBlastFromOptions:

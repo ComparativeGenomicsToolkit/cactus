@@ -340,7 +340,7 @@ int main(int argc, char *argv[]) {
         /*
          * Run the cactus core script.
          */
-        cactusCorePipeline(flower, cCIP, getAlignments, startAlignmentStack);
+        cactusCorePipeline(flower, cCIP, getAlignments, startAlignmentStack, destructPairwiseAlignment);
         st_logInfo("Ran the cactus core script.\n");
 
         /*

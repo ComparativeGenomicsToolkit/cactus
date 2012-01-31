@@ -128,11 +128,9 @@ class CactusSetupPhase(Target):
                     float(blastNode.attrib["minimumDistance"])
                     identity = str(100 - int(100 * inverseJukesCantor(adjustedPath)))
                     logger.info("The blast stage will filter by identity, the calculated minimum identity is %s from a longest path of %s and an adjusted path of %s" % (identity, longestPath, adjustedPath))
-                    assert "IDENTITY" in blastNode.attrib["blastString"]
-                    blastNode.attrib["blastString"] = blastNode.attrib["blastString"].replace("IDENTITY", identity)
-                    assert "IDENTITY" in blastNode.attrib["selfBlastString"]
-                    blastNode.attrib["selfBlastString"] = blastNode.attrib["selfBlastString"].replace("IDENTITY", identity)
-
+                    assert "IDENTITY" in blastNode.attrib["lastzArguments"]
+                    blastNode.attrib["lastzArguments"] = blastNode.attrib["lastzArguments"].replace("IDENTITY", identity)
+                    
     def run(self):
         self.logToMaster("Starting setup phase target at %s seconds" % time.time())
         #Modify the config options
@@ -241,7 +239,7 @@ class CactusRecursionTarget(Target):
 MAX_SEQUENCE_SIZE_OF_FLOWER_GROUPING=1000000        
 
 def makeTargets(cactusDiskDatabaseString, configNode, flowersAndSizes, 
-                parentTarget, target):
+                parentTarget, target, overlargeTarget=None):
     """Make a set of targets for a given set of flowers.
     """
     flowerNames = []
@@ -253,7 +251,11 @@ def makeTargets(cactusDiskDatabaseString, configNode, flowersAndSizes,
             assert flowerNumber == 1
             parentTarget.logToMaster("Adding an oversize flower: %s on its own, with %s bases for target class %s" \
                                      % (firstFlowerName, totalFlowerSize, target))
-            flowerGrouping.append([ firstFlowerName, 1 ])
+            if overlargeTarget != None: #This ensures overlagre flowers, an in cactus core, get diverted and run on their own.
+                parentTarget.addChildTarget(overlargeTarget(cactusDiskDatabaseString=cactusDiskDatabaseString, configNode=configNode, 
+                                                   flowerNames=[ firstFlowerName, 1 ]))
+            else:
+                flowerGrouping.append([ firstFlowerName, 1 ])
         else:
             totalSequenceSize += totalFlowerSize
             flowerNames.append(firstFlowerName)
@@ -297,13 +299,12 @@ class CactusCafDown(CactusRecursionTarget):
         makeChildTargets(self.cactusDiskDatabaseString, self.configNode, self.flowerNames, self, CactusCafDown)
         minSequenceSizeOfFlower = getOptionalAttrib(self.configNode, "minFlowerSize", int, 1)
         maxSequenceSizeOfFlowerGrouping=getOptionalAttrib(self.configNode, "maxFlowerGroupSize", int, default=MAX_SEQUENCE_SIZE_OF_FLOWER_GROUPING)
-        for totalFlowerSize, firstChildName, flowerNumber in runCactusExtendFlowers(self.cactusDiskDatabaseString, 
-                                                                                    self.flowerNames, 
-                                                                       minSequenceSizeOfFlower=minSequenceSizeOfFlower, 
-                                                                       maxSequenceSizeOfFlowerGrouping=maxSequenceSizeOfFlowerGrouping):
-            for i in xrange(flowerNumber):
-                self.addChildTarget(CactusBlastWrapper(cactusDiskDatabaseString=self.cactusDiskDatabaseString, 
-                                                       configNode=self.configNode, flowerNames=str(firstChildName + i)))
+        childFlowers = runCactusExtendFlowers(self.cactusDiskDatabaseString, self.flowerNames, 
+                                              minSequenceSizeOfFlower=minSequenceSizeOfFlower, 
+                                              maxSequenceSizeOfFlowerGrouping=maxSequenceSizeOfFlowerGrouping)
+        makeTargets(self.cactusDiskDatabaseString, self.configNode, childFlowers, 
+                    parentTarget=self, target=CactusCoreWrapper1,
+                    overlargeTarget=CactusBlastWrapper)
        
 class CactusBlastWrapper(CactusRecursionTarget):
     """Runs blast on the given flower and passes the resulting alignment to cactus core.
@@ -319,27 +320,26 @@ class CactusBlastWrapper(CactusRecursionTarget):
         blastOptions = \
         makeBlastFromOptions(MakeBlastOptions(chunkSize=getOptionalAttrib(blastNode, "chunkSize", int),
                                               overlapSize=getOptionalAttrib(blastNode, "overlapSize", int),
-                                              blastString=getOptionalAttrib(blastNode, "blastString"),
-                                              selfBlastString=getOptionalAttrib(blastNode, "selfBlastString"),
+                                              lastzArguments=getOptionalAttrib(blastNode, "lastzArguments"),
                                               chunksPerJob=getOptionalAttrib(blastNode, "chunksPerJob", int),
                                               compressFiles=getOptionalAttrib(blastNode, "compressFiles", bool)))
+        assert len(self.flowerNames) == 2
+        assert self.flowerNames[1] == 1
         self.addChildTarget(MakeSequences(self.cactusDiskDatabaseString, 
-                                          self.flowerNames, alignmentFile, blastOptions=blastOptions,
+                                          self.flowerNames[0], alignmentFile, blastOptions=blastOptions,
                                           minimumSequenceLength=getOptionalAttrib(blastNode, "minimumSequenceLength", int, 0)))
         logger.info("Created the cactus_aligner child target")
         
         #Now setup a call to cactus core wrapper as a follow on
-        self.setFollowOnTarget(CactusCoreWrapper(self.cactusDiskDatabaseString, self.configNode, [ self.flowerNames, alignmentFile ]))
+        self.setFollowOnTarget(CactusCoreWrapper2(self.cactusDiskDatabaseString, self.configNode, [ self.flowerNames, alignmentFile ]))
         logger.info("Setup the follow on cactus_core target")
 
-class CactusCoreWrapper(CactusRecursionTarget):
-    """Runs cactus_core upon a given flower and alignment file.
-    """
-    def run(self):
-        coreParameters = self.configNode.find("core")
-        runCactusCore(cactusDiskDatabaseString=self.cactusDiskDatabaseString,
-                      alignmentFile=self.flowerNames[1], 
-                      flowerName=self.flowerNames[0],
+def runCactusCoreInWorkflow(self, flowerNames, alignmentFile):
+    blastParameters = self.configNode.find("blast")
+    coreParameters = self.configNode.find("core")
+    runCactusCore(cactusDiskDatabaseString=self.cactusDiskDatabaseString,
+                      alignments=alignmentFile, 
+                      flowerNames=flowerNames,
                       annealingRounds=getOptionalAttrib(coreParameters, "annealingRounds"),  
                       deannealingRounds=getOptionalAttrib(coreParameters, "deannealingRounds"),
                       alignRepeatsAtRound=getOptionalAttrib(coreParameters, "alignRepeatsAtRound", float), 
@@ -351,7 +351,20 @@ class CactusCoreWrapper(CactusRecursionTarget):
                       requiredOutgroupFraction=getOptionalAttrib(coreParameters, "requiredOutgroupFraction", float),
                       requiredAllFraction=getOptionalAttrib(coreParameters, "requiredAllFraction", float),
                       singleCopyIngroup=getOptionalAttrib(coreParameters, "singleCopyIngroup", bool),
-                      singleCopyOutgroup=getOptionalAttrib(coreParameters, "singleCopyOutgroup", bool))
+                      singleCopyOutgroup=getOptionalAttrib(coreParameters, "singleCopyOutgroup", bool),
+                      lastzArguments=getOptionalAttrib(blastParameters, "lastzArguments"))
+
+class CactusCoreWrapper1(CactusRecursionTarget):
+    """Runs cactus_core upon a set of flowers and no alignment file.
+    """
+    def run(self):
+        runCactusCoreInWorkflow(self, self.flowerNames, None)
+        
+class CactusCoreWrapper2(CactusRecursionTarget):
+    """Runs cactus_core upon a one flower and one alignment file.
+    """
+    def run(self):
+        runCactusCoreInWorkflow(self, self.flowerNames[0], self.flowerNames[1])
         
 ############################################################
 ############################################################

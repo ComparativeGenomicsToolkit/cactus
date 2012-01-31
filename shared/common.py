@@ -88,8 +88,8 @@ def runCactusBatch(sequenceFiles, outputFile, jobTreeDir,
     system(command)
     logger.info("Ran the cactus_batch command okay")
             
-def runCactusCore(cactusDiskDatabaseString, alignmentFile, 
-                  flowerName=0,
+def runCactusCore(cactusDiskDatabaseString, alignments, 
+                  flowerNames=(0, 1),
                   logLevel=None, 
                   writeDebugFiles=False,
                   annealingRounds=None,
@@ -103,18 +103,16 @@ def runCactusCore(cactusDiskDatabaseString, alignmentFile,
                   requiredOutgroupFraction=None,
                   requiredAllFraction=None,
                   singleCopyIngroup = None,
-                  singleCopyOutgroup = None):
+                  singleCopyOutgroup = None,
+                  lastzArguments = None):
     logLevel = getLogLevelString2(logLevel)
     writeDebugFiles = nameValue("writeDebugFiles", writeDebugFiles, bool)
-    if annealingRounds != None:
-        annealingRounds = "--annealingRounds '%s'" % annealingRounds
-    if deannealingRounds != None:
-        deannealingRounds = "--deannealingRounds '%s'" % deannealingRounds
     alignRepeatsAtRound = nameValue("alignRepeatsAtRound", alignRepeatsAtRound, int)
-    if trim != None:
-        trim = "--trim '%s'" % " ".join([ str(i) for i in trim ])
-    else:
-        trim = ""
+    annealingRounds = nameValue("annealingRounds", annealingRounds, quotes=True)
+    deannealingRounds = nameValue("deannealingRounds", deannealingRounds, quotes=True)
+    trim = nameValue("trim", trim, quotes=True)
+    alignments = nameValue("alignments", alignments)
+    lastzArguments = nameValue("lastzArguments", lastzArguments, quotes=True)
     minimumTreeCoverage = nameValue("minimumTreeCoverage", minimumTreeCoverage, float)
     blockTrim = nameValue("blockTrim", blockTrim, int)
     minimumBlockDegree = nameValue("minimumDegree", minimumBlockDegree, int)
@@ -125,11 +123,11 @@ def runCactusCore(cactusDiskDatabaseString, alignmentFile,
     singleCopyIngroup = nameValue("singleCopyIngroup", singleCopyIngroup, bool)
     singleCopyOutgroup = nameValue("singleCopyOutgroup", singleCopyOutgroup, bool)
     
-    command = "cactus_core --cactusDisk '%s' --flowerName %s --alignments %s --logLevel %s %s %s %s %s %s %s %s %s %s %s %s %s %s" % \
-    (cactusDiskDatabaseString, flowerName, alignmentFile, logLevel, writeDebugFiles, annealingRounds, deannealingRounds, alignRepeatsAtRound,
+    command = "cactus_core --cactusDisk '%s' --logLevel %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s" % \
+    (cactusDiskDatabaseString, logLevel, alignments, writeDebugFiles, annealingRounds, deannealingRounds, alignRepeatsAtRound,
      trim, minimumTreeCoverage, blockTrim, 
-     minimumBlockDegree, requiredIngroupFraction, requiredOutgroupFraction, requiredAllFraction, singleCopyIngroup, singleCopyOutgroup)
-    system(command)
+     minimumBlockDegree, requiredIngroupFraction, requiredOutgroupFraction, requiredAllFraction, singleCopyIngroup, singleCopyOutgroup, lastzArguments)
+    popenPush(command, stdinString=formatFlowerNames(flowerNames))
     logger.info("Ran cactus_core okay")
     
 def runCactusPhylogeny(cactusDiskDatabaseString,
