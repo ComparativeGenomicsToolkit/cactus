@@ -17,7 +17,7 @@ ${libPath}/cactusCore.a : ${libSources} ${libHeaders} ${libPath}/cactusBlastAlig
 	cp ${libHeaders} ${libPath}/
 
 ${binPath}/cactus_core : cactus_core2.c ${libPath}/cactusBlastAlignment.a ${libPath}/cactusLib.a ${libPath}/cactusCore.a ${libPath}/pinchGraph.a ${libPath}/3EdgeConnected.a ${basicLibsDependencies}
-	${cxx} ${cflags} -I inc -I${libPath} -o ${binPath}/cactus_core ${libPath}/cactusBlastAlignment.a cactus_core2.c ${libPath}/cactusCore.a ${libPath}/pinchGraph.a ${libPath}/3EdgeConnected.a ${libPath}/cactusLib.a ${basicLibs} 
+	${cxx} ${cflags} -I inc -I${libPath} -o ${binPath}/cactus_core cactus_core2.c ${libPath}/cactusCore.a ${libPath}/cactusBlastAlignment.a ${libPath}/pinchGraph.a ${libPath}/3EdgeConnected.a ${libPath}/cactusLib.a ${basicLibs} 
 
 clean : 
 	rm -f *.o
