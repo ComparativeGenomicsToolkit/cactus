@@ -129,7 +129,7 @@ stList *parseFlowersFromStdin(CactusDisk *cactusDisk) {
     stList *flowerNamesList = stList_construct3(0, free);
     for (int32_t i = 0; i < flowerArgumentNumber; i += 2) {
         Name firstFlowerName;
-        int32_t j = scanf("%lli", &firstFlowerName);
+        int32_t j = scanf(NAME_STRING, &firstFlowerName);
         assert(j == 1);
         int32_t flowerNumber;
         j = scanf("%i", &flowerNumber);
