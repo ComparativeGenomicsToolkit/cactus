@@ -15,7 +15,7 @@
 					filterByIdentity="1" 
 					identityRatio="6" 
 					minimumDistance="0.01" 
-					minimumSequenceLength="30"
+					minimumSequenceLengthForBlast="30"
 				/>
 				<core 
 					alignRepeatsAtRound="0" 
@@ -46,7 +46,7 @@
 					filterByIdentity="1" 
 					identityRatio="6" 
 					minimumDistance="0.01" 
-					minimumSequenceLength="30"
+					minimumSequenceLengthForBlast="30"
 				/>
 				<core 
 					alignRepeatsAtRound="0" 

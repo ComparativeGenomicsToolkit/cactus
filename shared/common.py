@@ -104,7 +104,8 @@ def runCactusCore(cactusDiskDatabaseString, alignments,
                   requiredAllFraction=None,
                   singleCopyIngroup = None,
                   singleCopyOutgroup = None,
-                  lastzArguments = None):
+                  lastzArguments = None,
+                  minimumSequenceLengthForBlast= None):
     logLevel = getLogLevelString2(logLevel)
     writeDebugFiles = nameValue("writeDebugFiles", writeDebugFiles, bool)
     alignRepeatsAtRound = nameValue("alignRepeatsAtRound", alignRepeatsAtRound, int)
@@ -116,6 +117,7 @@ def runCactusCore(cactusDiskDatabaseString, alignments,
     minimumTreeCoverage = nameValue("minimumTreeCoverage", minimumTreeCoverage, float)
     blockTrim = nameValue("blockTrim", blockTrim, int)
     minimumBlockDegree = nameValue("minimumDegree", minimumBlockDegree, int)
+    minimumSequenceLengthForBlast = nameValue("minimumSequenceLengthForBlast", minimumSequenceLengthForBlast, int)
     
     requiredIngroupFraction = nameValue("requiredIngroupFraction", requiredIngroupFraction, float)
     requiredOutgroupFraction = nameValue("requiredOutgroupFraction", requiredOutgroupFraction, float)
@@ -123,10 +125,11 @@ def runCactusCore(cactusDiskDatabaseString, alignments,
     singleCopyIngroup = nameValue("singleCopyIngroup", singleCopyIngroup, bool)
     singleCopyOutgroup = nameValue("singleCopyOutgroup", singleCopyOutgroup, bool)
     
-    command = "cactus_core --cactusDisk '%s' --logLevel %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s" % \
+    command = "cactus_core --cactusDisk '%s' --logLevel %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s" % \
     (cactusDiskDatabaseString, logLevel, alignments, writeDebugFiles, annealingRounds, deannealingRounds, alignRepeatsAtRound,
      trim, minimumTreeCoverage, blockTrim, 
-     minimumBlockDegree, requiredIngroupFraction, requiredOutgroupFraction, requiredAllFraction, singleCopyIngroup, singleCopyOutgroup, lastzArguments)
+     minimumBlockDegree, requiredIngroupFraction, requiredOutgroupFraction, requiredAllFraction, 
+     singleCopyIngroup, singleCopyOutgroup, lastzArguments, minimumSequenceLengthForBlast)
     popenPush(command, stdinString=formatFlowerNames(flowerNames))
     logger.info("Ran cactus_core okay")
     

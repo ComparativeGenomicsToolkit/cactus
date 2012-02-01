@@ -2,63 +2,38 @@
 	<alignment>
 		<iterations>
 			<iteration 
-				maxFlowerGroupSize="10000"
-				minFlowerSize="5000000"
-				type="blast"
-			>
-				<blast 
-					lastzArguments="--step=20 --notransition --nogapped --ambiguous=iupac --identity=IDENTITY"
-					chunkSize="100000000" 
-					chunksPerJob="1" 
-					compressFiles="1" 
-					overlapSize="10000" 
-					filterByIdentity="1" 
-					identityRatio="6" 
-					minimumDistance="0.01" 
-					minimumSequenceLength="30"
-				/>
-				<core 
-					alignRepeatsAtRound="0" 
-					annealingRounds="8 128 512" 
-					deannealingRounds="2 3 4 8 16 32 64" 
-					blockTrim="0" 
-					minimumTreeCoverage="0.8" 
-					trim="5 5 5" 
-					minimumBlockDegree="2"	
-				/>
-			</iteration>
-			<iteration 
-				maxFlowerGroupSize="10000"
-				minFlowerSize="5000000"
+				maxFlowerGroupSize="1000000"
+				minFlowerSize="5000"
 				type="blast"
 			>
 				<blast 
 					lastzArguments="--hspthresh=1800 --identity=IDENTITY --ambiguous=iupac"
-					chunkSize="100000000" 
+					chunkSize="2000000" 
 					chunksPerJob="1" 
 					compressFiles="1" 
 					overlapSize="10000" 
 					filterByIdentity="1" 
 					identityRatio="6" 
 					minimumDistance="0.01" 
-					minimumSequenceLength="30"
+					minimumSequenceLengthForBlast="30"
 				/>
 				<core 
 					alignRepeatsAtRound="0" 
-					annealingRounds="2 3 4 8 16 32 64" 
-					deannealingRounds="1 2 3 4 8 16 32 64" 
+					annealingRounds="2 3 4 8 16 32 64 128" 
+					deannealingRounds="1 2 3 4 8 16 32 64 128" 
 					blockTrim="2" 
 					minimumTreeCoverage="0.8" 
-					trim="0 0 0 0 0 0 0"
+					trim="0 0 0 0 0 0 0 0 0 0 0"
 					minimumBlockDegree="2"
 				/>
 			</iteration>
 			<iteration 
-				maxFlowerGroupSize="10000"
+				maxFlowerGroupSize="1000000"
 				type="base" 
 			>
 				<base
-					numThreads="5" 
+					maxFlowerGroupSize="40000"
+					numThreads="1" 
 					spanningTrees="10" 
 					gapGamma="0.2" 
 					useBanding="1" 
@@ -76,6 +51,7 @@
 		</iterations>
 	</alignment>
 	<normal 
+		maxFlowerGroupSize="1000000"
 		maxNumberOfChains="30" 
 		iterations="2"
 	/>
@@ -84,6 +60,7 @@
 	<faces
 	/>
 	<reference 
+		maxFlowerGroupSize="1000000"
 		matchingAlgorithm="blossom5" 
 		reference="reference" 
 		useSimulatedAnnealing="1" 
@@ -92,6 +69,7 @@
 		permutations="10"
 	/>
 	<check 
-		runCheck="0"
+		maxFlowerGroupSize="1000000"
+		runCheck="1"
 	/>
 </cactusWorkflowConfig>

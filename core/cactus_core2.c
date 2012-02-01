@@ -96,6 +96,8 @@ void usage() {
 
     fprintf(stderr, "-t --singleCopyOutgroup : Require that out-group sequences have only single coverage\n");
 
+    fprintf(stderr, "-v --minimumSequenceLengthForBlast : The minimum length of a sequence to include when blasting\n");
+
 }
 
 stSortedSet *getStringSet(const char *string) {
@@ -139,6 +141,7 @@ int main(int argc, char *argv[]) {
     char * alignmentsFile = NULL;
     char * cactusDiskDatabaseString = NULL;
     char * lastzArguments = NULL;
+    int32_t minimumSequenceLengthForBlast = 1;
     CactusCoreInputParameters *cCIP = constructCactusCoreInputParameters();
 
     ///////////////////////////////////////////////////////////////////////////
@@ -157,12 +160,14 @@ int main(int argc, char *argv[]) {
                 { "minimumDegree", required_argument, 0, 'p' },
                 { "requiredIngroupFraction", required_argument, 0, 'q' }, { "requiredOutgroupFraction",
                         required_argument, 0, 'r' }, { "requiredAllFraction", required_argument, 0, 'u' }, {
-                        "singleCopyIngroup", no_argument, 0, 's' }, { "singleCopyOutgroup", no_argument, 0, 't' }, { 0,
+                        "singleCopyIngroup", no_argument, 0, 's' }, { "singleCopyOutgroup", no_argument, 0, 't' },
+                        { "minimumSequenceLengthForBlast", required_argument, 0, 'v' },
+                        { 0,
                         0, 0, 0 } };
 
         int option_index = 0;
 
-        key = getopt_long(argc, argv, "a:b:c:ehi:j:k:m:n:o:p:q:r:stu:", long_options, &option_index);
+        key = getopt_long(argc, argv, "a:b:c:ehi:j:k:m:n:o:p:q:r:stu:v:", long_options, &option_index);
 
         if (key == -1) {
             break;
@@ -233,6 +238,10 @@ int main(int argc, char *argv[]) {
                 break;
             case 't':
                 cCIP->singleCopyOutgroup = 1;
+                break;
+            case 'v':
+                k = sscanf(optarg, "%i", &minimumSequenceLengthForBlast);
+                assert(k == 1);
                 break;
             default:
                 usage();
@@ -305,7 +314,7 @@ int main(int argc, char *argv[]) {
                         "Failed to run the cactus core pipeline from a file of alignments\n");
                 fclose(getNextAlignment_FileHandle);
             } else {
-                startAlignmentStackList_alignmentsList = selfAlignFlower(flower, 500, lastzArguments);
+                startAlignmentStackList_alignmentsList = selfAlignFlower(flower, minimumSequenceLengthForBlast, lastzArguments);
                 assert(startAlignmentStackList_alignmentsList != NULL);
                 st_logDebug("Ran lastz and have %i alignments\n", stList_length(startAlignmentStackList_alignmentsList));
                 assert(startAlignmentStackList_alignmentsListIterator == NULL);

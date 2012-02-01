@@ -327,7 +327,7 @@ class CactusBlastWrapper(CactusRecursionTarget):
         assert self.flowerNames[1] == 1
         self.addChildTarget(MakeSequences(self.cactusDiskDatabaseString, 
                                           self.flowerNames[0], alignmentFile, blastOptions=blastOptions,
-                                          minimumSequenceLength=getOptionalAttrib(blastNode, "minimumSequenceLength", int, 0)))
+                                          minimumSequenceLength=getOptionalAttrib(blastNode, "minimumSequenceLengthForBlast", int, 1)))
         logger.info("Created the cactus_aligner child target")
         
         #Now setup a call to cactus core wrapper as a follow on
@@ -352,7 +352,8 @@ def runCactusCoreInWorkflow(self, flowerNames, alignmentFile):
                       requiredAllFraction=getOptionalAttrib(coreParameters, "requiredAllFraction", float),
                       singleCopyIngroup=getOptionalAttrib(coreParameters, "singleCopyIngroup", bool),
                       singleCopyOutgroup=getOptionalAttrib(coreParameters, "singleCopyOutgroup", bool),
-                      lastzArguments=getOptionalAttrib(blastParameters, "lastzArguments"))
+                      lastzArguments=getOptionalAttrib(blastParameters, "lastzArguments"),
+                      minimumSequenceLengthForBlast=getOptionalAttrib(blastParameters, "minimumSequenceLengthForBlast", int, 1))
 
 class CactusCoreWrapper1(CactusRecursionTarget):
     """Runs cactus_core upon a set of flowers and no alignment file.
