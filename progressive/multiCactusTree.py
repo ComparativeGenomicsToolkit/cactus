@@ -95,12 +95,12 @@ class MultiCactusTree(NXTree):
         return mcCpy
         
     # find the root of the subtree containing the given node
-    # as leaf (slowly.. for nwo)
+    # as leaf (slowly.. for nwo) (returns event name, not node id)
     def getSubtreeRoot(self, name):
         assert len(self.nameToId) > 0
         node = self.nameToId[name]
         if node == self.rootId:
-            return node
+            return name
         parent = self.getParent(node)
         while parent is not None:
             if parent in self.subtreeRoots:
