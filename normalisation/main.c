@@ -108,7 +108,7 @@ int main(int argc, char *argv[]) {
     // Loop on the flowers, doing the reference genome (this process must be run bottom up)
     ///////////////////////////////////////////////////////////////////////////
 
-    stList *flowers = parseFlowers(argv + optind, argc - optind, cactusDisk);
+    stList *flowers = parseFlowersFromStdin(cactusDisk);
     for(j = 0; j < stList_length(flowers); j++) {
         Flower *flower = stList_get(flowers, j);
         st_logInfo("Processing a flower\n");

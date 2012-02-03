@@ -1,69 +1,128 @@
-<cactus_workflow_config>
-<alignment>
-		<blast_misc chunksPerJob="1" compressFiles="True" overlapSize="10000" filterByIdentity="0" identityRatio="6" minimumDistance="0.01" minimumSequenceLength="30"/>
+<cactusWorkflowConfig>
+	<alignment>
 		<iterations>
-			
-			<iteration min_sequence_size="5000" number="0" type="blast">
-				<blast blastString="lastz --format=cigar --nogapped --hspthresh=3000 SEQ_FILE_1[multiple][nameparse=darkspace] SEQ_FILE_2[nameparse=darkspace] &gt; CIGARS_FILE" 
-				chunkSize="10000000" 
-				selfBlastString="lastz --format=cigar --nogapped --hspthresh=3000 SEQ_FILE[multiple][nameparse=darkspace] SEQ_FILE[nameparse=darkspace] --notrivial &gt; CIGARS_FILE" />
-				<core alignRepeatsAtRound="0" annealingRounds="2 4 16 128" 
-				deannealingRounds="1 2 3 4 8 16 32 64" blockTrim="0" minimumTreeCoverage="0.0" 
-				trim="5 5 5 5 5 5 5 5 5 5 5 5 0 0 0 0 0 0 0 0 0" 
-				minimumBlockDegree="2"
-				requiredIngroupFraction="0.0"
-				requiredOutgroupFraction="0.0"
-				requiredAllFraction="1.0"
-				singleCopyIngroup="0"
-				singleCopyOutgroup="1"
+			<iteration 
+				maxFlowerGroupSize="10000000"
+				minFlowerSize="5000"
+				type="blast"
+			>
+				<blast 
+					chunkSize="10000000" 
+					lastzArguments="--nogapped --hspthresh=3000 --ambiguous=iupac --identity=IDENTITY"
+					chunksPerJob="1" 
+					compressFiles="1" 
+					overlapSize="10000" 
+					filterByIdentity="1" 
+					identityRatio="6" 
+					minimumDistance="0.01" 
+					minimumSequenceLengthForBlast="30"
+				/>
+				<core 
+					alignRepeatsAtRound="0" 
+					annealingRounds="2 4 16 128" 
+					deannealingRounds="1 2 3 4 8 16 32 64" 
+					blockTrim="0" 
+					minimumTreeCoverage="0.0" 
+					trim="5 5 5 5 5 5 5 5 5 5 5 5 0 0 0 0 0 0 0 0 0" 
+					minimumBlockDegree="2"
+					requiredIngroupFraction="0.0"
+					requiredOutgroupFraction="0.0"
+					requiredAllFraction="1.0"
+					singleCopyIngroup="0"
+					singleCopyOutgroup="1"
 				/>
 			</iteration>
-			
-			<iteration min_sequence_size="5000" number="1" type="blast">
-				<blast blastString="lastz --format=cigar --hspthresh=1800 SEQ_FILE_1[multiple][nameparse=darkspace] SEQ_FILE_2[nameparse=darkspace] &gt; CIGARS_FILE" 
-				chunkSize="1000000" 
-				selfBlastString="lastz --format=cigar --hspthresh=1800 SEQ_FILE[multiple][nameparse=darkspace] SEQ_FILE[nameparse=darkspace] --notrivial &gt; CIGARS_FILE" />
-				<core alignRepeatsAtRound="0" annealingRounds="2 4 16 128" 
-				deannealingRounds="1 2 3 4 8 16 32 64" blockTrim="0" minimumTreeCoverage="0.0" 
-				trim="5 5 5 5 5 5 5 5 5 5 5 5 0 0 0 0 0 0 0 0 0" 
-				minimumBlockDegree="2"
-				requiredIngroupFraction="1.0"
-				requiredOutgroupFraction="0.0"
-				requiredAllFraction="0.0"
-				singleCopyIngroup="0"
-				singleCopyOutgroup="1" />
+			<iteration 
+				maxFlowerGroupSize="1000000"
+				minFlowerSize="5000"
+				type="blast"
+			>
+				<blast 
+					chunkSize="1000000" 
+					lastzArguments="--hspthresh=1800 --ambiguous=iupac --identity=IDENTITY"
+					chunksPerJob="1" 
+					compressFiles="1" 
+					overlapSize="10000" 
+					filterByIdentity="1" 
+					identityRatio="6" 
+					minimumDistance="0.01" 
+					minimumSequenceLengthForBlast="30"
+				/>
+				<core 
+					alignRepeatsAtRound="0" 
+					annealingRounds="2 4 16 128" 
+					deannealingRounds="1 2 3 4 8 16 32 64" 
+					blockTrim="0" 
+					minimumTreeCoverage="0.0" 
+					trim="5 5 5 5 5 5 5 5 5 5 5 5 0 0 0 0 0 0 0 0 0" 
+					minimumBlockDegree="2"
+					requiredIngroupFraction="1.0"
+					requiredOutgroupFraction="0.0"
+					requiredAllFraction="0.0"
+					singleCopyIngroup="0"
+					singleCopyOutgroup="1" 
+				/>
 			</iteration>
-		
-			<iteration type="base" number="2" min_sequence_size="1" spanning_trees="10" 
-			gap_gamma="0.2" use_banding="1" banding_limit="100000" max_banding_size="3000" 
-			min_banding_size="1000" min_banding_constraint_distance="300" min_trace_back_diag="42" 
-			min_trace_gap_diags="10" constraint_diagonal_trim="4" minimumBlockDegree="2" 
-			alignAmbiguityCharacters="1" num_threads="1"
-			requiredIngroupFraction="0.0"
-			requiredOutgroupFraction="0.0"
-			requiredAllFraction="0.67" />
-
+			<iteration 
+				maxFlowerGroupSize="1000000"
+				type="base" 
+			>
+				<base
+					maxFlowerGroupSize="40000"
+					numThreads="5" 
+					spanningTrees="10" 
+					gapGamma="0.2" 
+					useBanding="1" 
+					bandingLimit="100000" 
+					maxBandingSize="3000" 
+					minBandingSize="1000" 
+					minBandingConstraintDistance="300" 
+					minTraceBackDiag="42" 
+					minTraceGapDiags="10" 
+					constraintDiagonalTrim="4" 
+					minimumBlockDegree="2" 
+					alignAmbiguityCharacters="1"
+					requiredIngroupFraction="0.0"
+					requiredOutgroupFraction="0.0"
+					requiredAllFraction="0.67" 
+				/>
+			</iteration>
 		</iterations>
 	</alignment>
-
-	<normal max_number_of_chains="30" rounds="2">
-	</normal>
-
-	<phylogeny>
-	</phylogeny>
-
-	<faces>
-	</faces>
-
-	<reference matching_algorithm="blossom5" reference="reference" useSimulatedAnnealing="1" theta="0.000001" maxNumberOfChainsBeforeSwitchingToFast="1000" permutations="10">
-	</reference>
-
-	<check runCheck="1">
-	</check>
-	
-	 <preprocessor chunkSize="100000000" preprocessorString='cactus_addFastaHeaderDots.py TARGET_FILE OUT_FILE --event EVENT_STRING'/>
-  <multi_cactus>
-	 <outgroup strategy="greedy" threshold="0"/>
-	 <decomposition subtree_size="2" self_alignment="false" default_internal_node_prefix="Anc"/>
-  </multi_cactus>
-</cactus_workflow_config>
+	<normal 
+		maxFlowerGroupSize="1000000"
+		iterations="0"
+	/>
+	<phylogeny
+	/>
+	<faces
+	/>
+	<reference 
+		maxFlowerGroupSize="10000000"
+		matchingAlgorithm="blossom5" 
+		reference="reference" 
+		useSimulatedAnnealing="1" 
+		theta="0.000001" 
+		maxNumberOfChainsBeforeSwitchingToFast="1000" 
+		permutations="10"
+	/>
+	<check 
+		maxFlowerGroupSize="10000000"
+		runCheck="1"
+	/>
+	<preprocessor 
+	 	chunkSize="100000000" 
+	 	preprocessorString='cactus_addFastaHeaderDots.py TARGET_FILE OUT_FILE --event EVENT_STRING'
+	 />
+  	<multi_cactus>
+		<outgroup 
+			strategy="greedy" 
+			threshold="0"
+		/>
+	 	<decomposition 
+	 		subtree_size="2" 
+	 		self_alignment="false" 
+	 		default_internal_node_prefix="Anc"
+	 	/>
+  	</multi_cactus>
+</cactusWorkflowConfig>

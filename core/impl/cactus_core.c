@@ -284,7 +284,8 @@ int32_t getMinimumChainLengthInGraph(struct List *biConnectedComponents, struct 
 }
 
 void buildOutPinchGraph(struct PinchGraph *pinchGraph, stList *adjacencyComponents, Flower *flower,
-        CactusCoreInputParameters *cCIP, struct PairwiseAlignment *(*getNextAlignment)(), void(*startAlignmentStack)(),
+        CactusCoreInputParameters *cCIP, struct PairwiseAlignment *(*getNextAlignment)(void), void(*startAlignmentStack)(void),
+        void (*cleanUpAlignment)(struct PairwiseAlignment *),
         int32_t minimumChainLength, int32_t trim, int32_t alignRepeats) {
     //struct PinchVertex *vertex;
     struct CactusGraph *cactusGraph;
@@ -352,7 +353,9 @@ void buildOutPinchGraph(struct PinchGraph *pinchGraph, stList *adjacencyComponen
                 pairwiseAlignment,
                 (void(*)(struct PinchGraph *pinchGraph, struct Piece *, struct Piece *, stHash *, void *)) filterPieceAndThenAddToGraph,
                 filterParameters, vertexToAdjacencyComponents);
-        destructPairwiseAlignment(pairwiseAlignment); //cleanup the previous alignment
+        if(cleanUpAlignment != NULL) {
+            cleanUpAlignment(pairwiseAlignment);
+        }
         pairwiseAlignment = getNextAlignment();
     }
     free(filterParameters);
@@ -484,7 +487,7 @@ int64_t getMaximumAdjacencyComponentSize(struct PinchGraph *pinchGraph) {
 }
 
 int32_t cactusCorePipeline(Flower *flower, CactusCoreInputParameters *cCIP,
-        struct PairwiseAlignment *(*getNextAlignment)(), void(*startAlignmentStack)()) {
+        struct PairwiseAlignment *(*getNextAlignment)(void), void(*startAlignmentStack)(void), void (*cleanUpAlignment)(struct PairwiseAlignment *)) {
     ////////////////////////////////////////////////
     //Check the flower to fill in terminal, and get rid of the group it contains and any terminal chain.
     ////////////////////////////////////////////////
@@ -583,7 +586,7 @@ int32_t cactusCorePipeline(Flower *flower, CactusCoreInputParameters *cCIP,
                     cCIP->annealingRounds[annealingRound], cCIP->annealingRounds[cCIP->annealingRoundsLength-1]);
 
             buildOutPinchGraph(pinchGraph, adjacencyComponents, flower, cCIP, getNextAlignment,
-                    startAlignmentStack, cCIP->annealingRounds[annealingRound], trim, alignRepeats);
+                    startAlignmentStack, cleanUpAlignment, cCIP->annealingRounds[annealingRound], trim, alignRepeats);
 
             st_logInfo("The max group size is %lli for min chain length %i aiming at overall minimum chain length of %i \n", getMaximumAdjacencyComponentSize(pinchGraph), cCIP->annealingRounds[annealingRound], cCIP->annealingRounds[cCIP->annealingRoundsLength-1]);
 

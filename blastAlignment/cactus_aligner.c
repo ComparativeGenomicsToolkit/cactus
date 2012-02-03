@@ -15,6 +15,7 @@
 
 #include "bioioC.h"
 #include "cactus.h"
+#include "blastAlignmentLib.h"
 
 int main(int argc, char *argv[]) {
 	/*
@@ -26,14 +27,6 @@ int main(int argc, char *argv[]) {
 	 */
 	CactusDisk *cactusDisk;
 	Flower *flower;
-	Flower_EndIterator *endIterator;
-	End_InstanceIterator *instanceIterator;
-	End *end;
-	Cap *cap;
-	Cap *cap2;
-	Sequence *sequence;
-	char *string;
-	FILE *fileHandle = NULL;
 	st_setLogLevelFromString(argv[5]);
 	assert(argc == 6);
 	stKVDatabaseConf *kvDatabaseConf = stKVDatabaseConf_constructFromString(argv[1]);
@@ -43,38 +36,13 @@ int main(int argc, char *argv[]) {
 	flower = cactusDisk_getFlower(cactusDisk, cactusMisc_stringToName(argv[2]));
 	assert(flower != NULL);
 	st_logInfo("Read the flower\n");
-	fileHandle = fopen(argv[3], "w");
-	st_logInfo("Opened the file %s to write the sub-sequences in\n", argv[3]);
+
 	int32_t minimumSequenceLength;
 	int i = sscanf(argv[4], "%i", &minimumSequenceLength);
 	assert(i == 1);
-	endIterator = flower_getEndIterator(flower);
-	while((end = flower_getNextEnd(endIterator)) != NULL) {
-		instanceIterator = end_getInstanceIterator(end);
-		while((cap = end_getNext(instanceIterator)) != NULL) {
-			cap = cap_getStrand(cap) ? cap : cap_getReverse(cap);
-			cap2 = cap_getAdjacency(cap);
-			assert(cap2 != NULL);
-			assert(cap_getStrand(cap2));
+	writeFlowerSequencesInFile(flower, argv[3], minimumSequenceLength);
+	st_logInfo("Written the sequences from the flower into a file");
 
-			if(!cap_getSide(cap)) {
-				assert(cap_getSide(cap2));
-				int32_t length = cap_getCoordinate(cap2)-cap_getCoordinate(cap)-1;
-				assert(length >= 0);
-				if(length >= minimumSequenceLength) {
-                    sequence = cap_getSequence(cap);
-                    assert(sequence != NULL);
-                    string = sequence_getString(sequence, cap_getCoordinate(cap)+1, cap_getCoordinate(cap2)-cap_getCoordinate(cap)-1, TRUE);
-                    fprintf(fileHandle, ">%s|1|%i\n%s\n", cactusMisc_nameToStringStatic(sequence_getName(sequence)), cap_getCoordinate(cap)+1, string);
-                    free(string);
-				}
-			}
-		}
-		end_destructInstanceIterator(instanceIterator);
-	}
-	st_logInfo("Finished writing the subsequences to the file\n");
-	fclose(fileHandle);
-	flower_destructEndIterator(endIterator);
 	cactusDisk_destruct(cactusDisk);
 	stKVDatabaseConf_destruct(kvDatabaseConf);
 

@@ -11,17 +11,25 @@
 
 FlowerWriter *flowerWriter_construct(FILE *fileHandle, int64_t maxFlowerGroupSize) {
     FlowerWriter *flowerWriter = st_malloc(sizeof(FlowerWriter));
-    flowerWriter->flowers = stList_construct();
+    flowerWriter->flowerNamesAndSizes = stList_construct3(0, free);
     flowerWriter->fileHandle = fileHandle;
     flowerWriter->maxFlowerGroupSize = maxFlowerGroupSize;
     return flowerWriter;
 }
 
+typedef struct _flowerNameAndSize {
+    Name flowerName;
+    int64_t flowerSize;
+} FlowerNameAndSize;
+
 /*
  * Adds a given flower to the list to output.
  */
-void flowerWriter_add(FlowerWriter *flowerWriter, Flower *flower) {
-    stList_append(flowerWriter->flowers, flower);
+void flowerWriter_add(FlowerWriter *flowerWriter, Name flowerName, int64_t flowerSize) {
+    FlowerNameAndSize *flowerNameAndSize = st_malloc(sizeof(FlowerNameAndSize));
+    flowerNameAndSize->flowerName = flowerName;
+    flowerNameAndSize->flowerSize = flowerSize;
+    stList_append(flowerWriter->flowerNamesAndSizes, flowerNameAndSize);
 }
 
 /*
@@ -29,36 +37,34 @@ void flowerWriter_add(FlowerWriter *flowerWriter, Flower *flower) {
  */
 
 static int compareFlowersByName(const void *a, const void *b) {
-    return cactusMisc_nameCompare(flower_getName((Flower *)a), flower_getName((Flower *)b));
+    return cactusMisc_nameCompare(((FlowerNameAndSize *)a)->flowerName, ((FlowerNameAndSize *)b)->flowerName);
 }
 
 static void writeFlowers(FILE *fileHandle, Name firstFlowerName, Name lastFlowerName, int64_t totalSize) {
     fprintf(fileHandle, "%" PRIi64 " %" PRIi64 " %" PRIi64 "\n",
-            firstFlowerName, lastFlowerName - firstFlowerName + 1, totalSize);
+        firstFlowerName, lastFlowerName - firstFlowerName + 1, totalSize);
 }
 
 static void flowerWriter_flush(FlowerWriter *flowerWriter) {
-    if(stList_length(flowerWriter->flowers) == 0) {
+    if (stList_length(flowerWriter->flowerNamesAndSizes) == 0) {
         return;
     }
-    stList_sort(flowerWriter->flowers, compareFlowersByName);
-    Flower *flower = stList_get(flowerWriter->flowers, 0);
-    Name firstFlowerName = flower_getName(flower);
+    stList_sort(flowerWriter->flowerNamesAndSizes, compareFlowersByName);
+    FlowerNameAndSize *flowerNameAndSize = stList_get(flowerWriter->flowerNamesAndSizes, 0);
+    Name firstFlowerName = flowerNameAndSize->flowerName;
     Name lastFlowerName = firstFlowerName;
-    int64_t totalSize = flower_getTotalBaseLength(flower);
-    for(int32_t i=1; i<stList_length(flowerWriter->flowers); i++) {
-        flower = stList_get(flowerWriter->flowers, i);
-        int64_t flowerSize = flower_getTotalBaseLength(flower);
-        assert(flower_getName(flower) - lastFlowerName >= 1);
-        if(flower_getName(flower) - lastFlowerName > 1 || flowerSize + totalSize > flowerWriter->maxFlowerGroupSize) {
+    int64_t totalSize = flowerNameAndSize->flowerSize;
+    for (int32_t i = 1; i < stList_length(flowerWriter->flowerNamesAndSizes); i++) {
+        flowerNameAndSize = stList_get(flowerWriter->flowerNamesAndSizes, i);
+        assert(flowerNameAndSize->flowerName - lastFlowerName >= 1);
+        if (flowerNameAndSize->flowerName - lastFlowerName > 1 || flowerNameAndSize->flowerSize + totalSize > flowerWriter->maxFlowerGroupSize) {
             writeFlowers(flowerWriter->fileHandle, firstFlowerName, lastFlowerName, totalSize);
-            firstFlowerName = flower_getName(flower);
+            firstFlowerName = flowerNameAndSize->flowerName;
             lastFlowerName = firstFlowerName;
-            totalSize = flowerSize;
-        }
-        else {
-            totalSize += flowerSize;
-            lastFlowerName = flower_getName(flower);
+            totalSize = flowerNameAndSize->flowerSize;
+        } else {
+            totalSize += flowerNameAndSize->flowerSize;
+            lastFlowerName = flowerNameAndSize->flowerName;
         }
     }
     writeFlowers(flowerWriter->fileHandle, firstFlowerName, lastFlowerName, totalSize);
@@ -66,6 +72,6 @@ static void flowerWriter_flush(FlowerWriter *flowerWriter) {
 
 void flowerWriter_destruct(FlowerWriter *flowerWriter) {
     flowerWriter_flush(flowerWriter);
-    stList_destruct(flowerWriter->flowers);
+    stList_destruct(flowerWriter->flowerNamesAndSizes);
     free(flowerWriter);
 }

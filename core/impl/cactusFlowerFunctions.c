@@ -858,7 +858,7 @@ void fillOutFlowerFromInputs(Flower *parentFlower,
     flower = flowers[0];
 #ifdef BEN_DEBUG
     for (i = 1; i < cactusGraph->vertices->length; i++) {
-        assert(flowers[i] == NULL);
+        assert(flowerNamesAndSizes[i] == NULL);
     }
 #endif
     st_logDebug("Constructed the chains and linked together the flowers\n");

@@ -39,8 +39,8 @@ typedef struct _CactusCoreInputParameters {
 } CactusCoreInputParameters;
 
 int32_t cactusCorePipeline(Flower *flower, CactusCoreInputParameters *cCIP,
-        struct PairwiseAlignment *(*getNextAlignment)(),
-        void(*startAlignmentStack)());
+        struct PairwiseAlignment *(*getNextAlignment)(void),
+        void(*startAlignmentStack)(void), void (*cleanUpAlignment)(struct PairwiseAlignment *));
 
 void destructCactusCoreInputParameters(CactusCoreInputParameters *cCIP);
 

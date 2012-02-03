@@ -325,7 +325,7 @@ int main(int argc, char *argv[]) {
     /*
      * For each flower.
      */
-    stList *flowers = parseFlowers(argv + optind, argc - optind, cactusDisk);
+    stList *flowers = parseFlowersFromStdin(cactusDisk);
     for(j = 0; j < stList_length(flowers); j++) {
         Flower *flower = stList_get(flowers, j);
         st_logInfo("Processing a flower\n");
@@ -340,7 +340,7 @@ int main(int argc, char *argv[]) {
         /*
          * Run the cactus core script.
          */
-        cactusCorePipeline(flower, cCIP, getAlignments, startAlignmentStack);
+        cactusCorePipeline(flower, cCIP, getAlignments, startAlignmentStack, destructPairwiseAlignment);
         st_logInfo("Ran the cactus core script.\n");
 
         /*

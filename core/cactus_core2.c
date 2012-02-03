@@ -22,6 +22,7 @@
 #include "pairwiseAlignment.h"
 #include "cactusFlowerFunctions.h"
 #include "cactus_core.h"
+#include "lastzAlignments.h"
 #include "sonLib.h"
 
 char *startAlignmentStack_fileString;
@@ -38,20 +39,30 @@ static void startAlignmentStack() {
     getNextAlignment_FileHandle = fopen(startAlignmentStack_fileString, "r");
 }
 
+static stList *startAlignmentStackList_alignmentsList = NULL;
+static stListIterator *startAlignmentStackList_alignmentsListIterator = NULL;
+
+static struct PairwiseAlignment *getNextAlignmentFromList() {
+    return stList_getNext(startAlignmentStackList_alignmentsListIterator);
+}
+
+static void startAlignmentStackList() {
+    if (startAlignmentStackList_alignmentsListIterator != NULL) {
+        stList_destructIterator(startAlignmentStackList_alignmentsListIterator);
+    }
+    startAlignmentStackList_alignmentsListIterator = stList_getIterator(startAlignmentStackList_alignmentsList);
+}
+
 void usage() {
     fprintf(stderr, "cactus_core, version 0.2\n");
     fprintf(stderr, "-a --logLevel : Set the log level\n");
     fprintf(stderr, "-b --alignments : The input alignments file\n");
-    fprintf(stderr,
-            "-c --cactusDisk : The location of the flower disk directory\n");
-    fprintf(stderr,
-            "-d --flowerName : The name of the flower (the key in the database)\n");
+    fprintf(stderr, "-c --cactusDisk : The location of the flower disk directory\n");
+    fprintf(stderr, "-d --lastzArguments : Lastz arguments\n");
     fprintf(stderr, "-e --writeDebugFiles : Write the debug files\n");
     fprintf(stderr, "-h --help : Print this help screen\n");
 
-    fprintf(
-            stderr,
-            "-i --annealingRounds (array of ints, each greater than or equal to 1) : The rounds of annealing\n");
+    fprintf(stderr, "-i --annealingRounds (array of ints, each greater than or equal to 1) : The rounds of annealing\n");
     fprintf(
             stderr,
             "-o --deannealingRounds (array of ints, each greater than or equal to 1 and each greater than the last) : The rounds of deannealing\n");
@@ -72,35 +83,26 @@ void usage() {
             stderr,
             "-n --blockTrim : (int >= 0) The number of bases to trim from the ends of each block in a chain before accepting, this filtering is done after choosing the length of chains\n");
 
-    fprintf(
-            stderr,
+    fprintf(stderr,
             "-p --minimumDegree : (int >= 0) Minimum number of sequences in a block to be included in the output graph\n");
 
-    fprintf(
-            stderr,
-            "-q --requiredIngroupFraction : Fraction of ingroup events required in a block.\n");
+    fprintf(stderr, "-q --requiredIngroupFraction : Fraction of ingroup events required in a block.\n");
 
-    fprintf(
-            stderr,
-            "-r --requiredOutgroupFraction : Fraction of outgroup events required in a block.\n");
+    fprintf(stderr, "-r --requiredOutgroupFraction : Fraction of outgroup events required in a block.\n");
 
-    fprintf(stderr,
-            "-u --requiredAllFraction : Fraction of all events required in a block.\n");
+    fprintf(stderr, "-u --requiredAllFraction : Fraction of all events required in a block.\n");
 
-    fprintf(
-            stderr,
-            "-s --singleCopyIngroup : Require that in-group sequences have only single coverage\n");
+    fprintf(stderr, "-s --singleCopyIngroup : Require that in-group sequences have only single coverage\n");
 
-    fprintf(
-            stderr,
-            "-t --singleCopyOutgroup : Require that out-group sequences have only single coverage\n");
+    fprintf(stderr, "-t --singleCopyOutgroup : Require that out-group sequences have only single coverage\n");
+
+    fprintf(stderr, "-v --minimumSequenceLengthForBlast : The minimum length of a sequence to include when blasting\n");
 
 }
 
 stSortedSet *getStringSet(const char *string) {
     stList *list = stString_split(string);
-    stSortedSet *strings = stSortedSet_construct3(
-            (int(*)(const void *, const void *)) strcmp, free);
+    stSortedSet *strings = stSortedSet_construct3((int(*)(const void *, const void *)) strcmp, free);
     for (int32_t i = 0; i < stList_length(list); i++) {
         stSortedSet_insert(strings, stString_copy(stList_get(list, i)));
     }
@@ -130,7 +132,6 @@ int main(int argc, char *argv[]) {
     int32_t startTime;
     stKVDatabaseConf *kvDatabaseConf;
     CactusDisk *cactusDisk;
-    Flower *flower;
     int key, k;
 
     /*
@@ -139,7 +140,8 @@ int main(int argc, char *argv[]) {
     char * logLevelString = NULL;
     char * alignmentsFile = NULL;
     char * cactusDiskDatabaseString = NULL;
-    char * flowerName = NULL;
+    char * lastzArguments = NULL;
+    int32_t minimumSequenceLengthForBlast = 1;
     CactusCoreInputParameters *cCIP = constructCactusCoreInputParameters();
 
     ///////////////////////////////////////////////////////////////////////////
@@ -147,30 +149,25 @@ int main(int argc, char *argv[]) {
     ///////////////////////////////////////////////////////////////////////////
 
     while (1) {
-        static struct option long_options[] = { { "logLevel",
-                required_argument, 0, 'a' }, { "alignments", required_argument,
-                0, 'b' }, { "cactusDisk", required_argument, 0, 'c' }, {
-                "flowerName", required_argument, 0, 'd' }, { "writeDebugFiles",
-                no_argument, 0, 'e' }, { "help", no_argument, 0, 'h' }, {
-                "annealingRounds", required_argument, 0, 'i' }, {
-                "alignRepeatsAtRound", required_argument, 0, 'j' }, { "trim",
-                required_argument, 0, 'k' }, { "trimChange", required_argument,
-                0, 'l', },
-                { "minimumTreeCoverage", required_argument, 0, 'm' }, {
-                        "blockTrim", required_argument, 0, 'n' }, {
-                        "deannealingRounds", required_argument, 0, 'o' }, {
-                        "minimumDegree", required_argument, 0, 'p' }, {
-                        "requiredIngroupFraction", required_argument, 0, 'q' },
-                { "requiredOutgroupFraction", required_argument, 0, 'r' }, {
-                        "requiredAllFraction", required_argument, 0, 'u' }, {
-                        "singleCopyIngroup", no_argument, 0, 's' }, {
-                        "singleCopyOutgroup", no_argument, 0, 't' }, { 0, 0, 0,
-                        0 } };
+        static struct option long_options[] = { { "logLevel", required_argument, 0, 'a' }, { "alignments",
+                required_argument, 0, 'b' }, { "cactusDisk", required_argument, 0, 'c' }, { "lastzArguments",
+                required_argument, 0, 'd' }, { "writeDebugFiles", no_argument, 0, 'e' },
+                { "help", no_argument, 0, 'h' }, { "annealingRounds", required_argument, 0, 'i' }, {
+                        "alignRepeatsAtRound", required_argument, 0, 'j' }, { "trim", required_argument, 0, 'k' }, {
+                        "trimChange", required_argument, 0, 'l', },
+                { "minimumTreeCoverage", required_argument, 0, 'm' }, { "blockTrim", required_argument, 0, 'n' }, {
+                        "deannealingRounds", required_argument, 0, 'o' },
+                { "minimumDegree", required_argument, 0, 'p' },
+                { "requiredIngroupFraction", required_argument, 0, 'q' }, { "requiredOutgroupFraction",
+                        required_argument, 0, 'r' }, { "requiredAllFraction", required_argument, 0, 'u' }, {
+                        "singleCopyIngroup", no_argument, 0, 's' }, { "singleCopyOutgroup", no_argument, 0, 't' },
+                        { "minimumSequenceLengthForBlast", required_argument, 0, 'v' },
+                        { 0,
+                        0, 0, 0 } };
 
         int option_index = 0;
 
-        key = getopt_long(argc, argv, "a:b:c:d:ehi:j:k:m:n:o:p:q:r:stu:",
-                long_options, &option_index);
+        key = getopt_long(argc, argv, "a:b:c:ehi:j:k:m:n:o:p:q:r:stu:v:", long_options, &option_index);
 
         if (key == -1) {
             break;
@@ -188,7 +185,7 @@ int main(int argc, char *argv[]) {
                 cactusDiskDatabaseString = stString_copy(optarg);
                 break;
             case 'd':
-                flowerName = stString_copy(optarg);
+                lastzArguments = stString_copy(optarg);
                 break;
             case 'e':
                 cCIP->writeDebugFiles = !cCIP->writeDebugFiles;
@@ -198,13 +195,11 @@ int main(int argc, char *argv[]) {
                 return 0;
             case 'i':
                 free(cCIP->annealingRounds);
-                cCIP->annealingRounds = getInts(optarg,
-                        &cCIP->annealingRoundsLength);
+                cCIP->annealingRounds = getInts(optarg, &cCIP->annealingRoundsLength);
                 break;
             case 'o':
                 free(cCIP->deannealingRounds);
-                cCIP->deannealingRounds = getInts(optarg,
-                        &cCIP->deannealingRoundsLength);
+                cCIP->deannealingRounds = getInts(optarg, &cCIP->deannealingRoundsLength);
                 break;
             case 'j':
                 k = sscanf(optarg, "%i", &cCIP->alignRepeatsAtRound);
@@ -244,6 +239,10 @@ int main(int argc, char *argv[]) {
             case 't':
                 cCIP->singleCopyOutgroup = 1;
                 break;
+            case 'v':
+                k = sscanf(optarg, "%i", &minimumSequenceLengthForBlast);
+                assert(k == 1);
+                break;
             default:
                 usage();
                 return 1;
@@ -254,9 +253,7 @@ int main(int argc, char *argv[]) {
     // (0) Check the inputs.
     ///////////////////////////////////////////////////////////////////////////
 
-    assert(alignmentsFile != NULL);
     assert(cactusDiskDatabaseString != NULL);
-    assert(flowerName != NULL);
     assert(cCIP->minimumTreeCoverage >= 0.0);
     assert(cCIP->minimumTreeCoverage <= 1.0);
     assert(cCIP->blockTrim >= 0);
@@ -288,56 +285,59 @@ int main(int argc, char *argv[]) {
     //Log (some of) the inputs
     //////////////////////////////////////////////
 
-    st_logInfo("Pairwise alignments file : %s\n", alignmentsFile);
     st_logInfo("Flower disk name : %s\n", cactusDiskDatabaseString);
-    st_logInfo("Flower name : %s\n", flowerName);
 
     //////////////////////////////////////////////
     //Load the database
     //////////////////////////////////////////////
 
-    kvDatabaseConf = stKVDatabaseConf_constructFromString(
-            cactusDiskDatabaseString);
+    kvDatabaseConf = stKVDatabaseConf_constructFromString(cactusDiskDatabaseString);
     cactusDisk = cactusDisk_construct(kvDatabaseConf, 0);
     st_logInfo("Set up the flower disk\n");
-
-    ///////////////////////////////////////////////////////////////////////////
-    // Parse the basic reconstruction problem
-    ///////////////////////////////////////////////////////////////////////////
-
-    flower = cactusDisk_getFlower(cactusDisk,
-            cactusMisc_stringToName(flowerName));
-    st_logInfo("Parsed the flower to be refined\n");
 
     ///////////////////////////////////////////////////////////////////////////
     // Do the alignment
     ///////////////////////////////////////////////////////////////////////////
 
-    if (!flower_builtBlocks(flower)) { // Do nothing if the flower already has defined blocks
-        startTime = time(NULL);
+    startTime = time(NULL);
 
-        ///////////////////////////////////////////////////////////////////////////
-        // Call the core program.
-        ///////////////////////////////////////////////////////////////////////////
-
-        startAlignmentStack_fileString = alignmentsFile;
-        exitOnFailure(
-                cactusCorePipeline(flower, cCIP, getNextAlignment,
-                        startAlignmentStack),
-                "Failed to run the cactus core pipeline\n");
-        fclose(getNextAlignment_FileHandle);
-
-        ///////////////////////////////////////////////////////////////////////////
-        // (9) Write the flower to disk.
-        ///////////////////////////////////////////////////////////////////////////
-
-        assert(!flower_isParentLoaded(flower));
-        flower_unloadParent(flower); //The parent should not have changed.
-        cactusDisk_write(cactusDisk);
-        st_logInfo("Updated the flower on disk\n");
-    } else {
-        st_logInfo("We've already built blocks / alignments for this flower\n");
+    stList *flowers = parseFlowersFromStdin(cactusDisk);
+    for (int32_t i = 0; i < stList_length(flowers); i++) {
+        Flower *flower = stList_get(flowers, i);
+        if (!flower_builtBlocks(flower)) { // Do nothing if the flower already has defined blocks
+            st_logDebug("Processing flower: %lli\n", flower_getName(flower));
+            if (alignmentsFile != NULL) {
+                assert(i == 0);
+                assert(stList_length(flowers) == 1);
+                startAlignmentStack_fileString = alignmentsFile;
+                exitOnFailure(cactusCorePipeline(flower, cCIP, getNextAlignment, startAlignmentStack, destructPairwiseAlignment),
+                        "Failed to run the cactus core pipeline from a file of alignments\n");
+                fclose(getNextAlignment_FileHandle);
+            } else {
+                startAlignmentStackList_alignmentsList = selfAlignFlower(flower, minimumSequenceLengthForBlast, lastzArguments);
+                assert(startAlignmentStackList_alignmentsList != NULL);
+                st_logDebug("Ran lastz and have %i alignments\n", stList_length(startAlignmentStackList_alignmentsList));
+                assert(startAlignmentStackList_alignmentsListIterator == NULL);
+                exitOnFailure(cactusCorePipeline(flower, cCIP, getNextAlignmentFromList, startAlignmentStackList, NULL),
+                        "Failed to run the cactus core pipeline from a list of alignments\n");
+                if (startAlignmentStackList_alignmentsListIterator != NULL) {
+                    stList_destructIterator(startAlignmentStackList_alignmentsListIterator);
+                    startAlignmentStackList_alignmentsListIterator = NULL;
+                }
+                stList_destruct(startAlignmentStackList_alignmentsList);
+            }
+            assert(!flower_isParentLoaded(flower));
+        } else {
+            st_logInfo("We've already built blocks / alignments for this flower\n");
+        }
     }
+
+    ///////////////////////////////////////////////////////////////////////////
+    // (9) Write the flower to disk.
+    ///////////////////////////////////////////////////////////////////////////
+
+    cactusDisk_write(cactusDisk);
+    st_logInfo("Updated the flower on disk\n");
 
     ///////////////////////////////////////////////////////////////////////////
     //(10) Clean up.
@@ -348,15 +348,18 @@ int main(int argc, char *argv[]) {
     cactusDisk_destruct(cactusDisk);
     stKVDatabaseConf_destruct(kvDatabaseConf);
     free(cactusDiskDatabaseString);
-    free(alignmentsFile);
-    free(flowerName);
+    if (alignmentsFile != NULL) {
+        free(alignmentsFile);
+    }
     if (logLevelString != NULL) {
         free(logLevelString);
     }
+    if (lastzArguments != NULL) {
+        free(lastzArguments);
+    }
     destructCactusCoreInputParameters(cCIP);
 
-    st_logInfo("Cleaned stuff up and am finished in: %i seconds\n",
-            time(NULL) - startTime);
+    st_logInfo("Cleaned stuff up and am finished in: %i seconds\n", time(NULL) - startTime);
 
     //while(1);
 

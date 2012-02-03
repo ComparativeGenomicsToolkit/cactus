@@ -8,11 +8,8 @@
 
 int main(int argc, char *argv[]) {
     parseArgs(argc, argv);
-    int32_t includeTerminalFlowers;
-    int32_t i = sscanf(argv[6], "%i", &includeTerminalFlowers);
-    assert(i == 1);
-    st_logDebug("Keeping the terminal flowers: %i\n", includeTerminalFlowers);
-    stList *flowers = parseFlowers(argv + 7, argc - 7, cactusDisk);
+    stList *flowers = parseFlowersFromStdin(cactusDisk);
+    //stList *flowers = parseFlowers(argv + 6, argc - 6, cactusDisk);
     for (int32_t i = 0; i < stList_length(flowers); i++) {
         Flower *flower = stList_get(flowers, i);
         if(!flower_isLeaf(flower)) {
@@ -21,12 +18,9 @@ int main(int argc, char *argv[]) {
             Group *group;
             while ((group = flower_getNextGroup(groupIterator)) != NULL) {
                 if (!group_isLeaf(group)) {
-                    Flower *nestedFlower = group_getNestedFlower(group);
-                    assert(nestedFlower != NULL);
-                    assert(flower_builtBlocks(nestedFlower)); //This recursion depends on the block structure having been properly defined for all nodes.
-                    int64_t flowerSize = flower_getTotalBaseLength(nestedFlower);
-                    if((includeTerminalFlowers || !flower_isTerminal(nestedFlower)) && flowerSize <= maxFlowerSize && flowerSize >= minFlowerSize) {
-                        flowerWriter_add(flowerWriter, nestedFlower);
+                    int64_t flowerSize = group_getTotalBaseLength(group);
+                    if(flowerSize <= maxFlowerSize && flowerSize >= minFlowerSize) {
+                        flowerWriter_add(flowerWriter, group_getName(group), flowerSize);
                     }
                 }
             }
