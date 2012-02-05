@@ -246,16 +246,17 @@ def makeTargets(cactusDiskDatabaseString, configNode, flowersAndSizes,
     totalSequenceSize = 0.0
     maxSequenceSizeOfFlowerGrouping=getOptionalAttrib(configNode, "maxFlowerGroupSize", int, default=MAX_SEQUENCE_SIZE_OF_FLOWER_GROUPING)
     flowerGrouping = []
+    if overlargeTarget == None:
+        overlargeTarget = target
     for totalFlowerSize, firstFlowerName, flowerNumber in flowersAndSizes:
         if totalFlowerSize > maxSequenceSizeOfFlowerGrouping: #Make sure large flowers are on there own, in their own job
             assert flowerNumber == 1
             parentTarget.logToMaster("Adding an oversize flower: %s on its own, with %s bases for target class %s" \
                                      % (firstFlowerName, totalFlowerSize, target))
-            if overlargeTarget != None: #This ensures overlagre flowers, an in cactus core, get diverted and run on their own.
-                parentTarget.addChildTarget(overlargeTarget(cactusDiskDatabaseString=cactusDiskDatabaseString, configNode=configNode, 
-                                                   flowerNames=[ firstFlowerName, 1 ]))
-            else:
-                flowerGrouping.append([ firstFlowerName, 1 ])
+            parentTarget.addChildTarget(overlargeTarget(cactusDiskDatabaseString=cactusDiskDatabaseString, 
+                                                        configNode=configNode, 
+                                                        flowerNames=[ firstFlowerName, 1 ])) #This ensures overlarge flowers, 
+            #an in cactus core, get diverted and run on their own.
         else:
             totalSequenceSize += totalFlowerSize
             flowerNames.append(firstFlowerName)
@@ -265,7 +266,8 @@ def makeTargets(cactusDiskDatabaseString, configNode, flowersAndSizes,
                 flowerNames = []
                 totalSequenceSize = 0.0
     if len(flowerNames) > 0:
-        if len(flowerGrouping) > 0: #Avoid small targets if multiple targets exist
+        assert totalSequenceSize < maxSequenceSizeOfFlowerGrouping
+        if len(flowerGrouping) > 0 and False: #Avoid small targets if multiple targets exist
             k = 0
             l = len(flowerGrouping)
             while len(flowerNames) > 0:
@@ -277,8 +279,9 @@ def makeTargets(cactusDiskDatabaseString, configNode, flowersAndSizes,
         else:
             flowerGrouping.append(flowerNames)
     for flowerNames in flowerGrouping:
-        parentTarget.addChildTarget(target(cactusDiskDatabaseString=cactusDiskDatabaseString, configNode=configNode, 
-                                                   flowerNames=flowerNames))
+        parentTarget.addChildTarget(target(cactusDiskDatabaseString=cactusDiskDatabaseString, 
+                                           configNode=configNode, 
+                                           flowerNames=flowerNames))
      
 def makeChildTargets(cactusDiskDatabaseString, configNode, flowerNames, target, childTarget):
     """Make a set of child targets for a given set of parent flowers.
