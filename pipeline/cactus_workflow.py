@@ -267,7 +267,7 @@ def makeTargets(cactusDiskDatabaseString, configNode, flowersAndSizes,
                 totalSequenceSize = 0.0
     if len(flowerNames) > 0:
         assert totalSequenceSize < maxSequenceSizeOfFlowerGrouping
-        if len(flowerGrouping) > 0 and False: #Avoid small targets if multiple targets exist
+        if len(flowerGrouping) > 0: #Avoid small targets if multiple targets exist by adding remaining targets jobs
             k = 0
             l = len(flowerGrouping)
             while len(flowerNames) > 0:

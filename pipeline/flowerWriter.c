@@ -57,7 +57,8 @@ static void flowerWriter_flush(FlowerWriter *flowerWriter) {
     for (int32_t i = 1; i < stList_length(flowerWriter->flowerNamesAndSizes); i++) {
         flowerNameAndSize = stList_get(flowerWriter->flowerNamesAndSizes, i);
         assert(flowerNameAndSize->flowerName - lastFlowerName >= 1);
-        if (flowerNameAndSize->flowerName - lastFlowerName > 1 || flowerNameAndSize->flowerSize + totalSize > flowerWriter->maxFlowerGroupSize) {
+        if (flowerNameAndSize->flowerName - lastFlowerName > 1 ||
+            flowerNameAndSize->flowerSize + totalSize > flowerWriter->maxFlowerGroupSize) {
             writeFlowers(flowerWriter->fileHandle, firstFlowerName, lastFlowerName, totalSize);
             firstFlowerName = flowerNameAndSize->flowerName;
             lastFlowerName = firstFlowerName;
