@@ -96,9 +96,8 @@ char *getConsensusStringP(stList *strings, stList *outgroupStrings,
          * Now choose if it should be upper case.
          */
         string[i]
-                = (upperCounts[i] + upperCountsOutgroup[i]) >= ((double) stList_length(strings) + stList_length(outgroupStrings)) / 2 ? toupper(
-                        base)
-                        : base;
+                = (upperCounts[i] + upperCountsOutgroup[i]) > ((double) stList_length(strings) +
+                        stList_length(outgroupStrings)) / 2 ? toupper(base) : base;
     }
     free(baseCounts);
     free(upperCounts);
