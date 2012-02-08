@@ -58,6 +58,7 @@ from cactus.blastAlignment.cactus_batch import MakeBlastOptions
 from cactus.blastAlignment.cactus_batch import makeBlastFromOptions
 
 from cactus.preprocessor.cactus_preprocessor import BatchPreprocessor
+from cactus.preprocessor.cactus_preprocessor import PreprocessorHelper
 
 ############################################################
 ############################################################
@@ -150,14 +151,23 @@ class CactusPreprocessorPhase(Target):
     def run(self):
         self.logToMaster("Starting preprocessor phase target at %s seconds" % time.time())
         
-        processedSequences = self.sequences
-       
-        prepNode = self.options.config.find("preprocessor")
-        if prepNode is not None:
-            tempDir = getTempDirectory(self.getGlobalTempDir())
-            processedSequences = map(lambda x: tempDir + "/" + x, self.sequences)
-            logger.info("Adding child batch_preprocessor target")
-            self.addChildTarget(BatchPreprocessor(self.options, self.sequences, self.sequences, tempDir, 0))
+        tempDir = getTempDirectory(self.getGlobalTempDir())
+        prepHelper = PreprocessorHelper(self.options, self.sequences)
+        processedSequences = []
+        for sequence in self.sequences:
+            prepXmlElems = prepHelper.getFilteredXmlElems(sequence)
+            event = prepHelper.fileEventMap[sequence]
+            if len(prepXmlElems) == 0:
+                processedSequences.append(sequence)
+            else:
+                sequenceJoin = sequence
+                while sequenceJoin[0] == '/':
+                    sequenceJoin = sequenceJoin[1:]
+                processedSequence = os.path.join(tempDir, sequenceJoin)
+                processedSequences.append(processedSequence)
+                logger.info("Adding child batch_preprocessor target")
+                assert sequence != processedSequence
+                self.addChildTarget(BatchPreprocessor(self.options, event, prepXmlElems, sequence, processedSequence, 0))
 
         self.setFollowOnTarget(CactusSetupWrapper(self.options, processedSequences))
         logger.info("Created followOn target cactus_setup job, and follow on down pass job")

@@ -60,6 +60,51 @@ def fileList(path):
             return files
     return [path]
 
+class PreprocessorHelper:
+    def __init__(self, options, sequences):     
+        self.options = options
+        self.sequences = sequences
+        self.fileEventMap = self.__computeFileEventMap()
+    
+    def getFilteredXmlElems(self, sequence):
+        prepNodes = self.options.config.findall("preprocessor")
+        filteredNodes = []
+        event = self.fileEventMap[sequence]
+        leafEvents = getattr(self.options, 'globalLeafEventSet', set([event]))         
+        for node in prepNodes:
+            scope = node.get("scope", default="leaves").lower()
+            if event in leafEvents:
+                if scope != 'internal':
+                    filteredNodes.append(node)
+            elif scope != 'leaves':
+                filteredNodes.append(node)
+        return filteredNodes
+    
+    # link each fasta file to an event name and store 
+    # relies on sequences aways being read in same order
+    def __computeFileEventMap(self):
+        seqIterator = iter(self.sequences)
+        eventMap = dict()
+        tree = newickTreeParser(self.options.speciesTree)
+        dfStack = [tree]
+        while dfStack:
+            node = dfStack.pop(-1)
+            if node is not None and not node.internal:
+                eventMap[seqIterator.next()] = node.iD 
+            else:
+                dfStack.append(node.right)
+                dfStack.append(node.left) 
+        assert len(eventMap) == len(self.sequences)
+        fileEventMap = dict()
+        for seq in self.sequences:
+            event = eventMap[seq]            
+            for file in fileList(seq):
+                assert file not in fileEventMap
+                fileEventMap[file] = event
+            fileEventMap[seq] = event
+        return fileEventMap
+            
+
 class PreprocessorOptions:
     def __init__(self, chunkSize, chunksPerJob, overlapSize, compressFiles, cmdLine):
         self.chunkSize = chunkSize
@@ -179,82 +224,55 @@ class PreprocessSequence(Target):
         self.setFollowOnTarget(MergeChunks(self.prepOptions, chunkListPath, self.outSequencePath))
 
 class BatchPreprocessor(Target):
-    def __init__(self, options, globalInSequences, inSequences, outDirBase, iteration = 0):
+    def __init__(self, options, event, prepXmlElems, inSequence, globalOutSequence, iteration = 0):
         Target.__init__(self, time=0.0002)
         self.options = options 
-        self.globalInSequences = globalInSequences
-        self.inSequences = inSequences
-        self.outDirBase = outDirBase
-        self.prepOptions = None
+        self.event = event
+        self.prepXmlElems = prepXmlElems
+        self.inSequence = inSequence
+        self.globalOutSequence = globalOutSequence
         self.iteration = iteration
-  
-    # link each fasta file to an event name and store 
-    # relies on sequences aways being read in same order
-    def constructFileEventMap(self):
-        seqIterator = iter(self.globalInSequences)
-        eventMap = dict()
-        tree = newickTreeParser(self.options.speciesTree)
-        dfStack = [tree]
-        while dfStack:
-            node = dfStack.pop(-1)
-            if node is not None and not node.internal:
-                eventMap[seqIterator.next()] = node.iD 
-            else:
-                dfStack.append(node.right)
-                dfStack.append(node.left) 
-        assert len(eventMap) == len(self.globalInSequences)
-        fileMap = []
-        for seq in self.globalInSequences:
-            event = eventMap[seq]
-            for file in fileList(seq):
-                fileMap.append(event)
-        return fileMap
-            
+              
     def run(self):
-        # Parse the "preprocessor" config xml element
-        prepNodes = self.options.config.findall("preprocessor")
+        # Parse the "preprocessor" config xml element     
+        assert self.iteration < len(self.prepXmlElems)
         
-        assert self.iteration < len(prepNodes)
-        
-        prepNode = prepNodes[self.iteration]
+        prepNode = self.prepXmlElems[self.iteration]
     
-        self.prepOptions = PreprocessorOptions(int(prepNode.get("chunkSize", default="2147483647")),
+        prepOptions = PreprocessorOptions(int(prepNode.get("chunkSize", default="2147483647")),
                                           int(prepNode.get("chunksPerJob", default="1")),
                                           int(prepNode.get("overlapSize", default="10")),
                                           prepNode.get("compressFiles", default="True").lower() == "true",
                                           prepNode.attrib["preprocessorString"])
         
-        
-        #iterate over each input fasta file
-        inSeqFiles = []
-        map(inSeqFiles.extend, map(fileList, self.inSequences))
-        
-        fileEventMap = self.constructFileEventMap()
-        
-        globalInSeqFiles = []
-        map(globalInSeqFiles.extend, map(fileList, self.globalInSequences))
-        assert len(globalInSeqFiles) == len(inSeqFiles)
-        
         #output to temporary directory unless we are on the last iteration
-        lastIteration = self.iteration == len(prepNodes) - 1
-        outDir = self.outDirBase
+        lastIteration = self.iteration == len(self.prepXmlElems) - 1        
         if lastIteration == False:
             outDir = getTempDirectory(self.getGlobalTempDir())
-            
-        outSeqFiles = map(lambda x: outDir  + "/" + x, globalInSeqFiles)
-        outSeq = iter(outSeqFiles)
+            outSeq = os.path.join(outDir, os.path.split(self.inSequence)[1])
+        else:
+            outSeq = self.globalOutSequence      
+            outDir = self.globalOutSequence                    
+            if not os.path.isdir(self.inSequence):
+                outDir = os.path.split(outDir)[0]
+        
+        #iterate over each input fasta file
+        inSeqFiles = fileList(self.inSequence)
+        outSeqFiles = []
+        for inSeqFile in inSeqFiles:
+            fileName = os.path.split(inSeqFile)[1]
+            outSeqFiles.append(os.path.join(outDir, fileName))      
+        outSeqFile = iter(outSeqFiles)
         assert len(outSeqFiles) == len(inSeqFiles)
         
         # either process a sequence, or propagate an empty directory
-        eventIterator = iter(fileEventMap)
-        for inSeq in inSeqFiles:
-            if not os.path.isdir(inSeq):
-                event = eventIterator.next() 
-                self.addChildTarget(PreprocessSequence(self.prepOptions, inSeq, outSeq.next(), event))
+        for inSeqFile in inSeqFiles:
+            if not os.path.isdir(inSeqFile):
+                self.addChildTarget(PreprocessSequence(prepOptions, inSeqFile, outSeqFile.next(), self.event))
             else:
-                os.makedirs(outSeq.next())
+                os.makedirs(outSeqFile.next())
 
         if lastIteration == False:
-            self.setFollowOnTarget(BatchPreprocessor(self.options, self.globalInSequences, outSeqFiles, 
-                                                     self.outDirBase, self.iteration + 1))
+            self.setFollowOnTarget(BatchPreprocessor(self.options, self.event, self.prepXmlElems, outSeq, self.globalOutSequence, 
+                                                      self.iteration + 1))
             

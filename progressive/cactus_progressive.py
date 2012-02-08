@@ -318,6 +318,8 @@ def main():
     if options.event == None:
         options.event = project.mcTree.getRootName()
     assert options.event in project.expMap
+    leafNames = [project.mcTree.getName(i) for i in project.mcTree.getLeaves()]
+    options.globalLeafEventSet = set(leafNames)
     
     baseTarget = ProgressiveDown(options, project, options.event, schedule)
     Stack(baseTarget).startJobTree(options)
