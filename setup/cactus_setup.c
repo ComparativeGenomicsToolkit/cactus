@@ -371,6 +371,8 @@ int main(int argc, char *argv[]) {
     // Cleanup.
     ///////////////////////////////////////////////////////////////////////////
 
+    return 0; //Exit without clean up is quicker, enable cleanup when doing memory leak detection.
+
     stTree_destruct(tree);
     cactusDisk_destruct(cactusDisk);
     stKVDatabaseConf_destruct(kvDatabaseConf);

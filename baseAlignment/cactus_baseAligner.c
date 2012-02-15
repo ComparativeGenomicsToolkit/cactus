@@ -374,6 +374,13 @@ int main(int argc, char *argv[]) {
      * Write and close the cactusdisk.
      */
     cactusDisk_write(cactusDisk);
+
+    ///////////////////////////////////////////////////////////////////////////
+    // Cleanup
+    ///////////////////////////////////////////////////////////////////////////
+
+    return 0; //Exit without clean up is quicker, enable cleanup when doing memory leak detection.
+
     cactusDisk_destruct(cactusDisk);
     stKVDatabaseConf_destruct(kvDatabaseConf);
     destructCactusCoreInputParameters(cCIP);
