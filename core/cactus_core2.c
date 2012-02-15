@@ -335,6 +335,7 @@ int main(int argc, char *argv[]) {
             st_logInfo("We've already built blocks / alignments for this flower\n");
         }
     }
+    stList_destruct(flowers);
     if(tempFile1 != NULL) {
         st_system("rm %s", tempFile1);
     }
