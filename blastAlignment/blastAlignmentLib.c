@@ -11,7 +11,7 @@
 #include "pairwiseAlignment.h"
 
 int32_t writeFlowerSequencesInFile(Flower *flower, const char *tempFile1, int32_t minimumSequenceLength) {
-    FILE *fileHandle = fopen(tempFile1, "w");
+    FILE *fileHandle = NULL;
     Flower_EndIterator *endIterator = flower_getEndIterator(flower);
     End *end;
     int32_t sequencesWritten = 0;
@@ -31,6 +31,9 @@ int32_t writeFlowerSequencesInFile(Flower *flower, const char *tempFile1, int32_
                 if (length >= minimumSequenceLength) {
                     Sequence *sequence = cap_getSequence(cap);
                     assert(sequence != NULL);
+                    if(fileHandle == NULL) {
+                        fileHandle = fopen(tempFile1, "w");
+                    }
                     char *string = sequence_getString(sequence, cap_getCoordinate(cap) + 1,
                             cap_getCoordinate(cap2) - cap_getCoordinate(cap) - 1, 1);
                     fprintf(fileHandle, ">%s|1|%i\n%s\n", cactusMisc_nameToStringStatic(sequence_getName(sequence)),
@@ -43,7 +46,9 @@ int32_t writeFlowerSequencesInFile(Flower *flower, const char *tempFile1, int32_
         end_destructInstanceIterator(instanceIterator);
     }
     flower_destructEndIterator(endIterator);
-    fclose(fileHandle);
+    if(fileHandle != NULL) {
+        fclose(fileHandle);
+    }
     return sequencesWritten;
 }
 

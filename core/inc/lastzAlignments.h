@@ -11,6 +11,6 @@
 #include "cactus.h"
 #include "sonLib.h"
 
-stList *selfAlignFlower(Flower *flower, int32_t minimumSequenceLength, const char *lastzArgs);
+stList *selfAlignFlower(Flower *flower, int32_t minimumSequenceLength, const char *lastzArgs, char *tempFile1);
 
 #endif /* LASTZALIGNMENT_H_ */

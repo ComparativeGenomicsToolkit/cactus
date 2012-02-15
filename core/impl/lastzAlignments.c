@@ -13,20 +13,19 @@
 #include "pairwiseAlignment.h"
 #include "blastAlignmentLib.h"
 
-stList *selfAlignFlower(Flower *flower, int32_t minimumSequenceLength, const char *lastzArgs) {
+stList *selfAlignFlower(Flower *flower, int32_t minimumSequenceLength, const char *lastzArgs, char *tempFile1) {
     /*
      * Get the sequences.
      */
     stList *cigars = stList_construct3(0, (void(*)(void *)) destructPairwiseAlignment);
-    char *tempFile1 = getTempFile();
-    if (writeFlowerSequencesInFile(flower, tempFile1, minimumSequenceLength) != 0) {
+    //char *tempFile1 = getTempFile();
+    if (writeFlowerSequencesInFile(flower, tempFile1, minimumSequenceLength) > 0) {
         /*
          * Run lastz.
          */
         char *command = stString_print(
                 "lastz --format=cigar %s %s[multiple][nameparse=darkspace] %s[nameparse=darkspace] --notrivial",
                 lastzArgs, tempFile1, tempFile1);
-        st_uglyf("I am running #%s#\n", command);
         FILE *fileHandle = popen(command, "r");
         free(command);
         if (fileHandle == NULL) {
@@ -43,7 +42,7 @@ stList *selfAlignFlower(Flower *flower, int32_t minimumSequenceLength, const cha
             stList_append(cigars, pairwiseAlignment);
         }
     }
-    st_system("rm %s", tempFile1);
+    //st_system("rm %s", tempFile1);
 
     return cigars;
 }

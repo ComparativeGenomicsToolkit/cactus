@@ -302,6 +302,7 @@ int main(int argc, char *argv[]) {
     startTime = time(NULL);
 
     stList *flowers = parseFlowersFromStdin(cactusDisk);
+    char *tempFile1 = NULL;
     for (int32_t i = 0; i < stList_length(flowers); i++) {
         Flower *flower = stList_get(flowers, i);
         if (!flower_builtBlocks(flower)) { // Do nothing if the flower already has defined blocks
@@ -314,7 +315,10 @@ int main(int argc, char *argv[]) {
                         "Failed to run the cactus core pipeline from a file of alignments\n");
                 fclose(getNextAlignment_FileHandle);
             } else {
-                startAlignmentStackList_alignmentsList = selfAlignFlower(flower, minimumSequenceLengthForBlast, lastzArguments);
+                if(tempFile1 == NULL) {
+                    tempFile1 = getTempFile();
+                }
+                startAlignmentStackList_alignmentsList = selfAlignFlower(flower, minimumSequenceLengthForBlast, lastzArguments, tempFile1);
                 assert(startAlignmentStackList_alignmentsList != NULL);
                 st_logDebug("Ran lastz and have %i alignments\n", stList_length(startAlignmentStackList_alignmentsList));
                 assert(startAlignmentStackList_alignmentsListIterator == NULL);
@@ -330,6 +334,9 @@ int main(int argc, char *argv[]) {
         } else {
             st_logInfo("We've already built blocks / alignments for this flower\n");
         }
+    }
+    if(tempFile1 != NULL) {
+        st_system("rm %s", tempFile1);
     }
 
     ///////////////////////////////////////////////////////////////////////////
