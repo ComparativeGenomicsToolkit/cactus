@@ -236,12 +236,9 @@ class CactusAlignmentPhase(CactusPhasesTarget):
 class CactusRecursionTarget(Target):
     """Base recursive target for traversals up and down the cactus tree.
     """
-    def __init__(self, cactusDiskDatabaseString, configNode, flowerNames):
+    def __init__(self, cactusDiskDatabaseString, configNode, flowerNames, memory=sys.maxint, cpu=sys.maxint):
         targetStringId = str(self.__class__)[8:-2]
-        Target.__init__(self)
-        #, time=getOptionalAttrib(configNode, "time_" + targetStringId, float), 
-        #                cpu=getOptionalAttrib(configNode, "cpu_" + targetStringId, int), 
-        #                memory=getOptionalAttrib(configNode, "memory_" + targetStringId, int))
+        Target.__init__(self, memory=memory, cpu=cpu)
         self.cactusDiskDatabaseString = cactusDiskDatabaseString
         self.configNode = configNode
         self.flowerNames = flowerNames
@@ -249,7 +246,9 @@ class CactusRecursionTarget(Target):
 MAX_SEQUENCE_SIZE_OF_FLOWER_GROUPING=1000000        
 
 def makeTargets(cactusDiskDatabaseString, configNode, flowersAndSizes, 
-                parentTarget, target, overlargeTarget=None):
+                parentTarget, target, overlargeTarget=None, 
+                memory=sys.maxint, cpu=sys.maxint, 
+                overlargeMemory=sys.maxint, overlargeCpu=sys.maxint):
     """Make a set of targets for a given set of flowers.
     """
     flowerNames = []
@@ -265,7 +264,7 @@ def makeTargets(cactusDiskDatabaseString, configNode, flowersAndSizes,
                                      % (firstFlowerName, totalFlowerSize, target))
             parentTarget.addChildTarget(overlargeTarget(cactusDiskDatabaseString=cactusDiskDatabaseString, 
                                                         configNode=configNode, 
-                                                        flowerNames=[ firstFlowerName, 1 ])) #This ensures overlarge flowers, 
+                                                        flowerNames=[ firstFlowerName, 1 ], memory=overlargeCpu, cpu=overlargeCpu)) #This ensures overlarge flowers, 
             #an in cactus core, get diverted and run on their own.
         else:
             totalSequenceSize += totalFlowerSize
@@ -291,7 +290,8 @@ def makeTargets(cactusDiskDatabaseString, configNode, flowersAndSizes,
     for flowerNames in flowerGrouping:
         parentTarget.addChildTarget(target(cactusDiskDatabaseString=cactusDiskDatabaseString, 
                                            configNode=configNode, 
-                                           flowerNames=flowerNames))
+                                           flowerNames=flowerNames, 
+                                           memory=memory, cpu=cpu))
      
 def makeChildTargets(cactusDiskDatabaseString, configNode, flowerNames, target, childTarget):
     """Make a set of child targets for a given set of parent flowers.
@@ -400,12 +400,17 @@ class CactusBarDown(CactusRecursionTarget):
         childFlowers = runCactusExtendFlowers(self.cactusDiskDatabaseString, self.flowerNames, 
                                               minSequenceSizeOfFlower=1, 
                                               maxSequenceSizeOfFlowerGrouping=maxSequenceSizeOfFlowerGrouping)
-        makeTargets(self.cactusDiskDatabaseString, baseNode, childFlowers, parentTarget=self, target=CactusBaseLevelAlignerWrapper)
+        makeTargets(self.cactusDiskDatabaseString, baseNode, childFlowers, parentTarget=self, target=CactusBaseLevelAlignerWrapper, 
+                    #cpu=getOptionalAttrib(self.configNode, "numThreads", int, default=sys.maxint),
+                    overlargeCpu=getOptionalAttrib(self.configNode, "numThreads", int, default=sys.maxint))
 
 class CactusBaseLevelAlignerWrapper(CactusRecursionTarget):
     """Runs cactus_baseAligner (the BAR algorithm implementation.
     """
     def run(self):
+        cpu = 1
+        if self.getCpu() != sys.maxint:
+            cpu = sys.maxint
         runCactusBaseAligner(cactusDiskDatabaseString=self.cactusDiskDatabaseString, 
                              flowerNames=self.flowerNames, 
                              maximumLength=getOptionalAttrib(self.configNode, "bandingLimit", float),
@@ -424,7 +429,7 @@ class CactusBaseLevelAlignerWrapper(CactusRecursionTarget):
                              requiredIngroupFraction=getOptionalAttrib(self.configNode, "requiredIngroupFraction", float),
                              requiredOutgroupFraction=getOptionalAttrib(self.configNode, "requiredOutgroupFraction", float),
                              requiredAllFraction=getOptionalAttrib(self.configNode, "requiredAllFraction", float),
-                             numThreads=getOptionalAttrib(self.configNode, "numThreads", int))
+                             numThreads=cpu)
         
 ############################################################
 ############################################################
