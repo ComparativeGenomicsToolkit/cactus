@@ -340,13 +340,14 @@ def runCactusProgressive(inputDir,
                       maxThreads=None,
                       maxJobs=None,
                       recursive=None,
-                      logFile=None):
+                      logFile=None,
+                      event=None):
     command = ("cactus_progressive.py %s" % inputDir) + " " + _fn(jobTreeDir, 
                       logLevel, retryCount, batchSystem, rescueJobFrequency, setupAndBuildAlignments,
                       None, None, None, #buildTrees, buildFaces, buildReference, 
                       jobTreeStats,maxThreads, maxJobs, logFile) + \
-                      (" %s %s %s" % (nameValue("recursive", recursive, bool),
+                      (" %s %s %s %s" % (nameValue("recursive", recursive, bool),
                                      nameValue("buildMAF", buildMaf, bool),
-                                     nameValue("joinMAF", joinMaf, bool)))
+                                     nameValue("joinMAF", joinMaf, bool), nameValue("event", event)))
     system(command)
     logger.info("Ran the cactus progressive okay")
