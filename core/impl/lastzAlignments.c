@@ -41,6 +41,7 @@ stList *selfAlignFlower(Flower *flower, int32_t minimumSequenceLength, const cha
             convertCoordinatesOfPairwiseAlignment(pairwiseAlignment);
             stList_append(cigars, pairwiseAlignment);
         }
+        pclose(fileHandle);
     }
     //st_system("rm %s", tempFile1);
 
