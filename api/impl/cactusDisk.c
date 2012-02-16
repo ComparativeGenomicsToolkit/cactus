@@ -292,6 +292,9 @@ static void *decompress(void *data, int64_t *dataSize) {
 
 static stList *getRecords(CactusDisk *cactusDisk, stList *objectNames,
         char *type) {
+    if(stList_length(objectNames) == 0) {
+        return stList_construct3(0, NULL);
+    }
     stList *records = NULL;
     stTry {
             records = stKVDatabase_bulkGetRecords(cactusDisk->database,

@@ -73,4 +73,9 @@ const char *cactusMisc_getDefaultReferenceEventHeader();
  */
 stList *parseFlowersFromStdin(CactusDisk *cactusDisk);
 
+/*
+ * Use a bulk get to efficiently precache the nested flowers of a set of parent flowers.
+ */
+void preCacheNestedFlowers(CactusDisk *cactusDisk, stList *flowers);
+
 #endif
