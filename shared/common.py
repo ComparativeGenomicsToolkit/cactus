@@ -363,7 +363,6 @@ def runCactusRecursiveMafGenerator(cactusDiskDatabaseString,
                           showOnlySubstitutionsWithRespectToReference=None,
                           logLevel=None):
     logLevel = getLogLevelString2(logLevel)
-    print "I am running:", formatFlowerNames(flowerNames)
     popenPush("cactus_recursiveMafGenerator --cactusDisk '%s' --logLevel %s %s %s %s %s %s" % 
            (cactusDiskDatabaseString, logLevel, 
             nameValue("referenceEventString", referenceEventString),

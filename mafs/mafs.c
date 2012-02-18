@@ -164,6 +164,13 @@ static void makeMafForAdjacency(FILE *fileHandle, Cap *cap, Event *referenceEven
     }
 }
 
+void makeMAFHeader(Flower *flower, FILE *fileHandle) {
+    fprintf(fileHandle, "##maf version=1 scoring=N/A\n");
+    char *cA = eventTree_makeNewickString(flower_getEventTree(flower));
+    fprintf(fileHandle, "# cactus %s\n\n", cA);
+    free(cA);
+}
+
 void makeMaf(Flower *flower, const char *referenceEventString,
         const char *childDirectory, const char *parentDirectory,
         bool showOnlySubstitutionsWithRespectToReference, const char *outputFile) {
@@ -181,6 +188,7 @@ void makeMaf(Flower *flower, const char *referenceEventString,
     FILE *fileHandle = NULL;
     if(outputFile != NULL) {
         fileHandle = fopen(outputFile, "w");
+        makeMAFHeader(flower, fileHandle);
     }
     while ((end = flower_getNextEnd(endIt)) != NULL) {
         if (end_isStubEnd(end) && end_isAttached(end)) {
