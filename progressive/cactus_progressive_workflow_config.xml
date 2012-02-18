@@ -110,6 +110,10 @@
 		maxFlowerGroupSize="10000000"
 		runCheck="1"
 	/>
+	<maf
+		buildMaf="1"
+		showOnlySubstitutionsWithRespectToReference="0"
+	/>
 	<preprocessor 
 	 	chunkSize="100000000" 
 	 	preprocessorString='cactus_addFastaHeaderDots.py TARGET_FILE OUT_FILE --event EVENT_STRING'
