@@ -177,9 +177,29 @@ class ExtractReference(Target):
             
             system(cmdLine)
           
-            self.setFollowOnTarget(JoinMAF(self.options, self.project,
+        self.setFollowOnTarget(BuildMAF(self.options, self.project,
                                         self.experiment,
                                         self.event, self.ktserver))
+                
+class BuildMAF(Target):
+    def __init__(self, options, project, experiment, event, ktserver):
+        Target.__init__(self)
+        self.options = options
+        self.project = project
+        self.experiment = experiment
+        self.event = event
+        self.ktserver = ktserver
+    
+    def run(self):
+        if self.options.buildMAF and os.path.exists(self.experiment.getMAFPath()):             
+            logger.info("Starting MAF Build phase")
+
+            removeOutgroupFromMaf(self.experiment.getMAFPath(), 
+                                  self.experiment.getOutgroupEvents()) 
+        
+        self.setFollowOnTarget(JoinMAF(self.options, self.project,
+                                       self.experiment,
+                                       self.event, self.ktserver))
 
 class JoinMAF(Target):
     def __init__(self, options, project, experiment, event, ktserver):
@@ -251,7 +271,7 @@ def main():
     parser.add_option("--setupAndBuildAlignments", dest="setupAndBuildAlignments", action="store_true",
                       help="Setup and build alignments then normalise the resulting structure", default=False)
     
-    parser.add_option("--buildMAF", dest="buildMAF", action="store_true",
+    parser.add_option("--buildMaf", dest="buildMAF", action="store_true",
                      help="Create a MAF file from the cactus [default=false]", default=False)
     
     parser.add_option("--joinMAF", dest="joinMAF", action="store_true",
