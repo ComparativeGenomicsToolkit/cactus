@@ -73,7 +73,7 @@
 		runCheck="1"
 	/>
 	<maf
-		buildMaf="0"
+		buildMaf="1"
 		showOnlySubstitutionsWithRespectToReference="0"
 	/>
 </cactusWorkflowConfig>

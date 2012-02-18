@@ -95,6 +95,9 @@ class CactusWorkflowExperiment:
         self.experiment.attrib["config"] = "default"
         if configFile != None:
             self.experiment.attrib["config"] = configFile
+        if mafFile != None:
+            mafElem = ET.SubElement(self.experiment, "maf")
+            mafElem.attrib["path"] = mafFile
     
     def writeExperimentFile(self, experimentFile):
         """Writes a description of the config into this directory.

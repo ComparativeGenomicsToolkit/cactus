@@ -634,14 +634,16 @@ class CactusCheck(CactusRecursionTarget):
 class CactusMafGeneratorPhase(CactusPhasesTarget):
     def run(self):
         self.logToMaster("Starting the maf generation phase at %s seconds" % time.time())
-        referenceNode = self.options.config.find("reference")
-        mafGeneratorNode = self.options.config.find("maf")
-        mafGeneratorNode.attrib["reference"] = referenceNode.attrib["reference"]
-        if getOptionalAttrib(mafGeneratorNode, "buildMaf", bool, default=False):
-            self.addChildTarget(CactusMafGeneratorUp(cactusDiskDatabaseString=self.options.cactusDiskDatabaseString, 
-                                                     configNode=extractNode(mafGeneratorNode), 
-                                                     flowerNames=[ self.flowerName, 1 ], 
-                                                     parentTempDir=None, outputFile=self.options.experimentFile.find("maf").attrib["path"]))
+        if self.options.buildReference: #Must have reference building set.
+            referenceNode = self.options.config.find("reference")
+            mafGeneratorNode = self.options.config.find("maf")
+            if referenceNode.attrib.has_key("reference"):
+                mafGeneratorNode.attrib["reference"] = referenceNode.attrib["reference"]
+            if getOptionalAttrib(mafGeneratorNode, "buildMaf", bool, default=False) or self.options.buildMaf:
+                self.addChildTarget(CactusMafGeneratorUp(cactusDiskDatabaseString=self.options.cactusDiskDatabaseString, 
+                                                         configNode=extractNode(mafGeneratorNode), 
+                                                         flowerNames=[ self.flowerName, 1 ], 
+                                                         parentTempDir=None, outputFile=self.options.experimentFile.find("maf").attrib["path"]))
 
 class CactusMafGeneratorUp(CactusRecursionTarget):
     """Generate the maf my merging mafs from the children.
@@ -668,7 +670,7 @@ class CactusMafGeneratorUpRunnable(CactusMafGeneratorUp):
     def run(self):
         runCactusRecursiveMafGenerator(cactusDiskDatabaseString=self.cactusDiskDatabaseString, 
                               flowerNames=self.flowerNames,
-                              referenceEventString=self.configNode.attrib["reference"], #getOptionalAttrib(self.configNode, "reference"), 
+                              referenceEventString=getOptionalAttrib(self.configNode, "reference"), #self.configNode.attrib["reference"], #getOptionalAttrib(self.configNode, "reference"), 
                               childDir=self.getGlobalTempDir(), parentDir=self.parentTempDir, 
                               outputFile=self.outputFile,
                               showOnlySubstitutionsWithRespectToReference=\
@@ -717,6 +719,9 @@ def main():
     
     parser.add_option("--buildReference", dest="buildReference", action="store_true",
                       help="Creates a reference ordering for the flowers", default=False)
+    
+    parser.add_option("--buildMaf", dest="buildMaf", action="store_true",
+                      help="Build a maf", default=False)
     
     options, args = parser.parse_args()
     setLoggingFromOptions(options)

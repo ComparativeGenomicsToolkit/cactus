@@ -66,7 +66,9 @@ def getCactusWorkflowExperimentForTest(sequences, newickTreeString, outputDir, d
     """Wrapper to constructor of CactusWorkflowExperiment which additionally incorporates
     any globally set database conf.
     """
-    return CactusWorkflowExperiment(sequences, newickTreeString, outputDir=outputDir, databaseName=databaseName, databaseConf=GLOBAL_DATABASE_CONF, configFile=configFile)
+    mafFile = os.path.join(outputDir, "maf.maf")
+    return CactusWorkflowExperiment(sequences, newickTreeString, outputDir=outputDir, databaseName=databaseName, databaseConf=GLOBAL_DATABASE_CONF, configFile=configFile,
+                                    mafFile=mafFile)
 
 def parseCactusSuiteTestOptions():
     """Cactus version of the basic option parser that can additionally parse 
@@ -219,7 +221,9 @@ def getCactusInputs_chromosomeX(regionNumber=0, tempDir=None):
 def runWorkflow_TestScript(sequences, newickTreeString, 
                            outputDir=None,
                            batchSystem="single_machine",
-                           buildTrees=True, buildFaces=True, buildReference=True,
+                           buildTrees=True, buildFaces=True, 
+                           buildReference=True,
+                           buildMaf=False,
                            configFile=None,
                            buildJobTreeStats=False,
                            cactusWorkflowFunction=runCactusWorkflow):
@@ -251,6 +255,7 @@ def runWorkflow_TestScript(sequences, newickTreeString,
     cactusWorkflowFunction(experimentFile, jobTreeDir, 
                       batchSystem=batchSystem, buildTrees=buildTrees, 
                       buildFaces=buildFaces, buildReference=buildReference,
+                      buildMaf=buildMaf,
                       jobTreeStats=buildJobTreeStats)
     logger.info("Ran the the workflow")
     
@@ -284,7 +289,8 @@ def runWorkflow_multipleExamples(inputGenFunction,
                                batchSystem="single_machine",
                                buildTrees=True, buildFaces=True, buildReference=True,
                                configFile=None, buildJobTreeStats=False, 
-                               cactusWorkflowFunction=runCactusWorkflow):
+                               cactusWorkflowFunction=runCactusWorkflow,
+                               buildMaf=False):
     """A wrapper to run a number of examples.
     """
     if (inverseTestRestrictions and TestStatus.getTestStatus() not in testRestrictions) or \
@@ -296,6 +302,7 @@ def runWorkflow_multipleExamples(inputGenFunction,
                                                 outputDir=tempDir,
                                    batchSystem=batchSystem,
                                    buildTrees=buildTrees, buildFaces=buildFaces, buildReference=buildReference, 
+                                   buildMaf=buildMaf,
                                    configFile=configFile,
                                    buildJobTreeStats=buildJobTreeStats,
                                    cactusWorkflowFunction=cactusWorkflowFunction)

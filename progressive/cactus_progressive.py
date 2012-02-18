@@ -176,9 +176,7 @@ class ExtractReference(Target):
              self.experiment.getReferencePath(), getLogLevelString())            
             
             system(cmdLine)
-        
-        if self.options.buildMAF and\
-        (self.options.overwrite or not os.path.exists(self.experiment.getMAFPath())):       
+          
             self.setFollowOnTarget(JoinMAF(self.options, self.project,
                                         self.experiment,
                                         self.event, self.ktserver))

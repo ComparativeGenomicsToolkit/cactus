@@ -15,6 +15,7 @@ from cactus.baseAlignment.cactus_baseAlignerTest import TestCase as baseAlignerT
 from cactus.phylogeny.cactus_phylogenyTest import TestCase as phylogenyTest
 from cactus.faces.cactus_fillAdjacenciesTest import TestCase as adjacenciesTest
 from cactus.reference.cactus_referenceTest import TestCase as referenceTest
+from cactus.mafs.cactus_mafTest import TestCase as mafTest
 from cactus.api.allTests import TestCase as aPITest
 from cactus.externalTools.threeEdgeConnected.threeEdgeTests import TestCase as threeEdgeTest
 from cactus.externalTools.matchGraph.matchGraphTest import TestCase as matchGraphTest
@@ -39,7 +40,8 @@ def allSuites():
                                    unittest.makeSuite(adjacenciesTest, 'test'),
                                    unittest.makeSuite(referenceTest, 'test'),
                                    unittest.makeSuite(aPITest, 'test'),
-                                   unittest.makeSuite(normalisationTest, 'test'),                                   
+                                   unittest.makeSuite(normalisationTest, 'test'),  
+                                   unittest.makeSuite(mafTest, 'test'),                                  
                                    progressiveSuite()))
     return allTests
         
