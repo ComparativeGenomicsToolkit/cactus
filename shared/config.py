@@ -46,7 +46,7 @@ class CactusWorkflowExperiment:
     """
     def __init__(self, sequences, newickTreeString, 
                  outgroupEvents=None, outputDir=None, databaseName=None, 
-                 databaseConf=None, configFile=None):
+                 databaseConf=None, configFile=None, mafFile=None):
         self.experiment = ET.Element("cactus_workflow_experiment")
         if databaseName == None:
             self.databaseName = "cactusDisk_%s_%i" % (getRandomAlphaNumericString(), os.getpid()) #Needs to be unique
