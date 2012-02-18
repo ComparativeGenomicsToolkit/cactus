@@ -176,36 +176,12 @@ class ExtractReference(Target):
              self.experiment.getReferencePath(), getLogLevelString())            
             
             system(cmdLine)
-            
-        self.setFollowOnTarget(BuildMAF(self.options, self.project,
+        
+        if self.options.buildMAF and\
+        (self.options.overwrite or not os.path.exists(self.experiment.getMAFPath())):       
+            self.setFollowOnTarget(JoinMAF(self.options, self.project,
                                         self.experiment,
                                         self.event, self.ktserver))
-                
-class BuildMAF(Target):
-    def __init__(self, options, project, experiment, event, ktserver):
-        Target.__init__(self)
-        self.options = options
-        self.project = project
-        self.experiment = experiment
-        self.event = event
-        self.ktserver = ktserver
-    
-    def run(self):
-        if self.options.buildMAF and\
-        (self.options.overwrite or not os.path.exists(self.experiment.getMAFPath())):             
-            logger.info("Starting MAF Build phase")
-            
-            cmdLine = "cactus_MAFGenerator --cactusDisk \'%s\' --flowerName 0 --outputFile %s --logLevel %s" % \
-            (self.experiment.getDiskDatabaseString(),
-             self.experiment.getMAFPath(), getLogLevelString())            
-
-            system(cmdLine) 
-            removeOutgroupFromMaf(self.experiment.getMAFPath(), 
-                                  self.experiment.getOutgroupEvents()) 
-        
-        self.setFollowOnTarget(JoinMAF(self.options, self.project,
-                                       self.experiment,
-                                       self.event, self.ktserver))
 
 class JoinMAF(Target):
     def __init__(self, options, project, experiment, event, ktserver):

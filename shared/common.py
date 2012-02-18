@@ -351,3 +351,21 @@ def runCactusProgressive(inputDir,
                                      nameValue("joinMAF", joinMaf, bool), nameValue("event", event)))
     system(command)
     logger.info("Ran the cactus progressive okay")
+    
+def runCactusRecursiveMafGenerator(cactusDiskDatabaseString,
+                          flowerNames,
+                          referenceEventString, 
+                          childDir, 
+                          parentDir=None, outputFile=None,
+                          showOnlySubstitutionsWithRespectToReference=None,
+                          logLevel=None):
+    logLevel = getLogLevelString2(logLevel)
+    print "I am running:", formatFlowerNames(flowerNames)
+    popenPush("cactus_recursiveMafGenerator --cactusDisk '%s' --logLevel %s %s %s %s %s %s" % 
+           (cactusDiskDatabaseString, logLevel, 
+            nameValue("referenceEventString", referenceEventString),
+            nameValue("childDir", childDir),
+            nameValue("parentDir", parentDir),
+            nameValue("outputFile", outputFile),
+            nameValue("showOnlySubstitutionsWithRespectToReference", showOnlySubstitutionsWithRespectToReference, bool)), stdinString=formatFlowerNames(flowerNames))
+    

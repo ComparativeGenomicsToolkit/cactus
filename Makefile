@@ -1,5 +1,5 @@
 # order is important, libraries first
-modules = externalTools api pinchGraphs blastAlignment core setup baseAlignment normalisation matching reference phylogeny faces check pipeline progressive preprocessor
+modules = externalTools api pinchGraphs blastAlignment core setup baseAlignment normalisation matching reference phylogeny faces check pipeline progressive preprocessor mafs
 
 .PHONY: all %.all clean %.clean
 

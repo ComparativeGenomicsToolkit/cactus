@@ -52,6 +52,7 @@ from cactus.shared.common import runCactusMakeNormal
 from cactus.shared.common import runCactusReference
 from cactus.shared.common import runCactusAddReferenceCoordinates
 from cactus.shared.common import runCactusCheck
+from cactus.shared.common import runCactusRecursiveMafGenerator
 
 from cactus.blastAlignment.cactus_aligner import MakeSequences
 from cactus.blastAlignment.cactus_batch import MakeBlastOptions
@@ -613,6 +614,7 @@ class CactusCheckPhase(CactusPhasesTarget):
             self.logToMaster("Starting the verification phase at %s seconds" % (time.time()))
             self.addChildTarget(CactusCheck(self.options.cactusDiskDatabaseString, extractNode(checkNode), 
                                             [ self.flowerName, 1 ]))
+        self.setFollowOnTarget(CactusMafGeneratorPhase(self.options, self.flowerName))
         
 class CactusCheck(CactusRecursionTarget):
     """This target does the down pass for the check phase.
@@ -620,6 +622,57 @@ class CactusCheck(CactusRecursionTarget):
     def run(self):
         runCactusCheck(self.cactusDiskDatabaseString, self.flowerNames, getOptionalAttrib(self.configNode, "checkNormalised", bool))
         makeChildTargets(self.cactusDiskDatabaseString, self.configNode, self.flowerNames, self, CactusCheck)   
+
+############################################################
+############################################################
+############################################################
+#Check pass
+############################################################
+############################################################
+############################################################
+
+class CactusMafGeneratorPhase(CactusPhasesTarget):
+    def run(self):
+        self.logToMaster("Starting the maf generation phase at %s seconds" % time.time())
+        referenceNode = self.options.config.find("reference")
+        mafGeneratorNode = self.options.config.find("maf")
+        mafGeneratorNode.attrib["reference"] = referenceNode.attrib["reference"]
+        if getOptionalAttrib(mafGeneratorNode, "buildMaf", bool, default=False):
+            self.addChildTarget(CactusMafGeneratorUp(cactusDiskDatabaseString=self.options.cactusDiskDatabaseString, 
+                                                     configNode=extractNode(mafGeneratorNode), 
+                                                     flowerNames=[ self.flowerName, 1 ], 
+                                                     parentTempDir=None, outputFile=self.options.experimentFile.find("maf").attrib["path"]))
+
+class CactusMafGeneratorUp(CactusRecursionTarget):
+    """Generate the maf my merging mafs from the children.
+    """ 
+    def __init__(self, cactusDiskDatabaseString, configNode, flowerNames, parentTempDir, outputFile, memory=sys.maxint, cpu=sys.maxint):
+        CactusRecursionTarget.__init__(self, cactusDiskDatabaseString, configNode, flowerNames, memory, cpu)
+        self.parentTempDir = parentTempDir
+        self.outputFile = outputFile
+    
+    def run(self):
+        def fn(cactusDiskDatabaseString, configNode, flowerNames, memory=sys.maxint, cpu=sys.maxint):
+            return CactusMafGeneratorUp(cactusDiskDatabaseString=cactusDiskDatabaseString, configNode=configNode, 
+                                        flowerNames=flowerNames, parentTempDir=self.getGlobalTempDir(), 
+                                        outputFile=None,
+                                        memory=memory, cpu=cpu)
+        #(self, cactusDiskDatabaseString, configNode, flowerNames, memory=sys.maxint, cpu=sys.maxint):
+        makeChildTargets(self.cactusDiskDatabaseString, self.configNode, self.flowerNames, self, fn)
+        self.setFollowOnTarget(CactusMafGeneratorUpRunnable(self.cactusDiskDatabaseString, 
+                                                            self.configNode, self.flowerNames, self.parentTempDir, self.outputFile))
+        
+class CactusMafGeneratorUpRunnable(CactusMafGeneratorUp):
+    """Does the up pass for filling in the coordinates, once a reference is added.
+    """ 
+    def run(self):
+        runCactusRecursiveMafGenerator(cactusDiskDatabaseString=self.cactusDiskDatabaseString, 
+                              flowerNames=self.flowerNames,
+                              referenceEventString=self.configNode.attrib["reference"], #getOptionalAttrib(self.configNode, "reference"), 
+                              childDir=self.getGlobalTempDir(), parentDir=self.parentTempDir, 
+                              outputFile=self.outputFile,
+                              showOnlySubstitutionsWithRespectToReference=\
+                              getOptionalAttrib(self.configNode, "showOnlySubstitutionsWithRespectToReference", bool))
 
 # add stuff to the options object 
 # (code extracted from the main() method so it can be reused by progressive)
