@@ -66,7 +66,7 @@ static bool isOneAdjacencyComponent(Group *group) {
 #endif
 
 
-static void extendFlowers(Flower *flower) {
+static void extendFlowers(Flower *flower, bool createRedundantFlowerLinks) {
     Flower_GroupIterator *groupIterator;
     Group *group;
     if (flower_builtBlocks(flower)) {
@@ -76,8 +76,16 @@ static void extendFlowers(Flower *flower) {
                 int64_t size = group_getTotalBaseLength(group);
                 assert(size >= 0);
                 if (size >= minFlowerSize && size <= maxFlowerSize) {
-                    group_makeNestedFlower(group);
-                    flowerWriter_add(flowerWriter, group_getName(group), size);
+                    Flower *nestedFlower = group_makeNestedFlower(group);
+                    if(createRedundantFlowerLinks) {
+                        flower_setBuiltBlocks(nestedFlower, 1);
+                        Group *nestedGroup = flower_getFirstGroup(nestedFlower);
+                        group_makeNestedFlower(nestedGroup);
+                        flowerWriter_add(flowerWriter, group_getName(nestedGroup), size);
+                    }
+                    else {
+                        flowerWriter_add(flowerWriter, group_getName(group), size);
+                    }
 #ifdef BEN_DEBUG
                     assert(isOneAdjacencyComponent(flower_getFirstGroup(group_getNestedFlower(group))));
                     assert(!flower_builtBlocks(flower));
@@ -108,7 +116,7 @@ int main(int argc, char *argv[]) {
     //stList *flowers = parseFlowers(argv + 6, argc - 6, cactusDisk);
     for (int32_t i = 0; i < stList_length(flowers); i++) {
         Flower *flower = stList_get(flowers, i);
-        extendFlowers(flower);
+        extendFlowers(flower, 1); //flower_getTotalBaseLength(flower) > INT64_MAX);
         assert(!flower_isParentLoaded(flower)); //The parent should not be loaded.
     }
     stList_destruct(flowers);
