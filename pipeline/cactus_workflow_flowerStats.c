@@ -25,6 +25,8 @@ int main(int argc, char *argv[]) {
 
     int64_t totalBases = flower_getTotalBaseLength(flower);
     int32_t totalEnds = flower_getEndNumber(flower);
+    int32_t totalFreeEnds = flower_getFreeStubEndNumber(flower);
+    int32_t totalAttachedEnds = flower_getAttachedStubEndNumber(flower);
     int32_t totalCaps = flower_getCapNumber(flower);
     int32_t totalBlocks = flower_getBlockNumber(flower);
     int32_t totalGroups = flower_getGroupNumber(flower);
@@ -66,9 +68,10 @@ int main(int argc, char *argv[]) {
         stSortedSet_destruct(ends);
     }
     assert(totalEdges % 2 == 0);
+    flower_destructEndIterator(endIt);
 
-    printf("total bases: %" PRIi64 " total-ends: %i total-caps: %i max-end-degree: %i max-adjacency-length: %" PRIi64 " total-blocks: %i total-groups: %i total-edges: %i\n",
-            totalBases, totalEnds, totalCaps, maxEndDegree, maxAdjacencyLength, totalBlocks, totalGroups, totalEdges);
+    printf("total bases: %" PRIi64 " total-ends: %i total-caps: %i max-end-degree: %i max-adjacency-length: %" PRIi64 " total-blocks: %i total-groups: %i total-edges: %i total-free-ends: %i total-attached-ends: %i\n",
+            totalBases, totalEnds, totalCaps, maxEndDegree, maxAdjacencyLength, totalBlocks, totalGroups, totalEdges, totalFreeEnds, totalAttachedEnds);
 
     return 0;
 }
