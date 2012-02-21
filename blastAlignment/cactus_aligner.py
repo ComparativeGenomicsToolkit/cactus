@@ -90,7 +90,10 @@ class ModifyBlasts(Target):
         fileHandle.write(self.tempResultsFile)
         fileHandle.close()
         system("cactus_batch_convertCoordinates %s %s" % (tempFile, self.resultsFile))
-        logger.info("Translated the coordinates of the alignments to the final file: %s", self.resultsFile)
+        logger.info("Translated the coordinates of the alignments to the final file: %s" % self.resultsFile)
+        fileSize = os.path.getsize(self.resultsFile)
+        if fileSize > 10000000:
+            self.logToMaster("Got a large blast file %s with %i bytes" % (self.resultsFile, fileSize))
 
 def main():
     ##########################################

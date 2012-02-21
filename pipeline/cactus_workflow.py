@@ -53,6 +53,7 @@ from cactus.shared.common import runCactusReference
 from cactus.shared.common import runCactusAddReferenceCoordinates
 from cactus.shared.common import runCactusCheck
 from cactus.shared.common import runCactusRecursiveMafGenerator
+from cactus.shared.common import runCactusFlowerStats
 
 from cactus.blastAlignment.cactus_aligner import MakeSequences
 from cactus.blastAlignment.cactus_batch import MakeBlastOptions
@@ -261,8 +262,9 @@ def makeTargets(cactusDiskDatabaseString, configNode, flowersAndSizes,
     for totalFlowerSize, firstFlowerName, flowerNumber in flowersAndSizes:
         if totalFlowerSize > maxSequenceSizeOfFlowerGrouping: #Make sure large flowers are on there own, in their own job
             assert flowerNumber == 1
-            parentTarget.logToMaster("Adding an oversize flower: %s on its own, with %s bases for target class %s" \
-                                     % (firstFlowerName, totalFlowerSize, target))
+            flowerStatsString = runCactusFlowerStats(cactusDiskDatabaseString, firstFlowerName)
+            parentTarget.logToMaster("Adding an oversize flower: %s on its own, with %s bases for target class %s and stats %s" \
+                                     % (firstFlowerName, totalFlowerSize, target, flowerStatsString))
             parentTarget.addChildTarget(overlargeTarget(cactusDiskDatabaseString=cactusDiskDatabaseString, 
                                                         configNode=configNode, 
                                                         flowerNames=[ firstFlowerName, 1 ], memory=overlargeCpu, cpu=overlargeCpu)) #This ensures overlarge flowers, 

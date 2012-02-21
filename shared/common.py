@@ -188,6 +188,14 @@ def runCactusExtendFlowers(cactusDiskDatabaseString, flowerNames,
     l = readFlowerNamesFile(flowerStrings)
     return l
 
+def runCactusFlowerStats(cactusDiskDatabaseString, flowerName, logLevel=None):
+    """Prints stats for the given flower
+    """
+    logLevel = getLogLevelString2(logLevel)
+    flowerStatsString = popenCatch("cactus_workflow_flowerStats %s '%s' %s" % 
+                              (logLevel, cactusDiskDatabaseString, flowerName))
+    return flowerStatsString.split("\n")[0]
+
 def runCactusMakeNormal(cactusDiskDatabaseString, flowerNames, maxNumberOfChains=0, logLevel=None):
     """Makes the given flowers normal (see normalisation for the various phases)
     """
