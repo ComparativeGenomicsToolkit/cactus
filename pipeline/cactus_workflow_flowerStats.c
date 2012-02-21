@@ -53,7 +53,7 @@ int main(int argc, char *argv[]) {
         }
     }
 
-    printf("total bases: %lli total-ends: %i total-caps: %i max-end-degree: %i max-adjacency-length: %lli\n",
+    printf("total bases: %" PRIi64 " total-ends: %i total-caps: %i max-end-degree: %i max-adjacency-length: %" PRIi64 "\n",
             totalBases, totalEnds, totalCaps, maxEndDegree, maxAdjacencyLength);
 
     return 0;
