@@ -27,6 +27,7 @@ static bool isOneAdjacencyComponent(Group *group) {
         stSortedSet_insert(ends, end);
     }
     group_destructEndIterator(endIt);
+    assert(stSortedSet_size(ends) == group_getEndNumber(group));
 
     /*
      * Now iterate through connections.
@@ -36,7 +37,6 @@ static bool isOneAdjacencyComponent(Group *group) {
     stList *stack = stList_construct();
     stSortedSet_remove(ends, end);
     stList_append(stack, end);
-
 
     while(stList_length(stack) > 0) {
         end = stList_pop(stack);
@@ -88,6 +88,7 @@ static void extendFlowers(Flower *flower, bool createRedundantFlowerLinks) {
                     }
 //#ifdef BEN_DEBUG
                     assert(isOneAdjacencyComponent(flower_getFirstGroup(nestedFlower)));
+                    assert(flower_getEndNumber(nestedFlower) == group_getEndNumber(flower_getFirstGroup(nestedFlower)));
                     assert(!flower_builtBlocks(nestedFlower));
                     assert(flower_isLeaf(nestedFlower));
                     assert(flower_getBlockNumber(nestedFlower) == 0);
