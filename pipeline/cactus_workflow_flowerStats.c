@@ -26,6 +26,8 @@ int main(int argc, char *argv[]) {
     int64_t totalBases = flower_getTotalBaseLength(flower);
     int32_t totalEnds = flower_getEndNumber(flower);
     int32_t totalCaps = flower_getCapNumber(flower);
+    int32_t totalBlocks = flower_getBlockNumber(flower);
+    int32_t totalGroups = flower_getGroupNumber(flower);
     int32_t maxEndDegree = 0;
     int64_t maxAdjacencyLength = 0;
 
@@ -53,8 +55,8 @@ int main(int argc, char *argv[]) {
         }
     }
 
-    printf("total bases: %" PRIi64 " total-ends: %i total-caps: %i max-end-degree: %i max-adjacency-length: %" PRIi64 "\n",
-            totalBases, totalEnds, totalCaps, maxEndDegree, maxAdjacencyLength);
+    printf("total bases: %" PRIi64 " total-ends: %i total-caps: %i max-end-degree: %i max-adjacency-length: %" PRIi64 " total-blocks: %i total-groups: %i\n",
+            totalBases, totalEnds, totalCaps, maxEndDegree, maxAdjacencyLength, totalBlocks, totalGroups);
 
     return 0;
 }

@@ -11,7 +11,7 @@
  * non-terminal groups. Used during the core stage.
  */
 
-#ifdef BEN_DEBUG
+//#ifdef BEN_DEBUG
 static bool isOneAdjacencyComponent(Group *group) {
     /*
      * Checks a group is one adjacency component.
@@ -63,7 +63,7 @@ static bool isOneAdjacencyComponent(Group *group) {
     stList_destruct(stack);
     return b;
 }
-#endif
+//#endif
 
 
 static void extendFlowers(Flower *flower, bool createRedundantFlowerLinks) {
@@ -80,20 +80,20 @@ static void extendFlowers(Flower *flower, bool createRedundantFlowerLinks) {
                     if(createRedundantFlowerLinks) {
                         flower_setBuiltBlocks(nestedFlower, 1);
                         Group *nestedGroup = flower_getFirstGroup(nestedFlower);
-                        group_makeNestedFlower(nestedGroup);
-                        flowerWriter_add(flowerWriter, group_getName(nestedGroup), size);
+                        nestedFlower = group_makeNestedFlower(nestedGroup);
+                        flowerWriter_add(flowerWriter, flower_getName(nestedFlower), size);
                     }
                     else {
-                        flowerWriter_add(flowerWriter, group_getName(group), size);
+                        flowerWriter_add(flowerWriter, flower_getName(nestedFlower), size);
                     }
-#ifdef BEN_DEBUG
-                    assert(isOneAdjacencyComponent(flower_getFirstGroup(group_getNestedFlower(group))));
-                    assert(!flower_builtBlocks(flower));
-                    assert(flower_isLeaf(flower));
-                    assert(flower_getBlockNumber(flower) == 0);
-                    assert(flower_getGroupNumber(flower) == 1);
-                    assert(flower_isTerminal(flower));
-#endif
+//#ifdef BEN_DEBUG
+                    assert(isOneAdjacencyComponent(flower_getFirstGroup(nestedFlower)));
+                    assert(!flower_builtBlocks(nestedFlower));
+                    assert(flower_isLeaf(nestedFlower));
+                    assert(flower_getBlockNumber(nestedFlower) == 0);
+                    assert(flower_getGroupNumber(nestedFlower) == 1);
+                    assert(flower_isTerminal(nestedFlower));
+//#endif
                 }
             }
         }
