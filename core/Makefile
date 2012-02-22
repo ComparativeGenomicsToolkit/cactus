@@ -5,8 +5,9 @@ cflags += ${tokyoCabinetIncl}
 
 libSources = impl/*.c
 libHeaders = inc/*.h
+libTests = tests/*.c
 
-all : ${libPath}/cactusCore.a ${binPath}/cactus_core
+all : ${libPath}/cactusCore.a ${binPath}/cactus_core ${binPath}/coreTests
 
 ${libPath}/cactusCore.a : ${libSources} ${libHeaders} ${libPath}/cactusBlastAlignment.a ${libPath}/cactusLib.a ${libPath}/pinchGraph.a ${libPath}/3EdgeConnected.a ${basicLibsDependencies}
 	${cxx} ${cflags} -I inc -I ${libPath}/ -c ${libSources}
@@ -18,6 +19,9 @@ ${libPath}/cactusCore.a : ${libSources} ${libHeaders} ${libPath}/cactusBlastAlig
 
 ${binPath}/cactus_core : cactus_core2.c ${libPath}/cactusBlastAlignment.a ${libPath}/cactusLib.a ${libPath}/cactusCore.a ${libPath}/pinchGraph.a ${libPath}/3EdgeConnected.a ${basicLibsDependencies}
 	${cxx} ${cflags} -I inc -I${libPath} -o ${binPath}/cactus_core cactus_core2.c ${libPath}/cactusCore.a ${libPath}/cactusBlastAlignment.a ${libPath}/pinchGraph.a ${libPath}/3EdgeConnected.a ${libPath}/cactusLib.a ${basicLibs} 
+
+${binPath}/coreTests : ${libTests} ${libSources} ${libHeaders} cactus_core2.c ${libPath}/cactusBlastAlignment.a ${libPath}/cactusLib.a ${libPath}/cactusCore.a ${libPath}/pinchGraph.a ${libPath}/3EdgeConnected.a ${basicLibsDependencies}
+	${cxx} ${cflags} -I inc -I impl -I${libPath} -o ${binPath}/coreTests ${libTests} ${libSources} ${libPath}/cactusCore.a ${libPath}/cactusBlastAlignment.a ${libPath}/pinchGraph.a ${libPath}/3EdgeConnected.a ${libPath}/cactusLib.a ${basicLibs} 
 
 clean : 
 	rm -f *.o

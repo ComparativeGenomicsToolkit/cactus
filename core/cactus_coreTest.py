@@ -34,6 +34,9 @@ class TestCase(unittest.TestCase):
                                      testRestrictions=(TestStatus.TEST_SHORT,), inverseTestRestrictions=True, 
                                      buildTrees=False, buildFaces=False, buildReference=False)
         
+    def testCuTest(self):
+        system("coreTests %s" % getLogLevelString())     
+        
 def getRandomConfigFile():
     tempConfigFile = getTempFile(rootDir="./", suffix=".xml")
     config = ET.parse(os.path.join(cactusRootPath(), "pipeline", "cactus_workflow_config.xml")).getroot()

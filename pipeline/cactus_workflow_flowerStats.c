@@ -71,7 +71,7 @@ int main(int argc, char *argv[]) {
     flower_destructEndIterator(endIt);
 
     printf("total bases: %" PRIi64 " total-ends: %i total-caps: %i max-end-degree: %i max-adjacency-length: %" PRIi64 " total-blocks: %i total-groups: %i total-edges: %i total-free-ends: %i total-attached-ends: %i\n",
-            totalBases, totalEnds, totalCaps, maxEndDegree, maxAdjacencyLength, totalBlocks, totalGroups, totalEdges, totalFreeEnds, totalAttachedEnds);
+            totalBases, totalEnds, totalCaps, maxEndDegree, maxAdjacencyLength, totalBlocks, totalGroups, totalEdges/2, totalFreeEnds, totalAttachedEnds);
 
     return 0;
 }
