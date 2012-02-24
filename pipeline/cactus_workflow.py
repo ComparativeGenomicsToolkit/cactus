@@ -369,7 +369,8 @@ def runCactusCoreInWorkflow(self, flowerNames, alignmentFile):
                       singleCopyIngroup=getOptionalAttrib(coreParameters, "singleCopyIngroup", bool),
                       singleCopyOutgroup=getOptionalAttrib(coreParameters, "singleCopyOutgroup", bool),
                       lastzArguments=getOptionalAttrib(blastParameters, "lastzArguments"),
-                      minimumSequenceLengthForBlast=getOptionalAttrib(blastParameters, "minimumSequenceLengthForBlast", int, 1))
+                      minimumSequenceLengthForBlast=getOptionalAttrib(blastParameters, "minimumSequenceLengthForBlast", int, 1),
+                      maxAdjacencyComponentSizeRatio=getOptionalAttrib(coreParameters, "maxAdjacencyComponentSizeRatio", float))
 
 class CactusCoreWrapper1(CactusRecursionTarget):
     """Runs cactus_core upon a set of flowers and no alignment file.

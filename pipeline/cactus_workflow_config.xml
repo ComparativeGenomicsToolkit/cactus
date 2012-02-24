@@ -25,6 +25,7 @@
 					minimumTreeCoverage="0.8" 
 					trim="0 0 0 0 0 0 0 0 0 0 0"
 					minimumBlockDegree="2"
+					maxAdjacencyComponentSizeRatio="10"
 				/>
 			</iteration>
 			<iteration 

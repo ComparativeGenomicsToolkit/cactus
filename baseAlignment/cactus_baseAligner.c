@@ -151,6 +151,7 @@ int main(int argc, char *argv[]) {
     cCIP->annealingRoundsLength = 1;
     cCIP->minimumDegree = 0;
     cCIP->minimumTreeCoverage = 0;
+    cCIP->maxAdjacencyComponentSizeRatio = INT32_MAX; //Unnecessary, but defensive.
     bool pruneOutStubAlignments = 0;
 
     /*

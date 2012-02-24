@@ -30,6 +30,7 @@
 					requiredAllFraction="1.0"
 					singleCopyIngroup="0"
 					singleCopyOutgroup="1"
+					maxAdjacencyComponentSizeRatio="10"
 				/>
 			</iteration>
 			<iteration 
@@ -61,6 +62,7 @@
 					requiredAllFraction="0.0"
 					singleCopyIngroup="0"
 					singleCopyOutgroup="1" 
+					maxAdjacencyComponentSizeRatio="10"
 				/>
 			</iteration>
 			<iteration 

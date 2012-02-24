@@ -102,10 +102,11 @@ def runCactusCore(cactusDiskDatabaseString, alignments,
                   requiredIngroupFraction=None,
                   requiredOutgroupFraction=None,
                   requiredAllFraction=None,
-                  singleCopyIngroup = None,
-                  singleCopyOutgroup = None,
-                  lastzArguments = None,
-                  minimumSequenceLengthForBlast= None):
+                  singleCopyIngroup=None,
+                  singleCopyOutgroup=None,
+                  lastzArguments=None,
+                  minimumSequenceLengthForBlast=None,
+                  maxAdjacencyComponentSizeRatio=None):
     logLevel = getLogLevelString2(logLevel)
     writeDebugFiles = nameValue("writeDebugFiles", writeDebugFiles, bool)
     alignRepeatsAtRound = nameValue("alignRepeatsAtRound", alignRepeatsAtRound, int)
@@ -124,12 +125,13 @@ def runCactusCore(cactusDiskDatabaseString, alignments,
     requiredAllFraction = nameValue("requiredAllFraction", requiredAllFraction, float)
     singleCopyIngroup = nameValue("singleCopyIngroup", singleCopyIngroup, bool)
     singleCopyOutgroup = nameValue("singleCopyOutgroup", singleCopyOutgroup, bool)
+    maxAdjacencyComponentSizeRatio = nameValue("maxAdjacencyComponentSizeRatio", maxAdjacencyComponentSizeRatio, float)
     
-    command = "cactus_core --cactusDisk '%s' --logLevel %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s" % \
+    command = "cactus_core --cactusDisk '%s' --logLevel %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s" % \
     (cactusDiskDatabaseString, logLevel, alignments, writeDebugFiles, annealingRounds, deannealingRounds, alignRepeatsAtRound,
      trim, minimumTreeCoverage, blockTrim, 
      minimumBlockDegree, requiredIngroupFraction, requiredOutgroupFraction, requiredAllFraction, 
-     singleCopyIngroup, singleCopyOutgroup, lastzArguments, minimumSequenceLengthForBlast)
+     singleCopyIngroup, singleCopyOutgroup, lastzArguments, minimumSequenceLengthForBlast, maxAdjacencyComponentSizeRatio)
     popenPush(command, stdinString=formatFlowerNames(flowerNames))
     logger.info("Ran cactus_core okay")
     
