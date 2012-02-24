@@ -14,7 +14,7 @@ static void *getValue(stHash *hash, int32_t node) {
     return object;
 }
 
-stList *breakUpComponentGreedily(stList *nodes, stList *edges, int32_t maxComponentSize) {
+stList *breakupComponentGreedily(stList *nodes, stList *edges, int32_t maxComponentSize) {
     /*
      * Make a component for each node in the graph
      */
@@ -34,7 +34,7 @@ stList *breakUpComponentGreedily(stList *nodes, stList *edges, int32_t maxCompon
 
     int32_t edgeScore = INT32_MAX;
     //While edges exist, try and put them into the graph.
-    stList *filteredEdges = stList_construct();
+    stList *edgesToDelete = stList_construct();
     int32_t totalComponents = stList_length(nodes);
     while(stList_length(sortedEdges) > 0) {
         stIntTuple *edge = stList_pop(sortedEdges);
@@ -44,13 +44,12 @@ stList *breakUpComponentGreedily(stList *nodes, stList *edges, int32_t maxCompon
         stSortedSet *component2 = getValue(nodeToComponents, stIntTuple_getPosition(edge, 2));
         assert(component1 != NULL && component2 != NULL);
         if(component1 == component2) { //We're golden, as the edge is already contained within one component.
-            stList_append(filteredEdges, edge);
             continue;
         }
         if(stSortedSet_size(component1) + stSortedSet_size(component2) > maxComponentSize) { //This edge would make a too large component, so reject
+            stList_append(edgesToDelete, edge);
             continue;
         }
-        stList_append(filteredEdges, edge);
         //Merge the components and replace references in the hash.
         if(stSortedSet_size(component1) < stSortedSet_size(component2)) {
             stSortedSet *component3 = component1;
@@ -70,7 +69,7 @@ stList *breakUpComponentGreedily(stList *nodes, stList *edges, int32_t maxCompon
     }
 
     st_logDebug("We broke a graph with %i nodes and %i edges for a max component size of %i into %i distinct components with %i edges, discarding %i edges\n",
-            stList_length(nodes), stList_length(edges), maxComponentSize, totalComponents, stList_length(filteredEdges), stList_length(edges) - stList_length(filteredEdges));
+            stList_length(nodes), stList_length(edges), maxComponentSize, totalComponents, stList_length(edges) - stList_length(edgesToDelete), stList_length(edgesToDelete));
 
     //Cleanup
     stList_destruct(sortedEdges);
@@ -81,5 +80,5 @@ stList *breakUpComponentGreedily(stList *nodes, stList *edges, int32_t maxCompon
     stSortedSet_destruct(componentsSet);
     stHash_destruct(nodeToComponents);
 
-    return filteredEdges;
+    return edgesToDelete;
 }

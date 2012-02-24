@@ -36,6 +36,8 @@ typedef struct _CactusCoreInputParameters {
 
     bool singleCopyIngroup;
     bool singleCopyOutgroup;
+
+    double maxAdjacencyComponentSizeRatio;
 } CactusCoreInputParameters;
 
 int32_t cactusCorePipeline(Flower *flower, CactusCoreInputParameters *cCIP,

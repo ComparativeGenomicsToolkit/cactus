@@ -118,9 +118,18 @@ static void checkComponents(CuTest *testCase, stList *filteredEdges) {
 static void testBreakUpComponentGreedily(CuTest *testCase) {
     for (int32_t i = 0; i < 100; i++) {
         setup();
-        stList *filteredEdges = breakUpComponentGreedily(nodes, edges, maxComponentSize);
+        stList *edgesToDelete = breakupComponentGreedily(nodes, edges, maxComponentSize);
+        stSortedSet *edgesSet = stList_getSortedSet(edges, (int (*)(const void *, const void *))stIntTuple_cmpFn);
+        stSortedSet *edgesToDeleteSet = stList_getSortedSet(edgesToDelete, (int (*)(const void *, const void *))stIntTuple_cmpFn);
+        stSortedSet *filteredEdgesSet = stSortedSet_getDifference(edgesSet, edgesToDeleteSet);
+        stList *filteredEdges = stSortedSet_getList(filteredEdgesSet);
+        assert(stSortedSet_size(edgesToDeleteSet) + stSortedSet_size(filteredEdgesSet) == stSortedSet_size(edgesSet));
         checkComponents(testCase, filteredEdges);
+        stSortedSet_destruct(edgesSet);
+        stSortedSet_destruct(edgesToDeleteSet);
+        stSortedSet_destruct(filteredEdgesSet);
         stList_destruct(filteredEdges);
+        stList_destruct(edgesToDelete);
         teardown();
     }
 }
