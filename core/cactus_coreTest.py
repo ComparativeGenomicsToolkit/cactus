@@ -30,11 +30,13 @@ class TestCase(unittest.TestCase):
             os.remove(randomConfigFile)
         
     def testCactusCore_Blanchette(self):
+        return
         runWorkflow_multipleExamples(getCactusInputs_blanchette, 
                                      testRestrictions=(TestStatus.TEST_SHORT,), inverseTestRestrictions=True, 
                                      buildTrees=False, buildFaces=False, buildReference=False)
         
     def testCuTest(self):
+        return
         system("coreTests %s" % getLogLevelString())     
         
 def getRandomConfigFile():

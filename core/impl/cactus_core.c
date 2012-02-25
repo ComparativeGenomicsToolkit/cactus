@@ -331,13 +331,14 @@ void convertAdjacencyComponent(stSortedSet *adjacencyComponent, stList **nodes,
     while ((vertex = stSortedSet_getNext(nodeIt)) != NULL) {
         assert(vertex->vertexID != 0);
         assert(lengthBlackEdges(vertex) > 0); //This must be true if the 0 vertex component is not in there.
-        if(lengthBlackEdges(vertex) > 1 || isAStub(getFirstBlackEdge(vertex))) {
+        if (lengthBlackEdges(vertex) > 1 || isAStub(getFirstBlackEdge(vertex))) {
             //We are only interested in the nodes whose black edges are not included in the component.
             stIntTuple *node = stIntTuple_construct(1, vertex->vertexID);
             stList_append(*nodes, node);
-        }
-        else {
-            assert(stSortedSet_search(adjacencyComponent, getFirstBlackEdge(vertex)->to) != NULL);
+        } else {
+            assert(
+                    stSortedSet_search(adjacencyComponent,
+                            getFirstBlackEdge(vertex)->to) != NULL);
         }
     }
     stSortedSet_destructIterator(nodeIt);
@@ -346,44 +347,56 @@ void convertAdjacencyComponent(stSortedSet *adjacencyComponent, stList **nodes,
     *edges = stList_construct3(0, (void(*)(void *)) stIntTuple_destruct);
     *edgesToPinchEdges = stHash_construct3(
             (uint32_t(*)(const void *)) stIntTuple_hashKey,
-            (int(*)(const void *, const void *)) stIntTuple_equalsFn,
-            NULL, (void(*)(void *)) stList_destruct); //Clean list of black edges, but leave stIntTuple edges, as cleaned up by 'edges' list.
+            (int(*)(const void *, const void *)) stIntTuple_equalsFn, NULL,
+            (void(*)(void *)) stList_destruct); //Clean list of black edges, but leave stIntTuple edges, as cleaned up by 'edges' list.
     nodeIt = stSortedSet_getIterator(adjacencyComponent);
     while ((vertex = stSortedSet_getNext(nodeIt)) != NULL) {
-        if(lengthBlackEdges(vertex) > 1 || isAStub(getFirstBlackEdge(vertex))) { //Again, ignore the nodes in the component whose black edge is in the component.
+        if (lengthBlackEdges(vertex) > 1 || isAStub(getFirstBlackEdge(vertex))) { //Again, ignore the nodes in the component whose black edge is in the component.
             void *greyEdgeIterator = getGreyEdgeIterator(vertex);
             struct PinchVertex *vertex2;
-            while ((vertex2 = getNextGreyEdge(vertex, greyEdgeIterator)) != NULL) {
+            while ((vertex2 = getNextGreyEdge(vertex, greyEdgeIterator))
+                    != NULL) {
                 assert(lengthBlackEdges(vertex2) > 0); //This must be true if the 0 vertex component is not in there.
                 int32_t otherVertexId = vertex2->vertexID;
                 struct PinchEdge *blackEdge;
-                if (lengthBlackEdges(vertex2) == 1 && !isAStub((blackEdge = getFirstBlackEdge(vertex2)))) { //There is an interstitial vertex
+                if (lengthBlackEdges(vertex2) == 1 && !isAStub(
+                        (blackEdge = getFirstBlackEdge(vertex2)))) { //There is an interstitial vertex
                     assert(blackEdge->from == vertex2);
-                    struct PinchVertex *vertex3 = getFirstGreyEdge(blackEdge->to);
+                    struct PinchVertex *vertex3 = getFirstGreyEdge(
+                            blackEdge->to);
                     otherVertexId = vertex3->vertexID;
                     //Check that the black edge is a link in the way we expect
-                    assert(stSortedSet_search(adjacencyComponent, blackEdge->from) != NULL);
-                    assert(stSortedSet_search(adjacencyComponent, blackEdge->to) != NULL);
-                    assert(stSortedSet_search(adjacencyComponent, vertex3) != NULL);
+                    assert(
+                            stSortedSet_search(adjacencyComponent,
+                                    blackEdge->from) != NULL);
+                    assert(
+                            stSortedSet_search(adjacencyComponent,
+                                    blackEdge->to) != NULL);
+                    assert(
+                            stSortedSet_search(adjacencyComponent, vertex3)
+                                    != NULL);
                 } else {
                     blackEdge = NULL;
-                    assert(stSortedSet_search(adjacencyComponent, vertex2) != NULL);
+                    assert(
+                            stSortedSet_search(adjacencyComponent, vertex2)
+                                    != NULL);
                 }
-                if(vertex->vertexID < otherVertexId) {
-                    stIntTuple *edge = stIntTuple_construct(2, vertex->vertexID, otherVertexId);
+                if (vertex->vertexID < otherVertexId) {
+                    stIntTuple *edge = stIntTuple_construct(2,
+                            vertex->vertexID, otherVertexId);
                     stList *blackEdgeList;
-                    if ((blackEdgeList = stHash_search(*edgesToPinchEdges, edge)) != NULL) {
-                        if(blackEdge == NULL) { //This edge can not be split
-                            while(stList_length(blackEdgeList) > 0) {
+                    if ((blackEdgeList
+                            = stHash_search(*edgesToPinchEdges, edge)) != NULL) {
+                        if (blackEdge == NULL) { //This edge can not be split
+                            while (stList_length(blackEdgeList) > 0) {
                                 stList_pop(blackEdgeList);
                             }
-                        }
-                        else if(stList_length(blackEdgeList) > 0) { //The edge can be split
+                        } else if (stList_length(blackEdgeList) > 0) { //The edge can be split
                             stList_append(blackEdgeList, blackEdge);
                         }
                     } else { //New edge, decide if it can be split.
                         blackEdgeList = stList_construct();
-                        if(blackEdge != NULL) {
+                        if (blackEdge != NULL) {
                             stList_append(blackEdgeList, blackEdge);
                         }
                     }
@@ -397,15 +410,17 @@ void convertAdjacencyComponent(stSortedSet *adjacencyComponent, stList **nodes,
 
     //Now dump edges into a list
     stList *edgesList = stHash_getKeys(*edgesToPinchEdges);
-    for(int32_t i=0; i<stList_length(edgesList); i++) {
+    for (int32_t i = 0; i < stList_length(edgesList); i++) {
         stIntTuple *edge = stList_get(edgesList, i);
         stList *blackEdges = stHash_remove(*edgesToPinchEdges, edge);
         assert(blackEdges != NULL);
-        stIntTuple *weightedEdge = stIntTuple_construct(3,
-                stList_length(blackEdges) == 0 ? INT32_MAX : stList_length(blackEdges),
-                stIntTuple_getPosition(edge, 0), stIntTuple_getPosition(edge, 1));
+        stIntTuple *weightedEdge = stIntTuple_construct(
+                3,
+                stList_length(blackEdges) == 0 ? INT32_MAX : stList_length(
+                        blackEdges), stIntTuple_getPosition(edge, 0),
+                stIntTuple_getPosition(edge, 1));
         stHash_insert(*edgesToPinchEdges, weightedEdge, blackEdges);
-        stList_append(*edges,weightedEdge);
+        stList_append(*edges, weightedEdge);
         stIntTuple_destruct(edge);
     }
     stList_destruct(edgesList);
@@ -416,7 +431,9 @@ static bool doNotPassThroughSelectedEdgesFn(struct PinchEdge *edge) {
     assert(lengthBlackEdges(edge->from) > 0);
     if (stSortedSet_search(doNotPassThroughSelectedVertices, edge->from)
             != NULL) {
-        assert(stSortedSet_search(doNotPassThroughSelectedVertices, edge->to) != NULL);
+        assert(
+                stSortedSet_search(doNotPassThroughSelectedVertices, edge->to)
+                        != NULL);
         assert(lengthBlackEdges(edge->from) == 1);
         return 0;
     }
@@ -790,39 +807,43 @@ int32_t cactusCorePipeline(Flower *flower, CactusCoreInputParameters *cCIP,
     struct CactusGraph *cactusGraph;
     stList *adjacencyComponents;
     if (cCIP->minimumDegree > 1) {
-        doNotPassThroughSelectedVertices = stSortedSet_construct();
+        stSortedSet *blackEdgesToSplit = stSortedSet_construct();
         adjacencyComponents = getAdjacencyComponents2(pinchGraph,
                 passThroughDegree1EdgesFn);
-        st_logDebug("Before filtering we have %i adjacency components for a graph with %i vertices\n", stList_length(adjacencyComponents), pinchGraph->vertices->length);
-        double maxAdjacencyComponentSize = cCIP->maxAdjacencyComponentSizeRatio * log(pinchGraph->vertices->length);
-        //if(maxAdjacencyComponentSize < 100) {
-        //    maxAdjacencyComponentSize = 100;
-        //}
+        st_logDebug(
+                "Before filtering we have %i adjacency components for a graph with %i vertices\n",
+                stList_length(adjacencyComponents),
+                pinchGraph->vertices->length);
+        double maxAdjacencyComponentSize = cCIP->maxAdjacencyComponentSizeRatio
+                * log(pinchGraph->vertices->length);
+
+        //This code breaks up the components into smaller components. I'm not claiming this is pretty.
         for (int32_t i = 0; i < stList_length(adjacencyComponents); i++) {
             stSortedSet *adjacencyComponent =
                     stList_get(adjacencyComponents, i);
             if (stSortedSet_size(adjacencyComponent)
-                    > maxAdjacencyComponentSize && stSortedSet_search(adjacencyComponent, pinchGraph->vertices->list[0]) == NULL) {
+                    > maxAdjacencyComponentSize && stSortedSet_search(
+                    adjacencyComponent, pinchGraph->vertices->list[0]) == NULL) {
                 stList *nodes, *edges;
                 stHash *edgesToPinchEdges;
                 convertAdjacencyComponent(adjacencyComponent, &nodes, &edges,
                         &edgesToPinchEdges);
 
                 //Prune edges.
-                stList *edgesToDelete = breakupComponentGreedily(nodes, edges,
-                        maxAdjacencyComponentSize >= INT32_MAX ? INT32_MAX : maxAdjacencyComponentSize);
+                stList *edgesToDelete = breakupComponentGreedily(
+                        nodes,
+                        edges,
+                        maxAdjacencyComponentSize >= INT32_MAX ? INT32_MAX
+                                : maxAdjacencyComponentSize);
 
                 //Convert back to the edges to delete.
                 for (int32_t j = 0; j < stList_length(edgesToDelete); j++) {
-                    stList *blackEdges = stHash_search(
-                            edgesToPinchEdges, stList_get(edgesToDelete, j));
-                    for(int32_t k=0; k<stList_length(blackEdges); k++) {
+                    stList *blackEdges = stHash_search(edgesToPinchEdges,
+                            stList_get(edgesToDelete, j));
+                    for (int32_t k = 0; k < stList_length(blackEdges); k++) {
                         struct PinchEdge *pinchEdge = stList_get(blackEdges, k);
                         assert(pinchEdge != NULL);
-                        stSortedSet_insert(doNotPassThroughSelectedVertices,
-                                pinchEdge->from);
-                        stSortedSet_insert(doNotPassThroughSelectedVertices,
-                                pinchEdge->to);
+                        stSortedSet_insert(blackEdgesToSplit, pinchEdge);
                     }
                 }
 
@@ -831,17 +852,44 @@ int32_t cactusCorePipeline(Flower *flower, CactusCoreInputParameters *cCIP,
                 stHash_destruct(edgesToPinchEdges);
             }
         }
+
+        //Now split the black edges which we delete at their midpoint so that exactly one base will be unaligned.
+        doNotPassThroughSelectedVertices = stSortedSet_construct();
+        stSortedSetIterator *blackEdgeToSplitIt = stSortedSet_getIterator(
+                blackEdgesToSplit);
+        struct PinchEdge *pinchEdge;
+        while ((pinchEdge = stSortedSet_getNext(blackEdgeToSplitIt)) != NULL) {
+            Name contig = pinchEdge->piece->contig;
+            //Split the edge
+            int32_t midPoint =
+                    ((int64_t)pinchEdge->piece->start + pinchEdge->piece->end) / 2; //Avoid overflow here.
+            assert(midPoint >= pinchEdge->piece->start);
+            assert(midPoint <= pinchEdge->piece->end);
+            splitEdge(pinchGraph, contig, midPoint, 1, NULL);
+            splitEdge(pinchGraph, contig, midPoint, 0, NULL);
+            pinchEdge = getContainingBlackEdge(pinchGraph, contig, midPoint);
+            assert(pinchEdge != NULL);
+            assert(pinchEdge->piece->contig == contig);
+            assert(pinchEdge->piece->start == midPoint);
+            assert(pinchEdge->piece->end == midPoint);
+            assert(lengthBlackEdges(pinchEdge->from) == 1);
+            stSortedSet_insert(doNotPassThroughSelectedVertices, pinchEdge->from);
+            stSortedSet_insert(doNotPassThroughSelectedVertices, pinchEdge->to);
+        }
+        stSortedSet_destructIterator(blackEdgeToSplitIt);
+        stSortedSet_destruct(blackEdgesToSplit);
         stList_destruct(adjacencyComponents);
+
+        //Now finally build the graph with the pruned edges
         cactusGraph = cactusCorePipeline_2(pinchGraph, flower,
                 doNotPassThroughSelectedEdgesFn, 1);
         adjacencyComponents = getAdjacencyComponents2(pinchGraph,
                 doNotPassThroughSelectedEdgesFn);
-        st_logDebug("After filtering the adjacency components for excess edges we find %i nodes of out of %i to delete, giving %i components\n",
-                stSortedSet_size(doNotPassThroughSelectedVertices), pinchGraph->vertices->length,
+        st_logDebug(
+                "After filtering the adjacency components for excess edges we find %i nodes of out of %i to delete, giving %i components\n",
+                stSortedSet_size(doNotPassThroughSelectedVertices),
+                pinchGraph->vertices->length,
                 stList_length(adjacencyComponents));
-        //if(stSortedSet_size(doNotPassThroughSelectedVertices) > 0) {
-        //    assert(0);
-        //}
         stSortedSet_destruct(doNotPassThroughSelectedVertices);
     } else {
         cactusGraph = cactusCorePipeline_2(pinchGraph, flower,
