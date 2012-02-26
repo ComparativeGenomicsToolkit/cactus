@@ -725,6 +725,11 @@ int32_t cactusCorePipeline(Flower *flower, CactusCoreInputParameters *cCIP,
 
                 totalAdjacenciesBroken += stList_length(edgesToDelete);
 
+                if(stList_length(edgesToDelete) > 0) {
+                    printf("Cactus core component with %i nodes and %i edges is being split up by breaking %i edges\n",
+                            stList_length(nodes), stList_length(edges), stList_length(edgesToDelete));
+                }
+
                 //Convert back to the edges to delete.
                 for (int32_t j = 0; j < stList_length(edgesToDelete); j++) {
                     stList *blackEdges = stHash_search(edgesToPinchEdges, stList_get(edgesToDelete, j));
@@ -776,7 +781,7 @@ int32_t cactusCorePipeline(Flower *flower, CactusCoreInputParameters *cCIP,
         if (stSortedSet_size(doNotPassThroughSelectedVertices) > 0) {
             printf(
                     "Cactus core split %i adjacencies (%i adjacency sequences) out of %i adjacencies in %i "
-                    "overlarge component (%i max), "
+                    "over-large components (%i max), "
                     "leaving a graph with %i vertices, %i black edges and %i adjacency components\n",
                     totalAdjacenciesBroken, stSortedSet_size(doNotPassThroughSelectedVertices),
                     totalAdjacencies, totalOverlargeAdjacencyComponents, ((int32_t)maxAdjacencyComponentSize),
