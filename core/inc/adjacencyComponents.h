@@ -34,12 +34,6 @@ bool doNotPassThroughDegree1EdgesFn(struct PinchEdge *edge);
 stList *getAdjacencyComponents(struct PinchGraph *pinchGraph);
 
 /*
- * Gets the length of an adjacency component, currently assuming the edges of the adjacency component consists only
- * of grey edges and black edges with degree 1.
- */
-int64_t getAdjacencyComponentSize(stSortedSet *adjacencyComponent);
-
-/*
  * Like getAdjacencyComponents. A pinch edge is counted as an adjacency edge if passThroughEdge returns non-zero.
  */
 stList *getAdjacencyComponents2(struct PinchGraph *pinchGraph, bool(*passThroughEdge)(struct PinchEdge *));

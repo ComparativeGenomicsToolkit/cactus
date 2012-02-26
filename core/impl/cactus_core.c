@@ -570,19 +570,6 @@ void buildOutPinchGraph(struct PinchGraph *pinchGraph, stList *adjacencyComponen
     st_logInfo("Trimmed %i from the end of edges\n", cCIP->blockTrim);
 }
 
-int64_t getMaximumAdjacencyComponentSize(struct PinchGraph *pinchGraph) {
-    stList *adjacencyComponents = getAdjacencyComponents(pinchGraph);
-    int64_t maxAdjacencyComponentSize = 0;
-    for (int32_t i = 0; i < stList_length(adjacencyComponents); i++) {
-        int64_t adjacencyComponentSize = getAdjacencyComponentSize(stList_get(adjacencyComponents, i));
-        if (adjacencyComponentSize > maxAdjacencyComponentSize) {
-            maxAdjacencyComponentSize = adjacencyComponentSize;
-        }
-    }
-    stList_destruct(adjacencyComponents);
-    return maxAdjacencyComponentSize;
-}
-
 int32_t cactusCorePipeline(Flower *flower, CactusCoreInputParameters *cCIP,
         struct PairwiseAlignment *(*getNextAlignment)(void), void(*startAlignmentStack)(void),
         void(*cleanUpAlignment)(struct PairwiseAlignment *)) {
@@ -690,11 +677,6 @@ int32_t cactusCorePipeline(Flower *flower, CactusCoreInputParameters *cCIP,
             buildOutPinchGraph(pinchGraph, adjacencyComponents, flower, cCIP, getNextAlignment, startAlignmentStack,
                     cleanUpAlignment, cCIP->annealingRounds[annealingRound], trim, alignRepeats);
 
-            st_logInfo(
-                    "The max group size is %lli for min chain length %i aiming at overall minimum chain length of %i \n",
-                    getMaximumAdjacencyComponentSize(pinchGraph), cCIP->annealingRounds[annealingRound],
-                    cCIP->annealingRounds[cCIP->annealingRoundsLength - 1]);
-
             ///////////////////////////////////////////////////////////////////////////
             // Un-link stub components from the sink component
             ///////////////////////////////////////////////////////////////////////////
@@ -722,7 +704,9 @@ int32_t cactusCorePipeline(Flower *flower, CactusCoreInputParameters *cCIP,
         st_logDebug("Before filtering we have %i adjacency components for a graph with %i vertices\n",
                 stList_length(adjacencyComponents), pinchGraph->vertices->length);
         double maxAdjacencyComponentSize = cCIP->maxAdjacencyComponentSizeRatio * log(pinchGraph->vertices->length);
-
+        int32_t totalAdjacencies = 0;
+        int32_t totalAdjacenciesBroken = 0;
+        int32_t totalOverlargeAdjacencyComponents = 0;
         //This code breaks up the components into smaller components. I'm not claiming this is pretty.
         for (int32_t i = 0; i < stList_length(adjacencyComponents); i++) {
             stSortedSet *adjacencyComponent = stList_get(adjacencyComponents, i);
@@ -732,10 +716,14 @@ int32_t cactusCorePipeline(Flower *flower, CactusCoreInputParameters *cCIP,
                 stHash *edgesToPinchEdges;
 
                 convertAdjacencyComponent(adjacencyComponent, &nodes, &edges, &edgesToPinchEdges);
+                totalAdjacencies += stList_length(edges);
+                totalOverlargeAdjacencyComponents += 1;
 
                 //Prune edges.
                 stList *edgesToDelete = breakupComponentGreedily(nodes, edges,
                         maxAdjacencyComponentSize >= INT32_MAX ? INT32_MAX : maxAdjacencyComponentSize);
+
+                totalAdjacenciesBroken += stList_length(edgesToDelete);
 
                 //Convert back to the edges to delete.
                 for (int32_t j = 0; j < stList_length(edgesToDelete); j++) {
@@ -787,8 +775,12 @@ int32_t cactusCorePipeline(Flower *flower, CactusCoreInputParameters *cCIP,
         //Printing to stdout is used to create log to master messages.
         if (stSortedSet_size(doNotPassThroughSelectedVertices) > 0) {
             printf(
-                    "Cactus core split %i adjacencies, leaving a graph with %i vertices, %i edges and %i adjacency components\n",
-                    stSortedSet_size(doNotPassThroughSelectedVertices), pinchGraph->vertices->length,
+                    "Cactus core split %i adjacencies (%i adjacency sequences) out of %i adjacencies in %i "
+                    "overlarge component (%i max), "
+                    "leaving a graph with %i vertices, %i black edges and %i adjacency components\n",
+                    totalAdjacenciesBroken, stSortedSet_size(doNotPassThroughSelectedVertices),
+                    totalAdjacencies, totalOverlargeAdjacencyComponents, ((int32_t)maxAdjacencyComponentSize),
+                    pinchGraph->vertices->length,
                     ((int32_t)avl_count(pinchGraph->edges)), stList_length(adjacencyComponents));
         }
         stSortedSet_destruct(doNotPassThroughSelectedVertices);
