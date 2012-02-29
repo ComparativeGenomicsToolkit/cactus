@@ -466,6 +466,7 @@ End *getDominantEnd(Flower *flower) {
     }
     flower_destructEndIterator(endIt);
     assert(dominantEnd != NULL);
+    assert(end_getOrientation(dominantEnd));
     if(end_getInstanceNumber(dominantEnd)*2 < flower_getCapNumber(flower)) {
         return NULL;
     }
