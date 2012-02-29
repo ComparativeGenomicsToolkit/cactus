@@ -184,7 +184,7 @@ static void test_getBlastPairs(CuTest *testCase) {
     }
 }
 
-stList *filterPairsToGetAnchorPoints(stList *alignedPairs, int32_t minRectangleSize, int32_t lX, int32_t lY);
+stList *getAnchorPoints(stList *alignedPairs, int32_t minRectangleSize, int32_t lX, int32_t lY);
 
 static void test_filterPairsToGetAnchorPoints(CuTest *testCase) {
     for (int32_t test = 0; test < 10; test++) {
@@ -196,7 +196,7 @@ static void test_filterPairsToGetAnchorPoints(CuTest *testCase) {
 
         stList *blastPairs = getBlastPairs(seqX, seqY, seqXLength, seqYLength, 0);
         int32_t minRectangleSize = st_randomInt(0, 20);
-        stList *filteredPairs = filterPairsToGetAnchorPoints(blastPairs, minRectangleSize, seqXLength, seqYLength);
+        stList *filteredPairs = getAnchorPoints(blastPairs, minRectangleSize, seqXLength, seqYLength);
         int32_t pX = -1;
         int32_t pY = -1;
         for(int32_t i=0; i<stList_length(filteredPairs); i++) {

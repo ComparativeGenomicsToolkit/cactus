@@ -20,11 +20,11 @@
 static const int32_t ThreadChunkSize = 150;
 static inline int32_t getNumThreads(int32_t arraySize)
 {
-	int32_t numThreads = omp_get_max_threads();
-	int32_t maxThreads = arraySize / ThreadChunkSize;
-	if (maxThreads < numThreads && maxThreads > 0)
-		return maxThreads;
-	return numThreads;
+    int32_t numThreads = omp_get_max_threads();
+    int32_t maxThreads = arraySize / ThreadChunkSize;
+    if (maxThreads < numThreads && maxThreads > 0)
+    return maxThreads;
+    return numThreads;
 }
 #endif
 /*
@@ -94,8 +94,8 @@ static inline double lookup(double x) {
 
 double logAdd(double x, double y) {
     if (x < y)
-        return (x == logZero || y - x >= logUnderflowThreshold) ? y : lookup(y
-                - x) + x;
+        return (x == logZero || y - x >= logUnderflowThreshold) ? y : lookup(
+                y - x) + x;
     return (y == logZero || x - y >= logUnderflowThreshold) ? x : lookup(x - y)
             + y;
 }
@@ -252,13 +252,15 @@ static inline void forwardCell(double *fM, int32_t x, int32_t y, int32_t lX,
         int32_t lY, const char *sX, const char *sY) {
     double *cell = getCell(fM, x, y, lX);
     for (int32_t to = 0; to < cellNo; to++) {
-        double *pCell = getCell(fM, x - getTransitionOffSetX(to), y
-                - getTransitionOffSetY(to), lX);
+        double *pCell = getCell(fM, x - getTransitionOffSetX(to),
+                y - getTransitionOffSetY(to), lX);
         if (pCell != NULL) {
             double eP = emissionProb(x, y, lX, lY, sX, sY, to);
             for (int32_t from = 0; from < cellNo; from++) {
-                logAddAndAssign(&cell[to], pCell[from] + transitionProb(from,
-                        to) + eP);
+                double tP = transitionProb(from, to);
+                if (tP != logZero) {
+                    logAddAndAssign(&cell[to], pCell[from] + tP + eP);
+                }
             }
         }
     }
@@ -268,39 +270,35 @@ double *forwardMatrix(int32_t lX, int32_t lY, const char *sX, const char *sY) {
     double *fM = initialiseForwardMatrix(lX, lY);
 
     // all '/' diagonals intersectinog x = 0 axis
-    for (int32_t x = 0; x < lX; ++x)
-    {
-		int32_t diagLen = (lY < x + 1) ? lY : x + 1;
+    for (int32_t x = 0; x < lX; ++x) {
+        int32_t diagLen = (lY < x + 1) ? lY : x + 1;
 #ifdef _OPENMP
-		#pragma omp parallel default(shared) if(diagLen >= ThreadChunkSize) num_threads(getNumThreads(diagLen))
+#pragma omp parallel default(shared) if(diagLen >= ThreadChunkSize) num_threads(getNumThreads(diagLen))
 #endif
-		{
+        {
 #ifdef _OPENMP
-			#pragma omp for schedule(static)
+#pragma omp for schedule(static)
 #endif
-			for (int32_t y = 0; y < diagLen; ++y)
-			{
-				forwardCell(fM, x - y, y, lX, lY, sX, sY);
-			}
-		}
+            for (int32_t y = 0; y < diagLen; ++y) {
+                forwardCell(fM, x - y, y, lX, lY, sX, sY);
+            }
+        }
     }
 
     // all '/' diagonals intersecting y = lY - 1 axis
-    for (int32_t y = 1; y < lY; ++y)
-    {
-    	int32_t diagLen = (lX < lY - y) ? lX : lY - y;
+    for (int32_t y = 1; y < lY; ++y) {
+        int32_t diagLen = (lX < lY - y) ? lX : lY - y;
 #ifdef _OPENMP
-		#pragma omp parallel default(shared) if(diagLen >= ThreadChunkSize) num_threads(getNumThreads(diagLen))
+#pragma omp parallel default(shared) if(diagLen >= ThreadChunkSize) num_threads(getNumThreads(diagLen))
 #endif
-		{
+        {
 #ifdef _OPENMP
-			#pragma omp for schedule(static)
+#pragma omp for schedule(static)
 #endif
-			for (int32_t i = 0; i < diagLen; ++i)
-			{
-				forwardCell(fM, lX - 1 - i, y + i, lX, lY, sX, sY);
-			}
-		}
+            for (int32_t i = 0; i < diagLen; ++i) {
+                forwardCell(fM, lX - 1 - i, y + i, lX, lY, sX, sY);
+            }
+        }
     }
 
     return fM;
@@ -331,59 +329,57 @@ static double *initialiseBackwardMatrix(int32_t lX, int32_t lY) {
 }
 
 static inline void backwardCell(double *bM, int32_t x, int32_t y, int32_t lX,
-	    int32_t lY, const char *sX, const char *sY) {
-	double *cell = getCell(bM, x, y, lX);
-	for (int32_t to = 0; to < cellNo; to++) {
-		int32_t x2 = x + getTransitionOffSetX(to);
-		int32_t y2 = y + getTransitionOffSetY(to);
-		if (x2 < lX && y2 < lY) {
-			double *pCell = getCell(bM, x2, y2, lX);
-			double eP = emissionProb(x2, y2, lX, lY, sX, sY, to);
-			for (int32_t from = 0; from < cellNo; from++) {
-				logAddAndAssign(&cell[from], pCell[to] + transitionProb(from,
-						to) + eP);
-			}
-		}
-	}
+        int32_t lY, const char *sX, const char *sY) {
+    double *cell = getCell(bM, x, y, lX);
+    for (int32_t to = 0; to < cellNo; to++) {
+        int32_t x2 = x + getTransitionOffSetX(to);
+        int32_t y2 = y + getTransitionOffSetY(to);
+        if (x2 < lX && y2 < lY) {
+            double *pCell = getCell(bM, x2, y2, lX);
+            double eP = emissionProb(x2, y2, lX, lY, sX, sY, to);
+            for (int32_t from = 0; from < cellNo; from++) {
+                double tP = transitionProb(from, to);
+                if (tP != LOG_ZERO) {
+                    logAddAndAssign(&cell[from], pCell[to] + tP + eP);
+                }
+            }
+        }
+    }
 }
 
 double *backwardMatrix(int32_t lX, int32_t lY, const char *sX, const char *sY) {
     double *bM = initialiseBackwardMatrix(lX, lY);
 
     // all '/' diagonals intersecting y = lY - 1 axis
-	for (int32_t y = lY - 1; y >= 1; --y)
-	{
-		int32_t diagLen = (lX < lY - y) ? lX : lY - y;
+    for (int32_t y = lY - 1; y >= 1; --y) {
+        int32_t diagLen = (lX < lY - y) ? lX : lY - y;
 #ifdef _OPENMP
-		#pragma omp parallel default(shared) if(diagLen >= ThreadChunkSize) num_threads(getNumThreads(diagLen))
+#pragma omp parallel default(shared) if(diagLen >= ThreadChunkSize) num_threads(getNumThreads(diagLen))
 #endif
-		{
+        {
 #ifdef _OPENMP
-			#pragma omp for schedule(static)
+#pragma omp for schedule(static)
 #endif
-			for (int32_t i = 0; i < diagLen; ++i)
-			{
-				backwardCell(bM, lX - 1 - i, y + i, lX, lY, sX, sY);
-			}
-		}
-	}
+            for (int32_t i = 0; i < diagLen; ++i) {
+                backwardCell(bM, lX - 1 - i, y + i, lX, lY, sX, sY);
+            }
+        }
+    }
 
-	// all '/' diagonals intersecting x = 0 axis
-	for (int32_t x = lX - 1; x >= 0; --x)
-    {
-		int32_t diagLen = (lY < x + 1) ? lY : x + 1;
+    // all '/' diagonals intersecting x = 0 axis
+    for (int32_t x = lX - 1; x >= 0; --x) {
+        int32_t diagLen = (lY < x + 1) ? lY : x + 1;
 #ifdef _OPENMP
-		#pragma omp parallel default(shared) if(diagLen >= ThreadChunkSize) num_threads(getNumThreads(diagLen))
+#pragma omp parallel default(shared) if(diagLen >= ThreadChunkSize) num_threads(getNumThreads(diagLen))
 #endif
-		{
+        {
 #ifdef _OPENMP
-			#pragma omp for schedule(static)
+#pragma omp for schedule(static)
 #endif
-			for (int32_t y = 0; y < diagLen; ++y)
-			{
-				backwardCell(bM, x - y, y, lX, lY, sX, sY);
-			}
-		}
+            for (int32_t y = 0; y < diagLen; ++y) {
+                backwardCell(bM, x - y, y, lX, lY, sX, sY);
+            }
+        }
     }
 
     return bM;
@@ -413,65 +409,68 @@ static inline double posteriorMatchProb(double *fM, double *bM, int32_t x,
     int32_t from = 0;
     double f = pCell[from] + transitionProb(from, to) + eP + cell[to];
     for (from = 1; from < cellNo; from++) {
-        logAddAndAssign(&f, pCell[from] + transitionProb(from, to) + eP
-                + cell[to]);
+        logAddAndAssign(&f,
+                pCell[from] + transitionProb(from, to) + eP + cell[to]);
     }
     double p = exp(f - totalProb);
 #ifdef BEN_DEBUG
     /*if(p < -0.01 || p > 1.01) {
-        st_uglyf("I got a bad position, %i %i %f\n", x, y, p);
-    }*/
+     st_uglyf("I got a bad position, %i %i %f\n", x, y, p);
+     }*/
     //assert(p >= -0.01 && p < 1.01);
 #endif
     return p;
 }
 
 static void getPosteriorProbs(double *fM, double *bM, int32_t lX, int32_t lY,
-        const char *sX, const char *sY, stList *alignedPairs, double totalProb, PairwiseAlignmentParameters *p) {
-    stList** alignedPairMatrix = (stList**)st_malloc(lX * lY * sizeof(stList*));
+        const char *sX, const char *sY, stList *alignedPairs, double totalProb,
+        PairwiseAlignmentParameters *p) {
+    stList** alignedPairMatrix =
+            (stList**) st_malloc(lX * lY * sizeof(stList*));
 #ifdef _OPENMP
-	#pragma omp parallel default(shared) if(lX >= ThreadChunkSize) num_threads(getNumThreads(lX))
+#pragma omp parallel default(shared) if(lX >= ThreadChunkSize) num_threads(getNumThreads(lX))
 #endif
-	{
+    {
 #ifdef _OPENMP
-		#pragma omp for schedule(static)
+#pragma omp for schedule(static)
 #endif
-		for (int32_t x = 1; x < lX; x++) {
-			alignedPairMatrix[x] = stList_construct();
-			for (int32_t y = 1; y < lY; y++) {
-				double f = posteriorMatchProb(fM, bM, x, y, lX, lY, sX, sY,
-						totalProb);
-				if (f >= posteriorMatchThreshold) {
-					if (f > 1.0) {
-						f = 1.0;
-					}
+        for (int32_t x = 1; x < lX; x++) {
+            alignedPairMatrix[x] = stList_construct();
+            for (int32_t y = 1; y < lY; y++) {
+                double f = posteriorMatchProb(fM, bM, x, y, lX, lY, sX, sY,
+                        totalProb);
+                if (f >= posteriorMatchThreshold) {
+                    if (f > 1.0) {
+                        f = 1.0;
+                    }
 #ifdef BEN_DEBUG
-					assert(sX[x-1] >= 0 && sX[x-1] <= 4);
-					assert(sY[y-1] >= 0 && sY[y-1] <= 4);
+                    assert(sX[x-1] >= 0 && sX[x-1] <= 4);
+                    assert(sY[y-1] >= 0 && sY[y-1] <= 4);
 #endif
-					if(p->alignAmbiguityCharacters || (sX[x-1] < 4 && sY[y-1] < 4)) {
-						stIntTuple *alignedPair = stIntTuple_construct(3,
-								(int32_t) floor(f * PAIR_ALIGNMENT_PROB_1), x - 1, y
-										- 1);
-						stList_append(alignedPairMatrix[x], alignedPair);
-					}
-				}
-			}
-		}
-	}
-	for (int32_t x = 1; x < lX; x++)
-	{
-		stList_appendAll(alignedPairs, alignedPairMatrix[x]);
-		stList_destruct(alignedPairMatrix[x]);
-	}
-	free(alignedPairMatrix);
+                    if (p->alignAmbiguityCharacters || (sX[x - 1] < 4 && sY[y
+                            - 1] < 4)) {
+                        stIntTuple *alignedPair = stIntTuple_construct(3,
+                                (int32_t) floor(f * PAIR_ALIGNMENT_PROB_1),
+                                x - 1, y - 1);
+                        stList_append(alignedPairMatrix[x], alignedPair);
+                    }
+                }
+            }
+        }
+    }
+    for (int32_t x = 1; x < lX; x++) {
+        stList_appendAll(alignedPairs, alignedPairMatrix[x]);
+        stList_destruct(alignedPairMatrix[x]);
+    }
+    free(alignedPairMatrix);
 }
 
 ///////
 //Maximal expected accuracy alignment
 ///////
 
-stList *getAlignedPairs(const char *sX, const char *sY, PairwiseAlignmentParameters *p) {
+stList *getAlignedPairs(const char *sX, const char *sY,
+        PairwiseAlignmentParameters *p) {
     //Allocate the matrices.
     int32_t lX = strlen(sX) + 1;
     int32_t lY = strlen(sY) + 1;
@@ -482,20 +481,20 @@ stList *getAlignedPairs(const char *sX, const char *sY, PairwiseAlignmentParamet
     double *fM;
     double *bM;
 
-//#pragma omp parallel default(shared)
-{
-	//#pragma omp sections
+    //#pragma omp parallel default(shared)
     {
-		//#pragma omp section
-    	{
-			bM = backwardMatrix(lX, lY, cSX, cSY);
-    	}
-		//#pragma omp section
-    	{
-    		fM = forwardMatrix(lX, lY, cSX, cSY);
-    	}
+        //#pragma omp sections
+        {
+            //#pragma omp section
+            {
+                bM = backwardMatrix(lX, lY, cSX, cSY);
+            }
+            //#pragma omp section
+            {
+                fM = forwardMatrix(lX, lY, cSX, cSY);
+            }
+        }
     }
-}
 
     double totalFProb = totalForwardProb(fM, lX, lY);
     double totalBProb = totalBackwardProb(bM, lX);
@@ -538,30 +537,24 @@ char *getSubString(const char *cA, int32_t start, int32_t length) {
     return cA2;
 }
 
-static int getAlignedPairsFast_cmpFn(stIntTuple *i, stIntTuple *j) {
-#ifdef BEN_DEBUG
-    assert(stIntTuple_length(i) == 3);
-    assert(stIntTuple_length(i) == stIntTuple_length(j));
-#endif
-    int32_t k = stIntTuple_getPosition(i, 1) - stIntTuple_getPosition(j, 1);
-    int32_t l = stIntTuple_getPosition(i, 2) - stIntTuple_getPosition(j, 2);
-    return k == 0 ? l : k;
-}
-
 static int sortByXPlusYCoordinate(const void *i, const void *j) {
-    int64_t k = stIntTuple_getPosition((stIntTuple *)i, 0) + stIntTuple_getPosition((stIntTuple *)i, 1);
-    int64_t l = stIntTuple_getPosition((stIntTuple *)j, 0) + stIntTuple_getPosition((stIntTuple *)j, 1);
+    int64_t k = stIntTuple_getPosition((stIntTuple *) i, 0)
+            + stIntTuple_getPosition((stIntTuple *) i, 1);
+    int64_t l = stIntTuple_getPosition((stIntTuple *) j, 0)
+            + stIntTuple_getPosition((stIntTuple *) j, 1);
     return k > l ? 1 : (k < l ? -1 : 0);
 }
 
-stList *getBlastPairs(const char *sX, const char *sY, int32_t lX, int32_t lY, int32_t trim) {
+stList *getBlastPairs(const char *sX, const char *sY, int32_t lX, int32_t lY,
+        int32_t trim) {
     /*
      * Uses lastz to compute a bunch of monotonically increasing pairs such that for any pair of consecutive pairs in the list
      * (x1, y1) (x2, y2) in the set of aligned pairs x1 appears before x2 in X and y1 appears before y2 in Y.
      */
-    stList *alignedPairs = stList_construct3(0, (void (*)(void *))stIntTuple_destruct); //the list to put the output in
+    stList *alignedPairs = stList_construct3(0,
+            (void(*)(void *)) stIntTuple_destruct); //the list to put the output in
 
-    if(lX == 0 || lY == 0) {
+    if (lX == 0 || lY == 0) {
         return alignedPairs;
     }
 
@@ -572,15 +565,19 @@ stList *getBlastPairs(const char *sX, const char *sY, int32_t lX, int32_t lY, in
     fprintf(fileHandle, ">a\n%s\n", sX);
     fclose(fileHandle);
 
-    char *command = stString_print("echo '>b\n%s\n' | lastz --hspthresh=800 --chain --strand=plus --gapped --format=cigar --ambiguous=iupac %s", sY, tempFile1);
+    char
+            *command =
+                    stString_print(
+                            "echo '>b\n%s\n' | lastz --hspthresh=800 --chain --strand=plus --gapped --format=cigar --ambiguous=iupac %s",
+                            sY, tempFile1);
     fileHandle = popen(command, "r");
     free(command);
-    if(fileHandle == NULL) {
+    if (fileHandle == NULL) {
         st_errAbort("Problems with lastz pipe");
     }
     //Read from stream
     struct PairwiseAlignment *pA;
-    while((pA = cigarRead(fileHandle)) != NULL) {
+    while ((pA = cigarRead(fileHandle)) != NULL) {
         int32_t j = pA->start1;
         int32_t k = pA->start2;
 
@@ -592,8 +589,9 @@ stList *getBlastPairs(const char *sX, const char *sY, int32_t lX, int32_t lY, in
         for (int32_t i = 0; i < pA->operationList->length; i++) {
             struct AlignmentOperation *op = pA->operationList->list[i];
             if (op->opType == PAIRWISE_MATCH) {
-                for(int32_t l=trim; l<op->length-trim; l++) {
-                    stList_append(alignedPairs, stIntTuple_construct(2, j+l, k+l));
+                for (int32_t l = trim; l < op->length - trim; l++) {
+                    stList_append(alignedPairs,
+                            stIntTuple_construct(2, j + l, k + l));
                 }
             }
             if (op->opType != PAIRWISE_INDEL_Y) {
@@ -609,8 +607,10 @@ stList *getBlastPairs(const char *sX, const char *sY, int32_t lX, int32_t lY, in
         destructPairwiseAlignment(pA);
     }
     int32_t status = pclose(fileHandle);
-    if(status != 0) {
-        st_errnoAbort("pclose failed when getting rid of lastz pipe with value %i", status);
+    if (status != 0) {
+        st_errnoAbort(
+                "pclose failed when getting rid of lastz pipe with value %i",
+                status);
     }
 
     stList_sort(alignedPairs, sortByXPlusYCoordinate); //Ensure the coordinates are increasing
@@ -622,19 +622,22 @@ stList *getBlastPairs(const char *sX, const char *sY, int32_t lX, int32_t lY, in
     return alignedPairs;
 }
 
-stList *filterPairsToGetAnchorPoints(stList *alignedPairs, int32_t minRectangleSize, int32_t lX, int32_t lY) {
+stList *getAnchorPoints(stList *alignedPairs, int32_t minRectangleSize,
+        int32_t lX, int32_t lY) {
     /*
      * Filters the blast pairs so that the are spaced with dp matrices of at least minRectangle size between them.
      */
     int32_t x = -1;
     int32_t y = -1;
     stList *filteredPairs = stList_construct();
-    for(int32_t i=0; i<stList_length(alignedPairs); i++) {
+    for (int32_t i = 0; i < stList_length(alignedPairs); i++) {
         stIntTuple *alignedPair = stList_get(alignedPairs, i);
         int32_t x2 = stIntTuple_getPosition(alignedPair, 0);
         int32_t y2 = stIntTuple_getPosition(alignedPair, 1);
-        if(x2 > x && y2 > y) { //This should never occur but deals with an error in lastz, I think....
-            if(((int64_t)x2 - x - 1) * (y2 - y - 1) >= minRectangleSize && ((int64_t)lX - x2 - 1) * (lY - y2 - 1) >= minRectangleSize) {
+        if (x2 > x && y2 > y) { //This should never occur but deals with an error in lastz, I think....
+            if (((int64_t) x2 - x - 1) * (y2 - y - 1) >= minRectangleSize
+                    && ((int64_t) lX - x2 - 1) * (lY - y2 - 1)
+                            >= minRectangleSize) {
                 stList_append(filteredPairs, alignedPair);
                 x = x2;
                 y = y2;
@@ -646,69 +649,74 @@ stList *filterPairsToGetAnchorPoints(stList *alignedPairs, int32_t minRectangleS
     return filteredPairs;
 }
 
-static void convertPairs(stList *alignedPairs2, int32_t offsetX, int32_t offsetY) {
+static void convertPairs(stList *alignedPairs2, int32_t offsetX,
+        int32_t offsetY) {
     /*
      * Convert the coordinates of the computed pairs.
      */
     for (int32_t k = 0; k < stList_length(alignedPairs2); k++) {
         stIntTuple *i = stList_get(alignedPairs2, k);
         assert(stIntTuple_length(i) == 3);
-        stList_set(alignedPairs2, k, stIntTuple_construct(3,
-                stIntTuple_getPosition(i, 0), stIntTuple_getPosition(i, 1)
-                        + offsetX, stIntTuple_getPosition(i, 2) + offsetY));
+        stList_set(
+                alignedPairs2,
+                k,
+                stIntTuple_construct(3, stIntTuple_getPosition(i, 0),
+                        stIntTuple_getPosition(i, 1) + offsetX,
+                        stIntTuple_getPosition(i, 2) + offsetY));
         stIntTuple_destruct(i);
     }
 }
 
-static stList *getAlignedPairs_Split(char *sX, char *sY, int32_t lX, int32_t lY, int32_t bandSize, PairwiseAlignmentParameters *p) {
+static int32_t splitSequence(char *s, int32_t l, int32_t bandSize, char **sL,
+        char **sR) {
+    if (l > bandSize) {
+        *sL = getSubString(s, 0, bandSize);
+        *sR = getSubString(s, l - bandSize, bandSize);
+        return l - bandSize;
+    }
+    *sL = s;
+    *sR = s;
+    return 0;
+}
+
+static stList *getAlignedPairs_Split(char *sX, char *sY, int32_t lX,
+        int32_t lY, int32_t bandSize, PairwiseAlignmentParameters *p) {
     /*
-     * Aligns the sequences, but if the product of there sequence lengths is greater than bandSize squared
+     * Aligns the sequences, but if the product of there sequence lengths is greater than bandSize squared * 2
      * then a dp matrix of bandsize squared if computed in the top left part of the entire dp matrix, and a
      * corresponding square in the bottom right part of the matrix.
      */
-    if((int64_t)lX * lY <= (int64_t)bandSize * bandSize) { //products can be > 2^31
+    if ((int64_t) lX * lY <= (int64_t) bandSize * bandSize * 2) { //products can be > 2^31
         return getAlignedPairs(sX, sY, p);
     }
     st_logDebug("We found an overlarge matrix to compute: %i %i \n", lX, lY);
-    if(lX > bandSize) {
-        char *sX2 = getSubString(sX, 0, bandSize);
-        stList *alignedPairs = getAlignedPairs_Split(sX2, sY, bandSize, lY, bandSize, p);
-        free(sX2);
-        sX2 = getSubString(sX, lX-bandSize, bandSize);
-        stList *alignedPairs2 = getAlignedPairs_Split(sX2, sY, bandSize, lY, bandSize, p);
-        free(sX2);
-        convertPairs(alignedPairs2, lX-bandSize, 0);
-        stList_appendAll(alignedPairs, alignedPairs2);
-        while(stList_length(alignedPairs2) > 0) { //empty and destroy the second list.
-            stList_pop(alignedPairs2);
-        }
-        stList_destruct(alignedPairs2);
-        return alignedPairs;
+    char *sXL, *sXR;
+    int32_t offsetX = splitSequence(sX, lX, bandSize, &sXL, &sXR);
+    char *sYL, *sYR;
+    int32_t offsetY = splitSequence(sX, lX, bandSize, &sYL, &sYR);
+    stList *alignedPairsL = getAlignedPairs(sXL, sYL, p);
+    stList *alignedPairsR = getAlignedPairs(sXR, sYR, p);
+    convertPairs(alignedPairsR, offsetX, offsetY);
+    assert(offsetX != 0 || offsetY != 0);
+    if (offsetX != 0) {
+        free(sXL);
+        free(sXR);
     }
-    assert(lY > bandSize);
-    char *sY2 = getSubString(sY, 0, bandSize);
-    stList *alignedPairs = getAlignedPairs(sX, sY2, p);
-    free(sY2);
-    sY2 = getSubString(sY, lY-bandSize, bandSize);
-    stList *alignedPairs2 = getAlignedPairs(sX, sY2, p);
-    free(sY2);
-    convertPairs(alignedPairs2, 0, lY-bandSize);
-    stList_appendAll(alignedPairs, alignedPairs2);
-    while(stList_length(alignedPairs2) > 0) { //empty and destroy the second list.
-        stList_pop(alignedPairs2);
+    if (offsetY != 0) {
+        free(sYL);
+        free(sYR);
     }
-    stList_destruct(alignedPairs2);
-    return alignedPairs;
-}
-
-static int getAlignedPairs_FastP(const void *i, const void *j) {
-    int64_t k = stIntTuple_getPosition((stIntTuple *)i, 1) + stIntTuple_getPosition((stIntTuple *)i, 2);
-    int64_t l = stIntTuple_getPosition((stIntTuple *)j, 1) + stIntTuple_getPosition((stIntTuple *)j, 2);
-    return k > l ? 1 : (k < l ? -1 : 0);
+    stList_appendAll(alignedPairsL, alignedPairsR);
+    while (stList_length(alignedPairsR) > 0) { //empty and destroy the second list.
+        stList_pop(alignedPairsR);
+    }
+    stList_destruct(alignedPairsR);
+    return alignedPairsL;
 }
 
 PairwiseAlignmentParameters *pairwiseAlignmentBandingParameters_construct() {
-    PairwiseAlignmentParameters *p = st_malloc(sizeof(PairwiseAlignmentParameters));
+    PairwiseAlignmentParameters *p = st_malloc(
+            sizeof(PairwiseAlignmentParameters));
     p->maxBandingSize = 3000;
     p->minBandingSize = 1000;
     p->minBandingConstraintDistance = 300;
@@ -723,6 +731,11 @@ void pairwiseAlignmentBandingParameters_destruct(PairwiseAlignmentParameters *p)
     free(p);
 }
 
+static int32_t boundCoordinateTransform(int32_t i, int32_t j, int32_t max) {
+    i += j;
+    return i >= max ? max - 1 : (i < 0 ? 0 : i);
+}
+
 stList *getAlignedPairs_Fast(const char *sX, const char *sY,
         PairwiseAlignmentParameters *p) {
     /*
@@ -730,151 +743,84 @@ stList *getAlignedPairs_Fast(const char *sX, const char *sY,
      */
     int32_t lX = strlen(sX);
     int32_t lY = strlen(sY);
-    int32_t offsetX = 0;
-    int32_t offsetY = 0;
 
     stList *blastPairs;
-    if((int64_t)lX * lY > (int64_t)p->minBandingSize * p->minBandingSize) {
+    if ((int64_t) lX * lY > (int64_t) p->minBandingSize * p->minBandingSize) {
         blastPairs = getBlastPairs(sX, sY, lX, lY, p->constraintDiagonalTrim);
-    }
-    else {
+    } else {
         blastPairs = stList_construct(); //We don't bother getting anchors if the sequences are sufficiently small.
     }
-    stList *bandPairs = filterPairsToGetAnchorPoints(blastPairs, p->minBandingConstraintDistance * p->minBandingConstraintDistance, lX, lY);
+
+    stList *bandPairs = getAnchorPoints(blastPairs,
+            p->minBandingConstraintDistance * p->minBandingConstraintDistance,
+            lX, lY);
+    st_logDebug("We got %i aligned pairs and %i filtered pairs\n",
+            stList_length(blastPairs), stList_length(bandPairs));
+    stList *alignedPairs = stList_construct3(0,
+            (void(*)(void *)) stIntTuple_destruct);
+    stList_append(bandPairs, stIntTuple_construct(2, lX - 1, lY - 1));
     stListIterator *bandIt = stList_getIterator(bandPairs);
     stIntTuple *bandPair;
 
-    st_logDebug("We got %i aligned pairs and %i filtered pairs\n", stList_length(blastPairs), stList_length(bandPairs));
-
-    stSortedSet *alignedPairs = stSortedSet_construct3((int(*)(const void *,
-            const void *)) getAlignedPairsFast_cmpFn, NULL);
-
-    bool done = 0;
-    while (!done) {
-        int32_t endsetX, endsetY;
-        if((bandPair = stList_getNext(bandIt)) != NULL) {
-            endsetX = stIntTuple_getPosition(bandPair, 0);
-            endsetY = stIntTuple_getPosition(bandPair, 1);
-        }
-        else {
-            done = 1;
-            endsetX = lX-1;
-            endsetY = lY-1;
-        }
-        st_logDebug("The next blast square, min x: %i, min y: %i, max x: %i, max y: %i, size x: %i, size y: %i\n", offsetX, offsetY, endsetX, endsetY, endsetX - offsetX, endsetY - offsetY);
+    int32_t x1 = 0, x2 = -1;
+    int32_t y1 = 0, y2 = -1;
+    int32_t diagOffset = p->minTraceBackDiag / 2;
+    while ((bandPair = stList_getNext(bandIt)) != NULL) {
+        int32_t x4 = stIntTuple_getPosition(bandPair, 0);
+        int32_t y4 = stIntTuple_getPosition(bandPair, 1);
+        int32_t x3 = boundCoordinateTransform(x4, -diagOffset, lX);
+        int32_t y3 = boundCoordinateTransform(y4, -diagOffset, lY);
+        int32_t x5 = boundCoordinateTransform(x4, diagOffset, lX);
+        int32_t y5 = boundCoordinateTransform(y4, diagOffset, lY);
 
         //Get the appropriate x substring
-        int32_t lX2 = endsetX - offsetX + 1;
-        char *sX2 = getSubString(sX, offsetX, lX2);
+        int32_t lX2 = x5 - x1 + 1;
+        char *sX2 = getSubString(sX, x1, lX2);
 
         //Get the appropriate y substring
-        int32_t lY2 = endsetY - offsetY + 1;
-        char *sY2 = getSubString(sY, offsetY, lY2);
+        int32_t lY2 = y5 - y1 + 1;
+        char *sY2 = getSubString(sY, y1, lY2);
+
+        st_logDebug(
+                "The next blast square, x1: %i, x2: %i, x3: %i, x4: %i, x5: %i, y1: %i, y2: %i, y3: %i, y4: %i, y5: %i size x: %i, size y: %i\n",
+                x1, x2, x3, x4, x5, y1, y2, y3, y4, y5, lX2, lY2);
 
         //Do the actual alignment..
-        stList *alignedPairs2 = getAlignedPairs_Split(sX2, sY2, lX2, lY2, p->maxBandingSize, p);
+        stList *alignedPairs2 = getAlignedPairs_Split(sX2, sY2, lX2, lY2,
+                p->maxBandingSize, p);
 
         //Cleanup the temporary sequences
         free(sX2);
         free(sY2);
 
         //Convert the coordinates
-        convertPairs(alignedPairs2, offsetX, offsetY);
+        convertPairs(alignedPairs2, x1, y1);
 
-        //The diagonal bounds of the banding block
-        int32_t startDiag = offsetX + offsetY;
-        int32_t endDiag = startDiag + lX2 + lY2;
-
-        //Now either setup the next job if there is some sequence remaining.
-        if (offsetX + lX2 < lX || offsetY + lY2 < lY) { //We still have work to do on another round
-            //Sort so that the coordinates are in increasing x+y coordinate order
-            stList_sort(alignedPairs2, getAlignedPairs_FastP);
-            int32_t traceBackDiag = endDiag - p->minTraceBackDiag;
-            int32_t traceForwardDiag = startDiag + p->minTraceBackDiag; //(lX2 + lY2) / 2; //We require the new alignment to overlap by at most halfway from the old one.
-            int32_t newOffsetX = offsetX, newOffsetY = offsetY, maxScore = -1;
-            stListIterator *it = stList_getIterator(alignedPairs2);
-            stIntTuple *i;
-            while ((i = stList_getNext(it)) != NULL) {
-                int32_t j = stIntTuple_getPosition(i, 1);
-                int32_t k = stIntTuple_getPosition(i, 2);
-                int32_t score = stIntTuple_getPosition(i, 0);
-                int32_t diagC = j + k;
-                if (diagC >= traceForwardDiag && diagC <= traceBackDiag
-                     && score >= 0.6 * PAIR_ALIGNMENT_PROB_1) { //traceBackCandidateThreshold //has the required score to be considered a start point.
-                    if(j + k > newOffsetX + newOffsetY) { //Should not be needed, but numerical accuracy is not perfect.
-                        if(score >= maxScore * 0.99) {
-                            maxScore = score;
-                            newOffsetX = j;
-                            newOffsetY = k;
-                        }
-                    }
-                }
-            }
-            stList_destructIterator(it);
-            if (maxScore != -1) {
-                st_logDebug("We found an interim point x: %i y: %i prob: %f\n", newOffsetX, newOffsetY, (double)maxScore / PAIR_ALIGNMENT_PROB_1);
-                //We can start a new alignment
-                assert(newOffsetX > offsetX || newOffsetY > offsetY);
-                //Update the offsets
-                offsetX = newOffsetX;
-                offsetY = newOffsetY;
-            } else { //No candidate start point was found so we just stop the extension
-                assert(newOffsetX == offsetX && newOffsetY == offsetY);
-                st_logDebug("We failed to find an interim point, x: %i y: %i\n", newOffsetX, newOffsetY);
-            }
-        }
+        int32_t minDiag = x2 + y2;
+        int32_t maxDiag = x4 + y4;
 
         //Add the pairs to the alignment (merging together any duplicate pairs)
         //And skip any pairs within minTraceGapDiags.
         while (stList_length(alignedPairs2) > 0) {
-            stIntTuple *i = stList_pop(alignedPairs2);
-            assert(stIntTuple_length(i) == 3);
-            int32_t l = stIntTuple_getPosition(i, 1);
-            int32_t m = stIntTuple_getPosition(i, 2);
-            //is not too close the start point (or is allowed because we are at the start of the band)
-            //and is not too close to the end point (or is allowed because we're at the end of the band)
-            if ((startDiag == 0 || l + m >= startDiag + p->minTraceGapDiags)
-                    && (done || l + m <= endDiag - p->minTraceGapDiags)) {
-                stIntTuple *j;
-                if ((j = stSortedSet_search(alignedPairs, i)) != NULL) {
-                    stSortedSet_remove(alignedPairs, i);
-#ifdef BEN_DEBUG
-                    assert(l == stIntTuple_getPosition(j, 1));
-                    assert(m == stIntTuple_getPosition(j, 2));
-                    assert(stSortedSet_search(alignedPairs, i) == NULL);
-#endif
-                    stIntTuple *k = stIntTuple_construct(3,
-                            (stIntTuple_getPosition(i, 0)
-                                    + stIntTuple_getPosition(j, 0)) / 2, l, m);
-                    stSortedSet_insert(alignedPairs, k);
-#ifdef BEN_DEBUG
-                    assert(stSortedSet_search(alignedPairs, i) == k);
-                    assert(stSortedSet_search(alignedPairs, j) == k);
-#endif
-                    stIntTuple_destruct(i);
-                    stIntTuple_destruct(j);
-                } else {
-                    stSortedSet_insert(alignedPairs, i);
-#ifdef BEN_DEBUG
-                    assert(stSortedSet_search(alignedPairs, i) == i);
-#endif
-                }
-            } else {
-                stIntTuple_destruct(i);
+            stIntTuple *alignedPair = stList_pop(alignedPairs2);
+            assert(stIntTuple_length(alignedPair) == 3);
+            int32_t x_y = stIntTuple_getPosition(alignedPair, 1)
+                    + stIntTuple_getPosition(alignedPair, 2);
+            if (x_y > minDiag && x_y <= maxDiag) {
+                stList_append(alignedPairs, alignedPair);
             }
         }
         stList_destruct(alignedPairs2);
+
+        x1 = x3;
+        x2 = x4;
+        y1 = y3;
+        y2 = y4;
     }
     stList_destructIterator(bandIt);
-    //Convert the set to a list.
-    stList *alignedPairs2 = stSortedSet_getList(alignedPairs);
-#ifdef BEN_DEBUG
-    assert(stList_length(alignedPairs2) == stSortedSet_size(alignedPairs));
-#endif
-    stList_setDestructor(alignedPairs2, (void(*)(void *)) stIntTuple_destruct);
-    stSortedSet_destruct(alignedPairs);
+
     stList_destruct(bandPairs);
     stList_destruct(blastPairs);
 
-    return alignedPairs2;
+    return alignedPairs;
 }
