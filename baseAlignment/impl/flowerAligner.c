@@ -457,7 +457,7 @@ End *getDominantEnd(Flower *flower) {
     Flower_EndIterator *endIt = flower_getEndIterator(flower);
     End *end;
     int32_t maxInstanceNumber = 0;
-    End *dominantEnd;
+    End *dominantEnd = NULL;
     while ((end = flower_getNextEnd(endIt)) != NULL) {
         if(end_getInstanceNumber(end) > maxInstanceNumber) {
             maxInstanceNumber = end_getInstanceNumber(end);
