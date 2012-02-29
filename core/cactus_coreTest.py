@@ -30,13 +30,11 @@ class TestCase(unittest.TestCase):
             os.remove(randomConfigFile)
         
     def testCactusCore_Blanchette(self):
-        return
         runWorkflow_multipleExamples(getCactusInputs_blanchette, 
                                      testRestrictions=(TestStatus.TEST_SHORT,), inverseTestRestrictions=True, 
                                      buildTrees=False, buildFaces=False, buildReference=False)
         
     def testCuTest(self):
-        return
         system("coreTests %s" % getLogLevelString())     
         
 def getRandomConfigFile():
@@ -57,7 +55,6 @@ def getRandomConfigFile():
     iteration.attrib["number"] = "0"
     core = iteration.find("core")
     annealingRounds = 1 + int(random.random() * 10)
-    
     
     core.attrib["annealingRounds"] = " ".join([ str(1 + int(random.random() * 10)) for i in xrange(annealingRounds) ])
     deannealingRounds = list(set([ 1 + int(random.random() * 10) for i in xrange(int(random.random() * 10)) ]))

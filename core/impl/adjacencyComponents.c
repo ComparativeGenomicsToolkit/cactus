@@ -152,37 +152,3 @@ stList *getAdjacencyComponentGraph(struct PinchGraph *pinchGraph, stList *adjace
     return vertices;
 }
 
-int64_t getAdjacencyComponentSize(stSortedSet *adjacencyComponent) {
-    /*
-     * Gets the length of an adjacency component, assuming the edges of the adjacency component consists only
-     * of grey edges and black edges with degree 1.
-     */
-    int64_t totalSize = 0;
-    stSortedSetIterator *vertexIt = stSortedSet_getIterator(adjacencyComponent);
-    struct PinchVertex *vertex;
-    while ((vertex = stSortedSet_getNext(vertexIt)) != NULL) {
-        //search across the greyedges.
-        void *greyEdgeIterator = getGreyEdgeIterator(vertex);
-        struct PinchVertex *vertex2;
-        while ((vertex2 = getNextGreyEdge(vertex, greyEdgeIterator)) != NULL) {
-            if (lengthBlackEdges(vertex2) > 0) {
-                struct PinchEdge *edge = getFirstBlackEdge(vertex2);
-                if (passThroughDegree1EdgesFn(edge)) {
-                    int32_t j = edge->piece->end - edge->piece->start + 1;
-                    assert(j >= 1);
-                    assert(lengthBlackEdges(vertex2) == 1);
-                    totalSize += j;
-                }
-                else {
-                    assert(stSortedSet_search(adjacencyComponent, vertex2) != NULL);
-                }
-            }
-        }
-        destructGreyEdgeIterator(greyEdgeIterator);
-    }
-    stSortedSet_destructIterator(vertexIt);
-    assert(totalSize >= 0);
-    assert(totalSize % 2 == 0);
-    return totalSize / 2;
-}
-

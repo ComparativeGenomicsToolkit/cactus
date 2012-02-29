@@ -353,7 +353,7 @@ class CactusBlastWrapper(CactusRecursionTarget):
 def runCactusCoreInWorkflow(self, flowerNames, alignmentFile):
     blastParameters = self.configNode.find("blast")
     coreParameters = self.configNode.find("core")
-    runCactusCore(cactusDiskDatabaseString=self.cactusDiskDatabaseString,
+    messages = runCactusCore(cactusDiskDatabaseString=self.cactusDiskDatabaseString,
                       alignments=alignmentFile, 
                       flowerNames=flowerNames,
                       annealingRounds=getOptionalAttrib(coreParameters, "annealingRounds"),  
@@ -371,6 +371,8 @@ def runCactusCoreInWorkflow(self, flowerNames, alignmentFile):
                       lastzArguments=getOptionalAttrib(blastParameters, "lastzArguments"),
                       minimumSequenceLengthForBlast=getOptionalAttrib(blastParameters, "minimumSequenceLengthForBlast", int, 1),
                       maxAdjacencyComponentSizeRatio=getOptionalAttrib(coreParameters, "maxAdjacencyComponentSizeRatio", float))
+    for message in messages:
+        self.logToMaster(message)
 
 class CactusCoreWrapper1(CactusRecursionTarget):
     """Runs cactus_core upon a set of flowers and no alignment file.

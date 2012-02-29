@@ -63,8 +63,7 @@ void destructPiece(struct Piece *piece) {
 
 void logPiece(struct Piece *piece) {
     st_logDebug("Contig : %s, start : " INT_STRING ", end : " INT_STRING "\n",
-            cactusMisc_nameToStringStatic(piece->contig), piece->start,
-            piece->end);
+            cactusMisc_nameToStringStatic(piece->contig), piece->start, piece->end);
 }
 
 int pieceComparatorPointers(struct Piece **piece1, struct Piece **piece2) {
@@ -106,8 +105,7 @@ int pieceComparator(struct Piece *piece1, struct Piece *piece2) {
 ////////////////////////////////////////////////
 ////////////////////////////////////////////////
 
-struct PinchVertex *constructPinchVertex(struct PinchGraph *graph,
-        int32_t vertexID, bool isEnd, bool isDeadEnd) {
+struct PinchVertex *constructPinchVertex(struct PinchGraph *graph, int32_t vertexID, bool isEnd, bool isDeadEnd) {
     struct PinchVertex *pinchVertex;
 
     pinchVertex = st_malloc(sizeof(struct PinchVertex));
@@ -120,8 +118,7 @@ struct PinchVertex *constructPinchVertex(struct PinchGraph *graph,
     } else {
         pinchVertex->vertexID = vertexID;
     }
-    assert((!isEnd && !isDeadEnd) || (isEnd && !isDeadEnd) || (!isEnd
-            && isDeadEnd));
+    assert((!isEnd && !isDeadEnd) || (isEnd && !isDeadEnd) || (!isEnd && isDeadEnd));
     pinchVertex->isEnd = isEnd;
     pinchVertex->isDeadEnd = isDeadEnd;
 
@@ -143,8 +140,7 @@ void destructPinchVertex(struct PinchVertex *pinchVertex) {
     free(pinchVertex);
 }
 
-void removeVertexFromGraphAndDestruct(struct PinchGraph *graph,
-        struct PinchVertex *vertex) {
+void removeVertexFromGraphAndDestruct(struct PinchGraph *graph, struct PinchVertex *vertex) {
     /*
      * Destructs pinch vertex and removes its reference from the parent graph structure.
      */
@@ -160,8 +156,7 @@ void removeVertexFromGraphAndDestruct(struct PinchGraph *graph,
     destructPinchVertex(vertex);
 }
 
-void mergeVerticesBlackEdges(struct PinchVertex *oldVertex,
-        struct PinchVertex *newVertex) {
+void mergeVerticesBlackEdges(struct PinchVertex *oldVertex, struct PinchVertex *newVertex) {
     /*
      * Merges black vertices.
      */
@@ -179,8 +174,7 @@ void mergeVerticesBlackEdges(struct PinchVertex *oldVertex,
     destructBlackEdgeIterator(blackEdgeIterator);
 }
 
-void mergeVerticesGreyEdges(struct PinchVertex *oldVertex,
-        struct PinchVertex *newVertex) {
+void mergeVerticesGreyEdges(struct PinchVertex *oldVertex, struct PinchVertex *newVertex) {
     /*
      * Merges grey vertices.
      */
@@ -202,15 +196,13 @@ void mergeVerticesGreyEdges(struct PinchVertex *oldVertex,
     assert(!containsGreyEdge(newVertex, oldVertex));
 }
 
-struct PinchVertex *mergeVertices(struct PinchGraph *graph,
-        struct PinchVertex *vertex1, struct PinchVertex *vertex2) {
+struct PinchVertex *mergeVertices(struct PinchGraph *graph, struct PinchVertex *vertex1, struct PinchVertex *vertex2) {
     /*
      * Method to merge two vertices together to create one vertex in the graph.
      */
     struct PinchVertex *vertex3;
     if (vertex1 != vertex2) {
-        if (lengthBlackEdges(vertex1) + lengthGreyEdges(vertex1)
-                < lengthBlackEdges(vertex2) + lengthGreyEdges(vertex2)) {
+        if (lengthBlackEdges(vertex1) + lengthGreyEdges(vertex1) < lengthBlackEdges(vertex2) + lengthGreyEdges(vertex2)) {
             //This switch makes a huge difference to the performance of the algorithm.
             //Because it is unlikely that two vertices with very high degree
             //which are homologous
@@ -270,8 +262,7 @@ struct PinchVertex *getFirstGreyEdge(struct PinchVertex *vertex) {
     return avl_t_first(&iterator, vertex->greyEdges);
 }
 
-int32_t containsGreyEdge(struct PinchVertex *vertex,
-        struct PinchVertex *vertex2) {
+int32_t containsGreyEdge(struct PinchVertex *vertex, struct PinchVertex *vertex2) {
     return avl_find(vertex->greyEdges, vertex2) != NULL;
 }
 
@@ -414,8 +405,7 @@ struct PinchEdge *constructPinchEdge(struct Piece *piece) {
     return pinchEdge;
 }
 
-void connectPinchEdge(struct PinchEdge *edge, struct PinchVertex *from,
-        struct PinchVertex *to) {
+void connectPinchEdge(struct PinchEdge *edge, struct PinchVertex *from, struct PinchVertex *to) {
     /*
      * Connected the pinch edge to its to and from vertices.
      */
@@ -442,8 +432,7 @@ void destructPinchEdge(struct PinchEdge *pinchEdge) {
     free(pinchEdge);
 }
 
-void removePinchEdgeFromGraphAndDestruct(struct PinchGraph *graph,
-        struct PinchEdge *edge) {
+void removePinchEdgeFromGraphAndDestruct(struct PinchGraph *graph, struct PinchEdge *edge) {
     /*
      * Destroys the edge and removes it from the graph.
      */
@@ -458,8 +447,7 @@ void removePinchEdgeFromGraphAndDestruct(struct PinchGraph *graph,
     destructPinchEdge(edge);
 }
 
-int32_t edgeComparator(struct PinchEdge *edge1, struct PinchEdge *edge2,
-        void *o) {
+int32_t edgeComparator(struct PinchEdge *edge1, struct PinchEdge *edge2, void *o) {
     /*
      * Compares the pieces by their pieces.
      */
@@ -467,8 +455,7 @@ int32_t edgeComparator(struct PinchEdge *edge1, struct PinchEdge *edge2,
     return pieceComparator(edge1->piece, edge2->piece);
 }
 
-struct PinchEdge *getContainingBlackEdge(struct PinchGraph *graph, Name contig,
-        int32_t position) {
+struct PinchEdge *getContainingBlackEdge(struct PinchGraph *graph, Name contig, int32_t position) {
     /*
      * Gets edge containing the considered piece.
      */
@@ -484,15 +471,14 @@ struct PinchEdge *getContainingBlackEdge(struct PinchGraph *graph, Name contig,
     edge2 = avl_find(graph->edges, &edge);
     //assert(edge2 != NULL);
     //if(edge2 == NULL) {
-        //st_uglyf("The edge is null\n");
-        //st_uglyf("The number of elements in the set %i\n", avl_count(graph->edges));
-        //st_uglyf("The name %lli the position %i\n", contig, position);
+    //st_uglyf("The edge is null\n");
+    //st_uglyf("The number of elements in the set %i\n", avl_count(graph->edges));
+    //st_uglyf("The name %lli the position %i\n", contig, position);
     //}
     return edge2;
 }
 
-struct PinchEdge *getNextEdge(struct PinchGraph *graph, struct PinchEdge *edge,
-        Flower *flower) {
+struct PinchEdge *getNextEdge(struct PinchGraph *graph, struct PinchEdge *edge, Flower *flower) {
     /*
      * Gets the next in the sequence from the given edge, used for traversing paths in the pinch graph.
      */
@@ -510,8 +496,7 @@ struct PinchEdge *getNextEdge(struct PinchGraph *graph, struct PinchEdge *edge,
         contig = sequence_getName(cap_getSequence(cap));
     }
 
-    edge2 = getContainingBlackEdge(graph, contig, edge->piece->end
-            + 1);
+    edge2 = getContainingBlackEdge(graph, contig, edge->piece->end + 1);
     if (edge2 != NULL) {
         return edge2;
     }
@@ -523,8 +508,7 @@ struct PinchEdge *getNextEdge(struct PinchGraph *graph, struct PinchEdge *edge,
                 if (edge2->piece->start == edge->piece->end + 1) {
                     cap = flower_getCap(flower, edge2->piece->contig);
                     assert(cap != NULL);
-                    if (sequence_getName(cap_getSequence(cap))
-                            == contig) {
+                    if (sequence_getName(cap_getSequence(cap)) == contig) {
                         destructGreyEdgeIterator(iterator);
                         destructBlackEdgeIterator(iterator2);
                         return edge2;
@@ -539,8 +523,7 @@ struct PinchEdge *getNextEdge(struct PinchGraph *graph, struct PinchEdge *edge,
     return NULL;
 }
 
-void splitEdge_P(struct PinchGraph *graph, struct PinchEdge *edge,
-        int32_t position, struct PinchVertex *vertex1,
+void splitEdge_P(struct PinchGraph *graph, struct PinchEdge *edge, int32_t position, struct PinchVertex *vertex1,
         struct PinchVertex *vertex2) {
     struct PinchEdge *edge1;
     struct PinchEdge *edge2;
@@ -551,12 +534,10 @@ void splitEdge_P(struct PinchGraph *graph, struct PinchEdge *edge,
 
     //Otherwise create new pinch point.
     //Split piece
-    edge1 = constructPinchEdge(constructPiece(edge->piece->contig,
-            edge->piece->start, position - 1));
+    edge1 = constructPinchEdge(constructPiece(edge->piece->contig, edge->piece->start, position - 1));
     connectPinchEdge(edge1, edge->from, vertex1);
 
-    edge2 = constructPinchEdge(constructPiece(edge->piece->contig, position,
-            edge->piece->end));
+    edge2 = constructPinchEdge(constructPiece(edge->piece->contig, position, edge->piece->end));
     connectPinchEdge(edge2, vertex2, edge->to);
 
 #ifdef BEN_DEBUG
@@ -572,8 +553,8 @@ void splitEdge_P(struct PinchGraph *graph, struct PinchEdge *edge,
 
 struct List *sE_list = NULL;
 
-struct PinchVertex *splitEdge(struct PinchGraph *graph, Name contig,
-        int32_t position, int32_t leftOrRight, stHash *vertexToAdjacencyComponent) {
+struct PinchVertex *splitEdge(struct PinchGraph *graph, Name contig, int32_t position, int32_t leftOrRight,
+        stHash *vertexToAdjacencyComponent) {
     /*
      * This function splits the edges (including all those in the same aligned edge).
      *
@@ -614,14 +595,14 @@ struct PinchVertex *splitEdge(struct PinchGraph *graph, Name contig,
     }
     sE_list->length = 0;
 
-    void *adjacencyComponent1 = stHash_search(vertexToAdjacencyComponent, edge->from);
-    void *adjacencyComponent2 = stHash_search(vertexToAdjacencyComponent, edge->to);
-    void *adjacencyComponent3;
-    if(adjacencyComponent1 == adjacencyComponent2) {
-        adjacencyComponent3 = adjacencyComponent1;
-    }
-    else {
-        adjacencyComponent3 = NULL;
+    void *adjacencyComponent3 = NULL;
+    if (vertexToAdjacencyComponent != NULL) {
+        void *adjacencyComponent1 = stHash_search(vertexToAdjacencyComponent, edge->from);
+        void *adjacencyComponent2 = stHash_search(vertexToAdjacencyComponent, edge->to);
+
+        if (adjacencyComponent1 == adjacencyComponent2) {
+            adjacencyComponent3 = adjacencyComponent1;
+        }
     }
 
     //For each of the aligned edges, do the split.
@@ -657,8 +638,10 @@ struct PinchVertex *splitEdge(struct PinchGraph *graph, Name contig,
     }
 
     //Add to adjacency component hash
-    stHash_insert(vertexToAdjacencyComponent, vertex1, adjacencyComponent3);
-    stHash_insert(vertexToAdjacencyComponent, vertex2, adjacencyComponent3);
+    if(vertexToAdjacencyComponent != NULL) {
+        stHash_insert(vertexToAdjacencyComponent, vertex1, adjacencyComponent3);
+        stHash_insert(vertexToAdjacencyComponent, vertex2, adjacencyComponent3);
+    }
 
     //Return either left or right new vertex, dependent on which was made.
     return leftOrRight == LEFT ? vertex2 : vertex1;
@@ -682,10 +665,8 @@ struct PinchGraph *pinchGraph_construct() {
     struct PinchGraph *pinchGraph;
 
     pinchGraph = st_malloc(sizeof(struct PinchGraph));
-    pinchGraph->edges = avl_create((int32_t(*)(const void *, const void *,
-            void *a)) edgeComparator, NULL, NULL);
-    pinchGraph->vertices = constructEmptyList(0,
-            (void(*)(void *)) destructPinchVertex);
+    pinchGraph->edges = avl_create((int32_t(*)(const void *, const void *, void *a)) edgeComparator, NULL, NULL);
+    pinchGraph->vertices = constructEmptyList(0, (void(*)(void *)) destructPinchVertex);
     constructPinchVertex(pinchGraph, -1, 0, 0);
 
     return pinchGraph;
@@ -700,8 +681,7 @@ void destructPinchGraph_1(struct PinchEdge *edge, void *o) {
 }
 
 void destructPinchGraph(struct PinchGraph *pinchGraph) {
-    avl_destroy(pinchGraph->edges,
-            (void(*)(void *avl_item, void *avl_param)) destructPinchGraph_1);
+    avl_destroy(pinchGraph->edges, (void(*)(void *avl_item, void *avl_param)) destructPinchGraph_1);
     //destroylist(pinchGraph->edges);
     destructList(pinchGraph->vertices);
     free(pinchGraph);
@@ -774,8 +754,8 @@ char *getColour(struct hashtable *hash, void *thing) {
     return cA;
 }
 
-void writeOutPinchGraphWithChains(struct PinchGraph *pinchGraph,
-        struct hashtable *edgeColours, struct List *groups, FILE *fileHandle) {
+void writeOutPinchGraphWithChains(struct PinchGraph *pinchGraph, struct hashtable *edgeColours, struct List *groups,
+        FILE *fileHandle) {
     /*
      * Writes out a graph in 'dot' format, compatible with graphviz.
      *
@@ -793,8 +773,8 @@ void writeOutPinchGraphWithChains(struct PinchGraph *pinchGraph,
 
     st_logDebug("Writing the pinch graph\n");
 
-    hash2 = create_hashtable(pinchGraph->vertices->length * 10, hashtable_key,
-            hashtable_equalKey, NULL, (void(*)(void *)) destructInt);
+    hash2 = create_hashtable(pinchGraph->vertices->length * 10, hashtable_key, hashtable_equalKey, NULL,
+            (void(*)(void *)) destructInt);
 
     if (groups != NULL) {
         for (i = 0; i < groups->length; i++) {
@@ -818,12 +798,8 @@ void writeOutPinchGraphWithChains(struct PinchGraph *pinchGraph,
         assert(vertex->vertexID == i);
 #endif
         colour = getColour(hash2, vertex);
-        fprintf(
-                fileHandle,
-                "node[width=0.3,height=0.3,shape=circle,colour=%s,fontsize=14];\n",
-                colour);
-        fprintf(fileHandle, "n" INT_STRING "n [label=\"" INT_STRING "\"];\n",
-                vertex->vertexID, vertex->vertexID);
+        fprintf(fileHandle, "node[width=0.3,height=0.3,shape=circle,colour=%s,fontsize=14];\n", colour);
+        fprintf(fileHandle, "n" INT_STRING "n [label=\"" INT_STRING "\"];\n", vertex->vertexID, vertex->vertexID);
     }
 
     st_logDebug("Written the vertices\n");
@@ -837,18 +813,13 @@ void writeOutPinchGraphWithChains(struct PinchGraph *pinchGraph,
 #endif
             if (vertex->vertexID < edge->to->vertexID) {
                 colour = getColour(edgeColours, edge->piece);
-                fprintf(fileHandle,
-                        "edge[color=%s,len=2.5,weight=100,dir=forward];\n",
-                        colour);
+                fprintf(fileHandle, "edge[color=%s,len=2.5,weight=100,dir=forward];\n", colour);
 
                 void *blackEdgeIterator = getBlackEdgeIterator(vertex);
-                while ((edge = getNextBlackEdge(vertex, blackEdgeIterator))
-                        != NULL) {
-                    fprintf(
-                            fileHandle,
+                while ((edge = getNextBlackEdge(vertex, blackEdgeIterator)) != NULL) {
+                    fprintf(fileHandle,
                             "n" INT_STRING "n -- n" INT_STRING "n [label=\"" INT_STRING ":" INT_STRING ":%s\"];\n",
-                            edge->from->vertexID, edge->to->vertexID,
-                            edge->piece->start, edge->piece->end,
+                            edge->from->vertexID, edge->to->vertexID, edge->piece->start, edge->piece->end,
                             cactusMisc_nameToStringStatic(edge->piece->contig));
                 }
                 destructBlackEdgeIterator(blackEdgeIterator);
@@ -866,15 +837,12 @@ void writeOutPinchGraphWithChains(struct PinchGraph *pinchGraph,
         void *greyEdgeIterator = getGreyEdgeIterator(vertex);
         while ((vertex2 = getNextGreyEdge(vertex, greyEdgeIterator)) != NULL) {
             if (vertex->vertexID < vertex2->vertexID) {
-                fprintf(fileHandle, "n" INT_STRING "n -- n" INT_STRING "n;\n",
-                        vertex->vertexID, vertex2->vertexID);
+                fprintf(fileHandle, "n" INT_STRING "n -- n" INT_STRING "n;\n", vertex->vertexID, vertex2->vertexID);
             }
             if (vertex->vertexID == vertex2->vertexID) {
                 //Get one for every edge.
                 if (k == 0) {
-                    fprintf(fileHandle,
-                            "n" INT_STRING "n -- n" INT_STRING "n;\n",
-                            vertex->vertexID, vertex2->vertexID);
+                    fprintf(fileHandle, "n" INT_STRING "n -- n" INT_STRING "n;\n", vertex->vertexID, vertex2->vertexID);
                     k = 1;
                 } else {
                     k = 0;

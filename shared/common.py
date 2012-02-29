@@ -132,8 +132,9 @@ def runCactusCore(cactusDiskDatabaseString, alignments,
      trim, minimumTreeCoverage, blockTrim, 
      minimumBlockDegree, requiredIngroupFraction, requiredOutgroupFraction, requiredAllFraction, 
      singleCopyIngroup, singleCopyOutgroup, lastzArguments, minimumSequenceLengthForBlast, maxAdjacencyComponentSizeRatio)
-    popenPush(command, stdinString=formatFlowerNames(flowerNames))
+    masterMessages = popenCatch(command, stdinString=formatFlowerNames(flowerNames))
     logger.info("Ran cactus_core okay")
+    return [ i for i in masterMessages.split("\n") if i != '' ]
     
 def runCactusPhylogeny(cactusDiskDatabaseString,
                   flowerNames=(0, 1),
