@@ -427,7 +427,6 @@ class CactusBaseLevelAlignerWrapper(CactusRecursionTarget):
                              minBandingSize=getOptionalAttrib(self.configNode, "minBandingSize", int), 
                              minBandingConstraintDistance=getOptionalAttrib(self.configNode, "minBandingConstraintDistance", int), 
                              minTraceBackDiag=getOptionalAttrib(self.configNode, "minTraceBackDiag", int), 
-                             minTraceGapDiags=getOptionalAttrib(self.configNode, "minTraceGapDiags", int), 
                              constraintDiagonalTrim=getOptionalAttrib(self.configNode, "constaintDiagonalTrim", int), 
                              minimumBlockDegree=getOptionalAttrib(self.configNode, "minimumBlockDegree", int),
                              alignAmbiguityCharacters=getOptionalAttrib(self.configNode, "alignAmbiguityCharacters", bool),

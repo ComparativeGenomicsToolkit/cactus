@@ -213,7 +213,6 @@ def runCactusBaseAligner(cactusDiskDatabaseString, flowerNames, logLevel=None,
                          minBandingSize=None,
                          minBandingConstraintDistance=None,
                          minTraceBackDiag=None,
-                         minTraceGapDiags=None,
                          constraintDiagonalTrim=None,
                          minimumBlockDegree=None,
                          alignAmbiguityCharacters=None,
@@ -233,7 +232,6 @@ def runCactusBaseAligner(cactusDiskDatabaseString, flowerNames, logLevel=None,
     minBandingSize = nameValue("minBandingSize", minBandingSize, int)
     minBandingConstraintDistance = nameValue("minBandingConstraintDistance", minBandingConstraintDistance, int)
     minTraceBackDiag = nameValue("minTraceBackDiag", minTraceBackDiag, int)
-    minTraceGapDiags = nameValue("minTraceGapDiags", minTraceGapDiags, int)
     constraintDiagonalTrim = nameValue("constraintDiagonalTrim", constraintDiagonalTrim, int)
     minimumBlockDegree = nameValue("minimumDegree", minimumBlockDegree, int)
     pruneOutStubAlignments = nameValue("pruneOutStubAlignments", pruneOutStubAlignments, bool)
@@ -243,9 +241,9 @@ def runCactusBaseAligner(cactusDiskDatabaseString, flowerNames, logLevel=None,
     requiredOutgroupFraction = nameValue("requiredOutgroupFraction", requiredOutgroupFraction, float)
     requiredAllFraction = nameValue("requiredAllFraction", requiredAllFraction, float)
     
-    popenPush("cactus_baseAligner --cactusDisk '%s' --logLevel %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s" % 
+    popenPush("cactus_baseAligner --cactusDisk '%s' --logLevel %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s" % 
            (cactusDiskDatabaseString, logLevel, spanningTrees, maximumLength, gapGamma, 
-            useBanding, maxBandingSize, minBandingSize, minBandingConstraintDistance, minTraceBackDiag, minTraceGapDiags, 
+            useBanding, maxBandingSize, minBandingSize, minBandingConstraintDistance, minTraceBackDiag,
             constraintDiagonalTrim, minimumBlockDegree, alignAmbiguityCharacters, pruneOutStubAlignments,
             numThreads, requiredIngroupFraction, requiredOutgroupFraction, requiredAllFraction), stdinString=formatFlowerNames(flowerNames))
     

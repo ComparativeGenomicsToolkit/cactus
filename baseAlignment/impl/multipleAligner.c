@@ -544,7 +544,8 @@ stList *makeAlignment(stList *sequences, int32_t spanningTrees, float gapGamma,
     stSortedSet
             *columnWeightsSortedByWeight =
                     stSortedSet_construct3(
-                            (int(*)(const void *, const void *)) (divideByObservedPairs ? pairwiseColumnWeight_compareByWeightFn_divideByObservedPairs
+                            (int(*)(const void *, const void *)) (divideByObservedPairs ?
+                                    pairwiseColumnWeight_compareByWeightFn_divideByObservedPairs
                                     : pairwiseColumnWeight_compareByWeightFn_divideByAllPairs),
                             NULL); //destructor not set as will be empty when destroyed.
     stSortedSet
@@ -563,6 +564,7 @@ stList *makeAlignment(stList *sequences, int32_t spanningTrees, float gapGamma,
                 string2, pairwiseAlignmentBandingParameters) : getAlignedPairs(
                 string1, string2, pairwiseAlignmentBandingParameters));
     }
+
     while ((pairwiseAlignment = (stIntTuple *) stSortedSet_getPrevious(
                 pairwiseAlignmentsIterator)) != NULL) {
         int32_t sequence1 = stIntTuple_getPosition(pairwiseAlignment, 0);
@@ -600,6 +602,7 @@ stList *makeAlignment(stList *sequences, int32_t spanningTrees, float gapGamma,
             assert(pairwiseProbability >= -0.0001);
             assert(pairwiseProbability <= 1.00001);
 #endif
+            pairwiseProbability += st_random() * 0.00001; //This randomness avoids nasty types of unbalanced trees.
             //Construct the aligned pair structures.
             stIntTuple *alignedPair2 = stIntTuple_construct(5,
             /* score */stIntTuple_getPosition(alignedPair, 0),
@@ -626,13 +629,13 @@ stList *makeAlignment(stList *sequences, int32_t spanningTrees, float gapGamma,
     }
     stList_destruct(pairwiseAlignmentsStack);
     stSortedSet_destructIterator(pairwiseAlignmentsIterator);
-
     //Greedily construct poset and filter pairs..
     stPosetAlignment *posetAlignment = stPosetAlignment_construct(
             stList_length(sequences));
     stList *acceptedAlignedPairs = stList_construct3(0,
             (void(*)(void *)) stIntTuple_destruct);
     double pWeight = INT64_MAX;
+
     while (stSortedSet_size(columnWeightsSortedByWeight) > 0) {
 #ifdef BEN_DEBUG
         //The two trees of weights should have identical cardinality and should be of even parity (as we have reverses)
@@ -645,6 +648,7 @@ stList *makeAlignment(stList *sequences, int32_t spanningTrees, float gapGamma,
                 pairwiseColumnWeight, divideByObservedPairs);
         double weight = pairwiseColumnWeight_getNormalisedWeight(
                 pairwiseColumnWeight, divideByObservedPairs);
+
         //NormalisedWeight(pairwiseColumnWeight);
 #ifdef BEN_DEBUG
         assert(weight <= pWeight + 0.0001);
@@ -711,6 +715,7 @@ stList *makeAlignment(stList *sequences, int32_t spanningTrees, float gapGamma,
         }
         pairwiseColumnWeight_destruct(pairwiseColumnWeight);
     }
+
     //Cleanup
 #ifdef BEN_DEBUG
     assert(stSortedSet_size(columnWeightsSortedByWeight) == 0);

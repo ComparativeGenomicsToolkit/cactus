@@ -48,9 +48,6 @@ void usage() {
             "-r --minTraceBackDiag : (int >= 0)  The x+y diagonal to leave between the cut point and the place we choose new cutpoints.\n");
     fprintf(
             stderr,
-            "-s --minTraceGapDiags : (int >= 0)  The x+y diagonal distance to leave between a cutpoint and the traceback.\n");
-    fprintf(
-            stderr,
             "-t --constraintDiagonalTrim : (int >= 0)  The amount to be removed from each end of a diagonal to be considered a banding constraint.\n");
 
     fprintf(
@@ -168,7 +165,6 @@ int main(int argc, char *argv[]) {
                 "minBandingSize", required_argument, 0, 'p' }, {
                 "minBandingConstraintDistance", required_argument, 0, 'q' }, {
                 "minTraceBackDiag", required_argument, 0, 'r' }, {
-                "minTraceGapDiags", required_argument, 0, 's' }, {
                 "constraintDiagonalTrim", required_argument, 0, 't' }, {
                 "minimumDegree", required_argument, 0, 'u' }, {
                 "alignAmbiguityCharacters", no_argument, 0, 'w' }, {
@@ -183,7 +179,7 @@ int main(int argc, char *argv[]) {
         int option_index = 0;
 
         int key = getopt_long(argc, argv,
-                "a:b:hi:j:kl:o:p:q:r:s:t:u:wy:n:A:B:C:", long_options,
+                "a:b:hi:j:kl:o:p:q:r:t:u:wy:n:A:B:C:", long_options,
                 &option_index);
 
         if (key == -1) {
@@ -248,14 +244,6 @@ int main(int argc, char *argv[]) {
                 assert(i == 1);
                 assert(
                         pairwiseAlignmentBandingParameters->minTraceBackDiag
-                                >= 0);
-                break;
-            case 's':
-                i = sscanf(optarg, "%i",
-                        &pairwiseAlignmentBandingParameters->minTraceGapDiags);
-                assert(i == 1);
-                assert(
-                        pairwiseAlignmentBandingParameters->minTraceGapDiags
                                 >= 0);
                 break;
             case 't':
@@ -390,6 +378,8 @@ int main(int argc, char *argv[]) {
         free(logLevelString);
     }
     st_logInfo("Finished with the flower disk for this flower.\n");
+
+    //while(1);
 
     return 0;
 }

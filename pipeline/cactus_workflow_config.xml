@@ -43,7 +43,6 @@
 					minBandingSize="1000" 
 					minBandingConstraintDistance="300" 
 					minTraceBackDiag="42" 
-					minTraceGapDiags="10" 
 					constraintDiagonalTrim="4" 
 					minimumBlockDegree="0" 
 					alignAmbiguityCharacters="1"

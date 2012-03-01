@@ -12,6 +12,7 @@
 #include <inttypes.h>
 #include <math.h>
 #include <omp.h>
+#include <ctype.h>
 #include "pairwiseAligner.h"
 #include "sonLib.h"
 #include "pairwiseAlignment.h"
@@ -505,7 +506,7 @@ stList *getAlignedPairs(const char *sX, const char *sY,
     }
     //Check they are about the same.
 #ifdef BEN_DEBUG
-    assert(diff < 0.0001);
+    //assert(diff < 0.0001);
 #endif
 
     //Get posterior probabilities above 0.01 threshold.
@@ -545,8 +546,16 @@ static int sortByXPlusYCoordinate(const void *i, const void *j) {
     return k > l ? 1 : (k < l ? -1 : 0);
 }
 
+static char *makeUpperCase(const char *s, int32_t l) {
+    char *s2 = stString_copy(s);
+    for(int32_t i=0; i<l; i++) {
+        s2[i] = toupper(s[i]);
+    }
+    return s2;
+}
+
 stList *getBlastPairs(const char *sX, const char *sY, int32_t lX, int32_t lY,
-        int32_t trim) {
+        int32_t trim, bool repeatMask) {
     /*
      * Uses lastz to compute a bunch of monotonically increasing pairs such that for any pair of consecutive pairs in the list
      * (x1, y1) (x2, y2) in the set of aligned pairs x1 appears before x2 in X and y1 appears before y2 in Y.
@@ -556,6 +565,11 @@ stList *getBlastPairs(const char *sX, const char *sY, int32_t lX, int32_t lY,
 
     if (lX == 0 || lY == 0) {
         return alignedPairs;
+    }
+
+    if (!repeatMask) {
+        sX = makeUpperCase(sX, lX);
+        sY = makeUpperCase(sY, lY);
     }
 
     //Write one sequence to file..
@@ -619,6 +633,11 @@ stList *getBlastPairs(const char *sX, const char *sY, int32_t lX, int32_t lY,
     st_system("rm %s", tempFile1);
     free(tempFile1);
 
+    if (!repeatMask) {
+        free((char *) sX);
+        free((char *) sY);
+    }
+
     return alignedPairs;
 }
 
@@ -635,9 +654,10 @@ stList *getAnchorPoints(stList *alignedPairs, int32_t minRectangleSize,
         int32_t x2 = stIntTuple_getPosition(alignedPair, 0);
         int32_t y2 = stIntTuple_getPosition(alignedPair, 1);
         if (x2 > x && y2 > y) { //This should never occur but deals with an error in lastz, I think....
-            if (((int64_t) x2 - x - 1) * (y2 - y - 1) >= minRectangleSize
-                    && ((int64_t) lX - x2 - 1) * (lY - y2 - 1)
-                            >= minRectangleSize) {
+            int64_t lRectangleSize = ((int64_t) x2 - x + 1) * (y2 - y + 1);
+            int64_t rRectangeSize = ((int64_t) lX - x2) * (lY - y2);
+            if (lRectangleSize >= minRectangleSize && rRectangeSize
+                    >= minRectangleSize) {
                 stList_append(filteredPairs, alignedPair);
                 x = x2;
                 y = y2;
@@ -693,7 +713,7 @@ static stList *getAlignedPairs_Split(char *sX, char *sY, int32_t lX,
     char *sXL, *sXR;
     int32_t offsetX = splitSequence(sX, lX, bandSize, &sXL, &sXR);
     char *sYL, *sYR;
-    int32_t offsetY = splitSequence(sX, lX, bandSize, &sYL, &sYR);
+    int32_t offsetY = splitSequence(sY, lY, bandSize, &sYL, &sYR);
     stList *alignedPairsL = getAlignedPairs(sXL, sYL, p);
     stList *alignedPairsR = getAlignedPairs(sXR, sYR, p);
     convertPairs(alignedPairsR, offsetX, offsetY);
@@ -706,11 +726,37 @@ static stList *getAlignedPairs_Split(char *sX, char *sY, int32_t lX,
         free(sYL);
         free(sYR);
     }
-    stList_appendAll(alignedPairsL, alignedPairsR);
-    while (stList_length(alignedPairsR) > 0) { //empty and destroy the second list.
-        stList_pop(alignedPairsR);
+    /*
+     * Get a unique set of pairs.
+     */
+    stSortedSet *pairs = stSortedSet_construct3(
+            (int(*)(const void *, const void *)) stIntTuple_cmpFn,
+            (void(*)(void *)) stIntTuple_destruct);
+    for (int32_t i = 0; i < stList_length(alignedPairsL); i++) {
+        stIntTuple *alignedPair = stList_get(alignedPairsL, i);
+        stIntTuple *coordinatePair = stIntTuple_construct(2,
+                stIntTuple_getPosition(alignedPair, 1),
+                stIntTuple_getPosition(alignedPair, 2));
+        assert(stSortedSet_search(pairs, coordinatePair) == NULL);
+        stSortedSet_insert(pairs, coordinatePair);
     }
+    while (stList_length(alignedPairsR) > 0) { //empty and destroy the second list.
+        stIntTuple *alignedPair = stList_pop(alignedPairsR);
+        stIntTuple *coordinatePair = stIntTuple_construct(2,
+                stIntTuple_getPosition(alignedPair, 1),
+                stIntTuple_getPosition(alignedPair, 2));
+        if (stSortedSet_search(pairs, coordinatePair) == NULL) {
+            stSortedSet_insert(pairs, coordinatePair);
+            stList_append(alignedPairsL, alignedPair);
+        } else {
+            stIntTuple_destruct(alignedPair);
+            stIntTuple_destruct(coordinatePair);
+        }
+    }
+    stSortedSet_destruct(pairs);
+    stList_appendAll(alignedPairsL, alignedPairsR);
     stList_destruct(alignedPairsR);
+
     return alignedPairsL;
 }
 
@@ -718,10 +764,9 @@ PairwiseAlignmentParameters *pairwiseAlignmentBandingParameters_construct() {
     PairwiseAlignmentParameters *p = st_malloc(
             sizeof(PairwiseAlignmentParameters));
     p->maxBandingSize = 3000;
-    p->minBandingSize = 1000;
-    p->minBandingConstraintDistance = 300;
-    p->minTraceBackDiag = 42;
-    p->minTraceGapDiags = 20;
+    p->minBandingSize = 500;
+    p->minBandingConstraintDistance = 100;
+    p->minTraceBackDiag = 50;
     p->constraintDiagonalTrim = 4;
     p->alignAmbiguityCharacters = 0;
     return p;
@@ -736,17 +781,25 @@ static int32_t boundCoordinateTransform(int32_t i, int32_t j, int32_t max) {
     return i >= max ? max - 1 : (i < 0 ? 0 : i);
 }
 
-stList *getAlignedPairs_Fast(const char *sX, const char *sY,
-        PairwiseAlignmentParameters *p) {
+stList *getAlignedPairs_FastP(const char *sX, const char *sY,
+        PairwiseAlignmentParameters *p, bool recursive) {
     /*
      * Aligns the pair of sequences using banding constraints.
      */
     int32_t lX = strlen(sX);
     int32_t lY = strlen(sY);
+    stList *alignedPairs = stList_construct3(0,
+            (void(*)(void *)) stIntTuple_destruct);
+    if (lX == 0 || lY == 0) {
+        return alignedPairs;
+    }
+
+    int64_t minBandingSquare = (int64_t) p->minBandingSize * p->minBandingSize;
 
     stList *blastPairs;
-    if ((int64_t) lX * lY > (int64_t) p->minBandingSize * p->minBandingSize) {
-        blastPairs = getBlastPairs(sX, sY, lX, lY, p->constraintDiagonalTrim);
+    if ((int64_t) lX * lY > minBandingSquare) {
+        blastPairs = getBlastPairs(sX, sY, lX, lY, p->constraintDiagonalTrim,
+                recursive);
     } else {
         blastPairs = stList_construct(); //We don't bother getting anchors if the sequences are sufficiently small.
     }
@@ -756,9 +809,8 @@ stList *getAlignedPairs_Fast(const char *sX, const char *sY,
             lX, lY);
     st_logDebug("We got %i aligned pairs and %i filtered pairs\n",
             stList_length(blastPairs), stList_length(bandPairs));
-    stList *alignedPairs = stList_construct3(0,
-            (void(*)(void *)) stIntTuple_destruct);
-    stList_append(bandPairs, stIntTuple_construct(2, lX - 1, lY - 1));
+    stIntTuple *finalPair = stIntTuple_construct(2, lX - 1, lY - 1);
+    stList_append(bandPairs, finalPair);
     stListIterator *bandIt = stList_getIterator(bandPairs);
     stIntTuple *bandPair;
 
@@ -772,22 +824,36 @@ stList *getAlignedPairs_Fast(const char *sX, const char *sY,
         int32_t y3 = boundCoordinateTransform(y4, -diagOffset, lY);
         int32_t x5 = boundCoordinateTransform(x4, diagOffset, lX);
         int32_t y5 = boundCoordinateTransform(y4, diagOffset, lY);
+        int32_t lX2 = x5 - x1 + 1;
+        int32_t lY2 = y5 - y1 + 1;
+
+        //st_logDebug(
+        //        "The next blast square, x1: %i, x2: %i, x3: %i, x4: %i, x5: %i, y1: %i, y2: %i, y3: %i, y4: %i, y5: %i size x: %i, size y: %i\n",
+        //        x1, x2, x3, x4, x5, y1, y2, y3, y4, y5, lX2, lY2);
+
+        assert(x1 <= x5);
+        assert(y1 <= y5);
+        assert(x3 <= x4 && x4 <= x5);
+        assert(y3 <= y4 && y4 <= y5);
 
         //Get the appropriate x substring
-        int32_t lX2 = x5 - x1 + 1;
         char *sX2 = getSubString(sX, x1, lX2);
 
         //Get the appropriate y substring
-        int32_t lY2 = y5 - y1 + 1;
         char *sY2 = getSubString(sY, y1, lY2);
 
-        st_logDebug(
-                "The next blast square, x1: %i, x2: %i, x3: %i, x4: %i, x5: %i, y1: %i, y2: %i, y3: %i, y4: %i, y5: %i size x: %i, size y: %i\n",
-                x1, x2, x3, x4, x5, y1, y2, y3, y4, y5, lX2, lY2);
+        //Do the actual alignment.
+        stList *alignedPairs2;
 
-        //Do the actual alignment..
-        stList *alignedPairs2 = getAlignedPairs_Split(sX2, sY2, lX2, lY2,
-                p->maxBandingSize, p);
+        if ((int64_t) lX2 * lY2 <= minBandingSquare) { //products can be > 2^31
+            alignedPairs2 = getAlignedPairs(sX2, sY2, p);
+        }
+        else if (recursive) {
+            alignedPairs2 = getAlignedPairs_FastP(sX2, sY2, p, 0);
+        } else {
+            alignedPairs2 = getAlignedPairs_Split(sX2, sY2, lX2, lY2,
+                    p->maxBandingSize, p);
+        }
 
         //Cleanup the temporary sequences
         free(sX2);
@@ -798,16 +864,22 @@ stList *getAlignedPairs_Fast(const char *sX, const char *sY,
 
         int32_t minDiag = x2 + y2;
         int32_t maxDiag = x4 + y4;
+        assert(minDiag < maxDiag);
 
         //Add the pairs to the alignment (merging together any duplicate pairs)
         //And skip any pairs within minTraceGapDiags.
         while (stList_length(alignedPairs2) > 0) {
             stIntTuple *alignedPair = stList_pop(alignedPairs2);
             assert(stIntTuple_length(alignedPair) == 3);
-            int32_t x_y = stIntTuple_getPosition(alignedPair, 1)
-                    + stIntTuple_getPosition(alignedPair, 2);
+            int32_t xC = stIntTuple_getPosition(alignedPair, 1);
+            int32_t yC = stIntTuple_getPosition(alignedPair, 2);
+            assert(xC >= 0 && xC < lX);
+            assert(yC >= 0 && yC < lY);
+            int32_t x_y = xC + yC;
             if (x_y > minDiag && x_y <= maxDiag) {
                 stList_append(alignedPairs, alignedPair);
+            } else {
+                stIntTuple_destruct(alignedPair);
             }
         }
         stList_destruct(alignedPairs2);
@@ -818,9 +890,29 @@ stList *getAlignedPairs_Fast(const char *sX, const char *sY,
         y2 = y4;
     }
     stList_destructIterator(bandIt);
-
+    assert(x2 == lX - 1);
+    assert(y2 == lY - 1);
     stList_destruct(bandPairs);
     stList_destruct(blastPairs);
+    stIntTuple_destruct(finalPair);
 
+#ifdef BEN_DEBUG
+    //Checks no coordinate pairs are unique in list.
+    stSortedSet *pairs = stSortedSet_construct3((int (*)(const void *, const void *))stIntTuple_cmpFn, (void (*)(void *))stIntTuple_destruct);
+    for(int32_t i=0; i<stList_length(alignedPairs); i++) {
+        stIntTuple *alignedPair = stList_get(alignedPairs, i);
+        stIntTuple *coordinatePair = stIntTuple_construct(2, stIntTuple_getPosition(alignedPair, 1), stIntTuple_getPosition(alignedPair, 2));
+        assert(stSortedSet_search(pairs, coordinatePair) == NULL);
+        stSortedSet_insert(pairs, coordinatePair);
+    }
+    stSortedSet_destruct(pairs);
+#endif
+
+    st_logDebug("Finished creating aligned pairs, got %i pairs\n", stList_length(alignedPairs));
     return alignedPairs;
+}
+
+stList *getAlignedPairs_Fast(const char *sX, const char *sY,
+        PairwiseAlignmentParameters *p) {
+    return getAlignedPairs_FastP(sX, sY, p, 1);
 }

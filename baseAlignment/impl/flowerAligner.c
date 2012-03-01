@@ -465,7 +465,9 @@ End *getDominantEnd(Flower *flower) {
         }
     }
     flower_destructEndIterator(endIt);
-    assert(dominantEnd != NULL);
+    if(dominantEnd == NULL) {
+        return NULL;
+    }
     assert(end_getOrientation(dominantEnd));
     if(end_getInstanceNumber(dominantEnd)*2 < flower_getCapNumber(flower)) {
         return NULL;
@@ -507,6 +509,7 @@ stSortedSet *makeFlowerAlignment(Flower *flower, int32_t spanningTrees,
                         pairwiseAlignmentBandingParameters));
         while ((end = flower_getNextEnd(endIterator)) != NULL) {
             if (end != dominantEnd) {
+                assert(stHash_search(endAlignments, end) == NULL);
                 stHash_insert(endAlignments, end, stSortedSet_construct());
             }
         }

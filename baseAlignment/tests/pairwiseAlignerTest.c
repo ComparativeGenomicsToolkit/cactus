@@ -144,7 +144,7 @@ static void test_pairwiseAligner_FastRandom(CuTest *testCase) {
  * Test the blast heuristic to get the different pairs.
  */
 
-stList *getBlastPairs(const char *sX, const char *sY, int32_t lX, int32_t lY, int32_t trim);
+stList *getBlastPairs(const char *sX, const char *sY, int32_t lX, int32_t lY, int32_t trim, bool recursive);
 
 
 static void test_getBlastPairs(CuTest *testCase) {
@@ -158,9 +158,10 @@ static void test_getBlastPairs(CuTest *testCase) {
         st_logInfo("Sequence Y to align: %s END, seq length %i\n", seqY, seqYLength);
 
         int32_t trim = st_randomInt(0, 5);
-        st_logInfo("Using random trim %i\n", trim);
+        bool recursive = st_random() > 0.5;
+        st_logInfo("Using random trim %i, recursive %i \n", trim, recursive);
 
-        stList *blastPairs = getBlastPairs(seqX, seqY, seqXLength, seqYLength, trim);
+        stList *blastPairs = getBlastPairs(seqX, seqY, seqXLength, seqYLength, trim, recursive);
 
         st_logInfo("I got %i blast pairs\n", stList_length(blastPairs));
         int32_t pX = -1;
@@ -174,8 +175,8 @@ static void test_getBlastPairs(CuTest *testCase) {
             CuAssertTrue(testCase, y >= 0);
             CuAssertTrue(testCase, x < seqXLength);
             CuAssertTrue(testCase, y < seqYLength);
-            CuAssertTrue(testCase, x > pX);
-            CuAssertTrue(testCase, y > pY);
+            //CuAssertTrue(testCase, x > pX);
+            //CuAssertTrue(testCase, y > pY);
             pX = x;
             pY = y;
         }
@@ -194,7 +195,7 @@ static void test_filterPairsToGetAnchorPoints(CuTest *testCase) {
         int32_t seqXLength = strlen(seqX);
         int32_t seqYLength = strlen(seqY);
 
-        stList *blastPairs = getBlastPairs(seqX, seqY, seqXLength, seqYLength, 0);
+        stList *blastPairs = getBlastPairs(seqX, seqY, seqXLength, seqYLength, 0, 0);
         int32_t minRectangleSize = st_randomInt(0, 20);
         stList *filteredPairs = getAnchorPoints(blastPairs, minRectangleSize, seqXLength, seqYLength);
         int32_t pX = -1;
@@ -206,7 +207,7 @@ static void test_filterPairsToGetAnchorPoints(CuTest *testCase) {
             int32_t y = stIntTuple_getPosition(pair, 1);
             CuAssertTrue(testCase, x > pX);
             CuAssertTrue(testCase, y > pY);
-            CuAssertTrue(testCase, (x - pX) * (y - pY) >= minRectangleSize);
+            CuAssertTrue(testCase, (x - pX + 1) * (y - pY + 1) >= minRectangleSize);
             pX = x;
             pY = y;
         }

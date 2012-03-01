@@ -22,7 +22,6 @@ typedef  struct _pairwiseAlignmentBandingParameters {
     int32_t minBandingSize; //Any matrix bigger than this number squared will be broken apart with banding
     int32_t minBandingConstraintDistance; //The minimum size of a dp matrix between banding constraints.
     int32_t minTraceBackDiag; //The x+y diagonal to leave between the cut point and the place we choose new cutpoints.
-    int32_t minTraceGapDiags; //The distance to leave between a cutpoint and the traceback
     int32_t constraintDiagonalTrim; //Amount to remove from a diagonal to be considered for a banding constraint
     bool alignAmbiguityCharacters; //Align sequences that are not 'actgACTG' as ambiguity characters, else force them to be unaligned.
 } PairwiseAlignmentParameters;
