@@ -81,24 +81,18 @@ static inline double lookup(double x) {
     assert (x <= logUnderflowThreshold);
 #endif
     if (x <= 1.00f)
-        return ((-0.009350833524763f * x + 0.130659527668286f) * x
-                + 0.498799810682272f) * x + 0.693203116424741f;
+        return ((-0.009350833524763f * x + 0.130659527668286f) * x + 0.498799810682272f) * x + 0.693203116424741f;
     if (x <= 2.50f)
-        return ((-0.014532321752540f * x + 0.139942324101744f) * x
-                + 0.495635523139337f) * x + 0.692140569840976f;
+        return ((-0.014532321752540f * x + 0.139942324101744f) * x + 0.495635523139337f) * x + 0.692140569840976f;
     if (x <= 4.50f)
-        return ((-0.004605031767994f * x + 0.063427417320019f) * x
-                + 0.695956496475118f) * x + 0.514272634594009f;
-    return ((-0.000458661602210f * x + 0.009695946122598f) * x
-            + 0.930734667215156f) * x + 0.168037164329057f;
+        return ((-0.004605031767994f * x + 0.063427417320019f) * x + 0.695956496475118f) * x + 0.514272634594009f;
+    return ((-0.000458661602210f * x + 0.009695946122598f) * x + 0.930734667215156f) * x + 0.168037164329057f;
 }
 
 double logAdd(double x, double y) {
     if (x < y)
-        return (x == logZero || y - x >= logUnderflowThreshold) ? y : lookup(
-                y - x) + x;
-    return (y == logZero || x - y >= logUnderflowThreshold) ? x : lookup(x - y)
-            + y;
+        return (x == logZero || y - x >= logUnderflowThreshold) ? y : lookup(y - x) + x;
+    return (y == logZero || x - y >= logUnderflowThreshold) ? x : lookup(x - y) + y;
 }
 
 /*
@@ -139,17 +133,12 @@ static void checkPosition(int32_t z, int32_t zL) {
 static inline double transitionProb(int32_t from, int32_t to) {
     checkState(from);
     checkState(to);
-    static const double transitions[25] = { /*Match */matchContinueTransition,
-            matchFromShortGapTransition, matchFromShortGapTransition,
-            matchFromLongGapTransition, matchFromLongGapTransition,
-            /*To shortGapX */gapOpenShortTransition, gapShortExtendTransition,
-            gapShortSwitchTransition, logZero, logZero,
-            /*To shortGapY */gapOpenShortTransition, gapShortSwitchTransition,
-            gapShortExtendTransition, logZero, logZero,
-            /*To longGapX */gapOpenLongTransition, logZero, logZero,
-            gapLongExtendTransition, logZero,
-            /*To longGapY */gapOpenLongTransition, logZero, logZero, logZero,
-            gapLongExtendTransition };
+    static const double transitions[25] = { /*Match */matchContinueTransition, matchFromShortGapTransition,
+            matchFromShortGapTransition, matchFromLongGapTransition, matchFromLongGapTransition,
+            /*To shortGapX */gapOpenShortTransition, gapShortExtendTransition, gapShortSwitchTransition, logZero,
+            logZero, /*To shortGapY */gapOpenShortTransition, gapShortSwitchTransition, gapShortExtendTransition,
+            logZero, logZero, /*To longGapX */gapOpenLongTransition, logZero, logZero, gapLongExtendTransition,
+            logZero, /*To longGapY */gapOpenLongTransition, logZero, logZero, logZero, gapLongExtendTransition };
     return transitions[to * cellNo + from];
 }
 
@@ -170,20 +159,15 @@ static inline int32_t getTransitionOffSetY(int32_t state) {
 #define transversionEmission -4.5691014376830479 //log(0.010367271172731285);
 #define transitionEmission -3.9833860032220842 //log(0.01862247669752685);
 #define matchNEmission -3.2188758248682006 //log(0.04);
-static inline double emissionProb(int32_t x, int32_t y, int32_t lX, int32_t lY,
-        const char *sX, const char *sY, int32_t state) {
+static inline double emissionProb(int32_t x, int32_t y, int32_t lX, int32_t lY, const char *sX, const char *sY,
+        int32_t state) {
     checkState(state);
-    static const double gapM[5] = { gapEmission, gapEmission, gapEmission,
-            gapEmission, gapEmission };
-    static const double matchM[25] = { matchEmission, transversionEmission,
-            transitionEmission, transversionEmission, matchNEmission,
-            transversionEmission, matchEmission, transversionEmission,
-            transitionEmission, matchNEmission, transitionEmission,
-            transversionEmission, matchEmission, transversionEmission,
-            matchNEmission, transversionEmission, transitionEmission,
-            transversionEmission, matchEmission, matchNEmission,
-            matchNEmission, matchNEmission, matchNEmission, matchNEmission,
-            matchNEmission };
+    static const double gapM[5] = { gapEmission, gapEmission, gapEmission, gapEmission, gapEmission };
+    static const double matchM[25] = { matchEmission, transversionEmission, transitionEmission, transversionEmission,
+            matchNEmission, transversionEmission, matchEmission, transversionEmission, transitionEmission,
+            matchNEmission, transitionEmission, transversionEmission, matchEmission, transversionEmission,
+            matchNEmission, transversionEmission, transitionEmission, transversionEmission, matchEmission,
+            matchNEmission, matchNEmission, matchNEmission, matchNEmission, matchNEmission, matchNEmission };
     switch (state) {
         case 0:
             checkPosition(x, lX);
@@ -206,8 +190,7 @@ static inline double emissionProb(int32_t x, int32_t y, int32_t lX, int32_t lY,
 static inline double startStateProbs(int32_t state) {
     checkState(state);
     //static const double startProb = -1.0986122886681098; //math.log(1.0/3.0) = -1.0986122886681098
-    static const double startStates[5] = { matchContinueTransition,
-            gapOpenShortTransition, gapOpenShortTransition,
+    static const double startStates[5] = { matchContinueTransition, gapOpenShortTransition, gapOpenShortTransition,
             gapOpenLongTransition, gapOpenLongTransition };
     return startStates[state];
 }
@@ -249,12 +232,10 @@ static double *initialiseForwardMatrix(int32_t lX, int32_t lY) {
     return fM;
 }
 
-static inline void forwardCell(double *fM, int32_t x, int32_t y, int32_t lX,
-        int32_t lY, const char *sX, const char *sY) {
+static inline void forwardCell(double *fM, int32_t x, int32_t y, int32_t lX, int32_t lY, const char *sX, const char *sY) {
     double *cell = getCell(fM, x, y, lX);
     for (int32_t to = 0; to < cellNo; to++) {
-        double *pCell = getCell(fM, x - getTransitionOffSetX(to),
-                y - getTransitionOffSetY(to), lX);
+        double *pCell = getCell(fM, x - getTransitionOffSetX(to), y - getTransitionOffSetY(to), lX);
         if (pCell != NULL) {
             double eP = emissionProb(x, y, lX, lY, sX, sY, to);
             for (int32_t from = 0; from < cellNo; from++) {
@@ -329,8 +310,8 @@ static double *initialiseBackwardMatrix(int32_t lX, int32_t lY) {
     return bM;
 }
 
-static inline void backwardCell(double *bM, int32_t x, int32_t y, int32_t lX,
-        int32_t lY, const char *sX, const char *sY) {
+static inline void backwardCell(double *bM, int32_t x, int32_t y, int32_t lX, int32_t lY, const char *sX,
+        const char *sY) {
     double *cell = getCell(bM, x, y, lX);
     for (int32_t to = 0; to < cellNo; to++) {
         int32_t x2 = x + getTransitionOffSetX(to);
@@ -399,9 +380,8 @@ double totalBackwardProb(double *fM, int32_t lX) {
 //Posterior probabilities
 /////
 
-static inline double posteriorMatchProb(double *fM, double *bM, int32_t x,
-        int32_t y, int32_t lX, int32_t lY, const char *sX, const char *sY,
-        double totalProb) {
+static inline double posteriorMatchProb(double *fM, double *bM, int32_t x, int32_t y, int32_t lX, int32_t lY,
+        const char *sX, const char *sY, double totalProb) {
     int32_t to = 0;
     double *pCell = getCell(fM, x - 1, y - 1, lX);
     assert(pCell != NULL);
@@ -410,8 +390,7 @@ static inline double posteriorMatchProb(double *fM, double *bM, int32_t x,
     int32_t from = 0;
     double f = pCell[from] + transitionProb(from, to) + eP + cell[to];
     for (from = 1; from < cellNo; from++) {
-        logAddAndAssign(&f,
-                pCell[from] + transitionProb(from, to) + eP + cell[to]);
+        logAddAndAssign(&f, pCell[from] + transitionProb(from, to) + eP + cell[to]);
     }
     double p = exp(f - totalProb);
 #ifdef BEN_DEBUG
@@ -423,11 +402,9 @@ static inline double posteriorMatchProb(double *fM, double *bM, int32_t x,
     return p;
 }
 
-static void getPosteriorProbs(double *fM, double *bM, int32_t lX, int32_t lY,
-        const char *sX, const char *sY, stList *alignedPairs, double totalProb,
-        PairwiseAlignmentParameters *p) {
-    stList** alignedPairMatrix =
-            (stList**) st_malloc(lX * lY * sizeof(stList*));
+static void getPosteriorProbs(double *fM, double *bM, int32_t lX, int32_t lY, const char *sX, const char *sY,
+        stList *alignedPairs, double totalProb, PairwiseAlignmentParameters *p) {
+    stList** alignedPairMatrix = (stList**) st_malloc(lX * lY * sizeof(stList*));
 #ifdef _OPENMP
 #pragma omp parallel default(shared) if(lX >= ThreadChunkSize) num_threads(getNumThreads(lX))
 #endif
@@ -438,8 +415,7 @@ static void getPosteriorProbs(double *fM, double *bM, int32_t lX, int32_t lY,
         for (int32_t x = 1; x < lX; x++) {
             alignedPairMatrix[x] = stList_construct();
             for (int32_t y = 1; y < lY; y++) {
-                double f = posteriorMatchProb(fM, bM, x, y, lX, lY, sX, sY,
-                        totalProb);
+                double f = posteriorMatchProb(fM, bM, x, y, lX, lY, sX, sY, totalProb);
                 if (f >= posteriorMatchThreshold) {
                     if (f > 1.0) {
                         f = 1.0;
@@ -448,10 +424,8 @@ static void getPosteriorProbs(double *fM, double *bM, int32_t lX, int32_t lY,
                     assert(sX[x-1] >= 0 && sX[x-1] <= 4);
                     assert(sY[y-1] >= 0 && sY[y-1] <= 4);
 #endif
-                    if (p->alignAmbiguityCharacters || (sX[x - 1] < 4 && sY[y
-                            - 1] < 4)) {
-                        stIntTuple *alignedPair = stIntTuple_construct(3,
-                                (int32_t) floor(f * PAIR_ALIGNMENT_PROB_1),
+                    if (p->alignAmbiguityCharacters || (sX[x - 1] < 4 && sY[y - 1] < 4)) {
+                        stIntTuple *alignedPair = stIntTuple_construct(3, (int32_t) floor(f * PAIR_ALIGNMENT_PROB_1),
                                 x - 1, y - 1);
                         stList_append(alignedPairMatrix[x], alignedPair);
                     }
@@ -470,8 +444,7 @@ static void getPosteriorProbs(double *fM, double *bM, int32_t lX, int32_t lY,
 //Maximal expected accuracy alignment
 ///////
 
-stList *getAlignedPairs(const char *sX, const char *sY,
-        PairwiseAlignmentParameters *p) {
+stList *getAlignedPairs(const char *sX, const char *sY, PairwiseAlignmentParameters *p) {
     //Allocate the matrices.
     int32_t lX = strlen(sX) + 1;
     int32_t lY = strlen(sY) + 1;
@@ -510,8 +483,7 @@ stList *getAlignedPairs(const char *sX, const char *sY,
 #endif
 
     //Get posterior probabilities above 0.01 threshold.
-    stList *alignedPairs = stList_construct3(0,
-            (void(*)(void *)) stIntTuple_destruct);
+    stList *alignedPairs = stList_construct3(0, (void(*)(void *)) stIntTuple_destruct);
     getPosteriorProbs(fM, bM, lX, lY, cSX, cSY, alignedPairs, totalProb, p);
 
     //Cleanup
@@ -524,8 +496,7 @@ stList *getAlignedPairs(const char *sX, const char *sY,
 }
 
 char *getSubString(const char *cA, int32_t start, int32_t length) {
-    char *cA2 = memcpy(st_malloc(sizeof(char) * (length + 1)), cA + start,
-            length);
+    char *cA2 = memcpy(st_malloc(sizeof(char) * (length + 1)), cA + start, length);
     cA2[length] = '\0';
 
 #ifdef BEN_DEBUG
@@ -539,29 +510,31 @@ char *getSubString(const char *cA, int32_t start, int32_t length) {
 }
 
 static int sortByXPlusYCoordinate(const void *i, const void *j) {
-    int64_t k = stIntTuple_getPosition((stIntTuple *) i, 0)
-            + stIntTuple_getPosition((stIntTuple *) i, 1);
-    int64_t l = stIntTuple_getPosition((stIntTuple *) j, 0)
-            + stIntTuple_getPosition((stIntTuple *) j, 1);
+    int64_t k = stIntTuple_getPosition((stIntTuple *) i, 0) + stIntTuple_getPosition((stIntTuple *) i, 1);
+    int64_t l = stIntTuple_getPosition((stIntTuple *) j, 0) + stIntTuple_getPosition((stIntTuple *) j, 1);
     return k > l ? 1 : (k < l ? -1 : 0);
 }
 
 static char *makeUpperCase(const char *s, int32_t l) {
     char *s2 = stString_copy(s);
-    for(int32_t i=0; i<l; i++) {
+    for (int32_t i = 0; i < l; i++) {
         s2[i] = toupper(s[i]);
     }
     return s2;
 }
 
-stList *getBlastPairs(const char *sX, const char *sY, int32_t lX, int32_t lY,
-        int32_t trim, bool repeatMask) {
+static void writeSequenceToFile(char *file, const char *name, const char *sequence) {
+    FILE *fileHandle = fopen(file, "w");
+    fprintf(fileHandle, ">%s\n%s\n", name, sequence);
+    fclose(fileHandle);
+}
+
+stList *getBlastPairs(const char *sX, const char *sY, int32_t lX, int32_t lY, int32_t trim, bool repeatMask) {
     /*
      * Uses lastz to compute a bunch of monotonically increasing pairs such that for any pair of consecutive pairs in the list
      * (x1, y1) (x2, y2) in the set of aligned pairs x1 appears before x2 in X and y1 appears before y2 in Y.
      */
-    stList *alignedPairs = stList_construct3(0,
-            (void(*)(void *)) stIntTuple_destruct); //the list to put the output in
+    stList *alignedPairs = stList_construct3(0, (void(*)(void *)) stIntTuple_destruct); //the list to put the output in
 
     if (lX == 0 || lY == 0) {
         return alignedPairs;
@@ -574,17 +547,26 @@ stList *getBlastPairs(const char *sX, const char *sY, int32_t lX, int32_t lY,
 
     //Write one sequence to file..
     char *tempFile1 = getTempFile();
+    char *tempFile2 = NULL;
 
-    FILE *fileHandle = fopen(tempFile1, "w");
-    fprintf(fileHandle, ">a\n%s\n", sX);
-    fclose(fileHandle);
+    writeSequenceToFile(tempFile1, "a", sX);
 
-    char
-            *command =
-                    stString_print(
-                            "echo '>b\n%s\n' | lastz --hspthresh=800 --chain --strand=plus --gapped --format=cigar --ambiguous=iupac %s",
-                            sY, tempFile1);
-    fileHandle = popen(command, "r");
+    char *command;
+
+    if (lY > 10000) {
+        tempFile2 = getTempFile();
+        writeSequenceToFile(tempFile2, "b", sY);
+        command =
+                        stString_print(
+                                "lastz --hspthresh=800 --chain --strand=plus --gapped --format=cigar --ambiguous=iupac %s %s",
+                                tempFile1, tempFile2);
+    } else {
+        command =
+                        stString_print(
+                                "echo '>b\n%s\n' | lastz --hspthresh=800 --chain --strand=plus --gapped --format=cigar --ambiguous=iupac %s",
+                                sY, tempFile1);
+    }
+    FILE *fileHandle = popen(command, "r");
     free(command);
     if (fileHandle == NULL) {
         st_errAbort("Problems with lastz pipe");
@@ -604,8 +586,7 @@ stList *getBlastPairs(const char *sX, const char *sY, int32_t lX, int32_t lY,
             struct AlignmentOperation *op = pA->operationList->list[i];
             if (op->opType == PAIRWISE_MATCH) {
                 for (int32_t l = trim; l < op->length - trim; l++) {
-                    stList_append(alignedPairs,
-                            stIntTuple_construct(2, j + l, k + l));
+                    stList_append(alignedPairs, stIntTuple_construct(2, j + l, k + l));
                 }
             }
             if (op->opType != PAIRWISE_INDEL_Y) {
@@ -622,9 +603,7 @@ stList *getBlastPairs(const char *sX, const char *sY, int32_t lX, int32_t lY,
     }
     int32_t status = pclose(fileHandle);
     if (status != 0) {
-        st_errnoAbort(
-                "pclose failed when getting rid of lastz pipe with value %i",
-                status);
+        st_errnoAbort("pclose failed when getting rid of lastz pipe with value %i", status);
     }
 
     stList_sort(alignedPairs, sortByXPlusYCoordinate); //Ensure the coordinates are increasing
@@ -632,6 +611,10 @@ stList *getBlastPairs(const char *sX, const char *sY, int32_t lX, int32_t lY,
     //Remove old files
     st_system("rm %s", tempFile1);
     free(tempFile1);
+    if(tempFile2 != NULL) {
+        st_system("rm %s", tempFile2);
+        free(tempFile2);
+    }
 
     if (!repeatMask) {
         free((char *) sX);
@@ -641,8 +624,7 @@ stList *getBlastPairs(const char *sX, const char *sY, int32_t lX, int32_t lY,
     return alignedPairs;
 }
 
-stList *getAnchorPoints(stList *alignedPairs, int32_t minRectangleSize,
-        int32_t lX, int32_t lY) {
+stList *getAnchorPoints(stList *alignedPairs, int32_t minRectangleSize, int32_t lX, int32_t lY) {
     /*
      * Filters the blast pairs so that the are spaced with dp matrices of at least minRectangle size between them.
      */
@@ -656,8 +638,7 @@ stList *getAnchorPoints(stList *alignedPairs, int32_t minRectangleSize,
         if (x2 > x && y2 > y) { //This should never occur but deals with an error in lastz, I think....
             int64_t lRectangleSize = ((int64_t) x2 - x + 1) * (y2 - y + 1);
             int64_t rRectangeSize = ((int64_t) lX - x2) * (lY - y2);
-            if (lRectangleSize >= minRectangleSize && rRectangeSize
-                    >= minRectangleSize) {
+            if (lRectangleSize >= minRectangleSize && rRectangeSize >= minRectangleSize) {
                 stList_append(filteredPairs, alignedPair);
                 x = x2;
                 y = y2;
@@ -669,8 +650,7 @@ stList *getAnchorPoints(stList *alignedPairs, int32_t minRectangleSize,
     return filteredPairs;
 }
 
-static void convertPairs(stList *alignedPairs2, int32_t offsetX,
-        int32_t offsetY) {
+static void convertPairs(stList *alignedPairs2, int32_t offsetX, int32_t offsetY) {
     /*
      * Convert the coordinates of the computed pairs.
      */
@@ -680,15 +660,13 @@ static void convertPairs(stList *alignedPairs2, int32_t offsetX,
         stList_set(
                 alignedPairs2,
                 k,
-                stIntTuple_construct(3, stIntTuple_getPosition(i, 0),
-                        stIntTuple_getPosition(i, 1) + offsetX,
+                stIntTuple_construct(3, stIntTuple_getPosition(i, 0), stIntTuple_getPosition(i, 1) + offsetX,
                         stIntTuple_getPosition(i, 2) + offsetY));
         stIntTuple_destruct(i);
     }
 }
 
-static int32_t splitSequence(char *s, int32_t l, int32_t bandSize, char **sL,
-        char **sR) {
+static int32_t splitSequence(char *s, int32_t l, int32_t bandSize, char **sL, char **sR) {
     if (l > bandSize) {
         *sL = getSubString(s, 0, bandSize);
         *sR = getSubString(s, l - bandSize, bandSize);
@@ -699,8 +677,8 @@ static int32_t splitSequence(char *s, int32_t l, int32_t bandSize, char **sL,
     return 0;
 }
 
-static stList *getAlignedPairs_Split(char *sX, char *sY, int32_t lX,
-        int32_t lY, int32_t bandSize, PairwiseAlignmentParameters *p) {
+static stList *getAlignedPairs_Split(char *sX, char *sY, int32_t lX, int32_t lY, int32_t bandSize,
+        PairwiseAlignmentParameters *p) {
     /*
      * Aligns the sequences, but if the product of there sequence lengths is greater than bandSize squared * 2
      * then a dp matrix of bandsize squared if computed in the top left part of the entire dp matrix, and a
@@ -729,21 +707,18 @@ static stList *getAlignedPairs_Split(char *sX, char *sY, int32_t lX,
     /*
      * Get a unique set of pairs.
      */
-    stSortedSet *pairs = stSortedSet_construct3(
-            (int(*)(const void *, const void *)) stIntTuple_cmpFn,
+    stSortedSet *pairs = stSortedSet_construct3((int(*)(const void *, const void *)) stIntTuple_cmpFn,
             (void(*)(void *)) stIntTuple_destruct);
     for (int32_t i = 0; i < stList_length(alignedPairsL); i++) {
         stIntTuple *alignedPair = stList_get(alignedPairsL, i);
-        stIntTuple *coordinatePair = stIntTuple_construct(2,
-                stIntTuple_getPosition(alignedPair, 1),
+        stIntTuple *coordinatePair = stIntTuple_construct(2, stIntTuple_getPosition(alignedPair, 1),
                 stIntTuple_getPosition(alignedPair, 2));
         assert(stSortedSet_search(pairs, coordinatePair) == NULL);
         stSortedSet_insert(pairs, coordinatePair);
     }
     while (stList_length(alignedPairsR) > 0) { //empty and destroy the second list.
         stIntTuple *alignedPair = stList_pop(alignedPairsR);
-        stIntTuple *coordinatePair = stIntTuple_construct(2,
-                stIntTuple_getPosition(alignedPair, 1),
+        stIntTuple *coordinatePair = stIntTuple_construct(2, stIntTuple_getPosition(alignedPair, 1),
                 stIntTuple_getPosition(alignedPair, 2));
         if (stSortedSet_search(pairs, coordinatePair) == NULL) {
             stSortedSet_insert(pairs, coordinatePair);
@@ -761,13 +736,12 @@ static stList *getAlignedPairs_Split(char *sX, char *sY, int32_t lX,
 }
 
 PairwiseAlignmentParameters *pairwiseAlignmentBandingParameters_construct() {
-    PairwiseAlignmentParameters *p = st_malloc(
-            sizeof(PairwiseAlignmentParameters));
+    PairwiseAlignmentParameters *p = st_malloc(sizeof(PairwiseAlignmentParameters));
     p->maxBandingSize = 3000;
-    p->minBandingSize = 500;
-    p->minBandingConstraintDistance = 100;
-    p->minTraceBackDiag = 50;
-    p->constraintDiagonalTrim = 4;
+    p->minBandingSize = 1000;
+    p->minBandingConstraintDistance = 300;
+    p->minTraceBackDiag = 40;
+    p->constraintDiagonalTrim = 5;
     p->alignAmbiguityCharacters = 0;
     return p;
 }
@@ -781,15 +755,13 @@ static int32_t boundCoordinateTransform(int32_t i, int32_t j, int32_t max) {
     return i >= max ? max - 1 : (i < 0 ? 0 : i);
 }
 
-stList *getAlignedPairs_FastP(const char *sX, const char *sY,
-        PairwiseAlignmentParameters *p, bool recursive) {
+stList *getAlignedPairs_FastP(const char *sX, const char *sY, PairwiseAlignmentParameters *p, bool recursive) {
     /*
      * Aligns the pair of sequences using banding constraints.
      */
     int32_t lX = strlen(sX);
     int32_t lY = strlen(sY);
-    stList *alignedPairs = stList_construct3(0,
-            (void(*)(void *)) stIntTuple_destruct);
+    stList *alignedPairs = stList_construct3(0, (void(*)(void *)) stIntTuple_destruct);
     if (lX == 0 || lY == 0) {
         return alignedPairs;
     }
@@ -798,17 +770,14 @@ stList *getAlignedPairs_FastP(const char *sX, const char *sY,
 
     stList *blastPairs;
     if ((int64_t) lX * lY > minBandingSquare) {
-        blastPairs = getBlastPairs(sX, sY, lX, lY, p->constraintDiagonalTrim,
-                recursive);
+        blastPairs = getBlastPairs(sX, sY, lX, lY, p->constraintDiagonalTrim, recursive);
     } else {
         blastPairs = stList_construct(); //We don't bother getting anchors if the sequences are sufficiently small.
     }
 
-    stList *bandPairs = getAnchorPoints(blastPairs,
-            p->minBandingConstraintDistance * p->minBandingConstraintDistance,
+    stList *bandPairs = getAnchorPoints(blastPairs, p->minBandingConstraintDistance * p->minBandingConstraintDistance,
             lX, lY);
-    st_logDebug("We got %i aligned pairs and %i filtered pairs\n",
-            stList_length(blastPairs), stList_length(bandPairs));
+    st_logDebug("We got %i aligned pairs and %i filtered pairs\n", stList_length(blastPairs), stList_length(bandPairs));
     stIntTuple *finalPair = stIntTuple_construct(2, lX - 1, lY - 1);
     stList_append(bandPairs, finalPair);
     stListIterator *bandIt = stList_getIterator(bandPairs);
@@ -847,12 +816,10 @@ stList *getAlignedPairs_FastP(const char *sX, const char *sY,
 
         if ((int64_t) lX2 * lY2 <= minBandingSquare) { //products can be > 2^31
             alignedPairs2 = getAlignedPairs(sX2, sY2, p);
-        }
-        else if (recursive) {
+        } else if (recursive) {
             alignedPairs2 = getAlignedPairs_FastP(sX2, sY2, p, 0);
         } else {
-            alignedPairs2 = getAlignedPairs_Split(sX2, sY2, lX2, lY2,
-                    p->maxBandingSize, p);
+            alignedPairs2 = getAlignedPairs_Split(sX2, sY2, lX2, lY2, p->maxBandingSize, p);
         }
 
         //Cleanup the temporary sequences
@@ -912,7 +879,6 @@ stList *getAlignedPairs_FastP(const char *sX, const char *sY,
     return alignedPairs;
 }
 
-stList *getAlignedPairs_Fast(const char *sX, const char *sY,
-        PairwiseAlignmentParameters *p) {
+stList *getAlignedPairs_Fast(const char *sX, const char *sY, PairwiseAlignmentParameters *p) {
     return getAlignedPairs_FastP(sX, sY, p, 1);
 }
