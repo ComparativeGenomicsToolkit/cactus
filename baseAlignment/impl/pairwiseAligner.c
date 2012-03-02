@@ -739,9 +739,9 @@ PairwiseAlignmentParameters *pairwiseAlignmentBandingParameters_construct() {
     PairwiseAlignmentParameters *p = st_malloc(sizeof(PairwiseAlignmentParameters));
     p->maxBandingSize = 3000;
     p->minBandingSize = 1000;
-    p->minBandingConstraintDistance = 300;
-    p->minTraceBackDiag = 40;
-    p->constraintDiagonalTrim = 5;
+    p->minBandingConstraintDistance = 1000;
+    p->minTraceBackDiag = 50;
+    p->constraintDiagonalTrim = 10;
     p->alignAmbiguityCharacters = 0;
     return p;
 }
@@ -814,13 +814,13 @@ stList *getAlignedPairs_FastP(const char *sX, const char *sY, PairwiseAlignmentP
         //Do the actual alignment.
         stList *alignedPairs2;
 
-        if ((int64_t) lX2 * lY2 <= minBandingSquare) { //products can be > 2^31
+        /*if ((int64_t) lX2 * lY2 <= minBandingSquare) { //products can be > 2^31
             alignedPairs2 = getAlignedPairs(sX2, sY2, p);
         } else if (recursive) {
             alignedPairs2 = getAlignedPairs_FastP(sX2, sY2, p, 0);
-        } else {
+        } else {*/
             alignedPairs2 = getAlignedPairs_Split(sX2, sY2, lX2, lY2, p->maxBandingSize, p);
-        }
+        //}
 
         //Cleanup the temporary sequences
         free(sX2);

@@ -22,13 +22,13 @@ CuSuite* pairwiseAlignmentTestSuite(void);
 int stBaseAlignerRunAllTests(void) {
 	CuString *output = CuStringNew();
 	CuSuite* suite = CuSuiteNew();
-	CuSuiteAddSuite(suite, pairwiseAlignmentTestSuite());
+	/*CuSuiteAddSuite(suite, pairwiseAlignmentTestSuite());
 	CuSuiteAddSuite(suite, stPosetAlignmentTestSuite());
 	CuSuiteAddSuite(suite, multipleAlignerTestSuite());
 	CuSuiteAddSuite(suite, adjacencySequenceTestSuite());
 	CuSuiteAddSuite(suite, endAlignerTestSuite());
 	CuSuiteAddSuite(suite, flowerAlignerTestSuite());
-	CuSuiteAddSuite(suite, pairwiseAlignmentTestSuite());
+	CuSuiteAddSuite(suite, pairwiseAlignmentTestSuite());*/
 	CuSuiteAddSuite(suite, pairwiseAlignmentLongTestSuite());
 	CuSuiteRun(suite);
 	CuSuiteSummary(suite, output);
