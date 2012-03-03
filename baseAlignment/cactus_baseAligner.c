@@ -36,16 +36,16 @@ void usage() {
 
     fprintf(
             stderr,
-            "-o --maxBandingSize : (int >= 0)  No dp matrix biggger than this number squared will be computed.\n");
+            "-o --splitMatrixBiggerThanThis : (int >= 0)  No dp matrix biggger than this number squared will be computed.\n");
     fprintf(
             stderr,
-            "-p --minBandingSize : (int >= 0)  Any matrix bigger than this number squared will be broken apart with banding.\n");
+            "-p --anchorMatrixBiggerThanThis : (int >= 0)  Any matrix bigger than this number squared will be broken apart with banding.\n");
     fprintf(
             stderr,
-            "-q --minBandingConstraintDistance : (int >= 0)  The minimum size of a dp matrix between banding constraints.\n");
+            "-q --minDiagsBetweenTraceBack : (int >= 0)  The minimum size of a x+y diagonals between cutpoints.\n");
     fprintf(
             stderr,
-            "-r --minTraceBackDiag : (int >= 0)  The x+y diagonal to leave between the cut point and the place we choose new cutpoints.\n");
+            "-r --traceBackDiagonals : (int >= 0)  The x+y diagonal to leave between the cut point and the place we choose new cutpoints.\n");
     fprintf(
             stderr,
             "-t --constraintDiagonalTrim : (int >= 0)  The amount to be removed from each end of a diagonal to be considered a banding constraint.\n");
@@ -134,6 +134,7 @@ int main(int argc, char *argv[]) {
     float gapGamma = 0.5;
     bool useBanding = 0;
     int32_t numThreads = 1;
+    int32_t k;
 
     PairwiseAlignmentParameters *pairwiseAlignmentBandingParameters =
             pairwiseAlignmentBandingParameters_construct();
@@ -161,10 +162,10 @@ int main(int argc, char *argv[]) {
                 required_argument, 0, 'i' }, { "maximumLength",
                 required_argument, 0, 'j' }, { "useBanding", no_argument, 0,
                 'k' }, { "gapGamma", required_argument, 0, 'l' }, {
-                "maxBandingSize", required_argument, 0, 'o' }, {
-                "minBandingSize", required_argument, 0, 'p' }, {
-                "minBandingConstraintDistance", required_argument, 0, 'q' }, {
-                "minTraceBackDiag", required_argument, 0, 'r' }, {
+                "splitMatrixBiggerThanThis", required_argument, 0, 'o' }, {
+                "anchorMatrixBiggerThanThis", required_argument, 0, 'p' }, {
+                "minDiagsBetweenTraceBack", required_argument, 0, 'q' }, {
+                "traceBackDiagonals", required_argument, 0, 'r' }, {
                 "constraintDiagonalTrim", required_argument, 0, 't' }, {
                 "minimumDegree", required_argument, 0, 'u' }, {
                 "alignAmbiguityCharacters", no_argument, 0, 'w' }, {
@@ -216,35 +217,28 @@ int main(int argc, char *argv[]) {
                 assert(gapGamma >= 0.0);
                 break;
             case 'o':
-                i = sscanf(optarg, "%i",
-                        &(pairwiseAlignmentBandingParameters->maxBandingSize));
+                i = sscanf(optarg, "%i", &k);
                 assert(i == 1);
-                assert(pairwiseAlignmentBandingParameters->maxBandingSize >= 0);
+                assert(k >= 0);
+                pairwiseAlignmentBandingParameters->splitMatrixBiggerThanThis = (int64_t)k * k;
                 break;
             case 'p':
-                i = sscanf(optarg, "%i",
-                        &pairwiseAlignmentBandingParameters->minBandingSize);
+                i = sscanf(optarg, "%i", &k);
                 assert(i == 1);
-                assert(pairwiseAlignmentBandingParameters->minBandingSize >= 0);
+                assert(k >= 0);
+                pairwiseAlignmentBandingParameters->anchorMatrixBiggerThanThis = (int64_t)k * k;
                 break;
             case 'q':
-                i
-                        = sscanf(
-                                optarg,
-                                "%i",
-                                &pairwiseAlignmentBandingParameters->minBandingConstraintDistance);
+                i = sscanf(optarg, "%i", &k);
                 assert(i == 1);
-                assert(
-                        pairwiseAlignmentBandingParameters->minBandingConstraintDistance
-                                >= 0);
+                assert(k >= 0);
+                pairwiseAlignmentBandingParameters->repeatMaskMatrixBiggerThanThis = (int64_t)k * k;
                 break;
             case 'r':
                 i = sscanf(optarg, "%i",
-                        &pairwiseAlignmentBandingParameters->minTraceBackDiag);
+                        &pairwiseAlignmentBandingParameters->traceBackDiagonals);
                 assert(i == 1);
-                assert(
-                        pairwiseAlignmentBandingParameters->minTraceBackDiag
-                                >= 0);
+                assert(pairwiseAlignmentBandingParameters->traceBackDiagonals >= 0);
                 break;
             case 't':
                 i
@@ -262,8 +256,7 @@ int main(int argc, char *argv[]) {
                 assert(i == 1);
                 break;
             case 'w':
-                pairwiseAlignmentBandingParameters->alignAmbiguityCharacters
-                        = 1;
+                pairwiseAlignmentBandingParameters->alignAmbiguityCharacters = 1;
                 break;
             case 'y':
                 pruneOutStubAlignments = 1;
@@ -320,7 +313,7 @@ int main(int argc, char *argv[]) {
         st_logInfo("Processing a flower\n");
 
         getAlignment_alignedPairs = makeFlowerAlignment(flower, spanningTrees,
-                maximumLength, gapGamma, useBanding,
+                maximumLength, gapGamma,
                 pairwiseAlignmentBandingParameters, pruneOutStubAlignments);
         st_logInfo("Created the alignment: %i pairs\n",
                 stSortedSet_size(getAlignment_alignedPairs));

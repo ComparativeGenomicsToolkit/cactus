@@ -521,7 +521,6 @@ static void destroyWeights(PairwiseColumnWeight *pairwiseColumnWeight) {
 }
 
 stList *makeAlignment(stList *sequences, int32_t spanningTrees, float gapGamma,
-        bool useBanding,
         PairwiseAlignmentParameters *pairwiseAlignmentBandingParameters) {
     //Get the set of pairwise alignments (by constructing spanning trees)
     stSortedSet *pairwiseAlignments = stSortedSet_construct3(
@@ -560,8 +559,7 @@ stList *makeAlignment(stList *sequences, int32_t spanningTrees, float gapGamma,
         int32_t sequence2 = stIntTuple_getPosition(pairwiseAlignment, 1);
         char *string1 = stList_get(sequences, sequence1);
         char *string2 = stList_get(sequences, sequence2);
-        stList_append(pairwiseAlignmentsStack, useBanding ? getAlignedPairs_Fast(string1,
-                string2, pairwiseAlignmentBandingParameters) : getAlignedPairs(
+        stList_append(pairwiseAlignmentsStack, getAlignedPairs(
                 string1, string2, pairwiseAlignmentBandingParameters));
     }
 

@@ -487,7 +487,7 @@ End *getDominantEnd(Flower *flower) {
 }
 
 stSortedSet *makeFlowerAlignment(Flower *flower, int32_t spanningTrees,
-        int32_t maxSequenceLength, float gapGamma, bool useBanding,
+        int32_t maxSequenceLength, float gapGamma,
         PairwiseAlignmentParameters *pairwiseAlignmentBandingParameters,
         bool pruneOutStubAlignments) {
     //return stSortedSet_construct3((int(*)(const void *, const void *)) alignedPair_cmpFn,
@@ -505,7 +505,7 @@ stSortedSet *makeFlowerAlignment(Flower *flower, int32_t spanningTrees,
                 endAlignments,
                 dominantEnd,
                 makeEndAlignment(dominantEnd, spanningTrees,
-                        2 * maxSequenceLength, gapGamma, useBanding,
+                        2 * maxSequenceLength, gapGamma,
                         pairwiseAlignmentBandingParameters));
         while ((end = flower_getNextEnd(endIterator)) != NULL) {
             if (end != dominantEnd) {
@@ -520,7 +520,7 @@ stSortedSet *makeFlowerAlignment(Flower *flower, int32_t spanningTrees,
                     endAlignments,
                     end,
                     makeEndAlignment(end, spanningTrees, maxSequenceLength,
-                            gapGamma, useBanding,
+                            gapGamma,
                             pairwiseAlignmentBandingParameters));
         }
     }

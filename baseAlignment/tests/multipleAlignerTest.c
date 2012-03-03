@@ -205,7 +205,7 @@ void test_multipleAlignerRandom(CuTest *testCase) {
         }
 
         PairwiseAlignmentParameters *pairwiseParameters = pairwiseAlignmentBandingParameters_construct();
-        stList *alignedPairs = makeAlignment(randomSequences, spanningTrees, 0.5, 1, pairwiseParameters);
+        stList *alignedPairs = makeAlignment(randomSequences, spanningTrees, 0.5, pairwiseParameters);
         pairwiseAlignmentBandingParameters_destruct(pairwiseParameters);
         //Check the aligned pairs.
         stListIterator *iterator = stList_getIterator(alignedPairs);
