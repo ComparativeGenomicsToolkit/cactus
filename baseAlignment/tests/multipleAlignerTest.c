@@ -9,6 +9,7 @@
 #include "multipleAligner.h"
 #include "stPosetAlignment.h"
 #include "pairwiseAligner.h"
+#include "randomSequences.h"
 
 #include <stdlib.h>
 #include <string.h>
@@ -180,10 +181,6 @@ void test_getRandomAlignments(CuTest *testCase) {
  */
 
 //Declarations from pairwiseAlignerTest
-
-char *getRandomSequence(int32_t length);
-
-char *evolveSequence(const char *startSequence);
 
 stList *getRandomSequences(int32_t sequenceNumber, int32_t approxLength) {
     stList *sequences = stList_construct3(0, free);
