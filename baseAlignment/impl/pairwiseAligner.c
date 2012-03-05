@@ -22,13 +22,13 @@
 ///////////////////////////////////
 ///////////////////////////////////
 
-struct _diagonal {
-    int32_t xay; //x + y coordinate
-    int32_t xmyL; //smallest x - y coordinate
-    int32_t xmyR; //largest x - y coordinate
-};
+const char *PAIRWISE_ALIGNMENT_EXCEPTION_ID = "PAIRWISE_ALIGNMENT_EXCEPTION";
 
 Diagonal diagonal_construct(int32_t xay, int32_t xmyL, int32_t xmyR) {
+    if ((xay + xmyL) % 2 != 0 || (xay + xmyR) % 2 != 0 || xmyL > xmyR) {
+        stThrowNew(PAIRWISE_ALIGNMENT_EXCEPTION_ID,
+                "Attempt to create diagonal with invalid coordinates: xay %i xmyL %i xmyR %i", xay, xmyL, xmyR);
+    }
     Diagonal diagonal;
     diagonal.xay = xay;
     diagonal.xmyL = xmyL;
@@ -51,17 +51,26 @@ inline int32_t diagonal_getMaxXmy(Diagonal diagonal) {
 }
 
 inline int32_t diagonal_getWidth(Diagonal diagonal) {
-    return diagonal.xmyR - diagonal.xmyL;
+    return diagonal.xmyR - diagonal.xmyL + 1;
 }
 
-inline int32_t diagonal_getXCoordinate(int32_t xmy, int32_t xay) {
+inline int32_t diagonal_getXCoordinate(int32_t xay, int32_t xmy) {
+    assert((xay + xmy) % 2 == 0);
+    return (xay + xmy) / 2;
+}
+
+inline int32_t diagonal_equals(Diagonal diagonal1, Diagonal diagonal2) {
+    return diagonal1.xay == diagonal2.xay && diagonal1.xmyL == diagonal2.xmyL && diagonal1.xmyR == diagonal2.xmyR;
+}
+
+inline int32_t diagonal_getYCoordinate(int32_t xay, int32_t xmy) {
     assert((xay - xmy) % 2 == 0);
     return (xay - xmy) / 2;
 }
 
-inline int32_t diagonal_getYCoordinate(int32_t xmy, int32_t xay) {
-    assert((xay + xmy) % 2 == 0);
-    return (xay - xmy) / 2;
+inline char *diagonal_getString(Diagonal diagonal) {
+    return stString_print("Diagonal, xay: %i xmyL %i, xmyR: %i", diagonal_getXay(diagonal),
+            diagonal_getMinXmy(diagonal), diagonal_getMaxXmy(diagonal));
 }
 
 ///////////////////////////////////
@@ -81,26 +90,26 @@ struct _bandIterator {
     int32_t nxay, nxmy;
 };
 
-static int32_t boundCoordinate(int32_t z, int32_t lZ) {
-    return z < 0 ? 0 : (z > lZ ? lZ : 0);
+int32_t boundCoordinate(int32_t z, int32_t lZ) {
+    return z < 0 ? 0 : (z > lZ ? lZ : z);
 }
 
 static void bandIterator_setBandCoordinates(BandIterator *bandIterator) {
     bandIterator->xL
             = boundCoordinate(
-                    diagonal_getXCoordinate(bandIterator->pxmy - bandIterator->expansion, bandIterator->pxay),
+                    diagonal_getXCoordinate(bandIterator->pxay, bandIterator->pxmy - bandIterator->expansion),
                     bandIterator->lX);
     bandIterator->yL
             = boundCoordinate(
-                    diagonal_getYCoordinate(bandIterator->nxmy - bandIterator->expansion, bandIterator->nxay),
+                    diagonal_getYCoordinate(bandIterator->nxay, bandIterator->nxmy - bandIterator->expansion),
                     bandIterator->lY);
     bandIterator->xU
             = boundCoordinate(
-                    diagonal_getXCoordinate(bandIterator->nxmy + bandIterator->expansion, bandIterator->nxay),
+                    diagonal_getXCoordinate(bandIterator->nxay, bandIterator->nxmy + bandIterator->expansion),
                     bandIterator->lX);
     bandIterator->yU
             = boundCoordinate(
-                    diagonal_getYCoordinate(bandIterator->pxmy + bandIterator->expansion, bandIterator->pxay),
+                    diagonal_getYCoordinate(bandIterator->pxay, bandIterator->pxmy + bandIterator->expansion),
                     bandIterator->lY);
 }
 
@@ -109,11 +118,15 @@ BandIterator *bandIterator_construct(stList *anchorPairs, int32_t lX, int32_t lY
     bandIterator->anchorPairsIt = stList_getIterator(anchorPairs);
     bandIterator->lX = lX;
     bandIterator->lY = lY;
+    if (expansion % 2 != 0) {
+        stThrowNew(PAIRWISE_ALIGNMENT_EXCEPTION_ID, "Attempt to specify non-even expansion coordinate: %i ", expansion);
+    }
     bandIterator->expansion = expansion;
     bandIterator->pxay = 0;
     bandIterator->pxmy = 0;
     bandIterator->nxay = 0;
     bandIterator->nxmy = 0;
+    bandIterator->xay = 0;
     bandIterator_setBandCoordinates(bandIterator); //This establishes the coordinates.
     return bandIterator;
 }
@@ -130,39 +143,72 @@ void bandIterator_destruct(BandIterator *bandIterator) {
     free(bandIterator);
 }
 
+static int32_t bandIterator_avoidOffByOne(int32_t xay, int32_t xmy) {
+    return (xay + xmy) % 2 == 0 ? xmy : xmy + 1;
+}
+
+static void bandIterator_setCurrentDiagonalP(int32_t *xmy, int32_t i, int32_t j, int32_t k) {
+    if (i < j) {
+        *xmy += 2 * (j - i) * k;
+    }
+}
+
 static Diagonal bandIterator_setCurrentDiagonal(BandIterator *bandIterator) {
     Diagonal diagonal;
     diagonal.xay = bandIterator->xay;
     diagonal.xmyL = bandIterator->xL - bandIterator->yL;
-    diagonal.xmyR = bandIterator->xU - bandIterator->xU;
+    diagonal.xmyR = bandIterator->xU - bandIterator->yU;
+
+    //Avoid in-between undefined x,y coordinate positions when intersecting xay and xmy.
+    diagonal.xmyL = bandIterator_avoidOffByOne(diagonal.xay, diagonal.xmyL);
+    diagonal.xmyR = bandIterator_avoidOffByOne(diagonal.xay, diagonal.xmyR);
+
+    //Bound the xmy coordinates by the x and y boundaries
+    bandIterator_setCurrentDiagonalP(&diagonal.xmyL, diagonal_getXCoordinate(diagonal.xay, diagonal.xmyL),
+            bandIterator->xL, 1);
+    bandIterator_setCurrentDiagonalP(&diagonal.xmyL, bandIterator->yL,
+            diagonal_getYCoordinate(diagonal.xay, diagonal.xmyL), 1);
+    bandIterator_setCurrentDiagonalP(&diagonal.xmyR, bandIterator->xU,
+            diagonal_getXCoordinate(diagonal.xay, diagonal.xmyR), -1);
+    bandIterator_setCurrentDiagonalP(&diagonal.xmyR, diagonal_getYCoordinate(diagonal.xay, diagonal.xmyR),
+            bandIterator->yU, -1);
+
     return diagonal;
 }
 
 Diagonal bandIterator_getNext(BandIterator *bandIterator) {
     Diagonal diagonal = bandIterator_setCurrentDiagonal(bandIterator);
-
-    //Update coordinates for next iteration
-    if (bandIterator->xay < bandIterator->lX + bandIterator->lY) { //Coordinates of diagonal do not change when we hit lX + lY == xay;
-        if (bandIterator->nxay == bandIterator->xay++) { //We've reach the x+y diagonal of the next anchor pair
+    if (bandIterator->xay < bandIterator->lX + bandIterator->lY) {
+        if (bandIterator->nxay == bandIterator->xay++) {
             //The previous diagonals become the next
             bandIterator->pxay = bandIterator->nxay;
             bandIterator->pxmy = bandIterator->nxmy;
 
+            int32_t x = bandIterator->lX, y = bandIterator->lY;
             stIntTuple *anchorPair = stList_getNext(bandIterator->anchorPairsIt);
             if (anchorPair != NULL) { //There is another anchor point
-                int32_t x = stIntTuple_getPosition(anchorPair, 0) + 1; //Plus ones, because matrix coordinates are +1 the sequence ones
-                int32_t y = stIntTuple_getPosition(anchorPair, 1) + 1;
-                bandIterator->nxay = x + y;
-                bandIterator->nxmy = x - y;
-            } else { //There is no further anchor point, so use the end of the sequences
-                bandIterator->nxay = bandIterator->lX + bandIterator->lY;
-                bandIterator->nxmy = bandIterator->lX - bandIterator->lY;
+                x = stIntTuple_getPosition(anchorPair, 0) + 1; //Plus ones, because matrix coordinates are +1 the sequence ones
+                y = stIntTuple_getPosition(anchorPair, 1) + 1;
+                if (x + y == bandIterator->nxay) { //This is required because mixture of nexts and previous calls can cause the anchor iterator to get out of sync.
+                    assert(bandIterator->nxmy == x - y);
+                    anchorPair = stList_getNext(bandIterator->anchorPairsIt);
+                    if (anchorPair != NULL) {
+                        x = stIntTuple_getPosition(anchorPair, 0) + 1; //Plus ones, because matrix coordinates are +1 the sequence ones
+                        y = stIntTuple_getPosition(anchorPair, 1) + 1;
+                    }
+                    else {
+                        x = bandIterator->lX;
+                        y = bandIterator->lY;
+                    }
+                }
             }
+            bandIterator->nxay = x + y;
+            bandIterator->nxmy = x - y;
+
             //Now call to set the lower and upper x,y coordinates
             bandIterator_setBandCoordinates(bandIterator);
         }
     }
-
     return diagonal;
 }
 
@@ -177,15 +223,26 @@ Diagonal bandIterator_getPrevious(BandIterator *bandIterator) {
             bandIterator->nxmy = bandIterator->pxmy;
 
             stIntTuple *anchorPair = stList_getPrevious(bandIterator->anchorPairsIt);
+            int32_t x = 0, y = 0;
             if (anchorPair != NULL) { //There is another anchor point
-                int32_t x = stIntTuple_getPosition(anchorPair, 0) + 1; //Plus ones, because matrix coordinates are +1 the sequence ones
-                int32_t y = stIntTuple_getPosition(anchorPair, 1) + 1;
-                bandIterator->pxay = x + y;
-                bandIterator->pxmy = x - y;
-            } else { //There is no further anchor point, so use the end of the sequences
-                bandIterator->pxay = 0;
-                bandIterator->pxmy = 0;
+                x = stIntTuple_getPosition(anchorPair, 0) + 1; //Plus ones, because matrix coordinates are +1 the sequence ones
+                y = stIntTuple_getPosition(anchorPair, 1) + 1;
+                if (x + y == bandIterator->pxay) { //This is required because mixture of nexts and previous calls can cause the anchor iterator to get out of sync.
+                    assert(bandIterator->pxmy == x - y);
+                    anchorPair = stList_getPrevious(bandIterator->anchorPairsIt);
+                    if (anchorPair != NULL) {
+                        x = stIntTuple_getPosition(anchorPair, 0) + 1; //Plus ones, because matrix coordinates are +1 the sequence ones
+                        y = stIntTuple_getPosition(anchorPair, 1) + 1;
+                    }
+                    else {
+                        x = 0;
+                        y = 0;
+                    }
+                }
             }
+            bandIterator->pxay = x + y;
+            bandIterator->pxmy = x - y;
+
             //Now call to set the lower and upper x,y coordinates
             bandIterator_setBandCoordinates(bandIterator);
         }
@@ -889,8 +946,7 @@ static void getSplitPointsP(int32_t pX, int32_t pY, int32_t x, int32_t y, stList
     }
 }
 
-stList *getSplitPoints(stList *anchorPairs, int32_t lX, int32_t lY,
-        PairwiseAlignmentParameters *p) {
+stList *getSplitPoints(stList *anchorPairs, int32_t lX, int32_t lY, PairwiseAlignmentParameters *p) {
     int32_t pX = 0;
     int32_t pY = 0;
     stList *splitPoints = stList_construct3(0, (void(*)(void *)) stIntTuple_destruct);

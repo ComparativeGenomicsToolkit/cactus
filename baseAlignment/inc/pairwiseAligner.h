@@ -14,6 +14,9 @@
 #ifndef PAIRWISEALIGNER_H_
 #define PAIRWISEALIGNER_H_
 
+//The exception string
+extern const char *PAIRWISE_ALIGNMENT_EXCEPTION_ID;
+
 //Constant that gives the integer value equal to probability 1. Integer probability zero is always 0.
 #define PAIR_ALIGNMENT_PROB_1 10000000
 
@@ -44,7 +47,11 @@ stList *getAlignedPairs(const char *string1, const char *string2, PairwiseAlignm
 
 ////Diagonal
 
-typedef struct _diagonal Diagonal;
+typedef struct _diagonal {
+    int32_t xay; //x + y coordinate
+    int32_t xmyL; //smallest x - y coordinate
+    int32_t xmyR; //largest x - y coordinate
+} Diagonal;
 
 Diagonal diagonal_construct(int32_t xay, int32_t xmyL, int32_t xmyR);
 
@@ -56,9 +63,13 @@ int32_t diagonal_getMaxXmy(Diagonal diagonal);
 
 int32_t diagonal_getWidth(Diagonal diagonal);
 
-int32_t diagonal_getXCoordinate(int32_t xmy, int32_t xay);
+int32_t diagonal_getXCoordinate(int32_t xay, int32_t xmy);
 
-int32_t diagonal_getYCoordinate(int32_t xmy, int32_t xay);
+int32_t diagonal_getYCoordinate(int32_t xay, int32_t xmy);
+
+int32_t diagonal_equals(Diagonal diagonal1, Diagonal diagonal2);
+
+char *diagonal_getString(Diagonal diagonal);
 
 ////Band iterator.
 
@@ -66,9 +77,9 @@ typedef struct _bandIterator BandIterator;
 
 BandIterator *bandIterator_construct(stList *anchorPairs, int32_t lX, int32_t lY, int32_t expansion);
 
-BandIterator *bandIterator_clone(BandIterator *bandIterator);
-
 void bandIterator_destruct(BandIterator *bandIterator);
+
+BandIterator *bandIterator_clone(BandIterator *bandIterator);
 
 Diagonal bandIterator_getNext(BandIterator *bandIterator);
 
