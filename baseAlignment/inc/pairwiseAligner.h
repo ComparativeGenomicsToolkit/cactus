@@ -167,7 +167,7 @@ void dpDiagonal_destruct(DpDiagonal *dpDiagonal);
 
 double *dpDiagonal_getCell(DpDiagonal *dpDiagonal, int32_t xmy);
 
-double dpDiagonal_sum(DpDiagonal *diagonal);
+double dpDiagonal_dotProduct(DpDiagonal *diagonal1, DpDiagonal *diagonal2);
 
 void dpDiagonal_zeroValues(DpDiagonal *diagonal);
 
@@ -197,7 +197,10 @@ void diagonalCalculationForward(int32_t xay, DpMatrix *dpMatrix, const Symbol *s
 void diagonalCalculationBackward(int32_t xay, DpMatrix *dpMatrix, const Symbol *sX, const Symbol *sY, int32_t lX,
         int32_t lY);
 
-void diagonalCalculationPosterior(int32_t xay, DpMatrix *forwardDpMatrix, DpMatrix *backwardDpMatrix,
+double diagonalCalculationTotalProbability(int32_t xay, DpMatrix *forwardDpMatrix, DpMatrix *backwardDpMatrix,
+        const Symbol *sX, const Symbol *sY, int32_t lX, int32_t lY);
+
+void diagonalCalculationPosteriorMatchProbs(int32_t xay, DpMatrix *forwardDpMatrix, DpMatrix *backwardDpMatrix,
         const Symbol *sX, const Symbol *sY, int32_t lX, int32_t lY, double threshold,
         double posteriorProbability, stList *alignedPairs);
 
