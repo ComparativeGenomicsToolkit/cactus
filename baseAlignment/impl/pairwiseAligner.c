@@ -618,7 +618,7 @@ void diagonalCalculationPosteriorMatchProbs(int32_t xay, DpMatrix *forwardDpMatr
         double *cellForward = dpDiagonal_getCell(forwardDiagonal, xmy);
         double *cellBackward = dpDiagonal_getCell(backDiagonal, xmy);
         double posteriorProbability = exp(cellForward[match] + cellBackward[match] - totalProbability);
-        if (posteriorProbability >= threshold) {
+        if (posteriorProbability >= threshold && 0) {
             int32_t x = diagonal_getXCoordinate(diagonal_getXay(diagonal), xmy);
             int32_t y = diagonal_getYCoordinate(diagonal_getXay(diagonal), xmy);
             assert(x > 0 && x <= lX);
@@ -644,12 +644,12 @@ void diagonalCalculationPosteriorMatchProbs(int32_t xay, DpMatrix *forwardDpMatr
 stList *getAlignedPairsWithBanding(stList *anchorPairs, const Symbol *sX, const Symbol *sY, const int32_t lX,
         const int32_t lY, PairwiseAlignmentParameters *p) {
     //Prerequisites
-    assert(p->traceBackDiagonals >= 2);
+    assert(p->traceBackDiagonals >= 1);
     assert(p->threshold >= 0.0);
     assert(p->threshold <= 1.0);
     assert(p->diagonalExpansion >= 0);
     assert(p->diagonalExpansion % 2 ==  0);
-    assert(p->minDiagsBetweenTraceBack >= 1);
+    assert(p->minDiagsBetweenTraceBack >= 2);
     assert(p->traceBackDiagonals < p->minDiagsBetweenTraceBack);
 
     //This list of pairs to be returned. Not in any order, but points must be unique
@@ -707,17 +707,25 @@ stList *getAlignedPairsWithBanding(stList *anchorPairs, const Symbol *sX, const 
                     double totalProbability = diagonalCalculationTotalProbability(diagonal_getXay(diagonal2), forwardDpMatrix, backwardDpMatrix, sX, sY, lX, lY);
                     diagonalCalculationPosteriorMatchProbs(diagonal_getXay(diagonal2), forwardDpMatrix,
                             backwardDpMatrix, sX, sY, lX, lY, p->threshold, totalProbability, alignedPairs);
-                    dpMatrix_deleteDiagonal(forwardDpMatrix, diagonal_getXay(diagonal2) - 1); //Delete forward diagonal after last access in posterior calculation
+                    st_uglyf("The total prob is %f %i\n", (float)totalProbability, diagonal_getXay(diagonal2));
+                    if(diagonal_getXay(diagonal2) < diagonal_getXay(diagonal)) {
+                        dpMatrix_deleteDiagonal(forwardDpMatrix, diagonal_getXay(diagonal2)); //Delete forward diagonal after last access in posterior calculation
+                    }
                 }
-                dpMatrix_deleteDiagonal(backwardDpMatrix, diagonal_getXay(diagonal2)); //Delete backward diagonal after last access in backward calculation
+                if(diagonal_getXay(diagonal2)+1 <= lX + lY) {
+                    dpMatrix_deleteDiagonal(backwardDpMatrix, diagonal_getXay(diagonal2)+1); //Delete backward diagonal after last access in backward calculation
+                }
                 diagonal2 = bandIterator_getPrevious(backwardBandIterator);
             }
             tracedBackTo = tracedBackFrom;
             bandIterator_destruct(backwardBandIterator);
+            dpMatrix_deleteDiagonal(backwardDpMatrix, diagonal_getXay(diagonal2)+1);
+            dpMatrix_deleteDiagonal(forwardDpMatrix, diagonal_getXay(diagonal2));
             //Check memory state.
             assert(dpMatrix_getActiveDiagonalNumber(backwardDpMatrix) == 0);
+            st_uglyf("Remaining diagonals %i\n", dpMatrix_getActiveDiagonalNumber(forwardDpMatrix));
             if (!atEnd) {
-                assert(dpMatrix_getActiveDiagonalNumber(forwardDpMatrix) == p->traceBackDiagonals + 1);
+                assert(dpMatrix_getActiveDiagonalNumber(forwardDpMatrix) == p->traceBackDiagonals);
             }
         }
 

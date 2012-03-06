@@ -331,6 +331,9 @@ static void test_getAlignedPairsWithBanding(CuTest *testCase) {
         Symbol *sY2 = symbol_convertStringToSymbols(sY, lY);
         //Now do alignment
         PairwiseAlignmentParameters *p = pairwiseAlignmentBandingParameters_construct();
+        p->traceBackDiagonals = 3;
+        p->minDiagsBetweenTraceBack = 5;
+        p->diagonalExpansion = 1000;
         stList *anchorPairs = stList_construct3(0, (void(*)(void *)) stIntTuple_destruct);
         stList *alignedPairs = getAlignedPairsWithBanding(anchorPairs, sX2, sY2, lX, lY, p);
         //Check the aligned pairs.
