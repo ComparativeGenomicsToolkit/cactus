@@ -26,8 +26,10 @@ const char *PAIRWISE_ALIGNMENT_EXCEPTION_ID = "PAIRWISE_ALIGNMENT_EXCEPTION";
 
 Diagonal diagonal_construct(int32_t xay, int32_t xmyL, int32_t xmyR) {
     if ((xay + xmyL) % 2 != 0 || (xay + xmyR) % 2 != 0 || xmyL > xmyR) {
-        stThrowNew(PAIRWISE_ALIGNMENT_EXCEPTION_ID,
-                "Attempt to create diagonal with invalid coordinates: xay %i xmyL %i xmyR %i", xay, xmyL, xmyR);
+        stThrowNew(
+                PAIRWISE_ALIGNMENT_EXCEPTION_ID,
+                "Attempt to create diagonal with invalid coordinates: xay %i xmyL %i xmyR %i",
+                xay, xmyL, xmyR);
     }
     Diagonal diagonal;
     diagonal.xay = xay;
@@ -51,7 +53,7 @@ inline int32_t diagonal_getMaxXmy(Diagonal diagonal) {
 }
 
 inline int32_t diagonal_getWidth(Diagonal diagonal) {
-    return diagonal.xmyR - diagonal.xmyL + 1;
+    return (diagonal.xmyR - diagonal.xmyL) / 2 + 1;
 }
 
 inline int32_t diagonal_getXCoordinate(int32_t xay, int32_t xmy) {
@@ -60,7 +62,8 @@ inline int32_t diagonal_getXCoordinate(int32_t xay, int32_t xmy) {
 }
 
 inline int32_t diagonal_equals(Diagonal diagonal1, Diagonal diagonal2) {
-    return diagonal1.xay == diagonal2.xay && diagonal1.xmyL == diagonal2.xmyL && diagonal1.xmyR == diagonal2.xmyR;
+    return diagonal1.xay == diagonal2.xay && diagonal1.xmyL == diagonal2.xmyL
+            && diagonal1.xmyR == diagonal2.xmyR;
 }
 
 inline int32_t diagonal_getYCoordinate(int32_t xay, int32_t xmy) {
@@ -69,8 +72,9 @@ inline int32_t diagonal_getYCoordinate(int32_t xay, int32_t xmy) {
 }
 
 inline char *diagonal_getString(Diagonal diagonal) {
-    return stString_print("Diagonal, xay: %i xmyL %i, xmyR: %i", diagonal_getXay(diagonal),
-            diagonal_getMinXmy(diagonal), diagonal_getMaxXmy(diagonal));
+    return stString_print("Diagonal, xay: %i xmyL %i, xmyR: %i",
+            diagonal_getXay(diagonal), diagonal_getMinXmy(diagonal),
+            diagonal_getMaxXmy(diagonal));
 }
 
 ///////////////////////////////////
@@ -82,173 +86,149 @@ inline char *diagonal_getString(Diagonal diagonal) {
 ///////////////////////////////////
 ///////////////////////////////////
 
-struct _bandIterator {
-    stListIterator *anchorPairsIt; //Iterator over input anchor pairs
-    int32_t xay, lX, lY, expansion;
-    int32_t xU, yU, xL, yL;
-    int32_t pxay, pxmy;
-    int32_t nxay, nxmy;
+struct _band {
+    Diagonal *diagonals;
+    int32_t lXalY;
 };
 
-int32_t boundCoordinate(int32_t z, int32_t lZ) {
+static int32_t band_avoidOffByOne(int32_t xay, int32_t xmy) {
+    return (xay + xmy) % 2 == 0 ? xmy : xmy + 1;
+}
+
+static void band_setCurrentDiagonalP(int32_t *xmy, int32_t i, int32_t j,
+        int32_t k) {
+    if (i < j) {
+        *xmy += 2 * (j - i) * k;
+    }
+}
+
+static Diagonal band_setCurrentDiagonal(int32_t xay, int32_t xL, int32_t yL,
+        int32_t xU, int32_t yU) {
+    Diagonal diagonal;
+    diagonal.xay = xay;
+    diagonal.xmyL = xL - yL;
+    diagonal.xmyR = xU - yU;
+
+    //Avoid in-between undefined x,y coordinate positions when intersecting xay and xmy.
+    diagonal.xmyL = band_avoidOffByOne(xay, diagonal.xmyL);
+    diagonal.xmyR = band_avoidOffByOne(xay, diagonal.xmyR);
+
+    //Bound the xmy coordinates by the xL, yL and xU, yU band boundaries
+    band_setCurrentDiagonalP(&diagonal.xmyL,
+            diagonal_getXCoordinate(diagonal.xay, diagonal.xmyL), xL, 1);
+    band_setCurrentDiagonalP(&diagonal.xmyL, yL,
+            diagonal_getYCoordinate(diagonal.xay, diagonal.xmyL), 1);
+    band_setCurrentDiagonalP(&diagonal.xmyR, xU,
+            diagonal_getXCoordinate(diagonal.xay, diagonal.xmyR), -1);
+    band_setCurrentDiagonalP(&diagonal.xmyR,
+            diagonal_getYCoordinate(diagonal.xay, diagonal.xmyR), yU, -1);
+
+    return diagonal;
+}
+
+static int32_t band_boundCoordinate(int32_t z, int32_t lZ) {
     return z < 0 ? 0 : (z > lZ ? lZ : z);
 }
 
-static void bandIterator_setBandCoordinates(BandIterator *bandIterator) {
-    bandIterator->xL
-            = boundCoordinate(
-                    diagonal_getXCoordinate(bandIterator->pxay, bandIterator->pxmy - bandIterator->expansion),
-                    bandIterator->lX);
-    bandIterator->yL
-            = boundCoordinate(
-                    diagonal_getYCoordinate(bandIterator->nxay, bandIterator->nxmy - bandIterator->expansion),
-                    bandIterator->lY);
-    bandIterator->xU
-            = boundCoordinate(
-                    diagonal_getXCoordinate(bandIterator->nxay, bandIterator->nxmy + bandIterator->expansion),
-                    bandIterator->lX);
-    bandIterator->yU
-            = boundCoordinate(
-                    diagonal_getYCoordinate(bandIterator->pxay, bandIterator->pxmy + bandIterator->expansion),
-                    bandIterator->lY);
+Band *band_construct(stList *anchorPairs, int32_t lX, int32_t lY,
+        int32_t expansion) {
+    assert(lX >= 0);
+    assert(lY >= 0);
+
+    if (expansion % 2 != 0) {
+        stThrowNew(PAIRWISE_ALIGNMENT_EXCEPTION_ID,
+                "Expansion around anchors is not even, expansion: %i\n",
+                expansion);
+    }
+
+    Band *band = st_malloc(sizeof(Band));
+    band->diagonals = st_malloc(sizeof(Diagonal) * (lX + lY + 1));
+    band->lXalY = lX + lY;
+
+    //Now initialise the diagonals
+    int32_t anchorPairIndex = 0;
+    int32_t xay = 0;
+    int32_t pxay = 0, pxmy = 0;
+    int32_t nxay = 0, nxmy = 0;
+    int32_t xL = 0, yL = 0, xU = 0, yU = 0;
+
+    while (xay <= band->lXalY) {
+        band->diagonals[xay] = band_setCurrentDiagonal(xay, xL, yL, xU, yU);
+        if (nxay == xay++) {
+            //The previous diagonals become the next
+            pxay = nxay;
+            pxmy = nxmy;
+
+            int32_t x = lX, y = lY;
+            if (anchorPairIndex < stList_length(anchorPairs)) {
+                stIntTuple *anchorPair = stList_get(anchorPairs,
+                        anchorPairIndex++);
+                x = stIntTuple_getPosition(anchorPair, 0) + 1; //Plus ones, because matrix coordinates are +1 the sequence ones
+                y = stIntTuple_getPosition(anchorPair, 1) + 1;
+                if(x <= diagonal_getXCoordinate(pxay, pxmy) || y <= diagonal_getYCoordinate(pxay, pxmy)) {
+                    stThrowNew(PAIRWISE_ALIGNMENT_EXCEPTION_ID, "New anchor does not proceed previous one: x %i y %i pX %i pY %i\n", x, y,
+                            diagonal_getXCoordinate(pxay, pxmy), diagonal_getYCoordinate(pxay, pxmy));
+                }
+            }
+
+            nxay = x + y;
+            nxmy = x - y;
+
+            //Now call to set the lower and upper x,y coordinates
+            xL = band_boundCoordinate(
+                    diagonal_getXCoordinate(pxay, pxmy - expansion), lX);
+            yL = band_boundCoordinate(
+                    diagonal_getYCoordinate(nxay, nxmy - expansion), lY);
+            xU = band_boundCoordinate(
+                    diagonal_getXCoordinate(nxay, nxmy + expansion), lX);
+            yU = band_boundCoordinate(
+                    diagonal_getYCoordinate(pxay, pxmy + expansion), lY);
+        }
+    }
+
+    return band;
 }
 
-BandIterator *bandIterator_construct(stList *anchorPairs, int32_t lX, int32_t lY, int32_t expansion) {
+void band_destruct(Band *band) {
+    free(band->diagonals);
+    free(band);
+}
+
+struct _bandIterator {
+    Band *band;
+    int32_t index;
+};
+
+BandIterator *bandIterator_construct(Band *band) {
     BandIterator *bandIterator = st_malloc(sizeof(BandIterator));
-    bandIterator->anchorPairsIt = stList_getIterator(anchorPairs);
-    bandIterator->lX = lX;
-    bandIterator->lY = lY;
-    if (expansion % 2 != 0) {
-        stThrowNew(PAIRWISE_ALIGNMENT_EXCEPTION_ID, "Attempt to specify non-even expansion coordinate: %i ", expansion);
-    }
-    bandIterator->expansion = expansion;
-    bandIterator->pxay = 0;
-    bandIterator->pxmy = 0;
-    bandIterator->nxay = 0;
-    bandIterator->nxmy = 0;
-    bandIterator->xay = 0;
-    bandIterator_setBandCoordinates(bandIterator); //This establishes the coordinates.
+    bandIterator->band = band;
+    bandIterator->index = 0;
     return bandIterator;
 }
 
 BandIterator *bandIterator_clone(BandIterator *bandIterator) {
     BandIterator *bandIterator2 = st_malloc(sizeof(BandIterator));
     memcpy(bandIterator2, bandIterator, sizeof(BandIterator));
-    bandIterator2->anchorPairsIt = stList_copyIterator(bandIterator->anchorPairsIt);
     return bandIterator2;
 }
 
 void bandIterator_destruct(BandIterator *bandIterator) {
-    stList_destructIterator(bandIterator->anchorPairsIt);
     free(bandIterator);
 }
 
-static int32_t bandIterator_avoidOffByOne(int32_t xay, int32_t xmy) {
-    return (xay + xmy) % 2 == 0 ? xmy : xmy + 1;
-}
-
-static void bandIterator_setCurrentDiagonalP(int32_t *xmy, int32_t i, int32_t j, int32_t k) {
-    if (i < j) {
-        *xmy += 2 * (j - i) * k;
-    }
-}
-
-static Diagonal bandIterator_setCurrentDiagonal(BandIterator *bandIterator) {
-    Diagonal diagonal;
-    diagonal.xay = bandIterator->xay;
-    diagonal.xmyL = bandIterator->xL - bandIterator->yL;
-    diagonal.xmyR = bandIterator->xU - bandIterator->yU;
-
-    //Avoid in-between undefined x,y coordinate positions when intersecting xay and xmy.
-    diagonal.xmyL = bandIterator_avoidOffByOne(diagonal.xay, diagonal.xmyL);
-    diagonal.xmyR = bandIterator_avoidOffByOne(diagonal.xay, diagonal.xmyR);
-
-    //Bound the xmy coordinates by the x and y boundaries
-    bandIterator_setCurrentDiagonalP(&diagonal.xmyL, diagonal_getXCoordinate(diagonal.xay, diagonal.xmyL),
-            bandIterator->xL, 1);
-    bandIterator_setCurrentDiagonalP(&diagonal.xmyL, bandIterator->yL,
-            diagonal_getYCoordinate(diagonal.xay, diagonal.xmyL), 1);
-    bandIterator_setCurrentDiagonalP(&diagonal.xmyR, bandIterator->xU,
-            diagonal_getXCoordinate(diagonal.xay, diagonal.xmyR), -1);
-    bandIterator_setCurrentDiagonalP(&diagonal.xmyR, diagonal_getYCoordinate(diagonal.xay, diagonal.xmyR),
-            bandIterator->yU, -1);
-
-    return diagonal;
-}
-
 Diagonal bandIterator_getNext(BandIterator *bandIterator) {
-    Diagonal diagonal = bandIterator_setCurrentDiagonal(bandIterator);
-    if (bandIterator->xay < bandIterator->lX + bandIterator->lY) {
-        if (bandIterator->nxay == bandIterator->xay++) {
-            //The previous diagonals become the next
-            bandIterator->pxay = bandIterator->nxay;
-            bandIterator->pxmy = bandIterator->nxmy;
-
-            int32_t x = bandIterator->lX, y = bandIterator->lY;
-            stIntTuple *anchorPair = stList_getNext(bandIterator->anchorPairsIt);
-            if (anchorPair != NULL) { //There is another anchor point
-                x = stIntTuple_getPosition(anchorPair, 0) + 1; //Plus ones, because matrix coordinates are +1 the sequence ones
-                y = stIntTuple_getPosition(anchorPair, 1) + 1;
-                if (x + y == bandIterator->nxay) { //This is required because mixture of nexts and previous calls can cause the anchor iterator to get out of sync.
-                    assert(bandIterator->nxmy == x - y);
-                    anchorPair = stList_getNext(bandIterator->anchorPairsIt);
-                    if (anchorPair != NULL) {
-                        x = stIntTuple_getPosition(anchorPair, 0) + 1; //Plus ones, because matrix coordinates are +1 the sequence ones
-                        y = stIntTuple_getPosition(anchorPair, 1) + 1;
-                    }
-                    else {
-                        x = bandIterator->lX;
-                        y = bandIterator->lY;
-                    }
-                }
-            }
-            bandIterator->nxay = x + y;
-            bandIterator->nxmy = x - y;
-
-            //Now call to set the lower and upper x,y coordinates
-            bandIterator_setBandCoordinates(bandIterator);
-        }
+    Diagonal diagonal = bandIterator->band->diagonals[bandIterator->index > bandIterator->band->lXalY ? bandIterator->band->lXalY : bandIterator->index];
+    if (bandIterator->index <= bandIterator->band->lXalY) {
+        bandIterator->index++;
     }
     return diagonal;
 }
 
 Diagonal bandIterator_getPrevious(BandIterator *bandIterator) {
-    //Function just inverts steps of bandIterator_getNext.
-    Diagonal diagonal = bandIterator_setCurrentDiagonal(bandIterator);
-
-    if (bandIterator->xay > 0) { //Coordinates of diagonal do not change when we hit 0 == xay;
-        if (bandIterator->pxay == bandIterator->xay--) { //We've reach the x+y diagonal of the previous anchor pair
-            //The next diagonals become the previous
-            bandIterator->nxay = bandIterator->pxay;
-            bandIterator->nxmy = bandIterator->pxmy;
-
-            stIntTuple *anchorPair = stList_getPrevious(bandIterator->anchorPairsIt);
-            int32_t x = 0, y = 0;
-            if (anchorPair != NULL) { //There is another anchor point
-                x = stIntTuple_getPosition(anchorPair, 0) + 1; //Plus ones, because matrix coordinates are +1 the sequence ones
-                y = stIntTuple_getPosition(anchorPair, 1) + 1;
-                if (x + y == bandIterator->pxay) { //This is required because mixture of nexts and previous calls can cause the anchor iterator to get out of sync.
-                    assert(bandIterator->pxmy == x - y);
-                    anchorPair = stList_getPrevious(bandIterator->anchorPairsIt);
-                    if (anchorPair != NULL) {
-                        x = stIntTuple_getPosition(anchorPair, 0) + 1; //Plus ones, because matrix coordinates are +1 the sequence ones
-                        y = stIntTuple_getPosition(anchorPair, 1) + 1;
-                    }
-                    else {
-                        x = 0;
-                        y = 0;
-                    }
-                }
-            }
-            bandIterator->pxay = x + y;
-            bandIterator->pxmy = x - y;
-
-            //Now call to set the lower and upper x,y coordinates
-            bandIterator_setBandCoordinates(bandIterator);
-        }
+    if (bandIterator->index > 0) {
+        bandIterator->index--;
     }
-
-    return diagonal;
+    return bandIterator->band->diagonals[bandIterator->index];
 }
 
 ///////////////////////////////////
@@ -269,18 +249,24 @@ static inline double lookup(double x) {
     assert (x <= logUnderflowThreshold);
 #endif
     if (x <= 1.00f)
-        return ((-0.009350833524763f * x + 0.130659527668286f) * x + 0.498799810682272f) * x + 0.693203116424741f;
+        return ((-0.009350833524763f * x + 0.130659527668286f) * x
+                + 0.498799810682272f) * x + 0.693203116424741f;
     if (x <= 2.50f)
-        return ((-0.014532321752540f * x + 0.139942324101744f) * x + 0.495635523139337f) * x + 0.692140569840976f;
+        return ((-0.014532321752540f * x + 0.139942324101744f) * x
+                + 0.495635523139337f) * x + 0.692140569840976f;
     if (x <= 4.50f)
-        return ((-0.004605031767994f * x + 0.063427417320019f) * x + 0.695956496475118f) * x + 0.514272634594009f;
-    return ((-0.000458661602210f * x + 0.009695946122598f) * x + 0.930734667215156f) * x + 0.168037164329057f;
+        return ((-0.004605031767994f * x + 0.063427417320019f) * x
+                + 0.695956496475118f) * x + 0.514272634594009f;
+    return ((-0.000458661602210f * x + 0.009695946122598f) * x
+            + 0.930734667215156f) * x + 0.168037164329057f;
 }
 
 double logAdd(double x, double y) {
     if (x < y)
-        return (x == LOG_ZERO || y - x >= logUnderflowThreshold) ? y : lookup(y - x) + x;
-    return (y == LOG_ZERO || x - y >= logUnderflowThreshold) ? x : lookup(x - y) + y;
+        return (x == LOG_ZERO || y - x >= logUnderflowThreshold) ? y : lookup(
+                y - x) + x;
+    return (y == LOG_ZERO || x - y >= logUnderflowThreshold) ? x
+            : lookup(x - y) + y;
 }
 
 ///////////////////////////////////
@@ -326,12 +312,15 @@ Symbol *symbol_convertStringToSymbols(const char *s, int32_t sL) {
 #define EMISSION_MATCH_N -3.2188758248682006 //log(0.04);
 double symbol_matchProb(Symbol cX, Symbol cY) {
     //Symmetric matrix of transition probabilities.
-    static const double matchM[25] = { EMISSION_MATCH, EMISSION_TRANSVERSION, EMISSION_TRANSITION,
-            EMISSION_TRANSVERSION, EMISSION_MATCH_N, EMISSION_TRANSVERSION, EMISSION_MATCH, EMISSION_TRANSVERSION,
-            EMISSION_TRANSITION, EMISSION_MATCH_N, EMISSION_TRANSITION, EMISSION_TRANSVERSION, EMISSION_MATCH,
-            EMISSION_TRANSVERSION, EMISSION_MATCH_N, EMISSION_TRANSVERSION, EMISSION_TRANSITION, EMISSION_TRANSVERSION,
-            EMISSION_MATCH, EMISSION_MATCH_N, EMISSION_MATCH_N, EMISSION_MATCH_N, EMISSION_MATCH_N, EMISSION_MATCH_N,
-            EMISSION_MATCH_N };
+    static const double matchM[25] = { EMISSION_MATCH, EMISSION_TRANSVERSION,
+            EMISSION_TRANSITION, EMISSION_TRANSVERSION, EMISSION_MATCH_N,
+            EMISSION_TRANSVERSION, EMISSION_MATCH, EMISSION_TRANSVERSION,
+            EMISSION_TRANSITION, EMISSION_MATCH_N, EMISSION_TRANSITION,
+            EMISSION_TRANSVERSION, EMISSION_MATCH, EMISSION_TRANSVERSION,
+            EMISSION_MATCH_N, EMISSION_TRANSVERSION, EMISSION_TRANSITION,
+            EMISSION_TRANSVERSION, EMISSION_MATCH, EMISSION_MATCH_N,
+            EMISSION_MATCH_N, EMISSION_MATCH_N, EMISSION_MATCH_N,
+            EMISSION_MATCH_N, EMISSION_MATCH_N };
     return matchM[cX * 5 + cY];
 }
 
@@ -350,8 +339,10 @@ double symbol_gapProb(Symbol cZ) {
 ///////////////////////////////////
 
 double state_startStateProb(State state) {
-    static const double startStates[5] = { TRANSITION_MATCH_CONTINUE, TRANSITION_GAP_SHORT_OPEN,
-            TRANSITION_GAP_SHORT_OPEN, TRANSITION_GAP_LONG_OPEN, TRANSITION_GAP_LONG_OPEN };
+    return -1.6094379124341;
+    static const double startStates[5] = { TRANSITION_MATCH_CONTINUE,
+            TRANSITION_GAP_SHORT_OPEN, TRANSITION_GAP_SHORT_OPEN,
+            TRANSITION_GAP_LONG_OPEN, TRANSITION_GAP_LONG_OPEN };
     return startStates[state];
 }
 
@@ -369,50 +360,90 @@ double state_endStateProb(State state) {
 ///////////////////////////////////
 ///////////////////////////////////
 
-static inline void cell_calculate(double *current, double *lower, double *middle, double *upper, Symbol cX, Symbol cY,
-        void(*doTransition)(double *, double *, int32_t, int32_t, double, double)) {
+static inline void cell_calculate(
+        double *current,
+        double *lower,
+        double *middle,
+        double *upper,
+        Symbol cX,
+        Symbol cY,
+        void(*doTransition)(double *, double *, int32_t, int32_t, double,
+                double)) {
     if (lower != NULL) {
         double eP = symbol_gapProb(cX);
-        doTransition(lower, current, match, shortGapX, eP, TRANSITION_GAP_SHORT_OPEN);
-        doTransition(lower, current, shortGapX, shortGapX, eP, TRANSITION_GAP_SHORT_EXTEND);
-        doTransition(lower, current, shortGapY, shortGapX, eP, TRANSITION_GAP_SHORT_SWITCH);
-        doTransition(lower, current, match, longGapX, eP, TRANSITION_GAP_LONG_OPEN);
-        doTransition(lower, current, longGapX, longGapX, eP, TRANSITION_GAP_LONG_EXTEND);
+        doTransition(lower, current, match, shortGapX, eP,
+                TRANSITION_GAP_SHORT_OPEN);
+        doTransition(lower, current, shortGapX, shortGapX, eP,
+                TRANSITION_GAP_SHORT_EXTEND);
+        doTransition(lower, current, shortGapY, shortGapX, eP,
+                TRANSITION_GAP_SHORT_SWITCH);
+        doTransition(lower, current, match, longGapX, eP,
+                TRANSITION_GAP_LONG_OPEN);
+        doTransition(lower, current, longGapX, longGapX, eP,
+                TRANSITION_GAP_LONG_EXTEND);
     }
     if (middle != NULL) {
         double eP = symbol_matchProb(cX, cY);
-        doTransition(middle, current, match, match, eP, TRANSITION_MATCH_CONTINUE);
-        doTransition(middle, current, shortGapX, match, eP, TRANSITION_MATCH_FROM_SHORT_GAP);
-        doTransition(middle, current, shortGapY, match, eP, TRANSITION_MATCH_FROM_SHORT_GAP);
-        doTransition(middle, current, longGapX, match, eP, TRANSITION_MATCH_FROM_LONG_GAP);
-        doTransition(middle, current, longGapY, match, eP, TRANSITION_MATCH_FROM_LONG_GAP);
+        doTransition(middle, current, match, match, eP,
+                TRANSITION_MATCH_CONTINUE);
+        doTransition(middle, current, shortGapX, match, eP,
+                TRANSITION_MATCH_FROM_SHORT_GAP);
+        doTransition(middle, current, shortGapY, match, eP,
+                TRANSITION_MATCH_FROM_SHORT_GAP);
+        doTransition(middle, current, longGapX, match, eP,
+                TRANSITION_MATCH_FROM_LONG_GAP);
+        doTransition(middle, current, longGapY, match, eP,
+                TRANSITION_MATCH_FROM_LONG_GAP);
     }
     if (upper != NULL) {
         double eP = symbol_gapProb(cY);
-        doTransition(lower, current, match, shortGapY, eP, TRANSITION_GAP_SHORT_OPEN);
-        doTransition(lower, current, shortGapY, shortGapY, eP, TRANSITION_GAP_SHORT_EXTEND);
-        doTransition(lower, current, shortGapX, shortGapY, eP, TRANSITION_GAP_SHORT_SWITCH);
-        doTransition(lower, current, match, longGapY, eP, TRANSITION_GAP_LONG_OPEN);
-        doTransition(lower, current, longGapY, longGapY, eP, TRANSITION_GAP_LONG_EXTEND);
+        doTransition(upper, current, match, shortGapY, eP,
+                TRANSITION_GAP_SHORT_OPEN);
+        doTransition(upper, current, shortGapY, shortGapY, eP,
+                TRANSITION_GAP_SHORT_EXTEND);
+        doTransition(upper, current, shortGapX, shortGapY, eP,
+                TRANSITION_GAP_SHORT_SWITCH);
+        doTransition(upper, current, match, longGapY, eP,
+                TRANSITION_GAP_LONG_OPEN);
+        doTransition(upper, current, longGapY, longGapY, eP,
+                TRANSITION_GAP_LONG_EXTEND);
     }
 }
 
-static inline void doTransitionForward(double *fromCells, double *toCells, int32_t from, int32_t to, double eP,
-        double tP) {
+static inline void doTransitionForward(double *fromCells, double *toCells,
+        int32_t from, int32_t to, double eP, double tP) {
     toCells[to] = logAdd(toCells[to], fromCells[from] + eP + tP);
 }
 
-void cell_calculateForward(double *current, double *lower, double *middle, double *upper, Symbol cX, Symbol cY) {
+void cell_calculateForward(double *current, double *lower, double *middle,
+        double *upper, Symbol cX, Symbol cY) {
     cell_calculate(current, lower, middle, upper, cX, cY, doTransitionForward);
 }
 
-static inline void doTransitionBackward(double *fromCells, double *toCells, int32_t from, int32_t to, double eP,
-        double tP) {
+static inline void doTransitionBackward(double *fromCells, double *toCells,
+        int32_t from, int32_t to, double eP, double tP) {
     fromCells[from] = logAdd(fromCells[from], toCells[to] + eP + tP);
 }
 
-void cell_calculateBackward(double *current, double *lower, double *middle, double *upper, Symbol cX, Symbol cY) {
-    cell_calculate(current, upper, middle, lower, cX, cY, doTransitionBackward);
+void cell_calculateBackward(double *current, double *lower, double *middle,
+        double *upper, Symbol cX, Symbol cY) {
+    cell_calculate(current, lower, middle, upper, cX, cY, doTransitionBackward);
+}
+
+double cell_dotProduct(double *cell1, double *cell2) {
+    double totalProb = cell1[0] + cell2[0];
+    for(int32_t i=1; i<STATE_NUMBER; i++) {
+        totalProb = logAdd(totalProb, cell1[i] + cell2[i]);
+    }
+    return totalProb;
+}
+
+double cell_dotProduct2(double *cell1, double (*getStateValue)(State)) {
+    double totalProb = cell1[0] + getStateValue(0);
+    for(int32_t i=1; i<STATE_NUMBER; i++) {
+        totalProb = logAdd(totalProb, cell1[i] + getStateValue(i));
+    }
+    return totalProb;
 }
 
 ///////////////////////////////////
@@ -431,14 +462,31 @@ struct _dpDiagonal {
 DpDiagonal *dpDiagonal_construct(Diagonal diagonal) {
     DpDiagonal *dpDiagonal = st_malloc(sizeof(DpDiagonal));
     dpDiagonal->diagonal = diagonal;
-    dpDiagonal->cells = st_malloc(sizeof(double) * STATE_NUMBER * diagonal_getWidth(diagonal));
+    dpDiagonal->cells = st_malloc(
+            sizeof(double) * STATE_NUMBER * diagonal_getWidth(diagonal));
     return dpDiagonal;
 }
 
 DpDiagonal *dpDiagonal_clone(DpDiagonal *diagonal) {
     DpDiagonal *diagonal2 = dpDiagonal_construct(diagonal->diagonal);
-    memcpy(diagonal2->cells, diagonal->cells, sizeof(double) * diagonal_getWidth(diagonal->diagonal) * STATE_NUMBER);
+    memcpy(
+            diagonal2->cells,
+            diagonal->cells,
+            sizeof(double) * diagonal_getWidth(diagonal->diagonal)
+                    * STATE_NUMBER);
     return diagonal2;
+}
+
+bool dpDiagonal_equals(DpDiagonal *diagonal1, DpDiagonal *diagonal2) {
+    if(!diagonal_equals(diagonal1->diagonal, diagonal2->diagonal)) {
+        return 0;
+    }
+    for(int32_t i=0; i<diagonal_getWidth(diagonal1->diagonal) * STATE_NUMBER; i++) {
+        if(diagonal1->cells[i] != diagonal2->cells[i]) {
+            return 0;
+        }
+    }
+    return 1;
 }
 
 void dpDiagonal_destruct(DpDiagonal *dpDiagonal) {
@@ -447,34 +495,37 @@ void dpDiagonal_destruct(DpDiagonal *dpDiagonal) {
 }
 
 double *dpDiagonal_getCell(DpDiagonal *dpDiagonal, int32_t xmy) {
-    if (dpDiagonal->diagonal.xmyL < xmy || dpDiagonal->diagonal.xmyR > xmy) {
+    if (xmy < dpDiagonal->diagonal.xmyL || xmy > dpDiagonal->diagonal.xmyR) {
         return NULL;
     }
-    return &dpDiagonal->cells[(xmy - dpDiagonal->diagonal.xmyL) * STATE_NUMBER];
-}
-
-double dpDiagonal_sum(DpDiagonal *diagonal) {
-    double totalProbability = LOG_ZERO;
-    for (int32_t i = diagonal_getWidth(diagonal->diagonal) * STATE_NUMBER; i >= 0; i--) {
-        totalProbability += logAdd(totalProbability, diagonal->cells[i]);
-    }
-    return totalProbability;
+    assert((diagonal_getXay(dpDiagonal->diagonal) + xmy) % 2 == 0);
+    return &dpDiagonal->cells[((xmy - dpDiagonal->diagonal.xmyL)/2) * STATE_NUMBER];
 }
 
 void dpDiagonal_zeroValues(DpDiagonal *diagonal) {
-    for (int32_t i = diagonal_getWidth(diagonal->diagonal) * STATE_NUMBER; i >= 0; i--) {
+    for (int32_t i = 0; i< diagonal_getWidth(diagonal->diagonal) * STATE_NUMBER; i++) {
         diagonal->cells[i] = LOG_ZERO;
     }
 }
 
-void dpDiagonal_initialiseValues(DpDiagonal *diagonal, double(*getStateValue)(State)) {
-    for (int32_t i = diagonal_getWidth(diagonal->diagonal); i >= 0; i--) {
+void dpDiagonal_initialiseValues(DpDiagonal *diagonal,
+        double(*getStateValue)(State)) {
+    for (int32_t i = diagonal_getMinXmy(diagonal->diagonal); i <= diagonal_getMaxXmy(diagonal->diagonal); i+=2) {
         double *cell = dpDiagonal_getCell(diagonal, i);
         assert(cell != NULL);
         for (int32_t j = 0; j < STATE_NUMBER; j++) {
             cell[j] = getStateValue(j);
         }
     }
+}
+
+double dpDiagonal_sum(DpDiagonal *diagonal) {
+    double totalProbability = LOG_ZERO;
+    for (int32_t i = diagonal_getWidth(diagonal->diagonal) * STATE_NUMBER; i
+            >= 0; i--) {
+        totalProbability += logAdd(totalProbability, diagonal->cells[i]);
+    }
+    return totalProbability;
 }
 
 ///////////////////////////////////
@@ -492,9 +543,11 @@ struct _dpMatrix {
 };
 
 DpMatrix *dpMatrix_construct(int32_t lX, int32_t lY) {
+    assert(lX >= 0 && lY >= 0);
     DpMatrix *dpMatrix = st_malloc(sizeof(DpMatrix));
     dpMatrix->diagonalNumber = lX + lY;
-    dpMatrix->diagonals = st_calloc(dpMatrix->diagonalNumber, sizeof(DpDiagonal *));
+    dpMatrix->diagonals = st_calloc(dpMatrix->diagonalNumber + 1,
+            sizeof(DpDiagonal *));
     dpMatrix->activeDiagonals = 0;
     return dpMatrix;
 }
@@ -506,7 +559,7 @@ void dpMatrix_destruct(DpMatrix *dpMatrix) {
 }
 
 DpDiagonal *dpMatrix_getDiagonal(DpMatrix *dpMatrix, int32_t xay) {
-    if (xay < 0 || xay >= dpMatrix->diagonalNumber) {
+    if (xay < 0 || xay > dpMatrix->diagonalNumber) {
         return NULL;
     }
     return dpMatrix->diagonals[xay];
@@ -518,7 +571,7 @@ int32_t dpMatrix_getActiveDiagonalNumber(DpMatrix *dpMatrix) {
 
 DpDiagonal *dpMatrix_createDiagonal(DpMatrix *dpMatrix, Diagonal diagonal) {
     assert(diagonal.xay >= 0);
-    assert(diagonal.xay < dpMatrix->diagonalNumber);
+    assert(diagonal.xay <= dpMatrix->diagonalNumber);
     DpDiagonal *dpDiagonal = dpDiagonal_construct(diagonal);
     dpMatrix->diagonals[diagonal_getXay(diagonal)] = dpDiagonal;
     dpMatrix->activeDiagonals++;
@@ -527,7 +580,7 @@ DpDiagonal *dpMatrix_createDiagonal(DpMatrix *dpMatrix, Diagonal diagonal) {
 
 void dpMatrix_deleteDiagonal(DpMatrix *dpMatrix, int32_t xay) {
     assert(xay >= 0);
-    assert(xay < dpMatrix->diagonalNumber);
+    assert(xay <= dpMatrix->diagonalNumber);
     if (dpMatrix->diagonals[xay] != NULL) {
         dpMatrix->activeDiagonals--;
         assert(dpMatrix->activeDiagonals >= 0);
@@ -545,79 +598,99 @@ void dpMatrix_deleteDiagonal(DpMatrix *dpMatrix, int32_t xay) {
 ///////////////////////////////////
 ///////////////////////////////////
 
-static Symbol getXCharacter(const Symbol *sX, int32_t lX, int32_t xay, int32_t xmy) {
+static Symbol getXCharacter(const Symbol *sX, int32_t lX, int32_t xay,
+        int32_t xmy) {
     int32_t x = diagonal_getXCoordinate(xmy, xay);
     assert(x <= lX);
-    return x > 0 ? sX[x - 1] : 'N';
+    return x > 0 ? sX[x - 1] : n;
 }
 
-static Symbol getYCharacter(const Symbol *sY, int32_t lY, int32_t xay, int32_t xmy) {
+static Symbol getYCharacter(const Symbol *sY, int32_t lY, int32_t xay,
+        int32_t xmy) {
     int32_t y = diagonal_getYCoordinate(xmy, xay);
     assert(y <= lY);
-    return y > 0 ? sY[y - 1] : 'N';
+    return y > 0 ? sY[y - 1] : n;
 }
 
-static void diagonalCalculation(DpDiagonal *dpDiagonal, DpMatrix *dpMatrix, const Symbol *sX, const Symbol *sY,
-        int32_t lX, int32_t lY, void(*cellCalculation)(double *, double *, double *, double *, Symbol, Symbol)) {
+static void diagonalCalculation(
+        DpDiagonal *dpDiagonal,
+        DpMatrix *dpMatrix,
+        const Symbol *sX,
+        const Symbol *sY,
+        int32_t lX,
+        int32_t lY,
+        void(*cellCalculation)(double *, double *, double *, double *, Symbol,
+                Symbol)) {
     Diagonal diagonal = dpDiagonal->diagonal;
-    assert(dpDiagonal != NULL);
-    DpDiagonal *dpDiagonalM1 = dpMatrix_getDiagonal(dpMatrix, diagonal_getXay(diagonal) - 1);
+    DpDiagonal *dpDiagonalM1 = dpMatrix_getDiagonal(dpMatrix,
+            diagonal_getXay(diagonal) - 1);
     assert(dpDiagonalM1 != NULL);
-    DpDiagonal *dpDiagonalM2 = dpMatrix_getDiagonal(dpMatrix, diagonal_getXay(diagonal) - 2);
+    DpDiagonal *dpDiagonalM2 = dpMatrix_getDiagonal(dpMatrix,
+            diagonal_getXay(diagonal) - 2);
 
-    int32_t xmy = diagonal_getMinXmy(diagonal) - 1;
-    while (++xmy <= diagonal_getMaxXmy(diagonal)) {
-        char x = getXCharacter(sX, lX, diagonal_getXay(diagonal), xmy);
-        char y = getYCharacter(sY, lY, diagonal_getXay(diagonal), xmy);
+    int32_t xmy = diagonal_getMinXmy(diagonal);
+    while (xmy <= diagonal_getMaxXmy(diagonal)) {
+        Symbol x = getXCharacter(sX, lX, diagonal_getXay(diagonal), xmy);
+        Symbol y = getYCharacter(sY, lY, diagonal_getXay(diagonal), xmy);
         double *current = dpDiagonal_getCell(dpDiagonal, xmy);
         double *lower = dpDiagonal_getCell(dpDiagonalM1, xmy - 1);
-        double *middle = dpDiagonalM2 == NULL ? NULL : dpDiagonal_getCell(dpDiagonalM2, xmy);
+        double *middle = dpDiagonalM2 == NULL ? NULL : dpDiagonal_getCell(
+                dpDiagonalM2, xmy);
         double *upper = dpDiagonal_getCell(dpDiagonalM1, xmy + 1);
         cellCalculation(current, lower, middle, upper, x, y);
+        xmy+=2;
     }
 }
 
-void diagonalCalculationForward(Diagonal diagonal, DpMatrix *dpMatrix, const Symbol *sX, const Symbol *sY, int32_t lX,
-        int32_t lY) {
-    diagonalCalculation(dpMatrix_getDiagonal(dpMatrix, diagonal_getXay(diagonal)), dpMatrix, sX, sY, lX, lY,
-            cell_calculateForward);
+void diagonalCalculationForward(int32_t xay, DpMatrix *dpMatrix,
+        const Symbol *sX, const Symbol *sY, int32_t lX, int32_t lY) {
+    diagonalCalculation(
+            dpMatrix_getDiagonal(dpMatrix, xay),
+            dpMatrix, sX, sY, lX, lY, cell_calculateForward);
 }
 
-void diagonalCalculationBackward(Diagonal diagonal, DpMatrix *dpMatrix, const Symbol *sX, const Symbol *sY, int32_t lX,
-        int32_t lY) {
-    diagonalCalculation(dpMatrix_getDiagonal(dpMatrix, diagonal_getXay(diagonal)), dpMatrix, sX, sY, lX, lY,
-            cell_calculateBackward);
+void diagonalCalculationBackward(int32_t xay, DpMatrix *dpMatrix,
+        const Symbol *sX, const Symbol *sY, int32_t lX, int32_t lY) {
+    diagonalCalculation(
+            dpMatrix_getDiagonal(dpMatrix, xay),
+            dpMatrix, sX, sY, lX, lY, cell_calculateBackward);
 }
 
-void diagonalCalculationPosterior(Diagonal diagonal, DpMatrix *forwardDpMatrix, DpMatrix *backwardDpMatrix,
-        const Symbol *sX, const Symbol *sY, int32_t lX, int32_t lY, double threshold, stList *alignedPairs) {
-    //Copy backward diagonal
-    DpDiagonal *posteriorDiagonal = dpDiagonal_clone(dpMatrix_getDiagonal(backwardDpMatrix, diagonal_getXay(diagonal)));
-    //Do forward calc
-    diagonalCalculation(posteriorDiagonal, forwardDpMatrix, sX, sY, lX, lY, cell_calculateForward);
-    //Sum diagonal
-    double totalProbability = dpDiagonal_sum(posteriorDiagonal);
-
+void diagonalCalculationPosterior(int32_t xay, DpMatrix *forwardDpMatrix,
+        DpMatrix *backwardDpMatrix, const Symbol *sX, const Symbol *sY,
+        int32_t lX, int32_t lY, double threshold,
+        double totalProbability,
+        stList *alignedPairs) {
     //Do posteriors
-    int32_t xmy = diagonal_getMinXmy(diagonal) - 1;
-    while (++xmy <= diagonal_getMaxXmy(diagonal)) {
-        double *cell = dpDiagonal_getCell(posteriorDiagonal, xmy);
-        double posteriorProbability = exp(cell[match] - totalProbability);
+    DpDiagonal *forwardDiagonal = dpMatrix_getDiagonal(forwardDpMatrix, xay);
+    DpDiagonal *backDiagonal = dpMatrix_getDiagonal(backwardDpMatrix, xay);
+    Diagonal diagonal = forwardDiagonal->diagonal;
+    int32_t xmy = diagonal_getMinXmy(diagonal);
+    while (xmy <= diagonal_getMaxXmy(diagonal)) {
+        double *cellForward = dpDiagonal_getCell(forwardDiagonal, xmy);
+        double *cellBackward = dpDiagonal_getCell(backDiagonal, xmy);
+        double posteriorProbability = exp(cellForward[match] + cellBackward[match] - totalProbability);
         if (posteriorProbability >= threshold) {
+            int32_t x = diagonal_getXCoordinate(diagonal_getXay(diagonal), xmy);
+            int32_t y = diagonal_getYCoordinate(diagonal_getXay(diagonal), xmy);
+
+            assert(x > 0 && x <= lX);
+            assert(y > 0 && y <= lY);
+
             if (posteriorProbability > 1.0) {
                 posteriorProbability = 1.0;
             }
-            int32_t x = diagonal_getXCoordinate(xmy, diagonal_getXay(diagonal));
-            int32_t y = diagonal_getYCoordinate(xmy, diagonal_getXay(diagonal));
-            assert(x > 0 && x <= lX);
-            assert(y > 0 && y <= lY);
             stList_append(
                     alignedPairs,
-                    stIntTuple_construct(3, (int32_t) floor(posteriorProbability * PAIR_ALIGNMENT_PROB_1), x - 1, y - 1));
+                    stIntTuple_construct(
+                            3,
+                            (int32_t) floor(
+                                    posteriorProbability
+                                            * PAIR_ALIGNMENT_PROB_1), x - 1,
+                            y - 1));
         }
+        xmy+=2;
     }
-    //Cleanup
-    dpDiagonal_destruct(posteriorDiagonal);
 }
 
 ///////////////////////////////////
@@ -628,8 +701,9 @@ void diagonalCalculationPosterior(Diagonal diagonal, DpMatrix *forwardDpMatrix, 
 ///////////////////////////////////
 ///////////////////////////////////
 
-stList *getAlignedPairsWithBanding(stList *anchorPairs, const Symbol *sX, const Symbol *sY, const int32_t lX,
-        const int32_t lY, PairwiseAlignmentParameters *p) {
+stList *getAlignedPairsWithBanding(stList *anchorPairs, const Symbol *sX,
+        const Symbol *sY, const int32_t lX, const int32_t lY,
+        PairwiseAlignmentParameters *p) {
     //Prerequisites
     assert(p->traceBackDiagonals >= 2);
     assert(p->threshold >= 0.0);
@@ -639,13 +713,16 @@ stList *getAlignedPairsWithBanding(stList *anchorPairs, const Symbol *sX, const 
     assert(p->traceBackDiagonals < p->minDiagsBetweenTraceBack);
 
     //This list of pairs to be returned. Not in any order, but points must be unique
-    stList *alignedPairs = stList_construct3(0, (void(*)(void *)) stIntTuple_destruct);
+    stList *alignedPairs = stList_construct3(0,
+            (void(*)(void *)) stIntTuple_destruct);
 
     //Primitives for the forward matrix recursion
-    BandIterator *forwardBandIterator = bandIterator_construct(anchorPairs, lX, lY, p->diagonalExpansion);
+    Band *band = band_construct(anchorPairs, lX, lY, p->diagonalExpansion);
+    BandIterator *forwardBandIterator = bandIterator_construct(band);
     DpMatrix *forwardDpMatrix = dpMatrix_construct(lX, lY);
-    dpDiagonal_initialiseValues(dpMatrix_createDiagonal(forwardDpMatrix, diagonal_construct(0, 0, 0)),
-            state_startStateProb); //Initialise forward matrix.
+    dpDiagonal_initialiseValues(
+            dpMatrix_createDiagonal(forwardDpMatrix,
+                    diagonal_construct(0, 0, 0)), state_startStateProb); //Initialise forward matrix.
 
     //Backward matrix.
     DpMatrix *backwardDpMatrix = dpMatrix_construct(lX, lY);
@@ -658,46 +735,61 @@ stList *getAlignedPairsWithBanding(stList *anchorPairs, const Symbol *sX, const 
         }
 
         //Forward calculation
-        dpDiagonal_zeroValues(dpMatrix_createDiagonal(forwardDpMatrix, diagonal));
-        diagonalCalculationForward(diagonal, forwardDpMatrix, sX, sY, lX, lY);
+        dpDiagonal_zeroValues(
+                dpMatrix_createDiagonal(forwardDpMatrix, diagonal));
+        diagonalCalculationForward(diagonal_getXay(diagonal), forwardDpMatrix, sX, sY, lX, lY);
 
         bool atEnd = diagonal_getXay(diagonal) == lX + lY; //Condition true at the end of the matrix
-        bool tracebackPoint = diagonal_getXay(diagonal) >= p->minDiagsBetweenTraceBack && diagonal_getWidth(diagonal)
+        bool tracebackPoint = diagonal_getXay(diagonal)
+                >= p->minDiagsBetweenTraceBack && diagonal_getWidth(diagonal)
                 <= p->diagonalExpansion * 2 + 1; //Condition true when we want to do an intermediate traceback.
 
         //Traceback
         if (atEnd || tracebackPoint) {
             //Initialise the last row (until now) of the backward matrix to represent an end point
-            dpDiagonal_initialiseValues(dpMatrix_createDiagonal(backwardDpMatrix, diagonal), state_endStateProb);
+            dpDiagonal_initialiseValues(
+                    dpMatrix_createDiagonal(backwardDpMatrix, diagonal),
+                    state_endStateProb);
             if (diagonal_getXay(diagonal) > tracedBackTo + 1) {
-                DpDiagonal *j = dpMatrix_getDiagonal(forwardDpMatrix, diagonal_getXay(diagonal) - 1);
+                DpDiagonal *j = dpMatrix_getDiagonal(forwardDpMatrix,
+                        diagonal_getXay(diagonal) - 1);
                 assert(j != NULL);
-                dpDiagonal_zeroValues(dpMatrix_createDiagonal(backwardDpMatrix, j->diagonal));
+                dpDiagonal_zeroValues(
+                        dpMatrix_createDiagonal(backwardDpMatrix, j->diagonal));
             }
 
-            BandIterator *backwardBandIterator = bandIterator_clone(forwardBandIterator);
+            BandIterator *backwardBandIterator = bandIterator_clone(
+                    forwardBandIterator);
 
             //Do walk back
             Diagonal diagonal2 = bandIterator_getPrevious(backwardBandIterator);
             assert(diagonal_getXay(diagonal2) == diagonal_getXay(diagonal));
             int32_t tracedBackFrom = diagonal_getXay(diagonal2);
-            int32_t remainingTraceBackDiagonals = atEnd ? 0 : p->traceBackDiagonals;
+            int32_t remainingTraceBackDiagonals = atEnd ? 0
+                    : p->traceBackDiagonals;
             while (diagonal_getXay(diagonal2) > tracedBackTo) {
                 //Create the earlier diagonal
                 if (diagonal_getXay(diagonal2) > tracedBackTo + 2) {
-                    DpDiagonal *j = dpMatrix_getDiagonal(forwardDpMatrix, diagonal_getXay(diagonal2) - 2);
+                    DpDiagonal *j = dpMatrix_getDiagonal(forwardDpMatrix,
+                            diagonal_getXay(diagonal2) - 2);
                     assert(j != NULL);
-                    dpDiagonal_zeroValues(dpMatrix_createDiagonal(backwardDpMatrix, j->diagonal));
+                    dpDiagonal_zeroValues(
+                            dpMatrix_createDiagonal(backwardDpMatrix,
+                                    j->diagonal));
                 }
                 if (diagonal_getXay(diagonal2) > tracedBackTo + 1) {
-                    diagonalCalculationBackward(diagonal2, backwardDpMatrix, sX, sY, lX, lY);
+                    diagonalCalculationBackward(diagonal_getXay(diagonal2), backwardDpMatrix,
+                            sX, sY, lX, lY);
                 }
                 if (remainingTraceBackDiagonals-- <= 0) {
-                    diagonalCalculationPosterior(diagonal2, forwardDpMatrix, backwardDpMatrix, sX, sY, lX, lY,
-                            p->threshold, alignedPairs);
-                    dpMatrix_deleteDiagonal(forwardDpMatrix, diagonal_getXay(diagonal2) - 1); //Delete forward diagonal after last access in posterior calculation
+                    diagonalCalculationPosterior(diagonal_getXay(diagonal2), forwardDpMatrix,
+                            backwardDpMatrix, sX, sY, lX, lY, p->threshold, 0.0,
+                            alignedPairs);
+                    dpMatrix_deleteDiagonal(forwardDpMatrix,
+                            diagonal_getXay(diagonal2) - 1); //Delete forward diagonal after last access in posterior calculation
                 }
-                dpMatrix_deleteDiagonal(backwardDpMatrix, diagonal_getXay(diagonal2)); //Delete backward diagonal after last access in backward calculation
+                dpMatrix_deleteDiagonal(backwardDpMatrix,
+                        diagonal_getXay(diagonal2)); //Delete backward diagonal after last access in backward calculation
 
                 diagonal2 = bandIterator_getPrevious(backwardBandIterator);
             }
@@ -706,7 +798,9 @@ stList *getAlignedPairsWithBanding(stList *anchorPairs, const Symbol *sX, const 
             //Check memory state.
             assert(dpMatrix_getActiveDiagonalNumber(backwardDpMatrix) == 0);
             if (!atEnd) {
-                assert(dpMatrix_getActiveDiagonalNumber(forwardDpMatrix) == p->traceBackDiagonals + 1);
+                assert(
+                        dpMatrix_getActiveDiagonalNumber(forwardDpMatrix)
+                                == p->traceBackDiagonals + 1);
             }
         }
     }
@@ -718,6 +812,7 @@ stList *getAlignedPairsWithBanding(stList *anchorPairs, const Symbol *sX, const 
     dpMatrix_destruct(forwardDpMatrix);
     dpMatrix_destruct(backwardDpMatrix);
     bandIterator_destruct(forwardBandIterator);
+    band_destruct(band);
 
     return alignedPairs;
 }
@@ -731,8 +826,10 @@ stList *getAlignedPairsWithBanding(stList *anchorPairs, const Symbol *sX, const 
 ///////////////////////////////////
 
 static int sortByXPlusYCoordinate(const void *i, const void *j) {
-    int64_t k = stIntTuple_getPosition((stIntTuple *) i, 0) + stIntTuple_getPosition((stIntTuple *) i, 1);
-    int64_t l = stIntTuple_getPosition((stIntTuple *) j, 0) + stIntTuple_getPosition((stIntTuple *) j, 1);
+    int64_t k = stIntTuple_getPosition((stIntTuple *) i, 0)
+            + stIntTuple_getPosition((stIntTuple *) i, 1);
+    int64_t l = stIntTuple_getPosition((stIntTuple *) j, 0)
+            + stIntTuple_getPosition((stIntTuple *) j, 1);
     return k > l ? 1 : (k < l ? -1 : 0);
 }
 
@@ -744,18 +841,21 @@ static char *makeUpperCase(const char *s, int32_t l) {
     return s2;
 }
 
-static void writeSequenceToFile(char *file, const char *name, const char *sequence) {
+static void writeSequenceToFile(char *file, const char *name,
+        const char *sequence) {
     FILE *fileHandle = fopen(file, "w");
     fprintf(fileHandle, ">%s\n%s\n", name, sequence);
     fclose(fileHandle);
 }
 
-stList *getBlastPairs(const char *sX, const char *sY, int32_t lX, int32_t lY, int32_t trim, bool repeatMask) {
+stList *getBlastPairs(const char *sX, const char *sY, int32_t lX, int32_t lY,
+        int32_t trim, bool repeatMask) {
     /*
      * Uses lastz to compute a bunch of monotonically increasing pairs such that for any pair of consecutive pairs in the list
      * (x1, y1) (x2, y2) in the set of aligned pairs x1 appears before x2 in X and y1 appears before y2 in Y.
      */
-    stList *alignedPairs = stList_construct3(0, (void(*)(void *)) stIntTuple_destruct); //the list to put the output in
+    stList *alignedPairs = stList_construct3(0,
+            (void(*)(void *)) stIntTuple_destruct); //the list to put the output in
 
     if (lX == 0 || lY == 0) {
         return alignedPairs;
@@ -777,9 +877,10 @@ stList *getBlastPairs(const char *sX, const char *sY, int32_t lX, int32_t lY, in
     if (lY > 10000) {
         tempFile2 = getTempFile();
         writeSequenceToFile(tempFile2, "b", sY);
-        command = stString_print(
-                "lastz --hspthresh=800 --chain --strand=plus --gapped --format=cigar --ambiguous=iupac %s %s",
-                tempFile1, tempFile2);
+        command
+                = stString_print(
+                        "lastz --hspthresh=800 --chain --strand=plus --gapped --format=cigar --ambiguous=iupac %s %s",
+                        tempFile1, tempFile2);
     } else {
         command
                 = stString_print(
@@ -810,7 +911,8 @@ stList *getBlastPairs(const char *sX, const char *sY, int32_t lX, int32_t lY, in
                     int32_t x = j + l;
                     int32_t y = k + l;
                     if (x + y > pxay) {
-                        stList_append(alignedPairs, stIntTuple_construct(2, j + l, k + l));
+                        stList_append(alignedPairs,
+                                stIntTuple_construct(2, j + l, k + l));
                         pxay = x + y;
                     }
                 }
@@ -829,7 +931,9 @@ stList *getBlastPairs(const char *sX, const char *sY, int32_t lX, int32_t lY, in
     }
     int32_t status = pclose(fileHandle);
     if (status != 0) {
-        st_errnoAbort("pclose failed when getting rid of lastz pipe with value %i", status);
+        st_errnoAbort(
+                "pclose failed when getting rid of lastz pipe with value %i",
+                status);
     }
 
     stList_sort(alignedPairs, sortByXPlusYCoordinate); //Ensure the coordinates are increasing
@@ -851,7 +955,8 @@ stList *getBlastPairs(const char *sX, const char *sY, int32_t lX, int32_t lY, in
 }
 
 static char *getSubString(const char *cA, int32_t start, int32_t length) {
-    char *cA2 = memcpy(st_malloc(sizeof(char) * (length + 1)), cA + start, length);
+    char *cA2 = memcpy(st_malloc(sizeof(char) * (length + 1)), cA + start,
+            length);
     cA2[length] = '\0';
 
 #ifdef BEN_DEBUG
@@ -864,7 +969,8 @@ static char *getSubString(const char *cA, int32_t start, int32_t length) {
     return cA2;
 }
 
-static void convertPairs(stList *alignedPairs2, int32_t offsetX, int32_t offsetY) {
+static void convertPairs(stList *alignedPairs2, int32_t offsetX,
+        int32_t offsetY) {
     /*
      * Convert the coordinates of the computed pairs.
      */
@@ -874,14 +980,16 @@ static void convertPairs(stList *alignedPairs2, int32_t offsetX, int32_t offsetY
         stList_set(
                 alignedPairs2,
                 k,
-                stIntTuple_construct(3, stIntTuple_getPosition(i, 0), stIntTuple_getPosition(i, 1) + offsetX,
+                stIntTuple_construct(3, stIntTuple_getPosition(i, 0),
+                        stIntTuple_getPosition(i, 1) + offsetX,
                         stIntTuple_getPosition(i, 2) + offsetY));
         stIntTuple_destruct(i);
     }
 }
 
-static void getBlastPairsForPairwiseAlignmentParametersP(const char *sX, const char *sY, int32_t pX, int32_t pY,
-        int32_t x, int32_t y, PairwiseAlignmentParameters *p, stList *combinedAnchorPairs) {
+static void getBlastPairsForPairwiseAlignmentParametersP(const char *sX,
+        const char *sY, int32_t pX, int32_t pY, int32_t x, int32_t y,
+        PairwiseAlignmentParameters *p, stList *combinedAnchorPairs) {
     int32_t lX2 = x - pX;
     assert(lX2 >= 0);
     int32_t lY2 = y - pY;
@@ -890,7 +998,8 @@ static void getBlastPairsForPairwiseAlignmentParametersP(const char *sX, const c
     if (matrixSize > p->repeatMaskMatrixBiggerThanThis) {
         char *sX2 = getSubString(sX, pX, lX2);
         char *sY2 = getSubString(sY, pY, lY2);
-        stList *bottomLevelAnchorPairs = getBlastPairs(sX2, sY2, lX2, lY2, p->constraintDiagonalTrim, 0);
+        stList *bottomLevelAnchorPairs = getBlastPairs(sX2, sY2, lX2, lY2,
+                p->constraintDiagonalTrim, 0);
         convertPairs(bottomLevelAnchorPairs, pX, pY);
         free(sX2);
         free(sY2);
@@ -900,25 +1009,30 @@ static void getBlastPairsForPairwiseAlignmentParametersP(const char *sX, const c
     }
 }
 
-stList *getBlastPairsForPairwiseAlignmentParameters(const char *sX, const char *sY, const int32_t lX, const int32_t lY,
+stList *getBlastPairsForPairwiseAlignmentParameters(const char *sX,
+        const char *sY, const int32_t lX, const int32_t lY,
         PairwiseAlignmentParameters *p) {
     if ((int64_t) lX * lY <= p->anchorMatrixBiggerThanThis) {
         return stList_construct();
     }
-    stList *topLevelAnchorPairs = getBlastPairs(sX, sY, lX, lY, p->constraintDiagonalTrim, 1);
+    stList *topLevelAnchorPairs = getBlastPairs(sX, sY, lX, lY,
+            p->constraintDiagonalTrim, 1);
     int32_t pX = 0;
     int32_t pY = 0;
-    stList *combinedAnchorPairs = stList_construct3(0, (void(*)(void *)) stIntTuple_destruct);
+    stList *combinedAnchorPairs = stList_construct3(0,
+            (void(*)(void *)) stIntTuple_destruct);
     for (int32_t i = 0; i < stList_length(topLevelAnchorPairs); i++) {
         stIntTuple *anchorPair = stList_get(topLevelAnchorPairs, i);
         int32_t x = stIntTuple_getPosition(anchorPair, 0);
         int32_t y = stIntTuple_getPosition(anchorPair, 1);
-        getBlastPairsForPairwiseAlignmentParametersP(sX, sY, pX, pY, x, y, p, combinedAnchorPairs);
+        getBlastPairsForPairwiseAlignmentParametersP(sX, sY, pX, pY, x, y, p,
+                combinedAnchorPairs);
         stList_append(combinedAnchorPairs, anchorPair);
         pX = x + 1;
         pY = y + 1;
     }
-    getBlastPairsForPairwiseAlignmentParametersP(sX, sY, pX, pY, lX, lY, p, combinedAnchorPairs);
+    getBlastPairsForPairwiseAlignmentParametersP(sX, sY, pX, pY, lX, lY, p,
+            combinedAnchorPairs);
     stList_setDestructor(topLevelAnchorPairs, NULL);
     stList_destruct(topLevelAnchorPairs);
     return combinedAnchorPairs;
@@ -932,8 +1046,8 @@ stList *getBlastPairsForPairwiseAlignmentParameters(const char *sX, const char *
 ///////////////////////////////////
 ///////////////////////////////////
 
-static void getSplitPointsP(int32_t pX, int32_t pY, int32_t x, int32_t y, stList *splitPoints,
-        PairwiseAlignmentParameters *p) {
+static void getSplitPointsP(int32_t pX, int32_t pY, int32_t x, int32_t y,
+        stList *splitPoints, PairwiseAlignmentParameters *p) {
     int32_t lX2 = x - pX;
     int32_t lY2 = y = pY;
     int64_t matrixSize = (int64_t) lX2 * lY2;
@@ -941,15 +1055,18 @@ static void getSplitPointsP(int32_t pX, int32_t pY, int32_t x, int32_t y, stList
         int32_t maxSequenceLength = sqrt(p->splitMatrixBiggerThanThis);
         int32_t hX = lX2 / 2 > maxSequenceLength ? maxSequenceLength : lX2 / 2;
         int32_t hY = lY2 / 2 > maxSequenceLength ? maxSequenceLength : lY2 / 2;
-        stList_append(splitPoints, stIntTuple_construct(2, pX + hX + 1, pY + hY + 1));
+        stList_append(splitPoints,
+                stIntTuple_construct(2, pX + hX + 1, pY + hY + 1));
         stList_append(splitPoints, stIntTuple_construct(2, x - hX, y - hY));
     }
 }
 
-stList *getSplitPoints(stList *anchorPairs, int32_t lX, int32_t lY, PairwiseAlignmentParameters *p) {
+stList *getSplitPoints(stList *anchorPairs, int32_t lX, int32_t lY,
+        PairwiseAlignmentParameters *p) {
     int32_t pX = 0;
     int32_t pY = 0;
-    stList *splitPoints = stList_construct3(0, (void(*)(void *)) stIntTuple_destruct);
+    stList *splitPoints = stList_construct3(0,
+            (void(*)(void *)) stIntTuple_destruct);
     stList_append(splitPoints, stIntTuple_construct(2, 0, 0));
     for (int32_t i = 0; i < stList_length(anchorPairs); i++) {
         stIntTuple *anchorPair = stList_get(anchorPairs, i);
@@ -964,11 +1081,12 @@ stList *getSplitPoints(stList *anchorPairs, int32_t lX, int32_t lY, PairwiseAlig
     return splitPoints;
 }
 
-stList *splitAlignmentsByLargeGaps(stList *anchorPairs, const char *sX, const char *sY, int32_t lX, int32_t lY,
-        PairwiseAlignmentParameters *p) {
+stList *splitAlignmentsByLargeGaps(stList *anchorPairs, const char *sX,
+        const char *sY, int32_t lX, int32_t lY, PairwiseAlignmentParameters *p) {
     stList *splitPoints = getSplitPoints(anchorPairs, lX, lY, p);
     stListIterator *anchorPairIterator = stList_getIterator(splitPoints);
-    stList *alignedPairs = stList_construct3(0, (void(*)(void *)) stIntTuple_destruct);
+    stList *alignedPairs = stList_construct3(0,
+            (void(*)(void *)) stIntTuple_destruct);
     //Now to the actual alignments
     for (int32_t i = 0; i < stList_length(splitPoints); i += 2) {
         stIntTuple *from = stList_get(splitPoints, i);
@@ -982,7 +1100,8 @@ stList *splitAlignmentsByLargeGaps(stList *anchorPairs, const char *sX, const ch
         stList *subListOfAnchorPoints = stList_construct();
         stIntTuple *anchorPair;
         while ((anchorPair = stList_getNext(anchorPairIterator)) != NULL) {
-            int32_t xay = stIntTuple_getPosition(anchorPair, 0) + stIntTuple_getPosition(anchorPair, 1);
+            int32_t xay = stIntTuple_getPosition(anchorPair, 0)
+                    + stIntTuple_getPosition(anchorPair, 1);
             assert(xay >= x + y);
             if (xay > x + y + lX2 + lY2) {
                 stList_getPrevious(anchorPairIterator);
@@ -992,7 +1111,8 @@ stList *splitAlignmentsByLargeGaps(stList *anchorPairs, const char *sX, const ch
         }
         Symbol *sX3 = symbol_convertStringToSymbols(sX2, lX2);
         Symbol *sY3 = symbol_convertStringToSymbols(sY2, lY2);
-        stList *subListOfAlignedPairs = getAlignedPairsWithBanding(subListOfAnchorPoints, sX3, sY3, lX2, lY2, p);
+        stList *subListOfAlignedPairs = getAlignedPairsWithBanding(
+                subListOfAnchorPoints, sX3, sY3, lX2, lY2, p);
         stList_appendAll(alignedPairs, subListOfAlignedPairs);
         stList_setDestructor(subListOfAlignedPairs, NULL);
         stList_destruct(subListOfAlignedPairs);
@@ -1014,7 +1134,8 @@ stList *splitAlignmentsByLargeGaps(stList *anchorPairs, const char *sX, const ch
 ///////////////////////////////////
 
 PairwiseAlignmentParameters *pairwiseAlignmentBandingParameters_construct() {
-    PairwiseAlignmentParameters *p = st_malloc(sizeof(PairwiseAlignmentParameters));
+    PairwiseAlignmentParameters *p = st_malloc(
+            sizeof(PairwiseAlignmentParameters));
     p->threshold = 0.01;
     p->minDiagsBetweenTraceBack = 1000;
     p->traceBackDiagonals = 20;
@@ -1031,11 +1152,14 @@ void pairwiseAlignmentBandingParameters_destruct(PairwiseAlignmentParameters *p)
     free(p);
 }
 
-stList *getAlignedPairs(const char *sX, const char *sY, PairwiseAlignmentParameters *p) {
+stList *getAlignedPairs(const char *sX, const char *sY,
+        PairwiseAlignmentParameters *p) {
     const int32_t lX = strlen(sX);
     const int32_t lY = strlen(sY);
-    stList *anchorPairs = getBlastPairsForPairwiseAlignmentParameters(sX, sY, lX, lY, p);
-    stList *alignedPairs = splitAlignmentsByLargeGaps(anchorPairs, sX, sY, lX, lY, p);
+    stList *anchorPairs = getBlastPairsForPairwiseAlignmentParameters(sX, sY,
+            lX, lY, p);
+    stList *alignedPairs = splitAlignmentsByLargeGaps(anchorPairs, sX, sY, lX,
+            lY, p);
     stList_destruct(anchorPairs);
     return alignedPairs;
 }

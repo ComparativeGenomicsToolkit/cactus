@@ -71,11 +71,20 @@ int32_t diagonal_equals(Diagonal diagonal1, Diagonal diagonal2);
 
 char *diagonal_getString(Diagonal diagonal);
 
+//Band
+
+typedef struct _band Band;
+
+Band *band_construct(stList *anchorPairs, int32_t lX, int32_t lY,
+        int32_t expansion);
+
+void band_destruct(Band *band);
+
 ////Band iterator.
 
 typedef struct _bandIterator BandIterator;
 
-BandIterator *bandIterator_construct(stList *anchorPairs, int32_t lX, int32_t lY, int32_t expansion);
+BandIterator *bandIterator_construct(Band *band);
 
 void bandIterator_destruct(BandIterator *bandIterator);
 
@@ -140,6 +149,10 @@ void cell_calculateForward(double *current, double *lower, double *middle, doubl
 
 void cell_calculateBackward(double *current, double *lower, double *middle, double *upper, Symbol cX, Symbol cY);
 
+double cell_dotProduct(double *cell1, double *cell2);
+
+double cell_dotProduct2(double *cell1, double (*getStateValue)(State));
+
 //DpDiagonal
 
 typedef struct _dpDiagonal DpDiagonal;
@@ -147,6 +160,8 @@ typedef struct _dpDiagonal DpDiagonal;
 DpDiagonal *dpDiagonal_construct(Diagonal diagonal);
 
 DpDiagonal *dpDiagonal_clone(DpDiagonal *diagonal);
+
+bool dpDiagonal_equals(DpDiagonal *diagonal1, DpDiagonal *diagonal2);
 
 void dpDiagonal_destruct(DpDiagonal *dpDiagonal);
 
@@ -176,14 +191,15 @@ void dpMatrix_deleteDiagonal(DpMatrix *dpMatrix, int32_t xay);
 
 //Diagonal calculations
 
-void diagonalCalculationForward(Diagonal diagonal, DpMatrix *dpMatrix, const Symbol *sX, const Symbol *sY, int32_t lX,
+void diagonalCalculationForward(int32_t xay, DpMatrix *dpMatrix, const Symbol *sX, const Symbol *sY, int32_t lX,
         int32_t lY);
 
-void diagonalCalculationBackward(Diagonal diagonal, DpMatrix *dpMatrix, const Symbol *sX, const Symbol *sY, int32_t lX,
+void diagonalCalculationBackward(int32_t xay, DpMatrix *dpMatrix, const Symbol *sX, const Symbol *sY, int32_t lX,
         int32_t lY);
 
-void diagonalCalculationPosterior(Diagonal diagonal, DpMatrix *forwardDpMatrix, DpMatrix *backwardDpMatrix,
-        const Symbol *sX, const Symbol *sY, int32_t lX, int32_t lY, double threshold, stList *alignedPairs);
+void diagonalCalculationPosterior(int32_t xay, DpMatrix *forwardDpMatrix, DpMatrix *backwardDpMatrix,
+        const Symbol *sX, const Symbol *sY, int32_t lX, int32_t lY, double threshold,
+        double posteriorProbability, stList *alignedPairs);
 
 //Banded matrix calculation
 
