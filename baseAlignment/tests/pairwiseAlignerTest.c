@@ -188,7 +188,7 @@ static void test_cell(CuTest *testCase) {
     double totalProbForward = cell_dotProduct2(currentF, state_endStateProb);
     double totalProbBackward = cell_dotProduct2(middleB, state_startStateProb);
 
-    CuAssertDblEquals(testCase, totalProbForward, totalProbBackward, 0.001); //Check the forward and back probabilities are about equal
+    CuAssertDblEquals(testCase, totalProbForward, totalProbBackward, 0.00001); //Check the forward and back probabilities are about equal
 }
 
 static void test_dpDiagonal(CuTest *testCase) {
@@ -203,11 +203,11 @@ static void test_dpDiagonal(CuTest *testCase) {
     CuAssertTrue(testCase, dpDiagonal_getCell(dpDiagonal, 3) == NULL);
     CuAssertTrue(testCase, dpDiagonal_getCell(dpDiagonal, -3) == NULL);
 
-    dpDiagonal_initialiseValues(dpDiagonal, state_startStateProb); //Test initialise values
+    dpDiagonal_initialiseValues(dpDiagonal, state_endStateProb); //Test initialise values
     double totalProb = LOG_ZERO;
     for (int32_t i = 0; i < STATE_NUMBER; i++) {
-        CuAssertDblEquals(testCase, c1[i], state_startStateProb(i), 0.0);
-        CuAssertDblEquals(testCase, c2[i], state_startStateProb(i), 0.0);
+        CuAssertDblEquals(testCase, c1[i], state_endStateProb(i), 0.0);
+        CuAssertDblEquals(testCase, c2[i], state_endStateProb(i), 0.0);
         totalProb = logAdd(totalProb, 2 * c1[i]);
         totalProb = logAdd(totalProb, 2 * c2[i]);
     }
@@ -252,8 +252,8 @@ static void test_diagonalDPCalculations(CuTest *testCase) {
     //Sets up a complete matrix for the following example and checks the total marginal
     //probability and the posterior probabilities of the matches
 
-    const char *sX = "ACTGTT";
-    const char *sY = "ACTGAATT";
+    const char *sX = "ACTGACTG";
+    const char *sY = "ACTGTTACTG";
     int32_t lX = strlen(sX);
     int32_t lY = strlen(sY);
     Symbol *sX2 = symbol_convertStringToSymbols(sX, lX);
@@ -267,7 +267,7 @@ static void test_diagonalDPCalculations(CuTest *testCase) {
     //Initialise matrices
     for (int32_t i = 0; i <= lX + lY; i++) {
         Diagonal d = bandIterator_getNext(bandIt);
-        //intitialisation
+        //initialisation
         dpDiagonal_zeroValues(dpMatrix_createDiagonal(dpMatrixBackward, d));
         dpDiagonal_zeroValues(dpMatrix_createDiagonal(dpMatrixForward, d));
     }
@@ -291,18 +291,16 @@ static void test_diagonalDPCalculations(CuTest *testCase) {
             dpDiagonal_getCell(dpMatrix_getDiagonal(dpMatrixForward, lX + lY), lX - lY), state_endStateProb);
     double totalProbBackward = cell_dotProduct2(dpDiagonal_getCell(dpMatrix_getDiagonal(dpMatrixBackward, 0), 0),
             state_startStateProb);
+    st_uglyf("Total forward and backward prob %f %f\n", (float)totalProbForward, (float)totalProbBackward);
 
-    //st_uglyf("The total probs %f %f\n", (float) totalProbForward, (float) totalProbBackward);
-    CuAssertDblEquals(testCase, totalProbForward, totalProbBackward, 0.01); //Check the forward and back probabilities are about equal
+    CuAssertDblEquals(testCase, totalProbForward, totalProbBackward, 0.001); //Check the forward and back probabilities are about equal
 
     //Test calculating the posterior probabilities along the diagonals of the matrix.
     for (int32_t i = 0; i <= lX + lY; i++) {
         //Calculate the total probs
         double totalDiagonalProb = diagonalCalculationTotalProbability(i, dpMatrixForward, dpMatrixBackward, sX2, sY2,
                 lX, lY);
-        CuAssertDblEquals(testCase, totalProbForward, totalDiagonalProb, 0.01); //Check the forward and back probabilities are about equal
-        //st_uglyf("The total probs %f %f %f\n", (float) totalProbForward, (float) totalProbBackward,
-        //        (float) totalDiagonalProb);
+        CuAssertDblEquals(testCase, totalProbForward, totalDiagonalProb, 0.001); //Check the forward and back probabilities are about equal
     }
 
     //Now do the posterior probabilities
@@ -311,11 +309,29 @@ static void test_diagonalDPCalculations(CuTest *testCase) {
         diagonalCalculationPosteriorMatchProbs(i, dpMatrixForward, dpMatrixBackward, sX2, sY2, lX, lY, 0.01,
                 totalProbForward, alignedPairs);
     }
+
     for (int32_t i = 0; i < stList_length(alignedPairs); i++) {
         stIntTuple *pair = stList_get(alignedPairs, i);
-        //st_uglyf("Pair %f %i %i\n", (float) stIntTuple_getPosition(pair, 0) / PAIR_ALIGNMENT_PROB_1,
-        //        stIntTuple_getPosition(pair, 1), stIntTuple_getPosition(pair, 2));
+        st_uglyf("Pair %f %i %i\n", (float) stIntTuple_getPosition(pair, 0) / PAIR_ALIGNMENT_PROB_1,
+                stIntTuple_getPosition(pair, 1), stIntTuple_getPosition(pair, 2));
     }
+}
+
+stList *getRandomAnchorPairs(int32_t lX, int32_t lY) {
+    stList *anchorPairs =  stList_construct3(0, (void(*)(void *)) stIntTuple_destruct);
+    int32_t x = -1;
+    int32_t y = -1;
+    while(1) {
+        x += st_randomInt(1, 20);
+        y += st_randomInt(1, 20);
+        if(x >= lX || y >= lY) {
+            break;
+        }
+        assert(x >= 0 && x < lX);
+        assert(y >= 0 && y < lY);
+        stList_append(anchorPairs, stIntTuple_construct(2, x, y));
+    }
+    return anchorPairs;
 }
 
 static void test_getAlignedPairsWithBanding(CuTest *testCase) {
@@ -331,10 +347,10 @@ static void test_getAlignedPairsWithBanding(CuTest *testCase) {
         Symbol *sY2 = symbol_convertStringToSymbols(sY, lY);
         //Now do alignment
         PairwiseAlignmentParameters *p = pairwiseAlignmentBandingParameters_construct();
-        p->traceBackDiagonals = 3;
-        p->minDiagsBetweenTraceBack = 5;
-        p->diagonalExpansion = 1000;
-        stList *anchorPairs = stList_construct3(0, (void(*)(void *)) stIntTuple_destruct);
+        p->traceBackDiagonals = st_randomInt(1, 10);
+        p->minDiagsBetweenTraceBack = p->traceBackDiagonals + st_randomInt(2, 10);
+        p->diagonalExpansion = st_randomInt(0, 10)*2;
+        stList *anchorPairs = getRandomAnchorPairs(lX, lY);
         stList *alignedPairs = getAlignedPairsWithBanding(anchorPairs, sX2, sY2, lX, lY, p);
         //Check the aligned pairs.
         stListIterator *iterator = stList_getIterator(alignedPairs);
@@ -365,7 +381,6 @@ static void test_getBlastPairs(CuTest *testCase) {
     /*
      * Test the blast heuristic to get the different pairs.
      */
-    return;
     for (int32_t test = 0; test < 10; test++) {
         //Make a pair of sequences
         char *seqX = getRandomSequence(st_randomInt(0, 10000));

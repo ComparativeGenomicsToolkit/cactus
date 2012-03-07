@@ -285,11 +285,17 @@ Symbol *symbol_convertStringToSymbols(const char *s, int32_t sL) {
     return cS;
 }
 
+static void symbol_check(Symbol c) {
+    assert(c >= 0 && c < 5);
+}
+
 #define EMISSION_MATCH -2.1149196655034745 //log(0.12064298095701059);
 #define EMISSION_TRANSVERSION -4.5691014376830479 //log(0.010367271172731285);
 #define EMISSION_TRANSITION -3.9833860032220842 //log(0.01862247669752685);
 #define EMISSION_MATCH_N -3.2188758248682006 //log(0.04);
 double symbol_matchProb(Symbol cX, Symbol cY) {
+    symbol_check(cX);
+    symbol_check(cY);
     //Symmetric matrix of transition probabilities.
     static const double matchM[25] = { EMISSION_MATCH, EMISSION_TRANSVERSION, EMISSION_TRANSITION,
             EMISSION_TRANSVERSION, EMISSION_MATCH_N, EMISSION_TRANSVERSION, EMISSION_MATCH, EMISSION_TRANSVERSION,
@@ -301,6 +307,7 @@ double symbol_matchProb(Symbol cX, Symbol cY) {
 }
 
 double symbol_gapProb(Symbol cZ) {
+    symbol_check(cZ);
     return -1.6094379124341003; //log(0.2) = -1.6094379124341003
 }
 
@@ -314,15 +321,22 @@ double symbol_gapProb(Symbol cZ) {
 ///////////////////////////////////
 ///////////////////////////////////
 
+static void state_check(State s) {
+    assert(c >= 0 && c < STATE_NUMBER);
+}
+
 double state_startStateProb(State state) {
-    return -1.6094379124341;
-    static const double startStates[5] = { TRANSITION_MATCH_CONTINUE, TRANSITION_GAP_SHORT_OPEN,
-            TRANSITION_GAP_SHORT_OPEN, TRANSITION_GAP_LONG_OPEN, TRANSITION_GAP_LONG_OPEN };
-    return startStates[state];
+    //Match state is like going to a match.
+    state_check(state);
+    return state == match ? 0 : LOG_ZERO;
 }
 
 double state_endStateProb(State state) {
-    return -1.6094379124341; //math.log(1.0/5.0) = -1.6094379124341
+    //End state is like to going to a match
+    state_check(state);
+    static const double endStates[5] = { TRANSITION_MATCH_CONTINUE, TRANSITION_MATCH_FROM_SHORT_GAP,
+            TRANSITION_MATCH_FROM_SHORT_GAP, TRANSITION_MATCH_FROM_LONG_GAP, TRANSITION_MATCH_FROM_LONG_GAP };
+    return endStates[state];
 }
 
 ///////////////////////////////////
@@ -365,7 +379,7 @@ static inline void cell_calculate(double *current, double *lower, double *middle
 
 static inline void doTransitionForward(double *fromCells, double *toCells, int32_t from, int32_t to, double eP,
         double tP) {
-    toCells[to] = logAdd(toCells[to], fromCells[from] + eP + tP);
+    toCells[to] = logAdd(toCells[to], fromCells[from] + (eP + tP));
 }
 
 void cell_calculateForward(double *current, double *lower, double *middle, double *upper, Symbol cX, Symbol cY) {
@@ -374,7 +388,7 @@ void cell_calculateForward(double *current, double *lower, double *middle, doubl
 
 static inline void doTransitionBackward(double *fromCells, double *toCells, int32_t from, int32_t to, double eP,
         double tP) {
-    fromCells[from] = logAdd(fromCells[from], toCells[to] + eP + tP);
+    fromCells[from] = logAdd(fromCells[from], toCells[to] + (eP + tP));
 }
 
 void cell_calculateBackward(double *current, double *lower, double *middle, double *upper, Symbol cX, Symbol cY) {
@@ -389,10 +403,10 @@ double cell_dotProduct(double *cell1, double *cell2) {
     return totalProb;
 }
 
-double cell_dotProduct2(double *cell1, double(*getStateValue)(State)) {
-    double totalProb = cell1[0] + getStateValue(0);
+double cell_dotProduct2(double *cell, double(*getStateValue)(State)) {
+    double totalProb = cell[0] + getStateValue(0);
     for (int32_t i = 1; i < STATE_NUMBER; i++) {
-        totalProb = logAdd(totalProb, cell1[i] + getStateValue(i));
+        totalProb = logAdd(totalProb, cell[i] + getStateValue(i));
     }
     return totalProb;
 }
@@ -519,6 +533,7 @@ int32_t dpMatrix_getActiveDiagonalNumber(DpMatrix *dpMatrix) {
 DpDiagonal *dpMatrix_createDiagonal(DpMatrix *dpMatrix, Diagonal diagonal) {
     assert(diagonal.xay >= 0);
     assert(diagonal.xay <= dpMatrix->diagonalNumber);
+    assert(dpMatrix_getDiagonal(dpMatrix, diagonal.xay) == NULL);
     DpDiagonal *dpDiagonal = dpDiagonal_construct(diagonal);
     dpMatrix->diagonals[diagonal_getXay(diagonal)] = dpDiagonal;
     dpMatrix->activeDiagonals++;
@@ -546,14 +561,14 @@ void dpMatrix_deleteDiagonal(DpMatrix *dpMatrix, int32_t xay) {
 ///////////////////////////////////
 
 static Symbol getXCharacter(const Symbol *sX, int32_t lX, int32_t xay, int32_t xmy) {
-    int32_t x = diagonal_getXCoordinate(xmy, xay);
-    assert(x <= lX);
+    int32_t x = diagonal_getXCoordinate(xay, xmy);
+    assert(x >= 0 && x <= lX);
     return x > 0 ? sX[x - 1] : n;
 }
 
 static Symbol getYCharacter(const Symbol *sY, int32_t lY, int32_t xay, int32_t xmy) {
-    int32_t y = diagonal_getYCoordinate(xmy, xay);
-    assert(y <= lY);
+    int32_t y = diagonal_getYCoordinate(xay, xmy);
+    assert(y >= 0 && y <= lY);
     return y > 0 ? sY[y - 1] : n;
 }
 
@@ -615,19 +630,24 @@ void diagonalCalculationPosteriorMatchProbs(int32_t xay, DpMatrix *forwardDpMatr
     int32_t xmy = diagonal_getMinXmy(diagonal);
     //Walk over the cells computing the posteriors
     while (xmy <= diagonal_getMaxXmy(diagonal)) {
-        double *cellForward = dpDiagonal_getCell(forwardDiagonal, xmy);
-        double *cellBackward = dpDiagonal_getCell(backDiagonal, xmy);
-        double posteriorProbability = exp(cellForward[match] + cellBackward[match] - totalProbability);
-        if (posteriorProbability >= threshold && 0) {
-            int32_t x = diagonal_getXCoordinate(diagonal_getXay(diagonal), xmy);
-            int32_t y = diagonal_getYCoordinate(diagonal_getXay(diagonal), xmy);
-            assert(x > 0 && x <= lX);
-            assert(y > 0 && y <= lY);
-            if (posteriorProbability > 1.0) {
-                posteriorProbability = 1.0;
+        int32_t x = diagonal_getXCoordinate(diagonal_getXay(diagonal), xmy);
+        int32_t y = diagonal_getYCoordinate(diagonal_getXay(diagonal), xmy);
+        if(x > 0 && y > 0) {
+            double *cellForward = dpDiagonal_getCell(forwardDiagonal, xmy);
+            double *cellBackward = dpDiagonal_getCell(backDiagonal, xmy);
+            double posteriorProbability = exp((cellForward[match] + cellBackward[match]) - totalProbability);
+            assert(posteriorProbability > -0.01);
+            assert(posteriorProbability <  1.01);
+            if (posteriorProbability >= threshold) {
+                assert(x > 0 && x <= lX);
+                assert(y > 0 && y <= lY);
+                if (posteriorProbability > 1.0) {
+                    posteriorProbability = 1.0;
+                }
+                posteriorProbability = floor(posteriorProbability * PAIR_ALIGNMENT_PROB_1);
+
+                stList_append(alignedPairs, stIntTuple_construct(3, (int32_t) posteriorProbability, x - 1, y - 1));
             }
-            posteriorProbability = floor(posteriorProbability * PAIR_ALIGNMENT_PROB_1);
-            stList_append(alignedPairs, stIntTuple_construct(3, (int32_t) posteriorProbability, x - 1, y - 1));
         }
         xmy += 2;
     }
@@ -650,10 +670,14 @@ stList *getAlignedPairsWithBanding(stList *anchorPairs, const Symbol *sX, const 
     assert(p->diagonalExpansion >= 0);
     assert(p->diagonalExpansion % 2 ==  0);
     assert(p->minDiagsBetweenTraceBack >= 2);
-    assert(p->traceBackDiagonals < p->minDiagsBetweenTraceBack);
+    assert(p->traceBackDiagonals + 1 < p->minDiagsBetweenTraceBack);
 
     //This list of pairs to be returned. Not in any order, but points must be unique
     stList *alignedPairs = stList_construct3(0, (void(*)(void *)) stIntTuple_destruct);
+
+    if(lX + lY == 0) { //Deal with trivial case
+        return alignedPairs;
+    }
 
     //Primitives for the forward matrix recursion
     Band *band = band_construct(anchorPairs, lX, lY, p->diagonalExpansion);
@@ -666,6 +690,7 @@ stList *getAlignedPairsWithBanding(stList *anchorPairs, const Symbol *sX, const 
     DpMatrix *backwardDpMatrix = dpMatrix_construct(lX, lY);
 
     int32_t tracedBackTo = 0;
+    int32_t totalPosteriorCalculations = 0;
     while (1) { //Loop that moves through the matrix forward
         Diagonal diagonal = bandIterator_getNext(forwardBandIterator);
 
@@ -674,7 +699,7 @@ stList *getAlignedPairsWithBanding(stList *anchorPairs, const Symbol *sX, const 
         diagonalCalculationForward(diagonal_getXay(diagonal), forwardDpMatrix, sX, sY, lX, lY);
 
         bool atEnd = diagonal_getXay(diagonal) == lX + lY; //Condition true at the end of the matrix
-        bool tracebackPoint = diagonal_getXay(diagonal) >= p->minDiagsBetweenTraceBack && diagonal_getWidth(diagonal)
+        bool tracebackPoint = diagonal_getXay(diagonal) >= tracedBackTo + p->minDiagsBetweenTraceBack && diagonal_getWidth(diagonal)
                 <= p->diagonalExpansion * 2 + 1; //Condition true when we want to do an intermediate traceback.
 
         //Traceback
@@ -691,8 +716,9 @@ stList *getAlignedPairsWithBanding(stList *anchorPairs, const Symbol *sX, const 
             BandIterator *backwardBandIterator = bandIterator_clone(forwardBandIterator);
             Diagonal diagonal2 = bandIterator_getPrevious(backwardBandIterator);
             assert(diagonal_getXay(diagonal2) == diagonal_getXay(diagonal));
-            int32_t tracedBackFrom = diagonal_getXay(diagonal2);
-            int32_t remainingTraceBackDiagonals = atEnd ? 0 : p->traceBackDiagonals;
+            int32_t tracedBackFrom = diagonal_getXay(diagonal) - (atEnd ? 0 : p->traceBackDiagonals + 1);
+            double totalProbability = LOG_ZERO;
+            int32_t totalPosteriorCalculationsThisTraceback = 0;
             while (diagonal_getXay(diagonal2) > tracedBackTo) {
                 //Create the earlier diagonal
                 if (diagonal_getXay(diagonal2) > tracedBackTo + 2) {
@@ -703,12 +729,28 @@ stList *getAlignedPairsWithBanding(stList *anchorPairs, const Symbol *sX, const 
                 if (diagonal_getXay(diagonal2) > tracedBackTo + 1) {
                     diagonalCalculationBackward(diagonal_getXay(diagonal2), backwardDpMatrix, sX, sY, lX, lY);
                 }
-                if (remainingTraceBackDiagonals-- <= 0) {
-                    double totalProbability = diagonalCalculationTotalProbability(diagonal_getXay(diagonal2), forwardDpMatrix, backwardDpMatrix, sX, sY, lX, lY);
+                if (diagonal_getXay(diagonal2) <= tracedBackFrom) {
+
+                    assert(dpMatrix_getDiagonal(forwardDpMatrix, diagonal_getXay(diagonal2)) != NULL);
+                    assert(dpMatrix_getDiagonal(forwardDpMatrix, diagonal_getXay(diagonal2)-1) != NULL);
+                    assert(dpMatrix_getDiagonal(backwardDpMatrix, diagonal_getXay(diagonal2)) != NULL);
+                    if(diagonal_getXay(diagonal2) != lX + lY) {
+                        assert(dpMatrix_getDiagonal(backwardDpMatrix, diagonal_getXay(diagonal2)+1) != NULL);
+                    }
+
+                    if(totalPosteriorCalculationsThisTraceback++ % 10 == 0) {
+                        double newTotalProbability = diagonalCalculationTotalProbability(diagonal_getXay(diagonal2), forwardDpMatrix, backwardDpMatrix, sX, sY, lX, lY);
+                        if(totalPosteriorCalculationsThisTraceback != 1) {
+                            assert(totalProbability + 0.1 > newTotalProbability);
+                            assert(newTotalProbability + 0.1 > newTotalProbability);
+                        }
+                        totalProbability = newTotalProbability;
+                    }
+
                     diagonalCalculationPosteriorMatchProbs(diagonal_getXay(diagonal2), forwardDpMatrix,
-                            backwardDpMatrix, sX, sY, lX, lY, p->threshold, totalProbability, alignedPairs);
-                    st_uglyf("The total prob is %f %i\n", (float)totalProbability, diagonal_getXay(diagonal2));
-                    if(diagonal_getXay(diagonal2) < diagonal_getXay(diagonal)) {
+                                                    backwardDpMatrix, sX, sY, lX, lY, p->threshold, totalProbability, alignedPairs);
+
+                    if(diagonal_getXay(diagonal2) < tracedBackFrom || atEnd) {
                         dpMatrix_deleteDiagonal(forwardDpMatrix, diagonal_getXay(diagonal2)); //Delete forward diagonal after last access in posterior calculation
                     }
                 }
@@ -723,9 +765,9 @@ stList *getAlignedPairsWithBanding(stList *anchorPairs, const Symbol *sX, const 
             dpMatrix_deleteDiagonal(forwardDpMatrix, diagonal_getXay(diagonal2));
             //Check memory state.
             assert(dpMatrix_getActiveDiagonalNumber(backwardDpMatrix) == 0);
-            st_uglyf("Remaining diagonals %i\n", dpMatrix_getActiveDiagonalNumber(forwardDpMatrix));
+            totalPosteriorCalculations += totalPosteriorCalculationsThisTraceback;
             if (!atEnd) {
-                assert(dpMatrix_getActiveDiagonalNumber(forwardDpMatrix) == p->traceBackDiagonals);
+                assert(dpMatrix_getActiveDiagonalNumber(forwardDpMatrix) == p->traceBackDiagonals + 2);
             }
         }
 
@@ -733,10 +775,10 @@ stList *getAlignedPairsWithBanding(stList *anchorPairs, const Symbol *sX, const 
             break;
         }
     }
+    assert(totalPosteriorCalculations == lX + lY);
     assert(tracedBackTo == lX + lY);
     //Check memory
-    assert(dpMatrix_getActiveDiagonalNumber(forwardDpMatrix) == 1);
-    dpMatrix_deleteDiagonal(forwardDpMatrix, lX + lY);
+    assert(dpMatrix_getActiveDiagonalNumber(backwardDpMatrix) == 0);
     assert(dpMatrix_getActiveDiagonalNumber(forwardDpMatrix) == 0);
     dpMatrix_destruct(forwardDpMatrix);
     dpMatrix_destruct(backwardDpMatrix);
