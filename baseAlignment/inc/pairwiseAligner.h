@@ -118,6 +118,13 @@ double symbol_matchProb(Symbol cX, Symbol cY);
 
 double symbol_gapProb(Symbol c);
 
+typedef struct _symbolString {
+        Symbol *sequence;
+                int32_t length;
+} SymbolString;
+
+SymbolString symbolString_construct(const char *sequence, int32_t length);
+
 //States and transitions
 
 #define STATE_NUMBER 5
@@ -177,7 +184,7 @@ void dpDiagonal_initialiseValues(DpDiagonal *diagonal, double(*getStateValue)(St
 
 typedef struct _dpMatrix DpMatrix;
 
-DpMatrix *dpMatrix_construct(int32_t lX, int32_t lY);
+DpMatrix *dpMatrix_construct(int32_t diagonalNumber);
 
 void dpMatrix_destruct(DpMatrix *dpMatrix);
 
@@ -191,23 +198,19 @@ void dpMatrix_deleteDiagonal(DpMatrix *dpMatrix, int32_t xay);
 
 //Diagonal calculations
 
-void diagonalCalculationForward(int32_t xay, DpMatrix *dpMatrix, const Symbol *sX, const Symbol *sY, int32_t lX,
-        int32_t lY);
+void diagonalCalculationForward(int32_t xay, DpMatrix *dpMatrix, const SymbolString sX, const SymbolString sY);
 
-void diagonalCalculationBackward(int32_t xay, DpMatrix *dpMatrix, const Symbol *sX, const Symbol *sY, int32_t lX,
-        int32_t lY);
+void diagonalCalculationBackward(int32_t xay, DpMatrix *dpMatrix, const SymbolString sX, const SymbolString sY);
 
 double diagonalCalculationTotalProbability(int32_t xay, DpMatrix *forwardDpMatrix, DpMatrix *backwardDpMatrix,
-        const Symbol *sX, const Symbol *sY, int32_t lX, int32_t lY);
+        const SymbolString sX, const SymbolString sY);
 
 void diagonalCalculationPosteriorMatchProbs(int32_t xay, DpMatrix *forwardDpMatrix, DpMatrix *backwardDpMatrix,
-        const Symbol *sX, const Symbol *sY, int32_t lX, int32_t lY, double threshold,
-        double posteriorProbability, stList *alignedPairs);
+        double threshold, double posteriorProbability, stList *alignedPairs);
 
 //Banded matrix calculation
 
-stList *getAlignedPairsWithBanding(stList *anchorPairs, const Symbol *sX, const Symbol *sY,
-        const int32_t lX, const int32_t lY,
+stList *getAlignedPairsWithBanding(stList *anchorPairs, const SymbolString sX, const SymbolString sY,
         PairwiseAlignmentParameters *p);
 
 //Blast pairs
