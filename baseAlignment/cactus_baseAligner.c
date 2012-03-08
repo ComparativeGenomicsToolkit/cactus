@@ -38,6 +38,9 @@ void usage() {
             "-q --repeatMaskMatrixBiggerThanThis : (int >= 0) Any matrix bigger than this after initial banding will be broken apart without repeat masking of the sequences\n");
 
     fprintf(stderr,
+                "-t --constraintDiagonalTrim : (int >= 0)  The amount to be removed from each end of a diagonal to be considered a banding constraint.\n");
+
+    fprintf(stderr,
             "-u --minimumDegree : (int >= 0) Minimum number of sequences in a block to be included in the output graph\n");
 
     fprintf(stderr,
