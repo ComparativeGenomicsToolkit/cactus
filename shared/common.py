@@ -211,6 +211,7 @@ def runCactusBaseAligner(cactusDiskDatabaseString, flowerNames, logLevel=None,
                          splitMatrixBiggerThanThis=None,
                          anchorMatrixBiggerThanThis=None,
                          repeatMaskMatrixBiggerThanThis=None,
+                         diagonalExpansion=None,
                          constraintDiagonalTrim=None,
                          minimumBlockDegree=None,
                          alignAmbiguityCharacters=None,
@@ -228,6 +229,7 @@ def runCactusBaseAligner(cactusDiskDatabaseString, flowerNames, logLevel=None,
     splitMatrixBiggerThanThis=nameValue("splitMatrixBiggerThanThis", splitMatrixBiggerThanThis, int)
     anchorMatrixBiggerThanThis=nameValue("anchorMatrixBiggerThanThis", anchorMatrixBiggerThanThis, int)
     repeatMaskMatrixBiggerThanThis=nameValue("repeatMaskMatrixBiggerThanThis", repeatMaskMatrixBiggerThanThis, int)                   
+    diagonalExpansion=nameValue("diagonalExpansion", diagonalExpansion, int)
     constraintDiagonalTrim = nameValue("constraintDiagonalTrim", constraintDiagonalTrim, int)
     minimumBlockDegree = nameValue("minimumDegree", minimumBlockDegree, int)
     pruneOutStubAlignments = nameValue("pruneOutStubAlignments", pruneOutStubAlignments, bool)
@@ -237,11 +239,11 @@ def runCactusBaseAligner(cactusDiskDatabaseString, flowerNames, logLevel=None,
     requiredOutgroupFraction = nameValue("requiredOutgroupFraction", requiredOutgroupFraction, float)
     requiredAllFraction = nameValue("requiredAllFraction", requiredAllFraction, float)
     
-    popenPush("cactus_baseAligner --cactusDisk '%s' --logLevel %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s" % 
+    popenPush("cactus_baseAligner --cactusDisk '%s' --logLevel %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s" % 
            (cactusDiskDatabaseString, logLevel, spanningTrees, maximumLength, gapGamma, 
             splitMatrixBiggerThanThis, anchorMatrixBiggerThanThis, repeatMaskMatrixBiggerThanThis,
             constraintDiagonalTrim, minimumBlockDegree, alignAmbiguityCharacters, pruneOutStubAlignments,
-            numThreads, requiredIngroupFraction, requiredOutgroupFraction, requiredAllFraction), stdinString=formatFlowerNames(flowerNames))
+            numThreads, requiredIngroupFraction, requiredOutgroupFraction, requiredAllFraction, diagonalExpansion), stdinString=formatFlowerNames(flowerNames))
     
 def runCactusReference(cactusDiskDatabaseString, flowerNames, logLevel=None,
                        matchingAlgorithm=None, 

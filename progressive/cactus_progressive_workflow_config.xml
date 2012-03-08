@@ -79,6 +79,7 @@
 					splitMatrixBiggerThanThis="3000" 
                     anchorMatrixBiggerThanThis="500"
                     repeatMaskMatrixBiggerThanThis="500"
+					diagonalExpansion="20"
 					constraintDiagonalTrim="14" 
 					minimumBlockDegree="2" 
 					alignAmbiguityCharacters="1"
