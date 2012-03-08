@@ -422,12 +422,10 @@ class CactusBaseLevelAlignerWrapper(CactusRecursionTarget):
                              maximumLength=getOptionalAttrib(self.configNode, "bandingLimit", float),
                              spanningTrees=getOptionalAttrib(self.configNode, "spanningTrees", int), 
                              gapGamma=getOptionalAttrib(self.configNode, "gapGamma", float), 
-                             useBanding=getOptionalAttrib(self.configNode, "useBanding", bool),
-                             maxBandingSize=getOptionalAttrib(self.configNode, "maxBandingSize", int),
-                             minBandingSize=getOptionalAttrib(self.configNode, "minBandingSize", int), 
-                             minBandingConstraintDistance=getOptionalAttrib(self.configNode, "minBandingConstraintDistance", int), 
-                             minTraceBackDiag=getOptionalAttrib(self.configNode, "minTraceBackDiag", int), 
-                             constraintDiagonalTrim=getOptionalAttrib(self.configNode, "constaintDiagonalTrim", int), 
+                             splitMatrixBiggerThanThis=getOptionalAttrib(self.configNode, "splitMatrixBiggerThanThis", int), 
+                             anchorMatrixBiggerThanThis=getOptionalAttrib(self.configNode, "anchorMatrixBiggerThanThis", int), 
+                             repeatMaskMatrixBiggerThanThis=getOptionalAttrib(self.configNode, "repeatMaskMatrixBiggerThanThis", int), 
+                             constraintDiagonalTrim=getOptionalAttrib(self.configNode, "constraintDiagonalTrim", int), 
                              minimumBlockDegree=getOptionalAttrib(self.configNode, "minimumBlockDegree", int),
                              alignAmbiguityCharacters=getOptionalAttrib(self.configNode, "alignAmbiguityCharacters", bool),
                              pruneOutStubAlignments=getOptionalAttrib(self.configNode, "pruneOutStrubAlignments", bool),
@@ -647,7 +645,8 @@ class CactusMafGeneratorPhase(CactusPhasesTarget):
                 self.addChildTarget(CactusMafGeneratorUp(cactusDiskDatabaseString=self.options.cactusDiskDatabaseString, 
                                                          configNode=extractNode(mafGeneratorNode), 
                                                          flowerNames=[ self.flowerName, 1 ], 
-                                                         parentTempDir=None, outputFile=self.options.experimentFile.find("maf").attrib["path"]))
+                                                         parentTempDir=None, 
+                                                         outputFile=self.options.experimentFile.find("maf").attrib["path"]))
 
 class CactusMafGeneratorUp(CactusRecursionTarget):
     """Generate the maf my merging mafs from the children.

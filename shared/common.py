@@ -208,11 +208,9 @@ def runCactusMakeNormal(cactusDiskDatabaseString, flowerNames, maxNumberOfChains
 def runCactusBaseAligner(cactusDiskDatabaseString, flowerNames, logLevel=None,
                          spanningTrees=None, maximumLength=None, 
                          gapGamma=None,
-                         useBanding=None,
-                         maxBandingSize=None,
-                         minBandingSize=None,
-                         minBandingConstraintDistance=None,
-                         minTraceBackDiag=None,
+                         splitMatrixBiggerThanThis=None,
+                         anchorMatrixBiggerThanThis=None,
+                         repeatMaskMatrixBiggerThanThis=None,
                          constraintDiagonalTrim=None,
                          minimumBlockDegree=None,
                          alignAmbiguityCharacters=None,
@@ -227,11 +225,9 @@ def runCactusBaseAligner(cactusDiskDatabaseString, flowerNames, logLevel=None,
     maximumLength = nameValue("maximumLength", maximumLength, int)
     spanningTrees = nameValue("spanningTrees", spanningTrees, int)
     gapGamma = nameValue("gapGamma", gapGamma, float)
-    useBanding = nameValue("useBanding", useBanding, bool)
-    maxBandingSize = nameValue("maxBandingSize", maxBandingSize, int)
-    minBandingSize = nameValue("minBandingSize", minBandingSize, int)
-    minBandingConstraintDistance = nameValue("minBandingConstraintDistance", minBandingConstraintDistance, int)
-    minTraceBackDiag = nameValue("minTraceBackDiag", minTraceBackDiag, int)
+    splitMatrixBiggerThanThis=nameValue("splitMatrixBiggerThanThis", splitMatrixBiggerThanThis, int)
+    anchorMatrixBiggerThanThis=nameValue("anchorMatrixBiggerThanThis", anchorMatrixBiggerThanThis, int)
+    repeatMaskMatrixBiggerThanThis=nameValue("repeatMaskMatrixBiggerThanThis", repeatMaskMatrixBiggerThanThis, int)                   
     constraintDiagonalTrim = nameValue("constraintDiagonalTrim", constraintDiagonalTrim, int)
     minimumBlockDegree = nameValue("minimumDegree", minimumBlockDegree, int)
     pruneOutStubAlignments = nameValue("pruneOutStubAlignments", pruneOutStubAlignments, bool)
@@ -241,9 +237,9 @@ def runCactusBaseAligner(cactusDiskDatabaseString, flowerNames, logLevel=None,
     requiredOutgroupFraction = nameValue("requiredOutgroupFraction", requiredOutgroupFraction, float)
     requiredAllFraction = nameValue("requiredAllFraction", requiredAllFraction, float)
     
-    popenPush("cactus_baseAligner --cactusDisk '%s' --logLevel %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s" % 
+    popenPush("cactus_baseAligner --cactusDisk '%s' --logLevel %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s" % 
            (cactusDiskDatabaseString, logLevel, spanningTrees, maximumLength, gapGamma, 
-            useBanding, maxBandingSize, minBandingSize, minBandingConstraintDistance, minTraceBackDiag,
+            splitMatrixBiggerThanThis, anchorMatrixBiggerThanThis, repeatMaskMatrixBiggerThanThis,
             constraintDiagonalTrim, minimumBlockDegree, alignAmbiguityCharacters, pruneOutStubAlignments,
             numThreads, requiredIngroupFraction, requiredOutgroupFraction, requiredAllFraction), stdinString=formatFlowerNames(flowerNames))
     

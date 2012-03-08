@@ -4,6 +4,8 @@
  *  Created on: 1 Mar 2012
  *      Author: benedictpaten
  */
+//This is being included to make popen work!
+#define _XOPEN_SOURCE 500
 
 #include <stdlib.h>
 #include <stdio.h>
