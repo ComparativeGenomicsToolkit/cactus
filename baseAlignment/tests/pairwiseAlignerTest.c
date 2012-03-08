@@ -53,13 +53,15 @@ static void test_diagonal(CuTest *testCase) {
 static bool testDiagonalsEqual(Diagonal d1, Diagonal d2) {
     bool b = diagonal_equals(d1, d2);
     if (!b) {
-        st_logCritical("Diagonals not equal: d1: %s, d2: %s \n", diagonal_getString(d1), diagonal_getString(d2));
+        st_logCritical("Diagonals not equal: d1: %s, d2: %s \n",
+                diagonal_getString(d1), diagonal_getString(d2));
     }
     return b;
 }
 
 static void test_bands(CuTest *testCase) {
-    stList *anchorPairs = stList_construct3(0, (void(*)(void *)) stIntTuple_destruct);
+    stList *anchorPairs = stList_construct3(0,
+            (void(*)(void *)) stIntTuple_destruct);
     ///stList_append(anchorPairs, stIntTuple_construct(2, 0, 0));
     stList_append(anchorPairs, stIntTuple_construct(2, 1, 0));
     stList_append(anchorPairs, stIntTuple_construct(2, 2, 1));
@@ -117,25 +119,6 @@ static void test_bands(CuTest *testCase) {
     CuAssertTrue(testCase, testDiagonalsEqual(bandIterator_getPrevious(bandIt), diagonal_construct(1, -1, 1)));
     CuAssertTrue(testCase, testDiagonalsEqual(bandIterator_getPrevious(bandIt), diagonal_construct(0, 0, 0)));
 
-    //Try creating an illegal expansion factor
-    stTry {
-            band_construct(anchorPairs, lX, lY, 1);
-            CuAssertTrue(testCase, 0);
-        }stCatch(PAIRWISE_ALIGNMENT_EXCEPTION_ID)
-            {
-                st_logInfo(stExcept_getMsg(PAIRWISE_ALIGNMENT_EXCEPTION_ID));
-            }stTryEnd
-
-    //Try creating an illegal band in which pairs not all increasing on x+y.
-    stTry {
-            stList_append(anchorPairs, stIntTuple_construct(2, 4, 3));
-            band_construct(anchorPairs, lX, lY, 2);
-            CuAssertTrue(testCase, 0);
-        }stCatch(PAIRWISE_ALIGNMENT_EXCEPTION_ID)
-            {
-                st_logInfo(stExcept_getMsg(PAIRWISE_ALIGNMENT_EXCEPTION_ID));
-            }stTryEnd
-
     //Cleanup
     bandIterator_destruct(bandIt);
     band_destruct(band);
@@ -164,8 +147,10 @@ static void test_symbol(CuTest *testCase) {
 }
 
 static void test_cell(CuTest *testCase) {
-    double lowerF[STATE_NUMBER], middleF[STATE_NUMBER], upperF[STATE_NUMBER], currentF[STATE_NUMBER];
-    double lowerB[STATE_NUMBER], middleB[STATE_NUMBER], upperB[STATE_NUMBER], currentB[STATE_NUMBER];
+    double lowerF[STATE_NUMBER], middleF[STATE_NUMBER], upperF[STATE_NUMBER],
+            currentF[STATE_NUMBER];
+    double lowerB[STATE_NUMBER], middleB[STATE_NUMBER], upperB[STATE_NUMBER],
+            currentB[STATE_NUMBER];
     for (int32_t i = 0; i < STATE_NUMBER; i++) {
         middleF[i] = state_startStateProb(i);
         middleB[i] = LOG_ZERO;
@@ -187,7 +172,8 @@ static void test_cell(CuTest *testCase) {
     cell_calculateBackward(lowerB, NULL, NULL, middleB, cX, cY);
     double totalProbForward = cell_dotProduct2(currentF, state_endStateProb);
     double totalProbBackward = cell_dotProduct2(middleB, state_startStateProb);
-    st_logInfo("Total probability for cell test, forward %f and backward %f\n", totalProbForward, totalProbBackward);
+    st_logInfo("Total probability for cell test, forward %f and backward %f\n",
+            totalProbForward, totalProbBackward);
     CuAssertDblEquals(testCase, totalProbForward, totalProbBackward, 0.00001); //Check the forward and back probabilities are about equal
 }
 
@@ -232,7 +218,8 @@ static void test_dpMatrix(CuTest *testCase) {
     }
 
     for (int32_t i = 0; i <= lX + lY; i++) {
-        DpDiagonal *dpDiagonal = dpMatrix_createDiagonal(dpMatrix, diagonal_construct(i, -i, i));
+        DpDiagonal *dpDiagonal = dpMatrix_createDiagonal(dpMatrix,
+                diagonal_construct(i, -i, i));
         CuAssertTrue(testCase, dpDiagonal == dpMatrix_getDiagonal(dpMatrix, i));
         CuAssertIntEquals(testCase, dpMatrix_getActiveDiagonalNumber(dpMatrix), i + 1);
     }
@@ -271,8 +258,10 @@ static void test_diagonalDPCalculations(CuTest *testCase) {
         dpDiagonal_zeroValues(dpMatrix_createDiagonal(dpMatrixBackward, d));
         dpDiagonal_zeroValues(dpMatrix_createDiagonal(dpMatrixForward, d));
     }
-    dpDiagonal_initialiseValues(dpMatrix_getDiagonal(dpMatrixForward, 0), state_startStateProb);
-    dpDiagonal_initialiseValues(dpMatrix_getDiagonal(dpMatrixBackward, lX + lY), state_endStateProb);
+    dpDiagonal_initialiseValues(dpMatrix_getDiagonal(dpMatrixForward, 0),
+            state_startStateProb);
+    dpDiagonal_initialiseValues(
+            dpMatrix_getDiagonal(dpMatrixBackward, lX + lY), state_endStateProb);
 
     //Forward algorithm
     for (int32_t i = 1; i <= lX + lY; i++) {
@@ -288,28 +277,34 @@ static void test_diagonalDPCalculations(CuTest *testCase) {
 
     //Calculate total probabilities
     double totalProbForward = cell_dotProduct2(
-            dpDiagonal_getCell(dpMatrix_getDiagonal(dpMatrixForward, lX + lY), lX - lY), state_endStateProb);
-    double totalProbBackward = cell_dotProduct2(dpDiagonal_getCell(dpMatrix_getDiagonal(dpMatrixBackward, 0), 0),
+            dpDiagonal_getCell(dpMatrix_getDiagonal(dpMatrixForward, lX + lY),
+                    lX - lY), state_endStateProb);
+    double totalProbBackward = cell_dotProduct2(
+            dpDiagonal_getCell(dpMatrix_getDiagonal(dpMatrixBackward, 0), 0),
             state_startStateProb);
-    st_logInfo("Total forward and backward prob %f %f\n", (float) totalProbForward, (float) totalProbBackward);
+    st_logInfo("Total forward and backward prob %f %f\n",
+            (float) totalProbForward, (float) totalProbBackward);
 
     CuAssertDblEquals(testCase, totalProbForward, totalProbBackward, 0.001); //Check the forward and back probabilities are about equal
 
     //Test calculating the posterior probabilities along the diagonals of the matrix.
     for (int32_t i = 0; i <= lX + lY; i++) {
         //Calculate the total probs
-        double totalDiagonalProb = diagonalCalculationTotalProbability(i, dpMatrixForward, dpMatrixBackward, sX2, sY2);
+        double totalDiagonalProb = diagonalCalculationTotalProbability(i,
+                dpMatrixForward, dpMatrixBackward, sX2, sY2);
         CuAssertDblEquals(testCase, totalProbForward, totalDiagonalProb, 0.001); //Check the forward and back probabilities are about equal
     }
 
     //Now do the posterior probabilities
-    stList *alignedPairs = stList_construct3(0, (void(*)(void *)) stIntTuple_destruct);
+    stList *alignedPairs = stList_construct3(0,
+            (void(*)(void *)) stIntTuple_destruct);
     for (int32_t i = 1; i <= lX + lY; i++) {
-        diagonalCalculationPosteriorMatchProbs(i, dpMatrixForward, dpMatrixBackward, 0.2, totalProbForward,
-                alignedPairs);
+        diagonalCalculationPosteriorMatchProbs(i, dpMatrixForward,
+                dpMatrixBackward, 0.2, totalProbForward, alignedPairs);
     }
 
-    stSortedSet *alignedPairsSet = stSortedSet_construct3((int(*)(const void *, const void *)) stIntTuple_cmpFn,
+    stSortedSet *alignedPairsSet = stSortedSet_construct3(
+            (int(*)(const void *, const void *)) stIntTuple_cmpFn,
             (void(*)(void *)) stIntTuple_destruct);
     stSortedSet_insert(alignedPairsSet, stIntTuple_construct(2, 0, 0));
     stSortedSet_insert(alignedPairsSet, stIntTuple_construct(2, 1, 1));
@@ -318,8 +313,12 @@ static void test_diagonalDPCalculations(CuTest *testCase) {
 
     for (int32_t i = 0; i < stList_length(alignedPairs); i++) {
         stIntTuple *pair = stList_get(alignedPairs, i);
-        int32_t x = stIntTuple_getPosition(pair, 1), y = stIntTuple_getPosition(pair, 2);
-        st_logInfo("Pair %f %i %i\n", (float) stIntTuple_getPosition(pair, 0) / PAIR_ALIGNMENT_PROB_1, x, y);
+        int32_t x = stIntTuple_getPosition(pair, 1), y =
+                stIntTuple_getPosition(pair, 2);
+        st_logInfo(
+                "Pair %f %i %i\n",
+                (float) stIntTuple_getPosition(pair, 0) / PAIR_ALIGNMENT_PROB_1,
+                x, y);
         CuAssertTrue(testCase, stSortedSet_search(alignedPairsSet, stIntTuple_construct(2, x, y)) != NULL);
     }
     CuAssertIntEquals(testCase, stList_length(alignedPairs), 4);
@@ -327,7 +326,8 @@ static void test_diagonalDPCalculations(CuTest *testCase) {
 }
 
 stList *getRandomAnchorPairs(int32_t lX, int32_t lY) {
-    stList *anchorPairs = stList_construct3(0, (void(*)(void *)) stIntTuple_destruct);
+    stList *anchorPairs = stList_construct3(0,
+            (void(*)(void *)) stIntTuple_destruct);
     int32_t x = -1;
     int32_t y = -1;
     while (1) {
@@ -343,6 +343,33 @@ stList *getRandomAnchorPairs(int32_t lX, int32_t lY) {
     return anchorPairs;
 }
 
+static void checkAlignedPairs(CuTest *testCase, stList *blastPairs, int32_t lX,
+        int32_t lY) {
+    st_logInfo("I got %i pairs to check\n", stList_length(blastPairs));
+    stSortedSet *pairs = stSortedSet_construct3((int (*)(const void *, const void *))stIntTuple_cmpFn, (void (*)(void *))stIntTuple_destruct);
+    for (int32_t i = 0; i < stList_length(blastPairs); i++) {
+        stIntTuple *j = stList_get(blastPairs, i);
+        CuAssertTrue(testCase, stIntTuple_length(j) == 3);
+
+        int32_t x = stIntTuple_getPosition(j, 1);
+        int32_t y = stIntTuple_getPosition(j, 2);
+        int32_t score = stIntTuple_getPosition(j, 0);
+        CuAssertTrue(testCase, score > 0);
+        CuAssertTrue(testCase, score <= PAIR_ALIGNMENT_PROB_1);
+
+        CuAssertTrue(testCase, x >= 0);
+        CuAssertTrue(testCase, y >= 0);
+        CuAssertTrue(testCase, x < lX);
+        CuAssertTrue(testCase, y < lY);
+
+        //Check is unique
+        stIntTuple *pair = stIntTuple_construct(2, x, y);
+        CuAssertTrue(testCase, stSortedSet_search(pairs, pair) == NULL);
+        stSortedSet_insert(pairs, pair);
+    }
+    stSortedSet_destruct(pairs);
+}
+
 static void test_getAlignedPairsWithBanding(CuTest *testCase) {
     for (int32_t test = 0; test < 100; test++) {
         //Make a pair of sequences
@@ -355,29 +382,18 @@ static void test_getAlignedPairsWithBanding(CuTest *testCase) {
         SymbolString sX2 = symbolString_construct(sX, lX);
         SymbolString sY2 = symbolString_construct(sY, lY);
         //Now do alignment
-        PairwiseAlignmentParameters *p = pairwiseAlignmentBandingParameters_construct();
+        PairwiseAlignmentParameters *p =
+                pairwiseAlignmentBandingParameters_construct();
         p->traceBackDiagonals = st_randomInt(1, 10);
-        p->minDiagsBetweenTraceBack = p->traceBackDiagonals + st_randomInt(2, 10);
+        p->minDiagsBetweenTraceBack = p->traceBackDiagonals + st_randomInt(2,
+                10);
         p->diagonalExpansion = st_randomInt(0, 10) * 2;
         stList *anchorPairs = getRandomAnchorPairs(lX, lY);
-        stList *alignedPairs = getAlignedPairsWithBanding(anchorPairs, sX2, sY2, p);
+        stList *alignedPairs = getAlignedPairsWithBanding(anchorPairs, sX2,
+                sY2, p);
         //Check the aligned pairs.
-        stListIterator *iterator = stList_getIterator(alignedPairs);
-        stIntTuple *alignedPair;
-        while ((alignedPair = stList_getNext(iterator)) != NULL) {
-            CuAssertTrue(testCase, stIntTuple_length(alignedPair) == 3);
-            int32_t score = stIntTuple_getPosition(alignedPair, 0);
-            int32_t x = stIntTuple_getPosition(alignedPair, 1);
-            int32_t y = stIntTuple_getPosition(alignedPair, 2);
-            //st_logInfo("Got aligned pair, score: %i x pos: %i y pos: %i\n", score, x, y);
-            CuAssertTrue(testCase, score > 0);
-            CuAssertTrue(testCase, score <= PAIR_ALIGNMENT_PROB_1);
-            CuAssertTrue(testCase, x >= 0);
-            CuAssertTrue(testCase, x < lX);
-            CuAssertTrue(testCase, y >= 0);
-            CuAssertTrue(testCase, y < lY);
-        }
-        stList_destructIterator(iterator);
+        //Check the aligned pairs.
+        checkAlignedPairs(testCase, alignedPairs, lX, lY);
 
         //Cleanup
         free(sX);
@@ -388,15 +404,18 @@ static void test_getAlignedPairsWithBanding(CuTest *testCase) {
     }
 }
 
-static void checkBlastPairs(CuTest *testCase, stList *blastPairs, int32_t lX, int32_t lY) {
-    st_logInfo("I got %i blast pairs\n", stList_length(blastPairs));
+static void checkBlastPairs(CuTest *testCase, stList *blastPairs, int32_t lX,
+        int32_t lY) {
+    st_logInfo("I got %i pairs to check\n", stList_length(blastPairs));
     int32_t pX = -1;
     int32_t pY = -1;
     for (int32_t i = 0; i < stList_length(blastPairs); i++) {
         stIntTuple *j = stList_get(blastPairs, i);
         CuAssertTrue(testCase, stIntTuple_length(j) == 2);
+
         int32_t x = stIntTuple_getPosition(j, 0);
         int32_t y = stIntTuple_getPosition(j, 1);
+
         CuAssertTrue(testCase, x >= 0);
         CuAssertTrue(testCase, y >= 0);
         CuAssertTrue(testCase, x < lX);
@@ -424,7 +443,8 @@ static void test_getBlastPairs(CuTest *testCase) {
         bool repeatMask = st_random() > 0.5;
         st_logInfo("Using random trim %i, recursive %i \n", trim, repeatMask);
 
-        stList *blastPairs = getBlastPairs(seqX, seqY, lX, lY, trim, repeatMask);
+        stList *blastPairs =
+                getBlastPairs(seqX, seqY, lX, lY, trim, repeatMask);
 
         checkBlastPairs(testCase, blastPairs, lX, lY);
         stList_destruct(blastPairs);
@@ -445,9 +465,11 @@ static void test_getBlastPairsWithRecursion(CuTest *testCase) {
         st_logInfo("Sequence X to align: %s END, seq length %i\n", seqX, lX);
         st_logInfo("Sequence Y to align: %s END, seq length %i\n", seqY, lY);
 
-        PairwiseAlignmentParameters *p = pairwiseAlignmentBandingParameters_construct();
+        PairwiseAlignmentParameters *p =
+                pairwiseAlignmentBandingParameters_construct();
 
-        stList *blastPairs = getBlastPairsForPairwiseAlignmentParameters(seqX, seqY, lX, lY, p);
+        stList *blastPairs = getBlastPairsForPairwiseAlignmentParameters(seqX,
+                seqY, lX, lY, p);
 
         checkBlastPairs(testCase, blastPairs, lX, lY);
         stList_destruct(blastPairs);
@@ -457,7 +479,82 @@ static void test_getBlastPairsWithRecursion(CuTest *testCase) {
 }
 
 static void test_getSplitPoints(CuTest *testCase) {
+    int64_t matrixSize = 2000 * 2000;
 
+    stList *anchorPairs = stList_construct3(0,
+            (void(*)(void *)) stIntTuple_destruct);
+
+    //Test a small region, which produces no splits
+    int32_t lX = 3000;
+    int32_t lY = 1000;
+    stList *splitPoints = getSplitPoints(anchorPairs, lX, lY, matrixSize);
+    CuAssertIntEquals(testCase, 1, stList_length(splitPoints));
+    CuAssertTrue(testCase, stIntTuple_equalsFn(stList_get(splitPoints, 0), stIntTuple_construct(4, 0, 0, lX, lY)));
+    stList_destruct(splitPoints);
+
+    //Test with one really big matrix with no anchors
+    lX = 20000;
+    lY = 25000;
+    splitPoints = getSplitPoints(anchorPairs, lX, lY, matrixSize);
+    CuAssertIntEquals(testCase, 2, stList_length(splitPoints));
+    CuAssertTrue(testCase, stIntTuple_equalsFn(stList_get(splitPoints, 0), stIntTuple_construct(4, 0, 0, 2000, 2000)));
+    CuAssertTrue(testCase, stIntTuple_equalsFn(stList_get(splitPoints, 1), stIntTuple_construct(4, 18000, 23000, lX, lY)));
+    stList_destruct(splitPoints);
+
+    //Now test with some more points
+    stList_append(anchorPairs, stIntTuple_construct(2, 2000, 2000)); //This should not create a split
+    stList_append(anchorPairs, stIntTuple_construct(2, 4002, 4001)); //This should cause a split
+    stList_append(anchorPairs, stIntTuple_construct(2, 5000, 5000)); //This should not cause a split
+    stList_append(anchorPairs, stIntTuple_construct(2, 8000, 6000)); //Neither should this (it is maximum sized)
+    stList_append(anchorPairs, stIntTuple_construct(2, 9000, 9000)); //Or this (it is maximum sized)
+    stList_append(anchorPairs, stIntTuple_construct(2, 10000, 14000)); //This should create a split
+    stList_append(anchorPairs, stIntTuple_construct(2, 15000, 15000)); //This should also create a split
+    stList_append(anchorPairs, stIntTuple_construct(2, 16000, 16000)); //This should not, but there will be a split with the end.
+
+    splitPoints = getSplitPoints(anchorPairs, lX, lY, matrixSize);
+
+    for (int32_t i = 0; i < stList_length(splitPoints); i++) {
+        stIntTuple *j = stList_get(splitPoints, i);
+        st_logInfo("I got split point: x1: %i y1: %i x2: %i y2: %i\n",
+                stIntTuple_getPosition(j, 0), stIntTuple_getPosition(j, 1),
+                stIntTuple_getPosition(j, 2), stIntTuple_getPosition(j, 3));
+    }
+
+    CuAssertIntEquals(testCase, 5, stList_length(splitPoints));
+    CuAssertTrue(testCase, stIntTuple_equalsFn(stList_get(splitPoints, 0), stIntTuple_construct(4, 0, 0, 3001, 3001)));
+    CuAssertTrue(testCase, stIntTuple_equalsFn(stList_get(splitPoints, 1), stIntTuple_construct(4, 3002, 3001, 9500, 11001)));
+    CuAssertTrue(testCase, stIntTuple_equalsFn(stList_get(splitPoints, 2), stIntTuple_construct(4, 9501, 12000, 12001, 14500)));
+    CuAssertTrue(testCase, stIntTuple_equalsFn(stList_get(splitPoints, 3), stIntTuple_construct(4, 13000, 14501, 18000, 18001)));
+    CuAssertTrue(testCase, stIntTuple_equalsFn(stList_get(splitPoints, 4), stIntTuple_construct(4, 18001, 23000, 20000, 25000)));
+
+    stList_destruct(splitPoints);
+    stList_destruct(anchorPairs);
+}
+
+static void test_getAlignedPairs(CuTest *testCase) {
+    for (int32_t test = 0; test < 100; test++) {
+        //Make a pair of sequences
+        char *sX = getRandomSequence(st_randomInt(0, 100));
+        char *sY = evolveSequence(sX); //stString_copy(seqX);
+        int32_t lX = strlen(sX);
+        int32_t lY = strlen(sY);
+        st_logInfo("Sequence X to align: %s END\n", sX);
+        st_logInfo("Sequence Y to align: %s END\n", sY);
+
+        //Now do alignment
+        PairwiseAlignmentParameters *p =
+                pairwiseAlignmentBandingParameters_construct();
+
+        stList *alignedPairs = getAlignedPairs(sX, sY, p);
+
+        //Check the aligned pairs.
+        checkAlignedPairs(testCase, alignedPairs, lX, lY);
+
+        //Cleanup
+        free(sX);
+        free(sY);
+        stList_destruct(alignedPairs);
+    }
 }
 
 CuSuite* pairwiseAlignmentTestSuite(void) {
@@ -474,6 +571,7 @@ CuSuite* pairwiseAlignmentTestSuite(void) {
     SUITE_ADD_TEST(suite, test_getBlastPairs);
     SUITE_ADD_TEST(suite, test_getBlastPairsWithRecursion);
     SUITE_ADD_TEST(suite, test_getSplitPoints);
+    SUITE_ADD_TEST(suite, test_getAlignedPairs);
 
     return suite;
 }

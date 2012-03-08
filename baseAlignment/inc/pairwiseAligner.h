@@ -223,7 +223,7 @@ stList *getBlastPairsForPairwiseAlignmentParameters(const char *sX, const char *
 //Split over large gaps
 
 stList *getSplitPoints(stList *anchorPairs, int32_t lX, int32_t lY,
-        PairwiseAlignmentParameters *p);
+        int64_t maxMatrixSize);
 
 stList *splitAlignmentsByLargeGaps(stList *anchorPairs, const char *sX, const char *sY, int32_t lX, int32_t lY,
         PairwiseAlignmentParameters *p);
