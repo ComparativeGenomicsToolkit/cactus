@@ -37,6 +37,7 @@ static void setup() {
             }
         }
     }
+    aPairArray = aPairArray_construct(pairs);
 }
 
 int32_t max(int32_t i, int32_t j, int32_t k) {
@@ -46,23 +47,29 @@ int32_t max(int32_t i, int32_t j, int32_t k) {
     return i < k ? k : i;
 }
 
+static int32_t getCell(int32_t x, int32_t y) {
+    int32_t i = (x + 1) * (lY + 2) + y + 1;
+    assert(i >= 0);
+    assert(i < (lX + 2) * (lY + 2));
+    return i;
+}
+
 static int32_t *initialiseMatrix() {
-    int32_t *matrix = st_calloc(lX * lY, sizeof(int32_t));
+    int32_t *matrix = st_calloc((lX+2) * (lY+2), sizeof(int32_t));
     for (int32_t i = 0; i < stList_length(pairs); i++) {
         stIntTuple *pair = stList_get(pairs, i);
         int32_t x = stIntTuple_getPosition(pair, 0);
-        int32_t y = stIntTuple_getPosition(pair, y);
-        matrix[x * lY + y] = 1;
+        int32_t y = stIntTuple_getPosition(pair, 1);
+        matrix[getCell(x, y)] = 1;
     }
     return matrix;
 }
 
 static int32_t *getScoreMatrixForward() {
     int32_t *matrix = initialiseMatrix();
-    for (int32_t x = 1; x < lX; x++) {
-        for (int32_t y = 1; y < lY; y++) {
-            matrix[x * lY + y] += max(matrix[(x - 1) * lY + y - 1],
-                    matrix[x * lY + y - 1], matrix[(x - 1) * lY + y]);
+    for (int32_t x = 0; x < lX; x++) {
+        for (int32_t y = 0; y < lY; y++) {
+            matrix[getCell(x, y)] = max(matrix[getCell(x-1, y-1)] + matrix[getCell(x, y)], matrix[getCell(x, y-1)], matrix[getCell(x-1, y)]);
         }
     }
     return matrix;
@@ -70,10 +77,9 @@ static int32_t *getScoreMatrixForward() {
 
 static int32_t *getScoreMatrixBackward() {
     int32_t *matrix = initialiseMatrix();
-    for (int32_t x = lX - 2; x >= 0; x--) {
-        for (int32_t y = lY - 2; y >= 0; y--) {
-            matrix[x * lY + y] += max(matrix[(x + 1) * lY + y + 1],
-                    matrix[x * lY + y + 1], matrix[(x + 1) * lY + y]);
+    for (int32_t x = lX - 1; x >= 0; x--) {
+        for (int32_t y = lY - 1; y >= 0; y--) {
+            matrix[getCell(x, y)] = max(matrix[getCell(x+1, y+1)] +  matrix[getCell(x, y)], matrix[getCell(x, y+1)], matrix[getCell(x+1, y)]);
         }
     }
     return matrix;
@@ -86,7 +92,11 @@ static void test_aPairArray_calculateForwardScores(CuTest *testCase) {
         aPairArray_calculateForwardScores(aPairArray);
         for (int32_t i = 0; i < aPairArray->length; i++) {
             APair pair = aPairArray->aPairs[i];
-            CuAssertIntEquals(testCase, matrix[pair.x * lY + pair.y], pair.fScore);
+            CuAssertTrue(testCase, pair.x >= 0);
+            CuAssertTrue(testCase, pair.x < lX);
+            CuAssertTrue(testCase, pair.y >= 0);
+            CuAssertTrue(testCase, pair.y < lY);
+            CuAssertIntEquals(testCase, matrix[getCell(pair.x, pair.y)], pair.fScore);
         }
         free(matrix);
         teardown();
@@ -100,7 +110,11 @@ static void test_aPairArray_calculateBackwardScores(CuTest *testCase) {
         aPairArray_calculateBackwardScores(aPairArray);
         for (int32_t i = 0; i < aPairArray->length; i++) {
             APair pair = aPairArray->aPairs[i];
-            CuAssertIntEquals(testCase, matrix[pair.x * lY + pair.y], pair.bScore);
+            CuAssertTrue(testCase, pair.x >= 0);
+            CuAssertTrue(testCase, pair.x < lX);
+            CuAssertTrue(testCase, pair.y >= 0);
+            CuAssertTrue(testCase, pair.y < lY);
+            CuAssertIntEquals(testCase, matrix[getCell(pair.x, pair.y)], pair.bScore);
         }
         free(matrix);
         teardown();
@@ -111,7 +125,7 @@ static void checkNonOverlapping(CuTest *testCase, stList *anchorPairs) {
     int32_t pX = -1;
     int32_t pY = -1;
     for (int32_t i = 0; i < stList_length(anchorPairs); i++) {
-        stIntTuple *pair = stList_get(pairs, i);
+        stIntTuple *pair = stList_get(anchorPairs, i);
         int32_t x = stIntTuple_getPosition(pair, 0);
         int32_t y = stIntTuple_getPosition(pair, 1);
         CuAssertTrue(testCase, x > pX);
