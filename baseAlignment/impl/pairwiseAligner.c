@@ -15,7 +15,6 @@
 #include "sonLib.h"
 #include "pairwiseAligner.h"
 #include "pairwiseAlignment.h"
-#include "chaining.h"
 
 ///////////////////////////////////
 ///////////////////////////////////
@@ -953,6 +952,53 @@ static void convertBlastPairs(stList *alignedPairs2, int32_t offsetX, int32_t of
     }
 }
 
+stList *filterToRemoveOverlap(stList *sortedOverlappingPairs) {
+    stList *nonOverlappingPairs = stList_construct3(0,
+            (void(*)(void *)) stIntTuple_destruct);
+
+    //Traverse backwards
+    stSortedSet *set = stSortedSet_construct3(
+            (int(*)(const void *, const void *)) stIntTuple_cmpFn, NULL);
+    int32_t pX = INT32_MAX, pY = INT32_MAX;
+    for (int32_t i = stList_length(sortedOverlappingPairs) - 1; i >= 0; i--) {
+        stIntTuple *pair = stList_get(sortedOverlappingPairs, i);
+        int32_t x = stIntTuple_getPosition(pair, 0);
+        int32_t y = stIntTuple_getPosition(pair, 1);
+        if (x < pX && y < pY) {
+            stSortedSet_insert(set, pair);
+        }
+        pX = x < pX ? x : pX;
+        pY = y < pY ? y : pY;
+    }
+
+    //Traverse forwards to final set of pairs
+    pX = INT32_MIN;
+    pY = INT32_MIN;
+#ifdef BEN_DEBUG
+    int32_t pY2 = INT32_MIN;
+#endif
+    for (int32_t i = 0; i < stList_length(sortedOverlappingPairs); i++) {
+        stIntTuple *pair = stList_get(sortedOverlappingPairs, i);
+        int32_t x = stIntTuple_getPosition(pair, 0);
+        int32_t y = stIntTuple_getPosition(pair, 1);
+        if (x > pX && y > pY && stSortedSet_search(set, pair) != NULL) {
+            stList_append(nonOverlappingPairs, stIntTuple_construct(2, x, y));
+        }
+#ifdef BEN_DEBUG //Check things are sorted in th input
+        assert(x >= pX);
+        if(x == pX) {
+            assert(y > pY2);
+        }
+        pY2 = y;
+#endif
+        pX = x > pX ? x : pX;
+        pY = y > pY ? y : pY;
+    }
+    stSortedSet_destruct(set);
+
+    return nonOverlappingPairs;
+}
+
 static void getBlastPairsForPairwiseAlignmentParametersP(const char *sX, const char *sY, int32_t pX, int32_t pY,
         int32_t x, int32_t y, PairwiseAlignmentParameters *p, stList *combinedAnchorPairs) {
     int32_t lX2 = x - pX;
@@ -965,7 +1011,7 @@ static void getBlastPairsForPairwiseAlignmentParametersP(const char *sX, const c
         char *sY2 = stString_getSubString(sY, pY, lY2);
         stList *unfilteredBottomLevelAnchorPairs = getBlastPairs(sX2, sY2, lX2, lY2, p->constraintDiagonalTrim, 0);
         stList_sort(unfilteredBottomLevelAnchorPairs, (int(*)(const void *, const void *)) stIntTuple_cmpFn);
-        stList *bottomLevelAnchorPairs = getAnchorChain(unfilteredBottomLevelAnchorPairs, p->alpha);
+        stList *bottomLevelAnchorPairs = filterToRemoveOverlap(unfilteredBottomLevelAnchorPairs);
         st_logDebug("Got %i bottom level anchor pairs, which reduced to %i after filtering \n",
                 stList_length(unfilteredBottomLevelAnchorPairs), stList_length(bottomLevelAnchorPairs));
         stList_destruct(unfilteredBottomLevelAnchorPairs);
@@ -986,7 +1032,7 @@ stList *getBlastPairsForPairwiseAlignmentParameters(const char *sX, const char *
     //Anchor pairs
     stList *unfilteredTopLevelAnchorPairs = getBlastPairs(sX, sY, lX, lY, p->constraintDiagonalTrim, 1);
     stList_sort(unfilteredTopLevelAnchorPairs, (int(*)(const void *, const void *)) stIntTuple_cmpFn);
-    stList *topLevelAnchorPairs = getAnchorChain(unfilteredTopLevelAnchorPairs, p->alpha);
+    stList *topLevelAnchorPairs = filterToRemoveOverlap(unfilteredTopLevelAnchorPairs);
     st_logDebug("Got %i top level anchor pairs, which reduced to %i after filtering \n",
             stList_length(unfilteredTopLevelAnchorPairs), stList_length(topLevelAnchorPairs));
     stList_destruct(unfilteredTopLevelAnchorPairs);
@@ -998,12 +1044,12 @@ stList *getBlastPairsForPairwiseAlignmentParameters(const char *sX, const char *
         stIntTuple *anchorPair = stList_get(topLevelAnchorPairs, i);
         int32_t x = stIntTuple_getPosition(anchorPair, 0);
         int32_t y = stIntTuple_getPosition(anchorPair, 1);
-//#ifdef BEN_DEBUG
+#ifdef BEN_DEBUG
         assert(x >= 0 && x < lX);
         assert(y >= 0 && y < lY);
         assert(x >= pX);
         assert(y >= pY);
-//#endif
+#endif
         getBlastPairsForPairwiseAlignmentParametersP(sX, sY, pX, pY, x, y, p, combinedAnchorPairs);
         stList_append(combinedAnchorPairs, anchorPair);
         pX = x + 1;
@@ -1147,7 +1193,6 @@ stList *splitAlignmentsByLargeGaps(stList *anchorPairs, const char *sX, const ch
 
 PairwiseAlignmentParameters *pairwiseAlignmentBandingParameters_construct() {
     PairwiseAlignmentParameters *p = st_malloc(sizeof(PairwiseAlignmentParameters));
-    p->alpha = 0.5;
     p->threshold = 0.01;
     p->minDiagsBetweenTraceBack = 1000;
     p->traceBackDiagonals = 40;
