@@ -58,17 +58,17 @@ static void testGetConsensusStringWithOutgroups(CuTest *testCase) {
 
     //Empty case
     char *consensus = getConsensusStringP(strings, outgroupStrings, 10);
-    CuAssertStrEquals(testCase, "NNNNnnnnnN", consensus);
+    CuAssertStrEquals(testCase, "CTGNactgnA", consensus);
     free(consensus);
     //One sequence case
     stList_append(strings, stString_copy("ACTGNactgn"));
     consensus = getConsensusStringP(strings, outgroupStrings, 10);
-    CuAssertStrEquals(testCase, "ACTGnactgn", consensus);
+    CuAssertStrEquals(testCase, "ACTGaactga", consensus);
     free(consensus);
     //Two sequence case
     stList_append(strings, stString_copy("ACTGNactgn"));
     consensus = getConsensusStringP(strings, outgroupStrings, 10);
-    CuAssertStrEquals(testCase, "ACTGNactgn", consensus);
+    CuAssertStrEquals(testCase, "ACTGAactga", consensus);
     free(consensus);
     //Three sequence case
     stList_append(strings, stString_copy("CTGNactgnA"));
