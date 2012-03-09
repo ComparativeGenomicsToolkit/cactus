@@ -425,6 +425,7 @@ class CactusBaseLevelAlignerWrapper(CactusRecursionTarget):
                              splitMatrixBiggerThanThis=getOptionalAttrib(self.configNode, "splitMatrixBiggerThanThis", int), 
                              anchorMatrixBiggerThanThis=getOptionalAttrib(self.configNode, "anchorMatrixBiggerThanThis", int), 
                              repeatMaskMatrixBiggerThanThis=getOptionalAttrib(self.configNode, "repeatMaskMatrixBiggerThanThis", int), 
+                             diagonalExpansion=getOptionalAttrib(self.configNode, "diagonalExpansion"),
                              constraintDiagonalTrim=getOptionalAttrib(self.configNode, "constraintDiagonalTrim", int), 
                              minimumBlockDegree=getOptionalAttrib(self.configNode, "minimumBlockDegree", int),
                              alignAmbiguityCharacters=getOptionalAttrib(self.configNode, "alignAmbiguityCharacters", bool),

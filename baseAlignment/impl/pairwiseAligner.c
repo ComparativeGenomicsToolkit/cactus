@@ -15,6 +15,7 @@
 #include "sonLib.h"
 #include "pairwiseAligner.h"
 #include "pairwiseAlignment.h"
+#include "chaining.h"
 
 ///////////////////////////////////
 ///////////////////////////////////
@@ -100,7 +101,7 @@ static int32_t band_avoidOffByOne(int32_t xay, int32_t xmy) {
 static void band_setCurrentDiagonalP(int32_t *xmy, int32_t i, int32_t j,
         int32_t k) {
     if (i < j) {
-        *xmy += (int32_t)(2 * ((int64_t)j - i) * (int64_t)k);
+        *xmy += (int32_t)(2 * ((int64_t) j - i) * (int64_t) k);
     }
 }
 
@@ -109,24 +110,20 @@ static Diagonal band_setCurrentDiagonal(int32_t xay, int32_t xL, int32_t yL,
     int32_t xmyL = xL - yL;
     int32_t xmyR = xU - yU;
 
-//#ifdef BEN_DEBUG
+#ifdef BEN_DEBUG
     assert(xay >= xL + yU);
     assert(xay <= xU + yL);
-//#endif
+#endif
 
     //Avoid in-between undefined x,y coordinate positions when intersecting xay and xmy.
     xmyL = band_avoidOffByOne(xay, xmyL);
     xmyR = band_avoidOffByOne(xay, xmyR);
 
     //Bound the xmy coordinates by the xL, yL and xU, yU band boundaries
-    band_setCurrentDiagonalP(&xmyL,
-            diagonal_getXCoordinate(xay, xmyL), xL, 1);
-    band_setCurrentDiagonalP(&xmyL, yL,
-            diagonal_getYCoordinate(xay, xmyL), 1);
-    band_setCurrentDiagonalP(&xmyR, xU,
-            diagonal_getXCoordinate(xay, xmyR), -1);
-    band_setCurrentDiagonalP(&xmyR,
-            diagonal_getYCoordinate(xay, xmyR), yU, -1);
+    band_setCurrentDiagonalP(&xmyL, diagonal_getXCoordinate(xay, xmyL), xL, 1);
+    band_setCurrentDiagonalP(&xmyL, yL, diagonal_getYCoordinate(xay, xmyL), 1);
+    band_setCurrentDiagonalP(&xmyR, xU, diagonal_getXCoordinate(xay, xmyR), -1);
+    band_setCurrentDiagonalP(&xmyR, diagonal_getYCoordinate(xay, xmyR), yU, -1);
 
     return diagonal_construct(xay, xmyL, xmyR);
 }
@@ -167,7 +164,7 @@ Band *band_construct(stList *anchorPairs, int32_t lX, int32_t lY,
                 x = stIntTuple_getPosition(anchorPair, 0) + 1; //Plus ones, because matrix coordinates are +1 the sequence ones
                 y = stIntTuple_getPosition(anchorPair, 1) + 1;
 
-//#ifdef BEN_DEBUG
+#ifdef BEN_DEBUG
                 //Check the anchor pairs
                 assert(x > diagonal_getXCoordinate(pxay, pxmy));
                 assert(y > diagonal_getYCoordinate(pxay, pxmy));
@@ -175,7 +172,7 @@ Band *band_construct(stList *anchorPairs, int32_t lX, int32_t lY,
                 assert(y <= lY);
                 assert(x > 0);
                 assert(y > 0);
-//#endif
+#endif
             }
 
             nxay = x + y;
@@ -504,7 +501,8 @@ DpDiagonal *dpDiagonal_construct(Diagonal diagonal) {
     dpDiagonal->diagonal = diagonal;
     assert(diagonal_getWidth(diagonal) >= 0);
     dpDiagonal->cells = st_malloc(
-            sizeof(double) * STATE_NUMBER * (int64_t)diagonal_getWidth(diagonal));
+            sizeof(double) * STATE_NUMBER * (int64_t) diagonal_getWidth(
+                    diagonal));
     return dpDiagonal;
 }
 
@@ -863,14 +861,14 @@ stList *getAlignedPairsWithBanding(stList *anchorPairs, const SymbolString sX,
                             backwardDpMatrix, sX, sY);
                 }
                 if (diagonal_getXay(diagonal2) <= tracedBackFrom) {
-//#ifdef BEN_DEBUG
+#ifdef BEN_DEBUG
                     assert(dpMatrix_getDiagonal(forwardDpMatrix, diagonal_getXay(diagonal2)) != NULL);
                     assert(dpMatrix_getDiagonal(forwardDpMatrix, diagonal_getXay(diagonal2)-1) != NULL);
                     assert(dpMatrix_getDiagonal(backwardDpMatrix, diagonal_getXay(diagonal2)) != NULL);
                     if(diagonal_getXay(diagonal2) != diagonalNumber) {
                         assert(dpMatrix_getDiagonal(backwardDpMatrix, diagonal_getXay(diagonal2)+1) != NULL);
                     }
-//#endif
+#endif
                     if (totalPosteriorCalculationsThisTraceback++ % 10 == 0) {
                         double newTotalProbability =
                                 diagonalCalculationTotalProbability(
@@ -922,12 +920,12 @@ stList *getAlignedPairsWithBanding(stList *anchorPairs, const SymbolString sX,
             break;
         }
     }
-//#ifdef BEN_DEBUG
+#ifdef BEN_DEBUG
     assert(totalPosteriorCalculations == diagonalNumber);
     assert(tracedBackTo == diagonalNumber);
     assert(dpMatrix_getActiveDiagonalNumber(backwardDpMatrix) == 0);
     assert(dpMatrix_getActiveDiagonalNumber(forwardDpMatrix) == 0);
-//#endif
+#endif
     //Cleanup
     dpMatrix_destruct(forwardDpMatrix);
     dpMatrix_destruct(backwardDpMatrix);
@@ -1019,12 +1017,12 @@ stList *getBlastPairs(const char *sX, const char *sY, int32_t lX, int32_t lY,
     while ((pA = cigarRead(fileHandle)) != NULL) {
         int32_t j = pA->start1;
         int32_t k = pA->start2;
-//#ifdef BEN_DEBUG
+#ifdef BEN_DEBUG
         assert(strcmp(pA->contig1, "a") == 0);
         assert(strcmp(pA->contig2, "b") == 0);
         assert(pA->strand1);
         assert(pA->strand2);
-//#endif
+#endif
         for (int32_t i = 0; i < pA->operationList->length; i++) {
             struct AlignmentOperation *op = pA->operationList->list[i];
             if (op->opType == PAIRWISE_MATCH) {
@@ -1090,7 +1088,7 @@ static void convertBlastPairs(stList *alignedPairs2, int32_t offsetX,
                 k,
                 stIntTuple_construct(2, stIntTuple_getPosition(i, 0) + offsetX,
                         stIntTuple_getPosition(i, 1) + offsetY));
-       stIntTuple_destruct(i);
+        stIntTuple_destruct(i);
     }
 }
 
@@ -1105,8 +1103,17 @@ static void getBlastPairsForPairwiseAlignmentParametersP(const char *sX,
     if (matrixSize > p->repeatMaskMatrixBiggerThanThis) {
         char *sX2 = stString_getSubString(sX, pX, lX2);
         char *sY2 = stString_getSubString(sY, pY, lY2);
-        stList *bottomLevelAnchorPairs = getBlastPairs(sX2, sY2, lX2, lY2,
-                p->constraintDiagonalTrim, 0);
+        stList *unfilteredBottomLevelAnchorPairs = getBlastPairs(sX2, sY2, lX2,
+                lY2, p->constraintDiagonalTrim, 0);
+        stList_sort(unfilteredBottomLevelAnchorPairs,
+                (int(*)(const void *, const void *)) stIntTuple_cmpFn);
+        stList *bottomLevelAnchorPairs = getAnchorChain(
+                unfilteredBottomLevelAnchorPairs, p->alpha);
+        st_logDebug(
+                "Got %i bottom level anchor pairs, which reduced to %i after filtering \n",
+                stList_length(unfilteredBottomLevelAnchorPairs),
+                stList_length(bottomLevelAnchorPairs));
+        stList_destruct(bottomLevelAnchorPairs);
         convertBlastPairs(bottomLevelAnchorPairs, pX, pY);
         free(sX2);
         free(sY2);
@@ -1122,8 +1129,17 @@ stList *getBlastPairsForPairwiseAlignmentParameters(const char *sX,
     if ((int64_t) lX * lY <= p->anchorMatrixBiggerThanThis) {
         return stList_construct();
     }
-    stList *topLevelAnchorPairs = getBlastPairs(sX, sY, lX, lY,
+    stList *unfilteredTopLevelAnchorPairs = getBlastPairs(sX, sY, lX, lY,
             p->constraintDiagonalTrim, 1);
+    stList_sort(unfilteredTopLevelAnchorPairs,
+            (int(*)(const void *, const void *)) stIntTuple_cmpFn);
+    stList *topLevelAnchorPairs = getAnchorChain(unfilteredTopLevelAnchorPairs,
+            p->alpha);
+    st_logDebug(
+            "Got %i top level anchor pairs, which reduced to %i after filtering \n",
+            stList_length(unfilteredTopLevelAnchorPairs),
+            stList_length(topLevelAnchorPairs));
+    stList_destruct(topLevelAnchorPairs);
     int32_t pX = 0;
     int32_t pY = 0;
     stList *combinedAnchorPairs = stList_construct3(0,
@@ -1132,12 +1148,12 @@ stList *getBlastPairsForPairwiseAlignmentParameters(const char *sX,
         stIntTuple *anchorPair = stList_get(topLevelAnchorPairs, i);
         int32_t x = stIntTuple_getPosition(anchorPair, 0);
         int32_t y = stIntTuple_getPosition(anchorPair, 1);
-//#ifdef BEN_DEBUG
+#ifdef BEN_DEBUG
         assert(x >= 0 && x < lX);
         assert(y >= 0 && y < lY);
         assert(x >= pX);
         assert(y >= pY);
-//#endif
+#endif
         getBlastPairsForPairwiseAlignmentParametersP(sX, sY, pX, pY, x, y, p,
                 combinedAnchorPairs);
         stList_append(combinedAnchorPairs, anchorPair);
@@ -1148,6 +1164,8 @@ stList *getBlastPairsForPairwiseAlignmentParameters(const char *sX,
             combinedAnchorPairs);
     stList_setDestructor(topLevelAnchorPairs, NULL);
     stList_destruct(topLevelAnchorPairs);
+    st_logDebug("Got %i combined anchor pairs\n",
+            stList_length(combinedAnchorPairs));
     return combinedAnchorPairs;
 }
 
@@ -1164,9 +1182,10 @@ static void getSplitPointsP(int32_t *x1, int32_t *y1, int32_t x2, int32_t y2,
         int64_t splitMatrixBiggerThanThis) {
     int32_t lX2 = x3 - x2;
     int32_t lY2 = y3 - y2;
-    int64_t matrixSize = ((int64_t)lX2) * lY2;
+    int64_t matrixSize = ((int64_t) lX2) * lY2;
     if (matrixSize > splitMatrixBiggerThanThis) {
-        st_logDebug("Split point found at x1: %i x2: %i y1: %i y2: %i\n", x2, x3, y2, y3);
+        st_logDebug("Split point found at x1: %i x2: %i y1: %i y2: %i\n", x2,
+                x3, y2, y3);
         int32_t maxSequenceLength = sqrt(splitMatrixBiggerThanThis);
         int32_t hX = lX2 / 2 > maxSequenceLength ? maxSequenceLength : lX2 / 2;
         int32_t hY = lY2 / 2 > maxSequenceLength ? maxSequenceLength : lY2 / 2;
@@ -1190,12 +1209,12 @@ stList *getSplitPoints(stList *anchorPairs, int32_t lX, int32_t lY,
                 stIntTuple_getPosition(anchorPair, 1);
         getSplitPointsP(&x1, &y1, x2, y2, x3, y3, splitPoints,
                 splitMatrixBiggerThanThis);
-//#ifdef BEN_DEBUG
+#ifdef BEN_DEBUG
         assert(x3 >= x2);
         assert(y3 >= y2);
         assert(x3 < lX);
         assert(y3 < lY);
-//#endif
+#endif
         x2 = x3 + 1;
         y2 = y3 + 1;
     }
@@ -1203,8 +1222,9 @@ stList *getSplitPoints(stList *anchorPairs, int32_t lX, int32_t lY,
             splitMatrixBiggerThanThis);
     stList_append(splitPoints, stIntTuple_construct(4, x1, y1, lX, lY));
 
-    if(stList_length(splitPoints) > 1) {
-        st_logDebug("For sequences of length %i and %i we got %i splits\n", lX, lY, stList_length(splitPoints));
+    if (stList_length(splitPoints) > 1) {
+        st_logDebug("For sequences of length %i and %i we got %i splits\n", lX,
+                lY, stList_length(splitPoints));
     }
     return splitPoints;
 }
@@ -1220,7 +1240,8 @@ static void convertAlignedPairs(stList *alignedPairs2, int32_t offsetX,
         stList_set(
                 alignedPairs2,
                 k,
-                stIntTuple_construct(3, stIntTuple_getPosition(i, 0), stIntTuple_getPosition(i, 1) + offsetX,
+                stIntTuple_construct(3, stIntTuple_getPosition(i, 0),
+                        stIntTuple_getPosition(i, 1) + offsetX,
                         stIntTuple_getPosition(i, 2) + offsetY));
         stIntTuple_destruct(i);
     }
@@ -1248,7 +1269,8 @@ stList *splitAlignmentsByLargeGaps(stList *anchorPairs, const char *sX,
         SymbolString sY3 = symbolString_construct(sY2, y2 - y1);
 
         //List of anchor pairs
-        stList *subListOfAnchorPoints = stList_construct3(0, (void (*)(void *))stIntTuple_destruct);
+        stList *subListOfAnchorPoints = stList_construct3(0,
+                (void(*)(void *)) stIntTuple_destruct);
         while (j < stList_length(anchorPairs)) {
             stIntTuple *anchorPair = stList_get(anchorPairs, j);
             int32_t x = stIntTuple_getPosition(anchorPair, 0);
@@ -1260,7 +1282,8 @@ stList *splitAlignmentsByLargeGaps(stList *anchorPairs, const char *sX,
             }
             assert(x >= x1 && x < x2);
             assert(y >= y1 && y < y2);
-            stList_append(subListOfAnchorPoints, stIntTuple_construct(2, x - x1, y - y1));
+            stList_append(subListOfAnchorPoints,
+                    stIntTuple_construct(2, x - x1, y - y1));
             j++;
         }
 
@@ -1281,7 +1304,8 @@ stList *splitAlignmentsByLargeGaps(stList *anchorPairs, const char *sX,
     }
     assert(j == stList_length(anchorPairs));
     stList_destruct(splitPoints);
-    st_logDebug("Found %i aligned pairs for seqs of %i and %i length\n", stList_length(alignedPairs), lX, lY);
+    st_logDebug("Found %i aligned pairs for seqs of %i and %i length\n",
+            stList_length(alignedPairs), lX, lY);
     return alignedPairs;
 }
 
@@ -1294,6 +1318,7 @@ stList *splitAlignmentsByLargeGaps(stList *anchorPairs, const char *sX,
 PairwiseAlignmentParameters *pairwiseAlignmentBandingParameters_construct() {
     PairwiseAlignmentParameters *p = st_malloc(
             sizeof(PairwiseAlignmentParameters));
+    p->alpha = 0.8;
     p->threshold = 0.01;
     p->minDiagsBetweenTraceBack = 1000;
     p->traceBackDiagonals = 40;
@@ -1301,8 +1326,8 @@ PairwiseAlignmentParameters *pairwiseAlignmentBandingParameters_construct() {
     p->constraintDiagonalTrim = 14;
     p->anchorMatrixBiggerThanThis = 500 * 500;
     p->repeatMaskMatrixBiggerThanThis = 500 * 500;
-    p->splitMatrixBiggerThanThis = (int64_t)3000 * 3000;
-    p->alignAmbiguityCharacters = 1;
+    p->splitMatrixBiggerThanThis = (int64_t) 3000 * 3000;
+    p->alignAmbiguityCharacters = 0;
     return p;
 }
 
