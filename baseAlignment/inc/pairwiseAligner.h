@@ -21,6 +21,7 @@ extern const char *PAIRWISE_ALIGNMENT_EXCEPTION_ID;
 #define PAIR_ALIGNMENT_PROB_1 10000000
 
 typedef struct _pairwiseAlignmentBandingParameters {
+    double alpha;
     double threshold; //Minimum posterior probability of a match to be added to the output
     int32_t minDiagsBetweenTraceBack; //Minimum x+y diagonals to leave between doing traceback.
     int32_t traceBackDiagonals; //Number of diagonals to leave between trace back diagonal
