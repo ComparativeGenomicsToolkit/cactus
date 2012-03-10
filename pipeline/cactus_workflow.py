@@ -541,6 +541,8 @@ class CactusReferenceSetCoordinatesUpPhase(CactusPhasesTarget):
         self.logToMaster("Starting the reference coordinate up phase at %s seconds" % time.time())
         referenceNode = self.options.config.find("reference")
         assert referenceNode != None
+        if self.options.outgroupEventNames != None:
+            referenceNode.attrib["outgroup"] = self.options.outgroupEventNames
         self.addChildTarget(CactusSetReferenceCoordinatesUp(self.options.cactusDiskDatabaseString, extractNode(referenceNode), [ self.flowerName, 1 ]))
         self.setFollowOnTarget(CactusSetReferenceCoordinatesDownPhase(self.options, self.flowerName))
 
@@ -556,7 +558,9 @@ class CactusSetReferenceCoordinatesUpRunnable(CactusRecursionTarget):
     """ 
     def run(self):
         runCactusAddReferenceCoordinates(cactusDiskDatabaseString=self.cactusDiskDatabaseString, flowerNames=self.flowerNames,
-                                         referenceEventString=getOptionalAttrib(self.configNode, "reference"), bottomUpPhase=True)
+                                         referenceEventString=getOptionalAttrib(self.configNode, "reference"), 
+                                         outgroupEventString=getOptionalAttrib(self.configNode, "outgroup"), 
+                                         bottomUpPhase=True)
         
 class CactusSetReferenceCoordinatesDownPhase(CactusPhasesTarget):
     def run(self):
@@ -574,6 +578,7 @@ class CactusSetReferenceCoordinatesDown(CactusRecursionTarget):
         makeChildTargets(self.cactusDiskDatabaseString, self.configNode, self.flowerNames, self, CactusSetReferenceCoordinatesDown)
         runCactusAddReferenceCoordinates(cactusDiskDatabaseString=self.cactusDiskDatabaseString, flowerNames=self.flowerNames,
                                          referenceEventString=getOptionalAttrib(self.configNode, "reference"),
+                                         outgroupEventString=getOptionalAttrib(self.configNode, "outgroup"), 
                                          bottomUpPhase=False)
         
 ############################################################

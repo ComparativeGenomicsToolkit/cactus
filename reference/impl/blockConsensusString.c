@@ -47,7 +47,7 @@ static char getMajorityBase(int32_t *baseCounts, int32_t *outgroupBaseCounts) {
     int32_t maxBaseCount = 0;
     for (int32_t j = 0; j < 4; j++) {
         int32_t k = baseCounts[j] * 2 + outgroupBaseCounts[j];
-        if (maxBaseCount < k) {
+        if (k > maxBaseCount) {
             maxBaseCount = k;
         }
     }
@@ -89,6 +89,8 @@ char *getConsensusStringP(stList *strings, stList *outgroupStrings, int32_t bloc
     }
     free(baseCounts);
     free(upperCounts);
+    free(baseCountsOutgroup);
+    free(upperCountsOutgroup);
 
     return string;
 }
