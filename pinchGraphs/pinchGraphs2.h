@@ -28,8 +28,6 @@ typedef struct _caBlock {
     CaSegment *tailSegment;
     CaEnd *_PEnd;
     CaEnd *_3End;
-    CaChain *chain;
-    CaBlock *nChainBlock;
 } CaBlock;
 
 typedef struct _caEnd {
@@ -37,6 +35,7 @@ typedef struct _caEnd {
     CaBlock *block;
     bool blockOrientation;
     CaGroup *group;
+    CaEnd *linkEnd;
 } CaEnd;
 
 typedef struct _caGroup {
@@ -64,9 +63,13 @@ typedef struct _caChain {
 
 CaSegment *caSegment_construct(int64_t start, int64_t end, bool attached);
 
+void caSegment_destruct(CaSegment *segment);
+
 CaSegment *caSegment_get3Prime(CaSegment *segment);
 
 CaSegment *caSegment_get5Prime(CaSegment *segment);
+
+bool caSegment_isStub(CaSegment *segment);
 
 int64_t *caSegment_getStart(CaSegment *segment);
 
@@ -76,24 +79,39 @@ int64_t *caSegment_getLength(CaSegment *segment);
 
 CaBlock *caSegment_getBlock(CaSegment *segment);
 
-bool caSegment_getOrientation(CaSegment *segment);
+bool caSegment_getBlockOrientation(CaSegment *segment);
 
-PinchSegment *caSegment_split(CaSegment *segment, int32_t splitPoint);
+CaSegment *caSegment_split(CaSegment *segment, int32_t splitPoint);
 
-PinchSegment *caSegment_joinIfTrivial(CaSegment *segment);
+CaSegment *caSegment_joinIfTrivial(CaSegment *segment);
 
 //Blocks
 
-PinchBlock *pinchBlock_pinch(PinchBlock *pinchBlock1, PinchBlock *pinchBlock2);
+CaBlock *caBlock_construct(CaSegment *segment1, segment2);
 
-void pinchBlock_cleave(PinchBlock *pinchBlock1);
+void caBlock_destruct(CaBlock *block);
 
-PinchBlockIt pinchBlock_getSegmentIterator(PinchBlock *block);
+CaBlock *caBlock_pinch(CaBlock *block1, CaBlock *block2);
 
-PinchSegment *pinchBlockIt_getNext(PinchBlockIt pinchBlockIt);
+void caBlock_cleave(CaBlock *block);
+
+CaBlockIt caBlock_getSegmentIterator(CaBlock *block);
+
+CaSegment *caBlockIt_getNext(CaBlockIt caBlockIt);
+
+CaEnd *caBlock_get5End(CaBlock *block);
+
+CaEnd *caBlock_get3End(CaBlock *block);
+
+//End
+
+CaEnd *caEnd_construct(CaBlock *block, bool orientation);
+
+CaGroup *caEnd_getGroup(CaEnd *end);
+
+CaNet *caEnd_getEnd(CaEnd *end);
 
 
-//Cactus
 
 
 
