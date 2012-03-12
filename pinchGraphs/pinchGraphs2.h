@@ -12,73 +12,75 @@
 
 //Basic data structures
 
-typedef struct _caPinchSegment {
+//Destruction works upwards, in the following order segment ( block ( end ( group ( net )), chain ) )
+
+typedef struct _caSegment {
     int64_t start;
-    PinchSegment *pSegment;
-    PinchSegment *nSegment;
-    PinchBlock *block;
+    CaSegment *pSegment;
+    CaSegment *nSegment;
+    CaBlock *block;
     bool blockOrientation;
-    PinchSegment *nBlockSegment;
-} PinchSegment;
+    CaSegment *nBlockSegment;
+} CaSegment;
 
-typedef struct _pinchBlock {
-    PinchSegment *headSegment;
-    PinchSegment *tailSegment;
-    End *_5End;
-    End *_3End;
-    Chain *chain;
-    CactusBlock *nChainBlock;
-} PinchBlock;
+typedef struct _caBlock {
+    CaSegment *headSegment;
+    CaSegment *tailSegment;
+    CaEnd *_PEnd;
+    CaEnd *_3End;
+    CaChain *chain;
+    CaBlock *nChainBlock;
+} CaBlock;
 
-typedef struct _end {
-    End *nEnd;
-    PinchBlock *pinchBlock;
-    Group *group;
-} End;
+typedef struct _caEnd {
+    CaEnd *nEnd;
+    CaBlock *block;
+    bool blockOrientation;
+    CaGroup *group;
+} CaEnd;
 
-typedef struct _group {
-    End *headEnd;
-    End *tailEnd;
-    Net *net;
-    Group *nNetGroup;
-} Group;
+typedef struct _caGroup {
+    CaEnd *headEnd;
+    CaEnd *tailEnd;
+    CaNet *net;
+    CaGroup *nNetGroup;
+} CaGroup;
 
-typedef struct _chain {
-    CactusBlock *headCactusBlock;
-    CactusBlock *tailCactusBlock;
-    Net *parentNet;
-    Chain *nNetChain;
-}
+typedef struct _caNet {
+    CaGroup *headGroup;
+    CaGroup *tailGroup;
+    CaChain *headChain;
+    CaChain *tailChain;
+} CaNet;
 
-typedef struct _net {
-    Group *headGroup;
-    Group *tailGroup;
-    Chain *headChain;
-    Chain *tailChain;
-} Net;
-
+typedef struct _caChain {
+    CaBlock *headBlock;
+    CaBlock *tailBlock;
+    CaNet *parentNet;
+    CaChain *nNetChain;
+} CaChain;
 
 //Segments
 
-PinchSegment *pinchSegment_construct(Sequence *sequence, int32_t start, int32_t end);
+CaSegment *caSegment_construct(int64_t start, int64_t end, bool attached);
 
-PinchSegment *pinchSegment_get3Prime(PinchSegment *segment);
+CaSegment *caSegment_get3Prime(CaSegment *segment);
 
-PinchSegment *pinchSegment_get5Prime(PinchSegment *segment);
+CaSegment *caSegment_get5Prime(CaSegment *segment);
 
-int64_t *pinchSegment_getStart(PinchSegment *segment);
+int64_t *caSegment_getStart(CaSegment *segment);
 
-int64_t *pinchSegment_getEnd(PinchSegment *segment);
+int64_t *caSegment_getEnd(CaSegment *segment);
 
-int64_t *pinchSegment_getLength(PinchSegment *segment);
+int64_t *caSegment_getLength(CaSegment *segment);
 
-PinchBlock *pinchSegment_getBlock(PinchSegment *segment);
+CaBlock *caSegment_getBlock(CaSegment *segment);
 
-bool pinchSegment_getOrientation(PinchSegment *segment);
+bool caSegment_getOrientation(CaSegment *segment);
 
-PinchSegment *pinchSegment_split(PinchSegment *segment, int32_t splitPoint);
+PinchSegment *caSegment_split(CaSegment *segment, int32_t splitPoint);
 
-PinchSegment *pinchSegment_joinIfTrivial(PinchSegment *segment);
+PinchSegment *caSegment_joinIfTrivial(CaSegment *segment);
 
 //Blocks
 
