@@ -33,7 +33,6 @@ typedef struct _caBlock {
 typedef struct _caEnd {
     CaEnd *nEnd;
     CaBlock *block;
-    bool blockOrientation;
     CaGroup *group;
     CaEnd *linkEnd;
 } CaEnd;
@@ -53,8 +52,8 @@ typedef struct _caNet {
 } CaNet;
 
 typedef struct _caChain {
-    CaBlock *headBlock;
-    CaBlock *tailBlock;
+    CaEnd *headEnd;
+    CaEnd *tailEnd;
     CaNet *parentNet;
     CaChain *nNetChain;
 } CaChain;
@@ -107,12 +106,41 @@ CaEnd *caBlock_get3End(CaBlock *block);
 
 CaEnd *caEnd_construct(CaBlock *block, bool orientation);
 
+void caEnd_destruct(CaEnd *end);
+
+CaBlock *caEnd_getBlock(CaEnd *end);
+
+CaBlock *caEnd_is5EndOfBlock(CaEnd *end);
+
 CaGroup *caEnd_getGroup(CaEnd *end);
 
-CaNet *caEnd_getEnd(CaEnd *end);
+CaEnd *caEnd_getLink(CaEnd *end);
 
+//Group
 
+CaGroup *caGroup_construct(CaEnd *end);
 
+void caGroup_destruct(CaGroup *caGroup);
+
+CaGroup *caGroup_merge(CaGroup *group1, CaGroup *group2);
+
+CaGroupIt caGroup_getEndIterator(CaGroup *group);
+
+End *caGroupIt_getNext(CaGroupIt groupIt);
+
+Net *caGroup_getNet(CaGroup);
+
+//Net
+
+CaNet *caNet_construct(CaGroup *group);
+
+void caNet_destruct(CaNet *net);
+
+CaNetIt caNet_getGroupIterator(CaNet *net);
+
+CaGroup *caNetIt_getNext(CaNetIt netIt);
+
+//Chain
 
 
 
