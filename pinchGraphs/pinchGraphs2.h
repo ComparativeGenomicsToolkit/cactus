@@ -10,37 +10,53 @@
 
 #include "cactus.h"
 
-typedef struct _stPGraph {
+//Basic data structures
 
-} StPGraph;
-
-typedef struct _pinchSegment {
-        int64_t start;
-        PinchSegment *pSegment;
-        PinchSegment *nSegment;
-        PinchBlock *block;
-        bool blockOrientation;
-        PinchSegment *nBlockSegment;
+typedef struct _caPinchSegment {
+    int64_t start;
+    PinchSegment *pSegment;
+    PinchSegment *nSegment;
+    PinchBlock *block;
+    bool blockOrientation;
+    PinchSegment *nBlockSegment;
 } PinchSegment;
 
 typedef struct _pinchBlock {
-        PinchSegment *headSegment;
-        PinchSegment *tailSegment;
+    PinchSegment *headSegment;
+    PinchSegment *tailSegment;
+    End *_5End;
+    End *_3End;
+    Chain *chain;
+    CactusBlock *nChainBlock;
 } PinchBlock;
 
 typedef struct _end {
-        PinchBlock *pinchBlock;
-        bool blockOrientation;
-        Group *group;
-} GroupEdge;
+    End *nEnd;
+    PinchBlock *pinchBlock;
+    Group *group;
+} End;
 
 typedef struct _group {
-        stList *groupEnds;
+    End *headEnd;
+    End *tailEnd;
+    Net *net;
+    Group *nNetGroup;
 } Group;
 
-typedef struct _net {
+typedef struct _chain {
+    CactusBlock *headCactusBlock;
+    CactusBlock *tailCactusBlock;
+    Net *parentNet;
+    Chain *nNetChain;
+}
 
+typedef struct _net {
+    Group *headGroup;
+    Group *tailGroup;
+    Chain *headChain;
+    Chain *tailChain;
 } Net;
+
 
 //Segments
 
