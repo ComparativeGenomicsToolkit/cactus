@@ -769,10 +769,12 @@ stList *getAlignedPairsWithBanding(stList *anchorPairs, const SymbolString sX, c
                     if (totalPosteriorCalculationsThisTraceback++ % 10 == 0) {
                         double newTotalProbability = diagonalCalculationTotalProbability(diagonal_getXay(diagonal2),
                                 forwardDpMatrix, backwardDpMatrix, sX, sY);
+#ifdef BEN_DEBUG
                         if (totalPosteriorCalculationsThisTraceback != 1) {
                             assert(totalProbability + 0.1 > newTotalProbability);
                             assert(newTotalProbability + 0.1 > newTotalProbability);
                         }
+#endif
                         totalProbability = newTotalProbability;
                     }
 
