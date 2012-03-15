@@ -293,7 +293,8 @@ def _fn(jobTreeDir,
       jobTreeStats=False,
       maxThreads=None,
       maxJobs=None,
-      logFile=None):
+      logFile=None,
+      extraJobTreeArgumentsString=""):
     logLevel = getLogLevelString2(logLevel)
     buildFaces=False
     setupAndBuildAlignments = nameValue("setupAndBuildAlignments", setupAndBuildAlignments, bool)
@@ -309,8 +310,8 @@ def _fn(jobTreeDir,
     maxThreads = nameValue("maxThreads", maxThreads, int)
     maxJobs = nameValue("maxJobs", maxJobs, int)
     logFile = nameValue("logFile", logFile, str)
-    return "%s %s %s %s --jobTree %s --logLevel %s %s %s %s %s %s %s %s %s" % (setupAndBuildAlignments, buildTrees, buildFaces, 
-             buildReference, jobTreeDir, logLevel, buildMaf, batchSystem, retryCount, rescueJobFrequency, jobTreeStats, maxThreads, maxJobs, logFile)
+    return "%s %s %s %s --jobTree %s --logLevel %s %s %s %s %s %s %s %s %s %s" % (setupAndBuildAlignments, buildTrees, buildFaces, 
+             buildReference, jobTreeDir, logLevel, buildMaf, batchSystem, retryCount, rescueJobFrequency, jobTreeStats, maxThreads, maxJobs, logFile, extraJobTreeArgumentsString)
      
 def runCactusWorkflow(experimentFile,
                       jobTreeDir, 
@@ -323,10 +324,11 @@ def runCactusWorkflow(experimentFile,
                       jobTreeStats=False,
                       maxThreads=None,
                       maxJobs=None,
-                      logFile=None):
+                      logFile=None,
+                      extraJobTreeArgumentsString=""):
     command = ("cactus_workflow.py --experiment %s" % experimentFile) + " " + _fn(jobTreeDir, 
                       logLevel, retryCount, batchSystem, rescueJobFrequency, setupAndBuildAlignments,
-                      buildTrees, buildFaces, buildReference, buildMaf, jobTreeStats,maxThreads,maxJobs,logFile)
+                      buildTrees, buildFaces, buildReference, buildMaf, jobTreeStats,maxThreads,maxJobs,logFile, extraJobTreeArgumentsString=extraJobTreeArgumentsString)
     system(command)
     logger.info("Ran the cactus workflow okay")
     
@@ -351,12 +353,13 @@ def runCactusProgressive(inputDir,
                       maxJobs=None,
                       recursive=None,
                       logFile=None,
-                      event=None):
+                      event=None,
+                      extraJobTreeArgumentsString=""):
     command = ("cactus_progressive.py %s" % inputDir) + " " + _fn(jobTreeDir, 
                       logLevel, retryCount, batchSystem, rescueJobFrequency, setupAndBuildAlignments,
                       None, None, None, #buildTrees, buildFaces, buildReference, 
                       buildMaf,
-                      jobTreeStats,maxThreads, maxJobs, logFile) + \
+                      jobTreeStats,maxThreads, maxJobs, logFile, extraJobTreeArgumentsString=extraJobTreeArgumentsString) + \
                       (" %s %s %s" % (nameValue("recursive", recursive, bool),
                                      nameValue("joinMAF", joinMaf, bool), nameValue("event", event)))
     system(command)
