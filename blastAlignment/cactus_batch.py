@@ -242,7 +242,7 @@ class RunBlast(Target):
     """Runs blast as a job.
     """
     def __init__(self, options, seqFiles1, seqFiles2, resultsFile):
-        Target.__init__(self, time=33.119)
+        Target.__init__(self, memory=1073741824)
         self.options = options
         self.seqFiles1 = seqFiles1
         self.seqFiles2 = seqFiles2
