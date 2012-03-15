@@ -302,7 +302,7 @@ def _fn(jobTreeDir,
     buildReference = nameValue("buildReference", buildReference, bool)
     buildMaf = nameValue("buildMaf", buildMaf, bool)
     #Jobtree args
-    batchSystem = nameValue("batchSystem", batchSystem, str)
+    batchSystem = nameValue("batchSystem", batchSystem, str, quotes=True)
     retryCount = nameValue("retryCount", retryCount, int)
     rescueJobFrequency = nameValue("rescueJobsFrequency", rescueJobFrequency, int)
     jobTreeStats = nameValue("stats", jobTreeStats, bool)
