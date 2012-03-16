@@ -130,6 +130,8 @@ class KtserverLauncher:
         if exists:
             tuning = self.readTuningOptions
         cmd = "ktserver -log %s -port %d %s" % (outputPath, port, self.serverOptions)
+        if experiment.getDbHost() is not None:
+            cmd += " -host %s" % experiment.getDbHost()
         if experiment.getDbSnapshot() == True:
             cmd += " -bgs %s -bgsi 100000000" % experiment.getDbDir()
         if experiment.getDbInMemory() == False:

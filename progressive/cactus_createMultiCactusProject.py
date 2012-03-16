@@ -84,7 +84,10 @@ def createFileStructure(mcProj, expTemplate, configTemplate, options):
         path = os.path.join(options.path, name)
         subtree = mcProj.mcTree.extractSubTree(name)
         exp = copy.deepcopy(expTemplate)
-        exp.setDbDir(os.path.join(path, "%s_DB" % name))
+        dbBase = path
+        if expTemplate.getDbDir() is not None:
+            dbBase = os.path.abspath(expTemplate.getDbDir())
+        exp.setDbDir(os.path.join(dbBase, name, "%s_DB" % name))
         if expTemplate.getDbType() == "kyoto_tycoon" and \
             os.path.splitext(name)[1] != ".kch":
             exp.setDbName("%s.kch" % name)
@@ -110,6 +113,8 @@ def createFileStructure(mcProj, expTemplate, configTemplate, options):
                 ogPath = os.path.join(ogPath, refFileName(og))
         exp.setOutgroup(og, ogDist, ogPath)
         os.makedirs(exp.getDbDir())
+        if not os.path.exists(path):
+            os.makedirs(path)
         exp.writeXML(expPath)
         config = ConfigWrapper(copy.deepcopy(configTemplate.xmlRoot))
         config.setReferenceName(name)

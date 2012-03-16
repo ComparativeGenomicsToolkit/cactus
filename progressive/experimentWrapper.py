@@ -41,7 +41,11 @@ class ExperimentWrapper:
         xmlFile.close()
 
     def getDbDir(self):
-        return self.dbElem.attrib["database_dir"]
+        if "database_dir" in self.dbElem.attrib:
+            dbDir = self.dbElem.attrib["database_dir"]
+            if len(dbDir) > 0:
+                return self.dbElem.attrib["database_dir"]
+        return None
     
     def setDbDir(self, path):
         self.dbElem.attrib["database_dir"] = path
@@ -70,6 +74,12 @@ class ExperimentWrapper:
     def setDbPort(self, port):
         assert self.getDbType() == "kyoto_tycoon"
         self.dbElem.attrib["port"] = str(port)
+    
+    def getDbHost(self):
+        assert self.getDbType() == "kyoto_tycoon"
+        if "host" in self.dbElem.attrib:
+            return self.dbElem.attrib["host"]
+        return None
         
     def getDbServerOptions(self):
         assert self.getDbType() == "kyoto_tycoon"
