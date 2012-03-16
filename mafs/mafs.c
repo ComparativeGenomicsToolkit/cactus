@@ -4,6 +4,7 @@
 #include "cactus.h"
 #include "sonLib.h"
 
+
 static Cap *getCapForReferenceEvent(End *end, Name referenceEventName) {
     /*
      * Get the cap for a given event.
@@ -125,7 +126,8 @@ static void writeMafBlock(FILE *fileHandle, Segment *referenceSegment,
 }
 
 static char *getMafFileName(Cap *cap, const char *directory) {
-    return stString_print("%s/%s.maf", directory, cactusMisc_nameToStringStatic(cap_getName(cap)));
+    return stString_print("%s/%s.maf", directory,
+            cactusMisc_nameToStringStatic(cap_getName(cap)));
 }
 
 static void addChildMafToFile(FILE *fileHandle, Cap *cap,
@@ -143,8 +145,9 @@ static void addChildMafToFile(FILE *fileHandle, Cap *cap,
     free(mafFileName);
 }
 
-static void makeMafForAdjacency(FILE *fileHandle, Cap *cap, Event *referenceEvent,
-        const char *childDirectory, const char *parentDirectory,
+static void makeMafForAdjacency(FILE *fileHandle, Cap *cap,
+        Event *referenceEvent, const char *childDirectory,
+        const char *parentDirectory,
         bool showOnlySubstitutionsWithRespectToReference) {
     /*
      * Iterate along thread and build maf file.
@@ -160,7 +163,8 @@ static void makeMafForAdjacency(FILE *fileHandle, Cap *cap, Event *referenceEven
         if ((cap = cap_getOtherSegmentCap(adjacentCap)) == NULL) {
             break;
         }
-        writeMafBlock(fileHandle, cap_getSegment(adjacentCap), showOnlySubstitutionsWithRespectToReference);
+        writeMafBlock(fileHandle, cap_getSegment(adjacentCap),
+                showOnlySubstitutionsWithRespectToReference);
     }
 }
 
@@ -173,7 +177,8 @@ void makeMAFHeader(Flower *flower, FILE *fileHandle) {
 
 void makeMaf(Flower *flower, const char *referenceEventString,
         const char *childDirectory, const char *parentDirectory,
-        bool showOnlySubstitutionsWithRespectToReference, const char *outputFile) {
+        bool showOnlySubstitutionsWithRespectToReference,
+        const char *outputFile) {
     /*
      * Makes mafs for the given flower. If outputFile != NULL then it makes a single maf
      * in the given file, else it writes a maf for each adjacency in the parent directory.
@@ -186,7 +191,7 @@ void makeMaf(Flower *flower, const char *referenceEventString,
     End *end;
     Flower_EndIterator *endIt = flower_getEndIterator(flower);
     FILE *fileHandle = NULL;
-    if(outputFile != NULL) {
+    if (outputFile != NULL) {
         fileHandle = fopen(outputFile, "w");
         makeMAFHeader(flower, fileHandle);
     }
@@ -198,20 +203,21 @@ void makeMaf(Flower *flower, const char *referenceEventString,
             assert(cap_getSequence(cap) != NULL);
             cap = cap_getStrand(cap) ? cap : cap_getReverse(cap);
             if (!cap_getSide(cap)) {
-                if(outputFile == NULL) {
+                if (outputFile == NULL) {
                     char *mafFileName = getMafFileName(cap, parentDirectory);
                     fileHandle = fopen(mafFileName, "w");
                     free(mafFileName);
                 }
-                makeMafForAdjacency(fileHandle, cap, referenceEvent, childDirectory,
-                        parentDirectory, showOnlySubstitutionsWithRespectToReference);
-                if(outputFile == NULL) {
+                makeMafForAdjacency(fileHandle, cap, referenceEvent,
+                        childDirectory, parentDirectory,
+                        showOnlySubstitutionsWithRespectToReference);
+                if (outputFile == NULL) {
                     fclose(fileHandle);
                 }
             }
         }
     }
-    if(outputFile != NULL) {
+    if (outputFile != NULL) {
         fclose(fileHandle);
     }
     flower_destructEndIterator(endIt);
