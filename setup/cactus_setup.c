@@ -274,6 +274,11 @@ int main(int argc, char *argv[]) {
                     "Failed to get information about the file: %s\n", argv[j]);
             if (S_ISDIR(info.st_mode)) {
                 st_logInfo("Processing directory: %s\n", argv[j]);
+                stList *filesInDir = stFile_getFileNamesInDirectory(argv[j]);
+                for(int32_t i=0; i<stList_length(filesInDir); i++) {
+
+                }
+
                 struct dirent *file;//a 'directory entity' AKA file
                 DIR *dh = opendir(argv[j]);
                 while ((file = readdir(dh)) != NULL) {

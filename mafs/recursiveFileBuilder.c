@@ -5,12 +5,13 @@
  *      Author: benedictpaten
  */
 
-#include <dirent.h>
-#include <sys/stat.h>
+#include <stdio.h>
+#include <stdlib.h>
 #include <inttypes.h>
 
 #include "cactus.h"
 #include "sonLib.h"
+#include "recursiveFileBuilder.h"
 
 typedef struct _recursiveFileBuilderEntry {
     Name capName;
@@ -24,40 +25,14 @@ int recursiveFileBuilderEntry_cmpFn(RecursiveFileBuilderEntry *r1,
     return cactusMisc_nameCompare(r1->capName, r2->capName);
 }
 
-typedef struct _recursiveFileBuilder {
+struct _recursiveFileBuilder {
     stSortedSet *recursiveFileBuilderEntries;
     stList *childFilePointers;
     FILE *parentFileHandle;
     bool hasParent;
     int64_t entryLengthPointer;
     int64_t entryStartPointer;
-} RecursiveFileBuilder;
-
-#define ADJACENCY_INDEX_UNIQUE_STRING "ADJACENCY_INDEX"
-
-stList *stFile_getFileNamesInDirectory(const char *dir) {
-    stList *files = stList_construct3(0, free);
-    DIR *dh = opendir(dir);
-    struct dirent *file;//a 'directory entity' AKA file
-    while ((file = readdir(dh)) != NULL) {
-        if (file->d_name[0] != '.') {
-            struct stat info;
-            char *cA = pathJoin(dir, file->d_name);
-            //ascertain if complete or not
-            exitOnFailure(stat(cA, &info),
-                    "Failed to get information about the file: %s\n",
-                    file->d_name);
-            if (!S_ISDIR(info.st_mode)) {
-                st_logInfo("Processing file: %s\n", cA);
-                stList_append(files, cA);
-            } else {
-                free(cA);
-            }
-        }
-    }
-    closedir(dh);
-    return files;
-}
+};
 
 RecursiveFileBuilder *recursiveFileBuilder_construct(const char *childDir,
         FILE *parentFileHandle, bool hasParent) {

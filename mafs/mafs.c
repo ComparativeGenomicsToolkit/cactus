@@ -4,6 +4,7 @@
 #include "cactus.h"
 #include "sonLib.h"
 
+#include "recursiveFileBuilder.h"
 
 static Cap *getCapForReferenceEvent(End *end, Name referenceEventName) {
     /*
@@ -145,9 +146,7 @@ static void addChildMafToFile(FILE *fileHandle, Cap *cap,
     free(mafFileName);
 }
 
-static void makeMafForAdjacency(FILE *fileHandle, Cap *cap,
-        Event *referenceEvent, const char *childDirectory,
-        const char *parentDirectory,
+static void makeMafForAdjacency(RecursiveFileBuilder *recursiveFileBuilder, Cap *cap,
         bool showOnlySubstitutionsWithRespectToReference) {
     /*
      * Iterate along thread and build maf file.
@@ -158,13 +157,13 @@ static void makeMafForAdjacency(FILE *fileHandle, Cap *cap,
         Cap *adjacentCap = cap_getAdjacency(cap);
         assert(cap_getCoordinate(adjacentCap) - cap_getCoordinate(cap) >= 1);
         if (cap_getCoordinate(adjacentCap) - cap_getCoordinate(cap) > 1) {
-            addChildMafToFile(fileHandle, cap, childDirectory);
+            recursiveFileBuilder_writeAdjacency(recursiveFileBuilder, cap);
         }
         if ((cap = cap_getOtherSegmentCap(adjacentCap)) == NULL) {
             break;
         }
-        writeMafBlock(fileHandle, cap_getSegment(adjacentCap),
-                showOnlySubstitutionsWithRespectToReference);
+        recursiveFileBuilder_writeSegment(recursiveFileBuilder, cap_getSegment(adjacentCap),
+                writeMafBlock);
     }
 }
 
