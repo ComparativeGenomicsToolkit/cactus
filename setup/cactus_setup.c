@@ -16,6 +16,7 @@
 #include <sys/param.h>
 #include <sys/stat.h>
 #include <dirent.h>
+#include <math.h>
 
 const char *CACTUS_SETUP_EXCEPTION = "CACTUS_SETUP_EXCEPTION";
 
@@ -31,8 +32,8 @@ void usage() {
             stderr,
             "-f --speciesTree : The species tree, which will form the skeleton of the event tree\n");
     fprintf(
-                stderr,
-                "-g --outgroupEvents : Leaf events in the species tree identified as outgroups\n");
+            stderr,
+            "-g --outgroupEvents : Leaf events in the species tree identified as outgroups\n");
     fprintf(stderr, "-h --help : Print this help screen\n");
     fprintf(stderr, "-d --debug : Run some extra debug checks at the end\n");
 }
@@ -49,10 +50,12 @@ Event *event;
 int32_t totalSequenceNumber = 0;
 
 void checkBranchLengthsAreDefined(stTree *tree) {
-    if(stTree_getBranchLength(tree) == INFINITY) {
-        stThrowNew(CACTUS_SETUP_EXCEPTION, "Got a non defined branch length in the input tree: %s\n", stTree_getNewickTreeString(tree));
+    if (isinf(stTree_getBranchLength(tree))) {
+        stThrowNew(CACTUS_SETUP_EXCEPTION,
+                "Got a non defined branch length in the input tree: %s\n",
+                stTree_getNewickTreeString(tree));
     }
-    for(int32_t i=0; i<stTree_getChildNumber(tree); i++) {
+    for (int32_t i = 0; i < stTree_getChildNumber(tree); i++) {
         checkBranchLengthsAreDefined(stTree_getChild(tree, i));
     }
 }
@@ -143,9 +146,8 @@ int main(int argc, char *argv[]) {
         static struct option long_options[] = { { "logLevel",
                 required_argument, 0, 'a' }, { "cactusDisk", required_argument,
                 0, 'b' }, { "speciesTree", required_argument, 0, 'f' }, {
-                "outgroupEvents", required_argument, 0, 'g' }, {
-                "help", no_argument, 0, 'h' },
-                { 0, 0, 0, 0 } };
+                "outgroupEvents", required_argument, 0, 'g' }, { "help",
+                no_argument, 0, 'h' }, { 0, 0, 0, 0 } };
 
         int option_index = 0;
 
@@ -208,11 +210,10 @@ int main(int argc, char *argv[]) {
     stKVDatabaseConf *kvDatabaseConf = kvDatabaseConf
             = stKVDatabaseConf_constructFromString(cactusDiskDatabaseString);
     if (stKVDatabaseConf_getType(kvDatabaseConf)
-            == stKVDatabaseTypeTokyoCabinet || stKVDatabaseConf_getType(kvDatabaseConf)
-            == stKVDatabaseTypeKyotoTycoon) {
+            == stKVDatabaseTypeTokyoCabinet || stKVDatabaseConf_getType(
+            kvDatabaseConf) == stKVDatabaseTypeKyotoTycoon) {
         assert(stKVDatabaseConf_getDir(kvDatabaseConf) != NULL);
-        cactusDisk
-                = cactusDisk_construct2(kvDatabaseConf, "cactusSequences");
+        cactusDisk = cactusDisk_construct2(kvDatabaseConf, "cactusSequences");
     } else {
         cactusDisk = cactusDisk_construct(kvDatabaseConf, 1);
     }
@@ -255,9 +256,9 @@ int main(int argc, char *argv[]) {
         assert(tree != NULL);
         totalEventNumber++;
         if (stTree_getChildNumber(tree) > 0) {
-            event = event_construct3(stTree_getLabel(tree), stTree_getBranchLength(tree),
-                    event, eventTree);
-            for(int32_t i=stTree_getChildNumber(tree)-1; i>=0; i--) {
+            event = event_construct3(stTree_getLabel(tree),
+                    stTree_getBranchLength(tree), event, eventTree);
+            for (int32_t i = stTree_getChildNumber(tree) - 1; i >= 0; i--) {
                 listAppend(stack, event);
                 listAppend(stack, stTree_getChild(tree, i));
             }
@@ -266,45 +267,33 @@ int main(int argc, char *argv[]) {
             assert(stTree_getLabel(tree) != NULL);
 
             assert(stTree_getBranchLength(tree) != INFINITY);
-            event = event_construct3(stTree_getLabel(tree), stTree_getBranchLength(tree),
-                    event, eventTree);
+            event = event_construct3(stTree_getLabel(tree),
+                    stTree_getBranchLength(tree), event, eventTree);
 
-            struct stat info;//info about the file.
-            exitOnFailure(stat(argv[j], &info),
-                    "Failed to get information about the file: %s\n", argv[j]);
-            if (S_ISDIR(info.st_mode)) {
-                st_logInfo("Processing directory: %s\n", argv[j]);
-                stList *filesInDir = stFile_getFileNamesInDirectory(argv[j]);
-                for(int32_t i=0; i<stList_length(filesInDir); i++) {
+            char *fileName = argv[j];
 
+            if (!stFile_exists(fileName)) {
+                st_errAbort("File does not exist: %s\n", fileName);
+            }
+
+            if (stFile_isDir(fileName)) {
+                st_logInfo("Processing directory: %s\n", fileName);
+                stList *filesInDir = stFile_getFileNamesInDirectory(fileName);
+                for (int32_t i = 0; i < stList_length(filesInDir); i++) {
+                    char *absChildFileName = stFile_pathJoin(fileName,
+                            stList_get(filesInDir, i));
+                    assert(stFile_exists(absChildFileName));
+                    setCompleteStatus(absChildFileName); //decide if the sequences in the file should be free or attached.
+                    fileHandle = fopen(absChildFileName, "r");
+                    fastaReadToFunction(fileHandle, fn);
+                    fclose(fileHandle);
+                    free(absChildFileName);
                 }
-
-                struct dirent *file;//a 'directory entity' AKA file
-                DIR *dh = opendir(argv[j]);
-                while ((file = readdir(dh)) != NULL) {
-                    if (file->d_name[0] != '.') {
-                        struct stat info2;
-                        char *cA = pathJoin(argv[j], file->d_name);
-                        //ascertain if complete or not
-                        exitOnFailure(
-                                stat(cA, &info2),
-                                "Failed to get information about the file: %s\n",
-                                file->d_name);
-                        setCompleteStatus(file->d_name); //decide if the sequences in the file should be free or attached.
-                        if (!S_ISDIR(info2.st_mode)) {
-                            st_logInfo("Processing file: %s\n", cA);
-                            fileHandle = fopen(cA, "r");
-                            fastaReadToFunction(fileHandle, fn);
-                            fclose(fileHandle);
-                        }
-                        free(cA);
-                    }
-                }
-                closedir(dh);
+                stList_destruct(filesInDir);
             } else {
-                st_logInfo("Processing file: %s\n", argv[j]);
-                fileHandle = fopen(argv[j], "r");
-                setCompleteStatus(argv[j]); //decide if the sequences in the file should be free or attached.
+                st_logInfo("Processing file: %s\n", fileName);
+                setCompleteStatus(fileName); //decide if the sequences in the file should be free or attached.
+                fileHandle = fopen(fileName, "r");
                 fastaReadToFunction(fileHandle, fn);
                 fclose(fileHandle);
             }
@@ -315,8 +304,9 @@ int main(int argc, char *argv[]) {
     st_logInfo(
             "Constructed the initial flower with %i sequences and %i events with string: %s\n",
             totalSequenceNumber, totalEventNumber, eventTreeString);
-    assert(event_getSubTreeBranchLength(eventTree_getRootEvent(eventTree))
-            >= 0.0);
+    assert(
+            event_getSubTreeBranchLength(eventTree_getRootEvent(eventTree))
+                    >= 0.0);
     free(eventTreeString);
     //assert(0);
 
@@ -324,16 +314,20 @@ int main(int argc, char *argv[]) {
     //Label any outgroup events.
     //////////////////////////////////////////////
 
-    if(outgroupEvents != NULL) {
+    if (outgroupEvents != NULL) {
         stList *outgroupEventsList = stString_split(outgroupEvents);
-        for(int32_t i=0; i<stList_length(outgroupEventsList); i++) {
+        for (int32_t i = 0; i < stList_length(outgroupEventsList); i++) {
             char *outgroupEvent = stList_get(outgroupEventsList, i);
             Event *event = eventTree_getEventByHeader(eventTree, outgroupEvent);
-            if(event == NULL) {
-                st_errAbort("Got an outgroup string that does not match an event, outgroup string %s", outgroupEvent);
+            if (event == NULL) {
+                st_errAbort(
+                        "Got an outgroup string that does not match an event, outgroup string %s",
+                        outgroupEvent);
             }
-            if(event_getChildNumber(event) != 0) {
-                st_errAbort("Attempting to label an internal node as an outgroup, outgroup string %s", outgroupEvent);
+            if (event_getChildNumber(event) != 0) {
+                st_errAbort(
+                        "Attempting to label an internal node as an outgroup, outgroup string %s",
+                        outgroupEvent);
             }
             assert(!event_isOutgroup(event));
             event_setOutgroupStatus(event, 1);

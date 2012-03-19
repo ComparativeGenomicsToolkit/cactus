@@ -20,7 +20,7 @@ typedef struct _recursiveFileBuilderEntry {
     int64_t entryLength;
 } RecursiveFileBuilderEntry;
 
-int recursiveFileBuilderEntry_cmpFn(RecursiveFileBuilderEntry *r1,
+static int recursiveFileBuilderEntry_cmpFn(RecursiveFileBuilderEntry *r1,
         RecursiveFileBuilderEntry *r2) {
     return cactusMisc_nameCompare(r1->capName, r2->capName);
 }
@@ -51,7 +51,7 @@ RecursiveFileBuilder *recursiveFileBuilder_construct(const char *childDir,
     stList *childFileNames = stFile_getFileNamesInDirectory(childDir);
 
     for (int32_t j; j<stList_length(childFileNames); j++) { //For each child adjacency file
-        const char *childFileName = stList_get(childFileNames, j);
+        char *childFileName = stFile_pathJoin(childDir, stList_get(childFileNames, j));
         FILE *childFileHandle = fopen(childFileName, "r");
         stList_append(recursiveFileBuilder->childFilePointers, childFileHandle);
         while (1) {
@@ -74,13 +74,21 @@ RecursiveFileBuilder *recursiveFileBuilder_construct(const char *childDir,
                     recursiveFileBuilder->recursiveFileBuilderEntries,
                     recursiveFileBuilderEntry);
         }
+        free(childFileName);
+        fclose(childFileHandle);
     }
     stList_destruct(childFileNames);
 
     return recursiveFileBuilder;
 }
 
-void recursiveFileBuilder_writeHead(RecursiveFileBuilder *recursiveFileBuilder, Cap *cap) {
+void recursiveFileBuilder_destruct(RecursiveFileBuilder *recursiveFileBuilder) {
+    stList_destruct(recursiveFileBuilder->childFilePointers);
+    stSortedSet_destruct(recursiveFileBuilder->recursiveFileBuilderEntries);
+    free(recursiveFileBuilder);
+}
+
+static void recursiveFileBuilder_writeHead(RecursiveFileBuilder *recursiveFileBuilder, Cap *cap) {
     if (recursiveFileBuilder->hasParent) {
         fprintf(recursiveFileBuilder->parentFileHandle, "%" PRIi64 " ", cap_getName(cap));
         recursiveFileBuilder->entryLengthPointer = ftell(
@@ -91,8 +99,7 @@ void recursiveFileBuilder_writeHead(RecursiveFileBuilder *recursiveFileBuilder, 
     }
 }
 
-void recursiveFileBuilder_writeTail(RecursiveFileBuilder *recursiveFileBuilder,
-        Cap *cap) {
+static void recursiveFileBuilder_writeTail(RecursiveFileBuilder *recursiveFileBuilder) {
     if (recursiveFileBuilder->hasParent) {
         int64_t currentPosition = ftell(recursiveFileBuilder->parentFileHandle);
         int i = fseek(recursiveFileBuilder->parentFileHandle,
@@ -106,7 +113,7 @@ void recursiveFileBuilder_writeTail(RecursiveFileBuilder *recursiveFileBuilder,
     }
 }
 
-void recursiveFileBuilder_writeAdjacency(
+static void recursiveFileBuilder_writeAdjacency(
         RecursiveFileBuilder *recursiveFileBuilder, Cap *cap) {
     stInt64Tuple *capName = stInt64Tuple_construct(1, cap_getName(cap));
     RecursiveFileBuilderEntry *a = stSortedSet_search(
@@ -118,8 +125,34 @@ void recursiveFileBuilder_writeAdjacency(
     }
 }
 
-void recursiveFileBuilder_writeSegment(
+static void recursiveFileBuilder_writeSegment(
         RecursiveFileBuilder *recursiveFileBuilder, Segment *segment,
         void (*segmentWriteFn)(FILE *, Segment *)) {
     segmentWriteFn(recursiveFileBuilder->parentFileHandle, segment);
+}
+
+void recursiveFileBuilder_writeThread(RecursiveFileBuilder *recursiveFileBuilder,
+        Cap *cap, void (*segmentWriteFn)(FILE *, Segment *)) {
+    /*
+     * Iterate along thread.
+     */
+    recursiveFileBuilder_writeHead(recursiveFileBuilder, cap);
+    while (1) {
+        Cap *adjacentCap = cap_getAdjacency(cap);
+        assert(cap_getCoordinate(adjacentCap) - cap_getCoordinate(cap) >= 1);
+        if (cap_getCoordinate(adjacentCap) - cap_getCoordinate(cap) > 1) {
+            recursiveFileBuilder_writeAdjacency(recursiveFileBuilder, cap);
+        }
+        if ((cap = cap_getOtherSegmentCap(adjacentCap)) == NULL) {
+            break;
+        }
+        recursiveFileBuilder_writeSegment(recursiveFileBuilder, cap_getSegment(adjacentCap),
+                segmentWriteFn);
+    }
+    recursiveFileBuilder_writeTail(recursiveFileBuilder);
+}
+
+char *recursiveFileBuilder_getUniqueFileName(Flower *flower, const char *directory) {
+    return stString_print("%s/%s.maf", directory,
+            cactusMisc_nameToStringStatic(flower_getName(flower)));
 }

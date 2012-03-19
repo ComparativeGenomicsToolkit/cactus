@@ -14,11 +14,12 @@
 
 #include "cactus.h"
 #include "sonLib.h"
+#include "recursiveFileBuilder.h"
 
 void makeMaf(Flower *flower, const char *referenceEventString,
-        const char *childDirectory, const char *parentDirectory,
+        const char *childDirectory,
         bool showOnlySubstitutionsWithRespectToReference,
-        const char *outputFile);
+        const char *outputFile, bool hasParent);
 
 void usage() {
     fprintf(stderr, "cactus_mafGenerator [flower names], version 0.1\n");
@@ -151,12 +152,15 @@ int main(int argc, char *argv[]) {
         stThrowNew("RUNTIME_ERROR",
                 "No parent directory or output file specified\n");
     }
+
+    char *chosenOutputFile = stString_copy(outputFile != NULL ? outputFile : recursiveFileBuilder_getUniqueFileName(stList_get(flowers, 0), parentDirectory));
     for (int32_t j = 0; j < stList_length(flowers); j++) {
         Flower *flower = stList_get(flowers, j);
         st_logInfo("Processing a flower\n");
-        makeMaf(flower, referenceEventString, childDirectory, parentDirectory,
-                showOnlySubstitutionsWithRespectToReference, outputFile);
+        makeMaf(flower, referenceEventString, childDirectory,
+                showOnlySubstitutionsWithRespectToReference, chosenOutputFile, outputFile != NULL);
     }
+    free(chosenOutputFile);
 
     ///////////////////////////////////////////////////////////////////////////
     //Clean up.

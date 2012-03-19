@@ -100,8 +100,9 @@ static void writeMafSequenceLineShowingOnlyReferenceSubstitutions(
     free(segmentString);
 }
 
-static void writeMafBlock(FILE *fileHandle, Segment *referenceSegment,
-        bool showOnlySubstitutionsWithRespectToReference) {
+static bool writeMafBlock_showOnlySubstitutionsWithRespectToReference = 0;
+
+static void writeMafBlock(FILE *fileHandle, Segment *referenceSegment) {
     /*
      * Writes a maf block.
      */
@@ -113,7 +114,7 @@ static void writeMafBlock(FILE *fileHandle, Segment *referenceSegment,
     Segment *segment;
     while ((segment = block_getNext(iterator)) != NULL) {
         if (segment != referenceSegment && segment_getSequence(segment) != NULL) {
-            if (showOnlySubstitutionsWithRespectToReference) {
+            if (writeMafBlock_showOnlySubstitutionsWithRespectToReference) {
                 writeMafSequenceLineShowingOnlyReferenceSubstitutions(
                         fileHandle, segment, referenceString);
             } else {
@@ -126,47 +127,6 @@ static void writeMafBlock(FILE *fileHandle, Segment *referenceSegment,
     free(referenceString);
 }
 
-static char *getMafFileName(Cap *cap, const char *directory) {
-    return stString_print("%s/%s.maf", directory,
-            cactusMisc_nameToStringStatic(cap_getName(cap)));
-}
-
-static void addChildMafToFile(FILE *fileHandle, Cap *cap,
-        const char *childDirectory) {
-    /*
-     * Adds the maf from the child problems to this directory.
-     */
-    char *mafFileName = getMafFileName(cap, childDirectory);
-    FILE *childFileHandle = fopen(mafFileName, "r");
-    char c;
-    while ((c = getc(childFileHandle)) != EOF) {
-        putc(c, fileHandle);
-    }
-    fclose(childFileHandle);
-    free(mafFileName);
-}
-
-static void makeMafForAdjacency(RecursiveFileBuilder *recursiveFileBuilder, Cap *cap,
-        bool showOnlySubstitutionsWithRespectToReference) {
-    /*
-     * Iterate along thread and build maf file.
-     */
-
-    //Maf file name
-    while (1) {
-        Cap *adjacentCap = cap_getAdjacency(cap);
-        assert(cap_getCoordinate(adjacentCap) - cap_getCoordinate(cap) >= 1);
-        if (cap_getCoordinate(adjacentCap) - cap_getCoordinate(cap) > 1) {
-            recursiveFileBuilder_writeAdjacency(recursiveFileBuilder, cap);
-        }
-        if ((cap = cap_getOtherSegmentCap(adjacentCap)) == NULL) {
-            break;
-        }
-        recursiveFileBuilder_writeSegment(recursiveFileBuilder, cap_getSegment(adjacentCap),
-                writeMafBlock);
-    }
-}
-
 void makeMAFHeader(Flower *flower, FILE *fileHandle) {
     fprintf(fileHandle, "##maf version=1 scoring=N/A\n");
     char *cA = eventTree_makeNewickString(flower_getEventTree(flower));
@@ -175,25 +135,29 @@ void makeMAFHeader(Flower *flower, FILE *fileHandle) {
 }
 
 void makeMaf(Flower *flower, const char *referenceEventString,
-        const char *childDirectory, const char *parentDirectory,
+        const char *childDirectory,
         bool showOnlySubstitutionsWithRespectToReference,
-        const char *outputFile) {
+        const char *outputFile, bool hasParent) {
     /*
      * Makes mafs for the given flower. If outputFile != NULL then it makes a single maf
      * in the given file, else it writes a maf for each adjacency in the parent directory.
      * Child mafs are located in the child directory and added into the maf file as they are
      * needed.
      */
+    //Cheeky global variable
+    writeMafBlock_showOnlySubstitutionsWithRespectToReference
+            = showOnlySubstitutionsWithRespectToReference;
     Event *referenceEvent = eventTree_getEventByHeader(
             flower_getEventTree(flower), referenceEventString);
     assert(referenceEvent != NULL);
     End *end;
     Flower_EndIterator *endIt = flower_getEndIterator(flower);
-    FILE *fileHandle = NULL;
-    if (outputFile != NULL) {
-        fileHandle = fopen(outputFile, "w");
-        makeMAFHeader(flower, fileHandle);
+    FILE *parentFileHandle = fopen(outputFile, "w");
+    if(!hasParent) {
+        makeMAFHeader(flower, parentFileHandle);
     }
+    RecursiveFileBuilder *recursiveFileBuilder =
+            recursiveFileBuilder_construct(childDirectory, parentFileHandle, hasParent);
     while ((end = flower_getNextEnd(endIt)) != NULL) {
         if (end_isStubEnd(end) && end_isAttached(end)) {
             Cap *cap = getCapForReferenceEvent(end,
@@ -202,22 +166,11 @@ void makeMaf(Flower *flower, const char *referenceEventString,
             assert(cap_getSequence(cap) != NULL);
             cap = cap_getStrand(cap) ? cap : cap_getReverse(cap);
             if (!cap_getSide(cap)) {
-                if (outputFile == NULL) {
-                    char *mafFileName = getMafFileName(cap, parentDirectory);
-                    fileHandle = fopen(mafFileName, "w");
-                    free(mafFileName);
-                }
-                makeMafForAdjacency(fileHandle, cap, referenceEvent,
-                        childDirectory, parentDirectory,
-                        showOnlySubstitutionsWithRespectToReference);
-                if (outputFile == NULL) {
-                    fclose(fileHandle);
-                }
+                recursiveFileBuilder_writeThread(recursiveFileBuilder, cap, writeMafBlock);
             }
         }
     }
-    if (outputFile != NULL) {
-        fclose(fileHandle);
-    }
+    fclose(parentFileHandle);
     flower_destructEndIterator(endIt);
+    recursiveFileBuilder_destruct(recursiveFileBuilder);
 }

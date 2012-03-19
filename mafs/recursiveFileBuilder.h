@@ -13,16 +13,11 @@ typedef struct _recursiveFileBuilder RecursiveFileBuilder;
 RecursiveFileBuilder *recursiveFileBuilder_construct(const char *childDir,
         FILE *parentFileHandle, bool hasParent);
 
-void recursiveFileBuilder_writeHead(RecursiveFileBuilder *recursiveFileBuilder, Cap *cap);
+void recursiveFileBuilder_destruct(RecursiveFileBuilder *recursiveFileBuilder);
 
-void recursiveFileBuilder_writeTail(RecursiveFileBuilder *recursiveFileBuilder,
-        Cap *cap);
+void recursiveFileBuilder_writeThread(RecursiveFileBuilder *recursiveFileBuilder,
+        Cap *cap, void (*segmentWriteFn)(FILE *, Segment *));
 
-void recursiveFileBuilder_writeAdjacency(
-        RecursiveFileBuilder *recursiveFileBuilder, Cap *cap);
-
-void recursiveFileBuilder_writeSegment(
-        RecursiveFileBuilder *recursiveFileBuilder, Segment *segment,
-        void (*segmentWriteFn)(FILE *, Segment *));
+char *recursiveFileBuilder_getUniqueFileName(Flower *flower, const char *directory);
 
 #endif /* RECURSIVEFILEBUILDER_H_ */
