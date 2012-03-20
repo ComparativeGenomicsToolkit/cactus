@@ -7,7 +7,7 @@ import unittest
 import sys
 
 from cactus.shared.test import parseCactusSuiteTestOptions
-from sonLib.bioio import TestStatus
+from sonLib.bioio import TestStatus, system, getLogLevelString
 
 from cactus.shared.test import getCactusInputs_random
 from cactus.shared.test import getCactusInputs_blanchette
@@ -27,7 +27,7 @@ class TestCase(unittest.TestCase):
     def test10KGeneratorFunctions(self):
         """Run all the CuTests, fail if any of them fail.
         """
-        system("cactus_10GeneratorTests %s" % getLogLevelString())
+        system("cactus_10KGeneratorTests %s" % getLogLevelString())
     
 def main():
     parseCactusSuiteTestOptions() 

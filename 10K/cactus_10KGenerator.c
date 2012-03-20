@@ -23,7 +23,7 @@ void makeMaf(Flower *flower, const char *referenceEventString, const char *child
         bool showOnlySubstitutionsWithRespectToReference, const char *outputFile, bool hasParent);
 
 void usage() {
-    fprintf(stderr, "cactus_mafGenerator [flower names], version 0.1\n");
+    fprintf(stderr, "cactus_10KGenerator [flower names], version 0.1\n");
     fprintf(stderr, "-a --logLevel : Set the log level\n");
     fprintf(stderr, "-c --cactusDisk : The location of the flower disk directory\n");
     fprintf(stderr, "-g --referenceEventString : String identifying the reference event.\n");

@@ -289,9 +289,9 @@ void testEnd_isAttachedOrFree(CuTest* testCase) {
 void testEnd_getCapForEvent(CuTest* testCase) {
     cactusEndTestSetup();
 
-    CuAssertPtrEquals(testCase, end_getCapForEvent(end, event_getName(rootEvent)), rootCap);
+    CuAssertPtrEquals(testCase, end_getCapForEvent(end_getReverse(end), event_getName(rootEvent)), rootCap);
     Cap *cap = end_getCapForEvent(end, event_getName(leafEvent));
-    CuAssertTrue(testCase, cap == leaf1Cap || cap == leaf2Cap || cap == leaf3Cap);
+    CuAssertTrue(testCase, cap == cap_getReverse(leaf1Cap) || cap == leaf2Cap || cap == cap_getReverse(leaf3Cap));
     CuAssertTrue(testCase, end_getCapForEvent(end, NULL_NAME) == NULL);
 
     cactusEndTestTeardown();

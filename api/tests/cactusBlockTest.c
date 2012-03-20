@@ -187,9 +187,9 @@ void testBlock_getChain(CuTest* testCase) {
 void testBlock_getSegmentForEvent(CuTest* testCase) {
     cactusBlockTestSetup();
 
-    CuAssertPtrEquals(testCase, block_getSegmentForEvent(block, event_getName(rootEvent)), rootSegment);
+    CuAssertPtrEquals(testCase, block_getSegmentForEvent(block_getReverse(block), event_getName(rootEvent)), rootSegment);
     Segment *segment = block_getSegmentForEvent(block, event_getName(leafEvent));
-    CuAssertTrue(testCase, segment == leaf1Segment || segment == leaf2Segment);
+    CuAssertTrue(testCase, segment == leaf1Segment || segment == segment_getReverse(leaf2Segment));
     CuAssertTrue(testCase, block_getSegmentForEvent(block, NULL_NAME) == NULL);
 
     cactusBlockTestTeardown();

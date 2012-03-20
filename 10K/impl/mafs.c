@@ -148,7 +148,7 @@ void makeMaf(Flower *flower, const char *referenceEventString,
             assert(cap_getSequence(cap) != NULL);
             cap = cap_getStrand(cap) ? cap : cap_getReverse(cap);
             if (!cap_getSide(cap)) {
-                recursiveFileBuilder_writeThread(recursiveFileBuilder, cap, writeMafBlock);
+                recursiveFileBuilder_writeThread(recursiveFileBuilder, cap, writeMafBlock, NULL);
             }
         }
     }

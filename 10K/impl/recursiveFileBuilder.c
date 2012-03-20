@@ -37,20 +37,21 @@ struct _recursiveFileBuilder {
 RecursiveFileBuilder *recursiveFileBuilder_construct(const char *childDir,
         FILE *parentFileHandle, bool hasParent) {
     RecursiveFileBuilder *recursiveFileBuilder = st_malloc(
-            sizeof(recursiveFileBuilder));
+            sizeof(RecursiveFileBuilder));
 
     recursiveFileBuilder->recursiveFileBuilderEntries
             = stSortedSet_construct3(
                     (int(*)(const void *, const void *)) recursiveFileBuilderEntry_cmpFn,
                     free);
+
     recursiveFileBuilder->childFilePointers = stList_construct3(0,
             (void(*)(void *)) fclose);
     recursiveFileBuilder->parentFileHandle = parentFileHandle;
     recursiveFileBuilder->hasParent = hasParent;
 
-    stList *childFileNames = stFile_getFileNamesInDirectory(childDir);
+    stList *childFileNames = childDir == NULL ? stList_construct() : stFile_getFileNamesInDirectory(childDir);
 
-    for (int32_t j; j<stList_length(childFileNames); j++) { //For each child adjacency file
+    for (int32_t j=0; j<stList_length(childFileNames); j++) { //For each child adjacency file
         char *childFileName = stFile_pathJoin(childDir, stList_get(childFileNames, j));
         FILE *childFileHandle = fopen(childFileName, "r");
         stList_append(recursiveFileBuilder->childFilePointers, childFileHandle);
@@ -63,9 +64,11 @@ RecursiveFileBuilder *recursiveFileBuilder_construct(const char *childDir,
                     sizeof(RecursiveFileBuilderEntry));
             recursiveFileBuilderEntry->fileHandle = childFileHandle;
             recursiveFileBuilderEntry->fileStartOffset = ftell(childFileHandle);
-            int i = sscanf(line, "%" PRIi64 " %" PRIi64 "", &recursiveFileBuilderEntry->capName, &recursiveFileBuilderEntry->entryLength);
+            assert(recursiveFileBuilderEntry->fileStartOffset >= 0);
+            int i = sscanf(line, "%" PRIi64 " %" PRIi64 "", &(recursiveFileBuilderEntry->capName), &(recursiveFileBuilderEntry->entryLength));
             assert(i == 2);
             assert(recursiveFileBuilderEntry->entryLength >= 0);
+            fseek(childFileHandle, ftell(childFileHandle) + recursiveFileBuilderEntry->entryLength, SEEK_CUR);
             assert(
                     stSortedSet_search(
                             recursiveFileBuilder->recursiveFileBuilderEntries,
@@ -73,9 +76,9 @@ RecursiveFileBuilder *recursiveFileBuilder_construct(const char *childDir,
             stSortedSet_insert(
                     recursiveFileBuilder->recursiveFileBuilderEntries,
                     recursiveFileBuilderEntry);
+            //Now walk ahead by the length of the entry.
         }
         free(childFileName);
-        fclose(childFileHandle);
     }
     stList_destruct(childFileNames);
 
@@ -90,12 +93,16 @@ void recursiveFileBuilder_destruct(RecursiveFileBuilder *recursiveFileBuilder) {
 
 static void recursiveFileBuilder_writeHead(RecursiveFileBuilder *recursiveFileBuilder, Cap *cap) {
     if (recursiveFileBuilder->hasParent) {
-        fprintf(recursiveFileBuilder->parentFileHandle, "%" PRIi64 " ", cap_getName(cap));
+        int64_t i = fprintf(recursiveFileBuilder->parentFileHandle, "%20" PRIi64 " ", cap_getName(cap));
+        assert(i > 0);
         recursiveFileBuilder->entryLengthPointer = ftell(
                 recursiveFileBuilder->parentFileHandle);
-        fprintf(recursiveFileBuilder->parentFileHandle, "%" PRIi64 "\n", INT64_MAX);
+        assert(recursiveFileBuilder->entryLengthPointer != -1);
+        i = fprintf(recursiveFileBuilder->parentFileHandle, "%20" PRIi64 "\n", INT64_MAX);
+        assert(i > 0);
         recursiveFileBuilder->entryStartPointer = ftell(
                 recursiveFileBuilder->parentFileHandle);
+        assert(recursiveFileBuilder->entryStartPointer != -1);
     }
 }
 
@@ -104,24 +111,30 @@ static void recursiveFileBuilder_writeTail(RecursiveFileBuilder *recursiveFileBu
         int64_t currentPosition = ftell(recursiveFileBuilder->parentFileHandle);
         int i = fseek(recursiveFileBuilder->parentFileHandle,
                 recursiveFileBuilder->entryLengthPointer, SEEK_SET);
-        assert(i);
-        fprintf(recursiveFileBuilder->parentFileHandle, "%" PRIi64 "",
+        assert(i == 0);
+        fprintf(recursiveFileBuilder->parentFileHandle, "%20" PRIi64 "",
                 currentPosition - recursiveFileBuilder->entryStartPointer);
         i = fseek(recursiveFileBuilder->parentFileHandle, currentPosition,
                 SEEK_SET);
-        assert(i);
+        assert(i == 0);
     }
 }
 
 static void recursiveFileBuilder_writeAdjacency(
-        RecursiveFileBuilder *recursiveFileBuilder, Cap *cap) {
-    stInt64Tuple *capName = stInt64Tuple_construct(1, cap_getName(cap));
+        RecursiveFileBuilder *recursiveFileBuilder, Cap *cap,
+        void (*terminalAdjacencyWriteFn)(FILE *, Cap *)) {
+    static RecursiveFileBuilderEntry staticEntry;
+    staticEntry.capName = cap_getName(cap);
     RecursiveFileBuilderEntry *a = stSortedSet_search(
-            recursiveFileBuilder->recursiveFileBuilderEntries, capName);
-    assert(a != NULL);
-    fseek(a->fileHandle, a->fileStartOffset, SEEK_SET);
-    for (int64_t i = 0; i < a->entryLength; i++) {
-        putc(getc(a->fileHandle), recursiveFileBuilder->parentFileHandle);
+            recursiveFileBuilder->recursiveFileBuilderEntries, &staticEntry);
+    if(a != NULL) {
+        fseek(a->fileHandle, a->fileStartOffset, SEEK_SET);
+        for (int64_t i = 0; i < a->entryLength; i++) {
+            putc(getc(a->fileHandle), recursiveFileBuilder->parentFileHandle);
+        }
+    }
+    else if(terminalAdjacencyWriteFn != NULL) {
+        terminalAdjacencyWriteFn(recursiveFileBuilder->parentFileHandle, cap);
     }
 }
 
@@ -132,16 +145,17 @@ static void recursiveFileBuilder_writeSegment(
 }
 
 void recursiveFileBuilder_writeThread(RecursiveFileBuilder *recursiveFileBuilder,
-        Cap *cap, void (*segmentWriteFn)(FILE *, Segment *)) {
+        Cap *cap, void (*segmentWriteFn)(FILE *, Segment *), void (*terminalAdjacencyWriteFn)(FILE *, Cap *)) {
     /*
      * Iterate along thread.
      */
     recursiveFileBuilder_writeHead(recursiveFileBuilder, cap);
     while (1) {
         Cap *adjacentCap = cap_getAdjacency(cap);
+        assert(adjacentCap != NULL);
         assert(cap_getCoordinate(adjacentCap) - cap_getCoordinate(cap) >= 1);
         if (cap_getCoordinate(adjacentCap) - cap_getCoordinate(cap) > 1) {
-            recursiveFileBuilder_writeAdjacency(recursiveFileBuilder, cap);
+            recursiveFileBuilder_writeAdjacency(recursiveFileBuilder, cap, terminalAdjacencyWriteFn);
         }
         if ((cap = cap_getOtherSegmentCap(adjacentCap)) == NULL) {
             break;

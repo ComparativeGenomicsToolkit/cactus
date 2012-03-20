@@ -17,6 +17,15 @@ static void writeSequenceHeader(FILE *fileHandle, Sequence *sequence) {
     fprintf(fileHandle, "s\t'%s'\t'%s'\t%i\n", event_getHeader(event), sequence_getHeader(sequence), event_getName(event) == event_getName(referenceEvent));
 }
 
+static void writeTerminalAdjacency(FILE *fileHandle, Cap *cap) {
+    //a start length reference-segment block-orientation
+    Cap *adjacentCap = cap_getAdjacency(cap);
+    assert(adjacentCap != NULL);
+    int32_t adjacencyLength = cap_getCoordinate(adjacentCap) - cap_getCoordinate(cap) - 1;
+    assert(adjacencyLength >= 0);
+    fprintf(fileHandle, "a\t%i\t%i\n", cap_getCoordinate(cap) + 1, adjacencyLength);
+}
+
 static void writeSegment(FILE *fileHandle, Segment *segment) {
     //a start length reference-segment block-orientation
     fprintf(fileHandle, "a\t%i\t%i", segment_getStart(segment), segment_getLength(segment));
@@ -88,7 +97,7 @@ void make10KFormat(Flower *flower, const char *referenceEventString, const char 
         }
         //For each segment:
         //a start length reference-segment block-orientation
-        recursiveFileBuilder_writeThread(recursiveFileBuilder, cap, writeSegment);
+        recursiveFileBuilder_writeThread(recursiveFileBuilder, cap, writeSegment, writeTerminalAdjacency);
         if (!hasParent) { //Terminate with new-line
             //new-line
             fprintf(parentFileHandle, "\n");

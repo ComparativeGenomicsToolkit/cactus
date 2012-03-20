@@ -16,7 +16,7 @@ RecursiveFileBuilder *recursiveFileBuilder_construct(const char *childDir,
 void recursiveFileBuilder_destruct(RecursiveFileBuilder *recursiveFileBuilder);
 
 void recursiveFileBuilder_writeThread(RecursiveFileBuilder *recursiveFileBuilder,
-        Cap *cap, void (*segmentWriteFn)(FILE *, Segment *));
+        Cap *cap, void (*segmentWriteFn)(FILE *, Segment *), void (*terminalAdjacencyWriteFn)(FILE *, Cap *));
 
 char *recursiveFileBuilder_getUniqueFileName(Flower *flower, const char *directory);
 
