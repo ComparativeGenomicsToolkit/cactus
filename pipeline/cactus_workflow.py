@@ -52,7 +52,7 @@ from cactus.shared.common import runCactusMakeNormal
 from cactus.shared.common import runCactusReference
 from cactus.shared.common import runCactusAddReferenceCoordinates
 from cactus.shared.common import runCactusCheck
-from cactus.shared.common import runCactusRecursiveMafGenerator
+from cactus.shared.common import runCactus10KGenerator
 from cactus.shared.common import runCactusFlowerStats
 
 from cactus.blastAlignment.cactus_aligner import MakeSequences
@@ -622,7 +622,7 @@ class CactusCheckPhase(CactusPhasesTarget):
             self.logToMaster("Starting the verification phase at %s seconds" % (time.time()))
             self.addChildTarget(CactusCheck(self.options.cactusDiskDatabaseString, extractNode(checkNode), 
                                             [ self.flowerName, 1 ]))
-        self.setFollowOnTarget(CactusMafGeneratorPhase(self.options, self.flowerName))
+        self.setFollowOnTarget(Cactus10KGeneratorPhase(self.options, self.flowerName))
         
 class CactusCheck(CactusRecursionTarget):
     """This target does the down pass for the check phase.
@@ -639,23 +639,23 @@ class CactusCheck(CactusRecursionTarget):
 ############################################################
 ############################################################
 
-class CactusMafGeneratorPhase(CactusPhasesTarget):
+class Cactus10KGeneratorPhase(CactusPhasesTarget):
     def run(self):
-        self.logToMaster("Starting the maf generation phase at %s seconds" % time.time())
+        self.logToMaster("Starting the 10K generation phase at %s seconds" % time.time())
         if self.options.buildReference: #Must have reference building set.
             referenceNode = self.options.config.find("reference")
-            mafGeneratorNode = self.options.config.find("maf")
+            _10KGeneratorNode = self.options.config.find("_10K")
             if referenceNode.attrib.has_key("reference"):
-                mafGeneratorNode.attrib["reference"] = referenceNode.attrib["reference"]
-            if getOptionalAttrib(mafGeneratorNode, "buildMaf", bool, default=False) or self.options.buildMaf:
-                self.addChildTarget(CactusMafGeneratorUp(cactusDiskDatabaseString=self.options.cactusDiskDatabaseString, 
-                                                         configNode=extractNode(mafGeneratorNode), 
+                _10KGeneratorNode.attrib["reference"] = referenceNode.attrib["reference"]
+            if getOptionalAttrib(_10KGeneratorNode, "build10K", bool, default=False) or self.options.build10K:
+                self.addChildTarget(Cactus10KGeneratorUp(cactusDiskDatabaseString=self.options.cactusDiskDatabaseString, 
+                                                         configNode=extractNode(_10KGeneratorNode), 
                                                          flowerNames=[ self.flowerName, 1 ], 
                                                          parentTempDir=None, 
-                                                         outputFile=self.options.experimentFile.find("maf").attrib["path"]))
+                                                         outputFile=self.options.experimentFile.find("_10K").attrib["path"]))
 
-class CactusMafGeneratorUp(CactusRecursionTarget):
-    """Generate the maf my merging mafs from the children.
+class Cactus10KGeneratorUp(CactusRecursionTarget):
+    """Generate the 10K file by merging 10K file from the children.
     """ 
     def __init__(self, cactusDiskDatabaseString, configNode, flowerNames, parentTempDir, outputFile, memory=sys.maxint, cpu=sys.maxint):
         CactusRecursionTarget.__init__(self, cactusDiskDatabaseString, configNode, flowerNames, memory, cpu)
@@ -664,26 +664,28 @@ class CactusMafGeneratorUp(CactusRecursionTarget):
     
     def run(self):
         def fn(cactusDiskDatabaseString, configNode, flowerNames, memory=sys.maxint, cpu=sys.maxint):
-            return CactusMafGeneratorUp(cactusDiskDatabaseString=cactusDiskDatabaseString, configNode=configNode, 
+            return Cactus10KGeneratorUp(cactusDiskDatabaseString=cactusDiskDatabaseString, configNode=configNode, 
                                         flowerNames=flowerNames, parentTempDir=self.getGlobalTempDir(), 
                                         outputFile=None,
                                         memory=memory, cpu=cpu)
         #(self, cactusDiskDatabaseString, configNode, flowerNames, memory=sys.maxint, cpu=sys.maxint):
         makeChildTargets(self.cactusDiskDatabaseString, self.configNode, self.flowerNames, self, fn)
-        self.setFollowOnTarget(CactusMafGeneratorUpRunnable(self.cactusDiskDatabaseString, 
+        self.setFollowOnTarget(Cactus10KGeneratorUpRunnable(self.cactusDiskDatabaseString, 
                                                             self.configNode, self.flowerNames, self.parentTempDir, self.outputFile))
         
-class CactusMafGeneratorUpRunnable(CactusMafGeneratorUp):
+class Cactus10KGeneratorUpRunnable(Cactus10KGeneratorUp):
     """Does the up pass for filling in the coordinates, once a reference is added.
     """ 
     def run(self):
-        runCactusRecursiveMafGenerator(cactusDiskDatabaseString=self.cactusDiskDatabaseString, 
+        runCactusRecursive10KGenerator(cactusDiskDatabaseString=self.cactusDiskDatabaseString, 
                               flowerNames=self.flowerNames,
                               referenceEventString=getOptionalAttrib(self.configNode, "reference"), #self.configNode.attrib["reference"], #getOptionalAttrib(self.configNode, "reference"), 
-                              childDir=self.getGlobalTempDir(), parentDir=self.parentTempDir, 
+                              childDir=self.getGlobalTempDir(), 
+                              parentDir=self.parentTempDir, 
                               outputFile=self.outputFile,
                               showOnlySubstitutionsWithRespectToReference=\
-                              getOptionalAttrib(self.configNode, "showOnlySubstitutionsWithRespectToReference", bool))
+                              getOptionalAttrib(self.configNode, "showOnlySubstitutionsWithRespectToReference", bool),
+                              makeMaf=getOptionalAttrib(self.configNode, "makeMaf", bool))
 
 # add stuff to the options object 
 # (code extracted from the main() method so it can be reused by progressive)
@@ -729,8 +731,8 @@ def main():
     parser.add_option("--buildReference", dest="buildReference", action="store_true",
                       help="Creates a reference ordering for the flowers", default=False)
     
-    parser.add_option("--buildMaf", dest="buildMaf", action="store_true",
-                      help="Build a maf", default=False)
+    parser.add_option("--build10K", dest="build10K", action="store_true",
+                      help="Build a 10K file", default=False)
     
     options, args = parser.parse_args()
     setLoggingFromOptions(options)

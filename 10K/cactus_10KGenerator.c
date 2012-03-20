@@ -16,22 +16,21 @@
 #include "sonLib.h"
 #include "recursiveFileBuilder.h"
 
-void makeMaf(Flower *flower, const char *referenceEventString,
-        const char *childDirectory,
-        bool showOnlySubstitutionsWithRespectToReference,
+void make10KFormat(Flower *flower, const char *referenceEventString, const char *childDirectory,
         const char *outputFile, bool hasParent);
+
+void makeMaf(Flower *flower, const char *referenceEventString, const char *childDirectory,
+        bool showOnlySubstitutionsWithRespectToReference, const char *outputFile, bool hasParent);
 
 void usage() {
     fprintf(stderr, "cactus_mafGenerator [flower names], version 0.1\n");
     fprintf(stderr, "-a --logLevel : Set the log level\n");
-    fprintf(stderr,
-            "-c --cactusDisk : The location of the flower disk directory\n");
-    fprintf(stderr,
-            "-g --referenceEventString : String identifying the reference event.\n");
-    fprintf(stderr, "-i --childDirectory : Directory identifying child mafs.\n");
-    fprintf(stderr,
-            "-j --parentDirectory : Directory identifying parent mafs.\n");
-    fprintf(stderr, "-k --outputFile : File to maf in.\n");
+    fprintf(stderr, "-c --cactusDisk : The location of the flower disk directory\n");
+    fprintf(stderr, "-g --referenceEventString : String identifying the reference event.\n");
+    fprintf(stderr, "-i --childDirectory : Directory identifying child files.\n");
+    fprintf(stderr, "-j --parentDirectory : Directory identifying parent file.\n");
+    fprintf(stderr, "-k --outputFile : File to put final output in.\n");
+    fprintf(stderr, "-m --maf : Make maf instead.\n");
     fprintf(
             stderr,
             "-l --showOnlySubstitutionsWithRespectToReference : Put stars in place of characters that are identical to the reference.\n");
@@ -48,32 +47,28 @@ int main(int argc, char *argv[]) {
      */
     char * logLevelString = NULL;
     char * cactusDiskDatabaseString = NULL;
-    char *referenceEventString =
-            (char *) cactusMisc_getDefaultReferenceEventHeader();
+    char *referenceEventString = (char *) cactusMisc_getDefaultReferenceEventHeader();
     char *childDirectory = NULL;
     char *parentDirectory = NULL;
     char *outputFile = NULL;
     bool showOnlySubstitutionsWithRespectToReference = 0;
+    bool buildMaf = 0;
 
     ///////////////////////////////////////////////////////////////////////////
     // (0) Parse the inputs handed by genomeCactus.py / setup stuff.
     ///////////////////////////////////////////////////////////////////////////
 
     while (1) {
-        static struct option long_options[] = { { "logLevel",
-                required_argument, 0, 'a' }, { "cactusDisk", required_argument,
-                0, 'c' },
-                { "referenceEventString", required_argument, 0, 'g' }, {
-                        "help", no_argument, 0, 'h' }, { "childDirectory",
-                        required_argument, 0, 'i' }, { "parentDirectory",
-                        required_argument, 0, 'j' }, { "outputFile", required_argument, 0,
-                        'k' }, { "showOnlySubstitutionsWithRespectToReference",
-                        no_argument, 0, 'l' }, { 0, 0, 0, 0 } };
+        static struct option long_options[] = { { "logLevel", required_argument, 0, 'a' }, { "cactusDisk",
+                required_argument, 0, 'c' }, { "referenceEventString", required_argument, 0, 'g' }, { "help",
+                no_argument, 0, 'h' }, { "childDirectory", required_argument, 0, 'i' }, { "parentDirectory",
+                required_argument, 0, 'j' }, { "outputFile", required_argument, 0, 'k' }, {
+                "showOnlySubstitutionsWithRespectToReference", no_argument, 0, 'l' }, { "maf", no_argument, 0, 'm' }, {
+                0, 0, 0, 0 } };
 
         int option_index = 0;
 
-        int key = getopt_long(argc, argv, "a:c:e:g:hi:j:k:l", long_options,
-                &option_index);
+        int key = getopt_long(argc, argv, "a:c:e:g:hi:j:k:lm", long_options, &option_index);
 
         if (key == -1) {
             break;
@@ -104,6 +99,9 @@ int main(int argc, char *argv[]) {
             case 'l':
                 showOnlySubstitutionsWithRespectToReference = 1;
                 break;
+            case 'm':
+                buildMaf = 1;
+                break;
             default:
                 usage();
                 return 1;
@@ -126,8 +124,7 @@ int main(int argc, char *argv[]) {
     //Load the database
     //////////////////////////////////////////////
 
-    stKVDatabaseConf *kvDatabaseConf = stKVDatabaseConf_constructFromString(
-            cactusDiskDatabaseString);
+    stKVDatabaseConf *kvDatabaseConf = stKVDatabaseConf_constructFromString(cactusDiskDatabaseString);
     CactusDisk *cactusDisk = cactusDisk_construct(kvDatabaseConf, 0);
     st_logInfo("Set up the flower disk\n");
 
@@ -142,23 +139,29 @@ int main(int argc, char *argv[]) {
     ///////////////////////////////////////////////////////////////////////////
 
     if (outputFile != NULL && stList_length(flowers) != 1) {
-        stThrowNew("RUNTIME_ERROR",
-                "Output file specified, but there is not only one flower required\n");
+        stThrowNew("RUNTIME_ERROR", "Output file specified, but there is not only one flower required\n");
     }
     if (childDirectory == NULL) {
         stThrowNew("RUNTIME_ERROR", "No child directory specified\n");
     }
     if (parentDirectory == NULL && outputFile == NULL) {
-        stThrowNew("RUNTIME_ERROR",
-                "No parent directory or output file specified\n");
+        stThrowNew("RUNTIME_ERROR", "No parent directory or output file specified\n");
     }
 
-    char *chosenOutputFile = stString_copy(outputFile != NULL ? outputFile : recursiveFileBuilder_getUniqueFileName(stList_get(flowers, 0), parentDirectory));
+    char *chosenOutputFile = stString_copy(
+            outputFile != NULL ? outputFile : recursiveFileBuilder_getUniqueFileName(stList_get(flowers, 0),
+                    parentDirectory));
+
     for (int32_t j = 0; j < stList_length(flowers); j++) {
         Flower *flower = stList_get(flowers, j);
         st_logInfo("Processing a flower\n");
-        makeMaf(flower, referenceEventString, childDirectory,
-                showOnlySubstitutionsWithRespectToReference, chosenOutputFile, outputFile != NULL);
+        if(buildMaf) {
+            makeMaf(flower, referenceEventString, childDirectory, showOnlySubstitutionsWithRespectToReference,
+                    chosenOutputFile, outputFile != NULL);
+        }
+        else {
+            make10KFormat(flower, referenceEventString, childDirectory, chosenOutputFile, outputFile != NULL);
+        }
     }
     free(chosenOutputFile);
 

@@ -121,6 +121,11 @@ void block_destructInstanceIterator(Block_InstanceIterator *block);
 Chain *block_getChain(Block *block);
 
 /*
+ * Get an arbitrary segment with whose event has the given name, else NULL.
+ */
+Segment *block_getSegmentForEvent(Block *block, Name eventName);
+
+/*
  * Splits an block into two. The split point is equal to the length of the left block. This value must be less than the length
  * of the complete block and greater than zero, so that both sides of the block have greater than zero length.
  *

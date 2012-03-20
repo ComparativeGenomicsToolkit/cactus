@@ -339,6 +339,22 @@ void end_check(End *end) {
     end_destructInstanceIterator(iterator);
 }
 
+Cap *end_getCapForEvent(End *end, Name eventName) {
+    /*
+     * Get the cap for a given event.
+     */
+    End_InstanceIterator *it = end_getInstanceIterator(end);
+    Cap *cap;
+    while ((cap = end_getNext(it)) != NULL) {
+        if (event_getName(cap_getEvent(cap)) == eventName) {
+            end_destructInstanceIterator(it);
+            return cap;
+        }
+    }
+    end_destructInstanceIterator(it);
+    return NULL;
+}
+
 /*
  * Private functions
  */

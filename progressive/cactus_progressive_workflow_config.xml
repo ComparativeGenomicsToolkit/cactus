@@ -110,9 +110,10 @@
 		maxFlowerGroupSize="10000000"
 		runCheck="1"
 	/>
-	<maf
-		buildMaf="1"
+	<_10K
+		build10K="1"
 		showOnlySubstitutionsWithRespectToReference="0"
+		makeMaf="1"
 	/>
 	<preprocessor 
 	 	chunkSize="100000000" 

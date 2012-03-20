@@ -286,6 +286,17 @@ void testEnd_isAttachedOrFree(CuTest* testCase) {
     cactusEndTestTeardown();
 }
 
+void testEnd_getCapForEvent(CuTest* testCase) {
+    cactusEndTestSetup();
+
+    CuAssertPtrEquals(testCase, end_getCapForEvent(end, event_getName(rootEvent)), rootCap);
+    Cap *cap = end_getCapForEvent(end, event_getName(leafEvent));
+    CuAssertTrue(testCase, cap == leaf1Cap || cap == leaf2Cap || cap == leaf3Cap);
+    CuAssertTrue(testCase, end_getCapForEvent(end, NULL_NAME) == NULL);
+
+    cactusEndTestTeardown();
+}
+
 void testEnd_serialisation(CuTest* testCase) {
     cactusEndTestSetup();
     Name rootInstanceName = cap_getName(rootCap);
@@ -293,11 +304,8 @@ void testEnd_serialisation(CuTest* testCase) {
     Name leaf2InstanceName = cap_getName(leaf2Cap);
     Name leaf3InstanceName = cap_getName(leaf3Cap);
     int64_t i;
-    void
-            *vA =
-                    binaryRepresentation_makeBinaryRepresentation(end,
-                            (void(*)(void *, void(*)(const void *, size_t,
-                                    size_t))) end_writeBinaryRepresentation, &i);
+    void *vA = binaryRepresentation_makeBinaryRepresentation(end,
+            (void(*)(void *, void(*)(const void *, size_t, size_t))) end_writeBinaryRepresentation, &i);
     CuAssertTrue(testCase, i > 0);
     end_destruct(end);
     void *vA2 = vA;
@@ -326,6 +334,7 @@ void testEnd_serialisation(CuTest* testCase) {
     testEnd_instanceIterator(testCase);
     testEnd_isBlockOrStubEnd(testCase);
     testEnd_isAttachedOrFree(testCase);
+    testEnd_getCapForEvent(testCase);
     nestedTest = 0;
     cactusEndTestTeardown();
 }
@@ -350,6 +359,7 @@ CuSuite* cactusEndTestSuite(void) {
     SUITE_ADD_TEST(suite, testEnd_isBlockOrStubEnd);
     SUITE_ADD_TEST(suite, testEnd_isAttachedOrFree);
     SUITE_ADD_TEST(suite, testEnd_serialisation);
+    SUITE_ADD_TEST(suite, testEnd_getCapForEvent);
     SUITE_ADD_TEST(suite, testEnd_construct);
     return suite;
 }

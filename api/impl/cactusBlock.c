@@ -173,6 +173,22 @@ Chain *block_getChain(Block *block) {
 	return chain1 != NULL ? chain1 : chain2;
 }
 
+Segment *block_getSegmentForEvent(Block *block, Name eventName) {
+    /*
+     * Get the segment for a given event.
+     */
+    Block_InstanceIterator *it = block_getInstanceIterator(block);
+    Segment *segment;
+    while ((segment = block_getNext(it)) != NULL) {
+        if (event_getName(segment_getEvent(segment)) == eventName) {
+            block_destructInstanceIterator(it);
+            return segment;
+        }
+    }
+    block_destructInstanceIterator(it);
+    return NULL;
+}
+
 Segment *block_splitP(Segment *segment,
 		Block *leftBlock, Block *rightBlock) {
 	Segment *leftSegment = segment_getSequence(segment) != NULL

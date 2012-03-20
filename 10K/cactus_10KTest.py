@@ -14,15 +14,20 @@ from cactus.shared.test import getCactusInputs_blanchette
 from cactus.shared.test import runWorkflow_multipleExamples
 
 class TestCase(unittest.TestCase):
-    def testCactusRecursiveMafGenerator_Random(self):
+    def testCactusRecursive10KGenerator_Random(self):
         runWorkflow_multipleExamples(getCactusInputs_random,
                                      testNumber=TestStatus.getTestSetup(),
-                                     buildTrees=False, buildFaces=False, buildReference=False, buildMaf=True)
+                                     buildTrees=False, buildFaces=False, buildReference=False, build10K=True)
         
-    def testCactusRecursiveMafGenerator_Blanchette(self):
+    def testCactusRecursive10KGenerator_Blanchette(self):
         runWorkflow_multipleExamples(getCactusInputs_blanchette,
                                      testRestrictions=(TestStatus.TEST_SHORT,), inverseTestRestrictions=True,
-                                     buildTrees=False, buildFaces=False, buildReference=False, buildMaf=True)
+                                     buildTrees=False, buildFaces=False, buildReference=False, build10K=True)
+    
+    def test10KGeneratorFunctions(self):
+        """Run all the CuTests, fail if any of them fail.
+        """
+        system("cactus_10GeneratorTests %s" % getLogLevelString())
     
 def main():
     parseCactusSuiteTestOptions() 

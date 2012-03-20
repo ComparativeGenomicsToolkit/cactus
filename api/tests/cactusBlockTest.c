@@ -184,6 +184,17 @@ void testBlock_getChain(CuTest* testCase) {
     cactusBlockTestTeardown();
 }
 
+void testBlock_getSegmentForEvent(CuTest* testCase) {
+    cactusBlockTestSetup();
+
+    CuAssertPtrEquals(testCase, block_getSegmentForEvent(block, event_getName(rootEvent)), rootSegment);
+    Segment *segment = block_getSegmentForEvent(block, event_getName(leafEvent));
+    CuAssertTrue(testCase, segment == leaf1Segment || segment == leaf2Segment);
+    CuAssertTrue(testCase, block_getSegmentForEvent(block, NULL_NAME) == NULL);
+
+    cactusBlockTestTeardown();
+}
+
 void testBlock_splitBlock(CuTest* testCase) {
     cactusBlockTestSetup();
 
@@ -282,6 +293,7 @@ void testBlock_serialisation(CuTest* testCase) {
     testBlock_instanceIterator(testCase);
     testBlock_makeNewickString(testCase);
     testBlock_getChain(testCase);
+    testBlock_getSegmentForEvent(testCase);
     nestedTest = 0;
     cactusBlockTestTeardown();
 }
@@ -301,6 +313,7 @@ CuSuite* cactusBlockTestSuite(void) {
     SUITE_ADD_TEST(suite, testBlock_getSetRootInstance);
     SUITE_ADD_TEST(suite, testBlock_instanceIterator);
     SUITE_ADD_TEST(suite, testBlock_getChain);
+    SUITE_ADD_TEST(suite, testBlock_getSegmentForEvent);
     SUITE_ADD_TEST(suite, testBlock_splitBlock);
     SUITE_ADD_TEST(suite, testBlock_serialisation);
     SUITE_ADD_TEST(suite, testBlock_makeNewickString);

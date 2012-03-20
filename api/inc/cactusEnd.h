@@ -162,6 +162,11 @@ bool end_isAttached(End *end);
 bool end_isFree(End *end);
 
 /*
+ * Gets the an arbitrary cap with an event of the given name.
+ */
+Cap *end_getCapForEvent(End *end, Name eventName);
+
+/*
  * Runs cap_check for each cap in end. And additionally checks the following:
  *
  * Check end is part of group.

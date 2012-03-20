@@ -71,8 +71,8 @@
 		maxFlowerGroupSize="1000000"
 		runCheck="1"
 	/>
-	<maf
-		buildMaf="1"
+	<_10K
+		build10K="1"
 		showOnlySubstitutionsWithRespectToReference="0"
 	/>
 </cactusWorkflowConfig>

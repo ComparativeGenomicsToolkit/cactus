@@ -6,23 +6,6 @@
 
 #include "recursiveFileBuilder.h"
 
-static Cap *getCapForReferenceEvent(End *end, Name referenceEventName) {
-    /*
-     * Get the cap for a given event.
-     */
-    End_InstanceIterator *it = end_getInstanceIterator(end);
-    Cap *cap;
-    while ((cap = end_getNext(it)) != NULL) {
-        if (event_getName(cap_getEvent(cap)) == referenceEventName) {
-            end_destructInstanceIterator(it);
-            return cap;
-        }
-    }
-    end_destructInstanceIterator(it);
-    assert(0);
-    return NULL;
-}
-
 static void writeMafHeaderLine(FILE *fileHandle, Block *block) {
     /*
      * Write the header for a MAF file.
@@ -160,8 +143,7 @@ void makeMaf(Flower *flower, const char *referenceEventString,
             recursiveFileBuilder_construct(childDirectory, parentFileHandle, hasParent);
     while ((end = flower_getNextEnd(endIt)) != NULL) {
         if (end_isStubEnd(end) && end_isAttached(end)) {
-            Cap *cap = getCapForReferenceEvent(end,
-                    event_getName(referenceEvent)); //The cap in the reference
+            Cap *cap = end_getCapForEvent(end, event_getName(referenceEvent));
             assert(cap != NULL);
             assert(cap_getSequence(cap) != NULL);
             cap = cap_getStrand(cap) ? cap : cap_getReverse(cap);
