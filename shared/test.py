@@ -66,9 +66,9 @@ def getCactusWorkflowExperimentForTest(sequences, newickTreeString, outputDir, d
     """Wrapper to constructor of CactusWorkflowExperiment which additionally incorporates
     any globally set database conf.
     """
-    _10KFile = os.path.join(outputDir, "test.10K")
+    halFile = os.path.join(outputDir, "test.hal")
     return CactusWorkflowExperiment(sequences, newickTreeString, outputDir=outputDir, databaseName=databaseName, databaseConf=GLOBAL_DATABASE_CONF, configFile=configFile,
-                                    _10KFile=_10KFile)
+                                    halFile=halFile)
 
 def parseCactusSuiteTestOptions():
     """Cactus version of the basic option parser that can additionally parse 
@@ -223,7 +223,7 @@ def runWorkflow_TestScript(sequences, newickTreeString,
                            batchSystem="single_machine",
                            buildTrees=True, buildFaces=True, 
                            buildReference=True,
-                           build10K=False,
+                           buildHal=False,
                            configFile=None,
                            buildJobTreeStats=False,
                            cactusWorkflowFunction=runCactusWorkflow):
@@ -255,7 +255,7 @@ def runWorkflow_TestScript(sequences, newickTreeString,
     cactusWorkflowFunction(experimentFile, jobTreeDir, 
                       batchSystem=batchSystem, buildTrees=buildTrees, 
                       buildFaces=buildFaces, buildReference=buildReference,
-                      build10K=build10K,
+                      buildHal=buildHal,
                       jobTreeStats=buildJobTreeStats)
     logger.info("Ran the the workflow")
     
@@ -290,7 +290,7 @@ def runWorkflow_multipleExamples(inputGenFunction,
                                buildTrees=True, buildFaces=True, buildReference=True,
                                configFile=None, buildJobTreeStats=False, 
                                cactusWorkflowFunction=runCactusWorkflow,
-                               build10K=False):
+                               buildHal=False):
     """A wrapper to run a number of examples.
     """
     if (inverseTestRestrictions and TestStatus.getTestStatus() not in testRestrictions) or \
@@ -302,7 +302,7 @@ def runWorkflow_multipleExamples(inputGenFunction,
                                                 outputDir=tempDir,
                                    batchSystem=batchSystem,
                                    buildTrees=buildTrees, buildFaces=buildFaces, buildReference=buildReference, 
-                                   build10K=build10K,
+                                   buildHal=buildHal,
                                    configFile=configFile,
                                    buildJobTreeStats=buildJobTreeStats,
                                    cactusWorkflowFunction=cactusWorkflowFunction)

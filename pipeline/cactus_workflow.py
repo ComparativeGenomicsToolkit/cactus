@@ -52,7 +52,7 @@ from cactus.shared.common import runCactusMakeNormal
 from cactus.shared.common import runCactusReference
 from cactus.shared.common import runCactusAddReferenceCoordinates
 from cactus.shared.common import runCactusCheck
-from cactus.shared.common import runCactus10KGenerator
+from cactus.shared.common import runCactusHalGenerator
 from cactus.shared.common import runCactusFlowerStats
 
 from cactus.blastAlignment.cactus_aligner import MakeSequences
@@ -622,7 +622,7 @@ class CactusCheckPhase(CactusPhasesTarget):
             self.logToMaster("Starting the verification phase at %s seconds" % (time.time()))
             self.addChildTarget(CactusCheck(self.options.cactusDiskDatabaseString, extractNode(checkNode), 
                                             [ self.flowerName, 1 ]))
-        self.setFollowOnTarget(Cactus10KGeneratorPhase(self.options, self.flowerName))
+        self.setFollowOnTarget(CactusHalGeneratorPhase(self.options, self.flowerName))
         
 class CactusCheck(CactusRecursionTarget):
     """This target does the down pass for the check phase.
@@ -639,23 +639,26 @@ class CactusCheck(CactusRecursionTarget):
 ############################################################
 ############################################################
 
-class Cactus10KGeneratorPhase(CactusPhasesTarget):
+class CactusHalGeneratorPhase(CactusPhasesTarget):
     def run(self):
-        self.logToMaster("Starting the 10K generation phase at %s seconds" % time.time())
+        self.logToMaster("Starting the hal generation phase at %s seconds" % time.time())
         if self.options.buildReference: #Must have reference building set.
             referenceNode = self.options.config.find("reference")
-            _10KGeneratorNode = self.options.config.find("_10K")
+            halGeneratorNode = self.options.config.find("hal")
             if referenceNode.attrib.has_key("reference"):
-                _10KGeneratorNode.attrib["reference"] = referenceNode.attrib["reference"]
-            if getOptionalAttrib(_10KGeneratorNode, "build10K", bool, default=False) or self.options.build10K:
-                self.addChildTarget(Cactus10KGeneratorUp(cactusDiskDatabaseString=self.options.cactusDiskDatabaseString, 
-                                                         configNode=extractNode(_10KGeneratorNode), 
+                halGeneratorNode.attrib["reference"] = referenceNode.attrib["reference"]
+            if getOptionalAttrib(halGeneratorNode, "buildHal", bool, default=False) or self.options.buildHal:
+                self.addChildTarget(CactusHalGeneratorUp(cactusDiskDatabaseString=self.options.cactusDiskDatabaseString, 
+                                                         configNode=extractNode(halGeneratorNode), 
                                                          flowerNames=[ self.flowerName, 1 ], 
                                                          parentTempDir=None, 
-                                                         outputFile=self.options.experimentFile.find("_10K").attrib["path"]))
+                                                         outputFile=self.options.experimentFile.find("hal").attrib["path"]))
+        else:
+            if self.options.buildHal:
+                raise RuntimeError("Can not build hal file without reference building phase")
 
-class Cactus10KGeneratorUp(CactusRecursionTarget):
-    """Generate the 10K file by merging 10K file from the children.
+class CactusHalGeneratorUp(CactusRecursionTarget):
+    """Generate the hal file by merging indexed hal files from the children.
     """ 
     def __init__(self, cactusDiskDatabaseString, configNode, flowerNames, parentTempDir, outputFile, memory=sys.maxint, cpu=sys.maxint):
         CactusRecursionTarget.__init__(self, cactusDiskDatabaseString, configNode, flowerNames, memory, cpu)
@@ -664,20 +667,20 @@ class Cactus10KGeneratorUp(CactusRecursionTarget):
     
     def run(self):
         def fn(cactusDiskDatabaseString, configNode, flowerNames, memory=sys.maxint, cpu=sys.maxint):
-            return Cactus10KGeneratorUp(cactusDiskDatabaseString=cactusDiskDatabaseString, configNode=configNode, 
+            return CactusHalGeneratorUp(cactusDiskDatabaseString=cactusDiskDatabaseString, configNode=configNode, 
                                         flowerNames=flowerNames, parentTempDir=self.getGlobalTempDir(), 
                                         outputFile=None,
                                         memory=memory, cpu=cpu)
         #(self, cactusDiskDatabaseString, configNode, flowerNames, memory=sys.maxint, cpu=sys.maxint):
         makeChildTargets(self.cactusDiskDatabaseString, self.configNode, self.flowerNames, self, fn)
-        self.setFollowOnTarget(Cactus10KGeneratorUpRunnable(self.cactusDiskDatabaseString, 
+        self.setFollowOnTarget(CactusHalGeneratorUpRunnable(self.cactusDiskDatabaseString, 
                                                             self.configNode, self.flowerNames, self.parentTempDir, self.outputFile))
         
-class Cactus10KGeneratorUpRunnable(Cactus10KGeneratorUp):
+class CactusHalGeneratorUpRunnable(CactusHalGeneratorUp):
     """Does the up pass for filling in the coordinates, once a reference is added.
     """ 
     def run(self):
-        runCactusRecursive10KGenerator(cactusDiskDatabaseString=self.cactusDiskDatabaseString, 
+        runCactusHalGenerator(cactusDiskDatabaseString=self.cactusDiskDatabaseString, 
                               flowerNames=self.flowerNames,
                               referenceEventString=getOptionalAttrib(self.configNode, "reference"), #self.configNode.attrib["reference"], #getOptionalAttrib(self.configNode, "reference"), 
                               childDir=self.getGlobalTempDir(), 
@@ -731,8 +734,8 @@ def main():
     parser.add_option("--buildReference", dest="buildReference", action="store_true",
                       help="Creates a reference ordering for the flowers", default=False)
     
-    parser.add_option("--build10K", dest="build10K", action="store_true",
-                      help="Build a 10K file", default=False)
+    parser.add_option("--buildHal", dest="buildHal", action="store_true",
+                      help="Build a hal file", default=False)
     
     options, args = parser.parse_args()
     setLoggingFromOptions(options)

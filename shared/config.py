@@ -46,7 +46,7 @@ class CactusWorkflowExperiment:
     """
     def __init__(self, sequences, newickTreeString, 
                  outgroupEvents=None, outputDir=None, databaseName=None, 
-                 databaseConf=None, configFile=None, _10KFile=None):
+                 databaseConf=None, configFile=None, halFile=None):
         self.experiment = ET.Element("cactus_workflow_experiment")
         if databaseName == None:
             self.databaseName = "cactusDisk_%s_%i" % (getRandomAlphaNumericString(), os.getpid()) #Needs to be unique
@@ -95,9 +95,9 @@ class CactusWorkflowExperiment:
         self.experiment.attrib["config"] = "default"
         if configFile != None:
             self.experiment.attrib["config"] = configFile
-        if _10KFile != None:
-            _10KElem = ET.SubElement(self.experiment, "_10K")
-            _10KElem.attrib["path"] = _10KFile
+        if halFile != None:
+            halElem = ET.SubElement(self.experiment, "hal")
+            halElem.attrib["path"] = halFile
     
     def writeExperimentFile(self, experimentFile):
         """Writes a description of the config into this directory.

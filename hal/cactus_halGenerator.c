@@ -16,14 +16,14 @@
 #include "sonLib.h"
 #include "recursiveFileBuilder.h"
 
-void make10KFormat(Flower *flower, const char *referenceEventString, const char *childDirectory,
+void makeHalFormat(Flower *flower, const char *referenceEventString, const char *childDirectory,
         const char *outputFile, bool hasParent);
 
 void makeMaf(Flower *flower, const char *referenceEventString, const char *childDirectory,
         bool showOnlySubstitutionsWithRespectToReference, const char *outputFile, bool hasParent);
 
 void usage() {
-    fprintf(stderr, "cactus_10KGenerator [flower names], version 0.1\n");
+    fprintf(stderr, "cactus_halGenerator [flower names], version 0.1\n");
     fprintf(stderr, "-a --logLevel : Set the log level\n");
     fprintf(stderr, "-c --cactusDisk : The location of the flower disk directory\n");
     fprintf(stderr, "-g --referenceEventString : String identifying the reference event.\n");
@@ -154,13 +154,13 @@ int main(int argc, char *argv[]) {
 
     for (int32_t j = 0; j < stList_length(flowers); j++) {
         Flower *flower = stList_get(flowers, j);
-        st_logInfo("Processing a flower\n");
+        st_logInfo("Processing a flower for hal generation\n");
         if(buildMaf) {
             makeMaf(flower, referenceEventString, childDirectory, showOnlySubstitutionsWithRespectToReference,
                     chosenOutputFile, outputFile != NULL);
         }
         else {
-            make10KFormat(flower, referenceEventString, childDirectory, chosenOutputFile, outputFile != NULL);
+            makeHalFormat(flower, referenceEventString, childDirectory, chosenOutputFile, outputFile == NULL);
         }
     }
     free(chosenOutputFile);

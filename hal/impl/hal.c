@@ -74,7 +74,7 @@ static stSortedSet *getCaps(Flower *flower, Name referenceEventName) {
     return threadsToWrite;
 }
 
-void make10KFormat(Flower *flower, const char *referenceEventString, const char *childDirectory,
+void makeHalFormat(Flower *flower, const char *referenceEventString, const char *childDirectory,
         const char *outputFile, bool hasParent) {
     //Basic objects
     referenceEvent = eventTree_getEventByHeader(flower_getEventTree(flower), referenceEventString);

@@ -110,8 +110,8 @@
 		maxFlowerGroupSize="10000000"
 		runCheck="1"
 	/>
-	<_10K
-		build10K="1"
+	<hal
+		buildHal="1"
 		showOnlySubstitutionsWithRespectToReference="0"
 		makeMaf="1"
 	/>

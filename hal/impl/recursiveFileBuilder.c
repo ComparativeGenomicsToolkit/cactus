@@ -60,6 +60,7 @@ RecursiveFileBuilder *recursiveFileBuilder_construct(const char *childDir,
             if (line == NULL) {
                 break;
             }
+            //st_uglyf("I am going to process the following line: #%s#\n", line);
             RecursiveFileBuilderEntry *recursiveFileBuilderEntry = st_malloc(
                     sizeof(RecursiveFileBuilderEntry));
             recursiveFileBuilderEntry->fileHandle = childFileHandle;

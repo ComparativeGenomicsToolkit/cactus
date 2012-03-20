@@ -104,7 +104,7 @@ class ProgressiveUp(Target):
         if self.experiment.getDbType() == "kyoto_tycoon" and \
         (self.options.setupAndBuildAlignments is True or \
          self.options.buildReference is True or \
-         self.options.buildMAF is True):
+         self.options.buildHal is True):
             ktserver = KtserverLauncher()
             ktserver.spawnServer(self.experiment)
             
@@ -191,7 +191,7 @@ class BuildMAF(Target):
         self.ktserver = ktserver
     
     def run(self):
-        if self.options.buildMAF and os.path.exists(self.experiment.getMAFPath()):             
+        if self.options.buildHal and os.path.exists(self.experiment.getMAFPath()):             
             logger.info("Starting MAF Build phase")
 
             removeOutgroupFromMaf(self.experiment.getMAFPath(), 
@@ -271,8 +271,8 @@ def main():
     parser.add_option("--setupAndBuildAlignments", dest="setupAndBuildAlignments", action="store_true",
                       help="Setup and build alignments then normalise the resulting structure", default=False)
     
-    parser.add_option("--buildMaf", dest="buildMAF", action="store_true",
-                     help="Create a MAF file from the cactus [default=false]", default=False)
+    parser.add_option("--buildHal", dest="buildHal", action="store_true",
+                     help="Create a hal file from the cactus [default=false]", default=False)
     
     parser.add_option("--joinMAF", dest="joinMAF", action="store_true",
                      help="Progressively join all cactus MAFs[default=false]", default=False)
