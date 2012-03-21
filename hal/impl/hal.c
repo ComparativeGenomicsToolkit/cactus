@@ -83,7 +83,8 @@ static void writeSequenceHeader(FILE *fileHandle, Sequence *sequence) {
     assert(event != NULL);
     assert(event_getHeader(event) != NULL);
     assert(sequence_getHeader(sequence) != NULL);
-    fprintf(fileHandle, "s\t'%s'\t'%s'\t%i\n", event_getHeader(event), sequence_getHeader(sequence), event_getName(event) == event_getName(globalReferenceEvent));
+    fprintf(fileHandle, "s\t'%s'\t'%s'\t%i\n", event_getHeader(event), sequence_getHeader(sequence),
+            event_getName(event) == event_getName(globalReferenceEvent));
 }
 
 static void writeTerminalAdjacency(FILE *fileHandle, Cap *cap) {
@@ -99,26 +100,27 @@ static void writeSegment(FILE *fileHandle, Segment *segment) {
     Block *block = segment_getBlock(segment);
     Segment *referenceSegment = block_getSegmentForEvent(block, event_getName(globalReferenceEvent));
     assert(referenceSegment != NULL);
-    if(referenceSegment != segment) { //Is a bottom segment
-        fprintf(fileHandle, "a\t%i\t%i\t%" PRIi64 "\t%i\n", segment_getStart(segment) - 1, segment_getLength(segment), segment_getName(referenceSegment), segment_getStrand(referenceSegment));
-    }
-    else {  //Is a top segment
-        fprintf(fileHandle, "a\t%" PRIi64 "\t%i\t%i\n", segment_getName(segment), segment_getStart(segment) - 1, segment_getLength(segment));
-    }
+    if (referenceSegment != segment) { //Is a bottom segment
+fprintf    (fileHandle, "a\t%i\t%i\t%" PRIi64 "\t%i\n", segment_getStart(segment) - 1, segment_getLength(segment), segment_getName(referenceSegment), segment_getStrand(referenceSegment));
+}
+else { //Is a top segment
+    fprintf(fileHandle, "a\t%" PRIi64 "\t%i\t%i\n", segment_getName(segment), segment_getStart(segment) - 1, segment_getLength(segment));
+}
 }
 
 static int compareCaps(Cap *cap, Cap *cap2) {
     Event *event = cap_getEvent(cap);
     Event *event2 = cap_getEvent(cap2);
     int i = cactusMisc_nameCompare(event_getName(event), event_getName(event2));
-    if(i != 0) {
+    if (i != 0) {
         return event == globalReferenceEvent ? 1 : (event2 == globalReferenceEvent ? -1 : i);
     }
     Sequence *sequence = cap_getSequence(cap);
     Sequence *sequence2 = cap_getSequence(cap2);
     i = cactusMisc_nameCompare(sequence_getName(sequence), sequence_getName(sequence2));
-    if(i != 0) {
-        i = cap_getCoordinate(cap) > cap_getCoordinate(cap2) ? 1 : (cap_getCoordinate(cap) < cap_getCoordinate(cap2) ? -1 : 0);
+    if (i != 0) {
+        i = cap_getCoordinate(cap) > cap_getCoordinate(cap2) ? 1
+                : (cap_getCoordinate(cap) < cap_getCoordinate(cap2) ? -1 : 0);
     }
     return i;
 }
@@ -129,14 +131,18 @@ static stSortedSet *getCaps(Flower *flower, Name globalReferenceEventName) {
     End *end;
     Flower_EndIterator *endIt = flower_getEndIterator(flower);
     while ((end = flower_getNextEnd(endIt)) != NULL) {
-        if (end_isStubEnd(end) && end_isAttached(end)) {
-            Cap *cap = end_getCapForEvent(end, globalReferenceEventName);
-            assert(cap != NULL);
-            assert(cap_getSequence(cap) != NULL);
-            cap = cap_getStrand(cap) ? cap : cap_getReverse(cap);
-            if (!cap_getSide(cap)) {
-                stSortedSet_insert(threadsToWrite, cap);
+        if (end_isStubEnd(end)) { // && end_isAttached(end)) {
+            Cap *cap; // = end_getCapForEvent(end, globalReferenceEventName);
+            End_InstanceIterator *capIt = end_getInstanceIterator(end);
+            while ((cap = end_getNext(capIt)) != NULL) {
+                if (cap_getSequence(cap) != NULL) {
+                    cap = cap_getStrand(cap) ? cap : cap_getReverse(cap);
+                    if (!cap_getSide(cap)) {
+                        stSortedSet_insert(threadsToWrite, cap);
+                    }
+                }
             }
+            end_destructInstanceIterator(capIt);
         }
     }
     flower_destructEndIterator(endIt);
@@ -144,8 +150,7 @@ static stSortedSet *getCaps(Flower *flower, Name globalReferenceEventName) {
 }
 
 void makeHalFormat(Flower *flower, RecursiveFileBuilder *recursiveFileBuilder, Event *referenceEvent,
-        FILE *parentFileHandle,
-        bool hasParent) {
+        FILE *parentFileHandle, bool hasParent) {
     //Cheeky global
     globalReferenceEvent = referenceEvent;
     //Build list of threads in a sorted order

@@ -380,7 +380,7 @@ def runCactusHalGenerator(cactusDiskDatabaseString,
             nameValue("childDir", childDir),
             nameValue("parentDir", parentDir),
             nameValue("outputFile", outputFile),
-            nameValue("maf", makeMaf),
+            nameValue("maf", makeMaf, bool),
             nameValue("showOnlySubstitutionsWithRespectToReference", 
                       showOnlySubstitutionsWithRespectToReference, bool)), 
               stdinString=formatFlowerNames(flowerNames))
