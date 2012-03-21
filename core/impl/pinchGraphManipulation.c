@@ -857,19 +857,21 @@ void pinchMergePiece(struct PinchGraph *graph, struct Piece *piece1,
      * Determine if we should proceed with the merge by checking if all the
      * pieces are in the same, else quit.
      */
-    for (i = 0; i < pMS_vertexChain1->listOfVertices->length; i++) {
-        vertex1 = pMS_vertexChain1->listOfVertices->list[i];
-        vertex2 = pMS_vertexChain2->listOfVertices->list[i];
-        if (vertex1 == vertex2) {
-            continue;
-        }
-        void *adjacencyComponent1 = stHash_search(vertexToAdjacencyComponents,
-                vertex1);
-        void *adjacencyComponent2 = stHash_search(vertexToAdjacencyComponents,
-                vertex2);
-        if (adjacencyComponent1 == NULL || adjacencyComponent2 == NULL
-                || adjacencyComponent1 != adjacencyComponent2) {
-            return;
+    if(vertexToAdjacencyComponents != NULL) {
+        for (i = 0; i < pMS_vertexChain1->listOfVertices->length; i++) {
+            vertex1 = pMS_vertexChain1->listOfVertices->list[i];
+            vertex2 = pMS_vertexChain2->listOfVertices->list[i];
+            if (vertex1 == vertex2) {
+                continue;
+            }
+            void *adjacencyComponent1 = stHash_search(vertexToAdjacencyComponents,
+                    vertex1);
+            void *adjacencyComponent2 = stHash_search(vertexToAdjacencyComponents,
+                    vertex2);
+            if (adjacencyComponent1 == NULL || adjacencyComponent2 == NULL
+                    || adjacencyComponent1 != adjacencyComponent2) {
+                return;
+            }
         }
     }
 
@@ -920,25 +922,30 @@ void pinchMergePiece(struct PinchGraph *graph, struct Piece *piece1,
             // Else we do nothing, as we can't have self black edges and move one.
         } else {
             if (vertex1 != vertex2) {
-                assert(stHash_search(vertexToAdjacencyComponents, vertex1)
-                        != NULL);
-                assert(stHash_search(vertexToAdjacencyComponents, vertex2)
-                        != NULL);
-                /*
-                 * We have randomly chosen one of the vertex adjacency components..
-                 */
-                void *adjacencyComponent = stHash_remove(
-                        vertexToAdjacencyComponents, vertex1);
-                assert(adjacencyComponent != NULL);
-                assert(adjacencyComponent == stHash_remove(
-                        vertexToAdjacencyComponents, vertex2));
-                assert(stHash_search(vertexToAdjacencyComponents, vertex1)
-                        == NULL);
-                assert(stHash_search(vertexToAdjacencyComponents, vertex2)
-                        == NULL);
-                vertex3 = mergeVertices(graph, vertex1, vertex2);
-                stHash_insert(vertexToAdjacencyComponents, vertex3,
-                        adjacencyComponent);
+                if(vertexToAdjacencyComponents != NULL) {
+                    assert(stHash_search(vertexToAdjacencyComponents, vertex1)
+                            != NULL);
+                    assert(stHash_search(vertexToAdjacencyComponents, vertex2)
+                            != NULL);
+                    /*
+                     * We have randomly chosen one of the vertex adjacency components..
+                     */
+                    void *adjacencyComponent = stHash_remove(
+                            vertexToAdjacencyComponents, vertex1);
+                    assert(adjacencyComponent != NULL);
+                    assert(adjacencyComponent == stHash_remove(
+                            vertexToAdjacencyComponents, vertex2));
+                    assert(stHash_search(vertexToAdjacencyComponents, vertex1)
+                            == NULL);
+                    assert(stHash_search(vertexToAdjacencyComponents, vertex2)
+                            == NULL);
+                    vertex3 = mergeVertices(graph, vertex1, vertex2);
+                    stHash_insert(vertexToAdjacencyComponents, vertex3,
+                            adjacencyComponent);
+                }
+                else {
+                    vertex3 = mergeVertices(graph, vertex1, vertex2);
+                }
                 for (j = i + 1; j < pMS_vertexChain1->listOfVertices->length; j++) {
                     if (pMS_vertexChain1->listOfVertices->list[j] == vertex1
                             || pMS_vertexChain1->listOfVertices->list[j]

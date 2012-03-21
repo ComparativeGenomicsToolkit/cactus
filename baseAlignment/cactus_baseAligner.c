@@ -15,6 +15,7 @@
 #include "cactus_core.h"
 #include "commonC.h"
 #include "pairwiseAlignment.h"
+#include "pairwiseAlignmentIterator.h"
 
 void usage() {
     fprintf(
@@ -44,13 +45,14 @@ void usage() {
             stderr,
             "-q --repeatMaskMatrixBiggerThanThis : (int >= 0) Any matrix bigger than this after initial banding will be broken apart without repeat masking of the sequences\n");
     fprintf(
-               stderr,
-               "-r --digaonalExpansion : (int >= 0 and even) Number of x-y diagonals to expand around anchors\n");
+            stderr,
+            "-r --digaonalExpansion : (int >= 0 and even) Number of x-y diagonals to expand around anchors\n");
     fprintf(
-               stderr,
-               "-t --constraintDiagonalTrim : (int >= 0) Amount to trim from ends of each anchor\n");
+            stderr,
+            "-t --constraintDiagonalTrim : (int >= 0) Amount to trim from ends of each anchor\n");
 
-    fprintf(stderr,
+    fprintf(
+            stderr,
             "-u --minimumDegree : (int >= 0) Minimum number of sequences in a block to be included in the output graph\n");
 
     fprintf(
@@ -79,11 +81,8 @@ void usage() {
     fprintf(stderr, "-h --help : Print this help screen\n");
 }
 
-static stSortedSet *getAlignment_alignedPairs;
-static stSortedSetIterator *getAlignment_iterator = NULL;
-
-static struct PairwiseAlignment *getAlignments() {
-    AlignedPair *alignedPair = stSortedSet_getNext(getAlignment_iterator);
+static struct PairwiseAlignment *getNextAlignedPairAlignment(stSortedSetIterator *it) {
+    AlignedPair *alignedPair = stSortedSet_getNext(it);
     if (alignedPair == NULL) {
         return NULL;
     }
@@ -113,14 +112,6 @@ static struct PairwiseAlignment *getAlignments() {
     free(cA);
     free(cA2);
     return pairwiseAlignment;
-}
-
-static void startAlignmentStack() {
-    if (getAlignment_iterator != NULL) {
-        stSortedSet_destructIterator(getAlignment_iterator);
-        getAlignment_iterator = NULL;
-    }
-    getAlignment_iterator = stSortedSet_getIterator(getAlignment_alignedPairs);
 }
 
 int main(int argc, char *argv[]) {
@@ -319,29 +310,26 @@ int main(int argc, char *argv[]) {
         Flower *flower = stList_get(flowers, j);
         st_logInfo("Processing a flower\n");
 
-        getAlignment_alignedPairs = makeFlowerAlignment(flower, spanningTrees,
+        stSortedSet *alignedPairs = makeFlowerAlignment(flower, spanningTrees,
                 maximumLength, gapGamma, pairwiseAlignmentBandingParameters,
                 pruneOutStubAlignments);
         st_logInfo("Created the alignment: %i pairs\n",
-                stSortedSet_size(getAlignment_alignedPairs));
-        //getAlignment_alignedPairs = stSortedSet_construct();
+                stSortedSet_size(alignedPairs));
+        PairwiseAlignmentIterator *pairwiseAlignmentIterator =
+                pairwiseAlignmentIterator_constructFromAlignedPairs(
+                        alignedPairs, getNextAlignedPairAlignment);
 
         /*
          * Run the cactus core script.
          */
-        cactusCorePipeline(flower, cCIP, getAlignments, startAlignmentStack,
-                destructPairwiseAlignment);
+        cactusCorePipeline(flower, cCIP, pairwiseAlignmentIterator, NULL);
         st_logInfo("Ran the cactus core script.\n");
 
         /*
          * Cleanup
          */
-        assert(getAlignment_iterator != NULL);
-        stSortedSet_destructIterator(getAlignment_iterator);
-        getAlignment_iterator = NULL;
-
         //Clean up the sorted set after cleaning up the iterator
-        stSortedSet_destruct(getAlignment_alignedPairs);
+        stSortedSet_destruct(alignedPairs);
 
         st_logInfo("Finished filling in the alignments for the flower\n");
     }

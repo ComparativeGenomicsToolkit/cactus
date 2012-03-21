@@ -8,6 +8,7 @@
 #define CACTUS_CORE_H_
 
 #include "pairwiseAlignment.h"
+#include "pairwiseAlignmentIterator.h"
 
 typedef struct _CactusCoreInputParameters {
     /*
@@ -41,12 +42,11 @@ typedef struct _CactusCoreInputParameters {
 } CactusCoreInputParameters;
 
 int32_t cactusCorePipeline(Flower *flower, CactusCoreInputParameters *cCIP,
-        struct PairwiseAlignment *(*getNextAlignment)(void),
-        void(*startAlignmentStack)(void), void (*cleanUpAlignment)(struct PairwiseAlignment *));
+        PairwiseAlignmentIterator *pairwiseAlignmentIterator,
+        PairwiseAlignmentIterator *pairwiseAlignmentIteratorForConstraints);
 
 void destructCactusCoreInputParameters(CactusCoreInputParameters *cCIP);
 
 CactusCoreInputParameters *constructCactusCoreInputParameters();
-
 
 #endif

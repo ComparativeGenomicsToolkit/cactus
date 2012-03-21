@@ -215,6 +215,8 @@ class CactusAlignmentPhase(CactusPhasesTarget):
         if self.iteration < len(iterations):
             configNode = extractNode(iterations[self.iteration])
             if configNode.attrib["type"] == "blast":
+                if self.iteration == 0 and "constraints" in self.experiment.attrib: #Setup the constraints arg
+                    configNode.attrib["constraints"] = self.options.experiment.attrib["constraints"]
                 self.addChildTarget(CactusCafDown(self.options.cactusDiskDatabaseString, configNode, 
                                                   [ self.flowerName, 1 ]))
             else:
@@ -350,12 +352,13 @@ class CactusBlastWrapper(CactusRecursionTarget):
         self.setFollowOnTarget(CactusCoreWrapper2(self.cactusDiskDatabaseString, self.configNode, [ self.flowerNames, alignmentFile ]))
         logger.info("Setup the follow on cactus_core target")
 
-def runCactusCoreInWorkflow(self, flowerNames, alignmentFile):
+def runCactusCoreInWorkflow(self, flowerNames, alignmentFile, constraintsFile):
     blastParameters = self.configNode.find("blast")
     coreParameters = self.configNode.find("core")
     messages = runCactusCore(cactusDiskDatabaseString=self.cactusDiskDatabaseString,
                       alignments=alignmentFile, 
                       flowerNames=flowerNames,
+                      constraints=getOptionalAttrib(self.configNode, "constraints"),  
                       annealingRounds=getOptionalAttrib(coreParameters, "annealingRounds"),  
                       deannealingRounds=getOptionalAttrib(coreParameters, "deannealingRounds"),
                       alignRepeatsAtRound=getOptionalAttrib(coreParameters, "alignRepeatsAtRound", float), 
@@ -378,13 +381,13 @@ class CactusCoreWrapper1(CactusRecursionTarget):
     """Runs cactus_core upon a set of flowers and no alignment file.
     """
     def run(self):
-        runCactusCoreInWorkflow(self, self.flowerNames, None)
+        runCactusCoreInWorkflow(self, self.flowerNames, None, None)
         
 class CactusCoreWrapper2(CactusRecursionTarget):
     """Runs cactus_core upon a one flower and one alignment file.
     """
     def run(self):
-        runCactusCoreInWorkflow(self, self.flowerNames[0], self.flowerNames[1])
+        runCactusCoreInWorkflow(self, self.flowerNames[0], self.flowerNames[1], None)
         
 ############################################################
 ############################################################

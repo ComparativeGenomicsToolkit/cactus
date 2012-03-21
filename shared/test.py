@@ -17,10 +17,11 @@ from sonLib.bioio import getTempDirectory
 from sonLib.bioio import getRandomSequence
 from sonLib.bioio import mutateSequence
 from sonLib.bioio import reverseComplement
-from sonLib.bioio import fastaWrite
+from sonLib.bioio import fastaRead, fastaWrite
 from sonLib.bioio import printBinaryTree
 from sonLib.bioio import system
 from sonLib.bioio import getRandomAlphaNumericString
+from sonLib.bioio import cigarWrite, PairwiseAlignment, AlignmentOperation
 
 from cactus.shared.common import runCactusWorkflow
 from cactus.shared.common import runCactusCheck
@@ -163,6 +164,40 @@ def getCactusInputs_random(regionNumber=0, tempDir=None,
     
     return sequenceDirs, newickTreeString
 
+def getFastasFromSequence(sequenceDirs):
+    #Get the sequences
+    fastaSeqs = []
+    for sequenceDir in sequenceDirs:
+        for fastaFile in os.listdir(sequenceDir):
+            fileHandle = open(os.path.join(sequenceDir, fastaFile), 'r')
+            for name, sequence in fastaRead(fileHandle, 'r'):
+                fastaSeqs.append((name, sequence))
+            fileHandle.close()
+    return fastaSeqs
+
+def makeRandomConstraints(fastaSeqs):
+    #Now make the fake alignments and write to file
+    constraints = []
+    if len(fastaSeqs) > 0:
+        for i in xrange(random.randint(0, 1000)):
+            name1, sequence1 = random.choice(fastaSeqs)
+            position1 = random.randint(0, len(sequence1))
+            name2, sequence2 = random.choice(fastaSeqs)
+            position2 = random.randint(0, len(sequence2))
+            constraints.append(PairwiseAlignment(name1, position1, position1, random.randint(0, 2), 
+                                                  name2, position2, position2, random.randint(0, 2), 
+                                                  1000, [ AlignmentOperation(PairwiseAlignment.PAIRWISE_MATCH, 1, 1000)]))
+    return constraints
+
+def getCactusInputs_randomWithConstraints(regionNumber=0, tempDir=None):
+    sequenceDirs, newickTreeString = getCactusInputs_random(regionNumber=regionNumber, tempDir=tempDir)
+    constraints = getTempFile(rootDir=tempDir)
+    fileHandle = open(constraints, 'w')
+    for pairwiseAlignment in makeRandomConstraints(getFastasFromSequence(sequenceDirs)):
+        cigarWrite(fileHandle, pairwiseAlignment, withProbs=False)
+    fclose(fileHandle)
+    return sequenceDirs, newickTreeString, constraints
+
 def parseNewickTreeFile(newickTreeFile):
     fileHandle = open(newickTreeFile, 'r')
     newickTreeString = fileHandle.readline()
@@ -226,6 +261,7 @@ def runWorkflow_TestScript(sequences, newickTreeString,
                            buildHal=False,
                            configFile=None,
                            buildJobTreeStats=False,
+                           constraints=None,
                            cactusWorkflowFunction=runCactusWorkflow):
     """Runs the workflow and various downstream utilities.
     """
@@ -240,7 +276,7 @@ def runWorkflow_TestScript(sequences, newickTreeString,
     #Setup the flower disk.
     experiment = getCactusWorkflowExperimentForTest(sequences, newickTreeString, 
                                                     outputDir=outputDir, databaseName=None, 
-                                                    configFile=configFile)
+                                                    configFile=configFile, constraints=constraints)
     experiment.cleanupDatabase()
     cactusDiskDatabaseString = experiment.getDatabaseString()
     experimentFile = os.path.join(outputDir, "experiment.xml")
@@ -289,6 +325,7 @@ def runWorkflow_multipleExamples(inputGenFunction,
                                batchSystem="single_machine",
                                buildTrees=True, buildFaces=True, buildReference=True,
                                configFile=None, buildJobTreeStats=False, 
+                               useConstraints=False,
                                cactusWorkflowFunction=runCactusWorkflow,
                                buildHal=False):
     """A wrapper to run a number of examples.
@@ -297,7 +334,11 @@ def runWorkflow_multipleExamples(inputGenFunction,
         (not inverseTestRestrictions and TestStatus.getTestStatus() in testRestrictions):
         for test in xrange(testNumber): 
             tempDir = getTempDirectory(os.getcwd())
-            sequences, newickTreeString = inputGenFunction(regionNumber=test, tempDir=tempDir)
+            if useConstraints:
+                sequences, newickTreeString, constraints = inputGenFunction(regionNumber=test, tempDir=tempDir)
+            else:
+                sequences, newickTreeString = inputGenFunction(regionNumber=test, tempDir=tempDir)
+                constraints = None
             experiment = runWorkflow_TestScript(sequences, newickTreeString,
                                                 outputDir=tempDir,
                                    batchSystem=batchSystem,
@@ -305,7 +346,8 @@ def runWorkflow_multipleExamples(inputGenFunction,
                                    buildHal=buildHal,
                                    configFile=configFile,
                                    buildJobTreeStats=buildJobTreeStats,
-                                   cactusWorkflowFunction=cactusWorkflowFunction)
+                                   cactusWorkflowFunction=cactusWorkflowFunction,
+                                   constraints=constraints)
             experiment.cleanupDatabase()
             system("rm -rf %s" % tempDir)
             logger.info("Finished random test %i" % test)

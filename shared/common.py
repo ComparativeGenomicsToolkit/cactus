@@ -106,7 +106,8 @@ def runCactusCore(cactusDiskDatabaseString, alignments,
                   singleCopyOutgroup=None,
                   lastzArguments=None,
                   minimumSequenceLengthForBlast=None,
-                  maxAdjacencyComponentSizeRatio=None):
+                  maxAdjacencyComponentSizeRatio=None,
+                  constraints=None):
     logLevel = getLogLevelString2(logLevel)
     writeDebugFiles = nameValue("writeDebugFiles", writeDebugFiles, bool)
     alignRepeatsAtRound = nameValue("alignRepeatsAtRound", alignRepeatsAtRound, int)
@@ -126,12 +127,13 @@ def runCactusCore(cactusDiskDatabaseString, alignments,
     singleCopyIngroup = nameValue("singleCopyIngroup", singleCopyIngroup, bool)
     singleCopyOutgroup = nameValue("singleCopyOutgroup", singleCopyOutgroup, bool)
     maxAdjacencyComponentSizeRatio = nameValue("maxAdjacencyComponentSizeRatio", maxAdjacencyComponentSizeRatio, float)
+    constraints = nameValue("constraints", constraints)
     
-    command = "cactus_core --cactusDisk '%s' --logLevel %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s" % \
+    command = "cactus_core --cactusDisk '%s' --logLevel %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s" % \
     (cactusDiskDatabaseString, logLevel, alignments, writeDebugFiles, annealingRounds, deannealingRounds, alignRepeatsAtRound,
      trim, minimumTreeCoverage, blockTrim, 
      minimumBlockDegree, requiredIngroupFraction, requiredOutgroupFraction, requiredAllFraction, 
-     singleCopyIngroup, singleCopyOutgroup, lastzArguments, minimumSequenceLengthForBlast, maxAdjacencyComponentSizeRatio)
+     singleCopyIngroup, singleCopyOutgroup, lastzArguments, minimumSequenceLengthForBlast, maxAdjacencyComponentSizeRatio, constraints)
     masterMessages = popenCatch(command, stdinString=formatFlowerNames(flowerNames))
     logger.info("Ran cactus_core okay")
     return [ i for i in masterMessages.split("\n") if i != '' ]
