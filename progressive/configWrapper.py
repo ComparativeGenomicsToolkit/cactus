@@ -106,15 +106,16 @@ class ConfigWrapper:
     
     def getBuildHal(self):
         halElem = self.xmlRoot.find("hal")
-        if halElem is not None:
+        if halElem is not None and "buildHal" in halElem.attrib:
             build = halElem.attrib["buildHal"]
             if build == "1" or build.lower() == "true":
                 return True
         return False
     
     def getMakeMaf(self):
-        if self.getBuildHal():
-            maf = self.xmlRoot.find("hal").attrib["makeMaf"]
+        halElem = self.xmlRoot.find("hal")
+        if halElem is not None and "makeMaf" in halElem.attrib:            
+            maf = halElem.attrib["makeMaf"]
             if maf == "1" or maf.lower() == "true":
                 return True
         return False
