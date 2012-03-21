@@ -50,7 +50,7 @@ from cactus.progressive.multiCactusProject import MultiCactusProject
 from cactus.progressive.multiCactusTree import MultiCactusTree
 from cactus.progressive.experimentWrapper import ExperimentWrapper
 from cactus.progressive.ktserverLauncher import KtserverLauncher
-from cactus.progressive.mafFilter import removeOutgroupFromMaf
+from cactus.progressive.mafFilter import mafFilterOutgroup
 from cactus.progressive.schedule import Schedule
         
 class ProgressiveDown(Target):
@@ -194,8 +194,7 @@ class BuildMAF(Target):
         if self.options.buildHal and os.path.exists(self.experiment.getMAFPath()):             
             logger.info("Starting MAF Build phase")
 
-            removeOutgroupFromMaf(self.experiment.getMAFPath(), 
-                                  self.experiment.getOutgroupEvents()) 
+            mafFilterOutgroup(self.experiment) 
         
         self.setFollowOnTarget(JoinMAF(self.options, self.project,
                                        self.experiment,
