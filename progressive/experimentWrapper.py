@@ -148,13 +148,13 @@ class ExperimentWrapper:
         return refElem.attrib["reference"]
         
     def getMAFPath(self):
-        mafElem = self.xmlRoot.find("maf")
-        return mafElem.attrib["path"]
+        halElem = self.xmlRoot.find("hal")
+        return halElem.attrib["path"]
     
     def setMAFPath(self, path):
-        mafElem = self.xmlRoot.find("maf")
+        mafElem = self.xmlRoot.find("hal")
         if mafElem is None:
-            mafElem = ET.Element("maf")
+            mafElem = ET.Element("hal")
             self.xmlRoot.append(mafElem)
         mafElem.attrib["path"] = path
         

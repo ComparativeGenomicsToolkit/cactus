@@ -117,10 +117,9 @@ void makeMAFHeader(Flower *flower, FILE *fileHandle) {
     free(cA);
 }
 
-void makeMaf(Flower *flower, const char *referenceEventString,
-        const char *childDirectory,
-        bool showOnlySubstitutionsWithRespectToReference,
-        const char *outputFile, bool hasParent) {
+void makeMaf(Flower *flower, RecursiveFileBuilder *recursiveFileBuilder, Event *referenceEvent,
+        FILE *parentFileHandle,
+        bool showOnlySubstitutionsWithRespectToReference, bool hasParent) {
     /*
      * Makes mafs for the given flower. If outputFile != NULL then it makes a single maf
      * in the given file, else it writes a maf for each adjacency in the parent directory.
@@ -130,17 +129,11 @@ void makeMaf(Flower *flower, const char *referenceEventString,
     //Cheeky global variable
     writeMafBlock_showOnlySubstitutionsWithRespectToReference
             = showOnlySubstitutionsWithRespectToReference;
-    Event *referenceEvent = eventTree_getEventByHeader(
-            flower_getEventTree(flower), referenceEventString);
-    assert(referenceEvent != NULL);
     End *end;
     Flower_EndIterator *endIt = flower_getEndIterator(flower);
-    FILE *parentFileHandle = fopen(outputFile, "w");
     if(!hasParent) {
         makeMAFHeader(flower, parentFileHandle);
     }
-    RecursiveFileBuilder *recursiveFileBuilder =
-            recursiveFileBuilder_construct(childDirectory, parentFileHandle, hasParent);
     while ((end = flower_getNextEnd(endIt)) != NULL) {
         if (end_isStubEnd(end) && end_isAttached(end)) {
             Cap *cap = end_getCapForEvent(end, event_getName(referenceEvent));
@@ -152,7 +145,5 @@ void makeMaf(Flower *flower, const char *referenceEventString,
             }
         }
     }
-    fclose(parentFileHandle);
     flower_destructEndIterator(endIt);
-    recursiveFileBuilder_destruct(recursiveFileBuilder);
 }

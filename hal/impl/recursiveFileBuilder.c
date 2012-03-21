@@ -60,7 +60,7 @@ RecursiveFileBuilder *recursiveFileBuilder_construct(const char *childDir,
             if (line == NULL) {
                 break;
             }
-            //st_uglyf("I am going to process the following line: #%s#\n", line);
+            //st_uglyf("I am going to process the following line: #%s# for index %i %i\n", line, j, stSortedSet_size(recursiveFileBuilder->recursiveFileBuilderEntries));
             RecursiveFileBuilderEntry *recursiveFileBuilderEntry = st_malloc(
                     sizeof(RecursiveFileBuilderEntry));
             recursiveFileBuilderEntry->fileHandle = childFileHandle;
@@ -69,7 +69,10 @@ RecursiveFileBuilder *recursiveFileBuilder_construct(const char *childDir,
             int i = sscanf(line, "%" PRIi64 " %" PRIi64 "", &(recursiveFileBuilderEntry->capName), &(recursiveFileBuilderEntry->entryLength));
             assert(i == 2);
             assert(recursiveFileBuilderEntry->entryLength >= 0);
-            fseek(childFileHandle, ftell(childFileHandle) + recursiveFileBuilderEntry->entryLength, SEEK_CUR);
+            int64_t currentPosition = ftell(childFileHandle);
+            assert(currentPosition != -1);
+            i = fseek(childFileHandle, currentPosition + recursiveFileBuilderEntry->entryLength, SEEK_SET);
+            assert(i == 0);
             assert(
                     stSortedSet_search(
                             recursiveFileBuilder->recursiveFileBuilderEntries,
@@ -77,6 +80,10 @@ RecursiveFileBuilder *recursiveFileBuilder_construct(const char *childDir,
             stSortedSet_insert(
                     recursiveFileBuilder->recursiveFileBuilderEntries,
                     recursiveFileBuilderEntry);
+            assert(
+                                stSortedSet_search(
+                                        recursiveFileBuilder->recursiveFileBuilderEntries,
+                                        recursiveFileBuilderEntry) != NULL);
             //Now walk ahead by the length of the entry.
         }
         free(childFileName);
@@ -168,6 +175,6 @@ void recursiveFileBuilder_writeThread(RecursiveFileBuilder *recursiveFileBuilder
 }
 
 char *recursiveFileBuilder_getUniqueFileName(Flower *flower, const char *directory) {
-    return stString_print("%s/%s.maf", directory,
+    return stString_print("%s/%s.hal", directory,
             cactusMisc_nameToStringStatic(flower_getName(flower)));
 }
