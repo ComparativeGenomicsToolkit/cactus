@@ -104,6 +104,21 @@ class ConfigWrapper:
         assert len(prefix) > 0
         return prefix
     
+    def getBuildHal(self):
+        halElem = self.xmlRoot.find("hal")
+        if halElem is not None:
+            build = halElem.attrib["buildHal"]
+            if build == "1" or build.lower() == "true":
+                return True
+        return False
+    
+    def getMakeMaf(self):
+        if self.getBuildHal():
+            maf = self.xmlRoot.find("hal").attrib["makeMaf"]
+            if maf == "1" or maf.lower() == "true":
+                return True
+        return False
+    
     # the minBlockDegree, when specified in the final, "base" 
     # iteration, does not play nicely with the required fraction
     # option
