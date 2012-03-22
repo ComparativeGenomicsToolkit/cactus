@@ -193,6 +193,13 @@ def runCactusExtendFlowers(cactusDiskDatabaseString, flowerNames,
     l = readFlowerNamesFile(flowerStrings)
     return l
 
+def runCactusConvertAlignmentToCactus(cactusDiskDatabaseString, constraintsFile, newConstraintsFile, logLevel=None):
+    """Takes a cigar file and makes an equivalent cigar file using the internal coordinate system format of cactus.
+    """
+    logLevel = getLogLevelString2(logLevel)
+    popenPush("cactus_workflow_convertAlignmentCoordinates %s '%s' %s %s" % \
+                               (logLevel, cactusDiskDatabaseString, constraintsFile, newConstraintsFile))
+
 def runCactusFlowerStats(cactusDiskDatabaseString, flowerName, logLevel=None):
     """Prints stats for the given flower
     """

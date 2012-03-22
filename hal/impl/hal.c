@@ -87,13 +87,18 @@ static void writeSequenceHeader(FILE *fileHandle, Sequence *sequence) {
             event_getName(event) == event_getName(globalReferenceEvent));
 }
 
+static int32_t adjustCoordinate(int32_t i) {
+    assert(i - 2 >= 0);
+    return i - 2;
+}
+
 static void writeTerminalAdjacency(FILE *fileHandle, Cap *cap) {
     //a start length reference-segment block-orientation
     Cap *adjacentCap = cap_getAdjacency(cap);
     assert(adjacentCap != NULL);
     int32_t adjacencyLength = cap_getCoordinate(adjacentCap) - cap_getCoordinate(cap) - 1;
     assert(adjacencyLength >= 0);
-    fprintf(fileHandle, "a\t%i\t%i\n", cap_getCoordinate(cap) - 1, adjacencyLength);
+    fprintf(fileHandle, "a\t%i\t%i\n", adjustCoordinate(cap_getCoordinate(cap)), adjacencyLength);
 }
 
 static void writeSegment(FILE *fileHandle, Segment *segment) {
@@ -101,11 +106,11 @@ static void writeSegment(FILE *fileHandle, Segment *segment) {
     Segment *referenceSegment = block_getSegmentForEvent(block, event_getName(globalReferenceEvent));
     assert(referenceSegment != NULL);
     if (referenceSegment != segment) { //Is a bottom segment
-fprintf    (fileHandle, "a\t%i\t%i\t%" PRIi64 "\t%i\n", segment_getStart(segment) - 1, segment_getLength(segment), segment_getName(referenceSegment), segment_getStrand(referenceSegment));
-}
-else { //Is a top segment
-    fprintf(fileHandle, "a\t%" PRIi64 "\t%i\t%i\n", segment_getName(segment), segment_getStart(segment) - 1, segment_getLength(segment));
-}
+        fprintf(fileHandle, "a\t%i\t%i\t%" PRIi64 "\t%i\n", adjustCoordinate(segment_getStart(segment)), segment_getLength(segment), segment_getName(referenceSegment), segment_getStrand(referenceSegment));
+    }
+    else { //Is a top segment
+        fprintf(fileHandle, "a\t%" PRIi64 "\t%i\t%i\n", segment_getName(segment), adjustCoordinate(segment_getStart(segment)), segment_getLength(segment));
+    }
 }
 
 static int compareCaps(Cap *cap, Cap *cap2) {

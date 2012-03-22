@@ -45,6 +45,7 @@ from cactus.shared.common import runCactusSetup
 from cactus.shared.common import runCactusCore
 from cactus.shared.common import runCactusGetFlowers
 from cactus.shared.common import runCactusExtendFlowers
+from cactus.shared.common import runCactusConvertAlignmentToCactus
 from cactus.shared.common import runCactusPhylogeny
 from cactus.shared.common import runCactusAdjacencies
 from cactus.shared.common import runCactusBaseAligner
@@ -216,7 +217,10 @@ class CactusAlignmentPhase(CactusPhasesTarget):
             configNode = extractNode(iterations[self.iteration])
             if configNode.attrib["type"] == "blast":
                 if self.iteration == 0 and "constraints" in self.experiment.attrib: #Setup the constraints arg
-                    configNode.attrib["constraints"] = self.options.experiment.attrib["constraints"]
+                    newConstraintsFile = os.path.join(self.getGlobalTempDir(), "constraints.cig")
+                    configNode.attrib["constraints"] = \
+                    runCactusConvertAlignmentToCactus(self.options.cactusDiskDatabaseString,
+                    self.options.experiment.attrib["constraints"], newConstraintsFile)
                 self.addChildTarget(CactusCafDown(self.options.cactusDiskDatabaseString, configNode, 
                                                   [ self.flowerName, 1 ]))
             else:
