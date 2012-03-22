@@ -25,7 +25,16 @@ static stHash *makeSequenceHeaderToSequenceHash(CactusDisk *cactusDisk) {
     Sequence *sequence;
     Flower_SequenceIterator *seqIt = flower_getSequenceIterator(flower);
     while ((sequence = flower_getNextSequence(seqIt)) != NULL) {
-        stHash_insert(sequenceHeaderToSequenceHash, cactusMisc_nameToString(sequence_getName(sequence)), sequence);
+        stList *sequenceHeaderTokens = stString_split(sequence_getHeader(sequence));
+        if(stList_length(sequenceHeaderTokens) == 0) {
+            st_errAbort("Sequence has absent header: %s", sequence_getHeader(sequence));
+        }
+        char *sequenceNameString = stString_copy(stList_get(sequenceHeaderTokens, 0));
+        stList_destruct(sequenceHeaderTokens);
+        if(stHash_search(sequenceHeaderToSequenceHash, sequenceNameString) != NULL) {
+            st_errAbort("Could not make a unique map of fasta headers to sequence names: '%s'", sequenceNameString);
+        }
+        stHash_insert(sequenceHeaderToSequenceHash, sequenceNameString, sequence);
     }
     flower_destructSequenceIterator(seqIt);
     return sequenceHeaderToSequenceHash;
@@ -36,10 +45,10 @@ static void convertCoordinates(struct PairwiseAlignment *pairwiseAlignment, FILE
     Sequence *sequence1 = stHash_search(sequenceHeaderToSequenceHash, pairwiseAlignment->contig1);
     Sequence *sequence2 = stHash_search(sequenceHeaderToSequenceHash, pairwiseAlignment->contig2);
     if (sequence1 == NULL) {
-        st_errAbort("Could not match contig name in alignment to cactus sequence: %s", pairwiseAlignment->contig1);
+        st_errAbort("Could not match contig name in alignment to cactus sequence: '%s'", pairwiseAlignment->contig1);
     }
     if (sequence2 == NULL) {
-        st_errAbort("Could not match contig name in alignment to cactus sequence: %s", pairwiseAlignment->contig2);
+        st_errAbort("Could not match contig name in alignment to cactus sequence: '%s'", pairwiseAlignment->contig2);
     }
     //Fix the names
     free(pairwiseAlignment->contig1);
@@ -52,12 +61,12 @@ static void convertCoordinates(struct PairwiseAlignment *pairwiseAlignment, FILE
     pairwiseAlignment->end1 += 2;
     pairwiseAlignment->end2 += 2;
     if (pairwiseAlignment->start1 < sequence_getStart(sequence1) || pairwiseAlignment->end1 > sequence_getStart(sequence1) + sequence_getLength(sequence1)) {
-        st_errAbort("Coordinates of pairwise alignment appear incorrect: %i %i %i", pairwiseAlignment->start1,
-                pairwiseAlignment->end1, sequence_getLength(sequence1));
+        st_errAbort("Coordinates of pairwise alignment appear incorrect: %i %i %i %i", pairwiseAlignment->start1,
+                pairwiseAlignment->end1, sequence_getStart(sequence1), sequence_getLength(sequence1));
     }
-    if (pairwiseAlignment->start2 < sequence_getStart(sequence1) || pairwiseAlignment->end2 > sequence_getStart(sequence1) + sequence_getLength(sequence2)) {
-        st_errAbort("Coordinates of pairwise alignment appear incorrect: %i %i %i", pairwiseAlignment->start2,
-                pairwiseAlignment->end2, sequence_getLength(sequence2));
+    if (pairwiseAlignment->start2 < sequence_getStart(sequence2) || pairwiseAlignment->end2 > sequence_getStart(sequence2) + sequence_getLength(sequence2)) {
+        st_errAbort("Coordinates of pairwise alignment appear incorrect: %i %i %i %i", pairwiseAlignment->start2,
+                pairwiseAlignment->end2, sequence_getStart(sequence1), sequence_getLength(sequence2));
     }
 }
 
@@ -73,15 +82,19 @@ int main(int argc, char *argv[]) {
     CactusDisk *cactusDisk = cactusDisk_construct(kvDatabaseConf, 0);
     stKVDatabaseConf_destruct(kvDatabaseConf);
     stHash *sequenceHeaderToSequenceHash = makeSequenceHeaderToSequenceHash(cactusDisk);
-    st_logDebug("Set up the flower disk\n");
+    st_logDebug("Set up the flower disk and built hash\n");
 
     FILE *inputCigarFileHandle = fopen(argv[3], "r");
     FILE *outputCigarFileHandle = fopen(argv[4], "w");
+    st_logDebug("Opened files for writing\n");
+
     struct PairwiseAlignment *pairwiseAlignment;
     while ((pairwiseAlignment = cigarRead(inputCigarFileHandle)) != NULL) {
         convertCoordinates(pairwiseAlignment, outputCigarFileHandle, sequenceHeaderToSequenceHash);
         destructPairwiseAlignment(pairwiseAlignment);
     }
+    st_logDebug("Finished converting alignments\n");
+
     fclose(inputCigarFileHandle);
     fclose(outputCigarFileHandle);
 

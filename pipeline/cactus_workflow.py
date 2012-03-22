@@ -216,11 +216,11 @@ class CactusAlignmentPhase(CactusPhasesTarget):
         if self.iteration < len(iterations):
             configNode = extractNode(iterations[self.iteration])
             if configNode.attrib["type"] == "blast":
-                if self.iteration == 0 and "constraints" in self.experiment.attrib: #Setup the constraints arg
+                if self.iteration == 0 and "constraints" in self.options.experimentFile.attrib: #Setup the constraints arg
                     newConstraintsFile = os.path.join(self.getGlobalTempDir(), "constraints.cig")
                     configNode.attrib["constraints"] = \
                     runCactusConvertAlignmentToCactus(self.options.cactusDiskDatabaseString,
-                    self.options.experiment.attrib["constraints"], newConstraintsFile)
+                    self.options.experimentFile.attrib["constraints"], newConstraintsFile)
                 self.addChildTarget(CactusCafDown(self.options.cactusDiskDatabaseString, configNode, 
                                                   [ self.flowerName, 1 ]))
             else:

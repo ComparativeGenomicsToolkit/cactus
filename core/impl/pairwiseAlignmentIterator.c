@@ -81,11 +81,13 @@ PairwiseAlignmentIterator *pairwiseAlignmentIterator_constructFromList(
             = (void(*)(void *)) stList_destructIterator;
     pairwiseAlignmentIterator->startAlignmentStack
             = (void *(*)(void *)) startAlignmentStackForList;
+    pairwiseAlignmentIterator->cleanupAlignment = NULL;
     return pairwiseAlignmentIterator;
 }
 
-static void startAlignmentStackForAlignedPairs(stSortedSetIterator *it) {
+static stSortedSetIterator *startAlignmentStackForAlignedPairs(stSortedSetIterator *it) {
     while(stSortedSet_getPrevious(it) != NULL);
+    return it;
 }
 
 PairwiseAlignmentIterator *pairwiseAlignmentIterator_constructFromAlignedPairs(
@@ -100,5 +102,6 @@ PairwiseAlignmentIterator *pairwiseAlignmentIterator_constructFromAlignedPairs(
             = (void(*)(void *)) stSortedSet_destructIterator;
     pairwiseAlignmentIterator->startAlignmentStack
             = (void *(*)(void *)) startAlignmentStackForAlignedPairs;
+    pairwiseAlignmentIterator->cleanupAlignment = (void (*)(void *))destructPairwiseAlignment;
     return pairwiseAlignmentIterator;
 }

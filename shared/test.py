@@ -63,13 +63,14 @@ def initialiseGlobalBatchSystem(batchSystem):
     assert batchSystem in ("singleMachine", "parasol", "gridEngine")
     BATCH_SYSTEM = batchSystem
     
-def getCactusWorkflowExperimentForTest(sequences, newickTreeString, outputDir, databaseName=None, configFile=None):
+def getCactusWorkflowExperimentForTest(sequences, newickTreeString, outputDir, databaseName=None, configFile=None,
+                                       constraints=None):
     """Wrapper to constructor of CactusWorkflowExperiment which additionally incorporates
     any globally set database conf.
     """
     halFile = os.path.join(outputDir, "test.hal")
     return CactusWorkflowExperiment(sequences, newickTreeString, outputDir=outputDir, databaseName=databaseName, databaseConf=GLOBAL_DATABASE_CONF, configFile=configFile,
-                                    halFile=halFile)
+                                    halFile=halFile, constraints=constraints)
 
 def parseCactusSuiteTestOptions():
     """Cactus version of the basic option parser that can additionally parse 
@@ -170,10 +171,11 @@ def getFastasFromSequence(sequenceDirs):
     for sequenceDir in sequenceDirs:
         for fastaFile in os.listdir(sequenceDir):
             fileHandle = open(os.path.join(sequenceDir, fastaFile), 'r')
-            for name, sequence in fastaRead(fileHandle, 'r'):
+            for name, sequence in fastaRead(fileHandle):
                 fastaSeqs.append((name, sequence))
             fileHandle.close()
     return fastaSeqs
+
 
 def makeRandomConstraints(fastaSeqs):
     #Now make the fake alignments and write to file
@@ -181,11 +183,18 @@ def makeRandomConstraints(fastaSeqs):
     if len(fastaSeqs) > 0:
         for i in xrange(random.randint(0, 1000)):
             name1, sequence1 = random.choice(fastaSeqs)
-            position1 = random.randint(0, len(sequence1))
             name2, sequence2 = random.choice(fastaSeqs)
-            position2 = random.randint(0, len(sequence2))
-            constraints.append(PairwiseAlignment(name1, position1, position1, random.randint(0, 2), 
-                                                  name2, position2, position2, random.randint(0, 2), 
+            if len(sequence1) == 0 or len(sequence2) == 0:
+                continue
+            def getRandomInterval(sequence):
+                start = random.randint(0, len(sequence)-1)
+                if random.random() > 0.5:
+                    return start, start+1, True
+                return start+1, start, False
+            start1, end1, strand1 = getRandomInterval(sequence1)
+            start2, end2, strand2 = getRandomInterval(sequence2)
+            constraints.append(PairwiseAlignment(name1, start1, end1, strand1, 
+                                                  name2, start2, end2, strand2, 
                                                   1000, [ AlignmentOperation(PairwiseAlignment.PAIRWISE_MATCH, 1, 1000)]))
     return constraints
 
@@ -195,7 +204,7 @@ def getCactusInputs_randomWithConstraints(regionNumber=0, tempDir=None):
     fileHandle = open(constraints, 'w')
     for pairwiseAlignment in makeRandomConstraints(getFastasFromSequence(sequenceDirs)):
         cigarWrite(fileHandle, pairwiseAlignment, withProbs=False)
-    fclose(fileHandle)
+    fileHandle.close()
     return sequenceDirs, newickTreeString, constraints
 
 def parseNewickTreeFile(newickTreeFile):

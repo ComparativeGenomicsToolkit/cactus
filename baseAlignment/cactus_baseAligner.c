@@ -329,6 +329,7 @@ int main(int argc, char *argv[]) {
          * Cleanup
          */
         //Clean up the sorted set after cleaning up the iterator
+        pairwiseAlignmentIterator_destruct(pairwiseAlignmentIterator);
         stSortedSet_destruct(alignedPairs);
 
         st_logInfo("Finished filling in the alignments for the flower\n");
