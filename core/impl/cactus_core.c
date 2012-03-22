@@ -494,7 +494,7 @@ static void buildOutPinchGraph(struct PinchGraph *pinchGraph,
         int32_t minimumChainLength, int32_t trim, int32_t alignRepeats) {
     //struct PinchVertex *vertex;
     struct CactusGraph *cactusGraph;
-    int32_t i, startTime;
+    int32_t i;
     struct List *biConnectedComponents;
 
     ///////////////////////////////////////////////////////////////////////////
@@ -553,7 +553,6 @@ static void buildOutPinchGraph(struct PinchGraph *pinchGraph,
     stHash_destruct(vertexToAdjacencyComponents);
 
     checkPinchGraph(pinchGraph); //check the graph is all good.
-    st_logInfo("Pinched the graph in: %i seconds\n", time(NULL) - startTime);
 
     removeTrivialGreyEdgeComponents(pinchGraph, pinchGraph->vertices, flower); //remove any pointless adjacencies.
     st_logInfo(
