@@ -218,7 +218,7 @@ class CactusAlignmentPhase(CactusPhasesTarget):
             if configNode.attrib["type"] == "blast":
                 if self.iteration == 0 and "constraints" in self.options.experimentFile.attrib: #Setup the constraints arg
                     newConstraintsFile = os.path.join(self.getGlobalTempDir(), "constraints.cig")
-                    configNode.attrib["constraints"] = \
+                    configNode.attrib["constraints"] = newConstraintsFile
                     runCactusConvertAlignmentToCactus(self.options.cactusDiskDatabaseString,
                     self.options.experimentFile.attrib["constraints"], newConstraintsFile)
                 self.addChildTarget(CactusCafDown(self.options.cactusDiskDatabaseString, configNode, 

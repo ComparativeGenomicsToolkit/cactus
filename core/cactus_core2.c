@@ -165,11 +165,11 @@ int main(int argc, char *argv[]) {
                         "singleCopyOutgroup", no_argument, 0, 't' }, {
                         "minimumSequenceLengthForBlast", required_argument, 0,
                         'v' }, { "maxAdjacencyComponentSizeRatio",
-                        required_argument, 0, 'w' }, { 0, 0, 0, 0 } };
+                        required_argument, 0, 'w' }, { "constraints", required_argument, 0, 'x' }, { 0, 0, 0, 0 } };
 
         int option_index = 0;
 
-        key = getopt_long(argc, argv, "a:b:c:ehi:j:k:m:n:o:p:q:r:stu:v:w:",
+        key = getopt_long(argc, argv, "a:b:c:ehi:j:k:m:n:o:p:q:r:stu:v:w:x:",
                 long_options, &option_index);
 
         if (key == -1) {
