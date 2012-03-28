@@ -313,7 +313,7 @@ int main(int argc, char *argv[]) {
     ///////////////////////////////////////////////////////////////////////////
 
     PairwiseAlignmentIterator *pairwiseAlignmentIteratorForConstraints = NULL;
-    if (pairwiseAlignmentIteratorForConstraints != NULL) {
+    if (constraintsFile != NULL) {
         pairwiseAlignmentIteratorForConstraints = pairwiseAlignmentIterator_constructFromFile(
                 constraintsFile);
     }

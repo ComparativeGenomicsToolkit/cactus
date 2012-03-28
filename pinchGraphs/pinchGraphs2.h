@@ -92,6 +92,8 @@ void caBlock_destruct(CaBlock *block);
 
 CaBlock *caBlock_pinch(CaBlock *block1, CaBlock *block2);
 
+CaBlock *caBlock_pinch2(CaBlock *block1, CaSegment *segment);
+
 void caBlock_cleave(CaBlock *block);
 
 CaBlockIt caBlock_getSegmentIterator(CaBlock *block);
