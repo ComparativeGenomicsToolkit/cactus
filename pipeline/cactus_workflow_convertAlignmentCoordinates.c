@@ -91,6 +91,7 @@ int main(int argc, char *argv[]) {
     struct PairwiseAlignment *pairwiseAlignment;
     while ((pairwiseAlignment = cigarRead(inputCigarFileHandle)) != NULL) {
         convertCoordinates(pairwiseAlignment, outputCigarFileHandle, sequenceHeaderToSequenceHash);
+        cigarWrite(outputCigarFileHandle, pairwiseAlignment, 0);
         destructPairwiseAlignment(pairwiseAlignment);
     }
     st_logDebug("Finished converting alignments\n");
