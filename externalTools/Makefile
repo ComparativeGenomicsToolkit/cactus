@@ -1,5 +1,5 @@
 # order is important, libraries first
-modules = threeEdgeConnected blossom matchGraph
+modules = threeEdgeConnected
 #pulldown
 .PHONY: all %.all clean %.clean
 
