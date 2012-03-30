@@ -17,7 +17,7 @@
 #define REFERENCE_H_
 
 #include "cactus.h"
-#include "cactusMatchingAlgorithms.h"
+#include "stMatchingAlgorithms.h"
 
 extern const char *REFERENCE_BUILDING_EXCEPTION;
 

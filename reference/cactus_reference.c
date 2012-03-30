@@ -15,8 +15,8 @@
 #include "cactus.h"
 #include "sonLib.h"
 #include "cactusReference.h"
-#include "cactusMatchingAlgorithms.h"
-#include "adjacencyProblem.h"
+#include "stMatchingAlgorithms.h"
+#include "stReferenceProblem.h"
 
 void usage() {
     fprintf(stderr, "cactus_reference [flower names], version 0.1\n");

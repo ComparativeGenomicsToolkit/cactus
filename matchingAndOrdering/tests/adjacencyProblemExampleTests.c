@@ -6,10 +6,9 @@
 
 #include "CuTest.h"
 #include "sonLib.h"
-#include "cactusReference.h"
-#include "adjacencyProblem.h"
-#include "cactusMatchingAlgorithms.h"
-#include "checkEdges.h"
+#include "stReferenceProblem.h"
+#include "stMatchingAlgorithms.h"
+#include "stCheckEdges.h"
 
 static void fn(double *zMatrix, int32_t nodeNumber,  double theta, int32_t node1, int32_t node2,
         int32_t adjacencyLength, int32_t node1Length, int32_t node2Length, int32_t degree) {

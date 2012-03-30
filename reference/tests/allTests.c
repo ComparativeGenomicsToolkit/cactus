@@ -8,17 +8,13 @@
 #include "sonLib.h"
 
 CuSuite *buildReferenceTestSuite(void);
-CuSuite* adjacencyProblemTestSuite(void);
 CuSuite* addReferenceCoordinatesTestSuite(void);
-CuSuite* adjacencyProblemExamplesTestSuite(void);
 
 int referenceRunAllTests(void) {
     CuString *output = CuStringNew();
     CuSuite* suite = CuSuiteNew();
-    CuSuiteAddSuite(suite, adjacencyProblemTestSuite());
     CuSuiteAddSuite(suite, buildReferenceTestSuite());
     CuSuiteAddSuite(suite, addReferenceCoordinatesTestSuite());
-    CuSuiteAddSuite(suite, adjacencyProblemExamplesTestSuite());
 
     CuSuiteRun(suite);
     CuSuiteSummary(suite, output);

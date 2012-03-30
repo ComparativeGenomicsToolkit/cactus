@@ -6,8 +6,8 @@
 
 #include "CuTest.h"
 #include "sonLib.h"
-#include "cactusMatchingAlgorithms.h"
-#include "cactusCycleConstrainedMatchingAlgorithms.h"
+#include "stMatchingAlgorithms.h"
+#include "stCycleConstrainedMatchingAlgorithms.h"
 #include "shared.h"
 
 /*

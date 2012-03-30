@@ -1,7 +1,7 @@
 #include "sonLib.h"
-#include "checkEdges.h"
+#include "stCheckEdges.h"
 #include "shared.h"
-#include "cactusMatchingAlgorithms.h"
+#include "stMatchingAlgorithms.h"
 
 static stHash *rebaseNodes(stSortedSet *nodes) {
     /*

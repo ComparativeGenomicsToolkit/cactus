@@ -17,7 +17,7 @@
 #define SHARED_H_
 
 #include "sonLib.h"
-#include "cactusMatchingAlgorithms.h"
+#include "stMatchingAlgorithms.h"
 
 stSortedSet *getEmptyNodeOrEdgeSetWithCleanup();
 

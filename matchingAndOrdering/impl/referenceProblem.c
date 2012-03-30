@@ -1,7 +1,9 @@
-#include "cactus.h"
+#include <stdlib.h>
+#include <math.h>
 #include "sonLib.h"
-#include "cactusMatchingAlgorithms.h"
-#include "adjacencyProblem.h"
+
+#include "stMatchingAlgorithms.h"
+#include "stReferenceProblem.h"
 
 typedef struct _ReferenceInterval {
     int32_t _5Node;

@@ -6,7 +6,7 @@
 
 #include "CuTest.h"
 #include "sonLib.h"
-#include "cactusMatchingAlgorithms.h"
+#include "stMatchingAlgorithms.h"
 #include "shared.h"
 
 static int32_t nodeNumber = 0;

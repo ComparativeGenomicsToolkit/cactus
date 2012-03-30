@@ -6,10 +6,11 @@
 
 #include "CuTest.h"
 #include "sonLib.h"
-#include "cactusReference.h"
-#include "adjacencyProblem.h"
-#include "cactusMatchingAlgorithms.h"
-#include "checkEdges.h"
+#include <stdlib.h>
+#include <math.h>
+#include "stReferenceProblem.h"
+#include "stMatchingAlgorithms.h"
+#include "stCheckEdges.h"
 
 static stList *stubs;
 static stList *chains;

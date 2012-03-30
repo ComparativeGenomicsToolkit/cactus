@@ -9,12 +9,16 @@
 
 CuSuite *matchingAlgorithmsTestSuite(void);
 CuSuite* cyclesConstrainedMatchingAlgorithmsTestSuite(void);
+CuSuite* adjacencyProblemTestSuite(void);
+CuSuite* adjacencyProblemExamplesTestSuite(void);
 
 int referenceRunAllTests(void) {
     CuString *output = CuStringNew();
     CuSuite* suite = CuSuiteNew();
     CuSuiteAddSuite(suite, matchingAlgorithmsTestSuite());
     CuSuiteAddSuite(suite, cyclesConstrainedMatchingAlgorithmsTestSuite());
+    CuSuiteAddSuite(suite, adjacencyProblemTestSuite());
+    CuSuiteAddSuite(suite, adjacencyProblemExamplesTestSuite());
 
     CuSuiteRun(suite);
     CuSuiteSummary(suite, output);

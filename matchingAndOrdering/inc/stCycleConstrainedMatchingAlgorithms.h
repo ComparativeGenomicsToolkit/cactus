@@ -14,7 +14,6 @@
 #ifndef CYCLE_CONSTRAINED_MATCHING_ALGORITHMS_H_
 #define CYCLE_CONSTRAINED_MATCHING_ALGORITHMS_H_
 
-#include "cactus.h"
 #include "sonLib.h"
 
 /*

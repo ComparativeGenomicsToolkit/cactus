@@ -1,8 +1,8 @@
 #include "sonLib.h"
-#include "sparseMatching.h"
-#include "checkEdges.h"
+#include "stSparseMatching.h"
+#include "stCheckEdges.h"
+#include "stMatchingAlgorithms.h"
 #include "shared.h"
-#include "cactusMatchingAlgorithms.h"
 
 static void makeMatchingPerfect(stList *chosenEdges, stList *adjacencyEdges,
         stSortedSet *nodes) {

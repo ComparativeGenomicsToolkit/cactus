@@ -11,8 +11,9 @@
  *      Author: benedictpaten
  */
 
+#include <stdlib.h>
+#include "commonC.h"
 #include "sonLib.h"
-#include "cactus.h"
 #include "shared.h"
 
 const char *MATCHING_EXCEPTION = "MATCHING_EXCEPTION";

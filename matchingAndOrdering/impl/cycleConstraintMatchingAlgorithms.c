@@ -1,9 +1,9 @@
-#include "cactus.h"
+#include <stdlib.h>
 #include "sonLib.h"
-#include "checkEdges.h"
-#include "perfectMatching.h"
+#include "stCheckEdges.h"
+#include "stPerfectMatching.h"
 #include "shared.h"
-#include "cactusMatchingAlgorithms.h"
+#include "stMatchingAlgorithms.h"
 
 ////////////////////////////////////
 ////////////////////////////////////

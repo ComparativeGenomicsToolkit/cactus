@@ -1,10 +1,10 @@
 #include "cactus.h"
 #include "sonLib.h"
-#include "checkEdges.h"
-#include "adjacencyProblem.h"
-#include "perfectMatching.h"
-#include "checkEdges.h"
-#include "cactusMatchingAlgorithms.h"
+#include "stCheckEdges.h"
+#include "stReferenceProblem.h"
+#include "stPerfectMatching.h"
+#include "stCheckEdges.h"
+#include "stMatchingAlgorithms.h"
 #include <math.h>
 
 const char *REFERENCE_BUILDING_EXCEPTION = "REFERENCE_BUILDING_EXCEPTION";

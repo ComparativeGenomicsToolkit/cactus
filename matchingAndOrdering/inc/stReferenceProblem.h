@@ -5,8 +5,8 @@
  *      Author: benedictpaten
  */
 
-#ifndef ADJACENCYPROBLEM_H_
-#define ADJACENCYPROBLEM_H_
+#ifndef REFERENCEPROBLEM_H_
+#define REFERENCEPROBLEM_H_
 
 stList *makeReferenceGreedily(stList *stubs, stList *chains,
         double *z, int32_t nodeNumber, double *totalScore, bool fast);
@@ -31,4 +31,4 @@ double calculateMaxZ(int32_t nodeNumber, double *zMatrix);
 
 double calculateZScore(int32_t n, int32_t m, int32_t k, double theta);
 
-#endif /* ADJACENCYPROBLEM_H_ */
+#endif /* REFERENCEPROBLEM_H_ */
