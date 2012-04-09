@@ -31,7 +31,6 @@ stList *breakupComponentGreedily(stList *nodes, stList *edges, int32_t maxCompon
 
     stList *sortedEdges = stList_copy(edges, NULL); //copy, to avoid messing input
     stList_sort(sortedEdges, (int (*)(const void *, const void *))stIntTuple_cmpFn); //Sort in ascending order, so best edge first
-
     int32_t edgeScore = INT32_MAX;
     //While edges exist, try and put them into the graph.
     stList *edgesToDelete = stList_construct();

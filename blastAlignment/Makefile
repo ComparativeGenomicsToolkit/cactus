@@ -39,4 +39,4 @@ ${binPath}/cactus_alignerTestAligner.py : cactus_alignerTestAligner.py
 
 clean : 
 	rm -f *.o
-	rm -f ${binPath}/cactus_aligner.py ${binPath}/cactus_aligner ${binPath}/cactus_alignerTestAligner.py ${binPath}/cactus_batch.py ${binPath}/cactus_batch_chunkSequences ${binPath}/cactus_batch_convertCoordinates
+	rm -f ${libPath}/cactusBlastAlignment.a ${binPath}/cactus_aligner.py ${binPath}/cactus_aligner ${binPath}/cactus_alignerTestAligner.py ${binPath}/cactus_batch.py ${binPath}/cactus_batch_chunkSequences ${binPath}/cactus_batch_convertCoordinates

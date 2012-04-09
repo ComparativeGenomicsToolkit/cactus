@@ -25,5 +25,5 @@ ${binPath}/coreTests : ${libTests} ${libSources} ${libHeaders} cactus_core2.c ${
 
 clean : 
 	rm -f *.o
-	rm -f ${binPath}/cactus_core ${libPath}/cactusCore.a
+	rm -f ${binPath}/cactus_core ${libPath}/cactusCore.a ${binPath}/coreTests
 

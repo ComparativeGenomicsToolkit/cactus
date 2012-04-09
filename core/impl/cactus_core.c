@@ -376,6 +376,7 @@ void convertAdjacencyComponent(stSortedSet *adjacencyComponent, stList **nodes,
                     assert(
                             stSortedSet_search(adjacencyComponent, vertex3)
                                     != NULL);
+                    assert(lengthBlackEdges(vertex3) > 1 || isAStub(getFirstBlackEdge(vertex3)));
                 } else {
                     blackEdge = NULL;
                     assert(
@@ -665,6 +666,7 @@ static void buildOutPinchGraph(struct PinchGraph *pinchGraph,
     if (pairwiseAlignmentIteratorForConstraints != NULL) {
         addAlignmentsToGraph(flower, pairwiseAlignmentIteratorForConstraints,
                 pinchGraph, trim, alignRepeats, NULL);
+        removeTrivialGreyEdgeComponents(pinchGraph, pinchGraph->vertices, flower); //remove any pointless adjacencies.
     }
 }
 
