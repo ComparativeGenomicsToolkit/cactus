@@ -10,6 +10,9 @@
 
 #include "sonLib.h"
 
+//The exception string
+extern const char *ST_PINCH_GRAPH_EXCEPTION_ID;
+
 //Datastructures
 
 typedef struct _stThreadSet stThreadSet;

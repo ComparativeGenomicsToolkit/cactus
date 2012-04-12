@@ -127,36 +127,97 @@ static void testStThreadAndSegment(CuTest *testCase) {
 
 static void testStBlock(CuTest *testCase) {
     setup();
-    static int64_t name3 = 5, start3 = 0, length3 = 15;
-    stThread *thread3 = stThreadSet_addThread(threadSet, name3, start3, length3);
+    static int64_t name3 = 5, start3 = 0, length3 = 20;
+    stThread *thread3 =
+            stThreadSet_addThread(threadSet, name3, start3, length3);
     stThread_split(thread3, 4);
     stThread_split(thread3, 9);
-    stSegment *segment1 = stThread_getFirst(stThread3);
-    stSegment *segment2 = stThread_get3Prime(segment1);
-    stSegment *segment3 = stThread_get3Prime(segment2);
+    stThread_split(thread3, 14);
+    stSegment *segment1 = stThread_getFirst(thread3);
+    stSegment *segment2 = stThread_get3Prime(thread3, segment1);
+    stSegment *segment3 = stThread_get3Prime(thread3, segment2);
+    stSegment *segment4 = stThread_get3Prime(thread3, segment2);
     CuAssertIntEquals(testCase, stSegment_getLength(segment1), stSegment_getLength(segment2));
     CuAssertIntEquals(testCase, stSegment_getLength(segment1), stSegment_getLength(segment3));
-    CuAssertPtrEquals(testCase, NULL, stThread_get3Prime(segment3));
+    CuAssertIntEquals(testCase, stSegment_getLength(segment1), stSegment_getLength(segment4));
+    CuAssertPtrEquals(testCase, NULL, stThread_get3Prime(thread3, segment4));
     stBlock *block = stBlock_construct(segment1, 1, segment2, 0);
     //get block
     CuAssertPtrEquals(testCase, block, stSegment_getBlock(segment1));
     CuAssertPtrEquals(testCase, block, stSegment_getBlock(segment2));
     //get block orientation
-    CuAssertIntEquals(testCase, 1, stSegment_getBlock(segment1));
-    CuAssertIntEquals(testCase, 0, stSegment_getBlock(segment2));
+    CuAssertIntEquals(testCase, 1, stSegment_getBlockOrientation(segment1));
+    CuAssertIntEquals(testCase, 0, stSegment_getBlockOrientation(segment2));
     //test iterator
     stBlockIt blockIt = stBlock_getSegmentIterator(block);
-    CuAssertPtrEquals(testCase, segment1, stBlock_getNext(blockIt));
-    CuAssertPtrEquals(testCase, segment2, stBlock_getNext(blockIt));
-    CuAssertPtrEquals(testCase, NULL, stBlock_getNext(blockIt));
-    CuAssertPtrEquals(testCase, NULL, stBlock_getNext(blockIt));
+    CuAssertPtrEquals(testCase, segment1, stBlockIt_getNext(blockIt));
+    CuAssertPtrEquals(testCase, segment2, stBlockIt_getNext(blockIt));
+    CuAssertPtrEquals(testCase, NULL, stBlockIt_getNext(blockIt));
+    CuAssertPtrEquals(testCase, NULL, stBlockIt_getNext(blockIt));
 
     //Now try pinching in a segment
     stBlock_pinch2(block, segment3, 1);
+    CuAssertPtrEquals(testCase, block, stSegment_getBlock(segment3));
+    CuAssertIntEquals(testCase, 1, stSegment_getBlockOrientation(segment3));
+    CuAssertPtrEquals(testCase, block, stSegment_getBlock(segment1));
     CuAssertPtrEquals(testCase, block, stSegment_getBlock(segment2));
-
+    CuAssertIntEquals(testCase, 1, stSegment_getBlockOrientation(segment1));
+    CuAssertIntEquals(testCase, 0, stSegment_getBlockOrientation(segment2));
+    blockIt = stBlock_getSegmentIterator(block);
+    CuAssertPtrEquals(testCase, segment1, stBlockIt_getNext(blockIt));
+    CuAssertPtrEquals(testCase, segment2, stBlockIt_getNext(blockIt));
+    CuAssertPtrEquals(testCase, segment3, stBlockIt_getNext(blockIt));
+    CuAssertPtrEquals(testCase, NULL, stBlockIt_getNext(blockIt));
 
     //Now try removing from the block
+    stSegment_removeFromBlock(segment2);
+    CuAssertPtrEquals(testCase, block, stSegment_getBlock(segment3));
+    CuAssertIntEquals(testCase, 1, stSegment_getBlockOrientation(segment3));
+    CuAssertPtrEquals(testCase, block, stSegment_getBlock(segment1));
+    CuAssertPtrEquals(testCase, NULL, stSegment_getBlock(segment2));
+    CuAssertIntEquals(testCase, 1, stSegment_getBlockOrientation(segment1));
+    CuAssertIntEquals(testCase, 0, stSegment_getBlockOrientation(segment2));
+    blockIt = stBlock_getSegmentIterator(block);
+    CuAssertPtrEquals(testCase, segment1, stBlockIt_getNext(blockIt));
+    CuAssertPtrEquals(testCase, segment3, stBlockIt_getNext(blockIt));
+    CuAssertPtrEquals(testCase, NULL, stBlockIt_getNext(blockIt));
+    stSegment_removeFromBlock(segment1);
+    CuAssertPtrEquals(testCase, NULL, stSegment_getBlock(segment1));
+    CuAssertPtrEquals(testCase, NULL, stSegment_getBlock(segment2));
+    CuAssertPtrEquals(testCase, NULL, stSegment_getBlock(segment3));
+    CuAssertIntEquals(testCase, 0, stSegment_getBlockOrientation(segment1));
+    CuAssertIntEquals(testCase, 0, stSegment_getBlockOrientation(segment2));
+    CuAssertIntEquals(testCase, 0, stSegment_getBlockOrientation(segment3));
+
+    //Now try merging two blocks and undoing them
+    block = stBlock_pinch(stBlock_construct(segment1, 1, segment2, 0),
+            stBlock_construct(segment3, 0, segment4, 1), 0);
+    CuAssertPtrEquals(testCase, block, stSegment_getBlock(segment1));
+    CuAssertIntEquals(testCase, 1, stSegment_getBlockOrientation(segment1));
+    CuAssertPtrEquals(testCase, block, stSegment_getBlock(segment2));
+    CuAssertIntEquals(testCase, 0, stSegment_getBlockOrientation(segment2));
+    CuAssertPtrEquals(testCase, block, stSegment_getBlock(segment3));
+    CuAssertIntEquals(testCase, 1, stSegment_getBlockOrientation(segment3));
+    CuAssertPtrEquals(testCase, block, stSegment_getBlock(segment4));
+    CuAssertIntEquals(testCase, 0, stSegment_getBlockOrientation(segment4));
+
+    blockIt = stBlock_getSegmentIterator(block);
+    CuAssertPtrEquals(testCase, segment1, stBlockIt_getNext(blockIt));
+    CuAssertPtrEquals(testCase, segment2, stBlockIt_getNext(blockIt));
+    CuAssertPtrEquals(testCase, segment3, stBlockIt_getNext(blockIt));
+    CuAssertPtrEquals(testCase, segment4, stBlockIt_getNext(blockIt));
+    CuAssertPtrEquals(testCase, NULL, stBlockIt_getNext(blockIt));
+
+    //Now try merging two blocks of uneven length
+    stThread_split(thread3, 0);
+    segment1 = stThread_getFirst(thread3);
+    segment2 = stThread_get3Prime(thread3, segment1);
+    stTry {
+            stBlock_construct(segment1, 1, segment2, 1);
+        }stCatch(ST_PINCH_GRAPH_EXCEPTION_ID)
+            {
+                st_logInfo(stExcept_getMsg(ST_PINCH_GRAPH_EXCEPTION_ID));
+            }stTryEnd
 
     teardown();
 }

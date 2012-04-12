@@ -11,11 +11,12 @@
 #include "sonLib.h"
 #include "stPinchGraphs.h"
 
+const char *ST_PINCH_GRAPH_EXCEPTION_ID = "ST_PINCH_GRAPH_EXCEPTION_ID";
+
 struct _stThreadSet {
     stList *threads;
     stHash *threadsHash;
 };
-
 
 struct _stThread {
     int64_t name;
