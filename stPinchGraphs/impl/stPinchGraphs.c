@@ -16,10 +16,6 @@ struct _stThreadSet {
     stHash *threadsHash;
 };
 
-struct _stThreadIt {
-    stThreadSet *threadSet;
-    int32_t index;
-};
 
 struct _stThread {
     int64_t name;
@@ -40,10 +36,6 @@ struct _stSegment {
 struct _stBlock {
     stSegment *headSegment;
     stSegment *tailSegment;
-};
-
-struct _stBlockIt {
-    stSegment *segment;
 };
 
 //Blocks

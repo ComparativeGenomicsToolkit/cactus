@@ -14,7 +14,10 @@
 
 typedef struct _stThreadSet stThreadSet;
 
-typedef struct _stThreadIt stThreadIt;
+typedef struct _stThreadIt {
+    stThreadSet *threadSet;
+    int32_t index;
+} stThreadIt;
 
 typedef struct _stThread stThread;
 
@@ -22,7 +25,9 @@ typedef struct _stSegment stSegment;
 
 typedef struct _stBlock stBlock;
 
-typedef struct _stBlockIt stBlockIt;
+typedef struct _stBlockIt {
+    stSegment *segment;
+} stBlockIt;
 
 //Thread set
 
