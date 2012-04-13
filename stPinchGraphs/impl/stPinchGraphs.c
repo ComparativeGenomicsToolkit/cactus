@@ -102,6 +102,7 @@ int64_t stSegment_getStart(stSegment *segment) {
 }
 
 int64_t stSegment_getLength(stSegment *segment) {
+    assert(segment->nSegment != NULL);
     return segment->nSegment->start - segment->start;
 }
 
@@ -308,9 +309,9 @@ stThreadIt stThreadSet_getIterator(stThreadSet *threadSet) {
     return threadIt;
 }
 
-stThread *stThreadIt_getNext(stThreadIt threadIt) {
-    if (threadIt.index < stThreadSet_getSize(threadIt.threadSet)) {
-        stList_get(threadIt.threadSet->threads, threadIt.index++);
+stThread *stThreadIt_getNext(stThreadIt *threadIt) {
+    if (threadIt->index < stThreadSet_getSize(threadIt->threadSet)) {
+        return stList_get(threadIt->threadSet->threads, threadIt->index++);
     }
     return NULL;
 }
@@ -318,7 +319,7 @@ stThread *stThreadIt_getNext(stThreadIt threadIt) {
 void stThreadSet_joinTrivialBoundaries(stThreadSet *threadSet) {
     stThreadIt threadIt = stThreadSet_getIterator(threadSet);
     stThread *thread;
-    while ((thread = stThreadIt_getNext(threadIt)) != NULL) {
+    while ((thread = stThreadIt_getNext(&threadIt)) != NULL) {
         stThread_joinTrivialBoundaries(thread);
     }
 }

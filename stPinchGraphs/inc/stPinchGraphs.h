@@ -48,7 +48,7 @@ int32_t stThreadSet_getSize(stThreadSet *threadSet);
 
 stThreadIt stThreadSet_getIterator(stThreadSet *threadSet);
 
-stThread *stThreadIt_getNext(stThreadIt);
+stThread *stThreadIt_getNext(stThreadIt *);
 
 void stThreadSet_joinTrivialBoundaries(stThreadSet *threadSet);
 
