@@ -84,8 +84,6 @@ stBlock *stSegment_getBlock(stSegment *segment);
 
 bool stSegment_getBlockOrientation(stSegment *segment);
 
-void stSegment_removeFromBlock(stSegment *segment);
-
 //Blocks
 
 stBlock *stBlock_construct(stSegment *segment1, bool orientation1, stSegment *segment2, bool orientation2);
@@ -96,7 +94,14 @@ stBlock *stBlock_pinch2(stBlock *block1, stSegment *segment, bool orientation);
 
 stBlockIt stBlock_getSegmentIterator(stBlock *block);
 
-stSegment *stBlockIt_getNext(stBlockIt stBlockIt);
+stSegment *stBlockIt_getNext(stBlockIt *stBlockIt);
 
+void stBlock_destruct(stBlock *block);
+
+int64_t stBlock_getLength(stBlock *block);
+
+stSegment *stBlock_getFirst(stBlock *block);
+
+uint32_t stBlock_getDegree(stBlock *block);
 
 #endif /* ST_PINCH_GRAPHS_H_ */

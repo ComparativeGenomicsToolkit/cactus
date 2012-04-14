@@ -35,6 +35,7 @@ struct _stSegment {
 };
 
 struct _stBlock {
+    uint32_t degree;
     stSegment *headSegment;
     stSegment *tailSegment;
 };
@@ -42,42 +43,65 @@ struct _stBlock {
 //Blocks
 
 static void connectBlockToSegment(stSegment *segment, bool orientation,
-        stBlock *block, stSegment *nSegment, stSegment *pSegment) {
+        stBlock *block, stSegment *nBlockSegment) {
     segment->block = block;
     segment->blockOrientation = orientation;
-    segment->nSegment = nSegment;
-    segment->pSegment = pSegment;
+    segment->nBlockSegment = nBlockSegment;
 }
 
 stBlock *stBlock_construct(stSegment *segment1, bool orientation1,
         stSegment *segment2, bool orientation2) {
+    if(stSegment_getLength(segment1) != stSegment_getLength(segment2)) {
+        stThrowNew(ST_COMPRESSION_EXCEPTION_ID, "Two segments that are being pinched have different lengths: %i %i\n", stSegment_getLength(segment1), stSegment_getLength(segment2));
+    }
     stBlock *block = st_malloc(sizeof(stBlock));
     block->headSegment = segment1;
     block->tailSegment = segment2;
-    connectBlockToSegment(segment1, orientation1, block, NULL, segment2);
-    connectBlockToSegment(segment2, orientation2, block, segment1, NULL);
+    connectBlockToSegment(segment1, orientation1, block, segment2);
+    connectBlockToSegment(segment2, orientation2, block, NULL);
+    block->degree = 2;
     return block;
 }
 
+void stBlock_destruct(stBlock *block) {
+    stBlockIt blockIt = stBlock_getSegmentIterator(block);
+    stSegment *segment = stBlockIt_getNext(&blockIt);
+    while (segment != NULL) {
+        stSegment *nSegment = stBlockIt_getNext(&blockIt);
+        connectBlockToSegment(segment, 0, NULL, NULL);
+        segment = nSegment;
+    }
+    free(block);
+}
+
 stBlock *stBlock_pinch(stBlock *block1, stBlock *block2, bool orientation) {
+    if(stBlock_getDegree(block1) > stBlock_getDegree(block2)) { //Avoid merging large blocks into small blocks
+        return stBlock_pinch(block2, block1, orientation);
+    }
+    if(stBlock_getLength(block1) != stBlock_getLength(block2)) {
+        stThrowNew(ST_COMPRESSION_EXCEPTION_ID, "Two segments that are being pinched have different lengths: %i %i\n", stBlock_getLength(block1), stBlock_getLength(block2));
+    }
     stBlockIt blockIt = stBlock_getSegmentIterator(block2);
-    stSegment *segment;
-    while ((segment = stBlockIt_getNext(blockIt)) != NULL) {
+    stSegment *segment = stBlockIt_getNext(&blockIt);
+    while (segment != NULL) {
+        stSegment *nSegment = stBlockIt_getNext(&blockIt);
         bool segmentOrientation = stSegment_getBlockOrientation(segment);
-        stSegment_removeFromBlock(segment);
         stBlock_pinch2(
                 block1,
                 segment,
                 (segmentOrientation && orientation) || (!segmentOrientation
                         && !orientation));
+        segment = nSegment;
     }
     return block1;
 }
 
 stBlock *stBlock_pinch2(stBlock *block, stSegment *segment, bool orientation) {
-    block->tailSegment->nSegment = segment;
-    connectBlockToSegment(segment, orientation, block, block->tailSegment, NULL);
+    assert(block->tailSegment->nBlockSegment == NULL);
+    block->tailSegment->nBlockSegment = segment;
+    connectBlockToSegment(segment, orientation, block, NULL);
     block->tailSegment = segment;
+    block->degree++;
     return block;
 }
 
@@ -87,12 +111,25 @@ stBlockIt stBlock_getSegmentIterator(stBlock *block) {
     return blockIt;
 }
 
-stSegment *stBlockIt_getNext(stBlockIt blockIt) {
-    stSegment *segment = blockIt.segment;
+stSegment *stBlockIt_getNext(stBlockIt *blockIt) {
+    stSegment *segment = blockIt->segment;
     if (segment != NULL) {
-        blockIt.segment = segment->nSegment;
+        blockIt->segment = segment->nBlockSegment;
     }
     return segment;
+}
+
+uint32_t stBlock_getDegree(stBlock *block) {
+    return block->degree;
+}
+
+stSegment *stBlock_getFirst(stBlock *block) {
+    assert(block->headSegment != NULL);
+    return block->headSegment;
+}
+
+int64_t stBlock_getLength(stBlock *block) {
+    return stSegment_getLength(stBlock_getFirst(block));
 }
 
 //Segments
@@ -114,33 +151,11 @@ bool stSegment_getBlockOrientation(stSegment *segment) {
     return segment->blockOrientation;
 }
 
-void stSegment_removeFromBlock(stSegment *segment) {
-    stBlock *block = stSegment_getBlock(segment);
-    assert(block != NULL);
-    if (segment->pSegment != NULL) {
-        segment->pSegment->nSegment = segment->nSegment;
-    } else {
-        assert(block->headSegment == segment);
-        block->headSegment = segment->nSegment;
-    }
-    if (segment->nSegment != NULL) {
-        segment->nSegment->pSegment = segment->pSegment;
-    } else {
-        assert(block->tailSegment == segment);
-        block->tailSegment = segment->pSegment;
-    }
-    connectBlockToSegment(segment, 0, NULL, NULL, NULL);
-    if (block->headSegment == block->tailSegment) {
-        connectBlockToSegment(block->headSegment, 0, NULL, NULL, NULL);
-        free(block);
-    }
-}
-
 //Private segment functions
 
 void stSegment_destruct(stSegment *segment) {
     if (stSegment_getBlock(segment) != NULL) {
-        stSegment_removeFromBlock(segment);
+        stBlock_destruct(stSegment_getBlock(segment));
     }
     free(segment);
 }
@@ -149,6 +164,12 @@ int stSegment_compareFunction(const stSegment *segment1,
         const stSegment *segment2) {
     return segment1->start < segment2->start ? -1 : (segment1->start
             > segment2->start ? 1 : 0);
+}
+
+static stSegment *stSegment_construct(int64_t start) {
+    stSegment *segment = st_calloc(1, sizeof(stSegment));
+    segment->start = start;
+    return segment;
 }
 
 //Thread
@@ -174,7 +195,8 @@ stSegment *stThread_getSegment(stThread *thread, int64_t coordinate) {
         return NULL;
     }
     assert(stSegment_getStart(segment2) <= coordinate);
-    if (stSegment_getStart(segment2) + stSegment_getLength(segment2) <= coordinate) {
+    if (stSegment_getStart(segment2) + stSegment_getLength(segment2)
+            <= coordinate) {
         return NULL;
     }
     return segment2;
@@ -192,10 +214,17 @@ stSegment *stThread_get3Prime(stThread *thread, stSegment *segment) {
     return segment->nSegment->nSegment != NULL ? segment->nSegment : NULL;
 }
 
-static stSegment *stSegment_construct(int64_t start) {
-    stSegment *segment = st_calloc(1, sizeof(stSegment));
-    segment->start = start;
-    return segment;
+static stSegment *stThread_splitP(stSegment *segment, int64_t leftBlockLength) {
+    stSegment *nSegment = segment->nSegment;
+    assert(nSegment != NULL);
+    stSegment *rightSegment = stSegment_construct(stSegment_getStart(segment) + leftBlockLength);
+    segment->nSegment = rightSegment;
+    rightSegment->pSegment = segment;
+    rightSegment->nSegment = nSegment;
+    nSegment->pSegment = rightSegment;
+    //Thread
+    stSortedSet_insert(thread->segments, rightSegment);
+    return rightSegment;
 }
 
 void stThread_split(stThread *thread, int64_t leftSideOfSplitPoint) {
@@ -203,34 +232,45 @@ void stThread_split(stThread *thread, int64_t leftSideOfSplitPoint) {
     if (segment == NULL) {
         return;
     }
-    if (leftSideOfSplitPoint == stSegment_getLength(segment)
-            + stSegment_getStart(segment) - 1) { //There is already a break
+    if (leftSideOfSplitPoint == stSegment_getStart(segment)
+            + stSegment_getLength(segment) - 1) { //There is already a break
         return;
     }
-    stSegment *nSegment = segment->nSegment;
-    stSegment *rightSegment = stSegment_construct(leftSideOfSplitPoint + 1);
-    segment->nBlockSegment = rightSegment;
-    rightSegment->pSegment = segment;
-    rightSegment->nSegment = nSegment;
-    nSegment->pSegment = rightSegment;
-    stSortedSet_insert(thread->segments, rightSegment);
+    int64_t leftBlockLength = leftSideOfSplitPoint - stSegment_getStart(segment) + 1;
+    if(stSegment_getBlock(segment) != NULL) {
+        stBlockIt blockIt = stBlock_getSegmentIterator(stSegment_getBlock(segment));
+        segment = stBlockIt_getNext(&blockIt);
+        stSegment *segment2 = stBlockIt_getNext(&blockIt);
+        stBlock *rightBlock = stBlock_construct(stThread_splitP(segment, leftBlockLength), stSegment_getBlockOrientation(segment),
+                stThread_splitP(segment2, leftBlockLength), stSegment_getBlockOrientation(segment2));
+        while ((segment = stBlockIt_getNext(&blockIt)) != NULL) {
+            stBlock_pinch2(rightBlock, stThread_splitP(segment, leftBlockLength), stSegment_getBlockOrientation(segment));
+        }
+    }
+    else {
+        stThread_splitP(segment, leftBlockLength);
+    }
 }
 
 void stThread_joinTrivialBoundaries(stThread *thread) {
     stSegment *segment = stThread_getFirst(thread);
     do {
         stBlock *block = stSegment_getBlock(segment);
-        stSegment *nSegment = stThread_get3Prime(thread, segment);
-        if (nSegment != NULL) {
-            stBlock *nBlock = stSegment_getBlock(nSegment);
-            if (block == NULL && nBlock == NULL) {
-                //Trivial join
-                segment->nSegment = nSegment->nSegment;
-                assert(nSegment->nSegment != NULL);
-                nSegment->nSegment->pSegment = segment;
-                stSortedSet_remove(thread->segments, nSegment);
-                stSegment_destruct(nSegment);
+        while (1) {
+            stSegment *nSegment = stThread_get3Prime(thread, segment);
+            if (nSegment != NULL) {
+                stBlock *nBlock = stSegment_getBlock(nSegment);
+                if (block == NULL && nBlock == NULL) {
+                    //Trivial join
+                    segment->nSegment = nSegment->nSegment;
+                    assert(nSegment->nSegment != NULL);
+                    nSegment->nSegment->pSegment = segment;
+                    stSortedSet_remove(thread->segments, nSegment);
+                    stSegment_destruct(nSegment);
+                    continue;
+                }
             }
+            break;
         }
     } while ((segment = stThread_get3Prime(thread, segment)));
 }
@@ -248,6 +288,7 @@ static stThread *stThread_construct(int64_t name, int64_t start, int64_t length)
     stSegment *segment = stSegment_construct(start);
     stSegment *terminatorSegment = stSegment_construct(start + length);
     segment->nSegment = terminatorSegment;
+    terminatorSegment->pSegment = segment;
     stSortedSet_insert(thread->segments, segment);
     return thread;
 }
