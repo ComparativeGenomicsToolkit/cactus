@@ -74,24 +74,24 @@ static void testStThreadAndSegment(CuTest *testCase) {
     CuAssertPtrEquals(testCase, stThread_getFirst(thread1), stThread_getSegment(thread1, start1));
     segment = stThread_getFirst(thread1);
     CuAssertTrue(testCase, segment != NULL);
-    CuAssertPtrEquals(testCase, NULL, stThread_get5Prime(thread1, segment));
+    CuAssertPtrEquals(testCase, NULL, stSegment_get5Prime(segment));
     CuAssertPtrEquals(testCase, NULL, stSegment_getBlock(segment));
     CuAssertIntEquals(testCase, 0, stSegment_getBlockOrientation(segment));
     CuAssertIntEquals(testCase, start1, stSegment_getStart(segment));
     CuAssertIntEquals(testCase, leftSplitPoint1 - start1 + 1, stSegment_getLength(segment));
 
-    stSegment *segment2 = stThread_get3Prime(thread1, segment);
+    stSegment *segment2 = stSegment_get3Prime(segment);
     CuAssertTrue(testCase, segment2 != NULL);
-    CuAssertPtrEquals(testCase, segment, stThread_get5Prime(thread1, segment2));
+    CuAssertPtrEquals(testCase, segment, stSegment_get5Prime(segment2));
     CuAssertIntEquals(testCase, leftSplitPoint1+1, stSegment_getStart(segment2));
     CuAssertIntEquals(testCase, leftSplitPoint2 - leftSplitPoint1, stSegment_getLength(segment2));
     CuAssertPtrEquals(testCase, NULL, stSegment_getBlock(segment));
     CuAssertIntEquals(testCase, 0, stSegment_getBlockOrientation(segment));
 
-    stSegment *segment3 = stThread_get3Prime(thread1, segment2);
+    stSegment *segment3 = stSegment_get3Prime(segment2);
     CuAssertTrue(testCase, segment3 != NULL);
-    CuAssertPtrEquals(testCase, segment2, stThread_get5Prime(thread1, segment3));
-    CuAssertPtrEquals(testCase, NULL, stThread_get3Prime(thread1, segment3));
+    CuAssertPtrEquals(testCase, segment2, stSegment_get5Prime(segment3));
+    CuAssertPtrEquals(testCase, NULL, stSegment_get3Prime(segment3));
     CuAssertIntEquals(testCase, leftSplitPoint2+1, stSegment_getStart(segment3));
     CuAssertIntEquals(testCase, length1 + start1 - leftSplitPoint2 - 1, stSegment_getLength(segment3));
     CuAssertPtrEquals(testCase, NULL, stSegment_getBlock(segment));
@@ -111,10 +111,10 @@ static void testStThreadAndSegment(CuTest *testCase) {
     //Now should be just one segment
     segment = stThread_getFirst(thread1);
     CuAssertTrue(testCase, segment != NULL);
-    CuAssertPtrEquals(testCase, NULL, stThread_get5Prime(thread1, segment));
+    CuAssertPtrEquals(testCase, NULL, stSegment_get5Prime(segment));
     CuAssertIntEquals(testCase, start1, stSegment_getStart(segment));
     CuAssertIntEquals(testCase, length1, stSegment_getLength(segment));
-    CuAssertPtrEquals(testCase, NULL, stThread_get3Prime(thread1, segment));
+    CuAssertPtrEquals(testCase, NULL, stSegment_get3Prime(segment));
     CuAssertPtrEquals(testCase, NULL, stSegment_getBlock(segment));
     CuAssertIntEquals(testCase, 0, stSegment_getBlockOrientation(segment));
     CuAssertPtrEquals(testCase, segment, stThread_getSegment(thread1, start1));
@@ -134,13 +134,13 @@ static void testStBlock_NoSplits(CuTest *testCase) {
     stThread_split(thread3, 9);
     stThread_split(thread3, 14);
     stSegment *segment1 = stThread_getFirst(thread3);
-    stSegment *segment2 = stThread_get3Prime(thread3, segment1);
-    stSegment *segment3 = stThread_get3Prime(thread3, segment2);
-    stSegment *segment4 = stThread_get3Prime(thread3, segment3);
+    stSegment *segment2 = stSegment_get3Prime(segment1);
+    stSegment *segment3 = stSegment_get3Prime(segment2);
+    stSegment *segment4 = stSegment_get3Prime(segment3);
     CuAssertIntEquals(testCase, stSegment_getLength(segment1), stSegment_getLength(segment2));
     CuAssertIntEquals(testCase, stSegment_getLength(segment1), stSegment_getLength(segment3));
     CuAssertIntEquals(testCase, stSegment_getLength(segment1), stSegment_getLength(segment4));
-    CuAssertPtrEquals(testCase, NULL, stThread_get3Prime(thread3, segment4));
+    CuAssertPtrEquals(testCase, NULL, stSegment_get3Prime(segment4));
     stBlock *block = stBlock_construct(segment1, 1, segment2, 0);
     CuAssertIntEquals(testCase, 2, stBlock_getDegree(block));
     CuAssertIntEquals(testCase, stSegment_getLength(segment1), stBlock_getLength(block));
@@ -224,7 +224,7 @@ static void testStBlock_NoSplits(CuTest *testCase) {
     //Now try merging two blocks of uneven length
     stThread_split(thread3, 0);
     segment1 = stThread_getFirst(thread3);
-    segment2 = stThread_get3Prime(thread3, segment1);
+    segment2 = stSegment_get3Prime(segment1);
     stTry {
             stBlock_construct(segment1, 1, segment2, 1);
             CuAssertTrue(testCase, 0);
@@ -247,8 +247,9 @@ static void testStBlock_Splits(CuTest *testCase) {
     stThread_split(thread3, 4);
     stThread_split(thread3, 9);
     stSegment *segment1 = stThread_getFirst(thread3);
-    stSegment *segment2 = stThread_get3Prime(thread3, segment1);
-    stSegment *segment3 = stThread_get3Prime(thread3, segment2);
+    stSegment *segment2 = stSegment_get3Prime(segment1);
+    stSegment *segment3 = stSegment_get3Prime(segment2);
+    CuAssertPtrEquals(testCase, NULL, stSegment_get3Prime(segment3));
     stBlock_pinch2(stBlock_construct(segment1, 1, segment2, 0), segment3, 0);
 
     stThread_split(thread3, 0);
@@ -257,22 +258,36 @@ static void testStBlock_Splits(CuTest *testCase) {
     segment1 = stThread_getFirst(thread3);
     CuAssertTrue(testCase, segment1 != NULL);
     CuAssertIntEquals(testCase, 1, stSegment_getLength(segment1));
-    segment2 = stThread_get3Prime(thread3, segment1);
+    segment2 = stSegment_get3Prime(segment1);
     CuAssertTrue(testCase, segment2 != NULL);
     CuAssertIntEquals(testCase, 4, stSegment_getLength(segment2));
-    segment3 = stThread_get3Prime(thread3, segment2);
+    segment3 = stSegment_get3Prime(segment2);
     CuAssertTrue(testCase, segment3 != NULL);
     CuAssertIntEquals(testCase, 1, stSegment_getLength(segment3));
-    stSegment *segment4 = stThread_get3Prime(thread3, segment3);
+    stSegment *segment4 = stSegment_get3Prime(segment3);
     CuAssertTrue(testCase, segment4 != NULL);
     CuAssertIntEquals(testCase, 4, stSegment_getLength(segment4));
-    stSegment *segment5 = stThread_get3Prime(thread3, segment4);
+    stSegment *segment5 = stSegment_get3Prime(segment4);
     CuAssertTrue(testCase, segment5 != NULL);
     CuAssertIntEquals(testCase, 1, stSegment_getLength(segment5));
-    stSegment *segment6 = stThread_get3Prime(thread3, segment3);
+    stSegment *segment6 = stSegment_get3Prime(segment5);
     CuAssertTrue(testCase, segment6 != NULL);
     CuAssertIntEquals(testCase, 4, stSegment_getLength(segment6));
-    CuAssertPtrEquals(testCase, NULL, stThread_get3Prime(thread3, segment6));
+    CuAssertPtrEquals(testCase, NULL, stSegment_get3Prime(segment6));
+    //Check the thread.
+    CuAssertPtrEquals(testCase, thread3, stSegment_getThread(segment1));
+    CuAssertPtrEquals(testCase, thread3, stSegment_getThread(segment2));
+    CuAssertPtrEquals(testCase, thread3, stSegment_getThread(segment3));
+    CuAssertPtrEquals(testCase, thread3, stSegment_getThread(segment4));
+    CuAssertPtrEquals(testCase, thread3, stSegment_getThread(segment5));
+    CuAssertPtrEquals(testCase, thread3, stSegment_getThread(segment6));
+    //Check the name
+    CuAssertIntEquals(testCase, name3, stSegment_getName(segment1));
+    CuAssertIntEquals(testCase, name3, stSegment_getName(segment2));
+    CuAssertIntEquals(testCase, name3, stSegment_getName(segment3));
+    CuAssertIntEquals(testCase, name3, stSegment_getName(segment4));
+    CuAssertIntEquals(testCase, name3, stSegment_getName(segment5));
+    CuAssertIntEquals(testCase, name3, stSegment_getName(segment6));
 
     //Now check blocks
     stBlock *block1 = stSegment_getBlock(segment1);

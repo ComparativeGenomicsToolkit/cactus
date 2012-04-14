@@ -66,10 +66,6 @@ stSegment *stThread_getSegment(stThread *stThread, int64_t coordinate);
 
 stSegment *stThread_getFirst(stThread *stThread);
 
-stSegment *stThread_get3Prime(stThread *thread, stSegment *segment);
-
-stSegment *stThread_get5Prime(stThread *thread, stSegment *segment);
-
 void stThread_split(stThread *thread, int64_t leftSideOfSplitPoint);
 
 void stThread_joinTrivialBoundaries(stThread *thread);
@@ -79,6 +75,14 @@ void stThread_joinTrivialBoundaries(stThread *thread);
 int64_t stSegment_getStart(stSegment *segment);
 
 int64_t stSegment_getLength(stSegment *segment);
+
+int64_t stSegment_getName(stSegment *segment);
+
+stSegment *stSegment_get3Prime(stSegment *segment);
+
+stSegment *stSegment_get5Prime(stSegment *segment);
+
+stThread *stSegment_getThread(stSegment *segment);
 
 stBlock *stSegment_getBlock(stSegment *segment);
 
