@@ -22,6 +22,9 @@ typedef struct _stCactusEdgeTuple stCactusEdgeTuple;
 
 //Node functions
 
+stCactusNode *stCactusNode_construct(stCactusGraph *graph,
+        void *nodeObject);
+
 void *stCactusNode_getObject(stCactusNode *node);
 
 stCactusNode_edgeEndIt stCactusNode_getEdgeEndIt(stCactusNode *node);
@@ -29,6 +32,10 @@ stCactusNode_edgeEndIt stCactusNode_getEdgeEndIt(stCactusNode *node);
 stCactusEdgeEnd *stCactusNode_edgeEndIt_getNext(stCactusNode_edgeEndIt *it);
 
 //Edge functions
+
+stCactusEdgeEnd *stCactusEdgeEnd_construct(stCactusGraph *graph,
+        stCactusNode *node1, stCactusNode *node2, void *edgeEndObject1,
+        void *edgeEndObject2);
 
 void *stCactusEdgeEnd_getObject(stCactusEdgeEnd *edgeEnd);
 
@@ -46,9 +53,12 @@ bool stCactusEdgeEnd_isChainEnd(stCactusEdgeEnd *edgeEnd);
 
 //Graph functions
 
-stCactusGraph *stCactusGraph_construct(void *(*nodeIt)(), stCactusEdgeTuple (*edgeIt)(),
-        void *(*mergeNodeObjects)(void *, void *),
-        void *startNode);
+stCactusGraph *stCactusGraph_construct();
+
+void stCactusGraph_collapseToCactus(
+        stCactusGraph *graph, void *(*mergeNodeObjects)(void *, void *), stCactusNode *startNode);
+
+stCactusNode *stCactusGraph_getNode(stCactusGraph *node, void *nodeObject);
 
 void stCactusGraph_destruct(stCactusGraph *graph);
 
