@@ -10,13 +10,18 @@
 
 typedef struct _stCactusNode stCactusNode;
 
-typedef struct _stCactusNode_edgeEndIt stCactusNode_edgeEndIt;
-
 typedef struct _stCactusEdgeEnd stCactusEdgeEnd;
+
+typedef struct _stCactusNode_edgeEndIt {
+    stCactusEdgeEnd *edgeEnd;
+} stCactusNode_edgeEndIt;
 
 typedef struct _stCactusGraph stCactusGraph;
 
-typedef struct _stCactusGraphNodeIterator stCactusGraphNodeIterator;
+typedef struct _stCactusGraphNodeIterator {
+    stHashIterator *it;
+    stCactusGraph *graph;
+} stCactusGraphNodeIterator;
 
 typedef struct _stCactusEdgeTuple stCactusEdgeTuple;
 
@@ -62,15 +67,15 @@ stCactusNode *stCactusGraph_getNode(stCactusGraph *node, void *nodeObject);
 
 void stCactusGraph_destruct(stCactusGraph *graph);
 
-stCactusGraphNodeIterator stCactusGraphNodeIterator_construct(stCactusGraph *graph);
+stCactusGraphNodeIterator *stCactusGraphNodeIterator_construct(stCactusGraph *graph);
 
 stCactusNode *stCactusGraphNodeIterator_getNext(stCactusGraphNodeIterator *nodeIt);
 
-void stCactusGraphNodeIterator_destruct(stCactusGraphNodeIterator);
+void stCactusGraphNodeIterator_destruct(stCactusGraphNodeIterator *);
 
-void stGraph_unmarkCycles(stCactusGraph *graph);
+void stCactusGraph_unmarkCycles(stCactusGraph *graph);
 
-void stGraph_markCycles(stCactusGraph *graph, stCactusNode *startNode);
+void stCactusGraph_markCycles(stCactusGraph *graph, stCactusNode *startNode);
 
 void stCactusGraph_collapseBridges(stCactusGraph *graph,
         stCactusNode *startNode, void *(*mergeNodeObjects)(void *, void *));
