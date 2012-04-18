@@ -14,10 +14,10 @@
 #include "stCactusGraphs.h"
 
 static stCactusGraph *g;
-static int32_t nO1 = 1, nO2 = 2, nO3 = 3, nO4 = 4;
-static stCactusNode *n1, *n2, *n3, *n4;
-static stCactusEdgeEnd *e12, *e21, *e23, *e32, *e13, *e31, *e24, *e42, *e11,
-        *e11r;
+static int32_t nO1 = 1, nO2 = 2, nO3 = 3, nO4 = 4, nO5 = 5, nO6 = 6;
+static stCactusNode *n1, *n2, *n3, *n4, *n5, *n6;
+static stCactusEdgeEnd *e12, *e21, *e23, *e32, *e13, *e31, *e24, *e42, *e11, *e11r, *e45, *e54, *e56, *e65, *e56r,
+        *e65r;
 
 static void teardown() {
     if (g != NULL) {
@@ -36,6 +36,8 @@ static void setup() {
     n2 = stCactusNode_construct(g, &nO2);
     n3 = stCactusNode_construct(g, &nO3);
     n4 = stCactusNode_construct(g, &nO4);
+    n5 = stCactusNode_construct(g, &nO5);
+    n6 = stCactusNode_construct(g, &nO6);
     e12 = stCactusEdgeEnd_construct(g, n1, n2, &nO1, &nO2);
     e21 = stCactusEdgeEnd_getOtherEdgeEnd(e12);
     e23 = stCactusEdgeEnd_construct(g, n2, n3, &nO2, &nO3);
@@ -46,6 +48,13 @@ static void setup() {
     e42 = stCactusEdgeEnd_getOtherEdgeEnd(e24);
     e11 = stCactusEdgeEnd_construct(g, n1, n1, &nO1, &nO1);
     e11r = stCactusEdgeEnd_getOtherEdgeEnd(e11);
+    e45 = stCactusEdgeEnd_construct(g, n4, n5, &nO4, &nO5);
+    e54 = stCactusEdgeEnd_getOtherEdgeEnd(e45);
+    e56 = stCactusEdgeEnd_construct(g, n5, n6, &nO5, &nO6);
+    e65 = stCactusEdgeEnd_getOtherEdgeEnd(e56);
+    e56r = stCactusEdgeEnd_construct(g, n5, n6, &nO5, &nO6);
+    e65r = stCactusEdgeEnd_getOtherEdgeEnd(e56r);
+
     stCactusGraph_collapseToCactus(g, mergeNodeObjects, n1);
 }
 
@@ -78,7 +87,19 @@ static void testStCactusNode(CuTest *testCase) {
     CuAssertPtrEquals(testCase, NULL, stCactusNode_edgeEndIt_getNext(&it));
 
     it = stCactusNode_getEdgeEndIt(n4);
-    CuAssertPtrEquals(testCase, e24, stCactusNode_edgeEndIt_getNext(&it));
+    CuAssertPtrEquals(testCase, e42, stCactusNode_edgeEndIt_getNext(&it));
+    CuAssertPtrEquals(testCase, e45, stCactusNode_edgeEndIt_getNext(&it));
+    CuAssertPtrEquals(testCase, NULL, stCactusNode_edgeEndIt_getNext(&it));
+
+    it = stCactusNode_getEdgeEndIt(n5);
+    CuAssertPtrEquals(testCase, e54, stCactusNode_edgeEndIt_getNext(&it));
+    CuAssertPtrEquals(testCase, e56, stCactusNode_edgeEndIt_getNext(&it));
+    CuAssertPtrEquals(testCase, e56r, stCactusNode_edgeEndIt_getNext(&it));
+    CuAssertPtrEquals(testCase, NULL, stCactusNode_edgeEndIt_getNext(&it));
+
+    it = stCactusNode_getEdgeEndIt(n6);
+    CuAssertPtrEquals(testCase, e65, stCactusNode_edgeEndIt_getNext(&it));
+    CuAssertPtrEquals(testCase, e65r, stCactusNode_edgeEndIt_getNext(&it));
     CuAssertPtrEquals(testCase, NULL, stCactusNode_edgeEndIt_getNext(&it));
 
     teardown();
@@ -100,12 +121,12 @@ static void testStCactusGraph(CuTest *testCase) {
     stCactusGraphNodeIterator *nodeIt = stCactusGraphNodeIterator_construct(g);
     stCactusNode *n;
     stSortedSet *nodes = stSortedSet_construct();
-    while((n = stCactusGraphNodeIterator_getNext(nodeIt)) != NULL) {
+    while ((n = stCactusGraphNodeIterator_getNext(nodeIt)) != NULL) {
         CuAssertTrue(testCase, stSortedSet_search(nodes, n) == NULL);
-        CuAssertTrue(testCase, n == n1 || n == n2 || n == n3 || n == n4);
+        CuAssertTrue(testCase, n == n1 || n == n2 || n == n3 || n == n4 || n == n5 || n == n6);
         stSortedSet_insert(nodes, n);
     }
-    CuAssertIntEquals(testCase, 4, stSortedSet_size(nodes));
+    CuAssertIntEquals(testCase, 6, stSortedSet_size(nodes));
     stCactusGraphNodeIterator_destruct(nodeIt);
 
     teardown();
@@ -123,6 +144,13 @@ static void basicTestsOfEdgeEnds(CuTest *testCase) {
     CuAssertPtrEquals(testCase, &nO3, stCactusEdgeEnd_getObject(e32));
     CuAssertPtrEquals(testCase, &nO3, stCactusEdgeEnd_getObject(e31));
     CuAssertPtrEquals(testCase, &nO4, stCactusEdgeEnd_getObject(e42));
+
+    CuAssertPtrEquals(testCase, &nO4, stCactusEdgeEnd_getObject(e45));
+    CuAssertPtrEquals(testCase, &nO5, stCactusEdgeEnd_getObject(e54));
+    CuAssertPtrEquals(testCase, &nO5, stCactusEdgeEnd_getObject(e56));
+    CuAssertPtrEquals(testCase, &nO5, stCactusEdgeEnd_getObject(e56r));
+    CuAssertPtrEquals(testCase, &nO6, stCactusEdgeEnd_getObject(e65r));
+    CuAssertPtrEquals(testCase, &nO6, stCactusEdgeEnd_getObject(e65));
 
     //stCactusEdgeEnd_getNode
     CuAssertPtrEquals(testCase, n1, stCactusEdgeEnd_getNode(e12));
@@ -259,15 +287,58 @@ static void testStCactusGraph_unmarkAndMarkCycles(CuTest *testCase) {
 static void testStCactusGraph_collapseBridges(CuTest *testCase) {
     setup();
     stCactusGraph_collapseBridges(g, n1, mergeNodeObjects);
+    n2 = stCactusGraph_getNode(g, &nO2);
 
+    //Check pointers of nodes okay
+    CuAssertPtrEquals(testCase, n2, stCactusEdgeEnd_getNode(e21));
+    CuAssertPtrEquals(testCase, n2, stCactusEdgeEnd_getNode(e23));
+    CuAssertPtrEquals(testCase, n2, stCactusEdgeEnd_getNode(e24));
+    CuAssertPtrEquals(testCase, n2, stCactusEdgeEnd_getNode(e42));
+
+    //Check chains
+    CuAssertPtrEquals(testCase, e23, stCactusEdgeEnd_getLink(e21));
+    CuAssertPtrEquals(testCase, e21, stCactusEdgeEnd_getLink(e23));
+    CuAssertPtrEquals(testCase, e42, stCactusEdgeEnd_getLink(e24));
+    CuAssertPtrEquals(testCase, e24, stCactusEdgeEnd_getLink(e42));
+
+    //Chain orientation
+    CuAssertIntEquals(testCase, 1, stCactusEdgeEnd_getLinkOrientation(e21));
+    CuAssertIntEquals(testCase, 0, stCactusEdgeEnd_getLinkOrientation(e23));
+    CuAssertIntEquals(testCase, 1, stCactusEdgeEnd_getLinkOrientation(e24));
+    CuAssertIntEquals(testCase, 0, stCactusEdgeEnd_getLinkOrientation(e42));
+
+    //Chain end status
+    CuAssertIntEquals(testCase, 0, stCactusEdgeEnd_isChainEnd(e21));
+    CuAssertIntEquals(testCase, 0, stCactusEdgeEnd_isChainEnd(e23));
+    CuAssertIntEquals(testCase, 1, stCactusEdgeEnd_isChainEnd(e24));
+    CuAssertIntEquals(testCase, 1, stCactusEdgeEnd_isChainEnd(e42));
+
+    //Check edge end it.
+    stCactusNode_edgeEndIt it = stCactusNode_getEdgeEndIt(n2);
+    CuAssertPtrEquals(testCase, e21, stCactusNode_edgeEndIt_getNext(&it));
+    CuAssertPtrEquals(testCase, e23, stCactusNode_edgeEndIt_getNext(&it));
+    CuAssertPtrEquals(testCase, e24, stCactusNode_edgeEndIt_getNext(&it));
+    CuAssertPtrEquals(testCase, e42, stCactusNode_edgeEndIt_getNext(&it));
+    CuAssertPtrEquals(testCase, NULL, stCactusNode_edgeEndIt_getNext(&it));
+
+    //Check graph node it.
+    stCactusGraphNodeIterator *nodeIt = stCactusGraphNodeIterator_construct(g);
+    stCactusNode *n;
+    stSortedSet *nodes = stSortedSet_construct();
+    while ((n = stCactusGraphNodeIterator_getNext(nodeIt)) != NULL) {
+        CuAssertTrue(testCase, stSortedSet_search(nodes, n) == NULL);
+        CuAssertTrue(testCase, n == n1 || n == n2 || n == n3);
+        stSortedSet_insert(nodes, n);
+    }
+    CuAssertIntEquals(testCase, 3, stSortedSet_size(nodes));
+    stCactusGraphNodeIterator_destruct(nodeIt);
 
     teardown();
 }
 
-static void testStCactusGraph_collapseToCactus(CuTest *testCase) {
-    setup();
-
-    teardown();
+static void testStCactusGraph_randomTest(CuTest *testCase) {
+    //Creates a problem instances, then checks graph is okay by checking every edge
+    //is properly connected, with right number of nodes and that everyone is in a chain
 }
 
 CuSuite* stCactusGraphsTestSuite(void) {
@@ -277,6 +348,6 @@ CuSuite* stCactusGraphsTestSuite(void) {
     SUITE_ADD_TEST(suite, testStCactusGraph);
     SUITE_ADD_TEST(suite, testStCactusGraph_unmarkAndMarkCycles);
     SUITE_ADD_TEST(suite, testStCactusGraph_collapseBridges);
-    SUITE_ADD_TEST(suite, testStCactusGraph_collapseToCactus);
+    SUITE_ADD_TEST(suite, testStCactusGraph_randomTest);
     return suite;
 }
