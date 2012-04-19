@@ -366,7 +366,6 @@ void stCactusGraph_collapseBridgesP(stCactusNode *parentNode,
                     stCactusGraph_collapseBridgesP(parentNode,
                             stCactusEdgeEnd_getOtherEdgeEnd(edgeEnd2),
                             nodesToMerge);
-
                 }
             }
         }
