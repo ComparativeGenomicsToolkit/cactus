@@ -361,6 +361,7 @@ void stThreadSet_joinTrivialBoundaries(stThreadSet *threadSet) {
     while ((thread = stThreadIt_getNext(&threadIt)) != NULL) {
         stThread_joinTrivialBoundaries(thread);
     }
+    //Now iterate through the blocks.
 }
 
 stSegment *stThreadSet_getSegment(stThreadSet *threadSet, int64_t name, int64_t coordinate) {

@@ -36,6 +36,8 @@ stCactusNode_edgeEndIt stCactusNode_getEdgeEndIt(stCactusNode *node);
 
 stCactusEdgeEnd *stCactusNode_edgeEndIt_getNext(stCactusNode_edgeEndIt *it);
 
+stCactusEdgeEnd *stCactusNode_getFirstEdgeEnd(stCactusNode *node);
+
 //Edge functions
 
 stCactusEdgeEnd *stCactusEdgeEnd_construct(stCactusGraph *graph,
@@ -55,6 +57,8 @@ stCactusEdgeEnd *stCactusEdgeEnd_getLink(stCactusEdgeEnd *edgeEnd);
 bool stCactusEdgeEnd_getLinkOrientation(stCactusEdgeEnd *edgeEnd);
 
 bool stCactusEdgeEnd_isChainEnd(stCactusEdgeEnd *edgeEnd);
+
+stCactusEdgeEnd *stCactusEdgeEnd_getNextEdgeEnd(stCactusEdgeEnd *edgeEnd);
 
 //Graph functions
 

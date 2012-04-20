@@ -454,11 +454,11 @@ static void testStCactusGraph_collapseBridges(CuTest *testCase) {
     CuAssertPtrEquals(testCase, e21, stCactusNode_edgeEndIt_getNext(&it));
     CuAssertPtrEquals(testCase, e23, stCactusNode_edgeEndIt_getNext(&it));
     CuAssertPtrEquals(testCase, e24, stCactusNode_edgeEndIt_getNext(&it));
-    CuAssertPtrEquals(testCase, e85, stCactusNode_edgeEndIt_getNext(&it));
-    CuAssertPtrEquals(testCase, e94, stCactusNode_edgeEndIt_getNext(&it));
     CuAssertPtrEquals(testCase, e42, stCactusNode_edgeEndIt_getNext(&it));
     CuAssertPtrEquals(testCase, e45, stCactusNode_edgeEndIt_getNext(&it));
     CuAssertPtrEquals(testCase, e49, stCactusNode_edgeEndIt_getNext(&it));
+    CuAssertPtrEquals(testCase, e94, stCactusNode_edgeEndIt_getNext(&it));
+    CuAssertPtrEquals(testCase, e85, stCactusNode_edgeEndIt_getNext(&it));
     CuAssertPtrEquals(testCase, NULL, stCactusNode_edgeEndIt_getNext(&it));
 
     //Check graph node it.
@@ -477,6 +477,7 @@ static void testStCactusGraph_collapseBridges(CuTest *testCase) {
 }
 
 static void testStCactusGraph_randomTest(CuTest *testCase) {
+    //return;
     //Creates a problem instances, then checks graph is okay by checking every edge
     //is properly connected, with right number of nodes and that everyone is in a chain
     for (int32_t test = 0; test < 100; test++) {
