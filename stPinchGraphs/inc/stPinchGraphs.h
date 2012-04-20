@@ -26,11 +26,22 @@ typedef struct _stThread stThread;
 
 typedef struct _stSegment stSegment;
 
+typedef struct _stThreadSetSegmentIt {
+    stThreadIt threadIt;
+    stSegment *segment;
+} stThreadSetSegmentIt;
+
+typedef struct _stThreadSetBlockIt {
+    stThreadSetSegmentIt segmentIt;
+} stThreadSetBlockIt;
+
 typedef struct _stBlock stBlock;
 
 typedef struct _stBlockIt {
     stSegment *segment;
 } stBlockIt;
+
+typedef struct _stEnd stEnd;
 
 //Thread set
 
@@ -38,11 +49,13 @@ stThreadSet *stThreadSet_construct();
 
 void stThreadSet_destruct(stThreadSet *threadSet);
 
-stThread *stThreadSet_addThread(stThreadSet *threadSet, int64_t name, int64_t start, int64_t length);
+stThread *stThreadSet_addThread(stThreadSet *threadSet, int64_t name,
+        int64_t start, int64_t length);
 
 stThread *stThreadSet_getThread(stThreadSet *threadSet, int64_t name);
 
-stSegment *stThreadSet_getSegment(stThreadSet *threadSet, int64_t name, int64_t coordinate);
+stSegment *stThreadSet_getSegment(stThreadSet *threadSet, int64_t name,
+        int64_t coordinate);
 
 int32_t stThreadSet_getSize(stThreadSet *threadSet);
 
@@ -52,7 +65,20 @@ stThread *stThreadIt_getNext(stThreadIt *);
 
 void stThreadSet_joinTrivialBoundaries(stThreadSet *threadSet);
 
-stSegment *stThreadSet_getSegment(stThreadSet *threadSet, int64_t name, int64_t coordinate);
+stSegment *stThreadSet_getSegment(stThreadSet *threadSet, int64_t name,
+        int64_t coordinate);
+
+stList *stThreadSet_getAdjacencyComponents(stThreadSet *threadSet);
+
+//convenience functions
+
+stThreadSetSegmentIt stThreadSet_getSegmentIt(stThreadSet *threadSet);
+
+stSegment *stThreadSetSegmentIt_getNext(stThreadSetSegmentIt *segmentIt);
+
+stThreadSetBlockIt stThreadSet_getBlockIt(stThreadSet *threadSet);
+
+stBlock *stThreadSetBlockIt_getNext(stThreadSetBlockIt *blockIt);
 
 //Thread
 
@@ -69,6 +95,9 @@ stSegment *stThread_getFirst(stThread *stThread);
 void stThread_split(stThread *thread, int64_t leftSideOfSplitPoint);
 
 void stThread_joinTrivialBoundaries(stThread *thread);
+
+void stThread_pinch(stThread *thread1, stThread *thread2, int64_t start1,
+        int64_t start2, int64_t length, bool strand2);
 
 //Segments
 
@@ -90,7 +119,10 @@ bool stSegment_getBlockOrientation(stSegment *segment);
 
 //Blocks
 
-stBlock *stBlock_construct(stSegment *segment1, bool orientation1, stSegment *segment2, bool orientation2);
+stBlock *stBlock_construct2(stSegment *segment1); //Allows the specification of a block with just one element
+
+stBlock *stBlock_construct(stSegment *segment1, bool orientation1,
+        stSegment *segment2, bool orientation2);
 
 stBlock *stBlock_pinch(stBlock *block1, stBlock *block2, bool orientation);
 
@@ -107,5 +139,15 @@ int64_t stBlock_getLength(stBlock *block);
 stSegment *stBlock_getFirst(stBlock *block);
 
 uint32_t stBlock_getDegree(stBlock *block);
+
+//Block ends
+
+stEnd *stEnd_construct(stBlock *block, bool orientation);
+
+stBlock *stEnd_getBlock(stEnd *end);
+
+bool *stEnd_getOrientation(stEnd *orientation);
+
+
 
 #endif /* ST_PINCH_GRAPHS_H_ */

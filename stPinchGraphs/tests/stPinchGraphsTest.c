@@ -47,6 +47,9 @@ static void testStThreadSet(CuTest *testCase) {
     CuAssertPtrEquals(testCase, thread2, stThreadIt_getNext(&threadIt));
     CuAssertPtrEquals(testCase, NULL, stThreadIt_getNext(&threadIt));
     CuAssertPtrEquals(testCase, NULL, stThreadIt_getNext(&threadIt));
+
+    //Test iterators
+
     teardown();
 }
 
@@ -185,7 +188,9 @@ static void testStBlock_NoSplits(CuTest *testCase) {
     CuAssertIntEquals(testCase, 0, stSegment_getBlockOrientation(segment3));
 
     //Now try merging two blocks and undoing them
-    block = stBlock_pinch(stBlock_construct(segment1, 1, segment2, 0),
+    block = stBlock_pinch(
+            stBlock_pinch(stBlock_construct2(segment1),
+                    stBlock_construct2(segment2), 0),
             stBlock_construct(segment3, 0, segment4, 1), 0);
     CuAssertIntEquals(testCase, 4, stBlock_getDegree(block));
     CuAssertIntEquals(testCase, stSegment_getLength(segment1), stBlock_getLength(block));
@@ -233,7 +238,25 @@ static void testStBlock_NoSplits(CuTest *testCase) {
                 st_logInfo(stExcept_getMsg(ST_PINCH_GRAPH_EXCEPTION_ID));
             }stTryEnd
 
+    //Now make a block with a single element
+    block = stBlock_construct2(segment1);
+    CuAssertIntEquals(testCase, 1, stBlock_getDegree(block));
+    CuAssertIntEquals(testCase, stSegment_getLength(segment1), stBlock_getLength(block));
+    //get block
+    CuAssertPtrEquals(testCase, segment1, stBlock_getFirst(block));
+    CuAssertPtrEquals(testCase, block, stSegment_getBlock(segment1));
+    //get block orientation
+    CuAssertIntEquals(testCase, 1, stSegment_getBlockOrientation(segment1));
+    //test iterator
+    blockIt = stBlock_getSegmentIterator(block);
+    CuAssertPtrEquals(testCase, segment1, stBlockIt_getNext(&blockIt));
+    CuAssertPtrEquals(testCase, NULL, stBlockIt_getNext(&blockIt));
+    stBlock_destruct(block);
+    CuAssertPtrEquals(testCase, NULL, stSegment_getBlock(segment1));
+    CuAssertIntEquals(testCase, 0, stSegment_getBlockOrientation(segment1));
+
     teardown();
+
 }
 
 static void testStBlock_Splits(CuTest *testCase) {
