@@ -144,10 +144,14 @@ uint32_t stBlock_getDegree(stBlock *block);
 
 stEnd *stEnd_construct(stBlock *block, bool orientation);
 
+void stEnd_destruct(stEnd *end);
+
 stBlock *stEnd_getBlock(stEnd *end);
 
-bool *stEnd_getOrientation(stEnd *orientation);
+bool stEnd_getOrientation(stEnd *end);
 
+int stEnd_equalsFn(const void *, const void *);
 
+uint32_t stEnd_hashFn(const void *);
 
 #endif /* ST_PINCH_GRAPHS_H_ */
