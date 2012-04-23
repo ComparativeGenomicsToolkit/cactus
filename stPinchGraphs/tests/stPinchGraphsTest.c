@@ -48,7 +48,37 @@ static void testStThreadSet(CuTest *testCase) {
     CuAssertPtrEquals(testCase, NULL, stThreadIt_getNext(&threadIt));
     CuAssertPtrEquals(testCase, NULL, stThreadIt_getNext(&threadIt));
 
-    //Test iterators
+    //Test segment iterators
+    stSortedSet *segmentSet = stSortedSet_construct();
+    stThreadSetSegmentIt segmentIt = stThreadSet_getSegmentIt(threadSet);
+    stSegment *segment;
+    while ((segment = stThreadSetSegmentIt_getNext(&segmentIt)) != NULL) {
+        CuAssertTrue(testCase, stSortedSet_search(segmentSet, segment) == NULL);
+        stSortedSet_insert(segmentSet, segment);
+    }
+    int32_t segmentCount = 0;
+    stThread *threads[] = { thread1, thread2 };
+    for (int32_t i = 0; i < 2; i++) {
+        stThread *thread = threads[i];
+        stSegment *segment = stThread_getFirst(thread);
+        while (segment != NULL) {
+            segmentCount++;
+            CuAssertTrue(testCase, stSortedSet_search(segmentSet, segment) != NULL);
+            segment = stSegment_get3Prime(segment);
+        }
+    }
+    CuAssertIntEquals(testCase, segmentCount, stSortedSet_size(segmentSet));
+
+    //Now test block iterator
+    stThreadSetBlockIt blockIt = stThreadSet_getBlockIt(threadSet);
+    CuAssertPtrEquals(testCase, NULL, stThreadSetBlockIt_getNext(&blockIt));
+    CuAssertPtrEquals(testCase, NULL, stThreadSetBlockIt_getNext(&blockIt));
+    stBlock *block1 = stBlock_construct2(stThread_getFirst(thread1));
+    stBlock *block2 = stBlock_construct2(stThread_getFirst(thread2));
+    blockIt = stThreadSet_getBlockIt(threadSet);
+    CuAssertPtrEquals(testCase, block1, stThreadSetBlockIt_getNext(&blockIt));
+    CuAssertPtrEquals(testCase, block2, stThreadSetBlockIt_getNext(&blockIt));
+    CuAssertPtrEquals(testCase, NULL, stThreadSetBlockIt_getNext(&blockIt));
 
     teardown();
 }
@@ -86,7 +116,7 @@ static void testStThreadAndSegment(CuTest *testCase) {
     stSegment *segment2 = stSegment_get3Prime(segment);
     CuAssertTrue(testCase, segment2 != NULL);
     CuAssertPtrEquals(testCase, segment, stSegment_get5Prime(segment2));
-    CuAssertIntEquals(testCase, leftSplitPoint1+1, stSegment_getStart(segment2));
+    CuAssertIntEquals(testCase, leftSplitPoint1 + 1, stSegment_getStart(segment2));
     CuAssertIntEquals(testCase, leftSplitPoint2 - leftSplitPoint1, stSegment_getLength(segment2));
     CuAssertPtrEquals(testCase, NULL, stSegment_getBlock(segment));
     CuAssertIntEquals(testCase, 0, stSegment_getBlockOrientation(segment));
@@ -95,7 +125,7 @@ static void testStThreadAndSegment(CuTest *testCase) {
     CuAssertTrue(testCase, segment3 != NULL);
     CuAssertPtrEquals(testCase, segment2, stSegment_get5Prime(segment3));
     CuAssertPtrEquals(testCase, NULL, stSegment_get3Prime(segment3));
-    CuAssertIntEquals(testCase, leftSplitPoint2+1, stSegment_getStart(segment3));
+    CuAssertIntEquals(testCase, leftSplitPoint2 + 1, stSegment_getStart(segment3));
     CuAssertIntEquals(testCase, length1 + start1 - leftSplitPoint2 - 1, stSegment_getLength(segment3));
     CuAssertPtrEquals(testCase, NULL, stSegment_getBlock(segment));
     CuAssertIntEquals(testCase, 0, stSegment_getBlockOrientation(segment));
@@ -103,9 +133,9 @@ static void testStThreadAndSegment(CuTest *testCase) {
     //Test stThread_getSegment
     CuAssertPtrEquals(testCase, segment, stThread_getSegment(thread1, start1));
     CuAssertPtrEquals(testCase, segment, stThread_getSegment(thread1, leftSplitPoint1));
-    CuAssertPtrEquals(testCase, segment2, stThread_getSegment(thread1, leftSplitPoint1+1));
+    CuAssertPtrEquals(testCase, segment2, stThread_getSegment(thread1, leftSplitPoint1 + 1));
     CuAssertPtrEquals(testCase, segment2, stThread_getSegment(thread1, leftSplitPoint2));
-    CuAssertPtrEquals(testCase, segment3, stThread_getSegment(thread1, leftSplitPoint2+1));
+    CuAssertPtrEquals(testCase, segment3, stThread_getSegment(thread1, leftSplitPoint2 + 1));
     CuAssertPtrEquals(testCase, segment3, stThread_getSegment(thread1, start1 + length1 - 1));
     CuAssertPtrEquals(testCase, NULL, stThread_getSegment(thread1, start1 + length1));
 
@@ -121,9 +151,9 @@ static void testStThreadAndSegment(CuTest *testCase) {
     CuAssertPtrEquals(testCase, NULL, stSegment_getBlock(segment));
     CuAssertIntEquals(testCase, 0, stSegment_getBlockOrientation(segment));
     CuAssertPtrEquals(testCase, segment, stThread_getSegment(thread1, start1));
-    CuAssertPtrEquals(testCase, segment, stThread_getSegment(thread1, start1+length1-1));
-    CuAssertPtrEquals(testCase, NULL, stThread_getSegment(thread1, start1-1));
-    CuAssertPtrEquals(testCase, NULL, stThread_getSegment(thread1, start1+length1));
+    CuAssertPtrEquals(testCase, segment, stThread_getSegment(thread1, start1 + length1 - 1));
+    CuAssertPtrEquals(testCase, NULL, stThread_getSegment(thread1, start1 - 1));
+    CuAssertPtrEquals(testCase, NULL, stThread_getSegment(thread1, start1 + length1));
 
     teardown();
 }
@@ -131,8 +161,7 @@ static void testStThreadAndSegment(CuTest *testCase) {
 static void testStBlock_NoSplits(CuTest *testCase) {
     setup();
     static int64_t name3 = 5, start3 = 0, length3 = 20;
-    stThread *thread3 =
-            stThreadSet_addThread(threadSet, name3, start3, length3);
+    stThread *thread3 = stThreadSet_addThread(threadSet, name3, start3, length3);
     stThread_split(thread3, 4);
     stThread_split(thread3, 9);
     stThread_split(thread3, 14);
@@ -188,9 +217,7 @@ static void testStBlock_NoSplits(CuTest *testCase) {
     CuAssertIntEquals(testCase, 0, stSegment_getBlockOrientation(segment3));
 
     //Now try merging two blocks and undoing them
-    block = stBlock_pinch(
-            stBlock_pinch(stBlock_construct2(segment1),
-                    stBlock_construct2(segment2), 0),
+    block = stBlock_pinch(stBlock_pinch(stBlock_construct2(segment1), stBlock_construct2(segment2), 0),
             stBlock_construct(segment3, 0, segment4, 1), 0);
     CuAssertIntEquals(testCase, 4, stBlock_getDegree(block));
     CuAssertIntEquals(testCase, stSegment_getLength(segment1), stBlock_getLength(block));
@@ -265,8 +292,7 @@ static void testStBlock_Splits(CuTest *testCase) {
      */
     setup();
     static int64_t name3 = 5, start3 = 0, length3 = 15;
-    stThread *thread3 =
-            stThreadSet_addThread(threadSet, name3, start3, length3);
+    stThread *thread3 = stThreadSet_addThread(threadSet, name3, start3, length3);
     stThread_split(thread3, 4);
     stThread_split(thread3, 9);
     stSegment *segment1 = stThread_getFirst(thread3);
@@ -340,7 +366,80 @@ static void testStBlock_Splits(CuTest *testCase) {
     CuAssertPtrEquals(testCase, block2, stSegment_getBlock(segment4));
     CuAssertPtrEquals(testCase, block2, stSegment_getBlock(segment6));
 
+    //Now do merge
+    stThreadSet_joinTrivialBoundaries(threadSet);
+    stThreadSetBlockIt threadBlockIt = stThreadSet_getBlockIt(threadSet);
+    block1 = stThreadSetBlockIt_getNext(&threadBlockIt);
+    CuAssertTrue(testCase, block1 != NULL);
+    CuAssertPtrEquals(testCase, NULL, stThreadSetBlockIt_getNext(&threadBlockIt));
+    blockIt = stBlock_getSegmentIterator(block1);
+    CuAssertPtrEquals(testCase, segment1, stBlockIt_getNext(&blockIt));
+    CuAssertPtrEquals(testCase, segment3, stBlockIt_getNext(&blockIt));
+    CuAssertPtrEquals(testCase, segment5, stBlockIt_getNext(&blockIt));
+    CuAssertPtrEquals(testCase, NULL, stBlockIt_getNext(&blockIt));
+    CuAssertPtrEquals(testCase, block1, stSegment_getBlock(segment1));
+    CuAssertPtrEquals(testCase, block1, stSegment_getBlock(segment3));
+    CuAssertPtrEquals(testCase, block1, stSegment_getBlock(segment5));
+    CuAssertIntEquals(testCase, 5, stBlock_getLength(block1));
+
     teardown();
+}
+
+static stThreadSet *getRandomPinchGraph() {
+    stThreadSet *threadSet = stThreadSet_construct();
+    return threadSet;
+}
+
+static void testStThread_pinch(CuTest *testCase) {
+    setup();
+
+    teardown();
+}
+
+static void testStThread_pinch_randomTests(CuTest *testCase) {
+
+}
+
+static void checkNotTrivialBoundary(CuTest *testCase, stSegment *segment2, stSegment *segment) {
+
+}
+
+static void testStThreadSet_joinTrivialBoundaries_randomTests(CuTest *testCase) {
+    for (int32_t test = 0; test < 100; test++) {
+        stThreadSet *threadSet = getRandomPinchGraph();
+        stThreadSet_joinTrivialBoundaries(threadSet);
+        stThreadSetSegmentIt segmentIt = stThreadSet_getSegmentIt(threadSet);
+        stSegment *segment;
+        while ((segment = stThreadSetSegmentIt_getNext(&segmentIt))) {
+            //Check no trivial boundaries
+            stSegment *segment2 = stSegment_get5Prime(segment);
+            if (segment2 != NULL) {
+                checkNotTrivialBoundary(testCase, segment2, segment);
+            }
+            segment2 = stSegment_get3Prime(segment);
+            if (segment2 != NULL) {
+                checkNotTrivialBoundary(testCase, segment, segment2);
+            }
+        }
+        stThreadSet_destruct(threadSet);
+    }
+}
+
+static void testStThreadSet_getAdjacencyComponents(CuTest *testCase) {
+    setup();
+
+    teardown();
+}
+
+static void testStThreadSet_getAdjacencyComponents_randomTests(CuTest *testCase) {
+    for (int32_t test = 0; test < 100; test++) {
+            stThreadSet *threadSet = getRandomPinchGraph();
+            stList *adjacencyComponents = stThreadSet_getAdjacencyComponents(threadSet);
+            //Check all ends in one adjacency component
+
+            //Check all connected nodes in same adjacency component
+            stThreadSet_destruct(threadSet);
+        }
 }
 
 CuSuite* stPinchGraphsTestSuite(void) {
@@ -349,5 +448,10 @@ CuSuite* stPinchGraphsTestSuite(void) {
     SUITE_ADD_TEST(suite, testStThreadAndSegment);
     SUITE_ADD_TEST(suite, testStBlock_NoSplits);
     SUITE_ADD_TEST(suite, testStBlock_Splits);
+    SUITE_ADD_TEST(suite, testStThreadSet_getAdjacencyComponents);
+    SUITE_ADD_TEST(suite, testStThread_pinch);
+    SUITE_ADD_TEST(suite, testStThreadSet_joinTrivialBoundaries_randomTests);
+    SUITE_ADD_TEST(suite, testStThreadSet_getAdjacencyComponents_randomTests);
+        SUITE_ADD_TEST(suite, testStThread_pinch_randomTests);
     return suite;
 }
