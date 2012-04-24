@@ -93,7 +93,7 @@ stBlock *stBlock_pinch(stBlock *block1, stBlock *block2, bool orientation) {
         return stBlock_pinch(block2, block1, orientation);
     }
     if (stBlock_getLength(block1) != stBlock_getLength(block2)) {
-        stThrowNew(ST_COMPRESSION_EXCEPTION_ID, "Two segments that are being pinched have different lengths: %i %i\n",
+        stThrowNew(ST_PINCH_GRAPH_EXCEPTION_ID, "Two segments that are being pinched have different lengths: %i %i\n",
                 stBlock_getLength(block1), stBlock_getLength(block2));
     }
     stBlockIt blockIt = stBlock_getSegmentIterator(block2);
@@ -368,9 +368,12 @@ stSegment *stThread_pinchP(stThread *thread, int64_t start) {
     if (stSegment_getStart(segment1) != start) {
         stSegment *segment2 = stSegment_get5Prime(segment1);
         stSegment_split(segment1, start - 1);
+        if (segment2 == NULL) {
+            segment2 = stThread_getFirst(thread);
+        }
         segment1 = stSegment_get3Prime(segment2);
+        assert(stSegment_getStart(segment1) == start);
     }
-    assert(stSegment_getStart(segment1) == start);
     return segment1;
 }
 
@@ -392,7 +395,7 @@ void stThread_pinch(stThread *thread1, stThread *thread2, int64_t start1, int64_
             if (strand2) {
                 stSegment_split(segment2, stSegment_getStart(segment2) + length - 1);
             } else {
-                stSegment_split(segment2, stSegment_getStart(segment2) + stSegment_getLength(segment2) - length);
+                stSegment_split(segment2, stSegment_getStart(segment2) + stSegment_getLength(segment2) - 1 - length);
                 segment2 = stSegment_get5Prime(segment2);
             }
         }
@@ -403,10 +406,11 @@ void stThread_pinch(stThread *thread1, stThread *thread2, int64_t start1, int64_
                 stSegment_split(segment2, stSegment_getStart(segment2) + stSegment_getLength(segment1) - 1);
             } else {
                 stSegment_split(segment2,
-                        stSegment_getStart(segment2) + stSegment_getLength(segment2) - stSegment_getLength(segment1));
+                        stSegment_getStart(segment2) + stSegment_getLength(segment2) - 1 - stSegment_getLength(segment1));
                 segment2 = stSegment_get5Prime(segment2);
             }
         }
+        assert(stSegment_getLength(segment1) == stSegment_getLength(segment2));
         stBlock *block1, *block2;
         if ((block1 = stSegment_getBlock(segment1)) == NULL) {
             block1 = stBlock_construct2(segment1);
@@ -583,7 +587,7 @@ stBlock *stThreadSetBlockIt_getNext(stThreadSetBlockIt *blockIt) {
 void stThreadSet_getAdjacencyComponentsP2(stHash *endsToAdjacencyComponents, stList *adjacencyComponent, stEnd *end) {
     stList *stack = stList_construct();
     stList_append(stack, end);
-    while(stList_length(stack) > 0) {
+    while (stList_length(stack) > 0) {
         end = stList_pop(stack);
         stList_append(adjacencyComponent, end);
         stHash_insert(endsToAdjacencyComponents, end, adjacencyComponent);
@@ -614,9 +618,10 @@ void stThreadSet_getAdjacencyComponentsP(stHash *endsToAdjacencyComponents, stLi
     end.block = block;
     stList *adjacencyComponent = stHash_search(endsToAdjacencyComponents, &end);
     if (adjacencyComponent == NULL) {
-        adjacencyComponent = stList_construct3(0, (void (*)(void *))stEnd_destruct);
+        adjacencyComponent = stList_construct3(0, (void(*)(void *)) stEnd_destruct);
         stList_append(adjacencyComponents, adjacencyComponent);
-        stThreadSet_getAdjacencyComponentsP2(endsToAdjacencyComponents, adjacencyComponent, stEnd_construct(block, orientation));
+        stThreadSet_getAdjacencyComponentsP2(endsToAdjacencyComponents, adjacencyComponent,
+                stEnd_construct(block, orientation));
     }
 }
 
@@ -664,8 +669,7 @@ int stEnd_equalsFn(const void *a, const void *b) {
 
 uint32_t stEnd_hashFn(const void *a) {
     const stEnd *end1 = a;
-    int64_t i = (int64_t)end1->block;
-    return (uint32_t)i;
+    int64_t i = (int64_t) end1->block;
+    return (uint32_t) i;
 }
-
 
