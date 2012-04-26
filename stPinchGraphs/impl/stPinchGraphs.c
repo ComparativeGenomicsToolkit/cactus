@@ -41,11 +41,6 @@ struct _stBlock {
     stSegment *tailSegment;
 };
 
-struct _stEnd {
-    stBlock *block;
-    bool orientation;
-};
-
 //Blocks
 
 static void connectBlockToSegment(stSegment *segment, bool orientation, stBlock *block, stSegment *nBlockSegment) {
@@ -146,73 +141,6 @@ stSegment *stBlock_getFirst(stBlock *block) {
 
 int64_t stBlock_getLength(stBlock *block) {
     return stSegment_getLength(stBlock_getFirst(block));
-}
-
-static bool stBlock_trivialBoundary(stBlock *block, bool _3Prime) {
-    stBlockIt blockIt = stBlock_getSegmentIterator(block);
-    stSegment *segment = stBlockIt_getNext(&blockIt);
-    assert(segment != NULL);
-    stSegment *adjacentSegment = (stSegment_getBlockOrientation(segment) ^ _3Prime) ? stSegment_get5Prime(segment)
-            : stSegment_get3Prime(segment);
-    if (adjacentSegment == NULL) {
-        return 0;
-    }
-    stBlock *adjacentBlock = stSegment_getBlock(adjacentSegment);
-    if (adjacentBlock == NULL || adjacentBlock == block) {
-        return 0;
-    }
-    bool adjacentBlockSide = stSegment_getBlockOrientation(segment) ^ stSegment_getBlockOrientation(adjacentSegment);
-    while ((segment = stBlockIt_getNext(&blockIt))) {
-        adjacentSegment = (stSegment_getBlockOrientation(segment) ^ _3Prime) ? stSegment_get5Prime(segment)
-                : stSegment_get3Prime(segment);
-        if (adjacentSegment == NULL) {
-            return 0;
-        }
-        stBlock *adjacentBlock2 = stSegment_getBlock(adjacentSegment);
-        if (adjacentBlock != adjacentBlock2) {
-            return 0;
-        }
-        bool adjacentBlockSide2 = stSegment_getBlockOrientation(segment) ^ stSegment_getBlockOrientation(
-                adjacentSegment);
-        if (adjacentBlockSide != adjacentBlockSide2) {
-            return 0;
-        }
-    }
-    return 1;
-}
-
-void stSegment_destruct(stSegment *segment);
-
-static void stBlock_joinTrivialBoundary(stBlock *block, bool _3Prime) {
-    assert(stBlock_trivialBoundary(block, _3Prime));
-    stSegment *segment = stBlock_getFirst(block);
-    //First destroy the adjacent block
-    stSegment *adjacentSegment = (stSegment_getBlockOrientation(segment) ^ _3Prime) ? stSegment_get5Prime(segment)
-            : stSegment_get3Prime(segment);
-    stBlock_destruct(stSegment_getBlock(adjacentSegment));
-    stBlockIt blockIt = stBlock_getSegmentIterator(block);
-    while ((segment = stBlockIt_getNext(&blockIt))) {
-        if (stSegment_getBlockOrientation(segment) ^ _3Prime) { //Remove the segment
-            stSegment *nSegment = segment->nSegment;
-            assert(segment->block == block);
-            assert(nSegment != NULL);
-            assert(nSegment->block == NULL);
-            assert(nSegment->nSegment != NULL);
-            segment->nSegment = nSegment->nSegment;
-            nSegment->nSegment->pSegment = segment;
-            stSortedSet_remove(segment->thread->segments, nSegment);
-            stSegment_destruct(nSegment);
-        } else {
-            stSegment *pSegment = segment->pSegment;
-            assert(segment->block == block);
-            assert(pSegment != NULL);
-            assert(pSegment->block == NULL);
-            segment->pSegment = pSegment->pSegment;
-            pSegment->pSegment->nSegment = segment;
-            stSortedSet_remove(segment->thread->segments, pSegment);
-            stSegment_destruct(pSegment);
-        }
-    }
 }
 
 //Segments
@@ -381,22 +309,23 @@ void stThread_split(stThread *thread, int64_t leftSideOfSplitPoint) {
 void stThread_joinTrivialBoundaries(stThread *thread) {
     stSegment *segment = stThread_getFirst(thread);
     do {
-        stBlock *block = stSegment_getBlock(segment);
-        while (1) {
-            stSegment *nSegment = stSegment_get3Prime(segment);
-            if (nSegment != NULL) {
-                stBlock *nBlock = stSegment_getBlock(nSegment);
-                if (block == NULL && nBlock == NULL) {
-                    //Trivial join
-                    segment->nSegment = nSegment->nSegment;
-                    assert(nSegment->nSegment != NULL);
-                    nSegment->nSegment->pSegment = segment;
-                    stSortedSet_remove(thread->segments, nSegment);
-                    stSegment_destruct(nSegment);
-                    continue;
+        if (stSegment_getBlock(segment) == NULL) {
+            while (1) {
+                stSegment *nSegment = stSegment_get3Prime(segment);
+                if (nSegment != NULL) {
+                    stBlock *nBlock = stSegment_getBlock(nSegment);
+                    if (nBlock == NULL) {
+                        //Trivial join
+                        segment->nSegment = nSegment->nSegment;
+                        assert(nSegment->nSegment != NULL);
+                        nSegment->nSegment->pSegment = segment;
+                        stSortedSet_remove(thread->segments, nSegment);
+                        stSegment_destruct(nSegment);
+                        continue;
+                    }
                 }
+                break;
             }
-            break;
         }
     } while ((segment = stSegment_get3Prime(segment)) != NULL);
 }
@@ -551,36 +480,39 @@ stThread *stThreadIt_getNext(stThreadIt *threadIt) {
     return NULL;
 }
 
+stSegment *getNextBlockSegment(stSegment *segment) {
+    while (1) {
+        if (segment == NULL) {
+            return NULL;
+        }
+        stBlock *block;
+        if ((block = stSegment_getBlock(segment)) != NULL && stBlock_getFirst(block) == segment) {
+            return segment;
+        }
+        segment = stSegment_get3Prime(segment);
+    }
+}
+
 void stThreadSet_joinTrivialBoundaries(stThreadSet *threadSet) {
     stThreadIt threadIt = stThreadSet_getIterator(threadSet);
     stThread *thread;
     while ((thread = stThreadIt_getNext(&threadIt)) != NULL) {
         stThread_joinTrivialBoundaries(thread);
-    }
-    //Now iterate through the blocks.
-    stThreadSetBlockIt blockIt = stThreadSet_getBlockIt(threadSet);
-    stList *blocksToMerge = stList_construct();
-    stBlock *block;
-    while ((block = stThreadSetBlockIt_getNext(&blockIt)) != NULL) {
-        stSegment *segment = stBlock_getFirst(block);
-        bool blockOrientation = stSegment_getBlockOrientation(segment);
-        if (stBlock_trivialBoundary(block, blockOrientation)) {
-            stList_append(blocksToMerge,
-                    stInt64Tuple_construct(2, stSegment_getName(segment), stSegment_getStart(segment)));
+        stSegment *segment = getNextBlockSegment(stThread_getFirst(thread));
+        while (segment != NULL) {
+            stEnd end;
+            end.block = stSegment_getBlock(segment);
+            end.orientation = 0;
+            if (stEnd_boundaryIsTrivial(end)) {
+                stEnd_joinTrivialBoundary(end);
+            }
+            end.orientation = 1;
+            if (stEnd_boundaryIsTrivial(end)) {
+                stEnd_joinTrivialBoundary(end);
+            }
+            segment = getNextBlockSegment(stSegment_get3Prime(segment));
         }
     }
-    while (stList_length(blocksToMerge) > 0) {
-        stInt64Tuple *tuple = stList_pop(blocksToMerge);
-        stSegment *segment = stThreadSet_getSegment(threadSet, stInt64Tuple_getPosition(tuple, 0),
-                stInt64Tuple_getPosition(tuple, 1));
-        stBlock *block = stSegment_getBlock(segment);
-        assert(block != NULL);
-        if (stSegment_getStart(segment) != stInt64Tuple_getPosition(tuple, 1)) {
-            stBlock_joinTrivialBoundary(block, stSegment_getBlockOrientation(segment));
-        }
-        stInt64Tuple_destruct(tuple);
-    }
-    stList_destruct(blocksToMerge);
 }
 
 stSegment *stThreadSet_getSegment(stThreadSet *threadSet, int64_t name, int64_t coordinate) {
@@ -634,25 +566,33 @@ stBlock *stThreadSetBlockIt_getNext(stThreadSetBlockIt *blockIt) {
 
 void stThreadSet_getAdjacencyComponentsP2(stHash *endsToAdjacencyComponents, stList *adjacencyComponent, stEnd *end) {
     stList *stack = stList_construct();
+    stList_append(adjacencyComponent, end);
+    stHash_insert(endsToAdjacencyComponents, end, adjacencyComponent);
     stList_append(stack, end);
     while (stList_length(stack) > 0) {
         end = stList_pop(stack);
-        stList_append(adjacencyComponent, end);
-        stHash_insert(endsToAdjacencyComponents, end, adjacencyComponent);
         stBlockIt blockIt = stBlock_getSegmentIterator(end->block);
         stSegment *segment;
         stEnd end2;
         while ((segment = stBlockIt_getNext(&blockIt)) != NULL) {
-            bool _5Prime = stSegment_getBlockOrientation(segment) ^ (!end->orientation);
-            stSegment *segment2 = _5Prime ? stSegment_get5Prime(segment) : stSegment_get3Prime(segment);
-            stBlock *block;
-            while ((block = stSegment_getBlock(segment2)) == NULL) {
-                segment2 = _5Prime ? stSegment_get5Prime(segment) : stSegment_get3Prime(segment);
-            }
-            end2.block = block;
-            end2.orientation = !_5Prime;
-            if (stHash_search(endsToAdjacencyComponents, &end2) == NULL) {
-                stList_append(stack, stEnd_construct(end2.block, end2.orientation));
+            bool _5PrimeTraversal = stEnd_traverse5Prime(end->orientation, segment);
+            while (1) {
+                segment = _5PrimeTraversal ? stSegment_get5Prime(segment) : stSegment_get3Prime(segment);
+                if (segment == NULL) {
+                    break;
+                }
+                stBlock *block = stSegment_getBlock(segment);
+                if (block != NULL) {
+                    end2.block = block;
+                    end2.orientation = stEnd_endOrientation(_5PrimeTraversal, segment);
+                    if (stHash_search(endsToAdjacencyComponents, &end2) == NULL) {
+                        stEnd *end3 = stEnd_construct(end2.block, end2.orientation);
+                        stList_append(adjacencyComponent, end3);
+                        stHash_insert(endsToAdjacencyComponents, end3, adjacencyComponent);
+                        stList_append(stack, end3);
+                    }
+                    break;
+                }
             }
         }
     }
@@ -721,3 +661,77 @@ uint32_t stEnd_hashFn(const void *a) {
     return (uint32_t) i;
 }
 
+bool stEnd_traverse5Prime(bool endOrientation, stSegment *segment) {
+    return !(stSegment_getBlockOrientation(segment) ^ endOrientation);
+}
+
+bool stEnd_endOrientation(bool _5PrimeTraversal, stSegment *segment) {
+    return _5PrimeTraversal ^ stSegment_getBlockOrientation(segment);
+}
+
+bool stEnd_boundaryIsTrivial(stEnd end) {
+    stBlockIt segmentIt = stBlock_getSegmentIterator(end.block);
+    stSegment *segment = stBlockIt_getNext(&segmentIt);
+    bool _5PrimeTraversal = stEnd_traverse5Prime(end.orientation, segment);
+    segment = _5PrimeTraversal ? stSegment_get5Prime(segment) : stSegment_get3Prime(segment);
+    stBlock *block;
+    if (segment == NULL || (block = stSegment_getBlock(segment)) == NULL || block == end.block || stBlock_getDegree(block) != stBlock_getDegree(end.block)) {
+        return 0;
+    }
+    bool endOrientation = stEnd_endOrientation(_5PrimeTraversal, segment);
+    while ((segment = stBlockIt_getNext(&segmentIt)) != NULL) {
+        _5PrimeTraversal = stEnd_traverse5Prime(end.orientation, segment);
+        segment = _5PrimeTraversal ? stSegment_get5Prime(segment) : stSegment_get3Prime(segment);
+        if (segment == NULL) {
+            return 0;
+        }
+        stBlock *block2 = stSegment_getBlock(segment);
+        if (block2 == NULL || block != block2 || stEnd_endOrientation(_5PrimeTraversal, segment) != endOrientation) {
+            return 0;
+        }
+    }
+    return 1;
+}
+
+static void merge3Prime(stSegment *segment) {
+    stSegment *nSegment = segment->nSegment;
+    assert(nSegment != NULL && nSegment != segment);
+    stSortedSet_remove(segment->thread->segments, nSegment);
+    assert(nSegment->block == NULL);
+    assert(nSegment->nSegment != NULL);
+    segment->nSegment = nSegment->nSegment;
+    nSegment->nSegment->pSegment = segment;
+    stSegment_destruct(nSegment);
+}
+
+static void merge5Prime(stSegment *segment) {
+    stSegment *pSegment = segment->pSegment;
+    assert(pSegment != NULL && pSegment != segment);
+    stSortedSet_remove(segment->thread->segments, pSegment);
+    assert(pSegment->block == NULL);
+    segment->pSegment = pSegment->pSegment;
+    if(pSegment->pSegment != NULL) {
+        pSegment->pSegment->nSegment = segment;
+    }
+    assert(pSegment->start < segment->start);
+    segment->start = pSegment->start;
+    stSegment_destruct(pSegment);
+}
+
+void stEnd_joinTrivialBoundary(stEnd end) {
+    stSegment *segment = stBlock_getFirst(end.block);
+    assert(segment != NULL);
+    bool _5PrimeTraversal = stEnd_traverse5Prime(end.orientation, segment);
+    segment = _5PrimeTraversal ? stSegment_get5Prime(segment) : stSegment_get3Prime(segment);
+    assert(segment != NULL && stSegment_getBlock(segment) != NULL && stSegment_getBlock(segment) != end.block);
+    stBlock_destruct(stSegment_getBlock(segment)); //get rid of the old block
+    stBlockIt segmentIt = stBlock_getSegmentIterator(end.block);
+    while ((segment = stBlockIt_getNext(&segmentIt)) != NULL) {
+        bool _5PrimeTraversal = stEnd_traverse5Prime(end.orientation, segment);
+        if (_5PrimeTraversal) {
+            merge5Prime(segment);
+        } else {
+            merge3Prime(segment);
+        }
+    }
+}

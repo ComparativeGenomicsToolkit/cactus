@@ -299,7 +299,7 @@ static void testStBlock_Splits(CuTest *testCase) {
     stSegment *segment2 = stSegment_get3Prime(segment1);
     stSegment *segment3 = stSegment_get3Prime(segment2);
     CuAssertPtrEquals(testCase, NULL, stSegment_get3Prime(segment3));
-    stBlock_pinch2(stBlock_construct(segment1, 1, segment2, 0), segment3, 0);
+    stBlock_pinch2(stBlock_construct(segment1, 1, segment2, 1), segment3, 1);
 
     stThread_split(thread3, 0);
 
@@ -366,9 +366,14 @@ static void testStBlock_Splits(CuTest *testCase) {
     CuAssertPtrEquals(testCase, block2, stSegment_getBlock(segment4));
     CuAssertPtrEquals(testCase, block2, stSegment_getBlock(segment6));
 
+    //Test block iterator
+    stThreadSetBlockIt threadBlockIt = stThreadSet_getBlockIt(threadSet);
+    CuAssertTrue(testCase, stThreadSetBlockIt_getNext(&threadBlockIt) != NULL);
+    CuAssertTrue(testCase, stThreadSetBlockIt_getNext(&threadBlockIt) != NULL);
+    CuAssertPtrEquals(testCase, NULL, stThreadSetBlockIt_getNext(&threadBlockIt));
     //Now do merge
     stThreadSet_joinTrivialBoundaries(threadSet);
-    stThreadSetBlockIt threadBlockIt = stThreadSet_getBlockIt(threadSet);
+    threadBlockIt = stThreadSet_getBlockIt(threadSet);
     block1 = stThreadSetBlockIt_getNext(&threadBlockIt);
     CuAssertTrue(testCase, block1 != NULL);
     CuAssertPtrEquals(testCase, NULL, stThreadSetBlockIt_getNext(&threadBlockIt));
@@ -636,6 +641,9 @@ static void testStThread_pinch_randomTests(CuTest *testCase) {
                         stThread_getName(thread2), strand1 == strand2 ? start2 + i : start2 + length - 1 - i, strand2);
             }
         }
+        if(st_random() > 0.5) {
+            stThreadSet_joinTrivialBoundaries(threadSet); //Checks this function does not affect result
+        }
 
         //Check they are equivalent
         stHashIterator *hashIt = stHash_getIterator(columns);
@@ -668,63 +676,37 @@ static void testStThread_pinch_randomTests(CuTest *testCase) {
     }
 }
 
-static bool boundaryIsTrivial(stSegment *segment5Prime, stSegment *segment3Prime) {
-    stBlock *block5Prime = stSegment_getBlock(segment5Prime);
-    stBlock *block3Prime = stSegment_getBlock(segment3Prime);
-    if (block5Prime == NULL && block3Prime == NULL) {
-        return 1;
-    }
-    if (block5Prime == NULL) {
-        return 0;
-    }
-    if (block3Prime == NULL) {
-        return 0;
-    }
-    if (stBlock_getDegree(block5Prime) != stBlock_getDegree(block3Prime)) {
-        return 0;
-    }
-    stBlockIt _5PrimeSegmentIt = stBlock_getSegmentIterator(block5Prime);
-    stSegment *segment5Prime2;
-    while ((segment5Prime2 = stBlockIt_getNext(&_5PrimeSegmentIt)) != NULL) {
-        stSegment *segment3Prime2 = stSegment_getBlockOrientation(segment5Prime2) ? stSegment_get3Prime(segment5Prime2)
-                : stSegment_get5Prime(segment5Prime2);
-        if (stSegment_getBlock(segment3Prime2) != block3Prime) {
-            return 0;
-        }
-        if (stSegment_getBlockOrientation(segment5Prime2) && !stSegment_getBlockOrientation(segment3Prime2)) {
-            return 0;
-        }
-        if (!stSegment_getBlockOrientation(segment5Prime2) && stSegment_getBlockOrientation(segment3Prime2)) {
-            return 0;
-        }
-    }
-    return 1;
-}
-
 static void testStThreadSet_joinTrivialBoundaries_randomTests(CuTest *testCase) {
-    return;
     for (int32_t test = 0; test < 100; test++) {
+        st_logInfo("Starting random trivial boundaries test %i\n", test);
         stThreadSet *threadSet = getRandomPinchGraph();
         stThreadSet_joinTrivialBoundaries(threadSet);
         stThreadSetSegmentIt segmentIt = stThreadSet_getSegmentIt(threadSet);
         stSegment *segment;
         while ((segment = stThreadSetSegmentIt_getNext(&segmentIt))) {
-            //Check no trivial boundaries
-            stSegment *segment2 = stSegment_get5Prime(segment);
-            if (segment2 != NULL) {
-                CuAssertTrue(testCase, !boundaryIsTrivial(segment2, segment));
+            if(stSegment_getBlock(segment) == NULL) {
+                stSegment *segment2 = stSegment_get5Prime(segment);
+                CuAssertTrue(testCase, segment2 == NULL || stSegment_getBlock(segment2) != NULL);
+                segment2 = stSegment_get3Prime(segment);
+                CuAssertTrue(testCase, segment2 == NULL || stSegment_getBlock(segment2) != NULL);
             }
-            segment2 = stSegment_get3Prime(segment);
-            if (segment2 != NULL) {
-                CuAssertTrue(testCase, !boundaryIsTrivial(segment, segment2));
-            }
+        }
+        stThreadSetBlockIt blockIt = stThreadSet_getBlockIt(threadSet);
+        stBlock *block;
+        while((block = stThreadSetBlockIt_getNext(&blockIt)) != NULL) {
+            stEnd end;
+            end.block = block;
+            end.orientation = 0;
+            CuAssertTrue(testCase, !stEnd_boundaryIsTrivial(end));
+            end.orientation = 1;
+            CuAssertTrue(testCase, !stEnd_boundaryIsTrivial(end));
         }
         stThreadSet_destruct(threadSet);
     }
 }
 
 static void testStThreadSet_getAdjacencyComponents(CuTest *testCase) {
-    return;
+    //return;
     setup();
     //Quick check that it returns what we expect
     stThread_pinch(thread1, thread2, 5, 5, 8, 1);
@@ -735,8 +717,9 @@ static void testStThreadSet_getAdjacencyComponents(CuTest *testCase) {
 }
 
 static void testStThreadSet_getAdjacencyComponents_randomTests(CuTest *testCase) {
-    return;
+    //return;
     for (int32_t test = 0; test < 100; test++) {
+        st_logInfo("Starting random adjacency component test %i\n", test);
         stThreadSet *threadSet = getRandomPinchGraph();
         stList *adjacencyComponents = stThreadSet_getAdjacencyComponents(threadSet);
         //Check all ends in one adjacency component
