@@ -60,6 +60,8 @@ bool stCactusEdgeEnd_isChainEnd(stCactusEdgeEnd *edgeEnd);
 
 stCactusEdgeEnd *stCactusEdgeEnd_getNextEdgeEnd(stCactusEdgeEnd *edgeEnd);
 
+int64_t stCactusEdgeEnd_getChainLength(stCactusEdgeEnd *edgeEnd);
+
 //Graph functions
 
 stCactusGraph *stCactusGraph_construct();

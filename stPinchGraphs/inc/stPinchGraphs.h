@@ -46,6 +46,15 @@ typedef struct _stEnd {
     bool orientation;
 } stEnd;
 
+typedef struct _stPinch {
+    int64_t name1;
+    int64_t name2;
+    int64_t start1;
+    int64_t start2;
+    int64_t length;
+    bool strand;
+} stPinch;
+
 //Thread set
 
 stThreadSet *stThreadSet_construct();
@@ -70,6 +79,10 @@ stSegment *stThreadSet_getSegment(stThreadSet *threadSet, int64_t name, int64_t 
 
 stList *stThreadSet_getAdjacencyComponents(stThreadSet *threadSet);
 
+stList *stThreadSet_getAdjacencyComponents2(stThreadSet *threadSet, stHash **edgeEndsToAdjacencyComponents);
+
+stList *stThreadSet_getThreadComponents(stThreadSet *threadSet);
+
 //convenience functions
 
 stThreadSetSegmentIt stThreadSet_getSegmentIt(stThreadSet *threadSet);
@@ -91,6 +104,8 @@ int64_t stThread_getLength(stThread *stThread);
 stSegment *stThread_getSegment(stThread *stThread, int64_t coordinate);
 
 stSegment *stThread_getFirst(stThread *stThread);
+
+stSegment *stThread_getLast(stThread *thread);
 
 void stThread_split(stThread *thread, int64_t leftSideOfSplitPoint);
 
@@ -118,6 +133,8 @@ bool stSegment_getBlockOrientation(stSegment *segment);
 
 //Blocks
 
+stBlock *stBlock_construct3(stSegment *segment, bool orientation);
+
 stBlock *stBlock_construct2(stSegment *segment1); //Allows the specification of a block with just one element
 
 stBlock *stBlock_construct(stSegment *segment1, bool orientation1, stSegment *segment2, bool orientation2);
@@ -142,6 +159,8 @@ uint32_t stBlock_getDegree(stBlock *block);
 
 stEnd *stEnd_construct(stBlock *block, bool orientation);
 
+stEnd stEnd_constructStatic(stBlock *block, bool orientation);
+
 void stEnd_destruct(stEnd *end);
 
 stBlock *stEnd_getBlock(stEnd *end);
@@ -159,5 +178,23 @@ bool stEnd_endOrientation(bool _5PrimeTraversal, stSegment *segment);
 bool stEnd_boundaryIsTrivial(stEnd end);
 
 void stEnd_joinTrivialBoundary(stEnd end);
+
+//Pinch structure
+
+void stPinch_fillOut(stPinch *pinch, int64_t name1,
+        int64_t name2,
+        int64_t start1,
+        int64_t start2,
+        int64_t length,
+        bool strand);
+
+stPinch *stPinch_construct(int64_t name1,
+        int64_t name2,
+        int64_t start1,
+        int64_t start2,
+        int64_t length,
+        bool strand);
+
+void stPinch_destruct(stPinch *pinch);
 
 #endif /* ST_PINCH_GRAPHS_H_ */
