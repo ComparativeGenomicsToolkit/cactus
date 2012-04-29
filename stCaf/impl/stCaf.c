@@ -235,14 +235,21 @@ stCactusGraph *stCaf_constructCactusGraph(stSortedSet *adjacencyComponents, stLi
     return cactusGraph;
 }
 
-void makeBlock();
+void makeBlock(stCactusEdgeEnd *cactusEdgeEnd, Flower *flower, stHash *edgeEndsToEnds) {
+
+}
 
 void setAdjacencies();
+
+End *convertEdgeEndToEnd(stCactusEdgeEnd *cactusEdgeEnd) {
+    return stHash_search(edgeEndsToEnds, stCactusEdgeEnd_getObject(cactusEdgeEnd));
+}
 
 void stCaf_convertCactusGraphToFlowers(stCactusGraph *cactusGraph, stCactusNode *startCactusNode, Flower *flower, stList *deadEndComponent) {
     stList *stack = stList_construct();
     stList_append(stack, startCactusNode);
     stList_append(stack, flower);
+    stHash *edgeEndsToEnds = stHash_construct();
     while (stList_length(stack) > 0) {
         flower = stList_pop(stack);
         stCactusNode *cactusNode = stList_pop(stack);
