@@ -13,18 +13,18 @@
 #include "stCactusGraphs.h"
 #include "cactus.h"
 
-stThreadSet *stCaf_constructEmptyPinchGraph(Flower *flower);
+stPinchThreadSet *stCaf_constructEmptyPinchGraph(Flower *flower);
 
-void stCaf_addAlignmentsToPinchGraph(stThreadSet *threadSet, stPinch *(*pinchGenerator)());
+void stCaf_addAlignmentsToPinchGraph(stPinchThreadSet *threadSet, stPinch *(*pinchGenerator)());
 
-stList *stCaf_constructDeadEndComponent(Flower *flower, stThreadSet *threadSet, stSortedSet *adjacencyComponents, stHash *edgeEndsToAdjacencyComponents);
+stList *stCaf_constructDeadEndComponent(Flower *flower, stPinchThreadSet *threadSet, stSortedSet *adjacencyComponents, stHash *edgeEndsToAdjacencyComponents);
 
-void stCaf_attachUnattachedThreadComponents(Flower *flower, stThreadSet *threadSet, stList *deadEndComponent,
+void stCaf_attachUnattachedThreadComponents(Flower *flower, stPinchThreadSet *threadSet, stList *deadEndComponent,
         stSortedSet *adjacencyComponents, stHash *edgeEndsToAdjacencyComponents, bool markEndsAttached);
 
 stCactusGraph *stCaf_constructCactusGraph(stSortedSet *adjacencyComponents, stList *deadEndComponent,
         stHash *edgeEndsToAdjacencyComponents, stCactusNode **startCactusNode);
 
-void stCaf_convertCactusGraphToFlowers(stThreadSet *threadSet, stCactusNode *startCactusNode, Flower *parentFlower, stList *deadEndComponent);
+void stCaf_convertCactusGraphToFlowers(stPinchThreadSet *threadSet, stCactusNode *startCactusNode, Flower *parentFlower, stList *deadEndComponent);
 
 #endif /* STCAF_H_ */

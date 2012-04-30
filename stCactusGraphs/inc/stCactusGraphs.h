@@ -12,18 +12,16 @@ typedef struct _stCactusNode stCactusNode;
 
 typedef struct _stCactusEdgeEnd stCactusEdgeEnd;
 
-typedef struct _stCactusNode_edgeEndIt {
+typedef struct _stCactusNodeEdgeEndIt {
     stCactusEdgeEnd *edgeEnd;
-} stCactusNode_edgeEndIt;
+} stCactusNodeEdgeEndIt;
 
 typedef struct _stCactusGraph stCactusGraph;
 
 typedef struct _stCactusGraphNodeIterator {
     stHashIterator *it;
     stCactusGraph *graph;
-} stCactusGraphNodeIterator;
-
-typedef struct _stCactusEdgeTuple stCactusEdgeTuple;
+} stCactusGraphNodeIt;
 
 //Node functions
 
@@ -32,9 +30,9 @@ stCactusNode *stCactusNode_construct(stCactusGraph *graph,
 
 void *stCactusNode_getObject(stCactusNode *node);
 
-stCactusNode_edgeEndIt stCactusNode_getEdgeEndIt(stCactusNode *node);
+stCactusNodeEdgeEndIt stCactusNode_getEdgeEndIt(stCactusNode *node);
 
-stCactusEdgeEnd *stCactusNode_edgeEndIt_getNext(stCactusNode_edgeEndIt *it);
+stCactusEdgeEnd *stCactusNodeEdgeEndIt_getNext(stCactusNodeEdgeEndIt *it);
 
 stCactusEdgeEnd *stCactusNode_getFirstEdgeEnd(stCactusNode *node);
 
@@ -64,7 +62,7 @@ int64_t stCactusEdgeEnd_getChainLength(stCactusEdgeEnd *edgeEnd);
 
 //Graph functions
 
-stCactusGraph *stCactusGraph_construct();
+stCactusGraph *stCactusGraph_construct(void);
 
 void stCactusGraph_collapseToCactus(
         stCactusGraph *graph, void *(*mergeNodeObjects)(void *, void *), stCactusNode *startNode);
@@ -73,11 +71,11 @@ stCactusNode *stCactusGraph_getNode(stCactusGraph *node, void *nodeObject);
 
 void stCactusGraph_destruct(stCactusGraph *graph);
 
-stCactusGraphNodeIterator *stCactusGraphNodeIterator_construct(stCactusGraph *graph);
+stCactusGraphNodeIt *stCactusGraphNodeIterator_construct(stCactusGraph *graph);
 
-stCactusNode *stCactusGraphNodeIterator_getNext(stCactusGraphNodeIterator *nodeIt);
+stCactusNode *stCactusGraphNodeIterator_getNext(stCactusGraphNodeIt *nodeIt);
 
-void stCactusGraphNodeIterator_destruct(stCactusGraphNodeIterator *);
+void stCactusGraphNodeIterator_destruct(stCactusGraphNodeIt *);
 
 void stCactusGraph_unmarkCycles(stCactusGraph *graph);
 
