@@ -6,23 +6,23 @@ libHeaders = inc/*.h
 libTests = tests/*.c
 
 commonCafLibs = ${libPath}/cactusBlastAlignment.a ${libPath}/stCactusGraphs.a ${libPath}/stPinchGraphs.a ${libPath}/3EdgeConnected.a ${libPath}/cactusLib.a
-cafDependencies =  ${commonCafLibs} ${basicLibsDependencies}
-cafLibs = ${commonCafLibs} ${basicLibs}
+stCafDependencies =  ${commonCafLibs} ${basicLibsDependencies}
+stCafLibs = ${commonCafLibs} ${basicLibs}
 
-all : ${libPath}/cactusCaf.a ${binPath}/cafTests
+all : ${libPath}/stCaf.a ${binPath}/stCafTests
 
-${libPath}/cactusCaf.a : ${libSources} ${libHeaders} ${cafDependencies}
+${libPath}/stCaf.a : ${libSources} ${libHeaders} ${stCafDependencies}
 	${cxx} ${cflags} -I inc -I ${libPath}/ -c ${libSources}
-	ar rc cactusCaf.a *.o
-	ranlib cactusCaf.a 
+	ar rc stCaf.a *.o
+	ranlib stCaf.a 
 	rm *.o
-	mv cactusCaf.a ${libPath}/
+	mv stCaf.a ${libPath}/
 	cp ${libHeaders} ${libPath}/
 
-${binPath}/cafTests : ${libTests} ${libPath}/cactusCaf.a ${cafDependencies}
-	${cxx} ${cflags} -I inc -I impl -I${libPath} -o ${binPath}/cafTests ${libTests} ${libSources} ${libPath}/cactusCaf.a ${cafLibs}
+${binPath}/stCafTests : ${libTests} ${libPath}/stCaf.a ${stCafDependencies}
+	${cxx} ${cflags} -I inc -I impl -I${libPath} -o ${binPath}/stCafTests ${libTests} ${libSources} ${libPath}/stCaf.a ${stCafLibs}
 
 clean : 
 	rm -f *.o
-	rm -f ${libPath}/cactusCaf.a ${binPath}/cafTests
+	rm -f ${libPath}/stCaf.a ${binPath}/stCafTests
 

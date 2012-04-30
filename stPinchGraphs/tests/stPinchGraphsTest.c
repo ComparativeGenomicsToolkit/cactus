@@ -42,11 +42,11 @@ static void testStPinchThreadSet(CuTest *testCase) {
     CuAssertPtrEquals(testCase, thread1, stPinchThreadSet_getThread(threadSet, name1));
     CuAssertPtrEquals(testCase, thread2, stPinchThreadSet_getThread(threadSet, name2));
     CuAssertPtrEquals(testCase, NULL, stPinchThreadSet_getThread(threadSet, 5));
-    stPinchThreadSetIt threadIt = stPinchThreadSet_getIterator(threadSet);
-    CuAssertPtrEquals(testCase, thread1, stPinchThreadIt_getNext(&threadIt));
-    CuAssertPtrEquals(testCase, thread2, stPinchThreadIt_getNext(&threadIt));
-    CuAssertPtrEquals(testCase, NULL, stPinchThreadIt_getNext(&threadIt));
-    CuAssertPtrEquals(testCase, NULL, stPinchThreadIt_getNext(&threadIt));
+    stPinchThreadSetIt threadIt = stPinchThreadSet_getIt(threadSet);
+    CuAssertPtrEquals(testCase, thread1, stPinchThreadSetIt_getNext(&threadIt));
+    CuAssertPtrEquals(testCase, thread2, stPinchThreadSetIt_getNext(&threadIt));
+    CuAssertPtrEquals(testCase, NULL, stPinchThreadSetIt_getNext(&threadIt));
+    CuAssertPtrEquals(testCase, NULL, stPinchThreadSetIt_getNext(&threadIt));
 
     //Test segment iterators
     stSortedSet *segmentSet = stSortedSet_construct();
@@ -542,9 +542,9 @@ static void mergePositionsSymmetric(stHash *columns, int64_t name1, int64_t star
 stHash *getUnalignedColumns(stPinchThreadSet *threadSet) {
     stHash *columns = stHash_construct3((uint32_t(*)(const void *)) stInt64Tuple_hashKey,
             (int(*)(const void *, const void *)) stInt64Tuple_equalsFn, (void(*)(void *)) stInt64Tuple_destruct, NULL);
-    stPinchThreadSetIt it = stPinchThreadSet_getIterator(threadSet);
+    stPinchThreadSetIt it = stPinchThreadSet_getIt(threadSet);
     stPinchThread *thread;
-    while ((thread = stPinchThreadIt_getNext(&it))) {
+    while ((thread = stPinchThreadSetIt_getNext(&it))) {
         for (int32_t i = 0; i < stPinchThread_getLength(thread); i++) {
             addColumn(columns, stPinchThread_getName(thread), stPinchThread_getStart(thread) + i, 1);
             addColumn(columns, stPinchThread_getName(thread), stPinchThread_getStart(thread) + i, 0);
@@ -597,9 +597,9 @@ static stPinchThreadSet *getRandomThreadSet() {
 
 static stList *getThreadList(stPinchThreadSet *threadSet) {
     stList *threadList = stList_construct();
-    stPinchThreadSetIt threadIt = stPinchThreadSet_getIterator(threadSet);
+    stPinchThreadSetIt threadIt = stPinchThreadSet_getIt(threadSet);
     stPinchThread *thread;
-    while ((thread = stPinchThreadIt_getNext(&threadIt)) != NULL) {
+    while ((thread = stPinchThreadSetIt_getNext(&threadIt)) != NULL) {
         stList_append(threadList, thread);
     }
     return threadList;

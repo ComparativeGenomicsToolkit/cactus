@@ -474,14 +474,14 @@ int32_t stPinchThreadSet_getSize(stPinchThreadSet *threadSet) {
     return stList_length(threadSet->threads);
 }
 
-stPinchThreadSetIt stPinchThreadSet_getIterator(stPinchThreadSet *threadSet) {
+stPinchThreadSetIt stPinchThreadSet_getIt(stPinchThreadSet *threadSet) {
     stPinchThreadSetIt threadIt;
     threadIt.threadSet = threadSet;
     threadIt.index = 0;
     return threadIt;
 }
 
-stPinchThread *stPinchThreadIt_getNext(stPinchThreadSetIt *threadIt) {
+stPinchThread *stPinchThreadSetIt_getNext(stPinchThreadSetIt *threadIt) {
     if (threadIt->index < stPinchThreadSet_getSize(threadIt->threadSet)) {
         return stList_get(threadIt->threadSet->threads, threadIt->index++);
     }
@@ -502,9 +502,9 @@ stPinchSegment *getNextBlockSegment(stPinchSegment *segment) {
 }
 
 void stPinchThreadSet_joinTrivialBoundaries(stPinchThreadSet *threadSet) {
-    stPinchThreadSetIt threadIt = stPinchThreadSet_getIterator(threadSet);
+    stPinchThreadSetIt threadIt = stPinchThreadSet_getIt(threadSet);
     stPinchThread *thread;
-    while ((thread = stPinchThreadIt_getNext(&threadIt)) != NULL) {
+    while ((thread = stPinchThreadSetIt_getNext(&threadIt)) != NULL) {
         stPinchThread_joinTrivialBoundaries(thread);
         stPinchSegment *segment = getNextBlockSegment(stPinchThread_getFirst(thread));
         while (segment != NULL) {
@@ -535,14 +535,14 @@ stPinchSegment *stPinchThreadSet_getSegment(stPinchThreadSet *threadSet, int64_t
 
 stPinchThreadSetSegmentIt stPinchThreadSet_getSegmentIt(stPinchThreadSet *threadSet) {
     stPinchThreadSetSegmentIt segmentIt;
-    segmentIt.threadIt = stPinchThreadSet_getIterator(threadSet);
+    segmentIt.threadIt = stPinchThreadSet_getIt(threadSet);
     segmentIt.segment = NULL;
     return segmentIt;
 }
 
 stPinchSegment *stPinchThreadSetSegmentIt_getNext(stPinchThreadSetSegmentIt *segmentIt) {
     while (segmentIt->segment == NULL) {
-        stPinchThread *thread = stPinchThreadIt_getNext(&segmentIt->threadIt);
+        stPinchThread *thread = stPinchThreadSetIt_getNext(&segmentIt->threadIt);
         if (thread == NULL) {
             return NULL;
         }
@@ -640,10 +640,10 @@ stList *stPinchThreadSet_getAdjacencyComponents(stPinchThreadSet *threadSet) {
 
 stSortedSet *stPinchThreadSet_getThreadComponents(stPinchThreadSet *threadSet) {
     stHash *threadToComponentHash = stHash_construct();
-    stPinchThreadSetIt threadIt = stPinchThreadSet_getIterator(threadSet);
+    stPinchThreadSetIt threadIt = stPinchThreadSet_getIt(threadSet);
     stPinchThread *thread;
     //Make a component for each thread.
-    while ((thread = stPinchThreadIt_getNext(&threadIt)) != NULL) {
+    while ((thread = stPinchThreadSetIt_getNext(&threadIt)) != NULL) {
         stList *threadComponent = stList_construct();
         stList_append(threadComponent, thread);
         stHash_insert(threadToComponentHash, thread, threadComponent);

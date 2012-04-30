@@ -69,9 +69,9 @@ stPinchSegment *stPinchThreadSet_getSegment(stPinchThreadSet *threadSet, int64_t
 
 int32_t stPinchThreadSet_getSize(stPinchThreadSet *threadSet);
 
-stPinchThreadSetIt stPinchThreadSet_getIterator(stPinchThreadSet *threadSet);
+stPinchThreadSetIt stPinchThreadSet_getIt(stPinchThreadSet *threadSet);
 
-stPinchThread *stPinchThreadIt_getNext(stPinchThreadSetIt *);
+stPinchThread *stPinchThreadSetIt_getNext(stPinchThreadSetIt *);
 
 void stPinchThreadSet_joinTrivialBoundaries(stPinchThreadSet *threadSet);
 
