@@ -745,6 +745,10 @@ static void testStThreadSet_getAdjacencyComponents_randomTests(CuTest *testCase)
     }
 }
 
+static void testStThreadSet_getThreadComponents(CuTest *testCase) {
+
+}
+
 CuSuite* stPinchGraphsTestSuite(void) {
     CuSuite* suite = CuSuiteNew();
     SUITE_ADD_TEST(suite, testStThreadSet);
@@ -756,6 +760,7 @@ CuSuite* stPinchGraphsTestSuite(void) {
     SUITE_ADD_TEST(suite, testStThreadSet_getAdjacencyComponents);
     SUITE_ADD_TEST(suite, testStThreadSet_getAdjacencyComponents_randomTests);
     SUITE_ADD_TEST(suite, testStThreadSet_joinTrivialBoundaries_randomTests);
+    SUITE_ADD_TEST(suite, testStThreadSet_getThreadComponents);
 
     return suite;
 }

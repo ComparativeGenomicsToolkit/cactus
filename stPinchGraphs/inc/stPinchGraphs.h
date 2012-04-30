@@ -81,7 +81,7 @@ stList *stThreadSet_getAdjacencyComponents(stThreadSet *threadSet);
 
 stList *stThreadSet_getAdjacencyComponents2(stThreadSet *threadSet, stHash **edgeEndsToAdjacencyComponents);
 
-stList *stThreadSet_getThreadComponents(stThreadSet *threadSet);
+stSortedSet *stThreadSet_getThreadComponents(stThreadSet *threadSet);
 
 //convenience functions
 
@@ -131,6 +131,8 @@ stBlock *stSegment_getBlock(stSegment *segment);
 
 bool stSegment_getBlockOrientation(stSegment *segment);
 
+void stSegment_split(stSegment *segment, int64_t leftSideOfSplitPoint);
+
 //Blocks
 
 stBlock *stBlock_construct3(stSegment *segment, bool orientation);
@@ -156,6 +158,8 @@ stSegment *stBlock_getFirst(stBlock *block);
 uint32_t stBlock_getDegree(stBlock *block);
 
 //Block ends
+
+void stEnd_fillOut(stEnd *end, stBlock *block, bool orientation);
 
 stEnd *stEnd_construct(stBlock *block, bool orientation);
 

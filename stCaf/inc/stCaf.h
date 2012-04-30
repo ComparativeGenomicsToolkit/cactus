@@ -19,12 +19,12 @@ void stCaf_addAlignmentsToPinchGraph(stThreadSet *threadSet, stPinch *(*pinchGen
 
 stList *stCaf_constructDeadEndComponent(Flower *flower, stThreadSet *threadSet, stSortedSet *adjacencyComponents, stHash *edgeEndsToAdjacencyComponents);
 
-void stCaf_attachUnattachedThreadComponents(Flower *flower, stList *deadEndComponent,
+void stCaf_attachUnattachedThreadComponents(Flower *flower, stThreadSet *threadSet, stList *deadEndComponent,
         stSortedSet *adjacencyComponents, stHash *edgeEndsToAdjacencyComponents, bool markEndsAttached);
 
 stCactusGraph *stCaf_constructCactusGraph(stSortedSet *adjacencyComponents, stList *deadEndComponent,
         stHash *edgeEndsToAdjacencyComponents, stCactusNode **startCactusNode);
 
-void stCaf_convertCactusGraphToFlowers(stCactusGraph *cactusGraph, stCactusNode *startCactusNode, Flower *flower);
+void stCaf_convertCactusGraphToFlowers(stThreadSet *threadSet, stCactusNode *startCactusNode, Flower *parentFlower, stList *deadEndComponent);
 
 #endif /* STCAF_H_ */

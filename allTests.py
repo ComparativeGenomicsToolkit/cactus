@@ -20,6 +20,7 @@ from cactus.api.allTests import TestCase as aPITest
 from cactus.externalTools.threeEdgeConnected.threeEdgeTests import TestCase as threeEdgeTest
 from cactus.stPinchGraphs.allTests import TestCase as stPinchGraphsTest
 from cactus.stCactusGraphs.allTests import TestCase as stCactusGraphsTest
+from cactus.stCaf.allTests import TestCase as stCafTest
 from cactus.normalisation.cactus_normalisationTest import TestCase as normalisationTest
 from cactus.progressive.allTests import allSuites as progressiveSuite
 
@@ -29,6 +30,7 @@ def allSuites():
     allTests = unittest.TestSuite((unittest.makeSuite(threeEdgeTest, 'test'),
                                    unittest.makeSuite(stPinchGraphsTest, 'test'),
                                    unittest.makeSuite(stCactusGraphsTest, 'test'),
+                                   unittest.makeSuite(stCafTest, 'test'),
                                    unittest.makeSuite(setupTest, 'test'),
                                    unittest.makeSuite(alignerTest, 'test'),
                                    unittest.makeSuite(batchTest, 'test'),
