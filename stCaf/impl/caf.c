@@ -240,17 +240,17 @@ stCactusGraph *stCaf_constructCactusGraph(stSortedSet *adjacencyComponents, stLi
     return cactusGraph;
 }
 
-static void makeBlockP(stPinchEnd *pinchBlockEnd, End *end, stHash *pinchBlockEndsToEnds) {
-    assert(stHash_search(pinchBlockEndsToEnds, pinchBlockEnd) == NULL);
-    stHash_insert(pinchBlockEndsToEnds,
-            stPinchEnd_construct(stPinchEnd_getBlock(pinchBlockEnd), stPinchEnd_getOrientation(pinchBlockEnd)), end);
+static void makeBlockP(stPinchEnd *pinchEnd, End *end, stHash *pinchEndsToEnds) {
+    assert(stHash_search(pinchEndsToEnds, pinchEnd) == NULL);
+    stHash_insert(pinchEndsToEnds,
+            stPinchEnd_construct(stPinchEnd_getBlock(pinchEnd), stPinchEnd_getOrientation(pinchEnd)), end);
 }
 
 static void makeBlock(stCactusEdgeEnd *cactusEdgeEnd, Flower *parentFlower, Flower *flower,
-        stHash *pinchBlockEndsToEnds) {
-    stPinchEnd *pinchBlockEnd = stCactusEdgeEnd_getObject(cactusEdgeEnd);
-    assert(pinchBlockEnd != NULL);
-    stPinchBlock *pinchBlock = stPinchEnd_getBlock(pinchBlockEnd);
+        stHash *pinchEndsToEnds) {
+    stPinchEnd *pinchEnd = stCactusEdgeEnd_getObject(cactusEdgeEnd);
+    assert(pinchEnd != NULL);
+    stPinchBlock *pinchBlock = stPinchEnd_getBlock(pinchEnd);
     Block *block = block_construct(stPinchBlock_getLength(pinchBlock), flower);
     stPinchSegment *pinchSegment;
     stPinchBlockIt pinchSegmentIt = stPinchBlock_getSegmentIterator(pinchBlock);
@@ -259,16 +259,16 @@ static void makeBlock(stCactusEdgeEnd *cactusEdgeEnd, Flower *parentFlower, Flow
         assert(cap != NULL);
         Sequence *sequence = cap_getSequence(cap);
         segment_construct2(
-                stPinchEnd_getOrientation(pinchBlockEnd) ^ stPinchSegment_getBlockOrientation(pinchSegment) ? block
+                stPinchEnd_getOrientation(pinchEnd) ^ stPinchSegment_getBlockOrientation(pinchSegment) ? block
                         : block_getReverse(block), stPinchSegment_getStart(pinchSegment), 1, sequence);
     }
-    makeBlockP(pinchBlockEnd, block_get5End(block), pinchBlockEndsToEnds);
+    makeBlockP(pinchEnd, block_get5End(block), pinchEndsToEnds);
     stPinchEnd *otherPinchBlockEnd = stCactusEdgeEnd_getObject(stCactusEdgeEnd_getOtherEdgeEnd(cactusEdgeEnd));
-    makeBlockP(otherPinchBlockEnd, block_get3End(block), pinchBlockEndsToEnds);
+    makeBlockP(otherPinchBlockEnd, block_get3End(block), pinchEndsToEnds);
 }
 
-static End *convertPinchBlockEndToEnd(stPinchEnd *pinchBlockEnd, stHash *pinchBlockEndsToEnds, Flower *flower) {
-    End *end = stHash_search(pinchBlockEndsToEnds, pinchBlockEnd);
+static End *convertPinchBlockEndToEnd(stPinchEnd *pinchEnd, stHash *pinchEndsToEnds, Flower *flower) {
+    End *end = stHash_search(pinchEndsToEnds, pinchEnd);
     if (end == NULL) {
         return NULL;
     }
@@ -278,7 +278,7 @@ static End *convertPinchBlockEndToEnd(stPinchEnd *pinchBlockEnd, stHash *pinchBl
         assert(end_isStubEnd(end));
         //Copy the end down the hierarchy
         Group *parentGroup = flower_getParentGroup(flower);
-        end2 = convertPinchBlockEndToEnd(pinchBlockEnd, pinchBlockEndsToEnds, group_getFlower(parentGroup));
+        end2 = convertPinchBlockEndToEnd(pinchEnd, pinchEndsToEnds, group_getFlower(parentGroup));
         assert(end2 != NULL);
         if (end_getGroup(end2) == NULL) {
             end_setGroup(end2, parentGroup);
@@ -291,53 +291,53 @@ static End *convertPinchBlockEndToEnd(stPinchEnd *pinchBlockEnd, stHash *pinchBl
     return end2;
 }
 
-static End *convertCactusEdgeEndToEnd(stCactusEdgeEnd *cactusEdgeEnd, stHash *pinchBlockEndsToEnds, Flower *flower) {
-    return convertPinchBlockEndToEnd(stCactusEdgeEnd_getObject(cactusEdgeEnd), pinchBlockEndsToEnds, flower);
+static End *convertCactusEdgeEndToEnd(stCactusEdgeEnd *cactusEdgeEnd, stHash *pinchEndsToEnds, Flower *flower) {
+    return convertPinchBlockEndToEnd(stCactusEdgeEnd_getObject(cactusEdgeEnd), pinchEndsToEnds, flower);
 }
 
-static void getPinchBlockEndsToEndsHashPP(stPinchBlock *pinchBlock, bool orientation, End *end, stHash *pinchBlockEndsToEnds) {
+static void getPinchBlockEndsToEndsHashPP(stPinchBlock *pinchBlock, bool orientation, End *end, stHash *pinchEndsToEnds) {
     stPinchEnd pinchEnd = stPinchEnd_constructStatic(pinchBlock, orientation);
-    if (stHash_search(pinchBlockEndsToEnds, &pinchEnd) == NULL) {
-        stHash_insert(pinchBlockEndsToEnds, stPinchEnd_construct(pinchBlock, orientation), end);
+    if (stHash_search(pinchEndsToEnds, &pinchEnd) == NULL) {
+        stHash_insert(pinchEndsToEnds, stPinchEnd_construct(pinchBlock, orientation), end);
     }
 }
 
-static void getPinchBlockEndsToEndsHashP(stPinchBlock *pinchBlock, Cap *cap, stHash *pinchBlockEndsToEnds) {
+static void getPinchBlockEndsToEndsHashP(stPinchBlock *pinchBlock, Cap *cap, stHash *pinchEndsToEnds) {
     assert(cap != NULL);
     End *end = cap_getEnd(cap);
     assert(end != NULL);
-    getPinchBlockEndsToEndsHashPP(pinchBlock, 1, end, pinchBlockEndsToEnds);
-    getPinchBlockEndsToEndsHashPP(pinchBlock, 0, end, pinchBlockEndsToEnds);
+    getPinchBlockEndsToEndsHashPP(pinchBlock, 1, end, pinchEndsToEnds);
+    getPinchBlockEndsToEndsHashPP(pinchBlock, 0, end, pinchEndsToEnds);
 }
 
 static stHash *getPinchBlockEndsToEndsHash(stPinchThreadSet *threadSet, Flower *parentFlower) {
-    stHash *pinchBlockEndsToEnds = stHash_construct3(stPinchEnd_hashFn, stPinchEnd_equalsFn,
+    stHash *pinchEndsToEnds = stHash_construct3(stPinchEnd_hashFn, stPinchEnd_equalsFn,
             (void(*)(void *)) stPinchEnd_destruct, NULL);
     stPinchThreadSetIt threadIt = stPinchThreadSet_getIterator(threadSet);
     stPinchThread *thread;
     while ((thread = stPinchThreadIt_getNext(&threadIt))) {
         Cap *cap = flower_getCap(parentFlower, stPinchThread_getName(thread));
-        getPinchBlockEndsToEndsHashP(stPinchSegment_getBlock(stPinchThread_getFirst(thread)), cap, pinchBlockEndsToEnds);
+        getPinchBlockEndsToEndsHashP(stPinchSegment_getBlock(stPinchThread_getFirst(thread)), cap, pinchEndsToEnds);
         getPinchBlockEndsToEndsHashP(stPinchSegment_getBlock(stPinchThread_getLast(thread)), cap_getAdjacency(cap),
-                pinchBlockEndsToEnds);
+                pinchEndsToEnds);
     }
-    return pinchBlockEndsToEnds;
+    return pinchEndsToEnds;
 }
 
-static void makeChain(stCactusEdgeEnd *cactusEdgeEnd, Flower *flower, stHash *pinchBlockEndsToEnds, Flower *parentFlower,
+static void makeChain(stCactusEdgeEnd *cactusEdgeEnd, Flower *flower, stHash *pinchEndsToEnds, Flower *parentFlower,
         stList *stack) {
     cactusEdgeEnd = stCactusEdgeEnd_getOtherEdgeEnd(cactusEdgeEnd);
     if (!stCactusEdgeEnd_isChainEnd(cactusEdgeEnd)) { //We have a chain
         Chain *chain = chain_construct(flower);
         do {
             stCactusEdgeEnd *linkedCactusEdgeEnd = stCactusEdgeEnd_getLink(cactusEdgeEnd);
-            if (convertCactusEdgeEndToEnd(linkedCactusEdgeEnd, pinchBlockEndsToEnds, flower) == NULL) { //Make subsequent block
-                makeBlock(linkedCactusEdgeEnd, parentFlower, flower, pinchBlockEndsToEnds);
+            if (convertCactusEdgeEndToEnd(linkedCactusEdgeEnd, pinchEndsToEnds, flower) == NULL) { //Make subsequent block
+                makeBlock(linkedCactusEdgeEnd, parentFlower, flower, pinchEndsToEnds);
             }
             assert(stCactusEdgeEnd_getNode(cactusEdgeEnd) == stCactusEdgeEnd_getNode(linkedCactusEdgeEnd));
             Group *group = group_construct2(flower);
-            End *end1 = convertCactusEdgeEndToEnd(cactusEdgeEnd, pinchBlockEndsToEnds, flower);
-            End *end2 = convertCactusEdgeEndToEnd(linkedCactusEdgeEnd, pinchBlockEndsToEnds, flower);
+            End *end1 = convertCactusEdgeEndToEnd(cactusEdgeEnd, pinchEndsToEnds, flower);
+            End *end2 = convertCactusEdgeEndToEnd(linkedCactusEdgeEnd, pinchEndsToEnds, flower);
             end_setGroup(end1, group);
             end_setGroup(end2, group);
             link_construct(end1, end2, group, chain);
@@ -348,45 +348,45 @@ static void makeChain(stCactusEdgeEnd *cactusEdgeEnd, Flower *flower, stHash *pi
     }
 }
 
-static void makeChains(stCactusNode *cactusNode, Flower *flower, stHash *pinchBlockEndsToEnds, Flower *parentFlower,
+static void makeChains(stCactusNode *cactusNode, Flower *flower, stHash *pinchEndsToEnds, Flower *parentFlower,
         stList *stack) {
     stCactusNodeEdgeEndIt cactusEdgeEndIt = stCactusNode_getEdgeEndIt(cactusNode);
     stCactusEdgeEnd *cactusEdgeEnd;
     while ((cactusEdgeEnd = stCactusNodeEdgeEndIt_getNext(&cactusEdgeEndIt))) {
         if (stCactusEdgeEnd_isChainEnd(cactusEdgeEnd) && stCactusEdgeEnd_getLinkOrientation(cactusEdgeEnd)) { //We have some sort of chain
-            End *end = convertCactusEdgeEndToEnd(cactusEdgeEnd, pinchBlockEndsToEnds, flower);
+            End *end = convertCactusEdgeEndToEnd(cactusEdgeEnd, pinchEndsToEnds, flower);
             stCactusEdgeEnd *linkedCactusEdgeEnd = stCactusEdgeEnd_getLink(cactusEdgeEnd), *startEnd = NULL;
             if (end != NULL) {
                 End *end2;
-                if ((end2 = convertCactusEdgeEndToEnd(linkedCactusEdgeEnd, pinchBlockEndsToEnds, flower)) != NULL) {
+                if ((end2 = convertCactusEdgeEndToEnd(linkedCactusEdgeEnd, pinchEndsToEnds, flower)) != NULL) {
                     assert(end_getSide(end) != end_getSide(end2));
                 }
                 startEnd = end_getSide(end) ? cactusEdgeEnd : linkedCactusEdgeEnd;
             } else {
-                end = convertCactusEdgeEndToEnd(linkedCactusEdgeEnd, pinchBlockEndsToEnds, flower);
+                end = convertCactusEdgeEndToEnd(linkedCactusEdgeEnd, pinchEndsToEnds, flower);
                 if (end != NULL) {
                     startEnd = end_getSide(end) ? linkedCactusEdgeEnd : cactusEdgeEnd;
                 } else {
-                    makeBlock(linkedCactusEdgeEnd, parentFlower, flower, pinchBlockEndsToEnds);
+                    makeBlock(linkedCactusEdgeEnd, parentFlower, flower, pinchEndsToEnds);
                     startEnd = linkedCactusEdgeEnd;
                 }
             }
             assert(startEnd != NULL);
-            makeChain(startEnd, flower, pinchBlockEndsToEnds, parentFlower, stack);
+            makeChain(startEnd, flower, pinchEndsToEnds, parentFlower, stack);
         }
     }
 }
 
-static void makeTangles(stCactusNode *cactusNode, Flower *flower, stHash *pinchBlockEndsToEnds, stList *deadEndComponent) {
+static void makeTangles(stCactusNode *cactusNode, Flower *flower, stHash *pinchEndsToEnds, stList *deadEndComponent) {
     stList *adjacencyComponents = stCactusNode_getObject(cactusNode);
     for (int32_t i = 0; i < stList_length(adjacencyComponents); i++) {
         stList *adjacencyComponent = stList_get(adjacencyComponents, i);
         if (adjacencyComponent != deadEndComponent) {
             Group *group = group_construct2(flower);
             for (int32_t j = 0; j < stList_length(adjacencyComponent); j++) {
-                stPinchEnd *pinchBlockEnd = stList_get(adjacencyComponent, j);
-                assert(pinchBlockEnd != NULL);
-                End *end = convertPinchBlockEndToEnd(pinchBlockEnd, pinchBlockEndsToEnds, flower);
+                stPinchEnd *pinchEnd = stList_get(adjacencyComponent, j);
+                assert(pinchEnd != NULL);
+                End *end = convertPinchBlockEndToEnd(pinchEnd, pinchEndsToEnds, flower);
                 assert(end != NULL);
                 end_setGroup(end, group);
             }
@@ -465,14 +465,14 @@ void stCaf_convertCactusGraphToFlowers(stPinchThreadSet *threadSet, stCactusNode
     stList *stack = stList_construct();
     stList_append(stack, startCactusNode);
     stList_append(stack, parentFlower);
-    stHash *pinchBlockEndsToEnds = getPinchBlockEndsToEndsHash(threadSet, parentFlower);
+    stHash *pinchEndsToEnds = getPinchBlockEndsToEndsHash(threadSet, parentFlower);
     while (stList_length(stack) > 0) {
         Flower *flower = stList_pop(stack);
         stCactusNode *cactusNode = stList_pop(stack);
-        makeChains(cactusNode, flower, pinchBlockEndsToEnds, parentFlower, stack);
-        makeTangles(cactusNode, flower, pinchBlockEndsToEnds, deadEndComponent);
+        makeChains(cactusNode, flower, pinchEndsToEnds, parentFlower, stack);
+        makeTangles(cactusNode, flower, pinchEndsToEnds, deadEndComponent);
     }
-    stHash_destruct(pinchBlockEndsToEnds);
+    stHash_destruct(pinchEndsToEnds);
     stList_destruct(stack);
     addAdjacencies(parentFlower);
 }
