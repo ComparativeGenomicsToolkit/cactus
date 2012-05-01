@@ -47,12 +47,12 @@ AdjacencySequence *adjacencySequence_construct(Cap *cap, int32_t maxLength) {
     AdjacencySequence *subSequence = (AdjacencySequence *) st_malloc(
             sizeof(AdjacencySequence));
     subSequence->string = getAdjacencySequenceP(cap, maxLength);
-    Sequence *sequence = cap_getSequence(cap);
+    assert(cap_getAdjacency(cap) != NULL);
 #ifdef BEN_DEBUG
     assert(!cap_getSide(cap));
-    assert(sequence != NULL);
+    assert(cap_getSequence(cap) != NULL);
 #endif
-    subSequence->sequenceName = sequence_getName(sequence);
+    subSequence->subsequenceIdentifier = cap_getName(cap_getStrand(cap) ? cap : cap_getAdjacency(cap));
     subSequence->strand = cap_getStrand(cap);
     subSequence->start = cap_getCoordinate(cap) + (cap_getStrand(cap) ? 1 : -1);
     subSequence->length = strlen(subSequence->string);

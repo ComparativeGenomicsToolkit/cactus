@@ -22,7 +22,7 @@
  */
 typedef struct _AdjacencySequence {
         char *string;
-        Name sequenceName;
+        Name subsequenceIdentifier;
         bool strand;
         int32_t start;
         int32_t length;

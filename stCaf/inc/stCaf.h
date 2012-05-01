@@ -10,6 +10,7 @@
 
 #include "sonLib.h"
 #include "stPinchGraphs.h"
+#include "stPinchIterator.h"
 #include "stCactusGraphs.h"
 #include "cactus.h"
 
@@ -22,7 +23,7 @@ stPinchThreadSet *stCaf_constructEmptyPinchGraph(Flower *flower);
 /*
  * Add the a set of alignments, represented as pinches, to the graph.
  */
-void stCaf_addAlignmentsToPinchGraph(stPinchThreadSet *threadSet, stPinch *(*pinchGenerator)());
+void stCaf_addAlignmentsToPinchGraph(stPinchThreadSet *threadSet, stPinchIterator *pinchIterator);
 
 /*
  * Locates the ends of all the attached ends and merges together their 'dead end' components to create a single
@@ -60,6 +61,6 @@ void stCaf_addAdjacencies(Flower *flower);
 /*
  * Basic function for filling out a flower with a given set of alignments into a cactus graph.
  */
-void stCore(Flower *flower, stPinch *(*pinchGenerator)());
+void stCaf_core(Flower *flower, stPinchIterator *pinchIterator);
 
 #endif /* STCAF_H_ */

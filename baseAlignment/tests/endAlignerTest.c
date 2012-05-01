@@ -49,7 +49,7 @@ void test_alignedPair_cmpFn(CuTest *testCase) {
 }
 
 int32_t isInAdjacencySequence(AlignedPair *alignedPair, AdjacencySequence *adjacencySequence) {
-    if (alignedPair->sequence == adjacencySequence->sequenceName) {
+    if (alignedPair->subsequenceIdentifier == adjacencySequence->subsequenceIdentifier) {
         if (alignedPair->strand == adjacencySequence->strand) {
             if (alignedPair->strand) {
                 if (alignedPair->position >= adjacencySequence->start

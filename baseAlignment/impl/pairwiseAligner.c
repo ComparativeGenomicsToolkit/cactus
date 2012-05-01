@@ -664,10 +664,6 @@ void diagonalCalculationPosteriorMatchProbs(int32_t xay, DpMatrix *forwardDpMatr
             assert(posteriorProbability < 1.01);
 #endif
             if (posteriorProbability >= threshold) {
-#ifdef BEN_DEBUG
-                assert(x > 0 && x <= lX);
-                assert(y > 0 && y <= lY);
-#endif
                 if (posteriorProbability > 1.0) {
                     posteriorProbability = 1.0;
                 }

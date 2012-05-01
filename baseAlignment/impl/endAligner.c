@@ -9,17 +9,17 @@
 #include "adjacencySequences.h"
 #include "pairwiseAligner.h"
 
-AlignedPair *alignedPair_construct(Name sequence1, int32_t position1, bool strand1,
-                                   Name sequence2, int32_t position2, bool strand2, int32_t score) {
+AlignedPair *alignedPair_construct(int64_t subsequenceIdentifier1, int32_t position1, bool strand1,
+        int64_t subsequenceIdentifier2, int32_t position2, bool strand2, int32_t score) {
     AlignedPair *alignedPair = st_malloc(sizeof(AlignedPair));
-    alignedPair->sequence = sequence1;
+    alignedPair->subsequenceIdentifier = subsequenceIdentifier1;
     alignedPair->position = position1;
     alignedPair->strand = strand1;
 
     alignedPair->reverse = st_malloc(sizeof(AlignedPair));
     alignedPair->reverse->reverse = alignedPair;
 
-    alignedPair->reverse->sequence = sequence2;
+    alignedPair->reverse->subsequenceIdentifier = subsequenceIdentifier2;
     alignedPair->reverse->position = position2;
     alignedPair->reverse->strand = strand2;
 
@@ -34,7 +34,7 @@ void alignedPair_destruct(AlignedPair *alignedPair) {
 }
 
 static int alignedPair_cmpFnP(const AlignedPair *alignedPair1, const AlignedPair *alignedPair2) {
-    int i = cactusMisc_nameCompare(alignedPair1->sequence, alignedPair2->sequence);
+    int i = cactusMisc_nameCompare(alignedPair1->subsequenceIdentifier, alignedPair2->subsequenceIdentifier);
     if(i == 0) {
         i = alignedPair1->position > alignedPair2->position ? 1 : (alignedPair1->position < alignedPair2->position ? -1 : 0);
         if(i == 0) {
@@ -86,8 +86,8 @@ stSortedSet *makeEndAlignment(End *end, int32_t spanningTrees, int32_t maxSequen
         int32_t offset1 = stIntTuple_getPosition(alignedPair, 2);
         int32_t offset2 = stIntTuple_getPosition(alignedPair, 4);
         AlignedPair *alignedPair2 = alignedPair_construct(
-                i->sequenceName, i->start + (i->strand ? offset1 : -offset1), i->strand,
-                j->sequenceName, j->start + (j->strand ? offset2 : -offset2), j->strand,
+                i->subsequenceIdentifier, i->start + (i->strand ? offset1 : -offset1), i->strand,
+                j->subsequenceIdentifier, j->start + (j->strand ? offset2 : -offset2), j->strand,
                 stIntTuple_getPosition(alignedPair, 0));
 #ifdef BEN_DEBUG
         assert(stSortedSet_search(sortedAlignment, alignedPair2) == NULL);

@@ -62,8 +62,8 @@ void test_getInducedAlignment(CuTest *testCase) {
             AdjacencySequence *aS2 = st_randomChoice(adjacencySequences);
             if(aS1 != aS2) {
                 AlignedPair *alignedPair =
-                        alignedPair_construct(aS1->sequenceName, getRandomPosition(aS1), aS1->strand,
-                                              aS2->sequenceName, getRandomPosition(aS2), aS2->strand,
+                        alignedPair_construct(aS1->subsequenceIdentifier, getRandomPosition(aS1), aS1->strand,
+                                              aS2->subsequenceIdentifier, getRandomPosition(aS2), aS2->strand,
                                               st_randomInt(0, PAIR_ALIGNMENT_PROB_1));
                 stSortedSet_insert(sortedAlignment, alignedPair);
                 stSortedSet_insert(sortedAlignment, alignedPair->reverse);

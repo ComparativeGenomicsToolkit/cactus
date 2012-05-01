@@ -19,7 +19,7 @@
 #include "pairwiseAligner.h"
 
 typedef struct _AlignedPair {
-    Name sequence;
+    int64_t subsequenceIdentifier;
     int32_t position;
     bool strand;
     int32_t score;
@@ -29,8 +29,8 @@ typedef struct _AlignedPair {
 /*
  * Constructs the an aligned pair.
  */
-AlignedPair *alignedPair_construct(Name sequence1, int32_t position1, bool strand1,
-                                   Name sequence2, int32_t position2, bool strand2, int32_t score);
+AlignedPair *alignedPair_construct(int64_t subsequenceIdentifier1, int32_t position1, bool strand1,
+        int64_t subsequenceIdentifier2, int32_t position2, bool strand2, int32_t score);
 
 /*
  * Destruct the aligned pair.

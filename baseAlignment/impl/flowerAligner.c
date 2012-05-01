@@ -18,7 +18,7 @@ stList *getInducedAlignment(stSortedSet *endAlignment,
     stList *inducedAlignment = stList_construct();
     if (adjacencySequence->strand) {
         AlignedPair *alignedPair = alignedPair_construct(
-                adjacencySequence->sequenceName, adjacencySequence->start - 1,
+                adjacencySequence->subsequenceIdentifier, adjacencySequence->start - 1,
                 adjacencySequence->strand, 0, 0, 0, 0);
         AlignedPair *alignedPair2 = stSortedSet_searchGreaterThan(endAlignment,
                 alignedPair);
@@ -26,7 +26,7 @@ stList *getInducedAlignment(stSortedSet *endAlignment,
             stSortedSetIterator *it = stSortedSet_getIteratorFrom(endAlignment,
                     alignedPair2);
             while ((alignedPair2 = stSortedSet_getNext(it)) != NULL) {
-                if (alignedPair2->sequence == adjacencySequence->sequenceName) {
+                if (alignedPair2->subsequenceIdentifier == adjacencySequence->subsequenceIdentifier) {
                     if (alignedPair2->position >= adjacencySequence->start
                             + adjacencySequence->length) {
                         break;
@@ -45,7 +45,7 @@ stList *getInducedAlignment(stSortedSet *endAlignment,
         alignedPair_destruct(alignedPair);
     } else {
         AlignedPair *alignedPair = alignedPair_construct(
-                adjacencySequence->sequenceName, adjacencySequence->start + 1,
+                adjacencySequence->subsequenceIdentifier, adjacencySequence->start + 1,
                 adjacencySequence->strand, 0, 0, 0, 0);
         AlignedPair *alignedPair2 = stSortedSet_searchLessThan(endAlignment,
                 alignedPair);
@@ -55,7 +55,7 @@ stList *getInducedAlignment(stSortedSet *endAlignment,
             stSortedSet_getNext(it);
             stSortedSet_getNext(it); //shift it up..
             while ((alignedPair2 = stSortedSet_getPrevious(it)) != NULL) {
-                if (alignedPair2->sequence == adjacencySequence->sequenceName) {
+                if (alignedPair2->subsequenceIdentifier == adjacencySequence->subsequenceIdentifier) {
                     if (alignedPair2->position <= adjacencySequence->start
                             - adjacencySequence->length) {
                         break;
@@ -79,7 +79,7 @@ stList *getInducedAlignment(stSortedSet *endAlignment,
     //#ifdef BEN_DEBUG //Check the induced array
     for (int32_t i = 0; i < stList_length(inducedAlignment); i++) {
         AlignedPair *alignedPair = stList_get(inducedAlignment, i);
-        assert(alignedPair->sequence == adjacencySequence->sequenceName);
+        assert(alignedPair->subsequenceIdentifier == adjacencySequence->subsequenceIdentifier);
         assert(alignedPair->strand == adjacencySequence->strand);
         if (adjacencySequence->strand) {
             assert(alignedPair->position >= adjacencySequence->start);
@@ -296,20 +296,20 @@ static int32_t findFirstNonStubAlignment(stList *inducedAlignment,
             < stList_length(inducedAlignment) && i >= 0; i += reverse ? -1 : 1) {
         AlignedPair *alignedPair = stList_get(inducedAlignment, i);
         assert(
-                pAlignedPair == NULL || pAlignedPair->sequence
-                        == alignedPair->sequence);
+                pAlignedPair == NULL || pAlignedPair->subsequenceIdentifier
+                        == alignedPair->subsequenceIdentifier);
         if (pAlignedPair == NULL || pAlignedPair->position
                 != alignedPair->position) {
             pAlignedPair = alignedPair;
             j = i;
         }
         stInt64Tuple *k = stInt64Tuple_construct(3,
-                alignedPair->reverse->sequence,
+                alignedPair->reverse->subsequenceIdentifier,
                 (int64_t) alignedPair->reverse->position, INT64_MAX);
         stInt64Tuple *l = stSortedSet_searchLessThanOrEqual(
                 freeStubAdjacencySequences, k);
         stInt64Tuple_destruct(k);
-        if (l != NULL && alignedPair->reverse->sequence
+        if (l != NULL && alignedPair->reverse->subsequenceIdentifier
                 == stInt64Tuple_getPosition(l, 0)
                 && alignedPair->reverse->position < stInt64Tuple_getPosition(l,
                         2)) {
@@ -407,7 +407,7 @@ static int makeFlowerAlignmentP(Cap *cap, stHash *endAlignments,
             adjacentCap, INT32_MAX);
     //#ifdef BEN_DEBUG
     assert(adjacencySequence1->length == adjacencySequence2->length);
-    assert(adjacencySequence1->sequenceName == adjacencySequence2->sequenceName);
+    assert(adjacencySequence1->subsequenceIdentifier == adjacencySequence2->subsequenceIdentifier);
     assert(adjacencySequence1->strand == !adjacencySequence2->strand);
     assert(
             adjacencySequence2->start == adjacencySequence1->start

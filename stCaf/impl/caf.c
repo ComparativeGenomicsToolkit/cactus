@@ -1,6 +1,7 @@
 #include "sonLib.h"
 #include "cactus.h"
 #include "stPinchGraphs.h"
+#include "stPinchIterator.h"
 #include "stCactusGraphs.h"
 #include "stCaf.h"
 
@@ -69,9 +70,10 @@ static void stCaf_ensureEndsAreDistinct(stPinchThreadSet *threadSet) {
     }
 }
 
-void stCaf_addAlignmentsToPinchGraph(stPinchThreadSet *threadSet, stPinch *(*pinchGenerator)()) {
+void stCaf_addAlignmentsToPinchGraph(stPinchThreadSet *threadSet, stPinchIterator *pinchIterator) {
+    stPinchIterator_reset(pinchIterator);
     stPinch *pinch;
-    while ((pinch = pinchGenerator()) != NULL) {
+    while ((pinch = stPinchIterator_getNext(pinchIterator)) != NULL) {
         stPinchThread *thread1 = stPinchThreadSet_getThread(threadSet, pinch->name1);
         stPinchThread *thread2 = stPinchThreadSet_getThread(threadSet, pinch->name2);
         assert(thread1 != NULL && thread2 != NULL);
@@ -80,6 +82,7 @@ void stCaf_addAlignmentsToPinchGraph(stPinchThreadSet *threadSet, stPinch *(*pin
         assert(stPinchThread_getStart(thread2) < pinch->start2);
         assert(stPinchThread_getStart(thread2) + stPinchThread_getLength(thread2) > pinch->start2 + pinch->length);
         stPinchThread_pinch(thread1, thread2, pinch->start1, pinch->start2, pinch->length, pinch->strand);
+        stPinchIterator_destructAlignment(pinchIterator, pinch);
     }
     stPinchThreadSet_joinTrivialBoundaries(threadSet);
     stCaf_ensureEndsAreDistinct(threadSet); //Ensure that end blocks are not joined at there ends.
@@ -462,6 +465,23 @@ static void makeTangles(stCactusNode *cactusNode, Flower *flower, stHash *pinchE
     }
 }
 
+//Sets the 'built-blocks flag' for all the flowers in the subtree, including the given flower.
+
+static void setBlocksBuilt(Flower *flower) {
+//#ifdef BEN_DEBUG
+    assert(!flower_builtBlocks(flower));
+//#endif
+    flower_setBuiltBlocks(flower, 1);
+    Flower_GroupIterator *iterator = flower_getGroupIterator(flower);
+    Group *group;
+    while ((group = flower_getNextGroup(iterator)) != NULL) {
+        if (!group_isLeaf(group)) {
+            setBlocksBuilt(group_getNestedFlower(group));
+        }
+    }
+    flower_destructGroupIterator(iterator);
+}
+
 //Main function
 
 void stCaf_convertCactusGraphToFlowers(stPinchThreadSet *threadSet, stCactusNode *startCactusNode, Flower *parentFlower,
@@ -479,18 +499,35 @@ void stCaf_convertCactusGraphToFlowers(stPinchThreadSet *threadSet, stCactusNode
     stHash_destruct(pinchEndsToEnds);
     stList_destruct(stack);
     stCaf_addAdjacencies(parentFlower);
+    setBlocksBuilt(parentFlower);
 }
 
 ///////////////////////////////////////////////////////////////////////////
 // Functions for actually filling out cactus
 ///////////////////////////////////////////////////////////////////////////
 
-void stCore(Flower *flower, stPinch *(*pinchGenerator)()) {
+static void initialiseFlowerForFillingOut(Flower *flower) {
+//#ifdef BEN_DEBUG
+    assert(!flower_builtBlocks(flower)); //We can't do this if we've already built blocks for the flower!.
+    flower_check(flower);
+    assert(flower_isTerminal(flower));
+    assert(flower_getGroupNumber(flower) == 1);
+    assert(group_isLeaf(flower_getFirstGroup(flower))); //this should be true by the previous assert
+    //Destruct any chain
+    assert(flower_getChainNumber(flower) == 0);
+//#endif
+    group_destruct(flower_getFirstGroup(flower));
+}
+
+void stCaf_core(Flower *flower, stPinchIterator *pinchIterator) {
+    //Setup the empty flower that will be filled out
+    initialiseFlowerForFillingOut(flower);
+
     //Create empty pinch graph from flower
     stPinchThreadSet *threadSet = stCaf_constructEmptyPinchGraph(flower);
 
     //Add alignments to pinch graph
-    stCaf_addAlignmentsToPinchGraph(threadSet, pinchGenerator);
+    stCaf_addAlignmentsToPinchGraph(threadSet, pinchIterator);
 
     //Get adjacency components
     stHash *pinchEndsToAdjacencyComponents;
