@@ -428,6 +428,8 @@ static stPinchThread *stPinchThread_construct(int64_t name, int64_t start, int64
 }
 
 static void stPinchThread_destruct(stPinchThread *thread) {
+    stPinchSegment *segment = stPinchThread_getLast(thread);
+    free(segment->nSegment);
     stSortedSet_destruct(thread->segments);
     free(thread);
 }
@@ -581,7 +583,6 @@ void stPinchThreadSet_getAdjacencyComponentsP2(stHash *endsToAdjacencyComponents
         end = stList_pop(stack);
         stPinchBlockIt blockIt = stPinchBlock_getSegmentIterator(end->block);
         stPinchSegment *segment;
-        stPinchEnd end2;
         while ((segment = stPinchBlockIt_getNext(&blockIt)) != NULL) {
             bool _5PrimeTraversal = stPinchEnd_traverse5Prime(end->orientation, segment);
             while (1) {
@@ -591,8 +592,7 @@ void stPinchThreadSet_getAdjacencyComponentsP2(stHash *endsToAdjacencyComponents
                 }
                 stPinchBlock *block = stPinchSegment_getBlock(segment);
                 if (block != NULL) {
-                    end2.block = block;
-                    end2.orientation = stPinchEnd_endOrientation(_5PrimeTraversal, segment);
+                    stPinchEnd end2 = stPinchEnd_constructStatic(block, stPinchEnd_endOrientation(_5PrimeTraversal, segment));
                     if (stHash_search(endsToAdjacencyComponents, &end2) == NULL) {
                         stPinchEnd *end3 = stPinchEnd_construct(end2.block, end2.orientation);
                         stList_append(adjacencyComponent, end3);
@@ -608,9 +608,7 @@ void stPinchThreadSet_getAdjacencyComponentsP2(stHash *endsToAdjacencyComponents
 }
 
 void stPinchThreadSet_getAdjacencyComponentsP(stHash *endsToAdjacencyComponents, stList *adjacencyComponents, stPinchBlock *block, bool orientation) {
-    stPinchEnd end;
-    end.orientation = orientation;
-    end.block = block;
+    stPinchEnd end = stPinchEnd_constructStatic(block, orientation);
     stList *adjacencyComponent = stHash_search(endsToAdjacencyComponents, &end);
     if (adjacencyComponent == NULL) {
         adjacencyComponent = stList_construct3(0, (void(*)(void *)) stPinchEnd_destruct);

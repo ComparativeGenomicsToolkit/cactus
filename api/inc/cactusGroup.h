@@ -55,6 +55,12 @@ Name group_getName(Group *group);
 bool group_isLeaf(Group *group);
 
 /*
+ * Converts a leaf group into a non-leaf group, copying the event
+ * tree, but nothing else.
+ */
+Flower *group_makeEmptyNestedFlower(Group *group);
+
+/*
  * Converts a leaf group into a non-leaf group,
  * constructing a nested flower containing the appropriate ends. The leaf adjacencies will
  * be set and all the ends will be in one new leaf group.

@@ -62,6 +62,8 @@ int64_t stCactusEdgeEnd_getChainLength(stCactusEdgeEnd *edgeEnd);
 
 //Graph functions
 
+stCactusGraph *stCactusGraph_construct2(void (*destructNodeObjectFn)(void *), void (*destructEdgeEndObjectFn)(void *));
+
 stCactusGraph *stCactusGraph_construct(void);
 
 void stCactusGraph_collapseToCactus(

@@ -68,6 +68,7 @@ static void testStPinchThreadSet(CuTest *testCase) {
         }
     }
     CuAssertIntEquals(testCase, segmentCount, stSortedSet_size(segmentSet));
+    stSortedSet_destruct(segmentSet);
 
     //Now test block iterator
     stPinchThreadSetBlockIt blockIt = stPinchThreadSet_getBlockIt(threadSet);
@@ -663,7 +664,9 @@ static void testStPinchThread_pinch_randomTests(CuTest *testCase) {
                     CuAssertTrue(testCase, areAligned(thread1, position1, thread2, position2, strand1 == strand2));
                 }
             }
+            stList_destruct(columnList);
         }
+        stHash_destructIterator(hashIt);
 
         stPinchThreadSet_destruct(threadSet);
         stList *columnList = stHash_getValues(columns);

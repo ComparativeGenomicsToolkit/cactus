@@ -177,7 +177,7 @@ static void testStCactusGraph(CuTest *testCase) {
     }
     CuAssertIntEquals(testCase, 9, stSortedSet_size(nodes));
     stCactusGraphNodeIterator_destruct(nodeIt);
-
+    stSortedSet_destruct(nodes);
     teardown();
 }
 
@@ -472,7 +472,7 @@ static void testStCactusGraph_collapseBridges(CuTest *testCase) {
     }
     CuAssertIntEquals(testCase, 6, stSortedSet_size(nodes));
     stCactusGraphNodeIterator_destruct(nodeIt);
-
+    stSortedSet_destruct(nodes);
     teardown();
 }
 

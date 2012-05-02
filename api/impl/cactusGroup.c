@@ -76,12 +76,17 @@ static void copyAdjacencies(Group *group, Flower *nestedFlower) {
     group_destructEndIterator(endIterator);
 }
 
-Flower *group_makeNestedFlower(Group *group) {
+Flower *group_makeEmptyNestedFlower(Group *group) {
     assert(group_isLeaf(group));
     group->leafGroup = 0;
     Flower *nestedFlower = flower_construct2(group_getName(group), flower_getCactusDisk(group_getFlower(group)));
     flower_setParentGroup(nestedFlower, group);
     eventTree_copyConstruct(flower_getEventTree(group_getFlower(group)), nestedFlower, returnsTrue);
+    return nestedFlower;
+}
+
+Flower *group_makeNestedFlower(Group *group) {
+    Flower *nestedFlower = group_makeEmptyNestedFlower(group);
     Group *nestedGroup = group_construct2(nestedFlower);
     //Add the ends to the nested flower.
     Group_EndIterator *endIterator = group_getEndIterator(group);
@@ -369,8 +374,7 @@ void group_constructChainForLink(Group *group) {
             if (_3Link != NULL) {
                 chain = link_getChain(_3Link);
                 assert(_3Link == chain_getLast(chain));
-            }
-            else {
+            } else {
                 chain = chain_construct(group_getFlower(group));
             }
             link_construct(_3End, _5End, group, chain);
@@ -380,11 +384,11 @@ void group_constructChainForLink(Group *group) {
                 assert(end_getSide(_5End));
                 assert(!end_getSide(end_getOtherBlockEnd(_5End)));
                 Link *_5Link = group_getLink(end_getGroup(end_getOtherBlockEnd(_5End)));
-                if(_5Link != NULL) {
+                if (_5Link != NULL) {
                     Chain *_5Chain = link_getChain(_5Link);
                     assert(_5Chain != NULL);
                     assert(_5Link == chain_getFirst(_5Chain));
-                    if(chain != _5Chain) { //We don't want to merge a circle
+                    if (chain != _5Chain) { //We don't want to merge a circle
                         chain_join(chain, _5Chain);
                     }
                 }
