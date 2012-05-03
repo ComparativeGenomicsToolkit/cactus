@@ -12,7 +12,7 @@ from sonLib.bioio import getLogLevelString
 
 class TestCase(unittest.TestCase):
     def testCuTest(self):
-        system("stCactusGraphsTests %s" % getLogLevelString())
+        system("stCactusGraphTests %s" % getLogLevelString())
     
 def main():
     parseCactusSuiteTestOptions()
