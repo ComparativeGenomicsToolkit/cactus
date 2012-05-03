@@ -465,7 +465,13 @@ static void makeChains(stCactusNode *cactusNode, Flower *flower, stHash *pinchEn
             } else {
                 end = convertCactusEdgeEndToEnd(linkedCactusEdgeEnd, pinchEndsToEnds, flower);
                 if (end != NULL) {
-                    startCactusEdgeEnd = end_getSide(end) ? linkedCactusEdgeEnd : cactusEdgeEnd;
+                    if(end_getSide(end)) {
+                        startCactusEdgeEnd = linkedCactusEdgeEnd;
+                    }
+                    else {
+                        makeBlock(cactusEdgeEnd, parentFlower, flower, pinchEndsToEnds);
+                        startCactusEdgeEnd = cactusEdgeEnd;
+                    }
                 } else {
                     makeBlock(linkedCactusEdgeEnd, parentFlower, flower, pinchEndsToEnds);
                     startCactusEdgeEnd = linkedCactusEdgeEnd;
