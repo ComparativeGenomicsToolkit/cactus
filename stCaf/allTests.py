@@ -12,9 +12,8 @@ from sonLib.bioio import getLogLevelString
 
 class TestCase(unittest.TestCase):        
     def testCuTest(self):
-        system("cafTests %s" % getLogLevelString())     
-
-    
+        system("stCafTests %s" % getLogLevelString())     
+        
 def main():
     parseCactusSuiteTestOptions()
     sys.argv = sys.argv[:1]
