@@ -12,10 +12,10 @@
 #include "sonLib.h"
 #include "endAligner.h"
 #include "flowerAligner.h"
-#include "cactus_core.h"
+//#include "cactus_core.h"
 #include "commonC.h"
-#include "pairwiseAlignment.h"
-#include "pairwiseAlignmentIterator.h"
+//#include "pairwiseAlignment.h"
+//#include "pairwiseAlignmentIterator.h"
 #include "stCaf.h"
 #include "stPinchGraphs.h"
 #include "stPinchIterator.h"
@@ -90,6 +90,8 @@ static stPinch *getNextAlignedPairAlignment(stSortedSetIterator *it) {
         return NULL;
     }
     static stPinch pinch;
+    st_uglyf("I got %lli %lli %lli %lli\n", alignedPair->subsequenceIdentifier, alignedPair->reverse->subsequenceIdentifier,
+            alignedPair->position, alignedPair->reverse->position);
     stPinch_fillOut(&pinch, alignedPair->subsequenceIdentifier, alignedPair->reverse->subsequenceIdentifier,
             alignedPair->position, alignedPair->reverse->position,
             1, alignedPair->strand == alignedPair->reverse->strand);
@@ -114,14 +116,14 @@ int main(int argc, char *argv[]) {
     /*
      * Setup the input parameters for cactus core.
      */
-    CactusCoreInputParameters *cCIP = constructCactusCoreInputParameters();
+    /*CactusCoreInputParameters *cCIP = constructCactusCoreInputParameters();
     free(cCIP->annealingRounds);
     cCIP->annealingRounds = st_malloc(sizeof(int32_t) * 1); //Set to one annealing round.
     cCIP->annealingRounds[0] = 0;
     cCIP->annealingRoundsLength = 1;
     cCIP->minimumDegree = 0;
     cCIP->minimumTreeCoverage = 0;
-    cCIP->maxAdjacencyComponentSizeRatio = INT32_MAX; //Unnecessary, but defensive.
+    cCIP->maxAdjacencyComponentSizeRatio = INT32_MAX; //Unnecessary, but defensive.*/
     bool pruneOutStubAlignments = 0;
 
     /*
@@ -231,8 +233,8 @@ int main(int argc, char *argv[]) {
                                 >= 0);
                 break;
             case 'u':
-                i = sscanf(optarg, "%i", &cCIP->minimumDegree);
-                assert(i == 1);
+                //i = sscanf(optarg, "%i", &cCIP->minimumDegree);
+                //assert(i == 1);
                 break;
             case 'w':
                 pairwiseAlignmentBandingParameters->alignAmbiguityCharacters
@@ -247,16 +249,16 @@ int main(int argc, char *argv[]) {
                 assert(numThreads > 0);
                 break;
             case 'A':
-                i = sscanf(optarg, "%f", &cCIP->requiredIngroupFraction);
-                assert(i == 1);
+                //i = sscanf(optarg, "%f", &cCIP->requiredIngroupFraction);
+                //assert(i == 1);
                 break;
             case 'B':
-                i = sscanf(optarg, "%f", &cCIP->requiredOutgroupFraction);
-                assert(i == 1);
+                //i = sscanf(optarg, "%f", &cCIP->requiredOutgroupFraction);
+                //assert(i == 1);
                 break;
             case 'C':
-                i = sscanf(optarg, "%f", &cCIP->requiredAllFraction);
-                assert(i == 1);
+               // i = sscanf(optarg, "%f", &cCIP->requiredAllFraction);
+                //assert(i == 1);
                 break;
             default:
                 usage();
@@ -301,6 +303,8 @@ int main(int argc, char *argv[]) {
         stPinchIterator *pinchIterator = stPinchIterator_constructFromAlignedPairs(
                 alignedPairs, getNextAlignedPairAlignment);
 
+        st_uglyf("Starting out!!\n");
+
         /*
          * Run the cactus core script.
          */
@@ -334,7 +338,7 @@ int main(int argc, char *argv[]) {
     /*
      * Write and close the cactusdisk.
      */
-    //cactusDisk_write(cactusDisk);
+    cactusDisk_write(cactusDisk);
 
     ///////////////////////////////////////////////////////////////////////////
     // Cleanup
@@ -344,14 +348,14 @@ int main(int argc, char *argv[]) {
 
     cactusDisk_destruct(cactusDisk);
     stKVDatabaseConf_destruct(kvDatabaseConf);
-    destructCactusCoreInputParameters(cCIP);
+    //destructCactusCoreInputParameters(cCIP);
     free(cactusDiskDatabaseString);
     if (logLevelString != NULL) {
         free(logLevelString);
     }
     st_logInfo("Finished with the flower disk for this flower.\n");
 
-    while(1);
+    //while(1);
 
     return 0;
 }

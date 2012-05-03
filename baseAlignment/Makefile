@@ -1,11 +1,13 @@
 rootPath = ../
 include ../include.mk
 
+cflags += ${tokyoCabinetIncl}
+
 libSources = impl/*.c
 libHeaders = inc/*.h
 libTests = tests/*.c
 
-commonBarLibs = ${libPath}/cactusLib.a ${libPath}/stCaf.a ${libPath}/stCactusGraphs.a ${libPath}/stPinchGraphs.a ${libPath}/cactusCore.a ${libPath}/pinchGraph.a ${libPath}/3EdgeConnected.a
+commonBarLibs = ${libPath}/cactusLib.a ${libPath}/stCaf.a ${libPath}/stCactusGraphs.a ${libPath}/stPinchGraphs.a ${libPath}/3EdgeConnected.a
 stBarDependencies =  ${commonBarLibs} ${basicLibsDependencies}
 stBarLibs = ${commonBarLibs} ${basicLibs}
 

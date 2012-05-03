@@ -373,8 +373,7 @@ static bool containsRecord(CactusDisk *cactusDisk, Name objectName) {
 
 static CactusDisk *cactusDisk_constructPrivate(stKVDatabaseConf *conf,
         bool create, const char *sequencesFileName) {
-    CactusDisk *cactusDisk;
-    cactusDisk = st_malloc(sizeof(CactusDisk));
+    CactusDisk *cactusDisk = st_calloc(1, sizeof(CactusDisk));
 
     //construct lists of in memory objects
     cactusDisk->metaSequences = stSortedSet_construct3(

@@ -77,6 +77,7 @@ void stCaf_addAlignmentsToPinchGraph(stPinchThreadSet *threadSet, stPinchIterato
     while ((pinch = stPinchIterator_getNext(pinchIterator)) != NULL) {
         stPinchThread *thread1 = stPinchThreadSet_getThread(threadSet, pinch->name1);
         stPinchThread *thread2 = stPinchThreadSet_getThread(threadSet, pinch->name2);
+        st_uglyf("We have the following two names %lli %lli %i %i %lli %lli\n", pinch->name1, pinch->name2, thread1, thread2, pinch->start1, pinch->start2);
         assert(thread1 != NULL && thread2 != NULL);
         assert(stPinchThread_getStart(thread1) < pinch->start1);
         assert(stPinchThread_getStart(thread1) + stPinchThread_getLength(thread1) > pinch->start1 + pinch->length);
@@ -93,7 +94,7 @@ void stCaf_addAlignmentsToPinchGraph(stPinchThreadSet *threadSet, stPinchIterato
 // Construct dead end component
 ///////////////////////////////////////////////////////////////////////////
 
-static void attachThreadToDeadEndComponentP(stPinchBlock *pinchBlock, bool orientation, stList *deadEndAdjacencyComponent,
+static void attachPinchBlockEndToDeadEndComponent(stPinchBlock *pinchBlock, bool orientation, stList *deadEndAdjacencyComponent,
         stSortedSet *adjacencyComponents, stHash *pinchEndsToAdjacencyComponents) {
     assert(pinchBlock != NULL);
     assert(stPinchBlock_getLength(pinchBlock) == 1);
@@ -111,46 +112,35 @@ static void attachThreadToDeadEndComponentP(stPinchBlock *pinchBlock, bool orien
     stHash_insert(pinchEndsToAdjacencyComponents, pinchEnd, deadEndAdjacencyComponent);
 }
 
-static void attachThreadToDeadEndComponent(stPinchThread *thread, stList *deadEndAdjacencyComponent, stSortedSet *adjacencyComponents,
-        stHash *pinchEndsToAdjacencyComponents) {
-    stPinchSegment *segment = stPinchThread_getFirst(thread);
-    attachThreadToDeadEndComponentP(stPinchSegment_getBlock(segment), stPinchSegment_getBlockOrientation(segment), deadEndAdjacencyComponent,
-            adjacencyComponents, pinchEndsToAdjacencyComponents);
-    segment = stPinchThread_getLast(thread);
-    attachThreadToDeadEndComponentP(stPinchSegment_getBlock(segment), !stPinchSegment_getBlockOrientation(segment), deadEndAdjacencyComponent,
-            adjacencyComponents, pinchEndsToAdjacencyComponents);
-}
-
-static void stCaf_constructDeadEndComponentP(End *end, stPinchThreadSet *threadSet, stList *deadEndAdjacencyComponent,
-        stSortedSet *adjacencyComponents, stHash *pinchEndsToAdjacencyComponents) {
-    End_InstanceIterator *capIt = end_getInstanceIterator(end);
-    Cap *cap;
-    while ((cap = end_getNext(capIt)) != NULL) {
-        cap = cap_getStrand(cap) ? cap : cap_getReverse(cap);
-        if (!cap_getSide(cap)) {
-            end_destructInstanceIterator(capIt);
-            stPinchThread *thread = stPinchThreadSet_getThread(threadSet, cap_getName(cap));
-            assert(thread != NULL);
-            attachThreadToDeadEndComponent(thread, deadEndAdjacencyComponent, adjacencyComponents, pinchEndsToAdjacencyComponents);
-            return;
-        }
-    }
-    end_destructInstanceIterator(capIt);
-}
-
 stList *stCaf_constructDeadEndComponent(Flower *flower, stPinchThreadSet *threadSet, stSortedSet *adjacencyComponents,
         stHash *pinchEndsToAdjacencyComponents) {
-    stList *deadEndAdjacencyComponent = stList_construct3(0, (void (*)(void *))stPinchEnd_destruct);
+    //For each block end at the end of a thread, attach to dead end component if associated end if attached
+    stList *deadEndAdjacencyComponent = stList_construct3(0, (void(*)(void *)) stPinchEnd_destruct);
     stSortedSet_insert(adjacencyComponents, deadEndAdjacencyComponent);
-    Flower_EndIterator *endIt = flower_getEndIterator(flower);
-    End *end;
-    while ((end = flower_getNextEnd(endIt)) != NULL) {
-        assert(!end_isBlockEnd(end));
-        if (end_isAttached(end)) {
-            stCaf_constructDeadEndComponentP(end, threadSet, deadEndAdjacencyComponent, adjacencyComponents, pinchEndsToAdjacencyComponents);
+    stPinchThreadSetIt threadIt = stPinchThreadSet_getIt(threadSet);
+    stPinchThread *pinchThread;
+    while ((pinchThread = stPinchThreadSetIt_getNext(&threadIt))) {
+        Cap *cap = flower_getCap(flower, stPinchThread_getName(pinchThread));
+        assert(cap != NULL);
+        End *end1 = cap_getEnd(cap), *end2 = cap_getEnd(cap_getAdjacency(cap));
+        assert(end1 != NULL && end2 != NULL);
+        if (end_isAttached(end1)) {
+            stPinchSegment *pinchSegment = stPinchThread_getFirst(pinchThread);
+            stPinchBlock *pinchBlock = stPinchSegment_getBlock(pinchSegment);
+            if (stPinchBlock_getFirst(pinchBlock) == pinchSegment) { //We one want to do this once
+                attachPinchBlockEndToDeadEndComponent(pinchBlock, stPinchSegment_getBlockOrientation(pinchSegment),
+                        deadEndAdjacencyComponent, adjacencyComponents, pinchEndsToAdjacencyComponents);
+            }
+        }
+        if (end_isAttached(end2)) {
+            stPinchSegment *pinchSegment = stPinchThread_getLast(pinchThread);
+            stPinchBlock *pinchBlock = stPinchSegment_getBlock(pinchSegment);
+            if (stPinchBlock_getFirst(pinchBlock) == pinchSegment) { //We one want to do this once
+                attachPinchBlockEndToDeadEndComponent(pinchBlock, !stPinchSegment_getBlockOrientation(pinchSegment),
+                        deadEndAdjacencyComponent, adjacencyComponents, pinchEndsToAdjacencyComponents);
+            }
         }
     }
-    flower_destructEndIterator(endIt);
     return deadEndAdjacencyComponent;
 }
 
@@ -178,8 +168,18 @@ static bool threadComponentIsAttachedToDeadEndComponent(stList *threadComponent,
     return 0;
 }
 
-static void attachThreadComponentToDeadEndComponent(stList *threadComponent, stList *deadEndComponent, stSortedSet *adjacencyComponents,
+static void attachThreadToDeadEndComponent(stPinchThread *thread, stList *deadEndAdjacencyComponent, stSortedSet *adjacencyComponents,
         stHash *pinchEndsToAdjacencyComponents) {
+    stPinchSegment *segment = stPinchThread_getFirst(thread);
+    attachPinchBlockEndToDeadEndComponent(stPinchSegment_getBlock(segment), stPinchSegment_getBlockOrientation(segment),
+            deadEndAdjacencyComponent, adjacencyComponents, pinchEndsToAdjacencyComponents);
+    segment = stPinchThread_getLast(thread);
+    attachPinchBlockEndToDeadEndComponent(stPinchSegment_getBlock(segment), !stPinchSegment_getBlockOrientation(segment),
+            deadEndAdjacencyComponent, adjacencyComponents, pinchEndsToAdjacencyComponents);
+}
+
+static void attachThreadComponentToDeadEndComponent(stList *threadComponent, stList *deadEndComponent, stSortedSet *adjacencyComponents,
+        stHash *pinchEndsToAdjacencyComponents, bool markEndsAttached, Flower *flower) {
     stPinchThread *longestPinchThread = NULL;
     int64_t maxLength = 0;
     for (int32_t i = 0; i < stList_length(threadComponent); i++) {
@@ -191,6 +191,12 @@ static void attachThreadComponentToDeadEndComponent(stList *threadComponent, stL
     }
     assert(longestPinchThread != NULL);
     attachThreadToDeadEndComponent(longestPinchThread, deadEndComponent, adjacencyComponents, pinchEndsToAdjacencyComponents);
+    if (markEndsAttached) { //Get the ends and attach them
+        Cap *cap = flower_getCap(flower, stPinchSegment_getName(stPinchThread_getFirst(longestPinchThread))); //The following three lines isolates the sequence associated with a segment.
+        assert(cap != NULL);
+        end_makeAttached(cap_getEnd(cap));
+        end_makeAttached(cap_getEnd(cap_getAdjacency(cap)));
+    }
 }
 
 void stCaf_attachUnattachedThreadComponents(Flower *flower, stPinchThreadSet *threadSet, stList *deadEndComponent,
@@ -203,17 +209,17 @@ void stCaf_attachUnattachedThreadComponents(Flower *flower, stPinchThreadSet *th
         while ((threadComponent = stSortedSet_getNext(threadIt)) != NULL) {
             if (!threadComponentIsAttachedToDeadEndComponent(threadComponent, deadEndComponent, pinchEndsToAdjacencyComponents)) {
                 attachThreadComponentToDeadEndComponent(threadComponent, deadEndComponent, adjacencyComponents,
-                        pinchEndsToAdjacencyComponents);
+                        pinchEndsToAdjacencyComponents, markEndsAttached, flower);
             }
         }
         stSortedSet_destructIterator(threadIt);
     }
     stSortedSet_destruct(threadComponents);
-    //#ifdef BEN_DEBUG
+#ifdef BEN_DEBUG
     threadComponents = stPinchThreadSet_getThreadComponents(threadSet);
     assert(stSortedSet_size(threadComponents) == 1);
     stSortedSet_destruct(threadComponents);
-    //#endif
+#endif
 }
 
 ///////////////////////////////////////////////////////////////////////////
@@ -245,7 +251,7 @@ static void *makeNodeObject(stList *adjacencyComponent) {
 
 stCactusGraph *stCaf_constructCactusGraph(stSortedSet *adjacencyComponents, stList *deadEndComponent,
         stHash *pinchEndsToAdjacencyComponents, stCactusNode **startCactusNode) {
-    stCactusGraph *cactusGraph = stCactusGraph_construct2((void (*)(void *))stList_destruct, NULL);
+    stCactusGraph *cactusGraph = stCactusGraph_construct2((void(*)(void *)) stList_destruct, NULL);
     stHash *adjacencyComponentsToCactusNodes = stHash_construct();
 
     //Make the nodes
@@ -273,7 +279,7 @@ stCactusGraph *stCaf_constructCactusGraph(stSortedSet *adjacencyComponents, stLi
     //Make the edges
     pinchEndIt = stHash_getIterator(pinchEndsToAdjacencyComponents);
     while ((pinchEnd = stHash_getNext(pinchEndIt)) != NULL) {
-        if (stPinchEnd_getOrientation(pinchEnd)) {  //Assure we make the edge only once
+        if (stPinchEnd_getOrientation(pinchEnd)) { //Assure we make the edge only once
             assert(stPinchEnd_getBlock(pinchEnd) != NULL);
             stPinchEnd pinchEnd2Static = stPinchEnd_constructStatic(stPinchEnd_getBlock(pinchEnd), 0);
             stPinchEnd *pinchEnd2 = stHash_search(pinchEndsToNonStaticPinchEnds, &pinchEnd2Static);
@@ -305,8 +311,7 @@ static void getPinchBlockEndsToEndsHashPP(stPinchBlock *pinchBlock, bool orienta
     stPinchEnd pinchEnd = stPinchEnd_constructStatic(pinchBlock, orientation);
     if (stHash_search(pinchEndsToEnds, &pinchEnd) == NULL) {
         stHash_insert(pinchEndsToEnds, stPinchEnd_construct(pinchBlock, orientation), end);
-    }
-    else {
+    } else {
         assert(stHash_search(pinchEndsToEnds, &pinchEnd) == end);
     }
 }
@@ -334,7 +339,8 @@ static stHash *getPinchEndsToEndsHash(stPinchThreadSet *threadSet, Flower *paren
         stPinchSegment *pinchSegment = stPinchThread_getFirst(pinchThread);
         getPinchBlockEndsToEndsHashP(pinchSegment, stPinchSegment_getBlockOrientation(pinchSegment), cap, pinchEndsToEnds);
         pinchSegment = stPinchThread_getLast(pinchThread);
-        getPinchBlockEndsToEndsHashP(pinchSegment, !stPinchSegment_getBlockOrientation(pinchSegment), cap_getAdjacency(cap), pinchEndsToEnds);
+        getPinchBlockEndsToEndsHashP(pinchSegment, !stPinchSegment_getBlockOrientation(pinchSegment), cap_getAdjacency(cap),
+                pinchEndsToEnds);
     }
     return pinchEndsToEnds;
 }
@@ -357,7 +363,7 @@ static End *convertPinchBlockEndToEnd(stPinchEnd *pinchEnd, stHash *pinchEndsToE
         assert(end2 != NULL);
         assert(end_getGroup(end2) == NULL); //This happens because group of the end is only defined at the given flower.
         end_setGroup(end2, parentGroup);
-        end2 = end_copyConstruct(end2, flower);
+        end2 = end_copyConstruct(end_getPositiveOrientation(end2), flower);
         assert(end2 != NULL);
         assert(end_getFlower(end2) == flower);
     }
@@ -384,9 +390,14 @@ static void makeBlock(stCactusEdgeEnd *cactusEdgeEnd, Flower *parentFlower, Flow
     stPinchSegment *pinchSegment;
     stPinchBlockIt pinchSegmentIt = stPinchBlock_getSegmentIterator(pinchBlock);
     while ((pinchSegment = stPinchBlockIt_getNext(&pinchSegmentIt))) {
-        Cap *cap = flower_getCap(parentFlower, stPinchSegment_getName(pinchSegment)); //The following three lines isolates the sequence associated with a segment.
-        assert(cap != NULL);
-        Sequence *sequence = cap_getSequence(cap);
+        Cap *parentCap = flower_getCap(parentFlower, stPinchSegment_getName(pinchSegment)); //The following three lines isolates the sequence associated with a segment.
+        assert(parentCap != NULL);
+        Sequence *parentSequence = cap_getSequence(parentCap);
+        assert(parentSequence != NULL);
+        Sequence *sequence = flower_getSequence(flower, sequence_getName(parentSequence));
+        if (sequence == NULL) {
+            sequence = sequence_construct(cactusDisk_getMetaSequence(flower_getCactusDisk(flower), sequence_getName(sequence)), flower);
+        }
         assert(sequence != NULL);
         segment_construct2(
                 stPinchEnd_getOrientation(pinchEnd) ^ stPinchSegment_getBlockOrientation(pinchSegment) ? block_getReverse(block) : block,
@@ -418,6 +429,8 @@ static void makeChain(stCactusEdgeEnd *cactusEdgeEnd, Flower *flower, stHash *pi
             assert(end_getOrientation(end2));
             assert(!end_getSide(end1));
             assert(end_getSide(end2));
+            assert(end_isBlockEnd(end1) || end_isAttached(end1));
+            assert(end_isBlockEnd(end2) || end_isAttached(end2));
             end_setGroup(end1, group);
             end_setGroup(end2, group);
             link_construct(end1, end2, group, chain);
@@ -425,6 +438,7 @@ static void makeChain(stCactusEdgeEnd *cactusEdgeEnd, Flower *flower, stHash *pi
             Flower *nestedFlower = group_makeEmptyNestedFlower(group);
             end_copyConstruct(end1, nestedFlower);
             end_copyConstruct(end2, nestedFlower);
+            assert(flower_getGroupNumber(nestedFlower) == 0);
             //Fill out stack
             stList_append(stack, stCactusEdgeEnd_getNode(cactusEdgeEnd));
             stList_append(stack, nestedFlower);
@@ -442,12 +456,12 @@ static void makeChains(stCactusNode *cactusNode, Flower *flower, stHash *pinchEn
             stCactusEdgeEnd *linkedCactusEdgeEnd = stCactusEdgeEnd_getLink(cactusEdgeEnd), *startCactusEdgeEnd = NULL;
             assert(linkedCactusEdgeEnd != NULL);
             if (end != NULL) {
-//#ifdef BEN_DEBUG
+#ifdef BEN_DEBUG
                 End *end2;
                 if ((end2 = convertCactusEdgeEndToEnd(linkedCactusEdgeEnd, pinchEndsToEnds, flower)) != NULL) {
                     assert(end_getSide(end) != end_getSide(end2));
                 }
-//#endif
+#endif
                 startCactusEdgeEnd = end_getSide(end) ? cactusEdgeEnd : linkedCactusEdgeEnd;
             } else {
                 end = convertCactusEdgeEndToEnd(linkedCactusEdgeEnd, pinchEndsToEnds, flower);
@@ -471,12 +485,19 @@ static void makeTangles(stCactusNode *cactusNode, Flower *flower, stHash *pinchE
     for (int32_t i = 0; i < stList_length(adjacencyComponents); i++) {
         stList *adjacencyComponent = stList_get(adjacencyComponents, i);
         if (adjacencyComponent != deadEndComponent) {
+            if (stList_length(adjacencyComponent) == 1) { //Deal with components for dead ends of free stubs
+                End *end = convertPinchBlockEndToEnd(stList_get(adjacencyComponent, 0), pinchEndsToEnds, flower);
+                assert(end != NULL);
+                if (!end_getOrientation(end)) {
+                    continue;
+                }
+            }
             Group *group = group_construct2(flower);
             for (int32_t j = 0; j < stList_length(adjacencyComponent); j++) {
-                stPinchEnd *pinchEnd = stList_get(adjacencyComponent, j);
-                assert(pinchEnd != NULL);
-                End *end = convertPinchBlockEndToEnd(pinchEnd, pinchEndsToEnds, flower);
+                End *end = convertPinchBlockEndToEnd(stList_get(adjacencyComponent, j), pinchEndsToEnds, flower);
                 assert(end != NULL);
+                assert(end_getOrientation(end));
+                assert(end_getGroup(end) == NULL);
                 end_setGroup(end, group);
             }
         }
@@ -486,9 +507,9 @@ static void makeTangles(stCactusNode *cactusNode, Flower *flower, stHash *pinchE
 //Sets the 'built-blocks flag' for all the flowers in the subtree, including the given flower.
 
 static void setBlocksBuilt(Flower *flower) {
-//#ifdef BEN_DEBUG
+    //#ifdef BEN_DEBUG
     assert(!flower_builtBlocks(flower));
-//#endif
+    //#endif
     flower_setBuiltBlocks(flower, 1);
     Flower_GroupIterator *iterator = flower_getGroupIterator(flower);
     Group *group;
@@ -510,6 +531,7 @@ void stCaf_convertCactusGraphToFlowers(stPinchThreadSet *threadSet, stCactusNode
     stHash *pinchEndsToEnds = getPinchEndsToEndsHash(threadSet, parentFlower);
     while (stList_length(stack) > 0) {
         Flower *flower = stList_pop(stack);
+        assert(flower_getAttachedStubEndNumber(flower) > 0);
         stCactusNode *cactusNode = stList_pop(stack);
         makeChains(cactusNode, flower, pinchEndsToEnds, parentFlower, stack);
         makeTangles(cactusNode, flower, pinchEndsToEnds, deadEndComponent);
@@ -525,7 +547,7 @@ void stCaf_convertCactusGraphToFlowers(stPinchThreadSet *threadSet, stCactusNode
 ///////////////////////////////////////////////////////////////////////////
 
 static void initialiseFlowerForFillingOut(Flower *flower) {
-//#ifdef BEN_DEBUG
+#ifdef BEN_DEBUG
     assert(!flower_builtBlocks(flower)); //We can't do this if we've already built blocks for the flower!.
     flower_check(flower);
     assert(flower_isTerminal(flower));
@@ -533,7 +555,7 @@ static void initialiseFlowerForFillingOut(Flower *flower) {
     assert(group_isLeaf(flower_getFirstGroup(flower))); //this should be true by the previous assert
     //Destruct any chain
     assert(flower_getChainNumber(flower) <= 1);
-//#endif
+#endif
     if (flower_getChainNumber(flower) == 1) {
         Chain *chain = flower_getFirstChain(flower);
         chain_destruct(chain);
@@ -571,13 +593,12 @@ void stCaf_core(Flower *flower, stPinchIterator *pinchIterator) {
     stCaf_convertCactusGraphToFlowers(threadSet, startCactusNode, flower, deadEndComponent);
 
     //Cleanup
-    assert(cactusGraph != NULL);
     stCactusGraph_destruct(cactusGraph);
     stHash_destruct(pinchEndsToAdjacencyComponents);
     stSortedSet_destruct(adjacencyComponents);
     stPinchThreadSet_destruct(threadSet);
 
-    //#ifdef BEN_DEBUG
+#ifdef BEN_DEBUG
     flower_checkRecursive(flower);
-    //#endif
+#endif
 }
