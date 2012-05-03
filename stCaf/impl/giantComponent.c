@@ -14,7 +14,7 @@ static void *getValue(stHash *hash, int32_t node) {
     return object;
 }
 
-stList *breakupComponentGreedily(stList *nodes, stList *edges, int32_t maxComponentSize) {
+stList *stCaf_breakupComponentGreedily(stList *nodes, stList *edges, int32_t maxComponentSize) {
     /*
      * Make a component for each node in the graph
      */

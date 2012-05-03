@@ -5,8 +5,10 @@
  *      Author: benedictpaten
  */
 
-#ifndef GIANTCOMPONENT_H_
-#define GIANTCOMPONENT_H_
+#ifndef ST_GIANTCOMPONENT_H_
+#define ST_GIANTCOMPONENT_H_
+
+#include "sonLib.h"
 
 /*
  * Nodes is a list of integers representing the nodes.
@@ -14,6 +16,6 @@
  * Returns a sublist of the edges in edges that must deleted, so that the size of the largest component in the graph
  * is smaller than maxComponentSize.
  */
-stList *breakupComponentGreedily(stList *nodes, stList *edges, int32_t maxComponentSize);
+stList *stCaf_breakupComponentGreedily(stList *nodes, stList *edges, int32_t maxComponentSize);
 
-#endif /* GIANTCOMPONENT_H_ */
+#endif /* ST_GIANTCOMPONENT_H_ */

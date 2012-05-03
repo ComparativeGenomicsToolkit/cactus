@@ -5,10 +5,10 @@
  *      Author: benedictpaten
  */
 
+#include <stdlib.h>
 #include "sonLib.h"
 #include "stPinchGraphs.h"
 #include "stPinchIterator.h"
-#include "cactus.h"
 
 struct _stPinchIterator {
     void *alignmentArg;
@@ -19,28 +19,28 @@ struct _stPinchIterator {
 };
 
 stPinch *stPinchIterator_getNext(
-        stPinchIterator *stPinchIterator) {
-    return stPinchIterator->getNextAlignment(
-            stPinchIterator->alignmentArg);
+        stPinchIterator *pinchIterator) {
+    return pinchIterator->getNextAlignment(
+            pinchIterator->alignmentArg);
 }
 
 void stPinchIterator_reset(
-        stPinchIterator *stPinchIterator) {
-    stPinchIterator->alignmentArg
-            = stPinchIterator->startAlignmentStack(
-                    stPinchIterator->alignmentArg);
+        stPinchIterator *pinchIterator) {
+    pinchIterator->alignmentArg
+            = pinchIterator->startAlignmentStack(
+                    pinchIterator->alignmentArg);
 }
 
 void stPinchIterator_destruct(
-        stPinchIterator *stPinchIterator) {
-    stPinchIterator->destructAlignmentArg(
-            stPinchIterator->alignmentArg);
-    free(stPinchIterator);
+        stPinchIterator *pinchIterator) {
+    pinchIterator->destructAlignmentArg(
+            pinchIterator->alignmentArg);
+    free(pinchIterator);
 }
 
-void stPinchIterator_destructAlignment(stPinchIterator *stPinchIterator, stPinch *stPinch) {
-    if(stPinchIterator->cleanupAlignment != NULL) {
-        stPinchIterator->cleanupAlignment(stPinch);
+void stPinchIterator_destructAlignment(stPinchIterator *pinchIterator, stPinch *stPinch) {
+    if(pinchIterator->cleanupAlignment != NULL) {
+        pinchIterator->cleanupAlignment(stPinch);
     }
 }
 
@@ -85,23 +85,23 @@ stPinchIterator *stPinchIterator_constructFromList(
     return stPinchIterator;
 }*/
 
-static stSortedSetIterator *startAlignmentStackForAlignedPairs(stSortedSetIterator *it) {
+stSortedSetIterator *startAlignmentStackForAlignedPairs(stSortedSetIterator *it) {
     while(stSortedSet_getPrevious(it) != NULL);
     return it;
 }
 
 stPinchIterator *stPinchIterator_constructFromAlignedPairs(
         stSortedSet *alignedPairs, stPinch *(*getNextAlignedPairAlignment)(stSortedSetIterator *)) {
-    stPinchIterator *stPinchIterator = st_malloc(
+    stPinchIterator *pinchIterator = st_malloc(
             sizeof(stPinchIterator));
-    stPinchIterator->alignmentArg
+    pinchIterator->alignmentArg
             = stSortedSet_getIterator(alignedPairs);
-    stPinchIterator->getNextAlignment
+    pinchIterator->getNextAlignment
             = (stPinch *(*)(void *)) getNextAlignedPairAlignment;
-    stPinchIterator->destructAlignmentArg
+    pinchIterator->destructAlignmentArg
             = (void(*)(void *)) stSortedSet_destructIterator;
-    stPinchIterator->startAlignmentStack
+    pinchIterator->startAlignmentStack
             = (void *(*)(void *)) startAlignmentStackForAlignedPairs;
-    stPinchIterator->cleanupAlignment = NULL;
-    return stPinchIterator;
+    pinchIterator->cleanupAlignment = NULL;
+    return pinchIterator;
 }

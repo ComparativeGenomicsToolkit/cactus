@@ -77,7 +77,6 @@ void stCaf_addAlignmentsToPinchGraph(stPinchThreadSet *threadSet, stPinchIterato
     while ((pinch = stPinchIterator_getNext(pinchIterator)) != NULL) {
         stPinchThread *thread1 = stPinchThreadSet_getThread(threadSet, pinch->name1);
         stPinchThread *thread2 = stPinchThreadSet_getThread(threadSet, pinch->name2);
-        st_uglyf("We have the following two names %lli %lli %i %i %lli %lli\n", pinch->name1, pinch->name2, thread1, thread2, pinch->start1, pinch->start2);
         assert(thread1 != NULL && thread2 != NULL);
         assert(stPinchThread_getStart(thread1) < pinch->start1);
         assert(stPinchThread_getStart(thread1) + stPinchThread_getLength(thread1) > pinch->start1 + pinch->length);

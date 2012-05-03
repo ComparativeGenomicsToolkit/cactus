@@ -12,10 +12,7 @@
 #include "sonLib.h"
 #include "endAligner.h"
 #include "flowerAligner.h"
-//#include "cactus_core.h"
 #include "commonC.h"
-//#include "pairwiseAlignment.h"
-//#include "pairwiseAlignmentIterator.h"
 #include "stCaf.h"
 #include "stPinchGraphs.h"
 #include "stPinchIterator.h"
@@ -84,14 +81,12 @@ void usage() {
     fprintf(stderr, "-h --help : Print this help screen\n");
 }
 
-static stPinch *getNextAlignedPairAlignment(stSortedSetIterator *it) {
+stPinch *getNextAlignedPairAlignment(stSortedSetIterator *it) {
     AlignedPair *alignedPair = stSortedSet_getNext(it);
     if (alignedPair == NULL) {
         return NULL;
     }
     static stPinch pinch;
-    st_uglyf("I got %lli %lli %lli %lli\n", alignedPair->subsequenceIdentifier, alignedPair->reverse->subsequenceIdentifier,
-            alignedPair->position, alignedPair->reverse->position);
     stPinch_fillOut(&pinch, alignedPair->subsequenceIdentifier, alignedPair->reverse->subsequenceIdentifier,
             alignedPair->position, alignedPair->reverse->position,
             1, alignedPair->strand == alignedPair->reverse->strand);
@@ -299,11 +294,8 @@ int main(int argc, char *argv[]) {
                 pruneOutStubAlignments);
         st_logInfo("Created the alignment: %i pairs\n",
                 stSortedSet_size(alignedPairs));
-
         stPinchIterator *pinchIterator = stPinchIterator_constructFromAlignedPairs(
-                alignedPairs, getNextAlignedPairAlignment);
-
-        st_uglyf("Starting out!!\n");
+               alignedPairs, getNextAlignedPairAlignment);
 
         /*
          * Run the cactus core script.
@@ -317,6 +309,7 @@ int main(int argc, char *argv[]) {
         //Clean up the sorted set after cleaning up the iterator
         stPinchIterator_destruct(pinchIterator);
         stSortedSet_destruct(alignedPairs);
+
 
         st_logInfo("Finished filling in the alignments for the flower\n");
     }
