@@ -14,6 +14,10 @@
 #include "stCactusGraphs.h"
 #include "cactus.h"
 
+///////////////////////////////////////////////////////////////////////////
+// Setup the pinch graph from a cactus graph
+///////////////////////////////////////////////////////////////////////////
+
 /*
  * Create a pinch graph from a flower containing no blocks. Each thread is given the name of its 5' cap,
  * and stubs are represented by length 1 blocks.
@@ -21,41 +25,45 @@
 stPinchThreadSet *stCaf_constructEmptyPinchGraph(Flower *flower);
 
 /*
- * Add the a set of alignments, represented as pinches, to the graph.
+ * Initialises the flower for filling out and creates a pinch graph.
  */
-void stCaf_addAlignmentsToPinchGraph(stPinchThreadSet *threadSet, stPinchIterator *pinchIterator);
+stPinchThreadSet *stCaf_setup(Flower *flower);
+
+///////////////////////////////////////////////////////////////////////////
+// Annealing fuctions -- adding alignments to pinch graph
+///////////////////////////////////////////////////////////////////////////
 
 /*
- * Locates the ends of all the attached ends and merges together their 'dead end' components to create a single
- * 'dead end' component, as described in the JCB cactus paper.
+ * Add the set of alignments, represented as pinches, to the graph.
  */
-stList *stCaf_constructDeadEndComponent(Flower *flower, stPinchThreadSet *threadSet,
-        stHash *pinchEndsToAdjacencyComponents);
+void stCaf_anneal(stPinchThreadSet *threadSet, stPinchIterator *pinchIterator);
 
 /*
- * Locates threads components which have no dead ends part of the dead end component, and then
- * connects them, picking the longest thread to attach them.
+ * Add the set of alignments, represented as pinches, to the graph, allowing alignments only between segments in the same component.
  */
-void stCaf_attachUnattachedThreadComponents(Flower *flower, stPinchThreadSet *threadSet, stList *deadEndComponent,
-        stHash *pinchEndsToAdjacencyComponents, bool markEndsAttached);
+void stCaf_annealBetweenAdjacencyComponents(stPinchThreadSet *threadSet, stPinchIterator *pinchIterator);
+
+///////////////////////////////////////////////////////////////////////////
+// Melting fuctions -- removing alignments from the pinch graph
+///////////////////////////////////////////////////////////////////////////
 
 /*
- * Constructs a cactus graph from a set of pinch graph components, including the dead end component. Returns a cactus
- * graph, and assigns 'startCactusNode' to the cactus node containing the dead end component.
+ * Removes homologies from the graph.
  */
-stCactusGraph *stCaf_constructCactusGraph(stList *deadEndComponent,
-        stHash *pinchEndsToAdjacencyComponents, stCactusNode **startCactusNode);
+void stCaf_melt(Flower *flower, stPinchThreadSet *threadSet, bool blockFilterfn(stPinchBlock *), int32_t blockEndTrim, int64_t minimumChainLength);
+
+///////////////////////////////////////////////////////////////////////////
+// Pinch graph to cactus graph
+///////////////////////////////////////////////////////////////////////////
 
 /*
- * Functions which draws together the above three functions to convert a pinch graph into a cactus graph.
+ * Functions which converts a pinch graph into a cactus graph.
  */
-stCactusGraph *stCaf_getCactusGraphForThreadSet(Flower *flower, stPinchThreadSet *threadSet, stCactusNode **startCactusNode, stList **deadEndComponent);
+stCactusGraph *stCaf_getCactusGraphForThreadSet(Flower *flower, stPinchThreadSet *threadSet, stCactusNode **startCactusNode, stList **deadEndComponent,  bool attachEndsInFlower);
 
-/*
- * Converts a given cactus graph/pinch graph into the cactus datastructure.
- */
-void stCaf_convertCactusGraphToFlowers(stPinchThreadSet *threadSet, stCactusNode *startCactusNode, Flower *parentFlower,
-        stList *deadEndComponent);
+///////////////////////////////////////////////////////////////////////////
+// Finishing: Converting a pinch graph into the flower hierarchy
+///////////////////////////////////////////////////////////////////////////
 
 /*
  * Add the adjacencies between caps of a flower.
@@ -64,8 +72,8 @@ void stCaf_convertCactusGraphToFlowers(stPinchThreadSet *threadSet, stCactusNode
 void stCaf_addAdjacencies(Flower *flower);
 
 /*
- * Basic function for filling out a flower with a given set of alignments into a cactus graph.
+ * Takes a pinch graph for a flower and adds the alignments it contains back to the flower as a cactus.
  */
-void stCaf_core(Flower *flower, stPinchIterator *pinchIterator);
+void stCaf_finish(Flower *flower, stPinchThreadSet *threadSet);
 
 #endif /* STCAF_H_ */

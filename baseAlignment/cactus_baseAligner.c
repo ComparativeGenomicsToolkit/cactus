@@ -300,7 +300,10 @@ int main(int argc, char *argv[]) {
         /*
          * Run the cactus core script.
          */
-        stCaf_core(flower, pinchIterator);
+        stPinchThreadSet *threadSet = stCaf_setup(flower);
+        stCaf_anneal(threadSet, pinchIterator);
+        stCaf_finish(flower, threadSet);
+        stPinchThreadSet_destruct(threadSet);
         st_logInfo("Ran the cactus core script.\n");
 
         /*

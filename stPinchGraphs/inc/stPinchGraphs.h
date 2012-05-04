@@ -55,6 +55,13 @@ typedef struct _stPinch {
     bool strand;
 } stPinch;
 
+typedef struct _stPinchInterval {
+    int64_t name;
+    int64_t start;
+    int64_t length;
+    void *label;
+} stPinchInterval;
+
 //Thread set
 
 stPinchThreadSet *stPinchThreadSet_construct();
@@ -82,6 +89,10 @@ stList *stPinchThreadSet_getAdjacencyComponents(stPinchThreadSet *threadSet);
 stList *stPinchThreadSet_getAdjacencyComponents2(stPinchThreadSet *threadSet, stHash **edgeEndsToAdjacencyComponents);
 
 stSortedSet *stPinchThreadSet_getThreadComponents(stPinchThreadSet *threadSet);
+
+void stPinchThreadSet_trimAlignments(stPinchThreadSet *threadSet, int32_t blockEndTrim);
+
+void stPinchThreadSet_filterAlignments(stPinchThreadSet *threadSet, bool(*blockFilterFn)(stPinchBlock *));
 
 //convenience functions
 
@@ -157,6 +168,8 @@ stPinchSegment *stPinchBlock_getFirst(stPinchBlock *block);
 
 uint32_t stPinchBlock_getDegree(stPinchBlock *block);
 
+void stPinchBlock_trim(stPinchBlock *block, int32_t blockEndTrim);
+
 //Block ends
 
 void stPinchEnd_fillOut(stPinchEnd *end, stPinchBlock *block, bool orientation);
@@ -185,20 +198,34 @@ void stPinchEnd_joinTrivialBoundary(stPinchEnd end);
 
 //Pinch structure
 
-void stPinch_fillOut(stPinch *pinch, int64_t name1,
-        int64_t name2,
-        int64_t start1,
-        int64_t start2,
-        int64_t length,
-        bool strand);
+void stPinch_fillOut(stPinch *pinch, int64_t name1, int64_t name2, int64_t start1, int64_t start2, int64_t length, bool strand);
 
-stPinch *stPinch_construct(int64_t name1,
-        int64_t name2,
-        int64_t start1,
-        int64_t start2,
-        int64_t length,
-        bool strand);
+stPinch stPinch_constructStatic(int64_t name1, int64_t name2, int64_t start1, int64_t start2, int64_t length, bool strand);
+
+stPinch *stPinch_construct(int64_t name1, int64_t name2, int64_t start1, int64_t start2, int64_t length, bool strand);
 
 void stPinch_destruct(stPinch *pinch);
+
+//Pinch interval structure
+
+void stPinchInterval_fillOut(stPinchInterval *pinchInterval, int64_t name, int64_t start, int64_t length, void *label);
+
+stPinchInterval stPinchInterval_constructStatic(int64_t name, int64_t start, int64_t length, void *label);
+
+stPinchInterval *stPinchInterval_construct(int64_t name, int64_t start, int64_t length, void *label);
+
+int64_t stPinchInterval_getName(stPinchInterval *pinchInterval);
+
+int64_t stPinchInterval_getStart(stPinchInterval *pinchInterval);
+
+int64_t stPinchInterval_getLength(stPinchInterval *pinchInterval);
+
+void *stPinchInterval_getLabel(stPinchInterval *pinchInterval);
+
+void stPinchInterval_destruct(stPinchInterval *pinchInterval);
+
+stSortedSet *stPinchThreadSet_getLabelIntervals(stPinchThreadSet *threadSet, stHash *pinchEndsToLabels);
+
+stPinchInterval *stPinchIntervals_getInterval(stSortedSet *pinchIntervals, int64_t name, int64_t position);
 
 #endif /* ST_PINCH_GRAPHS_H_ */

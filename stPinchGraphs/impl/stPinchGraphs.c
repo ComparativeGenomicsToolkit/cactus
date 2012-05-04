@@ -147,6 +147,30 @@ int64_t stPinchBlock_getLength(stPinchBlock *block) {
     return stPinchSegment_getLength(stPinchBlock_getFirst(block));
 }
 
+void stPinchBlock_trim(stPinchBlock *block, int32_t blockEndTrim) {
+    if (blockEndTrim <= 0) {
+        return;
+    }
+    if (stPinchBlock_getLength(block) > 2 * blockEndTrim) {
+        stPinchSegment *segment = stPinchBlock_getFirst(block);
+        stPinchSegment_split(segment, stPinchSegment_getStart(segment) + blockEndTrim - 1);
+        block = stPinchSegment_getBlock(segment);
+        assert(block != NULL);
+        stPinchBlock_destruct(block);
+        segment = stPinchSegment_get3Prime(segment);
+        assert(segment != NULL);
+        assert(stPinchSegment_getBlock(segment) != NULL);
+        stPinchSegment_split(segment, stPinchSegment_getStart(segment) + stPinchSegment_getLength(segment) - 1 - blockEndTrim);
+        segment = stPinchSegment_get3Prime(segment);
+        assert(segment != NULL);
+        block = stPinchSegment_getBlock(segment);
+        assert(block != NULL);
+        stPinchBlock_destruct(block);
+    } else { //Two short, so we just destroy it
+        stPinchBlock_destruct(block);
+    }
+}
+
 //Segments
 
 int64_t stPinchSegment_getStart(stPinchSegment *segment) {
@@ -362,9 +386,14 @@ stPinchSegment *stPinchThread_pinchTrim(stPinchSegment *segment, bool strand, in
 }
 
 void stPinchThread_pinch(stPinchThread *thread1, stPinchThread *thread2, int64_t start1, int64_t start2, int64_t length, bool strand2) {
+    assert(length >= 0);
     if (length == 0) {
         return;
     }
+    assert(stPinchThread_getStart(thread1) < start1);
+    assert(stPinchThread_getStart(thread1) + stPinchThread_getLength(thread1) > start1 + length);
+    assert(stPinchThread_getStart(thread2) < start2);
+    assert(stPinchThread_getStart(thread2) + stPinchThread_getLength(thread2) > start2 + length);
     stPinchSegment *segment1 = stPinchThread_pinchP(thread1, start1), *segment2;
     if (strand2) {
         segment2 = stPinchThread_pinchP(thread2, start2);
@@ -490,37 +519,22 @@ stPinchThread *stPinchThreadSetIt_getNext(stPinchThreadSetIt *threadIt) {
     return NULL;
 }
 
-stPinchSegment *getNextBlockSegment(stPinchSegment *segment) {
-    while (1) {
-        if (segment == NULL) {
-            return NULL;
-        }
-        stPinchBlock *block;
-        if ((block = stPinchSegment_getBlock(segment)) != NULL && stPinchBlock_getFirst(block) == segment) {
-            return segment;
-        }
-        segment = stPinchSegment_get3Prime(segment);
-    }
-}
-
 void stPinchThreadSet_joinTrivialBoundaries(stPinchThreadSet *threadSet) {
     stPinchThreadSetIt threadIt = stPinchThreadSet_getIt(threadSet);
     stPinchThread *thread;
     while ((thread = stPinchThreadSetIt_getNext(&threadIt)) != NULL) {
         stPinchThread_joinTrivialBoundaries(thread);
-        stPinchSegment *segment = getNextBlockSegment(stPinchThread_getFirst(thread));
-        while (segment != NULL) {
-            stPinchEnd end;
-            end.block = stPinchSegment_getBlock(segment);
-            end.orientation = 0;
-            if (stPinchEnd_boundaryIsTrivial(end)) {
-                stPinchEnd_joinTrivialBoundary(end);
-            }
-            end.orientation = 1;
-            if (stPinchEnd_boundaryIsTrivial(end)) {
-                stPinchEnd_joinTrivialBoundary(end);
-            }
-            segment = getNextBlockSegment(stPinchSegment_get3Prime(segment));
+    }
+    stPinchThreadSetBlockIt blockIt = stPinchThreadSet_getBlockIt(threadSet);
+    stPinchBlock *block;
+    while ((block = stPinchThreadSetBlockIt_getNext(&blockIt))) {
+        stPinchEnd end = stPinchEnd_constructStatic(block, 0);
+        if (stPinchEnd_boundaryIsTrivial(end)) {
+            stPinchEnd_joinTrivialBoundary(end);
+        }
+        end.orientation = 1;
+        if (stPinchEnd_boundaryIsTrivial(end)) {
+            stPinchEnd_joinTrivialBoundary(end);
         }
     }
 }
@@ -543,6 +557,9 @@ stPinchThreadSetSegmentIt stPinchThreadSet_getSegmentIt(stPinchThreadSet *thread
 }
 
 stPinchSegment *stPinchThreadSetSegmentIt_getNext(stPinchThreadSetSegmentIt *segmentIt) {
+    if (segmentIt->segment != NULL) {
+        segmentIt->segment = stPinchSegment_get3Prime(segmentIt->segment);
+    }
     while (segmentIt->segment == NULL) {
         stPinchThread *thread = stPinchThreadSetIt_getNext(&segmentIt->threadIt);
         if (thread == NULL) {
@@ -550,9 +567,7 @@ stPinchSegment *stPinchThreadSetSegmentIt_getNext(stPinchThreadSetSegmentIt *seg
         }
         segmentIt->segment = stPinchThread_getFirst(thread);
     }
-    stPinchSegment *segment = segmentIt->segment;
-    segmentIt->segment = stPinchSegment_get3Prime(segment);
-    return segment;
+    return segmentIt->segment;
 }
 
 stPinchThreadSetBlockIt stPinchThreadSet_getBlockIt(stPinchThreadSet *threadSet) {
@@ -607,7 +622,8 @@ void stPinchThreadSet_getAdjacencyComponentsP2(stHash *endsToAdjacencyComponents
     stList_destruct(stack);
 }
 
-void stPinchThreadSet_getAdjacencyComponentsP(stHash *endsToAdjacencyComponents, stList *adjacencyComponents, stPinchBlock *block, bool orientation) {
+void stPinchThreadSet_getAdjacencyComponentsP(stHash *endsToAdjacencyComponents, stList *adjacencyComponents, stPinchBlock *block,
+        bool orientation) {
     stPinchEnd end = stPinchEnd_constructStatic(block, orientation);
     stList *adjacencyComponent = stHash_search(endsToAdjacencyComponents, &end);
     if (adjacencyComponent == NULL) {
@@ -658,9 +674,9 @@ stSortedSet *stPinchThreadSet_getThreadComponents(stPinchThreadSet *threadSet) {
         while ((segment = stPinchBlockIt_getNext(&segmentIt)) != NULL) {
             stList *threadComponent2 = stHash_search(threadToComponentHash, stPinchSegment_getThread(segment));
             assert(threadComponent2 != NULL);
-            if(threadComponent1 != threadComponent2) {
+            if (threadComponent1 != threadComponent2) {
                 stList_appendAll(threadComponent1, threadComponent2);
-                for(int32_t i=0; i<stList_length(threadComponent2); i++) {
+                for (int32_t i = 0; i < stList_length(threadComponent2); i++) {
                     stPinchThread *thread = stList_get(threadComponent2, i);
                     stHash_insert(threadToComponentHash, thread, threadComponent1);
                 }
@@ -671,11 +687,33 @@ stSortedSet *stPinchThreadSet_getThreadComponents(stPinchThreadSet *threadSet) {
     //Get a list of the components
     stList *values = stHash_getValues(threadToComponentHash);
     stSortedSet *threadComponentsSet = stList_getSortedSet(values, NULL);
-    stSortedSet_setDestructor(threadComponentsSet, (void (*)(void *))stList_destruct);
+    stSortedSet_setDestructor(threadComponentsSet, (void(*)(void *)) stList_destruct);
     //Cleanup
     stList_destruct(values);
     stHash_destruct(threadToComponentHash);
     return threadComponentsSet;
+}
+
+void stPinchThreadSet_trimAlignments(stPinchThreadSet *threadSet, int32_t blockEndTrim) {
+    stPinchThreadSetBlockIt blockIt = stPinchThreadSet_getBlockIt(threadSet);
+    stPinchBlock *block = stPinchThreadSetBlockIt_getNext(&blockIt);
+    while (block != NULL) {
+        stPinchBlock *block2 = stPinchThreadSetBlockIt_getNext(&blockIt);
+        stPinchBlock_trim(block, blockEndTrim);
+        block = block2;
+    }
+}
+
+void stPinchThreadSet_filterAlignments(stPinchThreadSet *threadSet, bool(*blockFilterFn)(stPinchBlock *)) {
+    stPinchThreadSetBlockIt blockIt = stPinchThreadSet_getBlockIt(threadSet);
+    stPinchBlock *block = stPinchThreadSetBlockIt_getNext(&blockIt);
+    while (block != NULL) {
+        stPinchBlock *block2 = stPinchThreadSetBlockIt_getNext(&blockIt);
+        if (blockFilterFn(block)) {
+            stPinchBlock_destruct(block);
+        }
+        block = block2;
+    }
 }
 
 //stPinchEnd
@@ -817,5 +855,57 @@ stPinch *stPinch_construct(int64_t name1, int64_t name2, int64_t start1, int64_t
 
 void stPinch_destruct(stPinch *pinch) {
     free(pinch);
+}
+
+//stPinchInterval
+
+void stPinchInterval_fillOut(stPinchInterval *pinchInterval, int64_t name, int64_t start, int64_t length, void *label) {
+    pinchInterval->name = name;
+    pinchInterval->start = start;
+    pinchInterval->length = length;
+    pinchInterval->label = label;
+}
+
+stPinchInterval stPinchInterval_constructStatic(int64_t name, int64_t start, int64_t length, void *label) {
+    stPinchInterval interval;
+    stPinchInterval_fillOut(&interval, name, start, length, label);
+    return interval;
+}
+
+stPinchInterval *stPinchInterval_construct(int64_t name, int64_t start, int64_t length, void *label) {
+    stPinchInterval *interval = st_malloc(sizeof(stPinchInterval));
+    stPinchInterval_fillOut(interval, name, start, length, label);
+    return interval;
+}
+
+int64_t stPinchInterval_getName(stPinchInterval *pinchInterval) {
+    return pinchInterval->name;
+}
+
+int64_t stPinchInterval_getStart(stPinchInterval *pinchInterval) {
+    return pinchInterval->start;
+}
+
+int64_t stPinchInterval_getLength(stPinchInterval *pinchInterval) {
+    return pinchInterval->length;
+}
+
+void *stPinchInterval_getLabel(stPinchInterval *pinchInterval) {
+    return pinchInterval->label;
+}
+
+void stPinchInterval_destruct(stPinchInterval *pinchInterval) {
+    free(pinchInterval);
+}
+
+stSortedSet *stPinchThreadSet_getLabelIntervals(stPinchThreadSet *threadSet, stHash *pinchEndsToLabels) {
+    stSortedSet *pinchIntervals = stSortedSet_construct();
+    return pinchIntervals;
+}
+
+stPinchInterval *stPinchIntervals_getInterval(stSortedSet *pinchIntervals, int64_t name, int64_t position) {
+    stPinchInterval interval;
+    stPinchInterval_fillOut(&interval, name, position, 1, NULL);
+    return stSortedSet_search(pinchIntervals, &interval);
 }
 
