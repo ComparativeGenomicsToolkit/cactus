@@ -29,7 +29,7 @@ void stCaf_addAlignmentsToPinchGraph(stPinchThreadSet *threadSet, stPinchIterato
  * Locates the ends of all the attached ends and merges together their 'dead end' components to create a single
  * 'dead end' component, as described in the JCB cactus paper.
  */
-stList *stCaf_constructDeadEndComponent(Flower *flower, stPinchThreadSet *threadSet, stSortedSet *adjacencyComponents,
+stList *stCaf_constructDeadEndComponent(Flower *flower, stPinchThreadSet *threadSet,
         stHash *pinchEndsToAdjacencyComponents);
 
 /*
@@ -37,13 +37,13 @@ stList *stCaf_constructDeadEndComponent(Flower *flower, stPinchThreadSet *thread
  * connects them, picking the longest thread to attach them.
  */
 void stCaf_attachUnattachedThreadComponents(Flower *flower, stPinchThreadSet *threadSet, stList *deadEndComponent,
-        stSortedSet *adjacencyComponents, stHash *pinchEndsToAdjacencyComponents, bool markEndsAttached);
+        stHash *pinchEndsToAdjacencyComponents, bool markEndsAttached);
 
 /*
  * Constructs a cactus graph from a set of pinch graph components, including the dead end component. Returns a cactus
  * graph, and assigns 'startCactusNode' to the cactus node containing the dead end component.
  */
-stCactusGraph *stCaf_constructCactusGraph(stSortedSet *adjacencyComponents, stList *deadEndComponent,
+stCactusGraph *stCaf_constructCactusGraph(stList *deadEndComponent,
         stHash *pinchEndsToAdjacencyComponents, stCactusNode **startCactusNode);
 
 /*
