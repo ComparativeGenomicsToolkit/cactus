@@ -47,6 +47,11 @@ stCactusGraph *stCaf_constructCactusGraph(stList *deadEndComponent,
         stHash *pinchEndsToAdjacencyComponents, stCactusNode **startCactusNode);
 
 /*
+ * Functions which draws together the above three functions to convert a pinch graph into a cactus graph.
+ */
+stCactusGraph *stCaf_getCactusGraphForThreadSet(Flower *flower, stPinchThreadSet *threadSet, stCactusNode **startCactusNode, stList **deadEndComponent);
+
+/*
  * Converts a given cactus graph/pinch graph into the cactus datastructure.
  */
 void stCaf_convertCactusGraphToFlowers(stPinchThreadSet *threadSet, stCactusNode *startCactusNode, Flower *parentFlower,

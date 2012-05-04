@@ -339,6 +339,22 @@ stCactusGraph *stCaf_getCactusGraphForThreadSet(Flower *flower, stPinchThreadSet
 }
 
 ///////////////////////////////////////////////////////////////////////////
+// Functions to filter the thread set to remove homologies
+///////////////////////////////////////////////////////////////////////////
+
+void stThreadSet_trimAlignments(stThreadSet *threadSet, int32_t minimumBlockLength) {
+
+}
+
+void stThreadSet_filterAlignments(stThreadSet *threadSet, bool (*blockFilterFn)(stPinchBlock *)) {
+
+}
+
+/*stList *stCaf_getBlocksInChainsLessThanGivenLength(stCactusGraph *cactusGraph, int32_t minimumChainLength) {
+
+}*/
+
+///////////////////////////////////////////////////////////////////////////
 // Convert the complete cactus graph/pinch graph into filled out set of flowers
 ///////////////////////////////////////////////////////////////////////////
 
@@ -604,18 +620,6 @@ static void initialiseFlowerForFillingOut(Flower *flower) {
     }
     group_destruct(flower_getFirstGroup(flower));
 }
-
-/*void stThreadSet_trimAlignments(stThreadSet *threadSet, int32_t minimumBlockLength) {
-
-}
-
-void stThreadSet_filterAlignments(stThreadSet *threadSet, bool (*blockFilterFn)(stPinchBlock *)) {
-
-}
-
-stList *stCaf_getBlocksInChainsLessThanGivenLength(stCactusGraph *cactusGraph, int32_t minimumChainLength) {
-
-}*/
 
 void stCaf_core(Flower *flower, stPinchIterator *pinchIterator) {
     //Setup the empty flower that will be filled out
