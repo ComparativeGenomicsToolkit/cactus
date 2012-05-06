@@ -5,24 +5,6 @@
 #include "stCaf.h"
 
 ///////////////////////////////////////////////////////////////////////////
-// Ensure that flower ends are in blocks without other sequence.
-///////////////////////////////////////////////////////////////////////////
-
-static void stCaf_ensureEndsAreDistinct(stPinchThreadSet *threadSet) {
-    /*
-     * Ensures the blocks at the ends of threads are distinct.
-     */
-    stPinchThread *thread;
-    stPinchThreadSetIt threadIt = stPinchThreadSet_getIt(threadSet);
-    while ((thread = stPinchThreadSetIt_getNext(&threadIt)) != NULL) {
-        stPinchThread_split(thread, stPinchThread_getStart(thread));
-        assert(stPinchThread_getLength(thread) >= 2);
-        stPinchThread_split(thread, stPinchThread_getStart(thread) + stPinchThread_getLength(thread) - 2);
-    }
-}
-
-
-///////////////////////////////////////////////////////////////////////////
 // Construct dead end component
 ///////////////////////////////////////////////////////////////////////////
 
@@ -258,9 +240,6 @@ static stCactusGraph *stCaf_constructCactusGraph(stList *deadEndComponent, stHas
 
 stCactusGraph *stCaf_getCactusGraphForThreadSet(Flower *flower, stPinchThreadSet *threadSet, stCactusNode **startCactusNode,
         stList **deadEndComponent, bool attachEndsInFlower) {
-    //Ensure that end blocks are not joined at there ends.
-    stCaf_ensureEndsAreDistinct(threadSet);
-
     //Get adjacency components
     stHash *pinchEndsToAdjacencyComponents;
     stList *adjacencyComponents = stPinchThreadSet_getAdjacencyComponents2(threadSet, &pinchEndsToAdjacencyComponents);

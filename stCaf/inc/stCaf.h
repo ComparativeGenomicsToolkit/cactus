@@ -29,6 +29,7 @@ stPinchThreadSet *stCaf_constructEmptyPinchGraph(Flower *flower);
  */
 stPinchThreadSet *stCaf_setup(Flower *flower);
 
+
 ///////////////////////////////////////////////////////////////////////////
 // Annealing fuctions -- adding alignments to pinch graph
 ///////////////////////////////////////////////////////////////////////////
@@ -64,6 +65,11 @@ stCactusGraph *stCaf_getCactusGraphForThreadSet(Flower *flower, stPinchThreadSet
 ///////////////////////////////////////////////////////////////////////////
 // Finishing: Converting a pinch graph into the flower hierarchy
 ///////////////////////////////////////////////////////////////////////////
+
+/*
+ * Create blocks for unaligned segments.
+ */
+void stCaf_makeDegreeOneBlocks(stPinchThreadSet *threadSet);
 
 /*
  * Add the adjacencies between caps of a flower.

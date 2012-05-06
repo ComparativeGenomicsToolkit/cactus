@@ -43,7 +43,8 @@ struct _stPinchBlock {
 
 //Blocks
 
-static void connectBlockToSegment(stPinchSegment *segment, bool orientation, stPinchBlock *block, stPinchSegment *nBlockSegment) {
+static void connectBlockToSegment(stPinchSegment *segment, bool orientation, stPinchBlock *block,
+        stPinchSegment *nBlockSegment) {
     segment->block = block;
     segment->blockOrientation = orientation;
     segment->nBlockSegment = nBlockSegment;
@@ -62,7 +63,8 @@ stPinchBlock *stPinchBlock_construct2(stPinchSegment *segment) {
     return stPinchBlock_construct3(segment, 1);
 }
 
-stPinchBlock *stPinchBlock_construct(stPinchSegment *segment1, bool orientation1, stPinchSegment *segment2, bool orientation2) {
+stPinchBlock *stPinchBlock_construct(stPinchSegment *segment1, bool orientation1, stPinchSegment *segment2,
+        bool orientation2) {
     if (stPinchSegment_getLength(segment1) != stPinchSegment_getLength(segment2)) {
         stThrowNew(ST_COMPRESSION_EXCEPTION_ID, "Two segments that are being pinched have different lengths: %i %i\n",
                 stPinchSegment_getLength(segment1), stPinchSegment_getLength(segment2));
@@ -103,7 +105,8 @@ stPinchBlock *stPinchBlock_pinch(stPinchBlock *block1, stPinchBlock *block2, boo
     while (segment != NULL) {
         stPinchSegment *nSegment = stPinchBlockIt_getNext(&blockIt);
         bool segmentOrientation = stPinchSegment_getBlockOrientation(segment);
-        stPinchBlock_pinch2(block1, segment, (segmentOrientation && orientation) || (!segmentOrientation && !orientation));
+        stPinchBlock_pinch2(block1, segment,
+                (segmentOrientation && orientation) || (!segmentOrientation && !orientation));
         segment = nSegment;
     }
     free(block2);
@@ -160,7 +163,8 @@ void stPinchBlock_trim(stPinchBlock *block, int32_t blockEndTrim) {
         segment = stPinchSegment_get3Prime(segment);
         assert(segment != NULL);
         assert(stPinchSegment_getBlock(segment) != NULL);
-        stPinchSegment_split(segment, stPinchSegment_getStart(segment) + stPinchSegment_getLength(segment) - 1 - blockEndTrim);
+        stPinchSegment_split(segment,
+                stPinchSegment_getStart(segment) + stPinchSegment_getLength(segment) - 1 - blockEndTrim);
         segment = stPinchSegment_get3Prime(segment);
         assert(segment != NULL);
         block = stPinchSegment_getBlock(segment);
@@ -229,7 +233,8 @@ static stPinchSegment *stPinchSegment_construct(int64_t start, stPinchThread *th
 static stPinchSegment *stPinchSegment_splitP(stPinchSegment *segment, int64_t leftBlockLength) {
     stPinchSegment *nSegment = segment->nSegment;
     assert(nSegment != NULL);
-    stPinchSegment *rightSegment = stPinchSegment_construct(stPinchSegment_getStart(segment) + leftBlockLength, segment->thread);
+    stPinchSegment *rightSegment = stPinchSegment_construct(stPinchSegment_getStart(segment) + leftBlockLength,
+            segment->thread);
     segment->nSegment = rightSegment;
     rightSegment->pSegment = segment;
     rightSegment->nSegment = nSegment;
@@ -385,15 +390,16 @@ stPinchSegment *stPinchThread_pinchTrim(stPinchSegment *segment, bool strand, in
     return stPinchSegment_get3Prime(segment);
 }
 
-void stPinchThread_pinch(stPinchThread *thread1, stPinchThread *thread2, int64_t start1, int64_t start2, int64_t length, bool strand2) {
+void stPinchThread_pinch(stPinchThread *thread1, stPinchThread *thread2, int64_t start1, int64_t start2,
+        int64_t length, bool strand2) {
     assert(length >= 0);
     if (length == 0) {
         return;
     }
-    assert(stPinchThread_getStart(thread1) < start1);
-    assert(stPinchThread_getStart(thread1) + stPinchThread_getLength(thread1) > start1 + length);
-    assert(stPinchThread_getStart(thread2) < start2);
-    assert(stPinchThread_getStart(thread2) + stPinchThread_getLength(thread2) > start2 + length);
+    assert(stPinchThread_getStart(thread1) <= start1);
+    assert(stPinchThread_getStart(thread1) + stPinchThread_getLength(thread1) >= start1 + length);
+    assert(stPinchThread_getStart(thread2) <= start2);
+    assert(stPinchThread_getStart(thread2) + stPinchThread_getLength(thread2) >= start2 + length);
     stPinchSegment *segment1 = stPinchThread_pinchP(thread1, start1), *segment2;
     if (strand2) {
         segment2 = stPinchThread_pinchP(thread2, start2);
@@ -589,7 +595,8 @@ stPinchBlock *stPinchThreadSetBlockIt_getNext(stPinchThreadSetBlockIt *blockIt) 
     }
 }
 
-void stPinchThreadSet_getAdjacencyComponentsP2(stHash *endsToAdjacencyComponents, stList *adjacencyComponent, stPinchEnd *end) {
+void stPinchThreadSet_getAdjacencyComponentsP2(stHash *endsToAdjacencyComponents, stList *adjacencyComponent,
+        stPinchEnd *end) {
     stList *stack = stList_construct();
     stList_append(adjacencyComponent, end);
     stHash_insert(endsToAdjacencyComponents, end, adjacencyComponent);
@@ -607,7 +614,8 @@ void stPinchThreadSet_getAdjacencyComponentsP2(stHash *endsToAdjacencyComponents
                 }
                 stPinchBlock *block = stPinchSegment_getBlock(segment);
                 if (block != NULL) {
-                    stPinchEnd end2 = stPinchEnd_constructStatic(block, stPinchEnd_endOrientation(_5PrimeTraversal, segment));
+                    stPinchEnd end2 = stPinchEnd_constructStatic(block,
+                            stPinchEnd_endOrientation(_5PrimeTraversal, segment));
                     if (stHash_search(endsToAdjacencyComponents, &end2) == NULL) {
                         stPinchEnd *end3 = stPinchEnd_construct(end2.block, end2.orientation);
                         stList_append(adjacencyComponent, end3);
@@ -622,14 +630,15 @@ void stPinchThreadSet_getAdjacencyComponentsP2(stHash *endsToAdjacencyComponents
     stList_destruct(stack);
 }
 
-void stPinchThreadSet_getAdjacencyComponentsP(stHash *endsToAdjacencyComponents, stList *adjacencyComponents, stPinchBlock *block,
-        bool orientation) {
+void stPinchThreadSet_getAdjacencyComponentsP(stHash *endsToAdjacencyComponents, stList *adjacencyComponents,
+        stPinchBlock *block, bool orientation) {
     stPinchEnd end = stPinchEnd_constructStatic(block, orientation);
     stList *adjacencyComponent = stHash_search(endsToAdjacencyComponents, &end);
     if (adjacencyComponent == NULL) {
         adjacencyComponent = stList_construct3(0, (void(*)(void *)) stPinchEnd_destruct);
         stList_append(adjacencyComponents, adjacencyComponent);
-        stPinchThreadSet_getAdjacencyComponentsP2(endsToAdjacencyComponents, adjacencyComponent, stPinchEnd_construct(block, orientation));
+        stPinchThreadSet_getAdjacencyComponentsP2(endsToAdjacencyComponents, adjacencyComponent,
+                stPinchEnd_construct(block, orientation));
     }
 }
 
@@ -774,8 +783,8 @@ bool stPinchEnd_boundaryIsTrivial(stPinchEnd end) {
     bool _5PrimeTraversal = stPinchEnd_traverse5Prime(end.orientation, segment);
     segment = _5PrimeTraversal ? stPinchSegment_get5Prime(segment) : stPinchSegment_get3Prime(segment);
     stPinchBlock *block;
-    if (segment == NULL || (block = stPinchSegment_getBlock(segment)) == NULL || block == end.block || stPinchBlock_getDegree(block)
-            != stPinchBlock_getDegree(end.block)) {
+    if (segment == NULL || (block = stPinchSegment_getBlock(segment)) == NULL || block == end.block
+            || stPinchBlock_getDegree(block) != stPinchBlock_getDegree(end.block)) {
         return 0;
     }
     bool endOrientation = stPinchEnd_endOrientation(_5PrimeTraversal, segment);
@@ -838,7 +847,8 @@ void stPinchEnd_joinTrivialBoundary(stPinchEnd end) {
 
 //stPinch
 
-void stPinch_fillOut(stPinch *pinch, int64_t name1, int64_t name2, int64_t start1, int64_t start2, int64_t length, bool strand) {
+void stPinch_fillOut(stPinch *pinch, int64_t name1, int64_t name2, int64_t start1, int64_t start2, int64_t length,
+        bool strand) {
     pinch->name1 = name1;
     pinch->name2 = name2;
     pinch->start1 = start1;
@@ -898,14 +908,97 @@ void stPinchInterval_destruct(stPinchInterval *pinchInterval) {
     free(pinchInterval);
 }
 
+void stPinchThreadSet_getLabelIntervalsP2(stPinchThread *thread, stSortedSet *pinchIntervals, int64_t start,
+        void *label) {
+    int64_t end = stPinchThread_getLength(thread) + stPinchThread_getStart(thread);
+    if (start < end) {
+        stSortedSet_insert(pinchIntervals,
+                stPinchInterval_construct(stPinchThread_getName(thread), start, end - start, label));
+    }
+}
+
+void stPinchThreadSet_getLabelIntervalsP(stPinchThread *thread, stHash *pinchEndsToLabels, stSortedSet *pinchIntervals) {
+    stPinchSegment *segment = stPinchThread_getFirst(thread);
+    if (segment == NULL) {
+        return;
+    }
+    int64_t start = stPinchSegment_getStart(segment);
+    void *label = NULL;
+    do {
+        stPinchBlock *block;
+        while ((block = stPinchSegment_getBlock(segment)) == NULL) {
+            segment = stPinchSegment_get3Prime(segment);
+            if (segment == NULL) {
+                stPinchThreadSet_getLabelIntervalsP2(thread, pinchIntervals, start, label);
+                return;
+            }
+        }
+        stPinchEnd pinchEnd = stPinchEnd_constructStatic(block, !stPinchSegment_getBlockOrientation(segment));
+        void *label2 = stHash_search(pinchEndsToLabels, &pinchEnd);
+        assert(label2 != NULL);
+        if (label == NULL) {
+            pinchEnd.orientation = !pinchEnd.orientation;
+            label = stHash_search(pinchEndsToLabels, &pinchEnd);
+            assert(label != NULL);
+        }
+//#ifdef BEN_DEBUG
+        else {
+            pinchEnd.orientation = !pinchEnd.orientation;
+            assert(label == stHash_search(pinchEndsToLabels, &pinchEnd));
+        }
+//#endif
+        if (label != label2) {
+            int64_t end = stPinchSegment_getStart(segment) + stPinchSegment_getLength(segment) / 2;
+            if (start < end) {
+                stSortedSet_insert(pinchIntervals,
+                        stPinchInterval_construct(stPinchThread_getName(thread), start, end - start, label));
+            }
+            start = end;
+            label = label2;
+        }
+        segment = stPinchSegment_get3Prime(segment);
+    } while (segment != NULL);
+    stPinchThreadSet_getLabelIntervalsP2(thread, pinchIntervals, start, label);
+}
+
 stSortedSet *stPinchThreadSet_getLabelIntervals(stPinchThreadSet *threadSet, stHash *pinchEndsToLabels) {
-    stSortedSet *pinchIntervals = stSortedSet_construct();
+    stSortedSet *pinchIntervals = stSortedSet_construct3(
+            (int(*)(const void *, const void *)) stPinchInterval_compareFunction,
+            (void(*)(void *)) stPinchInterval_destruct);
+    stPinchThread *thread;
+    stPinchThreadSetIt threadIt = stPinchThreadSet_getIt(threadSet);
+    while ((thread = stPinchThreadSetIt_getNext(&threadIt))) {
+        stPinchThreadSet_getLabelIntervalsP(thread, pinchEndsToLabels, pinchIntervals);
+    }
     return pinchIntervals;
+}
+
+static int cmp64s(int64_t i, int64_t j) {
+    return i > j ? 1 : (i < j ? -1 : 0);
+}
+
+int stPinchInterval_compareFunction(const stPinchInterval *interval1, const stPinchInterval *interval2) {
+    int i = cmp64s(interval1->name, interval2->name);
+    if (i != 0) {
+        return i;
+    }
+    i = cmp64s(interval1->start, interval2->start);
+    if (i != 0) {
+        return i;
+    }
+    return cmp64s(interval2->length, interval1->length);
 }
 
 stPinchInterval *stPinchIntervals_getInterval(stSortedSet *pinchIntervals, int64_t name, int64_t position) {
     stPinchInterval interval;
     stPinchInterval_fillOut(&interval, name, position, 1, NULL);
-    return stSortedSet_search(pinchIntervals, &interval);
+    stPinchInterval *interval2 = stSortedSet_searchLessThanOrEqual(pinchIntervals, &interval);
+    if (interval2 == NULL || stPinchInterval_getName(interval2) != name || stPinchInterval_getStart(interval2)
+            + stPinchInterval_getLength(interval2) <= position) {
+        return NULL;
+    }
+    assert(stPinchInterval_getStart(interval2) <= position);
+    assert(stPinchInterval_getStart(interval2) + stPinchInterval_getLength(interval2) > position);
+    return interval2;
 }
 

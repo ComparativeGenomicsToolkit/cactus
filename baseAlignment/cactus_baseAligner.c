@@ -93,6 +93,65 @@ stPinch *getNextAlignedPairAlignment(stSortedSetIterator *it) {
     return &pinch;
 }
 
+static float requiredIngroupFraction = 0.0, requiredOutgroupFraction = 0.0, requiredAllFraction = 0.0;
+static int32_t minimumDegree = 0;
+
+/*stList *getEvents(struct CactusEdge *cactusEdge, Flower *flower,
+        struct PinchGraph *pinchGraph) {
+#ifdef BEN_DEBUG
+    assert(!isAStubCactusEdge(cactusEdge, pinchGraph));
+#endif
+    struct PinchVertex *vertex = cactusEdgeToFirstPinchEdge(cactusEdge,
+            pinchGraph)->from;
+    stList *events = stList_construct();
+    void *blackEdgeIterator = getBlackEdgeIterator(vertex);
+    struct PinchEdge *edge;
+    while ((edge = getNextBlackEdge(vertex, blackEdgeIterator)) != NULL) {
+        struct Piece *piece = edge->piece;
+        Sequence *sequence = flower_getSequence(flower, piece->contig);
+        assert(sequence != NULL);
+        Event *event = sequence_getEvent(sequence);
+        assert(event != NULL);
+        stList_append(events, event);
+    }
+    destructBlackEdgeIterator(blackEdgeIterator);
+    return events;
+}
+
+static bool containsRequiredSpecies(struct CactusEdge *cactusEdge,
+        Flower *flower, struct PinchGraph *pinchGraph,
+        int32_t requiredIngroupSpecies, int32_t requiredOutgroupSpecies, int32_t requiredAllSpecies) {
+    //
+    //Returns non-zero iff the block contains at least minimum proportions of in and outgroup species.
+    //
+    stList *events = getEvents(cactusEdge, flower, pinchGraph);
+    stSortedSet *eventSet = stList_getSortedSet(events, NULL);
+    int32_t outgroupSequences = 0;
+    int32_t ingroupSequences = 0;
+    stSortedSetIterator *eventIt = stSortedSet_getIterator(eventSet);
+    Event *event;
+    while ((event = stSortedSet_getNext(eventIt)) != NULL) {
+        if (event_isOutgroup(event)) {
+            outgroupSequences++;
+        } else {
+            ingroupSequences++;
+        }
+    }
+    stSortedSet_destructIterator(eventIt);
+    stSortedSet_destruct(eventSet);
+    stList_destruct(events);
+    return ingroupSequences >= requiredIngroupSpecies && outgroupSequences
+            >= requiredOutgroupSpecies && outgroupSequences + ingroupSequences >= requiredAllSpecies;
+}*/
+
+bool blockFilterFn(stPinchBlock *pinchBlock) {
+    return 0;
+    if(stPinchBlock_getDegree(pinchBlock) < minimumDegree) {
+        return 1;
+    }
+    return 0;
+}
+
 int main(int argc, char *argv[]) {
 
     char * logLevelString = NULL;
@@ -111,14 +170,6 @@ int main(int argc, char *argv[]) {
     /*
      * Setup the input parameters for cactus core.
      */
-    /*CactusCoreInputParameters *cCIP = constructCactusCoreInputParameters();
-    free(cCIP->annealingRounds);
-    cCIP->annealingRounds = st_malloc(sizeof(int32_t) * 1); //Set to one annealing round.
-    cCIP->annealingRounds[0] = 0;
-    cCIP->annealingRoundsLength = 1;
-    cCIP->minimumDegree = 0;
-    cCIP->minimumTreeCoverage = 0;
-    cCIP->maxAdjacencyComponentSizeRatio = INT32_MAX; //Unnecessary, but defensive.*/
     bool pruneOutStubAlignments = 0;
 
     /*
@@ -228,8 +279,8 @@ int main(int argc, char *argv[]) {
                                 >= 0);
                 break;
             case 'u':
-                //i = sscanf(optarg, "%i", &cCIP->minimumDegree);
-                //assert(i == 1);
+                i = sscanf(optarg, "%i", &minimumDegree);
+                assert(i == 1);
                 break;
             case 'w':
                 pairwiseAlignmentBandingParameters->alignAmbiguityCharacters
@@ -244,16 +295,16 @@ int main(int argc, char *argv[]) {
                 assert(numThreads > 0);
                 break;
             case 'A':
-                //i = sscanf(optarg, "%f", &cCIP->requiredIngroupFraction);
-                //assert(i == 1);
+                i = sscanf(optarg, "%f", &requiredIngroupFraction);
+                assert(i == 1);
                 break;
             case 'B':
-                //i = sscanf(optarg, "%f", &cCIP->requiredOutgroupFraction);
-                //assert(i == 1);
+                i = sscanf(optarg, "%f", &requiredOutgroupFraction);
+                assert(i == 1);
                 break;
             case 'C':
-               // i = sscanf(optarg, "%f", &cCIP->requiredAllFraction);
-                //assert(i == 1);
+                i = sscanf(optarg, "%f", &requiredAllFraction);
+                assert(i == 1);
                 break;
             default:
                 usage();
@@ -298,10 +349,16 @@ int main(int argc, char *argv[]) {
                alignedPairs, getNextAlignedPairAlignment);
 
         /*
-         * Run the cactus core script.
+         * Run the cactus caf functions to build cactus.
          */
         stPinchThreadSet *threadSet = stCaf_setup(flower);
         stCaf_anneal(threadSet, pinchIterator);
+        if(minimumDegree < 2) {
+            stCaf_makeDegreeOneBlocks(threadSet);
+        }
+        if(requiredIngroupFraction > 0.0 || requiredOutgroupFraction > 0.0 || requiredAllFraction > 0.0 || minimumDegree > 1) {
+            stCaf_melt(flower, threadSet, blockFilterFn, 0, 0);
+        }
         stCaf_finish(flower, threadSet);
         stPinchThreadSet_destruct(threadSet);
         st_logInfo("Ran the cactus core script.\n");

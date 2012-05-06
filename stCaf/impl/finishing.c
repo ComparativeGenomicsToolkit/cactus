@@ -251,6 +251,20 @@ static void stCaf_convertCactusGraphToFlowers(stPinchThreadSet *threadSet, stCac
 }
 
 ///////////////////////////////////////////////////////////////////////////
+// Functions to ensure every segment has a block
+///////////////////////////////////////////////////////////////////////////
+
+void stCaf_makeDegreeOneBlocks(stPinchThreadSet *threadSet) {
+    stPinchThreadSetSegmentIt segmentIt = stPinchThreadSet_getSegmentIt(threadSet);
+    stPinchSegment *segment;
+    while((segment = stPinchThreadSetSegmentIt_getNext(&segmentIt)) != NULL) {
+        if(stPinchSegment_getBlock(segment) == NULL) {
+            stPinchBlock_construct2(segment);
+        }
+    }
+}
+
+///////////////////////////////////////////////////////////////////////////
 // Functions for actually filling out cactus
 ///////////////////////////////////////////////////////////////////////////
 
@@ -264,7 +278,6 @@ void stCaf_finish(Flower *flower, stPinchThreadSet *threadSet) {
 
     //Cleanup
     stCactusGraph_destruct(cactusGraph);
-    stPinchThreadSet_destruct(threadSet);
 
 #ifdef BEN_DEBUG
     flower_checkRecursive(flower);

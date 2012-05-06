@@ -222,6 +222,8 @@ int64_t stPinchInterval_getLength(stPinchInterval *pinchInterval);
 
 void *stPinchInterval_getLabel(stPinchInterval *pinchInterval);
 
+int stPinchInterval_compareFunction(const stPinchInterval *interval1, const stPinchInterval *interval2);
+
 void stPinchInterval_destruct(stPinchInterval *pinchInterval);
 
 stSortedSet *stPinchThreadSet_getLabelIntervals(stPinchThreadSet *threadSet, stHash *pinchEndsToLabels);
