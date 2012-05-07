@@ -289,8 +289,6 @@ int main(int argc, char *argv[]) {
     // Unload the parent flowers
     ///////////////////////////////////////////////////////////////////////////
 
-    //while(1);
-
     for (j = 0; j < stList_length(flowers); j++) {
         Flower *flower = stList_get(flowers, j);
         assert(flower != NULL);
@@ -308,7 +306,7 @@ int main(int argc, char *argv[]) {
     // Cleanup
     ///////////////////////////////////////////////////////////////////////////
 
-    //return 0; //Exit without clean up is quicker, enable cleanup when doing memory leak detection.
+    return 0; //Exit without clean up is quicker, enable cleanup when doing memory leak detection.
 
     cactusDisk_destruct(cactusDisk);
     stKVDatabaseConf_destruct(kvDatabaseConf);
