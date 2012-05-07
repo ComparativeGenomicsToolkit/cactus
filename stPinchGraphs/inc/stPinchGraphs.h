@@ -90,10 +90,6 @@ stList *stPinchThreadSet_getAdjacencyComponents2(stPinchThreadSet *threadSet, st
 
 stSortedSet *stPinchThreadSet_getThreadComponents(stPinchThreadSet *threadSet);
 
-void stPinchThreadSet_trimAlignments(stPinchThreadSet *threadSet, int32_t blockEndTrim);
-
-void stPinchThreadSet_filterAlignments(stPinchThreadSet *threadSet, bool(*blockFilterFn)(stPinchBlock *));
-
 //convenience functions
 
 stPinchThreadSetSegmentIt stPinchThreadSet_getSegmentIt(stPinchThreadSet *threadSet);

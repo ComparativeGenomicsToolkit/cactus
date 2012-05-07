@@ -791,50 +791,19 @@ static void testStPinchThreadSet_getThreadComponents(CuTest *testCase) {
     }
 }
 
-static int32_t blockFilterFnParam = 0;
-static bool blockFilterFn(stPinchBlock *block) {
-    return stPinchBlock_getLength(block) > blockFilterFnParam || stPinchBlock_getDegree(block) > blockFilterFnParam;
-}
-
-static void testStPinchThreadSet_filterAlignments_randomTests(CuTest *testCase) {
-    //return;
-    for (int32_t test = 0; test < 100; test++) {
-        st_logInfo("Starting random block filter test %i\n", test);
-        stPinchThreadSet *threadSet = getRandomPinchGraph();
-        //Calculate the number of blocks which violate the constraint.
-        int32_t totalBlocks = 0;
-        int32_t totalBlocksToBeFiltered = 0;
-        blockFilterFnParam = st_randomInt(0, 10);
-        stPinchThreadSetBlockIt blockIt = stPinchThreadSet_getBlockIt(threadSet);
-        stPinchBlock *block;
-        while ((block = stPinchThreadSetBlockIt_getNext(&blockIt))) {
-            totalBlocks++;
-            if (blockFilterFn(block)) {
-                totalBlocksToBeFiltered++;
-            }
-        }
-        st_logInfo("There were %i blocks of which %i had degree or length greater than %i\n", totalBlocks,
-                totalBlocksToBeFiltered, blockFilterFnParam);
-        //Now do the filter
-        stPinchThreadSet_filterAlignments(threadSet, blockFilterFn);
-        //Check no blocks left with length greater than X
-        blockIt = stPinchThreadSet_getBlockIt(threadSet);
-        while ((block = stPinchThreadSetBlockIt_getNext(&blockIt))) {
-            CuAssertTrue(testCase, !blockFilterFn(block));
-        }
-        //Check all connected nodes in same adjacency component
-        stPinchThreadSet_destruct(threadSet);
-    }
-}
-
 static void testStPinchThreadSet_trimAlignments_randomTests(CuTest *testCase) {
     //return;
     for (int32_t test = 0; test < 100; test++) {
         st_logInfo("Starting random block trim test %i\n", test);
         stPinchThreadSet *threadSet = getRandomPinchGraph();
         int32_t trim = st_randomInt(0, 10);
-        stPinchThreadSet_trimAlignments(threadSet, trim);
-        //Check all connected nodes in same adjacency component
+        stPinchThreadSetBlockIt blockIt = stPinchThreadSet_getBlockIt(threadSet);
+        stPinchBlock *block = stPinchThreadSetBlockIt_getNext(&blockIt);
+        while (block != NULL) {
+            stPinchBlock *block2 = stPinchThreadSetBlockIt_getNext(&blockIt);
+            stPinchBlock_trim(block, trim);
+            block = block2;
+        }
         stPinchThreadSet_destruct(threadSet);
     }
 }
@@ -900,7 +869,8 @@ static void testStPinchThreadSet_getLabelIntervals(CuTest *testCase) {
 static stList *getAdjacencyComponentP(stPinchSegment *segment, int64_t position, stHash *pinchEndsToAdjacencyComponents) {
     stPinchBlock *block = stPinchSegment_getBlock(segment);
     assert(block != NULL);
-    bool orientation = (position >= stPinchSegment_getLength(segment) / 2) ^ stPinchSegment_getBlockOrientation(segment);
+    bool orientation = (position >= stPinchSegment_getLength(segment) / 2)
+            ^ stPinchSegment_getBlockOrientation(segment);
     stPinchEnd pinchEnd = stPinchEnd_constructStatic(block, orientation);
     stList *adjacencyComponent = stHash_search(pinchEndsToAdjacencyComponents, &pinchEnd);
     assert(adjacencyComponent != NULL);
@@ -921,8 +891,7 @@ static stList *getAdjacencyComponent(stPinchSegment *segment, int64_t position, 
     segment2 = stPinchSegment_get5Prime(segment);
     while (segment2 != NULL) {
         if (stPinchSegment_getBlock(segment2) != NULL) {
-            return getAdjacencyComponentP(segment2, INT32_MAX,
-                    pinchEndsToAdjacencyComponents);
+            return getAdjacencyComponentP(segment2, INT32_MAX, pinchEndsToAdjacencyComponents);
         }
         segment2 = stPinchSegment_get5Prime(segment2);
     }
@@ -977,7 +946,6 @@ CuSuite* stPinchGraphsTestSuite(void) {
     SUITE_ADD_TEST(suite, testStPinchThreadSet_getAdjacencyComponents_randomTests);
     SUITE_ADD_TEST(suite, testStPinchThreadSet_joinTrivialBoundaries_randomTests);
     SUITE_ADD_TEST(suite, testStPinchThreadSet_getThreadComponents);
-    SUITE_ADD_TEST(suite, testStPinchThreadSet_filterAlignments_randomTests);
     SUITE_ADD_TEST(suite, testStPinchThreadSet_trimAlignments_randomTests);
     SUITE_ADD_TEST(suite, testStPinchInterval);
     SUITE_ADD_TEST(suite, testStPinchThreadSet_getLabelIntervals);

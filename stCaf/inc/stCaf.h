@@ -53,6 +53,16 @@ void stCaf_annealBetweenAdjacencyComponents(stPinchThreadSet *threadSet, stPinch
  */
 void stCaf_melt(Flower *flower, stPinchThreadSet *threadSet, bool blockFilterfn(stPinchBlock *), int32_t blockEndTrim, int64_t minimumChainLength);
 
+/*
+ * Function used to determine if blocks contains sufficient numbers of sequences of ingroup/outgroup species.
+ */
+bool stCaf_containsRequiredSpecies(stPinchBlock *pinchBlock, Flower *flower, int32_t requiredIngroupSpecies,
+        int32_t requiredOutgroupSpecies, int32_t requiredAllSpecies);
+
+void stCaf_calculateRequiredFractionsOfSpecies(Flower *flower,
+        float requiredIngroupFraction, float requiredOutgroupFraction, float requiredAllFraction,
+        int32_t *requiredOutgroupSpecies, int32_t *requiredIngroupSpecies, int32_t *requiredAllSpecies);
+
 ///////////////////////////////////////////////////////////////////////////
 // Pinch graph to cactus graph
 ///////////////////////////////////////////////////////////////////////////

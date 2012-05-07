@@ -703,28 +703,6 @@ stSortedSet *stPinchThreadSet_getThreadComponents(stPinchThreadSet *threadSet) {
     return threadComponentsSet;
 }
 
-void stPinchThreadSet_trimAlignments(stPinchThreadSet *threadSet, int32_t blockEndTrim) {
-    stPinchThreadSetBlockIt blockIt = stPinchThreadSet_getBlockIt(threadSet);
-    stPinchBlock *block = stPinchThreadSetBlockIt_getNext(&blockIt);
-    while (block != NULL) {
-        stPinchBlock *block2 = stPinchThreadSetBlockIt_getNext(&blockIt);
-        stPinchBlock_trim(block, blockEndTrim);
-        block = block2;
-    }
-}
-
-void stPinchThreadSet_filterAlignments(stPinchThreadSet *threadSet, bool(*blockFilterFn)(stPinchBlock *)) {
-    stPinchThreadSetBlockIt blockIt = stPinchThreadSet_getBlockIt(threadSet);
-    stPinchBlock *block = stPinchThreadSetBlockIt_getNext(&blockIt);
-    while (block != NULL) {
-        stPinchBlock *block2 = stPinchThreadSetBlockIt_getNext(&blockIt);
-        if (blockFilterFn(block)) {
-            stPinchBlock_destruct(block);
-        }
-        block = block2;
-    }
-}
-
 //stPinchEnd
 
 //Block ends
