@@ -9,7 +9,7 @@ commonCafLibs = ${libPath}/cactusBlastAlignment.a ${libPath}/stCactusGraphs.a ${
 stCafDependencies =  ${commonCafLibs} ${basicLibsDependencies}
 stCafLibs = ${commonCafLibs} ${basicLibs}
 
-all : ${libPath}/stCaf.a ${binPath}/stCafTests
+all : ${libPath}/stCaf.a ${binPath}/stCafTests ${binPath}/cactus_caf
 
 ${libPath}/stCaf.a : ${libSources} ${libHeaders} ${stCafDependencies}
 	${cxx} ${cflags} -I inc -I ${libPath}/ -c ${libSources}
@@ -22,7 +22,11 @@ ${libPath}/stCaf.a : ${libSources} ${libHeaders} ${stCafDependencies}
 ${binPath}/stCafTests : ${libTests} ${libPath}/stCaf.a ${stCafDependencies}
 	${cxx} ${cflags} -I inc -I impl -I${libPath} -o ${binPath}/stCafTests ${libTests} ${libSources} ${libPath}/stCaf.a ${stCafLibs}
 
+${binPath}/cactus_caf : cactus_caf.c ${libPath}/stCaf.a ${stCafDependencies}
+	${cxx} ${cflags} -I inc -I impl -I${libPath} -o ${binPath}/cactus_caf cactus_caf.c ${libSources} ${libPath}/stCaf.a ${stCafLibs}
+
+
 clean : 
 	rm -f *.o
-	rm -f ${libPath}/stCaf.a ${binPath}/stCafTests
+	rm -f ${libPath}/stCaf.a ${binPath}/stCafTests ${binPath}/cactus_caf
 

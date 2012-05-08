@@ -36,7 +36,7 @@ int32_t writeFlowerSequencesInFile(Flower *flower, const char *tempFile1, int32_
                     }
                     char *string = sequence_getString(sequence, cap_getCoordinate(cap) + 1,
                             cap_getCoordinate(cap2) - cap_getCoordinate(cap) - 1, 1);
-                    fprintf(fileHandle, ">%s|1|%i\n%s\n", cactusMisc_nameToStringStatic(sequence_getName(sequence)),
+                    fprintf(fileHandle, ">%s|1|%i\n%s\n", cactusMisc_nameToStringStatic(cap_getName(cap)), //sequence)),
                             cap_getCoordinate(cap) + 1, string);
                     free(string);
                     sequencesWritten++;
@@ -56,8 +56,10 @@ static void convertCoordinatesP(char *header, char **contig1, int32_t *start, in
     struct List *attributes = fastaDecodeHeader(header);
     //uglyf(" strings: %s\n", stringsJoin(" $ ", attributes->list, attributes->length));
     assert(attributes->length >= 3);
-    assert(sscanf((const char *) attributes->list[attributes->length - 1], "%i", start) == 1);
-    assert(sscanf((const char *) attributes->list[attributes->length - 2], "%i", strand) == 1);
+    int32_t i = sscanf((const char *) attributes->list[attributes->length - 1], "%i", start);
+    assert(i == 1);
+    i = sscanf((const char *) attributes->list[attributes->length - 2], "%i", strand);
+    assert(i == 1);
     assert(*strand == 0 || *strand == 1);
     free(attributes->list[--attributes->length]);
     free(attributes->list[--attributes->length]);

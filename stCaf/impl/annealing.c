@@ -38,7 +38,6 @@ void stCaf_anneal(stPinchThreadSet *threadSet, stPinchIterator *pinchIterator) {
         assert(stPinchThread_getStart(thread2) < pinch->start2);
         assert(stPinchThread_getStart(thread2) + stPinchThread_getLength(thread2) > pinch->start2 + pinch->length);
         stPinchThread_pinch(thread1, thread2, pinch->start1, pinch->start2, pinch->length, pinch->strand);
-        stPinchIterator_destructAlignment(pinchIterator, pinch);
     }
     stPinchThreadSet_joinTrivialBoundaries(threadSet);
     stCaf_ensureEndsAreDistinct(threadSet);

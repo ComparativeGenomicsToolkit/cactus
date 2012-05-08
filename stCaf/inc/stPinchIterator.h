@@ -31,11 +31,6 @@ void stPinchIterator_destruct(
         stPinchIterator *stPinchIterator);
 
 /*
- * Cleanup an alignment produced by the sequence. DO NOT CALL stPinch_destruct.
- */
-void stPinchIterator_destructAlignment(stPinchIterator *stPinchIterator, stPinch *stPinch);
-
-/*
  * Get a pairwise alignment iterator from a file.
  */
 stPinchIterator *stPinchIterator_constructFromFile(
@@ -53,5 +48,10 @@ stPinchIterator *stPinchIterator_constructFromList(
  */
 stPinchIterator *stPinchIterator_constructFromAlignedPairs(
         stSortedSet *alignedPairs, stPinch *(*getNextAlignedPairAlignment)(stSortedSetIterator *));
+
+/*
+ * Sets the amount to trim from the ends of each pinch in bases.
+ */
+void stPinchIterator_setTrim(stPinchIterator *pinchIterator, int32_t alignmentTrim);
 
 #endif /* ST_PINCH_ITERATOR_H_ */

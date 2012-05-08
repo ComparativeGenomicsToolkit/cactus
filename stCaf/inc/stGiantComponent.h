@@ -9,6 +9,7 @@
 #define ST_GIANTCOMPONENT_H_
 
 #include "sonLib.h"
+#include "stPinchGraphs.h"
 
 /*
  * Nodes is a list of integers representing the nodes.
@@ -17,5 +18,10 @@
  * is smaller than maxComponentSize.
  */
 stList *stCaf_breakupComponentGreedily(stList *nodes, stList *edges, int32_t maxComponentSize);
+
+/*
+ * Break up component extra large compoonents greedily.
+ */
+void stCaf_breakupComponentsGreedily(stPinchThreadSet *threadSet, float maximumAdjacencyComponentSizeRatio);
 
 #endif /* ST_GIANTCOMPONENT_H_ */

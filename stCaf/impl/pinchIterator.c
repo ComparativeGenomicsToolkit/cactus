@@ -9,17 +9,32 @@
 #include "sonLib.h"
 #include "stPinchGraphs.h"
 #include "stPinchIterator.h"
+#include "pairwiseAlignment.h"
+#include "cactus.h"
 
 struct _stPinchIterator {
+    int32_t alignmentTrim;
     void *alignmentArg;
     stPinch *(*getNextAlignment)(void *);
     void *(*startAlignmentStack)(void *);
     void (*destructAlignmentArg)(void *);
-    void (*cleanupAlignment)(void *);
 };
 
 stPinch *stPinchIterator_getNext(stPinchIterator *pinchIterator) {
-    return pinchIterator->getNextAlignment(pinchIterator->alignmentArg);
+    stPinch *pinch = NULL;
+    while (1) {
+        pinch = pinchIterator->getNextAlignment(pinchIterator->alignmentArg);
+        if (pinch == NULL || pinchIterator->alignmentTrim <= 0) {
+            break;
+        }
+        pinch->start1 += pinchIterator->alignmentTrim;
+        pinch->start2 += pinchIterator->alignmentTrim;
+        pinch->length -= 2 * pinchIterator->alignmentTrim;
+        if (pinch->length > 0) {
+            break;
+        }
+    }
+    return pinch;
 }
 
 void stPinchIterator_reset(stPinchIterator *pinchIterator) {
@@ -31,98 +46,124 @@ void stPinchIterator_destruct(stPinchIterator *pinchIterator) {
     free(pinchIterator);
 }
 
-void stPinchIterator_destructAlignment(stPinchIterator *pinchIterator, stPinch *stPinch) {
-    if (pinchIterator->cleanupAlignment != NULL) {
-        pinchIterator->cleanupAlignment(stPinch);
-    }
-}
-
-static FILE *startAlignmentStackForFile(FILE *fileHandle) {
-    fseek(fileHandle, 0, SEEK_SET);
-    return fileHandle;
-}
-
 typedef struct _pairwiseAlignmentToPinch {
-    FILE *alignmentFile;
+    void *alignmentArg;
+    struct PairwiseAlignment *(*getPairwiseAlignment)(void *);
     struct PairwiseAlignment *pairwiseAlignment;
     int64_t alignmentIndex, xCoordinate, yCoordinate, xName, yName;
+    bool freeAlignments;
 } PairwiseAlignmentToPinch;
 
-static void fillOutPinch(stPinch *pinch, struct AlignmentOperation *op, )
+static PairwiseAlignmentToPinch *pairwiseAlignmentToPinch_construct(void *alignmentArg,
+        struct PairwiseAlignment *(*getPairwiseAlignment)(void *), bool freeAlignments) {
+    PairwiseAlignmentToPinch *pairwiseAlignmentToPinch = st_calloc(1, sizeof(PairwiseAlignmentToPinch));
+    pairwiseAlignmentToPinch->alignmentArg = alignmentArg;
+    pairwiseAlignmentToPinch->getPairwiseAlignment = getPairwiseAlignment;
+    pairwiseAlignmentToPinch->freeAlignments = freeAlignments;
+    return pairwiseAlignmentToPinch;
+}
 
-static stPinch *getNextPinchFromAlignment(PairwiseAlignmentToPinch *pA) {
+static stPinch *pairwiseAlignmentToPinch_getNext(PairwiseAlignmentToPinch *pA) {
     static stPinch pinch;
-    if (pA->pairwiseAlignment == NULL) {
-        pA->pairwiseAlignment = cigarRead(pA->alignmentFile);
+    while (1) {
         if (pA->pairwiseAlignment == NULL) {
-            return NULL;
+            pA->pairwiseAlignment = pA->getPairwiseAlignment(pA->alignmentArg);
+            if (pA->pairwiseAlignment == NULL) {
+                return NULL;
+            }
+            pA->alignmentIndex = 0;
+            pA->xCoordinate = pA->pairwiseAlignment->start1;
+            pA->yCoordinate = pA->pairwiseAlignment->start1;
+            pA->xName = cactusMisc_stringToName(pA->pairwiseAlignment->contig1);
+            pA->yName = cactusMisc_stringToName(pA->pairwiseAlignment->contig2);
         }
-        pA->alignmentIndex = 0;
-        pA->xCoordinate = pA->pairwiseAlignment->start1;
-        pA->yCoordinate = pA->pairwiseAlignment->start1;
-        pA->xName = cactusMisc_stringToName(pA->contig1);
-        pA->yName = cactusMisc_stringToName(pA->contig2);
-    }
-    while (pA->alignmentIndex < pA->pairwiseAlignment->operationList->length) {
-        struct AlignmentOperation *op = pA->pairwiseAlignment->operationList->list[pA->alignmentIndex++];
-        if (op->opType == PAIRWISE_MATCH) {
-            if (op->length >= 1) { //deal with the possibility of a zero length match (strange, but not illegal)
-                if (pA->strand1) {
-                    stPinch_fillOut(&pinch, pA->xName, pA->yName, pA->xCoordinate, pA->yCoordinate, op->length, 1);
-                    piece_recycle(&pinch, contig1, j, j + op->length - 1);
+        while (pA->alignmentIndex < pA->pairwiseAlignment->operationList->length) {
+            struct AlignmentOperation *op = pA->pairwiseAlignment->operationList->list[pA->alignmentIndex++];
+            if (op->opType == PAIRWISE_MATCH) {
+                if (op->length >= 1) { //deal with the possibility of a zero length match (strange, but not illegal)
+                    if (pA->pairwiseAlignment->strand1) {
+                        stPinch_fillOut(&pinch, pA->xName, pA->yName, pA->xCoordinate, pA->yCoordinate, op->length, 1);
+                        pA->yCoordinate += op->length;
+                    } else {
+                        pA->yCoordinate -= op->length;
+                        stPinch_fillOut(&pinch, pA->xName, pA->yName, pA->xCoordinate, pA->yCoordinate, op->length, 0);
+                    }
+                    pA->xCoordinate += op->length;
                 } else {
-                    piece_recycle(&piece1, contig1, -(j - 1), -(j - op->length));
+                    pA->xCoordinate -= op->length;
+                    if (pA->pairwiseAlignment->strand1) {
+                        stPinch_fillOut(&pinch, pA->xName, pA->yName, pA->xCoordinate, pA->yCoordinate, op->length, 0);
+                        pA->yCoordinate += op->length;
+                    } else {
+                        pA->yCoordinate -= op->length;
+                        stPinch_fillOut(&pinch, pA->xName, pA->yName, pA->xCoordinate, pA->yCoordinate, op->length, 1);
+                    }
                 }
-                if (pA->strand2) {
-                    piece_recycle(&piece2, contig2, k, k + op->length - 1);
-                } else {
-                    piece_recycle(&piece2, contig2, -(k - 1), -(k - op->length));
-                }
-                addFunction(graph, &piece1, &piece2, vertexToAdjacencyComponents, extraParameter);
+                return &pinch;
+            }
+            if (op->opType != PAIRWISE_INDEL_Y) {
+                pA->xCoordinate += pA->pairwiseAlignment->strand1 ? op->length : -op->length;
+            }
+            if (op->opType != PAIRWISE_INDEL_X) {
+                pA->yCoordinate += pA->pairwiseAlignment->strand2 ? op->length : -op->length;
             }
         }
-        if (op->opType != PAIRWISE_INDEL_Y) {
-            pA->xCoordinate += pA->strand1 ? op->length : -op->length;
+        if (pA->freeAlignments) {
+            destructPairwiseAlignment(pA->pairwiseAlignment);
         }
-        if (op->opType != PAIRWISE_INDEL_X) {
-            pA->yCoordinate += pA->strand2 ? op->length : -op->length;
-        }
+        pA->pairwiseAlignment = NULL;
+        assert(pA->xCoordinate == pA->pairwiseAlignment->end1);
+        assert(pA->yCoordinate == pA->pairwiseAlignment->end2);
     }
+}
+
+static PairwiseAlignmentToPinch *pairwiseAlignmentToPinch_resetForFile(PairwiseAlignmentToPinch *pA) {
+    fseek(pA->alignmentArg, 0, SEEK_SET);
     pA->pairwiseAlignment = NULL;
-    assert(pA->xCoordinate == pA->end1);
-    assert(pA->yCoordinate == pA->end2);
-    return getNextPinchFromAlignment(pA);
+    return pA;
+}
+
+static void pairwiseAlignmentToPinch_destructForFile(PairwiseAlignmentToPinch *pA) {
+    fclose(pA->alignmentArg);
+    free(pA);
 }
 
 stPinchIterator *stPinchIterator_constructFromFile(const char *alignmentFile) {
-    stPinchIterator *pinchIterator = st_malloc(sizeof(stPinchIterator));
-    pinchIterator->alignmentArg = fopen(alignmentFile, "r");
-    pinchIterator->getNextAlignment = (stPinch *(*)(void *)) cigarRead;
-    pinchIterator->destructAlignmentArg = (void(*)(void *)) fclose;
-    pinchIterator->startAlignmentStack = (void *(*)(void *)) startAlignmentStackForFile;
-    pinchIterator->cleanupAlignment = (void(*)(void *)) destructstPinch;
+    stPinchIterator *pinchIterator = st_calloc(1, sizeof(stPinchIterator));
+    pinchIterator->alignmentArg = pairwiseAlignmentToPinch_construct(fopen(alignmentFile, "r"),
+            (struct PairwiseAlignment *(*)(void *)) cigarRead, 1);
+    pinchIterator->getNextAlignment = (stPinch *(*)(void *)) pairwiseAlignmentToPinch_getNext;
+    pinchIterator->destructAlignmentArg = (void(*)(void *)) pairwiseAlignmentToPinch_destructForFile;
+    pinchIterator->startAlignmentStack = (void *(*)(void *)) pairwiseAlignmentToPinch_resetForFile;
     return pinchIterator;
 }
 
-static stListIterator *startAlignmentStackForList(stListIterator *listIt) {
-    while (stList_getPrevious(listIt) != NULL)
+static PairwiseAlignmentToPinch *pairwiseAlignmentToPinch_resetForList(PairwiseAlignmentToPinch *pA) {
+    while (stList_getPrevious(pA->alignmentArg) != NULL)
         ;
-    return listIt;
+    pA->pairwiseAlignment = NULL;
+    return pA;
+}
+
+void pairwiseAlignmentToPinch_destructForList(PairwiseAlignmentToPinch *pA) {
+    stList_destructIterator(pA->alignmentArg);
+    free(pA);
 }
 
 stPinchIterator *stPinchIterator_constructFromList(stList *alignmentsList) {
-    stPinchIterator *pinchIterator = st_malloc(sizeof(stPinchIterator));
-    pinchIterator->alignmentArg = stList_getIterator(alignmentsList);
-    pinchIterator->getNextAlignment = (stPinch *(*)(void *)) stList_getNext;
-    pinchIterator->destructAlignmentArg = (void(*)(void *)) stList_destructIterator;
-    pinchIterator->startAlignmentStack = (void *(*)(void *)) startAlignmentStackForList;
-    pinchIterator->cleanupAlignment = NULL;
-    return stPinchIterator;
+    stPinchIterator *pinchIterator = st_calloc(1, sizeof(stPinchIterator));
+    pinchIterator->alignmentArg = pairwiseAlignmentToPinch_construct(stList_getIterator(alignmentsList),
+            (struct PairwiseAlignment *(*)(void *)) stList_getNext, 0);
+    pinchIterator->getNextAlignment = (stPinch *(*)(void *)) pairwiseAlignmentToPinch_getNext;
+    pinchIterator->destructAlignmentArg = (void(*)(void *)) pairwiseAlignmentToPinch_destructForList;
+    pinchIterator->startAlignmentStack = (void *(*)(void *)) pairwiseAlignmentToPinch_resetForList;
+    return pinchIterator;
 }
 
 stSortedSetIterator *startAlignmentStackForAlignedPairs(stSortedSetIterator *it) {
-    while (stSortedSet_getPrevious(it) != NULL)
+    while (stSortedSet_getPrevious(it) != NULL) {
         ;
+    }
     return it;
 }
 
@@ -133,6 +174,9 @@ stPinchIterator *stPinchIterator_constructFromAlignedPairs(stSortedSet *alignedP
     pinchIterator->getNextAlignment = (stPinch *(*)(void *)) getNextAlignedPairAlignment;
     pinchIterator->destructAlignmentArg = (void(*)(void *)) stSortedSet_destructIterator;
     pinchIterator->startAlignmentStack = (void *(*)(void *)) startAlignmentStackForAlignedPairs;
-    pinchIterator->cleanupAlignment = NULL;
     return pinchIterator;
+}
+
+void stPinchIterator_setTrim(stPinchIterator *pinchIterator, int32_t alignmentTrim) {
+    pinchIterator->alignmentTrim = alignmentTrim;
 }

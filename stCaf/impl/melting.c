@@ -8,7 +8,7 @@
 // Core functions for melting
 ///////////////////////////////////////////////////////////////////////////
 
-static void processChain(stCactusEdgeEnd *cactusEdgeEnd, void (*edgeEndFn)(stPinchBlock *, void *), void *extraArg) {
+static void processChain(stCactusEdgeEnd *cactusEdgeEnd, void(*edgeEndFn)(stPinchBlock *, void *), void *extraArg) {
     while (1) {
         stPinchEnd *pinchEnd = stCactusEdgeEnd_getObject(cactusEdgeEnd);
         assert(pinchEnd != NULL);
@@ -32,7 +32,7 @@ static void addChainBlocksToBlocksToDelete(stCactusEdgeEnd *cactusEdgeEnd, stLis
 }
 
 static void addLength(stPinchBlock *block, void *extraArg) {
-    *((int64_t *)extraArg) += stPinchBlock_getLength(block);
+    *((int64_t *) extraArg) += stPinchBlock_getLength(block);
 }
 
 static int64_t getChainLength(stCactusEdgeEnd *cactusEdgeEnd) {
@@ -60,11 +60,9 @@ static stList *stCaf_getBlocksInChainsLessThanGivenLength(stCactusGraph *cactusG
     return blocksToDelete;
 }
 
-
 static bool isThreadEnd(stPinchBlock *pinchBlock) {
     stPinchSegment *pinchSegment = stPinchBlock_getFirst(pinchBlock);
-    return pinchSegment != NULL &&
-    (stPinchSegment_get3Prime(pinchSegment) == NULL || stPinchSegment_get5Prime(pinchSegment) == NULL);
+    return pinchSegment != NULL && (stPinchSegment_get3Prime(pinchSegment) == NULL || stPinchSegment_get5Prime(pinchSegment) == NULL);
 }
 
 static void trimAlignments(stPinchThreadSet *threadSet, int32_t blockEndTrim) {
@@ -72,7 +70,7 @@ static void trimAlignments(stPinchThreadSet *threadSet, int32_t blockEndTrim) {
     stPinchBlock *block = stPinchThreadSetBlockIt_getNext(&blockIt);
     while (block != NULL) {
         stPinchBlock *block2 = stPinchThreadSetBlockIt_getNext(&blockIt);
-        if(!isThreadEnd(block)) {
+        if (!isThreadEnd(block)) {
             stPinchBlock_trim(block, blockEndTrim);
         }
         block = block2;
@@ -114,31 +112,16 @@ void stCaf_melt(Flower *flower, stPinchThreadSet *threadSet, bool blockFilterfn(
 }
 
 ///////////////////////////////////////////////////////////////////////////
-// Functions for calculating required species
+// Functions for calculating required species/tree coverage
 ///////////////////////////////////////////////////////////////////////////
 
-bool stCaf_containsRequiredSpecies(stPinchBlock *pinchBlock, Flower *flower, int32_t requiredIngroupSpecies,
-        int32_t requiredOutgroupSpecies, int32_t requiredAllSpecies) {
-    int32_t outgroupSequences = 0;
-    int32_t ingroupSequences = 0;
-    stPinchBlockIt segmentIt = stPinchBlock_getSegmentIterator(pinchBlock);
-    stPinchSegment *segment;
-    while ((segment = stPinchBlockIt_getNext(&segmentIt)) != NULL) {
-        Event *event = cap_getEvent(flower_getCap(flower, stPinchSegment_getName(segment)));
-        assert(event != NULL);
-        if (event_isOutgroup(event)) {
-            outgroupSequences++;
-        } else {
-            ingroupSequences++;
-        }
+void stCaf_calculateRequiredFractionsOfSpecies(Flower *flower, float requiredIngroupFraction, float requiredOutgroupFraction,
+        float requiredAllFraction, int32_t *requiredOutgroupSpecies, int32_t *requiredIngroupSpecies, int32_t *requiredAllSpecies) {
+    if (requiredIngroupFraction <= 0.0 && requiredOutgroupFraction <= 0.0 && requiredAllFraction <= 0.0) {
+        *requiredAllSpecies = 0;
+        *requiredOutgroupSpecies = 0;
+        *requiredAllSpecies = 0;
     }
-    return ingroupSequences >= requiredIngroupSpecies && outgroupSequences >= requiredOutgroupSpecies
-            && outgroupSequences + ingroupSequences >= requiredAllSpecies;
-}
-
-void stCaf_calculateRequiredFractionsOfSpecies(Flower *flower,
-        float requiredIngroupFraction, float requiredOutgroupFraction, float requiredAllFraction,
-        int32_t *requiredOutgroupSpecies, int32_t *requiredIngroupSpecies, int32_t *requiredAllSpecies) {
     EventTree *eventTree = flower_getEventTree(flower);
     Event *event;
     int32_t outgroupEventNumber = 0;
@@ -157,4 +140,103 @@ void stCaf_calculateRequiredFractionsOfSpecies(Flower *flower,
     *requiredOutgroupSpecies = outgroupEventNumber * requiredOutgroupFraction;
     *requiredIngroupSpecies = ingroupEventNumber * requiredIngroupFraction;
     *requiredAllSpecies = (ingroupEventNumber + outgroupEventNumber) * requiredAllFraction;
+}
+
+static Event *getEvent(stPinchSegment *segment, Flower *flower) {
+    Event *event = cap_getEvent(flower_getCap(flower, stPinchSegment_getName(segment)));
+    assert(event != NULL);
+    return event;
+}
+
+bool stCaf_containsRequiredSpecies(stPinchBlock *pinchBlock, Flower *flower, int32_t requiredIngroupSpecies,
+        int32_t requiredOutgroupSpecies, int32_t requiredAllSpecies) {
+    if (requiredIngroupSpecies <= 0 && requiredOutgroupSpecies <= 0 && requiredAllSpecies <= 0) {
+        return 1;
+    }
+    int32_t outgroupSequences = 0;
+    int32_t ingroupSequences = 0;
+    stPinchBlockIt segmentIt = stPinchBlock_getSegmentIterator(pinchBlock);
+    stPinchSegment *segment;
+    while ((segment = stPinchBlockIt_getNext(&segmentIt)) != NULL) {
+        Event *event = getEvent(segment, flower);
+        if (event_isOutgroup(event)) {
+            outgroupSequences++;
+        } else {
+            ingroupSequences++;
+        }
+    }
+    return ingroupSequences >= requiredIngroupSpecies && outgroupSequences >= requiredOutgroupSpecies && outgroupSequences
+            + ingroupSequences >= requiredAllSpecies;
+}
+
+static bool stCaf_containsMultipleCopiesSpecies(stPinchBlock *pinchBlock, Flower *flower, bool(*acceptableEvent)(Event *)) {
+    stPinchBlockIt segmentIt = stPinchBlock_getSegmentIterator(pinchBlock);
+    stPinchSegment *segment;
+    stHash *seen = stHash_construct();
+    while ((segment = stPinchBlockIt_getNext(&segmentIt)) != NULL) {
+        Event *event = getEvent(segment, flower);
+        if (acceptableEvent(event)) {
+            if (stHash_search(seen, event) != NULL) {
+                stHash_destruct(seen);
+                return 1;
+            }
+            stHash_insert(seen, event, event);
+        }
+    }
+    stHash_destruct(seen);
+    return 0;
+}
+
+static bool returnTrue(Event *event) {
+    return 1;
+}
+
+bool stCaf_containsMultipleCopiesOfAnySpecies(stPinchBlock *pinchBlock, Flower *flower) {
+    return stCaf_containsMultipleCopiesSpecies(pinchBlock, flower, returnTrue);
+}
+
+static bool isIngroup(Event *event) {
+    return !event_isOutgroup(event);
+}
+
+bool stCaf_containsMultipleCopiesOfIngroupSpecies(stPinchBlock *pinchBlock, Flower *flower) {
+    return stCaf_containsMultipleCopiesSpecies(pinchBlock, flower, isIngroup);
+}
+
+bool stCaf_containsMultipleCopiesOfOutgroupSpecies(stPinchBlock *pinchBlock, Flower *flower) {
+    return stCaf_containsMultipleCopiesSpecies(pinchBlock, flower, event_isOutgroup);
+}
+
+bool stCaf_treeCoverage(stPinchBlock *pinchBlock, Flower *flower) {
+    EventTree *eventTree = flower_getEventTree(flower);
+    Event *commonAncestorEvent = NULL;
+    stPinchSegment *segment;
+    stPinchBlockIt segmentIt = stPinchBlock_getSegmentIterator(pinchBlock);
+    while ((segment = stPinchBlockIt_getNext(&segmentIt))) {
+        Event *event = getEvent(segment, flower);
+        commonAncestorEvent = commonAncestorEvent == NULL ? event : eventTree_getCommonAncestor(event, commonAncestorEvent);
+    }
+    assert(commonAncestorEvent != NULL);
+    float treeCoverage = 0.0;
+    stHash *hash = stHash_construct();
+
+    segmentIt = stPinchBlock_getSegmentIterator(pinchBlock);
+    while ((segment = stPinchBlockIt_getNext(&segmentIt))) {
+        Event *event = getEvent(segment, flower);
+        while (event != commonAncestorEvent && stHash_search(hash, event) == NULL) {
+            treeCoverage += event_getBranchLength(event);
+            stHash_insert(hash, event, event);
+            event = event_getParent(event);
+        }
+    }
+
+    float wholeTreeCoverage = event_getSubTreeBranchLength(event_getChild(eventTree_getRootEvent(eventTree), 0));
+    assert(wholeTreeCoverage >= 0.0);
+    if (wholeTreeCoverage <= 0.0) { //deal with case all leaf branches are not empty.
+        return 0.0;
+    }
+    treeCoverage /= wholeTreeCoverage;
+    assert(treeCoverage >= -0.001);
+    assert(treeCoverage <= 1.0001);
+    return treeCoverage;
 }

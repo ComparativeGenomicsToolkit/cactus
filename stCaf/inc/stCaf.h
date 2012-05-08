@@ -29,7 +29,6 @@ stPinchThreadSet *stCaf_constructEmptyPinchGraph(Flower *flower);
  */
 stPinchThreadSet *stCaf_setup(Flower *flower);
 
-
 ///////////////////////////////////////////////////////////////////////////
 // Annealing fuctions -- adding alignments to pinch graph
 ///////////////////////////////////////////////////////////////////////////
@@ -51,7 +50,8 @@ void stCaf_annealBetweenAdjacencyComponents(stPinchThreadSet *threadSet, stPinch
 /*
  * Removes homologies from the graph.
  */
-void stCaf_melt(Flower *flower, stPinchThreadSet *threadSet, bool blockFilterfn(stPinchBlock *), int32_t blockEndTrim, int64_t minimumChainLength);
+void stCaf_melt(Flower *flower, stPinchThreadSet *threadSet, bool blockFilterfn(stPinchBlock *), int32_t blockEndTrim,
+        int64_t minimumChainLength);
 
 /*
  * Function used to determine if blocks contains sufficient numbers of sequences of ingroup/outgroup species.
@@ -59,9 +59,28 @@ void stCaf_melt(Flower *flower, stPinchThreadSet *threadSet, bool blockFilterfn(
 bool stCaf_containsRequiredSpecies(stPinchBlock *pinchBlock, Flower *flower, int32_t requiredIngroupSpecies,
         int32_t requiredOutgroupSpecies, int32_t requiredAllSpecies);
 
-void stCaf_calculateRequiredFractionsOfSpecies(Flower *flower,
-        float requiredIngroupFraction, float requiredOutgroupFraction, float requiredAllFraction,
-        int32_t *requiredOutgroupSpecies, int32_t *requiredIngroupSpecies, int32_t *requiredAllSpecies);
+void stCaf_calculateRequiredFractionsOfSpecies(Flower *flower, float requiredIngroupFraction, float requiredOutgroupFraction,
+        float requiredAllFraction, int32_t *requiredOutgroupSpecies, int32_t *requiredIngroupSpecies, int32_t *requiredAllSpecies);
+
+/*
+ * Returns the proportion of the tree covered by the block.
+ */
+bool stCaf_treeCoverage(stPinchBlock *pinchBlock, Flower *flower);
+
+/*
+ * Returns 1 if any ingroup species is present in multiple copies.
+ */
+bool stCaf_containsMultipleCopiesOfIngroupSpecies(stPinchBlock *pinchBlock, Flower *flower);
+
+/*
+ * Returns 1 if any outgroup species is present in multiple copies.
+ */
+bool stCaf_containsMultipleCopiesOfOutgroupSpecies(stPinchBlock *pinchBlock, Flower *flower);
+
+/*
+ * Returns 1 if any species is present in multiple copies.
+ */
+bool stCaf_containsMultipleCopiesOfAnySpecies(stPinchBlock *pinchBlock, Flower *flower);
 
 ///////////////////////////////////////////////////////////////////////////
 // Pinch graph to cactus graph
@@ -70,7 +89,8 @@ void stCaf_calculateRequiredFractionsOfSpecies(Flower *flower,
 /*
  * Functions which converts a pinch graph into a cactus graph.
  */
-stCactusGraph *stCaf_getCactusGraphForThreadSet(Flower *flower, stPinchThreadSet *threadSet, stCactusNode **startCactusNode, stList **deadEndComponent,  bool attachEndsInFlower);
+stCactusGraph *stCaf_getCactusGraphForThreadSet(Flower *flower, stPinchThreadSet *threadSet, stCactusNode **startCactusNode,
+        stList **deadEndComponent, bool attachEndsInFlower);
 
 ///////////////////////////////////////////////////////////////////////////
 // Finishing: Converting a pinch graph into the flower hierarchy
