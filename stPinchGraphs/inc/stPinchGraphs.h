@@ -84,6 +84,8 @@ void stPinchThreadSet_joinTrivialBoundaries(stPinchThreadSet *threadSet);
 
 stPinchSegment *stPinchThreadSet_getSegment(stPinchThreadSet *threadSet, int64_t name, int64_t coordinate);
 
+int32_t stPinchThreadSet_getTotalBlockNumber(stPinchThreadSet *threadSet);
+
 stList *stPinchThreadSet_getAdjacencyComponents(stPinchThreadSet *threadSet);
 
 stList *stPinchThreadSet_getAdjacencyComponents2(stPinchThreadSet *threadSet, stHash **edgeEndsToAdjacencyComponents);

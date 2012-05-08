@@ -7,6 +7,8 @@
 
 #include "sonLib.h"
 #include "stPinchGraphs.h"
+#include <math.h>
+#include <stdlib.h>
 
 static void *getValue(stHash *hash, int32_t node) {
     stIntTuple *nodeTuple = stIntTuple_construct(1, node);
@@ -87,27 +89,97 @@ stList *stCaf_breakupComponentGreedily(stList *nodes, stList *edges, int32_t max
 }
 
 static void convertToNodesAndEdges(stList *adjacencyComponent, stList **nodes, stList **edges) {
-
+    *nodes = stList_construct3(0, (void(*)(void *)) stIntTuple_destruct);
+    stHash *nodesHash = stHash_construct3((uint32_t(*)(const void *)) stIntTuple_hashKey,
+            (int(*)(const void *, const void *)) stIntTuple_equalsFn, NULL, NULL);
+    for (int32_t i = 0; i < stList_length(adjacencyComponent); i++) {
+        stIntTuple *node = stIntTuple_construct(1, i);
+        stList_append(*nodes, node);
+        assert(stHash_search(nodesHash, stList_get(adjacencyComponent, i)) == NULL);
+        stHash_insert(nodesHash, stList_get(adjacencyComponent, i), node);
+    }
+    stHash *edgesHash = stHash_construct3((uint32_t(*)(const void *)) stIntTuple_hashKey,
+            (int(*)(const void *, const void *)) stIntTuple_equalsFn, NULL, (void(*)(void *)) stIntTuple_destruct);
+    for (int32_t i = 0; i < stList_length(adjacencyComponent); i++) {
+        stPinchEnd *pinchEnd1 = stList_get(adjacencyComponent, i);
+        int32_t node1 = stIntTuple_getPosition(stHash_search(nodesHash, pinchEnd1), 0);
+        stPinchBlockIt segmentIt = stPinchBlock_getSegmentIterator(stPinchEnd_getBlock(pinchEnd1));
+        stPinchSegment *segment;
+        while ((segment = stPinchBlockIt_getNext(&segmentIt)) != NULL) {
+            bool traverse5Prime = stPinchEnd_traverse5Prime(stPinchEnd_getOrientation(pinchEnd1), segment);
+            stPinchSegment *segment2 = traverse5Prime ? stPinchSegment_get5Prime(segment) : stPinchSegment_get3Prime(
+                    segment);
+            while (segment2 != NULL) {
+                if (stPinchSegment_getBlock(segment2) != NULL) {
+                    stPinchEnd pinchEnd2 = stPinchEnd_constructStatic(stPinchSegment_getBlock(segment2),
+                            stPinchEnd_endOrientation(traverse5Prime, segment2));
+                    int32_t node2 = stIntTuple_getPosition(stHash_search(nodesHash, &pinchEnd2), 0);
+                    if (node1 != node2) { //Ignore self edges
+                        stIntTuple *edge = node1 < node2 ? stIntTuple_construct(2, node1, node2)
+                                : stIntTuple_construct(2, node2, node1);
+                        int32_t multiplicity = 1;
+                        if (stHash_search(edgesHash, edge) != NULL) {
+                            stIntTuple *count = stHash_removeAndFreeKey(edgesHash, edge);
+                            multiplicity += stIntTuple_getPosition(count, 0);
+                            stIntTuple_destruct(count);
+                        }
+                        stHash_insert(edgesHash, edge, stIntTuple_construct(1, multiplicity));
+                    }
+                    break;
+                }
+                segment2 = traverse5Prime ? stPinchSegment_get5Prime(segment) : stPinchSegment_get3Prime(segment);
+            }
+        }
+    }
+    *edges = stList_construct3(0, (void(*)(void *)) stIntTuple_destruct);
+    stHashIterator *hashIt = stHash_getIterator(edgesHash);
+    stIntTuple *edge;
+    while ((edge = stHash_getNext(hashIt)) != NULL) {
+        stIntTuple *count = stHash_search(edgesHash, edge);
+        stList_append(
+                *edges,
+                stIntTuple_construct(3, stIntTuple_getPosition(edge, 0), stIntTuple_getPosition(edge, 1),
+                        stIntTuple_getPosition(count, 0)));
+    }
+    //Cleanup
+    stHash_destruct(nodesHash);
+    stHash_destruct(edgesHash);
 }
 
 static void breakEdges(stPinchThreadSet *threadSet, stPinchEnd *pinchEnd1, stPinchEnd *pinchEnd2) {
     stPinchBlockIt segmentIt = stPinchBlock_getSegmentIterator(stPinchEnd_getBlock(pinchEnd1));
     stPinchSegment *segment;
-    while((segment = stPinchBlockIt_getNext(&segmentIt)) != NULL) {
-        stPinchSegment *segment2;
-        if(stPinchEnd_traverse5Prime(stPinchEnd_getOrientation(pinchEnd1), segment)) {
-            segment2 = stPinchSegment_get5Prime(segment);
-        } else {
-            segment2 = stPinchSegment_get5Prime(segment);
-        }
-        if(stPinchSegment_getBlock(segment2) == NULL) {
-
+    while ((segment = stPinchBlockIt_getNext(&segmentIt)) != NULL) {
+        bool traverse5Prime = stPinchEnd_traverse5Prime(stPinchEnd_getOrientation(pinchEnd1), segment);
+        stPinchSegment *segment2 = traverse5Prime ? stPinchSegment_get5Prime(segment) : stPinchSegment_get3Prime(
+                segment);
+        int64_t start = stPinchSegment_getStart(segment) + (traverse5Prime ? 0 : stPinchSegment_getLength(segment) - 1);
+        while (segment2 != NULL) {
+            stPinchBlock *pinchBlock2 = stPinchSegment_getBlock(segment2);
+            if (pinchBlock2 != NULL) {
+                if (pinchBlock2 == stPinchEnd_getBlock(pinchEnd2)
+                        && stPinchEnd_endOrientation(traverse5Prime, segment2) == stPinchEnd_getOrientation(pinchEnd2)) { //Have an edge
+                    int64_t end = stPinchSegment_getStart(segment2) + (traverse5Prime ? stPinchSegment_getLength(segment) - 1 : 0);
+                    if(abs(end - start) > 1) {
+                        stPinchThread *thread = stPinchSegment_getThread(segment);
+                        int64_t splitPoint = (end + start) / 2;
+                        stPinchThread_split(thread, splitPoint);
+                        stPinchThread_split(thread, splitPoint-1);
+                        stPinchSegment *segment3 = stPinchThread_getSegment(thread, splitPoint);
+                        assert(stPinchSegment_getBlock(segment3) == NULL);
+                        stPinchBlock_construct2(segment3);
+                    }
+                }
+                break;
+            }
+            segment2 = traverse5Prime ? stPinchSegment_get5Prime(segment2) : stPinchSegment_get3Prime(segment2);
         }
     }
 }
 
 void stCaf_breakupComponentsGreedily(stPinchThreadSet *threadSet, float maximumAdjacencyComponentSizeRatio) {
-    double maximumAdjacencyComponentSize = maximumAdjacencyComponentSizeRatio * log(stPinchThreadSet_getTotalBlockNumber(threadSet) * 2);
+    double maximumAdjacencyComponentSize = maximumAdjacencyComponentSizeRatio * log(
+            stPinchThreadSet_getTotalBlockNumber(threadSet) * 2);
     //Get adjacency components
     stHash *pinchEndsToAdjacencyComponents;
     stList *adjacencyComponents = stPinchThreadSet_getAdjacencyComponents2(threadSet, &pinchEndsToAdjacencyComponents);
@@ -120,11 +192,11 @@ void stCaf_breakupComponentsGreedily(stPinchThreadSet *threadSet, float maximumA
             //Get the edges to remove
             stList *edgesToDelete = stCaf_breakupComponentGreedily(nodes, edges, maximumAdjacencyComponentSize);
             if (stList_length(edgesToDelete) > 0) {
-                printf("Pinch graph component with %i nodes and %i edges is being split up by breaking %i edges\n", stList_length(nodes),
-                        stList_length(edges), stList_length(edgesToDelete));
+                printf("Pinch graph component with %i nodes and %i edges is being split up by breaking %i edges\n",
+                        stList_length(nodes), stList_length(edges), stList_length(edgesToDelete));
             }
             //Break edges;
-            for(int32_t j=0; j<stList_length(edgesToDelete); j++) {
+            for (int32_t j = 0; j < stList_length(edgesToDelete); j++) {
                 stIntTuple *edge = stList_get(edgesToDelete, j);
                 stPinchEnd *pinchEnd1 = stList_get(adjacencyComponent, stIntTuple_getPosition(edge, 0));
                 stPinchEnd *pinchEnd2 = stList_get(adjacencyComponent, stIntTuple_getPosition(edge, 1));
@@ -136,4 +208,6 @@ void stCaf_breakupComponentsGreedily(stPinchThreadSet *threadSet, float maximumA
             stList_destruct(edgesToDelete);
         }
     }
+    stList_destruct(adjacencyComponents);
+    stHash_destruct(pinchEndsToAdjacencyComponents);
 }

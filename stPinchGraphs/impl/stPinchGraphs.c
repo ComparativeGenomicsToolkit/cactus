@@ -595,6 +595,15 @@ stPinchBlock *stPinchThreadSetBlockIt_getNext(stPinchThreadSetBlockIt *blockIt) 
     }
 }
 
+int32_t stPinchThreadSet_getTotalBlockNumber(stPinchThreadSet *threadSet) {
+    int32_t blockCount = 0;
+    stPinchThreadSetBlockIt blockIt = stPinchThreadSet_getBlockIt(threadSet);
+    while(stPinchThreadSetBlockIt_getNext(&blockIt) != NULL) {
+        blockCount++;
+    }
+    return blockCount;
+}
+
 void stPinchThreadSet_getAdjacencyComponentsP2(stHash *endsToAdjacencyComponents, stList *adjacencyComponent,
         stPinchEnd *end) {
     stList *stack = stList_construct();
