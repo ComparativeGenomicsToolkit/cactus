@@ -117,11 +117,9 @@ static void alignSameComponents(stPinch *pinch, stPinchThreadSet *threadSet, stS
     }
 }
 
-static stSortedSet *getAdjacencyComponentIntervals(stPinchThreadSet *threadSet) {
+static stSortedSet *getAdjacencyComponentIntervals(stPinchThreadSet *threadSet, stList **adjacencyComponents) {
     stHash *pinchEndsToAdjacencyComponents;
-    stList *adjacencyComponents = stPinchThreadSet_getAdjacencyComponents2(threadSet, &pinchEndsToAdjacencyComponents);
-    stList_setDestructor(adjacencyComponents, NULL);
-    stList_destruct(adjacencyComponents);
+    *adjacencyComponents = stPinchThreadSet_getAdjacencyComponents2(threadSet, &pinchEndsToAdjacencyComponents);
     stSortedSet *adjacencyComponentIntervals = stPinchThreadSet_getLabelIntervals(threadSet,
             pinchEndsToAdjacencyComponents);
     stHash_destruct(pinchEndsToAdjacencyComponents);
@@ -131,13 +129,15 @@ static stSortedSet *getAdjacencyComponentIntervals(stPinchThreadSet *threadSet) 
 void stCaf_annealBetweenAdjacencyComponents2(stPinchThreadSet *threadSet, stPinch *(*pinchIterator)(void *),
         void *extraArg) {
     //Get the adjacency component intervals
-    stSortedSet *adjacencyComponentIntervals = getAdjacencyComponentIntervals(threadSet);
+    stList *adjacencyComponents;
+    stSortedSet *adjacencyComponentIntervals = getAdjacencyComponentIntervals(threadSet, &adjacencyComponents);
     //Now do the actual alignments.
     stPinch *pinch;
     while ((pinch = pinchIterator(extraArg)) != NULL) {
         alignSameComponents(pinch, threadSet, adjacencyComponentIntervals);
     }
     stSortedSet_destruct(adjacencyComponentIntervals);
+    stList_destruct(adjacencyComponents);
     stPinchThreadSet_joinTrivialBoundaries(threadSet);
 }
 

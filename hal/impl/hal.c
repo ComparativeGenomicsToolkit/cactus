@@ -95,7 +95,7 @@ static void writeTerminalAdjacency(FILE *fileHandle, Cap *cap) {
     assert(adjacencyLength >= 0);
     Sequence *sequence = cap_getSequence(cap);
     assert(sequence != NULL);
-    fprintf(fileHandle, "a\t%i\t%i\n", cap_getCoordinate(cap) - sequence_getLength(sequence), adjacencyLength);
+    fprintf(fileHandle, "a\t%i\t%i\n", cap_getCoordinate(cap) - sequence_getStart(sequence), adjacencyLength);
 }
 
 static void writeSegment(FILE *fileHandle, Segment *segment) {
