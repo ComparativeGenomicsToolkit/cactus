@@ -99,7 +99,7 @@ static void makeBlock(stCactusEdgeEnd *cactusEdgeEnd, Flower *parentFlower, Flow
         assert(parentSequence != NULL);
         Sequence *sequence = flower_getSequence(flower, sequence_getName(parentSequence));
         if (sequence == NULL) {
-            sequence = sequence_construct(cactusDisk_getMetaSequence(flower_getCactusDisk(flower), sequence_getName(sequence)), flower);
+            sequence = sequence_construct(cactusDisk_getMetaSequence(flower_getCactusDisk(flower), sequence_getName(parentSequence)), flower);
         }
         assert(sequence != NULL);
         segment_construct2(
@@ -272,10 +272,8 @@ void stCaf_finish(Flower *flower, stPinchThreadSet *threadSet) {
     stCactusNode *startCactusNode;
     stList *deadEndComponent;
     stCactusGraph *cactusGraph = stCaf_getCactusGraphForThreadSet(flower, threadSet, &startCactusNode, &deadEndComponent, 1);
-
     //Convert cactus graph/pinch graph to API
     stCaf_convertCactusGraphToFlowers(threadSet, startCactusNode, flower, deadEndComponent);
-
     //Cleanup
     stCactusGraph_destruct(cactusGraph);
 

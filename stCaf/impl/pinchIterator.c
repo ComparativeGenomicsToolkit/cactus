@@ -86,17 +86,17 @@ static stPinch *pairwiseAlignmentToPinch_getNext(PairwiseAlignmentToPinch *pA) {
                         pA->yCoordinate += op->length;
                     } else {
                         pA->yCoordinate -= op->length;
-                        stPinch_fillOut(&pinch, pA->xName, pA->yName, pA->xCoordinate, pA->yCoordinate + 1, op->length, 0);
+                        stPinch_fillOut(&pinch, pA->xName, pA->yName, pA->xCoordinate, pA->yCoordinate, op->length, 0);
                     }
                     pA->xCoordinate += op->length;
                 } else {
                     pA->xCoordinate -= op->length;
                     if (pA->pairwiseAlignment->strand2) {
-                        stPinch_fillOut(&pinch, pA->xName, pA->yName, pA->xCoordinate + 1, pA->yCoordinate, op->length, 0);
+                        stPinch_fillOut(&pinch, pA->xName, pA->yName, pA->xCoordinate, pA->yCoordinate, op->length, 0);
                         pA->yCoordinate += op->length;
                     } else {
                         pA->yCoordinate -= op->length;
-                        stPinch_fillOut(&pinch, pA->xName, pA->yName, pA->xCoordinate + 1, pA->yCoordinate + 1, op->length, 1);
+                        stPinch_fillOut(&pinch, pA->xName, pA->yName, pA->xCoordinate, pA->yCoordinate, op->length, 1);
                     }
                 }
                 return &pinch;

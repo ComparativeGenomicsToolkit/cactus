@@ -29,8 +29,8 @@ static void testIterator(CuTest *testCase, stPinchIterator *pinchIterator, stLis
                         CuAssertTrue(testCase, pinch != NULL);
                         CuAssertIntEquals(testCase, contigX, pinch->name1);
                         CuAssertIntEquals(testCase, contigY, pinch->name2);
-                        CuAssertIntEquals(testCase, (pairwiseAlignment->strand1 ? x : x - op->length + 1) + trim, pinch->start1);
-                        CuAssertIntEquals(testCase, (pairwiseAlignment->strand2 ? y : y - op->length + 1) + trim, pinch->start2);
+                        CuAssertIntEquals(testCase, (pairwiseAlignment->strand1 ? x : x - op->length) + trim, pinch->start1);
+                        CuAssertIntEquals(testCase, (pairwiseAlignment->strand2 ? y : y - op->length) + trim, pinch->start2);
                         CuAssertIntEquals(testCase, op->length - 2 * trim, pinch->length);
                         CuAssertTrue(testCase, pinch->length > 0);
                         CuAssertIntEquals(testCase, pairwiseAlignment->strand1 == pairwiseAlignment->strand2, pinch->strand);

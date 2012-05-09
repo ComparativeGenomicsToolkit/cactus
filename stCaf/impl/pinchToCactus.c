@@ -62,7 +62,7 @@ static stList *stCaf_constructDeadEndComponent(Flower *flower, stPinchThreadSet 
 // Attach unatttached thread components
 ///////////////////////////////////////////////////////////////////////////
 
-static bool threadIsAttachedToDeadEndComponent(stPinchThread *thread, stList *deadEndComponent, stHash *pinchEndsToAdjacencyComponents) {
+static bool threadIsAttachedToDeadEndComponent5Prime(stPinchThread *thread, stList *deadEndComponent, stHash *pinchEndsToAdjacencyComponents) {
     stPinchSegment *pinchSegment = stPinchThread_getFirst(thread);
     stPinchBlock *pinchBlock = stPinchSegment_getBlock(pinchSegment);
     assert(pinchBlock != NULL);
@@ -72,10 +72,21 @@ static bool threadIsAttachedToDeadEndComponent(stPinchThread *thread, stList *de
     return adjacencyComponent == deadEndComponent;
 }
 
+static bool threadIsAttachedToDeadEndComponent3Prime(stPinchThread *thread, stList *deadEndComponent, stHash *pinchEndsToAdjacencyComponents) {
+    stPinchSegment *pinchSegment = stPinchThread_getLast(thread);
+    stPinchBlock *pinchBlock = stPinchSegment_getBlock(pinchSegment);
+    assert(pinchBlock != NULL);
+    stPinchEnd staticPinchEnd = stPinchEnd_constructStatic(pinchBlock, !stPinchSegment_getBlockOrientation(pinchSegment));
+    stList *adjacencyComponent = stHash_search(pinchEndsToAdjacencyComponents, &staticPinchEnd);
+    assert(adjacencyComponent != NULL);
+    return adjacencyComponent == deadEndComponent;
+}
+
 static bool threadComponentIsAttachedToDeadEndComponent(stList *threadComponent, stList *deadEndComponent,
         stHash *pinchEndsToAdjacencyComponents) {
     for (int32_t i = 0; i < stList_length(threadComponent); i++) {
-        if (threadIsAttachedToDeadEndComponent(stList_get(threadComponent, i), deadEndComponent, pinchEndsToAdjacencyComponents)) {
+        if (threadIsAttachedToDeadEndComponent5Prime(stList_get(threadComponent, i), deadEndComponent, pinchEndsToAdjacencyComponents) ||
+                threadIsAttachedToDeadEndComponent3Prime(stList_get(threadComponent, i), deadEndComponent, pinchEndsToAdjacencyComponents)) {
             return 1;
         }
     }
@@ -120,17 +131,16 @@ static void stCaf_attachUnattachedThreadComponents(Flower *flower, stPinchThread
      */
     stSortedSet *threadComponents = stPinchThreadSet_getThreadComponents(threadSet);
     assert(stSortedSet_size(threadComponents) > 0);
-    if (stSortedSet_size(threadComponents) > 1) {
-        stSortedSetIterator *threadIt = stSortedSet_getIterator(threadComponents);
-        stList *threadComponent;
-        while ((threadComponent = stSortedSet_getNext(threadIt)) != NULL) {
-            if (!threadComponentIsAttachedToDeadEndComponent(threadComponent, deadEndComponent, pinchEndsToAdjacencyComponents)) {
-                attachThreadComponentToDeadEndComponent(threadComponent, deadEndComponent, pinchEndsToAdjacencyComponents,
-                        markEndsAttached, flower);
-            }
+    stSortedSetIterator *threadIt = stSortedSet_getIterator(threadComponents);
+    stList *threadComponent;
+    while ((threadComponent = stSortedSet_getNext(threadIt)) != NULL) {
+        if (!threadComponentIsAttachedToDeadEndComponent(threadComponent, deadEndComponent,
+                pinchEndsToAdjacencyComponents)) {
+            attachThreadComponentToDeadEndComponent(threadComponent, deadEndComponent, pinchEndsToAdjacencyComponents,
+                    markEndsAttached, flower);
         }
-        stSortedSet_destructIterator(threadIt);
     }
+    stSortedSet_destructIterator(threadIt);
     stSortedSet_destruct(threadComponents);
 #ifdef BEN_DEBUG
     threadComponents = stPinchThreadSet_getThreadComponents(threadSet);

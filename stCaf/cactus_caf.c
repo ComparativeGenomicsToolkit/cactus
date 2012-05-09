@@ -293,6 +293,7 @@ int main(int argc, char *argv[]) {
     ///////////////////////////////////////////////////////////////////////////
 
     stPinchIterator *pinchIteratorForConstraints = NULL;
+    constraintsFile = NULL;
     if (constraintsFile != NULL) {
         pinchIteratorForConstraints = stPinchIterator_constructFromFile(constraintsFile);
         st_logInfo("Created an iterator for the alignment constaints from file: %s\n", constraintsFile);
@@ -338,10 +339,10 @@ int main(int argc, char *argv[]) {
                     &requiredIngroupSpecies, &requiredOutgroupSpecies,  &requiredAllSpecies);
             //Set up the graph and add the initial alignments
             stPinchThreadSet *threadSet = stCaf_setup(flower);
-            for (int32_t annealingRound = 0; annealingRound < annealingRoundsLength; i++) {
+            for (int32_t annealingRound = 0; annealingRound < annealingRoundsLength; annealingRound++) {
                 int32_t minimumChainLength = annealingRounds[annealingRound];
                 int32_t alignmentTrim = annealingRound < alignmentTrimLength ? alignmentTrims[annealingRound] : 0;
-                st_logDebug("Starting annealing round with a minimum chain length of %i and and alignment trim of %i\n", minimumChainLength, alignmentTrim);
+                st_logDebug("Starting annealing round with a minimum chain length of %i and an alignment trim of %i\n", minimumChainLength, alignmentTrim);
                 stPinchIterator_setTrim(pinchIterator, alignmentTrim);
                 //Do the annealing
                 if (annealingRound == 0) {
