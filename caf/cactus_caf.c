@@ -24,16 +24,11 @@ static void usage() {
     fprintf(stderr, "-b --alignments : The input alignments file\n");
     fprintf(stderr, "-c --cactusDisk : The location of the flower disk directory\n");
     fprintf(stderr, "-d --lastzArguments : Lastz arguments\n");
-    fprintf(stderr, "-e --writeDebugFiles : Write the debug files\n");
     fprintf(stderr, "-h --help : Print this help screen\n");
 
     fprintf(stderr, "-i --annealingRounds (array of ints, each greater than or equal to 1) : The rounds of annealing\n");
     fprintf(stderr,
             "-o --deannealingRounds (array of ints, each greater than or equal to 1 and each greater than the last) : The rounds of deannealing\n");
-
-    fprintf(
-            stderr,
-            "-j --alignRepeatsAtRound (int  [0, alignUndoLoops) ) : Allow bases marked as repeats to be aligned at loop (else alignments to these bases to be excluded)\n");
 
     fprintf(
             stderr,
@@ -146,9 +141,7 @@ int main(int argc, char *argv[]) {
 
     while (1) {
         static struct option long_options[] = { { "logLevel", required_argument, 0, 'a' }, { "alignments", required_argument, 0, 'b' }, {
-                "cactusDisk", required_argument, 0, 'c' }, { "lastzArguments", required_argument, 0, 'd' }, { "writeDebugFiles",
-                no_argument, 0, 'e' }, { "help", no_argument, 0, 'h' }, { "annealingRounds", required_argument, 0, 'i' }, {
-                "alignRepeatsAtRound", required_argument, 0, 'j' }, { "trim", required_argument, 0, 'k' }, { "trimChange",
+                "cactusDisk", required_argument, 0, 'c' }, { "lastzArguments", required_argument, 0, 'd' }, { "help", no_argument, 0, 'h' }, { "annealingRounds", required_argument, 0, 'i' }, { "trim", required_argument, 0, 'k' }, { "trimChange",
                 required_argument, 0, 'l', }, { "minimumTreeCoverage", required_argument, 0, 'm' }, { "blockTrim", required_argument, 0,
                 'n' }, { "deannealingRounds", required_argument, 0, 'o' }, { "minimumDegree", required_argument, 0, 'p' }, {
                 "requiredIngroupFraction", required_argument, 0, 'q' }, { "requiredOutgroupFraction", required_argument, 0, 'r' }, {
@@ -158,7 +151,7 @@ int main(int argc, char *argv[]) {
 
         int option_index = 0;
 
-        key = getopt_long(argc, argv, "a:b:c:ehi:j:k:m:n:o:p:q:r:stu:v:w:x:", long_options, &option_index);
+        key = getopt_long(argc, argv, "a:b:c:hi:k:m:n:o:p:q:r:stu:v:w:x:", long_options, &option_index);
 
         if (key == -1) {
             break;
@@ -178,9 +171,6 @@ int main(int argc, char *argv[]) {
             case 'd':
                 lastzArguments = stString_copy(optarg);
                 break;
-            case 'e':
-                st_errAbort("No longer printing debug files as an option");
-                break;
             case 'h':
                 usage();
                 return 0;
@@ -189,9 +179,6 @@ int main(int argc, char *argv[]) {
                 break;
             case 'o':
                 meltingRounds = getInts(optarg, &meltingRoundsLength);
-                break;
-            case 'j':
-                st_errAbort("No longer supporting exclusion of repeat alignments in this fashion");
                 break;
             case 'k':
                 alignmentTrims = getInts(optarg, &alignmentTrimLength);
@@ -436,6 +423,5 @@ int main(int argc, char *argv[]) {
     st_logInfo("Cleaned stuff up and am finished in: %i seconds\n", time(NULL) - startTime);
 
     //while(1);
-
     return 0;
 }

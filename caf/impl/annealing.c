@@ -6,7 +6,8 @@
 #include "stCaf.h"
 
 ///////////////////////////////////////////////////////////////////////////
-// Ensure that flower ends are in blocks without other sequence.
+// Code to safely join all the trivial boundaries in the pinch graph, while
+// respecting end blocks.
 ///////////////////////////////////////////////////////////////////////////
 
 static void stCaf_ensureEndsAreDistinct(stPinchThreadSet *threadSet) {
@@ -22,6 +23,11 @@ static void stCaf_ensureEndsAreDistinct(stPinchThreadSet *threadSet) {
     }
 }
 
+void stCaf_joinTrivialBoundaries(stPinchThreadSet *threadSet) {
+    stPinchThreadSet_joinTrivialBoundaries(threadSet);
+    stCaf_ensureEndsAreDistinct(threadSet);
+}
+
 ///////////////////////////////////////////////////////////////////////////
 // Basic annealing function
 ///////////////////////////////////////////////////////////////////////////
@@ -34,13 +40,12 @@ void stCaf_anneal2(stPinchThreadSet *threadSet, stPinch *(*pinchIterator)(void *
         assert(thread1 != NULL && thread2 != NULL);
         stPinchThread_pinch(thread1, thread2, pinch->start1, pinch->start2, pinch->length, pinch->strand);
     }
-    stPinchThreadSet_joinTrivialBoundaries(threadSet);
 }
 
 void stCaf_anneal(stPinchThreadSet *threadSet, stPinchIterator *pinchIterator) {
     stPinchIterator_reset(pinchIterator);
     stCaf_anneal2(threadSet, (stPinch *(*)(void *)) stPinchIterator_getNext, pinchIterator);
-    stCaf_ensureEndsAreDistinct(threadSet);
+    stCaf_joinTrivialBoundaries(threadSet);
 }
 
 ///////////////////////////////////////////////////////////////////////////
@@ -138,11 +143,10 @@ void stCaf_annealBetweenAdjacencyComponents2(stPinchThreadSet *threadSet, stPinc
     }
     stSortedSet_destruct(adjacencyComponentIntervals);
     stList_destruct(adjacencyComponents);
-    stPinchThreadSet_joinTrivialBoundaries(threadSet);
 }
 
 void stCaf_annealBetweenAdjacencyComponents(stPinchThreadSet *threadSet, stPinchIterator *pinchIterator) {
     stPinchIterator_reset(pinchIterator);
     stCaf_annealBetweenAdjacencyComponents2(threadSet, (stPinch *(*)(void *)) stPinchIterator_getNext, pinchIterator);
-    stCaf_ensureEndsAreDistinct(threadSet);
+    stCaf_joinTrivialBoundaries(threadSet);
 }

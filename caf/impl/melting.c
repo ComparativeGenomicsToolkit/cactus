@@ -117,6 +117,8 @@ void stCaf_melt(Flower *flower, stPinchThreadSet *threadSet, bool blockFilterfn(
         stCactusGraph_destruct(cactusGraph);
         stList_destruct(blocksToDelete); //This will destroy the blocks
     }
+    //Now heal up the trivial boundaries
+    stCaf_joinTrivialBoundaries(threadSet);
 }
 
 ///////////////////////////////////////////////////////////////////////////

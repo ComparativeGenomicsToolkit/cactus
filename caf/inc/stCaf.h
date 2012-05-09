@@ -43,6 +43,10 @@ void stCaf_anneal(stPinchThreadSet *threadSet, stPinchIterator *pinchIterator);
  */
 void stCaf_annealBetweenAdjacencyComponents(stPinchThreadSet *threadSet, stPinchIterator *pinchIterator);
 
+/*
+ * Joins all trivial boundaries, but not joining stub boundaries.
+ */
+void stCaf_joinTrivialBoundaries(stPinchThreadSet *threadSet);
 
 ///////////////////////////////////////////////////////////////////////////
 // Melting fuctions -- removing alignments from the pinch graph
