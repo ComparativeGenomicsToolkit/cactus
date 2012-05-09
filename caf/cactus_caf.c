@@ -280,7 +280,6 @@ int main(int argc, char *argv[]) {
     ///////////////////////////////////////////////////////////////////////////
 
     stPinchIterator *pinchIteratorForConstraints = NULL;
-    constraintsFile = NULL;
     if (constraintsFile != NULL) {
         pinchIteratorForConstraints = stPinchIterator_constructFromFile(constraintsFile);
         st_logInfo("Created an iterator for the alignment constaints from file: %s\n", constraintsFile);

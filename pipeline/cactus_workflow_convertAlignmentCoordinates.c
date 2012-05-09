@@ -18,55 +18,61 @@
  * Iterates through a cigar file and converts the coordinates into cactus okay coordinates.
  */
 
-static stHash *makeSequenceHeaderToSequenceHash(CactusDisk *cactusDisk) {
-    stHash *sequenceHeaderToSequenceHash = stHash_construct3(stHash_stringKey, stHash_stringEqualKey, free, NULL);
+static stHash *makeSequenceHeaderToCapHash(CactusDisk *cactusDisk) {
+    stHash *sequenceHeaderToCapsHash = stHash_construct3(stHash_stringKey, stHash_stringEqualKey, free, NULL);
     Flower *flower = cactusDisk_getFlower(cactusDisk, 0);
     assert(flower != NULL);
-    Sequence *sequence;
-    Flower_SequenceIterator *seqIt = flower_getSequenceIterator(flower);
-    while ((sequence = flower_getNextSequence(seqIt)) != NULL) {
-        stList *sequenceHeaderTokens = stString_split(sequence_getHeader(sequence));
-        if(stList_length(sequenceHeaderTokens) == 0) {
-            st_errAbort("Sequence has absent header: %s", sequence_getHeader(sequence));
+    Cap *cap;
+    Flower_CapIterator *capIt = flower_getCapIterator(flower);
+    while ((cap = flower_getNextCap(capIt)) != NULL) {
+        cap = cap_getStrand(cap) ? cap : cap_getReverse(cap);
+        assert(cap_getAdjacency(cap) != NULL);
+        if (!cap_getSide(cap)) {
+            Sequence *sequence = cap_getSequence(cap);
+            assert(sequence != NULL);
+            stList *sequenceHeaderTokens = stString_split(sequence_getHeader(sequence));
+            if (stList_length(sequenceHeaderTokens) == 0) {
+                st_errAbort("Sequence has absent header: %s", sequence_getHeader(sequence));
+            }
+            char *sequenceNameString = stString_copy(stList_get(sequenceHeaderTokens, 0));
+            stList_destruct(sequenceHeaderTokens);
+            if (stHash_search(sequenceHeaderToCapsHash, sequenceNameString) != NULL) {
+                st_errAbort("Could not make a unique map of fasta headers to sequence names: '%s'", sequenceNameString);
+            }
+            stHash_insert(sequenceHeaderToCapsHash, sequenceNameString, cap);
         }
-        char *sequenceNameString = stString_copy(stList_get(sequenceHeaderTokens, 0));
-        stList_destruct(sequenceHeaderTokens);
-        if(stHash_search(sequenceHeaderToSequenceHash, sequenceNameString) != NULL) {
-            st_errAbort("Could not make a unique map of fasta headers to sequence names: '%s'", sequenceNameString);
-        }
-        stHash_insert(sequenceHeaderToSequenceHash, sequenceNameString, sequence);
     }
-    flower_destructSequenceIterator(seqIt);
-    return sequenceHeaderToSequenceHash;
+    flower_destructCapIterator(capIt);
+    return sequenceHeaderToCapsHash;
 }
 
 static void convertCoordinates(struct PairwiseAlignment *pairwiseAlignment, FILE *outputCigarFileHandle,
-        stHash *sequenceHeaderToSequenceHash) {
-    Sequence *sequence1 = stHash_search(sequenceHeaderToSequenceHash, pairwiseAlignment->contig1);
-    Sequence *sequence2 = stHash_search(sequenceHeaderToSequenceHash, pairwiseAlignment->contig2);
-    if (sequence1 == NULL) {
-        st_errAbort("Could not match contig name in alignment to cactus sequence: '%s'", pairwiseAlignment->contig1);
+        stHash *sequenceHeaderToCapHash) {
+    Cap *cap1 = stHash_search(sequenceHeaderToCapHash, pairwiseAlignment->contig1);
+    Cap *cap2 = stHash_search(sequenceHeaderToCapHash, pairwiseAlignment->contig2);
+    if (cap1 == NULL) {
+        st_errAbort("Could not match contig name in alignment to cactus cap: '%s'", pairwiseAlignment->contig1);
     }
-    if (sequence2 == NULL) {
-        st_errAbort("Could not match contig name in alignment to cactus sequence: '%s'", pairwiseAlignment->contig2);
+    if (cap2 == NULL) {
+        st_errAbort("Could not match contig name in alignment to cactus cap: '%s'", pairwiseAlignment->contig2);
     }
     //Fix the names
     free(pairwiseAlignment->contig1);
-    pairwiseAlignment->contig1 = cactusMisc_nameToString(sequence_getName(sequence1));
+    pairwiseAlignment->contig1 = cactusMisc_nameToString(cap_getName(cap1));
     free(pairwiseAlignment->contig2);
-    pairwiseAlignment->contig2 = cactusMisc_nameToString(sequence_getName(sequence2));
+    pairwiseAlignment->contig2 = cactusMisc_nameToString(cap_getName(cap2));
     //Now fix the coordinates by adding one
     pairwiseAlignment->start1 += 2;
     pairwiseAlignment->start2 += 2;
     pairwiseAlignment->end1 += 2;
     pairwiseAlignment->end2 += 2;
-    if (pairwiseAlignment->start1 < sequence_getStart(sequence1) || pairwiseAlignment->end1 > sequence_getStart(sequence1) + sequence_getLength(sequence1)) {
-        st_errAbort("Coordinates of pairwise alignment appear incorrect: %i %i %i %i", pairwiseAlignment->start1,
-                pairwiseAlignment->end1, sequence_getStart(sequence1), sequence_getLength(sequence1));
+    if (pairwiseAlignment->start1 <= cap_getCoordinate(cap1) || pairwiseAlignment->end1 > cap_getCoordinate(cap_getAdjacency(cap1))) {
+        st_errAbort("Coordinates of pairwise alignment appear incorrect: %i %i %i %i", pairwiseAlignment->start1, pairwiseAlignment->end1,
+                cap_getCoordinate(cap1), cap_getCoordinate(cap_getAdjacency(cap1)));
     }
-    if (pairwiseAlignment->start2 < sequence_getStart(sequence2) || pairwiseAlignment->end2 > sequence_getStart(sequence2) + sequence_getLength(sequence2)) {
-        st_errAbort("Coordinates of pairwise alignment appear incorrect: %i %i %i %i", pairwiseAlignment->start2,
-                pairwiseAlignment->end2, sequence_getStart(sequence1), sequence_getLength(sequence2));
+    if (pairwiseAlignment->start2 <= cap_getCoordinate(cap2) || pairwiseAlignment->end2 > cap_getCoordinate(cap_getAdjacency(cap2))) {
+            st_errAbort("Coordinates of pairwise alignment appear incorrect: %i %i %i %i", pairwiseAlignment->start2, pairwiseAlignment->end2,
+                    cap_getCoordinate(cap2), cap_getCoordinate(cap_getAdjacency(cap2)));
     }
 }
 
@@ -81,7 +87,7 @@ int main(int argc, char *argv[]) {
     stKVDatabaseConf *kvDatabaseConf = stKVDatabaseConf_constructFromString(argv[2]);
     CactusDisk *cactusDisk = cactusDisk_construct(kvDatabaseConf, 0);
     stKVDatabaseConf_destruct(kvDatabaseConf);
-    stHash *sequenceHeaderToSequenceHash = makeSequenceHeaderToSequenceHash(cactusDisk);
+    stHash *sequenceHeaderToCapHash = makeSequenceHeaderToCapHash(cactusDisk);
     st_logDebug("Set up the flower disk and built hash\n");
 
     FILE *inputCigarFileHandle = fopen(argv[3], "r");
@@ -90,7 +96,7 @@ int main(int argc, char *argv[]) {
 
     struct PairwiseAlignment *pairwiseAlignment;
     while ((pairwiseAlignment = cigarRead(inputCigarFileHandle)) != NULL) {
-        convertCoordinates(pairwiseAlignment, outputCigarFileHandle, sequenceHeaderToSequenceHash);
+        convertCoordinates(pairwiseAlignment, outputCigarFileHandle, sequenceHeaderToCapHash);
         cigarWrite(outputCigarFileHandle, pairwiseAlignment, 0);
         destructPairwiseAlignment(pairwiseAlignment);
     }
@@ -102,7 +108,7 @@ int main(int argc, char *argv[]) {
     return 0;
     //Cleanup
     cactusDisk_destruct(cactusDisk);
-    stHash_destruct(sequenceHeaderToSequenceHash);
+    stHash_destruct(sequenceHeaderToCapHash);
 
     st_logDebug("Am finished\n");
     return 0;
