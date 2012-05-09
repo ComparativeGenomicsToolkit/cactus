@@ -268,7 +268,7 @@ int main(int argc, char *argv[]) {
                 || minimumDegree > 1) {
             stCaf_calculateRequiredFractionsOfSpecies(flower,
                     requiredIngroupFraction, requiredOutgroupFraction, requiredAllFraction,
-                    &requiredOutgroupSpecies, &requiredIngroupSpecies, &requiredAllSpecies);
+                    &requiredIngroupSpecies, &requiredOutgroupSpecies, &requiredAllSpecies);
             stCaf_melt(flower, threadSet, blockFilterFn, 0, 0);
         }
         stCaf_finish(flower, threadSet);

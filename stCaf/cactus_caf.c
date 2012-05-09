@@ -191,7 +191,7 @@ int main(int argc, char *argv[]) {
                 meltingRounds = getInts(optarg, &meltingRoundsLength);
                 break;
             case 'j':
-                st_errAbort("No longer printing supporting exclusion of repeat alignments in this fashion");
+                st_errAbort("No longer supporting exclusion of repeat alignments in this fashion");
                 break;
             case 'k':
                 alignmentTrims = getInts(optarg, &alignmentTrimLength);
@@ -315,7 +315,7 @@ int main(int argc, char *argv[]) {
     stList *flowers = parseFlowersFromStdin(cactusDisk);
     char *tempFile1 = NULL;
     for (int32_t i = 0; i < stList_length(flowers); i++) {
-        Flower *flower = stList_get(flowers, i);
+        flower = stList_get(flowers, i);
         if (!flower_builtBlocks(flower)) { // Do nothing if the flower already has defined blocks
             st_logDebug("Processing flower: %lli\n", flower_getName(flower));
             //Setup the alignments
@@ -335,18 +335,17 @@ int main(int argc, char *argv[]) {
             }
             //Set up the parameters for melting stuff
             stCaf_calculateRequiredFractionsOfSpecies(flower, requiredIngroupFraction, requiredOutgroupFraction, requiredAllFraction,
-                    &requiredOutgroupSpecies, &requiredIngroupSpecies, &requiredAllSpecies);
+                    &requiredIngroupSpecies, &requiredOutgroupSpecies,  &requiredAllSpecies);
             //Set up the graph and add the initial alignments
             stPinchThreadSet *threadSet = stCaf_setup(flower);
             for (int32_t annealingRound = 0; annealingRound < annealingRoundsLength; i++) {
+                int32_t minimumChainLength = annealingRounds[annealingRound];
+                int32_t alignmentTrim = annealingRound < alignmentTrimLength ? alignmentTrims[annealingRound] : 0;
+                st_logDebug("Starting annealing round with a minimum chain length of %i and and alignment trim of %i\n", minimumChainLength, alignmentTrim);
+                stPinchIterator_setTrim(pinchIterator, alignmentTrim);
                 //Do the annealing
                 if (annealingRound == 0) {
-                    int32_t alignmentTrim = annealingRound < alignmentTrimLength ? alignmentTrims[annealingRound] : 0;
-                    if (alignmentTrim > 0) {
-                        stPinchIterator_setTrim(pinchIterator, alignmentTrim);
-                    }
                     stCaf_anneal(threadSet, pinchIterator);
-                    stPinchIterator_setTrim(pinchIterator, 0);
                     if (pinchIteratorForConstraints != NULL) {
                         stCaf_anneal(threadSet, pinchIteratorForConstraints);
                     }
@@ -355,7 +354,6 @@ int main(int argc, char *argv[]) {
                 }
                 //Do the melting rounds
                 stCaf_melt(flower, threadSet, blockFilterFn, blockTrim, 0);
-                int32_t minimumChainLength = annealingRounds[annealingRound];
                 for (int32_t meltingRound = 0; meltingRound < meltingRoundsLength; meltingRound++) {
                     int32_t minimumChainLengthForMeltingRound = meltingRounds[meltingRound];
                     if (minimumChainLengthForMeltingRound >= minimumChainLength) {

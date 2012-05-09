@@ -9,6 +9,7 @@
 #define ST_PINCH_ITERATOR_H_
 
 #include "sonLib.h"
+#include "stPinchGraphs.h"
 
 typedef struct _stPinchIterator stPinchIterator;
 

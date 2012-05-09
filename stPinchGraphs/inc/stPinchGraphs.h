@@ -92,6 +92,12 @@ stList *stPinchThreadSet_getAdjacencyComponents2(stPinchThreadSet *threadSet, st
 
 stSortedSet *stPinchThreadSet_getThreadComponents(stPinchThreadSet *threadSet);
 
+stPinchThreadSet *stPinchThreadSet_getRandomEmptyGraph();
+
+stPinch stPinchThreadSet_getRandomPinch(stPinchThreadSet *threadSet);
+
+stPinchThreadSet *stPinchThreadSet_getRandomGraph();
+
 //convenience functions
 
 stPinchThreadSetSegmentIt stPinchThreadSet_getSegmentIt(stPinchThreadSet *threadSet);

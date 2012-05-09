@@ -73,30 +73,30 @@ static stPinch *pairwiseAlignmentToPinch_getNext(PairwiseAlignmentToPinch *pA) {
             }
             pA->alignmentIndex = 0;
             pA->xCoordinate = pA->pairwiseAlignment->start1;
-            pA->yCoordinate = pA->pairwiseAlignment->start1;
+            pA->yCoordinate = pA->pairwiseAlignment->start2;
             pA->xName = cactusMisc_stringToName(pA->pairwiseAlignment->contig1);
             pA->yName = cactusMisc_stringToName(pA->pairwiseAlignment->contig2);
         }
         while (pA->alignmentIndex < pA->pairwiseAlignment->operationList->length) {
             struct AlignmentOperation *op = pA->pairwiseAlignment->operationList->list[pA->alignmentIndex++];
-            if (op->opType == PAIRWISE_MATCH) {
-                if (op->length >= 1) { //deal with the possibility of a zero length match (strange, but not illegal)
-                    if (pA->pairwiseAlignment->strand1) {
+            if (op->opType == PAIRWISE_MATCH && op->length >= 1) { //deal with the possibility of a zero length match (strange, but not illegal)
+                if (pA->pairwiseAlignment->strand1) {
+                    if (pA->pairwiseAlignment->strand2) {
                         stPinch_fillOut(&pinch, pA->xName, pA->yName, pA->xCoordinate, pA->yCoordinate, op->length, 1);
                         pA->yCoordinate += op->length;
                     } else {
                         pA->yCoordinate -= op->length;
-                        stPinch_fillOut(&pinch, pA->xName, pA->yName, pA->xCoordinate, pA->yCoordinate, op->length, 0);
+                        stPinch_fillOut(&pinch, pA->xName, pA->yName, pA->xCoordinate, pA->yCoordinate + 1, op->length, 0);
                     }
                     pA->xCoordinate += op->length;
                 } else {
                     pA->xCoordinate -= op->length;
-                    if (pA->pairwiseAlignment->strand1) {
-                        stPinch_fillOut(&pinch, pA->xName, pA->yName, pA->xCoordinate, pA->yCoordinate, op->length, 0);
+                    if (pA->pairwiseAlignment->strand2) {
+                        stPinch_fillOut(&pinch, pA->xName, pA->yName, pA->xCoordinate + 1, pA->yCoordinate, op->length, 0);
                         pA->yCoordinate += op->length;
                     } else {
                         pA->yCoordinate -= op->length;
-                        stPinch_fillOut(&pinch, pA->xName, pA->yName, pA->xCoordinate, pA->yCoordinate, op->length, 1);
+                        stPinch_fillOut(&pinch, pA->xName, pA->yName, pA->xCoordinate + 1, pA->yCoordinate + 1, op->length, 1);
                     }
                 }
                 return &pinch;
@@ -108,12 +108,12 @@ static stPinch *pairwiseAlignmentToPinch_getNext(PairwiseAlignmentToPinch *pA) {
                 pA->yCoordinate += pA->pairwiseAlignment->strand2 ? op->length : -op->length;
             }
         }
+        assert(pA->xCoordinate == pA->pairwiseAlignment->end1);
+        assert(pA->yCoordinate == pA->pairwiseAlignment->end2);
         if (pA->freeAlignments) {
             destructPairwiseAlignment(pA->pairwiseAlignment);
         }
         pA->pairwiseAlignment = NULL;
-        assert(pA->xCoordinate == pA->pairwiseAlignment->end1);
-        assert(pA->yCoordinate == pA->pairwiseAlignment->end2);
     }
 }
 

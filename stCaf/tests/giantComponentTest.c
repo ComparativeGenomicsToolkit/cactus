@@ -25,18 +25,18 @@ static void setup() {
     teardown();
 
     //Make nodes
-    nodes = stList_construct3(0, (void (*)(void *))stIntTuple_destruct);
+    nodes = stList_construct3(0, (void(*)(void *)) stIntTuple_destruct);
     int32_t nodeNumber = st_randomInt(0, 1000);
-    for(int32_t i=0; i<nodeNumber; i++) {
+    for (int32_t i = 0; i < nodeNumber; i++) {
         stList_append(nodes, stIntTuple_construct(1, i));
     }
 
     //Make edges
-    edges = stList_construct3(0, (void (*)(void *))stIntTuple_destruct);
+    edges = stList_construct3(0, (void(*)(void *)) stIntTuple_destruct);
     float edgeProb = st_random();
-    for(int32_t i=0; i<nodeNumber; i++) {
-        for(int32_t j=i; j<nodeNumber; j++) {
-            if(st_random() <= edgeProb) {
+    for (int32_t i = 0; i < nodeNumber; i++) {
+        for (int32_t j = i; j < nodeNumber; j++) {
+            if (st_random() <= edgeProb) {
                 stList_append(edges, stIntTuple_construct(3, st_randomInt(1, 100), i, j));
             }
         }
@@ -50,25 +50,26 @@ static stHash *getComponents(stList *filteredEdges) {
     /*
      * A kind of stupid reimplementation of the greedy function, done just to trap typos.
      */
-    stHash *nodesToComponents = stHash_construct3((uint32_t (*)(const void *))stIntTuple_hashKey, (int (*)(const void *, const void *))stIntTuple_equalsFn, NULL, NULL);
-    for(int32_t i=0; i<stList_length(nodes); i++) {
+    stHash *nodesToComponents = stHash_construct3((uint32_t(*)(const void *)) stIntTuple_hashKey,
+            (int(*)(const void *, const void *)) stIntTuple_equalsFn, NULL, NULL);
+    for (int32_t i = 0; i < stList_length(nodes); i++) {
         stIntTuple *node = stList_get(nodes, i);
         stSortedSet *component = stSortedSet_construct();
         stSortedSet_insert(component, node);
         stHash_insert(nodesToComponents, node, component);
     }
-    for(int32_t i=0; i<stList_length(filteredEdges); i++) {
+    for (int32_t i = 0; i < stList_length(filteredEdges); i++) {
         stIntTuple *edge = stList_get(filteredEdges, i);
         stIntTuple *node1 = stIntTuple_construct(1, stIntTuple_getPosition(edge, 1));
         stIntTuple *node2 = stIntTuple_construct(1, stIntTuple_getPosition(edge, 2));
         stSortedSet *component1 = stHash_search(nodesToComponents, node1);
         stSortedSet *component2 = stHash_search(nodesToComponents, node2);
         assert(component1 != NULL && component2 != NULL);
-        if(component1 != component2) {
+        if (component1 != component2) {
             stSortedSet *component3 = stSortedSet_getUnion(component1, component2);
             stSortedSetIterator *setIt = stSortedSet_getIterator(component3);
             stIntTuple *node3;
-            while((node3 = stSortedSet_getNext(setIt)) != NULL) {
+            while ((node3 = stSortedSet_getNext(setIt)) != NULL) {
                 stHash_insert(nodesToComponents, node3, component3);
             }
             stSortedSet_destructIterator(setIt);
@@ -85,16 +86,16 @@ static void checkComponents(CuTest *testCase, stList *filteredEdges) {
     stHash *nodesToComponents = getComponents(filteredEdges);
     //Check all components are smaller than threshold
     stList *components = stHash_getValues(nodesToComponents);
-    for(int32_t i=0; i<stList_length(components); i++) {
+    for (int32_t i = 0; i < stList_length(components); i++) {
         stSortedSet *component = stList_get(components, i);
         CuAssertTrue(testCase, stSortedSet_size(component) <= maxComponentSize);
         CuAssertTrue(testCase, stSortedSet_size(component) >= 1);
     }
     //Check no edges can be added from those filtered.
-    stSortedSet *filteredEdgesSet = stList_getSortedSet(filteredEdges, (int (*)(const void *, const void *))stIntTuple_cmpFn);
-    for(int32_t i=0; i<stList_length(edges); i++) {
+    stSortedSet *filteredEdgesSet = stList_getSortedSet(filteredEdges, (int(*)(const void *, const void *)) stIntTuple_cmpFn);
+    for (int32_t i = 0; i < stList_length(edges); i++) {
         stIntTuple *edge = stList_get(edges, i);
-        if(stSortedSet_search(filteredEdgesSet, edge) == NULL) {
+        if (stSortedSet_search(filteredEdgesSet, edge) == NULL) {
             stIntTuple *node1 = stIntTuple_construct(1, stIntTuple_getPosition(edge, 1));
             stIntTuple *node2 = stIntTuple_construct(1, stIntTuple_getPosition(edge, 2));
             stSortedSet *component1 = stHash_search(nodesToComponents, node1);
@@ -110,17 +111,19 @@ static void checkComponents(CuTest *testCase, stList *filteredEdges) {
     //Cleanup the components
     stSortedSet *componentsSet = stList_getSortedSet(components, NULL);
     stList_destruct(components);
-    stSortedSet_setDestructor(componentsSet, (void (*)(void *))stSortedSet_destruct);
+    stSortedSet_setDestructor(componentsSet, (void(*)(void *)) stSortedSet_destruct);
     stSortedSet_destruct(componentsSet);
     stHash_destruct(nodesToComponents);
 }
 
 static void testBreakUpComponentGreedily(CuTest *testCase) {
-    for (int32_t i = 0; i < 100; i++) {
+    //return;
+    for (int32_t test = 0; test < 100; test++) {
+        st_logInfo("Starting break up giant components random test %i\n", test);
         setup();
         stList *edgesToDelete = stCaf_breakupComponentGreedily(nodes, edges, maxComponentSize);
-        stSortedSet *edgesSet = stList_getSortedSet(edges, (int (*)(const void *, const void *))stIntTuple_cmpFn);
-        stSortedSet *edgesToDeleteSet = stList_getSortedSet(edgesToDelete, (int (*)(const void *, const void *))stIntTuple_cmpFn);
+        stSortedSet *edgesSet = stList_getSortedSet(edges, (int(*)(const void *, const void *)) stIntTuple_cmpFn);
+        stSortedSet *edgesToDeleteSet = stList_getSortedSet(edgesToDelete, (int(*)(const void *, const void *)) stIntTuple_cmpFn);
         stSortedSet *filteredEdgesSet = stSortedSet_getDifference(edgesSet, edgesToDeleteSet);
         stList *filteredEdges = stSortedSet_getList(filteredEdgesSet);
         assert(stSortedSet_size(edgesToDeleteSet) + stSortedSet_size(filteredEdgesSet) == stSortedSet_size(edgesSet));
@@ -134,8 +137,53 @@ static void testBreakUpComponentGreedily(CuTest *testCase) {
     }
 }
 
+static int32_t getSizeOfLargestAdjacencyComponent(stList *adjacencyComponents) {
+    int32_t largestAdjacencyComponentSizeInGraph = 0;
+    for (int32_t i = 0; i < stList_length(adjacencyComponents); i++) {
+        stList *adjacencyComponent = stList_get(adjacencyComponents, i);
+        if (stList_length(adjacencyComponent) > largestAdjacencyComponentSizeInGraph) {
+            largestAdjacencyComponentSizeInGraph = stList_length(adjacencyComponent);
+        }
+    }
+    return largestAdjacencyComponentSizeInGraph;
+}
+
+static void testBreakUpPinchGraphAdjacencyComponentsGreedily(CuTest *testCase) {
+    //return;
+    for (int32_t test = 0; test < 10000; test++) {
+        st_logInfo("Starting break up giant pinch graph components random test %i\n", test);
+        stPinchThreadSet *threadSet = stPinchThreadSet_getRandomGraph();
+        int32_t totalNodes = 2 * stPinchThreadSet_getTotalBlockNumber(threadSet);
+        float maximumAdjacencyComponentSizeRatio = st_random() * 10;
+        int32_t maximumAdjacencyComponentSize = log(maximumAdjacencyComponentSizeRatio) * totalNodes;
+        if (maximumAdjacencyComponentSize < 2) {
+            maximumAdjacencyComponentSize = 2;
+        }
+        stList *adjacencyComponents = stPinchThreadSet_getAdjacencyComponents(threadSet);
+        int32_t largestAdjacencyComponentSizeInGraph = getSizeOfLargestAdjacencyComponent(adjacencyComponents);
+        stList_destruct(adjacencyComponents);
+        st_logInfo(
+                "We have a random pinch graph with %i nodes and %i adjacency components, the largest adjacency component has %i nodes, with a ratio of %f we will break up adjacency components larger than %i in size, this will result in a breakup: %i\n",
+                totalNodes, stList_length(adjacencyComponents), largestAdjacencyComponentSizeInGraph, maximumAdjacencyComponentSizeRatio,
+                maximumAdjacencyComponentSize, largestAdjacencyComponentSizeInGraph > maximumAdjacencyComponentSize);
+        //Now do the actual breaking up
+        stCaf_breakupComponentsGreedily(threadSet, maximumAdjacencyComponentSizeRatio);
+        adjacencyComponents = stPinchThreadSet_getAdjacencyComponents(threadSet);
+        int32_t largestAdjacencyComponentSizeInGraphAfterBreakup = getSizeOfLargestAdjacencyComponent(adjacencyComponents);
+        totalNodes = 2 * stPinchThreadSet_getTotalBlockNumber(threadSet);
+        st_logInfo(
+                "After splitting we have a pinch graph with %i nodes and %i adjacency components, the largest adjacency component has %i nodes, with a ratio of %f that broke up adjacency components larger than %i in size\n",
+                totalNodes, stList_length(adjacencyComponents), largestAdjacencyComponentSizeInGraphAfterBreakup,
+                maximumAdjacencyComponentSizeRatio, maximumAdjacencyComponentSize);
+        //Cleanup
+        stList_destruct(adjacencyComponents);
+        stPinchThreadSet_destruct(threadSet);
+    }
+}
+
 CuSuite* giantComponentTestSuite(void) {
     CuSuite* suite = CuSuiteNew();
     SUITE_ADD_TEST(suite, testBreakUpComponentGreedily);
+    SUITE_ADD_TEST(suite, testBreakUpPinchGraphAdjacencyComponentsGreedily);
     return suite;
 }

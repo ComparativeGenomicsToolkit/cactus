@@ -109,8 +109,6 @@ def runCactusCore(cactusDiskDatabaseString, alignments,
                   maxAdjacencyComponentSizeRatio=None,
                   constraints=None):
     logLevel = getLogLevelString2(logLevel)
-    writeDebugFiles = nameValue("writeDebugFiles", writeDebugFiles, bool)
-    alignRepeatsAtRound = nameValue("alignRepeatsAtRound", alignRepeatsAtRound, int)
     annealingRounds = nameValue("annealingRounds", annealingRounds, quotes=True)
     deannealingRounds = nameValue("deannealingRounds", deannealingRounds, quotes=True)
     trim = nameValue("trim", trim, quotes=True)
@@ -129,8 +127,8 @@ def runCactusCore(cactusDiskDatabaseString, alignments,
     maxAdjacencyComponentSizeRatio = nameValue("maxAdjacencyComponentSizeRatio", maxAdjacencyComponentSizeRatio, float)
     constraints = nameValue("constraints", constraints)
     
-    command = "cactus_core --cactusDisk '%s' --logLevel %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s" % \
-    (cactusDiskDatabaseString, logLevel, alignments, writeDebugFiles, annealingRounds, deannealingRounds, alignRepeatsAtRound,
+    command = "cactus_caf --cactusDisk '%s' --logLevel %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s" % \
+    (cactusDiskDatabaseString, logLevel, alignments, annealingRounds, deannealingRounds, 
      trim, minimumTreeCoverage, blockTrim, 
      minimumBlockDegree, requiredIngroupFraction, requiredOutgroupFraction, requiredAllFraction, 
      singleCopyIngroup, singleCopyOutgroup, lastzArguments, minimumSequenceLengthForBlast, maxAdjacencyComponentSizeRatio, constraints)

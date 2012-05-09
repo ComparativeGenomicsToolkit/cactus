@@ -34,8 +34,7 @@ int32_t writeFlowerSequencesInFile(Flower *flower, const char *tempFile1, int32_
                     if(fileHandle == NULL) {
                         fileHandle = fopen(tempFile1, "w");
                     }
-                    char *string = sequence_getString(sequence, cap_getCoordinate(cap) + 1,
-                            cap_getCoordinate(cap2) - cap_getCoordinate(cap) - 1, 1);
+                    char *string = sequence_getString(sequence, cap_getCoordinate(cap) + 1, length, 1);
                     fprintf(fileHandle, ">%s|1|%i\n%s\n", cactusMisc_nameToStringStatic(cap_getName(cap)), //sequence)),
                             cap_getCoordinate(cap) + 1, string);
                     free(string);

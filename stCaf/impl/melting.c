@@ -8,6 +8,15 @@
 // Core functions for melting
 ///////////////////////////////////////////////////////////////////////////
 
+static bool isThreadEnd(stPinchBlock *pinchBlock) {
+    stPinchSegment *pinchSegment = stPinchBlock_getFirst(pinchBlock);
+    bool threadEnd = pinchSegment != NULL && (stPinchSegment_get3Prime(pinchSegment) == NULL || stPinchSegment_get5Prime(pinchSegment) == NULL);
+    if(threadEnd) {
+        assert(stPinchBlock_getLength(pinchBlock) == 1);
+    }
+    return threadEnd;
+}
+
 static void processChain(stCactusEdgeEnd *cactusEdgeEnd, void(*edgeEndFn)(stPinchBlock *, void *), void *extraArg) {
     while (1) {
         stPinchEnd *pinchEnd = stCactusEdgeEnd_getObject(cactusEdgeEnd);
@@ -15,16 +24,20 @@ static void processChain(stCactusEdgeEnd *cactusEdgeEnd, void(*edgeEndFn)(stPinc
         stPinchBlock *pinchBlock = stPinchEnd_getBlock(pinchEnd);
         assert(pinchBlock != NULL);
         edgeEndFn(pinchBlock, extraArg);
-        cactusEdgeEnd = stCactusEdgeEnd_getNextEdgeEnd(cactusEdgeEnd);
+        assert(stCactusEdgeEnd_getOtherEdgeEnd(stCactusEdgeEnd_getOtherEdgeEnd(cactusEdgeEnd)) == cactusEdgeEnd);
+        cactusEdgeEnd = stCactusEdgeEnd_getOtherEdgeEnd(cactusEdgeEnd);
         if (stCactusEdgeEnd_isChainEnd(cactusEdgeEnd)) {
             break;
         }
+        assert(stCactusEdgeEnd_getLink(stCactusEdgeEnd_getLink(cactusEdgeEnd)) == cactusEdgeEnd);
         cactusEdgeEnd = stCactusEdgeEnd_getLink(cactusEdgeEnd);
     }
 }
 
 static void addBlock(stPinchBlock *block, void *extraArg) {
-    stList_append(extraArg, block);
+    if(!isThreadEnd(block)) {
+        stList_append(extraArg, block);
+    }
 }
 
 static void addChainBlocksToBlocksToDelete(stCactusEdgeEnd *cactusEdgeEnd, stList *blocksToDelete) {
@@ -36,7 +49,7 @@ static void addLength(stPinchBlock *block, void *extraArg) {
 }
 
 static int64_t getChainLength(stCactusEdgeEnd *cactusEdgeEnd) {
-    int64_t length;
+    int64_t length = 0;
     processChain(cactusEdgeEnd, addLength, &length);
     return length;
 }
@@ -58,11 +71,6 @@ static stList *stCaf_getBlocksInChainsLessThanGivenLength(stCactusGraph *cactusG
     }
     stCactusGraphNodeIterator_destruct(nodeIt);
     return blocksToDelete;
-}
-
-static bool isThreadEnd(stPinchBlock *pinchBlock) {
-    stPinchSegment *pinchSegment = stPinchBlock_getFirst(pinchBlock);
-    return pinchSegment != NULL && (stPinchSegment_get3Prime(pinchSegment) == NULL || stPinchSegment_get5Prime(pinchSegment) == NULL);
 }
 
 static void trimAlignments(stPinchThreadSet *threadSet, int32_t blockEndTrim) {
@@ -116,7 +124,7 @@ void stCaf_melt(Flower *flower, stPinchThreadSet *threadSet, bool blockFilterfn(
 ///////////////////////////////////////////////////////////////////////////
 
 void stCaf_calculateRequiredFractionsOfSpecies(Flower *flower, float requiredIngroupFraction, float requiredOutgroupFraction,
-        float requiredAllFraction, int32_t *requiredOutgroupSpecies, int32_t *requiredIngroupSpecies, int32_t *requiredAllSpecies) {
+        float requiredAllFraction, int32_t *requiredIngroupSpecies,  int32_t *requiredOutgroupSpecies, int32_t *requiredAllSpecies) {
     if (requiredIngroupFraction <= 0.0 && requiredOutgroupFraction <= 0.0 && requiredAllFraction <= 0.0) {
         *requiredAllSpecies = 0;
         *requiredOutgroupSpecies = 0;
@@ -169,7 +177,7 @@ bool stCaf_containsRequiredSpecies(stPinchBlock *pinchBlock, Flower *flower, int
             + ingroupSequences >= requiredAllSpecies;
 }
 
-static bool stCaf_containsMultipleCopiesSpecies(stPinchBlock *pinchBlock, Flower *flower, bool(*acceptableEvent)(Event *)) {
+static bool stCaf_containsMultipleCopiesOfSpecies(stPinchBlock *pinchBlock, Flower *flower, bool(*acceptableEvent)(Event *)) {
     stPinchBlockIt segmentIt = stPinchBlock_getSegmentIterator(pinchBlock);
     stPinchSegment *segment;
     stHash *seen = stHash_construct();
@@ -192,7 +200,7 @@ static bool returnTrue(Event *event) {
 }
 
 bool stCaf_containsMultipleCopiesOfAnySpecies(stPinchBlock *pinchBlock, Flower *flower) {
-    return stCaf_containsMultipleCopiesSpecies(pinchBlock, flower, returnTrue);
+    return stCaf_containsMultipleCopiesOfSpecies(pinchBlock, flower, returnTrue);
 }
 
 static bool isIngroup(Event *event) {
@@ -200,11 +208,11 @@ static bool isIngroup(Event *event) {
 }
 
 bool stCaf_containsMultipleCopiesOfIngroupSpecies(stPinchBlock *pinchBlock, Flower *flower) {
-    return stCaf_containsMultipleCopiesSpecies(pinchBlock, flower, isIngroup);
+    return stCaf_containsMultipleCopiesOfSpecies(pinchBlock, flower, isIngroup);
 }
 
 bool stCaf_containsMultipleCopiesOfOutgroupSpecies(stPinchBlock *pinchBlock, Flower *flower) {
-    return stCaf_containsMultipleCopiesSpecies(pinchBlock, flower, event_isOutgroup);
+    return stCaf_containsMultipleCopiesOfSpecies(pinchBlock, flower, event_isOutgroup);
 }
 
 bool stCaf_treeCoverage(stPinchBlock *pinchBlock, Flower *flower) {

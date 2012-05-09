@@ -43,6 +43,7 @@ void stCaf_anneal(stPinchThreadSet *threadSet, stPinchIterator *pinchIterator);
  */
 void stCaf_annealBetweenAdjacencyComponents(stPinchThreadSet *threadSet, stPinchIterator *pinchIterator);
 
+
 ///////////////////////////////////////////////////////////////////////////
 // Melting fuctions -- removing alignments from the pinch graph
 ///////////////////////////////////////////////////////////////////////////
@@ -60,7 +61,7 @@ bool stCaf_containsRequiredSpecies(stPinchBlock *pinchBlock, Flower *flower, int
         int32_t requiredOutgroupSpecies, int32_t requiredAllSpecies);
 
 void stCaf_calculateRequiredFractionsOfSpecies(Flower *flower, float requiredIngroupFraction, float requiredOutgroupFraction,
-        float requiredAllFraction, int32_t *requiredOutgroupSpecies, int32_t *requiredIngroupSpecies, int32_t *requiredAllSpecies);
+        float requiredAllFraction, int32_t *requiredIngroupSpecies, int32_t *requiredOutgroupSpecies, int32_t *requiredAllSpecies);
 
 /*
  * Returns the proportion of the tree covered by the block.

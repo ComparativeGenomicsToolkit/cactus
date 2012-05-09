@@ -7,11 +7,15 @@
 #include "CuTest.h"
 #include "sonLib.h"
 
+CuSuite* annealingTestSuite(void);
 CuSuite* giantComponentTestSuite(void);
+CuSuite* pinchIteratorTestSuite(void);
 
 int cactusCoreRunAllTests(void) {
     CuString *output = CuStringNew();
     CuSuite* suite = CuSuiteNew();
+    CuSuiteAddSuite(suite, annealingTestSuite());
+    CuSuiteAddSuite(suite, pinchIteratorTestSuite());
     CuSuiteAddSuite(suite, giantComponentTestSuite());
 
     CuSuiteRun(suite);
