@@ -25,7 +25,7 @@ from cactus.shared.test import getCactusWorkflowExperimentForTest
 
 from jobTree.test.jobTree.jobTreeTest import runJobTreeStatusAndFailIfNotComplete
 
-"""Tests cactus_baseAligner. Requires the installation of cactusTools and mafTools.
+"""Tests cactus_bar. Requires the installation of cactusTools and mafTools.
 """
 
 class TestCase(unittest.TestCase):
@@ -130,7 +130,7 @@ class TestCase(unittest.TestCase):
     def testPosetAlignerAPI(self):
         """Run all the cactus base aligner CuTests, fail if any of them fail.
         """
-        system("cactus_baseAlignerTests %s" % getLogLevelString())
+        system("cactus_barTests %s" % getLogLevelString())
 
 def main():
     parseCactusSuiteTestOptions()

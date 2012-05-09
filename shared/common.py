@@ -88,13 +88,12 @@ def runCactusBatch(sequenceFiles, outputFile, jobTreeDir,
     system(command)
     logger.info("Ran the cactus_batch command okay")
             
-def runCactusCore(cactusDiskDatabaseString, alignments, 
+def runCactusCaf(cactusDiskDatabaseString, alignments, 
                   flowerNames=(0, 1),
                   logLevel=None, 
                   writeDebugFiles=False,
                   annealingRounds=None,
                   deannealingRounds=None,
-                  alignRepeatsAtRound=False,
                   trim=None,
                   minimumTreeCoverage=None,
                   blockTrim=None,
@@ -212,7 +211,7 @@ def runCactusMakeNormal(cactusDiskDatabaseString, flowerNames, maxNumberOfChains
     logLevel = getLogLevelString2(logLevel)
     popenPush("cactus_normalisation --cactusDisk '%s' --maxNumberOfChains %i --logLevel %s" % (cactusDiskDatabaseString, maxNumberOfChains, logLevel), stdinString=formatFlowerNames(flowerNames))
 
-def runCactusBaseAligner(cactusDiskDatabaseString, flowerNames, logLevel=None,
+def runCactusBar(cactusDiskDatabaseString, flowerNames, logLevel=None,
                          spanningTrees=None, maximumLength=None, 
                          gapGamma=None,
                          splitMatrixBiggerThanThis=None,
@@ -246,7 +245,7 @@ def runCactusBaseAligner(cactusDiskDatabaseString, flowerNames, logLevel=None,
     requiredOutgroupFraction = nameValue("requiredOutgroupFraction", requiredOutgroupFraction, float)
     requiredAllFraction = nameValue("requiredAllFraction", requiredAllFraction, float)
     
-    popenPush("cactus_baseAligner --cactusDisk '%s' --logLevel %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s" % 
+    popenPush("cactus_bar --cactusDisk '%s' --logLevel %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s" % 
            (cactusDiskDatabaseString, logLevel, spanningTrees, maximumLength, gapGamma, 
             splitMatrixBiggerThanThis, anchorMatrixBiggerThanThis, repeatMaskMatrixBiggerThanThis,
             constraintDiagonalTrim, minimumBlockDegree, alignAmbiguityCharacters, pruneOutStubAlignments,

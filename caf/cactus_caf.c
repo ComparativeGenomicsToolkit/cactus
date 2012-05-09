@@ -18,7 +18,7 @@
 #include "stLastzAlignments.h"
 #include "stGiantComponent.h"
 
-void usage() {
+static void usage() {
     fprintf(stderr, "cactus_caf, version 0.2\n");
     fprintf(stderr, "-a --logLevel : Set the log level\n");
     fprintf(stderr, "-b --alignments : The input alignments file\n");
@@ -67,7 +67,7 @@ void usage() {
     fprintf(stderr, "-x --constraints : A file of alignments that will enforced upon the cactus\n");
 }
 
-int32_t *getInts(const char *string, int32_t *arrayLength) {
+static int32_t *getInts(const char *string, int32_t *arrayLength) {
     int32_t *iA = st_malloc(sizeof(int32_t) * strlen(string));
     char *cA = stString_copy(string);
     char *cA2 = cA;
@@ -88,7 +88,7 @@ static float minimumTreeCoverage = 0.0;
 static int32_t minimumDegree = 0;
 static Flower *flower = NULL;
 
-bool blockFilterFn(stPinchBlock *pinchBlock) {
+static bool blockFilterFn(stPinchBlock *pinchBlock) {
     if (stPinchBlock_getDegree(pinchBlock) < minimumDegree) {
         return 1;
     }

@@ -42,13 +42,13 @@ from jobTree.scriptTree.target import Target
 from jobTree.scriptTree.stack import Stack 
 
 from cactus.shared.common import runCactusSetup
-from cactus.shared.common import runCactusCore
+from cactus.shared.common import runCactusCaf
 from cactus.shared.common import runCactusGetFlowers
 from cactus.shared.common import runCactusExtendFlowers
 from cactus.shared.common import runCactusConvertAlignmentToCactus
 from cactus.shared.common import runCactusPhylogeny
 from cactus.shared.common import runCactusAdjacencies
-from cactus.shared.common import runCactusBaseAligner
+from cactus.shared.common import runCactusBar
 from cactus.shared.common import runCactusMakeNormal 
 from cactus.shared.common import runCactusReference
 from cactus.shared.common import runCactusAddReferenceCoordinates
@@ -325,7 +325,7 @@ class CactusCafDown(CactusRecursionTarget):
                                               minSequenceSizeOfFlower=minSequenceSizeOfFlower, 
                                               maxSequenceSizeOfFlowerGrouping=maxSequenceSizeOfFlowerGrouping)
         makeTargets(self.cactusDiskDatabaseString, self.configNode, childFlowers, 
-                    parentTarget=self, target=CactusCoreWrapper1,
+                    parentTarget=self, target=CactusCafWrapper1,
                     overlargeTarget=CactusBlastWrapper)
        
 class CactusBlastWrapper(CactusRecursionTarget):
@@ -353,19 +353,18 @@ class CactusBlastWrapper(CactusRecursionTarget):
         logger.info("Created the cactus_aligner child target")
         
         #Now setup a call to cactus core wrapper as a follow on
-        self.setFollowOnTarget(CactusCoreWrapper2(self.cactusDiskDatabaseString, self.configNode, [ self.flowerNames, alignmentFile ]))
+        self.setFollowOnTarget(CactusCafWrapper2(self.cactusDiskDatabaseString, self.configNode, [ self.flowerNames, alignmentFile ]))
         logger.info("Setup the follow on cactus_core target")
 
-def runCactusCoreInWorkflow(self, flowerNames, alignmentFile, constraintsFile):
+def runCactusCafInWorkflow(self, flowerNames, alignmentFile, constraintsFile):
     blastParameters = self.configNode.find("blast")
     coreParameters = self.configNode.find("core")
-    messages = runCactusCore(cactusDiskDatabaseString=self.cactusDiskDatabaseString,
+    messages = runCactusCaf(cactusDiskDatabaseString=self.cactusDiskDatabaseString,
                       alignments=alignmentFile, 
                       flowerNames=flowerNames,
                       constraints=getOptionalAttrib(self.configNode, "constraints"),  
                       annealingRounds=getOptionalAttrib(coreParameters, "annealingRounds"),  
                       deannealingRounds=getOptionalAttrib(coreParameters, "deannealingRounds"),
-                      alignRepeatsAtRound=getOptionalAttrib(coreParameters, "alignRepeatsAtRound", float), 
                       trim=getOptionalAttrib(coreParameters, "trim"),
                       minimumTreeCoverage=getOptionalAttrib(coreParameters, "minimumTreeCoverage", float),
                       blockTrim=getOptionalAttrib(coreParameters, "blockTrim", float),
@@ -381,17 +380,17 @@ def runCactusCoreInWorkflow(self, flowerNames, alignmentFile, constraintsFile):
     for message in messages:
         self.logToMaster(message)
 
-class CactusCoreWrapper1(CactusRecursionTarget):
+class CactusCafWrapper1(CactusRecursionTarget):
     """Runs cactus_core upon a set of flowers and no alignment file.
     """
     def run(self):
-        runCactusCoreInWorkflow(self, self.flowerNames, None, None)
+        runCactusCafInWorkflow(self, self.flowerNames, None, None)
         
-class CactusCoreWrapper2(CactusRecursionTarget):
+class CactusCafWrapper2(CactusRecursionTarget):
     """Runs cactus_core upon a one flower and one alignment file.
     """
     def run(self):
-        runCactusCoreInWorkflow(self, self.flowerNames[0], self.flowerNames[1], None)
+        runCactusCafInWorkflow(self, self.flowerNames[0], self.flowerNames[1], None)
         
 ############################################################
 ############################################################
@@ -413,18 +412,18 @@ class CactusBarDown(CactusRecursionTarget):
         childFlowers = runCactusExtendFlowers(self.cactusDiskDatabaseString, self.flowerNames, 
                                               minSequenceSizeOfFlower=1, 
                                               maxSequenceSizeOfFlowerGrouping=maxSequenceSizeOfFlowerGrouping)
-        makeTargets(self.cactusDiskDatabaseString, baseNode, childFlowers, parentTarget=self, target=CactusBaseLevelAlignerWrapper, 
+        makeTargets(self.cactusDiskDatabaseString, baseNode, childFlowers, parentTarget=self, target=CactusBarWrapper, 
                     #cpu=getOptionalAttrib(self.configNode, "numThreads", int, default=sys.maxint),
                     overlargeCpu=getOptionalAttrib(self.configNode, "numThreads", int, default=sys.maxint))
 
-class CactusBaseLevelAlignerWrapper(CactusRecursionTarget):
-    """Runs cactus_baseAligner (the BAR algorithm implementation.
+class CactusBarWrapper(CactusRecursionTarget):
+    """Runs the BAR algorithm implementation.
     """
     def run(self):
         cpu = 1
         if self.getCpu() != sys.maxint:
             cpu = sys.maxint
-        runCactusBaseAligner(cactusDiskDatabaseString=self.cactusDiskDatabaseString, 
+        runCactusBar(cactusDiskDatabaseString=self.cactusDiskDatabaseString, 
                              flowerNames=self.flowerNames, 
                              maximumLength=getOptionalAttrib(self.configNode, "bandingLimit", float),
                              spanningTrees=getOptionalAttrib(self.configNode, "spanningTrees", int), 
