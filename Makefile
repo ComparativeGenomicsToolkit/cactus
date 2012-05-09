@@ -1,5 +1,5 @@
 # order is important, libraries first
-modules = externalTools api stPinchGraphs stCactusGraphs pinchGraphs blastAlignment stCaf core setup baseAlignment normalisation reference phylogeny faces check pipeline progressive preprocessor hal
+modules = externalTools api stPinchGraphs stCactusGraphs blastAlignment stCaf setup baseAlignment normalisation reference phylogeny faces check pipeline progressive preprocessor hal
 
 .PHONY: all %.all clean %.clean
 
