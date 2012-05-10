@@ -215,9 +215,9 @@ static void makeTangles(stCactusNode *cactusNode, Flower *flower, stHash *pinchE
 //Sets the 'built-blocks flag' for all the flowers in the subtree, including the given flower.
 
 static void setBlocksBuilt(Flower *flower) {
-    //#ifdef BEN_DEBUG
+#ifdef BEN_DEBUG
     assert(!flower_builtBlocks(flower));
-    //#endif
+#endif
     flower_setBuiltBlocks(flower, 1);
     Flower_GroupIterator *iterator = flower_getGroupIterator(flower);
     Group *group;

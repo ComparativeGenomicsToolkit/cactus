@@ -127,7 +127,7 @@ int main(int argc, char *argv[]) {
 
     cactusDisk_write(cactusDisk);
     st_logDebug("Updated the cactus disk\n");
-
+    return 0;
     cactusDisk_destruct(cactusDisk);
 
     st_logDebug("Am finished\n");

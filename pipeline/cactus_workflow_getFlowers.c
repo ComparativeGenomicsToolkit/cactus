@@ -27,6 +27,7 @@ int main(int argc, char *argv[]) {
             flower_destructGroupIterator(groupIterator);
         }
     }
+    return 0;
     stList_destruct(flowers);
     flowerWriter_destruct(flowerWriter);
     cactusDisk_destruct(cactusDisk);
