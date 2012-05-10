@@ -145,7 +145,7 @@ int main(int argc, char *argv[]) {
     // Get the set of flowers to manipulate
     ///////////////////////////////////////////////////////////////////////////
 
-    stList *flowers = parseFlowersFromStdin(cactusDisk);
+    stList *flowers = cactusMisc_parseFlowersFromStdin(cactusDisk);
 
     ///////////////////////////////////////////////////////////////////////////
     // Now process each flower in turn.

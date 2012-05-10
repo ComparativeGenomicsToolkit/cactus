@@ -40,9 +40,10 @@ static int compareFlowersByName(const void *a, const void *b) {
     return cactusMisc_nameCompare(((FlowerNameAndSize *)a)->flowerName, ((FlowerNameAndSize *)b)->flowerName);
 }
 
-static void writeFlowers(FILE *fileHandle, Name firstFlowerName, Name lastFlowerName, int64_t totalSize) {
-    fprintf(fileHandle, "%" PRIi64 " %" PRIi64 " %" PRIi64 "\n",
-        firstFlowerName, lastFlowerName - firstFlowerName + 1, totalSize);
+static void printFlowers(FlowerWriter *flowerWriter, stList *stack, int64_t totalSize) {
+    fprintf(stdout, "%i", totalSize > flowerWriter->maxFlowerGroupSize);
+    cactusMisc_encodeFlowersString(stack, stdout);
+    fprintf(stdout, "\n");
 }
 
 static void flowerWriter_flush(FlowerWriter *flowerWriter) {
@@ -51,24 +52,28 @@ static void flowerWriter_flush(FlowerWriter *flowerWriter) {
     }
     stList_sort(flowerWriter->flowerNamesAndSizes, compareFlowersByName);
     FlowerNameAndSize *flowerNameAndSize = stList_get(flowerWriter->flowerNamesAndSizes, 0);
-    Name firstFlowerName = flowerNameAndSize->flowerName;
-    Name lastFlowerName = firstFlowerName;
     int64_t totalSize = flowerNameAndSize->flowerSize;
-    for (int32_t i = 1; i < stList_length(flowerWriter->flowerNamesAndSizes); i++) {
+    stList *stack = stList_construct();
+    stList_append(stack, &flowerNameAndSize->flowerName);
+    for(int32_t i=1; i<stList_length(flowerWriter->flowerNamesAndSizes); i++) {
         flowerNameAndSize = stList_get(flowerWriter->flowerNamesAndSizes, i);
-        assert(flowerNameAndSize->flowerName - lastFlowerName >= 1);
-        if (flowerNameAndSize->flowerName - lastFlowerName > 1 ||
-            flowerNameAndSize->flowerSize + totalSize > flowerWriter->maxFlowerGroupSize) {
-            writeFlowers(flowerWriter->fileHandle, firstFlowerName, lastFlowerName, totalSize);
-            firstFlowerName = flowerNameAndSize->flowerName;
-            lastFlowerName = firstFlowerName;
+        if (flowerNameAndSize->flowerSize + totalSize > flowerWriter->maxFlowerGroupSize  || stList_length(stack) > 5000) {
+            printFlowers(flowerWriter, stack, totalSize);
+            while(stList_length(stack) > 0) {
+                stList_pop(stack);
+            }
             totalSize = flowerNameAndSize->flowerSize;
-        } else {
+            stList_append(stack, &flowerNameAndSize->flowerName);
+        }
+        else {
             totalSize += flowerNameAndSize->flowerSize;
-            lastFlowerName = flowerNameAndSize->flowerName;
+            stList_append(stack, &flowerNameAndSize->flowerName);
         }
     }
-    writeFlowers(flowerWriter->fileHandle, firstFlowerName, lastFlowerName, totalSize);
+    if(stList_length(stack) > 0) {
+        printFlowers(flowerWriter, stack, totalSize);
+    }
+    stList_destruct(stack);
 }
 
 void flowerWriter_destruct(FlowerWriter *flowerWriter) {

@@ -8,7 +8,7 @@
 
 int main(int argc, char *argv[]) {
     parseArgs(argc, argv);
-    stList *flowers = parseFlowersFromStdin(cactusDisk);
+    stList *flowers = cactusMisc_parseFlowersFromStdin(cactusDisk);
     //stList *flowers = parseFlowers(argv + 6, argc - 6, cactusDisk);
     for (int32_t i = 0; i < stList_length(flowers); i++) {
         Flower *flower = stList_get(flowers, i);
@@ -19,7 +19,7 @@ int main(int argc, char *argv[]) {
             while ((group = flower_getNextGroup(groupIterator)) != NULL) {
                 if (!group_isLeaf(group)) {
                     int64_t flowerSize = group_getTotalBaseLength(group);
-                    if(flowerSize <= maxFlowerSize && flowerSize >= minFlowerSize) {
+                    if(flowerSize >= minFlowerSize) {
                         flowerWriter_add(flowerWriter, group_getName(group), flowerSize);
                     }
                 }
@@ -27,9 +27,9 @@ int main(int argc, char *argv[]) {
             flower_destructGroupIterator(groupIterator);
         }
     }
-    return 0;
-    stList_destruct(flowers);
     flowerWriter_destruct(flowerWriter);
+    return 0; //Avoid cleanup
+    stList_destruct(flowers);
     cactusDisk_destruct(cactusDisk);
     st_logDebug("Am finished\n");
     return 0;

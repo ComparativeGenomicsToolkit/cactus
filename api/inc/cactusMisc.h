@@ -63,15 +63,19 @@ const char *cactusMisc_nameToStringStaticWithOrientiation(Name name, int32_t ori
 const char *cactusMisc_getDefaultReferenceEventHeader();
 
 /*
- * Parses the list of flowers into memory, returning a list of flowers. The format of the flower names
- * string is [ flowerName (name), n (int) ] x N, where flowerName is the first flower name is a sequence of n contiguous flower names.
+ * Encodes a list of flower names and prints the encoding to the file.
  */
-//stList *parseFlowers(char **flowerNames, int32_t flowerNamesLength, CactusDisk *cactusDisk);
+void cactusMisc_encodeFlowersString(stList *flowerNames, FILE *fileHandle);
+
+/*
+ * Decodes a list of flower names and returns them from the filehandle.
+ */
+stList *cactusMisc_decodeFlowersString(CactusDisk *cactusDisk, FILE *fileHandle);
 
 /*
  *  As parseFlowers, but reads the list from stdin.
  */
-stList *parseFlowersFromStdin(CactusDisk *cactusDisk);
+stList *cactusMisc_parseFlowersFromStdin(CactusDisk *cactusDisk);
 
 /*
  * Use a bulk get to efficiently precache the nested flowers of a set of parent flowers.

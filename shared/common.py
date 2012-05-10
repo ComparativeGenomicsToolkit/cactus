@@ -33,8 +33,52 @@ def getLogLevelString2(logLevelString):
         return getLogLevelString()
     return logLevelString
 
-def formatFlowerNames(flowerNames):
-    return "%i %s" % (len(flowerNames), " ".join([ str(i) for i in flowerNames ]))
+#############################################
+#############################################
+#Following used to gather the names of flowers
+#in problems
+#############################################
+#############################################  
+
+def readFlowerNames(flowerStrings): 
+    return [ (bool(int(line[0])), line[1:]) for line in flowerStrings.split("\n") if line != '' ]
+
+def encodeFlowerNames(flowerNames):
+    if len(flowerNames) == 0:
+        return "0"
+    return "%i %s %s" % (len(flowerNames), flowerNames[0], " ".join([ str(flowerNames[i] - flowerNames[i-1]) for i in xrange(1, len(flowerNames)) ]))
+
+def decodeFlowerNames(encodedFlowerNames):
+    flowerNames = [ int(flowerName) for flowerName in encodedFlowerNames.split()[1:] ]
+    for i in xrange(1, len(flowerNames)):
+        flowerNames[i] += flowerNames[i-1]
+    return flowerNames
+    
+def runCactusGetFlowers(cactusDiskDatabaseString, flowerNames, 
+                        minSequenceSizeOfFlower=1,
+                        maxSequenceSizeOfFlowerGrouping=-1, logLevel=None):
+    """Gets a list of flowers attached to the given flower. 
+    """
+    logLevel = getLogLevelString2(logLevel)
+    flowerStrings = popenCatch("cactus_workflow_getFlowers %s '%s' %i %i" % \
+                               (logLevel, cactusDiskDatabaseString, int(minSequenceSizeOfFlower), 
+                                int(maxSequenceSizeOfFlowerGrouping)), stdinString=flowerNames)
+    l = readFlowerNames(flowerStrings)
+    return l
+
+def runCactusExtendFlowers(cactusDiskDatabaseString, flowerNames, 
+                        minSequenceSizeOfFlower=1,
+                        maxSequenceSizeOfFlowerGrouping=-1, logLevel=None):
+    """Extends the terminal groups in the cactus and returns the list
+    of their child flowers with which to pass to core.
+    The order of the flowers is by ascending depth first discovery time.
+    """
+    logLevel = getLogLevelString2(logLevel)
+    flowerStrings = popenCatch("cactus_workflow_extendFlowers %s '%s' %i %i" % \
+                               (logLevel, cactusDiskDatabaseString, int(minSequenceSizeOfFlower), \
+                                int(maxSequenceSizeOfFlowerGrouping)), stdinString=flowerNames)
+    l = readFlowerNames(flowerStrings)
+    return l
 
 #############################################
 #############################################
@@ -89,7 +133,7 @@ def runCactusBatch(sequenceFiles, outputFile, jobTreeDir,
     logger.info("Ran the cactus_batch command okay")
             
 def runCactusCaf(cactusDiskDatabaseString, alignments, 
-                  flowerNames=(0, 1),
+                  flowerNames=encodeFlowerNames((0,)),
                   logLevel=None, 
                   writeDebugFiles=False,
                   annealingRounds=None,
@@ -131,64 +175,25 @@ def runCactusCaf(cactusDiskDatabaseString, alignments,
      trim, minimumTreeCoverage, blockTrim, 
      minimumBlockDegree, requiredIngroupFraction, requiredOutgroupFraction, requiredAllFraction, 
      singleCopyIngroup, singleCopyOutgroup, lastzArguments, minimumSequenceLengthForBlast, maxAdjacencyComponentSizeRatio, constraints)
-    masterMessages = popenCatch(command, stdinString=formatFlowerNames(flowerNames))
+    masterMessages = popenCatch(command, stdinString=flowerNames)
     logger.info("Ran cactus_core okay")
     return [ i for i in masterMessages.split("\n") if i != '' ]
     
 def runCactusPhylogeny(cactusDiskDatabaseString,
-                  flowerNames=(0, 1),
+                  flowerNames=encodeFlowerNames((0,)),
                   logLevel=None):
     logLevel = getLogLevelString2(logLevel)
     command = "cactus_phylogeny --cactusDisk '%s' --logLevel %s" % \
     (cactusDiskDatabaseString, logLevel)
-    popenPush(command, stdinString=formatFlowerNames(flowerNames))
+    popenPush(command, stdinString=flowerNames)
     logger.info("Ran cactus_phylogeny okay")
     
-def runCactusAdjacencies(cactusDiskDatabaseString, flowerNames=(0, 1), logLevel=None):
+def runCactusAdjacencies(cactusDiskDatabaseString, flowerNames=encodeFlowerNames((0,)), logLevel=None):
     logLevel = getLogLevelString2(logLevel)
     command = "cactus_fillAdjacencies --cactusDisk '%s' --logLevel %s" %\
     (cactusDiskDatabaseString, logLevel)
-    popenPush(command, stdinString=formatFlowerNames(flowerNames))
+    popenPush(command, stdinString=flowerNames)
     logger.info("Ran cactus_fillAdjacencies OK")
-    
-def readFlowerNamesFile(flowerStrings):
-    l = []    
-    for line in flowerStrings.split("\n"):
-        if line != '':
-            line = line.split()
-            firstFlowerName = int(line[0])
-            totalFlowers = int(line[1])
-            totalFlowerSizes = int(line[2])
-            l.append((totalFlowerSizes, firstFlowerName, totalFlowers))
-    #l.sort()
-    #l.reverse()
-    return l
-    
-def runCactusGetFlowers(cactusDiskDatabaseString, flowerNames, 
-                        minSequenceSizeOfFlower=1,
-                        maxSequenceSizeOfFlowerGrouping=-1, logLevel=None):
-    """Gets a list of flowers attached to the given flower. 
-    """
-    logLevel = getLogLevelString2(logLevel)
-    flowerStrings = popenCatch("cactus_workflow_getFlowers %s '%s' %i %i %i" % \
-                               (logLevel, cactusDiskDatabaseString, int(minSequenceSizeOfFlower), -1, 
-                                int(maxSequenceSizeOfFlowerGrouping)), stdinString=formatFlowerNames(flowerNames))
-    l = readFlowerNamesFile(flowerStrings)
-    return l
-
-def runCactusExtendFlowers(cactusDiskDatabaseString, flowerNames, 
-                        minSequenceSizeOfFlower=1,
-                        maxSequenceSizeOfFlowerGrouping=-1, logLevel=None):
-    """Extends the terminal groups in the cactus and returns the list
-    of their child flowers with which to pass to core.
-    The order of the flowers is by ascending depth first discovery time.
-    """
-    logLevel = getLogLevelString2(logLevel)
-    flowerStrings = popenCatch("cactus_workflow_extendFlowers %s '%s' %i %i %i" % \
-                               (logLevel, cactusDiskDatabaseString, int(minSequenceSizeOfFlower), \
-                                -1, int(maxSequenceSizeOfFlowerGrouping)), stdinString=formatFlowerNames(flowerNames))
-    l = readFlowerNamesFile(flowerStrings)
-    return l
 
 def runCactusConvertAlignmentToCactus(cactusDiskDatabaseString, constraintsFile, newConstraintsFile, logLevel=None):
     """Takes a cigar file and makes an equivalent cigar file using the internal coordinate system format of cactus.
@@ -209,7 +214,7 @@ def runCactusMakeNormal(cactusDiskDatabaseString, flowerNames, maxNumberOfChains
     """Makes the given flowers normal (see normalisation for the various phases)
     """
     logLevel = getLogLevelString2(logLevel)
-    popenPush("cactus_normalisation --cactusDisk '%s' --maxNumberOfChains %i --logLevel %s" % (cactusDiskDatabaseString, maxNumberOfChains, logLevel), stdinString=formatFlowerNames(flowerNames))
+    popenPush("cactus_normalisation --cactusDisk '%s' --maxNumberOfChains %i --logLevel %s" % (cactusDiskDatabaseString, maxNumberOfChains, logLevel), stdinString=flowerNames)
 
 def runCactusBar(cactusDiskDatabaseString, flowerNames, logLevel=None,
                          spanningTrees=None, maximumLength=None, 
@@ -249,7 +254,7 @@ def runCactusBar(cactusDiskDatabaseString, flowerNames, logLevel=None,
            (cactusDiskDatabaseString, logLevel, spanningTrees, maximumLength, gapGamma, 
             splitMatrixBiggerThanThis, anchorMatrixBiggerThanThis, repeatMaskMatrixBiggerThanThis,
             constraintDiagonalTrim, minimumBlockDegree, alignAmbiguityCharacters, pruneOutStubAlignments,
-            numThreads, requiredIngroupFraction, requiredOutgroupFraction, requiredAllFraction, diagonalExpansion), stdinString=formatFlowerNames(flowerNames))
+            numThreads, requiredIngroupFraction, requiredOutgroupFraction, requiredAllFraction, diagonalExpansion), stdinString=flowerNames)
     
 def runCactusReference(cactusDiskDatabaseString, flowerNames, logLevel=None,
                        matchingAlgorithm=None, 
@@ -268,7 +273,7 @@ def runCactusReference(cactusDiskDatabaseString, flowerNames, logLevel=None,
     theta = nameValue("theta", theta, float)
     maxNumberOfChainsBeforeSwitchingToFast = nameValue("maxNumberOfChainsBeforeSwitchingToFast", maxNumberOfChainsBeforeSwitchingToFast, int)
     command = "cactus_reference --cactusDisk '%s' --logLevel %s %s %s %s %s %s" % (cactusDiskDatabaseString, logLevel, matchingAlgorithm, referenceEventString, permutations, useSimulatedAnnealing, theta)
-    popenPush(command, stdinString=formatFlowerNames(flowerNames))
+    popenPush(command, stdinString=flowerNames)
     
 def runCactusAddReferenceCoordinates(cactusDiskDatabaseString, flowerNames, logLevel=None, referenceEventString=None, outgroupEventString=None, bottomUpPhase=None):   
     logLevel = getLogLevelString2(logLevel)
@@ -276,17 +281,17 @@ def runCactusAddReferenceCoordinates(cactusDiskDatabaseString, flowerNames, logL
     referenceEventString = nameValue("referenceEventString", referenceEventString)
     outgroupEventString = nameValue("outgroupEventString", outgroupEventString)
     command = "cactus_addReferenceCoordinates --cactusDisk '%s' --logLevel %s %s %s %s" % (cactusDiskDatabaseString, logLevel, referenceEventString, outgroupEventString, bottomUpPhase)
-    popenPush(command, stdinString=formatFlowerNames(flowerNames))
+    popenPush(command, stdinString=flowerNames)
 
 def runCactusCheck(cactusDiskDatabaseString, 
-                    flowerNames=(0, 1), 
+                    flowerNames=encodeFlowerNames((0,)), 
                     logLevel=None, 
                     recursive=None,
                     checkNormalised=None):
     logLevel = getLogLevelString2(logLevel)
     recursive = nameValue("recursive", recursive, bool)
     checkNormalised = nameValue("checkNormalised", checkNormalised, bool)
-    popenPush("cactus_check --cactusDisk '%s' --logLevel %s %s %s"  % (cactusDiskDatabaseString, logLevel, recursive, checkNormalised), stdinString=formatFlowerNames(flowerNames))
+    popenPush("cactus_check --cactusDisk '%s' --logLevel %s %s %s"  % (cactusDiskDatabaseString, logLevel, recursive, checkNormalised), stdinString=flowerNames)
     logger.info("Ran cactus check")
     
 def _fn(jobTreeDir, 
@@ -389,5 +394,5 @@ def runCactusHalGenerator(cactusDiskDatabaseString,
             nameValue("maf", makeMaf, bool),
             nameValue("showOnlySubstitutionsWithRespectToReference", 
                       showOnlySubstitutionsWithRespectToReference, bool)), 
-              stdinString=formatFlowerNames(flowerNames))
+              stdinString=flowerNames)
     

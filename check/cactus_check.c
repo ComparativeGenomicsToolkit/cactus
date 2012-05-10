@@ -270,7 +270,7 @@ int main(int argc, char *argv[]) {
     cactusDisk = cactusDisk_construct(kvDatabaseConf, 0);
     st_logInfo("Set up the flower disk\n");
 
-    stList *flowers = parseFlowersFromStdin(cactusDisk);
+    stList *flowers = cactusMisc_parseFlowersFromStdin(cactusDisk);
     for(int32_t j = 0; j < stList_length(flowers); j++) {
         Flower *flower = stList_get(flowers, j);
         st_logInfo("Processing a flower\n");

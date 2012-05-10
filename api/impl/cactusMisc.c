@@ -6,6 +6,7 @@
 
 #include "cactusGlobalsPrivate.h"
 #include <ctype.h>
+#include <stdio.h>
 
 ////////////////////////////////////////////////
 ////////////////////////////////////////////////
@@ -98,8 +99,7 @@ Name cactusMisc_stringToName(const char *stringName) {
     Name name;
     int32_t i = sscanf(stringName, NAME_STRING, &name);
     if (i != 1) {
-        fprintf(stderr, "Can not get a valid name from the given string: %s\n",
-                stringName);
+        fprintf(stderr, "Can not get a valid name from the given string: %s\n", stringName);
         return NULL_NAME;
     }
     return name;
@@ -143,48 +143,55 @@ void preCacheNestedFlowers(CactusDisk *cactusDisk, stList *flowers) {
     stList_destruct(nestedFlowerNames);
 }
 
-stList *parseFlowersFromStdin(CactusDisk *cactusDisk) {
-    int32_t flowerArgumentNumber;
-    scanf("%i", &flowerArgumentNumber);
-    stList *flowerNamesList = stList_construct3(0, free);
-    for (int32_t i = 0; i < flowerArgumentNumber; i += 2) {
-        Name firstFlowerName;
-        int32_t j = scanf(NAME_STRING, &firstFlowerName);
-        assert(j == 1);
-        int32_t flowerNumber;
-        j = scanf("%i", &flowerNumber);
-        assert(j == 1);
-        assert(flowerNumber >= 1);
-        for (j = 0; j < flowerNumber; j++) {
-            int64_t *iA = st_malloc(sizeof(int64_t));
-            iA[0] = firstFlowerName + j;
-            //cactusDisk_getFlower(cactusDisk, iA[0]);
-            stList_append(flowerNamesList, iA);
+static void printName(FILE *fileHandle, Name name) {
+    fprintf(fileHandle, NAME_STRING " ", name);
+}
+
+void cactusMisc_encodeFlowersString(stList *flowerNames, FILE *fileHandle) {
+    int32_t flowerArgumentNumber = stList_length(flowerNames);
+    fprintf(fileHandle, "%i ", flowerArgumentNumber);
+    if (stList_length(flowerNames) > 0) {
+        Name name = *((Name *) stList_get(flowerNames, 0));
+        printName(fileHandle, name);
+        for (int32_t i = 1; i < stList_length(flowerNames); i++) {
+            Name nName = *((Name *) stList_get(flowerNames, i));
+            printName(fileHandle, nName - name);
+            name = nName;
         }
+    }
+}
+
+static Name getName(FILE *fileHandle) {
+    Name name;
+    int32_t j = fscanf(fileHandle, NAME_STRING, &name);
+    assert(j == 1);
+    return name;
+}
+
+static void addName(stList *flowerNamesList, Name name) {
+    int64_t *iA = st_malloc(sizeof(int64_t));
+    iA[0] = name;
+    stList_append(flowerNamesList, iA);
+}
+
+stList *cactusMisc_decodeFlowersString(CactusDisk *cactusDisk, FILE *fileHandle) {
+    int32_t flowerArgumentNumber;
+    int32_t j = fscanf(fileHandle, "%i", &flowerArgumentNumber);
+    assert(j == 1);
+    stList *flowerNamesList = stList_construct3(0, free);
+    Name name = getName(fileHandle);
+    addName(flowerNamesList, name);
+    for (int32_t i = 1; i < flowerArgumentNumber; i++) {
+        Name nName = getName(fileHandle) + name;
+        addName(flowerNamesList, nName);
+        name = nName;
     }
     stList *flowers = cactusDisk_getFlowers(cactusDisk, flowerNamesList);
     stList_destruct(flowerNamesList);
     return flowers;
 }
 
-/*stList *parseFlowers(char **flowerNames, int32_t flowerNamesLength, CactusDisk *cactusDisk) {
- stList *flowerNamesList = stList_construct3(0, free);
- assert(flowerNamesLength % 2 == 0);
- for (int32_t i = 0; i < flowerNamesLength; i += 2) {
- Name firstFlowerName = cactusMisc_stringToName(flowerNames[i]);
- int32_t flowerNumber;
- int32_t j = sscanf(flowerNames[i + 1], "%i", &flowerNumber);
- assert(j == 1);
- assert(flowerNumber >= 1);
- for (j = 0; j < flowerNumber; j++) {
- int64_t *iA = st_malloc(sizeof(int64_t));
- iA[0] = firstFlowerName + j;
- //cactusDisk_getFlower(cactusDisk, iA[0]);
- stList_append(flowerNamesList, iA);
- }
- }
- stList *flowers = cactusDisk_getFlowers(cactusDisk, flowerNamesList);
- stList_destruct(flowerNamesList);
- return flowers;
- }*/
+stList *cactusMisc_parseFlowersFromStdin(CactusDisk *cactusDisk) {
+    return cactusMisc_decodeFlowersString(cactusDisk, stdin);
+}
 

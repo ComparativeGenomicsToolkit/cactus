@@ -8,7 +8,6 @@
 #include "flowerWriter.h"
 
 int64_t minFlowerSize;
-int64_t maxFlowerSize;
 FlowerWriter *flowerWriter;
 CactusDisk *cactusDisk;
 
@@ -17,7 +16,7 @@ void parseArgs(int argc, char *argv[]) {
      * This code iterates through the terminal groups and returns
      * a list of the new flowers.
      */
-    assert(argc >= 6);
+    assert(argc >= 5);
 
     st_setLogLevelFromString(argv[1]);
     st_logDebug("Set up logging\n");
@@ -32,16 +31,8 @@ void parseArgs(int argc, char *argv[]) {
     st_logDebug("Min flower size %lli\n", minFlowerSize);
     assert(minFlowerSize >= 0);
 
-    i = sscanf(argv[4], "%" PRId64 "", &maxFlowerSize);
-    assert(i == 1); //We should parse one in correctly.
-    if(maxFlowerSize == -1) {
-        maxFlowerSize = INT64_MAX;
-    }
-    st_logDebug("Max flower size %lli\n", maxFlowerSize);
-    assert(maxFlowerSize >= 0);
-
     int64_t maxSequenceSizeOfFlowerGrouping;
-    i = sscanf(argv[5], "%" PRId64 "", &maxSequenceSizeOfFlowerGrouping);
+    i = sscanf(argv[4], "%" PRId64 "", &maxSequenceSizeOfFlowerGrouping);
     assert(i == 1); //We should parse one in correctly.
     if(maxSequenceSizeOfFlowerGrouping == -1) {
         maxSequenceSizeOfFlowerGrouping = INT64_MAX;

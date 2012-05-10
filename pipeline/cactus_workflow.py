@@ -7,18 +7,7 @@
 
 """Script strings together all the components to make the basic pipeline for reconstruction.
 
-The script uses the the jobTree.scriptTree target framework so structure all the related wrappers.
-
-There are four high level wrappers, a SetupPhase, DownPassPhase, UpPassPhase, VerificationPahse. 
-
-In the setup phase the system sets up the files needed for the reconstruction problem.
-
-In the down pass phase alignments and trees are built.
-
-In the up pass phase the adjacencies are added.
-
-In the verification phase the reconstruction tree is checked against the expected spec.
-
+The script uses the the jobTree.scriptTree target framework to structure all the related wrappers.
 """
 
 import os
@@ -45,6 +34,8 @@ from cactus.shared.common import runCactusSetup
 from cactus.shared.common import runCactusCaf
 from cactus.shared.common import runCactusGetFlowers
 from cactus.shared.common import runCactusExtendFlowers
+from cactus.shared.common import encodeFlowerNames
+from cactus.shared.common import decodeFlowerNames
 from cactus.shared.common import runCactusConvertAlignmentToCactus
 from cactus.shared.common import runCactusPhylogeny
 from cactus.shared.common import runCactusAdjacencies
@@ -222,11 +213,11 @@ class CactusAlignmentPhase(CactusPhasesTarget):
                     runCactusConvertAlignmentToCactus(self.options.cactusDiskDatabaseString,
                     self.options.experimentFile.attrib["constraints"], newConstraintsFile)
                 self.addChildTarget(CactusCafDown(self.options.cactusDiskDatabaseString, configNode, 
-                                                  [ self.flowerName, 1 ]))
+                                                  encodeFlowerNames((self.flowerName,))))
             else:
                 assert configNode.attrib["type"] == "base"
                 self.addChildTarget(CactusBarDown(self.options.cactusDiskDatabaseString, configNode, 
-                                                  [ self.flowerName, 1 ]))
+                                                  encodeFlowerNames((self.flowerName,))))
             self.setFollowOnTarget(CactusAlignmentPhase(self.options, self.flowerName, self.iteration+1))
         else:
             self.setFollowOnTarget(CactusNormalPhase(self.options, self.flowerName))
@@ -249,9 +240,7 @@ class CactusRecursionTarget(Target):
         Target.__init__(self, memory=memory, cpu=cpu)
         self.cactusDiskDatabaseString = cactusDiskDatabaseString
         self.configNode = configNode
-        self.flowerNames = flowerNames
-  
-MAX_SEQUENCE_SIZE_OF_FLOWER_GROUPING=1000000        
+        self.flowerNames = flowerNames    
 
 def makeTargets(cactusDiskDatabaseString, configNode, flowersAndSizes, 
                 parentTarget, target, overlargeTarget=None, 
@@ -259,48 +248,23 @@ def makeTargets(cactusDiskDatabaseString, configNode, flowersAndSizes,
                 overlargeMemory=sys.maxint, overlargeCpu=sys.maxint):
     """Make a set of targets for a given set of flowers.
     """
-    flowerNames = []
-    totalSequenceSize = 0.0
-    maxSequenceSizeOfFlowerGrouping=getOptionalAttrib(configNode, "maxFlowerGroupSize", int, default=MAX_SEQUENCE_SIZE_OF_FLOWER_GROUPING)
-    flowerGrouping = []
     if overlargeTarget == None:
         overlargeTarget = target
-    for totalFlowerSize, firstFlowerName, flowerNumber in flowersAndSizes:
-        if totalFlowerSize > maxSequenceSizeOfFlowerGrouping: #Make sure large flowers are on there own, in their own job
-            assert flowerNumber == 1
-            flowerStatsString = runCactusFlowerStats(cactusDiskDatabaseString, firstFlowerName)
-            parentTarget.logToMaster("Adding an oversize flower: %s on its own, with %s bases for target class %s and stats %s" \
-                                     % (firstFlowerName, totalFlowerSize, target, flowerStatsString))
+    for overlarge, flowerNames in flowersAndSizes:
+        if overlarge: #Make sure large flowers are on there own, in their own job
+            flowerStatsString = runCactusFlowerStats(cactusDiskDatabaseString, decodeFlowerNames(flowerNames)[0])
+            parentTarget.logToMaster("Adding an oversize flower for target class %s and stats %s" \
+                                     % (target, flowerStatsString))
             parentTarget.addChildTarget(overlargeTarget(cactusDiskDatabaseString=cactusDiskDatabaseString, 
                                                         configNode=configNode, 
-                                                        flowerNames=[ firstFlowerName, 1 ], memory=overlargeCpu, cpu=overlargeCpu)) #This ensures overlarge flowers, 
-            #an in cactus core, get diverted and run on their own.
+                                                        flowerNames=flowerNames, memory=overlargeMemory, cpu=overlargeCpu)) #This ensures overlarge flowers, 
         else:
-            totalSequenceSize += totalFlowerSize
-            flowerNames.append(firstFlowerName)
-            flowerNames.append(flowerNumber)
-            if totalSequenceSize >= maxSequenceSizeOfFlowerGrouping: 
-                flowerGrouping.append(flowerNames)
-                flowerNames = []
-                totalSequenceSize = 0.0
-    if len(flowerNames) > 0:
-        assert totalSequenceSize < maxSequenceSizeOfFlowerGrouping
-        if len(flowerGrouping) > 0: #Avoid small targets if multiple targets exist by adding remaining targets jobs
-            k = 0
-            l = len(flowerGrouping)
-            while len(flowerNames) > 0:
-                i = flowerNames.pop()
-                j = flowerNames.pop()
-                flowerGrouping[k % l].append(j)
-                flowerGrouping[k % l].append(i)
-                k += 1
-        else:
-            flowerGrouping.append(flowerNames)
-    for flowerNames in flowerGrouping:
-        parentTarget.addChildTarget(target(cactusDiskDatabaseString=cactusDiskDatabaseString, 
+            parentTarget.addChildTarget(target(cactusDiskDatabaseString=cactusDiskDatabaseString, 
                                            configNode=configNode, 
                                            flowerNames=flowerNames, 
                                            memory=memory, cpu=cpu))
+            
+MAX_SEQUENCE_SIZE_OF_FLOWER_GROUPING=1000000    
      
 def makeChildTargets(cactusDiskDatabaseString, configNode, flowerNames, target, childTarget):
     """Make a set of child targets for a given set of parent flowers.
@@ -339,16 +303,16 @@ class CactusBlastWrapper(CactusRecursionTarget):
         
         #Now make the child aligner target
         blastNode = self.configNode.find("blast")
+        flowerNames = decodeFlowerNames(self.flowerNames)
+        assert len(flowerNames) == 1
         blastOptions = \
         makeBlastFromOptions(MakeBlastOptions(chunkSize=getOptionalAttrib(blastNode, "chunkSize", int),
                                               overlapSize=getOptionalAttrib(blastNode, "overlapSize", int),
                                               lastzArguments=getOptionalAttrib(blastNode, "lastzArguments"),
                                               chunksPerJob=getOptionalAttrib(blastNode, "chunksPerJob", int),
                                               compressFiles=getOptionalAttrib(blastNode, "compressFiles", bool)))
-        assert len(self.flowerNames) == 2
-        assert self.flowerNames[1] == 1
         self.addChildTarget(MakeSequences(self.cactusDiskDatabaseString, 
-                                          self.flowerNames[0], alignmentFile, blastOptions=blastOptions,
+                                          flowerNames[0], alignmentFile, blastOptions=blastOptions,
                                           minimumSequenceLength=getOptionalAttrib(blastNode, "minimumSequenceLengthForBlast", int, 1)))
         logger.info("Created the cactus_aligner child target")
         
@@ -413,7 +377,6 @@ class CactusBarDown(CactusRecursionTarget):
                                               minSequenceSizeOfFlower=1, 
                                               maxSequenceSizeOfFlowerGrouping=maxSequenceSizeOfFlowerGrouping)
         makeTargets(self.cactusDiskDatabaseString, baseNode, childFlowers, parentTarget=self, target=CactusBarWrapper, 
-                    #cpu=getOptionalAttrib(self.configNode, "numThreads", int, default=sys.maxint),
                     overlargeCpu=getOptionalAttrib(self.configNode, "numThreads", int, default=sys.maxint))
 
 class CactusBarWrapper(CactusRecursionTarget):
@@ -456,7 +419,7 @@ class CactusNormalPhase(CactusPhasesTarget):
         assert normalisationNode != None
         normalisationIterations = getOptionalAttrib(normalisationNode, "iterations", int, default=1)
         if self.iteration < normalisationIterations:
-            self.addChildTarget(CactusNormalDown(self.options.cactusDiskDatabaseString, extractNode(normalisationNode), [ self.flowerName, 1 ]))
+            self.addChildTarget(CactusNormalDown(self.options.cactusDiskDatabaseString, extractNode(normalisationNode), encodeFlowerNames((self.flowerName,))))
         if self.iteration-1 > 0:
             self.setFollowOnTarget(CactusNormalPhase(self.options, self.flowerName, self.iteration+1))
         else:
@@ -490,7 +453,7 @@ class CactusPhylogenyPhase(CactusPhasesTarget):
         phylogenyNode = self.options.config.find("phylogeny")
         buildTrees = getOptionalAttrib(phylogenyNode, "buildTrees", bool, default=False) or self.options.buildTrees
         if buildTrees:
-            self.addChildTarget(CactusPhylogeny(self.options.cactusDiskDatabaseString, extractNode(phylogenyNode), [ self.flowerName, 1 ]))
+            self.addChildTarget(CactusPhylogeny(self.options.cactusDiskDatabaseString, extractNode(phylogenyNode), encodeFlowerNames((self.flowerName,))))
         self.setFollowOnTarget(CactusReferencePhase(self.options, self.flowerName))
 
 class CactusPhylogeny(CactusRecursionTarget):
@@ -515,7 +478,7 @@ class CactusReferencePhase(CactusPhasesTarget):
         buildReference = getOptionalAttrib(referenceNode, "buildReference", bool, default=False) or self.options.buildReference
         if buildReference:
             self.addChildTarget(CactusReferenceDown(self.options.cactusDiskDatabaseString, extractNode(referenceNode), 
-                                                    [ self.flowerName, 1 ]))
+                                                    encodeFlowerNames((self.flowerName,))))
             self.setFollowOnTarget(CactusReferenceSetCoordinatesUpPhase(self.options, self.flowerName))
         else:
             self.setFollowOnTarget(CactusFacesPhase(self.options, self.flowerName))
@@ -549,7 +512,7 @@ class CactusReferenceSetCoordinatesUpPhase(CactusPhasesTarget):
         assert referenceNode != None
         if self.options.outgroupEventNames != None:
             referenceNode.attrib["outgroup"] = self.options.outgroupEventNames
-        self.addChildTarget(CactusSetReferenceCoordinatesUp(self.options.cactusDiskDatabaseString, extractNode(referenceNode), [ self.flowerName, 1 ]))
+        self.addChildTarget(CactusSetReferenceCoordinatesUp(self.options.cactusDiskDatabaseString, extractNode(referenceNode), encodeFlowerNames((self.flowerName,))))
         self.setFollowOnTarget(CactusSetReferenceCoordinatesDownPhase(self.options, self.flowerName))
 
 class CactusSetReferenceCoordinatesUp(CactusRecursionTarget):
@@ -574,7 +537,7 @@ class CactusSetReferenceCoordinatesDownPhase(CactusPhasesTarget):
         referenceNode = self.options.config.find("reference")
         assert referenceNode != None
         self.addChildTarget(CactusSetReferenceCoordinatesDown(self.options.cactusDiskDatabaseString, extractNode(referenceNode), 
-                                                              [ self.flowerName, 1 ]))
+                                                              encodeFlowerNames((self.flowerName,))))
         self.setFollowOnTarget(CactusFacesPhase(self.options, self.flowerName))
         
 class CactusSetReferenceCoordinatesDown(CactusRecursionTarget):
@@ -602,7 +565,7 @@ class CactusFacesPhase(CactusPhasesTarget):
         buildFaces = getOptionalAttrib(facesNode, "buildFaces", bool, default=False) or self.options.buildFaces
         if buildFaces:
             self.addChildTarget(CactusFaces(self.options.cactusDatabaseString, extractNode(facesNodes), 
-                                            [ self.flowerName, 1 ]))
+                                            encodeFlowerNames((self.flowerName,))))
         self.setFollowOnTarget(CactusCheckPhase(self.options, self.flowerName))
         
 class CactusFaces(CactusRecursionTarget):
@@ -627,7 +590,7 @@ class CactusCheckPhase(CactusPhasesTarget):
         if getOptionalAttrib(checkNode, "runCheck", bool, default=False): #self.options.skipCheck and 0:
             self.logToMaster("Starting the verification phase at %s seconds" % (time.time()))
             self.addChildTarget(CactusCheck(self.options.cactusDiskDatabaseString, extractNode(checkNode), 
-                                            [ self.flowerName, 1 ]))
+                                            encodeFlowerNames((self.flowerName,))))
         self.setFollowOnTarget(CactusHalGeneratorPhase(self.options, self.flowerName))
         
 class CactusCheck(CactusRecursionTarget):
@@ -656,7 +619,7 @@ class CactusHalGeneratorPhase(CactusPhasesTarget):
             if getOptionalAttrib(halGeneratorNode, "buildHal", bool, default=False) or self.options.buildHal:
                 self.addChildTarget(CactusHalGeneratorUp(cactusDiskDatabaseString=self.options.cactusDiskDatabaseString, 
                                                          configNode=extractNode(halGeneratorNode), 
-                                                         flowerNames=[ self.flowerName, 1 ], 
+                                                         flowerNames=encodeFlowerNames((self.flowerName,)), 
                                                          parentTempDir=None, 
                                                          outputFile=self.options.experimentFile.find("hal").attrib["path"]))
         else:
@@ -677,7 +640,6 @@ class CactusHalGeneratorUp(CactusRecursionTarget):
                                         flowerNames=flowerNames, parentTempDir=self.getGlobalTempDir(), 
                                         outputFile=None,
                                         memory=memory, cpu=cpu)
-        #(self, cactusDiskDatabaseString, configNode, flowerNames, memory=sys.maxint, cpu=sys.maxint):
         makeChildTargets(self.cactusDiskDatabaseString, self.configNode, self.flowerNames, self, fn)
         self.setFollowOnTarget(CactusHalGeneratorUpRunnable(self.cactusDiskDatabaseString, 
                                                             self.configNode, self.flowerNames, self.parentTempDir, self.outputFile))

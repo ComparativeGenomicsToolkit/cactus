@@ -173,7 +173,7 @@ int main(int argc, char *argv[]) {
             useSimulatedAnnealing ? exponentiallyDecreasingTemperatureFn
                     : constantTemperatureFn;
 
-    stList *flowers = parseFlowersFromStdin(cactusDisk);
+    stList *flowers = cactusMisc_parseFlowersFromStdin(cactusDisk);
     preCacheNestedFlowers(cactusDisk, flowers);
     for(j = 0; j < stList_length(flowers); j++) {
         Flower *flower = stList_get(flowers, j);
