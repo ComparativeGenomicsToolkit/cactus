@@ -99,7 +99,8 @@ static void makeBlock(stCactusEdgeEnd *cactusEdgeEnd, Flower *parentFlower, Flow
         assert(parentSequence != NULL);
         Sequence *sequence = flower_getSequence(flower, sequence_getName(parentSequence));
         if (sequence == NULL) {
-            sequence = sequence_construct(cactusDisk_getMetaSequence(flower_getCactusDisk(flower), sequence_getName(parentSequence)), flower);
+            sequence = sequence_construct(cactusDisk_getMetaSequence(flower_getCactusDisk(flower), sequence_getName(parentSequence)),
+                    flower);
         }
         assert(sequence != NULL);
         segment_construct2(
@@ -219,11 +220,12 @@ static void setBlocksBuilt(Flower *flower) {
     assert(!flower_builtBlocks(flower));
 #endif
     flower_setBuiltBlocks(flower, 1);
+    flower_makeTerminalNormal(flower);
     Flower_GroupIterator *iterator = flower_getGroupIterator(flower);
     Group *group;
     while ((group = flower_getNextGroup(iterator)) != NULL) {
-        if (!group_isLeaf(group)) {
-            setBlocksBuilt(group_getNestedFlower(group));
+    	if (!group_isLeaf(group)) {
+        	setBlocksBuilt(group_getNestedFlower(group));
         }
     }
     flower_destructGroupIterator(iterator);
@@ -257,8 +259,8 @@ static void stCaf_convertCactusGraphToFlowers(stPinchThreadSet *threadSet, stCac
 void stCaf_makeDegreeOneBlocks(stPinchThreadSet *threadSet) {
     stPinchThreadSetSegmentIt segmentIt = stPinchThreadSet_getSegmentIt(threadSet);
     stPinchSegment *segment;
-    while((segment = stPinchThreadSetSegmentIt_getNext(&segmentIt)) != NULL) {
-        if(stPinchSegment_getBlock(segment) == NULL) {
+    while ((segment = stPinchThreadSetSegmentIt_getNext(&segmentIt)) != NULL) {
+        if (stPinchSegment_getBlock(segment) == NULL) {
             stPinchBlock_construct2(segment);
         }
     }

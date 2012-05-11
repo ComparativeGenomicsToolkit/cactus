@@ -229,66 +229,6 @@ int64_t group_getTotalBaseLength(Group *group) {
     return totalLength;
 }
 
-/*static void group_mergeGroupsP(Flower *flower) {
- Flower_EndIterator *endIterator = flower_getEndIterator(flower);
- End *end;
- Group *group = group_construct2(flower);
- while((end = flower_getNextEnd(endIterator)) != NULL) {
- end_setGroup(end, group);
- }
- flower_destructEndIterator(endIterator);
- }
-
- Group *group_mergeGroups(Group *group1, Group *group2) {
- //Check they are in the same flower..
- assert(group_getFlower(group1) == group_getFlower(group2));
- assert(group1 != group2);
- if(group_getLink(group1) != NULL) { //we have to break these links..
- link_split(group_getLink(group1));
- }
- assert(group_getLink(group1) == NULL);
- if(group_getLink(group2) != NULL) {
- link_split(group_getLink(group2));
- }
- assert(group_getLink(group2) == NULL);
-
- if(!group_isTerminal(group1) || !group_isTerminal(group2)) { //We must first merge the nested flowers
- if(group_isTerminal(group1)) { //Need to make a nested flower to merge with the other
- group_makeNonTerminal(group1);
- group_mergeGroupsP(group_getNestedFlower(group1));
- assert(!group_isTerminal(group2));
- Flower *nestedFlower = group_getNestedFlower(group1), *otherFlower = group_getNestedFlower(group2);
- flower_setBuiltBlocks(nestedFlower, flower_builtBlocks(otherFlower));
- flower_setBuiltTrees(nestedFlower, flower_builtTrees(otherFlower));
- }
- if(group_isTerminal(group2)) { //Need to make a nested flower to merge with the other
- group_makeNonTerminal(group2);
- group_mergeGroupsP(group_getNestedFlower(group2));
- assert(!group_isTerminal(group1));
- Flower *nestedFlower = group_getNestedFlower(group2), *otherFlower = group_getNestedFlower(group1);
- flower_setBuiltBlocks(nestedFlower, flower_builtBlocks(otherFlower));
- flower_setBuiltTrees(nestedFlower, flower_builtTrees(otherFlower));
- }
- assert(group_getNestedFlower(group1) != NULL);
- assert(group_getNestedFlower(group2) != NULL);
- flower_mergeFlowersP(group_getNestedFlower(group1), group_getNestedFlower(group2));
- }
- End *end;
- while((end = group_getFirstEnd(group1)) != NULL) {
- end_setGroup(end, group2);
- }
- group_destruct(group1);
-
- #ifdef BEN_DEBUG
- if(!group_isTerminal(group2)) {
- assert(flower_getParentGroup(group_getNestedFlower(group2)) == group2);
- }
- #endif
-
- return group2;
- }
- */
-
 void group_check(Group *group) {
     Flower *flower = group_getFlower(group);
 
