@@ -193,6 +193,7 @@ void addSequencesAndReferenceCoordinatesToTopLevelFlower(Flower *flower, Name re
                 cap = cap_getSide(cap) ? cap_getReverse(cap) : cap;
                 MetaSequence *metaSequence = addMetaSequence(flower, cap, &index);
                 int32_t endCoordinate = setCoordinates(flower, metaSequence, cap, metaSequence_getStart(metaSequence)-1, outgroupEventName);
+                (void)endCoordinate;
                 assert(endCoordinate == metaSequence_getLength(metaSequence) + metaSequence_getStart(metaSequence));
             }
         }
@@ -223,6 +224,7 @@ void topDown(Flower *flower, Name referenceEventName, Name outgroupEventName) {
                     nestedCap = cap_getSide(nestedCap) ? cap_getReverse(nestedCap) : nestedCap;
                     assert(!cap_getSide(nestedCap));
                     int32_t endCoordinate = setCoordinates(nestedFlower, sequence_getMetaSequence(sequence), nestedCap, cap_getCoordinate(cap), outgroupEventName);
+                    (void)endCoordinate;
                     assert(endCoordinate == cap_getCoordinate(cap_getAdjacency(cap)));
                     assert(endCoordinate == cap_getCoordinate(flower_getCap(nestedFlower, cap_getName(cap_getAdjacency(cap)))));
                 }

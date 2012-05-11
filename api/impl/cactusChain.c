@@ -123,46 +123,46 @@ bool chain_isCircular(Chain *chain) {
 }
 
 void chain_check(Chain *chain) {
-    assert(chain_getLength(chain) > 0);
+    cactusCheck(chain_getLength(chain) > 0);
     Link *link = chain_getFirst(chain), *pLink = NULL;
     while(link != NULL) {
         //That each link is properly contained in the chain.
-        assert(chain == link_getChain(link));
+        cactusCheck(chain == link_getChain(link));
         End *_5End = link_get3End(link);
         End *_3End = link_get5End(link);
-        assert(_5End != NULL);
-        assert(_3End != NULL);
+        cactusCheck(_5End != NULL);
+        cactusCheck(_3End != NULL);
         //Links and the contained ends are properly connected.
-        assert(group_getLink(end_getGroup(_5End)) == link);
-        assert(group_getLink(end_getGroup(_3End)) == link);
+        cactusCheck(group_getLink(end_getGroup(_5End)) == link);
+        cactusCheck(group_getLink(end_getGroup(_3End)) == link);
         //Check the orientations
-        assert(end_getOrientation(_5End));
-        assert(end_getOrientation(_3End));
+        cactusCheck(end_getOrientation(_5End));
+        cactusCheck(end_getOrientation(_3End));
 
         //Check stub ends are not free stubs.
         if (end_isStubEnd(_5End)) {
-            assert(end_isAttached(_5End));
+            cactusCheck(end_isAttached(_5End));
         }
         if (end_isStubEnd(_3End)) {
-            assert(end_isAttached(_3End));
+            cactusCheck(end_isAttached(_3End));
         }
 
         //That the ends are consistently oriented
-        assert(end_getSide(_5End) != end_getSide(_3End));
-        assert(!end_getSide(_5End));
-        assert(end_getSide(_3End));
+        cactusCheck(end_getSide(_5End) != end_getSide(_3End));
+        cactusCheck(!end_getSide(_5End));
+        cactusCheck(end_getSide(_3End));
 
         //That each contiguous pair of link groups are bridged by a block.
         if (pLink != NULL) {
-            assert(end_isBlockEnd(link_get5End(pLink)));
-            assert(end_isBlockEnd(_5End));
-            assert(end_getOtherBlockEnd(link_get5End(pLink)) == _5End);
+            cactusCheck(end_isBlockEnd(link_get5End(pLink)));
+            cactusCheck(end_isBlockEnd(_5End));
+            cactusCheck(end_getOtherBlockEnd(link_get5End(pLink)) == _5End);
         } else {
             if (end_isBlockEnd(_5End)) {
                 //If a block end is at the 5 prime end of a chain the other end of the
                 //block is not in a link group (otherwise the chain is not maximal).
                 Link *nextLink = group_getLink(end_getGroup(end_getOtherBlockEnd(_5End)));
-                assert(nextLink == NULL || link == chain_getFirst(chain));
+                cactusCheck(nextLink == NULL || link == chain_getFirst(chain));
             }
         }
         pLink = link;
@@ -173,7 +173,7 @@ void chain_check(Chain *chain) {
     link = chain_getLast(chain);
     if (end_isBlockEnd(link_get5End(link))) {
         Link *nextLink = group_getLink(end_getGroup(end_getOtherBlockEnd(link_get5End(link))));
-        assert(nextLink == NULL || link == chain_getLast(chain));
+        cactusCheck(nextLink == NULL || link == chain_getLast(chain));
     }
 }
 
@@ -219,7 +219,7 @@ void chain_joinP(Chain *chain, stList *list) {
 }
 
 void chain_join(Chain *_5Chain, Chain *_3Chain) {
-#ifdef BEN_DEBUG
+#ifndef NDEBUG
     assert(chain_getLength(_5Chain) > 0);
     assert(chain_getLength(_3Chain) > 0);
     Link *_5Link = chain_getLast(_5Chain);
@@ -240,7 +240,7 @@ void chain_join(Chain *_5Chain, Chain *_3Chain) {
         End *end1 = stList_get(list, i);
         End *end2 = stList_get(list, i+1);
         Group *group = end_getGroup(end1);
-#ifdef BEN_DEBUG
+#ifndef NDEBUG
         assert(end_getGroup(end2) == group);
         assert(!end_getSide(end1));
         assert(end_getSide(end2));

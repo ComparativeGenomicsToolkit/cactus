@@ -303,9 +303,7 @@ static void adjacencyVoteTable_recordVote(AdjacencyVoteTable * table,
         cap = cap_getReverse(cap);
     old_vote = hashtable_remove(table->table, (void *) cap, false);
 
-#ifdef BEN_DEBUG
     assert(vote->length == 0 || vote->candidates);
-#endif
     if (listContains(table->computationFront, cap))
         listRemove(table->computationFront, cap);
 
@@ -343,9 +341,7 @@ static void fillingIn_registerParent(Cap * cap, AdjacencyVoteTable * table) {
         return;
     }
 
-#ifdef BEN_DEBUG
     assert(cap_getAdjacency(parent) == NULL);
-#endif
 
     childNumber = cap_getChildNumber(parent);
 
@@ -434,9 +430,7 @@ static void fillingIn_propagateToParents(Cap * child,
         AdjacencyVoteTable * table) {
     Cap *parent = cap_getParent(child);
 
-#ifdef BEN_DEBUG
     assert(child != NULL);
-#endif
 
     // Already at root
     if (parent == NULL)
@@ -464,12 +458,10 @@ static Cap *fillingIn_interpolateCaps(Cap * parentCap, Cap * childCap,
     if (!cap_getOrientation(newCap))
         newCap = cap_getReverse(newCap);
 
-#ifdef BEN_DEBUG
     st_logInfo("Interpolating %p\n", newCap);
     assert(event_isDescendant(cap_getEvent(parentCap), cap_getEvent(newCap)));
     assert(event_isDescendant(cap_getEvent(newCap), cap_getEvent(childCap)));
     assert(event_isDescendant(cap_getEvent(parentCap), cap_getEvent(childCap)));
-#endif
     cap_changeParentAndChild(newCap, childCap);
     cap_makeParentAndChild(parentCap, newCap);
 
@@ -544,9 +536,7 @@ static Event *fillingIn_interpolateEvents(Event* parentEvent, Event* childEvent)
     Event * ptr = childEvent;
     Event * result;
 
-#ifdef BEN_DEBUG
     assert(event_isDescendant(parentEvent, childEvent));
-#endif
 
     // Compute total branch length
     for (ptr = childEvent; ptr != parentEvent; ptr = event_getParent(ptr))
@@ -562,29 +552,23 @@ static Event *fillingIn_interpolateEvents(Event* parentEvent, Event* childEvent)
 
     for (ptr = childEvent; ptr != parentEvent; ptr = event_getParent(ptr)) {
         if (event_getBranchLength(ptr) == branchLength) {
-#ifdef BEN_DEBUG
             assert(event_isDescendant(parentEvent, event_getParent(ptr)));
-#endif
             return event_getParent(ptr);
         }
         if (event_getBranchLength(ptr) > branchLength)
             break;
 
         branchLength -= event_getBranchLength(ptr);
-#ifdef BEN_DEBUG
         assert(ptr);
-#endif
     }
 
     result = event_construct4("interpolation", event_getBranchLength(ptr)
             - branchLength, event_getParent(ptr), ptr, eventTree);
-#ifdef BEN_DEBUG
     assert(event_getBranchLength(result) >= 0);
     assert(event_getBranchLength(ptr) >= 0);
     assert(event_getBranchLength(event_getParent(ptr)) >= 0);
     assert(event_isDescendant(parentEvent, ptr));
     assert(event_isDescendant(parentEvent, result));
-#endif
     return result;
 }
 
@@ -674,9 +658,7 @@ static void fillingIn_processChildrenVote(Cap * cap, AdjacencyVoteTable * table)
         case 0:
             // NOTE: This should not happen in theory since only
             // children can register their parents
-#ifdef BEN_DEBUG
             assert(false);
-#endif
             break;
         case 1:
             first_child = cap_getChild(cap, 0);
@@ -759,9 +741,7 @@ static void fillingIn_propagateAdjacencyDownwards(Cap * cap, Cap * partner,
     Cap *decision;
     AdjacencyVote *vote = adjacencyVoteTable_getVote(cap, table);
 
-#if BEN_DEBUG
     assert(vote->length >= 1 || cap_getAdjacency(cap));
-#endif
     st_logInfo("Going downwards to %p\n", cap);
 
     // If Cap does not exist (for NULL partners) or child already decided
@@ -772,9 +752,7 @@ static void fillingIn_propagateAdjacencyDownwards(Cap * cap, Cap * partner,
         return;
     }
 
-#ifdef BEN_DEBUG
     assert(partner != NULL);
-#endif
 
     decision = adjacencyVote_containsDescent(vote, partner, table);
     if (decision)
@@ -877,7 +855,7 @@ static bool fillingIn_eventsAreComparable(Event * A, Event * B) {
  * Returns the more ancetral of two comparable events
  */
 static Event * fillingIn_oldestEvent(Event * A, Event * B) {
-#ifdef BEN_DEBUG
+#ifndef NDEBUG
     assert(fillingIn_eventsAreComparable(A,B));
 #endif
     return (A == B || event_isDescendant(A, B)) ? A : B;
@@ -900,11 +878,9 @@ static void fillingIn_pullDown(Cap * A) {
     Event * eventChildA = NULL, *eventChildB = NULL, *childEvent = NULL;
     bool result = false;
 
-#if BEN_DEBUG
     assert(B);
     assert(cap_getChildNumber(A));
     assert(cap_getEvent(A) == cap_getEvent(B));
-#endif
 
     // If B has no children (presumably a stub)
     if (!cap_getChildNumber(B)) {
@@ -966,9 +942,7 @@ static void fillingIn_testForPullDown(Cap * cap) {
     int32_t childIndex;
     int32_t inconsistencyCount = 0;
 
-#if BEN_DEBUG
     assert(cap_getAdjacency(cap));
-#endif
 
     // Go through children
     for (childIndex = 0; childIndex < cap_getChildNumber(cap); childIndex++) {
@@ -976,9 +950,7 @@ static void fillingIn_testForPullDown(Cap * cap) {
 
         // Go down to attached child (if any)
         while (child && !cap_getAdjacency(child)) {
-#if BEN_DEBUG
             assert(cap_getChildNumber(child) < 2);
-#endif
             if (cap_getChildNumber(child))
                 child = cap_getChild(child, 0);
             else

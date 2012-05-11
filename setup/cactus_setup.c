@@ -360,9 +360,7 @@ int main(int argc, char *argv[]) {
     // Write the flower to disk.
     ///////////////////////////////////////////////////////////////////////////
 
-#ifdef BEN_DEBUG //Check we've done okay.
-    flower_check(flower);
-#endif
+    //flower_check(flower);
     cactusDisk_write(cactusDisk);
     st_logInfo("Updated the flower on disk\n");
 

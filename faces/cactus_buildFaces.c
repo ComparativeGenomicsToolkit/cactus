@@ -27,11 +27,7 @@
 void buildFaces_simplify(Face * face, Flower * flower) {
     // TODO
     // Here lies NP-completeness
-
-#ifdef BEN_DEBUG
     assert(face_isSimple(face));
-#endif
-
 }
 
 /*
@@ -148,7 +144,7 @@ static void buildFaces_connectInterpolatedNode(Cap ** interpolations,
 	if (face_getTopNode(face, adjacentIndex) == adjacentNode)
 	    break;
 
-#ifdef BEN_DEBUG
+#ifndef NDEBUG
     // What if adjacent node is not a top node??
     if (adjacentIndex == face_getCardinal(face))
 	abort();
@@ -211,7 +207,7 @@ void buildFaces_isolate(Face * face, Flower * flower) {
     face_destruct(face);
     free(interpolations);
 
-#ifdef BEN_DEBUG
+#ifndef NDEBUG
     assert(face_isRegular(face));
 #endif
 }
@@ -345,9 +341,7 @@ static void buildFaces_close(Face * face) {
 	    if (nonAdjacent1 == NULL)
 		nonAdjacent1 = faceEnd_getTopNode(faceEnd);
 	    else {
-#ifdef BEN_DEBUG
 		assert(!nonAdjacent2);
-#endif
 		nonAdjacent2 = faceEnd_getTopNode(faceEnd);
 	    }
 	} else {
@@ -365,9 +359,7 @@ static void buildFaces_close(Face * face) {
 		if (nonDerived1)
 		    nonDerived1 = faceEnd_getNextBottomNode(bottomNodeIterator);
 		else {
-#ifdef BEN_DEBUG
 		    assert(!nonDerived2);
-#endif
 		    nonDerived2 = faceEnd_getNextBottomNode(bottomNodeIterator);
 
 		}
@@ -377,10 +369,8 @@ static void buildFaces_close(Face * face) {
     }
     face_destructFaceEndIterator(faceEndIterator);
 
-#ifdef BEN_DEBUG
     // What if some nodes with no adjacency and others with no derived edge?
     assert(!nonAdjacent1 || !nonDerived1);
-#endif
 
     // If the terminal nodes lack an adjacency edge
     if (nonAdjacent2)
@@ -396,7 +386,7 @@ void buildFaces_canonize(Face * face, Flower * flower) {
     if (face_getCardinal(face) % 2 == 0)
 	buildFaces_engineerCaps(face, flower);
 
-#ifdef BEN_DEBUG
+#ifndef NDEBUG
     assert(face_isCanonical(face));
 #endif
 

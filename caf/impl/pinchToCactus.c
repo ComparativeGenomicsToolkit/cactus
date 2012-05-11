@@ -143,11 +143,6 @@ static void stCaf_attachUnattachedThreadComponents(Flower *flower, stPinchThread
     }
     stSortedSet_destructIterator(threadIt);
     stSortedSet_destruct(threadComponents);
-#ifdef BEN_DEBUG
-    threadComponents = stPinchThreadSet_getThreadComponents(threadSet);
-    assert(stSortedSet_size(threadComponents) == 1);
-    stSortedSet_destruct(threadComponents);
-#endif
 }
 
 ///////////////////////////////////////////////////////////////////////////

@@ -166,38 +166,12 @@ Sequence *cap_getSequence(Cap *cap) {
     return cap->capContents->sequence;
 }
 
-#ifdef BEN_DEBUG
-static void cap_checkProposedAdjacency(Cap *cap, Cap *cap2) {
-    if (cap_getCoordinate(cap) != INT32_MAX || cap_getCoordinate(cap2)
-            != INT32_MAX) {
-        assert(cap_getSequence(cap) == cap_getSequence(cap2));
-        assert(cap_getStrand(cap) == cap_getStrand(cap2));
-        assert(cap_getCoordinate(cap) != cap_getCoordinate(cap2));
-        if (cap_getCoordinate(cap) < cap_getCoordinate(cap2)) {
-            assert(!cap_getSide(cap));
-            assert(cap_getSide(cap2));
-        } else {
-            assert(cap_getSide(cap));
-            assert(!cap_getSide(cap2));
-        }
-    }
-}
-#endif
-
 void cap_makeAdjacent(Cap *cap, Cap *cap2) {
     //We put them both on the same strand, as the strand is important in the pairing
-    //logDebug(">>>> Making adjacency %p -- %p\n", cap, cap2);
     cap = cap_getStrand(cap) ? cap : cap_getReverse(cap);
     cap2 = cap_getStrand(cap2) ? cap2 : cap_getReverse(cap2);
-#ifdef BEN_DEBUG
     assert(cap != cap2);
-    cap_checkProposedAdjacency(cap, cap2); //checks, if they have coordinates, that they lie along a single range.
     assert(cap_getEvent(cap) == cap_getEvent(cap2));
-    if (cap_getParent(cap) && cap_getParent(cap2)) {
-        assert(event_isDescendant(cap_getEvent(cap_getParent(cap)), cap_getEvent(cap2)));
-        assert(event_isDescendant(cap_getEvent(cap_getParent(cap2)), cap_getEvent(cap)));
-    }
-#endif
     cap_breakAdjacency(cap);
     cap_breakAdjacency(cap2);
     //we ensure we have them right with respect there orientation.
@@ -263,10 +237,8 @@ int32_t cap_getChildNumber(Cap *cap) {
 }
 
 Cap *cap_getChild(Cap *cap, int32_t index) {
-#ifdef BEN_DEBUG
     assert(cap_getChildNumber(cap) > index);
     assert(index >= 0);
-#endif
     return cap_getP(cap, cap->capContents->children->list[index]);
 }
 
@@ -276,9 +248,7 @@ void cap_makeParentAndChild(Cap *capParent, Cap *capChild) {
     assert(capChild->capContents->parent == NULL);
 
     if (!listContains(capParent->capContents->children, capChild)) { //defensive, means second calls will have no effect.
-#ifdef BEN_DEBUG
         assert(event_isDescendant(cap_getEvent(capParent), cap_getEvent(capChild)));
-#endif
         listAppend(capParent->capContents->children, capChild);
     }
     capChild->capContents->parent = capParent;
@@ -288,11 +258,7 @@ void cap_changeParentAndChild(Cap* newCapParent, Cap* capChild) {
     Cap * oldCapParent = cap_getParent(capChild);
     newCapParent = cap_getPositiveOrientation(newCapParent);
     capChild = cap_getPositiveOrientation(capChild);
-
-#ifdef BEN_DEBUG
     assert(oldCapParent);
-#endif
-
     if (!listContains(newCapParent->capContents->children, capChild)) { //defensive, means second calls will have no effect.
         listAppend(newCapParent->capContents->children, capChild);
     }
@@ -306,114 +272,114 @@ int32_t cap_isInternal(Cap *cap) {
 
 void cap_check(Cap *cap) {
     End *end = cap_getEnd(cap);
-    assert(end_getInstance(end, cap_getName(cap)) == cap);
-    assert(cap_getOrientation(cap) == end_getOrientation(end));
-    assert(end_getSide(end) == cap_getSide(cap)); //This is critical, it ensures
+    cactusCheck(end_getInstance(end, cap_getName(cap)) == cap);
+    cactusCheck(cap_getOrientation(cap) == end_getOrientation(end));
+    cactusCheck(end_getSide(end) == cap_getSide(cap)); //This is critical, it ensures
     //that we have a consistently oriented set of caps in an end.
 
     //If we've built the trees
     if (flower_builtTrees(end_getFlower(cap_getEnd(cap)))) {
         // checks the cap has a parent which has an ancestral event to the caps event, unless it is the root.
-        assert(end_getRootInstance(end) != NULL);
+        cactusCheck(end_getRootInstance(end) != NULL);
         if (end_getRootInstance(end) == cap) {
-            assert(cap_getParent(cap) == NULL);
+            cactusCheck(cap_getParent(cap) == NULL);
         } else {
             Cap *ancestorCap = cap_getParent(cap);
-            assert(ancestorCap != NULL);
+            cactusCheck(ancestorCap != NULL);
             event_isAncestor(cap_getEvent(cap), cap_getEvent(ancestorCap));
-            assert(cap_getOrientation(cap) == cap_getOrientation(ancestorCap));
+            cactusCheck(cap_getOrientation(cap) == cap_getOrientation(ancestorCap));
         }
         //Check caps ancestor/descendant links are proper.
         int32_t i;
         for (i = 0; i < cap_getChildNumber(cap); i++) {
             Cap *childCap = cap_getChild(cap, i);
-            assert(childCap != NULL);
-            assert(cap_getParent(childCap) == cap);
+            cactusCheck(childCap != NULL);
+            cactusCheck(cap_getParent(childCap) == cap);
         }
     } else {
-        assert(cap_getParent(cap) == NULL); //No root, so no tree.
+        cactusCheck(cap_getParent(cap) == NULL); //No root, so no tree.
     }
 
     //If stub end checks, there is no attached segment.
     if (end_isStubEnd(end)) {
-        assert(cap_getSegment(cap) == NULL);
+        cactusCheck(cap_getSegment(cap) == NULL);
     } else {
         Segment *segment = cap_getSegment(cap);
         if (segment != NULL) {
-            assert(cap_getOrientation(cap) == segment_getOrientation(segment));
+            cactusCheck(cap_getOrientation(cap) == segment_getOrientation(segment));
         }
     }
 
     //Checks adjacencies are properly linked and have consistent coordinates and the same group
     Cap *cap2 = cap_getAdjacency(cap);
     if (cap2 != NULL) {
-        assert(end_getGroup(cap_getEnd(cap2)) == end_getGroup(end)); //check they have the same group.
-        assert(cap_getAdjacency(cap2) == cap); //reciprocal connection
-        assert(cap_getEvent(cap) == cap_getEvent(cap2)); //common event
-        assert(cap_getStrand(cap) == cap_getStrand(cap2)); //common strand
-        assert(cap_getSequence(cap) == cap_getSequence(cap2)); //common sequence (which may be null)
+        cactusCheck(end_getGroup(cap_getEnd(cap2)) == end_getGroup(end)); //check they have the same group.
+        cactusCheck(cap_getAdjacency(cap2) == cap); //reciprocal connection
+        cactusCheck(cap_getEvent(cap) == cap_getEvent(cap2)); //common event
+        cactusCheck(cap_getStrand(cap) == cap_getStrand(cap2)); //common strand
+        cactusCheck(cap_getSequence(cap) == cap_getSequence(cap2)); //common sequence (which may be null)
 
         if (cap_getCoordinate(cap) != INT32_MAX) { //if they have a coordinate
-            assert(cap_getSide(cap) != cap_getSide(cap2)); //they have to represent an interval
+            cactusCheck(cap_getSide(cap) != cap_getSide(cap2)); //they have to represent an interval
             if (cap_getStrand(cap)) {
                 if (!cap_getSide(cap)) {
-                    assert(cap_getCoordinate(cap) < cap_getCoordinate(cap2));
+                    cactusCheck(cap_getCoordinate(cap) < cap_getCoordinate(cap2));
                 } else {
-                    assert(cap_getCoordinate(cap) > cap_getCoordinate(cap2));
+                    cactusCheck(cap_getCoordinate(cap) > cap_getCoordinate(cap2));
                 }
             } else {
                 if (cap_getSide(cap)) {
-                    assert(cap_getCoordinate(cap) < cap_getCoordinate(cap2));
+                    cactusCheck(cap_getCoordinate(cap) < cap_getCoordinate(cap2));
                 } else {
-                    assert(cap_getCoordinate(cap) > cap_getCoordinate(cap2));
+                    cactusCheck(cap_getCoordinate(cap) > cap_getCoordinate(cap2));
                 }
             }
         } else {
-            assert(cap_getCoordinate(cap2) == INT32_MAX);
+            cactusCheck(cap_getCoordinate(cap2) == INT32_MAX);
         }
     }
 
     //Checks the reverse
     Cap *rCap = cap_getReverse(cap);
-    assert(rCap != NULL);
-    assert(cap_getReverse(rCap) == cap);
-    assert(cap_getOrientation(cap) == !cap_getOrientation(rCap));
-    assert(cap_getEnd(cap) == end_getReverse(cap_getEnd(rCap)));
-    assert(cap_getName(cap) == cap_getName(rCap));
-    assert(cap_getEvent(cap) == cap_getEvent(rCap));
-    assert(cap_getEnd(cap) == end_getReverse(cap_getEnd(rCap)));
+    cactusCheck(rCap != NULL);
+    cactusCheck(cap_getReverse(rCap) == cap);
+    cactusCheck(cap_getOrientation(cap) == !cap_getOrientation(rCap));
+    cactusCheck(cap_getEnd(cap) == end_getReverse(cap_getEnd(rCap)));
+    cactusCheck(cap_getName(cap) == cap_getName(rCap));
+    cactusCheck(cap_getEvent(cap) == cap_getEvent(rCap));
+    cactusCheck(cap_getEnd(cap) == end_getReverse(cap_getEnd(rCap)));
     if (cap_getSegment(cap) == NULL) {
-        assert(cap_getSegment(rCap) == NULL);
+        cactusCheck(cap_getSegment(rCap) == NULL);
     } else {
-        assert(cap_getSegment(cap) == segment_getReverse(cap_getSegment(rCap)));
+        cactusCheck(cap_getSegment(cap) == segment_getReverse(cap_getSegment(rCap)));
     }
-    assert(cap_getSide(cap) == !cap_getSide(rCap));
-    assert(cap_getCoordinate(cap) == cap_getCoordinate(rCap));
-    assert(cap_getSequence(cap) == cap_getSequence(rCap));
-    assert(cap_getStrand(cap) == !cap_getStrand(rCap));
+    cactusCheck(cap_getSide(cap) == !cap_getSide(rCap));
+    cactusCheck(cap_getCoordinate(cap) == cap_getCoordinate(rCap));
+    cactusCheck(cap_getSequence(cap) == cap_getSequence(rCap));
+    cactusCheck(cap_getStrand(cap) == !cap_getStrand(rCap));
     if (cap_getAdjacency(cap) == NULL) {
-        assert(cap_getAdjacency(rCap) == NULL);
+        cactusCheck(cap_getAdjacency(rCap) == NULL);
     } else {
-        assert(cap_getReverse(cap_getAdjacency(rCap)) == cap_getAdjacency(cap));
+        cactusCheck(cap_getReverse(cap_getAdjacency(rCap)) == cap_getAdjacency(cap));
     }
-    assert(cap_getTopFace(cap) == cap_getTopFace(rCap));
+    cactusCheck(cap_getTopFace(cap) == cap_getTopFace(rCap));
     if (cap_getParent(cap) == NULL) {
-        assert(cap_getParent(rCap) == NULL);
+        cactusCheck(cap_getParent(rCap) == NULL);
     } else {
-        assert(cap_getParent(cap) == cap_getReverse(cap_getParent(rCap)));
+        cactusCheck(cap_getParent(cap) == cap_getReverse(cap_getParent(rCap)));
     }
-    assert(cap_isInternal(cap) == cap_isInternal(rCap));
-    assert(cap_getChildNumber(cap) == cap_getChildNumber(rCap));
+    cactusCheck(cap_isInternal(cap) == cap_isInternal(rCap));
+    cactusCheck(cap_getChildNumber(cap) == cap_getChildNumber(rCap));
     int32_t i;
     for (i = 0; i < cap_getChildNumber(cap); i++) {
-        assert(cap_getChild(cap, i) == cap_getReverse(cap_getChild(rCap, i)));
+        cactusCheck(cap_getChild(cap, i) == cap_getReverse(cap_getChild(rCap, i)));
     }
 
     //it is consistent with any copy of end in the nested flower, in terms of events, connections and coordinates.
     Flower *nestedFlower = group_getNestedFlower(end_getGroup(end));
     if (nestedFlower != NULL) {
         End *childEnd = flower_getEnd(nestedFlower, end_getName(end));
-        assert(childEnd != NULL); //End must be present in child
+        cactusCheck(childEnd != NULL); //End must be present in child
         //Cap *childCap = end_getInstance(childEnd, cap_getName(cap));
     }
 }
@@ -493,6 +459,7 @@ void cap_loadFromBinaryRepresentationP2(void **binaryString, Cap *cap) {
     }
     if (binaryRepresentation_peekNextElementType(*binaryString) == CODE_PARENT) {
         int32_t i = cap_loadFromBinaryRepresentationP(cap, binaryString, cap_makeParentAndChild);
+        (void)i;
         assert(i == 0);
     }
 }

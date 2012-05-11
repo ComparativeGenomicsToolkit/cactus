@@ -87,7 +87,7 @@ char *cactusDisk_getString(CactusDisk *cactusDisk, Name name, int32_t start,
             fseek(cactusDisk->sequencesFileHandle, name + start, SEEK_SET);
             string = st_malloc(sizeof(char) * (length + 1));
             fread(string, sizeof(char), length, cactusDisk->sequencesFileHandle);
-#ifdef BEN_DEBUG
+#ifndef NDEBUG
             for (int32_t i = 0; i < length; i++) {
                 assert(string[i] != '>');
             }
@@ -152,6 +152,7 @@ static void cactusDisk_setStrings(CactusDisk *cactusDisk) {
                 fseek(fileHandle, update->name + update->start, SEEK_SET);
                 int32_t i = fwrite(update->string, sizeof(char), update->length,
                         fileHandle);
+                (void)i;
                 assert(i == update->length);
                 cactusDiskSetStringUpdate_destruct(update);
             }
@@ -196,9 +197,9 @@ void cactusDisk_setString(CactusDisk *cactusDisk, Name name, int32_t start,
 
     stList_append(cactusDisk->stringUpdates, cactusDiskSetStringUpdate_construct(name, start, length, totalSequenceLength, (char *)string));
 
-#ifdef BEN_DEBUG
+#ifndef NDEBUG
     char *string2 = cactusDisk_getString(cactusDisk, name, start, length,
-            strand, totalSequenceLength);
+            1, totalSequenceLength);
     assert(strcmp(string, string2) == 0);
     free(string2);
 #endif
@@ -479,13 +480,11 @@ void cactusDisk_destruct(CactusDisk *cactusDisk) {
             fclose(cactusDisk->sequencesFileHandle);
         }
     }
-#ifdef BEN_DEBUG
     else {
         assert(cactusDisk->sequencesFileName == NULL);
         assert(cactusDisk->sequencesFileHandle == NULL);
         assert(cactusDisk->absSequencesFileName == NULL);
     }
-#endif
 
     stCache_destruct(cactusDisk->cache); //Get rid of the cache
     stCache_destruct(cactusDisk->stringCache);

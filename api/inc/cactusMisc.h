@@ -17,6 +17,8 @@
 ////////////////////////////////////////////////
 ////////////////////////////////////////////////
 
+extern const char *CACTUS_CHECK_EXCEPTION_ID;
+
 /*
  * Computes the reverse complement character of a ACTGactg, returning other characters unmodified.
  */
@@ -81,5 +83,15 @@ stList *cactusMisc_parseFlowersFromStdin(CactusDisk *cactusDisk);
  * Use a bulk get to efficiently precache the nested flowers of a set of parent flowers.
  */
 void preCacheNestedFlowers(CactusDisk *cactusDisk, stList *flowers);
+
+/*
+ * Check a condition is true, if not throw an exception - a short hand to defining your own exception.
+ */
+void cactusCheck(bool condition);
+
+/*
+ * Check a condition is true, if not throw an exception with the given string.
+ */
+void cactusCheck2(bool condition, char *string, ...);
 
 #endif

@@ -30,26 +30,26 @@ static void checkTreeIsTerminalNormalised(Flower *flower) {
      * A cactus tree is terminally normalised if all leaf flowers are terminal.
      */
     if (flower_isLeaf(flower)) {
-        assert(flower_getBlockNumber(flower) == 0);
-        assert(flower_isTerminal(flower));
+        cactusCheck(flower_getBlockNumber(flower) == 0);
+        cactusCheck(flower_isTerminal(flower));
         if(flower_getGroupNumber(flower) == 0) {
-            assert(!flower_hasParentGroup(flower));
+            cactusCheck(!flower_hasParentGroup(flower));
         }
         else {
-            assert(flower_getGroupNumber(flower) == 1);
+            cactusCheck(flower_getGroupNumber(flower) == 1);
         }
         //The following are defensive checks (in that they are implied by being a leaf)
         Group *group;
         Flower_GroupIterator *iterator = flower_getGroupIterator(flower);
         while ((group = flower_getNextGroup(iterator)) != NULL) {
-            assert(group_isLeaf(group));
+            cactusCheck(group_isLeaf(group));
         }
         flower_destructGroupIterator(iterator);
     } else {
         Group *group;
         Flower_GroupIterator *iterator = flower_getGroupIterator(flower);
         while ((group = flower_getNextGroup(iterator)) != NULL) {
-            assert(!group_isLeaf(group));
+            cactusCheck(!group_isLeaf(group));
         }
         flower_destructGroupIterator(iterator);
     }
@@ -64,13 +64,13 @@ static void checkChainsAreMaximal(Flower *flower) {
         End *end;
         Flower_EndIterator *endIterator = flower_getEndIterator(flower);
         while ((end = flower_getNextEnd(endIterator)) != NULL) {
-            assert(end_getOrientation(end));
+            cactusCheck(end_getOrientation(end));
             if (end_isStubEnd(end) && end_isAttached(end)) { //is an attached stub end (inherited from a higher level)
                 Link *link = group_getLink(end_getGroup(end));
                 if (link != NULL) { //then the flower must be a terminal flower and the link is a copy of the one in the parent..
                     Chain *chain = link_getChain(link);
-                    assert(flower_isLeaf(flower));
-                    assert(chain_getLength(chain) == 1);
+                    cactusCheck(flower_isLeaf(flower));
+                    cactusCheck(chain_getLength(chain) == 1);
                 }
             }
         }
@@ -82,15 +82,15 @@ static void checkBlocksAreMaximal(Flower *flower) {
     /*
      * Checks each block is maximal.
      */
-    assert(flower != NULL);
+    cactusCheck(flower != NULL);
     End *end;
     Flower_EndIterator *endIterator = flower_getEndIterator(flower);
     while ((end = flower_getNextEnd(endIterator)) != NULL) {
-        assert(end_getOrientation(end));
+        cactusCheck(end_getOrientation(end));
         if (end_isBlockEnd(end)) { //is an attached stub end (inherited from a higher level)
             Link *link = group_getLink(end_getGroup(end));
             if (link != NULL) { //then the flower must be a terminal flower and the link is a copy of the one in the parent..
-                assert(!link_isTrivial(link));
+                cactusCheck(!link_isTrivial(link));
             }
         }
     }
@@ -101,9 +101,9 @@ static void checkFlowerIsNotRedundant(Flower *flower) {
     /*
      * Checks that if the flower is not a leaf or the root that it contains blocks.
      */
-    assert(flower_builtBlocks(flower));
+    cactusCheck(flower_builtBlocks(flower));
     if (flower_hasParentGroup(flower) && !flower_isLeaf(flower)) {
-        assert(flower_getBlockNumber(flower) > 0);
+        cactusCheck(flower_getBlockNumber(flower) > 0);
     }
 }
 
@@ -137,12 +137,12 @@ static void checkBasesAccountedFor(Flower *flower) {
     while ((group = flower_getNextGroup(iterator)) != NULL) {
         int64_t size = (int64_t) group_getTotalBaseLength(group);
         if (group_getNestedFlower(group) != NULL) {
-            assert(!group_isLeaf(group));
-            assert(flower_getTotalBaseLength(group_getNestedFlower(group)) == size);
+            cactusCheck(!group_isLeaf(group));
+            cactusCheck(flower_getTotalBaseLength(group_getNestedFlower(group)) == size);
         } else {
-            assert(group_isLeaf(group));
+            cactusCheck(group_isLeaf(group));
         }
-        assert(size >= 0);
+        cactusCheck(size >= 0);
         childBases += size;
     }
     flower_destructGroupIterator(iterator);
@@ -151,7 +151,7 @@ static void checkBasesAccountedFor(Flower *flower) {
                 "Got %i block bases, %i childBases and %i total bases\n",
                 (int) blockBases, (int) childBases, (int) totalBases);
     }
-    assert(blockBases + childBases == totalBases);
+    cactusCheck(blockBases + childBases == totalBases);
 }
 
 static void checkFlower(Flower *flower, bool checkNormalised) {

@@ -160,7 +160,7 @@ static void makeChains(stCactusNode *cactusNode, Flower *flower, stHash *pinchEn
             stCactusEdgeEnd *linkedCactusEdgeEnd = stCactusEdgeEnd_getLink(cactusEdgeEnd), *startCactusEdgeEnd = NULL;
             assert(linkedCactusEdgeEnd != NULL);
             if (end != NULL) {
-#ifdef BEN_DEBUG
+#ifndef NDEBUG
                 End *end2;
                 if ((end2 = convertCactusEdgeEndToEnd(linkedCactusEdgeEnd, pinchEndsToEnds, flower)) != NULL) {
                     assert(end_getSide(end) != end_getSide(end2));
@@ -217,9 +217,6 @@ static void makeTangles(stCactusNode *cactusNode, Flower *flower, stHash *pinchE
 //Sets the 'built-blocks flag' for all the flowers in the subtree, including the given flower.
 
 static void setBlocksBuilt(Flower *flower) {
-#ifdef BEN_DEBUG
-    assert(!flower_builtBlocks(flower));
-#endif
     flower_setBuiltBlocks(flower, 1);
     flower_makeTerminalNormal(flower);
     Flower_GroupIterator *iterator = flower_getGroupIterator(flower);
@@ -279,8 +276,4 @@ void stCaf_finish(Flower *flower, stPinchThreadSet *threadSet) {
     stCaf_convertCactusGraphToFlowers(threadSet, startCactusNode, flower, deadEndComponent);
     //Cleanup
     stCactusGraph_destruct(cactusGraph);
-
-#ifdef BEN_DEBUG
-    flower_checkRecursive(flower);
-#endif
 }

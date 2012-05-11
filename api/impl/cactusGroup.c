@@ -233,16 +233,16 @@ void group_check(Group *group) {
     Flower *flower = group_getFlower(group);
 
     //Check flower and group properly connected.
-    assert(flower_getGroup(flower, group_getName(group)) == group);
+    cactusCheck(flower_getGroup(flower, group_getName(group)) == group);
 
     Group_EndIterator *endIterator = group_getEndIterator(group);
     End *end;
     int32_t nonFree = 0;
     while ((end = group_getNextEnd(endIterator)) != NULL) {
         //That the ends of the groups are doubly linked to the ends (so every end is in only one link).
-        assert(end_getGroup(end) == group);
+        cactusCheck(end_getGroup(end) == group);
         if (end_isAttached(end) || end_isBlockEnd(end)) {
-            assert(end_isBlockEnd(end) || (end_isStubEnd(end) && end_isAttached(end)));
+            cactusCheck(end_isBlockEnd(end) || (end_isStubEnd(end) && end_isAttached(end)));
             nonFree++;
         }
     }
@@ -250,23 +250,23 @@ void group_check(Group *group) {
 
     Link *link = group_getLink(group);
     if (nonFree == 2) { //We get rid of this now, as the reference can create new links, which we do not want to count as chains.
-        //assert(link != NULL); // has only two non-free ends, is a link therefore
-        //assert(group_isLink(group));
+        //cactusCheck(link != NULL); // has only two non-free ends, is a link therefore
+        //cactusCheck(group_isLink(group));
     } else {
-        assert(group_isTangle(group));
-        assert(link == NULL); // can not be a link!
+        cactusCheck(group_isTangle(group));
+        cactusCheck(link == NULL); // can not be a link!
     }
 
     if (group_isLeaf(group)) { //If terminal has no nested flower
-        assert(group_getNestedFlower(group) == NULL);
+        cactusCheck(group_getNestedFlower(group) == NULL);
     } else { //else that any nested flower contains the correct set of stub ends.
         Flower *nestedFlower = group_getNestedFlower(group);
-        assert(nestedFlower != NULL);
+        cactusCheck(nestedFlower != NULL);
         endIterator = group_getEndIterator(group);
         while ((end = group_getNextEnd(endIterator)) != NULL) {
             End *end2 = flower_getEnd(nestedFlower, end_getName(end));
-            assert(end2 != NULL);
-            assert(end_isStubEnd(end2));
+            cactusCheck(end2 != NULL);
+            cactusCheck(end_isStubEnd(end2));
             if (end_isBlockEnd(end) || end_isAttached(end)) {
                 end_isAttached(end2);
             } else {

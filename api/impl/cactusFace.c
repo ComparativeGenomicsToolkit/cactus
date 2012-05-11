@@ -209,7 +209,7 @@ static int32_t face_breaksSimpleAlternatingPath(Face * face, int topIndex) {
     for (index = 0; index < bottomNodeNumber; index++) {
         bottomNode = face_getBottomNode(face, topIndex, index);
         bottomNodePartner = cap_getAdjacency(bottomNode);
-#ifdef BEN_DEBUG
+#ifndef NDEBUG
         if (!bottomNodePartner)
             abort();
 #endif
@@ -286,10 +286,10 @@ void face_check(Face *face) {
     int32_t i = 0;
     while ((faceEnd = face_getNextFaceEnd(faceEndIterator)) != NULL) {
         faceEnd_check(faceEnd);
-        assert(faceEnd_getFace(faceEnd) == face);
+        cactusCheck(faceEnd_getFace(faceEnd) == face);
         i++;
     }
-    assert(face_getCardinal(face) == i);
+    cactusCheck(face_getCardinal(face) == i);
     face_destructFaceEndIterator(faceEndIterator);
 }
 
@@ -427,6 +427,7 @@ static stList *computeModules(stHash *liftedEdges) {
 }
 
 static void checkFace(stList *module, stHash *bottomCapsHash) {
+#ifndef NDEBUG
     /*
      * Checks a face.
      */
@@ -476,6 +477,7 @@ static void checkFace(stList *module, stHash *bottomCapsHash) {
             assert(faceEnd_getNumberOfBottomNodes(faceEnd) == 0);
         }
     }
+#endif
 }
 
 
@@ -526,7 +528,7 @@ void face_checkFaces(Flower *flower) {
  */
 Cap * face_getDerivedDestinationAtIndex(Face * face, int32_t topIndex,
         int32_t derivedIndex) {
-#ifdef BEN_DEBUG
+#ifndef NDEBUG
     assert(topIndex < face_getCardinal(face));
     assert(derivedIndex < face_getBottomNodeNumber(face, topIndex));
 #endif
@@ -538,10 +540,7 @@ Cap * face_getDerivedDestinationAtIndex(Face * face, int32_t topIndex,
  */
 Cap * face_getDerivedDestination(Face * face, int32_t index) {
     int32_t bottomIndex;
-#if BEN_DEBUG
     assert(index < face_getCardinal(face));
-#endif
-
     for (bottomIndex = 0; bottomIndex < face_getBottomNodeNumber(face, index); bottomIndex++)
         if (face->derivedEdgeDestinations[index][bottomIndex])
             return face->derivedEdgeDestinations[index][bottomIndex];

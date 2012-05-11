@@ -76,9 +76,9 @@ stList *getInducedAlignment(stSortedSet *endAlignment,
     /*
      * Check the induced alignment
      */
-    //#ifdef BEN_DEBUG //Check the induced array
     for (int32_t i = 0; i < stList_length(inducedAlignment); i++) {
         AlignedPair *alignedPair = stList_get(inducedAlignment, i);
+        (void)alignedPair;
         assert(alignedPair->subsequenceIdentifier == adjacencySequence->subsequenceIdentifier);
         assert(alignedPair->strand == adjacencySequence->strand);
         if (adjacencySequence->strand) {
@@ -93,7 +93,6 @@ stList *getInducedAlignment(stSortedSet *endAlignment,
                             - adjacencySequence->length);
         }
     }
-    //#endif
     return inducedAlignment;
 }
 
@@ -133,14 +132,13 @@ static int64_t getCutOff(stList *inducedAlignment1, stList *inducedAlignment2,
     int64_t *cScore1 = cumulateScoreForward(inducedAlignment1);
     int64_t *cScore2 = cumulateScoreBackward(inducedAlignment2);
 
-    //#ifdef BEN_DEBUG //Check the score arrays for sanity..
+    //Check the score arrays for sanity..
     for (int32_t i = 1; i < stList_length(inducedAlignment1); i++) {
         assert(cScore1[i - 1] < cScore1[i]);
     }
     for (int32_t i = 1; i < stList_length(inducedAlignment2); i++) {
         assert(cScore2[i - 1] > cScore2[i]);
     }
-    //#endif
 
     //Find the score threshold by iterating along each alignment.
     *cutOff1 = 0;
@@ -198,11 +196,9 @@ static void pruneAlignmentsP(stList *inducedAlignment,
     for (int32_t i = start; i < end; i++) {
         AlignedPair *alignedPair = stList_get(inducedAlignment, i);
         if (stSortedSet_search(endAlignment, alignedPair) != NULL) { //can be missing if we are pruning the reverse strand alignment at the same time
-            //#ifdef BEN_DEBUG
             assert(
                     stSortedSet_search(endAlignment, alignedPair->reverse)
                             != NULL);
-            //#endif
             stSortedSet_remove(endAlignment, alignedPair);
             stSortedSet_remove(endAlignment, alignedPair->reverse);
             if (stSortedSet_search(pairsToDelete, alignedPair) == NULL) { // &&
@@ -371,10 +367,8 @@ void getScore(Cap *cap, stList *inducedAlignment1, stList *inducedAlignment2,
 }
 
 static int sortCapsFn(const void *cap1, const void *cap2) {
-    //#ifdef BEN_DEBUG
     assert(stHash_search(capScoresFn_Hash, (void *) cap1) != NULL);
     assert(stHash_search(capScoresFn_Hash, (void *) cap2) != NULL);
-    //#endif
     int64_t i = ((int64_t *) stHash_search(capScoresFn_Hash, (void *) cap1))[0]
             - ((int64_t *) stHash_search(capScoresFn_Hash, (void *) cap2))[0];
     return (i > 0) ? 1 : ((i < 0) ? -1 : 0);
@@ -387,32 +381,24 @@ static int makeFlowerAlignmentP(Cap *cap, stHash *endAlignments,
     assert(endAlignment1 != NULL);
 
     Cap *adjacentCap = cap_getAdjacency(cap);
-    //#ifdef BEN_DEBUG
     assert(adjacentCap != NULL);
     assert(cap_getSide(adjacentCap));
     assert(cap_getStrand(adjacentCap));
-    //#endif
     adjacentCap = cap_getReverse(adjacentCap);
     stSortedSet *endAlignment2 = stHash_search(endAlignments,
             end_getPositiveOrientation(cap_getEnd(adjacentCap)));
     assert(endAlignment2 != NULL);
 
-    //if (endAlignment1 == endAlignment2) {
-    //    return 0; //We ignore self loops, which have been dealt with already by the
-    //    //poset aligner.
-    //}
     AdjacencySequence *adjacencySequence1 = adjacencySequence_construct(cap,
             INT32_MAX);
     AdjacencySequence *adjacencySequence2 = adjacencySequence_construct(
             adjacentCap, INT32_MAX);
-    //#ifdef BEN_DEBUG
     assert(adjacencySequence1->length == adjacencySequence2->length);
     assert(adjacencySequence1->subsequenceIdentifier == adjacencySequence2->subsequenceIdentifier);
     assert(adjacencySequence1->strand == !adjacencySequence2->strand);
     assert(
             adjacencySequence2->start == adjacencySequence1->start
                     + adjacencySequence1->length - 1);
-    //#endif
 
     stList *inducedAlignment1 = getInducedAlignment(endAlignment1,
             adjacencySequence1);
@@ -588,18 +574,14 @@ stSortedSet *makeFlowerAlignment(Flower *flower, int32_t spanningTrees,
         while (stSortedSet_size(endAlignment) > 0) {
             AlignedPair *alignedPair = stSortedSet_getFirst(endAlignment);
             stSortedSet_remove(endAlignment, alignedPair);
-            //#ifdef BEN_DEBUG
             assert(
                     stSortedSet_search(endAlignment, alignedPair->reverse)
                             != NULL);
-            //#endif
             stSortedSet_remove(endAlignment, alignedPair->reverse);
-            //#ifdef BEN_DEBUG
             assert(stSortedSet_search(sortedAlignment, alignedPair) == NULL);
             assert(
                     stSortedSet_search(sortedAlignment, alignedPair->reverse)
                             == NULL);
-            //#endif
             stSortedSet_insert(sortedAlignment, alignedPair);
             stSortedSet_insert(sortedAlignment, alignedPair->reverse);
         }

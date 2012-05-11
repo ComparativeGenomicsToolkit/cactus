@@ -143,9 +143,7 @@ static double getAlignmentScore(stList *alignedPairs, int32_t seqLength1,
     int64_t alignmentScore = 0;
     for (int32_t i = 0; i < stList_length(alignedPairs); i++) {
         stIntTuple *alignedPair = stList_get(alignedPairs, i);
-#ifdef BEN_DEBUG
         assert(stIntTuple_length(alignedPair) == 3);
-#endif
         alignmentScore += stIntTuple_getPosition(alignedPair, 0);
     }
     int64_t j = seqLength1 < seqLength2 ? seqLength1 : seqLength2;
@@ -192,14 +190,12 @@ void pairwiseColumnWeight_fillOut(PairwiseColumnWeight *i, int32_t sequence1,
         int32_t position1, int32_t columnDepth1, int32_t sequence2,
         int32_t position2, int32_t columnDepth2, double weight,
         double alignmentScore, stSortedSet *alignedPairs) {
-#ifdef BEN_DEBUG
     assert(columnDepth1 > 0);
     assert(columnDepth2 > 0);
     assert(stSortedSet_size(alignedPairs) > 0);
     if(sequence1 == sequence2) {
         assert(position1 != position2);
     }
-#endif
 
     i->sequence = sequence1;
     i->position = position1;
@@ -267,8 +263,6 @@ static double pairwiseColumnWeight_getNormalisedWeight(
 static double pairwiseColumnWeight_getNormalisedAlignmentScore(
         const PairwiseColumnWeight *a, bool divideByObservedPairs) {
     return a->shared->alignmentScore / getPairNumber(a, divideByObservedPairs);
-    //(a->columnDepth
-    //         * a->reverse->columnDepth);
 }
 
 static int pairwiseColumnWeight_compareByWeightFnP(
@@ -301,7 +295,6 @@ static int pairwiseColumnWeight_compareByWeightFn_divideByObservedPairs(
 
 static PairwiseColumnWeight *pairwiseColumnWeight_merge(
         const PairwiseColumnWeight *a, const PairwiseColumnWeight *b) {
-#ifdef BEN_DEBUG
     assert(a != b);
     assert(a != b->reverse);
     assert(a->sequence == b->sequence);
@@ -309,13 +302,10 @@ static PairwiseColumnWeight *pairwiseColumnWeight_merge(
     assert(a->reverse->sequence == b->reverse->sequence);
     assert(a->reverse->position == b->reverse->position);
     assert(a->reverse->columnDepth == b->reverse->columnDepth);
-#endif
 
     stSortedSet *alignedPairs = stSortedSet_getUnion(a->shared->alignedPairs,
             b->shared->alignedPairs);
-#ifdef BEN_DEBUG
     assert(stSortedSet_size(alignedPairs) == stSortedSet_size(a->shared->alignedPairs) + stSortedSet_size(b->shared->alignedPairs));
-#endif
     return pairwiseColumnWeight_construct(a->sequence, a->position,
             a->columnDepth + b->columnDepth, a->reverse->sequence,
             a->reverse->position, a->reverse->columnDepth,
@@ -326,47 +316,39 @@ static PairwiseColumnWeight *pairwiseColumnWeight_merge(
 static void removeWeights(stSortedSet *columnWeightsSortedByWeight,
         stSortedSet *columnWeightsSortedByPosition,
         PairwiseColumnWeight *pairwiseColumnWeight) {
-#ifdef BEN_DEBUG
     assert(stSortedSet_search(columnWeightsSortedByPosition, pairwiseColumnWeight) != NULL);
     assert(stSortedSet_search(columnWeightsSortedByPosition, pairwiseColumnWeight->reverse) != NULL);
     assert(stSortedSet_search(columnWeightsSortedByWeight, pairwiseColumnWeight) != NULL);
     assert(stSortedSet_search(columnWeightsSortedByWeight, pairwiseColumnWeight->reverse) != NULL);
-#endif
     stSortedSet_remove(columnWeightsSortedByPosition, pairwiseColumnWeight);
     stSortedSet_remove(columnWeightsSortedByPosition,
             pairwiseColumnWeight->reverse);
     stSortedSet_remove(columnWeightsSortedByWeight, pairwiseColumnWeight);
     stSortedSet_remove(columnWeightsSortedByWeight,
             pairwiseColumnWeight->reverse);
-#ifdef BEN_DEBUG
     assert(stSortedSet_search(columnWeightsSortedByPosition, pairwiseColumnWeight) == NULL);
     assert(stSortedSet_search(columnWeightsSortedByPosition, pairwiseColumnWeight->reverse) == NULL);
     assert(stSortedSet_search(columnWeightsSortedByWeight, pairwiseColumnWeight) == NULL);
     assert(stSortedSet_search(columnWeightsSortedByWeight, pairwiseColumnWeight->reverse) == NULL);
-#endif
 }
 
 static void addWeights(stSortedSet *columnWeightsSortedByWeight,
         stSortedSet *columnWeightsSortedByPosition,
         PairwiseColumnWeight *pairwiseColumnWeight) {
-#ifdef BEN_DEBUG
     assert(stSortedSet_search(columnWeightsSortedByPosition, pairwiseColumnWeight) == NULL);
     assert(stSortedSet_search(columnWeightsSortedByPosition, pairwiseColumnWeight->reverse) == NULL);
     assert(stSortedSet_search(columnWeightsSortedByWeight, pairwiseColumnWeight) == NULL);
     assert(stSortedSet_search(columnWeightsSortedByWeight, pairwiseColumnWeight->reverse) == NULL);
-#endif
     stSortedSet_insert(columnWeightsSortedByPosition, pairwiseColumnWeight);
     stSortedSet_insert(columnWeightsSortedByWeight, pairwiseColumnWeight);
     stSortedSet_insert(columnWeightsSortedByPosition,
             pairwiseColumnWeight->reverse);
     stSortedSet_insert(columnWeightsSortedByWeight,
             pairwiseColumnWeight->reverse);
-#ifdef BEN_DEBUG
     assert(stSortedSet_search(columnWeightsSortedByPosition, pairwiseColumnWeight) != NULL);
     assert(stSortedSet_search(columnWeightsSortedByPosition, pairwiseColumnWeight->reverse) != NULL);
     assert(stSortedSet_search(columnWeightsSortedByWeight, pairwiseColumnWeight) != NULL);
     assert(stSortedSet_search(columnWeightsSortedByWeight, pairwiseColumnWeight->reverse) != NULL);
-#endif
 }
 
 static stList *getPositions(stSortedSet *columnWeightsSortedByPosition,
@@ -384,11 +366,9 @@ static stList *getPositions(stSortedSet *columnWeightsSortedByPosition,
     }
     i = stSortedSet_getPrevious(it);
     do {
-#ifdef BEN_DEBUG
         assert(i != NULL);
         assert(i->sequence == pairwiseColumnWeight->sequence);
         assert(i->position == pairwiseColumnWeight->position);
-#endif
         if (pairwiseColumnWeight != i) {
             stList_append(list, i);
         }
@@ -420,7 +400,6 @@ static void updatePairwiseColumnWeights(
                     != pairwiseColumnWeight->reverse->sequence);
     for (int32_t j = 0; j < stList_length(list); j++) {
         i = stList_get(list, j);
-#ifdef BEN_DEBUG
         //Check weight is as we expect
         assert(i != pairwiseColumnWeight);
         assert(i != pairwiseColumnWeight->reverse);
@@ -430,7 +409,6 @@ static void updatePairwiseColumnWeights(
         if(i->reverse->sequence == pairwiseColumnWeight->sequence) {
             assert(i->reverse->position != pairwiseColumnWeight->position);
         }
-#endif
         //Remove the position
         removeWeights(columnWeightsSortedByWeight,
                 columnWeightsSortedByPosition, i);
@@ -440,7 +418,6 @@ static void updatePairwiseColumnWeights(
         PairwiseColumnWeight *k = stSortedSet_search(
                 columnWeightsSortedByPosition, i); //look for a column weight to merge with
         if (k != NULL) { //we have a valid merge
-#ifdef BEN_DEBUG
             //Check weight to merge is as we expect
             assert(k != i);
             assert(k != i->reverse);
@@ -456,11 +433,8 @@ static void updatePairwiseColumnWeights(
             }
             assert(k->columnDepth == pairwiseColumnWeight->columnDepth);
             assert(stList_contains(list2, k));
-#endif
             stList_removeItem(list2, k); //Remove this from the second list, as it is now merged.
-#ifdef BEN_DEBUG
             assert(!stList_contains(list2, k));
-#endif
             removeWeights(columnWeightsSortedByWeight,
                     columnWeightsSortedByPosition, k);
             addWeights(columnWeightsSortedByWeight,
@@ -478,7 +452,6 @@ static void updatePairwiseColumnWeights(
     for (int32_t j = 0; j < stList_length(list2); j++) {
         i = stList_get(list2, j);
         //Check weight to adjust is as we expect
-#ifdef BEN_DEBUG
         assert(i != pairwiseColumnWeight);
         assert(i != pairwiseColumnWeight->reverse);
         assert(i->sequence == pairwiseColumnWeight->sequence);
@@ -490,7 +463,6 @@ static void updatePairwiseColumnWeights(
         if(i->reverse->sequence == pairwiseColumnWeight->reverse->sequence) {
             assert(i->reverse->position != pairwiseColumnWeight->reverse->position);
         }
-#endif
         removeWeights(columnWeightsSortedByWeight,
                 columnWeightsSortedByPosition, i);
         i->columnDepth = pairwiseColumnWeight->columnDepth
@@ -498,7 +470,7 @@ static void updatePairwiseColumnWeights(
         addWeights(columnWeightsSortedByWeight, columnWeightsSortedByPosition,
                 i);
     }
-#ifdef BEN_DEBUG
+#ifndef NDEBUG
     stList *list3 = getPositions(columnWeightsSortedByPosition, pairwiseColumnWeight);
     assert(stList_length(list3) <= stList_length(list) + stList_length(list2));
     stList_destruct(list3);
@@ -580,26 +552,19 @@ stList *makeAlignment(stList *sequences, int32_t spanningTrees, float gapGamma,
         double alignmentScore = getAlignmentScore(alignedPairs2, seqLength1,
                 seqLength2);
 
-#ifdef BEN_DEBUG
         assert(alignmentScore >= -0.00001);
         assert(alignmentScore <= 1.00001);
-#endif
-
         //Now deal with the match probs..
         while (stList_length(alignedPairs2) > 0) {
             stIntTuple *alignedPair = (stIntTuple *) stList_pop(alignedPairs2);
-#ifdef BEN_DEBUG
             assert(stIntTuple_length(alignedPair) == 3);
-#endif
             int32_t position1 = stIntTuple_getPosition(alignedPair, 1);
             int32_t position2 = stIntTuple_getPosition(alignedPair, 2);
             //Work out the scores
             double pairwiseProbability = (double) stIntTuple_getPosition(
                     alignedPair, 0) / PAIR_ALIGNMENT_PROB_1;
-#ifdef BEN_DEBUG
             assert(pairwiseProbability >= -0.0001);
             assert(pairwiseProbability <= 1.00001);
-#endif
             pairwiseProbability += st_random() * 0.00001; //This randomness avoids nasty types of unbalanced trees.
             //Construct the aligned pair structures.
             stIntTuple *alignedPair2 = stIntTuple_construct(5,
@@ -635,11 +600,9 @@ stList *makeAlignment(stList *sequences, int32_t spanningTrees, float gapGamma,
     double pWeight = INT64_MAX;
 
     while (stSortedSet_size(columnWeightsSortedByWeight) > 0) {
-#ifdef BEN_DEBUG
         //The two trees of weights should have identical cardinality and should be of even parity (as we have reverses)
         assert(stSortedSet_size(columnWeightsSortedByWeight) == stSortedSet_size(columnWeightsSortedByPosition));
         assert(stSortedSet_size(columnWeightsSortedByWeight) % 2 == 0);
-#endif
         PairwiseColumnWeight *pairwiseColumnWeight = stSortedSet_getLast(
                 columnWeightsSortedByWeight);
         double score = pairwiseColumnWeight_getNormalisedAlignmentScore(
@@ -648,13 +611,9 @@ stList *makeAlignment(stList *sequences, int32_t spanningTrees, float gapGamma,
                 pairwiseColumnWeight, divideByObservedPairs);
 
         //NormalisedWeight(pairwiseColumnWeight);
-#ifdef BEN_DEBUG
         assert(weight <= pWeight + 0.0001);
-#endif
         pWeight = weight;
-#ifdef BEN_DEBUG
         assert(stSortedSet_size(pairwiseColumnWeight->shared->alignedPairs) > 0);
-#endif
         if (score >= gapGamma) {
             stIntTuple *alignedPair = stSortedSet_getFirst(
                     pairwiseColumnWeight->shared->alignedPairs);
@@ -663,21 +622,13 @@ stList *makeAlignment(stList *sequences, int32_t spanningTrees, float gapGamma,
                     stIntTuple_getPosition(alignedPair, 2),
                     stIntTuple_getPosition(alignedPair, 3),
                     stIntTuple_getPosition(alignedPair, 4))) {
-#ifdef BEN_DEBUG
-                //We check it is possible to align all the pairs in the column weight
-                stSortedSetIterator *it = stSortedSet_getIterator(pairwiseColumnWeight->shared->alignedPairs);
-                while((alignedPair = stSortedSet_getNext(it)) != NULL) {
-                    assert(stPosetAlignment_isPossible(posetAlignment, stIntTuple_getPosition(alignedPair, 1), stIntTuple_getPosition(alignedPair, 2),
-                                    stIntTuple_getPosition(alignedPair, 3), stIntTuple_getPosition(alignedPair, 4)));
-                }
-                stSortedSet_destructIterator(it);
-                stIntTuple *alignedPair = stSortedSet_getFirst(pairwiseColumnWeight->shared->alignedPairs);
-#endif
+
                 bool i = stPosetAlignment_add(posetAlignment,
                         stIntTuple_getPosition(alignedPair, 1),
                         stIntTuple_getPosition(alignedPair, 2),
                         stIntTuple_getPosition(alignedPair, 3),
                         stIntTuple_getPosition(alignedPair, 4));
+                (void)i;
                 assert(i);
                 //Add to the output
                 stList *list = stSortedSet_getList(
@@ -690,18 +641,6 @@ stList *makeAlignment(stList *sequences, int32_t spanningTrees, float gapGamma,
                 removeWeights(columnWeightsSortedByWeight,
                         columnWeightsSortedByPosition, pairwiseColumnWeight); //remove from the hash
             } else {
-#ifdef BEN_DEBUG
-                stSortedSetIterator *it = stSortedSet_getIterator(pairwiseColumnWeight->shared->alignedPairs);
-                stIntTuple *alignedPair;
-                while ((alignedPair = stSortedSet_getNext(it)) != NULL) {
-                    alignedPair = stSortedSet_getFirst(
-                            pairwiseColumnWeight->shared->alignedPairs);
-                    assert(!stPosetAlignment_isPossible(posetAlignment,
-                                    stIntTuple_getPosition(alignedPair, 1), stIntTuple_getPosition(alignedPair, 2),
-                                    stIntTuple_getPosition(alignedPair, 3), stIntTuple_getPosition(alignedPair, 4)));
-                }
-                stSortedSet_destructIterator(it);
-#endif
                 removeWeights(columnWeightsSortedByWeight,
                         columnWeightsSortedByPosition, pairwiseColumnWeight); //remove from the hash
                 destroyWeights(pairwiseColumnWeight);
@@ -715,10 +654,8 @@ stList *makeAlignment(stList *sequences, int32_t spanningTrees, float gapGamma,
     }
 
     //Cleanup
-#ifdef BEN_DEBUG
     assert(stSortedSet_size(columnWeightsSortedByWeight) == 0);
     assert(stSortedSet_size(columnWeightsSortedByPosition) == 0);
-#endif
     stSortedSet_destruct(columnWeightsSortedByWeight);
     stSortedSet_destruct(columnWeightsSortedByPosition);
     stPosetAlignment_destruct(posetAlignment);

@@ -103,10 +103,8 @@ static Diagonal band_setCurrentDiagonal(int32_t xay, int32_t xL, int32_t yL, int
     int32_t xmyL = xL - yL;
     int32_t xmyR = xU - yU;
 
-#ifdef BEN_DEBUG
     assert(xay >= xL + yU);
     assert(xay <= xU + yL);
-#endif
 
     //Avoid in-between undefined x,y coordinate positions when intersecting xay and xmy.
     xmyL = band_avoidOffByOne(xay, xmyL);
@@ -155,7 +153,6 @@ Band *band_construct(stList *anchorPairs, int32_t lX, int32_t lY, int32_t expans
                 x = stIntTuple_getPosition(anchorPair, 0) + 1; //Plus ones, because matrix coordinates are +1 the sequence ones
                 y = stIntTuple_getPosition(anchorPair, 1) + 1;
 
-#ifdef BEN_DEBUG
                 //Check the anchor pairs
                 assert(x > diagonal_getXCoordinate(pxay, pxmy));
                 assert(y > diagonal_getYCoordinate(pxay, pxmy));
@@ -163,7 +160,6 @@ Band *band_construct(stList *anchorPairs, int32_t lX, int32_t lY, int32_t expans
                 assert(y <= lY);
                 assert(x > 0);
                 assert(y > 0);
-#endif
             }
 
             nxay = x + y;
@@ -237,10 +233,8 @@ Diagonal bandIterator_getPrevious(BandIterator *bandIterator) {
 
 static inline double lookup(double x) {
     //return log (exp (x) + 1);
-#ifdef BEN_DEBUG
     assert (x >= 0.00f);
     assert (x <= logUnderflowThreshold);
-#endif
     if (x <= 1.00f)
         return ((-0.009350833524763f * x + 0.130659527668286f) * x + 0.498799810682272f) * x + 0.693203116424741f;
     if (x <= 2.50f)
@@ -284,10 +278,8 @@ Symbol symbol_convertCharToSymbol(char i) {
 }
 
 Symbol *symbol_convertStringToSymbols(const char *s, int32_t sL) {
-#ifdef BEN_DEBUG
     assert(sL >= 0);
     assert(strlen(s) == sL);
-#endif
     Symbol *cS = st_malloc(sL * sizeof(Symbol));
     for (int32_t i = 0; i < sL; i++) {
         cS[i] = symbol_convertCharToSymbol(s[i]);
@@ -307,9 +299,7 @@ void symbolString_destruct(SymbolString s) {
 }
 
 static void symbol_check(Symbol c) {
-#ifdef BEN_DEBUG
     assert(c >= 0 && c < 5);
-#endif
 }
 
 #define EMISSION_MATCH -2.1149196655034745 //log(0.12064298095701059);
@@ -345,9 +335,7 @@ double symbol_gapProb(Symbol cZ) {
 ///////////////////////////////////
 
 static void state_check(State s) {
-#ifdef BEN_DEBUG
     assert(c >= 0 && c < STATE_NUMBER);
-#endif
 }
 
 double state_startStateProb(State state) {
@@ -659,10 +647,6 @@ void diagonalCalculationPosteriorMatchProbs(int32_t xay, DpMatrix *forwardDpMatr
             double *cellForward = dpDiagonal_getCell(forwardDiagonal, xmy);
             double *cellBackward = dpDiagonal_getCell(backDiagonal, xmy);
             double posteriorProbability = exp((cellForward[match] + cellBackward[match]) - totalProbability);
-#ifdef BEN_DEBUG
-            assert(posteriorProbability > -0.01);
-            assert(posteriorProbability < 1.01);
-#endif
             if (posteriorProbability >= threshold) {
                 if (posteriorProbability > 1.0) {
                     posteriorProbability = 1.0;
@@ -754,23 +738,19 @@ stList *getAlignedPairsWithBanding(stList *anchorPairs, const SymbolString sX, c
                     diagonalCalculationBackward(diagonal_getXay(diagonal2), backwardDpMatrix, sX, sY);
                 }
                 if (diagonal_getXay(diagonal2) <= tracedBackFrom) {
-#ifdef BEN_DEBUG
                     assert(dpMatrix_getDiagonal(forwardDpMatrix, diagonal_getXay(diagonal2)) != NULL);
                     assert(dpMatrix_getDiagonal(forwardDpMatrix, diagonal_getXay(diagonal2)-1) != NULL);
                     assert(dpMatrix_getDiagonal(backwardDpMatrix, diagonal_getXay(diagonal2)) != NULL);
                     if(diagonal_getXay(diagonal2) != diagonalNumber) {
                         assert(dpMatrix_getDiagonal(backwardDpMatrix, diagonal_getXay(diagonal2)+1) != NULL);
                     }
-#endif
                     if (totalPosteriorCalculationsThisTraceback++ % 10 == 0) {
                         double newTotalProbability = diagonalCalculationTotalProbability(diagonal_getXay(diagonal2),
                                 forwardDpMatrix, backwardDpMatrix, sX, sY);
-#ifdef BEN_DEBUG
                         if (totalPosteriorCalculationsThisTraceback != 1) {
                             assert(totalProbability + 0.1 > newTotalProbability);
                             assert(newTotalProbability + 0.1 > newTotalProbability);
                         }
-#endif
                         totalProbability = newTotalProbability;
                     }
 
@@ -802,12 +782,10 @@ stList *getAlignedPairsWithBanding(stList *anchorPairs, const SymbolString sX, c
             break;
         }
     }
-#ifdef BEN_DEBUG
     assert(totalPosteriorCalculations == diagonalNumber);
     assert(tracedBackTo == diagonalNumber);
     assert(dpMatrix_getActiveDiagonalNumber(backwardDpMatrix) == 0);
     assert(dpMatrix_getActiveDiagonalNumber(forwardDpMatrix) == 0);
-#endif
     //Cleanup
     dpMatrix_destruct(forwardDpMatrix);
     dpMatrix_destruct(backwardDpMatrix);
@@ -889,12 +867,10 @@ stList *getBlastPairs(const char *sX, const char *sY, int32_t lX, int32_t lY, in
     while ((pA = cigarRead(fileHandle)) != NULL) {
         int32_t j = pA->start1;
         int32_t k = pA->start2;
-#ifdef BEN_DEBUG
         assert(strcmp(pA->contig1, "a") == 0);
         assert(strcmp(pA->contig2, "b") == 0);
         assert(pA->strand1);
         assert(pA->strand2);
-#endif
         for (int32_t i = 0; i < pA->operationList->length; i++) {
             struct AlignmentOperation *op = pA->operationList->list[i];
             if (op->opType == PAIRWISE_MATCH) {
@@ -972,9 +948,7 @@ stList *filterToRemoveOverlap(stList *sortedOverlappingPairs) {
     //Traverse forwards to final set of pairs
     pX = INT32_MIN;
     pY = INT32_MIN;
-#ifdef BEN_DEBUG
     int32_t pY2 = INT32_MIN;
-#endif
     for (int32_t i = 0; i < stList_length(sortedOverlappingPairs); i++) {
         stIntTuple *pair = stList_get(sortedOverlappingPairs, i);
         int32_t x = stIntTuple_getPosition(pair, 0);
@@ -982,13 +956,12 @@ stList *filterToRemoveOverlap(stList *sortedOverlappingPairs) {
         if (x > pX && y > pY && stSortedSet_search(set, pair) != NULL) {
             stList_append(nonOverlappingPairs, stIntTuple_construct(2, x, y));
         }
-#ifdef BEN_DEBUG //Check things are sorted in th input
+        //Check things are sorted in th input
         assert(x >= pX);
         if(x == pX) {
             assert(y > pY2);
         }
         pY2 = y;
-#endif
         pX = x > pX ? x : pX;
         pY = y > pY ? y : pY;
     }
@@ -1042,12 +1015,10 @@ stList *getBlastPairsForPairwiseAlignmentParameters(const char *sX, const char *
         stIntTuple *anchorPair = stList_get(topLevelAnchorPairs, i);
         int32_t x = stIntTuple_getPosition(anchorPair, 0);
         int32_t y = stIntTuple_getPosition(anchorPair, 1);
-#ifdef BEN_DEBUG
         assert(x >= 0 && x < lX);
         assert(y >= 0 && y < lY);
         assert(x >= pX);
         assert(y >= pY);
-#endif
         getBlastPairsForPairwiseAlignmentParametersP(sX, sY, pX, pY, x, y, p, combinedAnchorPairs);
         stList_append(combinedAnchorPairs, anchorPair);
         pX = x + 1;
@@ -1093,12 +1064,10 @@ stList *getSplitPoints(stList *anchorPairs, int32_t lX, int32_t lY, int64_t spli
         stIntTuple *anchorPair = stList_get(anchorPairs, i);
         int32_t x3 = stIntTuple_getPosition(anchorPair, 0), y3 = stIntTuple_getPosition(anchorPair, 1);
         getSplitPointsP(&x1, &y1, x2, y2, x3, y3, splitPoints, splitMatrixBiggerThanThis);
-#ifdef BEN_DEBUG
         assert(x3 >= x2);
         assert(y3 >= y2);
         assert(x3 < lX);
         assert(y3 < lY);
-#endif
         x2 = x3 + 1;
         y2 = y3 + 1;
     }

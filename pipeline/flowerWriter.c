@@ -57,7 +57,7 @@ static void flowerWriter_flush(FlowerWriter *flowerWriter) {
     stList_append(stack, &flowerNameAndSize->flowerName);
     for(int32_t i=1; i<stList_length(flowerWriter->flowerNamesAndSizes); i++) {
         flowerNameAndSize = stList_get(flowerWriter->flowerNamesAndSizes, i);
-        if (flowerNameAndSize->flowerSize + totalSize > flowerWriter->maxFlowerGroupSize  || stList_length(stack) > 5000) {
+        if (flowerNameAndSize->flowerSize + totalSize > flowerWriter->maxFlowerGroupSize) { //  || stList_length(stack) > 5000) {
             printFlowers(flowerWriter, stack, totalSize);
             while(stList_length(stack) > 0) {
                 stList_pop(stack);

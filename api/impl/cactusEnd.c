@@ -265,64 +265,64 @@ void end_makeAttached(End *end) {
 
 void end_check(End *end) {
     //Check is connected to flower properly
-    assert(flower_getEnd(end_getFlower(end), end_getName(end)) == end_getPositiveOrientation(end));
+    cactusCheck(flower_getEnd(end_getFlower(end), end_getName(end)) == end_getPositiveOrientation(end));
 
     //check end is part of group..
     Group *group = end_getGroup(end);
-    assert(group != NULL);
-    assert(group_getEnd(group, end_getName(end)) == end_getPositiveOrientation(end));
+    cactusCheck(group != NULL);
+    cactusCheck(group_getEnd(group, end_getName(end)) == end_getPositiveOrientation(end));
 
     if (end_isBlockEnd(end)) {
-        assert(!end_isStubEnd(end));
-        assert(end_isFree(end));
+        cactusCheck(!end_isStubEnd(end));
+        cactusCheck(end_isFree(end));
         //Check block..
         Block *block = end_getBlock(end);
-        assert(block != NULL);
-        assert(block_getOrientation(block) == end_getOrientation(end));
+        cactusCheck(block != NULL);
+        cactusCheck(block_getOrientation(block) == end_getOrientation(end));
         //check not attached
-        assert(end_isFree(end));
-        assert(!end_isAttached(end));
+        cactusCheck(end_isFree(end));
+        cactusCheck(!end_isAttached(end));
         //Check sides correspond..
         if (end_getSide(end)) {
-            assert(block_get5End(block) == end);
+            cactusCheck(block_get5End(block) == end);
         } else {
-            assert(block_get3End(block) == end);
+            cactusCheck(block_get3End(block) == end);
         }
     } else {
-        assert(end_isStubEnd(end)); //Is stub end:
+        cactusCheck(end_isStubEnd(end)); //Is stub end:
         //there must be no attached block.
-        assert(end_getBlock(end) == NULL);
+        cactusCheck(end_getBlock(end) == NULL);
         Group *parentGroup = flower_getParentGroup(end_getFlower(end));
         if (parentGroup != NULL) {
             // if attached the is inherited from a parent flower to the containing flower.
             End *parentEnd = group_getEnd(parentGroup, end_getName(end));
-            assert(end_getOrientation(parentEnd));
+            cactusCheck(end_getOrientation(parentEnd));
             if (end_isAttached(end)) {
-                assert(parentEnd != NULL);
+                cactusCheck(parentEnd != NULL);
             }
             if (parentEnd != NULL) {
-                assert(end_getSide(parentEnd) == end_getSide(end_getPositiveOrientation(end)));
+                cactusCheck(end_getSide(parentEnd) == end_getSide(end_getPositiveOrientation(end)));
             }
         }
     }
 
     //Check reverse, not comprehensively, perhaps.
     End *rEnd = end_getReverse(end);
-    assert(rEnd != NULL);
-    assert(end_getReverse(rEnd) == end);
-    assert(end_getOrientation(end) == !end_getOrientation(rEnd));
-    assert(end_getSide(end) == !end_getSide(rEnd));
-    assert(end_getName(end) == end_getName(rEnd));
-    assert(end_getInstanceNumber(end) == end_getInstanceNumber(rEnd));
-    assert(end_isAttached(end) == end_isAttached(rEnd));
-    assert(end_isStubEnd(end) == end_isStubEnd(rEnd));
+    cactusCheck(rEnd != NULL);
+    cactusCheck(end_getReverse(rEnd) == end);
+    cactusCheck(end_getOrientation(end) == !end_getOrientation(rEnd));
+    cactusCheck(end_getSide(end) == !end_getSide(rEnd));
+    cactusCheck(end_getName(end) == end_getName(rEnd));
+    cactusCheck(end_getInstanceNumber(end) == end_getInstanceNumber(rEnd));
+    cactusCheck(end_isAttached(end) == end_isAttached(rEnd));
+    cactusCheck(end_isStubEnd(end) == end_isStubEnd(rEnd));
     if (end_getRootInstance(end) == NULL) {
-        assert(end_getRootInstance(rEnd) == NULL);
+        cactusCheck(end_getRootInstance(rEnd) == NULL);
     } else {
-        assert(end_getRootInstance(end) == cap_getReverse(end_getRootInstance(rEnd)));
+        cactusCheck(end_getRootInstance(end) == cap_getReverse(end_getRootInstance(rEnd)));
     }
     if (end_getInstanceNumber(end) > 0) {
-        assert(end_getFirst(end) == cap_getReverse(end_getFirst(rEnd)));
+        cactusCheck(end_getFirst(end) == cap_getReverse(end_getFirst(rEnd)));
     }
 
     //Check has tree if built_trees set

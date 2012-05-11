@@ -274,6 +274,7 @@ int main(int argc, char *argv[]) {
         stCaf_finish(flower, threadSet);
         stPinchThreadSet_destruct(threadSet);
         st_logInfo("Ran the cactus core script.\n");
+        assert(!flower_isParentLoaded(flower));
 
         /*
          * Cleanup
@@ -283,17 +284,6 @@ int main(int argc, char *argv[]) {
         stSortedSet_destruct(alignedPairs);
 
         st_logInfo("Finished filling in the alignments for the flower\n");
-    }
-
-    ///////////////////////////////////////////////////////////////////////////
-    // Unload the parent flowers
-    ///////////////////////////////////////////////////////////////////////////
-
-    for (j = 0; j < stList_length(flowers); j++) {
-        Flower *flower = stList_get(flowers, j);
-        assert(flower != NULL);
-        //assert(!flower_isParentLoaded(flower));
-        flower_unloadParent(flower); //We have this line just in case we are loading the parent..
     }
     stList_destruct(flowers);
 

@@ -50,15 +50,12 @@ stPinchThreadSet *stCaf_constructEmptyPinchGraph(Flower *flower) {
 }
 
 static void initialiseFlowerForFillingOut(Flower *flower) {
-#ifdef BEN_DEBUG
     assert(!flower_builtBlocks(flower)); //We can't do this if we've already built blocks for the flower!.
-    flower_check(flower);
     assert(flower_isTerminal(flower));
     assert(flower_getGroupNumber(flower) == 1);
     assert(group_isLeaf(flower_getFirstGroup(flower))); //this should be true by the previous assert
     //Destruct any chain
     assert(flower_getChainNumber(flower) <= 1);
-#endif
     if (flower_getChainNumber(flower) == 1) {
         Chain *chain = flower_getFirstChain(flower);
         chain_destruct(chain);

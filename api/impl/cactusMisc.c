@@ -144,7 +144,7 @@ void preCacheNestedFlowers(CactusDisk *cactusDisk, stList *flowers) {
 }
 
 static void printName(FILE *fileHandle, Name name) {
-    fprintf(fileHandle, NAME_STRING " ", name);
+fprintf(fileHandle, NAME_STRING " ", name);
 }
 
 void cactusMisc_encodeFlowersString(stList *flowerNames, FILE *fileHandle) {
@@ -164,6 +164,7 @@ void cactusMisc_encodeFlowersString(stList *flowerNames, FILE *fileHandle) {
 static Name getName(FILE *fileHandle) {
     Name name;
     int32_t j = fscanf(fileHandle, NAME_STRING, &name);
+    (void) j;
     assert(j == 1);
     return name;
 }
@@ -177,6 +178,7 @@ static void addName(stList *flowerNamesList, Name name) {
 stList *cactusMisc_decodeFlowersString(CactusDisk *cactusDisk, FILE *fileHandle) {
     int32_t flowerArgumentNumber;
     int32_t j = fscanf(fileHandle, "%i", &flowerArgumentNumber);
+    (void) j;
     assert(j == 1);
     stList *flowerNamesList = stList_construct3(0, free);
     Name name = getName(fileHandle);
@@ -193,5 +195,25 @@ stList *cactusMisc_decodeFlowersString(CactusDisk *cactusDisk, FILE *fileHandle)
 
 stList *cactusMisc_parseFlowersFromStdin(CactusDisk *cactusDisk) {
     return cactusMisc_decodeFlowersString(cactusDisk, stdin);
+}
+
+const char *CACTUS_CHECK_EXCEPTION_ID = "CACTUS_CHECK_EXCEPTION_ID";
+
+void cactusCheck(bool condition) {
+    if (!condition) {
+        stThrowNew(CACTUS_CHECK_EXCEPTION_ID, "Cactus check condition failed");
+    }
+}
+
+void cactusCheck2(bool condition, char *string, ...) {
+    if(!condition) {
+        static char cA[100000];
+        va_list ap;
+        va_start(ap, string);
+        vsprintf(cA, string, ap);
+        va_end(ap);
+        assert(strlen(cA) < 100000);
+        stThrowNew(CACTUS_CHECK_EXCEPTION_ID, "Cactus check condition failed: %s", cA);
+    }
 }
 

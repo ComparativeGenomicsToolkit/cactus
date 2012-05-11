@@ -62,14 +62,14 @@ const char *sequence_getHeader(Sequence *sequence) {
 
 void sequence_check(Sequence *sequence) {
 	Flower *flower = sequence_getFlower(sequence);
-	assert(flower_getSequence(flower, sequence_getName(sequence)) == sequence); //properly connected to the flower..
+	cactusCheck(flower_getSequence(flower, sequence_getName(sequence)) == sequence); //properly connected to the flower..
 
 	Group *parentGroup = flower_getParentGroup(flower);
 	if(parentGroup != NULL) {
 		Flower *parentFlower = group_getFlower(parentGroup);
 		Sequence *parentSequence = flower_getSequence(parentFlower, sequence_getName(sequence));
 		if(parentSequence != NULL) {
-			assert(event_getName(sequence_getEvent(sequence)) == event_getName(sequence_getEvent(parentSequence)));
+			cactusCheck(event_getName(sequence_getEvent(sequence)) == event_getName(sequence_getEvent(parentSequence)));
 		}
 	}
 }

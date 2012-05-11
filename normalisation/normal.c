@@ -87,31 +87,25 @@ static void promoteChainsToFillParentsP(Flower *flower, Group *parentGroup, int3
     Flower_ChainIterator *chainIt = flower_getChainIterator(flower);
     stList *chains = stList_construct();
     while ((chain = flower_getNextChain(chainIt)) != NULL) {
-#ifdef BEN_DEBUG
         assert(chain_getLength(chain) >= 1);
         assert(chain_getFlower(chain) == flower);
-#endif
         stList_append(chains, chain);
     }
     flower_destructChainIterator(chainIt);
     stList_sort(chains, (int(*)(const void *, const void *)) promoteChainsFillParentsP);
     Flower *parentFlower = group_getFlower(parentGroup);
-#ifdef BEN_DEBUG
     assert(group_isTangle(parentGroup)); //Completely redundant check for old bug
     assert(group_getLink(parentGroup) == NULL);
     int32_t chainLength = INT32_MAX;
-#endif
     while (group_isTangle(parentGroup) && stList_length(chains) > 0 && (flower_getChainNumber(parentFlower)
             + flower_getTrivialChainNumber(parentFlower) < maxNumberOfChains || flower_getAttachedStubEndNumber(flower)
             == 0)) {
         chain = stList_pop(chains);
-#ifdef BEN_DEBUG
         assert(chainLength >= chain_getLength(chain));
         assert(chain_getFlower(chain) == flower);
         assert(flower_getParentGroup(flower) == parentGroup);
         assert(group_getLink(parentGroup) == NULL); //Should never become a chain as if tangle it should stay a tangle as all chains are already maximal.
         chainLength = chain_getLength(chain);
-#endif
         chain_promote(chain);
     }
     stList_destruct(chains);
@@ -128,20 +122,16 @@ static void promoteChainsToFillParentsP(Flower *flower, Group *parentGroup, int3
     }
     flower_destructBlockIterator(blockIt);
     stList_sort(blocks, (int(*)(const void *, const void *)) promoteChainsFillParentsP2);
-#ifdef BEN_DEBUG
     int32_t blockCoverage = INT32_MAX;
-#endif
     while (group_isTangle(parentGroup) && stList_length(blocks) > 0 && (flower_getChainNumber(parentFlower)
             + flower_getTrivialChainNumber(parentFlower) < maxNumberOfChains || flower_getAttachedStubEndNumber(flower)
             == 0)) {
         block = stList_pop(blocks);
-#ifdef BEN_DEBUG
         assert(block_getFlower(block) == flower);
         assert(flower_getParentGroup(flower) == parentGroup);
         assert(group_getLink(parentGroup) == NULL); //Should never become a chain as if tangle it should stay a tangle as all chains are already maximal.
         assert(blockCoverage >= block_getLength(block) * block_getInstanceNumber(block));
         blockCoverage = block_getLength(block) * block_getInstanceNumber(block);
-#endif
         block_promote(block);
     }
     stList_destruct(blocks);
@@ -154,10 +144,8 @@ void promoteNestedChainsToFillFlower(Flower *flower, int32_t maxNumberOfChains) 
         Group *group = flower_getParentGroup(childFlower);
         assert(group_getFlower(group) == flower);
         if (group_isTangle(group)) {
-#ifdef BEN_DEBUG
             assert(group_getFlower(group) == flower);
             assert(group_getLink(group) == NULL);
-#endif
             promoteChainsToFillParentsP(childFlower, group, maxNumberOfChains);
         }
     }
@@ -165,10 +153,6 @@ void promoteNestedChainsToFillFlower(Flower *flower, int32_t maxNumberOfChains) 
 }
 
 void normalise(Flower *flower, int32_t maxNumberOfChains) {
-#ifdef BEN_DEBUG
-    flower_check(flower);
-    flower_checkNotEmpty(flower, 0);
-#endif
     promoteNestedChainsThatExtendChains(flower);
     promoteNestedChainsToFillFlower(flower, maxNumberOfChains);
 
@@ -186,9 +170,4 @@ void normalise(Flower *flower, int32_t maxNumberOfChains) {
     removeTrivialLinks(flower);
     //Finally we make the flower itself terminal normal (this is to handle the case for the root).
     flower_makeTerminalNormal(flower);
-
-#ifdef BEN_DEBUG
-    flower_check(flower);
-    flower_checkNotEmpty(flower, 0);
-#endif
 }

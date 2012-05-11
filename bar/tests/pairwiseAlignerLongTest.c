@@ -70,10 +70,10 @@ static void test_pairwiseAligner(CuTest *testCase, char *seq1, char *seq2, char 
         if(score < 0.9 * PAIR_ALIGNMENT_PROB_1) {
             //st_logInfo("I have a pair with less than 0.1 prob: %i %i %f\n", x, y, (float)score / PAIR_ALIGNMENT_PROB_1);
         }
-        assert(seqX == 0);
-        assert(seqY == 1);
+        CuAssertTrue(testCase, seqX == 0);
+        CuAssertTrue(testCase,seqY == 1);
         stIntTuple *k = stIntTuple_construct(2, x, y);
-        assert(stSortedSet_search(pairs, k) == NULL);
+        CuAssertTrue(testCase,stSortedSet_search(pairs, k) == NULL);
         stSortedSet_insert(pairs, k);
     }
 
@@ -82,7 +82,7 @@ static void test_pairwiseAligner(CuTest *testCase, char *seq1, char *seq2, char 
     for (int32_t l = 0; l < i; l++) {
         if (align1[l] != '-' && align2[l] != '-') {
             stIntTuple *m = stIntTuple_construct(2, j, k);
-            assert(stSortedSet_search(pairs2, m) == NULL);
+            CuAssertTrue(testCase,stSortedSet_search(pairs2, m) == NULL);
             stSortedSet_insert(pairs2, m);
         }
         if (align1[l] != '-') {

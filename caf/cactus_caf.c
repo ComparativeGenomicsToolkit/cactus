@@ -70,6 +70,7 @@ static int32_t *getInts(const char *string, int32_t *arrayLength) {
     *arrayLength = 0;
     while ((cA3 = stString_getNextWord(&cA)) != NULL) {
         int32_t i = sscanf(cA3, "%i", &iA[(*arrayLength)++]);
+        (void)i;
         assert(i == 1);
         free(cA3);
     }
@@ -376,6 +377,7 @@ int main(int argc, char *argv[]) {
             stPinchThreadSet_destruct(threadSet);
             stPinchIterator_destruct(pinchIterator);
             assert(!flower_isParentLoaded(flower));
+
             if (alignmentsList != NULL) {
                 stList_destruct(alignmentsList);
             }

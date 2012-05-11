@@ -568,7 +568,7 @@ void flower_check(Flower *flower) {
         flower_destructFaceIterator(faceIterator);
         face_checkFaces(flower);
     } else {
-        assert(flower_getFaceNumber(flower) == 0);
+        cactusCheck(flower_getFaceNumber(flower) == 0);
     }
 
     if (flower_builtBlocks(flower)) { //Note that a flower for which the blocks are not yet built must be a leaf.
@@ -580,8 +580,8 @@ void flower_check(Flower *flower) {
         }
         flower_destructBlockIterator(blockIterator);
     } else {
-        assert(flower_isLeaf(flower)); //Defensive
-        assert(flower_isTerminal(flower)); //Checks that a flower without built blocks is a leaf and does not
+        cactusCheck(flower_isLeaf(flower)); //Defensive
+        cactusCheck(flower_isTerminal(flower)); //Checks that a flower without built blocks is a leaf and does not
         //contain any blocks.
     }
 
@@ -707,6 +707,7 @@ bool flower_deleteIfEmpty(Flower *flower) {
             Group *group = flower_getFirstGroup(flower);
             if (!group_isLeaf(group)) {
                 bool i = flower_deleteIfEmpty(group_getNestedFlower(group));
+                (void)i;
                 assert(i);
             }
         }
@@ -733,7 +734,6 @@ void flower_makeTerminalNormal(Flower *flower) {
                 flower_setBuiltBlocks(nestedFlower, flower_builtBlocks(flower));
                 flower_setBuiltTrees(nestedFlower, flower_builtTrees(flower));
                 flower_setBuildFaces(nestedFlower, flower_builtFaces(flower));
-                flower_check(nestedFlower);
             }
         }
         flower_destructGroupIterator(groupIterator);

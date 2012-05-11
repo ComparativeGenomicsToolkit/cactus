@@ -175,6 +175,7 @@ static int32_t eventTree_addSiblingUnaryEventP(Event *event, Event *event2) {
 	assert(event != event2);
 	Group *group1 = flower_getParentGroup(eventTree_getFlower(event_getEventTree(event)));
 	Group *group2 = flower_getParentGroup(eventTree_getFlower(event_getEventTree(event2)));
+	(void)group2;
 	if(group1 != NULL) { //both events have a parent, so we can perhaps ask if one is the ancestor
 		//of the other in the parent event tree.
 		assert(group2 != NULL);
@@ -229,7 +230,7 @@ void eventTree_addSiblingUnaryEvent(EventTree *eventTree, Event *event) {
 
 void eventTree_check(EventTree *eventTree) {
 	//Check flower and event tree properly connected.
-	assert(flower_getEventTree(eventTree_getFlower(eventTree)) == eventTree);
+	cactusCheck(flower_getEventTree(eventTree_getFlower(eventTree)) == eventTree);
 
 	Event *event;
 	EventTree_Iterator *eventIterator = eventTree_getIterator(eventTree);

@@ -317,7 +317,7 @@ void getMaximalChain_extension(End *parentEnd, End *end, stList *chainList, int3
             Link *parentOtherLink = group_getLink(end_getGroup(parentOtherBlockEnd));
             if (parentOtherLink != NULL) { //We can add this chain to the final chain
                 Chain *parentChain = link_getChain(parentOtherLink);
-#ifdef BEN_DEBUG
+#ifndef NDEBUG
                 assert(link_get3End(parentOtherLink) == parentOtherBlockEnd || link_get5End(parentOtherLink) == parentOtherBlockEnd);
                 if (link_get3End(parentOtherLink) == parentOtherBlockEnd) {
                     assert(chain_getFirst(parentChain) == parentOtherLink);
@@ -374,12 +374,9 @@ void block_promote(Block *block) {
     Group *parentGroup = flower_getParentGroup(flower);
     assert(parentGroup != NULL);
     Flower *parentFlower = group_getFlower(parentGroup);
-
-#ifdef BEN_DEBUG
     assert(group_getLink(parentGroup) == NULL);
     assert(group_getLink(end_getGroup(block_get5End(block))) == NULL);
     assert(group_getLink(end_getGroup(block_get3End(block))) == NULL);
-#endif
 
     //Handling the ends of the chain..
     stList *chainEnds = stList_construct();
@@ -401,9 +398,7 @@ void block_promote(Block *block) {
     group_constructChainForLink(parentGroup);
 
     //We have not removed any ends.. so we're done.
-#ifdef BEN_DEBUG
     assert(flower_getParentGroup(flower) == parentGroup);
-#endif
 }
 
 void chain_promote(Chain *chain) {
@@ -413,13 +408,11 @@ void chain_promote(Chain *chain) {
 
     Flower *flower = chain_getFlower(chain);
     Group *parentGroup = flower_getParentGroup(flower);
-#ifdef BEN_DEBUG
     assert(chain_getLength(chain)> 0);
     assert(parentGroup != NULL);
-#endif
     Flower *parentFlower = group_getFlower(parentGroup);
 
-#ifdef BEN_DEBUG
+#ifndef NDEBUG
     if (group_getLink(parentGroup) != NULL) { //Check we will be merging it into a higher level chain..
         End *_3End = link_get3End(chain_getFirst(chain));
         End *_5End = link_get5End(chain_getLast(chain));
@@ -463,6 +456,7 @@ void chain_promote(Chain *chain) {
             Link *nLink = link_getNextLink(parentLink);
             //Excise the parent link
             int32_t finalLength = chain_getLength(chain) + chain_getLength(parentChain) - 1;
+            (void)finalLength;
             if (pLink != NULL) {
                 pLink->nLink = nLink;
                 if (nLink != NULL) { //Fix the reverse link
@@ -519,31 +513,6 @@ void chain_promote(Chain *chain) {
 
             assert(chain_getLength(parentChain) == finalLength);
 
-            /*_5Link = chain_getFirst(parentChain);
-            //Final check, to trap bug. To remove at later date.
-            assert(_5Link->pLink == NULL);
-            int32_t linkNumber = 0;
-            while (_5Link != NULL) {
-                linkNumber++;
-                if (_5Link->nLink != NULL) {
-                    assert(_5Link == _5Link->nLink->pLink);
-                } else {
-                    assert(chain_getLast(parentChain) == _5Link);
-                }
-                st_uglyf("On loop %i %i %i %i %i\n", linkNumber, _5Link, link_getGroup(_5Link), link_get5End(_5Link), link_get3End(_5Link));
-                assert(link_getGroup(_5Link) != NULL);
-                assert(group_getLink(link_getGroup(_5Link)) == _5Link);
-                assert(group_getFlower(link_getGroup(_5Link)) == parentFlower);
-                assert(link_getChain(_5Link) == parentChain);
-                assert(link_get5End(_5Link) != NULL);
-                assert(link_get3End(_5Link) != NULL);
-                assert(end_getGroup(link_get5End(_5Link)) == link_getGroup(_5Link));
-                assert(end_getGroup(link_get3End(_5Link)) == link_getGroup(_5Link));
-
-                _5Link = _5Link->nLink;
-            }
-            assert(chain_getLength(parentChain) == linkNumber);
-            chain_check(parentChain);*/
             return;
         }
     }
@@ -604,7 +573,7 @@ void chain_promote(Chain *chain) {
         End *_5End = flower_getEnd(parentFlower, _5EndName);
         assert(_5End != NULL);
         Group *group = end_getGroup(_3End);
-#ifdef BEN_DEBUG
+#ifndef NDEBUG
         assert(group == end_getGroup(_5End));
         assert(group_getLink(group) == NULL);
         End *end;
@@ -627,7 +596,7 @@ void chain_promote(Chain *chain) {
     //We've inadvertantly created a length one chain involving just the ends of the flower
     group_constructChainForLink(parentGroup);
 
-#ifdef BEN_DEBUG
+#ifndef NDEBUG
     assert(flower_getParentGroup(flower) == parentGroup);
     //assert(group_getLink(parentGroup) == NULL);
     if (flower_getEndNumber(flower) == 0) { //Check the properties of the flower if we've gutted it

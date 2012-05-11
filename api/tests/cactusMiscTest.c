@@ -96,11 +96,32 @@ void testCactusMisc_stringNameFns(CuTest* testCase) {
     cactusMiscTestTeardown();
 }
 
+static void testCactusCheck(CuTest* testCase) {
+    cactusCheck(1);
+    stTry {
+        cactusCheck(0);
+        CuAssertTrue(testCase, 0);
+    } stCatch(except) {
+        st_logInfo("This is the message %s\n", stExcept_getMsg(except));
+        stExcept_free(except);
+    } stTryEnd
+
+    cactusCheck2(1, "This shouldn't throw an exception: %s", "blah");
+    stTry {
+        cactusCheck2(0, "This should throw an exception: %s", "blah");
+        CuAssertTrue(testCase, 0);
+    } stCatch(except) {
+        st_logInfo("This is the message: %s\n", stExcept_getMsg(except));
+        stExcept_free(except);
+    } stTryEnd
+}
+
 CuSuite* cactusMiscTestSuite(void) {
     CuSuite* suite = CuSuiteNew();
     SUITE_ADD_TEST(suite, testCactusMisc_reverseComplementChar);
     SUITE_ADD_TEST(suite, testCactusMisc_reverseComplementString);
     SUITE_ADD_TEST(suite, testCactusMisc_nameCompare);
     SUITE_ADD_TEST(suite, testCactusMisc_stringNameFns);
+    SUITE_ADD_TEST(suite, testCactusCheck);
     return suite;
 }

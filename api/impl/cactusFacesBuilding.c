@@ -86,7 +86,7 @@ static stHash *buildFaces_computeLiftedEdges(Flower * flower) {
             adjacencyAncestor = cap_getTopCap(cap_getPositiveOrientation(
                     adjacency));
 
-#ifdef BEN_DEBUG
+#ifndef NDEBUG
             assert((attachedAncestor && adjacencyAncestor) || (!attachedAncestor && !adjacencyAncestor));
 #endif
 
@@ -99,7 +99,7 @@ static stHash *buildFaces_computeLiftedEdges(Flower * flower) {
             liftedEdge->destination = adjacencyAncestor;
             liftedEdge->bottomNode = cap;
 
-#ifdef BEN_DEBUG
+#ifndef NDEBUG
             // Self loop
             if (adjacencyAncestor == attachedAncestor)
                 abort();
@@ -168,7 +168,7 @@ static void buildFaces_constructFromCap(Cap * startingCap,
     // Establishlist of top nodes
     buildFaces_fillTopNodeList(startingCap, topNodes, liftedEdgesTable);
 
-#ifdef BEN_DEBUG
+#ifndef NDEBUG
     // What, no top nodes!?
     if (stList_length(topNodes) == 0)
         abort();
@@ -194,10 +194,6 @@ static void buildFaces_constructFromCap(Cap * startingCap,
             bottomNode
                     = ((LiftedEdge *) stList_get(liftedEdges, index2))->bottomNode;
             face_addBottomNode(face, index, bottomNode);
-
-#if BEN_DEBUG
-            assert(cap_getAdjacency(bottomNode));
-#endif
             ancestor = cap_getTopCap(cap_getPositiveOrientation(
                     cap_getAdjacency(bottomNode)));
             if (cap_getAdjacency(cap) != ancestor)
@@ -205,18 +201,13 @@ static void buildFaces_constructFromCap(Cap * startingCap,
             else
                 face_setDerivedDestination(face, index, index2, NULL);
 
-#ifdef BEN_DEBUG
+#ifndef NDEBUG
             // If bottom nodes part of top nodes
             assert(!stList_contains(topNodes, cap_getPositiveOrientation(
                     ((LiftedEdge*) stList_get(liftedEdges, index2))->bottomNode)));
 #endif
         }
     }
-
-#ifdef BEN_DEBUG_ULTRA
-    if (!buildFaces_isSimple(face))
-    abort();
-#endif
 
     // Clean up
     stList_destruct(topNodes);
@@ -305,7 +296,7 @@ void buildFaces_reconstructFromCap(Cap * startingCap, Flower * flower) {
     // Establishlist of top nodes and fill liftedEdges table
     buildFaces_fillTopNodeList2(startingCap, topNodes, liftedEdgesTable);
 
-#ifdef BEN_DEBUG
+#ifndef NDEBUG
     // What, no top nodes!?
     assert(stList_length(topNodes));
 #endif
@@ -331,9 +322,7 @@ void buildFaces_reconstructFromCap(Cap * startingCap, Flower * flower) {
                     = ((LiftedEdge *) stList_get(liftedEdges, index2))->bottomNode;
             face_addBottomNode(face, index, bottomNode);
 
-#if BEN_DEBUG
             assert(cap_getAdjacency(bottomNode));
-#endif
             ancestor = cap_getTopCap(cap_getPositiveOrientation(
                     cap_getAdjacency(bottomNode)));
             if (cap_getAdjacency(cap) != ancestor)
@@ -341,7 +330,7 @@ void buildFaces_reconstructFromCap(Cap * startingCap, Flower * flower) {
             else
                 face_setDerivedDestination(face, index, index2, NULL);
 
-#ifdef BEN_DEBUG
+#ifndef NDEBUG
             // If bottom nodes part of top nodes
             if (stList_contains(topNodes, cap_getPositiveOrientation(
                     ((LiftedEdge*) stList_get(liftedEdges, index2))->bottomNode)))

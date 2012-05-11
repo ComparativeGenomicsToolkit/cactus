@@ -174,6 +174,7 @@ bool link_isTrivial(Link *link) {
 
 bool link_mergeIfTrivial(Link *link) {
     Flower *flower = chain_getFlower(link_getChain(link));
+    (void)flower;
     assert(flower_builtBlocks(flower));
     assert(!flower_builtTrees(flower));
     assert(!flower_builtFaces(flower));

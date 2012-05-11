@@ -39,6 +39,7 @@ int main(int argc, char *argv[]) {
 
 	int32_t minimumSequenceLength;
 	int i = sscanf(argv[4], "%i", &minimumSequenceLength);
+	(void)i;
 	assert(i == 1);
 	writeFlowerSequencesInFile(flower, argv[3], minimumSequenceLength);
 	st_logInfo("Written the sequences from the flower into a file");

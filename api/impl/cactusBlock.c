@@ -257,40 +257,40 @@ void block_split(Block *block, int32_t splitPoint, Block **leftBlock, Block **ri
 
 void block_check(Block *block) {
 	//Check is connected to flower properly
-	assert(flower_getBlock(block_getFlower(block), block_getName(block)) == block_getPositiveOrientation(block));
+	cactusCheck(flower_getBlock(block_getFlower(block), block_getName(block)) == block_getPositiveOrientation(block));
 	//Check we have actually set built blocks for the flower..
-	assert(flower_builtBlocks(block_getFlower(block)));
+	cactusCheck(flower_builtBlocks(block_getFlower(block)));
 
 	//Checks the two ends are block ends.
 	End *_5End = block_get5End(block);
 	End *_3End = block_get3End(block);
-	assert(end_isBlockEnd(_5End));
-	assert(end_isBlockEnd(_3End));
-	assert(end_getOrientation(_5End) == block_getOrientation(block));
-	assert(end_getOrientation(_3End) == block_getOrientation(block));
-	assert(end_getBlock(_5End) == block);
-	assert(end_getBlock(_3End) == block);
-	assert(end_getSide(_5End)); //Check the sides of the ends are consistent.
-	assert(!end_getSide(_3End));
+	cactusCheck(end_isBlockEnd(_5End));
+	cactusCheck(end_isBlockEnd(_3End));
+	cactusCheck(end_getOrientation(_5End) == block_getOrientation(block));
+	cactusCheck(end_getOrientation(_3End) == block_getOrientation(block));
+	cactusCheck(end_getBlock(_5End) == block);
+	cactusCheck(end_getBlock(_3End) == block);
+	cactusCheck(end_getSide(_5End)); //Check the sides of the ends are consistent.
+	cactusCheck(!end_getSide(_3End));
 
-	assert(block_getLength(block) > 0); //check block has non-zero length
+	cactusCheck(block_getLength(block) > 0); //check block has non-zero length
 
 	//Check reverse
 	Block *rBlock = block_getReverse(block);
-	assert(rBlock != NULL);
-	assert(block_getReverse(block) == rBlock);
-	assert(block_getOrientation(block) == !block_getOrientation(rBlock));
-	assert(block_getLength(block) == block_getLength(rBlock));
-	assert(block_get5End(block) == end_getReverse(block_get3End(rBlock)));
-	assert(block_get3End(block) == end_getReverse(block_get5End(rBlock)));
-	assert(block_getInstanceNumber(block) == block_getInstanceNumber(rBlock));
+	cactusCheck(rBlock != NULL);
+	cactusCheck(block_getReverse(block) == rBlock);
+	cactusCheck(block_getOrientation(block) == !block_getOrientation(rBlock));
+	cactusCheck(block_getLength(block) == block_getLength(rBlock));
+	cactusCheck(block_get5End(block) == end_getReverse(block_get3End(rBlock)));
+	cactusCheck(block_get3End(block) == end_getReverse(block_get5End(rBlock)));
+	cactusCheck(block_getInstanceNumber(block) == block_getInstanceNumber(rBlock));
 	if(block_getInstanceNumber(block) > 0) {
-		assert(block_getFirst(block) == segment_getReverse(block_getFirst(rBlock)));
+		cactusCheck(block_getFirst(block) == segment_getReverse(block_getFirst(rBlock)));
 		if(block_getRootInstance(block) == NULL) {
-			assert(block_getRootInstance(rBlock) == NULL);
+			cactusCheck(block_getRootInstance(rBlock) == NULL);
 		}
 		else {
-			assert(block_getRootInstance(block) == segment_getReverse(block_getRootInstance(rBlock)));
+			cactusCheck(block_getRootInstance(block) == segment_getReverse(block_getRootInstance(rBlock)));
 		}
 	}
 

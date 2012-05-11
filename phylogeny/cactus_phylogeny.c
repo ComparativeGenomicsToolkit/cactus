@@ -240,7 +240,9 @@ Segment *getSegment(struct BinaryTree *binaryTree, Segment **segments) {
      * Gets associated segment from integer index of leaf name.
      */
     int32_t i;
-    assert(sscanf(binaryTree->label, "%i", &i) == 1);
+    int j = sscanf(binaryTree->label, "%i", &i);
+    (void)j;
+    assert(j == 1);
     assert(i >= 0);
     return segments[i];
 }
@@ -305,7 +307,7 @@ void buildChainTrees3(Block *block, Segment **segments, int32_t blockNumber,
     segment_makeParentAndChild(rootSegment, mostAncestralEvent);
     block_setRootInstance(block, rootSegment);
 
-#ifdef BEN_DEBUG //Now go through all events checking they have a parent.
+#ifndef NDEBUG //Now go through all events checking they have a parent.
     Block_InstanceIterator *instanceIterator = block_getInstanceIterator(block);
     Segment *segment;
     while ((segment = block_getNext(instanceIterator)) != NULL) {
@@ -751,7 +753,7 @@ int main(int argc, char *argv[]) {
             flower_destructEndIterator(endIterator);
         }
 
-#ifdef BEN_DEBUG
+#ifndef NDEBUG
         endIterator = flower_getEndIterator(flower);
         while ((end = flower_getNextEnd(endIterator)) != NULL) {
             if (!end_isBlockEnd(end)) {
@@ -799,7 +801,7 @@ int main(int argc, char *argv[]) {
         qsort(sortedChainAlignments->list, sortedChainAlignments->length,
                 sizeof(void *),
                 (int(*)(const void *, const void *)) chainAlignment_cmpFn);
-#ifdef BEN_DEBUG
+#ifndef NDEBUG
         for (i = 1; i < sortedChainAlignments->length; i++) {
             assert(((ChainAlignment *)sortedChainAlignments->list[i-1])->totalAlignmentLength >=
                     ((ChainAlignment *)sortedChainAlignments->list[i])->totalAlignmentLength);
@@ -822,7 +824,7 @@ int main(int argc, char *argv[]) {
         st_logInfo("Augmented the block trees in: %i seconds\n", time(NULL)
                 - startTime);
 
-#ifdef BEN_DEBUG
+#ifndef NDEBUG
         endIterator = flower_getEndIterator(flower);
         while ((end = flower_getNextEnd(endIterator)) != NULL) {
             assert(end_getRootInstance(end) != NULL);

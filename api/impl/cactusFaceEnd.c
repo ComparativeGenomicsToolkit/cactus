@@ -59,6 +59,7 @@ void faceEnd_destructBottomNodeIterator(FaceEnd_BottomNodeIterator *iterator) {
 }
 
 void faceEnd_check(FaceEnd *faceEnd) {
+#ifndef NDEBUG
 	Cap *topCap = faceEnd_getTopNode(faceEnd);
 	assert(cap_getTopFaceEnd(topCap) == faceEnd);
 	Cap *bottomCap;
@@ -67,6 +68,7 @@ void faceEnd_check(FaceEnd *faceEnd) {
 		assert(cap_getBottomFaceEnd(bottomCap) == faceEnd);
 	}
 	faceEnd_destructBottomNodeIterator(iterator);
+#endif
 }
 
 /*

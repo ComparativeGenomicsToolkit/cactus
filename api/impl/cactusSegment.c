@@ -161,86 +161,86 @@ void segment_makeParentAndChild(Segment *segmentParent, Segment *segmentChild) {
 void segment_check(Segment *segment) {
     //Check segment is properly linked to block.
     Block *block = segment_getBlock(segment);
-    assert(block_getInstance(block, segment_getName(segment)) == segment);
+    cactusCheck(block_getInstance(block, segment_getName(segment)) == segment);
     //Orientations consistent.
-    assert(segment_getOrientation(segment) == block_getOrientation(block));
+    cactusCheck(segment_getOrientation(segment) == block_getOrientation(block));
     //Check lengths are consistent
-    assert(segment_getLength(segment) == block_getLength(block));
+    cactusCheck(segment_getLength(segment) == block_getLength(block));
 
     //Checks the two ends have caps.
     Cap *_5Cap = segment_get5Cap(segment);
     Cap *_3Cap = segment_get3Cap(segment);
-    assert(_5Cap != NULL); //check segment has other ends.
-    assert(_3Cap != NULL);
-    assert(cap_getOtherSegmentCap(_5Cap) == _3Cap); //check we can get the other end
-    assert(cap_getOtherSegmentCap(_3Cap) == _5Cap);
+    cactusCheck(_5Cap != NULL); //check segment has other ends.
+    cactusCheck(_3Cap != NULL);
+    cactusCheck(cap_getOtherSegmentCap(_5Cap) == _3Cap); //check we can get the other end
+    cactusCheck(cap_getOtherSegmentCap(_3Cap) == _5Cap);
 
     //Checks the coordinates of the caps are consistent with the segment.
-    assert(cap_getOrientation(_5Cap) == segment_getOrientation(segment)); //check orientations consistent
-    assert(cap_getOrientation(_3Cap) == segment_getOrientation(segment));
-    assert(cap_getSide(_5Cap)); //check sides correctly configured
-    assert(!cap_getSide(_3Cap));
-    assert(segment_getStrand(segment) == cap_getStrand(_5Cap)); //Check strand is consistent.
-    assert(segment_getStrand(segment) == cap_getStrand(_3Cap));
-    assert(segment_getSequence(segment) == cap_getSequence(_5Cap)); //Check sequences are common (may be null).
-    assert(segment_getSequence(segment) == cap_getSequence(_3Cap));
-    assert(segment_getStart(segment) == cap_getCoordinate(_5Cap)); //Check 5End coordinate is same as start, may both be int32_max.
-    assert(segment_getLength(segment) == block_getLength(block)); //Check coordinate length is consistent with block
+    cactusCheck(cap_getOrientation(_5Cap) == segment_getOrientation(segment)); //check orientations consistent
+    cactusCheck(cap_getOrientation(_3Cap) == segment_getOrientation(segment));
+    cactusCheck(cap_getSide(_5Cap)); //check sides correctly configured
+    cactusCheck(!cap_getSide(_3Cap));
+    cactusCheck(segment_getStrand(segment) == cap_getStrand(_5Cap)); //Check strand is consistent.
+    cactusCheck(segment_getStrand(segment) == cap_getStrand(_3Cap));
+    cactusCheck(segment_getSequence(segment) == cap_getSequence(_5Cap)); //Check sequences are common (may be null).
+    cactusCheck(segment_getSequence(segment) == cap_getSequence(_3Cap));
+    cactusCheck(segment_getStart(segment) == cap_getCoordinate(_5Cap)); //Check 5End coordinate is same as start, may both be int32_max.
+    cactusCheck(segment_getLength(segment) == block_getLength(block)); //Check coordinate length is consistent with block
     if (segment_getStart(segment) != INT32_MAX) { //check _3End coordinate is consistent
         if (segment_getStrand(segment)) {
-            assert(segment_getStart(segment) + segment_getLength(segment) - 1 == cap_getCoordinate(_3Cap));
+            cactusCheck(segment_getStart(segment) + segment_getLength(segment) - 1 == cap_getCoordinate(_3Cap));
         } else {
-            assert(segment_getStart(segment) - segment_getLength(segment) + 1 == cap_getCoordinate(_3Cap));
+            cactusCheck(segment_getStart(segment) - segment_getLength(segment) + 1 == cap_getCoordinate(_3Cap));
         }
     } else {
-        assert(cap_getCoordinate(_3Cap) == INT32_MAX);
+        cactusCheck(cap_getCoordinate(_3Cap) == INT32_MAX);
     }
 
     //Checks the the segment has a parent, unless the root.
     if (block_getRootInstance(block) == NULL) {
-        assert(segment_getParent(segment) == NULL);
+        cactusCheck(segment_getParent(segment) == NULL);
     } else {
         if (block_getRootInstance(block) == segment) {
-            assert(segment_getParent(segment) == NULL);
+            cactusCheck(segment_getParent(segment) == NULL);
         } else { //Check the parent-child links are correct.
             Segment *ancestorSegment = segment_getParent(segment); //Check the parent / child is consistent.
-            assert(ancestorSegment != NULL);
-            assert(event_isAncestor(segment_getEvent(segment), segment_getEvent(ancestorSegment)));
-            assert(segment_getOrientation(segment) == segment_getOrientation(ancestorSegment));
+            cactusCheck(ancestorSegment != NULL);
+            cactusCheck(event_isAncestor(segment_getEvent(segment), segment_getEvent(ancestorSegment)));
+            cactusCheck(segment_getOrientation(segment) == segment_getOrientation(ancestorSegment));
 
             int32_t i;
             for (i = 0; i < segment_getChildNumber(segment); i++) {
                 Segment *childSegment = segment_getChild(segment, i);
-                assert(childSegment != NULL);
-                assert(segment_getParent(childSegment) == segment);
+                cactusCheck(childSegment != NULL);
+                cactusCheck(segment_getParent(childSegment) == segment);
             }
         }
     }
 
     //Check the reverse..
     Segment *rSegment = segment_getReverse(segment);
-    assert(rSegment != NULL);
-    assert(segment_getReverse(rSegment) == segment);
-    assert(block == block_getReverse(segment_getBlock(rSegment)));
-    assert(segment_getOrientation(segment) == !segment_getOrientation(rSegment));
-    assert(segment_getName(segment) == segment_getName(rSegment));
-    assert(segment_getEvent(segment) == segment_getEvent(rSegment));
-    assert(segment_getSequence(segment) == segment_getSequence(rSegment));
-    assert(segment_getStrand(segment) == !segment_getStrand(rSegment));
-    assert(segment_getStart(segment) == cap_getCoordinate(segment_get3Cap(rSegment)));
-    assert(segment_getStart(rSegment) == cap_getCoordinate(segment_get3Cap(segment)));
-    assert(segment_getLength(segment) == segment_getLength(rSegment));
-    assert(segment_get5Cap(segment) == cap_getReverse(segment_get3Cap(rSegment)));
-    assert(segment_get3Cap(segment) == cap_getReverse(segment_get5Cap(rSegment)));
+    cactusCheck(rSegment != NULL);
+    cactusCheck(segment_getReverse(rSegment) == segment);
+    cactusCheck(block == block_getReverse(segment_getBlock(rSegment)));
+    cactusCheck(segment_getOrientation(segment) == !segment_getOrientation(rSegment));
+    cactusCheck(segment_getName(segment) == segment_getName(rSegment));
+    cactusCheck(segment_getEvent(segment) == segment_getEvent(rSegment));
+    cactusCheck(segment_getSequence(segment) == segment_getSequence(rSegment));
+    cactusCheck(segment_getStrand(segment) == !segment_getStrand(rSegment));
+    cactusCheck(segment_getStart(segment) == cap_getCoordinate(segment_get3Cap(rSegment)));
+    cactusCheck(segment_getStart(rSegment) == cap_getCoordinate(segment_get3Cap(segment)));
+    cactusCheck(segment_getLength(segment) == segment_getLength(rSegment));
+    cactusCheck(segment_get5Cap(segment) == cap_getReverse(segment_get3Cap(rSegment)));
+    cactusCheck(segment_get3Cap(segment) == cap_getReverse(segment_get5Cap(rSegment)));
     if (segment_getParent(segment) == NULL) {
-        assert(segment_getParent(rSegment) == NULL);
+        cactusCheck(segment_getParent(rSegment) == NULL);
     } else {
-        assert(segment_getParent(segment) == segment_getReverse(segment_getParent(rSegment)));
+        cactusCheck(segment_getParent(segment) == segment_getReverse(segment_getParent(rSegment)));
     }
-    assert(segment_getChildNumber(segment) == segment_getChildNumber(rSegment));
+    cactusCheck(segment_getChildNumber(segment) == segment_getChildNumber(rSegment));
     int32_t i;
     for (i = 0; i < segment_getChildNumber(segment); i++) {
-        assert(segment_getChild(segment, i) == segment_getReverse(segment_getChild(rSegment, i)));
+        cactusCheck(segment_getChild(segment, i) == segment_getReverse(segment_getChild(rSegment, i)));
     }
 }
 
