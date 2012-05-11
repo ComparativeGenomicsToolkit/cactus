@@ -209,6 +209,7 @@ static void makeTangles(stCactusNode *cactusNode, Flower *flower, stHash *pinchE
                 assert(end_getGroup(end) == NULL);
                 end_setGroup(end, group);
             }
+            group_constructChainForLink(group);
         }
     }
 }

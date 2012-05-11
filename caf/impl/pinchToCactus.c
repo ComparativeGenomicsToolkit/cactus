@@ -85,8 +85,9 @@ static bool threadIsAttachedToDeadEndComponent3Prime(stPinchThread *thread, stLi
 static bool threadComponentIsAttachedToDeadEndComponent(stList *threadComponent, stList *deadEndComponent,
         stHash *pinchEndsToAdjacencyComponents) {
     for (int32_t i = 0; i < stList_length(threadComponent); i++) {
-        if (threadIsAttachedToDeadEndComponent5Prime(stList_get(threadComponent, i), deadEndComponent, pinchEndsToAdjacencyComponents) ||
-                threadIsAttachedToDeadEndComponent3Prime(stList_get(threadComponent, i), deadEndComponent, pinchEndsToAdjacencyComponents)) {
+        stPinchThread *thread = stList_get(threadComponent, i);
+        if (threadIsAttachedToDeadEndComponent5Prime(thread, deadEndComponent, pinchEndsToAdjacencyComponents) ||
+                threadIsAttachedToDeadEndComponent3Prime(thread, deadEndComponent, pinchEndsToAdjacencyComponents)) {
             return 1;
         }
     }
@@ -177,6 +178,15 @@ static void *makeNodeObject(stList *adjacencyComponent) {
     return adjacencyComponents;
 }
 
+static bool isDeadEndStubComponent(stList *adjacencyComponent, stPinchEnd *pinchEnd) {
+    if(stList_length(adjacencyComponent) != 1) {
+        return 0;
+    }
+    stPinchSegment *pinchSegment = stPinchBlock_getFirst(stPinchEnd_getBlock(pinchEnd));
+    return (stPinchEnd_traverse5Prime(stPinchEnd_getOrientation(pinchEnd), pinchSegment) ? stPinchSegment_get5Prime(pinchSegment) :
+            stPinchSegment_get3Prime(pinchSegment)) == NULL;
+}
+
 static stCactusGraph *stCaf_constructCactusGraph(stList *deadEndComponent, stHash *pinchEndsToAdjacencyComponents, stCactusNode **startCactusNode) {
     /*
      * Constructs a cactus graph from a set of pinch graph components, including the dead end component. Returns a cactus
@@ -197,7 +207,7 @@ static stCactusGraph *stCaf_constructCactusGraph(stList *deadEndComponent, stHas
         stList *adjacencyComponent = stHash_search(pinchEndsToAdjacencyComponents, pinchEnd);
         assert(adjacencyComponent != NULL);
         if (stHash_search(adjacencyComponentsToCactusNodes, adjacencyComponent) == NULL) {
-            if (stList_length(adjacencyComponent) == 1) { //Going to be a bridge to nowhere, so we join it - this ensures
+            if (isDeadEndStubComponent(adjacencyComponent, pinchEnd)) { //Going to be a bridge to nowhere, so we join it - this ensures
                 //that all dead end nodes of free stubs end up in the same node as their non-dead end counterparts.
                 assert(pinchEnd == stList_get(adjacencyComponent, 0));
                 stPinchEnd otherPinchEnd = stPinchEnd_constructStatic(stPinchEnd_getBlock(pinchEnd), !stPinchEnd_getOrientation(pinchEnd));
