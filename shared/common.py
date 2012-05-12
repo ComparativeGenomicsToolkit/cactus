@@ -272,7 +272,7 @@ def runCactusReference(cactusDiskDatabaseString, flowerNames, logLevel=None,
     useSimulatedAnnealing = nameValue("useSimulatedAnnealing", useSimulatedAnnealing, bool)
     theta = nameValue("theta", theta, float)
     maxNumberOfChainsBeforeSwitchingToFast = nameValue("maxNumberOfChainsBeforeSwitchingToFast", maxNumberOfChainsBeforeSwitchingToFast, int)
-    command = "cactus_reference --cactusDisk '%s' --logLevel %s %s %s %s %s %s" % (cactusDiskDatabaseString, logLevel, matchingAlgorithm, referenceEventString, permutations, useSimulatedAnnealing, theta)
+    command = "cactus_reference --cactusDisk '%s' --logLevel %s %s %s %s %s %s %s" % (cactusDiskDatabaseString, logLevel, matchingAlgorithm, referenceEventString, permutations, useSimulatedAnnealing, theta, maxNumberOfChainsBeforeSwitchingToFast)
     popenPush(command, stdinString=flowerNames)
     
 def runCactusAddReferenceCoordinates(cactusDiskDatabaseString, flowerNames, logLevel=None, referenceEventString=None, outgroupEventString=None, bottomUpPhase=None):   

@@ -218,7 +218,7 @@ static void makeTangles(stCactusNode *cactusNode, Flower *flower, stHash *pinchE
 
 static void setBlocksBuilt(Flower *flower) {
     flower_setBuiltBlocks(flower, 1);
-    flower_makeTerminalNormal(flower);
+    ///flower_makeTerminalNormal(flower);
     Flower_GroupIterator *iterator = flower_getGroupIterator(flower);
     Group *group;
     while ((group = flower_getNextGroup(iterator)) != NULL) {
