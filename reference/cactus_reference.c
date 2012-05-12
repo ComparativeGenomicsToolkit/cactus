@@ -149,6 +149,7 @@ int main(int argc, char *argv[]) {
     st_logInfo("The theta parameter has been set to %lf\n", theta);
     st_logInfo("The number of permutations is %i\n", permutations);
     st_logInfo("Simulated annealing is %i\n", useSimulatedAnnealing);
+    st_logInfo("Max number of chains before switching to fast %i\n", maxNumberOfChainsBeforeSwitchingToFast);
 
     ///////////////////////////////////////////////////////////////////////////
     // (0) Check the inputs.
