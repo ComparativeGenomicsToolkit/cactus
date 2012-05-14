@@ -805,11 +805,11 @@ void buildReferenceTopDown(Flower *flower, const char *referenceEventHeader,
             > maxNumberOfChainsBeforeSwitchingToFast;
     stList *reference = makeReferenceGreedily(stubEdges, chainEdges, z,
             nodeNumber, &totalScoreAfterGreedy, fast);
-    double totalScoreAfterGreedy2 = calculateZScoreOfReference(reference,
-            nodeNumber, z);
+    //double totalScoreAfterGreedy2 = calculateZScoreOfReference(reference,
+     //       nodeNumber, z);
     st_logDebug(
-            "The score of the initial solution is %f (recalculated %f) out of a max possible %f\n",
-            totalScoreAfterGreedy, totalScoreAfterGreedy2, maxPossibleScore);
+            "The score of the initial solution is %f out of a max possible %f\n",
+            totalScoreAfterGreedy, maxPossibleScore);
     //assert(totalScoreAfterGreedy <= totalScoreAfterGreedy2 + 0.01);
     //assert(totalScoreAfterGreedy2 <= totalScoreAfterGreedy + 0.01);
 
