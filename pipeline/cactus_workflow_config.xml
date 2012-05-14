@@ -73,6 +73,8 @@
 	/>
 	<hal
 		buildHal="1"
+		makeMaf="1"
+		joinMaf="1"
 		showOnlySubstitutionsWithRespectToReference="0"
 	/>
 </cactusWorkflowConfig>

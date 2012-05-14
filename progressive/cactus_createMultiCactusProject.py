@@ -97,10 +97,11 @@ def createFileStructure(mcProj, expTemplate, configTemplate, options):
             exp.setDbPort(expTemplate.getDbPort() + portOffset)
             portOffset += 1
         exp.setReferencePath(os.path.join(path, name + '.fa'))
-        if configTemplate.getMakeMaf() == True:
-            exp.setMAFPath(os.path.join(path, "%s.maf" % name))
-        else:
-            exp.setMAFPath(os.path.join(path, "%s.hal" % name))
+        if configTemplate.getBuildHal() == True:
+            if configTemplate.getMakeMaf() == True:
+                exp.setMAFPath(os.path.join(path, "%s.maf" % name))
+            else:
+                exp.setHALPath(os.path.join(path, "%s.hal" % name))
         exp.updateTree(subtree, seqMap)
         exp.setConfigPath(os.path.join(path, "%s_config.xml" % name))
         og = None

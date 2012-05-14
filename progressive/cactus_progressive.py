@@ -191,7 +191,7 @@ class BuildMAF(Target):
         self.ktserver = ktserver
     
     def run(self):
-        if self.options.buildHal and os.path.exists(self.experiment.getMAFPath()):             
+        if self.options.buildHal and os.path.exists(self.experiment.getMAFPath()) and os.path.splitext(self.experiment.getMAFPath())[1] == ".maf":
             logger.info("Starting MAF Build phase")
 
             mafFilterOutgroup(self.experiment) 

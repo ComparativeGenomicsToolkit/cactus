@@ -147,17 +147,39 @@ class ExperimentWrapper:
         refElem = configElem.find("reference")
         return refElem.attrib["reference"]
         
+    def getHALPath(self):
+        halElem = self.xmlRoot.find("hal")
+        if halElem is None:
+            return None
+        return halElem.attrib["path"]
+    
+    def setHALPath(self, path):
+        halElem = self.xmlRoot.find("hal")
+        if halElem is None:
+            halElem = ET.Element("hal")
+            self.xmlRoot.append(halElem)
+        assert os.path.splitext(path)[1] == ".hal"
+        halElem.attrib["path"] = path
+        
     def getMAFPath(self):
         halElem = self.xmlRoot.find("hal")
+        if halElem is None:
+            return None
         return halElem.attrib["path"]
     
     def setMAFPath(self, path):
-        mafElem = self.xmlRoot.find("hal")
-        if mafElem is None:
-            mafElem = ET.Element("hal")
-            self.xmlRoot.append(mafElem)
-        mafElem.attrib["path"] = path
+        halElem = self.xmlRoot.find("hal")
+        if halElem is None:
+            halElem = ET.Element("hal")
+            self.xmlRoot.append(halElem)
+        assert os.path.splitext(path)[1] == ".maf"
+        halElem.attrib["path"] = path
         
+    def getJoinMAF(self):
+        configElem = ET.parse(self.getConfig()).getroot()
+        config = ConfigWrapper(configElem)
+        return config.getJoinMaf()
+            
     def getOutgroupEvents(self):
         if self.xmlRoot.attrib.has_key("outgroup_events"):
             return self.xmlRoot.attrib["outgroup_events"].split()
