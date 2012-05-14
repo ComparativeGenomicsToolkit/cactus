@@ -818,8 +818,9 @@ void buildReferenceTopDown(Flower *flower, const char *referenceEventHeader,
     //double totalScoreAfterSimulatedAnnealing = calculateZScoreOfReference(reference, nodeNumber, z);
     //st_logDebug("The score of the sampled solution is %f after %i rounds of permutation out of a max possible %f\n", totalScoreAfterSimulatedAnnealing, permutations, maxPossibleScore);
 
-    gibbsSamplingWithSimulatedAnnealing(reference, chainEdges, z, permutations,
-            NULL, 1);
+    greedyImprovement(reference, chainEdges, z, permutations);
+    //gibbsSamplingWithSimulatedAnnealing(reference, chainEdges, z, permutations,
+    //        NULL, 1);
     double totalScoreAfterGreedySampling = calculateZScoreOfReference(
             reference, nodeNumber, z);
     st_logDebug(
