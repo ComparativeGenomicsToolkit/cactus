@@ -791,7 +791,7 @@ void buildReferenceTopDown(Flower *flower, const char *referenceEventHeader,
      * Check the edges and nodes before starting to calculate the matching.
      */
     st_logDebug(
-            "Starting to build the reference for flower %lli with %i stubs and %i chains and %i nodes\n",
+            "Starting to build the reference for flower %lli, with %i stubs and %i chains and %i nodes in the flowers tangle\n",
             flower_getName(flower), stList_length(stubEdges),
             stList_length(chainEdges), nodeNumber);
 
