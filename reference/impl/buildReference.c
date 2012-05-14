@@ -211,13 +211,13 @@ static int32_t calculateZP2(Cap *cap, stHash *endsToNodes) {
     return capLength;
 }
 
-double *calculateZ(Flower *flower, stHash *endsToNodes, double theta) {
+float *calculateZ(Flower *flower, stHash *endsToNodes, double theta) {
     /*
      * Calculate the zScores between all ends.
      */
     int32_t nodeNumber = stHash_size(endsToNodes);
     assert(nodeNumber % 2 == 0);
-    double *z = st_calloc(nodeNumber * nodeNumber, sizeof(double));
+    float *z = st_calloc(nodeNumber * nodeNumber, sizeof(float));
     for (int32_t i = 0; i < nodeNumber * nodeNumber; i++) { //Setting to zero for paranoid reasons.
         z[i] = 0.0;
     }
@@ -520,7 +520,7 @@ static stList *getStubEdgesInTopLevelFlower(Flower *flower, stHash *endsToNodes,
         Event *referenceEvent,
         stList *(*matchingAlgorithm)(stList *edges, int32_t nodeNumber),
         stList *chainEdges) {
-    double *z = calculateZ(flower, endsToNodes, 0.0);
+    float *z = calculateZ(flower, endsToNodes, 0.0);
 
     stList *stubNodes = getStubNodesOrEnds(flower, endsToNodes, chainEdges, 0);
     st_logDebug(
@@ -774,7 +774,7 @@ void buildReferenceTopDown(Flower *flower, const char *referenceEventHeader,
     /*
      * Calculate z function
      */
-    double *z = calculateZ(flower, endsToNodes, theta);
+    float *z = calculateZ(flower, endsToNodes, theta);
 
     /*
      * Get the chain edges.
