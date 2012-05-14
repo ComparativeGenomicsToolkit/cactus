@@ -120,6 +120,14 @@ class ConfigWrapper:
                 return True
         return False
     
+    def getJoinMaf(self):
+        halElem = self.xmlRoot.find("hal")
+        if halElem is not None and "joinMaf" in halElem.attrib:            
+            maf = halElem.attrib["joinMaf"]
+            if maf == "0" or maf.lower() == "false":
+                return False
+        return self.getMakeMaf()
+            
     # the minBlockDegree, when specified in the final, "base" 
     # iteration, does not play nicely with the required fraction
     # option
