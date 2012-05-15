@@ -20,20 +20,20 @@ static Event *globalReferenceEvent;
  *
  * #Specifies a sequence
  * sequenceLine :
- *      "s\t'eventName'\t'sequenceHeader'\tisBottom\n"
+ *      "s\t'eventHeader'\t'sequenceHeader'\tisBottom\n"
  *
  * #Name taken from newick tree
  * eventHeader :
- *      "string"
+ *      string
  *
  * #Everything after the '>' in a fasta header,
  * sequenceHeader :
- *      "string"
+ *      string
  *
  * #Tells you is it is a bottom sequence, is 1 if so.
  * isBottom :
- *      "0"
- *      "1"
+ *      0
+ *      1
  *
  * #List of segment lines
  * segmentLines :
@@ -47,14 +47,14 @@ static Event *globalReferenceEvent;
  *
  * #Is the isBottom field is 1 then all segments will be bottom segments in the sequence
  * bottomSegment :
- *      "a\tsegmentName\tstart\tlength\n"
+ *      "b\tsegmentName\tstart\tlength\n"
  *
- * #Conversely, is the isBottom field is 1 then all segments will be bottom segments in the sequence
+ * #Conversely, is the isBottom field is 0 then all segments will be top segments in the sequence
  * topSegment :
  *      #If it has a parent
- *      "a\tstart\tlength\tparentSegment\talignmentOrientation\n"
+ *      "t\tstart\tlength\tparentSegment\talignmentOrientation\n"
  *      #If it was an insertion
- *      "a\tstart\tlength\n"
+ *      "i\tstart\tlength\n"
  *
  * #Start coordinate of segment
  * start :
@@ -73,8 +73,8 @@ static Event *globalReferenceEvent;
  *      segmentName
  *
  * alignmentOrientation :
- *      "0"
- *      "1"
+ *      0
+ *      1
  */
 
 static void writeSequenceHeader(FILE *fileHandle, Sequence *sequence) {
@@ -95,7 +95,7 @@ static void writeTerminalAdjacency(FILE *fileHandle, Cap *cap) {
     assert(adjacencyLength >= 0);
     Sequence *sequence = cap_getSequence(cap);
     assert(sequence != NULL);
-    fprintf(fileHandle, "a\t%i\t%i\n", cap_getCoordinate(cap) - sequence_getStart(sequence), adjacencyLength);
+    fprintf(fileHandle, "i\t%i\t%i\n", cap_getCoordinate(cap) + 1 - sequence_getStart(sequence), adjacencyLength);
 }
 
 static void writeSegment(FILE *fileHandle, Segment *segment) {
@@ -104,11 +104,11 @@ static void writeSegment(FILE *fileHandle, Segment *segment) {
     assert(referenceSegment != NULL);
     Sequence *sequence = segment_getSequence(segment);
     assert(sequence != NULL);
-    if (referenceSegment != segment) { //Is a bottom segment
-        fprintf(fileHandle, "a\t%i\t%i\t%" PRIi64 "\t%i\n", segment_getStart(segment) - sequence_getStart(sequence), segment_getLength(segment), segment_getName(referenceSegment), segment_getStrand(referenceSegment));
+    if (referenceSegment != segment) { //Is a top segment
+        fprintf(fileHandle, "t\t%i\t%i\t%" PRIi64 "\t%i\n", segment_getStart(segment) - sequence_getStart(sequence), segment_getLength(segment), segment_getName(referenceSegment), segment_getStrand(referenceSegment));
     }
-    else { //Is a top segment
-        fprintf(fileHandle, "a\t%" PRIi64 "\t%i\t%i\n", segment_getName(segment), segment_getStart(segment) - sequence_getStart(sequence), segment_getLength(segment));
+    else { //Is a bottom segment
+        fprintf(fileHandle, "b\t%" PRIi64 "\t%i\t%i\n", segment_getName(segment), segment_getStart(segment) - sequence_getStart(sequence), segment_getLength(segment));
     }
 }
 
@@ -117,7 +117,7 @@ static int compareCaps(Cap *cap, Cap *cap2) {
     Event *event2 = cap_getEvent(cap2);
     int i = cactusMisc_nameCompare(event_getName(event), event_getName(event2));
     if (i != 0) {
-        return event == globalReferenceEvent ? 1 : (event2 == globalReferenceEvent ? -1 : i);
+        return event == globalReferenceEvent ? -1 : (event2 == globalReferenceEvent ? 1 : i);
     }
     Sequence *sequence = cap_getSequence(cap);
     Sequence *sequence2 = cap_getSequence(cap2);
