@@ -169,7 +169,7 @@ stSortedSetIterator *startAlignmentStackForAlignedPairs(stSortedSetIterator *it)
 
 stPinchIterator *stPinchIterator_constructFromAlignedPairs(stSortedSet *alignedPairs,
         stPinch *(*getNextAlignedPairAlignment)(stSortedSetIterator *)) {
-    stPinchIterator *pinchIterator = st_malloc(sizeof(stPinchIterator));
+    stPinchIterator *pinchIterator = st_calloc(1, sizeof(stPinchIterator));
     pinchIterator->alignmentArg = stSortedSet_getIterator(alignedPairs);
     pinchIterator->getNextAlignment = (stPinch *(*)(void *)) getNextAlignedPairAlignment;
     pinchIterator->destructAlignmentArg = (void(*)(void *)) stSortedSet_destructIterator;
