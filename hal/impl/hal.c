@@ -122,7 +122,7 @@ static int compareCaps(Cap *cap, Cap *cap2) {
     Sequence *sequence = cap_getSequence(cap);
     Sequence *sequence2 = cap_getSequence(cap2);
     i = cactusMisc_nameCompare(sequence_getName(sequence), sequence_getName(sequence2));
-    if (i != 0) {
+    if (i == 0) {
         i = cap_getCoordinate(cap) > cap_getCoordinate(cap2) ? 1
                 : (cap_getCoordinate(cap) < cap_getCoordinate(cap2) ? -1 : 0);
     }
