@@ -344,11 +344,13 @@ int main(int argc, char *argv[]) {
                 stCaf_melt(flower, threadSet, blockFilterFn, blockTrim, 0);
                 for (int32_t meltingRound = 0; meltingRound < meltingRoundsLength; meltingRound++) {
                     int32_t minimumChainLengthForMeltingRound = meltingRounds[meltingRound];
+                    st_logDebug("Starting melting round with a minimum chain length of %i \n", minimumChainLengthForMeltingRound);
                     if (minimumChainLengthForMeltingRound >= minimumChainLength) {
                         break;
                     }
                     stCaf_melt(flower, threadSet, NULL, 0, minimumChainLengthForMeltingRound);
                 }
+                st_logDebug("Last melting round of cycle with a minimum chain length of %i \n", minimumChainLength);
                 stCaf_melt(flower, threadSet, NULL, 0, minimumChainLength);
                 //Add back in the constraints
                 if (pinchIteratorForConstraints != NULL) {
@@ -358,6 +360,7 @@ int main(int argc, char *argv[]) {
 
             //Sort out case when we allow blocks of degree 1
             if (minimumDegree < 2) {
+                st_logDebug("Creating degree 1 blocks\n");
                 stCaf_makeDegreeOneBlocks(threadSet);
                 stCaf_melt(flower, threadSet, blockFilterFn, blockTrim, 0);
                 //Add back in the constraints
@@ -366,12 +369,13 @@ int main(int argc, char *argv[]) {
                 }
             }
             else if(maximumAdjacencyComponentSizeRatio < INT32_MAX) { //Deal with giant components
-                 stCaf_breakupComponentsGreedily(threadSet, maximumAdjacencyComponentSizeRatio);
+                st_logDebug("Breaking up components greedily\n");
+                stCaf_breakupComponentsGreedily(threadSet, maximumAdjacencyComponentSizeRatio);
             }
 
             //Finish up
             stCaf_finish(flower, threadSet);
-            st_logInfo("Ran the cactus core script.\n");
+            st_logInfo("Ran the cactus core script\n");
 
             //Cleanup
             stPinchThreadSet_destruct(threadSet);
@@ -399,7 +403,7 @@ int main(int argc, char *argv[]) {
     ///////////////////////////////////////////////////////////////////////////
 
     cactusDisk_write(cactusDisk);
-    st_logInfo("Updated the flower on disk\n");
+    st_logInfo("Updated the flower on disk and %i seconds have elapsed\n", time(NULL) - startTime);
 
     ///////////////////////////////////////////////////////////////////////////
     //(10) Clean up.

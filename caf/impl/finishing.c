@@ -218,6 +218,9 @@ static void makeTangles(stCactusNode *cactusNode, Flower *flower, stHash *pinchE
 
 static void setBlocksBuilt(Flower *flower) {
     flower_setBuiltBlocks(flower, 1);
+    if(flower_getChainNumber(flower) > 10 || flower_getBlockNumber(flower) > 10) {
+        st_logDebug("Processed large flower with %i chains, %i blocks, %i ends and %i groups\n", flower_getChainNumber(flower), flower_getBlockNumber(flower), flower_getEndNumber(flower), flower_getGroupNumber(flower));
+    }
     ///flower_makeTerminalNormal(flower);
     Flower_GroupIterator *iterator = flower_getGroupIterator(flower);
     Group *group;
