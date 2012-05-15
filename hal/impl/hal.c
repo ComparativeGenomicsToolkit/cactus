@@ -47,14 +47,14 @@ static Event *globalReferenceEvent;
  *
  * #Is the isBottom field is 1 then all segments will be bottom segments in the sequence
  * bottomSegment :
- *      "b\tsegmentName\tstart\tlength\n"
+ *      "a\tsegmentName\tstart\tlength\n"
  *
  * #Conversely, is the isBottom field is 0 then all segments will be top segments in the sequence
  * topSegment :
  *      #If it has a parent
- *      "t\tstart\tlength\tparentSegment\talignmentOrientation\n"
+ *      "a\tstart\tlength\tparentSegment\talignmentOrientation\n"
  *      #If it was an insertion
- *      "i\tstart\tlength\n"
+ *      "a\tstart\tlength\n"
  *
  * #Start coordinate of segment
  * start :
@@ -95,7 +95,7 @@ static void writeTerminalAdjacency(FILE *fileHandle, Cap *cap) {
     assert(adjacencyLength >= 0);
     Sequence *sequence = cap_getSequence(cap);
     assert(sequence != NULL);
-    fprintf(fileHandle, "i\t%i\t%i\n", cap_getCoordinate(cap) + 1 - sequence_getStart(sequence), adjacencyLength);
+    fprintf(fileHandle, "a\t%i\t%i\n", cap_getCoordinate(cap) + 1 - sequence_getStart(sequence), adjacencyLength);
 }
 
 static void writeSegment(FILE *fileHandle, Segment *segment) {
@@ -105,10 +105,10 @@ static void writeSegment(FILE *fileHandle, Segment *segment) {
     Sequence *sequence = segment_getSequence(segment);
     assert(sequence != NULL);
     if (referenceSegment != segment) { //Is a top segment
-        fprintf(fileHandle, "t\t%i\t%i\t%" PRIi64 "\t%i\n", segment_getStart(segment) - sequence_getStart(sequence), segment_getLength(segment), segment_getName(referenceSegment), segment_getStrand(referenceSegment));
+        fprintf(fileHandle, "a\t%i\t%i\t%" PRIi64 "\t%i\n", segment_getStart(segment) - sequence_getStart(sequence), segment_getLength(segment), segment_getName(referenceSegment), segment_getStrand(referenceSegment));
     }
     else { //Is a bottom segment
-        fprintf(fileHandle, "b\t%" PRIi64 "\t%i\t%i\n", segment_getName(segment), segment_getStart(segment) - sequence_getStart(sequence), segment_getLength(segment));
+        fprintf(fileHandle, "a\t%" PRIi64 "\t%i\t%i\n", segment_getName(segment), segment_getStart(segment) - sequence_getStart(sequence), segment_getLength(segment));
     }
 }
 
