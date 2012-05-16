@@ -417,23 +417,24 @@ void cap_writeBinaryRepresentationP(Cap *cap2, int32_t elementType,
 
 void cap_writeBinaryRepresentation(Cap *cap, void(*writeFn)(const void * ptr, size_t size, size_t count)) {
     Cap *cap2;
-    if (cap_getCoordinate(cap) == INT32_MAX) {
+    /*if (cap_getCoordinate(cap) == INT32_MAX) {
         binaryRepresentation_writeElementType(CODE_CAP, writeFn);
         binaryRepresentation_writeName(cap_getName(cap), writeFn);
         binaryRepresentation_writeName(event_getName(cap_getEvent(cap)), writeFn);
-    } else if (cap_getSequence(cap) != NULL) {
+    } else if (cap_getSequence(cap) != NULL) {*/
         binaryRepresentation_writeElementType(CODE_CAP_WITH_COORDINATES, writeFn);
         binaryRepresentation_writeName(cap_getName(cap), writeFn);
         binaryRepresentation_writeInteger(cap_getCoordinate(cap), writeFn);
         binaryRepresentation_writeBool(cap_getStrand(cap), writeFn);
-        binaryRepresentation_writeName(sequence_getName(cap_getSequence(cap)), writeFn);
-    } else {
+        binaryRepresentation_writeName(cap_getSequence(cap) != NULL ? sequence_getName(cap_getSequence(cap)) : NULL_NAME, writeFn);
+        binaryRepresentation_writeName(event_getName(cap_getEvent(cap)), writeFn);
+    /*} else {
         binaryRepresentation_writeElementType(CODE_CAP_WITH_COORDINATES_BUT_NO_SEQUENCE, writeFn);
         binaryRepresentation_writeName(cap_getName(cap), writeFn);
         binaryRepresentation_writeInteger(cap_getCoordinate(cap), writeFn);
         binaryRepresentation_writeBool(cap_getStrand(cap), writeFn);
         binaryRepresentation_writeName(event_getName(cap_getEvent(cap)), writeFn);
-    }
+    }*/
     if ((cap2 = cap_getAdjacency(cap)) != NULL) {
         cap_writeBinaryRepresentationP(cap2, CODE_ADJACENCY, writeFn);
     }
@@ -473,21 +474,25 @@ Cap *cap_loadFromBinaryRepresentation(void **binaryString, End *end) {
     Sequence *sequence;
 
     cap = NULL;
-    if (binaryRepresentation_peekNextElementType(*binaryString) == CODE_CAP) {
+    /*if (binaryRepresentation_peekNextElementType(*binaryString) == CODE_CAP) {
         binaryRepresentation_popNextElementType(binaryString);
         name = binaryRepresentation_getName(binaryString);
         event = eventTree_getEvent(flower_getEventTree(end_getFlower(end)), binaryRepresentation_getName(binaryString));
         cap = cap_construct3(name, event, end);
         cap_loadFromBinaryRepresentationP2(binaryString, cap);
-    } else if (binaryRepresentation_peekNextElementType(*binaryString) == CODE_CAP_WITH_COORDINATES) {
+    } else*/ if (binaryRepresentation_peekNextElementType(*binaryString) == CODE_CAP_WITH_COORDINATES) {
         binaryRepresentation_popNextElementType(binaryString);
         name = binaryRepresentation_getName(binaryString);
         coordinate = binaryRepresentation_getInteger(binaryString);
         strand = binaryRepresentation_getBool(binaryString);
-        sequence = flower_getSequence(end_getFlower(end), binaryRepresentation_getName(binaryString));
-        cap = cap_construct4(name, end, coordinate, strand, sequence);
+        Name sequenceName = binaryRepresentation_getName(binaryString);
+        sequence = sequenceName == NULL_NAME ? NULL : flower_getSequence(end_getFlower(end), sequenceName);
+        event = eventTree_getEvent(flower_getEventTree(end_getFlower(end)), binaryRepresentation_getName(binaryString));
+        cap = cap_construct3(name, event, end);
+        //cap = cap_construct4(name, end, coordinate, strand, sequence);
         cap_loadFromBinaryRepresentationP2(binaryString, cap);
-    } else if (binaryRepresentation_peekNextElementType(*binaryString) == CODE_CAP_WITH_COORDINATES_BUT_NO_SEQUENCE) {
+        cap_setCoordinates(cap, coordinate, strand, sequence);
+    } /*else if (binaryRepresentation_peekNextElementType(*binaryString) == CODE_CAP_WITH_COORDINATES_BUT_NO_SEQUENCE) {
         binaryRepresentation_popNextElementType(binaryString);
         name = binaryRepresentation_getName(binaryString);
         coordinate = binaryRepresentation_getInteger(binaryString);
@@ -496,7 +501,7 @@ Cap *cap_loadFromBinaryRepresentation(void **binaryString, End *end) {
         cap = cap_construct3(name, event, end);
         cap_loadFromBinaryRepresentationP2(binaryString, cap);
         cap_setCoordinates(cap, coordinate, strand, NULL);
-    }
+    }*/
 
     return cap;
 }
