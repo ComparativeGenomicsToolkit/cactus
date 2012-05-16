@@ -646,8 +646,7 @@ bool flower_isLeaf(Flower *flower) {
 }
 
 bool flower_isTerminal(Flower *flower) {
-    return flower_isLeaf(flower) && flower_getGroupNumber(flower) <= 1 && flower_getStubEndNumber(flower)
-            == flower_getEndNumber(flower);
+    return flower_isLeaf(flower) && flower_getGroupNumber(flower) <= 1 && flower_getStubEndNumber(flower) == flower_getEndNumber(flower);
 }
 
 bool flower_removeIfRedundant(Flower *flower) {
@@ -699,6 +698,24 @@ bool flower_removeIfRedundant(Flower *flower) {
     return 0;
 }
 
+void flower_delete(Flower *flower) {
+    Flower_GroupIterator *groupIt = flower_getGroupIterator(flower);
+    Group *group;
+    while ((group = flower_getNextGroup(groupIt)) != NULL) {
+        if (!group_isLeaf(group)) {
+            flower_delete(group_getNestedFlower(group));
+        }
+    }
+    flower_destructGroupIterator(groupIt);
+    Group *parentGroup = flower_getParentGroup(flower);
+    if(parentGroup != NULL) {
+        parentGroup->leafGroup = 1;
+    }
+    //This needs modification so that we don't do this directly..
+    cactusDisk_deleteFlowerFromDisk(flower_getCactusDisk(flower), flower);
+    flower_destruct(flower, 0);
+}
+
 bool flower_deleteIfEmpty(Flower *flower) {
     if (flower_getEndNumber(flower) == 0 && flower_getParentGroup(flower) != NULL) { //contains nothing useful..
         assert(flower_getChainNumber(flower) == 0);
@@ -707,7 +724,7 @@ bool flower_deleteIfEmpty(Flower *flower) {
             Group *group = flower_getFirstGroup(flower);
             if (!group_isLeaf(group)) {
                 bool i = flower_deleteIfEmpty(group_getNestedFlower(group));
-                (void)i;
+                (void) i;
                 assert(i);
             }
         }

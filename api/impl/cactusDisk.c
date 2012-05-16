@@ -517,7 +517,7 @@ void cactusDisk_write(CactusDisk *cactusDisk) {
                                 &recordSize);
         //Compression
         vA = compress(vA, &recordSize);
-        vA = binaryRepresentation_resizeObjectAsPowerOf2(vA, &recordSize);
+        //vA = binaryRepresentation_resizeObjectAsPowerOf2(vA, &recordSize);
         if (containsRecord(cactusDisk, flower_getName(flower))) {
             int64_t recordSize2;
             void *vA2 = stCache_getRecord(cactusDisk->cache,

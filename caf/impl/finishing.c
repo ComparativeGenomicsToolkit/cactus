@@ -216,20 +216,25 @@ static void makeTangles(stCactusNode *cactusNode, Flower *flower, stHash *pinchE
 
 //Sets the 'built-blocks flag' for all the flowers in the subtree, including the given flower.
 
-static void setBlocksBuilt(Flower *flower) {
-    flower_setBuiltBlocks(flower, 1);
-    if(flower_getChainNumber(flower) > 10 || flower_getBlockNumber(flower) > 10) {
-        st_logDebug("Processed large flower with %i chains, %i blocks, %i ends and %i groups\n", flower_getChainNumber(flower), flower_getBlockNumber(flower), flower_getEndNumber(flower), flower_getGroupNumber(flower));
+static void setBlocksBuilt(Flower *flower, Flower *parentFlower) {
+    if(flower_isLeaf(flower) && flower_getBlockNumber(flower) == 0 && flower_getGroupNumber(flower) == 1 && flower != parentFlower) {
+        //We can safely remove this flower
+        flower_delete(flower);
     }
-    ///flower_makeTerminalNormal(flower);
-    Flower_GroupIterator *iterator = flower_getGroupIterator(flower);
-    Group *group;
-    while ((group = flower_getNextGroup(iterator)) != NULL) {
-    	if (!group_isLeaf(group)) {
-        	setBlocksBuilt(group_getNestedFlower(group));
+    else {
+        flower_setBuiltBlocks(flower, 1);
+        if(flower_getChainNumber(flower) > 10 || flower_getBlockNumber(flower) > 10) {
+            st_logDebug("Processed large flower with %i chains, %i blocks, %i ends and %i groups\n", flower_getChainNumber(flower), flower_getBlockNumber(flower), flower_getEndNumber(flower), flower_getGroupNumber(flower));
         }
+        Flower_GroupIterator *iterator = flower_getGroupIterator(flower);
+        Group *group;
+        while ((group = flower_getNextGroup(iterator)) != NULL) {
+            if (!group_isLeaf(group)) {
+                setBlocksBuilt(group_getNestedFlower(group), parentFlower);
+            }
+        }
+        flower_destructGroupIterator(iterator);
     }
-    flower_destructGroupIterator(iterator);
 }
 
 //Main function
@@ -250,7 +255,7 @@ static void stCaf_convertCactusGraphToFlowers(stPinchThreadSet *threadSet, stCac
     stHash_destruct(pinchEndsToEnds);
     stList_destruct(stack);
     stCaf_addAdjacencies(parentFlower);
-    setBlocksBuilt(parentFlower);
+    setBlocksBuilt(parentFlower, parentFlower);
 }
 
 ///////////////////////////////////////////////////////////////////////////
