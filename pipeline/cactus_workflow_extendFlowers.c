@@ -11,7 +11,7 @@
  * non-terminal groups. Used during the core stage.
  */
 
-static void extendFlowers(Flower *flower) {
+static void extendFlowers(Flower *flower, bool createRedundantFlowerLinks) {
     Flower_GroupIterator *groupIterator;
     Group *group;
     if (flower_builtBlocks(flower)) {
@@ -22,7 +22,14 @@ static void extendFlowers(Flower *flower) {
                 assert(size >= 0);
                 if (size >= minFlowerSize) {
                     Flower *nestedFlower = group_makeNestedFlower(group);
-                    flowerWriter_add(flowerWriter, flower_getName(nestedFlower), size);
+                    if (createRedundantFlowerLinks) {
+                        flower_setBuiltBlocks(nestedFlower, 1);
+                        Group *nestedGroup = flower_getFirstGroup(nestedFlower);
+                        nestedFlower = group_makeNestedFlower(nestedGroup);
+                        flowerWriter_add(flowerWriter, flower_getName(nestedFlower), size);
+                    } else {
+                        flowerWriter_add(flowerWriter, flower_getName(nestedFlower), size);
+                    }
                 }
             }
         }
@@ -31,6 +38,10 @@ static void extendFlowers(Flower *flower) {
         //again.
         flowerWriter_add(flowerWriter, flower_getName(flower), flower_getTotalBaseLength(flower));
     }
+}
+
+static bool flowerIsLarge(Flower *flower) {
+    return flower_getEndNumber(flower) > 1000;
 }
 
 int main(int argc, char *argv[]) {
@@ -44,7 +55,7 @@ int main(int argc, char *argv[]) {
     stList *flowers = cactusMisc_parseFlowersFromStdin(cactusDisk);
     for (int32_t i = 0; i < stList_length(flowers); i++) {
         Flower *flower = stList_get(flowers, i);
-        extendFlowers(flower);
+        extendFlowers(flower, flowerIsLarge(flower));
         assert(!flower_isParentLoaded(flower)); //The parent should not be loaded.
     }
     stList_destruct(flowers);

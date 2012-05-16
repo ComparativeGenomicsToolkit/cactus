@@ -506,4 +506,9 @@ bool flower_isParentLoaded(Flower *flower);
  */
 void flower_unloadParent(Flower *flower);
 
+/*
+ * Unload flowers.
+ */
+void flower_unload(Flower *flower);
+
 #endif

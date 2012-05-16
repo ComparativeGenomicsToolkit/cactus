@@ -757,6 +757,10 @@ void flower_makeTerminalNormal(Flower *flower) {
     }
 }
 
+void flower_unload(Flower *flower) {
+    flower_destruct(flower, 0);
+}
+
 bool flower_isParentLoaded(Flower *flower) {
     Name parentName = flower->parentFlowerName;
     if (parentName != NULL_NAME) {
@@ -772,7 +776,7 @@ void flower_unloadParent(Flower *flower) {
         CactusDisk *cactusDisk = flower_getCactusDisk(flower);
         if (cactusDisk_flowerIsLoaded(cactusDisk, parentName)) {
             Flower *parentFlower = cactusDisk_getFlower(cactusDisk, parentName);
-            flower_destruct(parentFlower, 0);
+            flower_unload(parentFlower);
         }
     }
 }

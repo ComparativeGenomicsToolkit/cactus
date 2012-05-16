@@ -217,7 +217,8 @@ static void makeTangles(stCactusNode *cactusNode, Flower *flower, stHash *pinchE
 //Sets the 'built-blocks flag' for all the flowers in the subtree, including the given flower.
 
 static void setBlocksBuilt(Flower *flower, Flower *parentFlower) {
-    if(flower_isLeaf(flower) && flower_getBlockNumber(flower) == 0 && flower_getGroupNumber(flower) == 1 && flower != parentFlower) {
+    if(flower_isLeaf(flower) && flower_getBlockNumber(flower) == 0 && flower != parentFlower) {
+        assert(flower_getGroupNumber(flower) == 1);
         //We can safely remove this flower
         flower_delete(flower);
     }

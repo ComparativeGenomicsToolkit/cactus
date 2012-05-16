@@ -136,11 +136,25 @@ int main(int argc, char *argv[]) {
         st_logInfo("Processing a flower\n");
         if (bottomUpPhase) {
             bottomUp(flower, referenceEventName);
+            //Now ensure that the nested flowers are not loaded, as this will avoid writing them to disk
+            Flower_GroupIterator *groupIt = flower_getGroupIterator(flower);
+            Group *group;
+            while((group = flower_getNextGroup(groupIt)) != NULL) {
+                if(!group_isLeaf(group)) {
+                    flower_unload(group_getNestedFlower(group));
+                }
+            }
+            flower_destructGroupIterator(groupIt);
+            assert(!flower_isParentLoaded(flower));
         } else {
             if (!flower_hasParentGroup(flower)) {
                 addSequencesAndReferenceCoordinatesToTopLevelFlower(flower, referenceEventName, outgroupEventName);
             }
             topDown(flower, referenceEventName, outgroupEventName);
+            assert(!flower_isParentLoaded(flower));
+            if (flower_hasParentGroup(flower)) {
+                flower_unload(flower); //We haven't changed the
+            }
         }
     }
 

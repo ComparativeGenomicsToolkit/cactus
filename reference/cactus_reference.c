@@ -193,7 +193,10 @@ int main(int argc, char *argv[]) {
             }
         }
         flower_destructGroupIterator(groupIt);
-        flower_unloadParent(flower); //We have this line just in case we are loading the parent..
+        assert(!flower_isParentLoaded(flower));
+        if (flower_hasParentGroup(flower)) {
+            flower_unload(flower); //We haven't changed the
+        }
     }
     stList_destruct(flowers);
 
