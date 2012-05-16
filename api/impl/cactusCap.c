@@ -415,23 +415,6 @@ void cap_writeBinaryRepresentationP(Cap *cap2, int32_t elementType,
     binaryRepresentation_writeName(cap_getName(cap2), writeFn);
 }
 
-/*void cap_writeBinaryRepresentation(Cap *cap, void(*writeFn)(const void * ptr, size_t size, size_t count)) {
-    Cap *cap2;
-    binaryRepresentation_writeElementType(CODE_CAP_WITH_COORDINATES, writeFn);
-    binaryRepresentation_writeName(cap_getName(cap), writeFn);
-    binaryRepresentation_writeInteger(cap_getCoordinate(cap), writeFn);
-    binaryRepresentation_writeBool(cap_getStrand(cap), writeFn);
-    binaryRepresentation_writeName(cap_getSequence(cap) != NULL ? sequence_getName(cap_getSequence(cap)) : NULL_NAME,
-            writeFn);
-    binaryRepresentation_writeName(event_getName(cap_getEvent(cap)), writeFn);
-    if ((cap2 = cap_getAdjacency(cap)) != NULL) {
-        cap_writeBinaryRepresentationP(cap2, CODE_ADJACENCY, writeFn);
-    }
-    if ((cap2 = cap_getParent(cap)) != NULL) {
-        cap_writeBinaryRepresentationP(cap2, CODE_PARENT, writeFn);
-    }
-}*/
-
 void cap_writeBinaryRepresentation(Cap *cap, void(*writeFn)(const void * ptr, size_t size, size_t count)) {
     Cap *cap2;
     if (cap_getCoordinate(cap) == INT32_MAX) {
@@ -517,32 +500,6 @@ Cap *cap_loadFromBinaryRepresentation(void **binaryString, End *end) {
 
     return cap;
 }
-
-/*Cap *cap_loadFromBinaryRepresentation(void **binaryString, End *end) {
-    Cap *cap;
-    Name name;
-    Event *event;
-    int32_t coordinate;
-    int32_t strand;
-    Sequence *sequence;
-
-    cap = NULL;
-    if (binaryRepresentation_peekNextElementType(*binaryString) == CODE_CAP_WITH_COORDINATES) {
-        binaryRepresentation_popNextElementType(binaryString);
-        name = binaryRepresentation_getName(binaryString);
-        coordinate = binaryRepresentation_getInteger(binaryString);
-        strand = binaryRepresentation_getBool(binaryString);
-        Name sequenceName = binaryRepresentation_getName(binaryString);
-        sequence = sequenceName == NULL_NAME ? NULL : flower_getSequence(end_getFlower(end), sequenceName);
-        event = eventTree_getEvent(flower_getEventTree(end_getFlower(end)), binaryRepresentation_getName(binaryString));
-        cap = cap_construct3(name, event, end);
-        //cap = cap_construct4(name, end, coordinate, strand, sequence);
-        cap_loadFromBinaryRepresentationP2(binaryString, cap);
-        cap_setCoordinates(cap, coordinate, strand, sequence);
-    }
-
-    return cap;
-}*/
 
 Cap *cap_getStaticNameWrapper(Name name) {
     static Cap cap;

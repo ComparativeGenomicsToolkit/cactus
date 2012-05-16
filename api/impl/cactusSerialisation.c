@@ -136,3 +136,17 @@ void *binaryRepresentation_makeBinaryRepresentation(void *object, void (*writeBi
 	*recordSize = binaryRepresentation_makeBinaryRepresentationP_i;
 	return vA;
 }
+
+void *binaryRepresentation_resizeObjectAsPowerOf2(void *vA, int64_t *recordSize) {
+    if(*recordSize == 0) {
+        *recordSize = 1;
+    }
+    int64_t finalSize = pow(2, log(*recordSize * 2)/log(2.0));
+    assert(finalSize >= *recordSize);
+    vA = realloc(vA, finalSize);
+    if(vA == NULL) {
+        st_errAbort("Could not realloc memory\n");
+    }
+    *recordSize = finalSize;
+    return vA;
+}

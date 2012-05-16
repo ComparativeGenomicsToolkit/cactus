@@ -134,5 +134,10 @@ bool binaryRepresentation_getBool(void **binaryString);
  */
 void *binaryRepresentation_makeBinaryRepresentation(void *object, void (*writeBinaryRepresentation)(void *, void (*writeFn)(const void * ptr, size_t size, size_t count)), int64_t *recordSize);
 
+/*
+ * Resizes a record as a power of 2.
+ */
+void *binaryRepresentation_resizeObjectAsPowerOf2(void *vA, int64_t *recordSize);
+
 
 #endif
