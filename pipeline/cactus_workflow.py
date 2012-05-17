@@ -479,7 +479,7 @@ class CactusReferencePhase(CactusPhasesTarget):
         if buildReference:
             self.addChildTarget(CactusReferenceDown(self.options.cactusDiskDatabaseString, extractNode(referenceNode), 
                                                     encodeFlowerNames((self.flowerName,))))
-            self.setFollowOnTarget(CactusReferenceSetCoordinatesUpPhase(self.options, self.flowerName))
+            self.setFollowOnTarget(CactusSetReferenceCoordinatesDownPhase(self.options, self.flowerName))
         else:
             self.setFollowOnTarget(CactusFacesPhase(self.options, self.flowerName))
         
@@ -487,6 +487,7 @@ class CactusReferenceDown(CactusRecursionTarget):
     """This target does the down pass for the reference phase.
     """
     def run(self):
+        makeChildTargets(self.cactusDiskDatabaseString, self.configNode, self.flowerNames, self, CactusReferenceDown)
         runCactusReference(cactusDiskDatabaseString=self.cactusDiskDatabaseString, 
                            flowerNames=self.flowerNames, 
                            matchingAlgorithm=getOptionalAttrib(self.configNode, "matchingAlgorithm"), 
@@ -495,33 +496,8 @@ class CactusReferenceDown(CactusRecursionTarget):
                            useSimulatedAnnealing=getOptionalAttrib(self.configNode, "useSimulatedAnnealing", bool),
                            theta=getOptionalAttrib(self.configNode, "theta", float),
                            maxNumberOfChainsBeforeSwitchingToFast=getOptionalAttrib(self.configNode, "maxNumberOfChainsBeforeSwitchingToFast", int))
-        makeChildTargets(self.cactusDiskDatabaseString, self.configNode, self.flowerNames, self, CactusReferenceDown)
-
-############################################################
-############################################################
-############################################################
-#Reference coordinates pass, in which coordinates and bases are added to the reference thread
-############################################################
-############################################################
-############################################################
-
-class CactusReferenceSetCoordinatesUpPhase(CactusPhasesTarget):
-    def run(self):
-        self.logToMaster("Starting the reference coordinate up phase at %s seconds" % time.time())
-        referenceNode = self.options.config.find("reference")
-        assert referenceNode != None
-        if self.options.outgroupEventNames != None:
-            referenceNode.attrib["outgroup"] = self.options.outgroupEventNames
-        self.addChildTarget(CactusSetReferenceCoordinatesUp(self.options.cactusDiskDatabaseString, extractNode(referenceNode), encodeFlowerNames((self.flowerName,))))
-        self.setFollowOnTarget(CactusSetReferenceCoordinatesDownPhase(self.options, self.flowerName))
-
-class CactusSetReferenceCoordinatesUp(CactusRecursionTarget):
-    """Does the up pass for filling Fills in the coordinates, once a reference is added.
-    """ 
-    def run(self):
-        makeChildTargets(self.cactusDiskDatabaseString, self.configNode, self.flowerNames, self, CactusSetReferenceCoordinatesUp)
         self.setFollowOnTarget(CactusSetReferenceCoordinatesUpRunnable(self.cactusDiskDatabaseString, self.configNode, self.flowerNames))
-        
+
 class CactusSetReferenceCoordinatesUpRunnable(CactusRecursionTarget):
     """Does the up pass for filling Fills in the coordinates, once a reference is added.
     """ 
