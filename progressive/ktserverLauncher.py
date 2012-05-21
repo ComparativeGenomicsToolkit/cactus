@@ -31,6 +31,8 @@ class KtserverLauncher:
         self.listenWait = 1
         self.checkWaitIntervals = 30
         self.checkWait = 1
+        self.killWaitIntervals = 1000
+        self.killWait = 10
         self.createTuningOptions = "#opts=ls#bnum=30m#msiz=50g#ktopts=p"
         # it seems that using msiz to open an existing db can 
         # cause an error sometimes, especially on kolossus
@@ -203,15 +205,13 @@ class KtserverLauncher:
         
         # wait until it's really dead (can take a while for larger dbs since 
         # they have to get serialized at this point
-        for i in xrange(self.checkWaitIntervals):
+        for i in xrange(self.killWaitIntervals):
             serverPids = self.scrapePids(['port %d' % port, dbPath])
             numServers = len(serverPids)
             if numServers == 0:
                 return
-            elif numServers > 1:
-                raise RuntimeError("Multiple ktservers running on %s" % dbPath)
             else:
-                sleep(self.checkWait)
+                sleep(self.killWait)
         raise RuntimeError("Failed to kill ktserver on port %d and path %s" % (port, dbPath))
             
         
