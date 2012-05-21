@@ -847,7 +847,7 @@ stList *getBlastPairs(const char *sX, const char *sY, int32_t lX, int32_t lY, in
 
     char *command;
 
-    if (lY > 10000) {
+    if (lY > 1000) {
         tempFile2 = getTempFile();
         writeSequenceToFile(tempFile2, "b", sY);
         command = stString_print("lastz --hspthresh=800 --chain --strand=plus --gapped --format=cigar --ambiguous=iupac %s %s",

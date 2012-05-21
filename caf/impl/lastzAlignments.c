@@ -24,8 +24,8 @@ stList *stCaf_selfAlignFlower(Flower *flower, int32_t minimumSequenceLength, con
          * Run lastz.
          */
         char *command = stString_print(
-                "lastz --format=cigar %s %s[multiple][nameparse=darkspace] %s[nameparse=darkspace] --notrivial",
-                lastzArgs, tempFile1, tempFile1);
+                "lastz --format=cigar %s %s[multiple][nameparse=darkspace] --self",
+                lastzArgs, tempFile1);
         FILE *fileHandle = popen(command, "r");
         free(command);
         if (fileHandle == NULL) {
