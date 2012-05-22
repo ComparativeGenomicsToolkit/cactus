@@ -6,7 +6,6 @@
 
 #include <assert.h>
 #include <getopt.h>
-#include <omp.h>
 #include <time.h>
 
 #include "cactus.h"

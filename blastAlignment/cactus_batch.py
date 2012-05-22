@@ -32,7 +32,8 @@ class MakeBlastOptions:
         self.chunkSize = chunkSize
         self.overlapSize = overlapSize
         self.blastString = "lastz --format=cigar %s SEQ_FILE_1[multiple][nameparse=darkspace] SEQ_FILE_2[nameparse=darkspace] > CIGARS_FILE"  % lastzArguments 
-        self.selfBlastString = "lastz --format=cigar %s SEQ_FILE[multiple][nameparse=darkspace] --self  > CIGARS_FILE" % lastzArguments
+        #self.selfBlastString = "lastz --format=cigar %s SEQ_FILE[multiple][nameparse=darkspace] --self  > CIGARS_FILE" % lastzArguments
+        self.selfBlastString = "lastz --format=cigar %s SEQ_FILE[multiple][nameparse=darkspace] SEQ_FILE[multiple][nameparse=darkspace] --notrivial > CIGARS_FILE" % lastzArguments
         self.chunksPerJob = 1
         self.compressFiles = compressFiles
 
