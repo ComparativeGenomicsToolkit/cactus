@@ -243,13 +243,13 @@ class CactusRecursionTarget(Target):
         self.flowerNames = flowerNames    
 
 def makeTargets(cactusDiskDatabaseString, configNode, flowersAndSizes, 
-                parentTarget, target, overlargeTarget=None, 
-                memory=sys.maxint, cpu=sys.maxint, 
-                overlargeMemory=sys.maxint, overlargeCpu=sys.maxint):
+                parentTarget, target, overlargeTarget):
     """Make a set of targets for a given set of flowers.
     """
-    if overlargeTarget == None:
-        overlargeTarget = target
+    memory=getOptionalAttrib(configNode, "memory", int, sys.maxint)
+    cpu=getOptionalAttrib(configNode, "cpu", int, sys.maxint)
+    overlargeMemory=getOptionalAttrib(configNode, "bigMemory", int, sys.maxint)
+    overlargeCpu=getOptionalAttrib(configNode, "bigCpu", int, sys.maxint)
     for overlarge, flowerNames in flowersAndSizes:
         if overlarge: #Make sure large flowers are on there own, in their own job
             flowerStatsString = runCactusFlowerStats(cactusDiskDatabaseString, decodeFlowerNames(flowerNames)[0])
@@ -269,25 +269,21 @@ MAX_SEQUENCE_SIZE_OF_FLOWER_GROUPING=1000000
 def makeChildTargets(cactusDiskDatabaseString, configNode, flowerNames, target, childTarget):
     """Make a set of child targets for a given set of parent flowers.
     """
-    minSequenceSizeOfFlower = getOptionalAttrib(configNode, "minFlowerSize", int, 0) 
-    maxSequenceSizeOfFlowerGrouping=getOptionalAttrib(configNode, "maxFlowerGroupSize", int, default=MAX_SEQUENCE_SIZE_OF_FLOWER_GROUPING)
     childFlowers = runCactusGetFlowers(cactusDiskDatabaseString, flowerNames, 
-                                       minSequenceSizeOfFlower=minSequenceSizeOfFlower,
-                                       maxSequenceSizeOfFlowerGrouping=maxSequenceSizeOfFlowerGrouping)
+                                       minSequenceSizeOfFlower=getOptionalAttrib(configNode, "minFlowerSize", int, 0),
+                                       maxSequenceSizeOfFlowerGrouping=getOptionalAttrib(configNode, "maxFlowerGroupSize", int, default=MAX_SEQUENCE_SIZE_OF_FLOWER_GROUPING))
     makeTargets(cactusDiskDatabaseString=cactusDiskDatabaseString, configNode=configNode, 
                 flowersAndSizes=childFlowers, parentTarget=target, 
-                target=childTarget)
+                target=childTarget, overlargeTarget=childTarget)
 
 class CactusCafDown(CactusRecursionTarget):
     """This target does the get flowers down pass for the CAF alignment phase.
     """    
     def run(self):
         makeChildTargets(self.cactusDiskDatabaseString, self.configNode, self.flowerNames, self, CactusCafDown)
-        minSequenceSizeOfFlower = getOptionalAttrib(self.configNode, "minFlowerSize", int, 1)
-        maxSequenceSizeOfFlowerGrouping=getOptionalAttrib(self.configNode, "maxFlowerGroupSize", int, default=MAX_SEQUENCE_SIZE_OF_FLOWER_GROUPING)
         childFlowers = runCactusExtendFlowers(self.cactusDiskDatabaseString, self.flowerNames, 
-                                              minSequenceSizeOfFlower=minSequenceSizeOfFlower, 
-                                              maxSequenceSizeOfFlowerGrouping=maxSequenceSizeOfFlowerGrouping)
+                                              minSequenceSizeOfFlower=getOptionalAttrib(self.configNode, "minFlowerSize", int, 1), 
+                                              maxSequenceSizeOfFlowerGrouping=getOptionalAttrib(self.configNode, "maxFlowerGroupSize", int, default=MAX_SEQUENCE_SIZE_OF_FLOWER_GROUPING))
         makeTargets(self.cactusDiskDatabaseString, self.configNode, childFlowers, 
                     parentTarget=self, target=CactusCafWrapper1,
                     overlargeTarget=CactusBlastWrapper)
@@ -377,7 +373,7 @@ class CactusBarDown(CactusRecursionTarget):
                                               minSequenceSizeOfFlower=1, 
                                               maxSequenceSizeOfFlowerGrouping=maxSequenceSizeOfFlowerGrouping)
         makeTargets(self.cactusDiskDatabaseString, baseNode, childFlowers, parentTarget=self, target=CactusBarWrapper, 
-                    overlargeCpu=getOptionalAttrib(self.configNode, "numThreads", int, default=sys.maxint))
+                    overlargeTarget=CactusBarWrapper)
 
 class CactusBarWrapper(CactusRecursionTarget):
     """Runs the BAR algorithm implementation.

@@ -858,7 +858,6 @@ stList *getBlastPairs(const char *sX, const char *sY, int32_t lX, int32_t lY, in
                 sY, tempFile1);
     }
     FILE *fileHandle = popen(command, "r");
-    free(command);
     if (fileHandle == NULL) {
         st_errAbort("Problems with lastz pipe");
     }
@@ -892,8 +891,9 @@ stList *getBlastPairs(const char *sX, const char *sY, int32_t lX, int32_t lY, in
     }
     int32_t status = pclose(fileHandle);
     if (status != 0) {
-        st_errnoAbort("pclose failed when getting rid of lastz pipe with value %i", status);
+        st_errAbort("pclose failed when getting rid of lastz pipe with value %i and command %s", status, command);
     }
+    free(command);
 
     stList_sort(alignedPairs, sortByXPlusYCoordinate); //Ensure the coordinates are increasing
 

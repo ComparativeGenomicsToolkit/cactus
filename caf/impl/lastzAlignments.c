@@ -30,7 +30,6 @@ stList *stCaf_selfAlignFlower(Flower *flower, int32_t minimumSequenceLength, con
         //        "lastz --format=cigar %s %s[multiple][nameparse=darkspace] --self",
         //        lastzArgs, tempFile1);
         FILE *fileHandle = popen(command, "r");
-        free(command);
         if (fileHandle == NULL) {
             st_errAbort("Problems with lastz pipe");
         }
@@ -44,7 +43,11 @@ stList *stCaf_selfAlignFlower(Flower *flower, int32_t minimumSequenceLength, con
             convertCoordinatesOfPairwiseAlignment(pairwiseAlignment);
             stList_append(cigars, pairwiseAlignment);
         }
-        pclose(fileHandle);
+        int i = pclose(fileHandle);
+        if(i != 0) {
+            st_errAbort("Lastz failed: %s\n", command);
+        }
+        free(command);
     }
     //st_system("rm %s", tempFile1);
 
