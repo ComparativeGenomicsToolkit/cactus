@@ -199,8 +199,8 @@ void stCaf_breakupComponentsGreedily(stPinchThreadSet *threadSet, float maximumA
             //Get the edges to remove
             stList *edgesToDelete = stCaf_breakupComponentGreedily(nodes, edges, maximumAdjacencyComponentSize);
             if (stList_length(edgesToDelete) > 0) {
-                printf("Pinch graph component with %i nodes and %i edges is being split up by breaking %i edges\n",
-                        stList_length(nodes), stList_length(edges), stList_length(edgesToDelete));
+                printf("Pinch graph component with %i nodes and %i edges is being split up by breaking %i edges to reduce size to less than %i max\n",
+                        stList_length(nodes), stList_length(edges), stList_length(edgesToDelete), maximumAdjacencyComponentSize);
             }
             //Break edges;
             for (int32_t j = 0; j < stList_length(edgesToDelete); j++) {
