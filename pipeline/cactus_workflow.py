@@ -254,7 +254,7 @@ def makeTargets(cactusDiskDatabaseString, configNode, flowersAndSizes,
         if overlarge: #Make sure large flowers are on there own, in their own job
             flowerStatsString = runCactusFlowerStats(cactusDiskDatabaseString, decodeFlowerNames(flowerNames)[0])
             parentTarget.logToMaster("Adding an oversize flower for target class %s and stats %s" \
-                                     % (target, flowerStatsString))
+                                     % (overlargeTarget, flowerStatsString))
             parentTarget.addChildTarget(overlargeTarget(cactusDiskDatabaseString=cactusDiskDatabaseString, 
                                                         configNode=configNode, 
                                                         flowerNames=flowerNames, memory=overlargeMemory, cpu=overlargeCpu)) #This ensures overlarge flowers, 
