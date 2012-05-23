@@ -186,7 +186,7 @@ static void breakEdges(stPinchThreadSet *threadSet, stPinchEnd *pinchEnd1, stPin
 }
 
 void stCaf_breakupComponentsGreedily(stPinchThreadSet *threadSet, float maximumAdjacencyComponentSizeRatio) {
-    double maximumAdjacencyComponentSize = maximumAdjacencyComponentSizeRatio * log(
+    int32_t maximumAdjacencyComponentSize = maximumAdjacencyComponentSizeRatio * log(
             stPinchThreadSet_getTotalBlockNumber(threadSet) * 2);
     //Get adjacency components
     stList *adjacencyComponents = stPinchThreadSet_getAdjacencyComponents(threadSet);

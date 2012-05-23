@@ -368,10 +368,9 @@ class CactusBarDown(CactusRecursionTarget):
     def run(self):
         makeChildTargets(self.cactusDiskDatabaseString, self.configNode, self.flowerNames, self, CactusBarDown)
         baseNode = self.configNode.find("base")
-        maxSequenceSizeOfFlowerGrouping=getOptionalAttrib(baseNode, "maxFlowerGroupSize", int, default=MAX_SEQUENCE_SIZE_OF_FLOWER_GROUPING)
         childFlowers = runCactusExtendFlowers(self.cactusDiskDatabaseString, self.flowerNames, 
                                               minSequenceSizeOfFlower=1, 
-                                              maxSequenceSizeOfFlowerGrouping=maxSequenceSizeOfFlowerGrouping)
+                                              maxSequenceSizeOfFlowerGrouping=getOptionalAttrib(baseNode, "maxFlowerGroupSize", int, default=MAX_SEQUENCE_SIZE_OF_FLOWER_GROUPING))
         makeTargets(self.cactusDiskDatabaseString, baseNode, childFlowers, parentTarget=self, target=CactusBarWrapper, 
                     overlargeTarget=CactusBarWrapper)
 
