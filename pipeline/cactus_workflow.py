@@ -57,7 +57,159 @@ from cactus.preprocessor.cactus_preprocessor import PreprocessorHelper
 ############################################################
 ############################################################
 ############################################################
+##The preprocessor phase.
+############################################################
+############################################################
+############################################################
+
+class CactusPreprocessorPhase(Target):
+    def __init__(self, options, sequences):
+        Target.__init__(self, time=0.0002)
+        self.options = options 
+        self.sequences = sequences
+
+    def run(self):
+        self.logToMaster("Starting preprocessor phase target at %s seconds" % time.time())
+        tempDir = getTempDirectory(self.getGlobalTempDir())
+        prepHelper = PreprocessorHelper(self.options, self.sequences)
+        processedSequences = []
+        for sequence in self.sequences:
+            prepXmlElems = prepHelper.getFilteredXmlElems(sequence)
+            event = prepHelper.fileEventMap[sequence]
+            if len(prepXmlElems) == 0:
+                processedSequences.append(sequence)
+            else:
+                sequenceJoin = sequence
+                while sequenceJoin[0] == '/':
+                    sequenceJoin = sequenceJoin[1:]
+                processedSequence = os.path.join(tempDir, sequenceJoin)
+                processedSequences.append(processedSequence)
+                logger.info("Adding child batch_preprocessor target")
+                assert sequence != processedSequence
+                self.addChildTarget(BatchPreprocessor(self.options, event, prepXmlElems, sequence, processedSequence, 0))
+        self.setFollowOnTarget(CactusSetupPhase(self.options, processedSequences))
+        logger.info("Created followOn target cactus_setup job, and follow on down pass job")
+
+############################################################
+############################################################
+############################################################
+##Shared functions
+############################################################
+############################################################
+############################################################
+
+def getOptionalAttrib(node, attribName, typeFn=None, default=None):
+    """Get an optional attrib, or None, if not set.
+    """
+    if node.attrib.has_key(attribName):
+        if typeFn != None:
+            if typeFn == bool:
+                return typeFn(int(node.attrib[attribName]))
+            return typeFn(node.attrib[attribName])
+        return node.attrib[attribName]
+    return default
+
+def findRequiredNode(configNode, nodeName):
+    """Retrieve an xml node, complain if its not there.
+    """
+    node = configNode.find(nodeName)
+    assert node != None
+    return node
+
+class CactusTarget(Target):
+    """Base target for all cactus workflow targets.
+    """
+    def __init__(self, targetNode, overlarge=False):
+        if targetNode == None:
+            Target.__init__(self)
+        elif overlarge:
+            Target.__init__(self, memory=getOptionalAttrib(targetNode, "overlargeMemory", sys.maxint), memory=getOptionalAttrib(targetNode, "overlargeCpu", sys.maxint))
+        else:
+            Target.__init__(self, memory=getOptionalAttrib(targetNode, "memory", sys.maxint), memory=getOptionalAttrib(targetNode, "cpu", sys.maxint))
+
+class CactusPhasesTarget(Target):
+    """Base target for each workflow phase target.
+    """
+    def __init__(self, targetNode, options):
+        CactusTarget.__init__(self, targetNode=targetNode)
+        self.options = options
+
+class CactusPhasesTarget2(CactusPhasesTarget):
+    """Base target for each workflow phase target after the initial setup phase.
+    """
+    def __init__(self, targetNode, options, flowerName):
+        CactusPhasesTarget.__init__(self, targetNode=targetNode, options=options)
+        self.flowerName=flowerName
+
+class CactusRecursionTarget(CactusTarget):
+    """Base recursive target for traversals up and down the cactus tree.
+    """
+    def __init__(self, targetNode, configNode, cactusDiskDatabaseString, flowerNames, overlarge=False):
+        CactusTarget.__init__(self, targetNode, overlarge=overlarge)
+        self.configNode = configNode
+        self.cactusDiskDatabaseString = cactusDiskDatabaseString
+        self.flowerNames = flowerNames  
+        
+    def makeChildTargets(flowersAndSizes, target, overlargeTarget):
+        """Make a set of child targets for a given set of flowers and chosen child target
+        """
+        for overlarge, flowerNames in flowersAndSizes:
+            if overlarge: #Make sure large flowers are on there own, in their own job
+                flowerStatsString = runCactusFlowerStats(cactusDiskDatabaseString=self.cactusDiskDatabaseString, decodeFlowerNames(flowerNames)[0])
+                self.logToMaster("Adding an oversize flower for target class %s and stats %s" \
+                                         % (overlargeTarget, flowerStatsString))
+                self.addChildTarget(overlargeTarget(cactusDiskDatabaseString=self.cactusDiskDatabaseString, configNode=self.configNode, 
+                                                    flowerNames=flowerNames, memory=overlargeMemory, cpu=overlargeCpu)) #This ensures overlarge flowers, 
+            else:
+                self.addChildTarget(target(cactusDiskDatabaseString=self.cactusDiskDatabaseString, 
+                                           configNode=self.configNode, flowerNames=flowerNames, memory=memory, cpu=cpu))
+        
+    def makeRecursiveTargets(self):
+        """Make a set of child targets for a given set of parent flowers.
+        """
+        self.makeChildTargets(flowersAndSizes=runCactusGetFlowers(cactusDiskDatabaseString=self.cactusDiskDatabaseString, 
+                                                                  flowerNames=self.flowerNames, 
+                                                                  minSequenceSizeOfFlower=getOptionalAttrib(self.targetNode, "minFlowerSize", int, 0),
+                                                                  maxSequenceSizeOfFlowerGrouping=getOptionalAttrib(self.targetNode, "maxFlowerGroupSize", 
+                                                                                                                    int, default=1000000)), 
+                              target=self.__class__, overlargeTarget=self.__class__)   
+
+############################################################
+############################################################
+############################################################
 ##The setup phase.
+############################################################
+############################################################
+############################################################
+        
+class CactusSetupPhase(CactusPhasesTarget):
+    def __init__(self, options, sequences):
+        CactusPhasesTarget.__init__(self, targetNode=findRequiredNode(self.options.configNode, "setup").find("CactusSetupPhase"), options=options)
+        self.sequences = sequences
+        
+    def run(self):
+        self.logToMaster("Starting setup phase target at %s seconds" % time.time())
+        #Make the child setup job.
+        self.addChildTarget(CactusSetupWrapper(options=self.options, sequences=self.sequences))
+        #initialise the down pass as the follow on.. using special '0'
+        self.setFollowOnTarget(CactusCafPhase(options=self.options, targetNode=self.options.configNode.find("caf")))
+        
+class CactusSetupWrapper(CactusTarget):
+    def __init__(self, options, sequences):
+        CactusTarget.__init__(self, targetNode=findRequiredNode(options.configNode, "setup").find("CactusSetupWrapper"))
+        self.options = options
+        self.sequences = sequences
+        
+    def run(self):
+        logger.info("Starting cactus setup target")
+        runCactusSetup(cactusDiskDatabaseString=self.options.cactusDiskDatabaseString, sequences=self.sequences, 
+                       speciesTree=self.options.speciesTree, outgroupEvents=self.options.outgroupEventNames)
+        logger.info("Finished the setup phase target")
+
+############################################################
+############################################################
+############################################################
+#The alignment phases, split into the Caf and Bar phases.
 ############################################################
 ############################################################
 ############################################################
@@ -93,23 +245,12 @@ def inverseJukesCantor(d):
     assert d >= 0.0
     return 0.75 * (1 - math.exp(-d * 4.0/3.0))
 
-def getOptionalAttrib(node, attribName, typeFn=None, default=None):
-    """Get an optional attrib, or None, if not set.
+def extractNode(node):
+    """Make an XML node free of its parent subtree
     """
-    if node.attrib.has_key(attribName):
-        if typeFn != None:
-            if typeFn == bool:
-                return typeFn(int(node.attrib[attribName]))
-            return typeFn(node.attrib[attribName])
-        return node.attrib[attribName]
-    return default
-        
-class CactusSetupPhase(Target):
-    def __init__(self, options, sequences):
-        Target.__init__(self, time=0.0002)
-        self.options = options
-        self.sequences = sequences
-            
+    return ET.fromstring(ET.tostring(node))
+    
+class CactusAlignmentPhase(CactusPhasesTarget):
     def modifyConfig(self):
         #Add the identity clause into the blast strings
         alignmentNode = self.options.config.find("alignment")
@@ -126,81 +267,6 @@ class CactusSetupPhase(Target):
                     assert "IDENTITY" in blastNode.attrib["lastzArguments"]
                     blastNode.attrib["lastzArguments"] = blastNode.attrib["lastzArguments"].replace("IDENTITY", identity)
                     
-    def run(self):
-        self.logToMaster("Starting setup phase target at %s seconds" % time.time())
-        #Modify the config options
-        self.modifyConfig()
-        #Make the child setup job.
-        self.addChildTarget(CactusPreprocessorPhase(self.options, self.sequences))
-        #initialise the down pass as the follow on.. using special '0'
-        self.setFollowOnTarget(CactusAlignmentPhase(self.options, 0))
-        logger.info("Created child target preprocessor job, and follow on down pass job")
-
-class CactusPreprocessorPhase(Target):
-    def __init__(self, options, sequences):
-        Target.__init__(self, time=0.0002)
-        self.options = options 
-        self.sequences = sequences
-
-    def run(self):
-        self.logToMaster("Starting preprocessor phase target at %s seconds" % time.time())
-        
-        tempDir = getTempDirectory(self.getGlobalTempDir())
-        prepHelper = PreprocessorHelper(self.options, self.sequences)
-        processedSequences = []
-        for sequence in self.sequences:
-            prepXmlElems = prepHelper.getFilteredXmlElems(sequence)
-            event = prepHelper.fileEventMap[sequence]
-            if len(prepXmlElems) == 0:
-                processedSequences.append(sequence)
-            else:
-                sequenceJoin = sequence
-                while sequenceJoin[0] == '/':
-                    sequenceJoin = sequenceJoin[1:]
-                processedSequence = os.path.join(tempDir, sequenceJoin)
-                processedSequences.append(processedSequence)
-                logger.info("Adding child batch_preprocessor target")
-                assert sequence != processedSequence
-                self.addChildTarget(BatchPreprocessor(self.options, event, prepXmlElems, sequence, processedSequence, 0))
-
-        self.setFollowOnTarget(CactusSetupWrapper(self.options, processedSequences))
-        logger.info("Created followOn target cactus_setup job, and follow on down pass job")
-        
-class CactusSetupWrapper(Target):
-    def __init__(self, options, sequences):
-        Target.__init__(self)
-        self.options = options
-        self.sequences = sequences
-        
-    def run(self):
-        logger.info("Starting cactus setup target")
-        runCactusSetup(self.options.cactusDiskDatabaseString, self.sequences, 
-                       self.options.speciesTree, outgroupEvents=self.options.outgroupEventNames)
-        logger.info("Finished the setup phase target")
-
-############################################################
-############################################################
-############################################################
-#The alignment phases, split into the Caf and Bar phases.
-############################################################
-############################################################
-############################################################
-
-def extractNode(node):
-    """Make an XML node free of its parent subtree
-    """
-    return ET.fromstring(ET.tostring(node))
-
-class CactusPhasesTarget(Target):
-    """Base target for each phase.
-    """
-    def __init__(self, options, flowerName, iteration=0):
-        Target.__init__(self, time=0.0002)
-        self.options = options
-        self.flowerName = flowerName
-        self.iteration = iteration
-    
-class CactusAlignmentPhase(CactusPhasesTarget):        
     def run(self):
         self.logToMaster("Starting the alignment phase for iteration %i at %i seconds" % (self.iteration, time.time()))
         iterations = self.options.config.find("alignment").find("iterations").findall("iteration")
@@ -231,50 +297,6 @@ class CactusAlignmentPhase(CactusPhasesTarget):
 ############################################################
 ############################################################
 ############################################################
-
-class CactusRecursionTarget(Target):
-    """Base recursive target for traversals up and down the cactus tree.
-    """
-    def __init__(self, cactusDiskDatabaseString, configNode, flowerNames, memory=sys.maxint, cpu=sys.maxint):
-        targetStringId = str(self.__class__)[8:-2]
-        Target.__init__(self, memory=memory, cpu=cpu)
-        self.cactusDiskDatabaseString = cactusDiskDatabaseString
-        self.configNode = configNode
-        self.flowerNames = flowerNames    
-
-def makeTargets(cactusDiskDatabaseString, configNode, flowersAndSizes, 
-                parentTarget, target, overlargeTarget):
-    """Make a set of targets for a given set of flowers.
-    """
-    memory=getOptionalAttrib(configNode, "memory", int, sys.maxint)
-    cpu=getOptionalAttrib(configNode, "cpu", int, sys.maxint)
-    overlargeMemory=getOptionalAttrib(configNode, "bigMemory", int, sys.maxint)
-    overlargeCpu=getOptionalAttrib(configNode, "bigCpu", int, sys.maxint)
-    for overlarge, flowerNames in flowersAndSizes:
-        if overlarge: #Make sure large flowers are on there own, in their own job
-            flowerStatsString = runCactusFlowerStats(cactusDiskDatabaseString, decodeFlowerNames(flowerNames)[0])
-            parentTarget.logToMaster("Adding an oversize flower for target class %s and stats %s" \
-                                     % (overlargeTarget, flowerStatsString))
-            parentTarget.addChildTarget(overlargeTarget(cactusDiskDatabaseString=cactusDiskDatabaseString, 
-                                                        configNode=configNode, 
-                                                        flowerNames=flowerNames, memory=overlargeMemory, cpu=overlargeCpu)) #This ensures overlarge flowers, 
-        else:
-            parentTarget.addChildTarget(target(cactusDiskDatabaseString=cactusDiskDatabaseString, 
-                                           configNode=configNode, 
-                                           flowerNames=flowerNames, 
-                                           memory=memory, cpu=cpu))
-            
-MAX_SEQUENCE_SIZE_OF_FLOWER_GROUPING=1000000    
-     
-def makeChildTargets(cactusDiskDatabaseString, configNode, flowerNames, target, childTarget):
-    """Make a set of child targets for a given set of parent flowers.
-    """
-    childFlowers = runCactusGetFlowers(cactusDiskDatabaseString, flowerNames, 
-                                       minSequenceSizeOfFlower=getOptionalAttrib(configNode, "minFlowerSize", int, 0),
-                                       maxSequenceSizeOfFlowerGrouping=getOptionalAttrib(configNode, "maxFlowerGroupSize", int, default=MAX_SEQUENCE_SIZE_OF_FLOWER_GROUPING))
-    makeTargets(cactusDiskDatabaseString=cactusDiskDatabaseString, configNode=configNode, 
-                flowersAndSizes=childFlowers, parentTarget=target, 
-                target=childTarget, overlargeTarget=childTarget)
 
 class CactusCafDown(CactusRecursionTarget):
     """This target does the get flowers down pass for the CAF alignment phase.
@@ -483,17 +505,22 @@ class CactusReferenceDown(CactusRecursionTarget):
     """
     def run(self):
         makeChildTargets(self.cactusDiskDatabaseString, self.configNode, self.flowerNames, self, CactusReferenceDown)
-        runCactusReference(cactusDiskDatabaseString=self.cactusDiskDatabaseString, 
-                           flowerNames=self.flowerNames, 
-                           matchingAlgorithm=getOptionalAttrib(self.configNode, "matchingAlgorithm"), 
-                           permutations=getOptionalAttrib(self.configNode, "permutations", int),
-                           referenceEventString=getOptionalAttrib(self.configNode, "reference"), 
-                           useSimulatedAnnealing=getOptionalAttrib(self.configNode, "useSimulatedAnnealing", bool),
-                           theta=getOptionalAttrib(self.configNode, "theta", float),
-                           maxNumberOfChainsBeforeSwitchingToFast=getOptionalAttrib(self.configNode, "maxNumberOfChainsBeforeSwitchingToFast", int))
-        self.setFollowOnTarget(CactusSetReferenceCoordinatesUpRunnable(self.cactusDiskDatabaseString, self.configNode, self.flowerNames))
+        self.setFollowOnTarget(CactusReferenceWrapper(self.cactusDiskDatabaseString, self.configNode, self.flowerNames))
 
-class CactusSetReferenceCoordinatesUpRunnable(CactusRecursionTarget):
+class CactusReferenceWrapper(CactusRecursionTarget):
+    """Actually run the reference code.
+    """
+    runCactusReference(cactusDiskDatabaseString=self.cactusDiskDatabaseString, 
+                       flowerNames=self.flowerNames, 
+                       matchingAlgorithm=getOptionalAttrib(self.configNode, "matchingAlgorithm"), 
+                       permutations=getOptionalAttrib(self.configNode, "permutations", int),
+                       referenceEventString=getOptionalAttrib(self.configNode, "reference"), 
+                       useSimulatedAnnealing=getOptionalAttrib(self.configNode, "useSimulatedAnnealing", bool),
+                       theta=getOptionalAttrib(self.configNode, "theta", float),
+                       maxNumberOfChainsBeforeSwitchingToFast=getOptionalAttrib(self.configNode, "maxNumberOfChainsBeforeSwitchingToFast", int))
+    self.setFollowOnTarget(CactusSetReferenceCoordinatesUpWrapper(self.cactusDiskDatabaseString, self.configNode, self.flowerNames))
+
+class CactusSetReferenceCoordinatesUpWrapper(CactusRecursionTarget):
     """Does the up pass for filling Fills in the coordinates, once a reference is added.
     """ 
     def run(self):
@@ -512,6 +539,13 @@ class CactusSetReferenceCoordinatesDownPhase(CactusPhasesTarget):
         self.setFollowOnTarget(CactusFacesPhase(self.options, self.flowerName))
         
 class CactusSetReferenceCoordinatesDown(CactusRecursionTarget):
+    """Does the down pass for filling Fills in the coordinates, once a reference is added.
+    """        
+    def run(self):
+        makeChildTargets(self.cactusDiskDatabaseString, self.configNode, self.flowerNames, self, CactusSetReferenceCoordinatesDown)
+        self.setFollowOnTarget(CactusSetReferenceCoordinatesDownWrapper(self.cactusDiskDatabaseString, self.configNode, self.flowerNames))
+
+class CactusSetReferenceCoordinatesDownWrapper(CactusRecursionTarget):
     """Does the down pass for filling Fills in the coordinates, once a reference is added.
     """        
     def run(self):
