@@ -101,7 +101,7 @@ class CactusPreprocessorPhase(Target):
 def getOptionalAttrib(node, attribName, typeFn=None, default=None):
     """Get an optional attrib, or None, if not set.
     """
-    if node.attrib.has_key(attribName):
+    if node != None and node.attrib.has_key(attribName):
         if typeFn != None:
             if typeFn == bool:
                 return typeFn(int(node.attrib[attribName]))
@@ -119,34 +119,37 @@ def findRequiredNode(configNode, nodeName):
 class CactusTarget(Target):
     """Base target for all cactus workflow targets.
     """
-    def __init__(self, targetNode, overlarge=False):
-        if targetNode == None:
+    def __init__(self, phaseNode, overlarge=False):
+        className = str(self.__class__).split(".")[-1]
+        assert className != ''
+        self.phaseNode = phaseNode
+        self.targetNode = phaseNode.find(className)
+        if self.targetNode == None:
             Target.__init__(self)
         elif overlarge:
-            Target.__init__(self, memory=getOptionalAttrib(targetNode, "overlargeMemory", sys.maxint), memory=getOptionalAttrib(targetNode, "overlargeCpu", sys.maxint))
+            Target.__init__(self, memory=getOptionalAttrib(self.targetNode, "overlargeMemory", sys.maxint), memory=getOptionalAttrib(self.targetNode, "overlargeCpu", sys.maxint))
         else:
-            Target.__init__(self, memory=getOptionalAttrib(targetNode, "memory", sys.maxint), memory=getOptionalAttrib(targetNode, "cpu", sys.maxint))
+            Target.__init__(self, memory=getOptionalAttrib(self.targetNode, "memory", sys.maxint), memory=getOptionalAttrib(self.targetNode, "cpu", sys.maxint))
 
 class CactusPhasesTarget(Target):
     """Base target for each workflow phase target.
     """
-    def __init__(self, targetNode, options):
-        CactusTarget.__init__(self, targetNode=targetNode)
+    def __init__(self, phaseNode, options):
+        CactusTarget.__init__(self, phaseNode=phaseNode)
         self.options = options
 
 class CactusPhasesTarget2(CactusPhasesTarget):
     """Base target for each workflow phase target after the initial setup phase.
     """
-    def __init__(self, targetNode, options, flowerName):
-        CactusPhasesTarget.__init__(self, targetNode=targetNode, options=options)
+    def __init__(self, phaseNode, options, flowerName):
+        CactusPhasesTarget.__init__(self, phaseNode=phaseNode, options=options)
         self.flowerName=flowerName
 
 class CactusRecursionTarget(CactusTarget):
     """Base recursive target for traversals up and down the cactus tree.
     """
-    def __init__(self, targetNode, configNode, cactusDiskDatabaseString, flowerNames, overlarge=False):
-        CactusTarget.__init__(self, targetNode, overlarge=overlarge)
-        self.configNode = configNode
+    def __init__(self, phaseNode, cactusDiskDatabaseString, flowerNames, overlarge=False):
+        CactusTarget.__init__(self, phaseNode=phaseNode, overlarge=overlarge)
         self.cactusDiskDatabaseString = cactusDiskDatabaseString
         self.flowerNames = flowerNames  
         
@@ -158,11 +161,11 @@ class CactusRecursionTarget(CactusTarget):
                 flowerStatsString = runCactusFlowerStats(cactusDiskDatabaseString=self.cactusDiskDatabaseString, decodeFlowerNames(flowerNames)[0])
                 self.logToMaster("Adding an oversize flower for target class %s and stats %s" \
                                          % (overlargeTarget, flowerStatsString))
-                self.addChildTarget(overlargeTarget(cactusDiskDatabaseString=self.cactusDiskDatabaseString, configNode=self.configNode, 
-                                                    flowerNames=flowerNames, memory=overlargeMemory, cpu=overlargeCpu)) #This ensures overlarge flowers, 
+                self.addChildTarget(overlargeTarget(cactusDiskDatabaseString=self.cactusDiskDatabaseString, phaseNode=self.phaseNode, 
+                                                    flowerNames=flowerNames, overlarge=overlarge)) #This ensures overlarge flowers, 
             else:
                 self.addChildTarget(target(cactusDiskDatabaseString=self.cactusDiskDatabaseString, 
-                                           configNode=self.configNode, flowerNames=flowerNames, memory=memory, cpu=cpu))
+                                           phaseNode=self.phaseNode, flowerNames=flowerNames))
         
     def makeRecursiveTargets(self):
         """Make a set of child targets for a given set of parent flowers.
@@ -184,7 +187,7 @@ class CactusRecursionTarget(CactusTarget):
         
 class CactusSetupPhase(CactusPhasesTarget):
     def __init__(self, options, sequences):
-        CactusPhasesTarget.__init__(self, targetNode=findRequiredNode(self.options.configNode, "setup").find("CactusSetupPhase"), options=options)
+        CactusPhasesTarget.__init__(self, phaseNode=findRequiredNode(self.options.configNode, "setup"), options=options)
         self.sequences = sequences
         
     def run(self):
