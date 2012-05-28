@@ -26,5 +26,6 @@
 #include "cactusFacesBuilding.h"
 #include "cactusSequence.h"
 #include "cactusTestCommon.h"
+#include "cactusFlowerWriter.h"
 
 #endif

@@ -1,13 +1,12 @@
-#include <assert.h>
-#include <limits.h>
-#include <stdio.h>
-#include <string.h>
-#include <stdlib.h>
-#include <inttypes.h>
-
 #include "sonLib.h"
-#include "cactus.h"
-#include "flowerWriter.h"
+#include "cactusGlobalsPrivate.h"
+
+struct _flowerWriter {
+        stList *flowerNamesAndSizes;
+        int64_t maxFlowerGroupSize;
+        int64_t maxFlowerSecondaryGroupSize;
+        FILE *fileHandle;
+};
 
 FlowerWriter *flowerWriter_construct(FILE *fileHandle, int64_t maxFlowerGroupSize,
         int64_t maxFlowerSecondaryGroupSize) {
@@ -46,7 +45,7 @@ static void printName(FILE *fileHandle, Name name) {
     fprintf(fileHandle, "%" PRIi64 " ", name);
 }
 
-void encodeFlowersString(stList *flowerNamesAndSizes, FILE *fileHandle,
+static void flowerWriter_writeFlowersString(stList *flowerNamesAndSizes, FILE *fileHandle,
         int64_t maxFlowerSecondaryGroupSize) {
     fprintf(fileHandle, "%i ", stList_length(flowerNamesAndSizes));
     if (stList_length(flowerNamesAndSizes) > 0) {
@@ -76,9 +75,9 @@ void encodeFlowersString(stList *flowerNamesAndSizes, FILE *fileHandle,
 }
 
 static void printFlowers(FlowerWriter *flowerWriter, stList *stack, int64_t totalSize) {
-    fprintf(stdout, "%i", totalSize > flowerWriter->maxFlowerGroupSize);
-    encodeFlowersString(stack, stdout, flowerWriter->maxFlowerSecondaryGroupSize);
-    fprintf(stdout, "\n");
+    fprintf(flowerWriter->fileHandle, "%i ", totalSize > flowerWriter->maxFlowerGroupSize);
+    flowerWriter_writeFlowersString(stack, flowerWriter->fileHandle, flowerWriter->maxFlowerSecondaryGroupSize);
+    fprintf(flowerWriter->fileHandle, "\n");
 }
 
 static void flowerWriter_flush(FlowerWriter *flowerWriter) {
@@ -143,7 +142,7 @@ static void addName(stList *flowerNamesList, Name name) {
     stList_append(flowerNamesList, iA);
 }
 
-stList *flowerWriter_decodeFlowersString(CactusDisk *cactusDisk, FILE *fileHandle) {
+stList *flowerWriter_parseFlowerNames(FILE *fileHandle) {
     int32_t flowerArgumentNumber;
     int32_t j = fscanf(fileHandle, "%i", &flowerArgumentNumber);
     (void) j;
@@ -156,11 +155,12 @@ stList *flowerWriter_decodeFlowersString(CactusDisk *cactusDisk, FILE *fileHandl
         addName(flowerNamesList, nName);
         name = nName;
     }
-    stList *flowers = cactusDisk_getFlowers(cactusDisk, flowerNamesList);
-    stList_destruct(flowerNamesList);
-    return flowers;
+    return flowerNamesList;
 }
 
 stList *flowerWriter_parseFlowersFromStdin(CactusDisk *cactusDisk) {
-    return flowerWriter_decodeFlowersString(cactusDisk, stdin);
+    stList *flowerNamesList = flowerWriter_parseFlowerNames(stdin);
+    stList *flowers = cactusDisk_getFlowers(cactusDisk, flowerNamesList);
+    stList_destruct(flowerNamesList);
+    return flowers;
 }
