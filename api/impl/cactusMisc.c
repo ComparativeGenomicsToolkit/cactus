@@ -143,60 +143,6 @@ void preCacheNestedFlowers(CactusDisk *cactusDisk, stList *flowers) {
     stList_destruct(nestedFlowerNames);
 }
 
-static void printName(FILE *fileHandle, Name name) {
-fprintf(fileHandle, NAME_STRING " ", name);
-}
-
-void cactusMisc_encodeFlowersString(stList *flowerNames, FILE *fileHandle) {
-    int32_t flowerArgumentNumber = stList_length(flowerNames);
-    fprintf(fileHandle, "%i ", flowerArgumentNumber);
-    if (stList_length(flowerNames) > 0) {
-        Name name = *((Name *) stList_get(flowerNames, 0));
-        printName(fileHandle, name);
-        for (int32_t i = 1; i < stList_length(flowerNames); i++) {
-            Name nName = *((Name *) stList_get(flowerNames, i));
-            printName(fileHandle, nName - name);
-            name = nName;
-        }
-    }
-}
-
-static Name getName(FILE *fileHandle) {
-    Name name;
-    int32_t j = fscanf(fileHandle, NAME_STRING, &name);
-    (void) j;
-    assert(j == 1);
-    return name;
-}
-
-static void addName(stList *flowerNamesList, Name name) {
-    int64_t *iA = st_malloc(sizeof(int64_t));
-    iA[0] = name;
-    stList_append(flowerNamesList, iA);
-}
-
-stList *cactusMisc_decodeFlowersString(CactusDisk *cactusDisk, FILE *fileHandle) {
-    int32_t flowerArgumentNumber;
-    int32_t j = fscanf(fileHandle, "%i", &flowerArgumentNumber);
-    (void) j;
-    assert(j == 1);
-    stList *flowerNamesList = stList_construct3(0, free);
-    Name name = getName(fileHandle);
-    addName(flowerNamesList, name);
-    for (int32_t i = 1; i < flowerArgumentNumber; i++) {
-        Name nName = getName(fileHandle) + name;
-        addName(flowerNamesList, nName);
-        name = nName;
-    }
-    stList *flowers = cactusDisk_getFlowers(cactusDisk, flowerNamesList);
-    stList_destruct(flowerNamesList);
-    return flowers;
-}
-
-stList *cactusMisc_parseFlowersFromStdin(CactusDisk *cactusDisk) {
-    return cactusMisc_decodeFlowersString(cactusDisk, stdin);
-}
-
 const char *CACTUS_CHECK_EXCEPTION_ID = "CACTUS_CHECK_EXCEPTION_ID";
 
 void cactusCheck(bool condition) {

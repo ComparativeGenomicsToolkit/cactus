@@ -50,6 +50,7 @@ typedef struct _face Face;
 typedef struct _faceEnd FaceEnd;
 typedef struct _flower Flower;
 typedef struct _cactusDisk CactusDisk;
+typedef struct _flowerWriter FlowerWriter;
 
 typedef stSortedSetIterator EventTree_Iterator;
 typedef struct _end_instanceIterator End_InstanceIterator;

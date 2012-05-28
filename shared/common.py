@@ -42,33 +42,28 @@ def getLogLevelString2(logLevelString):
 
 def readFlowerNames(flowerStrings): 
     return [ (bool(int(line[0])), line[1:]) for line in flowerStrings.split("\n") if line != '' ]
-
-def encodeFlowerNames(flowerNames):
-    if len(flowerNames) == 0:
-        return "0"
-    return "%i %s %s" % (len(flowerNames), flowerNames[0], " ".join([ str(flowerNames[i] - flowerNames[i-1]) for i in xrange(1, len(flowerNames)) ]))
-
-def decodeFlowerNames(encodedFlowerNames):
-    flowerNames = [ int(flowerName) for flowerName in encodedFlowerNames.split()[1:] ]
-    for i in xrange(1, len(flowerNames)):
-        flowerNames[i] += flowerNames[i-1]
-    return flowerNames
     
 def runCactusGetFlowers(cactusDiskDatabaseString, flowerNames, 
                         minSequenceSizeOfFlower=1,
-                        maxSequenceSizeOfFlowerGrouping=-1, logLevel=None):
+                        maxSequenceSizeOfFlowerGrouping=-1, 
+                        maxSequenceSizeOfSecondaryFlowerGrouping=-1, 
+                        logLevel=None):
     """Gets a list of flowers attached to the given flower. 
     """
     logLevel = getLogLevelString2(logLevel)
-    flowerStrings = popenCatch("cactus_workflow_getFlowers %s '%s' %i %i" % \
+    flowerStrings = popenCatch("cactus_workflow_getFlowers %s '%s' %i %i %i" % \
                                (logLevel, cactusDiskDatabaseString, int(minSequenceSizeOfFlower), 
-                                int(maxSequenceSizeOfFlowerGrouping)), stdinString=flowerNames)
+                                int(maxSequenceSizeOfFlowerGrouping), 
+                                int(maxSequenceSizeOfSecondaryFlowerGrouping)), 
+                                stdinString=flowerNames)
     l = readFlowerNames(flowerStrings)
     return l
 
 def runCactusExtendFlowers(cactusDiskDatabaseString, flowerNames, 
                         minSequenceSizeOfFlower=1,
-                        maxSequenceSizeOfFlowerGrouping=-1, logLevel=None):
+                        maxSequenceSizeOfFlowerGrouping=-1, 
+                        maxSequenceSizeOfSecondaryFlowerGrouping=-1, 
+                        logLevel=None):
     """Extends the terminal groups in the cactus and returns the list
     of their child flowers with which to pass to core.
     The order of the flowers is by ascending depth first discovery time.
@@ -76,9 +71,36 @@ def runCactusExtendFlowers(cactusDiskDatabaseString, flowerNames,
     logLevel = getLogLevelString2(logLevel)
     flowerStrings = popenCatch("cactus_workflow_extendFlowers %s '%s' %i %i" % \
                                (logLevel, cactusDiskDatabaseString, int(minSequenceSizeOfFlower), \
-                                int(maxSequenceSizeOfFlowerGrouping)), stdinString=flowerNames)
+                                int(maxSequenceSizeOfFlowerGrouping), 
+                                int(maxSequenceSizeOfSecondaryFlowerGrouping)), 
+                                stdinString=flowerNames)
     l = readFlowerNames(flowerStrings)
     return l
+
+def encodeFlowerNames(flowerNames):
+    return "%i %s" % (len(flowerNames), flowerName)
+    
+def decodeFirstFlowerName(encodedFlowerName):
+    return int(encodedFlowerNames.split()[1])
+
+def runCactusSplitFlowersBySecondaryGrouping(flowerNames):
+    """Splits a list of flowers into smaller lists.
+    """
+    flowerNames = flowerNames.split()
+    flowerNames.reverse()
+    flowerGroups = []
+    stack = []
+    for i in flowerNames:
+        if i != '':
+            if i in ('a', 'b'):
+                assert len(stack) > 0
+                flowerGroups.append((i == 'b', encodeFlowerNames(stack))) #b indicates the stack is overlarge
+                stack = []
+            else:
+                stack.append(i)
+    if len(stack) > 0:
+        flowerGroups.append((False, encodeFlowerNames(stack)))
+    return flowerGroups
 
 #############################################
 #############################################

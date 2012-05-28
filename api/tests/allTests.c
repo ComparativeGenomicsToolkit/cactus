@@ -23,6 +23,7 @@ CuSuite *cactusFaceTestSuite();
 CuSuite *cactusFaceEndTestSuite();
 CuSuite *cactusSequenceTestSuite();
 CuSuite *cactusSerialisationTestSuite();
+CuSuite *cactusFlowerWriterTestSuite();
 
 
 int cactusAPIRunAllTests(void) {
@@ -45,6 +46,7 @@ int cactusAPIRunAllTests(void) {
 	CuSuiteAddSuite(suite, cactusFaceEndTestSuite());
 	CuSuiteAddSuite(suite, cactusSequenceTestSuite());
 	CuSuiteAddSuite(suite, cactusSerialisationTestSuite());
+	CuSuiteAddSuite(suite, cactusFlowerWriterTestSuite());
 	CuSuiteRun(suite);
 	CuSuiteSummary(suite, output);
 	CuSuiteDetails(suite, output);

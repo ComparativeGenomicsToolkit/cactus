@@ -8,7 +8,7 @@
 
 int main(int argc, char *argv[]) {
     parseArgs(argc, argv);
-    stList *flowers = cactusMisc_parseFlowersFromStdin(cactusDisk);
+    stList *flowers = flowerWriter_parseFlowersFromStdin(cactusDisk);
     //stList *flowers = parseFlowers(argv + 6, argc - 6, cactusDisk);
     for (int32_t i = 0; i < stList_length(flowers); i++) {
         Flower *flower = stList_get(flowers, i);

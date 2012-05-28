@@ -61,5 +61,6 @@
 #include "cactusSequencePrivate.h"
 #include "cactusSerialisation.h"
 #include "cactusTestCommon.h"
+#include "cactusFlowerWriter.h"
 
 #endif
