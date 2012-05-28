@@ -12,10 +12,13 @@
 typedef struct _flowerWriter {
         stList *flowerNamesAndSizes;
         int64_t maxFlowerGroupSize;
+        int64_t maxFlowerSecondaryGroupSize;
         FILE *fileHandle;
 } FlowerWriter;
 
-FlowerWriter *flowerWriter_construct(FILE *fileHandle, int64_t maxFlowerGroupSize);
+FlowerWriter *flowerWriter_construct(FILE *fileHandle,
+        int64_t maxFlowerGroupSize,
+        int64_t maxFlowerSecondaryGroupSize);
 
 void flowerWriter_destruct(FlowerWriter *flowerWriter);
 

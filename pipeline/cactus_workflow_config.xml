@@ -1,62 +1,45 @@
 <cactusWorkflowConfig>
-	<alignment>
-		<iterations>
-			<iteration 
-				maxFlowerGroupSize="1000000"
-				minFlowerSize="5000"
-				type="blast"
-			>
-				<blast 
-					lastzArguments="--hspthresh=1800 --identity=IDENTITY --ambiguous=iupac"
-					chunkSize="2000000" 
-					chunksPerJob="1" 
-					compressFiles="1" 
-					overlapSize="10000" 
-					filterByIdentity="1" 
-					identityRatio="6" 
-					minimumDistance="0.01" 
-					minimumSequenceLengthForBlast="30"
-				/>
-				<core 
-					alignRepeatsAtRound="0" 
-					annealingRounds="2 3 4 8 16 32 64 128" 
-					deannealingRounds="1 2 3 4 8 16 32 64 128" 
-					blockTrim="2" 
-					minimumTreeCoverage="0.8" 
-					trim="0 0 0 0 0 0 0 0 0 0 0"
-					minimumBlockDegree="2"
-					maxAdjacencyComponentSizeRatio="10"
-				/>
-			</iteration>
-			<iteration 
-				maxFlowerGroupSize="1000000"
-				type="base" 
-			>
-				<base
-					maxFlowerGroupSize="40000"
-					numThreads="1" 
-					spanningTrees="10" 
-					gapGamma="0.2" 
-					bandingLimit="100000" 
-					splitMatrixBiggerThanThis="3000" 
-                    anchorMatrixBiggerThanThis="500"
-                    repeatMaskMatrixBiggerThanThis="500"
-                    diagonalExpansion="20"
-					constraintDiagonalTrim="14" 
-					minimumBlockDegree="0" 
-					alignAmbiguityCharacters="1"
-				/>
-			</iteration>
-		</iterations>
-	</alignment>
+	<setup>
+	</setup>
+	<caf
+		minFlowerSize="5000"
+		lastzArguments="--hspthresh=1800 --identity=IDENTITY --ambiguous=iupac"
+		chunkSize="2000000" 
+		chunksPerJob="1" 
+		compressFiles="1" 
+		overlapSize="10000" 
+		filterByIdentity="1" 
+		identityRatio="6" 
+		minimumDistance="0.01" 
+		minimumSequenceLengthForBlast="30"
+		annealingRounds="2 3 4 8 16 32 64 128" 
+		deannealingRounds="1 2 3 4 8 16 32 64 128" 
+		blockTrim="2" 
+		minimumTreeCoverage="0.8" 
+		trim="0 0 0 0 0 0 0 0 0 0 0"
+		minimumBlockDegree="2"
+		maxAdjacencyComponentSizeRatio="10"
+	>
+	</caf>
+	<bar>
+		numThreads="1" 
+		spanningTrees="10" 
+		gapGamma="0.2" 
+		bandingLimit="100000" 
+		splitMatrixBiggerThanThis="3000" 
+        anchorMatrixBiggerThanThis="500"
+        repeatMaskMatrixBiggerThanThis="500"
+        diagonalExpansion="20"
+		constraintDiagonalTrim="14" 
+		minimumBlockDegree="0" 
+		alignAmbiguityCharacters="1"
+	>
+	</bar>
 	<normal 
-		maxFlowerGroupSize="1000000"
 		maxNumberOfChains="30" 
 		iterations="2"
 	/>
-	<phylogeny
-	/>
-	<faces
+	<avgs
 	/>
 	<reference 
 		maxFlowerGroupSize="1000000"

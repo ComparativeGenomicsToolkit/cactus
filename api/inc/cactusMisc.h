@@ -72,12 +72,12 @@ void cactusMisc_encodeFlowersString(stList *flowerNames, FILE *fileHandle);
 /*
  * Decodes a list of flower names and returns them from the filehandle.
  */
-stList *cactusMisc_decodeFlowersString(CactusDisk *cactusDisk, FILE *fileHandle);
+stList *flowerWriter_decodeFlowersString(CactusDisk *cactusDisk, FILE *fileHandle);
 
 /*
  *  As parseFlowers, but reads the list from stdin.
  */
-stList *cactusMisc_parseFlowersFromStdin(CactusDisk *cactusDisk);
+stList *flowerWriter_parseFlowersFromStdin(CactusDisk *cactusDisk);
 
 /*
  * Use a bulk get to efficiently precache the nested flowers of a set of parent flowers.

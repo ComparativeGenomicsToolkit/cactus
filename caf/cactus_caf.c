@@ -299,7 +299,7 @@ int main(int argc, char *argv[]) {
 
     startTime = time(NULL);
 
-    stList *flowers = cactusMisc_parseFlowersFromStdin(cactusDisk);
+    stList *flowers = flowerWriter_parseFlowersFromStdin(cactusDisk);
     char *tempFile1 = NULL;
     for (int32_t i = 0; i < stList_length(flowers); i++) {
         flower = stList_get(flowers, i);
