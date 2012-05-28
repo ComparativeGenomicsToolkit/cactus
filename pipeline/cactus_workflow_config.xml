@@ -1,4 +1,6 @@
 <cactusWorkflowConfig>
+	<preprocessor>
+	</preprocessor>
 	<setup>
 	</setup>
 	<caf
@@ -20,6 +22,7 @@
 		minimumBlockDegree="2"
 		maxAdjacencyComponentSizeRatio="10"
 	>
+		<CactusCafRecursion>
 	</caf>
 	<bar
 		spanningTrees="10" 
@@ -36,7 +39,7 @@
 	</bar>
 	<normal 
 		maxNumberOfChains="30" 
-		iterations="2"
+		iterations="0"
 	/>
 	<avg
 	/>

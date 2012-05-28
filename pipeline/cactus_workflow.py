@@ -123,7 +123,7 @@ class CactusTarget(Target):
 class CactusPhasesTarget(CactusTarget):
     """Base target for each workflow phase target.
     """
-    def __init__(self, cactusWorkflowArguments, phaseName, topFlowerName, index=0):
+    def __init__(self, cactusWorkflowArguments, phaseName, topFlowerName=0, index=0):
         phaseNode = findRequiredNode(cactusWorkflowArguments.configNode, phaseName, index)
         CactusTarget.__init__(self, phaseNode=phaseNode, overlarge=False)
         self.index = index
@@ -228,7 +228,7 @@ class CactusRecursionTarget(CactusTarget):
 
 class CactusPreprocessorPhase(Target):
     def __init__(self, cactusWorkflowArguments, sequences):
-        Target.__init__(self, time=0.0002)
+        Target.__init__(self)
         self.cactusWorkflowArguments = cactusWorkflowArguments 
         self.sequences = sequences
 
@@ -313,6 +313,7 @@ class CactusCafPhase(CactusPhasesTarget):
             runCactusConvertAlignmentToCactus(self.cactusWorkflowArguments.cactusDiskDatabaseString,
                                               self.cactusWorkflowArguments.constraintsFile, newConstraintsFile)
             self.phaseNode.attrib["constraints"] = newConstraintsFile
+            
         if self.getPhaseIndex()+1 < self.getPhaseNumber(): #Check if there is a repeat phase
             self.runPhase(CactusCafRecursion, CactusCafPhase, "caf", index=self.getPhaseIndex()+1)
         else:
@@ -668,19 +669,19 @@ class CactusWorkflowArguments:
     """Object for representing a cactus workflow's arguments
     """
     def __init__(self, options):
-        experimentNode = ET.parse(options.experimentFile).getroot()
+        self.experimentNode = ET.parse(options.experimentFile).getroot()
         #Get the database string
-        self.cactusDiskDatabaseString = ET.tostring(experimentNode.find("cactus_disk").find("st_kv_database_conf"))
+        self.cactusDiskDatabaseString = ET.tostring(self.experimentNode.find("cactus_disk").find("st_kv_database_conf"))
         #Get the species tree
-        self.speciesTree = experimentNode.attrib["species_tree"]
+        self.speciesTree = self.experimentNode.attrib["species_tree"]
         #Get the sequences
-        self.sequences = experimentNode.attrib["sequences"].split()
+        self.sequences = self.experimentNode.attrib["sequences"].split()
         #Get any list of 'required species' for the blocks of the cactus.
-        self.outgroupEventNames = getOptionalAttrib(experimentNode, "outgroup_events")
+        self.outgroupEventNames = getOptionalAttrib(self.experimentNode, "outgroup_events")
         #Constraints
-        self.constraintsFile = getOptionalAttrib(experimentNode, "constraints")
+        self.constraintsFile = getOptionalAttrib(self.experimentNode, "constraints")
         #The config options
-        configFile = experimentNode.attrib["config"]
+        configFile = self.experimentNode.attrib["config"]
         if configFile == "default":
             configFile = os.path.join(cactusRootPath(), "pipeline", "cactus_workflow_config.xml")
         else:
