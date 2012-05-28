@@ -125,7 +125,7 @@ static Name getName(FILE *fileHandle) {
         char cA[100];
         int32_t j = fscanf(fileHandle, "%s", cA);
         (void) j;
-        assert(j == 0);
+        assert(j == 1);
         if(isSeperator(cA)) {
             continue;
         }

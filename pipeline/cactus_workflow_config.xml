@@ -21,8 +21,7 @@
 		maxAdjacencyComponentSizeRatio="10"
 	>
 	</caf>
-	<bar>
-		numThreads="1" 
+	<bar
 		spanningTrees="10" 
 		gapGamma="0.2" 
 		bandingLimit="100000" 
@@ -39,9 +38,10 @@
 		maxNumberOfChains="30" 
 		iterations="2"
 	/>
-	<avgs
+	<avg
 	/>
 	<reference 
+		buildReference="1"
 		maxFlowerGroupSize="1000000"
 		matchingAlgorithm="blossom5" 
 		reference="reference" 

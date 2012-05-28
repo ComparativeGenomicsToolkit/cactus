@@ -69,7 +69,7 @@ def runCactusExtendFlowers(cactusDiskDatabaseString, flowerNames,
     The order of the flowers is by ascending depth first discovery time.
     """
     logLevel = getLogLevelString2(logLevel)
-    flowerStrings = popenCatch("cactus_workflow_extendFlowers %s '%s' %i %i" % \
+    flowerStrings = popenCatch("cactus_workflow_extendFlowers %s '%s' %i %i %i" % \
                                (logLevel, cactusDiskDatabaseString, int(minSequenceSizeOfFlower), \
                                 int(maxSequenceSizeOfFlowerGrouping), 
                                 int(maxSequenceSizeOfSecondaryFlowerGrouping)), 
@@ -78,28 +78,38 @@ def runCactusExtendFlowers(cactusDiskDatabaseString, flowerNames,
     return l
 
 def encodeFlowerNames(flowerNames):
-    return "%i %s" % (len(flowerNames), flowerName)
+    if len(flowerNames) == 0:
+        return "0"
+    return "%i %s" % (len(flowerNames), " ".join([ str(flowerNames[0]) ] + [ str(flowerNames[i] - flowerNames[i-1]) for i in xrange(1, len(flowerNames)) ]))
     
-def decodeFirstFlowerName(encodedFlowerName):
-    return int(encodedFlowerNames.split()[1])
+def decodeFirstFlowerName(encodedFlowerNames):
+    tokens = encodedFlowerNames.split()
+    if int(tokens[0]) == 0:
+        return None
+    if tokens[1] == 'b':
+        return int(tokens[2])
+    return int(tokens[1])
 
 def runCactusSplitFlowersBySecondaryGrouping(flowerNames):
     """Splits a list of flowers into smaller lists.
     """
     flowerNames = flowerNames.split()
-    flowerNames.reverse()
     flowerGroups = []
     stack = []
-    for i in flowerNames:
+    overlarge = False
+    name = 0
+    for i in flowerNames[1:]:
         if i != '':
             if i in ('a', 'b'):
-                assert len(stack) > 0
-                flowerGroups.append((i == 'b', encodeFlowerNames(stack))) #b indicates the stack is overlarge
-                stack = []
+                if len(stack) > 0:
+                    flowerGroups.append((overlarge, encodeFlowerNames(stack))) #b indicates the stack is overlarge
+                    stack = []
+                overlarge = i == 'b'
             else:
-                stack.append(i)
+                name = int(i) + name
+                stack.append(name)
     if len(stack) > 0:
-        flowerGroups.append((False, encodeFlowerNames(stack)))
+        flowerGroups.append((overlarge, encodeFlowerNames(stack)))
     return flowerGroups
 
 #############################################
@@ -320,8 +330,8 @@ def _fn(jobTreeDir,
       logLevel=None, retryCount=0, 
       batchSystem="single_machine", 
       rescueJobFrequency=None,
-      setupAndBuildAlignments=True,
-      buildTrees=True, buildFaces=True, buildReference=True,
+      skipAlignments=False,
+      buildAvgs=True, buildFaces=True, buildReference=True,
       buildHal=False,
       jobTreeStats=False,
       maxThreads=None,
@@ -330,8 +340,8 @@ def _fn(jobTreeDir,
       extraJobTreeArgumentsString=""):
     logLevel = getLogLevelString2(logLevel)
     buildFaces=False
-    setupAndBuildAlignments = nameValue("setupAndBuildAlignments", setupAndBuildAlignments, bool)
-    buildTrees = nameValue("buildTrees", buildTrees, bool)
+    skipAlignments = nameValue("skipAlignments", skipAlignments, bool)
+    buildAvgs = nameValue("buildAvgs", buildAvgs, bool)
     buildFaces = nameValue("buildFaces", buildFaces, bool)
     buildReference = nameValue("buildReference", buildReference, bool)
     buildHal = nameValue("buildHal", buildHal, bool)
@@ -343,7 +353,7 @@ def _fn(jobTreeDir,
     maxThreads = nameValue("maxThreads", maxThreads, int)
     maxJobs = nameValue("maxJobs", maxJobs, int)
     logFile = nameValue("logFile", logFile, str)
-    return "%s %s %s %s --jobTree %s --logLevel %s %s %s %s %s %s %s %s %s %s" % (setupAndBuildAlignments, buildTrees, buildFaces, 
+    return "%s %s %s %s --jobTree %s --logLevel %s %s %s %s %s %s %s %s %s %s" % (skipAlignments, buildAvgs, buildFaces, 
              buildReference, jobTreeDir, logLevel, buildHal, batchSystem, retryCount, rescueJobFrequency, jobTreeStats, maxThreads, maxJobs, logFile, extraJobTreeArgumentsString)
      
 def runCactusWorkflow(experimentFile,
@@ -351,8 +361,8 @@ def runCactusWorkflow(experimentFile,
                       logLevel=None, retryCount=0, 
                       batchSystem="single_machine", 
                       rescueJobFrequency=None,
-                      setupAndBuildAlignments=True,
-                      buildTrees=True, buildFaces=True, buildReference=True,
+                      skipAlignments=False,
+                      buildAvgs=True, buildFaces=True, buildReference=True,
                       buildHal=False,
                       jobTreeStats=False,
                       maxThreads=None,
@@ -360,8 +370,8 @@ def runCactusWorkflow(experimentFile,
                       logFile=None,
                       extraJobTreeArgumentsString=""):
     command = ("cactus_workflow.py --experiment %s" % experimentFile) + " " + _fn(jobTreeDir, 
-                      logLevel, retryCount, batchSystem, rescueJobFrequency, setupAndBuildAlignments,
-                      buildTrees, buildFaces, buildReference, buildHal, jobTreeStats,maxThreads,maxJobs,logFile, extraJobTreeArgumentsString=extraJobTreeArgumentsString)
+                      logLevel, retryCount, batchSystem, rescueJobFrequency, skipAlignments,
+                      buildAvgs, buildFaces, buildReference, buildHal, jobTreeStats,maxThreads,maxJobs,logFile, extraJobTreeArgumentsString=extraJobTreeArgumentsString)
     system(command)
     logger.info("Ran the cactus workflow okay")
     
@@ -377,7 +387,7 @@ def runCactusProgressive(inputDir,
                       logLevel=None, retryCount=0, 
                       batchSystem="single_machine", 
                       rescueJobFrequency=None,
-                      setupAndBuildAlignments=True,
+                      skipAlignments=False,
                       buildHal=None,
                       joinMaf=None,
                       #buildTrees=True, buildFaces=True, buildReference=True,
@@ -389,7 +399,7 @@ def runCactusProgressive(inputDir,
                       event=None,
                       extraJobTreeArgumentsString=""):
     command = ("cactus_progressive.py %s" % inputDir) + " " + _fn(jobTreeDir, 
-                      logLevel, retryCount, batchSystem, rescueJobFrequency, setupAndBuildAlignments,
+                      logLevel, retryCount, batchSystem, rescueJobFrequency, skipAlignments,
                       None, None, None, #buildTrees, buildFaces, buildReference, 
                       buildHal,
                       jobTreeStats,maxThreads, maxJobs, logFile, extraJobTreeArgumentsString=extraJobTreeArgumentsString) + \
