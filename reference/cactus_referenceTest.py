@@ -52,7 +52,7 @@ def testCactus_Blanchette(self, matchingAlgorithm):
     configFile = getConfigFile(matchingAlgorithm)
     runWorkflow_multipleExamples(getCactusInputs_blanchette, 
                                  testRestrictions=(TestStatus.TEST_SHORT,), inverseTestRestrictions=True, 
-                                 buildAvgs=False, buildFaces=False, buildReference=True,
+                                 buildAvgs=False, buildReference=True,
                                  configFile=configFile)
     os.remove(configFile)
 
@@ -60,7 +60,7 @@ def testCactus_Random(self, matchingAlgorithm):
     configFile = getConfigFile(matchingAlgorithm)
     runWorkflow_multipleExamples(getCactusInputs_random, 
                                  testNumber=TestStatus.getTestSetup(), 
-                                 buildAvgs=False, buildFaces=False, buildReference=True,
+                                 buildAvgs=False, buildReference=True,
                                  configFile=configFile)
     os.remove(configFile)
     

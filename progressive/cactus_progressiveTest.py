@@ -102,7 +102,7 @@ class TestCase(unittest.TestCase):
     
     def progressiveFunction(self, experimentFile, jobTreeDir, 
                           batchSystem, buildTrees, 
-                          buildFaces, buildReference,
+                          buildReference,
                           buildHal,
                           jobTreeStats):
         tempDir = getTempDirectory(os.getcwd())
@@ -114,7 +114,7 @@ class TestCase(unittest.TestCase):
         runCactusProgressive(os.path.join(tempExperimentDir, "exp_project.xml"), 
                              jobTreeDir, 
                              batchSystem=batchSystem, 
-                             #buildAvgs=buildTrees, buildFaces=buildFaces, buildReference=buildReference,
+                             #buildAvgs=buildTrees, buildReference=buildReference,
                              jobTreeStats=jobTreeStats)
         runJobTreeStatusAndFailIfNotComplete(jobTreeDir)
         system("rm -rf %s" % tempDir)

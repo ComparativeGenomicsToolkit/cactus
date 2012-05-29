@@ -297,7 +297,6 @@ def main():
     options.buildReference = options.setupAndBuildAlignments
     # forget about this stuff for now
     options.buildTrees = False
-    options.buildFaces = False
 
     if len(args) != 1:
         parser.print_help()
