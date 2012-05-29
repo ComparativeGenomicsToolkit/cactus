@@ -45,7 +45,7 @@
 	>
 	</avg>
 	<reference 
-		buildReference="1"
+		buildReference="0"
 		maxFlowerGroupSize="1000000"
 		matchingAlgorithm="blossom5" 
 		reference="reference" 
@@ -61,7 +61,7 @@
 	>
 	</check>
 	<hal
-		buildHal="1"
+		buildHal="0"
 		makeMaf="1"
 		joinMaf="1"
 		showOnlySubstitutionsWithRespectToReference="0"

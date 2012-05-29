@@ -1,125 +1,112 @@
 <cactusWorkflowConfig>
-	<alignment>
-		<iterations>
-			<iteration 
-				maxFlowerGroupSize="10000000"
-				minFlowerSize="5000"
-				type="blast"
-			>
-				<blast 
-					chunkSize="10000000" 
-					lastzArguments="--nogapped --hspthresh=3000 --ambiguous=iupac --identity=IDENTITY"
-					chunksPerJob="1" 
-					compressFiles="1" 
-					overlapSize="10000" 
-					filterByIdentity="1" 
-					identityRatio="6" 
-					minimumDistance="0.01" 
-					minimumSequenceLengthForBlast="30"
-				/>
-				<core 
-					alignRepeatsAtRound="0" 
-					annealingRounds="2 4 16 128" 
-					deannealingRounds="1 2 3 4 8 16 32 64" 
-					blockTrim="0" 
-					minimumTreeCoverage="0.0" 
-					trim="5 5 5 5 5 5 5 5 5 5 5 5 0 0 0 0 0 0 0 0 0" 
-					minimumBlockDegree="2"
-					requiredIngroupFraction="0.0"
-					requiredOutgroupFraction="0.0"
-					requiredAllFraction="1.0"
-					singleCopyIngroup="0"
-					singleCopyOutgroup="1"
-					maxAdjacencyComponentSizeRatio="10"
-				/>
-			</iteration>
-			<iteration 
-				maxFlowerGroupSize="1000000"
-				minFlowerSize="5000"
-				type="blast"
-			>
-				<blast 
-					chunkSize="1000000" 
-					lastzArguments="--hspthresh=1800 --ambiguous=iupac --identity=IDENTITY"
-					chunksPerJob="1" 
-					compressFiles="1" 
-					overlapSize="10000" 
-					filterByIdentity="1" 
-					identityRatio="6" 
-					minimumDistance="0.01" 
-					minimumSequenceLengthForBlast="30"
-				/>
-				<core 
-					alignRepeatsAtRound="0" 
-					annealingRounds="2 4 16 128" 
-					deannealingRounds="1 2 3 4 8 16 32 64" 
-					blockTrim="0" 
-					minimumTreeCoverage="0.0" 
-					trim="5 5 5 5 5 5 5 5 5 5 5 5 0 0 0 0 0 0 0 0 0" 
-					minimumBlockDegree="2"
-					requiredIngroupFraction="1.0"
-					requiredOutgroupFraction="0.0"
-					requiredAllFraction="0.0"
-					singleCopyIngroup="0"
-					singleCopyOutgroup="1" 
-					maxAdjacencyComponentSizeRatio="10"
-				/>
-			</iteration>
-			<iteration 
-				maxFlowerGroupSize="1000000"
-				type="base" 
-			>
-				<base
-					maxFlowerGroupSize="40000"
-					numThreads="5" 
-					spanningTrees="10" 
-					gapGamma="0.2" 
-					bandingLimit="100000" 
-					splitMatrixBiggerThanThis="3000" 
-                    anchorMatrixBiggerThanThis="500"
-                    repeatMaskMatrixBiggerThanThis="500"
-					diagonalExpansion="20"
-					constraintDiagonalTrim="14" 
-					minimumBlockDegree="2" 
-					alignAmbiguityCharacters="1"
-					requiredIngroupFraction="0.0"
-					requiredOutgroupFraction="0.0"
-					requiredAllFraction="0.67" 
-				/>
-			</iteration>
-		</iterations>
-	</alignment>
-	<normal 
+	<preprocessor 
+	 	chunkSize="100000000" 
+	 	preprocessorString='cactus_addFastaHeaderDots.py TARGET_FILE OUT_FILE --event EVENT_STRING'
+	 />
+	<setup>
+	</setup>
+	<caf
+		maxFlowerGroupSize="10000000"
+		minFlowerSize="5000"
+		chunkSize="10000000" 
+		lastzArguments="--nogapped --hspthresh=3000 --ambiguous=iupac"
+		chunksPerJob="1" 
+		compressFiles="1" 
+		overlapSize="10000" 
+		filterByIdentity="0" 
+		identityRatio="6" 
+		minimumDistance="0.01" 
+		minimumSequenceLengthForBlast="100"
+		annealingRounds="2 4 16 128" 
+		deannealingRounds="1 2 3 4 8 16 32 64" 
+		blockTrim="0" 
+		minimumTreeCoverage="0.0" 
+		trim="5 5 5 5 5 5 5 5 5 5 5 5 0 0 0 0 0 0 0 0 0" 
+		minimumBlockDegree="2"
+		requiredIngroupFraction="0.0"
+		requiredOutgroupFraction="0.0"
+		requiredAllFraction="1.0"
+		singleCopyIngroup="0"
+		singleCopyOutgroup="1"
+		maxAdjacencyComponentSizeRatio="10"
+	>
+	</caf>
+	<caf
+		minFlowerSize="5000"
 		maxFlowerGroupSize="1000000"
+		chunkSize="1000000" 
+		lastzArguments="--hspthresh=1800 --ambiguous=iupac"
+		chunksPerJob="1" 
+		compressFiles="1" 
+		overlapSize="10000" 
+		filterByIdentity="0" 
+		identityRatio="6" 
+		minimumDistance="0.01" 
+		minimumSequenceLengthForBlast="100"
+		annealingRounds="2 4 16 128" 
+		deannealingRounds="1 2 3 4 8 16 32 64" 
+		blockTrim="0" 
+		minimumTreeCoverage="0.0" 
+		trim="5 5 5 5 5 5 5 5 5 5 5 5 0 0 0 0 0 0 0 0 0" 
+		minimumBlockDegree="2"
+		requiredIngroupFraction="1.0"
+		requiredOutgroupFraction="0.0"
+		requiredAllFraction="0.0"
+		singleCopyIngroup="0"
+		singleCopyOutgroup="1" 
+		maxAdjacencyComponentSizeRatio="10"
+	>
+	<bar
+		overlargeMemory="4294967296"
+		maxFlowerGroupSize="40000"
+		numThreads="5" 
+		spanningTrees="10" 
+		gapGamma="0.2" 
+		useBanding="1" 
+		bandingLimit="100000" 
+		splitMatrixBiggerThanThis="3000" 
+        anchorMatrixBiggerThanThis="500"
+        repeatMaskMatrixBiggerThanThis="500"
+		diagonalExpansion="20"
+		constraintDiagonalTrim="14" 
+		minimumBlockDegree="2" 
+		alignAmbiguityCharacters="1"
+		requiredIngroupFraction="0.0"
+		requiredOutgroupFraction="0.0"
+		requiredAllFraction="0.67"
+	>
+	</bar>
+	<normal 
 		iterations="0"
+		overlargeMemory="4294967296"
+		maxFlowerGroupSize="1000000"
 	/>
-	<phylogeny
-	/>
-	<faces
+	<avgs
 	/>
 	<reference 
+		buildReference="1"
+		overlargeMemory="4294967296"
 		maxFlowerGroupSize="10000000"
 		matchingAlgorithm="blossom5" 
 		reference="reference" 
 		useSimulatedAnnealing="1" 
 		theta="0.000001" 
 		maxNumberOfChainsBeforeSwitchingToFast="1000" 
-		permutations="10"
+		permutations="5"
 	/>
 	<check 
+		runCheck="0"
+		overlargeMemory="4294967296"
 		maxFlowerGroupSize="10000000"
-		runCheck="1"
 	/>
 	<hal
+		overlargeMemory="4294967296"
+		maxFlowerGroupSize="10000000"
 		buildHal="1"
 		showOnlySubstitutionsWithRespectToReference="0"
 		makeMaf="1"
 		joinMaf="1"
 	/>
-	<preprocessor 
-	 	chunkSize="100000000" 
-	 	preprocessorString='cactus_addFastaHeaderDots.py TARGET_FILE OUT_FILE --event EVENT_STRING'
-	 />
   	<multi_cactus>
 		<outgroup 
 			strategy="greedy" 
