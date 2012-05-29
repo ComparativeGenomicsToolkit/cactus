@@ -26,13 +26,13 @@ class TestCase(unittest.TestCase):
         for test in xrange(TestStatus.getTestSetup()):
             randomConfigFile=getRandomConfigFile()
             runWorkflow_multipleExamples(getCactusInputs_random, 
-                                         buildAvgs=False, buildFaces=False, buildReference=False, configFile=randomConfigFile)
+                                         buildAvgs=False, buildReference=False, configFile=randomConfigFile)
             os.remove(randomConfigFile)
         
     def testCactusCore_Blanchette(self):
         runWorkflow_multipleExamples(getCactusInputs_blanchette, 
                                      testRestrictions=(TestStatus.TEST_SHORT,), inverseTestRestrictions=True, 
-                                     buildAvgs=False, buildFaces=False, buildReference=False)
+                                     buildAvgs=False, buildReference=False)
         
     def testCuTest(self):
         system("stCafTests %s" % getLogLevelString())       
