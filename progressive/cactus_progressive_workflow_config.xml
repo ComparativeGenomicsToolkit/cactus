@@ -58,6 +58,7 @@
 		<CactusCafWrapper minFlowerSize="5000" maxFlowerGroupSize="10000000"/>
 	</caf>
 	<bar
+		runBar="1"
 		numThreads="5" 
 		spanningTrees="10" 
 		gapGamma="0.2" 

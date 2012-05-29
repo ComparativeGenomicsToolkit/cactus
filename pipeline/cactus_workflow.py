@@ -726,9 +726,9 @@ def main():
     cactusWorkflowArguments = CactusWorkflowArguments(options)
     if options.skipAlignments: #Don't dp caf and bar, jump right to an existing cactus structure
         #cactusWorkflowArguments, phaseName, topFlowerName, index=0):
-        firstTarget = CactusNormalPhase(cactusWorkflowArguments=cactusWorkflowArguments, phaseName="normal", topFlowerName=0)
+        firstTarget = CactusNormalPhase(cactusWorkflowArguments=cactusWorkflowArguments, phaseName="normal")
     else:
-        firstTarget = CactusSetupPhase(cactusWorkflowArguments=cactusWorkflowArguments, phaseName="setup", topFlowerName=0)
+        firstTarget = CactusSetupPhase(cactusWorkflowArguments=cactusWorkflowArguments, phaseName="setup")
     Stack(firstTarget).startJobTree(options)
 
 def _test():
