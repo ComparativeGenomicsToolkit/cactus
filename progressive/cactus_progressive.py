@@ -279,14 +279,6 @@ def main():
     
     options, args = parser.parse_args()
     setLoggingFromOptions(options)
-<<<<<<< HEAD
-=======
-    
-    # cannot align without building reference and vice versa in progressive mode
-    options.buildReference = options.setupAndBuildAlignments
-    # forget about this stuff for now
-    options.buildTrees = False
->>>>>>> 50d70bd4b64548ff6a6bd3240fd7a0d680cfe136
 
     if len(args) != 1:
         parser.print_help()

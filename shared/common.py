@@ -390,11 +390,7 @@ def runCactusProgressive(inputDir,
                       skipAlignments=False,
                       buildHal=None,
                       joinMaf=None,
-<<<<<<< HEAD
-                      buildAvgs=True, buildFaces=True, buildReference=True,
-=======
                       buildAvgs=True, 
->>>>>>> 50d70bd4b64548ff6a6bd3240fd7a0d680cfe136
                       jobTreeStats=False,
                       maxThreads=None,
                       maxJobs=None,

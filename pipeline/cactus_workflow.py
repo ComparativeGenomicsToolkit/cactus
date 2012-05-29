@@ -685,6 +685,8 @@ class CactusWorkflowArguments:
         configFile = self.experimentNode.attrib["config"]
         if configFile == "default":
             configFile = os.path.join(cactusRootPath(), "pipeline", "cactus_workflow_config.xml")
+        elif configFile == "defaultProgressive":
+            configFile = os.path.join(cactusRootPath(), "progressive", "cactus_progressive_workflow_config.xml")
         else:
             logger.info("Using user specified config file: %s", configFile)
         self.configNode = ET.parse(configFile).getroot()

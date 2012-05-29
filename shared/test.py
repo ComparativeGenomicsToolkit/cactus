@@ -64,13 +64,14 @@ def initialiseGlobalBatchSystem(batchSystem):
     BATCH_SYSTEM = batchSystem
     
 def getCactusWorkflowExperimentForTest(sequences, newickTreeString, outputDir, databaseName=None, configFile=None,
-                                       constraints=None):
+                                       constraints=None, progressive=False):
     """Wrapper to constructor of CactusWorkflowExperiment which additionally incorporates
     any globally set database conf.
     """
     halFile = os.path.join(outputDir, "test.hal")
-    return CactusWorkflowExperiment(sequences, newickTreeString, outputDir=outputDir, databaseName=databaseName, databaseConf=GLOBAL_DATABASE_CONF, configFile=configFile,
-                                    halFile=halFile, constraints=constraints)
+    return CactusWorkflowExperiment(sequences, newickTreeString, outputDir=outputDir,
+                                    databaseName=databaseName, databaseConf=GLOBAL_DATABASE_CONF, configFile=configFile,
+                                    halFile=halFile, constraints=constraints, progressive=progressive)
 
 def parseCactusSuiteTestOptions():
     """Cactus version of the basic option parser that can additionally parse 
@@ -271,6 +272,7 @@ def runWorkflow_TestScript(sequences, newickTreeString,
                            configFile=None,
                            buildJobTreeStats=False,
                            constraints=None,
+                           progressive=False,
                            cactusWorkflowFunction=runCactusWorkflow):
     """Runs the workflow and various downstream utilities.
     """
@@ -285,7 +287,8 @@ def runWorkflow_TestScript(sequences, newickTreeString,
     #Setup the flower disk.
     experiment = getCactusWorkflowExperimentForTest(sequences, newickTreeString, 
                                                     outputDir=outputDir, databaseName=None, 
-                                                    configFile=configFile, constraints=constraints)
+                                                    configFile=configFile, constraints=constraints,
+                                                    progressive=progressive)
     experiment.cleanupDatabase()
     cactusDiskDatabaseString = experiment.getDatabaseString()
     experimentFile = os.path.join(outputDir, "experiment.xml")
@@ -330,13 +333,14 @@ def runWorkflow_multipleExamples(inputGenFunction,
                                  testNumber=1, 
                                  testRestrictions=(TestStatus.TEST_SHORT, TestStatus.TEST_MEDIUM, \
                                                    TestStatus.TEST_LONG, TestStatus.TEST_VERY_LONG,),
-                               inverseTestRestrictions=False,
-                               batchSystem="single_machine",
-                               buildAvgs=True, buildReference=True,
-                               configFile=None, buildJobTreeStats=False, 
-                               useConstraints=False,
-                               cactusWorkflowFunction=runCactusWorkflow,
-                               buildHal=False):
+                                 inverseTestRestrictions=False,
+                                 batchSystem="single_machine",
+                                 buildAvgs=True, buildReference=True,
+                                 configFile=None, buildJobTreeStats=False, 
+                                 useConstraints=False,
+                                 cactusWorkflowFunction=runCactusWorkflow,
+                                 buildHal=False,
+                                 progressive=False):
     """A wrapper to run a number of examples.
     """
     if (inverseTestRestrictions and TestStatus.getTestStatus() not in testRestrictions) or \
@@ -350,13 +354,14 @@ def runWorkflow_multipleExamples(inputGenFunction,
                 constraints = None
             experiment = runWorkflow_TestScript(sequences, newickTreeString,
                                                 outputDir=tempDir,
-                                   batchSystem=batchSystem,
-                                   buildAvgs=buildAvgs, buildReference=buildReference, 
-                                   buildHal=buildHal,
-                                   configFile=configFile,
-                                   buildJobTreeStats=buildJobTreeStats,
-                                   cactusWorkflowFunction=cactusWorkflowFunction,
-                                   constraints=constraints)
+                                                batchSystem=batchSystem,
+                                                buildAvgs=buildAvgs, buildReference=buildReference, 
+                                                buildHal=buildHal,
+                                                configFile=configFile,
+                                                buildJobTreeStats=buildJobTreeStats,
+                                                constraints=constraints,
+                                                progressive=progressive,
+                                                cactusWorkflowFunction=cactusWorkflowFunction)
             experiment.cleanupDatabase()
             system("rm -rf %s" % tempDir)
             logger.info("Finished random test %i" % test)

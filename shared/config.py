@@ -47,7 +47,7 @@ class CactusWorkflowExperiment:
     def __init__(self, sequences, newickTreeString, 
                  outgroupEvents=None, outputDir=None, databaseName=None, 
                  databaseConf=None, configFile=None, halFile=None,
-                 constraints=None):
+                 constraints=None, progressive=False):
         self.experiment = ET.Element("cactus_workflow_experiment")
         if databaseName == None:
             self.databaseName = "cactusDisk_%s_%i" % (getRandomAlphaNumericString(), os.getpid()) #Needs to be unique
@@ -93,7 +93,10 @@ class CactusWorkflowExperiment:
         self.experiment.attrib["species_tree"] = newickTreeString
         if outgroupEvents != None:
             self.experiment.attrib["outgroup_events"] = outgroupEvents
-        self.experiment.attrib["config"] = "default"
+        if progressive == True:
+            self.experiment.attrib["config"] = "defaultProgressive"
+        else:
+            self.experiment.attrib["config"] = "default"
         if configFile != None:
             self.experiment.attrib["config"] = configFile
         if halFile != None:
