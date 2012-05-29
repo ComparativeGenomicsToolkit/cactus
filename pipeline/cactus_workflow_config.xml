@@ -4,7 +4,6 @@
 	<setup>
 	</setup>
 	<caf
-		minFlowerSize="5000"
 		lastzArguments="--hspthresh=1800 --identity=IDENTITY --ambiguous=iupac"
 		chunkSize="2000000" 
 		chunksPerJob="1" 
@@ -22,6 +21,8 @@
 		minimumBlockDegree="2"
 		maxAdjacencyComponentSizeRatio="10"
 	>
+		<CactusCafRecursion maxFlowerGroupSize="100000000"/>
+		<CactusCafWrapper minFlowerSize="5000" maxFlowerGroupSize="1000000"/>
 	</caf>
 	<bar
 		spanningTrees="10" 
@@ -35,18 +36,23 @@
 		minimumBlockDegree="0" 
 		alignAmbiguityCharacters="1"
 	>
+		<CactusBarRecursion maxFlowerGroupSize="100000000"/>
+		<CactusBarWrapper maxFlowerGroupSize="40000"/>
 	</bar>
 	<normal 
 		iterations="2"
 		maxNumberOfChains="30" 
 	>
+		<CactusNormalRecursion maxFlowerGroupSize="100000000" maxFlowerWrapperGroupSize="1000000"/>
+		<CactusNormalWrapper/>
 	</normal>
 	<avg
 	>
+		<CactusAVGRecursion maxFlowerGroupSize="100000000" maxFlowerWrapperGroupSize="1000000"/>
+		<CactusAVGWrapper/>
 	</avg>
 	<reference 
 		buildReference="0"
-		maxFlowerGroupSize="1000000"
 		matchingAlgorithm="blossom5" 
 		reference="reference" 
 		useSimulatedAnnealing="1" 
@@ -54,11 +60,18 @@
 		maxNumberOfChainsBeforeSwitchingToFast="1000" 
 		permutations="10"
 	>
+		<CactusReferenceRecursion maxFlowerGroupSize="100000000" maxFlowerWrapperGroupSize="1000000"/>
+	 	<CactusReferenceWrapper/>
+	 	<CactusSetReferenceCoordinatesUpWrapper />
+	 	<CactusSetReferenceCoordinatesDownRecursion maxFlowerGroupSize="100000000" maxFlowerWrapperGroupSize="1000000"/>
+	 	<CactusSetReferenceCoordinatesDownWrapper/>
 	</reference>
 	<check 
 		runCheck="1"
 		maxFlowerGroupSize="1000000"
 	>
+		<CactusCheckRecursion maxFlowerGroupSize="100000000" maxFlowerWrapperGroupSize="1000000"/>
+		<CactusCheckWrapper/>
 	</check>
 	<hal
 		buildHal="0"
@@ -66,5 +79,7 @@
 		joinMaf="1"
 		showOnlySubstitutionsWithRespectToReference="0"
 	>
+		<CactusHalGeneratorRecursion maxFlowerGroupSize="10000000"/>
+		<CactusHalGeneratorUpWrapper/>
 	</hal>
 </cactusWorkflowConfig>

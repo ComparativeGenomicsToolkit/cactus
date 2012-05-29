@@ -6,8 +6,6 @@
 	<setup>
 	</setup>
 	<caf
-		maxFlowerGroupSize="10000000"
-		minFlowerSize="5000"
 		chunkSize="10000000" 
 		lastzArguments="--nogapped --hspthresh=3000 --ambiguous=iupac"
 		chunksPerJob="1" 
@@ -30,10 +28,10 @@
 		singleCopyOutgroup="1"
 		maxAdjacencyComponentSizeRatio="10"
 	>
+		<CactusCafRecursion maxFlowerGroupSize="100000000"/>
+		<CactusCafWrapper minFlowerSize="5000" maxFlowerGroupSize="10000000"/>
 	</caf>
 	<caf
-		minFlowerSize="5000"
-		maxFlowerGroupSize="1000000"
 		chunkSize="1000000" 
 		lastzArguments="--hspthresh=1800 --ambiguous=iupac"
 		chunksPerJob="1" 
@@ -56,9 +54,10 @@
 		singleCopyOutgroup="1" 
 		maxAdjacencyComponentSizeRatio="10"
 	>
+		<CactusCafRecursion maxFlowerGroupSize="100000000"/>
+		<CactusCafWrapper minFlowerSize="5000" maxFlowerGroupSize="10000000"/>
+	</caf>
 	<bar
-		overlargeMemory="4294967296"
-		maxFlowerGroupSize="40000"
 		numThreads="5" 
 		spanningTrees="10" 
 		gapGamma="0.2" 
@@ -75,14 +74,22 @@
 		requiredOutgroupFraction="0.0"
 		requiredAllFraction="0.67"
 	>
+		<CactusBarRecursion maxFlowerGroupSize="100000000"/>
+		<CactusBarWrapper maxFlowerGroupSize="40000"/>
 	</bar>
 	<normal 
 		iterations="0"
 		overlargeMemory="4294967296"
 		maxFlowerGroupSize="1000000"
-	/>
+	>
+		<CactusNormalRecursion maxFlowerGroupSize="100000000" maxFlowerWrapperGroupSize="1000000"/>
+		<CactusNormalWrapper/>
+	</normal>
 	<avgs
-	/>
+	>
+		<CactusAVGRecursion maxFlowerGroupSize="100000000" maxFlowerWrapperGroupSize="1000000"/>
+		<CactusAVGWrapper/>
+	</avgs>
 	<reference 
 		buildReference="1"
 		overlargeMemory="4294967296"
@@ -93,12 +100,21 @@
 		theta="0.000001" 
 		maxNumberOfChainsBeforeSwitchingToFast="1000" 
 		permutations="5"
-	/>
+	>
+		<CactusReferenceRecursion maxFlowerGroupSize="100000000" maxFlowerWrapperGroupSize="1000000"/>
+	 	<CactusReferenceWrapper/>
+	 	<CactusSetReferenceCoordinatesUpWrapper />
+	 	<CactusSetReferenceCoordinatesDownRecursion maxFlowerGroupSize="100000000" maxFlowerWrapperGroupSize="1000000"/>
+	 	<CactusSetReferenceCoordinatesDownWrapper/>
+	</reference>
 	<check 
 		runCheck="0"
 		overlargeMemory="4294967296"
 		maxFlowerGroupSize="10000000"
-	/>
+	>
+		<CactusCheckRecursion maxFlowerGroupSize="100000000" maxFlowerWrapperGroupSize="1000000"/>
+		<CactusCheckWrapper/>
+	</check>
 	<hal
 		overlargeMemory="4294967296"
 		maxFlowerGroupSize="10000000"
@@ -106,7 +122,10 @@
 		showOnlySubstitutionsWithRespectToReference="0"
 		makeMaf="1"
 		joinMaf="1"
-	/>
+	>
+		<CactusHalGeneratorRecursion maxFlowerGroupSize="10000000"/>
+		<CactusHalGeneratorUpWrapper/>
+	</hal>
   	<multi_cactus>
 		<outgroup 
 			strategy="greedy" 
