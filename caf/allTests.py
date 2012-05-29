@@ -40,34 +40,22 @@ class TestCase(unittest.TestCase):
 def getRandomConfigFile():
     tempConfigFile = getTempFile(rootDir="./", suffix=".xml")
     config = ET.parse(os.path.join(cactusRootPath(), "pipeline", "cactus_workflow_config.xml")).getroot()
-    #Mess with the number of iterations and the parameters for the iteration..
-    iterations = config.find("alignment").find("iterations")
-    i = iterations.findall("iteration")
-    #Remove all the iterations bar one..
-    i.reverse()
-    for iteration in i:
-        if iteration.attrib["type"] == "blast":
-            for iteration2 in i:
-                if iteration2 != iteration:
-                    iterations.remove(iteration2)
-            break
-    #Now make random parameters..
-    iteration.attrib["number"] = "0"
-    core = iteration.find("core")
-    annealingRounds = 1 + int(random.random() * 10)
+    cafNode = config.find("caf")
+    assert len(config.findall("caf")) == 1
     
-    core.attrib["annealingRounds"] = " ".join([ str(1 + int(random.random() * 10)) for i in xrange(annealingRounds) ])
+    annealingRounds = 1 + int(random.random() * 10)
+    cafNode.attrib["annealingRounds"] = " ".join([ str(1 + int(random.random() * 10)) for i in xrange(annealingRounds) ])
     deannealingRounds = list(set([ 1 + int(random.random() * 10) for i in xrange(int(random.random() * 10)) ]))
     deannealingRounds.sort()
-    core.attrib["deannealingRounds"] = " ".join([ str(i) for i in deannealingRounds ])
-    core.attrib["trim"] = " ".join([ str(1 + int(random.random() * 5)) for i in xrange(annealingRounds) ])
+    cafNode.attrib["deannealingRounds"] = " ".join([ str(i) for i in deannealingRounds ])
+    cafNode.attrib["trim"] = " ".join([ str(1 + int(random.random() * 5)) for i in xrange(annealingRounds) ])
     
-    core.attrib["alignRepeatsAtLoop"] = str(random.random() * annealingRounds)
+    cafNode.attrib["alignRepeatsAtLoop"] = str(random.random() * annealingRounds)
     
-    core.attrib["minimumTreeCoverage"] = str(random.random())
-    core.attrib["blockTrim"] = str(int(random.random() * 5))
-    core.attrib["ignoreAllChainsLessThanMinimumTreeCoverage"] = str(random.choice([0, 1]))
-    core.attrib["minimumBlockDegree"] = str(random.choice([0, 5]))
+    cafNode.attrib["minimumTreeCoverage"] = str(random.random())
+    cafNode.attrib["blockTrim"] = str(int(random.random() * 5))
+    cafNode.attrib["ignoreAllChainsLessThanMinimumTreeCoverage"] = str(random.choice([0, 1]))
+    cafNode.attrib["minimumBlockDegree"] = str(random.choice([0, 5]))
     
     #Now print the file..
     fileHandle = open(tempConfigFile, 'w')
