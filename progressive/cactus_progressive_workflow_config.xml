@@ -86,11 +86,11 @@
 		<CactusNormalRecursion maxFlowerGroupSize="100000000" maxFlowerWrapperGroupSize="1000000"/>
 		<CactusNormalWrapper/>
 	</normal>
-	<avgs
+	<avg
 	>
 		<CactusAVGRecursion maxFlowerGroupSize="100000000" maxFlowerWrapperGroupSize="1000000"/>
 		<CactusAVGWrapper/>
-	</avgs>
+	</avg>
 	<reference 
 		buildReference="1"
 		overlargeMemory="4294967296"

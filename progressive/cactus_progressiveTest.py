@@ -101,7 +101,7 @@ class TestCase(unittest.TestCase):
                                      cactusWorkflowFunction=self.progressiveFunction)
     
     def progressiveFunction(self, experimentFile, jobTreeDir, 
-                          batchSystem, buildTrees, 
+                          batchSystem, buildAvgs, 
                           buildFaces, buildReference,
                           buildHal,
                           jobTreeStats):
