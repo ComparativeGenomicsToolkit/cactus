@@ -37,21 +37,6 @@ class TestCase(unittest.TestCase):
             os.remove(tempFile)
         unittest.TestCase.tearDown(self)
         system("rm -rf %s" % self.tempDir)
-    
-    def testChromosomes(self):
-        """Tests cactus batch on the alignment 4 whole chromosome X's, human, chimp, mouse, dog.
-        """
-        if TestStatus.getTestStatus() in (TestStatus.TEST_VERY_LONG,):
-            tempOutputFile = getTempFile()
-            self.tempFiles.append(tempOutputFile)
-            jobTreeDir = os.path.join(getTempDirectory(self.tempDir), "jobTree")
-            chrXPath = os.path.join(TestStatus.getPathToDataSets(), "chr_x")
-            seqs = ("hg18.fa", "panTro2.fa", "dog_chrX.fa", "mouse_chrX.fa")
-            options = makeTopLevelBlastOptions()
-            runCactusBatch([ os.path.join(chrXPath, seqFile) for seqFile in seqs ], tempOutputFile, jobTreeDir,
-                   chunkSize=options.chunkSize, overlapSize=options.overlapSize, chunksPerJob=options.chunksPerJob,
-                   logLevel="DEBUG", retryCount=0, batchSystem="single_machine", 
-                   blastString=options.blastString, selfBlastString=options.selfBlastString)
         
     def testBatchEncode(self):
         """For each encode region, for set of pairwise species, run 

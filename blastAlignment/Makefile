@@ -29,7 +29,7 @@ ${binPath}/cactus_batch_chunkSequences : *.c ${libPath}/cactusBlastAlignment.a $
 ${binPath}/cactus_batch_convertCoordinates : *.c ${libPath}/cactusBlastAlignment.a ${libPath}/cactusLib.a ${basicLibsDependencies}
 	${cxx} ${cflags} -I${libPath} -o ${binPath}/cactus_batch_convertCoordinates cactus_batch_convertCoordinates.c ${libPath}/cactusBlastAlignment.a ${libPath}/cactusLib.a ${basicLibs}
 
-${binPath}/cactus_batch.py : ${binPath}/cactus_batch_convertCoordinates ${binPath}/cactus_batch_chunkSequences
+${binPath}/cactus_batch.py : cactus_batch.py ${binPath}/cactus_batch_convertCoordinates ${binPath}/cactus_batch_chunkSequences
 	cp cactus_batch.py ${binPath}/cactus_batch.py
 	chmod +x ${binPath}/cactus_batch.py
 

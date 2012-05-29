@@ -372,7 +372,8 @@ class CactusCafWrapperLarge(CactusRecursionTarget):
                                                                                 overlapSize=self.getOptionalPhaseAttrib("overlapSize", int),
                                                                                 lastzArguments=self.getOptionalPhaseAttrib("lastzArguments"),
                                                                                 chunksPerJob=self.getOptionalPhaseAttrib("chunksPerJob", int),
-                                                                                compressFiles=self.getOptionalPhaseAttrib("compressFiles", bool))),
+                                                                                compressFiles=self.getOptionalPhaseAttrib("compressFiles", bool),
+                                                                                memory=self.getOptionalTargetAttrib("lastzMemory", int, sys.maxint))),
                                           minimumSequenceLength=self.getOptionalPhaseAttrib("minimumSequenceLengthForBlast", int, 1)))
         logger.info("Created the cactus_aligner child target")
         #Now setup a call to cactus core wrapper as a follow on

@@ -148,7 +148,8 @@ def runCactusBatch(sequenceFiles, outputFile, jobTreeDir,
                    logLevel=None, 
                    blastString=None, 
                    selfBlastString=None,
-                   compressFiles=None):
+                   compressFiles=None,
+                   lastzMemory=None):
     
     logLevel = getLogLevelString2(logLevel)
     chunkSize = nameValue("chunkSize", chunkSize, int)
@@ -157,9 +158,10 @@ def runCactusBatch(sequenceFiles, outputFile, jobTreeDir,
     blastString = nameValue("blastString", blastString, str)
     selfBlastString = nameValue("selfBlastString", selfBlastString, str)
     compressFiles = nameValue("compressFiles", compressFiles, bool)
-    command = "cactus_batch.py %s  --cigars %s %s %s %s %s %s %s --jobTree %s --logLevel %s" % \
+    lastzMemory = nameValue("lastzMemory", lastzMemory, int)
+    command = "cactus_batch.py %s  --cigars %s %s %s %s %s %s %s %s --jobTree %s --logLevel %s" % \
             (" ".join(sequenceFiles), outputFile,
-             chunkSize, overlapSize, chunksPerJob, blastString, selfBlastString, compressFiles, jobTreeDir, logLevel)
+             chunkSize, overlapSize, chunksPerJob, blastString, selfBlastString, compressFiles, lastzMemory, jobTreeDir, logLevel)
     logger.info("Running command : %s" % command)
     system(command)
     logger.info("Ran the cactus_batch command okay")

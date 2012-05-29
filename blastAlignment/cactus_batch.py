@@ -9,6 +9,7 @@
 sequences. Uses the jobTree framework to parallelise the blasts.
 """
 import os
+import sys
 from optparse import OptionParser
 from bz2 import BZ2File
 
@@ -26,7 +27,7 @@ from jobTree.scriptTree.stack import Stack
 
 class MakeBlastOptions:
     def __init__(self, chunkSize, overlapSize, 
-                 lastzArguments, chunksPerJob, compressFiles):
+                 lastzArguments, chunksPerJob, compressFiles, memory):
         """Method makes options which can be passed to the to the make blasts target.
         """
         self.chunkSize = chunkSize
@@ -36,6 +37,7 @@ class MakeBlastOptions:
         self.selfBlastString = "lastz --format=cigar %s SEQ_FILE[multiple][nameparse=darkspace] SEQ_FILE[multiple][nameparse=darkspace] --notrivial > CIGARS_FILE" % lastzArguments
         self.chunksPerJob = 1
         self.compressFiles = compressFiles
+        self.memory = memory
 
 def makeStandardBlastOptions():
     """Function to create options for a pecan2_batch.MakeBlasts target for middle level 
@@ -46,9 +48,10 @@ def makeStandardBlastOptions():
     chunksPerJob = 1
     compressFiles = True
     lastzArguments=""
+    memory = sys.maxint
     return MakeBlastOptions(chunkSize=chunkSize, overlapSize=overlapSize,
                                 lastzArguments=lastzArguments,
-                                chunksPerJob=chunksPerJob, compressFiles=compressFiles)
+                                chunksPerJob=chunksPerJob, compressFiles=compressFiles, memory=memory)
 
 class makeBlastFromOptions:
     def __init__(self, blastOptions):
@@ -61,7 +64,7 @@ class MakeBlasts(Target):
     """Breaks up the inputs into bits and builds a bunch of alignment jobs.
     """
     def __init__(self, options, sequences, finalResultsFile):
-        Target.__init__(self, time=0.1380)
+        Target.__init__(self)
         assert options.chunkSize > options.overlapSize
         assert options.overlapSize >= 2
         assert options.chunksPerJob >= 1
@@ -243,7 +246,7 @@ class RunBlast(Target):
     """Runs blast as a job.
     """
     def __init__(self, options, seqFiles1, seqFiles2, resultsFile):
-        Target.__init__(self)
+        Target.__init__(self, memory=options.memory)
         self.options = options
         self.seqFiles1 = seqFiles1
         self.seqFiles2 = seqFiles2
@@ -272,7 +275,7 @@ class RunSelfBlast(Target):
     """Runs blast as a job.
     """
     def __init__(self, options, seqFile, resultsFile):
-        Target.__init__(self)
+        Target.__init__(self, memory=options.memory)
         self.options = options
         self.seqFile = seqFile
         self.resultsFile = resultsFile
@@ -288,7 +291,7 @@ class CollateBlasts(Target):
     """Collates all the blasts into a single alignments file.
     """
     def __init__(self, options, finalResultsFile, resultsFiles, tempFileTreeDir, tempSeqFilesDir):
-        Target.__init__(self, time=0.05837)
+        Target.__init__(self)
         self.options = options
         self.finalResultsFile = finalResultsFile
         self.resultsFiles = resultsFiles
@@ -321,7 +324,7 @@ def main():
                       help="File to write cigars in",
                       default="cigarFile.txt")
     
-    parser.add_option("--chunkSize", dest="chunkSize", type="int",
+    parser.add_option("--chunkSize", dest="chunkSize", type="int", 
                      help="The size of chunks passed to lastz (must be at least twice as big as overlap)",
                      default=options.chunkSize)
     
@@ -348,6 +351,10 @@ this allows each job to more than one chunk comparison per job, which will save 
     parser.add_option("--compressFiles", dest="compressFiles", action="store_false",
                       help="Turn of bz2 based file compression of sequences for I/O transfer", 
                       default=options.compressFiles)
+    
+    parser.add_option("--lastzMemory", dest="memory", type="int",
+                      help="Lastz memory (in bytes)", 
+                      default=sys.maxint)
     
     options, args = parser.parse_args()
     
