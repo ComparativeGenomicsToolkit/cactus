@@ -685,6 +685,8 @@ class CactusWorkflowArguments:
         configFile = self.experimentNode.attrib["config"]
         if configFile == "default":
             configFile = os.path.join(cactusRootPath(), "pipeline", "cactus_workflow_config.xml")
+        elif configFile == "defaultProgressive":
+            configFile = os.path.join(cactusRootPath(), "progressive", "cactus_progressive_workflow_config.xml")
         else:
             logger.info("Using user specified config file: %s", configFile)
         self.configNode = ET.parse(configFile).getroot()
@@ -694,15 +696,8 @@ class CactusWorkflowArguments:
             findRequiredNode(self.configNode, "reference").attrib["buildReference"] = "1"
         if options.buildHal:
             findRequiredNode(self.configNode, "hal").attrib["buildHal"] = "1"
-    
-def main():
-    ##########################################
-    #Construct the arguments.
-    ##########################################
-    
-    parser = OptionParser()
-    Stack.addJobTreeOptions(parser)
-    
+
+def addCactusWorkflowOptions(parser):
     parser.add_option("--experiment", dest="experimentFile", 
                       help="The file containing a link to the experiment parameters")
     
@@ -718,6 +713,15 @@ def main():
     parser.add_option("--buildHal", dest="buildHal", action="store_true",
                       help="Build a hal file", default=False)
     
+def main():
+    ##########################################
+    #Construct the arguments.
+    ##########################################
+    
+    parser = OptionParser()
+    Stack.addJobTreeOptions(parser)
+    addCactusWorkflowOptions(parser)
+        
     options, args = parser.parse_args()
     setLoggingFromOptions(options)
     

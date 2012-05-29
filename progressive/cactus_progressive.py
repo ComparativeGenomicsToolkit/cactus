@@ -7,13 +7,7 @@
 
 """Wrapper to run the cactus_workflow progressively, using the input species tree as a guide
 
-tree.   The --buildMAF and --joinMAF options can be used to create and merge MAFs from the
-
-cacti.   The --buildReference option is removed, as references *are always* built when 
-
---setupAndBuildAlignments is specified.  If the kyoto tycoon DB is used, it is best to use the helper
-
-script, preKtserverDbs.py to set up the server.
+tree.  
 """
 
 import os
@@ -41,10 +35,10 @@ from jobTree.scriptTree.target import Target
 from jobTree.scriptTree.stack import Stack 
 
 from cactus.pipeline.cactus_workflow import CactusSetupPhase
-from cactus.pipeline.cactus_workflow import CactusPhylogenyPhase
-from cactus.pipeline.cactus_workflow import CactusReferencePhase
-from cactus.pipeline.cactus_workflow import CactusFacesPhase
-from cactus.pipeline.cactus_workflow import expandWorkflowOptions
+from cactus.pipeline.cactus_workflow import CactusWorkflowArguments
+from cactus.pipeline.cactus_workflow import addCactusWorkflowOptions
+from cactus.pipeline.cactus_workflow import getOptionalAttrib
+from cactus.pipeline.cactus_workflow import findRequiredNode
 
 from cactus.progressive.multiCactusProject import MultiCactusProject
 from cactus.progressive.multiCactusTree import MultiCactusTree
@@ -64,9 +58,6 @@ class ProgressiveDown(Target):
     def run(self):
         logger.info("Progressive Down: " + self.event)
         
-        expXml = ET.parse(self.project.expMap[self.event]).getroot()
-        experiment = ExperimentWrapper(expXml)
-        
         if not self.options.nonRecursive:
             deps = self.schedule.deps(self.event)
             for child in deps:
@@ -75,79 +66,101 @@ class ProgressiveDown(Target):
                                                         self.project, child, 
                                                         self.schedule))
         
-        self.setFollowOnTarget(ProgressiveUp(self.options, self.project, 
-                               experiment, self.event))
+        self.setFollowOnTarget(ProgressiveUp(self.options, self.project, self.event))
         
 class ProgressiveUp(Target):
-    def __init__(self, options, project, experiment, event):
+    def __init__(self, options, project, event):
         Target.__init__(self)
         self.options = options
         self.project = project
-        self.experiment = experiment
         self.event = event
     
     def run(self):
         logger.info("Progressive Up: " + self.event)
+
+        # open up the experiment
+        # note that we copy the path into the options here
+        self.options.experimentFile = self.project.expMap[self.event]
+        expXml = ET.parse(self.options.experimentFile).getroot()
+        experiment = ExperimentWrapper(expXml)
+        configXml = ET.parse(experiment.getConfigPath()).getroot()
+
+        # take union of command line options and config options for hal and reference
+        if self.options.buildReference == False:
+            refNode = findRequiredNode(configXml, "reference")
+            self.options.buildReference = getOptionalAttrib(refNode, "buildReference", bool, False)
+        if self.options.buildHal == False:
+            halNode = findRequiredNode(configXml, "hal")
+            self.options.buildHal = getOptionalAttrib(refNode, "buildHal", bool, False)
+        halNode = findRequiredNode(configXml, "hal")
+        if self.options.buildHal == False:
+            self.options.buildHal = getOptionalAttrib(halNode, "buildHal", bool, False)
+        self.options.makeMaf = getOptionalAttrib(halNode, "makeMaf", bool, False)
+        self.options.joinMaf = getOptionalAttrib(halNode, "joinMaf", bool, False)
         
         # delete database files if --setupAndBuildAlignments
         # and overwrite specified (or if reference not present)
-        if self.options.setupAndBuildAlignments and\
+        if self.options.skipAlignments is False and\
          (self.options.overwrite or\
-          not os.path.exists(self.experiment.getReferencePath())):
-            dbPath = os.path.join(self.experiment.getDbDir(), 
-                                  self.experiment.getDbName())
-            seqPath = os.path.join(self.experiment.getDbDir(), "sequences")
+          not os.path.exists(experiment.getReferencePath())):
+            dbPath = os.path.join(experiment.getDbDir(), 
+                                  experiment.getDbName())
+            seqPath = os.path.join(experiment.getDbDir(), "sequences")
             system("rm -f %s* %s %s" % (dbPath, seqPath, 
-                                        self.experiment.getReferencePath()))
+                                        experiment.getReferencePath()))
             
         ktserver = None
-        if self.experiment.getDbType() == "kyoto_tycoon" and \
-        (self.options.setupAndBuildAlignments is True or \
+        if experiment.getDbType() == "kyoto_tycoon" and \
+        (self.options.skipAlignments is False or \
          self.options.buildReference is True or \
          self.options.buildHal is True):
             ktserver = KtserverLauncher()
-            ktserver.spawnServer(self.experiment)
+            ktserver.spawnServer(experiment)
+            # port may be updated.  let's save the experiment back to disk
+            experiment.writeXML(self.options.experimentFile)
             
         self.addChildTarget(StartWorkflow(self.options,
                                           self.project,
-                                          self.experiment,
                                           self.event,
                                           ktserver))
         
         if ktserver is not None:
-            self.setFollowOnTarget(EndWorkflow(self.experiment, self.event, 
+            self.setFollowOnTarget(EndWorkflow(experiment, self.event, 
                                                ktserver))
 
 class StartWorkflow(Target):
-    def __init__(self, options, project, experiment, event, ktserver):
+    def __init__(self, options, project, event, ktserver):
         Target.__init__(self)
         self.options = options
         self.project = project
-        self.experiment = experiment
         self.event = event
         self.ktserver = ktserver
     
     def run(self):
         logger.info("StartWorkflow: " + self.event)
         
-        # get parameters that cactus_workflow stuff wants 
-        wfOpts, sequences = getWorkflowParams(self.options, self.experiment)
-         
-        if self.options.setupAndBuildAlignments and \
-        not os.path.exists(self.experiment.getReferencePath()):       
-            self.addChildTarget(CactusSetupPhase(wfOpts, sequences))
+        # get parameters that cactus_workflow stuff wants
+        workFlowArgs = CactusWorkflowArguments(self.options)
+        # copy over the options so we don't trail them around
+        workFlowArgs.skipAlignments = self.options.skipAlignments
+        workFlowArgs.buildReference = self.options.buildReference
+        workFlowArgs.buildHal = self.options.buildHal
+        workFlowArgs.makeMaf = self.options.makeMaf
+        workFlowArgs.joinMaf = self.options.joinMaf
+        workFlowArgs.overwrite = self.options.overwrite
+        experiment = ExperimentWrapper(workFlowArgs.experimentNode)
+
+        if workFlowArgs.skipAlignments is False and \
+        not os.path.exists(experiment.getReferencePath()):       
+            self.addChildTarget(CactusSetupPhase(cactusWorkflowArguments=workFlowArgs, phaseName="setup"))
             logger.info("Going to create alignments and define the cactus tree")
         
-        self.setFollowOnTarget(ExtractReference(self.options,
-                                                self.project,
-                                                self.experiment,
-                                                self.event,
-                                                self.ktserver))
+        self.setFollowOnTarget(ExtractReference(workFlowArgs, self.project, self.event))
 
 class EndWorkflow(Target):
-    def __init__(self, experiment, event, ktserver):
+    def __init__(self, workFlowArgs, event, ktserver):
         Target.__init__(self)
-        self.experiment = experiment
+        self.workFlowArgs = workFlowArgs
         self.event = event
         self.ktserver = ktserver
     
@@ -156,58 +169,50 @@ class EndWorkflow(Target):
         
         # don't need the ktserver anymore, so we kill it
         if self.ktserver is not None:
-            self.ktserver.killServer(self.experiment)   
+             experiment = ExperimentWrapper(self.workFlowArgs.experimentNode)
+             self.ktserver.killServer(experiment)   
                          
 class ExtractReference(Target):
-    def __init__(self, options, project, experiment, event, ktserver):
+    def __init__(self, workFlowArgs, project, event):
         Target.__init__(self)
-        self.options = options
+        self.workFlowArgs = workFlowArgs
         self.project = project
-        self.experiment = experiment
         self.event = event
-        self.ktserver = ktserver
 
     def run(self):                
-        if self.options.buildReference:
+        if self.workFlowArgs.buildReference:
             logger.info("Starting Reference Extract Phase")
-            
+            experiment = ExperimentWrapper(self.workFlowArgs.experimentNode)
             cmdLine = "cactus_getReferenceSeq --cactusDisk \'%s\' --flowerName 0 --referenceEventString %s --outputFile %s --logLevel %s" % \
-            (self.experiment.getDiskDatabaseString(), self.event,
-             self.experiment.getReferencePath(), getLogLevelString())            
+            (experiment.getDiskDatabaseString(), self.event,
+             experiment.getReferencePath(), getLogLevelString())            
             
             system(cmdLine)
           
-        self.setFollowOnTarget(BuildMAF(self.options, self.project,
-                                        self.experiment,
-                                        self.event, self.ktserver))
+        self.setFollowOnTarget(BuildMAF(self.workFlowArgs, self.project))
                 
 class BuildMAF(Target):
-    def __init__(self, options, project, experiment, event, ktserver):
+    def __init__(self, workFlowArgs, project,):
         Target.__init__(self)
-        self.options = options
+        self.workFlowArgs = workFlowArgs
         self.project = project
-        self.experiment = experiment
-        self.event = event
-        self.ktserver = ktserver
     
     def run(self):
-        if self.options.buildHal and os.path.exists(self.experiment.getMAFPath()) and os.path.splitext(self.experiment.getMAFPath())[1] == ".maf":
-            logger.info("Starting MAF Build phase")
+        experiment =  ExperimentWrapper(self.workFlowArgs.experimentNode)
+        if self.workFlowArgs.buildHal and self.workFlowArgs.makeMaf and\
+               os.path.exists(experiment.getMAFPath()) and \
+               os.path.splitext(experiment.getMAFPath())[1] == ".maf":
+            logger.info("Filtering outgroup from MAF")
 
-            mafFilterOutgroup(self.experiment) 
+            mafFilterOutgroup(experiment) 
         
-        self.setFollowOnTarget(JoinMAF(self.options, self.project,
-                                       self.experiment,
-                                       self.event, self.ktserver))
+        self.setFollowOnTarget(JoinMAF(self.workFlowArgs, self.project))
 
 class JoinMAF(Target):
-    def __init__(self, options, project, experiment, event, ktserver):
+    def __init__(self, workFlowArgs, project):
         Target.__init__(self)
-        self.options = options
+        self.workFlowArgs = workFlowArgs
         self.project = project
-        self.experiment = experiment
-        self.event = event
-        self.ktserver = ktserver
     
     # hack to see if a maf file was created by cactus
     # (by searching for the word cactus in the first few comments).
@@ -225,16 +230,17 @@ class JoinMAF(Target):
         return isCactus
             
     def run(self):
-        if self.options.joinMAF and\
-        (self.options.overwrite or not os.path.exists(self.experiment.getMAFPath())
-         or self.isMafFromCactus(self.experiment.getMAFPath())):
-            logger.info("Starting MAF Join phase")
+        experiment = ExperimentWrapper(self.workFlowArgs.experimentNode)
+        if self.workFlowArgs.joinMaf and\
+        (self.workFlowArgs.overwrite or not os.path.exists(experiment.getMAFPath())
+         or self.isMafFromCactus(experiment.getMAFPath())):
+            logger.info("Starting MAF Join")
             
-            rootRefName = self.experiment.getReferenceNameFromConfig()
+            rootRefName = experiment.getReferenceNameFromConfig()
             rootIsTreeMAF = False
-            for child, path in self.experiment.seqMap.items():
+            for child, path in experiment.seqMap.items():
                 if child in self.project.expMap and\
-                child not in self.experiment.getOutgroupEvents():
+                child not in experiment.getOutgroupEvents():
                     childExpPath = self.project.expMap[child]
                     childExpXML = ET.parse(childExpPath).getroot()
                     childExp = ExperimentWrapper(childExpXML)
@@ -244,40 +250,21 @@ class JoinMAF(Target):
                         cmdline += "-treelessRoot1=%s " % rootRefName
                     cmdline += "-treelessRoot2=%s " % childRefName
                     cmdline = "%s %s %s %s %s_tmp.maf" % (cmdline, childRefName, 
-                                                  self.experiment.getMAFPath(),
+                                                  experiment.getMAFPath(),
                                                   childExp.getMAFPath(),
-                                                  self.experiment.getMAFPath())
+                                                  experiment.getMAFPath())
                     system(cmdline)
                     
-                    move("%s_tmp.maf" % self.experiment.getMAFPath(), 
-                         self.experiment.getMAFPath())
+                    move("%s_tmp.maf" % experiment.getMAFPath(), 
+                         experiment.getMAFPath())
                     rootIsTreeMAF = True
-    
-                    
-def getWorkflowParams(baseOptions, experiment):
-    options = copy.deepcopy(baseOptions)
-    expandWorkflowOptions(options, experiment.xmlRoot)
-    #Get the sequences
-    sequences = options.experimentFile.attrib["sequences"].split()
-    return options, sequences
-                           
+
 def main():    
     usage = "usage: %prog [options] <multicactus project>"
     description = "Progressive version of cactus_workflow"
     parser = OptionParser(usage=usage, description=description)
     Stack.addJobTreeOptions(parser)
-    
-    parser.add_option("--setupAndBuildAlignments", dest="setupAndBuildAlignments", action="store_true",
-                      help="Setup and build alignments then normalise the resulting structure", default=False)
-    
-    parser.add_option("--buildHal", dest="buildHal", action="store_true",
-                     help="Create a hal file from the cactus [default=false]", default=False)
-    
-    parser.add_option("--joinMAF", dest="joinMAF", action="store_true",
-                     help="Progressively join all cactus MAFs[default=false]", default=False)
-    
-    parser.add_option("--skipCheck", dest="skipCheck", action="store_true",
-                      help="Don't run cactus_check", default=False)
+    addCactusWorkflowOptions(parser)
     
     parser.add_option("--nonRecursive", dest="nonRecursive", action="store_true",
                       help="Only process given event (not children) [default=False]", 
@@ -292,11 +279,6 @@ def main():
     
     options, args = parser.parse_args()
     setLoggingFromOptions(options)
-    
-    # cannot align without building reference and vice versa in progressive mode
-    options.buildReference = options.setupAndBuildAlignments
-    # forget about this stuff for now
-    options.buildTrees = False
 
     if len(args) != 1:
         parser.print_help()

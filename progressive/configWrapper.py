@@ -132,12 +132,8 @@ class ConfigWrapper:
     # iteration, does not play nicely with the required fraction
     # option
     def verifyMinBlockDegree(self, experiment):  
-        itElem = None
-        iterations = self.xmlRoot.find("alignment").find("iterations")
-        for it in iterations.findall("iteration"):
-            if it.attrib["type"] == "base":
-                itElem = it.find("base")
-        minBlockDegree = int(itElem.attrib["minimumBlockDegree"])
+        barElem = self.xmlRoot.find("bar")
+        minBlockDegree = int(barElem.attrib["minimumBlockDegree"])
         reqSpecies = experiment.xmlRoot.find("required_species")
         if reqSpecies is not None and minBlockDegree != 2:
             sys.stderr.write("WARNING: reverting minBlockDegree from %i to 2 because of required_species\n" % 

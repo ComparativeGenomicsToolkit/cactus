@@ -84,12 +84,12 @@
 		<CactusNormalRecursion maxFlowerGroupSize="100000000" maxFlowerWrapperGroupSize="10000000"/>
 		<CactusNormalWrapper/>
 	</normal>
-	<avgs
+	<avg
 		buildAvgs="0"
 	>
 		<CactusAVGRecursion maxFlowerGroupSize="100000000" maxFlowerWrapperGroupSize="10000000"/>
 		<CactusAVGWrapper/>
-	</avgs>
+	</avg>
 	<reference 
 		buildReference="1"
 		matchingAlgorithm="blossom5" 
