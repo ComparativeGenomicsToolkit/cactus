@@ -46,7 +46,6 @@ class TestCase(unittest.TestCase):
                                      batchSystem=self.batchSystem, buildJobTreeStats=True)
         
     def testCactus_randomWithConstraints(self):
-        return
         runWorkflow_multipleExamples(getCactusInputs_randomWithConstraints, 
                                      testNumber=5,
                                      testRestrictions=(TestStatus.TEST_SHORT,),

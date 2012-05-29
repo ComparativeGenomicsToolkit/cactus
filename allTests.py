@@ -19,7 +19,7 @@ from cactus.api.allTests import TestCase as aPITest
 from cactus.caf.allTests import TestCase as cafTest
 from cactus.normalisation.cactus_normalisationTest import TestCase as normalisationTest
 from cactus.progressive.allTests import allSuites as progressiveSuite
-from cactus.shared.commonTests import TestCase as commonTest
+from cactus.shared.commonTest import TestCase as commonTest
 
 from cactus.shared.test import parseCactusSuiteTestOptions
 
@@ -37,7 +37,6 @@ def allSuites():
                                    unittest.makeSuite(aPITest, 'test'),
                                    unittest.makeSuite(normalisationTest, 'test'),  
                                    unittest.makeSuite(halTest, 'test'),    
-                                   unittest.makeSuite(Test, 'test'),  
                                    unittest.makeSuite(commonTest, 'test'),                           
                                    progressiveSuite()))
     return allTests

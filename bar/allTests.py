@@ -85,7 +85,7 @@ class TestCase(unittest.TestCase):
             jobTree = os.path.join(testDir, "jobTree")
             
             runCactusWorkflow(experimentFile, jobTree, 
-                              buildTrees=False, buildFaces=False, buildReference=False)
+                              buildAvgs=False, buildFaces=False, buildReference=False)
             logger.info("Ran the the workflow")
             
             #Check the output alignment

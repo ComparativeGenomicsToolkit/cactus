@@ -22,7 +22,6 @@
 		minimumBlockDegree="2"
 		maxAdjacencyComponentSizeRatio="10"
 	>
-		<CactusCafRecursion>
 	</caf>
 	<bar
 		spanningTrees="10" 
@@ -38,11 +37,13 @@
 	>
 	</bar>
 	<normal 
+		iterations="2"
 		maxNumberOfChains="30" 
-		iterations="0"
-	/>
+	>
+	</normal>
 	<avg
-	/>
+	>
+	</avg>
 	<reference 
 		buildReference="1"
 		maxFlowerGroupSize="1000000"
@@ -52,15 +53,18 @@
 		theta="0.000001" 
 		maxNumberOfChainsBeforeSwitchingToFast="1000" 
 		permutations="10"
-	/>
+	>
+	</reference>
 	<check 
-		maxFlowerGroupSize="1000000"
 		runCheck="1"
-	/>
+		maxFlowerGroupSize="1000000"
+	>
+	</check>
 	<hal
 		buildHal="1"
 		makeMaf="1"
 		joinMaf="1"
 		showOnlySubstitutionsWithRespectToReference="0"
-	/>
+	>
+	</hal>
 </cactusWorkflowConfig>

@@ -114,7 +114,7 @@ class TestCase(unittest.TestCase):
         runCactusProgressive(os.path.join(tempExperimentDir, "exp_project.xml"), 
                              jobTreeDir, 
                              batchSystem=batchSystem, 
-                             #buildTrees=buildTrees, buildFaces=buildFaces, buildReference=buildReference,
+                             #buildAvgs=buildTrees, buildFaces=buildFaces, buildReference=buildReference,
                              jobTreeStats=jobTreeStats)
         runJobTreeStatusAndFailIfNotComplete(jobTreeDir)
         system("rm -rf %s" % tempDir)

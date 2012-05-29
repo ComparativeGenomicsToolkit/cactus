@@ -181,24 +181,27 @@ class CactusRecursionTarget(CactusTarget):
             if overlarge: #Make sure large flowers are on there own, in their own job
                 flowerStatsString = runCactusFlowerStats(cactusDiskDatabaseString=self.cactusDiskDatabaseString, flowerName=decodeFirstFlowerName(flowerNames))
                 self.logToMaster("Adding an oversize flower for target class %s and stats %s" \
-                                         % (overlargeTarget.__class__, flowerStatsString))
+                                         % (overlargeTarget, flowerStatsString))
                 self.addChildTarget(overlargeTarget(cactusDiskDatabaseString=self.cactusDiskDatabaseString, phaseNode=phaseNode, 
                                                     flowerNames=flowerNames, overlarge=True)) #This ensures overlarge flowers, 
             else:
                 self.addChildTarget(target(cactusDiskDatabaseString=self.cactusDiskDatabaseString, 
                                            phaseNode=phaseNode, flowerNames=flowerNames, overlarge=False))
         
-    def makeRecursiveTargets(self, phaseNode=None):
+    def makeRecursiveTargets(self, target=None, phaseNode=None):
         """Make a set of child targets for a given set of parent flowers.
         """
+        if target == None:
+            target = self.__class__
+        targetNode = getTargetNode(self.phaseNode, target)
         flowersAndSizes=runCactusGetFlowers(cactusDiskDatabaseString=self.cactusDiskDatabaseString, flowerNames=self.flowerNames, 
-                                            minSequenceSizeOfFlower=self.getOptionalTargetAttrib("minFlowerSize", int, 0), 
-                                            maxSequenceSizeOfFlowerGrouping=self.getOptionalTargetAttrib("maxFlowerGroupSize", int, 
+                                            minSequenceSizeOfFlower=getOptionalAttrib(targetNode, "minFlowerSize", int, 0), 
+                                            maxSequenceSizeOfFlowerGrouping=getOptionalAttrib(targetNode, "maxFlowerGroupSize", int, 
                                             default=CactusRecursionTarget.maxSequenceSizeOfFlowerGroupingDefault),
-                                            maxSequenceSizeOfSecondaryFlowerGrouping=self.getOptionalTargetAttrib("maxFlowerWrapperGroupSize", int, 
+                                            maxSequenceSizeOfSecondaryFlowerGrouping=getOptionalAttrib(targetNode, "maxFlowerWrapperGroupSize", int, 
                                             default=CactusRecursionTarget.maxSequenceSizeOfFlowerGroupingDefault))
         self.makeChildTargets(flowersAndSizes=flowersAndSizes, 
-                              target=self.__class__, phaseNode=phaseNode)
+                              target=target, phaseNode=phaseNode)
     
     def makeExtendingTargets(self, target, overlargeTarget=None, phaseNode=None):
         """Make set of child targets that extend the current cactus tree.
@@ -376,7 +379,7 @@ class CactusCafWrapperLarge(CactusRecursionTarget):
         logger.info("Created the cactus_aligner child target")
         #Now setup a call to cactus core wrapper as a follow on
         self.phaseNode.attrib["alignments"] = alignmentFile
-        self.makeFollowOnRecursiveTarget(CactusCafWrapper2)
+        self.makeFollowOnRecursiveTarget(CactusCafWrapperLarge2)
         logger.info("Setup the follow on cactus_core target")
         
 class CactusCafWrapperLarge2(CactusCafWrapper):
@@ -494,7 +497,7 @@ class CactusAVGRecursion2(CactusRecursionTarget):
     """This target does the recursive pass for the AVG phase.
     """
     def run(self):
-        self.makeRecursiveTargets()
+        self.makeRecursiveTargets(target=CactusAVGRecursion)
 
 class CactusAVGWrapper(CactusRecursionTarget):
     """This target runs tree building
@@ -539,7 +542,7 @@ class CactusReferenceWrapper(CactusRecursionTarget):
         
 class CactusReferenceRecursion2(CactusRecursionTarget):
     def run(self):
-        self.makeRecursiveTargets()
+        self.makeRecursiveTargets(target=CactusReferenceRecursion)
         self.makeFollowOnRecursiveTarget(CactusReferenceRecursion3)
         
 class CactusReferenceRecursion3(CactusRecursionTarget):
@@ -573,7 +576,7 @@ class CactusSetReferenceCoordinatesDownRecursion(CactusRecursionTarget):
 
 class CactusSetReferenceCoordinatesDownRecursion2(CactusRecursionTarget):
     def run(self):
-        self.makeRecursiveTargets()
+        self.makeRecursiveTargets(target=CactusSetReferenceCoordinatesDownRecursion)
         
 class CactusSetReferenceCoordinatesDownWrapper(CactusRecursionTarget):
     """Does the down pass for filling Fills in the coordinates, once a reference is added.
@@ -628,8 +631,7 @@ class CactusHalGeneratorPhase(CactusPhasesTarget):
             referenceNode = findRequiredNode(self.cactusWorkflowArguments.configNode, "reference")
             if referenceNode.attrib.has_key("reference"):
                 self.phaseNode.attrib["reference"] = referenceNode.attrib["reference"]
-            self.makeRecursiveChildTarget(CactusHalGeneratorRecursion)
-            self.phaseNode.attrib["outputFile"]=findRequiredNode(self.cactusWorkflowArguments.configNode, "hal").attrib["path"]
+            self.phaseNode.attrib["outputFile"]=self.cactusWorkflowArguments.experimentNode.find("hal").attrib["path"]
             self.makeRecursiveChildTarget(CactusHalGeneratorRecursion)
 
 class CactusHalGeneratorRecursion(CactusRecursionTarget):
