@@ -229,18 +229,13 @@ class CactusRecursionTarget(CactusTarget):
 ############################################################
 ############################################################
 
-class CactusPreprocessorPhase(Target):
-    def __init__(self, cactusWorkflowArguments, sequences):
-        Target.__init__(self)
-        self.cactusWorkflowArguments = cactusWorkflowArguments 
-        self.sequences = sequences
-
+class CactusPreprocessorPhase(CactusPhasesTarget):
     def run(self):
         self.logToMaster("Starting preprocessor phase target at %s seconds" % time.time())
         tempDir = getTempDirectory(self.getGlobalTempDir())
-        prepHelper = PreprocessorHelper(self.cactusWorkflowArguments, self.sequences)
+        prepHelper = PreprocessorHelper(self.cactusWorkflowArguments, self.cactusWorkflowArguments.sequences)
         processedSequences = []
-        for sequence in self.sequences:
+        for sequence in self.cactusWorkflowArguments.sequences:
             prepXmlElems = prepHelper.getFilteredXmlElems(sequence)
             event = prepHelper.fileEventMap[sequence]
             if len(prepXmlElems) == 0:
@@ -253,8 +248,9 @@ class CactusPreprocessorPhase(Target):
                 processedSequences.append(processedSequence)
                 logger.info("Adding child batch_preprocessor target")
                 assert sequence != processedSequence
-                self.addChildTarget(BatchPreprocessor(self.cactusWorkflowArguments, event, prepXmlElems, sequence, processedSequence, 0))
-        self.setFollowOnTarget(CactusSetupPhase(self.cactusWorkflowArguments, processedSequences))
+                self.addChildTarget(BatchPreprocessor(self.cactusWorkflowArguments, event, prepXmlElems, 
+                                                      sequence, processedSequence, 0))
+        self.makeFollowOnPhaseTarget(CactusSetupPhase)
         logger.info("Created followOn target cactus_setup job, and follow on down pass job")
 
 ############################################################
@@ -267,8 +263,10 @@ class CactusPreprocessorPhase(Target):
         
 class CactusSetupPhase(CactusPhasesTarget):   
     def run(self):
-        runCactusSetup(cactusDiskDatabaseString=self.cactusWorkflowArguments.cactusDiskDatabaseString, sequences=self.cactusWorkflowArguments.sequences, 
-                       newickTreeString=self.cactusWorkflowArguments.speciesTree, outgroupEvents=self.cactusWorkflowArguments.outgroupEventNames)
+        runCactusSetup(cactusDiskDatabaseString=self.cactusWorkflowArguments.cactusDiskDatabaseString, 
+                       sequences=self.cactusWorkflowArguments.sequences, 
+                       newickTreeString=self.cactusWorkflowArguments.speciesTree, 
+                       outgroupEvents=self.cactusWorkflowArguments.outgroupEventNames)
         self.makeFollowOnPhaseTarget(CactusCafPhase, "caf")
         
 ############################################################
