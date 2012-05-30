@@ -40,7 +40,7 @@ void parseArgs(int argc, char *argv[]) {
     assert(maxSequenceSizeOfFlowerGrouping >= 0);
 
     int64_t maxSequenceSizeOfSecondaryFlowerGrouping;
-    i = sscanf(argv[4], "%" PRId64 "", &maxSequenceSizeOfSecondaryFlowerGrouping);
+    i = sscanf(argv[5], "%" PRId64 "", &maxSequenceSizeOfSecondaryFlowerGrouping);
     assert(i == 1); //We should parse one in correctly.
     if(maxSequenceSizeOfSecondaryFlowerGrouping == -1) {
         maxSequenceSizeOfSecondaryFlowerGrouping = INT64_MAX;
