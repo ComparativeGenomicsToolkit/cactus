@@ -802,7 +802,7 @@ static void fillingIn_stepForward(Cap * cap, AdjacencyVoteTable * table) {
  */
 static void fillingIn_forceIndecisiveTree(Cap * cap, AdjacencyVoteTable * table) {
     AdjacencyVote * vote;
-    Cap * partner;
+    //Cap * partner;
 
     st_logInfo("Starting at tree top %p\n", cap);
 
@@ -825,7 +825,7 @@ static void fillingIn_forceIndecisiveTree(Cap * cap, AdjacencyVoteTable * table)
     if (!cap_getAdjacency(cap)) {
         st_logInfo("BB\n");
         adjacencyVote_goToParents(vote, cap);
-        partner = adjacencyVote_getWinner(vote);
+        adjacencyVote_getWinner(vote);
         fillingIn_pairUpToNullStub(cap, table);
     }
 }
