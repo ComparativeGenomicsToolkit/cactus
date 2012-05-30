@@ -43,12 +43,14 @@ class TestCase(unittest.TestCase):
         runWorkflow_multipleExamples(getCactusInputs_random, 
                                      testNumber=5,
                                      testRestrictions=(TestStatus.TEST_SHORT,),
+                                     buildAvgs=True, buildReference=True,
                                      batchSystem=self.batchSystem, buildJobTreeStats=True)
         
     def testCactus_randomWithConstraints(self):
         runWorkflow_multipleExamples(getCactusInputs_randomWithConstraints, 
                                      testNumber=5,
                                      testRestrictions=(TestStatus.TEST_SHORT,),
+                                     buildAvgs=True, buildReference=True,
                                      batchSystem=self.batchSystem, buildJobTreeStats=True,
                                      useConstraints=True)
         
@@ -56,12 +58,14 @@ class TestCase(unittest.TestCase):
         runWorkflow_multipleExamples(getCactusInputs_blanchette, 
                                      testNumber=1,
                                      testRestrictions=(TestStatus.TEST_MEDIUM,),
+                                     buildAvgs=True, buildReference=True,
                                      batchSystem=self.batchSystem, buildJobTreeStats=True)
                 
     def testCactus_encode(self): 
         runWorkflow_multipleExamples(getCactusInputs_encode, 
                                      testNumber=1,
                                      testRestrictions=(TestStatus.TEST_LONG,),
+                                     buildAvgs=True, buildReference=True,
                                      batchSystem=self.batchSystem, buildJobTreeStats=True)
     
     def testCactus_chromosomes(self):

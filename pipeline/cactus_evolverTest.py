@@ -29,7 +29,6 @@ class TestCase(unittest.TestCase):
         runWorkflow_multipleExamples(lambda regionNumber=0, tempDir=None : getInputs(inputDir, primateSequences),
                                      testRestrictions=(TestStatus.TEST_SHORT,),
                                      batchSystem=self.batchSystem,
-                                     buildAvgs=False, buildReference=False,
                                      buildJobTreeStats=True)
     
     def testEvolver_Mammals_Loci1(self):
@@ -38,7 +37,6 @@ class TestCase(unittest.TestCase):
         runWorkflow_multipleExamples(lambda regionNumber=0, tempDir=None : getInputs(inputDir, mammalSequences),
                                      testRestrictions=(TestStatus.TEST_MEDIUM,),
                                      batchSystem=self.batchSystem,
-                                     buildAvgs=False, buildReference=False,
                                      buildJobTreeStats=True)
         
     def testEvolver_Primates_Small(self):
@@ -47,7 +45,6 @@ class TestCase(unittest.TestCase):
         runWorkflow_multipleExamples(lambda regionNumber=0, tempDir=None : getInputs(inputDir, primateSequences),
                                      testRestrictions=(TestStatus.TEST_MEDIUM,),
                                      batchSystem=self.batchSystem,
-                                     buildAvgs=False, buildReference=False,
                                      buildJobTreeStats=True)
     
     def testEvolver_Mammals_Medium(self):
@@ -56,7 +53,6 @@ class TestCase(unittest.TestCase):
         runWorkflow_multipleExamples(lambda regionNumber=0, tempDir=None : getInputs(inputDir, mammalSequences),
                                      testRestrictions=(TestStatus.TEST_LONG,),
                                      batchSystem=self.batchSystem,
-                                     buildAvgs=False, buildReference=False,
                                      buildJobTreeStats=True)
     
     def testEvolver_Primates_Large(self):
@@ -65,7 +61,6 @@ class TestCase(unittest.TestCase):
         runWorkflow_multipleExamples(lambda regionNumber=0, tempDir=None : getInputs(inputDir, primateSequences),
                                      testRestrictions=(TestStatus.TEST_VERY_LONG,),
                                      batchSystem=self.batchSystem,
-                                     buildAvgs=False, buildReference=False,
                                      buildJobTreeStats=True)
     
     def testEvolver_Mammals_Large(self):
@@ -74,7 +69,6 @@ class TestCase(unittest.TestCase):
         runWorkflow_multipleExamples(lambda regionNumber=0, tempDir=None : getInputs(inputDir, mammalSequences),
                                      testRestrictions=(TestStatus.TEST_VERY_LONG,),
                                      batchSystem=self.batchSystem,
-                                     buildAvgs=False, buildReference=False,
                                      buildJobTreeStats=True)
 
 def main():

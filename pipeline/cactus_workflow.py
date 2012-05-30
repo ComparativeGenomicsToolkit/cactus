@@ -140,7 +140,7 @@ class CactusPhasesTarget(CactusTarget):
                                       topFlowerName=self.topFlowerName, index=index))
         
     def runPhase(self, recursiveTarget, nextPhaseTarget, nextPhaseName, doRecursion=True, index=0):
-        self.logToMaster("Starting %s phase target with index %i at %s seconds" % (self.phaseNode.tag, self.getPhaseIndex(), time.time()))
+        self.logToMaster("Starting %s phase target with index %i at %s seconds (recursing = %i)" % (self.phaseNode.tag, self.getPhaseIndex(), time.time(), doRecursion))
         if doRecursion:
             self.makeRecursiveChildTarget(recursiveTarget)
         self.makeFollowOnPhaseTarget(target=nextPhaseTarget, phaseName=nextPhaseName, index=index)

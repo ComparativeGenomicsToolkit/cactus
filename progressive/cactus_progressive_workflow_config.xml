@@ -79,7 +79,8 @@
 		<CactusBarWrapper maxFlowerGroupSize="40000"/>
 	</bar>
 	<normal 
-		iterations="0"
+		iterations="2"
+		maxNumberOfChains="30" 
 	>
 		<CactusNormalRecursion maxFlowerGroupSize="100000000" maxFlowerWrapperGroupSize="10000000"/>
 		<CactusNormalWrapper/>
@@ -114,8 +115,8 @@
 	<hal
 		buildHal="1"
 		showOnlySubstitutionsWithRespectToReference="0"
-		makeMaf="1"
-		joinMaf="1"
+		makeMaf="0"
+		joinMaf="0"
 	>
 		<CactusHalGeneratorRecursion maxFlowerGroupSize="10000000"/>
 		<CactusHalGeneratorUpWrapper/>

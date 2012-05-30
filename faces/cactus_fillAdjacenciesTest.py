@@ -17,12 +17,12 @@ class TestCase(unittest.TestCase):
     def testCactus_Random(self):
         runWorkflow_multipleExamples(getCactusInputs_random, 
                                      testNumber=TestStatus.getTestSetup(), 
-                                     buildAvgs=True, buildReference=False)
+                                     buildAvgs=True)
         
     def testCactus_Blanchette(self):
         runWorkflow_multipleExamples(getCactusInputs_blanchette,
                                      testRestrictions=(TestStatus.TEST_SHORT,), inverseTestRestrictions=True, 
-                                     buildAvgs=True, buildReference=False)
+                                     buildAvgs=True)
     
 def main():
     parseCactusSuiteTestOptions()

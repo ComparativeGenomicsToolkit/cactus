@@ -16,13 +16,11 @@ from cactus.shared.test import runWorkflow_multipleExamples
 class TestCase(unittest.TestCase):
     def testCactusNormalisation_Random(self):
         runWorkflow_multipleExamples(getCactusInputs_random,
-                                     testNumber=TestStatus.getTestSetup(),
-                                     buildAvgs=False, buildReference=False)
+                                     testNumber=TestStatus.getTestSetup())
         
     def testCactusNormalisation_Blanchette(self):
         runWorkflow_multipleExamples(getCactusInputs_blanchette,
-                                     testRestrictions=(TestStatus.TEST_SHORT,), inverseTestRestrictions=True,
-                                     buildAvgs=False, buildReference=False)
+                                     testRestrictions=(TestStatus.TEST_SHORT,), inverseTestRestrictions=True)
     
 def main():
     parseCactusSuiteTestOptions() 
