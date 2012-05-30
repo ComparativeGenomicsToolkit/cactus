@@ -61,16 +61,16 @@ def fileList(path):
     return [path]
 
 class PreprocessorHelper:
-    def __init__(self, options, sequences):     
-        self.options = options
+    def __init__(self, cactusWorkflowArguments, sequences):     
+        self.cactusWorkflowArguments = cactusWorkflowArguments
         self.sequences = sequences
         self.fileEventMap = self.__computeFileEventMap()
     
     def getFilteredXmlElems(self, sequence):
-        prepNodes = self.options.config.findall("preprocessor")
+        prepNodes = self.cactusWorkflowArguments.configNode.findall("preprocessor")
         filteredNodes = []
         event = self.fileEventMap[sequence]
-        leafEvents = getattr(self.options, 'globalLeafEventSet', set([event]))         
+        leafEvents = getattr(self.cactusWorkflowArguments, 'globalLeafEventSet', set([event]))         
         for node in prepNodes:
             scope = node.get("scope", default="leaves").lower()
             if event in leafEvents:
@@ -85,7 +85,7 @@ class PreprocessorHelper:
     def __computeFileEventMap(self):
         seqIterator = iter(self.sequences)
         eventMap = dict()
-        tree = newickTreeParser(self.options.speciesTree)
+        tree = newickTreeParser(self.cactusWorkflowArguments.speciesTree)
         dfStack = [tree]
         while dfStack:
             node = dfStack.pop(-1)
@@ -224,9 +224,9 @@ class PreprocessSequence(Target):
         self.setFollowOnTarget(MergeChunks(self.prepOptions, chunkListPath, self.outSequencePath))
 
 class BatchPreprocessor(Target):
-    def __init__(self, options, event, prepXmlElems, inSequence, globalOutSequence, iteration = 0):
+    def __init__(self, cactusWorkflowArguments, event, prepXmlElems, inSequence, globalOutSequence, iteration = 0):
         Target.__init__(self, time=0.0002)
-        self.options = options 
+        self.cactusWorkflowArguments = cactusWorkflowArguments 
         self.event = event
         self.prepXmlElems = prepXmlElems
         self.inSequence = inSequence

@@ -34,7 +34,7 @@ from cactus.shared.common import cactusRootPath
 from jobTree.scriptTree.target import Target 
 from jobTree.scriptTree.stack import Stack 
 
-from cactus.pipeline.cactus_workflow import CactusSetupPhase
+from cactus.pipeline.cactus_workflow import CactusPreprocessorPhase
 from cactus.pipeline.cactus_workflow import CactusWorkflowArguments
 from cactus.pipeline.cactus_workflow import addCactusWorkflowOptions
 from cactus.pipeline.cactus_workflow import getOptionalAttrib
@@ -148,11 +148,13 @@ class StartWorkflow(Target):
         workFlowArgs.makeMaf = self.options.makeMaf
         workFlowArgs.joinMaf = self.options.joinMaf
         workFlowArgs.overwrite = self.options.overwrite
+        workFlowArgs.globalLeafEventSet = self.options.globalLeafEventSet
+        
         experiment = ExperimentWrapper(workFlowArgs.experimentNode)
 
         if workFlowArgs.skipAlignments is False and \
         not os.path.exists(experiment.getReferencePath()):       
-            self.addChildTarget(CactusSetupPhase(cactusWorkflowArguments=workFlowArgs, phaseName="setup"))
+            self.addChildTarget(CactusPreprocessorPhase(cactusWorkflowArguments=workFlowArgs, phaseName="preprocessor"))
             logger.info("Going to create alignments and define the cactus tree")
         
         self.setFollowOnTarget(ExtractReference(workFlowArgs, self.project, self.event))

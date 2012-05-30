@@ -250,7 +250,8 @@ class CactusPreprocessorPhase(CactusPhasesTarget):
                 assert sequence != processedSequence
                 self.addChildTarget(BatchPreprocessor(self.cactusWorkflowArguments, event, prepXmlElems, 
                                                       sequence, processedSequence, 0))
-        self.makeFollowOnPhaseTarget(CactusSetupPhase)
+        self.cactusWorkflowArguments.sequences = processedSequences
+        self.makeFollowOnPhaseTarget(CactusSetupPhase, "setup")
         logger.info("Created followOn target cactus_setup job, and follow on down pass job")
 
 ############################################################
