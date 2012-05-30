@@ -48,6 +48,7 @@
 		<CactusNormalWrapper/>
 	</normal>
 	<avg
+		buildAvgs="0"
 	>
 		<CactusAVGRecursion maxFlowerGroupSize="100000000" maxFlowerWrapperGroupSize="1000000"/>
 		<CactusAVGWrapper/>
