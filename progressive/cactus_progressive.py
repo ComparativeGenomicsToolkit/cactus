@@ -160,9 +160,9 @@ class StartWorkflow(Target):
         self.setFollowOnTarget(ExtractReference(workFlowArgs, self.project, self.event))
 
 class EndWorkflow(Target):
-    def __init__(self, workFlowArgs, event, ktserver):
+    def __init__(self, experiment, event, ktserver):
         Target.__init__(self)
-        self.workFlowArgs = workFlowArgs
+        self.experiment = experiment
         self.event = event
         self.ktserver = ktserver
     
@@ -171,8 +171,7 @@ class EndWorkflow(Target):
         
         # don't need the ktserver anymore, so we kill it
         if self.ktserver is not None:
-             experiment = ExperimentWrapper(self.workFlowArgs.experimentNode)
-             self.ktserver.killServer(experiment)   
+             self.ktserver.killServer(self.experiment)   
                          
 class ExtractReference(Target):
     def __init__(self, workFlowArgs, project, event):
