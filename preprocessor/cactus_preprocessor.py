@@ -273,6 +273,6 @@ class BatchPreprocessor(Target):
                 os.makedirs(outSeqFile.next())
 
         if lastIteration == False:
-            self.setFollowOnTarget(BatchPreprocessor(self.options, self.event, self.prepXmlElems, outSeq, self.globalOutSequence, 
-                                                      self.iteration + 1))
+            self.setFollowOnTarget(BatchPreprocessor(self.cactusWorkflowArguments, self.event, self.prepXmlElems, outSeq,
+                                                     self.globalOutSequence, self.iteration + 1))
             
