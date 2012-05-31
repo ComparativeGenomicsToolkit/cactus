@@ -958,6 +958,9 @@ stList *filterToRemoveOverlap(stList *sortedOverlappingPairs) {
         }
         //Check things are sorted in the input
         assert(x >= pX);
+        if(x == pX) {
+            assert(y >= pY2);
+        }
         pY2 = y;
         pX = x > pX ? x : pX;
         pY = y > pY ? y : pY;
