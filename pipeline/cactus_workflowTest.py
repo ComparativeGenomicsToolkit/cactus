@@ -94,12 +94,17 @@ class TestCase(unittest.TestCase):
             pass
     
     def testExtractNode(self):
+        subNode = ET.SubElement(self.barNode, "CactusSetReferenceCoordinatesDownRecursion", { "memory":"10" })
         barNodeCopy = extractNode(self.barNode)
         barNodeCopy.attrib["added"] = "1"
         self.assertFalse("added" in self.barNode.attrib)
         self.barNode.attrib["added2"] = "1"
         self.assertTrue("added2" in self.barNode.attrib)
         self.assertFalse("added2" in barNodeCopy.attrib)
+        self.assertEquals(subNode, self.barNode.find("CactusSetReferenceCoordinatesDownRecursion"))
+        subNodeCopy = barNodeCopy.find("CactusSetReferenceCoordinatesDownRecursion")
+        self.assertTrue(subNodeCopy != None)
+        self.assertEquals("10", subNodeCopy.attrib["memory"])
         
     def testGetTargetNode(self):
         class CactusTestTarget(CactusTarget):
@@ -109,6 +114,8 @@ class TestCase(unittest.TestCase):
         node = ET.SubElement(self.barNode, "CactusTestTarget")
         self.assertEquals(node, getTargetNode(self.barNode, CactusTestTarget))
         self.assertEquals(None, getTargetNode(self.barNode, CactusTestTarget2))
+        node2 = ET.SubElement(self.barNode, "CactusSetReferenceCoordinatesDownRecursion")
+        self.assertEquals(node2, getTargetNode(self.barNode, CactusSetReferenceCoordinatesDownRecursion))
     
     def testCactusTarget(self):
         class CactusTestTarget(CactusTarget):
