@@ -171,7 +171,10 @@ class EndWorkflow(Target):
         
         # don't need the ktserver anymore, so we kill it
         if self.ktserver is not None:
-             self.ktserver.killServer(self.experiment)   
+            self.logToMaster("KTSERVER Report for %s on port %d:\n%s" % (self.event,
+                            self.experiment.getDbPort(),
+                            self.ktserver.getServerReport(self.experiment)))
+            self.ktserver.killServer(self.experiment)   
                          
 class ExtractReference(Target):
     def __init__(self, workFlowArgs, project, event):

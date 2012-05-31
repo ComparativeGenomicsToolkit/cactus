@@ -20,6 +20,7 @@ from time import sleep
 from optparse import OptionParser
 import xml.etree.ElementTree as ET
 from sonLib.bioio import spawnDaemon
+from sonLib.bioio import popenCatch
 from cactus.progressive.experimentWrapper import ExperimentWrapper
 
 class KtserverLauncher:
@@ -135,10 +136,12 @@ class KtserverLauncher:
         if experiment.getDbHost() is not None:
             cmd += " -host %s" % experiment.getDbHost()
         if experiment.getDbSnapshot() == True:
-            cmd += " -bgs %s -bgsi 100000000" % experiment.getDbDir()
+            cmd += " -bgs %s -bgsi 100000000" % experiment.getDbDir()        
         if experiment.getDbInMemory() == False:
-            cmd += " %s%s" % (os.path.join(experiment.getDbDir(), 
-                                           experiment.getDbName()), tuning)
+            cmd += " %s" % os.path.join(experiment.getDbDir(), experiment.getDbName())
+        else:
+            cmd += " :"
+        cmd += tuning
         return cmd
     
     # launch the ktserver as a new daemon process.  
@@ -213,6 +216,14 @@ class KtserverLauncher:
             else:
                 sleep(self.killWait)
         raise RuntimeError("Failed to kill ktserver on port %d and path %s" % (port, dbPath))
+
+    def getServerReport(self, experiment):
+         port = experiment.getDbPort()
+         cmd = "ktremotemgr report -port %ds" % port
+         if experiment.getDbHost() is not None:
+            cmd += " -host %s" % experiment.getDbHost()
+         report = popenCatch(cmd)
+         return report
             
         
 def main():
