@@ -30,6 +30,7 @@ class KtserverLauncher:
         self.rangeSize = 100
         self.listenWaitIntervals = 1000
         self.listenWait = 1
+        self.reorganizeWait = 10
         self.checkWaitIntervals = 30
         self.checkWait = 1
         self.killWaitIntervals = 1000
@@ -109,6 +110,8 @@ class KtserverLauncher:
                         if line.find("ERROR") >= 0 or line.find("error") >= 0:
                             success = False
                             break
+                        if line.find("reorganizing") >= 0:
+                            sleep(self.reorganizeWait)
                     outFile.close()
             else:
                 break
@@ -128,11 +131,13 @@ class KtserverLauncher:
                     return -1               
             raise RuntimeError("failed ktserver stuck on %s" % dbPath)
         
-    def ktserverCmd(self, experiment, outputPath, port, exists):
+    def ktserverCmd(self, experiment, outputPath, port, exists, readOnly):
         tuning = self.createTuningOptions
         if exists:
             tuning = self.readTuningOptions
         cmd = "ktserver -log %s -port %d %s" % (outputPath, port, self.serverOptions)
+        if readOnly is True:
+            cmd += " -ord -onr"
         if experiment.getDbHost() is not None:
             cmd += " -host %s" % experiment.getDbHost()
         if experiment.getDbSnapshot() == True:
@@ -145,7 +150,7 @@ class KtserverLauncher:
         return cmd
     
     # launch the ktserver as a new daemon process.  
-    def spawnServer(self, experiment):        
+    def spawnServer(self, experiment, readOnly = False):        
         dbPath = os.path.join(experiment.getDbDir(), experiment.getDbName())
         if (len(self.scrapePids([dbPath])) != 0):
             raise RuntimeError("ktserver already running on %s" % dbPath)
@@ -179,7 +184,7 @@ class KtserverLauncher:
                 # freak concurrency issues by taking a quick nap
                 sleep(random.uniform(0, 1))
                 spawnDaemon(self.ktserverCmd(experiment, outputPath, port, 
-                                             dbPathExists))                                             
+                                             dbPathExists, readOnly))
                 pid = self.validateServer(dbPath, outputPath, port)
                 if pid >= 0:
                     experiment.setDbPort(port)
