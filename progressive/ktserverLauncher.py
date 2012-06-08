@@ -133,10 +133,10 @@ class KtserverLauncher:
         
     def ktserverCmd(self, experiment, outputPath, port, exists, readOnly):
         tuning = self.createTuningOptions
-        if exists:
+        if exists or readOnly:
             tuning = self.readTuningOptions
         cmd = "ktserver -log %s -port %d %s" % (outputPath, port, self.serverOptions)
-        if readOnly is True:
+        if readOnly is True and experiment.getDbSnapshot() == False:
             cmd += " -ord -onr"
         if experiment.getDbHost() is not None:
             cmd += " -host %s" % experiment.getDbHost()
