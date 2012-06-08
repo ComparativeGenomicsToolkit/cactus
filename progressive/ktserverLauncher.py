@@ -110,7 +110,7 @@ class KtserverLauncher:
                         if line.find("ERROR") >= 0 or line.find("error") >= 0:
                             success = False
                             break
-                        if line.find("reorganizing") >= 0:
+                        if line.find("reorganizing") >= 0 or line.find("applying a snapshot") >= 0:
                             sleep(self.reorganizeWait)
                     outFile.close()
             else:
