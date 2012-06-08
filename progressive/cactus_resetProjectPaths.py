@@ -14,6 +14,7 @@ import sys
 from optparse import OptionParser
 import xml.etree.ElementTree as ET
 import copy
+import socket
 
 from cactus.progressive.multiCactusProject import MultiCactusProject
 from cactus.progressive.multiCactusTree import MultiCactusTree
@@ -56,6 +57,11 @@ def updateProject(path):
             halName = oldHalPath[oldHalPath.find(name):]
             newHalPath = os.path.join(basePath, halName)
             exp.setHALPath(newHalPath)
+        
+        oldHostName = exp.getDbHost()
+        if oldHostName is not None:
+            newHostName = socket.gethostname()
+            exp.setDbHost(newHostName)
         
         system("cp %s %s.old" %(newPath, newPath))
         exp.writeXML(newPath)

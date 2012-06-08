@@ -80,6 +80,10 @@ class ExperimentWrapper:
         if "host" in self.dbElem.attrib:
             return self.dbElem.attrib["host"]
         return None
+    
+    def setDbHost(self, host):
+        assert self.getDbType() == "kyoto_tycoon"
+        self.dbElem.attrib["host"] = host
         
     def getDbServerOptions(self):
         assert self.getDbType() == "kyoto_tycoon"
