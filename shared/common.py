@@ -405,7 +405,8 @@ def runCactusProgressive(inputDir,
                       recursive=None,
                       logFile=None,
                       event=None,
-                      extraJobTreeArgumentsString=""):
+                      extraJobTreeArgumentsString="",
+                      profileFile=None):
     command = ("cactus_progressive.py %s" % inputDir) + " " + _fn(jobTreeDir, 
                       logLevel, retryCount, batchSystem, rescueJobFrequency, skipAlignments,
                       buildAvgs, None,
@@ -413,6 +414,8 @@ def runCactusProgressive(inputDir,
                       jobTreeStats, maxThreads, maxJobs, noCheckPoints, defaultMemory, logFile, extraJobTreeArgumentsString=extraJobTreeArgumentsString) + \
                       (" %s %s %s" % (nameValue("recursive", recursive, bool),
                                      nameValue("joinMAF", joinMaf, bool), nameValue("event", event)))
+    if profileFile != None:
+        command = "python -m cProfile -o %s %s/bin/%s" % (profileFile, cactusRootPath(), command)
     system(command)
     logger.info("Ran the cactus progressive okay")
     
