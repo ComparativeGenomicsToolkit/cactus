@@ -1,5 +1,5 @@
 # order is important, libraries first
-modules = api blastAlignment setup caf bar normalisation reference phylogeny faces check pipeline progressive preprocessor hal
+modules = api blastAlignment setup caf bar normalisation reference phylogeny faces check pipeline progressive preprocessor hal dbTest
 
 .PHONY: all %.all clean %.clean
 
