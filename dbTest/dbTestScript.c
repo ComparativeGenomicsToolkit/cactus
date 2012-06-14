@@ -139,6 +139,8 @@ int main(int argc, char *argv[]) {
     // Do meat of manipulating the database
     ///////////////////////////////////////////////////////////////////////////
 
+    st_logInfo("Modifying records to the database in the range %" PRIi64 " to %" PRIi64 "\n", firstKey, firstKey+keyNumber);
+
     if (addRecords) {
         st_logInfo("Adding records to the database\n");
         stList *recordNames = stList_construct3(0, free);
@@ -147,7 +149,7 @@ int main(int argc, char *argv[]) {
             void *vA = getRandomRecord(minRecordSize, maxRecordSize, &recordSize);
             stList_append(recordNames, stKVDatabaseBulkRequest_constructInsertRequest(firstKey + i, vA, recordSize));
         } stTry {
-            stList_destruct(stKVDatabase_bulkGetRecords(database, recordNames));
+            stKVDatabase_bulkSetRecords(database, recordNames);
         }
         stCatch(except)
         {
@@ -187,7 +189,7 @@ int main(int argc, char *argv[]) {
             void *vA = getRandomRecord(minRecordSize, maxRecordSize, &recordSize);
             stList_append(recordNames, stKVDatabaseBulkRequest_constructUpdateRequest(firstKey + i, vA, recordSize));
         } stTry {
-            stList_destruct(stKVDatabase_bulkGetRecords(database, recordNames));
+            stKVDatabase_bulkSetRecords(database, recordNames);
         }
         stCatch(except)
         {
@@ -199,6 +201,8 @@ int main(int argc, char *argv[]) {
         stTryEnd;
         stList_destruct(recordNames);
     }
+
+    st_logDebug("Finished!\n");
 
     ///////////////////////////////////////////////////////////////////////////
     // Close the database down
