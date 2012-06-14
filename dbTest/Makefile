@@ -1,7 +1,12 @@
 rootPath = ../
 include ../include.mk
 
+#host=kolossus-10
+#batchSystem = parasol 
+
 host=localhost
+batchSystem = singleMachine
+
 port=1978
 databaseDir=./testDb
 databaseOptions=-ls -tout 200000 -th 64 -bgsi 100000000 #opts=ls#bnum=30m#msiz=50g#ktopts=p
@@ -21,7 +26,7 @@ clean :
 test :
 	ktserver -log ./log.txt -host ${host} -port ${port} ${databaseOptions} &
 	rm -rf ${databaseDir} ./jobTree
-	python dbTestScript.py --logLevel DEBUG --jobTree ./jobTree --stats --keysPerJob ${keysPerJob} --totalJobs ${totalJobs} --host ${host} --port ${port} --databaseDir ${databaseDir} --databaseOption "${databaseOptions}" --minRecordSize ${minRecordSize} --maxRecordSize ${maxRecordSize}
+	python dbTestScript.py --batchSystem ${batchSystem} --logLevel DEBUG --jobTree ./jobTree --stats --keysPerJob ${keysPerJob} --totalJobs ${totalJobs} --host ${host} --port ${port} --databaseDir ${databaseDir} --databaseOption "${databaseOptions}" --minRecordSize ${minRecordSize} --maxRecordSize ${maxRecordSize}
 	jobTreeStats --jobTree ./jobTree --outputFile ./jobTreeStatsTest.xml
 	rm -rf ${databaseDir} ./jobTree
 	ktremotemgr report -host ${host} -port ${port}
