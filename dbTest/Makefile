@@ -14,8 +14,8 @@ databaseDir=./testDb
 databaseOptions=-ls -tout 200000 -th 64 -bgsi 100000000 #opts=ls#bnum=30m#msiz=50g#ktopts=p
 minRecordSize=0
 maxRecordSize=100
-keysPerJob=100
-totalJobs=2
+keysPerJob=10000
+totalJobs=3000
 
 all : ${binPath}/dbTestScript 
 
