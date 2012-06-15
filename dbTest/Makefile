@@ -4,23 +4,25 @@ include ../include.mk
 #host=kolossus-10
 #batchSystem = parasol 
 #parasolCommand=/cluster/home/markd/pub/parasol -host=swarm-10
-#jobTree=/scratch/benedict/jobTree
-#log =/scratch/benedict/log.txt
+#tempDir=/scratch/benedict/
+#maxThreads=30
 
 host=localhost
 batchSystem = singleMachine
 parasolCommand=parasol
+tempDir=./
+maxThreads=4
 
-maxThreads=30
 port=1978
-databaseDir=./testDb
 databaseOptions=-ls -tout 200000 -th 64 -bgsi 100000000 #opts=ls#bnum=30m#msiz=50g#ktopts=p
 minRecordSize=0
 maxRecordSize=100
 keysPerJob=10000
 totalJobs=300
-jobTree=./jobTree
-log = ./log.txt
+
+jobTree=${tempDir}/jobTree
+log = ${tempDir}/log.txt
+databaseDir=${tempDir}/testDb
 
 all : ${binPath}/dbTestScript 
 
