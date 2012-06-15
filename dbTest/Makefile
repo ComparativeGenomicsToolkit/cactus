@@ -16,7 +16,7 @@ databaseOptions=-ls -tout 200000 -th 64 -bgsi 100000000 #opts=ls#bnum=30m#msiz=5
 minRecordSize=0
 maxRecordSize=100
 keysPerJob=10000
-totalJobs=3000
+totalJobs=300
 
 all : ${binPath}/dbTestScript 
 

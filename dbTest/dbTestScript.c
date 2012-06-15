@@ -22,7 +22,7 @@ void usage() {
 }
 
 void *getRandomRecord(int64_t minRecordSize, int64_t maxRecordSize, int64_t *recordSize) {
-    *recordSize = 1000;
+    *recordSize = maxRecordSize;
     char *cA = st_malloc(sizeof(char) * (*recordSize));
     for (int64_t i = 0; i < *recordSize; i++) {
         cA[i] = st_randomInt(0, 128);
