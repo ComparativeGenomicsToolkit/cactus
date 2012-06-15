@@ -4,6 +4,8 @@ include ../include.mk
 #host=kolossus-10
 #batchSystem = parasol 
 #parasolCommand=/cluster/home/markd/pub/parasol -host=swarm-10
+#jobTree=/scratch/benedict/jobTree
+#log =/scratch/benedict/log.txt
 
 host=localhost
 batchSystem = singleMachine
@@ -17,6 +19,8 @@ minRecordSize=0
 maxRecordSize=100
 keysPerJob=10000
 totalJobs=300
+jobTree=./jobTree
+log = ./log.txt
 
 all : ${binPath}/dbTestScript 
 
@@ -27,10 +31,10 @@ clean :
 	rm -rf ${binPath}/dbTestScript
 
 test :
-	ktserver -log ./log.txt -host ${host} -port ${port} ${databaseOptions} &
-	rm -rf ${databaseDir} ./jobTree
-	python dbTestScript.py --maxThreads=${maxThreads} --parasolCommand="${parasolCommand}" --batchSystem ${batchSystem} --logLevel DEBUG --jobTree ./jobTree --stats --keysPerJob ${keysPerJob} --totalJobs ${totalJobs} --host ${host} --port ${port} --databaseDir ${databaseDir} --databaseOption "${databaseOptions}" --minRecordSize ${minRecordSize} --maxRecordSize ${maxRecordSize}
-	jobTreeStats --jobTree ./jobTree --outputFile ./jobTreeStatsTest.xml
-	rm -rf ${databaseDir} ./jobTree
+	ktserver -log ${log} -host ${host} -port ${port} ${databaseOptions} &
+	rm -rf ${databaseDir} ${jobTree}
+	python dbTestScript.py --maxThreads=${maxThreads} --parasolCommand="${parasolCommand}" --batchSystem ${batchSystem} --logLevel DEBUG --jobTree ${jobTree} --stats --keysPerJob ${keysPerJob} --totalJobs ${totalJobs} --host ${host} --port ${port} --databaseDir ${databaseDir} --databaseOption "${databaseOptions}" --minRecordSize ${minRecordSize} --maxRecordSize ${maxRecordSize}
+	jobTreeStats --jobTree ${jobTree} --outputFile ./jobTreeStatsTest.xml
+	rm -rf ${databaseDir} ${jobTree}
 	ktremotemgr report -host ${host} -port ${port}
 	ps ax | grep 'ktserver' | cut -f1 -d' ' | xargs kill
