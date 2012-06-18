@@ -17,7 +17,7 @@ port=1978
 databaseOptions=-ls -tout 200000 -th 64 -bgsi 100000000 #opts=ls#bnum=30m#msiz=50g#ktopts=p
 minRecordSize=0
 maxRecordSize=100
-keysPerJob=10000
+keysPerJob=10001
 totalJobs=300
 
 jobTree=${tempDir}/jobTree

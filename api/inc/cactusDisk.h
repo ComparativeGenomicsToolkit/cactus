@@ -44,6 +44,11 @@ void cactusDisk_destruct(CactusDisk *cactusDisk);
 int64_t cactusDisk_getUniqueID(CactusDisk *cactusDisk);
 
 /*
+ * Retrieves a contiguous interval of unique ids starting from the return value to return value + intervalSize (exclusive).
+ */
+int64_t cactusDisk_getUniqueIDInterval(CactusDisk *cactusDisk, int64_t intervalSize);
+
+/*
  * Writes the updated state of the parts of the cactus disk in memory to disk.
  *
  */

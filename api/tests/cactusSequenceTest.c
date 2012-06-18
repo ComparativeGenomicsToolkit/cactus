@@ -5,6 +5,7 @@
  */
 
 #include "cactusGlobalsPrivate.h"
+#include <unistd.h>
 
 static CactusDisk *cactusDisk = NULL;
 static Flower *flower;
@@ -91,6 +92,55 @@ void testSequence_getString(CuTest* testCase) {
 	cactusSequenceTestTeardown();
 }
 
+static char *getRandomDNASequence() {
+    int32_t stringLength = st_randomInt(0, 1000);
+    char *string = st_malloc(sizeof(char) * (stringLength + 1));
+    string[stringLength] = '\0';
+    for (int32_t j = 0; j < stringLength; j++) {
+        char cA[10] = { 'a', 'c', 'g', 't', 'A', 'C', 'G', 'T', 'n', 'N' };
+        string[j] = cA[st_randomInt(0, 10)];
+    }
+    return string;
+}
+
+void testSequence_addAndGetBigStrings(CuTest* testCase) {
+    for(int32_t i=0; i<100; i++) {
+        cactusSequenceTestSetup();
+        //Create a bunch of sequences
+        stList *strings = stList_construct3(0, free);
+        stList *sequences = stList_construct();
+        int32_t coordinateState = st_randomInt(0, 100);
+        do {
+            char *string = getRandomDNASequence();
+            stList_append(strings, string);
+            metaSequence = metaSequence_construct(coordinateState, strlen(string), string,
+                                               "Hello I am header", event_getName(event), cactusDisk);
+            stList_append(sequences, sequence_construct(metaSequence, flower));
+        } while(st_random() > 0.5);
+        //Do different requests for portions of the strings
+        while(st_random() > 0.01) {
+            int32_t j = st_randomInt(0, stList_length(strings));
+            Sequence *sequence = stList_get(sequences, j);
+            char *string = stList_get(strings, j);
+            //Choose a random interval to request
+            int64_t start = st_randomInt(0, strlen(string));
+            int64_t length = st_randomInt(0, strlen(string)-start);
+            char *subString = stString_getSubString(string, start, length);
+            bool strand = st_random() > 0.5;
+            if(!strand) {
+                subString = cactusMisc_reverseComplementString(subString);
+            }
+            char *subSequence = sequence_getString(sequence, coordinateState + start, length, strand);
+            CuAssertStrEquals(testCase, subString, subSequence);
+            free(subString);
+            free(subSequence);
+        }
+        stList_destruct(sequences);
+        cactusSequenceTestTeardown();
+        stList_destruct(strings);
+    }
+}
+
 void testSequence_getHeader(CuTest* testCase) {
 	cactusSequenceTestSetup();
 	CuAssertStrEquals(testCase, headerString, sequence_getHeader(sequence));
@@ -120,6 +170,7 @@ void testSequence_serialisation(CuTest* testCase) {
 	testSequence_getEvent(testCase);
 	testSequence_getString(testCase);
 	testSequence_getHeader(testCase);
+	testSequence_addAndGetBigStrings(testCase);
 	testSequence_getFlower(testCase);
 	nestedTest = 0;
 	cactusSequenceTestTeardown();
@@ -133,6 +184,7 @@ CuSuite* cactusSequenceTestSuite(void) {
 	SUITE_ADD_TEST(suite, testSequence_getName);
 	SUITE_ADD_TEST(suite, testSequence_getEvent);
 	SUITE_ADD_TEST(suite, testSequence_getString);
+	SUITE_ADD_TEST(suite, testSequence_addAndGetBigStrings);
 	SUITE_ADD_TEST(suite, testSequence_getHeader);
 	SUITE_ADD_TEST(suite, testSequence_getFlower);
 	SUITE_ADD_TEST(suite, testSequence_serialisation);

@@ -22,7 +22,6 @@ struct _cactusDisk {
     char *sequencesFileName;
     char *absSequencesFileName;
     FILE *sequencesFileHandle;
-    stList *stringUpdates;
 };
 
 ////////////////////////////////////////////////
@@ -87,11 +86,5 @@ Name cactusDisk_addString(CactusDisk *cactusDisk, const char *string);
  */
 char *cactusDisk_getString(CactusDisk *cactusDisk, Name name,
         int32_t start, int32_t length, int32_t strand, int32_t totalSequenceLength);
-
-/*
- * Sets a substring in the bucket of sequence.
- */
-void cactusDisk_setString(CactusDisk *cactusDisk, Name name, int32_t start, int32_t length, int32_t strand,
-        int32_t totalSequenceLength, const char *string);
 
 #endif
