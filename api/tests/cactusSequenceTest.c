@@ -202,8 +202,6 @@ void testSequence_serialisation(CuTest* testCase) {
 	testSequence_getEvent(testCase);
 	testSequence_getString(testCase);
 	testSequence_getHeader(testCase);
-	testSequence_addAndGetBigStrings(testCase);
-	testSequence_addAndGetBigStrings_preCacheSequences(testCase);
 	testSequence_getFlower(testCase);
 	nestedTest = 0;
 	cactusSequenceTestTeardown();
