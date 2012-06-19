@@ -114,6 +114,27 @@ void testCactusDisk_getUniqueID_Unique(CuTest* testCase) {
     cactusDiskTestTeardown();
 }
 
+void testCactusDisk_getUniqueID_UniqueIntervals(CuTest* testCase) {
+    cactusDiskTestSetup();
+    stSortedSet *uniqueNames = stSortedSet_construct3(testCactusDisk_getUniqueID_UniqueP, free);
+    for (int32_t i = 0; i < 10; i++) { //Gets a billion ids, checks we are good.
+        int64_t intervalSize = st_randomInt(0, 100000);
+        Name uniqueName = cactusDisk_getUniqueIDInterval(cactusDisk, intervalSize);
+        for(int32_t j=0; j<intervalSize; j++) {
+            CuAssertTrue(testCase, uniqueName > 0);
+            CuAssertTrue(testCase, uniqueName < INT64_MAX);
+            CuAssertTrue(testCase, uniqueName != NULL_NAME);
+            char *cA = cactusMisc_nameToString(uniqueName);
+            CuAssertTrue(testCase, stSortedSet_search(uniqueNames, cA) == NULL);
+            CuAssertTrue(testCase, cactusMisc_stringToName(cA) == uniqueName);
+            stSortedSet_insert(uniqueNames, cA);
+            uniqueName++;
+        }
+    }
+    stSortedSet_destruct(uniqueNames);
+    cactusDiskTestTeardown();
+}
+
 CuSuite* cactusDiskTestSuite(void) {
     CuSuite* suite = CuSuiteNew();
     SUITE_ADD_TEST(suite, testCactusDisk_write);
@@ -121,6 +142,7 @@ CuSuite* cactusDiskTestSuite(void) {
     SUITE_ADD_TEST(suite, testCactusDisk_getMetaSequence);
     SUITE_ADD_TEST(suite, testCactusDisk_getUniqueID);
     SUITE_ADD_TEST(suite, testCactusDisk_getUniqueID_Unique);
+    SUITE_ADD_TEST(suite, testCactusDisk_getUniqueID_UniqueIntervals);
     SUITE_ADD_TEST(suite, testCactusDisk_constructAndDestruct);
     return suite;
 }
