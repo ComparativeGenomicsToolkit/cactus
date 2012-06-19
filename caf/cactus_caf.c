@@ -300,7 +300,7 @@ int main(int argc, char *argv[]) {
     startTime = time(NULL);
 
     stList *flowers = flowerWriter_parseFlowersFromStdin(cactusDisk);
-    if(alignmentsFile != NULL) {
+    if(alignmentsFile == NULL) {
         cactusDisk_preCacheStrings(cactusDisk, flowers);
     }
     char *tempFile1 = NULL;
