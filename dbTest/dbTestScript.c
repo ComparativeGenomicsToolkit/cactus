@@ -168,8 +168,15 @@ int main(int argc, char *argv[]) {
             int64_t *iA = st_malloc(sizeof(int64_t));
             iA[0] = firstKey + i;
             stList_append(recordNames, iA);
+            //Do it again
+            //iA = st_malloc(sizeof(int64_t));
+            //iA[0] = firstKey + i;
+            //stList_append(recordNames, iA);
         } stTry {
-            stList_destruct(stKVDatabase_bulkGetRecords(database, recordNames));
+            stList *list = stKVDatabase_bulkGetRecords(database, recordNames);
+            assert(stList_length(list) == keyNumber);
+            //assert(stList_length(list) == keyNumber * 2);
+            stList_destruct(list);
         }
         stCatch(except)
         {

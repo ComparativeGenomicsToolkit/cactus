@@ -110,6 +110,9 @@ int main(int argc, char *argv[]) {
 
     stList *flowers = flowerWriter_parseFlowersFromStdin(cactusDisk);
     preCacheNestedFlowers(cactusDisk, flowers);
+    if(!bottomUpPhase) {
+        cactusDisk_preCacheStrings(cactusDisk, flowers);
+    }
 
     ///////////////////////////////////////////////////////////////////////////
     // Get the appropriate event names

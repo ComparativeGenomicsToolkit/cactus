@@ -87,4 +87,9 @@ Name cactusDisk_addString(CactusDisk *cactusDisk, const char *string);
 char *cactusDisk_getString(CactusDisk *cactusDisk, Name name,
         int32_t start, int32_t length, int32_t strand, int32_t totalSequenceLength);
 
+/*
+ * Gets the string from a cache.
+ */
+char *cactusDisk_getStringFromCache(CactusDisk *cactusDisk, Name name, int32_t start, int32_t length, int32_t strand);
+
 #endif

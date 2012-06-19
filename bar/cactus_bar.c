@@ -245,6 +245,7 @@ int main(int argc, char *argv[]) {
      * For each flower.
      */
     stList *flowers = flowerWriter_parseFlowersFromStdin(cactusDisk);
+    cactusDisk_preCacheStrings(cactusDisk, flowers);
     for (j = 0; j < stList_length(flowers); j++) {
         flower = stList_get(flowers, j);
         st_logInfo("Processing a flower\n");
