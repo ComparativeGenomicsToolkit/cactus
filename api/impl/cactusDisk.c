@@ -474,7 +474,7 @@ static bool containsRecord(CactusDisk *cactusDisk, Name objectName) {
 }
 
 static CactusDisk *cactusDisk_constructPrivate(stKVDatabaseConf *conf, bool create, const char *sequencesFileName) {
-    //sequencesFileName = NULL; //Disable the ability to store the sequences on disk.
+    sequencesFileName = NULL; //Disable the ability to store the sequences on disk.
     CactusDisk *cactusDisk = st_calloc(1, sizeof(CactusDisk));
 
     //construct lists of in memory objects
