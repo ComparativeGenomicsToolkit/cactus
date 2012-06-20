@@ -8,14 +8,15 @@
 #include <unistd.h>
 #include <math.h>
 
-/*
- * Functions on meta sequences.
- */
 
 #define CACTUS_DISK_NAME_INCREMENT 16384
 #define CACTUS_DISK_BUCKET_NUMBER 65536
 #define CACTUS_DISK_PARAMETER_KEY -100000
-#define CACTUS_DISK_SEQUENCE_CHUNK_SIZE 100
+#define CACTUS_DISK_SEQUENCE_CHUNK_SIZE 1000
+
+/*
+ * Functions on meta sequences.
+ */
 
 void cactusDisk_addMetaSequence(CactusDisk *cactusDisk, MetaSequence *metaSequence) {
     assert(stSortedSet_search(cactusDisk->metaSequences, metaSequence) == NULL);
@@ -30,8 +31,11 @@ void cactusDisk_removeMetaSequence(CactusDisk *cactusDisk, MetaSequence *metaSeq
 /*
  * Functions on strings stored by the flower disk.
  */
+
 Name cactusDisk_addString(CactusDisk *cactusDisk, const char *string) {
-    //bool done = 0;
+    /*
+     * Adds a string to the database.
+     */
     if (cactusDisk->storeSequencesInAFile) {
         if (cactusDisk->sequencesFileHandle != NULL) {
             fclose(cactusDisk->sequencesFileHandle);
@@ -68,7 +72,210 @@ Name cactusDisk_addString(CactusDisk *cactusDisk, const char *string) {
     }
 }
 
+/*
+ * Functions used to precache the sequences in the database for a given set of flowers.
+ */
+
+typedef struct _substring {
+    /*
+     * Struct used to represent a substring of a string to be retrieved from the database.
+     */
+    Name name;
+    int64_t start;
+    int64_t length;
+} Substring;
+
+/*
+ * Basic methods on substrings.
+ */
+
+static Substring *substring_construct(Name name, int64_t start, int64_t length) {
+    Substring *substring = st_malloc(sizeof(Substring));
+    substring->name = name;
+    substring->start = start;
+    substring->length = length;
+    return substring;
+}
+
+static Substring *substring_clone(Substring *substring) {
+    return substring_construct(substring->name, substring->start, substring->length);
+}
+
+static void substring_destruct(Substring *substring) {
+    free(substring);
+}
+
+static int substring_cmp(Substring *substring1, Substring *substring2) {
+    int i = cactusMisc_nameCompare(substring1->name, substring2->name);
+    if (i != 0) {
+        return i;
+    }
+    i = substring1->start < substring2->start ? -1 : (substring1->start > substring2->start ? 1 : 0);
+    if (i != 0) {
+        return i;
+    }
+    return substring1->length < substring2->length ? -1 : (substring1->length > substring2->length ? 1 : 0);
+}
+
+static stList *getSubstringsForFlowers(stList *flowers) {
+    /*
+     * Get the set of substrings for sequence intervals in the given set of flowers.
+     */
+    stList *substrings = stList_construct3(0, (void(*)(void *)) substring_destruct);
+    for (int32_t i = 0; i < stList_length(flowers); i++) {
+        Flower *flower = stList_get(flowers, i);
+        Flower_EndIterator *endIt = flower_getEndIterator(flower);
+        End *end;
+        while ((end = flower_getNextEnd(endIt)) != NULL) {
+            if (end_isStubEnd(end)) {
+                End_InstanceIterator *instanceIt = end_getInstanceIterator(end);
+                Cap *cap;
+                while ((cap = end_getNext(instanceIt)) != NULL) {
+                    Sequence *sequence;
+                    if ((sequence = cap_getSequence(cap)) != NULL) {
+                        cap = cap_getStrand(cap) ? cap : cap_getReverse(cap);
+                        if (!cap_getSide(cap)) { //We have a sequence interval of interest
+                            Cap *adjacentCap = cap_getAdjacency(cap);
+                            assert(adjacentCap != NULL);
+                            int64_t length = cap_getCoordinate(adjacentCap) - cap_getCoordinate(cap) - 1;
+                            assert(length >= 0);
+                            if (length > 0) {
+                                stList_append(substrings,
+                                        substring_construct(sequence_getMetaSequence(sequence)->stringName, cap_getCoordinate(cap) + 1 - sequence_getStart(sequence), length));
+                            }
+                        }
+                    }
+                }
+                end_destructInstanceIterator(instanceIt);
+            }
+        }
+        flower_destructEndIterator(endIt);
+    }
+    return substrings;
+}
+
+static stList *mergeSubstrings(stList *substrings, int64_t proximityToMerge) {
+    /*
+     * Merge set of substrings into fewer substrings, if they overlap by less than proximityToMerge
+     */
+    stList *mergedSubstrings = stList_construct3(0, (void(*)(void *)) substring_destruct);
+    if (stList_length(substrings) == 0) {
+        return mergedSubstrings;
+    }
+    stList_sort(substrings, (int(*)(const void *, const void *)) substring_cmp);
+    Substring *pSubsequence = substring_clone(stList_get(substrings, 0));
+    stList_append(mergedSubstrings, pSubsequence);
+    for (int32_t i = 1; i < stList_length(substrings); i++) {
+        Substring *substring = stList_get(substrings, i);
+        if (pSubsequence->name == substring->name && pSubsequence->start + pSubsequence->length + proximityToMerge
+                >= substring->start) { //Merge
+            if (pSubsequence->start + pSubsequence->length < substring->start + substring->length) {
+                pSubsequence->length = substring->start + substring->length - pSubsequence->start;
+            }
+        } else {
+            pSubsequence = substring_clone(substring);
+            stList_append(mergedSubstrings, pSubsequence);
+        }
+    }
+    return mergedSubstrings;
+}
+
+static void cacheSubstringsFromDB(CactusDisk *cactusDisk, stList *substrings) {
+    /*
+     * Caches the given set of substrings in the cactusDisk cache.
+     */
+    if (cactusDisk->storeSequencesInAFile) {
+        if (cactusDisk->sequencesFileHandle == NULL) {
+            cactusDisk->sequencesFileHandle = fopen(cactusDisk->absSequencesFileName, "r");
+            assert(cactusDisk->sequencesFileHandle != NULL);
+        }
+        for (int32_t i = 0; i < stList_length(substrings); i++) {
+            Substring *substring = stList_get(substrings, i);
+            fseek(cactusDisk->sequencesFileHandle, substring->name + substring->start, SEEK_SET);
+            char *string = st_malloc(sizeof(char) * (substring->length + 1));
+            fread(string, sizeof(char), substring->length, cactusDisk->sequencesFileHandle);
+#ifndef NDEBUG
+            for (int32_t j = 0; j < substring->length; j++) {
+                assert(string[j] != '>');
+            }
+#endif
+            stCache_setRecord(cactusDisk->stringCache, substring->name, substring->start, substring->length, string);
+            free(string);
+        }
+    } else {
+        stList *getRequests = stList_construct3(0, free);
+        for (int32_t i = 0; i < stList_length(substrings); i++) {
+            Substring *substring = stList_get(substrings, i);
+            int64_t intervalSize = (substring->length + substring->start - 1) / CACTUS_DISK_SEQUENCE_CHUNK_SIZE - substring->start
+                    / CACTUS_DISK_SEQUENCE_CHUNK_SIZE + 1;
+            Name shiftedName = substring->name + substring->start / CACTUS_DISK_SEQUENCE_CHUNK_SIZE;
+            for (int64_t j = 0; j < intervalSize; j++) {
+                int64_t *k = st_malloc(sizeof(int64_t));
+                k[0] = shiftedName + j;
+                stList_append(getRequests, k);
+            }
+        }
+        if(stList_length(getRequests) == 0) {
+            stList_destruct(getRequests);
+            return;
+        }
+        stList *records = NULL;
+        stTry {
+                records = stKVDatabase_bulkGetRecords(cactusDisk->database, getRequests);
+            }
+            stCatch(except)
+                {
+                    stThrowNewCause(except, ST_KV_DATABASE_EXCEPTION_ID,
+                            "An unknown database error occurred when getting a sequence string");
+                }stTryEnd;
+        assert(records != NULL);
+        assert(stList_length(records) == stList_length(getRequests));
+        stList_destruct(getRequests);
+        stListIterator *recordsIt = stList_getIterator(records);
+        for (int32_t i = 0; i < stList_length(substrings); i++) {
+            Substring *substring = stList_get(substrings, i);
+            int64_t intervalSize = (substring->length + substring->start - 1) / CACTUS_DISK_SEQUENCE_CHUNK_SIZE - substring->start
+                    / CACTUS_DISK_SEQUENCE_CHUNK_SIZE + 1;
+            stList *strings = stList_construct();
+            while (intervalSize-- > 0) {
+                int64_t recordSize;
+                stKVDatabaseBulkResult *result = stList_getNext(recordsIt);
+                assert(result != NULL);
+                char *string = stKVDatabaseBulkResult_getRecord(result, &recordSize);
+                assert(string != NULL);
+                assert(strlen(string) == recordSize-1);
+                stList_append(strings, string);
+                assert(recordSize <= CACTUS_DISK_SEQUENCE_CHUNK_SIZE + 1);
+            }
+            assert(stList_length(strings) > 0);
+            char *joinedString = stString_join2("", strings);
+            stCache_setRecord(cactusDisk->stringCache, substring->name, (substring->start / CACTUS_DISK_SEQUENCE_CHUNK_SIZE) * CACTUS_DISK_SEQUENCE_CHUNK_SIZE, strlen(joinedString), joinedString);
+            free(joinedString);
+            stList_destruct(strings);
+        }
+        assert(stList_getNext(recordsIt) == NULL);
+        stList_destructIterator(recordsIt);
+        stList_destruct(records);
+    }
+}
+
+void cactusDisk_preCacheStrings(CactusDisk *cactusDisk, stList *flowers) {
+    /*
+     * Precaches the sequences in the set of flowers, so that they are all in memory.
+     */
+    stList *substrings = getSubstringsForFlowers(flowers);
+    //Now do some simple merging to reduce granularity
+    stList *mergedSubstrings = mergeSubstrings(substrings, CACTUS_DISK_SEQUENCE_CHUNK_SIZE);
+    stList_destruct(substrings);
+    //Now cache the sequences
+    cacheSubstringsFromDB(cactusDisk, mergedSubstrings);
+    stList_destruct(mergedSubstrings);
+}
+
 char *cactusDisk_getStringFromCache(CactusDisk *cactusDisk, Name name, int32_t start, int32_t length, int32_t strand) {
+    /*
+     * Gets a sequence from the cache.
+     */
     char *string = NULL;
     if (stCache_containsRecord(cactusDisk->stringCache, name, start, sizeof(char) * length)) {
         int64_t recordSize;
@@ -88,258 +295,25 @@ char *cactusDisk_getStringFromCache(CactusDisk *cactusDisk, Name name, int32_t s
 }
 
 char *cactusDisk_getString(CactusDisk *cactusDisk, Name name, int32_t start, int32_t length, int32_t strand, int32_t totalSequenceLength) {
+    /*
+     * Gets a string from the database.
+     *
+     */
     assert(length >= 0);
     if (length == 0) {
         return stString_copy("");
     }
     //First try getting it from the cache
     char *string = cactusDisk_getStringFromCache(cactusDisk, name, start, length, strand);
-    if (string != NULL) {
-        return string;
+    if (string == NULL) { //If not in the cache, add it to the cache and then get it from the cache.
+        stList *list = stList_construct3(0, (void (*)(void *))substring_destruct);
+        stList_append(list, substring_construct(name, start, length));
+        cacheSubstringsFromDB(cactusDisk, list);
+        stList_destruct(list);
+        string = cactusDisk_getStringFromCache(cactusDisk, name, start, length, strand);
     }
-    if (cactusDisk->storeSequencesInAFile) {
-        if (cactusDisk->sequencesFileHandle == NULL) {
-            cactusDisk->sequencesFileHandle = fopen(cactusDisk->absSequencesFileName, "r");
-            assert(cactusDisk->sequencesFileHandle != NULL);
-        }
-        fseek(cactusDisk->sequencesFileHandle, name + start, SEEK_SET);
-        string = st_malloc(sizeof(char) * (length + 1));
-        fread(string, sizeof(char), length, cactusDisk->sequencesFileHandle);
-#ifndef NDEBUG
-        for (int32_t i = 0; i < length; i++) {
-            assert(string[i] != '>');
-        }
-#endif
-    } else {
-        stList *getRequests = stList_construct3(0, free);
-        stList *records = NULL;
-        int64_t intervalSize = (length + start - 1) / CACTUS_DISK_SEQUENCE_CHUNK_SIZE - start / CACTUS_DISK_SEQUENCE_CHUNK_SIZE + 1;
-        Name shiftedName = name + start / CACTUS_DISK_SEQUENCE_CHUNK_SIZE;
-        for (int64_t i = 0; i < intervalSize; i++) {
-            int64_t *k = st_malloc(sizeof(int64_t));
-            k[0] = shiftedName + i;
-            stList_append(getRequests, k);
-        }
-        stTry {
-                records = stKVDatabase_bulkGetRecords(cactusDisk->database, getRequests);
-            }
-            stCatch(except)
-                {
-                    stThrowNewCause(except, ST_KV_DATABASE_EXCEPTION_ID,
-                            "An unknown database error occurred when getting a sequence string");
-                }stTryEnd;
-        stList *strings = stList_construct();
-        for (int32_t i = 0; i < stList_length(records); i++) { //Convert the gets into strings
-            int64_t recordSize;
-            stList_append(strings, stKVDatabaseBulkResult_getRecord(stList_get(records, i), &recordSize));
-            assert(recordSize <= CACTUS_DISK_SEQUENCE_CHUNK_SIZE + 1);
-        }
-        //Now reconstruct the string by concatenation
-        //But first trim first and last strings, do last string first so trimming offsets work
-        if ((start + length) % CACTUS_DISK_SEQUENCE_CHUNK_SIZE != 0) {
-            char *lastString = stList_get(strings, stList_length(strings) - 1);
-            lastString[(start + length) % CACTUS_DISK_SEQUENCE_CHUNK_SIZE] = '\0';
-        }
-        assert(stList_length(strings) > 0);
-        if (start % CACTUS_DISK_SEQUENCE_CHUNK_SIZE != 0) {
-            char *firstString = stList_get(strings, 0);
-            stList_set(strings, 0, firstString + (start % CACTUS_DISK_SEQUENCE_CHUNK_SIZE));
-        }
-        string = stString_join2("", strings);
-        assert(strlen(string) == length);
-        stList_destruct(getRequests);
-        stList_destruct(records);
-        stList_destruct(strings);
-    }
-    stCache_setRecord(cactusDisk->stringCache, name, start, sizeof(char) * length, string);
-    string[length] = '\0';
-    if (!strand) {
-        char *string2 = cactusMisc_reverseComplementString(string);
-        free(string);
-        return string2;
-    }
+    assert(string != NULL);
     return string;
-}
-
-/*
- * Functions used to precache the sequences in the database for a given set of flowers.
- */
-
-typedef struct _subsequence {
-    Name name;
-    int64_t start;
-    int64_t length;
-} Subsequence;
-
-static Subsequence *subsequence_construct(Name name, int64_t start, int64_t length) {
-    Subsequence *subsequence = st_malloc(sizeof(Subsequence));
-    subsequence->name = name;
-    subsequence->start = start;
-    subsequence->length = length;
-    return subsequence;
-}
-
-static Subsequence *subsequence_clone(Subsequence *subsequence) {
-    return subsequence_construct(subsequence->name, subsequence->start, subsequence->length);
-}
-
-static void subsequence_destruct(Subsequence *subsequence) {
-    free(subsequence);
-}
-
-static int subsequence_cmp(Subsequence *subsequence1, Subsequence *subsequence2) {
-    int i = cactusMisc_nameCompare(subsequence1->name, subsequence2->name);
-    if (i != 0) {
-        return i;
-    }
-    i = subsequence1->start < subsequence2->start ? -1 : (subsequence1->start > subsequence2->start ? 1 : 0);
-    if (i != 0) {
-        return i;
-    }
-    return subsequence1->length < subsequence2->length ? -1 : (subsequence1->length > subsequence2->length ? 1 : 0);
-}
-
-static stList *getSubsequencesForFlowers(stList *flowers) {
-    stList *subsequences = stList_construct3(0, (void(*)(void *)) subsequence_destruct);
-    for (int32_t i = 0; i < stList_length(flowers); i++) {
-        Flower *flower = stList_get(flowers, i);
-        Flower_EndIterator *endIt = flower_getEndIterator(flower);
-        End *end;
-        while ((end = flower_getNextEnd(endIt)) != NULL) {
-            if (end_isStubEnd(end)) {
-                End_InstanceIterator *instanceIt = end_getInstanceIterator(end);
-                Cap *cap;
-                while ((cap = end_getNext(instanceIt)) != NULL) {
-                    Sequence *sequence;
-                    if ((sequence = cap_getSequence(cap)) != NULL) {
-                        cap = cap_getStrand(cap) ? cap : cap_getReverse(cap);
-                        if (!cap_getSide(cap)) { //We have a sequence interval of interest
-                            Cap *adjacentCap = cap_getAdjacency(cap);
-                            assert(adjacentCap != NULL);
-                            int64_t length = cap_getCoordinate(adjacentCap) - cap_getCoordinate(cap) - 1;
-                            assert(length >= 0);
-                            if (length > 0) {
-                                stList_append(subsequences,
-                                        subsequence_construct(sequence_getMetaSequence(sequence)->stringName, cap_getCoordinate(cap) + 1 - sequence_getStart(sequence), length));
-                            }
-                        }
-                    }
-                }
-                end_destructInstanceIterator(instanceIt);
-            }
-        }
-        flower_destructEndIterator(endIt);
-    }
-    return subsequences;
-}
-
-static stList *mergeSubsequences(stList *subsequences) {
-    stList *mergedSubsequences = stList_construct3(0, (void(*)(void *)) subsequence_destruct);
-    if (stList_length(subsequences) == 0) {
-        return mergedSubsequences;
-    }
-    stList_sort(subsequences, (int(*)(const void *, const void *)) subsequence_cmp);
-    Subsequence *pSubsequence = subsequence_clone(stList_get(subsequences, 0));
-    stList_append(mergedSubsequences, pSubsequence);
-    for (int32_t i = 1; i < stList_length(subsequences); i++) {
-        Subsequence *subsequence = stList_get(subsequences, i);
-        if (pSubsequence->name == subsequence->name && pSubsequence->start + pSubsequence->length + CACTUS_DISK_SEQUENCE_CHUNK_SIZE
-                >= subsequence->start) { //Merge
-            if (pSubsequence->start + pSubsequence->length < subsequence->start + subsequence->length) {
-                pSubsequence->length = subsequence->start + subsequence->length - pSubsequence->start;
-            }
-        } else {
-            pSubsequence = subsequence_clone(subsequence);
-            stList_append(mergedSubsequences, pSubsequence);
-        }
-    }
-    return mergedSubsequences;
-}
-
-static void cacheSubsequencesFromDB(CactusDisk *cactusDisk, stList *subsequences) {
-    if (cactusDisk->storeSequencesInAFile) {
-        if (cactusDisk->sequencesFileHandle == NULL) {
-            cactusDisk->sequencesFileHandle = fopen(cactusDisk->absSequencesFileName, "r");
-            assert(cactusDisk->sequencesFileHandle != NULL);
-        }
-        for (int32_t i = 0; i < stList_length(subsequences); i++) {
-            Subsequence *subsequence = stList_get(subsequences, i);
-            fseek(cactusDisk->sequencesFileHandle, subsequence->name + subsequence->start, SEEK_SET);
-            char *string = st_malloc(sizeof(char) * (subsequence->length + 1));
-            fread(string, sizeof(char), subsequence->length, cactusDisk->sequencesFileHandle);
-#ifndef NDEBUG
-            for (int32_t j = 0; j < subsequence->length; j++) {
-                assert(string[j] != '>');
-            }
-#endif
-            stCache_setRecord(cactusDisk->stringCache, subsequence->name, subsequence->start, subsequence->length, string);
-            free(string);
-        }
-    } else {
-        stList *getRequests = stList_construct3(0, free);
-        stList *records = NULL;
-        for (int32_t i = 0; i < stList_length(subsequences); i++) {
-            Subsequence *subsequence = stList_get(subsequences, i);
-            int64_t intervalSize = (subsequence->length + subsequence->start - 1) / CACTUS_DISK_SEQUENCE_CHUNK_SIZE - subsequence->start
-                    / CACTUS_DISK_SEQUENCE_CHUNK_SIZE + 1;
-            Name shiftedName = subsequence->name + subsequence->start / CACTUS_DISK_SEQUENCE_CHUNK_SIZE;
-            for (int64_t j = 0; j < intervalSize; j++) {
-                int64_t *k = st_malloc(sizeof(int64_t));
-                k[0] = shiftedName + j;
-                stList_append(getRequests, k);
-            }
-        }
-        if(stList_length(getRequests) == 0) {
-            stList_destruct(getRequests);
-            return;
-        }
-        stTry {
-                records = stKVDatabase_bulkGetRecords(cactusDisk->database, getRequests);
-            }
-            stCatch(except)
-                {
-                    stThrowNewCause(except, ST_KV_DATABASE_EXCEPTION_ID,
-                            "An unknown database error occurred when getting a sequence string");
-                }stTryEnd;
-        assert(records != NULL);
-        assert(stList_length(records) == stList_length(getRequests));
-        stList_destruct(getRequests);
-        stListIterator *recordsIt = stList_getIterator(records);
-        for (int32_t i = 0; i < stList_length(subsequences); i++) {
-            Subsequence *subsequence = stList_get(subsequences, i);
-            int64_t intervalSize = (subsequence->length + subsequence->start - 1) / CACTUS_DISK_SEQUENCE_CHUNK_SIZE - subsequence->start
-                    / CACTUS_DISK_SEQUENCE_CHUNK_SIZE + 1;
-            stList *strings = stList_construct();
-            while (intervalSize-- > 0) {
-                int64_t recordSize;
-                stKVDatabaseBulkResult *result = stList_getNext(recordsIt);
-                assert(result != NULL);
-                char *string = stKVDatabaseBulkResult_getRecord(result, &recordSize);
-                assert(string != NULL);
-                assert(strlen(string) == recordSize-1);
-                stList_append(strings, string);
-                assert(recordSize <= CACTUS_DISK_SEQUENCE_CHUNK_SIZE + 1);
-            }
-            assert(stList_length(strings) > 0);
-            char *joinedString = stString_join2("", strings);
-            stCache_setRecord(cactusDisk->stringCache, subsequence->name, (subsequence->start / CACTUS_DISK_SEQUENCE_CHUNK_SIZE) * CACTUS_DISK_SEQUENCE_CHUNK_SIZE, strlen(joinedString), joinedString);
-            free(joinedString);
-            stList_destruct(strings);
-        }
-        assert(stList_getNext(recordsIt) == NULL);
-        stList_destructIterator(recordsIt);
-        stList_destruct(records);
-    }
-}
-
-void cactusDisk_preCacheStrings(CactusDisk *cactusDisk, stList *flowers) {
-    stList *subsequences = getSubsequencesForFlowers(flowers);
-    //Now do some simple merging to reduce granularity
-    stList *mergedSubsequences = mergeSubsequences(subsequences);
-    stList_destruct(subsequences);
-    //Now cache the sequences
-    cacheSubsequencesFromDB(cactusDisk, mergedSubsequences);
-    stList_destruct(mergedSubsequences);
 }
 
 ////////////////////////////////////////////////
@@ -479,7 +453,7 @@ static bool containsRecord(CactusDisk *cactusDisk, Name objectName) {
 }
 
 static CactusDisk *cactusDisk_constructPrivate(stKVDatabaseConf *conf, bool create, const char *sequencesFileName) {
-    sequencesFileName = NULL; //Disable the ability to store the sequences on disk.
+    //sequencesFileName = NULL; //Disable the ability to store the sequences on disk.
     CactusDisk *cactusDisk = st_calloc(1, sizeof(CactusDisk));
 
     //construct lists of in memory objects

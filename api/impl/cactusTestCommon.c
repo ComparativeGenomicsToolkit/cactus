@@ -36,6 +36,7 @@ CactusDisk *testCommon_getTemporaryCactusDisk() {
         cactusDisk = cactusDisk_construct2(conf,
                 "cactusSequences");
     }
+    stKVDatabaseConf_destruct(conf);
     return cactusDisk;
 }
 

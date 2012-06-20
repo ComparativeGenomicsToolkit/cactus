@@ -51,12 +51,17 @@ int cactusAPIRunAllTests(void) {
 	CuSuiteSummary(suite, output);
 	CuSuiteDetails(suite, output);
 	printf("%s\n", output->buffer);
-	return suite->failCount > 0;
+	int i= suite->failCount > 0;
+	CuSuiteDelete(suite);
+	CuStringDelete(output);
+	return i;
 }
 
 int main(int argc, char *argv[]) {
     if(argc == 2) {
             st_setLogLevelFromString(argv[1]);
         }
-	return cactusAPIRunAllTests();
+	int i = cactusAPIRunAllTests();
+	//while(1);
+	return i;
 }

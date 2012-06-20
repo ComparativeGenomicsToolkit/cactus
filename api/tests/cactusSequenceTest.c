@@ -93,7 +93,7 @@ void testSequence_getString(CuTest* testCase) {
 }
 
 static char *getRandomDNASequence() {
-    int32_t stringLength = st_randomInt(0, 1000);
+    int32_t stringLength = st_randomInt(0, 100000);
     char *string = st_malloc(sizeof(char) * (stringLength + 1));
     string[stringLength] = '\0';
     for (int32_t j = 0; j < stringLength; j++) {
@@ -109,11 +109,11 @@ void testSequence_addAndGetBigStringsP(CuTest* testCase, bool preCacheSequences)
         //Create a bunch of sequences
         stList *strings = stList_construct3(0, free);
         stList *sequences = stList_construct();
-        int32_t coordinateState = st_randomInt(0, 100);
+        int32_t coordinateStart = st_randomInt(0, 100);
         do {
             char *string = getRandomDNASequence();
             stList_append(strings, string);
-            metaSequence = metaSequence_construct(coordinateState, strlen(string), string,
+            metaSequence = metaSequence_construct(coordinateStart, strlen(string), string,
                                                "Hello I am header", event_getName(event), cactusDisk);
             stList_append(sequences, sequence_construct(metaSequence, flower));
         } while(st_random() > 0.5);
@@ -132,19 +132,28 @@ void testSequence_addAndGetBigStringsP(CuTest* testCase, bool preCacheSequences)
             cactusDisk_preCacheStrings(cactusDisk, flowerList);
             stList_destruct(flowerList);
         }
-
         //Do different requests for portions of the strings
         while(st_random() > 0.01) {
             int32_t j = st_randomInt(0, stList_length(strings));
             Sequence *sequence = stList_get(sequences, j);
+            if(sequence_getLength(sequence) == 0) {
+                continue;
+            }
             char *string = stList_get(strings, j);
+            CuAssertIntEquals(testCase, strlen(string), sequence_getLength(sequence));
             //Choose a random interval to request
             int64_t start = st_randomInt(0, strlen(string));
             int64_t length = st_randomInt(0, strlen(string)-start);
+            CuAssertTrue(testCase, start >= 0);
+            CuAssertTrue(testCase, start + length <= strlen(string));
             char *subString = stString_getSubString(string, start, length);
+            CuAssertIntEquals(testCase, length, strlen(subString));
             bool strand = st_random() > 0.5;
             if(!strand) {
-                subString = cactusMisc_reverseComplementString(subString);
+                char *subString2 = cactusMisc_reverseComplementString(subString);
+                CuAssertIntEquals(testCase, strlen(subString2), strlen(subString));
+                free(subString);
+                subString = subString2;
             }
             char *subSequence = NULL;
             if(preCacheSequences) {
@@ -152,8 +161,9 @@ void testSequence_addAndGetBigStringsP(CuTest* testCase, bool preCacheSequences)
                         start, length, strand);
             }
             else {
-                subSequence = sequence_getString(sequence, coordinateState + start, length, strand);
+                subSequence = sequence_getString(sequence, coordinateStart + start, length, strand);
             }
+            assert(subSequence != NULL);
             CuAssertStrEquals(testCase, subString, subSequence);
             free(subString);
             free(subSequence);
