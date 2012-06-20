@@ -309,17 +309,22 @@ static void cacheSubsequencesFromDB(CactusDisk *cactusDisk, stList *subsequences
             Subsequence *subsequence = stList_get(subsequences, i);
             int64_t intervalSize = (subsequence->length + subsequence->start - 1) / CACTUS_DISK_SEQUENCE_CHUNK_SIZE - subsequence->start
                     / CACTUS_DISK_SEQUENCE_CHUNK_SIZE + 1;
-            int64_t j = (subsequence->start / CACTUS_DISK_SEQUENCE_CHUNK_SIZE) * CACTUS_DISK_SEQUENCE_CHUNK_SIZE;
+            stList *strings = stList_construct();
             while (intervalSize-- > 0) {
                 int64_t recordSize;
                 stKVDatabaseBulkResult *result = stList_getNext(recordsIt);
                 assert(result != NULL);
                 char *string = stKVDatabaseBulkResult_getRecord(result, &recordSize);
                 assert(string != NULL);
+                assert(strlen(string) == recordSize-1);
+                stList_append(strings, string);
                 assert(recordSize <= CACTUS_DISK_SEQUENCE_CHUNK_SIZE + 1);
-                stCache_setRecord(cactusDisk->stringCache, subsequence->name, j, strlen(string), string);
-                j += CACTUS_DISK_SEQUENCE_CHUNK_SIZE;
             }
+            assert(stList_length(strings) > 0);
+            char *joinedString = stString_join2("", strings);
+            stCache_setRecord(cactusDisk->stringCache, subsequence->name, (subsequence->start / CACTUS_DISK_SEQUENCE_CHUNK_SIZE) * CACTUS_DISK_SEQUENCE_CHUNK_SIZE, strlen(joinedString), joinedString);
+            free(joinedString);
+            stList_destruct(strings);
         }
         assert(stList_getNext(recordsIt) == NULL);
         stList_destructIterator(recordsIt);
