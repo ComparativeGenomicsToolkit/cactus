@@ -10,16 +10,16 @@
 #include "sonLib.h"
 #include "cactus.h"
 #include "CuTest.h"
-#include "recursiveFileBuilder.h"
+#include "recursiveThreadBuilder.h"
 
-static void writeSegment(FILE *fileHandle, Segment *segment) {
-    fprintf(fileHandle, "%i %s ", segment_getStart(segment), segment_getString(segment));
+static char *writeSegment(Segment *segment) {
+    return stString_print("%i %s ", segment_getStart(segment), segment_getString(segment));
 }
 
-static void writeTerminalAdjacency(FILE *fileHandle, Cap *cap) {
+static char *writeTerminalAdjacency(Cap *cap) {
     Sequence *sequence = cap_getSequence(cap);
     assert(sequence != NULL);
-    fprintf(fileHandle, "%i %s ", cap_getCoordinate(cap), sequence_getString(sequence, cap_getCoordinate(cap)+1, cap_getCoordinate(cap_getAdjacency(cap)) - cap_getCoordinate(cap) - 1, 1));
+    return stString_print("%i %s ", cap_getCoordinate(cap), sequence_getString(sequence, cap_getCoordinate(cap)+1, cap_getCoordinate(cap_getAdjacency(cap)) - cap_getCoordinate(cap) - 1, 1));
 }
 
 static void recursiveFileBuilder_test(CuTest *testCase) {
@@ -64,34 +64,30 @@ static void recursiveFileBuilder_test(CuTest *testCase) {
     cap_makeAdjacent(flower_getCap(nestedFlower, cap_getName(cap1)), segment_get5Cap(segment1));
     cap_makeAdjacent(segment_get3Cap(segment1), flower_getCap(nestedFlower, cap_getName(cap2)));
 
-    //Create the lower level recursive file
-    const char *lowLevelDir = stFile_pathJoin(tempDir, "tempDirForRecursiveFileBuilder");
-    stFile_mkdir(lowLevelDir);
-    const char *lowLevelFile = stFile_pathJoin(lowLevelDir, "childFile");
-    FILE *lowLevelFileHandle = fopen(lowLevelFile, "w");
-    RecursiveFileBuilder *recursiveFileBuilder = recursiveFileBuilder_construct(NULL, lowLevelFileHandle, 1);
-    recursiveFileBuilder_writeThread(recursiveFileBuilder, flower_getCap(nestedFlower, cap_getName(cap1)), writeSegment, writeTerminalAdjacency);
-    recursiveFileBuilder_destruct(recursiveFileBuilder);
-    fclose(lowLevelFileHandle);
+    //Create the sequence database
+    stKVDatabaseConf *secondaryConf = stKVDatabaseConf_constructTokyoCabinet(
+                    stFile_pathJoin(tempDir, "temporaryCactusDisk2"));
+    stKVDatabase *secondaryDatabase = stKVDatabase_construct(secondaryConf, 1);
+    stList *caps = stList_construct();
+    stList_append(caps, flower_getCap(nestedFlower, cap_getName(cap1)));
+    buildRecursiveThreads(secondaryDatabase, caps, writeSegment, writeTerminalAdjacency);
+    stKVDatabase_destruct(secondaryDatabase);
 
     //Now complete the alignment
-    const char *highLevelFile = stFile_pathJoin(tempDir, "recursiveFileBuilderParentFile.txt");
-    FILE *highLevelFileHandle = fopen(highLevelFile, "w");
-    recursiveFileBuilder = recursiveFileBuilder_construct(lowLevelDir, highLevelFileHandle, 0);
-    recursiveFileBuilder_writeThread(recursiveFileBuilder, cap1, writeSegment, writeTerminalAdjacency);
-    recursiveFileBuilder_destruct(recursiveFileBuilder);
-    fclose(highLevelFileHandle);
+    secondaryDatabase = stKVDatabase_construct(secondaryConf, 0);
+    stList_pop(caps);
+    stList_append(caps, cap1);
+    stList *threadStrings = buildRecursiveThreadsInList(secondaryDatabase, caps, writeSegment, writeTerminalAdjacency);
+    stKVDatabase_deleteFromDisk(secondaryDatabase);
 
-    highLevelFileHandle = fopen(highLevelFile, "r");
-    CuAssertStrEquals(testCase, "1 ACG 3 TA ", stFile_getLineFromFile(highLevelFileHandle));
-    CuAssertTrue(testCase, stFile_getLineFromFile(highLevelFileHandle) == NULL);
-    fclose(highLevelFileHandle);
+    CuAssertIntEquals(testCase, 1, stList_length(threadStrings));
+    CuAssertStrEquals(testCase, "1 ACG 3 TA ", stList_get(threadStrings, 0));
 
     cactusDisk_destruct(cactusDisk);
     stFile_rmrf(tempDir);
 }
 
-CuSuite* recursiveFileBuilderTestSuite(void) {
+CuSuite* recursiveThreadBuilderTestSuite(void) {
     CuSuite* suite = CuSuiteNew();
     SUITE_ADD_TEST(suite, recursiveFileBuilder_test);
     return suite;

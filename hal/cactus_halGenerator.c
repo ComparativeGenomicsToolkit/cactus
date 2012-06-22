@@ -166,7 +166,7 @@ int main(int argc, char *argv[]) {
         fileHandle = fopen(outputFile, "w");
     }
     if(buildMaf) {
-        makeMafFormat(flowers, sequenceDatabase, referenceEventName, fileHandle);
+        makeMafFormat(flowers, sequenceDatabase, referenceEventName, fileHandle, showOnlySubstitutionsWithRespectToReference);
     }
     else {
         makeHalFormat(flowers, sequenceDatabase, referenceEventName, fileHandle);

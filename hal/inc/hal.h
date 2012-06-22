@@ -11,9 +11,8 @@
 #include "sonLib.h"
 #include "cactus.h"
 
-void makeMaf(Flower *flower, RecursiveFileBuilder *recursiveFileBuilder,
-        Event *referenceEvent, FILE *parentFileHandle,
-        bool showOnlySubstitutionsWithRespectToReference, bool hasParent);
+void makeMafFormat(stList *flowers, stKVDatabase *database, Name referenceEventName,
+        FILE *fileHandle, bool showOnlySubstitutionsWithRespectToReference);
 
 void makeHalFormat(stList *flowers, stKVDatabase *database, Name referenceEventName,
         FILE *fileHandle);

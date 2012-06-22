@@ -6,7 +6,7 @@
 
 #include "recursiveThreadBuilder.h"
 
-static void writeMafHeaderLine(FILE *fileHandle, Block *block) {
+static char *writeMafHeaderLine(Block *block) {
     /*
      * Write the header for a MAF file.
      */
@@ -14,12 +14,13 @@ static void writeMafHeaderLine(FILE *fileHandle, Block *block) {
         /* Get newick tree string with internal labels and no unary events */
         char *newickTreeString = block_makeNewickString(block, 1, 0);
         assert(newickTreeString != NULL);
-        fprintf(fileHandle, "a score=%i tree='%s'\n",
+        char *string = stString_print("a score=%i tree='%s'\n",
                 block_getLength(block) * block_getInstanceNumber(block),
                 newickTreeString);
         free(newickTreeString);
+        return string;
     } else {
-        fprintf(fileHandle, "a score=%i\n",
+        return stString_print("a score=%i\n",
                 block_getLength(block) * block_getInstanceNumber(block));
     }
 }
@@ -38,7 +39,7 @@ static char *formatSequenceHeader(Sequence *sequence) {
     }
 }
 
-static void writeMafSequenceLine2(FILE *fileHandle, Segment *segment,
+static char *writeMafSequenceLine2(Segment *segment,
         char *segmentString) {
     Sequence *sequence = segment_getSequence(segment);
     assert(sequence != NULL);
@@ -54,22 +55,23 @@ static void writeMafSequenceLine2(FILE *fileHandle, Segment *segment,
     int32_t length = segment_getLength(segment);
     char *strand = segment_getStrand(segment) ? "+" : "-";
     int32_t sequenceLength = sequence_getLength(sequence);
-    fprintf(fileHandle, "s\t%s\t%i\t%i\t%s\t%i\t%s\n", sequenceHeader, start,
+    char *string = stString_print("s\t%s\t%i\t%i\t%s\t%i\t%s\n", sequenceHeader, start,
             length, strand, sequenceLength, segmentString);
     free(sequenceHeader);
+    return string;
 }
 
-static void writeMafSequenceLine(FILE *fileHandle, Segment *segment) {
+static char *writeMafSequenceLine(Segment *segment) {
     /*
      * Write a maf sequence line for the given segment.
      */
     char *segmentString = segment_getString(segment);
-    writeMafSequenceLine2(fileHandle, segment, segmentString);
+    char *string = writeMafSequenceLine2(segment, segmentString);
     free(segmentString);
+    return string;
 }
 
-static void writeMafSequenceLineShowingOnlyReferenceSubstitutions(
-        FILE *fileHandle, Segment *segment, const char *referenceString) {
+static char *writeMafSequenceLineShowingOnlyReferenceSubstitutions(Segment *segment, const char *referenceString) {
     /*
      * Write a maf sequence line for the given segment, but showing only differences from reference sequence.
      */
@@ -79,35 +81,44 @@ static void writeMafSequenceLineShowingOnlyReferenceSubstitutions(
             segmentString[i] = '*';
         }
     }
-    writeMafSequenceLine2(fileHandle, segment, segmentString);
+    char *string = writeMafSequenceLine2(segment, segmentString);
     free(segmentString);
+    return string;
 }
 
 static bool writeMafBlock_showOnlySubstitutionsWithRespectToReference = 0;
 
-static void writeMafBlock(FILE *fileHandle, Segment *referenceSegment) {
+static char *writeMafBlock(Segment *referenceSegment) {
     /*
      * Writes a maf block.
      */
     Block *block = segment_getBlock(referenceSegment);
-    writeMafHeaderLine(fileHandle, block);
-    writeMafSequenceLine(fileHandle, referenceSegment);
+    stList *strings = stList_construct3(0, free);
+    stList_append(strings, writeMafHeaderLine(block));
+    stList_append(strings, writeMafSequenceLine(referenceSegment));
     char *referenceString = segment_getString(referenceSegment);
     Block_InstanceIterator *iterator = block_getInstanceIterator(block);
     Segment *segment;
     while ((segment = block_getNext(iterator)) != NULL) {
         if (segment != referenceSegment && segment_getSequence(segment) != NULL) {
             if (writeMafBlock_showOnlySubstitutionsWithRespectToReference) {
-                writeMafSequenceLineShowingOnlyReferenceSubstitutions(
-                        fileHandle, segment, referenceString);
+                stList_append(strings, writeMafSequenceLineShowingOnlyReferenceSubstitutions(
+                        segment, referenceString));
             } else {
-                writeMafSequenceLine(fileHandle, segment);
+                stList_append(strings, writeMafSequenceLine(segment));
             }
         }
     }
-    fprintf(fileHandle, "\n");
+    stList_append(strings, stString_print("\n"));
     block_destructInstanceIterator(iterator);
     free(referenceString);
+    char *string = stString_join2("", strings);
+    stList_destruct(strings);
+    return string;
+}
+
+char *writeTerminalAdjacency(Cap *cap) {
+    return stString_copy("");
 }
 
 void makeMAFHeader(Flower *flower, FILE *fileHandle) {
@@ -117,33 +128,45 @@ void makeMAFHeader(Flower *flower, FILE *fileHandle) {
     free(cA);
 }
 
-void makeMaf(Flower *flower, RecursiveFileBuilder *recursiveFileBuilder, Event *referenceEvent,
-        FILE *parentFileHandle,
-        bool showOnlySubstitutionsWithRespectToReference, bool hasParent) {
-    /*
-     * Makes mafs for the given flower. If outputFile != NULL then it makes a single maf
-     * in the given file, else it writes a maf for each adjacency in the parent directory.
-     * Child mafs are located in the child directory and added into the maf file as they are
-     * needed.
-     */
-    //Cheeky global variable
-    writeMafBlock_showOnlySubstitutionsWithRespectToReference
-            = showOnlySubstitutionsWithRespectToReference;
-    End *end;
-    Flower_EndIterator *endIt = flower_getEndIterator(flower);
-    if(!hasParent) {
-        makeMAFHeader(flower, parentFileHandle);
-    }
-    while ((end = flower_getNextEnd(endIt)) != NULL) {
-        if (end_isStubEnd(end) && end_isAttached(end)) {
-            Cap *cap = end_getCapForEvent(end, event_getName(referenceEvent));
-            assert(cap != NULL);
-            assert(cap_getSequence(cap) != NULL);
-            cap = cap_getStrand(cap) ? cap : cap_getReverse(cap);
-            if (!cap_getSide(cap)) {
-                recursiveFileBuilder_writeThread(recursiveFileBuilder, cap, writeMafBlock, NULL);
+stList *getCaps(stList *flowers, Name referenceEventName) {
+    stList *caps = stList_construct();
+    for(int32_t i=0; i<stList_length(flowers); i++) {
+        Flower *flower = stList_get(flowers, i);
+        End *end;
+        Flower_EndIterator *endIt = flower_getEndIterator(flower);
+        while ((end = flower_getNextEnd(endIt)) != NULL) {
+            if (end_isStubEnd(end) && end_isAttached(end)) {
+                Cap *cap = end_getCapForEvent(end, referenceEventName);
+                assert(cap != NULL);
+                assert(cap_getSequence(cap) != NULL);
+                cap = cap_getStrand(cap) ? cap : cap_getReverse(cap);
+                if (!cap_getSide(cap)) {
+                    stList_append(caps, cap);
+                }
             }
         }
+        flower_destructEndIterator(endIt);
     }
-    flower_destructEndIterator(endIt);
+    return caps;
+}
+
+void makeMafFormat(stList *flowers, stKVDatabase *database, Name referenceEventName,
+        FILE *fileHandle, bool showOnlySubstitutionsWithRespectToReference) {
+    writeMafBlock_showOnlySubstitutionsWithRespectToReference
+                = showOnlySubstitutionsWithRespectToReference;
+    stList *caps = getCaps(caps, referenceEventName);
+    if(fileHandle == NULL) {
+        buildRecursiveThreads(database, caps, writeMafBlock, writeTerminalAdjacency);
+    }
+    else {
+        makeMAFHeader(stList_get(flowers, 0), fileHandle);
+        stList *threadStrings = buildRecursiveThreadsInList(database, caps, writeMafBlock, writeTerminalAdjacency);
+        assert(stList_length(threadStrings) == stList_length(caps));
+        for(int32_t i=0; i<stList_length(threadStrings); i++) {
+            char *threadString = stList_get(threadStrings, i);
+            fprintf(fileHandle, "%s\n", threadString);
+        }
+        stList_destruct(threadStrings);
+    }
+    stList_destruct(caps);
 }

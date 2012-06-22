@@ -47,6 +47,7 @@ from cactus.shared.common import runCactusAddReferenceCoordinates
 from cactus.shared.common import runCactusCheck
 from cactus.shared.common import runCactusHalGenerator
 from cactus.shared.common import runCactusFlowerStats
+from cactus.shared.common import runCactusSecondaryDatabase
 
 from cactus.blastAlignment.cactus_aligner import MakeSequences
 from cactus.blastAlignment.cactus_batch import MakeBlastOptions
@@ -150,6 +151,16 @@ class CactusPhasesTarget(CactusTarget):
     
     def getPhaseNumber(self):
         return len(self.cactusWorkflowArguments.configNode.findall(self.phaseNode.tag))
+    
+    def setupSecondaryDatabase(self):
+        """Setup the secondary database
+        """
+        runCactusSecondaryDatabase(self.cactusWorkflowArguments.secondaryDatabaseString, create=True)
+    
+    def cleanupSecondaryDatabase(self):
+        """Cleanup the secondary database
+        """
+        runCactusSecondaryDatabase(self.cactusWorkflowArguments.secondaryDatabaseString, create=False)
 
 class CactusRecursionTarget(CactusTarget):
     """Base recursive target for traversals up and down the cactus tree.
@@ -517,6 +528,7 @@ class CactusReferencePhase(CactusPhasesTarget):
     def run(self):
         """Runs the reference problem algorithm
         """
+        self.setupSecondaryDatabase()
         self.runPhase(CactusReferenceRecursion, CactusSetReferenceCoordinatesDownPhase, "reference", 
                       doRecursion=self.getOptionalPhaseAttrib("buildReference", bool, False))
         
@@ -556,6 +568,7 @@ class CactusSetReferenceCoordinatesUpWrapper(CactusRecursionTarget):
     """ 
     def run(self):
         runCactusAddReferenceCoordinates(cactusDiskDatabaseString=self.cactusDiskDatabaseString, 
+                                         secondaryDatabaseString=self.secondaryDatabaseString,
                                          flowerNames=self.flowerNames,
                                          referenceEventString=self.getOptionalPhaseAttrib("reference"), 
                                          outgroupEventString=self.getOptionalPhaseAttrib("outgroup"), 
@@ -565,6 +578,7 @@ class CactusSetReferenceCoordinatesDownPhase(CactusPhasesTarget):
     """This is the second part of the reference coordinate setting, the down pass.
     """
     def run(self):
+        self.cleanupSecondaryDatabase()
         self.runPhase(CactusSetReferenceCoordinatesDownRecursion, CactusCheckPhase, "check", doRecursion=self.getOptionalPhaseAttrib("buildReference", bool, False))
         
 class CactusSetReferenceCoordinatesDownRecursion(CactusRecursionTarget):
@@ -582,7 +596,8 @@ class CactusSetReferenceCoordinatesDownWrapper(CactusRecursionTarget):
     """Does the down pass for filling Fills in the coordinates, once a reference is added.
     """        
     def run(self):
-        runCactusAddReferenceCoordinates(cactusDiskDatabaseString=self.cactusDiskDatabaseString, flowerNames=self.flowerNames,
+        runCactusAddReferenceCoordinates(cactusDiskDatabaseString=self.cactusDiskDatabaseString, 
+                                         flowerNames=self.flowerNames,
                                          referenceEventString=self.getOptionalPhaseAttrib("reference"),
                                          outgroupEventString=self.getOptionalPhaseAttrib("outgroup"), 
                                          bottomUpPhase=False)
@@ -628,18 +643,20 @@ class CactusHalGeneratorPhase(CactusPhasesTarget):
     def run(self):
         self.logToMaster("Starting the hal generation phase at %s seconds" % time.time())
         if self.getOptionalPhaseAttrib("buildHal", bool, default=False):
+            self.setupSecondaryDatabase()
             referenceNode = findRequiredNode(self.cactusWorkflowArguments.configNode, "reference")
             if referenceNode.attrib.has_key("reference"):
                 self.phaseNode.attrib["reference"] = referenceNode.attrib["reference"]
             self.phaseNode.attrib["outputFile"]=self.cactusWorkflowArguments.experimentNode.find("hal").attrib["path"]
             self.makeRecursiveChildTarget(CactusHalGeneratorRecursion)
+            makeFollowOnPhaseTarget(CactusHalGeneratorPhaseCleanup, "hal")
+            
 
 class CactusHalGeneratorRecursion(CactusRecursionTarget):
     """Generate the hal file by merging indexed hal files from the children.
     """ 
     def run(self):
         i = extractNode(self.phaseNode)
-        i.attrib["parentDir"] = self.getGlobalTempDir()
         if "outputFile" in i.attrib:
             i.attrib.pop("outputFile")
         self.makeRecursiveTargets(phaseNode=i)
@@ -650,14 +667,19 @@ class CactusHalGeneratorUpWrapper(CactusRecursionTarget):
     """ 
     def run(self):
         runCactusHalGenerator(cactusDiskDatabaseString=self.cactusDiskDatabaseString, 
+                              secondaryDatabaseString=self.secondaryDatabaseString,
                               flowerNames=self.flowerNames,
                               referenceEventString=self.getOptionalPhaseAttrib("reference"), #self.configNode.attrib["reference"], #self.getOptionalPhaseAttrib("reference"), 
-                              childDir=self.getGlobalTempDir(), 
-                              parentDir=self.getOptionalPhaseAttrib("parentDir"),
                               outputFile=self.getOptionalPhaseAttrib("outputFile"),
                               showOnlySubstitutionsWithRespectToReference=\
                               self.getOptionalPhaseAttrib("showOnlySubstitutionsWithRespectToReference", bool),
                               makeMaf=self.getOptionalPhaseAttrib("makeMaf", bool))
+
+class CactusHalGeneratorPhaseCleanup(CactusPhasesTarget):
+    """Cleanup the database used to build the hal
+    """
+    def run(self):
+        self.cleanupSecondaryDatabase()
 
 ############################################################
 ############################################################
@@ -682,6 +704,8 @@ class CactusWorkflowArguments:
         self.outgroupEventNames = getOptionalAttrib(self.experimentNode, "outgroup_events")
         #Constraints
         self.constraintsFile = getOptionalAttrib(self.experimentNode, "constraints")
+        #Secondary, scratch DB
+        self.secondaryDatabaseString = '<st_kv_database_conf type="tokyo_cabinet"><tokyo_cabinet database_dir="./tempSecondaryDatabaseDir"/></st_kv_database_conf>'
         #The config options
         configFile = self.experimentNode.attrib["config"]
         if configFile == "default":

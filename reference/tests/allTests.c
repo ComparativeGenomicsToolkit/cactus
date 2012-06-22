@@ -9,12 +9,14 @@
 
 CuSuite *buildReferenceTestSuite(void);
 CuSuite* addReferenceCoordinatesTestSuite(void);
+CuSuite* recursiveThreadBuilderTestSuite(void);
 
 int referenceRunAllTests(void) {
     CuString *output = CuStringNew();
     CuSuite* suite = CuSuiteNew();
     CuSuiteAddSuite(suite, buildReferenceTestSuite());
     CuSuiteAddSuite(suite, addReferenceCoordinatesTestSuite());
+    CuSuiteAddSuite(suite, recursiveThreadBuilderTestSuite());
 
     CuSuiteRun(suite);
     CuSuiteSummary(suite, output);

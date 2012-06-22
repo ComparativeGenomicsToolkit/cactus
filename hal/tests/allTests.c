@@ -10,12 +10,10 @@
 #include <string.h>
 #include "sonLib.h"
 
-CuSuite* recursiveFileBuilderTestSuite(void);
 
-int _10KGeneratorAllTests(void) {
+int halGeneratorAllTests(void) {
 	CuString *output = CuStringNew();
 	CuSuite* suite = CuSuiteNew();
-	CuSuiteAddSuite(suite, recursiveFileBuilderTestSuite());
 	CuSuiteRun(suite);
 	CuSuiteSummary(suite, output);
 	CuSuiteDetails(suite, output);
@@ -27,5 +25,5 @@ int main(int argc, char *argv[]) {
     if(argc == 2) {
         st_setLogLevelFromString(argv[1]);
     }
-	return _10KGeneratorAllTests();
+	return halGeneratorAllTests();
 }
