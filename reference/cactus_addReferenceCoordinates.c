@@ -162,7 +162,7 @@ int main(int argc, char *argv[]) {
         topDown(flowers, referenceEventName);
         //Now ensure the non-nested flowers are not loaded
         for (int32_t i = 0; i < stList_length(flowers); i++) {
-           flower_unload(stList_get(flowers, i)); //We haven't changed the
+           flower_unload(stList_get(flowers, i)); //We haven't changed the parents
         }
     }
 

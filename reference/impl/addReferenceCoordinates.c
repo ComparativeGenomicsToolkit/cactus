@@ -54,59 +54,43 @@ static int32_t traceThreadLength(Cap *cap) {
     }
 }
 
-static void setAdjacencyLength(Cap *cap) {
+static void setAdjacencyLengths(Cap *cap) {
     /*
      * Sets the coordinates of the caps to be equal to the length of the adjacency sequence between them.
      * Used to build the reference sequence bottom up.
      */
-    Cap *adjacentCap = cap_getAdjacency(cap);
-    assert(adjacentCap != NULL);
-    assert(cap_getCoordinate(cap) == INT32_MAX);
-    assert(cap_getCoordinate(adjacentCap) == INT32_MAX);
-    assert(cap_getStrand(cap) == cap_getStrand(adjacentCap));
-    Group *group = end_getGroup(cap_getEnd(cap));
-    assert(group != NULL);
-    int32_t adjacencyLength = 0;
-    if (!group_isLeaf(group)) { //Adjacency is not terminal, so establish its sequence.
-        Flower *nestedFlower = group_getNestedFlower(group);
-        Cap *nestedCap = flower_getCap(nestedFlower, cap_getName(cap));
-        assert(nestedCap != NULL);
-        adjacencyLength = traceThreadLength(nestedCap);
-    }
-    //Set the coordinates of the caps to the adjacency size
-    cap_setCoordinates(cap, adjacencyLength, cap_getStrand(cap), NULL);
-    cap_setCoordinates(adjacentCap, adjacencyLength, cap_getStrand(adjacentCap), NULL);
-}
-
-static stList *getCaps(stList *flowers, Name referenceEventName) {
-    stList *caps = stList_construct();
-    for(int32_t i=0; i<stList_length(flowers); i++) {
-        Flower *flower = stList_get(flowers, i);
-        //Get list of caps
-        Flower_EndIterator *endIt = flower_getEndIterator(flower);
-        End *end;
-        while ((end = flower_getNextEnd(endIt)) != NULL) {
-            if (end_isBlockEnd(end) || end_isAttached(end)) {
-                Cap *cap = getCapForReferenceEvent(end, referenceEventName); //The cap in the reference
-                assert(cap != NULL);
-                assert(cap_getStrand(cap));
-                if (!cap_getSide(cap)) {
-                    stList_append(caps, cap);
-                }
-            }
+    while(1) {
+        Cap *adjacentCap = cap_getAdjacency(cap);
+        assert(adjacentCap != NULL);
+        assert(cap_getCoordinate(cap) == INT32_MAX);
+        assert(cap_getCoordinate(adjacentCap) == INT32_MAX);
+        assert(cap_getStrand(cap) == cap_getStrand(adjacentCap));
+        assert(cap_getSide(cap) != cap_getSide(adjacentCap));
+        Group *group = end_getGroup(cap_getEnd(cap));
+        assert(group != NULL);
+        int32_t adjacencyLength = 0;
+        if (!group_isLeaf(group)) { //Adjacency is not terminal, so establish its sequence.
+            Flower *nestedFlower = group_getNestedFlower(group);
+            Cap *nestedCap = flower_getCap(nestedFlower, cap_getName(cap));
+            assert(nestedCap != NULL);
+            adjacencyLength = traceThreadLength(nestedCap);
         }
-        flower_destructEndIterator(endIt);
+        //Set the coordinates of the caps to the adjacency size
+        cap_setCoordinates(cap, adjacencyLength, cap_getStrand(cap), NULL);
+        cap_setCoordinates(adjacentCap, adjacencyLength, cap_getStrand(adjacentCap), NULL);
+        if((cap = cap_getOtherSegmentCap(adjacentCap)) == NULL) {
+            break;
+        }
     }
-    return caps;
 }
 
-char *terminalAdjacencyWriteFn(Cap *cap) {
+static char *terminalAdjacencyWriteFn(Cap *cap) {
     return stString_copy("");
 }
 
 static Name segmentWriteFnOutgroupEventName;
 
-char *segmentWriteFn(Segment *segment) {
+static char *segmentWriteFn(Segment *segment) {
     return getConsensusString(segment_getBlock(segment), segmentWriteFnOutgroupEventName);
 }
 
@@ -135,6 +119,7 @@ static int32_t setCoordinates(Flower *flower, MetaSequence *metaSequence, Cap *c
         sequence = sequence_construct(metaSequence, flower);
     }
     while (1) {
+        assert(cap_getStrand(cap));
         assert(!cap_getSide(cap));
         Cap *adjacentCap = cap_getAdjacency(cap);
         assert(adjacentCap != NULL);
@@ -156,10 +141,32 @@ static int32_t setCoordinates(Flower *flower, MetaSequence *metaSequence, Cap *c
     return coordinate;
 }
 
+static stList *getCaps(stList *flowers, Name referenceEventName) {
+    stList *caps = stList_construct();
+    for(int32_t i=0; i<stList_length(flowers); i++) {
+        Flower *flower = stList_get(flowers, i);
+        //Get list of caps
+        Flower_EndIterator *endIt = flower_getEndIterator(flower);
+        End *end;
+        while ((end = flower_getNextEnd(endIt)) != NULL) {
+            if (end_isBlockEnd(end) || end_isAttached(end)) {
+                Cap *cap = getCapForReferenceEvent(end, referenceEventName); //The cap in the reference
+                assert(cap != NULL);
+                assert(cap_getStrand(cap));
+                if (!cap_getSide(cap)) {
+                    stList_append(caps, cap);
+                }
+            }
+        }
+        flower_destructEndIterator(endIt);
+    }
+    return caps;
+}
+
 void bottomUp(stList *flowers, stKVDatabase *sequenceDatabase, Name referenceEventName, Name outgroupEventName, bool isTop) {
     stList *caps = getCaps(flowers, referenceEventName);
     for(int32_t i=0; i<stList_length(caps); i++) {
-        setAdjacencyLength(stList_get(caps, i));
+        setAdjacencyLengths(stList_get(caps, i));
     }
     segmentWriteFnOutgroupEventName = outgroupEventName;
     if(isTop) {

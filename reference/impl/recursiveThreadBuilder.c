@@ -15,31 +15,39 @@
 static void cacheNonNestedRecords(stCache *cache, stList *caps,
         char *(*segmentWriteFn)(Segment *),
         char *(*terminalAdjacencyWriteFn)(Cap *)) {
+    /*
+     * Caches the set of terminal adjacency and segment records present in the threads.
+     */
     for (int32_t i = 0; i < stList_length(caps); i++) {
         Cap *cap = stList_get(caps, i);
         while (1) {
             Cap *adjacentCap = cap_getAdjacency(cap);
             assert(adjacentCap != NULL);
             assert(cap_getCoordinate(adjacentCap) - cap_getCoordinate(cap) >= 1);
-            if (cap_getCoordinate(adjacentCap) - cap_getCoordinate(cap) > 1) {
-                Group *group = end_getGroup(cap_getEnd(cap));
-                assert(group != NULL);
-                if (group_isLeaf(group)) { //Record must be in the database already
-                    char *string = terminalAdjacencyWriteFn(cap);
-                    stCache_setRecord(cache, cap_getName(cap), 0, strlen(string), string);
-                }
+            Group *group = end_getGroup(cap_getEnd(cap));
+            assert(group != NULL);
+            if (group_isLeaf(group)) { //Record must not be in the database already
+                char *string = terminalAdjacencyWriteFn(cap);
+                assert(!stCache_containsRecord(cache, cap_getName(cap), 0, INT64_MAX));
+                stCache_setRecord(cache, cap_getName(cap), 0, strlen(string), string);
+                free(string);
             }
             if ((cap = cap_getOtherSegmentCap(adjacentCap)) == NULL) {
                 break;
             }
             Segment *segment = cap_getSegment(adjacentCap);
             char *string = segmentWriteFn(segment);
+            assert(!stCache_containsRecord(cache, segment_getName(segment), 0, INT64_MAX));
             stCache_setRecord(cache, segment_getName(segment), 0, strlen(string), string);
+            free(string);
         }
     }
 }
 
 static stList *getNestedRecordNames(stList *caps) {
+    /*
+     * Gets the names of non-terminal adjacencies as a list of cap names.
+     */
     stList *getRequests = stList_construct3(0, free);
     for (int32_t i = 0; i < stList_length(caps); i++) {
         Cap *cap = stList_get(caps, i);
@@ -47,14 +55,12 @@ static stList *getNestedRecordNames(stList *caps) {
             Cap *adjacentCap = cap_getAdjacency(cap);
             assert(adjacentCap != NULL);
             assert(cap_getCoordinate(adjacentCap) - cap_getCoordinate(cap) >= 1);
-            if (cap_getCoordinate(adjacentCap) - cap_getCoordinate(cap) > 1) {
-                Group *group = end_getGroup(cap_getEnd(cap));
-                assert(group != NULL);
-                if (!group_isLeaf(group)) { //Record must be in the database already
-                    int64_t *j = st_malloc(sizeof(int64_t));
-                    j[0] = cap_getName(cap);
-                    stList_append(getRequests, j);
-                }
+            Group *group = end_getGroup(cap_getEnd(cap));
+            assert(group != NULL);
+            if (!group_isLeaf(group)) { //Record must be in the database already
+                int64_t *j = st_malloc(sizeof(int64_t));
+                j[0] = cap_getName(cap);
+                stList_append(getRequests, j);
             }
             if ((cap = cap_getOtherSegmentCap(adjacentCap)) == NULL) {
                 break;
@@ -66,7 +72,7 @@ static stList *getNestedRecordNames(stList *caps) {
 
 static void cacheNestedRecords(stKVDatabase *database, stCache *cache, stList *caps) {
     /*
-     * Caches all the individual records we will concatenate into the cache structure.
+     * Caches all the non-terminal adjacencies by retrieving them from the database.
      */
     stList *getRequests = getNestedRecordNames(caps);
     //Do the retrieval of the records
@@ -85,6 +91,7 @@ static void cacheNestedRecords(stKVDatabase *database, stCache *cache, stList *c
         int64_t *recordName = stList_pop(getRequests);
         int64_t recordSize;
         void *record = stKVDatabaseBulkResult_getRecord(result, &recordSize);
+        assert(!stCache_containsRecord(cache, *recordName, 0, INT64_MAX));
         stCache_setRecord(cache, *recordName, 0, recordSize, record);
         stKVDatabaseBulkResult_destruct(result); //Cleanup the memory as we go.
         free(recordName);
@@ -97,6 +104,9 @@ static void cacheNestedRecords(stKVDatabase *database, stCache *cache, stList *c
 static stCache *cacheRecords(stKVDatabase *database, stList *caps,
         char *(*segmentWriteFn)(Segment *),
         char *(*terminalAdjacencyWriteFn)(Cap *)) {
+    /*
+     * Cache all the elements needed to construct the set of threads.
+     */
     stCache *cache = stCache_construct();
     cacheNestedRecords(database, cache, caps);
     cacheNonNestedRecords(cache, caps, segmentWriteFn, terminalAdjacencyWriteFn);
@@ -105,7 +115,7 @@ static stCache *cacheRecords(stKVDatabase *database, stList *caps,
 
 static void deleteNestedRecords(stKVDatabase *database, stList *caps) {
     /*
-     * Caches all the individual records we will concatenate into the cache structure.
+     * Removes the non-terminal adjacencies from the database.
      */
     stList *deleteRequests = getNestedRecordNames(caps);
     //Do the deletion of the records
@@ -123,17 +133,17 @@ static char *getThread(stCache *cache, Cap *startCap) {
      * Iterate through, first calculating the length of the final record, then concatenating the results.
      */
     Cap *cap = startCap;
-    stList *strings = stList_construct();
+    stList *strings = stList_construct3(0, free);
     while (1) { //Calculate the size of the entries in the DB that represent the thread.
         Cap *adjacentCap = cap_getAdjacency(cap);
         assert(adjacentCap != NULL);
         int64_t recordSize;
-        if (cap_getCoordinate(adjacentCap) - cap_getCoordinate(cap) > 1) {
-            stList_append(strings, stCache_getRecord(cache, cap_getName(cap), 0, INT64_MAX, &recordSize));
-        }
+        assert(stCache_containsRecord(cache, cap_getName(cap), 0, INT64_MAX));
+        stList_append(strings, stCache_getRecord(cache, cap_getName(cap), 0, INT64_MAX, &recordSize));
         if ((cap = cap_getOtherSegmentCap(adjacentCap)) == NULL) {
             break;
         }
+        assert(stCache_containsRecord(cache, segment_getName(cap_getSegment(adjacentCap)), 0, INT64_MAX));
         stList_append(strings, stCache_getRecord(cache, segment_getName(cap_getSegment(adjacentCap)), 0, INT64_MAX, &recordSize));
     }
     char *string = stString_join2("", strings);
