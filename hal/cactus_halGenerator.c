@@ -14,26 +14,16 @@
 
 #include "cactus.h"
 #include "sonLib.h"
-#include "recursiveFileBuilder.h"
-
-void makeMaf(Flower *flower, RecursiveFileBuilder *recursiveFileBuilder,
-        Event *referenceEvent, FILE *parentFileHandle,
-        bool showOnlySubstitutionsWithRespectToReference, bool hasParent);
-
-void makeHalFormat(Flower *flower, RecursiveFileBuilder *recursiveFileBuilder,
-        Event *referenceEvent, FILE *parentFileHandle, bool hasParent);
+#include "hal.h"
 
 void usage() {
     fprintf(stderr, "cactus_halGenerator [flower names], version 0.1\n");
     fprintf(stderr, "-a --logLevel : Set the log level\n");
     fprintf(stderr,
             "-c --cactusDisk : The location of the flower disk directory\n");
+    fprintf(stderr, "-c --secondaryDisk : The location of secondary disk\n");
     fprintf(stderr,
             "-g --referenceEventString : String identifying the reference event.\n");
-    fprintf(stderr,
-            "-i --childDirectory : Directory identifying child files.\n");
-    fprintf(stderr,
-            "-j --parentDirectory : Directory identifying parent file.\n");
     fprintf(stderr, "-k --outputFile : File to put final output in.\n");
     fprintf(stderr, "-m --maf : Make maf instead.\n");
     fprintf(
@@ -52,10 +42,9 @@ int main(int argc, char *argv[]) {
      */
     char * logLevelString = NULL;
     char * cactusDiskDatabaseString = NULL;
+    char * secondaryDatabaseString = NULL;
     char *referenceEventString =
             (char *) cactusMisc_getDefaultReferenceEventHeader();
-    char *childDirectory = NULL;
-    char *parentDirectory = NULL;
     char *outputFile = NULL;
     bool showOnlySubstitutionsWithRespectToReference = 0;
     bool buildMaf = 0;
@@ -67,11 +56,9 @@ int main(int argc, char *argv[]) {
     while (1) {
         static struct option long_options[] = { { "logLevel",
                 required_argument, 0, 'a' }, { "cactusDisk", required_argument,
-                0, 'c' },
+                0, 'c' }, { "secondaryDisk", required_argument, 0, 'd' },
                 { "referenceEventString", required_argument, 0, 'g' }, {
-                        "help", no_argument, 0, 'h' }, { "childDirectory",
-                        required_argument, 0, 'i' }, { "parentDirectory",
-                        required_argument, 0, 'j' }, { "outputFile",
+                        "help", no_argument, 0, 'h' }, { "outputFile",
                         required_argument, 0, 'k' }, {
                         "showOnlySubstitutionsWithRespectToReference",
                         no_argument, 0, 'l' }, { "maf", no_argument, 0, 'm' },
@@ -79,7 +66,7 @@ int main(int argc, char *argv[]) {
 
         int option_index = 0;
 
-        int key = getopt_long(argc, argv, "a:c:e:g:hi:j:k:lm", long_options,
+        int key = getopt_long(argc, argv, "a:c:d:e:g:hk:lm", long_options,
                 &option_index);
 
         if (key == -1) {
@@ -93,18 +80,15 @@ int main(int argc, char *argv[]) {
             case 'c':
                 cactusDiskDatabaseString = stString_copy(optarg);
                 break;
+            case 'd':
+                secondaryDatabaseString = stString_copy(optarg);
+                break;
             case 'g':
                 referenceEventString = stString_copy(optarg);
                 break;
             case 'h':
                 usage();
                 return 0;
-            case 'i':
-                childDirectory = stString_copy(optarg);
-                break;
-            case 'j':
-                parentDirectory = stString_copy(optarg);
-                break;
             case 'k':
                 outputFile = stString_copy(optarg);
                 break;
@@ -139,13 +123,34 @@ int main(int argc, char *argv[]) {
     stKVDatabaseConf *kvDatabaseConf = stKVDatabaseConf_constructFromString(
             cactusDiskDatabaseString);
     CactusDisk *cactusDisk = cactusDisk_construct(kvDatabaseConf, 0);
+    stKVDatabaseConf_destruct(kvDatabaseConf);
     st_logInfo("Set up the flower disk\n");
+
+    //////////////////////////////////////////////
+    //Load the secondary database
+    //////////////////////////////////////////////
+
+    kvDatabaseConf = stKVDatabaseConf_constructFromString(
+                secondaryDatabaseString);
+    stKVDatabase *sequenceDatabase = stKVDatabase_construct(kvDatabaseConf, 0);
+    stKVDatabaseConf_destruct(kvDatabaseConf);
+    st_logInfo("Set up the secondary database\n");
 
     ///////////////////////////////////////////////////////////////////////////
     // Get the set of flowers to manipulate
     ///////////////////////////////////////////////////////////////////////////
 
     stList *flowers = flowerWriter_parseFlowersFromStdin(cactusDisk);
+
+    ///////////////////////////////////////////////////////////////////////////
+    // Get the reference event name
+    ///////////////////////////////////////////////////////////////////////////
+
+    Flower *flower = stList_get(flowers, 0);
+    Event *referenceEvent = eventTree_getEventByHeader(
+            flower_getEventTree(flower), referenceEventString);
+    assert(referenceEvent != NULL);
+    Name referenceEventName = event_getName(referenceEvent);
 
     ///////////////////////////////////////////////////////////////////////////
     // Now process each flower in turn.
@@ -155,51 +160,20 @@ int main(int argc, char *argv[]) {
         stThrowNew("RUNTIME_ERROR",
                 "Output file specified, but there is not only one flower required\n");
     }
-    if (childDirectory == NULL) {
-        stThrowNew("RUNTIME_ERROR", "No child directory specified\n");
+    
+    FILE *fileHandle = NULL;
+    if(outputFile != NULL) {
+        fileHandle = fopen(outputFile, "w");
     }
-    if (parentDirectory == NULL && outputFile == NULL) {
-        stThrowNew("RUNTIME_ERROR",
-                "No parent directory or output file specified\n");
+    if(buildMaf) {
+        makeMafFormat(flowers, sequenceDatabase, referenceEventName, fileHandle);
     }
-
-
-
-    bool hasParent = outputFile == NULL;
-
-    //File in which to place output
-    char *chosenOutputFile = stString_copy(
-                outputFile != NULL ? outputFile
-                        : recursiveFileBuilder_getUniqueFileName(
-                                stList_get(flowers, 0), parentDirectory));
-    FILE *parentFileHandle = fopen(chosenOutputFile, "w");
-
-    //Structure for building output
-    RecursiveFileBuilder *recursiveFileBuilder =
-            recursiveFileBuilder_construct(childDirectory, parentFileHandle,
-                    hasParent);
-
-    //Basic objects
-
-    for (int32_t j = 0; j < stList_length(flowers); j++) {
-        Flower *flower = stList_get(flowers, j);
-        Event *referenceEvent = eventTree_getEventByHeader(
-                flower_getEventTree(flower), referenceEventString);
-        assert(referenceEvent != NULL);
-        st_logInfo("Processing a flower for hal generation\n");
-        if (buildMaf) {
-            makeMaf(flower, recursiveFileBuilder, referenceEvent,
-                    parentFileHandle,
-                    showOnlySubstitutionsWithRespectToReference, hasParent);
-        } else {
-            makeHalFormat(flower, recursiveFileBuilder, referenceEvent,
-                    parentFileHandle, hasParent);
-        }
+    else {
+        makeHalFormat(flowers, sequenceDatabase, referenceEventName, fileHandle);
     }
-
-    //Cleanup things with file pointers.
-    fclose(parentFileHandle);
-    recursiveFileBuilder_destruct(recursiveFileBuilder);
+    if(fileHandle != NULL) {
+        fclose(fileHandle);
+    }
 
     ///////////////////////////////////////////////////////////////////////////
     //Clean up memory
@@ -207,15 +181,12 @@ int main(int argc, char *argv[]) {
 
     //return 0; //Exit without clean up is quicker, enable cleanup when doing memory leak detection.
 
-    free(chosenOutputFile);
     cactusDisk_destruct(cactusDisk);
-    stKVDatabaseConf_destruct(kvDatabaseConf);
     stList_destruct(flowers);
     free(cactusDiskDatabaseString);
+    free(secondaryDatabaseString);
     free(referenceEventString);
     free(logLevelString);
-    free(childDirectory);
-    free(parentDirectory);
 
     st_logInfo("Cleaned stuff up and am finished\n");
     //while(1);

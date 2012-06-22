@@ -74,8 +74,13 @@ stList *cactusDisk_getFlowers(CactusDisk *cactusDisk, stList *flowerNames);
 MetaSequence *cactusDisk_getMetaSequence(CactusDisk *cactusDisk, Name metaSequenceName);
 
 /*
- * Precaches all the sequences in a given set of flower into the cache.
+ * Precaches all the sequences in a given set of flowers into the cache.
  */
 void cactusDisk_preCacheStrings(CactusDisk *cactusDisk, stList *flowers);
+
+/*
+ * Precaches all the segments sequences in the given set of flowers.
+ */
+void cactusDisk_preCacheSegmentStrings(CactusDisk *cactusDisk, stList *flowers);
 
 #endif

@@ -10,10 +10,8 @@
 
 Cap *getCapForReferenceEvent(End *end, Name referenceEventName);
 
-void bottomUp(Flower *flower, Name referenceEventName);
+void bottomUp(stList *flowers, stKVDatabase *sequenceDatabase, Name referenceEventName, Name outgroupEventName, bool isTop);
 
-void addSequencesAndReferenceCoordinatesToTopLevelFlower(Flower *flower, Name referenceEventName, Name outgroupEventName);
-
-void topDown(Flower *flower, Name referenceEventName, Name outgroupEventName);
+void topDown(stList *flowers, Name referenceEventName);
 
 #endif /* ADDREFERENCECOORDINATES_H_ */

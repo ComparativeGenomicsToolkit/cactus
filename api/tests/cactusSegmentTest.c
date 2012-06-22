@@ -168,8 +168,15 @@ void testSegment_getSequence(CuTest* testCase) {
 	cactusSegmentTestTeardown();
 }
 
-void testSegment_getString(CuTest* testCase) {
+void testSegment_getStringP(CuTest* testCase, bool cacheSegmentStrings) {
 	cactusSegmentTestSetup();
+
+	if(cacheSegmentStrings) {
+        stList *flowers = stList_construct();
+        stList_append(flowers, flower);
+        cactusDisk_preCacheSegmentStrings(cactusDisk, flowers);
+        stList_destruct(flowers);
+	}
 
 	CuAssertTrue(testCase, segment_getString(rootSegment) == NULL);
 	CuAssertTrue(testCase, segment_getString(segment_getReverse(rootSegment)) == NULL);
@@ -181,6 +188,14 @@ void testSegment_getString(CuTest* testCase) {
 	CuAssertStrEquals(testCase, "GAC", segment_getString(segment_getReverse(leaf2Segment)));
 
 	cactusSegmentTestTeardown();
+}
+
+void testSegment_getString(CuTest* testCase) {
+    testSegment_getStringP(testCase, 1);
+}
+
+void testSegment_getStringWithPrecaching(CuTest* testCase) {
+    testSegment_getStringP(testCase, 0);
 }
 
 void testSegment_get5And3End(CuTest* testCase) {
@@ -266,6 +281,7 @@ void testSegment_serialisation(CuTest* testCase) {
 	testSegment_getLength(testCase);
 	testSegment_getSequence(testCase);
 	testSegment_getString(testCase);
+	testSegment_getStringWithPrecaching(testCase);
 	testSegment_get5And3End(testCase);
 	testSegment_getParent(testCase);
 	testSegment_getChildNumber(testCase);
@@ -287,6 +303,7 @@ CuSuite* cactusSegmentTestSuite(void) {
 	SUITE_ADD_TEST(suite, testSegment_getLength);
 	SUITE_ADD_TEST(suite, testSegment_getSequence);
 	SUITE_ADD_TEST(suite, testSegment_getString);
+	SUITE_ADD_TEST(suite, testSegment_getStringWithPrecaching);
 	SUITE_ADD_TEST(suite, testSegment_get5And3End);
 	SUITE_ADD_TEST(suite, testSegment_getParent);
 	SUITE_ADD_TEST(suite, testSegment_getChildNumber);

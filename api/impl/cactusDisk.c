@@ -117,43 +117,6 @@ static int substring_cmp(Substring *substring1, Substring *substring2) {
     return substring1->length < substring2->length ? -1 : (substring1->length > substring2->length ? 1 : 0);
 }
 
-static stList *getSubstringsForFlowers(stList *flowers) {
-    /*
-     * Get the set of substrings for sequence intervals in the given set of flowers.
-     */
-    stList *substrings = stList_construct3(0, (void(*)(void *)) substring_destruct);
-    for (int32_t i = 0; i < stList_length(flowers); i++) {
-        Flower *flower = stList_get(flowers, i);
-        Flower_EndIterator *endIt = flower_getEndIterator(flower);
-        End *end;
-        while ((end = flower_getNextEnd(endIt)) != NULL) {
-            if (end_isStubEnd(end)) {
-                End_InstanceIterator *instanceIt = end_getInstanceIterator(end);
-                Cap *cap;
-                while ((cap = end_getNext(instanceIt)) != NULL) {
-                    Sequence *sequence;
-                    if ((sequence = cap_getSequence(cap)) != NULL) {
-                        cap = cap_getStrand(cap) ? cap : cap_getReverse(cap);
-                        if (!cap_getSide(cap)) { //We have a sequence interval of interest
-                            Cap *adjacentCap = cap_getAdjacency(cap);
-                            assert(adjacentCap != NULL);
-                            int64_t length = cap_getCoordinate(adjacentCap) - cap_getCoordinate(cap) - 1;
-                            assert(length >= 0);
-                            if (length > 0) {
-                                stList_append(substrings,
-                                        substring_construct(sequence_getMetaSequence(sequence)->stringName, cap_getCoordinate(cap) + 1 - sequence_getStart(sequence), length));
-                            }
-                        }
-                    }
-                }
-                end_destructInstanceIterator(instanceIt);
-            }
-        }
-        flower_destructEndIterator(endIt);
-    }
-    return substrings;
-}
-
 static stList *mergeSubstrings(stList *substrings, int64_t proximityToMerge) {
     /*
      * Merge set of substrings into fewer substrings, if they overlap by less than proximityToMerge
@@ -259,17 +222,98 @@ static void cacheSubstringsFromDB(CactusDisk *cactusDisk, stList *substrings) {
     }
 }
 
+void cactusDisk_preCacheStrings2(CactusDisk *cactusDisk, stList *substrings) {
+    /*
+     * Precaches the given substrings, so that they are all in memory.
+     */
+    //Now do some simple merging to reduce granularity
+    stList *mergedSubstrings = mergeSubstrings(substrings, CACTUS_DISK_SEQUENCE_CHUNK_SIZE);
+    //Now cache the sequences
+    cacheSubstringsFromDB(cactusDisk, mergedSubstrings);
+    stList_destruct(mergedSubstrings);
+}
+
+static stList *getSubstringsForFlowers(stList *flowers) {
+    /*
+     * Get the set of substrings for sequence intervals in the given set of flowers.
+     */
+    stList *substrings = stList_construct3(0, (void(*)(void *)) substring_destruct);
+    for (int32_t i = 0; i < stList_length(flowers); i++) {
+        Flower *flower = stList_get(flowers, i);
+        Flower_EndIterator *endIt = flower_getEndIterator(flower);
+        End *end;
+        while ((end = flower_getNextEnd(endIt)) != NULL) {
+            if (end_isStubEnd(end)) {
+                End_InstanceIterator *instanceIt = end_getInstanceIterator(end);
+                Cap *cap;
+                while ((cap = end_getNext(instanceIt)) != NULL) {
+                    Sequence *sequence;
+                    if ((sequence = cap_getSequence(cap)) != NULL) {
+                        cap = cap_getStrand(cap) ? cap : cap_getReverse(cap);
+                        if (!cap_getSide(cap)) { //We have a sequence interval of interest
+                            Cap *adjacentCap = cap_getAdjacency(cap);
+                            assert(adjacentCap != NULL);
+                            int64_t length = cap_getCoordinate(adjacentCap) - cap_getCoordinate(cap) - 1;
+                            assert(length >= 0);
+                            if (length > 0) {
+                                stList_append(substrings,
+                                        substring_construct(sequence_getMetaSequence(sequence)->stringName, cap_getCoordinate(cap) + 1 - sequence_getStart(sequence), length));
+                            }
+                        }
+                    }
+                }
+                end_destructInstanceIterator(instanceIt);
+            }
+        }
+        flower_destructEndIterator(endIt);
+    }
+    return substrings;
+}
+
 void cactusDisk_preCacheStrings(CactusDisk *cactusDisk, stList *flowers) {
     /*
      * Precaches the sequences in the set of flowers, so that they are all in memory.
      */
     stList *substrings = getSubstringsForFlowers(flowers);
-    //Now do some simple merging to reduce granularity
-    stList *mergedSubstrings = mergeSubstrings(substrings, CACTUS_DISK_SEQUENCE_CHUNK_SIZE);
+    cactusDisk_preCacheStrings2(cactusDisk, substrings);
     stList_destruct(substrings);
-    //Now cache the sequences
-    cacheSubstringsFromDB(cactusDisk, mergedSubstrings);
-    stList_destruct(mergedSubstrings);
+}
+
+static stList *getSubstringsForFlowerSegments(stList *flowers) {
+    /*
+     * Get the set of substrings representing the strings in the segments of the given flowers.
+     */
+    stList *substrings = stList_construct3(0, (void(*)(void *)) substring_destruct);
+    for (int32_t i = 0; i < stList_length(flowers); i++) {
+        Flower *flower = stList_get(flowers, i);
+        Flower_EndIterator *blockIt = flower_getBlockIterator(flower);
+        Block *block;
+        while ((block = flower_getNextBlock(blockIt)) != NULL) {
+            Block_InstanceIterator *instanceIt = block_getInstanceIterator(block);
+            Segment *segment;
+            while ((segment = block_getNext(instanceIt)) != NULL) {
+                Sequence *sequence;
+                if ((sequence = segment_getSequence(segment)) != NULL) {
+                    segment = segment_getStrand(segment) ? segment : segment_getReverse(segment);
+                    assert(segment_getLength(segment) > 0);
+                    stList_append(substrings,
+                                substring_construct(sequence_getMetaSequence(sequence)->stringName, segment_getStart(segment), segment_getLength(segment)));
+                }
+            }
+            block_destructInstanceIterator(instanceIt);
+        }
+        flower_destructBlockIterator(blockIt);
+    }
+    return substrings;
+}
+
+void cactusDisk_preCacheSegmentStrings(CactusDisk *cactusDisk, stList *flowers) {
+    /*
+     * Precaches the sequences in the set blocks of the given flowers, so that they are all in memory.
+     */
+    stList *substrings = getSubstringsForFlowerSegments(flowers);
+    cactusDisk_preCacheStrings2(cactusDisk, substrings);
+    stList_destruct(substrings);
 }
 
 char *cactusDisk_getStringFromCache(CactusDisk *cactusDisk, Name name, int32_t start, int32_t length, int32_t strand) {

@@ -182,7 +182,6 @@ void testSequence_addAndGetBigStrings_preCacheSequences(CuTest* testCase) {
     testSequence_addAndGetBigStringsP(testCase, 1);
 }
 
-
 void testSequence_getHeader(CuTest* testCase) {
 	cactusSequenceTestSetup();
 	CuAssertStrEquals(testCase, headerString, sequence_getHeader(sequence));

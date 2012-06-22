@@ -20,6 +20,7 @@ void usage() {
     fprintf(stderr, "cactus_addReferenceCoordinates [flower names], version 0.1\n");
     fprintf(stderr, "-a --logLevel : Set the log level\n");
     fprintf(stderr, "-c --cactusDisk : The location of the flower disk directory\n");
+    fprintf(stderr, "-c --secondaryDisk : The location of secondary disk\n");
     fprintf(stderr, "-g --referenceEventString : String identifying the reference event.\n");
     fprintf(stderr, "-i --outgroupEventString : String identifying the reference event.\n");
     fprintf(stderr, "-j --bottomUpPhase : Do bottom up stage instead of top down.\n");
@@ -36,6 +37,7 @@ int main(int argc, char *argv[]) {
      */
     char * logLevelString = NULL;
     char * cactusDiskDatabaseString = NULL;
+    char * secondaryDatabaseString = NULL;
     char *referenceEventString = (char *) cactusMisc_getDefaultReferenceEventHeader();
     char *outgroupEventString = NULL;
     bool bottomUpPhase = 0;
@@ -45,15 +47,13 @@ int main(int argc, char *argv[]) {
     ///////////////////////////////////////////////////////////////////////////
 
     while (1) {
-        static struct option long_options[] = { { "logLevel", required_argument, 0, 'a' }, { "cactusDisk",
-                required_argument, 0, 'c' }, { "referenceEventString", required_argument, 0, 'g' }, { "help",
-                no_argument, 0, 'h' }, { "outgroupEventString", required_argument, 0, 'i' },
-                { "bottomUpPhase", no_argument, 0, 'j' },
-                { 0, 0, 0, 0 } };
+        static struct option long_options[] = { { "logLevel", required_argument, 0, 'a' }, { "cactusDisk", required_argument, 0, 'c' }, {
+                "secondaryDisk", required_argument, 0, 'd' }, { "referenceEventString", required_argument, 0, 'g' }, { "help", no_argument,
+                0, 'h' }, { "outgroupEventString", required_argument, 0, 'i' }, { "bottomUpPhase", no_argument, 0, 'j' }, { 0, 0, 0, 0 } };
 
         int option_index = 0;
 
-        int key = getopt_long(argc, argv, "a:c:e:g:hi:j", long_options, &option_index);
+        int key = getopt_long(argc, argv, "a:c:d:e:g:hi:j", long_options, &option_index);
 
         if (key == -1) {
             break;
@@ -65,6 +65,9 @@ int main(int argc, char *argv[]) {
                 break;
             case 'c':
                 cactusDiskDatabaseString = stString_copy(optarg);
+                break;
+            case 'd':
+                secondaryDatabaseString = stString_copy(optarg);
                 break;
             case 'g':
                 referenceEventString = stString_copy(optarg);
@@ -102,6 +105,7 @@ int main(int argc, char *argv[]) {
 
     stKVDatabaseConf *kvDatabaseConf = stKVDatabaseConf_constructFromString(cactusDiskDatabaseString);
     CactusDisk *cactusDisk = cactusDisk_construct(kvDatabaseConf, 0);
+    stKVDatabaseConf_destruct(kvDatabaseConf);
     st_logInfo("Set up the flower disk\n");
 
     ///////////////////////////////////////////////////////////////////////////
@@ -109,9 +113,7 @@ int main(int argc, char *argv[]) {
     ///////////////////////////////////////////////////////////////////////////
 
     stList *flowers = flowerWriter_parseFlowersFromStdin(cactusDisk);
-    if(!bottomUpPhase) {
-        cactusDisk_preCacheStrings(cactusDisk, flowers);
-    }
+    preCacheNestedFlowers(cactusDisk, flowers);
 
     ///////////////////////////////////////////////////////////////////////////
     // Get the appropriate event names
@@ -130,33 +132,37 @@ int main(int argc, char *argv[]) {
     }
 
     ///////////////////////////////////////////////////////////////////////////
-    // Now process each flower in turn.
+    // Now do bottom up or top down, depending
     ///////////////////////////////////////////////////////////////////////////
 
-    for (int32_t j = 0; j < stList_length(flowers); j++) {
-        flower = stList_get(flowers, j);
-        st_logInfo("Processing a flower\n");
-        if (bottomUpPhase) {
-            bottomUp(flower, referenceEventName);
+    if (bottomUpPhase) {
+        cactusDisk_preCacheSegmentStrings(cactusDisk, flowers);
+        assert(secondaryDatabaseString != NULL);
+        kvDatabaseConf = stKVDatabaseConf_constructFromString(secondaryDatabaseString);
+        stKVDatabase *sequenceDatabase = stKVDatabase_construct(kvDatabaseConf, 0);
+        stKVDatabaseConf_destruct(kvDatabaseConf);
+        Flower *flower = stList_get(flowers, 0);
+        bottomUp(flowers, sequenceDatabase, referenceEventName, outgroupEventName, flower_hasParentGroup(flower));
+        //Now unload the nested flowers.
+        for (int32_t i = 0; i < stList_length(flowers); i++) {
+            Flower *flower = stList_get(flowers, i);
             //Now ensure that the nested flowers are not loaded, as this will avoid writing them to disk
             Flower_GroupIterator *groupIt = flower_getGroupIterator(flower);
             Group *group;
-            while((group = flower_getNextGroup(groupIt)) != NULL) {
-                if(!group_isLeaf(group)) {
+            while ((group = flower_getNextGroup(groupIt)) != NULL) {
+                if (!group_isLeaf(group)) {
                     flower_unload(group_getNestedFlower(group));
                 }
             }
             flower_destructGroupIterator(groupIt);
             assert(!flower_isParentLoaded(flower));
-        } else {
-            if (!flower_hasParentGroup(flower)) {
-                addSequencesAndReferenceCoordinatesToTopLevelFlower(flower, referenceEventName, outgroupEventName);
-            }
-            topDown(flower, referenceEventName, outgroupEventName);
-            assert(!flower_isParentLoaded(flower));
-            if (flower_hasParentGroup(flower)) {
-                flower_unload(flower); //We haven't changed the
-            }
+        }
+        stKVDatabase_destruct(sequenceDatabase);
+    } else {
+        topDown(flowers, referenceEventName);
+        //Now ensure the non-nested flowers are not loaded
+        for (int32_t i = 0; i < stList_length(flowers); i++) {
+           flower_unload(stList_get(flowers, i)); //We haven't changed the
         }
     }
 
@@ -174,7 +180,6 @@ int main(int argc, char *argv[]) {
     return 0; //Exit without clean up is quicker, enable cleanup when doing memory leak detection.
 
     cactusDisk_destruct(cactusDisk);
-    stKVDatabaseConf_destruct(kvDatabaseConf);
     stList_destruct(flowers);
     free(cactusDiskDatabaseString);
     free(referenceEventString);

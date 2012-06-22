@@ -4,7 +4,7 @@
 #include "cactus.h"
 #include "sonLib.h"
 
-#include "recursiveFileBuilder.h"
+#include "recursiveThreadBuilder.h"
 
 static void writeMafHeaderLine(FILE *fileHandle, Block *block) {
     /*

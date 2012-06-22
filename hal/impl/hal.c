@@ -6,10 +6,9 @@
 
 #include "cactus.h"
 #include "sonLib.h"
+#include "recursiveThreadBuilder.h"
 
-#include "recursiveFileBuilder.h"
-
-static Event *globalReferenceEvent;
+static Name globalReferenceEventName;
 
 /*
  * Hal encodes a hierarchical alignment format.
@@ -84,10 +83,10 @@ static void writeSequenceHeader(FILE *fileHandle, Sequence *sequence) {
     assert(event_getHeader(event) != NULL);
     assert(sequence_getHeader(sequence) != NULL);
     fprintf(fileHandle, "s\t'%s'\t'%s'\t%i\n", event_getHeader(event), sequence_getHeader(sequence),
-            event_getName(event) == event_getName(globalReferenceEvent));
+            event_getName(event) == globalReferenceEventName);
 }
 
-static void writeTerminalAdjacency(FILE *fileHandle, Cap *cap) {
+static char *writeTerminalAdjacency(Cap *cap) {
     //a start length reference-segment block-orientation
     Cap *adjacentCap = cap_getAdjacency(cap);
     assert(adjacentCap != NULL);
@@ -95,20 +94,20 @@ static void writeTerminalAdjacency(FILE *fileHandle, Cap *cap) {
     assert(adjacencyLength >= 0);
     Sequence *sequence = cap_getSequence(cap);
     assert(sequence != NULL);
-    fprintf(fileHandle, "a\t%i\t%i\n", cap_getCoordinate(cap) + 1 - sequence_getStart(sequence), adjacencyLength);
+    return stString_print("a\t%i\t%i\n", cap_getCoordinate(cap) + 1 - sequence_getStart(sequence), adjacencyLength);
 }
 
-static void writeSegment(FILE *fileHandle, Segment *segment) {
+static char *writeSegment(Segment *segment) {
     Block *block = segment_getBlock(segment);
-    Segment *referenceSegment = block_getSegmentForEvent(block, event_getName(globalReferenceEvent));
+    Segment *referenceSegment = block_getSegmentForEvent(block, globalReferenceEventName);
     assert(referenceSegment != NULL);
     Sequence *sequence = segment_getSequence(segment);
     assert(sequence != NULL);
     if (referenceSegment != segment) { //Is a top segment
-        fprintf(fileHandle, "a\t%i\t%i\t%" PRIi64 "\t%i\n", segment_getStart(segment) - sequence_getStart(sequence), segment_getLength(segment), segment_getName(referenceSegment), segment_getStrand(referenceSegment));
+        return stString_print("a\t%i\t%i\t%" PRIi64 "\t%i\n", segment_getStart(segment) - sequence_getStart(sequence), segment_getLength(segment), segment_getName(referenceSegment), segment_getStrand(referenceSegment));
     }
     else { //Is a bottom segment
-        fprintf(fileHandle, "a\t%" PRIi64 "\t%i\t%i\n", segment_getName(segment), segment_getStart(segment) - sequence_getStart(sequence), segment_getLength(segment));
+        return stString_print("a\t%" PRIi64 "\t%i\t%i\n", segment_getName(segment), segment_getStart(segment) - sequence_getStart(sequence), segment_getLength(segment));
     }
 }
 
@@ -117,7 +116,7 @@ static int compareCaps(Cap *cap, Cap *cap2) {
     Event *event2 = cap_getEvent(cap2);
     int i = cactusMisc_nameCompare(event_getName(event), event_getName(event2));
     if (i != 0) {
-        return event == globalReferenceEvent ? -1 : (event2 == globalReferenceEvent ? 1 : i);
+        return event_getName(event) == globalReferenceEventName ? -1 : (event_getName(event2) == globalReferenceEventName ? 1 : i);
     }
     Sequence *sequence = cap_getSequence(cap);
     Sequence *sequence2 = cap_getSequence(cap2);
@@ -129,50 +128,50 @@ static int compareCaps(Cap *cap, Cap *cap2) {
     return i;
 }
 
-static stSortedSet *getCaps(Flower *flower, Name globalReferenceEventName) {
+static stList *getCaps(stList *flowers) {
     //Get the caps in order
-    stSortedSet *threadsToWrite = stSortedSet_construct3((int(*)(const void *, const void *)) compareCaps, NULL);
-    End *end;
-    Flower_EndIterator *endIt = flower_getEndIterator(flower);
-    while ((end = flower_getNextEnd(endIt)) != NULL) {
-        if (end_isStubEnd(end)) { // && end_isAttached(end)) {
-            Cap *cap; // = end_getCapForEvent(end, globalReferenceEventName);
-            End_InstanceIterator *capIt = end_getInstanceIterator(end);
-            while ((cap = end_getNext(capIt)) != NULL) {
-                if (cap_getSequence(cap) != NULL) {
-                    cap = cap_getStrand(cap) ? cap : cap_getReverse(cap);
-                    if (!cap_getSide(cap)) {
-                        stSortedSet_insert(threadsToWrite, cap);
+    stList *caps = stList_construct();
+    for(int32_t i=0; i<stList_length(flowers); i++) {
+        Flower *flower = stList_get(flowers, i);
+        End *end;
+        Flower_EndIterator *endIt = flower_getEndIterator(flower);
+        while ((end = flower_getNextEnd(endIt)) != NULL) {
+            if (end_isStubEnd(end)) { // && end_isAttached(end)) {
+                Cap *cap; // = end_getCapForEvent(end, globalReferenceEventName);
+                End_InstanceIterator *capIt = end_getInstanceIterator(end);
+                while ((cap = end_getNext(capIt)) != NULL) {
+                    if (cap_getSequence(cap) != NULL) {
+                        cap = cap_getStrand(cap) ? cap : cap_getReverse(cap);
+                        if (!cap_getSide(cap)) {
+                            stList_append(caps, cap);
+                        }
                     }
                 }
+                end_destructInstanceIterator(capIt);
             }
-            end_destructInstanceIterator(capIt);
         }
+        flower_destructEndIterator(endIt);
     }
-    flower_destructEndIterator(endIt);
-    return threadsToWrite;
+    stList_sort(caps, (int (*)(const void *, const void *))compareCaps);
+    return caps;
 }
 
-void makeHalFormat(Flower *flower, RecursiveFileBuilder *recursiveFileBuilder, Event *referenceEvent,
-        FILE *parentFileHandle, bool hasParent) {
-    //Cheeky global
-    globalReferenceEvent = referenceEvent;
-    //Build list of threads in a sorted order
-    stSortedSet *threadsToWrite = getCaps(flower, event_getName(globalReferenceEvent));
-    stSortedSetIterator *setIt = stSortedSet_getIterator(threadsToWrite);
-    Cap *cap;
-    while ((cap = stSortedSet_getNext(setIt)) != NULL) {
-        //s Event-name Seq-name Seq-header
-        if (!hasParent) {
-            writeSequenceHeader(parentFileHandle, cap_getSequence(cap));
-        }
-        //For each segment:
-        //a start length reference-segment block-orientation
-        recursiveFileBuilder_writeThread(recursiveFileBuilder, cap, writeSegment, writeTerminalAdjacency);
-        if (!hasParent) { //Terminate with new-line
-            //new-line
-            fprintf(parentFileHandle, "\n");
+void makeHalFormat(stList *flowers, stKVDatabase *database, Name referenceEventName,
+        FILE *fileHandle) {
+    stList *caps = getCaps(caps);
+    globalReferenceEventName = referenceEventName;
+    if(fileHandle == NULL) {
+        buildRecursiveThreads(database, caps, writeSegment, writeTerminalAdjacency);
+    }
+    else {
+        stList *threadStrings = buildRecursiveThreadsInList(database, caps, writeSegment, writeTerminalAdjacency);
+        assert(stList_length(threadStrings) == stList_length(caps));
+        for(int32_t i=0; i<stList_length(threadStrings); i++) {
+            Cap *cap = stList_get(caps, i);
+            char *threadString = stList_get(threadStrings, i);
+            writeSequenceHeader(fileHandle, cap_getSequence(cap));
+            fprintf(fileHandle, "%s\n", threadString);
         }
     }
-    stSortedSet_destructIterator(setIt);
+    stList_destruct(caps);
 }
