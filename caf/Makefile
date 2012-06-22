@@ -25,7 +25,6 @@ ${binPath}/stCafTests : ${libTests} ${libPath}/stCaf.a ${stCafDependencies}
 ${binPath}/cactus_caf : cactus_caf.c ${libPath}/stCaf.a ${stCafDependencies}
 	${cxx} ${cflags} -I inc -I impl -I${libPath} -o ${binPath}/cactus_caf cactus_caf.c ${libSources} ${libPath}/stCaf.a ${stCafLibs}
 
-
 clean : 
 	rm -f *.o
 	rm -f ${libPath}/stCaf.a ${binPath}/stCafTests ${binPath}/cactus_caf
