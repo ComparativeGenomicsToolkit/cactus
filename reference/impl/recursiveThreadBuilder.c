@@ -29,7 +29,7 @@ static void cacheNonNestedRecords(stCache *cache, stList *caps,
             if (group_isLeaf(group)) { //Record must not be in the database already
                 char *string = terminalAdjacencyWriteFn(cap);
                 assert(!stCache_containsRecord(cache, cap_getName(cap), 0, INT64_MAX));
-                stCache_setRecord(cache, cap_getName(cap), 0, strlen(string), string);
+                stCache_setRecord(cache, cap_getName(cap), 0, strlen(string)+1, string);
                 free(string);
             }
             if ((cap = cap_getOtherSegmentCap(adjacentCap)) == NULL) {
@@ -38,7 +38,7 @@ static void cacheNonNestedRecords(stCache *cache, stList *caps,
             Segment *segment = cap_getSegment(adjacentCap);
             char *string = segmentWriteFn(segment);
             assert(!stCache_containsRecord(cache, segment_getName(segment), 0, INT64_MAX));
-            stCache_setRecord(cache, segment_getName(segment), 0, strlen(string), string);
+            stCache_setRecord(cache, segment_getName(segment), 0, strlen(string)+1, string);
             free(string);
         }
     }
@@ -91,6 +91,7 @@ static void cacheNestedRecords(stKVDatabase *database, stCache *cache, stList *c
         int64_t *recordName = stList_pop(getRequests);
         int64_t recordSize;
         void *record = stKVDatabaseBulkResult_getRecord(result, &recordSize);
+        assert(record != NULL);
         assert(!stCache_containsRecord(cache, *recordName, 0, INT64_MAX));
         stCache_setRecord(cache, *recordName, 0, recordSize, record);
         stKVDatabaseBulkResult_destruct(result); //Cleanup the memory as we go.
@@ -162,7 +163,8 @@ void buildRecursiveThreads(stKVDatabase *database, stList *caps,
     for(int32_t i=0; i<stList_length(caps); i++) {
         Cap *cap = stList_get(caps, i);
         char *string = getThread(cache, cap);
-        stKVDatabaseBulkRequest_constructInsertRequest(cap_getName(cap), string, strlen(string));
+        assert(string != NULL);
+        stList_append(records, stKVDatabaseBulkRequest_constructInsertRequest(cap_getName(cap), string, strlen(string)));
         free(string);
     }
 

@@ -291,7 +291,7 @@ def runCactusBar(cactusDiskDatabaseString, flowerNames, logLevel=None,
             numThreads, requiredIngroupFraction, requiredOutgroupFraction, requiredAllFraction, diagonalExpansion), stdinString=flowerNames)
 
 def runCactusSecondaryDatabase(secondaryDatabaseString, create=True):
-    command = "cactus_secondaryDatabase %s %s" % (secondaryDatabaseString, int(create))
+    command = "cactus_secondaryDatabase '%s' %s" % (secondaryDatabaseString, int(create))
     system(command)
     
 def runCactusReference(cactusDiskDatabaseString, flowerNames, logLevel=None,

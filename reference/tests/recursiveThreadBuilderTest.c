@@ -17,6 +17,9 @@ static char *writeSegment(Segment *segment) {
 }
 
 static char *writeTerminalAdjacency(Cap *cap) {
+    if(cap_getCoordinate(cap_getAdjacency(cap)) - cap_getCoordinate(cap) - 1 == 0) {
+        return stString_print("");
+    }
     Sequence *sequence = cap_getSequence(cap);
     assert(sequence != NULL);
     return stString_print("%i %s ", cap_getCoordinate(cap), sequence_getString(sequence, cap_getCoordinate(cap)+1, cap_getCoordinate(cap_getAdjacency(cap)) - cap_getCoordinate(cap) - 1, 1));
@@ -63,6 +66,14 @@ static void recursiveFileBuilder_test(CuTest *testCase) {
     //Add adjacencies at lower level
     cap_makeAdjacent(flower_getCap(nestedFlower, cap_getName(cap1)), segment_get5Cap(segment1));
     cap_makeAdjacent(segment_get3Cap(segment1), flower_getCap(nestedFlower, cap_getName(cap2)));
+
+    Group *nestedGroup = group_construct2(nestedFlower);
+    End *end;
+    Flower_EndIterator *endIt = flower_getEndIterator(nestedFlower);
+    while((end = flower_getNextEnd(endIt)) != NULL) {
+        end_setGroup(end, nestedGroup);
+    }
+    flower_destructEndIterator(endIt);
 
     //Create the sequence database
     stKVDatabaseConf *secondaryConf = stKVDatabaseConf_constructTokyoCabinet(

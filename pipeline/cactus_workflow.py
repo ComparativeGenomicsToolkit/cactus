@@ -529,6 +529,7 @@ class CactusReferencePhase(CactusPhasesTarget):
         """Runs the reference problem algorithm
         """
         self.setupSecondaryDatabase()
+        self.phaseNode.attrib["secondaryDatabaseString"] = self.cactusWorkflowArguments.secondaryDatabaseString
         self.runPhase(CactusReferenceRecursion, CactusSetReferenceCoordinatesDownPhase, "reference", 
                       doRecursion=self.getOptionalPhaseAttrib("buildReference", bool, False))
         
@@ -568,7 +569,7 @@ class CactusSetReferenceCoordinatesUpWrapper(CactusRecursionTarget):
     """ 
     def run(self):
         runCactusAddReferenceCoordinates(cactusDiskDatabaseString=self.cactusDiskDatabaseString, 
-                                         secondaryDatabaseString=self.secondaryDatabaseString,
+                                         secondaryDatabaseString=self.getOptionalPhaseAttrib("secondaryDatabaseString"),
                                          flowerNames=self.flowerNames,
                                          referenceEventString=self.getOptionalPhaseAttrib("reference"), 
                                          outgroupEventString=self.getOptionalPhaseAttrib("outgroup"), 
@@ -647,6 +648,7 @@ class CactusHalGeneratorPhase(CactusPhasesTarget):
             referenceNode = findRequiredNode(self.cactusWorkflowArguments.configNode, "reference")
             if referenceNode.attrib.has_key("reference"):
                 self.phaseNode.attrib["reference"] = referenceNode.attrib["reference"]
+            self.phaseNode.attrib["secondaryDatabaseString"] = self.cactusWorkflowArguments.secondaryDatabaseString
             self.phaseNode.attrib["outputFile"]=self.cactusWorkflowArguments.experimentNode.find("hal").attrib["path"]
             self.makeRecursiveChildTarget(CactusHalGeneratorRecursion)
             makeFollowOnPhaseTarget(CactusHalGeneratorPhaseCleanup, "hal")
@@ -667,7 +669,7 @@ class CactusHalGeneratorUpWrapper(CactusRecursionTarget):
     """ 
     def run(self):
         runCactusHalGenerator(cactusDiskDatabaseString=self.cactusDiskDatabaseString, 
-                              secondaryDatabaseString=self.secondaryDatabaseString,
+                              secondaryDatabaseString=self.getOptionalPhaseAttrib("secondaryDatabaseString"),
                               flowerNames=self.flowerNames,
                               referenceEventString=self.getOptionalPhaseAttrib("reference"), #self.configNode.attrib["reference"], #self.getOptionalPhaseAttrib("reference"), 
                               outputFile=self.getOptionalPhaseAttrib("outputFile"),

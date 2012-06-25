@@ -7,10 +7,11 @@
 #include "sonLib.h"
 
 int main(int argc, char *argv[]) {
+    assert(argc == 3);
+    stKVDatabaseConf *kvDatabaseConf = stKVDatabaseConf_constructFromString(argv[1]);
     int32_t create;
-    int32_t i = sscanf(argv[1], "%i", &create);
+    int32_t i = sscanf(argv[2], "%i", &create);
     assert(i == 1);
-    stKVDatabaseConf *kvDatabaseConf = stKVDatabaseConf_constructFromString(argv[2]);
     if(create) {
          stKVDatabase *database = stKVDatabase_construct(kvDatabaseConf, 1);
          stKVDatabase_destruct(database);
