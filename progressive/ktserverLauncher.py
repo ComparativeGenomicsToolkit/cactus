@@ -21,7 +21,7 @@ from optparse import OptionParser
 import xml.etree.ElementTree as ET
 from sonLib.bioio import spawnDaemon
 from sonLib.bioio import popenCatch
-from cactus.progressive.experimentWrapper import ExperimentWrapper
+from cactus.progressive.experimentWrapper import DbElemWrapper
 
 class KtserverLauncher:
     def __init__(self):
@@ -131,49 +131,49 @@ class KtserverLauncher:
                     return -1               
             raise RuntimeError("failed ktserver stuck on %s" % dbPath)
         
-    def ktserverCmd(self, experiment, outputPath, port, exists, readOnly):
+    def ktserverCmd(self, dbElem, outputPath, port, exists, readOnly):
         tuning = self.createTuningOptions
         if exists or readOnly:
             tuning = self.readTuningOptions
         cmd = "ktserver -log %s -port %d %s" % (outputPath, port, self.serverOptions)
-        if readOnly is True and experiment.getDbSnapshot() == False:
+        if readOnly is True and dbElem.getDbSnapshot() == False:
             cmd += " -ord -onr"
-        if experiment.getDbHost() is not None:
-            cmd += " -host %s" % experiment.getDbHost()
-        if experiment.getDbSnapshot() == True:
-            cmd += " -bgs %s -bgsi 100000000" % experiment.getDbDir()        
-        if experiment.getDbInMemory() == False:
-            cmd += " %s" % os.path.join(experiment.getDbDir(), experiment.getDbName())
+        if dbElem.getDbHost() is not None:
+            cmd += " -host %s" % dbElem.getDbHost()
+        if dbElem.getDbSnapshot() == True:
+            cmd += " -bgs %s -bgsi 100000000" % dbElem.getDbDir()        
+        if dbElem.getDbInMemory() == False:
+            cmd += " %s" % os.path.join(dbElem.getDbDir(), dbElem.getDbName())
         else:
             cmd += " :"
         cmd += tuning
         return cmd
     
     # launch the ktserver as a new daemon process.  
-    def spawnServer(self, experiment, readOnly = False):        
-        dbPath = os.path.join(experiment.getDbDir(), experiment.getDbName())
+    def spawnServer(self, dbElem, readOnly = False):        
+        dbPath = os.path.join(dbElem.getDbDir(), dbElem.getDbName())
         if (len(self.scrapePids([dbPath])) != 0):
             raise RuntimeError("ktserver already running on %s" % dbPath)
         
         # override default ktserver settings if they are present in the
         # epxeriment xml file. 
-        if experiment.getDbServerOptions() is not None:
-            self.serverOptions = experiment.getDbServerOptions()
-        if experiment.getDbTuningOptions() is not None:
-            self.createTuningOptions = experiment.getDbTuningOptions()
-            self.readTuningOptions = experiment.getDbTuningOptions()
-        if experiment.getDbCreateTuningOptions() is not None:
-            self.createTuningOptions = experiment.getDbCreateTuningOptions()
-        if experiment.getDbReadTuningOptions() is not None:
-            self.readTuningOptions = experiment.getDbReadTuningOptions()
+        if dbElem.getDbServerOptions() is not None:
+            self.serverOptions = dbElem.getDbServerOptions()
+        if dbElem.getDbTuningOptions() is not None:
+            self.createTuningOptions = dbElem.getDbTuningOptions()
+            self.readTuningOptions = dbElem.getDbTuningOptions()
+        if dbElem.getDbCreateTuningOptions() is not None:
+            self.createTuningOptions = dbElem.getDbCreateTuningOptions()
+        if dbElem.getDbReadTuningOptions() is not None:
+            self.readTuningOptions = dbElem.getDbReadTuningOptions()
         
         self.waitOnTotalNumberOfServers()        
-        basePort = experiment.getDbPort()
-        outputPath = os.path.join(experiment.getDbDir(), "ktout.log")
+        basePort = dbElem.getDbPort()
+        outputPath = os.path.join(dbElem.getDbDir(), "ktout.log")
         
         dbPathExists = False
-        if experiment.getDbInMemory() == False:
-            assert os.path.splitext(experiment.getDbName())[1] == ".kch"
+        if dbElem.getDbInMemory() == False:
+            assert os.path.splitext(dbElem.getDbName())[1] == ".kch"
             dbPathExists = os.path.exists(dbPath)
             
         for port in range(basePort, basePort + self.rangeSize):
@@ -183,11 +183,11 @@ class KtserverLauncher:
                 # shouldn't be necessary but try to reduce the occurrence of
                 # freak concurrency issues by taking a quick nap
                 sleep(random.uniform(0, 1))
-                spawnDaemon(self.ktserverCmd(experiment, outputPath, port, 
+                spawnDaemon(self.ktserverCmd(dbElem, outputPath, port, 
                                              dbPathExists, readOnly))
                 pid = self.validateServer(dbPath, outputPath, port)
                 if pid >= 0:
-                    experiment.setDbPort(port)
+                    dbElem.setDbPort(port)
                     break                
         
         if pid < 0:
@@ -196,9 +196,9 @@ class KtserverLauncher:
         if (len(self.scrapePids([dbPath])) > 1):
             raise RuntimeError("Multiple ktservers running on %s" % dbPath)
                  
-    def killServer(self, experiment):
-        dbPath = os.path.join(experiment.getDbDir(), experiment.getDbName())
-        port = experiment.getDbPort()
+    def killServer(self, dbElem):
+        dbPath = os.path.join(dbElem.getDbDir(), dbElem.getDbName())
+        port = dbElem.getDbPort()
         pids = self.scrapePids(['port %d' % port, dbPath])
         if len(pids) == 0:
             raise RuntimeError("Can't find ktserver to kill for %s on port %d" \
@@ -222,19 +222,19 @@ class KtserverLauncher:
                 sleep(self.killWait)
         raise RuntimeError("Failed to kill ktserver on port %d and path %s" % (port, dbPath))
 
-    def getServerReport(self, experiment):
-         port = experiment.getDbPort()
+    def getServerReport(self, dbElem):
+         port = dbElem.getDbPort()
          cmd = "ktremotemgr report -port %ds" % port
-         if experiment.getDbHost() is not None:
-            cmd += " -host %s" % experiment.getDbHost()
+         if dbElem.getDbHost() is not None:
+            cmd += " -host %s" % dbElem.getDbHost()
          report = popenCatch(cmd)
          return report
             
         
 def main():
     try:
-        usage = "usage: %prog <experiment file>"
-        description = "Open ktserver of a given experiment"
+        usage = "usage: %prog <dbElem file>"
+        description = "Open ktserver of a given dbElem"
         parser = OptionParser(usage=usage, description=description)
         
         options, args = parser.parse_args()
@@ -243,7 +243,7 @@ def main():
             parser.print_help()
             raise RuntimeError("Wrong number of arguments")
         
-        exp = ExperimentWrapper(ET.parse(args[0]).getroot())
+        exp = DbElemWrapper(ET.parse(args[0]).getroot())
         kts = KtserverLauncher()
         kts.spawnServer(exp)
         print exp.getDiskDatabaseString()

@@ -25,30 +25,33 @@ from cactus.progressive.configWrapper import ConfigWrapper
 from sonLib.nxnewick import NXNewick
 from cactus.shared.common import cactusRootPath
 
-class ExperimentWrapper:
-    def __init__(self, xmlRoot):
-        self.xmlRoot = xmlRoot
-        self.seqMap = self.buildSequenceMap()
-        self.dbElem = self.getDbElem()
+class DbElemWrapper(object):
+    def __init__(self, confElem):
+        typeString = confElem.attrib["type"]
+        dbElem = confElem.find(typeString)  
+        self.dbElem = dbElem
+        self.confElem = confElem
 
-    def writeXML(self, path):
-        xmlFile = open(path, "w")
-        xmlString = ET.tostring(self.xmlRoot)
-        xmlString = xmlString.replace("\n", "")
-        xmlString = xmlString.replace("\t", "")
-        xmlString = minidom.parseString(xmlString).toprettyxml()
-        xmlFile.write(xmlString)
-        xmlFile.close()
+    def getDbElem(self):
+        return self.dbElem
+
+    def getConfString(self):
+        return ET.tostring(self.confElem)
 
     def getDbDir(self):
         if "database_dir" in self.dbElem.attrib:
             dbDir = self.dbElem.attrib["database_dir"]
             if len(dbDir) > 0:
-                return self.dbElem.attrib["database_dir"]
+                if dbDir[-1] == '/' and lendbDir > 1:
+                    dbDir = dbDir[:-1]
+                return dbDir
         return None
     
     def setDbDir(self, path):
-        self.dbElem.attrib["database_dir"] = path
+        if path[-1] == '/' and len(path) > 1:
+            self.dbElem.attrib["database_dir"] = path[:-1]
+        else:
+            self.dbElem.attrib["database_dir"] = path
         
     def getDbName(self):
         if self.getDbType() == "kyoto_tycoon" and self.getDbInMemory() == True:
@@ -124,6 +127,24 @@ class ExperimentWrapper:
             val = self.dbElem.attrib["snapshot"]
             return val.lower() == "true" or val == "1"
         return self.getDbInMemory()
+     
+
+class ExperimentWrapper(DbElemWrapper):
+    def __init__(self, xmlRoot):
+        diskElem = xmlRoot.find("cactus_disk")
+        confElem = diskElem.find("st_kv_database_conf")
+        super(ExperimentWrapper, self).__init__(confElem)
+        self.xmlRoot = xmlRoot
+        self.seqMap = self.buildSequenceMap()
+
+    def writeXML(self, path):
+        xmlFile = open(path, "w")
+        xmlString = ET.tostring(self.xmlRoot)
+        xmlString = xmlString.replace("\n", "")
+        xmlString = xmlString.replace("\t", "")
+        xmlString = minidom.parseString(xmlString).toprettyxml()
+        xmlFile.write(xmlString)
+        xmlFile.close()
     
     def getConfig(self):
         return self.xmlRoot.attrib["config"]
@@ -217,12 +238,6 @@ class ExperimentWrapper:
             if tree.isLeaf(node):
                 seqMap[tree.getName(node)] = nameIterator.next()
         return seqMap
-    
-    def getDbElem(self):
-        diskElem = self.xmlRoot.find("cactus_disk")
-        confElem = diskElem.find("st_kv_database_conf")
-        typeString = confElem.attrib["type"]
-        return confElem.find(typeString)  
 
     # load in a new tree (using input seqMap if specified,
     # current one otherwise

@@ -16,6 +16,8 @@ import xml.etree.ElementTree as ET
 import math
 import time
 import bz2
+import random
+import copy
 from optparse import OptionParser
 
 from sonLib.bioio import getTempFile
@@ -24,6 +26,7 @@ from sonLib.bioio import newickTreeParser
 from sonLib.bioio import logger
 from sonLib.bioio import setLoggingFromOptions
 from sonLib.bioio import getTempDirectory
+from sonLib.bioio import system
 
 from cactus.shared.common import cactusRootPath
   
@@ -56,6 +59,8 @@ from cactus.blastAlignment.cactus_batch import makeBlastFromOptions
 from cactus.preprocessor.cactus_preprocessor import BatchPreprocessor
 from cactus.preprocessor.cactus_preprocessor import PreprocessorHelper
 
+from cactus.progressive.experimentWrapper import DbElemWrapper
+from cactus.progressive.ktserverLauncher import KtserverLauncher
 ############################################################
 ############################################################
 ############################################################
@@ -155,12 +160,32 @@ class CactusPhasesTarget(CactusTarget):
     def setupSecondaryDatabase(self):
         """Setup the secondary database
         """
-        runCactusSecondaryDatabase(self.cactusWorkflowArguments.secondaryDatabaseString, create=True)
+        confXML = ET.fromstring(self.cactusWorkflowArguments.secondaryDatabaseString)
+        dbElem = DbElemWrapper(confXML)
+        if dbElem.getDbType() == "kyoto_tycoon":
+            assert dbElem.getDbDir() is not None
+            if not os.path.exists(dbElem.getDbDir()):
+                os.makedirs(dbElem.getDbDir())
+            ktserver = KtserverLauncher()
+            ktserver.spawnServer(dbElem)
+            self.cactusWorkflowArguments.secondaryDatabaseString = dbElem.getConfString()
+        else:
+            runCactusSecondaryDatabase(self.cactusWorkflowArguments.secondaryDatabaseString, create=True)
     
     def cleanupSecondaryDatabase(self):
         """Cleanup the secondary database
         """
-        runCactusSecondaryDatabase(self.cactusWorkflowArguments.secondaryDatabaseString, create=False)
+        confXML = ET.fromstring(self.cactusWorkflowArguments.secondaryDatabaseString)
+        dbElem = DbElemWrapper(confXML)
+        if dbElem.getDbType() == "kyoto_tycoon":
+            ktserver = KtserverLauncher()
+            self.logToMaster("KTSERVER Report for secondary db in %s on port %d:\n%s" % (
+                dbElem.getDbDir(), dbElem.getDbPort(), ktserver.getServerReport(dbElem)))
+            ktserver.killServer(dbElem)
+            assert "tempSecondaryDatabaseDir_" in dbElem.getDbDir()
+            system("rm -rf %s" % dbElem.getDbDir())
+        else:
+            runCactusSecondaryDatabase(self.cactusWorkflowArguments.secondaryDatabaseString, create=False)
 
 class CactusRecursionTarget(CactusTarget):
     """Base recursive target for traversals up and down the cactus tree.
@@ -689,7 +714,6 @@ class CactusHalGeneratorPhaseCleanup(CactusPhasesTarget):
 ############################################################
 ############################################################
 ############################################################
-
 class CactusWorkflowArguments:
     """Object for representing a cactus workflow's arguments
     """
@@ -706,8 +730,17 @@ class CactusWorkflowArguments:
         #Constraints
         self.constraintsFile = getOptionalAttrib(self.experimentNode, "constraints")
         #Secondary, scratch DB
-        import random
-        self.secondaryDatabaseString = '<st_kv_database_conf type="tokyo_cabinet"><tokyo_cabinet database_dir="./tempSecondaryDatabaseDir_%s"/></st_kv_database_conf>' % random.random()
+        secondaryConf = copy.deepcopy(self.experimentNode.find("cactus_disk").find("st_kv_database_conf"))
+        secondaryElem = DbElemWrapper(secondaryConf)
+        dbPath = secondaryElem.getDbDir()
+        assert dbPath is not None
+        secondaryDbPath = os.path.join(os.path.dirname(dbPath), "%s_tempSecondaryDatabaseDir_%s" % (
+            os.path.basename(dbPath), random.random()))
+        secondaryElem.setDbDir(secondaryDbPath)
+        if secondaryElem.getDbType() == "kyoto_tycoon":
+            secondaryElem.setDbPort(secondaryElem.getDbPort() + 100)
+        self.secondaryDatabaseString = secondaryElem.getConfString()
+            
         #The config options
         configFile = self.experimentNode.attrib["config"]
         if configFile == "default":
