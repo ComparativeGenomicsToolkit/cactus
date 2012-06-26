@@ -94,7 +94,9 @@ Cap *cap_copyConstruct(End *end, Cap *cap) {
     } else {
         event = eventTree_getEvent(flower_getEventTree(flower), event_getName(cap_getEvent(cap)));
         assert(event != NULL);
-        return cap_construct3(cap_getName(cap), event, end);
+        Cap *cap2 = cap_construct3(cap_getName(cap), event, end);
+        cap_setCoordinates(cap2, INT32_MAX, cap_getStrand(cap), NULL);
+        return cap2;
     }
 }
 
@@ -420,6 +422,7 @@ void cap_writeBinaryRepresentation(Cap *cap, void(*writeFn)(const void * ptr, si
     if (cap_getCoordinate(cap) == INT32_MAX) {
         binaryRepresentation_writeElementType(CODE_CAP, writeFn);
         binaryRepresentation_writeName(cap_getName(cap), writeFn);
+        binaryRepresentation_writeBool(cap_getStrand(cap), writeFn);
         binaryRepresentation_writeName(event_getName(cap_getEvent(cap)), writeFn);
     } else if (cap_getSequence(cap) != NULL) {
         binaryRepresentation_writeElementType(CODE_CAP_WITH_COORDINATES, writeFn);
@@ -476,8 +479,10 @@ Cap *cap_loadFromBinaryRepresentation(void **binaryString, End *end) {
     if (binaryRepresentation_peekNextElementType(*binaryString) == CODE_CAP) {
         binaryRepresentation_popNextElementType(binaryString);
         name = binaryRepresentation_getName(binaryString);
+        strand = binaryRepresentation_getBool(binaryString);
         event = eventTree_getEvent(flower_getEventTree(end_getFlower(end)), binaryRepresentation_getName(binaryString));
         cap = cap_construct3(name, event, end);
+        cap_setCoordinates(cap, INT32_MAX, strand, NULL); //Hacks
         cap_loadFromBinaryRepresentationP2(binaryString, cap);
     } else if (binaryRepresentation_peekNextElementType(*binaryString) == CODE_CAP_WITH_COORDINATES) {
         binaryRepresentation_popNextElementType(binaryString);
@@ -494,8 +499,8 @@ Cap *cap_loadFromBinaryRepresentation(void **binaryString, End *end) {
         strand = binaryRepresentation_getBool(binaryString);
         event = eventTree_getEvent(flower_getEventTree(end_getFlower(end)), binaryRepresentation_getName(binaryString));
         cap = cap_construct3(name, event, end);
-        cap_loadFromBinaryRepresentationP2(binaryString, cap);
         cap_setCoordinates(cap, coordinate, strand, NULL);
+        cap_loadFromBinaryRepresentationP2(binaryString, cap);
     }
 
     return cap;

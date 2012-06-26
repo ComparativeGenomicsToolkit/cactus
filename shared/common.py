@@ -313,12 +313,13 @@ def runCactusReference(cactusDiskDatabaseString, flowerNames, logLevel=None,
     command = "cactus_reference --cactusDisk '%s' --logLevel %s %s %s %s %s %s %s" % (cactusDiskDatabaseString, logLevel, matchingAlgorithm, referenceEventString, permutations, useSimulatedAnnealing, theta, maxNumberOfChainsBeforeSwitchingToFast)
     popenPush(command, stdinString=flowerNames)
     
-def runCactusAddReferenceCoordinates(cactusDiskDatabaseString, secondaryDatabaseString, flowerNames, logLevel=None, referenceEventString=None, outgroupEventString=None, bottomUpPhase=None):   
+def runCactusAddReferenceCoordinates(cactusDiskDatabaseString, flowerNames, logLevel=None, referenceEventString=None, outgroupEventString=None, secondaryDatabaseString=None, bottomUpPhase=None):   
     logLevel = getLogLevelString2(logLevel)
     bottomUpPhase = nameValue("bottomUpPhase", bottomUpPhase, bool)
     referenceEventString = nameValue("referenceEventString", referenceEventString)
     outgroupEventString = nameValue("outgroupEventString", outgroupEventString)
-    command = "cactus_addReferenceCoordinates --cactusDisk '%s' --secondaryDisk '%s' --logLevel %s %s %s %s" % (cactusDiskDatabaseString, secondaryDatabaseString, logLevel, referenceEventString, outgroupEventString, bottomUpPhase)
+    secondaryDatabaseString = nameValue("secondaryDisk", secondaryDatabaseString, quotes=True)
+    command = "cactus_addReferenceCoordinates --cactusDisk '%s' %s --logLevel %s %s %s %s" % (cactusDiskDatabaseString, secondaryDatabaseString, logLevel, referenceEventString, outgroupEventString, bottomUpPhase)
     popenPush(command, stdinString=flowerNames)
 
 def runCactusCheck(cactusDiskDatabaseString, 

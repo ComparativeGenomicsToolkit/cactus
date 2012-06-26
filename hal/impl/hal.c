@@ -158,7 +158,7 @@ static stList *getCaps(stList *flowers) {
 
 void makeHalFormat(stList *flowers, stKVDatabase *database, Name referenceEventName,
         FILE *fileHandle) {
-    stList *caps = getCaps(caps);
+    stList *caps = getCaps(flowers);
     globalReferenceEventName = referenceEventName;
     if(fileHandle == NULL) {
         buildRecursiveThreads(database, caps, writeSegment, writeTerminalAdjacency);

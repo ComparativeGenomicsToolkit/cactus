@@ -154,7 +154,7 @@ void makeMafFormat(stList *flowers, stKVDatabase *database, Name referenceEventN
         FILE *fileHandle, bool showOnlySubstitutionsWithRespectToReference) {
     writeMafBlock_showOnlySubstitutionsWithRespectToReference
                 = showOnlySubstitutionsWithRespectToReference;
-    stList *caps = getCaps(caps, referenceEventName);
+    stList *caps = getCaps(flowers, referenceEventName);
     if(fileHandle == NULL) {
         buildRecursiveThreads(database, caps, writeMafBlock, writeTerminalAdjacency);
     }

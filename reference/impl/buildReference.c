@@ -60,7 +60,6 @@ static stList *getExtraAttachedStubsFromParent(Flower *flower) {
             if (end_isAttached(parentEnd) || end_isBlockEnd(parentEnd)) {
                 End *end = flower_getEnd(flower, end_getName(parentEnd));
                 if (end == NULL) { //We have found an end that needs to be pushed into the child.
-                    st_uglyf("Here is an end to be copied %lli\n", flower_getName(flower));
                     stList_append(newEnds, end_copyConstruct(parentEnd, flower)); //At this point it has no associated group;
                 }
             }
@@ -548,11 +547,13 @@ static stList *getStubEdges(Flower *flower, stHash *endsToNodes, Event *referenc
 ////////////////////////////////////
 
 static Cap *makeStubCap(End *end, Event *referenceEvent) {
-    Cap *cap = NULL;
     assert(end_isAttached(end));
     assert(end_isStubEnd(end));
+    Cap *cap = getCapWithEvent(end, event_getName(referenceEvent));
+    if(cap != NULL) {
+        return cap_getStrand(cap) ? cap : cap_getReverse(cap);
+    }
     Group *parentGroup = flower_getParentGroup(end_getFlower(end));
-    st_uglyf("Just checking %lli %lli\n", getCapWithEvent(end, event_getName(referenceEvent)), end_getFlower(end));
     if (parentGroup != NULL) {
         End *parentEnd = group_getEnd(parentGroup, end_getName(end));
         assert(parentEnd != NULL);
@@ -595,7 +596,9 @@ static void makeAdjacent(Cap *cap, Cap *cap2) {
 
 static void makeThread(End *end, stHash *endsToEnds, Flower *flower, Event *referenceEvent) {
     Cap *cap = makeStubCap(end, referenceEvent);
+    assert(cap_getStrand(cap));
     end = cap_getEnd(cap);
+    assert(cap_getSide(cap) == end_getSide(end));
     while (1) {
         End *end2 = stHash_search(endsToEnds, end_getPositiveOrientation(end));
         assert(end2 != NULL);
@@ -606,6 +609,10 @@ static void makeThread(End *end, stHash *endsToEnds, Flower *flower, Event *refe
         if (end_isStubEnd(end2)) {
             Cap *cap2 = makeStubCap(end2, referenceEvent);
             makeAdjacent(cap, cap2);
+            break;
+        }
+        if(getCapWithEvent(end2, event_getName(referenceEvent)) != NULL) { //Already connected, case where thread is already generated.
+            assert(cap_getAdjacency(getCapWithEvent(end2, event_getName(referenceEvent))) == cap);
             break;
         }
         Block *block = end_getBlock(end2);
@@ -636,9 +643,7 @@ static void makeThreads(stHash *endsToEnds, Flower *flower, Event *referenceEven
     while ((end = flower_getNextEnd(endIt)) != NULL) {
         if (end_isAttached(end) && end_isStubEnd(end)) {
             assert(end_getOrientation(end));
-            if (getCapWithEvent(end, event_getName(referenceEvent)) == NULL) { //Have no thread, so make one!
-                makeThread(end, endsToEnds, flower, referenceEvent);
-            }
+            makeThread(end, endsToEnds, flower, referenceEvent);
         }
     }
     flower_destructEndIterator(endIt);
@@ -690,7 +695,6 @@ static stHash *getEndsToEnds(Flower *flower, stList *chosenAdjacencyEdges, stHas
             mapEnds(endsToEnds, end1, end2);
         }
     }
-    st_uglyf("We got %i %i\n", flower_getEndNumber(flower), stHash_size(endsToEnds));
     Flower_GroupIterator *groupIt = flower_getGroupIterator(flower);
     Group *group;
     while ((group = flower_getNextGroup(groupIt)) != NULL) {
@@ -700,7 +704,6 @@ static stHash *getEndsToEnds(Flower *flower, stList *chosenAdjacencyEdges, stHas
         }
     }
     flower_destructGroupIterator(groupIt);
-    st_uglyf("We got %i %i\n", flower_getEndNumber(flower), stHash_size(endsToEnds));
     assert(flower_getEndNumber(flower) - flower_getFreeStubEndNumber(flower) == stHash_size(endsToEnds));
     return endsToEnds;
 }
@@ -772,7 +775,6 @@ void buildReferenceTopDown(Flower *flower, const char *referenceEventHeader, int
      * Get any extra ends to balance the group from the parent problem.
      */
     stList *newEnds = getExtraAttachedStubsFromParent(flower);
-    st_logDebug("Got %i new ends\n", stList_length(newEnds));
 
     /*
      * Create a map to identify the ends by integers.

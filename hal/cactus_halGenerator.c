@@ -141,6 +141,7 @@ int main(int argc, char *argv[]) {
     ///////////////////////////////////////////////////////////////////////////
 
     stList *flowers = flowerWriter_parseFlowersFromStdin(cactusDisk);
+    st_logInfo("We have %i flowers\n", stList_length(flowers));
 
     ///////////////////////////////////////////////////////////////////////////
     // Get the reference event name
@@ -158,7 +159,7 @@ int main(int argc, char *argv[]) {
 
     if (outputFile != NULL && stList_length(flowers) != 1) {
         stThrowNew("RUNTIME_ERROR",
-                "Output file specified, but there is not only one flower required\n");
+                "Output file specified, but there is more than one flower\n");
     }
     
     FILE *fileHandle = NULL;

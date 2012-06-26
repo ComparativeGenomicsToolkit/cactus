@@ -136,13 +136,13 @@ int main(int argc, char *argv[]) {
     ///////////////////////////////////////////////////////////////////////////
 
     if (bottomUpPhase) {
-        cactusDisk_preCacheSegmentStrings(cactusDisk, flowers);
+        //cactusDisk_preCacheSegmentStrings(cactusDisk, flowers);
         assert(secondaryDatabaseString != NULL);
         kvDatabaseConf = stKVDatabaseConf_constructFromString(secondaryDatabaseString);
         stKVDatabase *sequenceDatabase = stKVDatabase_construct(kvDatabaseConf, 0);
         stKVDatabaseConf_destruct(kvDatabaseConf);
         Flower *flower = stList_get(flowers, 0);
-        bottomUp(flowers, sequenceDatabase, referenceEventName, outgroupEventName, flower_hasParentGroup(flower));
+        bottomUp(flowers, sequenceDatabase, referenceEventName, outgroupEventName, !flower_hasParentGroup(flower));
         //Now unload the nested flowers.
         for (int32_t i = 0; i < stList_length(flowers); i++) {
             Flower *flower = stList_get(flowers, i);

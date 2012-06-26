@@ -51,7 +51,6 @@ static char getMajorityBase(int32_t *baseCounts, int32_t *outgroupBaseCounts) {
             maxBaseCount = k;
         }
     }
-    //st_uglyf("max base count %i\n", maxBaseCount);
     if (maxBaseCount == 0) {
         return 'n';
     } else {

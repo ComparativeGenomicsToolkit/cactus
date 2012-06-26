@@ -651,8 +651,7 @@ class CactusHalGeneratorPhase(CactusPhasesTarget):
             self.phaseNode.attrib["secondaryDatabaseString"] = self.cactusWorkflowArguments.secondaryDatabaseString
             self.phaseNode.attrib["outputFile"]=self.cactusWorkflowArguments.experimentNode.find("hal").attrib["path"]
             self.makeRecursiveChildTarget(CactusHalGeneratorRecursion)
-            makeFollowOnPhaseTarget(CactusHalGeneratorPhaseCleanup, "hal")
-            
+            self.makeFollowOnPhaseTarget(CactusHalGeneratorPhaseCleanup, "hal")     
 
 class CactusHalGeneratorRecursion(CactusRecursionTarget):
     """Generate the hal file by merging indexed hal files from the children.
@@ -707,7 +706,8 @@ class CactusWorkflowArguments:
         #Constraints
         self.constraintsFile = getOptionalAttrib(self.experimentNode, "constraints")
         #Secondary, scratch DB
-        self.secondaryDatabaseString = '<st_kv_database_conf type="tokyo_cabinet"><tokyo_cabinet database_dir="./tempSecondaryDatabaseDir"/></st_kv_database_conf>'
+        import random
+        self.secondaryDatabaseString = '<st_kv_database_conf type="tokyo_cabinet"><tokyo_cabinet database_dir="./tempSecondaryDatabaseDir_%s"/></st_kv_database_conf>' % random.random()
         #The config options
         configFile = self.experimentNode.attrib["config"]
         if configFile == "default":

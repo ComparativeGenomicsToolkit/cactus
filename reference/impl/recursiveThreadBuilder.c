@@ -23,7 +23,6 @@ static void cacheNonNestedRecords(stCache *cache, stList *caps,
         while (1) {
             Cap *adjacentCap = cap_getAdjacency(cap);
             assert(adjacentCap != NULL);
-            assert(cap_getCoordinate(adjacentCap) - cap_getCoordinate(cap) >= 1);
             Group *group = end_getGroup(cap_getEnd(cap));
             assert(group != NULL);
             if (group_isLeaf(group)) { //Record must not be in the database already
@@ -54,7 +53,6 @@ static stList *getNestedRecordNames(stList *caps) {
         while (1) {
             Cap *adjacentCap = cap_getAdjacency(cap);
             assert(adjacentCap != NULL);
-            assert(cap_getCoordinate(adjacentCap) - cap_getCoordinate(cap) >= 1);
             Group *group = end_getGroup(cap_getEnd(cap));
             assert(group != NULL);
             if (!group_isLeaf(group)) { //Record must be in the database already
@@ -93,6 +91,7 @@ static void cacheNestedRecords(stKVDatabase *database, stCache *cache, stList *c
         void *record = stKVDatabaseBulkResult_getRecord(result, &recordSize);
         assert(record != NULL);
         assert(!stCache_containsRecord(cache, *recordName, 0, INT64_MAX));
+        assert(strlen((char *)record)+1 == recordSize);
         stCache_setRecord(cache, *recordName, 0, recordSize, record);
         stKVDatabaseBulkResult_destruct(result); //Cleanup the memory as we go.
         free(recordName);
@@ -119,6 +118,12 @@ static void deleteNestedRecords(stKVDatabase *database, stList *caps) {
      * Removes the non-terminal adjacencies from the database.
      */
     stList *deleteRequests = getNestedRecordNames(caps);
+    for(int32_t i=0; i<stList_length(deleteRequests); i++) {
+        int64_t *record = stList_get(deleteRequests, i);
+        stList_set(deleteRequests, i, stInt64Tuple_construct(1, record[0])); //Hack
+        free(record);
+    }
+    stList_setDestructor(deleteRequests, (void (*)(void *))stInt64Tuple_destruct);
     //Do the deletion of the records
     stTry {
         stKVDatabase_bulkRemoveRecords(database, deleteRequests);
@@ -164,7 +169,7 @@ void buildRecursiveThreads(stKVDatabase *database, stList *caps,
         Cap *cap = stList_get(caps, i);
         char *string = getThread(cache, cap);
         assert(string != NULL);
-        stList_append(records, stKVDatabaseBulkRequest_constructInsertRequest(cap_getName(cap), string, strlen(string)));
+        stList_append(records, stKVDatabaseBulkRequest_constructInsertRequest(cap_getName(cap), string, strlen(string)+1));
         free(string);
     }
 
