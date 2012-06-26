@@ -297,7 +297,7 @@ static stList *getSubstringsForFlowerSegments(stList *flowers) {
                     segment = segment_getStrand(segment) ? segment : segment_getReverse(segment);
                     assert(segment_getLength(segment) > 0);
                     stList_append(substrings,
-                                substring_construct(sequence_getMetaSequence(sequence)->stringName, segment_getStart(segment), segment_getLength(segment)));
+                                substring_construct(sequence_getMetaSequence(sequence)->stringName, segment_getStart(segment) - sequence_getStart(sequence), segment_getLength(segment)));
                 }
             }
             block_destructInstanceIterator(instanceIt);

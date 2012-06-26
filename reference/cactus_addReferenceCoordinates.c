@@ -136,7 +136,7 @@ int main(int argc, char *argv[]) {
     ///////////////////////////////////////////////////////////////////////////
 
     if (bottomUpPhase) {
-        //cactusDisk_preCacheSegmentStrings(cactusDisk, flowers);
+        cactusDisk_preCacheSegmentStrings(cactusDisk, flowers);
         assert(secondaryDatabaseString != NULL);
         kvDatabaseConf = stKVDatabaseConf_constructFromString(secondaryDatabaseString);
         stKVDatabase *sequenceDatabase = stKVDatabase_construct(kvDatabaseConf, 0);
