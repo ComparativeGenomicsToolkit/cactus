@@ -17,4 +17,6 @@ void makeMafFormat(stList *flowers, stKVDatabase *database, Name referenceEventN
 void makeHalFormat(stList *flowers, stKVDatabase *database, Name referenceEventName,
         FILE *fileHandle);
 
+void printFastaSequences(Flower *flower, FILE *fileHandle, Name referenceEventName);
+
 #endif /* HAL_H_ */

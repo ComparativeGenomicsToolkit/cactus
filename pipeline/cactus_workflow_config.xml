@@ -78,6 +78,7 @@
 	<hal
 		buildHal="0"
 		buildMaf="0"
+		buildFasta="0"
 		joinMaf="1"
 		showOnlySubstitutionsWithRespectToReference="0"
 	>

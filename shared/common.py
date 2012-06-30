@@ -341,6 +341,7 @@ def _fn(jobTreeDir,
       buildAvgs=False, buildReference=False,
       buildHal=False,
       buildMaf=False,
+      buildFasta=False,
       jobTreeStats=False,
       maxThreads=None,
       maxJobs=None,
@@ -354,6 +355,7 @@ def _fn(jobTreeDir,
     buildReference = nameValue("buildReference", buildReference, bool)
     buildHal = nameValue("buildHal", buildHal, bool)
     buildMaf= nameValue("buildMaf", buildMaf, bool)
+    buildFasta = nameValue("buildFasta", buildFasta, bool)
     #Jobtree args
     batchSystem = nameValue("batchSystem", batchSystem, str, quotes=True)
     retryCount = nameValue("retryCount", retryCount, int)
@@ -364,8 +366,8 @@ def _fn(jobTreeDir,
     noCheckPoints = nameValue("noCheckPoints", noCheckPoints, bool)
     defaultMemory= nameValue("defaultMemory", defaultMemory, int)
     logFile = nameValue("logFile", logFile, str)
-    return "%s %s %s --jobTree %s --logLevel %s %s %s %s %s %s %s %s %s %s %s %s %s" % (skipAlignments, buildAvgs, 
-             buildReference, jobTreeDir, logLevel, buildHal, buildMaf, batchSystem, retryCount, rescueJobFrequency, jobTreeStats, maxThreads, maxJobs, noCheckPoints, logFile, defaultMemory, extraJobTreeArgumentsString)
+    return "%s %s %s --jobTree %s --logLevel %s %s %s %s %s %s %s %s %s %s %s %s %s %s" % (skipAlignments, buildAvgs, 
+             buildReference, jobTreeDir, logLevel, buildHal, buildMaf, buildFasta, batchSystem, retryCount, rescueJobFrequency, jobTreeStats, maxThreads, maxJobs, noCheckPoints, logFile, defaultMemory, extraJobTreeArgumentsString)
      
 def runCactusWorkflow(experimentFile,
                       jobTreeDir, 
@@ -376,6 +378,7 @@ def runCactusWorkflow(experimentFile,
                       buildAvgs=False, buildReference=False,
                       buildHal=False,
                       buildMaf=False,
+                      buildFasta=False,
                       jobTreeStats=False,
                       maxThreads=None,
                       maxJobs=None,
@@ -385,7 +388,7 @@ def runCactusWorkflow(experimentFile,
                       extraJobTreeArgumentsString=""):
     command = ("cactus_workflow.py --experiment %s" % experimentFile) + " " + _fn(jobTreeDir, 
                       logLevel, retryCount, batchSystem, rescueJobFrequency, skipAlignments,
-                      buildAvgs, buildReference, buildHal, buildMaf, jobTreeStats, maxThreads, maxJobs, noCheckPoints, defaultMemory, logFile, extraJobTreeArgumentsString=extraJobTreeArgumentsString)
+                      buildAvgs, buildReference, buildHal, buildMaf, buildFasta, jobTreeStats, maxThreads, maxJobs, noCheckPoints, defaultMemory, logFile, extraJobTreeArgumentsString=extraJobTreeArgumentsString)
     system(command)
     logger.info("Ran the cactus workflow okay")
     
@@ -404,6 +407,7 @@ def runCactusProgressive(inputDir,
                       skipAlignments=False,
                       buildHal=None,
                       buildMaf=None,
+                      buildFasta=None,
                       joinMaf=None,
                       buildAvgs=False, 
                       jobTreeStats=False,
@@ -421,6 +425,7 @@ def runCactusProgressive(inputDir,
                       buildAvgs, None,
                       buildHal,
                       buildMaf,
+                      buildFasta,
                       jobTreeStats, maxThreads, maxJobs, noCheckPoints, defaultMemory, logFile, extraJobTreeArgumentsString=extraJobTreeArgumentsString) + \
                       (" %s %s %s" % (nameValue("recursive", recursive, bool),
                                      nameValue("joinMAF", joinMaf, bool), nameValue("event", event)))
@@ -447,3 +452,12 @@ def runCactusHalGenerator(cactusDiskDatabaseString,
                       showOnlySubstitutionsWithRespectToReference, bool)), 
               stdinString=flowerNames)
     
+def runCactusFastaGenerator(cactusDiskDatabaseString,
+                          flowerName,
+                          outputFile,
+                          referenceEventString=None, 
+                          logLevel=None):
+    logLevel = getLogLevelString2(logLevel)
+    system("cactus_fastaGenerator --cactusDisk '%s' --flowerName %s --outputFile %s --logLevel %s %s" % 
+           (cactusDiskDatabaseString, flowerName, outputFile, logLevel, 
+            nameValue("referenceEventString", referenceEventString)))

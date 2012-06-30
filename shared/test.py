@@ -70,9 +70,10 @@ def getCactusWorkflowExperimentForTest(sequences, newickTreeString, outputDir, d
     """
     halFile = os.path.join(outputDir, "test.hal")
     mafFile = os.path.join(outputDir, "test.maf")
+    fastaFile = os.path.join(outputDir, "test.fa")
     return CactusWorkflowExperiment(sequences, newickTreeString, outputDir=outputDir,
                                     databaseName=databaseName, databaseConf=GLOBAL_DATABASE_CONF, configFile=configFile,
-                                    halFile=halFile, mafFile=mafFile, constraints=constraints, progressive=progressive)
+                                    halFile=halFile, mafFile=mafFile, fastaFile=fastaFile, constraints=constraints, progressive=progressive)
 
 def parseCactusSuiteTestOptions():
     """Cactus version of the basic option parser that can additionally parse 
@@ -178,7 +179,6 @@ def getFastasFromSequence(sequenceDirs):
             fileHandle.close()
     return fastaSeqs
 
-
 def makeRandomConstraints(fastaSeqs):
     #Now make the fake alignments and write to file
     constraints = []
@@ -271,6 +271,7 @@ def runWorkflow_TestScript(sequences, newickTreeString,
                            buildReference=False,
                            buildHal=False,
                            buildMaf=False,
+                           buildFasta=False,
                            configFile=None,
                            buildJobTreeStats=False,
                            constraints=None,
@@ -307,6 +308,7 @@ def runWorkflow_TestScript(sequences, newickTreeString,
                       buildReference=buildReference,
                       buildHal=buildHal,
                       buildMaf=buildMaf,
+                      buildFasta=buildFasta,
                       jobTreeStats=buildJobTreeStats)
     logger.info("Ran the the workflow")
     
@@ -344,6 +346,7 @@ def runWorkflow_multipleExamples(inputGenFunction,
                                  cactusWorkflowFunction=runCactusWorkflow,
                                  buildHal=False,
                                  buildMaf=False,
+                                 buildFasta=False,
                                  progressive=False):
     """A wrapper to run a number of examples.
     """
@@ -362,6 +365,7 @@ def runWorkflow_multipleExamples(inputGenFunction,
                                                 buildAvgs=buildAvgs, buildReference=buildReference, 
                                                 buildHal=buildHal,
                                                 buildMaf=buildMaf,
+                                                buildFasta=buildFasta,
                                                 configFile=configFile,
                                                 buildJobTreeStats=buildJobTreeStats,
                                                 constraints=constraints,

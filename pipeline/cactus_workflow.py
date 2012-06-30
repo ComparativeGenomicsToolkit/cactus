@@ -51,6 +51,7 @@ from cactus.shared.common import runCactusCheck
 from cactus.shared.common import runCactusHalGenerator
 from cactus.shared.common import runCactusFlowerStats
 from cactus.shared.common import runCactusSecondaryDatabase
+from cactus.shared.common import runCactusFastaGenerator
 
 from cactus.blastAlignment.cactus_aligner import MakeSequences
 from cactus.blastAlignment.cactus_batch import MakeBlastOptions
@@ -674,10 +675,6 @@ class CactusHalGeneratorPhase(CactusPhasesTarget):
     
     def raiseHal(self, makeMaf):
         self.setupSecondaryDatabase()
-        referenceNode = findRequiredNode(self.cactusWorkflowArguments.configNode, "reference")
-        print "well hello", self.cactusWorkflowArguments.experimentNode.find("hal").attrib
-        if referenceNode.attrib.has_key("reference"):
-            self.phaseNode.attrib["reference"] = referenceNode.attrib["reference"]
         self.phaseNode.attrib["secondaryDatabaseString"] = self.cactusWorkflowArguments.secondaryDatabaseString
         if makeMaf:
             self.phaseNode.attrib["outputFile"]=self.getMafFile()
@@ -690,10 +687,23 @@ class CactusHalGeneratorPhase(CactusPhasesTarget):
         self.makeRecursiveChildTarget(CactusHalGeneratorRecursion)
     
     def run(self):
+        referenceNode = findRequiredNode(self.cactusWorkflowArguments.configNode, "reference")
+        if referenceNode.attrib.has_key("reference"):
+            self.phaseNode.attrib["reference"] = referenceNode.attrib["reference"]
+        if self.getOptionalPhaseAttrib("buildFasta", bool, default=False):
+            self.phaseNode.attrib["fastaPath"] = self.cactusWorkflowArguments.experimentNode.find("hal").attrib["fastaPath"]
+            self.makeRecursiveChildTarget(CactusFastaGenerator)
         if self.getOptionalPhaseAttrib("buildHal", bool, default=False):
             self.raiseHal(makeMaf=False)
         elif self.getOptionalPhaseAttrib("buildMaf", bool, default=False):
             self.raiseHal(makeMaf=True)
+
+class CactusFastaGenerator(CactusRecursionTarget):
+    def run(self):
+        runCactusFastaGenerator(cactusDiskDatabaseString=self.cactusDiskDatabaseString, 
+                                    flowerName=decodeFirstFlowerName(self.flowerNames),
+                                    outputFile=self.getOptionalPhaseAttrib("fastaPath"),
+                                    referenceEventString=self.getOptionalPhaseAttrib("reference"))
             
 class CactusHalGeneratorPhase2(CactusHalGeneratorPhase):
     def run(self): #This allows us to generate a maf
@@ -782,6 +792,8 @@ class CactusWorkflowArguments:
             findRequiredNode(self.configNode, "hal").attrib["buildHal"] = "1"
         if options.buildMaf:
             findRequiredNode(self.configNode, "hal").attrib["buildMaf"] = "1"
+        if options.buildFasta:
+            findRequiredNode(self.configNode, "hal").attrib["buildFasta"] = "1"
 
 def addCactusWorkflowOptions(parser):
     parser.add_option("--experiment", dest="experimentFile", 
@@ -801,6 +813,9 @@ def addCactusWorkflowOptions(parser):
     
     parser.add_option("--buildMaf", dest="buildMaf", action="store_true",
                       help="Build a maf file", default=False)
+    
+    parser.add_option("--buildFasta", dest="buildFasta", action="store_true",
+                      help="Build a fasta file of the input sequences (and reference sequence, used with hal output)", default=False)
     
 def main():
     ##########################################
