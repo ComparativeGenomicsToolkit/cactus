@@ -666,17 +666,41 @@ class CactusCheckWrapper(CactusRecursionTarget):
 ############################################################
 
 class CactusHalGeneratorPhase(CactusPhasesTarget):
+    def getMafFile(self):
+        return self.cactusWorkflowArguments.experimentNode.find("hal").attrib["mafPath"]
+        
+    def getHalFile(self):
+        return self.cactusWorkflowArguments.experimentNode.find("hal").attrib["halPath"]
+    
+    def raiseHal(self, makeMaf):
+        self.setupSecondaryDatabase()
+        referenceNode = findRequiredNode(self.cactusWorkflowArguments.configNode, "reference")
+        print "well hello", self.cactusWorkflowArguments.experimentNode.find("hal").attrib
+        if referenceNode.attrib.has_key("reference"):
+            self.phaseNode.attrib["reference"] = referenceNode.attrib["reference"]
+        self.phaseNode.attrib["secondaryDatabaseString"] = self.cactusWorkflowArguments.secondaryDatabaseString
+        if makeMaf:
+            self.phaseNode.attrib["outputFile"]=self.getMafFile()
+            self.phaseNode.attrib["makeMaf"]="1"
+            self.makeFollowOnPhaseTarget(CactusHalGeneratorPhaseCleanup, "hal")
+        else:
+            self.phaseNode.attrib["outputFile"]=self.getHalFile()
+            self.phaseNode.attrib["makeMaf"]="0"
+            self.makeFollowOnPhaseTarget(CactusHalGeneratorPhase2, "hal")
+        self.makeRecursiveChildTarget(CactusHalGeneratorRecursion)
+    
     def run(self):
-        self.logToMaster("Starting the hal generation phase at %s seconds" % time.time())
         if self.getOptionalPhaseAttrib("buildHal", bool, default=False):
-            self.setupSecondaryDatabase()
-            referenceNode = findRequiredNode(self.cactusWorkflowArguments.configNode, "reference")
-            if referenceNode.attrib.has_key("reference"):
-                self.phaseNode.attrib["reference"] = referenceNode.attrib["reference"]
-            self.phaseNode.attrib["secondaryDatabaseString"] = self.cactusWorkflowArguments.secondaryDatabaseString
-            self.phaseNode.attrib["outputFile"]=self.cactusWorkflowArguments.experimentNode.find("hal").attrib["path"]
-            self.makeRecursiveChildTarget(CactusHalGeneratorRecursion)
-            self.makeFollowOnPhaseTarget(CactusHalGeneratorPhaseCleanup, "hal")     
+            self.raiseHal(makeMaf=False)
+        elif self.getOptionalPhaseAttrib("buildMaf", bool, default=False):
+            self.raiseHal(makeMaf=True)
+            
+class CactusHalGeneratorPhase2(CactusHalGeneratorPhase):
+    def run(self): #This allows us to generate a maf
+        if self.getOptionalPhaseAttrib("buildHal", bool, default=False):
+            self.cleanupSecondaryDatabase()
+        if self.getOptionalPhaseAttrib("buildMaf", bool, default=False):
+            self.raiseHal(makeMaf=True)
 
 class CactusHalGeneratorRecursion(CactusRecursionTarget):
     """Generate the hal file by merging indexed hal files from the children.
@@ -756,6 +780,8 @@ class CactusWorkflowArguments:
             findRequiredNode(self.configNode, "reference").attrib["buildReference"] = "1"
         if options.buildHal:
             findRequiredNode(self.configNode, "hal").attrib["buildHal"] = "1"
+        if options.buildMaf:
+            findRequiredNode(self.configNode, "hal").attrib["buildMaf"] = "1"
 
 def addCactusWorkflowOptions(parser):
     parser.add_option("--experiment", dest="experimentFile", 
@@ -772,6 +798,9 @@ def addCactusWorkflowOptions(parser):
     
     parser.add_option("--buildHal", dest="buildHal", action="store_true",
                       help="Build a hal file", default=False)
+    
+    parser.add_option("--buildMaf", dest="buildMaf", action="store_true",
+                      help="Build a maf file", default=False)
     
 def main():
     ##########################################

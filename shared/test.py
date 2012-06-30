@@ -69,9 +69,10 @@ def getCactusWorkflowExperimentForTest(sequences, newickTreeString, outputDir, d
     any globally set database conf.
     """
     halFile = os.path.join(outputDir, "test.hal")
+    mafFile = os.path.join(outputDir, "test.maf")
     return CactusWorkflowExperiment(sequences, newickTreeString, outputDir=outputDir,
                                     databaseName=databaseName, databaseConf=GLOBAL_DATABASE_CONF, configFile=configFile,
-                                    halFile=halFile, constraints=constraints, progressive=progressive)
+                                    halFile=halFile, mafFile=mafFile, constraints=constraints, progressive=progressive)
 
 def parseCactusSuiteTestOptions():
     """Cactus version of the basic option parser that can additionally parse 
@@ -269,6 +270,7 @@ def runWorkflow_TestScript(sequences, newickTreeString,
                            buildAvgs=False, 
                            buildReference=False,
                            buildHal=False,
+                           buildMaf=False,
                            configFile=None,
                            buildJobTreeStats=False,
                            constraints=None,
@@ -304,6 +306,7 @@ def runWorkflow_TestScript(sequences, newickTreeString,
                       batchSystem=batchSystem, buildAvgs=buildAvgs, 
                       buildReference=buildReference,
                       buildHal=buildHal,
+                      buildMaf=buildMaf,
                       jobTreeStats=buildJobTreeStats)
     logger.info("Ran the the workflow")
     
@@ -340,6 +343,7 @@ def runWorkflow_multipleExamples(inputGenFunction,
                                  useConstraints=False,
                                  cactusWorkflowFunction=runCactusWorkflow,
                                  buildHal=False,
+                                 buildMaf=False,
                                  progressive=False):
     """A wrapper to run a number of examples.
     """
@@ -357,6 +361,7 @@ def runWorkflow_multipleExamples(inputGenFunction,
                                                 batchSystem=batchSystem,
                                                 buildAvgs=buildAvgs, buildReference=buildReference, 
                                                 buildHal=buildHal,
+                                                buildMaf=buildMaf,
                                                 configFile=configFile,
                                                 buildJobTreeStats=buildJobTreeStats,
                                                 constraints=constraints,

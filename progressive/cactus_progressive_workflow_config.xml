@@ -114,8 +114,8 @@
 	</check>
 	<hal
 		buildHal="1"
+		buildMaf="0"
 		showOnlySubstitutionsWithRespectToReference="0"
-		makeMaf="0"
 		joinMaf="0"
 	>
 		<CactusHalGeneratorRecursion maxFlowerGroupSize="10000000"/>

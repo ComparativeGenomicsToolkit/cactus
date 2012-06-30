@@ -94,7 +94,12 @@ static char *writeTerminalAdjacency(Cap *cap) {
     assert(adjacencyLength >= 0);
     Sequence *sequence = cap_getSequence(cap);
     assert(sequence != NULL);
-    return stString_print("a\t%i\t%i\n", cap_getCoordinate(cap) + 1 - sequence_getStart(sequence), adjacencyLength);
+    if(adjacencyLength > 0) {
+        return stString_print("a\t%i\t%i\n", cap_getCoordinate(cap) + 1 - sequence_getStart(sequence), adjacencyLength);
+    }
+    else {
+        return stString_copy("");
+    }
 }
 
 static char *writeSegment(Segment *segment) {

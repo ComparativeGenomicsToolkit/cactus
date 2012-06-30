@@ -77,7 +77,7 @@
 	</check>
 	<hal
 		buildHal="0"
-		makeMaf="1"
+		buildMaf="0"
 		joinMaf="1"
 		showOnlySubstitutionsWithRespectToReference="0"
 	>

@@ -46,7 +46,8 @@ class CactusWorkflowExperiment:
     """
     def __init__(self, sequences, newickTreeString, 
                  outgroupEvents=None, outputDir=None, databaseName=None, 
-                 databaseConf=None, configFile=None, halFile=None,
+                 databaseConf=None, configFile=None, 
+                 halFile=None, mafFile=None,
                  constraints=None, progressive=False):
         self.experiment = ET.Element("cactus_workflow_experiment")
         if databaseName == None:
@@ -99,9 +100,12 @@ class CactusWorkflowExperiment:
             self.experiment.attrib["config"] = "default"
         if configFile != None:
             self.experiment.attrib["config"] = configFile
-        if halFile != None:
+        if halFile != None or mafFile != None:
             halElem = ET.SubElement(self.experiment, "hal")
-            halElem.attrib["path"] = halFile
+            if halFile != None:
+                halElem.attrib["halPath"] = halFile
+            if mafFile != None:
+                halElem.attrib["mafPath"] = mafFile
         #Constraints
         if constraints != None:
             if not os.path.exists(constraints):
