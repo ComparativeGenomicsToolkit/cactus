@@ -174,23 +174,35 @@ class ExperimentWrapper(DbElemWrapper):
         
     def getHALPath(self):
         halElem = self.xmlRoot.find("hal")
-        if halElem is None:
+        if halElem is None or "halPath" not in halElem.attrib:
             return None
-        return halElem.attrib["path"]
+        return halElem.attrib["halPath"]
     
     def setHALPath(self, path):
         halElem = self.xmlRoot.find("hal")
         if halElem is None:
             halElem = ET.Element("hal")
             self.xmlRoot.append(halElem)
-        assert os.path.splitext(path)[1] == ".hal"
-        halElem.attrib["path"] = path
+        halElem.attrib["halPath"] = path
+        
+    def getHALFastaPath(self):
+        halElem = self.xmlRoot.find("hal")
+        if halElem is None or "fastaPath" not in halElem.attrib:
+            return None
+        return halElem.attrib["fastaPath"]
+    
+    def setHALFastaPath(self, path):
+        halElem = self.xmlRoot.find("hal")
+        if halElem is None:
+            halElem = ET.Element("hal")
+            self.xmlRoot.append(halElem)
+        halElem.attrib["fastaPath"] = path
         
     def getMAFPath(self):
         halElem = self.xmlRoot.find("hal")
-        if halElem is None:
+        if halElem is None or "mafPath" not in halElem.attrib:
             return None
-        return halElem.attrib["path"]
+        return halElem.attrib["mafPath"]
     
     def setMAFPath(self, path):
         halElem = self.xmlRoot.find("hal")
@@ -198,7 +210,7 @@ class ExperimentWrapper(DbElemWrapper):
             halElem = ET.Element("hal")
             self.xmlRoot.append(halElem)
         assert os.path.splitext(path)[1] == ".maf"
-        halElem.attrib["path"] = path
+        halElem.attrib["mafPath"] = path
         
     def getJoinMAF(self):
         configElem = ET.parse(self.getConfig()).getroot()

@@ -111,12 +111,20 @@ class ConfigWrapper:
             if build == "1" or build.lower() == "true":
                 return True
         return False
-    
-    def getMakeMaf(self):
+
+    def getBuildMaf(self):
         halElem = self.xmlRoot.find("hal")
-        if halElem is not None and "makeMaf" in halElem.attrib:            
-            maf = halElem.attrib["makeMaf"]
-            if maf == "1" or maf.lower() == "true":
+        if halElem is not None and "buildMaf" in halElem.attrib:
+            build = halElem.attrib["buildMaf"]
+            if build == "1" or build.lower() == "true":
+                return True
+        return False
+
+    def getBuildFasta(self):
+        halElem = self.xmlRoot.find("hal")
+        if halElem is not None and "buildFasta" in halElem.attrib:
+            build = halElem.attrib["buildFasta"]
+            if build == "1" or build.lower() == "true":
                 return True
         return False
     
@@ -126,7 +134,7 @@ class ConfigWrapper:
             maf = halElem.attrib["joinMaf"]
             if maf == "0" or maf.lower() == "false":
                 return False
-        return self.getMakeMaf()
+        return self.getBuildMaf()
             
     # the minBlockDegree, when specified in the final, "base" 
     # iteration, does not play nicely with the required fraction

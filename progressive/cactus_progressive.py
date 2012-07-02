@@ -89,15 +89,15 @@ class ProgressiveUp(Target):
         if self.options.buildReference == False:
             refNode = findRequiredNode(configXml, "reference")
             self.options.buildReference = getOptionalAttrib(refNode, "buildReference", bool, False)
-        if self.options.buildHal == False:
-            halNode = findRequiredNode(configXml, "hal")
-            self.options.buildHal = getOptionalAttrib(refNode, "buildHal", bool, False)
         halNode = findRequiredNode(configXml, "hal")
         if self.options.buildHal == False:
             self.options.buildHal = getOptionalAttrib(halNode, "buildHal", bool, False)
-        self.options.makeMaf = getOptionalAttrib(halNode, "makeMaf", bool, False)
-        self.options.joinMaf = getOptionalAttrib(halNode, "joinMaf", bool, False)
-        
+        if self.options.buildMaf == False:
+            self.options.buildMaf = getOptionalAttrib(halNode, "buildMaf", bool, False)
+        if self.options.buildFasta == False:
+            self.options.buildFasta = getOptionalAttrib(halNode, "buildFasta", bool, False)
+        self.options.joinMaf = getOptionalAttrib(halNode, "joinMaf", bool, self.options.buildMaf)
+
         # delete database files if --setupAndBuildAlignments
         # and overwrite specified (or if reference not present)
         if self.options.skipAlignments is False and\
@@ -145,7 +145,8 @@ class StartWorkflow(Target):
         workFlowArgs.skipAlignments = self.options.skipAlignments
         workFlowArgs.buildReference = self.options.buildReference
         workFlowArgs.buildHal = self.options.buildHal
-        workFlowArgs.makeMaf = self.options.makeMaf
+        workFlowArgs.buildMaf = self.options.buildMaf
+        workFlowArgs.buildFasta = self.options.buildFasta
         workFlowArgs.joinMaf = self.options.joinMaf
         workFlowArgs.overwrite = self.options.overwrite
         workFlowArgs.globalLeafEventSet = self.options.globalLeafEventSet
@@ -203,9 +204,9 @@ class BuildMAF(Target):
     
     def run(self):
         experiment =  ExperimentWrapper(self.workFlowArgs.experimentNode)
-        if self.workFlowArgs.buildHal and self.workFlowArgs.makeMaf and\
-               os.path.exists(experiment.getMAFPath()) and \
-               os.path.splitext(experiment.getMAFPath())[1] == ".maf":
+        if self.workFlowArgs.buildHal and self.workFlowArgs.buildMaf and\
+               experiment.getMAFPath() is not None and \
+               os.path.exists(experiment.getMAFPath()):
             logger.info("Filtering outgroup from MAF")
 
             mafFilterOutgroup(experiment) 
@@ -235,6 +236,8 @@ class JoinMAF(Target):
             
     def run(self):
         experiment = ExperimentWrapper(self.workFlowArgs.experimentNode)
+        if experiment.getMAFPath() is None:
+            return
         if self.workFlowArgs.joinMaf and\
         (self.workFlowArgs.overwrite or not os.path.exists(experiment.getMAFPath())
          or self.isMafFromCactus(experiment.getMAFPath())):
