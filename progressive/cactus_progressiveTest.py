@@ -112,6 +112,8 @@ class TestCase(unittest.TestCase):
                           batchSystem, buildAvgs, 
                           buildReference,
                           buildHal,
+                          buildMaf,
+                          buildFasta,
                           jobTreeStats):
         tempDir = getTempDirectory(os.getcwd())
         tempExperimentDir = os.path.join(tempDir, "exp")
