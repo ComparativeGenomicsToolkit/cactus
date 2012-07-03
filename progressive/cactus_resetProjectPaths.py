@@ -57,6 +57,18 @@ def updateProject(path):
             halName = oldHalPath[oldHalPath.find(name):]
             newHalPath = os.path.join(basePath, halName)
             exp.setHALPath(newHalPath)
+
+        oldHalFastaPath = exp.getHALFastaPath()
+        if oldHalFastaPath is not None:
+            halFastaName = oldHalFastaPath[oldHalFastaPath.find(name):]
+            newHalFastaPath = os.path.join(basePath, halFastaName)
+            exp.setHALFastaPath(newHalFastaPath)
+
+        oldMafPath = exp.getMAFPath()
+        if oldMafPath is not None:
+            mafName = oldMafPath[oldMafPath.find(name):]
+            newMafPath = os.path.join(basePath, mafName)
+            exp.setMAFPath(newMafPath)
         
         oldHostName = exp.getDbHost()
         if oldHostName is not None:
