@@ -246,16 +246,16 @@ class BatchPreprocessor(Target):
                                           prepNode.attrib["preprocessorString"])
         
         #output to temporary directory unless we are on the last iteration
-        lastIteration = self.iteration == len(self.prepXmlElems) - 1        
+        lastIteration = self.iteration == len(self.prepXmlElems) - 1
         if lastIteration == False:
-            outDir = getTempDirectory(self.getGlobalTempDir())
-            outSeq = os.path.join(outDir, os.path.split(self.inSequence)[1])
+            outSeq = getTempDirectory(self.getGlobalTempDir()) + "/" + self.inSequence
         else:
-            outSeq = self.globalOutSequence      
-            outDir = self.globalOutSequence                    
-            if not os.path.isdir(self.inSequence):
-                outDir = os.path.split(outDir)[0]
-        
+            outSeq = self.globalOutSequence
+        assert outSeq != self.inSequence
+        outDir = outSeq
+        if not os.path.isdir(self.inSequence):
+            outDir = os.path.split(outDir)[0]
+                                                                        
         #iterate over each input fasta file
         inSeqFiles = fileList(self.inSequence)
         outSeqFiles = []
