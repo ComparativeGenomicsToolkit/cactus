@@ -106,18 +106,20 @@ class PreprocessorHelper:
             
 
 class PreprocessorOptions:
-    def __init__(self, chunkSize, chunksPerJob, overlapSize, compressFiles, cmdLine):
+    def __init__(self, chunkSize, chunksPerJob, overlapSize, compressFiles, cmdLine, memory, cpu):
         self.chunkSize = chunkSize
         self.chunksPerJob = chunksPerJob
         self.overlapSize = overlapSize
         self.compressFiles = compressFiles
         self.cmdLine = cmdLine
+        self.memory = memory
+        self.cpu = cpu
 
 class PreprocessChunks(Target):
     """ locally preprocess some fasta chunks, output then copied back to input
     """
     def __init__(self, prepOptions, seqPath, chunkList, event):
-        Target.__init__(self)
+        Target.__init__(self, memory=prepOptions.memory, cpu=prepOptions.cpu)
         self.prepOptions = prepOptions 
         self.seqPath = seqPath
         self.chunkList = chunkList
@@ -155,7 +157,7 @@ class MergeChunks(Target):
     """ merge a list of chunks into a fasta file
     """
     def __init__(self, prepOptions, chunkListPath, outSequencePath):
-        Target.__init__(self)
+        Target.__init__(self, memory=prepOptions.memory, cpu=prepOptions.cpu)
         self.prepOptions = prepOptions 
         self.chunkListPath = chunkListPath
         self.outSequencePath = outSequencePath
@@ -178,7 +180,7 @@ class PreprocessSequence(Target):
     """ cut a sequence into chunks, process, then merge
     """
     def __init__(self, prepOptions, inSequencePath, outSequencePath, event):
-        Target.__init__(self)
+        Target.__init__(self, memory=prepOptions.memory, cpu=prepOptions.cpu)
         self.prepOptions = prepOptions 
         self.inSequencePath = inSequencePath
         self.outSequencePath = outSequencePath
@@ -224,13 +226,16 @@ class PreprocessSequence(Target):
         self.setFollowOnTarget(MergeChunks(self.prepOptions, chunkListPath, self.outSequencePath))
 
 class BatchPreprocessor(Target):
-    def __init__(self, cactusWorkflowArguments, event, prepXmlElems, inSequence, globalOutSequence, iteration = 0):
+    def __init__(self, cactusWorkflowArguments, event, prepXmlElems, inSequence, 
+                 globalOutSequence, memory, cpu, iteration = 0):
         Target.__init__(self, time=0.0002)
         self.cactusWorkflowArguments = cactusWorkflowArguments 
         self.event = event
         self.prepXmlElems = prepXmlElems
         self.inSequence = inSequence
         self.globalOutSequence = globalOutSequence
+        self.memory = memory
+        self.cpu = cpu
         self.iteration = iteration
               
     def run(self):
@@ -243,7 +248,9 @@ class BatchPreprocessor(Target):
                                           int(prepNode.get("chunksPerJob", default="1")),
                                           int(prepNode.get("overlapSize", default="10")),
                                           prepNode.get("compressFiles", default="True").lower() == "true",
-                                          prepNode.attrib["preprocessorString"])
+                                          prepNode.attrib["preprocessorString"],
+                                          int(self.memory),
+                                          int(self.cpu))
         
         #output to temporary directory unless we are on the last iteration
         lastIteration = self.iteration == len(self.prepXmlElems) - 1
@@ -274,5 +281,5 @@ class BatchPreprocessor(Target):
 
         if lastIteration == False:
             self.setFollowOnTarget(BatchPreprocessor(self.cactusWorkflowArguments, self.event, self.prepXmlElems, outSeq,
-                                                     self.globalOutSequence, self.iteration + 1))
+                                                     self.globalOutSequence, self.memory, self.cpu, self.iteration + 1))
             

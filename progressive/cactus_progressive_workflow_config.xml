@@ -2,6 +2,7 @@
 	<preprocessor 
 	 	chunkSize="100000000" 
 	 	preprocessorString='cactus_addFastaHeaderDots.py TARGET_FILE OUT_FILE --event EVENT_STRING'
+		memory="2147483648"
 	 />
 	<setup>
 	</setup>
