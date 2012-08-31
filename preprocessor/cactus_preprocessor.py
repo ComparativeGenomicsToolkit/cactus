@@ -130,9 +130,10 @@ class PreprocessChunks(Target):
         #path if it's actually used by the preprocessor
         localSequencePath = ""
         if self.prepOptions.cmdLine.find("QUERY_FILE") >= 0:            
-            localSequencePath = decompressFastaFile(self.seqPath,
-                                                    self.getLocalTempDir(), 
-                                                    self.prepOptions.compressFiles)
+            #localSequencePath = decompressFastaFile(self.seqPath,
+            #                                        self.getLocalTempDir(), 
+            #                                        self.prepOptions.compressFiles)
+            localSequencePath = self.seqPath
         for chunk in self.chunkList:
             localChunkPath = decompressFastaFile(chunk, self.getLocalTempDir(),
                                                  self.prepOptions.compressFiles)
@@ -220,7 +221,7 @@ class PreprocessSequence(Target):
         # for every chunksPerJob chunks in list
         for i in range(0, len(chunkList), self.prepOptions.chunksPerJob):
             chunkSubList = chunkList[i : i + self.prepOptions.chunksPerJob]
-            self.addChildTarget(PreprocessChunks(self.prepOptions, seqPath, chunkSubList, self.event))
+            self.addChildTarget(PreprocessChunks(self.prepOptions, self.inSequencePath, chunkSubList, self.event))
 
         # follow on to merge chunks
         self.setFollowOnTarget(MergeChunks(self.prepOptions, chunkListPath, self.outSequencePath))
