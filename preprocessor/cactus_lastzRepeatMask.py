@@ -79,7 +79,6 @@ def main():
     # make temporary working directory in same path as output
     currentDir = os.path.dirname(args[1])
     tempDir = tempfile.mkdtemp(dir=currentDir)
-    fragFile = os.path.join(tempDir, "fragFile.fa")
     maskInfoFile = os.path.join(tempDir, "maskFile.dat")
     cleanTargetFile = os.path.join(tempDir, "cleanTargetFile.fa")
     
@@ -92,9 +91,7 @@ def main():
         # chop up input fasta file into into fragments of specified size.  fragments overlap by 
         # half their length. 
         fragCmdLine = 'cat ' + queryFile + ' | fasta_fragments.py ' + '--fragment=' + \
-                        str(options.fragment) + ' --step=' + str(options.fragment / 2) + ' > ' + fragFile
-        
-        system(fragCmdLine)
+                        str(options.fragment) + ' --step=' + str(options.fragment / 2)
         
         # lastz each fragment against the entire input sequence.  Each time a fragment aligns to a base
         # in the sequence, that base's match count is incremented.  base's whose match count exceeds the 
@@ -103,11 +100,11 @@ def main():
         # overlapping fragments
         # Also note: repeats already masked in the input sequence are ignored (as by default in lastz).  
         # This behaviour can be changed by something like replacing [multiple] with [multiple,unmask]'
-        lastzCmdLine = options.lastzCmd + ' ' + cleanTargetFile + '[multiple] ' + fragFile + ' ' + options.lastzOptions + \
+        lastzCmdLine = options.lastzCmd + ' ' + cleanTargetFile + '[multiple] /dev/stdin ' + options.lastzOptions + \
                         ' --masking=' + str(options.period * 2) + ' --outputmasking+:soft=' + maskInfoFile + \
                         ' --format=none' 
 
-        system(lastzCmdLine)
+        system(fragCmdLine + ' | ' + lastzCmdLine)
         
         # reinsert the |1|'s
         system("sed -i -e \"s/%s/|1|/g\" %s" % (pipeCode, maskInfoFile))
