@@ -92,7 +92,7 @@ class TestCase(unittest.TestCase):
             logger.info("Checked the job tree dir")
             
             #Output the 'TRUE' alignment file
-            if os.system("mfaToMaf --help >& /dev/null") and os.system("cactus_MAFGenerator --help >& /dev/null"):
+            if os.system("mfaToMaf --help >& /dev/null") == 0 and os.system("cactus_MAFGenerator --help >& /dev/null") == 0:
                 trueMFAFile = os.path.join(testDir, "true.mfa")
                 fastaAlignmentWrite(subAlignment, fastaHeaders, len(fastaHeaders), trueMFAFile)
                 trueMAFFile = os.path.join(testDir, "true.maf")
