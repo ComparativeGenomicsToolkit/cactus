@@ -115,7 +115,7 @@ class TestCase(unittest.TestCase):
                 
                 #Now compare the mafs to the output.
                 resultsFile = os.path.join(testDir, "results.xml")
-                system("mafComparator --mafFile1 %s --mafFile2 %s --outputFile %s --logLevel" % (trueMAFFile, mAFFile, resultsFile, getLogLevelString()))
+                system("mafComparator --mafFile1 %s --mafFile2 %s --outputFile %s --logLevel %s" % (trueMAFFile, mAFFile, resultsFile, getLogLevelString()))
                 logger.info("Ran the maf comparator")
                 
                 system("cat %s" % resultsFile)
