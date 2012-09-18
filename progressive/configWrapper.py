@@ -137,6 +137,11 @@ class ConfigWrapper:
             if build == "1" or build.lower() == "true":
                 return True
         return False
+
+    def setBuildFasta(self, buildFasta):
+        halElem = self.xmlRoot.find("hal")
+        assert halElem is not None
+        halElem.attrib["buildFasta"] = str(int(buildFasta))
     
     def getJoinMaf(self):
         halElem = self.xmlRoot.find("hal")
