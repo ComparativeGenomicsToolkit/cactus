@@ -1,9 +1,5 @@
 <cactusWorkflowConfig>
-	<preprocessor 
-	 	chunkSize="100000000" 
-	 	preprocessorString='cactus_addFastaHeaderDots.py TARGET_FILE OUT_FILE --event EVENT_STRING'
-		memory="2147483648"
-	 />
+  <preprocessor chunkSize="100000000" memory="2147483648" overlapSize="1000" preprocessorString="cactus_lastzRepeatMask.py --minPeriod=10 --lastzOpts='--step=20 --notransition --ambiguous=iupac --nogapped' QUERY_FILE TARGET_FILE TEMP_FILE ; cactus_addFastaHeaderDots.py TEMP_FILE OUT_FILE --event EVENT_STRING" scope="all" />
 	<setup>
 	</setup>
 	<caf
@@ -28,9 +24,10 @@
 		singleCopyIngroup="0"
 		singleCopyOutgroup="1"
 		maxAdjacencyComponentSizeRatio="10"
+		lastzMemory="2147483648"
 	>
 		<CactusCafRecursion maxFlowerGroupSize="100000000"/>
-		<CactusCafWrapper minFlowerSize="5000" maxFlowerGroupSize="10000000"/>
+		<CactusCafWrapper minFlowerSize="5000" maxFlowerGroupSize="10000000" memory="2147483648"/>
 	</caf>
 	<caf
 		chunkSize="1000000" 
@@ -56,7 +53,7 @@
 		maxAdjacencyComponentSizeRatio="10"
 	>
 		<CactusCafRecursion maxFlowerGroupSize="100000000"/>
-		<CactusCafWrapper minFlowerSize="5000" maxFlowerGroupSize="10000000"/>
+		<CactusCafWrapper minFlowerSize="5000" maxFlowerGroupSize="1000000" memory="2147483648"/>
 	</caf>
 	<bar
 		runBar="1"
@@ -76,20 +73,19 @@
 		requiredOutgroupFraction="0.0"
 		requiredAllFraction="0.67"
 	>
-		<CactusBarRecursion maxFlowerGroupSize="100000000"/>
-		<CactusBarWrapper maxFlowerGroupSize="40000"/>
+		<CactusBarRecursion maxFlowerGroupSize="20000000"/>
+		<CactusBarWrapper maxFlowerGroupSize="400000" memory="2147483648" overlargeMemory="2147483648"/>
 	</bar>
 	<normal 
-		iterations="2"
-		maxNumberOfChains="30" 
+		iterations="0"
 	>
-		<CactusNormalRecursion maxFlowerGroupSize="100000000" maxFlowerWrapperGroupSize="10000000"/>
+		<CactusNormalRecursion maxFlowerGroupSize="50000000" maxFlowerWrapperGroupSize="10000000"/>
 		<CactusNormalWrapper/>
 	</normal>
 	<avg
 		buildAvgs="0"
 	>
-		<CactusAVGRecursion maxFlowerGroupSize="100000000" maxFlowerWrapperGroupSize="10000000"/>
+		<CactusAVGRecursion maxFlowerGroupSize="50000000" maxFlowerWrapperGroupSize="10000000"/>
 		<CactusAVGWrapper/>
 	</avg>
 	<reference 
@@ -101,21 +97,22 @@
 		maxNumberOfChainsBeforeSwitchingToFast="1000" 
 		permutations="5"
 	>
-		<CactusReferenceRecursion maxFlowerGroupSize="100000000" maxFlowerWrapperGroupSize="10000000"/>
+		<CactusReferenceRecursion maxFlowerGroupSize="50000000" maxFlowerWrapperGroupSize="10000000"/>
 	 	<CactusReferenceWrapper/>
-	 	<CactusSetReferenceCoordinatesUpWrapper />
+	 	<CactusSetReferenceCoordinatesUpWrapper/>
 	 	<CactusSetReferenceCoordinatesDownRecursion maxFlowerGroupSize="100000000" maxFlowerWrapperGroupSize="10000000"/>
 	 	<CactusSetReferenceCoordinatesDownWrapper/>
 	</reference>
 	<check 
-		runCheck="1"
+		runCheck="0"
 	>
-		<CactusCheckRecursion maxFlowerGroupSize="100000000" maxFlowerWrapperGroupSize="10000000"/>
+		<CactusCheckRecursion maxFlowerGroupSize="50000000" maxFlowerWrapperGroupSize="10000000"/>
 		<CactusCheckWrapper/>
 	</check>
 	<hal
 		buildHal="1"
 		buildMaf="0"
+		buildFasta="1"
 		showOnlySubstitutionsWithRespectToReference="0"
 		joinMaf="0"
 	>
