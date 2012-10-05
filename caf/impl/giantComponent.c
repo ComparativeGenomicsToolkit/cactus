@@ -89,6 +89,7 @@ stList *stCaf_breakupComponentGreedily(stList *nodes, stList *edges, int32_t max
 }
 
 static void convertToNodesAndEdges(stList *adjacencyComponent, stList **nodes, stList **edges) {
+    //Make nodes
     *nodes = stList_construct3(0, (void(*)(void *)) stIntTuple_destruct);
     stHash *pinchEndsToNodesHash = stHash_construct3(stPinchEnd_hashFn,
             stPinchEnd_equalsFn, NULL, NULL);
@@ -98,6 +99,9 @@ static void convertToNodesAndEdges(stList *adjacencyComponent, stList **nodes, s
         assert(stHash_search(pinchEndsToNodesHash, stList_get(adjacencyComponent, i)) == NULL);
         stHash_insert(pinchEndsToNodesHash, stList_get(adjacencyComponent, i), node);
     }
+    //Make edges
+
+    //First build a hash of edges to their multiplicity
     stHash *edgesToMultiplicityHash = stHash_construct3((uint32_t(*)(const void *)) stIntTuple_hashKey,
             (int(*)(const void *, const void *)) stIntTuple_equalsFn, (void(*)(void *)) stIntTuple_destruct, (void(*)(void *)) stIntTuple_destruct);
     for (int32_t i = 0; i < stList_length(adjacencyComponent); i++) {
@@ -133,6 +137,7 @@ static void convertToNodesAndEdges(stList *adjacencyComponent, stList **nodes, s
             }
         }
     }
+    //Now build edges, scoring them according to their multiplicity
     *edges = stList_construct3(0, (void(*)(void *)) stIntTuple_destruct);
     stHashIterator *hashIt = stHash_getIterator(edgesToMultiplicityHash);
     stIntTuple *edge;
@@ -142,6 +147,7 @@ static void convertToNodesAndEdges(stList *adjacencyComponent, stList **nodes, s
                 *edges,
                 stIntTuple_construct(3, stIntTuple_getPosition(count, 0), stIntTuple_getPosition(edge, 0), stIntTuple_getPosition(edge, 1)));
     }
+
     //Cleanup
     stHash_destruct(pinchEndsToNodesHash);
     stHash_destruct(edgesToMultiplicityHash);
@@ -175,7 +181,7 @@ static void breakEdges(stPinchThreadSet *threadSet, stPinchEnd *pinchEnd1, stPin
                         st_logDebug("Split an edge in a giant component\n");
                     }
                     else {
-                        st_logDebug("Encountered an edge in a giant component which can not be broken due its short length\n");
+                        printf("Encountered an edge in a giant component which can not be broken due its short length\n");
                     }
                 }
                 break;
