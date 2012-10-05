@@ -30,6 +30,8 @@ int main(int argc, char *argv[]) {
     int32_t totalCaps = flower_getCapNumber(flower);
     int32_t totalBlocks = flower_getBlockNumber(flower);
     int32_t totalGroups = flower_getGroupNumber(flower);
+    int32_t totalChains = flower_getChainNumber(flower);
+    int32_t totalLinkGroups = 0;
     int32_t maxEndDegree = 0;
     int64_t maxAdjacencyLength = 0;
     int32_t totalEdges = 0;
@@ -70,8 +72,17 @@ int main(int argc, char *argv[]) {
     assert(totalEdges % 2 == 0);
     flower_destructEndIterator(endIt);
 
-    printf("total bases: %" PRIi64 " total-ends: %i total-caps: %i max-end-degree: %i max-adjacency-length: %" PRIi64 " total-blocks: %i total-groups: %i total-edges: %i total-free-ends: %i total-attached-ends: %i\n",
-            totalBases, totalEnds, totalCaps, maxEndDegree, maxAdjacencyLength, totalBlocks, totalGroups, totalEdges/2, totalFreeEnds, totalAttachedEnds);
+    Flower_GroupIterator *groupIt = flower_getGroupIterator(flower);
+    Group *group;
+    while((group = flower_getNextGroup(groupIt)) != NULL) {
+        if(group_getLink(group) != NULL) {
+            totalLinkGroups++;
+        }
+    }
+    flower_destructGroupIterator(groupIt);
+
+    printf("flower name: %" PRIi64 "total bases: %" PRIi64 " total-ends: %i total-caps: %i max-end-degree: %i max-adjacency-length: %" PRIi64 " total-blocks: %i total-groups: %i total-edges: %i total-free-ends: %i total-attached-ends: %i total-chains: %i total-link groups: %i\n",
+            flower_getName(flower), totalBases, totalEnds, totalCaps, maxEndDegree, maxAdjacencyLength, totalBlocks, totalGroups, totalEdges/2, totalFreeEnds, totalAttachedEnds, totalChains, totalLinkGroups);
 
     return 0;
 }
