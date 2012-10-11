@@ -789,6 +789,7 @@ void buildReferenceTopDown(Flower *flower, const char *referenceEventHeader, int
             (int(*)(const void *, const void *)) stIntTuple_equalsFn, NULL, NULL);
     int64_t nodeNumber = stHash_size(endsToNodes);
     assert(nodeNumber % 2 == 0);
+    st_logInfo("For flower: %" PRIi64 " we have: %i nodes for: %i ends and: %i chains\n", flower_getName(flower), nodeNumber, flower_getEndNumber(flower), flower_getChainNumber(flower));
 
     /*
      * Calculate z function

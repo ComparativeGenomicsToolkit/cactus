@@ -81,7 +81,7 @@ int main(int argc, char *argv[]) {
     }
     flower_destructGroupIterator(groupIt);
 
-    printf("flower name: %" PRIi64 "total bases: %" PRIi64 " total-ends: %i total-caps: %i max-end-degree: %i max-adjacency-length: %" PRIi64 " total-blocks: %i total-groups: %i total-edges: %i total-free-ends: %i total-attached-ends: %i total-chains: %i total-link groups: %i\n",
+    printf("flower name: %" PRIi64 " total bases: %" PRIi64 " total-ends: %i total-caps: %i max-end-degree: %i max-adjacency-length: %" PRIi64 " total-blocks: %i total-groups: %i total-edges: %i total-free-ends: %i total-attached-ends: %i total-chains: %i total-link groups: %i\n",
             flower_getName(flower), totalBases, totalEnds, totalCaps, maxEndDegree, maxAdjacencyLength, totalBlocks, totalGroups, totalEdges/2, totalFreeEnds, totalAttachedEnds, totalChains, totalLinkGroups);
 
     return 0;
