@@ -158,7 +158,7 @@ class MergeChunks(Target):
     """ merge a list of chunks into a fasta file
     """
     def __init__(self, prepOptions, chunkListPath, outSequencePath):
-        Target.__init__(self, memory=prepOptions.memory, cpu=prepOptions.cpu)
+        Target.__init__(self, cpu=prepOptions.cpu)
         self.prepOptions = prepOptions 
         self.chunkListPath = chunkListPath
         self.outSequencePath = outSequencePath
@@ -181,7 +181,7 @@ class PreprocessSequence(Target):
     """ cut a sequence into chunks, process, then merge
     """
     def __init__(self, prepOptions, inSequencePath, outSequencePath, event):
-        Target.__init__(self, memory=prepOptions.memory, cpu=prepOptions.cpu)
+        Target.__init__(self, cpu=prepOptions.cpu)
         self.prepOptions = prepOptions 
         self.inSequencePath = inSequencePath
         self.outSequencePath = outSequencePath
