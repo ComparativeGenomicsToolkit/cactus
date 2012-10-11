@@ -206,10 +206,15 @@ float *calculateZ(Flower *flower, stHash *endsToNodes, double theta) {
     /*
      * Calculate the zScores between all ends.
      */
-    int32_t nodeNumber = stHash_size(endsToNodes);
+    int64_t nodeNumber = stHash_size(endsToNodes);
+    int64_t arraySize = nodeNumber * nodeNumber;
+    if(arraySize >= INT32_MAX) {
+        st_logCritical("Array size is greater than 32bit max : %" PRIi64 "\n", arraySize);
+    }
+    float *z = st_calloc(arraySize, sizeof(float));
     assert(nodeNumber % 2 == 0);
-    float *z = st_calloc(nodeNumber * nodeNumber, sizeof(float));
-    for (int32_t i = 0; i < nodeNumber * nodeNumber; i++) { //Setting to zero for paranoid reasons.
+    //float *z = st_calloc(nodeNumber * nodeNumber, sizeof(float));
+    for (int32_t i = 0; i < arraySize; i++) { //Setting to zero for paranoid reasons.
         z[i] = 0.0;
     }
     Flower_EndIterator *endIt = flower_getEndIterator(flower);
@@ -274,7 +279,7 @@ float *calculateZ(Flower *flower, stHash *endsToNodes, double theta) {
         }
     }
     flower_destructEndIterator(endIt);
-    for (int32_t i = 0; i < nodeNumber * nodeNumber; i++) {
+    for (int32_t i = 0; i < arraySize; i++) {
         assert(z[i] >= 0.0);
     }
 
@@ -497,7 +502,7 @@ static stList *getStubEdgesInTopLevelFlower(Flower *flower, stHash *endsToNodes,
      * Create a matching for the parent stub edges.
      */
     stList *adjacencyEdges = stList_construct3(0, (void(*)(void *)) stIntTuple_destruct);
-    int32_t nodeNumber = stHash_size(endsToNodes);
+    int64_t nodeNumber = stHash_size(endsToNodes);
     for (int32_t i = 0; i < stList_length(stubNodes); i++) {
         int32_t node1 = stIntTuple_getPosition(stList_get(stubNodes, i), 0);
         for (int32_t j = i + 1; j < stList_length(stubNodes); j++) {
@@ -782,7 +787,7 @@ void buildReferenceTopDown(Flower *flower, const char *referenceEventHeader, int
     stHash *endsToNodes = getMapOfTangleEndsToNodes(flower);
     stHash *nodesToEnds = stHash_invert(endsToNodes, (uint32_t(*)(const void *)) stIntTuple_hashKey,
             (int(*)(const void *, const void *)) stIntTuple_equalsFn, NULL, NULL);
-    int32_t nodeNumber = stHash_size(endsToNodes);
+    int64_t nodeNumber = stHash_size(endsToNodes);
     assert(nodeNumber % 2 == 0);
 
     /*
