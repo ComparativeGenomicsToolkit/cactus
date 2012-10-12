@@ -287,8 +287,8 @@ class CactusPreprocessorPhase(CactusPhasesTarget):
                 assert sequence != processedSequence
                 self.addChildTarget(BatchPreprocessor(self.cactusWorkflowArguments, event, prepXmlElems, 
                                                       sequence, processedSequence, 
-                                                      self.getOptionalTargetAttrib("memory", typeFn=int, default=sys.maxint),
-                                                      self.getOptionalTargetAttrib("cpu", typeFn=int, default=sys.maxint),
+                                                      self.getOptionalPhaseAttrib("memory", typeFn=int, default=sys.maxint),
+                                                      self.getOptionalPhaseAttrib("cpu", typeFn=int, default=sys.maxint),
                                                       0))
         self.cactusWorkflowArguments.sequences = processedSequences
         self.makeFollowOnPhaseTarget(CactusSetupPhase, "setup")

@@ -764,58 +764,6 @@ static void assignGroups(stList *newEnds, Flower *flower, Event *referenceEvent)
 ////////////////////////////////////
 ////////////////////////////////////
 
-static bool endsLinkedFrom1To2(End *end1, End *end2) {
-    end2 = end_getPositiveOrientation(end2);
-    End_InstanceIterator *capIt = end_getInstanceIterator(end1);
-    Cap *cap;
-    while((cap = end_getNext(capIt)) != NULL) {
-        Cap *otherCap = cap_getAdjacency(cap);
-        assert(otherCap != NULL);
-        if(end_getPositiveOrientation(cap_getEnd(otherCap)) == end2) {
-            end_destructInstanceIterator(capIt);
-            return 1;
-        }
-    }
-    end_destructInstanceIterator(capIt);
-    return 0;
-}
-
-static bool endsLinked(End *end1, End *end2) {
-    return endsLinkedFrom1To2(end1, end2) || endsLinkedFrom1To2(end2, end1);
-}
-
-static stList *getDemotableChains(Flower *flower) {
-    /*
-     * Gets list of chains whose ends are (1) in the same tangle group and which are not linked by (2) an adjacency.
-     */
-    stList *demotableChains = stList_construct();
-    Flower_ChainIterator *chainIt = flower_getChainIterator(flower);
-    Chain *chain;
-    while((chain = flower_getNextChain(chainIt)) != NULL) {
-        Link *link = chain_getFirst(chain);
-        End *end = link_get3End(link);
-        if(end_isBlockEnd(end)) {
-            End *_5End = end_getOtherBlockEnd(end);
-            Group *tangleGroup = end_getGroup(_5End);
-            assert(group_isTangle(tangleGroup));
-            link = chain_getLast(chain);
-            end = link_get5End(link);
-            if(end_isBlockEnd(end)) {
-                End *_3End = end_getOtherBlockEnd(end);
-                Group *otherTangleGroup = end_getGroup(_3End);
-                assert(group_isTangle(otherTangleGroup));
-                if(tangleGroup == otherTangleGroup) {
-                    if(!endsLinked(_5End, _3End)) {
-                        stList_append(demotableChains, chain);
-                    }
-                }
-            }
-        }
-    }
-    flower_destructChainIterator(chainIt);
-    return demotableChains;
-}
-
 void buildReferenceTopDown(Flower *flower, const char *referenceEventHeader, int32_t permutations,
         stList *(*matchingAlgorithm)(stList *edges, int32_t nodeNumber), double(*temperature)(double), double theta,
         int32_t maxNumberOfChainsBeforeSwitchingToFast) {
@@ -842,8 +790,6 @@ void buildReferenceTopDown(Flower *flower, const char *referenceEventHeader, int
     int64_t nodeNumber = stHash_size(endsToNodes);
     assert(nodeNumber % 2 == 0);
     st_logInfo("For flower: %" PRIi64 " we have: %i nodes for: %i ends and: %i chains\n", flower_getName(flower), nodeNumber, flower_getEndNumber(flower), flower_getChainNumber(flower));
-
-    fprintf(stderr, "The number of demotable chains is %i\n", stList_length(getDemotableChains(flower)));
 
     /*
      * Calculate z function
