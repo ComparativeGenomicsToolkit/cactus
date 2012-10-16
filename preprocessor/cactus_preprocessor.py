@@ -126,21 +126,13 @@ class PreprocessChunks(Target):
         self.event = event
     
     def run(self):
-        #Full sequence file can be quite big: only decompress it into the local
-        #path if it's actually used by the preprocessor
-        localSequencePath = ""
-        if self.prepOptions.cmdLine.find("QUERY_FILE") >= 0:            
-            #localSequencePath = decompressFastaFile(self.seqPath,
-            #                                        self.getLocalTempDir(), 
-            #                                        self.prepOptions.compressFiles)
-            localSequencePath = self.seqPath
         for chunk in self.chunkList:
             localChunkPath = decompressFastaFile(chunk, self.getLocalTempDir(),
                                                  self.prepOptions.compressFiles)
             prepChunkPath = getTempFile(rootDir=self.getLocalTempDir())
             tempPath = getTempFile(rootDir=self.getLocalTempDir())
             
-            cmdline = self.prepOptions.cmdLine.replace("QUERY_FILE", "\"" + localSequencePath + "\"")
+            cmdline = self.prepOptions.cmdLine.replace("QUERY_FILE", "\"" + self.seqPath + "\"")
             cmdline = cmdline.replace("TARGET_FILE", "\"" + localChunkPath + "\"")
             cmdline = cmdline.replace("OUT_FILE", "\"" + prepChunkPath + "\"")
             cmdline = cmdline.replace("TEMP_FILE", "\"" + tempPath + "\"")
@@ -203,15 +195,7 @@ class PreprocessSequence(Target):
         
         return chunkListPath
     
-    def run(self):
-        #make compressed version of the sequence
-        #Full sequence file can be quite big: only compress it into the local
-        #path if it's actually used by the preprocessor
-        seqPath = ""
-        if self.prepOptions.cmdLine.find("QUERY_FILE") >= 0:        
-            seqPath = compressFastaFile(self.inSequencePath, self.getGlobalTempDir(), 
-                                    self.prepOptions.compressFiles)
-        
+    def run(self):        
         logger.info("Preparing sequence for preprocessing")
         # chunk it up
         chunkListPath = self.makeChunkList()
