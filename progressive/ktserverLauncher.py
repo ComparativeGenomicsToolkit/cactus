@@ -33,7 +33,7 @@ class KtserverLauncher:
         self.reorganizeWait = 10
         self.checkWaitIntervals = 30
         self.checkWait = 1
-        self.killWaitIntervals = 1000
+        self.killWaitIntervals = 10
         self.killWait = 10
         self.createTuningOptions = "#opts=ls#bnum=30m#msiz=50g#ktopts=p"
         # it seems that using msiz to open an existing db can 
@@ -141,9 +141,11 @@ class KtserverLauncher:
         if dbElem.getDbHost() is not None:
             cmd += " -host %s" % dbElem.getDbHost()
         if dbElem.getDbSnapshot() == True:
-            cmd += " -bgs %s -bgsi 100000000" % dbElem.getDbDir()        
+            cmd += " -bgs %s -bgsi 100000000" % dbElem.getDbDir()
+            self.killWaitIntervals = 1000
         if dbElem.getDbInMemory() == False:
             cmd += " %s" % os.path.join(dbElem.getDbDir(), dbElem.getDbName())
+            self.killWaitIntervals = 1000
         else:
             cmd += " :"
         cmd += tuning
