@@ -115,9 +115,17 @@ class MultiCactusTree(NXTree):
         assert len(self.getChildren(node)) <= self.subtreeSize
         curLevel = []
         nextLevel = self.getChildren(node)
-        while (len(nextLevel) <= self.subtreeSize and len(nextLevel) > len(curLevel)):
+        while len(nextLevel) <= self.subtreeSize and curLevel != nextLevel:
             curLevel = nextLevel
-            nextLevel = sum([self.getChildren(i) for i in curLevel], [])
+            curLevel.sort()
+            nextLevel = []
+            for node in curLevel:
+                if self.isLeaf(node):
+                    nextLevel.append(node)
+                else:
+                    nextLevel += self.getChildren(node)
+            nextLevel.sort()
+            assert len(nextLevel) >= len(curLevel)
         return curLevel
     
     # safe id to insert is current max + 1
