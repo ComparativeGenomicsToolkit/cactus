@@ -86,6 +86,11 @@ class ConfigWrapper:
             subtreeSize = int(decompElem.attrib["subtree_size"])
         assert subtreeSize > 1
         return subtreeSize
+
+    def setSubtreeSize(self, subtreeSize):
+        decompElem = self.getDecompositionElem()
+        assert decompElem is not None
+        decompElem.attrib["subtree_size"] = str(subtreeSize)
             
     def getDoSelfAlignment(self):
         decompElem = self.getDecompositionElem()
