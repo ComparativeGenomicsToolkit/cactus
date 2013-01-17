@@ -112,7 +112,6 @@ class MultiCactusTree(NXTree):
     # 1) number of leaves maximal but less than self.subtreeSize
     # 2) if a node is returned, its sibling must me as well
     def getSubtreeLeaves(self, node):
-        assert len(self.getChildren(node)) <= self.subtreeSize
         curLevel = []
         nextLevel = self.getChildren(node)
         while len(nextLevel) <= self.subtreeSize and curLevel != nextLevel:
