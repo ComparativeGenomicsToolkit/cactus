@@ -25,7 +25,9 @@ from cactus.progressive.experimentWrapper import DbElemWrapper
 
 class KtserverLauncher:
     def __init__(self):
-        self.maxRunningServers = 20
+        # note that there is a possible deadlock on singlemachine
+        # when maxRunningServers <= maxThreads
+        self.maxRunningServers = 1000
         self.waitFromMax = 30
         self.rangeSize = 100
         self.listenWaitIntervals = 1000
