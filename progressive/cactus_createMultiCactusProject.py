@@ -59,13 +59,23 @@ def cleanEventTree(experiment):
                 weight = tree.getWeight(parent, node)
                 if weight is None:
                     raise RuntimeError('Missing branch length in species_tree tree')
-    for node1 in tree.breadthFirstTraversal():
-        name1 = tree.getName(node1)
-        for node2 in tree.breadthFirstTraversal():
-            name2 = tree.getName(node2)
-            if node1 != node2 and name1.find(name2) == 0 and\
-             name1 != name2 + tree.self_suffix:
-                raise RuntimeError('Error: %s is a prefix of %s' % (name2, name1))
+    redoPrefix = True
+    newSuffix = 0
+    while redoPrefix is True:
+        redoPrefix = False
+        for node1 in tree.breadthFirstTraversal():
+            name1 = tree.getName(node1)
+            for node2 in tree.breadthFirstTraversal():
+                name2 = tree.getName(node2)
+                if node1 != node2 and name1.find(name2) == 0 and\
+                 name1 != name2 + tree.self_suffix:
+                    newName = "%s%i" % (name2, newSuffix)
+                    newSuffix += 1
+                    tree.setName(node2, newName)
+                    sys.stderr.write('WARNING renaming event %s to %s\n' % (
+                        name2, newName))
+                    redoPrefix = True
+                    
     experiment.xmlRoot.attrib["species_tree"] = NXNewick().writeString(tree)
     experiment.seqMap = experiment.buildSequenceMap()
 
