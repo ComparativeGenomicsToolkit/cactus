@@ -34,7 +34,7 @@ void usage() {
     fprintf(stderr, "-k --theta : The value of theta\n");
     fprintf(
             stderr,
-            "-l --maxNumberOfChainsBeforeSwitchingToFast : The max number of chains before switching to fast reference building mode (default INT32_MAX)\n");
+            "-l --maxWalkForCalculatingZ : The max number segments along a thread before stopping calculating z-scores\n");
 
     fprintf(stderr, "-h --help : Print this help screen\n");
 }
@@ -57,7 +57,7 @@ int main(int argc, char *argv[]) {
     int32_t permutations = 10;
     double theta = 0.00001;
     bool useSimulatedAnnealing = 0;
-    int32_t maxNumberOfChainsBeforeSwitchingToFast = INT32_MAX;
+    int32_t maxWalkForCalculatingZ = 20;
 
     ///////////////////////////////////////////////////////////////////////////
     // (0) Parse the inputs handed by genomeCactus.py / setup stuff.
@@ -70,7 +70,7 @@ int main(int argc, char *argv[]) {
                 "referenceEventString", required_argument, 0, 'g' }, {
                 "permutations", required_argument, 0, 'i' }, {
                 "useSimulatedAnnealing", no_argument, 0, 'j' }, { "theta",
-                required_argument, 0, 'k' }, { "maxNumberOfChainsBeforeSwitchingToFast", required_argument, 0,
+                required_argument, 0, 'k' }, { "maxWalkForCalculatingZ", required_argument, 0,
                 'l' }, { "help", no_argument, 0, 'h' }, { 0, 0, 0, 0 } };
 
         int option_index = 0;
@@ -131,7 +131,7 @@ int main(int argc, char *argv[]) {
                 }
                 break;
             case 'l':
-                j = sscanf(optarg, "%i", &maxNumberOfChainsBeforeSwitchingToFast);
+                j = sscanf(optarg, "%i", &maxWalkForCalculatingZ);
                 assert(j == 1);
                 break;
             default:
@@ -149,7 +149,7 @@ int main(int argc, char *argv[]) {
     st_logInfo("The theta parameter has been set to %lf\n", theta);
     st_logInfo("The number of permutations is %i\n", permutations);
     st_logInfo("Simulated annealing is %i\n", useSimulatedAnnealing);
-    st_logInfo("Max number of chains before switching to fast %i\n", maxNumberOfChainsBeforeSwitchingToFast);
+    st_logInfo("Max number of segments in thread to calculate z-score between is %i\n", maxWalkForCalculatingZ);
 
     ///////////////////////////////////////////////////////////////////////////
     // (0) Check the inputs.
@@ -181,7 +181,7 @@ int main(int argc, char *argv[]) {
         st_logInfo("Processing a flower\n");
         if (!flower_hasParentGroup(flower)) {
             buildReferenceTopDown(flower, referenceEventString, permutations,
-                    matchingAlgorithm, temperatureFn, theta, maxNumberOfChainsBeforeSwitchingToFast);
+                    matchingAlgorithm, temperatureFn, theta,  maxWalkForCalculatingZ);
         }
         Flower_GroupIterator *groupIt = flower_getGroupIterator(flower);
         Group *group;
@@ -189,7 +189,7 @@ int main(int argc, char *argv[]) {
             if (group_getNestedFlower(group) != NULL) {
                 buildReferenceTopDown(group_getNestedFlower(group),
                         referenceEventString, permutations, matchingAlgorithm,
-                        temperatureFn, theta, maxNumberOfChainsBeforeSwitchingToFast);
+                        temperatureFn, theta, maxWalkForCalculatingZ);
             }
         }
         flower_destructGroupIterator(groupIt);

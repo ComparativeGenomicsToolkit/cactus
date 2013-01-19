@@ -840,7 +840,7 @@ void cactusDisk_getBlockOfUniqueIDs(CactusDisk *cactusDisk, int64_t intervalSize
                                             "Repeated unknown database errors occurred when we tried to get a unique ID, collision count %i",
                                             collisionCount);
                                 } else {
-                                    st_logDebug("Got an exception when trying to insert a record: %s", except);
+                                    st_logDebug("Got an exception when trying to insert a record: %s\n", except);
                                 }
                             }stTryEnd;
                     continue;

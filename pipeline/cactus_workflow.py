@@ -580,7 +580,7 @@ class CactusReferenceWrapper(CactusRecursionTarget):
                        referenceEventString=self.getOptionalPhaseAttrib("reference"), 
                        useSimulatedAnnealing=self.getOptionalPhaseAttrib("useSimulatedAnnealing", bool),
                        theta=self.getOptionalPhaseAttrib("theta", float),
-                       maxNumberOfChainsBeforeSwitchingToFast=self.getOptionalPhaseAttrib("maxNumberOfChainsBeforeSwitchingToFast", int))
+                       maxWalkForCalculatingZ=self.getOptionalPhaseAttrib("maxWalkForCalculatingZ", int))
         
 class CactusReferenceRecursion2(CactusRecursionTarget):
     def run(self):

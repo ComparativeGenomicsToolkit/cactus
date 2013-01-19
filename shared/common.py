@@ -300,7 +300,7 @@ def runCactusReference(cactusDiskDatabaseString, flowerNames, logLevel=None,
                        permutations=None,
                        useSimulatedAnnealing=None,
                        theta=None,
-                       maxNumberOfChainsBeforeSwitchingToFast=None):
+                       maxWalkForCalculatingZ=None):
     """Runs cactus reference.
     """
     logLevel = getLogLevelString2(logLevel)
@@ -309,8 +309,8 @@ def runCactusReference(cactusDiskDatabaseString, flowerNames, logLevel=None,
     permutations = nameValue("permutations", permutations, int)
     useSimulatedAnnealing = nameValue("useSimulatedAnnealing", useSimulatedAnnealing, bool)
     theta = nameValue("theta", theta, float)
-    maxNumberOfChainsBeforeSwitchingToFast = nameValue("maxNumberOfChainsBeforeSwitchingToFast", maxNumberOfChainsBeforeSwitchingToFast, int)
-    command = "cactus_reference --cactusDisk '%s' --logLevel %s %s %s %s %s %s %s" % (cactusDiskDatabaseString, logLevel, matchingAlgorithm, referenceEventString, permutations, useSimulatedAnnealing, theta, maxNumberOfChainsBeforeSwitchingToFast)
+    maxWalkForCalculatingZ = nameValue("maxWalkForCalculatingZ", maxWalkForCalculatingZ, int)
+    command = "cactus_reference --cactusDisk '%s' --logLevel %s %s %s %s %s %s %s" % (cactusDiskDatabaseString, logLevel, matchingAlgorithm, referenceEventString, permutations, useSimulatedAnnealing, theta, maxWalkForCalculatingZ)
     popenPush(command, stdinString=flowerNames)
     
 def runCactusAddReferenceCoordinates(cactusDiskDatabaseString, flowerNames, logLevel=None, referenceEventString=None, outgroupEventString=None, secondaryDatabaseString=None, bottomUpPhase=None):   
