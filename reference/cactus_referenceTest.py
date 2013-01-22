@@ -33,17 +33,8 @@ class TestCase(unittest.TestCase):
     def testCactus_Random_MaxWeight(self):
         testCactus_Random(self, "maxWeight")
         
-    def testCactus_Blanchette_Greedy(self):
-        testCactus_Blanchette(self, "greedy")
-        
     def testCactus_Blanchette_Blossum(self):
         testCactus_Blanchette(self, "blossom5")
-        
-    def testCactus_Blanchette_MaxCardinality(self):
-        testCactus_Blanchette(self, "maxCardinality")
-    
-    def testCactus_Blanchette_MaxWeight(self):
-        testCactus_Blanchette(self, "maxWeight")
         
     def testCuTest(self):
         system("referenceTests %s" % getLogLevelString())
