@@ -38,8 +38,8 @@ class TestCase(unittest.TestCase):
         
     def testSubtrees(self):
         roots1 = ["Anc0", "Anc1", "Anc2", "Anc3", "Anc4", "Anc5", "Anc6", "Anc7"]
-        roots1a = ["Anc0", "Anc2", "Anc3", "Anc5", "Anc6", "Anc7"]
-        roots2 = ["Anc0", "Anc1", "Anc2", "Anc3", "Anc4", "Anc5"]
+        roots1a = ["Anc0", "Anc2", "Anc3", "Anc5", "Anc6"]
+        roots2 = ["Anc0", "Anc1", "Anc2", "Anc4", "Anc5"]
         
         subTree1_a6 = '(Anc7:0.025291,BABOON:0.044568)Anc6;'
         subTree1a_a0 = '((Anc6:0.11,Anc5:0.260342)Anc4:0.02326,(Anc3:0.087381,Anc2:0.104728)Anc1:0.04)Anc0;'
