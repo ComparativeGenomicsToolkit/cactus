@@ -30,9 +30,9 @@ class KtserverLauncher:
         self.maxRunningServers = 1000
         self.waitFromMax = 30
         self.rangeSize = 100
-        self.listenWaitIntervals = 1000
+        self.listenWaitIntervals = 150
         self.listenWait = 1
-        self.reorganizeWait = 10
+        self.reorganizeWait = 60
         self.checkWaitIntervals = 30
         self.checkWait = 1
         self.killWaitIntervals = 10
