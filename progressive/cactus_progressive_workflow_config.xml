@@ -94,7 +94,7 @@
 		reference="reference" 
 		useSimulatedAnnealing="1" 
 		theta="0.000001" 
-		maxNumberOfChainsBeforeSwitchingToFast="1000" 
+		maxWalkForCalculatingZ="1000" 
 		permutations="5"
 	>
 		<CactusReferenceRecursion maxFlowerGroupSize="50000000" maxFlowerWrapperGroupSize="10000000"/>

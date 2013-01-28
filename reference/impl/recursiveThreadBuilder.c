@@ -73,6 +73,9 @@ static void cacheNestedRecords(stKVDatabase *database, stCache *cache, stList *c
      * Caches all the non-terminal adjacencies by retrieving them from the database.
      */
     stList *getRequests = getNestedRecordNames(caps);
+    if(stList_length(caps) > 10000) {
+        st_logCritical("Going to request %i records from the database: %i\n", stList_length(caps));
+    }
     //Do the retrieval of the records
     stList *records = NULL;
     stTry {
