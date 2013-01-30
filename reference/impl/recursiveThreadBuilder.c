@@ -12,6 +12,19 @@
 #include "cactus.h"
 #include "sonLib.h"
 
+static void *compress(char *string, int64_t *dataSize) {
+    void *data = stCompression_compress(string, strlen(string) + 1, dataSize, -1);
+    free(string);
+    return data;
+}
+
+static char *decompress(void *data, int64_t dataSize) {
+    int64_t uncompressedSize;
+    char *string = stCompression_decompress(data, dataSize, &uncompressedSize);
+    assert(strlen(string) == uncompressedSize);
+    return string;
+}
+
 static void cacheNonNestedRecords(stCache *cache, stList *caps,
         char *(*segmentWriteFn)(Segment *),
         char *(*terminalAdjacencyWriteFn)(Cap *)) {
@@ -20,25 +33,26 @@ static void cacheNonNestedRecords(stCache *cache, stList *caps,
      */
     for (int32_t i = 0; i < stList_length(caps); i++) {
         Cap *cap = stList_get(caps, i);
+        int64_t recordSize;
         while (1) {
             Cap *adjacentCap = cap_getAdjacency(cap);
             assert(adjacentCap != NULL);
             Group *group = end_getGroup(cap_getEnd(cap));
             assert(group != NULL);
             if (group_isLeaf(group)) { //Record must not be in the database already
-                char *string = terminalAdjacencyWriteFn(cap);
+                void *data = compress(terminalAdjacencyWriteFn(cap), &recordSize);
                 assert(!stCache_containsRecord(cache, cap_getName(cap), 0, INT64_MAX));
-                stCache_setRecord(cache, cap_getName(cap), 0, strlen(string)+1, string);
-                free(string);
+                stCache_setRecord(cache, cap_getName(cap), 0, recordSize, data);
+                free(data);
             }
             if ((cap = cap_getOtherSegmentCap(adjacentCap)) == NULL) {
                 break;
             }
             Segment *segment = cap_getSegment(adjacentCap);
-            char *string = segmentWriteFn(segment);
             assert(!stCache_containsRecord(cache, segment_getName(segment), 0, INT64_MAX));
-            stCache_setRecord(cache, segment_getName(segment), 0, strlen(string)+1, string);
-            free(string);
+            void *data = compress(segmentWriteFn(segment), &recordSize);
+            stCache_setRecord(cache, segment_getName(segment), 0, recordSize, data);
+            free(data);
         }
     }
 }
@@ -94,7 +108,6 @@ static void cacheNestedRecords(stKVDatabase *database, stCache *cache, stList *c
         void *record = stKVDatabaseBulkResult_getRecord(result, &recordSize);
         assert(record != NULL);
         assert(!stCache_containsRecord(cache, *recordName, 0, INT64_MAX));
-        assert(strlen((char *)record)+1 == recordSize);
         stCache_setRecord(cache, *recordName, 0, recordSize, record);
         stKVDatabaseBulkResult_destruct(result); //Cleanup the memory as we go.
         free(recordName);
@@ -148,12 +161,14 @@ static char *getThread(stCache *cache, Cap *startCap) {
         assert(adjacentCap != NULL);
         int64_t recordSize;
         assert(stCache_containsRecord(cache, cap_getName(cap), 0, INT64_MAX));
-        stList_append(strings, stCache_getRecord(cache, cap_getName(cap), 0, INT64_MAX, &recordSize));
+        void *data = stCache_getRecord(cache, cap_getName(cap), 0, INT64_MAX, &recordSize);
+        stList_append(strings, decompress(data, recordSize));
         if ((cap = cap_getOtherSegmentCap(adjacentCap)) == NULL) {
             break;
         }
         assert(stCache_containsRecord(cache, segment_getName(cap_getSegment(adjacentCap)), 0, INT64_MAX));
-        stList_append(strings, stCache_getRecord(cache, segment_getName(cap_getSegment(adjacentCap)), 0, INT64_MAX, &recordSize));
+        data = stCache_getRecord(cache, segment_getName(cap_getSegment(adjacentCap)), 0, INT64_MAX, &recordSize);
+        stList_append(strings, decompress(data, recordSize));
     }
     char *string = stString_join2("", strings);
     stList_destruct(strings);
@@ -168,12 +183,14 @@ void buildRecursiveThreads(stKVDatabase *database, stList *caps,
 
     //Build new threads
     stList *records = stList_construct3(0, (void (*)(void *))stKVDatabaseBulkRequest_destruct);
-    for(int32_t i=0; i<stList_length(caps); i++) {
+     for(int32_t i=0; i<stList_length(caps); i++) {
         Cap *cap = stList_get(caps, i);
         char *string = getThread(cache, cap);
         assert(string != NULL);
-        stList_append(records, stKVDatabaseBulkRequest_constructInsertRequest(cap_getName(cap), string, strlen(string)+1));
-        free(string);
+        int64_t recordSize;
+        void *data = compress(string, &recordSize);
+        stList_append(records, stKVDatabaseBulkRequest_constructInsertRequest(cap_getName(cap), data, recordSize));
+        free(data);
     }
 
     //Delete old records and insert new records
