@@ -18,6 +18,10 @@ static void *compress(char *string, int64_t *dataSize) {
         return string;
     }
     void *data = stCompression_compress(string, strlen(string) + 1, dataSize, -1);
+    if(*dataSize > 4000000000) {
+        stThrowNew("ZLIB_ERROR", "The zlib hack has gone wrong");
+        //Otherwise the hack is going to cause a hard to debug error
+    }
     free(string);
     return data;
 }
