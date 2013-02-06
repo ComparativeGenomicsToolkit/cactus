@@ -13,20 +13,27 @@
 #include "sonLib.h"
 
 static void *compress(char *string, int64_t *dataSize) {
+    if (strlen(string) > 4000000000) { //Avoiding 32bit bug in compression library by hack
+        *dataSize = strlen(string) + 1;
+        return string;
+    }
     void *data = stCompression_compress(string, strlen(string) + 1, dataSize, -1);
     free(string);
     return data;
 }
 
 static char *decompress(void *data, int64_t dataSize) {
+    if (dataSize > 4000000000) { //Avoiding 32bit bug in compression library by hack
+        return data;
+    }
     int64_t uncompressedSize;
     char *string = stCompression_decompress(data, dataSize, &uncompressedSize);
     assert(strlen(string) == uncompressedSize);
+    free(data);
     return string;
 }
 
-static void cacheNonNestedRecords(stCache *cache, stList *caps,
-        char *(*segmentWriteFn)(Segment *),
+static void cacheNonNestedRecords(stCache *cache, stList *caps, char *(*segmentWriteFn)(Segment *),
         char *(*terminalAdjacencyWriteFn)(Cap *)) {
     /*
      * Caches the set of terminal adjacency and segment records present in the threads.
@@ -87,21 +94,22 @@ static void cacheNestedRecords(stKVDatabase *database, stCache *cache, stList *c
      * Caches all the non-terminal adjacencies by retrieving them from the database.
      */
     stList *getRequests = getNestedRecordNames(caps);
-    if(stList_length(caps) > 10000) {
+    if (stList_length(caps) > 10000) {
         st_logCritical("Going to request %i records from the database: %i\n", stList_length(caps));
     }
     //Do the retrieval of the records
     stList *records = NULL;
     stTry {
-        records = stKVDatabase_bulkGetRecords(database, getRequests);
-    } stCatch(except) {
-        stThrowNewCause(except, ST_KV_DATABASE_EXCEPTION_ID,
-                                    "An unknown database error occurred when we tried to bulk get records from the database");
-    } stTryEnd;
+            records = stKVDatabase_bulkGetRecords(database, getRequests);
+        }stCatch(except)
+            {
+                stThrowNewCause(except, ST_KV_DATABASE_EXCEPTION_ID,
+                        "An unknown database error occurred when we tried to bulk get records from the database");
+            }stTryEnd;
     assert(records != NULL);
     assert(stList_length(records) == stList_length(getRequests));
     //Now cache the resulting records
-    while(stList_length(records) > 0) {
+    while (stList_length(records) > 0) {
         stKVDatabaseBulkResult *result = stList_pop(records);
         int64_t *recordName = stList_pop(getRequests);
         int64_t recordSize;
@@ -117,8 +125,7 @@ static void cacheNestedRecords(stKVDatabase *database, stCache *cache, stList *c
     stList_destruct(records);
 }
 
-static stCache *cacheRecords(stKVDatabase *database, stList *caps,
-        char *(*segmentWriteFn)(Segment *),
+static stCache *cacheRecords(stKVDatabase *database, stList *caps, char *(*segmentWriteFn)(Segment *),
         char *(*terminalAdjacencyWriteFn)(Cap *)) {
     /*
      * Cache all the elements needed to construct the set of threads.
@@ -134,19 +141,20 @@ static void deleteNestedRecords(stKVDatabase *database, stList *caps) {
      * Removes the non-terminal adjacencies from the database.
      */
     stList *deleteRequests = getNestedRecordNames(caps);
-    for(int32_t i=0; i<stList_length(deleteRequests); i++) {
+    for (int32_t i = 0; i < stList_length(deleteRequests); i++) {
         int64_t *record = stList_get(deleteRequests, i);
         stList_set(deleteRequests, i, stInt64Tuple_construct(1, record[0])); //Hack
         free(record);
     }
-    stList_setDestructor(deleteRequests, (void (*)(void *))stInt64Tuple_destruct);
+    stList_setDestructor(deleteRequests, (void(*)(void *)) stInt64Tuple_destruct);
     //Do the deletion of the records
     stTry {
-        stKVDatabase_bulkRemoveRecords(database, deleteRequests);
-    } stCatch(except) {
-        stThrowNewCause(except, ST_KV_DATABASE_EXCEPTION_ID,
-                                    "An unknown database error occurred when we tried to bulk remove records from the database");
-    } stTryEnd;
+            stKVDatabase_bulkRemoveRecords(database, deleteRequests);
+        }stCatch(except)
+            {
+                stThrowNewCause(except, ST_KV_DATABASE_EXCEPTION_ID,
+                        "An unknown database error occurred when we tried to bulk remove records from the database");
+            }stTryEnd;
     stList_destruct(deleteRequests);
 }
 
@@ -175,15 +183,14 @@ static char *getThread(stCache *cache, Cap *startCap) {
     return string;
 }
 
-void buildRecursiveThreads(stKVDatabase *database, stList *caps,
-        char *(*segmentWriteFn)(Segment *),
+void buildRecursiveThreads(stKVDatabase *database, stList *caps, char *(*segmentWriteFn)(Segment *),
         char *(*terminalAdjacencyWriteFn)(Cap *)) {
     //Cache records
     stCache *cache = cacheRecords(database, caps, segmentWriteFn, terminalAdjacencyWriteFn);
 
     //Build new threads
-    stList *records = stList_construct3(0, (void (*)(void *))stKVDatabaseBulkRequest_destruct);
-     for(int32_t i=0; i<stList_length(caps); i++) {
+    stList *records = stList_construct3(0, (void(*)(void *)) stKVDatabaseBulkRequest_destruct);
+    for (int32_t i = 0; i < stList_length(caps); i++) {
         Cap *cap = stList_get(caps, i);
         char *string = getThread(cache, cap);
         assert(string != NULL);
@@ -196,19 +203,19 @@ void buildRecursiveThreads(stKVDatabase *database, stList *caps,
     //Delete old records and insert new records
     deleteNestedRecords(database, caps);
     stTry {
-        stKVDatabase_bulkSetRecords(database, records);
-    } stCatch(except) {
-        stThrowNewCause(except, ST_KV_DATABASE_EXCEPTION_ID,
-                                    "An unknown database error occurred when we tried to bulk insert records from the database");
-    } stTryEnd;
+            stKVDatabase_bulkSetRecords(database, records);
+        }stCatch(except)
+            {
+                stThrowNewCause(except, ST_KV_DATABASE_EXCEPTION_ID,
+                        "An unknown database error occurred when we tried to bulk insert records from the database");
+            }stTryEnd;
 
     //Cleanup
     stCache_destruct(cache);
     stList_destruct(records);
 }
 
-stList *buildRecursiveThreadsInList(stKVDatabase *database, stList *caps,
-        char *(*segmentWriteFn)(Segment *),
+stList *buildRecursiveThreadsInList(stKVDatabase *database, stList *caps, char *(*segmentWriteFn)(Segment *),
         char *(*terminalAdjacencyWriteFn)(Cap *)) {
     stList *threadStrings = stList_construct3(0, free);
 
@@ -216,7 +223,7 @@ stList *buildRecursiveThreadsInList(stKVDatabase *database, stList *caps,
     stCache *cache = cacheRecords(database, caps, segmentWriteFn, terminalAdjacencyWriteFn);
 
     //Build new threads
-    for(int32_t i=0; i<stList_length(caps); i++) {
+    for (int32_t i = 0; i < stList_length(caps); i++) {
         Cap *cap = stList_get(caps, i);
         stList_append(threadStrings, getThread(cache, cap));
     }
@@ -225,5 +232,4 @@ stList *buildRecursiveThreadsInList(stKVDatabase *database, stList *caps,
 
     return threadStrings;
 }
-
 
