@@ -7,7 +7,7 @@ from optparse import OptionParser
 from jobTree.scriptTree.target import Target 
 from jobTree.scriptTree.stack import Stack
 from sonLib.bioio import system, spawnDaemon, setLoggingFromOptions, logger, getLogLevelString
-from jobTree.test.jobTree.jobTreeTest import runJobTreeStatusAndFailIfNotComplete
+from jobTree.src.common import runJobTreeStatusAndFailIfNotComplete
 
 def getDatabaseConf(options):
     return "<st_kv_database_conf type=\"kyoto_tycoon\"><kyoto_tycoon host=\"%s\" port=\"%s\" database_dir=\"%s\"/></<st_kv_database_conf>" % \

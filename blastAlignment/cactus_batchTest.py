@@ -23,7 +23,7 @@ from sonLib.bioio import TestStatus
 from cactus.shared.test import parseCactusSuiteTestOptions
 from cactus.shared.common import runCactusBatch
 
-from jobTree.test.jobTree.jobTreeTest import runJobTreeStatusAndFailIfNotComplete
+from jobTree.src.common import runJobTreeStatusAndFailIfNotComplete
 
 class TestCase(unittest.TestCase):
     def setUp(self):

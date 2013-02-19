@@ -23,7 +23,7 @@ from cactus.shared.common import runCactusWorkflow
 
 from cactus.shared.test import getCactusWorkflowExperimentForTest
 
-from jobTree.test.jobTree.jobTreeTest import runJobTreeStatusAndFailIfNotComplete
+from jobTree.src.common import runJobTreeStatusAndFailIfNotComplete
 
 """Tests cactus_bar. Requires the installation of cactusTools and mafTools.
 """
