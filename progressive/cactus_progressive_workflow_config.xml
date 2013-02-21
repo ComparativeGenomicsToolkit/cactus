@@ -1,5 +1,5 @@
 <cactusWorkflowConfig>
-  <preprocessor chunkSize="100000000" memory="2147483648" overlapSize="1000" preprocessorString="cactus_lastzRepeatMask.py --minPeriod=10 --lastzOpts='--step=20 --notransition --ambiguous=iupac --nogapped' QUERY_FILE TARGET_FILE TEMP_FILE ; cactus_addFastaHeaderDots.py TEMP_FILE OUT_FILE --event EVENT_STRING" scope="all" />
+  <preprocessor chunkSize="100000000" memory="2147483648" overlapSize="1000" preprocessorString="cactus_lastzRepeatMask.py --minPeriod=10 --lastzOpts='--step=20 --notransition --ambiguous=iupac --nogapped' QUERY_FILE TARGET_FILE OUT_FILE" scope="all" />
 	<setup>
 	</setup>
 	<caf
