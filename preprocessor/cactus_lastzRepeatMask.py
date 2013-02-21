@@ -67,8 +67,8 @@ def main():
     assert os.path.isfile(targetFile)
     assert options.fragment > 1
     
-    if testExec("fasta_fragments.py") == False or testExec("fasta_softmask_intervals.py") == False:
-        raise RuntimeError("ERROR: fasta_fragments.py or fasta_softmask_intervals.py" + \
+    if testExec("fasta_softmask_intervals.py") == False:
+        raise RuntimeError("ERROR: fasta_softmask_intervals.py" + \
                " not in PATH.\n Ensure that the latest lastz is installed" + \
                " and lastz/tools is in path\n\n")
     
@@ -90,7 +90,7 @@ def main():
     try:
         # chop up input fasta file into into fragments of specified size.  fragments overlap by 
         # half their length. 
-        fragCmdLine = 'cat ' + queryFile + ' | fasta_fragments.py ' + '--fragment=' + \
+        fragCmdLine = 'cat ' + queryFile + ' | cactus_fasta_fragments.py ' + '--fragment=' + \
                         str(options.fragment) + ' --step=' + str(options.fragment / 2)
         
         # lastz each fragment against the entire input sequence.  Each time a fragment aligns to a base
