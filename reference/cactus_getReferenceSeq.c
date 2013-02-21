@@ -17,7 +17,7 @@
 /*
  */
 
-void usage() {
+static void usage() {
     fprintf(stderr, "cactus_getReferenceSeq, version 0.0\n");
     fprintf(stderr, "-a --logLevel : Set the log level\n");
     fprintf(stderr,
@@ -29,7 +29,7 @@ void usage() {
     fprintf(stderr, "-h --help : Print this help screen\n");
 }
 
-char *formatSequenceHeader(Sequence *sequence) {
+static char *formatSequenceHeader(Sequence *sequence) {
     const char *sequenceHeader = sequence_getHeader(sequence);
     if (strlen(sequenceHeader) > 0) {
         char *cA = st_malloc(sizeof(char) * (1 + strlen(sequenceHeader)));
@@ -40,16 +40,16 @@ char *formatSequenceHeader(Sequence *sequence) {
     }
 }
 
-Sequence *getSequenceMatchesHeader(Flower *flower, char *header){
+static Sequence *getSequenceMatchesEvent(Flower *flower, char *referenceEventString){
     //Returns the first Sequence whose name matches 'header'
     Flower_SequenceIterator *it = flower_getSequenceIterator(flower);
     Sequence *sequence;
     while((sequence = flower_getNextSequence(it)) != NULL){
-        char *sequenceHeader = formatSequenceHeader(sequence);
-        //if(strcmp(sequenceHeader, header) == 0){
-        if(strstr(sequenceHeader, header) != NULL){
+        Event* event = sequence_getEvent(sequence);
+        const char* eventName = event_getHeader(event);
+        if (strcmp(eventName, referenceEventString) == 0 &&
+            sequence_getLength(sequence) > 0){
             flower_destructSequenceIterator(it);
-            free(sequenceHeader);
             return sequence;
         }
     }
@@ -57,28 +57,29 @@ Sequence *getSequenceMatchesHeader(Flower *flower, char *header){
     return NULL;
 }
 
-void getReferenceSequences(FILE *fileHandle, Flower *flower, char *name){
-   //get names of all the sequences in 'flower' that have their names start with 'name'
+static void getReferenceSequences(FILE *fileHandle, Flower *flower, char *referenceEventString){
+   //get names of all the sequences in 'flower' for event with name 'referenceEventString'
    Sequence *sequence;
    Flower_SequenceIterator * seqIterator = flower_getSequenceIterator(flower);
-   while((sequence = flower_getNextSequence(seqIterator)) != NULL){
-      char *sequenceHeader = formatSequenceHeader(sequence);
-      st_logInfo("Sequence %s\n", sequenceHeader);
-      if(strstr(sequenceHeader, name) != NULL){
-          if(sequence_getLength(sequence) == 0){//skip empty sequences
-              free(sequenceHeader);
-              continue;
-          }
-          fprintf(fileHandle, ">%s\n", sequenceHeader);
-          const int32_t lineLength = 10000000;
-          const int32_t end = sequence_getLength(sequence) + sequence_getStart(sequence);
-          for(int32_t i=sequence_getStart(sequence); i<end; i += lineLength) {
-              char *cA = sequence_getString(sequence, i, end - i < lineLength ?  end - i : lineLength, 1);
-              fprintf(fileHandle, "%s\n", cA);
-              free(cA);
-          }
+   while((sequence = flower_getNextSequence(seqIterator)) != NULL)
+   {
+      Event* event = sequence_getEvent(sequence);
+      const char* eventName = event_getHeader(event);
+      if (strcmp(eventName, referenceEventString) == 0 &&
+          sequence_getLength(sequence) > 0) 
+      {
+         char *sequenceHeader = formatSequenceHeader(sequence);
+         st_logInfo("Sequence %s\n", sequenceHeader);
+         fprintf(fileHandle, ">%s\n", sequenceHeader);
+         const int32_t lineLength = 10000000;
+         const int32_t end = sequence_getLength(sequence) + sequence_getStart(sequence);
+         for(int32_t i=sequence_getStart(sequence); i<end; i += lineLength) {
+           char *cA = sequence_getString(sequence, i, end - i < lineLength ?  end - i : lineLength, 1);
+           fprintf(fileHandle, "%s\n", cA);
+           free(cA);
+         }
+         free(sequenceHeader);
       }
-      free(sequenceHeader);
    }
    flower_destructSequenceIterator(seqIterator);
    return;
@@ -188,7 +189,7 @@ int main(int argc, char *argv[]) {
     //st_logInfo("Added the reference sequence in %i seconds/\n", time(NULL) - startTime);
 
     //Make sure that referenceSequence has already been added:
-    if(getSequenceMatchesHeader(flower, referenceEventString) == NULL){
+    if(getSequenceMatchesEvent(flower, referenceEventString) == NULL){
         fprintf(stderr, "No reference sequence found in cactusDisk\n");
         exit(EXIT_FAILURE); 
     }
