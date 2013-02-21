@@ -47,8 +47,7 @@ static Sequence *getSequenceMatchesEvent(Flower *flower, char *referenceEventStr
     while((sequence = flower_getNextSequence(it)) != NULL){
         Event* event = sequence_getEvent(sequence);
         const char* eventName = event_getHeader(event);
-        if (strcmp(eventName, referenceEventString) == 0 &&
-            sequence_getLength(sequence) > 0){
+        if (strcmp(eventName, referenceEventString) == 0){
             flower_destructSequenceIterator(it);
             return sequence;
         }

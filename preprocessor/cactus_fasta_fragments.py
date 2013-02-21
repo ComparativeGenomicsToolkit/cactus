@@ -46,10 +46,10 @@ def main():
 	# process the sequences
 
 	for (name,seq) in fasta_sequences(stdin):
-		seq = seq.upper()
-		for ix in xrange(0,len(seq)-fragmentLength,stepLength):
+		#seq = seq.upper()
+		for ix in xrange(0,len(seq),stepLength):
 			frag = seq[ix:ix+fragmentLength]
-			if (frag == allN): continue
+			if (frag == allN or len(frag) == 0): continue
 			print ">%s_%d" % (name,ix+1)
 			print frag
 
