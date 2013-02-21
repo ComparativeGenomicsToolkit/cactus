@@ -102,7 +102,8 @@ static MetaSequence *addMetaSequence(Flower *flower, Cap *cap, int32_t index, ch
      */
     Event *referenceEvent = cap_getEvent(cap);
     assert(referenceEvent != NULL);
-    char *sequenceName = stString_print("%s.%i", event_getHeader(referenceEvent), index);
+    //char *sequenceName = stString_print("%s.%i", event_getHeader(referenceEvent), index);
+    char *sequenceName = stString_print("refChr%i", index);
     MetaSequence *metaSequence = metaSequence_construct(1, strlen(string), string,
                                 sequenceName, event_getName(referenceEvent),
                                 flower_getCactusDisk(flower));
