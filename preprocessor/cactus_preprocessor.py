@@ -72,12 +72,13 @@ class PreprocessorHelper:
         event = self.fileEventMap[sequence]
         leafEvents = getattr(self.cactusWorkflowArguments, 'globalLeafEventSet', set([event]))         
         for node in prepNodes:
-            scope = node.get("scope", default="leaves").lower()
-            if event in leafEvents:
-                if scope != 'internal':
+            if node.get("preprocessorString", default=None) is not None:
+                scope = node.get("scope", default="leaves").lower()
+                if event in leafEvents:
+                    if scope != 'internal':
+                        filteredNodes.append(node)
+                elif scope != 'leaves':
                     filteredNodes.append(node)
-            elif scope != 'leaves':
-                filteredNodes.append(node)
         return filteredNodes
     
     # link each fasta file to an event name and store 
