@@ -128,6 +128,7 @@
 	 		subtree_size="2" 
 	 		self_alignment="false" 
 	 		default_internal_node_prefix="Anc"
+			max_parallel_subtrees="3"
 	 	/>
   	</multi_cactus>
 </cactusWorkflowConfig>

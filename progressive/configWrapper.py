@@ -29,6 +29,7 @@ class ConfigWrapper:
     defaultSingleCopyStrategy = 'none'
     defaultInternalNodePrefix = 'Anc'
     defaultOutgroupThreshold = None
+    defaultMaxParallelSubtrees = 3
     
     def __init__(self, xmlRoot):
         self.xmlRoot = xmlRoot
@@ -161,6 +162,15 @@ class ConfigWrapper:
          assert halElem is not None
          halElem.attrib["joinMaf"] = str(int(joinMaf))
 
+    def getMaxParallelSubtrees(self):
+        decompElem = self.getDecompositionElem()
+        maxParallelSubtrees = self.defaultMaxParallelSubtrees
+        if decompElem is not None and\
+               "max_parallel_subtrees" in decompElem.attrib:
+            maxParallelSubtrees = int(
+                decompElem.attrib["max_parallel_subtrees"])
+        assert maxParallelSubtrees > 0
+        return maxParallelSubtrees
             
     # the minBlockDegree, when specified in the final, "base" 
     # iteration, does not play nicely with the required fraction

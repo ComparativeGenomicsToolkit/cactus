@@ -23,6 +23,7 @@ from optparse import OptionParser
 from cactus.progressive.multiCactusProject import MultiCactusProject
 from cactus.progressive.multiCactusTree import MultiCactusTree
 from cactus.progressive.experimentWrapper import ExperimentWrapper
+from cactus.progressive.configWrapper import ConfigWrapper
 
 class Schedule:
     def __init__(self):
@@ -30,11 +31,17 @@ class Schedule:
         self.inGraph = None
         # output tree
         self.depTree = None
-    
+        # maximum number of nodes that can be computed in parallel
+        # we will change the topology such that no more than this
+        # number of internal nodes can ever be dependency-free at
+        # the same time
+        self.maxParallelSubtrees = None
+
     # read the experiments, compute the dependency dag
     def loadProject(self, mcProject):
         self.inGraph = NX.DiGraph()
         globTree = mcProject.mcTree
+        self.maxParallelSubtrees = None
         leafEvents = [globTree.getName(i) for i in globTree.getLeaves()]
         for name, expPath in mcProject.expMap.items():
             exp = ExperimentWrapper(ET.parse(expPath).getroot())
@@ -49,11 +56,19 @@ class Schedule:
                 leafName = tree.getName(leaf)
                 if leafName not in leafEvents:
                     self.inGraph.add_edge(name, leafName)
+            configElem = ET.parse(exp.getConfig()).getroot()
+            conf = ConfigWrapper(configElem)
+            # load max parellel subtrees from the node's config
+            if self.maxParallelSubtrees is None:
+                self.maxParallelSubtrees = conf.getMaxParallelSubtrees()
+            else:
+                assert self.maxParallelSubtrees == conf.getMaxParallelSubtrees()
         assert NX.is_directed_acyclic_graph(self.inGraph)
     
     # break all the cycles in reverse topological order
     def compute(self):
         self.depTree = self.inGraph.copy()
+        self.enforceMaxParallel()
         tsort = NX.topological_sort(self.depTree)
         tsort.reverse()
         for node in tsort:
@@ -71,7 +86,23 @@ class Schedule:
         for node in tsort:
             assert len(self.depTree.in_edges(node)) < 2
         assert NX.is_directed_acyclic_graph(self.depTree)
- 
+        
+    # add dependencies to ensure that more than self.maxParallelSubtrees
+    # different jobs can never be scheduled at the same time
+    def enforceMaxParallel(self):
+        if self.maxParallelSubtrees is None:
+            return
+        leaves = []
+        for node in self.depTree.nodes():
+            if len(self.depTree.out_edges(node)) == 0:
+                leaves.append(node)
+        while len(leaves) > self.maxParallelSubtrees:
+            assert len(leaves) > 1
+            newTarget = leaves[0]
+            newSource = leaves[-1]
+            del leaves[-1]
+            self.depTree.add_edge(newSource, newTarget)
+                        
     # for a given event name, get the names of all the 
     # events that are directly dependent on it in the 
     # schedule

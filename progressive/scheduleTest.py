@@ -35,7 +35,22 @@ class TestCase(unittest.TestCase):
                 sched = Schedule()
                 sched.inGraph = dag
                 sched.compute()
-        
+
+    def testMaxParellel(self):
+        for tree in randomTreeSet():
+            if tree.size() < 500:
+                for maxParallel in range(2, 10):
+                    dag = self.__addDagEdges(tree)
+                    sched = Schedule()
+                    sched.inGraph = dag
+                    sched.maxParallelSubtrees = maxParallel
+                    sched.compute()
+                    leafCount = 0
+                    for node in sched.depTree.nodes():
+                        if len(sched.depTree.out_edges(node)) == 0:
+                            leafCount += 1
+                    assert leafCount <= maxParallel
+                
     def __addDagEdges(self, tree):
         count = tree.size() / random.randrange(1,10)
         tsort = NX.topological_sort(tree)
