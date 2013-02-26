@@ -62,7 +62,7 @@ def runKtserver(dbElem, killSwitchPath, maxPortsToTry=100, readOnly = False,
         os.makedirs(logDir)
     assert os.path.isdir(logDir)
     basePort = dbElem.getDbPort()
-    dbElem.setDbHost(socket.gethostname())
+    dbElem.setDbHost(__getHostName())
     success = False
     process = None
     procWaiter = None
@@ -468,6 +468,20 @@ def __scrapePids(keywordList = []):
             # probably somebody else's process we can't access
             pass
     return pidList
+
+###############################################################################
+# Hostnames of swarm nodes (ex kkr18u57.local) are not visible from
+# other swarm nodes (dropping the .local does work).  So we try to
+# work with ip addresses whenever possible. Current recipe (to review):
+# if IP address does not start with 127. return IP address
+# otherwise return primary hostname
+###############################################################################
+def __getHostName():
+    hostName = socket.gethostname()
+    hostIp = socket.gethostbyname(hostName)
+    if hostIp.find("127.") != 0:
+        return hostIp
+    return hostName
 
 def main():
     try:
