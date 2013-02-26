@@ -83,7 +83,8 @@ def runKtserver(dbElem, killSwitchPath, maxPortsToTry=100, readOnly = False,
             if success is True:
                 break
             else:
-                process.kill()
+                if process.returncode is None:
+                    process.kill()
                 process = None
 
         if success is False:
