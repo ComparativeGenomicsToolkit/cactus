@@ -106,11 +106,18 @@ def runKtserver(dbElem, killSwitchPath, maxPortsToTry=100, readOnly = False,
         raise RuntimeError("Kill timeout %d reached." % killTimeout)
     
     except Exception as e:
+        # make an attempt to alert the world of the launch failure by
+        # writing some -1's to the switch file
+        switchFile = open(killSwitchPath, "w")
+        switchFile.write("-1\n-1\n-1\n")
+        switchFile.close()
+
         # if we don't kill the spawned process, the waiter thread will keep
         # this process alive which we don't want in the case of an error
         if process is not None and process.returncode is None:
             process.terminate()
-        assert procWaiter is None or procWaiter.is_alive() is False
+        #assert procWaiter is None or procWaiter.is_alive() is False
+        
         raise e
 
 ###############################################################################
@@ -166,8 +173,6 @@ def __writeStatusToSwitchFile(dbElem, serverPid, killSwitchPath):
 ###############################################################################
 def __readStatusFromSwitchFile(dbElem, serverPidAsList, killSwitchPath):
     try:
-        if not os.path.isfile(killSwitchPath):
-            return False
         assert isinstance(serverPidAsList, list)
         assert len(serverPidAsList) == 0
         assert os.path.isfile(killSwitchPath)
@@ -178,15 +183,23 @@ def __readStatusFromSwitchFile(dbElem, serverPidAsList, killSwitchPath):
         if host == '' or port == '' or serverPid == '':
             return False
         port = int(port)
-        serverPid = int(serverPid)
-        serverPidAsList.append(serverPid)
-        dbElem.setDbPort(port)
-        dbElem.setDbHost(host)
-        switchFile.close()
-        return True
+        serverPid = int(serverPid)    
     except:
         raise RuntimeError("Unexpected error reading killswitch file %s" %
                           killSwitchPath)
+
+    if port < 0 or serverPid < 0:
+        # try not to leave the switch file in an error state
+        switchFile = open(killSwitchPath, "w")
+        switchFile.write("")
+        switchFile.close()
+        raise RuntimeError("Ktserver polling detected fatal error")
+    
+    serverPidAsList.append(serverPid)    
+    dbElem.setDbPort(port)
+    dbElem.setDbHost(host)
+    switchFile.close()
+    return True
                                     
 
 ###############################################################################
@@ -217,15 +230,21 @@ def killKtServer(dbElem, killSwitchPath, killTimeout=10):
     if not os.path.isfile(killSwitchPath):
         raise RuntimeError("Can't kill server because file" +
                            " not found %s" % killSwitchPath)
+
+    isRunning =  __isKtServerRunning(dbElem, killSwitchPath)
     os.remove(killSwitchPath)
+    logPath = __getLogPath(dbElem)
+    if not isRunning:
+        raise RuntimeError("Can't find running server to kill %s" % logPath)
+
     success = False
     for i in xrange(killTimeout):
-        if __isKtServerRunning(dbElem, killSwitchPath):
+        if __pingKtServer(dbElem):
             sleep(1)
         else:
             success = True
     if not success:
-        raise RuntimeError("Failed to kill server. " +
+        raise RuntimeError("Failed to kill server within timeout. " +
                            "Server log is %s" % __getLogPath(dbElem))
     return True
 
@@ -278,14 +297,19 @@ def __isKtServerRunning(dbElem, killSwitchPath):
             str(serverPortFromLog), str(dbElem.getDbPort()),
             logPath, killSwitchPath))
     
-    success = subprocess.call(['ktremotemgr', 'report',
-                               '-port', str(dbElem.getDbPort()),
-                               '-host', dbElem.getDbHost()],
-                              shell=False, bufsize=-1,
-                              stdout=subprocess.PIPE,
-                              stderr=subprocess.PIPE) == 0        
-    return success
+    return __pingKtServer(dbElem)
 
+###############################################################################
+# Query a running server
+###############################################################################
+def __pingKtServer(dbElem):
+    return subprocess.call(['ktremotemgr', 'report',
+                            '-port', str(dbElem.getDbPort()),
+                            '-host', dbElem.getDbHost()],
+                           shell=False, bufsize=-1,
+                           stdout=subprocess.PIPE,
+                           stderr=subprocess.PIPE) == 0  
+    
 ###############################################################################
 # Test if the server is reorganizing.  don't know what this means
 # except that it can really add to the opening time

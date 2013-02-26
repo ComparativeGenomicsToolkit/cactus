@@ -123,6 +123,8 @@ class KtserverTargetLauncher(Target):
         self.runTimestep = runTimestep
         
     def run(self):
+        self.logToMaster("Launching ktserver %s with killPath %s" % (
+            ET.tostring(self.dbElem.getDbElem()), self.killSwitchPath))
         runKtserver(self.dbElem, self.killSwitchPath,
                     maxPortsToTry=100, readOnly = False,
                     createTimeout=self.createTimeout,
@@ -156,6 +158,9 @@ class KtserverTargetBlocker(Target):
             assert dbString is not None
             confXML = ET.fromstring(dbString)
             dbElem = DbElemWrapper(confXML)
+
+        self.logToMaster("Blocking on ktserver %s with killPath %s" % (
+            ET.tostring(dbElem.getDbElem()), self.killSwitchPath))
             
         blockUntilKtserverIsRunnning(dbElem, self.killSwitchPath,
                                      self.blockTimeout, self.blockTimestep)
@@ -183,6 +188,8 @@ class KtserverTargetKiller(Target):
         self.killTimeout = killTimeout
         
     def run(self):
+        self.logToMaster("Killing ktserver %s with killPath %s" % (
+            ET.tostring(self.dbElem.getDbElem()), self.killSwitchPath))
         killKtServer(self.dbElem, self.killSwitchPath,
                      killTimeout=self.killTimeout)
     
