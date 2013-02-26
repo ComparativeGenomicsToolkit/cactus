@@ -44,7 +44,7 @@ from cactus.progressive.experimentWrapper import ExperimentWrapper
 # throws an exception if we were unable to launch the server
 ###############################################################################
 def runKtserver(dbElem, killSwitchPath, maxPortsToTry=100, readOnly = False,
-                createTimeout=30, loadTimeout=10000, killTimeout=sys.maxint,
+                createTimeout=30, loadTimeout=10000, killTimeout=518400,
                 killPingInterval=5):
     if not os.path.isfile(killSwitchPath):
         raise RuntimeError("Kill switch file not found, can't " +
@@ -208,7 +208,7 @@ def __readStatusFromSwitchFile(dbElem, serverPidAsList, killSwitchPath):
 # Note that this function will update dbElem with the currnet host/port
 # information of the server
 ###############################################################################
-def blockUntilKtserverIsRunnning(dbElem, killSwitchPath, timeout=sys.maxint,
+def blockUntilKtserverIsRunnning(dbElem, killSwitchPath, timeout=518400,
                                  timeStep=10):
     logPath = __getLogPath(dbElem)
     for i in xrange(0, timeout, timeStep):
