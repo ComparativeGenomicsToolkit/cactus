@@ -182,6 +182,8 @@ class ExperimentWrapper(DbElemWrapper):
     
     def getReferencePath(self):
         refElem = self.xmlRoot.find("reference")
+        if refElem is None or "path" not in refElem.attrib:
+            return None
         return refElem.attrib["path"]
     
     def setReferencePath(self, path):

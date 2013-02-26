@@ -31,7 +31,8 @@ from sonLib.bioio import system
 from cactus.shared.common import cactusRootPath
   
 from jobTree.scriptTree.target import Target 
-from jobTree.scriptTree.stack import Stack 
+from jobTree.scriptTree.stack import Stack
+from jobTree.src.bioio import getLogLevelString
 
 from cactus.shared.common import runCactusSetup
 from cactus.shared.common import runCactusCaf
@@ -60,8 +61,10 @@ from cactus.blastAlignment.cactus_batch import makeBlastFromOptions
 from cactus.preprocessor.cactus_preprocessor import BatchPreprocessor
 from cactus.preprocessor.cactus_preprocessor import PreprocessorHelper
 
+from cactus.progressive.experimentWrapper import ExperimentWrapper
 from cactus.progressive.experimentWrapper import DbElemWrapper
-from cactus.progressive.ktserverLauncher import KtserverLauncher
+from cactus.pipeline.ktserverJobTree import addKtserverDependentChild
+
 ############################################################
 ############################################################
 ############################################################
@@ -137,19 +140,24 @@ class CactusPhasesTarget(CactusTarget):
         self.cactusWorkflowArguments = cactusWorkflowArguments
         self.topFlowerName = topFlowerName
     
-    def makeRecursiveChildTarget(self, target):
-        self.addChildTarget(target(phaseNode=extractNode(self.phaseNode), 
-                                   cactusDiskDatabaseString=self.cactusWorkflowArguments.cactusDiskDatabaseString, 
-                                   flowerNames=encodeFlowerNames((self.topFlowerName,)), overlarge=True))
+    def makeRecursiveChildTarget(self, target, launchSecondaryKtForRecursiveTarget=False):
+        newChild = target(phaseNode=extractNode(self.phaseNode), 
+                          cactusDiskDatabaseString=self.cactusWorkflowArguments.cactusDiskDatabaseString, 
+                          flowerNames=encodeFlowerNames((self.topFlowerName,)), overlarge=True)
+        
+        if launchSecondaryKtForRecursiveTarget and ExperimentWrapper(self.cactusWorkflowArguments.experimentNode).getDbType() == "kyoto_tycoon":
+            addKtserverDependentChild(self, newChild, isSecondary = True)
+        else:
+            self.addChildTarget(newChild)
     
     def makeFollowOnPhaseTarget(self, target, phaseName, index=0):
         self.setFollowOnTarget(target(cactusWorkflowArguments=self.cactusWorkflowArguments, phaseName=phaseName, 
                                       topFlowerName=self.topFlowerName, index=index))
         
-    def runPhase(self, recursiveTarget, nextPhaseTarget, nextPhaseName, doRecursion=True, index=0):
+    def runPhase(self, recursiveTarget, nextPhaseTarget, nextPhaseName, doRecursion=True, index=0, launchSecondaryKtForRecursiveTarget=False):
         self.logToMaster("Starting %s phase target with index %i at %s seconds (recursing = %i)" % (self.phaseNode.tag, self.getPhaseIndex(), time.time(), doRecursion))
         if doRecursion:
-            self.makeRecursiveChildTarget(recursiveTarget)
+            self.makeRecursiveChildTarget(recursiveTarget, launchSecondaryKtForRecursiveTarget)
         self.makeFollowOnPhaseTarget(target=nextPhaseTarget, phaseName=nextPhaseName, index=index)
         
     def getPhaseIndex(self):
@@ -163,30 +171,20 @@ class CactusPhasesTarget(CactusTarget):
         """
         confXML = ET.fromstring(self.cactusWorkflowArguments.secondaryDatabaseString)
         dbElem = DbElemWrapper(confXML)
-        if dbElem.getDbType() == "kyoto_tycoon":
-            assert dbElem.getDbDir() is not None
-            if not os.path.exists(dbElem.getDbDir()):
-                os.makedirs(dbElem.getDbDir())
-            ktserver = KtserverLauncher()
-            ktserver.spawnServer(dbElem)
-            self.cactusWorkflowArguments.secondaryDatabaseString = dbElem.getConfString()
-        else:
+        if dbElem.getDbType() != "kyoto_tycoon":
             runCactusSecondaryDatabase(self.cactusWorkflowArguments.secondaryDatabaseString, create=True)
+        # if kyoto_tycoon is true, then the database will be created by the call to
+        # addKtserverDependentChild() within makeRecursiveChildTarget()
     
     def cleanupSecondaryDatabase(self):
         """Cleanup the secondary database
         """
         confXML = ET.fromstring(self.cactusWorkflowArguments.secondaryDatabaseString)
         dbElem = DbElemWrapper(confXML)
-        if dbElem.getDbType() == "kyoto_tycoon":
-            ktserver = KtserverLauncher()
-            self.logToMaster("KTSERVER Report for secondary db in %s on port %d:\n%s" % (
-                dbElem.getDbDir(), dbElem.getDbPort(), ktserver.getServerReport(dbElem)))
-            ktserver.killServer(dbElem)
-            assert "tempSecondaryDatabaseDir_" in dbElem.getDbDir()
-            system("rm -rf %s" % dbElem.getDbDir())
-        else:
+        if dbElem.getDbType() != "kyoto_tycoon":
             runCactusSecondaryDatabase(self.cactusWorkflowArguments.secondaryDatabaseString, create=False)
+        # if kyoto_tycoon is true, then the database will be killed by the call to
+        # addKtserverDependentChild() within makeRecursiveChildTarget()
 
 class CactusRecursionTarget(CactusTarget):
     """Base recursive target for traversals up and down the cactus tree.
@@ -290,9 +288,22 @@ class CactusPreprocessorPhase(CactusPhasesTarget):
                                                       self.getOptionalPhaseAttrib("memory", typeFn=int, default=sys.maxint),
                                                       self.getOptionalPhaseAttrib("cpu", typeFn=int, default=sys.maxint),
                                                       0))
-        self.cactusWorkflowArguments.sequences = processedSequences
-        self.makeFollowOnPhaseTarget(CactusSetupPhase, "setup")
-        logger.info("Created followOn target cactus_setup job, and follow on down pass job")
+            self.cactusWorkflowArguments.sequences = processedSequences
+
+        # we circumvent makeFollowOnPhaseTarget() interface for this job.
+        setupTarget = CactusSetupPhase(cactusWorkflowArguments=self.cactusWorkflowArguments,
+                                       phaseName='setup', topFlowerName=self.topFlowerName,
+                                       index=0)
+
+        exp = ExperimentWrapper(self.cactusWorkflowArguments.experimentNode)
+        if exp.getDbType() == "kyoto_tycoon":
+            logger.info("Created ktserver pattern target cactus_setup")
+            addKtserverDependentChild(self, setupTarget, isSecondary = False)
+        else:
+            logger.info("Created follow-on target cactus_setup")
+            self.setFollowOnTarget(setupTarget)
+
+        
 
 ############################################################
 ############################################################
@@ -560,7 +571,8 @@ class CactusReferencePhase(CactusPhasesTarget):
         self.setupSecondaryDatabase()
         self.phaseNode.attrib["secondaryDatabaseString"] = self.cactusWorkflowArguments.secondaryDatabaseString
         self.runPhase(CactusReferenceRecursion, CactusSetReferenceCoordinatesDownPhase, "reference", 
-                      doRecursion=self.getOptionalPhaseAttrib("buildReference", bool, False))
+                      doRecursion=self.getOptionalPhaseAttrib("buildReference", bool, False),
+                      launchSecondaryKtForRecursiveTarget = True)
         
 class CactusReferenceRecursion(CactusRecursionTarget):
     """This target creates the wrappers to run the reference problem algorithm, the follow on target then recurses down.
@@ -609,7 +621,7 @@ class CactusSetReferenceCoordinatesDownPhase(CactusPhasesTarget):
     """
     def run(self):
         self.cleanupSecondaryDatabase()
-        self.runPhase(CactusSetReferenceCoordinatesDownRecursion, CactusCheckPhase, "check", doRecursion=self.getOptionalPhaseAttrib("buildReference", bool, False))
+        self.runPhase(CactusSetReferenceCoordinatesDownRecursion, CactusExtractReferencePhase, "check", doRecursion=self.getOptionalPhaseAttrib("buildReference", bool, False))
         
 class CactusSetReferenceCoordinatesDownRecursion(CactusRecursionTarget):
     """Does the down pass for filling Fills in the coordinates, once a reference is added.
@@ -631,6 +643,22 @@ class CactusSetReferenceCoordinatesDownWrapper(CactusRecursionTarget):
                                          referenceEventString=self.getOptionalPhaseAttrib("reference"),
                                          outgroupEventString=self.getOptionalPhaseAttrib("outgroup"), 
                                          bottomUpPhase=False)
+
+class CactusExtractReferencePhase(CactusPhasesTarget):
+    def run(self):
+        if self.cactusWorkflowArguments.buildReference:
+            self.logToMaster("Starting Reference Extract Phase")
+            experiment = ExperimentWrapper(self.cactusWorkflowArguments.experimentNode)
+            if experiment.getReferencePath() is not None:
+                eventName = os.path.basename(experiment.getReferencePath())
+                if eventName.find('.') >= 0:
+                    eventName = eventName[:eventName.rfind('.')]
+                    cmdLine = "cactus_getReferenceSeq --cactusDisk \'%s\' --flowerName 0 --referenceEventString %s --outputFile %s --logLevel %s" % \
+                              (experiment.getDiskDatabaseString(), eventName,
+                               experiment.getReferencePath(), getLogLevelString())                        
+                    system(cmdLine)          
+        self.makeFollowOnPhaseTarget(CactusCheckPhase, "check")
+
 
 ############################################################
 ############################################################
@@ -687,7 +715,7 @@ class CactusHalGeneratorPhase(CactusPhasesTarget):
             self.phaseNode.attrib["outputFile"]=self.getHalFile()
             self.phaseNode.attrib["makeMaf"]="0"
             self.makeFollowOnPhaseTarget(CactusHalGeneratorPhase2, "hal")
-        self.makeRecursiveChildTarget(CactusHalGeneratorRecursion)
+        self.makeRecursiveChildTarget(CactusHalGeneratorRecursion, launchSecondaryKtForRecursiveTarget=True)
     
     def run(self):
         referenceNode = findRequiredNode(self.cactusWorkflowArguments.configNode, "reference")
@@ -755,7 +783,8 @@ class CactusWorkflowArguments:
     """Object for representing a cactus workflow's arguments
     """
     def __init__(self, options):
-        self.experimentNode = ET.parse(options.experimentFile).getroot()
+        self.experimentFile = options.experimentFile
+        self.experimentNode = ET.parse(self.experimentFile).getroot()
         #Get the database string
         self.cactusDiskDatabaseString = ET.tostring(self.experimentNode.find("cactus_disk").find("st_kv_database_conf"))
         #Get the species tree

@@ -57,6 +57,10 @@ def runKtserver(dbElem, killSwitchPath, maxPortsToTry=100, readOnly = False,
         dbPathExists = os.path.exists(dbPath)
 
     logPath = __getLogPath(dbElem)
+    logDir = os.path.dirname(logPath)
+    if os.path.exists(logDir) is False:
+        os.makedirs(logDir)
+    assert os.path.isdir(logDir)
     basePort = dbElem.getDbPort()
     dbElem.setDbHost(socket.gethostname())
     success = False
@@ -97,14 +101,16 @@ def runKtserver(dbElem, killSwitchPath, maxPortsToTry=100, readOnly = False,
                 return True
             sleep(killPingInterval)
 
+        assert process.returncode is None
         process.terminate()
         raise RuntimeError("Kill timeout %d reached." % killTimeout)
     
     except Exception as e:
         # if we don't kill the spawned process, the waiter thread will keep
         # this process alive which we don't want in the case of an error
-        if procWaiter is not None and procWaiter.is_alive():
+        if process is not None and process.returncode is None:
             process.terminate()
+        assert procWaiter is None or procWaiter.is_alive() is False
         raise e
 
 ###############################################################################
@@ -160,6 +166,8 @@ def __writeStatusToSwitchFile(dbElem, serverPid, killSwitchPath):
 ###############################################################################
 def __readStatusFromSwitchFile(dbElem, serverPidAsList, killSwitchPath):
     try:
+        if not os.path.isfile(killSwitchPath):
+            return False
         assert isinstance(serverPidAsList, list)
         assert len(serverPidAsList) == 0
         assert os.path.isfile(killSwitchPath)
@@ -177,7 +185,7 @@ def __readStatusFromSwitchFile(dbElem, serverPidAsList, killSwitchPath):
         switchFile.close()
         return True
     except:
-        raise RuntimeError("Unexpected error reading killswitch file " %
+        raise RuntimeError("Unexpected error reading killswitch file %s" %
                           killSwitchPath)
                                     
 
@@ -206,10 +214,10 @@ def blockUntilKtserverIsRunnning(dbElem, killSwitchPath, timeout=sys.maxint,
 # information of the server
 ###############################################################################
 def killKtServer(dbElem, killSwitchPath, killTimeout=10):
-    if not os.path.isfile(logPath):
+    if not os.path.isfile(killSwitchPath):
         raise RuntimeError("Can't kill server because file" +
                            " not found %s" % killSwitchPath)
-    os.remove(logPath)
+    os.remove(killSwitchPath)
     success = False
     for i in xrange(killTimeout):
         if __isKtServerRunning(dbElem, killSwitchPath):

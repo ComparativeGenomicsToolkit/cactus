@@ -43,7 +43,7 @@ from cactus.pipeline.cactus_workflow import findRequiredNode
 from cactus.progressive.multiCactusProject import MultiCactusProject
 from cactus.progressive.multiCactusTree import MultiCactusTree
 from cactus.progressive.experimentWrapper import ExperimentWrapper
-from cactus.progressive.ktserverLauncher import KtserverLauncher
+from cactus.progressive.configWrapper import ConfigWrapper
 from cactus.progressive.mafFilter import mafFilterOutgroup
 from cactus.progressive.schedule import Schedule
         
@@ -85,6 +85,19 @@ class ProgressiveUp(Target):
         experiment = ExperimentWrapper(expXml)
         configXml = ET.parse(experiment.getConfigPath()).getroot()
 
+        # need at least 3 processes for every event when using ktserver:
+        # 1 proc to run jobs, 1 proc to run server, 1 proc to run 2ndary server
+        if experiment.getDbType() == "kyoto_tycoon":
+            configWrapper = ConfigWrapper(configXml)
+            maxParallel = min(len(self.project.expMap),
+                             configWrapper.getMaxParallelSubtrees()) 
+            if self.options.batchSystem == "singleMachine":
+                if int(self.options.maxThreads) < maxParallel * 3:
+                    raise RuntimeError("At least %d threads are required to handle up to %d events using kyoto tycoon. Either increase the number of threads using the --maxThreads option or decrease the number of parallel jobs (currently %d) by adjusting max_parallel_subtrees in the config file" % (maxParallel * 3, maxParallel, configWrapper.getMaxParallelSubtrees()))
+            else:
+                if int(self.options.maxJobs) < maxParallel * 3:
+                    raise RuntimeError("At least %d concurrent jobs are required to handle up to %d events using kyoto tycoon. Either increase the number of jobs using the --maxJobs option or decrease the number of parallel jobs (currently %d) by adjusting max_parallel_subtrees in the config file" % (maxParallel * 3, maxParallel, configWrapper.getMaxParallelSubtrees()))
+                    
         # take union of command line options and config options for hal and reference
         if self.options.buildReference == False:
             refNode = findRequiredNode(configXml, "reference")
@@ -109,36 +122,6 @@ class ProgressiveUp(Target):
             system("rm -f %s* %s %s" % (dbPath, seqPath, 
                                         experiment.getReferencePath()))
             
-        ktserver = None
-        if experiment.getDbType() == "kyoto_tycoon" and \
-        (self.options.skipAlignments is False or \
-         self.options.buildReference is True or \
-         self.options.buildHal is True):
-            ktserver = KtserverLauncher()
-            ktserver.spawnServer(experiment)
-            # port may be updated.  let's save the experiment back to disk
-            experiment.writeXML(self.options.experimentFile)
-            
-        self.addChildTarget(StartWorkflow(self.options,
-                                          self.project,
-                                          self.event,
-                                          ktserver))
-        
-        if ktserver is not None:
-            self.setFollowOnTarget(EndWorkflow(experiment, self.event, 
-                                               ktserver))
-
-class StartWorkflow(Target):
-    def __init__(self, options, project, event, ktserver):
-        Target.__init__(self)
-        self.options = options
-        self.project = project
-        self.event = event
-        self.ktserver = ktserver
-    
-    def run(self):
-        logger.info("StartWorkflow: " + self.event)
-        
         # get parameters that cactus_workflow stuff wants
         workFlowArgs = CactusWorkflowArguments(self.options)
         # copy over the options so we don't trail them around
@@ -155,47 +138,13 @@ class StartWorkflow(Target):
 
         if workFlowArgs.skipAlignments is False and \
         not os.path.exists(experiment.getReferencePath()):       
-            self.addChildTarget(CactusPreprocessorPhase(cactusWorkflowArguments=workFlowArgs, phaseName="preprocessor"))
+            self.addChildTarget(CactusPreprocessorPhase(cactusWorkflowArguments=workFlowArgs,
+                                                        phaseName="preprocessor"))
             logger.info("Going to create alignments and define the cactus tree")
         
-        self.setFollowOnTarget(ExtractReference(workFlowArgs, self.project, self.event))
-
-class EndWorkflow(Target):
-    def __init__(self, experiment, event, ktserver):
-        Target.__init__(self)
-        self.experiment = experiment
-        self.event = event
-        self.ktserver = ktserver
-    
-    def run(self):
-        logger.info("EndWorkflow: " + self.event)
-        
-        # don't need the ktserver anymore, so we kill it
-        if self.ktserver is not None:
-            self.logToMaster("KTSERVER Report for %s on port %d:\n%s" % (self.event,
-                            self.experiment.getDbPort(),
-                            self.ktserver.getServerReport(self.experiment)))
-            self.ktserver.killServer(self.experiment)   
+        self.setFollowOnTarget(BuildMAF(workFlowArgs, self.project))
+         
                          
-class ExtractReference(Target):
-    def __init__(self, workFlowArgs, project, event):
-        Target.__init__(self)
-        self.workFlowArgs = workFlowArgs
-        self.project = project
-        self.event = event
-
-    def run(self):                
-        if self.workFlowArgs.buildReference:
-            logger.info("Starting Reference Extract Phase")
-            experiment = ExperimentWrapper(self.workFlowArgs.experimentNode)
-            cmdLine = "cactus_getReferenceSeq --cactusDisk \'%s\' --flowerName 0 --referenceEventString %s --outputFile %s --logLevel %s" % \
-            (experiment.getDiskDatabaseString(), self.event,
-             experiment.getReferencePath(), getLogLevelString())            
-            
-            system(cmdLine)
-          
-        self.setFollowOnTarget(BuildMAF(self.workFlowArgs, self.project))
-                
 class BuildMAF(Target):
     def __init__(self, workFlowArgs, project,):
         Target.__init__(self)
