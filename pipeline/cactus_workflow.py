@@ -646,7 +646,8 @@ class CactusSetReferenceCoordinatesDownWrapper(CactusRecursionTarget):
 
 class CactusExtractReferencePhase(CactusPhasesTarget):
     def run(self):
-        if self.cactusWorkflowArguments.buildReference:
+        if hasattr(self.cactusWorkflowArguments, 'buildReference') and\
+               self.cactusWorkflowArguments.buildReference:
             self.logToMaster("Starting Reference Extract Phase")
             experiment = ExperimentWrapper(self.cactusWorkflowArguments.experimentNode)
             if experiment.getReferencePath() is not None:
