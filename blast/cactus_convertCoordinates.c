@@ -1,55 +1,20 @@
 /*
- * blastAlignmentLib.c
+ * Copyright (C) 2009-2011 by Benedict Paten (benedictpaten@gmail.com)
  *
- *  Created on: 30 Jan 2012
- *      Author: benedictpaten
+ * Released under the MIT license, see LICENSE.txt
  */
 
+#include <stdio.h>
+#include <stdlib.h>
+#include <assert.h>
+
+#include "commonC.h"
+#include "hashTableC.h"
 #include "bioioC.h"
 #include "cactus.h"
-#include "sonLib.h"
+#include "avl.h"
 #include "pairwiseAlignment.h"
-
-int32_t writeFlowerSequencesInFile(Flower *flower, const char *tempFile1, int32_t minimumSequenceLength) {
-    FILE *fileHandle = NULL;
-    Flower_EndIterator *endIterator = flower_getEndIterator(flower);
-    End *end;
-    int32_t sequencesWritten = 0;
-    while ((end = flower_getNextEnd(endIterator)) != NULL) {
-        End_InstanceIterator *instanceIterator = end_getInstanceIterator(end);
-        Cap *cap;
-        while ((cap = end_getNext(instanceIterator)) != NULL) {
-            cap = cap_getStrand(cap) ? cap : cap_getReverse(cap);
-            Cap *cap2 = cap_getAdjacency(cap);
-            assert(cap2 != NULL);
-            assert(cap_getStrand(cap2));
-
-            if (!cap_getSide(cap)) {
-                assert(cap_getSide(cap2));
-                int32_t length = cap_getCoordinate(cap2) - cap_getCoordinate(cap) - 1;
-                assert(length >= 0);
-                if (length >= minimumSequenceLength) {
-                    Sequence *sequence = cap_getSequence(cap);
-                    assert(sequence != NULL);
-                    if(fileHandle == NULL) {
-                        fileHandle = fopen(tempFile1, "w");
-                    }
-                    char *string = sequence_getString(sequence, cap_getCoordinate(cap) + 1, length, 1);
-                    fprintf(fileHandle, ">%s|1|%i\n%s\n", cactusMisc_nameToStringStatic(cap_getName(cap)), //sequence)),
-                            cap_getCoordinate(cap) + 1, string);
-                    free(string);
-                    sequencesWritten++;
-                }
-            }
-        }
-        end_destructInstanceIterator(instanceIterator);
-    }
-    flower_destructEndIterator(endIterator);
-    if(fileHandle != NULL) {
-        fclose(fileHandle);
-    }
-    return sequencesWritten;
-}
+#include "blastAlignmentLib.h"
 
 static void convertCoordinatesP(char *header, char **contig1, int32_t *start, int32_t *strand) {
     struct List *attributes = fastaDecodeHeader(header);
@@ -86,4 +51,42 @@ void convertCoordinatesOfPairwiseAlignment(struct PairwiseAlignment *pairwiseAli
     pairwiseAlignment->end2 = strand ? pairwiseAlignment->end2 + start : start - pairwiseAlignment->end2 + 1;
 
     checkPairwiseAlignment(pairwiseAlignment);
+}
+
+void convertCoordinates(char *tempCigarFile, FILE *fileHandle) {
+	FILE *fileHandle2 = fopen(tempCigarFile, "r");
+	struct PairwiseAlignment *pairwiseAlignment;
+
+	while((pairwiseAlignment = cigarRead(fileHandle2)) != NULL) {
+		//Correct coordinates
+		convertCoordinatesOfPairwiseAlignment(pairwiseAlignment);
+		cigarWrite(fileHandle, pairwiseAlignment, 0);
+		destructPairwiseAlignment(pairwiseAlignment);
+	}
+	fclose(fileHandle2);
+}
+
+int main(int argc, char *argv[]) {
+	/*
+	 * For each cigar in file, update the coordinates and write to the second file.
+	 */
+	assert(argc == 3);
+	FILE *fileHandleIn = fopen(argv[1], "r");
+	FILE *fileHandleOut = fopen(argv[2], "w");
+	int size = 100;
+	char *cA = st_calloc(size+1, sizeof(char));
+	int32_t i;
+	do {
+	    i = benLine(&cA, &size, fileHandleIn);
+	    if(strlen(cA) > 0) {
+	        convertCoordinates(cA, fileHandleOut);
+	    }
+	} while(i != -1);
+	fclose(fileHandleIn);
+	fclose(fileHandleOut);
+	free(cA);
+
+	//return 1;
+
+	return 0;
 }
