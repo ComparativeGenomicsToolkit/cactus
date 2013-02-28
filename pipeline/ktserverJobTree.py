@@ -171,6 +171,12 @@ class KtserverTargetBlocker(Target):
         else:
             self.newChild.phaseNode.attrib[
                 "secondaryDatabaseString"] = dbElem.getConfString()
+            # added on as a hack to get this into the experiment.xml
+            etPath = self.newChild.phaseNode.attrib[
+                "experimentPath"]
+            experiment = ExperimentWrapper(ET.parse(etPath).getroot())
+            experiment.setSecondaryDBElem(dbElem)
+            experiment.writeXML(etPath)            
         
         self.addChildTarget(self.newChild)
         self.setFollowOnTarget(KtserverTargetKiller(dbElem,

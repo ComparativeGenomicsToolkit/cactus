@@ -155,8 +155,8 @@ class DbElemWrapper(object):
 
 class ExperimentWrapper(DbElemWrapper):
     def __init__(self, xmlRoot):
-        diskElem = xmlRoot.find("cactus_disk")
-        confElem = diskElem.find("st_kv_database_conf")
+        self.diskElem = xmlRoot.find("cactus_disk")
+        confElem = self.diskElem.find("st_kv_database_conf")
         super(ExperimentWrapper, self).__init__(confElem)
         self.xmlRoot = xmlRoot
         self.seqMap = self.buildSequenceMap()
@@ -264,6 +264,27 @@ class ExperimentWrapper(DbElemWrapper):
     def getDiskDatabaseString(self):
         conf = self.xmlRoot.find("cactus_disk").find("st_kv_database_conf")
         return ET.tostring(conf).replace("\n", "").replace("\t","")
+
+    # kind of hack to incorporate secondary db interface without
+    # revamping anything else.  
+    def getSecondaryDBElem(self):
+        secondaryConf = self.diskElem.find("secondary_conf")
+        if secondaryConf is None:
+            return None
+        return DbElemWrapper(secondaryConf)
+
+    # kind of hack to incorporate secondary db interface without
+    # revamping anything else.  
+    def setSecondaryDBElem(self, dbElemWrapper):
+        secondaryConf = self.diskElem.find("secondary_conf")
+        if secondaryConf is not None:
+            self.diskElem.remove(secondaryConf)
+        confAttrib = copy.deepcopy(dbElemWrapper.confElem.attrib)
+        secondaryConf = ET.SubElement(self.diskElem, "secondary_conf",
+                                      confAttrib)
+        dbAttrib = copy.deepcopy(dbElemWrapper.getDbElem().attrib)
+        secondaryDb = ET.SubElement(secondaryConf, dbElemWrapper.getDbType(),
+                                    dbAttrib)
     
     # map event names to sequence paths
     def buildSequenceMap(self):

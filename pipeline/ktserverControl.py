@@ -240,7 +240,7 @@ def killKtServer(dbElem, killSwitchPath, killTimeout=10):
 
     success = False
     for i in xrange(killTimeout):
-        if __pingKtServer(dbElem):
+        if pingKtServer(dbElem):
             sleep(1)
         else:
             success = True
@@ -298,12 +298,12 @@ def __isKtServerRunning(dbElem, killSwitchPath):
             str(serverPortFromLog), str(dbElem.getDbPort()),
             logPath, killSwitchPath))
     
-    return __pingKtServer(dbElem)
+    return pingKtServer(dbElem)
 
 ###############################################################################
 # Query a running server
 ###############################################################################
-def __pingKtServer(dbElem):
+def pingKtServer(dbElem):
     canPing = subprocess.call(['ping', '-c', '1', dbElem.getDbHost()],
                               shell=False, bufsize=-1,
                               stdout=subprocess.PIPE,
@@ -311,7 +311,7 @@ def __pingKtServer(dbElem):
     if canPing != 0:
         raise RuntimeError("Unable to ping ktserver host %s from %s" % (
             dbElem.getDbHost(), __getHostName()))
-        
+
     return subprocess.call(['ktremotemgr', 'report',
                             '-port', str(dbElem.getDbPort()),
                             '-host', dbElem.getDbHost()],

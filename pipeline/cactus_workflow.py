@@ -569,6 +569,7 @@ class CactusReferencePhase(CactusPhasesTarget):
         """Runs the reference problem algorithm
         """
         self.setupSecondaryDatabase()
+        self.phaseNode.attrib["experimentPath"] = self.cactusWorkflowArguments.experimentFile
         self.phaseNode.attrib["secondaryDatabaseString"] = self.cactusWorkflowArguments.secondaryDatabaseString
         self.runPhase(CactusReferenceRecursion, CactusSetReferenceCoordinatesDownPhase, "reference", 
                       doRecursion=self.getOptionalPhaseAttrib("buildReference", bool, False),
@@ -707,6 +708,7 @@ class CactusHalGeneratorPhase(CactusPhasesTarget):
     
     def raiseHal(self, makeMaf):
         self.setupSecondaryDatabase()
+        self.phaseNode.attrib["experimentPath"] = self.cactusWorkflowArguments.experimentFile
         self.phaseNode.attrib["secondaryDatabaseString"] = self.cactusWorkflowArguments.secondaryDatabaseString
         if makeMaf:
             self.phaseNode.attrib["outputFile"]=self.getMafFile()
