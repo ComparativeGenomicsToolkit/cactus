@@ -16,19 +16,6 @@
 #include "pairwiseAlignment.h"
 #include "blastAlignmentLib.h"
 
-void convertCoordinates(char *tempCigarFile, FILE *fileHandle) {
-	FILE *fileHandle2 = fopen(tempCigarFile, "r");
-	struct PairwiseAlignment *pairwiseAlignment;
-
-	while((pairwiseAlignment = cigarRead(fileHandle2)) != NULL) {
-		//Correct coordinates
-		convertCoordinatesOfPairwiseAlignment(pairwiseAlignment);
-		cigarWrite(fileHandle, pairwiseAlignment, 0);
-		destructPairwiseAlignment(pairwiseAlignment);
-	}
-	fclose(fileHandle2);
-}
-
 int main(int argc, char *argv[]) {
 	/*
 	 * For each cigar in file, update the coordinates and write to the second file.

@@ -19,6 +19,8 @@ int32_t writeFlowerSequences(Flower *flower, void(*processSequence)(const char *
 
 void convertCoordinatesOfPairwiseAlignment(struct PairwiseAlignment *pairwiseAlignment);
 
+void convertCoordinates(char *cigarFile, FILE *fileHandle);
+
 void setupToChunkSequences(int64_t chunkSize2, int64_t overlapSize2, const char *chunksDir2);
 
 void processSequenceToChunk(const char *fastaHeader, const char *sequence, int32_t length);
