@@ -6,8 +6,7 @@
 import unittest
 
 from cactus.setup.cactus_setupTest import TestCase as setupTest
-from cactus.blastAlignment.cactus_alignerTest import TestCase as alignerTest
-from cactus.blastAlignment.cactus_batchTest import TestCase as batchTest
+from cactus.blast.cactus_blastTest import TestCase as blastTest
 from cactus.pipeline.cactus_workflowTest import TestCase as workflowTest
 from cactus.pipeline.cactus_evolverTest import TestCase as evolverTest
 from cactus.bar.allTests import TestCase as barTest
@@ -27,7 +26,7 @@ def allSuites():
     allTests = unittest.TestSuite((unittest.makeSuite(cafTest, 'test'),
                                    unittest.makeSuite(setupTest, 'test'),
                                    unittest.makeSuite(alignerTest, 'test'),
-                                   unittest.makeSuite(batchTest, 'test'),
+                                   unittest.makeSuite(blastTest, 'test'),
                                    unittest.makeSuite(workflowTest, 'test'),
                                    unittest.makeSuite(evolverTest, 'test'),
                                    unittest.makeSuite(barTest, 'test'),

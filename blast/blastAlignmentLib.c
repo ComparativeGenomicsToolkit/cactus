@@ -15,19 +15,20 @@
  */
 
 static void convertCoordinatesP(char **contig, int32_t *start, int32_t *end) {
-    struct List *attributes = fastaDecodeHeader(*contig);
+    stList *attributes = fastaDecodeHeader(*contig);
     while (stList_length(attributes) > 1) {
         //Decode attributes
         int32_t startP;
-        int32_t i = sscanf((const char *) attributes->list[attributes->length - 1], "%i", &startP);
+        int32_t i = sscanf((const char *) stList_peek(attributes), "%i", &startP);
+        (void)i;
         assert(i == 1);
-        free(attributes->list[--attributes->length]);
+        free(stList_pop(attributes));
         //Now relabel attributes
         free(*contig);
         *contig = fastaEncodeHeader(attributes);
         stList_destruct(attributes);
-        *start1 = *start + startP;
-        *end1 = *end + startP;
+        *start = *start + startP;
+        *end = *end + startP;
         attributes = fastaDecodeHeader(*contig);
     }
     stList_destruct(attributes);
@@ -46,7 +47,7 @@ void convertCoordinatesOfPairwiseAlignment(struct PairwiseAlignment *pairwiseAli
 
 static int64_t chunkRemaining;
 static FILE *chunkFileHandle = NULL;
-static char *chunksDir = NULL;
+static const char *chunksDir = NULL;
 static int32_t chunkNo = 0;
 static char *tempChunkFile = NULL;
 static int64_t chunkSize;
@@ -161,9 +162,6 @@ int32_t writeFlowerSequences(Flower *flower, void(*processSequence)(const char *
                 if (length >= minimumSequenceLength) {
                     Sequence *sequence = cap_getSequence(cap);
                     assert(sequence != NULL);
-                    if (fileHandle == NULL) {
-                        fileHandle = fopen(tempFile1, "w");
-                    }
                     char *string = sequence_getString(sequence, cap_getCoordinate(cap) + 1, length, 1);
                     char *header = stString_print("%s|%i", cactusMisc_nameToStringStatic(cap_getName(cap)), cap_getCoordinate(cap) + 1);
                     processSequence(header, string, strlen(string));
@@ -180,16 +178,18 @@ int32_t writeFlowerSequences(Flower *flower, void(*processSequence)(const char *
 }
 
 static FILE *sequenceFileHandle;
+static const char *tempSequenceFile;
 static void writeSequenceInFile(const char *fastaHeader, const char *sequence, int32_t length) {
     if (sequenceFileHandle == NULL) {
-        sequenceFileHandle = fopen(tempFile1, "w");
+        sequenceFileHandle = fopen(tempSequenceFile, "w");
     }
     fprintf(sequenceFileHandle, ">%s\n%s\n", fastaHeader, sequence);
 }
 
-int32_t writeFlowerSequencesInFile(Flower *flower, const char *tempFile1, int32_t minimumSequenceLength) {
+int32_t writeFlowerSequencesInFile(Flower *flower, const char *tempFile, int32_t minimumSequenceLength) {
     sequenceFileHandle = NULL;
-    int32_t sequencesWritten = writeFlowerSequences(flower, NULL, minimumSequenceLength);
+    tempSequenceFile = tempFile;
+    int32_t sequencesWritten = writeFlowerSequences(flower, writeSequenceInFile, minimumSequenceLength);
     if (sequenceFileHandle != NULL) {
         fclose(sequenceFileHandle);
     }

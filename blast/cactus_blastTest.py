@@ -21,7 +21,7 @@ from sonLib.bioio import PairwiseAlignment
 from sonLib.bioio import getLogLevelString
 from sonLib.bioio import TestStatus
 from cactus.shared.test import parseCactusSuiteTestOptions
-from cactus.shared.common import runCactusBatch
+from cactus.shared.common import runCactusBlast
 
 from jobTree.src.common import runJobTreeStatusAndFailIfNotComplete
 
@@ -34,18 +34,19 @@ class TestCase(unittest.TestCase):
     
     def tearDown(self):
         for tempFile in self.tempFiles:
-            os.remove(tempFile)
+            if os.path.exists(tempFile):
+                os.remove(tempFile)
         unittest.TestCase.tearDown(self)
         system("rm -rf %s" % self.tempDir)
         
-    def testBatchEncode(self):
+    def testBlastEncode(self):
         """For each encode region, for set of pairwise species, run 
-        cactus_batch.py. We compare the output with a naive run of the blast program, to check the results are nearly
+        cactus_blast.py. We compare the output with a naive run of the blast program, to check the results are nearly
         equivalent.
         """
-        tempOutputFile = getTempFile()
+        tempOutputFile = os.path.join(self.tempDir, "results1.txt")
         self.tempFiles.append(tempOutputFile)
-        tempOutputFile2 = getTempFile()
+        tempOutputFile2 = os.path.join(self.tempDir, "results2.txt")
         self.tempFiles.append(tempOutputFile2) 
         
         if TestStatus.getTestStatus() in (TestStatus.TEST_LONG, TestStatus.TEST_VERY_LONG):
@@ -70,29 +71,29 @@ class TestCase(unittest.TestCase):
                         
                         checkResultsAreApproximatelyEqual(ResultComparator(results2, results2)) #Dummy check
                         
-                        #Run the batch
+                        #Run the blast
                         jobTreeDir = os.path.join(getTempDirectory(self.tempDir), "jobTree")
-                        runCactusBatch([ seqFile1, seqFile2 ], tempOutputFile, jobTreeDir,
+                        runCactusBlast([ seqFile1, seqFile2 ], tempOutputFile, jobTreeDir,
                                        chunkSize=500000, overlapSize=10000)
                         runJobTreeStatusAndFailIfNotComplete(jobTreeDir)
                         system("rm -rf %s " % jobTreeDir)    
-                        logger.info("Ran cactus_batch okay")
+                        logger.info("Ran cactus_blast okay")
                         
                         #Now compare the results
                         results1 = loadResults(tempOutputFile)
-                        logger.info("Loaded cactus_batch results")
+                        logger.info("Loaded cactus_blast results")
                         
                         checkResultsAreApproximatelyEqual(ResultComparator(results2, results1))
-                        logger.info("Compared the naive and batch results, using the naive results as the 'true' results, and the batch results as the predicted results")
+                        logger.info("Compared the naive and blast results, using the naive results as the 'true' results, and the blast results as the predicted results")
     
-    def testBatchRandom(self):
-        """Make some sequences, put them in a file, call batch with random parameters 
+    def testBlastRandom(self):
+        """Make some sequences, put them in a file, call blast with random parameters 
         and check it runs okay.
         """
-        tempSeqFile = getTempFile()
+        tempSeqFile = os.path.join(self.tempDir, "tempSeq.fa")
         self.tempFiles.append(tempSeqFile)
             
-        tempOutputFile = getTempFile()
+        tempOutputFile = os.path.join(self.tempDir, "results2.txt")
         self.tempFiles.append(tempOutputFile)
         
         for test in xrange(self.testNo):
@@ -106,9 +107,8 @@ class TestCase(unittest.TestCase):
             fileHandle.close()
             chunkSize = random.choice(xrange(500, 9000))
             overlapSize = random.choice(xrange(2, 100))
-            chunksPerJob = random.choice(xrange(1, 5))
             jobTreeDir = os.path.join(getTempDirectory(self.tempDir), "jobTree")
-            runCactusBatch([ tempSeqFile ], tempOutputFile, jobTreeDir, chunkSize, overlapSize, chunksPerJob)
+            runCactusBlast([ tempSeqFile ], tempOutputFile, jobTreeDir, chunkSize, overlapSize)
             runJobTreeStatusAndFailIfNotComplete(jobTreeDir)
             if getLogLevelString() == "DEBUG":
                 system("cat %s" % tempOutputFile)

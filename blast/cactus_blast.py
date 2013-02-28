@@ -10,16 +10,12 @@ import os
 import sys
 from optparse import OptionParser
 from bz2 import BZ2File
-
 from sonLib.bioio import TempFileTree
-from sonLib.bioio import getTempDirectory
-from sonLib.bioio import getTempFile
 from sonLib.bioio import logger
 from sonLib.bioio import system, popenCatch
 from sonLib.bioio import fastaRead
 from sonLib.bioio import fastaWrite
 from sonLib.bioio import getLogLevelString
-
 from jobTree.scriptTree.target import Target
 from jobTree.scriptTree.stack import Stack
 
@@ -27,7 +23,7 @@ class BlastOptions:
     def __init__(self, chunkSize=10000000, overlapSize=10000, 
                  lastzArguments="", compressFiles=True, 
                  minimumSequenceLength=1, memory=sys.maxint):
-        """Method makes blastOptions which can be passed to the to the make blasts target.
+        """Class defining options for blast
         """
         self.chunkSize = chunkSize
         self.overlapSize = overlapSize
@@ -41,7 +37,7 @@ class BlastFlower(Target):
     """Take a reconstruction problem and generate the sequences in chunks to be blasted.
     Then setup the follow on blast targets and collation targets.
     """
-    def __init__(self, cactusDisk, flowerName, resultsFile, blastOptions):
+    def __init__(self, cactusDisk, flowerName, finalResultsFile, blastOptions):
         Target.__init__(self)
         self.cactusDisk = cactusDisk
         self.flowerName = flowerName
@@ -49,15 +45,37 @@ class BlastFlower(Target):
         self.blastOptions = blastOptions
         
     def run(self):
-        chunksDir = os.path.join(self.self.getGlobalTempDir(), "chunks")
+        chunksDir = os.path.join(self.getGlobalTempDir(), "chunks")
         if not os.path.exists(chunksDir):
             os.mkdir(chunksDir)
-        chunks = [ line.split()[0] for line in popenCatch("cactus_blast_chunkFlowerSequences %s '%s' %s %i %i %i %s" % \
+        chunks = [ line.split()[0] for line in popenCatch("cactus_blast_chunkFlowerSequences %s '%s' %s %i %i %s" % \
                                                           (getLogLevelString(), self.cactusDisk, self.flowerName, 
                                                           self.blastOptions.chunkSize, 
-                                                          self.blastOptions.chunkOverlapSize,
+                                                          self.blastOptions.overlapSize,
                                                           self.blastOptions.minimumSequenceLength,
                                                           chunksDir)) ]
+        logger.info("Broken up the flowers into individual 'chunk' files")
+        self.addChildTarget(MakeBlasts(self.blastOptions, chunks, self.finalResultsFile))
+        
+class BlastSequences(Target):
+    """Take a set of sequences, chunks them up and blasts them.
+    """
+    def __init__(self, sequenceFiles, finalResultsFile, blastOptions):
+        Target.__init__(self)
+        self.sequenceFiles = sequenceFiles
+        self.finalResultsFile = finalResultsFile
+        self.blastOptions = blastOptions
+        
+    def run(self):
+        chunksDir = os.path.join(self.getGlobalTempDir(), "chunks")
+        if not os.path.exists(chunksDir):
+            os.mkdir(chunksDir)
+        chunks = [ chunk for chunk in popenCatch("cactus_blast_chunkSequences %s %i %i %s %s" % \
+                                                          (getLogLevelString(), 
+                                                          self.blastOptions.chunkSize, 
+                                                          self.blastOptions.overlapSize,
+                                                          chunksDir,
+                                                          " ".join(self.sequenceFiles))).split("\n") if chunk != "" ]
         logger.info("Broken up the sequence files into individual 'chunk' files")
         self.addChildTarget(MakeBlasts(self.blastOptions, chunks, self.finalResultsFile))
         
@@ -66,34 +84,30 @@ class MakeBlasts(Target):
     """
     def __init__(self, blastOptions, chunks, finalResultsFile):
         Target.__init__(self)
-        assert blastOptions.chunkSize > blastOptions.overlapSize
-        assert blastOptions.overlapSize >= 2
         self.blastOptions = blastOptions
         self.chunks = chunks
         self.finalResultsFile = finalResultsFile
         
     def run(self):
         #Avoid compression if just one chunk
-        self.blastOptions.compressFiles = self.blastOptions.compressFiles and len(chunks) > 2
+        self.blastOptions.compressFiles = self.blastOptions.compressFiles and len(self.chunks) > 2
         selfResultsDir = os.path.join(self.getGlobalTempDir(), "selfResults")
         if not os.path.exists(selfResultsDir):
             os.mkdir(selfResultsDir)
         resultsFiles = []
-        for i in xrange(len(chunks)):
+        for i in xrange(len(self.chunks)):
             resultsFile = os.path.join(selfResultsDir, str(i))
             resultsFiles.append(resultsFile)
-            self.addChildTarget(RunSelfBlast(self.blastOptions, seqFiles, resultsFile))
+            self.addChildTarget(RunSelfBlast(self.blastOptions, self.chunks[i], resultsFile))
         logger.info("Made the list of self blasts")
         #Setup job to make all-against-all blasts
-        self.setFollowOnTarget(MakeBlasts2(self.blastOptions, chunks, resultFiles, self.finalResultFile))
+        self.setFollowOnTarget(MakeBlasts2(self.blastOptions, self.chunks, resultFiles, self.finalResultFile))
     
-class MakeBlasts2(Target):
+class MakeBlasts2(MakeBlasts):
         def __init__(self, blastOptions, chunks, resultsFiles, finalResultsFile):
-            self.blastOptions = blastOptions
-            self.chunks = chunks
+            MakeBlasts.__init__(self, blastOptions, chunks, finalResultsFile)
             self.resultsFiles = resultsFiles
-            self.finalResultsFile = finalResultsFile
-        
+           
         def run(self):
             tempFileTree = TempFileTree(os.path.join(self.getGlobalTempDir(), "allAgainstAllResults"))
             #Make the list of blast jobs.
@@ -101,20 +115,20 @@ class MakeBlasts2(Target):
                 for j in xrange(i+1, len(self.chunks)):
                     resultsFile = tempFileTree.getTempFile()
                     self.resultsFiles.append(resultsFile)
-                    self.addChildTarget(RunBlast(self.blastOptions, chunks[i], chunks[j], resultsFile))
+                    self.addChildTarget(RunBlast(self.blastOptions, self.chunks[i], self.chunks[j], resultsFile))
             logger.info("Made the list of all-against-all blasts")
             #Set up the job to collate all the results
             self.setFollowOnTarget(CollateBlasts(self.finalResultsFile, self.resultsFiles))
         
 def compressFastaFile(fileName):
-    """Compressed
+    """Compress a fasta file.
     """
-    fileHandle = BZ2File(fileName + ".bz2", 'w')
-    fileHandle2 = open(fileName, 'r')
-    for fastaHeader, seq in fastaRead(fileHandle2):
-        fastaWrite(fileHandle, fastaHeader, seq)
-    fileHandle2.close()
-    fileHandle.close()
+    fileHandleOut = BZ2File(fileName + ".bz2", 'w')
+    fileHandleIn = open(fileName, 'r')
+    for fastaHeader, seq in fastaRead(fileHandleIn):
+        fastaWrite(fileHandleOut, fastaHeader, seq)
+    fileHandleIn.close()
+    fileHandleOut.close()
         
 class RunSelfBlast(Target):
     """Runs blast as a job.
@@ -127,23 +141,22 @@ class RunSelfBlast(Target):
     
     def run(self):   
         tempResultsFile = os.path.join(self.getLocalTempDir(), "tempResults.cig")
-        command = selfBlastString.replace("CIGARS_FILE", tempResultsFile).replace("SEQ_FILE", seqFile)
+        command = selfBlastString.replace("CIGARS_FILE", tempResultsFile).replace("SEQ_FILE", self.seqFile)
         system(command)
         system("cactus_blast_convertCoordinates %s %s" % (tempResultsFile, self.resultsFile))
         if self.blastOptions.compressFiles:
             compressFastaFile(self.seqFile)
         logger.info("Ran the self blast okay")
 
-def decompressFastaFile(fileName, tempDir):
+def decompressFastaFile(fileName, tempFileName):
     """Copies the file from the central dir to a temporary file, returning the temp file name.
     """
-    tempFileName = getTempFile(suffix=".fa", rootDir=tempDir)
-    fileHandle = open(tempFileName, 'w')
-    fileHandle2 = BZ2File(fileName, 'r')
-    for fastaHeader, seq in fastaRead(fileHandle2):
-        fastaWrite(fileHandle, fastaHeader, seq)
-    fileHandle2.close()
-    fileHandle.close()
+    fileHandleOut = open(tempFileName, 'w')
+    fileHandleIn = BZ2File(fileName, 'r')
+    for fastaHeader, seq in fastaRead(fileHandleIn):
+        fastaWrite(fileHandleOut, fastaHeader, seq)
+    fileHandleIn.close()
+    fileHandleOut.close()
     return tempFileName
 
 class RunBlast(Target):
@@ -158,8 +171,8 @@ class RunBlast(Target):
     
     def run(self):
         if self.blastOptions.compressFiles:
-            self.seqFile1 = decompressFastaFile(self.seqFile1 + ".bz2", self.getLocalTempDir())
-            self.seqFile2 = decompressFastaFile(self.seqFile2 + ".bz2", self.getLocalTempDir())
+            self.seqFile1 = decompressFastaFile(self.seqFile1 + ".bz2", os.path.join(self.getLocalTempDir(), "1.fa"))
+            self.seqFile2 = decompressFastaFile(self.seqFile2 + ".bz2", os.path.join(self.getLocalTempDir(), "2.fa"))
         tempResultsFile = os.path.join(self.getLocalTempDir(), "tempResults.cig")
         command = blastString.replace("CIGARS_FILE", tempResultsFile).replace("SEQ_FILE_1", self.seqFile1).replace("SEQ_FILE_2", self.seqFile2)
         system(command)
@@ -167,15 +180,15 @@ class RunBlast(Target):
         logger.info("Ran the blast okay")
 
 def catFiles(filesToCat, catFile):
-    """Cats a bunch of files into one file. Ensures a no more than MAX_CAT files
+    """Cats a bunch of files into one file. Ensures a no more than maxCat files
     are concatenated at each step.
     """
-    MAX_CAT = 25
-    system("cat %s > %s" % (" ".join(filesToCat[:MAX_CAT]), catFile))
-    filesToCat = filesToCat[MAX_CAT:]
+    maxCat = 25
+    system("cat %s > %s" % (" ".join(filesToCat[:maxCat]), catFile))
+    filesToCat = filesToCat[maxCat:]
     while len(filesToCat) > 0:
-        system("cat %s >> %s" % (" ".join(filesToCat[:MAX_CAT]), catFile))
-        filesToCat = filesToCat[MAX_CAT:]
+        system("cat %s >> %s" % (" ".join(filesToCat[:maxCat]), catFile))
+        filesToCat = filesToCat[maxCat:]
     
 class CollateBlasts(Target):
     """Collates all the blasts into a single alignments file.
@@ -222,11 +235,7 @@ replaced with the two sequence files and the results file, respectively",
 Must contain three strings: SEQ_FILE and CIGARS_FILE which will be \
 replaced with the the sequence file and the results file, respectively",
                      default=blastOptions.selfBlastString)
-    
-    parser.add_option("--chunksPerJob", dest="chunksPerJob", type="int",
-                      help="The number of blast chunks to align per job. Every chunk is aligned against every other chunk, \
-this allows each job to more than one chunk comparison per job, which will save on I/O.", default=blastOptions.chunksPerJob)
-    
+   
     parser.add_option("--compressFiles", dest="compressFiles", action="store_false",
                       help="Turn of bz2 based file compression of sequences for I/O transfer", 
                       default=blastOptions.compressFiles)
@@ -237,7 +246,7 @@ this allows each job to more than one chunk comparison per job, which will save 
     
     options, args = parser.parse_args()
     
-    firstTarget = MakeBlasts(options, args, options.cigarFile)
+    firstTarget = BlastSequences(args, options.cigarFile, options)
     Stack(firstTarget).startJobTree(options)
 
 def _test():
@@ -245,6 +254,6 @@ def _test():
     return doctest.testmod()
 
 if __name__ == '__main__':
-    from cactus.blastAlignment.cactus_batch import *
+    from cactus.blast.cactus_blast import *
     _test()
     main()

@@ -27,12 +27,11 @@ int main(int argc, char *argv[]) {
 	 */
 	CactusDisk *cactusDisk;
 	Flower *flower;
+	assert(argc == 8);
 	st_setLogLevelFromString(argv[1]);
-	assert(argc == 6);
 	stKVDatabaseConf *kvDatabaseConf = stKVDatabaseConf_constructFromString(argv[2]);
 	cactusDisk = cactusDisk_construct(kvDatabaseConf, 0);
 	st_logInfo("Set up the flower disk\n");
-
 	flower = cactusDisk_getFlower(cactusDisk, cactusMisc_stringToName(argv[3]));
 	assert(flower != NULL);
 	st_logInfo("Read the flower\n");
@@ -43,7 +42,6 @@ int main(int argc, char *argv[]) {
     i = sscanf(argv[5], "%i", &chunkOverlapSize);
     assert(i == 1);
 	i = sscanf(argv[6], "%i", &minimumSequenceLength);
-	(void)i;
 	assert(i == 1);
 	setupToChunkSequences(chunkSize, chunkOverlapSize, argv[7]);
 	writeFlowerSequences(flower, processSequenceToChunk, minimumSequenceLength);

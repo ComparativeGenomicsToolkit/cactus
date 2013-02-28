@@ -23,6 +23,7 @@ int main(int argc, char *argv[]) {
     assert(argc == 3);
     FILE *fileHandleIn = fopen(argv[1], "r");
     FILE *fileHandleOut = fopen(argv[2], "w");
+    struct PairwiseAlignment *pairwiseAlignment;
     while ((pairwiseAlignment = cigarRead(fileHandleIn)) != NULL) {
         //Correct coordinates
         convertCoordinatesOfPairwiseAlignment(pairwiseAlignment);

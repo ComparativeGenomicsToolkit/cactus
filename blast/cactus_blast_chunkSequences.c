@@ -14,14 +14,15 @@
 #include "blastAlignmentLib.c"
 
 int main(int argc, char *argv[]) {
-    assert(argc >= 4);
+    assert(argc >= 5);
+    st_setLogLevelFromString(argv[1]);
     int32_t chunkSize, chunkOverlapSize;
-    int32_t i = sscanf(argv[1], "%i", &chunkSize);
+    int32_t i = sscanf(argv[2], "%i", &chunkSize);
     assert(i == 1);
-    i = sscanf(argv[2], "%i", &chunkOverlapSize);
+    i = sscanf(argv[3], "%i", &chunkOverlapSize);
     assert(i == 1);
-    setupToChunkSequences(chunkSize, chunkOverlapSize, argv[3]);
-    for (int32_t i = 4; i < argc; i++) {
+    setupToChunkSequences(chunkSize, chunkOverlapSize, argv[4]);
+    for (int32_t i = 5; i < argc; i++) {
         FILE *fileHandle2 = fopen(argv[i], "r");
         fastaReadToFunction(fileHandle2, processSequenceToChunk);
         fclose(fileHandle2);
