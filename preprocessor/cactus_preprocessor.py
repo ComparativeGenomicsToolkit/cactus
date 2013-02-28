@@ -24,11 +24,10 @@ from sonLib.bioio import fastaWrite
 from sonLib.bioio import getLogLevelString
 from sonLib.bioio import newickTreeParser
 
-
 from jobTree.scriptTree.target import Target
 from jobTree.scriptTree.stack import Stack
 
-from cactus.blastAlignment.cactus_batch import decompressFastaFile
+from cactus.blast.cactus_batch import decompressFastaFile
 
 def compressFastaFile(fileName, tempDir, compressFiles):
     """Copies the file from the central dir to a temporary file, returning the temp file name.
@@ -168,7 +167,6 @@ class MergeChunks(Target):
 
         system("cactus_batch_mergeChunks %s %s %i" % \
                (self.chunkListPath, self.outSequencePath, self.prepOptions.compressFiles))
-        
  
 class PreprocessSequence(Target):
     """ cut a sequence into chunks, process, then merge
@@ -267,5 +265,4 @@ class BatchPreprocessor(Target):
 
         if lastIteration == False:
             self.setFollowOnTarget(BatchPreprocessor(self.cactusWorkflowArguments, self.event, self.prepXmlElems, outSeq,
-                                                     self.globalOutSequence, self.memory, self.cpu, self.iteration + 1))
-            
+                                                     self.globalOutSequence, self.memory, self.cpu, self.iteration + 1))   
