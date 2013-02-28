@@ -101,7 +101,7 @@ class MakeBlasts(Target):
             self.addChildTarget(RunSelfBlast(self.blastOptions, self.chunks[i], resultsFile))
         logger.info("Made the list of self blasts")
         #Setup job to make all-against-all blasts
-        self.setFollowOnTarget(MakeBlasts2(self.blastOptions, self.chunks, resultFiles, self.finalResultFile))
+        self.setFollowOnTarget(MakeBlasts2(self.blastOptions, self.chunks, resultsFiles, self.finalResultsFile))
     
 class MakeBlasts2(MakeBlasts):
         def __init__(self, blastOptions, chunks, resultsFiles, finalResultsFile):
@@ -141,7 +141,7 @@ class RunSelfBlast(Target):
     
     def run(self):   
         tempResultsFile = os.path.join(self.getLocalTempDir(), "tempResults.cig")
-        command = selfBlastString.replace("CIGARS_FILE", tempResultsFile).replace("SEQ_FILE", self.seqFile)
+        command = self.blastOptions.selfBlastString.replace("CIGARS_FILE", tempResultsFile).replace("SEQ_FILE", self.seqFile)
         system(command)
         system("cactus_blast_convertCoordinates %s %s" % (tempResultsFile, self.resultsFile))
         if self.blastOptions.compressFiles:
@@ -174,7 +174,7 @@ class RunBlast(Target):
             self.seqFile1 = decompressFastaFile(self.seqFile1 + ".bz2", os.path.join(self.getLocalTempDir(), "1.fa"))
             self.seqFile2 = decompressFastaFile(self.seqFile2 + ".bz2", os.path.join(self.getLocalTempDir(), "2.fa"))
         tempResultsFile = os.path.join(self.getLocalTempDir(), "tempResults.cig")
-        command = blastString.replace("CIGARS_FILE", tempResultsFile).replace("SEQ_FILE_1", self.seqFile1).replace("SEQ_FILE_2", self.seqFile2)
+        command = self.blastOptions.blastString.replace("CIGARS_FILE", tempResultsFile).replace("SEQ_FILE_1", self.seqFile1).replace("SEQ_FILE_2", self.seqFile2)
         system(command)
         system("cactus_blast_convertCoordinates %s %s" % (tempResultsFile, self.resultsFile))
         logger.info("Ran the blast okay")

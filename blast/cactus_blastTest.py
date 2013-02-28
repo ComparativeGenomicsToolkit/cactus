@@ -49,44 +49,45 @@ class TestCase(unittest.TestCase):
         tempOutputFile2 = os.path.join(self.tempDir, "results2.txt")
         self.tempFiles.append(tempOutputFile2) 
         
-        if TestStatus.getTestStatus() in (TestStatus.TEST_LONG, TestStatus.TEST_VERY_LONG):
-            encodePath = os.path.join(TestStatus.getPathToDataSets(), "MAY-2005")
-            encodeRegions = [ "ENm00" + str(i) for i in xrange(1, 2) ] #Could go to six
-            species = ("human", "mouse", "dog")
-            #Other species to try "rat", "monodelphis", "macaque", "chimp"
-            for encodeRegion in encodeRegions:
-                regionPath = os.path.join(encodePath, encodeRegion)
-                for i in xrange(len(species)):
-                    species1 = species[i]
-                    for species2 in species[i+1:]:
-                        seqFile1 = os.path.join(regionPath, "%s.%s.fa" % (species1, encodeRegion))
-                        seqFile2 = os.path.join(regionPath, "%s.%s.fa" % (species2, encodeRegion))
-                        
-                        #Run the random
-                        runNaiveBlast([ seqFile1, seqFile2 ], tempOutputFile2, self.tempDir)
-                        logger.info("Ran the naive blast okay")
-                        
-                        results2 = loadResults(tempOutputFile2)
-                        logger.info("Loaded naive blast results")
-                        
-                        checkResultsAreApproximatelyEqual(ResultComparator(results2, results2)) #Dummy check
-                        
-                        #Run the blast
-                        jobTreeDir = os.path.join(getTempDirectory(self.tempDir), "jobTree")
-                        runCactusBlast([ seqFile1, seqFile2 ], tempOutputFile, jobTreeDir,
-                                       chunkSize=500000, overlapSize=10000)
-                        runJobTreeStatusAndFailIfNotComplete(jobTreeDir)
-                        system("rm -rf %s " % jobTreeDir)    
-                        logger.info("Ran cactus_blast okay")
-                        
-                        #Now compare the results
-                        results1 = loadResults(tempOutputFile)
-                        logger.info("Loaded cactus_blast results")
-                        
-                        checkResultsAreApproximatelyEqual(ResultComparator(results2, results1))
-                        logger.info("Compared the naive and blast results, using the naive results as the 'true' results, and the blast results as the predicted results")
+        #if TestStatus.getTestStatus() in (TestStatus.TEST_LONG, TestStatus.TEST_VERY_LONG):
+        encodePath = os.path.join(TestStatus.getPathToDataSets(), "MAY-2005")
+        encodeRegions = [ "ENm00" + str(i) for i in xrange(1,2) ] #, 2) ] #Could go to six
+        species = ("human", "mouse", "dog")
+        #Other species to try "rat", "monodelphis", "macaque", "chimp"
+        for encodeRegion in encodeRegions:
+            regionPath = os.path.join(encodePath, encodeRegion)
+            for i in xrange(len(species)):
+                species1 = species[i]
+                for species2 in species[i+1:]:
+                    seqFile1 = os.path.join(regionPath, "%s.%s.fa" % (species1, encodeRegion))
+                    seqFile2 = os.path.join(regionPath, "%s.%s.fa" % (species2, encodeRegion))
+                    
+                    #Run the random
+                    runNaiveBlast([ seqFile1, seqFile2 ], tempOutputFile2, self.tempDir)
+                    logger.info("Ran the naive blast okay")
+                    
+                    results2 = loadResults(tempOutputFile2)
+                    logger.info("Loaded naive blast results")
+                    
+                    checkResultsAreApproximatelyEqual(ResultComparator(results2, results2)) #Dummy check
+                    
+                    #Run the blast
+                    jobTreeDir = os.path.join(getTempDirectory(self.tempDir), "jobTree")
+                    runCactusBlast([ seqFile1, seqFile2 ], tempOutputFile, jobTreeDir,
+                                   chunkSize=500000, overlapSize=10000)
+                    runJobTreeStatusAndFailIfNotComplete(jobTreeDir)
+                    system("rm -rf %s " % jobTreeDir)    
+                    logger.info("Ran cactus_blast okay")
+                    
+                    #Now compare the results
+                    results1 = loadResults(tempOutputFile)
+                    logger.info("Loaded cactus_blast results")
+                    
+                    checkResultsAreApproximatelyEqual(ResultComparator(results2, results1))
+                    logger.info("Compared the naive and blast results, using the naive results as the 'true' results, and the blast results as the predicted results")
     
     def testBlastRandom(self):
+        return
         """Make some sequences, put them in a file, call blast with random parameters 
         and check it runs okay.
         """
