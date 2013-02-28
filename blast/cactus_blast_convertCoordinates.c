@@ -17,26 +17,19 @@
 #include "blastAlignmentLib.h"
 
 int main(int argc, char *argv[]) {
-	/*
-	 * For each cigar in file, update the coordinates and write to the second file.
-	 */
-	assert(argc == 3);
-	FILE *fileHandleIn = fopen(argv[1], "r");
-	FILE *fileHandleOut = fopen(argv[2], "w");
-	int size = 100;
-	char *cA = st_calloc(size+1, sizeof(char));
-	int32_t i;
-	do {
-	    i = benLine(&cA, &size, fileHandleIn);
-	    if(strlen(cA) > 0) {
-	        convertCoordinates(cA, fileHandleOut);
-	    }
-	} while(i != -1);
-	fclose(fileHandleIn);
-	fclose(fileHandleOut);
-	free(cA);
-
-	//return 1;
-
-	return 0;
+    /*
+     * For each cigar in file, update the coordinates and write to the second file.
+     */
+    assert(argc == 3);
+    FILE *fileHandleIn = fopen(argv[1], "r");
+    FILE *fileHandleOut = fopen(argv[2], "w");
+    while ((pairwiseAlignment = cigarRead(fileHandleIn)) != NULL) {
+        //Correct coordinates
+        convertCoordinatesOfPairwiseAlignment(pairwiseAlignment);
+        cigarWrite(fileHandleOut, pairwiseAlignment, 0);
+        destructPairwiseAlignment(pairwiseAlignment);
+    }
+    fclose(fileHandleIn);
+    fclose(fileHandleOut);
+    return 0;
 }

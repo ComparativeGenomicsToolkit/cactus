@@ -40,19 +40,6 @@ void convertCoordinatesOfPairwiseAlignment(struct PairwiseAlignment *pairwiseAli
     checkPairwiseAlignment(pairwiseAlignment);
 }
 
-void convertCoordinates(char *cigarFile, FILE *fileHandle) {
-    FILE *fileHandle2 = fopen(cigarFile, "r");
-    struct PairwiseAlignment *pairwiseAlignment;
-
-    while((pairwiseAlignment = cigarRead(fileHandle2)) != NULL) {
-        //Correct coordinates
-        convertCoordinatesOfPairwiseAlignment(pairwiseAlignment);
-        cigarWrite(fileHandle, pairwiseAlignment, 0);
-        destructPairwiseAlignment(pairwiseAlignment);
-    }
-    fclose(fileHandle2);
-}
-
 /*
  * Routine reads in chunk up a set of sequences into overlapping sequence files.
  */
