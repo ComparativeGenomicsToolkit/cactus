@@ -84,11 +84,11 @@ class ProgressiveUp(Target):
         expXml = ET.parse(self.options.experimentFile).getroot()
         experiment = ExperimentWrapper(expXml)
         configXml = ET.parse(experiment.getConfigPath()).getroot()
+        configWrapper = ConfigWrapper(configXml)
 
         # need at least 3 processes for every event when using ktserver:
         # 1 proc to run jobs, 1 proc to run server, 1 proc to run 2ndary server
-        if experiment.getDbType() == "kyoto_tycoon":
-            configWrapper = ConfigWrapper(configXml)
+        if experiment.getDbType() == "kyoto_tycoon":            
             maxParallel = min(len(self.project.expMap),
                              configWrapper.getMaxParallelSubtrees()) 
             if self.options.batchSystem == "singleMachine":
@@ -111,17 +111,6 @@ class ProgressiveUp(Target):
             self.options.buildFasta = getOptionalAttrib(halNode, "buildFasta", bool, False)
         self.options.joinMaf = getOptionalAttrib(halNode, "joinMaf", bool, self.options.buildMaf)
 
-        # delete database files if --setupAndBuildAlignments
-        # and overwrite specified (or if reference not present)
-        if self.options.skipAlignments is False and\
-         (self.options.overwrite or\
-          not os.path.exists(experiment.getReferencePath())):
-            dbPath = os.path.join(experiment.getDbDir(), 
-                                  experiment.getDbName())
-            seqPath = os.path.join(experiment.getDbDir(), "sequences")
-            system("rm -f %s* %s %s" % (dbPath, seqPath, 
-                                        experiment.getReferencePath()))
-            
         # get parameters that cactus_workflow stuff wants
         workFlowArgs = CactusWorkflowArguments(self.options)
         # copy over the options so we don't trail them around
@@ -136,11 +125,31 @@ class ProgressiveUp(Target):
         
         experiment = ExperimentWrapper(workFlowArgs.experimentNode)
 
-        if workFlowArgs.skipAlignments is False and \
-        not os.path.exists(experiment.getReferencePath()):       
-            self.addChildTarget(CactusPreprocessorPhase(cactusWorkflowArguments=workFlowArgs,
-                                                        phaseName="preprocessor"))
-            logger.info("Going to create alignments and define the cactus tree")
+        donePath = os.path.join(os.path.dirname(workFlowArgs.experimentFile), "DONE")
+        doneDone = os.path.isfile(donePath)
+        refDone = not workFlowArgs.buildReference or os.path.isfile(experiment.getReferencePath())
+        halDone = not workFlowArgs.buildHal or (os.path.isfile(experiment.getHALFastaPath()) and
+                                                os.path.isfile(experiment.getHALPath()))
+        mafDone = not workFlowArgs.buildMaf or os.path.isfile(experiment.getMAFPath())
+                                                               
+        if not workFlowArgs.overwrite and doneDone and refDone and halDone and mafDone:
+            self.logToMaster("Skipping %s because it is already done and overwrite is disabled" %
+                             self.event)
+        else:
+            system("rm -f %s" % donePath)
+            # delete database files if --setupAndBuildAlignments
+            # and overwrite specified (or if reference not present)
+            if not self.options.skipAlignments:
+                dbPath = os.path.join(experiment.getDbDir(), 
+                                      experiment.getDbName())
+                seqPath = os.path.join(experiment.getDbDir(), "sequences")
+                system("rm -f %s* %s %s" % (dbPath, seqPath, 
+                                            experiment.getReferencePath()))
+
+            if not workFlowArgs.skipAlignments:
+                self.addChildTarget(CactusPreprocessorPhase(cactusWorkflowArguments=workFlowArgs,
+                                                            phaseName="preprocessor"))
+                logger.info("Going to create alignments and define the cactus tree")
         
         self.setFollowOnTarget(BuildMAF(workFlowArgs, self.project))
          
@@ -185,9 +194,7 @@ class JoinMAF(Target):
             
     def run(self):
         experiment = ExperimentWrapper(self.workFlowArgs.experimentNode)
-        if experiment.getMAFPath() is None:
-            return
-        if self.workFlowArgs.joinMaf and\
+        if experiment.getMAFPath() is not None and self.workFlowArgs.joinMaf and\
         (self.workFlowArgs.overwrite or not os.path.exists(experiment.getMAFPath())
          or self.isMafFromCactus(experiment.getMAFPath())):
             logger.info("Starting MAF Join")
@@ -214,6 +221,11 @@ class JoinMAF(Target):
                     move("%s_tmp.maf" % experiment.getMAFPath(), 
                          experiment.getMAFPath())
                     rootIsTreeMAF = True
+                    
+        donePath = os.path.join(os.path.dirname(self.workFlowArgs.experimentFile), "DONE")
+        doneFile = open(donePath, "w")
+        doneFile.write("")
+        doneFile.close()
 
 def main():    
     usage = "usage: %prog [options] <multicactus project>"
