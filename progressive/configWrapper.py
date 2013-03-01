@@ -29,6 +29,7 @@ class ConfigWrapper:
     defaultSingleCopyStrategy = 'none'
     defaultInternalNodePrefix = 'Anc'
     defaultOutgroupThreshold = None
+    defaultOutgroupAncestorQualityFraction = 0.75
     defaultMaxParallelSubtrees = 3
     
     def __init__(self, xmlRoot):
@@ -79,6 +80,17 @@ class ConfigWrapper:
             ogElem.attrib["threshold"].lower() != 'none'):
                 threshold = int(ogElem.attrib["threshold"])
         return threshold
+
+    def getOutgroupAncestorQualityFraction(self):
+        ogElem = self.getOutgroupElem()
+        fraction = self.defaultOutgroupAncestorQualityFraction
+        if (ogElem is not None and\
+            "strategy" in ogElem.attrib and\
+            ogElem.attrib["strategy"] == "greedy" and\
+            "ancestor_quality_fraction" in ogElem.attrib and\
+            ogElem.attrib["ancestor_quality_fraction"].lower() != 'none'):
+            fraction = float(ogElem.attrib["ancestor_quality_fraction"])
+        return fraction
     
     def getSubtreeSize(self):
         decompElem = self.getDecompositionElem()

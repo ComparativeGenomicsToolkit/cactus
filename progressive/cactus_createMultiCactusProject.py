@@ -32,13 +32,21 @@ def createMCProject(tree, config, options):
     for name in mcProj.mcTree.getSubtreeRootNames():
         expPath = "%s/%s/%s_experiment.xml" % (options.path, name, name)
         mcProj.expMap[name] = os.path.abspath(expPath)
-    if config.getOutgroupStrategy() == 'greedy' or\
-    config.getOutgroupStrategy() == 'greedyLeaves':
+    if config.getOutgroupStrategy() == 'greedy':
         mcProj.outgroup = GreedyOutgroup()
         mcProj.outgroup.importTree(mcProj.mcTree)
-        mcProj.outgroup.greedy(justLeaves=config.getOutgroupStrategy() == \
-                               'greedyLeaves',
-                               threshold=config.getOutgroupThreshold())
+        mcProj.outgroup.greedy(threshold=config.getOutgroupThreshold(),
+                               candidateSet=options.outgroupNames,
+                               candidateChildFrac=config.getOutgroupAncestorQualityFraction())
+    elif config.getOutgroupStrategy() == 'greedyLeaves':
+        mcProj.outgroup = GreedyOutgroup()
+        mcProj.outgroup.importTree(mcProj.mcTree)
+        ogSet = self.options.outgroupNames
+        if ogSet is None:
+            ogSet = set([mcProj.mcTree.getName(x) for x in mcProj.mcTree.getLeaves()])
+        mcProj.outgroup.greedy(threshold=config.getOutgroupThreshold(),
+                               candidateSet=ogSet,
+                               candidateChildFrac=2.0)
     return mcProj
 
 # go through the tree (located in the template experimet)
@@ -155,6 +163,8 @@ def main():
     parser = OptionParser(usage=usage, description=description)
     parser.add_option("--fixNames", dest="fixNames",  default = "True", 
                       help="try to make sequence and event names MAF-compliant [default=true]")
+    parser.add_option("--outgroupNames", dest="outgroupNames",  default = None, 
+                      help="comma-separated names of high quality assemblies to use as outgroups [default=everything]")
     
     options, args = parser.parse_args()
     
@@ -175,8 +185,15 @@ def main():
     confTemplate = ConfigWrapper(ET.parse(configPath).getroot())
     if options.fixNames:
         cleanEventTree(expTemplate)
-    checkInputSequencePaths(expTemplate) 
-    mcProj = createMCProject(expTemplate.getTree(), confTemplate, options)
+    checkInputSequencePaths(expTemplate)
+    tree = expTemplate.getTree()
+    if options.outgroupNames is not None:
+        projNames = set([tree.getName(x) for x in tree.getLeaves()])
+        options.outgroupNames = set(options.outgroupNames.split(","))
+        for outgroupName in options.outgroupNames:
+            if outgroupName not in projNames:
+                raise RuntimeError("Specified outgroup %s not found in tree" % outgroupName)
+    mcProj = createMCProject(tree, confTemplate, options)
     createFileStructure(mcProj, expTemplate, confTemplate, options)
    # mcProj.check()
     return 0

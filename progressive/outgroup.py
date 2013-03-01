@@ -82,7 +82,32 @@ class GreedyOutgroup:
             for i in children:
                 self.heightTable(i, htable)
             htable[node] = max([htable[i] for i in children]) + 1
-         
+
+    # check the candidate using the set and and fraction
+    def inCandidateSet(self, node, candidateChildFrac):
+        if self.candidateMap is None or len(self.candidateMap) == 0:
+            return True
+        if self.mcTree.getName(node) in self.candidateMap:
+            return self.candidateMap[self.mcTree.getName(node)]
+        children = self.mcTree.breadthFirstTraversal(node)
+        leaves = []
+        for child in children:
+            if self.mcTree.isLeaf(child):
+                leaves.append(child)
+        candidateLeaves = 0
+        for leaf in leaves:
+            if self.mcTree.getName(leaf) in self.candidateMap:
+                candidateLeaves += 1
+        if len(leaves) == 0:
+            self.candidateMap[self.mcTree.getName(node)] = False
+            return False
+        frac = float(candidateLeaves) / float(len(leaves))
+        if frac >= candidateChildFrac:
+            self.candidateMap[self.mcTree.getName(node)] = True
+            return True
+        self.candidateMap[self.mcTree.getName(node)] = False
+        return False
+                                    
     # greedily assign closest possible valid outgroup
     # all outgroups are stored in self.ogMap
     # edges between leaves ARE NOT kept in the dag    
@@ -91,7 +116,13 @@ class GreedyOutgroup:
     # threshold = None : just greedy with now constraints
     # threshold = 0 : depth of schedule guaranteed to be unaffected by outgroup
     # threshold = k : depth increases by at most k per outgroup
-    def greedy(self, justLeaves = False, threshold = None):
+    # candidateSet : names of valid outgroup genomes. (all if is None)
+    # candidateChildFrac : min fraction of children of ancestor in
+    # candidatSet in order for the ancestor to be an outrgoup candidate
+    # if > 1, then only members of the candidate set and none of their
+    # ancestors are chosen
+    def greedy(self, threshold = None, candidateSet = None,
+               candidateChildFrac = 2.):
         orderedPairs = []
         for source, sinks in self.dm.items():
             for sink, dist in sinks.items():
@@ -100,6 +131,11 @@ class GreedyOutgroup:
         orderedPairs.sort(key = lambda x: x[0])
         finished = set()
         self.ogMap = dict()
+        self.candidateMap = dict()
+        if candidateSet is not None:
+            assert isinstance(candidateSet, set)
+            for candidate in candidateSet:
+                self.candidateMap[candidate] = True
         
         htable = dict()
         self.heightTable(self.root, htable)
@@ -113,8 +149,9 @@ class GreedyOutgroup:
             if len(self.dag.out_edges(source)) == 0:
                 finished.add(source)
                 
-            # skip internal as sink if param specified
-            if justLeaves == True and len(self.dag.out_edges(sink)) > 0:
+            # skip nodes that aren't in the candidate set (if specified)
+            # or don't have enough candidate children
+            if not self.inCandidateSet(sink, candidateChildFrac):
                 continue
             
             # canditate pair exceeds given threshold, so we skip
@@ -152,7 +189,13 @@ def main():
     proj.readXML(args[0])
     outgroup = GreedyOutgroup()
     outgroup.importTree(proj.mcTree)
-    outgroup.greedy(justLeaves=options.justLeaves, threshold=options.threshold)
+    if options.justLeaves:
+        candidates = set([proj.mcTree.getName(x)
+                          for x in proj.mcTree.getLeaves()])
+    else:
+        candidates = None
+    outgroup.greedy(candidates, threshold=options.threshold,
+                    candidateChildFrac=1.1)
     NX.drawing.nx_agraph.write_dot(outgroup.dag, args[1])
     return 0
 

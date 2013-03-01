@@ -123,6 +123,7 @@
 		<outgroup 
 			strategy="greedy" 
 			threshold="0"
+			ancestor_quality_fraction="0.75"
 		/>
 	 	<decomposition 
 	 		subtree_size="2" 
