@@ -6,7 +6,6 @@
 	<caf
 		lastzArguments="--hspthresh=1800 --identity=IDENTITY --ambiguous=iupac"
 		chunkSize="2000000" 
-		chunksPerJob="1" 
 		compressFiles="1" 
 		overlapSize="10000" 
 		filterByIdentity="1" 
