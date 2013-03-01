@@ -14,18 +14,13 @@ from optparse import OptionParser
 from bz2 import BZ2File
 import copy
 
-from sonLib.bioio import TempFileTree
-from sonLib.bioio import getTempDirectory
-from sonLib.bioio import getTempFile
 from sonLib.bioio import logger
 from sonLib.bioio import system, popenCatch
-from sonLib.bioio import fastaRead
-from sonLib.bioio import fastaWrite
 from sonLib.bioio import getLogLevelString
 from sonLib.bioio import newickTreeParser
-from sonLib.bioio import getLogLevelString
 from jobTree.scriptTree.target import Target
 from jobTree.scriptTree.stack import Stack
+from cactus.blast.cactus_blast import catFiles
 
 def fileList(path):
     """ return a list of files in the directory, or just the
@@ -106,8 +101,8 @@ class PreprocessChunk(Target):
         self.event = event
     
     def run(self):
-        prepChunkPath = getTempFile(rootDir=self.getLocalTempDir())
-        tempPath = getTempFile(rootDir=self.getLocalTempDir())
+        prepChunkPath = os.path.join(self.getLocalTempDir(), "prepChunk")
+        tempPath = os.path.join(self.getLocalTempDir(), "tempPath")
         
         cmdline = self.prepOptions.cmdLine.replace("QUERY_FILE", "\"" + self.seqPath + "\"")
         cmdline = cmdline.replace("TARGET_FILE", "\"" + self.chunk + "\"")
@@ -128,13 +123,6 @@ class MergeChunks(Target):
         self.outSequencePath = outSequencePath
     
     def run(self):
-        baseDir = os.path.dirname(self.outSequencePath)
-        #somewhat threadsafe 
-        try:
-            os.makedirs(baseDir)
-        except OSError, e:
-            if e.errno != errno.EEXIST:
-                raise e
         system("cactus_batch_mergeChunks %s %s" % \
                (self.outSequencePath, " ".join(self.chunkList)))
  
@@ -180,39 +168,27 @@ class BatchPreprocessor(Target):
         assert self.iteration < len(self.prepXmlElems)
         
         prepNode = self.prepXmlElems[self.iteration]
-    
         prepOptions = PreprocessorOptions(int(prepNode.get("chunkSize", default="2147483647")),
                                           prepNode.attrib["preprocessorString"],
                                           int(self.memory),
                                           int(self.cpu))
         
+        if os.path.isdir(self.inSequence):
+            tempFile = os.path.join(self.getGlobalTempDir(), "catSeq.fa")
+            catFiles([ os.path.join(self.inSequence, f) for f in os.listdir(self.inSequence)], tempFile)
+            self.inSequence = tempFile
+        
         #output to temporary directory unless we are on the last iteration
         lastIteration = self.iteration == len(self.prepXmlElems) - 1
         if lastIteration == False:
-            outSeq = getTempDirectory(self.getGlobalTempDir()) + "/" + self.inSequence
+            outSeq = os.path.join(self.getGlobalTempDir(), str(self.iteration))
         else:
             outSeq = self.globalOutSequence
-        assert outSeq != self.inSequence
-        outDir = outSeq
-        if not os.path.isdir(self.inSequence):
-            outDir = os.path.split(outDir)[0]
-                                                                        
-        #iterate over each input fasta file
-        inSeqFiles = fileList(self.inSequence)
-        outSeqFiles = []
-        for inSeqFile in inSeqFiles:
-            fileName = os.path.split(inSeqFile)[1]
-            outSeqFiles.append(os.path.join(outDir, fileName))      
-        outSeqFile = iter(outSeqFiles)
-        assert len(outSeqFiles) == len(inSeqFiles)
         
-        # either process a sequence, or propagate an empty directory
-        for inSeqFile in inSeqFiles:
-            if not os.path.isdir(inSeqFile):
-                self.addChildTarget(PreprocessSequence(prepOptions, inSeqFile, outSeqFile.next(), self.event))
-            else:
-                os.makedirs(outSeqFile.next())
-
+        self.addChildTarget(PreprocessSequence(prepOptions, self.inSequence, outSeq, self.event)) 
+        
         if lastIteration == False:
-            self.setFollowOnTarget(BatchPreprocessor(self.cactusWorkflowArguments, self.event, self.prepXmlElems, outSeq,
-                                                     self.globalOutSequence, self.memory, self.cpu, self.iteration + 1))   
+            self.setFollowOnTarget(BatchPreprocessor(self.cactusWorkflowArguments, self.event, 
+                                                     self.prepXmlElems, outSeq,
+                                                     self.globalOutSequence, self.memory, 
+                                                     self.cpu, self.iteration + 1))   

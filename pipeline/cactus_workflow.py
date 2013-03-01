@@ -25,7 +25,6 @@ from sonLib.bioio import newickTreeParser
 
 from sonLib.bioio import logger
 from sonLib.bioio import setLoggingFromOptions
-from sonLib.bioio import getTempDirectory
 from sonLib.bioio import system
 
 from cactus.shared.common import cactusRootPath
@@ -267,6 +266,8 @@ class CactusPreprocessorPhase(CactusPhasesTarget):
     def run(self):
         self.logToMaster("Starting preprocessor phase target at %s seconds" % time.time())
         tempDir = os.path.join(self.getGlobalTempDir(), "tempSeqs")
+        if not os.path.exists(tempDir):
+            os.mkdir(tempDir)
         prepHelper = PreprocessorHelper(self.cactusWorkflowArguments, self.cactusWorkflowArguments.sequences)
         processedSequences = []
         tempSeqIndex = 0
