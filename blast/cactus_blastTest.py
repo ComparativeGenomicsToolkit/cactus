@@ -117,7 +117,7 @@ class TestCase(unittest.TestCase):
 def checkResultsAreApproximatelyEqual(resultsComparator):
     """Checks that the comparisons show the two blasts are suitably close together.
     """
-    logger.info("Results are: %s" % resultsComparator)
+    print "Results are: %s" % resultsComparator
     assert resultsComparator.sensitivity >= 0.95
     assert resultsComparator.specificity >= 0.95
     

@@ -25,7 +25,6 @@ from cactus.shared.test import parseCactusSuiteTestOptions
 def allSuites(): 
     allTests = unittest.TestSuite((unittest.makeSuite(cafTest, 'test'),
                                    unittest.makeSuite(setupTest, 'test'),
-                                   unittest.makeSuite(alignerTest, 'test'),
                                    unittest.makeSuite(blastTest, 'test'),
                                    unittest.makeSuite(workflowTest, 'test'),
                                    unittest.makeSuite(evolverTest, 'test'),

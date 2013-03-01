@@ -90,34 +90,31 @@ void finishChunkingSequences() {
     }
 }
 
-static int32_t fn2(int32_t i, int32_t seqLength) {
+static void updateChunkRemaining(int32_t seqLength) {
     //Update remaining portion of the chunk.
     assert(seqLength >= 0);
-    i -= seqLength;
-    if (i <= 0) {
+    chunkRemaining -= seqLength;
+    if (chunkRemaining <= 0) {
         finishChunkingSequences();
-        return chunkSize;
+        chunkRemaining = chunkSize;
     }
-    return i;
 }
 
 void processSequenceToChunk(const char *fastaHeader, const char *sequence, int32_t length) {
-    int32_t j, k, l;
-
     if (length > 0) {
-        j = fn((char *) fastaHeader, 0, (char *) sequence, length, chunkRemaining);
-        chunkRemaining = fn2(chunkRemaining, j);
+        int32_t j = fn((char *) fastaHeader, 0, (char *) sequence, length, chunkRemaining);
+        updateChunkRemaining(j);
         while (length - j > 0) {
             //Make the non overlap file
-            k = fn((char *) fastaHeader, j, (char *) sequence, length, chunkRemaining);
-            chunkRemaining = fn2(chunkRemaining, k);
+            int32_t k = fn((char *) fastaHeader, j, (char *) sequence, length, chunkRemaining);
+            updateChunkRemaining(k);
 
             //Make the overlap file
-            l = j - chunkOverlapSize / 2;
+            int32_t l = j - chunkOverlapSize / 2;
             if (l < 0) {
                 l = 0;
             }
-            chunkRemaining = fn2(chunkRemaining, fn((char *) fastaHeader, l, (char *) sequence, length, chunkOverlapSize));
+            updateChunkRemaining(fn((char *) fastaHeader, l, (char *) sequence, length, chunkOverlapSize));
             j += k;
         }
     }
