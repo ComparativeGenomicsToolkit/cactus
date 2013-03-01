@@ -16,6 +16,7 @@ from sonLib.bioio import system, popenCatch
 from sonLib.bioio import fastaRead
 from sonLib.bioio import fastaWrite
 from sonLib.bioio import getLogLevelString
+from sonLib.bioio import makeSubDir
 from jobTree.scriptTree.target import Target
 from jobTree.scriptTree.stack import Stack
 
@@ -46,9 +47,7 @@ class BlastFlower(Target):
         blastOptions.roundsOfCoordinateConversion = 2
         
     def run(self):
-        chunksDir = os.path.join(self.getGlobalTempDir(), "chunks")
-        if not os.path.exists(chunksDir):
-            os.mkdir(chunksDir)
+        chunksDir = makeSubDir(os.path.join(self.getGlobalTempDir(), "chunks"))
         chunks = [ chunk for chunk in popenCatch("cactus_blast_chunkFlowerSequences %s '%s' %s %i %i %i %s" % \
                                                           (getLogLevelString(), self.cactusDisk, self.flowerName, 
                                                           self.blastOptions.chunkSize, 
@@ -69,9 +68,7 @@ class BlastSequences(Target):
         blastOptions.roundsOfCoordinateConversion = 1
         
     def run(self):
-        chunksDir = os.path.join(self.getGlobalTempDir(), "chunks")
-        if not os.path.exists(chunksDir):
-            os.mkdir(chunksDir)
+        chunksDir = makeSubDir(os.path.join(self.getGlobalTempDir(), "chunks"))
         chunks = [ chunk for chunk in popenCatch("cactus_blast_chunkSequences %s %i %i %s %s" % \
                                                           (getLogLevelString(), 
                                                           self.blastOptions.chunkSize, 
@@ -93,9 +90,7 @@ class MakeBlasts(Target):
     def run(self):
         #Avoid compression if just one chunk
         self.blastOptions.compressFiles = self.blastOptions.compressFiles and len(self.chunks) > 2
-        selfResultsDir = os.path.join(self.getGlobalTempDir(), "selfResults")
-        if not os.path.exists(selfResultsDir):
-            os.mkdir(selfResultsDir)
+        selfResultsDir = makeSubDir(os.path.join(self.getGlobalTempDir(), "selfResults"))
         resultsFiles = []
         for i in xrange(len(self.chunks)):
             resultsFile = os.path.join(selfResultsDir, str(i))

@@ -18,6 +18,7 @@ from sonLib.bioio import logger
 from sonLib.bioio import system, popenCatch
 from sonLib.bioio import getLogLevelString
 from sonLib.bioio import newickTreeParser
+from sonLib.bioio import makeSubDir
 from jobTree.scriptTree.target import Target
 from jobTree.scriptTree.stack import Stack
 from cactus.blast.cactus_blast import catFiles
@@ -139,9 +140,7 @@ class PreprocessSequence(Target):
     def run(self):        
         logger.info("Preparing sequence for preprocessing")
         # chunk it up
-        chunkDirectory = os.path.join(self.getGlobalTempDir(), "preprocessChunks")
-        if not os.path.exists(chunkDirectory):
-            os.mkdir(chunkDirectory)
+        chunkDirectory = makeSubDir(os.path.join(self.getGlobalTempDir(), "preprocessChunks"))
         chunkList = [ chunk for chunk in popenCatch("cactus_blast_chunkSequences %s %i 0 %s %s" % \
                (getLogLevelString(), self.prepOptions.chunkSize,
                 chunkDirectory, self.inSequencePath)).split("\n") if chunk != "" ]   
