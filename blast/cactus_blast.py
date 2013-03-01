@@ -49,12 +49,12 @@ class BlastFlower(Target):
         chunksDir = os.path.join(self.getGlobalTempDir(), "chunks")
         if not os.path.exists(chunksDir):
             os.mkdir(chunksDir)
-        chunks = [ chunk for chunk in popenCatch("cactus_blast_chunkFlowerSequences %s '%s' %s %i %i %s" % \
+        chunks = [ chunk for chunk in popenCatch("cactus_blast_chunkFlowerSequences %s '%s' %s %i %i %i %s" % \
                                                           (getLogLevelString(), self.cactusDisk, self.flowerName, 
                                                           self.blastOptions.chunkSize, 
                                                           self.blastOptions.overlapSize,
                                                           self.blastOptions.minimumSequenceLength,
-                                                          chunksDir)) if chunk != "" ]
+                                                          chunksDir)).split("\n") if chunk != "" ]
         logger.info("Broken up the flowers into individual 'chunk' files")
         self.addChildTarget(MakeBlasts(self.blastOptions, chunks, self.finalResultsFile))
         

@@ -410,7 +410,7 @@ class CactusCafWrapperLarge(CactusRecursionTarget):
     def run(self):
         logger.info("Starting the cactus aligner target")
         #Generate a temporary file to hold the alignments
-        alignmentFile = os.path.join(self.getGlobaTempDir(), "alignments.cigar")
+        alignmentFile = os.path.join(self.getGlobalTempDir(), "alignments.cigar")
         flowerName = decodeFirstFlowerName(self.flowerNames)
         self.addChildTarget(BlastFlower(self.cactusDiskDatabaseString, 
                                           flowerName, alignmentFile, 
