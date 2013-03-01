@@ -5,7 +5,6 @@
 	<caf
 		chunkSize="10000000" 
 		lastzArguments="--nogapped --hspthresh=3000 --ambiguous=iupac"
-		chunksPerJob="1" 
 		compressFiles="1" 
 		overlapSize="10000" 
 		filterByIdentity="0" 
@@ -32,7 +31,6 @@
 	<caf
 		chunkSize="1000000" 
 		lastzArguments="--hspthresh=1800 --ambiguous=iupac"
-		chunksPerJob="1" 
 		compressFiles="1" 
 		overlapSize="10000" 
 		filterByIdentity="0" 

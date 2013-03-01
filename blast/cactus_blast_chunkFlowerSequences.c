@@ -27,23 +27,26 @@ int main(int argc, char *argv[]) {
 	 */
 	CactusDisk *cactusDisk;
 	Flower *flower;
-	st_setLogLevelFromString(argv[5]);
-	assert(argc == 6);
-	stKVDatabaseConf *kvDatabaseConf = stKVDatabaseConf_constructFromString(argv[1]);
+	assert(argc == 8);
+	st_setLogLevelFromString(argv[1]);
+	stKVDatabaseConf *kvDatabaseConf = stKVDatabaseConf_constructFromString(argv[2]);
 	cactusDisk = cactusDisk_construct(kvDatabaseConf, 0);
 	st_logInfo("Set up the flower disk\n");
-
-	flower = cactusDisk_getFlower(cactusDisk, cactusMisc_stringToName(argv[2]));
+	flower = cactusDisk_getFlower(cactusDisk, cactusMisc_stringToName(argv[3]));
 	assert(flower != NULL);
 	st_logInfo("Read the flower\n");
-
-	int32_t minimumSequenceLength;
-	int i = sscanf(argv[4], "%i", &minimumSequenceLength);
+	int32_t chunkSize, chunkOverlapSize, minimumSequenceLength;
+	int32_t i = sscanf(argv[4], "%i", &chunkSize);
 	(void)i;
+    assert(i == 1);
+    i = sscanf(argv[5], "%i", &chunkOverlapSize);
+    assert(i == 1);
+	i = sscanf(argv[6], "%i", &minimumSequenceLength);
 	assert(i == 1);
-	writeFlowerSequencesInFile(flower, argv[3], minimumSequenceLength);
+	setupToChunkSequences(chunkSize, chunkOverlapSize, argv[7]);
+	writeFlowerSequences(flower, processSequenceToChunk, minimumSequenceLength);
+	finishChunkingSequences();
 	st_logInfo("Written the sequences from the flower into a file");
-
 	cactusDisk_destruct(cactusDisk);
 	stKVDatabaseConf_destruct(kvDatabaseConf);
 

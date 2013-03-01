@@ -54,9 +54,8 @@ from cactus.shared.common import runCactusFlowerStats
 from cactus.shared.common import runCactusSecondaryDatabase
 from cactus.shared.common import runCactusFastaGenerator
 
-from cactus.blastAlignment.cactus_aligner import MakeSequences
-from cactus.blastAlignment.cactus_batch import MakeBlastOptions
-from cactus.blastAlignment.cactus_batch import makeBlastFromOptions
+from cactus.blast.cactus_blast import BlastFlower
+from cactus.blast.cactus_blast import BlastOptions
 
 from cactus.preprocessor.cactus_preprocessor import BatchPreprocessor
 from cactus.preprocessor.cactus_preprocessor import PreprocessorHelper
@@ -303,8 +302,6 @@ class CactusPreprocessorPhase(CactusPhasesTarget):
             logger.info("Created follow-on target cactus_setup")
             self.setFollowOnTarget(setupTarget)
 
-        
-
 ############################################################
 ############################################################
 ############################################################
@@ -413,25 +410,20 @@ class CactusCafWrapperLarge(CactusRecursionTarget):
     def run(self):
         logger.info("Starting the cactus aligner target")
         #Generate a temporary file to hold the alignments
-        alignmentFile = getTempFile(".fa", self.getGlobalTempDir())
-        logger.info("Got an alignments file")
-        #Now make the child aligner target
+        alignmentFile = os.path.join(self.getGlobalTempDir(), "alignments.cigar")
         flowerName = decodeFirstFlowerName(self.flowerNames)
-        self.addChildTarget(MakeSequences(self.cactusDiskDatabaseString, 
+        self.addChildTarget(BlastFlower(self.cactusDiskDatabaseString, 
                                           flowerName, alignmentFile, 
                                           blastOptions=\
-                                          makeBlastFromOptions(MakeBlastOptions(chunkSize=self.getOptionalPhaseAttrib("chunkSize", int),
-                                                                                overlapSize=self.getOptionalPhaseAttrib("overlapSize", int),
-                                                                                lastzArguments=self.getOptionalPhaseAttrib("lastzArguments"),
-                                                                                chunksPerJob=self.getOptionalPhaseAttrib("chunksPerJob", int),
-                                                                                compressFiles=self.getOptionalPhaseAttrib("compressFiles", bool),
-                                                                                memory=self.getOptionalPhaseAttrib("lastzMemory", int, sys.maxint))),
-                                          minimumSequenceLength=self.getOptionalPhaseAttrib("minimumSequenceLengthForBlast", int, 1)))
-        logger.info("Created the cactus_aligner child target")
+                                          BlastOptions(chunkSize=self.getOptionalPhaseAttrib("chunkSize", int),
+                                                        overlapSize=self.getOptionalPhaseAttrib("overlapSize", int),
+                                                        lastzArguments=self.getOptionalPhaseAttrib("lastzArguments"),
+                                                        compressFiles=self.getOptionalPhaseAttrib("compressFiles", bool),
+                                                        memory=self.getOptionalPhaseAttrib("lastzMemory", int, sys.maxint),
+                                                        minimumSequenceLength=self.getOptionalPhaseAttrib("minimumSequenceLengthForBlast", int, 1))))
         #Now setup a call to cactus core wrapper as a follow on
         self.phaseNode.attrib["alignments"] = alignmentFile
         self.makeFollowOnRecursiveTarget(CactusCafWrapperLarge2)
-        logger.info("Setup the follow on cactus_core target")
         
 class CactusCafWrapperLarge2(CactusCafWrapper):
     """Runs cactus_core upon a one flower and one alignment file.

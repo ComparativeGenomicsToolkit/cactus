@@ -21,7 +21,7 @@ from sonLib.bioio import PairwiseAlignment
 from sonLib.bioio import getLogLevelString
 from sonLib.bioio import TestStatus
 from cactus.shared.test import parseCactusSuiteTestOptions
-from cactus.shared.common import runCactusBatch
+from cactus.shared.common import runCactusBlast
 
 from jobTree.src.common import runJobTreeStatusAndFailIfNotComplete
 
@@ -34,65 +34,66 @@ class TestCase(unittest.TestCase):
     
     def tearDown(self):
         for tempFile in self.tempFiles:
-            os.remove(tempFile)
+            if os.path.exists(tempFile):
+                os.remove(tempFile)
         unittest.TestCase.tearDown(self)
         system("rm -rf %s" % self.tempDir)
         
-    def testBatchEncode(self):
+    def testBlastEncode(self):
         """For each encode region, for set of pairwise species, run 
-        cactus_batch.py. We compare the output with a naive run of the blast program, to check the results are nearly
+        cactus_blast.py. We compare the output with a naive run of the blast program, to check the results are nearly
         equivalent.
         """
-        tempOutputFile = getTempFile()
+        tempOutputFile = os.path.join(self.tempDir, "results1.txt")
         self.tempFiles.append(tempOutputFile)
-        tempOutputFile2 = getTempFile()
+        tempOutputFile2 = os.path.join(self.tempDir, "results2.txt")
         self.tempFiles.append(tempOutputFile2) 
         
-        if TestStatus.getTestStatus() in (TestStatus.TEST_LONG, TestStatus.TEST_VERY_LONG):
-            encodePath = os.path.join(TestStatus.getPathToDataSets(), "MAY-2005")
-            encodeRegions = [ "ENm00" + str(i) for i in xrange(1, 2) ] #Could go to six
-            species = ("human", "mouse", "dog")
-            #Other species to try "rat", "monodelphis", "macaque", "chimp"
-            for encodeRegion in encodeRegions:
-                regionPath = os.path.join(encodePath, encodeRegion)
-                for i in xrange(len(species)):
-                    species1 = species[i]
-                    for species2 in species[i+1:]:
-                        seqFile1 = os.path.join(regionPath, "%s.%s.fa" % (species1, encodeRegion))
-                        seqFile2 = os.path.join(regionPath, "%s.%s.fa" % (species2, encodeRegion))
-                        
-                        #Run the random
-                        runNaiveBlast([ seqFile1, seqFile2 ], tempOutputFile2, self.tempDir)
-                        logger.info("Ran the naive blast okay")
-                        
-                        results2 = loadResults(tempOutputFile2)
-                        logger.info("Loaded naive blast results")
-                        
-                        checkResultsAreApproximatelyEqual(ResultComparator(results2, results2)) #Dummy check
-                        
-                        #Run the batch
-                        jobTreeDir = os.path.join(getTempDirectory(self.tempDir), "jobTree")
-                        runCactusBatch([ seqFile1, seqFile2 ], tempOutputFile, jobTreeDir,
-                                       chunkSize=500000, overlapSize=10000)
-                        runJobTreeStatusAndFailIfNotComplete(jobTreeDir)
-                        system("rm -rf %s " % jobTreeDir)    
-                        logger.info("Ran cactus_batch okay")
-                        
-                        #Now compare the results
-                        results1 = loadResults(tempOutputFile)
-                        logger.info("Loaded cactus_batch results")
-                        
-                        checkResultsAreApproximatelyEqual(ResultComparator(results2, results1))
-                        logger.info("Compared the naive and batch results, using the naive results as the 'true' results, and the batch results as the predicted results")
+        #if TestStatus.getTestStatus() in (TestStatus.TEST_LONG, TestStatus.TEST_VERY_LONG):
+        encodePath = os.path.join(TestStatus.getPathToDataSets(), "MAY-2005")
+        encodeRegions = [ "ENm00" + str(i) for i in xrange(1,2) ] #, 2) ] #Could go to six
+        species = ("human", "mouse", "dog")
+        #Other species to try "rat", "monodelphis", "macaque", "chimp"
+        for encodeRegion in encodeRegions:
+            regionPath = os.path.join(encodePath, encodeRegion)
+            for i in xrange(len(species)):
+                species1 = species[i]
+                for species2 in species[i+1:]:
+                    seqFile1 = os.path.join(regionPath, "%s.%s.fa" % (species1, encodeRegion))
+                    seqFile2 = os.path.join(regionPath, "%s.%s.fa" % (species2, encodeRegion))
+                    
+                    #Run the random
+                    runNaiveBlast([ seqFile1, seqFile2 ], tempOutputFile2, self.tempDir)
+                    logger.info("Ran the naive blast okay")
+                    
+                    results2 = loadResults(tempOutputFile2)
+                    logger.info("Loaded naive blast results")
+                    
+                    checkResultsAreApproximatelyEqual(ResultComparator(results2, results2)) #Dummy check
+                    
+                    #Run the blast
+                    jobTreeDir = os.path.join(getTempDirectory(self.tempDir), "jobTree")
+                    runCactusBlast([ seqFile1, seqFile2 ], tempOutputFile, jobTreeDir,
+                                   chunkSize=500000, overlapSize=10000)
+                    runJobTreeStatusAndFailIfNotComplete(jobTreeDir)
+                    system("rm -rf %s " % jobTreeDir)    
+                    logger.info("Ran cactus_blast okay")
+                    
+                    #Now compare the results
+                    results1 = loadResults(tempOutputFile)
+                    logger.info("Loaded cactus_blast results")
+                    
+                    checkResultsAreApproximatelyEqual(ResultComparator(results2, results1))
+                    logger.info("Compared the naive and blast results, using the naive results as the 'true' results, and the blast results as the predicted results")
     
-    def testBatchRandom(self):
-        """Make some sequences, put them in a file, call batch with random parameters 
+    def testBlastRandom(self):
+        """Make some sequences, put them in a file, call blast with random parameters 
         and check it runs okay.
         """
-        tempSeqFile = getTempFile()
+        tempSeqFile = os.path.join(self.tempDir, "tempSeq.fa")
         self.tempFiles.append(tempSeqFile)
             
-        tempOutputFile = getTempFile()
+        tempOutputFile = os.path.join(self.tempDir, "results2.txt")
         self.tempFiles.append(tempOutputFile)
         
         for test in xrange(self.testNo):
@@ -106,9 +107,8 @@ class TestCase(unittest.TestCase):
             fileHandle.close()
             chunkSize = random.choice(xrange(500, 9000))
             overlapSize = random.choice(xrange(2, 100))
-            chunksPerJob = random.choice(xrange(1, 5))
             jobTreeDir = os.path.join(getTempDirectory(self.tempDir), "jobTree")
-            runCactusBatch([ tempSeqFile ], tempOutputFile, jobTreeDir, chunkSize, overlapSize, chunksPerJob)
+            runCactusBlast([ tempSeqFile ], tempOutputFile, jobTreeDir, chunkSize, overlapSize)
             runJobTreeStatusAndFailIfNotComplete(jobTreeDir)
             if getLogLevelString() == "DEBUG":
                 system("cat %s" % tempOutputFile)
@@ -117,7 +117,7 @@ class TestCase(unittest.TestCase):
 def checkResultsAreApproximatelyEqual(resultsComparator):
     """Checks that the comparisons show the two blasts are suitably close together.
     """
-    logger.info("Results are: %s" % resultsComparator)
+    print "Results are: %s" % resultsComparator
     assert resultsComparator.sensitivity >= 0.95
     assert resultsComparator.specificity >= 0.95
     
@@ -177,8 +177,9 @@ def loadResults(resultsFile):
             else:
                 assert operation.type == PairwiseAlignment.PAIRWISE_MATCH
                 for k in xrange(operation.length):
-                    pairsSet.add((pairwiseAlignment.contig1, i, pairwiseAlignment.contig2, j))
-                    pairsSet.add((pairwiseAlignment.contig2, j, pairwiseAlignment.contig1, i)) #Add them symmetrically
+                    if (pairwiseAlignment.contig1, i, pairwiseAlignment.contig2, j) != (pairwiseAlignment.contig2, j, pairwiseAlignment.contig1, i): #Exclude self alignments, which pop up
+                        pairsSet.add((pairwiseAlignment.contig1, i, pairwiseAlignment.contig2, j))
+                        pairsSet.add((pairwiseAlignment.contig2, j, pairwiseAlignment.contig1, i)) #Add them symmetrically
                     if pairwiseAlignment.strand1:
                         i += 1
                     else:

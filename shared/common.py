@@ -129,39 +129,23 @@ def runCactusSetup(cactusDiskDatabaseString, sequences,
               cactusDiskDatabaseString, logLevel, outgroupEvents))
     logger.info("Ran cactus setup okay")
     
-def runCactusAligner(cactusDiskDatabaseString, alignmentFile, tempDir, useDummy=True, flowerName=0, logLevel=None):        
-    """Runs job tree and fails if not complete.
-    """
-    logLevel = getLogLevelString2(logLevel)
-    tempDir = getTempDirectory(tempDir)
-    jobTreeDir = os.path.join(tempDir, "jobTree")
-    useDummy = nameValue("useDummy", useDummy, bool)
-    command = "cactus_aligner.py --cactusDisk '%s' --flowerName %s \
---resultsFile %s %s --jobTree %s --logLevel %s" % (cactusDiskDatabaseString, flowerName, alignmentFile, useDummy, jobTreeDir, logLevel)
-    system(command)
-    runJobTreeStatusAndFailIfNotComplete(jobTreeDir)
-    system("rm -rf %s" % tempDir)
-    logger.info("Ran the cactus aligner okay")
-    
-def runCactusBatch(sequenceFiles, outputFile, jobTreeDir,
-                   chunkSize=None, overlapSize=None, chunksPerJob=None,
+def runCactusBlast(sequenceFiles, outputFile, jobTreeDir,
+                   chunkSize=None, overlapSize=None, 
                    logLevel=None, 
                    blastString=None, 
                    selfBlastString=None,
                    compressFiles=None,
                    lastzMemory=None):
-    
     logLevel = getLogLevelString2(logLevel)
     chunkSize = nameValue("chunkSize", chunkSize, int)
     overlapSize = nameValue("overlapSize", overlapSize, int)
-    chunksPerJob = nameValue("chunksPerJob", chunksPerJob, int)
     blastString = nameValue("blastString", blastString, str)
     selfBlastString = nameValue("selfBlastString", selfBlastString, str)
     compressFiles = nameValue("compressFiles", compressFiles, bool)
     lastzMemory = nameValue("lastzMemory", lastzMemory, int)
-    command = "cactus_batch.py %s  --cigars %s %s %s %s %s %s %s %s --jobTree %s --logLevel %s" % \
+    command = "cactus_blast.py %s  --cigars %s %s %s %s %s %s %s --jobTree %s --logLevel %s" % \
             (" ".join(sequenceFiles), outputFile,
-             chunkSize, overlapSize, chunksPerJob, blastString, selfBlastString, compressFiles, lastzMemory, jobTreeDir, logLevel)
+             chunkSize, overlapSize, blastString, selfBlastString, compressFiles, lastzMemory, jobTreeDir, logLevel)
     logger.info("Running command : %s" % command)
     system(command)
     logger.info("Ran the cactus_batch command okay")
