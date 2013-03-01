@@ -83,9 +83,9 @@ def main():
     cleanTargetFile = os.path.join(tempDir, "cleanTargetFile.fa")
     
     
-    # strip out the |1| strings from header or they will be eaten by lastz!!
+    # strip out the | strings from header or they will be eaten by lastz!!
     pipeCode = "__#%x__" % random.randint(0, 16777215)
-    system("sed -e \"s/|1|/%s/g\" %s > %s" % (pipeCode, targetFile, cleanTargetFile))
+    system("sed -e \"s/|/%s/g\" %s > %s" % (pipeCode, targetFile, cleanTargetFile))
 
     try:
         # chop up input fasta file into into fragments of specified size.  fragments overlap by 
@@ -106,8 +106,8 @@ def main():
 
         system(fragCmdLine + ' | ' + lastzCmdLine)
         
-        # reinsert the |1|'s
-        system("sed -i -e \"s/%s/|1|/g\" %s" % (pipeCode, maskInfoFile))
+        # reinsert the "|"'s
+        system("sed -i -e \"s/%s/|/g\" %s" % (pipeCode, maskInfoFile))
         
         # the previous lastz command outputs a file of intervals (denoted with indices) to softmask.
         # we finish by applying these intervals to the input file, to produce the final, softmasked output. 

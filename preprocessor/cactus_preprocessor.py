@@ -129,8 +129,12 @@ class MergeChunks(Target):
     
     def run(self):
         baseDir = os.path.dirname(self.outSequencePath)
-        if not os.path.exists(baseDir):
+        #somewhat threadsafe 
+        try:
             os.makedirs(baseDir)
+        except OSError, e:
+            if e.errno != errno.EEXIST:
+                raise e
         system("cactus_batch_mergeChunks %s %s" % \
                (self.outSequencePath, " ".join(self.chunkList)))
  
