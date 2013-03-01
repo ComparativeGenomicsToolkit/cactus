@@ -54,7 +54,7 @@ from cactus.shared.common import runCactusFlowerStats
 from cactus.shared.common import runCactusSecondaryDatabase
 from cactus.shared.common import runCactusFastaGenerator
 
-from cactus.blast.cactus_blast import MakeSequences
+from cactus.blast.cactus_blast import BlastFlower
 from cactus.blast.cactus_blast import BlastOptions
 
 from cactus.preprocessor.cactus_preprocessor import BatchPreprocessor

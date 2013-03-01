@@ -43,17 +43,18 @@ class BlastFlower(Target):
         self.flowerName = flowerName
         self.finalResultsFile = finalResultsFile
         self.blastOptions = blastOptions
+        blastOptions.roundsOfCoordinateConversion = 2
         
     def run(self):
         chunksDir = os.path.join(self.getGlobalTempDir(), "chunks")
         if not os.path.exists(chunksDir):
             os.mkdir(chunksDir)
-        chunks = [ line.split()[0] for line in popenCatch("cactus_blast_chunkFlowerSequences %s '%s' %s %i %i %s" % \
+        chunks = [ chunk for chunk in popenCatch("cactus_blast_chunkFlowerSequences %s '%s' %s %i %i %s" % \
                                                           (getLogLevelString(), self.cactusDisk, self.flowerName, 
                                                           self.blastOptions.chunkSize, 
                                                           self.blastOptions.overlapSize,
                                                           self.blastOptions.minimumSequenceLength,
-                                                          chunksDir)) ]
+                                                          chunksDir)) if chunk != "" ]
         logger.info("Broken up the flowers into individual 'chunk' files")
         self.addChildTarget(MakeBlasts(self.blastOptions, chunks, self.finalResultsFile))
         
@@ -65,6 +66,7 @@ class BlastSequences(Target):
         self.sequenceFiles = sequenceFiles
         self.finalResultsFile = finalResultsFile
         self.blastOptions = blastOptions
+        blastOptions.roundsOfCoordinateConversion = 1
         
     def run(self):
         chunksDir = os.path.join(self.getGlobalTempDir(), "chunks")
@@ -143,7 +145,7 @@ class RunSelfBlast(Target):
         tempResultsFile = os.path.join(self.getLocalTempDir(), "tempResults.cig")
         command = self.blastOptions.selfBlastString.replace("CIGARS_FILE", tempResultsFile).replace("SEQ_FILE", self.seqFile)
         system(command)
-        system("cactus_blast_convertCoordinates %s %s" % (tempResultsFile, self.resultsFile))
+        system("cactus_blast_convertCoordinates %s %s %i" % (tempResultsFile, self.resultsFile, self.blastOptions.roundsOfCoordinateConversion))
         if self.blastOptions.compressFiles:
             compressFastaFile(self.seqFile)
         logger.info("Ran the self blast okay")
@@ -176,7 +178,7 @@ class RunBlast(Target):
         tempResultsFile = os.path.join(self.getLocalTempDir(), "tempResults.cig")
         command = self.blastOptions.blastString.replace("CIGARS_FILE", tempResultsFile).replace("SEQ_FILE_1", self.seqFile1).replace("SEQ_FILE_2", self.seqFile2)
         system(command)
-        system("cactus_blast_convertCoordinates %s %s" % (tempResultsFile, self.resultsFile))
+        system("cactus_blast_convertCoordinates %s %s %i" % (tempResultsFile, self.resultsFile, self.blastOptions.roundsOfCoordinateConversion))
         logger.info("Ran the blast okay")
 
 def catFiles(filesToCat, catFile):
@@ -242,7 +244,7 @@ replaced with the the sequence file and the results file, respectively",
     
     parser.add_option("--lastzMemory", dest="memory", type="int",
                       help="Lastz memory (in bytes)", 
-                      default=sys.maxint)
+                      default=blastOptions.memory)
     
     options, args = parser.parse_args()
     

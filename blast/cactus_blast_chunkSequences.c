@@ -14,6 +14,7 @@
 #include "blastAlignmentLib.c"
 
 int main(int argc, char *argv[]) {
+    //log-string, chunkSize, overlapSize, dirToPutChunksIn, seqFilesX n
     assert(argc >= 5);
     st_setLogLevelFromString(argv[1]);
     int32_t chunkSize, chunkOverlapSize;

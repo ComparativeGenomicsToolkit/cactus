@@ -244,7 +244,7 @@ static void readFastaCallback(const char *fastaHeader, const char *sequence,
 
 int main(int argc, char *argv[])
 {
-	if (argc != 3 && argc != 4)
+	if (argc < 2)
 	{
 		fprintf(stderr, "USAGE: %s <input> <output> [compress]\n \
 				<input>: chunks file list\n \
@@ -254,49 +254,21 @@ int main(int argc, char *argv[])
 		return -1;
 	}
 
-	bool compress = false;
-	if (argc == 4 && strcmp(argv[3], "1") == 0)
-	{
-		compress = true;
-	}
-
-	FILE* chunkListFile = fopen(argv[1], "r");
-
-	if (!chunkListFile)
-	{
-		fprintf(stderr, "ERROR: cannot open %s for reading\n", argv[1]);
-		return -1;
-	}
-
 	/* the + is so we can use fseek() */
-	outputFile = fopen(argv[2], "w+");
+	outputFile = fopen(argv[1], "w+");
 
 	if (!outputFile)
 	{
-		fprintf(stderr, "ERROR: cannot open %s for writing\n", argv[2]);
-		fclose(chunkListFile);
+		fprintf(stderr, "ERROR: cannot open %s for writing\n", argv[1]);
 		return -1;
 	}
 
-	char chunkFileName[MAX_PATH_LENGTH + 1];
-	while (fscanf(chunkListFile, "%s", chunkFileName) == 1)
-	{
-		/* Read a sequence from fasta file into the global "cur" variables */
-		if (compress)
-		{
-			int32_t sysReturn = st_system("mv %s %s.bz2", chunkFileName,
-											chunkFileName);
-			assert(sysReturn == 0);
-			sysReturn = st_system("bunzip2 %s.bz2", chunkFileName);
-			assert(sysReturn == 0);
-		}
-
-		FILE* chunkFile = fopen(chunkFileName, "r");
+	for(int32_t chunkFileNo=2; chunkFileNo<argc; chunkFileNo++) {
+		FILE* chunkFile = fopen(argv[chunkFileNo], "r");
 		fastaReadToFunction(chunkFile, readFastaCallback);
 		fclose(chunkFile);
 	}
 
-    fclose(chunkListFile);
     fclose(outputFile);
     return 0;
 }

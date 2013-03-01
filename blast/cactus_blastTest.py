@@ -87,7 +87,6 @@ class TestCase(unittest.TestCase):
                     logger.info("Compared the naive and blast results, using the naive results as the 'true' results, and the blast results as the predicted results")
     
     def testBlastRandom(self):
-        return
         """Make some sequences, put them in a file, call blast with random parameters 
         and check it runs okay.
         """
@@ -178,8 +177,9 @@ def loadResults(resultsFile):
             else:
                 assert operation.type == PairwiseAlignment.PAIRWISE_MATCH
                 for k in xrange(operation.length):
-                    pairsSet.add((pairwiseAlignment.contig1, i, pairwiseAlignment.contig2, j))
-                    pairsSet.add((pairwiseAlignment.contig2, j, pairwiseAlignment.contig1, i)) #Add them symmetrically
+                    if (pairwiseAlignment.contig1, i, pairwiseAlignment.contig2, j) != (pairwiseAlignment.contig2, j, pairwiseAlignment.contig1, i): #Exclude self alignments, which pop up
+                        pairsSet.add((pairwiseAlignment.contig1, i, pairwiseAlignment.contig2, j))
+                        pairsSet.add((pairwiseAlignment.contig2, j, pairwiseAlignment.contig1, i)) #Add them symmetrically
                     if pairwiseAlignment.strand1:
                         i += 1
                     else:

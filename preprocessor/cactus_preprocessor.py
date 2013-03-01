@@ -18,30 +18,14 @@ from sonLib.bioio import TempFileTree
 from sonLib.bioio import getTempDirectory
 from sonLib.bioio import getTempFile
 from sonLib.bioio import logger
-from sonLib.bioio import system
+from sonLib.bioio import system, popenCatch
 from sonLib.bioio import fastaRead
 from sonLib.bioio import fastaWrite
 from sonLib.bioio import getLogLevelString
 from sonLib.bioio import newickTreeParser
-
+from sonLib.bioio import getLogLevelString
 from jobTree.scriptTree.target import Target
 from jobTree.scriptTree.stack import Stack
-
-from cactus.blast.cactus_batch import decompressFastaFile
-
-def compressFastaFile(fileName, tempDir, compressFiles):
-    """Copies the file from the central dir to a temporary file, returning the temp file name.
-    """
-    if compressFiles:
-        tempFileName = getTempFile(suffix=".fa.bz2", rootDir=tempDir)
-        fileHandle = BZ2File(tempFileName, 'w')
-        fileHandle2 = open(fileName, 'r')
-        for fastaHeader, seq in fastaRead(fileHandle2):
-            fastaWrite(fileHandle, fastaHeader, seq)
-        fileHandle2.close()
-        fileHandle.close()
-        return tempFileName
-    return fileName
 
 def fileList(path):
     """ return a list of files in the directory, or just the
@@ -106,11 +90,10 @@ class PreprocessorHelper:
             
 
 class PreprocessorOptions:
-    def __init__(self, chunkSize, chunksPerJob, overlapSize, compressFiles, cmdLine, memory, cpu):
+    def __init__(self, chunkSize, chunksPerJob, overlapSize, cmdLine, memory, cpu):
         self.chunkSize = chunkSize
         self.chunksPerJob = chunksPerJob
         self.overlapSize = overlapSize
-        self.compressFiles = compressFiles
         self.cmdLine = cmdLine
         self.memory = memory
         self.cpu = cpu
@@ -127,8 +110,7 @@ class PreprocessChunks(Target):
     
     def run(self):
         for chunk in self.chunkList:
-            localChunkPath = decompressFastaFile(chunk, self.getLocalTempDir(),
-                                                 self.prepOptions.compressFiles)
+            localChunkPath = chunk
             prepChunkPath = getTempFile(rootDir=self.getLocalTempDir())
             tempPath = getTempFile(rootDir=self.getLocalTempDir())
             
@@ -140,19 +122,14 @@ class PreprocessChunks(Target):
             
             logger.info("Preprocessor exec " + cmdline)
             system(cmdline)
-           
-            compressedChunk = compressFastaFile(prepChunkPath, self.getLocalTempDir(),
-                                                self.prepOptions.compressFiles)
-            
-            system("mv %s %s" % (compressedChunk, chunk))
 
 class MergeChunks(Target):
     """ merge a list of chunks into a fasta file
     """
-    def __init__(self, prepOptions, chunkListPath, outSequencePath):
+    def __init__(self, prepOptions, chunkList, outSequencePath):
         Target.__init__(self, cpu=prepOptions.cpu)
         self.prepOptions = prepOptions 
-        self.chunkListPath = chunkListPath
+        self.chunkList = chunkList
         self.outSequencePath = outSequencePath
     
     def run(self):
@@ -164,9 +141,9 @@ class MergeChunks(Target):
         except OSError, e:
             if e.errno != errno.EEXIST:
                 raise e
-
-        system("cactus_batch_mergeChunks %s %s %i" % \
-               (self.chunkListPath, self.outSequencePath, self.prepOptions.compressFiles))
+            
+        system("cactus_batch_mergeChunks %s %s" % \
+               (self.outSequencePath, " ".join(self.chunkList)))
  
 class PreprocessSequence(Target):
     """ cut a sequence into chunks, process, then merge
@@ -178,36 +155,22 @@ class PreprocessSequence(Target):
         self.outSequencePath = outSequencePath
         self.event = event
     
-    # Chunk the input path (inSequencePath).  return a path containing a list of
-    # input sequence chunks (chunkListPath)
-    def makeChunkList(self):
-        chunkListPath = getTempFile(suffix=".txt", rootDir=self.getGlobalTempDir())
-        inSeqListPath = getTempFile(suffix=".txt", rootDir=self.getLocalTempDir())
-        inSeqListHandle = open(inSeqListPath, "w")
-        inSeqListHandle.write(self.inSequencePath + "\n")
-        inSeqListHandle.close()
-        chunkDirectory = getTempDirectory(self.getGlobalTempDir())
-        
-        system("cactus_batch_chunkSequences %s %i %i %s %i %s" % \
-               (chunkListPath, self.prepOptions.chunkSize, self.prepOptions.overlapSize,
-                chunkDirectory, self.prepOptions.compressFiles, inSeqListPath))   
-        
-        return chunkListPath
-    
     def run(self):        
         logger.info("Preparing sequence for preprocessing")
         # chunk it up
-        chunkListPath = self.makeChunkList()
-        # read each line of chunk file, stripping the stupid \n characters
-        chunkList = map(lambda x: x.split()[0], open(chunkListPath, "r").readlines())
-     
+        chunkDirectory = os.path.join(self.getGlobalTempDir(), "preprocessChunks")
+        if not os.path.exists(chunkDirectory):
+            os.mkdir(chunkDirectory)
+        chunkList = [ chunk for chunk in popenCatch("cactus_blast_chunkSequences %s %i %i %s %s" % \
+               (getLogLevelString(), self.prepOptions.chunkSize, self.prepOptions.overlapSize,
+                chunkDirectory, self.inSequencePath)).split("\n") if chunk != "" ]   
         # for every chunksPerJob chunks in list
         for i in range(0, len(chunkList), self.prepOptions.chunksPerJob):
             chunkSubList = chunkList[i : i + self.prepOptions.chunksPerJob]
             self.addChildTarget(PreprocessChunks(self.prepOptions, self.inSequencePath, chunkSubList, self.event))
 
         # follow on to merge chunks
-        self.setFollowOnTarget(MergeChunks(self.prepOptions, chunkListPath, self.outSequencePath))
+        self.setFollowOnTarget(MergeChunks(self.prepOptions, chunkList, self.outSequencePath))
 
 class BatchPreprocessor(Target):
     def __init__(self, cactusWorkflowArguments, event, prepXmlElems, inSequence, 
@@ -231,7 +194,6 @@ class BatchPreprocessor(Target):
         prepOptions = PreprocessorOptions(int(prepNode.get("chunkSize", default="2147483647")),
                                           int(prepNode.get("chunksPerJob", default="1")),
                                           int(prepNode.get("overlapSize", default="10")),
-                                          prepNode.get("compressFiles", default="True").lower() == "true",
                                           prepNode.attrib["preprocessorString"],
                                           int(self.memory),
                                           int(self.cpu))

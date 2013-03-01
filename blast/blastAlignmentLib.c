@@ -16,22 +16,18 @@
 
 static void convertCoordinatesP(char **contig, int32_t *start, int32_t *end) {
     stList *attributes = fastaDecodeHeader(*contig);
-    while (stList_length(attributes) > 1) {
-        //Decode attributes
-        int32_t startP;
-        int32_t i = sscanf((const char *) stList_peek(attributes), "%i", &startP);
-        (void)i;
-        assert(i == 1);
-        free(stList_pop(attributes));
-        //Now relabel attributes
-        free(*contig);
-        *contig = fastaEncodeHeader(attributes);
-        stList_destruct(attributes);
-        *start = *start + startP;
-        *end = *end + startP;
-        attributes = fastaDecodeHeader(*contig);
-    }
+    //Decode attributes
+    int32_t startP;
+    int32_t i = sscanf((const char *) stList_peek(attributes), "%i", &startP);
+    (void) i;
+    assert(i == 1);
+    free(stList_pop(attributes));
+    //Now relabel attributes
+    free(*contig);
+    *contig = fastaEncodeHeader(attributes);
     stList_destruct(attributes);
+    *start = *start + startP;
+    *end = *end + startP;
 }
 
 void convertCoordinatesOfPairwiseAlignment(struct PairwiseAlignment *pairwiseAlignment) {
