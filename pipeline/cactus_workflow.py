@@ -266,9 +266,10 @@ class CactusRecursionTarget(CactusTarget):
 class CactusPreprocessorPhase(CactusPhasesTarget):
     def run(self):
         self.logToMaster("Starting preprocessor phase target at %s seconds" % time.time())
-        tempDir = getTempDirectory(self.getGlobalTempDir())
+        tempDir = os.path.join(self.getGlobalTempDir(), "tempSeqs")
         prepHelper = PreprocessorHelper(self.cactusWorkflowArguments, self.cactusWorkflowArguments.sequences)
         processedSequences = []
+        tempSeqIndex = 0
         for sequence in self.cactusWorkflowArguments.sequences:
             prepXmlElems = prepHelper.getFilteredXmlElems(sequence)
             event = prepHelper.fileEventMap[sequence]
@@ -278,8 +279,9 @@ class CactusPreprocessorPhase(CactusPhasesTarget):
                 sequenceJoin = sequence
                 while sequenceJoin[0] == '/':
                     sequenceJoin = sequenceJoin[1:]
-                processedSequence = os.path.join(tempDir, sequenceJoin)
+                processedSequence = os.path.join(tempDir, str(tempSeqIndex))
                 processedSequences.append(processedSequence)
+                tempSeqIndex += 1
                 logger.info("Adding child batch_preprocessor target")
                 assert sequence != processedSequence
                 self.addChildTarget(BatchPreprocessor(self.cactusWorkflowArguments, event, prepXmlElems, 
