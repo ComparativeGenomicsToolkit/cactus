@@ -289,8 +289,11 @@ class CactusPreprocessorPhase(CactusPhasesTarget):
                                                       self.getOptionalPhaseAttrib("memory", typeFn=int, default=sys.maxint),
                                                       self.getOptionalPhaseAttrib("cpu", typeFn=int, default=sys.maxint),
                                                       0))
-            self.cactusWorkflowArguments.sequences = processedSequences
+        self.cactusWorkflowArguments.sequences = processedSequences
+        self.makeFollowOnPhaseTarget(CactusPreprocessorPhase2, "preprocessor")
 
+class CactusPreprocessorPhase2(CactusPreprocessorPhase):
+    def run(self):
         # we circumvent makeFollowOnPhaseTarget() interface for this job.
         setupTarget = CactusSetupPhase(cactusWorkflowArguments=self.cactusWorkflowArguments,
                                        phaseName='setup', topFlowerName=self.topFlowerName,
