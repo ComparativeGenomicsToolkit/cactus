@@ -7,6 +7,7 @@ import unittest
 import os
 import sys
 import random
+import time
 
 from sonLib.bioio import system
 from sonLib.bioio import logger
@@ -31,6 +32,10 @@ class TestCase(unittest.TestCase):
         self.tempDir = getTempDirectory(os.getcwd())
         self.tempFiles = []
         unittest.TestCase.setUp(self)
+        self.tempOutputFile = os.path.join(self.tempDir, "results1.txt")
+        self.tempFiles.append(self.tempOutputFile)
+        self.tempOutputFile2 = os.path.join(self.tempDir, "results2.txt")
+        self.tempFiles.append(self.tempOutputFile2) 
     
     def tearDown(self):
         for tempFile in self.tempFiles:
@@ -44,11 +49,6 @@ class TestCase(unittest.TestCase):
         cactus_blast.py. We compare the output with a naive run of the blast program, to check the results are nearly
         equivalent.
         """
-        tempOutputFile = os.path.join(self.tempDir, "results1.txt")
-        self.tempFiles.append(tempOutputFile)
-        tempOutputFile2 = os.path.join(self.tempDir, "results2.txt")
-        self.tempFiles.append(tempOutputFile2) 
-        
         #if TestStatus.getTestStatus() in (TestStatus.TEST_LONG, TestStatus.TEST_VERY_LONG):
         encodePath = os.path.join(TestStatus.getPathToDataSets(), "MAY-2005")
         encodeRegions = [ "ENm00" + str(i) for i in xrange(1,2) ] #, 2) ] #Could go to six
@@ -63,29 +63,46 @@ class TestCase(unittest.TestCase):
                     seqFile2 = os.path.join(regionPath, "%s.%s.fa" % (species2, encodeRegion))
                     
                     #Run the random
-                    runNaiveBlast([ seqFile1, seqFile2 ], tempOutputFile2, self.tempDir)
+                    runNaiveBlast([ seqFile1, seqFile2 ], self.tempOutputFile, self.tempDir)
                     logger.info("Ran the naive blast okay")
-                    
-                    results2 = loadResults(tempOutputFile2)
-                    logger.info("Loaded naive blast results")
-                    
-                    checkResultsAreApproximatelyEqual(ResultComparator(results2, results2)) #Dummy check
                     
                     #Run the blast
                     jobTreeDir = os.path.join(getTempDirectory(self.tempDir), "jobTree")
-                    runCactusBlast([ seqFile1, seqFile2 ], tempOutputFile, jobTreeDir,
+                    runCactusBlast([ seqFile1, seqFile2 ], self.tempOutputFile2, jobTreeDir,
                                    chunkSize=500000, overlapSize=10000)
                     runJobTreeStatusAndFailIfNotComplete(jobTreeDir)
                     system("rm -rf %s " % jobTreeDir)    
                     logger.info("Ran cactus_blast okay")
                     
-                    #Now compare the results
-                    results1 = loadResults(tempOutputFile)
-                    logger.info("Loaded cactus_blast results")
+                    logger.critical("Comparing cactus_blast and naive blast")
+                    compareResultsFile(self.tempOutputFile, self.tempOutputFile2)
                     
-                    checkResultsAreApproximatelyEqual(ResultComparator(results2, results1))
-                    logger.info("Compared the naive and blast results, using the naive results as the 'true' results, and the blast results as the predicted results")
-    
+    def testBlastParameters(self):
+        """Tests if changing parameters of lastz creates results similar to the desired default.
+        """
+        #if TestStatus.getTestStatus() in (TestStatus.TEST_LONG, TestStatus.TEST_VERY_LONG):
+        encodePath = os.path.join(TestStatus.getPathToDataSets(), "MAY-2005")
+        encodeRegion = "ENm001"
+        species = ("human", "mouse", "dog")
+        #Other species to try "rat", "monodelphis", "macaque", "chimp"
+        regionPath = os.path.join(encodePath, encodeRegion)
+        for i in xrange(len(species)):
+            species1 = species[i]
+            for species2 in species[i+1:]:
+                seqFile1 = os.path.join(regionPath, "%s.%s.fa" % (species1, encodeRegion))
+                seqFile2 = os.path.join(regionPath, "%s.%s.fa" % (species2, encodeRegion))
+                
+                #Run the random
+                runNaiveBlast([ seqFile1, seqFile2 ], self.tempOutputFile2, self.tempDir,
+                              lastzOptions="--nogapped --hspthresh=3000 --ambiguous=iupac")
+                #Run the blast
+                runNaiveBlast([ seqFile1, seqFile2 ], self.tempOutputFile, self.tempDir, 
+                              lastzOptions="--nogapped --step=3 --hspthresh=3000 --ambiguous=iupac")
+                
+                logger.critical("Comparing blast settings")
+                compareResultsFile(self.tempOutputFile, self.tempOutputFile2, 0.7)
+                
+                
     def testBlastRandom(self):
         """Make some sequences, put them in a file, call blast with random parameters 
         and check it runs okay.
@@ -114,12 +131,24 @@ class TestCase(unittest.TestCase):
                 system("cat %s" % tempOutputFile)
             system("rm -rf %s " % jobTreeDir)
 
-def checkResultsAreApproximatelyEqual(resultsComparator):
+def compareResultsFile(results1, results2, closeness=0.95):
+    results1 = loadResults(results1)
+    logger.info("Loaded first results")
+    
+    #Now compare the results
+    results2 = loadResults(results2)
+    logger.info("Loaded second results")
+    
+    checkResultsAreApproximatelyEqual(ResultComparator(results2, results1), closeness)
+    logger.info("Compared the blast results, using the first results as the 'true' results, and the second results as the predicted results")
+
+
+def checkResultsAreApproximatelyEqual(resultsComparator, closeness=0.95):
     """Checks that the comparisons show the two blasts are suitably close together.
     """
-    print "Results are: %s" % resultsComparator
-    assert resultsComparator.sensitivity >= 0.95
-    assert resultsComparator.specificity >= 0.95
+    logger.critical("Results are: %s" % resultsComparator)
+    assert resultsComparator.sensitivity >= closeness
+    assert resultsComparator.specificity >= closeness
     
 class ResultComparator:
     def __init__(self, trueResults, predictedResults):
@@ -204,23 +233,25 @@ def loadResults(resultsFile):
     return pairsSet
 
 def runNaiveBlast(sequenceFiles, outputFile, tempDir,
-                  blastString="lastz --format=cigar SEQ_FILE_1[multiple][nameparse=darkspace] SEQ_FILE_2[nameparse=darkspace] > CIGARS_FILE", 
-                  selfBlastString="lastz --format=cigar SEQ_FILE[multiple][nameparse=darkspace] SEQ_FILE[nameparse=darkspace] --notrivial  > CIGARS_FILE"):
+                  blastString="lastz --format=cigar OPTIONS SEQ_FILE_1[multiple][nameparse=darkspace] SEQ_FILE_2[nameparse=darkspace] > CIGARS_FILE", 
+                  selfBlastString="lastz --format=cigar OPTIONS SEQ_FILE[multiple][nameparse=darkspace] SEQ_FILE[nameparse=darkspace] --notrivial  > CIGARS_FILE",
+                  lastzOptions=""):
     """Runs the blast command in a very naive way (not splitting things up).
     """
     open(outputFile, 'w').close() #Ensure is empty of results
     tempResultsFile = getTempFile(suffix=".results", rootDir=tempDir)
     for i in xrange(len(sequenceFiles)):
         seqFile1 = sequenceFiles[i]
-        command = selfBlastString.replace("CIGARS_FILE", tempResultsFile).replace("SEQ_FILE", seqFile1)
+        command = selfBlastString.replace("OPTIONS", lastzOptions).replace("CIGARS_FILE", tempResultsFile).replace("SEQ_FILE", seqFile1)
         system(command)
         logger.info("Ran the self blast okay for sequence: %s" % seqFile1)
         system("cat %s >> %s" % (tempResultsFile, outputFile))
         for j in xrange(i+1, len(sequenceFiles)):
             seqFile2 = sequenceFiles[j]
-            command = blastString.replace("CIGARS_FILE", tempResultsFile).replace("SEQ_FILE_1", seqFile1).replace("SEQ_FILE_2", seqFile2)
+            command = blastString.replace("OPTIONS", lastzOptions).replace("CIGARS_FILE", tempResultsFile).replace("SEQ_FILE_1", seqFile1).replace("SEQ_FILE_2", seqFile2)
+            startTime = time.time()
             system(command)
-            logger.info("Ran the blast okay for sequences: %s %s" % (seqFile1, seqFile2))
+            print "Ran the blast okay for sequences: %s %s in %s seconds" % (seqFile1, seqFile2, (time.time()-startTime))
             system("cat %s >> %s" % (tempResultsFile, outputFile))
     os.remove(tempResultsFile)
 
