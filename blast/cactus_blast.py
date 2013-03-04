@@ -9,12 +9,9 @@ sequences. Uses the jobTree framework to parallelise the blasts.
 import os
 import sys
 from optparse import OptionParser
-from bz2 import BZ2File
 from sonLib.bioio import TempFileTree
 from sonLib.bioio import logger
 from sonLib.bioio import system, popenCatch
-from sonLib.bioio import fastaRead
-from sonLib.bioio import fastaWrite
 from sonLib.bioio import getLogLevelString
 from sonLib.bioio import makeSubDir
 from jobTree.scriptTree.target import Target
@@ -120,12 +117,7 @@ class MakeBlasts2(MakeBlasts):
 def compressFastaFile(fileName):
     """Compress a fasta file.
     """
-    fileHandleOut = BZ2File(fileName + ".bz2", 'w')
-    fileHandleIn = open(fileName, 'r')
-    for fastaHeader, seq in fastaRead(fileHandleIn):
-        fastaWrite(fileHandleOut, fastaHeader, seq)
-    fileHandleIn.close()
-    fileHandleOut.close()
+    system("bzip2 --keep --fast %s" % fileName)
         
 class RunSelfBlast(Target):
     """Runs blast as a job.
@@ -148,14 +140,9 @@ class RunSelfBlast(Target):
 def decompressFastaFile(fileName, tempFileName):
     """Copies the file from the central dir to a temporary file, returning the temp file name.
     """
-    fileHandleOut = open(tempFileName, 'w')
-    fileHandleIn = BZ2File(fileName, 'r')
-    for fastaHeader, seq in fastaRead(fileHandleIn):
-        fastaWrite(fileHandleOut, fastaHeader, seq)
-    fileHandleIn.close()
-    fileHandleOut.close()
+    system("bunzip2 --stdout %s > %s" % (fileName, tempFileName))
     return tempFileName
-
+    
 class RunBlast(Target):
     """Runs blast as a job.
     """
