@@ -263,8 +263,12 @@ def __isKtServerRunning(dbElem, killSwitchPath):
     serverPidAsList = []
     serverPidFromLog = None
     serverPortFromLog = None
-    if os.path.exists(logPath):                    
-        outFile = open(logPath, "r")
+    if os.path.isfile(logPath):
+        try:
+            outFile = open(logPath, "r")
+        except:
+            sleep(1)
+            outFile = open(logPath, "r")
         for line in outFile.readlines():
             if line.lower().find("listening") >= 0:
                 success = __readStatusFromSwitchFile(dbElem, serverPidAsList,
