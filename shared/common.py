@@ -404,7 +404,7 @@ def runCactusProgressive(inputDir,
                       logLevel, retryCount, batchSystem, rescueJobFrequency, skipAlignments,
                       buildAvgs, None,
                       buildHal,
-                      buildMaf,
+                      False,
                       buildFasta,
                       jobTreeStats, maxThreads, maxJobs, defaultMemory, logFile, extraJobTreeArgumentsString=extraJobTreeArgumentsString) + \
                       (" %s %s %s" % (nameValue("recursive", recursive, bool),
@@ -412,6 +412,17 @@ def runCactusProgressive(inputDir,
     if profileFile != None:
         command = "python -m cProfile -o %s %s/bin/%s" % (profileFile, cactusRootPath(), command)
     system(command)
+    if buildMaf is True:
+        assert buildHal is True
+        basePath = os.path.dirname(inputDir)
+        assert os.path.isdir(basePath)
+        halExportCmd = "cactus2hal.py %s %s" % (inputDir, os.path.join(basePath, 'out.hal'))
+        system(halExportCmd)
+        mafExportCmd = "hal2maf %s %s --maxRefGap 50" % (os.path.join(basePath, 'out.hal'),
+                                                         os.path.join(basePath, 'out.maf'))
+        system(mafExportCmd)
+        
+                                           
     logger.info("Ran the cactus progressive okay")
     
 def runCactusHalGenerator(cactusDiskDatabaseString,
