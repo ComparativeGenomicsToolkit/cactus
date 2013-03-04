@@ -23,6 +23,7 @@ from sonLib.bioio import getLogLevelString
 from sonLib.bioio import TestStatus
 from cactus.shared.test import parseCactusSuiteTestOptions
 from cactus.shared.common import runCactusBlast
+from cactus.blast.cactus_blast import catFiles, decompressFastaFile, compressFastaFile
 
 from jobTree.src.common import runJobTreeStatusAndFailIfNotComplete
 
@@ -36,6 +37,7 @@ class TestCase(unittest.TestCase):
         self.tempFiles.append(self.tempOutputFile)
         self.tempOutputFile2 = os.path.join(self.tempDir, "results2.txt")
         self.tempFiles.append(self.tempOutputFile2) 
+        self.encodePath = os.path.join(TestStatus.getPathToDataSets(), "MAY-2005")
     
     def tearDown(self):
         for tempFile in self.tempFiles:
@@ -49,13 +51,11 @@ class TestCase(unittest.TestCase):
         cactus_blast.py. We compare the output with a naive run of the blast program, to check the results are nearly
         equivalent.
         """
-        #if TestStatus.getTestStatus() in (TestStatus.TEST_LONG, TestStatus.TEST_VERY_LONG):
-        encodePath = os.path.join(TestStatus.getPathToDataSets(), "MAY-2005")
         encodeRegions = [ "ENm00" + str(i) for i in xrange(1,2) ] #, 2) ] #Could go to six
         species = ("human", "mouse", "dog")
         #Other species to try "rat", "monodelphis", "macaque", "chimp"
         for encodeRegion in encodeRegions:
-            regionPath = os.path.join(encodePath, encodeRegion)
+            regionPath = os.path.join(self.encodePath, encodeRegion)
             for i in xrange(len(species)):
                 species1 = species[i]
                 for species2 in species[i+1:]:
@@ -80,12 +80,10 @@ class TestCase(unittest.TestCase):
     def testBlastParameters(self):
         """Tests if changing parameters of lastz creates results similar to the desired default.
         """
-        #if TestStatus.getTestStatus() in (TestStatus.TEST_LONG, TestStatus.TEST_VERY_LONG):
-        encodePath = os.path.join(TestStatus.getPathToDataSets(), "MAY-2005")
         encodeRegion = "ENm001"
         species = ("human", "mouse", "dog")
         #Other species to try "rat", "monodelphis", "macaque", "chimp"
-        regionPath = os.path.join(encodePath, encodeRegion)
+        regionPath = os.path.join(self.encodePath, encodeRegion)
         for i in xrange(len(species)):
             species1 = species[i]
             for species2 in species[i+1:]:
@@ -109,10 +107,6 @@ class TestCase(unittest.TestCase):
         """
         tempSeqFile = os.path.join(self.tempDir, "tempSeq.fa")
         self.tempFiles.append(tempSeqFile)
-            
-        tempOutputFile = os.path.join(self.tempDir, "results2.txt")
-        self.tempFiles.append(tempOutputFile)
-        
         for test in xrange(self.testNo):
             seqNo = random.choice(xrange(0, 10))
             seq = getRandomSequence(8000)[1]
@@ -125,11 +119,39 @@ class TestCase(unittest.TestCase):
             chunkSize = random.choice(xrange(500, 9000))
             overlapSize = random.choice(xrange(2, 100))
             jobTreeDir = os.path.join(getTempDirectory(self.tempDir), "jobTree")
-            runCactusBlast([ tempSeqFile ], tempOutputFile, jobTreeDir, chunkSize, overlapSize)
+            runCactusBlast([ tempSeqFile ], self.tempOutputFile, jobTreeDir, chunkSize, overlapSize)
             runJobTreeStatusAndFailIfNotComplete(jobTreeDir)
             if getLogLevelString() == "DEBUG":
-                system("cat %s" % tempOutputFile)
+                system("cat %s" % self.tempOutputFile)
             system("rm -rf %s " % jobTreeDir)
+            
+    def testCompression(self):
+        tempSeqFile = os.path.join(self.tempDir, "tempSeq.fa")
+        tempSeqFile2 = os.path.join(self.tempDir, "tempSeq2.fa")
+        self.tempFiles.append(tempSeqFile)
+        self.tempFiles.append(tempSeqFile2)
+        self.encodePath = os.path.join(self.encodePath, "ENm001")
+        catFiles([ os.path.join(self.encodePath, fileName) for fileName in os.listdir(self.encodePath) ], tempSeqFile)
+        startTime = time.time()
+        compressFastaFile(tempSeqFile)
+        logger.critical("It took %s seconds to compress the fasta file" % (time.time() - startTime))
+        startTime = time.time()
+        system("rm %s" % tempSeqFile + ".bz2")
+        system("bzip2 --keep --fast %s" % tempSeqFile)
+        logger.critical("It took %s seconds to compress the fasta file by system functions" % (time.time() - startTime))
+        startTime = time.time()
+        decompressFastaFile(tempSeqFile + ".bz2", tempSeqFile2)
+        logger.critical("It took %s seconds to decompress the fasta file" % (time.time() - startTime))
+        system("rm %s" % tempSeqFile2)
+        startTime = time.time()
+        system("bunzip2 --stdout %s > %s" % (tempSeqFile + ".bz2", tempSeqFile2))
+        logger.critical("It took %s seconds to decompress the fasta file using system function" % (time.time() - startTime))
+        logger.critical("File sizes, before: %s, compressed: %s, decompressed: %s" % (os.stat(tempSeqFile).st_size, os.stat(tempSeqFile + ".bz2").st_size, os.stat(tempSeqFile2).st_size))
+        #Above test justifies out use of compression to reduce network transfer!
+        #startTime = time.time()
+        #runNaiveBlast([ tempSeqFile ], self.tempOutputFile, self.tempDir, lastzOptions="--nogapped --step=3 --hspthresh=3000 --ambiguous=iupac")
+        #logger.critical("It took %s seconds to run blast" % (time.time() - startTime))
+        
 
 def compareResultsFile(results1, results2, closeness=0.95):
     results1 = loadResults(results1)
