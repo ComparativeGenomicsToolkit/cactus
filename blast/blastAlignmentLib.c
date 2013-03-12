@@ -49,37 +49,6 @@ static char *tempChunkFile = NULL;
 static int64_t chunkSize;
 static int64_t chunkOverlapSize;
 
-static int32_t fn(char *fastaHeader, int32_t start, char *sequence, int32_t seqLength, int32_t length) {
-    if (chunkFileHandle == NULL) {
-        tempChunkFile = stString_print("%s/%i", chunksDir, chunkNo++);
-        chunkFileHandle = fopen(tempChunkFile, "w");
-    }
-
-    int32_t i = 0;
-    fastaHeader = stString_copy(fastaHeader);
-    while (fastaHeader[i] != '\0') {
-        if (fastaHeader[i] == ' ' || fastaHeader[i] == '\t') {
-            fastaHeader[i] = '\0';
-            break;
-        }
-        i++;
-    }
-    fprintf(chunkFileHandle, ">%s|%i\n", fastaHeader, start);
-    free(fastaHeader);
-    assert(length <= chunkSize);
-    assert(start >= 0);
-    if (start + length > seqLength) {
-        length = seqLength - start;
-    }
-    assert(length > 0);
-    char c = sequence[start + length];
-    sequence[start + length] = '\0';
-    fprintf(chunkFileHandle, "%s\n", &sequence[start]);
-    sequence[start + length] = c;
-
-    return length;
-}
-
 void finishChunkingSequences() {
     if (chunkFileHandle != NULL) {
         fclose(chunkFileHandle);
@@ -100,22 +69,53 @@ static void updateChunkRemaining(int32_t seqLength) {
     }
 }
 
-void processSequenceToChunk(const char *fastaHeader, const char *sequence, int32_t length) {
-    if (length > 0) {
-        int32_t j = fn((char *) fastaHeader, 0, (char *) sequence, length, chunkRemaining);
-        updateChunkRemaining(j);
-        while (length - j > 0) {
+static int32_t processSubsequenceChunk(char *fastaHeader, int32_t start, char *sequence, int32_t seqLength, int32_t lengthOfChunkRemaining) {
+    if (chunkFileHandle == NULL) {
+        tempChunkFile = stString_print("%s/%i", chunksDir, chunkNo++);
+        chunkFileHandle = fopen(tempChunkFile, "w");
+    }
+
+    int32_t i = 0;
+    fastaHeader = stString_copy(fastaHeader);
+    while (fastaHeader[i] != '\0') {
+        if (fastaHeader[i] == ' ' || fastaHeader[i] == '\t') {
+            fastaHeader[i] = '\0';
+            break;
+        }
+        i++;
+    }
+    fprintf(chunkFileHandle, ">%s|%i\n", fastaHeader, start);
+    free(fastaHeader);
+    assert(lengthOfChunkRemaining <= chunkSize);
+    assert(start >= 0);
+    int32_t lengthOfSubsequence = lengthOfChunkRemaining;
+    if (start + lengthOfChunkRemaining > seqLength) {
+        lengthOfSubsequence = seqLength - start;
+    }
+    assert(lengthOfSubsequence > 0);
+    char c = sequence[start + lengthOfSubsequence];
+    sequence[start + lengthOfSubsequence] = '\0';
+    fprintf(chunkFileHandle, "%s\n", &sequence[start]);
+    sequence[start + lengthOfSubsequence] = c;
+
+    updateChunkRemaining(lengthOfSubsequence);
+    return lengthOfSubsequence;
+}
+
+void processSequenceToChunk(const char *fastaHeader, const char *sequence, int32_t sequenceLength) {
+    if (sequenceLength > 0) {
+        int32_t lengthOfSubsequence = processSubsequenceChunk((char *) fastaHeader, 0, (char *) sequence, sequenceLength, chunkRemaining);
+        while (sequenceLength - lengthOfSubsequence > 0) {
             //Make the non overlap file
-            int32_t k = fn((char *) fastaHeader, j, (char *) sequence, length, chunkRemaining);
-            updateChunkRemaining(k);
+            int32_t lengthOfFollowingSubsequence = processSubsequenceChunk((char *) fastaHeader, lengthOfSubsequence, (char *) sequence, sequenceLength, chunkRemaining);
 
             //Make the overlap file
-            int32_t l = j - chunkOverlapSize / 2;
-            if (l < 0) {
-                l = 0;
+            int32_t i = lengthOfSubsequence - chunkOverlapSize / 2;
+            if (i < 0) {
+                i = 0;
             }
-            updateChunkRemaining(fn((char *) fastaHeader, l, (char *) sequence, length, chunkOverlapSize));
-            j += k;
+            processSubsequenceChunk((char *) fastaHeader, i, (char *) sequence, sequenceLength, chunkOverlapSize);
+            lengthOfSubsequence += lengthOfFollowingSubsequence;
         }
     }
 }
