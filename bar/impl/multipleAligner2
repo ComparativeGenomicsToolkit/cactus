@@ -1,0 +1,116 @@
+/*
+ * Copyright (C) 2013 by Benedict Paten (benedictpaten@gmail.com)
+ *
+ * Released under the MIT license, see LICENSE.txt
+ */
+
+#include "multipleAligner.h"
+#include "sonLib.h"
+#include "stPosetAlignment.h"
+#include "pairwiseAligner.h"
+#include <stdlib.h>
+#include <math.h>
+
+typedef struct _column {
+    int32_t seqName;
+    int32_t position;
+    Column *nColumn;
+} Column;
+
+stSortedSet *makeColumns(stList *sequences) {
+    stSortedSet *columns = stSortedSet_construct();
+    for(int32_t seq=0; seq<stList_length(sequences); seq++) {
+        int32_t seqLength = strlen(stList_get(sequences, seq));
+        for(int32_t pos=0; pos<seqLength; pos++) {
+            Column *c = st_malloc(sizeof(Column));
+            c->seqName = seq;
+            c->position = pos;
+            c->nColumn = NULL;
+            stSortedSet_insert(c);
+        }
+    }
+    return columns;
+}
+
+typedef struct _alignmentWeight {
+    Column *column;
+    double totalWeight;
+    double numberOfWeights;
+    AlignmentWeight *rWeight;
+} AlignmentWeight;
+
+int alignmentWeight_cmpByWeight(AlignmentWeight *aW, AlignmentWeight *aW2) {
+
+}
+
+stHash *makeAlignmentWeightAdjacencyLists(stSortedSet *columns, stList *alignmentPairs) {
+
+}
+
+stSortedSet *makeOrderedSetOfAlignmentWeights(stHash *alignmentWeightAdjLists) {
+    stHashIterator *it = stHash_getIterator(alignmentWeightAdjLists);
+    stSortedSet *alignmentWeightsOrderedByWeight = stSortedSet_construct((int (*)(const void *, const void *))alignmentWeight_cmpByWeight);
+    stSortedSet *aWs;
+    while((aWs = stHash_getNext(it)) != NULL) {
+        stSortedSetIterator *aWIt = stSortedSet_getIterator(aWs);
+        AlignmentWeight *aW;
+        while((aW = stSortedSet_getNext(aWIt)) != NULL) {
+            if(aW->column < aW->rWeight->column) {
+                stSortedSet_insert(alignmentWeightsOrderedByWeight, aW);
+            }
+        }
+    }
+    return alignmentWeightsOrderedByWeight;
+}
+
+static void removeAlignmentFromSortedAlignmentWeights(AlignmentWeight *aW, stSortedSet *alignmentWeightsOrderedByWeight) {
+    stSortedSet_remove(alignmentWeightsOrderedByWeight, aW->column < aW->rWeight->column ? aW : aW->rWeight);
+}
+
+static alignmentWeight_destruct(AlignmentWeight *aW) {
+    free(aW->rWeight);
+    free(aW);
+}
+
+static void mergeColumnsP(AlignmentWeight *aW, stSortedSet *columns, stHash *alignmentWeightAdjLists, stSortedSet *alignmentWeightsOrderedByWeight) {
+    Column *c1 = aW->column, *c2 = aW->rWeight->column;
+    stSortedSet *aWs1 = stHash_search(alignmentWeightAdjLists, c1);
+    stSortedSet *aWs2 = stHash_remove(alignmentWeightAdjLists, c2);
+    assert(stSortedSet_size(aWs1) >= stSortedSet_size(aWs2));
+    //Merge the columns
+    Column *c = c1;
+    while (c->nColumn != NULL) {
+        c = c->nColumn;
+    }
+    c->nColumn = c2;
+    stSortedSet_remove(c2);
+    //Cleanup the merging weight
+    removeAlignmentFromSortedAlignmentWeights(aW, alignmentWeightsOrderedByWeight);
+    stSortedSet_remove(aWs1, aW);
+    stSortedSet_remove(aWs2, aW->rWeight);
+    alignmentWeight_destruct(aW);
+    //Now merge the remaining weights
+    while (stSortedSet_size(aWs2) > 0) {
+        AlignmentWeight *aW2 = stSortedSet_pop(aWs2);
+        assert(aW2->column != c1);
+        aW = stSortedSet_search(aWs1, aW2);
+        if (aW != NULL) { //Merge the weight
+            removeAlignmentFromSortedAlignmentWeights(aW2, alignmentWeightsOrderedByWeight); //Remove old weights from alignmentWeights ordered
+            removeAlignmentFromSortedAlignmentWeights(aW, alignmentWeightsOrderedByWeight); //Remove old weights from alignmentWeights ordered
+            aW->totalWeight += aW2->totalWeight;
+            aW->numberOfWeights += aW2->numberOfWeights;
+            aW->rWeight->totalWeight = aW->totalWeight;
+            aW->rWeight->numberOfWeights = aW->numberOfWeights;
+            alignmentWeight_destruct(aW2);
+            stSortedSet_insert(alignmentWeightsOrderedByWeight, aW->column < aW->rWeight->column ? aW : aW->rWeight);
+        } else { //No merging,just go for it.
+            aW2->rWeight->column = c1;
+            stSortedSet_insert(aWs1, aW2);
+        }
+    }
+    stSortedSet_destruct(aWs2);
+}
+
+void mergeColumns(AlignmentWeight *aW, stSortedSet *columns, stHash *alignmentWeightAdjLists, stSortedSet *alignmentWeightsOrderedByWeight) {
+   return stSortedSet_size(stHash_search(alignmentWeightAdjLists, aW->column)) <= stSortedSet_size(stHash_search(alignmentWeightAdjLists, aW->rWeight->column)) ? mergeColumnsP(aW, columns, alignmentWeightAdjLists, alignmentWeightsOrderedByWeight) : mergeColumns(aW->rWeight, columns, alignmentWeightAdjLists, alignmentWeightsOrderedByWeight);
+}
