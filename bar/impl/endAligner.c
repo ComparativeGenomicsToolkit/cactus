@@ -73,7 +73,7 @@ stSortedSet *makeEndAlignment(End *end, int32_t spanningTrees, int32_t maxSequen
     end_destructInstanceIterator(it);
 
     //Convert the alignment pairs to an alignment of the caps..
-    stList *alignment = makeAlignment(strings, spanningTrees, gapGamma, pairwiseAlignmentBandingParameters);
+    stList *alignment = makeAlignment(strings, spanningTrees, 100000000, gapGamma, pairwiseAlignmentBandingParameters);
     stSortedSet *sortedAlignment =
             stSortedSet_construct3((int (*)(const void *, const void *))alignedPair_cmpFn,
             (void (*)(void *))alignedPair_destruct);
