@@ -11,6 +11,7 @@ int main(int argc, char *argv[]) {
     stKVDatabaseConf *kvDatabaseConf = stKVDatabaseConf_constructFromString(argv[1]);
     int32_t create;
     int32_t i = sscanf(argv[2], "%i", &create);
+    (void)i;
     assert(i == 1);
     if(create) {
          stKVDatabase *database = stKVDatabase_construct(kvDatabaseConf, 1);
