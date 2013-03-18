@@ -30,7 +30,7 @@ struct _column {
     Column *nColumn;
 };
 
-void column_destruct(Column *c) {
+static void column_destruct(Column *c) {
     while (c->nColumn != NULL) {
         Column *c2 = c->nColumn;
         free(c);
@@ -39,17 +39,17 @@ void column_destruct(Column *c) {
     free(c);
 }
 
-int column_cmp(Column *c, Column *c2) {
+static int column_cmp(Column *c, Column *c2) {
     //compare by sequence, then position
     return c->seqName > c2->seqName ? 1 : (c->seqName < c2->seqName ? -1 : (c->position > c2->position ? 1
             : (c->position < c2->position ? -1 : 0)));
 }
 
-uint32_t column_hashFn(Column *c) {
+static uint32_t column_hashFn(Column *c) {
     return c->seqName + c->position;
 }
 
-int column_equalsFn(Column *c, Column *c2) {
+static int column_equalsFn(Column *c, Column *c2) {
     return column_cmp(c, c2) == 0;
 }
 
@@ -84,21 +84,21 @@ struct _alignmentWeight {
     AlignmentWeight *rWeight;
 };
 
-int alignmentWeight_cmpByPosition(AlignmentWeight *aW, AlignmentWeight *aW2) {
+static int alignmentWeight_cmpByPosition(AlignmentWeight *aW, AlignmentWeight *aW2) {
     /*
      * Cmp by position only
      */
     return column_cmp(aW->column, aW2->column);
 }
 
-int alignmentWeight_cmpByWeight(AlignmentWeight *aW, AlignmentWeight *aW2) {
+static int alignmentWeight_cmpByWeight(AlignmentWeight *aW, AlignmentWeight *aW2) {
     /*
      * Cmp primarily by weight, then position.
      */
     return aW->avgWeight > aW2->avgWeight ? 1 : (aW->avgWeight < aW2->avgWeight ? -1 : alignmentWeight_cmpByPosition(aW, aW2));
 }
 
-void insertWeight(AlignmentWeight *aW, stHash *alignmentWeightAdjLists) {
+static void insertWeight(AlignmentWeight *aW, stHash *alignmentWeightAdjLists) {
     /*
      * Inserts an alignment weight to an adjacency list.
      */

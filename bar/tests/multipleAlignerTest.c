@@ -15,12 +15,56 @@
 #include <string.h>
 
 /*
- * Test the multiple alignment code with multiple examples.
+ * Test the multiple alignment code.
  */
 
-//Declarations from pairwiseAlignerTest
+static const char *seq1 = "AC";
+static const char *seq2 = "AGC";
+static const char *seq3 = "A";
+static const char *seq4 = "";
+static stList *sequences = NULL;
+
+static void teardown() {
+    if (sequences != NULL) {
+        stList_destruct(sequences);
+        sequences = NULL;
+    }
+}
+
+static void setup() {
+    teardown();
+    sequences = stList_construct();
+    stList_append(sequences, seq1);
+    stList_append(sequences, seq2);
+    stList_append(sequences, seq3);
+    stList_append(sequences, seq4);
+}
+
+stSet *makeColumns(stList *sequences);
+
+void test_makeColumns(CuTest *testCase) {
+    setup();
+    stSet *columns = makeColumns(sequences);
+    CuAssertIntEquals(testCase, 6, stSet_size(columns));
+    stSet_destruct(columns);
+    teardown();
+}
+
+stHash *makeAlignmentWeightAdjacencyLists(stSet *columns, stList *multipleAlignedPairs);
+
+void test_makeAlignmentWeightAdjacencyLists(CuTest *testCase) {
+    setup();
+    stSet *columns = makeColumns(sequences);
+    makeAlignmentWeightAdjacencyLists(
+    CuAssertIntEquals(testCase, 6, stSet_size(columns));
+    stSet_destruct(columns);
+    teardown();
+}
 
 stList *getRandomSequences(int32_t sequenceNumber, int32_t approxLength) {
+    /*
+     * Generate a random set of sequences.
+     */
     stList *sequences = stList_construct3(0, free);
     char *firstSequence = getRandomSequence(approxLength);
     for(int32_t i=0; i<sequenceNumber; i++) {
@@ -75,6 +119,7 @@ void test_multipleAlignerRandom(CuTest *testCase) {
 CuSuite* multipleAlignerTestSuite(void) {
     CuSuite* suite = CuSuiteNew();
     SUITE_ADD_TEST(suite, test_multipleAlignerRandom);
+    SUITE_ADD_TEST(suite, test_makeColumns);
 
     return suite;
 }
