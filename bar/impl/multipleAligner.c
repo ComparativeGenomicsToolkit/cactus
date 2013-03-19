@@ -95,12 +95,14 @@ int alignmentWeight_cmpByWeight(AlignmentWeight *aW, AlignmentWeight *aW2) {
     /*
      * Cmp primarily by weight, then position.
      */
-    return aW->avgWeight > aW2->avgWeight ? 1 : (aW->avgWeight < aW2->avgWeight ? -1 : alignmentWeight_cmpByPosition(aW, aW2));
-}
-
-static void uglyDelete(void *i) {
-    st_uglyf("I'm freeing %i\n", i);
-    free(i);
+    if(aW->avgWeight == aW2->avgWeight) {
+        int i = alignmentWeight_cmpByPosition(aW, aW2);
+        if(i == 0) {
+            return alignmentWeight_cmpByPosition(aW->rWeight, aW2->rWeight);
+        }
+        return i;
+    }
+    return aW->avgWeight > aW2->avgWeight ? 1 : -1;
 }
 
 void insertWeight(AlignmentWeight *aW, stHash *alignmentWeightAdjLists) {
@@ -109,7 +111,7 @@ void insertWeight(AlignmentWeight *aW, stHash *alignmentWeightAdjLists) {
      */
     stSortedSet *aWs = stHash_search(alignmentWeightAdjLists, aW->rWeight->column);
     if (aWs == NULL) {
-        aWs = stSortedSet_construct3((int(*)(const void *, const void *)) alignmentWeight_cmpByPosition, uglyDelete);
+        aWs = stSortedSet_construct3((int(*)(const void *, const void *)) alignmentWeight_cmpByPosition, free);
         stHash_insert(alignmentWeightAdjLists, aW->rWeight->column, aWs);
     }
     stSortedSet_insert(aWs, aW);
@@ -174,19 +176,11 @@ stSortedSet *makeOrderedSetOfAlignmentWeights(stHash *alignmentWeightAdjLists) {
     return alignmentWeightsOrderedByWeight;
 }
 
-void setRemove(stSortedSet *s, void *o) {
-    st_uglyf("The number of elements %i %i\n", stSortedSet_size(s), s);
-    assert(stSortedSet_search(s, o) != NULL);
-    stSortedSet_remove(s, o);
-    st_uglyf("The number of elements %i\n", stSortedSet_size(s));
-    assert(stSortedSet_search(s, o) == NULL);
-}
-
 static void removeAlignmentFromSortedAlignmentWeights(AlignmentWeight *aW, stSortedSet *alignmentWeightsOrderedByWeight) {
     /*
      * Removes the weight from the ordered set.
      */
-    setRemove(alignmentWeightsOrderedByWeight, aW->column < aW->rWeight->column ? aW : aW->rWeight);
+    stSortedSet_remove(alignmentWeightsOrderedByWeight, aW->column < aW->rWeight->column ? aW : aW->rWeight);
 }
 
 static void insertAlignmentIntoSortedAlignmentWeights(AlignmentWeight *aW, stSortedSet *alignmentWeightsOrderedByWeight) {
@@ -206,12 +200,10 @@ static void alignmentWeight_destruct(AlignmentWeight *aW) {
 
 static void mergeColumnsP(AlignmentWeight *aW, stSet *columns, stHash *alignmentWeightAdjLists,
         stSortedSet *alignmentWeightsOrderedByWeight) {
-    st_uglyf("Going to merge a column\n");
     Column *c1 = aW->column, *c2 = aW->rWeight->column;
     assert(c1 != c2);
     stSortedSet *aWs1 = stHash_search(alignmentWeightAdjLists, c1);
     stSortedSet *aWs2 = stHash_remove(alignmentWeightAdjLists, c2);
-    assert(aWs1 != aWs2);
     assert(stSortedSet_size(aWs1) >= stSortedSet_size(aWs2));
     //Merge the columns
     Column *c = c1;
@@ -221,34 +213,27 @@ static void mergeColumnsP(AlignmentWeight *aW, stSet *columns, stHash *alignment
     c->nColumn = c2;
     stSet_remove(columns, c2);
     //Cleanup the merging weight
-    setRemove(aWs1, aW->rWeight);
-    setRemove(aWs2, aW);
+    stSortedSet_remove(aWs1, aW->rWeight);
+    stSortedSet_remove(aWs2, aW);
     alignmentWeight_destruct(aW);
     //Now merge the remaining weights
     while (stSortedSet_size(aWs2) > 0) {
         AlignmentWeight *aW2 = stSortedSet_getFirst(aWs2);
-        assert(aW2->column != c1);
-        assert(aW2->column != c2);
-        assert(aW2->rWeight->column == c2);
-        setRemove(aWs2, aW2);
+        stSortedSet_remove(aWs2, aW2);
         stSortedSet *aWs3 = stHash_search(alignmentWeightAdjLists, aW2->column);
-        setRemove(aWs3, aW2->rWeight); //Remember to remove it from the other list!
+        stSortedSet_remove(aWs3, aW2->rWeight); //Remember to remove it from the other list!
         aW = stSortedSet_search(aWs1, aW2);
         removeAlignmentFromSortedAlignmentWeights(aW2, alignmentWeightsOrderedByWeight); //Remove old weights from alignmentWeights ordered, must do this for this weight, as we'll be altering it's column, which is used for search
         if (aW != NULL) { //Merge the weight
-            assert(aW->column == aW2->column);
-            st_uglyf("We have a merger of an edge\n");
             removeAlignmentFromSortedAlignmentWeights(aW, alignmentWeightsOrderedByWeight); //Remove old weights from alignmentWeights ordered
             aW->avgWeight = ((aW->avgWeight * aW->numberOfWeights) + (aW2->avgWeight * aW2->numberOfWeights)) / (aW->numberOfWeights
                     + aW2->numberOfWeights);
             aW->numberOfWeights += aW2->numberOfWeights;
             aW->rWeight->avgWeight = aW->avgWeight;
             aW->rWeight->numberOfWeights = aW->numberOfWeights;
-            alignmentWeight_destruct(aW2);
+            alignmentWeight_destruct(aW2); //The old weight can now be disposed of.
             insertAlignmentIntoSortedAlignmentWeights(aW, alignmentWeightsOrderedByWeight);
         } else { //Transferring an edge across to the new vertex.
-            assert(0);
-            st_uglyf("We have a transfer of an edge\n");
             aW2->rWeight->column = c1;
             stSortedSet_insert(aWs1, aW2);
             stSortedSet_insert(aWs3, aW2->rWeight);
@@ -275,24 +260,18 @@ stSet *getMultipleSequenceAlignment(stList *seqs, stList *multipleAlignedPairs, 
     stHash *alignmentWeightAdjLists = makeAlignmentWeightAdjacencyLists(columns, multipleAlignedPairs);
     stSortedSet *alignmentWeightsOrderedByWeight = makeOrderedSetOfAlignmentWeights(alignmentWeightAdjLists);
     stPosetAlignment *posetAlignment = stPosetAlignment_construct(stList_length(seqs));
-    st_uglyf("Starting\n");
     while (stSortedSet_size(alignmentWeightsOrderedByWeight) > 0) {
         AlignmentWeight *aW = stSortedSet_getLast(alignmentWeightsOrderedByWeight);
-        st_uglyf("Considering merging a column adLists: %i columns: %i alignmentWeights: %i\n", stHash_size(alignmentWeightAdjLists),
-                stSet_size(columns), stSortedSet_size(alignmentWeightsOrderedByWeight));
-        st_uglyf("Alignment seq1: %i pos1: %i seq2: %i pos2: %i weight: %f numberOfPairs: %i\n", aW->column->seqName, aW->column->position,
-                aW->rWeight->column->seqName, aW->rWeight->column->position, aW->avgWeight, aW->numberOfWeights);
         if (aW->avgWeight < gapGamma) {
             break;
         }
         removeAlignmentFromSortedAlignmentWeights(aW, alignmentWeightsOrderedByWeight);
         Column *c = aW->column, *c2 = aW->rWeight->column;
-        if (stPosetAlignment_add(posetAlignment, c->seqName, c->position, c2->seqName, c2->position)) {
+        if (c->seqName != c2->seqName && stPosetAlignment_add(posetAlignment, c->seqName, c->position, c2->seqName, c2->position)) {
             mergeColumns(aW, columns, alignmentWeightAdjLists, alignmentWeightsOrderedByWeight);
         } else {
-            st_uglyf("Unmerging a column\n");
-            setRemove(stHash_search(alignmentWeightAdjLists, aW->rWeight->column), aW);
-            setRemove(stHash_search(alignmentWeightAdjLists, aW->column), aW->rWeight);
+            stSortedSet_remove(stHash_search(alignmentWeightAdjLists, aW->rWeight->column), aW);
+            stSortedSet_remove(stHash_search(alignmentWeightAdjLists, aW->column), aW->rWeight);
             alignmentWeight_destruct(aW);
         }
     }
@@ -527,7 +506,7 @@ stList *makeAlignment(stList *seqs, int32_t spanningTrees, int64_t maxPairsToCon
         return stList_construct();
     }
     int32_t seqNo = stList_length(seqs);
-    if (spanningTrees * (seqNo - 1) >= (seqNo * (seqNo - 1)) / 2) { //Do all pairs if we can
+    if (1) { //spanningTrees * (seqNo - 1) >= (seqNo * (seqNo - 1)) / 2) { //Do all pairs if we can
         return makeAlignmentUsingAllPairs(seqs, gapGamma, pairwiseAlignmentBandingParameters);
     }
     stList *multipleAlignedPairs = stList_construct();

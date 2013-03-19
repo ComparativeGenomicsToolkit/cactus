@@ -120,7 +120,6 @@ static void test_multipleAlignerAllPairsRandom(CuTest *testCase) {
 }
 
 static void test_multipleAlignerRandom(CuTest *testCase) {
-    return;
     for (int32_t test = 0; test < 100; test++) {
         setup();
         stList *randomSequences = getRandomSequences(st_randomInt(0, 10), st_randomInt(0, 100));
