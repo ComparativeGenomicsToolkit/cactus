@@ -28,4 +28,8 @@ stList *makeAlignment(stList *sequences,
         int32_t spanningTrees, int64_t maxPairsToConsider, float gapGamma,
         PairwiseAlignmentParameters *pairwiseAlignmentBandingParameters);
 
+
+stList *makeAlignmentUsingAllPairs(stList *seqs, float gapGamma,
+        PairwiseAlignmentParameters *pairwiseAlignmentBandingParameters);
+
 #endif /* ALIGNER_H_ */
