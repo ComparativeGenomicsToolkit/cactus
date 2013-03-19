@@ -51,9 +51,7 @@ int32_t totalSequenceNumber = 0;
 
 void checkBranchLengthsAreDefined(stTree *tree) {
     if (isinf(stTree_getBranchLength(tree))) {
-        stThrowNew(CACTUS_SETUP_EXCEPTION,
-                "Got a non defined branch length in the input tree: %s\n",
-                stTree_getNewickTreeString(tree));
+        st_errAbort("Got a non defined branch length in the input tree: %s.\n", stTree_getNewickTreeString(tree));
     }
     for (int32_t i = 0; i < stTree_getChildNumber(tree); i++) {
         checkBranchLengthsAreDefined(stTree_getChild(tree, i));
@@ -239,6 +237,7 @@ int main(int argc, char *argv[]) {
     st_logInfo("Going to build the event tree with newick string: %s\n",
             speciesTree);
     stTree *tree = stTree_parseNewickString(speciesTree);
+    st_logInfo("Parsed the tree\n");
     stTree_setBranchLength(tree, INT32_MAX);
     checkBranchLengthsAreDefined(tree);
     eventTree = eventTree_construct2(flower); //creates the event tree and the root even

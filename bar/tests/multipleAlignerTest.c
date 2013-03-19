@@ -124,9 +124,9 @@ static void test_getSpanningAlignments(CuTest *testCase) {
     setup();
     stList *pairwiseAlignments = getSpanningAlignments(littleSequences);
     CuAssertIntEquals(testCase, 3, stList_length(pairwiseAlignments));
-    CuAssertTrue(testCase, stIntTuple_equalsFn(stIntTuple_construct(2, 3, 2), stList_get(pairwiseAlignments, 0)));
+    CuAssertTrue(testCase, stIntTuple_equalsFn(stIntTuple_construct(2, 3, 0), stList_get(pairwiseAlignments, 0)));
     CuAssertTrue(testCase, stIntTuple_equalsFn(stIntTuple_construct(2, 2, 0), stList_get(pairwiseAlignments, 1)));
-    CuAssertTrue(testCase, stIntTuple_equalsFn(stIntTuple_construct(2, 0, 1), stList_get(pairwiseAlignments, 2)));
+    CuAssertTrue(testCase, stIntTuple_equalsFn(stIntTuple_construct(2, 1, 0), stList_get(pairwiseAlignments, 2)));
     stList_destruct(pairwiseAlignments);
     teardown();
 }
