@@ -3,8 +3,8 @@
 	<setup>
 	</setup>
 	<caf
-		chunkSize="10000000" 
-		lastzArguments="--nogapped --hspthresh=3000 --ambiguous=iupac"
+		chunkSize="25000000" 
+		lastzArguments="--step=5 --nogapped --masking=20 --hspthresh=3000 --ambiguous=iupac"
 		compressFiles="1" 
 		overlapSize="10000" 
 		filterByIdentity="0" 
@@ -30,7 +30,7 @@
 	</caf>
 	<caf
 		chunkSize="1000000" 
-		lastzArguments="--hspthresh=1800 --ambiguous=iupac"
+		lastzArguments="--step=5 --masking=20 --hspthresh=3000 --ambiguous=iupac"
 		compressFiles="1" 
 		overlapSize="10000" 
 		filterByIdentity="0" 
@@ -49,6 +49,7 @@
 		singleCopyIngroup="0"
 		singleCopyOutgroup="1" 
 		maxAdjacencyComponentSizeRatio="10"
+		lastzMemory="2147483648"
 	>
 		<CactusCafRecursion maxFlowerGroupSize="100000000"/>
 		<CactusCafWrapper minFlowerSize="5000" maxFlowerGroupSize="1000000" memory="2147483648"/>
@@ -56,7 +57,7 @@
 	<bar
 		runBar="1"
 		numThreads="5" 
-		spanningTrees="10" 
+		spanningTrees="2" 
 		gapGamma="0.2" 
 		useBanding="1" 
 		bandingLimit="100000" 
@@ -72,7 +73,7 @@
 		requiredAllFraction="0.67"
 	>
 		<CactusBarRecursion maxFlowerGroupSize="20000000"/>
-		<CactusBarWrapper maxFlowerGroupSize="400000" memory="2147483648" overlargeMemory="2147483648"/>
+		<CactusBarWrapper maxFlowerGroupSize="400000" memory="2147483648"/>
 	</bar>
 	<normal 
 		iterations="0"
@@ -92,7 +93,7 @@
 		reference="reference" 
 		useSimulatedAnnealing="1" 
 		theta="0.000001" 
-		maxWalkForCalculatingZ="1000" 
+		maxWalkForCalculatingZ="20" 
 		permutations="5"
 	>
 		<CactusReferenceRecursion maxFlowerGroupSize="50000000" maxFlowerWrapperGroupSize="10000000"/>
