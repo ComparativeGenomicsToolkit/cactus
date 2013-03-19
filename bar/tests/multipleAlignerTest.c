@@ -18,8 +18,8 @@
  * Test the multiple alignment code.
  */
 
-static const char *seq1 = "AGTTC";
-static const char *seq2 = "AGTTC";
+static const char *seq1 = "AGTTT";
+static const char *seq2 = "AGTGTG";
 static const char *seq3 = "AC";
 static const char *seq4 = "";
 static stList *littleSequences = NULL;
@@ -49,7 +49,7 @@ stSet *makeColumns(stList *sequences);
 static void test_makeColumns(CuTest *testCase) {
     setup();
     stSet *columns = makeColumns(littleSequences);
-    CuAssertIntEquals(testCase, 12, stSet_size(columns));
+    CuAssertIntEquals(testCase, 13, stSet_size(columns));
     stSet_destruct(columns);
     teardown();
 }
@@ -119,6 +119,43 @@ static void test_multipleAlignerAllPairsRandom(CuTest *testCase) {
     }
 }
 
+stList *getSpanningAlignments(stList *seqs);
+static void test_getSpanningAlignments(CuTest *testCase) {
+    setup();
+    stList *pairwiseAlignments = getSpanningAlignments(littleSequences);
+    CuAssertIntEquals(testCase, 3, stList_length(pairwiseAlignments));
+    CuAssertTrue(testCase, stIntTuple_equalsFn(stIntTuple_construct(2, 3, 2), stList_get(pairwiseAlignments, 0)));
+    CuAssertTrue(testCase, stIntTuple_equalsFn(stIntTuple_construct(2, 2, 0), stList_get(pairwiseAlignments, 1)));
+    CuAssertTrue(testCase, stIntTuple_equalsFn(stIntTuple_construct(2, 0, 1), stList_get(pairwiseAlignments, 2)));
+    stList_destruct(pairwiseAlignments);
+    teardown();
+}
+
+stList *makeAllPairwiseAlignments(stList *seqs, PairwiseAlignmentParameters *pairwiseAlignmentBandingParameters);
+int32_t *getDistanceMatrix(stSet *columns, stList *seqs, int64_t maxPairsToConsider);
+stSet *getMultipleSequenceAlignment(stList *seqs, stList *multipleAlignedPairs, double gapGamma);
+double subsPerSite(int32_t seq1, int32_t seq2, int32_t *distanceCounts, int32_t seqNo);
+static void test_getDistanceMatrix(CuTest *testCase) {
+    setup();
+    stList *multipleAlignedPairs = makeAllPairwiseAlignments(littleSequences, pabp);
+    stSet *columns = getMultipleSequenceAlignment(littleSequences, multipleAlignedPairs, 0.2);
+    int32_t *distanceCounts = getDistanceMatrix(columns, littleSequences, 100000);
+    CuAssertDblEquals(testCase, 0.2, subsPerSite(0, 1, distanceCounts, 4), 0.00001);
+    CuAssertDblEquals(testCase, 0.5, subsPerSite(0, 2, distanceCounts, 4), 0.00001);
+    CuAssertDblEquals(testCase, 0.0, subsPerSite(0, 3, distanceCounts, 4), 0.00001);
+    CuAssertDblEquals(testCase, 0.5, subsPerSite(1, 2, distanceCounts, 4), 0.00001);
+    CuAssertDblEquals(testCase, 0.0, subsPerSite(1, 3, distanceCounts, 4), 0.00001);
+    CuAssertDblEquals(testCase, 0.0, subsPerSite(2, 3, distanceCounts, 4), 0.00001);
+    for(int32_t seq1=0; seq1<stList_length(littleSequences); seq1++) {
+        for(int32_t seq2=seq1+1; seq2<stList_length(littleSequences); seq2++) {
+            CuAssertDblEquals(testCase, subsPerSite(seq1, seq2, distanceCounts, 4),  subsPerSite(seq2, seq1, distanceCounts, 4), 0.0);
+        }
+    }
+    stSet_destruct(columns);
+    stList_destruct(multipleAlignedPairs);
+    teardown();
+}
+
 static void test_multipleAlignerRandom(CuTest *testCase) {
     for (int32_t test = 0; test < 100; test++) {
         setup();
@@ -136,6 +173,8 @@ static void test_multipleAlignerRandom(CuTest *testCase) {
 
 CuSuite* multipleAlignerTestSuite(void) {
     CuSuite* suite = CuSuiteNew();
+    SUITE_ADD_TEST(suite, test_getDistanceMatrix);
+    SUITE_ADD_TEST(suite, test_getSpanningAlignments);
     SUITE_ADD_TEST(suite, test_makeColumns);
     SUITE_ADD_TEST(suite, test_makeAlignmentUsingAllPairs);
     SUITE_ADD_TEST(suite, test_multipleAlignerAllPairsRandom);
