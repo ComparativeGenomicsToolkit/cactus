@@ -187,14 +187,22 @@ int main(int argc, char *argv[]) {
     //flower = flower_addReferenceSequence(flower, cactusDisk, name);
     //st_logInfo("Added the reference sequence in %i seconds/\n", time(NULL) - startTime);
 
+    int32_t numSequences = flower_getSequenceNumber(flower);
     //Make sure that referenceSequence has already been added:
-    if(getSequenceMatchesEvent(flower, referenceEventString) == NULL){
+    if(getSequenceMatchesEvent(flower, referenceEventString) == NULL &&
+       numSequences > 0){
         fprintf(stderr, "No reference sequence found in cactusDisk\n");
         exit(EXIT_FAILURE); 
     }
-
+      
     FILE *fileHandle = fopen(outputFile, "w");
-    getReferenceSequences(fileHandle, flower, referenceEventString);
+    if (numSequences > 0) {
+      getReferenceSequences(fileHandle, flower, referenceEventString);
+    }
+    else {
+      st_logCritical("cactus_getReferenceSeq found no reference sequence in empty cactus disk %s",
+                     cactusDiskDatabaseString);
+    }
     fclose(fileHandle);
 
     ///////////////////////////////////////////////////////////////////////////
