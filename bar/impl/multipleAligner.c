@@ -96,11 +96,7 @@ int alignmentWeight_cmpByWeight(AlignmentWeight *aW, AlignmentWeight *aW2) {
      * Cmp primarily by weight, then position.
      */
     if (aW->avgWeight == aW2->avgWeight) {
-        int i = alignmentWeight_cmpByPosition(aW, aW2);
-        if (i == 0) {
-            return alignmentWeight_cmpByPosition(aW->rWeight, aW2->rWeight);
-        }
-        return i;
+        return aW < aW2 ? -1 : (aW > aW2 ? 1 : 0);
     }
     return aW->avgWeight > aW2->avgWeight ? 1 : -1;
 }
@@ -129,7 +125,7 @@ static AlignmentWeight *makeAlignmentWeight(stSet *columns, int32_t score, int32
     aW->column = getColumn(columns, seqName, position);
     assert(aW->column != NULL);
     aW->numberOfWeights = 1;
-    aW->avgWeight = ((double) score) / PAIR_ALIGNMENT_PROB_1;
+    aW->avgWeight = ((double) score) / PAIR_ALIGNMENT_PROB_1 + st_random() * 0.00001; //This randomness avoids nasty types of unbalanced trees and doesn't really affect accuracy
     return aW;
 }
 
