@@ -53,7 +53,7 @@ int alignedPair_cmpFn(const AlignedPair *alignedPair1, const AlignedPair *aligne
 }
 
 stSortedSet *makeEndAlignment(End *end, int32_t spanningTrees, int32_t maxSequenceLength,
-        float gapGamma,
+        int32_t maximumNumberOfSequencesBeforeSwitchingToFast, float gapGamma,
         PairwiseAlignmentParameters *pairwiseAlignmentBandingParameters) {
     //Make an alignment of the sequences in the ends
 
@@ -73,6 +73,9 @@ stSortedSet *makeEndAlignment(End *end, int32_t spanningTrees, int32_t maxSequen
     end_destructInstanceIterator(it);
 
     //Convert the alignment pairs to an alignment of the caps..
+    if(stList_length(strings) > maximumNumberOfSequencesBeforeSwitchingToFast && spanningTrees > 1) {
+        spanningTrees = 1;
+    }
     stList *alignment = makeAlignment(strings, spanningTrees, 100000000, gapGamma, pairwiseAlignmentBandingParameters);
     stSortedSet *sortedAlignment =
             stSortedSet_construct3((int (*)(const void *, const void *))alignedPair_cmpFn,
@@ -83,6 +86,7 @@ stSortedSet *makeEndAlignment(End *end, int32_t spanningTrees, int32_t maxSequen
         assert(stIntTuple_length(alignedPair) == 5);
         AdjacencySequence *i = stList_get(sequences, stIntTuple_getPosition(alignedPair, 1));
         AdjacencySequence *j = stList_get(sequences, stIntTuple_getPosition(alignedPair, 3));
+        assert(i != j);
         int32_t offset1 = stIntTuple_getPosition(alignedPair, 2);
         int32_t offset2 = stIntTuple_getPosition(alignedPair, 4);
         AlignedPair *alignedPair2 = alignedPair_construct(

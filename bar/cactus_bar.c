@@ -94,6 +94,7 @@ int main(int argc, char *argv[]) {
     int32_t i, j;
     int32_t spanningTrees = 10;
     int32_t maximumLength = 1500;
+    int32_t maximumNumberOfSequencesBeforeSwitchingToFast = 50;
     float gapGamma = 0.5;
     bool useBanding = 0;
     int32_t numThreads = 1;
@@ -250,7 +251,7 @@ int main(int argc, char *argv[]) {
         flower = stList_get(flowers, j);
         st_logInfo("Processing a flower\n");
 
-        stSortedSet *alignedPairs = makeFlowerAlignment(flower, spanningTrees, maximumLength, gapGamma,
+        stSortedSet *alignedPairs = makeFlowerAlignment(flower, spanningTrees, maximumLength, maximumNumberOfSequencesBeforeSwitchingToFast, gapGamma,
                 pairwiseAlignmentBandingParameters, pruneOutStubAlignments);
         st_logInfo("Created the alignment: %i pairs\n", stSortedSet_size(alignedPairs));
         stPinchIterator *pinchIterator = stPinchIterator_constructFromAlignedPairs(alignedPairs,

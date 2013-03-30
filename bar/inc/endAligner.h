@@ -47,7 +47,8 @@ int alignedPair_cmpFn(const AlignedPair *alignedPair1, const AlignedPair *aligne
  * the pairs returned are ordered according
  * to the alignerPair comparison function.
  */
-stSortedSet *makeEndAlignment(End *end, int32_t spanningTrees, int32_t maxSequenceLength, float gapGamma,
+stSortedSet *makeEndAlignment(End *end, int32_t spanningTrees, int32_t maxSequenceLength,
+        int32_t maximumNumberOfSequencesBeforeSwitchingToFast, float gapGamma,
         PairwiseAlignmentParameters *pairwiseAlignmentBandingParameters);
 
 #endif /* ENDALIGNER_H_ */

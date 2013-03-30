@@ -169,6 +169,7 @@ stSortedSet *makeOrderedSetOfAlignmentWeights(stHash *alignmentWeightAdjLists) {
         }
         stSortedSet_destructIterator(aWIt);
     }
+    stHash_destructIterator(it);
     return alignmentWeightsOrderedByWeight;
 }
 
@@ -251,11 +252,11 @@ void mergeColumns(AlignmentWeight *aW, stSet *columns, stHash *alignmentWeightAd
     mergeColumnsP(aW, columns, alignmentWeightAdjLists, alignmentWeightsOrderedByWeight);
 }
 
-stSet *getMultipleSequenceAlignment(stList *seqs, stList *multipleAlignedPairs, double gapGamma) {
+stSet *getMultipleSequenceAlignment(stList *seqs, stList *multipleAlignedPairs, double gapGamma, bool checkConsistency) {
     stSet *columns = makeColumns(seqs);
     stHash *alignmentWeightAdjLists = makeAlignmentWeightAdjacencyLists(columns, multipleAlignedPairs);
     stSortedSet *alignmentWeightsOrderedByWeight = makeOrderedSetOfAlignmentWeights(alignmentWeightAdjLists);
-    stPosetAlignment *posetAlignment = stPosetAlignment_construct(stList_length(seqs));
+    stPosetAlignment *posetAlignment = checkConsistency ? stPosetAlignment_construct(stList_length(seqs)) : NULL;
     while (stSortedSet_size(alignmentWeightsOrderedByWeight) > 0) {
         AlignmentWeight *aW = stSortedSet_getLast(alignmentWeightsOrderedByWeight);
         if (aW->avgWeight < gapGamma) {
@@ -263,7 +264,7 @@ stSet *getMultipleSequenceAlignment(stList *seqs, stList *multipleAlignedPairs, 
         }
         removeAlignmentFromSortedAlignmentWeights(aW, alignmentWeightsOrderedByWeight);
         Column *c = aW->column, *c2 = aW->rWeight->column;
-        if (c->seqName != c2->seqName && stPosetAlignment_add(posetAlignment, c->seqName, c->position, c2->seqName, c2->position)) {
+        if (!checkConsistency || (c->seqName != c2->seqName && stPosetAlignment_add(posetAlignment, c->seqName, c->position, c2->seqName, c2->position))) {
             mergeColumns(aW, columns, alignmentWeightAdjLists, alignmentWeightsOrderedByWeight);
         } else {
             stSortedSet_remove(stHash_search(alignmentWeightAdjLists, aW->rWeight->column), aW);
@@ -273,7 +274,9 @@ stSet *getMultipleSequenceAlignment(stList *seqs, stList *multipleAlignedPairs, 
     }
     stSortedSet_destruct(alignmentWeightsOrderedByWeight);
     stHash_destruct(alignmentWeightAdjLists);
-    stPosetAlignment_destruct(posetAlignment);
+    if(checkConsistency) {
+        stPosetAlignment_destruct(posetAlignment);
+    }
     return columns;
 }
 
@@ -284,7 +287,7 @@ static Column *getColumn2(stHash *columns, int32_t seq, int32_t pos) {
     return stHash_search(columns, &c);
 }
 
-stList *filterMultipleAlignedPairs(stSet *columns, stList *multipleAlignedPairs) {
+static stList *filterMultipleAlignedPairs(stSet *columns, stList *multipleAlignedPairs) {
     /*
      * Processes the list of multipleAlignedPairs and places those that align pairs within the same column in a list which is
      * returned. Pairs that do not make the list are cleaned up, as is the input list.
@@ -301,6 +304,7 @@ stList *filterMultipleAlignedPairs(stSet *columns, stList *multipleAlignedPairs)
             c2 = c2->nColumn;
         } while (c2 != NULL);
     }
+    stSet_destructIterator(it);
     //Now walk through pairs
     stList *filteredMultipleAlignedPairs = stList_construct3(0, (void(*)(void *)) stIntTuple_destruct);
     while (stList_length(multipleAlignedPairs) > 0) {
@@ -332,6 +336,43 @@ stList *filterMultipleAlignedPairs(stSet *columns, stList *multipleAlignedPairs)
  return d;
  }*/
 
+static stList *filterPairwiseAlignmentToMakePairsOrdered(stList *alignedPairs, float gapGamma) {
+    stList_sort(alignedPairs, (int(*)(const void *, const void *)) stIntTuple_cmpFn);
+    stPosetAlignment *posetAlignment = stPosetAlignment_construct(2);
+    stList *discardedAlignedPairs = stList_construct3(0, (void (*)(void *))stIntTuple_destruct);
+    stList *l = stList_construct();
+    while(stList_length(alignedPairs) > 0) {
+        stIntTuple *alignedPair = stList_pop(alignedPairs);
+        if (((double)stIntTuple_getPosition(alignedPair, 0)) / PAIR_ALIGNMENT_PROB_1 >= gapGamma &&
+                stPosetAlignment_add(posetAlignment, 0, stIntTuple_getPosition(alignedPair, 1), 1,
+                        stIntTuple_getPosition(alignedPair, 2))) {
+            stList_append(l, alignedPair);
+        }
+        else {
+            stList_append(discardedAlignedPairs, alignedPair);
+        }
+    }
+    stPosetAlignment_destruct(posetAlignment);
+    stList_appendAll(alignedPairs,l);
+    stList_destruct(l);
+    return discardedAlignedPairs;
+}
+
+static void convertToMultipleAlignedPairs(stList *alignedPairs, stList *multipleAlignedPairs, int32_t sequence1, int32_t sequence2) {
+    /*
+     * Converts pairwise alignment matches to pairs with sequence indices, destroying the old pairs in the process.
+     */
+    while (stList_length(alignedPairs) > 0) {
+        stIntTuple *alignedPair = (stIntTuple *) stList_pop(alignedPairs);
+        stList_append(multipleAlignedPairs, stIntTuple_construct(5,
+        /* score */stIntTuple_getPosition(alignedPair, 0), //(int32_t)(stIntTuple_getPosition(alignedPair, 0) * alignmentScore),
+                /* seq 1 */sequence1, stIntTuple_getPosition(alignedPair, 1),
+                /* seq 2 */sequence2, stIntTuple_getPosition(alignedPair, 2)));
+        stIntTuple_destruct(alignedPair);
+    }
+    stList_destruct(alignedPairs);
+}
+
 static void addMultipleAlignedPairs(int32_t sequence1, int32_t sequence2, stList *seqs, stList *multipleAlignedPairs,
         PairwiseAlignmentParameters *pairwiseAlignmentBandingParameters) {
     /*
@@ -340,21 +381,29 @@ static void addMultipleAlignedPairs(int32_t sequence1, int32_t sequence2, stList
     char *string1 = stList_get(seqs, sequence1);
     char *string2 = stList_get(seqs, sequence2);
     stList *alignedPairs = getAlignedPairs(string1, string2, pairwiseAlignmentBandingParameters);
-    //double alignmentScore = getAlignmentScore(alignedPairs, strlen(string1), strlen(string2));
-    while (stList_length(alignedPairs) > 0) {
-        stIntTuple *alignedPair = (stIntTuple *) stList_pop(alignedPairs);
-        stList_append(multipleAlignedPairs, stIntTuple_construct(5,
-        /* score */stIntTuple_getPosition(alignedPair, 0), //(int32_t)(stIntTuple_getPosition(alignedPair, 0) * alignmentScore),
-                /* seq 1 */sequence1, stIntTuple_getPosition(alignedPair, 1),
-                /* seq 2 */sequence2, stIntTuple_getPosition(alignedPair, 2)));
-    }
+    convertToMultipleAlignedPairs(alignedPairs, multipleAlignedPairs, sequence1, sequence2);
+}
+
+static void addMultipleAlignedPairsFilteringInconsistentPairs(int32_t sequence1, int32_t sequence2, stList *seqs,
+        stList *multipleAlignedPairs, stList *discardedMultipleAlignedPairs,
+        float gapGamma,
+        PairwiseAlignmentParameters *pairwiseAlignmentBandingParameters) {
+    /*
+     * Get pairwise alignment between sequences, filtering pairs in to those in a consistent pairwise alignment and those that are inconsistent with the first alignment.
+     */
+    char *string1 = stList_get(seqs, sequence1);
+    char *string2 = stList_get(seqs, sequence2);
+    stList *alignedPairs = getAlignedPairs(string1, string2, pairwiseAlignmentBandingParameters);
+    stList *discardedAlignedPairs = filterPairwiseAlignmentToMakePairsOrdered(alignedPairs, gapGamma);
+    convertToMultipleAlignedPairs(alignedPairs, multipleAlignedPairs, sequence1, sequence2);
+    convertToMultipleAlignedPairs(discardedAlignedPairs, discardedMultipleAlignedPairs, sequence1, sequence2);
 }
 
 stList *makeAllPairwiseAlignments(stList *seqs, PairwiseAlignmentParameters *pairwiseAlignmentBandingParameters) {
     /*
      * Generate the set of pairwise alignments between the sequences.
      */
-    stList *multipleAlignedPairs = stList_construct();
+    stList *multipleAlignedPairs = stList_construct3(0, (void (*)(void *))stIntTuple_destruct);
     int32_t seqNo = stList_length(seqs);
     for (int32_t seq1 = 0; seq1 < seqNo; seq1++) {
         for (int32_t seq2 = seq1 + 1; seq2 < seqNo; seq2++) {
@@ -369,7 +418,7 @@ stList *makeAlignmentUsingAllPairs(stList *seqs, float gapGamma, PairwiseAlignme
      * Generate a multiple alignment considering all pairs of sequences.
      */
     stList *multipleAlignedPairs = makeAllPairwiseAlignments(seqs, pairwiseAlignmentBandingParameters);
-    stSet *columns = getMultipleSequenceAlignment(seqs, multipleAlignedPairs, gapGamma);
+    stSet *columns = getMultipleSequenceAlignment(seqs, multipleAlignedPairs, gapGamma, 1);
     multipleAlignedPairs = filterMultipleAlignedPairs(columns, multipleAlignedPairs);
     stSet_destruct(columns);
     return multipleAlignedPairs;
@@ -384,11 +433,14 @@ stList *makeAlignmentUsingAllPairs(stList *seqs, float gapGamma, PairwiseAlignme
 ///////////////////////////////
 ///////////////////////////////
 
+static stIntTuple *makePairToAlign(int32_t seq1, int32_t seq2) {
+    assert(seq1 != seq2);
+    return seq1 < seq2 ? stIntTuple_construct(2, seq1, seq2) : stIntTuple_construct(2, seq2, seq1);
+}
 
-stList *getSpanningAlignments(stList *seqs) {
+stList *getReferencePairwiseAlignments(stList *seqs) {
     /*
-     * Returns a set of pairs such that all the seqs are in one connected component, picking pairs
-     * such that the pairs of seqs being aligned have similar lengths.
+     * Picks a reference sequence ensures everyone is aligned.
      */
     stList *l = stList_construct3(0, (void(*)(void *)) stIntTuple_destruct);
     for (int32_t i = 0; i < stList_length(seqs); i++) {
@@ -402,7 +454,7 @@ stList *getSpanningAlignments(stList *seqs) {
             stIntTuple *j = stList_get(l, i);
             if (k != j) {
                 stList_append(chosenPairsOfSequencesToAlign,
-                        stIntTuple_construct(2, stIntTuple_getPosition(j, 1), stIntTuple_getPosition(k, 1)));
+                        makePairToAlign(stIntTuple_getPosition(j, 1), stIntTuple_getPosition(k, 1)));
             }
         }
     }
@@ -410,12 +462,15 @@ stList *getSpanningAlignments(stList *seqs) {
     return chosenPairsOfSequencesToAlign;
 }
 
-stSortedSet *getSpanningAlignments2(stList *seqs) {
+stSortedSet *getReferencePairwiseAlignments2(stList *seqs) {
     /*
      * Same as above, but returns sorted set.
      */
-    stList *l = getSpanningAlignments(seqs);
+    stList *l = getReferencePairwiseAlignments(seqs);
     stSortedSet *s = stList_getSortedSet(l, (int(*)(const void *, const void *)) stIntTuple_cmpFn);
+    stList_setDestructor(l, NULL);
+    stList_destruct(l);
+    stSortedSet_setDestructor(s, (void (*)(void *))stIntTuple_destruct);
     return s;
 }
 
@@ -529,29 +584,41 @@ stList *makeAlignment(stList *seqs, int32_t spanningTrees, int64_t maxPairsToCon
     if (spanningTrees * (seqNo - 1) >= (seqNo * (seqNo - 1)) / 2) { //Do all pairs if we can
         return makeAlignmentUsingAllPairs(seqs, gapGamma, pairwiseAlignmentBandingParameters);
     }
-    stList *multipleAlignedPairs = stList_construct();
-    stSortedSet *chosenPairsOfSequencesToAlign = getSpanningAlignments2(seqs);
+    stList *multipleAlignedPairs = stList_construct3(0, (void (*)(void *))stIntTuple_destruct); //pairwise alignment pairs, with sequence indices
+    stList *discardedMultipleAlignedPairs = stList_construct3(0, (void (*)(void *))stIntTuple_destruct); //pairwise alignment pairs that were inconsistent with some of the pairs in the multipleAlignedPairs set
+    stSortedSet *chosenPairsOfSequencesToAlign = getReferencePairwiseAlignments2(seqs);
     stSortedSetIterator *pairIt = stSortedSet_getIterator(chosenPairsOfSequencesToAlign);
     stIntTuple *pairToAlign;
     while ((pairToAlign = stSortedSet_getNext(pairIt)) != NULL) {
-        addMultipleAlignedPairs(stIntTuple_getPosition(pairToAlign, 0), stIntTuple_getPosition(pairToAlign, 1), seqs, multipleAlignedPairs,
-                pairwiseAlignmentBandingParameters);
+        //We get pairwise alignments, for this first alignment we filter the pairs greedily to make them consistent
+        addMultipleAlignedPairsFilteringInconsistentPairs(stIntTuple_getPosition(pairToAlign, 0), stIntTuple_getPosition(pairToAlign, 1),
+                seqs, multipleAlignedPairs, discardedMultipleAlignedPairs, gapGamma, pairwiseAlignmentBandingParameters);
     }
     stSortedSet_destructIterator(pairIt);
+    if (spanningTrees == 1) { //As there is no further alignments to compute we exit, as all the pairs are already consistent.
+        stSortedSet_destruct(chosenPairsOfSequencesToAlign);
+        stList_destruct(discardedMultipleAlignedPairs);
+        //We are done
+        return multipleAlignedPairs;
+    }
     int32_t iteration = 1;
+    bool checkConsistency = 0; //The first alignment of multiple aligned pairs is already consistent
     while (1) {
-        stSet *columns = getMultipleSequenceAlignment(seqs, multipleAlignedPairs, gapGamma);
+        stSet *columns = getMultipleSequenceAlignment(seqs, multipleAlignedPairs, gapGamma, checkConsistency);
         if (iteration++ >= spanningTrees) {
             stSortedSet_destruct(chosenPairsOfSequencesToAlign);
             multipleAlignedPairs = filterMultipleAlignedPairs(columns, multipleAlignedPairs);
             stSet_destruct(columns);
+            stList_destruct(discardedMultipleAlignedPairs);
             return multipleAlignedPairs;
         }
         int32_t *distanceCounts = getDistanceMatrix(columns, seqs, maxPairsToConsider);
+        stSet_destruct(columns);
         for (int32_t seq = 0; seq < stList_length(seqs); seq++) {
             int32_t otherSeq = getNextBestPair(seq, distanceCounts, seqNo, chosenPairsOfSequencesToAlign);
             if (otherSeq != INT32_MAX) {
-                stIntTuple *pairToAlign = stIntTuple_construct(2, seq, otherSeq);
+                assert(seq != otherSeq);
+                stIntTuple *pairToAlign = makePairToAlign(seq, otherSeq);
                 if (stSortedSet_search(chosenPairsOfSequencesToAlign, pairToAlign) == NULL) {
                     addMultipleAlignedPairs(seq, otherSeq, seqs, multipleAlignedPairs, pairwiseAlignmentBandingParameters);
                     stSortedSet_insert(chosenPairsOfSequencesToAlign, pairToAlign);
@@ -559,6 +626,12 @@ stList *makeAlignment(stList *seqs, int32_t spanningTrees, int64_t maxPairsToCon
                     stIntTuple_destruct(pairToAlign);
                 }
             }
+        }
+        if (!checkConsistency) {
+            while (stList_length(discardedMultipleAlignedPairs) > 0) {
+                stList_append(multipleAlignedPairs, stList_pop(discardedMultipleAlignedPairs)); //Add back the filtered pairs, which may be next set of alignments gathered.
+            }
+            checkConsistency = 1;
         }
         free(distanceCounts);
     }

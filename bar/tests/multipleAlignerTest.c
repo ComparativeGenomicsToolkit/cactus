@@ -119,14 +119,14 @@ static void test_multipleAlignerAllPairsRandom(CuTest *testCase) {
     }
 }
 
-stList *getSpanningAlignments(stList *seqs);
-static void test_getSpanningAlignments(CuTest *testCase) {
+stList *getReferencePairwiseAlignments(stList *seqs);
+static void test_getReferencePairwiseAlignments(CuTest *testCase) {
     setup();
-    stList *pairwiseAlignments = getSpanningAlignments(littleSequences);
+    stList *pairwiseAlignments = getReferencePairwiseAlignments(littleSequences);
     CuAssertIntEquals(testCase, 3, stList_length(pairwiseAlignments));
-    CuAssertTrue(testCase, stIntTuple_equalsFn(stIntTuple_construct(2, 3, 0), stList_get(pairwiseAlignments, 0)));
-    CuAssertTrue(testCase, stIntTuple_equalsFn(stIntTuple_construct(2, 2, 0), stList_get(pairwiseAlignments, 1)));
-    CuAssertTrue(testCase, stIntTuple_equalsFn(stIntTuple_construct(2, 1, 0), stList_get(pairwiseAlignments, 2)));
+    CuAssertTrue(testCase, stIntTuple_equalsFn(stIntTuple_construct(2, 0, 3), stList_get(pairwiseAlignments, 0)));
+    CuAssertTrue(testCase, stIntTuple_equalsFn(stIntTuple_construct(2, 0, 2), stList_get(pairwiseAlignments, 1)));
+    CuAssertTrue(testCase, stIntTuple_equalsFn(stIntTuple_construct(2, 0, 1), stList_get(pairwiseAlignments, 2)));
     stList_destruct(pairwiseAlignments);
     teardown();
 }
@@ -174,7 +174,7 @@ static void test_multipleAlignerRandom(CuTest *testCase) {
 CuSuite* multipleAlignerTestSuite(void) {
     CuSuite* suite = CuSuiteNew();
     SUITE_ADD_TEST(suite, test_getDistanceMatrix);
-    SUITE_ADD_TEST(suite, test_getSpanningAlignments);
+    SUITE_ADD_TEST(suite, test_getReferencePairwiseAlignments);
     SUITE_ADD_TEST(suite, test_makeColumns);
     SUITE_ADD_TEST(suite, test_makeAlignmentUsingAllPairs);
     SUITE_ADD_TEST(suite, test_multipleAlignerAllPairsRandom);
