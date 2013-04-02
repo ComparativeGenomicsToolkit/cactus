@@ -167,6 +167,9 @@ def catFiles(filesToCat, catFile):
     """Cats a bunch of files into one file. Ensures a no more than maxCat files
     are concatenated at each step.
     """
+    if len(filesToCat) == 0: #We must handle this case or the cat call will hang waiting for input
+        open(catFile, 'w').close()
+        return
     maxCat = 25
     system("cat %s > %s" % (" ".join(filesToCat[:maxCat]), catFile))
     filesToCat = filesToCat[maxCat:]
