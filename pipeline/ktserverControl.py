@@ -321,7 +321,31 @@ def pingKtServer(dbElem):
                             '-host', dbElem.getDbHost()],
                            shell=False, bufsize=-1,
                            stdout=subprocess.PIPE,
-                           stderr=subprocess.PIPE) == 0  
+                           stderr=subprocess.PIPE) == 0
+
+###############################################################################
+# Get a report on a running server
+###############################################################################
+def getKtServerReport(dbElem):
+    assert pingKtServer(dbElem) is True
+    process = subprocess.Popen(['ktremotemgr', 'report',
+                                '-port', str(dbElem.getDbPort()),
+                                '-host', dbElem.getDbHost()],
+                               shell=False, bufsize=-1,
+                               stdout=subprocess.PIPE,
+                               stderr=subprocess.PIPE)
+    report, nothing = process.communicate()
+
+    process = subprocess.Popen(['ls', '-lh',
+                                dbElem.getDbDir()],
+                               shell=False, bufsize=-1,
+                               stdout=subprocess.PIPE,
+                               stderr=subprocess.PIPE)
+    dirList, nothing = process.communicate()
+
+    return "Report for %s:%d:\n%s\nContents of %s:\n%s\n" % (
+        dbElem.getDbHost(), dbElem.getDbPort(), report,
+        dbElem.getDbDir(), dirList)
     
 ###############################################################################
 # Test if the server is reorganizing.  don't know what this means
