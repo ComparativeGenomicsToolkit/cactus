@@ -27,4 +27,17 @@ stSortedSet *makeFlowerAlignment(Flower *flower, int32_t spanningTrees,
         int32_t maxSequenceLength, int32_t maximumNumberOfSequencesBeforeSwitchingToFast, float gapGamma,
         PairwiseAlignmentParameters *pairwiseAlignmentBandingParameters, bool pruneOutStubAlignments);
 
+/*
+ * As above, but including alignments from disk.
+ */
+stSortedSet *makeFlowerAlignment3(Flower *flower, stList *listOfEndAlignmentFiles, int32_t spanningTrees,
+        int32_t maxSequenceLength, int32_t maximumNumberOfSequencesBeforeSwitchingToFast, float gapGamma,
+        PairwiseAlignmentParameters *pairwiseAlignmentBandingParameters, bool pruneOutStubAlignments);
+
+void writeEndAlignmentToDisk(End *end, stSortedSet *endAlignment, FILE *fileHandle);
+
+stSortedSet *loadEndAlignmentFromDisk(FILE *fileHandle, End **end);
+
+stSortedSet *getEndsToAlignSeparately(Flower *flower, int32_t maxSequenceLength, int32_t largeEndSize);
+
 #endif /* NETALIGNER_H_ */
