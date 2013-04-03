@@ -15,7 +15,7 @@
 		deannealingRounds="1 2 3 4 8 16 32 64" 
 		blockTrim="0" 
 		minimumTreeCoverage="0.0" 
-		trim="5 5 5 5 5 5 5 5 5 5 5 5 0 0 0 0 0 0 0 0 0" 
+		trim="5 5 5 5 5 5 5 5 5 5 5 5" 
 		minimumBlockDegree="2"
 		requiredIngroupFraction="0.0"
 		requiredOutgroupFraction="0.0"
@@ -30,7 +30,7 @@
 	</caf>
 	<caf
 		chunkSize="1000000" 
-		lastzArguments="--step=5 --masking=20 --hspthresh=3000 --ambiguous=iupac"
+		lastzArguments="--step=1 --masking=20 --nogapped --hspthresh=1800 --ambiguous=iupac"
 		compressFiles="1" 
 		overlapSize="10000" 
 		filterByIdentity="0" 
@@ -41,7 +41,7 @@
 		deannealingRounds="1 2 3 4 8 16 32 64" 
 		blockTrim="0" 
 		minimumTreeCoverage="0.0" 
-		trim="5 5 5 5 5 5 5 5 5 5 5 5 0 0 0 0 0 0 0 0 0" 
+		trim="3 3 3 3 3 3 3 3 3 3 3 3" 
 		minimumBlockDegree="2"
 		requiredIngroupFraction="1.0"
 		requiredOutgroupFraction="0.0"
@@ -56,7 +56,6 @@
 	</caf>
 	<bar
 		runBar="1"
-		numThreads="5" 
 		spanningTrees="2" 
 		gapGamma="0.2" 
 		useBanding="1" 
