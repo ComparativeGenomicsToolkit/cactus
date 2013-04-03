@@ -248,7 +248,11 @@ def runCactusBar(cactusDiskDatabaseString, flowerNames, logLevel=None,
                          requiredOutgroupFraction=None,
                          requiredAllFraction=None,
                          pruneOutStubAlignments=None,
-                         numThreads=None):
+                         maximumNumberOfSequencesBeforeSwitchingToFast=None,
+                         calculateWhichEndsToComputeSeparately=None,
+                         largeEndSize=None,
+                         alignmentToPrecompute=None,
+                         precomputedAlignments=None):
     """Runs cactus base aligner.
     """
     logLevel = getLogLevelString2(logLevel)
@@ -263,16 +267,25 @@ def runCactusBar(cactusDiskDatabaseString, flowerNames, logLevel=None,
     minimumBlockDegree = nameValue("minimumDegree", minimumBlockDegree, int)
     pruneOutStubAlignments = nameValue("pruneOutStubAlignments", pruneOutStubAlignments, bool)
     alignAmbiguityCharacters = nameValue("alignAmbiguityCharacters", alignAmbiguityCharacters, bool)
-    numThreads = nameValue("numThreads", numThreads, int)
     requiredIngroupFraction = nameValue("requiredIngroupFraction", requiredIngroupFraction, float)
     requiredOutgroupFraction = nameValue("requiredOutgroupFraction", requiredOutgroupFraction, float)
     requiredAllFraction = nameValue("requiredAllFraction", requiredAllFraction, float)
     
-    popenPush("cactus_bar --cactusDisk '%s' --logLevel %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s" % 
+    maximumNumberOfSequencesBeforeSwitchingToFast=nameValue("maximumNumberOfSequencesBeforeSwitchingToFast", maximumNumberOfSequencesBeforeSwitchingToFast, int)
+    calculateWhichEndsToComputeSeparately=nameValue("calculateWhichEndsToComputeSeparately", calculateWhichEndsToComputeSeparately, bool)
+    largeEndSize=nameValue("largeEndSize", largeEndSize, int)
+    alignmentToPrecompute=nameValue("alignmentToPrecompute", alignmentToPrecompute, str)
+    precomputedAlignments=nameValue("precomputedAlignments", precomputedAlignments, str)
+    
+    masterMessages = popenCatch("cactus_bar --cactusDisk '%s' --logLevel %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s" % 
            (cactusDiskDatabaseString, logLevel, spanningTrees, maximumLength, gapGamma, 
             splitMatrixBiggerThanThis, anchorMatrixBiggerThanThis, repeatMaskMatrixBiggerThanThis,
             constraintDiagonalTrim, minimumBlockDegree, alignAmbiguityCharacters, pruneOutStubAlignments,
-            numThreads, requiredIngroupFraction, requiredOutgroupFraction, requiredAllFraction, diagonalExpansion), stdinString=flowerNames)
+            requiredIngroupFraction, requiredOutgroupFraction, requiredAllFraction, diagonalExpansion,
+            maximumNumberOfSequencesBeforeSwitchingToFast, calculateWhichEndsToComputeSeparately,
+            largeEndSize, alignmentToPrecompute, precomputedAlignments), stdinString=flowerNames)
+    logger.info("Ran cactus_bar okay")
+    return [ i for i in masterMessages.split("\n") if i != '' ]
 
 def runCactusSecondaryDatabase(secondaryDatabaseString, create=True):
     command = "cactus_secondaryDatabase '%s' %s" % (secondaryDatabaseString, int(create))

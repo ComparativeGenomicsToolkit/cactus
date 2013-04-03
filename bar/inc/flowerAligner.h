@@ -34,10 +34,10 @@ stSortedSet *makeFlowerAlignment3(Flower *flower, stList *listOfEndAlignmentFile
         int32_t maxSequenceLength, int32_t maximumNumberOfSequencesBeforeSwitchingToFast, float gapGamma,
         PairwiseAlignmentParameters *pairwiseAlignmentBandingParameters, bool pruneOutStubAlignments);
 
-void writeEndAlignmentToDisk(End *end, stSortedSet *endAlignment, FILE *fileHandle);
 
-stSortedSet *loadEndAlignmentFromDisk(FILE *fileHandle, End **end);
-
+/*
+ * Ascertain which ends should be aligned separately.
+ */
 stSortedSet *getEndsToAlignSeparately(Flower *flower, int32_t maxSequenceLength, int32_t largeEndSize);
 
 #endif /* NETALIGNER_H_ */

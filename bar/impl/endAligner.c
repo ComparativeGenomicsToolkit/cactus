@@ -107,3 +107,11 @@ stSortedSet *makeEndAlignment(End *end, int32_t spanningTrees, int32_t maxSequen
 
     return sortedAlignment;
 }
+
+void writeEndAlignmentToDisk(End *end, stSortedSet *endAlignment, FILE *fileHandle) {
+
+}
+
+stSortedSet *loadEndAlignmentFromDisk(FILE *fileHandle, End **end) {
+    return stSortedSet_construct();
+}

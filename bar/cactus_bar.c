@@ -29,10 +29,8 @@ void usage() {
     fprintf(stderr, "-k --useBanding : Use banding to speed up the alignments\n");
     fprintf(stderr, "-l --gapGamma : (float [0, 1]) The gap gamma (as in the AMAP function)\n");
 
+    fprintf(stderr, "-o --splitMatrixBiggerThanThis : (int >= 0)  No dp matrix bigger than this number squared will be computed.\n");
     fprintf(stderr,
-            "-o --splitMatrixBiggerThanThis : (int >= 0)  No dp matrix bigger than this number squared will be computed.\n");
-    fprintf(
-            stderr,
             "-p --anchorMatrixBiggerThanThis : (int >= 0)  Any matrix bigger than this number squared will be broken apart with banding.\n");
     fprintf(
             stderr,
@@ -40,22 +38,28 @@ void usage() {
     fprintf(stderr, "-r --digaonalExpansion : (int >= 0 and even) Number of x-y diagonals to expand around anchors\n");
     fprintf(stderr, "-t --constraintDiagonalTrim : (int >= 0) Amount to trim from ends of each anchor\n");
 
-    fprintf(stderr,
-            "-u --minimumDegree : (int >= 0) Minimum number of sequences in a block to be included in the output graph\n");
+    fprintf(stderr, "-u --minimumDegree : (int >= 0) Minimum number of sequences in a block to be included in the output graph\n");
 
-    fprintf(stderr,
-            "-w --alignAmbiguityCharacters : Align ambiguity characters (anything not ACTGactg) as a wildcard\n");
+    fprintf(stderr, "-w --alignAmbiguityCharacters : Align ambiguity characters (anything not ACTGactg) as a wildcard\n");
 
-    fprintf(stderr,
-            "-y --pruneOutStubAlignments : Prune out alignments of sequences that terminates in free stubs stubs\n");
-
-    fprintf(stderr, "-n --numThreads : (int > 0) Maximum number of threads to use (OpenMP compilation required)\n");
+    fprintf(stderr, "-y --pruneOutStubAlignments : Prune out alignments of sequences that terminates in free stubs stubs\n");
 
     fprintf(stderr, "-A --requiredIngroupFraction : Fraction of ingroup events required in a block.\n");
 
     fprintf(stderr, "-B --requiredOutgroupFraction : Fraction of outgroup events required in a block.\n");
 
     fprintf(stderr, "-C --requiredAllFraction : Fraction of all events required in a block.\n");
+
+    fprintf(stderr, "-D --precomputedAlignments : End alignments precomputed.\n");
+
+    fprintf(stderr, "-E --alignmentToPrecompute : End alignment to precompute.\n");
+
+    fprintf(stderr,
+            "-F --maximumNumberOfSequencesBeforeSwitchingToFast : The maximum number of sequences to align before switching to fast alignment.\n");
+
+    fprintf(stderr, "-G --calculateWhichEndsToComputeSeparately : Decide which end alignments to compute separately.\n");
+
+    fprintf(stderr, "-I --largeEndSize : The size of sequences in an end at which point to compute it separately.\n");
 
     fprintf(stderr, "-h --help : Print this help screen\n");
 }
@@ -66,9 +70,8 @@ stPinch *getNextAlignedPairAlignment(stSortedSetIterator *it) {
         return NULL;
     }
     static stPinch pinch;
-    stPinch_fillOut(&pinch, alignedPair->subsequenceIdentifier, alignedPair->reverse->subsequenceIdentifier,
-            alignedPair->position, alignedPair->reverse->position, 1,
-            alignedPair->strand == alignedPair->reverse->strand);
+    stPinch_fillOut(&pinch, alignedPair->subsequenceIdentifier, alignedPair->reverse->subsequenceIdentifier, alignedPair->position,
+            alignedPair->reverse->position, 1, alignedPair->strand == alignedPair->reverse->strand);
     return &pinch;
 }
 
@@ -80,8 +83,7 @@ bool blockFilterFn(stPinchBlock *pinchBlock) {
     if (stPinchBlock_getDegree(pinchBlock) < minimumDegree) {
         return 1;
     }
-    if (!stCaf_containsRequiredSpecies(pinchBlock, flower, requiredIngroupSpecies, requiredOutgroupSpecies,
-            requiredAllSpecies)) {
+    if (!stCaf_containsRequiredSpecies(pinchBlock, flower, requiredIngroupSpecies, requiredOutgroupSpecies, requiredAllSpecies)) {
         return 1;
     }
     return 0;
@@ -97,8 +99,11 @@ int main(int argc, char *argv[]) {
     int32_t maximumNumberOfSequencesBeforeSwitchingToFast = 50;
     float gapGamma = 0.5;
     bool useBanding = 0;
-    int32_t numThreads = 1;
     int32_t k;
+    stList *listOfEndAlignmentFiles = NULL;
+    char *endAlignmentToPrecompute = NULL;
+    bool calculateWhichEndsToComputeSeparately = 0;
+    int32_t largeEndSize = 1000000;
 
     PairwiseAlignmentParameters *pairwiseAlignmentBandingParameters = pairwiseAlignmentBandingParameters_construct();
 
@@ -112,23 +117,23 @@ int main(int argc, char *argv[]) {
      * Parse the options.
      */
     while (1) {
-        static struct option long_options[] = { { "logLevel", required_argument, 0, 'a' }, { "cactusDisk",
-                required_argument, 0, 'b' }, { "help", no_argument, 0, 'h' }, { "spanningTrees", required_argument, 0,
-                'i' }, { "maximumLength", required_argument, 0, 'j' }, { "useBanding", no_argument, 0, 'k' }, {
-                "gapGamma", required_argument, 0, 'l' }, { "splitMatrixBiggerThanThis", required_argument, 0, 'o' }, {
-                "anchorMatrixBiggerThanThis", required_argument, 0, 'p' }, { "repeatMaskMatrixBiggerThanThis",
-                required_argument, 0, 'q' }, { "diagonalExpansion", required_argument, 0, 'r' }, {
-                "constraintDiagonalTrim", required_argument, 0, 't' }, { "minimumDegree", required_argument, 0, 'u' },
-                { "alignAmbiguityCharacters", no_argument, 0, 'w' }, { "pruneOutStubAlignments", no_argument, 0, 'y' },
-                { "numThreads", required_argument, 0, 'n' }, { "requiredIngroupFraction", required_argument, 0, 'A' },
-                { "requiredOutgroupFraction", required_argument, 0, 'B' }, { "requiredAllFraction", required_argument,
-                        0, 'C' },
-
-                { 0, 0, 0, 0 } };
+        static struct option long_options[] = { { "logLevel", required_argument, 0, 'a' }, { "cactusDisk", required_argument, 0, 'b' }, {
+                "help", no_argument, 0, 'h' }, { "spanningTrees", required_argument, 0, 'i' },
+                { "maximumLength", required_argument, 0, 'j' }, { "useBanding", no_argument, 0, 'k' }, { "gapGamma", required_argument, 0,
+                        'l' }, { "splitMatrixBiggerThanThis", required_argument, 0, 'o' }, { "anchorMatrixBiggerThanThis",
+                        required_argument, 0, 'p' }, { "repeatMaskMatrixBiggerThanThis", required_argument, 0, 'q' }, {
+                        "diagonalExpansion", required_argument, 0, 'r' }, { "constraintDiagonalTrim", required_argument, 0, 't' }, {
+                        "minimumDegree", required_argument, 0, 'u' }, { "alignAmbiguityCharacters", no_argument, 0, 'w' }, {
+                        "pruneOutStubAlignments", no_argument, 0, 'y' }, {
+                        "requiredIngroupFraction", required_argument, 0, 'A' }, { "requiredOutgroupFraction", required_argument, 0, 'B' },
+                { "requiredAllFraction", required_argument, 0, 'C' }, { "precomputedAlignments", required_argument, 0, 'D' }, {
+                        "alignmentToPrecompute", required_argument, 0, 'E' }, { "maximumNumberOfSequencesBeforeSwitchingToFast",
+                        required_argument, 0, 'F' }, { "calculateWhichEndsToComputeSeparately", no_argument, 0, 'G' }, { "largeEndSize",
+                        required_argument, 0, 'I' }, { 0, 0, 0, 0 } };
 
         int option_index = 0;
 
-        int key = getopt_long(argc, argv, "a:b:hi:j:kl:o:p:q:r:t:u:wy:n:A:B:C:", long_options, &option_index);
+        int key = getopt_long(argc, argv, "a:b:hi:j:kl:o:p:q:r:t:u:wy:A:B:C:D:E:F:GI:", long_options, &option_index);
 
         if (key == -1) {
             break;
@@ -201,11 +206,6 @@ int main(int argc, char *argv[]) {
             case 'y':
                 pruneOutStubAlignments = 1;
                 break;
-            case 'n':
-                i = sscanf(optarg, "%i", &numThreads);
-                assert(i == 1);
-                assert(numThreads > 0);
-                break;
             case 'A':
                 i = sscanf(optarg, "%f", &requiredIngroupFraction);
                 assert(i == 1);
@@ -218,6 +218,23 @@ int main(int argc, char *argv[]) {
                 i = sscanf(optarg, "%f", &requiredAllFraction);
                 assert(i == 1);
                 break;
+            case 'D':
+                listOfEndAlignmentFiles = stString_split(optarg);
+                break;
+            case 'E':
+                endAlignmentToPrecompute = stString_copy(optarg);
+                break;
+            case 'F':
+                i = sscanf(optarg, "%i", &maximumNumberOfSequencesBeforeSwitchingToFast);
+                assert(i == 1);
+                break;
+            case 'G':
+                calculateWhichEndsToComputeSeparately = 1;
+                break;
+            case 'I':
+                i = sscanf(optarg, "%i", &largeEndSize);
+                assert(i == 1);
+                break;
             default:
                 usage();
                 return 1;
@@ -225,15 +242,6 @@ int main(int argc, char *argv[]) {
     }
 
     st_setLogLevelFromString(logLevelString);
-
-#ifdef _OPENMP
-    omp_set_nested(0);
-    omp_set_num_threads(numThreads);
-#else
-    if (numThreads > 1) {
-        st_logCritical("numThreads option ignored because not compiled with -fopenmp");
-    }
-#endif
 
     /*
      * Load the flowerdisk
@@ -246,63 +254,108 @@ int main(int argc, char *argv[]) {
      * For each flower.
      */
     stList *flowers = flowerWriter_parseFlowersFromStdin(cactusDisk);
-    cactusDisk_preCacheStrings(cactusDisk, flowers);
-    for (j = 0; j < stList_length(flowers); j++) {
-        flower = stList_get(flowers, j);
-        st_logInfo("Processing a flower\n");
+    if (calculateWhichEndsToComputeSeparately) {
+        if (stList_length(flowers) != 1) {
+            st_errAbort("We are breaking up a flowers end alignments for precomputation but we have %i flowers.\n", stList_length(flowers));
+        }
+        stSortedSet *endsToAlignSeparately = getEndsToAlignSeparately(stList_get(flowers, 0), maximumLength, largeEndSize);
+        stSortedSetIterator *it = stSortedSet_getIterator(endsToAlignSeparately);
+        End *end;
+        while ((end = stSortedSet_getNext(it)) != NULL) {
+            fprintf(stdout, "%s\n", cactusMisc_nameToStringStatic(end_getName(end)));
+        }
+        return 0; //avoid cleanup costs
+        stSortedSet_destructIterator(it);
+        stSortedSet_destruct(endsToAlignSeparately);
+    } else if (endAlignmentToPrecompute != NULL) {
+        /*
+         * In this case we will align a single end and save the alignment in a file.
+         */
+        if (stList_length(flowers) != 1) {
+            st_errAbort("We have an alignment to precompute but %i flowers.\n", stList_length(flowers));
+        }
+        stList *l = stString_split(endAlignmentToPrecompute);
+        if (stList_length(l) != 2) {
+            st_errAbort("The alignment to precompute contains more than two arguments: %s\n", endAlignmentToPrecompute);
+        }
+        End *end = flower_getEnd(stList_get(flowers, 0), cactusMisc_stringToName(stList_get(l, 0)));
+        if (end == NULL) {
+            st_errAbort("The end %s was not found in the flower\n", stList_get(l, 0));
+        }
+        stSortedSet *endAlignment = makeEndAlignment(end, spanningTrees, maximumLength, maximumNumberOfSequencesBeforeSwitchingToFast,
+                gapGamma, pairwiseAlignmentBandingParameters);
+        FILE *fileHandle = fopen(stList_get(l, 1), "w");
+        writeEndAlignmentToDisk(end, endAlignment, fileHandle);
+        //Cleanup
+        fclose(fileHandle);
+        return 0; //avoid cleanup costs
+        stList_destruct(l);
+        stSortedSet_destruct(endAlignment);
+        st_logInfo("Finished precomputing an end alignment\n");
+    } else {
+        /*
+         * Compute complete flower alignments, possibly loading some precomputed alignments.
+         */
+        if (listOfEndAlignmentFiles != NULL && stList_length(flowers) != 1) {
+            st_errAbort("We have precomputed alignments but %i flowers to align.\n", stList_length(flowers));
+        }
+        cactusDisk_preCacheStrings(cactusDisk, flowers);
+        for (j = 0; j < stList_length(flowers); j++) {
+            flower = stList_get(flowers, j);
+            st_logInfo("Processing a flower\n");
 
-        stSortedSet *alignedPairs = makeFlowerAlignment(flower, spanningTrees, maximumLength, maximumNumberOfSequencesBeforeSwitchingToFast, gapGamma,
-                pairwiseAlignmentBandingParameters, pruneOutStubAlignments);
-        st_logInfo("Created the alignment: %i pairs\n", stSortedSet_size(alignedPairs));
-        stPinchIterator *pinchIterator = stPinchIterator_constructFromAlignedPairs(alignedPairs,
-                getNextAlignedPairAlignment);
+            stSortedSet *alignedPairs = makeFlowerAlignment3(flower, listOfEndAlignmentFiles, spanningTrees, maximumLength,
+                    maximumNumberOfSequencesBeforeSwitchingToFast, gapGamma, pairwiseAlignmentBandingParameters, pruneOutStubAlignments);
+            st_logInfo("Created the alignment: %i pairs\n", stSortedSet_size(alignedPairs));
+            stPinchIterator *pinchIterator = stPinchIterator_constructFromAlignedPairs(alignedPairs, getNextAlignedPairAlignment);
+
+            /*
+             * Run the cactus caf functions to build cactus.
+             */
+            stPinchThreadSet *threadSet = stCaf_setup(flower);
+            stCaf_anneal(threadSet, pinchIterator);
+            if (minimumDegree < 2) {
+                stCaf_makeDegreeOneBlocks(threadSet);
+            }
+            if (requiredIngroupFraction > 0.0 || requiredOutgroupFraction > 0.0 || requiredAllFraction > 0.0 || minimumDegree > 1) {
+                stCaf_calculateRequiredFractionsOfSpecies(flower, requiredIngroupFraction, requiredOutgroupFraction, requiredAllFraction,
+                        &requiredIngroupSpecies, &requiredOutgroupSpecies, &requiredAllSpecies);
+                stCaf_melt(flower, threadSet, blockFilterFn, 0, 0);
+            }
+            stCaf_finish(flower, threadSet);
+            stPinchThreadSet_destruct(threadSet);
+            st_logInfo("Ran the cactus core script.\n");
+            assert(!flower_isParentLoaded(flower));
+
+            /*
+             * Cleanup
+             */
+            //Clean up the sorted set after cleaning up the iterator
+            stPinchIterator_destruct(pinchIterator);
+            stSortedSet_destruct(alignedPairs);
+
+            st_logInfo("Finished filling in the alignments for the flower\n");
+        }
+        stList_destruct(flowers);
 
         /*
-         * Run the cactus caf functions to build cactus.
+         * Write and close the cactusdisk.
          */
-        stPinchThreadSet *threadSet = stCaf_setup(flower);
-        stCaf_anneal(threadSet, pinchIterator);
-        if (minimumDegree < 2) {
-            stCaf_makeDegreeOneBlocks(threadSet);
-        }
-        if (requiredIngroupFraction > 0.0 || requiredOutgroupFraction > 0.0 || requiredAllFraction > 0.0
-                || minimumDegree > 1) {
-            stCaf_calculateRequiredFractionsOfSpecies(flower,
-                    requiredIngroupFraction, requiredOutgroupFraction, requiredAllFraction,
-                    &requiredIngroupSpecies, &requiredOutgroupSpecies, &requiredAllSpecies);
-            stCaf_melt(flower, threadSet, blockFilterFn, 0, 0);
-        }
-        stCaf_finish(flower, threadSet);
-        stPinchThreadSet_destruct(threadSet);
-        st_logInfo("Ran the cactus core script.\n");
-        assert(!flower_isParentLoaded(flower));
-
-        /*
-         * Cleanup
-         */
-        //Clean up the sorted set after cleaning up the iterator
-        stPinchIterator_destruct(pinchIterator);
-        stSortedSet_destruct(alignedPairs);
-
-        st_logInfo("Finished filling in the alignments for the flower\n");
+        cactusDisk_write(cactusDisk);
+        return 0; //Exit without clean up is quicker, enable cleanup when doing memory leak detection.
     }
-    stList_destruct(flowers);
-
-    /*
-     * Write and close the cactusdisk.
-     */
-    cactusDisk_write(cactusDisk);
 
     ///////////////////////////////////////////////////////////////////////////
     // Cleanup
     ///////////////////////////////////////////////////////////////////////////
 
-    return 0; //Exit without clean up is quicker, enable cleanup when doing memory leak detection.
-
     cactusDisk_destruct(cactusDisk);
     stKVDatabaseConf_destruct(kvDatabaseConf);
     //destructCactusCoreInputParameters(cCIP);
     free(cactusDiskDatabaseString);
+    if (listOfEndAlignmentFiles != NULL) {
+        stList_destruct(listOfEndAlignmentFiles);
+    }
     if (logLevelString != NULL) {
         free(logLevelString);
     }

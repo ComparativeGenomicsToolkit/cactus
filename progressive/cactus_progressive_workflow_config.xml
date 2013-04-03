@@ -70,6 +70,8 @@
 		requiredIngroupFraction="0.0"
 		requiredOutgroupFraction="0.0"
 		requiredAllFraction="0.67"
+		largeEndSize="400000"
+		maximumNumberOfSequencesBeforeSwitchingToFast="50"
 	>
 		<CactusBarRecursion maxFlowerGroupSize="20000000"/>
 		<CactusBarWrapper maxFlowerGroupSize="400000" memory="2147483648"/>

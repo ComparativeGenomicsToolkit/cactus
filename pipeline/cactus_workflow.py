@@ -457,28 +457,66 @@ class CactusBarRecursion(CactusRecursionTarget):
     """
     def run(self):
         self.makeRecursiveTargets()
-        self.makeExtendingTargets(CactusBarWrapper)
+        self.makeExtendingTargets(CactusBarWrapper, overlargeTarget=CactusBarWrapperLarge)
+
+def runBarForTarget(self, calculateWhichEndsToComputeSeparately=None, alignmentToPrecompute=None, precomputedAlignments=None):
+    runCactusBar(cactusDiskDatabaseString=self.cactusDiskDatabaseString, 
+                 flowerNames=self.flowerNames, 
+                 maximumLength=self.getOptionalPhaseAttrib("bandingLimit", float),
+                 spanningTrees=self.getOptionalPhaseAttrib("spanningTrees", int), 
+                 gapGamma=self.getOptionalPhaseAttrib( "gapGamma", float), 
+                 splitMatrixBiggerThanThis=self.getOptionalPhaseAttrib("splitMatrixBiggerThanThis", int), 
+                 anchorMatrixBiggerThanThis=self.getOptionalPhaseAttrib("anchorMatrixBiggerThanThis", int), 
+                 repeatMaskMatrixBiggerThanThis=self.getOptionalPhaseAttrib("repeatMaskMatrixBiggerThanThis", int), 
+                 diagonalExpansion=self.getOptionalPhaseAttrib("diagonalExpansion"),
+                 constraintDiagonalTrim=self.getOptionalPhaseAttrib("constraintDiagonalTrim", int), 
+                 minimumBlockDegree=self.getOptionalPhaseAttrib("minimumBlockDegree", int),
+                 alignAmbiguityCharacters=self.getOptionalPhaseAttrib("alignAmbiguityCharacters", bool),
+                 pruneOutStubAlignments=self.getOptionalPhaseAttrib("pruneOutStrubAlignments", bool),
+                 requiredIngroupFraction=self.getOptionalPhaseAttrib("requiredIngroupFraction", float),
+                 requiredOutgroupFraction=self.getOptionalPhaseAttrib("requiredOutgroupFraction", float),
+                 requiredAllFraction=self.getOptionalPhaseAttrib("requiredAllFraction", float),
+                 maximumNumberOfSequencesBeforeSwitchingToFast=self.getOptionalPhaseAttrib("maximumNumberOfSequencesBeforeSwitchingToFast", int),
+                 calculateWhichEndsToComputeSeparately=calculateWhichEndsToComputeSeparately,
+                 largeEndSize=self.getOptionalPhaseAttrib("minimumBlockDegree", int),
+                 alignmentToPrecompute=alignmentToPrecompute,
+                 precomputedAlignments=precomputedAlignments)
 
 class CactusBarWrapper(CactusRecursionTarget):
     """Runs the BAR algorithm implementation.
     """
     def run(self):
-        runCactusBar(cactusDiskDatabaseString=self.cactusDiskDatabaseString, 
-                     flowerNames=self.flowerNames, 
-                     maximumLength=self.getOptionalPhaseAttrib("bandingLimit", float),
-                     spanningTrees=self.getOptionalPhaseAttrib("spanningTrees", int), 
-                     gapGamma=self.getOptionalPhaseAttrib( "gapGamma", float), 
-                     splitMatrixBiggerThanThis=self.getOptionalPhaseAttrib("splitMatrixBiggerThanThis", int), 
-                     anchorMatrixBiggerThanThis=self.getOptionalPhaseAttrib("anchorMatrixBiggerThanThis", int), 
-                     repeatMaskMatrixBiggerThanThis=self.getOptionalPhaseAttrib("repeatMaskMatrixBiggerThanThis", int), 
-                     diagonalExpansion=self.getOptionalPhaseAttrib("diagonalExpansion"),
-                     constraintDiagonalTrim=self.getOptionalPhaseAttrib("constraintDiagonalTrim", int), 
-                     minimumBlockDegree=self.getOptionalPhaseAttrib("minimumBlockDegree", int),
-                     alignAmbiguityCharacters=self.getOptionalPhaseAttrib("alignAmbiguityCharacters", bool),
-                     pruneOutStubAlignments=self.getOptionalPhaseAttrib("pruneOutStrubAlignments", bool),
-                     requiredIngroupFraction=self.getOptionalPhaseAttrib("requiredIngroupFraction", float),
-                     requiredOutgroupFraction=self.getOptionalPhaseAttrib("requiredOutgroupFraction", float),
-                     requiredAllFraction=self.getOptionalPhaseAttrib("requiredAllFraction", float))
+        runBarForTarget(self)
+        
+class CactusBarWrapperLarge(CactusRecursionTarget):
+    """Runs blast on the given flower and passes the resulting alignment to cactus core.
+    """
+    def run(self):
+        logger.info("Starting the cactus bar preprocessor target to breakup the bar alignment")
+        precomputedAlignmentFiles = []
+        for endToAlign in runBarForTarget(self, calculateWhichEndsToComputeSeparately=True):
+            alignmentFile = os.path.join(self.getGlobalTempDir(), "%s.end" % endToAlign)
+            precomputedAlignmentFiles.append(alignmentFile)
+            self.addChildTarget(CactusBarEndAligner(self.phaseNode, self.cactusDiskDatabaseString, self.flowerNames, endToAlign, alignmentFile))
+        self.phaseNode.attrib["precomputedAlignmentFiles"] = "\t".join(precomputedAlignmentFiles)
+        self.makeFollowOnRecursiveTarget(CactusBarWrapperWithPrecomputedEndAlignments)
+        
+class CactusBarEndAligner(CactusRecursionTarget):
+    """Computes an end alignment.
+    """
+    def __init__(self, phaseNode, cactusDiskDatabaseString, flowerNames, endToAlign, alignmentFile):
+        CactusRecursionTarget.__init__(self, phaseNode, cactusDiskDatabaseString, flowerNames, True)
+        self.endToAlign = endToAlign
+        self.alignmentFile = alignmentFile
+    
+    def run(self):
+        runBarForTarget(self, alignmentToPrecompute="%s %s" % (self.endToAlign, self.alignmentFile))
+        
+class CactusBarWrapperWithPrecomputedEndAlignments(CactusRecursionTarget):
+    """Runs the BAR algorithm implementation with some precomputed end alignments.
+    """
+    def run(self):
+        runBarForTarget(self, precomputedAlignments=self.phaseNode.attrib["precomputedAlignmentFiles"])
         
 ############################################################
 ############################################################

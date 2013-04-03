@@ -51,4 +51,14 @@ stSortedSet *makeEndAlignment(End *end, int32_t spanningTrees, int32_t maxSequen
         int32_t maximumNumberOfSequencesBeforeSwitchingToFast, float gapGamma,
         PairwiseAlignmentParameters *pairwiseAlignmentBandingParameters);
 
+/*
+ * Writes an end alignment to the given file.
+ */
+void writeEndAlignmentToDisk(End *end, stSortedSet *endAlignment, FILE *fileHandle);
+
+/*
+ * Loads an end alignment from the given file.
+ */
+stSortedSet *loadEndAlignmentFromDisk(FILE *fileHandle, End **end);
+
 #endif /* ENDALIGNER_H_ */

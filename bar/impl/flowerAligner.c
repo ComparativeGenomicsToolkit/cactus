@@ -552,14 +552,6 @@ stSortedSet *makeFlowerAlignment(Flower *flower, int32_t spanningTrees, int32_t 
     return makeFlowerAlignment2(flower, endAlignments, pruneOutStubAlignments);
 }
 
-void writeEndAlignmentToDisk(End *end, stSortedSet *endAlignment, FILE *fileHandle) {
-
-}
-
-stSortedSet *loadEndAlignmentFromDisk(FILE *fileHandle, End **end) {
-    return stSortedSet_construct();
-}
-
 static void loadEndAlignments(stHash *endAlignments, stList *listOfEndAlignments) {
     for (int32_t i = 0; i < stList_length(listOfEndAlignments); i++) {
         End *end;
@@ -570,11 +562,13 @@ static void loadEndAlignments(stHash *endAlignments, stList *listOfEndAlignments
     }
 }
 
-stSortedSet *makeFlowerAlignment3(Flower *flower, stList *listOfEndAlignments, int32_t spanningTrees,
+stSortedSet *makeFlowerAlignment3(Flower *flower, stList *listOfEndAlignmentFiles, int32_t spanningTrees,
         int32_t maxSequenceLength, int32_t maximumNumberOfSequencesBeforeSwitchingToFast, float gapGamma,
         PairwiseAlignmentParameters *pairwiseAlignmentBandingParameters, bool pruneOutStubAlignments) {
     stHash *endAlignments = stHash_construct2(NULL, (void(*)(void *)) stSortedSet_destruct);
-    loadEndAlignments(endAlignments, listOfEndAlignments);
+    if(listOfEndAlignmentFiles != NULL) {
+        loadEndAlignments(endAlignments, listOfEndAlignmentFiles);
+    }
     computeMissingEndAlignments(flower, endAlignments, spanningTrees, maxSequenceLength,
             maximumNumberOfSequencesBeforeSwitchingToFast, gapGamma, pairwiseAlignmentBandingParameters);
     return makeFlowerAlignment2(flower, endAlignments, pruneOutStubAlignments);
