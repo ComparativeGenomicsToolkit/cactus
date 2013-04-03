@@ -43,6 +43,7 @@ from cactus.progressive.experimentWrapper import ExperimentWrapper
 from cactus.pipeline.ktserverControl import runKtserver
 from cactus.pipeline.ktserverControl import blockUntilKtserverIsRunnning
 from cactus.pipeline.ktserverControl import killKtServer
+from cactus.pipeline.ktserverControl import getKtServerReport
 
 ###############################################################################
 # Launch childTargetClosure (which is a JobtreeTarget with bound parameters)
@@ -196,6 +197,8 @@ class KtserverTargetKiller(Target):
     def run(self):
         self.logToMaster("Killing ktserver %s with killPath %s" % (
             ET.tostring(self.dbElem.getDbElem()), self.killSwitchPath))
+        report = getKtServerReport(self.dbElem)
+        self.logToMaster(report)
         killKtServer(self.dbElem, self.killSwitchPath,
                      killTimeout=self.killTimeout)
     
