@@ -133,7 +133,7 @@ stSortedSet *loadEndAlignmentFromDisk(Flower *flower, FILE *fileHandle, End **en
     while((line = stFile_getLineFromFile(fileHandle)) != NULL) {
         int64_t sI1, sI2;
         int32_t p1, st1, p2, st2, score;
-        int32_t i = sscanf(line, "%lli %i %i %lli %i %i %i", &sI1, &p1, &st1, &sI2, &p2, &st2, &score);
+        int32_t i = sscanf(line, "%" PRIi64 " %i %i %" PRIi64 " %i %i %i", &sI1, &p1, &st1, &sI2, &p2, &st2, &score);
         (void)i;
         assert(i == 7);
         stSortedSet_insert(endAlignment, alignedPair_construct(sI1, p1, st1, sI2, p2, st2, score));
