@@ -457,7 +457,7 @@ class CactusBarRecursion(CactusRecursionTarget):
     """
     def run(self):
         self.makeRecursiveTargets()
-        self.makeExtendingTargets(CactusBarWrapper, overlargeTarget=CactusBarWrapperLarge)
+        self.makeExtendingTargets(target=CactusBarWrapper, overlargeTarget=CactusBarWrapperLarge)
 
 def runBarForTarget(self, calculateWhichEndsToComputeSeparately=None, alignmentToPrecompute=None, precomputedAlignments=None):
     runCactusBar(cactusDiskDatabaseString=self.cactusDiskDatabaseString, 
