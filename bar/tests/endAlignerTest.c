@@ -133,8 +133,10 @@ static void testReadAndWriteEndAlignments(CuTest *testCase) {
         writeEndAlignmentToDisk(end, endAlignment, fileHandle);
         fclose(fileHandle);
         fileHandle = fopen(temporaryEndAlignmentFile, "r");
-        stSortedSet *endAlignment2 = loadEndAlignmentFromDisk(flower, fileHandle, end);
+        End *end2;
+        stSortedSet *endAlignment2 = loadEndAlignmentFromDisk(flower, fileHandle, &end2);
         fclose(fileHandle);
+        CuAssertPtrEquals(testCase, end, end2);
         stFile_rmrf(temporaryEndAlignmentFile);
         CuAssertTrue(testCase, stSortedSet_equals(endAlignment, endAlignment2));
         stSortedSet_destruct(endAlignment);
