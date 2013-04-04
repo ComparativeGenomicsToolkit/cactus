@@ -378,7 +378,10 @@ int32_t getMaxAdjacencyLength(Flower *flower) {
 }
 
 int64_t getTotalAdjacencyLength(End *end) {
-    assert(flower_getGroupNumber(flower) <= 1);
+    /*
+     * Gets the total length of unaligned sequences on adjacencies
+     * incident with the instances of the end.
+     */
     End_InstanceIterator *capIt = end_getInstanceIterator(end);
     Cap *cap;
     int32_t totalAdjacencyLength = 0;
@@ -428,7 +431,10 @@ End *getDominantEnd(Flower *flower) {
     return dominantEnd;
 }
 
-stSortedSet *getEndsToAlign(Flower *flower, int32_t maxSequenceLength) {
+static stSortedSet *getEndsToAlign(Flower *flower, int32_t maxSequenceLength) {
+    /*
+     * Gets a set of the ends that we need to construct actual alignments for.
+     */
     stSortedSet *endsToAlign = stSortedSet_construct();
     End *dominantEnd = getDominantEnd(flower); //an end to which all adjacencies are incident
     if (dominantEnd != NULL && getMaxAdjacencyLength(flower) <= 2 * maxSequenceLength) {
@@ -444,9 +450,14 @@ stSortedSet *getEndsToAlign(Flower *flower, int32_t maxSequenceLength) {
     return endsToAlign;
 }
 
-void computeMissingEndAlignments(Flower *flower, stHash *endAlignments, int32_t spanningTrees,
+static void computeMissingEndAlignments(Flower *flower, stHash *endAlignments, int32_t spanningTrees,
         int32_t maxSequenceLength, int32_t maximumNumberOfSequencesBeforeSwitchingToFast, float gapGamma,
         PairwiseAlignmentParameters *pairwiseAlignmentBandingParameters) {
+    /*
+     * Creates end alignments for the ends that
+     * do not have an alignment in the "endAlignments" hash, only creating
+     * non-trivial end alignments for those specified by "getEndsToAlign".
+     */
     //Make the end alignments, representing each as an adjacency alignment.
     stSortedSet *endsToAlign = getEndsToAlign(flower, maxSequenceLength);
     End *end;
@@ -469,7 +480,10 @@ void computeMissingEndAlignments(Flower *flower, stHash *endAlignments, int32_t 
     stSortedSet_destruct(endsToAlign);
 }
 
-stSortedSet *makeFlowerAlignment2(Flower *flower, stHash *endAlignments, bool pruneOutStubAlignments) {
+static stSortedSet *makeFlowerAlignment2(Flower *flower, stHash *endAlignments, bool pruneOutStubAlignments) {
+    /*
+     * Makes the alignments of the ends, in "endAlignments", consistent with one another using the bar algorithm.
+     */
     //Prune end alignments
     End *end;
     Flower_EndIterator *endIterator = flower_getEndIterator(flower);
@@ -552,11 +566,15 @@ stSortedSet *makeFlowerAlignment(Flower *flower, int32_t spanningTrees, int32_t 
     return makeFlowerAlignment2(flower, endAlignments, pruneOutStubAlignments);
 }
 
-static void loadEndAlignments(stHash *endAlignments, stList *listOfEndAlignments) {
+static void loadEndAlignments(Flower *flower, stHash *endAlignments, stList *listOfEndAlignments) {
+    /*
+     * Load alignments from given list of files and add them to the "endAlignments" hash.
+     */
     for (int32_t i = 0; i < stList_length(listOfEndAlignments); i++) {
         End *end;
         FILE *fileHandle = fopen(stList_get(listOfEndAlignments, i), "r");
-        stSortedSet *alignment = loadEndAlignmentFromDisk(fileHandle, &end);
+        stSortedSet *alignment = loadEndAlignmentFromDisk(flower, fileHandle, &end);
+        assert(stHash_search(endAlignments, end) == NULL);
         stHash_insert(endAlignments, end, alignment);
         fclose(fileHandle);
     }
@@ -567,7 +585,7 @@ stSortedSet *makeFlowerAlignment3(Flower *flower, stList *listOfEndAlignmentFile
         PairwiseAlignmentParameters *pairwiseAlignmentBandingParameters, bool pruneOutStubAlignments) {
     stHash *endAlignments = stHash_construct2(NULL, (void(*)(void *)) stSortedSet_destruct);
     if(listOfEndAlignmentFiles != NULL) {
-        loadEndAlignments(endAlignments, listOfEndAlignmentFiles);
+        loadEndAlignments(flower, endAlignments, listOfEndAlignmentFiles);
     }
     computeMissingEndAlignments(flower, endAlignments, spanningTrees, maxSequenceLength,
             maximumNumberOfSequencesBeforeSwitchingToFast, gapGamma, pairwiseAlignmentBandingParameters);
@@ -575,6 +593,10 @@ stSortedSet *makeFlowerAlignment3(Flower *flower, stList *listOfEndAlignmentFile
 }
 
 stSortedSet *getEndsToAlignSeparately(Flower *flower, int32_t maxSequenceLength, int32_t largeEndSize) {
+    /*
+     * Picks a set of end alignments that contain more than "largeEndSize" bases and, if there are more
+     * than 2 of them, returns them in a set.
+     */
     stSortedSet *endsToAlign = getEndsToAlign(flower, maxSequenceLength);
     stSortedSetIterator *it = stSortedSet_getIterator(endsToAlign);
     End *end;

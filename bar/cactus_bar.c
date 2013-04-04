@@ -50,7 +50,7 @@ void usage() {
 
     fprintf(stderr, "-C --requiredAllFraction : Fraction of all events required in a block.\n");
 
-    fprintf(stderr, "-D --precomputedAlignments : End alignments precomputed.\n");
+    fprintf(stderr, "-D --precomputedAlignments : Precomputed end alignments.\n");
 
     fprintf(stderr, "-E --alignmentToPrecompute : End alignment to precompute.\n");
 
@@ -256,15 +256,16 @@ int main(int argc, char *argv[]) {
     stList *flowers = flowerWriter_parseFlowersFromStdin(cactusDisk);
     if (calculateWhichEndsToComputeSeparately) {
         if (stList_length(flowers) != 1) {
-            st_errAbort("We are breaking up a flowers end alignments for precomputation but we have %i flowers.\n", stList_length(flowers));
+            st_errAbort("We are breaking up a flower's end alignments for precomputation but we have %i flowers.\n", stList_length(flowers));
         }
         stSortedSet *endsToAlignSeparately = getEndsToAlignSeparately(stList_get(flowers, 0), maximumLength, largeEndSize);
+        assert(stSortedSet_size(endsToAlignSeparately) != 1);
         stSortedSetIterator *it = stSortedSet_getIterator(endsToAlignSeparately);
         End *end;
         while ((end = stSortedSet_getNext(it)) != NULL) {
             fprintf(stdout, "%s\n", cactusMisc_nameToStringStatic(end_getName(end)));
         }
-        return 0; //avoid cleanup costs
+        //return 0; //avoid cleanup costs
         stSortedSet_destructIterator(it);
         stSortedSet_destruct(endsToAlignSeparately);
     } else if (endAlignmentToPrecompute != NULL) {
@@ -282,13 +283,14 @@ int main(int argc, char *argv[]) {
         if (end == NULL) {
             st_errAbort("The end %s was not found in the flower\n", stList_get(l, 0));
         }
+        cactusDisk_preCacheStrings(cactusDisk, flowers);
         stSortedSet *endAlignment = makeEndAlignment(end, spanningTrees, maximumLength, maximumNumberOfSequencesBeforeSwitchingToFast,
                 gapGamma, pairwiseAlignmentBandingParameters);
         FILE *fileHandle = fopen(stList_get(l, 1), "w");
         writeEndAlignmentToDisk(end, endAlignment, fileHandle);
         //Cleanup
         fclose(fileHandle);
-        return 0; //avoid cleanup costs
+        //return 0; //avoid cleanup costs
         stList_destruct(l);
         stSortedSet_destruct(endAlignment);
         st_logInfo("Finished precomputing an end alignment\n");

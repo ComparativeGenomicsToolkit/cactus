@@ -270,7 +270,6 @@ def runCactusBar(cactusDiskDatabaseString, flowerNames, logLevel=None,
     requiredIngroupFraction = nameValue("requiredIngroupFraction", requiredIngroupFraction, float)
     requiredOutgroupFraction = nameValue("requiredOutgroupFraction", requiredOutgroupFraction, float)
     requiredAllFraction = nameValue("requiredAllFraction", requiredAllFraction, float)
-    
     maximumNumberOfSequencesBeforeSwitchingToFast=nameValue("maximumNumberOfSequencesBeforeSwitchingToFast", maximumNumberOfSequencesBeforeSwitchingToFast, int)
     calculateWhichEndsToComputeSeparately=nameValue("calculateWhichEndsToComputeSeparately", calculateWhichEndsToComputeSeparately, bool)
     largeEndSize=nameValue("largeEndSize", largeEndSize, int)

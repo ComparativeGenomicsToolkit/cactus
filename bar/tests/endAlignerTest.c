@@ -118,9 +118,35 @@ static void testMakeEndAlignments(CuTest *testCase) {
     teardown();
 }
 
+static void testReadAndWriteEndAlignments(CuTest *testCase) {
+    setup();
+    End *ends[3] = { end1, end2, end3 };
+    int32_t maxLength = 4;
+    for (int32_t endIndex = 0; endIndex < 3; endIndex++) {
+        End *end = ends[endIndex];
+        stSortedSet *endAlignment = makeEndAlignment(end, 5, maxLength, 50, 0.5, pairwiseParameters);
+        char *temporaryEndAlignmentFile = "temporaryEndAlignmentFile.end";
+        if(stFile_exists(temporaryEndAlignmentFile)) {
+            CuAssertTrue(testCase, 0);
+        }
+        FILE *fileHandle = fopen(temporaryEndAlignmentFile, "w");
+        writeEndAlignmentToDisk(end, endAlignment, fileHandle);
+        fclose(fileHandle);
+        fileHandle = fopen(temporaryEndAlignmentFile, "r");
+        stSortedSet *endAlignment2 = loadEndAlignmentFromDisk(flower, fileHandle, end);
+        fclose(fileHandle);
+        stFile_rmrf(temporaryEndAlignmentFile);
+        CuAssertTrue(testCase, stSortedSet_equals(endAlignment, endAlignment2));
+        stSortedSet_destruct(endAlignment);
+        stSortedSet_destruct(endAlignment2);
+    }
+    teardown();
+}
+
 CuSuite* endAlignerTestSuite(void) {
     CuSuite* suite = CuSuiteNew();
     SUITE_ADD_TEST(suite, testMakeEndAlignments);
+    SUITE_ADD_TEST(suite, testReadAndWriteEndAlignments);
     SUITE_ADD_TEST(suite, test_alignedPair_cmpFn);
     return suite;
 }

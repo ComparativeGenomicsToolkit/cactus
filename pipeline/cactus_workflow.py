@@ -478,7 +478,7 @@ def runBarForTarget(self, calculateWhichEndsToComputeSeparately=None, alignmentT
                  requiredAllFraction=self.getOptionalPhaseAttrib("requiredAllFraction", float),
                  maximumNumberOfSequencesBeforeSwitchingToFast=self.getOptionalPhaseAttrib("maximumNumberOfSequencesBeforeSwitchingToFast", int),
                  calculateWhichEndsToComputeSeparately=calculateWhichEndsToComputeSeparately,
-                 largeEndSize=self.getOptionalPhaseAttrib("minimumBlockDegree", int),
+                 largeEndSize=self.getOptionalPhaseAttrib("largeEndSize", int),
                  alignmentToPrecompute=alignmentToPrecompute,
                  precomputedAlignments=precomputedAlignments)
 

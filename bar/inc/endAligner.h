@@ -59,6 +59,6 @@ void writeEndAlignmentToDisk(End *end, stSortedSet *endAlignment, FILE *fileHand
 /*
  * Loads an end alignment from the given file.
  */
-stSortedSet *loadEndAlignmentFromDisk(FILE *fileHandle, End **end);
+stSortedSet *loadEndAlignmentFromDisk(Flower *flower, FILE *fileHandle, End **end);
 
 #endif /* ENDALIGNER_H_ */
