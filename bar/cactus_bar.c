@@ -263,7 +263,7 @@ int main(int argc, char *argv[]) {
         stSortedSetIterator *it = stSortedSet_getIterator(endsToAlignSeparately);
         End *end;
         while ((end = stSortedSet_getNext(it)) != NULL) {
-            fprintf(stdout, "%s\n", cactusMisc_nameToStringStatic(end_getName(end)));
+            fprintf(stdout, "%s\t%i\t%lli\n", cactusMisc_nameToStringStatic(end_getName(end)), end_getInstanceNumber(end), getTotalAdjacencyLength(end));
         }
         //return 0; //avoid cleanup costs
         stSortedSet_destructIterator(it);

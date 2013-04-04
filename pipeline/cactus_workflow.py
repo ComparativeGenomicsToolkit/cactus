@@ -460,7 +460,7 @@ class CactusBarRecursion(CactusRecursionTarget):
         self.makeExtendingTargets(target=CactusBarWrapper, overlargeTarget=CactusBarWrapperLarge)
 
 def runBarForTarget(self, calculateWhichEndsToComputeSeparately=None, alignmentToPrecompute=None, precomputedAlignments=None):
-    runCactusBar(cactusDiskDatabaseString=self.cactusDiskDatabaseString, 
+    return runCactusBar(cactusDiskDatabaseString=self.cactusDiskDatabaseString, 
                  flowerNames=self.flowerNames, 
                  maximumLength=self.getOptionalPhaseAttrib("bandingLimit", float),
                  spanningTrees=self.getOptionalPhaseAttrib("spanningTrees", int), 
@@ -494,10 +494,11 @@ class CactusBarWrapperLarge(CactusRecursionTarget):
     def run(self):
         logger.info("Starting the cactus bar preprocessor target to breakup the bar alignment")
         precomputedAlignmentFiles = []
-        for endToAlign in runBarForTarget(self, calculateWhichEndsToComputeSeparately=True):
+        for endToAlign, sequencesInEndAlignment, basesInEndAlignment in runBarForTarget(self, calculateWhichEndsToComputeSeparately=True):
             alignmentFile = os.path.join(self.getGlobalTempDir(), "%s.end" % endToAlign)
             precomputedAlignmentFiles.append(alignmentFile)
             self.addChildTarget(CactusBarEndAligner(self.phaseNode, self.cactusDiskDatabaseString, self.flowerNames, endToAlign, alignmentFile))
+            self.logToMaster("Precomputing end alignment for %s with %s caps and %s bases" % (endToAlign, sequencesInEndAlignment, basesInEndAlignment))
         self.phaseNode.attrib["precomputedAlignmentFiles"] = "\t".join(precomputedAlignmentFiles)
         self.makeFollowOnRecursiveTarget(CactusBarWrapperWithPrecomputedEndAlignments)
         
@@ -516,7 +517,10 @@ class CactusBarWrapperWithPrecomputedEndAlignments(CactusRecursionTarget):
     """Runs the BAR algorithm implementation with some precomputed end alignments.
     """
     def run(self):
-        runBarForTarget(self, precomputedAlignments=self.phaseNode.attrib["precomputedAlignmentFiles"])
+        if self.phaseNode.attrib["precomputedAlignmentFiles"] != "":
+            runBarForTarget(self, precomputedAlignments=self.phaseNode.attrib["precomputedAlignmentFiles"])
+        else:
+            runBarForTarget(self)
         
 ############################################################
 ############################################################

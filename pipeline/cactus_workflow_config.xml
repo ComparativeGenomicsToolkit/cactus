@@ -25,7 +25,7 @@
 	</caf>
 	<bar
 		runBar="1"
-		spanningTrees="10" 
+		spanningTrees="3" 
 		gapGamma="0.2" 
 		bandingLimit="100000" 
 		splitMatrixBiggerThanThis="3000" 
@@ -35,7 +35,7 @@
 		constraintDiagonalTrim="14" 
 		minimumBlockDegree="0" 
 		alignAmbiguityCharacters="1"
-		largeEndSize="400000"
+		largeEndSize="40000"
 		maximumNumberOfSequencesBeforeSwitchingToFast="50"
 	>
 		<CactusBarRecursion maxFlowerGroupSize="100000000"/>

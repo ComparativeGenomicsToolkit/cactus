@@ -39,4 +39,9 @@ stSortedSet *makeFlowerAlignment3(Flower *flower, stList *listOfEndAlignmentFile
  */
 stSortedSet *getEndsToAlignSeparately(Flower *flower, int32_t maxSequenceLength, int32_t largeEndSize);
 
+/*
+ * The total number of unaligned bases in adjacencies incident with the end.
+ */
+int64_t getTotalAdjacencyLength(End *end);
+
 #endif /* NETALIGNER_H_ */
