@@ -35,7 +35,8 @@
 		constraintDiagonalTrim="14" 
 		minimumBlockDegree="0" 
 		alignAmbiguityCharacters="1"
-		largeEndSize="40000"
+		veryLargeEndSize="50000"
+		largeEndSize="10000"
 		maximumNumberOfSequencesBeforeSwitchingToFast="50"
 	>
 		<CactusBarRecursion maxFlowerGroupSize="100000000"/>
