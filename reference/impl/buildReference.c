@@ -796,8 +796,14 @@ void buildReferenceTopDown(Flower *flower, const char *referenceEventHeader, int
 
     double totalScoreAfterGreedySampling = getReferenceScore(aL, ref);
     st_logDebug(
-            "The score of the final solution is %f after %i rounds of greedy permutation out of a max possible %f\n",
+            "The score of the solution after permutation sampling is %f after %i rounds of greedy permutation out of a max possible %f\n",
             totalScoreAfterGreedySampling, permutations, maxPossibleScore);
+
+    reorderReferenceToAvoidBreakpoints(aL, ref);
+    double totalScoreAfterTopologicalReordering = getReferenceScore(aL, ref);
+        st_logDebug(
+                "The score of the final solution is %f after %i rounds of greedy permutation out of a max possible %f\n",
+                totalScoreAfterTopologicalReordering, permutations, maxPossibleScore);
 
     stList *chosenEdges = convertReferenceToAdjacencyEdges2(ref);
 
