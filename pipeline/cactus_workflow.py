@@ -498,8 +498,10 @@ class CactusBarWrapperLarge(CactusRecursionTarget):
         for endToAlign, sequencesInEndAlignment, basesInEndAlignment in runBarForTarget(self, calculateWhichEndsToComputeSeparately=True):
             alignmentFile = os.path.join(self.getGlobalTempDir(), "%s.end" % endToAlign)
             precomputedAlignmentFiles.append(alignmentFile)
-            self.addChildTarget(CactusBarEndAlignerWrapper(self.phaseNode, self.cactusDiskDatabaseString, self.flowerNames, basesInAlignment >= veryLargeEndSize, endToAlign, alignmentFile))
-            self.logToMaster("Precomputing end alignment for %s with %s caps and %s bases" % (endToAlign, sequencesInEndAlignment, basesInEndAlignment))
+            self.addChildTarget(CactusBarEndAlignerWrapper(self.phaseNode, self.cactusDiskDatabaseString, self.flowerNames, 
+                                                           basesInEndAlignment >= veryLargeEndSize, endToAlign, alignmentFile))
+            self.logToMaster("Precomputing end alignment for %s with %s caps and %s bases" % \
+                             (endToAlign, sequencesInEndAlignment, basesInEndAlignment))
         self.phaseNode.attrib["precomputedAlignmentFiles"] = "\t".join(precomputedAlignmentFiles)
         self.makeFollowOnRecursiveTarget(CactusBarWrapperWithPrecomputedEndAlignments)
         
