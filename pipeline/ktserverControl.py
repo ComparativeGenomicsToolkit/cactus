@@ -70,7 +70,9 @@ def runKtserver(dbElem, killSwitchPath, maxPortsToTry=100, readOnly = False,
         for port in xrange(basePort, basePort + maxPortsToTry):
             dbElem.setDbPort(port)
             if os.path.exists(logPath):
-                os.remove(logPath)               
+                os.remove(logPath)
+            if __isKtServerOnTakenPort(dbElem, killSwitchPath, pretest=True):
+                continue
             cmd = __getKtserverCommand(dbElem, dbPathExists, readOnly)
             process = subprocess.Popen(cmd, shell=True, 
                                        stdout=subprocess.PIPE,
@@ -231,7 +233,7 @@ def killKtServer(dbElem, killSwitchPath, killTimeout=10):
     if not os.path.isfile(killSwitchPath):
         raise RuntimeError("Can't kill server because file" +
                            " not found %s" % killSwitchPath)
-
+    logPath = __getLogPath(dbElem)
     isRunning =  __isKtServerRunning(dbElem, killSwitchPath)
     os.remove(killSwitchPath)
     logPath = __getLogPath(dbElem)
@@ -246,7 +248,9 @@ def killKtServer(dbElem, killSwitchPath, killTimeout=10):
             success = True
     if not success:
         raise RuntimeError("Failed to kill server within timeout. " +
-                           "Server log is %s" % __getLogPath(dbElem))
+                           "Server log is %s" % logPath)
+    if os.path.exists(logPath):
+        os.remove(logPath)
     return True
 
 ###############################################################################
@@ -395,16 +399,20 @@ def __isKtServerFailed(dbElem):
 # Ktserver can sometimes catch these errors, but often doesn't.  Once you
 # have two servers on the same port running all bets are off.
 ###############################################################################
-def __isKtServerOnTakenPort(dbElem, killSwitchPath):
+def __isKtServerOnTakenPort(dbElem, killSwitchPath, pretest = False):
     if __isKtServerReorganizing(dbElem) or __isKtServerRunning(dbElem,
                                                                killSwitchPath):
         logPath = __getLogPath(dbElem)
         pidList = __scrapePids([logPath])
-        if len(pidList) > 1:
+        if pretest is False:
+            thresh = 1
+        else:
+            thresh = 0
+        if len(pidList) > thresh:
             raise RuntimeError("Ktserver already found running with log %s" %
                                logPath)
         pidList = __scrapePids(['port %d' % dbElem.getDbPort()])
-        if len(pidList) > 1:
+        if len(pidList) > thresh:
             return True
     return False        
 
