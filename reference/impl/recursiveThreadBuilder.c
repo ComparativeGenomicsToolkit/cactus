@@ -13,23 +13,12 @@
 #include "sonLib.h"
 
 static void *compress(char *string, int64_t *dataSize) {
-    if (strlen(string) > 4000000000) { //Avoiding 32bit bug in compression library by hack
-        *dataSize = strlen(string) + 1;
-        return string;
-    }
     void *data = stCompression_compress(string, strlen(string) + 1, dataSize, 1); //going with least, fastest compression-1);
-    if(*dataSize > 4000000000) {
-        stThrowNew("ZLIB_ERROR", "The zlib hack has gone wrong");
-        //Otherwise the hack is going to cause a hard to debug error
-    }
     free(string);
     return data;
 }
 
 static char *decompress(void *data, int64_t dataSize) {
-    if (dataSize > 4000000000) { //Avoiding 32bit bug in compression library by hack
-        return data;
-    }
     int64_t uncompressedSize;
     char *string = stCompression_decompress(data, dataSize, &uncompressedSize);
     assert(strlen(string)+1 == uncompressedSize);
