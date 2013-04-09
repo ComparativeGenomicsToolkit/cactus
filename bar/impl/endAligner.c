@@ -113,9 +113,9 @@ void writeEndAlignmentToDisk(End *end, stSortedSet *endAlignment, FILE *fileHand
     stSortedSetIterator *it = stSortedSet_getIterator(endAlignment);
     AlignedPair *aP;
     while((aP = stSortedSet_getNext(it)) != NULL) {
-        fprintf(fileHandle, "%lli %i %i ", aP->subsequenceIdentifier, aP->position, aP->strand);
+        fprintf(fileHandle, "%" PRIi64 " %i %i ", aP->subsequenceIdentifier, aP->position, aP->strand);
         aP = aP->reverse;
-        fprintf(fileHandle, "%lli %i %i %i\n", aP->subsequenceIdentifier, aP->position, aP->strand, aP->score);
+        fprintf(fileHandle, "%" PRIi64 " %i %i %i\n", aP->subsequenceIdentifier, aP->position, aP->strand, aP->score);
     }
     stSortedSet_destructIterator(it);
 }
