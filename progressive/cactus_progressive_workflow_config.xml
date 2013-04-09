@@ -71,11 +71,11 @@
 		requiredOutgroupFraction="0.0"
 		requiredAllFraction="0.67"
 		largeEndSize="100000"
-		veryLargeEndSize="1000000"
+		veryLargeEndSize="1500000"
 		maximumNumberOfSequencesBeforeSwitchingToFast="50"
 	>
 		<CactusBarRecursion maxFlowerGroupSize="100000000"/>
-		<CactusBarWrapper maxFlowerGroupSize="1000000" memory="2147483648"/>
+		<CactusBarWrapper maxFlowerGroupSize="1500000" memory="2147483648"/>
 		<CactusBarEndAlignerWrapper memory="2147483648"/>
 	</bar>
 	<normal 
