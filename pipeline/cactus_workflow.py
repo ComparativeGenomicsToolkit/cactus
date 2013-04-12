@@ -204,7 +204,7 @@ class CactusRecursionTarget(CactusTarget):
                                    flowerNames=self.flowerNames, overlarge=self.overlarge))
         
     def makeChildTargets(self, flowersAndSizes, target, overlargeTarget=None, 
-                         phaseNode=None):
+                         phaseNode=None, runFlowerStats=False):
         """Make a set of child targets for a given set of flowers and chosen child target
         """
         if overlargeTarget == None:
@@ -213,16 +213,20 @@ class CactusRecursionTarget(CactusTarget):
             phaseNode = self.phaseNode
         for overlarge, flowerNames in flowersAndSizes:
             if overlarge: #Make sure large flowers are on there own, in their own job
-                flowerStatsString = runCactusFlowerStats(cactusDiskDatabaseString=self.cactusDiskDatabaseString, flowerName=decodeFirstFlowerName(flowerNames))
-                self.logToMaster("Adding an oversize flower for target class %s and stats %s" \
-                                         % (overlargeTarget, flowerStatsString))
+                if runFlowerStats:
+                    flowerStatsString = runCactusFlowerStats(cactusDiskDatabaseString=self.cactusDiskDatabaseString, flowerName=decodeFirstFlowerName(flowerNames))
+                    self.logToMaster("Adding an oversize flower for target class %s and stats %s" \
+                                             % (overlargeTarget, flowerStatsString))
+                else:
+                    self.logToMaster("Adding an oversize flower %s for target class %s" \
+                                             % (decodeFirstFlowerName(flowerNames), overlargeTarget))
                 self.addChildTarget(overlargeTarget(cactusDiskDatabaseString=self.cactusDiskDatabaseString, phaseNode=phaseNode, 
                                                     flowerNames=flowerNames, overlarge=True)) #This ensures overlarge flowers, 
             else:
                 self.addChildTarget(target(cactusDiskDatabaseString=self.cactusDiskDatabaseString, 
                                            phaseNode=phaseNode, flowerNames=flowerNames, overlarge=False))
         
-    def makeRecursiveTargets(self, target=None, phaseNode=None):
+    def makeRecursiveTargets(self, target=None, phaseNode=None, runFlowerStats=False):
         """Make a set of child targets for a given set of parent flowers.
         """
         if target == None:
@@ -235,9 +239,10 @@ class CactusRecursionTarget(CactusTarget):
                                             maxSequenceSizeOfSecondaryFlowerGrouping=getOptionalAttrib(targetNode, "maxFlowerWrapperGroupSize", int, 
                                             default=CactusRecursionTarget.maxSequenceSizeOfFlowerGroupingDefault))
         self.makeChildTargets(flowersAndSizes=flowersAndSizes, 
-                              target=target, phaseNode=phaseNode)
+                              target=target, phaseNode=phaseNode, 
+                              runFlowerStats=runFlowerStats)
     
-    def makeExtendingTargets(self, target, overlargeTarget=None, phaseNode=None):
+    def makeExtendingTargets(self, target, overlargeTarget=None, phaseNode=None, runFlowerStats=False):
         """Make set of child targets that extend the current cactus tree.
         """
         targetNode = getTargetNode(self.phaseNode, target)
@@ -247,13 +252,14 @@ class CactusRecursionTarget(CactusTarget):
                                               default=CactusRecursionTarget.maxSequenceSizeOfFlowerGroupingDefault))
         self.makeChildTargets(flowersAndSizes=flowersAndSizes, 
                               target=target, overlargeTarget=overlargeTarget, 
-                              phaseNode=phaseNode)
+                              phaseNode=phaseNode, 
+                              runFlowerStats=runFlowerStats)
     
-    def makeWrapperTargets(self, target, overlargeTarget=None, phaseNode=None):
+    def makeWrapperTargets(self, target, overlargeTarget=None, phaseNode=None, runFlowerStats=False):
         """Takes the list of flowers for a recursive target and splits them up to fit the given wrapper target(s).
         """
         self.makeChildTargets(flowersAndSizes=runCactusSplitFlowersBySecondaryGrouping(self.flowerNames), 
-                              target=target, overlargeTarget=overlargeTarget, phaseNode=phaseNode)
+                              target=target, overlargeTarget=overlargeTarget, phaseNode=phaseNode, runFlowerStats=runFlowerStats)
         
 ############################################################
 ############################################################
@@ -379,7 +385,7 @@ class CactusCafRecursion(CactusRecursionTarget):
     """    
     def run(self):
         self.makeRecursiveTargets()
-        self.makeExtendingTargets(target=CactusCafWrapper, overlargeTarget=CactusCafWrapperLarge)
+        self.makeExtendingTargets(target=CactusCafWrapper, overlargeTarget=CactusCafWrapperLarge, runFlowerStats=True)
         
 class CactusCafWrapper(CactusRecursionTarget):
     """Runs cactus_core upon a set of flowers and no alignment file.
@@ -457,7 +463,7 @@ class CactusBarRecursion(CactusRecursionTarget):
     """
     def run(self):
         self.makeRecursiveTargets()
-        self.makeExtendingTargets(target=CactusBarWrapper, overlargeTarget=CactusBarWrapperLarge)
+        self.makeExtendingTargets(target=CactusBarWrapper, overlargeTarget=CactusBarWrapperLarge, runFlowerStats=True)
 
 def runBarForTarget(self, calculateWhichEndsToComputeSeparately=None, alignmentToPrecompute=None, precomputedAlignments=None):
     return runCactusBar(cactusDiskDatabaseString=self.cactusDiskDatabaseString, 
@@ -621,7 +627,7 @@ class CactusReferenceRecursion(CactusRecursionTarget):
     """This target creates the wrappers to run the reference problem algorithm, the follow on target then recurses down.
     """
     def run(self):
-        self.makeWrapperTargets(CactusReferenceWrapper)
+        self.makeWrapperTargets(CactusReferenceWrapper, runFlowerStats=True)
         self.makeFollowOnRecursiveTarget(CactusReferenceRecursion2)
         
 class CactusReferenceWrapper(CactusRecursionTarget):
