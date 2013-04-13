@@ -157,7 +157,7 @@ static stCactusNode *getCactusNode(stPinchEnd *pinchEnd, stHash *pinchEndsToAdja
     return cactusNode;
 }
 
-static void *mergeNodeObjects(void *a, void *b) {
+void *stCaf_mergeNodeObjects(void *a, void *b) {
     stList *adjacencyComponents1 = a;
     stList *adjacencyComponents2 = b;
     assert(adjacencyComponents1 != adjacencyComponents2);
@@ -243,8 +243,8 @@ static stCactusGraph *stCaf_constructCactusGraph(stList *deadEndComponent, stHas
     stHash_destruct(adjacencyComponentsToCactusNodes);
 
     //Run the cactus-ifying functions
-    stCactusGraph_collapseToCactus(cactusGraph, mergeNodeObjects, *startCactusNode);
-    stCactusGraph_collapseBridges(cactusGraph, *startCactusNode, mergeNodeObjects);
+    stCactusGraph_collapseToCactus(cactusGraph, stCaf_mergeNodeObjects, *startCactusNode);
+    stCactusGraph_collapseBridges(cactusGraph, *startCactusNode, stCaf_mergeNodeObjects);
 
     return cactusGraph;
 }

@@ -92,6 +92,11 @@ bool stCaf_containsMultipleCopiesOfAnySpecies(stPinchBlock *pinchBlock, Flower *
 ///////////////////////////////////////////////////////////////////////////
 
 /*
+ * Function that merges together adjacency components.
+ */
+void *stCaf_mergeNodeObjects(void *a, void *b);
+
+/*
  * Functions which converts a pinch graph into a cactus graph.
  */
 stCactusGraph *stCaf_getCactusGraphForThreadSet(Flower *flower, stPinchThreadSet *threadSet, stCactusNode **startCactusNode,
@@ -115,6 +120,7 @@ void stCaf_addAdjacencies(Flower *flower);
 /*
  * Takes a pinch graph for a flower and adds the alignments it contains back to the flower as a cactus.
  */
-void stCaf_finish(Flower *flower, stPinchThreadSet *threadSet);
+void stCaf_finish(Flower *flower, stPinchThreadSet *threadSet, int32_t chainLengthForBigFlower,
+        int32_t longChain);
 
 #endif /* STCAF_H_ */

@@ -134,6 +134,8 @@ int main(int argc, char *argv[]) {
     int32_t *alignmentTrims = NULL;
     bool singleCopyIngroup = 0;
     bool singleCopyOutgroup = 0;
+    int32_t chainLengthForBigFlower = 100000;
+    int32_t longChain = 3; //Ensures all chains get demoted
 
     ///////////////////////////////////////////////////////////////////////////
     // (0) Parse the inputs handed by genomeCactus.py / setup stuff.
@@ -376,7 +378,7 @@ int main(int argc, char *argv[]) {
             }
 
             //Finish up
-            stCaf_finish(flower, threadSet);
+            stCaf_finish(flower, threadSet, chainLengthForBigFlower, longChain);
             st_logInfo("Ran the cactus core script\n");
 
             //Cleanup

@@ -277,10 +277,12 @@ void stCaf_makeDegreeOneBlocks(stPinchThreadSet *threadSet) {
 // Functions for actually filling out cactus
 ///////////////////////////////////////////////////////////////////////////
 
-void stCaf_finish(Flower *flower, stPinchThreadSet *threadSet) {
+void stCaf_finish(Flower *flower, stPinchThreadSet *threadSet, int32_t chainLengthForBigFlower,
+        int32_t longChain) {
     stCactusNode *startCactusNode;
     stList *deadEndComponent;
     stCactusGraph *cactusGraph = stCaf_getCactusGraphForThreadSet(flower, threadSet, &startCactusNode, &deadEndComponent, 1);
+    stCactusGraph_collapseLongChainsOfBigFlowers(cactusGraph, startCactusNode, chainLengthForBigFlower, longChain, stCaf_mergeNodeObjects, 0);
     //Convert cactus graph/pinch graph to API
     stCaf_convertCactusGraphToFlowers(threadSet, startCactusNode, flower, deadEndComponent);
     //Cleanup
