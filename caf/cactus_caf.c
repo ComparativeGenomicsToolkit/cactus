@@ -135,7 +135,7 @@ int main(int argc, char *argv[]) {
     bool singleCopyIngroup = 0;
     bool singleCopyOutgroup = 0;
     int32_t chainLengthForBigFlower = 100000;
-    int32_t longChain = 3; //Ensures all chains get demoted
+    int32_t longChain = 20;
 
     ///////////////////////////////////////////////////////////////////////////
     // (0) Parse the inputs handed by genomeCactus.py / setup stuff.

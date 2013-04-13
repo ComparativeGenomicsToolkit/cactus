@@ -300,7 +300,10 @@ void stCaf_finish(Flower *flower, stPinchThreadSet *threadSet, int32_t chainLeng
     stCactusGraph *cactusGraph = stCaf_getCactusGraphForThreadSet(flower, threadSet, &startCactusNode, &deadEndComponent, 1);
     //chainLengthForBigFlower = 10;
     //longChain = 10;
-    stCactusGraph_collapseLongChainsOfBigFlowers(cactusGraph, startCactusNode, chainLengthForBigFlower, longChain, stCaf_mergeNodeObjects, 0);
+    int32_t nodesMerged = stCactusGraph_collapseLongChainsOfBigFlowers(cactusGraph, startCactusNode, chainLengthForBigFlower, longChain, stCaf_mergeNodeObjects, 0);
+    if(nodesMerged > 0) {
+        printf("Merging %i nodes in graph with %i blocks\n", nodesMerged, stPinchThreadSet_getTotalBlockNumber(threadSet));
+    }
     //Convert cactus graph/pinch graph to API
     stCaf_convertCactusGraphToFlowers(threadSet, startCactusNode, flower, deadEndComponent);
     //Cleanup
