@@ -757,9 +757,10 @@ void buildReferenceTopDown(Flower *flower, const char *referenceEventHeader, int
     assert(stList_length(stubTangleEnds) % 2 == 0);
 
     /*
-     * Calculate z function
+     * Calculate z functions
      */
     adjList *aL = calculateZ(flower, endsToNodes, nodeNumber, theta, maxWalkForCalculatingZ);
+    adjList *dAL = calculateZ(flower, endsToNodes, nodeNumber, theta, 1); //Gets set of direct of direct adjacencies
 
     /*
      * Get the reference with chosen stub matched intervals
@@ -796,7 +797,7 @@ void buildReferenceTopDown(Flower *flower, const char *referenceEventHeader, int
 
     int32_t maxNudge = 100;
     int32_t nudgePermutations = 5;
-    nudgeGreedily(aL, ref, nudgePermutations, maxNudge);
+    nudgeGreedily(dAL, aL, ref, nudgePermutations, maxNudge);
     double totalScoreAfterNudging = getReferenceScore(aL, ref);
     st_logDebug("The score of the final solution is %f after %i rounds of greedy nudging out of a max possible %f\n",
             totalScoreAfterNudging, nudgePermutations, maxPossibleScore);
@@ -829,6 +830,7 @@ void buildReferenceTopDown(Flower *flower, const char *referenceEventHeader, int
      * Cleanup
      */
     adjList_destruct(aL);
+    adjList_destruct(dAL);
     stList_destruct(newEnds);
     stHash_destruct(endsToNodes);
     stHash_destruct(nodesToEnds);
