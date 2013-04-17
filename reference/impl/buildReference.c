@@ -171,7 +171,7 @@ adjList *calculateZ(Flower *flower, stHash *endsToNodes, int32_t nodeNumber, dou
     /*
      * Calculate the zScores between all ends.
      */
-    adjList *aL = adjList_construct(nodeNumber);
+    adjList *aL = refAdjList_construct(nodeNumber);
     Flower_EndIterator *endIt = flower_getEndIterator(flower);
     End *end;
     while ((end = flower_getNextEnd(endIt)) != NULL) {
@@ -219,9 +219,9 @@ adjList *calculateZ(Flower *flower, stHash *endsToNodes, int32_t nodeNumber, dou
                                 score = 1e-10; //Make slightly non-zero.
                             }
                             assert(score > 0.0);
-                            adjList_addToWeight(aL, _3Node, _5Node, score);
-                            assert(adjList_getWeight(aL, _3Node, _5Node) == adjList_getWeight(aL, _5Node, _3Node));
-                            assert(adjList_getWeight(aL, _3Node, _5Node) >= 0.0);
+                            refAdjList_addToWeight(aL, _3Node, _5Node, score);
+                            assert(refAdjList_getWeight(aL, _3Node, _5Node) == refAdjList_getWeight(aL, _5Node, _3Node));
+                            assert(refAdjList_getWeight(aL, _3Node, _5Node) >= 0.0);
                         }
                     }
                     stList_destruct(caps);
@@ -461,7 +461,7 @@ static void getStubEdgesInTopLevelFlower(reference *ref, Flower *flower, stHash 
         int32_t node1 = stIntTuple_getPosition(stHash_search(endsToNodes, stList_get(stubEnds, i)), 0);
         for (int32_t j = i + 1; j < stList_length(stubEnds); j++) {
             int32_t node2 = stIntTuple_getPosition(stHash_search(endsToNodes, stList_get(stubEnds, j)), 0);
-            double score = adjList_getWeight(stubAL, node1, node2);
+            double score = refAdjList_getWeight(stubAL, node1, node2);
             assert(score >= 0);
             int32_t score2 = score > INT32_MAX ? INT32_MAX : score;
             assert(score2 >= 0);
@@ -482,7 +482,7 @@ static void getStubEdgesInTopLevelFlower(reference *ref, Flower *flower, stHash 
     stList_destruct(chosenAdjacencyEdges);
     stList_destruct(adjacencyEdges);
     stSortedSet_destruct(stubNodesSet);
-    adjList_destruct(stubAL);
+    refAdjList_destruct(stubAL);
 }
 
 static reference *getEmptyReference(Flower *flower, stHash *endsToNodes, int32_t nodeNumber, Event *referenceEvent,
@@ -775,7 +775,7 @@ void buildReferenceTopDown(Flower *flower, const char *referenceEventHeader, int
     st_logDebug("Starting to build the reference for flower %lli, with %i stubs and %i chains and %i nodes in the flowers tangle\n",
             flower_getName(flower), reference_getIntervalNumber(ref), chainNumber, nodeNumber);
 
-    double maxPossibleScore = adjList_getMaxPossibleScore(aL);
+    double maxPossibleScore = refAdjList_getMaxPossibleScore(aL);
     makeReferenceGreedily2(aL, ref);
     reference_log(ref);
     double totalScoreAfterGreedy = getReferenceScore(aL, ref);
@@ -829,8 +829,8 @@ void buildReferenceTopDown(Flower *flower, const char *referenceEventHeader, int
     /*
      * Cleanup
      */
-    adjList_destruct(aL);
-    adjList_destruct(dAL);
+    refAdjList_destruct(aL);
+    refAdjList_destruct(dAL);
     stList_destruct(newEnds);
     stHash_destruct(endsToNodes);
     stHash_destruct(nodesToEnds);

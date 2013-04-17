@@ -748,8 +748,8 @@ stList *getAlignedPairsWithBanding(stList *anchorPairs, const SymbolString sX, c
                         double newTotalProbability = diagonalCalculationTotalProbability(diagonal_getXay(diagonal2),
                                 forwardDpMatrix, backwardDpMatrix, sX, sY);
                         if (totalPosteriorCalculationsThisTraceback != 1) {
-                            assert(totalProbability + 0.1 > newTotalProbability);
-                            assert(newTotalProbability + 0.1 > newTotalProbability);
+                            assert(totalProbability + 1.0 > newTotalProbability);
+                            assert(newTotalProbability + 1.0 > newTotalProbability);
                         }
                         totalProbability = newTotalProbability;
                     }
