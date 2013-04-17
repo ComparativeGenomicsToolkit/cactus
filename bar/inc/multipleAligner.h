@@ -19,6 +19,13 @@
 #include "sonLib.h"
 #include "pairwiseAligner.h"
 
+typedef struct _column Column;
+struct _column {
+    int64_t seqName;
+    int64_t position;
+    Column *nColumn;
+};
+
 /*
  * Takes a list of DNA strings (char arrays), aligns them and returns a global alignment,
  * represented as a list of aligned stIntTuple pairs, format (score, sequence1, position1, sequence2, position2)

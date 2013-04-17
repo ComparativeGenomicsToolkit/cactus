@@ -139,6 +139,22 @@ static void test_getDistanceMatrix(CuTest *testCase) {
     setup();
     stList *multipleAlignedPairs = makeAllPairwiseAlignments(littleSequences, pabp);
     stSet *columns = getMultipleSequenceAlignment(littleSequences, multipleAlignedPairs, 0.2);
+    stSetIterator *setIt = stSet_getIterator(columns);
+    Column *c1;
+    while ((c1 = stSet_getNext(setIt)) != NULL) {
+        do {
+            char base1 = ((char *) stList_get(littleSequences, c1->seqName))[c1->position];
+            Column *c2 = c1->nColumn;
+            while (c2 != NULL) {
+                char base2 = ((char *) stList_get(littleSequences, c2->seqName))[c2->position];
+                st_logDebug("The pairwise alignment of the little sequences seq1: %" PRIi64 " seq2: %" PRIi64 " pos1: %" PRIi64 " pos2: %" PRIi64 " base1: %c base2: %c \n", c1->seqName, c2->seqName, c1->position, c2->position, base1, base2);
+                c2 = c2->nColumn;
+            }
+            c1 = c1->nColumn;
+        } while (c1 != NULL);
+    }
+    assert(0);
+    stSet_destructIterator(setIt);
     int64_t *distanceCounts = getDistanceMatrix(columns, littleSequences, 100000);
     CuAssertDblEquals(testCase, 0.2, subsPerSite(0, 1, distanceCounts, 4), 0.00001);
     CuAssertDblEquals(testCase, 0.5, subsPerSite(0, 2, distanceCounts, 4), 0.00001);

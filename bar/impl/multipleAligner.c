@@ -23,12 +23,6 @@
 /*
  * Structure represents an alignment of sequence positions.
  */
-typedef struct _column Column;
-struct _column {
-    int64_t seqName;
-    int64_t position;
-    Column *nColumn;
-};
 
 void column_destruct(Column *c) {
     while (c->nColumn != NULL) {
