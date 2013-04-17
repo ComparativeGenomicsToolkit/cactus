@@ -153,7 +153,6 @@ static void test_getDistanceMatrix(CuTest *testCase) {
             c1 = c1->nColumn;
         } while (c1 != NULL);
     }
-    st_errAbort(1);
     stSet_destructIterator(setIt);
     int64_t *distanceCounts = getDistanceMatrix(columns, littleSequences, 100000);
     CuAssertDblEquals(testCase, 0.2, subsPerSite(0, 1, distanceCounts, 4), 0.00001);
