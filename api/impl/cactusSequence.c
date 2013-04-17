@@ -32,11 +32,11 @@ MetaSequence *sequence_getMetaSequence(Sequence *sequence) {
 	return sequence->metaSequence;
 }
 
-int32_t sequence_getStart(Sequence *sequence) {
+int64_t sequence_getStart(Sequence *sequence) {
 	return metaSequence_getStart(sequence->metaSequence);
 }
 
-int32_t sequence_getLength(Sequence *sequence) {
+int64_t sequence_getLength(Sequence *sequence) {
 	return metaSequence_getLength(sequence->metaSequence);
 }
 
@@ -52,7 +52,7 @@ Flower *sequence_getFlower(Sequence *sequence) {
 	return sequence->flower;
 }
 
-char *sequence_getString(Sequence *sequence, int32_t start, int32_t length, int32_t strand) {
+char *sequence_getString(Sequence *sequence, int64_t start, int64_t length, bool strand) {
 	return metaSequence_getString(sequence->metaSequence, start, length, strand);
 }
 

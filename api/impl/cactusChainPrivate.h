@@ -14,8 +14,8 @@ struct _chain {
 	Flower *flower;
 	Link *link;
 	Link *endLink;
-	int32_t linkNumber;
-	int32_t chainIndex;
+	int64_t linkNumber;
+	int64_t chainIndex;
 };
 
 ////////////////////////////////////////////////

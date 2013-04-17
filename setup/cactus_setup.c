@@ -41,24 +41,24 @@ void usage() {
 /*
  * Plenty of global variables!
  */
-int32_t isComplete = 1;
+int64_t isComplete = 1;
 char * cactusDiskDatabaseString = NULL;
 CactusDisk *cactusDisk;
 Flower *flower;
 EventTree *eventTree;
 Event *event;
-int32_t totalSequenceNumber = 0;
+int64_t totalSequenceNumber = 0;
 
 void checkBranchLengthsAreDefined(stTree *tree) {
     if (isinf(stTree_getBranchLength(tree))) {
         st_errAbort("Got a non defined branch length in the input tree: %s.\n", stTree_getNewickTreeString(tree));
     }
-    for (int32_t i = 0; i < stTree_getChildNumber(tree); i++) {
+    for (int64_t i = 0; i < stTree_getChildNumber(tree); i++) {
         checkBranchLengthsAreDefined(stTree_getChild(tree, i));
     }
 }
 
-void fn(const char *fastaHeader, const char *string, int32_t length) {
+void fn(const char *fastaHeader, const char *string, int64_t length) {
     /*
      * Processes a sequence by adding it to the flower disk.
      */
@@ -84,7 +84,7 @@ void fn(const char *fastaHeader, const char *string, int32_t length) {
 
 void setCompleteStatus(const char *fileName) {
     isComplete = 0;
-    int32_t i = strlen(fileName);
+    int64_t i = strlen(fileName);
     if (i >= 9) {
         const char *cA = fileName + i - 9;
         if (strcmp(cA, ".complete") == 0) {
@@ -121,10 +121,10 @@ int main(int argc, char *argv[]) {
      * Finish!
      */
 
-    int32_t key, j;
+    int64_t key, j;
     struct List *stack;
     FILE *fileHandle = NULL;
-    int32_t totalEventNumber;
+    int64_t totalEventNumber;
     Group *group;
     Flower_EndIterator *endIterator;
     End *end;
@@ -238,7 +238,7 @@ int main(int argc, char *argv[]) {
             speciesTree);
     stTree *tree = stTree_parseNewickString(speciesTree);
     st_logInfo("Parsed the tree\n");
-    stTree_setBranchLength(tree, INT32_MAX);
+    stTree_setBranchLength(tree, INT64_MAX);
     checkBranchLengthsAreDefined(tree);
     eventTree = eventTree_construct2(flower); //creates the event tree and the root even
     totalEventNumber = 1;
@@ -257,7 +257,7 @@ int main(int argc, char *argv[]) {
         if (stTree_getChildNumber(tree) > 0) {
             event = event_construct3(stTree_getLabel(tree),
                     stTree_getBranchLength(tree), event, eventTree);
-            for (int32_t i = stTree_getChildNumber(tree) - 1; i >= 0; i--) {
+            for (int64_t i = stTree_getChildNumber(tree) - 1; i >= 0; i--) {
                 listAppend(stack, event);
                 listAppend(stack, stTree_getChild(tree, i));
             }
@@ -278,7 +278,7 @@ int main(int argc, char *argv[]) {
             if (stFile_isDir(fileName)) {
                 st_logInfo("Processing directory: %s\n", fileName);
                 stList *filesInDir = stFile_getFileNamesInDirectory(fileName);
-                for (int32_t i = 0; i < stList_length(filesInDir); i++) {
+                for (int64_t i = 0; i < stList_length(filesInDir); i++) {
                     char *absChildFileName = stFile_pathJoin(fileName,
                             stList_get(filesInDir, i));
                     assert(stFile_exists(absChildFileName));
@@ -301,7 +301,7 @@ int main(int argc, char *argv[]) {
     }
     char *eventTreeString = eventTree_makeNewickString(eventTree);
     st_logInfo(
-            "Constructed the initial flower with %i sequences and %i events with string: %s\n",
+            "Constructed the initial flower with %" PRIi64 " sequences and %" PRIi64 " events with string: %s\n",
             totalSequenceNumber, totalEventNumber, eventTreeString);
     assert(
             event_getSubTreeBranchLength(eventTree_getRootEvent(eventTree))
@@ -315,7 +315,7 @@ int main(int argc, char *argv[]) {
 
     if (outgroupEvents != NULL) {
         stList *outgroupEventsList = stString_split(outgroupEvents);
-        for (int32_t i = 0; i < stList_length(outgroupEventsList); i++) {
+        for (int64_t i = 0; i < stList_length(outgroupEventsList); i++) {
             char *outgroupEvent = stList_get(outgroupEventsList, i);
             Event *event = eventTree_getEventByHeader(eventTree, outgroupEvent);
             if (event == NULL) {

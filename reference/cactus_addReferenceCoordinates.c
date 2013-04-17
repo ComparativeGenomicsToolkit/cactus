@@ -144,7 +144,7 @@ int main(int argc, char *argv[]) {
         Flower *flower = stList_get(flowers, 0);
         bottomUp(flowers, sequenceDatabase, referenceEventName, outgroupEventName, !flower_hasParentGroup(flower));
         //Now unload the nested flowers.
-        for (int32_t i = 0; i < stList_length(flowers); i++) {
+        for (int64_t i = 0; i < stList_length(flowers); i++) {
             Flower *flower = stList_get(flowers, i);
             //Now ensure that the nested flowers are not loaded, as this will avoid writing them to disk
             Flower_GroupIterator *groupIt = flower_getGroupIterator(flower);
@@ -161,7 +161,7 @@ int main(int argc, char *argv[]) {
     } else {
         topDown(flowers, referenceEventName);
         //Now ensure the non-nested flowers are not loaded
-        for (int32_t i = 0; i < stList_length(flowers); i++) {
+        for (int64_t i = 0; i < stList_length(flowers); i++) {
            flower_unload(stList_get(flowers, i)); //We haven't changed the parents
         }
     }

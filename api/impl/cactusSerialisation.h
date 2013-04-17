@@ -60,12 +60,7 @@ void binaryRepresentation_writeString(const char *string, void (*writeFn)(const 
 /*
  * Writes an integer to the binary stream
  */
-void binaryRepresentation_writeInteger(int32_t i, void (*writeFn)(const void * ptr, size_t size, size_t count));
-
-/*
- * Writes an integer to the binary stream
- */
-void binaryRepresentation_write64BitInteger(int64_t i, void (*writeFn)(const void * ptr, size_t size, size_t count));
+void binaryRepresentation_writeInteger(int64_t i, void (*writeFn)(const void * ptr, size_t size, size_t count));
 
 /*
  * Writes an name to the binary stream
@@ -106,12 +101,7 @@ const char *binaryRepresentation_getStringStatic(void **binaryString);
 /*
  * Parses an integer from binary string.
  */
-int32_t binaryRepresentation_getInteger(void **binaryString);
-
-/*
- * Parses an 64bit integer from binary string.
- */
-int64_t binaryRepresentation_get64BitInteger(void **binaryString);
+int64_t binaryRepresentation_getInteger(void **binaryString);
 
 /*
  * Parses a name from a binary string.

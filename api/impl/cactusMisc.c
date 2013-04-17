@@ -77,7 +77,7 @@ char cactusMisc_reverseComplementChar(char c) {
 }
 
 char *cactusMisc_reverseComplementString(const char *string) {
-    int32_t i, j;
+    int64_t i, j;
 
     j = strlen(string);
     char *cA;
@@ -90,14 +90,14 @@ char *cactusMisc_reverseComplementString(const char *string) {
     return cA;
 }
 
-int32_t cactusMisc_nameCompare(Name name1, Name name2) {
+int64_t cactusMisc_nameCompare(Name name1, Name name2) {
     return name1 > name2 ? 1 : (name1 < name2 ? -1 : 0);
 }
 
 Name cactusMisc_stringToName(const char *stringName) {
     assert(stringName != NULL);
     Name name;
-    int32_t i = sscanf(stringName, NAME_STRING, &name);
+    int64_t i = sscanf(stringName, NAME_STRING, &name);
     if (i != 1) {
         fprintf(stderr, "Can not get a valid name from the given string: %s\n", stringName);
         return NULL_NAME;
@@ -126,7 +126,7 @@ const char *cactusMisc_getDefaultReferenceEventHeader() {
 
 void preCacheNestedFlowers(CactusDisk *cactusDisk, stList *flowers) {
     stList *nestedFlowerNames = stList_construct3(0, free);
-    for (int32_t i = 0; i < stList_length(flowers); i++) {
+    for (int64_t i = 0; i < stList_length(flowers); i++) {
         Flower *flower = stList_get(flowers, i);
         Flower_GroupIterator *groupIt = flower_getGroupIterator(flower);
         Group *group;

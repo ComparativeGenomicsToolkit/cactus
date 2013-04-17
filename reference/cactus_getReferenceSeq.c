@@ -70,9 +70,9 @@ static void getReferenceSequences(FILE *fileHandle, Flower *flower, char *refere
          char *sequenceHeader = formatSequenceHeader(sequence);
          st_logInfo("Sequence %s\n", sequenceHeader);
          fprintf(fileHandle, ">%s\n", sequenceHeader);
-         const int32_t lineLength = 10000000;
-         const int32_t end = sequence_getLength(sequence) + sequence_getStart(sequence);
-         for(int32_t i=sequence_getStart(sequence); i<end; i += lineLength) {
+         const int64_t lineLength = 10000000;
+         const int64_t end = sequence_getLength(sequence) + sequence_getStart(sequence);
+         for(int64_t i=sequence_getStart(sequence); i<end; i += lineLength) {
            char *cA = sequence_getString(sequence, i, end - i < lineLength ?  end - i : lineLength, 1);
            fprintf(fileHandle, "%s\n", cA);
            free(cA);
@@ -185,9 +185,9 @@ int main(int argc, char *argv[]) {
 
     //int64_t startTime = time(NULL);
     //flower = flower_addReferenceSequence(flower, cactusDisk, name);
-    //st_logInfo("Added the reference sequence in %i seconds/\n", time(NULL) - startTime);
+    //st_logInfo("Added the reference sequence in %" PRIi64 " seconds/\n", time(NULL) - startTime);
 
-    int32_t numSequences = flower_getSequenceNumber(flower);
+    int64_t numSequences = flower_getSequenceNumber(flower);
     //Make sure that referenceSequence has already been added:
     if(getSequenceMatchesEvent(flower, referenceEventString) == NULL &&
        numSequences > 0){

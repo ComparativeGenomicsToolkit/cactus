@@ -179,8 +179,8 @@ void testCap_segmentCoordinatesReverseStrand(CuTest* testCase) {
 
 void testCap_getCoordinate(CuTest* testCase) {
     cactusCapTestSetup();
-    CuAssertTrue(testCase, cap_getCoordinate(rootCap) == INT32_MAX);
-    CuAssertTrue(testCase, cap_getCoordinate(cap_getReverse(rootCap)) == INT32_MAX);
+    CuAssertTrue(testCase, cap_getCoordinate(rootCap) == INT64_MAX);
+    CuAssertTrue(testCase, cap_getCoordinate(cap_getReverse(rootCap)) == INT64_MAX);
     CuAssertTrue(testCase, cap_getCoordinate(leaf1Cap) == 4);
     CuAssertTrue(testCase, cap_getCoordinate(cap_getReverse(leaf1Cap)) == 4);
     cactusCapTestTeardown();
@@ -188,15 +188,15 @@ void testCap_getCoordinate(CuTest* testCase) {
 
 void testCap_setCoordinate(CuTest* testCase) {
     cactusCapTestSetup();
-    CuAssertTrue(testCase, cap_getCoordinate(rootCap) == INT32_MAX);
+    CuAssertTrue(testCase, cap_getCoordinate(rootCap) == INT64_MAX);
     CuAssertTrue(testCase, cap_getStrand(rootCap));
     CuAssertTrue(testCase, cap_getSequence(rootCap) == NULL);
     cap_setCoordinates(rootCap, 5, 0, NULL);
     CuAssertTrue(testCase, cap_getCoordinate(rootCap) == 5);
     CuAssertTrue(testCase, !cap_getStrand(rootCap));
     CuAssertTrue(testCase, cap_getSequence(rootCap) == NULL);
-    cap_setCoordinates(rootCap, INT32_MAX, 1, NULL);
-    CuAssertTrue(testCase, cap_getCoordinate(rootCap) == INT32_MAX);
+    cap_setCoordinates(rootCap, INT64_MAX, 1, NULL);
+    CuAssertTrue(testCase, cap_getCoordinate(rootCap) == INT64_MAX);
     CuAssertTrue(testCase, cap_getStrand(rootCap));
     CuAssertTrue(testCase, cap_getSequence(rootCap) == NULL);
     cactusCapTestTeardown();

@@ -39,7 +39,7 @@ bool group_isLeaf(Group *group) {
     return group->leafGroup;
 }
 
-static int32_t returnsTrue(Event *event) {
+static int64_t returnsTrue(Event *event) {
     assert(event != NULL);
     return 1;
 }
@@ -179,7 +179,7 @@ End *group_getEnd(Group *group, Name name) {
     return stSortedSet_search(group->ends, &end);
 }
 
-int32_t group_getEndNumber(Group *group) {
+int64_t group_getEndNumber(Group *group) {
     return stSortedSet_size(group->ends);
 }
 
@@ -218,7 +218,7 @@ int64_t group_getTotalBaseLength(Group *group) {
                 assert(cap_getStrand(cap2));
                 assert(cap_getSide(cap2));
                 assert(end_getGroup(cap_getEnd(cap2)) == group);
-                int32_t length = cap_getCoordinate(cap2) - cap_getCoordinate(cap) - 1;
+                int64_t length = cap_getCoordinate(cap2) - cap_getCoordinate(cap) - 1;
                 assert(length >= 0);
                 totalLength += length;
             }
@@ -237,7 +237,7 @@ void group_check(Group *group) {
 
     Group_EndIterator *endIterator = group_getEndIterator(group);
     End *end;
-    int32_t nonFree = 0;
+    int64_t nonFree = 0;
     while ((end = group_getNextEnd(endIterator)) != NULL) {
         //That the ends of the groups are doubly linked to the ends (so every end is in only one link).
         cactusCheck(end_getGroup(end) == group);
@@ -282,7 +282,7 @@ void group_constructChainForLink(Group *group) {
     if (group_getLink(group) == NULL) {
         Group_EndIterator *endIt = group_getEndIterator(group);
         End *end;
-        int32_t i = 0;
+        int64_t i = 0;
         while ((end = group_getNextEnd(endIt)) != NULL) {
             if (end_isAttached(end) || end_isBlockEnd(end)) {
                 i++;
@@ -339,14 +339,14 @@ void group_constructChainForLink(Group *group) {
     }
 }
 
-int32_t group_getStubEndNumber(Group *group) {
+int64_t group_getStubEndNumber(Group *group) {
     return group_getEndNumber(group) - group_getBlockEndNumber(group);
 }
 
-int32_t group_getAttachedStubEndNumber(Group *group) {
+int64_t group_getAttachedStubEndNumber(Group *group) {
     Group_EndIterator *endIt = group_getEndIterator(group);
     End *end;
-    int32_t i = 0;
+    int64_t i = 0;
     while ((end = group_getNextEnd(endIt)) != NULL) {
         if (end_isAttached(end)) {
             assert(end_isStubEnd(end));
@@ -357,16 +357,16 @@ int32_t group_getAttachedStubEndNumber(Group *group) {
     return i;
 }
 
-int32_t group_getFreeStubEndNumber(Group *group) {
-    int32_t i = group_getStubEndNumber(group) - group_getAttachedStubEndNumber(group);
+int64_t group_getFreeStubEndNumber(Group *group) {
+    int64_t i = group_getStubEndNumber(group) - group_getAttachedStubEndNumber(group);
     assert(i >= 0);
     return i;
 }
 
-int32_t group_getBlockEndNumber(Group *group) {
+int64_t group_getBlockEndNumber(Group *group) {
     Group_EndIterator *endIt = group_getEndIterator(group);
     End *end;
-    int32_t i = 0;
+    int64_t i = 0;
     while ((end = group_getNextEnd(endIt)) != NULL) {
         if (end_isBlockEnd(end)) {
             i++;

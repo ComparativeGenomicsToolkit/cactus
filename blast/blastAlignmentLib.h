@@ -13,15 +13,15 @@
 #include "sonLib.h"
 #include "pairwiseAlignment.h"
 
-int32_t writeFlowerSequencesInFile(Flower *flower, const char *tempFile1, int32_t minimumSequenceLength);
+int64_t writeFlowerSequencesInFile(Flower *flower, const char *tempFile1, int64_t minimumSequenceLength);
 
-int32_t writeFlowerSequences(Flower *flower, void(*processSequence)(const char *, const char *, int32_t), int32_t minimumSequenceLength);
+int64_t writeFlowerSequences(Flower *flower, void(*processSequence)(const char *, const char *, int64_t), int64_t minimumSequenceLength);
 
 void convertCoordinatesOfPairwiseAlignment(struct PairwiseAlignment *pairwiseAlignment);
 
 void setupToChunkSequences(int64_t chunkSize2, int64_t overlapSize2, const char *chunksDir2);
 
-void processSequenceToChunk(const char *fastaHeader, const char *sequence, int32_t length);
+void processSequenceToChunk(const char *fastaHeader, const char *sequence, int64_t length);
 
 void finishChunkingSequences();
 

@@ -25,7 +25,7 @@
  * Positions and sequence indices are zero based, scores are between 1 and 1000.
  */
 stList *makeAlignment(stList *sequences,
-        int32_t spanningTrees, int64_t maxPairsToConsider, float gapGamma,
+        int64_t spanningTrees, int64_t maxPairsToConsider, float gapGamma,
         PairwiseAlignmentParameters *pairwiseAlignmentBandingParameters);
 
 

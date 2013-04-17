@@ -31,9 +31,9 @@ typedef struct _chainAlignment {
     //Matrix of alignment, matrix[column][row]
     Segment ***matrix; //NULL values are okay, where an instance of an block is missing from an instance of the chain.
     Block **blocks; //this list of blocks, in order.
-    int32_t columnNumber; //the number of blocks.
-    int32_t rowNumber; //the number of rows of the alignment, each row containing an instance of blocks in the chain.
-    int32_t totalAlignmentLength; //the length in base pairs of the alignment.
+    int64_t columnNumber; //the number of blocks.
+    int64_t rowNumber; //the number of rows of the alignment, each row containing an instance of blocks in the chain.
+    int64_t totalAlignmentLength; //the length in base pairs of the alignment.
 } ChainAlignment;
 
 char **chainAlignment_getAlignment(ChainAlignment *chainAlignment) {
@@ -42,7 +42,7 @@ char **chainAlignment_getAlignment(ChainAlignment *chainAlignment) {
      * base pair alignment of the chain alignment.
      */
     char **alignment;
-    int32_t i, j, k, l;
+    int64_t i, j, k, l;
     Segment *segment;
     char *cA;
 
@@ -80,12 +80,12 @@ char **chainAlignment_getAlignment(ChainAlignment *chainAlignment) {
 }
 
 Segment *chainAlignment_getFirstNonNullSegment(ChainAlignment *chainAlignment,
-        int32_t row, bool increasing) {
+        int64_t row, bool increasing) {
     /*
      * Gets the first instance on an row in the chain alignment which is non null. If increasing is false, gets the last.
      */
     Segment *segment;
-    int32_t j = 0, k = chainAlignment->columnNumber, l = 1;
+    int64_t j = 0, k = chainAlignment->columnNumber, l = 1;
     if (!increasing) {
         j = chainAlignment->columnNumber - 1;
         k = -1;
@@ -106,7 +106,7 @@ Name *chainAlignment_getEndNames(ChainAlignment *chainAlignment, bool _5End) {
      * Gets the names of the ends associated with the instances at the ends of a chain alignment.
      */
     Name *names;
-    int32_t i;
+    int64_t i;
     Segment *segment;
 
     names = st_malloc(sizeof(Name) * chainAlignment->rowNumber);
@@ -124,7 +124,7 @@ Name *chainAlignment_getLeafEventNames(ChainAlignment *chainAlignment) {
      * Gets the names of the leaf events of the rows (instances), in the alignment.
      */
     Name *names;
-    int32_t i;
+    int64_t i;
     Segment *segment;
 
     names = st_malloc(sizeof(Name) * chainAlignment->rowNumber);
@@ -135,14 +135,14 @@ Name *chainAlignment_getLeafEventNames(ChainAlignment *chainAlignment) {
     return names;
 }
 
-int32_t *chainAlignment_getBlockBoundaries(ChainAlignment *chainAlignment) {
+int64_t *chainAlignment_getBlockBoundaries(ChainAlignment *chainAlignment) {
     /*
      * Gets the boundaries of block in the chain alignment.
      */
-    int32_t *blockBoundaries;
-    int32_t i, j;
+    int64_t *blockBoundaries;
+    int64_t i, j;
 
-    blockBoundaries = st_malloc(sizeof(int32_t) * chainAlignment->columnNumber);
+    blockBoundaries = st_malloc(sizeof(int64_t) * chainAlignment->columnNumber);
     j = 0;
     for (i = 0; i < chainAlignment->columnNumber; i++) {
         blockBoundaries[i] = j + block_getLength(chainAlignment->blocks[i]);
@@ -159,12 +159,12 @@ void chomp(const char *s) {
     }
 }
 
-void buildChainTrees_Bernard(int32_t blockNumber, char ***concatenatedBlocks,
+void buildChainTrees_Bernard(int64_t blockNumber, char ***concatenatedBlocks,
         Name **_5Ends, Name **_3Ends, Name **leafEventLabels,
-        int32_t **blockBoundaries, char *eventTreeString,
+        int64_t **blockBoundaries, char *eventTreeString,
         ChainAlignment **chainAlignments, char **modifiedEventTreeString,
-        char ****blockTreeStrings, int32_t ***refinedBlockBoundaries,
-        int32_t **refinedBlockNumbers) {
+        char ****blockTreeStrings, int64_t ***refinedBlockBoundaries,
+        int64_t **refinedBlockNumbers) {
     /*
      * Here's the function you need to fill in, I haven't defined the outputs yet - you get it working and then we can discuss.
      *
@@ -180,11 +180,11 @@ void buildChainTrees_Bernard(int32_t blockNumber, char ***concatenatedBlocks,
 
     st_logInfo("Started Bernard's function\n");
 
-    int32_t i = 0;
-    int32_t j = 0;
+    int64_t i = 0;
+    int64_t j = 0;
 
-    int32_t rowNumber = 0;
-    int32_t colNumber = 0;
+    int64_t rowNumber = 0;
+    int64_t colNumber = 0;
 
     char ***blockTreeArray = NULL;
     blockTreeArray = st_malloc(sizeof(void *) * blockNumber);
@@ -197,7 +197,7 @@ void buildChainTrees_Bernard(int32_t blockNumber, char ***concatenatedBlocks,
 
     for (i = 0; i < blockNumber; i++) {
 
-        sprintf(buffer, "\tBN start: %d of %d\n", i, blockNumber);
+        sprintf(buffer, "\tBN start: %" PRIi64 " of %" PRIi64 "\n", i, blockNumber);
         st_logInfo(buffer);
 
         rowNumber = chainAlignments[i]->rowNumber;
@@ -214,14 +214,14 @@ void buildChainTrees_Bernard(int32_t blockNumber, char ***concatenatedBlocks,
     *blockTreeStrings = blockTreeArray;
 
     /* Clone Block boundaries to refined Block Boundaries*/
-    int32_t **newBlockBoundaries = NULL;
-    int32_t *newBlockNumbers = NULL;
+    int64_t **newBlockBoundaries = NULL;
+    int64_t *newBlockNumbers = NULL;
 
     newBlockBoundaries = st_malloc(sizeof(void *) * blockNumber);
-    newBlockNumbers = st_malloc(sizeof(int32_t) * blockNumber);
+    newBlockNumbers = st_malloc(sizeof(int64_t) * blockNumber);
     for (i = 0; i < blockNumber; i++) {
         colNumber = chainAlignments[i]->columnNumber;
-        newBlockBoundaries[i] = st_malloc(sizeof(int32_t) * colNumber);
+        newBlockBoundaries[i] = st_malloc(sizeof(int64_t) * colNumber);
         newBlockNumbers[i] = colNumber;
         for (j = 0; j < colNumber; j++) {
             newBlockBoundaries[i][j] = blockBoundaries[i][j];
@@ -239,8 +239,8 @@ Segment *getSegment(struct BinaryTree *binaryTree, Segment **segments) {
     /*
      * Gets associated segment from integer index of leaf name.
      */
-    int32_t i;
-    int j = sscanf(binaryTree->label, "%i", &i);
+    int64_t i;
+    int j = sscanf(binaryTree->label, "%" PRIi64 "", &i);
     (void)j;
     assert(j == 1);
     assert(i >= 0);
@@ -253,7 +253,7 @@ Event *getEvent(struct BinaryTree *binaryTree, Segment **segments) {
 }
 
 Segment *buildChainTrees3P(Block *block, Segment **segments,
-        int32_t blockNumber, struct BinaryTree *binaryTree) {
+        int64_t blockNumber, struct BinaryTree *binaryTree) {
     /*
      * Recursive partner to buildChainTree3 function, recurses on the binary tree constructing the block tree.
      * The labels of the leaves are indexes into the segments array, the internal node's labels are events in the event tree.
@@ -286,7 +286,7 @@ Segment *buildChainTrees3P(Block *block, Segment **segments,
     }
 }
 
-void buildChainTrees3(Block *block, Segment **segments, int32_t blockNumber,
+void buildChainTrees3(Block *block, Segment **segments, int64_t blockNumber,
         struct BinaryTree *binaryTree) {
     /*
      * Constructs a block tree for the block.
@@ -321,13 +321,13 @@ void buildChainTrees3(Block *block, Segment **segments, int32_t blockNumber,
 }
 
 void buildChainTrees2(ChainAlignment *chainAlignment,
-        struct BinaryTree **refinedBlockTrees, int32_t *refinedBlockBoundaries,
-        int32_t refinedBlockNumber) {
+        struct BinaryTree **refinedBlockTrees, int64_t *refinedBlockBoundaries,
+        int64_t refinedBlockNumber) {
     /*
      * Iterates through a chain alignment, constructing the block trees and splitting blocks as needed.
      */
     assert(chainAlignment->columnNumber <= refinedBlockNumber);
-    int32_t i, j, k;
+    int64_t i, j, k;
     Block *block, *leftBlock, *rightBlock;
 
     j = 0;
@@ -359,11 +359,11 @@ void buildChainTrees2(ChainAlignment *chainAlignment,
 }
 
 void buildChainTrees(ChainAlignment **chainAlignments,
-        int32_t chainAlignmentNumber, EventTree *eventTree) {
+        int64_t chainAlignmentNumber, EventTree *eventTree) {
     /*
      * This function builds a load of inputs which are then passed to Bernard's code.
      */
-    int32_t i, j;
+    int64_t i, j;
 
     //Make the block alignments.
     char ***concatenatedBlocks = st_malloc(sizeof(void *)
@@ -371,7 +371,7 @@ void buildChainTrees(ChainAlignment **chainAlignments,
     Name **_5Ends = st_malloc(sizeof(void *) * chainAlignmentNumber); //these are the lists of ends associated with each end.
     Name **_3Ends = st_malloc(sizeof(void *) * chainAlignmentNumber);
     Name **leafEventLabels = st_malloc(sizeof(void *) * chainAlignmentNumber); //this is the list of leaf event labels.
-    int32_t **blockBoundaries =
+    int64_t **blockBoundaries =
             st_malloc(sizeof(void *) * chainAlignmentNumber); //each chain alignment has a list of block lengths to demark where the block boundaries are.
 
     //now fill out the the various arrays.
@@ -390,8 +390,8 @@ void buildChainTrees(ChainAlignment **chainAlignments,
     //call to Bernard's code
     char *augmentedEventTreeString; //pointer to string holding the augmented event tree.
     char ***blockTreeStrings; //array of string pointers, for holding the constructed block trees.
-    int32_t **refinedBlockBoundaries; //like the block boundaries, but revised by allowing for splits in the existing blocks.
-    int32_t *refinedBlockNumbers; //the lengths of the block boundary arrays.
+    int64_t **refinedBlockBoundaries; //like the block boundaries, but revised by allowing for splits in the existing blocks.
+    int64_t *refinedBlockNumbers; //the lengths of the block boundary arrays.
     buildChainTrees_Bernard(chainAlignmentNumber, concatenatedBlocks, _5Ends,
             _3Ends, leafEventLabels, blockBoundaries, eventTreeString,
             chainAlignments, &augmentedEventTreeString, &blockTreeStrings,
@@ -445,7 +445,7 @@ int chainAlignment_cmpFn(ChainAlignment **cA1, ChainAlignment **cA2) {
     return (*cA2)->totalAlignmentLength - (*cA1)->totalAlignmentLength;
 }
 
-static int32_t oComparator(const void *o1, const void *o2, void *a) {
+static int oComparator(const void *o1, const void *o2, void *a) {
     /*
      * Compares the objects by there address.
      */
@@ -453,11 +453,11 @@ static int32_t oComparator(const void *o1, const void *o2, void *a) {
     return o1 > o2 ? 1 : o1 < o2 ? -1 : 0;
 }
 
-ChainAlignment *chainAlignment_construct(Block **blocks, int32_t blocksLength) {
+ChainAlignment *chainAlignment_construct(Block **blocks, int64_t blocksLength) {
     /*
      * Constructs a chain alignment structure from a chain of blocks.
      */
-    int32_t i, j, k;
+    int64_t i, j, k;
     Block *block;
     Segment *segment;
     Segment *segment2;
@@ -516,7 +516,7 @@ ChainAlignment *chainAlignment_construct(Block **blocks, int32_t blocksLength) {
         }
         block_destructInstanceIterator(instanceIterator);
     }
-    assert(k == (int32_t)hashtable_count(hash));
+    assert(k == (int64_t)hashtable_count(hash));
     assert(list->length > 0);
 
     /*
@@ -562,7 +562,7 @@ void chainAlignment_destruct(ChainAlignment *chainAlignment) {
     /*
      * Destructs a chain alignment.
      */
-    int32_t i;
+    int64_t i;
     for (i = 0; i < chainAlignment->columnNumber; i++) {
         free(chainAlignment->matrix[i]);
     }
@@ -633,8 +633,8 @@ int main(int argc, char *argv[]) {
      *
      */
     CactusDisk *cactusDisk;
-    int32_t startTime;
-    int32_t i, j;
+    int64_t startTime;
+    int64_t i, j;
     Chain *chain;
     Block *block;
     struct List *sortedChainAlignments;
@@ -781,7 +781,7 @@ int main(int argc, char *argv[]) {
         }
         flower_destructChainIterator(chainIterator);
         st_logInfo(
-                "Constructed the block trees for the non-trivial chains in the flower in: %i seconds\n",
+                "Constructed the block trees for the non-trivial chains in the flower in: %" PRIi64 " seconds\n",
                 time(NULL) - startTime);
 
         ///////////////////////////////////////////////////////////////////////////
@@ -809,7 +809,7 @@ int main(int argc, char *argv[]) {
 #endif
 
         st_logInfo(
-                "Constructed the block trees for the trivial chains in the flower in: %i seconds\n",
+                "Constructed the block trees for the trivial chains in the flower in: %" PRIi64 " seconds\n",
                 time(NULL) - startTime);
 
         ///////////////////////////////////////////////////////////////////////////
@@ -821,7 +821,7 @@ int main(int argc, char *argv[]) {
                 sortedChainAlignments->length, flower_getEventTree(flower));
         destructList(sortedChainAlignments);
 
-        st_logInfo("Augmented the block trees in: %i seconds\n", time(NULL)
+        st_logInfo("Augmented the block trees in: %" PRIi64 " seconds\n", time(NULL)
                 - startTime);
 
 #ifndef NDEBUG
@@ -890,7 +890,7 @@ int main(int argc, char *argv[]) {
         }
         flower_destructGroupIterator(groupIterator);
         st_logInfo(
-                "Filled in end trees and augmented the event trees for the child flowers in: %i seconds\n",
+                "Filled in end trees and augmented the event trees for the child flowers in: %" PRIi64 " seconds\n",
                 time(NULL) - startTime);
 
         ///////////////////////////////////////////////////////////////////////////
@@ -918,7 +918,7 @@ int main(int argc, char *argv[]) {
 
     startTime = time(NULL);
     cactusDisk_write(cactusDisk);
-    st_logInfo("Updated the flower on disk in: %i seconds\n", time(NULL)
+    st_logInfo("Updated the flower on disk in: %" PRIi64 " seconds\n", time(NULL)
             - startTime);
 
     ///////////////////////////////////////////////////////////////////////////
@@ -936,7 +936,7 @@ int main(int argc, char *argv[]) {
     }
     free(cactusDiskDatabaseString);
 
-    st_logInfo("Cleaned stuff up and am finished in: %i seconds\n", time(NULL)
+    st_logInfo("Cleaned stuff up and am finished in: %" PRIi64 " seconds\n", time(NULL)
             - startTime);
     return 0;
 }

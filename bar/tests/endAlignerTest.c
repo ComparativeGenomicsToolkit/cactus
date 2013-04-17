@@ -29,9 +29,9 @@ void test_alignedPair_cmpFn(CuTest *testCase) {
                             seq2, 4, 1, 90);
 
     AlignedPair *ordering[5] = { aP2, aP1, aP4, aP5, aP3 };
-    for(int32_t i=0; i<5; i++) {
+    for(int64_t i=0; i<5; i++) {
         AlignedPair *aP = ordering[i];
-        st_logInfo("I got %i %i\n", aP, aP->reverse);
+        st_logInfo("I got %" PRIi64 " %" PRIi64 "\n", aP, aP->reverse);
         stList_append(list, aP);
         stList_append(list, aP->reverse);
     }
@@ -39,8 +39,8 @@ void test_alignedPair_cmpFn(CuTest *testCase) {
     stList_sort(list, (int (*)(const void *, const void *))alignedPair_cmpFn);
 
     AlignedPair *correctOrdering[10] = { aP1, aP2, aP3, aP4, aP5, aP1->reverse, aP2->reverse, aP4->reverse, aP3->reverse, aP5->reverse };
-    for(int32_t i=0; i<10; i++) {
-        st_logInfo("Checking %i %i\n", correctOrdering[i], stList_get(list, i));
+    for(int64_t i=0; i<10; i++) {
+        st_logInfo("Checking %" PRIi64 " %" PRIi64 "\n", correctOrdering[i], stList_get(list, i));
         CuAssertTrue(testCase, correctOrdering[i] == stList_get(list, i));
     }
 
@@ -48,7 +48,7 @@ void test_alignedPair_cmpFn(CuTest *testCase) {
     stList_destruct(list);
 }
 
-int32_t isInAdjacencySequence(AlignedPair *alignedPair, AdjacencySequence *adjacencySequence) {
+int64_t isInAdjacencySequence(AlignedPair *alignedPair, AdjacencySequence *adjacencySequence) {
     if (alignedPair->subsequenceIdentifier == adjacencySequence->subsequenceIdentifier) {
         if (alignedPair->strand == adjacencySequence->strand) {
             if (alignedPair->strand) {
@@ -73,7 +73,7 @@ int32_t isInAdjacencySequence(AlignedPair *alignedPair, AdjacencySequence *adjac
 /*
  * Checks that the position referred to is in an adjacency coming from the end.
  */
-int32_t isInAdjacency(AlignedPair *alignedPair, End *end, int32_t maxLength) {
+int64_t isInAdjacency(AlignedPair *alignedPair, End *end, int64_t maxLength) {
     Cap *cap;
     End_InstanceIterator *it = end_getInstanceIterator(end);
     while ((cap = end_getNext(it)) != NULL) {
@@ -82,7 +82,7 @@ int32_t isInAdjacency(AlignedPair *alignedPair, End *end, int32_t maxLength) {
         }
         AdjacencySequence *adjacencySequence = adjacencySequence_construct(cap,
                 maxLength);
-        int32_t i = isInAdjacencySequence(alignedPair, adjacencySequence);
+        int64_t i = isInAdjacencySequence(alignedPair, adjacencySequence);
         adjacencySequence_destruct(adjacencySequence);
         if(i) {
             end_destructInstanceIterator(it);
@@ -96,8 +96,8 @@ int32_t isInAdjacency(AlignedPair *alignedPair, End *end, int32_t maxLength) {
 static void testMakeEndAlignments(CuTest *testCase) {
     setup();
     End *ends[3] = { end1, end2, end3 };
-    int32_t maxLength = 4;
-    for (int32_t endIndex = 0; endIndex < 3; endIndex++) {
+    int64_t maxLength = 4;
+    for (int64_t endIndex = 0; endIndex < 3; endIndex++) {
         End *end = ends[endIndex];
         stSortedSet *endAlignment = makeEndAlignment(end, 5, maxLength, 50, 0.5, pairwiseParameters);
 
@@ -121,8 +121,8 @@ static void testMakeEndAlignments(CuTest *testCase) {
 static void testReadAndWriteEndAlignments(CuTest *testCase) {
     setup();
     End *ends[3] = { end1, end2, end3 };
-    int32_t maxLength = 4;
-    for (int32_t endIndex = 0; endIndex < 3; endIndex++) {
+    int64_t maxLength = 4;
+    for (int64_t endIndex = 0; endIndex < 3; endIndex++) {
         End *end = ends[endIndex];
         stSortedSet *endAlignment = makeEndAlignment(end, 5, maxLength, 50, 0.5, pairwiseParameters);
         char *temporaryEndAlignmentFile = "temporaryEndAlignmentFile.end";

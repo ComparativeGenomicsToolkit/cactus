@@ -16,7 +16,7 @@
 /*
  * Gets the raw sequence.
  */
-static char *getAdjacencySequenceP(Cap *cap, int32_t maxLength) {
+static char *getAdjacencySequenceP(Cap *cap, int64_t maxLength) {
     Sequence *sequence = cap_getSequence(cap);
     assert(sequence != NULL);
     Cap *cap2 = cap_getAdjacency(cap);
@@ -24,13 +24,13 @@ static char *getAdjacencySequenceP(Cap *cap, int32_t maxLength) {
     assert(!cap_getSide(cap));
 
     if (cap_getStrand(cap)) {
-        int32_t length = cap_getCoordinate(cap2) - cap_getCoordinate(cap) - 1;
+        int64_t length = cap_getCoordinate(cap2) - cap_getCoordinate(cap) - 1;
         assert(length >= 0);
         assert(maxLength >= 0);
         return sequence_getString(sequence, cap_getCoordinate(cap) + 1, length
                 > maxLength ? maxLength : length, 1);
     } else {
-        int32_t length = cap_getCoordinate(cap) - cap_getCoordinate(cap2) - 1;
+        int64_t length = cap_getCoordinate(cap) - cap_getCoordinate(cap2) - 1;
         assert(length >= 0);
         return sequence_getString(sequence,
                 length > maxLength ? cap_getCoordinate(cap) - maxLength
@@ -39,7 +39,7 @@ static char *getAdjacencySequenceP(Cap *cap, int32_t maxLength) {
     }
 }
 
-AdjacencySequence *adjacencySequence_construct(Cap *cap, int32_t maxLength) {
+AdjacencySequence *adjacencySequence_construct(Cap *cap, int64_t maxLength) {
     AdjacencySequence *subSequence = (AdjacencySequence *) st_malloc(
             sizeof(AdjacencySequence));
     subSequence->string = getAdjacencySequenceP(cap, maxLength);

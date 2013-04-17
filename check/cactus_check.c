@@ -148,8 +148,8 @@ static void checkBasesAccountedFor(Flower *flower) {
     flower_destructGroupIterator(iterator);
     if (blockBases + childBases != totalBases) {
         fprintf(stderr,
-                "Got %i block bases, %i childBases and %i total bases\n",
-                (int) blockBases, (int) childBases, (int) totalBases);
+                "Got %" PRIi64 " block bases, %" PRIi64 " childBases and %" PRIi64 " total bases\n",
+                 blockBases, childBases, totalBases);
     }
     cactusCheck(blockBases + childBases == totalBases);
 }
@@ -167,7 +167,7 @@ static void checkFlower(Flower *flower, bool checkNormalised) {
     }
 }
 
-static void checkFlowers(Flower *flower, int32_t recursive, bool checkNormalised) {
+static void checkFlowers(Flower *flower, int64_t recursive, bool checkNormalised) {
     if(!flower_hasParentGroup(flower)) { //Only check if it has no parent
         checkFlower(flower, checkNormalised);
     }
@@ -204,7 +204,7 @@ int main(int argc, char *argv[]) {
      */
     char * logLevelString = NULL;
     char * cactusDiskDatabaseString = NULL;
-    int32_t recursive = 0;
+    int64_t recursive = 0;
     bool checkNormalised = 0;
 
     ///////////////////////////////////////////////////////////////////////////
@@ -271,7 +271,7 @@ int main(int argc, char *argv[]) {
     st_logInfo("Set up the flower disk\n");
 
     stList *flowers = flowerWriter_parseFlowersFromStdin(cactusDisk);
-    for(int32_t j = 0; j < stList_length(flowers); j++) {
+    for(int64_t j = 0; j < stList_length(flowers); j++) {
         Flower *flower = stList_get(flowers, j);
         st_logInfo("Processing a flower\n");
 

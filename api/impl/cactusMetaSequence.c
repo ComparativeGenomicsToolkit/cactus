@@ -14,8 +14,8 @@
 ////////////////////////////////////////////////
 ////////////////////////////////////////////////
 
-MetaSequence *metaSequence_construct2(Name name, int32_t start,
-		int32_t length, Name stringName, const char *header,
+MetaSequence *metaSequence_construct2(Name name, int64_t start,
+		int64_t length, Name stringName, const char *header,
 		Name eventName, CactusDisk *cactusDisk) {
 	MetaSequence *metaSequence;
 
@@ -33,7 +33,7 @@ MetaSequence *metaSequence_construct2(Name name, int32_t start,
 	return metaSequence;
 }
 
-MetaSequence *metaSequence_construct(int32_t start, int32_t length,
+MetaSequence *metaSequence_construct(int64_t start, int64_t length,
 		const char *string, const char *header, Name eventName, CactusDisk *cactusDisk) {
 	Name name;
 	assert(strlen(string) == length);
@@ -52,11 +52,11 @@ Name metaSequence_getName(MetaSequence *metaSequence) {
 	return metaSequence->name;
 }
 
-int32_t metaSequence_getStart(MetaSequence *metaSequence) {
+int64_t metaSequence_getStart(MetaSequence *metaSequence) {
 	return metaSequence->start;
 }
 
-int32_t metaSequence_getLength(MetaSequence *metaSequence) {
+int64_t metaSequence_getLength(MetaSequence *metaSequence) {
 	return metaSequence->length;
 }
 
@@ -64,7 +64,7 @@ Name metaSequence_getEventName(MetaSequence *metaSequence) {
 	return metaSequence->eventName;
 }
 
-char *metaSequence_getString(MetaSequence *metaSequence, int32_t start, int32_t length, int32_t strand) {
+char *metaSequence_getString(MetaSequence *metaSequence, int64_t start, int64_t length, int64_t strand) {
 	assert(start >= metaSequence_getStart(metaSequence));
 	assert(length >= 0);
 	assert(start + length <= metaSequence_getStart(metaSequence) + metaSequence_getLength(metaSequence));
@@ -94,8 +94,8 @@ MetaSequence *metaSequence_loadFromBinaryRepresentation(void **binaryString,
 		CactusDisk *cactusDisk) {
 	MetaSequence *metaSequence;
 	Name name;
-	int32_t start;
-	int32_t length;
+	int64_t start;
+	int64_t length;
 	Name stringName;
 	Name eventName;
 	char *header;

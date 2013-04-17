@@ -141,7 +141,7 @@ int main(int argc, char *argv[]) {
     ///////////////////////////////////////////////////////////////////////////
 
     stList *flowers = flowerWriter_parseFlowersFromStdin(cactusDisk);
-    st_logInfo("We have %i flowers\n", stList_length(flowers));
+    st_logInfo("We have %" PRIi64 " flowers\n", stList_length(flowers));
 
     ///////////////////////////////////////////////////////////////////////////
     // Get the reference event name

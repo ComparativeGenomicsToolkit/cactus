@@ -35,12 +35,12 @@ MetaSequence *sequence_getMetaSequence(Sequence *sequence);
 /*
  * Gets the start coordinate of the sequence (inclusive).
  */
-int32_t sequence_getStart(Sequence *sequence);
+int64_t sequence_getStart(Sequence *sequence);
 
 /*
  * Gets the length of the sequence.
  */
-int32_t sequence_getLength(Sequence *sequence);
+int64_t sequence_getLength(Sequence *sequence);
 
 /*
  * Gets the name of the sequence.
@@ -60,7 +60,7 @@ Event *sequence_getEvent(Sequence *sequence);
  *
  * The returned string must be freed.
  */
-char *sequence_getString(Sequence *sequence, int32_t start, int32_t length, int32_t strand);
+char *sequence_getString(Sequence *sequence, int64_t start, int64_t length, bool strand);
 
 /*
  * Gets the header line associated with the sequence.

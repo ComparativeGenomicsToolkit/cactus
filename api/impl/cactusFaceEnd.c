@@ -20,7 +20,7 @@ Face *faceEnd_getFace(FaceEnd *faceEnd) {
 	return faceEnd->face;
 }
 
-int32_t faceEnd_getNumberOfBottomNodes(FaceEnd *faceEnd) {
+int64_t faceEnd_getNumberOfBottomNodes(FaceEnd *faceEnd) {
 	return face_getBottomNodeNumber(faceEnd_getFace(faceEnd), faceEnd->topNodeIndex);
 }
 
@@ -75,7 +75,7 @@ void faceEnd_check(FaceEnd *faceEnd) {
  * Private functions
  */
 
-FaceEnd *faceEnd_construct(Face *face, int32_t topNodeIndex) {
+FaceEnd *faceEnd_construct(Face *face, int64_t topNodeIndex) {
 	FaceEnd *faceEnd = st_malloc(sizeof(FaceEnd));
 	assert(topNodeIndex >= 0);
 	assert(topNodeIndex <= face_getCardinal(face));

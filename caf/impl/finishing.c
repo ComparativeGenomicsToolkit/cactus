@@ -147,7 +147,7 @@ static void makeChain(stCactusEdgeEnd *cactusEdgeEnd, Flower *flower, stHash *pi
             //Fill out stack
             stList_append(stack, stCactusEdgeEnd_getNode(cactusEdgeEnd));
             stList_append(stack, nestedFlower);
-            stList_append(stack, stIntTuple_construct(1, orientation));
+            stList_append(stack, stIntTuple_construct1( orientation));
             cactusEdgeEnd = stCactusEdgeEnd_getOtherEdgeEnd(linkedCactusEdgeEnd);
         } while (!stCactusEdgeEnd_isChainEnd(cactusEdgeEnd));
     }
@@ -204,7 +204,7 @@ static void makeChains(stCactusNode *cactusNode, Flower *flower, stHash *pinchEn
 
 static void makeTangles(stCactusNode *cactusNode, Flower *flower, stHash *pinchEndsToEnds, stList *deadEndComponent) {
     stList *adjacencyComponents = stCactusNode_getObject(cactusNode);
-    for (int32_t i = 0; i < stList_length(adjacencyComponents); i++) {
+    for (int64_t i = 0; i < stList_length(adjacencyComponents); i++) {
         stList *adjacencyComponent = stList_get(adjacencyComponents, i);
         if (adjacencyComponent != deadEndComponent) {
             if (stList_length(adjacencyComponent) == 1) { //Deal with components for dead ends of free stubs
@@ -215,7 +215,7 @@ static void makeTangles(stCactusNode *cactusNode, Flower *flower, stHash *pinchE
                 }
             }
             Group *group = group_construct2(flower);
-            for (int32_t j = 0; j < stList_length(adjacencyComponent); j++) {
+            for (int64_t j = 0; j < stList_length(adjacencyComponent); j++) {
                 End *end = convertPinchBlockEndToEnd(stList_get(adjacencyComponent, j), pinchEndsToEnds, flower);
                 assert(end != NULL);
                 assert(end_getOrientation(end));
@@ -238,7 +238,7 @@ static void setBlocksBuilt(Flower *flower, Flower *parentFlower) {
     else {
         flower_setBuiltBlocks(flower, 1);
         if(flower_getChainNumber(flower) > 10 || flower_getBlockNumber(flower) > 10) {
-            st_logDebug("Processed large flower with %i chains, %i blocks, %i ends and %i groups\n", flower_getChainNumber(flower), flower_getBlockNumber(flower), flower_getEndNumber(flower), flower_getGroupNumber(flower));
+            st_logDebug("Processed large flower with %" PRIi64 " chains, %" PRIi64 " blocks, %" PRIi64 " ends and %" PRIi64 " groups\n", flower_getChainNumber(flower), flower_getBlockNumber(flower), flower_getEndNumber(flower), flower_getGroupNumber(flower));
         }
         Flower_GroupIterator *iterator = flower_getGroupIterator(flower);
         Group *group;
@@ -258,7 +258,7 @@ static void stCaf_convertCactusGraphToFlowers(stPinchThreadSet *threadSet, stCac
     stList *stack = stList_construct();
     stList_append(stack, startCactusNode);
     stList_append(stack, parentFlower);
-    stList_append(stack, stIntTuple_construct(1, 1));
+    stList_append(stack, stIntTuple_construct1( 1));
     stHash *pinchEndsToEnds = getPinchEndsToEndsHash(threadSet, parentFlower);
     while (stList_length(stack) > 0) {
         stIntTuple *orientation = stList_pop(stack);
@@ -293,16 +293,16 @@ void stCaf_makeDegreeOneBlocks(stPinchThreadSet *threadSet) {
 // Functions for actually filling out cactus
 ///////////////////////////////////////////////////////////////////////////
 
-void stCaf_finish(Flower *flower, stPinchThreadSet *threadSet, int32_t chainLengthForBigFlower,
-        int32_t longChain) {
+void stCaf_finish(Flower *flower, stPinchThreadSet *threadSet, int64_t chainLengthForBigFlower,
+        int64_t longChain) {
     stCactusNode *startCactusNode;
     stList *deadEndComponent;
     stCactusGraph *cactusGraph = stCaf_getCactusGraphForThreadSet(flower, threadSet, &startCactusNode, &deadEndComponent, 1);
     //chainLengthForBigFlower = 10;
     //longChain = 10;
-    int32_t nodesMerged = stCactusGraph_collapseLongChainsOfBigFlowers(cactusGraph, startCactusNode, chainLengthForBigFlower, longChain, stCaf_mergeNodeObjects, 0);
+    int64_t nodesMerged = stCactusGraph_collapseLongChainsOfBigFlowers(cactusGraph, startCactusNode, chainLengthForBigFlower, longChain, stCaf_mergeNodeObjects, 0);
     if(nodesMerged > 0) {
-        printf("Merging %i nodes in graph with %i blocks\n", nodesMerged, stPinchThreadSet_getTotalBlockNumber(threadSet));
+        printf("Merging %" PRIi64 " nodes in graph with %" PRIi64 " blocks\n", nodesMerged, stPinchThreadSet_getTotalBlockNumber(threadSet));
     }
     //Convert cactus graph/pinch graph to API
     stCaf_convertCactusGraphToFlowers(threadSet, startCactusNode, flower, deadEndComponent);

@@ -44,7 +44,7 @@ struct adjacency_vote_st {
 /*
  * Basic empty constructor
  */
-static AdjacencyVote *adjacencyVote_construct(int32_t length) {
+static AdjacencyVote *adjacencyVote_construct(int64_t length) {
     AdjacencyVote *vote = st_calloc(1, sizeof(AdjacencyVote));
 
     vote->length = length;
@@ -78,7 +78,7 @@ static AdjacencyVote *adjacencyVoteTable_getVote(Cap * cap,
 /*
  * Searches a Cap's ancestors in search of given node
  */
-static int32_t adjacencyVote_isDescendantOf(Cap * descendant, Cap * ancestor,
+static int64_t adjacencyVote_isDescendantOf(Cap * descendant, Cap * ancestor,
         AdjacencyVoteTable * table) {
     Cap *current = descendant;
 
@@ -253,8 +253,8 @@ struct adjacency_vote_table_st {
     struct List * computationFront;
 };
 
-static uint32_t hash_from_key_fn(const void *key) {
-    return (uint32_t) cap_getName((Cap *) key);
+static uint64_t hash_from_key_fn(const void *key) {
+    return (uint64_t) cap_getName((Cap *) key);
 }
 
 static int keys_equal_fn(const void *key1, const void *key2) {
@@ -330,7 +330,7 @@ static bool adjacencyVoteTable_doesNotVote(Cap * cap,
  */
 static void fillingIn_registerParent(Cap * cap, AdjacencyVoteTable * table) {
     Cap *parent = cap_getParent(cap);
-    int32_t childIndex, childNumber;
+    int64_t childIndex, childNumber;
 
     st_logInfo("Registering parent node %p\n", cap);
 
@@ -379,8 +379,8 @@ static void fillingIn_propagateAdjacencyDownwards(Cap * cap, Cap * partner,
  */
 static void fillingIn_propagateToChildren(Cap * cap, Cap * partner,
         AdjacencyVoteTable * table) {
-    int32_t childIndex;
-    int32_t childNumber = cap_getChildNumber(cap);
+    int64_t childIndex;
+    int64_t childNumber = cap_getChildNumber(cap);
     Cap ** array = calloc(cap_getChildNumber(cap), sizeof(Cap*));
 
     // This playing around is necessary to avoid list corruption between steps
@@ -389,7 +389,7 @@ static void fillingIn_propagateToChildren(Cap * cap, Cap * partner,
 
     // Propagate to children if necessary
     for (childIndex = 0; childIndex < childNumber; childIndex++) {
-        st_logInfo("Child %i: %p\n", childIndex, array[childIndex]);
+        st_logInfo("Child %" PRIi64 ": %p\n", childIndex, array[childIndex]);
         fillingIn_propagateAdjacencyDownwards(array[childIndex], partner, table);
     }
 
@@ -626,7 +626,7 @@ static void fillingIn_pairUpToNullStub(Cap * cap, AdjacencyVoteTable * table) {
 static void fillingIn_chooseAtRandom(Cap * cap, AdjacencyVote * vote,
         AdjacencyVoteTable * table) {
     Cap *partner;
-    int32_t index;
+    int64_t index;
 
     for (index = 0; index < vote->length; index++) {
         partner = vote->candidates[index];
@@ -643,7 +643,7 @@ static void fillingIn_chooseAtRandom(Cap * cap, AdjacencyVote * vote,
  * Determine adjacencies from the module pointed by the given Cap
  */
 static void fillingIn_processChildrenVote(Cap * cap, AdjacencyVoteTable * table) {
-    int32_t childrenNumber = cap_getChildNumber(cap);
+    int64_t childrenNumber = cap_getChildNumber(cap);
     Cap *first_child, *second_child;
     AdjacencyVote *first_child_vote, *second_child_vote, *merged_vote = NULL;
     AdjacencyVote *partner_vote = NULL;
@@ -746,7 +746,7 @@ static void fillingIn_propagateAdjacencyDownwards(Cap * cap, Cap * partner,
 
     // If Cap does not exist (for NULL partners) or child already decided
     if (!cap || vote->length == 0 || cap_getAdjacency(cap)) {
-        st_logInfo("Vote? %i\n", vote->length);
+        st_logInfo("Vote? %" PRIi64 "\n", vote->length);
         if (vote->length)
             st_logInfo("destination %p\n", vote->candidates[0]);
         return;
@@ -874,7 +874,7 @@ static void fillingIn_pullDown(Cap * A) {
     Cap * childA = NULL, *childB =NULL;
     Cap * interpolA = NULL, *interpolB = NULL;
     Event * interpolEvent = NULL;
-    int32_t indexA, indexB;
+    int64_t indexA, indexB;
     Event * eventChildA = NULL, *eventChildB = NULL, *childEvent = NULL;
     bool result = false;
 
@@ -939,8 +939,8 @@ static void fillingIn_pullDown(Cap * A) {
 static void fillingIn_testForPullDown(Cap * cap) {
     Cap *child;
     Cap *partner, *adjacencyAncestor;
-    int32_t childIndex;
-    int32_t inconsistencyCount = 0;
+    int64_t childIndex;
+    int64_t inconsistencyCount = 0;
 
     assert(cap_getAdjacency(cap));
 
@@ -1077,8 +1077,8 @@ int main(int argc, char ** argv) {
      */
     CactusDisk *cactusDisk;
     Flower *flower;
-    int32_t startTime;
-    int32_t j;
+    int64_t startTime;
+    int64_t j;
 
     /*
      * Arguments/options
@@ -1188,7 +1188,7 @@ int main(int argc, char ** argv) {
         startTime = time(NULL);
         fillingIn_fillAdjacencies(flower);
         buildFaces_buildAndProcessFaces(flower);
-        st_logInfo("Processed the flowers in: %i seconds\n", time(NULL)
+        st_logInfo("Processed the flowers in: %" PRIi64 " seconds\n", time(NULL)
                 - startTime);
 
         ///////////////////////////////////////////////////////////////////////////
@@ -1206,7 +1206,7 @@ int main(int argc, char ** argv) {
 
     startTime = time(NULL);
     cactusDisk_write(cactusDisk);
-    st_logInfo("Updated the flower on disk in: %i seconds\n", time(NULL)
+    st_logInfo("Updated the flower on disk in: %" PRIi64 " seconds\n", time(NULL)
             - startTime);
 
     ///////////////////////////////////////////////////////////////////////////
@@ -1218,7 +1218,7 @@ int main(int argc, char ** argv) {
     cactusDisk_destruct(cactusDisk);
     stKVDatabaseConf_destruct(kvDatabaseConf);
 
-    st_logInfo("Cleaned stuff up and am finished in: %i seconds\n", time(NULL)
+    st_logInfo("Cleaned stuff up and am finished in: %" PRIi64 " seconds\n", time(NULL)
             - startTime);
     return 0;
 

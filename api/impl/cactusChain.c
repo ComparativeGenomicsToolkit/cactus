@@ -46,12 +46,12 @@ Link *chain_getLast(Chain *chain) {
     return chain->endLink;
 }
 
-int32_t chain_getLength(Chain *chain) {
+int64_t chain_getLength(Chain *chain) {
     return chain->linkNumber;
 }
 
-Block **chain_getBlockChain(Chain *chain, int32_t *blockNumber) {
-    int32_t i;
+Block **chain_getBlockChain(Chain *chain, int64_t *blockNumber) {
+    int64_t i;
     End *end;
     Block *block;
     bool circular = 0;
@@ -95,7 +95,7 @@ Flower *chain_getFlower(Chain *chain) {
 
 double chain_getAverageInstanceBaseLength(Chain *chain) {
     Block **blocks;
-    int32_t i, j;
+    int64_t i, j;
     double k = 0.0;
     blocks = chain_getBlockChain(chain, &i);
     for (j = 0; j < i; j++) {
@@ -235,7 +235,7 @@ void chain_join(Chain *_5Chain, Chain *_3Chain) {
     stList *list = stList_construct();
     chain_joinP(_5Chain, list);
     chain_joinP(_3Chain, list);
-    for(int32_t i=0; i<stList_length(list); i+=2) {
+    for(int64_t i=0; i<stList_length(list); i+=2) {
         End *end1 = stList_get(list, i);
         End *end2 = stList_get(list, i+1);
         Group *group = end_getGroup(end1);

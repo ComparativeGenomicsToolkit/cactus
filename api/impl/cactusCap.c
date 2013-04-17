@@ -34,7 +34,7 @@ Cap *cap_construct3(Name instance, Event *event, End *end) {
     cap->rCap->end = end_getReverse(end);
 
     cap->capContents->instance = instance;
-    cap->capContents->coordinate = INT32_MAX;
+    cap->capContents->coordinate = INT64_MAX;
     cap->capContents->sequence = NULL;
     cap->capContents->adjacency = NULL;
     cap->capContents->adjacency2 = NULL;
@@ -50,12 +50,12 @@ Cap *cap_construct3(Name instance, Event *event, End *end) {
     return cap;
 }
 
-Cap *cap_construct2(End *end, int32_t coordinate, bool strand, Sequence *sequence) {
+Cap *cap_construct2(End *end, int64_t coordinate, bool strand, Sequence *sequence) {
     return cap_construct4(cactusDisk_getUniqueID(flower_getCactusDisk(end_getFlower(end))), end, coordinate, strand,
             sequence);
 }
 
-Cap *cap_construct4(Name instance, End *end, int32_t coordinate, int32_t strand, Sequence *sequence) {
+Cap *cap_construct4(Name instance, End *end, int64_t coordinate, bool strand, Sequence *sequence) {
     Cap *cap;
     cap = cap_construct3(instance, sequence_getEvent(sequence), end);
     cap->capContents->coordinate = coordinate;
@@ -68,7 +68,7 @@ Cap *cap_construct5(Event *event, End *end) {
     return cap_construct3(cactusDisk_getUniqueID(flower_getCactusDisk(end_getFlower(end))), event, end);
 }
 
-void cap_setCoordinates(Cap *cap, int32_t coordinate, int32_t strand, Sequence *sequence) {
+void cap_setCoordinates(Cap *cap, int64_t coordinate, bool strand, Sequence *sequence) {
     cap->capContents->coordinate = coordinate;
     cap->capContents->strand = cap_getOrientation(cap) ? strand : !strand;
     cap->capContents->sequence = sequence;
@@ -82,7 +82,7 @@ Cap *cap_copyConstruct(End *end, Cap *cap) {
     Sequence *sequence;
 
     Flower *flower = end_getFlower(end);
-    if (cap_getCoordinate(cap) != INT32_MAX) {
+    if (cap_getCoordinate(cap) != INT64_MAX) {
         sequenceName = sequence_getName(cap_getSequence(cap));
         sequence = flower_getSequence(flower, sequenceName);
         if (sequence == NULL) { //add sequence to the flower.
@@ -95,7 +95,7 @@ Cap *cap_copyConstruct(End *end, Cap *cap) {
         event = eventTree_getEvent(flower_getEventTree(flower), event_getName(cap_getEvent(cap)));
         assert(event != NULL);
         Cap *cap2 = cap_construct3(cap_getName(cap), event, end);
-        cap_setCoordinates(cap2, INT32_MAX, cap_getStrand(cap), NULL);
+        cap_setCoordinates(cap2, INT64_MAX, cap_getStrand(cap), NULL);
         return cap2;
     }
 }
@@ -152,7 +152,7 @@ Cap *cap_getOtherSegmentCap(Cap *cap) {
     return otherCap;
 }
 
-int32_t cap_getCoordinate(Cap *cap) {
+int64_t cap_getCoordinate(Cap *cap) {
     return cap->capContents->coordinate;
 }
 
@@ -234,11 +234,11 @@ Cap *cap_getParent(Cap *cap) {
     return e == NULL ? NULL : cap_getOrientation(cap) ? e : cap_getReverse(e);
 }
 
-int32_t cap_getChildNumber(Cap *cap) {
+int64_t cap_getChildNumber(Cap *cap) {
     return cap->capContents->children->length;
 }
 
-Cap *cap_getChild(Cap *cap, int32_t index) {
+Cap *cap_getChild(Cap *cap, int64_t index) {
     assert(cap_getChildNumber(cap) > index);
     assert(index >= 0);
     return cap_getP(cap, cap->capContents->children->list[index]);
@@ -268,7 +268,7 @@ void cap_changeParentAndChild(Cap* newCapParent, Cap* capChild) {
     capChild->capContents->parent = newCapParent;
 }
 
-int32_t cap_isInternal(Cap *cap) {
+bool cap_isInternal(Cap *cap) {
     return cap_getChildNumber(cap) > 0;
 }
 
@@ -292,7 +292,7 @@ void cap_check(Cap *cap) {
             cactusCheck(cap_getOrientation(cap) == cap_getOrientation(ancestorCap));
         }
         //Check caps ancestor/descendant links are proper.
-        int32_t i;
+        int64_t i;
         for (i = 0; i < cap_getChildNumber(cap); i++) {
             Cap *childCap = cap_getChild(cap, i);
             cactusCheck(childCap != NULL);
@@ -321,7 +321,7 @@ void cap_check(Cap *cap) {
         cactusCheck(cap_getStrand(cap) == cap_getStrand(cap2)); //common strand
         cactusCheck(cap_getSequence(cap) == cap_getSequence(cap2)); //common sequence (which may be null)
 
-        if (cap_getCoordinate(cap) != INT32_MAX) { //if they have a coordinate
+        if (cap_getCoordinate(cap) != INT64_MAX) { //if they have a coordinate
             cactusCheck(cap_getSide(cap) != cap_getSide(cap2)); //they have to represent an interval
             if (cap_getStrand(cap)) {
                 if (!cap_getSide(cap)) {
@@ -337,7 +337,7 @@ void cap_check(Cap *cap) {
                 }
             }
         } else {
-            cactusCheck(cap_getCoordinate(cap2) == INT32_MAX);
+            cactusCheck(cap_getCoordinate(cap2) == INT64_MAX);
         }
     }
 
@@ -372,7 +372,7 @@ void cap_check(Cap *cap) {
     }
     cactusCheck(cap_isInternal(cap) == cap_isInternal(rCap));
     cactusCheck(cap_getChildNumber(cap) == cap_getChildNumber(rCap));
-    int32_t i;
+    int64_t i;
     for (i = 0; i < cap_getChildNumber(cap); i++) {
         cactusCheck(cap_getChild(cap, i) == cap_getReverse(cap_getChild(rCap, i)));
     }
@@ -411,7 +411,7 @@ void cap_breakAdjacency(Cap *cap) {
  * Serialisation functions.
  */
 
-void cap_writeBinaryRepresentationP(Cap *cap2, int32_t elementType,
+void cap_writeBinaryRepresentationP(Cap *cap2, int64_t elementType,
         void(*writeFn)(const void * ptr, size_t size, size_t count)) {
     binaryRepresentation_writeElementType(elementType, writeFn);
     binaryRepresentation_writeName(cap_getName(cap2), writeFn);
@@ -419,7 +419,7 @@ void cap_writeBinaryRepresentationP(Cap *cap2, int32_t elementType,
 
 void cap_writeBinaryRepresentation(Cap *cap, void(*writeFn)(const void * ptr, size_t size, size_t count)) {
     Cap *cap2;
-    if (cap_getCoordinate(cap) == INT32_MAX) {
+    if (cap_getCoordinate(cap) == INT64_MAX) {
         binaryRepresentation_writeElementType(CODE_CAP, writeFn);
         binaryRepresentation_writeName(cap_getName(cap), writeFn);
         binaryRepresentation_writeBool(cap_getStrand(cap), writeFn);
@@ -445,7 +445,7 @@ void cap_writeBinaryRepresentation(Cap *cap, void(*writeFn)(const void * ptr, si
     }
 }
 
-int32_t cap_loadFromBinaryRepresentationP(Cap *cap, void **binaryString, void(*linkFn)(Cap *, Cap *)) {
+bool cap_loadFromBinaryRepresentationP(Cap *cap, void **binaryString, void(*linkFn)(Cap *, Cap *)) {
     Cap *cap2;
     binaryRepresentation_popNextElementType(binaryString);
     cap2 = flower_getCap(end_getFlower(cap_getEnd(cap)), binaryRepresentation_getName(binaryString));
@@ -461,7 +461,7 @@ void cap_loadFromBinaryRepresentationP2(void **binaryString, Cap *cap) {
         cap_loadFromBinaryRepresentationP(cap, binaryString, cap_makeAdjacent);
     }
     if (binaryRepresentation_peekNextElementType(*binaryString) == CODE_PARENT) {
-        int32_t i = cap_loadFromBinaryRepresentationP(cap, binaryString, cap_makeParentAndChild);
+        bool i = cap_loadFromBinaryRepresentationP(cap, binaryString, cap_makeParentAndChild);
         (void) i;
         assert(i == 0);
     }
@@ -471,8 +471,8 @@ Cap *cap_loadFromBinaryRepresentation(void **binaryString, End *end) {
     Cap *cap;
     Name name;
     Event *event;
-    int32_t coordinate;
-    int32_t strand;
+    int64_t coordinate;
+    int64_t strand;
     Sequence *sequence;
 
     cap = NULL;
@@ -482,7 +482,7 @@ Cap *cap_loadFromBinaryRepresentation(void **binaryString, End *end) {
         strand = binaryRepresentation_getBool(binaryString);
         event = eventTree_getEvent(flower_getEventTree(end_getFlower(end)), binaryRepresentation_getName(binaryString));
         cap = cap_construct3(name, event, end);
-        cap_setCoordinates(cap, INT32_MAX, strand, NULL); //Hacks
+        cap_setCoordinates(cap, INT64_MAX, strand, NULL); //Hacks
         cap_loadFromBinaryRepresentationP2(binaryString, cap);
     } else if (binaryRepresentation_peekNextElementType(*binaryString) == CODE_CAP_WITH_COORDINATES) {
         binaryRepresentation_popNextElementType(binaryString);

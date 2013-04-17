@@ -13,7 +13,7 @@
 typedef struct _blockContents {
 	Name name;
 	stSortedSet *segments;
-	int32_t length;
+	int64_t length;
 	Flower *flower;
 } BlockContents;
 
@@ -40,7 +40,7 @@ struct _block {
 /*
  * Constructs the block, but not its ends.
  */
-Block *block_construct2(Name name, int32_t length, End *leftEnd, End *rightEnd, Flower *flower);
+Block *block_construct2(Name name, int64_t length, End *leftEnd, End *rightEnd, Flower *flower);
 
 /*
  * Destructs the block and all segments it contains.

@@ -128,7 +128,7 @@ static stList *mergeSubstrings(stList *substrings, int64_t proximityToMerge) {
     stList_sort(substrings, (int(*)(const void *, const void *)) substring_cmp);
     Substring *pSubsequence = substring_clone(stList_get(substrings, 0));
     stList_append(mergedSubstrings, pSubsequence);
-    for (int32_t i = 1; i < stList_length(substrings); i++) {
+    for (int64_t i = 1; i < stList_length(substrings); i++) {
         Substring *substring = stList_get(substrings, i);
         if (pSubsequence->name == substring->name && pSubsequence->start + pSubsequence->length + proximityToMerge
                 >= substring->start) { //Merge
@@ -152,13 +152,13 @@ static void cacheSubstringsFromDB(CactusDisk *cactusDisk, stList *substrings) {
             cactusDisk->sequencesFileHandle = fopen(cactusDisk->absSequencesFileName, "r");
             assert(cactusDisk->sequencesFileHandle != NULL);
         }
-        for (int32_t i = 0; i < stList_length(substrings); i++) {
+        for (int64_t i = 0; i < stList_length(substrings); i++) {
             Substring *substring = stList_get(substrings, i);
             fseek(cactusDisk->sequencesFileHandle, substring->name + substring->start, SEEK_SET);
             char *string = st_malloc(sizeof(char) * (substring->length + 1));
             fread(string, sizeof(char), substring->length, cactusDisk->sequencesFileHandle);
 #ifndef NDEBUG
-            for (int32_t j = 0; j < substring->length; j++) {
+            for (int64_t j = 0; j < substring->length; j++) {
                 assert(string[j] != '>');
             }
 #endif
@@ -167,7 +167,7 @@ static void cacheSubstringsFromDB(CactusDisk *cactusDisk, stList *substrings) {
         }
     } else {
         stList *getRequests = stList_construct3(0, free);
-        for (int32_t i = 0; i < stList_length(substrings); i++) {
+        for (int64_t i = 0; i < stList_length(substrings); i++) {
             Substring *substring = stList_get(substrings, i);
             int64_t intervalSize = (substring->length + substring->start - 1) / CACTUS_DISK_SEQUENCE_CHUNK_SIZE - substring->start
                     / CACTUS_DISK_SEQUENCE_CHUNK_SIZE + 1;
@@ -195,7 +195,7 @@ static void cacheSubstringsFromDB(CactusDisk *cactusDisk, stList *substrings) {
         assert(stList_length(records) == stList_length(getRequests));
         stList_destruct(getRequests);
         stListIterator *recordsIt = stList_getIterator(records);
-        for (int32_t i = 0; i < stList_length(substrings); i++) {
+        for (int64_t i = 0; i < stList_length(substrings); i++) {
             Substring *substring = stList_get(substrings, i);
             int64_t intervalSize = (substring->length + substring->start - 1) / CACTUS_DISK_SEQUENCE_CHUNK_SIZE - substring->start
                     / CACTUS_DISK_SEQUENCE_CHUNK_SIZE + 1;
@@ -238,7 +238,7 @@ static stList *getSubstringsForFlowers(stList *flowers) {
      * Get the set of substrings for sequence intervals in the given set of flowers.
      */
     stList *substrings = stList_construct3(0, (void(*)(void *)) substring_destruct);
-    for (int32_t i = 0; i < stList_length(flowers); i++) {
+    for (int64_t i = 0; i < stList_length(flowers); i++) {
         Flower *flower = stList_get(flowers, i);
         Flower_EndIterator *endIt = flower_getEndIterator(flower);
         End *end;
@@ -284,7 +284,7 @@ static stList *getSubstringsForFlowerSegments(stList *flowers) {
      * Get the set of substrings representing the strings in the segments of the given flowers.
      */
     stList *substrings = stList_construct3(0, (void(*)(void *)) substring_destruct);
-    for (int32_t i = 0; i < stList_length(flowers); i++) {
+    for (int64_t i = 0; i < stList_length(flowers); i++) {
         Flower *flower = stList_get(flowers, i);
         Flower_EndIterator *blockIt = flower_getBlockIterator(flower);
         Block *block;
@@ -316,7 +316,7 @@ void cactusDisk_preCacheSegmentStrings(CactusDisk *cactusDisk, stList *flowers) 
     stList_destruct(substrings);
 }
 
-char *cactusDisk_getStringFromCache(CactusDisk *cactusDisk, Name name, int32_t start, int32_t length, int32_t strand) {
+char *cactusDisk_getStringFromCache(CactusDisk *cactusDisk, Name name, int64_t start, int64_t length, int64_t strand) {
     /*
      * Gets a sequence from the cache.
      */
@@ -338,7 +338,7 @@ char *cactusDisk_getStringFromCache(CactusDisk *cactusDisk, Name name, int32_t s
     return string;
 }
 
-char *cactusDisk_getString(CactusDisk *cactusDisk, Name name, int32_t start, int32_t length, int32_t strand, int32_t totalSequenceLength) {
+char *cactusDisk_getString(CactusDisk *cactusDisk, Name name, int64_t start, int64_t length, int64_t strand, int64_t totalSequenceLength) {
     /*
      * Gets a string from the database.
      *
@@ -370,11 +370,11 @@ char *cactusDisk_getString(CactusDisk *cactusDisk, Name name, int32_t start, int
 
 const char *CACTUS_DISK_EXCEPTION_ID = "CACTUS_DISK_EXCEPTION_ID";
 
-static int32_t cactusDisk_constructFlowersP(const void *o1, const void *o2) {
+static int cactusDisk_constructFlowersP(const void *o1, const void *o2) {
     return cactusMisc_nameCompare(flower_getName((Flower *) o1), flower_getName((Flower *) o2));
 }
 
-static int32_t cactusDisk_constructMetaSequencesP(const void *o1, const void *o2) {
+static int cactusDisk_constructMetaSequencesP(const void *o1, const void *o2) {
     return cactusMisc_nameCompare(metaSequence_getName((MetaSequence *) o1), metaSequence_getName((MetaSequence *) o2));
 }
 
@@ -444,7 +444,7 @@ static stList *getRecords(CactusDisk *cactusDisk, stList *objectNames, char *typ
     assert(records != NULL);
     assert(stList_length(objectNames) == stList_length(records));
     stList_setDestructor(records, free);
-    for (int32_t i = 0; i < stList_length(objectNames); i++) {
+    for (int64_t i = 0; i < stList_length(objectNames); i++) {
         Name objectName = *((int64_t *) stList_get(objectNames, i));
         int64_t recordSize;
         void *record;
@@ -511,8 +511,8 @@ static CactusDisk *cactusDisk_constructPrivate(stKVDatabaseConf *conf, bool crea
     cactusDisk->stringCache = stCache_construct();
 
     //initialise the unique ids.
-    int32_t seed = (clock() << 24) | (time(NULL) << 16) | (getpid() & 65535); //Likely to be unique
-    st_logDebug("The cactus disk is seeding the random number generator with the value %i\n", seed);
+    int64_t seed = (clock() << 24) | (time(NULL) << 16) | (getpid() & 65535); //Likely to be unique
+    st_logDebug("The cactus disk is seeding the random number generator with the value %" PRIi64 "\n", seed);
     st_randomSeed(seed);
     cactusDisk->uniqueNumber = 0;
     cactusDisk->maxUniqueNumber = 0;
@@ -604,7 +604,7 @@ void cactusDisk_write(CactusDisk *cactusDisk) {
     int64_t recordSize;
 
     stList *updateRequests = stList_construct3(0, (void(*)(void *)) stKVDatabaseBulkRequest_destruct);
-    stList *removeRequests = stList_construct3(0, (void(*)(void *)) stInt64Tuple_destruct);
+    stList *removeRequests = stList_construct3(0, (void(*)(void *)) stIntTuple_destruct);
 
     st_logDebug("Starting to write the cactus to disk\n");
 
@@ -639,7 +639,7 @@ void cactusDisk_write(CactusDisk *cactusDisk) {
         Name name = cactusMisc_stringToName(nameString);
         if (containsRecord(cactusDisk, name)) {
             stList_append(updateRequests, stKVDatabaseBulkRequest_constructUpdateRequest(name, &name, 0)); //We set it to null in the first atomic operation.
-            stList_append(removeRequests, stInt64Tuple_construct(1, name));
+            stList_append(removeRequests, stIntTuple_construct1( name));
         }
     }
     stSortedSet_destructIterator(it);
@@ -679,9 +679,9 @@ void cactusDisk_write(CactusDisk *cactusDisk) {
     st_logDebug("Checked if need to write the initial parameters\n");
 
     if (stList_length(updateRequests) > 0) {
-        st_logDebug("Going to write %i updates\n", stList_length(updateRequests));
+        st_logDebug("Going to write %" PRIi64 " updates\n", stList_length(updateRequests));
         stTry {
-                st_logDebug("Writing %i updates\n", stList_length(updateRequests));
+                st_logDebug("Writing %" PRIi64 " updates\n", stList_length(updateRequests));
                 assert(stList_length(updateRequests) > 0);
                 stKVDatabase_bulkSetRecords(cactusDisk->database, updateRequests);
             }
@@ -715,7 +715,7 @@ stList *cactusDisk_getFlowers(CactusDisk *cactusDisk, stList *flowerNames) {
     stList *records = getRecords(cactusDisk, flowerNames, "flowers");
     assert(stList_length(flowerNames) == stList_length(records));
     stList *flowers = stList_construct();
-    for (int32_t i = 0; i < stList_length(flowerNames); i++) {
+    for (int64_t i = 0; i < stList_length(flowerNames); i++) {
         Name flowerName = *((int64_t *) stList_get(flowerNames, i));
         static Flower flower;
         flower.name = flowerName;
@@ -804,14 +804,14 @@ void cactusDisk_deleteFlowerFromDisk(CactusDisk *cactusDisk, Flower *flower) {
 void cactusDisk_getBlockOfUniqueIDs(CactusDisk *cactusDisk, int64_t intervalSize) {
     intervalSize = intervalSize < CACTUS_DISK_NAME_INCREMENT ? CACTUS_DISK_NAME_INCREMENT : intervalSize;
     bool done = 0;
-    int32_t collisionCount = 0;
+    int64_t collisionCount = 0;
     while (!done) {
         stTry {
                 Name keyName = st_randomInt(-CACTUS_DISK_BUCKET_NUMBER, 0);
                 assert(keyName >= -CACTUS_DISK_BUCKET_NUMBER);
                 assert(keyName < 0);
                 int64_t bucketSize = INT64_MAX / CACTUS_DISK_BUCKET_NUMBER;
-                int64_t minimumValue = bucketSize * (abs(keyName) - 1) + 1; //plus one for the reserved '0' value.
+                int64_t minimumValue = bucketSize * (llabs(keyName) - 1) + 1; //plus one for the reserved '0' value.
                 int64_t maximumValue = minimumValue + (bucketSize - 1);
                 assert(minimumValue >= 1);
                 assert(maximumValue <= INT64_MAX);
@@ -837,7 +837,7 @@ void cactusDisk_getBlockOfUniqueIDs(CactusDisk *cactusDisk, int64_t intervalSize
                                     stThrowNewCause(
                                             except,
                                             ST_KV_DATABASE_EXCEPTION_ID,
-                                            "Repeated unknown database errors occurred when we tried to get a unique ID, collision count %i",
+                                            "Repeated unknown database errors occurred when we tried to get a unique ID, collision count %" PRIi64 "",
                                             collisionCount);
                                 } else {
                                   st_logDebug("Got an exception when trying to insert a uid record: %s", stExcept_getMsg(except));
@@ -855,7 +855,7 @@ void cactusDisk_getBlockOfUniqueIDs(CactusDisk *cactusDisk, int64_t intervalSize
                     collisionCount++;
                     if (collisionCount >= 10) {
                         stThrowNewCause(except, ST_KV_DATABASE_EXCEPTION_ID,
-                                "Repeated unknown database errors occurred when we tried to get a unique ID, collision count %i",
+                                "Repeated unknown database errors occurred when we tried to get a unique ID, collision count %" PRIi64 "",
                                 collisionCount);
                     } else {
                       st_logDebug("Got an exception when trying to insert a record: %s", stExcept_getMsg(except));

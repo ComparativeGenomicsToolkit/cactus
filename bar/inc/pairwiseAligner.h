@@ -22,10 +22,10 @@ extern const char *PAIRWISE_ALIGNMENT_EXCEPTION_ID;
 
 typedef struct _pairwiseAlignmentBandingParameters {
     double threshold; //Minimum posterior probability of a match to be added to the output
-    int32_t minDiagsBetweenTraceBack; //Minimum x+y diagonals to leave between doing traceback.
-    int32_t traceBackDiagonals; //Number of diagonals to leave between trace back diagonal
-    int32_t diagonalExpansion; //The number of x-y diagonals to expand around an anchor point
-    int32_t constraintDiagonalTrim; //Amount to remove from a diagonal to be considered for a banding constraint
+    int64_t minDiagsBetweenTraceBack; //Minimum x+y diagonals to leave between doing traceback.
+    int64_t traceBackDiagonals; //Number of diagonals to leave between trace back diagonal
+    int64_t diagonalExpansion; //The number of x-y diagonals to expand around an anchor point
+    int64_t constraintDiagonalTrim; //Amount to remove from a diagonal to be considered for a banding constraint
     int64_t anchorMatrixBiggerThanThis; //Search for anchors on any matrix bigger than this
     int64_t repeatMaskMatrixBiggerThanThis; //Any matrix in the anchors bigger than this is searched for anchors using non-repeat masked sequences.
     int64_t splitMatrixBiggerThanThis; //Any matrix in the anchors bigger than this is split into two.
@@ -48,26 +48,26 @@ stList *getAlignedPairs(const char *string1, const char *string2, PairwiseAlignm
 ////Diagonal
 
 typedef struct _diagonal {
-    int32_t xay; //x + y coordinate
-    int32_t xmyL; //smallest x - y coordinate
-    int32_t xmyR; //largest x - y coordinate
+    int64_t xay; //x + y coordinate
+    int64_t xmyL; //smallest x - y coordinate
+    int64_t xmyR; //largest x - y coordinate
 } Diagonal;
 
-Diagonal diagonal_construct(int32_t xay, int32_t xmyL, int32_t xmyR);
+Diagonal diagonal_construct(int64_t xay, int64_t xmyL, int64_t xmyR);
 
-int32_t diagonal_getXay(Diagonal diagonal);
+int64_t diagonal_getXay(Diagonal diagonal);
 
-int32_t diagonal_getMinXmy(Diagonal diagonal);
+int64_t diagonal_getMinXmy(Diagonal diagonal);
 
-int32_t diagonal_getMaxXmy(Diagonal diagonal);
+int64_t diagonal_getMaxXmy(Diagonal diagonal);
 
-int32_t diagonal_getWidth(Diagonal diagonal);
+int64_t diagonal_getWidth(Diagonal diagonal);
 
-int32_t diagonal_getXCoordinate(int32_t xay, int32_t xmy);
+int64_t diagonal_getXCoordinate(int64_t xay, int64_t xmy);
 
-int32_t diagonal_getYCoordinate(int32_t xay, int32_t xmy);
+int64_t diagonal_getYCoordinate(int64_t xay, int64_t xmy);
 
-int32_t diagonal_equals(Diagonal diagonal1, Diagonal diagonal2);
+int64_t diagonal_equals(Diagonal diagonal1, Diagonal diagonal2);
 
 char *diagonal_getString(Diagonal diagonal);
 
@@ -75,8 +75,8 @@ char *diagonal_getString(Diagonal diagonal);
 
 typedef struct _band Band;
 
-Band *band_construct(stList *anchorPairs, int32_t lX, int32_t lY,
-        int32_t expansion);
+Band *band_construct(stList *anchorPairs, int64_t lX, int64_t lY,
+        int64_t expansion);
 
 void band_destruct(Band *band);
 
@@ -112,7 +112,7 @@ typedef enum {
 
 Symbol symbol_convertCharToSymbol(char i);
 
-Symbol *symbol_convertStringToSymbols(const char *s, int32_t sL);
+Symbol *symbol_convertStringToSymbols(const char *s, int64_t sL);
 
 double symbol_matchProb(Symbol cX, Symbol cY);
 
@@ -120,10 +120,10 @@ double symbol_gapProb(Symbol c);
 
 typedef struct _symbolString {
         Symbol *sequence;
-                int32_t length;
+                int64_t length;
 } SymbolString;
 
-SymbolString symbolString_construct(const char *sequence, int32_t length);
+SymbolString symbolString_construct(const char *sequence, int64_t length);
 
 //States and transitions
 
@@ -172,7 +172,7 @@ bool dpDiagonal_equals(DpDiagonal *diagonal1, DpDiagonal *diagonal2);
 
 void dpDiagonal_destruct(DpDiagonal *dpDiagonal);
 
-double *dpDiagonal_getCell(DpDiagonal *dpDiagonal, int32_t xmy);
+double *dpDiagonal_getCell(DpDiagonal *dpDiagonal, int64_t xmy);
 
 double dpDiagonal_dotProduct(DpDiagonal *diagonal1, DpDiagonal *diagonal2);
 
@@ -184,28 +184,28 @@ void dpDiagonal_initialiseValues(DpDiagonal *diagonal, double(*getStateValue)(St
 
 typedef struct _dpMatrix DpMatrix;
 
-DpMatrix *dpMatrix_construct(int32_t diagonalNumber);
+DpMatrix *dpMatrix_construct(int64_t diagonalNumber);
 
 void dpMatrix_destruct(DpMatrix *dpMatrix);
 
-DpDiagonal *dpMatrix_getDiagonal(DpMatrix *dpMatrix, int32_t xay);
+DpDiagonal *dpMatrix_getDiagonal(DpMatrix *dpMatrix, int64_t xay);
 
-int32_t dpMatrix_getActiveDiagonalNumber(DpMatrix *dpMatrix);
+int64_t dpMatrix_getActiveDiagonalNumber(DpMatrix *dpMatrix);
 
 DpDiagonal *dpMatrix_createDiagonal(DpMatrix *dpMatrix, Diagonal diagonal);
 
-void dpMatrix_deleteDiagonal(DpMatrix *dpMatrix, int32_t xay);
+void dpMatrix_deleteDiagonal(DpMatrix *dpMatrix, int64_t xay);
 
 //Diagonal calculations
 
-void diagonalCalculationForward(int32_t xay, DpMatrix *dpMatrix, const SymbolString sX, const SymbolString sY);
+void diagonalCalculationForward(int64_t xay, DpMatrix *dpMatrix, const SymbolString sX, const SymbolString sY);
 
-void diagonalCalculationBackward(int32_t xay, DpMatrix *dpMatrix, const SymbolString sX, const SymbolString sY);
+void diagonalCalculationBackward(int64_t xay, DpMatrix *dpMatrix, const SymbolString sX, const SymbolString sY);
 
-double diagonalCalculationTotalProbability(int32_t xay, DpMatrix *forwardDpMatrix, DpMatrix *backwardDpMatrix,
+double diagonalCalculationTotalProbability(int64_t xay, DpMatrix *forwardDpMatrix, DpMatrix *backwardDpMatrix,
         const SymbolString sX, const SymbolString sY);
 
-void diagonalCalculationPosteriorMatchProbs(int32_t xay, DpMatrix *forwardDpMatrix, DpMatrix *backwardDpMatrix,
+void diagonalCalculationPosteriorMatchProbs(int64_t xay, DpMatrix *forwardDpMatrix, DpMatrix *backwardDpMatrix,
         double threshold, double posteriorProbability, stList *alignedPairs);
 
 //Banded matrix calculation
@@ -215,19 +215,19 @@ stList *getAlignedPairsWithBanding(stList *anchorPairs, const SymbolString sX, c
 
 //Blast pairs
 
-stList *getBlastPairs(const char *sX, const char *sY, int32_t lX, int32_t lY, int32_t trim, bool repeatMask);
+stList *getBlastPairs(const char *sX, const char *sY, int64_t lX, int64_t lY, int64_t trim, bool repeatMask);
 
-stList *getBlastPairsForPairwiseAlignmentParameters(const char *sX, const char *sY, const int32_t lX, const int32_t lY,
+stList *getBlastPairsForPairwiseAlignmentParameters(const char *sX, const char *sY, const int64_t lX, const int64_t lY,
         PairwiseAlignmentParameters *p);
 
 stList *filterToRemoveOverlap(stList *overlappingPairs);
 
 //Split over large gaps
 
-stList *getSplitPoints(stList *anchorPairs, int32_t lX, int32_t lY,
+stList *getSplitPoints(stList *anchorPairs, int64_t lX, int64_t lY,
         int64_t maxMatrixSize);
 
-stList *splitAlignmentsByLargeGaps(stList *anchorPairs, const char *sX, const char *sY, int32_t lX, int32_t lY,
+stList *splitAlignmentsByLargeGaps(stList *anchorPairs, const char *sX, const char *sY, int64_t lX, int64_t lY,
         PairwiseAlignmentParameters *p);
 
 #endif /* PAIRWISEALIGNER_H_ */

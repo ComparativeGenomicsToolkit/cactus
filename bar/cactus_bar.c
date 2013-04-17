@@ -75,8 +75,8 @@ stPinch *getNextAlignedPairAlignment(stSortedSetIterator *it) {
     return &pinch;
 }
 
-static int32_t requiredIngroupSpecies, requiredOutgroupSpecies, requiredAllSpecies;
-static int32_t minimumDegree = 0;
+static int64_t requiredIngroupSpecies, requiredOutgroupSpecies, requiredAllSpecies;
+static int64_t minimumDegree = 0;
 static Flower *flower;
 
 bool blockFilterFn(stPinchBlock *pinchBlock) {
@@ -93,17 +93,17 @@ int main(int argc, char *argv[]) {
 
     char * logLevelString = NULL;
     char * cactusDiskDatabaseString = NULL;
-    int32_t i, j;
-    int32_t spanningTrees = 10;
-    int32_t maximumLength = 1500;
-    int32_t maximumNumberOfSequencesBeforeSwitchingToFast = 50;
+    int64_t i, j;
+    int64_t spanningTrees = 10;
+    int64_t maximumLength = 1500;
+    int64_t maximumNumberOfSequencesBeforeSwitchingToFast = 50;
     float gapGamma = 0.5;
     bool useBanding = 0;
-    int32_t k;
+    int64_t k;
     stList *listOfEndAlignmentFiles = NULL;
     char *endAlignmentToPrecompute = NULL;
     bool calculateWhichEndsToComputeSeparately = 0;
-    int32_t largeEndSize = 1000000;
+    int64_t largeEndSize = 1000000;
 
     PairwiseAlignmentParameters *pairwiseAlignmentBandingParameters = pairwiseAlignmentBandingParameters_construct();
 
@@ -151,12 +151,12 @@ int main(int argc, char *argv[]) {
                 usage();
                 return 0;
             case 'i':
-                i = sscanf(optarg, "%i", &spanningTrees);
+                i = sscanf(optarg, "%" PRIi64 "", &spanningTrees);
                 assert(i == 1);
                 assert(spanningTrees >= 0);
                 break;
             case 'j':
-                i = sscanf(optarg, "%i", &maximumLength);
+                i = sscanf(optarg, "%" PRIi64 "", &maximumLength);
                 assert(i == 1);
                 assert(maximumLength >= 0);
                 break;
@@ -169,35 +169,35 @@ int main(int argc, char *argv[]) {
                 assert(gapGamma >= 0.0);
                 break;
             case 'o':
-                i = sscanf(optarg, "%i", &k);
+                i = sscanf(optarg, "%" PRIi64 "", &k);
                 assert(i == 1);
                 assert(k >= 0);
                 pairwiseAlignmentBandingParameters->splitMatrixBiggerThanThis = (int64_t) k * k;
                 break;
             case 'p':
-                i = sscanf(optarg, "%i", &k);
+                i = sscanf(optarg, "%" PRIi64 "", &k);
                 assert(i == 1);
                 assert(k >= 0);
                 pairwiseAlignmentBandingParameters->anchorMatrixBiggerThanThis = (int64_t) k * k;
                 break;
             case 'q':
-                i = sscanf(optarg, "%i", &k);
+                i = sscanf(optarg, "%" PRIi64 "", &k);
                 assert(i == 1);
                 assert(k >= 0);
                 pairwiseAlignmentBandingParameters->repeatMaskMatrixBiggerThanThis = (int64_t) k * k;
                 break;
             case 'r':
-                i = sscanf(optarg, "%i", &pairwiseAlignmentBandingParameters->diagonalExpansion);
+                i = sscanf(optarg, "%" PRIi64 "", &pairwiseAlignmentBandingParameters->diagonalExpansion);
                 assert(i == 1);
                 assert(pairwiseAlignmentBandingParameters->diagonalExpansion >= 0);
                 assert(pairwiseAlignmentBandingParameters->diagonalExpansion % 2 == 0);
             case 't':
-                i = sscanf(optarg, "%i", &pairwiseAlignmentBandingParameters->constraintDiagonalTrim);
+                i = sscanf(optarg, "%" PRIi64 "", &pairwiseAlignmentBandingParameters->constraintDiagonalTrim);
                 assert(i == 1);
                 assert(pairwiseAlignmentBandingParameters->constraintDiagonalTrim >= 0);
                 break;
             case 'u':
-                i = sscanf(optarg, "%i", &minimumDegree);
+                i = sscanf(optarg, "%" PRIi64 "", &minimumDegree);
                 assert(i == 1);
                 break;
             case 'w':
@@ -225,14 +225,14 @@ int main(int argc, char *argv[]) {
                 endAlignmentToPrecompute = stString_copy(optarg);
                 break;
             case 'F':
-                i = sscanf(optarg, "%i", &maximumNumberOfSequencesBeforeSwitchingToFast);
+                i = sscanf(optarg, "%" PRIi64 "", &maximumNumberOfSequencesBeforeSwitchingToFast);
                 assert(i == 1);
                 break;
             case 'G':
                 calculateWhichEndsToComputeSeparately = 1;
                 break;
             case 'I':
-                i = sscanf(optarg, "%i", &largeEndSize);
+                i = sscanf(optarg, "%" PRIi64 "", &largeEndSize);
                 assert(i == 1);
                 break;
             default:
@@ -256,14 +256,14 @@ int main(int argc, char *argv[]) {
     stList *flowers = flowerWriter_parseFlowersFromStdin(cactusDisk);
     if (calculateWhichEndsToComputeSeparately) {
         if (stList_length(flowers) != 1) {
-            st_errAbort("We are breaking up a flower's end alignments for precomputation but we have %i flowers.\n", stList_length(flowers));
+            st_errAbort("We are breaking up a flower's end alignments for precomputation but we have %" PRIi64 " flowers.\n", stList_length(flowers));
         }
         stSortedSet *endsToAlignSeparately = getEndsToAlignSeparately(stList_get(flowers, 0), maximumLength, largeEndSize);
         assert(stSortedSet_size(endsToAlignSeparately) != 1);
         stSortedSetIterator *it = stSortedSet_getIterator(endsToAlignSeparately);
         End *end;
         while ((end = stSortedSet_getNext(it)) != NULL) {
-            fprintf(stdout, "%s\t%i\t%" PRIi64 "\n", cactusMisc_nameToStringStatic(end_getName(end)), end_getInstanceNumber(end), getTotalAdjacencyLength(end));
+            fprintf(stdout, "%s\t%" PRIi64 "\t%" PRIi64 "\n", cactusMisc_nameToStringStatic(end_getName(end)), end_getInstanceNumber(end), getTotalAdjacencyLength(end));
         }
         //return 0; //avoid cleanup costs
         stSortedSet_destructIterator(it);
@@ -273,7 +273,7 @@ int main(int argc, char *argv[]) {
          * In this case we will align a single end and save the alignment in a file.
          */
         if (stList_length(flowers) != 1) {
-            st_errAbort("We have an alignment to precompute but %i flowers.\n", stList_length(flowers));
+            st_errAbort("We have an alignment to precompute but %" PRIi64 " flowers.\n", stList_length(flowers));
         }
         stList *l = stString_split(endAlignmentToPrecompute);
         if (stList_length(l) != 2) {
@@ -299,7 +299,7 @@ int main(int argc, char *argv[]) {
          * Compute complete flower alignments, possibly loading some precomputed alignments.
          */
         if (listOfEndAlignmentFiles != NULL && stList_length(flowers) != 1) {
-            st_errAbort("We have precomputed alignments but %i flowers to align.\n", stList_length(flowers));
+            st_errAbort("We have precomputed alignments but %" PRIi64 " flowers to align.\n", stList_length(flowers));
         }
         cactusDisk_preCacheStrings(cactusDisk, flowers);
         for (j = 0; j < stList_length(flowers); j++) {
@@ -308,7 +308,7 @@ int main(int argc, char *argv[]) {
 
             stSortedSet *alignedPairs = makeFlowerAlignment3(flower, listOfEndAlignmentFiles, spanningTrees, maximumLength,
                     maximumNumberOfSequencesBeforeSwitchingToFast, gapGamma, pairwiseAlignmentBandingParameters, pruneOutStubAlignments);
-            st_logInfo("Created the alignment: %i pairs\n", stSortedSet_size(alignedPairs));
+            st_logInfo("Created the alignment: %" PRIi64 " pairs\n", stSortedSet_size(alignedPairs));
             stPinchIterator *pinchIterator = stPinchIterator_constructFromAlignedPairs(alignedPairs, getNextAlignedPairAlignment);
 
             /*
@@ -324,7 +324,7 @@ int main(int argc, char *argv[]) {
                         &requiredIngroupSpecies, &requiredOutgroupSpecies, &requiredAllSpecies);
                 stCaf_melt(flower, threadSet, blockFilterFn, 0, 0);
             }
-            stCaf_finish(flower, threadSet, INT32_MAX, INT32_MAX);
+            stCaf_finish(flower, threadSet, INT64_MAX, INT64_MAX);
             stPinchThreadSet_destruct(threadSet);
             st_logInfo("Ran the cactus core script.\n");
             assert(!flower_isParentLoaded(flower));

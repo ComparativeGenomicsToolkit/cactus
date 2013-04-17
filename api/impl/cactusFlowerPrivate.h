@@ -22,8 +22,8 @@ struct _flower {
     stSortedSet *faces;
     Name parentFlowerName;
     CactusDisk *cactusDisk;
-    int32_t faceIndex;
-    int32_t chainIndex;
+    int64_t faceIndex;
+    int64_t chainIndex;
     bool builtBlocks;
     bool builtTrees;
     bool builtFaces;
@@ -41,7 +41,7 @@ struct _flower {
  * Destructs the flower, and all the elements it contains. If recursive the function will destroy all
  * loaded nested flowers.
  */
-void flower_destruct(Flower *flower, int32_t recursive);
+void flower_destruct(Flower *flower, int64_t recursive);
 
 /*
  * Adds the event tree for the flower to the flower.

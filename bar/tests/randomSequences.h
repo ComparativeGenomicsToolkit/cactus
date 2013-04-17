@@ -10,7 +10,7 @@
 
 char getRandomChar();
 
-char *getRandomSequence(int32_t length);
+char *getRandomSequence(int64_t length);
 
 char *evolveSequence(const char *startSequence);
 

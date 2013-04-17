@@ -13,7 +13,7 @@
 #include "cactus.h"
 
 struct _stPinchIterator {
-    int32_t alignmentTrim;
+    int64_t alignmentTrim;
     void *alignmentArg;
     stPinch *(*getNextAlignment)(void *);
     void *(*startAlignmentStack)(void *);
@@ -177,6 +177,6 @@ stPinchIterator *stPinchIterator_constructFromAlignedPairs(stSortedSet *alignedP
     return pinchIterator;
 }
 
-void stPinchIterator_setTrim(stPinchIterator *pinchIterator, int32_t alignmentTrim) {
+void stPinchIterator_setTrim(stPinchIterator *pinchIterator, int64_t alignmentTrim) {
     pinchIterator->alignmentTrim = alignmentTrim;
 }

@@ -54,7 +54,7 @@ static int64_t getChainLength(stCactusEdgeEnd *cactusEdgeEnd) {
     return length;
 }
 
-static stList *stCaf_getBlocksInChainsLessThanGivenLength(stCactusGraph *cactusGraph, int32_t minimumChainLength) {
+static stList *stCaf_getBlocksInChainsLessThanGivenLength(stCactusGraph *cactusGraph, int64_t minimumChainLength) {
     stList *blocksToDelete = stList_construct3(0, (void(*)(void *)) stPinchBlock_destruct);
     stCactusGraphNodeIt *nodeIt = stCactusGraphNodeIterator_construct(cactusGraph);
     stCactusNode *cactusNode;
@@ -73,7 +73,7 @@ static stList *stCaf_getBlocksInChainsLessThanGivenLength(stCactusGraph *cactusG
     return blocksToDelete;
 }
 
-static void trimAlignments(stPinchThreadSet *threadSet, int32_t blockEndTrim) {
+static void trimAlignments(stPinchThreadSet *threadSet, int64_t blockEndTrim) {
     stPinchThreadSetBlockIt blockIt = stPinchThreadSet_getBlockIt(threadSet);
     stPinchBlock *block = stPinchThreadSetBlockIt_getNext(&blockIt);
     while (block != NULL) {
@@ -97,7 +97,7 @@ static void filterAlignments(stPinchThreadSet *threadSet, bool(*blockFilterFn)(s
     }
 }
 
-void stCaf_melt(Flower *flower, stPinchThreadSet *threadSet, bool blockFilterfn(stPinchBlock *), int32_t blockEndTrim,
+void stCaf_melt(Flower *flower, stPinchThreadSet *threadSet, bool blockFilterfn(stPinchBlock *), int64_t blockEndTrim,
         int64_t minimumChainLength) {
     //First trim
     if (blockEndTrim > 0) {
@@ -126,7 +126,7 @@ void stCaf_melt(Flower *flower, stPinchThreadSet *threadSet, bool blockFilterfn(
 ///////////////////////////////////////////////////////////////////////////
 
 void stCaf_calculateRequiredFractionsOfSpecies(Flower *flower, float requiredIngroupFraction, float requiredOutgroupFraction,
-        float requiredAllFraction, int32_t *requiredIngroupSpecies,  int32_t *requiredOutgroupSpecies, int32_t *requiredAllSpecies) {
+        float requiredAllFraction, int64_t *requiredIngroupSpecies,  int64_t *requiredOutgroupSpecies, int64_t *requiredAllSpecies) {
     if (requiredIngroupFraction <= 0.0 && requiredOutgroupFraction <= 0.0 && requiredAllFraction <= 0.0) {
         *requiredAllSpecies = 0;
         *requiredOutgroupSpecies = 0;
@@ -134,8 +134,8 @@ void stCaf_calculateRequiredFractionsOfSpecies(Flower *flower, float requiredIng
     }
     EventTree *eventTree = flower_getEventTree(flower);
     Event *event;
-    int32_t outgroupEventNumber = 0;
-    int32_t ingroupEventNumber = 0;
+    int64_t outgroupEventNumber = 0;
+    int64_t ingroupEventNumber = 0;
     EventTree_Iterator *eventIt = eventTree_getIterator(eventTree);
     while ((event = eventTree_getNext(eventIt)) != NULL) {
         if (event_getChildNumber(event) == 0) {
@@ -158,13 +158,13 @@ static Event *getEvent(stPinchSegment *segment, Flower *flower) {
     return event;
 }
 
-bool stCaf_containsRequiredSpecies(stPinchBlock *pinchBlock, Flower *flower, int32_t requiredIngroupSpecies,
-        int32_t requiredOutgroupSpecies, int32_t requiredAllSpecies) {
+bool stCaf_containsRequiredSpecies(stPinchBlock *pinchBlock, Flower *flower, int64_t requiredIngroupSpecies,
+        int64_t requiredOutgroupSpecies, int64_t requiredAllSpecies) {
     if (requiredIngroupSpecies <= 0 && requiredOutgroupSpecies <= 0 && requiredAllSpecies <= 0) {
         return 1;
     }
-    int32_t outgroupSequences = 0;
-    int32_t ingroupSequences = 0;
+    int64_t outgroupSequences = 0;
+    int64_t ingroupSequences = 0;
     stPinchBlockIt segmentIt = stPinchBlock_getSegmentIterator(pinchBlock);
     stPinchSegment *segment;
     while ((segment = stPinchBlockIt_getNext(&segmentIt)) != NULL) {

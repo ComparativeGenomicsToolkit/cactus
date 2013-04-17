@@ -55,17 +55,17 @@ void stCaf_joinTrivialBoundaries(stPinchThreadSet *threadSet);
 /*
  * Removes homologies from the graph.
  */
-void stCaf_melt(Flower *flower, stPinchThreadSet *threadSet, bool blockFilterfn(stPinchBlock *), int32_t blockEndTrim,
+void stCaf_melt(Flower *flower, stPinchThreadSet *threadSet, bool blockFilterfn(stPinchBlock *), int64_t blockEndTrim,
         int64_t minimumChainLength);
 
 /*
  * Function used to determine if blocks contains sufficient numbers of sequences of ingroup/outgroup species.
  */
-bool stCaf_containsRequiredSpecies(stPinchBlock *pinchBlock, Flower *flower, int32_t requiredIngroupSpecies,
-        int32_t requiredOutgroupSpecies, int32_t requiredAllSpecies);
+bool stCaf_containsRequiredSpecies(stPinchBlock *pinchBlock, Flower *flower, int64_t requiredIngroupSpecies,
+        int64_t requiredOutgroupSpecies, int64_t requiredAllSpecies);
 
 void stCaf_calculateRequiredFractionsOfSpecies(Flower *flower, float requiredIngroupFraction, float requiredOutgroupFraction,
-        float requiredAllFraction, int32_t *requiredIngroupSpecies, int32_t *requiredOutgroupSpecies, int32_t *requiredAllSpecies);
+        float requiredAllFraction, int64_t *requiredIngroupSpecies, int64_t *requiredOutgroupSpecies, int64_t *requiredAllSpecies);
 
 /*
  * Returns the proportion of the tree covered by the block.
@@ -120,7 +120,7 @@ void stCaf_addAdjacencies(Flower *flower);
 /*
  * Takes a pinch graph for a flower and adds the alignments it contains back to the flower as a cactus.
  */
-void stCaf_finish(Flower *flower, stPinchThreadSet *threadSet, int32_t chainLengthForBigFlower,
-        int32_t longChain);
+void stCaf_finish(Flower *flower, stPinchThreadSet *threadSet, int64_t chainLengthForBigFlower,
+        int64_t longChain);
 
 #endif /* STCAF_H_ */

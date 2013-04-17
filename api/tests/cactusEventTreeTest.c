@@ -51,7 +51,7 @@ void testEventTree_construct(CuTest* testCase) {
 	cactusEventTreeTestTeardown();
 }
 
-static int32_t unaryEventFunction(Event *event) {
+static int64_t unaryEventFunction(Event *event) {
 	assert(event != NULL);
 	assert(event_getChildNumber(event) == 1);
 	return 1;
@@ -156,7 +156,7 @@ void testEventTree_iterator(CuTest* testCase) {
 
 void testEventTree_makeNewickString(CuTest* testCase) {
 	cactusEventTreeTestSetup();
-	CuAssertStrEquals(testCase, "((LEAF1:0.2,LEAF2:1.3)INTERNAL:0.5)ROOT:2.14748e+09;", eventTree_makeNewickString(eventTree));
+	CuAssertStrEquals(testCase, "((LEAF1:0.2,LEAF2:1.3)INTERNAL:0.5)ROOT:9.22337e+18;", eventTree_makeNewickString(eventTree));
 	cactusEventTreeTestTeardown();
 }
 

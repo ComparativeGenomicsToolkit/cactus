@@ -27,7 +27,7 @@ void testEnd_construct(CuTest* testCase) {
     cactusEndTestTeardown();
 }
 
-int32_t testEnd_copyConstructP(Event *event) {
+int64_t testEnd_copyConstructP(Event *event) {
     assert(event != NULL);
     return 1;
 }

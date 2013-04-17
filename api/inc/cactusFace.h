@@ -30,12 +30,12 @@ Flower *face_getFlower(Face *face);
 /*
  * Returns cardinal
  */
-int32_t face_getCardinal(Face * face);
+int64_t face_getCardinal(Face * face);
 
 /*
  * Get selected top node
  */
-Cap * face_getTopNode(Face * face, int32_t index);
+Cap * face_getTopNode(Face * face, int64_t index);
 
 /*
  * Gets an iterator over the face ends in the face.
@@ -65,17 +65,17 @@ void face_destructFaceEndIterator(Face_FaceEndIterator *iterator);
 /*
  * Tests if simple
  */
-int32_t face_isSimple(Face * face);
+int64_t face_isSimple(Face * face);
 
 /*
  * Tests if regular
  */
-int32_t face_isRegular(Face * face);
+int64_t face_isRegular(Face * face);
 
 /*
  * Tests if canonical
  */
-int32_t face_isCanonical(Face * face);
+int64_t face_isCanonical(Face * face);
 
 /*
  * Checks the face has the properties that we expect. Creates an assertion error if not.

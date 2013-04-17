@@ -74,17 +74,17 @@ float event_getSubTreeBranchLength(Event *event);
 /*
  * Gets the number of events in the sub tree of the event, excluding the event itself.
  */
-int32_t event_getSubTreeEventNumber(Event *event);
+int64_t event_getSubTreeEventNumber(Event *event);
 
 /*
  * Get number of children.
  */
-int32_t event_getChildNumber(Event *event);
+int64_t event_getChildNumber(Event *event);
 
 /*
  * Gets a child by its index.
  */
-Event *event_getChild(Event *event, int32_t index);
+Event *event_getChild(Event *event, int64_t index);
 
 /*
  * Gets the event tree the event is part of.
@@ -94,17 +94,17 @@ EventTree *event_getEventTree(Event *event);
 /*
  * Returns non zero if the other event is an ancestor of the event.
  */
-int32_t event_isAncestor(Event *event, Event *otherEvent);
+int64_t event_isAncestor(Event *event, Event *otherEvent);
 
 /*
  * Returns non zero if the other event is a child of the event.
  */
-int32_t event_isDescendant(Event *event, Event *otherEvent);
+int64_t event_isDescendant(Event *event, Event *otherEvent);
 
 /*
  * Returns non zero if the other event is a sibling of the other event.
  */
-int32_t event_isSibling(Event *event, Event *otherEvent);
+int64_t event_isSibling(Event *event, Event *otherEvent);
 
 /*
  * Sets if event is an outgroup.

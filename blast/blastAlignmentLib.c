@@ -14,11 +14,11 @@
  * Converting coordinates of pairwise alignments
  */
 
-static void convertCoordinatesP(char **contig, int32_t *start, int32_t *end) {
+static void convertCoordinatesP(char **contig, int64_t *start, int64_t *end) {
     stList *attributes = fastaDecodeHeader(*contig);
     //Decode attributes
-    int32_t startP;
-    int32_t i = sscanf((const char *) stList_peek(attributes), "%i", &startP);
+    int64_t startP;
+    int64_t i = sscanf((const char *) stList_peek(attributes), "%" PRIi64 "", &startP);
     (void) i;
     assert(i == 1);
     free(stList_pop(attributes));
@@ -44,7 +44,7 @@ void convertCoordinatesOfPairwiseAlignment(struct PairwiseAlignment *pairwiseAli
 static int64_t chunkRemaining;
 static FILE *chunkFileHandle = NULL;
 static const char *chunksDir = NULL;
-static int32_t chunkNo = 0;
+static int64_t chunkNo = 0;
 static char *tempChunkFile = NULL;
 static int64_t chunkSize;
 static int64_t chunkOverlapSize;
@@ -59,7 +59,7 @@ void finishChunkingSequences() {
     }
 }
 
-static void updateChunkRemaining(int32_t seqLength) {
+static void updateChunkRemaining(int64_t seqLength) {
     //Update remaining portion of the chunk.
     assert(seqLength >= 0);
     chunkRemaining -= seqLength;
@@ -69,13 +69,13 @@ static void updateChunkRemaining(int32_t seqLength) {
     }
 }
 
-static int32_t processSubsequenceChunk(char *fastaHeader, int32_t start, char *sequence, int32_t seqLength, int32_t lengthOfChunkRemaining) {
+static int64_t processSubsequenceChunk(char *fastaHeader, int64_t start, char *sequence, int64_t seqLength, int64_t lengthOfChunkRemaining) {
     if (chunkFileHandle == NULL) {
-        tempChunkFile = stString_print("%s/%i", chunksDir, chunkNo++);
+        tempChunkFile = stString_print("%s/%" PRIi64 "", chunksDir, chunkNo++);
         chunkFileHandle = fopen(tempChunkFile, "w");
     }
 
-    int32_t i = 0;
+    int64_t i = 0;
     fastaHeader = stString_copy(fastaHeader);
     while (fastaHeader[i] != '\0') {
         if (fastaHeader[i] == ' ' || fastaHeader[i] == '\t') {
@@ -84,11 +84,11 @@ static int32_t processSubsequenceChunk(char *fastaHeader, int32_t start, char *s
         }
         i++;
     }
-    fprintf(chunkFileHandle, ">%s|%i\n", fastaHeader, start);
+    fprintf(chunkFileHandle, ">%s|%" PRIi64 "\n", fastaHeader, start);
     free(fastaHeader);
     assert(lengthOfChunkRemaining <= chunkSize);
     assert(start >= 0);
-    int32_t lengthOfSubsequence = lengthOfChunkRemaining;
+    int64_t lengthOfSubsequence = lengthOfChunkRemaining;
     if (start + lengthOfChunkRemaining > seqLength) {
         lengthOfSubsequence = seqLength - start;
     }
@@ -102,15 +102,15 @@ static int32_t processSubsequenceChunk(char *fastaHeader, int32_t start, char *s
     return lengthOfSubsequence;
 }
 
-void processSequenceToChunk(const char *fastaHeader, const char *sequence, int32_t sequenceLength) {
+void processSequenceToChunk(const char *fastaHeader, const char *sequence, int64_t sequenceLength) {
     if (sequenceLength > 0) {
-        int32_t lengthOfSubsequence = processSubsequenceChunk((char *) fastaHeader, 0, (char *) sequence, sequenceLength, chunkRemaining);
+        int64_t lengthOfSubsequence = processSubsequenceChunk((char *) fastaHeader, 0, (char *) sequence, sequenceLength, chunkRemaining);
         while (sequenceLength - lengthOfSubsequence > 0) {
             //Make the non overlap file
-            int32_t lengthOfFollowingSubsequence = processSubsequenceChunk((char *) fastaHeader, lengthOfSubsequence, (char *) sequence, sequenceLength, chunkRemaining);
+            int64_t lengthOfFollowingSubsequence = processSubsequenceChunk((char *) fastaHeader, lengthOfSubsequence, (char *) sequence, sequenceLength, chunkRemaining);
 
             //Make the overlap file
-            int32_t i = lengthOfSubsequence - chunkOverlapSize / 2;
+            int64_t i = lengthOfSubsequence - chunkOverlapSize / 2;
             if (i < 0) {
                 i = 0;
             }
@@ -135,10 +135,10 @@ void setupToChunkSequences(int64_t chunkSize2, int64_t overlapSize2, const char 
  * Get the flowers in a file.
  */
 
-int32_t writeFlowerSequences(Flower *flower, void(*processSequence)(const char *, const char *, int32_t), int32_t minimumSequenceLength) {
+int64_t writeFlowerSequences(Flower *flower, void(*processSequence)(const char *, const char *, int64_t), int64_t minimumSequenceLength) {
     Flower_EndIterator *endIterator = flower_getEndIterator(flower);
     End *end;
-    int32_t sequencesWritten = 0;
+    int64_t sequencesWritten = 0;
     while ((end = flower_getNextEnd(endIterator)) != NULL) {
         End_InstanceIterator *instanceIterator = end_getInstanceIterator(end);
         Cap *cap;
@@ -150,13 +150,13 @@ int32_t writeFlowerSequences(Flower *flower, void(*processSequence)(const char *
 
             if (!cap_getSide(cap)) {
                 assert(cap_getSide(cap2));
-                int32_t length = cap_getCoordinate(cap2) - cap_getCoordinate(cap) - 1;
+                int64_t length = cap_getCoordinate(cap2) - cap_getCoordinate(cap) - 1;
                 assert(length >= 0);
                 if (length >= minimumSequenceLength) {
                     Sequence *sequence = cap_getSequence(cap);
                     assert(sequence != NULL);
                     char *string = sequence_getString(sequence, cap_getCoordinate(cap) + 1, length, 1);
-                    char *header = stString_print("%s|%i", cactusMisc_nameToStringStatic(cap_getName(cap)), cap_getCoordinate(cap) + 1);
+                    char *header = stString_print("%s|%" PRIi64 "", cactusMisc_nameToStringStatic(cap_getName(cap)), cap_getCoordinate(cap) + 1);
                     processSequence(header, string, strlen(string));
                     free(string);
                     free(header);
@@ -172,17 +172,17 @@ int32_t writeFlowerSequences(Flower *flower, void(*processSequence)(const char *
 
 static FILE *sequenceFileHandle;
 static const char *tempSequenceFile;
-static void writeSequenceInFile(const char *fastaHeader, const char *sequence, int32_t length) {
+static void writeSequenceInFile(const char *fastaHeader, const char *sequence, int64_t length) {
     if (sequenceFileHandle == NULL) {
         sequenceFileHandle = fopen(tempSequenceFile, "w");
     }
     fprintf(sequenceFileHandle, ">%s\n%s\n", fastaHeader, sequence);
 }
 
-int32_t writeFlowerSequencesInFile(Flower *flower, const char *tempFile, int32_t minimumSequenceLength) {
+int64_t writeFlowerSequencesInFile(Flower *flower, const char *tempFile, int64_t minimumSequenceLength) {
     sequenceFileHandle = NULL;
     tempSequenceFile = tempFile;
-    int32_t sequencesWritten = writeFlowerSequences(flower, writeSequenceInFile, minimumSequenceLength);
+    int64_t sequencesWritten = writeFlowerSequences(flower, writeSequenceInFile, minimumSequenceLength);
     if (sequenceFileHandle != NULL) {
         fclose(sequenceFileHandle);
     }

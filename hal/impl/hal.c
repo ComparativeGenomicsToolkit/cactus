@@ -90,12 +90,12 @@ static char *writeTerminalAdjacency(Cap *cap) {
     //a start length reference-segment block-orientation
     Cap *adjacentCap = cap_getAdjacency(cap);
     assert(adjacentCap != NULL);
-    int32_t adjacencyLength = cap_getCoordinate(adjacentCap) - cap_getCoordinate(cap) - 1;
+    int64_t adjacencyLength = cap_getCoordinate(adjacentCap) - cap_getCoordinate(cap) - 1;
     assert(adjacencyLength >= 0);
     Sequence *sequence = cap_getSequence(cap);
     assert(sequence != NULL);
     if(adjacencyLength > 0) {
-        return stString_print("a\t%i\t%i\n", cap_getCoordinate(cap) + 1 - sequence_getStart(sequence), adjacencyLength);
+        return stString_print("a\t%" PRIi64 "\t%" PRIi64 "\n", cap_getCoordinate(cap) + 1 - sequence_getStart(sequence), adjacencyLength);
     }
     else {
         return stString_copy("");
@@ -109,11 +109,10 @@ static char *writeSegment(Segment *segment) {
     Sequence *sequence = segment_getSequence(segment);
     assert(sequence != NULL);
     if (referenceSegment != segment) { //Is a top segment
-        return stString_print("a\t%i\t%i\t%" PRIi64 "\t%i\n", segment_getStart(segment) - sequence_getStart(sequence), segment_getLength(segment), segment_getName(referenceSegment), segment_getStrand(referenceSegment));
+        return stString_print("a\t%" PRIi64 "\t%" PRIi64 "\t%" PRIi64 "\t%" PRIi64 "\n", segment_getStart(segment) - sequence_getStart(sequence), segment_getLength(segment), segment_getName(referenceSegment), segment_getStrand(referenceSegment));
     }
-    else { //Is a bottom segment
-        return stString_print("a\t%" PRIi64 "\t%i\t%i\n", segment_getName(segment), segment_getStart(segment) - sequence_getStart(sequence), segment_getLength(segment));
-    }
+    //Is a bottom segment
+    return stString_print("a\t%" PRIi64 "\t%" PRIi64 "\t%" PRIi64 "\n", segment_getName(segment), segment_getStart(segment) - sequence_getStart(sequence), segment_getLength(segment));
 }
 
 static int compareCaps(Cap *cap, Cap *cap2) {
@@ -136,7 +135,7 @@ static int compareCaps(Cap *cap, Cap *cap2) {
 static stList *getCaps(stList *flowers) {
     //Get the caps in order
     stList *caps = stList_construct();
-    for(int32_t i=0; i<stList_length(flowers); i++) {
+    for(int64_t i=0; i<stList_length(flowers); i++) {
         Flower *flower = stList_get(flowers, i);
         End *end;
         Flower_EndIterator *endIt = flower_getEndIterator(flower);
@@ -171,7 +170,7 @@ void makeHalFormat(stList *flowers, stKVDatabase *database, Name referenceEventN
     else {
         stList *threadStrings = buildRecursiveThreadsInList(database, caps, writeSegment, writeTerminalAdjacency);
         assert(stList_length(threadStrings) == stList_length(caps));
-        for(int32_t i=0; i<stList_length(threadStrings); i++) {
+        for(int64_t i=0; i<stList_length(threadStrings); i++) {
             Cap *cap = stList_get(caps, i);
             char *threadString = stList_get(threadStrings, i);
             writeSequenceHeader(fileHandle, cap_getSequence(cap));

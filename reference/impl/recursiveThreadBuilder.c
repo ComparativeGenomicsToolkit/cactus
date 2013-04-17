@@ -31,7 +31,7 @@ static void cacheNonNestedRecords(stCache *cache, stList *caps, char *(*segmentW
     /*
      * Caches the set of terminal adjacency and segment records present in the threads.
      */
-    for (int32_t i = 0; i < stList_length(caps); i++) {
+    for (int64_t i = 0; i < stList_length(caps); i++) {
         Cap *cap = stList_get(caps, i);
         int64_t recordSize;
         while (1) {
@@ -62,7 +62,7 @@ static stList *getNestedRecordNames(stList *caps) {
      * Gets the names of non-terminal adjacencies as a list of cap names.
      */
     stList *getRequests = stList_construct3(0, free);
-    for (int32_t i = 0; i < stList_length(caps); i++) {
+    for (int64_t i = 0; i < stList_length(caps); i++) {
         Cap *cap = stList_get(caps, i);
         while (1) {
             Cap *adjacentCap = cap_getAdjacency(cap);
@@ -88,7 +88,7 @@ static void cacheNestedRecords(stKVDatabase *database, stCache *cache, stList *c
      */
     stList *getRequests = getNestedRecordNames(caps);
     if (stList_length(caps) > 10000) {
-        st_logCritical("Going to request %i records from the database: %i\n", stList_length(caps));
+        st_logCritical("Going to request %" PRIi64 " records from the database: %" PRIi64 "\n", stList_length(caps));
     }
     //Do the retrieval of the records
     stList *records = NULL;
@@ -134,12 +134,12 @@ static void deleteNestedRecords(stKVDatabase *database, stList *caps) {
      * Removes the non-terminal adjacencies from the database.
      */
     stList *deleteRequests = getNestedRecordNames(caps);
-    for (int32_t i = 0; i < stList_length(deleteRequests); i++) {
+    for (int64_t i = 0; i < stList_length(deleteRequests); i++) {
         int64_t *record = stList_get(deleteRequests, i);
-        stList_set(deleteRequests, i, stInt64Tuple_construct(1, record[0])); //Hack
+        stList_set(deleteRequests, i, stIntTuple_construct1( record[0])); //Hack
         free(record);
     }
-    stList_setDestructor(deleteRequests, (void(*)(void *)) stInt64Tuple_destruct);
+    stList_setDestructor(deleteRequests, (void(*)(void *)) stIntTuple_destruct);
     //Do the deletion of the records
     stTry {
             stKVDatabase_bulkRemoveRecords(database, deleteRequests);
@@ -183,7 +183,7 @@ void buildRecursiveThreads(stKVDatabase *database, stList *caps, char *(*segment
 
     //Build new threads
     stList *records = stList_construct3(0, (void(*)(void *)) stKVDatabaseBulkRequest_destruct);
-    for (int32_t i = 0; i < stList_length(caps); i++) {
+    for (int64_t i = 0; i < stList_length(caps); i++) {
         Cap *cap = stList_get(caps, i);
         char *string = getThread(cache, cap);
         assert(string != NULL);
@@ -216,7 +216,7 @@ stList *buildRecursiveThreadsInList(stKVDatabase *database, stList *caps, char *
     stCache *cache = cacheRecords(database, caps, segmentWriteFn, terminalAdjacencyWriteFn);
 
     //Build new threads
-    for (int32_t i = 0; i < stList_length(caps); i++) {
+    for (int64_t i = 0; i < stList_length(caps); i++) {
         Cap *cap = stList_get(caps, i);
         stList_append(threadStrings, getThread(cache, cap));
     }

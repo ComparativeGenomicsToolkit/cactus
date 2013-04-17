@@ -18,9 +18,9 @@ char getRandomChar() {
 /*
  * Creates a random DNA sequence of the given length.
  */
-char *getRandomSequence(int32_t length) {
+char *getRandomSequence(int64_t length) {
     char *seq = st_malloc((length + 1) * sizeof(char));
-    for (int32_t i = 0; i < length; i++) {
+    for (int64_t i = 0; i < length; i++) {
         seq[i] = getRandomChar();
     }
     seq[length] = '\0';
@@ -35,7 +35,7 @@ char *evolveSequence(const char *startSequence) {
     char *seq = stString_copy(startSequence);
 
     //Do substitutions
-    for (int32_t i = 0; i < strlen(seq); i++) {
+    for (int64_t i = 0; i < strlen(seq); i++) {
         if (st_random() > 0.8) {
             seq[i] = getRandomChar();
         }

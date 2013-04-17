@@ -80,7 +80,7 @@ void testCactusMisc_nameCompare(CuTest* testCase) {
 
 void testCactusMisc_stringNameFns(CuTest* testCase) {
     cactusMiscTestSetup();
-    int32_t i;
+    int64_t i;
     for (i = 0; i < 1000000; i++) {
         Name name = cactusDisk_getUniqueID(cactusDisk);
         CuAssertTrue(

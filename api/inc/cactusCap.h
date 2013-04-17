@@ -25,12 +25,12 @@ Cap *cap_construct(End *end, Event *event);
 /*
  * As default constructor, but also sets the instance's coordinates and event.
  */
-Cap *cap_construct2(End *end, int32_t startCoordinate, bool strand, Sequence *sequence);
+Cap *cap_construct2(End *end, int64_t startCoordinate, bool strand, Sequence *sequence);
 
 /*
  * Adds coordinates to a given cap.
  */
-void cap_setCoordinates(Cap *cap, int32_t coordinate, int32_t strand, Sequence *sequence);
+void cap_setCoordinates(Cap *cap, int64_t coordinate, bool strand, Sequence *sequence);
 
 /*
  * Adds the given cap into the end - will fail if the given cap is not a member of
@@ -82,9 +82,9 @@ Cap *cap_getOtherSegmentCap(Cap *cap);
 
 /*
  * Gets the coordinate of the position that cap is on the end of,
- * returns INT32_MAX if coordinate not set.
+ * returns INT64_MAX if coordinate not set.
  */
-int32_t cap_getCoordinate(Cap *cap);
+int64_t cap_getCoordinate(Cap *cap);
 
 /*
  * Returns a non zero integer if the coordinate of the cap (see cap_getCoordinate)
@@ -149,12 +149,12 @@ Cap *cap_getParent(Cap *cap);
 /*
  * Returns the number of children the cap has.
  */
-int32_t cap_getChildNumber(Cap *cap);
+int64_t cap_getChildNumber(Cap *cap);
 
 /*
  * Gets the child cap in the tree of the end.
  */
-Cap *cap_getChild(Cap *cap, int32_t index);
+Cap *cap_getChild(Cap *cap, int64_t index);
 
 /*
  * Links together a parent and child cap.
@@ -169,7 +169,7 @@ void cap_changeParentAndChild(Cap* newCapParent, Cap* capChild);
 /*
  * Returns non zero if the cap is internal (part of an internal tree).
  */
-int32_t cap_isInternal(Cap *cap);
+bool cap_isInternal(Cap *cap);
 
 /*
  * Checks the following (amongst other things):

@@ -7,8 +7,8 @@
 #include "cactusGlobalsPrivate.h"
 
 static char getInt(FILE *fileHandle) {
-    int32_t i;
-    int32_t j = fscanf(fileHandle, "%i", &i);
+    int64_t i;
+    int64_t j = fscanf(fileHandle, "%" PRIi64 "", &i);
     (void)j;
     assert(j == 1);
     return i;

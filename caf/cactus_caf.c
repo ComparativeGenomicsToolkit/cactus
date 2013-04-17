@@ -61,14 +61,14 @@ static void usage() {
     fprintf(stderr, "-x --constraints : A file of alignments that will enforced upon the cactus\n");
 }
 
-static int32_t *getInts(const char *string, int32_t *arrayLength) {
-    int32_t *iA = st_malloc(sizeof(int32_t) * strlen(string));
+static int64_t *getInts(const char *string, int64_t *arrayLength) {
+    int64_t *iA = st_malloc(sizeof(int64_t) * strlen(string));
     char *cA = stString_copy(string);
     char *cA2 = cA;
     char *cA3;
     *arrayLength = 0;
     while ((cA3 = stString_getNextWord(&cA)) != NULL) {
-        int32_t i = sscanf(cA3, "%i", &iA[(*arrayLength)++]);
+        int64_t i = sscanf(cA3, "%" PRIi64 "", &iA[(*arrayLength)++]);
         (void)i;
         assert(i == 1);
         free(cA3);
@@ -77,10 +77,10 @@ static int32_t *getInts(const char *string, int32_t *arrayLength) {
     return iA;
 }
 
-static int32_t requiredIngroupSpecies = 0, requiredOutgroupSpecies = 0, requiredAllSpecies = 0;
+static int64_t requiredIngroupSpecies = 0, requiredOutgroupSpecies = 0, requiredAllSpecies = 0;
 static bool (*multipleCopiesFunction)(stPinchBlock *, Flower *) = NULL;
 static float minimumTreeCoverage = 0.0;
-static int32_t minimumDegree = 0;
+static int64_t minimumDegree = 0;
 static Flower *flower = NULL;
 
 static bool blockFilterFn(stPinchBlock *pinchBlock) {
@@ -103,7 +103,7 @@ int main(int argc, char *argv[]) {
     /*
      * Script for adding alignments to cactus tree.
      */
-    int32_t startTime;
+    int64_t startTime;
     stKVDatabaseConf *kvDatabaseConf;
     CactusDisk *cactusDisk;
     int key, k;
@@ -116,26 +116,26 @@ int main(int argc, char *argv[]) {
     char * constraintsFile = NULL;
     char * cactusDiskDatabaseString = NULL;
     char * lastzArguments = NULL;
-    int32_t minimumSequenceLengthForBlast = 1;
+    int64_t minimumSequenceLengthForBlast = 1;
 
     //Parameters for annealing/melting rounds
-    int32_t *annealingRounds = NULL;
-    int32_t annealingRoundsLength = 0;
-    int32_t *meltingRounds = NULL;
-    int32_t meltingRoundsLength = 0;
+    int64_t *annealingRounds = NULL;
+    int64_t annealingRoundsLength = 0;
+    int64_t *meltingRounds = NULL;
+    int64_t meltingRoundsLength = 0;
 
     //Parameters for melting
     float requiredIngroupFraction = 0.0;
     float requiredOutgroupFraction = 0.0;
     float requiredAllFraction = 0.0;
     float maximumAdjacencyComponentSizeRatio = 10;
-    int32_t blockTrim = 0;
-    int32_t alignmentTrimLength = 0;
-    int32_t *alignmentTrims = NULL;
+    int64_t blockTrim = 0;
+    int64_t alignmentTrimLength = 0;
+    int64_t *alignmentTrims = NULL;
     bool singleCopyIngroup = 0;
     bool singleCopyOutgroup = 0;
-    int32_t chainLengthForBigFlower = 100000;
-    int32_t longChain = 20;
+    int64_t chainLengthForBigFlower = 100000;
+    int64_t longChain = 20;
 
     ///////////////////////////////////////////////////////////////////////////
     // (0) Parse the inputs handed by genomeCactus.py / setup stuff.
@@ -190,11 +190,11 @@ int main(int argc, char *argv[]) {
                 assert(k == 1);
                 break;
             case 'n':
-                k = sscanf(optarg, "%i", &blockTrim);
+                k = sscanf(optarg, "%" PRIi64 "", &blockTrim);
                 assert(k == 1);
                 break;
             case 'p':
-                k = sscanf(optarg, "%i", &minimumDegree);
+                k = sscanf(optarg, "%" PRIi64 "", &minimumDegree);
                 assert(k == 1);
                 break;
             case 'q':
@@ -216,7 +216,7 @@ int main(int argc, char *argv[]) {
                 singleCopyOutgroup = 1;
                 break;
             case 'v':
-                k = sscanf(optarg, "%i", &minimumSequenceLengthForBlast);
+                k = sscanf(optarg, "%" PRIi64 "", &minimumSequenceLengthForBlast);
                 assert(k == 1);
                 break;
             case 'w':
@@ -241,16 +241,16 @@ int main(int argc, char *argv[]) {
     assert(minimumTreeCoverage <= 1.0);
     assert(blockTrim >= 0);
     assert(annealingRoundsLength >= 0);
-    for (int32_t i = 0; i < annealingRoundsLength; i++) {
+    for (int64_t i = 0; i < annealingRoundsLength; i++) {
         assert(annealingRounds[i] >= 0);
     }
     assert(meltingRoundsLength >= 0);
-    for (int32_t i = 1; i < meltingRoundsLength; i++) {
+    for (int64_t i = 1; i < meltingRoundsLength; i++) {
         assert(meltingRounds[i - 1] < meltingRounds[i]);
         assert(meltingRounds[i - 1] >= 1);
     }
     assert(alignmentTrimLength >= 0);
-    for (int32_t i = 0; i < alignmentTrimLength; i++) {
+    for (int64_t i = 0; i < alignmentTrimLength; i++) {
         assert(alignmentTrims[i] >= 0);
     }
     assert(requiredAllFraction >= 0);
@@ -306,7 +306,7 @@ int main(int argc, char *argv[]) {
         cactusDisk_preCacheStrings(cactusDisk, flowers);
     }
     char *tempFile1 = NULL;
-    for (int32_t i = 0; i < stList_length(flowers); i++) {
+    for (int64_t i = 0; i < stList_length(flowers); i++) {
         flower = stList_get(flowers, i);
         if (!flower_builtBlocks(flower)) { // Do nothing if the flower already has defined blocks
             st_logDebug("Processing flower: %lli\n", flower_getName(flower));
@@ -322,7 +322,7 @@ int main(int argc, char *argv[]) {
                     tempFile1 = getTempFile();
                 }
                 alignmentsList = stCaf_selfAlignFlower(flower, minimumSequenceLengthForBlast, lastzArguments, tempFile1);
-                st_logDebug("Ran lastz and have %i alignments\n", stList_length(alignmentsList));
+                st_logDebug("Ran lastz and have %" PRIi64 " alignments\n", stList_length(alignmentsList));
                 pinchIterator = stPinchIterator_constructFromList(alignmentsList);
             }
             //Set up the parameters for melting stuff
@@ -330,10 +330,10 @@ int main(int argc, char *argv[]) {
                     &requiredIngroupSpecies, &requiredOutgroupSpecies,  &requiredAllSpecies);
             //Set up the graph and add the initial alignments
             stPinchThreadSet *threadSet = stCaf_setup(flower);
-            for (int32_t annealingRound = 0; annealingRound < annealingRoundsLength; annealingRound++) {
-                int32_t minimumChainLength = annealingRounds[annealingRound];
-                int32_t alignmentTrim = annealingRound < alignmentTrimLength ? alignmentTrims[annealingRound] : 0;
-                st_logDebug("Starting annealing round with a minimum chain length of %i and an alignment trim of %i\n", minimumChainLength, alignmentTrim);
+            for (int64_t annealingRound = 0; annealingRound < annealingRoundsLength; annealingRound++) {
+                int64_t minimumChainLength = annealingRounds[annealingRound];
+                int64_t alignmentTrim = annealingRound < alignmentTrimLength ? alignmentTrims[annealingRound] : 0;
+                st_logDebug("Starting annealing round with a minimum chain length of %" PRIi64 " and an alignment trim of %" PRIi64 "\n", minimumChainLength, alignmentTrim);
                 stPinchIterator_setTrim(pinchIterator, alignmentTrim);
                 //Do the annealing
                 if (annealingRound == 0) {
@@ -346,15 +346,15 @@ int main(int argc, char *argv[]) {
                 }
                 //Do the melting rounds
                 stCaf_melt(flower, threadSet, blockFilterFn, blockTrim, 0);
-                for (int32_t meltingRound = 0; meltingRound < meltingRoundsLength; meltingRound++) {
-                    int32_t minimumChainLengthForMeltingRound = meltingRounds[meltingRound];
-                    st_logDebug("Starting melting round with a minimum chain length of %i \n", minimumChainLengthForMeltingRound);
+                for (int64_t meltingRound = 0; meltingRound < meltingRoundsLength; meltingRound++) {
+                    int64_t minimumChainLengthForMeltingRound = meltingRounds[meltingRound];
+                    st_logDebug("Starting melting round with a minimum chain length of %" PRIi64 " \n", minimumChainLengthForMeltingRound);
                     if (minimumChainLengthForMeltingRound >= minimumChainLength) {
                         break;
                     }
                     stCaf_melt(flower, threadSet, NULL, 0, minimumChainLengthForMeltingRound);
                 }
-                st_logDebug("Last melting round of cycle with a minimum chain length of %i \n", minimumChainLength);
+                st_logDebug("Last melting round of cycle with a minimum chain length of %" PRIi64 " \n", minimumChainLength);
                 stCaf_melt(flower, threadSet, NULL, 0, minimumChainLength);
                 //Add back in the constraints
                 if (pinchIteratorForConstraints != NULL) {
@@ -372,7 +372,7 @@ int main(int argc, char *argv[]) {
                     stCaf_anneal(threadSet, pinchIteratorForConstraints);
                 }
             }
-            else if(maximumAdjacencyComponentSizeRatio < INT32_MAX) { //Deal with giant components
+            else if(maximumAdjacencyComponentSizeRatio < INT64_MAX) { //Deal with giant components
                 st_logDebug("Breaking up components greedily\n");
                 stCaf_breakupComponentsGreedily(threadSet, maximumAdjacencyComponentSizeRatio);
             }
@@ -407,7 +407,7 @@ int main(int argc, char *argv[]) {
     ///////////////////////////////////////////////////////////////////////////
 
     cactusDisk_write(cactusDisk);
-    st_logInfo("Updated the flower on disk and %i seconds have elapsed\n", time(NULL) - startTime);
+    st_logInfo("Updated the flower on disk and %" PRIi64 " seconds have elapsed\n", time(NULL) - startTime);
 
     ///////////////////////////////////////////////////////////////////////////
     // Clean up.
@@ -429,7 +429,7 @@ int main(int argc, char *argv[]) {
     if (lastzArguments != NULL) {
         free(lastzArguments);
     }
-    st_logInfo("Cleaned stuff up and am finished in: %i seconds\n", time(NULL) - startTime);
+    st_logInfo("Cleaned stuff up and am finished in: %" PRIi64 " seconds\n", time(NULL) - startTime);
 
     //while(1);
     return 0;

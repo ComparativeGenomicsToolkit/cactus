@@ -24,8 +24,8 @@ static stPinch *randomPinch(void *extraArg) {
 
 static void testAnnealing(CuTest *testCase) {
     //return;
-    for (int32_t test = 0; test < 100; test++) {
-        st_logInfo("Starting annealing random test %i\n", test);
+    for (int64_t test = 0; test < 100; test++) {
+        st_logInfo("Starting annealing random test %" PRIi64 "\n", test);
         stPinchThreadSet *threadSet = stPinchThreadSet_getRandomEmptyGraph();
         stCaf_anneal2(threadSet, randomPinch, threadSet);
     }
@@ -33,8 +33,8 @@ static void testAnnealing(CuTest *testCase) {
 
 static void testAnnealingBetweenAdjacencyComponents(CuTest *testCase) {
     //return;
-    for (int32_t test = 0; test < 100; test++) {
-        st_logInfo("Starting annealing between adjacency components random test %i\n", test);
+    for (int64_t test = 0; test < 100; test++) {
+        st_logInfo("Starting annealing between adjacency components random test %" PRIi64 "\n", test);
         stPinchThreadSet *threadSet = stPinchThreadSet_getRandomGraph();
         stCaf_annealBetweenAdjacencyComponents2(threadSet, randomPinch, threadSet);
     }

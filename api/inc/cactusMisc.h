@@ -32,7 +32,7 @@ char *cactusMisc_reverseComplementString(const char *string);
 /*
  * Compares to names, giving an ordering to names (arbitrary but consistent).
  */
-int32_t cactusMisc_nameCompare(Name name1, Name name2);
+int64_t cactusMisc_nameCompare(Name name1, Name name2);
 
 /*
  * Converts the string which holds the name (and nothing else), into a name.
@@ -52,12 +52,12 @@ const char *cactusMisc_nameToStringStatic(Name name);
 /*
  * Creates a new string with orientation sign (which must be freed) representing the name as a string.
  */
-char *cactusMisc_nameToStringWithOrientation(Name name, int32_t orientation);
+char *cactusMisc_nameToStringWithOrientation(Name name, int64_t orientation);
 
 /*
  * Creates a static string with orientation sign (which needn't be freed) representing the name as a string.
  */
-const char *cactusMisc_nameToStringStaticWithOrientiation(Name name, int32_t orientation);
+const char *cactusMisc_nameToStringStaticWithOrientiation(Name name, int64_t orientation);
 
 /*
  * Gets the default name of the reference event string.

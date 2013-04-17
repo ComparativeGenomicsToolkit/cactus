@@ -80,7 +80,7 @@ static stPinchInterval *updatePinchIntervalReverse(int64_t end, stPinchInterval 
             pinchInterval->name, end);
 }
 
-static int32_t min(int32_t i, int32_t j) {
+static int64_t min(int64_t i, int64_t j) {
     return i < j ? i : j;
 }
 

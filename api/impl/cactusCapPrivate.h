@@ -11,7 +11,7 @@
 
 typedef struct _capContents {
     Name instance;
-    int32_t coordinate;
+    int64_t coordinate;
     bool strand;
     Event *event;
     Sequence *sequence;
@@ -45,8 +45,8 @@ Cap *cap_construct3(Name name, Event *event, End *end);
 /*
  * As default constructor, but also sets the instance's coordinates and event.
  */
-Cap *cap_construct4(Name name, End *end, int32_t startCoordinate,
-        int32_t strand, Sequence *sequence);
+Cap *cap_construct4(Name name, End *end, int64_t startCoordinate,
+        bool strand, Sequence *sequence);
 
 /*
  * As constructor 3, but don't specify name.

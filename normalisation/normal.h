@@ -31,7 +31,7 @@ void promoteNestedChainsThatExtendChains(Flower *flower);
  * Promotes chains from the nested flowers of the input flower into the input flower while the number of chains in the input
  * flower is less than maxNumberOfChains (this includes trivial chains including just one block).
  */
-void promoteNestedChainsToFillFlower(Flower *flower, int32_t maxNumberOfChains);
+void promoteNestedChainsToFillFlower(Flower *flower, int64_t maxNumberOfChains);
 
 /*
  * Removes all links which are trivial from the flower.
@@ -44,6 +44,6 @@ void removeTrivialLinks(Flower *flower);
  * in a cactus graph, bottom up from leaves to the root the resulting cactus tree will be normalised.
  * Several iterations are needed if we wish to push the maxNumberOfChains up into the parents of the graph.
  */
-void normalise(Flower *flower, int32_t maxNumberOfChains);
+void normalise(Flower *flower, int64_t maxNumberOfChains);
 
 #endif /* NORMAL_H_ */

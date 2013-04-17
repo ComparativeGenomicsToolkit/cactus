@@ -58,10 +58,10 @@ void testBinaryRepresentation_64BitInteger(CuTest* testCase) {
     void *vA2 = vA;
     int64_t i = 543829676894821452;
     int64_t j = 123456789876543234;
-    binaryRepresentation_write64BitInteger(i, writeFn);
-    binaryRepresentation_write64BitInteger(j, writeFn);
-    CuAssertTrue(testCase, i == binaryRepresentation_get64BitInteger(&vA2));
-    CuAssertTrue(testCase, j == binaryRepresentation_get64BitInteger(&vA2));
+    binaryRepresentation_writeInteger(i, writeFn);
+    binaryRepresentation_writeInteger(j, writeFn);
+    CuAssertTrue(testCase, i == binaryRepresentation_getInteger(&vA2));
+    CuAssertTrue(testCase, j == binaryRepresentation_getInteger(&vA2));
     cactusSerialisationTestTeardown();
 }
 
@@ -102,7 +102,7 @@ void testBinaryRepresentation_bool(CuTest* testCase) {
 }
 
 static void testBinaryRepresentation_fn(void *object, void(*writeFn)(const void * ptr, size_t size, size_t count)) {
-    binaryRepresentation_writeInteger(*(int32_t *) object, writeFn);
+    binaryRepresentation_writeInteger(*(int64_t *) object, writeFn);
 }
 
 void testBinaryRepresentation_makeBinaryRepresentation(CuTest* testCase) {
@@ -111,14 +111,14 @@ void testBinaryRepresentation_makeBinaryRepresentation(CuTest* testCase) {
     i = 14314;
     void *vA = binaryRepresentation_makeBinaryRepresentation(&i, testBinaryRepresentation_fn, &j);
     void *vA2 = vA;
-    CuAssertTrue(testCase, j == sizeof(int32_t));
+    CuAssertTrue(testCase, j == sizeof(int64_t));
     CuAssertIntEquals(testCase, binaryRepresentation_getInteger(&vA2), i);
     free(vA);
     cactusSerialisationTestTeardown();
 }
 
 static void testBinaryRepresentation_resizeObjectAsPowerOf2(CuTest* testCase) {
-    for(int32_t i=0; i<100000; i++) {
+    for(int64_t i=0; i<100000; i++) {
         int64_t recordSize = i;
         void *vA = st_malloc(recordSize);
         vA = binaryRepresentation_resizeObjectAsPowerOf2(vA, &recordSize);

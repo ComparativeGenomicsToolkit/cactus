@@ -40,8 +40,8 @@ int main(int argc, char *argv[]) {
      */
     char * logLevelString = NULL;
     char * cactusDiskDatabaseString = NULL;
-    int32_t j;
-    int32_t maxNumberOfChains = 0;
+    int64_t j;
+    int64_t maxNumberOfChains = 0;
 
     ///////////////////////////////////////////////////////////////////////////
     // (0) Parse the inputs handed by genomeCactus.py / setup stuff.
@@ -70,7 +70,7 @@ int main(int argc, char *argv[]) {
                 cactusDiskDatabaseString = stString_copy(optarg);
                 break;
             case 'd':
-                j = sscanf(optarg, "%i", &maxNumberOfChains);
+                j = sscanf(optarg, "%" PRIi64 "", &maxNumberOfChains);
                 assert(j == 1);
                 break;
             case 'h':

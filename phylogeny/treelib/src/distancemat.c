@@ -129,7 +129,7 @@ void calc_DistanceMatrix( struct DistanceMatrix *mat,
       }
 
       /* if residue count was zero here, there must have been a gap in every position;
-	 in this case, %identity is undefined so a decision must be made to consider the
+	 in this case, %" PRIi64 "dentity is undefined so a decision must be made to consider the
 	 sequences 100% identical or 100% different. I go with the standard approach of
 	 assigning twoce the maximum observed distance */
 

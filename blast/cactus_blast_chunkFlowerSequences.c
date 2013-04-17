@@ -35,13 +35,13 @@ int main(int argc, char *argv[]) {
 	flower = cactusDisk_getFlower(cactusDisk, cactusMisc_stringToName(argv[3]));
 	assert(flower != NULL);
 	st_logInfo("Read the flower\n");
-	int32_t chunkSize, chunkOverlapSize, minimumSequenceLength;
-	int32_t i = sscanf(argv[4], "%i", &chunkSize);
+	int64_t chunkSize, chunkOverlapSize, minimumSequenceLength;
+	int64_t i = sscanf(argv[4], "%" PRIi64 "", &chunkSize);
 	(void)i;
     assert(i == 1);
-    i = sscanf(argv[5], "%i", &chunkOverlapSize);
+    i = sscanf(argv[5], "%" PRIi64 "", &chunkOverlapSize);
     assert(i == 1);
-	i = sscanf(argv[6], "%i", &minimumSequenceLength);
+	i = sscanf(argv[6], "%" PRIi64 "", &minimumSequenceLength);
 	assert(i == 1);
 	setupToChunkSequences(chunkSize, chunkOverlapSize, argv[7]);
 	writeFlowerSequences(flower, processSequenceToChunk, minimumSequenceLength);

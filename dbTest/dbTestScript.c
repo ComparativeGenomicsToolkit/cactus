@@ -45,7 +45,7 @@ int main(int argc, char *argv[]) {
     int64_t keyNumber = INT64_MIN;
     bool addRecords = 0, setRecords = 0, create = 0;
     int64_t minRecordSize = 0, maxRecordSize = 100000000;
-    int32_t i;
+    int64_t i;
 
     while (1) {
         static struct option long_options[] = { { "logLevel", required_argument, 0, 'a' }, { "databaseConf", required_argument, 0, 'b' }, {
@@ -132,8 +132,8 @@ int main(int argc, char *argv[]) {
     //Seed the random number generator
     //////////////////////////////////////////////
 
-    int32_t seed = (time(NULL) << 16) | (getpid() & 65535); //Likely to be unique
-    st_logDebug("Seeding the random number generator with the value %i\n", seed);
+    int64_t seed = (time(NULL) << 16) | (getpid() & 65535); //Likely to be unique
+    st_logDebug("Seeding the random number generator with the value %" PRIi64 "\n", seed);
     st_randomSeed(seed);
 
     ///////////////////////////////////////////////////////////////////////////

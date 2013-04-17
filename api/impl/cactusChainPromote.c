@@ -274,8 +274,8 @@ static void addToChainList(Chain *chain, Link *linkFirst, Link *linkEnd, stList 
      */
     Link *link = linkFirst;
     while (link != linkEnd) {
-        stList_append(chainList, stInt64Tuple_construct(1, end_getName(link_get3End(link))));
-        stList_append(chainList, stInt64Tuple_construct(1, end_getName(link_get5End(link))));
+        stList_append(chainList, stIntTuple_construct1( end_getName(link_get3End(link))));
+        stList_append(chainList, stIntTuple_construct1( end_getName(link_get5End(link))));
         link = link_getNextLink(link);
     }
 }
@@ -297,20 +297,20 @@ static void getMaximalChain_between(Link *parentLink, Chain *chain, stList *chai
         addToChainList(chain, chain_getFirst(chain), NULL, chainList);
         if (parent5EndName != _5EndName) { //We need to introduce a link between the other block end and this link..
             assert(end_isBlockEnd(_5End));
-            stList_append(chainList, stInt64Tuple_construct(1, end_getName(end_getOtherBlockEnd(_5End))));
-            stList_append(chainList, stInt64Tuple_construct(1, end_getName(parent5End)));
+            stList_append(chainList, stIntTuple_construct1( end_getName(end_getOtherBlockEnd(_5End))));
+            stList_append(chainList, stIntTuple_construct1( end_getName(parent5End)));
         }
     } else { //We need to introduce a new link..
-        stList_append(chainList, stInt64Tuple_construct(1, end_getName(parent3End)));
+        stList_append(chainList, stIntTuple_construct1( end_getName(parent3End)));
         assert(parent5EndName == _5EndName);
         assert(end_isBlockEnd(_3End));
-        stList_append(chainList, stInt64Tuple_construct(1, end_getName(end_getOtherBlockEnd(_3End))));
+        stList_append(chainList, stIntTuple_construct1( end_getName(end_getOtherBlockEnd(_3End))));
         addToChainList(chain, chain_getFirst(chain), NULL, chainList);
     }
     addToChainList(parentChain, link_getNextLink(parentLink), NULL, chainList);
 }
 
-void getMaximalChain_extension(End *parentEnd, End *end, stList *chainList, int32_t orientation) {
+void getMaximalChain_extension(End *parentEnd, End *end, stList *chainList, int64_t orientation) {
     if (parentEnd != NULL) {
         if (end_isBlockEnd(parentEnd)) {
             End *parentOtherBlockEnd = end_getOtherBlockEnd(parentEnd);
@@ -455,7 +455,7 @@ void chain_promote(Chain *chain) {
             Link *pLink = link_getPreviousLink(parentLink);
             Link *nLink = link_getNextLink(parentLink);
             //Excise the parent link
-            int32_t finalLength = chain_getLength(chain) + chain_getLength(parentChain) - 1;
+            int64_t finalLength = chain_getLength(chain) + chain_getLength(parentChain) - 1;
             (void)finalLength;
             if (pLink != NULL) {
                 pLink->nLink = nLink;
@@ -524,9 +524,9 @@ void chain_promote(Chain *chain) {
     //Calculate the chains that are involved in the final chain list.
     stSortedSet *chainsToExpunge = stSortedSet_construct2((void(*)(void *)) chain_destruct);
     stListIterator *endIt = stList_getIterator(finalChainList);
-    stInt64Tuple *endName;
+    stIntTuple *endName;
     while ((endName = stList_getNext(endIt)) != NULL) { //Get chains in the parent which we extend..
-        End *end = flower_getEnd(parentFlower, stInt64Tuple_getPosition(endName, 0));
+        End *end = flower_getEnd(parentFlower, stIntTuple_getPosition(endName, 0));
         if (end != NULL) {
             Link *link = group_getLink(end_getGroup(end));
             if (link != NULL) {
@@ -565,9 +565,9 @@ void chain_promote(Chain *chain) {
 
     //Make the final chain..
     Chain *newChain = chain_construct(parentFlower);
-    for (int32_t i = 0; i < stList_length(finalChainList); i += 2) {
-        Name _3EndName = stInt64Tuple_getPosition(stList_get(finalChainList, i), 0);
-        Name _5EndName = stInt64Tuple_getPosition(stList_get(finalChainList, i + 1), 0);
+    for (int64_t i = 0; i < stList_length(finalChainList); i += 2) {
+        Name _3EndName = stIntTuple_getPosition(stList_get(finalChainList, i), 0);
+        Name _5EndName = stIntTuple_getPosition(stList_get(finalChainList, i + 1), 0);
         End *_3End = flower_getEnd(parentFlower, _3EndName);
         assert(_3End != NULL);
         End *_5End = flower_getEnd(parentFlower, _5EndName);
@@ -578,7 +578,7 @@ void chain_promote(Chain *chain) {
         assert(group_getLink(group) == NULL);
         End *end;
         Group_EndIterator *endIt = group_getEndIterator(group);
-        int32_t endNumber = 0;
+        int64_t endNumber = 0;
         while ((end = group_getNextEnd(endIt)) != NULL) {
             assert(end_getGroup(end) == group);
             if (end_isBlockEnd(end) || end_isAttached(end)) {

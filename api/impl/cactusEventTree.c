@@ -27,14 +27,14 @@ EventTree *eventTree_construct(Name rootEventName, Flower *flower) {
 	eventTree = st_malloc(sizeof(EventTree));
 	eventTree->events = stSortedSet_construct3(eventTree_constructP, NULL);
 	eventTree->flower = flower;
-	eventTree->rootEvent = event_construct(rootEventName, "ROOT", INT32_MAX, NULL, eventTree); //do this last as reciprocal call made to add the event to the events.
+	eventTree->rootEvent = event_construct(rootEventName, "ROOT", INT64_MAX, NULL, eventTree); //do this last as reciprocal call made to add the event to the events.
 	flower_setEventTree(flower, eventTree);
 	return eventTree;
 }
 
 void eventTree_copyConstructP(EventTree *eventTree, Event *event,
-		int32_t (unaryEventFilterFn)(Event *event)) {
-	int32_t i;
+		int64_t (unaryEventFilterFn)(Event *event)) {
+	int64_t i;
 	Event *event2;
 	for(i=0; i<event_getChildNumber(event); i++) {
 		event2 = event_getChild(event, i);
@@ -49,7 +49,7 @@ void eventTree_copyConstructP(EventTree *eventTree, Event *event,
 }
 
 EventTree *eventTree_copyConstruct(EventTree *eventTree, Flower *newFlower,
-		int32_t (unaryEventFilterFn)(Event *event)) {
+		int64_t (unaryEventFilterFn)(Event *event)) {
 	EventTree *eventTree2;
 	eventTree2 = eventTree_construct(event_getName(eventTree_getRootEvent(eventTree)), newFlower);
 	eventTree_copyConstructP(eventTree2, eventTree_getRootEvent(eventTree), unaryEventFilterFn);
@@ -100,7 +100,7 @@ Flower *eventTree_getFlower(EventTree *eventTree) {
 	return eventTree->flower;
 }
 
-int32_t eventTree_getEventNumber(EventTree *eventTree) {
+int64_t eventTree_getEventNumber(EventTree *eventTree) {
 	return event_getSubTreeEventNumber(eventTree_getRootEvent(eventTree)) + 1;
 }
 
@@ -129,7 +129,7 @@ void eventTree_destructIterator(EventTree_Iterator *iterator) {
 }
 
 static char *eventTree_makeNewickStringP(Event *event) {
-	int32_t i;
+	int64_t i;
 	char *cA = NULL;
 	char *cA3;
 	if(event_getChildNumber(event) > 0) {
@@ -168,7 +168,7 @@ char *eventTree_makeNewickString(EventTree *eventTree) {
 	return cA2;
 }
 
-static int32_t eventTree_addSiblingUnaryEventP(Event *event, Event *event2) {
+static int64_t eventTree_addSiblingUnaryEventP(Event *event, Event *event2) {
 	/*
 	 * Event is the new event, event2 event from the event tree we're adding to.
 	 */
@@ -280,7 +280,7 @@ void eventTree_removeEvent(EventTree *eventTree, Event *event) {
  */
 
 void eventTree_writeBinaryRepresentationP(Event *event, void (*writeFn)(const void * ptr, size_t size, size_t count)) {
-	int32_t i;
+	int64_t i;
 	event_writeBinaryRepresentation(event, writeFn);
 	for(i=0; i<event_getChildNumber(event); i++) {
 		eventTree_writeBinaryRepresentationP(event_getChild(event, i), writeFn);
@@ -288,7 +288,7 @@ void eventTree_writeBinaryRepresentationP(Event *event, void (*writeFn)(const vo
 }
 
 void eventTree_writeBinaryRepresentation(EventTree *eventTree, void (*writeFn)(const void * ptr, size_t size, size_t count)) {
-	int32_t i;
+	int64_t i;
 	Event *event;
 	event = eventTree_getRootEvent(eventTree);
 	binaryRepresentation_writeElementType(CODE_EVENT_TREE, writeFn);

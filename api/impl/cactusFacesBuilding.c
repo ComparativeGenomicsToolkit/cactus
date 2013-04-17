@@ -19,9 +19,9 @@ typedef struct _liftedEdge LiftedEdge;
 /*
  * Utility function for the lifted edge hashtable
  */
-static uint32_t buildFaces_hashfunction(const void *ptr) {
+static uint64_t buildFaces_hashfunction(const void *ptr) {
     Cap *key = (Cap *) ptr;
-    return (uint32_t) cap_getName(key);
+    return (uint64_t) cap_getName(key);
 }
 
 /*
@@ -129,7 +129,7 @@ static stHash *buildFaces_computeLiftedEdges(Flower * flower) {
 static void buildFaces_fillTopNodeList(Cap * cap, stList *list,
         stHash *liftedEdgesTable) {
     stList *liftedEdges;
-    int32_t index;
+    int64_t index;
 
     // Limit of recursion
     if (stList_contains(list, cap))
@@ -161,7 +161,7 @@ static void buildFaces_constructFromCap(Cap * startingCap,
     stList *topNodes = stList_construct3(16, NULL);
     stList *liftedEdges;
     Cap *cap, *bottomNode, *ancestor;
-    int32_t index, index2;
+    int64_t index, index2;
 
     printf("Constructing new face");
 
@@ -217,7 +217,7 @@ static void buildFaces_constructFromCap(Cap * startingCap,
  * Fill uplist with bottom nodes for top node
  */
 static void buildFaces_computeLiftedEdgesAtTopNode(Cap * cap, stList * liftedEdges) {
-    int32_t childIndex;
+    int64_t childIndex;
     LiftedEdge * liftedEdge;
 
     // Termination
@@ -243,7 +243,7 @@ static void buildFaces_fillTopNodeList2(Cap * cap, stList *list,
         stHash *liftedEdgesTable) {
     stList *liftedEdges = stList_construct3(2,
                         buildFaces_stList_destructElem);
-    int32_t index;
+    int64_t index;
 
     // Orientation check
     cap = cap_getPositiveOrientation(cap);
@@ -289,7 +289,7 @@ void buildFaces_reconstructFromCap(Cap * startingCap, Flower * flower) {
     stHash *liftedEdgesTable = stHash_construct3(buildFaces_hashfunction,
             buildFaces_key_eq_fn, NULL, buildFaces_destructValue);
     Cap *cap, *bottomNode, *ancestor;
-    int32_t index, index2;
+    int64_t index, index2;
 
     printf("Constructing new face");
 

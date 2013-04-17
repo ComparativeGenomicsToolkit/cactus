@@ -24,14 +24,14 @@ typedef struct _AdjacencySequence {
         char *string;
         int64_t subsequenceIdentifier;
         bool strand;
-        int32_t start;
-        int32_t length;
+        int64_t start;
+        int64_t length;
 } AdjacencySequence;
 
 /*
  * Gets an adjacency sequence struct for the given adjacency from the cap.
  */
-AdjacencySequence *adjacencySequence_construct(Cap *cap, int32_t maxLength);
+AdjacencySequence *adjacencySequence_construct(Cap *cap, int64_t maxLength);
 
 /*
  * Destructs the adjacency sequence.

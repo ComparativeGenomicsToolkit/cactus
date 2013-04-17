@@ -62,7 +62,7 @@ void testChain_getLength(CuTest* testCase) {
 
 void testChain_getBlockChain(CuTest* testCase) {
     cactusChainTestSetup();
-    int32_t i;
+    int64_t i;
     Block **blockChain = chain_getBlockChain(chain, &i);
     CuAssertTrue(testCase, i == 1);
     CuAssertTrue(testCase, blockChain[0] == block);

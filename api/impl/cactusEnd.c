@@ -14,7 +14,7 @@
 ////////////////////////////////////////////////
 ////////////////////////////////////////////////
 
-static int32_t end_constructP(const void *o1, const void *o2) {
+static int end_constructP(const void *o1, const void *o2) {
     return cactusMisc_nameCompare(cap_getName((Cap *) o1), cap_getName((Cap *) o2));
 }
 
@@ -28,8 +28,8 @@ End *end_construct2(bool side, bool isAttached, Flower *flower) {
             isAttached, side, flower);
 }
 
-End *end_construct3(Name name, int32_t isStub, int32_t isAttached,
-        int32_t side, Flower *flower) {
+End *end_construct3(Name name, int64_t isStub, int64_t isAttached,
+        int64_t side, Flower *flower) {
     End *end;
     end = st_malloc(sizeof(End));
     end->rEnd = st_malloc(sizeof(End));
@@ -167,7 +167,7 @@ Group *end_getGroup(End *end) {
     return end->endContents->group;
 }
 
-int32_t end_getInstanceNumber(End *end) {
+int64_t end_getInstanceNumber(End *end) {
     return stSortedSet_size(end->endContents->caps);
 }
 
@@ -379,7 +379,7 @@ void end_setFlower(End *end, Flower *flower) {
 
 void end_writeBinaryRepresentationP(Cap *cap, void(*writeFn)(const void * ptr,
         size_t size, size_t count)) {
-    int32_t i;
+    int64_t i;
     cap_writeBinaryRepresentation(cap, writeFn);
     for (i = 0; i < cap_getChildNumber(cap); i++) {
         end_writeBinaryRepresentationP(cap_getChild(cap, i), writeFn);
@@ -393,7 +393,7 @@ void end_writeBinaryRepresentation(End *end, void(*writeFn)(const void * ptr,
 
     assert(end_getOrientation(end));
     cap = end_getRootInstance(end);
-    int32_t endType = cap == NULL ? CODE_END_WITHOUT_PHYLOGENY : CODE_END_WITH_PHYLOGENY;
+    int64_t endType = cap == NULL ? CODE_END_WITHOUT_PHYLOGENY : CODE_END_WITH_PHYLOGENY;
     binaryRepresentation_writeElementType(endType, writeFn);
     binaryRepresentation_writeName(end_getName(end), writeFn);
     binaryRepresentation_writeBool(end_isStubEnd(end), writeFn);
@@ -416,9 +416,9 @@ void end_writeBinaryRepresentation(End *end, void(*writeFn)(const void * ptr,
 End *end_loadFromBinaryRepresentation(void **binaryString, Flower *flower) {
     End *end;
     Name name;
-    int32_t isStub;
-    int32_t isAttached;
-    int32_t side;
+    int64_t isStub;
+    int64_t isAttached;
+    int64_t side;
 
     end = NULL;
     if (binaryRepresentation_peekNextElementType(*binaryString)
@@ -463,7 +463,7 @@ End *end_getStaticNameWrapper(Name name) {
     return &end;
 }
 
-uint32_t end_hashKey(const void *o) {
+uint64_t end_hashKey(const void *o) {
     return end_getName((End *) o);
 }
 

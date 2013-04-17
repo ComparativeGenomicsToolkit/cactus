@@ -36,7 +36,7 @@ static stList *getSequences(Flower *flower, Name referenceEventName) {
 
 void printFastaSequences(Flower *flower, FILE *fileHandle, Name referenceEventName) {
     stList *sequences = getSequences(flower, referenceEventName);
-    for(int32_t i=0; i<stList_length(sequences); i++) {
+    for(int64_t i=0; i<stList_length(sequences); i++) {
         Sequence *sequence = stList_get(sequences, i);
         fastaWrite(sequence_getString(sequence, sequence_getStart(sequence),
                 sequence_getLength(sequence), 1), (char *)sequence_getHeader(sequence), fileHandle);

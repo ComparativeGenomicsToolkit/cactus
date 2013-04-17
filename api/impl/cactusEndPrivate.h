@@ -44,7 +44,7 @@ struct _end {
 /*
  * Constructs the end, but not any attached block.
  */
-End *end_construct3(Name name, int32_t isStub, int32_t isAttached, int32_t side, Flower *flower);
+End *end_construct3(Name name, int64_t isStub, int64_t isAttached, int64_t side, Flower *flower);
 
 /*
  * Destructs the end and any contained caps.
@@ -85,7 +85,7 @@ End *end_getStaticNameWrapper(Name name);
  * Hash key for an end, uses the name of the end to hash.. hence
  * the key doesn't care about the orientation.
  */
-uint32_t end_hashKey(const void *o);
+uint64_t end_hashKey(const void *o);
 
 /*
  * Hash equals key, equal only if the two ends have the same name and orientation.

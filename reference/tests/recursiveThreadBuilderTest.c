@@ -13,7 +13,7 @@
 #include "recursiveThreadBuilder.h"
 
 static char *writeSegment(Segment *segment) {
-    return stString_print("%i %s ", segment_getStart(segment), segment_getString(segment));
+    return stString_print("%" PRIi64 " %s ", segment_getStart(segment), segment_getString(segment));
 }
 
 static char *writeTerminalAdjacency(Cap *cap) {
@@ -22,7 +22,7 @@ static char *writeTerminalAdjacency(Cap *cap) {
     }
     Sequence *sequence = cap_getSequence(cap);
     assert(sequence != NULL);
-    return stString_print("%i %s ", cap_getCoordinate(cap), sequence_getString(sequence, cap_getCoordinate(cap)+1, cap_getCoordinate(cap_getAdjacency(cap)) - cap_getCoordinate(cap) - 1, 1));
+    return stString_print("%" PRIi64 " %s ", cap_getCoordinate(cap), sequence_getString(sequence, cap_getCoordinate(cap)+1, cap_getCoordinate(cap_getAdjacency(cap)) - cap_getCoordinate(cap) - 1, 1));
 }
 
 static void recursiveFileBuilder_test(CuTest *testCase) {

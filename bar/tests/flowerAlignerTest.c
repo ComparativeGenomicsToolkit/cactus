@@ -21,7 +21,7 @@ static int getRandomPosition(AdjacencySequence *adjacencySequence) {
     }
 }
 
-int32_t isInAdjacencySequence(AlignedPair *alignedPair, AdjacencySequence *adjacencySequence);
+int64_t isInAdjacencySequence(AlignedPair *alignedPair, AdjacencySequence *adjacencySequence);
 
 stList *getinducedAlignment2(stSortedSet *endAlignment, AdjacencySequence *adjacencySequence) {
     stList *inducedAlignment = stList_construct();
@@ -41,7 +41,7 @@ stList *getinducedAlignment2(stSortedSet *endAlignment, AdjacencySequence *adjac
 }
 
 void test_getInducedAlignment(CuTest *testCase) {
-    for(int32_t test=0; test<100; test++) {
+    for(int64_t test=0; test<100; test++) {
         setup();
 
         stSortedSet *sortedAlignment = stSortedSet_construct3((int (*)(const void *, const void *))alignedPair_cmpFn,
@@ -52,8 +52,8 @@ void test_getInducedAlignment(CuTest *testCase) {
         Cap *caps[] = { cap1, cap_getReverse(cap4),
                 cap5, cap_getReverse(cap8),
                 cap9 };
-        for(int32_t i=0; i<5; i++) {
-            stList_append(adjacencySequences, adjacencySequence_construct(caps[i], INT32_MAX));
+        for(int64_t i=0; i<5; i++) {
+            stList_append(adjacencySequences, adjacencySequence_construct(caps[i], INT64_MAX));
         }
 
         //Make random aligned pairs
@@ -70,26 +70,26 @@ void test_getInducedAlignment(CuTest *testCase) {
             }
         }
 
-        for(int32_t i=0; i<stList_length(adjacencySequences); i++) {
+        for(int64_t i=0; i<stList_length(adjacencySequences); i++) {
             AdjacencySequence *adjacencySequence = stList_get(adjacencySequences, i);
             stList *inducedAlignment = getInducedAlignment(sortedAlignment, adjacencySequence);
             stList *inducedAlignment2 = getinducedAlignment2(sortedAlignment, adjacencySequence);
 
-            /*st_logInfo("The lengths are %i %i\n", stList_length(inducedAlignment), stList_length(inducedAlignment2));
-            st_logInfo("Adj %i %i %i %i\n", adjacencySequence->sequenceName, adjacencySequence->start, adjacencySequence->length, adjacencySequence->strand);
+            /*st_logInfo("The lengths are %" PRIi64 " %" PRIi64 "\n", stList_length(inducedAlignment), stList_length(inducedAlignment2));
+            st_logInfo("Adj %" PRIi64 " %" PRIi64 " %" PRIi64 " %" PRIi64 "\n", adjacencySequence->sequenceName, adjacencySequence->start, adjacencySequence->length, adjacencySequence->strand);
 
-            for(int32_t j=0; j<stList_length(inducedAlignment); j++) {
+            for(int64_t j=0; j<stList_length(inducedAlignment); j++) {
                 AlignedPair *aP = stList_get(inducedAlignment, j);
-                st_logInfo("Hello %i %i %i\n", aP->sequence, aP->position, aP->strand);
+                st_logInfo("Hello %" PRIi64 " %" PRIi64 " %" PRIi64 "\n", aP->sequence, aP->position, aP->strand);
             }
 
-            for(int32_t j=0; j<stList_length(inducedAlignment2); j++) {
+            for(int64_t j=0; j<stList_length(inducedAlignment2); j++) {
                 AlignedPair *aP = stList_get(inducedAlignment2, j);
-                st_logInfo("Goodbye %i %i %i\n", aP->sequence, aP->position, aP->strand);
+                st_logInfo("Goodbye %" PRIi64 " %" PRIi64 " %" PRIi64 "\n", aP->sequence, aP->position, aP->strand);
             }*/
 
             CuAssertTrue(testCase, stList_length(inducedAlignment) == stList_length(inducedAlignment2));
-            for(int32_t j=0; j<stList_length(inducedAlignment); j++) {
+            for(int64_t j=0; j<stList_length(inducedAlignment); j++) {
                 CuAssertTrue(testCase, stList_get(inducedAlignment, j) == stList_get(inducedAlignment2, j));
             }
 
@@ -108,7 +108,7 @@ void test_getInducedAlignment(CuTest *testCase) {
  */
 void test_flowerAlignerRandom(CuTest *testCase) {
     setup();
-    int32_t maxLength = 5;
+    int64_t maxLength = 5;
     stSortedSet *flowerAlignment = makeFlowerAlignment(flower, 5, maxLength, 50, 0.5, pairwiseParameters, st_random() > 0.5);
     //Check the aligned pairs are all good..
     stSortedSetIterator *iterator = stSortedSet_getIterator(flowerAlignment);

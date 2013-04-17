@@ -57,7 +57,7 @@ void testMetaSequence_getEventName(CuTest* testCase) {
 }
 
 void testMetaSequence_getString(CuTest* testCase) {
-    for(int32_t i=0; i<10; i++) {
+    for(int64_t i=0; i<10; i++) {
         cactusMetaSequenceTestSetup();
         //String is ACTGGCACTG
         CuAssertStrEquals(testCase, sequenceString, metaSequence_getString(metaSequence, 1, 10, 1)); //complete sequence

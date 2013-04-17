@@ -18,13 +18,13 @@ int blockConstruct_constructP(const void *o1, const void *o2) {
 	return cactusMisc_nameCompare(segment_getName((Segment *)o1), segment_getName((Segment *)o2));
 }
 
-Block *block_construct(int32_t length, Flower *flower) {
+Block *block_construct(int64_t length, Flower *flower) {
 	return block_construct2(cactusDisk_getUniqueID(flower_getCactusDisk(flower)), length,
 			end_construct3(cactusDisk_getUniqueID(flower_getCactusDisk(flower)), 0, 0, 1, flower),
 			end_construct3(cactusDisk_getUniqueID(flower_getCactusDisk(flower)), 0, 0, 0, flower), flower);
 }
 
-Block *block_construct2(Name name, int32_t length,
+Block *block_construct2(Name name, int64_t length,
 		End *leftEnd, End *rightEnd,
 		Flower *flower) {
 	Block *block;
@@ -85,7 +85,7 @@ Name block_getName(Block *block) {
 	return block->blockContents->name;
 }
 
-int32_t block_getLength(Block *block) {
+int64_t block_getLength(Block *block) {
 	return block->blockContents->length;
 }
 
@@ -101,7 +101,7 @@ End *block_get3End(Block *block) {
 	return end_getReverse(block->rBlock->leftEnd);
 }
 
-int32_t block_getInstanceNumber(Block *block) {
+int64_t block_getInstanceNumber(Block *block) {
 	return stSortedSet_size(block->blockContents->segments);
 }
 
@@ -229,13 +229,13 @@ static void block_splitP2(Segment *segment,
 		block_setRootInstance(leftBlock, leftSegment);
 		block_setRootInstance(rightBlock, rightSegment);
 	}
-	int32_t i;
+	int64_t i;
 	for(i=0; i<segment_getChildNumber(segment); i++) {
 		block_splitP2(segment_getChild(segment, i), leftSegment, rightSegment, leftBlock, rightBlock);
 	}
 }
 
-void block_split(Block *block, int32_t splitPoint, Block **leftBlock, Block **rightBlock) {
+void block_split(Block *block, int64_t splitPoint, Block **leftBlock, Block **rightBlock) {
 	assert(splitPoint > 0);
 	assert(splitPoint < block_getLength(block));
 	*leftBlock = block_construct(splitPoint, block_getFlower(block));
@@ -303,14 +303,14 @@ void block_check(Block *block) {
 	block_destructInstanceIterator(iterator);
 }
 
-char *block_makeNewickStringP(Segment *segment, int32_t includeInternalNames, int32_t includeUnaryEvents) {
+char *block_makeNewickStringP(Segment *segment, bool includeInternalNames, bool includeUnaryEvents) {
 	if(!includeUnaryEvents && segment_getChildNumber(segment) == 1) {
 		return block_makeNewickStringP(segment_getChild(segment, 0), includeInternalNames, includeUnaryEvents);
 	}
 	if(segment_getChildNumber(segment) > 0) {
 		char *left = stString_print("(");
-		int32_t i;
-		int32_t comma = 0;
+		int64_t i;
+		bool comma = 0;
 		for(i=0; i<segment_getChildNumber(segment); i++) {
 			Segment *childSegment = segment_getChild(segment, i);
 			char *cA = block_makeNewickStringP(childSegment, includeInternalNames, includeUnaryEvents);
@@ -328,7 +328,7 @@ char *block_makeNewickStringP(Segment *segment, int32_t includeInternalNames, in
 	return cactusMisc_nameToString(segment_getName(segment));
 }
 
-char *block_makeNewickString(Block *block, int32_t includeInternalNames, int32_t includeUnaryEvents) {
+char *block_makeNewickString(Block *block, bool includeInternalNames, bool includeUnaryEvents) {
 	Segment *segment = block_getRootInstance(block);
 	if(segment != NULL) {
 		assert(segment != NULL);
@@ -392,7 +392,7 @@ void block_writeBinaryRepresentation(Block *block, void (*writeFn)(const void * 
 Block *block_loadFromBinaryRepresentation(void **binaryString, Flower *flower) {
 	Block *block;
 	Name name, leftEndName, rightEndName;
-	int32_t length;
+	int64_t length;
 
 	block = NULL;
 	if(binaryRepresentation_peekNextElementType(*binaryString) == CODE_BLOCK) {

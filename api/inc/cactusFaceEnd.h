@@ -29,7 +29,7 @@ Face *faceEnd_getFace(FaceEnd *faceEnd);
 /*
  * Gets the number of bottom nodes in the face.
  */
-int32_t faceEnd_getNumberOfBottomNodes(FaceEnd *faceEnd);
+int64_t faceEnd_getNumberOfBottomNodes(FaceEnd *faceEnd);
 
 /*
  * Gets an iterator over the bottom nodes of the face end.

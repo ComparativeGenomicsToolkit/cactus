@@ -24,17 +24,17 @@ int main(int argc, char *argv[]) {
     Flower *flower = cactusDisk_getFlower(cactusDisk, flowerName);
 
     int64_t totalBases = flower_getTotalBaseLength(flower);
-    int32_t totalEnds = flower_getEndNumber(flower);
-    int32_t totalFreeEnds = flower_getFreeStubEndNumber(flower);
-    int32_t totalAttachedEnds = flower_getAttachedStubEndNumber(flower);
-    int32_t totalCaps = flower_getCapNumber(flower);
-    int32_t totalBlocks = flower_getBlockNumber(flower);
-    int32_t totalGroups = flower_getGroupNumber(flower);
-    int32_t totalChains = flower_getChainNumber(flower);
-    int32_t totalLinkGroups = 0;
-    int32_t maxEndDegree = 0;
+    int64_t totalEnds = flower_getEndNumber(flower);
+    int64_t totalFreeEnds = flower_getFreeStubEndNumber(flower);
+    int64_t totalAttachedEnds = flower_getAttachedStubEndNumber(flower);
+    int64_t totalCaps = flower_getCapNumber(flower);
+    int64_t totalBlocks = flower_getBlockNumber(flower);
+    int64_t totalGroups = flower_getGroupNumber(flower);
+    int64_t totalChains = flower_getChainNumber(flower);
+    int64_t totalLinkGroups = 0;
+    int64_t maxEndDegree = 0;
     int64_t maxAdjacencyLength = 0;
-    int32_t totalEdges = 0;
+    int64_t totalEdges = 0;
 
     Flower_EndIterator *endIt = flower_getEndIterator(flower);
     End *end;
@@ -81,7 +81,7 @@ int main(int argc, char *argv[]) {
     }
     flower_destructGroupIterator(groupIt);
 
-    printf("flower name: %" PRIi64 " total bases: %" PRIi64 " total-ends: %i total-caps: %i max-end-degree: %i max-adjacency-length: %" PRIi64 " total-blocks: %i total-groups: %i total-edges: %i total-free-ends: %i total-attached-ends: %i total-chains: %i total-link groups: %i\n",
+    printf("flower name: %" PRIi64 " total bases: %" PRIi64 " total-ends: %" PRIi64 " total-caps: %" PRIi64 " max-end-degree: %" PRIi64 " max-adjacency-length: %" PRIi64 " total-blocks: %" PRIi64 " total-groups: %" PRIi64 " total-edges: %" PRIi64 " total-free-ends: %" PRIi64 " total-attached-ends: %" PRIi64 " total-chains: %" PRIi64 " total-link groups: %" PRIi64 "\n",
             flower_getName(flower), totalBases, totalEnds, totalCaps, maxEndDegree, maxAdjacencyLength, totalBlocks, totalGroups, totalEdges/2, totalFreeEnds, totalAttachedEnds, totalChains, totalLinkGroups);
 
     return 0;

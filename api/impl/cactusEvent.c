@@ -88,7 +88,7 @@ const char *event_getHeader(Event *event) {
 
 float event_getSubTreeBranchLength(Event *event) {
     assert(event != NULL);
-    int32_t i;
+    int64_t i;
     Event *childEvent;
     float branchLength;
 
@@ -101,9 +101,9 @@ float event_getSubTreeBranchLength(Event *event) {
     return branchLength;
 }
 
-int32_t event_getSubTreeEventNumber(Event *event) {
+int64_t event_getSubTreeEventNumber(Event *event) {
     assert(event != NULL);
-    int32_t i, j;
+    int64_t i, j;
     Event *childEvent;
 
     j = 0.0;
@@ -114,12 +114,12 @@ int32_t event_getSubTreeEventNumber(Event *event) {
     return j;
 }
 
-int32_t event_getChildNumber(Event *event) {
+int64_t event_getChildNumber(Event *event) {
     assert(event != NULL);
     return event->children->length;
 }
 
-Event *event_getChild(Event *event, int32_t index) {
+Event *event_getChild(Event *event, int64_t index) {
 #ifndef NDEBUG
     assert(event != NULL);
     assert(index >= 0);
@@ -133,12 +133,12 @@ EventTree *event_getEventTree(Event *event) {
     return event->eventTree;
 }
 
-int32_t event_isAncestor(Event *event, Event *otherEvent) {
+int64_t event_isAncestor(Event *event, Event *otherEvent) {
     return event != otherEvent
             && eventTree_getCommonAncestor(event, otherEvent) == otherEvent;
 }
 
-int32_t event_isDescendant(Event *event, Event *otherEvent) {
+int64_t event_isDescendant(Event *event, Event *otherEvent) {
     return event != otherEvent
             && eventTree_getCommonAncestor(event, otherEvent) == event;
 }
@@ -151,7 +151,7 @@ void event_setOutgroupStatus(Event *event, bool isOutgroup) {
     event->isOutgroup = isOutgroup;
 }
 
-int32_t event_isSibling(Event *event, Event *otherEvent) {
+int64_t event_isSibling(Event *event, Event *otherEvent) {
     Event *ancestorEvent;
     ancestorEvent = eventTree_getCommonAncestor(event, otherEvent);
     return event != otherEvent && ancestorEvent != event && ancestorEvent
@@ -173,7 +173,7 @@ void event_check(Event *event) {
     }
 
     //Each child event has event as parent.
-    int32_t i = 0;
+    int64_t i = 0;
     for (i = 0; i < event_getChildNumber(event); i++) {
         Event *childEvent = event_getChild(event, i);
         cactusCheck(event_getParent(childEvent) == event);
@@ -212,7 +212,7 @@ void event_check(Event *event) {
  */
 
 void event_destruct(Event *event) {
-    int32_t i;
+    int64_t i;
     Event *childEvent;
     Event *parentEvent = event_getParent(event);
     if (parentEvent != NULL) {

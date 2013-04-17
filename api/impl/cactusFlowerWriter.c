@@ -47,7 +47,7 @@ static void printName(FILE *fileHandle, Name name) {
 
 static void flowerWriter_writeFlowersString(stList *flowerNamesAndSizes, FILE *fileHandle,
         int64_t maxFlowerSecondaryGroupSize) {
-    fprintf(fileHandle, "%i ", stList_length(flowerNamesAndSizes));
+    fprintf(fileHandle, "%" PRIi64 " ", stList_length(flowerNamesAndSizes));
     if (stList_length(flowerNamesAndSizes) > 0) {
         FlowerNameAndSize *flowerNameAndSize = stList_get(flowerNamesAndSizes, 0);
         Name name = flowerNameAndSize->flowerName;
@@ -56,7 +56,7 @@ static void flowerWriter_writeFlowersString(stList *flowerNamesAndSizes, FILE *f
             fprintf(fileHandle, "b ");
         }
         printName(fileHandle, name);
-        for (int32_t i = 1; i < stList_length(flowerNamesAndSizes); i++) {
+        for (int64_t i = 1; i < stList_length(flowerNamesAndSizes); i++) {
             flowerNameAndSize = stList_get(flowerNamesAndSizes, i);
             if(totalSize + flowerNameAndSize->flowerSize > maxFlowerSecondaryGroupSize) {
                 totalSize = 0;
@@ -89,7 +89,7 @@ static void flowerWriter_flush(FlowerWriter *flowerWriter) {
     int64_t totalSize = flowerNameAndSize->flowerSize;
     stList *stack = stList_construct();
     stList_append(stack, flowerNameAndSize);
-    for(int32_t i=1; i<stList_length(flowerWriter->flowerNamesAndSizes); i++) {
+    for(int64_t i=1; i<stList_length(flowerWriter->flowerNamesAndSizes); i++) {
         flowerNameAndSize = stList_get(flowerWriter->flowerNamesAndSizes, i);
         if (flowerNameAndSize->flowerSize + totalSize > flowerWriter->maxFlowerGroupSize) { //  || stList_length(stack) > 5000) {
             printFlowers(flowerWriter, stack, totalSize);
@@ -123,7 +123,7 @@ static bool isSeperator(char *cA) {
 static Name getName(FILE *fileHandle) {
     while(1) {
         char cA[100];
-        int32_t j = fscanf(fileHandle, "%s", cA);
+        int64_t j = fscanf(fileHandle, "%s", cA);
         (void) j;
         assert(j == 1);
         if(isSeperator(cA)) {
@@ -143,14 +143,14 @@ static void addName(stList *flowerNamesList, Name name) {
 }
 
 stList *flowerWriter_parseFlowerNames(FILE *fileHandle) {
-    int32_t flowerArgumentNumber;
-    int32_t j = fscanf(fileHandle, "%i", &flowerArgumentNumber);
+    int64_t flowerArgumentNumber;
+    int64_t j = fscanf(fileHandle, "%" PRIi64 "", &flowerArgumentNumber);
     (void) j;
     assert(j == 1);
     stList *flowerNamesList = stList_construct3(0, free);
     Name name = getName(fileHandle);
     addName(flowerNamesList, name);
-    for (int32_t i = 1; i < flowerArgumentNumber; i++) {
+    for (int64_t i = 1; i < flowerArgumentNumber; i++) {
         Name nName = getName(fileHandle) + name;
         addName(flowerNamesList, nName);
         name = nName;

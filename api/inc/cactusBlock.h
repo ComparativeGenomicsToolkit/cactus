@@ -20,7 +20,7 @@
 /*
  * Constructs the block, but not its ends.
  */
-Block *block_construct(int32_t length, Flower *flower);
+Block *block_construct(int64_t length, Flower *flower);
 
 /*
  * Returns string name of the block.
@@ -46,7 +46,7 @@ Block *block_getReverse(Block *block);
 /*
  * Returns the length in bases of the block.
  */
-int32_t block_getLength(Block *block);
+int64_t block_getLength(Block *block);
 
 /*
  * Gets the flower the block is part of.
@@ -66,7 +66,7 @@ End *block_get3End(Block *block);
 /*
  * Returns the number of instances (including any internal instances), the block contains.
  */
-int32_t block_getInstanceNumber(Block *block);
+int64_t block_getInstanceNumber(Block *block);
 
 /*
  * Gets the segment using its instance name as a key. Instance name is m of full name n.m.
@@ -131,7 +131,7 @@ Segment *block_getSegmentForEvent(Block *block, Name eventName);
  *
  * The original block and all its instances are destroyed by this operation. The new blocks are pointed to by the left and right block pointers.
  */
-void block_split(Block *block, int32_t splitPoint, Block **leftBlock, Block **rightBlock);
+void block_split(Block *block, int64_t splitPoint, Block **leftBlock, Block **rightBlock);
 
 /*
  * Checks (amongst other things) the following:
@@ -150,7 +150,7 @@ void block_check(Block *block);
  * The names of the blocks are their names converted to strings.
  * Includes unary events in tree.
  */
-char *block_makeNewickString(Block *block, int32_t includeInternalNames, int32_t includeUnaryEvents);
+char *block_makeNewickString(Block *block, bool includeInternalNames, bool includeUnaryEvents);
 
 /*
  * Pushes the block into the higher level flower. Will not work if the block to be promoted is nested

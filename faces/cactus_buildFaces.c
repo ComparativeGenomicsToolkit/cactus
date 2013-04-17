@@ -71,7 +71,7 @@ static Event *buildFaces_interpolateEvents(Event* parentEvent,
 /*
  * Creates the interpolation of a top node
  */
-static Cap *buildFaces_interpolateTopNode(Face * face, int32_t topIndex) {
+static Cap *buildFaces_interpolateTopNode(Face * face, int64_t topIndex) {
     Cap *topNode = face_getTopNode(face, topIndex);
     FaceEnd * faceEnd = cap_getTopFaceEnd(topNode); 
     FaceEnd_BottomNodeIterator * bottomNodeIterator = faceEnd_getBottomNodeIterator(faceEnd);
@@ -113,7 +113,7 @@ static Cap *buildFaces_interpolateTopNode(Face * face, int32_t topIndex) {
  */
 static Cap **buildFaces_interpolateTopNodes(Face * face) {
     Cap **interpolations = st_calloc(face_getCardinal(face), sizeof(Cap *));
-    uint32_t topIndex;
+    uint64_t topIndex;
 
     for (topIndex = 0; topIndex < face_getCardinal(face); topIndex++)
 	interpolations[topIndex]
@@ -126,11 +126,11 @@ static Cap **buildFaces_interpolateTopNodes(Face * face) {
  * Connects an interpolated node within a face
  */
 static void buildFaces_connectInterpolatedNode(Cap ** interpolations,
-	int32_t nodeIndex, Face * face) {
+	int64_t nodeIndex, Face * face) {
     Cap *node = interpolations[nodeIndex];
     Cap *topNode = face_getTopNode(face, nodeIndex);
     Cap *adjacentNode = NULL;
-    int32_t adjacentIndex;
+    int64_t adjacentIndex;
 
     if (cap_getAdjacency(topNode))
 	adjacentNode = cap_getPositiveOrientation(cap_getAdjacency(topNode));
@@ -159,7 +159,7 @@ static void buildFaces_connectInterpolatedNode(Cap ** interpolations,
  */
 static void buildFaces_connectInterpolatedNodes(Cap ** interpolations,
 	Face * face) {
-    int32_t topIndex;
+    int64_t topIndex;
 
     for (topIndex = 0; topIndex < face_getCardinal(face); topIndex++)
 	buildFaces_connectInterpolatedNode(interpolations, topIndex, face);
@@ -170,7 +170,7 @@ static void buildFaces_connectInterpolatedNodes(Cap ** interpolations,
  */
 static void buildFaces_createInterpolatedFace(Face * face,
 	Cap ** interpolations, Flower * flower) {
-    int32_t nodeIndex;
+    int64_t nodeIndex;
 
     // Create "lower" canonical face
     for (nodeIndex = 0; nodeIndex < face_getCardinal(face); nodeIndex++)

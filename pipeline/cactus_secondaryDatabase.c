@@ -9,8 +9,8 @@
 int main(int argc, char *argv[]) {
     assert(argc == 3);
     stKVDatabaseConf *kvDatabaseConf = stKVDatabaseConf_constructFromString(argv[1]);
-    int32_t create;
-    int32_t i = sscanf(argv[2], "%i", &create);
+    int64_t create;
+    int64_t i = sscanf(argv[2], "%" PRIi64 "", &create);
     (void)i;
     assert(i == 1);
     if(create) {

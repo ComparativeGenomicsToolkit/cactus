@@ -23,7 +23,7 @@
  *
  * This function is NOT thread safe, do not try to have concurrent instances of this function!
  */
-MetaSequence *metaSequence_construct(int32_t start, int32_t length, const char *string, const char *header,
+MetaSequence *metaSequence_construct(int64_t start, int64_t length, const char *string, const char *header,
 		Name eventName, CactusDisk *cactusDisk);
 
 /*
@@ -34,12 +34,12 @@ Name metaSequence_getName(MetaSequence *metaSequence);
 /*
  * Gets the start coordinate of the sequence.
  */
-int32_t metaSequence_getStart(MetaSequence *metaSequence);
+int64_t metaSequence_getStart(MetaSequence *metaSequence);
 
 /*
  * Gets the length of the sequence.
  */
-int32_t metaSequence_getLength(MetaSequence *metaSequence);
+int64_t metaSequence_getLength(MetaSequence *metaSequence);
 
 /*
  * Gets the associated event name.
@@ -49,7 +49,7 @@ Name metaSequence_getEventName(MetaSequence *metaSequence);
 /*
  * Gets a string for representing a subsequence of the meta sequence.
  */
-char *metaSequence_getString(MetaSequence *metaSequence, int32_t start, int32_t length, int32_t strand);
+char *metaSequence_getString(MetaSequence *metaSequence, int64_t start, int64_t length, int64_t strand);
 
 /*
  * Gets the header line associated with the meta sequence.

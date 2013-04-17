@@ -9,7 +9,7 @@
 #include "cactus.h"
 #include "blockConsensusString.h"
 
-char *getConsensusStringP(stList *strings, stList *outgroupStrings, int32_t blockLength);
+char *getConsensusStringP(stList *strings, stList *outgroupStrings, int64_t blockLength);
 
 static void testGetConsensusString(CuTest *testCase) {
     /*

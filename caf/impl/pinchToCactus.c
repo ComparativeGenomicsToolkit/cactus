@@ -84,7 +84,7 @@ static bool threadIsAttachedToDeadEndComponent3Prime(stPinchThread *thread, stLi
 
 static bool threadComponentIsAttachedToDeadEndComponent(stList *threadComponent, stList *deadEndComponent,
         stHash *pinchEndsToAdjacencyComponents) {
-    for (int32_t i = 0; i < stList_length(threadComponent); i++) {
+    for (int64_t i = 0; i < stList_length(threadComponent); i++) {
         stPinchThread *thread = stList_get(threadComponent, i);
         if (threadIsAttachedToDeadEndComponent5Prime(thread, deadEndComponent, pinchEndsToAdjacencyComponents) ||
                 threadIsAttachedToDeadEndComponent3Prime(thread, deadEndComponent, pinchEndsToAdjacencyComponents)) {
@@ -107,7 +107,7 @@ static void attachThreadComponentToDeadEndComponent(stList *threadComponent, stL
         stHash *pinchEndsToAdjacencyComponents, bool markEndsAttached, Flower *flower) {
     stPinchThread *longestPinchThread = NULL;
     int64_t maxLength = 0;
-    for (int32_t i = 0; i < stList_length(threadComponent); i++) {
+    for (int64_t i = 0; i < stList_length(threadComponent); i++) {
         stPinchThread *pinchThread = stList_get(threadComponent, i);
         if (stPinchThread_getLength(pinchThread) > maxLength) {
             longestPinchThread = pinchThread;

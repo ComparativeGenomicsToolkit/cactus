@@ -14,13 +14,13 @@ static char *writeMafHeaderLine(Block *block) {
         /* Get newick tree string with internal labels and no unary events */
         char *newickTreeString = block_makeNewickString(block, 1, 0);
         assert(newickTreeString != NULL);
-        char *string = stString_print("a score=%i tree='%s'\n",
+        char *string = stString_print("a score=%" PRIi64 " tree='%s'\n",
                 block_getLength(block) * block_getInstanceNumber(block),
                 newickTreeString);
         free(newickTreeString);
         return string;
     } else {
-        return stString_print("a score=%i\n",
+        return stString_print("a score=%" PRIi64 "\n",
                 block_getLength(block) * block_getInstanceNumber(block));
     }
 }
@@ -44,7 +44,7 @@ static char *writeMafSequenceLine2(Segment *segment,
     Sequence *sequence = segment_getSequence(segment);
     assert(sequence != NULL);
     char *sequenceHeader = formatSequenceHeader(sequence);
-    int32_t start;
+    int64_t start;
     if (segment_getStrand(segment)) {
         start = segment_getStart(segment) - sequence_getStart(sequence);
     } else { //start with respect to the start of the reverse complement sequence
@@ -52,10 +52,10 @@ static char *writeMafSequenceLine2(Segment *segment,
                 = (sequence_getStart(sequence) + sequence_getLength(sequence)
                         - 1) - segment_getStart(segment);
     }
-    int32_t length = segment_getLength(segment);
+    int64_t length = segment_getLength(segment);
     char *strand = segment_getStrand(segment) ? "+" : "-";
-    int32_t sequenceLength = sequence_getLength(sequence);
-    char *string = stString_print("s\t%s\t%i\t%i\t%s\t%i\t%s\n", sequenceHeader, start,
+    int64_t sequenceLength = sequence_getLength(sequence);
+    char *string = stString_print("s\t%s\t%" PRIi64 "\t%" PRIi64 "\t%s\t%" PRIi64 "\t%s\n", sequenceHeader, start,
             length, strand, sequenceLength, segmentString);
     free(sequenceHeader);
     return string;
@@ -76,7 +76,7 @@ static char *writeMafSequenceLineShowingOnlyReferenceSubstitutions(Segment *segm
      * Write a maf sequence line for the given segment, but showing only differences from reference sequence.
      */
     char *segmentString = segment_getString(segment);
-    for (int32_t i = 0; i < segment_getLength(segment); i++) {
+    for (int64_t i = 0; i < segment_getLength(segment); i++) {
         if (toupper(segmentString[i]) == toupper(referenceString[i])) {
             segmentString[i] = '*';
         }
@@ -130,7 +130,7 @@ void makeMAFHeader(Flower *flower, FILE *fileHandle) {
 
 stList *getCaps(stList *flowers, Name referenceEventName) {
     stList *caps = stList_construct();
-    for(int32_t i=0; i<stList_length(flowers); i++) {
+    for(int64_t i=0; i<stList_length(flowers); i++) {
         Flower *flower = stList_get(flowers, i);
         End *end;
         Flower_EndIterator *endIt = flower_getEndIterator(flower);
@@ -162,7 +162,7 @@ void makeMafFormat(stList *flowers, stKVDatabase *database, Name referenceEventN
         makeMAFHeader(stList_get(flowers, 0), fileHandle);
         stList *threadStrings = buildRecursiveThreadsInList(database, caps, writeMafBlock, writeTerminalAdjacency);
         assert(stList_length(threadStrings) == stList_length(caps));
-        for(int32_t i=0; i<stList_length(threadStrings); i++) {
+        for(int64_t i=0; i<stList_length(threadStrings); i++) {
             char *threadString = stList_get(threadStrings, i);
             fprintf(fileHandle, "%s\n", threadString);
         }

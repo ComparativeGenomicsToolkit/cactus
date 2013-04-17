@@ -55,7 +55,7 @@ Sequence *flower_getSequence(Flower *flower, Name name);
 /*
  * Returns the number of sequences.
  */
-int32_t flower_getSequenceNumber(Flower *flower);
+int64_t flower_getSequenceNumber(Flower *flower);
 
 /*
  * Gets an iterator to iterate through the chains in the flower, at this level.
@@ -96,7 +96,7 @@ Cap *flower_getCap(Flower *flower, Name name);
 /*
  * Returns the number of caps.
  */
-int32_t flower_getCapNumber(Flower *flower);
+int64_t flower_getCapNumber(Flower *flower);
 
 /*
  * Gets an iterator to iterate through the caps in the flower, at this level.
@@ -136,27 +136,27 @@ End *flower_getEnd(Flower *flower, Name name);
 /*
  * Returns the number of ends.
  */
-int32_t flower_getEndNumber(Flower *flower);
+int64_t flower_getEndNumber(Flower *flower);
 
 /*
  * Sugar for flower_getBlockNumber(flower)*2
  */
-int32_t flower_getBlockEndNumber(Flower *flower);
+int64_t flower_getBlockEndNumber(Flower *flower);
 
 /*
  * Returns number of stub ends in the flower.
  */
-int32_t flower_getStubEndNumber(Flower *flower);
+int64_t flower_getStubEndNumber(Flower *flower);
 
 /*
  * Returns number of free stub ends in the flower.
  */
-int32_t flower_getFreeStubEndNumber(Flower *flower);
+int64_t flower_getFreeStubEndNumber(Flower *flower);
 
 /*
  * Returns the number of attached stub ends in the flower.
  */
-int32_t flower_getAttachedStubEndNumber(Flower *flower);
+int64_t flower_getAttachedStubEndNumber(Flower *flower);
 
 /*
  * Gets an iterator to iterate through the ends in the flower, at this level.
@@ -206,7 +206,7 @@ Segment *flower_getSegment(Flower *flower, Name name);
 /*
  * Returns the number of segments.
  */
-int32_t flower_getSegmentNumber(Flower *flower);
+int64_t flower_getSegmentNumber(Flower *flower);
 
 /*
  * Gets an iterator to iterate through the segments in the flower, at this level.
@@ -237,7 +237,7 @@ void flower_destructSegmentIterator(Flower_SegmentIterator *segmentIterator);
 /*
  * Returns the number of blocks.
  */
-int32_t flower_getBlockNumber(Flower *flower);
+int64_t flower_getBlockNumber(Flower *flower);
 
 /*
  * Gets an iterator to iterate through the blocks in the flower, at this level.
@@ -278,7 +278,7 @@ Group *flower_getGroup(Flower *flower, Name flowerName);
 /*
  * Returns the number of groups.
  */
-int32_t flower_getGroupNumber(Flower *flower);
+int64_t flower_getGroupNumber(Flower *flower);
 
 /*
  * Gets an iterator to iterate through the groups in the flower, at this level.
@@ -330,12 +330,12 @@ Chain *flower_getChain(Flower *flower, Name name);
 /*
  * Returns the number of chains.
  */
-int32_t flower_getChainNumber(Flower *flower);
+int64_t flower_getChainNumber(Flower *flower);
 
 /*
  * Returns the number of non-trivial chains.
  */
-int32_t flower_getTrivialChainNumber(Flower *flower);
+int64_t flower_getTrivialChainNumber(Flower *flower);
 
 /*
  * Gets an iterator to iterate through the chains in the flower, at this level.
@@ -371,7 +371,7 @@ Face *flower_getFirstFace(Flower *flower);
 /*
  * Returns the number of faces.
  */
-int32_t flower_getFaceNumber(Flower *flower);
+int64_t flower_getFaceNumber(Flower *flower);
 
 /*
  * Gets an iterator to iterate through the faces in the flower, at this level.

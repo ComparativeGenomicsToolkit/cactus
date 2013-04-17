@@ -92,7 +92,7 @@ void end_setGroup(End *end, Group *group);
 /*
  * Returns the number of caps the end contains.
  */
-int32_t end_getInstanceNumber(End *end);
+int64_t end_getInstanceNumber(End *end);
 
 /*
  * Gets an instance using its instance name as a key. Instance name is m of full name n.m.

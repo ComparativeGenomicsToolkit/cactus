@@ -89,7 +89,7 @@ Flower *flower_construct(CactusDisk *cactusDisk) {
     return flower_construct2(cactusDisk_getUniqueID(cactusDisk), cactusDisk);
 }
 
-void flower_destruct(Flower *flower, int32_t recursive) {
+void flower_destruct(Flower *flower, int64_t recursive) {
     Flower_GroupIterator *iterator;
     Sequence *sequence;
     End *end;
@@ -169,7 +169,7 @@ Sequence *flower_getSequence(Flower *flower, Name name) {
     return stSortedSet_search(flower->sequences, sequence);
 }
 
-int32_t flower_getSequenceNumber(Flower *flower) {
+int64_t flower_getSequenceNumber(Flower *flower) {
     return stSortedSet_size(flower->sequences);
 }
 
@@ -203,7 +203,7 @@ Cap *flower_getCap(Flower *flower, Name name) {
     return stSortedSet_search(flower->caps, cap);
 }
 
-int32_t flower_getCapNumber(Flower *flower) {
+int64_t flower_getCapNumber(Flower *flower) {
     return stSortedSet_size(flower->caps);
 }
 
@@ -237,22 +237,22 @@ End *flower_getEnd(Flower *flower, Name name) {
     return stSortedSet_search(flower->ends, end);
 }
 
-int32_t flower_getEndNumber(Flower *flower) {
+int64_t flower_getEndNumber(Flower *flower) {
     return stSortedSet_size(flower->ends);
 }
 
-int32_t flower_getBlockEndNumber(Flower *flower) {
+int64_t flower_getBlockEndNumber(Flower *flower) {
     return flower_getBlockNumber(flower) * 2;
 }
 
-int32_t flower_getStubEndNumber(Flower *flower) {
+int64_t flower_getStubEndNumber(Flower *flower) {
     return flower_getEndNumber(flower) - flower_getBlockEndNumber(flower);
 }
 
-int32_t flower_getFreeStubEndNumber(Flower *flower) {
+int64_t flower_getFreeStubEndNumber(Flower *flower) {
     End *end;
     Flower_EndIterator *iterator = flower_getEndIterator(flower);
-    int32_t i = 0;
+    int64_t i = 0;
     while ((end = flower_getNextEnd(iterator)) != NULL) {
         if (end_isStubEnd(end) && end_isFree(end)) {
             i++;
@@ -262,7 +262,7 @@ int32_t flower_getFreeStubEndNumber(Flower *flower) {
     return i;
 }
 
-int32_t flower_getAttachedStubEndNumber(Flower *flower) {
+int64_t flower_getAttachedStubEndNumber(Flower *flower) {
     return flower_getStubEndNumber(flower) - flower_getFreeStubEndNumber(flower);
 }
 
@@ -296,7 +296,7 @@ Segment *flower_getSegment(Flower *flower, Name name) {
     return stSortedSet_search(flower->segments, segment);
 }
 
-int32_t flower_getSegmentNumber(Flower *flower) {
+int64_t flower_getSegmentNumber(Flower *flower) {
     return stSortedSet_size(flower->segments);
 }
 
@@ -330,7 +330,7 @@ Block *flower_getBlock(Flower *flower, Name name) {
     return stSortedSet_search(flower->blocks, block);
 }
 
-int32_t flower_getBlockNumber(Flower *flower) {
+int64_t flower_getBlockNumber(Flower *flower) {
     return stSortedSet_size(flower->blocks);
 }
 
@@ -363,7 +363,7 @@ Group *flower_getGroup(Flower *flower, Name flowerName) {
     return stSortedSet_search(flower->groups, group);
 }
 
-int32_t flower_getGroupNumber(Flower *flower) {
+int64_t flower_getGroupNumber(Flower *flower) {
     return stSortedSet_size(flower->groups);
 }
 
@@ -409,12 +409,12 @@ Chain *flower_getChain(Flower *flower, Name name) {
     return stSortedSet_search(flower->chains, chain);
 }
 
-int32_t flower_getChainNumber(Flower *flower) {
+int64_t flower_getChainNumber(Flower *flower) {
     return stSortedSet_size(flower->chains);
 }
 
-int32_t flower_getTrivialChainNumber(Flower *flower) {
-    int32_t i = 0;
+int64_t flower_getTrivialChainNumber(Flower *flower) {
+    int64_t i = 0;
     Flower_BlockIterator *blockIt = flower_getBlockIterator(flower);
     Block *block;
     while ((block = flower_getNextBlock(blockIt)) != NULL) {
@@ -450,7 +450,7 @@ Face *flower_getFirstFace(Flower *flower) {
     return stSortedSet_getFirst(flower->faces);
 }
 
-int32_t flower_getFaceNumber(Flower *flower) {
+int64_t flower_getFaceNumber(Flower *flower) {
     return stSortedSet_size(flower->faces);
 }
 
@@ -501,7 +501,7 @@ int64_t flower_getTotalBaseLength(Flower *flower) {
                     }
                     assert(cap_getStrand(cap2));
                     assert(cap_getSide(cap2));
-                    int32_t length = cap_getCoordinate(cap2) - cap_getCoordinate(cap) - 1;
+                    int64_t length = cap_getCoordinate(cap2) - cap_getCoordinate(cap) - 1;
                     assert(length >= 0);
                     totalLength += length;
                 }

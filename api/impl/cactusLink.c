@@ -70,7 +70,7 @@ Chain *link_getChain(Link *link) {
 
 void link_destruct(Link *link) {
 	group_setLink(link_getGroup(link), NULL);
-    int32_t i = 1;
+    int64_t i = 1;
     Link *link2 = link->nLink;
     while (link2 != NULL) {
         group_setLink(link_getGroup(link2), NULL);
@@ -95,7 +95,7 @@ void link_destruct(Link *link) {
 static void link_splitP(struct List *list, Flower *flower) {
     if (list->length > 0) {
         Chain *chain = chain_construct(flower);
-        int32_t i;
+        int64_t i;
         assert(list->length % 2 == 0);
         for (i = 0; i < list->length; i += 2) {
             link_construct(list->list[i], list->list[i + 1], end_getGroup(
@@ -145,7 +145,7 @@ bool link_isTrivialP(End *_3End, End *_5End) {
                 end_destructInstanceIterator(capIt);
                 return 0;
             }
-            if (abs(cap_getCoordinate(_3Cap) - cap_getCoordinate(_5Cap)) != 1) { //There is a nontrivial adjacency
+            if (llabs(cap_getCoordinate(_3Cap) - cap_getCoordinate(_5Cap)) != 1) { //There is a nontrivial adjacency
                 end_destructInstanceIterator(capIt);
                 return 0;
             }
@@ -213,7 +213,7 @@ bool link_mergeIfTrivial(Link *link) {
         End *outer3End = block_get3End(_3Block);
         assert(end_getOrientation(outer5End));
         assert(end_getOrientation(outer3End));
-        int32_t newBlockLength = block_getLength(_5Block) + block_getLength(
+        int64_t newBlockLength = block_getLength(_5Block) + block_getLength(
                 _3Block);
         stHash *newSegments = stHash_construct();
         //This works out the caps for the new segments..

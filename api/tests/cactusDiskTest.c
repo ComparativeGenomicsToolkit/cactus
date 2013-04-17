@@ -84,7 +84,7 @@ void testCactusDisk_getMetaSequence(CuTest* testCase) {
 
 void testCactusDisk_getUniqueID(CuTest* testCase) {
     cactusDiskTestSetup();
-    for (int32_t i = 0; i < 1000000; i++) { //Gets a billion ids, checks we are good.
+    for (int64_t i = 0; i < 1000000; i++) { //Gets a billion ids, checks we are good.
         Name uniqueName = cactusDisk_getUniqueID(cactusDisk);
         CuAssertTrue(testCase, uniqueName > 0);
         CuAssertTrue(testCase, uniqueName < INT64_MAX);
@@ -100,7 +100,7 @@ int testCactusDisk_getUniqueID_UniqueP(const void *a, const void *b) {
 void testCactusDisk_getUniqueID_Unique(CuTest* testCase) {
     cactusDiskTestSetup();
     stSortedSet *uniqueNames = stSortedSet_construct3(testCactusDisk_getUniqueID_UniqueP, free);
-    for (int32_t i = 0; i < 100000; i++) { //Gets a billion ids, checks we are good.
+    for (int64_t i = 0; i < 100000; i++) { //Gets a billion ids, checks we are good.
         Name uniqueName = cactusDisk_getUniqueID(cactusDisk);
         CuAssertTrue(testCase, uniqueName > 0);
         CuAssertTrue(testCase, uniqueName < INT64_MAX);
@@ -117,10 +117,10 @@ void testCactusDisk_getUniqueID_Unique(CuTest* testCase) {
 void testCactusDisk_getUniqueID_UniqueIntervals(CuTest* testCase) {
     cactusDiskTestSetup();
     stSortedSet *uniqueNames = stSortedSet_construct3(testCactusDisk_getUniqueID_UniqueP, free);
-    for (int32_t i = 0; i < 10; i++) { //Gets a billion ids, checks we are good.
+    for (int64_t i = 0; i < 10; i++) { //Gets a billion ids, checks we are good.
         int64_t intervalSize = st_randomInt(0, 100000);
         Name uniqueName = cactusDisk_getUniqueIDInterval(cactusDisk, intervalSize);
-        for(int32_t j=0; j<intervalSize; j++) {
+        for(int64_t j=0; j<intervalSize; j++) {
             CuAssertTrue(testCase, uniqueName > 0);
             CuAssertTrue(testCase, uniqueName < INT64_MAX);
             CuAssertTrue(testCase, uniqueName != NULL_NAME);

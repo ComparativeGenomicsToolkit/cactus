@@ -82,7 +82,7 @@ void testSequence_getEvent(CuTest* testCase) {
 
 void testSequence_getString(CuTest* testCase) {
 	cactusSequenceTestSetup();
-	int32_t i, j;
+	int64_t i, j;
 	for(i=1; i<11; i++) {
 		for(j=11-i; j>=0; j--) {
 			CuAssertStrEquals(testCase, metaSequence_getString(metaSequence, i, j, 1), sequence_getString(sequence, i, j, 1));
@@ -93,10 +93,10 @@ void testSequence_getString(CuTest* testCase) {
 }
 
 static char *getRandomDNASequence() {
-    int32_t stringLength = st_randomInt(0, 100000);
+    int64_t stringLength = st_randomInt(0, 100000);
     char *string = st_malloc(sizeof(char) * (stringLength + 1));
     string[stringLength] = '\0';
-    for (int32_t j = 0; j < stringLength; j++) {
+    for (int64_t j = 0; j < stringLength; j++) {
         char cA[10] = { 'a', 'c', 'g', 't', 'A', 'C', 'G', 'T', 'n', 'N' };
         string[j] = cA[st_randomInt(0, 10)];
     }
@@ -104,12 +104,12 @@ static char *getRandomDNASequence() {
 }
 
 void testSequence_addAndGetBigStringsP(CuTest* testCase, bool preCacheSequences) {
-    for(int32_t i=0; i<100; i++) {
+    for(int64_t i=0; i<100; i++) {
         cactusSequenceTestSetup();
         //Create a bunch of sequences
         stList *strings = stList_construct3(0, free);
         stList *sequences = stList_construct();
-        int32_t coordinateStart = st_randomInt(0, 100);
+        int64_t coordinateStart = st_randomInt(0, 100);
         do {
             char *string = getRandomDNASequence();
             stList_append(strings, string);
@@ -119,7 +119,7 @@ void testSequence_addAndGetBigStringsP(CuTest* testCase, bool preCacheSequences)
         } while(st_random() > 0.5);
 
         if(preCacheSequences) {
-            for(int32_t j=0; j<stList_length(sequences); j++) { //Ensures the sequences have caps representing their ends.
+            for(int64_t j=0; j<stList_length(sequences); j++) { //Ensures the sequences have caps representing their ends.
                 Sequence *sequence = stList_get(sequences, j);
                 End *end = end_construct(st_random() > 0.5, flower);
                 assert(end_getSide(end));
@@ -134,7 +134,7 @@ void testSequence_addAndGetBigStringsP(CuTest* testCase, bool preCacheSequences)
         }
         //Do different requests for portions of the strings
         while(st_random() > 0.01) {
-            int32_t j = st_randomInt(0, stList_length(strings));
+            int64_t j = st_randomInt(0, stList_length(strings));
             Sequence *sequence = stList_get(sequences, j);
             if(sequence_getLength(sequence) == 0) {
                 continue;

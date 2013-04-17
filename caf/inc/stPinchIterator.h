@@ -53,6 +53,6 @@ stPinchIterator *stPinchIterator_constructFromAlignedPairs(
 /*
  * Sets the amount to trim from the ends of each pinch in bases.
  */
-void stPinchIterator_setTrim(stPinchIterator *pinchIterator, int32_t alignmentTrim);
+void stPinchIterator_setTrim(stPinchIterator *pinchIterator, int64_t alignmentTrim);
 
 #endif /* ST_PINCH_ITERATOR_H_ */

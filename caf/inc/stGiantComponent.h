@@ -17,7 +17,7 @@
  * Returns a sublist of the edges in edges that must deleted, so that the size of the largest component in the graph
  * is smaller than maxComponentSize.
  */
-stList *stCaf_breakupComponentGreedily(stList *nodes, stList *edges, int32_t maxComponentSize);
+stList *stCaf_breakupComponentGreedily(stList *nodes, stList *edges, int64_t maxComponentSize);
 
 /*
  * Break up component extra large compoonents greedily.

@@ -9,8 +9,8 @@
 #include "adjacencySequences.h"
 #include "pairwiseAligner.h"
 
-AlignedPair *alignedPair_construct(int64_t subsequenceIdentifier1, int32_t position1, bool strand1,
-        int64_t subsequenceIdentifier2, int32_t position2, bool strand2, int32_t score) {
+AlignedPair *alignedPair_construct(int64_t subsequenceIdentifier1, int64_t position1, bool strand1,
+        int64_t subsequenceIdentifier2, int64_t position2, bool strand2, int64_t score) {
     AlignedPair *alignedPair = st_malloc(sizeof(AlignedPair));
     alignedPair->subsequenceIdentifier = subsequenceIdentifier1;
     alignedPair->position = position1;
@@ -52,8 +52,8 @@ int alignedPair_cmpFn(const AlignedPair *alignedPair1, const AlignedPair *aligne
     return i;
 }
 
-stSortedSet *makeEndAlignment(End *end, int32_t spanningTrees, int32_t maxSequenceLength,
-        int32_t maximumNumberOfSequencesBeforeSwitchingToFast, float gapGamma,
+stSortedSet *makeEndAlignment(End *end, int64_t spanningTrees, int64_t maxSequenceLength,
+        int64_t maximumNumberOfSequencesBeforeSwitchingToFast, float gapGamma,
         PairwiseAlignmentParameters *pairwiseAlignmentBandingParameters) {
     //Make an alignment of the sequences in the ends
 
@@ -87,8 +87,8 @@ stSortedSet *makeEndAlignment(End *end, int32_t spanningTrees, int32_t maxSequen
         AdjacencySequence *i = stList_get(sequences, stIntTuple_getPosition(alignedPair, 1));
         AdjacencySequence *j = stList_get(sequences, stIntTuple_getPosition(alignedPair, 3));
         assert(i != j);
-        int32_t offset1 = stIntTuple_getPosition(alignedPair, 2);
-        int32_t offset2 = stIntTuple_getPosition(alignedPair, 4);
+        int64_t offset1 = stIntTuple_getPosition(alignedPair, 2);
+        int64_t offset2 = stIntTuple_getPosition(alignedPair, 4);
         AlignedPair *alignedPair2 = alignedPair_construct(
                 i->subsequenceIdentifier, i->start + (i->strand ? offset1 : -offset1), i->strand,
                 j->subsequenceIdentifier, j->start + (j->strand ? offset2 : -offset2), j->strand,
@@ -113,9 +113,9 @@ void writeEndAlignmentToDisk(End *end, stSortedSet *endAlignment, FILE *fileHand
     stSortedSetIterator *it = stSortedSet_getIterator(endAlignment);
     AlignedPair *aP;
     while((aP = stSortedSet_getNext(it)) != NULL) {
-        fprintf(fileHandle, "%" PRIi64 " %i %i ", aP->subsequenceIdentifier, aP->position, aP->strand);
+        fprintf(fileHandle, "%" PRIi64 " %" PRIi64 " %i ", aP->subsequenceIdentifier, aP->position, aP->strand);
         aP = aP->reverse;
-        fprintf(fileHandle, "%" PRIi64 " %i %i %i\n", aP->subsequenceIdentifier, aP->position, aP->strand, aP->score);
+        fprintf(fileHandle, "%" PRIi64 " %" PRIi64 " %i %" PRIi64 "\n", aP->subsequenceIdentifier, aP->position, aP->strand, aP->score);
     }
     stSortedSet_destructIterator(it);
 }
@@ -132,8 +132,8 @@ stSortedSet *loadEndAlignmentFromDisk(Flower *flower, FILE *fileHandle, End **en
     free(line);
     while((line = stFile_getLineFromFile(fileHandle)) != NULL) {
         int64_t sI1, sI2;
-        int32_t p1, st1, p2, st2, score;
-        int32_t i = sscanf(line, "%" PRIi64 " %i %i %" PRIi64 " %i %i %i", &sI1, &p1, &st1, &sI2, &p2, &st2, &score);
+        int64_t p1, st1, p2, st2, score;
+        int64_t i = sscanf(line, "%" PRIi64 " %" PRIi64 " %" PRIi64 " %" PRIi64 " %" PRIi64 " %" PRIi64 " %" PRIi64 "", &sI1, &p1, &st1, &sI2, &p2, &st2, &score);
         (void)i;
         assert(i == 7);
         stSortedSet_insert(endAlignment, alignedPair_construct(sI1, p1, st1, sI2, p2, st2, score));

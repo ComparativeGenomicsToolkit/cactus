@@ -53,7 +53,7 @@ int main(int argc, char *argv[]) {
 
     st_logDebug("Starting extending flowers\n");
     stList *flowers = flowerWriter_parseFlowersFromStdin(cactusDisk);
-    for (int32_t i = 0; i < stList_length(flowers); i++) {
+    for (int64_t i = 0; i < stList_length(flowers); i++) {
         Flower *flower = stList_get(flowers, i);
         extendFlowers(flower, flowerIsLarge(flower));
         assert(!flower_isParentLoaded(flower)); //The parent should not be loaded.

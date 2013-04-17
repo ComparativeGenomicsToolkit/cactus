@@ -23,15 +23,15 @@ int main(int argc, char *argv[]) {
     assert(argc == 4);
     FILE *fileHandleIn = fopen(argv[1], "r");
     FILE *fileHandleOut = fopen(argv[2], "w");
-    int32_t roundsOfConversion;
-    int32_t i = sscanf(argv[3], "%i", &roundsOfConversion);
+    int64_t roundsOfConversion;
+    int64_t i = sscanf(argv[3], "%" PRIi64 "", &roundsOfConversion);
     (void)i;
     assert(i == 1);
     assert(roundsOfConversion >= 1);
     struct PairwiseAlignment *pairwiseAlignment;
     while ((pairwiseAlignment = cigarRead(fileHandleIn)) != NULL) {
         //Correct coordinates
-        for(int32_t j=0; j<roundsOfConversion; j++) {
+        for(int64_t j=0; j<roundsOfConversion; j++) {
             convertCoordinatesOfPairwiseAlignment(pairwiseAlignment);
         }
         cigarWrite(fileHandleOut, pairwiseAlignment, 0);

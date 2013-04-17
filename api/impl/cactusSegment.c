@@ -20,12 +20,12 @@ Segment *segment_construct(Block *block, Event *event) {
             cap_construct5(event, block_get3End(block)));
 }
 
-Segment *segment_construct2(Block *block, int32_t startCoordinate, bool strand,
+Segment *segment_construct2(Block *block, int64_t startCoordinate, bool strand,
         Sequence *sequence) {
     assert(startCoordinate >= sequence_getStart(sequence));
     assert(startCoordinate + block_getLength(block) <= sequence_getStart(sequence) + sequence_getLength(sequence));
 
-    int32_t i, j;
+    int64_t i, j;
     i = startCoordinate;
     j = startCoordinate + block_getLength(block) - 1;
     if (!strand) {
@@ -88,7 +88,7 @@ Event *segment_getEvent(Segment *segment) {
     return cap_getEvent(segment_get5Cap(segment));
 }
 
-int32_t segment_getStart(Segment *segment) {
+int64_t segment_getStart(Segment *segment) {
     return cap_getCoordinate(segment_get5Cap(segment));
 }
 
@@ -96,7 +96,7 @@ bool segment_getStrand(Segment *segment) {
     return cap_getStrand(segment_get5Cap(segment));
 }
 
-int32_t segment_getLength(Segment *segment) {
+int64_t segment_getLength(Segment *segment) {
     return block_getLength(segment_getBlock(segment));
 }
 
@@ -132,11 +132,11 @@ Segment *segment_getParent(Segment *segment) {
     return NULL;
 }
 
-int32_t segment_getChildNumber(Segment *segment) {
+int64_t segment_getChildNumber(Segment *segment) {
     return cap_getChildNumber(segment_get5Cap(segment));
 }
 
-Segment *segment_getChild(Segment *segment, int32_t index) {
+Segment *segment_getChild(Segment *segment, int64_t index) {
     Cap *cap;
     Segment *segment2;
     cap = cap_getChild(segment_get5Cap(segment), index);
@@ -184,16 +184,16 @@ void segment_check(Segment *segment) {
     cactusCheck(segment_getStrand(segment) == cap_getStrand(_3Cap));
     cactusCheck(segment_getSequence(segment) == cap_getSequence(_5Cap)); //Check sequences are common (may be null).
     cactusCheck(segment_getSequence(segment) == cap_getSequence(_3Cap));
-    cactusCheck(segment_getStart(segment) == cap_getCoordinate(_5Cap)); //Check 5End coordinate is same as start, may both be int32_max.
+    cactusCheck(segment_getStart(segment) == cap_getCoordinate(_5Cap)); //Check 5End coordinate is same as start, may both be INT64_MAX.
     cactusCheck(segment_getLength(segment) == block_getLength(block)); //Check coordinate length is consistent with block
-    if (segment_getStart(segment) != INT32_MAX) { //check _3End coordinate is consistent
+    if (segment_getStart(segment) != INT64_MAX) { //check _3End coordinate is consistent
         if (segment_getStrand(segment)) {
             cactusCheck(segment_getStart(segment) + segment_getLength(segment) - 1 == cap_getCoordinate(_3Cap));
         } else {
             cactusCheck(segment_getStart(segment) - segment_getLength(segment) + 1 == cap_getCoordinate(_3Cap));
         }
     } else {
-        cactusCheck(cap_getCoordinate(_3Cap) == INT32_MAX);
+        cactusCheck(cap_getCoordinate(_3Cap) == INT64_MAX);
     }
 
     //Checks the the segment has a parent, unless the root.
@@ -208,7 +208,7 @@ void segment_check(Segment *segment) {
             cactusCheck(event_isAncestor(segment_getEvent(segment), segment_getEvent(ancestorSegment)));
             cactusCheck(segment_getOrientation(segment) == segment_getOrientation(ancestorSegment));
 
-            int32_t i;
+            int64_t i;
             for (i = 0; i < segment_getChildNumber(segment); i++) {
                 Segment *childSegment = segment_getChild(segment, i);
                 cactusCheck(childSegment != NULL);
@@ -238,7 +238,7 @@ void segment_check(Segment *segment) {
         cactusCheck(segment_getParent(segment) == segment_getReverse(segment_getParent(rSegment)));
     }
     cactusCheck(segment_getChildNumber(segment) == segment_getChildNumber(rSegment));
-    int32_t i;
+    int64_t i;
     for (i = 0; i < segment_getChildNumber(segment); i++) {
         cactusCheck(segment_getChild(segment, i) == segment_getReverse(segment_getChild(rSegment, i)));
     }

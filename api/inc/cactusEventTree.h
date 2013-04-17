@@ -31,7 +31,7 @@ EventTree *eventTree_construct2(Flower *flower);
  * Copy constructs the event tree, replacing the existing flower with the new flower. Only includes
  * the unary events which are true, given the unary event function.
  */
-EventTree *eventTree_copyConstruct(EventTree *eventTree, Flower *newFlower, int32_t (unaryEventFilterFn)(Event *event));
+EventTree *eventTree_copyConstruct(EventTree *eventTree, Flower *newFlower, int64_t (unaryEventFilterFn)(Event *event));
 
 /*
  * Returns the root event.
@@ -61,7 +61,7 @@ Flower *eventTree_getFlower(EventTree *eventTree);
 /*
  * Gets the total number of events in the event tree.
  */
-int32_t eventTree_getEventNumber(EventTree *eventTree);
+int64_t eventTree_getEventNumber(EventTree *eventTree);
 
 /*
  * Gets the first event in the list.

@@ -61,12 +61,12 @@ static void checkAlignment(CuTest *testCase, stList *sequences, stList *multiple
     stIntTuple *multipleAlignedPair;
     while ((multipleAlignedPair = stList_getNext(iterator)) != NULL) {
         CuAssertTrue(testCase, stIntTuple_length(multipleAlignedPair) == 5);
-        int32_t score = stIntTuple_getPosition(multipleAlignedPair, 0);
-        int32_t seqX = stIntTuple_getPosition(multipleAlignedPair, 1);
-        int32_t x = stIntTuple_getPosition(multipleAlignedPair, 2);
-        int32_t seqY = stIntTuple_getPosition(multipleAlignedPair, 3);
-        int32_t y = stIntTuple_getPosition(multipleAlignedPair, 4);
-        st_logInfo("Got aligned pair, score: %i x seq: %i x pos: %i x seq: %i y pos: %i\n", score, seqX, x, seqY, y);
+        int64_t score = stIntTuple_getPosition(multipleAlignedPair, 0);
+        int64_t seqX = stIntTuple_getPosition(multipleAlignedPair, 1);
+        int64_t x = stIntTuple_getPosition(multipleAlignedPair, 2);
+        int64_t seqY = stIntTuple_getPosition(multipleAlignedPair, 3);
+        int64_t y = stIntTuple_getPosition(multipleAlignedPair, 4);
+        st_logInfo("Got aligned pair, score: %" PRIi64 " x seq: %" PRIi64 " x pos: %" PRIi64 " x seq: %" PRIi64 " y pos: %" PRIi64 "\n", score, seqX, x, seqY, y);
         CuAssertTrue(testCase, score > 0);
         CuAssertTrue(testCase, score <= PAIR_ALIGNMENT_PROB_1);
         CuAssertTrue(testCase, seqX >= 0);
@@ -93,23 +93,23 @@ static void test_makeAlignmentUsingAllPairs(CuTest *testCase) {
     teardown();
 }
 
-stList *getRandomSequences(int32_t sequenceNumber, int32_t approxLength) {
+stList *getRandomSequences(int64_t sequenceNumber, int64_t approxLength) {
     /*
      * Generate a random set of sequences.
      */
     stList *sequences = stList_construct3(0, free);
     char *firstSequence = getRandomSequence(approxLength);
-    for (int32_t i = 0; i < sequenceNumber; i++) {
+    for (int64_t i = 0; i < sequenceNumber; i++) {
         stList_append(sequences, evolveSequence(firstSequence));
     }
     return sequences;
 }
 
 static void test_multipleAlignerAllPairsRandom(CuTest *testCase) {
-    for (int32_t test = 0; test < 100; test++) {
+    for (int64_t test = 0; test < 100; test++) {
         setup();
         stList *randomSequences = getRandomSequences(st_randomInt(0, 10), st_randomInt(0, 100));
-        for (int32_t i = 0; i < stList_length(randomSequences); i++) {
+        for (int64_t i = 0; i < stList_length(randomSequences); i++) {
             st_logInfo("Sequence to align: %s\n", stList_get(randomSequences, i));
         }
         stList *multipleAlignedPairs = makeAlignmentUsingAllPairs(randomSequences, 0.5, pabp);
@@ -124,30 +124,30 @@ static void test_getReferencePairwiseAlignments(CuTest *testCase) {
     setup();
     stList *pairwiseAlignments = getReferencePairwiseAlignments(littleSequences);
     CuAssertIntEquals(testCase, 3, stList_length(pairwiseAlignments));
-    CuAssertTrue(testCase, stIntTuple_equalsFn(stIntTuple_construct(2, 0, 3), stList_get(pairwiseAlignments, 0)));
-    CuAssertTrue(testCase, stIntTuple_equalsFn(stIntTuple_construct(2, 0, 2), stList_get(pairwiseAlignments, 1)));
-    CuAssertTrue(testCase, stIntTuple_equalsFn(stIntTuple_construct(2, 0, 1), stList_get(pairwiseAlignments, 2)));
+    CuAssertTrue(testCase, stIntTuple_equalsFn(stIntTuple_construct2( 0, 3), stList_get(pairwiseAlignments, 0)));
+    CuAssertTrue(testCase, stIntTuple_equalsFn(stIntTuple_construct2( 0, 2), stList_get(pairwiseAlignments, 1)));
+    CuAssertTrue(testCase, stIntTuple_equalsFn(stIntTuple_construct2( 0, 1), stList_get(pairwiseAlignments, 2)));
     stList_destruct(pairwiseAlignments);
     teardown();
 }
 
 stList *makeAllPairwiseAlignments(stList *seqs, PairwiseAlignmentParameters *pairwiseAlignmentBandingParameters);
-int32_t *getDistanceMatrix(stSet *columns, stList *seqs, int64_t maxPairsToConsider);
+int64_t *getDistanceMatrix(stSet *columns, stList *seqs, int64_t maxPairsToConsider);
 stSet *getMultipleSequenceAlignment(stList *seqs, stList *multipleAlignedPairs, double gapGamma);
-double subsPerSite(int32_t seq1, int32_t seq2, int32_t *distanceCounts, int32_t seqNo);
+double subsPerSite(int64_t seq1, int64_t seq2, int64_t *distanceCounts, int64_t seqNo);
 static void test_getDistanceMatrix(CuTest *testCase) {
     setup();
     stList *multipleAlignedPairs = makeAllPairwiseAlignments(littleSequences, pabp);
     stSet *columns = getMultipleSequenceAlignment(littleSequences, multipleAlignedPairs, 0.2);
-    int32_t *distanceCounts = getDistanceMatrix(columns, littleSequences, 100000);
+    int64_t *distanceCounts = getDistanceMatrix(columns, littleSequences, 100000);
     CuAssertDblEquals(testCase, 0.2, subsPerSite(0, 1, distanceCounts, 4), 0.00001);
     CuAssertDblEquals(testCase, 0.5, subsPerSite(0, 2, distanceCounts, 4), 0.00001);
     CuAssertDblEquals(testCase, 0.0, subsPerSite(0, 3, distanceCounts, 4), 0.00001);
     CuAssertDblEquals(testCase, 0.5, subsPerSite(1, 2, distanceCounts, 4), 0.00001);
     CuAssertDblEquals(testCase, 0.0, subsPerSite(1, 3, distanceCounts, 4), 0.00001);
     CuAssertDblEquals(testCase, 0.0, subsPerSite(2, 3, distanceCounts, 4), 0.00001);
-    for(int32_t seq1=0; seq1<stList_length(littleSequences); seq1++) {
-        for(int32_t seq2=seq1+1; seq2<stList_length(littleSequences); seq2++) {
+    for(int64_t seq1=0; seq1<stList_length(littleSequences); seq1++) {
+        for(int64_t seq2=seq1+1; seq2<stList_length(littleSequences); seq2++) {
             CuAssertDblEquals(testCase, subsPerSite(seq1, seq2, distanceCounts, 4),  subsPerSite(seq2, seq1, distanceCounts, 4), 0.0);
         }
     }
@@ -157,11 +157,11 @@ static void test_getDistanceMatrix(CuTest *testCase) {
 }
 
 static void test_multipleAlignerRandom(CuTest *testCase) {
-    for (int32_t test = 0; test < 100; test++) {
+    for (int64_t test = 0; test < 100; test++) {
         setup();
         stList *randomSequences = getRandomSequences(st_randomInt(0, 10), st_randomInt(0, 100));
-        int32_t spanningTrees = st_randomInt(0, 5);
-        for (int32_t i = 0; i < stList_length(randomSequences); i++) {
+        int64_t spanningTrees = st_randomInt(0, 5);
+        for (int64_t i = 0; i < stList_length(randomSequences); i++) {
             st_logInfo("Sequence to align: %s\n", stList_get(randomSequences, i));
         }
         stList *multipleAlignedPairs = makeAlignment(randomSequences, spanningTrees, 10000000, 0.5, pabp);

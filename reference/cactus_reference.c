@@ -49,15 +49,15 @@ int main(int argc, char *argv[]) {
      */
     char * logLevelString = NULL;
     char * cactusDiskDatabaseString = NULL;
-    int32_t j;
-    stList *(*matchingAlgorithm)(stList *edges, int32_t nodeNumber) =
+    int64_t j;
+    stList *(*matchingAlgorithm)(stList *edges, int64_t nodeNumber) =
             chooseMatching_greedy;
     char *referenceEventString =
             (char *) cactusMisc_getDefaultReferenceEventHeader();
-    int32_t permutations = 10;
+    int64_t permutations = 10;
     double theta = 0.00001;
     bool useSimulatedAnnealing = 0;
-    int32_t maxWalkForCalculatingZ = 20;
+    int64_t maxWalkForCalculatingZ = 20;
 
     ///////////////////////////////////////////////////////////////////////////
     // (0) Parse the inputs handed by genomeCactus.py / setup stuff.
@@ -112,11 +112,11 @@ int main(int argc, char *argv[]) {
                 usage();
                 return 0;
             case 'i':
-                j = sscanf(optarg, "%i", &permutations);
+                j = sscanf(optarg, "%" PRIi64 "", &permutations);
                 assert(j == 1);
                 if (permutations < 0) {
                     stThrowNew(REFERENCE_BUILDING_EXCEPTION,
-                            "Permutations is not valid %i", permutations);
+                            "Permutations is not valid %" PRIi64 "", permutations);
                 }
                 break;
             case 'j':
@@ -131,7 +131,7 @@ int main(int argc, char *argv[]) {
                 }
                 break;
             case 'l':
-                j = sscanf(optarg, "%i", &maxWalkForCalculatingZ);
+                j = sscanf(optarg, "%" PRIi64 "", &maxWalkForCalculatingZ);
                 assert(j == 1);
                 break;
             default:
@@ -147,9 +147,9 @@ int main(int argc, char *argv[]) {
     st_setLogLevelFromString(logLevelString);
 
     st_logInfo("The theta parameter has been set to %lf\n", theta);
-    st_logInfo("The number of permutations is %i\n", permutations);
-    st_logInfo("Simulated annealing is %i\n", useSimulatedAnnealing);
-    st_logInfo("Max number of segments in thread to calculate z-score between is %i\n", maxWalkForCalculatingZ);
+    st_logInfo("The number of permutations is %" PRIi64 "\n", permutations);
+    st_logInfo("Simulated annealing is %" PRIi64 "\n", useSimulatedAnnealing);
+    st_logInfo("Max number of segments in thread to calculate z-score between is %" PRIi64 "\n", maxWalkForCalculatingZ);
 
     ///////////////////////////////////////////////////////////////////////////
     // (0) Check the inputs.

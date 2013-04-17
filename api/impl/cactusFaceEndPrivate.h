@@ -18,18 +18,18 @@
 
 struct _faceEnd {
 	Face *face;
-	int32_t topNodeIndex;
+	int64_t topNodeIndex;
 };
 
 struct _faceEndIterator {
 	FaceEnd *faceEnd;
-	int32_t bottomNodeIndex;
+	int64_t bottomNodeIndex;
 };
 
 /*
  * Creates the face end object, currently it just sits on top of the face object.
  */
-FaceEnd *faceEnd_construct(Face *face, int32_t topNodeIndex);
+FaceEnd *faceEnd_construct(Face *face, int64_t topNodeIndex);
 
 /*
  * Destructs the memory for the face end object.

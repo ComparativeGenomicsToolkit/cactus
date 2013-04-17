@@ -21,7 +21,7 @@ Face * face_construct(Flower * flower) {
  * Basic memory deallocator
  */
 void face_destruct(Face * face) {
-    int32_t index;
+    int64_t index;
 
     flower_removeFace(face->flower, face);
 
@@ -61,14 +61,14 @@ Flower *face_getFlower(Face *face) {
 /*
  * Returns cardinal
  */
-int32_t face_getCardinal(Face * face) {
+int64_t face_getCardinal(Face * face) {
     return face->cardinal;
 }
 
 /*
  * Get selected top node
  */
-Cap * face_getTopNode(Face * face, int32_t index) {
+Cap * face_getTopNode(Face * face, int64_t index) {
     return face->topNodes[index];
 }
 
@@ -79,7 +79,7 @@ Face_FaceEndIterator *face_getFaceEndIterator(Face *face) {
     return iterator;
 }
 
-static FaceEnd *face_getFaceEnd(Face *face, int32_t index) {
+static FaceEnd *face_getFaceEnd(Face *face, int64_t index) {
     assert(index >= 0);
     assert(index < face_getCardinal(face));
     assert(face->faceEnds != NULL);
@@ -117,7 +117,7 @@ void face_destructFaceEndIterator(Face_FaceEndIterator *iterator) {
 
 FaceEnd *face_getFaceEndForTopNode(Face *face, Cap *cap) {
     cap = cap_getPositiveOrientation(cap);
-    int32_t i;
+    int64_t i;
     for (i = 0; i < face_getCardinal(face); i++) {
         if (face_getTopNode(face, i) == cap) {
             return face_getFaceEnd(face, i);
@@ -130,9 +130,9 @@ FaceEnd *face_getFaceEndForTopNode(Face *face, Cap *cap) {
 /*
  * Tests if all the top nodes are separate from the bottom nodes
  */
-static int32_t face_isStronglyAcyclic(Face * face) {
-    int32_t cardinal = face_getCardinal(face);
-    int32_t topIndex1, topIndex, bottomIndex;
+static int64_t face_isStronglyAcyclic(Face * face) {
+    int64_t cardinal = face_getCardinal(face);
+    int64_t topIndex1, topIndex, bottomIndex;
     Event * topEvent, *bottomEvent;
 
     for (topIndex1 = 0; topIndex1 < cardinal; topIndex1++) {
@@ -156,9 +156,9 @@ static int32_t face_isStronglyAcyclic(Face * face) {
 /*
  * Tests if all the descent paths coming out of one top node in face are edge disjoint
  */
-static int32_t face_hasMergedDescentEdgesAtIndex(Face * face, int32_t topIndex) {
-    int32_t bottomNodeNumber = face_getBottomNodeNumber(face, topIndex);
-    int32_t index;
+static int64_t face_hasMergedDescentEdgesAtIndex(Face * face, int64_t topIndex) {
+    int64_t bottomNodeNumber = face_getBottomNodeNumber(face, topIndex);
+    int64_t index;
     Cap * topNode = face_getTopNode(face, topIndex);
     Cap * current;
     struct List * list = constructZeroLengthList(100, NULL);
@@ -182,9 +182,9 @@ static int32_t face_hasMergedDescentEdgesAtIndex(Face * face, int32_t topIndex) 
 /*
  * Tests is descent paths are edge-disjoint in face
  */
-static int32_t face_hasSeparateDescentEdges(Face * face) {
-    int32_t cardinal = face_getCardinal(face);
-    int32_t index;
+static int64_t face_hasSeparateDescentEdges(Face * face) {
+    int64_t cardinal = face_getCardinal(face);
+    int64_t index;
 
     for (index = 0; index < cardinal; index++)
         if (face_hasMergedDescentEdgesAtIndex(face, index))
@@ -196,9 +196,9 @@ static int32_t face_hasSeparateDescentEdges(Face * face) {
 /*
  * Tests if a given top node is part of a simple alternating cycle
  */
-static int32_t face_breaksSimpleAlternatingPath(Face * face, int topIndex) {
-    int32_t bottomNodeNumber = face_getBottomNodeNumber(face, topIndex);
-    int32_t index;
+static int64_t face_breaksSimpleAlternatingPath(Face * face, int topIndex) {
+    int64_t bottomNodeNumber = face_getBottomNodeNumber(face, topIndex);
+    int64_t index;
     Cap * topNode = face_getTopNode(face, topIndex);
     Cap * partner = cap_getAdjacency(topNode);
     Cap * bottomNode;
@@ -228,9 +228,9 @@ static int32_t face_breaksSimpleAlternatingPath(Face * face, int topIndex) {
 /*
  * Tests if face is a simple alternating cycle
  */
-static int32_t face_isSimpleAlternatingPath(Face * face) {
-    int32_t cardinal = face_getCardinal(face);
-    int32_t index;
+static int64_t face_isSimpleAlternatingPath(Face * face) {
+    int64_t cardinal = face_getCardinal(face);
+    int64_t index;
 
     for (index = 0; index < cardinal; index++)
         if (face_breaksSimpleAlternatingPath(face, index))
@@ -242,7 +242,7 @@ static int32_t face_isSimpleAlternatingPath(Face * face) {
 /*
  * Tests if a face is simple
  */
-int32_t face_isSimple(Face * face) {
+int64_t face_isSimple(Face * face) {
     return face_isStronglyAcyclic(face) && face_hasSeparateDescentEdges(face)
             && face_isSimpleAlternatingPath(face);
 }
@@ -250,8 +250,8 @@ int32_t face_isSimple(Face * face) {
 /*
  * Tests if regular
  */
-int32_t face_isRegular(Face * face) {
-    int32_t index;
+int64_t face_isRegular(Face * face) {
+    int64_t index;
 
     if (!face_isSimple(face))
         return false;
@@ -266,8 +266,8 @@ int32_t face_isRegular(Face * face) {
 /*
  * Tests if canonical
  */
-int32_t face_isCanonical(Face * face) {
-    int32_t index;
+int64_t face_isCanonical(Face * face) {
+    int64_t index;
 
     if (!face_isRegular(face))
         return false;
@@ -283,7 +283,7 @@ void face_check(Face *face) {
     //Checks the structure of the face
     Face_FaceEndIterator *faceEndIterator = face_getFaceEndIterator(face);
     FaceEnd *faceEnd;
-    int32_t i = 0;
+    int64_t i = 0;
     while ((faceEnd = face_getNextFaceEnd(faceEndIterator)) != NULL) {
         faceEnd_check(faceEnd);
         cactusCheck(faceEnd_getFace(faceEnd) == face);
@@ -348,7 +348,7 @@ static stHash *computeLiftedEdges(stHash *bottomCapsHash) {
         stList *liftedEdges = stList_construct3(0, NULL);
         assert(stHash_search(liftedEdgesHash, topCap) == NULL);
         stHash_insert(liftedEdgesHash, topCap, liftedEdges);
-        int32_t i;
+        int64_t i;
         for (i = 0; i < stList_length(bottomCaps); i++) {
             Cap *bottomCap = stList_get(bottomCaps, i);
             Cap *adjacentBottomCap = cap_getAdjacency(bottomCap);
@@ -368,7 +368,7 @@ static stHash *computeLiftedEdges(stHash *bottomCapsHash) {
 
 static void computeModulesP(Cap *topCap, stHash *liftedEdgesHash,
         stList *module, stHash *modulesHash) {
-    int32_t i;
+    int64_t i;
     Cap *adjacentTopCap;
     assert(cap_getOrientation(topCap));
     if (stHash_search(modulesHash, topCap) == NULL) {
@@ -433,7 +433,7 @@ static void checkFace(stList *module, stHash *bottomCapsHash) {
      */
     //Checks the top nodes are all in one associated face.
     //Checks the set of bottom nodes for each face are in agreement.
-    int32_t i, k;
+    int64_t i, k;
     assert(stList_length(module)> 0);
     Cap *topCap = stList_get(module, 0);
     Face *face = cap_getTopFace(topCap);
@@ -455,7 +455,7 @@ static void checkFace(stList *module, stHash *bottomCapsHash) {
             //Temp debug output
             {
                 st_uglyf(
-                        "Number of caps in D's face end %i, in B's face end %i, topCap %i \n",
+                        "Number of caps in D's face end %" PRIi64 ", in B's face end %" PRIi64 ", topCap %" PRIi64 " \n",
                         faceEnd_getNumberOfBottomNodes(faceEnd),
                         stList_length(bottomCaps), topCap);
                 FaceEnd_BottomNodeIterator *bottomNodeIterator =
@@ -463,12 +463,12 @@ static void checkFace(stList *module, stHash *bottomCapsHash) {
                 Cap *bottomCap;
                 while ((bottomCap = faceEnd_getNextBottomNode(
                         bottomNodeIterator)) != NULL) {
-                    st_uglyf("Bottom cap in Daniel's face: %i %i\n", bottomCap,
+                    st_uglyf("Bottom cap in Daniel's face: %" PRIi64 " %" PRIi64 "\n", bottomCap,
                             cap_getTopCap(bottomCap));
                 }
                 for (k = 0; k < stList_length(bottomCaps); k++) {
                     bottomCap = stList_get(bottomCaps, k);
-                    st_uglyf("Bottom cap in Benedict's face: %i %i\n",
+                    st_uglyf("Bottom cap in Benedict's face: %" PRIi64 " %" PRIi64 "\n",
                             bottomCap, cap_getTopCap(bottomCap));
                 }
             }
@@ -498,7 +498,7 @@ void face_checkFaces(Flower *flower) {
         stList *modules = computeModules(liftedEdgesHash);
 
         //Check all faces we have computed are the same as those computed by Daniel.
-        int32_t i;
+        int64_t i;
         for (i = 0; i < stList_length(modules); i++) {
             checkFace(stList_get(modules, i), bottomCapsHash);
         }
@@ -526,8 +526,8 @@ void face_checkFaces(Flower *flower) {
 /*
  * Get selected derived destinations for selected top node
  */
-Cap * face_getDerivedDestinationAtIndex(Face * face, int32_t topIndex,
-        int32_t derivedIndex) {
+Cap * face_getDerivedDestinationAtIndex(Face * face, int64_t topIndex,
+        int64_t derivedIndex) {
 #ifndef NDEBUG
     assert(topIndex < face_getCardinal(face));
     assert(derivedIndex < face_getBottomNodeNumber(face, topIndex));
@@ -538,8 +538,8 @@ Cap * face_getDerivedDestinationAtIndex(Face * face, int32_t topIndex,
 /*
  * Get non-null derived destination of selected top node (useful for simple face)
  */
-Cap * face_getDerivedDestination(Face * face, int32_t index) {
-    int32_t bottomIndex;
+Cap * face_getDerivedDestination(Face * face, int64_t index) {
+    int64_t bottomIndex;
     assert(index < face_getCardinal(face));
     for (bottomIndex = 0; bottomIndex < face_getBottomNodeNumber(face, index); bottomIndex++)
         if (face->derivedEdgeDestinations[index][bottomIndex])
@@ -551,27 +551,27 @@ Cap * face_getDerivedDestination(Face * face, int32_t index) {
 /*
  * Get the number of bottom nodes for the selected top node
  */
-int32_t face_getBottomNodeNumber(Face * face, int32_t topIndex) {
+int64_t face_getBottomNodeNumber(Face * face, int64_t topIndex) {
     return face->bottomNodeNumbers[topIndex];
 }
 
 /*
  * Get selected bottom node from selected top node in face
  */
-Cap * face_getBottomNode(Face * face, int32_t topNodeIndex,
-        int32_t bottomNodeIndex) {
+Cap * face_getBottomNode(Face * face, int64_t topNodeIndex,
+        int64_t bottomNodeIndex) {
     return face->bottomNodes[topNodeIndex][bottomNodeIndex];
 }
 
 /*
  * Allocate arrays to allow for data
  */
-void face_allocateSpace(Face * face, int32_t cardinal) {
+void face_allocateSpace(Face * face, int64_t cardinal) {
     assert(face->cardinal == 0);
     face->cardinal = cardinal;
     face->topNodes = st_calloc(cardinal, sizeof(Cap *));
     face->bottomNodes = st_calloc(cardinal, sizeof(Cap **));
-    face->bottomNodeNumbers = st_calloc(cardinal, sizeof(int32_t));
+    face->bottomNodeNumbers = st_calloc(cardinal, sizeof(int64_t));
     face->derivedEdgeDestinations = st_calloc(cardinal, sizeof(Cap **));
     face->faceEnds = st_calloc(cardinal, sizeof(FaceEnd *));
 }
@@ -579,7 +579,7 @@ void face_allocateSpace(Face * face, int32_t cardinal) {
 /*
  * Sets the selected top node
  */
-void face_setTopNode(Face * face, int32_t topIndex, Cap * topNode) {
+void face_setTopNode(Face * face, int64_t topIndex, Cap * topNode) {
     if (topNode)
         topNode = cap_getPositiveOrientation(topNode);
     face->topNodes[topIndex] = topNode;
@@ -589,7 +589,7 @@ void face_setTopNode(Face * face, int32_t topIndex, Cap * topNode) {
 /*
  * Set bottom node count and allocate space to store pointers
  */
-void face_setBottomNodeNumber(Face * face, int32_t topIndex, int32_t number) {
+void face_setBottomNodeNumber(Face * face, int64_t topIndex, int64_t number) {
     face->bottomNodeNumbers[topIndex] = 0;
     if (number) {
         face->bottomNodes[topIndex] = st_calloc(number, sizeof(Cap *));
@@ -604,8 +604,8 @@ void face_setBottomNodeNumber(Face * face, int32_t topIndex, int32_t number) {
 /*
  * Sets the derived edge destination for a given top node in face
  */
-void face_setDerivedDestination(Face * face, int32_t topIndex,
-        int32_t bottomIndex, Cap * destination) {
+void face_setDerivedDestination(Face * face, int64_t topIndex,
+        int64_t bottomIndex, Cap * destination) {
     if (destination)
         destination = cap_getPositiveOrientation(destination);
     face->derivedEdgeDestinations[topIndex][bottomIndex] = destination;
@@ -614,7 +614,7 @@ void face_setDerivedDestination(Face * face, int32_t topIndex,
 /*
  * Adds bottom node to selected top node in face
  */
-void face_addBottomNode(Face * face, int32_t topIndex, Cap * bottomNode) {
+void face_addBottomNode(Face * face, int64_t topIndex, Cap * bottomNode) {
     if (bottomNode)
         bottomNode = cap_getPositiveOrientation(bottomNode);
     face->bottomNodes[topIndex][face->bottomNodeNumbers[topIndex]++]

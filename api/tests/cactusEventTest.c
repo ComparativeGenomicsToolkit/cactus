@@ -86,7 +86,7 @@ void testEvent_getHeader(CuTest* testCase) {
 
 void testEvent_getBranchLength(CuTest* testCase) {
 	cactusEventTestSetup();
-	CuAssertDblEquals(testCase, INT32_MAX, event_getBranchLength(rootEvent), 1.000);
+	CuAssertDblEquals(testCase, INT64_MAX, event_getBranchLength(rootEvent), 1.000);
 	CuAssertDblEquals(testCase, 0.5, event_getBranchLength(internalEvent), 0.001);
 	CuAssertDblEquals(testCase, 0.2, event_getBranchLength(leafEvent1), 0.001);
 	CuAssertDblEquals(testCase, 1.3, event_getBranchLength(leafEvent2), 0.001);

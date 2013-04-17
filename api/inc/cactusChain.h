@@ -40,13 +40,13 @@ Link *chain_getLast(Chain *chain);
 /*
  * Returns the number of links in the chain.
  */
-int32_t chain_getLength(Chain *chain);
+int64_t chain_getLength(Chain *chain);
 
 /*
  * Get a list of the blocks, in order, in the chain. Block number is initialised with the
  * length of the array. The array must be freed.
  */
-Block **chain_getBlockChain(Chain *chain, int32_t *blockNumber);
+Block **chain_getBlockChain(Chain *chain, int64_t *blockNumber);
 
 /*
  * Gets the name of the chain in the flower.

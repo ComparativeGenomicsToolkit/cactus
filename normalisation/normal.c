@@ -82,7 +82,7 @@ static int promoteChainsFillParentsP2(Block *block1, Block *block2) {
             * block_getInstanceNumber(block2);
 }
 
-static void promoteChainsToFillParentsP(Flower *flower, Group *parentGroup, int32_t maxNumberOfChains) {
+static void promoteChainsToFillParentsP(Flower *flower, Group *parentGroup, int64_t maxNumberOfChains) {
     Chain *chain;
     Flower_ChainIterator *chainIt = flower_getChainIterator(flower);
     stList *chains = stList_construct();
@@ -96,7 +96,7 @@ static void promoteChainsToFillParentsP(Flower *flower, Group *parentGroup, int3
     Flower *parentFlower = group_getFlower(parentGroup);
     assert(group_isTangle(parentGroup)); //Completely redundant check for old bug
     assert(group_getLink(parentGroup) == NULL);
-    int32_t chainLength = INT32_MAX;
+    int64_t chainLength = INT64_MAX;
     while (group_isTangle(parentGroup) && stList_length(chains) > 0 && (flower_getChainNumber(parentFlower)
             + flower_getTrivialChainNumber(parentFlower) < maxNumberOfChains || flower_getAttachedStubEndNumber(flower)
             == 0)) {
@@ -122,7 +122,7 @@ static void promoteChainsToFillParentsP(Flower *flower, Group *parentGroup, int3
     }
     flower_destructBlockIterator(blockIt);
     stList_sort(blocks, (int(*)(const void *, const void *)) promoteChainsFillParentsP2);
-    int32_t blockCoverage = INT32_MAX;
+    int64_t blockCoverage = INT64_MAX;
     while (group_isTangle(parentGroup) && stList_length(blocks) > 0 && (flower_getChainNumber(parentFlower)
             + flower_getTrivialChainNumber(parentFlower) < maxNumberOfChains || flower_getAttachedStubEndNumber(flower)
             == 0)) {
@@ -137,7 +137,7 @@ static void promoteChainsToFillParentsP(Flower *flower, Group *parentGroup, int3
     stList_destruct(blocks);
 }
 
-void promoteNestedChainsToFillFlower(Flower *flower, int32_t maxNumberOfChains) {
+void promoteNestedChainsToFillFlower(Flower *flower, int64_t maxNumberOfChains) {
     stList *childFlowers = getNestedFlowers(flower);
     while (stList_length(childFlowers) > 0) {
         Flower *childFlower = stList_pop(childFlowers);
@@ -152,7 +152,7 @@ void promoteNestedChainsToFillFlower(Flower *flower, int32_t maxNumberOfChains) 
     stList_destruct(childFlowers);
 }
 
-void normalise(Flower *flower, int32_t maxNumberOfChains) {
+void normalise(Flower *flower, int64_t maxNumberOfChains) {
     promoteNestedChainsThatExtendChains(flower);
     promoteNestedChainsToFillFlower(flower, maxNumberOfChains);
 

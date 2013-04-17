@@ -13,7 +13,7 @@
 #include "pairwiseAlignment.h"
 #include "blastAlignmentLib.h"
 
-stList *stCaf_selfAlignFlower(Flower *flower, int32_t minimumSequenceLength, const char *lastzArgs, char *tempFile1) {
+stList *stCaf_selfAlignFlower(Flower *flower, int64_t minimumSequenceLength, const char *lastzArgs, char *tempFile1) {
     /*
      * Get the sequences.
      */

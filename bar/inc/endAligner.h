@@ -20,17 +20,17 @@
 
 typedef struct _AlignedPair {
     int64_t subsequenceIdentifier;
-    int32_t position;
+    int64_t position;
     bool strand;
-    int32_t score;
+    int64_t score;
     struct _AlignedPair *reverse;
 } AlignedPair;
 
 /*
  * Constructs the an aligned pair.
  */
-AlignedPair *alignedPair_construct(int64_t subsequenceIdentifier1, int32_t position1, bool strand1,
-        int64_t subsequenceIdentifier2, int32_t position2, bool strand2, int32_t score);
+AlignedPair *alignedPair_construct(int64_t subsequenceIdentifier1, int64_t position1, bool strand1,
+        int64_t subsequenceIdentifier2, int64_t position2, bool strand2, int64_t score);
 
 /*
  * Destruct the aligned pair.
@@ -47,8 +47,8 @@ int alignedPair_cmpFn(const AlignedPair *alignedPair1, const AlignedPair *aligne
  * the pairs returned are ordered according
  * to the alignerPair comparison function.
  */
-stSortedSet *makeEndAlignment(End *end, int32_t spanningTrees, int32_t maxSequenceLength,
-        int32_t maximumNumberOfSequencesBeforeSwitchingToFast, float gapGamma,
+stSortedSet *makeEndAlignment(End *end, int64_t spanningTrees, int64_t maxSequenceLength,
+        int64_t maximumNumberOfSequencesBeforeSwitchingToFast, float gapGamma,
         PairwiseAlignmentParameters *pairwiseAlignmentBandingParameters);
 
 /*

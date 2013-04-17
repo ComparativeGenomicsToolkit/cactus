@@ -67,11 +67,11 @@ static void convertCoordinates(struct PairwiseAlignment *pairwiseAlignment, FILE
     pairwiseAlignment->end1 += 2;
     pairwiseAlignment->end2 += 2;
     if (pairwiseAlignment->start1 <= cap_getCoordinate(cap1) || pairwiseAlignment->end1 > cap_getCoordinate(cap_getAdjacency(cap1))) {
-        st_errAbort("Coordinates of pairwise alignment appear incorrect: %i %i %i %i", pairwiseAlignment->start1, pairwiseAlignment->end1,
+        st_errAbort("Coordinates of pairwise alignment appear incorrect: %" PRIi64 " %" PRIi64 " %" PRIi64 " %" PRIi64 "", pairwiseAlignment->start1, pairwiseAlignment->end1,
                 cap_getCoordinate(cap1), cap_getCoordinate(cap_getAdjacency(cap1)));
     }
     if (pairwiseAlignment->start2 <= cap_getCoordinate(cap2) || pairwiseAlignment->end2 > cap_getCoordinate(cap_getAdjacency(cap2))) {
-            st_errAbort("Coordinates of pairwise alignment appear incorrect: %i %i %i %i", pairwiseAlignment->start2, pairwiseAlignment->end2,
+            st_errAbort("Coordinates of pairwise alignment appear incorrect: %" PRIi64 " %" PRIi64 " %" PRIi64 " %" PRIi64 "", pairwiseAlignment->start2, pairwiseAlignment->end2,
                     cap_getCoordinate(cap2), cap_getCoordinate(cap_getAdjacency(cap2)));
     }
 }

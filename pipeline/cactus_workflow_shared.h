@@ -25,7 +25,7 @@ void parseArgs(int argc, char *argv[]) {
     stKVDatabaseConf_destruct(kvDatabaseConf);
     st_logDebug("Set up the flower disk\n");
 
-    int32_t i = sscanf(argv[3], "%" PRId64 "", &minFlowerSize);
+    int64_t i = sscanf(argv[3], "%" PRId64 "", &minFlowerSize);
     assert(i == 1); //We should parse one in correctly.
     st_logDebug("Min flower size %lli\n", minFlowerSize);
     assert(minFlowerSize >= 0);

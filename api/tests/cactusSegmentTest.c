@@ -99,8 +99,8 @@ void testSegment_getEvent(CuTest* testCase) {
 void testSegment_getStart(CuTest* testCase) {
 	cactusSegmentTestSetup();
 
-	CuAssertTrue(testCase, segment_getStart(rootSegment) == INT32_MAX);
-	CuAssertTrue(testCase, segment_getStart(segment_getReverse(rootSegment)) == INT32_MAX);
+	CuAssertTrue(testCase, segment_getStart(rootSegment) == INT64_MAX);
+	CuAssertTrue(testCase, segment_getStart(segment_getReverse(rootSegment)) == INT64_MAX);
 
 	CuAssertTrue(testCase, segment_getStart(leaf1Segment) == 2);
 	CuAssertTrue(testCase, segment_getStart(segment_getReverse(leaf1Segment)) == 4);

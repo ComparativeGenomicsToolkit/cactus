@@ -9,7 +9,7 @@
 
 static void testAdjacencySequence_1(CuTest *testCase) {
    setup();
-   AdjacencySequence *adjacencySequence = adjacencySequence_construct(cap1, INT32_MAX);
+   AdjacencySequence *adjacencySequence = adjacencySequence_construct(cap1, INT64_MAX);
    CuAssertTrue(testCase, adjacencySequence->subsequenceIdentifier == cap_getName(cap1)); //sequence_getName(sequence1));
    CuAssertIntEquals(testCase, adjacencySequence->start, 1);
    CuAssertIntEquals(testCase, adjacencySequence->strand, 1);
@@ -21,7 +21,7 @@ static void testAdjacencySequence_1(CuTest *testCase) {
 
 static void testAdjacencySequence_2(CuTest *testCase) {
    setup();
-   AdjacencySequence *adjacencySequence = adjacencySequence_construct(cap_getReverse(cap2), INT32_MAX);
+   AdjacencySequence *adjacencySequence = adjacencySequence_construct(cap_getReverse(cap2), INT64_MAX);
    CuAssertTrue(testCase, adjacencySequence->subsequenceIdentifier == cap_getName(cap1)); //sequence_getName(sequence1));
    CuAssertIntEquals(testCase, adjacencySequence->start, 4);
    CuAssertIntEquals(testCase, adjacencySequence->strand, 0);
@@ -57,7 +57,7 @@ static void testAdjacencySequence_4(CuTest *testCase) {
 
 static void testAdjacencySequence_5(CuTest *testCase) {
     setup();
-   AdjacencySequence *adjacencySequence = adjacencySequence_construct(cap7, INT32_MAX);
+   AdjacencySequence *adjacencySequence = adjacencySequence_construct(cap7, INT64_MAX);
    CuAssertTrue(testCase, adjacencySequence->subsequenceIdentifier == cap_getName(cap8)); //sequence_getName(sequence2));
    CuAssertIntEquals(testCase, adjacencySequence->start, 6);
    CuAssertIntEquals(testCase, adjacencySequence->strand, 0);
@@ -69,7 +69,7 @@ static void testAdjacencySequence_5(CuTest *testCase) {
 
 static void testAdjacencySequence_6(CuTest *testCase) {
     setup();
-   AdjacencySequence *adjacencySequence = adjacencySequence_construct(cap9, INT32_MAX);
+   AdjacencySequence *adjacencySequence = adjacencySequence_construct(cap9, INT64_MAX);
    CuAssertTrue(testCase, adjacencySequence->subsequenceIdentifier == cap_getName(cap9)); //sequence_getName(sequence3));
    CuAssertIntEquals(testCase, adjacencySequence->start, 1);
    CuAssertIntEquals(testCase, adjacencySequence->strand, 1);
@@ -81,7 +81,7 @@ static void testAdjacencySequence_6(CuTest *testCase) {
 
 static void testAdjacencySequence_7(CuTest *testCase) {
     setup();
-   AdjacencySequence *adjacencySequence = adjacencySequence_construct(cap11, INT32_MAX);
+   AdjacencySequence *adjacencySequence = adjacencySequence_construct(cap11, INT64_MAX);
    CuAssertTrue(testCase, adjacencySequence->subsequenceIdentifier == cap_getName(cap11)); //sequence_getName(sequence4));
    CuAssertIntEquals(testCase, adjacencySequence->start, 2);
    CuAssertIntEquals(testCase, adjacencySequence->strand, 1);

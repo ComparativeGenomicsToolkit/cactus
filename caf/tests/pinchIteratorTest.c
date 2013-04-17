@@ -11,17 +11,17 @@
 #include <math.h>
 
 static void testIterator(CuTest *testCase, stPinchIterator *pinchIterator, stList *randomPairwiseAlignments) {
-    for (int32_t trim = 0; trim < 10; trim++) {
+    for (int64_t trim = 0; trim < 10; trim++) {
         stPinchIterator_setTrim(pinchIterator, trim);
         //Test get next
-        for (int32_t i = 0; i < stList_length(randomPairwiseAlignments); i++) {
+        for (int64_t i = 0; i < stList_length(randomPairwiseAlignments); i++) {
             struct PairwiseAlignment *pairwiseAlignment = stList_get(randomPairwiseAlignments, i);
-            int32_t contigX = -1, contigY = -1;
-            sscanf(pairwiseAlignment->contig1, "%i", &contigX);
-            sscanf(pairwiseAlignment->contig2, "%i", &contigY);
-            int32_t x = pairwiseAlignment->start1;
-            int32_t y = pairwiseAlignment->start2;
-            for (int32_t j = 0; j < pairwiseAlignment->operationList->length; j++) {
+            int64_t contigX = -1, contigY = -1;
+            sscanf(pairwiseAlignment->contig1, "%" PRIi64 "", &contigX);
+            sscanf(pairwiseAlignment->contig2, "%" PRIi64 "", &contigY);
+            int64_t x = pairwiseAlignment->start1;
+            int64_t y = pairwiseAlignment->start2;
+            for (int64_t j = 0; j < pairwiseAlignment->operationList->length; j++) {
                 struct AlignmentOperation *op = pairwiseAlignment->operationList->list[j];
                 if (op->opType == PAIRWISE_MATCH) {
                     if (op->length > 2 * trim) {
@@ -53,20 +53,20 @@ static void testIterator(CuTest *testCase, stPinchIterator *pinchIterator, stLis
 
 static stList *getRandomPairwiseAlignments() {
     stList *pairwiseAlignments = stList_construct3(0, (void(*)(void *)) destructPairwiseAlignment);
-    int32_t randomAlignmentNumber = st_randomInt(0, 10);
-    for (int32_t i = 0; i < randomAlignmentNumber; i++) {
-        char *contig1 = stString_print("%i", i);
-        char *contig2 = stString_print("%i", i * 10);
-        int32_t start1 = st_randomInt(100000, 1000000);
-        int32_t start2 = st_randomInt(100000, 1000000);
-        int32_t strand1 = st_random() > 0.5;
-        int32_t strand2 = st_random() > 0.5;
-        int32_t end1 = start1;
-        int32_t end2 = start2;
+    int64_t randomAlignmentNumber = st_randomInt(0, 10);
+    for (int64_t i = 0; i < randomAlignmentNumber; i++) {
+        char *contig1 = stString_print("%" PRIi64 "", i);
+        char *contig2 = stString_print("%" PRIi64 "", i * 10);
+        int64_t start1 = st_randomInt(100000, 1000000);
+        int64_t start2 = st_randomInt(100000, 1000000);
+        int64_t strand1 = st_random() > 0.5;
+        int64_t strand2 = st_random() > 0.5;
+        int64_t end1 = start1;
+        int64_t end2 = start2;
         struct List *operationList = constructEmptyList(0, NULL);
         while (st_random() > 0.1) {
-            int32_t length = st_randomInt(0, 10);
-            int32_t type = st_randomInt(0, 3);
+            int64_t length = st_randomInt(0, 10);
+            int64_t type = st_randomInt(0, 3);
             assert(type < 3);
             listAppend(operationList, constructAlignmentOperation(type, length, 0));
             if (type != PAIRWISE_INDEL_Y) {
@@ -85,13 +85,13 @@ static stList *getRandomPairwiseAlignments() {
 }
 
 static void testPinchIteratorFromFile(CuTest *testCase) {
-    for (int32_t test = 0; test < 100; test++) {
+    for (int64_t test = 0; test < 100; test++) {
         stList *pairwiseAlignments = getRandomPairwiseAlignments();
-        st_logInfo("Doing a random pinch iterator from file test %i with %i alignments\n", test, stList_length(pairwiseAlignments));
+        st_logInfo("Doing a random pinch iterator from file test %" PRIi64 " with %" PRIi64 " alignments\n", test, stList_length(pairwiseAlignments));
         //Put alignments in a file
         char *tempFile = "tempFileForPinchIteratorTest.cig";
         FILE *fileHandle = fopen(tempFile, "w");
-        for (int32_t i = 0; i < stList_length(pairwiseAlignments); i++) {
+        for (int64_t i = 0; i < stList_length(pairwiseAlignments); i++) {
             cigarWrite(fileHandle, stList_get(pairwiseAlignments, i), 0);
         }
         fclose(fileHandle);
@@ -107,9 +107,9 @@ static void testPinchIteratorFromFile(CuTest *testCase) {
 }
 
 static void testPinchIteratorFromList(CuTest *testCase) {
-    for (int32_t test = 0; test < 100; test++) {
+    for (int64_t test = 0; test < 100; test++) {
         stList *pairwiseAlignments = getRandomPairwiseAlignments();
-        st_logInfo("Doing a random pinch iterator from list test %i with %i alignments\n", test, stList_length(pairwiseAlignments));
+        st_logInfo("Doing a random pinch iterator from list test %" PRIi64 " with %" PRIi64 " alignments\n", test, stList_length(pairwiseAlignments));
         //Get an iterator
         stPinchIterator *pinchIterator = stPinchIterator_constructFromList(pairwiseAlignments);
         //Now test it

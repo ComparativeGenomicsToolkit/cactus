@@ -25,8 +25,8 @@
  */
 typedef struct _column Column;
 struct _column {
-    int32_t seqName;
-    int32_t position;
+    int64_t seqName;
+    int64_t position;
     Column *nColumn;
 };
 
@@ -45,7 +45,7 @@ int column_cmp(Column *c, Column *c2) {
             : (c->position < c2->position ? -1 : 0)));
 }
 
-uint32_t column_hashFn(Column *c) {
+uint64_t column_hashFn(Column *c) {
     return c->seqName + c->position;
 }
 
@@ -58,11 +58,11 @@ stSet *makeColumns(stList *seqs) {
      * Makes a set of columns, each containing one sequence position. Represents
      * initially unaligned state of sequence positions.
      */
-    stSet *columns = stSet_construct3((uint32_t(*)(const void *)) column_hashFn, (int(*)(const void *, const void *)) column_equalsFn,
+    stSet *columns = stSet_construct3((uint64_t(*)(const void *)) column_hashFn, (int(*)(const void *, const void *)) column_equalsFn,
             (void(*)(void *)) column_destruct);
-    for (int32_t seq = 0; seq < stList_length(seqs); seq++) {
-        int32_t seqLength = strlen(stList_get(seqs, seq));
-        for (int32_t pos = 0; pos < seqLength; pos++) {
+    for (int64_t seq = 0; seq < stList_length(seqs); seq++) {
+        int64_t seqLength = strlen(stList_get(seqs, seq));
+        for (int64_t pos = 0; pos < seqLength; pos++) {
             Column *c = st_malloc(sizeof(Column));
             c->seqName = seq;
             c->position = pos;
@@ -113,14 +113,14 @@ void insertWeight(AlignmentWeight *aW, stHash *alignmentWeightAdjLists) {
     stSortedSet_insert(aWs, aW);
 }
 
-static Column *getColumn(stSet *columns, int32_t seqName, int32_t position) {
+static Column *getColumn(stSet *columns, int64_t seqName, int64_t position) {
     Column c;
     c.seqName = seqName;
     c.position = position;
     return stSet_search(columns, &c);
 }
 
-static AlignmentWeight *makeAlignmentWeight(stSet *columns, int32_t score, int32_t seqName, int32_t position) {
+static AlignmentWeight *makeAlignmentWeight(stSet *columns, int64_t score, int64_t seqName, int64_t position) {
     AlignmentWeight *aW = st_malloc(sizeof(AlignmentWeight));
     aW->column = getColumn(columns, seqName, position);
     assert(aW->column != NULL);
@@ -134,7 +134,7 @@ stHash *makeAlignmentWeightAdjacencyLists(stSet *columns, stList *multipleAligne
      * Make set of adjacency lists for the trivial columns and the weights linking them.
      */
     stHash *alignmentWeightAdjLists = stHash_construct2(NULL, (void(*)(void *)) stSortedSet_destruct);
-    for (int32_t i = 0; i < stList_length(multipleAlignedPairs); i++) {
+    for (int64_t i = 0; i < stList_length(multipleAlignedPairs); i++) {
         /*Tuple of score, seq1, pos1, seq2, pos2 */
         stIntTuple *aP = stList_get(multipleAlignedPairs, i);
         assert(stIntTuple_length(aP) == 5);
@@ -280,7 +280,7 @@ stSet *getMultipleSequenceAlignment(stList *seqs, stList *multipleAlignedPairs, 
     return columns;
 }
 
-static Column *getColumn2(stHash *columns, int32_t seq, int32_t pos) {
+static Column *getColumn2(stHash *columns, int64_t seq, int64_t pos) {
     Column c;
     c.seqName = seq;
     c.position = pos;
@@ -295,7 +295,7 @@ static stList *filterMultipleAlignedPairs(stSet *columns, stList *multipleAligne
     //Build hash of positions to columns
     stSetIterator *it = stSet_getIterator(columns);
     Column *c;
-    stHash *positionsToColumns = stHash_construct3((uint32_t(*)(const void *)) column_hashFn,
+    stHash *positionsToColumns = stHash_construct3((uint64_t(*)(const void *)) column_hashFn,
             (int(*)(const void *, const void *)) column_equalsFn, NULL, NULL);
     while ((c = stSet_getNext(it)) != NULL) {
         Column *c2 = c;
@@ -322,9 +322,9 @@ static stList *filterMultipleAlignedPairs(stSet *columns, stList *multipleAligne
     return filteredMultipleAlignedPairs;
 }
 
-/*static double getAlignmentScore(stList *alignedPairs, int32_t seqLength1, int32_t seqLength2) {
+/*static double getAlignmentScore(stList *alignedPairs, int64_t seqLength1, int64_t seqLength2) {
  int64_t alignmentScore = 0;
- for (int32_t i = 0; i < stList_length(alignedPairs); i++) {
+ for (int64_t i = 0; i < stList_length(alignedPairs); i++) {
  stIntTuple *alignedPair = stList_get(alignedPairs, i);
  alignmentScore += stIntTuple_getPosition(alignedPair, 0);
  }
@@ -358,14 +358,14 @@ static stList *filterPairwiseAlignmentToMakePairsOrdered(stList *alignedPairs, f
     return discardedAlignedPairs;
 }
 
-static void convertToMultipleAlignedPairs(stList *alignedPairs, stList *multipleAlignedPairs, int32_t sequence1, int32_t sequence2) {
+static void convertToMultipleAlignedPairs(stList *alignedPairs, stList *multipleAlignedPairs, int64_t sequence1, int64_t sequence2) {
     /*
      * Converts pairwise alignment matches to pairs with sequence indices, destroying the old pairs in the process.
      */
     while (stList_length(alignedPairs) > 0) {
         stIntTuple *alignedPair = (stIntTuple *) stList_pop(alignedPairs);
-        stList_append(multipleAlignedPairs, stIntTuple_construct(5,
-        /* score */stIntTuple_getPosition(alignedPair, 0), //(int32_t)(stIntTuple_getPosition(alignedPair, 0) * alignmentScore),
+        stList_append(multipleAlignedPairs, stIntTuple_construct5(
+        /* score */stIntTuple_getPosition(alignedPair, 0), //(int64_t)(stIntTuple_getPosition(alignedPair, 0) * alignmentScore),
                 /* seq 1 */sequence1, stIntTuple_getPosition(alignedPair, 1),
                 /* seq 2 */sequence2, stIntTuple_getPosition(alignedPair, 2)));
         stIntTuple_destruct(alignedPair);
@@ -373,7 +373,7 @@ static void convertToMultipleAlignedPairs(stList *alignedPairs, stList *multiple
     stList_destruct(alignedPairs);
 }
 
-static void addMultipleAlignedPairs(int32_t sequence1, int32_t sequence2, stList *seqs, stList *multipleAlignedPairs,
+static void addMultipleAlignedPairs(int64_t sequence1, int64_t sequence2, stList *seqs, stList *multipleAlignedPairs,
         PairwiseAlignmentParameters *pairwiseAlignmentBandingParameters) {
     /*
      * Computes a pairwise alignment and returns the pairwise match probabilities as tuples of (score, seq1, pos1, seq2, pos2).
@@ -384,7 +384,7 @@ static void addMultipleAlignedPairs(int32_t sequence1, int32_t sequence2, stList
     convertToMultipleAlignedPairs(alignedPairs, multipleAlignedPairs, sequence1, sequence2);
 }
 
-static void addMultipleAlignedPairsFilteringInconsistentPairs(int32_t sequence1, int32_t sequence2, stList *seqs,
+static void addMultipleAlignedPairsFilteringInconsistentPairs(int64_t sequence1, int64_t sequence2, stList *seqs,
         stList *multipleAlignedPairs, stList *discardedMultipleAlignedPairs,
         float gapGamma,
         PairwiseAlignmentParameters *pairwiseAlignmentBandingParameters) {
@@ -404,9 +404,9 @@ stList *makeAllPairwiseAlignments(stList *seqs, PairwiseAlignmentParameters *pai
      * Generate the set of pairwise alignments between the sequences.
      */
     stList *multipleAlignedPairs = stList_construct3(0, (void (*)(void *))stIntTuple_destruct);
-    int32_t seqNo = stList_length(seqs);
-    for (int32_t seq1 = 0; seq1 < seqNo; seq1++) {
-        for (int32_t seq2 = seq1 + 1; seq2 < seqNo; seq2++) {
+    int64_t seqNo = stList_length(seqs);
+    for (int64_t seq1 = 0; seq1 < seqNo; seq1++) {
+        for (int64_t seq2 = seq1 + 1; seq2 < seqNo; seq2++) {
             addMultipleAlignedPairs(seq1, seq2, seqs, multipleAlignedPairs, pairwiseAlignmentBandingParameters);
         }
     }
@@ -433,9 +433,9 @@ stList *makeAlignmentUsingAllPairs(stList *seqs, float gapGamma, PairwiseAlignme
 ///////////////////////////////
 ///////////////////////////////
 
-static stIntTuple *makePairToAlign(int32_t seq1, int32_t seq2) {
+static stIntTuple *makePairToAlign(int64_t seq1, int64_t seq2) {
     assert(seq1 != seq2);
-    return seq1 < seq2 ? stIntTuple_construct(2, seq1, seq2) : stIntTuple_construct(2, seq2, seq1);
+    return seq1 < seq2 ? stIntTuple_construct2( seq1, seq2) : stIntTuple_construct2( seq2, seq1);
 }
 
 stList *getReferencePairwiseAlignments(stList *seqs) {
@@ -443,14 +443,14 @@ stList *getReferencePairwiseAlignments(stList *seqs) {
      * Picks a reference sequence ensures everyone is aligned.
      */
     stList *l = stList_construct3(0, (void(*)(void *)) stIntTuple_destruct);
-    for (int32_t i = 0; i < stList_length(seqs); i++) {
-        stList_append(l, stIntTuple_construct(2, strlen(stList_get(seqs, i)), i));
+    for (int64_t i = 0; i < stList_length(seqs); i++) {
+        stList_append(l, stIntTuple_construct2( strlen(stList_get(seqs, i)), i));
     }
     stList_sort(l, (int(*)(const void *, const void *)) stIntTuple_cmpFn);
     stList *chosenPairsOfSequencesToAlign = stList_construct3(0, (void(*)(void *)) stIntTuple_destruct);
     if (stList_length(l) > 0) {
         stIntTuple *k = stList_get(l, stList_length(l) / 2);
-        for (int32_t i = 0; i < stList_length(l); i++) {
+        for (int64_t i = 0; i < stList_length(l); i++) {
             stIntTuple *j = stList_get(l, i);
             if (k != j) {
                 stList_append(chosenPairsOfSequencesToAlign,
@@ -478,49 +478,49 @@ stSortedSet *getReferencePairwiseAlignments2(stList *seqs) {
  * Following functions used to for distance matrix calculated from MSA, represented as a set of columns.
  */
 
-int32_t *getValue(int32_t seq1, int32_t seq2, int32_t *distanceCounts, int32_t seqNo) {
+int64_t *getValue(int64_t seq1, int64_t seq2, int64_t *distanceCounts, int64_t seqNo) {
     return &distanceCounts[seq1 * seqNo + seq2];
 }
 
-int32_t *getSubs(int32_t seq1, int32_t seq2, int32_t *distanceCounts, int32_t seqNo) {
+int64_t *getSubs(int64_t seq1, int64_t seq2, int64_t *distanceCounts, int64_t seqNo) {
     return seq1 > seq2 ? getValue(seq1, seq2, distanceCounts, seqNo) : getValue(seq2, seq1, distanceCounts, seqNo);
 }
 
-int32_t *getNonSubs(int32_t seq1, int32_t seq2, int32_t *distanceCounts, int32_t seqNo) {
+int64_t *getNonSubs(int64_t seq1, int64_t seq2, int64_t *distanceCounts, int64_t seqNo) {
     return seq1 < seq2 ? getValue(seq1, seq2, distanceCounts, seqNo) : getValue(seq2, seq1, distanceCounts, seqNo);
 }
 
-double subsPerSite(int32_t seq1, int32_t seq2, int32_t *distanceCounts, int32_t seqNo) {
+double subsPerSite(int64_t seq1, int64_t seq2, int64_t *distanceCounts, int64_t seqNo) {
     /*
      * Returns subs/(subs + identity sites).
      */
-    int32_t subs = *getSubs(seq1, seq2, distanceCounts, seqNo);
-    int32_t identities = *getNonSubs(seq1, seq2, distanceCounts, seqNo);
+    int64_t subs = *getSubs(seq1, seq2, distanceCounts, seqNo);
+    int64_t identities = *getNonSubs(seq1, seq2, distanceCounts, seqNo);
     return (subs + identities == 0) ? 0.0 : subs / ((double) subs + identities);
 }
 
-int32_t *getDistanceMatrix(stSet *columns, stList *seqs, int64_t maxPairsToConsider) {
+int64_t *getDistanceMatrix(stSet *columns, stList *seqs, int64_t maxPairsToConsider) {
     /*
      * Builds a distance matrix from the deepest 'columnsToConsider' columns.
      * Return matrix has for each pair of seqs number of substitutions observed in the alignment
      * and number of identity sights, i.e. sights that have remained the same.
      * Stops calculating pairs when number of pairs of sequence positions compared exceeds maxPairsToConsider
      */
-    int32_t *distanceCounts = st_calloc((int64_t) stList_length(seqs) * stList_length(seqs), sizeof(int32_t));
+    int64_t *distanceCounts = st_calloc((int64_t) stList_length(seqs) * stList_length(seqs), sizeof(int64_t));
     stSetIterator *setIt = stSet_getIterator(columns);
     Column *c;
-    int32_t seqNo = stList_length(seqs);
+    int64_t seqNo = stList_length(seqs);
     int64_t pairsConsidered = 0;
     while ((c = stSet_getNext(setIt)) != NULL && pairsConsidered < maxPairsToConsider) {
         Column *c1 = c;
         do {
-            int32_t seq1 = c1->seqName;
+            int64_t seq1 = c1->seqName;
             char base1 = ((char *) stList_get(seqs, seq1))[c1->position];
             Column *c2 = c1->nColumn;
             while (c2 != NULL) {
-                int32_t seq2 = c2->seqName;
+                int64_t seq2 = c2->seqName;
                 char base2 = ((char *) stList_get(seqs, seq2))[c2->position];
-                (*(int32_t *) (base1 == base2 ? getNonSubs : getSubs)(seq1, seq2, distanceCounts, seqNo))++;
+                (*(int64_t *) (base1 == base2 ? getNonSubs : getSubs)(seq1, seq2, distanceCounts, seqNo))++;
                 c2 = c2->nColumn;
                 pairsConsidered++;
             }
@@ -531,7 +531,7 @@ int32_t *getDistanceMatrix(stSet *columns, stList *seqs, int64_t maxPairsToConsi
     return distanceCounts;
 }
 
-stGraph *makeAdjacencyList(int32_t *distanceCounts, int32_t seqNo, stSortedSet *chosenPairsOfSequencesToAlign) {
+stGraph *makeAdjacencyList(int64_t *distanceCounts, int64_t seqNo, stSortedSet *chosenPairsOfSequencesToAlign) {
     /*
      * Creates a graph in which the seqs are the vertices and the edges are the chosen pairwise alignments, with
      * weights that are equal to the number of subs per site.
@@ -540,15 +540,15 @@ stGraph *makeAdjacencyList(int32_t *distanceCounts, int32_t seqNo, stSortedSet *
     stSortedSetIterator *pairIt = stSortedSet_getIterator(chosenPairsOfSequencesToAlign);
     stIntTuple *pairToAlign;
     while ((pairToAlign = stSortedSet_getNext(pairIt)) != NULL) {
-        int32_t seq1 = stIntTuple_getPosition(pairToAlign, 0);
-        int32_t seq2 = stIntTuple_getPosition(pairToAlign, 1);
+        int64_t seq1 = stIntTuple_getPosition(pairToAlign, 0);
+        int64_t seq2 = stIntTuple_getPosition(pairToAlign, 1);
         stGraph_addEdge(g, seq1, seq2, subsPerSite(seq1, seq2, distanceCounts, seqNo));
     }
     stSortedSet_destructIterator(pairIt);
     return g;
 }
 
-int32_t getNextBestPair(int32_t seq1, int32_t *distanceCounts, int32_t seqNo, stSortedSet *chosenPairsOfSequencesToAlign) {
+int64_t getNextBestPair(int64_t seq1, int64_t *distanceCounts, int64_t seqNo, stSortedSet *chosenPairsOfSequencesToAlign) {
     /*
      * Selects the best next pairwise alignment for seq1 to compute, which we define as the alignment where the difference
      * between the current path of alignments and the predicted pairwise alignment distance is greatest.
@@ -557,8 +557,8 @@ int32_t getNextBestPair(int32_t seq1, int32_t *distanceCounts, int32_t seqNo, st
     stGraph *graph = makeAdjacencyList(distanceCounts, seqNo, chosenPairsOfSequencesToAlign);
     double *distances = stGraph_shortestPaths(graph, seq1);
     double maxGain = INT64_MIN;
-    int32_t maxGainSeq = INT32_MAX;
-    for (int32_t seq2 = 0; seq2 < seqNo; seq2++) {
+    int64_t maxGainSeq = INT64_MAX;
+    for (int64_t seq2 = 0; seq2 < seqNo; seq2++) {
         if (seq1 != seq2) {
             double gain = distances[seq2] - subsPerSite(seq1, seq2, distanceCounts, seqNo);
             if (gain > maxGain) {
@@ -572,7 +572,7 @@ int32_t getNextBestPair(int32_t seq1, int32_t *distanceCounts, int32_t seqNo, st
     return maxGainSeq;
 }
 
-stList *makeAlignment(stList *seqs, int32_t spanningTrees, int64_t maxPairsToConsider, float gapGamma,
+stList *makeAlignment(stList *seqs, int64_t spanningTrees, int64_t maxPairsToConsider, float gapGamma,
         PairwiseAlignmentParameters *pairwiseAlignmentBandingParameters) {
     /*
      * Computes an MSA, making up to "spanningTrees"*no of seqs pairwise alignments.
@@ -580,7 +580,7 @@ stList *makeAlignment(stList *seqs, int32_t spanningTrees, int64_t maxPairsToCon
     if (spanningTrees == 0) {
         return stList_construct();
     }
-    int32_t seqNo = stList_length(seqs);
+    int64_t seqNo = stList_length(seqs);
     if (spanningTrees * (seqNo - 1) >= (seqNo * (seqNo - 1)) / 2) { //Do all pairs if we can
         return makeAlignmentUsingAllPairs(seqs, gapGamma, pairwiseAlignmentBandingParameters);
     }
@@ -601,7 +601,7 @@ stList *makeAlignment(stList *seqs, int32_t spanningTrees, int64_t maxPairsToCon
         //We are done
         return multipleAlignedPairs;
     }
-    int32_t iteration = 1;
+    int64_t iteration = 1;
     bool checkConsistency = 0; //The first alignment of multiple aligned pairs is already consistent
     while (1) {
         stSet *columns = getMultipleSequenceAlignment(seqs, multipleAlignedPairs, gapGamma, checkConsistency);
@@ -612,11 +612,11 @@ stList *makeAlignment(stList *seqs, int32_t spanningTrees, int64_t maxPairsToCon
             stList_destruct(discardedMultipleAlignedPairs);
             return multipleAlignedPairs;
         }
-        int32_t *distanceCounts = getDistanceMatrix(columns, seqs, maxPairsToConsider);
+        int64_t *distanceCounts = getDistanceMatrix(columns, seqs, maxPairsToConsider);
         stSet_destruct(columns);
-        for (int32_t seq = 0; seq < stList_length(seqs); seq++) {
-            int32_t otherSeq = getNextBestPair(seq, distanceCounts, seqNo, chosenPairsOfSequencesToAlign);
-            if (otherSeq != INT32_MAX) {
+        for (int64_t seq = 0; seq < stList_length(seqs); seq++) {
+            int64_t otherSeq = getNextBestPair(seq, distanceCounts, seqNo, chosenPairsOfSequencesToAlign);
+            if (otherSeq != INT64_MAX) {
                 assert(seq != otherSeq);
                 stIntTuple *pairToAlign = makePairToAlign(seq, otherSeq);
                 if (stSortedSet_search(chosenPairsOfSequencesToAlign, pairToAlign) == NULL) {

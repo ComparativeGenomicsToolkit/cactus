@@ -19,21 +19,17 @@ void binaryRepresentation_writeElementType(char elementCode, void (*writeFn)(con
 }
 
 void binaryRepresentation_writeString(const char *name, void (*writeFn)(const void * ptr, size_t size, size_t count)) {
-	int32_t i = strlen(name);
-	writeFn(&i, sizeof(int32_t), 1);
+	int64_t i = strlen(name);
+	writeFn(&i, sizeof(int64_t), 1);
 	writeFn(name, sizeof(char), i);
 }
 
-void binaryRepresentation_writeInteger(int32_t i, void (*writeFn)(const void * ptr, size_t size, size_t count)) {
-	writeFn(&i, sizeof(int32_t), 1);
-}
-
-void binaryRepresentation_write64BitInteger(int64_t i, void (*writeFn)(const void * ptr, size_t size, size_t count)) {
+void binaryRepresentation_writeInteger(int64_t i, void (*writeFn)(const void * ptr, size_t size, size_t count)) {
 	writeFn(&i, sizeof(int64_t), 1);
 }
 
 void binaryRepresentation_writeName(Name name, void (*writeFn)(const void * ptr, size_t size, size_t count)) {
-	binaryRepresentation_write64BitInteger(name, writeFn);
+	binaryRepresentation_writeInteger(name, writeFn);
 }
 
 void binaryRepresentation_writeFloat(float f, void (*writeFn)(const void * ptr, size_t size, size_t count)) {
@@ -56,7 +52,7 @@ char binaryRepresentation_popNextElementType(void **binaryString) {
 }
 
 char *binaryRepresentation_getString(void **binaryString) {
-	int32_t i;
+	int64_t i;
 	char *cA;
 	i = binaryRepresentation_getInteger(binaryString);
 	cA = st_malloc(sizeof(char)*(i+1));
@@ -75,14 +71,7 @@ const char *binaryRepresentation_getStringStatic(void **binaryString) {
 	return binaryRepresentation_getStringStatic_cA;
 }
 
-int32_t binaryRepresentation_getInteger(void **binaryString) {
-	int32_t *i;
-	i = *binaryString;
-	*binaryString = i + 1;
-	return *i;
-}
-
-int64_t binaryRepresentation_get64BitInteger(void **binaryString) {
+int64_t binaryRepresentation_getInteger(void **binaryString) {
 	int64_t *i;
 	i = *binaryString;
 	*binaryString = i + 1;
@@ -90,7 +79,7 @@ int64_t binaryRepresentation_get64BitInteger(void **binaryString) {
 }
 
 Name binaryRepresentation_getName(void **binaryString) {
-	return binaryRepresentation_get64BitInteger(binaryString);
+	return binaryRepresentation_getInteger(binaryString);
 }
 
 float binaryRepresentation_getFloat(void **binaryString) {

@@ -22,7 +22,7 @@ stKVDatabaseConf *testCommon_getTemporaryKVDatabaseConf() {
 }
 
 void testCommon_deleteTemporaryKVDatabase() {
-    int32_t i = system("rm -rf temporaryCactusDisk");
+    int64_t i = system("rm -rf temporaryCactusDisk");
     exitOnFailure(i, "Tried to delete the temporary KV database\n");
 }
 
