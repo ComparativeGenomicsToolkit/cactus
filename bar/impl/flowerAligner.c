@@ -266,9 +266,9 @@ static int64_t findFirstNonStubAlignment(stList *inducedAlignment, bool reverse,
                 (int64_t) alignedPair->reverse->position, INT64_MAX);
         stIntTuple *l = stSortedSet_searchLessThanOrEqual(freeStubAdjacencySequences, k);
         stIntTuple_destruct(k);
-        if (l != NULL && alignedPair->reverse->subsequenceIdentifier == stIntTuple_getPosition(l, 0)
-                && alignedPair->reverse->position < stIntTuple_getPosition(l, 2)) {
-            assert(stIntTuple_getPosition(l, 1) <= alignedPair->reverse->position);
+        if (l != NULL && alignedPair->reverse->subsequenceIdentifier == stIntTuple_get(l, 0)
+                && alignedPair->reverse->position < stIntTuple_get(l, 2)) {
+            assert(stIntTuple_get(l, 1) <= alignedPair->reverse->position);
             continue;
         }
         assert(j != -1);

@@ -199,7 +199,7 @@ refAdjList *calculateZ(Flower *flower, stHash *endsToNodes, int64_t nodeNumber, 
                         Cap *_3Cap = stList_get(caps, i);
                         assert(!cap_getSide(_3Cap));
                         int64_t _3CapSize = capSizes[i];
-                        int64_t _3Node = stIntTuple_getPosition(stHash_search(endsToNodes, end_getPositiveOrientation(cap_getEnd(_3Cap))),
+                        int64_t _3Node = stIntTuple_get(stHash_search(endsToNodes, end_getPositiveOrientation(cap_getEnd(_3Cap))),
                                 0);
                         for (int64_t k = 0; k < maxWalkForCalculatingZ; k++) {
                             int64_t j = k * 2 + i + 1;
@@ -208,7 +208,7 @@ refAdjList *calculateZ(Flower *flower, stHash *endsToNodes, int64_t nodeNumber, 
                             }
                             Cap *_5Cap = stList_get(caps, j);
                             assert(cap_getSide(_5Cap));
-                            int64_t _5Node = stIntTuple_getPosition(
+                            int64_t _5Node = stIntTuple_get(
                                     stHash_search(endsToNodes, end_getPositiveOrientation(cap_getEnd(_5Cap))), 0);
                             int64_t _5CapSize = capSizes[j];
                             int64_t diff = cap_getCoordinate(_5Cap) - cap_getCoordinate(_3Cap);
@@ -431,8 +431,8 @@ static void getStubEdgesFromParent(reference *ref, Flower *flower, Event *refere
             assert(end_getOrientation(adjacentEnd));
             stSortedSet_insert(endsSeen, end);
             stSortedSet_insert(endsSeen, adjacentEnd);
-            reference_makeNewInterval(ref, stIntTuple_getPosition(stHash_search(endsToNodes, end), 0),
-                    stIntTuple_getPosition(stHash_search(endsToNodes, adjacentEnd), 0));
+            reference_makeNewInterval(ref, stIntTuple_get(stHash_search(endsToNodes, end), 0),
+                    stIntTuple_get(stHash_search(endsToNodes, adjacentEnd), 0));
         }
     }
     stSortedSet_destruct(endsSeen);
@@ -458,9 +458,9 @@ static void getStubEdgesInTopLevelFlower(reference *ref, Flower *flower, stHash 
 
     stList *adjacencyEdges = stList_construct3(0, (void(*)(void *)) stIntTuple_destruct);
     for (int64_t i = 0; i < stList_length(stubEnds); i++) {
-        int64_t node1 = stIntTuple_getPosition(stHash_search(endsToNodes, stList_get(stubEnds, i)), 0);
+        int64_t node1 = stIntTuple_get(stHash_search(endsToNodes, stList_get(stubEnds, i)), 0);
         for (int64_t j = i + 1; j < stList_length(stubEnds); j++) {
-            int64_t node2 = stIntTuple_getPosition(stHash_search(endsToNodes, stList_get(stubEnds, j)), 0);
+            int64_t node2 = stIntTuple_get(stHash_search(endsToNodes, stList_get(stubEnds, j)), 0);
             double score = refAdjList_getWeight(stubAL, node1, node2);
             assert(score >= 0);
             int64_t score2 = score > INT64_MAX ? INT64_MAX : score;
@@ -475,7 +475,7 @@ static void getStubEdgesInTopLevelFlower(reference *ref, Flower *flower, stHash 
     for (int64_t i = 0; i < stList_length(chosenAdjacencyEdges); i++) {
         stIntTuple *adjacencyEdge = stList_get(chosenAdjacencyEdges, i);
         assert(stIntTuple_length(adjacencyEdge) == 3);
-        reference_makeNewInterval(ref, stIntTuple_getPosition(adjacencyEdge, 0), stIntTuple_getPosition(adjacencyEdge, 1));
+        reference_makeNewInterval(ref, stIntTuple_get(adjacencyEdge, 0), stIntTuple_get(adjacencyEdge, 1));
     }
 
     stHash_destruct(stubEndsToNodes);
@@ -622,8 +622,8 @@ static stHash *getEndsToEnds(Flower *flower, stList *chosenAdjacencyEdges, stHas
     stHash *endsToEnds = stHash_construct();
     for (int64_t i = 0; i < stList_length(chosenAdjacencyEdges); i++) {
         stIntTuple *edge = stList_get(chosenAdjacencyEdges, i);
-        End *end1 = getEndFromNode(nodesToEnds, stIntTuple_getPosition(edge, 0));
-        End *end2 = getEndFromNode(nodesToEnds, stIntTuple_getPosition(edge, 1));
+        End *end1 = getEndFromNode(nodesToEnds, stIntTuple_get(edge, 0));
+        End *end2 = getEndFromNode(nodesToEnds, stIntTuple_get(edge, 1));
         assert(end1 != NULL);
         assert(end2 != NULL);
         assert(end1 != end2);

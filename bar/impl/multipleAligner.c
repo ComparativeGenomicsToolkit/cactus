@@ -138,10 +138,10 @@ stHash *makeAlignmentWeightAdjacencyLists(stSet *columns, stList *multipleAligne
         /*Tuple of score, seq1, pos1, seq2, pos2 */
         stIntTuple *aP = stList_get(multipleAlignedPairs, i);
         assert(stIntTuple_length(aP) == 5);
-        AlignmentWeight *aW = makeAlignmentWeight(columns, stIntTuple_getPosition(aP, 0), stIntTuple_getPosition(aP, 1),
-                stIntTuple_getPosition(aP, 2));
-        aW->rWeight = makeAlignmentWeight(columns, stIntTuple_getPosition(aP, 0), stIntTuple_getPosition(aP, 3),
-                stIntTuple_getPosition(aP, 4));
+        AlignmentWeight *aW = makeAlignmentWeight(columns, stIntTuple_get(aP, 0), stIntTuple_get(aP, 1),
+                stIntTuple_get(aP, 2));
+        aW->rWeight = makeAlignmentWeight(columns, stIntTuple_get(aP, 0), stIntTuple_get(aP, 3),
+                stIntTuple_get(aP, 4));
         aW->rWeight->rWeight = aW;
         insertWeight(aW, alignmentWeightAdjLists);
         insertWeight(aW->rWeight, alignmentWeightAdjLists);
@@ -309,8 +309,8 @@ static stList *filterMultipleAlignedPairs(stSet *columns, stList *multipleAligne
     stList *filteredMultipleAlignedPairs = stList_construct3(0, (void(*)(void *)) stIntTuple_destruct);
     while (stList_length(multipleAlignedPairs) > 0) {
         stIntTuple *mAP = stList_pop(multipleAlignedPairs);
-        if (getColumn2(positionsToColumns, stIntTuple_getPosition(mAP, 1), stIntTuple_getPosition(mAP, 2)) == getColumn2(
-                positionsToColumns, stIntTuple_getPosition(mAP, 3), stIntTuple_getPosition(mAP, 4))) {
+        if (getColumn2(positionsToColumns, stIntTuple_get(mAP, 1), stIntTuple_get(mAP, 2)) == getColumn2(
+                positionsToColumns, stIntTuple_get(mAP, 3), stIntTuple_get(mAP, 4))) {
             stList_append(filteredMultipleAlignedPairs, mAP);
         } else {
             stIntTuple_destruct(mAP);
@@ -343,9 +343,9 @@ static stList *filterPairwiseAlignmentToMakePairsOrdered(stList *alignedPairs, f
     stList *l = stList_construct();
     while(stList_length(alignedPairs) > 0) {
         stIntTuple *alignedPair = stList_pop(alignedPairs);
-        if (((double)stIntTuple_getPosition(alignedPair, 0)) / PAIR_ALIGNMENT_PROB_1 >= gapGamma &&
-                stPosetAlignment_add(posetAlignment, 0, stIntTuple_getPosition(alignedPair, 1), 1,
-                        stIntTuple_getPosition(alignedPair, 2))) {
+        if (((double)stIntTuple_get(alignedPair, 0)) / PAIR_ALIGNMENT_PROB_1 >= gapGamma &&
+                stPosetAlignment_add(posetAlignment, 0, stIntTuple_get(alignedPair, 1), 1,
+                        stIntTuple_get(alignedPair, 2))) {
             stList_append(l, alignedPair);
         }
         else {
@@ -365,9 +365,9 @@ static void convertToMultipleAlignedPairs(stList *alignedPairs, stList *multiple
     while (stList_length(alignedPairs) > 0) {
         stIntTuple *alignedPair = (stIntTuple *) stList_pop(alignedPairs);
         stList_append(multipleAlignedPairs, stIntTuple_construct5(
-        /* score */stIntTuple_getPosition(alignedPair, 0), //(int64_t)(stIntTuple_getPosition(alignedPair, 0) * alignmentScore),
-                /* seq 1 */sequence1, stIntTuple_getPosition(alignedPair, 1),
-                /* seq 2 */sequence2, stIntTuple_getPosition(alignedPair, 2)));
+        /* score */stIntTuple_get(alignedPair, 0), //(int64_t)(stIntTuple_getPosition(alignedPair, 0) * alignmentScore),
+                /* seq 1 */sequence1, stIntTuple_get(alignedPair, 1),
+                /* seq 2 */sequence2, stIntTuple_get(alignedPair, 2)));
         stIntTuple_destruct(alignedPair);
     }
     stList_destruct(alignedPairs);
@@ -454,7 +454,7 @@ stList *getReferencePairwiseAlignments(stList *seqs) {
             stIntTuple *j = stList_get(l, i);
             if (k != j) {
                 stList_append(chosenPairsOfSequencesToAlign,
-                        makePairToAlign(stIntTuple_getPosition(j, 1), stIntTuple_getPosition(k, 1)));
+                        makePairToAlign(stIntTuple_get(j, 1), stIntTuple_get(k, 1)));
             }
         }
     }
@@ -540,8 +540,8 @@ stGraph *makeAdjacencyList(int64_t *distanceCounts, int64_t seqNo, stSortedSet *
     stSortedSetIterator *pairIt = stSortedSet_getIterator(chosenPairsOfSequencesToAlign);
     stIntTuple *pairToAlign;
     while ((pairToAlign = stSortedSet_getNext(pairIt)) != NULL) {
-        int64_t seq1 = stIntTuple_getPosition(pairToAlign, 0);
-        int64_t seq2 = stIntTuple_getPosition(pairToAlign, 1);
+        int64_t seq1 = stIntTuple_get(pairToAlign, 0);
+        int64_t seq2 = stIntTuple_get(pairToAlign, 1);
         stGraph_addEdge(g, seq1, seq2, subsPerSite(seq1, seq2, distanceCounts, seqNo));
     }
     stSortedSet_destructIterator(pairIt);
@@ -591,7 +591,7 @@ stList *makeAlignment(stList *seqs, int64_t spanningTrees, int64_t maxPairsToCon
     stIntTuple *pairToAlign;
     while ((pairToAlign = stSortedSet_getNext(pairIt)) != NULL) {
         //We get pairwise alignments, for this first alignment we filter the pairs greedily to make them consistent
-        addMultipleAlignedPairsFilteringInconsistentPairs(stIntTuple_getPosition(pairToAlign, 0), stIntTuple_getPosition(pairToAlign, 1),
+        addMultipleAlignedPairsFilteringInconsistentPairs(stIntTuple_get(pairToAlign, 0), stIntTuple_get(pairToAlign, 1),
                 seqs, multipleAlignedPairs, discardedMultipleAlignedPairs, gapGamma, pairwiseAlignmentBandingParameters);
     }
     stSortedSet_destructIterator(pairIt);

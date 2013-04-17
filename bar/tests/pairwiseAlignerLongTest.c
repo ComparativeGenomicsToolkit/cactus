@@ -62,11 +62,11 @@ static void test_pairwiseAligner(CuTest *testCase, char *seq1, char *seq2, char 
     for (int64_t i = 0; i < stList_length(alignedPairs); i++) {
         stIntTuple *alignedPair = stList_get(alignedPairs, i);
         CuAssertTrue(testCase, stIntTuple_length(alignedPair) == 5);
-        int64_t score = stIntTuple_getPosition(alignedPair, 0);
-        int64_t seqX = stIntTuple_getPosition(alignedPair, 1);
-        int64_t x = stIntTuple_getPosition(alignedPair, 2);
-        int64_t seqY = stIntTuple_getPosition(alignedPair, 3);
-        int64_t y = stIntTuple_getPosition(alignedPair, 4);
+        int64_t score = stIntTuple_get(alignedPair, 0);
+        int64_t seqX = stIntTuple_get(alignedPair, 1);
+        int64_t x = stIntTuple_get(alignedPair, 2);
+        int64_t seqY = stIntTuple_get(alignedPair, 3);
+        int64_t y = stIntTuple_get(alignedPair, 4);
         if(score < 0.9 * PAIR_ALIGNMENT_PROB_1) {
             //st_logInfo("I have a pair with less than 0.1 prob: %" PRIi64 " %" PRIi64 " %f\n", x, y, (float)score / PAIR_ALIGNMENT_PROB_1);
         }

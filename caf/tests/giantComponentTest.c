@@ -60,8 +60,8 @@ static stHash *getComponents(stList *filteredEdges) {
     }
     for (int64_t i = 0; i < stList_length(filteredEdges); i++) {
         stIntTuple *edge = stList_get(filteredEdges, i);
-        stIntTuple *node1 = stIntTuple_construct1( stIntTuple_getPosition(edge, 1));
-        stIntTuple *node2 = stIntTuple_construct1( stIntTuple_getPosition(edge, 2));
+        stIntTuple *node1 = stIntTuple_construct1( stIntTuple_get(edge, 1));
+        stIntTuple *node2 = stIntTuple_construct1( stIntTuple_get(edge, 2));
         stSortedSet *component1 = stHash_search(nodesToComponents, node1);
         stSortedSet *component2 = stHash_search(nodesToComponents, node2);
         assert(component1 != NULL && component2 != NULL);
@@ -96,8 +96,8 @@ static void checkComponents(CuTest *testCase, stList *filteredEdges) {
     for (int64_t i = 0; i < stList_length(edges); i++) {
         stIntTuple *edge = stList_get(edges, i);
         if (stSortedSet_search(filteredEdgesSet, edge) == NULL) {
-            stIntTuple *node1 = stIntTuple_construct1( stIntTuple_getPosition(edge, 1));
-            stIntTuple *node2 = stIntTuple_construct1( stIntTuple_getPosition(edge, 2));
+            stIntTuple *node1 = stIntTuple_construct1( stIntTuple_get(edge, 1));
+            stIntTuple *node2 = stIntTuple_construct1( stIntTuple_get(edge, 2));
             stSortedSet *component1 = stHash_search(nodesToComponents, node1);
             stSortedSet *component2 = stHash_search(nodesToComponents, node2);
             CuAssertTrue(testCase, component1 != NULL && component2 != NULL);

@@ -150,8 +150,8 @@ Band *band_construct(stList *anchorPairs, int64_t lX, int64_t lY, int64_t expans
             int64_t x = lX, y = lY;
             if (anchorPairIndex < stList_length(anchorPairs)) {
                 stIntTuple *anchorPair = stList_get(anchorPairs, anchorPairIndex++);
-                x = stIntTuple_getPosition(anchorPair, 0) + 1; //Plus ones, because matrix coordinates are +1 the sequence ones
-                y = stIntTuple_getPosition(anchorPair, 1) + 1;
+                x = stIntTuple_get(anchorPair, 0) + 1; //Plus ones, because matrix coordinates are +1 the sequence ones
+                y = stIntTuple_get(anchorPair, 1) + 1;
 
                 //Check the anchor pairs
                 assert(x > diagonal_getXCoordinate(pxay, pxmy));
@@ -804,8 +804,8 @@ stList *getAlignedPairsWithBanding(stList *anchorPairs, const SymbolString sX, c
 ///////////////////////////////////
 
 static int sortByXPlusYCoordinate(const void *i, const void *j) {
-    int64_t k = stIntTuple_getPosition((stIntTuple *) i, 0) + stIntTuple_getPosition((stIntTuple *) i, 1);
-    int64_t l = stIntTuple_getPosition((stIntTuple *) j, 0) + stIntTuple_getPosition((stIntTuple *) j, 1);
+    int64_t k = stIntTuple_get((stIntTuple *) i, 0) + stIntTuple_get((stIntTuple *) i, 1);
+    int64_t l = stIntTuple_get((stIntTuple *) j, 0) + stIntTuple_get((stIntTuple *) j, 1);
     return k > l ? 1 : (k < l ? -1 : 0);
 }
 
@@ -921,7 +921,7 @@ static void convertBlastPairs(stList *alignedPairs2, int64_t offsetX, int64_t of
         stIntTuple *i = stList_get(alignedPairs2, k);
         assert(stIntTuple_length(i) == 2);
         stList_set(alignedPairs2, k,
-                stIntTuple_construct2( stIntTuple_getPosition(i, 0) + offsetX, stIntTuple_getPosition(i, 1) + offsetY));
+                stIntTuple_construct2( stIntTuple_get(i, 0) + offsetX, stIntTuple_get(i, 1) + offsetY));
         stIntTuple_destruct(i);
     }
 }
@@ -936,8 +936,8 @@ stList *filterToRemoveOverlap(stList *sortedOverlappingPairs) {
     int64_t pX = INT64_MAX, pY = INT64_MAX;
     for (int64_t i = stList_length(sortedOverlappingPairs) - 1; i >= 0; i--) {
         stIntTuple *pair = stList_get(sortedOverlappingPairs, i);
-        int64_t x = stIntTuple_getPosition(pair, 0);
-        int64_t y = stIntTuple_getPosition(pair, 1);
+        int64_t x = stIntTuple_get(pair, 0);
+        int64_t y = stIntTuple_get(pair, 1);
         if (x < pX && y < pY) {
             stSortedSet_insert(set, pair);
         }
@@ -951,8 +951,8 @@ stList *filterToRemoveOverlap(stList *sortedOverlappingPairs) {
     int64_t pY2 = INT64_MIN;
     for (int64_t i = 0; i < stList_length(sortedOverlappingPairs); i++) {
         stIntTuple *pair = stList_get(sortedOverlappingPairs, i);
-        int64_t x = stIntTuple_getPosition(pair, 0);
-        int64_t y = stIntTuple_getPosition(pair, 1);
+        int64_t x = stIntTuple_get(pair, 0);
+        int64_t y = stIntTuple_get(pair, 1);
         if (x > pX && y > pY && stSortedSet_search(set, pair) != NULL) {
             stList_append(nonOverlappingPairs, stIntTuple_construct2( x, y));
         }
@@ -1013,8 +1013,8 @@ stList *getBlastPairsForPairwiseAlignmentParameters(const char *sX, const char *
     stList *combinedAnchorPairs = stList_construct3(0, (void(*)(void *)) stIntTuple_destruct);
     for (int64_t i = 0; i < stList_length(topLevelAnchorPairs); i++) {
         stIntTuple *anchorPair = stList_get(topLevelAnchorPairs, i);
-        int64_t x = stIntTuple_getPosition(anchorPair, 0);
-        int64_t y = stIntTuple_getPosition(anchorPair, 1);
+        int64_t x = stIntTuple_get(anchorPair, 0);
+        int64_t y = stIntTuple_get(anchorPair, 1);
         assert(x >= 0 && x < lX);
         assert(y >= 0 && y < lY);
         assert(x >= pX);
@@ -1062,7 +1062,7 @@ stList *getSplitPoints(stList *anchorPairs, int64_t lX, int64_t lY, int64_t spli
     stList *splitPoints = stList_construct3(0, (void(*)(void *)) stIntTuple_destruct);
     for (int64_t i = 0; i < stList_length(anchorPairs); i++) {
         stIntTuple *anchorPair = stList_get(anchorPairs, i);
-        int64_t x3 = stIntTuple_getPosition(anchorPair, 0), y3 = stIntTuple_getPosition(anchorPair, 1);
+        int64_t x3 = stIntTuple_get(anchorPair, 0), y3 = stIntTuple_get(anchorPair, 1);
         getSplitPointsP(&x1, &y1, x2, y2, x3, y3, splitPoints, splitMatrixBiggerThanThis);
         assert(x3 >= x2);
         assert(y3 >= y2);
@@ -1090,8 +1090,8 @@ static void convertAlignedPairs(stList *alignedPairs2, int64_t offsetX, int64_t 
         stList_set(
                 alignedPairs2,
                 k,
-                stIntTuple_construct3( stIntTuple_getPosition(i, 0), stIntTuple_getPosition(i, 1) + offsetX,
-                        stIntTuple_getPosition(i, 2) + offsetY));
+                stIntTuple_construct3( stIntTuple_get(i, 0), stIntTuple_get(i, 1) + offsetX,
+                        stIntTuple_get(i, 2) + offsetY));
         stIntTuple_destruct(i);
     }
 }
@@ -1104,10 +1104,10 @@ stList *splitAlignmentsByLargeGaps(stList *anchorPairs, const char *sX, const ch
     //Now to the actual alignments
     for (int64_t i = 0; i < stList_length(splitPoints); i++) {
         stIntTuple *subRegion = stList_get(splitPoints, i);
-        int64_t x1 = stIntTuple_getPosition(subRegion, 0);
-        int64_t y1 = stIntTuple_getPosition(subRegion, 1);
-        int64_t x2 = stIntTuple_getPosition(subRegion, 2);
-        int64_t y2 = stIntTuple_getPosition(subRegion, 3);
+        int64_t x1 = stIntTuple_get(subRegion, 0);
+        int64_t y1 = stIntTuple_get(subRegion, 1);
+        int64_t x2 = stIntTuple_get(subRegion, 2);
+        int64_t y2 = stIntTuple_get(subRegion, 3);
 
         //Sub sequences
         char *sX2 = stString_getSubString(sX, x1, x2 - x1);
@@ -1119,8 +1119,8 @@ stList *splitAlignmentsByLargeGaps(stList *anchorPairs, const char *sX, const ch
         stList *subListOfAnchorPoints = stList_construct3(0, (void(*)(void *)) stIntTuple_destruct);
         while (j < stList_length(anchorPairs)) {
             stIntTuple *anchorPair = stList_get(anchorPairs, j);
-            int64_t x = stIntTuple_getPosition(anchorPair, 0);
-            int64_t y = stIntTuple_getPosition(anchorPair, 1);
+            int64_t x = stIntTuple_get(anchorPair, 0);
+            int64_t y = stIntTuple_get(anchorPair, 1);
             int64_t xay = x + y;
             assert(xay >= x1 + y1);
             if (xay >= x2 + y2) {

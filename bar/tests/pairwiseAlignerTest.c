@@ -299,8 +299,8 @@ static void test_diagonalDPCalculations(CuTest *testCase) {
 
     for (int64_t i = 0; i < stList_length(alignedPairs); i++) {
         stIntTuple *pair = stList_get(alignedPairs, i);
-        int64_t x = stIntTuple_getPosition(pair, 1), y = stIntTuple_getPosition(pair, 2);
-        st_logInfo("Pair %f %" PRIi64 " %" PRIi64 "\n", (float) stIntTuple_getPosition(pair, 0) / PAIR_ALIGNMENT_PROB_1, x, y);
+        int64_t x = stIntTuple_get(pair, 1), y = stIntTuple_get(pair, 2);
+        st_logInfo("Pair %f %" PRIi64 " %" PRIi64 "\n", (float) stIntTuple_get(pair, 0) / PAIR_ALIGNMENT_PROB_1, x, y);
         CuAssertTrue(testCase, stSortedSet_search(alignedPairsSet, stIntTuple_construct2( x, y)) != NULL);
     }
     CuAssertIntEquals(testCase, stList_length(alignedPairs), 4);
@@ -332,9 +332,9 @@ static void checkAlignedPairs(CuTest *testCase, stList *blastPairs, int64_t lX, 
         stIntTuple *j = stList_get(blastPairs, i);
         CuAssertTrue(testCase, stIntTuple_length(j) == 3);
 
-        int64_t x = stIntTuple_getPosition(j, 1);
-        int64_t y = stIntTuple_getPosition(j, 2);
-        int64_t score = stIntTuple_getPosition(j, 0);
+        int64_t x = stIntTuple_get(j, 1);
+        int64_t y = stIntTuple_get(j, 2);
+        int64_t score = stIntTuple_get(j, 0);
         CuAssertTrue(testCase, score > 0);
         CuAssertTrue(testCase, score <= PAIR_ALIGNMENT_PROB_1);
 
@@ -390,8 +390,8 @@ static void checkBlastPairs(CuTest *testCase, stList *blastPairs, int64_t lX, in
         stIntTuple *j = stList_get(blastPairs, i);
         CuAssertTrue(testCase, stIntTuple_length(j) == 2);
 
-        int64_t x = stIntTuple_getPosition(j, 0);
-        int64_t y = stIntTuple_getPosition(j, 1);
+        int64_t x = stIntTuple_get(j, 0);
+        int64_t y = stIntTuple_get(j, 1);
 
         CuAssertTrue(testCase, x >= 0);
         CuAssertTrue(testCase, y >= 0);
@@ -455,13 +455,13 @@ static void test_filterToRemoveOverlap(CuTest *testCase) {
         stList *nonoverlappingPairs2 = stList_construct();
         for(int64_t i=0; i<stList_length(pairs); i++) {
             stIntTuple *pair = stList_get(pairs, i);
-            int64_t x = stIntTuple_getPosition(pair, 0);
-            int64_t y = stIntTuple_getPosition(pair, 1);
+            int64_t x = stIntTuple_get(pair, 0);
+            int64_t y = stIntTuple_get(pair, 1);
             bool nonOverlapping = 1;
             for(int64_t j=0; j<stList_length(pairs); j++) {
                 stIntTuple *pair2 = stList_get(pairs, j);
-                int64_t x2 = stIntTuple_getPosition(pair2, 0);
-                int64_t y2 = stIntTuple_getPosition(pair2, 1);
+                int64_t x2 = stIntTuple_get(pair2, 0);
+                int64_t y2 = stIntTuple_get(pair2, 1);
                 if((x2 <= x && y2 >= y) || (x2 >= x && y2 <= y)) {
                     nonOverlapping = 0;
                     break;
@@ -546,8 +546,8 @@ static void test_getSplitPoints(CuTest *testCase) {
 
     for (int64_t i = 0; i < stList_length(splitPoints); i++) {
         stIntTuple *j = stList_get(splitPoints, i);
-        st_logInfo("I got split point: x1: %" PRIi64 " y1: %" PRIi64 " x2: %" PRIi64 " y2: %" PRIi64 "\n", stIntTuple_getPosition(j, 0),
-                stIntTuple_getPosition(j, 1), stIntTuple_getPosition(j, 2), stIntTuple_getPosition(j, 3));
+        st_logInfo("I got split point: x1: %" PRIi64 " y1: %" PRIi64 " x2: %" PRIi64 " y2: %" PRIi64 "\n", stIntTuple_get(j, 0),
+                stIntTuple_get(j, 1), stIntTuple_get(j, 2), stIntTuple_get(j, 3));
     }
 
     CuAssertIntEquals(testCase, 5, stList_length(splitPoints));

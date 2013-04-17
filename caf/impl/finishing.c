@@ -265,7 +265,7 @@ static void stCaf_convertCactusGraphToFlowers(stPinchThreadSet *threadSet, stCac
         Flower *flower = stList_pop(stack);
         assert(flower_getAttachedStubEndNumber(flower) > 0);
         stCactusNode *cactusNode = stList_pop(stack);
-        makeChains(cactusNode, flower, pinchEndsToEnds, parentFlower, stIntTuple_getPosition(orientation, 0), stack);
+        makeChains(cactusNode, flower, pinchEndsToEnds, parentFlower, stIntTuple_get(orientation, 0), stack);
         makeTangles(cactusNode, flower, pinchEndsToEnds, deadEndComponent);
         stIntTuple_destruct(orientation);
     }

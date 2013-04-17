@@ -526,7 +526,7 @@ void chain_promote(Chain *chain) {
     stListIterator *endIt = stList_getIterator(finalChainList);
     stIntTuple *endName;
     while ((endName = stList_getNext(endIt)) != NULL) { //Get chains in the parent which we extend..
-        End *end = flower_getEnd(parentFlower, stIntTuple_getPosition(endName, 0));
+        End *end = flower_getEnd(parentFlower, stIntTuple_get(endName, 0));
         if (end != NULL) {
             Link *link = group_getLink(end_getGroup(end));
             if (link != NULL) {
@@ -566,8 +566,8 @@ void chain_promote(Chain *chain) {
     //Make the final chain..
     Chain *newChain = chain_construct(parentFlower);
     for (int64_t i = 0; i < stList_length(finalChainList); i += 2) {
-        Name _3EndName = stIntTuple_getPosition(stList_get(finalChainList, i), 0);
-        Name _5EndName = stIntTuple_getPosition(stList_get(finalChainList, i + 1), 0);
+        Name _3EndName = stIntTuple_get(stList_get(finalChainList, i), 0);
+        Name _5EndName = stIntTuple_get(stList_get(finalChainList, i + 1), 0);
         End *_3End = flower_getEnd(parentFlower, _3EndName);
         assert(_3End != NULL);
         End *_5End = flower_getEnd(parentFlower, _5EndName);

@@ -84,15 +84,15 @@ stSortedSet *makeEndAlignment(End *end, int64_t spanningTrees, int64_t maxSequen
     while(stList_length(alignment) > 0) {
         stIntTuple *alignedPair = stList_pop(alignment);
         assert(stIntTuple_length(alignedPair) == 5);
-        AdjacencySequence *i = stList_get(sequences, stIntTuple_getPosition(alignedPair, 1));
-        AdjacencySequence *j = stList_get(sequences, stIntTuple_getPosition(alignedPair, 3));
+        AdjacencySequence *i = stList_get(sequences, stIntTuple_get(alignedPair, 1));
+        AdjacencySequence *j = stList_get(sequences, stIntTuple_get(alignedPair, 3));
         assert(i != j);
-        int64_t offset1 = stIntTuple_getPosition(alignedPair, 2);
-        int64_t offset2 = stIntTuple_getPosition(alignedPair, 4);
+        int64_t offset1 = stIntTuple_get(alignedPair, 2);
+        int64_t offset2 = stIntTuple_get(alignedPair, 4);
         AlignedPair *alignedPair2 = alignedPair_construct(
                 i->subsequenceIdentifier, i->start + (i->strand ? offset1 : -offset1), i->strand,
                 j->subsequenceIdentifier, j->start + (j->strand ? offset2 : -offset2), j->strand,
-                stIntTuple_getPosition(alignedPair, 0));
+                stIntTuple_get(alignedPair, 0));
         assert(stSortedSet_search(sortedAlignment, alignedPair2) == NULL);
         assert(stSortedSet_search(sortedAlignment, alignedPair2->reverse) == NULL);
         stSortedSet_insert(sortedAlignment, alignedPair2);

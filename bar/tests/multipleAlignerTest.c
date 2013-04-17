@@ -61,11 +61,11 @@ static void checkAlignment(CuTest *testCase, stList *sequences, stList *multiple
     stIntTuple *multipleAlignedPair;
     while ((multipleAlignedPair = stList_getNext(iterator)) != NULL) {
         CuAssertTrue(testCase, stIntTuple_length(multipleAlignedPair) == 5);
-        int64_t score = stIntTuple_getPosition(multipleAlignedPair, 0);
-        int64_t seqX = stIntTuple_getPosition(multipleAlignedPair, 1);
-        int64_t x = stIntTuple_getPosition(multipleAlignedPair, 2);
-        int64_t seqY = stIntTuple_getPosition(multipleAlignedPair, 3);
-        int64_t y = stIntTuple_getPosition(multipleAlignedPair, 4);
+        int64_t score = stIntTuple_get(multipleAlignedPair, 0);
+        int64_t seqX = stIntTuple_get(multipleAlignedPair, 1);
+        int64_t x = stIntTuple_get(multipleAlignedPair, 2);
+        int64_t seqY = stIntTuple_get(multipleAlignedPair, 3);
+        int64_t y = stIntTuple_get(multipleAlignedPair, 4);
         st_logInfo("Got aligned pair, score: %" PRIi64 " x seq: %" PRIi64 " x pos: %" PRIi64 " x seq: %" PRIi64 " y pos: %" PRIi64 "\n", score, seqX, x, seqY, y);
         CuAssertTrue(testCase, score > 0);
         CuAssertTrue(testCase, score <= PAIR_ALIGNMENT_PROB_1);
