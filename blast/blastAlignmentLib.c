@@ -92,7 +92,7 @@ static int64_t processSubsequenceChunk(char *fastaHeader, int64_t start, char *s
     if (start + lengthOfChunkRemaining > seqLength) {
         lengthOfSubsequence = seqLength - start;
     }
-    assert(lengthOfSubsequence > 0);
+    assert(lengthOfSubsequence >= 0);
     char c = sequence[start + lengthOfSubsequence];
     sequence[start + lengthOfSubsequence] = '\0';
     fprintf(chunkFileHandle, "%s\n", &sequence[start]);
@@ -110,11 +110,13 @@ void processSequenceToChunk(const char *fastaHeader, const char *sequence, int64
             int64_t lengthOfFollowingSubsequence = processSubsequenceChunk((char *) fastaHeader, lengthOfSubsequence, (char *) sequence, sequenceLength, chunkRemaining);
 
             //Make the overlap file
-            int64_t i = lengthOfSubsequence - chunkOverlapSize / 2;
-            if (i < 0) {
-                i = 0;
+            if(chunkOverlapSize > 0) {
+                int64_t i = lengthOfSubsequence - chunkOverlapSize / 2;
+                if (i < 0) {
+                    i = 0;
+                }
+                processSubsequenceChunk((char *) fastaHeader, i, (char *) sequence, sequenceLength, chunkOverlapSize);
             }
-            processSubsequenceChunk((char *) fastaHeader, i, (char *) sequence, sequenceLength, chunkOverlapSize);
             lengthOfSubsequence += lengthOfFollowingSubsequence;
         }
     }
