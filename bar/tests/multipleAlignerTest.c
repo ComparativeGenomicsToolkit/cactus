@@ -133,12 +133,12 @@ static void test_getReferencePairwiseAlignments(CuTest *testCase) {
 
 stList *makeAllPairwiseAlignments(stList *seqs, PairwiseAlignmentParameters *pairwiseAlignmentBandingParameters);
 int64_t *getDistanceMatrix(stSet *columns, stList *seqs, int64_t maxPairsToConsider);
-stSet *getMultipleSequenceAlignment(stList *seqs, stList *multipleAlignedPairs, double gapGamma);
+stSet *getMultipleSequenceAlignment(stList *seqs, stList *multipleAlignedPairs, double gapGamma, bool checkConsistency);
 double subsPerSite(int64_t seq1, int64_t seq2, int64_t *distanceCounts, int64_t seqNo);
 static void test_getDistanceMatrix(CuTest *testCase) {
     setup();
     stList *multipleAlignedPairs = makeAllPairwiseAlignments(littleSequences, pabp);
-    stSet *columns = getMultipleSequenceAlignment(littleSequences, multipleAlignedPairs, 0.2);
+    stSet *columns = getMultipleSequenceAlignment(littleSequences, multipleAlignedPairs, 0.2, 1);
     stSetIterator *setIt = stSet_getIterator(columns);
     Column *c1;
     while ((c1 = stSet_getNext(setIt)) != NULL) {
@@ -153,7 +153,7 @@ static void test_getDistanceMatrix(CuTest *testCase) {
             c1 = c1->nColumn;
         } while (c1 != NULL);
     }
-    assert(0);
+    st_errAbort(1);
     stSet_destructIterator(setIt);
     int64_t *distanceCounts = getDistanceMatrix(columns, littleSequences, 100000);
     CuAssertDblEquals(testCase, 0.2, subsPerSite(0, 1, distanceCounts, 4), 0.00001);
