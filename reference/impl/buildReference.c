@@ -789,7 +789,7 @@ void buildReferenceTopDown(Flower *flower, const char *referenceEventHeader, int
             "The score of the solution after permutation sampling is %f after %" PRIi64 " rounds of greedy permutation out of a max possible %f\n",
             totalScoreAfterGreedySampling, permutations, maxPossibleScore);
 
-    reorderReferenceToAvoidBreakpoints(aL, ref);
+    reorderReferenceToAvoidBreakpoints(dAL, ref);
     double totalScoreAfterTopologicalReordering = getReferenceScore(aL, ref);
     st_logDebug(
             "The score of the solution after topological reordering is %f after %" PRIi64 " rounds of greedy permutation out of a max possible %f\n",
