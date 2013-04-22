@@ -284,7 +284,8 @@ def runCactusBar(cactusDiskDatabaseString, flowerNames, logLevel=None,
             maximumNumberOfSequencesBeforeSwitchingToFast, calculateWhichEndsToComputeSeparately,
             largeEndSize, alignmentToPrecompute, precomputedAlignments), stdinString=flowerNames)
     logger.info("Ran cactus_bar okay")
-    return [ i.split() for i in masterMessages.split("\n") if i != '' ]
+    fn = lambda x : (x[0], int(x[1]), int(x[2]))
+    return [ fn(i.split()) for i in masterMessages.split("\n") if i != '' ]
 
 def runCactusSecondaryDatabase(secondaryDatabaseString, create=True):
     command = "cactus_secondaryDatabase '%s' %s" % (secondaryDatabaseString, int(create))

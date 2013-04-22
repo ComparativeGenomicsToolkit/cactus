@@ -506,7 +506,7 @@ class CactusBarWrapperLarge(CactusRecursionTarget):
             precomputedAlignmentFiles.append(alignmentFile)
             self.addChildTarget(CactusBarEndAlignerWrapper(self.phaseNode, self.cactusDiskDatabaseString, self.flowerNames, 
                                                            basesInEndAlignment >= veryLargeEndSize, endToAlign, alignmentFile))
-            self.logToMaster("Precomputing end alignment for %s with %s caps and %s bases" % \
+            self.logToMaster("Precomputing end alignment for %s with %i caps and %i bases" % \
                              (endToAlign, sequencesInEndAlignment, basesInEndAlignment))
         self.phaseNode.attrib["precomputedAlignmentFiles"] = " ".join(precomputedAlignmentFiles)
         self.makeFollowOnRecursiveTarget(CactusBarWrapperWithPrecomputedEndAlignments)
