@@ -34,6 +34,8 @@ void testCommon_deleteTemporaryKVDatabase();
  */
 CactusDisk *testCommon_getTemporaryCactusDisk();
 
+CactusDisk *testCommon_getTemporaryCactusDisk2(bool sequencesOnDisk);
+
 /*
  * Destroys the object given by testCommon_getTemporaryCactusDisk and removes
  * all files associated from disk.

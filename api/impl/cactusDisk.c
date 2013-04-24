@@ -154,9 +154,15 @@ static void cacheSubstringsFromDB(CactusDisk *cactusDisk, stList *substrings) {
         }
         for (int64_t i = 0; i < stList_length(substrings); i++) {
             Substring *substring = stList_get(substrings, i);
-            fseek(cactusDisk->sequencesFileHandle, substring->name + substring->start, SEEK_SET);
+            int64_t k = fseek(cactusDisk->sequencesFileHandle, substring->name + substring->start, SEEK_SET);
+            if(k != 0) {
+                st_errAbort("Could not fseek to start of desired sequence: %" PRIi64 "\n", substring->name + substring->start);
+            }
             char *string = st_malloc(sizeof(char) * (substring->length + 1));
-            fread(string, sizeof(char), substring->length, cactusDisk->sequencesFileHandle);
+            int64_t bytesRead = fread(string, sizeof(char), substring->length, cactusDisk->sequencesFileHandle);
+            if(bytesRead != substring->length) {
+                st_errAbort("Read only %" PRIi64 " bytes of string of length %" PRIi64 " when caching substrings from DB\n", bytesRead, substring->length);
+            }
 #ifndef NDEBUG
             for (int64_t j = 0; j < substring->length; j++) {
                 assert(string[j] != '>');
@@ -326,8 +332,7 @@ char *cactusDisk_getStringFromCache(CactusDisk *cactusDisk, Name name, int64_t s
         string = stCache_getRecord(cactusDisk->stringCache, name, start, sizeof(char) * length, &recordSize);
         assert(string != NULL);
         assert(recordSize == length);
-        string = realloc(string, length + 1);
-        assert(string != NULL);
+        string = st_realloc(string, sizeof(char) * (length + 1));
         string[length] = '\0';
         if (!strand) {
             char *string2 = cactusMisc_reverseComplementString(string);

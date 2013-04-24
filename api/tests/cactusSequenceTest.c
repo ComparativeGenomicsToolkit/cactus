@@ -30,10 +30,10 @@ void cactusSequenceTestTeardown() {
 	}
 }
 
-void cactusSequenceTestSetup() {
+void cactusSequenceTestSetup2(bool sequencesOnDisk) {
 	if(!nestedTest) {
 		cactusSequenceTestTeardown();
-		cactusDisk = testCommon_getTemporaryCactusDisk();
+		cactusDisk = testCommon_getTemporaryCactusDisk2(sequencesOnDisk);
 		flower = flower_construct(cactusDisk);
 		eventTree = eventTree_construct2(flower);
 		event = eventTree_getRootEvent(eventTree);
@@ -41,6 +41,10 @@ void cactusSequenceTestSetup() {
 						   headerString, event_getName(event), cactusDisk);
 		sequence = sequence_construct(metaSequence, flower);
 	}
+}
+
+void cactusSequenceTestSetup() {
+    cactusSequenceTestSetup2(st_random() > 0.5);
 }
 
 void testSequence_construct(CuTest* testCase) {
@@ -92,8 +96,8 @@ void testSequence_getString(CuTest* testCase) {
 	cactusSequenceTestTeardown();
 }
 
-static char *getRandomDNASequence() {
-    int64_t stringLength = st_randomInt(0, 100000);
+static char *getRandomDNASequence(int64_t minSequenceLength, int64_t maxSequenceLength) {
+    int64_t stringLength = st_randomInt(minSequenceLength, maxSequenceLength);
     char *string = st_malloc(sizeof(char) * (stringLength + 1));
     string[stringLength] = '\0';
     for (int64_t j = 0; j < stringLength; j++) {
@@ -103,15 +107,17 @@ static char *getRandomDNASequence() {
     return string;
 }
 
-void testSequence_addAndGetBigStringsP(CuTest* testCase, bool preCacheSequences) {
-    for(int64_t i=0; i<100; i++) {
-        cactusSequenceTestSetup();
+void testSequence_addAndGetBigStringsP(CuTest* testCase,
+        bool preCacheSequences, bool sequencesOnDisk,
+        int64_t minSequenceLength, int64_t maxSequenceLength, int64_t testNo) {
+    for(int64_t i=0; i<testNo; i++) {
+        cactusSequenceTestSetup2(sequencesOnDisk);
         //Create a bunch of sequences
         stList *strings = stList_construct3(0, free);
         stList *sequences = stList_construct();
         int64_t coordinateStart = st_randomInt(0, 100);
         do {
-            char *string = getRandomDNASequence();
+            char *string = getRandomDNASequence(minSequenceLength, maxSequenceLength);
             stList_append(strings, string);
             metaSequence = metaSequence_construct(coordinateStart, strlen(string), string,
                                                "Hello I am header", event_getName(event), cactusDisk);
@@ -133,7 +139,7 @@ void testSequence_addAndGetBigStringsP(CuTest* testCase, bool preCacheSequences)
             stList_destruct(flowerList);
         }
         //Do different requests for portions of the strings
-        while(st_random() > 0.01) {
+        while(st_random() > 0.1) {
             int64_t j = st_randomInt(0, stList_length(strings));
             Sequence *sequence = stList_get(sequences, j);
             if(sequence_getLength(sequence) == 0) {
@@ -174,12 +180,28 @@ void testSequence_addAndGetBigStringsP(CuTest* testCase, bool preCacheSequences)
     }
 }
 
+//void testSequence_addAndGetBigStringsP(CuTest* testCase,
+//        bool preCacheSequences, bool sequencesOnDisk,
+//        int64_t minSequenceLength, int64_t maxSequenceLength, int64_t testNo)
+
 void testSequence_addAndGetBigStrings(CuTest* testCase) {
-    testSequence_addAndGetBigStringsP(testCase, 0);
+    testSequence_addAndGetBigStringsP(testCase, 0, 0, 0, 100000, 100);
 }
 
 void testSequence_addAndGetBigStrings_preCacheSequences(CuTest* testCase) {
-    testSequence_addAndGetBigStringsP(testCase, 1);
+    testSequence_addAndGetBigStringsP(testCase, 1, 0, 0, 100000, 100);
+}
+
+void testSequence_addAndGetBigStrings_sequencesOnDisk(CuTest* testCase) {
+    testSequence_addAndGetBigStringsP(testCase, 0, 1, 0, 100000, 100);
+}
+
+void testSequence_addAndGetBigStrings_preCacheSequences_sequencesOnDisk(CuTest* testCase) {
+    testSequence_addAndGetBigStringsP(testCase, 1, 1, 0, 100000, 100);
+}
+
+void testSequence_addAndGetBigStrings_massive(CuTest* testCase) {
+    testSequence_addAndGetBigStringsP(testCase, 1, 1, 5000000, 10000000, 5);
 }
 
 void testSequence_getHeader(CuTest* testCase) {
@@ -226,6 +248,9 @@ CuSuite* cactusSequenceTestSuite(void) {
 	SUITE_ADD_TEST(suite, testSequence_getString);
 	SUITE_ADD_TEST(suite, testSequence_addAndGetBigStrings);
 	SUITE_ADD_TEST(suite, testSequence_addAndGetBigStrings_preCacheSequences);
+	SUITE_ADD_TEST(suite, testSequence_addAndGetBigStrings_sequencesOnDisk);
+	SUITE_ADD_TEST(suite, testSequence_addAndGetBigStrings_preCacheSequences_sequencesOnDisk);
+	SUITE_ADD_TEST(suite, testSequence_addAndGetBigStrings_massive);
 	SUITE_ADD_TEST(suite, testSequence_getHeader);
 	SUITE_ADD_TEST(suite, testSequence_getFlower);
 	SUITE_ADD_TEST(suite, testSequence_serialisation);
