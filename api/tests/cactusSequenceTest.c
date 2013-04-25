@@ -189,7 +189,10 @@ void testSequence_addAndGetBigStringsP(CuTest* testCase,
                 subSequence = sequence_getString(sequence, coordinateStart + start, length, strand);
             }
             assert(subSequence != NULL);
-            CuAssertStrEquals(testCase, subString, subSequence);
+            for(int64_t k=0; k<length; k++) {
+                CuAssertIntEquals(testCase, subString[k], subSequence[k]);
+            }
+            //CuAssertStrEquals(testCase, subString, subSequence);
             free(subString);
             free(subSequence);
         }
