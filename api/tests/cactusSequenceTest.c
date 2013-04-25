@@ -155,6 +155,7 @@ void testSequence_addAndGetBigStringsP(CuTest* testCase,
             stList_destruct(flowerList);
         }
         //Do different requests for portions of the strings
+        bool first = 1;
         while(st_random() > 0.1) {
             int64_t j = st_randomInt(0, stList_length(strings));
             Sequence *sequence = stList_get(sequences, j);
@@ -164,8 +165,9 @@ void testSequence_addAndGetBigStringsP(CuTest* testCase,
             char *string = stList_get(strings, j);
             CuAssertIntEquals(testCase, strlen(string), sequence_getLength(sequence));
             //Choose a random interval to request
-            int64_t start = st_randomInt(0, strlen(string));
-            int64_t length = st_randomInt(0, strlen(string)-start);
+            int64_t start = first ? 0 : st_randomInt(0, strlen(string));
+            int64_t length = first ? strlen(string) : st_randomInt(0, strlen(string)-start);
+            first = 0;
             CuAssertTrue(testCase, start >= 0);
             CuAssertTrue(testCase, start + length <= strlen(string));
             char *subString = stString_getSubString(string, start, length);
