@@ -167,6 +167,7 @@ void testSequence_addAndGetBigStringsP(CuTest* testCase,
             //Choose a random interval to request
             int64_t start = first ? 0 : st_randomInt(0, strlen(string));
             int64_t length = first ? strlen(string) : st_randomInt(0, strlen(string)-start);
+            st_logInfo("Getting interval start: %" PRIi64 " length %" PRIi64 " of sequence of length %" PRIi64 " \n", start, length, sequence_getLength(sequence));
             first = 0;
             CuAssertTrue(testCase, start >= 0);
             CuAssertTrue(testCase, start + length <= strlen(string));
