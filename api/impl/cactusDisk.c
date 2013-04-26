@@ -192,7 +192,6 @@ static void cacheSubstringsFromDB(CactusDisk *cactusDisk, stList *substrings) {
 #endif
             stCache_setRecord(cactusDisk->stringCache, substring->name, substring->start, substring->length, string);
 #ifndef NDEBUG
-            int64_t bytesRead;
             char *string2 = stCache_getRecord(cactusDisk->stringCache, substring->name, substring->start, substring->length, &bytesRead);
             for (int64_t j = 0; j < substring->length; j++) {
                 assert(string2[j] == string[j]);
