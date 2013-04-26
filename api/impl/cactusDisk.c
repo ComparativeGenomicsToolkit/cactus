@@ -43,9 +43,31 @@ Name cactusDisk_addString(CactusDisk *cactusDisk, const char *string) {
         cactusDisk->sequencesFileHandle = fopen(cactusDisk->absSequencesFileName, "a");
         assert(cactusDisk->sequencesFileHandle != NULL);
         Name name = ftell(cactusDisk->sequencesFileHandle) + 1;
-        fprintf(cactusDisk->sequencesFileHandle, ">%s", string);
+
+        //Extra temporary cheesy code to avoid potential overflow in fprintf
+        int64_t chunkSize = 1000000000; //1 gig approx chunks, to avoid a possible overflow issue with fprintf
+        int64_t j = strlen(string);
+        if(j > chunkSize) {
+            fprintf(cactusDisk->sequencesFileHandle, ">");
+            for(int64_t i=0; i<j;) {
+                int64_t length = i+chunkSize <= j ? chunkSize : j - i;
+                char *string2 = memcpy(st_malloc(sizeof(char) * (length+1)), string + i, sizeof(char) * length);
+                string2[length] = '\0';
+                int64_t k = fprintf(cactusDisk->sequencesFileHandle, "%s", string2);
+                (void)k;
+                assert(k == length);
+                free(string2);
+                i += length;
+            }
+        }
+        else {
+            //Replacing this line
+            fprintf(cactusDisk->sequencesFileHandle, ">%s", string);
+        }
+
         fclose(cactusDisk->sequencesFileHandle);
         cactusDisk->sequencesFileHandle = NULL;
+
         return name;
     } else {
         int64_t stringSize = strlen(string);
@@ -169,6 +191,14 @@ static void cacheSubstringsFromDB(CactusDisk *cactusDisk, stList *substrings) {
             }
 #endif
             stCache_setRecord(cactusDisk->stringCache, substring->name, substring->start, substring->length, string);
+#ifndef NDEBUG
+            int64_t bytesRead;
+            char *string2 = stCache_getRecord(cactusDisk->stringCache, substring->name, substring->start, substring->length, &bytesRead);
+            for (int64_t j = 0; j < substring->length; j++) {
+                assert(string2[j] == string[j]);
+            }
+            free(string2);
+#endif
             free(string);
         }
     } else {
