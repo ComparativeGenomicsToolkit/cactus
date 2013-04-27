@@ -85,8 +85,6 @@ Name cactusDisk_addString(CactusDisk *cactusDisk, const char *string) {
             assert(k == length+1);
         }
 
-
-
 #ifndef NDEBUG
         fclose(cactusDisk->sequencesFileHandle);
         cactusDisk->sequencesFileHandle = fopen(cactusDisk->absSequencesFileName, "r");
@@ -94,6 +92,7 @@ Name cactusDisk_addString(CactusDisk *cactusDisk, const char *string) {
         for (int64_t i = 0; i < length; i++) {
             assert(string[i] == string2[i]);
         }
+        free(string2);
 #endif
 
         fclose(cactusDisk->sequencesFileHandle);
