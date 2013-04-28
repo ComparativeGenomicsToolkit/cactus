@@ -287,6 +287,7 @@ def runCactusBar(cactusDiskDatabaseString, flowerNames, logLevel=None,
     fn = lambda x : (x[0], int(x[1]), int(x[2]))
     l = [ fn(i.split()) for i in masterMessages.split("\n") if i != '' ]
     assert len(l) != 1, "We got just a single end to precompute, which doesn't achieve any parallelism."
+    return l
 
 def runCactusSecondaryDatabase(secondaryDatabaseString, create=True):
     command = "cactus_secondaryDatabase '%s' %s" % (secondaryDatabaseString, int(create))
