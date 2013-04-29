@@ -42,6 +42,7 @@ void printFastaSequences(Flower *flower, FILE *fileHandle, Name referenceEventNa
                 sequence_getLength(sequence), 1);
         const char *header = sequence_getHeader(sequence);
         fastaWrite(string, (char *)header, fileHandle);
+        //fprintf(fileHandle, ">%s\n%s\n", (char *)header, string);
         free(string);
     }
     stList_destruct(sequences);

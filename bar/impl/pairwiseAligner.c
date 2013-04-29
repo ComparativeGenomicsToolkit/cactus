@@ -12,6 +12,7 @@
 #include <math.h>
 #include <ctype.h>
 
+#include "bioioC.h"
 #include "sonLib.h"
 #include "pairwiseAligner.h"
 #include "pairwiseAlignment.h"
@@ -819,7 +820,7 @@ static char *makeUpperCase(const char *s, int64_t l) {
 
 static void writeSequenceToFile(char *file, const char *name, const char *sequence) {
     FILE *fileHandle = fopen(file, "w");
-    fprintf(fileHandle, ">%s\n%s\n", name, sequence);
+    fastaWrite((char *)sequence, (char *)name, fileHandle);
     fclose(fileHandle);
 }
 

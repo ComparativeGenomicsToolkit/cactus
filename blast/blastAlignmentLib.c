@@ -84,7 +84,7 @@ static int64_t processSubsequenceChunk(char *fastaHeader, int64_t start, char *s
         }
         i++;
     }
-    fprintf(chunkFileHandle, ">%s|%" PRIi64 "\n", fastaHeader, start);
+    char *chunkHeader = stString_print("%s|%" PRIi64 "\n", fastaHeader, start);
     free(fastaHeader);
     assert(lengthOfChunkRemaining <= chunkSize);
     assert(start >= 0);
@@ -95,7 +95,9 @@ static int64_t processSubsequenceChunk(char *fastaHeader, int64_t start, char *s
     assert(lengthOfSubsequence >= 0);
     char c = sequence[start + lengthOfSubsequence];
     sequence[start + lengthOfSubsequence] = '\0';
-    fprintf(chunkFileHandle, "%s\n", &sequence[start]);
+    fastaWrite(&sequence[start], chunkHeader, chunkFileHandle);
+    //fprintf(chunkFileHandle, "%s\n", &sequence[start]);
+    free(chunkHeader);
     sequence[start + lengthOfSubsequence] = c;
 
     updateChunkRemaining(lengthOfSubsequence);
@@ -178,7 +180,7 @@ static void writeSequenceInFile(const char *fastaHeader, const char *sequence, i
     if (sequenceFileHandle == NULL) {
         sequenceFileHandle = fopen(tempSequenceFile, "w");
     }
-    fprintf(sequenceFileHandle, ">%s\n%s\n", fastaHeader, sequence);
+    fastaWrite((char *)sequence, (char *)fastaHeader, sequenceFileHandle);
 }
 
 int64_t writeFlowerSequencesInFile(Flower *flower, const char *tempFile, int64_t minimumSequenceLength) {
