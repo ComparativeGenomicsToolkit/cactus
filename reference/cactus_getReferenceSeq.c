@@ -13,6 +13,7 @@
 #include <getopt.h>
 
 #include "cactus.h"
+#include "bioioC.h"
 
 /*
  */
@@ -67,17 +68,11 @@ static void getReferenceSequences(FILE *fileHandle, Flower *flower, char *refere
       if (strcmp(eventName, referenceEventString) == 0 &&
           sequence_getLength(sequence) > 0) 
       {
-         char *sequenceHeader = formatSequenceHeader(sequence);
+         const char *sequenceHeader = formatSequenceHeader(sequence);
          st_logInfo("Sequence %s\n", sequenceHeader);
-         fprintf(fileHandle, ">%s\n", sequenceHeader);
-         const int64_t lineLength = 10000000;
-         const int64_t end = sequence_getLength(sequence) + sequence_getStart(sequence);
-         for(int64_t i=sequence_getStart(sequence); i<end; i += lineLength) {
-           char *cA = sequence_getString(sequence, i, end - i < lineLength ?  end - i : lineLength, 1);
-           fprintf(fileHandle, "%s\n", cA);
-           free(cA);
-         }
-         free(sequenceHeader);
+         char *string = sequence_getString(sequence, sequence_getStart(sequence), sequence_getLength(sequence), 1);
+         fastaWrite(string, (char *)sequenceHeader, fileHandle);
+         free(string);
       }
    }
    flower_destructSequenceIterator(seqIterator);
