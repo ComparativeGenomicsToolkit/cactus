@@ -10,7 +10,7 @@ $$$       .. such runs
 """
 
 from sys import argv,stdin,exit
-
+import math
 
 def usage(s=None):
 	message = """fasta_fragments [options] < fasta_file > fasta_file
@@ -41,42 +41,71 @@ def main():
 		else:
 			usage("can't understand %s" % arg)
 
-	allN = "N" * fragmentLength
-
 	# process the sequences
 
-	for (name,seq) in fasta_sequences(stdin):
-		#seq = seq.upper()
-		for ix in xrange(0,len(seq),stepLength):
-			frag = seq[ix:ix+fragmentLength]
-			if (frag == allN or len(frag) == 0): continue
-			print ">%s_%d" % (name,ix+1)
-			print frag
-
+	for (name,seq) in chunk_fasta_sequences(stdin, stepLength, fragmentLength):
+		print ">%s\n%s\n" % (name,seq)
 
 # fasta_sequences--
-#	Read the fasta sequences from a file
+#	Read the fasta sequences from a file	
 
-def fasta_sequences(f):
+def chunk_fasta_sequences(f, stepLength, fragmentLength):
+	"""Chunks up a fasta stream into overlapping fragments.
+	
+	>>> for (seqName, seq) in chunk_fasta_sequences([">1", "ACTG", "AGGG", "TGCTGC", ">2", "AT", ">3", "CCCGCCT", ">4" ], 3, 6):
+	...     print seqName, seq                                                                                                       
+	1_1 ACTGAG
+	1_4 GAGGGT
+	1_7 GGTGCT
+	1_10 GCTGC
+	2_1 AT
+	3_1 CCCGCC
+	3_4 GCCT
+	>>> 
+	"""
+	allN = "N" * fragmentLength
 	seqName = None
-	seqNucs = None
-
+	seqNucs = ""
+	offset = 0
+	
+	def chunk(eatWholeSequence):
+		for ix in xrange(0,len(seqNucs),stepLength):
+			frag = seqNucs[ix:ix+fragmentLength]
+			if frag == allN: 
+				continue
+			if len(frag) < fragmentLength:
+				if eatWholeSequence and len(frag) > 0:
+					yield ("%s_%d" % (seqName,ix+1+offset), frag)
+				break
+			yield ("%s_%d" % (seqName,ix+1+offset), frag)
+			
 	for line in f:
 		line = line.strip()
 
 		if (line.startswith(">")):
 			if (seqName != None):
-				yield (seqName,"".join(seqNucs))
+				for seqPair in chunk(True):
+					yield seqPair
 			seqName = line[1:].strip()
-			seqNucs = []
+			seqNucs = ""
+			offset = 0
 		elif (seqName == None):
 			assert (False), "first sequence has no header"
 		else:
-			seqNucs += [line]
+			seqNucs += line
+			for seqPair in chunk(False):
+				yield seqPair
+			#Cut off the trailing sequence
+			if len(seqNucs) >= fragmentLength:
+				i = int(math.ceil((float(len(seqNucs)) - fragmentLength)/stepLength))*stepLength
+				offset += i
+				seqNucs = seqNucs[i:]
 
 	if (seqName != None):
-		yield (seqName,"".join(seqNucs))
+		for seqPair in chunk(True):
+			yield seqPair
 
-
-if __name__ == "__main__": main()
-
+if __name__ == "__main__": 
+	import doctest
+	doctest.testmod()
+	main()
