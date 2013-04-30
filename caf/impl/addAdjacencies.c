@@ -9,7 +9,7 @@ static int addAdjacenciesPP(Cap *cap1, Cap *cap2) {
     if (i == 0) {
         int64_t j = cap_getCoordinate(cap1);
         int64_t k = cap_getCoordinate(cap2);
-        i = j - k;
+        i = j > k ? 1 : (j < k ? -1 : 0);
         if (i == 0) {
             assert(cap_getSegment(cap1) == cap_getSegment(cap2));
             j = cap_getSide(cap1);
