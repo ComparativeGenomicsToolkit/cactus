@@ -112,13 +112,13 @@ void processSequenceToChunk(const char *fastaHeader, const char *sequence, int64
             int64_t lengthOfFollowingSubsequence = processSubsequenceChunk((char *) fastaHeader, lengthOfSubsequence, (char *) sequence, sequenceLength, chunkRemaining);
 
             //Make the overlap file
-            //if(chunkOverlapSize > 0) {
-            int64_t i = lengthOfSubsequence - chunkOverlapSize / 2;
-            if (i < 0) {
-                i = 0;
+            if(chunkOverlapSize > 0) {
+                int64_t i = lengthOfSubsequence - chunkOverlapSize / 2;
+                if (i < 0) {
+                    i = 0;
+                }
+                processSubsequenceChunk((char *) fastaHeader, i, (char *) sequence, sequenceLength, chunkOverlapSize);
             }
-            processSubsequenceChunk((char *) fastaHeader, i, (char *) sequence, sequenceLength, chunkOverlapSize);
-            //}
             lengthOfSubsequence += lengthOfFollowingSubsequence;
         }
     }
