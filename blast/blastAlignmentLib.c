@@ -92,7 +92,7 @@ static int64_t processSubsequenceChunk(char *fastaHeader, int64_t start, char *s
     if (start + lengthOfChunkRemaining > seqLength) {
         lengthOfSubsequence = seqLength - start;
     }
-    assert(lengthOfSubsequence >= 0);
+    assert(lengthOfSubsequence > 0);
     char c = sequence[start + lengthOfSubsequence];
     sequence[start + lengthOfSubsequence] = '\0';
     fastaWrite(&sequence[start], chunkHeader, chunkFileHandle);
