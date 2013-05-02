@@ -55,9 +55,9 @@ int main(int argc, char *argv[]) {
     char *referenceEventString =
             (char *) cactusMisc_getDefaultReferenceEventHeader();
     int64_t permutations = 10;
-    double theta = 0.00001;
+    double theta = 0.001;
     bool useSimulatedAnnealing = 0;
-    int64_t maxWalkForCalculatingZ = 20;
+    int64_t maxWalkForCalculatingZ = 10000;
 
     ///////////////////////////////////////////////////////////////////////////
     // (0) Parse the inputs handed by genomeCactus.py / setup stuff.

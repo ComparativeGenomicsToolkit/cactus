@@ -95,8 +95,8 @@
 		matchingAlgorithm="blossom5" 
 		reference="reference" 
 		useSimulatedAnnealing="1" 
-		theta="0.000001" 
-		maxWalkForCalculatingZ="20" 
+		theta="0.001" 
+		maxWalkForCalculatingZ="100000" 
 		permutations="5"
 	>
 		<CactusReferenceRecursion maxFlowerGroupSize="500000000" maxFlowerWrapperGroupSize="50000000"/>

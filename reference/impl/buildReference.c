@@ -201,6 +201,7 @@ refAdjList *calculateZ(Flower *flower, stHash *endsToNodes, int64_t nodeNumber, 
                         int64_t _3CapSize = capSizes[i];
                         int64_t _3Node = stIntTuple_get(stHash_search(endsToNodes, end_getPositiveOrientation(cap_getEnd(_3Cap))),
                                 0);
+                        int64_t diff = 0;
                         for (int64_t k = 0; k < maxWalkForCalculatingZ; k++) {
                             int64_t j = k * 2 + i + 1;
                             if (j >= stList_length(caps)) {
@@ -211,7 +212,11 @@ refAdjList *calculateZ(Flower *flower, stHash *endsToNodes, int64_t nodeNumber, 
                             int64_t _5Node = stIntTuple_get(
                                     stHash_search(endsToNodes, end_getPositiveOrientation(cap_getEnd(_5Cap))), 0);
                             int64_t _5CapSize = capSizes[j];
-                            int64_t diff = cap_getCoordinate(_5Cap) - cap_getCoordinate(_3Cap);
+                            assert(cap_getCoordinate(_5Cap) - cap_getCoordinate(_3Cap) > diff);
+                            diff = cap_getCoordinate(_5Cap) - cap_getCoordinate(_3Cap);
+                            if(calculateZScore(1, 1, diff, theta) < 0.0000000001) { //no point walking when score gets too small, should be effective for theta >= 0.000001
+                                break;
+                            }
                             assert(diff >= 1);
                             double score = calculateZScore(_5CapSize, _3CapSize, diff, theta);
                             assert(score >= -0.0001);

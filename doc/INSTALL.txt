@@ -10,7 +10,7 @@ Installing Cactus.
 
 (5) Download and install tokyo cabinet. See http://fallabs.com/tokyocabinet/
 	
-(6)	[optional] Download and install kyoto tycoon. See http://fallabs.com/kyototycoon/
+(6)	[optional, but strongly advised] Download and install kyoto tycoon. See http://fallabs.com/kyototycoon/
 
 (7) Download and install lastz. See http://www.bx.psu.edu/~rsharris/lastz/
 	NOTE, to use cactus_lastzRepeatMaxk.py preprocessor, you must instead:
