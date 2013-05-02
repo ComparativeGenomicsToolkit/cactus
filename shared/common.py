@@ -404,7 +404,6 @@ def runCactusProgressive(inputDir,
                       buildHal=None,
                       buildMaf=None,
                       buildFasta=None,
-                      joinMaf=None,
                       buildAvgs=False, 
                       jobTreeStats=False,
                       maxThreads=None,
@@ -422,8 +421,8 @@ def runCactusProgressive(inputDir,
                       False,
                       buildFasta,
                       jobTreeStats, maxThreads, maxJobs, defaultMemory, logFile, extraJobTreeArgumentsString=extraJobTreeArgumentsString) + \
-                      (" %s %s %s" % (nameValue("recursive", recursive, bool),
-                                     nameValue("joinMAF", joinMaf, bool), nameValue("event", event)))
+                      (" %s %s" % (nameValue("recursive", recursive, bool),
+                                      nameValue("event", event)))
     if profileFile != None:
         command = "python -m cProfile -o %s %s/bin/%s" % (profileFile, cactusRootPath(), command)
     system(command)

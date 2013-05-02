@@ -44,7 +44,6 @@ from cactus.progressive.multiCactusProject import MultiCactusProject
 from cactus.progressive.multiCactusTree import MultiCactusTree
 from cactus.progressive.experimentWrapper import ExperimentWrapper
 from cactus.progressive.configWrapper import ConfigWrapper
-from cactus.progressive.mafFilter import mafFilterOutgroup
 from cactus.progressive.schedule import Schedule
         
 class ProgressiveDown(Target):
@@ -105,11 +104,8 @@ class ProgressiveUp(Target):
         halNode = findRequiredNode(configXml, "hal")
         if self.options.buildHal == False:
             self.options.buildHal = getOptionalAttrib(halNode, "buildHal", bool, False)
-        if self.options.buildMaf == False:
-            self.options.buildMaf = getOptionalAttrib(halNode, "buildMaf", bool, False)
         if self.options.buildFasta == False:
             self.options.buildFasta = getOptionalAttrib(halNode, "buildFasta", bool, False)
-        self.options.joinMaf = getOptionalAttrib(halNode, "joinMaf", bool, self.options.buildMaf)
 
         # get parameters that cactus_workflow stuff wants
         workFlowArgs = CactusWorkflowArguments(self.options)
@@ -117,9 +113,7 @@ class ProgressiveUp(Target):
         workFlowArgs.skipAlignments = self.options.skipAlignments
         workFlowArgs.buildReference = self.options.buildReference
         workFlowArgs.buildHal = self.options.buildHal
-        workFlowArgs.buildMaf = self.options.buildMaf
         workFlowArgs.buildFasta = self.options.buildFasta
-        workFlowArgs.joinMaf = self.options.joinMaf
         workFlowArgs.overwrite = self.options.overwrite
         workFlowArgs.globalLeafEventSet = self.options.globalLeafEventSet
         
@@ -130,9 +124,8 @@ class ProgressiveUp(Target):
         refDone = not workFlowArgs.buildReference or os.path.isfile(experiment.getReferencePath())
         halDone = not workFlowArgs.buildHal or (os.path.isfile(experiment.getHALFastaPath()) and
                                                 os.path.isfile(experiment.getHALPath()))
-        mafDone = not workFlowArgs.buildMaf or os.path.isfile(experiment.getMAFPath())
                                                                
-        if not workFlowArgs.overwrite and doneDone and refDone and halDone and mafDone:
+        if not workFlowArgs.overwrite and doneDone and refDone and halDone:
             self.logToMaster("Skipping %s because it is already done and overwrite is disabled" %
                              self.event)
         else:
@@ -150,82 +143,6 @@ class ProgressiveUp(Target):
                 self.addChildTarget(CactusPreprocessorPhase(cactusWorkflowArguments=workFlowArgs,
                                                             phaseName="preprocessor"))
                 logger.info("Going to create alignments and define the cactus tree")
-        
-        self.setFollowOnTarget(BuildMAF(workFlowArgs, self.project))
-         
-                         
-class BuildMAF(Target):
-    def __init__(self, workFlowArgs, project,):
-        Target.__init__(self)
-        self.workFlowArgs = workFlowArgs
-        self.project = project
-    
-    def run(self):
-        experiment =  ExperimentWrapper(self.workFlowArgs.experimentNode)
-        if self.workFlowArgs.buildHal and self.workFlowArgs.buildMaf and\
-               experiment.getMAFPath() is not None and \
-               os.path.exists(experiment.getMAFPath()):
-            logger.info("Filtering outgroup from MAF")
-
-            mafFilterOutgroup(experiment) 
-        
-        self.setFollowOnTarget(JoinMAF(self.workFlowArgs, self.project))
-
-class JoinMAF(Target):
-    def __init__(self, workFlowArgs, project):
-        Target.__init__(self)
-        self.workFlowArgs = workFlowArgs
-        self.project = project
-    
-    # hack to see if a maf file was created by cactus
-    # (by searching for the word cactus in the first few comments).
-    # used to know if we rerun mafjoin when overwrite is false.
-    # if it's cactus we do, otherwise we assume it's been 
-    # made by a succesfsul mafjoin in the past and we don't.
-    def isMafFromCactus(self, path):
-        file = open(path, "r")
-        isCactus = False
-        for line in file.readlines()[:10]:
-            if line.lstrip().find('cactus') >= 0:
-                isCactus = True
-                break
-        file.close()
-        return isCactus
-            
-    def run(self):
-        experiment = ExperimentWrapper(self.workFlowArgs.experimentNode)
-        if experiment.getMAFPath() is not None and self.workFlowArgs.joinMaf and\
-        (self.workFlowArgs.overwrite or not os.path.exists(experiment.getMAFPath())
-         or self.isMafFromCactus(experiment.getMAFPath())):
-            logger.info("Starting MAF Join")
-            
-            rootRefName = experiment.getReferenceNameFromConfig()
-            rootIsTreeMAF = False
-            for child, path in experiment.seqMap.items():
-                if child in self.project.expMap and\
-                child not in experiment.getOutgroupEvents():
-                    childExpPath = self.project.expMap[child]
-                    childExpXML = ET.parse(childExpPath).getroot()
-                    childExp = ExperimentWrapper(childExpXML)
-                    childRefName = childExp.getReferenceNameFromConfig()
-                    cmdline = "mafJoin -maxBlkWidth=128 -maxInputBlkWidth=1000 "
-                    if not rootIsTreeMAF:
-                        cmdline += "-treelessRoot1=%s " % rootRefName
-                    cmdline += "-treelessRoot2=%s " % childRefName
-                    cmdline = "%s %s %s %s %s_tmp.maf" % (cmdline, childRefName, 
-                                                  experiment.getMAFPath(),
-                                                  childExp.getMAFPath(),
-                                                  experiment.getMAFPath())
-                    system(cmdline)
-                    
-                    move("%s_tmp.maf" % experiment.getMAFPath(), 
-                         experiment.getMAFPath())
-                    rootIsTreeMAF = True
-                    
-        donePath = os.path.join(os.path.dirname(self.workFlowArgs.experimentFile), "DONE")
-        doneFile = open(donePath, "w")
-        doneFile.write("")
-        doneFile.close()
 
 def main():    
     usage = "usage: %prog [options] <multicactus project>"
