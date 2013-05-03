@@ -95,7 +95,7 @@
 		matchingAlgorithm="blossom5" 
 		reference="reference" 
 		useSimulatedAnnealing="1" 
-		theta="0.001" 
+		theta="0.0001" 
 		maxWalkForCalculatingZ="100000" 
 		permutations="5"
 	>

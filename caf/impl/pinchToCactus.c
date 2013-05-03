@@ -29,7 +29,7 @@ static stList *stCaf_constructDeadEndComponent(Flower *flower, stPinchThreadSet 
      * Locates the ends of all the attached ends and merges together their 'dead end' components to create a single
      * 'dead end' component, as described in the JCB cactus paper.
      */
-    //For each block end at the end of a thread, attach to dead end component if associated end if attached
+    //For each block end at the end of a thread, attach to dead end component if associated end is attached
     stList *deadEndAdjacencyComponent = stList_construct3(0, (void(*)(void *)) stPinchEnd_destruct);
     stPinchThreadSetIt threadIt = stPinchThreadSet_getIt(threadSet);
     stPinchThread *pinchThread;

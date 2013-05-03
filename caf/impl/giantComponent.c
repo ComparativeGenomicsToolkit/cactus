@@ -217,7 +217,12 @@ void stCaf_breakupComponentsGreedily(stPinchThreadSet *threadSet, float maximumA
                 assert(stIntTuple_get(edge, 1) < stIntTuple_get(edge, 2));
                 stPinchEnd *pinchEnd1 = stList_get(adjacencyComponent, stIntTuple_get(edge, 1));
                 stPinchEnd *pinchEnd2 = stList_get(adjacencyComponent, stIntTuple_get(edge, 2));
-                breakEdges(threadSet, pinchEnd1, pinchEnd2);
+                if(stPinchBlock_getDegree(stPinchEnd_getBlock(pinchEnd1)) > 1 && stPinchBlock_getDegree(stPinchEnd_getBlock(pinchEnd2)) > 1) {
+                    breakEdges(threadSet, pinchEnd1, pinchEnd2);
+                }
+                else {
+                    printf("Encountered an edge in a giant component which it is pointless to break, as one end has no aligned bases\n");
+                }
             }
             //Cleanup
             stList_destruct(edges);
