@@ -80,12 +80,6 @@ def main():
     currentDir = os.path.dirname(args[1])
     tempDir = tempfile.mkdtemp(dir=currentDir)
     maskInfoFile = os.path.join(tempDir, "maskFile.dat")
-    cleanTargetFile = os.path.join(tempDir, "cleanTargetFile.fa")
-    
-    
-    # strip out the | strings from header or they will be eaten by lastz!!
-    pipeCode = "__#%x__" % random.randint(0, 16777215)
-    system("sed -e \"s/|/%s/g\" %s > %s" % (pipeCode, targetFile, cleanTargetFile))
 
     try:
         # chop up input fasta file into into fragments of specified size.  fragments overlap by 
@@ -100,14 +94,11 @@ def main():
         # overlapping fragments
         # Also note: repeats already masked in the input sequence are ignored (as by default in lastz).  
         # This behaviour can be changed by something like replacing [multiple] with [multiple,unmask]'
-        lastzCmdLine = options.lastzCmd + ' ' + cleanTargetFile + '[multiple] /dev/stdin ' + options.lastzOptions + \
+        lastzCmdLine = options.lastzCmd + ' ' + targetFile + '[multiple][nameparse=darkspace] /dev/stdin[nameparse=darkspace] ' + options.lastzOptions + \
                         ' --masking=' + str(options.period * 2) + ' --outputmasking+:soft=' + maskInfoFile + \
                         ' --format=none' 
 
         system(fragCmdLine + ' | ' + lastzCmdLine)
-        
-        # reinsert the "|"'s
-        system("sed -i -e \"s/%s/|/g\" %s" % (pipeCode, maskInfoFile))
         
         # the previous lastz command outputs a file of intervals (denoted with indices) to softmask.
         # we finish by applying these intervals to the input file, to produce the final, softmasked output. 
