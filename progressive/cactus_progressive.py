@@ -144,6 +144,20 @@ class ProgressiveUp(Target):
                                                             phaseName="preprocessor"))
                 logger.info("Going to create alignments and define the cactus tree")
 
+        self.setFollowOnTarget(FinishUp(workFlowArgs, self.project))
+                               
+class FinishUp(Target):
+    def __init__(self, workFlowArgs, project,):
+        Target.__init__(self)
+        self.workFlowArgs = workFlowArgs
+        self.project = project
+    
+    def run(self):
+        donePath = os.path.join(os.path.dirname(self.workFlowArgs.experimentFile), "DONE")
+        doneFile = open(donePath, "w")
+        doneFile.write("")
+        doneFile.close()
+
 def main():    
     usage = "usage: %prog [options] <multicactus project>"
     description = "Progressive version of cactus_workflow"
@@ -183,7 +197,6 @@ def main():
     baseTarget = ProgressiveDown(options, project, options.event, schedule)
     Stack(baseTarget).startJobTree(options)
     
-   
 def _test():
     import doctest      
     return doctest.testmod()
