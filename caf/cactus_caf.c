@@ -59,6 +59,10 @@ static void usage() {
             "-w --maxAdjacencyComponentSizeRatio : The components equal or less than log(n) * of this size will be allowed in the cactus. Used to fight giant components.\n");
 
     fprintf(stderr, "-x --constraints : A file of alignments that will enforced upon the cactus\n");
+
+    fprintf(stderr, "-y --minLengthForChromosome : The minimum length required for a sequence to be considered as a candidate to be chromosome.\n");
+
+    fprintf(stderr, "-z --proportionOfUnalignedBasesForNewChromosome : Proportion of aligned bases to be not contained in an existing chromosome to cause generation of a new chromosome.\n");
 }
 
 static int64_t *getInts(const char *string, int64_t *arrayLength) {
@@ -136,6 +140,8 @@ int main(int argc, char *argv[]) {
     bool singleCopyOutgroup = 0;
     int64_t chainLengthForBigFlower = 100000;
     int64_t longChain = 20;
+    int64_t minLengthForChromosome = 1000000;
+    float proportionOfUnalignedBasesForNewChromosome = 0.8;
 
     ///////////////////////////////////////////////////////////////////////////
     // (0) Parse the inputs handed by genomeCactus.py / setup stuff.
@@ -149,11 +155,12 @@ int main(int argc, char *argv[]) {
                 "requiredIngroupFraction", required_argument, 0, 'q' }, { "requiredOutgroupFraction", required_argument, 0, 'r' }, {
                 "requiredAllFraction", required_argument, 0, 'u' }, { "singleCopyIngroup", no_argument, 0, 's' }, { "singleCopyOutgroup",
                 no_argument, 0, 't' }, { "minimumSequenceLengthForBlast", required_argument, 0, 'v' }, { "maxAdjacencyComponentSizeRatio",
-                required_argument, 0, 'w' }, { "constraints", required_argument, 0, 'x' }, { 0, 0, 0, 0 } };
+                required_argument, 0, 'w' }, { "constraints", required_argument, 0, 'x' },
+                { "minLengthForChromosome", required_argument, 0, 'y' },  { "proportionOfUnalignedBasesForNewChromosome", required_argument, 0, 'z' }, { 0, 0, 0, 0 } };
 
         int option_index = 0;
 
-        key = getopt_long(argc, argv, "a:b:c:hi:k:m:n:o:p:q:r:stu:v:w:x:", long_options, &option_index);
+        key = getopt_long(argc, argv, "a:b:c:hi:k:m:n:o:p:q:r:stu:v:w:x:y:z:", long_options, &option_index);
 
         if (key == -1) {
             break;
@@ -225,6 +232,14 @@ int main(int argc, char *argv[]) {
                 break;
             case 'x':
                 constraintsFile = stString_copy(optarg);
+                break;
+            case 'y':
+                k = sscanf(optarg, "%" PRIi64 "", &minLengthForChromosome);
+                assert(k == 1);
+                break;
+            case 'z':
+                k = sscanf(optarg, "%f", &proportionOfUnalignedBasesForNewChromosome);
+                assert(k == 1);
                 break;
             default:
                 usage();
@@ -378,7 +393,7 @@ int main(int argc, char *argv[]) {
             }
 
             //Finish up
-            stCaf_finish(flower, threadSet, chainLengthForBigFlower, longChain);
+            stCaf_finish(flower, threadSet, chainLengthForBigFlower, longChain, minLengthForChromosome, proportionOfUnalignedBasesForNewChromosome);
             st_logInfo("Ran the cactus core script\n");
 
             //Cleanup

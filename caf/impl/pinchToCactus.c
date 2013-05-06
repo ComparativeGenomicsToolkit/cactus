@@ -84,16 +84,9 @@ static bool threadIsAttachedToDeadEndComponent3Prime(stPinchThread *thread, stLi
     return adjacencyComponent == deadEndComponent;
 }
 
-static bool threadComponentIsAttachedToDeadEndComponent(stList *threadComponent, stList *deadEndComponent,
-        stHash *pinchEndsToAdjacencyComponents) {
-    for (int64_t i = 0; i < stList_length(threadComponent); i++) {
-        stPinchThread *thread = stList_get(threadComponent, i);
-        if (threadIsAttachedToDeadEndComponent5Prime(thread, deadEndComponent, pinchEndsToAdjacencyComponents)
-                || threadIsAttachedToDeadEndComponent3Prime(thread, deadEndComponent, pinchEndsToAdjacencyComponents)) {
-            return 1;
-        }
-    }
-    return 0;
+static bool threadIsAttachedToDeadEndComponent(stPinchThread *thread, stList *deadEndComponent, stHash *pinchEndsToAdjacencyComponents) {
+    return threadIsAttachedToDeadEndComponent5Prime(thread, deadEndComponent, pinchEndsToAdjacencyComponents)
+            || threadIsAttachedToDeadEndComponent3Prime(thread, deadEndComponent, pinchEndsToAdjacencyComponents);
 }
 
 static void attachThreadToDeadEndComponent(stPinchThread *thread, stList *deadEndAdjacencyComponent,
@@ -112,51 +105,104 @@ static void attachThreadToDeadEndComponent(stPinchThread *thread, stList *deadEn
     }
 }
 
-static void attachThreadComponentToDeadEndComponent(stList *threadComponent, stList *deadEndComponent,
-        stHash *pinchEndsToAdjacencyComponents, bool markEndsAttached, Flower *flower) {
-    stPinchThread *longestPinchThread = NULL;
-    int64_t maxLength = 0;
-    for (int64_t i = 0; i < stList_length(threadComponent); i++) {
-        stPinchThread *pinchThread = stList_get(threadComponent, i);
-        if (stPinchThread_getLength(pinchThread) > maxLength) {
-            longestPinchThread = pinchThread;
-            maxLength = stPinchThread_getLength(pinchThread);
-        }
-    }
-    assert(longestPinchThread != NULL);
-    attachThreadToDeadEndComponent(longestPinchThread, deadEndComponent, pinchEndsToAdjacencyComponents, markEndsAttached, flower);
+int comparePinchThreadsByLength(const void *a, const void *b) {
+    int64_t i = stPinchThread_getLength((stPinchThread *) a);
+    int64_t j = stPinchThread_getLength((stPinchThread *) b);
+    return i > j ? 1 : (i < j ? -1 : 0);
 }
 
-void attachUnderAlignedThreadsToDeadEndComponent(stList *threadComponent, stList *deadEndComponent,
-        stHash *pinchEndsToAdjacencyComponents, bool markEndsAttached, int64_t minLengthForChromosome, Flower *flower) {
-    threadComponent = stList_copy(threadComponent, NULL);
-    stList_sort(threadComponent, NULL);
-    while(stList_length(threadComponent) > 0) {
-        stPinchThread *pinchThread = stList_pop(threadComponent);
-        if(stPinchThread_getLength(pinchThread) < minLengthForChromosome) {
-            break;
-        }
+static void attachThreadComponentToDeadEndComponent(stList *threadComponent, stList *deadEndComponent,
+        stHash *pinchEndsToAdjacencyComponents, bool markEndsAttached, int64_t minLengthForChromosome,
+        double proportionOfUnalignedBasesForNewChromosome, Flower *flower) {
+    /*
+     * Algorithm walks the threads in the connected component, in descending order of length and
+     * for each thread attaches it to the dead-end component if its length of bases in blocks not contained in chromosome
+     * length fragments.
+     */
 
-        attachThreadToDeadEndComponent(pinchThread, deadEndComponent, pinchEndsToAdjacencyComponents, markEndsAttached, flower);
+    //First get threads in order, already attached first then unattached, sorted by descending length
+    bool first = 1; //This is used to ensure at least one thread is attached in component.
+    stList *l = stList_construct();
+    stList *l2 = stList_construct();
+    for (int64_t i = 0; i < stList_length(threadComponent); i++) {
+        stPinchThread *pinchThread = stList_get(threadComponent, i);
+        if (threadIsAttachedToDeadEndComponent(pinchThread, deadEndComponent, pinchEndsToAdjacencyComponents)) {
+            first = 0;
+            stList_append(l2, pinchThread);
+        } else {
+            stList_append(l, pinchThread);
+        }
     }
-    stList_destruct(threadComponent);
+    stList_sort(l, comparePinchThreadsByLength);
+    stList_appendAll(l, l2);
+    stList_destruct(l2);
+
+    //Now iterate on threads, attaching as needed.
+    stSet *blocksSeen = stSet_construct();
+    stHash *basesAligned = stHash_construct2(NULL, free);
+    while (stList_length(l) > 0) {
+        stPinchThread *pinchThread = stList_pop(l);
+        if (stPinchThread_getLength(pinchThread) < minLengthForChromosome && !first) {
+            continue;
+        }
+        first = 0;
+        int64_t *i = stHash_search(basesAligned, pinchThread);
+        int64_t basesAlignedToChromosomeThreads = i != NULL ? *i : 0; //This is the number of bases already aligned in threads with attached ends (chromosomes);
+        assert(basesAlignedToChromosomeThreads >= 0);
+        //Walk the thread
+        stPinchSegment *segment = stPinchThread_getFirst(pinchThread);
+        assert(segment != NULL);
+        assert(stPinchSegment_get5Prime(segment) == NULL);
+        do {
+            stPinchBlock *block;
+            if ((block = stPinchSegment_getBlock(segment)) != NULL && !stSet_search(blocksSeen, block)) {
+                stSet_insert(blocksSeen, block);
+                stPinchBlockIt segIt = stPinchBlock_getSegmentIterator(block);
+                stPinchSegment *segment2;
+                while ((segment2 = stPinchBlockIt_getNext(&segIt)) != NULL) {
+                    stPinchThread *pinchThread2 = stPinchSegment_getThread(segment2);
+                    int64_t *i = stHash_search(basesAligned, pinchThread2);
+                    if (i == NULL) {
+                        i = st_calloc(1, sizeof(int64_t));
+                        stHash_insert(basesAligned, pinchThread2, i);
+                    }
+                    *i += stPinchBlock_getLength(block);
+                }
+            }
+            segment = stPinchSegment_get3Prime(segment);
+        } while (segment != NULL);
+        if (threadIsAttachedToDeadEndComponent(pinchThread, deadEndComponent, pinchEndsToAdjacencyComponents)) { //If this is already attached we can stop at this point
+            continue;
+        }
+        i = stHash_search(basesAligned, pinchThread);
+        int64_t totalBasesAligned = i != NULL ? *i : 0; //This is the number of bases already aligned in chromosomes;
+        assert(totalBasesAligned > basesAlignedToChromosomeThreads);
+        if((totalBasesAligned - basesAlignedToChromosomeThreads) >= proportionOfUnalignedBasesForNewChromosome * totalBasesAligned) {
+            attachThreadToDeadEndComponent(pinchThread, deadEndComponent, pinchEndsToAdjacencyComponents, markEndsAttached, flower);
+        }
+    }
+    stList_destruct(l);
+    stSet_destruct(blocksSeen);
+    stHash_destruct(basesAligned);
 }
 
 static void stCaf_attachUnattachedThreadComponents(Flower *flower, stPinchThreadSet *threadSet, stList *deadEndComponent,
-        stHash *pinchEndsToAdjacencyComponents, bool markEndsAttached) {
+        stHash *pinchEndsToAdjacencyComponents, bool markEndsAttached, int64_t minLengthForChromosome,
+        double proportionOfUnalignedBasesForNewChromosome) {
     /*
      * Locates threads components which have no dead ends part of the dead end component, and then
      * connects them, picking the longest thread to attach them.
      */
+    if (flower_getName(flower) != 0) {
+        return; //We don't need to attach ends if flower is not at top level, as everything is anchored to attached components in lower level flowers.
+    }
     stSortedSet *threadComponents = stPinchThreadSet_getThreadComponents(threadSet);
     assert(stSortedSet_size(threadComponents) > 0);
     stSortedSetIterator *threadIt = stSortedSet_getIterator(threadComponents);
     stList *threadComponent;
     while ((threadComponent = stSortedSet_getNext(threadIt)) != NULL) {
-        if (!threadComponentIsAttachedToDeadEndComponent(threadComponent, deadEndComponent, pinchEndsToAdjacencyComponents)) {
-            attachThreadComponentToDeadEndComponent(threadComponent, deadEndComponent, pinchEndsToAdjacencyComponents, markEndsAttached,
-                    flower);
-        }
+        attachThreadComponentToDeadEndComponent(threadComponent, deadEndComponent, pinchEndsToAdjacencyComponents, markEndsAttached,
+                minLengthForChromosome, proportionOfUnalignedBasesForNewChromosome, flower);
     }
     stSortedSet_destructIterator(threadIt);
     stSortedSet_destruct(threadComponents);
@@ -272,7 +318,8 @@ static stCactusGraph *stCaf_constructCactusGraph(stList *deadEndComponent, stHas
 ///////////////////////////////////////////////////////////////////////////
 
 stCactusGraph *stCaf_getCactusGraphForThreadSet(Flower *flower, stPinchThreadSet *threadSet, stCactusNode **startCactusNode,
-        stList **deadEndComponent, bool attachEndsInFlower) {
+        stList **deadEndComponent, bool attachEndsInFlower, int64_t minLengthForChromosome,
+        double proportionOfUnalignedBasesForNewChromosome) {
     //Get adjacency components
     stHash *pinchEndsToAdjacencyComponents;
     stList *adjacencyComponents = stPinchThreadSet_getAdjacencyComponents2(threadSet, &pinchEndsToAdjacencyComponents);
@@ -283,7 +330,8 @@ stCactusGraph *stCaf_getCactusGraphForThreadSet(Flower *flower, stPinchThreadSet
     *deadEndComponent = stCaf_constructDeadEndComponent(flower, threadSet, pinchEndsToAdjacencyComponents);
 
     //Join unattached components of graph by dead ends to dead end component, and make other ends 'attached' if necessary
-    stCaf_attachUnattachedThreadComponents(flower, threadSet, *deadEndComponent, pinchEndsToAdjacencyComponents, attachEndsInFlower);
+    stCaf_attachUnattachedThreadComponents(flower, threadSet, *deadEndComponent, pinchEndsToAdjacencyComponents, attachEndsInFlower,
+            minLengthForChromosome, proportionOfUnalignedBasesForNewChromosome);
 
     //Create cactus
     stCactusGraph *cactusGraph = stCaf_constructCactusGraph(*deadEndComponent, pinchEndsToAdjacencyComponents, startCactusNode);

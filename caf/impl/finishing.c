@@ -294,10 +294,12 @@ void stCaf_makeDegreeOneBlocks(stPinchThreadSet *threadSet) {
 ///////////////////////////////////////////////////////////////////////////
 
 void stCaf_finish(Flower *flower, stPinchThreadSet *threadSet, int64_t chainLengthForBigFlower,
-        int64_t longChain) {
+        int64_t longChain, int64_t minLengthForChromosome,
+        double proportionOfUnalignedBasesForNewChromosome) {
     stCactusNode *startCactusNode;
     stList *deadEndComponent;
-    stCactusGraph *cactusGraph = stCaf_getCactusGraphForThreadSet(flower, threadSet, &startCactusNode, &deadEndComponent, 1);
+    stCactusGraph *cactusGraph = stCaf_getCactusGraphForThreadSet(flower, threadSet, &startCactusNode, &deadEndComponent, 1, minLengthForChromosome,
+            proportionOfUnalignedBasesForNewChromosome);
     //chainLengthForBigFlower = 10;
     //longChain = 10;
     int64_t nodesMerged = stCactusGraph_collapseLongChainsOfBigFlowers(cactusGraph, startCactusNode, chainLengthForBigFlower, longChain, stCaf_mergeNodeObjects, 0);

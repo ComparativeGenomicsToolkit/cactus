@@ -23,6 +23,8 @@
 		singleCopyIngroup="0"
 		singleCopyOutgroup="1"
 		maxAdjacencyComponentSizeRatio="10"
+		minLengthForChromosome="1000000"
+		proportionOfUnalignedBasesForNewChromosome="0.8"
 		lastzMemory="2147483648"
 	>
 		<CactusCafRecursion maxFlowerGroupSize="100000000"/>

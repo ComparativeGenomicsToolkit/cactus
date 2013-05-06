@@ -100,7 +100,7 @@ void *stCaf_mergeNodeObjects(void *a, void *b);
  * Functions which converts a pinch graph into a cactus graph.
  */
 stCactusGraph *stCaf_getCactusGraphForThreadSet(Flower *flower, stPinchThreadSet *threadSet, stCactusNode **startCactusNode,
-        stList **deadEndComponent, bool attachEndsInFlower);
+        stList **deadEndComponent, bool attachEndsInFlower, int64_t minLengthForChromosome, double proportionOfUnalignedBasesForNewChromosome);
 
 ///////////////////////////////////////////////////////////////////////////
 // Finishing: Converting a pinch graph into the flower hierarchy
@@ -121,6 +121,7 @@ void stCaf_addAdjacencies(Flower *flower);
  * Takes a pinch graph for a flower and adds the alignments it contains back to the flower as a cactus.
  */
 void stCaf_finish(Flower *flower, stPinchThreadSet *threadSet, int64_t chainLengthForBigFlower,
-        int64_t longChain);
+        int64_t longChain, int64_t minLengthForChromosome,
+        double proportionOfUnalignedBasesForNewChromosome);
 
 #endif /* STCAF_H_ */

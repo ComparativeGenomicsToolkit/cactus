@@ -324,7 +324,7 @@ int main(int argc, char *argv[]) {
                         &requiredIngroupSpecies, &requiredOutgroupSpecies, &requiredAllSpecies);
                 stCaf_melt(flower, threadSet, blockFilterFn, 0, 0);
             }
-            stCaf_finish(flower, threadSet, INT64_MAX, INT64_MAX);
+            stCaf_finish(flower, threadSet, INT64_MAX, INT64_MAX, INT64_MAX, INT64_MAX);
             stPinchThreadSet_destruct(threadSet);
             st_logInfo("Ran the cactus core script.\n");
             assert(!flower_isParentLoaded(flower));

@@ -408,7 +408,9 @@ class CactusCafWrapper(CactusRecursionTarget):
                           singleCopyOutgroup=self.getOptionalPhaseAttrib("singleCopyOutgroup", bool),
                           lastzArguments=self.getOptionalPhaseAttrib("lastzArguments"),
                           minimumSequenceLengthForBlast=self.getOptionalPhaseAttrib("minimumSequenceLengthForBlast", int, 1),
-                          maxAdjacencyComponentSizeRatio=self.getOptionalPhaseAttrib("maxAdjacencyComponentSizeRatio", float))
+                          maxAdjacencyComponentSizeRatio=self.getOptionalPhaseAttrib("maxAdjacencyComponentSizeRatio", float),
+                          minLengthForChromosome=self.getOptionalPhaseAttrib("minLengthForChromosome", int),
+                          proportionOfUnalignedBasesForNewChromosome=self.getOptionalPhaseAttrib("proportionOfUnalignedBasesForNewChromosome", float))
         for message in messages:
             self.logToMaster(message)
     

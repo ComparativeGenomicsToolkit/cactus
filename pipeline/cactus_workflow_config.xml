@@ -19,6 +19,8 @@
 		trim="0 0 0 0 0 0 0 0 0 0 0"
 		minimumBlockDegree="2"
 		maxAdjacencyComponentSizeRatio="10"
+		minLengthForChromosome="1000000"
+		proportionOfUnalignedBasesForNewChromosome="0.8"
 	>
 		<CactusCafRecursion maxFlowerGroupSize="100000000"/>
 		<CactusCafWrapper minFlowerSize="5000" maxFlowerGroupSize="1000000"/>
