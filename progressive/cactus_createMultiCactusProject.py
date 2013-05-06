@@ -41,7 +41,7 @@ def createMCProject(tree, config, options):
     elif config.getOutgroupStrategy() == 'greedyLeaves':
         mcProj.outgroup = GreedyOutgroup()
         mcProj.outgroup.importTree(mcProj.mcTree)
-        ogSet = self.options.outgroupNames
+        ogSet = options.outgroupNames
         if ogSet is None:
             ogSet = set([mcProj.mcTree.getName(x) for x in mcProj.mcTree.getLeaves()])
         mcProj.outgroup.greedy(threshold=config.getOutgroupThreshold(),
