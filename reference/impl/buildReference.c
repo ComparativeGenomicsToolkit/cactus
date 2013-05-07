@@ -167,7 +167,8 @@ static int64_t calculateZP2(Cap *cap, stHash *endsToNodes) {
     return capLength;
 }
 
-refAdjList *calculateZ(Flower *flower, stHash *endsToNodes, int64_t nodeNumber, double theta, int64_t maxWalkForCalculatingZ) {
+refAdjList *calculateZ(Flower *flower, stHash *endsToNodes, int64_t nodeNumber, double theta, int64_t maxWalkForCalculatingZ,
+        bool ignoreUnalignedGaps) {
     /*
      * Calculate the zScores between all ends.
      */
@@ -201,7 +202,7 @@ refAdjList *calculateZ(Flower *flower, stHash *endsToNodes, int64_t nodeNumber, 
                         int64_t _3CapSize = capSizes[i];
                         int64_t _3Node = stIntTuple_get(stHash_search(endsToNodes, end_getPositiveOrientation(cap_getEnd(_3Cap))),
                                 0);
-                        int64_t diff = 0;
+                        int64_t unaligned = 0;
                         for (int64_t k = 0; k < maxWalkForCalculatingZ; k++) {
                             int64_t j = k * 2 + i + 1;
                             if (j >= stList_length(caps)) {
@@ -209,15 +210,20 @@ refAdjList *calculateZ(Flower *flower, stHash *endsToNodes, int64_t nodeNumber, 
                             }
                             Cap *_5Cap = stList_get(caps, j);
                             assert(cap_getSide(_5Cap));
+                            assert(cap_getAdjacency(_5Cap) != NULL);
+                            if(ignoreUnalignedGaps) {
+                                assert(cap_getCoordinate(_5Cap) - cap_getCoordinate(cap_getAdjacency(_5Cap)) - 1 >= 0);
+                                unaligned += cap_getCoordinate(_5Cap) - cap_getCoordinate(cap_getAdjacency(_5Cap)) - 1;
+                            }
                             int64_t _5Node = stIntTuple_get(
                                     stHash_search(endsToNodes, end_getPositiveOrientation(cap_getEnd(_5Cap))), 0);
                             int64_t _5CapSize = capSizes[j];
-                            assert(cap_getCoordinate(_5Cap) - cap_getCoordinate(_3Cap) > diff);
-                            diff = cap_getCoordinate(_5Cap) - cap_getCoordinate(_3Cap);
+                            assert(cap_getCoordinate(_5Cap) - cap_getCoordinate(_3Cap) > 0);
+                            int64_t diff = cap_getCoordinate(_5Cap) - cap_getCoordinate(_3Cap) - unaligned;
+                            assert(diff >= 1);
                             if(calculateZScore(1, 1, diff, theta) < 0.0000000001) { //no point walking when score gets too small, should be effective for theta >= 0.000001
                                 break;
                             }
-                            assert(diff >= 1);
                             double score = calculateZScore(_5CapSize, _3CapSize, diff, theta);
                             assert(score >= -0.0001);
                             if (score <= 0.0) {
@@ -455,7 +461,7 @@ static void getStubEdgesInTopLevelFlower(reference *ref, Flower *flower, stHash 
         stHash_insert(stubEndsToNodes, end, stHash_search(endsToNodes, end));
         stSortedSet_insert(stubNodesSet, stHash_search(endsToNodes, stList_get(stubEnds, i)));
     }
-    refAdjList *stubAL = calculateZ(flower, stubEndsToNodes, nodeNumber, 0.0, INT64_MAX);
+    refAdjList *stubAL = calculateZ(flower, stubEndsToNodes, nodeNumber, 0.0, INT64_MAX, 1);
     st_logDebug(
             "Building a matching for %" PRIi64 " stub nodes in the top level problem from %" PRIi64 " total stubs of which %" PRIi64 " attached , %" PRIi64 " total ends, %" PRIi64 " chains, %" PRIi64 " blocks %" PRIi64 " groups and %" PRIi64 " sequences\n",
             stList_length(stubEnds), flower_getStubEndNumber(flower), flower_getAttachedStubEndNumber(flower), flower_getEndNumber(flower),
@@ -731,7 +737,7 @@ static stList *convertReferenceToAdjacencyEdges2(reference *ref) {
 
 void buildReferenceTopDown(Flower *flower, const char *referenceEventHeader, int64_t permutations,
         stList *(*matchingAlgorithm)(stList *edges, int64_t nodeNumber), double(*temperature)(double), double theta,
-        int64_t maxWalkForCalculatingZ) {
+        int64_t maxWalkForCalculatingZ, bool ignoreUnalignedGaps) {
     /*
      * Implements a greedy algorithm and greedy update sampler to find a solution to the adjacency problem for a net.
      */
@@ -764,8 +770,8 @@ void buildReferenceTopDown(Flower *flower, const char *referenceEventHeader, int
     /*
      * Calculate z functions
      */
-    refAdjList *aL = calculateZ(flower, endsToNodes, nodeNumber, theta, maxWalkForCalculatingZ);
-    refAdjList *dAL = calculateZ(flower, endsToNodes, nodeNumber, theta, 1); //Gets set of direct of direct adjacencies
+    refAdjList *aL = calculateZ(flower, endsToNodes, nodeNumber, theta, maxWalkForCalculatingZ, ignoreUnalignedGaps);
+    refAdjList *dAL = calculateZ(flower, endsToNodes, nodeNumber, 0.0, 1, ignoreUnalignedGaps); //Gets set of direct of direct adjacencies
 
     /*
      * Get the reference with chosen stub matched intervals

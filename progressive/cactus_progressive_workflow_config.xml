@@ -100,6 +100,7 @@
 		theta="0.0001" 
 		maxWalkForCalculatingZ="100000" 
 		permutations="5"
+		ignoreUnalignedGaps="1"
 	>
 		<CactusReferenceRecursion maxFlowerGroupSize="500000000" maxFlowerWrapperGroupSize="50000000"/>
 	 	<CactusReferenceWrapper/>
