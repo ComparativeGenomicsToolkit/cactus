@@ -35,6 +35,9 @@ void usage() {
     fprintf(
             stderr,
             "-l --maxWalkForCalculatingZ : The max number segments along a thread before stopping calculating z-scores\n");
+    fprintf(
+                stderr,
+                "-m --ignoredUnalignedGaps : Don't consider unaligned sequence (gaps) when calculating the score function.\n");
 
     fprintf(stderr, "-h --help : Print this help screen\n");
 }
@@ -58,6 +61,7 @@ int main(int argc, char *argv[]) {
     double theta = 0.001;
     bool useSimulatedAnnealing = 0;
     int64_t maxWalkForCalculatingZ = 10000;
+    bool ignoreUnalignedGaps = 0;
 
     ///////////////////////////////////////////////////////////////////////////
     // (0) Parse the inputs handed by genomeCactus.py / setup stuff.
@@ -71,11 +75,12 @@ int main(int argc, char *argv[]) {
                 "permutations", required_argument, 0, 'i' }, {
                 "useSimulatedAnnealing", no_argument, 0, 'j' }, { "theta",
                 required_argument, 0, 'k' }, { "maxWalkForCalculatingZ", required_argument, 0,
-                'l' }, { "help", no_argument, 0, 'h' }, { 0, 0, 0, 0 } };
+                'l' }, { "ignoreUnalignedGaps", no_argument, 0,
+                        'm' }, { "help", no_argument, 0, 'h' }, { 0, 0, 0, 0 } };
 
         int option_index = 0;
 
-        int key = getopt_long(argc, argv, "a:c:e:g:i:jk:hl:", long_options,
+        int key = getopt_long(argc, argv, "a:c:e:g:i:jk:hl:m", long_options,
                 &option_index);
 
         if (key == -1) {
@@ -134,6 +139,9 @@ int main(int argc, char *argv[]) {
                 j = sscanf(optarg, "%" PRIi64 "", &maxWalkForCalculatingZ);
                 assert(j == 1);
                 break;
+            case 'm':
+                ignoreUnalignedGaps = 1;
+                break;
             default:
                 usage();
                 return 1;
@@ -181,7 +189,7 @@ int main(int argc, char *argv[]) {
         st_logInfo("Processing a flower\n");
         if (!flower_hasParentGroup(flower)) {
             buildReferenceTopDown(flower, referenceEventString, permutations,
-                    matchingAlgorithm, temperatureFn, theta,  maxWalkForCalculatingZ);
+                    matchingAlgorithm, temperatureFn, theta,  maxWalkForCalculatingZ, ignoreUnalignedGaps);
         }
         Flower_GroupIterator *groupIt = flower_getGroupIterator(flower);
         Group *group;
@@ -189,7 +197,7 @@ int main(int argc, char *argv[]) {
             if (group_getNestedFlower(group) != NULL) {
                 buildReferenceTopDown(group_getNestedFlower(group),
                         referenceEventString, permutations, matchingAlgorithm,
-                        temperatureFn, theta, maxWalkForCalculatingZ);
+                        temperatureFn, theta, maxWalkForCalculatingZ, ignoreUnalignedGaps);
             }
         }
         flower_destructGroupIterator(groupIt);
