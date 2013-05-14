@@ -44,7 +44,7 @@ def main():
 	# process the sequences
 
 	for (name,seq) in chunk_fasta_sequences(stdin, stepLength, fragmentLength):
-		print ">%s\n%s\n" % (name,seq)
+		print ">%s\n%s" % (name,seq)
 
 # fasta_sequences--
 #	Read the fasta sequences from a file	
@@ -81,7 +81,6 @@ def chunk_fasta_sequences(f, stepLength, fragmentLength):
 			
 	for line in f:
 		line = line.strip()
-
 		if (line.startswith(">")):
 			if (seqName != None):
 				for seqPair in chunk(True):
@@ -92,11 +91,11 @@ def chunk_fasta_sequences(f, stepLength, fragmentLength):
 		elif (seqName == None):
 			assert (False), "first sequence has no header"
 		else:
-			seqNucs += line
-			for seqPair in chunk(False):
-				yield seqPair
+			seqNucs += line.upper()
 			#Cut off the trailing sequence
-			if len(seqNucs) >= fragmentLength:
+			if len(seqNucs) > fragmentLength:
+				for seqPair in chunk(False):
+					yield seqPair
 				i = int(math.ceil((float(len(seqNucs)) - fragmentLength)/stepLength))*stepLength
 				offset += i
 				seqNucs = seqNucs[i:]

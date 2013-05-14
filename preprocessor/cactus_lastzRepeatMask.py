@@ -95,7 +95,7 @@ def main():
         # Also note: repeats already masked in the input sequence are ignored (as by default in lastz).  
         # This behaviour can be changed by something like replacing [multiple] with [multiple,unmask]'
         lastzCmdLine = options.lastzCmd + ' ' + targetFile + '[multiple][nameparse=darkspace] /dev/stdin[nameparse=darkspace] ' + options.lastzOptions + \
-                        ' --masking=' + str(options.period * 2) + ' --outputmasking+:soft=' + maskInfoFile + \
+                        ' --masking=' + str(options.period * 2 + 1) + ' --outputmasking+:soft=' + maskInfoFile + \
                         ' --format=none' 
 
         system(fragCmdLine + ' | ' + lastzCmdLine)
