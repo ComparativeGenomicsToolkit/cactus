@@ -28,7 +28,7 @@ void buildReferenceTopDown(Flower *flower, const char *referenceEventHeader,
         int64_t permutations,
         stList *(*matchingAlgorithm)(stList *edges, int64_t nodeNumber),
         double (*temperature)(double),
-        double theta, int64_t maxWalkForCalculatingZ, bool ignoreUnalignedGaps);
+        double theta, int64_t maxWalkForCalculatingZ, bool ignoreUnalignedGaps, double wiggle);
 
 double *calculateZ(Flower *flower, stHash *endsToNodes, double theta);
 

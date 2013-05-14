@@ -644,7 +644,8 @@ class CactusReferenceWrapper(CactusRecursionTarget):
                        useSimulatedAnnealing=self.getOptionalPhaseAttrib("useSimulatedAnnealing", bool),
                        theta=self.getOptionalPhaseAttrib("theta", float),
                        maxWalkForCalculatingZ=self.getOptionalPhaseAttrib("maxWalkForCalculatingZ", int),
-                       ignoreUnalignedGaps=self.getOptionalPhaseAttrib("ignoreUnalignedGaps", int))
+                       ignoreUnalignedGaps=self.getOptionalPhaseAttrib("ignoreUnalignedGaps", bool),
+                       wiggle=self.getOptionalPhaseAttrib("wiggle", float))
         
 class CactusReferenceRecursion2(CactusRecursionTarget):
     def run(self):

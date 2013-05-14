@@ -306,7 +306,8 @@ def runCactusReference(cactusDiskDatabaseString, flowerNames, logLevel=None,
                        useSimulatedAnnealing=None,
                        theta=None,
                        maxWalkForCalculatingZ=None,
-                       ignoreUnalignedGaps=None):
+                       ignoreUnalignedGaps=None,
+                       wiggle=None):
     """Runs cactus reference.
     """
     logLevel = getLogLevelString2(logLevel)
@@ -317,7 +318,10 @@ def runCactusReference(cactusDiskDatabaseString, flowerNames, logLevel=None,
     theta = nameValue("theta", theta, float)
     maxWalkForCalculatingZ = nameValue("maxWalkForCalculatingZ", maxWalkForCalculatingZ, int)
     ignoreUnalignedGaps = nameValue("ignoreUnalignedGaps", ignoreUnalignedGaps, bool)
-    command = "cactus_reference --cactusDisk '%s' --logLevel %s %s %s %s %s %s %s %s" % (cactusDiskDatabaseString, logLevel, matchingAlgorithm, referenceEventString, permutations, useSimulatedAnnealing, theta, maxWalkForCalculatingZ, ignoreUnalignedGaps)
+    wiggle = nameValue("wiggle", wiggle, float)
+    command = "cactus_reference --cactusDisk '%s' --logLevel %s %s %s %s %s %s %s %s %s" % \
+    (cactusDiskDatabaseString, logLevel, matchingAlgorithm, referenceEventString, permutations, 
+     useSimulatedAnnealing, theta, maxWalkForCalculatingZ, ignoreUnalignedGaps, wiggle)
     popenPush(command, stdinString=flowerNames)
     
 def runCactusAddReferenceCoordinates(cactusDiskDatabaseString, flowerNames, logLevel=None, referenceEventString=None, outgroupEventString=None, secondaryDatabaseString=None, bottomUpPhase=None):   

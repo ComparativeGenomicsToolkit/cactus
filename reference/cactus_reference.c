@@ -38,6 +38,9 @@ void usage() {
     fprintf(
                 stderr,
                 "-m --ignoredUnalignedGaps : Don't consider unaligned sequence (gaps) when calculating the score function.\n");
+    fprintf(
+                    stderr,
+                    "-n --wiggle : As the chains are being added to the reference greedily, wiggle is the proportion of next best possible insertion score the actual insertion has.\n");
 
     fprintf(stderr, "-h --help : Print this help screen\n");
 }
@@ -62,6 +65,7 @@ int main(int argc, char *argv[]) {
     bool useSimulatedAnnealing = 0;
     int64_t maxWalkForCalculatingZ = 10000;
     bool ignoreUnalignedGaps = 0;
+    double wiggle = 0.95;
 
     ///////////////////////////////////////////////////////////////////////////
     // (0) Parse the inputs handed by genomeCactus.py / setup stuff.
@@ -76,11 +80,12 @@ int main(int argc, char *argv[]) {
                 "useSimulatedAnnealing", no_argument, 0, 'j' }, { "theta",
                 required_argument, 0, 'k' }, { "maxWalkForCalculatingZ", required_argument, 0,
                 'l' }, { "ignoreUnalignedGaps", no_argument, 0,
-                        'm' }, { "help", no_argument, 0, 'h' }, { 0, 0, 0, 0 } };
+                        'm' }, { "wiggle", required_argument, 0,
+                                'n' }, { "help", no_argument, 0, 'h' }, { 0, 0, 0, 0 } };
 
         int option_index = 0;
 
-        int key = getopt_long(argc, argv, "a:c:e:g:i:jk:hl:m", long_options,
+        int key = getopt_long(argc, argv, "a:c:e:g:i:jk:hl:mn:", long_options,
                 &option_index);
 
         if (key == -1) {
@@ -138,9 +143,21 @@ int main(int argc, char *argv[]) {
             case 'l':
                 j = sscanf(optarg, "%" PRIi64 "", &maxWalkForCalculatingZ);
                 assert(j == 1);
+                if(maxWalkForCalculatingZ <= 0) {
+                    stThrowNew(REFERENCE_BUILDING_EXCEPTION,
+                                                "The maxWalkForCalculatingZ is not valid %" PRIi64 "\n", maxWalkForCalculatingZ);
+                }
                 break;
             case 'm':
                 ignoreUnalignedGaps = 1;
+                break;
+            case 'n':
+                j = sscanf(optarg, "%lf", &wiggle);
+                assert(j == 1);
+                if (wiggle < 0 || wiggle > 1.0) {
+                    stThrowNew(REFERENCE_BUILDING_EXCEPTION,
+                            "The wiggle parameter is not valid %f", wiggle);
+                }
                 break;
             default:
                 usage();
@@ -155,6 +172,7 @@ int main(int argc, char *argv[]) {
     st_setLogLevelFromString(logLevelString);
 
     st_logInfo("The theta parameter has been set to %lf\n", theta);
+    st_logInfo("The ignore unaligned gaps parameter is %i\n", ignoreUnalignedGaps);
     st_logInfo("The number of permutations is %" PRIi64 "\n", permutations);
     st_logInfo("Simulated annealing is %" PRIi64 "\n", useSimulatedAnnealing);
     st_logInfo("Max number of segments in thread to calculate z-score between is %" PRIi64 "\n", maxWalkForCalculatingZ);
@@ -189,7 +207,7 @@ int main(int argc, char *argv[]) {
         st_logInfo("Processing a flower\n");
         if (!flower_hasParentGroup(flower)) {
             buildReferenceTopDown(flower, referenceEventString, permutations,
-                    matchingAlgorithm, temperatureFn, theta,  maxWalkForCalculatingZ, ignoreUnalignedGaps);
+                    matchingAlgorithm, temperatureFn, theta,  maxWalkForCalculatingZ, ignoreUnalignedGaps, wiggle);
         }
         Flower_GroupIterator *groupIt = flower_getGroupIterator(flower);
         Group *group;
@@ -197,7 +215,7 @@ int main(int argc, char *argv[]) {
             if (group_getNestedFlower(group) != NULL) {
                 buildReferenceTopDown(group_getNestedFlower(group),
                         referenceEventString, permutations, matchingAlgorithm,
-                        temperatureFn, theta, maxWalkForCalculatingZ, ignoreUnalignedGaps);
+                        temperatureFn, theta, maxWalkForCalculatingZ, ignoreUnalignedGaps, wiggle);
             }
         }
         flower_destructGroupIterator(groupIt);

@@ -737,7 +737,7 @@ static stList *convertReferenceToAdjacencyEdges2(reference *ref) {
 
 void buildReferenceTopDown(Flower *flower, const char *referenceEventHeader, int64_t permutations,
         stList *(*matchingAlgorithm)(stList *edges, int64_t nodeNumber), double(*temperature)(double), double theta,
-        int64_t maxWalkForCalculatingZ, bool ignoreUnalignedGaps) {
+        int64_t maxWalkForCalculatingZ, bool ignoreUnalignedGaps, double wiggle) {
     /*
      * Implements a greedy algorithm and greedy update sampler to find a solution to the adjacency problem for a net.
      */
@@ -787,7 +787,7 @@ void buildReferenceTopDown(Flower *flower, const char *referenceEventHeader, int
             flower_getName(flower), reference_getIntervalNumber(ref), chainNumber, nodeNumber);
 
     double maxPossibleScore = refAdjList_getMaxPossibleScore(aL);
-    makeReferenceGreedily2(aL, ref);
+    makeReferenceGreedily2(aL, ref, wiggle);
     reference_log(ref);
     double totalScoreAfterGreedy = getReferenceScore(aL, ref);
     st_logDebug("The score of the initial solution is %f out of a max possible %f\n", totalScoreAfterGreedy, maxPossibleScore);
