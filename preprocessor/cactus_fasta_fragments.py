@@ -91,7 +91,7 @@ def chunk_fasta_sequences(f, stepLength, fragmentLength):
 		elif (seqName == None):
 			assert (False), "first sequence has no header"
 		else:
-			seqNucs += line.upper()
+			seqNucs += line #.upper() #We can choose to omit looking for the repeats.
 			#Cut off the trailing sequence
 			if len(seqNucs) > fragmentLength:
 				for seqPair in chunk(False):

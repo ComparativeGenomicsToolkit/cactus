@@ -94,23 +94,21 @@ class PreprocessorOptions:
 class PreprocessChunk(Target):
     """ locally preprocess a fasta chunk, output then copied back to input
     """
-    def __init__(self, prepOptions, seqPath, chunk, event):
+    def __init__(self, prepOptions, seqPath, inChunk, outChunk, event):
         Target.__init__(self, memory=prepOptions.memory, cpu=prepOptions.cpu)
         self.prepOptions = prepOptions 
         self.seqPath = seqPath
-        self.chunk = chunk
+        self.inChunk = inChunk
+        self.outChunk = outChunk
         self.event = event
     
     def run(self):
-        prepChunkPath = os.path.join(self.getLocalTempDir(), "prepChunk")
         tempPath = os.path.join(self.getLocalTempDir(), "tempPath")
-        
         cmdline = self.prepOptions.cmdLine.replace("QUERY_FILE", "\"" + self.seqPath + "\"")
-        cmdline = cmdline.replace("TARGET_FILE", "\"" + self.chunk + "\"")
-        cmdline = cmdline.replace("OUT_FILE", "\"" + prepChunkPath + "\"")
+        cmdline = cmdline.replace("TARGET_FILE", "\"" + self.inChunk + "\"")
+        cmdline = cmdline.replace("OUT_FILE", "\"" + self.outChunk + "\"")
         cmdline = cmdline.replace("TEMP_FILE", "\"" + tempPath + "\"")
         cmdline = cmdline.replace("EVENT_STRING", self.event)
-        
         logger.info("Preprocessor exec " + cmdline)
         system(cmdline)
 
@@ -140,14 +138,18 @@ class PreprocessSequence(Target):
     def run(self):        
         logger.info("Preparing sequence for preprocessing")
         # chunk it up
-        chunkDirectory = makeSubDir(os.path.join(self.getGlobalTempDir(), "preprocessChunks"))
-        chunkList = [ chunk for chunk in popenCatch("cactus_blast_chunkSequences %s %i 0 %s %s" % \
+        inChunkDirectory = makeSubDir(os.path.join(self.getGlobalTempDir(), "preprocessChunksIn"))
+        inChunkList = [ chunk for chunk in popenCatch("cactus_blast_chunkSequences %s %i 0 %s %s" % \
                (getLogLevelString(), self.prepOptions.chunkSize,
-                chunkDirectory, self.inSequencePath)).split("\n") if chunk != "" ]   
-        for chunk in chunkList:
-            self.addChildTarget(PreprocessChunk(self.prepOptions, self.inSequencePath, chunk, self.event))
+                inChunkDirectory, self.inSequencePath)).split("\n") if chunk != "" ]   
+        outChunkDirectory = makeSubDir(os.path.join(self.getGlobalTempDir(), "preprocessChunksOut"))
+        outChunkList = [] 
+        #For each input chunk we create an output chunk, it is the output chunks that get concatenated together.
+        for i in xrange(len(inChunkList)):
+            outChunkList.append(os.path.join(outChunkDirectory, "chunk_%i" % i))
+            self.addChildTarget(PreprocessChunk(self.prepOptions, self.inSequencePath, inChunkList[i], outChunkList[i], self.event))
         # follow on to merge chunks
-        self.setFollowOnTarget(MergeChunks(self.prepOptions, chunkList, self.outSequencePath))
+        self.setFollowOnTarget(MergeChunks(self.prepOptions, outChunkList, self.outSequencePath))
 
 class BatchPreprocessor(Target):
     def __init__(self, cactusWorkflowArguments, event, prepXmlElems, inSequence, 
