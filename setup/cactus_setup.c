@@ -95,8 +95,8 @@ void setCompleteStatus(const char *fileName) {
             return;
         }
     }
-    if (i >= 11) {
-        const char *cA = fileName + i - 11;
+    if (i >= 12) {
+        const char *cA = fileName + i - 12;
         if (strcmp(cA, ".complete.fa") == 0) {
             isComplete = 1;
             st_logInfo(
