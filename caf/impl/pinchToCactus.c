@@ -176,9 +176,17 @@ static void attachThreadComponentToDeadEndComponent(stList *threadComponent, stL
         }
         i = stHash_search(basesAligned, pinchThread);
         int64_t totalBasesAligned = i != NULL ? *i : 0; //This is the number of bases already aligned in chromosomes;
-        assert(totalBasesAligned > basesAlignedToChromosomeThreads);
+        assert(totalBasesAligned >= basesAlignedToChromosomeThreads);
         if((totalBasesAligned - basesAlignedToChromosomeThreads) >= proportionOfUnalignedBasesForNewChromosome * totalBasesAligned) {
             attachThreadToDeadEndComponent(pinchThread, deadEndComponent, pinchEndsToAdjacencyComponents, markEndsAttached, flower);
+            if(markEndsAttached) {
+                Cap *cap = flower_getCap(flower, stPinchSegment_getName(stPinchThread_getFirst(pinchThread))); //The following three lines isolates the sequence associated with a segment.
+                assert(cap != NULL);
+                Sequence *sequence = cap_getSequence(cap);
+                assert(sequence != NULL);
+                fprintf(stdout, "Attaching the sequence to the cactus root %" PRIi64 ", header %s with length %" PRIi64 " and %" PRIi64 " total bases aligned and %" PRIi64 " bases aligned to other chromosome threads\n",
+                        sequence_getName(sequence), sequence_getHeader(sequence), sequence_getLength(sequence), totalBasesAligned, basesAlignedToChromosomeThreads);
+            }
         }
     }
     stList_destruct(l);
