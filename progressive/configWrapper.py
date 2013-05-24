@@ -183,6 +183,11 @@ class ConfigWrapper:
                 decompElem.attrib["max_parallel_subtrees"])
         assert maxParallelSubtrees > 0
         return maxParallelSubtrees
+
+    def setMaxParallelSubtrees(self, maxParallel):
+        decompElem = self.getDecompositionElem()
+        assert decompElem is not None
+        decompElem.attrib["max_parallel_subtrees"] = str(maxParallel)
             
     # the minBlockDegree, when specified in the final, "base" 
     # iteration, does not play nicely with the required fraction
