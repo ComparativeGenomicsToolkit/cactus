@@ -184,8 +184,10 @@ static void attachThreadComponentToDeadEndComponent(stList *threadComponent, stL
                 assert(cap != NULL);
                 Sequence *sequence = cap_getSequence(cap);
                 assert(sequence != NULL);
-                fprintf(stdout, "Attaching the sequence to the cactus root %" PRIi64 ", header %s with length %" PRIi64 " and %" PRIi64 " total bases aligned and %" PRIi64 " bases aligned to other chromosome threads\n",
-                        sequence_getName(sequence), sequence_getHeader(sequence), sequence_getLength(sequence), totalBasesAligned, basesAlignedToChromosomeThreads);
+                if(stPinchThread_getLength(pinchThread) > minLengthForChromosome) {
+                    fprintf(stdout, "Attaching the sequence to the cactus root %" PRIi64 ", header %s with length %" PRIi64 " and %" PRIi64 " total bases aligned and %" PRIi64 " bases aligned to other chromosome threads\n",
+                            sequence_getName(sequence), sequence_getHeader(sequence), sequence_getLength(sequence), totalBasesAligned, basesAlignedToChromosomeThreads);
+                }
             }
         }
     }

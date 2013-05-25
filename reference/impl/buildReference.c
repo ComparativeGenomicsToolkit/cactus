@@ -735,6 +735,11 @@ static stList *convertReferenceToAdjacencyEdges2(reference *ref) {
 ////////////////////////////////////
 ////////////////////////////////////
 
+static int64_t maxNodeNumber;
+static bool tooLarge(reference *ref, int64_t n) {
+    return reference_getRemainingIntervalLength(ref, n) > maxNodeNumber;
+}
+
 void buildReferenceTopDown(Flower *flower, const char *referenceEventHeader, int64_t permutations,
         stList *(*matchingAlgorithm)(stList *edges, int64_t nodeNumber), double(*temperature)(double), double theta,
         int64_t maxWalkForCalculatingZ, bool ignoreUnalignedGaps, double wiggle) {
@@ -812,6 +817,14 @@ void buildReferenceTopDown(Flower *flower, const char *referenceEventHeader, int
     double totalScoreAfterNudging = getReferenceScore(aL, ref);
     st_logDebug("The score of the final solution is %f after %" PRIi64 " rounds of greedy nudging out of a max possible %f\n",
             totalScoreAfterNudging, nudgePermutations, maxPossibleScore);
+
+    if(flower_getName(flower) == 0) { //Hack to breakup largest chromosome
+        int64_t totalBases = flower_getTotalBaseLength(flower);
+        maxNodeNumber = nodeNumber * 0.5;
+        if(totalBases > 2000000000 && maxNodeNumber > 10) {
+            reorderToAvoidOverlargeChromosome(ref, tooLarge);
+        }
+    }
 
     stList *chosenEdges = convertReferenceToAdjacencyEdges2(ref);
 
