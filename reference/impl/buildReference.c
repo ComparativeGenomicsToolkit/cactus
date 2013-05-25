@@ -737,7 +737,11 @@ static stList *convertReferenceToAdjacencyEdges2(reference *ref) {
 
 static int64_t maxNodeNumber;
 static bool tooLarge(reference *ref, int64_t n) {
-    return reference_getRemainingIntervalLength(ref, n) > maxNodeNumber;
+    if(reference_getRemainingIntervalLength(ref, n) > maxNodeNumber) {
+        st_logDebug("Breaking up interval with %" PRIi64 "nodes\n", reference_getRemainingIntervalLength(ref, n));
+        return 1;
+    }
+    return 0;
 }
 
 void buildReferenceTopDown(Flower *flower, const char *referenceEventHeader, int64_t permutations,
