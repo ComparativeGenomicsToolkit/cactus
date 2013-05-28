@@ -60,13 +60,31 @@ class ProgressiveDown(Target):
         if not self.options.nonRecursive:
             deps = self.schedule.deps(self.event)
             for child in deps:
-                if child in self.project.expMap:
-                    self.addChildTarget(ProgressiveDown(self.options,
-                                                        self.project, child, 
-                                                        self.schedule))
+                self.addChildTarget(ProgressiveDown(self.options,
+                                                    self.project, child, 
+                                                    self.schedule))
         
-        self.setFollowOnTarget(ProgressiveUp(self.options, self.project, self.event))
-        
+        self.setFollowOnTarget(ProgressiveNext(self.options, self.project, self.event,
+                                               self.schedule))
+
+class ProgressiveNext(Target):
+    def __init__(self, options, project, event, schedule):
+        Target.__init__(self)
+        self.options = options
+        self.project = project
+        self.event = event
+        self.schedule = schedule
+    
+    def run(self):
+        logger.info("Progressive Next: " + self.event)
+
+        if not self.schedule.isVirtual(self.event):
+            self.addChildTarget(ProgressiveUp(self.options, self.project, self.event))
+        followOnEvent = self.schedule.followOn(self.event)
+        if followOnEvent is not None:
+            self.addChildTarget(ProgressiveDown(self.options, self.project, followOnEvent,
+                                                self.schedule))
+    
 class ProgressiveUp(Target):
     def __init__(self, options, project, event):
         Target.__init__(self)
