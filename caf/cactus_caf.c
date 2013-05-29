@@ -353,11 +353,12 @@ int main(int argc, char *argv[]) {
                 //Do the annealing
                 if (annealingRound == 0) {
                     stCaf_anneal(threadSet, pinchIterator);
-                    if (pinchIteratorForConstraints != NULL) {
-                        stCaf_anneal(threadSet, pinchIteratorForConstraints);
-                    }
                 } else {
                     stCaf_annealBetweenAdjacencyComponents(threadSet, pinchIterator);
+                }
+                //Add back in the constraints
+                if (pinchIteratorForConstraints != NULL) {
+                    stCaf_anneal(threadSet, pinchIteratorForConstraints);
                 }
                 //Do the melting rounds
                 stCaf_melt(flower, threadSet, blockFilterFn, blockTrim, 0);
@@ -371,10 +372,6 @@ int main(int argc, char *argv[]) {
                 }
                 st_logDebug("Last melting round of cycle with a minimum chain length of %" PRIi64 " \n", minimumChainLength);
                 stCaf_melt(flower, threadSet, NULL, 0, minimumChainLength);
-                //Add back in the constraints
-                if (pinchIteratorForConstraints != NULL) {
-                    stCaf_anneal(threadSet, pinchIteratorForConstraints);
-                }
             }
 
             //Sort out case when we allow blocks of degree 1
@@ -382,10 +379,6 @@ int main(int argc, char *argv[]) {
                 st_logDebug("Creating degree 1 blocks\n");
                 stCaf_makeDegreeOneBlocks(threadSet);
                 stCaf_melt(flower, threadSet, blockFilterFn, blockTrim, 0);
-                //Add back in the constraints
-                if (pinchIteratorForConstraints != NULL) {
-                    stCaf_anneal(threadSet, pinchIteratorForConstraints);
-                }
             }
             else if(maximumAdjacencyComponentSizeRatio < INT64_MAX) { //Deal with giant components
                 st_logDebug("Breaking up components greedily\n");
