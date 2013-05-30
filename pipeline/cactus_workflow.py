@@ -935,7 +935,9 @@ def main():
         #cactusWorkflowArguments, phaseName, topFlowerName, index=0):
         firstTarget = CactusNormalPhase(cactusWorkflowArguments=cactusWorkflowArguments, phaseName="normal")
     else:
-        firstTarget = CactusSetupPhase(cactusWorkflowArguments=cactusWorkflowArguments, phaseName="setup")
+        firstTarget = CactusPreprocessorPhase(cactusWorkflowArguments=cactusWorkflowArguments,
+                                                            phaseName="preprocessor")
+        #CactusSetupPhase(cactusWorkflowArguments=cactusWorkflowArguments, phaseName="setup")
     Stack(firstTarget).startJobTree(options)
 
 def _test():
