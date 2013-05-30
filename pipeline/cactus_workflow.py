@@ -269,9 +269,30 @@ class CactusRecursionTarget(CactusTarget):
 ############################################################
 ############################################################
 
+def getLongestPath(node, distance=0.0):
+    """Identify the longest path from the mrca of the leaves of the species tree.
+    """
+    i, j = distance, distance
+    if node.left != None:
+        i = getLongestPath(node.left, node.left.distance) + distance
+    if node.right != None:  
+        j = getLongestPath(node.right, node.right.distance) + distance
+    return max(i, j)
+
 class CactusPreprocessorPhase(CactusPhasesTarget):
     def run(self):
         self.logToMaster("Starting preprocessor phase target at %s seconds" % time.time())
+        
+        #Adapt the config file to remove any elements that are not relevant to the distances considered.
+        longestPath = getLongestPath(newickTreeParser(self.cactusWorkflowArguments.speciesTree))
+        logger.info("The longest path in the tree is %f" % longestPath)
+        for node in list(self.cactusWorkflowArguments.configNode):
+            minDivergence = getOptionalAttrib(node, "minDivergence", float, 0.0)
+            maxDivergence = getOptionalAttrib(node, "maxDivergence", float, 100000000000.0)
+            if minDivergence > longestPath or maxDivergence < longestPath:
+                self.logToMaster("Removing node %s with minDivergence %s and maxDivergence %s for max divergence in tree of %s" % (node.tag, minDivergence, maxDivergence, longestPath))
+                self.cactusWorkflowArguments.configNode.remove(node)
+        
         tempDir = makeSubDir(os.path.join(self.getGlobalTempDir(), "tempSeqs"))
         prepHelper = PreprocessorHelper(self.cactusWorkflowArguments, self.cactusWorkflowArguments.sequences)
         processedSequences = []
@@ -338,16 +359,6 @@ class CactusSetupPhase(CactusPhasesTarget):
 ############################################################
 ############################################################
 ############################################################
-
-def getLongestPath(node, distance=0.0):
-    """Identify the longest path from the mrca of the leaves of the species tree.
-    """
-    i, j = distance, distance
-    if node.left != None:
-        i = getLongestPath(node.left, node.left.distance) + distance
-    if node.right != None:  
-        j = getLongestPath(node.right, node.right.distance) + distance
-    return max(i, j)
 
 def inverseJukesCantor(d):
     """Takes a substitution distance and calculates the number of expected changes per site (inverse jukes cantor)

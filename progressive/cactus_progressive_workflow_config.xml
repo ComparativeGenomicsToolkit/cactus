@@ -30,7 +30,7 @@
 		<CactusCafRecursion maxFlowerGroupSize="100000000"/>
 		<CactusCafWrapper minFlowerSize="5000" maxFlowerGroupSize="10000000" memory="2147483648"/>
 	</caf>
-	<caf
+	<caf minDivergence="0.01"
 		chunkSize="1000000" 
 		lastzArguments="--step=1 --masking=20 --nogapped --hspthresh=1800 --ambiguous=iupac"
 		compressFiles="1" 
