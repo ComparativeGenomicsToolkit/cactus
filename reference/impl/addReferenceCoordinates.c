@@ -102,7 +102,7 @@ static MetaSequence *addMetaSequence(Flower *flower, Cap *cap, int64_t index, ch
      */
     Event *referenceEvent = cap_getEvent(cap);
     assert(referenceEvent != NULL);
-    char *sequenceName = stString_print("%s.refChr%" PRIi64 "", event_getHeader(referenceEvent), index);
+    char *sequenceName = stString_print("%srefChr%" PRIi64 "", event_getHeader(referenceEvent), index);
     //char *sequenceName = stString_print("refChr%" PRIi64 "", index);
     MetaSequence *metaSequence = metaSequence_construct(1, strlen(string), string,
                                 sequenceName, event_getName(referenceEvent),
