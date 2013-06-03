@@ -58,7 +58,7 @@ static void usage() {
             stderr,
             "-w --maxAdjacencyComponentSizeRatio : The components equal or less than log(n) * of this size will be allowed in the cactus. Used to fight giant components.\n");
 
-    fprintf(stderr, "-x --constraints : A file of alignments that will enforced upon the cactus\n");
+    fprintf(stderr, "-x --constraints : A file of alignments that will be enforced upon the cactus\n");
 
     fprintf(stderr, "-y --minLengthForChromosome : The minimum length required for a sequence to be considered as a candidate to be chromosome.\n");
 

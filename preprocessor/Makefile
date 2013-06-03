@@ -3,7 +3,7 @@ include ../include.mk
 
 cflags += ${tokyoCabinetIncl}
 
-all : ${binPath}/cactus_preprocessor.py ${binPath}/cactus_lastzRepeatMask.py ${binPath}/cactus_filterSmallFastaSequences.py ${binPath}/cactus_fasta_fragments.py
+all : ${binPath}/cactus_preprocessor.py ${binPath}/cactus_checkUniqueHeaders.py ${binPath}/cactus_makeAlphaNumericHeaders.py ${binPath}/cactus_lastzRepeatMask.py ${binPath}/cactus_filterSmallFastaSequences.py ${binPath}/cactus_fasta_fragments.py
 
 ${binPath}/cactus_preprocessor.py : cactus_preprocessor.py  ${binPath}/cactus_batch_mergeChunks
 	cp cactus_preprocessor.py ${binPath}/cactus_preprocessor.py
@@ -23,7 +23,15 @@ ${binPath}/cactus_filterSmallFastaSequences.py : cactus_filterSmallFastaSequence
 ${binPath}/cactus_fasta_fragments.py : cactus_fasta_fragments.py
 	cp cactus_fasta_fragments.py ${binPath}/cactus_fasta_fragments.py
 	chmod +x ${binPath}/cactus_fasta_fragments.py
+	
+${binPath}/cactus_checkUniqueHeaders.py : cactus_checkUniqueHeaders.py
+	cp cactus_checkUniqueHeaders.py ${binPath}/cactus_checkUniqueHeaders.py
+	chmod +x ${binPath}/cactus_checkUniqueHeaders.py
+	
+${binPath}/cactus_makeAlphaNumericHeaders.py : cactus_makeAlphaNumericHeaders.py
+	cp cactus_makeAlphaNumericHeaders.py ${binPath}/cactus_makeAlphaNumericHeaders.py
+	chmod +x ${binPath}/cactus_makeAlphaNumericHeaders.py
 
 clean : 
 	rm -f *.o
-	rm -f ${binPath}/cactus_preprocessor.py ${binPath}/cactus_lastzRepeatMask.py ${binPath}/cactus_batch_mergeChunks ${binPath}/cactus_filterSmallFastaSequences.py ${binPath}/cactus_fasta_fragments.py
+	rm -f ${binPath}/cactus_preprocessor.py ${binPath}/cactus_checkUniqueHeaders.py ${binPath}/cactus_makeAlphaNumericHeaders.py ${binPath}/cactus_lastzRepeatMask.py ${binPath}/cactus_batch_mergeChunks ${binPath}/cactus_filterSmallFastaSequences.py ${binPath}/cactus_fasta_fragments.py

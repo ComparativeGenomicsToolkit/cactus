@@ -85,11 +85,12 @@ class PreprocessorHelper:
         return fileEventMap       
 
 class PreprocessorOptions:
-    def __init__(self, chunkSize, cmdLine, memory, cpu):
+    def __init__(self, chunkSize, cmdLine, memory, cpu, check):
         self.chunkSize = chunkSize
         self.cmdLine = cmdLine
         self.memory = memory
         self.cpu = cpu
+        self.check = check
 
 class PreprocessChunk(Target):
     """ locally preprocess a fasta chunk, output then copied back to input
@@ -104,13 +105,15 @@ class PreprocessChunk(Target):
     
     def run(self):
         tempPath = os.path.join(self.getLocalTempDir(), "tempPath")
-        cmdline = self.prepOptions.cmdLine.replace("QUERY_FILE", "\"" + self.seqPath + "\"")
-        cmdline = cmdline.replace("TARGET_FILE", "\"" + self.inChunk + "\"")
+        cmdline = self.prepOptions.cmdLine.replace("GENOME_FILE", "\"" + self.seqPath + "\"")
+        cmdline = cmdline.replace("IN_FILE", "\"" + self.inChunk + "\"")
         cmdline = cmdline.replace("OUT_FILE", "\"" + self.outChunk + "\"")
         cmdline = cmdline.replace("TEMP_FILE", "\"" + tempPath + "\"")
         cmdline = cmdline.replace("EVENT_STRING", self.event)
         logger.info("Preprocessor exec " + cmdline)
         system(cmdline)
+        if self.prepOptions.check:
+            system("cp %s %s" % (self.inChunk, self.outChunk))
 
 class MergeChunks(Target):
     """ merge a list of chunks into a fasta file
@@ -126,7 +129,7 @@ class MergeChunks(Target):
                (self.outSequencePath, " ".join(self.chunkList)))
  
 class PreprocessSequence(Target):
-    """ cut a sequence into chunks, process, then merge
+    """Cut a sequence into chunks, process, then merge
     """
     def __init__(self, prepOptions, inSequencePath, outSequencePath, event):
         Target.__init__(self, cpu=prepOptions.cpu)
@@ -169,10 +172,11 @@ class BatchPreprocessor(Target):
         assert self.iteration < len(self.prepXmlElems)
         
         prepNode = self.prepXmlElems[self.iteration]
-        prepOptions = PreprocessorOptions(int(prepNode.get("chunkSize", default="2147483647")),
+        prepOptions = PreprocessorOptions(int(prepNode.get("chunkSize", default="-1")),
                                           prepNode.attrib["preprocessorString"],
                                           int(self.memory),
-                                          int(self.cpu))
+                                          int(self.cpu),
+                                          bool(int(prepNode.get("check", default="0"))),)
         
         if os.path.isdir(self.inSequence):
             tempFile = os.path.join(self.getGlobalTempDir(), "catSeq.fa")
@@ -186,7 +190,10 @@ class BatchPreprocessor(Target):
         else:
             outSeq = self.globalOutSequence
         
-        self.addChildTarget(PreprocessSequence(prepOptions, self.inSequence, outSeq, self.event)) 
+        if prepOptions.chunkSize <= 0: #In this first case we don't need to break up the sequence
+            self.addChildTarget(PreprocessChunk(prepOptions, self.inSequence, self.inSequence, outSeq, self.event))
+        else:
+            self.addChildTarget(PreprocessSequence(prepOptions, self.inSequence, outSeq, self.event)) 
         
         if lastIteration == False:
             self.setFollowOnTarget(BatchPreprocessor(self.cactusWorkflowArguments, self.event, 
