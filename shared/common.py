@@ -120,13 +120,15 @@ def runCactusSplitFlowersBySecondaryGrouping(flowerNames):
 #############################################  
 
 def runCactusSetup(cactusDiskDatabaseString, sequences, 
-                   newickTreeString, logLevel=None, outgroupEvents=None):
+                   newickTreeString, logLevel=None, outgroupEvents=None,
+                   makeEventHeadersAlphaNumeric=None):
     logLevel = getLogLevelString2(logLevel)
     outgroupEvents = nameValue("outgroupEvents", outgroupEvents, str)
+    makeEventHeadersAlphaNumeric=nameValue("makeEventHeadersAlphaNumeric", makeEventHeadersAlphaNumeric, bool)
     system("cactus_setup %s --speciesTree '%s' --cactusDisk '%s' \
---logLevel %s %s" \
+--logLevel %s %s %s" \
            % (" ".join(sequences), newickTreeString,
-              cactusDiskDatabaseString, logLevel, outgroupEvents))
+              cactusDiskDatabaseString, logLevel, outgroupEvents, makeEventHeadersAlphaNumeric))
     logger.info("Ran cactus setup okay")
     
 def runCactusBlast(sequenceFiles, outputFile, jobTreeDir,

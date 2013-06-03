@@ -17,6 +17,7 @@
 #include <sys/stat.h>
 #include <dirent.h>
 #include <math.h>
+#include <ctype.h>
 
 const char *CACTUS_SETUP_EXCEPTION = "CACTUS_SETUP_EXCEPTION";
 
@@ -26,14 +27,10 @@ const char *CACTUS_SETUP_EXCEPTION = "CACTUS_SETUP_EXCEPTION";
 void usage() {
     fprintf(stderr, "cactus_setup [fastaFile]xN, version 0.2\n");
     fprintf(stderr, "-a --logLevel : Set the log level\n");
-    fprintf(stderr,
-            "-b --cactusDisk : The location of the flower disk directory\n");
-    fprintf(
-            stderr,
-            "-f --speciesTree : The species tree, which will form the skeleton of the event tree\n");
-    fprintf(
-            stderr,
-            "-g --outgroupEvents : Leaf events in the species tree identified as outgroups\n");
+    fprintf(stderr, "-b --cactusDisk : The location of the flower disk directory\n");
+    fprintf(stderr, "-f --speciesTree : The species tree, which will form the skeleton of the event tree\n");
+    fprintf(stderr, "-g --outgroupEvents : Leaf events in the species tree identified as outgroups\n");
+    fprintf(stderr, "-i --makeEventHeadersAlphaNumeric : Remove non alpha-numeric characters from event header names\n");
     fprintf(stderr, "-h --help : Print this help screen\n");
     fprintf(stderr, "-d --debug : Run some extra debug checks at the end\n");
 }
@@ -58,6 +55,27 @@ void checkBranchLengthsAreDefined(stTree *tree) {
     }
 }
 
+char *makeAlphaNumeric(const char *string) {
+    char *cA = stString_copy(string);
+    int64_t j = 0;
+    for (int64_t i = 0; i < strlen(string); i++) {
+        if (isalpha(string[i]) || isdigit(string[i])) {
+            cA[j++] = string[i];
+        }
+    }
+    cA[j] = '\0';
+    return cA;
+}
+
+void makeEventHeadersAlphaNumericFn(stTree *tree) {
+    char *cA = makeAlphaNumeric(stTree_getLabel(tree));
+    stTree_setLabel(tree, cA);
+    free(cA);
+    for (int64_t i = 0; i < stTree_getChildNumber(tree); i++) {
+        makeEventHeadersAlphaNumericFn(stTree_getChild(tree, i));
+    }
+}
+
 void fn(const char *fastaHeader, const char *string, int64_t length) {
     /*
      * Processes a sequence by adding it to the flower disk.
@@ -70,8 +88,7 @@ void fn(const char *fastaHeader, const char *string, int64_t length) {
     Sequence *sequence;
 
     //Now put the details in a flower.
-    metaSequence = metaSequence_construct(2, length, string, fastaHeader,
-            event_getName(event), cactusDisk);
+    metaSequence = metaSequence_construct(2, length, string, fastaHeader, event_getName(event), cactusDisk);
     sequence = sequence_construct(metaSequence, flower);
     //isComplete = 0;
     end1 = end_construct2(0, isComplete, flower);
@@ -89,9 +106,7 @@ void setCompleteStatus(const char *fileName) {
         const char *cA = fileName + i - 9;
         if (strcmp(cA, ".complete") == 0) {
             isComplete = 1;
-            st_logInfo(
-                    "The file %s is specified complete, the sequences will be attached\n",
-                    fileName);
+            st_logInfo("The file %s is specified complete, the sequences will be attached\n", fileName);
             return;
         }
     }
@@ -99,15 +114,11 @@ void setCompleteStatus(const char *fileName) {
         const char *cA = fileName + i - 12;
         if (strcmp(cA, ".complete.fa") == 0) {
             isComplete = 1;
-            st_logInfo(
-                    "The file %s is specified complete, the sequences will be attached\n",
-                    fileName);
+            st_logInfo("The file %s is specified complete, the sequences will be attached\n", fileName);
             return;
         }
     }
-    st_logInfo(
-            "The file %s is specified incomplete, the sequences will not be attached\n",
-            fileName);
+    st_logInfo("The file %s is specified incomplete, the sequences will not be attached\n", fileName);
 }
 
 int main(int argc, char *argv[]) {
@@ -128,6 +139,7 @@ int main(int argc, char *argv[]) {
     Group *group;
     Flower_EndIterator *endIterator;
     End *end;
+    bool makeEventHeadersAlphaNumeric = 0;
 
     /*
      * Arguments/options
@@ -141,15 +153,13 @@ int main(int argc, char *argv[]) {
     ///////////////////////////////////////////////////////////////////////////
 
     while (1) {
-        static struct option long_options[] = { { "logLevel",
-                required_argument, 0, 'a' }, { "cactusDisk", required_argument,
-                0, 'b' }, { "speciesTree", required_argument, 0, 'f' }, {
-                "outgroupEvents", required_argument, 0, 'g' }, { "help",
-                no_argument, 0, 'h' }, { 0, 0, 0, 0 } };
+        static struct option long_options[] = { { "logLevel", required_argument, 0, 'a' }, { "cactusDisk", required_argument, 0, 'b' }, {
+                "speciesTree", required_argument, 0, 'f' }, { "outgroupEvents", required_argument, 0, 'g' },
+                { "help", no_argument, 0, 'h' }, { "makeEventHeadersAlphaNumeric", no_argument, 0, 'i' }, { 0, 0, 0, 0 } };
 
         int option_index = 0;
 
-        key = getopt_long(argc, argv, "a:b:f:hg:", long_options, &option_index);
+        key = getopt_long(argc, argv, "a:b:f:hg:i", long_options, &option_index);
 
         if (key == -1) {
             break;
@@ -171,6 +181,9 @@ int main(int argc, char *argv[]) {
             case 'h':
                 usage();
                 return 0;
+            case 'i':
+                makeEventHeadersAlphaNumeric = 1;
+                break;
             default:
                 usage();
                 return 1;
@@ -205,11 +218,9 @@ int main(int argc, char *argv[]) {
     //Load the database
     //////////////////////////////////////////////
 
-    stKVDatabaseConf *kvDatabaseConf = kvDatabaseConf
-            = stKVDatabaseConf_constructFromString(cactusDiskDatabaseString);
-    if (stKVDatabaseConf_getType(kvDatabaseConf)
-            == stKVDatabaseTypeTokyoCabinet || stKVDatabaseConf_getType(
-            kvDatabaseConf) == stKVDatabaseTypeKyotoTycoon) {
+    stKVDatabaseConf *kvDatabaseConf = kvDatabaseConf = stKVDatabaseConf_constructFromString(cactusDiskDatabaseString);
+    if (stKVDatabaseConf_getType(kvDatabaseConf) == stKVDatabaseTypeTokyoCabinet || stKVDatabaseConf_getType(kvDatabaseConf)
+            == stKVDatabaseTypeKyotoTycoon) {
         assert(stKVDatabaseConf_getDir(kvDatabaseConf) != NULL);
         cactusDisk = cactusDisk_construct2(kvDatabaseConf, "cactusSequences");
     } else {
@@ -234,10 +245,12 @@ int main(int argc, char *argv[]) {
     //Construct the event tree
     //////////////////////////////////////////////
 
-    st_logInfo("Going to build the event tree with newick string: %s\n",
-            speciesTree);
+    st_logInfo("Going to build the event tree with newick string: %s\n", speciesTree);
     stTree *tree = stTree_parseNewickString(speciesTree);
     st_logInfo("Parsed the tree\n");
+    if (makeEventHeadersAlphaNumeric) {
+        makeEventHeadersAlphaNumericFn(tree);
+    }
     stTree_setBranchLength(tree, INT64_MAX);
     checkBranchLengthsAreDefined(tree);
     eventTree = eventTree_construct2(flower); //creates the event tree and the root even
@@ -255,8 +268,7 @@ int main(int argc, char *argv[]) {
         assert(tree != NULL);
         totalEventNumber++;
         if (stTree_getChildNumber(tree) > 0) {
-            event = event_construct3(stTree_getLabel(tree),
-                    stTree_getBranchLength(tree), event, eventTree);
+            event = event_construct3(stTree_getLabel(tree), stTree_getBranchLength(tree), event, eventTree);
             for (int64_t i = stTree_getChildNumber(tree) - 1; i >= 0; i--) {
                 listAppend(stack, event);
                 listAppend(stack, stTree_getChild(tree, i));
@@ -266,8 +278,7 @@ int main(int argc, char *argv[]) {
             assert(stTree_getLabel(tree) != NULL);
 
             assert(stTree_getBranchLength(tree) != INFINITY);
-            event = event_construct3(stTree_getLabel(tree),
-                    stTree_getBranchLength(tree), event, eventTree);
+            event = event_construct3(stTree_getLabel(tree), stTree_getBranchLength(tree), event, eventTree);
 
             char *fileName = argv[j];
 
@@ -279,8 +290,7 @@ int main(int argc, char *argv[]) {
                 st_logInfo("Processing directory: %s\n", fileName);
                 stList *filesInDir = stFile_getFileNamesInDirectory(fileName);
                 for (int64_t i = 0; i < stList_length(filesInDir); i++) {
-                    char *absChildFileName = stFile_pathJoin(fileName,
-                            stList_get(filesInDir, i));
+                    char *absChildFileName = stFile_pathJoin(fileName, stList_get(filesInDir, i));
                     assert(stFile_exists(absChildFileName));
                     setCompleteStatus(absChildFileName); //decide if the sequences in the file should be free or attached.
                     fileHandle = fopen(absChildFileName, "r");
@@ -303,9 +313,7 @@ int main(int argc, char *argv[]) {
     st_logInfo(
             "Constructed the initial flower with %" PRIi64 " sequences and %" PRIi64 " events with string: %s\n",
             totalSequenceNumber, totalEventNumber, eventTreeString);
-    assert(
-            event_getSubTreeBranchLength(eventTree_getRootEvent(eventTree))
-                    >= 0.0);
+    assert(event_getSubTreeBranchLength(eventTree_getRootEvent(eventTree)) >= 0.0);
     free(eventTreeString);
     //assert(0);
 
@@ -316,21 +324,18 @@ int main(int argc, char *argv[]) {
     if (outgroupEvents != NULL) {
         stList *outgroupEventsList = stString_split(outgroupEvents);
         for (int64_t i = 0; i < stList_length(outgroupEventsList); i++) {
-            char *outgroupEvent = stList_get(outgroupEventsList, i);
+            char *outgroupEvent = makeEventHeadersAlphaNumeric ? makeAlphaNumeric(stList_get(outgroupEventsList, i)) : stString_copy(stList_get(outgroupEventsList, i));
             Event *event = eventTree_getEventByHeader(eventTree, outgroupEvent);
             if (event == NULL) {
-                st_errAbort(
-                        "Got an outgroup string that does not match an event, outgroup string %s",
-                        outgroupEvent);
+                st_errAbort("Got an outgroup string that does not match an event, outgroup string %s", outgroupEvent);
             }
             if (event_getChildNumber(event) != 0) {
-                st_errAbort(
-                        "Attempting to label an internal node as an outgroup, outgroup string %s",
-                        outgroupEvent);
+                st_errAbort("Attempting to label an internal node as an outgroup, outgroup string %s", outgroupEvent);
             }
             assert(!event_isOutgroup(event));
             event_setOutgroupStatus(event, 1);
             assert(event_isOutgroup(event));
+            free(outgroupEvent);
         }
         stList_destruct(outgroupEventsList);
     }

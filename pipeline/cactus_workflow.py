@@ -347,7 +347,8 @@ class CactusSetupPhase(CactusPhasesTarget):
         runCactusSetup(cactusDiskDatabaseString=self.cactusWorkflowArguments.cactusDiskDatabaseString, 
                        sequences=self.cactusWorkflowArguments.sequences, 
                        newickTreeString=self.cactusWorkflowArguments.speciesTree, 
-                       outgroupEvents=self.cactusWorkflowArguments.outgroupEventNames)
+                       outgroupEvents=self.cactusWorkflowArguments.outgroupEventNames,
+                       makeEventHeadersAlphaNumeric=self.getOptionalPhaseAttrib("makeEventHeadersAlphaNumeric", bool, False))
         self.makeFollowOnPhaseTarget(CactusCafPhase, "caf")
         
 ############################################################
