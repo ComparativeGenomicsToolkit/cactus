@@ -147,9 +147,12 @@ void stCaf_calculateRequiredFractionsOfSpecies(Flower *flower, float requiredIng
         }
     }
     eventTree_destructIterator(eventIt);
-    *requiredOutgroupSpecies = outgroupEventNumber * requiredOutgroupFraction;
-    *requiredIngroupSpecies = ingroupEventNumber * requiredIngroupFraction;
-    *requiredAllSpecies = (ingroupEventNumber + outgroupEventNumber) * requiredAllFraction;
+    *requiredOutgroupSpecies = 0.5 + outgroupEventNumber * requiredOutgroupFraction;
+    *requiredIngroupSpecies = 0.5 + ingroupEventNumber * requiredIngroupFraction;
+    if(*requiredIngroupSpecies == 0) {
+        *requiredIngroupSpecies = 1;
+    }
+    *requiredAllSpecies = 0.5 + (ingroupEventNumber + outgroupEventNumber) * requiredAllFraction;
 }
 
 static Event *getEvent(stPinchSegment *segment, Flower *flower) {

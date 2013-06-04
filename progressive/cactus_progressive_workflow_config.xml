@@ -2,26 +2,26 @@
   <preprocessor memory="2147483648" preprocessorString="cactus_makeAlphaNumericHeaders.py IN_FILE OUT_FILE" scope="leaves" />
   <preprocessor check="1" memory="2147483648" preprocessorString="cactus_checkUniqueHeaders.py IN_FILE" scope="leaves" />
   <preprocessor chunkSize="100000000" memory="2147483648" preprocessorString="cactus_lastzRepeatMask.py --minPeriod=10 --lastzOpts='--step=20 --notransition --ambiguous=iupac --nogapped' GENOME_FILE IN_FILE OUT_FILE" scope="leaves" />
-	<setup makeEventHeadersAlphaNumeric="1">
+  	<setup makeEventHeadersAlphaNumeric="0">
 	</setup>
-	<caf
+	<caf 
 		chunkSize="25000000" 
-		lastzArguments="--step=5 --nogapped --masking=20 --hspthresh=3000 --ambiguous=iupac"
+		lastzArguments="--ambiguous=iupac --masking=20 --step=5"
 		compressFiles="1" 
 		overlapSize="10000" 
 		filterByIdentity="0" 
 		identityRatio="6" 
 		minimumDistance="0.01" 
-		minimumSequenceLengthForBlast="100"
-		annealingRounds="2 4 16 128" 
+		minimumSequenceLengthForBlast="30"
+		annealingRounds="2 4 16 64 128 64" 
 		deannealingRounds="1 2 3 4 8 16 32 64" 
 		blockTrim="0" 
 		minimumTreeCoverage="0.0" 
-		trim="5 5 5 5 5 5 5 5 5 5 5 5" 
+		trim="3 3 3 3 3 3 3 3 3 3 3 3 3 3 3" 
 		minimumBlockDegree="2"
 		requiredIngroupFraction="0.0"
 		requiredOutgroupFraction="0.0"
-		requiredAllFraction="1.0"
+		requiredAllFraction="0.0"
 		singleCopyIngroup="0"
 		singleCopyOutgroup="1"
 		maxAdjacencyComponentSizeRatio="10"
@@ -31,32 +31,6 @@
 	>
 		<CactusCafRecursion maxFlowerGroupSize="100000000"/>
 		<CactusCafWrapper minFlowerSize="5000" maxFlowerGroupSize="10000000" memory="2147483648"/>
-	</caf>
-	<caf minDivergence="0.01"
-		chunkSize="1000000" 
-		lastzArguments="--step=1 --masking=20 --nogapped --hspthresh=1800 --ambiguous=iupac"
-		compressFiles="1" 
-		overlapSize="10000" 
-		filterByIdentity="0" 
-		identityRatio="6" 
-		minimumDistance="0.01" 
-		minimumSequenceLengthForBlast="100"
-		annealingRounds="2 4 16 128" 
-		deannealingRounds="1 2 3 4 8 16 32 64" 
-		blockTrim="0" 
-		minimumTreeCoverage="0.0" 
-		trim="3 3 3 3 3 3 3 3 3 3 3 3" 
-		minimumBlockDegree="2"
-		requiredIngroupFraction="1.0"
-		requiredOutgroupFraction="0.0"
-		requiredAllFraction="0.0"
-		singleCopyIngroup="0"
-		singleCopyOutgroup="1" 
-		maxAdjacencyComponentSizeRatio="10"
-		lastzMemory="2147483648"
-	>
-		<CactusCafRecursion maxFlowerGroupSize="100000000"/>
-		<CactusCafWrapper minFlowerSize="5000" maxFlowerGroupSize="1000000" memory="2147483648"/>
 	</caf>
 	<bar
 		runBar="1"
@@ -73,7 +47,7 @@
 		alignAmbiguityCharacters="1"
 		requiredIngroupFraction="0.0"
 		requiredOutgroupFraction="0.0"
-		requiredAllFraction="0.67"
+		requiredAllFraction="0.0"
 		largeEndSize="100000"
 		veryLargeEndSize="1500000"
 		maximumNumberOfSequencesBeforeSwitchingToFast="50"
@@ -129,7 +103,7 @@
 	</hal>
   	<multi_cactus>
 		<outgroup 
-			strategy="greedy" 
+			strategy="greedyLeaves" 
 			threshold="0"
 			ancestor_quality_fraction="0.75"
 		/>
