@@ -103,6 +103,54 @@ static bool blockFilterFn(stPinchBlock *pinchBlock) {
     return 0;
 }
 
+bool (*filterFn)(stPinchSegment *, stPinchSegment *) = NULL;
+
+bool containsOutgroup(stPinchSegment *segment) {
+    stPinchBlock *block = stPinchSegment_getBlock(segment);
+    if(block != NULL) {
+        stPinchBlockIt it = stPinchBlock_getSegmentIterator(block);
+        while((segment = stPinchBlockIt_getNext(&it)) != NULL) {
+            if(event_isOutgroup(getEvent(segment, flower))) {
+                return 1;
+            }
+        }
+        return 0;
+    }
+    return event_isOutgroup(getEvent(segment, flower));
+}
+
+bool filterByOutgroup(stPinchSegment *segment1, stPinchSegment *segment2) {
+    return containsOutgroup(segment1) && containsOutgroup(segment2);
+}
+
+static bool checkIntersection(stSortedSet *names1, stSortedSet *names2) {
+    stSortedSet *n12 = stSortedSet_getIntersection(names1, names2);
+    bool b = stSortedSet_size(n12) > 0;
+    stSortedSet_destruct(names1);
+    stSortedSet_destruct(names2);
+    stSortedSet_destruct(n12);
+    return b;
+}
+
+static stSortedSet *getNames(stPinchSegment *segment) {
+    stSortedSet *names = stSortedSet_construct();
+    if(stPinchSegment_getBlock(segment) != NULL) {
+        stPinchBlock *block = stPinchSegment_getBlock(segment);
+        stPinchBlockIt it = stPinchBlock_getSegmentIterator(block);
+        while((segment = stPinchBlockIt_getNext(&it)) != NULL) {
+            stSortedSet_insert(names, getEvent(segment, flower));
+        }
+    }
+    else {
+        stSortedSet_insert(names, getEvent(segment, flower));
+    }
+    return names;
+}
+
+static bool filterByRepeatSpecies(stPinchSegment *segment1, stPinchSegment *segment2) {
+    return checkIntersection(getNames(segment1), getNames(segment2));
+}
+
 int main(int argc, char *argv[]) {
     /*
      * Script for adding alignments to cactus tree.
@@ -306,9 +354,16 @@ int main(int argc, char *argv[]) {
     // Single copy filter
     ///////////////////////////////////////////////////////////////////////////
 
-    multipleCopiesFunction = singleCopyIngroup ? (singleCopyOutgroup ? stCaf_containsMultipleCopiesOfAnySpecies
-            : stCaf_containsMultipleCopiesOfIngroupSpecies) :
-              (singleCopyOutgroup ? stCaf_containsMultipleCopiesOfOutgroupSpecies : NULL);
+    multipleCopiesFunction = NULL; //singleCopyIngroup ? (singleCopyOutgroup ? stCaf_containsMultipleCopiesOfAnySpecies
+            //: stCaf_containsMultipleCopiesOfIngroupSpecies) :
+            //  (singleCopyOutgroup ? stCaf_containsMultipleCopiesOfOutgroupSpecies : NULL);
+
+    if(singleCopyOutgroup) {
+        filterFn = filterByOutgroup;
+    }
+    if(singleCopyIngroup) {
+        //filterFn = filterByRepeatSpecies;
+    }
 
     ///////////////////////////////////////////////////////////////////////////
     // Do the alignment
@@ -352,13 +407,13 @@ int main(int argc, char *argv[]) {
                 stPinchIterator_setTrim(pinchIterator, alignmentTrim);
                 //Do the annealing
                 if (annealingRound == 0) {
-                    stCaf_anneal(threadSet, pinchIterator);
+                    stCaf_anneal(threadSet, pinchIterator, filterFn);
                 } else {
-                    stCaf_annealBetweenAdjacencyComponents(threadSet, pinchIterator);
+                    stCaf_annealBetweenAdjacencyComponents(threadSet, pinchIterator, filterFn);
                 }
                 //Add back in the constraints
                 if (pinchIteratorForConstraints != NULL) {
-                    stCaf_anneal(threadSet, pinchIteratorForConstraints);
+                    stCaf_anneal(threadSet, pinchIteratorForConstraints, filterFn);
                 }
                 //Do the melting rounds
                 stCaf_melt(flower, threadSet, blockFilterFn, blockTrim, 0);

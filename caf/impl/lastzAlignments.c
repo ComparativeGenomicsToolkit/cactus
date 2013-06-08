@@ -13,6 +13,10 @@
 #include "pairwiseAlignment.h"
 #include "blastAlignmentLib.h"
 
+static int compareByScore(struct PairwiseAlignment *pA, struct PairwiseAlignment *pA2) {
+    return pA->score == pA2->score ? 0 : (pA->score > pA2->score ? -1 : 1);
+}
+
 stList *stCaf_selfAlignFlower(Flower *flower, int64_t minimumSequenceLength, const char *lastzArgs, char *tempFile1) {
     /*
      * Get the sequences.
@@ -48,6 +52,7 @@ stList *stCaf_selfAlignFlower(Flower *flower, int64_t minimumSequenceLength, con
             st_errAbort("Lastz failed: %s\n", command);
         }
         free(command);
+        stList_sort(cigars, (int (*)(const void *, const void *))compareByScore);
     }
     //st_system("rm %s", tempFile1);
 

@@ -36,12 +36,12 @@ stPinchThreadSet *stCaf_setup(Flower *flower);
 /*
  * Add the set of alignments, represented as pinches, to the graph.
  */
-void stCaf_anneal(stPinchThreadSet *threadSet, stPinchIterator *pinchIterator);
+void stCaf_anneal(stPinchThreadSet *threadSet, stPinchIterator *pinchIterator, bool (*filterFn)(stPinchSegment *, stPinchSegment *));
 
 /*
  * Add the set of alignments, represented as pinches, to the graph, allowing alignments only between segments in the same component.
  */
-void stCaf_annealBetweenAdjacencyComponents(stPinchThreadSet *threadSet, stPinchIterator *pinchIterator);
+void stCaf_annealBetweenAdjacencyComponents(stPinchThreadSet *threadSet, stPinchIterator *pinchIterator, bool (*filterFn)(stPinchSegment *, stPinchSegment *));
 
 /*
  * Joins all trivial boundaries, but not joining stub boundaries.
@@ -86,6 +86,8 @@ bool stCaf_containsMultipleCopiesOfOutgroupSpecies(stPinchBlock *pinchBlock, Flo
  * Returns 1 if any species is present in multiple copies.
  */
 bool stCaf_containsMultipleCopiesOfAnySpecies(stPinchBlock *pinchBlock, Flower *flower);
+
+Event *getEvent(stPinchSegment *segment, Flower *flower);
 
 ///////////////////////////////////////////////////////////////////////////
 // Pinch graph to cactus graph

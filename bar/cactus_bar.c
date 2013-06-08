@@ -315,7 +315,7 @@ int main(int argc, char *argv[]) {
              * Run the cactus caf functions to build cactus.
              */
             stPinchThreadSet *threadSet = stCaf_setup(flower);
-            stCaf_anneal(threadSet, pinchIterator);
+            stCaf_anneal(threadSet, pinchIterator, NULL);
             if (minimumDegree < 2) {
                 stCaf_makeDegreeOneBlocks(threadSet);
             }

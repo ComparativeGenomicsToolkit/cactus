@@ -42,9 +42,24 @@ void stCaf_anneal2(stPinchThreadSet *threadSet, stPinch *(*pinchIterator)(void *
     }
 }
 
-void stCaf_anneal(stPinchThreadSet *threadSet, stPinchIterator *pinchIterator) {
+static void stCaf_annealWithFilter2(stPinchThreadSet *threadSet, stPinch *(*pinchIterator)(void *), void *extraArg, bool (*filterFn)(stPinchSegment *, stPinchSegment *)) {
+    stPinch *pinch;
+    while ((pinch = pinchIterator(extraArg)) != NULL) {
+        stPinchThread *thread1 = stPinchThreadSet_getThread(threadSet, pinch->name1);
+        stPinchThread *thread2 = stPinchThreadSet_getThread(threadSet, pinch->name2);
+        assert(thread1 != NULL && thread2 != NULL);
+        stPinchThread_filterPinch(thread1, thread2, pinch->start1, pinch->start2, pinch->length, pinch->strand, filterFn);
+    }
+}
+
+void stCaf_anneal(stPinchThreadSet *threadSet, stPinchIterator *pinchIterator, bool (*filterFn)(stPinchSegment *, stPinchSegment *)) {
     stPinchIterator_reset(pinchIterator);
-    stCaf_anneal2(threadSet, (stPinch *(*)(void *)) stPinchIterator_getNext, pinchIterator);
+    if(filterFn != NULL) {
+        stCaf_annealWithFilter2(threadSet, (stPinch *(*)(void *)) stPinchIterator_getNext, pinchIterator, filterFn);
+    }
+    else {
+        stCaf_anneal2(threadSet, (stPinch *(*)(void *)) stPinchIterator_getNext, pinchIterator);
+    }
     stCaf_joinTrivialBoundaries(threadSet);
 }
 
@@ -84,7 +99,7 @@ static int64_t min(int64_t i, int64_t j) {
     return i < j ? i : j;
 }
 
-static void alignSameComponents(stPinch *pinch, stPinchThreadSet *threadSet, stSortedSet *adjacencyComponentIntervals) {
+static void alignSameComponents(stPinch *pinch, stPinchThreadSet *threadSet, stSortedSet *adjacencyComponentIntervals, bool (*filterFn)(stPinchSegment *, stPinchSegment *)) {
     stPinchThread *thread1 = stPinchThreadSet_getThread(threadSet, pinch->name1);
     stPinchThread *thread2 = stPinchThreadSet_getThread(threadSet, pinch->name2);
     assert(thread1 != NULL && thread2 != NULL);
@@ -99,7 +114,12 @@ static void alignSameComponents(stPinch *pinch, stPinchThreadSet *threadSet, stS
             int64_t length = min(getIntersectionLength(pinch->start1 + offset, pinch->start2 + offset, pinchInterval1,
                     pinchInterval2), pinch->length - offset);
             if (stPinchInterval_getLabel(pinchInterval1) == stPinchInterval_getLabel(pinchInterval2)) {
-                stPinchThread_pinch(thread1, thread2, pinch->start1 + offset, pinch->start2 + offset, length, 1);
+                if(filterFn != NULL) {
+                    stPinchThread_filterPinch(thread1, thread2, pinch->start1 + offset, pinch->start2 + offset, length, 1, filterFn);
+                }
+                else {
+                    stPinchThread_pinch(thread1, thread2, pinch->start1 + offset, pinch->start2 + offset, length, 1);
+                }
             }
             offset += length;
             pinchInterval1 = updatePinchInterval(pinch->start1 + offset, pinchInterval1, adjacencyComponentIntervals);
@@ -113,7 +133,12 @@ static void alignSameComponents(stPinch *pinch, stPinchThreadSet *threadSet, stS
             int64_t length = min(getIntersectionLengthReverse(pinch->start1 + offset, end2 - offset, pinchInterval1,
                     pinchInterval2), pinch->length - offset);
             if (stPinchInterval_getLabel(pinchInterval1) == stPinchInterval_getLabel(pinchInterval2)) {
-                stPinchThread_pinch(thread1, thread2, pinch->start1 + offset, end2 - offset - length + 1, length, 0);
+                if(filterFn != NULL) {
+                    stPinchThread_filterPinch(thread1, thread2, pinch->start1 + offset, end2 - offset - length + 1, length, 0, filterFn);
+                }
+                else {
+                    stPinchThread_pinch(thread1, thread2, pinch->start1 + offset, end2 - offset - length + 1, length, 0);
+                }
             }
             offset += length;
             pinchInterval1 = updatePinchInterval(pinch->start1 + offset, pinchInterval1, adjacencyComponentIntervals);
@@ -132,21 +157,21 @@ static stSortedSet *getAdjacencyComponentIntervals(stPinchThreadSet *threadSet, 
 }
 
 void stCaf_annealBetweenAdjacencyComponents2(stPinchThreadSet *threadSet, stPinch *(*pinchIterator)(void *),
-        void *extraArg) {
+        void *extraArg, bool (*filterFn)(stPinchSegment *, stPinchSegment *)) {
     //Get the adjacency component intervals
     stList *adjacencyComponents;
     stSortedSet *adjacencyComponentIntervals = getAdjacencyComponentIntervals(threadSet, &adjacencyComponents);
     //Now do the actual alignments.
     stPinch *pinch;
     while ((pinch = pinchIterator(extraArg)) != NULL) {
-        alignSameComponents(pinch, threadSet, adjacencyComponentIntervals);
+        alignSameComponents(pinch, threadSet, adjacencyComponentIntervals, filterFn);
     }
     stSortedSet_destruct(adjacencyComponentIntervals);
     stList_destruct(adjacencyComponents);
 }
 
-void stCaf_annealBetweenAdjacencyComponents(stPinchThreadSet *threadSet, stPinchIterator *pinchIterator) {
+void stCaf_annealBetweenAdjacencyComponents(stPinchThreadSet *threadSet, stPinchIterator *pinchIterator, bool (*filterFn)(stPinchSegment *, stPinchSegment *)) {
     stPinchIterator_reset(pinchIterator);
-    stCaf_annealBetweenAdjacencyComponents2(threadSet, (stPinch *(*)(void *)) stPinchIterator_getNext, pinchIterator);
+    stCaf_annealBetweenAdjacencyComponents2(threadSet, (stPinch *(*)(void *)) stPinchIterator_getNext, pinchIterator, filterFn);
     stCaf_joinTrivialBoundaries(threadSet);
 }

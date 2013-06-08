@@ -155,7 +155,7 @@ void stCaf_calculateRequiredFractionsOfSpecies(Flower *flower, float requiredIng
     *requiredAllSpecies = 0.5 + (ingroupEventNumber + outgroupEventNumber) * requiredAllFraction;
 }
 
-static Event *getEvent(stPinchSegment *segment, Flower *flower) {
+Event *getEvent(stPinchSegment *segment, Flower *flower) {
     Event *event = cap_getEvent(flower_getCap(flower, stPinchSegment_getName(segment)));
     assert(event != NULL);
     return event;
