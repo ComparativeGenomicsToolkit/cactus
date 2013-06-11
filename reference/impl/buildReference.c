@@ -153,11 +153,12 @@ static int64_t calculateZP2(Cap *cap, stHash *endsToNodes) {
     Cap *otherCap = calculateZP4(cap, endsToNodes);
     int64_t capLength;
     if (otherCap == NULL) {
-        capLength = cap_getSide(cap) ? sequence_getLength(sequence) + sequence_getStart(sequence) - cap_getCoordinate(cap)
-                : cap_getCoordinate(cap) - sequence_getStart(sequence) + 1;
-    } else {
-        assert(end_isAttached(cap_getEnd(cap)));
         capLength = 1000000000; //make the length really long if attached, so that we don't bias toward one or the other end.
+        //capLength = cap_getSide(cap) ? sequence_getLength(sequence) + sequence_getStart(sequence) - cap_getCoordinate(cap)
+        //        : cap_getCoordinate(cap) - sequence_getStart(sequence) + 1;
+    } else {
+    	capLength = cap_getSide(cap) ? cap_getCoordinate(otherCap) - cap_getCoordinate(cap) + 1 : cap_getCoordinate(cap)
+                - cap_getCoordinate(otherCap) + 1;
     }
     assert(capLength > 0);
     return capLength;

@@ -147,7 +147,7 @@ static stSortedSet *getNames(stPinchSegment *segment) {
     return names;
 }
 
-static bool filterByRepeatSpecies(stPinchSegment *segment1, stPinchSegment *segment2) {
+bool filterByRepeatSpecies(stPinchSegment *segment1, stPinchSegment *segment2) {
     return checkIntersection(getNames(segment1), getNames(segment2));
 }
 
@@ -416,7 +416,7 @@ int main(int argc, char *argv[]) {
                     stCaf_anneal(threadSet, pinchIteratorForConstraints, filterFn);
                 }
                 //Do the melting rounds
-                stCaf_melt(flower, threadSet, blockFilterFn, blockTrim, 0);
+                //stCaf_melt(flower, threadSet, blockFilterFn, blockTrim, 0);
                 for (int64_t meltingRound = 0; meltingRound < meltingRoundsLength; meltingRound++) {
                     int64_t minimumChainLengthForMeltingRound = meltingRounds[meltingRound];
                     st_logDebug("Starting melting round with a minimum chain length of %" PRIi64 " \n", minimumChainLengthForMeltingRound);
@@ -427,6 +427,8 @@ int main(int argc, char *argv[]) {
                 }
                 st_logDebug("Last melting round of cycle with a minimum chain length of %" PRIi64 " \n", minimumChainLength);
                 stCaf_melt(flower, threadSet, NULL, 0, minimumChainLength);
+
+                stCaf_melt(flower, threadSet, blockFilterFn, blockTrim, 0);
             }
 
             //Sort out case when we allow blocks of degree 1
