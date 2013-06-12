@@ -119,6 +119,7 @@ bool containsOutgroupSegment(stPinchBlock *block) {
         if(stSet_search(outgroupThreads, stPinchSegment_getThread(segment)) != NULL) {
             assert(event_isOutgroup(getEvent(segment, flower)));
             stPinchSegment_putSegmentFirstInBlock(segment);
+            assert(stPinchBlock_getFirst(block) == segment);
             return 1;
         }
         else {
@@ -141,9 +142,10 @@ bool filterByOutgroup(stPinchSegment *segment1, stPinchSegment *segment2) {
     stPinchBlock *block1, *block2;
     if((block1 = stPinchSegment_getBlock(segment1)) != NULL) {
         if((block2 = stPinchSegment_getBlock(segment2)) != NULL) {
-            return stPinchBlock_getDegree(block1) < stPinchBlock_getDegree(block2) ?
-                    (containsOutgroupSegment(block1) && containsOutgroupSegment(block2)) :
-                    (containsOutgroupSegment(block2) && containsOutgroupSegment(block1));
+            if(stPinchBlock_getDegree(block1) < stPinchBlock_getDegree(block2)) {
+                return containsOutgroupSegment(block1) && containsOutgroupSegment(block2);
+            }
+            return containsOutgroupSegment(block2) && containsOutgroupSegment(block1);
         }
         return isOutgroupSegment(segment2) && containsOutgroupSegment(block1);
     }
