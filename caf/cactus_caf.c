@@ -424,8 +424,11 @@ int main(int argc, char *argv[]) {
                 if(singleCopyIngroup || singleCopyOutgroup) {
                     tempFile1 = getTempFile();
                     stCaf_sortCigarsFileByScoreInDescendingOrder(alignmentsFile, tempFile1);
+                    pinchIterator = stPinchIterator_constructFromFile(tempFile1);
                 }
-                pinchIterator = stPinchIterator_constructFromFile(alignmentsFile);
+                else {
+                    pinchIterator = stPinchIterator_constructFromFile(alignmentsFile);
+                }
             } else {
                 if (tempFile1 == NULL) {
                     tempFile1 = getTempFile();

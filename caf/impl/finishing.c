@@ -222,9 +222,14 @@ static void makeTangles(stCactusNode *cactusNode, Flower *flower, stHash *pinchE
                 assert(end_getGroup(end) == NULL);
                 end_setGroup(end, group);
             }
-            group_constructChainForLink(group);
         }
     }
+    Flower_GroupIterator *groupIt = flower_getGroupIterator(flower);
+    Group *group;
+    while((group = flower_getNextGroup(groupIt)) != NULL) {
+        group_constructChainForLink(group);
+    }
+    flower_destructGroupIterator(groupIt);
 }
 
 //Sets the 'built-blocks flag' for all the flowers in the subtree, including the given flower.

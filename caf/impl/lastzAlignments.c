@@ -71,7 +71,10 @@ void stCaf_sortCigarsByScoreInDescendingOrder(stList *cigars) {
 }
 
 void stCaf_sortCigarsFileByScoreInDescendingOrder(char *cigarsFile, char *sortedFile) {
-    st_system("sort -k10nr %s > %s", cigarsFile, sortedFile);
+    int64_t i = st_system("sort -k10nr %s > %s", cigarsFile, sortedFile);
+    if(i != 0) {
+        st_errAbort("Encountered unix sort error when sorting cigar alignments in file: %s\n", cigarsFile);
+    }
 #ifndef NDEBUG
     double score = INT64_MAX;
     FILE *fileHandle = fopen(sortedFile, "r");
