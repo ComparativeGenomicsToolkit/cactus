@@ -82,7 +82,6 @@ static int64_t *getInts(const char *string, int64_t *arrayLength) {
 }
 
 static int64_t requiredIngroupSpecies = 0, requiredOutgroupSpecies = 0, requiredAllSpecies = 0;
-static bool (*multipleCopiesFunction)(stPinchBlock *, Flower *) = NULL;
 static float minimumTreeCoverage = 0.0;
 static int64_t minimumDegree = 0;
 static Flower *flower = NULL;
@@ -91,37 +90,72 @@ static bool blockFilterFn(stPinchBlock *pinchBlock) {
     if (stPinchBlock_getDegree(pinchBlock) < minimumDegree) {
         return 1;
     }
-    if (!stCaf_containsRequiredSpecies(pinchBlock, flower, requiredIngroupSpecies, requiredOutgroupSpecies, requiredAllSpecies)) {
+    if ((requiredIngroupSpecies > 0 || requiredOutgroupSpecies > 0 || requiredAllSpecies > 0) &&
+            !stCaf_containsRequiredSpecies(pinchBlock, flower, requiredIngroupSpecies, requiredOutgroupSpecies, requiredAllSpecies)) {
         return 1;
     }
     if (minimumTreeCoverage > 0.0 && stCaf_treeCoverage(pinchBlock, flower) < minimumTreeCoverage) { //Tree coverage
         return 1;
     }
-    if (multipleCopiesFunction != NULL && multipleCopiesFunction(pinchBlock, flower)) {
-        return 1;
+    return 0;
+}
+
+/*
+ * Functions used for prefiltering the alignments.
+ */
+
+/*
+ * Filtering by presence of outgroup. This code is efficient and scales linearly with depth.
+ */
+
+bool (*filterFn)(stPinchSegment *, stPinchSegment *) = NULL;
+stSet *outgroupThreads = NULL;
+
+bool containsOutgroupSegment(stPinchBlock *block) {
+    stPinchBlockIt it = stPinchBlock_getSegmentIterator(block);
+    stPinchSegment *segment;
+    while((segment = stPinchBlockIt_getNext(&it)) != NULL) {
+        //if(event_isOutgroup(getEvent(segment, flower))) {
+        if(stSet_search(outgroupThreads, stPinchSegment_getThread(segment)) != NULL) {
+            assert(event_isOutgroup(getEvent(segment, flower)));
+            stPinchSegment_putSegmentFirstInBlock(segment);
+            return 1;
+        }
+        else {
+            assert(!event_isOutgroup(getEvent(segment, flower)));
+        }
     }
     return 0;
 }
 
-bool (*filterFn)(stPinchSegment *, stPinchSegment *) = NULL;
-
-bool containsOutgroup(stPinchSegment *segment) {
-    stPinchBlock *block = stPinchSegment_getBlock(segment);
-    if(block != NULL) {
-        stPinchBlockIt it = stPinchBlock_getSegmentIterator(block);
-        while((segment = stPinchBlockIt_getNext(&it)) != NULL) {
-            if(event_isOutgroup(getEvent(segment, flower))) {
-                return 1;
-            }
-        }
-        return 0;
+bool isOutgroupSegment(stPinchSegment *segment) {
+    if(stSet_search(outgroupThreads, stPinchSegment_getThread(segment)) != NULL) {
+        assert(event_isOutgroup(getEvent(segment, flower)));
+        return 1;
     }
-    return event_isOutgroup(getEvent(segment, flower));
+    assert(!event_isOutgroup(getEvent(segment, flower)));
+    return 0;
 }
 
 bool filterByOutgroup(stPinchSegment *segment1, stPinchSegment *segment2) {
-    return containsOutgroup(segment1) && containsOutgroup(segment2);
+    stPinchBlock *block1, *block2;
+    if((block1 = stPinchSegment_getBlock(segment1)) != NULL) {
+        if((block2 = stPinchSegment_getBlock(segment2)) != NULL) {
+            return stPinchBlock_getDegree(block1) < stPinchBlock_getDegree(block2) ?
+                    (containsOutgroupSegment(block1) && containsOutgroupSegment(block2)) :
+                    (containsOutgroupSegment(block2) && containsOutgroupSegment(block1));
+        }
+        return isOutgroupSegment(segment2) && containsOutgroupSegment(block1);
+    }
+    if((block2 = stPinchSegment_getBlock(segment2)) != NULL) {
+        return isOutgroupSegment(segment1) && containsOutgroupSegment(block2);
+    }
+    return isOutgroupSegment(segment1) && isOutgroupSegment(segment2);
 }
+
+/*
+ * Filtering by presence of repeat species in block. This code is inefficient and does not scale.
+ */
 
 static bool checkIntersection(stSortedSet *names1, stSortedSet *names2) {
     stSortedSet *n12 = stSortedSet_getIntersection(names1, names2);
@@ -354,15 +388,11 @@ int main(int argc, char *argv[]) {
     // Single copy filter
     ///////////////////////////////////////////////////////////////////////////
 
-    multipleCopiesFunction = NULL; //singleCopyIngroup ? (singleCopyOutgroup ? stCaf_containsMultipleCopiesOfAnySpecies
-            //: stCaf_containsMultipleCopiesOfIngroupSpecies) :
-            //  (singleCopyOutgroup ? stCaf_containsMultipleCopiesOfOutgroupSpecies : NULL);
-
     if(singleCopyOutgroup) {
         filterFn = filterByOutgroup;
     }
     if(singleCopyIngroup) {
-        //filterFn = filterByRepeatSpecies;
+        filterFn = filterByRepeatSpecies;
     }
 
     ///////////////////////////////////////////////////////////////////////////
@@ -386,25 +416,47 @@ int main(int argc, char *argv[]) {
             if (alignmentsFile != NULL) {
                 assert(i == 0);
                 assert(stList_length(flowers) == 1);
+                if(singleCopyIngroup || singleCopyOutgroup) {
+                    tempFile1 = getTempFile();
+                    stCaf_sortCigarsFileByScoreInDescendingOrder(alignmentsFile, tempFile1);
+                }
                 pinchIterator = stPinchIterator_constructFromFile(alignmentsFile);
             } else {
                 if (tempFile1 == NULL) {
                     tempFile1 = getTempFile();
                 }
                 alignmentsList = stCaf_selfAlignFlower(flower, minimumSequenceLengthForBlast, lastzArguments, tempFile1);
+                if(singleCopyIngroup || singleCopyOutgroup) {
+                    stCaf_sortCigarsByScoreInDescendingOrder(alignmentsList);
+                }
                 st_logDebug("Ran lastz and have %" PRIi64 " alignments\n", stList_length(alignmentsList));
                 pinchIterator = stPinchIterator_constructFromList(alignmentsList);
             }
+
             //Set up the parameters for melting stuff
             stCaf_calculateRequiredFractionsOfSpecies(flower, requiredIngroupFraction, requiredOutgroupFraction, requiredAllFraction,
                     &requiredIngroupSpecies, &requiredOutgroupSpecies,  &requiredAllSpecies);
             //Set up the graph and add the initial alignments
             stPinchThreadSet *threadSet = stCaf_setup(flower);
+
+            //Here is where we get the set of outgroup threads.
+            if(singleCopyOutgroup) {
+                outgroupThreads = stSet_construct();
+                stPinchThreadSetIt it = stPinchThreadSet_getIt(threadSet);
+                stPinchThread *pinchThread;
+                while((pinchThread = stPinchThreadSetIt_getNext(&it)) != NULL) {
+                    if(event_isOutgroup(getEvent(stPinchThread_getFirst(pinchThread), flower))) {
+                        stSet_insert(outgroupThreads, pinchThread);
+                    }
+                }
+            }
+
             for (int64_t annealingRound = 0; annealingRound < annealingRoundsLength; annealingRound++) {
                 int64_t minimumChainLength = annealingRounds[annealingRound];
                 int64_t alignmentTrim = annealingRound < alignmentTrimLength ? alignmentTrims[annealingRound] : 0;
                 st_logDebug("Starting annealing round with a minimum chain length of %" PRIi64 " and an alignment trim of %" PRIi64 "\n", minimumChainLength, alignmentTrim);
                 stPinchIterator_setTrim(pinchIterator, alignmentTrim);
+
                 //Do the annealing
                 if (annealingRound == 0) {
                     stCaf_anneal(threadSet, pinchIterator, filterFn);
@@ -415,8 +467,8 @@ int main(int argc, char *argv[]) {
                 if (pinchIteratorForConstraints != NULL) {
                     stCaf_anneal(threadSet, pinchIteratorForConstraints, filterFn);
                 }
+
                 //Do the melting rounds
-                //stCaf_melt(flower, threadSet, blockFilterFn, blockTrim, 0);
                 for (int64_t meltingRound = 0; meltingRound < meltingRoundsLength; meltingRound++) {
                     int64_t minimumChainLengthForMeltingRound = meltingRounds[meltingRound];
                     st_logDebug("Starting melting round with a minimum chain length of %" PRIi64 " \n", minimumChainLengthForMeltingRound);
@@ -427,7 +479,7 @@ int main(int argc, char *argv[]) {
                 }
                 st_logDebug("Last melting round of cycle with a minimum chain length of %" PRIi64 " \n", minimumChainLength);
                 stCaf_melt(flower, threadSet, NULL, 0, minimumChainLength);
-
+                //This does the filtering of blocks that do not have the required species/tree-coverage/degree.
                 stCaf_melt(flower, threadSet, blockFilterFn, blockTrim, 0);
             }
 
@@ -450,6 +502,9 @@ int main(int argc, char *argv[]) {
             stPinchThreadSet_destruct(threadSet);
             stPinchIterator_destruct(pinchIterator);
             assert(!flower_isParentLoaded(flower));
+            if(singleCopyOutgroup) {
+                stSet_destruct(outgroupThreads);
+            }
 
             if (alignmentsList != NULL) {
                 stList_destruct(alignmentsList);

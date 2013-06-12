@@ -13,4 +13,8 @@
 
 stList *stCaf_selfAlignFlower(Flower *flower, int64_t minimumSequenceLength, const char *lastzArgs, char *tempFile1);
 
+void stCaf_sortCigarsByScoreInDescendingOrder(stList *cigars);
+
+void stCaf_sortCigarsFileByScoreInDescendingOrder(char *cigarsFile, char *sortedFile);
+
 #endif /* ST_LASTZALIGNMENT_H_ */

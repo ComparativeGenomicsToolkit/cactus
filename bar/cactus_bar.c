@@ -83,7 +83,8 @@ bool blockFilterFn(stPinchBlock *pinchBlock) {
     if (stPinchBlock_getDegree(pinchBlock) < minimumDegree) {
         return 1;
     }
-    if (!stCaf_containsRequiredSpecies(pinchBlock, flower, requiredIngroupSpecies, requiredOutgroupSpecies, requiredAllSpecies)) {
+    if ((requiredIngroupSpecies > 0 || requiredOutgroupSpecies > 0 || requiredAllSpecies > 0) &&
+            !stCaf_containsRequiredSpecies(pinchBlock, flower, requiredIngroupSpecies, requiredOutgroupSpecies, requiredAllSpecies)) {
         return 1;
     }
     return 0;

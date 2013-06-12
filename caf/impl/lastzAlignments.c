@@ -13,10 +13,6 @@
 #include "pairwiseAlignment.h"
 #include "blastAlignmentLib.h"
 
-static int compareByScore(struct PairwiseAlignment *pA, struct PairwiseAlignment *pA2) {
-    return pA->score == pA2->score ? 0 : (pA->score > pA2->score ? -1 : 1);
-}
-
 stList *stCaf_selfAlignFlower(Flower *flower, int64_t minimumSequenceLength, const char *lastzArgs, char *tempFile1) {
     /*
      * Get the sequences.
@@ -52,9 +48,39 @@ stList *stCaf_selfAlignFlower(Flower *flower, int64_t minimumSequenceLength, con
             st_errAbort("Lastz failed: %s\n", command);
         }
         free(command);
-        stList_sort(cigars, (int (*)(const void *, const void *))compareByScore);
     }
     //st_system("rm %s", tempFile1);
 
     return cigars;
+}
+
+static int compareByScore(struct PairwiseAlignment *pA, struct PairwiseAlignment *pA2) {
+    return pA->score == pA2->score ? 0 : (pA->score > pA2->score ? -1 : 1);
+}
+
+void stCaf_sortCigarsByScoreInDescendingOrder(stList *cigars) {
+    stList_sort(cigars, (int (*)(const void *, const void *))compareByScore);
+#ifndef NDEBUG
+        double score = INT64_MAX;
+        for(int64_t i=0; i<stList_length(cigars); i++) {
+            struct PairwiseAlignment *pA = stList_get(cigars, i);
+            assert(pA->score <= score);
+            score = pA->score;
+        }
+#endif
+}
+
+void stCaf_sortCigarsFileByScoreInDescendingOrder(char *cigarsFile, char *sortedFile) {
+    st_system("sort -k10nr %s > %s", cigarsFile, sortedFile);
+#ifndef NDEBUG
+    double score = INT64_MAX;
+    FILE *fileHandle = fopen(sortedFile, "r");
+    struct PairwiseAlignment *pA;
+    while ((pA = cigarRead(fileHandle)) != NULL) {
+        st_uglyf("I got %f\n", score);
+        assert(pA->score <= score);
+        score = pA->score;
+    }
+    fclose(fileHandle);
+#endif
 }

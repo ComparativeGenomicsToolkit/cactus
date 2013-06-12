@@ -55,16 +55,6 @@ static void addChainBlocksToBlocksToDelete(stCactusEdgeEnd *cactusEdgeEnd, stLis
     processChain(cactusEdgeEnd, addBlock, blocksToDelete, 0);
 }
 
-static void addBlockRecursive(stPinchBlock *block, void *extraArg) {
-    if (!isThreadEnd(block)) {
-        stSet_insert(extraArg, block);
-    }
-}
-
-static void addChainBlocksToBlocksToDeleteRecursive(stCactusEdgeEnd *cactusEdgeEnd, stSet *blocksToDelete) {
-    processChain(cactusEdgeEnd, addBlockRecursive, blocksToDelete, 1);
-}
-
 static void addLength(stPinchBlock *block, void *extraArg) {
     *((int64_t *) extraArg) += stPinchBlock_getLength(block);
 }
@@ -94,55 +84,6 @@ static stList *stCaf_getBlocksInChainsLessThanGivenLength(stCactusGraph *cactusG
     return blocksToDelete;
 }
 
-bool isBubbleChain(stCactusEdgeEnd *cactusEdgeEnd, stHash *pinchEndsToAdjacencyComponents, bool blockFilterfn(stPinchBlock *)) {
-    stCactusEdgeEnd *cactusEdgeEnd2 = stCactusEdgeEnd_getLink(cactusEdgeEnd);
-    assert(cactusEdgeEnd != cactusEdgeEnd2);
-    assert(stCactusEdgeEnd_getNode(cactusEdgeEnd) == stCactusEdgeEnd_getNode(cactusEdgeEnd2));
-
-    if (!blockFilterfn(stPinchEnd_getBlock(stCactusEdgeEnd_getObject(cactusEdgeEnd))) && !blockFilterfn(
-            stPinchEnd_getBlock(stCactusEdgeEnd_getObject(cactusEdgeEnd2)))) {
-        return 0;
-    }
-
-    stPinchEnd *pinchEnd1 = stCactusEdgeEnd_getObject(cactusEdgeEnd);
-    stList *adjacencyComponent = stHash_search(pinchEndsToAdjacencyComponents, pinchEnd1);
-    assert(adjacencyComponent != NULL);
-    stPinchEnd *pinchEnd2 = stCactusEdgeEnd_getObject(cactusEdgeEnd2);
-    stList *adjacencyComponent2 = stHash_search(pinchEndsToAdjacencyComponents, pinchEnd2);
-    assert(adjacencyComponent2 != NULL);
-    if(adjacencyComponent == adjacencyComponent2) {
-        return 1;
-    }
-
-    //How many ends are we connected to.
-    return stPinchEnd_getNumberOfConnectedPinchEnds(pinchEnd1) == 1 || stPinchEnd_getNumberOfConnectedPinchEnds(pinchEnd2) == 1;
-}
-
-static stSet *stCaf_getBlocksInBubbleChains(stPinchThreadSet *threadSet, stCactusGraph *cactusGraph, bool blockFilterfn(stPinchBlock *)) {
-    stHash *pinchEndsToAdjacencyComponents;
-    stList *adjacencyComponents = stPinchThreadSet_getAdjacencyComponents2(threadSet, &pinchEndsToAdjacencyComponents);
-    stSet *blocksToDelete = stSet_construct2((void(*)(void *)) stPinchBlock_destruct);
-    stCactusGraphNodeIt *nodeIt = stCactusGraphNodeIterator_construct(cactusGraph);
-    stCactusNode *cactusNode;
-    while ((cactusNode = stCactusGraphNodeIterator_getNext(nodeIt)) != NULL) {
-        stCactusNodeEdgeEndIt cactusEdgeEndIt = stCactusNode_getEdgeEndIt(cactusNode);
-        stCactusEdgeEnd *cactusEdgeEnd;
-        while ((cactusEdgeEnd = stCactusNodeEdgeEndIt_getNext(&cactusEdgeEndIt)) != NULL) {
-            if (stCactusEdgeEnd_isChainEnd(cactusEdgeEnd) && stCactusEdgeEnd_getLinkOrientation(cactusEdgeEnd)) {
-                if (isBubbleChain(cactusEdgeEnd, pinchEndsToAdjacencyComponents, blockFilterfn)) {
-                    addChainBlocksToBlocksToDeleteRecursive(cactusEdgeEnd, blocksToDelete);
-                }
-            }
-        }
-    }
-    stCactusGraphNodeIterator_destruct(nodeIt);
-    //cleanup
-    stHash_destruct(pinchEndsToAdjacencyComponents);
-    stList_destruct(adjacencyComponents);
-
-    return blocksToDelete;
-}
-
 static void trimAlignments(stPinchThreadSet *threadSet, int64_t blockEndTrim) {
     stPinchThreadSetBlockIt blockIt = stPinchThreadSet_getBlockIt(threadSet);
     stPinchBlock *block = stPinchThreadSetBlockIt_getNext(&blockIt);
@@ -167,34 +108,16 @@ static void filterAlignments(stPinchThreadSet *threadSet, bool(*blockFilterFn)(s
     }
 }
 
-static bool blockFilterByDegree(stPinchBlock *pinchBlock) {
-    if (stPinchBlock_getDegree(pinchBlock) < 2) {
-        return 1;
-    }
-    return 0;
-}
-
 void stCaf_melt(Flower *flower, stPinchThreadSet *threadSet, bool blockFilterfn(stPinchBlock *), int64_t blockEndTrim,
         int64_t minimumChainLength) {
     //First trim
     if (blockEndTrim > 0) {
         trimAlignments(threadSet, blockEndTrim);
     }
-    //Then filter blocks
-    filterAlignments(threadSet, blockFilterByDegree);
 
+    //Then filter blocks
     if (blockFilterfn != NULL) {
-        //Then filter blocks
-        filterAlignments(threadSet, blockFilterByDegree);
-        stCactusNode *startCactusNode;
-        stList *deadEndComponent;
-        stCactusGraph *cactusGraph = stCaf_getCactusGraphForThreadSet(flower, threadSet, &startCactusNode, &deadEndComponent, 0, INT64_MAX,
-                0.0);
-        stSet *blocksToDelete = stCaf_getBlocksInBubbleChains(threadSet, cactusGraph, blockFilterfn);
-        //Cleanup cactus
-        stCactusGraph_destruct(cactusGraph);
-        (void)blocksToDelete;
-        stSet_destruct(blocksToDelete); //This will destroy the blocks
+        filterAlignments(threadSet, blockFilterfn);
     }
 
     //Now apply the minimum chain length filter
@@ -240,9 +163,9 @@ void stCaf_calculateRequiredFractionsOfSpecies(Flower *flower, float requiredIng
     eventTree_destructIterator(eventIt);
     *requiredOutgroupSpecies = 0.5 + outgroupEventNumber * requiredOutgroupFraction;
     *requiredIngroupSpecies = 0.5 + ingroupEventNumber * requiredIngroupFraction;
-    if (*requiredIngroupSpecies == 0) {
-        *requiredIngroupSpecies = 1;
-    }
+    //if(*requiredIngroupSpecies == 0) {
+    //    *requiredIngroupSpecies = 1;
+    //}
     *requiredAllSpecies = 0.5 + (ingroupEventNumber + outgroupEventNumber) * requiredAllFraction;
 }
 
@@ -254,9 +177,6 @@ Event *getEvent(stPinchSegment *segment, Flower *flower) {
 
 bool stCaf_containsRequiredSpecies(stPinchBlock *pinchBlock, Flower *flower, int64_t requiredIngroupSpecies,
         int64_t requiredOutgroupSpecies, int64_t requiredAllSpecies) {
-    if (requiredIngroupSpecies <= 0 && requiredOutgroupSpecies <= 0 && requiredAllSpecies <= 0) {
-        return 1;
-    }
     int64_t outgroupSequences = 0;
     int64_t ingroupSequences = 0;
     stPinchBlockIt segmentIt = stPinchBlock_getSegmentIterator(pinchBlock);
@@ -271,44 +191,6 @@ bool stCaf_containsRequiredSpecies(stPinchBlock *pinchBlock, Flower *flower, int
     }
     return ingroupSequences >= requiredIngroupSpecies && outgroupSequences >= requiredOutgroupSpecies && outgroupSequences
             + ingroupSequences >= requiredAllSpecies;
-}
-
-static bool stCaf_containsMultipleCopiesOfSpecies(stPinchBlock *pinchBlock, Flower *flower, bool(*acceptableEvent)(Event *)) {
-    stPinchBlockIt segmentIt = stPinchBlock_getSegmentIterator(pinchBlock);
-    stPinchSegment *segment;
-    stHash *seen = stHash_construct();
-    while ((segment = stPinchBlockIt_getNext(&segmentIt)) != NULL) {
-        Event *event = getEvent(segment, flower);
-        if (acceptableEvent(event)) {
-            if (stHash_search(seen, event) != NULL) {
-                stHash_destruct(seen);
-                return 1;
-            }
-            stHash_insert(seen, event, event);
-        }
-    }
-    stHash_destruct(seen);
-    return 0;
-}
-
-static bool returnTrue(Event *event) {
-    return 1;
-}
-
-bool stCaf_containsMultipleCopiesOfAnySpecies(stPinchBlock *pinchBlock, Flower *flower) {
-    return stCaf_containsMultipleCopiesOfSpecies(pinchBlock, flower, returnTrue);
-}
-
-static bool isIngroup(Event *event) {
-    return !event_isOutgroup(event);
-}
-
-bool stCaf_containsMultipleCopiesOfIngroupSpecies(stPinchBlock *pinchBlock, Flower *flower) {
-    return stCaf_containsMultipleCopiesOfSpecies(pinchBlock, flower, isIngroup);
-}
-
-bool stCaf_containsMultipleCopiesOfOutgroupSpecies(stPinchBlock *pinchBlock, Flower *flower) {
-    return stCaf_containsMultipleCopiesOfSpecies(pinchBlock, flower, event_isOutgroup);
 }
 
 bool stCaf_treeCoverage(stPinchBlock *pinchBlock, Flower *flower) {
