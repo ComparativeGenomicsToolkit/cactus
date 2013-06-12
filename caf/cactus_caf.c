@@ -226,7 +226,7 @@ int main(int argc, char *argv[]) {
     bool singleCopyIngroup = 0;
     bool singleCopyOutgroup = 0;
     int64_t chainLengthForBigFlower = 100000;
-    int64_t longChain = 1;
+    int64_t longChain = 2;
     int64_t minLengthForChromosome = 1000000;
     float proportionOfUnalignedBasesForNewChromosome = 0.8;
 
