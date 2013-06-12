@@ -142,6 +142,9 @@ bool filterByOutgroup(stPinchSegment *segment1, stPinchSegment *segment2) {
     stPinchBlock *block1, *block2;
     if((block1 = stPinchSegment_getBlock(segment1)) != NULL) {
         if((block2 = stPinchSegment_getBlock(segment2)) != NULL) {
+            if(block1 == block2) {
+                return stPinchBlock_getLength(block1) == 1 ? 0 : containsOutgroupSegment(block1);
+            }
             if(stPinchBlock_getDegree(block1) < stPinchBlock_getDegree(block2)) {
                 return containsOutgroupSegment(block1) && containsOutgroupSegment(block2);
             }
