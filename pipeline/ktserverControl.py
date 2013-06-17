@@ -74,7 +74,7 @@ def runKtserver(dbElem, killSwitchPath, maxPortsToTry=100, readOnly = False,
             if __isKtServerOnTakenPort(dbElem, killSwitchPath, pretest=True):
                 continue
             cmd = __getKtserverCommand(dbElem, dbPathExists, readOnly)
-            process = subprocess.Popen(cmd, shell=True, 
+            process = subprocess.Popen(cmd.split(), shell=False, 
                                        stdout=subprocess.PIPE,
                                        stderr=sys.stderr, bufsize=-1)
             procWaiter = ProcessWaiter(process)
