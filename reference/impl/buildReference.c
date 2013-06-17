@@ -498,7 +498,7 @@ static void getStubEdgesInTopLevelFlower(reference *ref, Flower *flower, stHash 
 
 static reference *getEmptyReference(Flower *flower, stHash *endsToNodes, int64_t nodeNumber, Event *referenceEvent,
         stList *(*matchingAlgorithm)(stList *edges, int64_t nodeNumber), stList *stubEnds) {
-    reference *ref = reference_construct();
+    reference *ref = reference_construct(nodeNumber);
     if (flower_getParentGroup(flower) != NULL) {
         getStubEdgesFromParent(ref, flower, referenceEvent, endsToNodes, stubEnds);
     } else {
