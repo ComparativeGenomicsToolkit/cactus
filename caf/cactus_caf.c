@@ -60,9 +60,12 @@ static void usage() {
 
     fprintf(stderr, "-x --constraints : A file of alignments that will be enforced upon the cactus\n");
 
-    fprintf(stderr, "-y --minLengthForChromosome : The minimum length required for a sequence to be considered as a candidate to be chromosome.\n");
+    fprintf(stderr,
+            "-y --minLengthForChromosome : The minimum length required for a sequence to be considered as a candidate to be chromosome.\n");
 
-    fprintf(stderr, "-z --proportionOfUnalignedBasesForNewChromosome : Proportion of aligned bases to be not contained in an existing chromosome to cause generation of a new chromosome.\n");
+    fprintf(
+            stderr,
+            "-z --proportionOfUnalignedBasesForNewChromosome : Proportion of aligned bases to be not contained in an existing chromosome to cause generation of a new chromosome.\n");
 }
 
 static int64_t *getInts(const char *string, int64_t *arrayLength) {
@@ -73,7 +76,7 @@ static int64_t *getInts(const char *string, int64_t *arrayLength) {
     *arrayLength = 0;
     while ((cA3 = stString_getNextWord(&cA)) != NULL) {
         int64_t i = sscanf(cA3, "%" PRIi64 "", &iA[(*arrayLength)++]);
-        (void)i;
+        (void) i;
         assert(i == 1);
         free(cA3);
     }
@@ -90,8 +93,8 @@ static bool blockFilterFn(stPinchBlock *pinchBlock) {
     if (stPinchBlock_getDegree(pinchBlock) < minimumDegree) {
         return 1;
     }
-    if ((requiredIngroupSpecies > 0 || requiredOutgroupSpecies > 0 || requiredAllSpecies > 0) &&
-            !stCaf_containsRequiredSpecies(pinchBlock, flower, requiredIngroupSpecies, requiredOutgroupSpecies, requiredAllSpecies)) {
+    if ((requiredIngroupSpecies > 0 || requiredOutgroupSpecies > 0 || requiredAllSpecies > 0) && !stCaf_containsRequiredSpecies(pinchBlock,
+            flower, requiredIngroupSpecies, requiredOutgroupSpecies, requiredAllSpecies)) {
         return 1;
     }
     if (minimumTreeCoverage > 0.0 && stCaf_treeCoverage(pinchBlock, flower) < minimumTreeCoverage) { //Tree coverage
@@ -114,15 +117,14 @@ stSet *outgroupThreads = NULL;
 bool containsOutgroupSegment(stPinchBlock *block) {
     stPinchBlockIt it = stPinchBlock_getSegmentIterator(block);
     stPinchSegment *segment;
-    while((segment = stPinchBlockIt_getNext(&it)) != NULL) {
+    while ((segment = stPinchBlockIt_getNext(&it)) != NULL) {
         //if(event_isOutgroup(getEvent(segment, flower))) {
-        if(stSet_search(outgroupThreads, stPinchSegment_getThread(segment)) != NULL) {
+        if (stSet_search(outgroupThreads, stPinchSegment_getThread(segment)) != NULL) {
             assert(event_isOutgroup(getEvent(segment, flower)));
             stPinchSegment_putSegmentFirstInBlock(segment);
             assert(stPinchBlock_getFirst(block) == segment);
             return 1;
-        }
-        else {
+        } else {
             assert(!event_isOutgroup(getEvent(segment, flower)));
         }
     }
@@ -130,7 +132,7 @@ bool containsOutgroupSegment(stPinchBlock *block) {
 }
 
 bool isOutgroupSegment(stPinchSegment *segment) {
-    if(stSet_search(outgroupThreads, stPinchSegment_getThread(segment)) != NULL) {
+    if (stSet_search(outgroupThreads, stPinchSegment_getThread(segment)) != NULL) {
         assert(event_isOutgroup(getEvent(segment, flower)));
         return 1;
     }
@@ -140,19 +142,19 @@ bool isOutgroupSegment(stPinchSegment *segment) {
 
 bool filterByOutgroup(stPinchSegment *segment1, stPinchSegment *segment2) {
     stPinchBlock *block1, *block2;
-    if((block1 = stPinchSegment_getBlock(segment1)) != NULL) {
-        if((block2 = stPinchSegment_getBlock(segment2)) != NULL) {
-            if(block1 == block2) {
+    if ((block1 = stPinchSegment_getBlock(segment1)) != NULL) {
+        if ((block2 = stPinchSegment_getBlock(segment2)) != NULL) {
+            if (block1 == block2) {
                 return stPinchBlock_getLength(block1) == 1 ? 0 : containsOutgroupSegment(block1);
             }
-            if(stPinchBlock_getDegree(block1) < stPinchBlock_getDegree(block2)) {
+            if (stPinchBlock_getDegree(block1) < stPinchBlock_getDegree(block2)) {
                 return containsOutgroupSegment(block1) && containsOutgroupSegment(block2);
             }
             return containsOutgroupSegment(block2) && containsOutgroupSegment(block1);
         }
         return isOutgroupSegment(segment2) && containsOutgroupSegment(block1);
     }
-    if((block2 = stPinchSegment_getBlock(segment2)) != NULL) {
+    if ((block2 = stPinchSegment_getBlock(segment2)) != NULL) {
         return isOutgroupSegment(segment1) && containsOutgroupSegment(block2);
     }
     return isOutgroupSegment(segment1) && isOutgroupSegment(segment2);
@@ -173,14 +175,13 @@ static bool checkIntersection(stSortedSet *names1, stSortedSet *names2) {
 
 static stSortedSet *getNames(stPinchSegment *segment) {
     stSortedSet *names = stSortedSet_construct();
-    if(stPinchSegment_getBlock(segment) != NULL) {
+    if (stPinchSegment_getBlock(segment) != NULL) {
         stPinchBlock *block = stPinchSegment_getBlock(segment);
         stPinchBlockIt it = stPinchBlock_getSegmentIterator(block);
-        while((segment = stPinchBlockIt_getNext(&it)) != NULL) {
+        while ((segment = stPinchBlockIt_getNext(&it)) != NULL) {
             stSortedSet_insert(names, getEvent(segment, flower));
         }
-    }
-    else {
+    } else {
         stSortedSet_insert(names, getEvent(segment, flower));
     }
     return names;
@@ -236,14 +237,17 @@ int main(int argc, char *argv[]) {
 
     while (1) {
         static struct option long_options[] = { { "logLevel", required_argument, 0, 'a' }, { "alignments", required_argument, 0, 'b' }, {
-                "cactusDisk", required_argument, 0, 'c' }, { "lastzArguments", required_argument, 0, 'd' }, { "help", no_argument, 0, 'h' }, { "annealingRounds", required_argument, 0, 'i' }, { "trim", required_argument, 0, 'k' }, { "trimChange",
-                required_argument, 0, 'l', }, { "minimumTreeCoverage", required_argument, 0, 'm' }, { "blockTrim", required_argument, 0,
-                'n' }, { "deannealingRounds", required_argument, 0, 'o' }, { "minimumDegree", required_argument, 0, 'p' }, {
-                "requiredIngroupFraction", required_argument, 0, 'q' }, { "requiredOutgroupFraction", required_argument, 0, 'r' }, {
-                "requiredAllFraction", required_argument, 0, 'u' }, { "singleCopyIngroup", no_argument, 0, 's' }, { "singleCopyOutgroup",
-                no_argument, 0, 't' }, { "minimumSequenceLengthForBlast", required_argument, 0, 'v' }, { "maxAdjacencyComponentSizeRatio",
-                required_argument, 0, 'w' }, { "constraints", required_argument, 0, 'x' },
-                { "minLengthForChromosome", required_argument, 0, 'y' },  { "proportionOfUnalignedBasesForNewChromosome", required_argument, 0, 'z' }, { 0, 0, 0, 0 } };
+                "cactusDisk", required_argument, 0, 'c' }, { "lastzArguments", required_argument, 0, 'd' },
+                { "help", no_argument, 0, 'h' }, { "annealingRounds", required_argument, 0, 'i' }, { "trim", required_argument, 0, 'k' }, {
+                        "trimChange", required_argument, 0, 'l', }, { "minimumTreeCoverage", required_argument, 0, 'm' }, { "blockTrim",
+                        required_argument, 0, 'n' }, { "deannealingRounds", required_argument, 0, 'o' }, { "minimumDegree",
+                        required_argument, 0, 'p' }, { "requiredIngroupFraction", required_argument, 0, 'q' }, {
+                        "requiredOutgroupFraction", required_argument, 0, 'r' }, { "requiredAllFraction", required_argument, 0, 'u' }, {
+                        "singleCopyIngroup", no_argument, 0, 's' }, { "singleCopyOutgroup", no_argument, 0, 't' }, {
+                        "minimumSequenceLengthForBlast", required_argument, 0, 'v' }, { "maxAdjacencyComponentSizeRatio",
+                        required_argument, 0, 'w' }, { "constraints", required_argument, 0, 'x' }, { "minLengthForChromosome",
+                        required_argument, 0, 'y' }, { "proportionOfUnalignedBasesForNewChromosome", required_argument, 0, 'z' }, { 0, 0,
+                        0, 0 } };
 
         int option_index = 0;
 
@@ -390,24 +394,13 @@ int main(int argc, char *argv[]) {
     }
 
     ///////////////////////////////////////////////////////////////////////////
-    // Single copy filter
-    ///////////////////////////////////////////////////////////////////////////
-
-    if(singleCopyOutgroup) {
-        filterFn = filterByOutgroup;
-    }
-    if(singleCopyIngroup) {
-        filterFn = filterByRepeatSpecies;
-    }
-
-    ///////////////////////////////////////////////////////////////////////////
     // Do the alignment
     ///////////////////////////////////////////////////////////////////////////
 
     startTime = time(NULL);
 
     stList *flowers = flowerWriter_parseFlowersFromStdin(cactusDisk);
-    if(alignmentsFile == NULL) {
+    if (alignmentsFile == NULL) {
         cactusDisk_preCacheStrings(cactusDisk, flowers);
     }
     char *tempFile1 = NULL;
@@ -415,18 +408,49 @@ int main(int argc, char *argv[]) {
         flower = stList_get(flowers, i);
         if (!flower_builtBlocks(flower)) { // Do nothing if the flower already has defined blocks
             st_logDebug("Processing flower: %lli\n", flower_getName(flower));
+
+            //Set up the parameters for melting stuff
+            stCaf_calculateRequiredFractionsOfSpecies(flower, requiredIngroupFraction, requiredOutgroupFraction, requiredAllFraction,
+                    &requiredIngroupSpecies, &requiredOutgroupSpecies, &requiredAllSpecies);
+            //Set up the graph and add the initial alignments
+            stPinchThreadSet *threadSet = stCaf_setup(flower);
+
+            bool sortAlignments = 0;
+            if (singleCopyIngroup) {
+                sortAlignments = 1;
+                filterFn = filterByRepeatSpecies;
+            }
+            else if (singleCopyOutgroup) {
+                //Here is where we get the set of outgroup threads.
+                outgroupThreads = stSet_construct();
+                stPinchThreadSetIt it = stPinchThreadSet_getIt(threadSet);
+                stPinchThread *pinchThread;
+                while ((pinchThread = stPinchThreadSetIt_getNext(&it)) != NULL) {
+                    if (event_isOutgroup(getEvent(stPinchThread_getFirst(pinchThread), flower))) {
+                        stSet_insert(outgroupThreads, pinchThread);
+                    }
+                }
+
+                if (stSet_size(outgroupThreads) == 0) {
+                    filterFn = NULL;
+                    sortAlignments = 0;
+                } else {
+                    filterFn = filterByOutgroup;
+                    sortAlignments = 1;
+                }
+            }
+
             //Setup the alignments
             stPinchIterator *pinchIterator;
             stList *alignmentsList = NULL;
             if (alignmentsFile != NULL) {
                 assert(i == 0);
                 assert(stList_length(flowers) == 1);
-                if(singleCopyIngroup || singleCopyOutgroup) {
+                if (sortAlignments) {
                     tempFile1 = getTempFile();
                     stCaf_sortCigarsFileByScoreInDescendingOrder(alignmentsFile, tempFile1);
                     pinchIterator = stPinchIterator_constructFromFile(tempFile1);
-                }
-                else {
+                } else {
                     pinchIterator = stPinchIterator_constructFromFile(alignmentsFile);
                 }
             } else {
@@ -434,29 +458,11 @@ int main(int argc, char *argv[]) {
                     tempFile1 = getTempFile();
                 }
                 alignmentsList = stCaf_selfAlignFlower(flower, minimumSequenceLengthForBlast, lastzArguments, tempFile1);
-                if(singleCopyIngroup || singleCopyOutgroup) {
+                if (sortAlignments) {
                     stCaf_sortCigarsByScoreInDescendingOrder(alignmentsList);
                 }
                 st_logDebug("Ran lastz and have %" PRIi64 " alignments\n", stList_length(alignmentsList));
                 pinchIterator = stPinchIterator_constructFromList(alignmentsList);
-            }
-
-            //Set up the parameters for melting stuff
-            stCaf_calculateRequiredFractionsOfSpecies(flower, requiredIngroupFraction, requiredOutgroupFraction, requiredAllFraction,
-                    &requiredIngroupSpecies, &requiredOutgroupSpecies,  &requiredAllSpecies);
-            //Set up the graph and add the initial alignments
-            stPinchThreadSet *threadSet = stCaf_setup(flower);
-
-            //Here is where we get the set of outgroup threads.
-            if(singleCopyOutgroup) {
-                outgroupThreads = stSet_construct();
-                stPinchThreadSetIt it = stPinchThreadSet_getIt(threadSet);
-                stPinchThread *pinchThread;
-                while((pinchThread = stPinchThreadSetIt_getNext(&it)) != NULL) {
-                    if(event_isOutgroup(getEvent(stPinchThread_getFirst(pinchThread), flower))) {
-                        stSet_insert(outgroupThreads, pinchThread);
-                    }
-                }
             }
 
             for (int64_t annealingRound = 0; annealingRound < annealingRoundsLength; annealingRound++) {
@@ -484,8 +490,7 @@ int main(int argc, char *argv[]) {
                         break;
                     }
                     stCaf_melt(flower, threadSet, NULL, 0, minimumChainLengthForMeltingRound);
-                }
-                st_logDebug("Last melting round of cycle with a minimum chain length of %" PRIi64 " \n", minimumChainLength);
+                } st_logDebug("Last melting round of cycle with a minimum chain length of %" PRIi64 " \n", minimumChainLength);
                 stCaf_melt(flower, threadSet, NULL, 0, minimumChainLength);
                 //This does the filtering of blocks that do not have the required species/tree-coverage/degree.
                 stCaf_melt(flower, threadSet, blockFilterFn, blockTrim, 0);
@@ -496,21 +501,21 @@ int main(int argc, char *argv[]) {
                 st_logDebug("Creating degree 1 blocks\n");
                 stCaf_makeDegreeOneBlocks(threadSet);
                 stCaf_melt(flower, threadSet, blockFilterFn, blockTrim, 0);
-            }
-            else if(maximumAdjacencyComponentSizeRatio < INT64_MAX) { //Deal with giant components
+            } else if (maximumAdjacencyComponentSizeRatio < INT64_MAX) { //Deal with giant components
                 st_logDebug("Breaking up components greedily\n");
                 stCaf_breakupComponentsGreedily(threadSet, maximumAdjacencyComponentSizeRatio);
             }
 
             //Finish up
-            stCaf_finish(flower, threadSet, chainLengthForBigFlower, longChain, minLengthForChromosome, proportionOfUnalignedBasesForNewChromosome);
+            stCaf_finish(flower, threadSet, chainLengthForBigFlower, longChain, minLengthForChromosome,
+                    proportionOfUnalignedBasesForNewChromosome);
             st_logInfo("Ran the cactus core script\n");
 
             //Cleanup
             stPinchThreadSet_destruct(threadSet);
             stPinchIterator_destruct(pinchIterator);
             assert(!flower_isParentLoaded(flower));
-            if(singleCopyOutgroup) {
+            if (singleCopyOutgroup && !singleCopyIngroup) {
                 stSet_destruct(outgroupThreads);
             }
 
