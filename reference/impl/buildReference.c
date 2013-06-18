@@ -830,7 +830,7 @@ void buildReferenceTopDown(Flower *flower, const char *referenceEventHeader, int
     if(flower_getName(flower) == 0) { //Hack to breakup largest chromosome
         int64_t totalBases = flower_getTotalBaseLength(flower);
         maxNodeNumber = nodeNumber * 0.5;
-        if(totalBases > 2000000000 && maxNodeNumber > 10) {
+        if(totalBases > 1000000000) {
             reorderToAvoidOverlargeChromosome(ref, tooLarge);
         }
     }
