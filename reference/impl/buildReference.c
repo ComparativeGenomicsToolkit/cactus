@@ -820,7 +820,7 @@ void buildReferenceTopDown(Flower *flower, const char *referenceEventHeader, int
     //        totalScoreAfterTopologicalReordering, badAdjacenciesAfterTopologicalReordering, permutations, maxPossibleScore);
 
     int64_t maxNudge = 100;
-    int64_t nudgePermutations = 5;
+    int64_t nudgePermutations = 100;
     nudgeGreedily(dAL, aL, ref, nudgePermutations, maxNudge);
     int64_t badAdjacenciesAfterNudging = getBadAdjacencyCount(dAL, ref);
     double totalScoreAfterNudging = getReferenceScore(aL, ref);
