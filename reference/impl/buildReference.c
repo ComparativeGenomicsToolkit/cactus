@@ -168,7 +168,7 @@ static int64_t calculateZP2(Cap *cap, stHash *endsToNodes) {
 }
 
 refAdjList *calculateZ(Flower *flower, stHash *endsToNodes, int64_t nodeNumber, double theta, int64_t maxWalkForCalculatingZ,
-        bool ignoreUnalignedGaps, reference *ref) {
+        bool ignoreUnalignedGaps) {
     /*
      * Calculate the zScores between all ends.
      */
@@ -231,16 +231,6 @@ refAdjList *calculateZ(Flower *flower, stHash *endsToNodes, int64_t nodeNumber, 
                                 score = 1e-10; //Make slightly non-zero.
                             }
                             assert(score > 0.0);
-                            if(ref != NULL) {
-                                if(reference_isConsistent(ref, _3Node, _5Node)) {
-                                    refAdjList_addToWeight(aL, _3Node, _5Node, score);
-                                    madeWeight = 1;
-                                    continue;
-                                }
-                                else {
-                                    continue;
-                                }
-                            }
                             refAdjList_addToWeight(aL, _3Node, _5Node, score);
                             assert(refAdjList_getWeight(aL, _3Node, _5Node) == refAdjList_getWeight(aL, _5Node, _3Node));
                             assert(refAdjList_getWeight(aL, _3Node, _5Node) >= 0.0);
@@ -472,7 +462,7 @@ static void getStubEdgesInTopLevelFlower(reference *ref, Flower *flower, stHash 
         stHash_insert(stubEndsToNodes, end, stHash_search(endsToNodes, end));
         stSortedSet_insert(stubNodesSet, stHash_search(endsToNodes, stList_get(stubEnds, i)));
     }
-    refAdjList *stubAL = calculateZ(flower, stubEndsToNodes, nodeNumber, 0.0, INT64_MAX, 1, NULL);
+    refAdjList *stubAL = calculateZ(flower, stubEndsToNodes, nodeNumber, 0.0, INT64_MAX, 1);
     st_logDebug(
             "Building a matching for %" PRIi64 " stub nodes in the top level problem from %" PRIi64 " total stubs of which %" PRIi64 " attached , %" PRIi64 " total ends, %" PRIi64 " chains, %" PRIi64 " blocks %" PRIi64 " groups and %" PRIi64 " sequences\n",
             stList_length(stubEnds), flower_getStubEndNumber(flower), flower_getAttachedStubEndNumber(flower), flower_getEndNumber(flower),
@@ -790,8 +780,8 @@ void buildReferenceTopDown(Flower *flower, const char *referenceEventHeader, int
     /*
      * Calculate z functions
      */
-    refAdjList *aL = calculateZ(flower, endsToNodes, nodeNumber, theta, maxWalkForCalculatingZ, ignoreUnalignedGaps, NULL);
-    refAdjList *dAL = calculateZ(flower, endsToNodes, nodeNumber, 0.0, 1, ignoreUnalignedGaps, NULL); //Gets set of direct of direct adjacencies
+    refAdjList *aL = calculateZ(flower, endsToNodes, nodeNumber, theta, maxWalkForCalculatingZ, ignoreUnalignedGaps);
+    refAdjList *dAL = calculateZ(flower, endsToNodes, nodeNumber, 0.0, 1, ignoreUnalignedGaps); //Gets set of direct of direct adjacencies
 
     /*
      * Get the reference with chosen stub matched intervals
@@ -822,13 +812,12 @@ void buildReferenceTopDown(Flower *flower, const char *referenceEventHeader, int
             "The score of the solution after permutation sampling is %f/%" PRIi64 " after %" PRIi64 " rounds of greedy permutation out of a max possible %f\n",
             totalScoreAfterGreedySampling, badAdjacenciesAfterGreedySampling, permutations, maxPossibleScore);
 
-    refAdjList *dAL2 = calculateZ(flower, endsToNodes, nodeNumber, theta, maxWalkForCalculatingZ, ignoreUnalignedGaps, ref); //Gets set of direct of direct adjacencies
-    reorderReferenceToAvoidBreakpoints(dAL2, ref);
-    int64_t badAdjacenciesAfterTopologicalReordering = getBadAdjacencyCount(dAL, ref);
-    double totalScoreAfterTopologicalReordering = getReferenceScore(aL, ref);
-    st_logDebug(
-            "The score of the solution after topological reordering is %f/%" PRIi64 " after %" PRIi64 " rounds of greedy permutation out of a max possible %f\n",
-            totalScoreAfterTopologicalReordering, badAdjacenciesAfterTopologicalReordering, permutations, maxPossibleScore);
+    //reorderReferenceToAvoidBreakpoints(dAL2, ref);
+    //int64_t badAdjacenciesAfterTopologicalReordering = getBadAdjacencyCount(dAL, ref);
+    //double totalScoreAfterTopologicalReordering = getReferenceScore(aL, ref);
+    //st_logDebug(
+    //        "The score of the solution after topological reordering is %f/%" PRIi64 " after %" PRIi64 " rounds of greedy permutation out of a max possible %f\n",
+    //        totalScoreAfterTopologicalReordering, badAdjacenciesAfterTopologicalReordering, permutations, maxPossibleScore);
 
     int64_t maxNudge = 100;
     int64_t nudgePermutations = 5;
