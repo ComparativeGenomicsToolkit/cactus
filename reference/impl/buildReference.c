@@ -196,7 +196,6 @@ refAdjList *calculateZ(Flower *flower, stHash *endsToNodes, int64_t nodeNumber, 
                     /*
                      * Iterate through all pairs of 5' and 3' caps to calculate additions to scores.
                      */
-                    bool madeWeight = 0;
                     for (int64_t i = (stList_length(caps) > 0 && cap_getSide(stList_get(caps, 0))) ? 1 : 0; i < stList_length(caps); i += 2) {
                         Cap *_3Cap = stList_get(caps, i);
                         assert(!cap_getSide(_3Cap));
