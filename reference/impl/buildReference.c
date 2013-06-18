@@ -798,29 +798,33 @@ void buildReferenceTopDown(Flower *flower, const char *referenceEventHeader, int
     double maxPossibleScore = refAdjList_getMaxPossibleScore(aL);
     makeReferenceGreedily2(aL, ref, wiggle);
     reference_log(ref);
+    int64_t badAdjacenciesAfterGreedy = getBadAdjacencyCount(dAL, ref);
     double totalScoreAfterGreedy = getReferenceScore(aL, ref);
-    st_logDebug("The score of the initial solution is %f out of a max possible %f\n", totalScoreAfterGreedy, maxPossibleScore);
+    st_logDebug("The score of the initial solution is %f/%" PRIi64 " out of a max possible %f\n", totalScoreAfterGreedy, badAdjacenciesAfterGreedy, maxPossibleScore);
 
     updateReferenceGreedily(aL, ref, permutations);
     reference_log(ref);
 
+    int64_t badAdjacenciesAfterGreedySampling = getBadAdjacencyCount(dAL, ref);
     double totalScoreAfterGreedySampling = getReferenceScore(aL, ref);
     st_logDebug(
-            "The score of the solution after permutation sampling is %f after %" PRIi64 " rounds of greedy permutation out of a max possible %f\n",
-            totalScoreAfterGreedySampling, permutations, maxPossibleScore);
+            "The score of the solution after permutation sampling is %f/%" PRIi64 " after %" PRIi64 " rounds of greedy permutation out of a max possible %f\n",
+            totalScoreAfterGreedySampling, badAdjacenciesAfterGreedySampling, permutations, maxPossibleScore);
 
-    reorderReferenceToAvoidBreakpoints(dAL, ref);
+    reorderReferenceToAvoidBreakpoints(aL, ref);
+    int64_t badAdjacenciesAfterTopologicalReordering = getBadAdjacencyCount(dAL, ref);
     double totalScoreAfterTopologicalReordering = getReferenceScore(aL, ref);
     st_logDebug(
-            "The score of the solution after topological reordering is %f after %" PRIi64 " rounds of greedy permutation out of a max possible %f\n",
-            totalScoreAfterTopologicalReordering, permutations, maxPossibleScore);
+            "The score of the solution after topological reordering is %f/%" PRIi64 " after %" PRIi64 " rounds of greedy permutation out of a max possible %f\n",
+            totalScoreAfterTopologicalReordering, badAdjacenciesAfterTopologicalReordering, permutations, maxPossibleScore);
 
     int64_t maxNudge = 100;
     int64_t nudgePermutations = 5;
     nudgeGreedily(dAL, aL, ref, nudgePermutations, maxNudge);
+    int64_t badAdjacenciesAfterNudging = getBadAdjacencyCount(dAL, ref);
     double totalScoreAfterNudging = getReferenceScore(aL, ref);
-    st_logDebug("The score of the final solution is %f after %" PRIi64 " rounds of greedy nudging out of a max possible %f\n",
-            totalScoreAfterNudging, nudgePermutations, maxPossibleScore);
+    st_logDebug("The score of the final solution is %f/%" PRIi64 " after %" PRIi64 " rounds of greedy nudging out of a max possible %f\n",
+            totalScoreAfterNudging, badAdjacenciesAfterNudging, nudgePermutations, maxPossibleScore);
 
     if(flower_getName(flower) == 0) { //Hack to breakup largest chromosome
         int64_t totalBases = flower_getTotalBaseLength(flower);
