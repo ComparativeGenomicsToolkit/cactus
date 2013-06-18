@@ -196,6 +196,7 @@ refAdjList *calculateZ(Flower *flower, stHash *endsToNodes, int64_t nodeNumber, 
                     /*
                      * Iterate through all pairs of 5' and 3' caps to calculate additions to scores.
                      */
+                    bool madeWeight = 0;
                     for (int64_t i = (stList_length(caps) > 0 && cap_getSide(stList_get(caps, 0))) ? 1 : 0; i < stList_length(caps); i += 2) {
                         Cap *_3Cap = stList_get(caps, i);
                         assert(!cap_getSide(_3Cap));
@@ -233,7 +234,8 @@ refAdjList *calculateZ(Flower *flower, stHash *endsToNodes, int64_t nodeNumber, 
                             if(ref != NULL) {
                                 if(reference_isConsistent(ref, _3Node, _5Node)) {
                                     refAdjList_addToWeight(aL, _3Node, _5Node, score);
-                                    break;
+                                    madeWeight = 1;
+                                    continue;
                                 }
                                 else {
                                     continue;
@@ -805,13 +807,13 @@ void buildReferenceTopDown(Flower *flower, const char *referenceEventHeader, int
             flower_getName(flower), reference_getIntervalNumber(ref), chainNumber, nodeNumber);
 
     double maxPossibleScore = refAdjList_getMaxPossibleScore(aL);
-    makeReferenceGreedily2(aL, ref, wiggle);
+    makeReferenceGreedily2(aL, dAL, ref, wiggle);
     reference_log(ref);
     int64_t badAdjacenciesAfterGreedy = getBadAdjacencyCount(dAL, ref);
     double totalScoreAfterGreedy = getReferenceScore(aL, ref);
     st_logDebug("The score of the initial solution is %f/%" PRIi64 " out of a max possible %f\n", totalScoreAfterGreedy, badAdjacenciesAfterGreedy, maxPossibleScore);
 
-    updateReferenceGreedily(aL, ref, permutations);
+    updateReferenceGreedily(aL, dAL, ref, permutations);
     reference_log(ref);
 
     int64_t badAdjacenciesAfterGreedySampling = getBadAdjacencyCount(dAL, ref);
