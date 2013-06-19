@@ -226,7 +226,7 @@ int main(int argc, char *argv[]) {
     int64_t *alignmentTrims = NULL;
     bool singleCopyIngroup = 0;
     bool singleCopyOutgroup = 0;
-    int64_t chainLengthForBigFlower = 100000;
+    int64_t chainLengthForBigFlower = 1000000;
     int64_t longChain = 2;
     int64_t minLengthForChromosome = 1000000;
     float proportionOfUnalignedBasesForNewChromosome = 0.8;
@@ -471,15 +471,16 @@ int main(int argc, char *argv[]) {
                 st_logDebug("Starting annealing round with a minimum chain length of %" PRIi64 " and an alignment trim of %" PRIi64 "\n", minimumChainLength, alignmentTrim);
                 stPinchIterator_setTrim(pinchIterator, alignmentTrim);
 
+                //Add back in the constraints
+                if (pinchIteratorForConstraints != NULL) {
+                    stCaf_anneal(threadSet, pinchIteratorForConstraints, filterFn);
+                }
+
                 //Do the annealing
                 if (annealingRound == 0) {
                     stCaf_anneal(threadSet, pinchIterator, filterFn);
                 } else {
                     stCaf_annealBetweenAdjacencyComponents(threadSet, pinchIterator, filterFn);
-                }
-                //Add back in the constraints
-                if (pinchIteratorForConstraints != NULL) {
-                    stCaf_anneal(threadSet, pinchIteratorForConstraints, filterFn);
                 }
 
                 //Do the melting rounds

@@ -80,7 +80,6 @@ void stCaf_sortCigarsFileByScoreInDescendingOrder(char *cigarsFile, char *sorted
     FILE *fileHandle = fopen(sortedFile, "r");
     struct PairwiseAlignment *pA;
     while ((pA = cigarRead(fileHandle)) != NULL) {
-        st_uglyf("I got %f\n", score);
         assert(pA->score <= score);
         score = pA->score;
     }

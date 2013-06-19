@@ -444,7 +444,7 @@ def runCactusProgressive(inputDir,
         assert buildHal is True
         basePath = os.path.dirname(inputDir)
         assert os.path.isdir(basePath)
-        halExportCmd = "cactus2hal.py %s %s" % (inputDir, os.path.join(basePath, 'out.hal'))
+        halExportCmd = "cactus2hal.py %s %s --inMemory" % (inputDir, os.path.join(basePath, 'out.hal'))
         system(halExportCmd)
         mafExportCmd = "hal2maf %s %s --maxRefGap 1000000 --inMemory" % (os.path.join(basePath, 'out.hal'),
                                                          os.path.join(basePath, 'out.maf'))
