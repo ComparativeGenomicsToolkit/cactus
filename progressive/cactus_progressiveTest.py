@@ -9,6 +9,7 @@
 import unittest
 import os
 import sys
+import random
 
 from cactus.shared.test import parseCactusSuiteTestOptions
 from sonLib.bioio import TestStatus
@@ -38,6 +39,9 @@ class TestCase(unittest.TestCase):
         unittest.TestCase.setUp(self)
         self.useOutgroup = False
         self.doSelfAlignment = False
+        self.configFile = "defaultProgressive"
+        if random.random() > 0.5:
+            self.configFile = "defaultProgressiveFast"
         
     def testCactus_Random(self):
         runWorkflow_multipleExamples(getCactusInputs_random, 
@@ -45,6 +49,7 @@ class TestCase(unittest.TestCase):
                                      testRestrictions=(TestStatus.TEST_SHORT,),
                                      batchSystem=self.batchSystem, buildJobTreeStats=True,
                                      progressive=True,
+                                     configFile=self.configFile,
                                      cactusWorkflowFunction=self.progressiveFunction)
         
     def testCactus_Random_UseOutgroup(self):
@@ -54,6 +59,7 @@ class TestCase(unittest.TestCase):
                                      testRestrictions=(TestStatus.TEST_SHORT,),
                                      batchSystem=self.batchSystem, buildJobTreeStats=True,
                                      progressive=True,
+                                     configFile=self.configFile,
                                      cactusWorkflowFunction=self.progressiveFunction)
         
     def testCactus_Random_DoSelfAlignment(self):
@@ -63,6 +69,7 @@ class TestCase(unittest.TestCase):
                                      testRestrictions=(TestStatus.TEST_SHORT,),
                                      batchSystem=self.batchSystem, buildJobTreeStats=True,
                                      progressive=True,
+                                     configFile=self.configFile,
                                      cactusWorkflowFunction=self.progressiveFunction)
         
     def testCactus_Random_UseOutgroupAndDoSelfAlignment(self):
@@ -73,6 +80,7 @@ class TestCase(unittest.TestCase):
                                      testRestrictions=(TestStatus.TEST_SHORT,),
                                      batchSystem=self.batchSystem, buildJobTreeStats=True,
                                      progressive=True,
+                                     configFile=self.configFile,
                                      cactusWorkflowFunction=self.progressiveFunction)
         
     def testCactus_Blanchette(self):
@@ -81,6 +89,7 @@ class TestCase(unittest.TestCase):
                                      testRestrictions=(TestStatus.TEST_MEDIUM,),
                                      batchSystem=self.batchSystem, buildJobTreeStats=True,
                                      progressive=True,
+                                     configFile=self.configFile,
                                      cactusWorkflowFunction=self.progressiveFunction)
     
     def testCactus_Blanchette_UseOutgroupAndDoSelfAlignment(self):
@@ -91,6 +100,7 @@ class TestCase(unittest.TestCase):
                                      testRestrictions=(TestStatus.TEST_MEDIUM,),
                                      batchSystem=self.batchSystem, buildJobTreeStats=True,
                                      progressive=True,
+                                     configFile=self.configFile,
                                      cactusWorkflowFunction=self.progressiveFunction)
                 
     def testCactus_Encode(self): 
@@ -99,6 +109,7 @@ class TestCase(unittest.TestCase):
                                      testRestrictions=(TestStatus.TEST_LONG,),
                                      batchSystem=self.batchSystem, buildJobTreeStats=True,
                                      progressive=True,
+                                     configFile=self.configFile,
                                      cactusWorkflowFunction=self.progressiveFunction)
     
     def testCactus_Chromosomes(self):
@@ -106,6 +117,7 @@ class TestCase(unittest.TestCase):
                                      testRestrictions=(TestStatus.TEST_VERY_LONG,),
                                      batchSystem=self.batchSystem, buildJobTreeStats=True,
                                      progressive=True,
+                                     configFile=self.configFile,
                                      cactusWorkflowFunction=self.progressiveFunction)
     
     def progressiveFunction(self, experimentFile, jobTreeDir, 

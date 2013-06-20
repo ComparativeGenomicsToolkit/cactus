@@ -1,4 +1,8 @@
 <cactusWorkflowConfig>
+	<constants defaultMemory="mediumMemory" defaultOverlargeMemory="mediumMemory" defaultCpu="1" defaultOverlargeCpu="1">
+		<!-- These constants are used to control the amount of memory and cpu the different jobs in a batch are using. -->
+  		<defines littleMemory="2147483648" mediumMemory="8589934592" bigMemory="107374182400"/>
+  	</constants>
 	<preprocessor memory="2147483648" preprocessorString="cactus_makeAlphaNumericHeaders.py IN_FILE OUT_FILE" scope="leaves" />
   	<preprocessor check="1" memory="2147483648" preprocessorString="cactus_checkUniqueHeaders.py IN_FILE" scope="leaves" />
   	<preprocessor chunkSize="100000000" memory="2147483648" preprocessorString="cactus_lastzRepeatMask.py --minPeriod=10 --lastzOpts='--step=20 --notransition --ambiguous=iupac --nogapped' GENOME_FILE IN_FILE OUT_FILE" scope="leaves" />
@@ -14,7 +18,7 @@
 		minimumDistance="0.01" 
 		minimumSequenceLengthForBlast="30"
 		annealingRounds="2 3 4 8 16 32 64 128" 
-		deannealingRounds="1 2 3 4 8 16 32 64 128" 
+		deannealingRounds="2 3 4 8 16 32 64 128" 
 		blockTrim="2" 
 		minimumTreeCoverage="0.8" 
 		trim="0 0 0 0 0 0 0 0 0 0 0"
@@ -22,6 +26,7 @@
 		maxAdjacencyComponentSizeRatio="10"
 		minLengthForChromosome="1000000"
 		proportionOfUnalignedBasesForNewChromosome="0.8"
+		lastzMemory="littleMemory"
 	>
 		<CactusCafRecursion maxFlowerGroupSize="100000000"/>
 		<CactusCafWrapper minFlowerSize="5000" maxFlowerGroupSize="1000000"/>
@@ -43,7 +48,8 @@
 		maximumNumberOfSequencesBeforeSwitchingToFast="50"
 	>
 		<CactusBarRecursion maxFlowerGroupSize="100000000"/>
-		<CactusBarWrapper maxFlowerGroupSize="40000"/>
+		<CactusBarWrapper maxFlowerGroupSize="40000" memory="littleMemory"/>
+		<CactusBarEndAlignerWrapper memory="littleMemory"/>
 	</bar>
 	<normal 
 		iterations="2"

@@ -108,16 +108,21 @@ def getTargetNode(phaseNode, targetClass):
 class CactusTarget(Target):
     """Base target for all cactus workflow targets.
     """
-    def __init__(self, phaseNode, overlarge=False):
+    def __init__(self, phaseNode, constantsNode, overlarge=False):
         self.phaseNode = phaseNode
+        self.constantsNode = constantsNode
         self.overlarge = overlarge
         self.targetNode = getTargetNode(self.phaseNode, self.__class__)
         if overlarge:
-            Target.__init__(self, memory=self.getOptionalTargetAttrib("overlargeMemory", typeFn=int, default=sys.maxint), 
-                            cpu=self.getOptionalTargetAttrib("overlargeCpu", typeFn=int, default=sys.maxint))
+            Target.__init__(self, memory=self.getOptionalTargetAttrib("overlargeMemory", typeFn=int, 
+                                                                      default=getOptionalAttrib(self.constantsNode, "defaultOverlargeMemory", int, default=sys.maxint)),
+                                  cpu=self.getOptionalTargetAttrib("overlargeCpu", typeFn=int, 
+                                                                      default=getOptionalAttrib(self.constantsNode, "defaultOverlargeCpu", int, default=sys.maxint)))
         else:
-            Target.__init__(self, memory=self.getOptionalTargetAttrib("memory", typeFn=int, default=sys.maxint), 
-                            cpu=self.getOptionalTargetAttrib("cpu", typeFn=int, default=sys.maxint))
+            Target.__init__(self, memory=self.getOptionalTargetAttrib("memory", typeFn=int, 
+                                                                      default=getOptionalAttrib(self.constantsNode, "defaultMemory", int, default=sys.maxint)),
+                                  cpu=self.getOptionalTargetAttrib("cpu", typeFn=int, 
+                                                                      default=getOptionalAttrib(self.constantsNode, "defaultCpu", int, default=sys.maxint)))
     
     def getOptionalPhaseAttrib(self, attribName, typeFn=None, default=None):
         """Gets an optional attribute of the phase node.
@@ -134,13 +139,15 @@ class CactusPhasesTarget(CactusTarget):
     """
     def __init__(self, cactusWorkflowArguments, phaseName, topFlowerName=0, index=0):
         phaseNode = findRequiredNode(cactusWorkflowArguments.configNode, phaseName, index)
-        CactusTarget.__init__(self, phaseNode=phaseNode, overlarge=False)
+        constantsNode = findRequiredNode(cactusWorkflowArguments.configNode, "constants")
+        CactusTarget.__init__(self, phaseNode=phaseNode, constantsNode=constantsNode, overlarge=False)
         self.index = index
         self.cactusWorkflowArguments = cactusWorkflowArguments
         self.topFlowerName = topFlowerName
     
     def makeRecursiveChildTarget(self, target, launchSecondaryKtForRecursiveTarget=False):
         newChild = target(phaseNode=extractNode(self.phaseNode), 
+                          constantsNode=extractNode(self.constantsNode),
                           cactusDiskDatabaseString=self.cactusWorkflowArguments.cactusDiskDatabaseString, 
                           flowerNames=encodeFlowerNames((self.topFlowerName,)), overlarge=True)
         
@@ -189,8 +196,8 @@ class CactusRecursionTarget(CactusTarget):
     """Base recursive target for traversals up and down the cactus tree.
     """
     maxSequenceSizeOfFlowerGroupingDefault = 1000000
-    def __init__(self, phaseNode, cactusDiskDatabaseString, flowerNames, overlarge=False):
-        CactusTarget.__init__(self, phaseNode=phaseNode, overlarge=overlarge)
+    def __init__(self, phaseNode, constantsNode, cactusDiskDatabaseString, flowerNames, overlarge=False):
+        CactusTarget.__init__(self, phaseNode=phaseNode, constantsNode=constantsNode, overlarge=overlarge)
         self.cactusDiskDatabaseString = cactusDiskDatabaseString
         self.flowerNames = flowerNames  
         
@@ -199,7 +206,7 @@ class CactusRecursionTarget(CactusTarget):
         """
         if phaseNode == None:
             phaseNode = self.phaseNode
-        self.setFollowOnTarget(target(phaseNode=phaseNode, 
+        self.setFollowOnTarget(target(phaseNode=phaseNode, constantsNode=self.constantsNode,
                                    cactusDiskDatabaseString=self.cactusDiskDatabaseString, 
                                    flowerNames=self.flowerNames, overlarge=self.overlarge))
         
@@ -221,10 +228,11 @@ class CactusRecursionTarget(CactusTarget):
                     self.logToMaster("Adding an oversize flower %s for target class %s" \
                                              % (decodeFirstFlowerName(flowerNames), overlargeTarget))
                 self.addChildTarget(overlargeTarget(cactusDiskDatabaseString=self.cactusDiskDatabaseString, phaseNode=phaseNode, 
+                                                    constantsNode=self.constantsNode,
                                                     flowerNames=flowerNames, overlarge=True)) #This ensures overlarge flowers, 
             else:
                 self.addChildTarget(target(cactusDiskDatabaseString=self.cactusDiskDatabaseString, 
-                                           phaseNode=phaseNode, flowerNames=flowerNames, overlarge=False))
+                                           phaseNode=phaseNode, constantsNode=self.constantsNode, flowerNames=flowerNames, overlarge=False))
         
     def makeRecursiveTargets(self, target=None, phaseNode=None, runFlowerStats=False):
         """Make a set of child targets for a given set of parent flowers.
@@ -239,7 +247,7 @@ class CactusRecursionTarget(CactusTarget):
                                             maxSequenceSizeOfSecondaryFlowerGrouping=getOptionalAttrib(targetNode, "maxFlowerWrapperGroupSize", int, 
                                             default=CactusRecursionTarget.maxSequenceSizeOfFlowerGroupingDefault))
         self.makeChildTargets(flowersAndSizes=flowersAndSizes, 
-                              target=target, phaseNode=phaseNode, 
+                              target=target, phaseNode=phaseNode,
                               runFlowerStats=runFlowerStats)
     
     def makeExtendingTargets(self, target, overlargeTarget=None, phaseNode=None, runFlowerStats=False):
@@ -252,7 +260,7 @@ class CactusRecursionTarget(CactusTarget):
                                               default=CactusRecursionTarget.maxSequenceSizeOfFlowerGroupingDefault))
         self.makeChildTargets(flowersAndSizes=flowersAndSizes, 
                               target=target, overlargeTarget=overlargeTarget, 
-                              phaseNode=phaseNode, 
+                              phaseNode=phaseNode,
                               runFlowerStats=runFlowerStats)
     
     def makeWrapperTargets(self, target, overlargeTarget=None, phaseNode=None, runFlowerStats=False):
@@ -880,9 +888,24 @@ class CactusWorkflowArguments:
             configFile = os.path.join(cactusRootPath(), "pipeline", "cactus_workflow_config.xml")
         elif configFile == "defaultProgressive":
             configFile = os.path.join(cactusRootPath(), "progressive", "cactus_progressive_workflow_config.xml")
+        elif configFile == "defaultProgressiveFast":
+            configFile = os.path.join(cactusRootPath(), "progressive", "cactus_progressive_workflow_config_fast.xml")
         else:
             logger.info("Using user specified config file: %s", configFile)
         self.configNode = ET.parse(configFile).getroot()
+        #Now deal with the constants that ned to be added here
+        constants = findRequiredNode(self.configNode, "constants")
+        defines = constants.find("defines")
+        def replaceAllConstants(node, defines):
+            for attrib in node.attrib:
+                if node.attrib[attrib] in defines.attrib:
+                    node.attrib[attrib] = defines.attrib[node.attrib[attrib]]
+            for child in node:
+                replaceAllConstants(child, defines)
+        if defines != None:    
+            replaceAllConstants(self.configNode, defines)
+            constants.remove(defines)
+        #Now build the remaining options from the arguments
         if options.buildAvgs:
             findRequiredNode(self.configNode, "avg").attrib["buildAvgs"] = "1"
         if options.buildReference:
