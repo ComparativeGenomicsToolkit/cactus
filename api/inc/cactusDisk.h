@@ -55,6 +55,11 @@ int64_t cactusDisk_getUniqueIDInterval(CactusDisk *cactusDisk, int64_t intervalS
 void cactusDisk_write(CactusDisk *cactusDisk);
 
 /*
+ * This is used to serialise a flower before a call to a cactusDisk_write, it is exposed for use in the cactus_caf code.
+ */
+void cactusDisk_addUpdateRequest(CactusDisk *cactusDisk, Flower *flower);
+
+/*
  * Gets a flower the cactusDisk contains. If the flower is not in memory it will be loaded. If not in memory or on disk, returns NULL.
  */
 Flower *cactusDisk_getFlower(CactusDisk *cactusDisk, Name flowerName);

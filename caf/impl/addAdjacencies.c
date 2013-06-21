@@ -21,7 +21,7 @@ static int addAdjacenciesPP(Cap *cap1, Cap *cap2) {
     return i;
 }
 
-static void addAdjacenciesP(Flower *flower) {
+void stCaf_addAdjacencies(Flower *flower) {
     //Build a list of caps.
     stList *list = stList_construct();
     Flower_EndIterator *endIterator = flower_getEndIterator(flower);
@@ -49,16 +49,4 @@ static void addAdjacenciesP(Flower *flower) {
     }
     //Clean up.
     stList_destruct(list);
-}
-
-void stCaf_addAdjacencies(Flower *flower) {
-    addAdjacenciesP(flower);
-    Group_EndIterator *adjacencyIterator = flower_getGroupIterator(flower);
-    Group *group;
-    while ((group = flower_getNextGroup(adjacencyIterator)) != NULL) {
-        if (group_getNestedFlower(group) != NULL) {
-            stCaf_addAdjacencies(group_getNestedFlower(group));
-        }
-    }
-    flower_destructGroupIterator(adjacencyIterator);
 }

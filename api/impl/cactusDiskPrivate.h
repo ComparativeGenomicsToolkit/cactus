@@ -14,6 +14,7 @@ struct _cactusDisk {
     stSortedSet *metaSequences;
     stSortedSet *flowers;
     stSortedSet *flowerNamesMarkedForDeletion;
+    stList *updateRequests;
     stCache *cache;
     stCache *stringCache;
     Name uniqueNumber;

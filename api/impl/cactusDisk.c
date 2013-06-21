@@ -571,6 +571,7 @@ static CactusDisk *cactusDisk_constructPrivate(stKVDatabaseConf *conf, bool crea
     cactusDisk->flowers = stSortedSet_construct3(cactusDisk_constructFlowersP, NULL);
     cactusDisk->flowerNamesMarkedForDeletion
             = stSortedSet_construct3((int(*)(const void *, const void *)) strcmp, free);
+    cactusDisk->updateRequests = stList_construct3(0, (void(*)(void *)) stKVDatabaseBulkRequest_destruct);
 
     //Now open the database
     cactusDisk->database = stKVDatabase_construct(conf, create);
@@ -668,11 +669,32 @@ void cactusDisk_destruct(CactusDisk *cactusDisk) {
     free(cactusDisk);
 }
 
+void cactusDisk_addUpdateRequest(CactusDisk *cactusDisk, Flower *flower) {
+    int64_t recordSize;
+    void *vA = binaryRepresentation_makeBinaryRepresentation(flower,
+                            (void(*)(void *, void(*)(const void * ptr, size_t size, size_t count))) flower_writeBinaryRepresentation,
+                            &recordSize);
+    //Compression
+    vA = compress(vA, &recordSize);
+    if (containsRecord(cactusDisk, flower_getName(flower))) {
+        int64_t recordSize2;
+        void *vA2 = stCache_getRecord(cactusDisk->cache, flower_getName(flower), 0, INT64_MAX, &recordSize2);
+        if (!stCache_recordsIdentical(vA, recordSize, vA2, recordSize2)) { //Only rewrite if we actually did something
+            stList_append(cactusDisk->updateRequests,
+                    stKVDatabaseBulkRequest_constructUpdateRequest(flower_getName(flower), vA, recordSize));
+        }
+        free(vA2);
+    } else {
+        stList_append(cactusDisk->updateRequests,
+                stKVDatabaseBulkRequest_constructInsertRequest(flower_getName(flower), vA, recordSize));
+    }
+    free(vA);
+}
+
 void cactusDisk_write(CactusDisk *cactusDisk) {
     Flower *flower;
     int64_t recordSize;
 
-    stList *updateRequests = stList_construct3(0, (void(*)(void *)) stKVDatabaseBulkRequest_destruct);
     stList *removeRequests = stList_construct3(0, (void(*)(void *)) stIntTuple_destruct);
 
     st_logDebug("Starting to write the cactus to disk\n");
@@ -680,28 +702,7 @@ void cactusDisk_write(CactusDisk *cactusDisk) {
     stSortedSetIterator *it = stSortedSet_getIterator(cactusDisk->flowers);
     //Sort flowers to update.
     while ((flower = stSortedSet_getNext(it)) != NULL) {
-        void
-                *vA =
-                        binaryRepresentation_makeBinaryRepresentation(
-                                flower,
-                                (void(*)(void *, void(*)(const void * ptr, size_t size, size_t count))) flower_writeBinaryRepresentation,
-                                &recordSize);
-        //Compression
-        vA = compress(vA, &recordSize);
-        //vA = binaryRepresentation_resizeObjectAsPowerOf2(vA, &recordSize);
-        if (containsRecord(cactusDisk, flower_getName(flower))) {
-            int64_t recordSize2;
-            void *vA2 = stCache_getRecord(cactusDisk->cache, flower_getName(flower), 0, INT64_MAX, &recordSize2);
-            if (!stCache_recordsIdentical(vA, recordSize, vA2, recordSize2)) { //Only rewrite if we actually did something
-                stList_append(updateRequests,
-                        stKVDatabaseBulkRequest_constructUpdateRequest(flower_getName(flower), vA, recordSize));
-            }
-            free(vA2);
-        } else {
-            stList_append(updateRequests,
-                    stKVDatabaseBulkRequest_constructInsertRequest(flower_getName(flower), vA, recordSize));
-        }
-        free(vA);
+        cactusDisk_addUpdateRequest(cactusDisk, flower);
     }
     stSortedSet_destructIterator(it);
 
@@ -713,7 +714,7 @@ void cactusDisk_write(CactusDisk *cactusDisk) {
     while ((nameString = stSortedSet_getNext(it)) != NULL) {
         Name name = cactusMisc_stringToName(nameString);
         if (containsRecord(cactusDisk, name)) {
-            stList_append(updateRequests, stKVDatabaseBulkRequest_constructUpdateRequest(name, &name, 0)); //We set it to null in the first atomic operation.
+            stList_append(cactusDisk->updateRequests, stKVDatabaseBulkRequest_constructUpdateRequest(name, &name, 0)); //We set it to null in the first atomic operation.
             stList_append(removeRequests, stIntTuple_construct1(name));
         }
     }
@@ -734,7 +735,7 @@ void cactusDisk_write(CactusDisk *cactusDisk) {
                                     &recordSize);
             //Compression
             vA = compress(vA, &recordSize);
-            stList_append(updateRequests,
+            stList_append(cactusDisk->updateRequests,
                     stKVDatabaseBulkRequest_constructInsertRequest(metaSequence_getName(metaSequence), vA, recordSize));
             free(vA);
         }
@@ -754,7 +755,7 @@ void cactusDisk_write(CactusDisk *cactusDisk) {
         //Compression
         cactusDiskParameters = compress(cactusDiskParameters, &recordSize);
         stList_append(
-                updateRequests,
+                cactusDisk->updateRequests,
                 stKVDatabaseBulkRequest_constructInsertRequest(CACTUS_DISK_PARAMETER_KEY, cactusDiskParameters,
                         recordSize));
         free(cactusDiskParameters);
@@ -762,12 +763,12 @@ void cactusDisk_write(CactusDisk *cactusDisk) {
 
     st_logDebug("Checked if need to write the initial parameters\n");
 
-    if (stList_length(updateRequests) > 0) {
-        st_logDebug("Going to write %" PRIi64 " updates\n", stList_length(updateRequests));
+    if (stList_length(cactusDisk->updateRequests) > 0) {
+        st_logDebug("Going to write %" PRIi64 " updates\n", stList_length(cactusDisk->updateRequests));
         stTry {
-            st_logDebug("Writing %" PRIi64 " updates\n", stList_length(updateRequests));
-            assert(stList_length(updateRequests) > 0);
-            stKVDatabase_bulkSetRecords(cactusDisk->database, updateRequests);
+            st_logDebug("Writing %" PRIi64 " updates\n", stList_length(cactusDisk->updateRequests));
+            assert(stList_length(cactusDisk->updateRequests) > 0);
+            stKVDatabase_bulkSetRecords(cactusDisk->database, cactusDisk->updateRequests);
         }
         stCatch(except)
         {
@@ -789,7 +790,8 @@ void cactusDisk_write(CactusDisk *cactusDisk) {
 
     st_logDebug("Now removed flowers we don't need\n");
 
-    stList_destruct(updateRequests);
+    stList_destruct(cactusDisk->updateRequests);
+    cactusDisk->updateRequests = stList_construct3(0, (void(*)(void *)) stKVDatabaseBulkRequest_destruct);
     stList_destruct(removeRequests);
 
     st_logDebug("Finished writing to the database\n");
