@@ -121,11 +121,11 @@ class TestCase(unittest.TestCase):
         class CactusTestTarget(CactusTarget):
             pass
         node = ET.SubElement(self.barNode, "CactusTestTarget", attrib={ "memory":10, "cpu":2,  "overlargeMemory":20 })
-        target = CactusTestTarget(self.barNode)
+        target = CactusTestTarget(self.barNode, self.barNode)
         self.assertEquals(target.targetNode, node)
         self.assertEquals(target.getMemory(), 10)
         self.assertEquals(target.getCpu(), 2)
-        target = CactusTestTarget(self.barNode, overlarge=True)
+        target = CactusTestTarget(self.barNode, self.barNode, overlarge=True)
         self.assertEquals(target.getMemory(), 20)
         self.assertEquals(target.getCpu(), sys.maxint)
         self.assertEquals(target.getOptionalPhaseAttrib("diagonalExpansion", typeFn=int), 20)
@@ -135,7 +135,7 @@ class TestCase(unittest.TestCase):
         self.assertEquals(target.getOptionalTargetAttrib("overlargeCpu", typeFn=int, default=-1), -1)
         class CactusTestTarget2(CactusTarget):
             pass
-        target = CactusTestTarget2(self.barNode)
+        target = CactusTestTarget2(self.barNode, self.barNode)
         self.assertEquals(target.targetNode, None)
         self.assertEquals(target.getMemory(), sys.maxint)
         self.assertEquals(target.getCpu(), sys.maxint)
