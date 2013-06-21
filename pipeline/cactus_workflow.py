@@ -300,14 +300,14 @@ class CactusPreprocessorPhase(CactusPhasesTarget):
             if minDivergence > longestPath or maxDivergence < longestPath:
                 self.logToMaster("Removing node %s with minDivergence %s and maxDivergence %s for max divergence in tree of %s" % (node.tag, minDivergence, maxDivergence, longestPath))
                 self.cactusWorkflowArguments.configNode.remove(node)
-        
         tempDir = makeSubDir(os.path.join(self.getGlobalTempDir(), "tempSeqs"))
         prepHelper = PreprocessorHelper(self.cactusWorkflowArguments, self.cactusWorkflowArguments.sequences)
         processedSequences = []
         tempSeqIndex = 0
-        for sequence in self.cactusWorkflowArguments.sequences:
-            prepXmlElems = prepHelper.getFilteredXmlElems(sequence)
-            event = prepHelper.fileEventMap[sequence]
+        for sequenceIndex in xrange(len(self.cactusWorkflowArguments.sequences)):
+            sequence = self.cactusWorkflowArguments.sequences[sequenceIndex]
+            prepXmlElems = prepHelper.getFilteredXmlElems(sequenceIndex)
+            event = prepHelper.sequenceIndexEventMap[sequenceIndex]
             if len(prepXmlElems) == 0:
                 processedSequences.append(sequence)
             else:

@@ -23,32 +23,16 @@ from jobTree.scriptTree.target import Target
 from jobTree.scriptTree.stack import Stack
 from cactus.blast.cactus_blast import catFiles
 
-def fileList(path):
-    """ return a list of files in the directory, or just the
-        directory name if its empty
-    """
-    if os.path.isdir(path):
-        contents = os.listdir(path)
-        files = []
-        for i in contents:
-            if i[0] != '.':
-                fpath = os.path.join(path, i)
-                if os.path.isfile(fpath):
-                    files.append(fpath)
-        if len(files) > 0:
-            return files
-    return [path]
-
 class PreprocessorHelper:
     def __init__(self, cactusWorkflowArguments, sequences):     
         self.cactusWorkflowArguments = cactusWorkflowArguments
         self.sequences = sequences
-        self.fileEventMap = self.__computeFileEventMap()
+        self.sequenceIndexEventMap = self.__computeSequenceIndexEventMap()
     
-    def getFilteredXmlElems(self, sequence):
+    def getFilteredXmlElems(self, sequenceIndex):
         prepNodes = self.cactusWorkflowArguments.configNode.findall("preprocessor")
         filteredNodes = []
-        event = self.fileEventMap[sequence]
+        event = self.sequenceIndexEventMap[sequenceIndex]
         leafEvents = getattr(self.cactusWorkflowArguments, 'globalLeafEventSet', set([event]))         
         for node in prepNodes:
             if node.get("preprocessorString", default=None) is not None:
@@ -62,27 +46,21 @@ class PreprocessorHelper:
     
     # link each fasta file to an event name and store 
     # relies on sequences aways being read in same order
-    def __computeFileEventMap(self):
-        seqIterator = iter(self.sequences)
+    def __computeSequenceIndexEventMap(self):
+        seqIndex = 0
         eventMap = dict()
         tree = newickTreeParser(self.cactusWorkflowArguments.speciesTree)
         dfStack = [tree]
         while dfStack:
             node = dfStack.pop(-1)
             if node is not None and not node.internal:
-                eventMap[seqIterator.next()] = node.iD 
+                eventMap[seqIndex] = node.iD 
+                seqIndex += 1
             else:
                 dfStack.append(node.right)
                 dfStack.append(node.left) 
         assert len(eventMap) == len(self.sequences)
-        fileEventMap = dict()
-        for seq in self.sequences:
-            event = eventMap[seq]            
-            for file in fileList(seq):
-                assert file not in fileEventMap
-                fileEventMap[file] = event
-            fileEventMap[seq] = event
-        return fileEventMap       
+        return eventMap
 
 class PreprocessorOptions:
     def __init__(self, chunkSize, cmdLine, memory, cpu, check):
