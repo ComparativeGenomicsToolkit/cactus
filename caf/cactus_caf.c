@@ -509,7 +509,7 @@ int main(int argc, char *argv[]) {
 
             //Finish up
             stCaf_finish(flower, threadSet, chainLengthForBigFlower, longChain, minLengthForChromosome,
-                    proportionOfUnalignedBasesForNewChromosome);
+                    proportionOfUnalignedBasesForNewChromosome); //Flower is then destroyed at this point.
             st_logInfo("Ran the cactus core script\n");
 
             //Cleanup
