@@ -515,7 +515,7 @@ int main(int argc, char *argv[]) {
             //Cleanup
             stPinchThreadSet_destruct(threadSet);
             stPinchIterator_destruct(pinchIterator);
-            assert(!flower_isParentLoaded(flower));
+
             if (singleCopyOutgroup && !singleCopyIngroup) {
                 stSet_destruct(outgroupThreads);
             }
