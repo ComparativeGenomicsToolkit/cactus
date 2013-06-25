@@ -75,6 +75,10 @@ void stCaf_sortCigarsFileByScoreInDescendingOrder(char *cigarsFile, char *sorted
     if(i != 0) {
         st_errAbort("Encountered unix sort error when sorting cigar alignments in file: %s\n", cigarsFile);
     }
+    i = st_system("chmod 777 %s", sortedFile);
+    if(i != 0) {
+        st_errAbort("Encountered error when changing file permissions: %s\n", cigarsFile);
+    }
 #ifndef NDEBUG
     double score = INT64_MAX;
     FILE *fileHandle = fopen(sortedFile, "r");
