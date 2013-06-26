@@ -42,11 +42,12 @@ void eventTree_copyConstructP(EventTree *eventTree, Event *event,
 			//skip the event
 			event2 = event_getChild(event2, 0);
 		}
-		event_construct(event_getName(event2), event_getHeader(event2), event_getBranchLength(event2),
-						eventTree_getEvent(eventTree, event_getName(event)), eventTree);
+		event_setOutgroupStatus(event_construct(event_getName(event2), event_getHeader(event2), event_getBranchLength(event2),
+						eventTree_getEvent(eventTree, event_getName(event)), eventTree), event_isOutgroup(event2));
 		eventTree_copyConstructP(eventTree, event2, unaryEventFilterFn);
 	}
 }
+
 
 EventTree *eventTree_copyConstruct(EventTree *eventTree, Flower *newFlower,
 		int64_t (unaryEventFilterFn)(Event *event)) {

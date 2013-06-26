@@ -41,6 +41,7 @@ static void cactusEventTreeTestSetup() {
 		internalEvent = event_construct3("INTERNAL", 0.5, rootEvent, eventTree);
 		leafEvent1 = event_construct3("LEAF1", 0.2, internalEvent, eventTree);
 		leafEvent2 = event_construct3("LEAF2", 1.3, internalEvent, eventTree);
+		event_setOutgroupStatus(leafEvent1, 1);
 	}
 }
 
@@ -66,6 +67,8 @@ void testEventTree_copyConstruct(CuTest* testCase) {
 	CuAssertTrue(testCase, event_getName(eventTree_getEvent(eventTree2, event_getName(internalEvent))) == event_getName(internalEvent));
 	CuAssertTrue(testCase, event_getName(eventTree_getEvent(eventTree2, event_getName(leafEvent1))) == event_getName(leafEvent1));
 	CuAssertTrue(testCase, event_getName(eventTree_getEvent(eventTree2, event_getName(leafEvent2))) == event_getName(leafEvent2));
+	CuAssertTrue(testCase, event_isOutgroup(eventTree_getEvent(eventTree2, event_getName(leafEvent1))));
+	CuAssertTrue(testCase, !event_isOutgroup(eventTree_getEvent(eventTree2, event_getName(leafEvent2))));
 	cactusEventTreeTestTeardown();
 }
 
