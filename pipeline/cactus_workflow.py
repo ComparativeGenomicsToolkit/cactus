@@ -526,7 +526,7 @@ class CactusBarWrapperLarge(CactusRecursionTarget):
         for endToAlign, sequencesInEndAlignment, basesInEndAlignment in runBarForTarget(self, calculateWhichEndsToComputeSeparately=True):
             alignmentFile = os.path.join(self.getGlobalTempDir(), "%s.end" % endToAlign)
             precomputedAlignmentFiles.append(alignmentFile)
-            self.addChildTarget(CactusBarEndAlignerWrapper(self.phaseNode, self.cactusDiskDatabaseString, self.flowerNames, 
+            self.addChildTarget(CactusBarEndAlignerWrapper(self.phaseNode, self.constantsNode, self.cactusDiskDatabaseString, self.flowerNames, 
                                                            basesInEndAlignment >= veryLargeEndSize, endToAlign, alignmentFile))
             self.logToMaster("Precomputing end alignment for %s with %i caps and %i bases" % \
                              (endToAlign, sequencesInEndAlignment, basesInEndAlignment))
@@ -536,8 +536,8 @@ class CactusBarWrapperLarge(CactusRecursionTarget):
 class CactusBarEndAlignerWrapper(CactusRecursionTarget):
     """Computes an end alignment.
     """
-    def __init__(self, phaseNode, cactusDiskDatabaseString, flowerNames, overlarge, endToAlign, alignmentFile):
-        CactusRecursionTarget.__init__(self, phaseNode, cactusDiskDatabaseString, flowerNames, overlarge)
+    def __init__(self, phaseNode, constantsNode, cactusDiskDatabaseString, flowerNames, overlarge, endToAlign, alignmentFile):
+        CactusRecursionTarget.__init__(self, phaseNode, constantsNode, cactusDiskDatabaseString, flowerNames, overlarge)
         self.endToAlign = endToAlign
         self.alignmentFile = alignmentFile
     
