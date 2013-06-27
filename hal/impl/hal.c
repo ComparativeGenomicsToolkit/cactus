@@ -12,7 +12,8 @@ static Name globalReferenceEventName;
 
 /*
  * Hal encodes a hierarchical alignment format.
- * .hal is as follows:
+ * Cactus outputs a text file that can be loaded into hal.
+ * .c2h is as follows.
  *
  * sequence :
  *      sequenceLine segmentLines
@@ -44,11 +45,11 @@ static Name globalReferenceEventName;
  *      bottomSegment
  *      topSegment
  *
- * #Is the isBottom field is 1 then all segments will be bottom segments in the sequence
+ * #If the isBottom field is 1 then all segments will be bottom segments in the sequence
  * bottomSegment :
  *      "a\tsegmentName\tstart\tlength\n"
  *
- * #Conversely, is the isBottom field is 0 then all segments will be top segments in the sequence
+ * #Conversely, if the isBottom field is 0 then all segments will be top segments in the sequence
  * topSegment :
  *      #If it has a parent
  *      "a\tstart\tlength\tparentSegment\talignmentOrientation\n"
@@ -92,9 +93,13 @@ static char *writeTerminalAdjacency(Cap *cap) {
     assert(adjacentCap != NULL);
     int64_t adjacencyLength = cap_getCoordinate(adjacentCap) - cap_getCoordinate(cap) - 1;
     assert(adjacencyLength >= 0);
-    Sequence *sequence = cap_getSequence(cap);
-    assert(sequence != NULL);
-    if(adjacencyLength > 0) {
+    if (adjacencyLength > 0) {
+        Sequence *sequence = cap_getSequence(cap);
+        assert(sequence != NULL);
+        assert(cap_getEvent(cap) != NULL);
+        if (event_getName(cap_getEvent(cap)) == globalReferenceEventName) {
+            return stString_print("a\t%" PRIi64 "\t%" PRIi64 "\t%" PRIi64 "\n", cap_getName(cap), cap_getCoordinate(cap) + 1 - sequence_getStart(sequence), adjacencyLength);
+        }
         return stString_print("a\t%" PRIi64 "\t%" PRIi64 "\n", cap_getCoordinate(cap) + 1 - sequence_getStart(sequence), adjacencyLength);
     }
     else {
@@ -126,8 +131,7 @@ static int compareCaps(Cap *cap, Cap *cap2) {
     Sequence *sequence2 = cap_getSequence(cap2);
     i = cactusMisc_nameCompare(sequence_getName(sequence), sequence_getName(sequence2));
     if (i == 0) {
-        i = cap_getCoordinate(cap) > cap_getCoordinate(cap2) ? 1
-                : (cap_getCoordinate(cap) < cap_getCoordinate(cap2) ? -1 : 0);
+        i = cap_getCoordinate(cap) > cap_getCoordinate(cap2) ? 1 : (cap_getCoordinate(cap) < cap_getCoordinate(cap2) ? -1 : 0);
     }
     return i;
 }
@@ -135,7 +139,7 @@ static int compareCaps(Cap *cap, Cap *cap2) {
 static stList *getCaps(stList *flowers) {
     //Get the caps in order
     stList *caps = stList_construct();
-    for(int64_t i=0; i<stList_length(flowers); i++) {
+    for (int64_t i = 0; i < stList_length(flowers); i++) {
         Flower *flower = stList_get(flowers, i);
         End *end;
         Flower_EndIterator *endIt = flower_getEndIterator(flower);
@@ -156,21 +160,19 @@ static stList *getCaps(stList *flowers) {
         }
         flower_destructEndIterator(endIt);
     }
-    stList_sort(caps, (int (*)(const void *, const void *))compareCaps);
+    stList_sort(caps, (int(*)(const void *, const void *)) compareCaps);
     return caps;
 }
 
-void makeHalFormat(stList *flowers, stKVDatabase *database, Name referenceEventName,
-        FILE *fileHandle) {
+void makeHalFormat(stList *flowers, stKVDatabase *database, Name referenceEventName, FILE *fileHandle) {
     globalReferenceEventName = referenceEventName;
     stList *caps = getCaps(flowers);
-    if(fileHandle == NULL) {
+    if (fileHandle == NULL) {
         buildRecursiveThreads(database, caps, writeSegment, writeTerminalAdjacency);
-    }
-    else {
+    } else {
         stList *threadStrings = buildRecursiveThreadsInList(database, caps, writeSegment, writeTerminalAdjacency);
         assert(stList_length(threadStrings) == stList_length(caps));
-        for(int64_t i=0; i<stList_length(threadStrings); i++) {
+        for (int64_t i = 0; i < stList_length(threadStrings); i++) {
             Cap *cap = stList_get(caps, i);
             char *threadString = stList_get(threadStrings, i);
             writeSequenceHeader(fileHandle, cap_getSequence(cap));
