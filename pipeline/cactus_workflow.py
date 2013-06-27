@@ -537,6 +537,7 @@ class CactusBarEndAlignerWrapper(CactusRecursionTarget):
     """Computes an end alignment.
     """
     def __init__(self, phaseNode, constantsNode, cactusDiskDatabaseString, flowerNames, overlarge, endToAlign, alignmentFile):
+        ##def __init__(self, phaseNode, constantsNode, cactusDiskDatabaseString, flowerNames, overlarge=False)
         CactusRecursionTarget.__init__(self, phaseNode, constantsNode, cactusDiskDatabaseString, flowerNames, overlarge)
         self.endToAlign = endToAlign
         self.alignmentFile = alignmentFile
