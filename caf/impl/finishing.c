@@ -318,6 +318,9 @@ void stCaf_finish(Flower *flower, stPinchThreadSet *threadSet, int64_t chainLeng
     //chainLengthForBigFlower = 10;
     //longChain = 10;
     stSet *bigFlowers = stCactusGraph_collapseLongChainsOfBigFlowers(cactusGraph, startCactusNode, chainLengthForBigFlower, longChain, stCaf_mergeNodeObjects, 0);
+    if(stSet_size(bigFlowers) > 0) {
+        printf("We are collapsing the chains of %" PRIi64 " flowers\n", stSet_size(bigFlowers));
+    }
     //Convert cactus graph/pinch graph to API
     stCaf_convertCactusGraphToFlowers(threadSet, startCactusNode, flower, deadEndComponent, bigFlowers);
     //Cleanup

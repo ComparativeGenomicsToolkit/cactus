@@ -514,7 +514,10 @@ class CactusBarWrapper(CactusRecursionTarget):
     """Runs the BAR algorithm implementation.
     """
     def run(self):
-        runBarForTarget(self)
+        messages = runBarForTarget(self)
+        for message in messages:
+            self.logToMaster(message)
+            
         
 class CactusBarWrapperLarge(CactusRecursionTarget):
     """Runs blast on the given flower and passes the resulting alignment to cactus core.
@@ -523,7 +526,10 @@ class CactusBarWrapperLarge(CactusRecursionTarget):
         logger.info("Starting the cactus bar preprocessor target to breakup the bar alignment")
         precomputedAlignmentFiles = []
         veryLargeEndSize=self.getOptionalPhaseAttrib("veryLargeEndSize", int, default=1000000)
-        for endToAlign, sequencesInEndAlignment, basesInEndAlignment in runBarForTarget(self, calculateWhichEndsToComputeSeparately=True):
+        for line in runBarForTarget(self, calculateWhichEndsToComputeSeparately=True):
+            endToAlign, sequencesInEndAlignment, basesInEndAlignment = line.split()
+            sequencesInEndAlignment = int(sequencesInEndAlignment)
+            basesInEndAlignment = int(basesInEndAlignment)
             alignmentFile = os.path.join(self.getGlobalTempDir(), "%s.end" % endToAlign)
             precomputedAlignmentFiles.append(alignmentFile)
             self.addChildTarget(CactusBarEndAlignerWrapper(self.phaseNode, self.constantsNode, self.cactusDiskDatabaseString, self.flowerNames, 
@@ -543,16 +549,20 @@ class CactusBarEndAlignerWrapper(CactusRecursionTarget):
         self.alignmentFile = alignmentFile
     
     def run(self):
-        runBarForTarget(self, alignmentToPrecompute="%s %s" % (self.endToAlign, self.alignmentFile))
+        messages = runBarForTarget(self, alignmentToPrecompute="%s %s" % (self.endToAlign, self.alignmentFile))
+        for message in messages:
+            self.logToMaster(message)
         
 class CactusBarWrapperWithPrecomputedEndAlignments(CactusRecursionTarget):
     """Runs the BAR algorithm implementation with some precomputed end alignments.
     """
     def run(self):
         if self.phaseNode.attrib["precomputedAlignmentFiles"] != "":
-            runBarForTarget(self, precomputedAlignments=self.phaseNode.attrib["precomputedAlignmentFiles"])
+            messages = runBarForTarget(self, precomputedAlignments=self.phaseNode.attrib["precomputedAlignmentFiles"])
         else:
-            runBarForTarget(self)
+            messages = runBarForTarget(self)
+        for message in messages:
+            self.logToMaster(message)
         
 ############################################################
 ############################################################
