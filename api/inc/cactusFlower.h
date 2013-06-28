@@ -491,6 +491,12 @@ bool flower_deleteIfEmpty(Flower *flower);
 void flower_delete(Flower *flower);
 
 /*
+ * Deletes the flower and its children. Can optionally specify that flower is not on disk (i.e. if you know you just created it),
+ * and therefore avoid adding to the database communication.
+ */
+void flower_delete2(Flower *flower, bool isOnDisk);
+
+/*
  * Ensures that all terminal groups have an attached leaf flower.
  */
 void flower_makeTerminalNormal(Flower *flower);

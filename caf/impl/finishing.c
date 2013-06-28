@@ -273,7 +273,7 @@ static void makeFlower(stCactusNode *cactusNode, Flower *flower, bool orientatio
     stCaf_addAdjacencies(flower);
     if(flower_isLeaf(flower) && flower_getBlockNumber(flower) == 0 && flower != parentFlower) { //We have a leaf
         assert(flower_isLeaf(flower));
-        flower_delete(flower);
+        flower_delete2(flower, 0);
     }
     else {
         flower_setBuiltBlocks(flower, 1);

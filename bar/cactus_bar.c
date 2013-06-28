@@ -105,6 +105,8 @@ int main(int argc, char *argv[]) {
     char *endAlignmentToPrecompute = NULL;
     bool calculateWhichEndsToComputeSeparately = 0;
     int64_t largeEndSize = 1000000;
+    int64_t chainLengthForBigFlower = 1000000;
+    int64_t longChain = 2;
 
     PairwiseAlignmentParameters *pairwiseAlignmentBandingParameters = pairwiseAlignmentBandingParameters_construct();
 
@@ -325,7 +327,7 @@ int main(int argc, char *argv[]) {
                         &requiredIngroupSpecies, &requiredOutgroupSpecies, &requiredAllSpecies);
                 stCaf_melt(flower, threadSet, blockFilterFn, 0, 0);
             }
-            stCaf_finish(flower, threadSet, INT64_MAX, INT64_MAX, INT64_MAX, INT64_MAX); //Flower now destroyed.
+            stCaf_finish(flower, threadSet, chainLengthForBigFlower, longChain, INT64_MAX, INT64_MAX); //Flower now destroyed.
             stPinchThreadSet_destruct(threadSet);
             st_logInfo("Ran the cactus core script.\n");
 

@@ -698,12 +698,12 @@ bool flower_removeIfRedundant(Flower *flower) {
     return 0;
 }
 
-void flower_delete(Flower *flower) {
+void flower_delete2(Flower *flower, bool isOnDisk) {
     Flower_GroupIterator *groupIt = flower_getGroupIterator(flower);
     Group *group;
     while ((group = flower_getNextGroup(groupIt)) != NULL) {
         if (!group_isLeaf(group)) {
-            flower_delete(group_getNestedFlower(group));
+            flower_delete2(group_getNestedFlower(group), isOnDisk);
         }
     }
     flower_destructGroupIterator(groupIt);
@@ -712,8 +712,14 @@ void flower_delete(Flower *flower) {
         parentGroup->leafGroup = 1;
     }
     //This needs modification so that we don't do this directly..
-    cactusDisk_deleteFlowerFromDisk(flower_getCactusDisk(flower), flower);
+    if(isOnDisk) {
+        cactusDisk_deleteFlowerFromDisk(flower_getCactusDisk(flower), flower);
+    }
     flower_destruct(flower, 0);
+}
+
+void flower_delete(Flower *flower) {
+    flower_delete2(flower, 1);
 }
 
 bool flower_deleteIfEmpty(Flower *flower) {
