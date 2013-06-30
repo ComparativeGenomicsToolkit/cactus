@@ -149,8 +149,10 @@ static void makeChain(stCactusEdgeEnd *cactusEdgeEnd, Flower *flower, bool orien
             end_copyConstruct(end1, nestedFlower);
             end_copyConstruct(end2, nestedFlower);
             assert(flower_getGroupNumber(nestedFlower) == 0);
+
             //If we need the extra spacer flower
-            if(makeSpacerFlowers && 0) {
+            Flower *spacerFlower;
+            if(makeSpacerFlowers) {
                 Group *nestedGroup = group_construct2(nestedFlower);
                 End *nestedEnd1 = flower_getEnd(nestedFlower, end_getName(end1));
                 End *nestedEnd2 = flower_getEnd(nestedFlower, end_getName(end2));
@@ -158,17 +160,21 @@ static void makeChain(stCactusEdgeEnd *cactusEdgeEnd, Flower *flower, bool orien
                 end_setGroup(nestedEnd2, nestedGroup);
                 Chain *nestedChain = chain_construct(nestedFlower);
                 link_construct(nestedEnd1, nestedEnd2, nestedGroup, nestedChain);
-                stCaf_addAdjacencies(nestedFlower);
-                flower_setBuiltBlocks(nestedFlower, 1);
-                Flower *nestedFlower2 = group_makeEmptyNestedFlower(nestedGroup);
-                end_copyConstruct(nestedEnd1, nestedFlower2);
-                end_copyConstruct(nestedEnd2, nestedFlower2);
-                cactusDisk_addUpdateRequest(flower_getCactusDisk(nestedFlower), nestedFlower);
-                flower_unload(nestedFlower);
-                nestedFlower = nestedFlower2;
+                spacerFlower = nestedFlower;
+                nestedFlower = group_makeEmptyNestedFlower(nestedGroup);
+                end_copyConstruct(nestedEnd1, nestedFlower);
+                end_copyConstruct(nestedEnd2, nestedFlower);
             }
             //Fill out stack
             makeFlower(stCactusEdgeEnd_getNode(cactusEdgeEnd), nestedFlower, orientation, threadSet, parentFlower, deadEndComponent, bigFlowers, pinchEndsToEnds);
+
+            if(makeSpacerFlowers) { //Cleanup memory of spacer flowers
+                stCaf_addAdjacencies(spacerFlower);
+                flower_setBuiltBlocks(spacerFlower, 1);
+                cactusDisk_addUpdateRequest(flower_getCactusDisk(spacerFlower), spacerFlower);
+                flower_unload(spacerFlower);
+            }
+
             //stList_append(stack, stCactusEdgeEnd_getNode(cactusEdgeEnd));
             //stList_append(stack, nestedFlower);
             //stList_append(stack, stIntTuple_construct1( orientation));
