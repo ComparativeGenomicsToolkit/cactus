@@ -56,6 +56,7 @@
 		largeEndSize="100000"
 		veryLargeEndSize="1000000"
 		maximumNumberOfSequencesBeforeSwitchingToFast="50"
+		pruneOutStubAlignments="1"
 	>
 		<CactusBarRecursion maxFlowerGroupSize="maxFlowerGroupSizeRecursion"/>
 		<CactusBarWrapper maxFlowerGroupSize="1000000" memory="littleMemory"/>
