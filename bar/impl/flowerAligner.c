@@ -345,7 +345,7 @@ static int64_t findFirstNonStubAlignment(stList *inducedAlignment, bool reverse,
             pAlignedPair = alignedPair;
             j = i;
         }
-        if(isAlignedToStubSequence(alignedPair, freeStubAdjacencySequences)) {
+        if(!isAlignedToStubSequence(alignedPair, freeStubAdjacencySequences)) {
             assert(j != -1);
             return j;
         }
