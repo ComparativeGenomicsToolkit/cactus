@@ -442,7 +442,7 @@ static void getStubEdgesFromParent(reference *ref, Flower *flower, Event *refere
             assert(end_getOrientation(adjacentEnd));
             stSortedSet_insert(endsSeen, end);
             stSortedSet_insert(endsSeen, adjacentEnd);
-            reference_makeNewInterval(ref, stIntTuple_get(stHash_search(endsToNodes, end), 0),
+            reference_makeNewInterval(ref, -stIntTuple_get(stHash_search(endsToNodes, end), 0),
                     stIntTuple_get(stHash_search(endsToNodes, adjacentEnd), 0));
         }
     }
@@ -720,7 +720,7 @@ static void assignGroups(stList *newEnds, Flower *flower, Event *referenceEvent)
 static stList *convertReferenceToAdjacencyEdges2(reference *ref) {
     stList *edges = stList_construct3(0, (void(*)(void *)) stIntTuple_destruct);
     for (int64_t i = 0; i < reference_getIntervalNumber(ref); i++) {
-        int64_t n = reference_getFirstOfInterval(ref, i);
+        int64_t n = -reference_getFirstOfInterval(ref, i);
         while (reference_getNext(ref, n) != INT64_MAX) {
             stList_append(edges, constructEdge(n, reference_getNext(ref, n)));
             n = -reference_getNext(ref, n);
