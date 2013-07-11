@@ -341,7 +341,7 @@ int main(int argc, char *argv[]) {
             st_logInfo("Finished filling in the alignments for the flower\n");
         }
         stList_destruct(flowers);
-
+        //st_errAbort("Done\n");
         /*
          * Write and close the cactusdisk.
          */

@@ -24,23 +24,15 @@ static stSortedSet *getFreeStubAdjacencySequences(Flower *flower) {
             End_InstanceIterator *capIterator = end_getInstanceIterator(end);
             while ((cap = end_getNext(capIterator)) != NULL) {
                 if (cap_getAdjacency(cap) != NULL) {
-                    cap = cap_getStrand(cap) ? cap : cap_getReverse(cap);
-                    Cap *adjacentCap = cap_getAdjacency(cap);
-                    assert(cap_getCoordinate(cap) != cap_getCoordinate(adjacentCap));
-                    if (cap_getCoordinate(cap) > cap_getCoordinate(adjacentCap)) {
-                        Cap *cap2 = cap;
-                        cap = adjacentCap;
-                        adjacentCap = cap2;
+                    cap = cap_getSide(cap) ? cap_getReverse(cap) : cap;
+                    AdjacencySequence *aS = adjacencySequence_construct(cap, INT64_MAX);
+                    if(cap_getStrand(cap)) {
+                        stSortedSet_insert(freeStubAdjacencySequences, stIntTuple_construct3(aS->subsequenceIdentifier, aS->start, aS->start + aS->length));
                     }
-                    assert(cap_getCoordinate(cap) < cap_getCoordinate(adjacentCap));
-                    assert(cap_getSequence(cap) != NULL);
-                    assert(!cap_getSide(cap));
-                    assert(cap_getSide(adjacentCap));
-                    Sequence *sequence = cap_getSequence(cap);
-                    stSortedSet_insert(
-                            freeStubAdjacencySequences,
-                            stIntTuple_construct3( sequence_getName(sequence), cap_getCoordinate(cap) + 1,
-                                    cap_getCoordinate(adjacentCap)));
+                    else { //The start coordinate is the end of the subsequence, kind of bizarrely.
+                        stSortedSet_insert(freeStubAdjacencySequences, stIntTuple_construct3(aS->subsequenceIdentifier, aS->start - aS->length + 1, aS->start + 1));
+                    }
+                    adjacencySequence_destruct(aS);
                 } else {
                     assert(cap_getSequence(cap) == NULL);
                 }
@@ -262,7 +254,6 @@ static int64_t getCutOff(stList *inducedAlignment1, stList *inducedAlignment2, i
                 *cutOff2 = j;
                 assert(cScore1[stList_length(inducedAlignment1) - 1] >= maxScore);
                 maxScore = cScore1[stList_length(inducedAlignment1) - 1];
-                assert(cScore1B[stList_length(inducedAlignment1) - 1] >= maxScoreB);
                 maxScoreB = cScore1B[stList_length(inducedAlignment1) - 1];
                 break;
             }
@@ -340,6 +331,7 @@ static int64_t findFirstNonStubAlignment(stList *inducedAlignment, bool reverse,
     for (int64_t i = reverse ? stList_length(inducedAlignment) - 1 : 0; i < stList_length(inducedAlignment) && i >= 0; i
             += reverse ? -1 : 1) {
         AlignedPair *alignedPair = stList_get(inducedAlignment, i);
+        assert(isAlignedToStubSequence(alignedPair->reverse, freeStubAdjacencySequences));
         assert(pAlignedPair == NULL || pAlignedPair->subsequenceIdentifier == alignedPair->subsequenceIdentifier);
         if (pAlignedPair == NULL || pAlignedPair->position != alignedPair->position) {
             pAlignedPair = alignedPair;
@@ -469,8 +461,8 @@ static stSortedSet *makeFlowerAlignment2(Flower *flower, stHash *endAlignments, 
     stHash_destruct(capScoresFn_Hash);
 
     if (pruneOutStubAlignments) { //This is used to remove matches only containing stub sequences at end of an end alignment.
-        while (stList_length(freeStubCaps) > 0) {
-            makeFlowerAlignmentP(stList_pop(freeStubCaps), endAlignments, pruneStubAlignments, freeStubAdjacencySequences);
+    	while (stList_length(freeStubCaps) > 0) {
+        	makeFlowerAlignmentP(stList_pop(freeStubCaps), endAlignments, pruneStubAlignments, freeStubAdjacencySequences);
         }
     }
     stList_destruct(freeStubCaps);
