@@ -486,7 +486,7 @@ static void getStubEdgesInTopLevelFlower(reference *ref, Flower *flower, stHash 
     for (int64_t i = 0; i < stList_length(chosenAdjacencyEdges); i++) {
         stIntTuple *adjacencyEdge = stList_get(chosenAdjacencyEdges, i);
         assert(stIntTuple_length(adjacencyEdge) == 3);
-        reference_makeNewInterval(ref, stIntTuple_get(adjacencyEdge, 0), stIntTuple_get(adjacencyEdge, 1));
+        reference_makeNewInterval(ref, -stIntTuple_get(adjacencyEdge, 0), stIntTuple_get(adjacencyEdge, 1));
     }
 
     stHash_destruct(stubEndsToNodes);
