@@ -368,7 +368,7 @@ static void test_getAlignedPairsWithBanding(CuTest *testCase) {
         p->minDiagsBetweenTraceBack = p->traceBackDiagonals + st_randomInt(2, 10);
         p->diagonalExpansion = st_randomInt(0, 10) * 2;
         stList *anchorPairs = getRandomAnchorPairs(lX, lY);
-        stList *alignedPairs = getAlignedPairsWithBanding(anchorPairs, sX2, sY2, p);
+        stList *alignedPairs = getAlignedPairsWithBanding(anchorPairs, sX2, sY2, p, 0, 0);
         //Check the aligned pairs.
         //Check the aligned pairs.
         checkAlignedPairs(testCase, alignedPairs, lX, lY);

@@ -43,13 +43,15 @@ AdjacencySequence *adjacencySequence_construct(Cap *cap, int64_t maxLength) {
     AdjacencySequence *subSequence = (AdjacencySequence *) st_malloc(
             sizeof(AdjacencySequence));
     subSequence->string = getAdjacencySequenceP(cap, maxLength);
-    assert(cap_getAdjacency(cap) != NULL);
+    Cap *adjacentCap = cap_getAdjacency(cap);
+    assert(adjacentCap != NULL);
     assert(!cap_getSide(cap));
     assert(cap_getSequence(cap) != NULL);
-    subSequence->subsequenceIdentifier = cap_getName(cap_getStrand(cap) ? cap : cap_getAdjacency(cap));
+    subSequence->subsequenceIdentifier = cap_getName(cap_getStrand(cap) ? cap : adjacentCap);
     subSequence->strand = cap_getStrand(cap);
     subSequence->start = cap_getCoordinate(cap) + (cap_getStrand(cap) ? 1 : -1);
     subSequence->length = strlen(subSequence->string);
+    subSequence->hasStubEnd = end_isFree(cap_getEnd(adjacentCap)) && end_isStubEnd(cap_getEnd(adjacentCap));
     return subSequence;
 }
 

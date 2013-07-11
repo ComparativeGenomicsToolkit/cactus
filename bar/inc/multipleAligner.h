@@ -19,6 +19,14 @@
 #include "sonLib.h"
 #include "pairwiseAligner.h"
 
+typedef struct _sequenceFragment SequenceFrag;
+struct _sequenceFragment {
+    char *seq;
+    int64_t length;
+    bool missingLeftEnd;
+    bool missingRightEnd;
+};
+
 typedef struct _column Column;
 struct _column {
     int64_t seqName;

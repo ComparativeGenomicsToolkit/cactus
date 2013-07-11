@@ -345,11 +345,25 @@ double state_startStateProb(State state) {
     return state == match ? 0 : LOG_ZERO;
 }
 
+double state_raggedStartStateProb(State state) {
+    //Match state is like going to a match.
+    state_check(state);
+    return (state == longGapX || state == longGapY) ? 0 : LOG_ZERO;
+}
+
 double state_endStateProb(State state) {
     //End state is like to going to a match
     state_check(state);
     static const double endStates[5] = { TRANSITION_MATCH_CONTINUE, TRANSITION_MATCH_FROM_SHORT_GAP,
             TRANSITION_MATCH_FROM_SHORT_GAP, TRANSITION_MATCH_FROM_LONG_GAP, TRANSITION_MATCH_FROM_LONG_GAP };
+    return endStates[state];
+}
+
+double state_raggedEndStateProb(State state) {
+    //End state is like to going to a a long gap (either one)
+    state_check(state);
+    static const double endStates[5] = { TRANSITION_GAP_LONG_OPEN, TRANSITION_GAP_LONG_OPEN,
+            TRANSITION_GAP_LONG_OPEN, TRANSITION_GAP_LONG_EXTEND, TRANSITION_GAP_LONG_EXTEND };
     return endStates[state];
 }
 
@@ -670,7 +684,7 @@ void diagonalCalculationPosteriorMatchProbs(int64_t xay, DpMatrix *forwardDpMatr
 ///////////////////////////////////
 
 stList *getAlignedPairsWithBanding(stList *anchorPairs, const SymbolString sX, const SymbolString sY,
-        PairwiseAlignmentParameters *p) {
+        PairwiseAlignmentParameters *p, bool alignmentHasRaggedLeftEnd, bool alignmentHasRaggedRightEnd) {
     //Prerequisites
     assert(p->traceBackDiagonals >= 1);
     assert(p->threshold >= 0.0);
@@ -693,7 +707,7 @@ stList *getAlignedPairsWithBanding(stList *anchorPairs, const SymbolString sX, c
     BandIterator *forwardBandIterator = bandIterator_construct(band);
     DpMatrix *forwardDpMatrix = dpMatrix_construct(diagonalNumber);
     dpDiagonal_initialiseValues(dpMatrix_createDiagonal(forwardDpMatrix, bandIterator_getNext(forwardBandIterator)),
-            state_startStateProb); //Initialise forward matrix.
+            alignmentHasRaggedLeftEnd ? state_raggedStartStateProb : state_startStateProb); //Initialise forward matrix.
 
     //Backward matrix.
     DpMatrix *backwardDpMatrix = dpMatrix_construct(diagonalNumber);
@@ -714,7 +728,7 @@ stList *getAlignedPairsWithBanding(stList *anchorPairs, const SymbolString sX, c
         //Traceback
         if (atEnd || tracebackPoint) {
             //Initialise the last row (until now) of the backward matrix to represent an end point
-            dpDiagonal_initialiseValues(dpMatrix_createDiagonal(backwardDpMatrix, diagonal), state_endStateProb);
+            dpDiagonal_initialiseValues(dpMatrix_createDiagonal(backwardDpMatrix, diagonal), (atEnd && alignmentHasRaggedRightEnd) ? state_raggedEndStateProb : state_endStateProb);
             if (diagonal_getXay(diagonal) > tracedBackTo + 1) { //This is a diagonal between the place we trace back to and where we trace back from
                 DpDiagonal *j = dpMatrix_getDiagonal(forwardDpMatrix, diagonal_getXay(diagonal) - 1);
                 assert(j != NULL);
@@ -1044,7 +1058,7 @@ static void getSplitPointsP(int64_t *x1, int64_t *y1, int64_t x2, int64_t y2, in
         stList *splitPoints, int64_t splitMatrixBiggerThanThis) {
     int64_t lX2 = x3 - x2;
     int64_t lY2 = y3 - y2;
-    int64_t matrixSize = ((int64_t) lX2) * lY2;
+    int64_t matrixSize = lX2 * lY2;
     if (matrixSize > splitMatrixBiggerThanThis) {
         st_logDebug("Split point found at x1: %" PRIi64 " x2: %" PRIi64 " y1: %" PRIi64 " y2: %" PRIi64 "\n", x2, x3, y2, y3);
         int64_t maxSequenceLength = sqrt(splitMatrixBiggerThanThis);
@@ -1098,7 +1112,7 @@ static void convertAlignedPairs(stList *alignedPairs2, int64_t offsetX, int64_t 
 }
 
 stList *splitAlignmentsByLargeGaps(stList *anchorPairs, const char *sX, const char *sY, int64_t lX, int64_t lY,
-        PairwiseAlignmentParameters *p) {
+        PairwiseAlignmentParameters *p,  bool alignmentHasRaggedLeftEnd, bool alignmentHasRaggedRightEnd) {
     stList *splitPoints = getSplitPoints(anchorPairs, lX, lY, p->splitMatrixBiggerThanThis);
     int64_t j = 0;
     stList *alignedPairs = stList_construct3(0, (void(*)(void *)) stIntTuple_destruct);
@@ -1134,7 +1148,7 @@ stList *splitAlignmentsByLargeGaps(stList *anchorPairs, const char *sX, const ch
         }
 
         //Make the alignments
-        stList *subListOfAlignedPairs = getAlignedPairsWithBanding(subListOfAnchorPoints, sX3, sY3, p);
+        stList *subListOfAlignedPairs = getAlignedPairsWithBanding(subListOfAnchorPoints, sX3, sY3, p, (alignmentHasRaggedLeftEnd || i > 0), (alignmentHasRaggedRightEnd || i < stList_length(splitPoints)-1));
         convertAlignedPairs(subListOfAlignedPairs, x1, y1); //Shift back the aligned pairs to the appropriate coordinates
         stList_appendAll(alignedPairs, subListOfAlignedPairs);
 
@@ -1177,11 +1191,11 @@ void pairwiseAlignmentBandingParameters_destruct(PairwiseAlignmentParameters *p)
     free(p);
 }
 
-stList *getAlignedPairs(const char *sX, const char *sY, PairwiseAlignmentParameters *p) {
+stList *getAlignedPairs(const char *sX, const char *sY, PairwiseAlignmentParameters *p, bool alignmentHasRaggedLeftEnd, bool alignmentHasRaggedRightEnd) {
     const int64_t lX = strlen(sX);
     const int64_t lY = strlen(sY);
     stList *anchorPairs = getBlastPairsForPairwiseAlignmentParameters(sX, sY, lX, lY, p);
-    stList *alignedPairs = splitAlignmentsByLargeGaps(anchorPairs, sX, sY, lX, lY, p);
+    stList *alignedPairs = splitAlignmentsByLargeGaps(anchorPairs, sX, sY, lX, lY, p, alignmentHasRaggedLeftEnd, alignmentHasRaggedRightEnd);
     stList_destruct(anchorPairs);
     return alignedPairs;
 }

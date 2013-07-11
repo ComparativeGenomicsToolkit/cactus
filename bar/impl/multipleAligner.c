@@ -15,6 +15,25 @@
 ///////////////////////////////
 ///////////////////////////////
 ///////////////////////////////
+//Stuff to represent a sequence, allowing for uncertainty at each end.
+///////////////////////////////
+///////////////////////////////
+///////////////////////////////
+
+SequenceFrag *sequenceFrag_construct(char *seq, bool missingLeftEnd, bool missingRightEnd) {
+    SequenceFrag *seqFrag = st_malloc(sizeof(SequenceFrag));
+    seqFrag->seq = stString_copy(seq);
+    seqFrag->length = strlen(seq);
+    seqFrag->missingLeftEnd = missingLeftEnd;
+    seqFrag->missingRightEnd = missingRightEnd;
+    return seqFrag;
+}
+
+
+
+///////////////////////////////
+///////////////////////////////
+///////////////////////////////
 //Stuff to represent the multiple alignment columns and pairwise weights between the columns
 ///////////////////////////////
 ///////////////////////////////
@@ -374,7 +393,7 @@ static void addMultipleAlignedPairs(int64_t sequence1, int64_t sequence2, stList
      */
     char *string1 = stList_get(seqs, sequence1);
     char *string2 = stList_get(seqs, sequence2);
-    stList *alignedPairs = getAlignedPairs(string1, string2, pairwiseAlignmentBandingParameters);
+    stList *alignedPairs = getAlignedPairs(string1, string2, pairwiseAlignmentBandingParameters, );
     convertToMultipleAlignedPairs(alignedPairs, multipleAlignedPairs, sequence1, sequence2);
 }
 

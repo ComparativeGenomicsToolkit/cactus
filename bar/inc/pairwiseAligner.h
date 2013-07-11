@@ -39,7 +39,7 @@ void pairwiseAlignmentBandingParameters_destruct(PairwiseAlignmentParameters *p)
 /*
  * Gets the set of posterior match probabilities under a simple HMM model of alignment for two DNA sequences.
  */
-stList *getAlignedPairs(const char *string1, const char *string2, PairwiseAlignmentParameters *p);
+stList *getAlignedPairs(const char *string1, const char *string2, PairwiseAlignmentParameters *p,  bool alignmentHasRaggedLeftEnd, bool alignmentHasRaggedRightEnd);
 
 /*
  * Methods tested and possibly useful elsewhere
@@ -211,7 +211,7 @@ void diagonalCalculationPosteriorMatchProbs(int64_t xay, DpMatrix *forwardDpMatr
 //Banded matrix calculation
 
 stList *getAlignedPairsWithBanding(stList *anchorPairs, const SymbolString sX, const SymbolString sY,
-        PairwiseAlignmentParameters *p);
+        PairwiseAlignmentParameters *p, bool alignmentHasRaggedLeftEnd, bool alignmentHasRaggedRightEnd);
 
 //Blast pairs
 
@@ -228,6 +228,6 @@ stList *getSplitPoints(stList *anchorPairs, int64_t lX, int64_t lY,
         int64_t maxMatrixSize);
 
 stList *splitAlignmentsByLargeGaps(stList *anchorPairs, const char *sX, const char *sY, int64_t lX, int64_t lY,
-        PairwiseAlignmentParameters *p);
+        PairwiseAlignmentParameters *p,  bool alignmentHasRaggedLeftEnd, bool alignmentHasRaggedRightEnd);
 
 #endif /* PAIRWISEALIGNER_H_ */

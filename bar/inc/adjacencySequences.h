@@ -26,6 +26,7 @@ typedef struct _AdjacencySequence {
         bool strand;
         int64_t start;
         int64_t length;
+        bool hasStubEnd;
 } AdjacencySequence;
 
 /*
