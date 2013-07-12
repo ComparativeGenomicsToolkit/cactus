@@ -578,7 +578,7 @@ static void test_getAlignedPairs(CuTest *testCase) {
         //Now do alignment
         PairwiseAlignmentParameters *p = pairwiseAlignmentBandingParameters_construct();
 
-        stList *alignedPairs = getAlignedPairs(sX, sY, p);
+        stList *alignedPairs = getAlignedPairs(sX, sY, p, 0, 0);
 
         //Check the aligned pairs.
         checkAlignedPairs(testCase, alignedPairs, lX, lY);

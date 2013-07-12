@@ -19,8 +19,8 @@
 #include "sonLib.h"
 #include "pairwiseAligner.h"
 
-typedef struct _sequenceFragment SequenceFrag;
-struct _sequenceFragment {
+typedef struct _seqFrag SeqFrag;
+struct _seqFrag {
     char *seq;
     int64_t length;
     bool missingLeftEnd;
@@ -35,16 +35,20 @@ struct _column {
 };
 
 /*
- * Takes a list of DNA strings (char arrays), aligns them and returns a global alignment,
+ * Takes a list of DNA strings (as SeqFrags), aligns them and returns a global alignment,
  * represented as a list of aligned stIntTuple pairs, format (score, sequence1, position1, sequence2, position2)
  * Positions and sequence indices are zero based, scores are between 1 and 1000.
  */
-stList *makeAlignment(stList *sequences,
+stList *makeAlignment(stList *seqFrags,
         int64_t spanningTrees, int64_t maxPairsToConsider, float gapGamma,
         PairwiseAlignmentParameters *pairwiseAlignmentBandingParameters);
 
 
-stList *makeAlignmentUsingAllPairs(stList *seqs, float gapGamma,
+stList *makeAlignmentUsingAllPairs(stList *seqFrags, float gapGamma,
         PairwiseAlignmentParameters *pairwiseAlignmentBandingParameters);
+
+SeqFrag *seqFrag_construct(const char *seq, bool missingLeftEnd, bool missingRightEnd);
+
+void seqFrag_destruct(SeqFrag *seqFrag);
 
 #endif /* ALIGNER_H_ */

@@ -61,22 +61,22 @@ stSortedSet *makeEndAlignment(End *end, int64_t spanningTrees, int64_t maxSequen
     Cap *cap;
     End_InstanceIterator *it = end_getInstanceIterator(end);
     stList *sequences = stList_construct3(0, (void (*)(void *))adjacencySequence_destruct);
-    stList *strings = stList_construct();
+    stList *seqFrags = stList_construct3(0, (void (*)(void *))seqFrag_destruct);
     while((cap = end_getNext(it)) != NULL) {
         if(cap_getSide(cap)) {
             cap = cap_getReverse(cap);
         }
         AdjacencySequence *adjacencySequence = adjacencySequence_construct(cap, maxSequenceLength);
         stList_append(sequences, adjacencySequence);
-        stList_append(strings, adjacencySequence->string);
+        stList_append(seqFrags, seqFrag_construct(adjacencySequence->string, 0, adjacencySequence->hasStubEnd));
     }
     end_destructInstanceIterator(it);
 
     //Convert the alignment pairs to an alignment of the caps..
-    if(stList_length(strings) > maximumNumberOfSequencesBeforeSwitchingToFast && spanningTrees > 1) {
+    if(stList_length(seqFrags) > maximumNumberOfSequencesBeforeSwitchingToFast && spanningTrees > 1) {
         spanningTrees = 1;
     }
-    stList *alignment = makeAlignment(strings, spanningTrees, 100000000, gapGamma, pairwiseAlignmentBandingParameters);
+    stList *alignment = makeAlignment(seqFrags, spanningTrees, 100000000, gapGamma, pairwiseAlignmentBandingParameters);
     stSortedSet *sortedAlignment =
             stSortedSet_construct3((int (*)(const void *, const void *))alignedPair_cmpFn,
             (void (*)(void *))alignedPair_destruct);
@@ -101,7 +101,7 @@ stSortedSet *makeEndAlignment(End *end, int64_t spanningTrees, int64_t maxSequen
     }
 
     //Cleanup
-    stList_destruct(strings);
+    stList_destruct(seqFrags);
     stList_destruct(sequences);
     stList_destruct(alignment);
 

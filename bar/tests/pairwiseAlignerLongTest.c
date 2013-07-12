@@ -39,8 +39,8 @@ char *dogAlign =
 
 static void test_pairwiseAligner(CuTest *testCase, char *seq1, char *seq2, char *align1, char *align2, char *seqName1, char *seqName2) {
     stList *seqs = stList_construct();
-    stList_append(seqs, seq1);
-    stList_append(seqs, seq2);
+    stList_append(seqs, seqFrag_construct(seq1, 0, 0));
+    stList_append(seqs, seqFrag_construct(seq2, 0, 0));
     st_logInfo("I am starting to align the %s and %s sequences\n", seqName1, seqName2);
 
     clock_t start = clock();
