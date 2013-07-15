@@ -1200,3 +1200,29 @@ stList *getAlignedPairs(const char *sX, const char *sY, PairwiseAlignmentParamet
     return alignedPairs;
 }
 
+stList *filterPairwiseAlignmentToMakePairsOrdered(stList *alignedPairs, float gapGamma) {
+    /*
+     * A quick way to get a consistent set of pairs. The list of aligned pairs is modified
+     * so that all the consistent pairs are in the list aligned pairs, and the discordant pairs are in a separate list.
+     */
+    stList_sort(alignedPairs, (int(*)(const void *, const void *)) stIntTuple_cmpFn);
+    stPosetAlignment *posetAlignment = stPosetAlignment_construct(2);
+    stList *discardedAlignedPairs = stList_construct3(0, (void (*)(void *))stIntTuple_destruct);
+    stList *l = stList_construct();
+    while(stList_length(alignedPairs) > 0) {
+        stIntTuple *alignedPair = stList_pop(alignedPairs);
+        if (((double)stIntTuple_get(alignedPair, 0)) / PAIR_ALIGNMENT_PROB_1 >= gapGamma &&
+                stPosetAlignment_add(posetAlignment, 0, stIntTuple_get(alignedPair, 1), 1,
+                        stIntTuple_get(alignedPair, 2))) {
+            stList_append(l, alignedPair);
+        }
+        else {
+            stList_append(discardedAlignedPairs, alignedPair);
+        }
+    }
+    stPosetAlignment_destruct(posetAlignment);
+    stList_appendAll(alignedPairs,l);
+    stList_destruct(l);
+    return discardedAlignedPairs;
+}
+

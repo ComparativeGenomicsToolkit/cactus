@@ -230,4 +230,6 @@ stList *getSplitPoints(stList *anchorPairs, int64_t lX, int64_t lY,
 stList *splitAlignmentsByLargeGaps(stList *anchorPairs, const char *sX, const char *sY, int64_t lX, int64_t lY,
         PairwiseAlignmentParameters *p,  bool alignmentHasRaggedLeftEnd, bool alignmentHasRaggedRightEnd);
 
+stList *filterPairwiseAlignmentToMakePairsOrdered(stList *alignedPairs, float gapGamma);
+
 #endif /* PAIRWISEALIGNER_H_ */

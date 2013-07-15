@@ -353,28 +353,6 @@ static stList *filterMultipleAlignedPairs(stSet *columns, stList *multipleAligne
  return d;
  }*/
 
-static stList *filterPairwiseAlignmentToMakePairsOrdered(stList *alignedPairs, float gapGamma) {
-    stList_sort(alignedPairs, (int(*)(const void *, const void *)) stIntTuple_cmpFn);
-    stPosetAlignment *posetAlignment = stPosetAlignment_construct(2);
-    stList *discardedAlignedPairs = stList_construct3(0, (void (*)(void *))stIntTuple_destruct);
-    stList *l = stList_construct();
-    while(stList_length(alignedPairs) > 0) {
-        stIntTuple *alignedPair = stList_pop(alignedPairs);
-        if (((double)stIntTuple_get(alignedPair, 0)) / PAIR_ALIGNMENT_PROB_1 >= gapGamma &&
-                stPosetAlignment_add(posetAlignment, 0, stIntTuple_get(alignedPair, 1), 1,
-                        stIntTuple_get(alignedPair, 2))) {
-            stList_append(l, alignedPair);
-        }
-        else {
-            stList_append(discardedAlignedPairs, alignedPair);
-        }
-    }
-    stPosetAlignment_destruct(posetAlignment);
-    stList_appendAll(alignedPairs,l);
-    stList_destruct(l);
-    return discardedAlignedPairs;
-}
-
 static void convertToMultipleAlignedPairs(stList *alignedPairs, stList *multipleAlignedPairs, int64_t sequence1, int64_t sequence2) {
     /*
      * Converts pairwise alignment matches to pairs with sequence indices, destroying the old pairs in the process.

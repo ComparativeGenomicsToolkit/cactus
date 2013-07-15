@@ -590,6 +590,41 @@ static void test_getAlignedPairs(CuTest *testCase) {
     }
 }
 
+static void test_getAlignedPairsWithRaggedEnds(CuTest *testCase) {
+    for (int64_t test = 0; test < 1000; test++) {
+        //Make a pair of sequences
+        int64_t coreLength = 100, randomPortionLength = 100;
+        char *sX = getRandomSequence(coreLength);
+        char *sY = stString_print("%s%s%s", getRandomSequence(randomPortionLength), sX, getRandomSequence(randomPortionLength)); //x with an extra bit at the end.
+
+        st_logInfo("Sequence X to align: %s END\n", sX);
+        st_logInfo("Sequence Y to align: %s END\n", sY);
+
+        //Now do alignment
+        PairwiseAlignmentParameters *p = pairwiseAlignmentBandingParameters_construct();
+        stList *alignedPairs = getAlignedPairs(sX, sY, p, 1, 1);
+        stList *discardedAlignmentPairs = filterPairwiseAlignmentToMakePairsOrdered(alignedPairs, 0.2);
+
+        //Check the aligned pairs.
+        checkAlignedPairs(testCase, alignedPairs, strlen(sX), strlen(sY));
+        CuAssertIntEquals(testCase, stList_length(alignedPairs), coreLength);
+        for (int64_t i = 0; i < stList_length(alignedPairs); i++) {
+            stIntTuple *j = stList_get(alignedPairs, i);
+            CuAssertTrue(testCase, stIntTuple_length(j) == 3);
+
+            int64_t x = stIntTuple_get(j, 1);
+            int64_t y = stIntTuple_get(j, 2);
+            CuAssertIntEquals(testCase, x + randomPortionLength, y);
+        }
+
+        //Cleanup
+        free(sX);
+        free(sY);
+        stList_destruct(alignedPairs);
+        stList_destruct(discardedAlignmentPairs);
+    }
+}
+
 CuSuite* pairwiseAlignmentTestSuite(void) {
     CuSuite* suite = CuSuiteNew();
     SUITE_ADD_TEST(suite, test_diagonal);
@@ -606,6 +641,7 @@ CuSuite* pairwiseAlignmentTestSuite(void) {
     SUITE_ADD_TEST(suite, test_filterToRemoveOverlap);
     SUITE_ADD_TEST(suite, test_getSplitPoints);
     SUITE_ADD_TEST(suite, test_getAlignedPairs);
+    SUITE_ADD_TEST(suite, test_getAlignedPairsWithRaggedEnds);
 
     return suite;
 }
