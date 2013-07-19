@@ -152,7 +152,23 @@ static int64_t *cumulateScoreForwardIgnoringAlignmentsToStubs(stList *inducedAli
     int64_t totalScore = 0;
     for (int64_t i = 0; i < stList_length(inducedAlignment1); i++) {
         AlignedPair *alignedPair = stList_get(inducedAlignment1, i);
-        if(!isAlignedToStubSequence(alignedPair, freeStubAdjacencySequences)) {
+        if(!isAlignedToStubSequence(alignedPair, freeStubAdjacencySequences)) { //Do this as the average over positions.
+            totalScore += alignedPair->score;
+        }
+        iA[i] = totalScore;
+    }
+    return iA;
+}
+
+static int64_t *cumulateScoreForwardIgnoringAlignmentsToStubs(stList *inducedAlignment1, stSortedSet *freeStubAdjacencySequences) {
+    /*
+     * Same as cumulateScoreForward, but ignoring pairs that
+     */
+    int64_t *iA = st_malloc(sizeof(int64_t) * stList_length(inducedAlignment1));
+    int64_t totalScore = 0;
+    for (int64_t i = 0; i < stList_length(inducedAlignment1); i++) {
+        AlignedPair *alignedPair = stList_get(inducedAlignment1, i);
+        if(!isAlignedToStubSequence(alignedPair, freeStubAdjacencySequences)) { //Do this as the average over positions.
             totalScore += alignedPair->score;
         }
         iA[i] = totalScore;

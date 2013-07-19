@@ -14,8 +14,7 @@ typedef struct _segment Segment;
 struct _segment {
    int64_t score; //Called sigma in paper
    int64_t minScore; //Call sigma_* in the paper
-   int64_t start1, start2, end1, end2, length; //Sequences offsets of first (inclusive) and last (exclusive) positions in each sequences of the subalignment.
-   stList *alignmentOps;
+   struct PairwiseAlignment *pA;
    Segment *child1, child2, child3;
 };
 
@@ -24,8 +23,8 @@ void segment_destruct(Segment *segment) {
         segment_destruct(segment->child1);
         segment_destruct(segment->child2);
         segment_destruct(segment->child3);
-        if(segment->alignmentOps != NULL) {
-            stList_destruct(segment->alignmentOps);
+        if(segment->pA != NULL) {
+            destructPairwiseAlignment(segment->pA);
         }
         free(segment);
     }
@@ -45,7 +44,7 @@ void segment_lineariseUsefulTree(Segment *segment, stList *l) {
     }
 }
 
-struct PairwiseAlignment *segment_getSubAlignment(Segment *segment, struct PairwiseAlignment *pA) {
+struct PairwiseAlignment *segment_getSubAlignment(Segment *segment) {
     /*
      * Gets a cigar subalignment representing the alignment covered by the cigar.
      */
@@ -58,33 +57,36 @@ struct PairwiseAlignment *segment_getSubAlignment(Segment *segment, struct Pairw
     struct List *opList = constructEmptyList(0, (void (*)(void *))destructAlignmentOperation);
     for(int64_t i=0; i<stList_length(l); i++) {
         Segment *segment2 = stList_get(l, i);
-        for(int64_t j=0; j<stList_length(segment2->alignmentOps); j++) {
-            List_append(opList, stList_get(segment2->alignmentOps, j));
+        for(int64_t j=0; j<segment2->pA->operationList->length; j++) {
+            List_append(opList, segment2->pA->operationList->list[j]);
         }
     }
     //Make the alignment operations
-    pA = constructPairwiseAlignment(pA->contig1, leftMost->start1, rightMost->end1, pA->strand1,
-            pA->contig2, leftMost->start2, rightMost->end2, pA->strand2, segment->score, opList);
+    pA = constructPairwiseAlignment(segment->pA->contig1, leftMost->pA->start1, rightMost->pA->end1, segment->pA->strand1,
+                                    segment->pA->contig2, leftMost->pA->start2, rightMost->pA->end2, segment->pA->strand2,
+                                    segment->score, opList);
     checkPairwiseAlignment(pA); //This does some sanity checking
     //Cleanup
     stList_destruct(l);
     return pA;
 }
 
-void segment_reportXFullSubalignments(Segment *segment, struct PairwiseAlignment *pA, int64_t X, FILE *output) {
+void segment_reportXFullSubalignments(Segment *segment, struct PairwiseAlignment *pA, int64_t X, int64_t Y, FILE *output) {
     /*
      * Prints the X-full sub alignments in the useful tree. These are by definition non-overlapping.
      */
     if(segment != NULL) {
         if(segment->minScore >= X) {
-            struct PairwiseAlignment *pA2 = segment_getSubAlignment(segment, pA);
-            cigarWrite(output, pA2, 0);
-            destructPairwiseAlignment(pA2);
+            if(segment->score >= Y) {
+                struct PairwiseAlignment *pA2 = segment_getSubAlignment(segment, pA);
+                cigarWrite(output, pA2, 0);
+                destructPairwiseAlignment(pA2);
+            }
         }
         else {
-            segment_reportXFullSubalignments(segment->child1, pA, X);
-            segment_reportXFullSubalignments(segment->child2, pA, X);
-            segment_reportXFullSubalignments(segment->child3, pA, X);
+            segment_reportXFullSubalignments(segment->child1, pA, X, Y);
+            segment_reportXFullSubalignments(segment->child2, pA, X, Y);
+            segment_reportXFullSubalignments(segment->child3, pA, X, Y);
         }
     }
 }
@@ -124,53 +126,77 @@ int64_t lastZScoreFn(char a, char b) {
     return scoringMatrix[index(a)*5 + index(b)];
 }
 
-stList *getPartition(const char *seqX, const char *seqY, int64_t length, int64_t (*matchScoreFn)(char, char)) {
-
+int64_t splitPoint(const char *seqX,
+        const char *seqY, int64_t length, int64_t (*matchScoreFn)(char, char), int64_t *score) {
+    *score = 0;
+    for(int64_t i=0; i<length; i++) {
+        int64_t j = matchScoreFn(seqX[i], seqY[i]);
+        if((score < 0 && j > 0) || (score > 0 && j < 0)) {
+            return i;
+        }
+        *score += j;
+    }
+    return length;
 }
 
-stList *convertCigarTo0NormalRisesAnd0NormalDrops(struct PairwiseAlignment *pA,
-                                                  int64_t (*matchScoreFn)(char, char), int64_t gapOpenPenalty,
-                                                  int64_t gapExtendPenalty, const char *seqX, const char *seqY) {
+Segment *split(struct PairwiseAlignment *pA,
+        int64_t (*matchScoreFn)(char, char), int64_t gapOpenPenalty,
+        int64_t gapExtendPenalty, const char *seqX, const char *seqY) {
     /*
-     * Partitions an alignment into a sequence of "segments" with alternating score, such that the first and last segments have
-     * positive score.
+     * Returns a segment representing a maximal prefix of the pA with either positive or negative score,
+     * removing the prefix from pA in the process.
      */
-    stList *segments = stList_construct();
-    int64_t start1 = pA->start1, *start2 = pA->start2;
+    assert(pA->strand1);
+    assert(pA->strand2);
+    Segment *segment = st_calloc(1, sizeof(Segment));
+    struct List *opList = constructEmptyList(0, (void (*)(void))destructAlignmentOperation);
+    int64_t lX = 0, lY = 0;
     for(int64_t i=0; i<pA->operationList->length; i++) {
         struct AlignmentOperation *op = pA->operationList->list[i];
-        Segment *segment = st_calloc(1, sizeof(Segment));
-        segment->length = op->length;
-        segment->opType = op->opType;
-        segment->start1 = *start1;
-        segment->start2 = *start2;
-        stList_append(segments, segment);
         if(op->opType == PAIRWISE_MATCH) {
-            stList *partition = getPartition(seqX + segment->start1, seqY + segment->start2, op->length);
-            for(int64_t i=0; i<stList_length(partition); i++) {
-                0
+            int64_t k;
+            int64_t m = splitPoint(seqX, pA->strand1 ? lX + pA->start1 : pA->start1 - lX, pA->strand1.
+                    seqY, pA->strand2 ? lY + pA->start2 : pA->start2 - lY, pA->strand2,
+                    op->length, matchScoreFn, &k);
+            assert(k != 0);
+            if((segment->score < 0 && k > 0) || (segment->score > 0 && k < 0)) { //If the match has the opposite sign to the existing match then we're good.
+                break;
             }
-            *start1 += op->length;
-            *start2 += op->length;
+            segment->score += k;
+            lX += m;
+            lY += m;
+            if(m < op->length) {
+                op->length -= m;
+                List_append(opList, constructAlignmentOperation(PAIRWISE_MATCH, m, 0));
+                break;
+            }
+            else {
+                List_append(opList, List_remove(pA, op)); //This could be improved it if proves slow.
+            }
         }
         else {
+            if(segment->score > 0) {
+                break;
+            }
+            segment->score += gapOpenPenalty + (segment->length-1) * gapExtendPenalty;
+            List_append(opList, List_remove(pA, op)); //This could be improved it if proves slow.
             if(op->opType == PAIRWISE_INDEL_X) {
-                *start1 += op->length;
+                lX += op->length;
             }
             else {
                 assert(op->opType == PAIRWISE_INDEL_Y);
-                *start2 += op->length;
+                lY += op->length;
             }
-            segment->score = gapOpenPenalty + (segment->length-1) * gapExtendPenalty;
         }
-        segment->end1 = *start1;
-        segment->end2 = *start2;
-
-
-        convertCigarTo0NormalRisesAnd0NormalDrops2(pA->operationList->list[i], &start1,
-                &start2, segments, matchScoreFn, gapOpenPenalty, gapExtendPenalty);
     }
-    return segments;
+    int64_t end1 = pA->start1 + (pA->strand1 ? lX : -lX);
+    int64_t end2 = pA->start2 + (pA->strand2 ? lY : -lY);
+    segment->pA = constructPairwiseAlignment(pA->contig1, pA->start1, end1, pA->strand1,
+            pA->contig2, pA->start2, end2, pA->strand2, 0, opList);
+    pA->start1 = end1;
+    pA->start2 = end2;
+    segment->minScore = segment->score;
+    return segment;
 }
 
 stList *partitionCigarIntoUsefulTrees(struct PairwiseAlignment *pA,
@@ -180,8 +206,13 @@ stList *partitionCigarIntoUsefulTrees(struct PairwiseAlignment *pA,
     /*
      * Builds the useful tree for a given alignment.
      */
-    stList *segments = convertCigarTo0NormalRisesAnd0NormalDrops(cigar, scoreFn, seqX, seqY);
+    //Partitions an alignment into a sequence of "segments" with alternating signed scores.
+    stList *segments = stList_construct();
+    while(pA->operationList->length > 0) {
+        stList_append(segments, split(pA, seqX, seqY, matchScoreFn, gapOpenPenalty, gapExtendPenalty));
+    }
 
+    //Now perform algorithm described in paper to construct useful trees.
 }
 
 static stHash *hashAdditionalSequences_sequences;
@@ -208,9 +239,11 @@ stHash *hashSequences(const char *seqFile) {
     return sequences;
 }
 
+
+
 int main(int argc, char *argv[]) {
-    //arguments are log-string, X, inputCigarFile, outputCigarFile, seqFilesxN (where N >= 1)
-    assert(argc >= 4);
+    //arguments are log-string, X, Y, inputCigarFile, outputCigarFile, seqFilesxN (where N >= 1)
+    assert(argc >= 7);
 
     //set log level
     st_setLogLevelFromString(argv[1]);
@@ -220,11 +253,16 @@ int main(int argc, char *argv[]) {
     int64_t i = sscanf(argv[2], "%" PRIi64 "", &X);
     assert(i == 1);
 
+    //Set Y
+    int64_t X;
+    i = sscanf(argv[3], "%" PRIi64 "", &Y);
+    assert(i == 1);
+
     //Get the file-handles for the cigars
-    FILE *inputCigarFileHandle = fopen(argv[3], "r"), *outputCigarFileHandle = fopen(argv[4], "w");
+    FILE *inputCigarFileHandle = fopen(argv[4], "r"), *outputCigarFileHandle = fopen(argv[5], "w");
 
     //Get sequences hashed by fasta header
-    stHash *sequences = hashSequences(argv[5]);
+    stHash *sequences = hashSequences(argv[6]);
     for(i=6; i<argc; i++) {
         hashAdditionalSequences(argv[i], sequences);
     }
