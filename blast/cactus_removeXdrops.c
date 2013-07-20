@@ -6,6 +6,9 @@
  *
  */
 
+#include "sonLib.h"
+#include "commonC.h"
+
 /*
  * Data structure that represents the "useful tree" in the paper.
  */
@@ -19,7 +22,7 @@ struct _segment {
 };
 
 void segment_destruct(Segment *segment) {
-    if(segment != NULL) {
+    if(segment != NULL) { //Cleanup the segment and the contained pairwise alignment.
         segment_destruct(segment->child1);
         segment_destruct(segment->child2);
         segment_destruct(segment->child3);
@@ -57,9 +60,8 @@ struct PairwiseAlignment *segment_getSubAlignment(Segment *segment) {
     struct List *opList = constructEmptyList(0, (void (*)(void *))destructAlignmentOperation);
     for(int64_t i=0; i<stList_length(l); i++) {
         Segment *segment2 = stList_get(l, i);
-        for(int64_t j=0; j<segment2->pA->operationList->length; j++) {
-            List_append(opList, segment2->pA->operationList->list[j]);
-        }
+        assert(segment2->pA != NULL);
+        listAppendArray(opList, segment2->pA->operationList->list, segment2->pA->operationList->length);
     }
     //Make the alignment operations
     pA = constructPairwiseAlignment(segment->pA->contig1, leftMost->pA->start1, rightMost->pA->end1, segment->pA->strand1,
@@ -76,12 +78,10 @@ void segment_reportXFullSubalignments(Segment *segment, struct PairwiseAlignment
      * Prints the X-full sub alignments in the useful tree. These are by definition non-overlapping.
      */
     if(segment != NULL) {
-        if(segment->minScore >= X) {
-            if(segment->score >= Y) {
-                struct PairwiseAlignment *pA2 = segment_getSubAlignment(segment, pA);
-                cigarWrite(output, pA2, 0);
-                destructPairwiseAlignment(pA2);
-            }
+        if(segment->minScore >= X && segment->score >= Y) {
+            struct PairwiseAlignment *pA2 = segment_getSubAlignment(segment, pA);
+            cigarWrite(output, pA2, 0);
+            destructPairwiseAlignment(pA2);
         }
         else {
             segment_reportXFullSubalignments(segment->child1, pA, X, Y);
@@ -126,17 +126,20 @@ int64_t lastZScoreFn(char a, char b) {
     return scoringMatrix[index(a)*5 + index(b)];
 }
 
-int64_t splitPoint(const char *seqX,
-        const char *seqY, int64_t length, int64_t (*matchScoreFn)(char, char), int64_t *score) {
-    *score = 0;
-    for(int64_t i=0; i<length; i++) {
-        int64_t j = matchScoreFn(seqX[i], seqY[i]);
-        if((score < 0 && j > 0) || (score > 0 && j < 0)) {
-            return i;
-        }
-        *score += j;
+char reverseComplement(char a) {
+    assert(a != '-');
+    switch(toupper(a)) {
+        case 'A':
+            return 'T';
+        case 'C':
+            return 'G';
+        case 'G':
+            return 'C';
+        case 'T':
+            return 'A';
+        default:
+            return 'N'; //treated as wildcard
     }
-    return length;
 }
 
 Segment *split(struct PairwiseAlignment *pA,
@@ -146,32 +149,44 @@ Segment *split(struct PairwiseAlignment *pA,
      * Returns a segment representing a maximal prefix of the pA with either positive or negative score,
      * removing the prefix from pA in the process.
      */
-    assert(pA->strand1);
-    assert(pA->strand2);
     Segment *segment = st_calloc(1, sizeof(Segment));
     struct List *opList = constructEmptyList(0, (void (*)(void))destructAlignmentOperation);
     int64_t lX = 0, lY = 0;
     for(int64_t i=0; i<pA->operationList->length; i++) {
         struct AlignmentOperation *op = pA->operationList->list[i];
         if(op->opType == PAIRWISE_MATCH) {
-            int64_t k;
-            int64_t m = splitPoint(seqX, pA->strand1 ? lX + pA->start1 : pA->start1 - lX, pA->strand1.
-                    seqY, pA->strand2 ? lY + pA->start2 : pA->start2 - lY, pA->strand2,
-                    op->length, matchScoreFn, &k);
-            assert(k != 0);
-            if((segment->score < 0 && k > 0) || (segment->score > 0 && k < 0)) { //If the match has the opposite sign to the existing match then we're good.
+            //Get start coordinates
+            int64_t x = pA->strand1 ? lX + pA->start1 : pA->start1 - lX;
+            int64_t y = pA->strand2 ? lY + pA->start2 : pA->start2 - lY;
+            //Get the score of the first match
+            int64_t j = matchScoreFn(pA->strand1 ? seqX[x] : reverseComplement(seqX[x]), pA->strand1 ? seqY[y] : reverseComplement[seqY[y]]);
+            assert(j != 0);
+            //If the match has the opposite sign to the existing match then we have reached the split point
+            if((segment->score < 0 && j > 0) || (segment->score > 0 && j < 0)) {
                 break;
             }
-            segment->score += k;
-            lX += m;
-            lY += m;
-            if(m < op->length) {
-                op->length -= m;
-                List_append(opList, constructAlignmentOperation(PAIRWISE_MATCH, m, 0));
+            //Now extend the match until we get a pair of bases with an opposite score, or we reach the end of the diagonal.
+            int64_t k = 0;
+            while(++k < length) {
+                int64_t m = matchScoreFn(pA->strand1 ? seqX[x+k] : reverseComplement(seqX[x-k]), pA->strand1 ? seqY[y+k] : reverseComplement[seqY[y-k]]);
+                assert(m != 0);
+                if((m > 0 && j < 0) || (m < 0 && j > 0)) { //They have opposite signs so break.
+                    break;
+                }
+                j += m;
+            }
+            //Now update the segment by adding in the operation
+            segment->score += j;
+            lX += k;
+            lY += k;
+            if(k < op->length) { //We add just part of the match to the segment.
+                op->length -= k;
+                assert(op->length > 0);
+                listAppend(opList, constructAlignmentOperation(PAIRWISE_MATCH, k, 0));
                 break;
             }
             else {
-                List_append(opList, List_remove(pA, op)); //This could be improved it if proves slow.
+                listAppend(opList, listRemove(pA, op)); //This could be improved it if proves too slow.
             }
         }
         else {
@@ -179,7 +194,7 @@ Segment *split(struct PairwiseAlignment *pA,
                 break;
             }
             segment->score += gapOpenPenalty + (segment->length-1) * gapExtendPenalty;
-            List_append(opList, List_remove(pA, op)); //This could be improved it if proves slow.
+            listAppend(opList, listRemove(pA, op)); //This could be improved it if proves too slow.
             if(op->opType == PAIRWISE_INDEL_X) {
                 lX += op->length;
             }
@@ -192,7 +207,8 @@ Segment *split(struct PairwiseAlignment *pA,
     int64_t end1 = pA->start1 + (pA->strand1 ? lX : -lX);
     int64_t end2 = pA->start2 + (pA->strand2 ? lY : -lY);
     segment->pA = constructPairwiseAlignment(pA->contig1, pA->start1, end1, pA->strand1,
-            pA->contig2, pA->start2, end2, pA->strand2, 0, opList);
+                                             pA->contig2, pA->start2, end2, pA->strand2,
+                                             0, opList);
     pA->start1 = end1;
     pA->start2 = end2;
     segment->minScore = segment->score;
@@ -211,8 +227,26 @@ stList *partitionCigarIntoUsefulTrees(struct PairwiseAlignment *pA,
     while(pA->operationList->length > 0) {
         stList_append(segments, split(pA, seqX, seqY, matchScoreFn, gapOpenPenalty, gapExtendPenalty));
     }
-
+    //Debug check scores alternate
+#ifndef NDEBUG
+    for(int64_t i=1; i<stList_length(segments); i++) {
+        Segment *segment1 = stList_get(segments, i-1);
+        Segment *segment2 = stList_get(segments, i);
+        assert(segment1->score != 0 && segment2->score != 0);
+        assert(segment1->minScore == segment1->minScore);
+        assert(segment2->minScore == segment2->minScore);
+        if(segment1->score < 0) {
+            assert(segment2->score > 0);
+        }
+        else {
+            assert(segment2->score < 0);
+        }
+    }
+#endif
     //Now perform algorithm described in paper to construct useful trees.
+    stList *stack = stList_construct();
+
+
 }
 
 static stHash *hashAdditionalSequences_sequences;
