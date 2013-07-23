@@ -297,6 +297,145 @@ stSet *getMultipleSequenceAlignment(stList *seqFrags, stList *multipleAlignedPai
     return columns;
 }
 
+/*
+ * Alternative way to build a multiple alignment, by progressive alignment. Scales linearly with number
+ * of sequences.
+ */
+
+typedef struct _columnPair ColumnPair;
+struct _columnPair {
+    int64_t xIndex, yIndex;
+    int64_t score;
+    ColumnPair *pPair;
+    int64_t refCount;
+};
+
+ColumnPair *columnPair_construct(int64_t xIndex, int64_t yIndex, int64_t score, ColumnPair *pPair) {
+    ColumnPair *cP = st_malloc(sizeof(ColumnPair));
+    cP->xIndex = xIndex;
+    cP->yIndex = yIndex;
+    cP->score = score;
+    cP->pPair = pPair;
+    cP->refCount = 0;
+    return cP;
+}
+
+void columnPair_destruct(ColumnPair *cP) {
+    if(cP->pPair != NULL) {
+        cP->pPair->refCount--;
+        assert(cP->pPair->refCount >= 0);
+        if(cP->pPair->refCount == 0) {
+            columnPair_destruct(cP->pPair);
+        }
+    }
+    free(cP);
+}
+
+int columnPair_cmpByYIndex(const void *c1, const void *c2) {
+    int64_t i = ((ColumnPair *)c1)->yIndex;
+    int64_t j = ((ColumnPair *)c2)->yIndex;
+    return i > j ? 1 : (i < j ? -1 : 0);
+}
+
+stList *pairwiseAlignColumns(stList *seqXColumns, stList *seqYColumns, stHash *alignmentWeightAdjLists) {
+    //Use indices of columns in list, have index --> column (obviously), but need to build column --> index.
+    stHash *columnToIndexHash = stHash_construct2(NULL, (void (*)(void *))stIntTuple_destruct);
+    for(int64_t i=0; i<stList_length(seqYColumns); i++) {
+        stHash_insert(columnToIndexHash, stList_get(seqYColumns, i), stIntTuple_construct1(i));
+    }
+
+    //Best scoring pairs
+    stSortedSet *bestScoringAlignments = stSortedSet_construct3(columnPair_cmpByYIndex, (void (*)(void *))columnPair_destruct);
+    //Add in buffering first and last pairs
+    stSortedSet_insert(bestScoringAlignments, columnPair_construct(-1, -1, 0, NULL));
+    stSortedSet_insert(bestScoringAlignments, columnPair_construct(INT64_MAX, INT64_MAX, INT64_MAX, NULL));
+
+    //For each column in X.
+    for(int64_t i=0; i<stList_length(seqXColumns); i++) {
+        Column *cX = stList_get(seqXColumns, i);
+        //For each weight involving column X.
+        stSortedSet *aWsX = stHash_search(alignmentWeightAdjLists, cX);
+        stSortedSetIterator *aWXIt = stSortedSet_getIterator(aWsX);
+        AlignmentWeight *aWX;
+        while((aWX = stSortedSet_getNext(aWXIt)) != NULL) {
+            //Locate index of other column
+            ColumnPair cP;
+            cP.yIndex = stIntTuple_get(stHash_search(columnToIndexHash, aWX->column), 0);
+            //Search for highest scoring point up to but less than that index.
+            ColumnPair *cPP = stSortedSet_searchLessThan(bestScoringAlignments, &cP);
+            assert(cPP != NULL);
+            //New score
+            cP.score = cPP->score + aWX->avgWeight;
+            //Find point that is equal or to the right of j
+            ColumnPair *cPN = stSortedSet_searchGreaterThanOrEqual(bestScoringAlignments, &cP);
+            assert(cPN != NULL);
+            if(cP.score >= cPN->score || cPN->yIndex > cP.yIndex) {
+                //Remove points that overlap or are to the right that score more poorly and clean them up.
+                while(cP.score >= cPN->score) {
+                    ColumnPair *cPNN = stSortedSet_searchGreaterThan(bestScoringAlignments, cPN);
+                    assert(cPNN != NULL);
+                    stSortedSet_remove(bestScoringAlignments, cPN);
+                    columnPair_destruct(cPN);
+                    cPN = cPNN;
+                }
+                cPP->refCount++; //This is for memory management
+                //Insert new point.
+                stSortedSet_insert(bestScoringAlignments, columnPair_construct(i, cP.yIndex, cP.score, cPP));
+            }
+        }
+    }
+
+    //Now traceback from highest scoring point to generate the alignment
+    ColumnPair *maxPair = stSortedSet_getLast(bestScoringAlignments);
+    assert(maxPair != NULL);
+    stList *alignment = stList_construct();
+    //For each alignment pair
+    while(1) {
+        //Add any unaligned Y columns
+        while(--maxPair->yIndex > maxPair->pPair->yIndex) {
+            stList_append(alignment, stList_get(seqYColumns, maxPair->yIndex));
+        }
+        //Add any unaligned X columns
+        while(--maxPair->xIndex > maxPair->pPair->xIndex) {
+            stList_append(alignment, stList_get(seqXColumns, maxPair->xIndex));
+        }
+        //Now move to previous pair
+        maxPair = maxPair->pPair;
+        //If this is the final pair we're done
+        if(maxPair->pPair == NULL) {
+            break;
+        }
+        //Merge two columns.
+        Column *mergedColumn;
+        //Add to array.
+        stList_append(alignment, mergedColumn);
+    }
+    //Make the list of columns left-to-right
+    stList_reverse(alignment);
+
+    //Cleanup
+    stSortedSet_destruct(bestScoringAlignments);
+    stHash_destruct(columnToIndexHash);
+
+    return alignment;
+}
+
+stSet *getMultipleSequenceAlignmentProgressive(stList *seqFrags, stList *multipleAlignedPairs, double gapGamma) {
+    //Convert each sequence into sequence of columns.
+
+    //Get set of weights
+    //While there are multiple sequences/alignments left
+    //Pick pair of alignments that is on average closest
+    //Do alignment
+    //Merge alignments
+    //Return final set of columns.
+    return NULL;
+}
+
+/*
+ * Methods to extract consistent pairs.
+ */
+
 static Column *getColumn2(stHash *columns, int64_t seq, int64_t pos) {
     Column c;
     c.seqName = seq;
