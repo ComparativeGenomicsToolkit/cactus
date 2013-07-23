@@ -307,15 +307,17 @@ struct _columnPair {
     int64_t xIndex, yIndex;
     int64_t score;
     ColumnPair *pPair;
+    AlignmentWeight *aW;
     int64_t refCount;
 };
 
-ColumnPair *columnPair_construct(int64_t xIndex, int64_t yIndex, int64_t score, ColumnPair *pPair) {
+ColumnPair *columnPair_construct(int64_t xIndex, int64_t yIndex, int64_t score, ColumnPair *pPair, AlignmentWeight *aW) {
     ColumnPair *cP = st_malloc(sizeof(ColumnPair));
     cP->xIndex = xIndex;
     cP->yIndex = yIndex;
     cP->score = score;
     cP->pPair = pPair;
+    cP->aW = aW;
     cP->refCount = 0;
     return cP;
 }
@@ -347,8 +349,9 @@ stList *pairwiseAlignColumns(stList *seqXColumns, stList *seqYColumns, stHash *a
     //Best scoring pairs
     stSortedSet *bestScoringAlignments = stSortedSet_construct3(columnPair_cmpByYIndex, (void (*)(void *))columnPair_destruct);
     //Add in buffering first and last pairs
-    stSortedSet_insert(bestScoringAlignments, columnPair_construct(-1, -1, 0, NULL));
-    stSortedSet_insert(bestScoringAlignments, columnPair_construct(INT64_MAX, INT64_MAX, INT64_MAX, NULL));
+    ColumnPair *minPair = columnPair_construct(-1, -1, 0, NULL, NULL);
+    stSortedSet_insert(bestScoringAlignments, minPair);
+    stSortedSet_insert(bestScoringAlignments, columnPair_construct(INT64_MAX, INT64_MAX, INT64_MAX, minPair, NULL));
 
     //For each column in X.
     for(int64_t i=0; i<stList_length(seqXColumns); i++) {
@@ -380,7 +383,7 @@ stList *pairwiseAlignColumns(stList *seqXColumns, stList *seqYColumns, stHash *a
                 }
                 cPP->refCount++; //This is for memory management
                 //Insert new point.
-                stSortedSet_insert(bestScoringAlignments, columnPair_construct(i, cP.yIndex, cP.score, cPP));
+                stSortedSet_insert(bestScoringAlignments, columnPair_construct(i, cP.yIndex, cP.score, cPP, aW));
             }
         }
     }
@@ -402,11 +405,11 @@ stList *pairwiseAlignColumns(stList *seqXColumns, stList *seqYColumns, stHash *a
         //Now move to previous pair
         maxPair = maxPair->pPair;
         //If this is the final pair we're done
-        if(maxPair->pPair == NULL) {
+        if(maxPair == minPair) {
             break;
         }
         //Merge two columns.
-        Column *mergedColumn;
+        Column *mergedColumn = mergeColumns2(maxPair->aW, alignmentWeightAdjLists);
         //Add to array.
         stList_append(alignment, mergedColumn);
     }
@@ -416,6 +419,8 @@ stList *pairwiseAlignColumns(stList *seqXColumns, stList *seqYColumns, stHash *a
     //Cleanup
     stSortedSet_destruct(bestScoringAlignments);
     stHash_destruct(columnToIndexHash);
+    stList_destruct(seqXColumns);
+    stList_destruct(seqYColumns);
 
     return alignment;
 }
