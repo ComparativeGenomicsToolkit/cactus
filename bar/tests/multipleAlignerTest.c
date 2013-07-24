@@ -128,7 +128,7 @@ static void test_pairwiseAlignColumns(CuTest *testCase) {
         stHash *alignmentWeightAdjLists = makeAlignmentWeightAdjacencyLists(columns, multipleAlignedPairs);
         stSortedSet *alignmentWeightsOrderedByWeight = makeOrderedSetOfAlignmentWeights(alignmentWeightAdjLists);
         stList_destruct(pairwiseAlignColumns(stList_get(columnSequences, 0), stList_get(columnSequences, 1),
-                            alignmentWeightAdjLists, columns, alignmentWeightsOrderedByWeight));
+                            alignmentWeightAdjLists, columns, alignmentWeightsOrderedByWeight, 0.1));
         //Check the alignment
         multipleAlignedPairs = filterMultipleAlignedPairs(columns, multipleAlignedPairs);
         checkAlignment(testCase, seqFrags, multipleAlignedPairs);

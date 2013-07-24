@@ -338,7 +338,7 @@ static int columnPair_cmpByYIndex(const void *c1, const void *c2) {
 }
 
 stList *pairwiseAlignColumns(stList *seqXColumns, stList *seqYColumns, stHash *alignmentWeightAdjLists, stSet *columns,
-        stSortedSet *alignmentWeightsOrderedByWeight) {
+        stSortedSet *alignmentWeightsOrderedByWeight, double gapGamma) {
     //Use indices of columns in list, have index --> column (obviously), but need to build column --> index.
     stHash *columnToIndexHash = stHash_construct2(NULL, (void(*)(void *)) stIntTuple_destruct);
     for (int64_t i = 0; i < stList_length(seqYColumns); i++) {
@@ -366,23 +366,29 @@ stList *pairwiseAlignColumns(stList *seqXColumns, stList *seqYColumns, stHash *a
             //Search for highest scoring point up to but less than that index.
             ColumnPair *cPP = stSortedSet_searchLessThan(bestScoringAlignments, &cP);
             assert(cPP != NULL);
-            //New score
-            cP.score = cPP->score + aWX->avgWeight;
-            //Find point that is equal or to the right of j
-            ColumnPair *cPN = stSortedSet_searchGreaterThanOrEqual(bestScoringAlignments, &cP);
-            assert(cPN != NULL);
-            if (cP.score >= cPN->score || cPN->yIndex > cP.yIndex) {
-                //Remove points that overlap or are to the right that score more poorly and clean them up.
-                while (cP.score >= cPN->score) {
-                    ColumnPair *cPNN = stSortedSet_searchGreaterThan(bestScoringAlignments, cPN);
-                    assert(cPNN != NULL);
-                    stSortedSet_remove(bestScoringAlignments, cPN);
-                    columnPair_destruct(cPN);
-                    cPN = cPNN;
+            assert(cPP->xIndex - cP->xIndex > 0);
+            assert(cPP->yIndex - cP->yIndex > 0);
+            //Add pair if exceeds the gap gamma.
+            if(aWX->avgWeight >= gapGamma) {
+                //New score
+                //int64_t totalGapsCreated = i - cPP->xIndex
+                cP.score = cPP->score + aWX->avgWeight * aWX->numberOfWeights;
+                //Find point that is equal or to the right of j
+                ColumnPair *cPN = stSortedSet_searchGreaterThanOrEqual(bestScoringAlignments, &cP);
+                assert(cPN != NULL);
+                if (cP.score >= cPN->score || cPN->yIndex > cP.yIndex) {
+                    //Remove points that overlap or are to the right that score more poorly and clean them up.
+                    while (cP.score >= cPN->score) {
+                        ColumnPair *cPNN = stSortedSet_searchGreaterThan(bestScoringAlignments, cPN);
+                        assert(cPNN != NULL);
+                        stSortedSet_remove(bestScoringAlignments, cPN);
+                        columnPair_destruct(cPN);
+                        cPN = cPNN;
+                    }
+                    cPP->refCount++; //This is for memory management
+                    //Insert new point.
+                    stSortedSet_insert(bestScoringAlignments, columnPair_construct(i, cP.yIndex, cP.score, cPP, aWX));
                 }
-                cPP->refCount++; //This is for memory management
-                //Insert new point.
-                stSortedSet_insert(bestScoringAlignments, columnPair_construct(i, cP.yIndex, cP.score, cPP, aWX));
             }
         }
     }
@@ -465,7 +471,7 @@ stSet *getMultipleSequenceAlignmentProgressive(stList *seqFrags, stList *multipl
         int64_t seqY = stIntTuple_get(seqPair, 1);
         if (seqX != seqY) {
             stList *seqColumns = pairwiseAlignColumns(stList_get(columnSequences, seqX), stList_get(columnSequences, seqY),
-                    alignmentWeightAdjLists, columns, alignmentWeightsOrderedByWeight);
+                    alignmentWeightAdjLists, columns, alignmentWeightsOrderedByWeight, gapGamma);
             stList_set(columnSequences, seqX, seqColumns);
             stList_set(columnSequences, seqY, seqColumns);
         }
@@ -540,7 +546,7 @@ static int64_t getAlignmentScore(stList *alignedPairs, int64_t seqLength1, int64
     double d = (double) alignmentScore / (j * PAIR_ALIGNMENT_PROB_1);
     d = d > 1.0 ? 1.0 : d;
     d = d < 0.0 ? 0.0 : d;
-    return d * 1000000;
+    return d * PAIR_ALIGNMENT_PROB_1;
 }
 
 static void convertToMultipleAlignedPairs(stList *alignedPairs, stList *multipleAlignedPairs, int64_t sequence1, int64_t sequence2) {

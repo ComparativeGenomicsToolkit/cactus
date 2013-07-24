@@ -73,7 +73,7 @@ stList *makeColumnSequences(stList *seqFrags, stSet *columns);
 stSet *getMultipleSequenceAlignmentProgressive(stList *seqFrags, stList *multipleAlignedPairs, double gapGamma, stList *seqPairSimilarityScores);
 
 stList *pairwiseAlignColumns(stList *seqXColumns, stList *seqYColumns, stHash *alignmentWeightAdjLists, stSet *columns,
-        stSortedSet *alignmentWeightsOrderedByWeight);
+        stSortedSet *alignmentWeightsOrderedByWeight, double gapGamma);
 
 stList *filterMultipleAlignedPairs(stSet *columns, stList *multipleAlignedPairs);
 
