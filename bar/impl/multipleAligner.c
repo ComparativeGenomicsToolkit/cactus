@@ -268,11 +268,11 @@ Column *mergeColumns(AlignmentWeight *aW, stSet *columns, stHash *alignmentWeigh
     return mergeColumnsP(aW, columns, alignmentWeightAdjLists, alignmentWeightsOrderedByWeight);
 }
 
-stSet *getMultipleSequenceAlignment(stList *seqFrags, stList *multipleAlignedPairs, double gapGamma, bool checkConsistency) {
+stSet *getMultipleSequenceAlignment(stList *seqFrags, stList *multipleAlignedPairs, double gapGamma) {
     stSet *columns = makeColumns(seqFrags);
     stHash *alignmentWeightAdjLists = makeAlignmentWeightAdjacencyLists(columns, multipleAlignedPairs);
     stSortedSet *alignmentWeightsOrderedByWeight = makeOrderedSetOfAlignmentWeights(alignmentWeightAdjLists);
-    stPosetAlignment *posetAlignment = checkConsistency ? stPosetAlignment_construct(stList_length(seqFrags)) : NULL;
+    stPosetAlignment *posetAlignment = stPosetAlignment_construct(stList_length(seqFrags));
     while (stSortedSet_size(alignmentWeightsOrderedByWeight) > 0) {
         AlignmentWeight *aW = stSortedSet_getLast(alignmentWeightsOrderedByWeight);
         if (aW->avgWeight < gapGamma) {
@@ -280,8 +280,8 @@ stSet *getMultipleSequenceAlignment(stList *seqFrags, stList *multipleAlignedPai
         }
         removeAlignmentFromSortedAlignmentWeights(aW, alignmentWeightsOrderedByWeight);
         Column *c = aW->column, *c2 = aW->rWeight->column;
-        if (!checkConsistency || (c->seqName != c2->seqName && stPosetAlignment_add(posetAlignment, c->seqName, c->position, c2->seqName,
-                c2->position))) {
+        if (c->seqName != c2->seqName && stPosetAlignment_add(posetAlignment, c->seqName, c->position, c2->seqName,
+                c2->position)) {
             mergeColumns(aW, columns, alignmentWeightAdjLists, alignmentWeightsOrderedByWeight);
         } else {
             stSortedSet_remove(stHash_search(alignmentWeightAdjLists, aW->rWeight->column), aW);
@@ -291,9 +291,7 @@ stSet *getMultipleSequenceAlignment(stList *seqFrags, stList *multipleAlignedPai
     }
     stSortedSet_destruct(alignmentWeightsOrderedByWeight);
     stHash_destruct(alignmentWeightAdjLists);
-    if (checkConsistency) {
-        stPosetAlignment_destruct(posetAlignment);
-    }
+    stPosetAlignment_destruct(posetAlignment);
     return columns;
 }
 
@@ -311,7 +309,7 @@ struct _columnPair {
     int64_t refCount;
 };
 
-ColumnPair *columnPair_construct(int64_t xIndex, int64_t yIndex, int64_t score, ColumnPair *pPair, AlignmentWeight *aW) {
+static ColumnPair *columnPair_construct(int64_t xIndex, int64_t yIndex, int64_t score, ColumnPair *pPair, AlignmentWeight *aW) {
     ColumnPair *cP = st_malloc(sizeof(ColumnPair));
     cP->xIndex = xIndex;
     cP->yIndex = yIndex;
@@ -322,7 +320,7 @@ ColumnPair *columnPair_construct(int64_t xIndex, int64_t yIndex, int64_t score, 
     return cP;
 }
 
-void columnPair_destruct(ColumnPair *cP) {
+static void columnPair_destruct(ColumnPair *cP) {
     if (cP->pPair != NULL) {
         cP->pPair->refCount--;
         assert(cP->pPair->refCount >= 0);
@@ -333,7 +331,7 @@ void columnPair_destruct(ColumnPair *cP) {
     free(cP);
 }
 
-int columnPair_cmpByYIndex(const void *c1, const void *c2) {
+static int columnPair_cmpByYIndex(const void *c1, const void *c2) {
     int64_t i = ((ColumnPair *) c1)->yIndex;
     int64_t j = ((ColumnPair *) c2)->yIndex;
     return i > j ? 1 : (i < j ? -1 : 0);
@@ -394,6 +392,7 @@ stList *pairwiseAlignColumns(stList *seqXColumns, stList *seqYColumns, stHash *a
     assert(maxPair != NULL);
     stList *alignment = stList_construct();
     //For each alignment pair
+    int64_t merges = 0;
     while (1) {
         //Add any unaligned Y columns
         while (--maxPair->yIndex > maxPair->pPair->yIndex) {
@@ -411,9 +410,11 @@ stList *pairwiseAlignColumns(stList *seqXColumns, stList *seqYColumns, stHash *a
         }
         //Merge two columns.
         Column *mergedColumn = mergeColumns(maxPair->aW, columns, alignmentWeightAdjLists, alignmentWeightsOrderedByWeight);
+        merges++;
         //Add to array.
         stList_append(alignment, mergedColumn);
     }
+    assert(stList_length(alignment) + merges == stList_length(seqXColumns) + stList_length(seqYColumns));
     //Make the list of columns left-to-right
     stList_reverse(alignment);
 
@@ -441,24 +442,23 @@ stList *makeColumnSequences(stList *seqFrags, stSet *columns) {
     return columnSequences;
 }
 
-stSet *getMultipleSequenceAlignmentProgressive(stList *seqFrags, stList *multipleAlignedPairs, double gapGamma, stList *seqPairDistances) {
+stSet *getMultipleSequenceAlignmentProgressive(stList *seqFrags, stList *multipleAlignedPairs, double gapGamma, stList *seqPairSimilarityScores) {
     //Get the data-structures needed for the pairwise alignments
     stSet *columns = makeColumns(seqFrags);
     stHash *alignmentWeightAdjLists = makeAlignmentWeightAdjacencyLists(columns, multipleAlignedPairs);
     stSortedSet *alignmentWeightsOrderedByWeight = makeOrderedSetOfAlignmentWeights(alignmentWeightAdjLists);
 
     //sort list of pairwise distances
-    seqPairDistances = stList_copy(seqPairDistances, NULL);
-    stList_sort(seqPairDistances, (int(*)(const void *, const void *)) stIntTuple_cmpFn);
-    stList_reverse(seqPairDistances); //ensure we got youngest to oldest
+    seqPairSimilarityScores = stList_copy(seqPairSimilarityScores, NULL);
+    stList_sort(seqPairSimilarityScores, (int(*)(const void *, const void *)) stIntTuple_cmpFn);
 
     //get list of column-sequences
     stList *columnSequences = makeColumnSequences(seqFrags, columns);
 
     //do n-1 merges
-    while (stList_length(seqPairDistances) > 0) {
+    while (stList_length(seqPairSimilarityScores) > 0) {
         //get next closest pair
-        stIntTuple *seqPair = stList_pop(seqPairDistances);
+        stIntTuple *seqPair = stList_pop(seqPairSimilarityScores);
 
         //if not same column then align and update hash from seq indices to column-sequences
         int64_t seqX = stIntTuple_get(seqPair, 1);
@@ -491,7 +491,7 @@ static Column *getColumn2(stHash *columns, int64_t seq, int64_t pos) {
     return stHash_search(columns, &c);
 }
 
-static stList *filterMultipleAlignedPairs(stSet *columns, stList *multipleAlignedPairs) {
+stList *filterMultipleAlignedPairs(stSet *columns, stList *multipleAlignedPairs) {
     /*
      * Processes the list of multipleAlignedPairs and places those that align pairs within the same column in a list which is
      * returned. Pairs that do not make the list are cleaned up, as is the input list.
@@ -526,18 +526,21 @@ static stList *filterMultipleAlignedPairs(stSet *columns, stList *multipleAligne
     return filteredMultipleAlignedPairs;
 }
 
-static double getAlignmentScore(stList *alignedPairs, int64_t seqLength1, int64_t seqLength2) {
+static int64_t getAlignmentScore(stList *alignedPairs, int64_t seqLength1, int64_t seqLength2) {
+    /*
+     * Gets the normalised average posterior probability that a position in the shorter of the two sequences is aligned to a match.
+     */
     int64_t alignmentScore = 0;
     for (int64_t i = 0; i < stList_length(alignedPairs); i++) {
         stIntTuple *alignedPair = stList_get(alignedPairs, i);
-        alignmentScore += stIntTuple_getPosition(alignedPair, 0);
+        alignmentScore += stIntTuple_get(alignedPair, 0);
     }
     int64_t j = seqLength1 < seqLength2 ? seqLength1 : seqLength2;
     j = j == 0 ? 1 : j;
     double d = (double) alignmentScore / (j * PAIR_ALIGNMENT_PROB_1);
     d = d > 1.0 ? 1.0 : d;
     d = d < 0.0 ? 0.0 : d;
-    return d;
+    return d * 1000000;
 }
 
 static void convertToMultipleAlignedPairs(stList *alignedPairs, stList *multipleAlignedPairs, int64_t sequence1, int64_t sequence2) {
@@ -555,7 +558,7 @@ static void convertToMultipleAlignedPairs(stList *alignedPairs, stList *multiple
     stList_destruct(alignedPairs);
 }
 
-static double addMultipleAlignedPairs(int64_t sequence1, int64_t sequence2, stList *seqFrags, stList *multipleAlignedPairs,
+static int64_t addMultipleAlignedPairs(int64_t sequence1, int64_t sequence2, stList *seqFrags, stList *multipleAlignedPairs,
         PairwiseAlignmentParameters *pairwiseAlignmentBandingParameters) {
     /*
      * Computes a pairwise alignment and returns the pairwise match probabilities as tuples of (score, seq1, pos1, seq2, pos2).
@@ -564,35 +567,21 @@ static double addMultipleAlignedPairs(int64_t sequence1, int64_t sequence2, stLi
     SeqFrag *seqFrag2 = stList_get(seqFrags, sequence2);
     stList *alignedPairs = getAlignedPairs(seqFrag1->seq, seqFrag2->seq, pairwiseAlignmentBandingParameters,
             seqFrag1->missingLeftEnd || seqFrag2->missingLeftEnd, seqFrag1->missingRightEnd || seqFrag2->missingRightEnd);
-    double distance = getAlignmentScore(alignedPairs, seqFrag1->length, seqFrag2->length);
+    int64_t distance = getAlignmentScore(alignedPairs, seqFrag1->length, seqFrag2->length);
     convertToMultipleAlignedPairs(alignedPairs, multipleAlignedPairs, sequence1, sequence2);
     return distance;
 }
 
-static void addMultipleAlignedPairsFilteringInconsistentPairs(int64_t sequence1, int64_t sequence2, stList *seqFrags,
-        stList *multipleAlignedPairs, stList *discardedMultipleAlignedPairs, float gapGamma,
-        PairwiseAlignmentParameters *pairwiseAlignmentBandingParameters) {
-    /*
-     * Get pairwise alignment between sequences, filtering pairs in to those in a consistent pairwise alignment and those that are inconsistent with the first alignment.
-     */
-    SeqFrag *seqFrag1 = stList_get(seqFrags, sequence1);
-    SeqFrag *seqFrag2 = stList_get(seqFrags, sequence2);
-    stList *alignedPairs = getAlignedPairs(seqFrag1->seq, seqFrag2->seq, pairwiseAlignmentBandingParameters,
-            seqFrag1->missingLeftEnd || seqFrag2->missingLeftEnd, seqFrag1->missingRightEnd || seqFrag2->missingRightEnd);
-    stList *discardedAlignedPairs = filterPairwiseAlignmentToMakePairsOrdered(alignedPairs, gapGamma);
-    convertToMultipleAlignedPairs(alignedPairs, multipleAlignedPairs, sequence1, sequence2);
-    convertToMultipleAlignedPairs(discardedAlignedPairs, discardedMultipleAlignedPairs, sequence1, sequence2);
-}
-
-stList *makeAllPairwiseAlignments(stList *seqFrags, PairwiseAlignmentParameters *pairwiseAlignmentBandingParameters) {
+stList *makeAllPairwiseAlignments(stList *seqFrags, PairwiseAlignmentParameters *pairwiseAlignmentBandingParameters, stList **seqPairSimilarityScores) {
     /*
      * Generate the set of pairwise alignments between the sequences.
      */
+    *seqPairSimilarityScores = stList_construct3(0, (void(*)(void *)) stIntTuple_destruct);
     stList *multipleAlignedPairs = stList_construct3(0, (void(*)(void *)) stIntTuple_destruct);
     int64_t seqNo = stList_length(seqFrags);
     for (int64_t seq1 = 0; seq1 < seqNo; seq1++) {
         for (int64_t seq2 = seq1 + 1; seq2 < seqNo; seq2++) {
-            addMultipleAlignedPairs(seq1, seq2, seqFrags, multipleAlignedPairs, pairwiseAlignmentBandingParameters);
+            stList_append(*seqPairSimilarityScores, stIntTuple_construct3(addMultipleAlignedPairs(seq1, seq2, seqFrags, multipleAlignedPairs, pairwiseAlignmentBandingParameters), seq1, seq2));
         }
     }
     return multipleAlignedPairs;
@@ -602,10 +591,12 @@ stList *makeAlignmentUsingAllPairs(stList *seqFrags, float gapGamma, PairwiseAli
     /*
      * Generate a multiple alignment considering all pairs of sequences.
      */
-    stList *multipleAlignedPairs = makeAllPairwiseAlignments(seqFrags, pairwiseAlignmentBandingParameters);
-    stSet *columns = getMultipleSequenceAlignment(seqFrags, multipleAlignedPairs, gapGamma, 1);
+    stList *seqPairSimilarityScores;
+    stList *multipleAlignedPairs = makeAllPairwiseAlignments(seqFrags, pairwiseAlignmentBandingParameters, &seqPairSimilarityScores);
+    stSet *columns = getMultipleSequenceAlignmentProgressive(seqFrags, multipleAlignedPairs, gapGamma, seqPairSimilarityScores);
     multipleAlignedPairs = filterMultipleAlignedPairs(columns, multipleAlignedPairs);
     stSet_destruct(columns);
+    stList_destruct(seqPairSimilarityScores);
     return multipleAlignedPairs;
 }
 
@@ -769,37 +760,30 @@ stList *makeAlignment(stList *seqFrags, int64_t spanningTrees, int64_t maxPairsT
         return makeAlignmentUsingAllPairs(seqFrags, gapGamma, pairwiseAlignmentBandingParameters);
     }
     stList *multipleAlignedPairs = stList_construct3(0, (void(*)(void *)) stIntTuple_destruct); //pairwise alignment pairs, with sequence indices
-    stList *discardedMultipleAlignedPairs = stList_construct3(0, (void(*)(void *)) stIntTuple_destruct); //pairwise alignment pairs that were inconsistent with some of the pairs in the multipleAlignedPairs set
     stSortedSet *chosenPairsOfSequencesToAlign = getReferencePairwiseAlignments2(seqFrags);
     stSortedSetIterator *pairIt = stSortedSet_getIterator(chosenPairsOfSequencesToAlign);
     stIntTuple *pairToAlign;
-    stList *pairwiseDistances = stList_construct3(0, (void (*)(void *))stIntTuple_destruct);
+    stList *seqPairSimilarityScores = stList_construct3(0, (void (*)(void *))stIntTuple_destruct);
     while ((pairToAlign = stSortedSet_getNext(pairIt)) != NULL) {
         int64_t seqX = stIntTuple_get(pairToAlign, 0);
         int64_t seqY = stIntTuple_get(pairToAlign, 1);
         //We get pairwise alignments, for this first alignment we filter the pairs greedily to make them consistent
-        stList_append(pairwiseDistances, stIntTuple_construct3(1000000*addMultipleAlignedPairs(seqX, seqY, seqFrags,
+        stList_append(seqPairSimilarityScores, stIntTuple_construct3(addMultipleAlignedPairs(seqX, seqY, seqFrags,
                 multipleAlignedPairs, pairwiseAlignmentBandingParameters),
                 seqX, seqY));
     }
     stSortedSet_destructIterator(pairIt);
-    if (spanningTrees == 1) { //As there is no further alignments to compute we exit, as all the pairs are already consistent.
-        stSortedSet_destruct(chosenPairsOfSequencesToAlign);
-        stList_destruct(discardedMultipleAlignedPairs);
-        //We are done
-        return multipleAlignedPairs;
-    }
+
     int64_t iteration = 1;
-    bool checkConsistency = 0; //The first alignment of multiple aligned pairs is already consistent
+    //The first alignment of multiple aligned pairs is already consistent
     while (1) {
-        stSet *columns = getMultipleSequenceAlignmentProgressive(seqFrags, multipleAlignedPairs, gapGamma, pairwiseDistances);
+        stSet *columns = getMultipleSequenceAlignmentProgressive(seqFrags, multipleAlignedPairs, gapGamma, seqPairSimilarityScores);
         //stSet *columns = getMultipleSequenceAlignment(seqFrags, multipleAlignedPairs, gapGamma, checkConsistency);
         if (iteration++ >= spanningTrees) {
             stSortedSet_destruct(chosenPairsOfSequencesToAlign);
             multipleAlignedPairs = filterMultipleAlignedPairs(columns, multipleAlignedPairs);
             stSet_destruct(columns);
-            stList_destruct(discardedMultipleAlignedPairs);
-            stList_destruct(pairwiseDistances);
+            stList_destruct(seqPairSimilarityScores);
             return multipleAlignedPairs;
         }
         int64_t *distanceCounts = getDistanceMatrix(columns, seqFrags, maxPairsToConsider);
@@ -810,18 +794,12 @@ stList *makeAlignment(stList *seqFrags, int64_t spanningTrees, int64_t maxPairsT
                 assert(seq != otherSeq);
                 stIntTuple *pairToAlign = makePairToAlign(seq, otherSeq);
                 if (stSortedSet_search(chosenPairsOfSequencesToAlign, pairToAlign) == NULL) {
-                    stList_append(pairwiseDistances, stIntTuple_construct3(1000000*addMultipleAlignedPairs(seq, otherSeq, seqFrags, multipleAlignedPairs, pairwiseAlignmentBandingParameters), seq, otherSeq));
+                    stList_append(seqPairSimilarityScores, stIntTuple_construct3(addMultipleAlignedPairs(seq, otherSeq, seqFrags, multipleAlignedPairs, pairwiseAlignmentBandingParameters), seq, otherSeq));
                     stSortedSet_insert(chosenPairsOfSequencesToAlign, pairToAlign);
                 } else {
                     stIntTuple_destruct(pairToAlign);
                 }
             }
-        }
-        if (!checkConsistency) {
-            while (stList_length(discardedMultipleAlignedPairs) > 0) {
-                stList_append(multipleAlignedPairs, stList_pop(discardedMultipleAlignedPairs)); //Add back the filtered pairs, which may be next set of alignments gathered.
-            }
-            checkConsistency = 1;
         }
         free(distanceCounts);
     }

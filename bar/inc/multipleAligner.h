@@ -43,12 +43,38 @@ stList *makeAlignment(stList *seqFrags,
         int64_t spanningTrees, int64_t maxPairsToConsider, float gapGamma,
         PairwiseAlignmentParameters *pairwiseAlignmentBandingParameters);
 
-
 stList *makeAlignmentUsingAllPairs(stList *seqFrags, float gapGamma,
         PairwiseAlignmentParameters *pairwiseAlignmentBandingParameters);
 
 SeqFrag *seqFrag_construct(const char *seq, bool missingLeftEnd, bool missingRightEnd);
 
 void seqFrag_destruct(SeqFrag *seqFrag);
+
+/*
+ * Declarations for functions tested by unit-tests, but probably not really useful for stuff outside of this module.
+ */
+
+stSet *makeColumns(stList *seqFrags);
+
+stList *makeAllPairwiseAlignments(stList *seqs, PairwiseAlignmentParameters *pairwiseAlignmentBandingParameters, stList **seqPairSimilarityScores);
+
+stHash *makeAlignmentWeightAdjacencyLists(stSet *columns, stList *multipleAlignedPairs);
+
+stSortedSet *makeOrderedSetOfAlignmentWeights(stHash *alignmentWeightAdjLists);
+
+int64_t *getDistanceMatrix(stSet *columns, stList *seqs, int64_t maxPairsToConsider);
+
+double subsPerSite(int64_t seq1, int64_t seq2, int64_t *distanceCounts, int64_t seqNo);
+
+stSet *getMultipleSequenceAlignment(stList *seqs, stList *multipleAlignedPairs, double gapGamma);
+
+stList *makeColumnSequences(stList *seqFrags, stSet *columns);
+
+stSet *getMultipleSequenceAlignmentProgressive(stList *seqFrags, stList *multipleAlignedPairs, double gapGamma, stList *seqPairSimilarityScores);
+
+stList *pairwiseAlignColumns(stList *seqXColumns, stList *seqYColumns, stHash *alignmentWeightAdjLists, stSet *columns,
+        stSortedSet *alignmentWeightsOrderedByWeight);
+
+stList *filterMultipleAlignedPairs(stSet *columns, stList *multipleAlignedPairs);
 
 #endif /* ALIGNER_H_ */

@@ -44,8 +44,6 @@ static void setup() {
     stList_append(littleSeqFrags, seqFrag_construct(seq4, 1, 0));
 }
 
-stSet *makeColumns(stList *seqFrags);
-
 static void test_makeColumns(CuTest *testCase) {
     setup();
     stSet *columns = makeColumns(littleSeqFrags);
@@ -119,6 +117,50 @@ static void test_multipleAlignerAllPairsRandom(CuTest *testCase) {
     }
 }
 
+static void test_pairwiseAlignColumns(CuTest *testCase) {
+    for (int64_t test = 0; test < 100; test++) {
+        setup();
+        stList *seqFrags = getRandomSeqFrags(2, 100);
+        stSet *columns = makeColumns(seqFrags);
+        stList *seqPairSimilarityScores;
+        stList *multipleAlignedPairs = makeAllPairwiseAlignments(seqFrags, pabp, &seqPairSimilarityScores);
+        stList *columnSequences = makeColumnSequences(seqFrags, columns);
+        stHash *alignmentWeightAdjLists = makeAlignmentWeightAdjacencyLists(columns, multipleAlignedPairs);
+        stSortedSet *alignmentWeightsOrderedByWeight = makeOrderedSetOfAlignmentWeights(alignmentWeightAdjLists);
+        stList_destruct(pairwiseAlignColumns(stList_get(columnSequences, 0), stList_get(columnSequences, 1),
+                            alignmentWeightAdjLists, columns, alignmentWeightsOrderedByWeight));
+        //Check the alignment
+        multipleAlignedPairs = filterMultipleAlignedPairs(columns, multipleAlignedPairs);
+        checkAlignment(testCase, seqFrags, multipleAlignedPairs);
+        //Clean up
+        stSortedSet_destruct(alignmentWeightsOrderedByWeight);
+        stHash_destruct(alignmentWeightAdjLists);
+        stList_destruct(columnSequences);
+        stList_destruct(seqFrags);
+        stList_destruct(multipleAlignedPairs);
+        stList_destruct(seqPairSimilarityScores);
+        teardown();
+    }
+}
+
+static void test_getMultipleSequenceAlignmentProgressive(CuTest *testCase) {
+    for (int64_t test = 0; test < 100; test++) {
+        setup();
+        stList *seqFrags = getRandomSeqFrags(10, 100);
+        stList *seqPairSimilarityScores;
+        stList *multipleAlignedPairs = makeAllPairwiseAlignments(seqFrags, pabp, &seqPairSimilarityScores);
+        stSet *columns = getMultipleSequenceAlignmentProgressive(seqFrags, multipleAlignedPairs, 0.0, seqPairSimilarityScores);
+        //Check the alignment
+        multipleAlignedPairs = filterMultipleAlignedPairs(columns, multipleAlignedPairs);
+        checkAlignment(testCase, seqFrags, multipleAlignedPairs);
+        //Clean up
+        stSet_destruct(columns);
+        stList_destruct(seqFrags);
+        stList_destruct(multipleAlignedPairs);
+        teardown();
+    }
+}
+
 stList *getReferencePairwiseAlignments(stList *seqs);
 static void test_getReferencePairwiseAlignments(CuTest *testCase) {
     setup();
@@ -131,14 +173,11 @@ static void test_getReferencePairwiseAlignments(CuTest *testCase) {
     teardown();
 }
 
-stList *makeAllPairwiseAlignments(stList *seqs, PairwiseAlignmentParameters *pairwiseAlignmentBandingParameters);
-int64_t *getDistanceMatrix(stSet *columns, stList *seqs, int64_t maxPairsToConsider);
-stSet *getMultipleSequenceAlignment(stList *seqs, stList *multipleAlignedPairs, double gapGamma, bool checkConsistency);
-double subsPerSite(int64_t seq1, int64_t seq2, int64_t *distanceCounts, int64_t seqNo);
 static void test_getDistanceMatrix(CuTest *testCase) {
     setup();
-    stList *multipleAlignedPairs = makeAllPairwiseAlignments(littleSeqFrags, pabp);
-    stSet *columns = getMultipleSequenceAlignment(littleSeqFrags, multipleAlignedPairs, 0.2, 1);
+    stList *seqPairSimilarityScores;
+    stList *multipleAlignedPairs = makeAllPairwiseAlignments(littleSeqFrags, pabp, &seqPairSimilarityScores);
+    stSet *columns = getMultipleSequenceAlignment(littleSeqFrags, multipleAlignedPairs, 0.2);
     stSetIterator *setIt = stSet_getIterator(columns);
     Column *c1;
     while ((c1 = stSet_getNext(setIt)) != NULL) {
@@ -190,6 +229,8 @@ CuSuite* multipleAlignerTestSuite(void) {
     CuSuite* suite = CuSuiteNew();
     SUITE_ADD_TEST(suite, test_getDistanceMatrix);
     SUITE_ADD_TEST(suite, test_getReferencePairwiseAlignments);
+    SUITE_ADD_TEST(suite, test_pairwiseAlignColumns);
+    SUITE_ADD_TEST(suite, test_getMultipleSequenceAlignmentProgressive);
     SUITE_ADD_TEST(suite, test_makeColumns);
     SUITE_ADD_TEST(suite, test_makeAlignmentUsingAllPairs);
     SUITE_ADD_TEST(suite, test_multipleAlignerAllPairsRandom);
