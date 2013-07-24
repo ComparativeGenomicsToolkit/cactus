@@ -144,11 +144,12 @@ static void test_pairwiseAlignColumns(CuTest *testCase) {
 }
 
 static void test_getMultipleSequenceAlignmentProgressive(CuTest *testCase) {
-    for (int64_t test = 0; test < 100; test++) {
+    for (int64_t test = 0; test < 10; test++) {
         setup();
         stList *seqFrags = getRandomSeqFrags(10, 100);
         stList *seqPairSimilarityScores;
         stList *multipleAlignedPairs = makeAllPairwiseAlignments(seqFrags, pabp, &seqPairSimilarityScores);
+        //stSet *columns = getMultipleSequenceAlignment(seqFrags, multipleAlignedPairs, 0.0);
         stSet *columns = getMultipleSequenceAlignmentProgressive(seqFrags, multipleAlignedPairs, 0.0, seqPairSimilarityScores);
         //Check the alignment
         multipleAlignedPairs = filterMultipleAlignedPairs(columns, multipleAlignedPairs);

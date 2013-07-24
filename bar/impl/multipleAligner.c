@@ -316,19 +316,22 @@ static ColumnPair *columnPair_construct(int64_t xIndex, int64_t yIndex, int64_t 
     cP->score = score;
     cP->pPair = pPair;
     cP->aW = aW;
-    cP->refCount = 0;
+    cP->refCount = 1;
+    if(pPair != NULL) {
+        pPair->refCount++;
+    }
     return cP;
 }
 
 static void columnPair_destruct(ColumnPair *cP) {
-    if (cP->pPair != NULL) {
-        cP->pPair->refCount--;
-        assert(cP->pPair->refCount >= 0);
-        if (cP->pPair->refCount == 0) {
+    cP->refCount--;
+    assert(cP->refCount >= 0);
+    if(cP->refCount == 0) {
+        if (cP->pPair != NULL) {
             columnPair_destruct(cP->pPair);
         }
+        free(cP);
     }
-    free(cP);
 }
 
 static int columnPair_cmpByYIndex(const void *c1, const void *c2) {
@@ -337,8 +340,29 @@ static int columnPair_cmpByYIndex(const void *c1, const void *c2) {
     return i > j ? 1 : (i < j ? -1 : 0);
 }
 
+int64_t getTotalWeights(stList *seqColumns, stHash *alignmentWeightAdjLists) {
+    int64_t totalWeights = 0;
+    for(int64_t i=0; i<stList_length(seqColumns); i++) {
+        stSortedSet *aWs = stHash_search(alignmentWeightAdjLists, stList_get(seqColumns, i));
+        if(aWs != NULL) {
+            totalWeights += stSortedSet_size(aWs);
+        }
+    }
+    return totalWeights;
+}
+
 stList *pairwiseAlignColumns(stList *seqXColumns, stList *seqYColumns, stHash *alignmentWeightAdjLists, stSet *columns,
         stSortedSet *alignmentWeightsOrderedByWeight, double gapGamma) {
+    //Switch seqX and seqY if seqX has more alignment weights associated with it. This is critical to ensure linear scaling,
+    //else worse case performance is quadratic
+    int64_t totalXWeights = getTotalWeights(seqXColumns, alignmentWeightAdjLists);
+    int64_t totalYWeights = getTotalWeights(seqYColumns, alignmentWeightAdjLists);
+    if(totalXWeights > totalYWeights) {
+        stList *l = seqYColumns;
+        seqYColumns = seqXColumns;
+        seqXColumns = l;
+    }
+
     //Use indices of columns in list, have index --> column (obviously), but need to build column --> index.
     stHash *columnToIndexHash = stHash_construct2(NULL, (void(*)(void *)) stIntTuple_destruct);
     for (int64_t i = 0; i < stList_length(seqYColumns); i++) {
@@ -350,72 +374,97 @@ stList *pairwiseAlignColumns(stList *seqXColumns, stList *seqYColumns, stHash *a
     //Add in buffering first and last pairs
     ColumnPair *minPair = columnPair_construct(-1, -1, 0, NULL, NULL);
     stSortedSet_insert(bestScoringAlignments, minPair);
-    stSortedSet_insert(bestScoringAlignments, columnPair_construct(INT64_MAX, INT64_MAX, INT64_MAX, minPair, NULL));
+    stSortedSet_insert(bestScoringAlignments, columnPair_construct(stList_length(seqXColumns), stList_length(seqYColumns), INT64_MAX, minPair, NULL));
 
     //For each column in X.
     for (int64_t i = 0; i < stList_length(seqXColumns); i++) {
         Column *cX = stList_get(seqXColumns, i);
         //For each weight involving column X.
         stSortedSet *aWsX = stHash_search(alignmentWeightAdjLists, cX);
-        stSortedSetIterator *aWXIt = stSortedSet_getIterator(aWsX);
-        AlignmentWeight *aWX;
-        while ((aWX = stSortedSet_getNext(aWXIt)) != NULL) {
-            //Locate index of other column
-            ColumnPair cP;
-            cP.yIndex = stIntTuple_get(stHash_search(columnToIndexHash, aWX->column), 0);
-            //Search for highest scoring point up to but less than that index.
-            ColumnPair *cPP = stSortedSet_searchLessThan(bestScoringAlignments, &cP);
-            assert(cPP != NULL);
-            assert(cPP->xIndex - cP->xIndex > 0);
-            assert(cPP->yIndex - cP->yIndex > 0);
-            //Add pair if exceeds the gap gamma.
-            if(aWX->avgWeight >= gapGamma) {
-                //New score
-                //int64_t totalGapsCreated = i - cPP->xIndex
-                cP.score = cPP->score + aWX->avgWeight * aWX->numberOfWeights;
-                //Find point that is equal or to the right of j
-                ColumnPair *cPN = stSortedSet_searchGreaterThanOrEqual(bestScoringAlignments, &cP);
+        if(aWsX != NULL) {
+            //We first get all the valid new column pairs.
+            stList *l = stList_construct();
+            stSortedSetIterator *aWXIt = stSortedSet_getIterator(aWsX);
+            AlignmentWeight *aWX;
+            while ((aWX = stSortedSet_getPrevious(aWXIt)) != NULL) {
+                //Add pair if exceeds the gap gamma.
+                if(aWX->avgWeight >= gapGamma) {
+                    //Locate index of other column
+                    ColumnPair cP;
+                    //The column weight may point to a column not in the Y column sequence, if so ignore.
+                    if(stHash_search(columnToIndexHash, aWX->column) != NULL) {
+                        cP.yIndex = stIntTuple_get(stHash_search(columnToIndexHash, aWX->column), 0);
+                        //Search for highest scoring point up to but less than that index.
+                        ColumnPair *cPP = stSortedSet_searchLessThan(bestScoringAlignments, &cP);
+                        assert(cPP != NULL);
+                        assert(i - cPP->xIndex > 0);
+                        assert(cP.yIndex - cPP->yIndex > 0);
+                        stList_append(l, columnPair_construct(i, cP.yIndex, /*new score */ cPP->score + aWX->avgWeight * aWX->numberOfWeights, cPP, aWX)); //Make first to increase ref-count of previous position.
+                    }
+                }
+            }
+            stSortedSet_destructIterator(aWXIt);
+            //We now work through the new column pairs, from right-to-left along Y.
+            stList_sort(l, columnPair_cmpByYIndex);
+            while(stList_length(l) > 0) {
+                ColumnPair *cP = stList_pop(l);
+                //Find point that is equal or to the right of cP->yIndex
+                ColumnPair *cPN = stSortedSet_searchGreaterThanOrEqual(bestScoringAlignments, cP);
                 assert(cPN != NULL);
-                if (cP.score >= cPN->score || cPN->yIndex > cP.yIndex) {
+                if (cP->score >= cPN->score || cPN->yIndex > cP->yIndex) {
                     //Remove points that overlap or are to the right that score more poorly and clean them up.
-                    while (cP.score >= cPN->score) {
+                    while (cP->score >= cPN->score) {
                         ColumnPair *cPNN = stSortedSet_searchGreaterThan(bestScoringAlignments, cPN);
                         assert(cPNN != NULL);
                         stSortedSet_remove(bestScoringAlignments, cPN);
                         columnPair_destruct(cPN);
                         cPN = cPNN;
                     }
-                    cPP->refCount++; //This is for memory management
                     //Insert new point.
-                    stSortedSet_insert(bestScoringAlignments, columnPair_construct(i, cP.yIndex, cP.score, cPP, aWX));
+                    assert(stSortedSet_search(bestScoringAlignments, cP) == NULL);
+                    stSortedSet_insert(bestScoringAlignments, cP);
+                }
+                else { //The new cP is redundant.
+                    columnPair_destruct(cP);
                 }
             }
+            stList_destruct(l);
         }
     }
 
-    //Now traceback from highest scoring point to generate the alignment
+    //Link the right-most Y pair to the next-right most.
     ColumnPair *maxPair = stSortedSet_getLast(bestScoringAlignments);
     assert(maxPair != NULL);
+    stSortedSet_remove(bestScoringAlignments, maxPair);
+    assert(stSortedSet_getLast(bestScoringAlignments) != NULL);
+    maxPair->pPair = stSortedSet_getLast(bestScoringAlignments);
+    maxPair->pPair->refCount++;
+
+    //Now traceback from highest scoring point to generate the alignment
+    ColumnPair *cP = maxPair;
     stList *alignment = stList_construct();
     //For each alignment pair
     int64_t merges = 0;
     while (1) {
+        assert(cP->pPair != NULL);
         //Add any unaligned Y columns
-        while (--maxPair->yIndex > maxPair->pPair->yIndex) {
-            stList_append(alignment, stList_get(seqYColumns, maxPair->yIndex));
+        assert(cP->yIndex > cP->pPair->yIndex);
+        while (--cP->yIndex > cP->pPair->yIndex) {
+            stList_append(alignment, stList_get(seqYColumns, cP->yIndex));
         }
         //Add any unaligned X columns
-        while (--maxPair->xIndex > maxPair->pPair->xIndex) {
-            stList_append(alignment, stList_get(seqXColumns, maxPair->xIndex));
+        assert(cP->xIndex > cP->pPair->xIndex);
+        while (--cP->xIndex > cP->pPair->xIndex) {
+            stList_append(alignment, stList_get(seqXColumns, cP->xIndex));
         }
         //Now move to previous pair
-        maxPair = maxPair->pPair;
+        cP = cP->pPair;
         //If this is the final pair we're done
-        if (maxPair == minPair) {
+        if (cP == minPair) {
             break;
         }
         //Merge two columns.
-        Column *mergedColumn = mergeColumns(maxPair->aW, columns, alignmentWeightAdjLists, alignmentWeightsOrderedByWeight);
+        Column *mergedColumn = mergeColumns(cP->aW, columns, alignmentWeightAdjLists, alignmentWeightsOrderedByWeight);
         merges++;
         //Add to array.
         stList_append(alignment, mergedColumn);
@@ -426,6 +475,7 @@ stList *pairwiseAlignColumns(stList *seqXColumns, stList *seqYColumns, stHash *a
 
     //Cleanup
     stSortedSet_destruct(bestScoringAlignments);
+    columnPair_destruct(minPair);
     stHash_destruct(columnToIndexHash);
     stList_destruct(seqXColumns);
     stList_destruct(seqYColumns);
@@ -437,13 +487,16 @@ stList *makeColumnSequences(stList *seqFrags, stSet *columns) {
     /*
      * Converts each seqFrag into a sequence of columns.
      */
-    stList *columnSequences = stList_construct3(0, NULL);
+    stList *columnSequences = stList_construct();
     for (int64_t seq = 0; seq < stList_length(seqFrags); seq++) {
         int64_t seqLength = ((SeqFrag *) (stList_get(seqFrags, seq)))->length;
+        assert(seqLength >= 0);
         stList *columnSequence = stList_construct();
         for (int64_t pos = 0; pos < seqLength; pos++) {
+            assert(getColumn(columns, seq, pos) != NULL);
             stList_append(columnSequence, getColumn(columns, seq, pos));
         }
+        stList_append(columnSequences, columnSequence);
     }
     return columnSequences;
 }
@@ -468,19 +521,26 @@ stSet *getMultipleSequenceAlignmentProgressive(stList *seqFrags, stList *multipl
 
         //if not same column then align and update hash from seq indices to column-sequences
         int64_t seqX = stIntTuple_get(seqPair, 1);
-        int64_t seqY = stIntTuple_get(seqPair, 1);
-        if (seqX != seqY) {
-            stList *seqColumns = pairwiseAlignColumns(stList_get(columnSequences, seqX), stList_get(columnSequences, seqY),
-                    alignmentWeightAdjLists, columns, alignmentWeightsOrderedByWeight, gapGamma);
-            stList_set(columnSequences, seqX, seqColumns);
-            stList_set(columnSequences, seqY, seqColumns);
+        int64_t seqY = stIntTuple_get(seqPair, 2);
+        stList *seqXColumns = stList_get(columnSequences, seqX);
+        stList *seqYColumns = stList_get(columnSequences, seqY);
+        if (seqXColumns != seqYColumns) {
+            stList *seqColumns = pairwiseAlignColumns(seqXColumns, seqYColumns, alignmentWeightAdjLists, columns, alignmentWeightsOrderedByWeight, gapGamma);
+            for(int64_t i=0; i<stList_length(columnSequences); i++) { //Replace instances of seqXColumns and seqYColumns with seqColumns
+                stList *j = stList_get(columnSequences, i);
+                if(j == seqXColumns || j == seqYColumns) {
+                    stList_set(columnSequences, i, seqColumns);
+                }
+            }
         }
     }
 
     //Clean up
     stSortedSet_destruct(alignmentWeightsOrderedByWeight);
     stHash_destruct(alignmentWeightAdjLists);
-    stList_destruct(stList_peek(columnSequences));
+    if(stList_length(columnSequences) > 0) {
+        stList_destruct(stList_peek(columnSequences)); //This is because we have repeated copies of the same column-sequence in the list
+    }
     stList_destruct(columnSequences);
     //Return final set of columns.
     return columns;
