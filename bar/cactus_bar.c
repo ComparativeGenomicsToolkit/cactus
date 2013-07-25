@@ -268,7 +268,7 @@ int main(int argc, char *argv[]) {
         while ((end = stSortedSet_getNext(it)) != NULL) {
             fprintf(stdout, "%s\t%" PRIi64 "\t%" PRIi64 "\n", cactusMisc_nameToStringStatic(end_getName(end)), end_getInstanceNumber(end), getTotalAdjacencyLength(end));
         }
-        //return 0; //avoid cleanup costs
+        return 0; //avoid cleanup costs
         stSortedSet_destructIterator(it);
         stSortedSet_destruct(endsToAlignSeparately);
     } else if (endAlignmentToPrecompute != NULL) {
@@ -293,7 +293,7 @@ int main(int argc, char *argv[]) {
         writeEndAlignmentToDisk(end, endAlignment, fileHandle);
         //Cleanup
         fclose(fileHandle);
-        //return 0; //avoid cleanup costs
+        return 0; //avoid cleanup costs
         stList_destruct(l);
         stSortedSet_destruct(endAlignment);
         st_logInfo("Finished precomputing an end alignment\n");
@@ -346,8 +346,9 @@ int main(int argc, char *argv[]) {
          * Write and close the cactusdisk.
          */
         cactusDisk_write(cactusDisk);
-        return 0; //Exit without clean up is quicker, enable cleanup when doing memory leak detection.
+        //return 0; //Exit without clean up is quicker, enable cleanup when doing memory leak detection.
     }
+
 
     ///////////////////////////////////////////////////////////////////////////
     // Cleanup

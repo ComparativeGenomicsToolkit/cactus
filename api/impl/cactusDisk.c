@@ -666,6 +666,9 @@ void cactusDisk_destruct(CactusDisk *cactusDisk) {
 
     stCache_destruct(cactusDisk->cache); //Get rid of the cache
     stCache_destruct(cactusDisk->stringCache);
+
+    stList_destruct(cactusDisk->updateRequests);
+
     free(cactusDisk);
 }
 

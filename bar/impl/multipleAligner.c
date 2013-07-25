@@ -474,7 +474,10 @@ stList *pairwiseAlignColumns(stList *seqXColumns, stList *seqYColumns, stHash *a
     stList_reverse(alignment);
 
     //Cleanup
+    assert(maxPair->refCount == 1);
+    columnPair_destruct(maxPair);
     stSortedSet_destruct(bestScoringAlignments);
+    assert(minPair->refCount == 1);
     columnPair_destruct(minPair);
     stHash_destruct(columnToIndexHash);
     stList_destruct(seqXColumns);
@@ -542,6 +545,7 @@ stSet *getMultipleSequenceAlignmentProgressive(stList *seqFrags, stList *multipl
         stList_destruct(stList_peek(columnSequences)); //This is because we have repeated copies of the same column-sequence in the list
     }
     stList_destruct(columnSequences);
+    stList_destruct(seqPairSimilarityScores);
     //Return final set of columns.
     return columns;
 }
@@ -813,7 +817,7 @@ int64_t getNextBestPair(int64_t seq1, int64_t *distanceCounts, int64_t seqNo, st
     return maxGainSeq;
 }
 
-stList *makeAlignment(stList *seqFrags, int64_t spanningTrees, int64_t maxPairsToConsider, float gapGamma,
+stList *makeAlignment(stList *seqFrags, int64_t spanningTrees, int64_t maxNumberOfSequencesBeforeSwitchingToFast, int64_t maxPairsToConsider, float gapGamma,
         PairwiseAlignmentParameters *pairwiseAlignmentBandingParameters) {
     /*
      * Computes an MSA, making up to "spanningTrees"*no of seqs pairwise alignments.
