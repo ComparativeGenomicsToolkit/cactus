@@ -817,7 +817,7 @@ int64_t getNextBestPair(int64_t seq1, int64_t *distanceCounts, int64_t seqNo, st
     return maxGainSeq;
 }
 
-stList *makeAlignment(stList *seqFrags, int64_t spanningTrees, int64_t maxNumberOfSequencesBeforeSwitchingToFast, int64_t maxPairsToConsider, float gapGamma,
+stList *makeAlignment(stList *seqFrags, int64_t spanningTrees, int64_t maxPairsToConsider, float gapGamma,
         PairwiseAlignmentParameters *pairwiseAlignmentBandingParameters) {
     /*
      * Computes an MSA, making up to "spanningTrees"*no of seqs pairwise alignments.
