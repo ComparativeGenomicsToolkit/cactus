@@ -126,21 +126,25 @@ static void testReadAndWriteEndAlignments(CuTest *testCase) {
         End *end = ends[endIndex];
         stSortedSet *endAlignment = makeEndAlignment(end, 5, maxLength, 50, 0.5, pairwiseParameters);
         char *temporaryEndAlignmentFile = "temporaryEndAlignmentFile.end";
-        if(stFile_exists(temporaryEndAlignmentFile)) {
-            CuAssertTrue(testCase, 0);
-        }
         FILE *fileHandle = fopen(temporaryEndAlignmentFile, "w");
         writeEndAlignmentToDisk(end, endAlignment, fileHandle);
+        writeEndAlignmentToDisk(end, endAlignment, fileHandle); //Write twice to show we can serialise.
         fclose(fileHandle);
         fileHandle = fopen(temporaryEndAlignmentFile, "r");
         End *end2;
         stSortedSet *endAlignment2 = loadEndAlignmentFromDisk(flower, fileHandle, &end2);
-        fclose(fileHandle);
         CuAssertPtrEquals(testCase, end, end2);
-        stFile_rmrf(temporaryEndAlignmentFile);
+        stSortedSet *endAlignment3 = loadEndAlignmentFromDisk(flower, fileHandle, &end2);
+        CuAssertPtrEquals(testCase, end, end2);
+        CuAssertTrue(testCase, loadEndAlignmentFromDisk(flower, fileHandle, &end2) == NULL);
+        CuAssertTrue(testCase, end2 == NULL);
+        fclose(fileHandle);
         CuAssertTrue(testCase, stSortedSet_equals(endAlignment, endAlignment2));
+        CuAssertTrue(testCase, stSortedSet_equals(endAlignment, endAlignment3));
         stSortedSet_destruct(endAlignment);
         stSortedSet_destruct(endAlignment2);
+        stSortedSet_destruct(endAlignment3);
+        stFile_rmrf(temporaryEndAlignmentFile);
     }
     teardown();
 }

@@ -23,7 +23,7 @@ void flowerWriter_add(FlowerWriter *flowerWriter, Name flowerName, int64_t flowe
 /*
  * Decodes a list of flower names and returns them from the filehandle.
  */
-stList *flowerWriter_parseFlowerNames(FILE *fileHandle);
+stList *flowerWriter_parseNames(FILE *fileHandle);
 
 /*
  *  As parseFlowers, but reads the list from stdin.

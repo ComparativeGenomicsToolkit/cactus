@@ -142,7 +142,7 @@ static void addName(stList *flowerNamesList, Name name) {
     stList_append(flowerNamesList, iA);
 }
 
-stList *flowerWriter_parseFlowerNames(FILE *fileHandle) {
+stList *flowerWriter_parseNames(FILE *fileHandle) {
     int64_t flowerArgumentNumber;
     int64_t j = fscanf(fileHandle, "%" PRIi64 "", &flowerArgumentNumber);
     (void) j;
@@ -159,7 +159,7 @@ stList *flowerWriter_parseFlowerNames(FILE *fileHandle) {
 }
 
 stList *flowerWriter_parseFlowersFromStdin(CactusDisk *cactusDisk) {
-    stList *flowerNamesList = flowerWriter_parseFlowerNames(stdin);
+    stList *flowerNamesList = flowerWriter_parseNames(stdin);
     stList *flowers = cactusDisk_getFlowers(cactusDisk, flowerNamesList);
     stList_destruct(flowerNamesList);
     return flowers;

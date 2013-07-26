@@ -106,7 +106,7 @@ stSortedSet *makeEndAlignment(End *end, int64_t spanningTrees, int64_t maxSequen
 }
 
 void writeEndAlignmentToDisk(End *end, stSortedSet *endAlignment, FILE *fileHandle) {
-    fprintf(fileHandle, "%s\n", cactusMisc_nameToStringStatic(end_getName(end)));
+    fprintf(fileHandle, "%s %" PRIi64 "\n", cactusMisc_nameToStringStatic(end_getName(end)), stSortedSet_size(endAlignment));
     stSortedSetIterator *it = stSortedSet_getIterator(endAlignment);
     AlignedPair *aP;
     while((aP = stSortedSet_getNext(it)) != NULL) {
@@ -122,19 +122,36 @@ stSortedSet *loadEndAlignmentFromDisk(Flower *flower, FILE *fileHandle, End **en
                 stSortedSet_construct3((int (*)(const void *, const void *))alignedPair_cmpFn,
                 (void (*)(void *))alignedPair_destruct);
     char *line = stFile_getLineFromFile(fileHandle);
-    *end = flower_getEnd(flower, cactusMisc_stringToName(line));
-    if(end == NULL) {
-        st_errAbort("Failed to get %s as an end from the given flower\n", line);
+    if(line == NULL) {
+        *end = NULL;
+        return NULL;
+    }
+    Name flowerName;
+    int64_t lineNumber;
+    int64_t i = sscanf(line, "%" PRIi64 " %" PRIi64 "", &flowerName, &lineNumber);
+    if(i != 2 || lineNumber < 0) {
+        st_errAbort("We encountered a mis-specified name in loading the first line of an end alignment from the disk: '%s'\n", line);
     }
     free(line);
-    while((line = stFile_getLineFromFile(fileHandle)) != NULL) {
+    *end = flower_getEnd(flower, flowerName);
+    if(*end == NULL) {
+        st_errAbort("We encountered an end name that is not in the database: '%s'\n", line);
+    }
+    for(int64_t i=0; i<lineNumber; i++) {
+        line = stFile_getLineFromFile(fileHandle);
+        if(line == NULL) {
+            st_errAbort("Got a null line when parsing an end alignment\n");
+        }
         int64_t sI1, sI2;
         int64_t p1, st1, p2, st2, score;
         int64_t i = sscanf(line, "%" PRIi64 " %" PRIi64 " %" PRIi64 " %" PRIi64 " %" PRIi64 " %" PRIi64 " %" PRIi64 "", &sI1, &p1, &st1, &sI2, &p2, &st2, &score);
         (void)i;
-        assert(i == 7);
+        if(i != 7) {
+            st_errAbort("We encountered a mis-specified name in loading an end alignment from the disk: '%s'\n", line);
+        }
         stSortedSet_insert(endAlignment, alignedPair_construct(sI1, p1, st1, sI2, p2, st2, score));
         free(line);
     }
     return endAlignment;
 }
+

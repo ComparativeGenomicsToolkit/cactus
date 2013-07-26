@@ -259,7 +259,7 @@ def runCactusBar(cactusDiskDatabaseString, flowerNames, logLevel=None,
                          maximumNumberOfSequencesBeforeSwitchingToFast=None,
                          calculateWhichEndsToComputeSeparately=None,
                          largeEndSize=None,
-                         alignmentToPrecompute=None,
+                         endAlignmentsToPrecomputeOutputFile=None,
                          precomputedAlignments=None):
     """Runs cactus base aligner.
     """
@@ -281,7 +281,7 @@ def runCactusBar(cactusDiskDatabaseString, flowerNames, logLevel=None,
     maximumNumberOfSequencesBeforeSwitchingToFast=nameValue("maximumNumberOfSequencesBeforeSwitchingToFast", maximumNumberOfSequencesBeforeSwitchingToFast, int)
     calculateWhichEndsToComputeSeparately=nameValue("calculateWhichEndsToComputeSeparately", calculateWhichEndsToComputeSeparately, bool)
     largeEndSize=nameValue("largeEndSize", largeEndSize, int)
-    alignmentToPrecompute=nameValue("alignmentToPrecompute", alignmentToPrecompute, str, quotes=True)
+    endAlignmentsToPrecomputeOutputFile=nameValue("endAlignmentsToPrecomputeOutputFile", endAlignmentsToPrecomputeOutputFile, str)
     precomputedAlignments=nameValue("precomputedAlignments", precomputedAlignments, str, quotes=True)
     
     masterMessages = popenCatch("cactus_bar --cactusDisk '%s' --logLevel %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s" % 
@@ -290,7 +290,7 @@ def runCactusBar(cactusDiskDatabaseString, flowerNames, logLevel=None,
             constraintDiagonalTrim, minimumBlockDegree, alignAmbiguityCharacters, pruneOutStubAlignments,
             requiredIngroupFraction, requiredOutgroupFraction, requiredAllFraction, diagonalExpansion,
             maximumNumberOfSequencesBeforeSwitchingToFast, calculateWhichEndsToComputeSeparately,
-            largeEndSize, alignmentToPrecompute, precomputedAlignments), stdinString=flowerNames)
+            largeEndSize, endAlignmentsToPrecomputeOutputFile, precomputedAlignments), stdinString=flowerNames)
     logger.info("Ran cactus_bar okay")
     return [ i for i in masterMessages.split("\n") if i != '' ]
 

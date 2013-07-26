@@ -52,7 +52,7 @@ void usage() {
 
     fprintf(stderr, "-D --precomputedAlignments : Precomputed end alignments.\n");
 
-    fprintf(stderr, "-E --alignmentToPrecompute : End alignment to precompute.\n");
+    fprintf(stderr, "-E --endAlignmentsToPrecomputeOutputFile [fileName] : If this output file is provided then bar will read stdin first to parse the flower, then to parse the names of the end alignments to precompute. The results will be placed in this file.\n");
 
     fprintf(stderr,
             "-F --maximumNumberOfSequencesBeforeSwitchingToFast : The maximum number of sequences to align before switching to fast alignment.\n");
@@ -102,7 +102,7 @@ int main(int argc, char *argv[]) {
     bool useBanding = 0;
     int64_t k;
     stList *listOfEndAlignmentFiles = NULL;
-    char *endAlignmentToPrecompute = NULL;
+    char *endAlignmentsToPrecomputeOutputFile = NULL;
     bool calculateWhichEndsToComputeSeparately = 0;
     int64_t largeEndSize = 1000000;
     int64_t chainLengthForBigFlower = 1000000;
@@ -130,7 +130,7 @@ int main(int argc, char *argv[]) {
                         "pruneOutStubAlignments", no_argument, 0, 'y' }, {
                         "requiredIngroupFraction", required_argument, 0, 'A' }, { "requiredOutgroupFraction", required_argument, 0, 'B' },
                 { "requiredAllFraction", required_argument, 0, 'C' }, { "precomputedAlignments", required_argument, 0, 'D' }, {
-                        "alignmentToPrecompute", required_argument, 0, 'E' }, { "maximumNumberOfSequencesBeforeSwitchingToFast",
+                        "endAlignmentsToPrecomputeOutputFile", required_argument, 0, 'E' }, { "maximumNumberOfSequencesBeforeSwitchingToFast",
                         required_argument, 0, 'F' }, { "calculateWhichEndsToComputeSeparately", no_argument, 0, 'G' }, { "largeEndSize",
                         required_argument, 0, 'I' }, { 0, 0, 0, 0 } };
 
@@ -225,7 +225,7 @@ int main(int argc, char *argv[]) {
                 listOfEndAlignmentFiles = stString_split(optarg);
                 break;
             case 'E':
-                endAlignmentToPrecompute = stString_copy(optarg);
+                endAlignmentsToPrecomputeOutputFile = stString_copy(optarg);
                 break;
             case 'F':
                 i = sscanf(optarg, "%" PRIi64 "", &maximumNumberOfSequencesBeforeSwitchingToFast);
@@ -256,8 +256,8 @@ int main(int argc, char *argv[]) {
     /*
      * For each flower.
      */
-    stList *flowers = flowerWriter_parseFlowersFromStdin(cactusDisk);
     if (calculateWhichEndsToComputeSeparately) {
+        stList *flowers = flowerWriter_parseFlowersFromStdin(cactusDisk);
         if (stList_length(flowers) != 1) {
             st_errAbort("We are breaking up a flower's end alignments for precomputation but we have %" PRIi64 " flowers.\n", stList_length(flowers));
         }
@@ -271,36 +271,32 @@ int main(int argc, char *argv[]) {
         return 0; //avoid cleanup costs
         stSortedSet_destructIterator(it);
         stSortedSet_destruct(endsToAlignSeparately);
-    } else if (endAlignmentToPrecompute != NULL) {
+    } else if (endAlignmentsToPrecomputeOutputFile != NULL) {
         /*
          * In this case we will align a single end and save the alignment in a file.
          */
-        if (stList_length(flowers) != 1) {
-            st_errAbort("We have an alignment to precompute but %" PRIi64 " flowers.\n", stList_length(flowers));
+        stList *names = flowerWriter_parseNames(stdin);
+        Flower *flower = cactusDisk_getFlower(cactusDisk, *((Name *)stList_get(names, 0)));
+        FILE *fileHandle = fopen(endAlignmentsToPrecomputeOutputFile, "w");
+        for(int64_t i=1; i<stList_length(names); i++) {
+            End *end = flower_getEnd(flower, *((Name *)stList_get(names, i)));
+            if (end == NULL) {
+                st_errAbort("The end %" PRIi64 " was not found in the flower\n", *((Name *)stList_get(names, i)));
+            }
+            stSortedSet *endAlignment = makeEndAlignment(end, spanningTrees, maximumLength, maximumNumberOfSequencesBeforeSwitchingToFast,
+                            gapGamma, pairwiseAlignmentBandingParameters);
+            writeEndAlignmentToDisk(end, endAlignment, fileHandle);
+            stSortedSet_destruct(endAlignment);
         }
-        stList *l = stString_split(endAlignmentToPrecompute);
-        if (stList_length(l) != 2) {
-            st_errAbort("The alignment to precompute contains more than two arguments: %s\n", endAlignmentToPrecompute);
-        }
-        End *end = flower_getEnd(stList_get(flowers, 0), cactusMisc_stringToName(stList_get(l, 0)));
-        if (end == NULL) {
-            st_errAbort("The end %s was not found in the flower\n", stList_get(l, 0));
-        }
-        cactusDisk_preCacheStrings(cactusDisk, flowers);
-        stSortedSet *endAlignment = makeEndAlignment(end, spanningTrees, maximumLength, maximumNumberOfSequencesBeforeSwitchingToFast,
-                gapGamma, pairwiseAlignmentBandingParameters);
-        FILE *fileHandle = fopen(stList_get(l, 1), "w");
-        writeEndAlignmentToDisk(end, endAlignment, fileHandle);
-        //Cleanup
         fclose(fileHandle);
         return 0; //avoid cleanup costs
-        stList_destruct(l);
-        stSortedSet_destruct(endAlignment);
-        st_logInfo("Finished precomputing an end alignment\n");
+        stList_destruct(names);
+        st_logInfo("Finished precomputing end alignments\n");
     } else {
         /*
          * Compute complete flower alignments, possibly loading some precomputed alignments.
          */
+        stList *flowers = flowerWriter_parseFlowersFromStdin(cactusDisk);
         if (listOfEndAlignmentFiles != NULL && stList_length(flowers) != 1) {
             st_errAbort("We have precomputed alignments but %" PRIi64 " flowers to align.\n", stList_length(flowers));
         }
