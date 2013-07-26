@@ -40,7 +40,9 @@ struct _column {
  * Positions and sequence indices are zero based, scores are between 1 and 1000.
  */
 stList *makeAlignment(stList *seqFrags,
-        int64_t spanningTrees, int64_t maxPairsToConsider, float gapGamma,
+        int64_t spanningTrees, int64_t maxPairsToConsider,
+        int64_t maximumNumberOfSequencesBeforeSwitchingToFast,
+        float gapGamma,
         PairwiseAlignmentParameters *pairwiseAlignmentBandingParameters);
 
 stList *makeAlignmentUsingAllPairs(stList *seqFrags, float gapGamma,

@@ -73,10 +73,7 @@ stSortedSet *makeEndAlignment(End *end, int64_t spanningTrees, int64_t maxSequen
     end_destructInstanceIterator(it);
 
     //Convert the alignment pairs to an alignment of the caps..
-    if(stList_length(seqFrags) > maximumNumberOfSequencesBeforeSwitchingToFast && spanningTrees > 1) {
-        spanningTrees = 1;
-    }
-    stList *alignment = makeAlignment(seqFrags, spanningTrees, 100000000, gapGamma, pairwiseAlignmentBandingParameters);
+    stList *alignment = makeAlignment(seqFrags, spanningTrees, 100000000, maximumNumberOfSequencesBeforeSwitchingToFast, gapGamma, pairwiseAlignmentBandingParameters);
     stSortedSet *sortedAlignment =
             stSortedSet_construct3((int (*)(const void *, const void *))alignedPair_cmpFn,
             (void (*)(void *))alignedPair_destruct);

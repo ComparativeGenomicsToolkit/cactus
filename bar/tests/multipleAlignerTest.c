@@ -219,7 +219,7 @@ static void test_multipleAlignerRandom(CuTest *testCase) {
         for (int64_t i = 0; i < stList_length(randomSeqFrags); i++) {
             st_logInfo("Sequence to align: %s\n", stList_get(randomSeqFrags, i));
         }
-        stList *multipleAlignedPairs = makeAlignment(randomSeqFrags, spanningTrees, 10000000, 0.5, pabp);
+        stList *multipleAlignedPairs = makeAlignment(randomSeqFrags, spanningTrees, 10000000, st_randomInt(0, 10), 0.5, pabp);
         checkAlignment(testCase, randomSeqFrags, multipleAlignedPairs);
         stList_destruct(randomSeqFrags);
         teardown();

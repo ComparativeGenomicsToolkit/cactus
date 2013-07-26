@@ -9,7 +9,7 @@
 	</setup>
 	<caf 
 		chunkSize="25000000" 
-		lastzArguments="--step=5 --ambiguous=iupac"
+		lastzArguments="--step=2 --ambiguous=iupac,100 --ydrop=3000"
 		compressFiles="1" 
 		overlapSize="10000" 
 		filterByIdentity="0" 
@@ -39,7 +39,7 @@
 	</caf>
 	<bar
 		runBar="1"
-		spanningTrees="2" 
+		spanningTrees="3" 
 		gapGamma="0.2" 
 		useBanding="1" 
 		bandingLimit="100000" 
@@ -55,7 +55,7 @@
 		requiredAllFraction="0.0"
 		largeEndSize="100000"
 		veryLargeEndSize="1000000"
-		maximumNumberOfSequencesBeforeSwitchingToFast="50"
+		maximumNumberOfSequencesBeforeSwitchingToFast="10"
 		pruneOutStubAlignments="1"
 	>
 		<CactusBarRecursion maxFlowerGroupSize="maxFlowerGroupSizeRecursion"/>

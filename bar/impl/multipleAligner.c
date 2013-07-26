@@ -663,7 +663,8 @@ stList *makeAlignmentUsingAllPairs(stList *seqFrags, float gapGamma, PairwiseAli
      */
     stList *seqPairSimilarityScores;
     stList *multipleAlignedPairs = makeAllPairwiseAlignments(seqFrags, pairwiseAlignmentBandingParameters, &seqPairSimilarityScores);
-    stSet *columns = getMultipleSequenceAlignmentProgressive(seqFrags, multipleAlignedPairs, gapGamma, seqPairSimilarityScores);
+    //stSet *columns = getMultipleSequenceAlignmentProgressive(seqFrags, multipleAlignedPairs, gapGamma, seqPairSimilarityScores);
+    stSet *columns = getMultipleSequenceAlignment(seqFrags, multipleAlignedPairs, gapGamma);
     multipleAlignedPairs = filterMultipleAlignedPairs(columns, multipleAlignedPairs);
     stSet_destruct(columns);
     stList_destruct(seqPairSimilarityScores);
@@ -817,7 +818,8 @@ int64_t getNextBestPair(int64_t seq1, int64_t *distanceCounts, int64_t seqNo, st
     return maxGainSeq;
 }
 
-stList *makeAlignment(stList *seqFrags, int64_t spanningTrees, int64_t maxPairsToConsider, float gapGamma,
+stList *makeAlignment(stList *seqFrags, int64_t spanningTrees, int64_t maxPairsToConsider,
+        int64_t maximumNumberOfSequencesBeforeSwitchingToFast, float gapGamma,
         PairwiseAlignmentParameters *pairwiseAlignmentBandingParameters) {
     /*
      * Computes an MSA, making up to "spanningTrees"*no of seqs pairwise alignments.
@@ -847,8 +849,9 @@ stList *makeAlignment(stList *seqFrags, int64_t spanningTrees, int64_t maxPairsT
     int64_t iteration = 1;
     //The first alignment of multiple aligned pairs is already consistent
     while (1) {
-        stSet *columns = getMultipleSequenceAlignmentProgressive(seqFrags, multipleAlignedPairs, gapGamma, seqPairSimilarityScores);
-        //stSet *columns = getMultipleSequenceAlignment(seqFrags, multipleAlignedPairs, gapGamma, checkConsistency);
+        stSet *columns = (stList_length(seqFrags) == 2 || stList_length(seqFrags) > maximumNumberOfSequencesBeforeSwitchingToFast)
+                ? getMultipleSequenceAlignmentProgressive(seqFrags, multipleAlignedPairs, gapGamma, seqPairSimilarityScores)
+                : getMultipleSequenceAlignment(seqFrags, multipleAlignedPairs, gapGamma);
         if (iteration++ >= spanningTrees) {
             stSortedSet_destruct(chosenPairsOfSequencesToAlign);
             multipleAlignedPairs = filterMultipleAlignedPairs(columns, multipleAlignedPairs);
