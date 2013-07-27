@@ -49,7 +49,8 @@
 		pruneOutStubAlignments="1"
 	>
 		<CactusBarRecursion maxFlowerGroupSize="100000000"/>
-		<CactusBarWrapper maxFlowerGroupSize="40000" memory="littleMemory"/>
+		<CactusBarWrapper maxFlowerGroupSize="400000" memory="littleMemory"/>
+		<CactusBarWrapperLarge maxFlowerGroupSize="400000"/>
 		<CactusBarEndAlignerWrapper memory="littleMemory"/>
 	</bar>
 	<normal 
