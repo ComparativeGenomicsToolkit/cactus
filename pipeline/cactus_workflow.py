@@ -101,8 +101,10 @@ def extractNode(node):
 def getTargetNode(phaseNode, targetClass):
     """Gets a target node for a given target.
     """
-    className = (str(targetClass).split(".")[-1])[:-2]
+    className = (str(targetClass).split(".")[-1])
     assert className != ''
+    assert "'>" == className[-2:]
+    className = className[:-2]
     assert className.isalnum()
     return phaseNode.find(className)
 
