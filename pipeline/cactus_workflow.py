@@ -103,6 +103,7 @@ def getTargetNode(phaseNode, targetClass):
     """
     className = (str(targetClass).split(".")[-1])[:-2]
     assert className != ''
+    assert className.isalnum()
     return phaseNode.find(className)
 
 class CactusTarget(Target):
