@@ -68,7 +68,8 @@ stSortedSet *makeEndAlignment(End *end, int64_t spanningTrees, int64_t maxSequen
         }
         AdjacencySequence *adjacencySequence = adjacencySequence_construct(cap, maxSequenceLength);
         stList_append(sequences, adjacencySequence);
-        stList_append(seqFrags, seqFrag_construct(adjacencySequence->string, 0, adjacencySequence->hasStubEnd));
+        assert(cap_getAdjacency(cap) != NULL);
+        stList_append(seqFrags, seqFrag_construct(adjacencySequence->string, 0, end_getName(cap_getEnd(cap_getAdjacency(cap)))));
     }
     end_destructInstanceIterator(it);
 

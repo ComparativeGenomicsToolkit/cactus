@@ -21,12 +21,12 @@
 ///////////////////////////////
 ///////////////////////////////
 
-SeqFrag *seqFrag_construct(const char *seq, bool missingLeftEnd, bool missingRightEnd) {
+SeqFrag *seqFrag_construct(const char *seq, int64_t leftEndId, int64_t rightEndId) {
     SeqFrag *seqFrag = st_malloc(sizeof(SeqFrag));
     seqFrag->seq = stString_copy(seq);
     seqFrag->length = strlen(seq);
-    seqFrag->missingLeftEnd = missingLeftEnd;
-    seqFrag->missingRightEnd = missingRightEnd;
+    seqFrag->leftEndId = leftEndId;
+    seqFrag->rightEndId = rightEndId;
     return seqFrag;
 }
 
@@ -636,7 +636,7 @@ static int64_t addMultipleAlignedPairs(int64_t sequence1, int64_t sequence2, stL
     SeqFrag *seqFrag1 = stList_get(seqFrags, sequence1);
     SeqFrag *seqFrag2 = stList_get(seqFrags, sequence2);
     stList *alignedPairs = getAlignedPairs(seqFrag1->seq, seqFrag2->seq, pairwiseAlignmentBandingParameters,
-            seqFrag1->missingLeftEnd || seqFrag2->missingLeftEnd, seqFrag1->missingRightEnd || seqFrag2->missingRightEnd);
+            seqFrag1->leftEndId != seqFrag2->leftEndId, seqFrag1->rightEndId || seqFrag2->rightEndId);
     int64_t distance = getAlignmentScore(alignedPairs, seqFrag1->length, seqFrag2->length);
     convertToMultipleAlignedPairs(alignedPairs, multipleAlignedPairs, sequence1, sequence2);
     return distance;

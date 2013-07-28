@@ -23,8 +23,8 @@ typedef struct _seqFrag SeqFrag;
 struct _seqFrag {
     char *seq;
     int64_t length;
-    bool missingLeftEnd;
-    bool missingRightEnd;
+    int64_t leftEndId;
+    int64_t rightEndId;
 };
 
 typedef struct _column Column;
@@ -48,7 +48,7 @@ stList *makeAlignment(stList *seqFrags,
 stList *makeAlignmentUsingAllPairs(stList *seqFrags, float gapGamma,
         PairwiseAlignmentParameters *pairwiseAlignmentBandingParameters);
 
-SeqFrag *seqFrag_construct(const char *seq, bool missingLeftEnd, bool missingRightEnd);
+SeqFrag *seqFrag_construct(const char *seq, int64_t leftEndId, int64_t rightEndId);
 
 void seqFrag_destruct(SeqFrag *seqFrag);
 
