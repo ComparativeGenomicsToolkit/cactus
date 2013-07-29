@@ -23,14 +23,15 @@ typedef struct _AlignedPair {
     int64_t position;
     bool strand;
     int64_t score;
-    struct _AlignedPair *reverse;
+    int64_t scoreWithoutStubs;
+    int64_t columnId;
 } AlignedPair;
 
 /*
  * Constructs the an aligned pair.
  */
 AlignedPair *alignedPair_construct(int64_t subsequenceIdentifier1, int64_t position1, bool strand1,
-        int64_t subsequenceIdentifier2, int64_t position2, bool strand2, int64_t score);
+        int64_t score, int64_t scoreWithoutStubs, int64_t columnId);
 
 /*
  * Destruct the aligned pair.

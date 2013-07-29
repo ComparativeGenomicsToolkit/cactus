@@ -85,7 +85,8 @@ stList *pairwiseAlignColumns(stList *seqXColumns, stList *seqYColumns, stHash *a
 
 stList *filterMultipleAlignedPairs(stSet *columns, stList *multipleAlignedPairs);
 
-stHash *getSequencePositionsToColumnScoresHash(stHash *positionsToColumns, stList *seqFrags, MultipleAlignment *mA);
+stHash *getSequencePositionsToColumnScoresHash(stHash *positionsToColumns, stList *seqFrags, MultipleAlignment *mA,
+        bool filterFn(stIntTuple *, void *), void *extraArg);
 
 stHash *getSequencePositionsToColumnsHash(stSet *columns);
 

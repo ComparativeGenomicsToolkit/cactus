@@ -899,7 +899,8 @@ static void getSequencePositionsToColumnScores_updateWeight(stHash *positionsToS
     }
 }
 
-stHash *getSequencePositionsToColumnScoresHash(stHash *positionsToColumns, stList *seqFrags, MultipleAlignment *mA) {
+stHash *getSequencePositionsToColumnScoresHash(stHash *positionsToColumns, stList *seqFrags, MultipleAlignment *mA,
+        bool filterFn(stIntTuple *, void *), void *extraArg) {
     /*
      * Creates a score for each sequence position to its corresponding column. Used to decide
      * how probable it is that the sequence position is aligned to to the sequence positions in a given column.
@@ -909,8 +910,10 @@ stHash *getSequencePositionsToColumnScoresHash(stHash *positionsToColumns, stLis
             (int(*)(const void *, const void *)) column_equalsFn, NULL, free);
     for(int64_t i=0; i<stList_length(mA->alignedPairs); i++) {
         stIntTuple *mAP = stList_get(mA->alignedPairs, i);
-        getSequencePositionsToColumnScores_updateWeight(positionsToScores, getColumnForSequencePosition(positionsToColumns, stIntTuple_get(mAP, 1), stIntTuple_get(mAP, 2)), stIntTuple_get(mAP, 0));
-        getSequencePositionsToColumnScores_updateWeight(positionsToScores, getColumnForSequencePosition(positionsToColumns, stIntTuple_get(mAP, 3), stIntTuple_get(mAP, 4)), stIntTuple_get(mAP, 0));
+        if(filterFn == NULL || !filterFn(mAP, extraArg)) {
+            getSequencePositionsToColumnScores_updateWeight(positionsToScores, getColumnForSequencePosition(positionsToColumns, stIntTuple_get(mAP, 1), stIntTuple_get(mAP, 2)), stIntTuple_get(mAP, 0));
+            getSequencePositionsToColumnScores_updateWeight(positionsToScores, getColumnForSequencePosition(positionsToColumns, stIntTuple_get(mAP, 3), stIntTuple_get(mAP, 4)), stIntTuple_get(mAP, 0));
+        }
     }
     //Now build array of number of pairwise alignments for each sequence
     int64_t *pairwiseAlignmentsPerSequence = st_calloc(stList_length(seqFrags), sizeof(int64_t));

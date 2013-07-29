@@ -65,13 +65,14 @@ void usage() {
 }
 
 stPinch *getNextAlignedPairAlignment(stSortedSetIterator *it) {
-    AlignedPair *alignedPair = stSortedSet_getNext(it);
-    if (alignedPair == NULL) {
+    stIntTuple *aP = stSortedSet_getNext(it);
+    if (aP == NULL) {
         return NULL;
     }
     static stPinch pinch;
-    stPinch_fillOut(&pinch, alignedPair->subsequenceIdentifier, alignedPair->reverse->subsequenceIdentifier, alignedPair->position,
-            alignedPair->reverse->position, 1, alignedPair->strand == alignedPair->reverse->strand);
+    //stPinch_fillOut(&pinch, alignedPair->subsequenceIdentifier, alignedPair->reverse->subsequenceIdentifier, alignedPair->position,
+    //       alignedPair->reverse->position, 1, alignedPair->strand == alignedPair->reverse->strand);
+    stPinch_fillOut(&pinch, stIntTuple_get(aP, 0), stIntTuple_get(aP, 2), stIntTuple_get(aP, 1), stIntTuple_get(aP, 3), 1, stIntTuple_get(aP, 4));
     return &pinch;
 }
 
