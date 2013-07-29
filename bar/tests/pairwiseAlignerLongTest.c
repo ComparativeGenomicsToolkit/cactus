@@ -45,9 +45,7 @@ static void test_pairwiseAligner(CuTest *testCase, char *seq1, char *seq2, char 
 
     clock_t start = clock();
 
-    stSet *columns;
-    stList *alignedPairs = makeAlignment(seqs, 10, 1000000000, 0, 0.5, pairwiseAlignmentBandingParameters_construct(), &columns);
-    stSet_destruct(columns);
+    MultipleAlignment *mA = makeAlignment(seqs, 10, 1000000000, 0, 0.5, pairwiseAlignmentBandingParameters_construct());
 
     clock_t end = clock();
 
@@ -61,8 +59,8 @@ static void test_pairwiseAligner(CuTest *testCase, char *seq1, char *seq2, char 
             (void(*)(void *)) stIntTuple_destruct);
 
     st_logInfo("I am adding the pairs to the predicted set\n");
-    for (int64_t i = 0; i < stList_length(alignedPairs); i++) {
-        stIntTuple *alignedPair = stList_get(alignedPairs, i);
+    for (int64_t i = 0; i < stList_length(mA->alignedPairs); i++) {
+        stIntTuple *alignedPair = stList_get(mA->alignedPairs, i);
         CuAssertTrue(testCase, stIntTuple_length(alignedPair) == 5);
         int64_t score = stIntTuple_get(alignedPair, 0);
         int64_t seqX = stIntTuple_get(alignedPair, 1);
@@ -117,6 +115,8 @@ static void test_pairwiseAligner(CuTest *testCase, char *seq1, char *seq2, char 
         //st_logInfo("The pair %s %" PRIi64 " %s %" PRIi64 " is added\n", seqName1, stIntTuple_getPosition(pair, 0), seqName2, stIntTuple_getPosition(pair, 1));
     }
     stSortedSet_destructIterator(it);
+
+    multipleAlignment_destruct(mA);
 }
 
 static void test_pairwiseAligner_LongHumanChimp(CuTest *testCase) {

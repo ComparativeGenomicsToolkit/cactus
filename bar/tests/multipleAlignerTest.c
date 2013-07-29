@@ -84,12 +84,10 @@ static void checkAlignment(CuTest *testCase, stList *seqFrags, stList *multipleA
 
 static void test_makeAlignmentUsingAllPairs(CuTest *testCase) {
     setup();
-    stSet *columns;
-    stList *multipleAlignedPairs = makeAlignmentUsingAllPairs(littleSeqFrags, 0.0, pabp, &columns);
-    stSet_destruct(columns);
-    checkAlignment(testCase, littleSeqFrags, multipleAlignedPairs);
-    CuAssertIntEquals(testCase, 9, stList_length(multipleAlignedPairs));
-    stList_destruct(multipleAlignedPairs);
+    MultipleAlignment *mA = makeAlignmentUsingAllPairs(littleSeqFrags, 0.0, pabp);
+    checkAlignment(testCase, littleSeqFrags, mA->alignedPairs);
+    CuAssertIntEquals(testCase, 9, stList_length(mA->alignedPairs));
+    multipleAlignment_destruct(mA);
     teardown();
 }
 
@@ -112,11 +110,10 @@ static void test_multipleAlignerAllPairsRandom(CuTest *testCase) {
         for (int64_t i = 0; i < stList_length(randomSeqFrags); i++) {
             st_logInfo("Sequence to align: %s\n", stList_get(randomSeqFrags, i));
         }
-        stSet *columns;
-        stList *multipleAlignedPairs = makeAlignmentUsingAllPairs(randomSeqFrags, 0.5, pabp, &columns);
-        stSet_destruct(columns);
-        checkAlignment(testCase, randomSeqFrags, multipleAlignedPairs);
+        MultipleAlignment *mA = makeAlignmentUsingAllPairs(randomSeqFrags, 0.5, pabp);
+        checkAlignment(testCase, randomSeqFrags, mA->alignedPairs);
         stList_destruct(randomSeqFrags);
+        multipleAlignment_destruct(mA);
         teardown();
     }
 }
@@ -187,11 +184,11 @@ static void test_getDistanceMatrix(CuTest *testCase) {
     Column *c1;
     while ((c1 = stSet_getNext(setIt)) != NULL) {
         do {
-            char base1 = ((char *) stList_get(littleSeqFrags, c1->seqName))[c1->position];
+            char base1 = ((char *) stList_get(littleSeqFrags, c1->seqIndex))[c1->position];
             Column *c2 = c1->nColumn;
             while (c2 != NULL) {
-                char base2 = ((char *) stList_get(littleSeqFrags, c2->seqName))[c2->position];
-                st_logDebug("The pairwise alignment of the little sequences seq1: %" PRIi64 " seq2: %" PRIi64 " pos1: %" PRIi64 " pos2: %" PRIi64 " base1: %c base2: %c \n", c1->seqName, c2->seqName, c1->position, c2->position, base1, base2);
+                char base2 = ((char *) stList_get(littleSeqFrags, c2->seqIndex))[c2->position];
+                st_logDebug("The pairwise alignment of the little sequences seq1: %" PRIi64 " seq2: %" PRIi64 " pos1: %" PRIi64 " pos2: %" PRIi64 " base1: %c base2: %c \n", c1->seqIndex, c2->seqIndex, c1->position, c2->position, base1, base2);
                 c2 = c2->nColumn;
             }
             c1 = c1->nColumn;
@@ -223,11 +220,10 @@ static void test_multipleAlignerRandom(CuTest *testCase) {
         for (int64_t i = 0; i < stList_length(randomSeqFrags); i++) {
             st_logInfo("Sequence to align: %s\n", stList_get(randomSeqFrags, i));
         }
-        stSet *columns;
-        stList *multipleAlignedPairs = makeAlignment(randomSeqFrags, spanningTrees, 10000000, st_randomInt(0, 10), 0.5, pabp, &columns);
-        stSet_destruct(columns);
-        checkAlignment(testCase, randomSeqFrags, multipleAlignedPairs);
+        MultipleAlignment *mA = makeAlignment(randomSeqFrags, spanningTrees, 10000000, st_randomInt(0, 10), 0.5, pabp);
+        checkAlignment(testCase, randomSeqFrags, mA->alignedPairs);
         stList_destruct(randomSeqFrags);
+        multipleAlignment_destruct(mA);
         teardown();
     }
 }

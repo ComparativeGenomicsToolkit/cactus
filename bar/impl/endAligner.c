@@ -74,15 +74,13 @@ stSortedSet *makeEndAlignment(End *end, int64_t spanningTrees, int64_t maxSequen
     end_destructInstanceIterator(it);
 
     //Convert the alignment pairs to an alignment of the caps..
-    stSet *columns;
-    stList *alignment = makeAlignment(seqFrags, spanningTrees, 100000000, maximumNumberOfSequencesBeforeSwitchingToFast, gapGamma, pairwiseAlignmentBandingParameters, &columns);
-    stSet_destruct(columns);
+    MultipleAlignment *mA = makeAlignment(seqFrags, spanningTrees, 100000000, maximumNumberOfSequencesBeforeSwitchingToFast, gapGamma, pairwiseAlignmentBandingParameters);
     stSortedSet *sortedAlignment =
             stSortedSet_construct3((int (*)(const void *, const void *))alignedPair_cmpFn,
             (void (*)(void *))alignedPair_destruct);
 
-    while(stList_length(alignment) > 0) {
-        stIntTuple *alignedPair = stList_pop(alignment);
+    while(stList_length(mA->alignedPairs) > 0) {
+        stIntTuple *alignedPair = stList_pop(mA->alignedPairs);
         assert(stIntTuple_length(alignedPair) == 5);
         AdjacencySequence *i = stList_get(sequences, stIntTuple_get(alignedPair, 1));
         AdjacencySequence *j = stList_get(sequences, stIntTuple_get(alignedPair, 3));
@@ -103,7 +101,7 @@ stSortedSet *makeEndAlignment(End *end, int64_t spanningTrees, int64_t maxSequen
     //Cleanup
     stList_destruct(seqFrags);
     stList_destruct(sequences);
-    stList_destruct(alignment);
+    multipleAlignment_destruct(mA);
 
     return sortedAlignment;
 }
