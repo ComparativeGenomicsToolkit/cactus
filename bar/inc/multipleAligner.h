@@ -37,16 +37,18 @@ struct _column {
 /*
  * Takes a list of DNA strings (as SeqFrags), aligns them and returns a global alignment,
  * represented as a list of aligned stIntTuple pairs, format (score, sequence1, position1, sequence2, position2)
+ * and a set of columns (see above)
  * Positions and sequence indices are zero based, scores are between 1 and 1000.
  */
 stList *makeAlignment(stList *seqFrags,
         int64_t spanningTrees, int64_t maxPairsToConsider,
         int64_t maximumNumberOfSequencesBeforeSwitchingToFast,
         float gapGamma,
-        PairwiseAlignmentParameters *pairwiseAlignmentBandingParameters);
+        PairwiseAlignmentParameters *pairwiseAlignmentBandingParameters,
+        stSet **returnColumns);
 
 stList *makeAlignmentUsingAllPairs(stList *seqFrags, float gapGamma,
-        PairwiseAlignmentParameters *pairwiseAlignmentBandingParameters);
+        PairwiseAlignmentParameters *pairwiseAlignmentBandingParameters, stSet **returnColumns);
 
 SeqFrag *seqFrag_construct(const char *seq, int64_t leftEndId, int64_t rightEndId);
 
@@ -78,5 +80,9 @@ stList *pairwiseAlignColumns(stList *seqXColumns, stList *seqYColumns, stHash *a
         stSortedSet *alignmentWeightsOrderedByWeight, double gapGamma);
 
 stList *filterMultipleAlignedPairs(stSet *columns, stList *multipleAlignedPairs);
+
+stHash *getSequencePositionsToColumnScoresHash(stHash *positionsToColumns, stList *multipleAlignedPairs);
+
+stHash *getSequencePositionsToColumnsHash(stSet *columns);
 
 #endif /* ALIGNER_H_ */

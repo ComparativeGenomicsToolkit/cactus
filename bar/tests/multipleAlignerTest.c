@@ -84,7 +84,9 @@ static void checkAlignment(CuTest *testCase, stList *seqFrags, stList *multipleA
 
 static void test_makeAlignmentUsingAllPairs(CuTest *testCase) {
     setup();
-    stList *multipleAlignedPairs = makeAlignmentUsingAllPairs(littleSeqFrags, 0.0, pabp);
+    stSet *columns;
+    stList *multipleAlignedPairs = makeAlignmentUsingAllPairs(littleSeqFrags, 0.0, pabp, &columns);
+    stSet_destruct(columns);
     checkAlignment(testCase, littleSeqFrags, multipleAlignedPairs);
     CuAssertIntEquals(testCase, 9, stList_length(multipleAlignedPairs));
     stList_destruct(multipleAlignedPairs);
@@ -110,7 +112,9 @@ static void test_multipleAlignerAllPairsRandom(CuTest *testCase) {
         for (int64_t i = 0; i < stList_length(randomSeqFrags); i++) {
             st_logInfo("Sequence to align: %s\n", stList_get(randomSeqFrags, i));
         }
-        stList *multipleAlignedPairs = makeAlignmentUsingAllPairs(randomSeqFrags, 0.5, pabp);
+        stSet *columns;
+        stList *multipleAlignedPairs = makeAlignmentUsingAllPairs(randomSeqFrags, 0.5, pabp, &columns);
+        stSet_destruct(columns);
         checkAlignment(testCase, randomSeqFrags, multipleAlignedPairs);
         stList_destruct(randomSeqFrags);
         teardown();
@@ -219,7 +223,9 @@ static void test_multipleAlignerRandom(CuTest *testCase) {
         for (int64_t i = 0; i < stList_length(randomSeqFrags); i++) {
             st_logInfo("Sequence to align: %s\n", stList_get(randomSeqFrags, i));
         }
-        stList *multipleAlignedPairs = makeAlignment(randomSeqFrags, spanningTrees, 10000000, st_randomInt(0, 10), 0.5, pabp);
+        stSet *columns;
+        stList *multipleAlignedPairs = makeAlignment(randomSeqFrags, spanningTrees, 10000000, st_randomInt(0, 10), 0.5, pabp, &columns);
+        stSet_destruct(columns);
         checkAlignment(testCase, randomSeqFrags, multipleAlignedPairs);
         stList_destruct(randomSeqFrags);
         teardown();

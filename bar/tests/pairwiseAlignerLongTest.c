@@ -45,7 +45,9 @@ static void test_pairwiseAligner(CuTest *testCase, char *seq1, char *seq2, char 
 
     clock_t start = clock();
 
-    stList *alignedPairs = makeAlignment(seqs, 10, 1000000000, 0, 0.5, pairwiseAlignmentBandingParameters_construct());
+    stSet *columns;
+    stList *alignedPairs = makeAlignment(seqs, 10, 1000000000, 0, 0.5, pairwiseAlignmentBandingParameters_construct(), &columns);
+    stSet_destruct(columns);
 
     clock_t end = clock();
 
