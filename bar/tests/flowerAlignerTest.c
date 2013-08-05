@@ -114,8 +114,8 @@ void test_flowerAlignerRandom(CuTest *testCase) {
     stSortedSetIterator *iterator = stSortedSet_getIterator(flowerAlignment);
     AlignedPair *alignedPair;
     while((alignedPair = stSortedSet_getNext(iterator)) != NULL) {
-        CuAssertTrue(testCase, alignedPair->score > 0); //Check score is valid
-        CuAssertTrue(testCase, alignedPair->score <= PAIR_ALIGNMENT_PROB_1);
+        //CuAssertTrue(testCase, alignedPair->score > 0); //Check score is valid
+        //CuAssertTrue(testCase, alignedPair->score <= PAIR_ALIGNMENT_PROB_1);
         //CuAssertTrue(testCase, stSortedSet_search(flowerAlignment, alignedPair->reverse) != NULL); //Check other end is in.
     }
     stSortedSet_destructIterator(iterator);

@@ -70,9 +70,8 @@ stSortedSet *makeEndAlignment(End *end, int64_t spanningTrees, int64_t maxSequen
     MultipleAlignment *mA = makeAlignment(seqFrags, spanningTrees, 100000000, maximumNumberOfSequencesBeforeSwitchingToFast, gapGamma, pairwiseAlignmentBandingParameters);
 
     //Build the sequence position to columns scores.
-    stHash *sequencePositionsToColumnsHash = getSequencePositionsToColumnsHash(mA->columns);
-    stHash *sequencePositionsToColumnScoresHash = getSequencePositionsToColumnScoresHash(sequencePositionsToColumnsHash, seqFrags, mA, NULL, NULL);
-    stHash *sequencePositionsToColumnScoresWithoutStubsHash = getSequencePositionsToColumnScoresHash(sequencePositionsToColumnsHash, seqFrags, mA, NULL, NULL);
+    stHash *sequencePositionsToColumnScoresHash = getSequencePositionsToNonTrivialColumnScoresHash(seqFrags, mA, NULL, NULL);
+    stHash *sequencePositionsToColumnScoresWithoutStubsHash = getSequencePositionsToNonTrivialColumnScoresHash(seqFrags, mA, NULL, NULL);
 
     //Make an index for each column
     stHash *columnsToIndices = stHash_construct2(NULL, (void (*)(void *))stIntTuple_destruct);
@@ -88,19 +87,25 @@ stSortedSet *makeEndAlignment(End *end, int64_t spanningTrees, int64_t maxSequen
             stSortedSet_construct3((int (*)(const void *, const void *))alignedPair_cmpFn,
             (void (*)(void *))alignedPair_destruct);
 
-    stHashIterator *columnIt2 = stHash_getIterator(sequencePositionsToColumnsHash);
+    stHashIterator *columnIt2 = stHash_getIterator(mA->columns);
+    stHash *sequencePositionsToColumnsHash = getSequencePositionsToColumnsHash(mA->columns);
     while((c = stHash_getNext(columnIt2)) != NULL) {
         int64_t *score = stHash_search(sequencePositionsToColumnScoresHash, c);
-        int64_t *scoreWithoutStubs = stHash_search(sequencePositionsToColumnScoresWithoutStubsHash, c);
-        Column *c2 = stHash_search(sequencePositionsToColumnsHash, c);
-        assert(c2 != NULL);
-        AdjacencySequence *i = stList_get(sequences, c->seqIndex);
-        AlignedPair *alignedPair = alignedPair_construct(i->subsequenceIdentifier,
-                i->start + (i->strand ? c->position : -c->position), i->strand, *score,
-                /*score of alignment only to non-stubs*/ *scoreWithoutStubs,
-                stIntTuple_get(stHash_search(columnsToIndices, c2), 0));
-        assert(stSortedSet_search(sortedAlignment, alignedPair) == NULL);
-        stSortedSet_insert(sortedAlignment, alignedPair);
+        if(score != NULL) {
+            assert(*score > 0);
+            int64_t *scoreWithoutStubs = stHash_search(sequencePositionsToColumnScoresWithoutStubsHash, c);
+            assert(scoreWithoutStubs != NULL);
+            Column *c2 = stHash_search(sequencePositionsToColumnsHash, c);
+            assert(c2 != NULL);
+            assert(stHash_search(columnsToIndices, c2) != NULL);
+            AdjacencySequence *i = stList_get(sequences, c->seqIndex);
+            AlignedPair *alignedPair = alignedPair_construct(i->subsequenceIdentifier,
+                    i->start + (i->strand ? c->position : -c->position), i->strand, *score,
+                    /*score of alignment only to non-stubs*/ *scoreWithoutStubs,
+                    stIntTuple_get(stHash_search(columnsToIndices, c2), 0));
+            assert(stSortedSet_search(sortedAlignment, alignedPair) == NULL);
+            stSortedSet_insert(sortedAlignment, alignedPair);
+        }
     }
     stHash_destructIterator(columnIt2);
 
@@ -151,13 +156,13 @@ stSortedSet *loadEndAlignmentFromDisk(Flower *flower, FILE *fileHandle, End **en
         if(line == NULL) {
             st_errAbort("Got a null line when parsing an end alignment\n");
         }
-        int64_t sI1, p1, st1, columnId, score, scoreWithoutStubs;
-        int64_t i = sscanf(line, "%" PRIi64 " %" PRIi64 " %" PRIi64 " %" PRIi64 " %" PRIi64 " %" PRIi64 "", &sI1, &p1, &st1, &columnId, &score, &scoreWithoutStubs);
+        int64_t seqIndex, position, strand, columnId, score, scoreWithoutStubs;
+        int64_t i = sscanf(line, "%" PRIi64 " %" PRIi64 " %" PRIi64 " %" PRIi64 " %" PRIi64 " %" PRIi64 "", &seqIndex, &position, &strand, &score, &scoreWithoutStubs, &columnId);
         (void)i;
         if(i != 6) {
             st_errAbort("We encountered a mis-specified name in loading an end alignment from the disk: '%s'\n", line);
         }
-        stSortedSet_insert(endAlignment, alignedPair_construct(sI1, p1, st1, score, scoreWithoutStubs, columnId));
+        stSortedSet_insert(endAlignment, alignedPair_construct(seqIndex, position, strand, score, scoreWithoutStubs, columnId));
         free(line);
     }
     return endAlignment;

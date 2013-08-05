@@ -313,7 +313,6 @@ static int64_t findFirstNonStubAlignment(stList *inducedAlignment, bool reverse,
     for (int64_t i = reverse ? stList_length(inducedAlignment) - 1 : 0; i < stList_length(inducedAlignment) && i >= 0; i
             += reverse ? -1 : 1) {
         AlignedPair *alignedPair = stList_get(inducedAlignment, i);
-        assert(isAlignedToStubSequence(alignedPair->reverse, freeStubAdjacencySequences));
         assert(pAlignedPair == NULL || pAlignedPair->subsequenceIdentifier == alignedPair->subsequenceIdentifier);
         if (pAlignedPair == NULL || pAlignedPair->position != alignedPair->position) {
             pAlignedPair = alignedPair;
@@ -467,7 +466,7 @@ static stSortedSet *makeFlowerAlignment2(Flower *flower, stHash *endAlignments, 
         while ((alignedPair = stSortedSet_getNext(endAlignmentIt)) != NULL) {
             AlignedPair *alignedPair2 = stSet_search(alignedPairsToColumns, alignedPair);
             if(alignedPair2 == NULL) {
-                stSet_insert(alignedPairsToColumns, alignedPair2);
+                stSet_insert(alignedPairsToColumns, alignedPair);
             }
             else {
                 assert(alignedPair != alignedPair2);

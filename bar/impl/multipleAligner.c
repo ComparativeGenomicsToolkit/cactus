@@ -888,6 +888,9 @@ MultipleAlignment *makeAlignment(stList *seqFrags, int64_t spanningTrees, int64_
 }
 
 static void getSequencePositionsToColumnScores_updateWeight(stHash *positionsToScores, Column *c, int64_t score) {
+    assert(c != NULL);
+    assert(score > 0);
+    assert(score <= PAIR_ALIGNMENT_PROB_1);
     int64_t *s = stHash_search(positionsToScores, c);
     if(s != NULL) {
         *s += score;
@@ -899,15 +902,21 @@ static void getSequencePositionsToColumnScores_updateWeight(stHash *positionsToS
     }
 }
 
-stHash *getSequencePositionsToColumnScoresHash(stHash *positionsToColumns, stList *seqFrags, MultipleAlignment *mA,
+stSet *getSequencePositionsToColumnResiduesSet(MultipleAlignment *mA) {
+
+}
+
+stHash *getSequencePositionsToNonTrivialColumnScoresHash(stHash *positionsToColumns, stList *seqFrags, MultipleAlignment *mA,
         bool filterFn(stIntTuple *, void *), void *extraArg) {
     /*
-     * Creates a score for each sequence position to its corresponding column. Used to decide
+     * Creates a score for each sequence position to its corresponding column for columns contains two or more residues. Used to decide
      * how probable it is that the sequence position is aligned to to the sequence positions in a given column.
      */
+
     //First build array of scores without normalising
     stHash *positionsToScores = stHash_construct3((uint64_t(*)(const void *)) column_hashFn,
             (int(*)(const void *, const void *)) column_equalsFn, NULL, free);
+    //Add in the scores between residues.
     for(int64_t i=0; i<stList_length(mA->alignedPairs); i++) {
         stIntTuple *mAP = stList_get(mA->alignedPairs, i);
         if(filterFn == NULL || !filterFn(mAP, extraArg)) {
@@ -915,12 +924,13 @@ stHash *getSequencePositionsToColumnScoresHash(stHash *positionsToColumns, stLis
             getSequencePositionsToColumnScores_updateWeight(positionsToScores, getColumnForSequencePosition(positionsToColumns, stIntTuple_get(mAP, 3), stIntTuple_get(mAP, 4)), stIntTuple_get(mAP, 0));
         }
     }
+
     //Now build array of number of pairwise alignments for each sequence
     int64_t *pairwiseAlignmentsPerSequence = st_calloc(stList_length(seqFrags), sizeof(int64_t));
     for(int64_t i=0; i<stList_length(mA->chosenPairwiseAlignments); i++) {
         stIntTuple *pairwiseAlignment = stList_get(mA->chosenPairwiseAlignments, i);
-        assert(stIntTuple_get(pairwiseAlignment, 1) >= 0 && stIntTuple_get(pairwiseAlignment, 1) < stList_length(mA->chosenPairwiseAlignments));
-        assert(stIntTuple_get(pairwiseAlignment, 2) >= 0 && stIntTuple_get(pairwiseAlignment, 2) < stList_length(mA->chosenPairwiseAlignments));
+        assert(stIntTuple_get(pairwiseAlignment, 1) >= 0 && stIntTuple_get(pairwiseAlignment, 1) < stList_length(seqFrags));
+        assert(stIntTuple_get(pairwiseAlignment, 2) >= 0 && stIntTuple_get(pairwiseAlignment, 2) < stList_length(seqFrags));
         pairwiseAlignmentsPerSequence[stIntTuple_get(pairwiseAlignment, 1)]++;
         pairwiseAlignmentsPerSequence[stIntTuple_get(pairwiseAlignment, 2)]++;
     }
@@ -928,7 +938,12 @@ stHash *getSequencePositionsToColumnScoresHash(stHash *positionsToColumns, stLis
     stHashIterator *it = stHash_getIterator(positionsToScores);
     Column *c;
     while((c = stHash_getNext(it)) != NULL) {
+        assert(c->seqIndex >= 0 && c->seqIndex < stList_length(seqFrags));
+        st_uglyf("How bad is this %" PRIi64 " %" PRIi64 " %" PRIi64 "\n", *((int64_t *)stHash_search(positionsToScores, c)), PAIR_ALIGNMENT_PROB_1, pairwiseAlignmentsPerSequence[c->seqIndex]);
         *((int64_t *)stHash_search(positionsToScores, c)) /= pairwiseAlignmentsPerSequence[c->seqIndex];
+        assert(*((int64_t *)stHash_search(positionsToScores, c)) > 0);
+        st_uglyf("How bad is this %" PRIi64 " %" PRIi64 " %" PRIi64 "\n", *((int64_t *)stHash_search(positionsToScores, c)), PAIR_ALIGNMENT_PROB_1, pairwiseAlignmentsPerSequence[c->seqIndex]);
+        assert(*((int64_t *)stHash_search(positionsToScores, c)) <= PAIR_ALIGNMENT_PROB_1);
     }
     //Cleanup
     stHash_destructIterator(it);
