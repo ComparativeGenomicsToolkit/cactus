@@ -15,30 +15,25 @@ void test_alignedPair_cmpFn(CuTest *testCase) {
     //(int (*)(const void *, const void *))alignedPair_cmpFn,
 
     Name seq1 = 5;
-    Name seq2 = 10;
 
-    AlignedPair *aP1 = alignedPair_construct(seq1, 2, 1,
-                        seq1, 7, 1, 90);
-    AlignedPair *aP2 = alignedPair_construct(seq1, 2, 1,
-            seq2, 4, 0, 10);
-    AlignedPair *aP3 = alignedPair_construct(seq1, 2, 1,
-                seq2, 4, 1, 75);
-    AlignedPair *aP4 = alignedPair_construct(seq1, 3, 1,
-                        seq2, 4, 0, 10);
-    AlignedPair *aP5 = alignedPair_construct(seq1, 4, 1,
-                            seq2, 4, 1, 90);
+    //alignedPair_construct(int64_t subsequenceIdentifier1, int64_t position1, bool strand1,
+    //int64_t score, int64_t scoreWithoutStubs, int64_t columnId)
+    AlignedPair *aP1 = alignedPair_construct(seq1, 2, 1, 90, 1, 1);
+    AlignedPair *aP2 = alignedPair_construct(seq1, 2, 1, 10, 0, 0);
+    AlignedPair *aP3 = alignedPair_construct(seq1, 2, 1, 75, 1, 4);
+    AlignedPair *aP4 = alignedPair_construct(seq1, 3, 1, 10, 1, 1);
+    AlignedPair *aP5 = alignedPair_construct(seq1, 4, 1, 90, 1, 2);
 
     AlignedPair *ordering[5] = { aP2, aP1, aP4, aP5, aP3 };
     for(int64_t i=0; i<5; i++) {
         AlignedPair *aP = ordering[i];
-        st_logInfo("I got %" PRIi64 " %" PRIi64 "\n", aP, aP->reverse);
+        st_logInfo("I got %" PRIi64 "\n", aP);
         stList_append(list, aP);
-        stList_append(list, aP->reverse);
     }
 
     stList_sort(list, (int (*)(const void *, const void *))alignedPair_cmpFn);
 
-    AlignedPair *correctOrdering[10] = { aP1, aP2, aP3, aP4, aP5, aP1->reverse, aP2->reverse, aP4->reverse, aP3->reverse, aP5->reverse };
+    AlignedPair *correctOrdering[5] = { aP1, aP2, aP3, aP4, aP5 };
     for(int64_t i=0; i<10; i++) {
         st_logInfo("Checking %" PRIi64 " %" PRIi64 "\n", correctOrdering[i], stList_get(list, i));
         CuAssertTrue(testCase, correctOrdering[i] == stList_get(list, i));
@@ -108,7 +103,6 @@ static void testMakeEndAlignments(CuTest *testCase) {
         while ((alignedPair = stSortedSet_getNext(iterator)) != NULL) {
             CuAssertTrue(testCase, alignedPair->score > 0); //Check score is valid.
             CuAssertTrue(testCase, alignedPair->score <= PAIR_ALIGNMENT_PROB_1);
-            CuAssertTrue(testCase, stSortedSet_search(endAlignment, alignedPair->reverse) != NULL); //Check other end is in.
             //Check coordinates are in sequence..
             CuAssertTrue(testCase, isInAdjacency(alignedPair, end, maxLength));
         }

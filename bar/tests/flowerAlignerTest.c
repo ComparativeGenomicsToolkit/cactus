@@ -63,10 +63,10 @@ void test_getInducedAlignment(CuTest *testCase) {
             if(aS1 != aS2) {
                 AlignedPair *alignedPair =
                         alignedPair_construct(aS1->subsequenceIdentifier, getRandomPosition(aS1), aS1->strand,
-                                              aS2->subsequenceIdentifier, getRandomPosition(aS2), aS2->strand,
-                                              st_randomInt(0, PAIR_ALIGNMENT_PROB_1));
+                                              //aS2->subsequenceIdentifier, getRandomPosition(aS2), aS2->strand,
+                                              st_randomInt(0, PAIR_ALIGNMENT_PROB_1), st_random() > 0.5, st_randomInt(0, 100));
                 stSortedSet_insert(sortedAlignment, alignedPair);
-                stSortedSet_insert(sortedAlignment, alignedPair->reverse);
+                //stSortedSet_insert(sortedAlignment, alignedPair->reverse);
             }
         }
 
@@ -116,7 +116,7 @@ void test_flowerAlignerRandom(CuTest *testCase) {
     while((alignedPair = stSortedSet_getNext(iterator)) != NULL) {
         CuAssertTrue(testCase, alignedPair->score > 0); //Check score is valid
         CuAssertTrue(testCase, alignedPair->score <= PAIR_ALIGNMENT_PROB_1);
-        CuAssertTrue(testCase, stSortedSet_search(flowerAlignment, alignedPair->reverse) != NULL); //Check other end is in.
+        //CuAssertTrue(testCase, stSortedSet_search(flowerAlignment, alignedPair->reverse) != NULL); //Check other end is in.
     }
     stSortedSet_destructIterator(iterator);
     stSortedSet_destruct(flowerAlignment);
