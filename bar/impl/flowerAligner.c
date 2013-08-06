@@ -68,9 +68,8 @@ stList *getInducedAlignment(stSortedSet *endAlignment, AdjacencySequence *adjace
                         break;
                     }
                     assert(alignedPair2->position >= adjacencySequence->start);
-                    if (alignedPair2->strand == adjacencySequence->strand) {
-                        stList_append(inducedAlignment, alignedPair2);
-                    }
+                    assert(alignedPair2->strand == adjacencySequence->strand);
+                    stList_append(inducedAlignment, alignedPair2);
                 } else {
                     break;
                 }
@@ -92,9 +91,8 @@ stList *getInducedAlignment(stSortedSet *endAlignment, AdjacencySequence *adjace
                         break;
                     }
                     assert(alignedPair2->position <= adjacencySequence->start);
-                    if (alignedPair2->strand == adjacencySequence->strand) {
-                        stList_append(inducedAlignment, alignedPair2);
-                    }
+                    assert(alignedPair2->strand == adjacencySequence->strand);
+                    stList_append(inducedAlignment, alignedPair2);
                 } else {
                     break;
                 }
@@ -125,26 +123,12 @@ stList *getInducedAlignment(stSortedSet *endAlignment, AdjacencySequence *adjace
 /*
  * Runs along and cumulate the score of the pairs, traversing forward through the induced alignment.
  */
-static int64_t *cumulateScoreForward(stList *inducedAlignment1) {
+static int64_t *cumulateScoreForward(stList *inducedAlignment1, bool scoreWithoutStubs) {
     int64_t *iA = st_malloc(sizeof(int64_t) * stList_length(inducedAlignment1));
     int64_t totalScore = 0;
     for (int64_t i = 0; i < stList_length(inducedAlignment1); i++) {
         AlignedPair *alignedPair = stList_get(inducedAlignment1, i);
-        totalScore += alignedPair->score;
-        iA[i] = totalScore;
-    }
-    return iA;
-}
-
-static int64_t *cumulateScoreForwardIgnoringAlignmentsToStubs(stList *inducedAlignment1) {
-    /*
-     * Same as cumulateScoreForward, but ignoring pairs that
-     */
-    int64_t *iA = st_malloc(sizeof(int64_t) * stList_length(inducedAlignment1));
-    int64_t totalScore = 0;
-    for (int64_t i = 0; i < stList_length(inducedAlignment1); i++) {
-        AlignedPair *alignedPair = stList_get(inducedAlignment1, i);
-        totalScore += alignedPair->scoreWithoutStubs;
+        totalScore += scoreWithoutStubs ? alignedPair->scoreWithoutStubs : alignedPair->score;
         iA[i] = totalScore;
     }
     return iA;
@@ -153,23 +137,12 @@ static int64_t *cumulateScoreForwardIgnoringAlignmentsToStubs(stList *inducedAli
 /*
  * Runs along and cumulate the score of the pairs, traversing backward through the induced alignment.
  */
-static int64_t *cumulateScoreBackward(stList *inducedAlignment1) {
+static int64_t *cumulateScoreBackward(stList *inducedAlignment1,  bool scoreWithoutStubs) {
     int64_t *iA = st_malloc(sizeof(int64_t) * stList_length(inducedAlignment1));
     int64_t totalScore = 0;
     for (int64_t i = stList_length(inducedAlignment1) - 1; i >= 0; i--) {
         AlignedPair *alignedPair = stList_get(inducedAlignment1, i);
-        totalScore += alignedPair->score;
-        iA[i] = totalScore;
-    }
-    return iA;
-}
-
-static int64_t *cumulateScoreBackwardIgnoringAlignmentsToStubs(stList *inducedAlignment1) {
-    int64_t *iA = st_malloc(sizeof(int64_t) * stList_length(inducedAlignment1));
-    int64_t totalScore = 0;
-    for (int64_t i = stList_length(inducedAlignment1) - 1; i >= 0; i--) {
-        AlignedPair *alignedPair = stList_get(inducedAlignment1, i);
-        totalScore += alignedPair->scoreWithoutStubs;
+        totalScore += scoreWithoutStubs ? alignedPair->scoreWithoutStubs : alignedPair->score;
         iA[i] = totalScore;
     }
     return iA;
@@ -183,14 +156,14 @@ static int64_t getCutOff(stList *inducedAlignment1, stList *inducedAlignment2, i
     int64_t *cScore1, *cScore1B;
     int64_t *cScore2, *cScore2B;
     if(excludeFreeStubAdjacencySequences) { //We calculate arrays with and without including alignments to stub sequences
-        cScore1 = cumulateScoreForwardIgnoringAlignmentsToStubs(inducedAlignment1);
-        cScore2 = cumulateScoreBackwardIgnoringAlignmentsToStubs(inducedAlignment2);
-        cScore1B = cumulateScoreForward(inducedAlignment1);
-        cScore2B = cumulateScoreBackward(inducedAlignment2);
+        cScore1 = cumulateScoreForward(inducedAlignment1, 1);
+        cScore2 = cumulateScoreBackward(inducedAlignment2, 1);
+        cScore1B = cumulateScoreForward(inducedAlignment1, 0);
+        cScore2B = cumulateScoreBackward(inducedAlignment2, 0);
     }
     else {
-        cScore1 = cumulateScoreForward(inducedAlignment1);
-        cScore2 = cumulateScoreBackward(inducedAlignment2);
+        cScore1 = cumulateScoreForward(inducedAlignment1, 0);
+        cScore2 = cumulateScoreBackward(inducedAlignment2, 0);
         cScore1B = cScore1;
         cScore2B = cScore2;
     }

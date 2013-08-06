@@ -105,10 +105,10 @@ stSortedSet *makeEndAlignment(End *end, int64_t spanningTrees, int64_t maxSequen
         int64_t *score = stHash_search(sequencePositionsToColumnScoresHash, c);
         if(score != NULL) {
             assert(*score > 0);
-            int64_t *scoreWithoutStubs = stHash_search(sequencePositionsToColumnScoresWithoutStubsHash, c); //this may be null, so we test below
             Column *c2 = stHash_search(sequencePositionsToHeadColumnsHash, c);
             assert(c2 != NULL);
             assert(stHash_search(columnsToIndices, c2) != NULL);
+            int64_t *scoreWithoutStubs = stHash_search(sequencePositionsToColumnScoresWithoutStubsHash, c); //this may be null, so we test below
             AdjacencySequence *i = stList_get(sequences, c->seqIndex);
             AlignedPair *alignedPair = alignedPair_construct(i->subsequenceIdentifier,
                     i->start + (i->strand ? c->position : -c->position), i->strand, *score,
