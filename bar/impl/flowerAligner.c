@@ -44,17 +44,11 @@ static stSortedSet *getFreeStubAdjacencySequences(Flower *flower) {
     return freeStubAdjacencySequences;
 }
 
-static bool isAlignedToStubSequence(AlignedPair *alignedPair, stSortedSet *freeStubAdjacencySequences) {
-    /*(stIntTuple *k = stIntTuple_construct3(alignedPair->reverse->subsequenceIdentifier,
-            (int64_t) alignedPair->reverse->position, INT64_MAX);
-    stIntTuple *l = stSortedSet_searchLessThanOrEqual(freeStubAdjacencySequences, k);
+static bool isAlignedOnlyToStubSequence(AlignedPair *alignedPair, stSet *stubColumns) {
+    stIntTuple *k = stIntTuple_construct1(alignedPair->columnId);
+    bool b = stSet_search(stubColumns, k) != NULL;
     stIntTuple_destruct(k);
-    if(l != NULL && alignedPair->reverse->subsequenceIdentifier == stIntTuple_get(l, 0)
-            && alignedPair->reverse->position < stIntTuple_get(l, 2)) {
-        assert(stIntTuple_get(l, 1) <= alignedPair->reverse->position);
-        return 1;
-    }*/
-    return 0;
+    return b;
 }
 
 stList *getInducedAlignment(stSortedSet *endAlignment, AdjacencySequence *adjacencySequence) {
@@ -274,7 +268,7 @@ static void pruneAlignmentsP(stList *inducedAlignment, stSortedSet *endAlignment
 }
 
 static void pruneAlignments(Cap *cap, stList *inducedAlignment1, stList *inducedAlignment2, stSortedSet *endAlignment1,
-        stSortedSet *endAlignment2, stSortedSet *freeStubAdjacencySequences) {
+        stSortedSet *endAlignment2, void *extraArg) {
     /*
      * Chooses a point along the adjacency sequence at which to filter the two alignments,
      * then filters the aligned pairs by this point.
@@ -288,7 +282,7 @@ static void pruneAlignments(Cap *cap, stList *inducedAlignment1, stList *induced
 
 static stHash *capScoresFn_Hash = NULL;
 void getScore(Cap *cap, stList *inducedAlignment1, stList *inducedAlignment2, stSortedSet *endAlignment1,
-        stSortedSet *endAlignment2, stSortedSet *freeStubAdjacencySequences) {
+        stSortedSet *endAlignment2, void *extraArg) {
 
     int64_t i, j;
     int64_t *maxScore = st_malloc(sizeof(int64_t));
@@ -307,7 +301,7 @@ static int sortCapsFn(const void *cap1, const void *cap2) {
 }
 
 static int64_t findFirstNonStubAlignment(stList *inducedAlignment, bool reverse,
-        stSortedSet *freeStubAdjacencySequences) {
+        stSet *stubColumns) {
     AlignedPair *pAlignedPair = NULL;
     int64_t j = -1;
     for (int64_t i = reverse ? stList_length(inducedAlignment) - 1 : 0; i < stList_length(inducedAlignment) && i >= 0; i
@@ -318,7 +312,7 @@ static int64_t findFirstNonStubAlignment(stList *inducedAlignment, bool reverse,
             pAlignedPair = alignedPair;
             j = i;
         }
-        if(!isAlignedToStubSequence(alignedPair, freeStubAdjacencySequences)) {
+        if(!isAlignedOnlyToStubSequence(alignedPair, stubColumns)) {
             assert(j != -1);
             return j;
         }
@@ -327,7 +321,7 @@ static int64_t findFirstNonStubAlignment(stList *inducedAlignment, bool reverse,
 }
 
 static void pruneStubAlignments(Cap *cap, stList *inducedAlignment1, stList *inducedAlignment2,
-        stSortedSet *endAlignment1, stSortedSet *endAlignment2, stSortedSet *freeStubAdjacencySequences) {
+        stSortedSet *endAlignment1, stSortedSet *endAlignment2, void *stubColumns) {
     assert(cap != NULL);
     End *end = cap_getEnd(cap);
     assert(cap_getAdjacency(cap) != NULL);
@@ -337,14 +331,14 @@ static void pruneStubAlignments(Cap *cap, stList *inducedAlignment1, stList *ind
     int64_t cutOff1 = stList_length(inducedAlignment1) - 1;
     int64_t cutOff2 = 0;
     if (end_isStubEnd(adjacentEnd) && end_isFree(adjacentEnd)) {
-        cutOff1 = findFirstNonStubAlignment(inducedAlignment1, 1, freeStubAdjacencySequences);
+        cutOff1 = findFirstNonStubAlignment(inducedAlignment1, 1, stubColumns);
         assert(stList_length(inducedAlignment2) == 0);
         cutOff2 = stList_length(inducedAlignment2);
     }
     if (end_isStubEnd(end) && end_isFree(end)) {
         assert(stList_length(inducedAlignment1) == 0);
         cutOff1 = -1;
-        cutOff2 = findFirstNonStubAlignment(inducedAlignment2, 0, freeStubAdjacencySequences);
+        cutOff2 = findFirstNonStubAlignment(inducedAlignment2, 0, stubColumns);
     }
     //Now do the actual filtering of the alignments.
     pruneAlignmentsP(inducedAlignment1, endAlignment1, cutOff1 + 1, stList_length(inducedAlignment1));
@@ -356,8 +350,8 @@ static void pruneStubAlignments(Cap *cap, stList *inducedAlignment1, stList *ind
  */
 
 static int makeFlowerAlignmentP(Cap *cap, stHash *endAlignments,
-        void(*fn)(Cap *, stList *, stList *, stSortedSet *, stSortedSet *, stSortedSet *),
-        stSortedSet *freeStubAdjacencySequences) {
+        void(*fn)(Cap *, stList *, stList *, stSortedSet *, stSortedSet *, void *),
+        void *extraArg) {
     stSortedSet *endAlignment1 = stHash_search(endAlignments, end_getPositiveOrientation(cap_getEnd(cap)));
     assert(endAlignment1 != NULL);
 
@@ -380,7 +374,7 @@ static int makeFlowerAlignmentP(Cap *cap, stHash *endAlignments,
     stList *inducedAlignment2 = getInducedAlignment(endAlignment2, adjacencySequence2);
     stList_reverse(inducedAlignment2);
 
-    fn(cap, inducedAlignment1, inducedAlignment2, endAlignment1, endAlignment2, freeStubAdjacencySequences);
+    fn(cap, inducedAlignment1, inducedAlignment2, endAlignment1, endAlignment2, extraArg);
 
     //Cleanup.
     adjacencySequence_destruct(adjacencySequence1);
@@ -404,9 +398,6 @@ static stSortedSet *makeFlowerAlignment2(Flower *flower, stHash *endAlignments, 
      * Makes the alignments of the ends, in "endAlignments", consistent with one another using the bar algorithm.
      */
 
-    //Sequences that are stubs.
-    stSortedSet *freeStubAdjacencySequences = getFreeStubAdjacencySequences(flower);
-
     //Prune end alignments
     End *end;
     Flower_EndIterator *endIterator = flower_getEndIterator(flower);
@@ -420,7 +411,7 @@ static stSortedSet *makeFlowerAlignment2(Flower *flower, stHash *endAlignments, 
                 cap = cap_getReverse(cap);
             }
             if (cap_getStrand(cap)) {
-                if (makeFlowerAlignmentP(cap, endAlignments, getScore, freeStubAdjacencySequences)) {
+                if (makeFlowerAlignmentP(cap, endAlignments, getScore, NULL)) {
                     stList_append(caps, cap);
                 }
             }
@@ -438,7 +429,7 @@ static stSortedSet *makeFlowerAlignment2(Flower *flower, stHash *endAlignments, 
         assert(score2 <= score);
         score = score2;
 
-        makeFlowerAlignmentP(cap, endAlignments, pruneAlignments, freeStubAdjacencySequences);
+        makeFlowerAlignmentP(cap, endAlignments, pruneAlignments, NULL);
         assert(cap_getAdjacency(cap) != NULL);
         if ((end_isFree(cap_getEnd(cap)) && end_isStubEnd(cap_getEnd(cap))) || (end_isFree(
                 cap_getEnd(cap_getAdjacency(cap))) && end_isStubEnd(cap_getEnd(cap_getAdjacency(cap))))) {
@@ -449,19 +440,28 @@ static stSortedSet *makeFlowerAlignment2(Flower *flower, stHash *endAlignments, 
     stHash_destruct(capScoresFn_Hash);
 
     if (pruneOutStubAlignments) { //This is used to remove matches only containing stub sequences at end of an end alignment.
-    	while (stList_length(freeStubCaps) > 0) {
-        	makeFlowerAlignmentP(stList_pop(freeStubCaps), endAlignments, pruneStubAlignments, freeStubAdjacencySequences);
+        //Get sequences that are stubs.
+        stSortedSet *freeStubAdjacencySequences = getFreeStubAdjacencySequences(flower);
+
+        //Build hash of columns only containing alignments between stubs.
+        stSet *stubColumns = stSet_construct();
+
+        while (stList_length(freeStubCaps) > 0) {
+        	makeFlowerAlignmentP(stList_pop(freeStubCaps), endAlignments, pruneStubAlignments, stubColumns);
         }
+
+        stSortedSet_destruct(freeStubAdjacencySequences);
+        stSet_destruct(stubColumns);
     }
     stList_destruct(freeStubCaps);
 
     //Now convert to set of final aligned pairs to return.
     stSortedSet *sortedAlignment = stSortedSet_construct3((int(*)(const void *, const void *)) alignedPair_cmpFn,
             (void(*)(void *)) alignedPair_destruct);
-    stSet *alignedPairsToColumns = stSet_construct3(alignedPair_columnFn, alignedPair_columnEqualsFn, NULL);
     stHashIterator *endAlignmentsIt = stHash_getIterator(endAlignments);
     while ((end = stHash_getNext(endAlignmentsIt)) != NULL) {
         stSortedSetIterator *endAlignmentIt = stSortedSet_getIterator(stHash_search(endAlignments, end));
+        stSet *alignedPairsToColumns = stSet_construct3(alignedPair_columnFn, alignedPair_columnEqualsFn, NULL);
         AlignedPair *alignedPair;
         while ((alignedPair = stSortedSet_getNext(endAlignmentIt)) != NULL) {
             AlignedPair *alignedPair2 = stSet_search(alignedPairsToColumns, alignedPair);
@@ -475,13 +475,12 @@ static stSortedSet *makeFlowerAlignment2(Flower *flower, stHash *endAlignments, 
             }
         }
         stSortedSet_destructIterator(endAlignmentIt);
+        stSet_destruct(alignedPairsToColumns);
     }
     stHash_destructIterator(endAlignmentsIt);
-    stSet_destruct(alignedPairsToColumns);
 
     //cleanup
     stHash_destruct(endAlignments);
-    stSortedSet_destruct(freeStubAdjacencySequences);
 
     return sortedAlignment;
 }

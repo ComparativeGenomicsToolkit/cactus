@@ -88,6 +88,6 @@ stList *filterMultipleAlignedPairs(stSet *columns, stList *multipleAlignedPairs)
 stHash *getSequencePositionsToNonTrivialColumnScoresHash(stHash *positionsToColumns, stList *seqFrags, MultipleAlignment *mA,
         bool filterFn(stIntTuple *, void *), void *extraArg);
 
-stHash *getSequencePositionsToColumnsHash(stSet *columns);
+stHash *getSequencePositionsToColumnsHash(stSet *columns, bool pointToHead);
 
 #endif /* ALIGNER_H_ */

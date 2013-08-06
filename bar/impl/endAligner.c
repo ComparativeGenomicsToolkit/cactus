@@ -45,6 +45,12 @@ int alignedPair_cmpFn(const AlignedPair *alignedPair1, const AlignedPair *aligne
     return i;
 }
 
+bool filterAlignmentsToStubsFn(stIntTuple *alignedPair, void *extraArg) {
+    bool *stubSeqArray = extraArg;
+    assert(stIntTuple_length(alignedPair) == 5);
+    return stubSeqArray[stIntTuple_get(alignedPair, 1)] || stubSeqArray[stIntTuple_get(alignedPair, 3)];
+}
+
 stSortedSet *makeEndAlignment(End *end, int64_t spanningTrees, int64_t maxSequenceLength,
         int64_t maximumNumberOfSequencesBeforeSwitchingToFast, float gapGamma,
         PairwiseAlignmentParameters *pairwiseAlignmentBandingParameters) {
@@ -55,6 +61,8 @@ stSortedSet *makeEndAlignment(End *end, int64_t spanningTrees, int64_t maxSequen
     End_InstanceIterator *it = end_getInstanceIterator(end);
     stList *sequences = stList_construct3(0, (void (*)(void *))adjacencySequence_destruct);
     stList *seqFrags = stList_construct3(0, (void (*)(void *))seqFrag_destruct);
+    bool *stubSeqArray = st_calloc(end_getInstanceNumber(end), sizeof(bool));
+    int64_t index = 0;
     while((cap = end_getNext(it)) != NULL) {
         if(cap_getSide(cap)) {
             cap = cap_getReverse(cap);
@@ -62,16 +70,20 @@ stSortedSet *makeEndAlignment(End *end, int64_t spanningTrees, int64_t maxSequen
         AdjacencySequence *adjacencySequence = adjacencySequence_construct(cap, maxSequenceLength);
         stList_append(sequences, adjacencySequence);
         assert(cap_getAdjacency(cap) != NULL);
-        stList_append(seqFrags, seqFrag_construct(adjacencySequence->string, 0, end_getName(cap_getEnd(cap_getAdjacency(cap)))));
+        End *adjacentEnd = cap_getEnd(cap_getAdjacency(cap));
+        stList_append(seqFrags, seqFrag_construct(adjacencySequence->string, 0, end_getName(adjacentEnd)));
+        stubSeqArray[index++] = end_isFree(adjacentEnd) && end_isStubEnd(adjacentEnd);
     }
     end_destructInstanceIterator(it);
+    assert(index == end_getInstanceNumber(end));
 
     //Convert the alignment pairs to an alignment of the caps..
     MultipleAlignment *mA = makeAlignment(seqFrags, spanningTrees, 100000000, maximumNumberOfSequencesBeforeSwitchingToFast, gapGamma, pairwiseAlignmentBandingParameters);
 
     //Build the sequence position to columns scores.
-    stHash *sequencePositionsToColumnScoresHash = getSequencePositionsToNonTrivialColumnScoresHash(seqFrags, mA, NULL, NULL);
-    stHash *sequencePositionsToColumnScoresWithoutStubsHash = getSequencePositionsToNonTrivialColumnScoresHash(seqFrags, mA, NULL, NULL);
+    stHash *sequencePositionsToColumnsHash = getSequencePositionsToColumnsHash(mA->columns, 0); //This is a hash of positions to the not necessarily head column struct.
+    stHash *sequencePositionsToColumnScoresHash = getSequencePositionsToNonTrivialColumnScoresHash(sequencePositionsToColumnsHash, seqFrags, mA, NULL, NULL);
+    stHash *sequencePositionsToColumnScoresWithoutStubsHash = getSequencePositionsToNonTrivialColumnScoresHash(sequencePositionsToColumnsHash, seqFrags, mA, filterAlignmentsToStubsFn, stubSeqArray);
 
     //Make an index for each column
     stHash *columnsToIndices = stHash_construct2(NULL, (void (*)(void *))stIntTuple_destruct);
@@ -87,21 +99,20 @@ stSortedSet *makeEndAlignment(End *end, int64_t spanningTrees, int64_t maxSequen
             stSortedSet_construct3((int (*)(const void *, const void *))alignedPair_cmpFn,
             (void (*)(void *))alignedPair_destruct);
 
-    stHashIterator *columnIt2 = stHash_getIterator(mA->columns);
-    stHash *sequencePositionsToColumnsHash = getSequencePositionsToColumnsHash(mA->columns);
+    stHashIterator *columnIt2 = stHash_getIterator(sequencePositionsToColumnsHash);
+    stHash *sequencePositionsToHeadColumnsHash = getSequencePositionsToColumnsHash(mA->columns, 1);
     while((c = stHash_getNext(columnIt2)) != NULL) {
         int64_t *score = stHash_search(sequencePositionsToColumnScoresHash, c);
         if(score != NULL) {
             assert(*score > 0);
-            int64_t *scoreWithoutStubs = stHash_search(sequencePositionsToColumnScoresWithoutStubsHash, c);
-            assert(scoreWithoutStubs != NULL);
-            Column *c2 = stHash_search(sequencePositionsToColumnsHash, c);
+            int64_t *scoreWithoutStubs = stHash_search(sequencePositionsToColumnScoresWithoutStubsHash, c); //this may be null, so we test below
+            Column *c2 = stHash_search(sequencePositionsToHeadColumnsHash, c);
             assert(c2 != NULL);
             assert(stHash_search(columnsToIndices, c2) != NULL);
             AdjacencySequence *i = stList_get(sequences, c->seqIndex);
             AlignedPair *alignedPair = alignedPair_construct(i->subsequenceIdentifier,
                     i->start + (i->strand ? c->position : -c->position), i->strand, *score,
-                    /*score of alignment only to non-stubs*/ *scoreWithoutStubs,
+                    /*score of alignment only to non-stubs*/ scoreWithoutStubs == NULL ? 0 : *scoreWithoutStubs,
                     stIntTuple_get(stHash_search(columnsToIndices, c2), 0));
             assert(stSortedSet_search(sortedAlignment, alignedPair) == NULL);
             stSortedSet_insert(sortedAlignment, alignedPair);
@@ -110,7 +121,9 @@ stSortedSet *makeEndAlignment(End *end, int64_t spanningTrees, int64_t maxSequen
     stHash_destructIterator(columnIt2);
 
     //Cleanup
+    free(stubSeqArray);
     stHash_destruct(sequencePositionsToColumnsHash);
+    stHash_destruct(sequencePositionsToHeadColumnsHash);
     stHash_destruct(sequencePositionsToColumnScoresHash);
     stHash_destruct(sequencePositionsToColumnScoresWithoutStubsHash);
     stList_destruct(seqFrags);

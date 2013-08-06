@@ -561,7 +561,7 @@ Column *getColumnForSequencePosition(stHash *sequencePositionsToColumns, int64_t
     return stHash_search(sequencePositionsToColumns, &c);
 }
 
-stHash *getSequencePositionsToColumnsHash(stSet *columns) {
+stHash *getSequencePositionsToColumnsHash(stSet *columns, bool pointToHead) {
     /*
      * Builds hash of sequence positions to columns
      */
@@ -572,7 +572,7 @@ stHash *getSequencePositionsToColumnsHash(stSet *columns) {
     while ((c = stSet_getNext(it)) != NULL) {
         Column *c2 = c;
         do {
-            stHash_insert(sequencePositionsToColumns, c2, c);
+            stHash_insert(sequencePositionsToColumns, c2, pointToHead ? c : c2);
             c2 = c2->nColumn;
         } while (c2 != NULL);
     }
@@ -587,7 +587,7 @@ stList *filterMultipleAlignedPairs(stSet *columns, stList *multipleAlignedPairs)
      * returned. Pairs that do not make the list are cleaned up, as is the input list.
      */
     //Now walk through pairs
-    stHash *positionsToColumns = getSequencePositionsToColumnsHash(columns);
+    stHash *positionsToColumns = getSequencePositionsToColumnsHash(columns, 1);
     stList *filteredMultipleAlignedPairs = stList_construct3(0, (void(*)(void *)) stIntTuple_destruct);
     while (stList_length(multipleAlignedPairs) > 0) {
         stIntTuple *mAP = stList_pop(multipleAlignedPairs);
@@ -902,10 +902,6 @@ static void getSequencePositionsToColumnScores_updateWeight(stHash *positionsToS
     }
 }
 
-stSet *getSequencePositionsToColumnResiduesSet(MultipleAlignment *mA) {
-
-}
-
 stHash *getSequencePositionsToNonTrivialColumnScoresHash(stHash *positionsToColumns, stList *seqFrags, MultipleAlignment *mA,
         bool filterFn(stIntTuple *, void *), void *extraArg) {
     /*
@@ -939,11 +935,15 @@ stHash *getSequencePositionsToNonTrivialColumnScoresHash(stHash *positionsToColu
     Column *c;
     while((c = stHash_getNext(it)) != NULL) {
         assert(c->seqIndex >= 0 && c->seqIndex < stList_length(seqFrags));
-        st_uglyf("How bad is this %" PRIi64 " %" PRIi64 " %" PRIi64 "\n", *((int64_t *)stHash_search(positionsToScores, c)), PAIR_ALIGNMENT_PROB_1, pairwiseAlignmentsPerSequence[c->seqIndex]);
-        *((int64_t *)stHash_search(positionsToScores, c)) /= pairwiseAlignmentsPerSequence[c->seqIndex];
-        assert(*((int64_t *)stHash_search(positionsToScores, c)) > 0);
-        st_uglyf("How bad is this %" PRIi64 " %" PRIi64 " %" PRIi64 "\n", *((int64_t *)stHash_search(positionsToScores, c)), PAIR_ALIGNMENT_PROB_1, pairwiseAlignmentsPerSequence[c->seqIndex]);
-        assert(*((int64_t *)stHash_search(positionsToScores, c)) <= PAIR_ALIGNMENT_PROB_1);
+        int64_t *s = stHash_search(positionsToScores, c);
+        assert(*s > 0);
+        assert(pairwiseAlignmentsPerSequence[c->seqIndex] > 0);
+        //*s /= pairwiseAlignmentsPerSequence[c->seqIndex];
+        if(*s == 0) { //This is to avoid division creating zero weights, which are assumed for the bar algorithm.
+            *s = 1;
+        }
+        assert(*s > 0);
+        assert(*s <= PAIR_ALIGNMENT_PROB_1);
     }
     //Cleanup
     stHash_destructIterator(it);
