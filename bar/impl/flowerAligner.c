@@ -68,8 +68,9 @@ stList *getInducedAlignment(stSortedSet *endAlignment, AdjacencySequence *adjace
                         break;
                     }
                     assert(alignedPair2->position >= adjacencySequence->start);
-                    assert(alignedPair2->strand == adjacencySequence->strand);
-                    stList_append(inducedAlignment, alignedPair2);
+                    if (alignedPair2->strand == adjacencySequence->strand) {
+                        stList_append(inducedAlignment, alignedPair2);
+                    }
                 } else {
                     break;
                 }
@@ -91,8 +92,9 @@ stList *getInducedAlignment(stSortedSet *endAlignment, AdjacencySequence *adjace
                         break;
                     }
                     assert(alignedPair2->position <= adjacencySequence->start);
-                    assert(alignedPair2->strand == adjacencySequence->strand);
-                    stList_append(inducedAlignment, alignedPair2);
+                    if (alignedPair2->strand == adjacencySequence->strand) {
+                        stList_append(inducedAlignment, alignedPair2);
+                    }
                 } else {
                     break;
                 }
@@ -322,7 +324,7 @@ static void pruneStubAlignments(Cap *cap, stList *inducedAlignment1, stList *ind
  * Outer control functions that coordinate bar algorithm.
  */
 
-static int makeFlowerAlignmentP(Cap *cap, stHash *endAlignments,
+static void makeFlowerAlignmentP(Cap *cap, stHash *endAlignments,
         void(*fn)(Cap *, stList *, stList *, stSortedSet *, stSortedSet *, void *),
         void *extraArg) {
     stSortedSet *endAlignment1 = stHash_search(endAlignments, end_getPositiveOrientation(cap_getEnd(cap)));
@@ -354,7 +356,6 @@ static int makeFlowerAlignmentP(Cap *cap, stHash *endAlignments,
     adjacencySequence_destruct(adjacencySequence2);
     stList_destruct(inducedAlignment1);
     stList_destruct(inducedAlignment2);
-    return 1;
 }
 
 static uint64_t alignedPair_columnFn(const void *a) {
@@ -384,9 +385,8 @@ static stSortedSet *makeFlowerAlignment2(Flower *flower, stHash *endAlignments, 
                 cap = cap_getReverse(cap);
             }
             if (cap_getStrand(cap)) {
-                if (makeFlowerAlignmentP(cap, endAlignments, getScore, NULL)) {
-                    stList_append(caps, cap);
-                }
+                makeFlowerAlignmentP(cap, endAlignments, getScore, NULL);
+                stList_append(caps, cap);
             }
         }
         end_destructInstanceIterator(capIterator);
@@ -428,9 +428,9 @@ static stSortedSet *makeFlowerAlignment2(Flower *flower, stHash *endAlignments, 
     }
     stList_destruct(freeStubCaps);
 
-    //Now convert to set of final aligned pairs to return.
-    stSortedSet *sortedAlignment = stSortedSet_construct3((int(*)(const void *, const void *)) alignedPair_cmpFn,
-            (void(*)(void *)) alignedPair_destruct);
+    //Now convert to set of final aligned pairs to return, converting into global coordinates.
+    stSortedSet *sortedAlignment = stSortedSet_construct3((int(*)(const void *, const void *)) stIntTuple_cmpFn,
+            (void(*)(void *)) stIntTuple_destruct);
     stHashIterator *endAlignmentsIt = stHash_getIterator(endAlignments);
     while ((end = stHash_getNext(endAlignmentsIt)) != NULL) {
         stSortedSetIterator *endAlignmentIt = stSortedSet_getIterator(stHash_search(endAlignments, end));
@@ -443,8 +443,10 @@ static stSortedSet *makeFlowerAlignment2(Flower *flower, stHash *endAlignments, 
             }
             else {
                 assert(alignedPair != alignedPair2);
-                stSortedSet_insert(sortedAlignment, stIntTuple_construct5(alignedPair->subsequenceIdentifier, alignedPair->position,
-                            alignedPair2->subsequenceIdentifier, alignedPair2->position, alignedPair->strand == alignedPair2->strand));
+                stIntTuple *i = stIntTuple_construct5(alignedPair->subsequenceIdentifier, alignedPair->position,
+                        alignedPair2->subsequenceIdentifier, alignedPair2->position, alignedPair->strand == alignedPair2->strand);
+                assert(stSortedSet_search(sortedAlignment, i) == NULL);
+                stSortedSet_insert(sortedAlignment, i);
             }
         }
         stSortedSet_destructIterator(endAlignmentIt);

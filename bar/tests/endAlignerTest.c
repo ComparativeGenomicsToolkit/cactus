@@ -18,10 +18,10 @@ void test_alignedPair_cmpFn(CuTest *testCase) {
 
     //alignedPair_construct(int64_t subsequenceIdentifier1, int64_t position1, bool strand1,
     //int64_t score, int64_t scoreWithoutStubs, int64_t columnId)
-    AlignedPair *aP1 = alignedPair_construct(seq1, 2, 1, 90, 1, 0);
-    AlignedPair *aP2 = alignedPair_construct(seq1, 2, 1, 10, 0, 1);
-    AlignedPair *aP3 = alignedPair_construct(seq1, 2, 1, 75, 1, 2);
-    AlignedPair *aP4 = alignedPair_construct(seq1, 3, 1, 10, 1, 0);
+    AlignedPair *aP1 = alignedPair_construct(seq1, 0, 1, 90, 1, 0);
+    AlignedPair *aP2 = alignedPair_construct(seq1, 2, 0, 10, 0, 1);
+    AlignedPair *aP3 = alignedPair_construct(seq1, 2, 1, 75, 1, 1);
+    AlignedPair *aP4 = alignedPair_construct(seq1, 3, 1, 10, 1, 1);
     AlignedPair *aP5 = alignedPair_construct(seq1, 4, 1, 90, 1, 0);
 
     AlignedPair *ordering[5] = { aP2, aP1, aP4, aP5, aP3 };
@@ -115,7 +115,6 @@ static void testMakeEndAlignments(CuTest *testCase) {
 }
 
 static void testReadAndWriteEndAlignments(CuTest *testCase) {
-    return;
     setup();
     End *ends[3] = { end1, end2, end3 };
     int64_t maxLength = 4;

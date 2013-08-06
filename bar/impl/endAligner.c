@@ -26,7 +26,7 @@ void alignedPair_destruct(AlignedPair *alignedPair) {
     free(alignedPair); //We assume the reverse will be free independently.
 }
 
-static int alignedPair_cmpFnP(const AlignedPair *alignedPair1, const AlignedPair *alignedPair2) {
+int alignedPair_cmpFn(const AlignedPair *alignedPair1, const AlignedPair *alignedPair2) {
     int i = cactusMisc_nameCompare(alignedPair1->subsequenceIdentifier, alignedPair2->subsequenceIdentifier);
     if(i == 0) {
         i = alignedPair1->position > alignedPair2->position ? 1 : (alignedPair1->position < alignedPair2->position ? -1 : 0);
@@ -34,13 +34,8 @@ static int alignedPair_cmpFnP(const AlignedPair *alignedPair1, const AlignedPair
             i = alignedPair1->strand == alignedPair2->strand ? 0 : (alignedPair1->strand ? 1 : -1);
         }
     }
-    return i;
-}
-
-int alignedPair_cmpFn(const AlignedPair *alignedPair1, const AlignedPair *alignedPair2) {
-    int i = alignedPair_cmpFnP(alignedPair1, alignedPair2);
     if(i == 0) {
-        return alignedPair1->columnId > alignedPair2->columnId ? 1 : (alignedPair1->columnId < alignedPair2->columnId ? -1 : 0);
+       assert(alignedPair1->columnId == alignedPair2->columnId);
     }
     return i;
 }
@@ -83,7 +78,7 @@ stSortedSet *makeEndAlignment(End *end, int64_t spanningTrees, int64_t maxSequen
     //Build the sequence position to columns scores.
     stHash *sequencePositionsToColumnsHash = getSequencePositionsToColumnsHash(mA->columns, 0); //This is a hash of positions to the not necessarily head column struct.
     stHash *sequencePositionsToColumnScoresHash = getSequencePositionsToNonTrivialColumnScoresHash(sequencePositionsToColumnsHash, seqFrags, mA, NULL, NULL);
-    stHash *sequencePositionsToColumnScoresWithoutStubsHash = getSequencePositionsToNonTrivialColumnScoresHash(sequencePositionsToColumnsHash, seqFrags, mA, filterAlignmentsToStubsFn, stubSeqArray);
+    stHash *sequencePositionsToColumnScoresWithoutStubsHash = getSequencePositionsToNonTrivialColumnScoresHash(sequencePositionsToColumnsHash, seqFrags, mA, NULL, NULL); //filterAlignmentsToStubsFn, stubSeqArray);
 
     //Make an index for each column
     stHash *columnsToIndices = stHash_construct2(NULL, (void (*)(void *))stIntTuple_destruct);
@@ -116,6 +111,9 @@ stSortedSet *makeEndAlignment(End *end, int64_t spanningTrees, int64_t maxSequen
                     stIntTuple_get(stHash_search(columnsToIndices, c2), 0));
             assert(stSortedSet_search(sortedAlignment, alignedPair) == NULL);
             stSortedSet_insert(sortedAlignment, alignedPair);
+        }
+        else {
+            assert(stHash_search(sequencePositionsToColumnScoresWithoutStubsHash, c) == NULL);
         }
     }
     stHash_destructIterator(columnIt2);

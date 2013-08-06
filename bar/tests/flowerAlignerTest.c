@@ -64,7 +64,7 @@ void test_getInducedAlignment(CuTest *testCase) {
                 AlignedPair *alignedPair =
                         alignedPair_construct(aS1->subsequenceIdentifier, getRandomPosition(aS1), aS1->strand,
                                               //aS2->subsequenceIdentifier, getRandomPosition(aS2), aS2->strand,
-                                              st_randomInt(0, PAIR_ALIGNMENT_PROB_1), st_random() > 0.5, st_randomInt(0, 100));
+                                              st_randomInt(0, PAIR_ALIGNMENT_PROB_1), st_random() > 0.5, 1);
                 stSortedSet_insert(sortedAlignment, alignedPair);
                 //stSortedSet_insert(sortedAlignment, alignedPair->reverse);
             }
