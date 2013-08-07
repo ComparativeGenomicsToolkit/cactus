@@ -73,24 +73,42 @@ stSortedSet *makeEndAlignment(End *end, int64_t spanningTrees, int64_t maxSequen
     }
     end_destructInstanceIterator(it);
 
-    //Convert the alignment pairs to an alignment of the caps..
+    //Get the alignment.
     MultipleAlignment *mA = makeAlignment(seqFrags, spanningTrees, 100000000, maximumNumberOfSequencesBeforeSwitchingToFast, gapGamma, pairwiseAlignmentBandingParameters);
+    //Build an array of weights to reweight pairs in the alignment.
     stSortedSet *sortedAlignment =
             stSortedSet_construct3((int (*)(const void *, const void *))alignedPair_cmpFn,
             (void (*)(void *))alignedPair_destruct);
-
+    int64_t *pairwiseAlignmentsPerGenome = getPairwiseAlignmentsPerGenome(seqFrags, mA->chosenPairwiseAlignments);
+    double *scoreAdjustments = st_malloc(stList_length(seqFrags) * sizeof(double));
+    if(stList_length(seqFrags) > 1) {
+        for(int64_t i=0; i<stList_length(seqFrags); i++) {
+            assert(pairwiseAlignmentsPerGenome[i] > 0);
+            assert(pairwiseAlignmentsPerGenome[i] < stList_length(seqFrags));
+            scoreAdjustments[i] = ((double)stList_length(seqFrags)-1) / pairwiseAlignmentsPerGenome[i];
+            assert(scoreAdjustments[i] >= 1.0);
+            assert(scoreAdjustments[i] <= stList_length(seqFrags)-1 + 0.0001);
+        }
+    }
+	//Convert the alignment pairs to an alignment of the caps..
     while(stList_length(mA->alignedPairs) > 0) {
         stIntTuple *alignedPair = stList_pop(mA->alignedPairs);
         assert(stIntTuple_length(alignedPair) == 5);
-        AdjacencySequence *i = stList_get(sequences, stIntTuple_get(alignedPair, 1));
-        AdjacencySequence *j = stList_get(sequences, stIntTuple_get(alignedPair, 3));
+        int64_t seqIndex1 = stIntTuple_get(alignedPair, 1);
+        int64_t seqIndex2 = stIntTuple_get(alignedPair, 3);
+        AdjacencySequence *i = stList_get(sequences, seqIndex1);
+        AdjacencySequence *j = stList_get(sequences, seqIndex2);
         assert(i != j);
         int64_t offset1 = stIntTuple_get(alignedPair, 2);
         int64_t offset2 = stIntTuple_get(alignedPair, 4);
+        int64_t score = stIntTuple_get(alignedPair, 0);
+        assert(score > 0 && score <= PAIR_ALIGNMENT_PROB_1);
+        assert(pairwiseAlignmentsPerGenome[seqIndex1] > 0);
+        assert(pairwiseAlignmentsPerGenome[seqIndex2] > 0);
         AlignedPair *alignedPair2 = alignedPair_construct(
                 i->subsequenceIdentifier, i->start + (i->strand ? offset1 : -offset1), i->strand,
                 j->subsequenceIdentifier, j->start + (j->strand ? offset2 : -offset2), j->strand,
-                stIntTuple_get(alignedPair, 0), stIntTuple_get(alignedPair, 0));
+                score*scoreAdjustments[seqIndex1], score*scoreAdjustments[seqIndex2]);
         assert(stSortedSet_search(sortedAlignment, alignedPair2) == NULL);
         assert(stSortedSet_search(sortedAlignment, alignedPair2->reverse) == NULL);
         stSortedSet_insert(sortedAlignment, alignedPair2);
@@ -101,6 +119,8 @@ stSortedSet *makeEndAlignment(End *end, int64_t spanningTrees, int64_t maxSequen
     //Cleanup
     stList_destruct(seqFrags);
     stList_destruct(sequences);
+    free(pairwiseAlignmentsPerGenome);
+    free(scoreAdjustments);
     multipleAlignment_destruct(mA);
 
     return sortedAlignment;
