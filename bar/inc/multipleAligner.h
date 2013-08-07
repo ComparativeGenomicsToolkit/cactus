@@ -39,16 +39,26 @@ struct _column {
  * represented as a list of aligned stIntTuple pairs, format (score, sequence1, position1, sequence2, position2)
  * Positions and sequence indices are zero based, scores are between 1 and 1000.
  */
-stList *makeAlignment(stList *seqFrags,
+typedef struct {
+    stSet *columns; //set of "Columns" representing alignment
+    stList *alignedPairs; //set of tuples giving aligned pairs consistent with columns each of the form (similarityScore, seqX, posX, seqY, posY), positions and sequence indices are zero based.
+    stList *chosenPairwiseAlignments; //set of tuples representing chosen pairwise alignments, each of the form (similarityScore, seqXIndex, seqYIndex)
+} MultipleAlignment;
+
+MultipleAlignment *makeAlignment(stList *seqFrags,
         int64_t spanningTrees, int64_t maxPairsToConsider,
         int64_t maximumNumberOfSequencesBeforeSwitchingToFast,
         float gapGamma,
         PairwiseAlignmentParameters *pairwiseAlignmentBandingParameters);
 
-stList *makeAlignmentUsingAllPairs(stList *seqFrags, float gapGamma,
+MultipleAlignment *makeAlignmentUsingAllPairs(stList *seqFrags, float gapGamma,
         PairwiseAlignmentParameters *pairwiseAlignmentBandingParameters);
 
+void multipleAlignment_destruct(MultipleAlignment *mA);
+
 SeqFrag *seqFrag_construct(const char *seq, int64_t leftEndId, int64_t rightEndId);
+
+int64_t *getPairwiseAlignmentsPerGenome(stList *seqFrags, stList *chosenPairwiseAlignments);
 
 void seqFrag_destruct(SeqFrag *seqFrag);
 

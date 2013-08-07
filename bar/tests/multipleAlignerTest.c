@@ -84,10 +84,10 @@ static void checkAlignment(CuTest *testCase, stList *seqFrags, stList *multipleA
 
 static void test_makeAlignmentUsingAllPairs(CuTest *testCase) {
     setup();
-    stList *multipleAlignedPairs = makeAlignmentUsingAllPairs(littleSeqFrags, 0.0, pabp);
-    checkAlignment(testCase, littleSeqFrags, multipleAlignedPairs);
-    CuAssertIntEquals(testCase, 9, stList_length(multipleAlignedPairs));
-    stList_destruct(multipleAlignedPairs);
+    MultipleAlignment *mA = makeAlignmentUsingAllPairs(littleSeqFrags, 0.0, pabp);
+    checkAlignment(testCase, littleSeqFrags, mA->alignedPairs);
+    CuAssertIntEquals(testCase, 9, stList_length(mA->alignedPairs));
+    multipleAlignment_destruct(mA);
     teardown();
 }
 
@@ -110,9 +110,10 @@ static void test_multipleAlignerAllPairsRandom(CuTest *testCase) {
         for (int64_t i = 0; i < stList_length(randomSeqFrags); i++) {
             st_logInfo("Sequence to align: %s\n", stList_get(randomSeqFrags, i));
         }
-        stList *multipleAlignedPairs = makeAlignmentUsingAllPairs(randomSeqFrags, 0.5, pabp);
-        checkAlignment(testCase, randomSeqFrags, multipleAlignedPairs);
+        MultipleAlignment *mA = makeAlignmentUsingAllPairs(randomSeqFrags, 0.5, pabp);
+        checkAlignment(testCase, randomSeqFrags, mA->alignedPairs);
         stList_destruct(randomSeqFrags);
+        multipleAlignment_destruct(mA);
         teardown();
     }
 }
@@ -219,9 +220,10 @@ static void test_multipleAlignerRandom(CuTest *testCase) {
         for (int64_t i = 0; i < stList_length(randomSeqFrags); i++) {
             st_logInfo("Sequence to align: %s\n", stList_get(randomSeqFrags, i));
         }
-        stList *multipleAlignedPairs = makeAlignment(randomSeqFrags, spanningTrees, 10000000, st_randomInt(0, 10), 0.5, pabp);
-        checkAlignment(testCase, randomSeqFrags, multipleAlignedPairs);
+        MultipleAlignment *mA = makeAlignment(randomSeqFrags, spanningTrees, 10000000, st_randomInt(0, 10), 0.5, pabp);
+        checkAlignment(testCase, randomSeqFrags, mA->alignedPairs);
         stList_destruct(randomSeqFrags);
+        multipleAlignment_destruct(mA);
         teardown();
     }
 }
