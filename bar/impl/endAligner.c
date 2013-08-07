@@ -108,7 +108,7 @@ stSortedSet *makeEndAlignment(End *end, int64_t spanningTrees, int64_t maxSequen
         AlignedPair *alignedPair2 = alignedPair_construct(
                 i->subsequenceIdentifier, i->start + (i->strand ? offset1 : -offset1), i->strand,
                 j->subsequenceIdentifier, j->start + (j->strand ? offset2 : -offset2), j->strand,
-                score*scoreAdjustments[seqIndex1], score*scoreAdjustments[seqIndex2]);
+                score*scoreAdjustments[seqIndex1], score*scoreAdjustments[seqIndex2]); //Do the reweighting here.
         assert(stSortedSet_search(sortedAlignment, alignedPair2) == NULL);
         assert(stSortedSet_search(sortedAlignment, alignedPair2->reverse) == NULL);
         stSortedSet_insert(sortedAlignment, alignedPair2);
