@@ -644,7 +644,7 @@ static int64_t addMultipleAlignedPairs(int64_t sequence1, int64_t sequence2, stL
     SeqFrag *seqFrag1 = stList_get(seqFrags, sequence1);
     SeqFrag *seqFrag2 = stList_get(seqFrags, sequence2);
     stList *alignedPairs = getAlignedPairs(seqFrag1->seq, seqFrag2->seq, pairwiseAlignmentBandingParameters,
-            seqFrag1->leftEndId != seqFrag2->leftEndId, seqFrag1->rightEndId || seqFrag2->rightEndId);
+            seqFrag1->leftEndId != seqFrag2->leftEndId, seqFrag1->rightEndId != seqFrag2->rightEndId);
     int64_t distance = getAlignmentScore(alignedPairs, seqFrag1->length, seqFrag2->length);
     convertToMultipleAlignedPairs(alignedPairs, multipleAlignedPairs, sequence1, sequence2);
     return distance;
@@ -938,7 +938,7 @@ stHash *getSequencePositionsToNonTrivialColumnScoresHash(stHash *positionsToColu
         int64_t *s = stHash_search(positionsToScores, c);
         assert(*s > 0);
         assert(pairwiseAlignmentsPerSequence[c->seqIndex] > 0);
-        //*s /= pairwiseAlignmentsPerSequence[c->seqIndex];
+        *s /= pairwiseAlignmentsPerSequence[c->seqIndex];
         if(*s == 0) { //This is to avoid division creating zero weights, which are assumed for the bar algorithm.
             *s = 1;
         }
