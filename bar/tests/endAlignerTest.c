@@ -18,15 +18,15 @@ void test_alignedPair_cmpFn(CuTest *testCase) {
     Name seq2 = 10;
 
     AlignedPair *aP1 = alignedPair_construct(seq1, 2, 1,
-                        seq1, 7, 1, 90);
+                        seq1, 7, 1, 90, 90);
     AlignedPair *aP2 = alignedPair_construct(seq1, 2, 1,
-            seq2, 4, 0, 10);
+            seq2, 4, 0, 10, 10);
     AlignedPair *aP3 = alignedPair_construct(seq1, 2, 1,
-                seq2, 4, 1, 75);
+                seq2, 4, 1, 75, 72);
     AlignedPair *aP4 = alignedPair_construct(seq1, 3, 1,
-                        seq2, 4, 0, 10);
+                        seq2, 4, 0, 10, 1);
     AlignedPair *aP5 = alignedPair_construct(seq1, 4, 1,
-                            seq2, 4, 1, 90);
+                            seq2, 4, 1, 90, 100);
 
     AlignedPair *ordering[5] = { aP2, aP1, aP4, aP5, aP3 };
     for(int64_t i=0; i<5; i++) {

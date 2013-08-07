@@ -64,7 +64,7 @@ stList *getInducedAlignment(stSortedSet *endAlignment, AdjacencySequence *adjace
     stList *inducedAlignment = stList_construct();
     if (adjacencySequence->strand) {
         AlignedPair *alignedPair = alignedPair_construct(adjacencySequence->subsequenceIdentifier,
-                adjacencySequence->start - 1, adjacencySequence->strand, 0, 0, 0, 0);
+                adjacencySequence->start - 1, adjacencySequence->strand, 0, 0, 0, 0, 0);
         AlignedPair *alignedPair2 = stSortedSet_searchGreaterThan(endAlignment, alignedPair);
         if (alignedPair2 != NULL) {
             stSortedSetIterator *it = stSortedSet_getIteratorFrom(endAlignment, alignedPair2);
@@ -87,7 +87,7 @@ stList *getInducedAlignment(stSortedSet *endAlignment, AdjacencySequence *adjace
         alignedPair_destruct(alignedPair);
     } else {
         AlignedPair *alignedPair = alignedPair_construct(adjacencySequence->subsequenceIdentifier,
-                adjacencySequence->start + 1, adjacencySequence->strand, 0, 0, 0, 0);
+                adjacencySequence->start + 1, adjacencySequence->strand, 0, 0, 0, 0, 0);
         AlignedPair *alignedPair2 = stSortedSet_searchLessThan(endAlignment, alignedPair);
         if (alignedPair2 != NULL) {
             stSortedSetIterator *it = stSortedSet_getIteratorFrom(endAlignment, alignedPair2);

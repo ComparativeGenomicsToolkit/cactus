@@ -30,7 +30,7 @@ typedef struct _AlignedPair {
  * Constructs the an aligned pair.
  */
 AlignedPair *alignedPair_construct(int64_t subsequenceIdentifier1, int64_t position1, bool strand1,
-        int64_t subsequenceIdentifier2, int64_t position2, bool strand2, int64_t score);
+        int64_t subsequenceIdentifier2, int64_t position2, bool strand2, int64_t score1, int64_t score2);
 
 /*
  * Destruct the aligned pair.
