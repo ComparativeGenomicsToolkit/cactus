@@ -320,7 +320,7 @@ void stCaf_finish(Flower *flower, stPinchThreadSet *threadSet, int64_t chainLeng
     stCactusNode *startCactusNode;
     stList *deadEndComponent;
     stCactusGraph *cactusGraph = stCaf_getCactusGraphForThreadSet(flower, threadSet, &startCactusNode, &deadEndComponent, 1, minLengthForChromosome,
-            proportionOfUnalignedBasesForNewChromosome);
+            proportionOfUnalignedBasesForNewChromosome, 0, INT64_MAX);
     //chainLengthForBigFlower = 10;
     //longChain = 10;
     stSet *bigFlowers = stCactusGraph_collapseLongChainsOfBigFlowers(cactusGraph, startCactusNode, chainLengthForBigFlower, longChain, stCaf_mergeNodeObjects, 0);

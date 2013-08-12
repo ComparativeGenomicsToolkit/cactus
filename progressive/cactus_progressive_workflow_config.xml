@@ -30,6 +30,7 @@
 		maxAdjacencyComponentSizeRatio="50"
 		minLengthForChromosome="1000000"
 		proportionOfUnalignedBasesForNewChromosome="0.8"
+		maximumMedianSequenceLengthBetweenLinkedEnds="10000"
 		lastzMemory="littleMemory"
 	>
 		<!-- Change the chunk size to alter the number of blast jobs approximately quadratically -->

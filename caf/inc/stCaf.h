@@ -56,7 +56,7 @@ void stCaf_joinTrivialBoundaries(stPinchThreadSet *threadSet);
  * Removes homologies from the graph.
  */
 void stCaf_melt(Flower *flower, stPinchThreadSet *threadSet, bool blockFilterfn(stPinchBlock *), int64_t blockEndTrim,
-        int64_t minimumChainLength);
+        int64_t minimumChainLength, bool breakChainsAtReverseTandems, int64_t maximumMedianSpacingBetweenLinkedEnds);
 
 /*
  * Function used to determine if blocks contains sufficient numbers of sequences of ingroup/outgroup species.
@@ -102,7 +102,8 @@ void *stCaf_mergeNodeObjects(void *a, void *b);
  * Functions which converts a pinch graph into a cactus graph.
  */
 stCactusGraph *stCaf_getCactusGraphForThreadSet(Flower *flower, stPinchThreadSet *threadSet, stCactusNode **startCactusNode,
-        stList **deadEndComponent, bool attachEndsInFlower, int64_t minLengthForChromosome, double proportionOfUnalignedBasesForNewChromosome);
+        stList **deadEndComponent, bool attachEndsInFlower, int64_t minLengthForChromosome, double proportionOfUnalignedBasesForNewChromosome,
+        bool breakChainsAtReverseTandems, int64_t maximumMedianSpacingBetweenLinkedEnds);
 
 ///////////////////////////////////////////////////////////////////////////
 // Finishing: Converting a pinch graph into the flower hierarchy

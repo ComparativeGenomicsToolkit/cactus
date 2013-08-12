@@ -321,7 +321,7 @@ int main(int argc, char *argv[]) {
             if (requiredIngroupFraction > 0.0 || requiredOutgroupFraction > 0.0 || requiredAllFraction > 0.0 || minimumDegree > 1) {
                 stCaf_calculateRequiredFractionsOfSpecies(flower, requiredIngroupFraction, requiredOutgroupFraction, requiredAllFraction,
                         &requiredIngroupSpecies, &requiredOutgroupSpecies, &requiredAllSpecies);
-                stCaf_melt(flower, threadSet, blockFilterFn, 0, 0);
+                stCaf_melt(flower, threadSet, blockFilterFn, 0, 0, 0, INT64_MAX);
             }
             stCaf_finish(flower, threadSet, chainLengthForBigFlower, longChain, INT64_MAX, INT64_MAX); //Flower now destroyed.
             stPinchThreadSet_destruct(threadSet);

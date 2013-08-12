@@ -109,7 +109,7 @@ static void filterAlignments(stPinchThreadSet *threadSet, bool(*blockFilterFn)(s
 }
 
 void stCaf_melt(Flower *flower, stPinchThreadSet *threadSet, bool blockFilterfn(stPinchBlock *), int64_t blockEndTrim,
-        int64_t minimumChainLength) {
+        int64_t minimumChainLength, bool breakChainsAtReverseTandems, int64_t maximumMedianSpacingBetweenLinkedEnds) {
     //First trim
     if (blockEndTrim > 0) {
         trimAlignments(threadSet, blockEndTrim);
@@ -125,7 +125,7 @@ void stCaf_melt(Flower *flower, stPinchThreadSet *threadSet, bool blockFilterfn(
         stCactusNode *startCactusNode;
         stList *deadEndComponent;
         stCactusGraph *cactusGraph = stCaf_getCactusGraphForThreadSet(flower, threadSet, &startCactusNode, &deadEndComponent, 0, INT64_MAX,
-                0.0);
+                0.0, breakChainsAtReverseTandems, maximumMedianSpacingBetweenLinkedEnds);
         stList *blocksToDelete = stCaf_getBlocksInChainsLessThanGivenLength(cactusGraph, minimumChainLength);
         //Cleanup cactus
         stCactusGraph_destruct(cactusGraph);

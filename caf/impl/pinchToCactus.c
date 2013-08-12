@@ -255,8 +255,27 @@ static bool isDeadEndStubComponent(stList *adjacencyComponent, stPinchEnd *pinch
             : stPinchSegment_get3Prime(pinchSegment)) == NULL;
 }
 
+static bool stCaf_reversalAtEnd(stCactusEdgeEnd *cactusEdgeEnd, void *extraArg) {
+    assert(extraArg == NULL);
+    assert(stCactusEdgeEnd_getObject(cactusEdgeEnd) != NULL);
+    assert(stCactusEdgeEnd_getLink(cactusEdgeEnd) != NULL);
+    assert(stCactusEdgeEnd_getObject(stCactusEdgeEnd_getLink(cactusEdgeEnd)) != NULL);
+    return stPinchEnd_hasSelfLoopWithRespectToOtherBlock(stCactusEdgeEnd_getObject(cactusEdgeEnd),
+            stPinchEnd_getBlock(stCactusEdgeEnd_getObject(stCactusEdgeEnd_getLink(cactusEdgeEnd))));
+}
+
+static bool stCaf_breakAtTooGreatEnoughMedianSeparation(stCactusEdgeEnd *cactusEdgeEnd, void *extraArg) {
+    int64_t maximumMedianSpacingBetweenLinkedEnds = *(int64_t *)extraArg;
+    assert(maximumMedianSpacingBetweenLinkedEnds >= 0 && maximumMedianSpacingBetweenLinkedEnds < INT64_MAX);
+    stList *lengths = stPinchEnd_getSubSequenceLengthsConnectingEnds(stCactusEdgeEnd_getObject(cactusEdgeEnd), stCactusEdgeEnd_getObject(stCactusEdgeEnd_getLink(cactusEdgeEnd)));
+    stList_sort(lengths, (int (*)(const void *, const void *))stIntTuple_cmpFn);
+    bool b = stList_length(lengths) > 0 && stIntTuple_get(stList_get(lengths, stList_length(lengths)/2), 0) > maximumMedianSpacingBetweenLinkedEnds;
+    stList_destruct(lengths);
+    return b;
+}
+
 static stCactusGraph *stCaf_constructCactusGraph(stList *deadEndComponent, stHash *pinchEndsToAdjacencyComponents,
-        stCactusNode **startCactusNode) {
+        stCactusNode **startCactusNode, bool breakChainsAtReverseTandems, int64_t maximumMedianSpacingBetweenLinkedEnds) {
     /*
      * Constructs a cactus graph from a set of pinch graph components, including the dead end component. Returns a cactus
      * graph, and assigns 'startCactusNode' to the cactus node containing the dead end component.
@@ -319,6 +338,12 @@ static stCactusGraph *stCaf_constructCactusGraph(stList *deadEndComponent, stHas
     //Run the cactus-ifying functions
     stCactusGraph_collapseToCactus(cactusGraph, stCaf_mergeNodeObjects, *startCactusNode);
     stCactusGraph_collapseBridges(cactusGraph, *startCactusNode, stCaf_mergeNodeObjects);
+    if(breakChainsAtReverseTandems) {
+        *startCactusNode = stCactusGraph_breakChainsByEndsNotInChains(cactusGraph, *startCactusNode, stCaf_mergeNodeObjects, stCaf_reversalAtEnd, NULL);
+    }
+    if(maximumMedianSpacingBetweenLinkedEnds < INT64_MAX) {
+        *startCactusNode = stCactusGraph_breakChainsByEndsNotInChains(cactusGraph, *startCactusNode, stCaf_mergeNodeObjects, stCaf_breakAtTooGreatEnoughMedianSeparation, &maximumMedianSpacingBetweenLinkedEnds);
+    }
 
     return cactusGraph;
 }
@@ -329,7 +354,8 @@ static stCactusGraph *stCaf_constructCactusGraph(stList *deadEndComponent, stHas
 
 stCactusGraph *stCaf_getCactusGraphForThreadSet(Flower *flower, stPinchThreadSet *threadSet, stCactusNode **startCactusNode,
         stList **deadEndComponent, bool attachEndsInFlower, int64_t minLengthForChromosome,
-        double proportionOfUnalignedBasesForNewChromosome) {
+        double proportionOfUnalignedBasesForNewChromosome,
+        bool breakChainsAtReverseTandems, int64_t maximumMedianSpacingBetweenLinkedEnds) {
     //Get adjacency components
     stHash *pinchEndsToAdjacencyComponents;
     stList *adjacencyComponents = stPinchThreadSet_getAdjacencyComponents2(threadSet, &pinchEndsToAdjacencyComponents);
@@ -344,7 +370,8 @@ stCactusGraph *stCaf_getCactusGraphForThreadSet(Flower *flower, stPinchThreadSet
             minLengthForChromosome, proportionOfUnalignedBasesForNewChromosome);
 
     //Create cactus
-    stCactusGraph *cactusGraph = stCaf_constructCactusGraph(*deadEndComponent, pinchEndsToAdjacencyComponents, startCactusNode);
+    stCactusGraph *cactusGraph = stCaf_constructCactusGraph(*deadEndComponent, pinchEndsToAdjacencyComponents, startCactusNode,
+            breakChainsAtReverseTandems, maximumMedianSpacingBetweenLinkedEnds);
 
     //Cleanup (the memory is owned by the cactus graph, so this does not break anything)
     stHash_destruct(pinchEndsToAdjacencyComponents);

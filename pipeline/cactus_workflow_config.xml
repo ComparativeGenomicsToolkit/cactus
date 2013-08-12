@@ -26,6 +26,7 @@
 		maxAdjacencyComponentSizeRatio="10"
 		minLengthForChromosome="1000000"
 		proportionOfUnalignedBasesForNewChromosome="0.8"
+		maximumMedianSequenceLengthBetweenLinkedEnds="10000"
 		lastzMemory="littleMemory"
 	>
 		<CactusCafRecursion maxFlowerGroupSize="100000000"/>

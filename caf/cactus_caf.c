@@ -66,6 +66,9 @@ static void usage() {
     fprintf(
             stderr,
             "-z --proportionOfUnalignedBasesForNewChromosome : Proportion of aligned bases to be not contained in an existing chromosome to cause generation of a new chromosome.\n");
+    fprintf(
+                stderr,
+                "-A --maximumMedianSequenceLengthBetweenLinkedEnds : Maximum nedian length of sequences between linked ends to allow before breaking chains.\n");
 }
 
 static int64_t *getInts(const char *string, int64_t *arrayLength) {
@@ -230,6 +233,8 @@ int main(int argc, char *argv[]) {
     int64_t longChain = 2;
     int64_t minLengthForChromosome = 1000000;
     float proportionOfUnalignedBasesForNewChromosome = 0.8;
+    bool breakChainsAtReverseTandems = 1;
+    int64_t maximumMedianSequenceLengthBetweenLinkedEnds = INT64_MAX;
 
     ///////////////////////////////////////////////////////////////////////////
     // (0) Parse the inputs handed by genomeCactus.py / setup stuff.
@@ -246,12 +251,13 @@ int main(int argc, char *argv[]) {
                         "singleCopyIngroup", no_argument, 0, 's' }, { "singleCopyOutgroup", no_argument, 0, 't' }, {
                         "minimumSequenceLengthForBlast", required_argument, 0, 'v' }, { "maxAdjacencyComponentSizeRatio",
                         required_argument, 0, 'w' }, { "constraints", required_argument, 0, 'x' }, { "minLengthForChromosome",
-                        required_argument, 0, 'y' }, { "proportionOfUnalignedBasesForNewChromosome", required_argument, 0, 'z' }, { 0, 0,
-                        0, 0 } };
+                        required_argument, 0, 'y' }, { "proportionOfUnalignedBasesForNewChromosome", required_argument, 0, 'z' },
+                        { "maximumMedianSequenceLengthBetweenLinkedEnds", required_argument, 0, 'A' },
+                        { 0, 0, 0, 0 } };
 
         int option_index = 0;
 
-        key = getopt_long(argc, argv, "a:b:c:hi:k:m:n:o:p:q:r:stu:v:w:x:y:z:", long_options, &option_index);
+        key = getopt_long(argc, argv, "a:b:c:hi:k:m:n:o:p:q:r:stu:v:w:x:y:z:A:", long_options, &option_index);
 
         if (key == -1) {
             break;
@@ -330,6 +336,10 @@ int main(int argc, char *argv[]) {
                 break;
             case 'z':
                 k = sscanf(optarg, "%f", &proportionOfUnalignedBasesForNewChromosome);
+                assert(k == 1);
+                break;
+            case 'A':
+                k = sscanf(optarg, "%" PRIi64 "", &maximumMedianSequenceLengthBetweenLinkedEnds);
                 assert(k == 1);
                 break;
             default:
@@ -490,18 +500,18 @@ int main(int argc, char *argv[]) {
                     if (minimumChainLengthForMeltingRound >= minimumChainLength) {
                         break;
                     }
-                    stCaf_melt(flower, threadSet, NULL, 0, minimumChainLengthForMeltingRound);
+                    stCaf_melt(flower, threadSet, NULL, 0, minimumChainLengthForMeltingRound, breakChainsAtReverseTandems, maximumMedianSequenceLengthBetweenLinkedEnds);
                 } st_logDebug("Last melting round of cycle with a minimum chain length of %" PRIi64 " \n", minimumChainLength);
-                stCaf_melt(flower, threadSet, NULL, 0, minimumChainLength);
+                stCaf_melt(flower, threadSet, NULL, 0, minimumChainLength, breakChainsAtReverseTandems, maximumMedianSequenceLengthBetweenLinkedEnds);
                 //This does the filtering of blocks that do not have the required species/tree-coverage/degree.
-                stCaf_melt(flower, threadSet, blockFilterFn, blockTrim, 0);
+                stCaf_melt(flower, threadSet, blockFilterFn, blockTrim, 0, 0, INT64_MAX);
             }
 
             //Sort out case when we allow blocks of degree 1
             if (minimumDegree < 2) {
                 st_logDebug("Creating degree 1 blocks\n");
                 stCaf_makeDegreeOneBlocks(threadSet);
-                stCaf_melt(flower, threadSet, blockFilterFn, blockTrim, 0);
+                stCaf_melt(flower, threadSet, blockFilterFn, blockTrim, 0, 0, INT64_MAX);
             } else if (maximumAdjacencyComponentSizeRatio < INT64_MAX) { //Deal with giant components
                 st_logDebug("Breaking up components greedily\n");
                 stCaf_breakupComponentsGreedily(threadSet, maximumAdjacencyComponentSizeRatio);
