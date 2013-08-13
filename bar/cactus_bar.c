@@ -342,7 +342,7 @@ int main(int argc, char *argv[]) {
          * Write and close the cactusdisk.
          */
         cactusDisk_write(cactusDisk);
-        //return 0; //Exit without clean up is quicker, enable cleanup when doing memory leak detection.
+        return 0; //Exit without clean up is quicker, enable cleanup when doing memory leak detection.
     }
 
 
