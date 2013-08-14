@@ -458,7 +458,7 @@ static stSortedSet *makeFlowerAlignment2(Flower *flower, stHash *endAlignments, 
     }
     flower_destructEndIterator(endIterator);
     assert(stHash_size(capScoresFnHash) == stList_length(caps));
-    stList_sort2(caps, sortCapsFn, capScoresFnHash); //sorts the cap in descending order according to there cut off.
+    stList_sort2(caps, sortCapsFn, capScoresFnHash); //sorts the caps in ascending order according to their cut off score.
 
     //Now do the actual pruning
     stHash *deletedAlignedPairCounts = stHash_construct3((uint64_t (*)(const void *))stIntTuple_hashKey,
