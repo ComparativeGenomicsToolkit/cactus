@@ -61,11 +61,8 @@ void stCaf_melt(Flower *flower, stPinchThreadSet *threadSet, bool blockFilterfn(
 /*
  * Function used to determine if blocks contains sufficient numbers of sequences of ingroup/outgroup species.
  */
-bool stCaf_containsRequiredSpecies(stPinchBlock *pinchBlock, Flower *flower, int64_t requiredIngroupSpecies,
-        int64_t requiredOutgroupSpecies, int64_t requiredAllSpecies);
-
-void stCaf_calculateRequiredFractionsOfSpecies(Flower *flower, float requiredIngroupFraction, float requiredOutgroupFraction,
-        float requiredAllFraction, int64_t *requiredIngroupSpecies, int64_t *requiredOutgroupSpecies, int64_t *requiredAllSpecies);
+bool stCaf_containsRequiredSpecies(stPinchBlock *pinchBlock, Flower *flower, int64_t minimumIngroupDegree,
+        int64_t minimumOutgroupDegree, int64_t minimumAllDegree);
 
 /*
  * Returns the proportion of the tree covered by the block.

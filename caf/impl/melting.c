@@ -139,44 +139,14 @@ void stCaf_melt(Flower *flower, stPinchThreadSet *threadSet, bool blockFilterfn(
 // Functions for calculating required species/tree coverage
 ///////////////////////////////////////////////////////////////////////////
 
-void stCaf_calculateRequiredFractionsOfSpecies(Flower *flower, float requiredIngroupFraction, float requiredOutgroupFraction,
-        float requiredAllFraction, int64_t *requiredIngroupSpecies, int64_t *requiredOutgroupSpecies, int64_t *requiredAllSpecies) {
-    if (requiredIngroupFraction <= 0.0 && requiredOutgroupFraction <= 0.0 && requiredAllFraction <= 0.0) {
-        *requiredAllSpecies = 0;
-        *requiredOutgroupSpecies = 0;
-        *requiredAllSpecies = 0;
-    }
-    EventTree *eventTree = flower_getEventTree(flower);
-    Event *event;
-    int64_t outgroupEventNumber = 0;
-    int64_t ingroupEventNumber = 0;
-    EventTree_Iterator *eventIt = eventTree_getIterator(eventTree);
-    while ((event = eventTree_getNext(eventIt)) != NULL) {
-        if (event_getChildNumber(event) == 0) {
-            if (event_isOutgroup(event)) {
-                outgroupEventNumber++;
-            } else {
-                ingroupEventNumber++;
-            }
-        }
-    }
-    eventTree_destructIterator(eventIt);
-    *requiredOutgroupSpecies = 0.5 + outgroupEventNumber * requiredOutgroupFraction;
-    *requiredIngroupSpecies = 0.5 + ingroupEventNumber * requiredIngroupFraction;
-    //if(*requiredIngroupSpecies == 0) {
-    //    *requiredIngroupSpecies = 1;
-    //}
-    *requiredAllSpecies = 0.5 + (ingroupEventNumber + outgroupEventNumber) * requiredAllFraction;
-}
-
 Event *getEvent(stPinchSegment *segment, Flower *flower) {
     Event *event = cap_getEvent(flower_getCap(flower, stPinchSegment_getName(segment)));
     assert(event != NULL);
     return event;
 }
 
-bool stCaf_containsRequiredSpecies(stPinchBlock *pinchBlock, Flower *flower, int64_t requiredIngroupSpecies,
-        int64_t requiredOutgroupSpecies, int64_t requiredAllSpecies) {
+bool stCaf_containsRequiredSpecies(stPinchBlock *pinchBlock, Flower *flower, int64_t minimumIngroupDegree,
+        int64_t minimumOutgroupDegree, int64_t requiredAllSpecies) {
     int64_t outgroupSequences = 0;
     int64_t ingroupSequences = 0;
     stPinchBlockIt segmentIt = stPinchBlock_getSegmentIterator(pinchBlock);
@@ -189,7 +159,7 @@ bool stCaf_containsRequiredSpecies(stPinchBlock *pinchBlock, Flower *flower, int
             ingroupSequences++;
         }
     }
-    return ingroupSequences >= requiredIngroupSpecies && outgroupSequences >= requiredOutgroupSpecies && outgroupSequences
+    return ingroupSequences >= minimumIngroupDegree && outgroupSequences >= minimumOutgroupDegree && outgroupSequences
             + ingroupSequences >= requiredAllSpecies;
 }
 

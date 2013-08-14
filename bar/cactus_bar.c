@@ -44,11 +44,9 @@ void usage() {
 
     fprintf(stderr, "-y --pruneOutStubAlignments : Prune out alignments of sequences that terminates in free stubs stubs\n");
 
-    fprintf(stderr, "-A --requiredIngroupFraction : Fraction of ingroup events required in a block.\n");
+    fprintf(stderr, "-A --minimumIngroupDegree : Number of ingroup sequences required in a block.\n");
 
-    fprintf(stderr, "-B --requiredOutgroupFraction : Fraction of outgroup events required in a block.\n");
-
-    fprintf(stderr, "-C --requiredAllFraction : Fraction of all events required in a block.\n");
+    fprintf(stderr, "-B --minimumOutgroupDegree : Number of outgroup sequences required in a block.\n");
 
     fprintf(stderr, "-D --precomputedAlignments : Precomputed end alignments.\n");
 
@@ -75,19 +73,11 @@ stPinch *getNextAlignedPairAlignment(stSortedSetIterator *it) {
     return &pinch;
 }
 
-static int64_t requiredIngroupSpecies, requiredOutgroupSpecies, requiredAllSpecies;
-static int64_t minimumDegree = 0;
+static int64_t minimumIngroupDegree = 0, minimumOutgroupDegree = 0, minimumDegree = 0;
 static Flower *flower;
 
 bool blockFilterFn(stPinchBlock *pinchBlock) {
-    if (stPinchBlock_getDegree(pinchBlock) < minimumDegree) {
-        return 1;
-    }
-    if ((requiredIngroupSpecies > 0 || requiredOutgroupSpecies > 0 || requiredAllSpecies > 0) &&
-            !stCaf_containsRequiredSpecies(pinchBlock, flower, requiredIngroupSpecies, requiredOutgroupSpecies, requiredAllSpecies)) {
-        return 1;
-    }
-    return 0;
+    return !stCaf_containsRequiredSpecies(pinchBlock, flower, minimumIngroupDegree, minimumOutgroupDegree, minimumDegree);
 }
 
 int main(int argc, char *argv[]) {
@@ -114,7 +104,6 @@ int main(int argc, char *argv[]) {
      * Setup the input parameters for cactus core.
      */
     bool pruneOutStubAlignments = 0;
-    float requiredIngroupFraction = 0.0, requiredOutgroupFraction = 0.0, requiredAllFraction = 0.0;
 
     /*
      * Parse the options.
@@ -128,15 +117,15 @@ int main(int argc, char *argv[]) {
                         "diagonalExpansion", required_argument, 0, 'r' }, { "constraintDiagonalTrim", required_argument, 0, 't' }, {
                         "minimumDegree", required_argument, 0, 'u' }, { "alignAmbiguityCharacters", no_argument, 0, 'w' }, {
                         "pruneOutStubAlignments", no_argument, 0, 'y' }, {
-                        "requiredIngroupFraction", required_argument, 0, 'A' }, { "requiredOutgroupFraction", required_argument, 0, 'B' },
-                { "requiredAllFraction", required_argument, 0, 'C' }, { "precomputedAlignments", required_argument, 0, 'D' }, {
+                        "minimumIngroupDegree", required_argument, 0, 'A' }, { "minimumOutgroupDegree", required_argument, 0, 'B' },
+                { "precomputedAlignments", required_argument, 0, 'D' }, {
                         "endAlignmentsToPrecomputeOutputFile", required_argument, 0, 'E' }, { "maximumNumberOfSequencesBeforeSwitchingToFast",
                         required_argument, 0, 'F' }, { "calculateWhichEndsToComputeSeparately", no_argument, 0, 'G' }, { "largeEndSize",
                         required_argument, 0, 'I' }, { 0, 0, 0, 0 } };
 
         int option_index = 0;
 
-        int key = getopt_long(argc, argv, "a:b:hi:j:kl:o:p:q:r:t:u:wy:A:B:C:D:E:F:GI:", long_options, &option_index);
+        int key = getopt_long(argc, argv, "a:b:hi:j:kl:o:p:q:r:t:u:wy:A:B:D:E:F:GI:", long_options, &option_index);
 
         if (key == -1) {
             break;
@@ -210,15 +199,11 @@ int main(int argc, char *argv[]) {
                 pruneOutStubAlignments = 1;
                 break;
             case 'A':
-                i = sscanf(optarg, "%f", &requiredIngroupFraction);
+                i = sscanf(optarg, "%" PRIi64 "", &minimumIngroupDegree);
                 assert(i == 1);
                 break;
             case 'B':
-                i = sscanf(optarg, "%f", &requiredOutgroupFraction);
-                assert(i == 1);
-                break;
-            case 'C':
-                i = sscanf(optarg, "%f", &requiredAllFraction);
+                i = sscanf(optarg, "%" PRIi64 "", &minimumOutgroupDegree);
                 assert(i == 1);
                 break;
             case 'D':
@@ -318,9 +303,7 @@ int main(int argc, char *argv[]) {
             if (minimumDegree < 2) {
                 stCaf_makeDegreeOneBlocks(threadSet);
             }
-            if (requiredIngroupFraction > 0.0 || requiredOutgroupFraction > 0.0 || requiredAllFraction > 0.0 || minimumDegree > 1) {
-                stCaf_calculateRequiredFractionsOfSpecies(flower, requiredIngroupFraction, requiredOutgroupFraction, requiredAllFraction,
-                        &requiredIngroupSpecies, &requiredOutgroupSpecies, &requiredAllSpecies);
+            if (minimumIngroupDegree > 0 || minimumOutgroupDegree > 0 || minimumDegree > 1) {
                 stCaf_melt(flower, threadSet, blockFilterFn, 0, 0, 0, INT64_MAX);
             }
             stCaf_finish(flower, threadSet, chainLengthForBigFlower, longChain, INT64_MAX, INT64_MAX); //Flower now destroyed.

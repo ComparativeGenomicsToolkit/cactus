@@ -162,9 +162,8 @@ def runCactusCaf(cactusDiskDatabaseString, alignments,
                   minimumTreeCoverage=None,
                   blockTrim=None,
                   minimumBlockDegree=None,
-                  requiredIngroupFraction=None,
-                  requiredOutgroupFraction=None,
-                  requiredAllFraction=None,
+                  minimumIngroupDegree=None,
+                  minimumOutgroupDegree=None,
                   singleCopyIngroup=None,
                   singleCopyOutgroup=None,
                   lastzArguments=None,
@@ -184,10 +183,8 @@ def runCactusCaf(cactusDiskDatabaseString, alignments,
     blockTrim = nameValue("blockTrim", blockTrim, int)
     minimumBlockDegree = nameValue("minimumDegree", minimumBlockDegree, int)
     minimumSequenceLengthForBlast = nameValue("minimumSequenceLengthForBlast", minimumSequenceLengthForBlast, int)
-    
-    requiredIngroupFraction = nameValue("requiredIngroupFraction", requiredIngroupFraction, float)
-    requiredOutgroupFraction = nameValue("requiredOutgroupFraction", requiredOutgroupFraction, float)
-    requiredAllFraction = nameValue("requiredAllFraction", requiredAllFraction, float)
+    minimumIngroupDegree = nameValue("minimumIngroupDegree", minimumIngroupDegree, int)
+    minimumOutgroupDegree = nameValue("minimumOutgroupDegree", minimumOutgroupDegree, int)
     singleCopyIngroup = nameValue("singleCopyIngroup", singleCopyIngroup, bool)
     singleCopyOutgroup = nameValue("singleCopyOutgroup", singleCopyOutgroup, bool)
     maxAdjacencyComponentSizeRatio = nameValue("maxAdjacencyComponentSizeRatio", maxAdjacencyComponentSizeRatio, float)
@@ -197,10 +194,10 @@ def runCactusCaf(cactusDiskDatabaseString, alignments,
     proportionOfUnalignedBasesForNewChromosome = nameValue("proportionOfUnalignedBasesForNewChromosome", proportionOfUnalignedBasesForNewChromosome, float)
     maximumMedianSequenceLengthBetweenLinkedEnds = nameValue("maximumMedianSequenceLengthBetweenLinkedEnds", maximumMedianSequenceLengthBetweenLinkedEnds, int)
     
-    command = "cactus_caf --cactusDisk '%s' --logLevel %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s" % \
+    command = "cactus_caf --cactusDisk '%s' --logLevel %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s" % \
     (cactusDiskDatabaseString, logLevel, alignments, annealingRounds, deannealingRounds, 
      trim, minimumTreeCoverage, blockTrim, 
-     minimumBlockDegree, requiredIngroupFraction, requiredOutgroupFraction, requiredAllFraction, 
+     minimumBlockDegree, minimumIngroupDegree, minimumOutgroupDegree,  
      singleCopyIngroup, singleCopyOutgroup, lastzArguments, minimumSequenceLengthForBlast, maxAdjacencyComponentSizeRatio, constraints,
      minLengthForChromosome, proportionOfUnalignedBasesForNewChromosome, maximumMedianSequenceLengthBetweenLinkedEnds)
     masterMessages = popenCatch(command, stdinString=flowerNames)
@@ -253,10 +250,9 @@ def runCactusBar(cactusDiskDatabaseString, flowerNames, logLevel=None,
                          diagonalExpansion=None,
                          constraintDiagonalTrim=None,
                          minimumBlockDegree=None,
+                         minimumIngroupDegree=None,
+                         minimumOutgroupDegree=None,
                          alignAmbiguityCharacters=None,
-                         requiredIngroupFraction=None,
-                         requiredOutgroupFraction=None,
-                         requiredAllFraction=None,
                          pruneOutStubAlignments=None,
                          maximumNumberOfSequencesBeforeSwitchingToFast=None,
                          calculateWhichEndsToComputeSeparately=None,
@@ -275,22 +271,21 @@ def runCactusBar(cactusDiskDatabaseString, flowerNames, logLevel=None,
     diagonalExpansion=nameValue("diagonalExpansion", diagonalExpansion, int)
     constraintDiagonalTrim = nameValue("constraintDiagonalTrim", constraintDiagonalTrim, int)
     minimumBlockDegree = nameValue("minimumDegree", minimumBlockDegree, int)
+    minimumIngroupDegree = nameValue("minimumIngroupDegree", minimumIngroupDegree, int)
+    minimumOutgroupDegree = nameValue("minimumOutgroupDegree", minimumOutgroupDegree, int)
     pruneOutStubAlignments = nameValue("pruneOutStubAlignments", pruneOutStubAlignments, bool)
     alignAmbiguityCharacters = nameValue("alignAmbiguityCharacters", alignAmbiguityCharacters, bool)
-    requiredIngroupFraction = nameValue("requiredIngroupFraction", requiredIngroupFraction, float)
-    requiredOutgroupFraction = nameValue("requiredOutgroupFraction", requiredOutgroupFraction, float)
-    requiredAllFraction = nameValue("requiredAllFraction", requiredAllFraction, float)
     maximumNumberOfSequencesBeforeSwitchingToFast=nameValue("maximumNumberOfSequencesBeforeSwitchingToFast", maximumNumberOfSequencesBeforeSwitchingToFast, int)
     calculateWhichEndsToComputeSeparately=nameValue("calculateWhichEndsToComputeSeparately", calculateWhichEndsToComputeSeparately, bool)
     largeEndSize=nameValue("largeEndSize", largeEndSize, int)
     endAlignmentsToPrecomputeOutputFile=nameValue("endAlignmentsToPrecomputeOutputFile", endAlignmentsToPrecomputeOutputFile, str)
     precomputedAlignments=nameValue("precomputedAlignments", precomputedAlignments, str, quotes=True)
     
-    masterMessages = popenCatch("cactus_bar --cactusDisk '%s' --logLevel %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s" % 
+    masterMessages = popenCatch("cactus_bar --cactusDisk '%s' --logLevel %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s" % 
            (cactusDiskDatabaseString, logLevel, spanningTrees, maximumLength, gapGamma, 
             splitMatrixBiggerThanThis, anchorMatrixBiggerThanThis, repeatMaskMatrixBiggerThanThis,
-            constraintDiagonalTrim, minimumBlockDegree, alignAmbiguityCharacters, pruneOutStubAlignments,
-            requiredIngroupFraction, requiredOutgroupFraction, requiredAllFraction, diagonalExpansion,
+            constraintDiagonalTrim, minimumBlockDegree, minimumIngroupDegree, minimumOutgroupDegree,  
+            alignAmbiguityCharacters, pruneOutStubAlignments, diagonalExpansion,
             maximumNumberOfSequencesBeforeSwitchingToFast, calculateWhichEndsToComputeSeparately,
             largeEndSize, endAlignmentsToPrecomputeOutputFile, precomputedAlignments), stdinString=flowerNames)
     logger.info("Ran cactus_bar okay")

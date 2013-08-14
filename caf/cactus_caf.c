@@ -42,11 +42,9 @@ static void usage() {
 
     fprintf(stderr, "-p --minimumDegree : (int >= 0) Minimum number of sequences in a block to be included in the output graph\n");
 
-    fprintf(stderr, "-q --requiredIngroupFraction : Fraction of ingroup events required in a block.\n");
+    fprintf(stderr, "-q --minimumIngroupDegree : Number of ingroup sequences required in a block.\n");
 
-    fprintf(stderr, "-r --requiredOutgroupFraction : Fraction of outgroup events required in a block.\n");
-
-    fprintf(stderr, "-u --requiredAllFraction : Fraction of all events required in a block.\n");
+    fprintf(stderr, "-r --minimumOutgroupDegree : Number of outgroup sequences required in a block.\n");
 
     fprintf(stderr, "-s --singleCopyIngroup : Require that in-group sequences have only single coverage\n");
 
@@ -87,17 +85,13 @@ static int64_t *getInts(const char *string, int64_t *arrayLength) {
     return iA;
 }
 
-static int64_t requiredIngroupSpecies = 0, requiredOutgroupSpecies = 0, requiredAllSpecies = 0;
+static int64_t minimumIngroupDegree = 0, minimumOutgroupDegree = 0, minimumDegree = 0;
 static float minimumTreeCoverage = 0.0;
-static int64_t minimumDegree = 0;
 static Flower *flower = NULL;
 
 static bool blockFilterFn(stPinchBlock *pinchBlock) {
-    if (stPinchBlock_getDegree(pinchBlock) < minimumDegree) {
-        return 1;
-    }
-    if ((requiredIngroupSpecies > 0 || requiredOutgroupSpecies > 0 || requiredAllSpecies > 0) && !stCaf_containsRequiredSpecies(pinchBlock,
-            flower, requiredIngroupSpecies, requiredOutgroupSpecies, requiredAllSpecies)) {
+    if ((minimumIngroupDegree > 0 || minimumOutgroupDegree > 0 || minimumDegree > 0) && !stCaf_containsRequiredSpecies(pinchBlock,
+            flower, minimumIngroupDegree, minimumOutgroupDegree, minimumDegree)) {
         return 1;
     }
     if (minimumTreeCoverage > 0.0 && stCaf_treeCoverage(pinchBlock, flower) < minimumTreeCoverage) { //Tree coverage
@@ -220,9 +214,6 @@ int main(int argc, char *argv[]) {
     int64_t meltingRoundsLength = 0;
 
     //Parameters for melting
-    float requiredIngroupFraction = 0.0;
-    float requiredOutgroupFraction = 0.0;
-    float requiredAllFraction = 0.0;
     float maximumAdjacencyComponentSizeRatio = 10;
     int64_t blockTrim = 0;
     int64_t alignmentTrimLength = 0;
@@ -246,8 +237,8 @@ int main(int argc, char *argv[]) {
                 { "help", no_argument, 0, 'h' }, { "annealingRounds", required_argument, 0, 'i' }, { "trim", required_argument, 0, 'k' }, {
                         "trimChange", required_argument, 0, 'l', }, { "minimumTreeCoverage", required_argument, 0, 'm' }, { "blockTrim",
                         required_argument, 0, 'n' }, { "deannealingRounds", required_argument, 0, 'o' }, { "minimumDegree",
-                        required_argument, 0, 'p' }, { "requiredIngroupFraction", required_argument, 0, 'q' }, {
-                        "requiredOutgroupFraction", required_argument, 0, 'r' }, { "requiredAllFraction", required_argument, 0, 'u' }, {
+                        required_argument, 0, 'p' }, { "minimumIngroupDegree", required_argument, 0, 'q' }, {
+                        "minimumOutgroupDegree", required_argument, 0, 'r' }, {
                         "singleCopyIngroup", no_argument, 0, 's' }, { "singleCopyOutgroup", no_argument, 0, 't' }, {
                         "minimumSequenceLengthForBlast", required_argument, 0, 'v' }, { "maxAdjacencyComponentSizeRatio",
                         required_argument, 0, 'w' }, { "constraints", required_argument, 0, 'x' }, { "minLengthForChromosome",
@@ -257,7 +248,7 @@ int main(int argc, char *argv[]) {
 
         int option_index = 0;
 
-        key = getopt_long(argc, argv, "a:b:c:hi:k:m:n:o:p:q:r:stu:v:w:x:y:z:A:", long_options, &option_index);
+        key = getopt_long(argc, argv, "a:b:c:hi:k:m:n:o:p:q:r:stv:w:x:y:z:A:", long_options, &option_index);
 
         if (key == -1) {
             break;
@@ -302,15 +293,11 @@ int main(int argc, char *argv[]) {
                 assert(k == 1);
                 break;
             case 'q':
-                k = sscanf(optarg, "%f", &requiredIngroupFraction);
+                k = sscanf(optarg, "%" PRIi64 "", &minimumIngroupDegree);
                 assert(k == 1);
                 break;
             case 'r':
-                k = sscanf(optarg, "%f", &requiredOutgroupFraction);
-                assert(k == 1);
-                break;
-            case 'u':
-                k = sscanf(optarg, "%f", &requiredAllFraction);
+                k = sscanf(optarg, "%" PRIi64 "", &minimumOutgroupDegree);
                 assert(k == 1);
                 break;
             case 's':
@@ -419,9 +406,6 @@ int main(int argc, char *argv[]) {
         if (!flower_builtBlocks(flower)) { // Do nothing if the flower already has defined blocks
             st_logDebug("Processing flower: %lli\n", flower_getName(flower));
 
-            //Set up the parameters for melting stuff
-            stCaf_calculateRequiredFractionsOfSpecies(flower, requiredIngroupFraction, requiredOutgroupFraction, requiredAllFraction,
-                    &requiredIngroupSpecies, &requiredOutgroupSpecies, &requiredAllSpecies);
             //Set up the graph and add the initial alignments
             stPinchThreadSet *threadSet = stCaf_setup(flower);
 

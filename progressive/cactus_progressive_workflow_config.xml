@@ -4,7 +4,7 @@
   		<defines littleMemory="2147483648" mediumMemory="8589934592" bigMemory="207374182400" maxFlowerGroupSizeRecursion="100000000"/>
   </constants>
   <preprocessor check="1" memory="2147483648" preprocessorString="cactus_checkUniqueHeaders.py IN_FILE" scope="leaves" />
-  <preprocessor chunkSize="100000000" memory="littleMemory" preprocessorString="cactus_lastzRepeatMask.py --minPeriod=10 --lastzOpts='--step=20 --notransition --ambiguous=iupac --nogapped' GENOME_FILE IN_FILE OUT_FILE" scope="leaves" />
+  <preprocessor chunkSize="100000000" memory="littleMemory" preprocessorString="cactus_lastzRepeatMask.py --minPeriod=100 --lastzOpts='--step=20 --notransition --ambiguous=iupac --nogapped' GENOME_FILE IN_FILE OUT_FILE" scope="leaves" />
   	<setup makeEventHeadersAlphaNumeric="0">
 	</setup>
 	<caf 
@@ -16,26 +16,25 @@
 		identityRatio="6" 
 		minimumDistance="0.01" 
 		minimumSequenceLengthForBlast="30"
-		annealingRounds="64" 
+		annealingRounds="128" 
 		deannealingRounds="2 8" 
 		blockTrim="5" 
 		minimumTreeCoverage="0.0" 
 		trim="0 0" 
 		minimumBlockDegree="2"
-		requiredIngroupFraction="0.0"
-		requiredOutgroupFraction="0.0"
-		requiredAllFraction="0.0"
+		minimumIngroupDegree="2"
+		minimumOutgroupDegree="0"
 		singleCopyIngroup="0"
 		singleCopyOutgroup="1"
 		maxAdjacencyComponentSizeRatio="50"
 		minLengthForChromosome="1000000"
 		proportionOfUnalignedBasesForNewChromosome="0.8"
-		maximumMedianSequenceLengthBetweenLinkedEnds="10000"
+		maximumMedianSequenceLengthBetweenLinkedEnds="1000"
 		lastzMemory="littleMemory"
 	>
 		<!-- Change the chunk size to alter the number of blast jobs approximately quadratically -->
 		<CactusCafRecursion maxFlowerGroupSize="100000000"/>
-		<CactusCafWrapper minFlowerSize="5000" maxFlowerGroupSize="25000000"/>
+		<CactusCafWrapper minFlowerSize="1" maxFlowerGroupSize="25000000"/>
 		<CactusCafWrapperLarge2 overlargeMemory="bigMemory"/>
 	</caf>
 	<bar
@@ -50,10 +49,9 @@
 		diagonalExpansion="20"
 		constraintDiagonalTrim="14" 
 		minimumBlockDegree="2" 
+		minimumIngroupDegree="0"
+		minimumOutgroupDegree="0"
 		alignAmbiguityCharacters="1"
-		requiredIngroupFraction="0.0"
-		requiredOutgroupFraction="0.0"
-		requiredAllFraction="0.0"
 		largeEndSize="5000"
 		veryLargeEndSize="1000000"
 		maximumNumberOfSequencesBeforeSwitchingToFast="10"
