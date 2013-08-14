@@ -39,7 +39,7 @@
 	</caf>
 	<bar
 		runBar="1"
-		spanningTrees="3" 
+		spanningTrees="5" 
 		gapGamma="0.2" 
 		useBanding="1" 
 		bandingLimit="100000" 

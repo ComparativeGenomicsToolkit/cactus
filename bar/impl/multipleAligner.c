@@ -812,8 +812,12 @@ int64_t getNextBestPair(int64_t seq1, int64_t *distanceCounts, int64_t seqNo, st
         if (seq1 != seq2) {
             double gain = distances[seq2] - subsPerSite(seq1, seq2, distanceCounts, seqNo);
             if (gain > maxGain) {
-                maxGain = gain;
-                maxGainSeq = seq2;
+                stIntTuple *pairToAlign = makePairToAlign(seq1, seq2);
+                if (stSortedSet_search(chosenPairsOfSequencesToAlign, pairToAlign) == NULL) { //So that any pair is unique
+                    maxGain = gain;
+                    maxGainSeq = seq2;
+                }
+                stIntTuple_destruct(pairToAlign);
             }
         }
     }
@@ -878,12 +882,9 @@ MultipleAlignment *makeAlignment(stList *seqFrags, int64_t spanningTrees, int64_
             if (otherSeq != INT64_MAX) {
                 assert(seq != otherSeq);
                 stIntTuple *pairToAlign = makePairToAlign(seq, otherSeq);
-                if (stSortedSet_search(chosenPairwiseAlignmentsSet, pairToAlign) == NULL) {
-                    stList_append(mA->chosenPairwiseAlignments, stIntTuple_construct3(addMultipleAlignedPairs(seq, otherSeq, seqFrags, mA->alignedPairs, pairwiseAlignmentBandingParameters), seq, otherSeq));
-                    stSortedSet_insert(chosenPairwiseAlignmentsSet, pairToAlign);
-                } else {
-                    stIntTuple_destruct(pairToAlign);
-                }
+                assert(stSortedSet_search(chosenPairwiseAlignmentsSet, pairToAlign) == NULL);
+                stList_append(mA->chosenPairwiseAlignments, stIntTuple_construct3(addMultipleAlignedPairs(seq, otherSeq, seqFrags, mA->alignedPairs, pairwiseAlignmentBandingParameters), seq, otherSeq));
+                stSortedSet_insert(chosenPairwiseAlignmentsSet, pairToAlign);
             }
         }
         free(distanceCounts);
