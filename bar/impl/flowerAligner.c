@@ -480,10 +480,13 @@ static stSortedSet *makeFlowerAlignment2(Flower *flower, stHash *endAlignments, 
             if(cap == NULL || deletedPairsForChosenCap == 0 || (deletedPairsCount != NULL && *deletedPairsCount >= deletedPairsForChosenCap)) {
                 cap = cap2;
                 capIndex = i;
-                deletedPairsForChosenCap = *deletedPairsCount;
+                if(deletedPairsCount != NULL) {
+                    deletedPairsForChosenCap = *deletedPairsCount;
+                }
             }
         }
         //Having chosen the cap, remove it
+        assert(cap != NULL);
         stList_remove(caps, capIndex);
         //Do the filtering.
         makeFlowerAlignmentP(cap, endAlignments, pruneAlignments, freeStubAdjacencySequences, deletedAlignedPairCounts);
