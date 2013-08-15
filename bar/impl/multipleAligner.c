@@ -798,7 +798,9 @@ stGraph *makeAdjacencyList(int64_t *distanceCounts, int64_t seqNo, stSortedSet *
     return g;
 }
 
-int64_t getNextBestPair(int64_t seq1, int64_t *distanceCounts, int64_t seqNo, stSortedSet *chosenPairsOfSequencesToAlign) {
+int64_t getNextBestPair(int64_t seq1, int64_t *distanceCounts, int64_t seqNo,
+        stSortedSet *chosenPairsOfSequencesToAlign,
+        int64_t *pairwiseAlignmentsPerSequence) {
     /*
      * Selects the best next pairwise alignment for seq1 to compute, which we define as the alignment where the difference
      * between the current path of alignments and the predicted pairwise alignment distance is greatest.
@@ -807,15 +809,20 @@ int64_t getNextBestPair(int64_t seq1, int64_t *distanceCounts, int64_t seqNo, st
     stGraph *graph = makeAdjacencyList(distanceCounts, seqNo, chosenPairsOfSequencesToAlign);
     double *distances = stGraph_shortestPaths(graph, seq1);
     double maxGain = INT64_MIN;
+    int64_t pairwiseAlignmentsForMaxGainSeq = INT64_MAX;
     int64_t maxGainSeq = INT64_MAX;
+
     for (int64_t seq2 = 0; seq2 < seqNo; seq2++) {
         if (seq1 != seq2) {
             double gain = distances[seq2] - subsPerSite(seq1, seq2, distanceCounts, seqNo);
-            if (gain > maxGain) {
+            if (gain > maxGain || (gain >= maxGain - 0.00001 && pairwiseAlignmentsPerSequence[seq2] < pairwiseAlignmentsForMaxGainSeq)) {
                 stIntTuple *pairToAlign = makePairToAlign(seq1, seq2);
                 if (stSortedSet_search(chosenPairsOfSequencesToAlign, pairToAlign) == NULL) { //So that any pair is unique
-                    maxGain = gain;
+                    if(gain > maxGain) {
+                        maxGain = gain;
+                    }
                     maxGainSeq = seq2;
+                    pairwiseAlignmentsForMaxGainSeq = pairwiseAlignmentsPerSequence[seq2];
                 }
                 stIntTuple_destruct(pairToAlign);
             }
@@ -826,8 +833,11 @@ int64_t getNextBestPair(int64_t seq1, int64_t *distanceCounts, int64_t seqNo, st
     return maxGainSeq;
 }
 
-int64_t *getPairwiseAlignmentsPerGenome(stList *seqFrags, stList *chosenPairwiseAlignments) {
-	int64_t *pairwiseAlignmentsPerSequence = st_calloc(stList_length(seqFrags), sizeof(int64_t));
+int64_t *getPairwiseAlignmentsPerSequence(stList *seqFrags, stList *chosenPairwiseAlignments) {
+    /*
+     * Gets an array of the number of alignments per sequence.
+     */
+    int64_t *pairwiseAlignmentsPerSequence = st_calloc(stList_length(seqFrags), sizeof(int64_t));
     for(int64_t i=0; i<stList_length(chosenPairwiseAlignments); i++) {
         stIntTuple *pairwiseAlignment = stList_get(chosenPairwiseAlignments, i);
         assert(stIntTuple_get(pairwiseAlignment, 1) >= 0 && stIntTuple_get(pairwiseAlignment, 1) < stList_length(seqFrags));
@@ -876,17 +886,21 @@ MultipleAlignment *makeAlignment(stList *seqFrags, int64_t spanningTrees, int64_
             return mA;
         }
         int64_t *distanceCounts = getDistanceMatrix(mA->columns, seqFrags, maxPairsToConsider);
+        int64_t *pairwiseAlignmentsPerSequence = getPairwiseAlignmentsPerSequence(seqFrags, mA->chosenPairwiseAlignments);
         stSet_destruct(mA->columns);
         for (int64_t seq = 0; seq < stList_length(seqFrags); seq++) {
-            int64_t otherSeq = getNextBestPair(seq, distanceCounts, seqNo, chosenPairwiseAlignmentsSet);
+            int64_t otherSeq = getNextBestPair(seq, distanceCounts, seqNo, chosenPairwiseAlignmentsSet, pairwiseAlignmentsPerSequence);
             if (otherSeq != INT64_MAX) {
                 assert(seq != otherSeq);
                 stIntTuple *pairToAlign = makePairToAlign(seq, otherSeq);
                 assert(stSortedSet_search(chosenPairwiseAlignmentsSet, pairToAlign) == NULL);
                 stList_append(mA->chosenPairwiseAlignments, stIntTuple_construct3(addMultipleAlignedPairs(seq, otherSeq, seqFrags, mA->alignedPairs, pairwiseAlignmentBandingParameters), seq, otherSeq));
                 stSortedSet_insert(chosenPairwiseAlignmentsSet, pairToAlign);
+                pairwiseAlignmentsPerSequence[seq]++;
+                pairwiseAlignmentsPerSequence[otherSeq]++;
             }
         }
         free(distanceCounts);
+        free(pairwiseAlignmentsPerSequence);
     }
 }

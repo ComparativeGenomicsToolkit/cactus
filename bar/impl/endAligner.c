@@ -62,6 +62,7 @@ stSortedSet *makeEndAlignment(End *end, int64_t spanningTrees, int64_t maxSequen
     End_InstanceIterator *it = end_getInstanceIterator(end);
     stList *sequences = stList_construct3(0, (void (*)(void *))adjacencySequence_destruct);
     stList *seqFrags = stList_construct3(0, (void (*)(void *))seqFrag_destruct);
+    stHash *endInstanceNumbers = stHash_construct2(NULL, free);
     while((cap = end_getNext(it)) != NULL) {
         if(cap_getSide(cap)) {
             cap = cap_getReverse(cap);
@@ -69,28 +70,77 @@ stSortedSet *makeEndAlignment(End *end, int64_t spanningTrees, int64_t maxSequen
         AdjacencySequence *adjacencySequence = adjacencySequence_construct(cap, maxSequenceLength);
         stList_append(sequences, adjacencySequence);
         assert(cap_getAdjacency(cap) != NULL);
-        stList_append(seqFrags, seqFrag_construct(adjacencySequence->string, 0, end_getName(cap_getEnd(cap_getAdjacency(cap)))));
+        End *otherEnd = end_getPositiveOrientation(cap_getEnd(cap_getAdjacency(cap)));
+        stList_append(seqFrags, seqFrag_construct(adjacencySequence->string, 0, end_getName(otherEnd)));
+        //Increase count of seqfrags with a given end.
+        int64_t *c = stHash_search(endInstanceNumbers, otherEnd);
+        if(c == NULL) {
+            c = st_calloc(1, sizeof(int64_t));
+            stHash_insert(endInstanceNumbers, otherEnd, c);
+        }
+        (*c)++;
     }
     end_destructInstanceIterator(it);
 
     //Get the alignment.
     MultipleAlignment *mA = makeAlignment(seqFrags, spanningTrees, 100000000, maximumNumberOfSequencesBeforeSwitchingToFast, gapGamma, pairwiseAlignmentBandingParameters);
+
     //Build an array of weights to reweight pairs in the alignment.
-    stSortedSet *sortedAlignment =
-            stSortedSet_construct3((int (*)(const void *, const void *))alignedPair_cmpFn,
-            (void (*)(void *))alignedPair_destruct);
-    int64_t *pairwiseAlignmentsPerGenome = getPairwiseAlignmentsPerGenome(seqFrags, mA->chosenPairwiseAlignments);
-    double *scoreAdjustments = st_malloc(stList_length(seqFrags) * sizeof(double));
-    if(stList_length(seqFrags) > 1) {
-        for(int64_t i=0; i<stList_length(seqFrags); i++) {
-            assert(pairwiseAlignmentsPerGenome[i] > 0);
-            assert(pairwiseAlignmentsPerGenome[i] < stList_length(seqFrags));
-            scoreAdjustments[i] = ((double)stList_length(seqFrags)-1) / pairwiseAlignmentsPerGenome[i];
-            assert(scoreAdjustments[i] >= 1.0);
-            assert(scoreAdjustments[i] <= stList_length(seqFrags)-1 + 0.0001);
+    int64_t *pairwiseAlignmentsPerSequenceNonCommonEnds = st_calloc(stList_length(seqFrags), sizeof(int64_t));
+    int64_t *pairwiseAlignmentsPerSequenceCommonEnds = st_calloc(stList_length(seqFrags), sizeof(int64_t));
+    //First build array on number of pairwise alignments to each sequence, distinguishing alignments between sequences sharing
+    //common ends.
+    for(int64_t i=0; i<stList_length(mA->chosenPairwiseAlignments); i++) {
+        stIntTuple *pairwiseAlignment = stList_get(mA->chosenPairwiseAlignments, i);
+        int64_t seq1 = stIntTuple_get(pairwiseAlignment, 1);
+        int64_t seq2 = stIntTuple_get(pairwiseAlignment, 2);
+        assert(seq1 != seq2);
+        SeqFrag *seqFrag1 = stList_get(seqFrags, seq1);
+        SeqFrag *seqFrag2 = stList_get(seqFrags, seq2);
+        int64_t *pairwiseAlignmentsPerSequence = seqFrag1->rightEndId == seqFrag2->rightEndId
+                ? pairwiseAlignmentsPerSequenceCommonEnds : pairwiseAlignmentsPerSequenceNonCommonEnds;
+        pairwiseAlignmentsPerSequence[seq1]++;
+        pairwiseAlignmentsPerSequence[seq2]++;
+    }
+    //Now calculate score adjustments.
+    double *scoreAdjustmentsNonCommonEnds = st_malloc(stList_length(seqFrags) * sizeof(double));
+    double *scoreAdjustmentsCommonEnds = st_malloc(stList_length(seqFrags) * sizeof(double));
+    for(int64_t i=0; i<stList_length(seqFrags); i++) {
+        SeqFrag *seqFrag = stList_get(seqFrags, i);
+        End *otherEnd = flower_getEnd(end_getFlower(end), seqFrag->rightEndId);
+        assert(otherEnd != NULL);
+        assert(stHash_search(endInstanceNumbers, otherEnd) != NULL);
+        int64_t commonInstanceNumber = *(int64_t *)stHash_search(endInstanceNumbers, otherEnd);
+        int64_t nonCommonInstanceNumber = stList_length(seqFrags) - commonInstanceNumber;
+
+        assert(commonInstanceNumber > 0 && nonCommonInstanceNumber >= 0);
+        assert(pairwiseAlignmentsPerSequenceNonCommonEnds[i] <= nonCommonInstanceNumber);
+        assert(pairwiseAlignmentsPerSequenceNonCommonEnds[i] >= 0);
+        assert(pairwiseAlignmentsPerSequenceCommonEnds[i] < commonInstanceNumber);
+        assert(pairwiseAlignmentsPerSequenceCommonEnds[i] >= 0);
+
+        if(pairwiseAlignmentsPerSequenceNonCommonEnds[i] > 0) {
+            scoreAdjustmentsNonCommonEnds[i] = ((double)nonCommonInstanceNumber)/pairwiseAlignmentsPerSequenceNonCommonEnds[i];
+            assert(scoreAdjustmentsNonCommonEnds[i] >= 1.0);
+            assert(scoreAdjustmentsNonCommonEnds[i] <= nonCommonInstanceNumber);
+        }
+        else {
+            scoreAdjustmentsNonCommonEnds[i] = INT64_MIN;
+        }
+        if(pairwiseAlignmentsPerSequenceCommonEnds[i] > 0) {
+            scoreAdjustmentsCommonEnds[i] = ((double)commonInstanceNumber-1)/pairwiseAlignmentsPerSequenceCommonEnds[i];
+            assert(scoreAdjustmentsCommonEnds[i] >= 1.0);
+            assert(scoreAdjustmentsCommonEnds[i] <= commonInstanceNumber-1);
+        }
+        else {
+            scoreAdjustmentsCommonEnds[i] = INT64_MIN;
         }
     }
+
 	//Convert the alignment pairs to an alignment of the caps..
+    stSortedSet *sortedAlignment =
+                stSortedSet_construct3((int (*)(const void *, const void *))alignedPair_cmpFn,
+                (void (*)(void *))alignedPair_destruct);
     while(stList_length(mA->alignedPairs) > 0) {
         stIntTuple *alignedPair = stList_pop(mA->alignedPairs);
         assert(stIntTuple_length(alignedPair) == 5);
@@ -103,8 +153,12 @@ stSortedSet *makeEndAlignment(End *end, int64_t spanningTrees, int64_t maxSequen
         int64_t offset2 = stIntTuple_get(alignedPair, 4);
         int64_t score = stIntTuple_get(alignedPair, 0);
         assert(score > 0 && score <= PAIR_ALIGNMENT_PROB_1);
-        assert(pairwiseAlignmentsPerGenome[seqIndex1] > 0);
-        assert(pairwiseAlignmentsPerGenome[seqIndex2] > 0);
+        SeqFrag *seqFrag1 = stList_get(seqFrags, seqIndex1);
+        SeqFrag *seqFrag2 = stList_get(seqFrags, seqIndex2);
+        assert(seqFrag1 != seqFrag2);
+        double *scoreAdjustments = seqFrag1->rightEndId == seqFrag2->rightEndId ? scoreAdjustmentsCommonEnds : scoreAdjustmentsNonCommonEnds;
+        assert(scoreAdjustments[seqIndex1] != INT64_MIN);
+        assert(scoreAdjustments[seqIndex2] != INT64_MIN);
         AlignedPair *alignedPair2 = alignedPair_construct(
                 i->subsequenceIdentifier, i->start + (i->strand ? offset1 : -offset1), i->strand,
                 j->subsequenceIdentifier, j->start + (j->strand ? offset2 : -offset2), j->strand,
@@ -119,9 +173,12 @@ stSortedSet *makeEndAlignment(End *end, int64_t spanningTrees, int64_t maxSequen
     //Cleanup
     stList_destruct(seqFrags);
     stList_destruct(sequences);
-    free(pairwiseAlignmentsPerGenome);
-    free(scoreAdjustments);
+    free(pairwiseAlignmentsPerSequenceNonCommonEnds);
+    free(pairwiseAlignmentsPerSequenceCommonEnds);
+    free(scoreAdjustmentsNonCommonEnds);
+    free(scoreAdjustmentsCommonEnds);
     multipleAlignment_destruct(mA);
+    stHash_destruct(endInstanceNumbers);
 
     return sortedAlignment;
 }

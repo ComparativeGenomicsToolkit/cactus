@@ -58,8 +58,6 @@ void multipleAlignment_destruct(MultipleAlignment *mA);
 
 SeqFrag *seqFrag_construct(const char *seq, int64_t leftEndId, int64_t rightEndId);
 
-int64_t *getPairwiseAlignmentsPerGenome(stList *seqFrags, stList *chosenPairwiseAlignments);
-
 void seqFrag_destruct(SeqFrag *seqFrag);
 
 /*
