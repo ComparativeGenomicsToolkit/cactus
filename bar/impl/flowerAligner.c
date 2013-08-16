@@ -21,30 +21,28 @@ static stHash *getAdjacencySequenceIdentifiersToEndsIdentifiers(Flower *flower) 
             (int (*)(const void *, const void *))stIntTuple_equalsFn, (void (*)(void *))stIntTuple_destruct,
             (void (*)(void *))stIntTuple_destruct);
     while ((end = flower_getNextEnd(endIterator)) != NULL) {
-        if (end_isFree(end) && end_isStubEnd(end)) {
-            Name endName = end_getName(end);
-            Cap *cap;
-            End_InstanceIterator *capIterator = end_getInstanceIterator(end);
-            while ((cap = end_getNext(capIterator)) != NULL) {
-                if (cap_getAdjacency(cap) != NULL) {
-                    Name otherEndName = end_getName(cap_getEnd(cap_getAdjacency(cap)));
-                    stIntTuple *endsId = endName < otherEndName ? stIntTuple_construct2(endName, otherEndName) : stIntTuple_construct2(otherEndName, endName);
-                    cap = cap_getSide(cap) ? cap_getReverse(cap) : cap;
-                    stIntTuple *subsequenceId = stIntTuple_construct1(cap_getName(cap_getStrand(cap) ? cap : cap_getAdjacency(cap)));
-                    if(stHash_search(adjacencySequenceIdentifiersToEndsIdentifiers, subsequenceId) == NULL) {
-                        stHash_insert(adjacencySequenceIdentifiersToEndsIdentifiers, subsequenceId, endsId);
-                    }
-                    else {
-                        assert(stIntTuple_equalsFn(stHash_search(adjacencySequenceIdentifiersToEndsIdentifiers, subsequenceId), endsId));
-                        stIntTuple_destruct(endsId);
-                        stIntTuple_destruct(subsequenceId);
-                    }
-                } else {
-                    assert(cap_getSequence(cap) == NULL);
+        Name endName = end_getName(end);
+        Cap *cap;
+        End_InstanceIterator *capIterator = end_getInstanceIterator(end);
+        while ((cap = end_getNext(capIterator)) != NULL) {
+            if (cap_getAdjacency(cap) != NULL) {
+                Name otherEndName = end_getName(cap_getEnd(cap_getAdjacency(cap)));
+                stIntTuple *endsId = endName < otherEndName ? stIntTuple_construct2(endName, otherEndName) : stIntTuple_construct2(otherEndName, endName);
+                cap = cap_getSide(cap) ? cap_getReverse(cap) : cap;
+                stIntTuple *subsequenceId = stIntTuple_construct1(cap_getName(cap_getStrand(cap) ? cap : cap_getAdjacency(cap)));
+                if(stHash_search(adjacencySequenceIdentifiersToEndsIdentifiers, subsequenceId) == NULL) {
+                    stHash_insert(adjacencySequenceIdentifiersToEndsIdentifiers, subsequenceId, endsId);
                 }
+                else {
+                    assert(stIntTuple_equalsFn(stHash_search(adjacencySequenceIdentifiersToEndsIdentifiers, subsequenceId), endsId));
+                    stIntTuple_destruct(endsId);
+                    stIntTuple_destruct(subsequenceId);
+                }
+            } else {
+                assert(cap_getSequence(cap) == NULL);
             }
-            end_destructInstanceIterator(capIterator);
         }
+        end_destructInstanceIterator(capIterator);
     }
     flower_destructEndIterator(endIterator);
     return adjacencySequenceIdentifiersToEndsIdentifiers;
@@ -56,7 +54,6 @@ static bool isAlignedToCommonEndSequence(AlignedPair *alignedPair, stHash *adjac
     stIntTuple *endsId1 = stHash_search(adjacencySequenceIdentifiersToEndsIdentifiers, i);
     stIntTuple *endsId2 = stHash_search(adjacencySequenceIdentifiersToEndsIdentifiers, j);
     assert(endsId1 != NULL && endsId2 != NULL);
-    assert(endsId1 != endsId2);
     stIntTuple_destruct(i);
     stIntTuple_destruct(j);
     return stIntTuple_equalsFn(endsId1, endsId2);
@@ -346,20 +343,22 @@ static int sortCapsFn(const void *cap1, const void *cap2, const void *capScoresF
     return (i > 0) ? 1 : ((i < 0) ? -1 : 0);
 }
 
-static int64_t findFirstNonStubAlignment(stList *inducedAlignment, bool reverse,
-        stHash *adjacencySequenceIdentifiersToEndsIdentifiers) {
+static int64_t findFirstNonStubAlignment(Flower *flower, stList *inducedAlignment, bool reverse) {
     AlignedPair *pAlignedPair = NULL;
     int64_t j = -1;
     for (int64_t i = reverse ? stList_length(inducedAlignment) - 1 : 0; i < stList_length(inducedAlignment) && i >= 0; i
             += reverse ? -1 : 1) {
         AlignedPair *alignedPair = stList_get(inducedAlignment, i);
-        assert(isAlignedToCommonEndSequence(alignedPair->reverse, adjacencySequenceIdentifiersToEndsIdentifiers));
         assert(pAlignedPair == NULL || pAlignedPair->subsequenceIdentifier == alignedPair->subsequenceIdentifier);
         if (pAlignedPair == NULL || pAlignedPair->position != alignedPair->position) {
             pAlignedPair = alignedPair;
             j = i;
         }
-        if(!isAlignedToCommonEndSequence(alignedPair, adjacencySequenceIdentifiersToEndsIdentifiers)) {
+        Cap *cap = flower_getCap(flower, alignedPair->reverse->subsequenceIdentifier);
+        assert(cap != NULL);
+        End *end1 = cap_getEnd(cap), *end2 = cap_getEnd(cap_getAdjacency(cap));
+        assert(end1 != NULL && end2 != NULL);
+        if((end_isAttached(end1) || !end_isStubEnd(end1)) && (end_isAttached(end2) || !end_isStubEnd(end2))) {
             assert(j != -1);
             return j;
         }
@@ -379,14 +378,14 @@ static void pruneStubAlignments(Cap *cap, stList *inducedAlignment1, stList *ind
     int64_t cutOff1 = stList_length(inducedAlignment1) - 1;
     int64_t cutOff2 = 0;
     if (end_isStubEnd(adjacentEnd) && end_isFree(adjacentEnd)) {
-        cutOff1 = findFirstNonStubAlignment(inducedAlignment1, 1, adjacencySequenceIdentifiersToEndsIdentifiers);
+        cutOff1 = findFirstNonStubAlignment(end_getFlower(end), inducedAlignment1, 1);
         assert(stList_length(inducedAlignment2) == 0);
         cutOff2 = stList_length(inducedAlignment2);
     }
     if (end_isStubEnd(end) && end_isFree(end)) {
         assert(stList_length(inducedAlignment1) == 0);
         cutOff1 = -1;
-        cutOff2 = findFirstNonStubAlignment(inducedAlignment2, 0, adjacencySequenceIdentifiersToEndsIdentifiers);
+        cutOff2 = findFirstNonStubAlignment(end_getFlower(end), inducedAlignment2, 0);
     }
     stSortedSet *pairsToDelete = stSortedSet_construct2((void(*)(void *)) alignedPair_destruct);
     //Now do the actual filtering of the alignments.
