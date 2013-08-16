@@ -196,7 +196,7 @@ static int64_t getCutOff(stList *inducedAlignment1, stList *inducedAlignment2, i
         stHash *adjacencySequenceIdentifiersToEndsIdentifiers) {
     int64_t *cScore1, *cScore1B;
     int64_t *cScore2, *cScore2B;
-    if(adjacencySequenceIdentifiersToEndsIdentifiers != NULL) { //We calculate arrays with and without including alignments to stub sequences
+    if(0 && adjacencySequenceIdentifiersToEndsIdentifiers != NULL) { //We calculate arrays with and without including alignments to stub sequences
         cScore1 = cumulateScoreForwardIgnoringAlignmentsToNonCommonSequences(inducedAlignment1, adjacencySequenceIdentifiersToEndsIdentifiers);
         cScore2 = cumulateScoreBackwardIgnoringAlignmentsToNonCommonSequences(inducedAlignment2, adjacencySequenceIdentifiersToEndsIdentifiers);
         cScore1B = cumulateScoreForward(inducedAlignment1);
@@ -264,7 +264,7 @@ static int64_t getCutOff(stList *inducedAlignment1, stList *inducedAlignment2, i
     //Cleanup
     free(cScore1);
     free(cScore2);
-    if(adjacencySequenceIdentifiersToEndsIdentifiers != NULL) {
+    if(0 && adjacencySequenceIdentifiersToEndsIdentifiers != NULL) {
         free(cScore1B);
         free(cScore2B);
     }
@@ -340,8 +340,16 @@ static int sortCapsFn(const void *cap1, const void *cap2, const void *capScoresF
     assert(stHash_search((stHash *)capScoresFnHash, (void *) cap2) != NULL);
     int64_t i = ((int64_t *) stHash_search((stHash *)capScoresFnHash, (void *) cap1))[0] - ((int64_t *) stHash_search(
             (stHash *)capScoresFnHash, (void *) cap2))[0];
-    return (i > 0) ? 1 : ((i < 0) ? -1 : 0);
+    return (i > 0) ? 1 : ((i < 0) ? -1 : 0); 
 }
+
+bool isAlignedToStubSequence(AlignedPair *alignedPair, Flower *flower) {
+	Cap *cap = flower_getCap(flower, alignedPair->reverse->subsequenceIdentifier);
+    assert(cap != NULL);
+    End *end1 = cap_getEnd(cap), *end2 = cap_getEnd(cap_getAdjacency(cap));
+    assert(end1 != NULL && end2 != NULL);
+    return (end_isStubEnd(end1) && end_isFree(end1)) || (end_isStubEnd(end2) && end_isFree(end2));
+} 
 
 static int64_t findFirstNonStubAlignment(Flower *flower, stList *inducedAlignment, bool reverse) {
     AlignedPair *pAlignedPair = NULL;
@@ -349,16 +357,13 @@ static int64_t findFirstNonStubAlignment(Flower *flower, stList *inducedAlignmen
     for (int64_t i = reverse ? stList_length(inducedAlignment) - 1 : 0; i < stList_length(inducedAlignment) && i >= 0; i
             += reverse ? -1 : 1) {
         AlignedPair *alignedPair = stList_get(inducedAlignment, i);
+        assert(isAlignedToStubSequence(alignedPair->reverse, flower));
         assert(pAlignedPair == NULL || pAlignedPair->subsequenceIdentifier == alignedPair->subsequenceIdentifier);
         if (pAlignedPair == NULL || pAlignedPair->position != alignedPair->position) {
             pAlignedPair = alignedPair;
             j = i;
         }
-        Cap *cap = flower_getCap(flower, alignedPair->reverse->subsequenceIdentifier);
-        assert(cap != NULL);
-        End *end1 = cap_getEnd(cap), *end2 = cap_getEnd(cap_getAdjacency(cap));
-        assert(end1 != NULL && end2 != NULL);
-        if((end_isAttached(end1) || !end_isStubEnd(end1)) && (end_isAttached(end2) || !end_isStubEnd(end2))) {
+        if(!isAlignedToStubSequence(alignedPair, flower)) {
             assert(j != -1);
             return j;
         }

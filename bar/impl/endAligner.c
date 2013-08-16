@@ -76,6 +76,7 @@ stSortedSet *makeEndAlignment(End *end, int64_t spanningTrees, int64_t maxSequen
         int64_t *c = stHash_search(endInstanceNumbers, otherEnd);
         if(c == NULL) {
             c = st_calloc(1, sizeof(int64_t));
+            assert(*c == 0);
             stHash_insert(endInstanceNumbers, otherEnd, c);
         }
         (*c)++;

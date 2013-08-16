@@ -800,7 +800,7 @@ stGraph *makeAdjacencyList(int64_t *distanceCounts, int64_t seqNo, stSortedSet *
 
 int64_t getNextBestPair(int64_t seq1, int64_t *distanceCounts, int64_t seqNo,
         stSortedSet *chosenPairsOfSequencesToAlign,
-        bool chooseSequenceWithCommonEnd, stList *seqFrags) {
+        bool chooseSequenceWithCommonRightEnd, stList *seqFrags) {
     /*
      * Selects the best next pairwise alignment for seq1 to compute, which we define as the alignment where the difference
      * between the current path of alignments and the predicted pairwise alignment distance is greatest.
@@ -812,7 +812,7 @@ int64_t getNextBestPair(int64_t seq1, int64_t *distanceCounts, int64_t seqNo,
     int64_t maxGainSeq = INT64_MAX;
     for (int64_t seq2 = 0; seq2 < seqNo; seq2++) {
         if (seq1 != seq2) {
-            if(!chooseSequenceWithCommonEnd ||
+            if(!chooseSequenceWithCommonRightEnd ||
                     ((SeqFrag *)stList_get(seqFrags, seq1))->rightEndId == ((SeqFrag *)stList_get(seqFrags, seq2))->rightEndId) {
                 double gain = distances[seq2] - subsPerSite(seq1, seq2, distanceCounts, seqNo);
                 if (gain > maxGain || (gain == maxGain && st_random() > 0.5) /*lame attempt to reduce always picking the same seq*/) {
@@ -857,13 +857,13 @@ MultipleAlignment *makeAlignment(stList *seqFrags, int64_t spanningTrees, int64_
     }
     stSortedSet_destructIterator(pairIt);
 
-    int64_t iteration = 1;
+    int64_t iteration = 0;
     //The first alignment of multiple aligned pairs is already consistent
     while (1) {
         mA->columns = (stList_length(seqFrags) == 2 || stList_length(seqFrags) > maximumNumberOfSequencesBeforeSwitchingToFast)
                 ? getMultipleSequenceAlignmentProgressive(seqFrags, mA->alignedPairs, gapGamma, mA->chosenPairwiseAlignments)
                 : getMultipleSequenceAlignment(seqFrags, mA->alignedPairs, gapGamma);
-        if (iteration++ >= spanningTrees) {
+        if (++iteration >= spanningTrees) {
             stSortedSet_destruct(chosenPairwiseAlignmentsSet);
             mA->alignedPairs = filterMultipleAlignedPairs(mA->columns, mA->alignedPairs);
             return mA;
@@ -871,8 +871,7 @@ MultipleAlignment *makeAlignment(stList *seqFrags, int64_t spanningTrees, int64_
         int64_t *distanceCounts = getDistanceMatrix(mA->columns, seqFrags, maxPairsToConsider);
         stSet_destruct(mA->columns);
         for (int64_t seq = 0; seq < stList_length(seqFrags); seq++) {
-            int64_t otherSeq = getNextBestPair(seq, distanceCounts, seqNo, chosenPairwiseAlignmentsSet,
-                    iteration == 1, seqFrags);
+            int64_t otherSeq = getNextBestPair(seq, distanceCounts, seqNo, chosenPairwiseAlignmentsSet, iteration == 1, seqFrags);
             if (otherSeq != INT64_MAX) {
                 assert(seq != otherSeq);
                 stIntTuple *pairToAlign = makePairToAlign(seq, otherSeq);
