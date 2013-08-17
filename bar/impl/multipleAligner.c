@@ -689,26 +689,53 @@ static stIntTuple *makePairToAlign(int64_t seq1, int64_t seq2) {
     return seq1 < seq2 ? stIntTuple_construct2(seq1, seq2) : stIntTuple_construct2(seq2, seq1);
 }
 
-stList *getReferencePairwiseAlignments(stList *seqFrags) {
-    /*
-     * Picks a reference sequence ensures everyone is aligned.
-     */
-    stList *l = stList_construct3(0, (void(*)(void *)) stIntTuple_destruct);
-    for (int64_t i = 0; i < stList_length(seqFrags); i++) {
-        stList_append(l, stIntTuple_construct2(((SeqFrag *) stList_get(seqFrags, i))->length, i));
-    }
-    stList_sort(l, (int(*)(const void *, const void *)) stIntTuple_cmpFn);
-    stList *chosenPairsOfSequencesToAlign = stList_construct3(0, (void(*)(void *)) stIntTuple_destruct);
-    if (stList_length(l) > 0) {
-        stIntTuple *k = stList_get(l, stList_length(l) / 2);
-        for (int64_t i = 0; i < stList_length(l); i++) {
-            stIntTuple *j = stList_get(l, i);
-            if (k != j) {
-                stList_append(chosenPairsOfSequencesToAlign, makePairToAlign(stIntTuple_get(j, 1), stIntTuple_get(k, 1)));
-            }
+stIntTuple *getReferencePairwiseAlignmentsP(stList *l, int64_t i, int64_t j,
+        stList *chosenPairsOfSequencesToAlign) {
+    stIntTuple *seq = stList_get(l, (i + j)/2);
+    int64_t k = stIntTuple_get(seq, 2);
+    while(i < j) {
+        int64_t m = stIntTuple_get(stList_get(l, i++), 2);
+        if(m != k) {
+            stList_append(chosenPairsOfSequencesToAlign, makePairToAlign(k, m));
         }
     }
+    return seq;
+}
+
+stList *getReferencePairwiseAlignments(stList *seqFrags) {
+    /*
+     * Picks a set of pairwise alignments so that the resulting graph in which the sequences are the vertices
+     * and the edges are the pairwise alignments is a single connected component.
+     */
+    stList *chosenPairsOfSequencesToAlign = stList_construct3(0, (void(*)(void *)) stIntTuple_destruct);
+    if(stList_length(seqFrags) == 0) {
+        return chosenPairsOfSequencesToAlign;
+    }
+    //Build list of sequences ordered by right end, then length.
+    stList *l = stList_construct3(0, (void(*)(void *)) stIntTuple_destruct);
+    for (int64_t i = 0; i < stList_length(seqFrags); i++) {
+        SeqFrag *seqFrag = stList_get(seqFrags, i);
+        stList_append(l, stIntTuple_construct3(seqFrag->rightEndId, seqFrag->length, i));
+    }
+    stList_sort(l, (int(*)(const void *, const void *)) stIntTuple_cmpFn);
+    //Now pick a reference sequence for each common end-id and ensure every sequence with that id is aligned.
+    int64_t endId = stIntTuple_get(stList_get(l, 0), 0);
+    int64_t i=0;
+    stList *l2 = stList_construct();
+    for(int64_t j=1; j<stList_length(l); j++) {
+        int64_t endId2 = stIntTuple_get(stList_get(l, j), 0);
+        if(endId != endId2) {
+            stList_append(l2, getReferencePairwiseAlignmentsP(l, i, j, chosenPairsOfSequencesToAlign));
+            i = j;
+            endId = endId2;
+        }
+    }
+    stList_append(l2, getReferencePairwiseAlignmentsP(l, i, stList_length(l), chosenPairsOfSequencesToAlign));
+    //Finally pick a reference from the set of reference sequences align the other reference sequences to it.
+    getReferencePairwiseAlignmentsP(l2, 0, stList_length(l2), chosenPairsOfSequencesToAlign);
+    stList_destruct(l2);
     stList_destruct(l);
+    assert(stList_length(chosenPairsOfSequencesToAlign) == stList_length(seqFrags)-1);
     return chosenPairsOfSequencesToAlign;
 }
 
@@ -799,8 +826,7 @@ stGraph *makeAdjacencyList(int64_t *distanceCounts, int64_t seqNo, stSortedSet *
 }
 
 int64_t getNextBestPair(int64_t seq1, int64_t *distanceCounts, int64_t seqNo,
-        stSortedSet *chosenPairsOfSequencesToAlign,
-        bool chooseSequenceWithCommonRightEnd, stList *seqFrags) {
+        stSortedSet *chosenPairsOfSequencesToAlign) {
     /*
      * Selects the best next pairwise alignment for seq1 to compute, which we define as the alignment where the difference
      * between the current path of alignments and the predicted pairwise alignment distance is greatest.
@@ -812,17 +838,14 @@ int64_t getNextBestPair(int64_t seq1, int64_t *distanceCounts, int64_t seqNo,
     int64_t maxGainSeq = INT64_MAX;
     for (int64_t seq2 = 0; seq2 < seqNo; seq2++) {
         if (seq1 != seq2) {
-            if(!chooseSequenceWithCommonRightEnd ||
-                    ((SeqFrag *)stList_get(seqFrags, seq1))->rightEndId == ((SeqFrag *)stList_get(seqFrags, seq2))->rightEndId) {
-                double gain = distances[seq2] - subsPerSite(seq1, seq2, distanceCounts, seqNo);
-                if (gain > maxGain || (gain == maxGain && st_random() > 0.5) /*lame attempt to reduce always picking the same seq*/) {
-                    stIntTuple *pairToAlign = makePairToAlign(seq1, seq2);
-                    if (stSortedSet_search(chosenPairsOfSequencesToAlign, pairToAlign) == NULL) { //So that any pair is unique
-                        maxGain = gain;
-                        maxGainSeq = seq2;
-                    }
-                    stIntTuple_destruct(pairToAlign);
+            double gain = distances[seq2] - subsPerSite(seq1, seq2, distanceCounts, seqNo);
+            if (gain > maxGain || (gain == maxGain && st_random() > 0.5) /*lame attempt to reduce always picking the same seq*/) {
+                stIntTuple *pairToAlign = makePairToAlign(seq1, seq2);
+                if (stSortedSet_search(chosenPairsOfSequencesToAlign, pairToAlign) == NULL) { //So that any pair is unique
+                    maxGain = gain;
+                    maxGainSeq = seq2;
                 }
+                stIntTuple_destruct(pairToAlign);
             }
         }
     }
@@ -871,7 +894,7 @@ MultipleAlignment *makeAlignment(stList *seqFrags, int64_t spanningTrees, int64_
         int64_t *distanceCounts = getDistanceMatrix(mA->columns, seqFrags, maxPairsToConsider);
         stSet_destruct(mA->columns);
         for (int64_t seq = 0; seq < stList_length(seqFrags); seq++) {
-            int64_t otherSeq = getNextBestPair(seq, distanceCounts, seqNo, chosenPairwiseAlignmentsSet, iteration == 1, seqFrags);
+            int64_t otherSeq = getNextBestPair(seq, distanceCounts, seqNo, chosenPairwiseAlignmentsSet);
             if (otherSeq != INT64_MAX) {
                 assert(seq != otherSeq);
                 stIntTuple *pairToAlign = makePairToAlign(seq, otherSeq);

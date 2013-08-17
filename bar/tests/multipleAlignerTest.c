@@ -41,7 +41,7 @@ static void setup() {
     stList_append(littleSeqFrags, seqFrag_construct(seq1, 0, 0));
     stList_append(littleSeqFrags, seqFrag_construct(seq2, 0, 0));
     stList_append(littleSeqFrags, seqFrag_construct(seq3, 0, 1));
-    stList_append(littleSeqFrags, seqFrag_construct(seq4, 1, 0));
+    stList_append(littleSeqFrags, seqFrag_construct(seq4, 1, 1));
 }
 
 static void test_makeColumns(CuTest *testCase) {
@@ -168,9 +168,9 @@ static void test_getReferencePairwiseAlignments(CuTest *testCase) {
     setup();
     stList *pairwiseAlignments = getReferencePairwiseAlignments(littleSeqFrags);
     CuAssertIntEquals(testCase, 3, stList_length(pairwiseAlignments));
-    CuAssertTrue(testCase, stIntTuple_equalsFn(stIntTuple_construct2( 0, 3), stList_get(pairwiseAlignments, 0)));
-    CuAssertTrue(testCase, stIntTuple_equalsFn(stIntTuple_construct2( 0, 2), stList_get(pairwiseAlignments, 1)));
-    CuAssertTrue(testCase, stIntTuple_equalsFn(stIntTuple_construct2( 0, 1), stList_get(pairwiseAlignments, 2)));
+    CuAssertTrue(testCase, stIntTuple_equalsFn(stIntTuple_construct2(0, 1), stList_get(pairwiseAlignments, 0)));
+    CuAssertTrue(testCase, stIntTuple_equalsFn(stIntTuple_construct2(2, 3), stList_get(pairwiseAlignments, 1)));
+    CuAssertTrue(testCase, stIntTuple_equalsFn(stIntTuple_construct2(1, 2), stList_get(pairwiseAlignments, 2)));
     stList_destruct(pairwiseAlignments);
     teardown();
 }
