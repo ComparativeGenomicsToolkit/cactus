@@ -376,7 +376,7 @@ static stSortedSet *makeFlowerAlignment2(Flower *flower, stHash *endAlignments, 
         //This bias the bar algorithm to pick cutpoints that consistent
         //with previously selected cutpoints.
         Cap *cap = NULL;
-        bool hasDeletedPairsForChosenCap = 0;
+        int64_t deletedPairsForChosenCap = 0;
         int64_t capIndex = INT64_MAX;
         for(int64_t i=0; i<stList_length(caps); i++) {
             Cap *cap2 = stList_get(caps, i);
@@ -384,10 +384,12 @@ static stSortedSet *makeFlowerAlignment2(Flower *flower, stHash *endAlignments, 
             stIntTuple *sequenceIdentifier = stIntTuple_construct1(cap_getName(cap_getStrand(cap2) ? cap2 : cap_getAdjacency(cap2)));
             int64_t *deletedPairsCount = stHash_search(deletedAlignedPairCounts, sequenceIdentifier);
             stIntTuple_destruct(sequenceIdentifier);
-            if(cap == NULL || hasDeletedPairsForChosenCap || (deletedPairsCount != NULL && *deletedPairsCount >= 0)) {
+            if(cap == NULL || deletedPairsForChosenCap == 0 || (deletedPairsCount != NULL && *deletedPairsCount >= deletedPairsForChosenCap)) {
                 cap = cap2;
                 capIndex = i;
-                hasDeletedPairsForChosenCap = deletedPairsCount != NULL && *deletedPairsCount >= 0;
+                if(deletedPairsCount != NULL) {
+                    deletedPairsForChosenCap = *deletedPairsCount;
+                }
             }
         }
         //Having chosen the cap, remove it
