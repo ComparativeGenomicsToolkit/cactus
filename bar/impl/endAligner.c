@@ -120,10 +120,10 @@ stSortedSet *makeEndAlignment(End *end, int64_t spanningTrees, int64_t maxSequen
         assert(pairwiseAlignmentsPerSequenceCommonEnds[i] < commonInstanceNumber);
         assert(pairwiseAlignmentsPerSequenceCommonEnds[i] >= 0);
 
-        //scoreAdjustmentsNonCommonEnds[i] = ((double)nonCommonInstanceNumber + commonInstanceNumber - 1)/(pairwiseAlignmentsPerSequenceNonCommonEnds[i] + pairwiseAlignmentsPerSequenceCommonEnds[i]);
-        //scoreAdjustmentsCommonEnds[i] = scoreAdjustmentsNonCommonEnds[i];
+        scoreAdjustmentsNonCommonEnds[i] = ((double)nonCommonInstanceNumber + commonInstanceNumber - 1)/(pairwiseAlignmentsPerSequenceNonCommonEnds[i] + pairwiseAlignmentsPerSequenceCommonEnds[i]);
+        scoreAdjustmentsCommonEnds[i] = scoreAdjustmentsNonCommonEnds[i];
 
-        if(pairwiseAlignmentsPerSequenceNonCommonEnds[i] > 0) {
+        /*if(pairwiseAlignmentsPerSequenceNonCommonEnds[i] > 0) {
             scoreAdjustmentsNonCommonEnds[i] = ((double)nonCommonInstanceNumber)/pairwiseAlignmentsPerSequenceNonCommonEnds[i];
             assert(scoreAdjustmentsNonCommonEnds[i] >= 1.0);
             assert(scoreAdjustmentsNonCommonEnds[i] <= nonCommonInstanceNumber);
@@ -138,7 +138,7 @@ stSortedSet *makeEndAlignment(End *end, int64_t spanningTrees, int64_t maxSequen
         }
         else {
             scoreAdjustmentsCommonEnds[i] = INT64_MIN;
-        }
+        }*/
     }
 
 	//Convert the alignment pairs to an alignment of the caps..
