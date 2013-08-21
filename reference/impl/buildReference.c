@@ -735,12 +735,17 @@ static stList *convertReferenceToAdjacencyEdges2(reference *ref) {
 ////////////////////////////////////
 ////////////////////////////////////
 
-void breakTopLevelBadAdjacency(int64_t pNode, Flower *flower, reference *ref, stHash *endsToNodes) {
+void breakTopLevelBadAdjacency(int64_t pNode, Flower *flower, reference *ref, stHash *endsToNodes, int64_t *nodeCounter) {
     //Make two new stubs
+    End *end1 = end_construct2(0, 0, flower);
+    End *end2 = end_construct2(1, 0, flower);
 
     //Add stubs to endsToNodes
+    stHash_insert(endsToNodes, end1, stIntTuple_construct1((*nodeNumber)++));
+    stHash_insert(endsToNodes, end2, stIntTuple_construct1((*nodeNumber)++));
 
     //Split chromosome in reference at pNode and join to stubs.
+
 }
 
 ////////////////////////////////////
