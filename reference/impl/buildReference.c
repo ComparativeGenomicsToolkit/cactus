@@ -731,6 +731,20 @@ static stList *convertReferenceToAdjacencyEdges2(reference *ref) {
 
 ////////////////////////////////////
 ////////////////////////////////////
+//Function which breaks up top-level at reference bad adjacencies
+////////////////////////////////////
+////////////////////////////////////
+
+void breakTopLevelBadAdjacency(int64_t pNode, Flower *flower, reference *ref, stHash *endsToNodes) {
+    //Make two new stubs
+
+    //Add stubs to endsToNodes
+
+    //Split chromosome in reference at pNode and join to stubs.
+}
+
+////////////////////////////////////
+////////////////////////////////////
 //Main function
 ////////////////////////////////////
 ////////////////////////////////////
@@ -826,7 +840,12 @@ void buildReferenceTopDown(Flower *flower, const char *referenceEventHeader, int
     st_logDebug("The score of the final solution is %f/%" PRIi64 " after %" PRIi64 " rounds of greedy nudging out of a max possible %f\n",
             totalScoreAfterNudging, badAdjacenciesAfterNudging, nudgePermutations, maxPossibleScore);
 
-    if(flower_getName(flower) == 0) { //Hack to breakup largest chromosome
+    if(flower_getName(flower) == 0) {
+        if(breakBadAdjacencies) {
+            //Break at bad adjacencies
+            breakTopLevelBadAdjacencies(flower, badAdjacencies, ref, nodesToEnds);
+        }
+        //Hack to breakup largest chromosome
         int64_t totalBases = flower_getTotalBaseLength(flower);
         maxNodeNumber = nodeNumber * 0.5;
         if(totalBases > 1000000000) {
