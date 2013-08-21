@@ -356,9 +356,8 @@ int main(int argc, char *argv[]) {
     for (int64_t i = 0; i < alignmentTrimLength; i++) {
         assert(alignmentTrims[i] >= 0);
     }
-    assert(requiredAllFraction >= 0);
-    assert(requiredOutgroupFraction >= 0);
-    assert(requiredIngroupFraction >= 0);
+    assert(minimumOutgroupDegree >= 0);
+    assert(minimumIngroupDegree >= 0);
 
     //////////////////////////////////////////////
     //Set up logging

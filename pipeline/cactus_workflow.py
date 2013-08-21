@@ -101,10 +101,8 @@ def extractNode(node):
 def getTargetNode(phaseNode, targetClass):
     """Gets a target node for a given target.
     """
-    className = (str(targetClass).split(".")[-1])
+    className = targetClass.__name__
     assert className != ''
-    assert "'>" == className[-2:]
-    className = className[:-2]
     assert className.isalnum()
     return phaseNode.find(className)
 
@@ -974,7 +972,9 @@ def addCactusWorkflowOptions(parser):
     
     parser.add_option("--buildFasta", dest="buildFasta", action="store_true",
                       help="Build a fasta file of the input sequences (and reference sequence, used with hal output)", default=False)
-    
+    parser.add_option("--test", dest="test", action="store_true",
+                      help="Run doctest unit tests")
+
 def main():
     ##########################################
     #Construct the arguments.
@@ -985,6 +985,8 @@ def main():
     addCactusWorkflowOptions(parser)
         
     options, args = parser.parse_args()
+    if options.test:
+        _test()
     setLoggingFromOptions(options)
     
     if len(args) != 0:
@@ -1006,5 +1008,4 @@ def _test():
 
 if __name__ == '__main__':
     from cactus.pipeline.cactus_workflow import *
-    _test()
     main()
