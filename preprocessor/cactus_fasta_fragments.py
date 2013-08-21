@@ -36,6 +36,9 @@ def main():
 			fragmentLength = int(arg.split("=",1)[1])
 		elif (arg.startswith("--step=")):
 			stepLength = int(arg.split("=",1)[1])
+                elif (arg == "--test"):
+                        import doctest
+                        doctest.testmod()
 		elif (arg.startswith("--")):
 			usage("can't understand %s" % arg)
 		else:
@@ -105,6 +108,4 @@ def chunk_fasta_sequences(f, stepLength, fragmentLength):
 			yield seqPair
 
 if __name__ == "__main__": 
-	import doctest
-	doctest.testmod()
 	main()

@@ -71,10 +71,14 @@ def main():
     parser.add_option("--totalJobs", dest="totalJobs")
     parser.add_option("--minRecordSize", dest="minRecordSize")
     parser.add_option("--maxRecordSize", dest="maxRecordSize")
+    parser.add_option("--test", dest="test", action="store_true",
+                      help="Run doctest unit tests")
     
     Stack.addJobTreeOptions(parser)
 
     options, args = parser.parse_args()
+    if options.test:
+        _test()
     setLoggingFromOptions(options)
 
     if len(args) != 0:
@@ -88,5 +92,4 @@ def _test():
 
 if __name__ == '__main__':
     from cactus.dbTest.dbTestScript import *
-    _test()
     main()

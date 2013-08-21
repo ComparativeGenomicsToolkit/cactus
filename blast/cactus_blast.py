@@ -230,17 +230,19 @@ replaced with the the sequence file and the results file, respectively",
     parser.add_option("--lastzMemory", dest="memory", type="int",
                       help="Lastz memory (in bytes)", 
                       default=blastOptions.memory)
-    
+    parser.add_option("--test", dest="test", action="store_true",
+                      help="Run doctest unit tests")
     options, args = parser.parse_args()
+    if options.test:
+        _test()
     
     firstTarget = BlastSequences(args, options.cigarFile, options)
     Stack(firstTarget).startJobTree(options)
 
 def _test():
-    import doctest 
+    import doctest
     return doctest.testmod()
 
 if __name__ == '__main__':
     from cactus.blast.cactus_blast import *
-    _test()
     main()

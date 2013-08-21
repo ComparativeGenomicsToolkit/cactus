@@ -214,12 +214,7 @@ def main():
     
     baseTarget = ProgressiveDown(options, project, options.event, schedule)
     Stack(baseTarget).startJobTree(options)
-    
-def _test():
-    import doctest      
-    return doctest.testmod()
 
 if __name__ == '__main__':
     from cactus.progressive.cactus_progressive import *
-    _test()
     main()
