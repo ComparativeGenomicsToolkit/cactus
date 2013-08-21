@@ -62,7 +62,12 @@ def runKtserver(dbElem, killSwitchPath, maxPortsToTry=100, readOnly = False,
         os.makedirs(logDir)
     assert os.path.isdir(logDir)
     basePort = dbElem.getDbPort()
-    dbElem.setDbHost(__getHostName())
+    host = dbElem.getDbHost()
+    if host is not None:
+        dbElem.setDbHost(host)
+    else:
+        dbElem.setDbHost(__getHostName())
+
     success = False
     process = None
     procWaiter = None

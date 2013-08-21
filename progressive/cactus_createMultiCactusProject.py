@@ -114,6 +114,9 @@ def createFileStructure(mcProj, expTemplate, configTemplate, options):
         if expTemplate.getDbType() == "kyoto_tycoon":
             exp.setDbPort(expTemplate.getDbPort() + portOffset)
             portOffset += 1
+            host = expTemplate.getDbHost()
+            if host is not None:
+                exp.setDbHost(host)
         exp.setReferencePath(os.path.join(path, name + '.fa'))
         if configTemplate.getBuildHal() == True:
             exp.setHALPath(os.path.join(path, "%s_hal.c2h" % name))
