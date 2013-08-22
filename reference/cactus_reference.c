@@ -66,6 +66,7 @@ int main(int argc, char *argv[]) {
     int64_t maxWalkForCalculatingZ = 10000;
     bool ignoreUnalignedGaps = 0;
     double wiggle = 0.95;
+    bool breakBadAdjacencies = 1;
 
     ///////////////////////////////////////////////////////////////////////////
     // (0) Parse the inputs handed by genomeCactus.py / setup stuff.
@@ -207,7 +208,7 @@ int main(int argc, char *argv[]) {
         st_logInfo("Processing a flower\n");
         if (!flower_hasParentGroup(flower)) {
             buildReferenceTopDown(flower, referenceEventString, permutations,
-                    matchingAlgorithm, temperatureFn, theta,  maxWalkForCalculatingZ, ignoreUnalignedGaps, wiggle);
+                    matchingAlgorithm, temperatureFn, theta,  maxWalkForCalculatingZ, ignoreUnalignedGaps, wiggle, breakBadAdjacencies);
         }
         Flower_GroupIterator *groupIt = flower_getGroupIterator(flower);
         Group *group;
@@ -215,7 +216,7 @@ int main(int argc, char *argv[]) {
             if (group_getNestedFlower(group) != NULL) {
                 buildReferenceTopDown(group_getNestedFlower(group),
                         referenceEventString, permutations, matchingAlgorithm,
-                        temperatureFn, theta, maxWalkForCalculatingZ, ignoreUnalignedGaps, wiggle);
+                        temperatureFn, theta, maxWalkForCalculatingZ, ignoreUnalignedGaps, wiggle, 0);
             }
         }
         flower_destructGroupIterator(groupIt);

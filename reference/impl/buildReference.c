@@ -735,17 +735,49 @@ static stList *convertReferenceToAdjacencyEdges2(reference *ref) {
 ////////////////////////////////////
 ////////////////////////////////////
 
-void breakTopLevelBadAdjacency(int64_t pNode, Flower *flower, reference *ref, stHash *endsToNodes, int64_t *nodeCounter) {
-    //Make two new stubs
-    End *end1 = end_construct2(0, 0, flower);
-    End *end2 = end_construct2(1, 0, flower);
+void addEndNode(End *end, int64_t node, stHash *endsToNodes,
+        stHash *nodesToEnds) {
+    stIntTuple *n = stIntTuple_construct1(node);
+    stHash_insert(endsToNodes, end, n);
+    stHash_insert(nodesToEnds, n, end);
+}
 
-    //Add stubs to endsToNodes
-    stHash_insert(endsToNodes, end1, stIntTuple_construct1((*nodeNumber)++));
-    stHash_insert(endsToNodes, end2, stIntTuple_construct1((*nodeNumber)++));
+void breakTopLevelBadAdjacency(int64_t pNode, Flower *flower, reference *ref, stHash *endsToNodes,
+        stHash *nodesToEnds,
+        int64_t *nodeCounter) {
+    //Split chromosome in reference at pNode and join to two new stubs.
+    reference_splitInterval(ref, pNode, *nodeCounter, *nodeCounter + 1);
 
-    //Split chromosome in reference at pNode and join to stubs.
+    //Work out the side of the new stubs.
+    stIntTuple *i = stIntTuple_construct1(reference_getFirst(ref, pNode));
+    End *firstEnd = stHash_search(nodesToEnds, i);
+    assert(firstEnd != NULL);
+    assert(end_getOrientation(firstEnd));
+    stIntTuple_destruct(i);
 
+    //Now make the two stubs.
+    addEndNode(end_construct2(end_getSide(firstEnd) ? 0 : 1, 0, flower), (*nodeCounter)++, endsToNodes, nodesToEnds);
+    addEndNode(end_construct2(end_getSide(firstEnd) ? 1 : 0, 0, flower), (*nodeCounter)++, endsToNodes, nodesToEnds);
+}
+
+bool breakAdjacency(reference *ref, int64_t pNode, refAdjList *dAL) {
+    return st_random() > 0.99;
+}
+
+void breakTopLevelBadAdjacencies(Flower *flower, reference *ref, stHash *endsToNodes,
+        stHash *nodesToEnds,
+        int64_t *nodeCounter, refAdjList *dAL) {
+    int64_t j = reference_getIntervalNumber(ref);
+    for(int64_t i=0; i<j; i++) {
+        int64_t n = reference_getFirstOfInterval(ref, i);
+        while(n != INT64_MAX) {
+            int64_t pNode = n;
+            n = reference_getNext(ref, n);
+            if(breakAdjacency(ref, pNode, dAL)) {
+                breakTopLevelBadAdjacency(pNode, flower, ref, endsToNodes, nodesToEnds, nodeCounter);
+            }
+        }
+    }
 }
 
 ////////////////////////////////////
@@ -765,7 +797,7 @@ static bool tooLarge(reference *ref, int64_t n) {
 
 void buildReferenceTopDown(Flower *flower, const char *referenceEventHeader, int64_t permutations,
         stList *(*matchingAlgorithm)(stList *edges, int64_t nodeNumber), double(*temperature)(double), double theta,
-        int64_t maxWalkForCalculatingZ, bool ignoreUnalignedGaps, double wiggle) {
+        int64_t maxWalkForCalculatingZ, bool ignoreUnalignedGaps, double wiggle, bool breakBadAdjacencies) {
     /*
      * Implements a greedy algorithm and greedy update sampler to find a solution to the adjacency problem for a net.
      */
@@ -845,10 +877,13 @@ void buildReferenceTopDown(Flower *flower, const char *referenceEventHeader, int
     st_logDebug("The score of the final solution is %f/%" PRIi64 " after %" PRIi64 " rounds of greedy nudging out of a max possible %f\n",
             totalScoreAfterNudging, badAdjacenciesAfterNudging, nudgePermutations, maxPossibleScore);
 
+    stHash *nodesToEnds = stHash_invert(endsToNodes, (uint64_t(*)(const void *)) stIntTuple_hashKey,
+                (int(*)(const void *, const void *)) stIntTuple_equalsFn, NULL, NULL);
     if(flower_getName(flower) == 0) {
         if(breakBadAdjacencies) {
-            //Break at bad adjacencies
-            breakTopLevelBadAdjacencies(flower, badAdjacencies, ref, nodesToEnds);
+            //Break bad adjacencies in top-level problem
+            breakTopLevelBadAdjacencies(flower, ref, endsToNodes,
+                    nodesToEnds,&nodeNumber, dAL);
         }
         //Hack to breakup largest chromosome
         int64_t totalBases = flower_getTotalBaseLength(flower);
@@ -869,8 +904,6 @@ void buildReferenceTopDown(Flower *flower, const char *referenceEventHeader, int
     assert(stHash_size(endsToNodes) == stSortedSet_size(nodesSet));
     stSortedSet_destruct(nodesSet);
     stList_destruct(nodes);
-    stHash *nodesToEnds = stHash_invert(endsToNodes, (uint64_t(*)(const void *)) stIntTuple_hashKey,
-            (int(*)(const void *, const void *)) stIntTuple_equalsFn, NULL, NULL);
 
     /*
      * Add the reference genome into flower
