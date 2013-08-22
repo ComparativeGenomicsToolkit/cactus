@@ -756,12 +756,12 @@ void breakTopLevelBadAdjacency(int64_t pNode, Flower *flower, reference *ref, st
     stIntTuple_destruct(i);
 
     //Now make the two stubs.
-    addEndNode(end_construct2(end_getSide(firstEnd) ? 0 : 1, 0, flower), (*nodeCounter)++, endsToNodes, nodesToEnds);
-    addEndNode(end_construct2(end_getSide(firstEnd) ? 1 : 0, 0, flower), (*nodeCounter)++, endsToNodes, nodesToEnds);
+    addEndNode(end_construct2(end_getSide(firstEnd) ? 0 : 1, 1, flower), (*nodeCounter)++, endsToNodes, nodesToEnds);
+    addEndNode(end_construct2(end_getSide(firstEnd) ? 1 : 0, 1, flower), (*nodeCounter)++, endsToNodes, nodesToEnds);
 }
 
 bool breakAdjacency(reference *ref, int64_t pNode, refAdjList *dAL) {
-    return st_random() > 0.99;
+    return st_random() > 0.8;
 }
 
 void breakTopLevelBadAdjacencies(Flower *flower, reference *ref, stHash *endsToNodes,
@@ -769,14 +769,15 @@ void breakTopLevelBadAdjacencies(Flower *flower, reference *ref, stHash *endsToN
         int64_t *nodeCounter, refAdjList *dAL) {
     int64_t j = reference_getIntervalNumber(ref);
     for(int64_t i=0; i<j; i++) {
-        int64_t n = reference_getFirstOfInterval(ref, i);
-        while(n != INT64_MAX) {
-            int64_t pNode = n;
-            n = reference_getNext(ref, n);
-            if(breakAdjacency(ref, pNode, dAL)) {
-                breakTopLevelBadAdjacency(pNode, flower, ref, endsToNodes, nodesToEnds, nodeCounter);
+        int64_t n = reference_getPrevious(ref, reference_getLast(ref, reference_getFirstOfInterval(ref, i))); //Work backwards to avoid quadratic penalty for setting "first" pointers.
+        assert(n != INT64_MAX);
+        assert(reference_getFirst(ref, n) == reference_getFirstOfInterval(ref, i));
+        do {
+            if(breakAdjacency(ref, n, dAL)) {
+                breakTopLevelBadAdjacency(n, flower, ref, endsToNodes, nodesToEnds, nodeCounter);
             }
-        }
+            n = reference_getPrevious(ref, n);
+        } while(n != INT64_MAX);
     }
 }
 
@@ -882,8 +883,7 @@ void buildReferenceTopDown(Flower *flower, const char *referenceEventHeader, int
     if(flower_getName(flower) == 0) {
         if(breakBadAdjacencies) {
             //Break bad adjacencies in top-level problem
-            breakTopLevelBadAdjacencies(flower, ref, endsToNodes,
-                    nodesToEnds,&nodeNumber, dAL);
+            breakTopLevelBadAdjacencies(flower, ref, endsToNodes, nodesToEnds, &nodeNumber, dAL);
         }
         //Hack to breakup largest chromosome
         int64_t totalBases = flower_getTotalBaseLength(flower);
