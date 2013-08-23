@@ -483,7 +483,7 @@ int main(int argc, char *argv[]) {
                     if (minimumChainLengthForMeltingRound >= minimumChainLength) {
                         break;
                     }
-                    stCaf_melt(flower, threadSet, NULL, 0, minimumChainLengthForMeltingRound, breakChainsAtReverseTandems, maximumMedianSequenceLengthBetweenLinkedEnds);
+                    stCaf_melt(flower, threadSet, NULL, 0, minimumChainLengthForMeltingRound, 0, INT64_MAX);
                 } st_logDebug("Last melting round of cycle with a minimum chain length of %" PRIi64 " \n", minimumChainLength);
                 stCaf_melt(flower, threadSet, NULL, 0, minimumChainLength, breakChainsAtReverseTandems, maximumMedianSequenceLengthBetweenLinkedEnds);
                 //This does the filtering of blocks that do not have the required species/tree-coverage/degree.
