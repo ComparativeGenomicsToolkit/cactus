@@ -356,9 +356,6 @@ int main(int argc, char *argv[]) {
     for (int64_t i = 0; i < alignmentTrimLength; i++) {
         assert(alignmentTrims[i] >= 0);
     }
-    assert(requiredAllFraction >= 0);
-    assert(requiredOutgroupFraction >= 0);
-    assert(requiredIngroupFraction >= 0);
 
     //////////////////////////////////////////////
     //Set up logging
@@ -484,7 +481,7 @@ int main(int argc, char *argv[]) {
                     if (minimumChainLengthForMeltingRound >= minimumChainLength) {
                         break;
                     }
-                    stCaf_melt(flower, threadSet, NULL, 0, minimumChainLengthForMeltingRound, breakChainsAtReverseTandems, maximumMedianSequenceLengthBetweenLinkedEnds);
+                    stCaf_melt(flower, threadSet, NULL, 0, minimumChainLengthForMeltingRound, 0, INT64_MAX);
                 } st_logDebug("Last melting round of cycle with a minimum chain length of %" PRIi64 " \n", minimumChainLength);
                 stCaf_melt(flower, threadSet, NULL, 0, minimumChainLength, breakChainsAtReverseTandems, maximumMedianSequenceLengthBetweenLinkedEnds);
                 //This does the filtering of blocks that do not have the required species/tree-coverage/degree.
@@ -503,7 +500,7 @@ int main(int argc, char *argv[]) {
 
             //Finish up
             stCaf_finish(flower, threadSet, chainLengthForBigFlower, longChain, minLengthForChromosome,
-                    proportionOfUnalignedBasesForNewChromosome); //Flower is then destroyed at this point.
+                    proportionOfUnalignedBasesForNewChromosome, maximumMedianSequenceLengthBetweenLinkedEnds); //Flower is then destroyed at this point.
             st_logInfo("Ran the cactus core script\n");
 
             //Cleanup

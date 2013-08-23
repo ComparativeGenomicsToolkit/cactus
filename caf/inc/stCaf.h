@@ -100,7 +100,7 @@ void *stCaf_mergeNodeObjects(void *a, void *b);
  */
 stCactusGraph *stCaf_getCactusGraphForThreadSet(Flower *flower, stPinchThreadSet *threadSet, stCactusNode **startCactusNode,
         stList **deadEndComponent, bool attachEndsInFlower, int64_t minLengthForChromosome, double proportionOfUnalignedBasesForNewChromosome,
-        bool breakChainsAtReverseTandems, int64_t maximumMedianSpacingBetweenLinkedEnds);
+        bool breakChainsAtReverseTandems, int64_t maximumMedianSpacingBetweenLinkedEnds, bool onlyBreakInternalChains);
 
 ///////////////////////////////////////////////////////////////////////////
 // Finishing: Converting a pinch graph into the flower hierarchy
@@ -122,6 +122,7 @@ void stCaf_addAdjacencies(Flower *flower);
  */
 void stCaf_finish(Flower *flower, stPinchThreadSet *threadSet, int64_t chainLengthForBigFlower,
         int64_t longChain, int64_t minLengthForChromosome,
-        double proportionOfUnalignedBasesForNewChromosome);
+        double proportionOfUnalignedBasesForNewChromosome,
+        int64_t maximumMedianSequenceLengthBetweenLinkedEnds);
 
 #endif /* STCAF_H_ */

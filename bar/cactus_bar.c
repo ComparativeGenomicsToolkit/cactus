@@ -306,7 +306,7 @@ int main(int argc, char *argv[]) {
             if (minimumIngroupDegree > 0 || minimumOutgroupDegree > 0 || minimumDegree > 1) {
                 stCaf_melt(flower, threadSet, blockFilterFn, 0, 0, 0, INT64_MAX);
             }
-            stCaf_finish(flower, threadSet, chainLengthForBigFlower, longChain, INT64_MAX, INT64_MAX); //Flower now destroyed.
+            stCaf_finish(flower, threadSet, chainLengthForBigFlower, longChain, INT64_MAX, INT64_MAX, 0); //Flower now destroyed.
             stPinchThreadSet_destruct(threadSet);
             st_logInfo("Ran the cactus core script.\n");
 
