@@ -39,6 +39,7 @@ from cactus.pipeline.cactus_workflow import CactusWorkflowArguments
 from cactus.pipeline.cactus_workflow import addCactusWorkflowOptions
 from cactus.pipeline.cactus_workflow import getOptionalAttrib
 from cactus.pipeline.cactus_workflow import findRequiredNode
+from cactus.pipeline.cactus_workflow import getOutputSequenceFile
 
 from cactus.progressive.multiCactusProject import MultiCactusProject
 from cactus.progressive.multiCactusTree import MultiCactusTree
@@ -128,7 +129,6 @@ class ProgressiveUp(Target):
         # get parameters that cactus_workflow stuff wants
         workFlowArgs = CactusWorkflowArguments(self.options)
         # copy over the options so we don't trail them around
-        workFlowArgs.skipAlignments = self.options.skipAlignments
         workFlowArgs.buildReference = self.options.buildReference
         workFlowArgs.buildHal = self.options.buildHal
         workFlowArgs.buildFasta = self.options.buildFasta
@@ -148,19 +148,17 @@ class ProgressiveUp(Target):
                              self.event)
         else:
             system("rm -f %s" % donePath)
-            # delete database files if --setupAndBuildAlignments
+            # delete database 
             # and overwrite specified (or if reference not present)
-            if not self.options.skipAlignments:
-                dbPath = os.path.join(experiment.getDbDir(), 
-                                      experiment.getDbName())
-                seqPath = os.path.join(experiment.getDbDir(), "sequences")
-                system("rm -f %s* %s %s" % (dbPath, seqPath, 
-                                            experiment.getReferencePath()))
+            dbPath = os.path.join(experiment.getDbDir(), 
+                                  experiment.getDbName())
+            seqPath = os.path.join(experiment.getDbDir(), "sequences")
+            system("rm -f %s* %s %s" % (dbPath, seqPath, 
+                                        experiment.getReferencePath()))
 
-            if not workFlowArgs.skipAlignments:
-                self.addChildTarget(CactusPreprocessorPhase(cactusWorkflowArguments=workFlowArgs,
-                                                            phaseName="preprocessor"))
-                logger.info("Going to create alignments and define the cactus tree")
+            self.addChildTarget(CactusSetupPhase(cactusWorkflowArguments=workFlowArgs,
+                                                        phaseName="setup"))
+            logger.info("Going to create alignments and define the cactus tree")
 
         self.setFollowOnTarget(FinishUp(workFlowArgs, self.project))
                                
@@ -175,6 +173,40 @@ class FinishUp(Target):
         doneFile = open(donePath, "w")
         doneFile.write("")
         doneFile.close()
+        
+class RunCactusPreprocessorThenCactusSetup(Target):
+    def __init__(self, options):
+        self.options = options
+    def run(self):
+        cactusWorkflowArguments = CactusWorkflowArguments(self.options)
+        self.addChildTarget(CactusPreprocessorPhase(cactusWorkflowArguments=cactusWorkflowArguments, phaseName="preprocessor"))
+        #We redirect the output sequence files here, which is hacky as fuck
+        cactusWorkflowArguments.sequences = [ getOutputSequenceFile(self.cactusWorkflowArguments, i) for i in self.cactusWorkflowArguments.sequences ]
+        self.setFollowOnTarget(CactusSetupPhase(cactusWorkflowArguments=cactusWorkflowArguments,
+                                                            phaseName="setup"))
+
+class RunCactusPreprocessorThenProgressiveDown(Target):
+    def __init__(self, options, args):
+        self.options = options
+        self.args = args
+        
+    def run(self):
+        #First create a preprocessor job to preprocess the input sequences.
+        cactusWorkflowArguments = CactusWorkflowArguments(self.options)
+        self.addChildTarget(CactusPreprocessorPhase(cactusWorkflowArguments=cactusWorkflowArguments, phaseName="preprocessor"))
+        #Now build the progressive-down target
+        project = MultiCactusProject()
+        project.readXML(self.args[0])
+        schedule = Schedule()
+        schedule.loadProject(project)
+        schedule.compute()
+        if self.options.event == None:
+            self.options.event = project.mcTree.getRootName()
+        assert self.options.event in project.expMap
+        leafNames = [project.mcTree.getName(i) for i in project.mcTree.getLeaves()]
+        self.options.globalLeafEventSet = set(leafNames)
+        self.options.sequences = [ getOutputSequenceFile(self.cactusWorkflowArguments, i) for i in self.options.sequences ]
+        self.setFollowOnTarget(ProgressiveDown(options, project, options.event, schedule))
 
 def main():    
     usage = "usage: %prog [options] <multicactus project>"
@@ -211,9 +243,7 @@ def main():
     assert options.event in project.expMap
     leafNames = [project.mcTree.getName(i) for i in project.mcTree.getLeaves()]
     options.globalLeafEventSet = set(leafNames)
-    
-    baseTarget = ProgressiveDown(options, project, options.event, schedule)
-    Stack(baseTarget).startJobTree(options)
+    Stack(RunCactusPreprocessorThenProgressiveDown(options, args)).startJobTree(options)
 
 if __name__ == '__main__':
     from cactus.progressive.cactus_progressive import *

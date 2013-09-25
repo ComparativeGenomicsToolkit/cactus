@@ -273,7 +273,40 @@ class CactusRecursionTarget(CactusTarget):
 ############################################################
 ############################################################
 ############################################################
-##The preprocessor phase.
+##The preprocessor phase, which modifies the input sequences
+############################################################
+############################################################
+############################################################
+
+def getOutputSequenceFile(cactusWorkflowArguments, inputSequenceFile):
+    return os.path.join(cactusWorkflowArguments.experimentNode.find("preprocessor").attrib["outputSequences"], os.path.split(inputSequence)[1] + ".preprocessed")        
+
+class CactusPreprocessor(CactusPhasesTarget):
+    """Modifies the input genomes, doing things like masking/checking, etc.
+    """    
+    def run(self):
+        prepHelper = PreprocessorHelper(self.cactusWorkflowArguments, self.cactusWorkflowArguments.sequences)
+        for sequenceIndex in xrange(len(self.cactusWorkflowArguments.sequences)):
+            sequence = self.cactusWorkflowArguments.sequences[sequenceIndex]
+            outputSequenceFile = self.getOutputSequenceFile(sequence)
+            assert sequence != outputSequenceFile
+            if not os.path.isfile(outputSequenceFile): #Only create the output sequence if it doesn't already exist. This prevents reprocessing if the sequence is used in multiple places between runs.
+                prepXmlElems = prepHelper.getFilteredXmlElems(sequenceIndex)
+                event = prepHelper.sequenceIndexEventMap[sequenceIndex]
+                if len(prepXmlElems) == 0: #Just ln the file to the output dir
+                    system("ln %s %s" % (sequence, outputSequenceFile))
+                else:
+                    logger.info("Adding child batch_preprocessor target")
+                    self.addChildTarget(BatchPreprocessor(self.cactusWorkflowArguments, event, prepXmlElems, 
+                                                          sequence, outputSequenceFile, 
+                                                          self.getOptionalPhaseAttrib("memory", typeFn=int, default=sys.maxint),
+                                                          self.getOptionalPhaseAttrib("cpu", typeFn=int, default=sys.maxint),
+                                                          0))
+
+############################################################
+############################################################
+############################################################
+##The setup phase.
 ############################################################
 ############################################################
 ############################################################
@@ -283,55 +316,28 @@ def getLongestPath(node, distance=0.0):
     """
     i, j = distance, distance
     if node.left != None:
-        i = getLongestPath(node.left, node.left.distance) + distance
+        i = getLongestPath(node.left, abs(node.left.distance)) + distance
     if node.right != None:  
-        j = getLongestPath(node.right, node.right.distance) + distance
+        j = getLongestPath(node.right, abs(node.right.distance)) + distance
     return max(i, j)
-
-class CactusPreprocessorPhase(CactusPhasesTarget):
-    def run(self):
-        self.logToMaster("Starting preprocessor phase target at %s seconds" % time.time())
         
+class CactusSetupPhase(CactusPhasesTarget):  
+    """Initialises the cactus database and adapts the config file for the run.
+    """
+    def run(self):
         #Adapt the config file to remove any elements that are not relevant to the distances considered.
         longestPath = getLongestPath(newickTreeParser(self.cactusWorkflowArguments.speciesTree))
         logger.info("The longest path in the tree is %f" % longestPath)
         for node in list(self.cactusWorkflowArguments.configNode):
-            minDivergence = getOptionalAttrib(node, "minDivergence", float, 0.0)
+            minDivergence = getOptionalAttrib(node, "minDivergence", float, -100000000000.0)
             maxDivergence = getOptionalAttrib(node, "maxDivergence", float, 100000000000.0)
             if minDivergence > longestPath or maxDivergence < longestPath:
                 self.logToMaster("Removing node %s with minDivergence %s and maxDivergence %s for max divergence in tree of %s" % (node.tag, minDivergence, maxDivergence, longestPath))
                 self.cactusWorkflowArguments.configNode.remove(node)
-        tempDir = makeSubDir(os.path.join(self.getGlobalTempDir(), "tempSeqs"))
-        prepHelper = PreprocessorHelper(self.cactusWorkflowArguments, self.cactusWorkflowArguments.sequences)
-        processedSequences = []
-        tempSeqIndex = 0
-        for sequenceIndex in xrange(len(self.cactusWorkflowArguments.sequences)):
-            sequence = self.cactusWorkflowArguments.sequences[sequenceIndex]
-            prepXmlElems = prepHelper.getFilteredXmlElems(sequenceIndex)
-            event = prepHelper.sequenceIndexEventMap[sequenceIndex]
-            if len(prepXmlElems) == 0:
-                processedSequences.append(sequence)
-            else:
-                sequenceJoin = sequence
-                while sequenceJoin[0] == '/':
-                    sequenceJoin = sequenceJoin[1:]
-                processedSequence = os.path.join(tempDir, str(tempSeqIndex))
-                processedSequences.append(processedSequence)
-                tempSeqIndex += 1
-                logger.info("Adding child batch_preprocessor target")
-                assert sequence != processedSequence
-                self.addChildTarget(BatchPreprocessor(self.cactusWorkflowArguments, event, prepXmlElems, 
-                                                      sequence, processedSequence, 
-                                                      self.getOptionalPhaseAttrib("memory", typeFn=int, default=sys.maxint),
-                                                      self.getOptionalPhaseAttrib("cpu", typeFn=int, default=sys.maxint),
-                                                      0))
-        self.cactusWorkflowArguments.sequences = processedSequences
         self.makeFollowOnPhaseTarget(CactusPreprocessorPhase2, "preprocessor")
-
-class CactusPreprocessorPhase2(CactusPreprocessorPhase):
-    def run(self):
+        
         # we circumvent makeFollowOnPhaseTarget() interface for this job.
-        setupTarget = CactusSetupPhase(cactusWorkflowArguments=self.cactusWorkflowArguments,
+        setupTarget = CactusSetupPhase2(cactusWorkflowArguments=self.cactusWorkflowArguments,
                                        phaseName='setup', topFlowerName=self.topFlowerName,
                                        index=0)
 
@@ -342,17 +348,11 @@ class CactusPreprocessorPhase2(CactusPreprocessorPhase):
         else:
             logger.info("Created follow-on target cactus_setup")
             self.setFollowOnTarget(setupTarget)
-
-############################################################
-############################################################
-############################################################
-##The setup phase.
-############################################################
-############################################################
-############################################################
         
-class CactusSetupPhase(CactusPhasesTarget):   
-    def run(self):
+        
+class CactusSetupPhase2(CactusPhasesTarget):   
+    def run(self):        
+        #Now run setup
         runCactusSetup(cactusDiskDatabaseString=self.cactusWorkflowArguments.cactusDiskDatabaseString, 
                        sequences=self.cactusWorkflowArguments.sequences, 
                        newickTreeString=self.cactusWorkflowArguments.speciesTree, 
@@ -955,9 +955,6 @@ def addCactusWorkflowOptions(parser):
     parser.add_option("--experiment", dest="experimentFile", 
                       help="The file containing a link to the experiment parameters")
     
-    parser.add_option("--skipAlignments", dest="skipAlignments", action="store_true",
-                      help="Skip building alignments", default=False)
-    
     parser.add_option("--buildAvgs", dest="buildAvgs", action="store_true",
                       help="Build trees", default=False)
     
@@ -975,6 +972,16 @@ def addCactusWorkflowOptions(parser):
     parser.add_option("--test", dest="test", action="store_true",
                       help="Run doctest unit tests")
 
+class RunCactusPreprocessorThenCactusSetup(Target):
+    def __init__(self, options):
+        self.options = options
+    def run(self):
+        cactusWorkflowArguments = CactusWorkflowArguments(self.options)
+        self.addChildTarget(CactusPreprocessorPhase(cactusWorkflowArguments=cactusWorkflowArguments, phaseName="preprocessor"))
+        cactusWorkflowArguments.sequences = [ getOutputSequenceFile(self.cactusWorkflowArguments, i) for i in self.cactusWorkflowArguments.sequences ]
+        self.setFollowOnTarget(CactusSetupPhase(cactusWorkflowArguments=cactusWorkflowArguments,
+                                                            phaseName="setup"))
+        
 def main():
     ##########################################
     #Construct the arguments.
@@ -993,14 +1000,7 @@ def main():
         raise RuntimeError("Unrecognised input arguments: %s" % " ".join(args))
 
     cactusWorkflowArguments = CactusWorkflowArguments(options)
-    if options.skipAlignments: #Don't dp caf and bar, jump right to an existing cactus structure
-        #cactusWorkflowArguments, phaseName, topFlowerName, index=0):
-        firstTarget = CactusNormalPhase(cactusWorkflowArguments=cactusWorkflowArguments, phaseName="normal")
-    else:
-        firstTarget = CactusPreprocessorPhase(cactusWorkflowArguments=cactusWorkflowArguments,
-                                                            phaseName="preprocessor")
-        #CactusSetupPhase(cactusWorkflowArguments=cactusWorkflowArguments, phaseName="setup")
-    Stack(firstTarget).startJobTree(options)
+    Stack(RunCactusPreprocessorThenCactusSetup(options)).startJobTree(options)
 
 def _test():
     import doctest      
