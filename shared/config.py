@@ -48,7 +48,8 @@ class CactusWorkflowExperiment:
                  outgroupEvents=None, outputDir=None, databaseName=None, 
                  databaseConf=None, configFile=None, 
                  halFile=None, mafFile=None, fastaFile=None,
-                 constraints=None, progressive=False):
+                 constraints=None, progressive=False, 
+                 outputSequences=None):
         self.experiment = ET.Element("cactus_workflow_experiment")
         if databaseName == None:
             self.databaseName = "cactusDisk_%s_%i" % (getRandomAlphaNumericString(), os.getpid()) #Needs to be unique
@@ -91,6 +92,10 @@ class CactusWorkflowExperiment:
             tokyoCabinet.attrib["database_dir"] = self.databaseFile
         #Now add in the user stuff..
         self.experiment.attrib["sequences"] = " ".join(sequences)
+        if outputSequences == None:
+            assert outputDir != None
+            outputSequences = os.path.join(outputDir, "outputSequences")
+        self.experiment.attrib["outputSequences"] = outputSequences
         self.experiment.attrib["species_tree"] = newickTreeString
         if outgroupEvents != None:
             self.experiment.attrib["outgroup_events"] = outgroupEvents

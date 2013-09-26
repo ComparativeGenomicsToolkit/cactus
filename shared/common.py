@@ -17,7 +17,6 @@ from sonLib.bioio import getLogLevelString
 
 from jobTree.src.common import runJobTreeStatusAndFailIfNotComplete
 
-
 def cactusRootPath():
     """
     function for finding external location
@@ -32,6 +31,17 @@ def getLogLevelString2(logLevelString):
     if logLevelString == None:
         return getLogLevelString()
     return logLevelString
+
+def getOptionalAttrib(node, attribName, typeFn=None, default=None):
+    """Get an optional attrib, or default if not set or node is None
+    """
+    if node != None and node.attrib.has_key(attribName):
+        if typeFn != None:
+            if typeFn == bool:
+                return bool(int(node.attrib[attribName]))
+            return typeFn(node.attrib[attribName])
+        return node.attrib[attribName]
+    return default
 
 #############################################
 #############################################

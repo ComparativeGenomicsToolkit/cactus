@@ -34,6 +34,7 @@ from jobTree.scriptTree.target import Target
 from jobTree.scriptTree.stack import Stack
 from jobTree.src.bioio import getLogLevelString
 
+from cactus.shared.common import getOptionalAttrib
 from cactus.shared.common import runCactusSetup
 from cactus.shared.common import runCactusCaf
 from cactus.shared.common import runCactusGetFlowers
@@ -58,7 +59,6 @@ from cactus.blast.cactus_blast import BlastFlower
 from cactus.blast.cactus_blast import BlastOptions
 
 from cactus.preprocessor.cactus_preprocessor import BatchPreprocessor
-from cactus.preprocessor.cactus_preprocessor import PreprocessorHelper
 
 from cactus.progressive.experimentWrapper import ExperimentWrapper
 from cactus.progressive.experimentWrapper import DbElemWrapper
@@ -71,17 +71,6 @@ from cactus.pipeline.ktserverJobTree import addKtserverDependentChild
 ############################################################
 ############################################################
 ############################################################
-
-def getOptionalAttrib(node, attribName, typeFn=None, default=None):
-    """Get an optional attrib, or None, if not set or node is None
-    """
-    if node != None and node.attrib.has_key(attribName):
-        if typeFn != None:
-            if typeFn == bool:
-                return bool(int(node.attrib[attribName]))
-            return typeFn(node.attrib[attribName])
-        return node.attrib[attribName]
-    return default
 
 def findRequiredNode(configNode, nodeName, index=0):
     """Retrieve an xml node, complain if its not there.
@@ -278,29 +267,31 @@ class CactusRecursionTarget(CactusTarget):
 ############################################################
 ############################################################
 
-def getOutputSequenceFile(cactusWorkflowArguments, inputSequenceFile):
-    return os.path.join(cactusWorkflowArguments.experimentNode.find("preprocessor").attrib["outputSequences"], os.path.split(inputSequence)[1] + ".preprocessed")        
+def getOutputSequenceFile(outputSequenceDir, inputSequenceFile):
+    return os.path.join(outputSequenceDir, os.path.split(inputSequenceFile)[1] + ".preprocessed")        
 
-class CactusPreprocessor(CactusPhasesTarget):
+class CactusPreprocessor(Target):
     """Modifies the input genomes, doing things like masking/checking, etc.
-    """    
+    """
+    def __init__(self, inputSequences, outputSequenceDir, configNode):
+        Target.__init__(self)
+        self.inputSequences = inputSequences
+        self.outputSequenceDir = outputSequenceDir
+        self.configNode = configNode  
     def run(self):
-        prepHelper = PreprocessorHelper(self.cactusWorkflowArguments, self.cactusWorkflowArguments.sequences)
-        for sequenceIndex in xrange(len(self.cactusWorkflowArguments.sequences)):
-            sequence = self.cactusWorkflowArguments.sequences[sequenceIndex]
-            outputSequenceFile = self.getOutputSequenceFile(sequence)
+        if not os.path.isdir(self.outputSequenceDir):
+            os.mkdir(self.outputSequenceDir)
+        for sequence in self.inputSequences:
+            outputSequenceFile = getOutputSequenceFile(self.outputSequenceDir, sequence)
             assert sequence != outputSequenceFile
             if not os.path.isfile(outputSequenceFile): #Only create the output sequence if it doesn't already exist. This prevents reprocessing if the sequence is used in multiple places between runs.
-                prepXmlElems = prepHelper.getFilteredXmlElems(sequenceIndex)
-                event = prepHelper.sequenceIndexEventMap[sequenceIndex]
+                prepXmlElems = self.configNode.findall("preprocessor")
                 if len(prepXmlElems) == 0: #Just ln the file to the output dir
                     system("ln %s %s" % (sequence, outputSequenceFile))
                 else:
                     logger.info("Adding child batch_preprocessor target")
-                    self.addChildTarget(BatchPreprocessor(self.cactusWorkflowArguments, event, prepXmlElems, 
+                    self.addChildTarget(BatchPreprocessor(prepXmlElems, 
                                                           sequence, outputSequenceFile, 
-                                                          self.getOptionalPhaseAttrib("memory", typeFn=int, default=sys.maxint),
-                                                          self.getOptionalPhaseAttrib("cpu", typeFn=int, default=sys.maxint),
                                                           0))
 
 ############################################################
@@ -334,8 +325,7 @@ class CactusSetupPhase(CactusPhasesTarget):
             if minDivergence > longestPath or maxDivergence < longestPath:
                 self.logToMaster("Removing node %s with minDivergence %s and maxDivergence %s for max divergence in tree of %s" % (node.tag, minDivergence, maxDivergence, longestPath))
                 self.cactusWorkflowArguments.configNode.remove(node)
-        self.makeFollowOnPhaseTarget(CactusPreprocessorPhase2, "preprocessor")
-        
+    
         # we circumvent makeFollowOnPhaseTarget() interface for this job.
         setupTarget = CactusSetupPhase2(cactusWorkflowArguments=self.cactusWorkflowArguments,
                                        phaseName='setup', topFlowerName=self.topFlowerName,
@@ -974,11 +964,15 @@ def addCactusWorkflowOptions(parser):
 
 class RunCactusPreprocessorThenCactusSetup(Target):
     def __init__(self, options):
+        Target.__init__(self)
         self.options = options
+        
     def run(self):
-        cactusWorkflowArguments = CactusWorkflowArguments(self.options)
-        self.addChildTarget(CactusPreprocessorPhase(cactusWorkflowArguments=cactusWorkflowArguments, phaseName="preprocessor"))
-        cactusWorkflowArguments.sequences = [ getOutputSequenceFile(self.cactusWorkflowArguments, i) for i in self.cactusWorkflowArguments.sequences ]
+        cactusWorkflowArguments=CactusWorkflowArguments(self.options)
+        outputSequenceDir = cactusWorkflowArguments.experimentNode.attrib["outputSequences"]
+        self.addChildTarget(CactusPreprocessor(cactusWorkflowArguments.sequences, outputSequenceDir, cactusWorkflowArguments.configNode))
+        #Now make the setup, making a new workflow arguments object.
+        cactusWorkflowArguments.sequences = [ getOutputSequenceFile(outputSequenceDir, i) for i in cactusWorkflowArguments.sequences ]
         self.setFollowOnTarget(CactusSetupPhase(cactusWorkflowArguments=cactusWorkflowArguments,
                                                             phaseName="setup"))
         

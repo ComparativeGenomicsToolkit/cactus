@@ -9,6 +9,7 @@
 sequences. Uses the jobTree framework to parallelise the blasts.
 """
 import os
+import sys
 import errno
 from optparse import OptionParser
 from bz2 import BZ2File
@@ -22,45 +23,7 @@ from sonLib.bioio import makeSubDir
 from jobTree.scriptTree.target import Target
 from jobTree.scriptTree.stack import Stack
 from cactus.blast.cactus_blast import catFiles
-
-class PreprocessorHelper:
-    def __init__(self, cactusWorkflowArguments, sequences):     
-        self.cactusWorkflowArguments = cactusWorkflowArguments
-        self.sequences = sequences
-        self.sequenceIndexEventMap = self.__computeSequenceIndexEventMap()
-    
-    def getFilteredXmlElems(self, sequenceIndex):
-        prepNodes = self.cactusWorkflowArguments.configNode.findall("preprocessor")
-        filteredNodes = []
-        event = self.sequenceIndexEventMap[sequenceIndex]
-        leafEvents = getattr(self.cactusWorkflowArguments, 'globalLeafEventSet', set([event]))         
-        for node in prepNodes:
-            if node.get("preprocessorString", default=None) is not None:
-                scope = node.get("scope", default="leaves").lower()
-                if event in leafEvents:
-                    if scope != 'internal':
-                        filteredNodes.append(node)
-                elif scope != 'leaves':
-                    filteredNodes.append(node)
-        return filteredNodes
-    
-    # link each fasta file to an event name and store 
-    # relies on sequences aways being read in same order
-    def __computeSequenceIndexEventMap(self):
-        seqIndex = 0
-        eventMap = dict()
-        tree = newickTreeParser(self.cactusWorkflowArguments.speciesTree)
-        dfStack = [tree]
-        while dfStack:
-            node = dfStack.pop(-1)
-            if node is not None and not node.internal:
-                eventMap[seqIndex] = node.iD 
-                seqIndex += 1
-            else:
-                dfStack.append(node.right)
-                dfStack.append(node.left) 
-        assert len(eventMap) == len(self.sequences)
-        return eventMap
+from cactus.shared.common import getOptionalAttrib
 
 class PreprocessorOptions:
     def __init__(self, chunkSize, cmdLine, memory, cpu, check):
@@ -73,13 +36,12 @@ class PreprocessorOptions:
 class PreprocessChunk(Target):
     """ locally preprocess a fasta chunk, output then copied back to input
     """
-    def __init__(self, prepOptions, seqPath, inChunk, outChunk, event):
+    def __init__(self, prepOptions, seqPath, inChunk, outChunk):
         Target.__init__(self, memory=prepOptions.memory, cpu=prepOptions.cpu)
         self.prepOptions = prepOptions 
         self.seqPath = seqPath
         self.inChunk = inChunk
         self.outChunk = outChunk
-        self.event = event
     
     def run(self):
         tempPath = os.path.join(self.getLocalTempDir(), "tempPath")
@@ -87,7 +49,6 @@ class PreprocessChunk(Target):
         cmdline = cmdline.replace("IN_FILE", "\"" + self.inChunk + "\"")
         cmdline = cmdline.replace("OUT_FILE", "\"" + self.outChunk + "\"")
         cmdline = cmdline.replace("TEMP_FILE", "\"" + tempPath + "\"")
-        cmdline = cmdline.replace("EVENT_STRING", self.event)
         logger.info("Preprocessor exec " + cmdline)
         system(cmdline)
         if self.prepOptions.check:
@@ -109,12 +70,11 @@ class MergeChunks(Target):
 class PreprocessSequence(Target):
     """Cut a sequence into chunks, process, then merge
     """
-    def __init__(self, prepOptions, inSequencePath, outSequencePath, event):
+    def __init__(self, prepOptions, inSequencePath, outSequencePath):
         Target.__init__(self, cpu=prepOptions.cpu)
         self.prepOptions = prepOptions 
         self.inSequencePath = inSequencePath
         self.outSequencePath = outSequencePath
-        self.event = event
     
     def run(self):        
         logger.info("Preparing sequence for preprocessing")
@@ -128,21 +88,20 @@ class PreprocessSequence(Target):
         #For each input chunk we create an output chunk, it is the output chunks that get concatenated together.
         for i in xrange(len(inChunkList)):
             outChunkList.append(os.path.join(outChunkDirectory, "chunk_%i" % i))
-            self.addChildTarget(PreprocessChunk(self.prepOptions, self.inSequencePath, inChunkList[i], outChunkList[i], self.event))
+            self.addChildTarget(PreprocessChunk(self.prepOptions, self.inSequencePath, inChunkList[i], outChunkList[i]))
         # follow on to merge chunks
         self.setFollowOnTarget(MergeChunks(self.prepOptions, outChunkList, self.outSequencePath))
 
 class BatchPreprocessor(Target):
-    def __init__(self, cactusWorkflowArguments, event, prepXmlElems, inSequence, 
-                 globalOutSequence, memory, cpu, iteration = 0):
-        Target.__init__(self, time=0.0002)
-        self.cactusWorkflowArguments = cactusWorkflowArguments 
-        self.event = event
+    def __init__(self, prepXmlElems, inSequence, 
+                 globalOutSequence, iteration = 0):
+        Target.__init__(self, time=0.0002) 
         self.prepXmlElems = prepXmlElems
         self.inSequence = inSequence
         self.globalOutSequence = globalOutSequence
-        self.memory = memory
-        self.cpu = cpu
+        prepNode = self.prepXmlElems[iteration]
+        self.memory = getOptionalAttrib(prepNode, "memory", typeFn=int, default=sys.maxint)
+        self.cpu = getOptionalAttrib(prepNode, "cpu", typeFn=int, default=sys.maxint)
         self.iteration = iteration
               
     def run(self):
@@ -169,12 +128,10 @@ class BatchPreprocessor(Target):
             outSeq = self.globalOutSequence
         
         if prepOptions.chunkSize <= 0: #In this first case we don't need to break up the sequence
-            self.addChildTarget(PreprocessChunk(prepOptions, self.inSequence, self.inSequence, outSeq, self.event))
+            self.addChildTarget(PreprocessChunk(prepOptions, self.inSequence, self.inSequence, outSeq))
         else:
-            self.addChildTarget(PreprocessSequence(prepOptions, self.inSequence, outSeq, self.event)) 
+            self.addChildTarget(PreprocessSequence(prepOptions, self.inSequence, outSeq)) 
         
         if lastIteration == False:
-            self.setFollowOnTarget(BatchPreprocessor(self.cactusWorkflowArguments, self.event, 
-                                                     self.prepXmlElems, outSeq,
-                                                     self.globalOutSequence, self.memory, 
-                                                     self.cpu, self.iteration + 1))   
+            self.setFollowOnTarget(BatchPreprocessor(self.prepXmlElems, outSeq,
+                                                     self.globalOutSequence, self.iteration + 1))   

@@ -30,14 +30,14 @@ from jobTree.src.bioio import logger
 from jobTree.src.bioio import setLoggingFromOptions
 
 from cactus.shared.common import cactusRootPath
+from cactus.shared.common import getOptionalAttrib
   
 from jobTree.scriptTree.target import Target 
 from jobTree.scriptTree.stack import Stack 
 
-from cactus.pipeline.cactus_workflow import CactusPreprocessorPhase
+from cactus.pipeline.cactus_workflow import CactusPreprocessor
 from cactus.pipeline.cactus_workflow import CactusWorkflowArguments
 from cactus.pipeline.cactus_workflow import addCactusWorkflowOptions
-from cactus.pipeline.cactus_workflow import getOptionalAttrib
 from cactus.pipeline.cactus_workflow import findRequiredNode
 from cactus.pipeline.cactus_workflow import getOutputSequenceFile
 
@@ -187,13 +187,16 @@ class RunCactusPreprocessorThenCactusSetup(Target):
 
 class RunCactusPreprocessorThenProgressiveDown(Target):
     def __init__(self, options, args):
+        Target.__init__(self)
         self.options = options
         self.args = args
         
     def run(self):
         #First create a preprocessor job to preprocess the input sequences.
-        cactusWorkflowArguments = CactusWorkflowArguments(self.options)
-        self.addChildTarget(CactusPreprocessorPhase(cactusWorkflowArguments=cactusWorkflowArguments, phaseName="preprocessor"))
+        #Need to get sequences, outputDir and config node at this point...
+        self.addChildTarget(CactusPreprocessor(sequences, outputSequenceDir, configNode))
+        #Assing the updated sequences as the input sequences to progressive cactus
+        sequences = [ getOutputSequenceFile(outputSequenceDir, i) for i in sequences ]
         #Now build the progressive-down target
         project = MultiCactusProject()
         project.readXML(self.args[0])
@@ -233,16 +236,6 @@ def main():
         parser.print_help()
         raise RuntimeError("Unrecognised input arguments: %s" % " ".join(args))
 
-    project = MultiCactusProject()
-    project.readXML(args[0])
-    schedule = Schedule()
-    schedule.loadProject(project)
-    schedule.compute()
-    if options.event == None:
-        options.event = project.mcTree.getRootName()
-    assert options.event in project.expMap
-    leafNames = [project.mcTree.getName(i) for i in project.mcTree.getLeaves()]
-    options.globalLeafEventSet = set(leafNames)
     Stack(RunCactusPreprocessorThenProgressiveDown(options, args)).startJobTree(options)
 
 if __name__ == '__main__':
