@@ -31,6 +31,31 @@ class DbElemWrapper(object):
         dbElem = confElem.find(typeString)  
         self.dbElem = dbElem
         self.confElem = confElem
+        self.__check()
+        
+    def __check(self):
+        """Function checks the database conf is as expected and creates useful exceptions
+        if not"""
+        dataString = ET.tostring(self.confElem)
+        if self.confElem.tag != "st_kv_database_conf":
+            raise RuntimeError("The database conf string is improperly formatted: %s" % dataString)
+        if not self.confElem.attrib.has_key("type"):
+            raise RuntimeError("The database conf string does not have a type attrib: %s" % dataString)
+        typeString = self.confElem.attrib["type"]
+        if typeString == "tokyo_cabinet":
+            tokyoCabinet = self.confElem.find("tokyo_cabinet")
+            if tokyoCabinet == None:
+                raise RuntimeError("Database conf is of type tokyo cabinet but there is no nested tokyo cabinet tag: %s" % dataString)
+            if not tokyoCabinet.attrib.has_key("database_dir"):
+                raise RuntimeError("The tokyo cabinet tag has no database_dir tag: %s" % dataString)
+        elif typeString == "kyoto_tycoon":
+            kyotoTycoon = self.confElem.find("kyoto_tycoon")
+            if kyotoTycoon == None:
+                raise RuntimeError("Database conf is of kyoto tycoon but there is no nested kyoto tycoon tag: %s" % dataString)
+            if not set(("host", "port", "database_dir")).issubset(set(kyotoTycoon.attrib.keys())):
+                raise RuntimeError("The kyoto tycoon tag has a missing attribute: %s" % dataString)
+        else:
+            raise RuntimeError("Unrecognised database type in conf string: %s" % typeString)
 
     def getDbElem(self):
         return self.dbElem
@@ -38,7 +63,7 @@ class DbElemWrapper(object):
     def getConfString(self):
         return ET.tostring(self.confElem)
 
-    def getDbDir(self):
+    def getDbDir(self): #Replacement for getDatabaseString
         if "database_dir" in self.dbElem.attrib:
             dbDir = self.dbElem.attrib["database_dir"]
             if len(dbDir) > 0:
@@ -151,6 +176,16 @@ class DbElemWrapper(object):
     def setDbSnapshot(self, snapshot):
         assert self.getDbType() == "kyoto_tycoon"
         self.dbElem.attrib["snapshot"] = str(int(snapshot))
+    
+    def cleanupDb(self): #Replacmentr for cleanupDatabase
+        """Removes the database that was created.
+        """
+        if self.getDbType() == "kyoto_tycoon":
+            system("ktremotemgr clear -port %s -host %s" % (self.getDbPort(), self.getDbHost()))
+            system("rm -rf %s" % self.getDbDir())
+        else:
+            assert self.getDbDir() != None
+            system("rm -rf %s" % self.getDbDir())
 
 
 class ExperimentWrapper(DbElemWrapper):
@@ -160,8 +195,47 @@ class ExperimentWrapper(DbElemWrapper):
         super(ExperimentWrapper, self).__init__(confElem)
         self.xmlRoot = xmlRoot
         self.seqMap = self.buildSequenceMap()
+        
+    @staticmethod
+    def createExperimentWrapper(sequences, newickTreeString, outputDir,
+                 outgroupEvents=None, databaseName=None, 
+                 databaseConf=None, configFile=None, 
+                 halFile=None, fastaFile=None,
+                 constraints=None, progressive=False):
+        #Establish the basics
+        rootElem =  ET.Element("cactus_workflow_experiment")
+        rootElem.attrib['species_tree'] = newickTreeString
+        rootElem.attrib['sequences'] = " ".join(sequences)
+        #Setup the config
+        if progressive == True:
+            rootElem.attrib["config"] = "defaultProgressive"
+        else:
+            rootElem.attrib["config"] = "default"
+        if configFile != None:
+            rootElem.attrib["config"] = configFile
+        #Stuff for the database
+        database = ET.SubElement(rootElem, "cactus_disk")
+        if databaseConf != None:
+            database.append(databaseConf)
+        else:
+            databaseConf = ET.SubElement(database, "st_kv_database_conf")
+            databaseConf.attrib["type"] = "tokyo_cabinet"
+            tokyoCabinet = ET.SubElement(databaseConf, "tokyo_cabinet")
+        self = ExperimentWrapper(rootElem) 
+        if databaseName != None:
+            self.setDbName(databseName)
+        else:
+            self.setDbName("cactusDisk_%s_%i" % (getRandomAlphaNumericString(), os.getpid())) #Needs to be unique
+        if self.getDbDir() == None:
+            assert os.path.exists(outputDir) #Check it exists
+            self.setDbDir(outputDir)
+        if halFile != None:
+            self.setHALPath(halFile)
+            
+        self.setConfigPath(path)
+        return self
 
-    def writeXML(self, path):
+    def writeXML(self, path): #Replacement for writeExperimentFile
         xmlFile = open(path, "w")
         xmlString = ET.tostring(self.xmlRoot)
         xmlString = xmlString.replace("\n", "")
@@ -197,6 +271,13 @@ class ExperimentWrapper(DbElemWrapper):
         configElem = ET.parse(self.getConfig()).getroot()
         refElem = configElem.find("reference")
         return refElem.attrib["reference"]
+    
+    def getOutputDir(self):
+        return self.xmlRoot.attrib["outputDir"]
+    
+    def setOutputDir(self, path):
+        assert os.path.isdir(path)
+        self.xmlRoot.attrib["outputDir"] = path
         
     def getHALPath(self):
         halElem = self.xmlRoot.find("hal")
@@ -224,24 +305,14 @@ class ExperimentWrapper(DbElemWrapper):
             self.xmlRoot.append(halElem)
         halElem.attrib["fastaPath"] = path
         
-    def getMAFPath(self):
-        halElem = self.xmlRoot.find("hal")
-        if halElem is None or "mafPath" not in halElem.attrib:
-            return None
-        return halElem.attrib["mafPath"]
+    def getOutputSequencePath(self):
+        if "outputSequencePath" not in self.xmlRoot.attrib:
+            return os.path.join(self.getOutputDir(), "processedSequences")
+        return self.xmlRoot.attrib["outputSequencePath"]
     
-    def setMAFPath(self, path):
-        halElem = self.xmlRoot.find("hal")
-        if halElem is None:
-            halElem = ET.Element("hal")
-            self.xmlRoot.append(halElem)
-        assert os.path.splitext(path)[1] == ".maf"
-        halElem.attrib["mafPath"] = path
-        
-    def getJoinMAF(self):
-        configElem = ET.parse(self.getConfig()).getroot()
-        config = ConfigWrapper(configElem)
-        return config.getJoinMaf()
+    def setOutputSequencePath(self, path):
+        assert os.path.isdir(path)
+        self.xmlRoot.attrib["outputSequencePath"] = path
             
     def getOutgroupEvents(self):
         if self.xmlRoot.attrib.has_key("outgroup_events"):
@@ -332,4 +403,4 @@ class ExperimentWrapper(DbElemWrapper):
             self.xmlRoot.attrib["sequences"] = seqs
             self.seqMap[ogName] = ogPath
             self.xmlRoot.attrib["outgroup_events"] = ogName
-      
+            
