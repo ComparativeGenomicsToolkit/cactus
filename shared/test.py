@@ -32,47 +32,46 @@ from sonLib.tree import makeRandomBinaryTree
 
 from jobTree.src.common import runJobTreeStats, runJobTreeStatusAndFailIfNotComplete
 
-from cactus.shared.config import checkDatabaseConf
-from cactus.shared.config import CactusWorkflowExperiment
+from cactus.shared.experimentWrapper import DbElemWrapper
+from cactus.shared.experimentWrapper import ExperimentWrapper
 
 ###########
 #Stuff for setting up the experiment configuration file for a test
 ###########
 
-GLOBAL_DATABASE_CONF = None
-BATCH_SYSTEM = None
+_GLOBAL_DATABASE_CONF_STRING = None
+_BATCH_SYSTEM = None
 
 def getBatchSystem():
-    return BATCH_SYSTEM
+    return _BATCH_SYSTEM
 
 def getGlobalDatabaseConf():
-    return GLOBAL_DATABASE_CONF
+    return _GLOBAL_DATABASE_CONF_STRING
 
 def initialiseGlobalDatabaseConf(dataString):
     """Initialises the global database conf string which, if defined,
     is used as the database for CactusWorkflowExperiments."""
-    global GLOBAL_DATABASE_CONF
-    GLOBAL_DATABASE_CONF = ET.fromstring(dataString)
-    checkDatabaseConf(GLOBAL_DATABASE_CONF)
+    global _GLOBAL_DATABASE_CONF_STRING
+    DbElemWrapper(ET.fromstring(dataString)).check() #Runs checks
+    _GLOBAL_DATABASE_CONF_STRING = dataString
     
 def initialiseGlobalBatchSystem(batchSystem):
     """Initialise the global batch system variable.
     """
-    global BATCH_SYSTEM
+    global _BATCH_SYSTEM
     assert batchSystem in ("singleMachine", "parasol", "gridEngine")
-    BATCH_SYSTEM = batchSystem
+    _BATCH_SYSTEM = batchSystem
     
-def getCactusWorkflowExperimentForTest(sequences, newickTreeString, outputDir, databaseName=None, configFile=None,
+def getCactusWorkflowExperimentForTest(sequences, newickTreeString, outputDir, configFile=None,
                                        constraints=None, progressive=False):
     """Wrapper to constructor of CactusWorkflowExperiment which additionally incorporates
     any globally set database conf.
     """
     halFile = os.path.join(outputDir, "test.hal")
-    mafFile = os.path.join(outputDir, "test.maf")
     fastaFile = os.path.join(outputDir, "test.fa")
-    return CactusWorkflowExperiment(sequences, newickTreeString, outputDir=outputDir,
-                                    databaseName=databaseName, databaseConf=GLOBAL_DATABASE_CONF, configFile=configFile,
-                                    halFile=halFile, mafFile=mafFile, fastaFile=fastaFile, constraints=constraints, progressive=progressive)
+    return ExperimentWrapper.createExperimentWrapper(sequences, newickTreeString, outputDir,
+                                    databaseConf=_GLOBAL_DATABASE_CONF_STRING, configFile=configFile,
+                                    halFile=halFile, fastaFile=fastaFile, constraints=constraints, progressive=progressive)
 
 def parseCactusSuiteTestOptions():
     """Cactus version of the basic option parser that can additionally parse 
@@ -288,13 +287,12 @@ def runWorkflow_TestScript(sequences, newickTreeString,
     
     #Setup the flower disk.
     experiment = getCactusWorkflowExperimentForTest(sequences, newickTreeString, 
-                                                    outputDir=outputDir, databaseName=None, 
+                                                    outputDir=outputDir,
                                                     configFile=configFile, constraints=constraints,
                                                     progressive=progressive)
-    experiment.cleanupDatabase()
-    cactusDiskDatabaseString = experiment.getDatabaseString()
+    experiment.cleanupDb()
     experimentFile = os.path.join(outputDir, "experiment.xml")
-    experiment.writeExperimentFile(experimentFile)
+    experiment.writeXML(experimentFile)
     logger.info("The experiment file %s\n" % experimentFile)
    
     #Setup the job tree dir.
@@ -328,7 +326,7 @@ def runWorkflow_TestScript(sequences, newickTreeString,
     #Now remove everything we generate
     system("rm -rf %s %s" % (jobTreeDir, experimentFile))   
     
-    #Cleanup the experiment
+    #Return so calling function can cleanup
     return experiment
         
 testRestrictions_NotShort = ()
@@ -370,6 +368,6 @@ def runWorkflow_multipleExamples(inputGenFunction,
                                                 constraints=constraints,
                                                 progressive=progressive,
                                                 cactusWorkflowFunction=cactusWorkflowFunction)
-            experiment.cleanupDatabase()
+            experiment.cleanupDb()
             system("rm -rf %s" % tempDir)
             logger.info("Finished random test %i" % test)

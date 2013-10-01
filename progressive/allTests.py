@@ -8,7 +8,7 @@ import unittest
 from cactus.progressive.multiCactusTreeTest import TestCase as multiCactusTreeTest
 from cactus.progressive.outgroupTest import TestCase as outgroupTest
 from cactus.progressive.scheduleTest import TestCase as scheduleTest
-from cactus.progressive.experimentWrapperTest import TestCase as experimentWrapperTest
+from cactus.shared.experimentWrapperTest import TestCase as experimentWrapperTest
 from cactus.progressive.cactus_progressiveTest import TestCase as cactus_progressiveTest
  
 from cactus.shared.test import parseCactusSuiteTestOptions

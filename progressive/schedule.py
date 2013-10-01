@@ -22,8 +22,8 @@ from optparse import OptionParser
 
 from cactus.progressive.multiCactusProject import MultiCactusProject
 from cactus.progressive.multiCactusTree import MultiCactusTree
-from cactus.progressive.experimentWrapper import ExperimentWrapper
-from cactus.progressive.configWrapper import ConfigWrapper
+from cactus.shared.experimentWrapper import ExperimentWrapper
+from cactus.shared.configWrapper import ConfigWrapper
 
 class Schedule:
     def __init__(self):

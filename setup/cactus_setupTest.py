@@ -39,7 +39,7 @@ class TestCase(unittest.TestCase):
             runCactusSetup(cactusDiskDatabaseString, sequences, newickTreeString)
             runCactusSetup(cactusDiskDatabaseString, sequences, newickTreeString)
             
-            experiment.cleanupDatabase()
+            experiment.cleanupDb()
             system("rm -rf %s" % tempDir)
             logger.info("Finished test %i of cactus_setup.py", test) 
  

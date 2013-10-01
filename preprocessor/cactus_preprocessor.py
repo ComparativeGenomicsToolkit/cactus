@@ -135,3 +135,40 @@ class BatchPreprocessor(Target):
         if lastIteration == False:
             self.setFollowOnTarget(BatchPreprocessor(self.prepXmlElems, outSeq,
                                                      self.globalOutSequence, self.iteration + 1))   
+            
+
+############################################################
+############################################################
+############################################################
+##The preprocessor phase, which modifies the input sequences
+############################################################
+############################################################
+############################################################
+
+def getOutputSequenceFile(outputSequenceDir, inputSequenceFile):
+    return os.path.join(outputSequenceDir, os.path.split(inputSequenceFile)[1] + ".preprocessed")        
+
+class CactusPreprocessor(Target):
+    """Modifies the input genomes, doing things like masking/checking, etc.
+    """
+    def __init__(self, inputSequences, outputSequenceDir, configNode):
+        Target.__init__(self)
+        self.inputSequences = inputSequences
+        self.outputSequenceDir = outputSequenceDir
+        self.configNode = configNode  
+    def run(self):
+        if not os.path.isdir(self.outputSequenceDir):
+            os.mkdir(self.outputSequenceDir)
+        for sequence in self.inputSequences:
+            outputSequenceFile = getOutputSequenceFile(self.outputSequenceDir, sequence)
+            assert sequence != outputSequenceFile
+            if not os.path.isfile(outputSequenceFile): #Only create the output sequence if it doesn't already exist. This prevents reprocessing if the sequence is used in multiple places between runs.
+                prepXmlElems = self.configNode.findall("preprocessor")
+                if len(prepXmlElems) == 0: #Just ln the file to the output dir
+                    system("ln %s %s" % (sequence, outputSequenceFile))
+                else:
+                    logger.info("Adding child batch_preprocessor target")
+                    self.addChildTarget(BatchPreprocessor(prepXmlElems, 
+                                                          sequence, outputSequenceFile, 
+                                                          0))            
+

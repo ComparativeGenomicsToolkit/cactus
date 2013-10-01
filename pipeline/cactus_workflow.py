@@ -58,10 +58,11 @@ from cactus.shared.common import runCactusFastaGenerator
 from cactus.blast.cactus_blast import BlastFlower
 from cactus.blast.cactus_blast import BlastOptions
 
-from cactus.preprocessor.cactus_preprocessor import BatchPreprocessor
+from cactus.preprocessor.cactus_preprocessor import CactusPreprocessor
+from cactus.preprocessor.cactus_preprocessor import getOutputSequenceFile
 
-from cactus.progressive.experimentWrapper import ExperimentWrapper
-from cactus.progressive.experimentWrapper import DbElemWrapper
+from cactus.shared.experimentWrapper import ExperimentWrapper
+from cactus.shared.experimentWrapper import DbElemWrapper
 from cactus.pipeline.ktserverJobTree import addKtserverDependentChild
 
 ############################################################
@@ -258,41 +259,6 @@ class CactusRecursionTarget(CactusTarget):
         """
         self.makeChildTargets(flowersAndSizes=runCactusSplitFlowersBySecondaryGrouping(self.flowerNames), 
                               target=target, overlargeTarget=overlargeTarget, phaseNode=phaseNode, runFlowerStats=runFlowerStats)
-        
-############################################################
-############################################################
-############################################################
-##The preprocessor phase, which modifies the input sequences
-############################################################
-############################################################
-############################################################
-
-def getOutputSequenceFile(outputSequenceDir, inputSequenceFile):
-    return os.path.join(outputSequenceDir, os.path.split(inputSequenceFile)[1] + ".preprocessed")        
-
-class CactusPreprocessor(Target):
-    """Modifies the input genomes, doing things like masking/checking, etc.
-    """
-    def __init__(self, inputSequences, outputSequenceDir, configNode):
-        Target.__init__(self)
-        self.inputSequences = inputSequences
-        self.outputSequenceDir = outputSequenceDir
-        self.configNode = configNode  
-    def run(self):
-        if not os.path.isdir(self.outputSequenceDir):
-            os.mkdir(self.outputSequenceDir)
-        for sequence in self.inputSequences:
-            outputSequenceFile = getOutputSequenceFile(self.outputSequenceDir, sequence)
-            assert sequence != outputSequenceFile
-            if not os.path.isfile(outputSequenceFile): #Only create the output sequence if it doesn't already exist. This prevents reprocessing if the sequence is used in multiple places between runs.
-                prepXmlElems = self.configNode.findall("preprocessor")
-                if len(prepXmlElems) == 0: #Just ln the file to the output dir
-                    system("ln %s %s" % (sequence, outputSequenceFile))
-                else:
-                    logger.info("Adding child batch_preprocessor target")
-                    self.addChildTarget(BatchPreprocessor(prepXmlElems, 
-                                                          sequence, outputSequenceFile, 
-                                                          0))
 
 ############################################################
 ############################################################
@@ -344,7 +310,7 @@ class CactusSetupPhase2(CactusPhasesTarget):
     def run(self):        
         #Now run setup
         runCactusSetup(cactusDiskDatabaseString=self.cactusWorkflowArguments.cactusDiskDatabaseString, 
-                       sequences=self.cactusWorkflowArguments.sequences, 
+                       sequences=ExperimentWrapper(self.cactusWorkflowArguments.experimentNode).getOutputSequences,
                        newickTreeString=self.cactusWorkflowArguments.speciesTree, 
                        outgroupEvents=self.cactusWorkflowArguments.outgroupEventNames,
                        makeEventHeadersAlphaNumeric=self.getOptionalPhaseAttrib("makeEventHeadersAlphaNumeric", bool, False))
@@ -926,7 +892,7 @@ class CactusWorkflowArguments:
                     node.attrib[attrib] = defines.attrib[node.attrib[attrib]]
             for child in node:
                 replaceAllConstants(child, defines)
-        if defines != None:    
+        if defines != None:
             replaceAllConstants(self.configNode, defines)
             constants.remove(defines)
         #Now build the remaining options from the arguments
@@ -958,7 +924,9 @@ def addCactusWorkflowOptions(parser):
                       help="Build a maf file", default=False)
     
     parser.add_option("--buildFasta", dest="buildFasta", action="store_true",
-                      help="Build a fasta file of the input sequences (and reference sequence, used with hal output)", default=False)
+                      help="Build a fasta file of the input sequences (and reference sequence, used with hal output)", 
+                      default=False)
+    
     parser.add_option("--test", dest="test", action="store_true",
                       help="Run doctest unit tests")
 
@@ -969,10 +937,9 @@ class RunCactusPreprocessorThenCactusSetup(Target):
         
     def run(self):
         cactusWorkflowArguments=CactusWorkflowArguments(self.options)
-        outputSequenceDir = cactusWorkflowArguments.experimentNode.attrib["outputSequences"]
+        outputSequenceDir = ExperimentWrapper(cactusWorkflowArguments.experimentNode).getOutputSequenceDir()
         self.addChildTarget(CactusPreprocessor(cactusWorkflowArguments.sequences, outputSequenceDir, cactusWorkflowArguments.configNode))
         #Now make the setup, making a new workflow arguments object.
-        cactusWorkflowArguments.sequences = [ getOutputSequenceFile(outputSequenceDir, i) for i in cactusWorkflowArguments.sequences ]
         self.setFollowOnTarget(CactusSetupPhase(cactusWorkflowArguments=cactusWorkflowArguments,
                                                             phaseName="setup"))
         

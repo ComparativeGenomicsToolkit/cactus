@@ -18,8 +18,8 @@ import socket
 
 from cactus.progressive.multiCactusProject import MultiCactusProject
 from cactus.progressive.multiCactusTree import MultiCactusTree
-from cactus.progressive.experimentWrapper import ExperimentWrapper
-from cactus.progressive.configWrapper import ConfigWrapper
+from cactus.shared.experimentWrapper import ExperimentWrapper
+from cactus.shared.configWrapper import ConfigWrapper
 from cactus.progressive.outgroup import GreedyOutgroup
 from sonLib.bioio import system
 

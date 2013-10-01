@@ -36,8 +36,8 @@ from time import sleep
 from optparse import OptionParser
 import threading
 import xml.etree.ElementTree as ET
-from cactus.progressive.experimentWrapper import DbElemWrapper
-from cactus.progressive.experimentWrapper import ExperimentWrapper
+from cactus.shared.experimentWrapper import DbElemWrapper
+from cactus.shared.experimentWrapper import ExperimentWrapper
 
 ###############################################################################
 # run a server until killSwitchPath gets deleted

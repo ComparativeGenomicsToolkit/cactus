@@ -21,8 +21,8 @@ def cactusRootPath():
     """
     function for finding external location
     """
-    import cactus.shared.config
-    i = os.path.abspath(cactus.shared.config.__file__)
+    import cactus.shared.test
+    i = os.path.abspath(cactus.shared.test.__file__)
     return os.path.split(os.path.split(i)[0])[0] #os.path.split(os.path.split(os.path.split(i)[0])[0])[0]
 
 def getLogLevelString2(logLevelString):

@@ -38,8 +38,8 @@ import xml.etree.ElementTree as ET
 
 from sonLib.bioio import getTempFile
 from jobTree.scriptTree.target import Target
-from cactus.progressive.experimentWrapper import DbElemWrapper
-from cactus.progressive.experimentWrapper import ExperimentWrapper
+from cactus.shared.experimentWrapper import DbElemWrapper
+from cactus.shared.experimentWrapper import ExperimentWrapper
 from cactus.pipeline.ktserverControl import runKtserver
 from cactus.pipeline.ktserverControl import blockUntilKtserverIsRunnning
 from cactus.pipeline.ktserverControl import killKtServer

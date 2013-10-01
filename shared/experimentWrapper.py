@@ -19,21 +19,22 @@ import math
 import copy
 import filecmp
 from optparse import OptionParser
+from sonLib.bioio import getRandomAlphaNumericString
+from sonLib.bioio import system
 
 from cactus.progressive.multiCactusTree import MultiCactusTree
-from cactus.progressive.configWrapper import ConfigWrapper
+from cactus.shared.configWrapper import ConfigWrapper
 from sonLib.nxnewick import NXNewick
 from cactus.shared.common import cactusRootPath
 
 class DbElemWrapper(object):
     def __init__(self, confElem):
         typeString = confElem.attrib["type"]
-        dbElem = confElem.find(typeString)  
+        dbElem = confElem.find(typeString)
         self.dbElem = dbElem
         self.confElem = confElem
-        self.__check()
         
-    def __check(self):
+    def check(self):
         """Function checks the database conf is as expected and creates useful exceptions
         if not"""
         dataString = ET.tostring(self.confElem)
@@ -79,17 +80,19 @@ class DbElemWrapper(object):
             self.dbElem.attrib["database_dir"] = path
         
     def getDbName(self):
-        if self.getDbType() == "kyoto_tycoon" and self.getDbInMemory() == True:
-            return ""
+        #if self.getDbType() == "kyoto_tycoon" and self.getDbInMemory() == True:
+        #    return ""
+        if "database_name" not in self.dbElem.attrib:
+            return None
         return self.dbElem.attrib["database_name"]
     
     def setDbName(self, name):
-        if self.getDbType() == "kyoto_tycoon":
-            if self.getDbInMemory() == True:
-                if "database_name" in self.dbElem.attrib:
-                    del self.dbElem.attrib["database_name"]
-                return
-            assert os.path.splitext(name)[1] == ".kch"            
+        #if self.getDbType() == "kyoto_tycoon":
+        #    if self.getDbInMemory() == True:
+        #        if "database_name" in self.dbElem.attrib:
+        #            del self.dbElem.attrib["database_name"]
+        #        return
+        #    assert os.path.splitext(name)[1] == ".kch"            
         self.dbElem.attrib["database_name"] = name
     
     def getDbType(self):
@@ -187,7 +190,6 @@ class DbElemWrapper(object):
             assert self.getDbDir() != None
             system("rm -rf %s" % self.getDbDir())
 
-
 class ExperimentWrapper(DbElemWrapper):
     def __init__(self, xmlRoot):
         self.diskElem = xmlRoot.find("cactus_disk")
@@ -198,7 +200,7 @@ class ExperimentWrapper(DbElemWrapper):
         
     @staticmethod
     def createExperimentWrapper(sequences, newickTreeString, outputDir,
-                 outgroupEvents=None, databaseName=None, 
+                 outgroupEvents=None,
                  databaseConf=None, configFile=None, 
                  halFile=None, fastaFile=None,
                  constraints=None, progressive=False,
@@ -216,15 +218,14 @@ class ExperimentWrapper(DbElemWrapper):
             databaseConf.attrib["type"] = "tokyo_cabinet"
             tokyoCabinet = ET.SubElement(databaseConf, "tokyo_cabinet")
         self = ExperimentWrapper(rootElem) 
+        #Output dir
+        self.setOutputDir(outputDir)
         #Database name
-        if databaseName != None:
-            self.setDbName(databaseName)
-        else:
+        if self.getDbName() == None:
             self.setDbName("cactusDisk_%s_%i" % (getRandomAlphaNumericString(), os.getpid())) #Needs to be unique
         #Database dir
         if self.getDbDir() == None:
-            assert os.path.exists(outputDir) #Check it exists
-            self.setDbDir(outputDir)
+            self.setDbDir(os.path.join(outputDir, self.getDbName()))
         #Hal file
         if halFile != None:
             self.setHALPath(halFile) 
@@ -232,14 +233,14 @@ class ExperimentWrapper(DbElemWrapper):
         if fastaFile != None:
             self.setHALFastaPath(fastaFile)
         #Setup the config
-        self.setConfigPath("config")
+        self.setConfigPath("default")
         if progressive == True:
             self.setConfigPath("defaultProgressive")
         if configFile != None:
             self.setConfigPath(configFile)
         #Constraints
         if constraints != None:
-            self.setConstraintsPath(constraints)
+            self.setConstraintsFilePath(constraints)
         #Outgroup events
         if outgroupEvents != None:
             self.setOutgroupEvents(outgroupEvents)
@@ -264,8 +265,17 @@ class ExperimentWrapper(DbElemWrapper):
         treeString = self.xmlRoot.attrib["species_tree"]
         return NXNewick().parseString(treeString)
     
+    def getSequences(self):
+        return self.xmlRoot.attrib["sequences"].split()
+    
     def getSequence(self, event):
         return self.seqMap[event]
+    
+    def getOutputSequence(self, event):
+        return os.path.join(self.getOutputSequenceDir(), os.path.split(self.seqMap[event])[-1])
+    
+    def getOutputSequences(self):
+        return os.path.join(self.getOutputSequenceDir(), self.xmlRoot.attrib["sequences"].split()[-1])
     
     def getReferencePath(self):
         refElem = self.xmlRoot.find("reference")
@@ -319,12 +329,12 @@ class ExperimentWrapper(DbElemWrapper):
         halElem.attrib["fastaPath"] = path
         
     def setConstraintsFilePath(self, path):
-        self.experiment.attrib["constraints"] = constraints
+        self.xmlRoot.attrib["constraints"] = path
     
     def getConstraintsFilePath(self):
-        if "constraints" not in self.experiment.attrib:
+        if "constraints" not in self.xmlRoot.attrib:
             return None
-        return self.experiment.attrib["constraints"]
+        return self.xmlRoot.attrib["constraints"]
         
     def getOutputSequenceDir(self):
         if "outputSequencePath" not in self.xmlRoot.attrib:
@@ -418,6 +428,7 @@ class ExperimentWrapper(DbElemWrapper):
     # Adds a single outgroup sequence to the experiment. 
     #Sequence is not previous is 
     def addTheOutgroupSequence(self, ogName, ogDist, ogPath):
+        assert self.getOutgroupEvents() == []
         assert ogName is not None
         tree = MultiCactusTree(self.getTree())
         tree.addOutgroup(ogName, ogDist)

@@ -79,7 +79,7 @@ class TestCase(unittest.TestCase):
             
             experiment = getCactusWorkflowExperimentForTest(tempFastaFiles, newickTreeString, testDir)
             experimentFile = os.path.join(testDir, "experiment.xml")
-            experiment.writeExperimentFile(experimentFile)
+            experiment.writeXML(experimentFile)
             cactusDiskDatabaseString = experiment.getDatabaseString()
             
             jobTree = os.path.join(testDir, "jobTree")
@@ -121,7 +121,7 @@ class TestCase(unittest.TestCase):
                 system("cat %s" % resultsFile)
                 
                 #Cleanup
-                experiment.cleanupDatabase()
+                experiment.cleanupDb()
                 system("rm -rf %s" % testDir)
                 logger.info("Successfully ran test for the problem")
                 

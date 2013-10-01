@@ -17,7 +17,7 @@ from sonLib.bioio import logger
 from sonLib.bioio import system
 
 from cactus.progressive.multiCactusTree import MultiCactusTree
-from cactus.progressive.experimentWrapper import ExperimentWrapper
+from cactus.shared.experimentWrapper import ExperimentWrapper
 from cactus.progressive.outgroup import GreedyOutgroup
 
 from sonLib.nxnewick import NXNewick

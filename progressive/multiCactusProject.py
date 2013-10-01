@@ -21,7 +21,7 @@ import filecmp
 from optparse import OptionParser
 
 from cactus.progressive.multiCactusTree import MultiCactusTree
-from cactus.progressive.experimentWrapper import ExperimentWrapper
+from cactus.shared.experimentWrapper import ExperimentWrapper
 from sonLib.nxnewick import NXNewick
 
 class MultiCactusProject:
@@ -59,14 +59,33 @@ class MultiCactusProject:
     
     # find the sequence associated with an event name
     # by digging out the appropriate experiment file
-    # doesn't work for the rooot!!!!
+    # doesn't work for the root!!!!
     def sequencePath(self, eventName):
         parentEvent = self.mcTree.getSubtreeRoot(eventName)           
         expPath = self.expMap[parentEvent]
         expElem = ET.parse(expPath).getroot()
         exp = ExperimentWrapper(expElem)
-        return exp.getSequence(eventName)
-            
+        seq = exp.getOutputSequence(eventName)
+        assert os.path.isfile(seq)
+        return seq
+    
+    def getInputSequencePaths(self):
+        """Get the set of input sequences for the multicactus tree
+        """
+        sequences = set()
+        for expPath in self.expMap.values():
+            eW = ExperimentWrapper(ET.parse(expPath).getroot())
+            for i in eW.getSequences():
+                sequences.add(i)
+        return list(sequences)
+
+    def getAnExperimentWrapper(self):
+        #Load an experiment file to get stuff that is invariant between experiments
+        return ExperimentWrapper(ET.parse(self.expMap.values()[0]).getroot())
+    
+    def getConfigPath(self):
+        return self.getAnExperimentWrapper().getConfigPath()
+      
 if __name__ == '__main__':
     main()
         

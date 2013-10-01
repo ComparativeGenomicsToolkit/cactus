@@ -15,11 +15,10 @@ import copy
 
 from cactus.progressive.multiCactusProject import MultiCactusProject
 from cactus.progressive.multiCactusTree import MultiCactusTree
-from cactus.progressive.experimentWrapper import ExperimentWrapper
-from cactus.progressive.configWrapper import ConfigWrapper
+from cactus.shared.experimentWrapper import ExperimentWrapper
+from cactus.shared.configWrapper import ConfigWrapper
 from cactus.progressive.outgroup import GreedyOutgroup
 from sonLib.nxnewick import NXNewick
-
 
 def createMCProject(tree, config, options):
     mcTree = MultiCactusTree(tree, config.getSubtreeSize())
@@ -120,15 +119,10 @@ def createFileStructure(mcProj, expTemplate, configTemplate, options):
         exp.setReferencePath(os.path.join(path, name + '.fa'))
         if configTemplate.getBuildHal() == True:
             exp.setHALPath(os.path.join(path, "%s_hal.c2h" % name))
-        if configTemplate.getBuildMaf() == True:
-            exp.setMAFPath(os.path.join(path, "%s.maf" % name))
         if configTemplate.getBuildFasta() == True:
             exp.setHALFastaPath(os.path.join(path, "%s_hal.fa" % name))
         exp.updateTree(subtree, seqMap)
         exp.setConfigPath(os.path.join(path, "%s_config.xml" % name))
-        og = None
-        ogPath = None
-        ogDist = None
         if configTemplate.getOutgroupStrategy() != 'none' \
         and name in mcProj.outgroup.ogMap:
             og, ogDist = mcProj.outgroup.ogMap[name]
@@ -137,7 +131,7 @@ def createFileStructure(mcProj, expTemplate, configTemplate, options):
             else:
                 ogPath = os.path.join(options.path, og)
                 ogPath = os.path.join(ogPath, refFileName(og))
-        exp.setOutgroup(og, ogDist, ogPath)
+            exp.addTheOutgroupSequence(og, ogDist, ogPath)
         os.makedirs(exp.getDbDir())
         if not os.path.exists(path):
             os.makedirs(path)

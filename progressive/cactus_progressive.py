@@ -35,16 +35,16 @@ from cactus.shared.common import getOptionalAttrib
 from jobTree.scriptTree.target import Target 
 from jobTree.scriptTree.stack import Stack 
 
-from cactus.pipeline.cactus_workflow import CactusPreprocessor
+from cactus.preprocessor.cactus_preprocessor import CactusPreprocessor
+from cactus.preprocessor.cactus_preprocessor import getOutputSequenceFile
 from cactus.pipeline.cactus_workflow import CactusWorkflowArguments
 from cactus.pipeline.cactus_workflow import addCactusWorkflowOptions
 from cactus.pipeline.cactus_workflow import findRequiredNode
-from cactus.pipeline.cactus_workflow import getOutputSequenceFile
 
 from cactus.progressive.multiCactusProject import MultiCactusProject
 from cactus.progressive.multiCactusTree import MultiCactusTree
-from cactus.progressive.experimentWrapper import ExperimentWrapper
-from cactus.progressive.configWrapper import ConfigWrapper
+from cactus.shared.experimentWrapper import ExperimentWrapper
+from cactus.shared.configWrapper import ConfigWrapper
 from cactus.progressive.schedule import Schedule
         
 class ProgressiveDown(Target):
@@ -192,14 +192,12 @@ class RunCactusPreprocessorThenProgressiveDown(Target):
         self.args = args
         
     def run(self):
-        #First create a preprocessor job to preprocess the input sequences.
-        #Need to get sequences, outputDir and config node at this point...
-        self.addChildTarget(CactusPreprocessor(sequences, outputSequenceDir, configNode))
-        #Assing the updated sequences as the input sequences to progressive cactus
-        sequences = [ getOutputSequenceFile(outputSequenceDir, i) for i in sequences ]
-        #Now build the progressive-down target
+        #Load the multi-cactus project
         project = MultiCactusProject()
         project.readXML(self.args[0])
+        #Create jobs to create the output sequences
+        self.addChildTarget(CactusPreprocessor(project.getInputSequencePaths(), project.getAnExperimentWrapper().getOutputSequenceDir(), ET.parse(project.getConfigPath())))
+        #Now build the progressive-down target
         schedule = Schedule()
         schedule.loadProject(project)
         schedule.compute()
@@ -208,8 +206,7 @@ class RunCactusPreprocessorThenProgressiveDown(Target):
         assert self.options.event in project.expMap
         leafNames = [project.mcTree.getName(i) for i in project.mcTree.getLeaves()]
         self.options.globalLeafEventSet = set(leafNames)
-        self.options.sequences = [ getOutputSequenceFile(self.cactusWorkflowArguments, i) for i in self.options.sequences ]
-        self.setFollowOnTarget(ProgressiveDown(options, project, options.event, schedule))
+        self.setFollowOnTarget(ProgressiveDown(self.options, project, self.options.event, schedule))
 
 def main():    
     usage = "usage: %prog [options] <multicactus project>"
