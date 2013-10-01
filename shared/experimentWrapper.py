@@ -201,18 +201,12 @@ class ExperimentWrapper(DbElemWrapper):
                  outgroupEvents=None, databaseName=None, 
                  databaseConf=None, configFile=None, 
                  halFile=None, fastaFile=None,
-                 constraints=None, progressive=False):
+                 constraints=None, progressive=False,
+                 outputSequenceDir=None):
         #Establish the basics
         rootElem =  ET.Element("cactus_workflow_experiment")
         rootElem.attrib['species_tree'] = newickTreeString
         rootElem.attrib['sequences'] = " ".join(sequences)
-        #Setup the config
-        if progressive == True:
-            rootElem.attrib["config"] = "defaultProgressive"
-        else:
-            rootElem.attrib["config"] = "default"
-        if configFile != None:
-            rootElem.attrib["config"] = configFile
         #Stuff for the database
         database = ET.SubElement(rootElem, "cactus_disk")
         if databaseConf != None:
@@ -222,17 +216,36 @@ class ExperimentWrapper(DbElemWrapper):
             databaseConf.attrib["type"] = "tokyo_cabinet"
             tokyoCabinet = ET.SubElement(databaseConf, "tokyo_cabinet")
         self = ExperimentWrapper(rootElem) 
+        #Database name
         if databaseName != None:
-            self.setDbName(databseName)
+            self.setDbName(databaseName)
         else:
             self.setDbName("cactusDisk_%s_%i" % (getRandomAlphaNumericString(), os.getpid())) #Needs to be unique
+        #Database dir
         if self.getDbDir() == None:
             assert os.path.exists(outputDir) #Check it exists
             self.setDbDir(outputDir)
+        #Hal file
         if halFile != None:
-            self.setHALPath(halFile)
-            
-        self.setConfigPath(path)
+            self.setHALPath(halFile) 
+        #Fasta file
+        if fastaFile != None:
+            self.setHALFastaPath(fastaFile)
+        #Setup the config
+        self.setConfigPath("config")
+        if progressive == True:
+            self.setConfigPath("defaultProgressive")
+        if configFile != None:
+            self.setConfigPath(configFile)
+        #Constraints
+        if constraints != None:
+            self.setConstraintsPath(constraints)
+        #Outgroup events
+        if outgroupEvents != None:
+            self.setOutgroupEvents(outgroupEvents)
+        #Output sequences
+        if outputSequenceDir != None:
+            self.setOutputSequenceDir(outputSequenceDir)
         return self
 
     def writeXML(self, path): #Replacement for writeExperimentFile
@@ -305,19 +318,30 @@ class ExperimentWrapper(DbElemWrapper):
             self.xmlRoot.append(halElem)
         halElem.attrib["fastaPath"] = path
         
-    def getOutputSequencePath(self):
+    def setConstraintsFilePath(self, path):
+        self.experiment.attrib["constraints"] = constraints
+    
+    def getConstraintsFilePath(self):
+        if "constraints" not in self.experiment.attrib:
+            return None
+        return self.experiment.attrib["constraints"]
+        
+    def getOutputSequenceDir(self):
         if "outputSequencePath" not in self.xmlRoot.attrib:
             return os.path.join(self.getOutputDir(), "processedSequences")
-        return self.xmlRoot.attrib["outputSequencePath"]
+        return self.xmlRoot.attrib["outputSequenceDir"]
     
-    def setOutputSequencePath(self, path):
+    def setOutputSequenceDir(self, path):
         assert os.path.isdir(path)
-        self.xmlRoot.attrib["outputSequencePath"] = path
+        self.xmlRoot.attrib["outputSequenceDir"] = path
             
     def getOutgroupEvents(self):
         if self.xmlRoot.attrib.has_key("outgroup_events"):
             return self.xmlRoot.attrib["outgroup_events"].split()
         return []
+    
+    def setOutgroupEvents(self, outgroupEvents):
+        self.xmlRoot.attrib["outgroup_events"] = " ".join(outgroupEvents)
         
     def getConfigPath(self):
         config = self.xmlRoot.attrib["config"]
@@ -391,16 +415,15 @@ class ExperimentWrapper(DbElemWrapper):
         self.xmlRoot.attrib["sequences"] = sequences
         self.seqMap = newMap
     
-    # sets the outgroup.
-    def setOutgroup(self, ogName, ogDist, ogPath):
+    # Adds a single outgroup sequence to the experiment. 
+    #Sequence is not previous is 
+    def addTheOutgroupSequence(self, ogName, ogDist, ogPath):
+        assert ogName is not None
         tree = MultiCactusTree(self.getTree())
-        leaves = [tree.getName(i) for i in tree.getLeaves()]
-        
-        if ogName is not None:
-            tree.addOutgroup(ogName, ogDist)
-            self.xmlRoot.attrib["species_tree"] = NXNewick().writeString(tree)   
-            seqs = "%s %s"  % (self.xmlRoot.attrib["sequences"], ogPath)
-            self.xmlRoot.attrib["sequences"] = seqs
-            self.seqMap[ogName] = ogPath
-            self.xmlRoot.attrib["outgroup_events"] = ogName
+        tree.addOutgroup(ogName, ogDist)
+        self.xmlRoot.attrib["species_tree"] = NXNewick().writeString(tree)   
+        seqs = "%s %s"  % (self.xmlRoot.attrib["sequences"], ogPath)
+        self.xmlRoot.attrib["sequences"] = seqs
+        self.seqMap[ogName] = ogPath
+        self.xmlRoot.attrib["outgroup_events"] = ogName
             
