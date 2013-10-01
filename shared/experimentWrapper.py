@@ -275,7 +275,7 @@ class ExperimentWrapper(DbElemWrapper):
         return os.path.join(self.getOutputSequenceDir(), os.path.split(self.seqMap[event])[-1])
     
     def getOutputSequences(self):
-        return os.path.join(self.getOutputSequenceDir(), self.xmlRoot.attrib["sequences"].split()[-1])
+        return [ os.path.join(self.getOutputSequenceDir(), os.path.split(i)[-1]) for i in self.xmlRoot.attrib["sequences"].split() ]
     
     def getReferencePath(self):
         refElem = self.xmlRoot.find("reference")

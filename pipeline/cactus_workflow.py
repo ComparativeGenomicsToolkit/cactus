@@ -310,7 +310,7 @@ class CactusSetupPhase2(CactusPhasesTarget):
     def run(self):        
         #Now run setup
         runCactusSetup(cactusDiskDatabaseString=self.cactusWorkflowArguments.cactusDiskDatabaseString, 
-                       sequences=ExperimentWrapper(self.cactusWorkflowArguments.experimentNode).getOutputSequences,
+                       sequences=ExperimentWrapper(self.cactusWorkflowArguments.experimentNode).getOutputSequences(),
                        newickTreeString=self.cactusWorkflowArguments.speciesTree, 
                        outgroupEvents=self.cactusWorkflowArguments.outgroupEventNames,
                        makeEventHeadersAlphaNumeric=self.getOptionalPhaseAttrib("makeEventHeadersAlphaNumeric", bool, False))
@@ -854,8 +854,6 @@ class CactusWorkflowArguments:
         self.cactusDiskDatabaseString = ET.tostring(self.experimentNode.find("cactus_disk").find("st_kv_database_conf"))
         #Get the species tree
         self.speciesTree = self.experimentNode.attrib["species_tree"]
-        #Get the sequences
-        self.sequences = self.experimentNode.attrib["sequences"].split()
         #Get any list of 'required species' for the blocks of the cactus.
         self.outgroupEventNames = getOptionalAttrib(self.experimentNode, "outgroup_events")
         #Constraints
@@ -937,8 +935,8 @@ class RunCactusPreprocessorThenCactusSetup(Target):
         
     def run(self):
         cactusWorkflowArguments=CactusWorkflowArguments(self.options)
-        outputSequenceDir = ExperimentWrapper(cactusWorkflowArguments.experimentNode).getOutputSequenceDir()
-        self.addChildTarget(CactusPreprocessor(cactusWorkflowArguments.sequences, outputSequenceDir, cactusWorkflowArguments.configNode))
+        eW = ExperimentWrapper(cactusWorkflowArguments.experimentNode)
+        self.addChildTarget(CactusPreprocessor(eW.getSequences(), eW.getOutputSequenceDir(), cactusWorkflowArguments.configNode))
         #Now make the setup, making a new workflow arguments object.
         self.setFollowOnTarget(CactusSetupPhase(cactusWorkflowArguments=cactusWorkflowArguments,
                                                             phaseName="setup"))
