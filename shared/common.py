@@ -389,7 +389,7 @@ def _fn(jobTreeDir,
     maxCpus = nameValue("maxCpus", maxCpus, int)
     defaultMemory= nameValue("defaultMemory", defaultMemory, int)
     logFile = nameValue("logFile", logFile, str)
-    return "%s %s %s --jobTree %s --logLevel %s %s %s %s %s %s %s %s %s %s %s %s %s" % (skipAlignments, buildAvgs, 
+    return "%s %s %s --jobTree %s --logLevel %s %s %s %s %s %s %s %s %s %s %s %s" % (skipAlignments, buildAvgs, 
              buildReference, jobTreeDir, logLevel, buildHal, buildFasta, batchSystem, retryCount, rescueJobFrequency, jobTreeStats, maxThreads, maxCpus, logFile, defaultMemory, extraJobTreeArgumentsString)
      
 def runCactusWorkflow(experimentFile,

@@ -194,7 +194,7 @@ def main():
                 raise RuntimeError("Specified outgroup %s not found in tree" % outgroupName)
     mcProj = createMCProject(tree, expTemplate, confTemplate, options)
     #Replace the sequences with output sequences
-    expTemplate.setSequences([ os.path.join(eW.getOutputSequenceDir(), os.path.split(i)[-1]) for i in eW.getSequences() ])
+    expTemplate.setSequences([ os.path.join(expTemplate.getOutputSequenceDir(), os.path.split(i)[-1]) for i in expTemplate.getSequences() ])
     #Now do the file tree creation
     createFileStructure(mcProj, expTemplate, confTemplate, options)
    # mcProj.check()
