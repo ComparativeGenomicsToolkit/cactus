@@ -145,9 +145,6 @@ class BatchPreprocessor(Target):
 ############################################################
 ############################################################
 
-def getOutputSequenceFile(outputSequenceDir, inputSequenceFile):
-    return os.path.join(outputSequenceDir, os.path.split(inputSequenceFile)[1] + ".preprocessed")        
-
 class CactusPreprocessor(Target):
     """Modifies the input genomes, doing things like masking/checking, etc.
     """
@@ -160,7 +157,7 @@ class CactusPreprocessor(Target):
         if not os.path.isdir(self.outputSequenceDir):
             os.mkdir(self.outputSequenceDir)
         for sequence in self.inputSequences:
-            outputSequenceFile = getOutputSequenceFile(self.outputSequenceDir, sequence)
+            outputSequenceFile = os.path.join(self.outputSequenceDir, os.path.split(sequence)[1]) 
             assert sequence != outputSequenceFile
             if not os.path.isfile(outputSequenceFile): #Only create the output sequence if it doesn't already exist. This prevents reprocessing if the sequence is used in multiple places between runs.
                 prepXmlElems = self.configNode.findall("preprocessor")

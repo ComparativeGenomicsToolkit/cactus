@@ -54,15 +54,17 @@ from cactus.shared.common import runCactusHalGenerator
 from cactus.shared.common import runCactusFlowerStats
 from cactus.shared.common import runCactusSecondaryDatabase
 from cactus.shared.common import runCactusFastaGenerator
+from cactus.shared.common import findRequiredNode
 
+from cactus.shared.experimentWrapper import ExperimentWrapper
 from cactus.blast.cactus_blast import BlastFlower
 from cactus.blast.cactus_blast import BlastOptions
 
 from cactus.preprocessor.cactus_preprocessor import CactusPreprocessor
-from cactus.preprocessor.cactus_preprocessor import getOutputSequenceFile
 
 from cactus.shared.experimentWrapper import ExperimentWrapper
 from cactus.shared.experimentWrapper import DbElemWrapper
+from cactus.shared.configWrapper import ConfigWrapper
 from cactus.pipeline.ktserverJobTree import addKtserverDependentChild
 
 ############################################################
@@ -73,15 +75,7 @@ from cactus.pipeline.ktserverJobTree import addKtserverDependentChild
 ############################################################
 ############################################################
 
-def findRequiredNode(configNode, nodeName, index=0):
-    """Retrieve an xml node, complain if its not there.
-    """
-    nodes = configNode.findall(nodeName)
-    if nodes == None:
-        raise RuntimeError("Could not find any nodes with name %s in %s node" % (nodeName, configNode))
-    if index >= len(nodes):
-        raise RuntimeError("Could not find a node with name %s and index %i in %s node" % (nodeName, index, configNode))
-    return nodes[index]
+
 
 def extractNode(node):
     """Make an XML node free of its parent subtree
@@ -850,6 +844,7 @@ class CactusWorkflowArguments:
     def __init__(self, options):
         self.experimentFile = options.experimentFile
         self.experimentNode = ET.parse(self.experimentFile).getroot()
+        self.experimentWrapper = ExperimentWrapper(self.experimentNode)
         #Get the database string
         self.cactusDiskDatabaseString = ET.tostring(self.experimentNode.find("cactus_disk").find("st_kv_database_conf"))
         #Get the species tree
@@ -870,40 +865,20 @@ class CactusWorkflowArguments:
             secondaryElem.setDbPort(secondaryElem.getDbPort() + 100)
         self.secondaryDatabaseString = secondaryElem.getConfString()
             
-        #The config options
-        configFile = self.experimentNode.attrib["config"]
-        if configFile == "default":
-            configFile = os.path.join(cactusRootPath(), "pipeline", "cactus_workflow_config.xml")
-        elif configFile == "defaultProgressive":
-            configFile = os.path.join(cactusRootPath(), "progressive", "cactus_progressive_workflow_config.xml")
-        elif configFile == "defaultProgressiveFast":
-            configFile = os.path.join(cactusRootPath(), "progressive", "cactus_progressive_workflow_config_fast.xml")
-        else:
-            logger.info("Using user specified config file: %s", configFile)
-        self.configNode = ET.parse(configFile).getroot()
+        #The config node
+        self.configNode = ET.parse(self.experimentWrapper.getConfigPath()).getroot()
+        self.configWrapper = ConfigWrapper(self.configNode)
         #Now deal with the constants that ned to be added here
-        constants = findRequiredNode(self.configNode, "constants")
-        defines = constants.find("defines")
-        def replaceAllConstants(node, defines):
-            for attrib in node.attrib:
-                if node.attrib[attrib] in defines.attrib:
-                    node.attrib[attrib] = defines.attrib[node.attrib[attrib]]
-            for child in node:
-                replaceAllConstants(child, defines)
-        if defines != None:
-            replaceAllConstants(self.configNode, defines)
-            constants.remove(defines)
+        self.configWrapper.substituteAllPredefinedConstantsWithLiterals()
+        self.configWrapper.setBuildHal(options.buildHal)
+        self.configWrapper.setBuildFasta(options.buildFasta)
+        
         #Now build the remaining options from the arguments
         if options.buildAvgs:
             findRequiredNode(self.configNode, "avg").attrib["buildAvgs"] = "1"
         if options.buildReference:
             findRequiredNode(self.configNode, "reference").attrib["buildReference"] = "1"
-        if options.buildHal:
-            findRequiredNode(self.configNode, "hal").attrib["buildHal"] = "1"
-        if options.buildMaf:
-            findRequiredNode(self.configNode, "hal").attrib["buildMaf"] = "1"
-        if options.buildFasta:
-            findRequiredNode(self.configNode, "hal").attrib["buildFasta"] = "1"
+            
 
 def addCactusWorkflowOptions(parser):
     parser.add_option("--experiment", dest="experimentFile", 
@@ -917,9 +892,6 @@ def addCactusWorkflowOptions(parser):
     
     parser.add_option("--buildHal", dest="buildHal", action="store_true",
                       help="Build a hal file", default=False)
-    
-    parser.add_option("--buildMaf", dest="buildMaf", action="store_true",
-                      help="Build a maf file", default=False)
     
     parser.add_option("--buildFasta", dest="buildFasta", action="store_true",
                       help="Build a fasta file of the input sequences (and reference sequence, used with hal output)", 

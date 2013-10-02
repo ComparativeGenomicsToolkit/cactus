@@ -36,7 +36,6 @@ from jobTree.scriptTree.target import Target
 from jobTree.scriptTree.stack import Stack 
 
 from cactus.preprocessor.cactus_preprocessor import CactusPreprocessor
-from cactus.preprocessor.cactus_preprocessor import getOutputSequenceFile
 from cactus.pipeline.cactus_workflow import CactusWorkflowArguments
 from cactus.pipeline.cactus_workflow import addCactusWorkflowOptions
 from cactus.pipeline.cactus_workflow import findRequiredNode
@@ -173,17 +172,6 @@ class FinishUp(Target):
         doneFile = open(donePath, "w")
         doneFile.write("")
         doneFile.close()
-        
-class RunCactusPreprocessorThenCactusSetup(Target):
-    def __init__(self, options):
-        self.options = options
-    def run(self):
-        cactusWorkflowArguments = CactusWorkflowArguments(self.options)
-        self.addChildTarget(CactusPreprocessorPhase(cactusWorkflowArguments=cactusWorkflowArguments, phaseName="preprocessor"))
-        #We redirect the output sequence files here, which is hacky as fuck
-        cactusWorkflowArguments.sequences = [ getOutputSequenceFile(self.cactusWorkflowArguments, i) for i in self.cactusWorkflowArguments.sequences ]
-        self.setFollowOnTarget(CactusSetupPhase(cactusWorkflowArguments=cactusWorkflowArguments,
-                                                            phaseName="setup"))
 
 class RunCactusPreprocessorThenProgressiveDown(Target):
     def __init__(self, options, args):
@@ -196,7 +184,11 @@ class RunCactusPreprocessorThenProgressiveDown(Target):
         project = MultiCactusProject()
         project.readXML(self.args[0])
         #Create jobs to create the output sequences
-        self.addChildTarget(CactusPreprocessor(project.getInputSequencePaths(), project.getAnExperimentWrapper().getOutputSequenceDir(), ET.parse(project.getConfigPath())))
+        configNode = ET.parse(project.getConfigPath())
+        ConfigWrapper(configNode).substituteAllPredefinedConstantsWithLiterals()
+        self.addChildTarget(CactusPreprocessor(project.getInputSequencePaths(), 
+                                               project.getAnExperimentWrapper().getOutputSequenceDir(), 
+                                               configNode))
         #Now build the progressive-down target
         schedule = Schedule()
         schedule.loadProject(project)

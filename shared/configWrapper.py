@@ -19,7 +19,7 @@ import sys
 import random
 import math
 import copy
-
+from cactus.shared.common import findRequiredNode
 
 class ConfigWrapper:
     defaultOutgroupStrategy = 'none'
@@ -174,5 +174,18 @@ class ConfigWrapper:
             sys.stderr.write("WARNING: reverting minBlockDegree from %i to 2 because of required_species\n" % 
                              minBlockDegree)
             itElem.attrib["minBlockDegree"] = "2"
+            
+    def substituteAllPredefinedConstantsWithLiterals(self):
+        constants = findRequiredNode(self.xmlRoot, "constants")
+        defines = constants.find("defines")
+        def replaceAllConstants(node, defines):
+            for attrib in node.attrib:
+                if node.attrib[attrib] in defines.attrib:
+                    node.attrib[attrib] = defines.attrib[node.attrib[attrib]]
+            for child in node:
+                replaceAllConstants(child, defines)
+        if defines != None:
+            replaceAllConstants(self.xmlRoot, defines)
+            constants.remove(defines)
             
         
