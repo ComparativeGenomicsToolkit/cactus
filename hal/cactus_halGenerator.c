@@ -25,7 +25,6 @@ void usage() {
     fprintf(stderr,
             "-g --referenceEventString : String identifying the reference event.\n");
     fprintf(stderr, "-k --outputFile : File to put final output in.\n");
-    fprintf(stderr, "-m --maf : Make maf instead.\n");
     fprintf(
             stderr,
             "-l --showOnlySubstitutionsWithRespectToReference : Put stars in place of characters that are identical to the reference.\n");
@@ -46,8 +45,6 @@ int main(int argc, char *argv[]) {
     char *referenceEventString =
             (char *) cactusMisc_getDefaultReferenceEventHeader();
     char *outputFile = NULL;
-    bool showOnlySubstitutionsWithRespectToReference = 0;
-    bool buildMaf = 0;
 
     ///////////////////////////////////////////////////////////////////////////
     // (0) Parse the inputs handed by genomeCactus.py / setup stuff.
@@ -61,12 +58,12 @@ int main(int argc, char *argv[]) {
                         "help", no_argument, 0, 'h' }, { "outputFile",
                         required_argument, 0, 'k' }, {
                         "showOnlySubstitutionsWithRespectToReference",
-                        no_argument, 0, 'l' }, { "maf", no_argument, 0, 'm' },
+                        no_argument, 0, 'l' },
                 { 0, 0, 0, 0 } };
 
         int option_index = 0;
 
-        int key = getopt_long(argc, argv, "a:c:d:e:g:hk:lm", long_options,
+        int key = getopt_long(argc, argv, "a:c:d:e:g:hk:l", long_options,
                 &option_index);
 
         if (key == -1) {
@@ -91,12 +88,6 @@ int main(int argc, char *argv[]) {
                 return 0;
             case 'k':
                 outputFile = stString_copy(optarg);
-                break;
-            case 'l':
-                showOnlySubstitutionsWithRespectToReference = 1;
-                break;
-            case 'm':
-                buildMaf = 1;
                 break;
             default:
                 usage();
@@ -166,12 +157,7 @@ int main(int argc, char *argv[]) {
     if(outputFile != NULL) {
         fileHandle = fopen(outputFile, "w");
     }
-    if(buildMaf) {
-        makeMafFormat(flowers, sequenceDatabase, referenceEventName, fileHandle, showOnlySubstitutionsWithRespectToReference);
-    }
-    else {
-        makeHalFormat(flowers, sequenceDatabase, referenceEventName, fileHandle);
-    }
+    makeHalFormat(flowers, sequenceDatabase, referenceEventName, fileHandle);
     if(fileHandle != NULL) {
         fclose(fileHandle);
     }

@@ -161,7 +161,7 @@ class DbElemWrapper(object):
         if "in_memory" in self.dbElem.attrib:
             val = self.dbElem.attrib["in_memory"]
             retVal = val.lower() == "true" or val == "1"
-            assert (not retVal or "database_name" not in self.dbElem.attrib)
+            #assert (not retVal or "database_name" not in self.dbElem.attrib)
             return retVal
         return False
 
@@ -180,7 +180,7 @@ class DbElemWrapper(object):
         assert self.getDbType() == "kyoto_tycoon"
         self.dbElem.attrib["snapshot"] = str(int(snapshot))
     
-    def cleanupDb(self): #Replacmentr for cleanupDatabase
+    def cleanupDb(self): #Replacement for cleanupDatabase
         """Removes the database that was created.
         """
         if self.getDbType() == "kyoto_tycoon":
