@@ -20,12 +20,14 @@ from cactus.shared.configWrapper import ConfigWrapper
 from cactus.progressive.outgroup import GreedyOutgroup
 from sonLib.nxnewick import NXNewick
 
-def createMCProject(tree, config, options):
+def createMCProject(tree, experiment, config, options):
     mcTree = MultiCactusTree(tree, config.getSubtreeSize())
     mcTree.nameUnlabeledInternalNodes(config.getDefaultInternalNodePrefix())
     mcTree.computeSubtreeRoots()
     mcProj = MultiCactusProject()
     mcProj.mcTree = mcTree
+    mcProj.inputSequences = experiment.getSequences()[:] 
+    mcProj.outputSequenceDir = experiment.getOutputSequenceDir()
     if config.getDoSelfAlignment():
         mcTree.addSelfEdges()
     for name in mcProj.mcTree.getSubtreeRootNames():
@@ -190,7 +192,10 @@ def main():
         for outgroupName in options.outgroupNames:
             if outgroupName not in projNames:
                 raise RuntimeError("Specified outgroup %s not found in tree" % outgroupName)
-    mcProj = createMCProject(tree, confTemplate, options)
+    mcProj = createMCProject(tree, expTemplate, confTemplate, options)
+    #Replace the sequences with output sequences
+    expTemplate.setSequences([ os.path.join(eW.getOutputSequenceDir(), os.path.split(i)[-1]) for i in eW.getSequences() ])
+    #Now do the file tree creation
     createFileStructure(mcProj, expTemplate, confTemplate, options)
    # mcProj.check()
     return 0

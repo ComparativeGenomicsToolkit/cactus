@@ -39,6 +39,7 @@ from cactus.preprocessor.cactus_preprocessor import CactusPreprocessor
 from cactus.pipeline.cactus_workflow import CactusWorkflowArguments
 from cactus.pipeline.cactus_workflow import addCactusWorkflowOptions
 from cactus.pipeline.cactus_workflow import findRequiredNode
+from cactus.pipeline.cactus_workflow import CactusSetupPhase
 
 from cactus.progressive.multiCactusProject import MultiCactusProject
 from cactus.progressive.multiCactusTree import MultiCactusTree
@@ -184,10 +185,11 @@ class RunCactusPreprocessorThenProgressiveDown(Target):
         project = MultiCactusProject()
         project.readXML(self.args[0])
         #Create jobs to create the output sequences
-        configNode = ET.parse(project.getConfigPath())
-        ConfigWrapper(configNode).substituteAllPredefinedConstantsWithLiterals()
+        configNode = ET.parse(project.getConfigPath()).getroot()
+        ConfigWrapper(configNode).substituteAllPredefinedConstantsWithLiterals() #This is necessary..
+        #Create the preprocessor
         self.addChildTarget(CactusPreprocessor(project.getInputSequencePaths(), 
-                                               project.getAnExperimentWrapper().getOutputSequenceDir(), 
+                                               project.getOutputSequenceDir(), 
                                                configNode))
         #Now build the progressive-down target
         schedule = Schedule()
@@ -196,7 +198,7 @@ class RunCactusPreprocessorThenProgressiveDown(Target):
         if self.options.event == None:
             self.options.event = project.mcTree.getRootName()
         assert self.options.event in project.expMap
-        leafNames = [project.mcTree.getName(i) for i in project.mcTree.getLeaves()]
+        leafNames = [ project.mcTree.getName(i) for i in project.mcTree.getLeaves() ]
         self.options.globalLeafEventSet = set(leafNames)
         self.setFollowOnTarget(ProgressiveDown(self.options, project, self.options.event, schedule))
 

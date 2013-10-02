@@ -17,12 +17,12 @@ class TestCase(unittest.TestCase):
     def testCactusRecursiveHalGenerator_Random(self):
         runWorkflow_multipleExamples(getCactusInputs_random,
                                      testNumber=TestStatus.getTestSetup(),
-                                     buildReference=True, buildHal=True, buildMaf=True, buildFasta=True)
+                                     buildReference=True, buildHal=True, buildFasta=True)
         
     def testCactusRecursiveHalGenerator_Blanchette(self):
         runWorkflow_multipleExamples(getCactusInputs_blanchette,
                                      testRestrictions=(TestStatus.TEST_SHORT,), inverseTestRestrictions=True,
-                                     buildReference=True, buildHal=True, buildMaf=True, buildFasta=True)
+                                     buildReference=True, buildHal=True, buildFasta=True)
     
     def testHalGeneratorFunctions(self):
         """Run all the CuTests, fail if any of them fail.

@@ -123,8 +123,7 @@ class TestCase(unittest.TestCase):
     def progressiveFunction(self, experimentFile, jobTreeDir, 
                           batchSystem, buildAvgs, 
                           buildReference,
-                          buildHal,
-                          buildMaf,
+                          buildHal, 
                           buildFasta,
                           jobTreeStats):
         tempDir = getTempDirectory(os.getcwd())

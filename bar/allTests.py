@@ -80,7 +80,7 @@ class TestCase(unittest.TestCase):
             experiment = getCactusWorkflowExperimentForTest(tempFastaFiles, newickTreeString, testDir)
             experimentFile = os.path.join(testDir, "experiment.xml")
             experiment.writeXML(experimentFile)
-            cactusDiskDatabaseString = experiment.getDatabaseString()
+            cactusDiskDatabaseString = experiment.getDiskDatabaseString()
             
             jobTree = os.path.join(testDir, "jobTree")
             

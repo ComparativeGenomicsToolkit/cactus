@@ -367,7 +367,6 @@ def _fn(jobTreeDir,
       skipAlignments=False,
       buildAvgs=False, buildReference=False,
       buildHal=False,
-      buildMaf=False,
       buildFasta=False,
       jobTreeStats=False,
       maxThreads=None,
@@ -380,7 +379,6 @@ def _fn(jobTreeDir,
     buildAvgs = nameValue("buildAvgs", buildAvgs, bool)
     buildReference = nameValue("buildReference", buildReference, bool)
     buildHal = nameValue("buildHal", buildHal, bool)
-    buildMaf= nameValue("buildMaf", buildMaf, bool)
     buildFasta = nameValue("buildFasta", buildFasta, bool)
     #Jobtree args
     batchSystem = nameValue("batchSystem", batchSystem, str, quotes=True)
@@ -392,7 +390,7 @@ def _fn(jobTreeDir,
     defaultMemory= nameValue("defaultMemory", defaultMemory, int)
     logFile = nameValue("logFile", logFile, str)
     return "%s %s %s --jobTree %s --logLevel %s %s %s %s %s %s %s %s %s %s %s %s %s" % (skipAlignments, buildAvgs, 
-             buildReference, jobTreeDir, logLevel, buildHal, buildMaf, buildFasta, batchSystem, retryCount, rescueJobFrequency, jobTreeStats, maxThreads, maxCpus, logFile, defaultMemory, extraJobTreeArgumentsString)
+             buildReference, jobTreeDir, logLevel, buildHal, buildFasta, batchSystem, retryCount, rescueJobFrequency, jobTreeStats, maxThreads, maxCpus, logFile, defaultMemory, extraJobTreeArgumentsString)
      
 def runCactusWorkflow(experimentFile,
                       jobTreeDir, 
@@ -402,7 +400,6 @@ def runCactusWorkflow(experimentFile,
                       skipAlignments=False,
                       buildAvgs=False, buildReference=False,
                       buildHal=False,
-                      buildMaf=False,
                       buildFasta=False,
                       jobTreeStats=False,
                       maxThreads=None,
@@ -412,7 +409,7 @@ def runCactusWorkflow(experimentFile,
                       extraJobTreeArgumentsString=""):
     command = ("cactus_workflow.py --experiment %s" % experimentFile) + " " + _fn(jobTreeDir, 
                       logLevel, retryCount, batchSystem, rescueJobFrequency, skipAlignments,
-                      buildAvgs, buildReference, buildHal, buildMaf, buildFasta, jobTreeStats, maxThreads, maxCpus, defaultMemory, logFile, extraJobTreeArgumentsString=extraJobTreeArgumentsString)
+                      buildAvgs, buildReference, buildHal, buildFasta, jobTreeStats, maxThreads, maxCpus, defaultMemory, logFile, extraJobTreeArgumentsString=extraJobTreeArgumentsString)
     system(command)
     logger.info("Ran the cactus workflow okay")
     
@@ -430,7 +427,6 @@ def runCactusProgressive(inputDir,
                       rescueJobFrequency=None,
                       skipAlignments=False,
                       buildHal=None,
-                      buildMaf=None,
                       buildFasta=None,
                       buildAvgs=False, 
                       jobTreeStats=False,
@@ -446,23 +442,13 @@ def runCactusProgressive(inputDir,
                       logLevel, retryCount, batchSystem, rescueJobFrequency, skipAlignments,
                       buildAvgs, None,
                       buildHal,
-                      False,
                       buildFasta,
                       jobTreeStats, maxThreads, maxCpus, defaultMemory, logFile, extraJobTreeArgumentsString=extraJobTreeArgumentsString) + \
                       (" %s %s" % (nameValue("recursive", recursive, bool),
                                       nameValue("event", event)))
     if profileFile != None:
         command = "python -m cProfile -o %s %s/bin/%s" % (profileFile, cactusRootPath(), command)
-    system(command)
-    if buildMaf is True:
-        assert buildHal is True
-        basePath = os.path.dirname(inputDir)
-        assert os.path.isdir(basePath)
-        halExportCmd = "cactus2hal.py %s %s --inMemory" % (inputDir, os.path.join(basePath, 'out.hal'))
-        system(halExportCmd)
-        mafExportCmd = "hal2maf %s %s --maxRefGap 1000000 --inMemory" % (os.path.join(basePath, 'out.hal'),
-                                                         os.path.join(basePath, 'out.maf'))
-        system(mafExportCmd)                            
+    system(command)                   
     logger.info("Ran the cactus progressive okay")
     
 def runCactusHalGenerator(cactusDiskDatabaseString,

@@ -265,17 +265,15 @@ class ExperimentWrapper(DbElemWrapper):
         treeString = self.xmlRoot.attrib["species_tree"]
         return NXNewick().parseString(treeString)
     
+    def setSequences(self, sequences):
+        self.xmlRoot.attrib["sequences"] = " ".join(sequences)
+        self.seqMap = self.buildSequenceMap()
+    
     def getSequences(self):
         return self.xmlRoot.attrib["sequences"].split()
     
     def getSequence(self, event):
         return self.seqMap[event]
-    
-    def getOutputSequence(self, event):
-        return os.path.join(self.getOutputSequenceDir(), os.path.split(self.seqMap[event])[-1])
-    
-    def getOutputSequences(self):
-        return [ os.path.join(self.getOutputSequenceDir(), os.path.split(i)[-1]) for i in self.xmlRoot.attrib["sequences"].split() ]
     
     def getReferencePath(self):
         refElem = self.xmlRoot.find("reference")

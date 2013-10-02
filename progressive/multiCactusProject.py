@@ -28,6 +28,8 @@ class MultiCactusProject:
     def __init__(self):
         self.mcTree = None
         self.expMap = dict()
+        self.inputSequences = []
+        self.outputSequenceDir = None
         
     def readXML(self, path):
         xmlRoot = ET.parse(path).getroot()
@@ -39,6 +41,8 @@ class MultiCactusProject:
             nameElem = cactusPathElem.attrib["name"]
             pathElem = cactusPathElem.attrib["experiment_path"]
             self.expMap[nameElem] = pathElem
+        self.inputSequences = xmlRoot.attrib["inputSequences"].split()
+        self.outputSequenceDir = xmlRoot.attrib["outputSequenceDir"]
         self.mcTree.assignSubtreeRootNames(self.expMap)
         
     def writeXML(self, path):
@@ -51,6 +55,9 @@ class MultiCactusProject:
             cactusPathElem.attrib["name"] = name
             cactusPathElem.attrib["experiment_path"] = expPath
             xmlRoot.append(cactusPathElem)
+        #We keep track of all the input sequences at the top level
+        xmlRoot.attrib["inputSequences"] = " ".join(self.inputSequences)
+        xmlRoot.attrib["outputSequenceDir"] = self.outputSequenceDir
         xmlFile = open(path, "w")
         xmlString = ET.tostring(xmlRoot)
         xmlString = minidom.parseString(xmlString).toprettyxml()
@@ -65,26 +72,22 @@ class MultiCactusProject:
         expPath = self.expMap[parentEvent]
         expElem = ET.parse(expPath).getroot()
         exp = ExperimentWrapper(expElem)
-        seq = exp.getOutputSequence(eventName)
+        seq = exp.getSequence(eventName)
         assert os.path.isfile(seq)
         return seq
     
     def getInputSequencePaths(self):
         """Get the set of input sequences for the multicactus tree
         """
-        sequences = set()
-        for expPath in self.expMap.values():
-            eW = ExperimentWrapper(ET.parse(expPath).getroot())
-            for i in eW.getSequences():
-                sequences.add(i)
-        return list(sequences)
-
-    def getAnExperimentWrapper(self):
-        #Load an experiment file to get stuff that is invariant between experiments
-        return ExperimentWrapper(ET.parse(self.expMap.values()[0]).getroot())
+        return self.inputSequences
+    
+    def getOutputSequenceDir(self):
+        """The directory where the output sequences go
+        """
+        return self.outputSequenceDir
     
     def getConfigPath(self):
-        return self.getAnExperimentWrapper().getConfigPath()
+        return ExperimentWrapper(ET.parse(self.expMap.values()[0]).getroot()).getConfigPath()
       
 if __name__ == '__main__':
     main()

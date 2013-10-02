@@ -34,7 +34,7 @@ class TestCase(unittest.TestCase):
             
             #Setup the flower disk.
             experiment = getCactusWorkflowExperimentForTest(sequences, newickTreeString, tempDir)
-            cactusDiskDatabaseString = experiment.getDatabaseString() 
+            cactusDiskDatabaseString = experiment.getDiskDatabaseString() 
             
             runCactusSetup(cactusDiskDatabaseString, sequences, newickTreeString)
             runCactusSetup(cactusDiskDatabaseString, sequences, newickTreeString)
