@@ -303,11 +303,13 @@ class CactusSetupPhase(CactusPhasesTarget):
 class CactusSetupPhase2(CactusPhasesTarget):   
     def run(self):        
         #Now run setup
-        runCactusSetup(cactusDiskDatabaseString=self.cactusWorkflowArguments.cactusDiskDatabaseString, 
+        messages = runCactusSetup(cactusDiskDatabaseString=self.cactusWorkflowArguments.cactusDiskDatabaseString, 
                        sequences=ExperimentWrapper(self.cactusWorkflowArguments.experimentNode).getSequences(),
                        newickTreeString=self.cactusWorkflowArguments.speciesTree, 
                        outgroupEvents=self.cactusWorkflowArguments.outgroupEventNames,
                        makeEventHeadersAlphaNumeric=self.getOptionalPhaseAttrib("makeEventHeadersAlphaNumeric", bool, False))
+        for message in messages:
+            self.logToMaster(message)
         self.makeFollowOnPhaseTarget(CactusCafPhase, "caf")
         
 ############################################################

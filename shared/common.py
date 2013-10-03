@@ -145,11 +145,12 @@ def runCactusSetup(cactusDiskDatabaseString, sequences,
     logLevel = getLogLevelString2(logLevel)
     outgroupEvents = nameValue("outgroupEvents", outgroupEvents, str)
     makeEventHeadersAlphaNumeric=nameValue("makeEventHeadersAlphaNumeric", makeEventHeadersAlphaNumeric, bool)
-    system("cactus_setup %s --speciesTree '%s' --cactusDisk '%s' \
+    masterMessages = popenCatch("cactus_setup %s --speciesTree '%s' --cactusDisk '%s' \
 --logLevel %s %s %s" \
            % (" ".join(sequences), newickTreeString,
               cactusDiskDatabaseString, logLevel, outgroupEvents, makeEventHeadersAlphaNumeric))
     logger.info("Ran cactus setup okay")
+    return [ i for i in masterMessages.split("\n") if i != '' ]
     
 def runCactusBlast(sequenceFiles, outputFile, jobTreeDir,
                    chunkSize=None, overlapSize=None, 

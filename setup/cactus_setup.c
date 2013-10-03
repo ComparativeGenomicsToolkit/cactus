@@ -76,7 +76,17 @@ void makeEventHeadersAlphaNumericFn(stTree *tree) {
     }
 }
 
-void fn(const char *fastaHeader, const char *string, int64_t length) {
+//We want to report number of sequences,
+static stList *sequenceLengths;
+static stList *repeatBaseCounts;
+static const char *fileNameForStats;
+void setupStatsCollation(const char *fileName) {
+    fileNameForStats = fileName;
+    sequenceLengths = stList_construct3(0, (void (*)(void *))stIntTuple_destruct);
+    repeatBaseCounts = stList_construct3(0, (void (*)(void *))stIntTuple_destruct);
+}
+
+void processSequence(const char *fastaHeader, const char *string, int64_t length) {
     /*
      * Processes a sequence by adding it to the flower disk.
      */
@@ -90,14 +100,42 @@ void fn(const char *fastaHeader, const char *string, int64_t length) {
     //Now put the details in a flower.
     metaSequence = metaSequence_construct(2, length, string, fastaHeader, event_getName(event), cactusDisk);
     sequence = sequence_construct(metaSequence, flower);
-    //isComplete = 0;
+
     end1 = end_construct2(0, isComplete, flower);
     end2 = end_construct2(1, isComplete, flower);
     cap1 = cap_construct2(end1, 1, 1, sequence);
     cap2 = cap_construct2(end2, length + 2, 1, sequence);
     cap_makeAdjacent(cap1, cap2);
     totalSequenceNumber++;
+
+    //Now collate stats
+    stList_append(sequenceLengths, stIntTuple_construct1(strlen(string)));
+    int64_t j=0;
+    for(int64_t i=0; i<strlen(string); i++) {
+        j += tolower(string[i]) == string[i] ? 1 : 0;
+    }
+    stList_append(repeatBaseCounts, stIntTuple_construct1(j));
 }
+
+void cleanupAndReportStatsCollection() {
+    //Collate stats
+    int64_t totalSequences = stList_length(sequenceLengths);
+    int64_t totalLength = 0;
+    int64_t repeatBaseCount = 0;
+    stList_sort(sequenceLengths, (int (*)(const void *, const void *))stIntTuple_cmpFn);
+    for(int64_t i=0; i<totalSequences; i++) {
+        totalLength += stIntTuple_get(stList_get(sequenceLengths, i), 0);
+        repeatBaseCount += stIntTuple_get(stList_get(repeatBaseCounts, i), 0);
+    }
+    int64_t n50 = totalSequences > 0 ? stIntTuple_get(stList_get(sequenceLengths, totalSequences/2), 0) : 0;
+    fprintf(stdout, "Input-sample: %s Total-sequences: %" PRIi64 " Total-length: %" PRIi64 " Proportion-repeat-masked: %f N50: %" PRIi64 "\n",
+            fileNameForStats, totalSequences, totalLength, ((double)repeatBaseCount)/totalLength, n50);
+    //Cleanup
+    stList_destruct(sequenceLengths);
+    stList_destruct(repeatBaseCounts);
+}
+
+
 
 void setCompleteStatus(const char *fileName) {
     isComplete = 0;
@@ -289,21 +327,25 @@ int main(int argc, char *argv[]) {
             if (stFile_isDir(fileName)) {
                 st_logInfo("Processing directory: %s\n", fileName);
                 stList *filesInDir = stFile_getFileNamesInDirectory(fileName);
+                setupStatsCollation(fileName);
                 for (int64_t i = 0; i < stList_length(filesInDir); i++) {
                     char *absChildFileName = stFile_pathJoin(fileName, stList_get(filesInDir, i));
                     assert(stFile_exists(absChildFileName));
                     setCompleteStatus(absChildFileName); //decide if the sequences in the file should be free or attached.
                     fileHandle = fopen(absChildFileName, "r");
-                    fastaReadToFunction(fileHandle, fn);
+                    fastaReadToFunction(fileHandle, processSequence);
                     fclose(fileHandle);
                     free(absChildFileName);
                 }
+                cleanupAndReportStatsCollection();
                 stList_destruct(filesInDir);
             } else {
                 st_logInfo("Processing file: %s\n", fileName);
                 setCompleteStatus(fileName); //decide if the sequences in the file should be free or attached.
                 fileHandle = fopen(fileName, "r");
-                fastaReadToFunction(fileHandle, fn);
+                setupStatsCollation(fileName);
+                fastaReadToFunction(fileHandle, processSequence);
+                cleanupAndReportStatsCollection();
                 fclose(fileHandle);
             }
             j++;
