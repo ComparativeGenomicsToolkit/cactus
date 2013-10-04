@@ -79,11 +79,13 @@ void makeEventHeadersAlphaNumericFn(stTree *tree) {
 //We want to report number of sequences,
 static stList *sequenceLengths;
 static stList *repeatBaseCounts;
+int64_t nCount;
 static const char *fileNameForStats;
 void setupStatsCollation(const char *fileName) {
     fileNameForStats = fileName;
     sequenceLengths = stList_construct3(0, (void (*)(void *))stIntTuple_destruct);
     repeatBaseCounts = stList_construct3(0, (void (*)(void *))stIntTuple_destruct);
+    nCount = 0;
 }
 
 void processSequence(const char *fastaHeader, const char *string, int64_t length) {
@@ -112,7 +114,9 @@ void processSequence(const char *fastaHeader, const char *string, int64_t length
     stList_append(sequenceLengths, stIntTuple_construct1(strlen(string)));
     int64_t j=0;
     for(int64_t i=0; i<strlen(string); i++) {
-        j += tolower(string[i]) == string[i] ? 1 : 0;
+        bool isN = string[i] == 'N' || string[j] == 'n';
+        j += (tolower(string[i]) == string[i] || isN) ? 1 : 0;
+        nCount += isN ? 1 : 0;
     }
     stList_append(repeatBaseCounts, stIntTuple_construct1(j));
 }
@@ -137,14 +141,12 @@ void cleanupAndReportStatsCollection() {
             break;
         }
     }
-    fprintf(stdout, "Input-sample: %s Total-sequences: %" PRIi64 " Total-length: %" PRIi64 " Proportion-repeat-masked: %f N50: %" PRIi64 " Median-sequence-length: %" PRIi64 "\n",
-            fileNameForStats, totalSequences, totalLength, ((double)repeatBaseCount)/totalLength, n50, medianSequenceLength);
+    fprintf(stdout, "Input-sample: %s Total-sequences: %" PRIi64 " Total-length: %" PRIi64 " Proportion-repeat-masked: %f ProportionNs: %f N50: %" PRIi64 " Median-sequence-length: %" PRIi64 "\n",
+            fileNameForStats, totalSequences, totalLength, ((double)repeatBaseCount)/totalLength, ((double)nCount)/totalLength, n50, medianSequenceLength);
     //Cleanup
     stList_destruct(sequenceLengths);
     stList_destruct(repeatBaseCounts);
 }
-
-
 
 void setCompleteStatus(const char *fileName) {
     isComplete = 0;
