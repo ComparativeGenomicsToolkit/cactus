@@ -127,9 +127,18 @@ void cleanupAndReportStatsCollection() {
         totalLength += stIntTuple_get(stList_get(sequenceLengths, i), 0);
         repeatBaseCount += stIntTuple_get(stList_get(repeatBaseCounts, i), 0);
     }
-    int64_t n50 = totalSequences > 0 ? stIntTuple_get(stList_get(sequenceLengths, totalSequences/2), 0) : 0;
-    fprintf(stdout, "Input-sample: %s Total-sequences: %" PRIi64 " Total-length: %" PRIi64 " Proportion-repeat-masked: %f N50: %" PRIi64 "\n",
-            fileNameForStats, totalSequences, totalLength, ((double)repeatBaseCount)/totalLength, n50);
+    int64_t medianSequenceLength = totalSequences > 0 ? stIntTuple_get(stList_get(sequenceLengths, totalSequences/2), 0) : 0;
+    int64_t n50;
+    int64_t j=0;
+    for(int64_t i=totalSequences-1; i>=0; i--) {
+        n50 = stIntTuple_get(stList_get(repeatBaseCounts, i), 0);
+        j += n50;
+        if(j >= totalLength/2) {
+            break;
+        }
+    }
+    fprintf(stdout, "Input-sample: %s Total-sequences: %" PRIi64 " Total-length: %" PRIi64 " Proportion-repeat-masked: %f N50: %" PRIi64 " Median-sequence-length: %" PRIi64 "\n",
+            fileNameForStats, totalSequences, totalLength, ((double)repeatBaseCount)/totalLength, n50, medianSequenceLength);
     //Cleanup
     stList_destruct(sequenceLengths);
     stList_destruct(repeatBaseCounts);
