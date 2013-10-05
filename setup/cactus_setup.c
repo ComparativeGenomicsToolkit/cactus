@@ -111,9 +111,10 @@ void processSequence(const char *fastaHeader, const char *string, int64_t length
     totalSequenceNumber++;
 
     //Now collate stats
-    stList_append(sequenceLengths, stIntTuple_construct1(strlen(string)));
+    int64_t sequenceLength = strlen(string);
+    stList_append(sequenceLengths, stIntTuple_construct1(sequenceLength));
     int64_t j=0;
-    for(int64_t i=0; i<strlen(string); i++) {
+    for(int64_t i=0; i<sequenceLength; i++) {
         bool isN = string[i] == 'N' || string[j] == 'n';
         j += (tolower(string[i]) == string[i] || isN) ? 1 : 0;
         nCount += isN ? 1 : 0;
