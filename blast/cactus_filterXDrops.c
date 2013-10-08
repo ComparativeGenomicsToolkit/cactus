@@ -245,8 +245,6 @@ stList *partitionCigarIntoUsefulTrees(struct PairwiseAlignment *pA,
 #endif
     //Now perform algorithm described in paper to construct useful trees.
     stList *stack = stList_construct();
-
-
 }
 
 static stHash *hashAdditionalSequences_sequences;
@@ -272,8 +270,6 @@ stHash *hashSequences(const char *seqFile) {
     hashAdditionalSequences(seqFile, sequences);
     return sequences;
 }
-
-
 
 int main(int argc, char *argv[]) {
     //arguments are log-string, X, Y, inputCigarFile, outputCigarFile, seqFilesxN (where N >= 1)
@@ -302,7 +298,8 @@ int main(int argc, char *argv[]) {
     }
     struct PairwiseAlignment *pA;
     while((pA = cigarRead(inputCigarFileHandle)) != NULL) {
-        stList *usefulTrees = partitionCigarIntoUsefulTrees(pA, lastZScoreFn, stHash_search(sequences, pA->contig1), stHash_search(sequences, pA->contig2));
+        stList *usefulTrees = partitionCigarIntoUsefulTrees(pA, lastZScoreFn,
+                stHash_search(sequences, pA->contig1), stHash_search(sequences, pA->contig2));
         for(int64_t i=0; i<stList_length(usefulTrees); i++) {
             segment_reportXFullSubalignments(stList_get(usefulTrees, i), pA, X, outputCigarFileHandle);
         }
