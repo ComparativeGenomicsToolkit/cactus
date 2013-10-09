@@ -14,6 +14,10 @@
 #ifndef PAIRWISEALIGNER_H_
 #define PAIRWISEALIGNER_H_
 
+#include "bioioC.h"
+#include "sonLib.h"
+#include "pairwiseAlignment.h"
+
 //The exception string
 extern const char *PAIRWISE_ALIGNMENT_EXCEPTION_ID;
 
@@ -40,6 +44,10 @@ void pairwiseAlignmentBandingParameters_destruct(PairwiseAlignmentParameters *p)
  * Gets the set of posterior match probabilities under a simple HMM model of alignment for two DNA sequences.
  */
 stList *getAlignedPairs(const char *string1, const char *string2, PairwiseAlignmentParameters *p,  bool alignmentHasRaggedLeftEnd, bool alignmentHasRaggedRightEnd);
+
+stList *convertPairwiseForwardStrandAlignmentToAnchorPairs(struct PairwiseAlignment *pA, int64_t trim);
+
+stList *getAlignedPairsUsingAnchors(const char *sX, const char *sY, stList *anchorPairs, PairwiseAlignmentParameters *p, bool alignmentHasRaggedLeftEnd, bool alignmentHasRaggedRightEnd);
 
 /*
  * Methods tested and possibly useful elsewhere
