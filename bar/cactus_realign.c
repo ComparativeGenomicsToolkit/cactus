@@ -91,9 +91,12 @@ void addToSequencesHash(const char *header, const char *sequence, int64_t length
 
 int main(int argc, char *argv[]) {
     char * logLevelString = NULL;
-    float gapGamma = 0.5;
+    float gapGamma = 0.2;
     int64_t i, j;
     PairwiseAlignmentParameters *pairwiseAlignmentBandingParameters = pairwiseAlignmentBandingParameters_construct();
+    pairwiseAlignmentBandingParameters->constraintDiagonalTrim = 3;
+    pairwiseAlignmentBandingParameters->splitMatrixBiggerThanThis = 100;
+    pairwiseAlignmentBandingParameters->diagonalExpansion = 10;
 
     /*
      * Parse the options.
